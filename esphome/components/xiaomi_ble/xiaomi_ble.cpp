@@ -12,6 +12,75 @@ namespace xiaomi_ble {
 
 static const char *TAG = "xiaomi_ble";
 
+bool parse_xiaomi_data_byte(uint8_t data_type, const uint8_t *data, uint8_t data_length, XiaomiParseResult &result) {
+  // motion detection, 1 byte, 8-bit unsigned integer
+  if ((data_type == 0x03) && (data_length == 1)) {
+    result.has_motion = (data[0]) ? true : false;
+  }
+  // temperature, 2 bytes, 16-bit signed integer (LE), 0.1 °C
+  else if ((data_type == 0x04) && (data_length == 2)) {
+    const int16_t temperature = uint16_t(data[0]) | (uint16_t(data[1]) << 8);
+    result.temperature = temperature / 10.0f;
+  }
+  // humidity, 2 bytes, 16-bit signed integer (LE), 0.1 %
+  else if ((data_type == 0x06) && (data_length == 2)) {
+    const int16_t humidity = uint16_t(data[0]) | (uint16_t(data[1]) << 8);
+    result.humidity = humidity / 10.0f;
+  }
+  // illuminance (+ motion), 3 bytes, 24-bit unsigned integer (LE), 1 lx
+  else if (((data_type == 0x07) || (data_type == 0x0F)) && (data_length == 3)) {
+    const uint32_t illuminance = uint32_t(data[0]) | (uint32_t(data[1]) << 8) | (uint32_t(data[2]) << 16);
+    result.illuminance = illuminance;
+    result.is_light = (illuminance == 100) ? true : false;
+    if (data_type == 0x0F)
+      result.has_motion = true;
+  }
+  // soil moisture, 1 byte, 8-bit unsigned integer, 1 %
+  else if ((data_type == 0x08) && (data_length == 1)) {
+    result.moisture = data[0];
+  }
+  // conductivity, 2 bytes, 16-bit unsigned integer (LE), 1 µS/cm
+  else if ((data_type == 0x09) && (data_length == 2)) {
+    const uint16_t conductivity = uint16_t(data[0]) | (uint16_t(data[1]) << 8);
+    result.conductivity = conductivity;
+  }
+  // battery, 1 byte, 8-bit unsigned integer, 1 %
+  else if ((data_type == 0x0A) && (data_length == 1)) {
+    result.battery_level = data[0];
+  }
+  // temperature + humidity, 4 bytes, 16-bit signed integer (LE) each, 0.1 °C, 0.1 %
+  else if ((data_type == 0x0D) && (data_length == 4)) {
+    const int16_t temperature = uint16_t(data[0]) | (uint16_t(data[1]) << 8);
+    const int16_t humidity = uint16_t(data[2]) | (uint16_t(data[3]) << 8);
+    result.temperature = temperature / 10.0f;
+    result.humidity = humidity / 10.0f;
+  }
+  // formaldehyde, 2 bytes, 16-bit unsigned integer (LE), 0.01 mg / m3
+  else if ((data_type == 0x10) && (data_length == 2)) {
+    const uint16_t formaldehyde = uint16_t(data[0]) | (uint16_t(data[1]) << 8);
+    result.formaldehyde = formaldehyde / 100.0f;
+  }
+  // on/off state, 1 byte, 8-bit unsigned integer
+  else if ((data_type == 0x12) && (data_length == 1)) {
+    result.is_active = (data[0]) ? true : false;
+  }
+  // mosquito tablet, 1 byte, 8-bit unsigned integer, 1 %
+  else if ((data_type == 0x13) && (data_length == 1)) {
+    result.tablet = data[0];
+  }
+  // idle time since last motion, 4 byte, 32-bit unsigned integer, 1 min
+  else if ((data_type == 0x17) && (data_length == 4)) {
+    const uint32_t idle_time =
+        uint32_t(data[0]) | (uint32_t(data[1]) << 8) | (uint32_t(data[2]) << 16) | (uint32_t(data[2]) << 24);
+    result.idle_time = idle_time / 60.0f;
+    result.has_motion = (idle_time) ? false : true;
+  } else {
+    return false;
+  }
+
+  return true;
+}
+
 bool parse_xiaomi_message(const std::vector<uint8_t> &message, XiaomiParseResult &result) {
   result.has_encryption = (message[0] & 0x08) ? true : false;  // update encryption status
   if (result.has_encryption) {
@@ -25,81 +94,41 @@ bool parse_xiaomi_message(const std::vector<uint8_t> &message, XiaomiParseResult
   // Byte 2: length
   // Byte 3..3+len-1: data point value
 
-  const uint8_t *raw = message.data() + result.raw_offset;
-  const uint8_t *data = raw + 3;
-  const uint8_t data_length = raw[2];
+  const uint8_t *raw_data = message.data() + result.raw_offset;
+  uint8_t data_offset = 0;
+  uint8_t data_length = message.size() - result.raw_offset;
+  bool success = false;
 
-  if ((data_length < 1) || (data_length > 4)) {
-    ESP_LOGVV(TAG, "parse_xiaomi_message(): payload has wrong size (%d)!", data_length);
-    return false;
-  }
+  while (data_length > 0) {
+    if (data_length < 4) {
+      ESP_LOGVV(TAG, "parse_xiaomi_message(): payload data has wrong size (%d)!", data_length);
+      break;
+    }
 
-  // motion detection, 1 byte, 8-bit unsigned integer
-  if ((raw[0] == 0x03) && (data_length == 1)) {
-    result.has_motion = (data[0]) ? true : false;
-  }
-  // temperature, 2 bytes, 16-bit signed integer (LE), 0.1 °C
-  else if ((raw[0] == 0x04) && (data_length == 2)) {
-    const int16_t temperature = uint16_t(data[0]) | (uint16_t(data[1]) << 8);
-    result.temperature = temperature / 10.0f;
-  }
-  // humidity, 2 bytes, 16-bit signed integer (LE), 0.1 %
-  else if ((raw[0] == 0x06) && (data_length == 2)) {
-    const int16_t humidity = uint16_t(data[0]) | (uint16_t(data[1]) << 8);
-    result.humidity = humidity / 10.0f;
-  }
-  // illuminance (+ motion), 3 bytes, 24-bit unsigned integer (LE), 1 lx
-  else if (((raw[0] == 0x07) || (raw[0] == 0x0F)) && (data_length == 3)) {
-    const uint32_t illuminance = uint32_t(data[0]) | (uint32_t(data[1]) << 8) | (uint32_t(data[2]) << 16);
-    result.illuminance = illuminance;
-    result.is_light = (illuminance == 100) ? true : false;
-    if (raw[0] == 0x0F)
-      result.has_motion = true;
-  }
-  // soil moisture, 1 byte, 8-bit unsigned integer, 1 %
-  else if ((raw[0] == 0x08) && (data_length == 1)) {
-    result.moisture = data[0];
-  }
-  // conductivity, 2 bytes, 16-bit unsigned integer (LE), 1 µS/cm
-  else if ((raw[0] == 0x09) && (data_length == 2)) {
-    const uint16_t conductivity = uint16_t(data[0]) | (uint16_t(data[1]) << 8);
-    result.conductivity = conductivity;
-  }
-  // battery, 1 byte, 8-bit unsigned integer, 1 %
-  else if ((raw[0] == 0x0A) && (data_length == 1)) {
-    result.battery_level = data[0];
-  }
-  // temperature + humidity, 4 bytes, 16-bit signed integer (LE) each, 0.1 °C, 0.1 %
-  else if ((raw[0] == 0x0D) && (data_length == 4)) {
-    const int16_t temperature = uint16_t(data[0]) | (uint16_t(data[1]) << 8);
-    const int16_t humidity = uint16_t(data[2]) | (uint16_t(data[3]) << 8);
-    result.temperature = temperature / 10.0f;
-    result.humidity = humidity / 10.0f;
-  }
-  // formaldehyde, 2 bytes, 16-bit unsigned integer (LE), 0.01 mg / m3
-  else if ((raw[0] == 0x10) && (data_length == 2)) {
-    const uint16_t formaldehyde = uint16_t(data[0]) | (uint16_t(data[1]) << 8);
-    result.formaldehyde = formaldehyde / 100.0f;
-  }
-  // on/off state, 1 byte, 8-bit unsigned integer
-  else if ((raw[0] == 0x12) && (data_length == 1)) {
-    result.is_active = (data[0]) ? true : false;
-  }
-  // mosquito tablet, 1 byte, 8-bit unsigned integer, 1 %
-  else if ((raw[0] == 0x13) && (data_length == 1)) {
-    result.tablet = data[0];
-  }
-  // idle time since last motion, 4 byte, 32-bit unsigned integer, 1 min
-  else if ((raw[0] == 0x17) && (data_length == 4)) {
-    const uint32_t idle_time =
-        uint32_t(data[0]) | (uint32_t(data[1]) << 8) | (uint32_t(data[2]) << 16) | (uint32_t(data[2]) << 24);
-    result.idle_time = idle_time / 60.0f;
-    result.has_motion = (idle_time) ? false : true;
-  } else {
-    return false;
+    const uint8_t datapoint_type = raw_data[data_offset + 0];
+    const uint8_t datapoint_length = raw_data[data_offset + 2];
+
+    if (data_length < 3 + datapoint_length) {
+      ESP_LOGVV(TAG, "parse_xiaomi_message(): payload data has wrong size (%d)!", data_length);
+      break;
+    }
+
+    if ((datapoint_length < 1) || (datapoint_length > 4)) {
+      ESP_LOGVV(TAG, "parse_xiaomi_message(): payload data point has wrong size (%d)!", datapoint_length);
+      break;
+    }
+
+    const uint8_t *datapoint_data = &raw_data[data_offset + 3];
+
+    if (parse_xiaomi_data_byte(datapoint_type, datapoint_data, datapoint_length, result)) {
+      success = true;
+    }
+
+    data_length -= 3 + datapoint_length;
+    data_offset += 3 + datapoint_length;
   }
 
-  return true;
+  return success;
 }
 
 optional<XiaomiParseResult> parse_xiaomi_header(const esp32_ble_tracker::ServiceData &service_data) {
