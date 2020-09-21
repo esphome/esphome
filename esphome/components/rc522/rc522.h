@@ -22,16 +22,15 @@ class RC522BinarySensor;
 class RC522Trigger;
 
 class RC522 : public PollingComponent,
-              public spi::SPIDevice<spi::BIT_ORDER_LSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
-                                    spi::DATA_RATE_1MHZ> {
+              public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
+                                    spi::DATA_RATE_4MHZ> {
  public:
   void setup() override;
 
-  // TODO:
   void dump_config() override;
 
   void update() override;
-  float get_setup_priority() const override;
+  float get_setup_priority() const { return setup_priority::DATA; };
 
   void loop() override;
 
@@ -131,16 +130,121 @@ class RC522 : public PollingComponent,
     PCD_SoftReset = 0x0F   // resets the MFRC522
   };
 
-  /// Write the full command given in data to the RC522
-  void RC522_write_command_(const std::vector<uint8_t> &data);
-  bool RC522_write_command_check_ack_(const std::vector<uint8_t> &data);
+  // Commands sent to the PICC.
+  enum PICC_Command : byte {
+    // The commands used by the PCD to manage communication with several PICCs (ISO 14443-3, Type A, section 6.4)
+    PICC_CMD_REQA = 0x26,     // REQuest command, Type A. Invites PICCs in state IDLE to go to READY and prepare for
+                              // anticollision or selection. 7 bit frame.
+    PICC_CMD_WUPA = 0x52,     // Wake-UP command, Type A. Invites PICCs in state IDLE and HALT to go to READY(*) and
+                              // prepare for anticollision or selection. 7 bit frame.
+    PICC_CMD_CT = 0x88,       // Cascade Tag. Not really a command, but used during anti collision.
+    PICC_CMD_SEL_CL1 = 0x93,  // Anti collision/Select, Cascade Level 1
+    PICC_CMD_SEL_CL2 = 0x95,  // Anti collision/Select, Cascade Level 2
+    PICC_CMD_SEL_CL3 = 0x97,  // Anti collision/Select, Cascade Level 3
+    PICC_CMD_HLTA = 0x50,     // HaLT command, Type A. Instructs an ACTIVE PICC to go to state HALT.
+    PICC_CMD_RATS = 0xE0,     // Request command for Answer To Reset.
+    // The commands used for MIFARE Classic (from http://www.mouser.com/ds/2/302/MF1S503x-89574.pdf, Section 9)
+    // Use PCD_MFAuthent to authenticate access to a sector, then use these commands to read/write/modify the blocks on
+    // the sector.
+    // The read/write commands can also be used for MIFARE Ultralight.
+    PICC_CMD_MF_AUTH_KEY_A = 0x60,  // Perform authentication with Key A
+    PICC_CMD_MF_AUTH_KEY_B = 0x61,  // Perform authentication with Key B
+    PICC_CMD_MF_READ =
+        0x30,  // Reads one 16 byte block from the authenticated sector of the PICC. Also used for MIFARE Ultralight.
+    PICC_CMD_MF_WRITE = 0xA0,  // Writes one 16 byte block to the authenticated sector of the PICC. Called
+                               // "COMPATIBILITY WRITE" for MIFARE Ultralight.
+    PICC_CMD_MF_DECREMENT =
+        0xC0,  // Decrements the contents of a block and stores the result in the internal data register.
+    PICC_CMD_MF_INCREMENT =
+        0xC1,  // Increments the contents of a block and stores the result in the internal data register.
+    PICC_CMD_MF_RESTORE = 0xC2,   // Reads the contents of a block into the internal data register.
+    PICC_CMD_MF_TRANSFER = 0xB0,  // Writes the contents of the internal data register to a block.
+    // The commands used for MIFARE Ultralight (from http://www.nxp.com/documents/data_sheet/MF0ICU1.pdf, Section 8.6)
+    // The PICC_CMD_MF_READ and PICC_CMD_MF_WRITE can also be used for MIFARE Ultralight.
+    PICC_CMD_UL_WRITE = 0xA2  // Writes one 4 byte page to the PICC.
+  };
 
-  void pcd_reset();
-  void pcd_antenna_on();
-  byte pcd_read_register(PCD_Register reg  ///< The register to read from. One of the PCD_Register enums.
+  // Return codes from the functions in this class. Remember to update GetStatusCodeName() if you add more.
+  // last value set to 0xff, then compiler uses less ram, it seems some optimisations are triggered
+  enum StatusCode : byte {
+    STATUS_OK,                 // Success
+    STATUS_ERROR,              // Error in communication
+    STATUS_COLLISION,          // Collission detected
+    STATUS_TIMEOUT,            // Timeout in communication.
+    STATUS_NO_ROOM,            // A buffer is not big enough.
+    STATUS_INTERNAL_ERROR,     // Internal error in the code. Should not happen ;-)
+    STATUS_INVALID,            // Invalid argument.
+    STATUS_CRC_WRONG,          // The CRC_A does not match
+    STATUS_MIFARE_NACK = 0xff  // A MIFARE PICC responded with NAK.
+  };
+
+  // A struct used for passing the UID of a PICC.
+  typedef struct {
+    byte size;  // Number of bytes in the UID. 4, 7 or 10.
+    byte uidByte[10];
+    byte sak;  // The SAK (Select acknowledge) byte returned from the PICC after successful selection.
+  } Uid;
+
+  Uid uid_;
+
+  void pcd_reset_();
+  void pcd_antenna_on_();
+  byte pcd_read_register_(PCD_Register reg  ///< The register to read from. One of the PCD_Register enums.
   );
-  void pcd_write_register(PCD_Register reg,  ///< The register to write to. One of the PCD_Register enums.
-                          byte value         ///< The value to write.
+  /**
+   * Reads a number of bytes from the specified register in the MFRC522 chip.
+   * The interface is described in the datasheet section 8.1.2.
+   */
+  void pcd_read_register_(PCD_Register reg,  ///< The register to read from. One of the PCD_Register enums.
+                          byte count,        ///< The number of bytes to read
+                          byte *values,      ///< Byte array to store the values in.
+                          byte rxAlign       ///< Only bit positions rxAlign..7 in values[0] are updated.
+  );
+  void pcd_write_register_(PCD_Register reg,  ///< The register to write to. One of the PCD_Register enums.
+                           byte value         ///< The value to write.
+  );
+
+  /**
+   * Writes a number of bytes to the specified register in the MFRC522 chip.
+   * The interface is described in the datasheet section 8.1.2.
+   */
+  void pcd_write_register_(PCD_Register reg,  ///< The register to write to. One of the PCD_Register enums.
+                           byte count,        ///< The number of bytes to write to the register
+                           byte *values       ///< The values to write. Byte array.
+  );
+
+  StatusCode picc_request_a_(
+      byte *bufferATQA,  ///< The buffer to store the ATQA (Answer to request) in
+      byte *bufferSize   ///< Buffer size, at least two bytes. Also number of bytes returned if STATUS_OK.
+  );
+  StatusCode picc_reqa_or_wupa_(
+      byte command,      ///< The command to send - PICC_CMD_REQA or PICC_CMD_WUPA
+      byte *bufferATQA,  ///< The buffer to store the ATQA (Answer to request) in
+      byte *bufferSize   ///< Buffer size, at least two bytes. Also number of bytes returned if STATUS_OK.
+  );
+  void pcd_set_register_bit_mask_(PCD_Register reg,  ///< The register to update. One of the PCD_Register enums.
+                                  byte mask          ///< The bits to set.
+  );
+  void pcd_clear_register_bit_mask_(PCD_Register reg,  ///< The register to update. One of the PCD_Register enums.
+                                    byte mask          ///< The bits to clear.
+  );
+
+  StatusCode pcd_transceive_data_(byte *sendData, byte sendLen, byte *backData, byte *backLen,
+                                  byte *validBits = nullptr, byte rxAlign = 0, bool checkCRC = false);
+  StatusCode pcd_communicate_with_picc_(byte command, byte waitIRq, byte *sendData, byte sendLen,
+                                        byte *backData = nullptr, byte *backLen = nullptr, byte *validBits = nullptr,
+                                        byte rxAlign = 0, bool checkCRC = false);
+  StatusCode pcd_calculate_crc_(
+      byte *data,   ///< In: Pointer to the data to transfer to the FIFO for CRC calculation.
+      byte length,  ///< In: The number of bytes to transfer.
+      byte *result  ///< Out: Pointer to result buffer. Result is written to result[0..1], low byte first.
+  );
+  bool picc_is_new_card_present_();
+  bool picc_read_card_serial_();
+  StatusCode picc_select_(
+      Uid *uid,           ///< Pointer to Uid struct. Normally output, but can also be used to supply a known UID.
+      byte validBits = 0  ///< The number of known UID bits supplied in *uid. Normally 0. If set you must also supply
+                          ///< uid->size.
   );
 
   /** Read a data frame from the RC522 and return the result as a vector.
@@ -172,6 +276,7 @@ class RC522 : public PollingComponent,
   bool requested_read_{false};
   std::vector<RC522BinarySensor *> binary_sensors_;
   std::vector<RC522Trigger *> triggers_;
+
   enum RC522Error {
     NONE = 0,
     WAKEUP_FAILED,
