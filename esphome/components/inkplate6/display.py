@@ -30,7 +30,8 @@ CONF_VCOM_PIN = 'vcom_pin'
 
 
 inkplate6_ns = cg.esphome_ns.namespace('inkplate6')
-Inkplate6 = inkplate6_ns.class_('Inkplate6', cg.PollingComponent, i2c.I2CDevice, display.DisplayBuffer)
+Inkplate6 = inkplate6_ns.class_('Inkplate6', cg.PollingComponent, i2c.I2CDevice, 
+                                display.DisplayBuffer)
 
 CONFIG_SCHEMA = cv.All(display.FULL_DISPLAY_SCHEMA.extend({
     cv.GenerateID(): cv.declare_id(Inkplate6),
