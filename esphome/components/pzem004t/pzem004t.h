@@ -12,6 +12,7 @@ class PZEM004T : public PollingComponent, public uart::UARTDevice {
   void set_voltage_sensor(sensor::Sensor *voltage_sensor) { voltage_sensor_ = voltage_sensor; }
   void set_current_sensor(sensor::Sensor *current_sensor) { current_sensor_ = current_sensor; }
   void set_power_sensor(sensor::Sensor *power_sensor) { power_sensor_ = power_sensor; }
+  void set_energy_sensor(sensor::Sensor *energy_sensor) { energy_sensor_ = energy_sensor; }
 
   void loop() override;
 
@@ -23,12 +24,14 @@ class PZEM004T : public PollingComponent, public uart::UARTDevice {
   sensor::Sensor *voltage_sensor_;
   sensor::Sensor *current_sensor_;
   sensor::Sensor *power_sensor_;
+  sensor::Sensor *energy_sensor_;
 
   enum PZEM004TReadState {
     SET_ADDRESS = 0xB4,
     READ_VOLTAGE = 0xB0,
     READ_CURRENT = 0xB1,
     READ_POWER = 0xB2,
+    READ_ENERGY = 0xB3,
     DONE = 0x00,
   } read_state_{DONE};
 

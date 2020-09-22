@@ -731,7 +731,7 @@ def build_service_message_type(mt):
         cout += f'bool {class_name}::{func}(const {mt.name} &msg) {{\n'
         if log:
             cout += f'  ESP_LOGVV(TAG, "{func}: %s", msg.dump().c_str());\n'
-        cout += f'  this->set_nodelay({str(nodelay).lower()});\n'
+        # cout += f'  this->set_nodelay({str(nodelay).lower()});\n'
         cout += f'  return this->send_message_<{mt.name}>(msg, {id_});\n'
         cout += f'}}\n'
     if source in (SOURCE_BOTH, SOURCE_CLIENT):

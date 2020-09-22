@@ -24,7 +24,7 @@
 namespace esphome {
 
 /// The characters that are allowed in a hostname.
-extern const char *HOSTNAME_CHARACTER_WHITELIST;
+extern const char *HOSTNAME_CHARACTER_ALLOWLIST;
 
 /// Gets the MAC address as a string, this can be used as way to identify this ESP.
 std::string get_mac_address();
@@ -43,7 +43,7 @@ std::string to_string(double val);
 std::string to_string(long double val);
 optional<float> parse_float(const std::string &str);
 
-/// Sanitize the hostname by removing characters that are not in the whitelist and truncating it to 63 chars.
+/// Sanitize the hostname by removing characters that are not in the allowlist and truncating it to 63 chars.
 std::string sanitize_hostname(const std::string &hostname);
 
 /// Truncate a string to a specific length
@@ -121,8 +121,8 @@ std::string uint64_to_string(uint64_t num);
 /// Convert a uint32_t to a hex string
 std::string uint32_to_string(uint32_t num);
 
-/// Sanitizes the input string with the whitelist.
-std::string sanitize_string_whitelist(const std::string &s, const std::string &whitelist);
+/// Sanitizes the input string with the allowlist.
+std::string sanitize_string_allowlist(const std::string &s, const std::string &allowlist);
 
 uint8_t reverse_bits_8(uint8_t x);
 uint16_t reverse_bits_16(uint16_t x);

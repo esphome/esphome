@@ -108,6 +108,12 @@ void WebServer::setup() {
       if (!obj->is_internal())
         client->send(this->text_sensor_json(obj, obj->state).c_str(), "state");
 #endif
+
+#ifdef USE_COVER
+    for (auto *obj : App.get_covers())
+      if (!obj->is_internal())
+        client->send(this->cover_json(obj).c_str(), "state");
+#endif
   });
 
 #ifdef USE_LOGGER
@@ -133,7 +139,7 @@ float WebServer::get_setup_priority() const { return setup_priority::WIFI - 1.0f
 void WebServer::handle_index_request(AsyncWebServerRequest *request) {
   AsyncResponseStream *stream = request->beginResponseStream("text/html");
   std::string title = App.get_name() + " Web Server";
-  stream->print(F("<!DOCTYPE html><html><head><meta charset=UTF-8><title>"));
+  stream->print(F("<!DOCTYPE html><html lang=\"en\"><head><meta charset=UTF-8><title>"));
   stream->print(title.c_str());
   stream->print(F("</title>"));
 #ifdef WEBSERVER_CSS_INCLUDE
@@ -178,6 +184,11 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
 #ifdef USE_TEXT_SENSOR
   for (auto *obj : App.get_text_sensors())
     write_row(stream, obj, "text_sensor", "");
+#endif
+
+#ifdef USE_COVER
+  for (auto *obj : App.get_covers())
+    write_row(stream, obj, "cover", "<button>Open</button><button>Close</button>");
 #endif
 
   stream->print(F("</tbody></table><p>See <a href=\"https://esphome.io/web-api/index.html\">ESPHome Web API</a> for "
@@ -495,6 +506,68 @@ std::string WebServer::light_json(light::LightState *obj) {
 }
 #endif
 
+#ifdef USE_COVER
+void WebServer::on_cover_update(cover::Cover *obj) {
+  if (obj->is_internal())
+    return;
+  this->events_.send(this->cover_json(obj).c_str(), "state");
+}
+void WebServer::handle_cover_request(AsyncWebServerRequest *request, UrlMatch match) {
+  for (cover::Cover *obj : App.get_covers()) {
+    if (obj->is_internal())
+      continue;
+    if (obj->get_object_id() != match.id)
+      continue;
+
+    if (request->method() == HTTP_GET) {
+      std::string data = this->cover_json(obj);
+      request->send(200, "text/json", data.c_str());
+      continue;
+    }
+
+    auto call = obj->make_call();
+    if (match.method == "open") {
+      call.set_command_open();
+    } else if (match.method == "close") {
+      call.set_command_close();
+    } else if (match.method == "stop") {
+      call.set_command_stop();
+    } else if (match.method != "set") {
+      request->send(404);
+      return;
+    }
+
+    auto traits = obj->get_traits();
+    if ((request->hasParam("position") && !traits.get_supports_position()) ||
+        (request->hasParam("tilt") && !traits.get_supports_tilt())) {
+      request->send(409);
+      return;
+    }
+
+    if (request->hasParam("position"))
+      call.set_position(request->getParam("position")->value().toFloat());
+    if (request->hasParam("tilt"))
+      call.set_tilt(request->getParam("tilt")->value().toFloat());
+
+    this->defer([call]() mutable { call.perform(); });
+    request->send(200);
+    return;
+  }
+  request->send(404);
+}
+std::string WebServer::cover_json(cover::Cover *obj) {
+  return json::build_json([obj](JsonObject &root) {
+    root["id"] = "cover-" + obj->get_object_id();
+    root["state"] = obj->is_fully_closed() ? "CLOSED" : "OPEN";
+    root["value"] = obj->position;
+    root["current_operation"] = cover::cover_operation_to_str(obj->current_operation);
+
+    if (obj->get_traits().get_supports_tilt())
+      root["tilt"] = obj->tilt;
+  });
+}
+#endif
+
 bool WebServer::canHandle(AsyncWebServerRequest *request) {
   if (request->url() == "/")
     return true;
@@ -539,6 +612,11 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) {
 
 #ifdef USE_TEXT_SENSOR
   if (request->method() == HTTP_GET && match.domain == "text_sensor")
+    return true;
+#endif
+
+#ifdef USE_COVER
+  if ((request->method() == HTTP_POST || request->method() == HTTP_GET) && match.domain == "cover")
     return true;
 #endif
 
@@ -607,6 +685,13 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
 #ifdef USE_TEXT_SENSOR
   if (match.domain == "text_sensor") {
     this->handle_text_sensor_request(request, match);
+    return;
+  }
+#endif
+
+#ifdef USE_COVER
+  if (match.domain == "cover") {
+    this->handle_cover_request(request, match);
     return;
   }
 #endif

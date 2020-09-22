@@ -66,7 +66,7 @@ def read_config(args):
             CORE.config_path = data['file']
         vs = VSCodeResult()
         try:
-            res = load_config()
+            res = load_config(dict(args.substitution) if args.substitution else {})
         except Exception as err:  # pylint: disable=broad-except
             vs.add_yaml_error(str(err))
         else:

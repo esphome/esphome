@@ -26,11 +26,11 @@ import tornado.web
 import tornado.websocket
 
 from esphome import const, util
-from esphome.__main__ import get_serial_ports
 from esphome.helpers import mkdir_p, get_bool_env, run_system_command
 from esphome.storage_json import EsphomeStorageJSON, StorageJSON, \
     esphome_storage_path, ext_storage_path, trash_storage_path
-from esphome.util import shlex_quote
+from esphome.util import shlex_quote, get_serial_ports
+from .util import password_hash
 
 # pylint: disable=unused-import, wrong-import-order
 from typing import Optional  # noqa
@@ -43,7 +43,7 @@ _LOGGER = logging.getLogger(__name__)
 class DashboardSettings:
     def __init__(self):
         self.config_dir = ''
-        self.password_digest = ''
+        self.password_hash = ''
         self.username = ''
         self.using_password = False
         self.on_hassio = False
@@ -56,7 +56,7 @@ class DashboardSettings:
             self.username = args.username or os.getenv('USERNAME', '')
             self.using_password = bool(password)
         if self.using_password:
-            self.password_digest = hmac.new(password.encode()).digest()
+            self.password_hash = password_hash(password)
         self.config_dir = args.configuration[0]
 
     @property
@@ -83,8 +83,11 @@ class DashboardSettings:
         if username != self.username:
             return False
 
-        password = hmac.new(password.encode()).digest()
-        return username == self.username and hmac.compare_digest(self.password_digest, password)
+        # Compare password in constant running time (to prevent timing attacks)
+        return hmac.compare_digest(
+            self.password_hash,
+            password_hash(password)
+        )
 
     def rel_path(self, *args):
         return os.path.join(self.config_dir, *args)
@@ -100,9 +103,15 @@ cookie_authenticated_yes = b'yes'
 
 def template_args():
     version = const.__version__
+    if 'b' in version:
+        docs_link = 'https://beta.esphome.io/'
+    elif 'dev' in version:
+        docs_link = 'https://next.esphome.io/'
+    else:
+        docs_link = 'https://www.esphome.io/'
     return {
         'version': version,
-        'docs_link': 'https://beta.esphome.io/' if 'b' in version else 'https://esphome.io/',
+        'docs_link': docs_link,
         'get_static_file_url': get_static_file_url,
         'relative_url': settings.relative_url,
         'streamer_mode': get_bool_env('ESPHOME_STREAMER_MODE'),
@@ -307,14 +316,15 @@ class SerialPortRequestHandler(BaseHandler):
     def get(self):
         ports = get_serial_ports()
         data = []
-        for port, desc in ports:
-            if port == '/dev/ttyAMA0':
+        for port in ports:
+            desc = port.description
+            if port.path == '/dev/ttyAMA0':
                 desc = 'UART pins on GPIO header'
             split_desc = desc.split(' - ')
             if len(split_desc) == 2 and split_desc[0] == split_desc[1]:
                 # Some serial ports repeat their values
                 desc = split_desc[0]
-            data.append({'port': port, 'desc': desc})
+            data.append({'port': port.path, 'desc': desc})
         data.append({'port': 'OTA', 'desc': 'Over-The-Air'})
         data.sort(key=lambda x: x['port'], reverse=True)
         self.write(json.dumps(data))
@@ -440,7 +450,7 @@ class MainRequestHandler(BaseHandler):
         entries = _list_dashboard_entries()
 
         self.render("templates/index.html", entries=entries, begin=begin,
-                    **template_args())
+                    **template_args(), login_enabled=settings.using_auth)
 
 
 def _ping_func(filename, address):

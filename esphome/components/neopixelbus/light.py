@@ -169,7 +169,7 @@ def to_code(config):
     else:
         out_type = NeoPixelRGBLightOutput.template(template)
     rhs = out_type.new()
-    var = cg.Pvariable(config[CONF_OUTPUT_ID], rhs, type=out_type)
+    var = cg.Pvariable(config[CONF_OUTPUT_ID], rhs, out_type)
     yield light.register_light(var, config)
     yield cg.register_component(var, config)
 
@@ -181,4 +181,4 @@ def to_code(config):
     cg.add(var.set_pixel_order(getattr(ESPNeoPixelOrder, config[CONF_TYPE])))
 
     # https://github.com/Makuna/NeoPixelBus/blob/master/library.json
-    cg.add_library('NeoPixelBus-esphome', '2.5.2')
+    cg.add_library('NeoPixelBus-esphome', '2.5.7')
