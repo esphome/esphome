@@ -12,24 +12,23 @@ namespace xiaomi_ble {
 
 static const char *TAG = "xiaomi_ble";
 
-bool parse_xiaomi_data_byte(uint8_t value_type, const uint8_t *data, uint8_t payload_length,
-                            XiaomiParseResult &result) {
+bool parse_xiaomi_value(uint8_t value_type, const uint8_t *data, uint8_t value_length, XiaomiParseResult &result) {
   // motion detection, 1 byte, 8-bit unsigned integer
-  if ((value_type == 0x03) && (payload_length == 1)) {
+  if ((value_type == 0x03) && (value_length == 1)) {
     result.has_motion = (data[0]) ? true : false;
   }
   // temperature, 2 bytes, 16-bit signed integer (LE), 0.1 °C
-  else if ((value_type == 0x04) && (payload_length == 2)) {
+  else if ((value_type == 0x04) && (value_length == 2)) {
     const int16_t temperature = uint16_t(data[0]) | (uint16_t(data[1]) << 8);
     result.temperature = temperature / 10.0f;
   }
   // humidity, 2 bytes, 16-bit signed integer (LE), 0.1 %
-  else if ((value_type == 0x06) && (payload_length == 2)) {
+  else if ((value_type == 0x06) && (value_length == 2)) {
     const int16_t humidity = uint16_t(data[0]) | (uint16_t(data[1]) << 8);
     result.humidity = humidity / 10.0f;
   }
   // illuminance (+ motion), 3 bytes, 24-bit unsigned integer (LE), 1 lx
-  else if (((value_type == 0x07) || (value_type == 0x0F)) && (payload_length == 3)) {
+  else if (((value_type == 0x07) || (value_type == 0x0F)) && (value_length == 3)) {
     const uint32_t illuminance = uint32_t(data[0]) | (uint32_t(data[1]) << 8) | (uint32_t(data[2]) << 16);
     result.illuminance = illuminance;
     result.is_light = (illuminance == 100) ? true : false;
@@ -37,40 +36,40 @@ bool parse_xiaomi_data_byte(uint8_t value_type, const uint8_t *data, uint8_t pay
       result.has_motion = true;
   }
   // soil moisture, 1 byte, 8-bit unsigned integer, 1 %
-  else if ((value_type == 0x08) && (payload_length == 1)) {
+  else if ((value_type == 0x08) && (value_length == 1)) {
     result.moisture = data[0];
   }
   // conductivity, 2 bytes, 16-bit unsigned integer (LE), 1 µS/cm
-  else if ((value_type == 0x09) && (payload_length == 2)) {
+  else if ((value_type == 0x09) && (value_length == 2)) {
     const uint16_t conductivity = uint16_t(data[0]) | (uint16_t(data[1]) << 8);
     result.conductivity = conductivity;
   }
   // battery, 1 byte, 8-bit unsigned integer, 1 %
-  else if ((value_type == 0x0A) && (payload_length == 1)) {
+  else if ((value_type == 0x0A) && (value_length == 1)) {
     result.battery_level = data[0];
   }
   // temperature + humidity, 4 bytes, 16-bit signed integer (LE) each, 0.1 °C, 0.1 %
-  else if ((value_type == 0x0D) && (payload_length == 4)) {
+  else if ((value_type == 0x0D) && (value_length == 4)) {
     const int16_t temperature = uint16_t(data[0]) | (uint16_t(data[1]) << 8);
     const int16_t humidity = uint16_t(data[2]) | (uint16_t(data[3]) << 8);
     result.temperature = temperature / 10.0f;
     result.humidity = humidity / 10.0f;
   }
   // formaldehyde, 2 bytes, 16-bit unsigned integer (LE), 0.01 mg / m3
-  else if ((value_type == 0x10) && (payload_length == 2)) {
+  else if ((value_type == 0x10) && (value_length == 2)) {
     const uint16_t formaldehyde = uint16_t(data[0]) | (uint16_t(data[1]) << 8);
     result.formaldehyde = formaldehyde / 100.0f;
   }
   // on/off state, 1 byte, 8-bit unsigned integer
-  else if ((value_type == 0x12) && (payload_length == 1)) {
+  else if ((value_type == 0x12) && (value_length == 1)) {
     result.is_active = (data[0]) ? true : false;
   }
   // mosquito tablet, 1 byte, 8-bit unsigned integer, 1 %
-  else if ((value_type == 0x13) && (payload_length == 1)) {
+  else if ((value_type == 0x13) && (value_length == 1)) {
     result.tablet = data[0];
   }
   // idle time since last motion, 4 byte, 32-bit unsigned integer, 1 min
-  else if ((value_type == 0x17) && (payload_length == 4)) {
+  else if ((value_type == 0x17) && (value_length == 4)) {
     const uint32_t idle_time =
         uint32_t(data[0]) | (uint32_t(data[1]) << 8) | (uint32_t(data[2]) << 16) | (uint32_t(data[2]) << 24);
     result.idle_time = idle_time / 60.0f;
@@ -120,7 +119,7 @@ bool parse_xiaomi_message(const std::vector<uint8_t> &message, XiaomiParseResult
     const uint8_t value_type = payload[payload_offset + 0];
     const uint8_t *data = &payload[payload_offset + 3];
 
-    if (parse_xiaomi_data_byte(value_type, data, value_length, result))
+    if (parse_xiaomi_value(value_type, data, value_length, result))
       success = true;
 
     payload_length -= 3 + value_length;
