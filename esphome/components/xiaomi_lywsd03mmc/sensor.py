@@ -40,3 +40,5 @@ def to_code(config):
     if CONF_BATTERY_LEVEL in config:
         sens = yield sensor.new_sensor(config[CONF_BATTERY_LEVEL])
         cg.add(var.set_battery_level(sens))
+
+CODEOWNERS = ['@ahpohl']

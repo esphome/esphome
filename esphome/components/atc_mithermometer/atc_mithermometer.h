@@ -28,15 +28,15 @@ class ATCMiThermometer : public Component, public esp32_ble_tracker::ESPBTDevice
   void set_humidity(sensor::Sensor *humidity) { humidity_ = humidity; }
   void set_battery_level(sensor::Sensor *battery_level) { battery_level_ = battery_level; }
 
-  optional<ParseResult> parse_header(const esp32_ble_tracker::ServiceData &service_data);
-  bool parse_message(const std::vector<uint8_t> &message, ParseResult &result);
-  bool report_results(const optional<ParseResult> &result, const std::string &address);
-
  protected:
   uint64_t address_;
   sensor::Sensor *temperature_{nullptr};
   sensor::Sensor *humidity_{nullptr};
   sensor::Sensor *battery_level_{nullptr};
+  
+  optional<ParseResult> parse_header(const esp32_ble_tracker::ServiceData &service_data);
+  bool parse_message(const std::vector<uint8_t> &message, ParseResult &result);
+  bool report_results(const optional<ParseResult> &result, const std::string &address);
 };
 
 }  // namespace atc_mithermometer
