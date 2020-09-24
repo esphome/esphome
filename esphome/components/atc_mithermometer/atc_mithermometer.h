@@ -33,7 +33,7 @@ class ATCMiThermometer : public Component, public esp32_ble_tracker::ESPBTDevice
   sensor::Sensor *temperature_{nullptr};
   sensor::Sensor *humidity_{nullptr};
   sensor::Sensor *battery_level_{nullptr};
-  
+
   optional<ParseResult> parse_header(const esp32_ble_tracker::ServiceData &service_data);
   bool parse_message(const std::vector<uint8_t> &message, ParseResult &result);
   bool report_results(const optional<ParseResult> &result, const std::string &address);
