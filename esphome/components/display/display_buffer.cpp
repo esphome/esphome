@@ -454,7 +454,7 @@ bool Image::get_pixel(int x, int y) const {
 }
 Color Image::get_color_pixel(int x, int y) const {
   if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_)
-    return 0;
+    return Color();
   const uint32_t pos = (x + y * this->width_) * 3;
   const uint32_t color32 = (pgm_read_byte(this->data_start_ + pos + 2) << 0) |
                            (pgm_read_byte(this->data_start_ + pos + 1) << 8) |
@@ -463,7 +463,7 @@ Color Image::get_color_pixel(int x, int y) const {
 }
 Color Image::get_grayscale_pixel(int x, int y) const {
   if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_)
-    return 0;
+    return Color();
   const uint32_t pos = (x + y * this->width_);
   const uint8_t gray = pgm_read_byte(this->data_start_ + pos);
   return Color(gray | gray << 8 | gray << 16 | gray << 24);

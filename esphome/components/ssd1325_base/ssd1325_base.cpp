@@ -114,9 +114,9 @@ void SSD1325::setup() {
   this->command(0x0D | 0x02);
   this->command(SSD1325_NORMALDISPLAY);  // set display mode
   set_brightness(this->brightness_);
-  this->fill(BLACK);  // clear display - ensures we do not see garbage at power-on
-  this->display();    // ...write buffer, which actually clears the display's memory
-  this->turn_on();    // display ON
+  this->fill(Color(BLACK));  // clear display - ensures we do not see garbage at power-on
+  this->display();           // ...write buffer, which actually clears the display's memory
+  this->turn_on();           // display ON
 }
 void SSD1325::display() {
   this->command(SSD1325_SETCOLADDR);  // set column address

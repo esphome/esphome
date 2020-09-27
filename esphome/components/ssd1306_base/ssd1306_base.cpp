@@ -89,8 +89,8 @@ void SSD1306::setup() {
 
   set_brightness(this->brightness_);
 
-  this->fill(BLACK);  // clear display - ensures we do not see garbage at power-on
-  this->display();    // ...write buffer, which actually clears the display's memory
+  this->fill(Color(BLACK));  // clear display - ensures we do not see garbage at power-on
+  this->display();           // ...write buffer, which actually clears the display's memory
 
   this->turn_on();
 }

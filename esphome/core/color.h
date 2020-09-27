@@ -31,18 +31,14 @@ struct Color {
     uint32_t raw_32;
   };
   inline Color() ALWAYS_INLINE : r(0), g(0), b(0), w(0) {}  // NOLINT
-  inline Color(float red, float green, float blue) ALWAYS_INLINE : r(uint8_t(red * 255)),
-                                                                   g(uint8_t(green * 255)),
-                                                                   b(uint8_t(blue * 255)),
-                                                                   w(0) {}
-  inline Color(float red, float green, float blue, float white) ALWAYS_INLINE : r(uint8_t(red * 255)),
-                                                                                g(uint8_t(green * 255)),
-                                                                                b(uint8_t(blue * 255)),
-                                                                                w(uint8_t(white * 255)) {}
-  inline Color(uint32_t colorcode) ALWAYS_INLINE : r((colorcode >> 16) & 0xFF),
-                                                   g((colorcode >> 8) & 0xFF),
-                                                   b((colorcode >> 0) & 0xFF),
-                                                   w((colorcode >> 24) & 0xFF) {}
+  inline Color(float red, float green, float blue, float white = 0.f) ALWAYS_INLINE : r(uint8_t(red * 255)),
+                                                                                      g(uint8_t(green * 255)),
+                                                                                      b(uint8_t(blue * 255)),
+                                                                                      w(uint8_t(white * 255)) {}
+  inline explicit Color(uint32_t colorcode) ALWAYS_INLINE : r((colorcode >> 16) & 0xFF),
+                                                            g((colorcode >> 8) & 0xFF),
+                                                            b((colorcode >> 0) & 0xFF),
+                                                            w((colorcode >> 24) & 0xFF) {}
   inline bool is_on() ALWAYS_INLINE { return this->raw_32 != 0; }
   inline Color &operator=(const Color &rhs) ALWAYS_INLINE {
     this->r = rhs.r;
