@@ -3,7 +3,6 @@
 #include "esphome/core/component.h"
 #include "esphome/core/automation.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
-#include "esphome/components/spi/spi.h"
 
 namespace esphome {
 namespace pn532 {
@@ -11,9 +10,7 @@ namespace pn532 {
 class PN532BinarySensor;
 class PN532Trigger;
 
-class PN532 : public PollingComponent,
-              public spi::SPIDevice<spi::BIT_ORDER_LSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
-                                    spi::DATA_RATE_1MHZ> {
+class PN532 : public PollingComponent {
  public:
   void setup() override;
 
@@ -29,8 +26,8 @@ class PN532 : public PollingComponent,
 
  protected:
   /// Write the full command given in data to the PN532
-  void pn532_write_command_(const std::vector<uint8_t> &data);
-  bool pn532_write_command_check_ack_(const std::vector<uint8_t> &data);
+  virtual void pn532_write_command(const std::vector<uint8_t> &data) = 0;
+  bool pn532_write_commandcheck_ack_(const std::vector<uint8_t> &data);
 
   /** Read a data frame from the PN532 and return the result as a vector.
    *
@@ -38,22 +35,22 @@ class PN532 : public PollingComponent,
    *
    * On failure, an empty vector is returned.
    */
-  std::vector<uint8_t> pn532_read_data_();
+  virtual std::vector<uint8_t> pn532_read_data() = 0;
 
   /** Checks if the PN532 has set its ready status flag.
    *
    * Procedure goes as follows:
    * - Host sends command to PN532 "write data"
-   * - Wait for readiness (until PN532 has processed command) by polling "read status"/is_ready_
+   * - Wait for readiness (until PN532 has processed command) by polling "read status"/is_ready
    * - Parse ACK/NACK frame with "read data" byte
    *
    * - If data required, wait until device reports readiness again
    * - Then call "read data" and read certain number of bytes (length is given at offset 4 of frame)
    */
-  bool is_ready_();
+  virtual bool is_ready() = 0;
   bool wait_ready_();
 
-  bool read_ack_();
+  virtual bool read_ack() = 0;
 
   void turn_off_rf_();
 

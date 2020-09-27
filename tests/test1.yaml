@@ -1642,7 +1642,7 @@ remote_receiver:
 status_led:
   pin: GPIO2
 
-pn532:
+pn532_spi:
   cs_pin: GPIO23
   update_interval: 1s
   on_tag:
