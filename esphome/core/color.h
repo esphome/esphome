@@ -56,8 +56,12 @@ struct Color {
   }
   inline uint8_t &operator[](uint8_t x) ALWAYS_INLINE { return this->raw[x]; }
   inline Color operator*(uint8_t scale) const ALWAYS_INLINE {
-    return Color(esp_scale8(this->red, scale), esp_scale8(this->green, scale), esp_scale8(this->blue, scale),
-                 esp_scale8(this->white, scale));
+    Color out;
+    out.red = esp_scale8(this->red, scale);
+    out.green = esp_scale8(this->green, scale);
+    out.blue = esp_scale8(this->blue, scale);
+    out.white = esp_scale8(this->white, scale);
+    return out;
   }
   inline Color &operator*=(uint8_t scale) ALWAYS_INLINE {
     this->red = esp_scale8(this->red, scale);
@@ -67,8 +71,12 @@ struct Color {
     return *this;
   }
   inline Color operator*(const Color &scale) const ALWAYS_INLINE {
-    return Color(esp_scale8(this->red, scale.red), esp_scale8(this->green, scale.green),
-                 esp_scale8(this->blue, scale.blue), esp_scale8(this->white, scale.white));
+    Color out;
+    out.red = esp_scale8(this->red, scale.red);
+    out.green = esp_scale8(this->green, scale.green);
+    out.blue = esp_scale8(this->blue, scale.blue);
+    out.white = esp_scale8(this->white, scale.white);
+    return out;
   }
   inline Color &operator*=(const Color &scale) ALWAYS_INLINE {
     this->red = esp_scale8(this->red, scale.red);
@@ -98,7 +106,11 @@ struct Color {
     return ret;
   }
   inline Color &operator+=(const Color &add) ALWAYS_INLINE { return *this = (*this) + add; }
-  inline Color operator+(uint8_t add) const ALWAYS_INLINE { return (*this) + Color(add, add, add, add); }
+  inline Color operator+(uint8_t add) const ALWAYS_INLINE {
+    Color addend;
+    addend.r = addend.g = addend.b = addend.w = add;
+    return (*this) + addend;
+  }
   inline Color &operator+=(uint8_t add) ALWAYS_INLINE { return *this = (*this) + add; }
   inline Color operator-(const Color &subtract) const ALWAYS_INLINE {
     Color ret;
@@ -122,7 +134,9 @@ struct Color {
   }
   inline Color &operator-=(const Color &subtract) ALWAYS_INLINE { return *this = (*this) - subtract; }
   inline Color operator-(uint8_t subtract) const ALWAYS_INLINE {
-    return (*this) - Color(subtract, subtract, subtract, subtract);
+    Color subtrahend;
+    subtrahend.r = subtrahend.g = subtrahend.b = subtrahend.w = subtract;
+    return (*this) - subtrahend;
   }
   inline Color &operator-=(uint8_t subtract) ALWAYS_INLINE { return *this = (*this) - subtract; }
   static Color random_color() {
