@@ -52,6 +52,7 @@ class MAX7219Component : public PollingComponent,
   void set_scroll_delay(uint16_t delay) { this->scroll_delay_ = delay; };
   void set_scroll(bool on_off) { this->scroll_ = on_off; };
   void set_scroll_mode(uint8_t mode) { this->scroll_mode_ = mode; };
+  void set_reverse(bool on_off) { this->reverse_ = on_off; };
 
   void send_char(byte chip, byte data);
   void send64pixels(byte chip, const byte pixels[8]);
@@ -87,6 +88,7 @@ class MAX7219Component : public PollingComponent,
   uint8_t intensity_;  /// Intensity of the display from 0 to 15 (most)
   uint8_t num_chips_;
   bool scroll_;
+  bool reverse_;
   bool update_{false};
   uint16_t scroll_speed_;
   uint16_t scroll_delay_;
