@@ -126,5 +126,7 @@ def do_substitution_pass(config, command_line_substitutions):
             substitutions[new] = substitutions[old]
             del substitutions[old]
 
+    _substitute_item(substitutions, substitutions, [])
+    
     config[CONF_SUBSTITUTIONS] = substitutions
     _substitute_item(substitutions, config, [])
