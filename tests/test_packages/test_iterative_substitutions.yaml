@@ -1,0 +1,20 @@
+esphome:
+  name: test
+  platform: ESP8266
+  board: esp01
+
+substitutions:
+  subs: substitute
+  Base: Iter1
+  Iter1: Iter2
+  relay2_name: $subs Relay2
+  relay1_name: $$Base Relay1 New Name
+
+switch:    
+  - platform: gpio
+    name: $relay2_name
+    pin: GPIO5
+
+packages:
+  package1: !include test_substitutions_package.yaml
+

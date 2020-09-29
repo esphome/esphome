@@ -1,0 +1,8 @@
+switch:    
+  - platform: gpio
+    name: $relay1_name
+    pin: GPIO12
+
+substitutions:
+  relay1_name: $subs Relay1
+        
