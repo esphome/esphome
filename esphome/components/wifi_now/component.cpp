@@ -8,6 +8,7 @@
 #include <user_interface.h>
 #include <espnow.h>
 #include <ESP8266WiFi.h>
+#include "esphome/core/application.h"
 #endif
 
 #ifdef ARDUINO_ARCH_ESP32
@@ -44,26 +45,34 @@ static void ICACHE_FLASH_ATTR sendcallback(const uint8_t *bssid, esp_now_send_st
 
 WifiNowComponent::WifiNowComponent() {}
 
-float WifiNowComponent::get_setup_priority() const { return setup_priority::WIFI + 1; }
+float WifiNowComponent::get_setup_priority() const { return setup_priority::WIFI - 1; }
 
 void WifiNowComponent::setup() {
   ESP_LOGV(TAG, "enter setup()");
 
 #ifdef ARDUINO_ARCH_ESP8266
 
-  WiFiMode_t mode = WiFi.getMode();
+  uint8_t mode = wifi_get_opmode();
   if ((mode & WIFI_STA) != WIFI_STA) {
     ESP_LOGI(TAG, "Initializing Wifi STA...");
 
-    if (!WiFi.mode((WiFiMode_t)(mode | WIFI_STA))) {
-      ESP_LOGE(TAG, "WiFi.mode(...) failed");
+    ETS_UART_INTR_DISABLE();
+    bool ret = wifi_set_opmode_current(static_cast<WiFiMode_t>(mode | WIFI_STA));
+    ETS_UART_INTR_ENABLE();
+
+    if (!ret) {
+      ESP_LOGE(TAG, "wifi_set_opmode_current(...) failed!");
+      this->mark_failed();
       return;
     }
+
+    delay(10);
 
     if (channel_ > 0) {
       wifi_promiscuous_enable(true);
       if (!wifi_set_channel(channel_)) {
-        ESP_LOGE(TAG, "wifi_set_channel(...) failed");
+        ESP_LOGE(TAG, "wifi_set_channel(...) failed!");
+        this->mark_failed();
         return;
       }
       wifi_promiscuous_enable(false);
@@ -71,25 +80,30 @@ void WifiNowComponent::setup() {
   }
 
   if (esp_now_init()) {
-    ESP_LOGE(TAG, "esp_now_init() failed");
+    ESP_LOGE(TAG, "esp_now_init() failed!");
+    this->mark_failed();
     return;
   }
   if (esp_now_register_recv_cb(receivecallback)) {
-    ESP_LOGE(TAG, "esp_now_register_recv_cb(...) failed");
+    ESP_LOGE(TAG, "esp_now_register_recv_cb(...) failed!");
+    this->mark_failed();
     return;
   }
   if (esp_now_register_send_cb(sendcallback)) {
-    ESP_LOGE(TAG, "esp_now_register_send_cb(...) failed");
+    ESP_LOGE(TAG, "esp_now_register_send_cb(...) failed!");
+    this->mark_failed();
     return;
   }
   if (esp_now_set_self_role(ESP_NOW_ROLE_CONTROLLER)) {
-    ESP_LOGE(TAG, "esp_now_set_self_role(...) failed()");
+    ESP_LOGE(TAG, "esp_now_set_self_role(...) failed()!");
+    this->mark_failed();
     return;
   }
   if (aeskey_) {
     auto aeskey = aeskey_->data();
     if (esp_now_set_kok(aeskey, 16)) {
-      ESP_LOGE(TAG, "esp_now_set_kok(...) failed");
+      ESP_LOGE(TAG, "esp_now_set_kok(...) failed!");
+      this->mark_failed();
       return;
     }
   }
@@ -98,16 +112,19 @@ void WifiNowComponent::setup() {
     if (peer->get_aeskey()) {
       auto aeskey = (uint8_t *) peer->get_aeskey()->data();
       if (esp_now_add_peer(bssid, ESP_NOW_ROLE_CONTROLLER, 0, aeskey, 16)) {
-        ESP_LOGE(TAG, "esp_now_add_peer(...) failed");
+        ESP_LOGE(TAG, "esp_now_add_peer(...) failed!");
+        this->mark_failed();
         return;
       }
     } else {
-      if (esp_now_add_peer(bssid, ESP_NOW_ROLE_CONTROLLER, 0, nullptr, 16)) {
-        ESP_LOGE(TAG, "esp_now_add_peer(...) failed");
+      if (esp_now_add_peer(bssid, ESP_NOW_ROLE_CONTROLLER, 0, nullptr, 0)) {
+        ESP_LOGE(TAG, "esp_now_add_peer(...) failed!");
+        this->mark_failed();
         return;
       }
     }
   }
+
 #endif
 #ifdef ARDUINO_ARCH_ESP32
   esp_err_t error;
@@ -117,36 +134,90 @@ void WifiNowComponent::setup() {
     ESP_LOGI(TAG, "Initializing Wifi STA...");
 
     if (!WiFi.mode(WIFI_MODE_STA)) {
-      ESP_LOGE(TAG, "WiFi.mode(...) failed");
+      ESP_LOGE(TAG, "WiFi.mode(...) failed!");
+      this->mark_failed();
       return;
     }
 
-    ESP_ERROR_CHECK(esp_wifi_set_promiscuous(true));
     if (channel_ > 0) {
-      ESP_ERROR_CHECK(esp_wifi_set_channel(channel_, WIFI_SECOND_CHAN_NONE));
+      error = esp_wifi_set_promiscuous(true);
+      if( error != ESP_OK)
+      {
+        ESP_LOGE(TAG, "esp_wifi_set_promiscuous(...) failed with %s!", esp_err_to_name(error));
+        this->mark_failed();
+        return;
+      }
+
+      error = esp_wifi_set_channel(channel_, WIFI_SECOND_CHAN_NONE);
+      if( error != ESP_OK)
+      {
+        ESP_LOGE(TAG, "esp_wifi_set_channel(...) failed with %s!", esp_err_to_name(error));
+        this->mark_failed();
+        return;
+      }
+
+      error = esp_wifi_set_promiscuous(false);
+      if( error != ESP_OK)
+      {
+        ESP_LOGE(TAG, "esp_wifi_set_promiscuous(...) failed with %s!", esp_err_to_name(error));
+        this->mark_failed();
+        return;
+      }
     }
-    ESP_ERROR_CHECK(esp_wifi_set_promiscuous(false));
   }
 
-  ESP_ERROR_CHECK(esp_now_init());
-  ESP_ERROR_CHECK(esp_now_register_recv_cb(receivecallback));
-  ESP_ERROR_CHECK(esp_now_register_send_cb(sendcallback));
+  error = esp_now_init();
+  if( error != ESP_OK)
+  {
+    ESP_LOGE(TAG, "esp_now_init() failed with %s!", esp_err_to_name(error));
+    this->mark_failed();
+    return;
+  }
+
+  error = esp_now_register_recv_cb(receivecallback);
+  if( error != ESP_OK)
+  {
+    ESP_LOGE(TAG, "esp_now_register_recv_cb(...) failed with %s!", esp_err_to_name(error));
+    this->mark_failed();
+    return;
+  }
+
+  error = esp_now_register_send_cb(sendcallback);
+  if( error != ESP_OK)
+  {
+    ESP_LOGE(TAG, "esp_now_register_send_cb(...) failed with %s!", esp_err_to_name(error));
+    this->mark_failed();
+    return;
+  }
+
   if (aeskey_) {
     auto aeskey = aeskey_->data();
-    ESP_ERROR_CHECK(esp_now_set_pmk(aeskey));
+    error = esp_now_set_pmk(aeskey);
+    if( error != ESP_OK)
+    {
+      ESP_LOGE(TAG, "esp_now_set_pmk(...) failed with %s!", esp_err_to_name(error));
+      this->mark_failed();
+      return;
+    }
   }
 
   for (auto peer : this->peers_) {
     esp_now_peer_info_t info;
     std::fill((uint8_t *) &info, ((uint8_t *) &info) + sizeof(info), 0);
-    std::move(peer->get_bssid().cbegin(), peer->get_bssid().cend(), info.peer_addr);
-    info.channel = 0;
+    std::copy(peer->get_bssid().cbegin(), peer->get_bssid().cend(), info.peer_addr);
+    info.channel = 2;
     info.ifidx = WIFI_IF_STA;
     if (peer->get_aeskey()) {
-      std::move(peer->get_aeskey()->cbegin(), peer->get_aeskey()->cend(), info.lmk);
+      std::copy(peer->get_aeskey()->cbegin(), peer->get_aeskey()->cend(), info.lmk);
       info.encrypt = true;
     }
-    ESP_ERROR_CHECK(esp_now_add_peer(&info));
+    error = esp_now_add_peer(&info);
+    if( error != ESP_OK)
+    {
+      ESP_LOGE(TAG, "esp_now_add_peer(...) failed with %s!", esp_err_to_name(error));
+      this->mark_failed();
+      return;
+    }
   }
 #endif
 
@@ -155,6 +226,10 @@ void WifiNowComponent::setup() {
 
 void WifiNowComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "WiFi Now:");
+
+  if (this->is_failed()) {
+    ESP_LOGE(TAG, "Wifi Now initialisation failed!");
+  }
 
   uint8_t sta_bssid[6];
 
@@ -282,7 +357,7 @@ static void send_internal(const WifiNowPacket &packet, std::function<void(bool)>
   queue.emplace(callback);
 
   uint8_t *bssid = nullptr;
-  if (std::all_of(packet.get_bssid().cbegin(), packet.get_bssid().cend(), [=](uint8_t x) { return x == 0; })) {
+  if (std::any_of(packet.get_bssid().cbegin(), packet.get_bssid().cend(), [=](uint8_t x) { return x != 0; })) {
     bssid = (uint8_t *) packet.get_bssid().data();
   }
 
@@ -331,7 +406,12 @@ void ICACHE_FLASH_ATTR sendcallback(uint8_t *bssid, uint8_t status)
   if (!queue.empty()) {
     if (queue.front()) {
       auto callback = queue.front();
-      sendcallbackqueue_.emplace([=]() { callback(status == 0 /*MT_TX_STATUS_OK or ESP_NOW_SEND_SUCCESS*/); });
+#ifdef ARDUINO_ARCH_ESP8266
+      sendcallbackqueue_.emplace([=]() { callback(status == 0 /*MT_TX_STATUS_OK*/); });
+#endif
+#ifdef ARDUINO_ARCH_ESP32
+      sendcallbackqueue_.emplace([=]() { callback(status == ESP_NOW_SEND_SUCCESS); });
+#endif
     }
     queue.pop();
   }
