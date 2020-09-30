@@ -4,6 +4,8 @@
 #include "esphome/core/automation.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #include "esphome/components/spi/spi.h"
+#include "esphome/components/nfc/nfc_tag.h"
+#include "esphome/components/nfc/nfc.h"
 
 namespace esphome {
 namespace pn532 {
@@ -57,6 +59,10 @@ class PN532 : public PollingComponent,
 
   void turn_off_rf_();
 
+  nfc::NfcTag read_tag_(std::vector<uint8_t> uid);
+  std::vector<uint8_t> read_mifare_classic_block_(uint8_t block_num);
+  bool auth_mifare_classic_block_(std::vector<uint8_t> uid, uint8_t block_num, uint8_t key_num, uint8_t *key);
+
   bool requested_read_{false};
   std::vector<PN532BinarySensor *> binary_sensors_;
   std::vector<PN532Trigger *> triggers_;
@@ -71,7 +77,7 @@ class PN532BinarySensor : public binary_sensor::BinarySensor {
  public:
   void set_uid(const std::vector<uint8_t> &uid) { uid_ = uid; }
 
-  bool process(const uint8_t *data, uint8_t len);
+  bool process(std::vector<uint8_t> data);
 
   void on_scan_end() {
     if (!this->found_) {
@@ -85,9 +91,9 @@ class PN532BinarySensor : public binary_sensor::BinarySensor {
   bool found_{false};
 };
 
-class PN532Trigger : public Trigger<std::string> {
+class PN532Trigger : public Trigger<std::string, nfc::NfcTag> {
  public:
-  void process(const uint8_t *uid, uint8_t uid_length);
+  void process(nfc::NfcTag *tag);
 };
 
 }  // namespace pn532

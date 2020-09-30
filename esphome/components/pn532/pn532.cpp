@@ -11,16 +11,6 @@ namespace pn532 {
 
 static const char *TAG = "pn532";
 
-void format_uid(char *buf, const uint8_t *uid, uint8_t uid_length) {
-  int offset = 0;
-  for (uint8_t i = 0; i < uid_length; i++) {
-    const char *format = "%02X";
-    if (i + 1 < uid_length)
-      format = "%02X-";
-    offset += sprintf(buf + offset, format, uid[i]);
-  }
-}
-
 void PN532::setup() {
   ESP_LOGCONFIG(TAG, "Setting up PN532...");
   this->spi_setup();
@@ -111,7 +101,7 @@ void PN532::loop() {
   if (!this->requested_read_ || !this->is_ready_())
     return;
 
-  auto read = this->pn532_read_data_();
+  std::vector<uint8_t> read = this->pn532_read_data_();
   this->requested_read_ = false;
 
   if (read.size() <= 2 || read[0] != 0x4B) {
@@ -130,33 +120,134 @@ void PN532::loop() {
   // const uint8_t target_number = read[2];
   // const uint16_t sens_res = uint16_t(read[3] << 8) | read[4];
   // const uint8_t sel_res = read[5];
-  const uint8_t nfcid_length = read[6];
-  const uint8_t *nfcid = &read[7];
+  uint8_t nfcid_length = read[6];
+  std::vector<uint8_t> nfcid(read[7], nfcid_length);
   if (read.size() < 7U + nfcid_length) {
     // oops, pn532 returned invalid data
     return;
   }
 
+  nfc::NfcTag tag = this->read_tag_(nfcid);
+
   bool report = true;
   // 1. Go through all triggers
   for (auto *trigger : this->triggers_)
-    trigger->process(nfcid, nfcid_length);
+    trigger->process(&tag);
 
   // 2. Find a binary sensor
-  for (auto *tag : this->binary_sensors_) {
-    if (tag->process(nfcid, nfcid_length)) {
+  for (auto *bin_sens : this->binary_sensors_) {
+    if (bin_sens->process(nfcid)) {
       // 2.1 if found, do not dump
       report = false;
     }
   }
 
   if (report) {
-    char buf[32];
-    format_uid(buf, nfcid, nfcid_length);
-    ESP_LOGD(TAG, "Found new tag '%s'", buf);
+    ESP_LOGD(TAG, "Found new tag '%s'", nfc::format_uid(nfcid).c_str());
   }
 
   this->turn_off_rf_();
+}
+
+nfc::NfcTag PN532::read_tag_(std::vector<uint8_t> uid) {
+  uint8_t type = nfc::guess_tag_type(uid.size());
+
+  if (type == TAG_TYPE_MIFARE_CLASSIC) {
+    uint8_t key[6] = {0xD3, 0xF7, 0xD3, 0xF7, 0xD3, 0xF7};
+    uint8_t current_block = 4;
+    uint8_t message_start_index = 0;
+    uint32_t message_length = 0;
+
+    if (this->auth_mifare_classic_block_(uid, current_block, MIFARE_KEY_A, key)) {
+      std::vector<uint8_t> data = this->read_mifare_classic_block_(current_block);
+      if (!data.empty()) {
+        if (!nfc::decode_mifare_classic_tlv(data, message_length, message_start_index)) {
+          return nfc::NfcTag(uid, "ERROR");
+        }
+      } else {
+        ESP_LOGE(TAG, "Failed to read block %d", current_block);
+        return nfc::NfcTag(uid, MIFARE_CLASSIC);
+      }
+    } else {
+      ESP_LOGV(TAG, "Tag is not NDEF formatted");
+      return nfc::NfcTag(uid, MIFARE_CLASSIC);
+    }
+
+    uint32_t index = 0;
+    uint32_t buffer_size = nfc::get_buffer_size(message_length);
+    std::vector<uint8_t> buffer;
+
+    while (index < buffer_size) {
+      if (nfc::mifare_classic_is_first_block(current_block)) {
+        if (!this->auth_mifare_classic_block_(uid, current_block, MIFARE_KEY_A, key)) {
+          ESP_LOGE(TAG, "Error, Block authentication failed for %d", current_block);
+        }
+      }
+      std::vector<uint8_t> data = this->read_mifare_classic_block_(current_block);
+      if (!data.empty()) {
+        buffer.insert(buffer.end(), data.begin(), data.end());
+      } else {
+        ESP_LOGE(TAG, "Error reading block %d", current_block);
+      }
+
+      index += BLOCK_SIZE;
+      current_block++;
+
+      if (nfc::mifare_classic_is_trailer_block(current_block)) {
+        current_block++;
+      }
+    }
+
+    return nfc::NfcTag(uid, MIFARE_CLASSIC, std::vector<uint8_t>(buffer.begin() + message_start_index, buffer.end()));
+  } else if (type == TAG_TYPE_2) {
+    // TODO: do the ultralight code
+    return nfc::NfcTag(uid);
+  } else if (type == TAG_TYPE_UNKNOWN) {
+    ESP_LOGV(TAG, "Cannot determine tag type");
+    return nfc::NfcTag(uid);
+  } else {
+    return nfc::NfcTag(uid);
+  }
+}
+
+std::vector<uint8_t> PN532::read_mifare_classic_block_(uint8_t block_num) {
+  this->pn532_write_command_({
+      0x40,  // INDATAEXCHANGE
+      0x01,  // One card
+      0x30,  // MIFARE_CMD_READ
+      block_num,
+  });
+
+  std::vector<uint8_t> response = this->pn532_read_data_();
+
+  if (response[0] != 0x00) {
+    return {};
+  }
+  return response;
+}
+
+bool PN532::auth_mifare_classic_block_(std::vector<uint8_t> uid, uint8_t block_num, uint8_t key_num, uint8_t *key) {
+  std::vector<uint8_t> data({
+      0x40,       // INDATAEXCHANGE
+      0x01,       // One card
+      key_num,    // Key B : Key A
+      block_num,  // Block number
+  });
+  data.insert(data.end(), key, key + 6);
+  data.insert(data.end(), uid.begin(), uid.end());
+  this->pn532_write_command_(data);
+
+  if (!this->wait_ready_())
+    return false;
+
+  std::vector<uint8_t> response = this->pn532_read_data_();
+
+  if (response[0] != 0x00) {
+    ESP_LOGE(TAG, "Authentication failed");
+    return false;
+  }
+
+  return true;
 }
 
 void PN532::turn_off_rf_() {
@@ -372,11 +463,11 @@ void PN532::dump_config() {
   }
 }
 
-bool PN532BinarySensor::process(const uint8_t *data, uint8_t len) {
-  if (len != this->uid_.size())
+bool PN532BinarySensor::process(std::vector<uint8_t> data) {
+  if (data.size() != this->uid_.size())
     return false;
 
-  for (uint8_t i = 0; i < len; i++) {
+  for (uint8_t i = 0; i < data.size(); i++) {
     if (data[i] != this->uid_[i])
       return false;
   }
@@ -385,11 +476,7 @@ bool PN532BinarySensor::process(const uint8_t *data, uint8_t len) {
   this->found_ = true;
   return true;
 }
-void PN532Trigger::process(const uint8_t *uid, uint8_t uid_length) {
-  char buf[32];
-  format_uid(buf, uid, uid_length);
-  this->trigger(std::string(buf));
-}
+void PN532Trigger::process(nfc::NfcTag *tag) { this->trigger(nfc::format_uid(tag->get_uid()), *tag); }
 
 }  // namespace pn532
 }  // namespace esphome
