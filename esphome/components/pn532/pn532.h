@@ -4,11 +4,16 @@
 #include "esphome/core/automation.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #include "esphome/components/spi/spi.h"
-#include "esphome/components/nfc/nfc_tag.h"
 #include "esphome/components/nfc/nfc.h"
 
 namespace esphome {
 namespace pn532 {
+
+static const uint8_t PN532_COMMAND_SAMCONFIGURATION    = 0x14;
+static const uint8_t PN532_COMMAND_RFCONFIGURATION     = 0x32;
+static const uint8_t PN532_COMMAND_INDATAEXCHANGE      = 0x40;
+static const uint8_t PN532_COMMAND_INLISTPASSIVETARGET = 0x4A;
+
 
 class PN532BinarySensor;
 class PN532Trigger;
@@ -60,8 +65,19 @@ class PN532 : public PollingComponent,
   void turn_off_rf_();
 
   nfc::NfcTag read_tag_(std::vector<uint8_t> uid);
+
+  bool erase_tag_(nfc::NfcTag tag);
+  bool format_tag_(nfc::NfcTag tag);
+  bool clean_tag_(nfc::NfcTag tag);
+  bool write_tag_(nfc::NfcTag tag);
+
+
   std::vector<uint8_t> read_mifare_classic_block_(uint8_t block_num);
+  bool write_mifare_classic_block_(uint8_t block_num, std::vector<uint8_t> data);
+
   bool auth_mifare_classic_block_(std::vector<uint8_t> uid, uint8_t block_num, uint8_t key_num, uint8_t *key);
+  bool format_mifare_classic_mifare_(nfc::NfcTag tag);
+  bool format_mifare_classic_ndef_(nfc::NfcTag tag);
 
   bool requested_read_{false};
   std::vector<PN532BinarySensor *> binary_sensors_;

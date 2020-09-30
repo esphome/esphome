@@ -35,6 +35,7 @@ class NfcTag {
   std::string get_tag_type() { return this->tag_type_; };
   boolean has_ndef_message() { return this->ndef_message_ != nullptr; };
   NdefMessage get_ndef_message() { return *this->ndef_message_; };
+  void set_ndef_message(NdefMessage *ndef_message) { this->ndef_message_ = ndef_message; };
 
  protected:
   std::vector<uint8_t> uid_;

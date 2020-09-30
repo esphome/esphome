@@ -29,7 +29,7 @@ void PN532::setup() {
   // do not actually read any data, this should be OK according to datasheet
 
   this->pn532_write_command_({
-      0x14,  // SAM config command
+      PN532_COMMAND_SAMCONFIGURATION,
       0x01,  // normal mode
       0x14,  // zero timeout (not in virtual card mode)
       0x01,
@@ -54,7 +54,7 @@ void PN532::setup() {
   // Set up SAM (secure access module)
   uint8_t sam_timeout = std::min(255u, this->update_interval_ / 50);
   bool ret = this->pn532_write_command_check_ack_({
-      0x14,         // SAM config command
+      PN532_COMMAND_SAMCONFIGURATION,
       0x01,         // normal mode
       sam_timeout,  // timeout as multiple of 50ms (actually only for virtual card mode, but shouldn't matter)
       0x01,         // Enable IRQ
@@ -85,7 +85,7 @@ void PN532::update() {
     obj->on_scan_end();
 
   bool success = this->pn532_write_command_check_ack_({
-      0x4A,  // INLISTPASSIVETARGET
+      PN532_COMMAND_INLISTPASSIVETARGET,
       0x01,  // max 1 card
       0x00,  // baud rate ISO14443A (106 kbit/s)
   });
@@ -152,13 +152,13 @@ void PN532::loop() {
 nfc::NfcTag PN532::read_tag_(std::vector<uint8_t> uid) {
   uint8_t type = nfc::guess_tag_type(uid.size());
 
-  if (type == TAG_TYPE_MIFARE_CLASSIC) {
+  if (type == nfc::TAG_TYPE_MIFARE_CLASSIC) {
     uint8_t key[6] = {0xD3, 0xF7, 0xD3, 0xF7, 0xD3, 0xF7};
     uint8_t current_block = 4;
     uint8_t message_start_index = 0;
     uint32_t message_length = 0;
 
-    if (this->auth_mifare_classic_block_(uid, current_block, MIFARE_KEY_A, key)) {
+    if (this->auth_mifare_classic_block_(uid, current_block, nfc::MIFARE_CMD_AUTH_A, key)) {
       std::vector<uint8_t> data = this->read_mifare_classic_block_(current_block);
       if (!data.empty()) {
         if (!nfc::decode_mifare_classic_tlv(data, message_length, message_start_index)) {
@@ -179,7 +179,7 @@ nfc::NfcTag PN532::read_tag_(std::vector<uint8_t> uid) {
 
     while (index < buffer_size) {
       if (nfc::mifare_classic_is_first_block(current_block)) {
-        if (!this->auth_mifare_classic_block_(uid, current_block, MIFARE_KEY_A, key)) {
+        if (!this->auth_mifare_classic_block_(uid, current_block, nfc::MIFARE_CMD_AUTH_A, key)) {
           ESP_LOGE(TAG, "Error, Block authentication failed for %d", current_block);
         }
       }
@@ -190,7 +190,7 @@ nfc::NfcTag PN532::read_tag_(std::vector<uint8_t> uid) {
         ESP_LOGE(TAG, "Error reading block %d", current_block);
       }
 
-      index += BLOCK_SIZE;
+      index += nfc::BLOCK_SIZE;
       current_block++;
 
       if (nfc::mifare_classic_is_trailer_block(current_block)) {
@@ -199,10 +199,10 @@ nfc::NfcTag PN532::read_tag_(std::vector<uint8_t> uid) {
     }
 
     return nfc::NfcTag(uid, MIFARE_CLASSIC, std::vector<uint8_t>(buffer.begin() + message_start_index, buffer.end()));
-  } else if (type == TAG_TYPE_2) {
+  } else if (type == nfc::TAG_TYPE_2) {
     // TODO: do the ultralight code
     return nfc::NfcTag(uid);
-  } else if (type == TAG_TYPE_UNKNOWN) {
+  } else if (type == nfc::TAG_TYPE_UNKNOWN) {
     ESP_LOGV(TAG, "Cannot determine tag type");
     return nfc::NfcTag(uid);
   } else {
@@ -212,15 +212,15 @@ nfc::NfcTag PN532::read_tag_(std::vector<uint8_t> uid) {
 
 std::vector<uint8_t> PN532::read_mifare_classic_block_(uint8_t block_num) {
   this->pn532_write_command_({
-      0x40,  // INDATAEXCHANGE
+      PN532_COMMAND_INDATAEXCHANGE,
       0x01,  // One card
-      0x30,  // MIFARE_CMD_READ
+      nfc::MIFARE_CMD_READ,
       block_num,
   });
 
   std::vector<uint8_t> response = this->pn532_read_data_();
 
-  if (response[0] != 0x00) {
+  if (response.size() == 0 || response[0] != 0x00) {
     return {};
   }
   return response;
@@ -228,9 +228,9 @@ std::vector<uint8_t> PN532::read_mifare_classic_block_(uint8_t block_num) {
 
 bool PN532::auth_mifare_classic_block_(std::vector<uint8_t> uid, uint8_t block_num, uint8_t key_num, uint8_t *key) {
   std::vector<uint8_t> data({
-      0x40,       // INDATAEXCHANGE
+      PN532_COMMAND_INDATAEXCHANGE,
       0x01,       // One card
-      key_num,    // Key B : Key A
+      key_num,    // Mifare Key slot
       block_num,  // Block number
   });
   data.insert(data.end(), key, key + 6);
@@ -242,7 +242,7 @@ bool PN532::auth_mifare_classic_block_(std::vector<uint8_t> uid, uint8_t block_n
 
   std::vector<uint8_t> response = this->pn532_read_data_();
 
-  if (response[0] != 0x00) {
+  if (response.size() == 0 || response[0] != 0x00) {
     ESP_LOGE(TAG, "Authentication failed");
     return false;
   }
@@ -253,9 +253,9 @@ bool PN532::auth_mifare_classic_block_(std::vector<uint8_t> uid, uint8_t block_n
 void PN532::turn_off_rf_() {
   ESP_LOGVV(TAG, "Turning RF field OFF");
   this->pn532_write_command_check_ack_({
-      0x32,  // RFConfiguration
-      0x1,   // RF Field
-      0x0    // Off
+      PN532_COMMAND_RFCONFIGURATION,
+      0x01,   // RF Field
+      0x00,    // Off
   });
 }
 
@@ -311,6 +311,102 @@ bool PN532::pn532_write_command_check_ack_(const std::vector<uint8_t> &data) {
   // 3. read ack
   if (!this->read_ack_()) {
     ESP_LOGV(TAG, "Invalid ACK frame received from PN532!");
+    return false;
+  }
+
+  return true;
+}
+
+bool PN532::erase_tag_(nfc::NfcTag tag) {
+  nfc::NdefMessage message = nfc::NdefMessage();
+  message.add_empty_record();
+  tag.set_ndef_message(&message);
+  return this->write_tag_(tag);
+}
+
+bool PN532::format_tag_(nfc::NfcTag tag) {
+  if (tag.get_tag_type() == MIFARE_CLASSIC) {
+    return this->format_mifare_classic_ndef_(tag);
+  }
+  ESP_LOGE(TAG, "Unsupported Tag for formatting");
+  return false;
+}
+
+bool PN532::clean_tag_(nfc::NfcTag tag) {
+  if (tag.get_tag_type() == MIFARE_CLASSIC) {
+    return this->format_mifare_classic_mifare_(tag);
+  }
+  ESP_LOGE(TAG, "Unsupported Tag for formatting");
+  return false;
+}
+
+bool PN532::write_tag_(nfc::NfcTag tag) {
+  return true;
+}
+
+bool PN532::format_mifare_classic_mifare_(nfc::NfcTag tag) {
+  return true;
+}
+
+bool PN532::format_mifare_classic_ndef_(nfc::NfcTag tag) {
+  uint8_t key_a[6] = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
+  std::vector<uint8_t> empty_ndef_message({0x03, 0x03, 0xD0, 0x00, 0x00, 0xFE, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00});
+  std::vector<uint8_t> sector_buffer_0({0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00});
+  std::vector<uint8_t> sector_buffer_1({0x14, 0x01, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1});
+  std::vector<uint8_t> sector_buffer_2({0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1});
+  std::vector<uint8_t> sector_buffer_3({0xA0, 0xA1, 0xA2, 0xA3, 0xA4, 0xA5, 0x78, 0x77, 0x88, 0xC1, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF});
+  std::vector<uint8_t> sector_buffer_4({0xD3, 0xF7, 0xD3, 0xF7, 0xD3, 0xF7, 0x7F, 0x07, 0x88, 0x40, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF});
+
+  if (!this->auth_mifare_classic_block_(tag.get_uid(), 0, nfc::MIFARE_CMD_AUTH_A, key_a)) {
+    ESP_LOGE(TAG, "Unable to authenticate block 0 for formatting!");
+    return false;
+  }
+  if (!this->write_mifare_classic_block_(1, sector_buffer_1))
+    return false;
+  if (!this->write_mifare_classic_block_(2, sector_buffer_2))
+    return false;
+  if (!this->write_mifare_classic_block_(3, sector_buffer_3))
+    return false;
+
+  for (int i = 4; i < 64; i+=4) {
+    if (!this->auth_mifare_classic_block_(tag.get_uid(), i, nfc::MIFARE_CMD_AUTH_A, key_a)) {
+      ESP_LOGE(TAG, "Failed to authenticate with block %d", i);
+      continue;
+    }
+    if (i == 4) {
+      if (!this->write_mifare_classic_block_(i, empty_ndef_message))
+        ESP_LOGE(TAG, "Unable to write block %d", i);
+    } else {
+      if (!this->write_mifare_classic_block_(i, sector_buffer_0))
+        ESP_LOGE(TAG, "Unable to write block %d", i);
+    }
+    if (!this->write_mifare_classic_block_(i+1, sector_buffer_0))
+        ESP_LOGE(TAG, "Unable to write block %d", i+1);
+    if (!this->write_mifare_classic_block_(i+2, sector_buffer_0))
+        ESP_LOGE(TAG, "Unable to write block %d", i+2);
+    if (!this->write_mifare_classic_block_(i+3, sector_buffer_4))
+        ESP_LOGE(TAG, "Unable to write block %d", i+3);
+  }
+  return true;
+}
+
+bool PN532::write_mifare_classic_block_(uint8_t block_num, std::vector<uint8_t> write_data) {
+  std::vector<uint8_t> data({
+      PN532_COMMAND_INDATAEXCHANGE,
+      0x01,       // One card
+      nfc::MIFARE_CMD_WRITE,
+      block_num,  // Block number
+  });
+  data.insert(data.end(), write_data.begin(), write_data.end());
+  this->pn532_write_command_(data);
+
+  if (!this->wait_ready_())
+    return false;
+
+  std::vector<uint8_t> response = this->pn532_read_data_();
+
+  if (response.size() == 0) {
+    ESP_LOGE(TAG, "Error writing block %d", block_num);
     return false;
   }
 

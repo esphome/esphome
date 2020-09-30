@@ -6,6 +6,11 @@
 #include "ndef_message.h"
 #include "nfc_tag.h"
 
+#define MIFARE_CLASSIC ("Mifare Classic")
+
+namespace esphome {
+namespace nfc {
+
 static const uint8_t BLOCK_SIZE = 16;
 static const uint8_t LONG_TLV_SIZE = 4;
 static const uint8_t SHORT_TLV_SIZE = 2;
@@ -17,13 +22,11 @@ static const uint8_t TAG_TYPE_3 = 3;
 static const uint8_t TAG_TYPE_4 = 4;
 static const uint8_t TAG_TYPE_UNKNOWN = 99;
 
-static const uint8_t MIFARE_KEY_A = 0x60;
-static const uint8_t MIFARE_KEY_B = 0x61;
-
-#define MIFARE_CLASSIC ("Mifare Classic")
-
-namespace esphome {
-namespace nfc {
+// Mifare Commands
+static const uint8_t MIFARE_CMD_AUTH_A = 0x60;
+static const uint8_t MIFARE_CMD_AUTH_B = 0x61;
+static const uint8_t MIFARE_CMD_READ   = 0x30;
+static const uint8_t MIFARE_CMD_WRITE  = 0xA0;
 
 std::string format_uid(std::vector<uint8_t> uid);
 
