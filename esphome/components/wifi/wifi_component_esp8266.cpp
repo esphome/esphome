@@ -488,7 +488,9 @@ void WiFiComponent::wifi_pre_setup_() {
   wifi_set_event_handler_cb(&WiFiComponent::wifi_event_callback);
 
   // Make sure WiFi is in clean state before anything starts
+#ifndef WIFI_BASIC_COOP
   this->wifi_mode_(false, false);
+#endif
 }
 
 wl_status_t WiFiComponent::wifi_sta_status_() {

@@ -520,7 +520,11 @@ void WiFiComponent::retry_connect() {
   if (!this->is_captive_portal_active_() && (this->num_retried_ > 5 || this->error_from_callback_)) {
     // If retry failed for more than 5 times, let's restart STA
     ESP_LOGW(TAG, "Restarting WiFi adapter...");
+#ifdef WIFI_BASIC_COOP
+    this->wifi_disconnect_();
+#else
     this->wifi_mode_(false, {});
+#endif
     delay(100);  // NOLINT
     this->num_retried_ = 0;
   } else {
