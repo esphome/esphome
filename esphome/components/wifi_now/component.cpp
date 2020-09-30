@@ -141,24 +141,21 @@ void WifiNowComponent::setup() {
 
     if (channel_ > 0) {
       error = esp_wifi_set_promiscuous(true);
-      if( error != ESP_OK)
-      {
+      if( error != ESP_OK) {
         ESP_LOGE(TAG, "esp_wifi_set_promiscuous(...) failed with %s!", esp_err_to_name(error));
         this->mark_failed();
         return;
       }
 
       error = esp_wifi_set_channel(channel_, WIFI_SECOND_CHAN_NONE);
-      if( error != ESP_OK)
-      {
+      if( error != ESP_OK) {
         ESP_LOGE(TAG, "esp_wifi_set_channel(...) failed with %s!", esp_err_to_name(error));
         this->mark_failed();
         return;
       }
 
       error = esp_wifi_set_promiscuous(false);
-      if( error != ESP_OK)
-      {
+      if( error != ESP_OK) {
         ESP_LOGE(TAG, "esp_wifi_set_promiscuous(...) failed with %s!", esp_err_to_name(error));
         this->mark_failed();
         return;
@@ -167,24 +164,21 @@ void WifiNowComponent::setup() {
   }
 
   error = esp_now_init();
-  if( error != ESP_OK)
-  {
+  if( error != ESP_OK) {
     ESP_LOGE(TAG, "esp_now_init() failed with %s!", esp_err_to_name(error));
     this->mark_failed();
     return;
   }
 
   error = esp_now_register_recv_cb(receivecallback);
-  if( error != ESP_OK)
-  {
+  if( error != ESP_OK) {
     ESP_LOGE(TAG, "esp_now_register_recv_cb(...) failed with %s!", esp_err_to_name(error));
     this->mark_failed();
     return;
   }
 
   error = esp_now_register_send_cb(sendcallback);
-  if( error != ESP_OK)
-  {
+  if( error != ESP_OK) {
     ESP_LOGE(TAG, "esp_now_register_send_cb(...) failed with %s!", esp_err_to_name(error));
     this->mark_failed();
     return;
@@ -193,8 +187,7 @@ void WifiNowComponent::setup() {
   if (aeskey_) {
     auto aeskey = aeskey_->data();
     error = esp_now_set_pmk(aeskey);
-    if( error != ESP_OK)
-    {
+    if( error != ESP_OK) {
       ESP_LOGE(TAG, "esp_now_set_pmk(...) failed with %s!", esp_err_to_name(error));
       this->mark_failed();
       return;
@@ -212,8 +205,7 @@ void WifiNowComponent::setup() {
       info.encrypt = true;
     }
     error = esp_now_add_peer(&info);
-    if( error != ESP_OK)
-    {
+    if( error != ESP_OK) {
       ESP_LOGE(TAG, "esp_now_add_peer(...) failed with %s!", esp_err_to_name(error));
       this->mark_failed();
       return;
