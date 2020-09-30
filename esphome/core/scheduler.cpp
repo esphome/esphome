@@ -107,6 +107,26 @@ void ICACHE_RAM_ATTR HOT Scheduler::call() {
   }
 #endif  // ESPHOME_DEBUG_SCHEDULER
 
+  auto to_remove_was = to_remove_;
+  auto items_was = items_.size();
+  // If we have too many items to remove
+  if (to_remove_ > 10) {
+    std::vector<std::unique_ptr<SchedulerItem>> valid_items;
+    while (!this->empty_()) {
+      auto item = std::move(this->items_[0]);
+      this->pop_raw_();
+      valid_items.push_back(std::move(item));
+    }
+    this->items_ = std::move(valid_items);
+
+    // The following should not happen unless I'm missing something
+    if (to_remove_ != 0) {
+      ESP_LOGW(TAG, "to_remove_ was %d now: %d items where %d now %d. Please report this", to_remove_was, to_remove_,
+               items_was, items_.size());
+      to_remove_ = 0;
+    }
+  }
+
   while (!this->empty_()) {
     // use scoping to indicate visibility of `item` variable
     {
@@ -147,6 +167,7 @@ void ICACHE_RAM_ATTR HOT Scheduler::call() {
 
       if (item->remove) {
         // We were removed/cancelled in the function call, stop
+        to_remove_--;
         continue;
       }
 
@@ -182,6 +203,7 @@ void HOT Scheduler::cleanup_() {
     if (!item->remove)
       return;
 
+    to_remove_--;
     this->pop_raw_();
   }
 }
@@ -193,7 +215,8 @@ void HOT Scheduler::push_(std::unique_ptr<Scheduler::SchedulerItem> item) { this
 bool HOT Scheduler::cancel_item_(Component *component, const std::string &name, Scheduler::SchedulerItem::Type type) {
   bool ret = false;
   for (auto &it : this->items_)
-    if (it->component == component && it->name == name && it->type == type) {
+    if (it->component == component && it->name == name && it->type == type && !it->remove) {
+      to_remove_++;
       it->remove = true;
       ret = true;
     }
