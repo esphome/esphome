@@ -467,7 +467,9 @@ void WiFiComponent::wifi_pre_setup_() {
   WiFi.onEvent(f);
   WiFi.persistent(false);
   // Make sure WiFi is in clean state before anything starts
+#ifndef WIFI_BASIC_COOP
   this->wifi_mode_(false, false);
+#endif
 }
 wl_status_t WiFiComponent::wifi_sta_status_() { return WiFi.status(); }
 bool WiFiComponent::wifi_scan_start_() {
