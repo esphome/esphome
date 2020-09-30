@@ -65,7 +65,7 @@ class LightTransitionTransformer : public LightTransformer {
     return LightColorValues::lerp(this->get_start_values_(), this->get_target_values_(), v);
   }
 
-  bool publish_at_end() override { return false; }
+  bool publish_at_end() override { return true; }
   bool is_transition() override { return true; }
 
   static float smoothed_progress(float x) { return x * x * x * (x * (x * 6.0f - 15.0f) + 10.0f); }
