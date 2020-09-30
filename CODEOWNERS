@@ -40,6 +40,7 @@ esphome/components/light/* @esphome/core
 esphome/components/logger/* @esphome/core
 esphome/components/mcp9808/* @k7hpn
 esphome/components/network/* @esphome/core
+esphome/components/nfc/* @jesserockz
 esphome/components/ota/* @esphome/core
 esphome/components/output/* @esphome/core
 esphome/components/pid/* @OttoWinter
