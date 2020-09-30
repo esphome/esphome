@@ -14,8 +14,8 @@ from esphome import core
 from esphome.const import ALLOWED_NAME_CHARS, CONF_AVAILABILITY, CONF_COMMAND_TOPIC, \
     CONF_DISCOVERY, CONF_ID, CONF_INTERNAL, CONF_NAME, CONF_PAYLOAD_AVAILABLE, \
     CONF_PAYLOAD_NOT_AVAILABLE, CONF_RETAIN, CONF_SETUP_PRIORITY, CONF_STATE_TOPIC, CONF_TOPIC, \
-    CONF_HOUR, CONF_MINUTE, CONF_SECOND, CONF_VALUE, CONF_UPDATE_INTERVAL, CONF_TYPE_ID, CONF_TYPE, \
-    CONF_PACKAGES
+    CONF_HOUR, CONF_MINUTE, CONF_SECOND, CONF_VALUE, CONF_UPDATE_INTERVAL, CONF_TYPE_ID, \
+    CONF_TYPE, CONF_PACKAGES
 from esphome.core import CORE, HexInt, IPAddress, Lambda, TimePeriod, TimePeriodMicroseconds, \
     TimePeriodMilliseconds, TimePeriodSeconds, TimePeriodMinutes
 from esphome.helpers import list_starts_with, add_class_to_obj
