@@ -1177,7 +1177,7 @@ class OnlyWith(Optional):
         if (self._component in CORE.raw_config or
                 (CONF_PACKAGES in CORE.raw_config and
                     self._component in
-                        {list(x.keys())[0] for x in CORE.raw_config[CONF_PACKAGES].values()})):
+                    {list(x.keys())[0] for x in CORE.raw_config[CONF_PACKAGES].values()})):
             return self._default
         return vol.UNDEFINED
 
