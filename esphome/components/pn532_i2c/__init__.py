@@ -12,7 +12,7 @@ PN532I2C = pn532_i2c_ns.class_('PN532I2C', pn532.PN532, i2c.I2CDevice)
 
 CONFIG_SCHEMA = cv.All(pn532.PN532_SCHEMA.extend({
     cv.GenerateID(): cv.declare_id(PN532I2C),
-}).extend(i2c.i2c_device_schema(0x48)))
+}).extend(i2c.i2c_device_schema(0x24)))
 
 
 def to_code(config):
