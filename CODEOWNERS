@@ -66,5 +66,5 @@ esphome/components/uart/* @esphome/core
 esphome/components/ultrasonic/* @OttoWinter
 esphome/components/version/* @esphome/core
 esphome/components/web_server_base/* @OttoWinter
-esphome/components/wifi_now/* @motwok
 esphome/components/whirlpool/* @glmnet
+esphome/components/wifi_now/* @motwok
