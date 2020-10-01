@@ -11,11 +11,11 @@ namespace pn532_i2c {
 
 static const char *TAG = "pn532_i2c";
 
-std::vector<uint8_t> PN532I2C::pn532_read_data_() {
+std::vector<uint8_t> PN532I2C::pn532_read_data() {
   if (!this->wait_ready_())
     return {};
 
-  return PN532::pn532_read_data_();
+  return PN532::pn532_read_data();
 }
 
 bool PN532I2C::is_ready() {

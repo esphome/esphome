@@ -27,18 +27,18 @@ void PN532Spi::setup() {
   PN532::setup();
 }
 
-void PN532Spi::pn532_write_command_(const std::vector<uint8_t> &data) {
+void PN532Spi::pn532_write_command(const std::vector<uint8_t> &data) {
   this->enable();
   delay(2);
   // First byte, communication mode: Write data
   this->write_byte(0x01);
 
-  PN532::pn532_write_command_(data);
+  PN532::pn532_write_command(data);
 
   this->disable();
 }
 
-std::vector<uint8_t> PN532Spi::pn532_read_data_() {
+std::vector<uint8_t> PN532Spi::pn532_read_data() {
   if (!this->wait_ready_())
     return {};
 
@@ -47,7 +47,7 @@ std::vector<uint8_t> PN532Spi::pn532_read_data_() {
   // Read data (transmission from the PN532 to the host)
   this->write_byte(0x03);
 
-  std::vector<uint8_t> ret = PN532::pn532_read_data_();
+  std::vector<uint8_t> ret = PN532::pn532_read_data();
   this->disable();
   return ret;
 }
@@ -69,13 +69,13 @@ void PN532Spi::dump_config() {
   LOG_PIN("  CS Pin: ", this->cs_);
 }
 
-bool PN532Spi::read_ack_() {
+bool PN532Spi::read_ack() {
   this->enable();
   delay(2);
   // "Read data (transmission from the PN532 to the host) "
   this->write_byte(0x03);
 
-  bool matches = PN532::read_ack_();
+  bool matches = PN532::read_ack();
 
   this->disable();
   return matches;

@@ -16,13 +16,13 @@ class PN532Spi : public pn532::PN532,
   void dump_config() override;
 
  protected:
-  void pn532_write_command_(const std::vector<uint8_t> &data) override;
+  void pn532_write_command(const std::vector<uint8_t> &data) override;
 
-  std::vector<uint8_t> pn532_read_data_() override;
+  std::vector<uint8_t> pn532_read_data() override;
 
   bool is_ready() override;
 
-  bool read_ack_() override;
+  bool read_ack() override;
 
   std::vector<uint8_t> pn532_read_bytes(uint8_t len) override {
     std::vector<uint8_t> data;
@@ -30,9 +30,7 @@ class PN532Spi : public pn532::PN532,
     return data;
   };
 
-  void pn532_write_bytes(std::vector<uint8_t> data) override {
-    this->write_array(data);
-  };
+  void pn532_write_bytes(std::vector<uint8_t> data) override { this->write_array(data); };
 };
 
 }  // namespace pn532_spi

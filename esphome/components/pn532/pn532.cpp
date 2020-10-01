@@ -36,7 +36,7 @@ void PN532::setup() {
   });
 
   // read data packet for wakeup result
-  auto wakeup_result = this->pn532_read_data_();
+  auto wakeup_result = this->pn532_read_data();
   if (wakeup_result.size() != 1) {
     this->error_code_ = WAKEUP_FAILED;
     this->mark_failed();
@@ -58,7 +58,7 @@ void PN532::setup() {
     return;
   }
 
-  std::vector<uint8_t> sam_result = this->pn532_read_data_();
+  std::vector<uint8_t> sam_result = this->pn532_read_data();
   if (sam_result.size() != 1) {
     ESP_LOGV(TAG, "Invalid SAM result: (%u)", sam_result.size());  // NOLINT
     for (uint8_t dat : sam_result) {
@@ -94,7 +94,7 @@ void PN532::loop() {
   if (!this->requested_read_)
     return;
 
-  auto read = this->pn532_read_data_();
+  auto read = this->pn532_read_data();
   this->requested_read_ = false;
 
   if (read.size() <= 2 || read[0] != 0x4B) {
@@ -155,14 +155,14 @@ float PN532::get_setup_priority() const { return setup_priority::DATA; }
 
 bool PN532::pn532_write_command_check_ack_(const std::vector<uint8_t> &data) {
   // 1. write command
-  this->pn532_write_command_(data);
+  this->pn532_write_command(data);
 
   // 2. wait for readiness
   if (!this->wait_ready_())
     return false;
 
   // 3. read ack
-  if (!this->read_ack_()) {
+  if (!this->read_ack()) {
     ESP_LOGV(TAG, "Invalid ACK frame received from PN532!");
     return false;
   }
@@ -202,7 +202,7 @@ void PN532::dump_config() {
   }
 }
 
-std::vector<uint8_t> PN532::pn532_read_data_() {
+std::vector<uint8_t> PN532::pn532_read_data() {
   std::vector<uint8_t> header = this->pn532_read_bytes(3);
 
   if (header[0] != 0x00 && header[1] != 0x00 && header[2] != 0xFF) {
@@ -213,8 +213,8 @@ std::vector<uint8_t> PN532::pn532_read_data_() {
 
   std::vector<uint8_t> header2 = this->pn532_read_bytes(3);
 
-  bool valid_header = (header[0] == 0x00 &&                                                      // preamble
-                       header[1] == 0x00 &&                                                      // start code
+  bool valid_header = (header[0] == 0x00 &&                                                        // preamble
+                       header[1] == 0x00 &&                                                        // start code
                        header[2] == 0xFF && static_cast<uint8_t>(header2[0] + header2[1]) == 0 &&  // LCS, len + lcs = 0
                        header2[2] == 0xD5  // TFI - frame from PN532 to system controller
   );
@@ -259,7 +259,7 @@ std::vector<uint8_t> PN532::pn532_read_data_() {
   return ret;
 }
 
-void PN532::pn532_write_command_(const std::vector<uint8_t> &data) {
+void PN532::pn532_write_command(const std::vector<uint8_t> &data) {
   std::vector<uint8_t> write_data;
   // Preamble
   write_data.push_back(0x00);
@@ -294,7 +294,7 @@ void PN532::pn532_write_command_(const std::vector<uint8_t> &data) {
   this->pn532_write_bytes(write_data);
 }
 
-bool PN532::read_ack_() {
+bool PN532::read_ack() {
   ESP_LOGVV(TAG, "Reading ACK...");
 
   std::vector<uint8_t> ack = this->pn532_read_bytes(6);

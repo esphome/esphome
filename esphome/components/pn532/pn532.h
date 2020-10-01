@@ -26,7 +26,7 @@ class PN532 : public PollingComponent {
 
  protected:
   /// Write the full command given in data to the PN532
-  virtual void pn532_write_command_(const std::vector<uint8_t> &data);
+  virtual void pn532_write_command(const std::vector<uint8_t> &data);
   bool pn532_write_command_check_ack_(const std::vector<uint8_t> &data);
 
   /** Read a data frame from the PN532 and return the result as a vector.
@@ -35,7 +35,7 @@ class PN532 : public PollingComponent {
    *
    * On failure, an empty vector is returned.
    */
-  virtual std::vector<uint8_t> pn532_read_data_();
+  virtual std::vector<uint8_t> pn532_read_data();
 
   /** Checks if the PN532 has set its ready status flag.
    *
@@ -50,7 +50,7 @@ class PN532 : public PollingComponent {
   virtual bool is_ready() = 0;
   bool wait_ready_();
 
-  virtual bool read_ack_();
+  virtual bool read_ack();
 
   void turn_off_rf_();
 
