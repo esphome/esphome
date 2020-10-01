@@ -33,7 +33,7 @@ static std::map<const bssid_t, std::queue<std::function<void(bool)>>> sendrespon
 static std::queue<std::function<void()>> sendcallbackqueue_;
 static std::vector<std::function<bool(WifiNowPacket &)>> receivecallbacks_;
 
-static void send_internal(const WifiNowPacket &packet, std::function<void(bool)> &&callback);
+static bool send_internal(const WifiNowPacket &packet, std::function<void(bool)> &&callback);
 #ifdef ARDUINO_ARCH_ESP8266
 static void ICACHE_FLASH_ATTR receivecallback(uint8_t *bssid, uint8_t *data, uint8_t len);
 static void ICACHE_FLASH_ATTR sendcallback(uint8_t *bssid, uint8_t status);
@@ -141,21 +141,21 @@ void WifiNowComponent::setup() {
 
     if (channel_ > 0) {
       error = esp_wifi_set_promiscuous(true);
-      if( error != ESP_OK) {
+      if (error != ESP_OK) {
         ESP_LOGE(TAG, "esp_wifi_set_promiscuous(...) failed with %s!", esp_err_to_name(error));
         this->mark_failed();
         return;
       }
 
       error = esp_wifi_set_channel(channel_, WIFI_SECOND_CHAN_NONE);
-      if( error != ESP_OK) {
+      if (error != ESP_OK) {
         ESP_LOGE(TAG, "esp_wifi_set_channel(...) failed with %s!", esp_err_to_name(error));
         this->mark_failed();
         return;
       }
 
       error = esp_wifi_set_promiscuous(false);
-      if( error != ESP_OK) {
+      if (error != ESP_OK) {
         ESP_LOGE(TAG, "esp_wifi_set_promiscuous(...) failed with %s!", esp_err_to_name(error));
         this->mark_failed();
         return;
@@ -164,21 +164,21 @@ void WifiNowComponent::setup() {
   }
 
   error = esp_now_init();
-  if( error != ESP_OK) {
+  if (error != ESP_OK) {
     ESP_LOGE(TAG, "esp_now_init() failed with %s!", esp_err_to_name(error));
     this->mark_failed();
     return;
   }
 
   error = esp_now_register_recv_cb(receivecallback);
-  if( error != ESP_OK) {
+  if (error != ESP_OK) {
     ESP_LOGE(TAG, "esp_now_register_recv_cb(...) failed with %s!", esp_err_to_name(error));
     this->mark_failed();
     return;
   }
 
   error = esp_now_register_send_cb(sendcallback);
-  if( error != ESP_OK) {
+  if (error != ESP_OK) {
     ESP_LOGE(TAG, "esp_now_register_send_cb(...) failed with %s!", esp_err_to_name(error));
     this->mark_failed();
     return;
@@ -187,7 +187,7 @@ void WifiNowComponent::setup() {
   if (aeskey_) {
     auto aeskey = aeskey_->data();
     error = esp_now_set_pmk(aeskey);
-    if( error != ESP_OK) {
+    if (error != ESP_OK) {
       ESP_LOGE(TAG, "esp_now_set_pmk(...) failed with %s!", esp_err_to_name(error));
       this->mark_failed();
       return;
@@ -205,7 +205,7 @@ void WifiNowComponent::setup() {
       info.encrypt = true;
     }
     error = esp_now_add_peer(&info);
-    if( error != ESP_OK) {
+    if (error != ESP_OK) {
       ESP_LOGE(TAG, "esp_now_add_peer(...) failed with %s!", esp_err_to_name(error));
       this->mark_failed();
       return;
@@ -306,6 +306,9 @@ void WifiNowComponent::loop() {
 #endif
     }
     receivequeue_.pop();
+    if (this->status_has_error()) {
+      this->status_clear_warning();
+    }
   }
 
   ESP_LOGVV(TAG, "exit loop()");
@@ -331,7 +334,11 @@ void WifiNowComponent::send(const WifiNowPacket &packet, std::function<void(bool
   // HERE WE CAN DOO ALL THE STUFF NEEDED INCLUDING THE "LOCK" signature bla...
   // It has to be asyncrounous -> use settimeout and co
 
-  send_internal(packet, std::move(callback));
+  if (!send_internal(packet, std::move(callback))) {
+    this->status_set_warning();
+  } else {
+    this->status_clear_warning();
+  }
 }
 
 void WifiNowComponent::register_receive_callback(std::function<bool(WifiNowPacket &)> &&callback) {
@@ -342,7 +349,7 @@ void WifiNowComponent::register_priorized_receive_callback(std::function<bool(Wi
   receivecallbacks_.insert(receivecallbacks_.begin(), std::move(callback));
 }
 
-static void send_internal(const WifiNowPacket &packet, std::function<void(bool)> &&callback) {
+static bool send_internal(const WifiNowPacket &packet, std::function<void(bool)> &&callback) {
   ESP_LOGV(TAG, "enter send_internal()");
 
   auto &queue = sendresponsecallbackqueue_[packet.get_bssid()];
@@ -355,8 +362,9 @@ static void send_internal(const WifiNowPacket &packet, std::function<void(bool)>
 
 #ifdef ARDUINO_ARCH_ESP8266
   if (esp_now_send(bssid, (uint8_t *) packet.get_packetdata().data(), packet.get_packetdata().size())) {
-    ESP_LOGE(TAG, "esp_now_send(...) failed");
     queue.pop();
+    ESP_LOGE(TAG, "esp_now_send(...) failed");
+    return false;
   }
 #endif
 #ifdef ARDUINO_ARCH_ESP32
@@ -365,11 +373,13 @@ static void send_internal(const WifiNowPacket &packet, std::function<void(bool)>
   error = esp_now_send(bssid, (uint8_t *) packet.get_packetdata().data(), packet.get_packetdata().size());
   if (error != ESP_OK) {
     queue.pop();
+    ESP_LOGE(TAG, "esp_now_send(...) failed with %s!", esp_err_to_name(error));
+    return false;
   }
-  ESP_ERROR_CHECK(error)
 #endif
 
   ESP_LOGV(TAG, "exit send_internal()");
+  return true;
 }
 
 #ifdef ARDUINO_ARCH_ESP8266
