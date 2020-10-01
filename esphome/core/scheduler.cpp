@@ -121,7 +121,7 @@ void ICACHE_RAM_ATTR HOT Scheduler::call() {
 
     // The following should not happen unless I'm missing something
     if (to_remove_ != 0) {
-      ESP_LOGW(TAG, "to_remove_ was %d now: %d items where %d now %d. Please report this", to_remove_was, to_remove_,
+      ESP_LOGW(TAG, "to_remove_ was %u now: %u items where %zu now %zu. Please report this", to_remove_was, to_remove_,
                items_was, items_.size());
       to_remove_ = 0;
     }
