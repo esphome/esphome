@@ -24,19 +24,45 @@ void format_uid(char *buf, const uint8_t *uid, uint8_t uid_length) {
 void PN532::setup() {
   ESP_LOGCONFIG(TAG, "Setting up PN532...");
 
-  // send dummy firmware version command to get synced up
-  this->pn532_write_command_check_ack_({0x02});  // get firmware version command
-  // do not actually read any data, this should be OK according to datasheet
 
-  this->pn532_write_command_check_ack_({
+  delay(1000);
+
+  // Get version data
+  if (!this->pn532_write_command_check_ack_({0x02})) {
+    ESP_LOGE(TAG, "Error sending version command");
+    this->mark_failed();
+    return;
+  }
+
+  std::vector<uint8_t> version_data = this->pn532_read_data();
+
+  if (version_data.size() == 0) {
+    ESP_LOGE(TAG, "Error getting version");
+    this->mark_failed();
+    return;
+  }
+  ESP_LOGD(TAG, "Found chip PN%02X", version_data[0]);
+  ESP_LOGD(TAG, "Firmware ver. %d.%d", version_data[1], version_data[2]);
+
+  this->pn532_write_command({
       0x14,  // SAM config command
       0x01,  // normal mode
       0x14,  // zero timeout (not in virtual card mode)
       0x01,
   });
 
+  delay(2);
+
+  if(!this->read_ack()) {
+    ESP_LOGE(TAG, "No wakeup ack");
+    this->mark_failed();
+    return;
+  }
+
+  delay(5);
+
   // read data packet for wakeup result
-  auto wakeup_result = this->pn532_read_data();
+  std::vector<uint8_t> wakeup_result = this->pn532_read_data();
   if (wakeup_result.size() != 1) {
     this->error_code_ = WAKEUP_FAILED;
     this->mark_failed();
@@ -151,7 +177,7 @@ void PN532::turn_off_rf_() {
   });
 }
 
-float PN532::get_setup_priority() const { return setup_priority::DATA; }
+float PN532::get_setup_priority() const { return setup_priority::LATE; }
 
 bool PN532::pn532_write_command_check_ack_(const std::vector<uint8_t> &data) {
   // 1. write command
