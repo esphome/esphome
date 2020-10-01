@@ -12,6 +12,7 @@ CONFIG_SCHEMA = component.COMPONENT_SCHEMA
 
 CODEOWNERS = ["@motwok"]
 
+
 @coroutine
 def to_code(config):
     cg.add_define('WIFI_BASIC_COOP')
