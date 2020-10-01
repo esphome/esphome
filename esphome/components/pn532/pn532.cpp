@@ -24,8 +24,7 @@ void format_uid(char *buf, const uint8_t *uid, uint8_t uid_length) {
 void PN532::setup() {
   ESP_LOGCONFIG(TAG, "Setting up PN532...");
 
-
-  delay(1000);
+  delay(20);
 
   // Get version data
   if (!this->pn532_write_command_check_ack_({0x02})) {
@@ -36,7 +35,7 @@ void PN532::setup() {
 
   std::vector<uint8_t> version_data = this->pn532_read_data();
 
-  if (version_data.size() == 0) {
+  if (version_data.empty()) {
     ESP_LOGE(TAG, "Error getting version");
     this->mark_failed();
     return;
@@ -53,7 +52,7 @@ void PN532::setup() {
 
   delay(2);
 
-  if(!this->read_ack()) {
+  if (!this->read_ack()) {
     ESP_LOGE(TAG, "No wakeup ack");
     this->mark_failed();
     return;
