@@ -1652,6 +1652,8 @@ pn532_spi:
         topic: the/topic
         payload: !lambda 'return x;'
 
+pn532_i2c:
+
 rdm6300:
 
 gps:
