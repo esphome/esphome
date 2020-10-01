@@ -12,14 +12,19 @@ class PN532I2C : public pn532::PN532, public i2c::I2CDevice {
   void dump_config() override;
 
  protected:
-  /// Write the full command given in data to the PN532
-  void pn532_write_command(const std::vector<uint8_t> &data) override;
-
-  std::vector<uint8_t> pn532_read_data() override;
+  std::vector<uint8_t> pn532_read_data_() override;
 
   bool is_ready() override;
 
-  bool read_ack() override;
+  std::vector<uint8_t> pn532_read_bytes(uint8_t len) override {
+    std::vector<uint8_t> data;
+    this->read_bytes_raw(data.data(), len);
+    return data;
+  }
+
+  void pn532_write_bytes(std::vector<uint8_t> data) override {
+    this->write_bytes_raw(data);
+  }
 };
 
 }  // namespace pn532_i2c

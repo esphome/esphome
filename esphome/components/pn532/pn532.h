@@ -26,8 +26,8 @@ class PN532 : public PollingComponent {
 
  protected:
   /// Write the full command given in data to the PN532
-  virtual void pn532_write_command(const std::vector<uint8_t> &data) = 0;
-  bool pn532_write_commandcheck_ack_(const std::vector<uint8_t> &data);
+  virtual void pn532_write_command_(const std::vector<uint8_t> &data);
+  bool pn532_write_command_check_ack_(const std::vector<uint8_t> &data);
 
   /** Read a data frame from the PN532 and return the result as a vector.
    *
@@ -35,7 +35,7 @@ class PN532 : public PollingComponent {
    *
    * On failure, an empty vector is returned.
    */
-  virtual std::vector<uint8_t> pn532_read_data() = 0;
+  virtual std::vector<uint8_t> pn532_read_data_();
 
   /** Checks if the PN532 has set its ready status flag.
    *
@@ -50,9 +50,12 @@ class PN532 : public PollingComponent {
   virtual bool is_ready() = 0;
   bool wait_ready_();
 
-  virtual bool read_ack() = 0;
+  virtual bool read_ack_();
 
   void turn_off_rf_();
+
+  virtual std::vector<uint8_t> pn532_read_bytes(uint8_t len) = 0;
+  virtual void pn532_write_bytes(std::vector<uint8_t> data) = 0;
 
   bool requested_read_{false};
   std::vector<PN532BinarySensor *> binary_sensors_;

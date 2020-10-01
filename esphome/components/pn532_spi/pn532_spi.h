@@ -16,30 +16,23 @@ class PN532Spi : public pn532::PN532,
   void dump_config() override;
 
  protected:
-  /// Write the full command given in data to the PN532
-  void pn532_write_command(const std::vector<uint8_t> &data) override;
+  void pn532_write_command_(const std::vector<uint8_t> &data) override;
 
-  /** Read a data frame from the PN532 and return the result as a vector.
-   *
-   * Note that is_ready needs to be checked first before requesting this method.
-   *
-   * On failure, an empty vector is returned.
-   */
-  std::vector<uint8_t> pn532_read_data() override;
+  std::vector<uint8_t> pn532_read_data_() override;
 
-  /** Checks if the PN532 has set its ready status flag.
-   *
-   * Procedure goes as follows:
-   * - Host sends command to PN532 "write data"
-   * - Wait for readiness (until PN532 has processed command) by polling "read status"/is_ready
-   * - Parse ACK/NACK frame with "read data" byte
-   *
-   * - If data required, wait until device reports readiness again
-   * - Then call "read data" and read certain number of bytes (length is given at offset 4 of frame)
-   */
   bool is_ready() override;
 
-  bool read_ack() override;
+  bool read_ack_() override;
+
+  std::vector<uint8_t> pn532_read_bytes(uint8_t len) override {
+    std::vector<uint8_t> data;
+    this->read_array(data.data(), len);
+    return data;
+  };
+
+  void pn532_write_bytes(std::vector<uint8_t> data) override {
+    this->write_array(data);
+  };
 };
 
 }  // namespace pn532_spi
