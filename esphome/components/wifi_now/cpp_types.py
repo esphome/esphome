@@ -20,6 +20,7 @@ TemplatePayloadGetter = wifi_now_ns.class_('WifiNowTemplatePayloadGetter')
 TemplatePayloadSetter = wifi_now_ns.class_('WifiNowTemplatePayloadSetter')
 PayloadPayloadGetter = wifi_now_ns.class_('WifiNowPayloadPayloadGetter')
 PayloadPayloadSetter = wifi_now_ns.class_('WifiNowPayloadPayloadSetter')
+
 SendAction = wifi_now_ns.class_('WifiNowSendAction', automation.Action)
 TerminalAction = wifi_now_ns.class_('WifiNowTerminalAction', automation.Action)
 

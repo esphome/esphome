@@ -10,7 +10,7 @@ from . import terminal_action  # noqa: F401
 
 CONFIG_SCHEMA = component.COMPONENT_SCHEMA
 
-CODOOWNERS = ["@motwok"]
+CODEOWNERS = ["@motwok"]
 
 @coroutine
 def to_code(config):
