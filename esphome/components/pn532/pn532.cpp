@@ -28,20 +28,12 @@ void PN532::setup() {
   this->pn532_write_commandcheck_ack_({0x02});  // get firmware version command
   // do not actually read any data, this should be OK according to datasheet
 
-  this->pn532_write_command({
-      0x14,  // SAM config command
+  this->pn532_write_command_check_ack_({
+      PN532_COMMAND_SAMCONFIGURATION,
       0x01,  // normal mode
       0x14,  // zero timeout (not in virtual card mode)
       0x01,
   });
-
-  // do not wait for ready bit, this is a dummy command
-  delay(2);
-
-  // Try to read ACK, if it fails it might be because there's data from a previous power cycle left
-  this->read_ack();
-  // do not wait for ready bit for return data
-  delay(5);
 
   // read data packet for wakeup result
   auto wakeup_result = this->pn532_read_data();
@@ -97,8 +89,9 @@ void PN532::update() {
   this->status_clear_warning();
   this->requested_read_ = true;
 }
+
 void PN532::loop() {
-  if (!this->requested_read_ || !this->is_ready())
+  if (!this->requested_read_)
     return;
 
   auto read = this->pn532_read_data();

@@ -17,7 +17,7 @@ class PN532I2C : public pn532::PN532, public i2c::I2CDevice {
 
   std::vector<uint8_t> pn532_read_data() override;
 
-  bool is_ready() override { return true; };
+  bool is_ready() override;
 
   bool read_ack() override;
 };

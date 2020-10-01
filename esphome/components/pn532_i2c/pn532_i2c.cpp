@@ -47,25 +47,22 @@ void PN532I2C::pn532_write_command(const std::vector<uint8_t> &data) {
 }
 
 std::vector<uint8_t> PN532I2C::pn532_read_data() {
+
+  if (!this->wait_ready_())
+    return {};
+
   // sometimes preamble is not transmitted for whatever reason
   // mostly happens during startup.
   // just read the first two bytes and check if that is the case
   uint8_t header[6];
-  this->read_bytes_raw(header, 2);
-  if (header[0] == 0x00 && header[1] == 0x00) {
-    // normal packet, preamble included
-    this->read_bytes_raw(header + 2, 4);
-  } else if (header[0] == 0x00 && header[1] == 0xFF) {
-    // weird packet, preamble skipped; make it look like a normal packet
-    header[0] = 0x00;
-    header[1] = 0x00;
-    header[2] = 0xFF;
-    this->read_bytes_raw(header + 3, 3);
-  } else {
+  this->read_bytes_raw(header, 3);
+  if (header[0] != 0x00 && header[1] != 0x00 && header[2] != 0xFF) {
     // invalid packet
     ESP_LOGV(TAG, "read data invalid preamble!");
     return {};
   }
+
+  this->read_bytes_raw(header + 3, 3);
 
   bool valid_header = (header[0] == 0x00 &&                                                      // preamble
                        header[1] == 0x00 &&                                                      // start code
@@ -116,6 +113,17 @@ std::vector<uint8_t> PN532I2C::pn532_read_data() {
 
   return ret;
 }
+
+bool PN532I2C::is_ready() {
+  // PN532 returns a single data byte,
+  // "After having sent a command, the host controller must wait for bit 0 of Status byte equals 1
+  // before reading the data from the PN532."
+  std::vector<uint8_t> data;
+  this->read_bytes_raw(data.data(), 1);
+
+  return data.size() == 1 && data[0] == 0x01;
+}
+
 bool PN532I2C::read_ack() {
   ESP_LOGVV(TAG, "Reading ACK...");
 

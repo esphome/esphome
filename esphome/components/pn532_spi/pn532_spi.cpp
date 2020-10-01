@@ -67,6 +67,10 @@ void PN532Spi::pn532_write_command(const std::vector<uint8_t> &data) {
 }
 
 std::vector<uint8_t> PN532Spi::pn532_read_data() {
+
+  if (!this->wait_ready_())
+    return {};
+
   this->enable();
   delay(2);
   // Read data (transmission from the PN532 to the host)
@@ -76,22 +80,16 @@ std::vector<uint8_t> PN532Spi::pn532_read_data() {
   // mostly happens during startup.
   // just read the first two bytes and check if that is the case
   uint8_t header[6];
-  this->read_array(header, 2);
-  if (header[0] == 0x00 && header[1] == 0x00) {
-    // normal packet, preamble included
-    this->read_array(header + 2, 4);
-  } else if (header[0] == 0x00 && header[1] == 0xFF) {
-    // weird packet, preamble skipped; make it look like a normal packet
-    header[0] = 0x00;
-    header[1] = 0x00;
-    header[2] = 0xFF;
-    this->read_array(header + 3, 3);
+  this->read_array(header, 3);
+  if (header[0] != 0x00 && header[1] != 0x00 && header[2] != 0xFF) {
   } else {
     // invalid packet
     this->disable();
     ESP_LOGV(TAG, "read data invalid preamble!");
     return {};
   }
+
+  this->read_array(header + 3, 3);
 
   bool valid_header = (header[0] == 0x00 &&                                                      // preamble
                        header[1] == 0x00 &&                                                      // start code
