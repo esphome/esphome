@@ -38,5 +38,5 @@ template<typename... Ts> class MHZ14ACalibrateZeroAction : public Action<Ts...> 
   MHZ14AComponent *mhz14a_;
 };
 
-}  // namespace mhz14
+}  // namespace mhz14a
 }  // namespace esphome

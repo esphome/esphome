@@ -18,8 +18,7 @@ uint8_t mhz14a_checksum(const uint8_t *command) {
   return 0xFF - sum + 0x01;
 }
 
-void MHZ14AComponent::setup() {
-}
+void MHZ14AComponent::setup() {}
 
 void MHZ14AComponent::update() {
   uint8_t response[MHZ14A_RESPONSE_LENGTH];
@@ -80,5 +79,5 @@ void MHZ14AComponent::dump_config() {
   this->check_uart_settings(9600);
 }
 
-}  // namespace MHZ14A
+}  // namespace mhz14a
 }  // namespace esphome
