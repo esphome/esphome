@@ -754,11 +754,9 @@ void LightState::current_values_as_cwww(float *cold_white, float *warm_white, bo
 void LightState::add_new_remote_values_callback(std::function<void()> &&send_callback) {
   this->remote_values_callback_.add(std::move(send_callback));
 }
-
 void LightState::add_new_target_state_reached_callback(std::function<void()> &&send_callback) {
   this->target_state_reached_callback_.add(std::move(send_callback));
 }
-
 
 LightEffect *LightState::get_active_effect_() {
   if (this->active_effect_index_ == 0)
