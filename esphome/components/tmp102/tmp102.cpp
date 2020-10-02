@@ -38,6 +38,7 @@ void TMP102Component::update() {
   ESP_LOGD(TAG, "Got Temperature=%.1f°C", temperature);
 
   this->publish_state(temperature);
+  this->status_clear_warning();
 }
 
 float TMP102Component::get_setup_priority() const { return setup_priority::DATA; }
