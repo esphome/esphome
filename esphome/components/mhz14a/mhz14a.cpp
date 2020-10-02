@@ -47,7 +47,7 @@ void MHZ14AComponent::update() {
   const int humidity = int(response[4]);
   const uint8_t status = response[5];
 
-  ESP_LOGD(TAG, "MHZ14A Received CO₂=%uppm Humidity=%d°C Status=0x%02X", ppm, humidity, status);
+  ESP_LOGD(TAG, "MHZ14A Received CO₂=%uppm Humidity=%d%% Status=0x%02X", ppm, humidity, status);
   if (this->co2_sensor_ != nullptr)
     this->co2_sensor_->publish_state(ppm);
   if (this->humidity_sensor_ != nullptr)
