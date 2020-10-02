@@ -145,6 +145,8 @@ void LightState::loop() {
   if (this->transformer_ != nullptr) {
     if (this->transformer_->is_finished()) {
       this->remote_values = this->current_values = this->transformer_->get_end_values();
+      ESP_LOGD(TAG, "Reached the target state of %.5f.", this->current_values.get_state());
+      this->target_state_reached_callback_.call();
       if (this->transformer_->publish_at_end())
         this->publish_state();
       this->transformer_ = nullptr;
@@ -752,6 +754,12 @@ void LightState::current_values_as_cwww(float *cold_white, float *warm_white, bo
 void LightState::add_new_remote_values_callback(std::function<void()> &&send_callback) {
   this->remote_values_callback_.add(std::move(send_callback));
 }
+
+void LightState::add_new_target_state_reached_callback(std::function<void()> &&send_callback) {
+  this->target_state_reached_callback_.add(std::move(send_callback));
+}
+
+
 LightEffect *LightState::get_active_effect_() {
   if (this->active_effect_index_ == 0)
     return nullptr;

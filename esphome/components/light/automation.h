@@ -123,7 +123,7 @@ class LightTurnOnTrigger : public Trigger<> {
 class LightTurnOffTrigger : public Trigger<> {
  public:
   LightTurnOffTrigger(LightState *a_light) {
-    a_light->add_new_remote_values_callback([this, a_light]() {
+    a_light->add_new_target_state_reached_callback([this, a_light]() {
       auto is_on = a_light->current_values.is_on();
       // only trigger when going from on to off
       auto should_trigger = !is_on && this->last_on_;
