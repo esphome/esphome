@@ -9,14 +9,14 @@ static const char *TAG = "pmsx003";
 void PMSX003Component::set_pm_1_0_sensor(sensor::Sensor *pm_1_0_sensor) { pm_1_0_sensor_ = pm_1_0_sensor; }
 void PMSX003Component::set_pm_2_5_sensor(sensor::Sensor *pm_2_5_sensor) { pm_2_5_sensor_ = pm_2_5_sensor; }
 void PMSX003Component::set_pm_10_0_sensor(sensor::Sensor *pm_10_0_sensor) { pm_10_0_sensor_ = pm_10_0_sensor; }
-void PMSX003Component::set_pm_1_0_cf1_sensor(sensor::Sensor *pm_1_0_cf1_sensor) {
-  pm_1_0_cf1_sensor_ = pm_1_0_cf1_sensor;
+void PMSX003Component::set_pmc_1_0_sensor(sensor::Sensor *pmc_1_0_sensor) {
+  pmc_1_0_sensor_ = pmc_1_0_sensor;
 }
-void PMSX003Component::set_pm_2_5_cf1_sensor(sensor::Sensor *pm_2_5_cf1_sensor) {
-  pm_2_5_cf1_sensor_ = pm_2_5_cf1_sensor;
+void PMSX003Component::set_pmc_2_5_sensor(sensor::Sensor *pmc_2_5_sensor) {
+  pmc_2_5_sensor_ = pmc_2_5_sensor;
 }
-void PMSX003Component::set_pm_10_0_cf1_sensor(sensor::Sensor *pm_10_0_cf1_sensor) {
-  pm_10_0_cf1_sensor_ = pm_10_0_cf1_sensor;
+void PMSX003Component::set_pmc_10_0_sensor(sensor::Sensor *pmc_10_0_sensor) {
+  pmc_10_0_sensor_ = pmc_10_0_sensor;
 }
 void PMSX003Component::set_temperature_sensor(sensor::Sensor *temperature_sensor) {
   temperature_sensor_ = temperature_sensor;
@@ -112,28 +112,28 @@ optional<bool> PMSX003Component::check_byte_() {
 void PMSX003Component::parse_data_() {
   switch (this->type_) {
     case PMSX003_TYPE_X003: {
-      uint16_t pm_1_0_cf1 = this->get_16_bit_uint_(4);
-      uint16_t pm_2_5_cf1 = this->get_16_bit_uint_(6);
-      uint16_t pm_10_0_cf1 = this->get_16_bit_uint_(8);
+      uint16_t pmc_1_0 = this->get_16_bit_uint_(4);
+      uint16_t pmc_2_5 = this->get_16_bit_uint_(6);
+      uint16_t pmc_10_0 = this->get_16_bit_uint_(8);
       uint16_t pm_1_0_concentration = this->get_16_bit_uint_(10);
       uint16_t pm_2_5_concentration = this->get_16_bit_uint_(12);
       uint16_t pm_10_0_concentration = this->get_16_bit_uint_(14);
       ESP_LOGD(TAG,
                "Got PM1.0 Concentration: %u µg/m^3, PM2.5 Concentration %u µg/m^3, PM10.0 Concentration: %u µg/m^3",
                pm_1_0_concentration, pm_2_5_concentration, pm_10_0_concentration);
-      ESP_LOGD(TAG, "Got PM1.0 CF1: %u, PM2.5 CF1: %u, PM10.0 CF1: %u", pm_1_0_cf1, pm_2_5_cf1, pm_10_0_cf1);
+      ESP_LOGD(TAG, "Got PM1.0 CF1: %u, PM2.5 CF1: %u, PM10.0 CF1: %u", pmc_1_0, pmc_2_5, pmc_10_0);
       if (this->pm_1_0_sensor_ != nullptr)
         this->pm_1_0_sensor_->publish_state(pm_1_0_concentration);
       if (this->pm_2_5_sensor_ != nullptr)
         this->pm_2_5_sensor_->publish_state(pm_2_5_concentration);
       if (this->pm_10_0_sensor_ != nullptr)
         this->pm_10_0_sensor_->publish_state(pm_10_0_concentration);
-      if (this->pm_1_0_cf1_sensor_ != nullptr)
-        this->pm_1_0_cf1_sensor_->publish_state(pm_1_0_cf1);
-      if (this->pm_2_5_cf1_sensor_ != nullptr)
-        this->pm_2_5_cf1_sensor_->publish_state(pm_2_5_cf1);
-      if (this->pm_10_0_cf1_sensor_ != nullptr)
-        this->pm_10_0_cf1_sensor_->publish_state(pm_10_0_cf1);
+      if (this->pmc_1_0_sensor_ != nullptr)
+        this->pmc_1_0_sensor_->publish_state(pmc_1_0);
+      if (this->pmc_2_5_sensor_ != nullptr)
+        this->pmc_2_5_sensor_->publish_state(pmc_2_5);
+      if (this->pmc_10_0_sensor_ != nullptr)
+        this->pmc_10_0_sensor_->publish_state(pmc_10_0);
       break;
     }
     case PMSX003_TYPE_5003T: {
@@ -185,9 +185,9 @@ void PMSX003Component::dump_config() {
   LOG_SENSOR("  ", "PM1.0", this->pm_1_0_sensor_);
   LOG_SENSOR("  ", "PM2.5", this->pm_2_5_sensor_);
   LOG_SENSOR("  ", "PM10.0", this->pm_10_0_sensor_);
-  LOG_SENSOR("  ", "PM1.0 CF1", this->pm_1_0_cf1_sensor_);
-  LOG_SENSOR("  ", "PM2.5 CF1", this->pm_2_5_cf1_sensor_);
-  LOG_SENSOR("  ", "PM10.0 CF1", this->pm_10_0_cf1_sensor_);
+  LOG_SENSOR("  ", "PM1.0 CF1", this->pmc_1_0_sensor_);
+  LOG_SENSOR("  ", "PM2.5 CF1", this->pmc_2_5_sensor_);
+  LOG_SENSOR("  ", "PM10.0 CF1", this->pmc_10_0_sensor_);
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
   LOG_SENSOR("  ", "Formaldehyde", this->formaldehyde_sensor_);

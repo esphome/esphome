@@ -2,7 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import sensor, uart
 from esphome.const import CONF_FORMALDEHYDE, CONF_HUMIDITY, CONF_ID, CONF_PM_10_0, \
-    CONF_PM_1_0, CONF_PM_2_5, CONF_TEMPERATURE, CONF_TYPE, ICON_CHEMICAL_WEAPON, \
+    CONF_PM_1_0, CONF_PM_2_5, CONF_PMC_1_0, CONF_PMC_2_5, CONF_PMC_10_0, CONF_TEMPERATURE, CONF_TYPE, ICON_CHEMICAL_WEAPON, \
     UNIT_MICROGRAMS_PER_CUBIC_METER, ICON_THERMOMETER, ICON_WATER_PERCENT, UNIT_CELSIUS, \
     UNIT_PERCENT
 
@@ -27,6 +27,9 @@ SENSORS_TO_TYPE = {
     CONF_PM_1_0: [TYPE_PMSX003, TYPE_PMS5003ST],
     CONF_PM_2_5: [TYPE_PMSX003, TYPE_PMS5003T, TYPE_PMS5003ST],
     CONF_PM_10_0: [TYPE_PMSX003, TYPE_PMS5003ST],
+    CONF_PMC_1_0: [TYPE_PMSX003, TYPE_PMS5003ST],
+    CONF_PMC_2_5: [TYPE_PMSX003, TYPE_PMS5003T, TYPE_PMS5003ST],
+    CONF_PMC_10_0: [TYPE_PMSX003, TYPE_PMS5003ST],
     CONF_TEMPERATURE: [TYPE_PMS5003T, TYPE_PMS5003ST],
     CONF_HUMIDITY: [TYPE_PMS5003T, TYPE_PMS5003ST],
     CONF_FORMALDEHYDE: [TYPE_PMS5003ST],
@@ -49,6 +52,12 @@ CONFIG_SCHEMA = cv.Schema({
     cv.Optional(CONF_PM_2_5):
         sensor.sensor_schema(UNIT_MICROGRAMS_PER_CUBIC_METER, ICON_CHEMICAL_WEAPON, 0),
     cv.Optional(CONF_PM_10_0):
+        sensor.sensor_schema(UNIT_MICROGRAMS_PER_CUBIC_METER, ICON_CHEMICAL_WEAPON, 0),
+    cv.Optional(CONF_PMC_1_0):
+        sensor.sensor_schema(UNIT_MICROGRAMS_PER_CUBIC_METER, ICON_CHEMICAL_WEAPON, 0),
+    cv.Optional(CONF_PMC_2_5):
+        sensor.sensor_schema(UNIT_MICROGRAMS_PER_CUBIC_METER, ICON_CHEMICAL_WEAPON, 0),
+    cv.Optional(CONF_PMC_10_0):
         sensor.sensor_schema(UNIT_MICROGRAMS_PER_CUBIC_METER, ICON_CHEMICAL_WEAPON, 0),
     cv.Optional(CONF_TEMPERATURE):
         sensor.sensor_schema(UNIT_CELSIUS, ICON_THERMOMETER, 1),
@@ -77,6 +86,18 @@ def to_code(config):
     if CONF_PM_10_0 in config:
         sens = yield sensor.new_sensor(config[CONF_PM_10_0])
         cg.add(var.set_pm_10_0_sensor(sens))
+
+    if CONF_PMC_1_0 in config:
+        sens = yield sensor.new_sensor(config[CONF_PMC_1_0])
+        cg.add(var.set_pmc_1_0_sensor(sens))
+
+    if CONF_PMC_2_5 in config:
+        sens = yield sensor.new_sensor(config[CONF_PMC_2_5])
+        cg.add(var.set_pmc_2_5_sensor(sens))
+
+    if CONF_PMC_10_0 in config:
+        sens = yield sensor.new_sensor(config[CONF_PMC_10_0])
+        cg.add(var.set_pmc_10_0_sensor(sens))
 
     if CONF_TEMPERATURE in config:
         sens = yield sensor.new_sensor(config[CONF_TEMPERATURE])

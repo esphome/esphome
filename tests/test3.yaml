@@ -392,6 +392,12 @@ sensor:
       name: "PM 2.5 Concentration"
     pm_10_0:
       name: "PM 10.0 Concentration"
+    pmc_1_0:
+      name: "PM 1.0 CF1 Concentration"
+    pmc_2_5:
+      name: "PM 2.5 CF1 Concentration"
+    pmc_10_0:
+      name: "PM 10.0 CF1 Concentration"
   - platform: pmsx003
     type: PMS5003T
     pm_2_5:
