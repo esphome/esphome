@@ -9,15 +9,9 @@ static const char *TAG = "pmsx003";
 void PMSX003Component::set_pm_1_0_sensor(sensor::Sensor *pm_1_0_sensor) { pm_1_0_sensor_ = pm_1_0_sensor; }
 void PMSX003Component::set_pm_2_5_sensor(sensor::Sensor *pm_2_5_sensor) { pm_2_5_sensor_ = pm_2_5_sensor; }
 void PMSX003Component::set_pm_10_0_sensor(sensor::Sensor *pm_10_0_sensor) { pm_10_0_sensor_ = pm_10_0_sensor; }
-void PMSX003Component::set_pmc_1_0_sensor(sensor::Sensor *pmc_1_0_sensor) {
-  pmc_1_0_sensor_ = pmc_1_0_sensor;
-}
-void PMSX003Component::set_pmc_2_5_sensor(sensor::Sensor *pmc_2_5_sensor) {
-  pmc_2_5_sensor_ = pmc_2_5_sensor;
-}
-void PMSX003Component::set_pmc_10_0_sensor(sensor::Sensor *pmc_10_0_sensor) {
-  pmc_10_0_sensor_ = pmc_10_0_sensor;
-}
+void PMSX003Component::set_pmc_1_0_sensor(sensor::Sensor *pmc_1_0_sensor) { pmc_1_0_sensor_ = pmc_1_0_sensor; }
+void PMSX003Component::set_pmc_2_5_sensor(sensor::Sensor *pmc_2_5_sensor) { pmc_2_5_sensor_ = pmc_2_5_sensor; }
+void PMSX003Component::set_pmc_10_0_sensor(sensor::Sensor *pmc_10_0_sensor) { pmc_10_0_sensor_ = pmc_10_0_sensor; }
 void PMSX003Component::set_temperature_sensor(sensor::Sensor *temperature_sensor) {
   temperature_sensor_ = temperature_sensor;
 }
