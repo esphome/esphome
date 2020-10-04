@@ -1,12 +1,12 @@
 import logging
 
+from PIL import Image
 from esphome import core
 from esphome.components import display, font
 import esphome.config_validation as cv
 import esphome.codegen as cg
 from esphome.const import CONF_FILE, CONF_ID, CONF_TYPE, CONF_RESIZE, CONF_DITHER
 from esphome.core import CORE, HexInt
-from PIL import Image
 
 _LOGGER = logging.getLogger(__name__)
 
