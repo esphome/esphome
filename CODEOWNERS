@@ -56,6 +56,7 @@ esphome/components/substitutions/* @esphome/core
 esphome/components/sun/* @OttoWinter
 esphome/components/switch/* @esphome/core
 esphome/components/tcl112/* @glmnet
+esphome/components/teleinfo/* @0hax
 esphome/components/time/* @OttoWinter
 esphome/components/tm1637/* @glmnet
 esphome/components/tuya/binary_sensor/* @jesserockz
