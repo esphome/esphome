@@ -11,9 +11,8 @@ from contextlib import contextmanager
 import voluptuous as vol
 
 from esphome import core, core_config, yaml_util
-from esphome.components import substitutions
-from esphome.components.substitutions import CONF_SUBSTITUTIONS
-from esphome.const import CONF_ESPHOME, CONF_PLATFORM, ESP_PLATFORMS
+from esphome.const import CONF_ESPHOME, CONF_PLATFORM, ESP_PLATFORMS, CONF_PACKAGES, \
+    CONF_SUBSTITUTIONS
 from esphome.core import CORE, EsphomeError  # noqa
 from esphome.helpers import color, indent
 from esphome.util import safe_print, OrderedDict
@@ -66,6 +65,10 @@ class ComponentManifest:
     @property
     def auto_load(self):
         return getattr(self.module, 'AUTO_LOAD', [])
+
+    @property
+    def codeowners(self) -> List[str]:
+        return getattr(self.module, 'CODEOWNERS', [])
 
     def _get_flags_set(self, name, config):
         if not hasattr(self.module, name):
@@ -390,8 +393,20 @@ def recursive_check_replaceme(value):
 def validate_config(config, command_line_substitutions):
     result = Config()
 
+    # 0. Load packages
+    if CONF_PACKAGES in config:
+        from esphome.components.packages import do_packages_pass
+        result.add_output_path([CONF_PACKAGES], CONF_PACKAGES)
+        try:
+            config = do_packages_pass(config)
+        except vol.Invalid as err:
+            result.update(config)
+            result.add_error(err)
+            return result
+
     # 1. Load substitutions
     if CONF_SUBSTITUTIONS in config:
+        from esphome.components import substitutions
         result[CONF_SUBSTITUTIONS] = {**config[CONF_SUBSTITUTIONS], **command_line_substitutions}
         result.add_output_path([CONF_SUBSTITUTIONS], CONF_SUBSTITUTIONS)
         try:
@@ -660,7 +675,7 @@ def _load_config(command_line_substitutions):
     try:
         config = yaml_util.load_yaml(CORE.config_path)
     except EsphomeError as e:
-        raise InvalidYAMLError(e)
+        raise InvalidYAMLError(e) from e
     CORE.raw_config = config
 
     try:
@@ -678,7 +693,7 @@ def load_config(command_line_substitutions):
     try:
         return _load_config(command_line_substitutions)
     except vol.Invalid as err:
-        raise EsphomeError(f"Error while parsing config: {err}")
+        raise EsphomeError(f"Error while parsing config: {err}") from err
 
 
 def line_info(obj, highlight=True):

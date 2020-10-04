@@ -323,6 +323,9 @@ template<typename... Ts> class RemoteTransmitterActionBase : public Action<Ts...
  public:
   void set_parent(RemoteTransmitterBase *parent) { this->parent_ = parent; }
 
+  TEMPLATABLE_VALUE(uint32_t, send_times);
+  TEMPLATABLE_VALUE(uint32_t, send_wait);
+
   void play(Ts... x) override {
     auto call = this->parent_->transmit();
     this->encode(call.get_data(), x...);
@@ -331,12 +334,9 @@ template<typename... Ts> class RemoteTransmitterActionBase : public Action<Ts...
     call.perform();
   }
 
+ protected:
   virtual void encode(RemoteTransmitData *dst, Ts... x) = 0;
 
-  TEMPLATABLE_VALUE(uint32_t, send_times);
-  TEMPLATABLE_VALUE(uint32_t, send_wait);
-
- protected:
   RemoteTransmitterBase *parent_{};
 };
 

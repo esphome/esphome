@@ -1,3 +1,6 @@
+substitutions:
+  devicename: test1
+
 esphome:
   name: test1
   platform: ESP32
@@ -24,6 +27,10 @@ esphome:
           blue: 0%
           white: 100%
   build_path: build/test1
+
+packages:
+  wifi: !include test_packages/test_packages_package_wifi.yaml
+  pkg_test: !include test_packages/test_packages_package1.yaml
 
 wifi:
   networks:
@@ -159,7 +166,6 @@ web_server:
   port: 8080
   css_url: https://esphome.io/_static/webserver-v1.min.css
   js_url: https://esphome.io/_static/webserver-v1.min.js
-  prometheus: true
 
 power_supply:
   id: 'atx_power_supply'
@@ -1122,6 +1128,7 @@ light:
     green: pca_4
     blue: pca_5
     white: pca_6
+    color_interlock: true
   - platform: rgbww
     name: "Living Room Lights 2"
     red: pca_3
@@ -1131,6 +1138,7 @@ light:
     warm_white: pca_6
     cold_white_color_temperature: 153 mireds
     warm_white_color_temperature: 500 mireds
+    color_interlock: true
   - platform: cwww
     name: "Living Room Lights 2"
     cold_white: pca_6
@@ -1195,13 +1203,13 @@ light:
             if (initial_run) {
               it[0] = current_color;
             }
-            
+
     - wled:
         port: 11111
-        
+
     - adalight:
         uart_id: adalight_uart
-        
+
     - automation:
         name: Custom Effect
         sequence:
@@ -1287,6 +1295,8 @@ climate:
     name: Whirlpool Climate
   - platform: climate_ir_lg
     name: LG Climate
+  - platform: toshiba
+    name: Toshiba Climate
 
 switch:
   - platform: gpio
@@ -1473,6 +1483,14 @@ switch:
         id: my_stepper
         position: 0
 
+  - platform: gpio
+    name: "SN74HC595 Pin #0"
+    pin:
+      sn74hc595: sn74hc595_hub
+      # Use pin number 0
+      number: 0
+      inverted: False
+
 fan:
   - platform: binary
     output: gpio_26
@@ -1488,6 +1506,10 @@ fan:
       low: 0.45
       medium: 0.75
       high: 1.0
+    oscillation_state_topic: oscillation/state/topic
+    oscillation_command_topic: oscillation/command/topic
+    speed_state_topic: speed/state/topic
+    speed_command_topic: speed/command/topic
 
 interval:
   - interval: 10s
@@ -1506,6 +1528,16 @@ interval:
             btn_left_state = ((uint32_t) id(btn_left)->get_value()  +  63 * (uint32_t)btn_left_state) >> 6;
 
             id(btn_left)->set_threshold(btn_left_state * 0.9);
+
+color:
+  - id: kbx_red
+    red: 100%
+    green: 1%
+    blue: 2%
+  - id: kbx_blue
+    red: 0%
+    green: 1%
+    blue: 100%
 
 display:
 - platform: lcd_gpio
@@ -1582,6 +1614,13 @@ display:
   reset_pin: GPIO23
   lambda: |-
     it.rectangle(0, 0, it.get_width(), it.get_height());
+- platform: ssd1351_spi
+  model: "SSD1351 128x128"
+  cs_pin: GPIO23
+  dc_pin: GPIO23
+  reset_pin: GPIO23
+  lambda: |-
+    it.rectangle(0, 0, it.get_width(), it.get_height());
 - platform: waveshare_epaper
   cs_pin: GPIO23
   dc_pin: GPIO23
@@ -1589,6 +1628,13 @@ display:
   reset_pin: GPIO23
   model: 2.90in
   full_update_every: 30
+  lambda: |-
+    it.rectangle(0, 0, it.get_width(), it.get_height());
+- platform: st7789v
+  cs_pin: GPIO5
+  dc_pin: GPIO16
+  reset_pin: GPIO23
+  backlight_pin: GPIO4
   lambda: |-
     it.rectangle(0, 0, it.get_width(), it.get_height());
 
@@ -1723,3 +1769,17 @@ text_sensor:
     name: "BSSID"
   mac_address:
     name: "Mac Address"
+- platform: version
+  name: "ESPHome Version No Timestamp"
+  hide_timestamp: True
+
+sn74hc595:
+  - id: 'sn74hc595_hub'
+    data_pin: GPIO21
+    clock_pin: GPIO23
+    latch_pin: GPIO22
+    oe_pin: GPIO32
+    sr_count: 2
+
+rtttl:
+  output: gpio_19

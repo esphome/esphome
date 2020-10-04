@@ -3,11 +3,13 @@ import esphome.config_validation as cv
 from esphome import automation
 from esphome.automation import Condition
 from esphome.const import CONF_DATA, CONF_DATA_TEMPLATE, CONF_ID, CONF_PASSWORD, CONF_PORT, \
-    CONF_REBOOT_TIMEOUT, CONF_SERVICE, CONF_VARIABLES, CONF_SERVICES, CONF_TRIGGER_ID, CONF_EVENT
+    CONF_REBOOT_TIMEOUT, CONF_SERVICE, CONF_VARIABLES, CONF_SERVICES, CONF_TRIGGER_ID, CONF_EVENT, \
+    CONF_TAG
 from esphome.core import coroutine_with_priority
 
 DEPENDENCIES = ['network']
 AUTO_LOAD = ['async_tcp']
+CODEOWNERS = ['@OttoWinter']
 
 api_ns = cg.esphome_ns.namespace('api')
 APIServer = api_ns.class_('APIServer', cg.Component, cg.Controller)
@@ -133,6 +135,23 @@ def homeassistant_event_to_code(config, action_id, template_arg, args):
     for key, value in config[CONF_VARIABLES].items():
         templ = yield cg.templatable(value, args, None)
         cg.add(var.add_variable(key, templ))
+    yield var
+
+
+HOMEASSISTANT_TAG_SCANNED_ACTION_SCHEMA = cv.maybe_simple_value({
+    cv.GenerateID(): cv.use_id(APIServer),
+    cv.Required(CONF_TAG): cv.templatable(cv.string_strict),
+}, key=CONF_TAG)
+
+
+@automation.register_action('homeassistant.tag_scanned', HomeAssistantServiceCallAction,
+                            HOMEASSISTANT_TAG_SCANNED_ACTION_SCHEMA)
+def homeassistant_tag_scanned_to_code(config, action_id, template_arg, args):
+    serv = yield cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, serv, True)
+    cg.add(var.set_service('esphome.tag_scanned'))
+    templ = yield cg.templatable(config[CONF_TAG], args, cg.std_string)
+    cg.add(var.add_data('tag_id', templ))
     yield var
 
 

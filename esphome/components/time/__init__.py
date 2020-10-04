@@ -17,6 +17,7 @@ from esphome.core import coroutine, coroutine_with_priority
 
 _LOGGER = logging.getLogger(__name__)
 
+CODEOWNERS = ['@OttoWinter']
 IS_PLATFORM_COMPONENT = True
 
 time_ns = cg.esphome_ns.namespace('time')
@@ -137,6 +138,7 @@ def _parse_cron_int(value, special_mapping, message):
     try:
         return int(value)
     except ValueError:
+        # pylint: disable=raise-missing-from
         raise cv.Invalid(message.format(value))
 
 
@@ -157,6 +159,7 @@ def _parse_cron_part(part, min_value, max_value, special_mapping):
         try:
             repeat_n = int(repeat)
         except ValueError:
+            # pylint: disable=raise-missing-from
             raise cv.Invalid("Repeat for '/' time expression must be an integer, got {}"
                              .format(repeat))
         return set(range(offset_n, max_value + 1, repeat_n))

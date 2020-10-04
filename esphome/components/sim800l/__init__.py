@@ -5,6 +5,8 @@ from esphome.const import CONF_ID, CONF_TRIGGER_ID
 from esphome.components import uart
 
 DEPENDENCIES = ['uart']
+CODEOWNERS = ['@glmnet']
+MULTI_CONF = True
 
 sim800l_ns = cg.esphome_ns.namespace('sim800l')
 Sim800LComponent = sim800l_ns.class_('Sim800LComponent', cg.Component)
@@ -15,8 +17,6 @@ Sim800LReceivedMessageTrigger = sim800l_ns.class_('Sim800LReceivedMessageTrigger
 
 # Actions
 Sim800LSendSmsAction = sim800l_ns.class_('Sim800LSendSmsAction', automation.Action)
-
-MULTI_CONF = True
 
 CONF_ON_SMS_RECEIVED = 'on_sms_received'
 CONF_RECIPIENT = 'recipient'

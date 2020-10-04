@@ -50,12 +50,13 @@ void WLEDLightEffect::apply(light::AddressableLight &it, const light::ESPColor &
     udp_.reset(new WiFiUDP());
 
     if (!udp_->begin(port_)) {
-      ESP_LOGE(TAG, "Cannot bind WLEDLightEffect to %d.", port_);
+      ESP_LOGW(TAG, "Cannot bind WLEDLightEffect to %d.", port_);
+      return;
     }
   }
 
+  std::vector<uint8_t> payload;
   while (uint16_t packet_size = udp_->parsePacket()) {
-    std::vector<uint8_t> payload;
     payload.resize(packet_size);
 
     if (!udp_->read(&payload[0], payload.size())) {
@@ -63,11 +64,12 @@ void WLEDLightEffect::apply(light::AddressableLight &it, const light::ESPColor &
     }
 
     if (!this->parse_frame_(it, &payload[0], payload.size())) {
-      ESP_LOGD(TAG, "Frame: Invalid (size=%zu, first=%c/%d).", payload.size(), payload[0], payload[0]);
+      ESP_LOGD(TAG, "Frame: Invalid (size=%zu, first=0x%02X).", payload.size(), payload[0]);
       continue;
     }
   }
 
+  // FIXME: Use roll-over safe arithmetic
   if (blank_at_ < millis()) {
     blank_all_leds_(it);
     blank_at_ = millis() + DEFAULT_BLANK_TIME;

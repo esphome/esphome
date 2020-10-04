@@ -232,7 +232,7 @@ uint8_t TM1637Display::print(uint8_t start_pos, const char* str) {
   uint8_t pos = start_pos;
   for (; *str != '\0'; str++) {
     uint8_t data = TM1637_UNKNOWN_CHAR;
-    if (*str >= ' ' && *str <= '}')
+    if (*str >= ' ' && *str <= '~')
       data = pgm_read_byte(&TM1637_ASCII_TO_RAW[*str - ' ']);
 
     if (data == TM1637_UNKNOWN_CHAR) {

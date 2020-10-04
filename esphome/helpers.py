@@ -2,6 +2,9 @@ import codecs
 
 import logging
 import os
+from pathlib import Path
+from typing import Union
+import tempfile
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -86,7 +89,7 @@ def mkdir_p(path):
             pass
         else:
             from esphome.core import EsphomeError
-            raise EsphomeError(f"Error creating directories {path}: {err}")
+            raise EsphomeError(f"Error creating directories {path}: {err}") from err
 
 
 def is_ip_address(host):
@@ -107,13 +110,13 @@ def _resolve_with_zeroconf(host):
 
     try:
         zc = Zeroconf()
-    except Exception:
+    except Exception as err:
         raise EsphomeError("Cannot start mDNS sockets, is this a docker container without "
-                           "host network mode?")
+                           "host network mode?") from err
     try:
         info = zc.resolve_host(host + '.')
     except Exception as err:
-        raise EsphomeError(f"Error resolving mDNS hostname: {err}")
+        raise EsphomeError(f"Error resolving mDNS hostname: {err}") from err
     finally:
         zc.close()
     if info is None:
@@ -139,7 +142,7 @@ def resolve_ip_address(host):
     except OSError as err:
         errs.append(str(err))
         raise EsphomeError("Error resolving IP address: {}"
-                           "".format(', '.join(errs)))
+                           "".format(', '.join(errs))) from err
 
 
 def get_bool_env(var, default=False):
@@ -162,21 +165,27 @@ def read_file(path):
             return f_handle.read()
     except OSError as err:
         from esphome.core import EsphomeError
-        raise EsphomeError(f"Error reading file {path}: {err}")
+        raise EsphomeError(f"Error reading file {path}: {err}") from err
     except UnicodeDecodeError as err:
         from esphome.core import EsphomeError
-        raise EsphomeError(f"Error reading file {path}: {err}")
+        raise EsphomeError(f"Error reading file {path}: {err}") from err
 
 
-def _write_file(path, text):
-    import tempfile
-    directory = os.path.dirname(path)
-    mkdir_p(directory)
+def _write_file(path: Union[Path, str], text: Union[str, bytes]):
+    """Atomically writes `text` to the given path.
 
-    tmp_path = None
+    Automatically creates all parent directories.
+    """
+    if not isinstance(path, Path):
+        path = Path(path)
     data = text
     if isinstance(text, str):
         data = text.encode()
+
+    directory = path.parent
+    directory.mkdir(exist_ok=True, parents=True)
+
+    tmp_path = None
     try:
         with tempfile.NamedTemporaryFile(mode="wb", dir=directory, delete=False) as f_handle:
             tmp_path = f_handle.name
@@ -193,17 +202,20 @@ def _write_file(path, text):
                 _LOGGER.error("Write file cleanup failed: %s", err)
 
 
-def write_file(path, text):
+def write_file(path: Union[Path, str], text: str):
     try:
         _write_file(path, text)
-    except OSError:
+    except OSError as err:
         from esphome.core import EsphomeError
-        raise EsphomeError(f"Could not write file at {path}")
+        raise EsphomeError(f"Could not write file at {path}") from err
 
 
-def write_file_if_changed(path, text):
+def write_file_if_changed(path: Union[Path, str], text: str):
+    if not isinstance(path, Path):
+        path = Path(path)
+
     src_content = None
-    if os.path.isfile(path):
+    if path.is_file():
         src_content = read_file(path)
     if src_content != text:
         write_file(path, text)
@@ -218,7 +230,7 @@ def copy_file_if_changed(src, dst):
         shutil.copy(src, dst)
     except OSError as err:
         from esphome.core import EsphomeError
-        raise EsphomeError(f"Error copying file {src} to {dst}: {err}")
+        raise EsphomeError(f"Error copying file {src} to {dst}: {err}") from err
 
 
 def list_starts_with(list_, sub):

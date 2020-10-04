@@ -3,10 +3,10 @@ import re
 
 import esphome.config_validation as cv
 from esphome import core
+from esphome.const import CONF_SUBSTITUTIONS
 
+CODEOWNERS = ['@esphome/core']
 _LOGGER = logging.getLogger(__name__)
-
-CONF_SUBSTITUTIONS = 'substitutions'
 
 VALID_SUBSTITUTIONS_CHARACTERS = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ' \
                                  '0123456789_'

@@ -31,8 +31,7 @@ void PN532::setup() {
   //    (this may time out, but that's ok)
   // 3. Send SAM config command with normal mode without waiting for ready bit (IRQ not initialized yet)
   // 4. Probably optional, send SAM config again, this time checking ACK and return value
-  if (this->cs_)
-    this->cs_->digital_write(false);
+  this->cs_->digital_write(false);
   delay(10);
 
   // send dummy firmware version command to get synced up

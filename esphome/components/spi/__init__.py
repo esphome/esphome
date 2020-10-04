@@ -5,6 +5,7 @@ from esphome.const import CONF_CLK_PIN, CONF_ID, CONF_MISO_PIN, CONF_MOSI_PIN, C
     CONF_CS_PIN
 from esphome.core import coroutine, coroutine_with_priority
 
+CODEOWNERS = ['@esphome/core']
 spi_ns = cg.esphome_ns.namespace('spi')
 SPIComponent = spi_ns.class_('SPIComponent', cg.Component)
 SPIDevice = spi_ns.class_('SPIDevice')
@@ -34,15 +35,15 @@ def to_code(config):
         cg.add(var.set_mosi(mosi))
 
 
-def spi_device_schema(CS_PIN_required=False):
+def spi_device_schema(cs_pin_required=True):
     """Create a schema for an SPI device.
-    :param CS_PIN_required: If true, make the CS_PIN required in the config.
+    :param cs_pin_required: If true, make the CS_PIN required in the config.
     :return: The SPI device schema, `extend` this in your config schema.
     """
     schema = {
         cv.GenerateID(CONF_SPI_ID): cv.use_id(SPIComponent),
     }
-    if CS_PIN_required:
+    if cs_pin_required:
         schema[cv.Required(CONF_CS_PIN)] = pins.gpio_output_pin_schema
     else:
         schema[cv.Optional(CONF_CS_PIN)] = pins.gpio_output_pin_schema

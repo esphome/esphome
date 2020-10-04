@@ -21,6 +21,7 @@ const uint8_t DAIKIN_MODE_ON = 0x01;
 
 // Fan Speed
 const uint8_t DAIKIN_FAN_AUTO = 0xA0;
+const uint8_t DAIKIN_FAN_SILENT = 0xB0;
 const uint8_t DAIKIN_FAN_1 = 0x30;
 const uint8_t DAIKIN_FAN_2 = 0x40;
 const uint8_t DAIKIN_FAN_3 = 0x50;
@@ -46,13 +47,14 @@ class DaikinClimate : public climate_ir::ClimateIR {
             DAIKIN_TEMP_MIN, DAIKIN_TEMP_MAX, 1.0f, true, true,
             std::vector<climate::ClimateFanMode>{climate::CLIMATE_FAN_AUTO, climate::CLIMATE_FAN_LOW,
                                                  climate::CLIMATE_FAN_MEDIUM, climate::CLIMATE_FAN_HIGH},
-            std::vector<climate::ClimateSwingMode>{climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_VERTICAL}) {}
+            std::vector<climate::ClimateSwingMode>{climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_VERTICAL,
+                                                   climate::CLIMATE_SWING_HORIZONTAL, climate::CLIMATE_SWING_BOTH}) {}
 
  protected:
   // Transmit via IR the state of this climate controller.
   void transmit_state() override;
   uint8_t operation_mode_();
-  uint8_t fan_speed_();
+  uint16_t fan_speed_();
   uint8_t temperature_();
   // Handle received IR Buffer
   bool on_receive(remote_base::RemoteReceiveData data) override;
