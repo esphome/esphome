@@ -43,7 +43,7 @@ esphome/components/nfc/* @jesserockz
 esphome/components/ota/* @esphome/core
 esphome/components/output/* @esphome/core
 esphome/components/pid/* @OttoWinter
-esphome/components/pn532/* @OttoWinter
+esphome/components/pn532/* @OttoWinter @jesserockz
 esphome/components/power_supply/* @esphome/core
 esphome/components/restart/* @esphome/core
 esphome/components/rf_bridge/* @jesserockz
