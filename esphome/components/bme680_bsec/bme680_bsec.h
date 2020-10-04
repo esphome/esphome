@@ -1,3 +1,5 @@
+#ifdef USING_BSEC
+
 #pragma once
 
 #include "esphome/core/component.h"
@@ -79,3 +81,5 @@ class BME680BSECComponent : public Component, public i2c::I2CDevice {
 
 }  // namespace bme680_bsec
 }  // namespace esphome
+
+#endif

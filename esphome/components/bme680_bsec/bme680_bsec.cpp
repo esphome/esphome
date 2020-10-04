@@ -1,3 +1,5 @@
+#ifdef USING_BSEC
+
 #include "bme680_bsec.h"
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
@@ -216,3 +218,5 @@ void BME680BSECComponent::save_state_() {
 
 }  // namespace bme680_bsec
 }  // namespace esphome
+
+#endif

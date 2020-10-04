@@ -41,4 +41,5 @@ def to_code(config):
     cg.add(var.set_iaq_mode(config[CONF_IAQ_MODE]))
     cg.add(var.set_state_save_interval(config[CONF_STATE_SAVE_INTERVAL]))
 
+    cg.add_build_flag('-DUSING_BSEC')
     cg.add_library('bsec=https://github.com/trvrnrth/BSEC-Arduino-library', None)
