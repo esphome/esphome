@@ -54,8 +54,9 @@ def to_code(config):
             _LOGGER.warning("The image you requested is very big. Please consider using"
                             " the resize parameter.")
 
+    dither = Image.NONE if config[CONF_DITHER] == 'NONE' else Image.FLOYDSTEINBERG
     if config[CONF_TYPE] == 'GRAYSCALE':
-        image = image.convert('L', dither=Image.NONE if config[CONF_DITHER] == 'NONE' else Image.FLOYDSTEINBERG)
+        image = image.convert('L', dither=dither)
         pixels = list(image.getdata())
         data = [0 for _ in range(height * width)]
         pos = 0
@@ -77,7 +78,7 @@ def to_code(config):
             pos += 1
 
     elif config[CONF_TYPE] == 'BINARY':
-        image = image.convert('1', dither=Image.NONE if config[CONF_DITHER] == 'NONE' else Image.FLOYDSTEINBERG)
+        image = image.convert('1', dither=dither)
         width8 = ((width + 7) // 8) * 8
         data = [0 for _ in range(height * width8 // 8)]
         for y in range(height):
