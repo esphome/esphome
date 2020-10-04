@@ -1,6 +1,5 @@
 import logging
 
-from PIL import Image
 from esphome import core
 from esphome.components import display, font
 import esphome.config_validation as cv
@@ -20,11 +19,6 @@ IMAGE_TYPE = {
     'RGB24': ImageType.IMAGE_TYPE_RGB24,
 }
 
-DITHER_MODE = {
-    'NONE': Image.NONE,
-    'FLOYDSTEINBERG': Image.FLOYDSTEINBERG,
-}
-
 Image_ = display.display_ns.class_('Image')
 
 CONF_RAW_DATA_ID = 'raw_data_id'
@@ -34,7 +28,7 @@ IMAGE_SCHEMA = cv.Schema({
     cv.Required(CONF_FILE): cv.file_,
     cv.Optional(CONF_RESIZE): cv.dimensions,
     cv.Optional(CONF_TYPE, default='BINARY'): cv.enum(IMAGE_TYPE, upper=True),
-    cv.Optional(CONF_DITHER, default='NONE'): cv.enum(DITHER_MODE, upper=True),
+    cv.Optional(CONF_DITHER, default='NONE'): cv.one_of("NONE", "FLOYDSTEINBERG", upper=True),
     cv.GenerateID(CONF_RAW_DATA_ID): cv.declare_id(cg.uint8),
 })
 
@@ -42,6 +36,8 @@ CONFIG_SCHEMA = cv.All(font.validate_pillow_installed, IMAGE_SCHEMA)
 
 
 def to_code(config):
+    from PIL import Image
+
     path = CORE.relative_config_path(config[CONF_FILE])
     try:
         image = Image.open(path)
@@ -59,7 +55,7 @@ def to_code(config):
                             " the resize parameter.")
 
     if config[CONF_TYPE] == 'GRAYSCALE':
-        image = image.convert('L', dither=DITHER_MODE[config[CONF_DITHER]])
+        image = image.convert('L', dither=Image.NONE if config[CONF_DITHER] == 'NONE' else Image.FLOYDSTEINBERG)
         pixels = list(image.getdata())
         data = [0 for _ in range(height * width)]
         pos = 0
@@ -81,7 +77,7 @@ def to_code(config):
             pos += 1
 
     elif config[CONF_TYPE] == 'BINARY':
-        image = image.convert('1', dither=DITHER_MODE[config[CONF_DITHER]])
+        image = image.convert('1', dither=Image.NONE if config[CONF_DITHER] == 'NONE' else Image.FLOYDSTEINBERG)
         width8 = ((width + 7) // 8) * 8
         data = [0 for _ in range(height * width8 // 8)]
         for y in range(height):
