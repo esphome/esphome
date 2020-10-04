@@ -220,7 +220,7 @@ std::vector<uint8_t> PN532::read_mifare_classic_block_(uint8_t block_num) {
 
   std::vector<uint8_t> response = this->pn532_read_data_();
 
-  if (response.size() == 0 || response[0] != 0x00) {
+  if (response.empty() || response[0] != 0x00) {
     return {};
   }
   return response;
@@ -242,7 +242,7 @@ bool PN532::auth_mifare_classic_block_(std::vector<uint8_t> uid, uint8_t block_n
 
   std::vector<uint8_t> response = this->pn532_read_data_();
 
-  if (response.size() == 0 || response[0] != 0x00) {
+  if (response.empty() || response[0] != 0x00) {
     ESP_LOGE(TAG, "Authentication failed");
     return false;
   }
@@ -407,7 +407,7 @@ bool PN532::write_mifare_classic_block_(uint8_t block_num, std::vector<uint8_t> 
 
   std::vector<uint8_t> response = this->pn532_read_data_();
 
-  if (response.size() == 0) {
+  if (response.empty()) {
     ESP_LOGE(TAG, "Error writing block %d", block_num);
     return false;
   }
