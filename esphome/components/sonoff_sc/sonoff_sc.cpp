@@ -47,7 +47,7 @@ int SonoffSCComponent::get_value_for_(const std::string &command, const std::str
     end_offset = command.length();
 
   auto value_str = command.substr(start_offset, end_offset - start_offset);
-  return atoi(value_str.c_str());
+  return strtol(value_str.c_str(), nullptr, 10);
 }
 
 void SonoffSCComponent::parse_data_() {
