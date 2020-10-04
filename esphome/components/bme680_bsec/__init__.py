@@ -25,7 +25,7 @@ BME680BSECComponent = bme680_bsec_ns.class_('BME680BSECComponent', cg.Component,
 
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(BME680BSECComponent),
-    cv.Optional(CONF_TEMPERATURE_OFFSET, default=0): cv.float_range(min=-100, max=100),
+    cv.Optional(CONF_TEMPERATURE_OFFSET, default=0): cv.temperature,
     cv.Optional(CONF_IAQ_MODE, default='STATIC'):
         cv.enum(IAQ_MODE_OPTIONS, upper=True),
     cv.Optional(CONF_STATE_SAVE_INTERVAL, default='6hours'): cv.positive_time_period_minutes,
