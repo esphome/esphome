@@ -9,11 +9,10 @@
 namespace esphome {
 namespace pn532 {
 
-static const uint8_t PN532_COMMAND_SAMCONFIGURATION    = 0x14;
-static const uint8_t PN532_COMMAND_RFCONFIGURATION     = 0x32;
-static const uint8_t PN532_COMMAND_INDATAEXCHANGE      = 0x40;
+static const uint8_t PN532_COMMAND_SAMCONFIGURATION = 0x14;
+static const uint8_t PN532_COMMAND_RFCONFIGURATION = 0x32;
+static const uint8_t PN532_COMMAND_INDATAEXCHANGE = 0x40;
 static const uint8_t PN532_COMMAND_INLISTPASSIVETARGET = 0x4A;
-
 
 class PN532BinarySensor;
 class PN532Trigger;
@@ -70,7 +69,6 @@ class PN532 : public PollingComponent,
   bool format_tag_(nfc::NfcTag tag);
   bool clean_tag_(nfc::NfcTag tag);
   bool write_tag_(nfc::NfcTag tag);
-
 
   std::vector<uint8_t> read_mifare_classic_block_(uint8_t block_num);
   bool write_mifare_classic_block_(uint8_t block_num, std::vector<uint8_t> data);

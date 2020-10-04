@@ -25,8 +25,8 @@ static const uint8_t TAG_TYPE_UNKNOWN = 99;
 // Mifare Commands
 static const uint8_t MIFARE_CMD_AUTH_A = 0x60;
 static const uint8_t MIFARE_CMD_AUTH_B = 0x61;
-static const uint8_t MIFARE_CMD_READ   = 0x30;
-static const uint8_t MIFARE_CMD_WRITE  = 0xA0;
+static const uint8_t MIFARE_CMD_READ = 0x30;
+static const uint8_t MIFARE_CMD_WRITE = 0xA0;
 
 std::string format_uid(std::vector<uint8_t> uid);
 

@@ -254,8 +254,8 @@ void PN532::turn_off_rf_() {
   ESP_LOGVV(TAG, "Turning RF field OFF");
   this->pn532_write_command_check_ack_({
       PN532_COMMAND_RFCONFIGURATION,
-      0x01,   // RF Field
-      0x00,    // Off
+      0x01,  // RF Field
+      0x00,  // Off
   });
 }
 
@@ -340,22 +340,24 @@ bool PN532::clean_tag_(nfc::NfcTag tag) {
   return false;
 }
 
-bool PN532::write_tag_(nfc::NfcTag tag) {
-  return true;
-}
+bool PN532::write_tag_(nfc::NfcTag tag) { return false; }
 
-bool PN532::format_mifare_classic_mifare_(nfc::NfcTag tag) {
-  return true;
-}
+bool PN532::format_mifare_classic_mifare_(nfc::NfcTag tag) { return false; }
 
 bool PN532::format_mifare_classic_ndef_(nfc::NfcTag tag) {
-  uint8_t key_a[6] = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
-  std::vector<uint8_t> empty_ndef_message({0x03, 0x03, 0xD0, 0x00, 0x00, 0xFE, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00});
-  std::vector<uint8_t> sector_buffer_0({0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00});
-  std::vector<uint8_t> sector_buffer_1({0x14, 0x01, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1});
-  std::vector<uint8_t> sector_buffer_2({0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1});
-  std::vector<uint8_t> sector_buffer_3({0xA0, 0xA1, 0xA2, 0xA3, 0xA4, 0xA5, 0x78, 0x77, 0x88, 0xC1, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF});
-  std::vector<uint8_t> sector_buffer_4({0xD3, 0xF7, 0xD3, 0xF7, 0xD3, 0xF7, 0x7F, 0x07, 0x88, 0x40, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF});
+  uint8_t key_a[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+  std::vector<uint8_t> empty_ndef_message(
+      {0x03, 0x03, 0xD0, 0x00, 0x00, 0xFE, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00});
+  std::vector<uint8_t> sector_buffer_0(
+      {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00});
+  std::vector<uint8_t> sector_buffer_1(
+      {0x14, 0x01, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1});
+  std::vector<uint8_t> sector_buffer_2(
+      {0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1});
+  std::vector<uint8_t> sector_buffer_3(
+      {0xA0, 0xA1, 0xA2, 0xA3, 0xA4, 0xA5, 0x78, 0x77, 0x88, 0xC1, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF});
+  std::vector<uint8_t> sector_buffer_4(
+      {0xD3, 0xF7, 0xD3, 0xF7, 0xD3, 0xF7, 0x7F, 0x07, 0x88, 0x40, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF});
 
   if (!this->auth_mifare_classic_block_(tag.get_uid(), 0, nfc::MIFARE_CMD_AUTH_A, key_a)) {
     ESP_LOGE(TAG, "Unable to authenticate block 0 for formatting!");
@@ -368,7 +370,7 @@ bool PN532::format_mifare_classic_ndef_(nfc::NfcTag tag) {
   if (!this->write_mifare_classic_block_(3, sector_buffer_3))
     return false;
 
-  for (int i = 4; i < 64; i+=4) {
+  for (int i = 4; i < 64; i += 4) {
     if (!this->auth_mifare_classic_block_(tag.get_uid(), i, nfc::MIFARE_CMD_AUTH_A, key_a)) {
       ESP_LOGE(TAG, "Failed to authenticate with block %d", i);
       continue;
@@ -380,12 +382,12 @@ bool PN532::format_mifare_classic_ndef_(nfc::NfcTag tag) {
       if (!this->write_mifare_classic_block_(i, sector_buffer_0))
         ESP_LOGE(TAG, "Unable to write block %d", i);
     }
-    if (!this->write_mifare_classic_block_(i+1, sector_buffer_0))
-        ESP_LOGE(TAG, "Unable to write block %d", i+1);
-    if (!this->write_mifare_classic_block_(i+2, sector_buffer_0))
-        ESP_LOGE(TAG, "Unable to write block %d", i+2);
-    if (!this->write_mifare_classic_block_(i+3, sector_buffer_4))
-        ESP_LOGE(TAG, "Unable to write block %d", i+3);
+    if (!this->write_mifare_classic_block_(i + 1, sector_buffer_0))
+      ESP_LOGE(TAG, "Unable to write block %d", i + 1);
+    if (!this->write_mifare_classic_block_(i + 2, sector_buffer_0))
+      ESP_LOGE(TAG, "Unable to write block %d", i + 2);
+    if (!this->write_mifare_classic_block_(i + 3, sector_buffer_4))
+      ESP_LOGE(TAG, "Unable to write block %d", i + 3);
   }
   return true;
 }
@@ -393,7 +395,7 @@ bool PN532::format_mifare_classic_ndef_(nfc::NfcTag tag) {
 bool PN532::write_mifare_classic_block_(uint8_t block_num, std::vector<uint8_t> write_data) {
   std::vector<uint8_t> data({
       PN532_COMMAND_INDATAEXCHANGE,
-      0x01,       // One card
+      0x01,  // One card
       nfc::MIFARE_CMD_WRITE,
       block_num,  // Block number
   });
