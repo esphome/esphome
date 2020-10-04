@@ -8,6 +8,7 @@ esphome:
     - wait_until:
         - api.connected
         - wifi.connected
+        - time.has_time
   includes:
     - custom.h
 
