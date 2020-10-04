@@ -757,15 +757,7 @@ sensor:
     aqi:
       name: "AQI"
       calculation_type: "CAQI"
-  - platform: inkbird_ibsth1_mini
-    mac_address: 38:81:D7:0A:9C:11
-    temperature:
-        name: "Inkbird IBS-TH1 Temperature"
-    humidity:
-        name: "Inkbird IBS-TH1 Humidity"
-    battery_level:
-        name: "Inkbird IBS-TH1 Battery Level"
-  
+
 esp32_touch:
   setup_mode: False
   iir_filter: 10ms

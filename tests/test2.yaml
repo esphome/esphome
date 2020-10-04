@@ -169,6 +169,14 @@ sensor:
       name: "JQJCY01YM Formaldehyde"
     battery_level:
       name: "JQJCY01YM Battery Level"
+  - platform: inkbird_ibsth1_mini
+    mac_address: 38:81:D7:0A:9C:11
+    temperature:
+        name: "Inkbird IBS-TH1 Temperature"
+    humidity:
+        name: "Inkbird IBS-TH1 Humidity"
+    battery_level:
+        name: "Inkbird IBS-TH1 Battery Level"
 
 
 time:
