@@ -785,6 +785,7 @@ sensor:
     timeout: 5.5m
     id: ultrasonic_sensor1
   - platform: uptime
+    id: ${devicename}_uptime_pcg
     name: Uptime Sensor
   - platform: wifi_signal
     name: 'WiFi Signal Sensor'

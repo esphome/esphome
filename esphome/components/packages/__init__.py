@@ -4,6 +4,21 @@ from esphome.const import CONF_PACKAGES
 
 
 def _merge_package(full_old, full_new):
+    def find_and_merge(old_list, new_item):
+        if isinstance(new_item, dict) and "id" in new_item:
+            for n, item in enumerate(old_list):
+                if isinstance(item, dict) and "id" in item and item["id"] == new_item["id"]:
+                    old_list[n] = merge(item, new_item)
+                    return True
+        return False
+
+    def merge_list(old, new):
+        res = old.copy()
+        for new_item in new:
+            if not find_and_merge(res, new_item):
+                res.append(new_item)
+        return res
+
     def merge(old, new):
         # pylint: disable=no-else-return
         if isinstance(new, dict):
@@ -16,7 +31,7 @@ def _merge_package(full_old, full_new):
         elif isinstance(new, list):
             if not isinstance(old, list):
                 return new
-            return old + new
+            return merge_list(old, new)
 
         return new
 
