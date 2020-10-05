@@ -233,7 +233,7 @@ void MAX7219Component::send64pixels(uint8_t chip, const uint8_t pixels[8]) {
       b = pixels[col];
     } else if (this->orientation_ == 2) {
       for (uint8_t i = 0; i < 8; i++) {
-        b |= ((pixels[i] >> (7 - col)) << (7 - i));
+        b |= ((pixels[i] >> (7 - col)) & 1) << i;
       }
     } else {
       b = pixels[7 - col];
