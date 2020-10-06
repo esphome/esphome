@@ -145,7 +145,6 @@ void LightState::loop() {
   if (this->transformer_ != nullptr) {
     if (this->transformer_->is_finished()) {
       this->remote_values = this->current_values = this->transformer_->get_end_values();
-      ESP_LOGD(TAG, "Reached the target state of %.5f.", this->current_values.get_state());
       this->target_state_reached_callback_.call();
       if (this->transformer_->publish_at_end())
         this->publish_state();

@@ -98,6 +98,8 @@ template<typename... Ts> class LightIsOffCondition : public Condition<Ts...> {
   LightState *state_;
 };
 
+
+
 class LightTurnOnTrigger : public Trigger<> {
  public:
   LightTurnOnTrigger(LightState *a_light) {
@@ -126,19 +128,11 @@ class LightTurnOffTrigger : public Trigger<> {
     a_light->add_new_target_state_reached_callback([this, a_light]() {
       auto is_on = a_light->current_values.is_on();
       // only trigger when going from on to off
-      auto should_trigger = !is_on && this->last_on_;
-      // Set new state immediately so that trigger() doesn't devolve
-      // into infinite loop
-      this->last_on_ = is_on;
-      if (should_trigger) {
+      if (!is_on) {
         this->trigger();
       }
     });
-    this->last_on_ = a_light->current_values.is_on();
   }
-
- protected:
-  bool last_on_;
 };
 
 template<typename... Ts> class AddressableSet : public Action<Ts...> {
