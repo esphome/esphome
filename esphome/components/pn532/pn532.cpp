@@ -25,7 +25,7 @@ void PN532::setup() {
   ESP_LOGCONFIG(TAG, "Setting up PN532...");
 
   // Get version data
-  if (!this->write_command_({0x02})) {
+  if (!this->write_command_({PN532_COMMAND_VERSION_DATA})) {
     ESP_LOGE(TAG, "Error sending version command");
     this->mark_failed();
     return;
@@ -42,7 +42,7 @@ void PN532::setup() {
   ESP_LOGD(TAG, "Firmware ver. %d.%d", version_data[1], version_data[2]);
 
   if (!this->write_command_({
-          0x14,  // SAM config command
+          PN532_COMMAND_SAMCONFIGURATION,
           0x01,  // normal mode
           0x14,  // zero timeout (not in virtual card mode)
           0x01,
@@ -63,7 +63,7 @@ void PN532::setup() {
   // Set up SAM (secure access module)
   uint8_t sam_timeout = std::min(255u, this->update_interval_ / 50);
   if (!this->write_command_({
-          0x14,         // SAM config command
+          PN532_COMMAND_SAMCONFIGURATION,
           0x01,         // normal mode
           sam_timeout,  // timeout as multiple of 50ms (actually only for virtual card mode, but shouldn't matter)
           0x01,         // Enable IRQ
@@ -92,7 +92,7 @@ void PN532::update() {
     obj->on_scan_end();
 
   if (!this->write_command_({
-          0x4A,  // INLISTPASSIVETARGET
+          PN532_COMMAND_INLISTPASSIVETARGET,
           0x01,  // max 1 card
           0x00,  // baud rate ISO14443A (106 kbit/s)
       })) {
@@ -159,7 +159,7 @@ void PN532::loop() {
 void PN532::turn_off_rf_() {
   ESP_LOGVV(TAG, "Turning RF field OFF");
   this->write_command_({
-      0x32,  // RFConfiguration
+      PN532_COMMAND_RFCONFIGURATION,
       0x1,   // RF Field
       0x0    // Off
   });

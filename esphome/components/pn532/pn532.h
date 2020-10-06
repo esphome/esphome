@@ -7,6 +7,12 @@
 namespace esphome {
 namespace pn532 {
 
+static const uint8_t PN532_COMMAND_VERSION_DATA = 0x02;
+static const uint8_t PN532_COMMAND_SAMCONFIGURATION = 0x14;
+static const uint8_t PN532_COMMAND_RFCONFIGURATION = 0x32;
+static const uint8_t PN532_COMMAND_INDATAEXCHANGE = 0x40;
+static const uint8_t PN532_COMMAND_INLISTPASSIVETARGET = 0x4A;
+
 class PN532BinarySensor;
 class PN532Trigger;
 
