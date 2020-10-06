@@ -3,9 +3,9 @@ import esphome.config_validation as cv
 from esphome.components import binary_sensor
 from esphome.const import CONF_UID, CONF_ID
 from esphome.core import HexInt
-from . import rc522_ns, RC522
+from . import rc522_spi_ns, RC522
 
-DEPENDENCIES = ['rc522']
+DEPENDENCIES = ['rc522_spi']
 
 CONF_RC522_ID = 'rc522_id'
 
@@ -25,7 +25,7 @@ def validate_uid(value):
     return value
 
 
-RC522BinarySensor = rc522_ns.class_('RC522BinarySensor', binary_sensor.BinarySensor)
+RC522BinarySensor = rc522_spi_ns.class_('RC522BinarySensor', binary_sensor.BinarySensor)
 
 CONFIG_SCHEMA = binary_sensor.BINARY_SENSOR_SCHEMA.extend({
     cv.GenerateID(): cv.declare_id(RC522BinarySensor),

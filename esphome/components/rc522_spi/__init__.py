@@ -10,13 +10,13 @@ AUTO_LOAD = ['binary_sensor']
 MULTI_CONF = True
 
 
-rc522_ns = cg.esphome_ns.namespace('rc522')
-RC522 = rc522_ns.class_('RC522', cg.PollingComponent, spi.SPIDevice)
-RC522Trigger = rc522_ns.class_('RC522Trigger', automation.Trigger.template(cg.std_string))
+rc522_spi_ns = cg.esphome_ns.namespace('rc522_spi')
+RC522 = rc522_spi_ns.class_('RC522', cg.PollingComponent, spi.SPIDevice)
+RC522Trigger = rc522_spi_ns.class_('RC522Trigger', automation.Trigger.template(cg.std_string))
 
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(RC522),
-    cv.Required(CONF_RESET_PIN): pins.gpio_output_pin_schema,
+    cv.Optional(CONF_RESET_PIN): pins.gpio_output_pin_schema,
     cv.Required(CONF_CS_PIN): pins.gpio_output_pin_schema,
     cv.Optional(CONF_ON_TAG): automation.validate_automation({
         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(RC522Trigger),
@@ -29,8 +29,9 @@ def to_code(config):
     yield cg.register_component(var, config)
     yield spi.register_spi_device(var, config)
 
-    reset = yield cg.gpio_pin_expression(config[CONF_RESET_PIN])
-    cg.add(var.set_reset_pin(reset))
+    if CONF_RESET_PIN in config:
+        reset = yield cg.gpio_pin_expression(config[CONF_RESET_PIN])
+        cg.add(var.set_reset_pin(reset))
 
     for conf in config.get(CONF_ON_TAG, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])

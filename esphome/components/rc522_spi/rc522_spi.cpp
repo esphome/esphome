@@ -1,13 +1,13 @@
-#include "rc522.h"
+#include "rc522_spi.h"
 #include "esphome/core/log.h"
 
 // Based on:
 // - https://github.com/miguelbalboa/rfid
 
 namespace esphome {
-namespace rc522 {
+namespace rc522_spi {
 
-static const char *TAG = "rc522";
+static const char *TAG = "rc522_spi";
 
 static const uint8_t RESET_COUNT = 5;
 
@@ -27,18 +27,20 @@ void RC522::setup() {
   // Pull device out of power down / reset state.
 
   // First set the resetPowerDownPin as digital input, to check the MFRC522 power down mode.
-  reset_pin_->pin_mode(INPUT);
+  if (reset_pin_ != nullptr) {
+    reset_pin_->pin_mode(INPUT);
 
-  if (reset_pin_->digital_read() == LOW) {  // The MFRC522 chip is in power down mode.
-    ESP_LOGV(TAG, "Power down mode detected. Hard resetting...");
-    reset_pin_->pin_mode(OUTPUT);     // Now set the resetPowerDownPin as digital output.
-    reset_pin_->digital_write(LOW);   // Make sure we have a clean LOW state.
-    delayMicroseconds(2);             // 8.8.1 Reset timing requirements says about 100ns. Let us be generous: 2μsl
-    reset_pin_->digital_write(HIGH);  // Exit power down mode. This triggers a hard reset.
-    // Section 8.8.2 in the datasheet says the oscillator start-up time is the start up time of the crystal + 37,74μs.
-    // Let us be generous: 50ms.
-    reset_timeout_ = millis();
-    return;
+    if (reset_pin_->digital_read() == LOW) {  // The MFRC522 chip is in power down mode.
+      ESP_LOGV(TAG, "Power down mode detected. Hard resetting...");
+      reset_pin_->pin_mode(OUTPUT);     // Now set the resetPowerDownPin as digital output.
+      reset_pin_->digital_write(LOW);   // Make sure we have a clean LOW state.
+      delayMicroseconds(2);             // 8.8.1 Reset timing requirements says about 100ns. Let us be generous: 2μsl
+      reset_pin_->digital_write(HIGH);  // Exit power down mode. This triggers a hard reset.
+      // Section 8.8.2 in the datasheet says the oscillator start-up time is the start up time of the crystal + 37,74μs.
+      // Let us be generous: 50ms.
+      reset_timeout_ = millis();
+      return;
+    }
   }
 
   // Setup a soft reset
@@ -851,5 +853,5 @@ void RC522Trigger::process(const uint8_t *uid, uint8_t uid_length) {
   this->trigger(std::string(buf));
 }
 
-}  // namespace rc522
+}  // namespace rc522_spi
 }  // namespace esphome

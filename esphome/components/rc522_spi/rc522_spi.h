@@ -15,7 +15,7 @@
 #include "esphome/components/spi/spi.h"
 
 namespace esphome {
-namespace rc522 {
+namespace rc522_spi {
 
 class RC522BinarySensor;
 class RC522Trigger;
@@ -257,7 +257,7 @@ class RC522 : public PollingComponent,
    */
   std::vector<uint8_t> r_c522_read_data_();
 
-  GPIOPin *reset_pin_{};
+  GPIOPin *reset_pin_{nullptr};
   uint8_t reset_count_{0};
   uint32_t reset_timeout_{0};
   bool initialize_pending_{false};
@@ -297,5 +297,5 @@ class RC522Trigger : public Trigger<std::string> {
 #define MFRC522_SPICLOCK SPI_CLOCK_DIV4  // MFRC522 accept upto 10MHz
 #endif
 
-}  // namespace rc522
+}  // namespace rc522_spi
 }  // namespace esphome
