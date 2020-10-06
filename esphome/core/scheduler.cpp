@@ -8,6 +8,7 @@ namespace esphome {
 static const char *TAG = "scheduler";
 
 static const uint32_t SCHEDULER_DONT_RUN = 4294967295UL;
+static const uint32_t MAX_LOGICALLY_DELETED_ITEMS = 10;
 
 // Uncomment to debug scheduler
 // #define ESPHOME_DEBUG_SCHEDULER
@@ -110,7 +111,7 @@ void ICACHE_RAM_ATTR HOT Scheduler::call() {
   auto to_remove_was = to_remove_;
   auto items_was = items_.size();
   // If we have too many items to remove
-  if (to_remove_ > 10) {
+  if (to_remove_ > MAX_LOGICALLY_DELETED_ITEMS) {
     std::vector<std::unique_ptr<SchedulerItem>> valid_items;
     while (!this->empty_()) {
       auto item = std::move(this->items_[0]);
