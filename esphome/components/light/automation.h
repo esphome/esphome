@@ -98,8 +98,6 @@ template<typename... Ts> class LightIsOffCondition : public Condition<Ts...> {
   LightState *state_;
 };
 
-
-
 class LightTurnOnTrigger : public Trigger<> {
  public:
   LightTurnOnTrigger(LightState *a_light) {
