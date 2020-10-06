@@ -15,70 +15,55 @@ void PN532Spi::setup() {
   ESP_LOGI(TAG, "PN532Spi setup started!");
   this->spi_setup();
 
-  // Wake the chip up from power down
-  // 1. Enable the SS line for at least 2ms
-  // 2. Send a dummy command to get the protocol synced up
-  //    (this may time out, but that's ok)
-  // 3. Send SAM config command with normal mode without waiting for ready bit (IRQ not initialized yet)
-  // 4. Probably optional, send SAM config again, this time checking ACK and return value
   this->cs_->digital_write(false);
   delay(10);
   ESP_LOGI(TAG, "SPI setup finished!");
   PN532::setup();
 }
 
-void PN532Spi::pn532_write_command(const std::vector<uint8_t> &data) {
+bool PN532Spi::write_data(const std::vector<uint8_t> &data) {
   this->enable();
   delay(2);
   // First byte, communication mode: Write data
   this->write_byte(0x01);
 
-  PN532::pn532_write_command(data);
-
+  this->write_array(data.data(), data.size());
   this->disable();
+
+  return true;
 }
 
-std::vector<uint8_t> PN532Spi::pn532_read_data() {
-  if (!this->wait_ready_())
-    return {};
-
-  this->enable();
-  delay(2);
-  // Read data (transmission from the PN532 to the host)
-  this->write_byte(0x03);
-
-  std::vector<uint8_t> ret = PN532::pn532_read_data();
-  this->disable();
-  return ret;
-}
-
-bool PN532Spi::is_ready() {
+std::vector<uint8_t> PN532Spi::read_data(uint8_t len) {
   this->enable();
   // First byte, communication mode: Read state
   this->write_byte(0x02);
-  // PN532 returns a single data byte,
-  // "After having sent a command, the host controller must wait for bit 0 of Status byte equals 1
-  // before reading the data from the PN532."
-  std::vector<uint8_t> data = this->pn532_read_bytes(1);
+
+  uint32_t start_time = millis();
+  while (true) {
+    if (this->read_byte() & 0x01)
+      break;
+
+    if (millis() - start_time > 100) {
+      this->disable();
+      ESP_LOGV(TAG, "Timed out waiting for readiness from PN532!");
+      return {};
+    }
+  }
+
+  // Read data (transmission from the PN532 to the host)
+  this->write_byte(0x03);
+
+  std::vector<uint8_t> data;
+  data.resize(len);
+  this->read_array(data.data(), len);
   this->disable();
-  return data.size() == 1 && data[0] == 0x01;
-}
+  data.insert(data.begin(), 0x01);
+  return data;
+};
 
 void PN532Spi::dump_config() {
   PN532::dump_config();
   LOG_PIN("  CS Pin: ", this->cs_);
-}
-
-bool PN532Spi::read_ack() {
-  this->enable();
-  delay(2);
-  // "Read data (transmission from the PN532 to the host) "
-  this->write_byte(0x03);
-
-  bool matches = PN532::read_ack();
-
-  this->disable();
-  return matches;
 }
 
 }  // namespace pn532_spi

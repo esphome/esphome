@@ -11,20 +11,28 @@ namespace pn532_i2c {
 
 static const char *TAG = "pn532_i2c";
 
-std::vector<uint8_t> PN532I2C::pn532_read_data() {
-  if (!this->wait_ready_())
-    return {};
+bool PN532I2C::write_data(const std::vector<uint8_t> &data) { return this->write_bytes_raw(data.data(), data.size()); }
 
-  return PN532::pn532_read_data();
-}
+std::vector<uint8_t> PN532I2C::read_data(uint8_t len) {
+  std::vector<uint8_t> ready;
+  ready.resize(1);
+  uint32_t start_time = millis();
+  while (true) {
+    if (this->read_bytes_raw(ready.data(), 1)) {
+      if (ready[0] == 0x01)
+        break;
+    }
 
-bool PN532I2C::is_ready() {
-  // PN532 returns a single data byte,
-  // "After having sent a command, the host controller must wait for bit 0 of Status byte equals 1
-  // before reading the data from the PN532."
-  std::vector<uint8_t> data = this->pn532_read_bytes(1);
+    if (millis() - start_time > 100) {
+      ESP_LOGV(TAG, "Timed out waiting for readiness from PN532!");
+      return {};
+    }
+  }
 
-  return data.size() == 1 && data[0] == 0x01;
+  std::vector<uint8_t> data;
+  data.resize(len + 1);
+  this->read_bytes_raw(data.data(), len + 1);
+  return data;
 }
 
 void PN532I2C::dump_config() {

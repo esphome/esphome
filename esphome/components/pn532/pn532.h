@@ -25,37 +25,14 @@ class PN532 : public PollingComponent {
   void register_trigger(PN532Trigger *trig) { this->triggers_.push_back(trig); }
 
  protected:
-  /// Write the full command given in data to the PN532
-  virtual void pn532_write_command(const std::vector<uint8_t> &data);
-  bool pn532_write_command_check_ack_(const std::vector<uint8_t> &data);
-
-  /** Read a data frame from the PN532 and return the result as a vector.
-   *
-   * Note that is_ready needs to be checked first before requesting this method.
-   *
-   * On failure, an empty vector is returned.
-   */
-  virtual std::vector<uint8_t> pn532_read_data();
-
-  /** Checks if the PN532 has set its ready status flag.
-   *
-   * Procedure goes as follows:
-   * - Host sends command to PN532 "write data"
-   * - Wait for readiness (until PN532 has processed command) by polling "read status"/is_ready
-   * - Parse ACK/NACK frame with "read data" byte
-   *
-   * - If data required, wait until device reports readiness again
-   * - Then call "read data" and read certain number of bytes (length is given at offset 4 of frame)
-   */
-  virtual bool is_ready() = 0;
-  bool wait_ready_();
-
-  virtual bool read_ack();
-
   void turn_off_rf_();
+  bool write_command_(const std::vector<uint8_t> &data);
+  std::vector<uint8_t> read_response_();
+  bool read_ack_();
+  uint8_t read_response_length_();
 
-  virtual std::vector<uint8_t> pn532_read_bytes(uint8_t len) = 0;
-  virtual void pn532_write_bytes(std::vector<uint8_t> data) = 0;
+  virtual bool write_data(const std::vector<uint8_t> &data) = 0;
+  virtual std::vector<uint8_t> read_data(uint8_t len) = 0;
 
   bool requested_read_{false};
   std::vector<PN532BinarySensor *> binary_sensors_;
