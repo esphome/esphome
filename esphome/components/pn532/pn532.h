@@ -33,7 +33,7 @@ class PN532 : public PollingComponent {
  protected:
   void turn_off_rf_();
   bool write_command_(const std::vector<uint8_t> &data);
-  std::vector<uint8_t> read_response_();
+  bool read_response_(uint8_t command, std::vector<uint8_t> &response);
   bool read_ack_();
   uint8_t read_response_length_();
 
@@ -43,6 +43,7 @@ class PN532 : public PollingComponent {
   bool requested_read_{false};
   std::vector<PN532BinarySensor *> binary_sensors_;
   std::vector<PN532Trigger *> triggers_;
+  std::vector<uint8_t> current_uid_;
   enum PN532Error {
     NONE = 0,
     WAKEUP_FAILED,
@@ -54,7 +55,7 @@ class PN532BinarySensor : public binary_sensor::BinarySensor {
  public:
   void set_uid(const std::vector<uint8_t> &uid) { uid_ = uid; }
 
-  bool process(const uint8_t *data, uint8_t len);
+  bool process(std::vector<uint8_t> &data);
 
   void on_scan_end() {
     if (!this->found_) {
@@ -70,7 +71,7 @@ class PN532BinarySensor : public binary_sensor::BinarySensor {
 
 class PN532Trigger : public Trigger<std::string> {
  public:
-  void process(const uint8_t *uid, uint8_t uid_length);
+  void process(std::vector<uint8_t> &data);
 };
 
 }  // namespace pn532
