@@ -4,7 +4,6 @@
 #include "esphome/core/log.h"
 #include "ndef_record.h"
 
-
 namespace esphome {
 namespace nfc {
 
@@ -15,18 +14,18 @@ class NdefMessage {
   NdefMessage(){};
   NdefMessage(std::vector<uint8_t> &data);
 
-  std::vector<std::unique_ptr<NdefRecord>> get_records() { return this->records_; };
+  std::vector<NdefRecord *> get_records() { return this->records_; };
 
-  bool add_record(std::unique_ptr<NdefRecord> record);
+  bool add_record(NdefRecord *record);
   bool add_text_record(const std::string &text);
   bool add_text_record(const std::string &text, const std::string &encoding);
   bool add_uri_record(const std::string &uri);
   bool add_empty_record();
 
-  void encode(uint8_t* data);
+  std::vector<uint8_t> encode();
 
  protected:
-  std::vector<std::unique_ptr<NdefRecord>> records_;
+  std::vector<NdefRecord *> records_;
 };
 
 }  // namespace nfc

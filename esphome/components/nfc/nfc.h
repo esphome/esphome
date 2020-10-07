@@ -29,6 +29,9 @@ static const uint8_t MIFARE_CMD_WRITE = 0xA0;
 static const char *MIFARE_CLASSIC = "Mifare Classic";
 static const char *ERROR = "Error";
 
+static const uint8_t DEFAULT_KEY[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+static const uint8_t NDEF_KEY[6] = {0xD3, 0xF7, 0xD3, 0xF7, 0xD3, 0xF7};
+
 std::string format_uid(std::vector<uint8_t> &uid);
 
 uint8_t guess_tag_type(uint8_t uid_length);

@@ -19,40 +19,34 @@ uint32_t NdefRecord::get_encoded_size() {
   return size;
 }
 
-void NdefRecord::encode(uint8_t* data, bool first, bool last) {
-  uint8_t* data_ptr = &data[0];
+std::vector<uint8_t> NdefRecord::encode(bool first, bool last) {
+  std::vector<uint8_t> data;
 
-  *data_ptr = get_tnf_byte(first, last);
-  data_ptr += 1;
+  data.push_back(get_tnf_byte(first, last));
 
-  *data_ptr = this->type_.length();
-  data_ptr += 1;
+  data.push_back(this->type_.length());
 
   if (this->payload_.length() <= 255) {
-    *data_ptr = this->payload_.length();
-    data_ptr += 1;
+    data.push_back(this->payload_.length());
   } else {
-    data_ptr[0] = 0;
-    data_ptr[1] = 0;
-    data_ptr[2] = (this->payload_.length() >> 8) & 0xFF;
-    data_ptr[3] = this->payload_.length() & 0xFF;
-    data_ptr += 4;
+    data.push_back(0);
+    data.push_back(0);
+    data.push_back((this->payload_.length() >> 8) & 0xFF);
+    data.push_back(this->payload_.length() & 0xFF);
   }
 
   if (this->id_.length()) {
-    *data_ptr = this->id_.length();
-    data_ptr += 1;
+    data.push_back(this->id_.length());
   }
 
-  memcpy(data_ptr, this->type_.c_str(), this->type_.length());
-  data_ptr += this->type_.length();
+  data.insert(data.end(), this->type_.begin(), this->type_.end());
 
   if (this->id_.length()) {
-    memcpy(data_ptr, this->id_.c_str(), this->id_.length());
-    data_ptr += this->id_.length();
+    data.insert(data.end(), this->id_.begin(), this->id_.end());
   }
 
-  memcpy(data_ptr, this->payload_.c_str(), this->payload_.length());
+  data.insert(data.end(), this->payload_.begin(), this->payload_.end());
+  return data;
 }
 
 uint8_t NdefRecord::get_tnf_byte(bool first, bool last) {

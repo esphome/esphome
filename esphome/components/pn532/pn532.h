@@ -32,6 +32,11 @@ class PN532 : public PollingComponent {
   void register_tag(PN532BinarySensor *tag) { this->binary_sensors_.push_back(tag); }
   void register_trigger(PN532Trigger *trig) { this->triggers_.push_back(trig); }
 
+  void clean_tag(bool continuous = false);
+  void erase_tag(bool continuous = false);
+  void format_tag(bool continuous = false);
+  void write_tag(nfc::NdefMessage *message, bool continuous = false);
+
  protected:
   void turn_off_rf_();
   bool write_command_(const std::vector<uint8_t> &data);
@@ -44,22 +49,31 @@ class PN532 : public PollingComponent {
 
   nfc::NfcTag *read_tag_(std::vector<uint8_t> &uid);
 
-  bool erase_tag_(nfc::NfcTag &tag);
-  bool format_tag_(nfc::NfcTag &tag);
-  bool clean_tag_(nfc::NfcTag &tag);
-  bool write_tag_(nfc::NfcTag &tag);
+  bool erase_tag_(std::vector<uint8_t> &uid);
+  bool format_tag_(std::vector<uint8_t> &uid);
+  bool clean_tag_(std::vector<uint8_t> &uid);
+  bool write_tag_(std::vector<uint8_t> &uid, nfc::NdefMessage *message);
 
   std::vector<uint8_t> read_mifare_classic_block_(uint8_t block_num);
   bool write_mifare_classic_block_(uint8_t block_num, std::vector<uint8_t> &data);
 
-  bool auth_mifare_classic_block_(std::vector<uint8_t> &uid, uint8_t block_num, uint8_t key_num, uint8_t *key);
-  bool format_mifare_classic_mifare_(nfc::NfcTag &tag);
-  bool format_mifare_classic_ndef_(nfc::NfcTag &tag);
+  bool auth_mifare_classic_block_(std::vector<uint8_t> &uid, uint8_t block_num, uint8_t key_num, const uint8_t *key);
+  bool format_mifare_classic_mifare_(std::vector<uint8_t> &uid);
+  bool format_mifare_classic_ndef_(std::vector<uint8_t> &uid);
 
   bool requested_read_{false};
+  bool next_task_continuous_{false};
   std::vector<PN532BinarySensor *> binary_sensors_;
   std::vector<PN532Trigger *> triggers_;
   std::vector<uint8_t> current_uid_;
+  nfc::NdefMessage *next_task_message_to_write_;
+  enum NfcTask {
+    READ = 0,
+    CLEAN,
+    FORMAT,
+    ERASE,
+    WRITE,
+  } next_task_{READ};
   enum PN532Error {
     NONE = 0,
     WAKEUP_FAILED,

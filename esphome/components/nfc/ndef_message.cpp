@@ -6,23 +6,21 @@ namespace nfc {
 static const char *TAG = "nfc.ndef_message";
 
 NdefMessage::NdefMessage(std::vector<uint8_t> &data) {
+  ESP_LOGV(TAG, "Building NdefMessage with %zu bytes", data.size());
   uint8_t index = 0;
   while (index <= data.size()) {
-    uint8_t tnf_byte = data[index];
+    uint8_t tnf_byte = data[index++];
     bool me = tnf_byte & 0x40;
     bool sr = tnf_byte & 0x10;
     bool il = tnf_byte & 0x08;
     uint8_t tnf = tnf_byte & 0x07;
 
-    auto record = make_unique<NdefRecord>();
-    record->set_tnf(tnf);
+    auto record = new NdefRecord(tnf);
 
-    index++;
-    uint8_t type_length = data[index];
+    uint8_t type_length = data[index++];
     uint32_t payload_length = 0;
     if (sr) {
-      index++;
-      payload_length = data[index];
+      payload_length = data[index++];
     } else {
       payload_length = (static_cast<uint32_t>(data[index]) << 24) | (static_cast<uint32_t>(data[index + 1]) << 16) |
                        (static_cast<uint32_t>(data[index + 2]) << 8) | static_cast<uint32_t>(data[index + 3]);
@@ -31,35 +29,37 @@ NdefMessage::NdefMessage(std::vector<uint8_t> &data) {
 
     uint8_t id_length = 0;
     if (il) {
-      index++;
-      id_length = data[index];
+      id_length = data[index++];
     }
 
-    index++;
-    record->set_type(std::string(data[index], type_length));
+    std::string type_str(data.begin() + index, data.begin() + index + type_length);
+    record->set_type(type_str);
     index += type_length;
 
     if (il) {
-      record->set_id(std::string(data[index], id_length));
+      std::string id_str(data.begin() + index, data.begin() + index + id_length);
+      record->set_id(id_str);
       index += id_length;
     }
 
-    record->set_payload(std::string(data[index], payload_length));
+    std::string payload_str(data.begin() + index, data.begin() + index + payload_length);
+    record->set_payload(payload_str);
     index += payload_length;
 
-    this->add_record(std::move(record));
+    this->add_record(record);
+    ESP_LOGV(TAG, "Adding record type %s = %s", record->get_type().c_str(), record->get_payload().c_str());
 
     if (me)
       break;
   }
 }
 
-bool NdefMessage::add_record(std::unique_ptr<NdefRecord> record) {
+bool NdefMessage::add_record(NdefRecord *record) {
   if (this->records_.size() >= MAX_NDEF_RECORDS) {
     ESP_LOGE(TAG, "Too many records. Max: %d", MAX_NDEF_RECORDS);
     return false;
   }
-  this->records_.push_back(std::move(record));
+  this->records_.push_back(record);
   return true;
 }
 
@@ -67,29 +67,29 @@ bool NdefMessage::add_text_record(const std::string &text) { return this->add_te
 
 bool NdefMessage::add_text_record(const std::string &text, const std::string &encoding) {
   std::string payload = to_string(text.length()) + encoding + text;
-  auto r = make_unique<NdefRecord>(TNF_WELL_KNOWN, "T", payload);
-  return this->add_record(std::move(r));
+  auto r = new NdefRecord(TNF_WELL_KNOWN, "T", payload);
+  return this->add_record(r);
 }
 
 bool NdefMessage::add_uri_record(const std::string &uri) {
   std::string payload = '\0' + uri;
-  auto r = make_unique<NdefRecord>(TNF_WELL_KNOWN, "U", payload);
-  return this->add_record(std::move(r));
+  auto r = new NdefRecord(TNF_WELL_KNOWN, "U", payload);
+  return this->add_record(r);
 }
 
 bool NdefMessage::add_empty_record() {
-  auto r = make_unique<NdefRecord>();
-  r->set_tnf(TNF_EMPTY);
-  return this->add_record(std::move(r));
+  auto r = new NdefRecord(TNF_EMPTY);
+  return this->add_record(r);
 }
 
-void NdefMessage::encode(uint8_t *data) {
-  uint8_t *data_ptr = &data[0];
+std::vector<uint8_t> NdefMessage::encode() {
+  std::vector<uint8_t> data;
 
   for (uint8_t i = 0; i < this->records_.size(); i++) {
-    this->records_[i]->encode(data_ptr, i == 0, (i + 1) == this->records_.size());
-    data_ptr += this->records_[i]->get_encoded_size();
+    auto encoded_record = this->records_[i]->encode(i == 0, (i + 1) == this->records_.size());
+    data.insert(data.end(), encoded_record.begin(), encoded_record.end());
   }
+  return data;
 }
 
 }  // namespace nfc
