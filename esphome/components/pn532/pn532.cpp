@@ -156,7 +156,7 @@ void PN532::loop() {
     trigger->process(nfcid);
 
   if (report) {
-    ESP_LOGD(TAG, "Found tag '%s'", format_uid(nfcid).c_str());
+    ESP_LOGD(TAG, "Found new tag '%s'", format_uid(nfcid).c_str());
   }
 
   this->turn_off_rf_();
