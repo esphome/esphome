@@ -33,7 +33,7 @@ bool PN532Spi::write_data(const std::vector<uint8_t> &data) {
   return true;
 }
 
-std::vector<uint8_t> PN532Spi::read_data(uint8_t len) {
+bool PN532Spi::read_data(std::vector<uint8_t> &data, uint8_t len) {
   this->enable();
   // First byte, communication mode: Read state
   this->write_byte(0x02);
@@ -46,19 +46,18 @@ std::vector<uint8_t> PN532Spi::read_data(uint8_t len) {
     if (millis() - start_time > 100) {
       this->disable();
       ESP_LOGV(TAG, "Timed out waiting for readiness from PN532!");
-      return {};
+      return false;
     }
   }
 
   // Read data (transmission from the PN532 to the host)
   this->write_byte(0x03);
 
-  std::vector<uint8_t> data;
   data.resize(len);
   this->read_array(data.data(), len);
   this->disable();
   data.insert(data.begin(), 0x01);
-  return data;
+  return true;
 };
 
 void PN532Spi::dump_config() {

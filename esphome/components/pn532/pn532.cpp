@@ -208,7 +208,7 @@ bool PN532::write_command_(const std::vector<uint8_t> &data) {
   return this->read_ack_();
 }
 
-bool PN532::read_response_(uint8_t command, std::vector<uint8_t> &response) {
+bool PN532::read_response_(uint8_t command, std::vector<uint8_t> &data) {
   ESP_LOGV(TAG, "Reading response");
   uint8_t len = this->read_response_length_();
   if (len == 0) {
@@ -216,8 +216,7 @@ bool PN532::read_response_(uint8_t command, std::vector<uint8_t> &response) {
   }
 
   ESP_LOGV(TAG, "Reading response of length %d", len);
-  std::vector<uint8_t> data = this->read_data(6 + len + 2);
-  if (data.empty()) {
+  if (!this->read_data(data, 6 + len + 2)) {
     ESP_LOGD(TAG, "No response data");
     return false;
   }
@@ -270,8 +269,8 @@ bool PN532::read_response_(uint8_t command, std::vector<uint8_t> &response) {
 }
 
 uint8_t PN532::read_response_length_() {
-  std::vector<uint8_t> data = this->read_data(6);
-  if (data.empty()) {
+  std::vector<uint8_t> data;
+  if (!this->read_data(data, 6)) {
     return 0;
   }
 
@@ -303,8 +302,8 @@ uint8_t PN532::read_response_length_() {
 bool PN532::read_ack_() {
   ESP_LOGVV(TAG, "Reading ACK...");
 
-  std::vector<uint8_t> data = this->read_data(6);
-  if (data.empty()) {
+  std::vector<uint8_t> data;
+  if (!this->read_data(data, 6)) {
     return false;
   }
 

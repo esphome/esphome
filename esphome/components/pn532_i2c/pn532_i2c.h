@@ -13,7 +13,7 @@ class PN532I2C : public pn532::PN532, public i2c::I2CDevice {
 
  protected:
   bool write_data(const std::vector<uint8_t> &data) override;
-  std::vector<uint8_t> read_data(uint8_t len) override;
+  bool read_data(std::vector<uint8_t> &data, uint8_t len) override;
 };
 
 }  // namespace pn532_i2c

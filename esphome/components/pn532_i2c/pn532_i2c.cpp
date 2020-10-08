@@ -13,7 +13,7 @@ static const char *TAG = "pn532_i2c";
 
 bool PN532I2C::write_data(const std::vector<uint8_t> &data) { return this->write_bytes_raw(data.data(), data.size()); }
 
-std::vector<uint8_t> PN532I2C::read_data(uint8_t len) {
+bool PN532I2C::read_data(std::vector<uint8_t> &data, uint8_t len) {
   delay(5);
 
   std::vector<uint8_t> ready;
@@ -27,14 +27,13 @@ std::vector<uint8_t> PN532I2C::read_data(uint8_t len) {
 
     if (millis() - start_time > 100) {
       ESP_LOGV(TAG, "Timed out waiting for readiness from PN532!");
-      return {};
+      return false;
     }
   }
 
-  std::vector<uint8_t> data;
   data.resize(len + 1);
   this->read_bytes_raw(data.data(), len + 1);
-  return data;
+  return true;
 }
 
 void PN532I2C::dump_config() {

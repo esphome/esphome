@@ -33,12 +33,12 @@ class PN532 : public PollingComponent {
  protected:
   void turn_off_rf_();
   bool write_command_(const std::vector<uint8_t> &data);
-  bool read_response_(uint8_t command, std::vector<uint8_t> &response);
+  bool read_response_(uint8_t command, std::vector<uint8_t> &data);
   bool read_ack_();
   uint8_t read_response_length_();
 
   virtual bool write_data(const std::vector<uint8_t> &data) = 0;
-  virtual std::vector<uint8_t> read_data(uint8_t len) = 0;
+  virtual bool read_data(std::vector<uint8_t> &data, uint8_t len) = 0;
 
   bool requested_read_{false};
   std::vector<PN532BinarySensor *> binary_sensors_;
