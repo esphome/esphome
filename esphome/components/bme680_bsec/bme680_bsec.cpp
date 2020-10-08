@@ -57,7 +57,7 @@ void BME680BSECComponent::dump_config() {
 
   ESP_LOGCONFIG(TAG, "  Temperature Offset: %.2f", this->temperature_offset_);
   ESP_LOGCONFIG(TAG, "  IAQ Mode: %s", this->iaq_mode_ == BME680_IAQ_MODE_STATIC ? "Static" : "Mobile");
-  ESP_LOGCONFIG(TAG, "  State Save Interval: %i minutes", this->state_save_interval_);
+  ESP_LOGCONFIG(TAG, "  State Save Interval: %ims", this->state_save_interval_);
 
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   LOG_SENSOR("  ", "Pressure", this->pressure_sensor_);
@@ -130,7 +130,7 @@ void BME680BSECComponent::set_temperature_offset(float offset) {
 
 void BME680BSECComponent::set_iaq_mode(BME680BSECIAQMode iaq_mode) { this->iaq_mode_ = iaq_mode; }
 
-void BME680BSECComponent::set_state_save_interval(uint16_t interval) { this->state_save_interval_ = interval; }
+void BME680BSECComponent::set_state_save_interval(uint32_t interval) { this->state_save_interval_ = interval; }
 
 float BME680BSECComponent::get_iaq_() {
   return this->iaq_mode_ == BME680_IAQ_MODE_STATIC ? this->bsec_.staticIaq : this->bsec_.iaq;
@@ -189,20 +189,12 @@ void BME680BSECComponent::load_state_() {
     ESP_LOGI(TAG, "Loading state");
     this->bsec_.setState(state);
     this->check_bsec_status_();
-
-    // Don't immediately update after initial load
-    this->state_save_counter_++;
   }
 }
 
 void BME680BSECComponent::save_state_() {
-  if (
-      // First state update when IAQ algorithm achieves full calibration
-      (this->state_save_counter_ == 0 && this->get_iaq_accuracy_() >= 3)
-      // Then update every state save interval minutes
-      || ((this->state_save_counter_ * this->state_save_interval_ * 60 * 1000) < millis())) {
-    this->state_save_counter_++;
-  } else {
+  static unsigned long last_millis = 0;
+  if (this->get_iaq_accuracy_() < 3 || (millis() - last_millis < this->state_save_interval_)) {
     return;
   }
 
@@ -214,6 +206,7 @@ void BME680BSECComponent::save_state_() {
 
   ESP_LOGI(TAG, "Saving state");
   this->bsec_state_.save(&state);
+  last_millis = millis();
 }
 
 }  // namespace bme680_bsec

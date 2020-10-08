@@ -22,7 +22,7 @@ class BME680BSECComponent : public Component, public i2c::I2CDevice {
  public:
   void set_temperature_offset(float offset);
   void set_iaq_mode(BME680BSECIAQMode iaq_mode);
-  void set_state_save_interval(uint16_t interval);
+  void set_state_save_interval(uint32_t interval);
 
   void set_temperature_sensor(sensor::Sensor *temperature_sensor) { temperature_sensor_ = temperature_sensor; }
   void set_pressure_sensor(sensor::Sensor *pressure_sensor) { pressure_sensor_ = pressure_sensor; }
@@ -64,8 +64,7 @@ class BME680BSECComponent : public Component, public i2c::I2CDevice {
   int8_t last_bme680_status_{BME680_OK};
   float temperature_offset_{0};
   ESPPreferenceObject bsec_state_;
-  uint16_t state_save_interval_{360};  // 360 minutes - 4 times a day
-  uint16_t state_save_counter_{0};
+  uint32_t state_save_interval_{21600000};  // 6 hours - 4 times a day
   BME680BSECIAQMode iaq_mode_{BME680_IAQ_MODE_STATIC};
   uint8_t sensor_push_num_{0};
 
