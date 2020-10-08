@@ -19,6 +19,7 @@ static const uint8_t BSEC_CONFIG_IAQ[] = {
 std::map<uint8_t, BME680BSECComponent *> BME680BSECComponent::instances;
 
 void BME680BSECComponent::setup() {
+  ESP_LOGCONFIG(TAG, "Setting up BME680 via BSEC...");
   BME680BSECComponent::instances[this->address_] = this;
   this->bsec_.begin(this->address_, BME680_I2C_INTF, BME680BSECComponent::read_bytes_wrapper,
                     BME680BSECComponent::write_bytes_wrapper, Bsec::delay_ms);
