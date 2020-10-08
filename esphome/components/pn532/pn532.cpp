@@ -197,6 +197,152 @@ void PN532::loop() {
   this->turn_off_rf_();
 }
 
+bool PN532::write_command_(const std::vector<uint8_t> &data) {
+  std::vector<uint8_t> write_data;
+  // Preamble
+  write_data.push_back(0x00);
+
+  // Start code
+  write_data.push_back(0x00);
+  write_data.push_back(0xFF);
+
+  // Length of message, TFI + data bytes
+  const uint8_t real_length = data.size() + 1;
+  // LEN
+  write_data.push_back(real_length);
+  // LCS (Length checksum)
+  write_data.push_back(~real_length + 1);
+
+  // TFI (Frame Identifier, 0xD4 means to PN532, 0xD5 means from PN532)
+  write_data.push_back(0xD4);
+  // calculate checksum, TFI is part of checksum
+  uint8_t checksum = 0xD4;
+
+  // DATA
+  for (uint8_t dat : data) {
+    write_data.push_back(dat);
+    checksum += dat;
+  }
+
+  // DCS (Data checksum)
+  write_data.push_back(~checksum + 1);
+  // Postamble
+  write_data.push_back(0x00);
+
+  this->write_data(write_data);
+
+  return this->read_ack_();
+}
+
+bool PN532::read_ack_() {
+  ESP_LOGVV(TAG, "Reading ACK...");
+
+  std::vector<uint8_t> data;
+  if (!this->read_data(data, 6)) {
+    return false;
+  }
+
+  bool matches = (data[1] == 0x00 &&                     // preamble
+                  data[2] == 0x00 &&                     // start of packet
+                  data[3] == 0xFF && data[4] == 0x00 &&  // ACK packet code
+                  data[5] == 0xFF && data[6] == 0x00);   // postamble
+  ESP_LOGVV(TAG, "ACK valid: %s", YESNO(matches));
+  return matches;
+}
+
+bool PN532::read_response_(uint8_t command, std::vector<uint8_t> &data) {
+  ESP_LOGV(TAG, "Reading response");
+  uint8_t len = this->read_response_length_();
+  if (len == 0) {
+    return false;
+  }
+
+  ESP_LOGV(TAG, "Reading response of length %d", len);
+  if (!this->read_data(data, 6 + len + 2)) {
+    ESP_LOGD(TAG, "No response data");
+    return false;
+  }
+
+  if (data[1] != 0x00 && data[2] != 0x00 && data[3] != 0xFF) {
+    // invalid packet
+    ESP_LOGV(TAG, "read data invalid preamble!");
+    return false;
+  }
+
+  bool valid_header = (static_cast<uint8_t>(data[4] + data[5]) == 0 &&  // LCS, len + lcs = 0
+                       data[6] == 0xD5 &&                               // TFI - frame from PN532 to system controller
+                       data[7] == command + 1);                         // Correct command response
+
+  if (!valid_header) {
+    ESP_LOGV(TAG, "read data invalid header!");
+    return false;
+  }
+
+  data.erase(data.begin(), data.begin() + 6);  // Remove headers
+
+  uint8_t checksum = 0;
+  for (int i = 0; i < len + 1; i++) {
+    uint8_t dat = data[i];
+    checksum += dat;
+  }
+  checksum = ~checksum + 1;
+
+  if (data[len + 1] != checksum) {
+    ESP_LOGV(TAG, "read data invalid checksum! %02X != %02X", data[len], checksum);
+    return false;
+  }
+
+  if (data[len + 2] != 0x00) {
+    ESP_LOGV(TAG, "read data invalid postamble!");
+    return false;
+  }
+
+  data.erase(data.begin(), data.begin() + 2);  // Remove TFI and command code
+  data.erase(data.end() - 2, data.end());      // Remove checksum and postamble
+
+  return true;
+}
+
+uint8_t PN532::read_response_length_() {
+  std::vector<uint8_t> data;
+  if (!this->read_data(data, 6)) {
+    return 0;
+  }
+
+  if (data[1] != 0x00 && data[2] != 0x00 && data[3] != 0xFF) {
+    // invalid packet
+    ESP_LOGV(TAG, "read data invalid preamble!");
+    return 0;
+  }
+
+  bool valid_header = (static_cast<uint8_t>(data[4] + data[5]) == 0 &&  // LCS, len + lcs = 0
+                       data[6] == 0xD5);                                // TFI - frame from PN532 to system controller
+
+  if (!valid_header) {
+    ESP_LOGV(TAG, "read data invalid header!");
+    return 0;
+  }
+
+  this->write_data({0x00, 0x00, 0xFF, 0xFF, 0x00, 0x00});  // NACK - Retransmit last message
+
+  // full length of message, including TFI
+  uint8_t full_len = data[4];
+  // length of data, excluding TFI
+  uint8_t len = full_len - 1;
+  if (full_len == 0)
+    len = 0;
+  return len;
+}
+
+void PN532::turn_off_rf_() {
+  ESP_LOGVV(TAG, "Turning RF field OFF");
+  this->write_command_({
+      PN532_COMMAND_RFCONFIGURATION,
+      0x01,  // RF Field
+      0x00,  // Off
+  });
+}
+
 nfc::NfcTag *PN532::read_tag_(std::vector<uint8_t> &uid) {
   uint8_t type = nfc::guess_tag_type(uid.size());
 
@@ -257,154 +403,6 @@ nfc::NfcTag *PN532::read_tag_(std::vector<uint8_t> &uid) {
   }
 }
 
-std::vector<uint8_t> PN532::read_mifare_classic_block_(uint8_t block_num) {
-  if (!this->write_command_({
-          PN532_COMMAND_INDATAEXCHANGE,
-          0x01,  // One card
-          nfc::MIFARE_CMD_READ,
-          block_num,
-      })) {
-    return {};
-  }
-
-  std::vector<uint8_t> response;
-  if (!this->read_response_(PN532_COMMAND_INDATAEXCHANGE, response) || response[0] != 0x00) {
-    return {};
-  }
-  response.erase(response.begin());
-  return response;
-}
-
-bool PN532::auth_mifare_classic_block_(std::vector<uint8_t> &uid, uint8_t block_num, uint8_t key_num,
-                                       const uint8_t *key) {
-  std::vector<uint8_t> data({
-      PN532_COMMAND_INDATAEXCHANGE,
-      0x01,       // One card
-      key_num,    // Mifare Key slot
-      block_num,  // Block number
-  });
-  data.insert(data.end(), key, key + 6);
-  data.insert(data.end(), uid.begin(), uid.end());
-  if (!this->write_command_(data)) {
-    ESP_LOGE(TAG, "Authentication failed");
-    return false;
-  }
-
-  std::vector<uint8_t> response;
-  if (!this->read_response_(PN532_COMMAND_INDATAEXCHANGE, response) || response[0] != 0x00) {
-    ESP_LOGE(TAG, "Authentication failed");
-    return false;
-  }
-
-  return true;
-}
-
-void PN532::turn_off_rf_() {
-  ESP_LOGVV(TAG, "Turning RF field OFF");
-  this->write_command_({
-      PN532_COMMAND_RFCONFIGURATION,
-      0x01,  // RF Field
-      0x00,  // Off
-  });
-}
-
-bool PN532::write_command_(const std::vector<uint8_t> &data) {
-  std::vector<uint8_t> write_data;
-  // Preamble
-  write_data.push_back(0x00);
-
-  // Start code
-  write_data.push_back(0x00);
-  write_data.push_back(0xFF);
-
-  // Length of message, TFI + data bytes
-  const uint8_t real_length = data.size() + 1;
-  // LEN
-  write_data.push_back(real_length);
-  // LCS (Length checksum)
-  write_data.push_back(~real_length + 1);
-
-  // TFI (Frame Identifier, 0xD4 means to PN532, 0xD5 means from PN532)
-  write_data.push_back(0xD4);
-  // calculate checksum, TFI is part of checksum
-  uint8_t checksum = 0xD4;
-
-  // DATA
-  for (uint8_t dat : data) {
-    write_data.push_back(dat);
-    checksum += dat;
-  }
-
-  // DCS (Data checksum)
-  write_data.push_back(~checksum + 1);
-  // Postamble
-  write_data.push_back(0x00);
-
-  this->write_data(write_data);
-
-  return this->read_ack_();
-}
-
-bool PN532::read_response_(uint8_t command, std::vector<uint8_t> &data) {
-  ESP_LOGV(TAG, "Reading response");
-  uint8_t len = this->read_response_length_();
-  if (len == 0) {
-    return false;
-  }
-
-  ESP_LOGV(TAG, "Reading response of length %d", len);
-  if (!this->read_data(data, 6 + len + 2)) {
-    ESP_LOGD(TAG, "No response data");
-    return false;
-  }
-
-  if (data[1] != 0x00 && data[2] != 0x00 && data[3] != 0xFF) {
-    // invalid packet
-    ESP_LOGV(TAG, "read data invalid preamble!");
-    return false;
-  }
-
-  bool valid_header = (static_cast<uint8_t>(data[4] + data[5]) == 0 &&  // LCS, len + lcs = 0
-                       data[6] == 0xD5 &&                               // TFI - frame from PN532 to system controller
-                       data[7] == command + 1);                         // Correct command response
-
-  if (!valid_header) {
-    ESP_LOGV(TAG, "read data invalid header!");
-    return false;
-  }
-
-  data.erase(data.begin(), data.begin() + 6);  // Remove headers
-
-  uint8_t checksum = 0;
-  for (int i = 0; i < len + 1; i++) {
-    uint8_t dat = data[i];
-    checksum += dat;
-  }
-  checksum = ~checksum + 1;
-
-  if (data[len + 1] != checksum) {
-    ESP_LOGV(TAG, "read data invalid checksum! %02X != %02X", data[len], checksum);
-    return false;
-  }
-
-  if (data[len + 2] != 0x00) {
-    ESP_LOGV(TAG, "read data invalid postamble!");
-    return false;
-  }
-
-  data.erase(data.begin(), data.begin() + 2);  // Remove TFI and command code
-  data.erase(data.end() - 2, data.end());      // Remove checksum and postamble
-
-#ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
-  ESP_LOGD(TAG, "PN532 Data Frame: (%u)", data.size());  // NOLINT
-  for (uint8_t dat : data) {
-    ESP_LOGD(TAG, "  0x%02X", dat);
-  }
-#endif
-
-  return true;
-}
-
 void PN532::clean_tag(bool continuous) {
   this->next_task_ = CLEAN;
   this->next_task_continuous_ = continuous;
@@ -427,6 +425,15 @@ void PN532::write_tag(nfc::NdefMessage *message, bool continuous) {
   ESP_LOGD(TAG, "Waiting to write next tag");
 }
 
+bool PN532::clean_tag_(std::vector<uint8_t> &uid) {
+  uint8_t type = nfc::guess_tag_type(uid.size());
+  if (type == nfc::TAG_TYPE_MIFARE_CLASSIC) {
+    return this->format_mifare_classic_mifare_(uid);
+  }
+  ESP_LOGE(TAG, "Unsupported Tag for formatting");
+  return false;
+}
+
 bool PN532::erase_tag_(std::vector<uint8_t> &uid) {
   auto message = new nfc::NdefMessage();
   message->add_empty_record();
@@ -437,15 +444,6 @@ bool PN532::format_tag_(std::vector<uint8_t> &uid) {
   uint8_t type = nfc::guess_tag_type(uid.size());
   if (type == nfc::TAG_TYPE_MIFARE_CLASSIC) {
     return this->format_mifare_classic_ndef_(uid);
-  }
-  ESP_LOGE(TAG, "Unsupported Tag for formatting");
-  return false;
-}
-
-bool PN532::clean_tag_(std::vector<uint8_t> &uid) {
-  uint8_t type = nfc::guess_tag_type(uid.size());
-  if (type == nfc::TAG_TYPE_MIFARE_CLASSIC) {
-    return this->format_mifare_classic_mifare_(uid);
   }
   ESP_LOGE(TAG, "Unsupported Tag for formatting");
   return false;
@@ -490,166 +488,6 @@ bool PN532::write_tag_(std::vector<uint8_t> &uid, nfc::NdefMessage *message) {
     }
   }
   return true;
-}
-
-bool PN532::format_mifare_classic_mifare_(std::vector<uint8_t> &uid) {
-  std::vector<uint8_t> blank_buffer(
-      {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00});
-  std::vector<uint8_t> trailer_buffer(
-      {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x07, 0x80, 0x69, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF});
-
-  bool error = false;
-
-  for (int idx = 0; idx < 16; idx++) {
-    if (!this->auth_mifare_classic_block_(uid, (4 * idx) + 3, nfc::MIFARE_CMD_AUTH_B, nfc::DEFAULT_KEY)) {
-      ESP_LOGE(TAG, "No keys work!!! sector %d", idx);
-      continue;
-    }
-
-    if (idx == 0) {
-      if (!this->write_mifare_classic_block_((4 * idx) + 1, blank_buffer)) {
-        ESP_LOGE(TAG, "Unable to write sector %d-%d", idx, (4 * idx) + 1);
-        error = true;
-      }
-    } else {
-      if (!this->write_mifare_classic_block_((4 * idx), blank_buffer)) {
-        ESP_LOGE(TAG, "Unable to write sector %d-%d", idx, (4 * idx));
-        error = true;
-      }
-      if (!this->write_mifare_classic_block_((4 * idx) + 1, blank_buffer)) {
-        ESP_LOGE(TAG, "Unable to write sector %d-%d", idx, (4 * idx) + 1);
-        error = true;
-      }
-    }
-
-    if (!this->write_mifare_classic_block_((4 * idx) + 2, blank_buffer)) {
-      ESP_LOGE(TAG, "Unable to write sector %d-%d", idx, (4 * idx) + 2);
-      error = true;
-    }
-
-    if (!this->write_mifare_classic_block_((4 * idx) + 3, trailer_buffer)) {
-      ESP_LOGE(TAG, "Unable to write trailer of sector %d-%d", idx, (4 * idx) + 3);
-      error = true;
-    }
-  }
-
-  return !error;
-}
-
-bool PN532::format_mifare_classic_ndef_(std::vector<uint8_t> &uid) {
-  std::vector<uint8_t> empty_ndef_message(
-      {0x03, 0x03, 0xD0, 0x00, 0x00, 0xFE, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00});
-  std::vector<uint8_t> sector_buffer_0(
-      {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00});
-  std::vector<uint8_t> sector_buffer_1(
-      {0x14, 0x01, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1});
-  std::vector<uint8_t> sector_buffer_2(
-      {0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1});
-  std::vector<uint8_t> sector_buffer_3(
-      {0xA0, 0xA1, 0xA2, 0xA3, 0xA4, 0xA5, 0x78, 0x77, 0x88, 0xC1, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF});
-  std::vector<uint8_t> sector_buffer_4(
-      {0xD3, 0xF7, 0xD3, 0xF7, 0xD3, 0xF7, 0x7F, 0x07, 0x88, 0x40, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF});
-
-  if (!this->auth_mifare_classic_block_(uid, 0, nfc::MIFARE_CMD_AUTH_A, nfc::DEFAULT_KEY)) {
-    ESP_LOGE(TAG, "Unable to authenticate block 0 for formatting!");
-    return false;
-  }
-  if (!this->write_mifare_classic_block_(1, sector_buffer_1))
-    return false;
-  if (!this->write_mifare_classic_block_(2, sector_buffer_2))
-    return false;
-  if (!this->write_mifare_classic_block_(3, sector_buffer_3))
-    return false;
-
-  for (int i = 4; i < 64; i += 4) {
-    if (!this->auth_mifare_classic_block_(uid, i, nfc::MIFARE_CMD_AUTH_A, nfc::DEFAULT_KEY)) {
-      ESP_LOGE(TAG, "Failed to authenticate with block %d", i);
-      continue;
-    }
-    if (i == 4) {
-      if (!this->write_mifare_classic_block_(i, empty_ndef_message))
-        ESP_LOGE(TAG, "Unable to write block %d", i);
-    } else {
-      if (!this->write_mifare_classic_block_(i, sector_buffer_0))
-        ESP_LOGE(TAG, "Unable to write block %d", i);
-    }
-    if (!this->write_mifare_classic_block_(i + 1, sector_buffer_0))
-      ESP_LOGE(TAG, "Unable to write block %d", i + 1);
-    if (!this->write_mifare_classic_block_(i + 2, sector_buffer_0))
-      ESP_LOGE(TAG, "Unable to write block %d", i + 2);
-    if (!this->write_mifare_classic_block_(i + 3, sector_buffer_4))
-      ESP_LOGE(TAG, "Unable to write block %d", i + 3);
-  }
-  return true;
-}
-
-bool PN532::write_mifare_classic_block_(uint8_t block_num, std::vector<uint8_t> &write_data) {
-  std::vector<uint8_t> data({
-      PN532_COMMAND_INDATAEXCHANGE,
-      0x01,  // One card
-      nfc::MIFARE_CMD_WRITE,
-      block_num,  // Block number
-  });
-  data.insert(data.end(), write_data.begin(), write_data.end());
-  if (!this->write_command_(data)) {
-    ESP_LOGE(TAG, "Error writing block %d", block_num);
-    return false;
-  }
-
-  std::vector<uint8_t> response;
-  if (!this->read_response_(PN532_COMMAND_INDATAEXCHANGE, response)) {
-    ESP_LOGE(TAG, "Error writing block %d", block_num);
-    return false;
-  }
-
-  return true;
-}
-
-uint8_t PN532::read_response_length_() {
-  std::vector<uint8_t> data;
-  if (!this->read_data(data, 6)) {
-    return 0;
-  }
-
-  if (data[1] != 0x00 && data[2] != 0x00 && data[3] != 0xFF) {
-    // invalid packet
-    ESP_LOGV(TAG, "read data invalid preamble!");
-    return 0;
-  }
-
-  bool valid_header = (static_cast<uint8_t>(data[4] + data[5]) == 0 &&  // LCS, len + lcs = 0
-                       data[6] == 0xD5);                                // TFI - frame from PN532 to system controller
-
-  if (!valid_header) {
-    ESP_LOGV(TAG, "read data invalid header!");
-    return 0;
-  }
-
-  this->write_data({0x00, 0x00, 0xFF, 0xFF, 0x00, 0x00});  // NACK - Retransmit last message
-
-  // full length of message, including TFI
-  uint8_t full_len = data[4];
-  // length of data, excluding TFI
-  uint8_t len = full_len - 1;
-  if (full_len == 0)
-    len = 0;
-  return len;
-}
-
-bool PN532::read_ack_() {
-  ESP_LOGVV(TAG, "Reading ACK...");
-
-  std::vector<uint8_t> data;
-  if (!this->read_data(data, 6)) {
-    return false;
-  }
-
-  bool matches = (data[1] == 0x00 &&                     // preamble
-                  data[2] == 0x00 &&                     // start of packet
-                  data[3] == 0xFF && data[4] == 0x00 &&  // ACK packet code
-                  data[5] == 0xFF && data[6] == 0x00);   // postamble
-  ESP_LOGVV(TAG, "ACK valid: %s", YESNO(matches));
-  return matches;
 }
 
 float PN532::get_setup_priority() const { return setup_priority::DATA; }
