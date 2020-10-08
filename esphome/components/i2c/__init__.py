@@ -5,6 +5,7 @@ from esphome.const import CONF_FREQUENCY, CONF_ID, CONF_SCAN, CONF_SCL, CONF_SDA
     CONF_I2C_ID
 from esphome.core import coroutine, coroutine_with_priority
 
+CODEOWNERS = ['@esphome/core']
 i2c_ns = cg.esphome_ns.namespace('i2c')
 I2CComponent = i2c_ns.class_('I2CComponent', cg.Component)
 I2CDevice = i2c_ns.class_('I2CDevice')

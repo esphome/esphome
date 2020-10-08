@@ -7,6 +7,7 @@ from esphome.const import CONF_ICON, CONF_ID, CONF_INTERNAL, CONF_INVERTED, CONF
     CONF_ON_TURN_ON, CONF_TRIGGER_ID, CONF_MQTT_ID, CONF_NAME
 from esphome.core import CORE, coroutine, coroutine_with_priority
 
+CODEOWNERS = ['@esphome/core']
 IS_PLATFORM_COMPONENT = True
 
 switch_ns = cg.esphome_ns.namespace('switch_')

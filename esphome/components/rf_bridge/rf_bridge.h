@@ -45,10 +45,10 @@ class RFBridgeComponent : public uart::UARTDevice, public Component {
  protected:
   void ack_();
   void decode_();
+  bool parse_bridge_byte_(uint8_t byte);
 
-  unsigned long last_ = 0;
-  unsigned char uartbuf_[RF_MESSAGE_SIZE + 3] = {0};
-  unsigned char uartpos_ = 0;
+  std::vector<uint8_t> rx_buffer_;
+  uint32_t last_bridge_byte_{0};
 
   CallbackManager<void(RFBridgeData)> callback_;
 };

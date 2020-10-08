@@ -4,6 +4,7 @@ from esphome import automation
 from esphome.components import time
 from esphome.const import CONF_TIME_ID, CONF_ID, CONF_TRIGGER_ID
 
+CODEOWNERS = ['@OttoWinter']
 sun_ns = cg.esphome_ns.namespace('sun')
 
 Sun = sun_ns.class_('Sun')

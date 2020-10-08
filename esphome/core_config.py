@@ -5,16 +5,14 @@ import re
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation, pins
-from esphome.const import ARDUINO_VERSION_ESP32_DEV, ARDUINO_VERSION_ESP8266_DEV, \
-    CONF_ARDUINO_VERSION, CONF_BOARD, CONF_BOARD_FLASH_MODE, CONF_BUILD_PATH, \
-    CONF_COMMENT, CONF_ESPHOME, CONF_INCLUDES, CONF_LIBRARIES, \
+from esphome.const import CONF_ARDUINO_VERSION, CONF_BOARD, CONF_BOARD_FLASH_MODE, \
+    CONF_BUILD_PATH, CONF_COMMENT, CONF_ESPHOME, CONF_INCLUDES, CONF_LIBRARIES, \
     CONF_NAME, CONF_ON_BOOT, CONF_ON_LOOP, CONF_ON_SHUTDOWN, CONF_PLATFORM, \
     CONF_PLATFORMIO_OPTIONS, CONF_PRIORITY, CONF_TRIGGER_ID, \
-    CONF_ESP8266_RESTORE_FROM_FLASH, ARDUINO_VERSION_ESP8266_2_3_0, \
-    ARDUINO_VERSION_ESP8266_2_5_0, ARDUINO_VERSION_ESP8266_2_5_1, ARDUINO_VERSION_ESP8266_2_5_2
+    CONF_ESP8266_RESTORE_FROM_FLASH, ARDUINO_VERSION_ESP8266, \
+    ARDUINO_VERSION_ESP32, ESP_PLATFORMS
 from esphome.core import CORE, coroutine_with_priority
 from esphome.helpers import copy_file_if_changed, walk_files
-from esphome.pins import ESP8266_FLASH_SIZES, ESP8266_LD_SCRIPTS
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -42,33 +40,20 @@ def validate_board(value):
     return value
 
 
-validate_platform = cv.one_of('ESP32', 'ESP8266', upper=True)
+validate_platform = cv.one_of(*ESP_PLATFORMS, upper=True)
 
 PLATFORMIO_ESP8266_LUT = {
-    '2.6.3': 'espressif8266@2.3.2',
-    '2.6.2': 'espressif8266@2.3.1',
-    '2.6.1': 'espressif8266@2.3.0',
-    '2.5.2': 'espressif8266@2.2.3',
-    '2.5.1': 'espressif8266@2.1.0',
-    '2.5.0': 'espressif8266@2.0.1',
-    '2.4.2': 'espressif8266@1.8.0',
-    '2.4.1': 'espressif8266@1.7.3',
-    '2.4.0': 'espressif8266@1.6.0',
-    '2.3.0': 'espressif8266@1.5.0',
-    'RECOMMENDED': 'espressif8266@2.2.3',
+    **ARDUINO_VERSION_ESP8266,
+    'RECOMMENDED': ARDUINO_VERSION_ESP8266['2.7.4'],
     'LATEST': 'espressif8266',
-    'DEV': ARDUINO_VERSION_ESP8266_DEV,
+    'DEV': ARDUINO_VERSION_ESP8266['dev'],
 }
 
 PLATFORMIO_ESP32_LUT = {
-    '1.0.0': 'espressif32@1.4.0',
-    '1.0.1': 'espressif32@1.6.0',
-    '1.0.2': 'espressif32@1.9.0',
-    '1.0.3': 'espressif32@1.10.0',
-    '1.0.4': 'espressif32@1.11.0',
-    'RECOMMENDED': 'espressif32@1.11.0',
+    **ARDUINO_VERSION_ESP32,
+    'RECOMMENDED': ARDUINO_VERSION_ESP32['1.0.4'],
     'LATEST': 'espressif32',
-    'DEV': ARDUINO_VERSION_ESP32_DEV,
+    'DEV': ARDUINO_VERSION_ESP32['dev'],
 }
 
 
@@ -204,6 +189,26 @@ def add_includes(includes):
             include_file(path, basename)
 
 
+@coroutine_with_priority(-1000.0)
+def _esp8266_add_lwip_type():
+    # If any component has already set this, do not change it
+    if any(flag.startswith('-DPIO_FRAMEWORK_ARDUINO_LWIP2_') for flag in CORE.build_flags):
+        return
+
+    # Default for platformio is LWIP2_LOW_MEMORY with:
+    #  - MSS=536
+    #  - LWIP_FEATURES enabled
+    #     - this only adds some optional features like IP incoming packet reassembly and NAPT
+    #       see also:
+    #  https://github.com/esp8266/Arduino/blob/master/tools/sdk/lwip2/include/lwipopts.h
+
+    # Instead we use LWIP2_HIGHER_BANDWIDTH_LOW_FLASH with:
+    #  - MSS=1460
+    #  - LWIP_FEATURES disabled (because we don't need them)
+    # Other projects like Tasmota & ESPEasy also use this
+    cg.add_build_flag('-DPIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH')
+
+
 @coroutine_with_priority(100.0)
 def to_code(config):
     cg.add_global(cg.global_ns.namespace('esphome').using)
@@ -224,22 +229,9 @@ def to_code(config):
         yield cg.register_component(trigger, conf)
         yield automation.build_automation(trigger, [], conf)
 
-    # Build flags
-    if CORE.is_esp8266 and CORE.board in ESP8266_FLASH_SIZES and \
-            CORE.arduino_version != ARDUINO_VERSION_ESP8266_2_3_0:
-        flash_size = ESP8266_FLASH_SIZES[CORE.board]
-        ld_scripts = ESP8266_LD_SCRIPTS[flash_size]
-        ld_script = None
-
-        if CORE.arduino_version in ('espressif8266@1.8.0', 'espressif8266@1.7.3',
-                                    'espressif8266@1.6.0'):
-            ld_script = ld_scripts[0]
-        elif CORE.arduino_version in (ARDUINO_VERSION_ESP8266_DEV, ARDUINO_VERSION_ESP8266_2_5_0,
-                                      ARDUINO_VERSION_ESP8266_2_5_1, ARDUINO_VERSION_ESP8266_2_5_2):
-            ld_script = ld_scripts[1]
-
-        if ld_script is not None:
-            cg.add_build_flag(f'-Wl,-T{ld_script}')
+    # Set LWIP build constants for ESP8266
+    if CORE.is_esp8266:
+        CORE.add_job(_esp8266_add_lwip_type)
 
     cg.add_build_flag('-fno-exceptions')
 

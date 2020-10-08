@@ -4,6 +4,8 @@ from esphome import pins
 from esphome.components import display
 from esphome.const import CONF_CLK_PIN, CONF_DIO_PIN, CONF_ID, CONF_LAMBDA, CONF_INTENSITY
 
+CODEOWNERS = ['@glmnet']
+
 tm1637_ns = cg.esphome_ns.namespace('tm1637')
 TM1637Display = tm1637_ns.class_('TM1637Display', cg.PollingComponent)
 TM1637DisplayRef = TM1637Display.operator('ref')
@@ -12,8 +14,8 @@ CONFIG_SCHEMA = display.BASIC_DISPLAY_SCHEMA.extend({
     cv.GenerateID(): cv.declare_id(TM1637Display),
 
     cv.Optional(CONF_INTENSITY, default=7): cv.All(cv.uint8_t, cv.Range(min=0, max=7)),
-    cv.Required(CONF_CLK_PIN): pins.internal_gpio_output_pin_schema,
-    cv.Required(CONF_DIO_PIN): pins.internal_gpio_output_pin_schema,
+    cv.Required(CONF_CLK_PIN): pins.gpio_output_pin_schema,
+    cv.Required(CONF_DIO_PIN): pins.gpio_output_pin_schema,
 }).extend(cv.polling_component_schema('1s'))
 
 

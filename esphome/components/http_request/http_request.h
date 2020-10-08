@@ -28,7 +28,7 @@ class HttpRequestComponent : public Component {
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
 
   void set_url(std::string url) {
-    this->url_ = url.c_str();
+    this->url_ = url;
     this->secure_ = url.compare(0, 6, "https:") == 0;
   }
   void set_method(const char *method) { this->method_ = method; }
@@ -42,7 +42,7 @@ class HttpRequestComponent : public Component {
 
  protected:
   HTTPClient client_{};
-  const char *url_;
+  std::string url_;
   const char *method_;
   const char *useragent_{nullptr};
   bool secure_;

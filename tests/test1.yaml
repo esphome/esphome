@@ -1,3 +1,6 @@
+substitutions:
+  devicename: test1
+
 esphome:
   name: test1
   platform: ESP32
@@ -24,6 +27,10 @@ esphome:
           blue: 0%
           white: 100%
   build_path: build/test1
+
+packages:
+  wifi: !include test_packages/test_packages_package_wifi.yaml
+  pkg_test: !include test_packages/test_packages_package1.yaml
 
 wifi:
   networks:
@@ -128,10 +135,20 @@ spi:
   miso_pin: GPIO23
 
 uart:
-  tx_pin: GPIO22
-  rx_pin: GPIO23
-  baud_rate: 115200
-  id: uart0
+  - tx_pin: GPIO22
+    rx_pin: GPIO23
+    baud_rate: 115200
+    id: uart0
+    parity: NONE
+    data_bits: 8
+    stop_bits: 1
+    rx_buffer_size: 512
+
+  - id: adalight_uart
+    tx_pin: GPIO25
+    rx_pin: GPIO26
+    baud_rate: 115200
+    rx_buffer_size: 1024
 
 ota:
   safe_mode: True
@@ -173,6 +190,10 @@ dallas:
 as3935_spi:
   cs_pin: GPIO12
   irq_pin: GPIO13
+
+wled:
+
+adalight:
 
 sensor:
   - platform: adc
@@ -305,6 +326,7 @@ sensor:
     retain: False
     availability:
     state_topic: livingroom/custom_state_topic
+    measurement_time: 31
   - platform: bme280
     temperature:
       name: "Outside Temperature"
@@ -495,6 +517,11 @@ sensor:
     update_interval: 15s
     reference_temperature:
       name: "MAX31855 Internal Temperature"
+  - platform: max31856
+    name: "BBQ Temperature"
+    cs_pin: GPIO17
+    update_interval: 15s
+    mains_filter: 50Hz
   - platform: max31865
     name: "Water Tank Temperature"
     cs_pin: GPIO23
@@ -727,6 +754,9 @@ sensor:
       name: "PM2.5"
     pm_10_0:
       name: "PM10.0"
+    aqi:
+      name: "AQI"
+      calculation_type: "CAQI"
 
 esp32_touch:
   setup_mode: False
@@ -867,6 +897,13 @@ binary_sensor:
       number: 7
       mode: INPUT_PULLUP
       inverted: False
+  - platform: gpio
+    name: "MCP23 binary sensor"
+    pin:
+      mcp23016: mcp23016_hub
+      number: 7
+      mode: INPUT
+      inverted: False
 
   - platform: remote_receiver
     name: "Raw Remote Receiver Test"
@@ -990,6 +1027,13 @@ output:
       number: 0
       mode: OUTPUT
       inverted: False
+  - platform: gpio
+    id: id25
+    pin:
+      mcp23016: mcp23016_hub
+      number: 0
+      mode: OUTPUT
+      inverted: False
   - platform: my9231
     id: my_0
     channel: 0
@@ -1016,6 +1060,11 @@ output:
     id: dimmer1
     gate_pin: GPIO5
     zero_cross_pin: GPIO26
+  - platform: esp32_dac
+    pin: GPIO25
+    id: dac_output
+
+e131:
 
 light:
   - platform: binary
@@ -1030,6 +1079,14 @@ light:
               duration: 250ms
             - state: False
               duration: 250ms
+    on_turn_on:
+      - switch.template.publish:
+          id: livingroom_lights
+          state: yes
+    on_turn_off:
+      - switch.template.publish:
+          id: livingroom_lights
+          state: yes
   - platform: monochromatic
     name: "Kitchen Lights"
     id: kitchen
@@ -1063,6 +1120,7 @@ light:
     green: pca_4
     blue: pca_5
     white: pca_6
+    color_interlock: true
   - platform: rgbww
     name: "Living Room Lights 2"
     red: pca_3
@@ -1072,6 +1130,7 @@ light:
     warm_white: pca_6
     cold_white_color_temperature: 153 mireds
     warm_white_color_temperature: 500 mireds
+    color_interlock: true
   - platform: cwww
     name: "Living Room Lights 2"
     cold_white: pca_6
@@ -1133,7 +1192,15 @@ light:
     - addressable_lambda:
           name: "Test For Custom Lambda Effect"
           lambda: |-
-            it[0] = current_color;
+            if (initial_run) {
+              it[0] = current_color;
+            }
+
+    - wled:
+        port: 11111
+
+    - adalight:
+        uart_id: adalight_uart
 
     - automation:
         name: Custom Effect
@@ -1149,6 +1216,8 @@ light:
               red: 0%
               green: 100%
               blue: 0%
+    - e131:
+        universe: 1
   - platform: fastled_spi
     id: addr2
     chipset: WS2801
@@ -1214,6 +1283,12 @@ climate:
     name: Yashima Climate
   - platform: mitsubishi
     name: Mitsubishi
+  - platform: whirlpool
+    name: Whirlpool Climate
+  - platform: climate_ir_lg
+    name: LG Climate
+  - platform: toshiba
+    name: Toshiba Climate
 
 switch:
   - platform: gpio
@@ -1332,6 +1407,12 @@ switch:
     - output.set_level:
         id: gpio_19
         level: !lambda 'return 0.5;'
+    - output.set_level:
+        id: dac_output
+        level: 50%
+    - output.set_level:
+        id: dac_output
+        level: !lambda 'return 0.5;'
     turn_off_action:
     - switch.turn_on: living_room_lights_off
     restore_state: False
@@ -1394,17 +1475,33 @@ switch:
         id: my_stepper
         position: 0
 
+  - platform: gpio
+    name: "SN74HC595 Pin #0"
+    pin:
+      sn74hc595: sn74hc595_hub
+      # Use pin number 0
+      number: 0
+      inverted: False
+
 fan:
   - platform: binary
     output: gpio_26
     name: "Living Room Fan 1"
+    oscillation_output: gpio_19
+    direction_output: gpio_26
   - platform: speed
     output: pca_6
     name: "Living Room Fan 2"
+    oscillation_output: gpio_19
+    direction_output: gpio_26
     speed:
       low: 0.45
       medium: 0.75
       high: 1.0
+    oscillation_state_topic: oscillation/state/topic
+    oscillation_command_topic: oscillation/command/topic
+    speed_state_topic: speed/state/topic
+    speed_command_topic: speed/command/topic
 
 interval:
   - interval: 10s
@@ -1423,6 +1520,16 @@ interval:
             btn_left_state = ((uint32_t) id(btn_left)->get_value()  +  63 * (uint32_t)btn_left_state) >> 6;
 
             id(btn_left)->set_threshold(btn_left_state * 0.9);
+
+color:
+  - id: kbx_red
+    red: 100%
+    green: 1%
+    blue: 2%
+  - id: kbx_blue
+    red: 0%
+    green: 1%
+    blue: 100%
 
 display:
 - platform: lcd_gpio
@@ -1449,6 +1556,16 @@ display:
 - platform: tm1637
   clk_pin: GPIO23
   dio_pin: GPIO25
+  intensity: 3
+  lambda: |-
+      it.print("1234");
+- platform: tm1637
+  clk_pin:
+    mcp23017: mcp23017_hub
+    number: 1
+  dio_pin:
+    mcp23017: mcp23017_hub
+    number: 2
   intensity: 3
   lambda: |-
       it.print("1234");
@@ -1489,6 +1606,13 @@ display:
   reset_pin: GPIO23
   lambda: |-
     it.rectangle(0, 0, it.get_width(), it.get_height());
+- platform: ssd1351_spi
+  model: "SSD1351 128x128"
+  cs_pin: GPIO23
+  dc_pin: GPIO23
+  reset_pin: GPIO23
+  lambda: |-
+    it.rectangle(0, 0, it.get_width(), it.get_height());
 - platform: waveshare_epaper
   cs_pin: GPIO23
   dc_pin: GPIO23
@@ -1496,6 +1620,13 @@ display:
   reset_pin: GPIO23
   model: 2.90in
   full_update_every: 30
+  lambda: |-
+    it.rectangle(0, 0, it.get_width(), it.get_height());
+- platform: st7789v
+  cs_pin: GPIO5
+  dc_pin: GPIO16
+  reset_pin: GPIO23
+  backlight_pin: GPIO4
   lambda: |-
     it.rectangle(0, 0, it.get_width(), it.get_height());
 
@@ -1569,6 +1700,10 @@ mcp23008:
   - id: 'mcp23008_hub'
     address: 0x22
 
+mcp23016:
+  - id: 'mcp23016_hub'
+    address: 0x23
+
 stepper:
 - platform: a4988
   id: my_stepper
@@ -1624,3 +1759,19 @@ text_sensor:
     name: "SSID"
   bssid:
     name: "BSSID"
+  mac_address:
+    name: "Mac Address"
+- platform: version
+  name: "ESPHome Version No Timestamp"
+  hide_timestamp: True
+
+sn74hc595:
+  - id: 'sn74hc595_hub'
+    data_pin: GPIO21
+    clock_pin: GPIO23
+    latch_pin: GPIO22
+    oe_pin: GPIO32
+    sr_count: 2
+
+rtttl:
+  output: gpio_19

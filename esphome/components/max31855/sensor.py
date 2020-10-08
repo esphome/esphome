@@ -11,7 +11,7 @@ CONFIG_SCHEMA = sensor.sensor_schema(UNIT_CELSIUS, ICON_THERMOMETER, 1).extend({
     cv.GenerateID(): cv.declare_id(MAX31855Sensor),
     cv.Optional(CONF_REFERENCE_TEMPERATURE):
         sensor.sensor_schema(UNIT_CELSIUS, ICON_THERMOMETER, 2),
-}).extend(cv.polling_component_schema('60s')).extend(spi.SPI_DEVICE_SCHEMA)
+}).extend(cv.polling_component_schema('60s')).extend(spi.spi_device_schema())
 
 
 def to_code(config):
