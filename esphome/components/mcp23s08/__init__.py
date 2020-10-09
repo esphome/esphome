@@ -21,7 +21,7 @@ MCP23S08GPIOPin = mcp23s08_ns.class_('MCP23S08GPIOPin', cg.GPIOPin)
 
 CONFIG_SCHEMA = cv.Schema({
     cv.Required(CONF_ID): cv.declare_id(MCP23S08),
-    cv.Required(CONF_ADDRESS): cv.hex_uint8_t,
+    cv.Optional(CONF_ADDRESS, default=0x40): cv.hex_uint8_t,
 }).extend(cv.COMPONENT_SCHEMA).extend(
     spi.spi_device_schema(cs_pin_required=True))
 
