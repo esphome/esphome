@@ -1717,6 +1717,7 @@ mcp23008:
 mcp23s08:
   - id: 'mcp23s08_hub'
     address: 0x40
+    cs_pin: GPIO32
 
 mcp23016:
   - id: 'mcp23016_hub'
