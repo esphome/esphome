@@ -15,7 +15,7 @@ static const uint8_t MS8607_PROM_START = 0xA0;
 /// Last PROM register address.
 static const uint8_t MS8607_PROM_END = 0xAE;
 /// Number of PROM registers.
-static const uint8_t MS8607_PROM_COUNT = (MS8607_PT_PROM_END - MS8607_PT_PROM_START) >> 1;
+static const uint8_t MS8607_PROM_COUNT = (MS8607_PROM_END - MS8607_PROM_START) >> 1;
 
 /// Reset the Humidity sensor
 static const uint8_t MS8607_CMD_H_RESET = 0xFE;
@@ -54,7 +54,7 @@ void MS8607Component::update() {
 void MS8607Component::dump_config() {
   ESP_LOGCONFIG(TAG, "MS8607:");
   LOG_I2C_DEVICE(this);
-  LOG_I2C_DEVICE(this->humidity_i2c_device_);
+  //LOG_I2C_DEVICE(this->humidity_i2c_device_);
   if (this->is_failed()) {
     ESP_LOGE(TAG, "Communication with MS8607 failed!");
   }
@@ -108,6 +108,7 @@ bool MS8607Component::read_calibration_values_from_prom_() {
   }
 
   // TODO: check CRC & pull out specific values
+  return true;
 }
 
 void MS8607Component::read_temperature_() {
