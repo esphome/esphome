@@ -35,7 +35,6 @@ bool MCP23S08::digital_read(uint8_t pin) {
 void MCP23S08::digital_write(uint8_t pin, bool value) {
   uint8_t reg_addr = MCP23S08_OLAT;
 
-
   this->update_reg_(pin, value, reg_addr);
 }
 void MCP23S08::pin_mode(uint8_t pin, uint8_t mode) {

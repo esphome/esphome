@@ -30,9 +30,7 @@ enum MCP23S08GPIORegisters {
 };
 
 class MCP23S08 : public Component,
-                 public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST,
-                                       spi::CLOCK_POLARITY_LOW,
-                                       spi::CLOCK_PHASE_LEADING,
+                 public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
                                        spi::DATA_RATE_1MHZ> {
  public:
   MCP23S08() = default;
@@ -61,8 +59,7 @@ class MCP23S08 : public Component,
 
 class MCP23S08GPIOPin : public GPIOPin {
  public:
-  MCP23S08GPIOPin(MCP23S08 *parent, uint8_t pin,
-                  uint8_t mode, bool inverted = false);
+  MCP23S08GPIOPin(MCP23S08 *parent, uint8_t pin, uint8_t mode, bool inverted = false);
 
   void setup() override;
   void pin_mode(uint8_t mode) override;
