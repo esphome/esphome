@@ -7,7 +7,7 @@ namespace nfc {
 static const char *TAG = "nfc";
 
 std::string format_uid(std::vector<uint8_t> &uid) {
-  char buf[32];
+  char buf[(uid.size() * 2) + uid.size() - 1];
   int offset = 0;
   for (uint8_t i = 0; i < uid.size(); i++) {
     const char *format = "%02X";
@@ -27,7 +27,7 @@ uint8_t guess_tag_type(uint8_t uid_length) {
 }
 
 uint8_t get_ndef_start_index(std::vector<uint8_t> &data) {
-  for (uint8_t i = 0; i < BLOCK_SIZE; i++) {
+  for (uint8_t i = 0; i < MIFARE_CLASSIC_BLOCK_SIZE; i++) {
     if (data[i] == 0x00) {
       // Do nothing, skip
     } else if (data[i] == 0x03) {
@@ -47,10 +47,10 @@ bool decode_mifare_classic_tlv(std::vector<uint8_t> &data, uint32_t &message_len
   }
   if (data[i + 1] == 0xFF) {
     message_length = ((0xFF & data[i + 2]) << 8) | (0xFF & data[i + 3]);
-    message_start_index = i + LONG_TLV_SIZE;
+    message_start_index = i + MIFARE_CLASSIC_LONG_TLV_SIZE;
   } else {
     message_length = data[i + 1];
-    message_start_index = i + SHORT_TLV_SIZE;
+    message_start_index = i + MIFARE_CLASSIC_SHORT_TLV_SIZE;
   }
   return true;
 }
@@ -58,12 +58,12 @@ bool decode_mifare_classic_tlv(std::vector<uint8_t> &data, uint32_t &message_len
 uint32_t get_buffer_size(uint32_t message_length) {
   uint32_t buffer_size = message_length;
   if (message_length < 255) {
-    buffer_size += SHORT_TLV_SIZE + 1;
+    buffer_size += MIFARE_CLASSIC_SHORT_TLV_SIZE + 1;
   } else {
-    buffer_size += LONG_TLV_SIZE + 1;
+    buffer_size += MIFARE_CLASSIC_LONG_TLV_SIZE + 1;
   }
-  if (buffer_size % BLOCK_SIZE != 0) {
-    buffer_size = ((buffer_size / BLOCK_SIZE) + 1) * BLOCK_SIZE;
+  if (buffer_size % MIFARE_CLASSIC_BLOCK_SIZE != 0) {
+    buffer_size = ((buffer_size / MIFARE_CLASSIC_BLOCK_SIZE) + 1) * MIFARE_CLASSIC_BLOCK_SIZE;
   }
   return buffer_size;
 }

@@ -15,6 +15,8 @@ NdefMessage::NdefMessage(std::vector<uint8_t> &data) {
     bool il = tnf_byte & 0x08;
     uint8_t tnf = tnf_byte & 0x07;
 
+    ESP_LOGVV(TAG, "me=%s, sr=%s, il=%s, tnf=%d", YESNO(me), YESNO(sr), YESNO(il), tnf);
+
     auto record = new NdefRecord(tnf);
 
     uint8_t type_length = data[index++];
@@ -31,6 +33,8 @@ NdefMessage::NdefMessage(std::vector<uint8_t> &data) {
     if (il) {
       id_length = data[index++];
     }
+
+    ESP_LOGVV(TAG, "Lengths: type=%d, payload=%d, id=%d", type_length, payload_length, id_length);
 
     std::string type_str(data.begin() + index, data.begin() + index + type_length);
     record->set_type(type_str);

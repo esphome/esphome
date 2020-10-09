@@ -9,9 +9,9 @@
 namespace esphome {
 namespace nfc {
 
-static const uint8_t BLOCK_SIZE = 16;
-static const uint8_t LONG_TLV_SIZE = 4;
-static const uint8_t SHORT_TLV_SIZE = 2;
+static const uint8_t MIFARE_CLASSIC_BLOCK_SIZE = 16;
+static const uint8_t MIFARE_CLASSIC_LONG_TLV_SIZE = 4;
+static const uint8_t MIFARE_CLASSIC_SHORT_TLV_SIZE = 2;
 
 static const uint8_t TAG_TYPE_MIFARE_CLASSIC = 0;
 static const uint8_t TAG_TYPE_1 = 1;

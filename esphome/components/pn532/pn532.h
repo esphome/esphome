@@ -54,12 +54,13 @@ class PN532 : public PollingComponent {
   bool clean_tag_(std::vector<uint8_t> &uid);
   bool write_tag_(std::vector<uint8_t> &uid, nfc::NdefMessage *message);
 
+  nfc::NfcTag *read_mifare_classic_tag_(std::vector<uint8_t> &uid);
   std::vector<uint8_t> read_mifare_classic_block_(uint8_t block_num);
   bool write_mifare_classic_block_(uint8_t block_num, std::vector<uint8_t> &data);
-
   bool auth_mifare_classic_block_(std::vector<uint8_t> &uid, uint8_t block_num, uint8_t key_num, const uint8_t *key);
   bool format_mifare_classic_mifare_(std::vector<uint8_t> &uid);
   bool format_mifare_classic_ndef_(std::vector<uint8_t> &uid);
+  bool write_mifare_classic_tag_(std::vector<uint8_t> &uid, nfc::NdefMessage *message);
 
   bool requested_read_{false};
   bool next_task_continuous_{false};

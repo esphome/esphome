@@ -20,6 +20,11 @@ class NfcTag {
     this->uid_ = uid;
     this->tag_type_ = tag_type;
   };
+  NfcTag(std::vector<uint8_t> &uid, const std::string &tag_type, nfc::NdefMessage *ndef_message) {
+    this->uid_ = uid;
+    this->tag_type_ = tag_type;
+    this->ndef_message_ = ndef_message;
+  };
   NfcTag(std::vector<uint8_t> &uid, const std::string &tag_type, std::vector<uint8_t> &ndef_data) {
     this->uid_ = uid;
     this->tag_type_ = tag_type;
