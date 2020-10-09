@@ -62,6 +62,13 @@ class PN532 : public PollingComponent {
   bool format_mifare_classic_ndef_(std::vector<uint8_t> &uid);
   bool write_mifare_classic_tag_(std::vector<uint8_t> &uid, nfc::NdefMessage *message);
 
+  nfc::NfcTag *read_mifare_ultralight_tag_(std::vector<uint8_t> &uid);
+  bool read_mifare_ultralight_page_(uint8_t page_num, std::vector<uint8_t> &data);
+  bool is_mifare_ultralight_formatted_();
+  uint16_t read_mifare_ultralight_capacity();
+  bool find_mifare_ultralight_ndef_(uint8_t &message_length, uint8_t &message_start_index);
+
+
   bool requested_read_{false};
   bool next_task_continuous_{false};
   std::vector<PN532BinarySensor *> binary_sensors_;

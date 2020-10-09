@@ -350,8 +350,8 @@ nfc::NfcTag *PN532::read_tag_(std::vector<uint8_t> &uid) {
     ESP_LOGD(TAG, "  Mifare classic");
     return this->read_mifare_classic_tag_(uid);
   } else if (type == nfc::TAG_TYPE_2) {
-    // TODO: do the ultralight code
-    return new nfc::NfcTag(uid);
+    ESP_LOGD(TAG, "  Mifare ultralight");
+    return this->read_mifare_ultralight_tag_(uid);
   } else if (type == nfc::TAG_TYPE_UNKNOWN) {
     ESP_LOGV(TAG, "Cannot determine tag type");
     return new nfc::NfcTag(uid);

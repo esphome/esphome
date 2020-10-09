@@ -18,6 +18,18 @@ std::string format_uid(std::vector<uint8_t> &uid) {
   return std::string(buf);
 }
 
+std::string format_bytes(std::vector<uint8_t> &bytes) {
+  char buf[(bytes.size() * 2) + bytes.size() - 1];
+  int offset = 0;
+  for (uint8_t i = 0; i < bytes.size(); i++) {
+    const char *format = "%02X";
+    if (i + 1 < bytes.size())
+      format = "%02X ";
+    offset += sprintf(buf + offset, format, bytes[i]);
+  }
+  return std::string(buf);
+}
+
 uint8_t guess_tag_type(uint8_t uid_length) {
   if (uid_length == 4) {
     return TAG_TYPE_MIFARE_CLASSIC;
