@@ -898,6 +898,13 @@ binary_sensor:
       mode: INPUT_PULLUP
       inverted: False
   - platform: gpio
+    name: "MCP24 binary sensor"
+    pin:
+      mcp23s08: mcp23s08_hub
+      number: 7
+      mode: INPUT_PULLUP
+      inverted: False
+  - platform: gpio
     name: "MCP23 binary sensor"
     pin:
       mcp23016: mcp23016_hub
@@ -1024,6 +1031,13 @@ output:
     id: id23
     pin:
       mcp23008: mcp23008_hub
+      number: 0
+      mode: OUTPUT
+      inverted: False
+  - platform: gpio
+    id: id26
+    pin:
+      mcp23s08: mcp23s08_hub
       number: 0
       mode: OUTPUT
       inverted: False
@@ -1699,6 +1713,10 @@ mcp23017:
 mcp23008:
   - id: 'mcp23008_hub'
     address: 0x22
+
+mcp23s08:
+  - id: 'mcp23s08_hub'
+    address: 0x40
 
 mcp23016:
   - id: 'mcp23016_hub'
