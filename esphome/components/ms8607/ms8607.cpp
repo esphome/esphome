@@ -25,7 +25,7 @@ static const uint8_t MS8607_CMD_ADC_READ = 0x00;
 static const uint8_t MS8607_CMD_CONV_D1 = 0x40;
 static const uint8_t MS8607_CMD_CONV_D2 = 0x50;
 
-enum class FailureReason {
+enum class MS8607Component::FailureReason {
   /// Component hasn't failed (yet?)
   FAILURE_REASON_NONE = 0,
   /// Asking the Pressure/Temperature sensor to reset failed
