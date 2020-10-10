@@ -10,19 +10,22 @@ import tzlocal
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
-from esphome.const import CONF_CRON, CONF_DAYS_OF_MONTH, CONF_DAYS_OF_WEEK, CONF_HOURS, \
+from esphome.const import CONF_ID, CONF_CRON, CONF_DAYS_OF_MONTH, CONF_DAYS_OF_WEEK, CONF_HOURS, \
     CONF_MINUTES, CONF_MONTHS, CONF_ON_TIME, CONF_SECONDS, CONF_TIMEZONE, CONF_TRIGGER_ID, \
     CONF_AT, CONF_SECOND, CONF_HOUR, CONF_MINUTE
 from esphome.core import coroutine, coroutine_with_priority
+from esphome.automation import Condition
 
 _LOGGER = logging.getLogger(__name__)
 
+CODEOWNERS = ['@OttoWinter']
 IS_PLATFORM_COMPONENT = True
 
 time_ns = cg.esphome_ns.namespace('time')
 RealTimeClock = time_ns.class_('RealTimeClock', cg.Component)
 CronTrigger = time_ns.class_('CronTrigger', automation.Trigger.template(), cg.Component)
 ESPTime = time_ns.struct('ESPTime')
+TimeHasTimeCondition = time_ns.class_('TimeHasTimeCondition', Condition)
 
 
 def _tz_timedelta(td):
@@ -137,6 +140,7 @@ def _parse_cron_int(value, special_mapping, message):
     try:
         return int(value)
     except ValueError:
+        # pylint: disable=raise-missing-from
         raise cv.Invalid(message.format(value))
 
 
@@ -157,6 +161,7 @@ def _parse_cron_part(part, min_value, max_value, special_mapping):
         try:
             repeat_n = int(repeat)
         except ValueError:
+            # pylint: disable=raise-missing-from
             raise cv.Invalid("Repeat for '/' time expression must be an integer, got {}"
                              .format(repeat))
         return set(range(offset_n, max_value + 1, repeat_n))
@@ -325,3 +330,11 @@ def register_time(time_var, config):
 def to_code(config):
     cg.add_define('USE_TIME')
     cg.add_global(time_ns.using)
+
+
+@automation.register_condition('time.has_time', TimeHasTimeCondition, cv.Schema({
+    cv.GenerateID(): cv.use_id(RealTimeClock),
+}))
+def time_has_time_to_code(config, condition_id, template_arg, args):
+    paren = yield cg.get_variable(config[CONF_ID])
+    yield cg.new_Pvariable(condition_id, template_arg, paren)

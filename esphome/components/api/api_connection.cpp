@@ -137,7 +137,6 @@ void APIConnection::loop() {
       // bool done = 3;
       bool done = this->image_reader_.available() == to_send;
       buffer.encode_bool(3, done);
-      this->set_nodelay(false);
       bool success = this->send_buffer(buffer, 44);
 
       if (success) {
@@ -249,6 +248,8 @@ bool APIConnection::send_fan_state(fan::FanState *fan) {
     resp.oscillating = fan->oscillating;
   if (traits.supports_speed())
     resp.speed = static_cast<enums::FanSpeed>(fan->speed);
+  if (traits.supports_direction())
+    resp.direction = static_cast<enums::FanDirection>(fan->direction);
   return this->send_fan_state_response(resp);
 }
 bool APIConnection::send_fan_info(fan::FanState *fan) {
@@ -260,6 +261,7 @@ bool APIConnection::send_fan_info(fan::FanState *fan) {
   msg.unique_id = get_default_unique_id("fan", fan);
   msg.supports_oscillation = traits.supports_oscillation();
   msg.supports_speed = traits.supports_speed();
+  msg.supports_direction = traits.supports_direction();
   return this->send_list_entities_fan_response(msg);
 }
 void APIConnection::fan_command(const FanCommandRequest &msg) {
@@ -274,6 +276,8 @@ void APIConnection::fan_command(const FanCommandRequest &msg) {
     call.set_oscillating(msg.oscillating);
   if (msg.has_speed)
     call.set_speed(static_cast<fan::FanSpeed>(msg.speed));
+  if (msg.has_direction)
+    call.set_direction(static_cast<fan::FanDirection>(msg.direction));
   call.perform();
 }
 #endif
@@ -557,8 +561,6 @@ void APIConnection::on_get_time_response(const GetTimeResponse &value) {
 bool APIConnection::send_log_message(int level, const char *tag, const char *line) {
   if (this->log_subscription_ < level)
     return false;
-
-  this->set_nodelay(false);
 
   // Send raw so that we don't copy too much
   auto buffer = this->create_buffer();

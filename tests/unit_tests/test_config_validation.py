@@ -9,23 +9,25 @@ from esphome.config_validation import Invalid
 from esphome.core import Lambda, HexInt
 
 
-def test_check_not_tamplatable__invalid():
+def test_check_not_templatable__invalid():
     with pytest.raises(Invalid, match="This option is not templatable!"):
         config_validation.check_not_templatable(Lambda(""))
 
 
-@given(one_of(
-    booleans(),
-    integers(),
-    text(alphabet=string.ascii_letters + string.digits)),
-)
+@pytest.mark.parametrize("value", ("foo", 1, "D12", False))
 def test_alphanumeric__valid(value):
     actual = config_validation.alphanumeric(value)
 
     assert actual == str(value)
 
 
-@given(value=text(alphabet=string.ascii_lowercase + string.digits + "_"))
+@pytest.mark.parametrize("value", ("£23", "Foo!"))
+def test_alphanumeric__invalid(value):
+    with pytest.raises(Invalid):
+        actual = config_validation.alphanumeric(value)
+
+
+@given(value=text(alphabet=string.ascii_lowercase + string.digits + "_-"))
 def test_valid_name__valid(value):
     actual = config_validation.valid_name(value)
 
@@ -110,4 +112,3 @@ def hex_int__valid(value):
 
     assert isinstance(actual, HexInt)
     assert actual == value
-    

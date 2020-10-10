@@ -83,7 +83,7 @@ void MAX31865Sensor::dump_config() {
   LOG_UPDATE_INTERVAL(this);
   ESP_LOGCONFIG(TAG, "  Reference Resistance: %.2fΩ", reference_resistance_);
   ESP_LOGCONFIG(TAG, "  RTD: %u-wire %.2fΩ", rtd_wires_, rtd_nominal_resistance_);
-  ESP_LOGCONFIG(TAG, "  Filter: %s",
+  ESP_LOGCONFIG(TAG, "  Mains Filter: %s",
                 (filter_ == FILTER_60HZ ? "60 Hz" : (filter_ == FILTER_50HZ ? "50 Hz" : "Unknown!")));
 }
 

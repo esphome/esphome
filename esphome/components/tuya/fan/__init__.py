@@ -1,13 +1,12 @@
 from esphome.components import fan
 import esphome.config_validation as cv
 import esphome.codegen as cg
-from esphome.const import CONF_OUTPUT_ID
+from esphome.const import CONF_OUTPUT_ID, CONF_SWITCH_DATAPOINT
 from .. import tuya_ns, CONF_TUYA_ID, Tuya
 
 DEPENDENCIES = ['tuya']
 
 CONF_SPEED_DATAPOINT = "speed_datapoint"
-CONF_SWITCH_DATAPOINT = "switch_datapoint"
 CONF_OSCILLATION_DATAPOINT = "oscillation_datapoint"
 
 TuyaFan = tuya_ns.class_('TuyaFan', cg.Component)

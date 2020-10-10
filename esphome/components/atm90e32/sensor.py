@@ -55,7 +55,7 @@ CONFIG_SCHEMA = cv.Schema({
     cv.Required(CONF_LINE_FREQUENCY): cv.enum(LINE_FREQS, upper=True),
     cv.Optional(CONF_CURRENT_PHASES, default='3'): cv.enum(CURRENT_PHASES, upper=True),
     cv.Optional(CONF_GAIN_PGA, default='2X'): cv.enum(PGA_GAINS, upper=True),
-}).extend(cv.polling_component_schema('60s')).extend(spi.SPI_DEVICE_SCHEMA)
+}).extend(cv.polling_component_schema('60s')).extend(spi.spi_device_schema())
 
 
 def to_code(config):

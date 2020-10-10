@@ -98,6 +98,7 @@ void WiFiComponent::loop() {
       case WIFI_COMPONENT_STATE_STA_CONNECTED: {
         if (!this->is_connected()) {
           ESP_LOGW(TAG, "WiFi Connection lost... Reconnecting...");
+          this->state_ = WIFI_COMPONENT_STATE_STA_CONNECTING;
           this->retry_connect();
         } else {
           this->status_clear_warning();
@@ -200,7 +201,26 @@ void WiFiComponent::start_connecting(const WiFiAP &ap, bool two) {
   } else {
     ESP_LOGV(TAG, "  BSSID: Not Set");
   }
-  ESP_LOGV(TAG, "  Password: " LOG_SECRET("'%s'"), ap.get_password().c_str());
+
+#ifdef ESPHOME_WIFI_WPA2_EAP
+  if (ap.get_eap().has_value()) {
+    ESP_LOGV(TAG, "  WPA2 Enterprise authentication configured:");
+    EAPAuth eap_config = ap.get_eap().value();
+    ESP_LOGV(TAG, "    Identity: " LOG_SECRET("'%s'"), eap_config.identity.c_str());
+    ESP_LOGV(TAG, "    Username: " LOG_SECRET("'%s'"), eap_config.username.c_str());
+    ESP_LOGV(TAG, "    Password: " LOG_SECRET("'%s'"), eap_config.password.c_str());
+    bool ca_cert_present = eap_config.ca_cert != nullptr && strlen(eap_config.ca_cert);
+    bool client_cert_present = eap_config.client_cert != nullptr && strlen(eap_config.client_cert);
+    bool client_key_present = eap_config.client_key != nullptr && strlen(eap_config.client_key);
+    ESP_LOGV(TAG, "    CA Cert:     %s", ca_cert_present ? "present" : "not present");
+    ESP_LOGV(TAG, "    Client Cert: %s", client_cert_present ? "present" : "not present");
+    ESP_LOGV(TAG, "    Client Key:  %s", client_key_present ? "present" : "not present");
+  } else {
+#endif
+    ESP_LOGV(TAG, "  Password: " LOG_SECRET("'%s'"), ap.get_password().c_str());
+#ifdef ESPHOME_WIFI_WPA2_EAP
+  }
+#endif
   if (ap.get_channel().has_value()) {
     ESP_LOGV(TAG, "  Channel: %u", *ap.get_channel());
   } else {
@@ -399,9 +419,17 @@ void WiFiComponent::check_scanning_finished() {
       connect_params.set_channel(scan_res.get_channel());
       connect_params.set_bssid(scan_res.get_bssid());
     }
-    // set manual IP+password (if any)
+    // copy manual IP (if set)
     connect_params.set_manual_ip(config.get_manual_ip());
+
+#ifdef ESPHOME_WIFI_WPA2_EAP
+    // copy EAP parameters (if set)
+    connect_params.set_eap(config.get_eap());
+#endif
+
+    // copy password (if set)
     connect_params.set_password(config.get_password());
+
     break;
   }
 
@@ -420,6 +448,12 @@ void WiFiComponent::check_connecting_finished() {
   wl_status_t status = this->wifi_sta_status_();
 
   if (status == WL_CONNECTED) {
+    if (WiFi.SSID().equals("")) {
+      ESP_LOGW(TAG, "Incomplete connection.");
+      this->retry_connect();
+      return;
+    }
+
     ESP_LOGI(TAG, "WiFi Connected!");
     this->print_connect_params_();
 
@@ -534,12 +568,18 @@ void WiFiAP::set_ssid(const std::string &ssid) { this->ssid_ = ssid; }
 void WiFiAP::set_bssid(bssid_t bssid) { this->bssid_ = bssid; }
 void WiFiAP::set_bssid(optional<bssid_t> bssid) { this->bssid_ = bssid; }
 void WiFiAP::set_password(const std::string &password) { this->password_ = password; }
+#ifdef ESPHOME_WIFI_WPA2_EAP
+void WiFiAP::set_eap(optional<EAPAuth> eap_auth) { this->eap_ = eap_auth; }
+#endif
 void WiFiAP::set_channel(optional<uint8_t> channel) { this->channel_ = channel; }
 void WiFiAP::set_manual_ip(optional<ManualIP> manual_ip) { this->manual_ip_ = manual_ip; }
 void WiFiAP::set_hidden(bool hidden) { this->hidden_ = hidden; }
 const std::string &WiFiAP::get_ssid() const { return this->ssid_; }
 const optional<bssid_t> &WiFiAP::get_bssid() const { return this->bssid_; }
 const std::string &WiFiAP::get_password() const { return this->password_; }
+#ifdef ESPHOME_WIFI_WPA2_EAP
+const optional<EAPAuth> &WiFiAP::get_eap() const { return this->eap_; }
+#endif
 const optional<uint8_t> &WiFiAP::get_channel() const { return this->channel_; }
 const optional<ManualIP> &WiFiAP::get_manual_ip() const { return this->manual_ip_; }
 bool WiFiAP::get_hidden() const { return this->hidden_; }
@@ -563,9 +603,21 @@ bool WiFiScanResult::matches(const WiFiAP &config) {
   // If BSSID configured, only match for correct BSSIDs
   if (config.get_bssid().has_value() && *config.get_bssid() != this->bssid_)
     return false;
-  // If PW given, only match for networks with auth (and vice versa)
+
+#ifdef ESPHOME_WIFI_WPA2_EAP
+  // BSSID requires auth but no PSK or EAP credentials given
+  if (this->with_auth_ && (config.get_password().empty() && !config.get_eap().has_value()))
+    return false;
+
+  // BSSID does not require auth, but PSK or EAP credentials given
+  if (!this->with_auth_ && (!config.get_password().empty() || config.get_eap().has_value()))
+    return false;
+#else
+  // If PSK given, only match for networks with auth (and vice versa)
   if (config.get_password().empty() == this->with_auth_)
     return false;
+#endif
+
   // If channel configured, only match networks on that channel.
   if (config.get_channel().has_value() && *config.get_channel() != this->channel_) {
     return false;

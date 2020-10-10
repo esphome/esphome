@@ -11,9 +11,12 @@ void binary::BinaryFan::dump_config() {
   if (this->fan_->get_traits().supports_oscillation()) {
     ESP_LOGCONFIG(TAG, "  Oscillation: YES");
   }
+  if (this->fan_->get_traits().supports_direction()) {
+    ESP_LOGCONFIG(TAG, "  Direction: YES");
+  }
 }
 void BinaryFan::setup() {
-  auto traits = fan::FanTraits(this->oscillating_ != nullptr, false);
+  auto traits = fan::FanTraits(this->oscillating_ != nullptr, false, this->direction_ != nullptr);
   this->fan_->set_traits(traits);
   this->fan_->add_on_state_callback([this]() { this->next_update_ = true; });
 }
@@ -40,6 +43,16 @@ void BinaryFan::loop() {
       this->oscillating_->turn_off();
     }
     ESP_LOGD(TAG, "Setting oscillation: %s", ONOFF(enable));
+  }
+
+  if (this->direction_ != nullptr) {
+    bool enable = this->fan_->direction == fan::FAN_DIRECTION_REVERSE;
+    if (enable) {
+      this->direction_->turn_on();
+    } else {
+      this->direction_->turn_off();
+    }
+    ESP_LOGD(TAG, "Setting reverse direction: %s", ONOFF(enable));
   }
 }
 float BinaryFan::get_setup_priority() const { return setup_priority::DATA; }

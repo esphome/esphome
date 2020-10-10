@@ -3,7 +3,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import i2c, sensor
 from esphome.const import CONF_ID, UNIT_PARTS_PER_MILLION, \
-    CONF_HUMIDITY, CONF_TEMPERATURE, ICON_PERIODIC_TABLE_CO2, \
+    CONF_HUMIDITY, CONF_TEMPERATURE, ICON_MOLECULE_CO2, \
     UNIT_CELSIUS, ICON_THERMOMETER, ICON_WATER_PERCENT, UNIT_PERCENT, CONF_CO2
 
 DEPENDENCIES = ['i2c']
@@ -22,7 +22,7 @@ def remove_altitude_suffix(value):
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(SCD30Component),
     cv.Required(CONF_CO2): sensor.sensor_schema(UNIT_PARTS_PER_MILLION,
-                                                ICON_PERIODIC_TABLE_CO2, 0),
+                                                ICON_MOLECULE_CO2, 0),
     cv.Required(CONF_TEMPERATURE): sensor.sensor_schema(UNIT_CELSIUS, ICON_THERMOMETER, 1),
     cv.Required(CONF_HUMIDITY): sensor.sensor_schema(UNIT_PERCENT, ICON_WATER_PERCENT, 1),
     cv.Optional(CONF_AUTOMATIC_SELF_CALIBRATION, default=True): cv.boolean,

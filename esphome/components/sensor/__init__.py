@@ -12,6 +12,7 @@ from esphome.const import CONF_ABOVE, CONF_ACCURACY_DECIMALS, CONF_ALPHA, CONF_B
 from esphome.core import CORE, coroutine, coroutine_with_priority
 from esphome.util import Registry
 
+CODEOWNERS = ['@esphome/core']
 IS_PLATFORM_COMPONENT = True
 
 
