@@ -21,9 +21,10 @@ class MS8607Component : public PollingComponent, public i2c::I2CDevice {
   void set_humidity_sensor_address(uint8_t address);
 
  protected:
-  /// Reset both I2CDevices, and return true if this was successful
-  bool reset_();
-  /// Read and store the Pressure & Temperature calibration settings from the PROM
+  /**
+   Read and store the Pressure & Temperature calibration settings from the PROM.
+   Intended to be called during setup(), this will set the `failure_reason_`
+   */
   bool read_calibration_values_from_prom_();
 
   void read_temperature_();
@@ -41,8 +42,15 @@ class MS8607Component : public PollingComponent, public i2c::I2CDevice {
    * cares what the I2C address of the humidity sensor is. (Default is 0x40)
    */
   i2c::I2CDevice *humidity_i2c_device_;
+  /// I2C address for the humidity sensor
+  uint8_t humidity_sensor_address_;
 
   uint16_t prom_[7];
+
+  /// Possible failure reasons of this component
+  enum class FailureReason;
+  /// Keep track of the reason why this component failed, to augment the dumped config
+  FailureReason failure_reason_;
 };
 
 }  // namespace ms8607

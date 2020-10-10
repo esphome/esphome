@@ -25,10 +25,41 @@ static const uint8_t MS8607_CMD_ADC_READ = 0x00;
 static const uint8_t MS8607_CMD_CONV_D1 = 0x40;
 static const uint8_t MS8607_CMD_CONV_D2 = 0x50;
 
+enum class FailureReason {
+  /// Component hasn't failed (yet?)
+  FAILURE_REASON_NONE = 0,
+  /// Asking the Pressure/Temperature sensor to reset failed
+  FAILURE_REASON_PT_RESET_FAILED,
+  /// Asking the Humidity sensor to reset failed
+  FAILURE_REASON_H_RESET_FAILED,
+  /// Reading the PROM calibration values failed
+  FAILURE_REASON_PROM_READ_FAILED,
+  /// The PROM calibration values failed the CRC check
+  FAILURE_REASON_PROM_CRC_FAILED,
+};
+
 void MS8607Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up MS8607...");
+  this->failure_reason_ = FailureReason::FAILURE_REASON_NONE;
 
-  if (!this->reset_()) {
+  ESP_LOGD(TAG, "Resetting both I2C addresses: 0x%02X, 0x%02X",
+           this->address_, this->humidity_sensor_address_);
+  // I believe sending the reset command to both addresses is preferable to
+  // skipping humidity if PT fails for some reason.
+  // However, only consider the reset successful if they both ACK
+  bool pt_successful = this->write_bytes(MS8607_PT_CMD_RESET, nullptr, 0);
+  bool h_successful = this->humidity_i2c_device_->write_bytes(MS8607_CMD_H_RESET, nullptr, 0);
+
+  if (pt_successful && h_successful) {
+    delay(15); // matches Adafruit_MS8607 & SparkFun_PHT_MS8607_Arduino_Library
+  } else {
+    ESP_LOGE(TAG, "Resetting I2C devices failed. Marking component as failed.");
+    if (h_successful) {
+      this->failure_reason_ = FailureReason::FAILURE_REASON_PT_RESET_FAILED;
+    } else {
+      this->failure_reason_ = FailureReason::FAILURE_REASON_H_RESET_FAILED;
+    }
+
     this->mark_failed();
     return;
   }
@@ -40,6 +71,7 @@ void MS8607Component::setup() {
 }
 
 void MS8607Component::update() {
+  // TODO: implement
   return;
   // request temperature reading
   if (!this->write_bytes(MS8607_CMD_CONV_D2 + 0x08, nullptr, 0)) {
@@ -54,9 +86,11 @@ void MS8607Component::update() {
 void MS8607Component::dump_config() {
   ESP_LOGCONFIG(TAG, "MS8607:");
   LOG_I2C_DEVICE(this);
-  //LOG_I2C_DEVICE(this->humidity_i2c_device_);
+  // LOG_I2C_DEVICE doesn't work for humidity, the `address_` is private. Log using this object's
+  // saved value for the address.
+  ESP_LOGCONFIG(TAG, "  Humidity I2C Address: 0x%02X", this->humidity_sensor_address_);
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with MS8607 failed!");
+    ESP_LOGE(TAG, "Communication with MS8607 failed! Reason: %d", this->failure_reason_);
   }
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
@@ -68,43 +102,27 @@ void MS8607Component::set_humidity_sensor_address(uint8_t address) {
   if (this->humidity_i2c_device_) {
     delete this->humidity_i2c_device_;
   }
+  this->humidity_sensor_address_ = address;
   this->humidity_i2c_device_ = new I2CDevice(this->parent_, address);
 }
 
 
-bool MS8607Component::reset_() {
-  ESP_LOGD(TAG, "Resetting I2C Devices");
-
-  // I believe sending the reset command to both addresses is preferable to
-  // skipping humidity if PT fails for some reason.
-  // However, only consider the reset successful if they both ACK
-  bool successful = this->write_bytes(MS8607_PT_CMD_RESET, nullptr, 0)
-    && this->humidity_i2c_device_->write_bytes(MS8607_CMD_H_RESET, nullptr, 0);
-
-  if (successful) {
-    delay(15); // matches Adafruit_MS8607 & SparkFun_PHT_MS8607_Arduino_Library
-  }
-
-  return successful;
-}
-
 bool MS8607Component::read_calibration_values_from_prom_() {
-  ESP_LOGD(TAG, "Reading PROM");
+  ESP_LOGD(TAG, "Reading calibration values from PROM");
 
   uint8_t address_to_read;
   uint16_t buffer[MS8607_PROM_COUNT];
-  uint8_t tmp_buffer[2];
+  bool successful = true;
 
   for (uint8_t idx = 0; idx < MS8607_PROM_COUNT; ++idx) {
     address_to_read = MS8607_PROM_START + (idx * 2);
+    successful &= this->read_byte_16(address_to_read, &buffer[idx]);
+  }
 
-    // TODO: check endianness of byte_16 vs reading two bytes and manually combining
-    this->read_byte_16(address_to_read, &buffer[idx]);
-    this->read_bytes(address_to_read, tmp_buffer, 2);
-    uint16_t converted = tmp_buffer[0] << 8 | tmp_buffer[1];
-    if (converted != buffer[idx]) {
-      ESP_LOGE(TAG, "incorrect value via read_byte_16 0x%04X vs 0x%04X", buffer[idx], converted);
-    }
+  if (!successful) {
+    ESP_LOGE(TAG, "Reading calibration values from PROM failed");
+    this->failure_reason_ = FailureReason::FAILURE_REASON_PROM_READ_FAILED;
+    return false;
   }
 
   // TODO: check CRC & pull out specific values
