@@ -14,6 +14,7 @@ MS8607Component = ms8607_ns.class_('MS8607Component', cg.PollingComponent, i2c.I
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(MS8607Component),
     # TODO: can/should these be optional to ignore sensors we don't care about?
+    # If so, make sure I don't introduce a NPE if the humidity i2c device doesn't exist
     cv.Required(CONF_TEMPERATURE): sensor.sensor_schema(UNIT_CELSIUS, ICON_THERMOMETER, 1),
     cv.Required(CONF_PRESSURE): sensor.sensor_schema(UNIT_HECTOPASCAL, ICON_GAUGE, 1),
     cv.Required(CONF_HUMIDITY): sensor.sensor_schema(UNIT_PERCENT, ICON_WATER_PERCENT, 2)
