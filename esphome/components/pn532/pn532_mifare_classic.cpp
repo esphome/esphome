@@ -12,8 +12,8 @@ nfc::NfcTag *PN532::read_mifare_classic_tag_(std::vector<uint8_t> &uid) {
   uint32_t message_length = 0;
 
   if (this->auth_mifare_classic_block_(uid, current_block, nfc::MIFARE_CMD_AUTH_A, nfc::NDEF_KEY)) {
-    std::vector<uint8_t> data = this->read_mifare_classic_block_(current_block);
-    if (!data.empty()) {
+    std::vector<uint8_t> data;
+    if (!this->read_mifare_classic_block_(current_block, data)) {
       if (!nfc::decode_mifare_classic_tlv(data, message_length, message_start_index)) {
         return new nfc::NfcTag(uid, nfc::ERROR);
       }
@@ -36,9 +36,9 @@ nfc::NfcTag *PN532::read_mifare_classic_tag_(std::vector<uint8_t> &uid) {
         ESP_LOGE(TAG, "Error, Block authentication failed for %d", current_block);
       }
     }
-    std::vector<uint8_t> data = this->read_mifare_classic_block_(current_block);
-    if (!data.empty()) {
-      buffer.insert(buffer.end(), data.begin(), data.end());
+    std::vector<uint8_t> block_data;
+    if (this->read_mifare_classic_block_(current_block, block_data)) {
+      buffer.insert(buffer.end(), block_data.begin(), block_data.end());
     } else {
       ESP_LOGE(TAG, "Error reading block %d", current_block);
     }
@@ -54,22 +54,23 @@ nfc::NfcTag *PN532::read_mifare_classic_tag_(std::vector<uint8_t> &uid) {
   return new nfc::NfcTag(uid, nfc::MIFARE_CLASSIC, buffer);
 }
 
-std::vector<uint8_t> PN532::read_mifare_classic_block_(uint8_t block_num) {
+bool PN532::read_mifare_classic_block_(uint8_t block_num, std::vector<uint8_t> &data) {
   if (!this->write_command_({
           PN532_COMMAND_INDATAEXCHANGE,
           0x01,  // One card
           nfc::MIFARE_CMD_READ,
           block_num,
       })) {
-    return {};
+    return false;
   }
 
-  std::vector<uint8_t> response;
-  if (!this->read_response_(PN532_COMMAND_INDATAEXCHANGE, response) || response[0] != 0x00) {
-    return {};
+  if (!this->read_response_(PN532_COMMAND_INDATAEXCHANGE, data) || data[0] != 0x00) {
+    return false;
   }
-  response.erase(response.begin());
-  return response;
+  data.erase(data.begin());
+
+  ESP_LOGVV(TAG, " Block %d: %s", block_num, nfc::format_bytes(data).c_str());
+  return true;
 }
 
 bool PN532::auth_mifare_classic_block_(std::vector<uint8_t> &uid, uint8_t block_num, uint8_t key_num,
