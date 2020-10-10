@@ -34,7 +34,6 @@ class PN532 : public PollingComponent {
 
   void read_mode();
   void clean_mode(bool continuous = false);
-  void erase_mode(bool continuous = false);
   void format_mode(bool continuous = false);
   void write_mode(nfc::NdefMessage *message, bool continuous = false);
 
@@ -50,7 +49,6 @@ class PN532 : public PollingComponent {
 
   nfc::NfcTag *read_tag_(std::vector<uint8_t> &uid);
 
-  bool erase_tag_(std::vector<uint8_t> &uid);
   bool format_tag_(std::vector<uint8_t> &uid);
   bool clean_tag_(std::vector<uint8_t> &uid);
   bool write_tag_(std::vector<uint8_t> &uid, nfc::NdefMessage *message);
@@ -66,12 +64,11 @@ class PN532 : public PollingComponent {
   nfc::NfcTag *read_mifare_ultralight_tag_(std::vector<uint8_t> &uid);
   bool read_mifare_ultralight_page_(uint8_t page_num, std::vector<uint8_t> &data);
   bool is_mifare_ultralight_formatted_();
-  uint16_t read_mifare_ultralight_capacity();
+  uint16_t read_mifare_ultralight_capacity_();
   bool find_mifare_ultralight_ndef_(uint8_t &message_length, uint8_t &message_start_index);
   bool write_mifare_ultralight_page_(uint8_t page_num, std::vector<uint8_t> &write_data);
   bool write_mifare_ultralight_tag_(std::vector<uint8_t> &uid, nfc::NdefMessage *message);
   bool clean_mifare_ultralight_();
-
 
   bool requested_read_{false};
   bool next_task_continuous_{false};
@@ -83,7 +80,6 @@ class PN532 : public PollingComponent {
     READ = 0,
     CLEAN,
     FORMAT,
-    ERASE,
     WRITE,
   } next_task_{READ};
   enum PN532Error {

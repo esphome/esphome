@@ -17,7 +17,8 @@ NdefMessage::NdefMessage(std::vector<uint8_t> &data) {
 
     ESP_LOGVV(TAG, "me=%s, sr=%s, il=%s, tnf=%d", YESNO(me), YESNO(sr), YESNO(il), tnf);
 
-    auto record = new NdefRecord(tnf);
+    auto record = new NdefRecord();
+    record->set_tnf(tnf);
 
     uint8_t type_length = data[index++];
     uint32_t payload_length = 0;
@@ -87,13 +88,7 @@ bool NdefMessage::add_text_record(const std::string &text, const std::string &en
 }
 
 bool NdefMessage::add_uri_record(const std::string &uri) {
-  std::string payload = uri;
-  auto r = new NdefRecord(TNF_WELL_KNOWN, "U", payload);
-  return this->add_record(r);
-}
-
-bool NdefMessage::add_empty_record() {
-  auto r = new NdefRecord(TNF_EMPTY);
+  auto r = new NdefRecord(TNF_WELL_KNOWN, "U", uri);
   return this->add_record(r);
 }
 

@@ -20,7 +20,6 @@ class NdefMessage {
   bool add_text_record(const std::string &text);
   bool add_text_record(const std::string &text, const std::string &encoding);
   bool add_uri_record(const std::string &uri);
-  bool add_empty_record();
 
   std::vector<uint8_t> encode();
 

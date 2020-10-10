@@ -32,8 +32,6 @@ static const uint8_t MIFARE_CMD_READ = 0x30;
 static const uint8_t MIFARE_CMD_WRITE = 0xA0;
 static const uint8_t MIFARE_CMD_WRITE_ULTRALIGHT = 0xA2;
 
-
-
 static const char *MIFARE_CLASSIC = "Mifare Classic";
 static const char *NFC_FORUM_TYPE_2 = "NFC Forum Type 2";
 static const char *ERROR = "Error";

@@ -96,7 +96,6 @@ bool PN532::auth_mifare_classic_block_(std::vector<uint8_t> &uid, uint8_t block_
   return true;
 }
 
-
 bool PN532::format_mifare_classic_mifare_(std::vector<uint8_t> &uid) {
   std::vector<uint8_t> blank_buffer(
       {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00});

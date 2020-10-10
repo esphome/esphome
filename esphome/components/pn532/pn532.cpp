@@ -168,12 +168,6 @@ void PN532::loop() {
       ESP_LOGE(TAG, "Error formatting tag as NDEF");
     }
     ESP_LOGD(TAG, "  Tag formatted!");
-  } else if (next_task_ == ERASE) {
-    ESP_LOGD(TAG, "  Tag erasing...");
-    if (!this->erase_tag_(nfcid)) {
-      ESP_LOGE(TAG, "Tag was not erased successfully");
-    }
-    ESP_LOGD(TAG, "  Tag erased!");
   } else if (next_task_ == WRITE) {
     if (this->next_task_message_to_write_ != nullptr) {
       ESP_LOGD(TAG, "  Tag writing...");
@@ -377,11 +371,6 @@ void PN532::clean_mode(bool continuous) {
   this->next_task_continuous_ = continuous;
   ESP_LOGD(TAG, "Waiting to clean next tag");
 }
-void PN532::erase_mode(bool continuous) {
-  this->next_task_ = ERASE;
-  this->next_task_continuous_ = continuous;
-  ESP_LOGD(TAG, "Waiting to erase next tag");
-}
 void PN532::format_mode(bool continuous) {
   this->next_task_ = FORMAT;
   this->next_task_continuous_ = continuous;
@@ -403,12 +392,6 @@ bool PN532::clean_tag_(std::vector<uint8_t> &uid) {
   }
   ESP_LOGE(TAG, "Unsupported Tag for formatting");
   return false;
-}
-
-bool PN532::erase_tag_(std::vector<uint8_t> &uid) {
-  auto message = new nfc::NdefMessage();
-  message->add_empty_record();
-  return this->write_tag_(uid, message);
 }
 
 bool PN532::format_tag_(std::vector<uint8_t> &uid) {

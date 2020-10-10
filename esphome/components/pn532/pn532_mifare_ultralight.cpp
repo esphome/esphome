@@ -19,9 +19,7 @@ nfc::NfcTag *PN532::read_mifare_ultralight_tag_(std::vector<uint8_t> &uid) {
   }
 
   if (message_length == 0) {
-    auto message = new nfc::NdefMessage();
-    message->add_empty_record();
-    return new nfc::NfcTag(uid, nfc::NFC_FORUM_TYPE_2, message);
+    return new nfc::NfcTag(uid, nfc::NFC_FORUM_TYPE_2);
   }
   std::vector<uint8_t> data;
   uint8_t index = 0;
@@ -29,8 +27,7 @@ nfc::NfcTag *PN532::read_mifare_ultralight_tag_(std::vector<uint8_t> &uid) {
     std::vector<uint8_t> page_data;
     if (!this->read_mifare_ultralight_page_(page, page_data)) {
       ESP_LOGE(TAG, "Error reading page %d", page);
-      message_length = 0;
-      break;
+      return new nfc::NfcTag(uid, nfc::NFC_FORUM_TYPE_2);
     }
     data.insert(data.end(), page_data.begin(), page_data.end());
 
@@ -75,7 +72,7 @@ bool PN532::is_mifare_ultralight_formatted_() {
   return true;
 }
 
-uint16_t PN532::read_mifare_ultralight_capacity() {
+uint16_t PN532::read_mifare_ultralight_capacity_() {
   std::vector<uint8_t> data;
   if (this->read_mifare_ultralight_page_(3, data)) {
     return data[2] * 8U;
@@ -105,8 +102,7 @@ bool PN532::find_mifare_ultralight_ndef_(uint8_t &message_length, uint8_t &messa
 }
 
 bool PN532::write_mifare_ultralight_tag_(std::vector<uint8_t> &uid, nfc::NdefMessage *message) {
-
-  uint32_t capacity = this->read_mifare_ultralight_capacity();
+  uint32_t capacity = this->read_mifare_ultralight_capacity_();
 
   auto encoded = message->encode();
 
@@ -145,7 +141,7 @@ bool PN532::write_mifare_ultralight_tag_(std::vector<uint8_t> &uid, nfc::NdefMes
 }
 
 bool PN532::clean_mifare_ultralight_() {
-  uint32_t capacity = this->read_mifare_ultralight_capacity();
+  uint32_t capacity = this->read_mifare_ultralight_capacity_();
   uint8_t pages = (capacity / nfc::MIFARE_ULTRALIGHT_PAGE_SIZE) + nfc::MIFARE_ULTRALIGHT_DATA_START_PAGE;
 
   std::vector<uint8_t> blank_data = {0x00, 0x00, 0x00, 0x00};

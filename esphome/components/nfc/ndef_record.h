@@ -16,18 +16,46 @@ static const uint8_t TNF_UNCHANGED = 0x06;
 static const uint8_t TNF_RESERVED = 0x07;
 
 static const uint8_t PAYLOAD_IDENTIFIERS_COUNT = 0x23;
-static const char *PAYLOAD_IDENTIFIERS[] = {
-  "", "http://www.", "https://www.", "http://", "https://", "tel:", "mailto:",
-  "ftp://anonymous:anonymous@", "ftp://ftp.", "ftps://", "sftp://", "smb://", "nfs://", "ftp://",
-  "dav://", "news:", "telnet://", "imap:", "rtsp://", "urn:", "pop:", "sip:", "sips:", "tftp:",
-  "btspp://", "btl2cap://", "btgoep://", "tcpobex://", "irdaobex://", "file://", "urn:epc:id:",
-  "urn:epc:tag:", "urn:epc:pat:", "urn:epc:raw:", "urn:epc:", "urn:nfc:"
-};
+static const char *PAYLOAD_IDENTIFIERS[] = {"",
+                                            "http://www.",
+                                            "https://www.",
+                                            "http://",
+                                            "https://",
+                                            "tel:",
+                                            "mailto:",
+                                            "ftp://anonymous:anonymous@",
+                                            "ftp://ftp.",
+                                            "ftps://",
+                                            "sftp://",
+                                            "smb://",
+                                            "nfs://",
+                                            "ftp://",
+                                            "dav://",
+                                            "news:",
+                                            "telnet://",
+                                            "imap:",
+                                            "rtsp://",
+                                            "urn:",
+                                            "pop:",
+                                            "sip:",
+                                            "sips:",
+                                            "tftp:",
+                                            "btspp://",
+                                            "btl2cap://",
+                                            "btgoep://",
+                                            "tcpobex://",
+                                            "irdaobex://",
+                                            "file://",
+                                            "urn:epc:id:",
+                                            "urn:epc:tag:",
+                                            "urn:epc:pat:",
+                                            "urn:epc:raw:",
+                                            "urn:epc:",
+                                            "urn:nfc:"};
 
 class NdefRecord {
  public:
   NdefRecord(){};
-  NdefRecord(uint8_t tnf) { this->tnf_ = tnf; };
   NdefRecord(uint8_t tnf, const std::string &type, const std::string &payload) {
     this->tnf_ = tnf;
     this->type_ = type;
@@ -48,9 +76,7 @@ class NdefRecord {
   };
   void set_tnf(uint8_t tnf) { this->tnf_ = tnf; };
   void set_type(const std::string &type) { this->type_ = type; };
-  void set_payload_identifier(uint8_t payload_identifier) {
-    this->payload_identifier_ = payload_identifier;
-  };
+  void set_payload_identifier(uint8_t payload_identifier) { this->payload_identifier_ = payload_identifier; };
   void set_payload(const std::string &payload) { this->payload_ = payload; };
   void set_id(const std::string &id) { this->id_ = id; };
 
