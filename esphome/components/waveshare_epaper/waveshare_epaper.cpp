@@ -75,14 +75,12 @@ static const uint8_t PARTIAL_UPDATE_LUT_TTGO_B73[LUT_SIZE_TTGO_B73] = {
 static const uint8_t LUT_SIZE_TTGO_B1 = 29;
 
 static const uint8_t FULL_UPDATE_LUT_TTGO_B1[LUT_SIZE_TTGO_B1] = {
-  0x22, 0x55, 0xAA, 0x55, 0xAA, 0x55, 0xAA, 0x11, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-  0x00, 0x1E, 0x1E, 0x1E, 0x1E, 0x1E, 0x1E, 0x1E, 0x1E, 0x01, 0x00, 0x00, 0x00, 0x00
-};
-static const uint8_t PARTIAL_UPDATE_LUT_TTGO_B1[LUT_SIZE_TTGO_B1] = {
-  0x18, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-  0x00, 0x0F, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
-};
+    0x22, 0x55, 0xAA, 0x55, 0xAA, 0x55, 0xAA, 0x11, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x1E, 0x1E, 0x1E, 0x1E, 0x1E, 0x1E, 0x1E, 0x1E, 0x01, 0x00, 0x00, 0x00, 0x00};
 
+static const uint8_t PARTIAL_UPDATE_LUT_TTGO_B1[LUT_SIZE_TTGO_B1] = {
+    0x18, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x0F, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 
 void WaveshareEPaper::setup_pins_() {
   this->init_internal_(this->get_buffer_length_());
@@ -239,7 +237,7 @@ void HOT WaveshareEPaperTypeA::display() {
     if (full_update != prev_full_update) {
       switch (this->model_) {
         case TTGO_EPAPER_2_13_IN:
-	  this->write_lut_(full_update ? FULL_UPDATE_LUT_TTGO : PARTIAL_UPDATE_LUT_TTGO, LUT_SIZE_TTGO);
+          this->write_lut_(full_update ? FULL_UPDATE_LUT_TTGO : PARTIAL_UPDATE_LUT_TTGO, LUT_SIZE_TTGO);
           break;
         case TTGO_EPAPER_2_13_IN_B73:
           this->write_lut_(full_update ? FULL_UPDATE_LUT_TTGO_B73 : PARTIAL_UPDATE_LUT_TTGO_B73, LUT_SIZE_TTGO_B73);
@@ -308,11 +306,10 @@ void HOT WaveshareEPaperTypeA::display() {
   this->command(0x24);
   this->start_data_();
   switch (this->model_) {
-    case TTGO_EPAPER_2_13_IN_B1:
-    { // block needed because of variable initializations
+    case TTGO_EPAPER_2_13_IN_B1: { // block needed because of variable initializations
       int16_t wb = ((this->get_width_internal()) >> 3);
-      for(int i=0; i<this->get_height_internal(); i++) {
-        for(int j=0; j<wb; j++) {
+      for (int i = 0; i < this->get_height_internal(); i++) {
+        for (int j = 0; j < wb; j++) {
           int idx = j + (this->get_height_internal() - 1 - i) * wb;
           this->write_byte(this->buffer_[idx]);
         }
@@ -379,7 +376,7 @@ void WaveshareEPaperTypeA::set_full_update_every(uint32_t full_update_every) {
   this->full_update_every_ = full_update_every;
 }
 
-int WaveshareEPaperTypeA::idle_timeout_(){
+int WaveshareEPaperTypeA::idle_timeout_() {
   switch (this->model_) {
     case TTGO_EPAPER_2_13_IN_B1:
       return 2500;
