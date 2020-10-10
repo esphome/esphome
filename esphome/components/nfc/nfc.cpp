@@ -67,7 +67,14 @@ bool decode_mifare_classic_tlv(std::vector<uint8_t> &data, uint32_t &message_len
   return true;
 }
 
-uint32_t get_buffer_size(uint32_t message_length) {
+uint32_t get_mifare_ultralight_buffer_size(uint32_t message_length) {
+    uint32_t buffer_size = message_length + 2 + 1;
+    if (buffer_size % MIFARE_ULTRALIGHT_READ_SIZE != 0)
+      buffer_size = ((buffer_size / MIFARE_ULTRALIGHT_READ_SIZE) + 1) * MIFARE_ULTRALIGHT_READ_SIZE;
+    return buffer_size;
+}
+
+uint32_t get_mifare_classic_buffer_size(uint32_t message_length) {
   uint32_t buffer_size = message_length;
   if (message_length < 255) {
     buffer_size += MIFARE_CLASSIC_SHORT_TLV_SIZE + 1;

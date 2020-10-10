@@ -27,7 +27,7 @@ nfc::NfcTag *PN532::read_mifare_classic_tag_(std::vector<uint8_t> &uid) {
   }
 
   uint32_t index = 0;
-  uint32_t buffer_size = nfc::get_buffer_size(message_length);
+  uint32_t buffer_size = nfc::get_mifare_classic_buffer_size(message_length);
   std::vector<uint8_t> buffer;
 
   while (index < buffer_size) {
@@ -83,13 +83,13 @@ bool PN532::auth_mifare_classic_block_(std::vector<uint8_t> &uid, uint8_t block_
   data.insert(data.end(), key, key + 6);
   data.insert(data.end(), uid.begin(), uid.end());
   if (!this->write_command_(data)) {
-    ESP_LOGE(TAG, "Authentication failed");
+    ESP_LOGE(TAG, "Authentication failed - Block %d", block_num);
     return false;
   }
 
   std::vector<uint8_t> response;
   if (!this->read_response_(PN532_COMMAND_INDATAEXCHANGE, response) || response[0] != 0x00) {
-    ESP_LOGE(TAG, "Authentication failed");
+    ESP_LOGE(TAG, "Authentication failed - Block %d", block_num);
     return false;
   }
 
@@ -155,7 +155,7 @@ bool PN532::format_mifare_classic_ndef_(std::vector<uint8_t> &uid) {
   std::vector<uint8_t> sector_buffer_4(
       {0xD3, 0xF7, 0xD3, 0xF7, 0xD3, 0xF7, 0x7F, 0x07, 0x88, 0x40, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF});
 
-  if (!this->auth_mifare_classic_block_(uid, 0, nfc::MIFARE_CMD_AUTH_A, nfc::DEFAULT_KEY)) {
+  if (!this->auth_mifare_classic_block_(uid, 0, nfc::MIFARE_CMD_AUTH_B, nfc::DEFAULT_KEY)) {
     ESP_LOGE(TAG, "Unable to authenticate block 0 for formatting!");
     return false;
   }
@@ -167,7 +167,7 @@ bool PN532::format_mifare_classic_ndef_(std::vector<uint8_t> &uid) {
     return false;
 
   for (int i = 4; i < 64; i += 4) {
-    if (!this->auth_mifare_classic_block_(uid, i, nfc::MIFARE_CMD_AUTH_A, nfc::DEFAULT_KEY)) {
+    if (!this->auth_mifare_classic_block_(uid, i, nfc::MIFARE_CMD_AUTH_B, nfc::DEFAULT_KEY)) {
       ESP_LOGE(TAG, "Failed to authenticate with block %d", i);
       continue;
     }
@@ -193,7 +193,7 @@ bool PN532::write_mifare_classic_block_(uint8_t block_num, std::vector<uint8_t> 
       PN532_COMMAND_INDATAEXCHANGE,
       0x01,  // One card
       nfc::MIFARE_CMD_WRITE,
-      block_num,  // Block number
+      block_num,
   });
   data.insert(data.end(), write_data.begin(), write_data.end());
   if (!this->write_command_(data)) {
@@ -213,24 +213,26 @@ bool PN532::write_mifare_classic_block_(uint8_t block_num, std::vector<uint8_t> 
 bool PN532::write_mifare_classic_tag_(std::vector<uint8_t> &uid, nfc::NdefMessage *message) {
   auto encoded = message->encode();
 
-  if (encoded.size() < 255) {
-    encoded.insert(encoded.begin(), 0x03);
-    encoded.insert(encoded.begin() + 1, encoded.size());
-    encoded.push_back(0xFE);
+  uint32_t message_length = encoded.size();
+  uint32_t buffer_length = nfc::get_mifare_classic_buffer_size(message_length);
+
+  encoded.insert(encoded.begin(), 0x03);
+  if (message_length < 255) {
+    encoded.insert(encoded.begin() + 1, message_length);
   } else {
-    encoded.insert(encoded.begin(), 0x03);
     encoded.insert(encoded.begin() + 1, 0xFF);
-    encoded.insert(encoded.begin() + 2, (encoded.size() >> 8) & 0xFF);
-    encoded.insert(encoded.begin() + 2, encoded.size() & 0xFF);
-    encoded.push_back(0xFE);
+    encoded.insert(encoded.begin() + 2, (message_length >> 8) & 0xFF);
+    encoded.insert(encoded.begin() + 3, message_length & 0xFF);
   }
+  encoded.push_back(0xFE);
+
+  encoded.resize(buffer_length, 0);
 
   uint32_t index = 0;
   uint8_t current_block = 4;
 
-  while (index < encoded.size()) {
+  while (index < buffer_length) {
     if (nfc::mifare_classic_is_first_block(current_block)) {
-      ESP_LOGD(TAG, "Trying to auth %d", current_block);
       if (!this->auth_mifare_classic_block_(uid, current_block, nfc::MIFARE_CMD_AUTH_A, nfc::NDEF_KEY)) {
         return false;
       }

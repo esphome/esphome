@@ -32,10 +32,11 @@ class PN532 : public PollingComponent {
   void register_tag(PN532BinarySensor *tag) { this->binary_sensors_.push_back(tag); }
   void register_trigger(PN532Trigger *trig) { this->triggers_.push_back(trig); }
 
-  void clean_tag(bool continuous = false);
-  void erase_tag(bool continuous = false);
-  void format_tag(bool continuous = false);
-  void write_tag(nfc::NdefMessage *message, bool continuous = false);
+  void read_mode();
+  void clean_mode(bool continuous = false);
+  void erase_mode(bool continuous = false);
+  void format_mode(bool continuous = false);
+  void write_mode(nfc::NdefMessage *message, bool continuous = false);
 
  protected:
   void turn_off_rf_();
@@ -67,6 +68,9 @@ class PN532 : public PollingComponent {
   bool is_mifare_ultralight_formatted_();
   uint16_t read_mifare_ultralight_capacity();
   bool find_mifare_ultralight_ndef_(uint8_t &message_length, uint8_t &message_start_index);
+  bool write_mifare_ultralight_page_(uint8_t page_num, std::vector<uint8_t> &write_data);
+  bool write_mifare_ultralight_tag_(std::vector<uint8_t> &uid, nfc::NdefMessage *message);
+  bool clean_mifare_ultralight_();
 
 
   bool requested_read_{false};

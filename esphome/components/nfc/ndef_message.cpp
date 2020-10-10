@@ -46,7 +46,18 @@ NdefMessage::NdefMessage(std::vector<uint8_t> &data) {
       index += id_length;
     }
 
+    uint8_t payload_identifier = 0x00;
+    if (type_str == "U") {
+      payload_identifier = data[index++];
+      payload_length -= 1;
+    }
+
     std::string payload_str(data.begin() + index, data.begin() + index + payload_length);
+
+    if (payload_identifier > 0x00 && payload_identifier <= PAYLOAD_IDENTIFIERS_COUNT) {
+      payload_str.insert(0, PAYLOAD_IDENTIFIERS[payload_identifier]);
+    }
+
     record->set_payload(payload_str);
     index += payload_length;
 
@@ -76,7 +87,7 @@ bool NdefMessage::add_text_record(const std::string &text, const std::string &en
 }
 
 bool NdefMessage::add_uri_record(const std::string &uri) {
-  std::string payload = '\0' + uri;
+  std::string payload = uri;
   auto r = new NdefRecord(TNF_WELL_KNOWN, "U", payload);
   return this->add_record(r);
 }

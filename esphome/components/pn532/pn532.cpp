@@ -140,9 +140,8 @@ void PN532::loop() {
 
   this->current_uid_ = nfcid;
 
-  auto tag = this->read_tag_(nfcid);
-
   if (next_task_ == READ) {
+    auto tag = this->read_tag_(nfcid);
     for (auto *trigger : this->triggers_)
       trigger->process(tag);
 
@@ -158,40 +157,48 @@ void PN532::loop() {
       }
     }
   } else if (next_task_ == CLEAN) {
+    ESP_LOGD(TAG, "  Tag cleaning...");
     if (!this->clean_tag_(nfcid)) {
-      ESP_LOGE(TAG, "Tag was not fully cleaned successfully");
+      ESP_LOGE(TAG, "  Tag was not fully cleaned successfully");
     }
+    ESP_LOGD(TAG, "  Tag cleaned!");
   } else if (next_task_ == FORMAT) {
+    ESP_LOGD(TAG, "  Tag formatting...");
     if (!this->format_tag_(nfcid)) {
       ESP_LOGE(TAG, "Error formatting tag as NDEF");
     }
+    ESP_LOGD(TAG, "  Tag formatted!");
   } else if (next_task_ == ERASE) {
+    ESP_LOGD(TAG, "  Tag erasing...");
     if (!this->erase_tag_(nfcid)) {
       ESP_LOGE(TAG, "Tag was not erased successfully");
     }
+    ESP_LOGD(TAG, "  Tag erased!");
   } else if (next_task_ == WRITE) {
     if (this->next_task_message_to_write_ != nullptr) {
-      if (tag->has_ndef_message()) {
-        // if (!this->erase_tag_(nfcid)) {
-        //   ESP_LOGE(TAG, "Tag could not be erased for writing");
-        //   this->turn_off_rf_();
-        //   return;
-        // }
-      } else {
-        if (!this->format_tag_(nfcid)) {
-          ESP_LOGE(TAG, "Tag could not be formatted for writing");
-          this->turn_off_rf_();
-          return;
-        }
+      ESP_LOGD(TAG, "  Tag writing...");
+      // ESP_LOGD(TAG, "  Tag cleaning...");
+      // if (!this->clean_tag_(nfcid)) {
+      //   ESP_LOGE(TAG, "  Tag was not fully cleaned successfully");
+      //   this->turn_off_rf_();
+      //   return;
+      // }
+      ESP_LOGD(TAG, "  Tag formatting...");
+      if (!this->format_tag_(nfcid)) {
+        ESP_LOGE(TAG, "  Tag could not be formatted for writing");
+        this->turn_off_rf_();
+        return;
       }
+      ESP_LOGD(TAG, "  Writing NDEF data");
       if (!this->write_tag_(nfcid, this->next_task_message_to_write_)) {
-        ESP_LOGE(TAG, "Failed to write message to tag");
+        ESP_LOGE(TAG, "  Failed to write message to tag");
       }
+      ESP_LOGD(TAG, "  Finished writing NDEF data");
     }
   }
 
   if (!this->next_task_continuous_) {
-    this->next_task_ = READ;
+    this->read_mode();
   }
 
   this->turn_off_rf_();
@@ -360,22 +367,27 @@ nfc::NfcTag *PN532::read_tag_(std::vector<uint8_t> &uid) {
   }
 }
 
-void PN532::clean_tag(bool continuous) {
+void PN532::read_mode() {
+  this->next_task_ = READ;
+  this->next_task_continuous_ = true;
+  ESP_LOGD(TAG, "Waiting to read next tag");
+}
+void PN532::clean_mode(bool continuous) {
   this->next_task_ = CLEAN;
   this->next_task_continuous_ = continuous;
   ESP_LOGD(TAG, "Waiting to clean next tag");
 }
-void PN532::erase_tag(bool continuous) {
+void PN532::erase_mode(bool continuous) {
   this->next_task_ = ERASE;
   this->next_task_continuous_ = continuous;
   ESP_LOGD(TAG, "Waiting to erase next tag");
 }
-void PN532::format_tag(bool continuous) {
+void PN532::format_mode(bool continuous) {
   this->next_task_ = FORMAT;
   this->next_task_continuous_ = continuous;
   ESP_LOGD(TAG, "Waiting to format next tag");
 }
-void PN532::write_tag(nfc::NdefMessage *message, bool continuous) {
+void PN532::write_mode(nfc::NdefMessage *message, bool continuous) {
   this->next_task_ = WRITE;
   this->next_task_continuous_ = continuous;
   this->next_task_message_to_write_ = message;
@@ -386,6 +398,8 @@ bool PN532::clean_tag_(std::vector<uint8_t> &uid) {
   uint8_t type = nfc::guess_tag_type(uid.size());
   if (type == nfc::TAG_TYPE_MIFARE_CLASSIC) {
     return this->format_mifare_classic_mifare_(uid);
+  } else if (type == nfc::TAG_TYPE_2) {
+    return this->clean_mifare_ultralight_();
   }
   ESP_LOGE(TAG, "Unsupported Tag for formatting");
   return false;
@@ -401,6 +415,8 @@ bool PN532::format_tag_(std::vector<uint8_t> &uid) {
   uint8_t type = nfc::guess_tag_type(uid.size());
   if (type == nfc::TAG_TYPE_MIFARE_CLASSIC) {
     return this->format_mifare_classic_ndef_(uid);
+  } else if (type == nfc::TAG_TYPE_2) {
+    return this->clean_mifare_ultralight_();
   }
   ESP_LOGE(TAG, "Unsupported Tag for formatting");
   return false;
@@ -410,6 +426,8 @@ bool PN532::write_tag_(std::vector<uint8_t> &uid, nfc::NdefMessage *message) {
   uint8_t type = nfc::guess_tag_type(uid.size());
   if (type == nfc::TAG_TYPE_MIFARE_CLASSIC) {
     return this->write_mifare_classic_tag_(uid, message);
+  } else if (type == nfc::TAG_TYPE_2) {
+    return this->write_mifare_ultralight_tag_(uid, message);
   }
   ESP_LOGE(TAG, "Unsupported Tag for formatting");
   return false;
