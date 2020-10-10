@@ -90,7 +90,8 @@ void MS8607Component::dump_config() {
   // saved value for the address.
   ESP_LOGCONFIG(TAG, "  Humidity I2C Address: 0x%02X", this->humidity_sensor_address_);
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with MS8607 failed! Reason: %d", this->failure_reason_);
+    ESP_LOGE(TAG, "Communication with MS8607 failed! Reason: %u",
+             static_cast<uint8_t>(this->failure_reason_));
   }
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
