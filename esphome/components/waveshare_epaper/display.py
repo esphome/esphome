@@ -25,6 +25,7 @@ MODELS = {
     '1.54in': ('a', WaveshareEPaperTypeAModel.WAVESHARE_EPAPER_1_54_IN),
     '2.13in': ('a', WaveshareEPaperTypeAModel.WAVESHARE_EPAPER_2_13_IN),
     '2.13in-ttgo': ('a', WaveshareEPaperTypeAModel.TTGO_EPAPER_2_13_IN),
+    '2.13in-ttgo-b1': ('a', WaveshareEPaperTypeAModel.TTGO_EPAPER_2_13_IN_B1),
     '2.13in-ttgo-b73': ('a', WaveshareEPaperTypeAModel.TTGO_EPAPER_2_13_IN_B73),
     '2.90in': ('a', WaveshareEPaperTypeAModel.WAVESHARE_EPAPER_2_9_IN),
     '2.70in': ('b', WaveshareEPaper2P7In),
