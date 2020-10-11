@@ -337,6 +337,9 @@ void LightCall::perform() {
     this->parent_->set_immediately_(v, this->publish_);
   }
 
+  if (!this->has_transition_()) {
+    this->parent_->target_state_reached_callback_.call();
+  }
   if (this->publish_) {
     this->parent_->publish_state();
   }
