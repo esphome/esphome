@@ -174,21 +174,20 @@ void PN532::loop() {
       ESP_LOGD(TAG, "  Tag formatting...");
       if (!this->format_tag_(nfcid)) {
         ESP_LOGE(TAG, "  Tag could not be formatted for writing");
-        this->turn_off_rf_();
-        return;
+      } else {
+        ESP_LOGD(TAG, "  Writing NDEF data");
+        if (!this->write_tag_(nfcid, this->next_task_message_to_write_)) {
+          ESP_LOGE(TAG, "  Failed to write message to tag");
+        }
+        ESP_LOGD(TAG, "  Finished writing NDEF data");
+        delete this->next_task_message_to_write_;
+        this->next_task_message_to_write_ = nullptr;
+        this->on_finished_write_callback_.call();
       }
-      ESP_LOGD(TAG, "  Writing NDEF data");
-      if (!this->write_tag_(nfcid, this->next_task_message_to_write_)) {
-        ESP_LOGE(TAG, "  Failed to write message to tag");
-      }
-      ESP_LOGD(TAG, "  Finished writing NDEF data");
-      delete this->next_task_message_to_write_;
-      this->next_task_message_to_write_ = nullptr;
-      this->on_finished_write_callback_.call();
     }
   }
 
-  this->next_task_ = READ;
+  this->read_mode();
 
   this->turn_off_rf_();
 }
