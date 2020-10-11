@@ -75,7 +75,6 @@ optional<ParseResult> ATCMiThermometer::parse_header(const esp32_ble_tracker::Se
 }
 
 bool ATCMiThermometer::parse_message(const std::vector<uint8_t> &message, ParseResult &result) {
-
   // Byte 0-5 mac in correct order
   // Byte 6-7 Temperature in uint16
   // Byte 8 Humidity in percent
