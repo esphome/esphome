@@ -15,8 +15,10 @@ CONF_ON_FINISHED_WRITE = 'on_finished_write'
 pn532_ns = cg.esphome_ns.namespace('pn532')
 PN532 = pn532_ns.class_('PN532', cg.PollingComponent)
 
-PN532OnTagTrigger = pn532_ns.class_('PN532OnTagTrigger', automation.Trigger.template(cg.std_string, nfc.NfcTag))
-PN532OnFinishedWriteTrigger = pn532_ns.class_('PN532OnFinishedWriteTrigger', automation.Trigger.template())
+PN532OnTagTrigger = pn532_ns.class_('PN532OnTagTrigger',
+                                    automation.Trigger.template(cg.std_string, nfc.NfcTag))
+PN532OnFinishedWriteTrigger = pn532_ns.class_('PN532OnFinishedWriteTrigger',
+                                              automation.Trigger.template())
 
 PN532IsWritingCondition = pn532_ns.class_('PN532IsWritingCondition', automation.Condition)
 
@@ -50,6 +52,7 @@ def setup_pn532(var, config):
     for conf in config.get(CONF_ON_FINISHED_WRITE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         yield automation.build_automation(trigger, [], conf)
+
 
 @automation.register_condition('pn532.is_writing', PN532IsWritingCondition, cv.Schema({
     cv.GenerateID(): cv.use_id(PN532),
