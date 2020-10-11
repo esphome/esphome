@@ -44,7 +44,7 @@ std::string format_uid(std::vector<uint8_t> &uid);
 std::string format_bytes(std::vector<uint8_t> &bytes);
 
 uint8_t guess_tag_type(uint8_t uid_length);
-uint8_t get_ndef_start_index(std::vector<uint8_t> &data);
+uint8_t get_mifare_classic_ndef_start_index(std::vector<uint8_t> &data);
 bool decode_mifare_classic_tlv(std::vector<uint8_t> &data, uint32_t &message_length, uint8_t &message_start_index);
 uint32_t get_mifare_classic_buffer_size(uint32_t message_length);
 

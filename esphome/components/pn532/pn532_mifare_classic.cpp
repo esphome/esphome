@@ -13,7 +13,7 @@ nfc::NfcTag *PN532::read_mifare_classic_tag_(std::vector<uint8_t> &uid) {
 
   if (this->auth_mifare_classic_block_(uid, current_block, nfc::MIFARE_CMD_AUTH_A, nfc::NDEF_KEY)) {
     std::vector<uint8_t> data;
-    if (!this->read_mifare_classic_block_(current_block, data)) {
+    if (this->read_mifare_classic_block_(current_block, data)) {
       if (!nfc::decode_mifare_classic_tlv(data, message_length, message_start_index)) {
         return new nfc::NfcTag(uid, nfc::ERROR);
       }

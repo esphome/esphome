@@ -16,7 +16,7 @@ static const uint8_t PN532_COMMAND_INDATAEXCHANGE = 0x40;
 static const uint8_t PN532_COMMAND_INLISTPASSIVETARGET = 0x4A;
 
 class PN532BinarySensor;
-class PN532Trigger;
+class PN532OnTagTrigger;
 
 class PN532 : public PollingComponent {
  public:
@@ -30,12 +30,18 @@ class PN532 : public PollingComponent {
   void loop() override;
 
   void register_tag(PN532BinarySensor *tag) { this->binary_sensors_.push_back(tag); }
-  void register_trigger(PN532Trigger *trig) { this->triggers_.push_back(trig); }
+  void register_trigger(PN532OnTagTrigger *trig) { this->triggers_.push_back(trig); }
+
+  void add_on_finished_write_callback(std::function<void()> callback) {
+    this->on_finished_write_callback_.add(std::move(callback));
+  }
+
+  bool is_writing() { return this->next_task_ != READ; };
 
   void read_mode();
-  void clean_mode(bool continuous = false);
-  void format_mode(bool continuous = false);
-  void write_mode(nfc::NdefMessage *message, bool continuous = false);
+  void clean_mode();
+  void format_mode();
+  void write_mode(nfc::NdefMessage *message);
 
  protected:
   void turn_off_rf_();
@@ -71,9 +77,8 @@ class PN532 : public PollingComponent {
   bool clean_mifare_ultralight_();
 
   bool requested_read_{false};
-  bool next_task_continuous_{false};
   std::vector<PN532BinarySensor *> binary_sensors_;
-  std::vector<PN532Trigger *> triggers_;
+  std::vector<PN532OnTagTrigger *> triggers_;
   std::vector<uint8_t> current_uid_;
   nfc::NdefMessage *next_task_message_to_write_;
   enum NfcTask {
@@ -87,6 +92,7 @@ class PN532 : public PollingComponent {
     WAKEUP_FAILED,
     SAM_COMMAND_FAILED,
   } error_code_{NONE};
+  CallbackManager<void()> on_finished_write_callback_;
 };
 
 class PN532BinarySensor : public binary_sensor::BinarySensor {
@@ -107,9 +113,21 @@ class PN532BinarySensor : public binary_sensor::BinarySensor {
   bool found_{false};
 };
 
-class PN532Trigger : public Trigger<std::string, nfc::NfcTag> {
+class PN532OnTagTrigger : public Trigger<std::string, nfc::NfcTag> {
  public:
   void process(nfc::NfcTag *tag);
+};
+
+class PN532OnFinishedWriteTrigger : public Trigger<> {
+ public:
+  explicit PN532OnFinishedWriteTrigger(PN532 *parent) {
+    parent->add_on_finished_write_callback([this]() { this->trigger(); });
+  }
+};
+
+template<typename... Ts> class PN532IsWritingCondition : public Condition<Ts...>, public Parented<PN532> {
+ public:
+  bool check(Ts... x) override { return this->parent_->is_writing(); }
 };
 
 }  // namespace pn532

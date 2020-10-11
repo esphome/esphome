@@ -146,7 +146,7 @@ void PN532::loop() {
       trigger->process(tag);
 
     if (report) {
-      ESP_LOGD(TAG, "Found tag '%s'", nfc::format_uid(nfcid).c_str());
+      ESP_LOGD(TAG, "Found new tag '%s'", nfc::format_uid(nfcid).c_str());
       if (tag->has_ndef_message()) {
         auto message = tag->get_ndef_message();
         auto records = message->get_records();
@@ -171,12 +171,6 @@ void PN532::loop() {
   } else if (next_task_ == WRITE) {
     if (this->next_task_message_to_write_ != nullptr) {
       ESP_LOGD(TAG, "  Tag writing...");
-      // ESP_LOGD(TAG, "  Tag cleaning...");
-      // if (!this->clean_tag_(nfcid)) {
-      //   ESP_LOGE(TAG, "  Tag was not fully cleaned successfully");
-      //   this->turn_off_rf_();
-      //   return;
-      // }
       ESP_LOGD(TAG, "  Tag formatting...");
       if (!this->format_tag_(nfcid)) {
         ESP_LOGE(TAG, "  Tag could not be formatted for writing");
@@ -188,12 +182,13 @@ void PN532::loop() {
         ESP_LOGE(TAG, "  Failed to write message to tag");
       }
       ESP_LOGD(TAG, "  Finished writing NDEF data");
+      delete this->next_task_message_to_write_;
+      this->next_task_message_to_write_ = nullptr;
+      this->on_finished_write_callback_.call();
     }
   }
 
-  if (!this->next_task_continuous_) {
-    this->read_mode();
-  }
+  this->next_task_ = READ;
 
   this->turn_off_rf_();
 }
@@ -348,10 +343,10 @@ nfc::NfcTag *PN532::read_tag_(std::vector<uint8_t> &uid) {
   uint8_t type = nfc::guess_tag_type(uid.size());
 
   if (type == nfc::TAG_TYPE_MIFARE_CLASSIC) {
-    ESP_LOGD(TAG, "  Mifare classic");
+    ESP_LOGD(TAG, "Mifare classic");
     return this->read_mifare_classic_tag_(uid);
   } else if (type == nfc::TAG_TYPE_2) {
-    ESP_LOGD(TAG, "  Mifare ultralight");
+    ESP_LOGD(TAG, "Mifare ultralight");
     return this->read_mifare_ultralight_tag_(uid);
   } else if (type == nfc::TAG_TYPE_UNKNOWN) {
     ESP_LOGV(TAG, "Cannot determine tag type");
@@ -363,22 +358,18 @@ nfc::NfcTag *PN532::read_tag_(std::vector<uint8_t> &uid) {
 
 void PN532::read_mode() {
   this->next_task_ = READ;
-  this->next_task_continuous_ = true;
   ESP_LOGD(TAG, "Waiting to read next tag");
 }
-void PN532::clean_mode(bool continuous) {
+void PN532::clean_mode() {
   this->next_task_ = CLEAN;
-  this->next_task_continuous_ = continuous;
   ESP_LOGD(TAG, "Waiting to clean next tag");
 }
-void PN532::format_mode(bool continuous) {
+void PN532::format_mode() {
   this->next_task_ = FORMAT;
-  this->next_task_continuous_ = continuous;
   ESP_LOGD(TAG, "Waiting to format next tag");
 }
-void PN532::write_mode(nfc::NdefMessage *message, bool continuous) {
+void PN532::write_mode(nfc::NdefMessage *message) {
   this->next_task_ = WRITE;
-  this->next_task_continuous_ = continuous;
   this->next_task_message_to_write_ = message;
   ESP_LOGD(TAG, "Waiting to write next tag");
 }
@@ -451,7 +442,7 @@ bool PN532BinarySensor::process(std::vector<uint8_t> &data) {
   this->found_ = true;
   return true;
 }
-void PN532Trigger::process(nfc::NfcTag *tag) { this->trigger(nfc::format_uid(tag->get_uid()), *tag); }
+void PN532OnTagTrigger::process(nfc::NfcTag *tag) { this->trigger(nfc::format_uid(tag->get_uid()), *tag); }
 
 }  // namespace pn532
 }  // namespace esphome
