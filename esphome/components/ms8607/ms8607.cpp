@@ -223,7 +223,7 @@ void MS8607Component::read_humidity_() {
   uint8_t bytes[3];
   uint8_t failure_count = 0;
   // FIXME: instead of blocking wait, use non-blocking + set_timeout
-  while (!this->humidity_i2c_device_->read_bytes(0xE5, bytes, 3, 50)) {
+  while (!this->humidity_i2c_device_->read_bytes(0xE5, bytes, 3)) {
     ESP_LOGD(TAG, "Humidity not ready");
     if (++failure_count > 5) {
       return;
