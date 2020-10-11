@@ -267,7 +267,7 @@ void MS8607Component::read_humidity_(MS8607Component::HumidityResolution resolut
 
   uint8_t bytes[3];
   uint8_t failure_count = 0;
-  // FIXME: instead of blocking wait, use non-blocking + set_interval
+  // FIXME: instead of blocking wait, use non-blocking + set_timeout
   while (!this->humidity_i2c_device_->read_bytes(0xE5, bytes, 3, 50)) {
     ESP_LOGD(TAG, "Humidity not ready");
     if (++failure_count > 5) {
@@ -285,7 +285,7 @@ void MS8607Component::read_humidity_(MS8607Component::HumidityResolution resolut
   ESP_LOGD(TAG, "Read humidity binary value 0x%04X", humidity);
 
   // map 16 bit humidity value into range [-6%, 118%]
-  float humidity_percentage = lerp(humidity / (1 << 16), -6.0, 118.0);
+  float humidity_percentage = lerp(uint32_t(humidity) / (1 << 16), -6.0, 118.0);
   ESP_LOGD(TAG, "Read humidity percentage of %.4f", humidity_percentage);
 
   // TODO: compensate for temperature
