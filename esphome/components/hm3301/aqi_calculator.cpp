@@ -17,7 +17,7 @@ class AQICalculator : public AbstractAQICalculator {
 
   int index_grid_[AMOUNT_OF_LEVELS][2] = {{0, 51}, {51, 100}, {101, 150}, {151, 200}, {201, 300}, {301, 500}};
 
-  int pm2_5_calculation_grid_[AMOUNT_OF_LEVELS][2] = {{0, 12}, {13, 45}, {36, 55}, {56, 150}, {151, 250}, {251, 500}};
+  int pm2_5_calculation_grid_[AMOUNT_OF_LEVELS][2] = {{0, 12}, {13, 35}, {36, 55}, {56, 150}, {151, 250}, {251, 500}};
 
   int pm10_0_calculation_grid_[AMOUNT_OF_LEVELS][2] = {{0, 54},    {55, 154},  {155, 254},
                                                        {255, 354}, {355, 424}, {425, 604}};

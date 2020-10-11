@@ -36,7 +36,10 @@ const uint8_t FUJITSU_GENERAL_FAN_HIGH_BYTE10 = 0x01;
 const uint8_t FUJITSU_GENERAL_FAN_MEDIUM_BYTE10 = 0x02;
 const uint8_t FUJITSU_GENERAL_FAN_LOW_BYTE10 = 0x03;
 const uint8_t FUJITSU_GENERAL_FAN_SILENT_BYTE10 = 0x04;
-const uint8_t FUJITSU_GENERAL_SWING_MASK_BYTE10 = 0b00010000;
+const uint8_t FUJITSU_GENERAL_SWING_NONE_BYTE10 = 0x00;
+const uint8_t FUJITSU_GENERAL_SWING_VERTICAL_BYTE10 = 0x01;
+const uint8_t FUJITSU_GENERAL_SWING_HORIZONTAL_BYTE10 = 0x02;
+const uint8_t FUJITSU_GENERAL_SWING_BOTH_BYTE10 = 0x03;
 const uint8_t FUJITSU_GENERAL_BASE_BYTE10 = 0x00;
 
 const uint8_t FUJITSU_GENERAL_BASE_BYTE11 = 0x00;
@@ -74,7 +77,12 @@ const uint16_t FUJITSU_GENERAL_TRL_SPACE = 8000;
 
 const uint32_t FUJITSU_GENERAL_CARRIER_FREQUENCY = 38000;
 
-FujitsuGeneralClimate::FujitsuGeneralClimate() : ClimateIR(FUJITSU_GENERAL_TEMP_MIN, FUJITSU_GENERAL_TEMP_MAX, 1) {}
+FujitsuGeneralClimate::FujitsuGeneralClimate()
+    : ClimateIR(
+          FUJITSU_GENERAL_TEMP_MIN, FUJITSU_GENERAL_TEMP_MAX, 1.0f, true, true,
+          {climate::CLIMATE_FAN_AUTO, climate::CLIMATE_FAN_LOW, climate::CLIMATE_FAN_MEDIUM, climate::CLIMATE_FAN_HIGH},
+          {climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_VERTICAL, climate::CLIMATE_SWING_HORIZONTAL,
+           climate::CLIMATE_SWING_BOTH}) {}
 
 void FujitsuGeneralClimate::transmit_state() {
   if (this->mode == climate::CLIMATE_MODE_OFF) {
@@ -101,8 +109,8 @@ void FujitsuGeneralClimate::transmit_state() {
   remote_state[15] = FUJITSU_GENERAL_BASE_BYTE15;
 
   // Set temperature
-  uint8_t safecelsius = std::max((uint8_t) this->target_temperature, FUJITSU_GENERAL_TEMP_MIN);
-  safecelsius = std::min(safecelsius, FUJITSU_GENERAL_TEMP_MAX);
+  auto safecelsius =
+      (uint8_t) roundf(clamp(this->target_temperature, FUJITSU_GENERAL_TEMP_MIN, FUJITSU_GENERAL_TEMP_MAX));
   remote_state[8] = (byte) safecelsius - 16;
   remote_state[8] = remote_state[8] << 4;
 
@@ -119,18 +127,52 @@ void FujitsuGeneralClimate::transmit_state() {
     case climate::CLIMATE_MODE_HEAT:
       remote_state[9] = FUJITSU_GENERAL_MODE_HEAT_BYTE9;
       break;
+    case climate::CLIMATE_MODE_DRY:
+      remote_state[9] = FUJITSU_GENERAL_MODE_DRY_BYTE9;
+      break;
+    case climate::CLIMATE_MODE_FAN_ONLY:
+      remote_state[9] = FUJITSU_GENERAL_MODE_FAN_BYTE9;
+      break;
     case climate::CLIMATE_MODE_AUTO:
     default:
       remote_state[9] = FUJITSU_GENERAL_MODE_AUTO_BYTE9;
       break;
-      // TODO: CLIMATE_MODE_FAN_ONLY, CLIMATE_MODE_DRY, CLIMATE_MODE_10C are missing in esphome
+      // TODO: CLIMATE_MODE_10C are missing in esphome
   }
 
-  // TODO: missing support for fan speed
-  remote_state[10] = FUJITSU_GENERAL_FAN_AUTO_BYTE10;
+  // Set fan
+  switch (this->fan_mode) {
+    case climate::CLIMATE_FAN_HIGH:
+      remote_state[10] = FUJITSU_GENERAL_FAN_HIGH_BYTE10;
+      break;
+    case climate::CLIMATE_FAN_MEDIUM:
+      remote_state[10] = FUJITSU_GENERAL_FAN_MEDIUM_BYTE10;
+      break;
+    case climate::CLIMATE_FAN_LOW:
+      remote_state[10] = FUJITSU_GENERAL_FAN_LOW_BYTE10;
+      break;
+    case climate::CLIMATE_FAN_AUTO:
+    default:
+      remote_state[10] = FUJITSU_GENERAL_FAN_AUTO_BYTE10;
+      break;
+  }
 
-  // TODO: missing support for swing
-  // remote_state[10] = (byte) remote_state[10] | FUJITSU_GENERAL_SWING_MASK_BYTE10;
+  // Set swing
+  switch (this->swing_mode) {
+    case climate::CLIMATE_SWING_VERTICAL:
+      remote_state[10] = (byte) remote_state[10] | (FUJITSU_GENERAL_SWING_VERTICAL_BYTE10 << 4);
+      break;
+    case climate::CLIMATE_SWING_HORIZONTAL:
+      remote_state[10] = (byte) remote_state[10] | (FUJITSU_GENERAL_SWING_HORIZONTAL_BYTE10 << 4);
+      break;
+    case climate::CLIMATE_SWING_BOTH:
+      remote_state[10] = (byte) remote_state[10] | (FUJITSU_GENERAL_SWING_BOTH_BYTE10 << 4);
+      break;
+    case climate::CLIMATE_SWING_OFF:
+    default:
+      remote_state[10] = (byte) remote_state[10] | (FUJITSU_GENERAL_SWING_NONE_BYTE10 << 4);
+      break;
+  }
 
   // TODO: missing support for outdoor unit low noise
   // remote_state[14] = (byte) remote_state[14] | FUJITSU_GENERAL_OUTDOOR_UNIT_LOW_NOISE_BYTE14;
