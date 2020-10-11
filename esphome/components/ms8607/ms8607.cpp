@@ -91,16 +91,16 @@ void MS8607Component::setup() {
 }
 
 void MS8607Component::update() {
-  auto f = std::bind(&MS8607Component::read_humidity, this, OSR_8b);
+  auto f = std::bind(&MS8607Component::read_humidity_, this, HumidityResolution::OSR_8b);
   this->set_timeout("OSR_8b", 10, f);
 
-  auto f2 = std::bind(&MS8607Component::read_humidity_, this, OSR_10B);
+  auto f2 = std::bind(&MS8607Component::read_humidity_, this, HumidityResolution::OSR_10B);
   this->set_timeout("OSR_10B", 1000, f2);
 
-  auto f3 = std::bind(&MS8607Component::read_humidity_, this, OSR_11B);
+  auto f3 = std::bind(&MS8607Component::read_humidity_, this, HumidityResolution::OSR_11B);
   this->set_timeout("OSR_11B", 2000, f3);
-  
-  auto f4 = std::bind(&MS8607Component::read_humidity_, this, OSR_12B);
+
+  auto f4 = std::bind(&MS8607Component::read_humidity_, this, HumidityResolution::OSR_12B);
   this->set_timeout("OSR_12B", 3000, f4);
   // TODO: implement
   return;
@@ -213,7 +213,7 @@ static uint8_t crc4(uint16_t *buffer, size_t length) {
   return crc_remainder >> 12; // only the most significant 4 bits
 }
 
-bool MS8607Component::set_humidity_resolution_(HumidityResolution resolution) {
+bool MS8607Component::set_humidity_resolution_(MS8607Component::HumidityResolution resolution) {
   ESP_LOGD(TAG, "Setting humidity sensor resolution to 0x%02X", static_cast<uint8_t>(resolution));
   uint8_t register_value;
 
@@ -224,7 +224,7 @@ bool MS8607Component::set_humidity_resolution_(HumidityResolution resolution) {
 
   // clear previous resolution & then set new resolution
   register_value = ((register_value & ~MS8607_HUMIDITY_RESOLUTION_MASK)
-                    | (resolution & MS8607_HUMIDITY_RESOLUTION_MASK));
+                    | (static_cast<uint8_t>(resolution) & MS8607_HUMIDITY_RESOLUTION_MASK));
 
   if (!this->humidity_i2c_device_->write_byte(MS8607_CMD_H_WRITE_USER_REGISTER, register_value)) {
     ESP_LOGE(TAG, "Setting humidity sensor resolution failed while writing user register");
@@ -262,7 +262,7 @@ void MS8607Component::read_pressure_(uint32_t raw_temperature) {
   this->calculate_values_(raw_temperature, raw_pressure);
 }
 
-void MS8607Component::read_humidity_(HumidityResolution resolution) {
+void MS8607Component::read_humidity_(MS8607Component::HumidityResolution resolution) {
   this->set_humidity_resolution_(resolution);
 
   uint8_t bytes[3];
