@@ -108,7 +108,11 @@ void MAX7219Component::display() {
   // Send the data to the chip
   for (uint8_t i = 0; i < this->num_chips_; i++) {
     for (uint8_t j = 0; j < 8; j++) {
-      pixels[j] = this->max_displaybuffer_[i * 8 + j];
+      if (this->reverse_) {
+        pixels[j] = this->max_displaybuffer_[(this->num_chips_ - i - 1) * 8 + j];
+      } else {
+        pixels[j] = this->max_displaybuffer_[i * 8 + j];
+      }
     }
     this->send64pixels(i, pixels);
   }
@@ -229,7 +233,7 @@ void MAX7219Component::send64pixels(uint8_t chip, const uint8_t pixels[8]) {
       b = pixels[col];
     } else if (this->orientation_ == 2) {
       for (uint8_t i = 0; i < 8; i++) {
-        b |= ((pixels[i] >> (7 - col)) << (7 - i));
+        b |= ((pixels[i] >> (7 - col)) & 1) << i;
       }
     } else {
       b = pixels[7 - col];

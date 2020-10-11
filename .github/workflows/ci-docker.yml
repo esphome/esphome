@@ -18,6 +18,7 @@ jobs:
     name: Build docker containers
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         arch: [amd64, armv7, aarch64]
         build_type: ["hassio", "docker"]
