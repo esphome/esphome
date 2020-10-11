@@ -12,8 +12,8 @@ class PropertiesFrame : public midea_dongle::BaseFrame {
   PropertiesFrame(const Frame &frame) : BaseFrame(frame) {}
 
   template<typename TF> typename std::enable_if<std::is_base_of<PropertiesFrame, TF>::value, bool>::type is() const {
-     return (this->resp_type_() == 0xC0) && (this->get_type() == 0x03 || this->get_type() == 0x02);
-   }
+    return (this->resp_type_() == 0xC0) && (this->get_type() == 0x03 || this->get_type() == 0x02);
+  }
 
   /* TARGET TEMPERATURE */
 

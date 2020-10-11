@@ -41,7 +41,7 @@ void MideaDongle::loop() {
 }
 
 void MideaDongle::register_listener(MideaAppliance app_type, const std::function<void(Frame &)> &func) {
-  auto listener = MideaListener {
+  auto listener = MideaListener{
       .app_type = app_type,
       .on_frame = func,
   };
