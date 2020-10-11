@@ -1,4 +1,5 @@
 #include "ms8607.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
@@ -19,6 +20,10 @@ static const uint8_t MS8607_PROM_COUNT = (MS8607_PROM_END - MS8607_PROM_START) >
 
 /// Reset the Humidity sensor
 static const uint8_t MS8607_CMD_H_RESET = 0xFE;
+/// Read the humidity sensor user register
+static const uint8_t MS8607_CMD_H_READ_USER_REGISTER = 0xE7;
+/// Write to the humidity sensor user register
+static const uint8_t MS8607_CMD_H_WRITE_USER_REGISTER = 0xE6;
 
 static const uint8_t MS8607_CMD_ADC_READ = 0x00;
 
@@ -38,6 +43,16 @@ enum class MS8607Component::ErrorCode {
   PROM_CRC_FAILED,
 };
 
+// TODO: these values are from data sheet. Sparkfun/Adafruit libraries have different values??
+enum class MS8607Component::HumidityResolution {
+  OSR_12B = 0x00,
+  OSR_11B = 0x01,
+  OSR_10B = 0x80,
+  OSR_8b = 0x81,
+};
+/// Mask for bits of the Humidity Resolution, in the humidity sensor's user register.
+static const uint8_t MS8607_HUMIDITY_RESOLUTION_MASK = 0x81;
+
 static uint8_t crc4(uint16_t *buffer, size_t length);
 
 void MS8607Component::setup() {
@@ -53,6 +68,7 @@ void MS8607Component::setup() {
   bool h_successful = this->humidity_i2c_device_->write_bytes(MS8607_CMD_H_RESET, nullptr, 0);
 
   if (pt_successful && h_successful) {
+    // TODO: blocking wait? Or use set_timeout? I think 15ms is short enough to just block?
     delay(15); // matches Adafruit_MS8607 & SparkFun_PHT_MS8607_Arduino_Library
   } else {
     ESP_LOGE(TAG, "Resetting I2C devices failed. Marking component as failed.");
@@ -70,9 +86,22 @@ void MS8607Component::setup() {
     this->mark_failed();
     return;
   }
+
+
 }
 
 void MS8607Component::update() {
+  auto f = std::bind(&MS8607Component::read_humidity, this, OSR_8b);
+  this->set_timeout("OSR_8b", 10, f);
+
+  auto f2 = std::bind(&MS8607Component::read_humidity_, this, OSR_10B);
+  this->set_timeout("OSR_10B", 1000, f2);
+
+  auto f3 = std::bind(&MS8607Component::read_humidity_, this, OSR_11B);
+  this->set_timeout("OSR_11B", 2000, f3);
+  
+  auto f4 = std::bind(&MS8607Component::read_humidity_, this, OSR_12B);
+  this->set_timeout("OSR_12B", 3000, f4);
   // TODO: implement
   return;
   // request temperature reading
@@ -90,7 +119,7 @@ void MS8607Component::dump_config() {
   LOG_I2C_DEVICE(this);
   // LOG_I2C_DEVICE doesn't work for humidity, the `address_` is private. Log using this object's
   // saved value for the address.
-  ESP_LOGCONFIG(TAG, "  Humidity I2C Address: 0x%02X", this->humidity_sensor_address_);
+  ESP_LOGCONFIG(TAG, "  Address: 0x%02X", this->humidity_sensor_address_);
   if (this->is_failed()) {
     ESP_LOGE(TAG, "Communication with MS8607 failed! Reason: %u",
              static_cast<uint8_t>(this->error_code_));
@@ -113,12 +142,11 @@ void MS8607Component::set_humidity_sensor_address(uint8_t address) {
 bool MS8607Component::read_calibration_values_from_prom_() {
   ESP_LOGD(TAG, "Reading calibration values from PROM");
 
-  uint8_t address_to_read;
   uint16_t buffer[MS8607_PROM_COUNT];
   bool successful = true;
 
   for (uint8_t idx = 0; idx < MS8607_PROM_COUNT; ++idx) {
-    address_to_read = MS8607_PROM_START + (idx * 2);
+    uint8_t address_to_read = MS8607_PROM_START + (idx * 2);
     successful &= this->read_byte_16(address_to_read, &buffer[idx]);
   }
 
@@ -185,6 +213,27 @@ static uint8_t crc4(uint16_t *buffer, size_t length) {
   return crc_remainder >> 12; // only the most significant 4 bits
 }
 
+bool MS8607Component::set_humidity_resolution_(HumidityResolution resolution) {
+  ESP_LOGD(TAG, "Setting humidity sensor resolution to 0x%02X", static_cast<uint8_t>(resolution));
+  uint8_t register_value;
+
+  if (!this->humidity_i2c_device_->read_byte(MS8607_CMD_H_READ_USER_REGISTER, &register_value)) {
+    ESP_LOGE(TAG, "Setting humidity sensor resolution failed while reading user register");
+    return false;
+  }
+
+  // clear previous resolution & then set new resolution
+  register_value = ((register_value & ~MS8607_HUMIDITY_RESOLUTION_MASK)
+                    | (resolution & MS8607_HUMIDITY_RESOLUTION_MASK));
+
+  if (!this->humidity_i2c_device_->write_byte(MS8607_CMD_H_WRITE_USER_REGISTER, register_value)) {
+    ESP_LOGE(TAG, "Setting humidity sensor resolution failed while writing user register");
+    return false;
+  }
+
+  return true;
+}
+
 void MS8607Component::read_temperature_() {
   uint8_t bytes[3];
   if (!this->read_bytes(MS8607_CMD_ADC_READ, bytes, 3)) {
@@ -202,6 +251,7 @@ void MS8607Component::read_temperature_() {
   auto f = std::bind(&MS8607Component::read_pressure_, this, raw_temperature);
   this->set_timeout("pressure", 10, f);
 }
+
 void MS8607Component::read_pressure_(uint32_t raw_temperature) {
   uint8_t bytes[3];
   if (!this->read_bytes(MS8607_CMD_ADC_READ, bytes, 3)) {
@@ -211,6 +261,36 @@ void MS8607Component::read_pressure_(uint32_t raw_temperature) {
   const uint32_t raw_pressure = (uint32_t(bytes[0]) << 16) | (uint32_t(bytes[1]) << 8) | (uint32_t(bytes[2]));
   this->calculate_values_(raw_temperature, raw_pressure);
 }
+
+void MS8607Component::read_humidity_(HumidityResolution resolution) {
+  this->set_humidity_resolution_(resolution);
+
+  uint8_t bytes[3];
+  uint8_t failure_count = 0;
+  // FIXME: instead of blocking wait, use non-blocking + set_interval
+  while (!this->humidity_i2c_device_->read_bytes(0xE5, &bytes, 3, 50)) {
+    ESP_LOGD(TAG, "Humidity not ready");
+    if (++failure_count > 5) {
+      return;
+    }
+    delay(25);
+  }
+
+  uint16_t humidity = encode_uint16(buffer[0], buffer[1]);
+  if (!(humidity & 0x2)) {
+    ESP_LOGE(TAG, "Status bit in humidity data was not set?");
+  }
+  humidity &= ~(0b11); // strip status & unassigned bits from data
+
+  ESP_LOGD(TAG, "Read humidity binary value 0x%04X", humidity);
+
+  // map 16 bit humidity value into range [-6%, 118%]
+  float humidity_percentage = lerp(humidity / (1 << 16), -6.0, 118.0);
+  ESP_LOGD(TAG, "Read humidity percentage of %.4f", humidity_percentage);
+
+  // TODO: compensate for temperature
+}
+
 void MS8607Component::calculate_values_(uint32_t raw_temperature, uint32_t raw_pressure) {
   const int32_t d_t = int32_t(raw_temperature) - (uint32_t(this->prom_[4]) << 8);
   float temperature = (2000 + (int64_t(d_t) * this->prom_[5]) / 8388608.0f) / 100.0f;

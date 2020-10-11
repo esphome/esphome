@@ -29,6 +29,7 @@ class MS8607Component : public PollingComponent, public i2c::I2CDevice {
 
   void read_temperature_();
   void read_pressure_(uint32_t raw_temperature);
+  void read_humidity_(HumidityResolution resolution);
   void calculate_values_(uint32_t raw_temperature, uint32_t raw_pressure);
 
   sensor::Sensor *temperature_sensor_;
@@ -66,6 +67,8 @@ class MS8607Component : public PollingComponent, public i2c::I2CDevice {
   /// Keep track of the reason why this component failed, to augment the dumped config
   ErrorCode error_code_;
 
+  enum class HumidityResolution;
+  bool set_humidity_resolution_(HumidityResolution resolution);
 
   uint16_t prom_[7];
 };
