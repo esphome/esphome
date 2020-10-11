@@ -38,6 +38,8 @@ enum class MS8607Component::FailureReason {
   FAILURE_REASON_PROM_CRC_FAILED,
 };
 
+static uint8_t crc4(uint16_t *buffer, size_t length);
+
 void MS8607Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up MS8607...");
   this->failure_reason_ = FailureReason::FAILURE_REASON_NONE;
@@ -126,8 +128,56 @@ bool MS8607Component::read_calibration_values_from_prom_() {
     return false;
   }
 
-  // TODO: check CRC & pull out specific values
+  ESP_LOGD(TAG, "Checking CRC of calibration values from PROM");
+  uint8_t expected_crc = (buffer[0] & 0xF000) >> 12; // first 4 bits
+  buffer[0] &= 0x0FFF; // strip CRC from buffer, in order to run CRC
+  uint8_t actual_crc = crc4(buffer, MS8607_PROM_COUNT);
+
+  if (expected_crc != actual_crc) {
+    ESP_LOGE(TAG, "Incorrect CRC value. Provided value 0x%01X != calculated value 0x%01X",
+             expected_crc, actual_crc);
+    this->failure_reason_ = FailureReason::FAILURE_REASON_PROM_CRC_FAILED;
+    return false;
+  }
+
+  // TODO: pull and save calibration values
+
   return true;
+}
+
+
+/**
+ CRC-4 algorithm from datasheet. It operates on a buffer of 16-bit values, one byte at a time, using a 16-bit
+ value to collect the CRC result into.
+
+ The provided/expected CRC value must already be zeroed out from the buffer.
+ */
+static uint8_t crc4(uint16_t *buffer, size_t length) {
+  uint16_t crc_remainder = 0;
+
+  // algorithm to add a byte into the crc
+  auto apply_crc = [&crc_remainder](uint8_t next) {
+    crc_remainder ^= next;
+    for (uint8_t bit = 8; bit > 0; --bit) {
+      if (crc_remainder & 0x8000) {
+        crc_remainder = (crc_remainder << 1) ^ 0x3000;
+      } else {
+        crc_remainder = (crc_remainder << 1);
+      }
+    }
+  };
+
+  // add all the bytes
+  for (uint8_t idx = 0; idx < length; ++idx) {
+    for (auto byte : decode_uint16(buffer[idx])) {
+      apply_crc(byte);
+    }
+  }
+  // For the MS8607 CRC, add a pair of zeros to shift the last byte from `buffer` through
+  apply_crc(0);
+  apply_crc(0);
+
+  return crc_remainder >> 12; // only the most significant 4 bits
 }
 
 void MS8607Component::read_temperature_() {
