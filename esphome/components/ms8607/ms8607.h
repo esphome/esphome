@@ -7,6 +7,13 @@
 namespace esphome {
 namespace ms8607 {
 
+/**
+ Temperature, pressure, and humidity sensor.
+
+ By default, the MS8607 measures humidity at the highest resolution (12 bits)
+ A potential enhancement would be to expose the resolution as a configurable
+ setting. 
+ */
 class MS8607Component : public PollingComponent, public i2c::I2CDevice {
  public:
   void setup() override;
@@ -27,11 +34,9 @@ class MS8607Component : public PollingComponent, public i2c::I2CDevice {
    */
   bool read_calibration_values_from_prom_();
 
-  enum class HumidityResolution;
-
   void read_temperature_();
   void read_pressure_(uint32_t raw_temperature);
-  void read_humidity_(HumidityResolution resolution);
+  void read_humidity_();
   void calculate_values_(uint32_t raw_temperature, uint32_t raw_pressure);
 
   sensor::Sensor *temperature_sensor_;
@@ -68,9 +73,6 @@ class MS8607Component : public PollingComponent, public i2c::I2CDevice {
   enum class ErrorCode;
   /// Keep track of the reason why this component failed, to augment the dumped config
   ErrorCode error_code_;
-
-
-  bool set_humidity_resolution_(HumidityResolution resolution);
 
   uint16_t prom_[7];
 };

@@ -43,16 +43,6 @@ enum class MS8607Component::ErrorCode {
   PROM_CRC_FAILED,
 };
 
-// TODO: these values are from data sheet. Sparkfun/Adafruit libraries have different values??
-enum class MS8607Component::HumidityResolution {
-  OSR_12B = 0x00,
-  OSR_11B = 0x01,
-  OSR_10B = 0x80,
-  OSR_8b = 0x81,
-};
-/// Mask for bits of the Humidity Resolution, in the humidity sensor's user register.
-static const uint8_t MS8607_HUMIDITY_RESOLUTION_MASK = 0x81;
-
 static uint8_t crc4(uint16_t *buffer, size_t length);
 
 void MS8607Component::setup() {
@@ -86,22 +76,10 @@ void MS8607Component::setup() {
     this->mark_failed();
     return;
   }
-
-
 }
 
 void MS8607Component::update() {
-  auto f1 = std::bind(&MS8607Component::read_humidity_, this, HumidityResolution::OSR_8b);
-  this->set_timeout("OSR_8b", 10, f1);
-
-  auto f2 = std::bind(&MS8607Component::read_humidity_, this, HumidityResolution::OSR_10B);
-  this->set_timeout("OSR_10B", 1000, f2);
-
-  auto f3 = std::bind(&MS8607Component::read_humidity_, this, HumidityResolution::OSR_11B);
-  this->set_timeout("OSR_11B", 2000, f3);
-
-  auto f4 = std::bind(&MS8607Component::read_humidity_, this, HumidityResolution::OSR_12B);
-  this->set_timeout("OSR_12B", 3000, f4);
+  this->read_humidity_();
   // TODO: implement
   return;
   // request temperature reading
@@ -213,27 +191,6 @@ static uint8_t crc4(uint16_t *buffer, size_t length) {
   return crc_remainder >> 12; // only the most significant 4 bits
 }
 
-bool MS8607Component::set_humidity_resolution_(MS8607Component::HumidityResolution resolution) {
-  ESP_LOGD(TAG, "Setting humidity sensor resolution to 0x%02X", static_cast<uint8_t>(resolution));
-  uint8_t register_value;
-
-  if (!this->humidity_i2c_device_->read_byte(MS8607_CMD_H_READ_USER_REGISTER, &register_value)) {
-    ESP_LOGE(TAG, "Setting humidity sensor resolution failed while reading user register");
-    return false;
-  }
-
-  // clear previous resolution & then set new resolution
-  register_value = ((register_value & ~MS8607_HUMIDITY_RESOLUTION_MASK)
-                    | (static_cast<uint8_t>(resolution) & MS8607_HUMIDITY_RESOLUTION_MASK));
-
-  if (!this->humidity_i2c_device_->write_byte(MS8607_CMD_H_WRITE_USER_REGISTER, register_value)) {
-    ESP_LOGE(TAG, "Setting humidity sensor resolution failed while writing user register");
-    return false;
-  }
-
-  return true;
-}
-
 void MS8607Component::read_temperature_() {
   uint8_t bytes[3];
   if (!this->read_bytes(MS8607_CMD_ADC_READ, bytes, 3)) {
@@ -262,9 +219,7 @@ void MS8607Component::read_pressure_(uint32_t raw_temperature) {
   this->calculate_values_(raw_temperature, raw_pressure);
 }
 
-void MS8607Component::read_humidity_(MS8607Component::HumidityResolution resolution) {
-  this->set_humidity_resolution_(resolution);
-
+void MS8607Component::read_humidity_() {
   uint8_t bytes[3];
   uint8_t failure_count = 0;
   // FIXME: instead of blocking wait, use non-blocking + set_timeout
@@ -278,9 +233,11 @@ void MS8607Component::read_humidity_(MS8607Component::HumidityResolution resolut
 
   uint16_t humidity = encode_uint16(bytes[0], bytes[1]);
   if (!(humidity & 0x2)) {
-    ESP_LOGE(TAG, "Status bit in humidity data was not set?");
+    ESP_LOGE(TAG, "Status bit in humidity data was not set to 1?");
   }
   humidity &= ~(0b11); // strip status & unassigned bits from data
+
+  // FIXME: detect errors with the checksum in bytes[2]?
 
   ESP_LOGD(TAG, "Read humidity binary value 0x%04X", humidity);
 
