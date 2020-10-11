@@ -285,7 +285,7 @@ void MS8607Component::read_humidity_(MS8607Component::HumidityResolution resolut
   ESP_LOGD(TAG, "Read humidity binary value 0x%04X", humidity);
 
   // map 16 bit humidity value into range [-6%, 118%]
-  float humidity_partial = float(humidity) / (1 << 16);
+  float humidity_partial = double(humidity) / (1 << 16);
   ESP_LOGD(TAG, "Read humidity partial of %.4f", humidity_partial); // should be [0.0, 1.0]
   float humidity_percentage = lerp(humidity_partial, -6.0, 118.0);
   ESP_LOGD(TAG, "Read humidity percentage of %.4f", humidity_percentage);
