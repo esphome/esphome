@@ -140,11 +140,16 @@ bool MS8607Component::read_calibration_values_from_prom_() {
     return false;
   }
 
-  // TODO: pull and save calibration values
+  this->calibration_values_.pressure_sensitivity = buffer[1];
+  this->calibration_values_.pressure_offset = buffer[2];
+  this->calibration_values_.pressure_sensitivity_temperature_coefficient = buffer[3];
+  this->calibration_values_.pressure_offset_temperature_coefficient = buffer[4];
+  this->calibration_values_.reference_temperature = buffer[5];
+  this->calibration_values_.temperature_coefficient_of_temperature = buffer[6];
+  ESP_LOGD(TAG, "Finished reading calibration values");
 
   return true;
 }
-
 
 /**
  CRC-4 algorithm from datasheet. It operates on a buffer of 16-bit values, one byte at a time, using a 16-bit

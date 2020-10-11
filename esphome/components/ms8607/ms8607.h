@@ -45,7 +45,21 @@ class MS8607Component : public PollingComponent, public i2c::I2CDevice {
   /// I2C address for the humidity sensor
   uint8_t humidity_sensor_address_;
 
-  uint16_t prom_[7];
+  /// This device's pressure & temperature calibration values, read from PROM
+  struct CalibrationValues {
+    /// Pressure sensitivity | SENS-T1. [C1]
+    uint16_t pressure_sensitivity;
+    /// Temperature coefficient of pressure sensitivity | TCS. [C3]
+    uint16_t pressure_sensitivity_temperature_coefficient;
+    /// Pressure offset | OFF-T1. [C2]
+    uint16_t pressure_offset;
+    /// Temperature coefficient of pressure offset | TCO. [C4]
+    uint16_t pressure_offset_temperature_coefficient;
+    /// Reference temperature | T-REF. [C5]
+    uint16_t reference_temperature;
+    /// Temperature coefficient of the temperature | TEMPSENS. [C6]
+    uint16_t temperature_coefficient_of_temperature;
+  } calibration_values_;
 
   /// Possible failure reasons of this component
   enum class FailureReason;
