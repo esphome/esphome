@@ -91,8 +91,8 @@ void MS8607Component::setup() {
 }
 
 void MS8607Component::update() {
-  auto f = std::bind(&MS8607Component::read_humidity_, this, HumidityResolution::OSR_8b);
-  this->set_timeout("OSR_8b", 10, f);
+  auto f1 = std::bind(&MS8607Component::read_humidity_, this, HumidityResolution::OSR_8b);
+  this->set_timeout("OSR_8b", 10, f1);
 
   auto f2 = std::bind(&MS8607Component::read_humidity_, this, HumidityResolution::OSR_10B);
   this->set_timeout("OSR_10B", 1000, f2);
@@ -268,7 +268,7 @@ void MS8607Component::read_humidity_(MS8607Component::HumidityResolution resolut
   uint8_t bytes[3];
   uint8_t failure_count = 0;
   // FIXME: instead of blocking wait, use non-blocking + set_interval
-  while (!this->humidity_i2c_device_->read_bytes(0xE5, &bytes, 3, 50)) {
+  while (!this->humidity_i2c_device_->read_bytes(0xE5, bytes, 3, 50)) {
     ESP_LOGD(TAG, "Humidity not ready");
     if (++failure_count > 5) {
       return;
@@ -276,7 +276,7 @@ void MS8607Component::read_humidity_(MS8607Component::HumidityResolution resolut
     delay(25);
   }
 
-  uint16_t humidity = encode_uint16(buffer[0], buffer[1]);
+  uint16_t humidity = encode_uint16(bytes[0], bytes[1]);
   if (!(humidity & 0x2)) {
     ESP_LOGE(TAG, "Status bit in humidity data was not set?");
   }
