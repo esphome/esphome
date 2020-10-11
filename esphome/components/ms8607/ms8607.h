@@ -62,9 +62,9 @@ class MS8607Component : public PollingComponent, public i2c::I2CDevice {
   } calibration_values_;
 
   /// Possible failure reasons of this component
-  enum class FailureReason;
+  enum class ErrorCode;
   /// Keep track of the reason why this component failed, to augment the dumped config
-  FailureReason failure_reason_;
+  ErrorCode error_code_;
 
 
   uint16_t prom_[7];

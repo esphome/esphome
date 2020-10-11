@@ -25,24 +25,24 @@ static const uint8_t MS8607_CMD_ADC_READ = 0x00;
 static const uint8_t MS8607_CMD_CONV_D1 = 0x40;
 static const uint8_t MS8607_CMD_CONV_D2 = 0x50;
 
-enum class MS8607Component::FailureReason {
+enum class MS8607Component::ErrorCode {
   /// Component hasn't failed (yet?)
-  FAILURE_REASON_NONE = 0,
+  NONE = 0,
   /// Asking the Pressure/Temperature sensor to reset failed
-  FAILURE_REASON_PT_RESET_FAILED,
+  PT_RESET_FAILED,
   /// Asking the Humidity sensor to reset failed
-  FAILURE_REASON_H_RESET_FAILED,
+  H_RESET_FAILED,
   /// Reading the PROM calibration values failed
-  FAILURE_REASON_PROM_READ_FAILED,
+  PROM_READ_FAILED,
   /// The PROM calibration values failed the CRC check
-  FAILURE_REASON_PROM_CRC_FAILED,
+  PROM_CRC_FAILED,
 };
 
 static uint8_t crc4(uint16_t *buffer, size_t length);
 
 void MS8607Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up MS8607...");
-  this->failure_reason_ = FailureReason::FAILURE_REASON_NONE;
+  this->error_code_ = ErrorCode::NONE;
 
   ESP_LOGD(TAG, "Resetting both I2C addresses: 0x%02X, 0x%02X",
            this->address_, this->humidity_sensor_address_);
@@ -57,9 +57,9 @@ void MS8607Component::setup() {
   } else {
     ESP_LOGE(TAG, "Resetting I2C devices failed. Marking component as failed.");
     if (h_successful) {
-      this->failure_reason_ = FailureReason::FAILURE_REASON_PT_RESET_FAILED;
+      this->error_code_ = ErrorCode::PT_RESET_FAILED;
     } else {
-      this->failure_reason_ = FailureReason::FAILURE_REASON_H_RESET_FAILED;
+      this->error_code_ = ErrorCode::H_RESET_FAILED;
     }
 
     this->mark_failed();
@@ -93,7 +93,7 @@ void MS8607Component::dump_config() {
   ESP_LOGCONFIG(TAG, "  Humidity I2C Address: 0x%02X", this->humidity_sensor_address_);
   if (this->is_failed()) {
     ESP_LOGE(TAG, "Communication with MS8607 failed! Reason: %u",
-             static_cast<uint8_t>(this->failure_reason_));
+             static_cast<uint8_t>(this->error_code_));
   }
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
@@ -124,7 +124,7 @@ bool MS8607Component::read_calibration_values_from_prom_() {
 
   if (!successful) {
     ESP_LOGE(TAG, "Reading calibration values from PROM failed");
-    this->failure_reason_ = FailureReason::FAILURE_REASON_PROM_READ_FAILED;
+    this->error_code_ = ErrorCode::PROM_READ_FAILED;
     return false;
   }
 
@@ -136,7 +136,7 @@ bool MS8607Component::read_calibration_values_from_prom_() {
   if (expected_crc != actual_crc) {
     ESP_LOGE(TAG, "Incorrect CRC value. Provided value 0x%01X != calculated value 0x%01X",
              expected_crc, actual_crc);
-    this->failure_reason_ = FailureReason::FAILURE_REASON_PROM_CRC_FAILED;
+    this->error_code_ = ErrorCode::PROM_CRC_FAILED;
     return false;
   }
 
