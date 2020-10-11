@@ -11,7 +11,7 @@ public:
   float get_setup_priority() const override { return setup_priority::LATE; }
   void loop() override;
 
-  void register_listener(MideaAppliance appliance, const std::function<void(Frame &)> &func);
+  void register_listener(MideaAppliance app_type, const std::function<void(Frame &)> &func);
   void write_frame(const Frame &frame) { this->write_array(frame.data(), frame.size()); }
   
 protected:

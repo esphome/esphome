@@ -78,7 +78,7 @@ class BaseFrame : public Frame {
   }
 
  protected:
-  static const uint8_t PROGMEM CRC_TABLE_[256];
+  static const uint8_t PROGMEM CRC_TABLE[256];
   void set_bytemask_(uint8_t idx, uint8_t mask, bool state);
 
   uint8_t resp_type_() const {

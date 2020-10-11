@@ -90,5 +90,5 @@ void MideaClimate::dump_config() {
 }
 #endif
 
-}  // namespace midea_dongle
+}  // namespace midea_ac
 }  // namespace esphome

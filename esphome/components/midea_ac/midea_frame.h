@@ -64,20 +64,20 @@ class PropertiesFrame : public midea_dongle::BaseFrame {
 class QueryFrame : public midea_dongle::StaticFrame<midea_dongle::Frame>
 {
  public:
-  QueryFrame() : StaticFrame(FPSTR(this->INIT_)) {}
+  QueryFrame() : StaticFrame(FPSTR(this->INIT)) {}
  private:
-  static const uint8_t PROGMEM INIT_[];
+  static const uint8_t PROGMEM INIT[];
 };
 
 // Query state frame (read-only)
 class CommandFrame : public midea_dongle::StaticFrame<PropertiesFrame> {
  public:
-  CommandFrame() : StaticFrame(FPSTR(this->INIT_)) {}
+  CommandFrame() : StaticFrame(FPSTR(this->INIT)) {}
   void set_beeper_feedback(bool state) {
     this->set_bytemask_(11, 0x40, state);
   }
  private:
-  static const uint8_t PROGMEM INIT_[];
+  static const uint8_t PROGMEM INIT[];
 };
 
 } // namespace midea_ac

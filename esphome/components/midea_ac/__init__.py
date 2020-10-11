@@ -8,14 +8,14 @@ AUTO_LOAD = ['climate']
 DEPENDENCIES = ['midea_dongle']
 CODEOWNERS = ['@dudanov']
 
-CONF_BEEPER_FEEDBACK = 'beeper'
+CONF_BEEPER = 'beeper'
 midea_ac_ns = cg.esphome_ns.namespace('midea_ac')
 MideaClimate = midea_ac_ns.class_('MideaClimate', climate.Climate, cg.Component)
 
 CONFIG_SCHEMA = cv.All(climate.CLIMATE_SCHEMA.extend({
     cv.GenerateID(): cv.declare_id(MideaClimate),
     cv.GenerateID(CONF_MIDEA_DONGLE_ID): cv.use_id(MideaDongle),
-    cv.Optional(CONF_BEEPER_FEEDBACK, default=False): cv.boolean,
+    cv.Optional(CONF_BEEPER, default=False): cv.boolean,
 }).extend(cv.COMPONENT_SCHEMA))
 
 def to_code(config):
@@ -25,4 +25,4 @@ def to_code(config):
 
     paren = yield cg.get_variable(config[CONF_MIDEA_DONGLE_ID])
     cg.add(var.set_midea_dongle_parent(paren))
-    cg.add(var.set_beeper_feedback(config[CONF_BEEPER_FEEDBACK]))
+    cg.add(var.set_beeper_feedback(config[CONF_BEEPER]))

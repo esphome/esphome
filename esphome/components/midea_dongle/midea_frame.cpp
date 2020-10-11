@@ -3,7 +3,7 @@
 namespace esphome {
 namespace midea_dongle {
 
-const uint8_t BaseFrame::CRC_TABLE_[] = {
+const uint8_t BaseFrame::CRC_TABLE[] = {
   0x00, 0x5E, 0xBC, 0xE2, 0x61, 0x3F, 0xDD, 0x83,
   0xC2, 0x9C, 0x7E, 0x20, 0xA3, 0xFD, 0x1F, 0x41,
   0x9D, 0xC3, 0x21, 0x7F, 0xFC, 0xA2, 0x40, 0x1E,
@@ -39,13 +39,8 @@ const uint8_t BaseFrame::CRC_TABLE_[] = {
 };
 
 bool BaseFrame::is_valid() const {
-
-  if (this->pbuf_[OFFSET_START] == SYNC_BYTE &&
-            this->has_valid_cs_() && this->has_valid_crc_()) {
-    return true;
-  }
-
-  return false;
+  return (this->pbuf_[OFFSET_START] == SYNC_BYTE &&
+            this->has_valid_cs_() && this->has_valid_crc_());
 }
 
 void BaseFrame::finalize() {
@@ -60,7 +55,7 @@ void BaseFrame::update_crc_() {
   uint8_t len = this->length_() - OFFSET_BODY;
 
   while (--len) {
-    crc = pgm_read_byte(this->CRC_TABLE_ + (crc ^ *ptr++));
+    crc = pgm_read_byte(this->CRC_TABLE + (crc ^ *ptr++));
   }
 
   *ptr = crc;
@@ -86,7 +81,7 @@ bool BaseFrame::has_valid_crc_() const {
   uint8_t len = this->length_() - 10;
 
   for ( ; len; ptr++, len--) {
-    crc = pgm_read_byte(this->CRC_TABLE_ + (crc ^ *ptr));
+    crc = pgm_read_byte(this->CRC_TABLE + (crc ^ *ptr));
   }
 
   return !crc;
