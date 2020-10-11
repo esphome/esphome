@@ -177,6 +177,8 @@ sensor:
       name: "ATC Humidity"
     battery_level:
       name: "ATC Battery-Level"
+    battery_voltage:
+      name: "ATC Battery-Voltage"
 
 time:
 - platform: homeassistant
