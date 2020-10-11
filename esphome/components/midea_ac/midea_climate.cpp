@@ -5,11 +5,9 @@ namespace esphome {
 namespace midea_ac {
 
 void MideaClimate::setup() {
-
   this->set_update_interval(1000);
 
   this->parent_->register_listener(midea_dongle::MideaAppliance::AIR_CONDITIONER, [this](midea_dongle::Frame &frame) {
-
     auto p = frame.as<PropertiesFrame>();
 
     switch (p.get_type()) {
@@ -46,7 +44,6 @@ void MideaClimate::update() {
 }
 
 void MideaClimate::control(const climate::ClimateCall &call) {
-
   this->cmd_frame_.set_mode(call.get_mode().value_or(this->mode));
   this->cmd_frame_.set_target_temp(call.get_target_temperature().value_or(this->target_temperature));
   this->cmd_frame_.set_fan_mode(call.get_fan_mode().value_or(this->fan_mode));
@@ -77,18 +74,6 @@ climate::ClimateTraits MideaClimate::traits() {
   traits.set_supports_current_temperature(true);
   return traits;
 }
-
-#if 0
-void MideaClimate::dump_config() {
-  LOG_CLIMATE("", "Tuya Climate", this);
-  if (this->switch_id_.has_value())
-    ESP_LOGCONFIG(TAG, "  Switch has datapoint ID %u", *this->switch_id_);
-  if (this->target_temperature_id_.has_value())
-    ESP_LOGCONFIG(TAG, "  Target Temperature has datapoint ID %u", *this->target_temperature_id_);
-  if (this->current_temperature_id_.has_value())
-    ESP_LOGCONFIG(TAG, "  Current Temperature has datapoint ID %u", *this->current_temperature_id_);
-}
-#endif
 
 }  // namespace midea_ac
 }  // namespace esphome

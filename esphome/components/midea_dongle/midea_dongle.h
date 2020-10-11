@@ -7,14 +7,14 @@ namespace esphome {
 namespace midea_dongle {
 
 class MideaDongle : public Component, public uart::UARTDevice {
-public:
+ public:
   float get_setup_priority() const override { return setup_priority::LATE; }
   void loop() override;
 
   void register_listener(MideaAppliance app_type, const std::function<void(Frame &)> &func);
   void write_frame(const Frame &frame) { this->write_array(frame.data(), frame.size()); }
-  
-protected:
+
+ protected:
   // Buffer
   uint8_t buf_[36];
   // Index

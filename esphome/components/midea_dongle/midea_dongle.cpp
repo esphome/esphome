@@ -6,22 +6,20 @@ namespace esphome {
 namespace midea_dongle {
 
 void MideaDongle::loop() {
-
   while (this->available()) {
-
     const uint8_t rx = this->read();
-    
+
     switch (this->idx_) {
-    case OFFSET_START:
-      if (rx != SYNC_BYTE)
-        continue;
-      break;
-    case OFFSET_LENGTH:
-      if (!rx || rx >= sizeof(buf_)) {
-        reset_();
-        continue;
-      }
-      this->cnt_ = rx;
+      case OFFSET_START:
+        if (rx != SYNC_BYTE)
+          continue;
+        break;
+      case OFFSET_LENGTH:
+        if (!rx || rx >= sizeof(buf_)) {
+          reset_();
+          continue;
+        }
+        this->cnt_ = rx;
     }
 
     this->buf_[this->idx_++] = rx;
@@ -42,8 +40,7 @@ void MideaDongle::loop() {
   }
 }
 
-void
-MideaDongle::register_listener(MideaAppliance app_type, const std::function<void(Frame &)> &func) {
+void MideaDongle::register_listener(MideaAppliance app_type, const std::function<void(Frame &)> &func) {
   auto listener = MideaListener {
       .app_type = app_type,
       .on_frame = func,
