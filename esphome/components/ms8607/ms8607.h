@@ -65,6 +65,9 @@ class MS8607Component : public PollingComponent, public i2c::I2CDevice {
   enum class FailureReason;
   /// Keep track of the reason why this component failed, to augment the dumped config
   FailureReason failure_reason_;
+
+
+  uint16_t prom_[7];
 };
 
 }  // namespace ms8607
