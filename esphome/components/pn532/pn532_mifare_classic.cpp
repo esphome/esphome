@@ -105,35 +105,26 @@ bool PN532::format_mifare_classic_mifare_(std::vector<uint8_t> &uid) {
 
   bool error = false;
 
-  for (int idx = 0; idx < 16; idx++) {
-    if (!this->auth_mifare_classic_block_(uid, (4 * idx) + 3, nfc::MIFARE_CMD_AUTH_B, nfc::DEFAULT_KEY)) {
-      ESP_LOGE(TAG, "No keys work!!! sector %d", idx);
+  for (int block = 0; block < 64; block += 4) {
+    if (!this->auth_mifare_classic_block_(uid, block + 3, nfc::MIFARE_CMD_AUTH_B, nfc::DEFAULT_KEY)) {
       continue;
     }
-
-    if (idx == 0) {
-      if (!this->write_mifare_classic_block_((4 * idx) + 1, blank_buffer)) {
-        ESP_LOGE(TAG, "Unable to write sector %d-%d", idx, (4 * idx) + 1);
-        error = true;
-      }
-    } else {
-      if (!this->write_mifare_classic_block_((4 * idx), blank_buffer)) {
-        ESP_LOGE(TAG, "Unable to write sector %d-%d", idx, (4 * idx));
-        error = true;
-      }
-      if (!this->write_mifare_classic_block_((4 * idx) + 1, blank_buffer)) {
-        ESP_LOGE(TAG, "Unable to write sector %d-%d", idx, (4 * idx) + 1);
+    if (block != 0) {
+      if (!this->write_mifare_classic_block_(block, blank_buffer)) {
+        ESP_LOGE(TAG, "Unable to write block %d", block);
         error = true;
       }
     }
-
-    if (!this->write_mifare_classic_block_((4 * idx) + 2, blank_buffer)) {
-      ESP_LOGE(TAG, "Unable to write sector %d-%d", idx, (4 * idx) + 2);
+    if (!this->write_mifare_classic_block_(block + 1, blank_buffer)) {
+      ESP_LOGE(TAG, "Unable to write block %d", block + 1);
       error = true;
     }
-
-    if (!this->write_mifare_classic_block_((4 * idx) + 3, trailer_buffer)) {
-      ESP_LOGE(TAG, "Unable to write trailer of sector %d-%d", idx, (4 * idx) + 3);
+    if (!this->write_mifare_classic_block_(block + 2, blank_buffer)) {
+      ESP_LOGE(TAG, "Unable to write block %d", block + 2);
+      error = true;
+    }
+    if (!this->write_mifare_classic_block_(block + 3, trailer_buffer)) {
+      ESP_LOGE(TAG, "Unable to write block %d", block + 3);
       error = true;
     }
   }
@@ -144,46 +135,47 @@ bool PN532::format_mifare_classic_mifare_(std::vector<uint8_t> &uid) {
 bool PN532::format_mifare_classic_ndef_(std::vector<uint8_t> &uid) {
   std::vector<uint8_t> empty_ndef_message(
       {0x03, 0x03, 0xD0, 0x00, 0x00, 0xFE, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00});
-  std::vector<uint8_t> sector_buffer_0(
+  std::vector<uint8_t> blank_block(
       {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00});
-  std::vector<uint8_t> sector_buffer_1(
+  std::vector<uint8_t> block_1_data(
       {0x14, 0x01, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1});
-  std::vector<uint8_t> sector_buffer_2(
+  std::vector<uint8_t> block_2_data(
       {0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1});
-  std::vector<uint8_t> sector_buffer_3(
+  std::vector<uint8_t> block_3_trailer(
       {0xA0, 0xA1, 0xA2, 0xA3, 0xA4, 0xA5, 0x78, 0x77, 0x88, 0xC1, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF});
-  std::vector<uint8_t> sector_buffer_4(
+  std::vector<uint8_t> ndef_trailer(
       {0xD3, 0xF7, 0xD3, 0xF7, 0xD3, 0xF7, 0x7F, 0x07, 0x88, 0x40, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF});
 
   if (!this->auth_mifare_classic_block_(uid, 0, nfc::MIFARE_CMD_AUTH_B, nfc::DEFAULT_KEY)) {
     ESP_LOGE(TAG, "Unable to authenticate block 0 for formatting!");
     return false;
   }
-  if (!this->write_mifare_classic_block_(1, sector_buffer_1))
+  if (!this->write_mifare_classic_block_(1, block_1_data))
     return false;
-  if (!this->write_mifare_classic_block_(2, sector_buffer_2))
+  if (!this->write_mifare_classic_block_(2, block_2_data))
     return false;
-  if (!this->write_mifare_classic_block_(3, sector_buffer_3))
+  if (!this->write_mifare_classic_block_(3, block_3_trailer))
     return false;
 
-  for (int i = 4; i < 64; i += 4) {
-    if (!this->auth_mifare_classic_block_(uid, i, nfc::MIFARE_CMD_AUTH_B, nfc::DEFAULT_KEY)) {
-      ESP_LOGE(TAG, "Failed to authenticate with block %d", i);
-      continue;
+  ESP_LOGD(TAG, "Sector 0 formatted to NDEF");
+
+  for (int block = 4; block < 64; block += 4) {
+    if (!this->auth_mifare_classic_block_(uid, block + 3, nfc::MIFARE_CMD_AUTH_B, nfc::DEFAULT_KEY)) {
+      return false;
     }
-    if (i == 4) {
-      if (!this->write_mifare_classic_block_(i, empty_ndef_message))
-        ESP_LOGE(TAG, "Unable to write block %d", i);
+    if (block == 4) {
+      if (!this->write_mifare_classic_block_(block, empty_ndef_message))
+        ESP_LOGE(TAG, "Unable to write block %d", block);
     } else {
-      if (!this->write_mifare_classic_block_(i, sector_buffer_0))
-        ESP_LOGE(TAG, "Unable to write block %d", i);
+      if (!this->write_mifare_classic_block_(block, blank_block))
+        ESP_LOGE(TAG, "Unable to write block %d", block);
     }
-    if (!this->write_mifare_classic_block_(i + 1, sector_buffer_0))
-      ESP_LOGE(TAG, "Unable to write block %d", i + 1);
-    if (!this->write_mifare_classic_block_(i + 2, sector_buffer_0))
-      ESP_LOGE(TAG, "Unable to write block %d", i + 2);
-    if (!this->write_mifare_classic_block_(i + 3, sector_buffer_4))
-      ESP_LOGE(TAG, "Unable to write block %d", i + 3);
+    if (!this->write_mifare_classic_block_(block + 1, blank_block))
+      ESP_LOGE(TAG, "Unable to write block %d", block + 1);
+    if (!this->write_mifare_classic_block_(block + 2, blank_block))
+      ESP_LOGE(TAG, "Unable to write block %d", block + 2);
+    if (!this->write_mifare_classic_block_(block + 3, ndef_trailer))
+      ESP_LOGE(TAG, "Unable to write trailer block %d", block + 3);
   }
   return true;
 }
