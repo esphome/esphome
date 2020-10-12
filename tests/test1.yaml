@@ -586,6 +586,10 @@ sensor:
       - sensor.rotary_encoder.set_value:
           id: rotary_encoder1
           value: !lambda 'return -1;'
+    on_clockwise:
+      - logger.log: "Clockwise"
+    on_anticlockwise:
+      - logger.log: "Anticlockwise"
   - platform: pulse_width
     name: Pulse Width
     pin: GPIO12
