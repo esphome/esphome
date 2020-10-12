@@ -10,8 +10,8 @@ AUTO_LOAD = ['xiaomi_ble']
 
 xiaomi_mhoc401_ns = cg.esphome_ns.namespace('xiaomi_mhoc401')
 XiaomiMHOC401 = xiaomi_mhoc401_ns.class_('XiaomiMHOC401',
-                                               esp32_ble_tracker.ESPBTDeviceListener,
-                                               cg.Component)
+                                         esp32_ble_tracker.ESPBTDeviceListener,
+                                         cg.Component)
 
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(XiaomiMHOC401),
