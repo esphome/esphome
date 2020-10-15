@@ -22,7 +22,6 @@ class MideaDongle : public PollingComponent, public uart::UARTDevice {
   float get_setup_priority() const override { return setup_priority::LATE; }
   void update() override;
   void loop() override;
-
   void set_appliance(MideaAppliance *app) { this->appliance_ = app; }
   void set_wifi_sensor(wifi_signal::WiFiSignalSensor *wfs) { this->wifi_sensor_ = wfs; }
   void write_frame(const Frame &frame) { this->write_array(frame.data(), frame.size()); }
@@ -30,13 +29,13 @@ class MideaDongle : public PollingComponent, public uart::UARTDevice {
  protected:
   wifi_signal::WiFiSignalSensor *wifi_sensor_{nullptr};
   MideaAppliance *appliance_;
+  NotifyFrame notify_;
   // Buffer
   uint8_t buf_[36];
   // Index
   uint8_t idx_{0};
   // Reverse receive counter
   uint8_t cnt_{2};
-  NotifyFrame notify_;
   bool need_notify_{false};
 
   // Reset receiver state
