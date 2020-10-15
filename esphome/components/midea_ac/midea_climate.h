@@ -13,7 +13,7 @@ class MideaClimate : public midea_dongle::MideaAppliance, public climate::Climat
   float get_setup_priority() const override { return setup_priority::LATE; }
   void on_frame(midea_dongle::Frame &frame) override;
   void on_update() override;
-  void setup() override;
+  void setup() override { this->parent_->set_appliance(this); }
   void set_midea_dongle_parent(midea_dongle::MideaDongle *parent) { this->parent_ = parent; }
   void set_beeper_feedback(bool state) { this->beeper_feedback_ = state; }
 

@@ -4,10 +4,6 @@
 namespace esphome {
 namespace midea_ac {
 
-void MideaClimate::setup() {
-  this->parent_->set_appliance(this);
-}
-
 void MideaClimate::on_frame(midea_dongle::Frame &frame) {
   auto p = frame.as<PropertiesFrame>();
   if (!p.is<PropertiesFrame>())

@@ -47,9 +47,9 @@ void MideaDongle::update() {
   } else {
     float dbm = this->wifi_sensor_->get_state();
     if (dbm >= -62.5)
-        wifi_stretch = 4;
+      wifi_stretch = 4;
     else if (dbm > -100.0)
-        wifi_stretch = static_cast<uint8_t>(0.08 * dbm) + 9;
+      wifi_stretch = static_cast<uint8_t>(0.08 * dbm) + 9;
   }
   if (this->notify_.is_connected() != is_conn) {
     this->notify_.set_connected(is_conn);

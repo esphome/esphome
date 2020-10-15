@@ -34,13 +34,9 @@ static float i8tof(int8_t in) {
   return out;
 }
 
-float PropertiesFrame::get_indoor_temp() const {
-  return i8tof(this->pbuf_[21]);
-}
+float PropertiesFrame::get_indoor_temp() const { return i8tof(this->pbuf_[21]); }
 
-float PropertiesFrame::get_outdoor_temp() const {
-  return i8tof(this->pbuf_[22]);
-}
+float PropertiesFrame::get_outdoor_temp() const { return i8tof(this->pbuf_[22]); }
 
 climate::ClimateMode PropertiesFrame::get_mode() const {
   if (!this->get_power_())
