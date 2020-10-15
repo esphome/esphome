@@ -4,8 +4,8 @@ import esphome.codegen as cg
 from esphome.const import CONF_ID
 from esphome.components.midea_dongle import CONF_MIDEA_DONGLE_ID, MideaDongle
 
-AUTO_LOAD = ['climate']
 DEPENDENCIES = ['midea_dongle']
+AUTO_LOAD = ['climate']
 CODEOWNERS = ['@dudanov']
 
 CONF_BEEPER = 'beeper'
