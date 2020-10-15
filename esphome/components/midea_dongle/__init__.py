@@ -5,7 +5,7 @@ from esphome.const import CONF_ID
 from esphome.components.wifi_signal.sensor import WiFiSignalSensor
 
 DEPENDENCIES = ['uart']
-AUTO_LOAD = ['sensor','wifi_signal']
+AUTO_LOAD = ['sensor', 'wifi_signal']
 CODEOWNERS = ['@dudanov']
 
 midea_dongle_ns = cg.esphome_ns.namespace('midea_dongle')

@@ -26,9 +26,9 @@ void PropertiesFrame::set_target_temp(float temp) {
 }
 
 static float i8tof(int8_t in) {
-  in -= 50;
   const bool half = in & 1;
-  float out = static_cast<float>(in / 2);
+  in = (in - 50) / 2;
+  float out = static_cast<float>(in);
   if (half)
     out += 0.5;
   return out;
