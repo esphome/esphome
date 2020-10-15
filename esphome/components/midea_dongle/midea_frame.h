@@ -83,14 +83,14 @@ template<typename T = Frame, size_t buf_size = 36> class StaticFrame : public T 
   uint8_t buf_[buf_size];
 };
 
-// Device network notification frame (read-only)
+// Device network notification frame
 class NotifyFrame : public midea_dongle::StaticFrame<BaseFrame> {
  public:
   NotifyFrame() : StaticFrame(FPSTR(this->INIT)) {}
   void set_signal_stretch(uint8_t value) { this->pbuf_[12] = value; }
-  uint8_t get_signal_stretch() { return this->pbuf_[12]; }
+  uint8_t get_signal_stretch() const { return this->pbuf_[12]; }
   void set_connected(bool state) { this->pbuf_[18] = state ? 0 : 1; }
-  bool is_connected() { return !this->pbuf_[18]; }
+  bool is_connected() const { return !this->pbuf_[18]; }
 
  private:
   static const uint8_t PROGMEM INIT[];

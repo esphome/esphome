@@ -13,39 +13,38 @@ const uint8_t CommandFrame::INIT[] = {0xAA, 0x22, 0xAC, 0x00, 0x00, 0x00, 0x00, 
 
 float PropertiesFrame::get_target_temp() const {
   float temp = static_cast<float>((this->pbuf_[12] & 0x0F) + 16);
-
-  if (this->pbuf_[12] & 0x10) {
+  if (this->pbuf_[12] & 0x10)
     temp += 0.5;
-  }
-
   return temp;
 }
 
 void PropertiesFrame::set_target_temp(float temp) {
   uint8_t tmp = static_cast<uint8_t>(temp * 16.0) + 4;
-
   tmp = ((tmp & 8) << 1) | (tmp >> 4);
   this->pbuf_[12] &= ~0x1F;
   this->pbuf_[12] |= tmp;
 }
 
-float PropertiesFrame::get_indoor_temp() const {
-  int8_t tmp = this->pbuf_[21] - 50;
+static float i8tof(int8_t in) {
+  in -= 50;
+  const bool half = in & 1;
+  float out = static_cast<float>(in / 2);
+  if (half)
+    out += 0.5;
+  return out;
+}
 
-  return static_cast<float>(tmp) / 2.0;
+float PropertiesFrame::get_indoor_temp() const {
+  return i8tof(this->pbuf_[21]);
 }
 
 float PropertiesFrame::get_outdoor_temp() const {
-  int8_t tmp = this->pbuf_[22] - 50;
-
-  return static_cast<float>(tmp) / 2.0;
+  return i8tof(this->pbuf_[22]);
 }
 
 climate::ClimateMode PropertiesFrame::get_mode() const {
-  if (!this->get_power_()) {
+  if (!this->get_power_())
     return climate::CLIMATE_MODE_OFF;
-  }
-
   switch (this->pbuf_[12] >> 5) {
     case 1:
       return climate::CLIMATE_MODE_AUTO;
@@ -64,7 +63,6 @@ climate::ClimateMode PropertiesFrame::get_mode() const {
 
 void PropertiesFrame::set_mode(climate::ClimateMode mode) {
   uint8_t m;
-
   switch (mode) {
     case climate::CLIMATE_MODE_AUTO:
       m = (1 << 5);
@@ -85,7 +83,6 @@ void PropertiesFrame::set_mode(climate::ClimateMode mode) {
       this->set_power_(false);
       return;
   }
-
   this->set_power_(true);
   this->pbuf_[12] &= ~0xE0;
   this->pbuf_[12] |= m;
@@ -106,7 +103,6 @@ climate::ClimateFanMode PropertiesFrame::get_fan_mode() const {
 
 void PropertiesFrame::set_fan_mode(climate::ClimateFanMode mode) {
   uint8_t m;
-
   switch (mode) {
     case climate::CLIMATE_FAN_LOW:
       m = 40;
@@ -121,7 +117,6 @@ void PropertiesFrame::set_fan_mode(climate::ClimateFanMode mode) {
       m = 102;
       break;
   }
-
   this->pbuf_[13] = m;
 }
 
@@ -140,7 +135,6 @@ climate::ClimateSwingMode PropertiesFrame::get_swing_mode() const {
 
 void PropertiesFrame::set_swing_mode(climate::ClimateSwingMode mode) {
   uint8_t m;
-
   switch (mode) {
     case climate::CLIMATE_SWING_VERTICAL:
       m = 0x30 | 0b1100;
@@ -155,7 +149,6 @@ void PropertiesFrame::set_swing_mode(climate::ClimateSwingMode mode) {
       m = 0x30;
       break;
   }
-
   this->pbuf_[17] = m;
 }
 

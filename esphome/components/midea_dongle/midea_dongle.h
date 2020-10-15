@@ -12,7 +12,9 @@ enum MideaApplianceType : uint8_t { DEHUMIDIFIER = 0x00, AIR_CONDITIONER = 0xAC,
 enum MideaMessageType : uint8_t { DEVICE_CONTROL = 0x02, DEVICE_QUERY = 0x03, DEVICE_NETWORK = 0x0D };
 
 struct MideaAppliance {
+  /// Calling on update event
   virtual void on_update() = 0;
+  /// Calling on frame receive event
   virtual void on_frame(Frame &frame) = 0;
 };
 
