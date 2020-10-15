@@ -5,10 +5,11 @@
 namespace esphome {
 namespace midea_dongle {
 
+static const char *TAG = "midea_dongle";
+
 void MideaDongle::loop() {
   while (this->available()) {
     const uint8_t rx = this->read();
-
     switch (this->idx_) {
       case OFFSET_START:
         if (rx != SYNC_BYTE)
@@ -16,7 +17,7 @@ void MideaDongle::loop() {
         break;
       case OFFSET_LENGTH:
         if (!rx || rx >= sizeof(buf_)) {
-          reset_();
+          this->reset_();
           continue;
         }
         this->cnt_ = rx;
@@ -27,25 +28,51 @@ void MideaDongle::loop() {
     if (--this->cnt_)
       continue;
 
-    reset_();
+    this->reset_();
 
     BaseFrame frame(this->buf_);
+
+    if (frame.get_type() == DEVICE_NETWORK) {
+      this->need_notify_ = false;
+      continue;
+    }
 
     if (!frame.is_valid())
       continue;
 
-    for (auto &listener : this->listeners_)
-      if (listener.app_type == frame.app_type() || frame.app_type() == BROADCAST)
-        listener.on_frame(frame);
+    if (this->appliance_ != nullptr)
+      this->appliance_->on_frame(frame);
   }
 }
 
-void MideaDongle::register_listener(MideaAppliance app_type, const std::function<void(Frame &)> &func) {
-  auto listener = MideaListener{
-      .app_type = app_type,
-      .on_frame = func,
-  };
-  this->listeners_.push_back(listener);
+void MideaDongle::update() {
+  bool is_conn = WiFi.isConnected();
+  uint8_t wifi_stretch = 0;
+  if (this->wifi_sensor_ == nullptr || !this->wifi_sensor_->has_state()) {
+    if (is_conn)
+      wifi_stretch = 4;
+  } else {
+    float dBm = this->wifi_sensor_->get_state();
+    if(dBm >= -50.0)
+        wifi_stretch = 4;
+    else if (dBm > -100.0)
+        wifi_stretch = static_cast<uint8_t>((dBm + 100.0) / 12.5) + 1;
+  }
+  if (this->notify_.is_connected() != is_conn) {
+    this->notify_.set_connected(is_conn);
+    this->need_notify_ = true;
+  }
+  if (this->notify_.get_signal_stretch() != wifi_stretch) {
+    this->notify_.set_signal_stretch(wifi_stretch);
+    this->need_notify_ = true;
+  }
+  if (this->need_notify_) {
+    this->notify_.finalize();
+    this->write_frame(this->notify_);
+    return;
+  }
+  if (this->appliance_ != nullptr)
+    this->appliance_->on_update();
 }
 
 }  // namespace midea_dongle

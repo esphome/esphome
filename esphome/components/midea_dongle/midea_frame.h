@@ -4,17 +4,6 @@
 namespace esphome {
 namespace midea_dongle {
 
-class Frame;
-
-enum MideaAppliance : uint8_t { DEHUMIDIFIER = 0x00, AIR_CONDITIONER = 0xAC, BROADCAST = 0xFF };
-
-enum MideaMessageType : uint8_t { DEVICE_CONTROL = 0x02, DEVICE_QUERY = 0x03, DEVICE_NETWORK = 0x0D };
-
-struct MideaListener {
-  MideaAppliance app_type;
-  std::function<void(Frame &)> on_frame;
-};
-
 static const uint8_t OFFSET_START = 0;
 static const uint8_t OFFSET_LENGTH = 1;
 static const uint8_t OFFSET_APPTYPE = 2;
@@ -92,6 +81,19 @@ template<typename T = Frame, size_t buf_size = 36> class StaticFrame : public T 
 
  protected:
   uint8_t buf_[buf_size];
+};
+
+// Device network notification frame (read-only)
+class NotifyFrame : public midea_dongle::StaticFrame<BaseFrame> {
+ public:
+  NotifyFrame() : StaticFrame(FPSTR(this->INIT)) {}
+  void set_signal_stretch(uint8_t value) { this->pbuf_[12] = value; }
+  uint8_t get_signal_stretch() { return this->pbuf_[12]; }
+  void set_connected(bool state) { this->pbuf_[18] = state ? 0 : 1; }
+  bool is_connected() { return !this->pbuf_[18]; }
+
+ private:
+  static const uint8_t PROGMEM INIT[];
 };
 
 }  // namespace midea_dongle

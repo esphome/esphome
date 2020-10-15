@@ -5,42 +5,54 @@ namespace esphome {
 namespace midea_ac {
 
 void MideaClimate::setup() {
-  this->set_update_interval(1000);
-
-  this->parent_->register_listener(midea_dongle::MideaAppliance::AIR_CONDITIONER, [this](midea_dongle::Frame &frame) {
-    auto p = frame.as<PropertiesFrame>();
-
-    switch (p.get_type()) {
-      case midea_dongle::MideaMessageType::DEVICE_CONTROL:
-        this->need_request_ &= ~MSG_CONTROL;
-        break;
-      case midea_dongle::MideaMessageType::DEVICE_NETWORK:
-        this->need_request_ &= ~MSG_NETWORK;
-        break;
-    }
-
-    if (!p.is<PropertiesFrame>()) {
-      return;
-    }
-
-    this->mode = p.get_mode();
-    this->target_temperature = p.get_target_temp();
-    this->current_temperature = p.get_indoor_temp();
-    this->fan_mode = p.get_fan_mode();
-    this->swing_mode = p.get_swing_mode();
-    this->publish_state();
-  });
+  this->parent_->set_appliance(this);
 }
 
-void MideaClimate::update() {
-  if (this->need_request_ & MSG_CONTROL) {
-    this->parent_->write_frame(this->cmd_frame_);
-  } else if (this->need_request_ & MSG_NETWORK) {
-    // TODO: network identification message
-    ;
-  } else {
-    this->parent_->write_frame(this->query_frame_);
+void MideaClimate::on_frame(midea_dongle::Frame &frame) {
+  auto p = frame.as<PropertiesFrame>();
+
+  if (!p.is<PropertiesFrame>())
+    return;
+
+  if (p.get_type() == midea_dongle::MideaMessageType::DEVICE_CONTROL)
+      this->ctrl_request_ = false;
+
+  bool need_publish = false;
+
+  if (this->mode != p.get_mode()) {
+    this->mode = p.get_mode();
+    need_publish = true;
   }
+
+  if (this->target_temperature != p.get_target_temp()) {
+    this->target_temperature = p.get_target_temp();
+    need_publish = true;
+  }
+
+  if (this->current_temperature != p.get_indoor_temp()) {
+    this->current_temperature = p.get_indoor_temp();
+    need_publish = true;
+  }
+
+  if (this->fan_mode != p.get_fan_mode()) {
+    this->fan_mode = p.get_fan_mode();
+    need_publish = true;
+  }
+
+  if (this->swing_mode != p.get_swing_mode()) {
+    this->swing_mode = p.get_swing_mode();
+    need_publish = true;
+  }
+
+  if (need_publish)
+    this->publish_state();
+}
+
+void MideaClimate::on_update() {
+  if (this->ctrl_request_)
+    this->parent_->write_frame(this->cmd_frame_);
+  else
+    this->parent_->write_frame(this->query_frame_);
 }
 
 void MideaClimate::control(const climate::ClimateCall &call) {
@@ -52,7 +64,7 @@ void MideaClimate::control(const climate::ClimateCall &call) {
   this->cmd_frame_.disable_timer_off();
   this->cmd_frame_.set_beeper_feedback(this->beeper_feedback_);
   this->cmd_frame_.finalize();
-  this->need_request_ |= MSG_CONTROL;
+  this->ctrl_request_ = true;
 }
 
 climate::ClimateTraits MideaClimate::traits() {

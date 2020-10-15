@@ -8,11 +8,12 @@
 namespace esphome {
 namespace midea_ac {
 
-class MideaClimate : public climate::Climate, public PollingComponent {
+class MideaClimate : public midea_dongle::MideaAppliance, public climate::Climate, public Component {
  public:
   float get_setup_priority() const override { return setup_priority::LATE; }
+  void on_frame(midea_dongle::Frame &frame) override;
+  void on_update() override;
   void setup() override;
-  void update() override;
   void set_midea_dongle_parent(midea_dongle::MideaDongle *parent) { this->parent_ = parent; }
   void set_beeper_feedback(bool state) { this->beeper_feedback_ = state; }
 
@@ -24,12 +25,9 @@ class MideaClimate : public climate::Climate, public PollingComponent {
 
   const QueryFrame query_frame_;
   CommandFrame cmd_frame_;
-  uint8_t need_request_{0};
+  bool ctrl_request_{false};
   bool beeper_feedback_{false};
-
-  enum MideaMessages : uint8_t { MSG_CONTROL = 0x01, MSG_NETWORK = 0x02 };
-
-  midea_dongle::MideaDongle *parent_;
+  midea_dongle::MideaDongle *parent_{nullptr};
 };
 
 }  // namespace midea_ac
