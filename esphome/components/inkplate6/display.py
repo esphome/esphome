@@ -2,9 +2,11 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins
 from esphome.components import display, i2c
-from esphome.const import CONF_FULL_UPDATE_EVERY, CONF_ID, CONF_LAMBDA, CONF_PAGES, CONF_WAKEUP_PIN
+from esphome.const import CONF_FULL_UPDATE_EVERY, CONF_ID, CONF_LAMBDA, CONF_PAGES, \
+    CONF_WAKEUP_PIN, ESP_PLATFORM_ESP32
 
 DEPENDENCIES = ['i2c']
+ESP_PLATFORMS = [ESP_PLATFORM_ESP32]
 
 CONF_DISPLAY_DATA_0_PIN = 'display_data_0_pin'
 CONF_DISPLAY_DATA_1_PIN = 'display_data_1_pin'
