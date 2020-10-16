@@ -71,7 +71,7 @@ template<typename T = Frame, size_t buf_size = 36> class StaticFrame : public T 
     }
   }
   // Constructor for PROGMEM data
-  StaticFrame(const __FlashStringHelper *pgm) : T(buf_) {
+  StaticFrame(const __FlashStringHelper *pgm) : T(this->buf_) {
     const uint8_t *src = reinterpret_cast<decltype(src)>(pgm);
     const uint8_t len = pgm_read_byte(src + OFFSET_LENGTH);
     if (len < sizeof(this->buf_)) {

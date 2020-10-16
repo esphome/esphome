@@ -26,15 +26,14 @@ void MideaDongle::loop() {
     if (--this->cnt_)
       continue;
     this->reset_();
-    BaseFrame frame(this->buf_);
-    if (frame.get_type() == DEVICE_NETWORK) {
+    if (this->frame_.get_type() == DEVICE_NETWORK) {
       this->need_notify_ = false;
       continue;
     }
-    if (!frame.is_valid())
+    if (!this->frame_.is_valid())
       continue;
     if (this->appliance_ != nullptr)
-      this->appliance_->on_frame(frame);
+      this->appliance_->on_frame(this->frame_);
   }
 }
 

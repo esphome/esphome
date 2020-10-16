@@ -59,7 +59,7 @@ void BaseFrame::update_cs_() {
 bool BaseFrame::has_valid_crc_() const {
   uint8_t crc = 0;
   const uint8_t *ptr = this->pbuf_ + OFFSET_BODY;
-  uint8_t len = this->length_() - 10;
+  uint8_t len = this->length_() - OFFSET_BODY;
 
   for (; len; ptr++, len--) {
     crc = pgm_read_byte(this->CRC_TABLE + (crc ^ *ptr));
