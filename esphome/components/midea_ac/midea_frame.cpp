@@ -25,17 +25,8 @@ void PropertiesFrame::set_target_temp(float temp) {
   this->pbuf_[12] |= tmp;
 }
 
-static float i8tof(int8_t in) {
-  const bool half = in & 1;
-  in = (in - 50) / 2;
-  float out = static_cast<float>(in);
-  if (half)
-    out += 0.5;
-  return out;
-}
-
+static float i8tof(int8_t in) { return static_cast<float>(in - 50) / 2.0; }
 float PropertiesFrame::get_indoor_temp() const { return i8tof(this->pbuf_[21]); }
-
 float PropertiesFrame::get_outdoor_temp() const { return i8tof(this->pbuf_[22]); }
 
 climate::ClimateMode PropertiesFrame::get_mode() const {
