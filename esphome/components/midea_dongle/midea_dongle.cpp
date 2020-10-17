@@ -26,14 +26,15 @@ void MideaDongle::loop() {
     if (--this->cnt_)
       continue;
     this->reset_();
-    if (this->frame_.get_type() == DEVICE_NETWORK) {
+    BaseFrame frame(this->buf_);
+    if (frame.get_type() == DEVICE_NETWORK) {
       this->need_notify_ = false;
       continue;
     }
-    if (!this->frame_.is_valid())
+    if (!frame.is_valid())
       continue;
     if (this->appliance_ != nullptr)
-      this->appliance_->on_frame(this->frame_);
+      this->appliance_->on_frame(frame);
   }
 }
 
@@ -58,7 +59,10 @@ void MideaDongle::update() {
     this->notify_.set_signal_stretch(wifi_stretch);
     this->need_notify_ = true;
   }
+  if (!--this->notify_timer_)
+    this->need_notify_ = true;
   if (this->need_notify_) {
+    this->notify_timer_ = 600;
     this->notify_.finalize();
     this->write_frame(this->notify_);
     return;

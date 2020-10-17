@@ -32,7 +32,7 @@ class MideaDongle : public PollingComponent, public uart::UARTDevice {
   wifi_signal::WiFiSignalSensor *wifi_sensor_{nullptr};
   MideaAppliance *appliance_{nullptr};
   NotifyFrame notify_;
-  BaseFrame frame_{this->buf_};
+  unsigned notify_timer_{1};
   // Buffer
   uint8_t buf_[36];
   // Index
