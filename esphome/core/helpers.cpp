@@ -175,7 +175,7 @@ void delay_microseconds_accurate(uint32_t usec) {
   if (usec == 0)
     return;
 
-  if (usec <= 1000UL) {
+  if (usec <= 16383UL) {
     delayMicroseconds(usec);
   } else {
     delay(usec / 1000UL);
