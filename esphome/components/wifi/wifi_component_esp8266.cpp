@@ -242,7 +242,7 @@ bool WiFiComponent::wifi_sta_connect_(WiFiAP ap) {
     return false;
   }
 
-    // setup enterprise authentication if required
+  // setup enterprise authentication if required
 #ifdef ESPHOME_WIFI_WPA2_EAP
   if (ap.get_eap().has_value()) {
     // note: all certificates and keys have to be null terminated. Lengths are appended by +1 to include \0.
@@ -265,8 +265,8 @@ bool WiFiComponent::wifi_sta_connect_(WiFiAP ap) {
     if (client_cert_len && client_key_len) {
       // if we have certs, this must be EAP-TLS
       ret = wifi_station_set_enterprise_cert_key((uint8_t *) eap.client_cert, client_cert_len + 1,
-                                               (uint8_t *) eap.client_key, client_key_len + 1,
-                                               (uint8_t *) eap.password.c_str(), strlen(eap.password.c_str()));
+                                                 (uint8_t *) eap.client_key, client_key_len + 1,
+                                                 (uint8_t *) eap.password.c_str(), strlen(eap.password.c_str()));
       if (ret) {
         ESP_LOGV(TAG, "esp_wifi_sta_wpa2_ent_set_cert_key failed! %d", ret);
       }
