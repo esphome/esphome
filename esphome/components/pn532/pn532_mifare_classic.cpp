@@ -90,7 +90,7 @@ bool PN532::auth_mifare_classic_block_(std::vector<uint8_t> &uid, uint8_t block_
 
   std::vector<uint8_t> response;
   if (!this->read_response_(PN532_COMMAND_INDATAEXCHANGE, response) || response[0] != 0x00) {
-    ESP_LOGE(TAG, "Authentication failed - Block %d", block_num);
+    ESP_LOGE(TAG, "Authentication failed - Block 0x%02x", block_num);
     return false;
   }
 
