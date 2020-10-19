@@ -8,7 +8,7 @@
 namespace esphome {
 namespace midea_ac {
 
-class MideaClimate : public midea_dongle::MideaAppliance, public climate::Climate, public Component {
+class MideaAC : public midea_dongle::MideaAppliance, public climate::Climate, public Component {
  public:
   float get_setup_priority() const override { return setup_priority::LATE; }
   void on_frame(midea_dongle::Frame &frame) override;

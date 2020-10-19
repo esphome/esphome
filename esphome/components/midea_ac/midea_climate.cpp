@@ -6,7 +6,7 @@ namespace midea_ac {
 
 static const char *TAG = "midea_ac";
 
-void MideaClimate::on_frame(midea_dongle::Frame &frame) {
+void MideaAC::on_frame(midea_dongle::Frame &frame) {
   auto p = frame.as<PropertiesFrame>();
   if (!p.is<PropertiesFrame>()) {
     ESP_LOGW(TAG, "Response is not PropertiesFrame!");
@@ -43,7 +43,7 @@ void MideaClimate::on_frame(midea_dongle::Frame &frame) {
     this->publish_state();
 }
 
-void MideaClimate::on_update() {
+void MideaAC::on_update() {
   if (this->ctrl_request_) {
     ESP_LOGD(TAG, "Command: sending request");
     this->parent_->write_frame(this->cmd_frame_);
@@ -53,7 +53,7 @@ void MideaClimate::on_update() {
   }
 }
 
-void MideaClimate::control(const climate::ClimateCall &call) {
+void MideaAC::control(const climate::ClimateCall &call) {
   this->cmd_frame_.set_mode(call.get_mode().value_or(this->mode));
   this->cmd_frame_.set_target_temp(call.get_target_temperature().value_or(this->target_temperature));
   this->cmd_frame_.set_fan_mode(call.get_fan_mode().value_or(this->fan_mode));
@@ -65,7 +65,7 @@ void MideaClimate::control(const climate::ClimateCall &call) {
   this->ctrl_request_ = true;
 }
 
-climate::ClimateTraits MideaClimate::traits() {
+climate::ClimateTraits MideaAC::traits() {
   auto traits = climate::ClimateTraits();
   traits.set_visual_min_temperature(17);
   traits.set_visual_max_temperature(30);
