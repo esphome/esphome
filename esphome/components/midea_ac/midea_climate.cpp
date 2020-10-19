@@ -4,12 +4,20 @@
 namespace esphome {
 namespace midea_ac {
 
+static const char *TAG = "midea_ac";
+
 void MideaClimate::on_frame(midea_dongle::Frame &frame) {
   auto p = frame.as<PropertiesFrame>();
-  if (!p.is<PropertiesFrame>())
+  if (!p.is<PropertiesFrame>()) {
+    ESP_LOGW(TAG, "Response is not PropertiesFrame!");
     return;
-  if (p.get_type() == midea_dongle::MideaMessageType::DEVICE_CONTROL)
+  }
+  if (p.get_type() == midea_dongle::MideaMessageType::DEVICE_CONTROL) {
+    ESP_LOGD(TAG, "Command: parsing response");
     this->ctrl_request_ = false;
+  } else {
+    ESP_LOGD(TAG, "Query: parsing response");
+  }
   bool need_publish = false;
   if (this->mode != p.get_mode()) {
     this->mode = p.get_mode();
@@ -36,10 +44,13 @@ void MideaClimate::on_frame(midea_dongle::Frame &frame) {
 }
 
 void MideaClimate::on_update() {
-  if (this->ctrl_request_)
+  if (this->ctrl_request_) {
+    ESP_LOGD(TAG, "Command: sending request");
     this->parent_->write_frame(this->cmd_frame_);
-  else
+  } else {
+    ESP_LOGD(TAG, "Query: sending request");
     this->parent_->write_frame(this->query_frame_);
+  }
 }
 
 void MideaClimate::control(const climate::ClimateCall &call) {
