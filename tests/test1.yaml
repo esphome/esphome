@@ -1,63 +1,1810 @@
+substitutions:
+  devicename: test1
+
 esphome:
-  name: st7735test
-  platform: ESP8266
-  board: nodemcuv2
+  name: test1
+  platform: ESP32
+  board: nodemcu-32s
+  on_boot:
+    priority: 150.0
+    then:
+      - lambda: >-
+          ESP_LOGD("main", "ON BOOT!");
+  on_shutdown:
+    then:
+      - lambda: >-
+          ESP_LOGD("main", "ON SHUTDOWN!");
+  on_loop:
+    then:
+      - lambda: >-
+          ESP_LOGV("main", "ON LOOP!");
+      - light.addressable_set:
+          id: addr1
+          range_from: 0
+          range_to: 100
+          red: 100%
+          green: !lambda 'return 255;'
+          blue: 0%
+          white: 100%
+  build_path: build/test1
+
+packages:
+  wifi: !include test_packages/test_packages_package_wifi.yaml
+  pkg_test: !include test_packages/test_packages_package1.yaml
 
 wifi:
-  ssid: 'abcdefg'
-  password: 'abcdefgh'
+  networks:
+    - ssid: 'MySSID'
+      password: 'password1'
+    - ssid: 'MySSID2'
+      password: ''
+      channel: 14
+      bssid: 'A1:63:95:47:D3:1D'
+  manual_ip:
+    static_ip: 192.168.178.230
+    gateway: 192.168.178.1
+    subnet: 255.255.255.0
+    dns1: 1.1.1.1
+    dns2: 1.2.2.1
+  domain: .local
+  reboot_timeout: 120s
+  power_save_mode: none
 
-  ap:
-    ssid: 'St7735Test Fallback Hotspot'
-    password: 'abcdefgh'
+mqtt:
+  broker: '192.168.178.84'
+  port: 1883
+  username: 'debug'
+  password: 'debug'
+  client_id: someclient
+  discovery: True
+  discovery_retain: False
+  discovery_prefix: discovery
+  topic_prefix: helloworld
+  log_topic:
+    topic: helloworld/hi
+    level: INFO
+  birth_message:
+  will_message:
+  shutdown_message:
+    topic: topic/to/send/to
+    payload: hi
+    qos: 2
+    retain: True
+  keepalive: 60s
+  reboot_timeout: 60s
+  on_message:
+    - topic: my/custom/topic
+      qos: 0
+      then:
+        - lambda: >-
+            ESP_LOGD("main", "Got message %s", x.c_str());
+    - topic: livingroom/ota_mode
+      then:
+        - deep_sleep.prevent
+    - topic: livingroom/ota_mode
+      then:
+        - deep_sleep.enter:
+  on_json_message:
+    topic: the/topic
+    then:
+      - if:
+          condition:
+            - wifi.connected:
+            - mqtt.connected:
+            - light.is_on: kitchen
+            - light.is_off: kitchen
+          then:
+            - lambda: |-
+                int data = x["my_data"];
+                ESP_LOGD("main", "The data is: %d", data);
+            - light.turn_on:
+                id: living_room_lights
+                brightness: !lambda |-
+                  float brightness = 1.0;
+                  if (x.containsKey("brightness"))
+                    brightness = x["brightness"];
+                  return brightness;
+                effect: !lambda |-
+                  const char *effect = "None";
+                  if (x.containsKey("effect"))
+                    effect = x["effect"];
+                  return effect;
+            - light.control:
+                id: living_room_lights
+                brightness: !lambda 'return id(living_room_lights).current_values.get_brightness() + 0.5;'
+            - light.dim_relative:
+                id: living_room_lights
+                relative_brightness: 5%
+            - uart.write:
+                id: uart0
+                data: Hello World
+            - uart.write: [0x00, 0x20, 0x30]
+            - uart.write: !lambda |-
+                return {};
 
-captive_portal:
-
-# Enable logging
-logger:
-
-# Enable Home Assistant API
-api:
-
-ota:
+i2c:
+  sda: 21
+  scl: 22
+  scan: True
+  frequency: 100kHz
+  setup_priority: -100
 
 spi:
-  clk_pin: D5
-  mosi_pin: D7
-  miso_pin: D6
+  clk_pin: GPIO21
+  mosi_pin: GPIO22
+  miso_pin: GPIO23
+
+uart:
+  - tx_pin: GPIO22
+    rx_pin: GPIO23
+    baud_rate: 115200
+    id: uart0
+    parity: NONE
+    data_bits: 8
+    stop_bits: 1
+    rx_buffer_size: 512
+
+  - id: adalight_uart
+    tx_pin: GPIO25
+    rx_pin: GPIO26
+    baud_rate: 115200
+    rx_buffer_size: 1024
+
+ota:
+  safe_mode: True
+  password: 'superlongpasswordthatnoonewillknow'
+  port: 3286
+
+logger:
+  baud_rate: 0
+  level: VERBOSE
+  logs:
+    mqtt.component: DEBUG
+    mqtt.client: ERROR
+
+web_server:
+  port: 8080
+  css_url: https://esphome.io/_static/webserver-v1.min.css
+  js_url: https://esphome.io/_static/webserver-v1.min.js
+
+power_supply:
+  id: 'atx_power_supply'
+  enable_time: 20ms
+  keep_on_time: 10s
+  pin:
+    number: 13
+    inverted: true
+
+deep_sleep:
+  run_duration: 20s
+  sleep_duration: 50s
+  wakeup_pin: GPIO39
+  wakeup_pin_mode: INVERT_WAKEUP
+
+ads1115:
+  address: 0x48
+
+dallas:
+  pin: GPIO23
+
+as3935_spi:
+  cs_pin: GPIO12
+  irq_pin: GPIO13
+
+wled:
+
+adalight:
+
+sensor:
+  - platform: adc
+    pin: A0
+    name: 'Living Room Brightness'
+    update_interval: '1:01'
+    attenuation: 2.5db
+    unit_of_measurement: '°C'
+    icon: 'mdi:water-percent'
+    accuracy_decimals: 5
+    expire_after: 120s
+    setup_priority: -100
+    force_update: true
+    filters:
+      - offset: 2.0
+      - multiply: 1.2
+      - calibrate_linear:
+          - 0.0 -> 0.0
+          - 40.0 -> 45.0
+          - 100.0 -> 102.5
+      - filter_out: 42.0
+      - filter_out: nan
+      - median:
+          window_size: 5
+          send_every: 5
+          send_first_at: 3
+      - sliding_window_moving_average:
+          window_size: 15
+          send_every: 15
+          send_first_at: 15
+      - exponential_moving_average:
+          alpha: 0.1
+          send_every: 15
+      - throttle: 1s
+      - heartbeat: 5s
+      - debounce: 0.1s
+      - delta: 5.0
+      - or:
+          - throttle: 1s
+          - delta: 5.0
+      - lambda: return x * (9.0/5.0) + 32.0;
+    on_value:
+      then:
+        - lambda: |-
+            ESP_LOGD("main", "Got value %f", x);
+            id(my_sensor).publish_state(42.0);
+            ESP_LOGI("main", "Value of my sensor: %f", id(my_sensor).state);
+            ESP_LOGI("main", "Raw Value of my sensor: %f", id(my_sensor).state);
+    on_value_range:
+      above: 5
+      below: 10
+      then:
+        - lambda: >-
+            ESP_LOGD("main", "Got value range %f", x);
+        - wait_until:
+            binary_sensor.is_on: binary_sensor1
+    on_raw_value:
+      - lambda: >-
+          ESP_LOGD("main", "Got raw value %f", x);
+      - logger.log:
+          level: DEBUG
+          format: 'Got raw value %f'
+          args: ['x']
+      - logger.log: 'Got raw value NAN'
+      - mqtt.publish:
+          topic: some/topic
+          payload: Hello
+          qos: 2
+          retain: True
+  - platform: esp32_hall
+    name: ESP32 Hall Sensor
+  - platform: ads1115
+    multiplexer: 'A0_A1'
+    gain: 1.024
+    id: my_sensor
+    filters:
+    state_topic: hi/me
+    retain: false
+    availability:
+  - platform: atm90e32
+    cs_pin: 5
+    phase_a:
+      voltage:
+        name: 'EMON Line Voltage A'
+      current:
+        name: 'EMON CT1 Current'
+      power:
+        name: 'EMON Active Power CT1'
+      reactive_power:
+        name: 'EMON Reactive Power CT1'
+      power_factor:
+        name: 'EMON Power Factor CT1'
+      gain_voltage: 7305
+      gain_ct: 27961
+    phase_b:
+      current:
+        name: 'EMON CT2 Current'
+      power:
+        name: 'EMON Active Power CT2'
+      reactive_power:
+        name: 'EMON Reactive Power CT2'
+      power_factor:
+        name: 'EMON Power Factor CT2'
+      gain_voltage: 7305
+      gain_ct: 27961
+    phase_c:
+      current:
+        name: 'EMON CT3 Current'
+      power:
+        name: 'EMON Active Power CT3'
+      reactive_power:
+        name: 'EMON Reactive Power CT3'
+      power_factor:
+        name: 'EMON Power Factor CT3'
+      gain_voltage: 7305
+      gain_ct: 27961
+    frequency:
+      name: 'EMON Line Frequency'
+    chip_temperature:
+      name: 'EMON Chip Temp A'
+    line_frequency: 60Hz
+    current_phases: 3
+    gain_pga: 2X
+  - platform: bh1750
+    name: 'Living Room Brightness 3'
+    internal: true
+    address: 0x23
+    resolution: 1.0
+    update_interval: 30s
+    retain: False
+    availability:
+    state_topic: livingroom/custom_state_topic
+    measurement_time: 31
+  - platform: bme280
+    temperature:
+      name: 'Outside Temperature'
+      oversampling: 16x
+    pressure:
+      name: 'Outside Pressure'
+      oversampling: none
+    humidity:
+      name: 'Outside Humidity'
+      oversampling: 8x
+    address: 0x77
+    iir_filter: 16x
+    update_interval: 15s
+  - platform: bme680
+    temperature:
+      name: 'Outside Temperature'
+      oversampling: 16x
+    pressure:
+      name: 'Outside Pressure'
+    humidity:
+      name: 'Outside Humidity'
+    gas_resistance:
+      name: 'Outside Gas Sensor'
+    address: 0x77
+    heater:
+      temperature: 320
+      duration: 150ms
+    update_interval: 15s
+  - platform: bmp085
+    temperature:
+      name: 'Outside Temperature'
+    pressure:
+      name: 'Outside Pressure'
+      filters:
+        - lambda: >-
+            return x / powf(1.0 - (x / 44330.0), 5.255);
+    update_interval: 15s
+  - platform: bmp280
+    temperature:
+      name: 'Outside Temperature'
+      oversampling: 16x
+    pressure:
+      name: 'Outside Pressure'
+    address: 0x77
+    update_interval: 15s
+    iir_filter: 16x
+  - platform: dallas
+    address: 0x1C0000031EDD2A28
+    name: 'Living Room Temperature'
+    resolution: 9
+  - platform: dallas
+    index: 1
+    name: 'Living Room Temperature 2'
+  - platform: dht
+    pin: GPIO26
+    temperature:
+      name: 'Living Room Temperature 3'
+    humidity:
+      name: 'Living Room Humidity 3'
+    model: AM2302
+    update_interval: 15s
+  - platform: dht12
+    temperature:
+      name: 'Living Room Temperature 4'
+    humidity:
+      name: 'Living Room Humidity 4'
+    update_interval: 15s
+  - platform: duty_cycle
+    pin: GPIO25
+    name: Duty Cycle Sensor
+  - platform: esp32_hall
+    name: 'ESP32 Hall Sensor'
+    update_interval: 15s
+  - platform: hdc1080
+    temperature:
+      name: 'Living Room Temperature 5'
+    humidity:
+      name: 'Living Room Pressure 5'
+    update_interval: 15s
+  - platform: hlw8012
+    sel_pin: 5
+    cf_pin: 14
+    cf1_pin: 13
+    current:
+      name: 'HLW8012 Current'
+    voltage:
+      name: 'HLW8012 Voltage'
+    power:
+      name: 'HLW8012 Power'
+      id: hlw8012_power
+    update_interval: 15s
+    current_resistor: 0.001 ohm
+    voltage_divider: 2351
+    change_mode_every: 16
+    initial_mode: VOLTAGE
+  - platform: total_daily_energy
+    power_id: hlw8012_power
+    name: 'HLW8012 Total Daily Energy'
+  - platform: integration
+    sensor: hlw8012_power
+    name: 'Integration Sensor'
+    time_unit: s
+  - platform: hmc5883l
+    address: 0x68
+    field_strength_x:
+      name: 'HMC5883L Field Strength X'
+    field_strength_y:
+      name: 'HMC5883L Field Strength Y'
+    field_strength_z:
+      name: 'HMC5883L Field Strength Z'
+    heading:
+      name: 'HMC5883L Heading'
+    range: 130uT
+    oversampling: 8x
+    update_interval: 15s
+  - platform: qmc5883l
+    address: 0x0D
+    field_strength_x:
+      name: 'QMC5883L Field Strength X'
+    field_strength_y:
+      name: 'QMC5883L Field Strength Y'
+    field_strength_z:
+      name: 'QMC5883L Field Strength Z'
+    heading:
+      name: 'QMC5883L Heading'
+    range: 800uT
+    oversampling: 256x
+    update_interval: 15s
+  - platform: hx711
+    name: 'HX711 Value'
+    dout_pin: GPIO23
+    clk_pin: GPIO25
+    gain: 128
+    update_interval: 15s
+  - platform: ina219
+    address: 0x40
+    shunt_resistance: 0.1 ohm
+    current:
+      name: 'INA219 Current'
+    power:
+      name: 'INA219 Power'
+    bus_voltage:
+      name: 'INA219 Bus Voltage'
+    shunt_voltage:
+      name: 'INA219 Shunt Voltage'
+    max_voltage: 32.0V
+    max_current: 3.2A
+    update_interval: 15s
+  - platform: ina226
+    address: 0x40
+    shunt_resistance: 0.1 ohm
+    current:
+      name: 'INA226 Current'
+    power:
+      name: 'INA226 Power'
+    bus_voltage:
+      name: 'INA226 Bus Voltage'
+    shunt_voltage:
+      name: 'INA226 Shunt Voltage'
+    max_current: 3.2A
+    update_interval: 15s
+  - platform: ina3221
+    address: 0x40
+    channel_1:
+      shunt_resistance: 0.1 ohm
+      current:
+        name: 'INA3221 Channel 1 Current'
+      power:
+        name: 'INA3221 Channel 1 Power'
+      bus_voltage:
+        name: 'INA3221 Channel 1 Bus Voltage'
+      shunt_voltage:
+        name: 'INA3221 Channel 1 Shunt Voltage'
+    update_interval: 15s
+  - platform: htu21d
+    temperature:
+      name: 'Living Room Temperature 6'
+    humidity:
+      name: 'Living Room Humidity 6'
+    update_interval: 15s
+  - platform: max6675
+    name: 'Living Room Temperature'
+    cs_pin: GPIO23
+    update_interval: 15s
+  - platform: max31855
+    name: 'Den Temperature'
+    cs_pin: GPIO23
+    update_interval: 15s
+    reference_temperature:
+      name: 'MAX31855 Internal Temperature'
+  - platform: max31856
+    name: 'BBQ Temperature'
+    cs_pin: GPIO17
+    update_interval: 15s
+    mains_filter: 50Hz
+  - platform: max31865
+    name: 'Water Tank Temperature'
+    cs_pin: GPIO23
+    update_interval: 15s
+    reference_resistance: '430 Ω'
+    rtd_nominal_resistance: '100 Ω'
+  - platform: mhz19
+    co2:
+      name: 'MH-Z19 CO2 Value'
+    temperature:
+      name: 'MH-Z19 Temperature'
+    update_interval: 15s
+    automatic_baseline_calibration: false
+  - platform: mpu6050
+    address: 0x68
+    accel_x:
+      name: 'MPU6050 Accel X'
+    accel_y:
+      name: 'MPU6050 Accel Y'
+    accel_z:
+      name: 'MPU6050 Accel z'
+    gyro_x:
+      name: 'MPU6050 Gyro X'
+    gyro_y:
+      name: 'MPU6050 Gyro Y'
+    gyro_z:
+      name: 'MPU6050 Gyro z'
+    temperature:
+      name: 'MPU6050 Temperature'
+  - platform: ms5611
+    temperature:
+      name: 'Outside Temperature'
+    pressure:
+      name: 'Outside Pressure'
+    address: 0x77
+    update_interval: 15s
+  - platform: pulse_counter
+    name: 'Pulse Counter'
+    pin: GPIO12
+    count_mode:
+      rising_edge: INCREMENT
+      falling_edge: DECREMENT
+    internal_filter: 13us
+    update_interval: 15s
+  - platform: rotary_encoder
+    name: 'Rotary Encoder'
+    id: rotary_encoder1
+    pin_a: GPIO23
+    pin_b: GPIO25
+    pin_reset: GPIO25
+    filters:
+      - or:
+          - debounce: 0.1s
+          - delta: 10
+    resolution: 4
+    min_value: -10
+    max_value: 30
+    on_value:
+      - sensor.rotary_encoder.set_value:
+          id: rotary_encoder1
+          value: 10
+      - sensor.rotary_encoder.set_value:
+          id: rotary_encoder1
+          value: !lambda 'return -1;'
+  - platform: pulse_width
+    name: Pulse Width
+    pin: GPIO12
+  - platform: senseair
+    co2:
+      name: 'SenseAir CO2 Value'
+    update_interval: 15s
+  - platform: sht3xd
+    temperature:
+      name: 'Living Room Temperature 8'
+    humidity:
+      name: 'Living Room Humidity 8'
+    address: 0x44
+    update_interval: 15s
+  - platform: sts3x
+    name: 'Living Room Temperature 9'
+    address: 0x4A
+  - platform: scd30
+    co2:
+      name: 'Living Room CO2 9'
+    temperature:
+      name: 'Living Room Temperature 9'
+    humidity:
+      name: 'Living Room Humidity 9'
+    address: 0x61
+    update_interval: 15s
+    automatic_self_calibration: true
+    altitude_compensation: 10m
+  - platform: sgp30
+    eco2:
+      name: 'Workshop eCO2'
+      accuracy_decimals: 1
+    tvoc:
+      name: 'Workshop TVOC'
+      accuracy_decimals: 1
+    address: 0x58
+    update_interval: 5s
+  - platform: sps30
+    pm_1_0:
+      name: 'Workshop PM <1µm Weight concentration'
+      id: 'workshop_PM_1_0'
+    pm_2_5:
+      name: 'Workshop PM <2.5µm Weight concentration'
+      id: 'workshop_PM_2_5'
+    pm_4_0:
+      name: 'Workshop PM <4µm Weight concentration'
+      id: 'workshop_PM_4_0'
+    pm_10_0:
+      name: 'Workshop PM <10µm Weight concentration'
+      id: 'workshop_PM_10_0'
+    pmc_0_5:
+      name: 'Workshop PM <0.5µm Number concentration'
+      id: 'workshop_PMC_0_5'
+    pmc_1_0:
+      name: 'Workshop PM <1µm Number concentration'
+      id: 'workshop_PMC_1_0'
+    pmc_2_5:
+      name: 'Workshop PM <2.5µm Number concentration'
+      id: 'workshop_PMC_2_5'
+    pmc_4_0:
+      name: 'Workshop PM <4µm Number concentration'
+      id: 'workshop_PMC_4_0'
+    pmc_10_0:
+      name: 'Workshop PM <10µm Number concentration'
+      id: 'workshop_PMC_10_0'
+    address: 0x69
+    update_interval: 10s
+  - platform: shtcx
+    temperature:
+      name: 'Living Room Temperature 10'
+    humidity:
+      name: 'Living Room Humidity 10'
+    address: 0x70
+    update_interval: 15s
+  - platform: template
+    name: 'Template Sensor'
+    id: template_sensor
+    lambda: |-
+      if (id(ultrasonic_sensor1).state > 1) {
+        return 42.0;
+      } else {
+        return {};
+      }
+    update_interval: 15s
+    on_value:
+      - sensor.template.publish:
+          id: template_sensor
+          state: 43.0
+      - sensor.template.publish:
+          id: template_sensor
+          state: !lambda 'return NAN;'
+  - platform: tsl2561
+    name: 'TSL2561 Ambient Light'
+    address: 0x39
+    update_interval: 15s
+    is_cs_package: true
+    integration_time: 402ms
+    gain: 16x
+  - platform: ultrasonic
+    trigger_pin: GPIO25
+    echo_pin:
+      number: GPIO23
+      inverted: true
+    name: 'Ultrasonic Sensor'
+    timeout: 5.5m
+    id: ultrasonic_sensor1
+  - platform: uptime
+    name: Uptime Sensor
+  - platform: wifi_signal
+    name: 'WiFi Signal Sensor'
+    update_interval: 15s
+  - platform: mqtt_subscribe
+    name: 'MQTT Subscribe Sensor 1'
+    topic: 'mqtt/topic'
+    id: the_sensor
+    qos: 2
+    on_value:
+      - mqtt.publish_json:
+          topic: the/topic
+          payload: |-
+            root["key"] = id(the_sensor).state;
+            root["greeting"] = "Hello World";
+  - platform: sds011
+    pm_2_5:
+      name: 'SDS011 PM2.5'
+    pm_10_0:
+      name: 'SDS011 PM10.0'
+    update_interval: 5min
+    rx_only: false
+  - platform: ccs811
+    eco2:
+      name: CCS811 eCO2
+    tvoc:
+      name: CCS811 TVOC
+    update_interval: 30s
+    baseline: 0x4242
+  - platform: tx20
+    wind_speed:
+      name: 'Windspeed'
+    wind_direction_degrees:
+      name: 'Winddirection Degrees'
+    pin:
+      number: GPIO04
+      mode: INPUT
+  - platform: zyaura
+    clock_pin: GPIO5
+    data_pin: GPIO4
+    co2:
+      name: 'ZyAura CO2'
+    temperature:
+      name: 'ZyAura Temperature'
+    humidity:
+      name: 'ZyAura Humidity'
+  - platform: as3935
+    lightning_energy:
+      name: 'Lightning Energy'
+    distance:
+      name: 'Distance Storm'
+  - platform: tmp117
+    name: 'TMP117 Temperature'
+    update_interval: 5s
+  - platform: hm3301
+    pm_1_0:
+      name: 'PM1.0'
+    pm_2_5:
+      name: 'PM2.5'
+    pm_10_0:
+      name: 'PM10.0'
+    aqi:
+      name: 'AQI'
+      calculation_type: 'CAQI'
+
+esp32_touch:
+  setup_mode: False
+  iir_filter: 10ms
+  sleep_duration: 27ms
+  measurement_duration: 8ms
+  low_voltage_reference: 0.5V
+  high_voltage_reference: 2.7V
+  voltage_attenuation: 1.5V
+
+binary_sensor:
+  - platform: gpio
+    pin: GPIO9
+    name: 'Living Room Window'
+    device_class: window
+    filters:
+      - invert:
+      - delayed_on: 40ms
+      - delayed_off: 40ms
+    on_press:
+      then:
+        - lambda: >-
+            ESP_LOGD("main", "Pressed");
+    on_release:
+      then:
+        - lambda: >-
+            ESP_LOGD("main", "Released");
+    on_click:
+      - min_length: 50ms
+        max_length: 350ms
+        then:
+          - lambda: >-
+              ESP_LOGD("main", "Clicked");
+      - then:
+          - lambda: >-
+              ESP_LOGD("main", "Clicked");
+    on_double_click:
+      - min_length: 50ms
+        max_length: 350ms
+        then:
+          - lambda: >-
+              ESP_LOGD("main", "Double Clicked");
+      - then:
+          - lambda: >-
+              ESP_LOGD("main", "Double Clicked");
+    on_multi_click:
+      - timing:
+          - ON for at most 1s
+          - OFF for at most 1s
+          - ON for at most 1s
+          - OFF for at least 0.2s
+        then:
+          - logger.log:
+              format: 'Multi Clicked TWO'
+              level: warn
+      - timing:
+          - OFF for 1s to 2s
+          - ON for 1s to 2s
+          - OFF for at least 0.5s
+        then:
+          - logger.log:
+              format: 'Multi Clicked LONG SINGLE'
+              level: warn
+      - timing:
+          - ON for at most 1s
+          - OFF for at least 0.5s
+        then:
+          - logger.log:
+              format: 'Multi Clicked SINGLE'
+              level: warn
+    id: binary_sensor1
+  - platform: gpio
+    pin:
+      number: GPIO9
+      mode: INPUT_PULLUP
+    name: 'Living Room Window 2'
+  - platform: status
+    name: 'Living Room Status'
+  - platform: esp32_touch
+    name: 'ESP32 Touch Pad GPIO27'
+    pin: GPIO27
+    threshold: 1000
+    id: btn_left
+  - platform: nextion
+    page_id: 0
+    component_id: 2
+    name: 'Nextion Component 2 Touch'
+  - platform: template
+    name: 'Garage Door Open'
+    id: garage_door
+    lambda: |-
+      if (isnan(id(my_sensor).state)) {
+        // isnan checks if the ultrasonic sensor echo
+        // has timed out, resulting in a NaN (not a number) state
+        // in that case, return {} to indicate that we don't know.
+        return {};
+      } else if (id(my_sensor).state > 30) {
+        // Garage Door is open.
+        return true;
+      } else {
+        // Garage Door is closed.
+        return false;
+      }
+    on_press:
+      - binary_sensor.template.publish:
+          id: garage_door
+          state: OFF
+      - output.ledc.set_frequency:
+          id: gpio_19
+          frequency: 500.0Hz
+      - output.ledc.set_frequency:
+          id: gpio_19
+          frequency: !lambda 'return 500.0;'
+  - platform: pn532
+    uid: 74-10-37-94
+    name: 'PN532 NFC Tag'
+  - platform: rdm6300
+    uid: 7616525
+    name: 'RDM6300 NFC Tag'
+  - platform: gpio
+    name: 'PCF binary sensor'
+    pin:
+      pcf8574: pcf8574_hub
+      number: 1
+      mode: INPUT
+      inverted: True
+  - platform: gpio
+    name: 'MCP21 binary sensor'
+    pin:
+      mcp23017: mcp23017_hub
+      number: 1
+      mode: INPUT
+      inverted: True
+  - platform: gpio
+    name: 'MCP22 binary sensor'
+    pin:
+      mcp23008: mcp23008_hub
+      number: 7
+      mode: INPUT_PULLUP
+      inverted: False
+  - platform: gpio
+    name: 'MCP23 binary sensor'
+    pin:
+      mcp23016: mcp23016_hub
+      number: 7
+      mode: INPUT
+      inverted: False
+
+  - platform: remote_receiver
+    name: 'Raw Remote Receiver Test'
+    raw:
+      code:
+        [
+          5685,
+          -4252,
+          1711,
+          -2265,
+          1712,
+          -2265,
+          1711,
+          -2264,
+          1712,
+          -2266,
+          3700,
+          -2263,
+          1712,
+          -4254,
+          1711,
+          -4249,
+          1715,
+          -2266,
+          1710,
+          -2267,
+          1709,
+          -2265,
+          3704,
+          -4250,
+          1712,
+          -4254,
+          3700,
+          -2260,
+          1714,
+          -2265,
+          1712,
+          -2262,
+          1714,
+          -2267,
+          1709,
+        ]
+  - platform: as3935
+    name: 'Storm Alert'
+
+pca9685:
+  frequency: 500
+  address: 0x0
+
+tlc59208f:
+  - address: 0x20
+    id: tlc59208f_1
+  - address: 0x22
+    id: tlc59208f_2
+  - address: 0x24
+    id: tlc59208f_3
+
+my9231:
+  data_pin: GPIO12
+  clock_pin: GPIO14
+  num_channels: 6
+  num_chips: 2
+  bit_depth: 16
+
+output:
+  - platform: gpio
+    pin: GPIO26
+    id: gpio_26
+    power_supply: atx_power_supply
+    inverted: False
+  - platform: ledc
+    pin: 19
+    id: gpio_19
+    frequency: 1500Hz
+    channel: 14
+    max_power: 0.5
+  - platform: pca9685
+    id: pca_0
+    channel: 0
+  - platform: pca9685
+    id: pca_1
+    channel: 1
+  - platform: pca9685
+    id: pca_2
+    channel: 2
+  - platform: pca9685
+    id: pca_3
+    channel: 3
+  - platform: pca9685
+    id: pca_4
+    channel: 4
+  - platform: pca9685
+    id: pca_5
+    channel: 5
+  - platform: pca9685
+    id: pca_6
+    channel: 6
+  - platform: pca9685
+    id: pca_7
+    channel: 7
+  - platform: tlc59208f
+    id: tlc_0
+    channel: 0
+    tlc59208f_id: 'tlc59208f_1'
+  - platform: tlc59208f
+    id: tlc_1
+    channel: 1
+    tlc59208f_id: 'tlc59208f_1'
+  - platform: tlc59208f
+    id: tlc_2
+    channel: 2
+    tlc59208f_id: 'tlc59208f_1'
+  - platform: tlc59208f
+    id: tlc_3
+    channel: 0
+    tlc59208f_id: 'tlc59208f_2'
+  - platform: tlc59208f
+    id: tlc_4
+    channel: 1
+    tlc59208f_id: 'tlc59208f_2'
+  - platform: tlc59208f
+    id: tlc_5
+    channel: 2
+    tlc59208f_id: 'tlc59208f_2'
+  - platform: tlc59208f
+    id: tlc_6
+    channel: 0
+    tlc59208f_id: 'tlc59208f_3'
+  - platform: tlc59208f
+    id: tlc_7
+    channel: 1
+    tlc59208f_id: 'tlc59208f_3'
+  - platform: tlc59208f
+    id: tlc_8
+    channel: 2
+    tlc59208f_id: 'tlc59208f_3'
+  - platform: gpio
+    id: id2
+    pin:
+      pcf8574: pcf8574_hub
+      number: 0
+      mode: OUTPUT
+      inverted: False
+  - platform: gpio
+    id: id22
+    pin:
+      mcp23017: mcp23017_hub
+      number: 0
+      mode: OUTPUT
+      inverted: False
+  - platform: gpio
+    id: id23
+    pin:
+      mcp23008: mcp23008_hub
+      number: 0
+      mode: OUTPUT
+      inverted: False
+  - platform: gpio
+    id: id25
+    pin:
+      mcp23016: mcp23016_hub
+      number: 0
+      mode: OUTPUT
+      inverted: False
+  - platform: my9231
+    id: my_0
+    channel: 0
+  - platform: my9231
+    id: my_1
+    channel: 1
+  - platform: my9231
+    id: my_2
+    channel: 2
+  - platform: my9231
+    id: my_3
+    channel: 3
+  - platform: my9231
+    id: my_4
+    channel: 4
+  - platform: my9231
+    id: my_5
+    channel: 5
+  - platform: slow_pwm
+    id: id24
+    pin: GPIO26
+    period: 15s
+  - platform: ac_dimmer
+    id: dimmer1
+    gate_pin: GPIO5
+    zero_cross_pin: GPIO26
+  - platform: esp32_dac
+    pin: GPIO25
+    id: dac_output
+
+e131:
+
+light:
+  - platform: binary
+    name: 'Desk Lamp'
+    output: gpio_26
+    effects:
+      - strobe:
+      - strobe:
+          name: 'My Strobe'
+          colors:
+            - state: True
+              duration: 250ms
+            - state: False
+              duration: 250ms
+    on_turn_on:
+      - switch.template.publish:
+          id: livingroom_lights
+          state: yes
+    on_turn_off:
+      - switch.template.publish:
+          id: livingroom_lights
+          state: yes
+  - platform: monochromatic
+    name: 'Kitchen Lights'
+    id: kitchen
+    output: gpio_19
+    gamma_correct: 2.8
+    default_transition_length: 2s
+    effects:
+      - strobe:
+      - flicker:
+      - flicker:
+          name: 'My Flicker'
+          alpha: 98%
+          intensity: 1.5%
+      - lambda:
+          name: My Custom Effect
+          update_interval: 1s
+          lambda: |-
+            static int state = 0;
+            state += 1;
+            if (state == 4)
+              state = 0;
+  - platform: rgb
+    name: 'Living Room Lights'
+    id: living_room_lights
+    red: pca_0
+    green: pca_1
+    blue: pca_2
+  - platform: rgbw
+    name: 'Living Room Lights 2'
+    red: pca_3
+    green: pca_4
+    blue: pca_5
+    white: pca_6
+    color_interlock: true
+  - platform: rgbww
+    name: 'Living Room Lights 2'
+    red: pca_3
+    green: pca_4
+    blue: pca_5
+    cold_white: pca_6
+    warm_white: pca_6
+    cold_white_color_temperature: 153 mireds
+    warm_white_color_temperature: 500 mireds
+    color_interlock: true
+  - platform: cwww
+    name: 'Living Room Lights 2'
+    cold_white: pca_6
+    warm_white: pca_6
+    cold_white_color_temperature: 153 mireds
+    warm_white_color_temperature: 500 mireds
+    constant_brightness: true
+  - platform: fastled_clockless
+    id: addr1
+    chipset: WS2811
+    pin: GPIO23
+    num_leds: 60
+    rgb_order: BRG
+    max_refresh_rate: 20ms
+    power_supply: atx_power_supply
+    color_correct: [75%, 100%, 50%]
+    name: 'FastLED WS2811 Light'
+    effects:
+      - addressable_color_wipe:
+      - addressable_color_wipe:
+          name: Color Wipe Effect With Custom Values
+          colors:
+            - red: 100%
+              green: 100%
+              blue: 100%
+              num_leds: 1
+            - red: 0%
+              green: 0%
+              blue: 0%
+              num_leds: 1
+          add_led_interval: 100ms
+          reverse: False
+      - addressable_scan:
+      - addressable_scan:
+          name: Scan Effect With Custom Values
+          move_interval: 100ms
+      - addressable_twinkle:
+      - addressable_twinkle:
+          name: Twinkle Effect With Custom Values
+          twinkle_probability: 5%
+          progress_interval: 4ms
+      - addressable_random_twinkle:
+      - addressable_random_twinkle:
+          name: Random Twinkle Effect With Custom Values
+          twinkle_probability: 5%
+          progress_interval: 32ms
+      - addressable_fireworks:
+      - addressable_fireworks:
+          name: Fireworks Effect With Custom Values
+          update_interval: 32ms
+          spark_probability: 10%
+          use_random_color: false
+          fade_out_rate: 120
+      - addressable_flicker:
+      - addressable_flicker:
+          name: Flicker Effect With Custom Values
+          update_interval: 16ms
+          intensity: 5%
+      - addressable_lambda:
+          name: 'Test For Custom Lambda Effect'
+          lambda: |-
+            if (initial_run) {
+              it[0] = current_color;
+            }
+
+      - wled:
+          port: 11111
+
+      - adalight:
+          uart_id: adalight_uart
+
+      - automation:
+          name: Custom Effect
+          sequence:
+            - light.addressable_set:
+                id: addr1
+                red: 100%
+                green: 100%
+                blue: 0%
+            - delay: 100ms
+            - light.addressable_set:
+                id: addr1
+                red: 0%
+                green: 100%
+                blue: 0%
+      - e131:
+          universe: 1
+  - platform: fastled_spi
+    id: addr2
+    chipset: WS2801
+    data_pin: GPIO23
+    clock_pin: GPIO22
+    num_leds: 60
+    rgb_order: BRG
+    name: 'FastLED SPI Light'
+  - platform: neopixelbus
+    id: addr3
+    name: 'Neopixelbus Light'
+    gamma_correct: 2.8
+    color_correct: [0.0, 0.0, 0.0, 0.0]
+    default_transition_length: 10s
+    power_supply: atx_power_supply
+    effects:
+      - addressable_flicker:
+          name: Flicker Effect With Custom Values
+          update_interval: 16ms
+          intensity: 5%
+    type: GRBW
+    variant: SK6812
+    method: ESP32_I2S_0
+    num_leds: 60
+    pin: GPIO23
+  - platform: partition
+    name: 'Partition Light'
+    segments:
+      - id: addr1
+        from: 0
+        to: 0
+      - id: addr2
+        from: 1
+        to: 10
+      - id: addr2
+        from: 20
+        to: 25
+
+remote_transmitter:
+  - pin: 32
+    carrier_duty_percent: 100%
+
+climate:
+  - platform: tcl112
+    name: TCL112 Climate With Sensor
+    supports_heat: True
+    supports_cool: True
+    sensor: my_sensor
+  - platform: tcl112
+    name: TCL112 Climate
+  - platform: coolix
+    name: Coolix Climate With Sensor
+    supports_heat: True
+    supports_cool: True
+    sensor: my_sensor
+  - platform: coolix
+    name: Coolix Climate
+  - platform: fujitsu_general
+    name: Fujitsu General Climate
+  - platform: daikin
+    name: Daikin Climate
+  - platform: yashima
+    name: Yashima Climate
+  - platform: mitsubishi
+    name: Mitsubishi
+  - platform: whirlpool
+    name: Whirlpool Climate
+  - platform: climate_ir_lg
+    name: LG Climate
+  - platform: toshiba
+    name: Toshiba Climate
+
+switch:
+  - platform: gpio
+    pin: GPIO25
+    name: 'Living Room Dehumidifier'
+    icon: 'mdi:restart'
+    inverted: True
+    command_topic: custom_command_topic
+    restore_mode: ALWAYS_OFF
+  - platform: template
+    name: JVC Off
+    id: living_room_lights_on
+    turn_on_action:
+      remote_transmitter.transmit_jvc:
+        data: 0x10EF
+  - platform: template
+    name: NEC
+    id: living_room_lights_off
+    turn_on_action:
+      remote_transmitter.transmit_nec:
+        address: 0x4242
+        command: 0x8484
+  - platform: template
+    name: LG
+    turn_on_action:
+      remote_transmitter.transmit_lg:
+        data: 4294967295
+        nbits: 28
+  - platform: template
+    name: Samsung
+    turn_on_action:
+      remote_transmitter.transmit_samsung:
+        data: 0xABCDEF
+  - platform: template
+    name: Sony
+    turn_on_action:
+      remote_transmitter.transmit_sony:
+        data: 0xABCDEF
+        nbits: 12
+  - platform: template
+    name: Panasonic
+    turn_on_action:
+      remote_transmitter.transmit_panasonic:
+        address: 0x4004
+        command: 0x1000BCD
+  - platform: template
+    name: Pioneer
+    turn_on_action:
+      - remote_transmitter.transmit_pioneer:
+          rc_code_1: 0xA556
+          rc_code_2: 0xA506
+          repeat:
+            times: 2
+  - platform: template
+    name: RC Switch Raw
+    turn_on_action:
+      remote_transmitter.transmit_rc_switch_raw:
+        code: '00101001100111110101xxxx'
+        protocol: 1
+  - platform: template
+    name: RC Switch Type A
+    turn_on_action:
+      remote_transmitter.transmit_rc_switch_type_a:
+        group: '11001'
+        device: '01000'
+        state: True
+        protocol:
+          pulse_length: 175
+          sync: [1, 31]
+          zero: [1, 3]
+          one: [3, 1]
+          inverted: False
+  - platform: template
+    name: RC Switch Type B
+    turn_on_action:
+      remote_transmitter.transmit_rc_switch_type_b:
+        address: 4
+        channel: 2
+        state: True
+  - platform: template
+    name: RC Switch Type C
+    turn_on_action:
+      remote_transmitter.transmit_rc_switch_type_c:
+        family: 'a'
+        group: 1
+        device: 2
+        state: True
+  - platform: template
+    name: RC Switch Type D
+    turn_on_action:
+      remote_transmitter.transmit_rc_switch_type_d:
+        group: 'a'
+        device: 2
+        state: True
+  - platform: template
+    name: RC5
+    turn_on_action:
+      remote_transmitter.transmit_rc5:
+        address: 0x00
+        command: 0x0B
+  - platform: template
+    name: RC5
+    turn_on_action:
+      remote_transmitter.transmit_raw:
+        code: [1000, -1000]
+  - platform: template
+    name: Living Room Lights
+    id: livingroom_lights
+    optimistic: True
+    assumed_state: yes
+    turn_on_action:
+      - switch.turn_on: living_room_lights_on
+      - output.set_level:
+          id: gpio_19
+          level: 50%
+      - output.set_level:
+          id: gpio_19
+          level: !lambda 'return 0.5;'
+      - output.set_level:
+          id: dac_output
+          level: 50%
+      - output.set_level:
+          id: dac_output
+          level: !lambda 'return 0.5;'
+    turn_off_action:
+      - switch.turn_on: living_room_lights_off
+    restore_state: False
+    on_turn_on:
+      - switch.template.publish:
+          id: livingroom_lights
+          state: yes
+  - platform: restart
+    name: 'Living Room Restart'
+  - platform: shutdown
+    name: 'Living Room Shutdown'
+  - platform: output
+    name: 'Generic Output'
+    output: pca_6
+  - platform: template
+    name: 'Template Switch'
+    id: my_switch
+    lambda: |-
+      if (id(binary_sensor1).state) {
+        return true;
+      } else {
+        return {};
+      }
+      id(my_switch).publish_state(false);
+      id(my_switch).publish_state(true);
+      if (id(my_switch).state) {
+        // Switch is ON, do something here
+        id(my_switch).turn_off();
+        id(my_switch).turn_on();
+      } else {
+        // Switch is OFF, do something else here
+      }
+    optimistic: true
+    assumed_state: no
+    restore_state: True
+    on_turn_off:
+      - switch.template.publish:
+          id: my_switch
+          state: !lambda 'return false;'
+  - platform: uart
+    name: 'UART String Output'
+    data: 'DataToSend'
+  - platform: uart
+    name: 'UART Bytes Output'
+    data: [0xDE, 0xAD, 0xBE, 0xEF]
+  - platform: template
+    assumed_state: yes
+    name: Stepper Switch
+    turn_on_action:
+      - stepper.set_target:
+          id: my_stepper
+          target: !lambda |-
+            static int32_t i = 0;
+            i += 1000;
+            if (i > 5000) {
+              i = -5000;
+            }
+            return i;
+      - stepper.report_position:
+          id: my_stepper
+          position: 0
+
+  - platform: gpio
+    name: 'SN74HC595 Pin #0'
+    pin:
+      sn74hc595: sn74hc595_hub
+      # Use pin number 0
+      number: 0
+      inverted: False
+
+fan:
+  - platform: binary
+    output: gpio_26
+    name: 'Living Room Fan 1'
+    oscillation_output: gpio_19
+    direction_output: gpio_26
+  - platform: speed
+    output: pca_6
+    name: 'Living Room Fan 2'
+    oscillation_output: gpio_19
+    direction_output: gpio_26
+    speed:
+      low: 0.45
+      medium: 0.75
+      high: 1.0
+    oscillation_state_topic: oscillation/state/topic
+    oscillation_command_topic: oscillation/command/topic
+    speed_state_topic: speed/state/topic
+    speed_command_topic: speed/command/topic
+
+interval:
+  - interval: 10s
+    then:
+      - display.page.show: !lambda |-
+          if (true) return id(page1); else return id(page2);
+      - display.page.show_next: display1
+      - display.page.show_previous: display1
+  - interval: 2s
+    then:
+      - lambda: |-
+          static uint16_t btn_left_state = id(btn_left)->get_value();
+
+          ESP_LOGD("adaptive touch", "___  Touch Pad '%s' (T%u): val: %u state: %u tres:%u", id(btn_left)->get_name().c_str(), id(btn_left)->get_touch_pad(), id(btn_left)->get_value(), btn_left_state, id(btn_left)->get_threshold());
+
+          btn_left_state = ((uint32_t) id(btn_left)->get_value()  +  63 * (uint32_t)btn_left_state) >> 6;
+
+          id(btn_left)->set_threshold(btn_left_state * 0.9);
 
 color:
-  - id: my_red
+  - id: kbx_red
     red: 100%
-    green: 0%
-    blue: 0%
-  - id: my_yellow
-    red: 100%
-    green: 100%
-    blue: 0%
+    green: 1%
+    blue: 2%
+  - id: kbx_blue
+    red: 0%
+    green: 1%
+    blue: 100%
 
 display:
-  - platform: st7735
-    model: 'INITR_18BLACKTAB'
-    reset_pin: D3
-    cs_pin: D8
-    dc_pin: D4
-    rotation: 0
-    devicewidth: 128
-    deviceheight: 160
-    colstart: 0
-    rowstart: 0
-    eightbitcolor: true
-    update_interval: 5s
+  - platform: lcd_gpio
+    dimensions: 18x4
+    data_pins:
+      - GPIO19
+      - GPIO21
+      - GPIO22
+      - GPIO23
+    enable_pin: GPIO23
+    rs_pin: GPIO25
     lambda: |-
-      // Draw a line from [0,0] to [100,50]
-      it.line(0, 0, 100, 50);
-      // Draw the outline of a rectangle with the top left at [50,60], a width of 30 and a height of 42
-      it.rectangle(50, 60, 30, 42,  id(my_yellow));
-      // Draw the same rectangle, but this time filled.
-      it.filled_rectangle(50, 60, 30, 42,  id(my_red));
+      it.print("Hello World!");
+  - platform: lcd_pcf8574
+    dimensions: 18x4
+    address: 0x3F
+    lambda: |-
+      it.print("Hello World!");
+  - platform: max7219
+    cs_pin: GPIO23
+    num_chips: 1
+    lambda: |-
+      it.print("01234567");
+  - platform: tm1637
+    clk_pin: GPIO23
+    dio_pin: GPIO25
+    intensity: 3
+    lambda: |-
+      it.print("1234");
+  - platform: tm1637
+    clk_pin:
+      mcp23017: mcp23017_hub
+      number: 1
+    dio_pin:
+      mcp23017: mcp23017_hub
+      number: 2
+    intensity: 3
+    lambda: |-
+      it.print("1234");
+  - platform: nextion
+    lambda: |-
+      it.set_component_value("gauge", 50);
+      it.set_component_text("textview", "Hello World!");
+  - platform: pcd8544
+    cs_pin: GPIO23
+    dc_pin: GPIO23
+    reset_pin: GPIO23
+    lambda: |-
+      it.rectangle(0, 0, it.get_width(), it.get_height());
+  - platform: ssd1306_i2c
+    model: 'SSD1306_128X64'
+    reset_pin: GPIO23
+    address: 0x3C
+    id: display1
+    brightness: 60%
+    pages:
+      - id: page1
+        lambda: |-
+          it.rectangle(0, 0, it.get_width(), it.get_height());
+      - id: page2
+        lambda: |-
+          // Nothing
+  - platform: ssd1306_spi
+    model: 'SSD1306 128x64'
+    cs_pin: GPIO23
+    dc_pin: GPIO23
+    reset_pin: GPIO23
+    lambda: |-
+      it.rectangle(0, 0, it.get_width(), it.get_height());
+  - platform: ssd1325_spi
+    model: 'SSD1325 128x64'
+    cs_pin: GPIO23
+    dc_pin: GPIO23
+    reset_pin: GPIO23
+    lambda: |-
+      it.rectangle(0, 0, it.get_width(), it.get_height());
+  - platform: ssd1351_spi
+    model: 'SSD1351 128x128'
+    cs_pin: GPIO23
+    dc_pin: GPIO23
+    reset_pin: GPIO23
+    lambda: |-
+      it.rectangle(0, 0, it.get_width(), it.get_height());
+  - platform: waveshare_epaper
+    cs_pin: GPIO23
+    dc_pin: GPIO23
+    busy_pin: GPIO23
+    reset_pin: GPIO23
+    model: 2.90in
+    full_update_every: 30
+    lambda: |-
+      it.rectangle(0, 0, it.get_width(), it.get_height());
+  - platform: st7789v
+    cs_pin: GPIO5
+    dc_pin: GPIO16
+    reset_pin: GPIO23
+    backlight_pin: GPIO4
+    lambda: |-
+      it.rectangle(0, 0, it.get_width(), it.get_height());
 
-      // Circles! Let's draw one with the center at [25,25] and a radius of 10
-      it.circle(25, 25, 10);
-      // ... and the same thing filled again
-      it.filled_circle(25, 25, 10);
+tm1651:
+  id: tm1651_battery
+  clk_pin: GPIO23
+  dio_pin: GPIO23
+
+remote_receiver:
+  pin: GPIO32
+  dump: all
+
+status_led:
+  pin: GPIO2
+
+pn532:
+  cs_pin: GPIO23
+  update_interval: 1s
+  on_tag:
+    - lambda: |-
+        ESP_LOGD("main", "Found tag %s", x.c_str());
+    - mqtt.publish:
+        topic: the/topic
+        payload: !lambda 'return x;'
+
+rdm6300:
+
+gps:
+
+time:
+  - platform: sntp
+    id: sntp_time
+    servers:
+      - 0.pool.ntp.org
+      - 1.pool.ntp.org
+      - 192.168.178.1
+    on_time:
+      cron: '/30 0-30,30/5 * ? JAN-DEC MON,SAT-SUN,TUE-FRI'
+      then:
+        - lambda: 'ESP_LOGD("main", "time");'
+  - platform: gps
+
+cover:
+  - platform: template
+    name: 'Template Cover'
+    id: template_cover
+    lambda: |-
+      if (id(binary_sensor1).state) {
+        return COVER_OPEN;
+      } else {
+        return {};
+      }
+    optimistic: true
+    open_action:
+      - cover.template.publish:
+          id: template_cover
+          state: CLOSED
+    assumed_state: no
+
+debug:
+
+pcf8574:
+  - id: 'pcf8574_hub'
+    address: 0x21
+    pcf8575: False
+
+mcp23017:
+  - id: 'mcp23017_hub'
+
+mcp23008:
+  - id: 'mcp23008_hub'
+    address: 0x22
+
+mcp23016:
+  - id: 'mcp23016_hub'
+    address: 0x23
+
+stepper:
+  - platform: a4988
+    id: my_stepper
+    step_pin: GPIO23
+    dir_pin: GPIO25
+    sleep_pin: GPIO25
+    max_speed: 250 steps/s
+    acceleration: 100 steps/s^2
+    deceleration: 200 steps/s^2
+
+globals:
+  - id: glob_int
+    type: int
+    restore_value: yes
+    initial_value: '0'
+  - id: glob_float
+    type: float
+    restore_value: yes
+    initial_value: '0.0f'
+  - id: glob_bool
+    type: bool
+    restore_value: no
+    initial_value: 'true'
+  - id: glob_string
+    type: std::string
+    restore_value: no
+    # initial_value: ""
+
+text_sensor:
+  - platform: mqtt_subscribe
+    name: 'MQTT Subscribe Text'
+    topic: 'the/topic'
+    qos: 2
+    on_value:
+      - text_sensor.template.publish:
+          id: template_text
+          state: Hello World
+      - text_sensor.template.publish:
+          id: template_text
+          state: |-
+            return "Hello World2";
+      - globals.set:
+          id: glob_int
+          value: '0'
+  - platform: template
+    name: Template Text Sensor
+    id: template_text
+  - platform: wifi_info
+    ip_address:
+      name: 'IP Address'
+    ssid:
+      name: 'SSID'
+    bssid:
+      name: 'BSSID'
+    mac_address:
+      name: 'Mac Address'
+  - platform: version
+    name: 'ESPHome Version No Timestamp'
+    hide_timestamp: True
+
+sn74hc595:
+  - id: 'sn74hc595_hub'
+    data_pin: GPIO21
+    clock_pin: GPIO23
+    latch_pin: GPIO22
+    oe_pin: GPIO32
+    sr_count: 2
+
+rtttl:
+  output: gpio_19
