@@ -1568,9 +1568,9 @@ color:
 display:
 - platform: st7735
   model: "INITR_18BLACKTAB"
-  reset_pin: D3
-  cs_pin: D8
-  dc_pin: D4
+  reset_pin: GPIO04
+  cs_pin: GPIO05
+  dc_pin: GPIO12
   rotation: 0
   devicewidth: 128
   deviceheight: 160
