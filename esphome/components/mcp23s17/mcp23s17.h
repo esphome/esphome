@@ -5,7 +5,7 @@
 #include "esphome/components/spi/spi.h"
 
 namespace esphome {
-namespace mcp23S17 {
+namespace mcp23s17 {
 
 /// Modes for MCP23S17 pins
 enum MCP23S17GPIOMode : uint8_t {
@@ -48,6 +48,7 @@ class MCP23S17 : public Component,
   MCP23S17() = default;
 
   void setup() override;
+  void dump_config() override;
   void set_device_address(uint8_t device_addr);
 
   bool digital_read(uint8_t pin);
@@ -55,7 +56,7 @@ class MCP23S17 : public Component,
   void pin_mode(uint8_t pin, uint8_t mode);
 
   float get_setup_priority() const override;
-
+  
  protected:
   // read a given register
   bool read_reg_(uint8_t reg, uint8_t *value);

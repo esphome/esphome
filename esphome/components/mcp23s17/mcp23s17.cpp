@@ -1,10 +1,10 @@
-#include "mcp23S17.h"
+#include "mcp23s17.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
-namespace mcp23S17 {
+namespace mcp23s17 {
 
-static const char *TAG = "mcp23S17";
+static const char *TAG = "mcp23s17";
 
 void MCP23S17::set_device_address(uint8_t device_addr) {
   if (device_addr != 0) {
@@ -30,6 +30,11 @@ void MCP23S17::setup() {
     this->transfer_byte(0);
   }
   this->disable();
+}
+
+void MCP23S17::dump_config() {
+  ESP_LOGCONFIG(TAG, "MCP23S17:");
+  ESP_LOGCONFIG(TAG, "  CS Pin: %u", this->cs_->get_pin());
 }
 
 float MCP23S17::get_setup_priority() const { return setup_priority::HARDWARE; }

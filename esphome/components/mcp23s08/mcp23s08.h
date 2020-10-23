@@ -5,7 +5,7 @@
 #include "esphome/components/spi/spi.h"
 
 namespace esphome {
-namespace mcp23S08 {
+namespace mcp23s08 {
 
 /// Modes for MCP23S08 pins
 enum MCP23S08GPIOMode : uint8_t {
@@ -36,7 +36,7 @@ class MCP23S08 : public Component,
   MCP23S08() = default;
 
   void setup() override;
-
+  void dump_config() override;
   bool digital_read(uint8_t pin);
   void digital_write(uint8_t pin, bool value);
   void pin_mode(uint8_t pin, uint8_t mode);
