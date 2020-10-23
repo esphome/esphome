@@ -13,28 +13,6 @@ static const uint8_t ST7735_TFTWIDTH_80 = 80;     // for mini^M
 static const uint8_t ST7735_TFTHEIGHT_128 = 128;  // for 1.44" display^M
 static const uint8_t ST7735_TFTHEIGHT_160 = 160;  // for 1.8" and mini display^M
 
-// Some ready-made 16-bit ('565') color settings:
-static const uint8_t ST77XX_BLACK = 0x0000;
-#define ST77XX_WHITE 0xFFFF
-#define ST77XX_RED 0xF800
-#define ST77XX_GREEN 0x07E0
-#define ST77XX_BLUE 0x001F
-#define ST77XX_CYAN 0x07FF
-#define ST77XX_MAGENTA 0xF81F
-#define ST77XX_YELLOW 0xFFE0
-#define ST77XX_ORANGE 0xFC00
-
-// Some ready-made 16-bit ('565') color settings:
-#define ST7735_BLACK ST77XX_BLACK
-#define ST7735_WHITE ST77XX_WHITE
-#define ST7735_RED ST77XX_RED
-#define ST7735_GREEN ST77XX_GREEN
-#define ST7735_BLUE ST77XX_BLUE
-#define ST7735_CYAN ST77XX_CYAN
-#define ST7735_MAGENTA ST77XX_MAGENTA
-#define ST7735_YELLOW ST77XX_YELLOW
-#define ST7735_ORANGE ST77XX_ORANGE
-
 // some flags for initR() :(
 static const uint8_t INITR_GREENTAB = 0x00;
 static const uint8_t INITR_REDTAB = 0x01;
