@@ -21,51 +21,40 @@ static const uint8_t ST77XX_INVOFF = 0x20;
 static const uint8_t ST77XX_INVON = 0x21;
 static const uint8_t ST77XX_DISPOFF = 0x28;
 static const uint8_t ST77XX_DISPON = 0x29;
-#define ST77XX_CASET 0x2A
-#define ST77XX_RASET 0x2B
-#define ST77XX_RAMWR 0x2C
-#define ST77XX_RAMRD 0x2E
+static const uint8_t ST77XX_CASET 0x2A static const uint8_t ST77XX_RASET 0x2B static const uint8_t
+    ST77XX_RAMWR 0x2C static const uint8_t ST77XX_RAMRD 0x2E
 
-static const uint8_t ST77XX_PTLAR = 0x30;
+    static const uint8_t ST77XX_PTLAR = 0x30;
 static const uint8_t ST77XX_TEOFF = 0x34;
 static const uint8_t ST77XX_TEON = 0x35;
 static const uint8_t ST77XX_MADCTL = 0x36;
-#define ST77XX_COLMOD 0x3A
+static const uint8_t ST77XX_COLMOD 0x3A
 
-static const uint8_t ST77XX_MADCTL_MY = 0x80;
+    static const uint8_t ST77XX_MADCTL_MY = 0x80;
 static const uint8_t ST77XX_MADCTL_MX = 0x40;
 static const uint8_t ST77XX_MADCTL_MV = 0x20;
 static const uint8_t ST77XX_MADCTL_ML = 0x10;
 static const uint8_t ST77XX_MADCTL_RGB = 0x00;
 
-#define ST77XX_RDID1 0xDA
-#define ST77XX_RDID2 0xDB
-#define ST77XX_RDID3 0xDC
-#define ST77XX_RDID4 0xDD
+static const uint8_t ST77XX_RDID1 0xDA static const uint8_t ST77XX_RDID2 0xDB static const uint8_t
+    ST77XX_RDID3 0xDC static const uint8_t ST77XX_RDID4 0xDD
 
-// Some register settings
-static const uint8_t ST7735_MADCTL_BGR = 0x08;
+    // Some register settings
+    static const uint8_t ST7735_MADCTL_BGR = 0x08;
 static const uint8_t ST7735_MADCTL_MH = 0x04;
 
-#define ST7735_FRMCTR1 0xB1
-#define ST7735_FRMCTR2 0xB2
-#define ST7735_FRMCTR3 0xB3
-#define ST7735_INVCTR 0xB4
-#define ST7735_DISSET5 0xB6
+static const uint8_t ST7735_FRMCTR1 0xB1 static const uint8_t ST7735_FRMCTR2 0xB2 static const uint8_t
+    ST7735_FRMCTR3 0xB3 static const uint8_t ST7735_INVCTR 0xB4 static const uint8_t ST7735_DISSET5 0xB6
 
-#define ST7735_PWCTR1 0xC0
-#define ST7735_PWCTR2 0xC1
-#define ST7735_PWCTR3 0xC2
-#define ST7735_PWCTR4 0xC3
-#define ST7735_PWCTR5 0xC4
-#define ST7735_VMCTR1 0xC5
+    static const uint8_t ST7735_PWCTR1 0xC0 static const uint8_t ST7735_PWCTR2 0xC1 static const uint8_t
+        ST7735_PWCTR3 0xC2 static const uint8_t ST7735_PWCTR4 0xC3 static const uint8_t
+            ST7735_PWCTR5 0xC4 static const uint8_t ST7735_VMCTR1 0xC5
 
-#define ST7735_PWCTR6 0xFC
+    static const uint8_t ST7735_PWCTR6 0xFC
 
-#define ST7735_GMCTRP1 0xE0
-#define ST7735_GMCTRN1 0xE1
+    static const uint8_t ST7735_GMCTRP1 0xE0 static const uint8_t ST7735_GMCTRN1 0xE1
 
-// clang-format off
+    // clang-format off
 static const uint8_t PROGMEM
   BCMD[] = {                        // Init commands for 7735B screens
     18,                             // 18 commands in list:
