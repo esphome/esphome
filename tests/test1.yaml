@@ -5,12 +5,12 @@ esphome:
 
 wifi:
   ssid: 'abcdefg'
-  password: 'abcdefg'
+  password: 'abcdefgh'
 
   # Enable fallback hotspot (captive portal) in case wifi connection fails
   ap:
     ssid: 'St7735Test Fallback Hotspot'
-    password: 'abcdefg'
+    password: 'abcdefgh'
 
 captive_portal:
 
