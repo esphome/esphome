@@ -5,6 +5,46 @@
 namespace esphome {
 namespace midea_ac {
 
+/// Enum for all modes a Midea device can be in.
+enum MideaMode : uint8_t {
+  /// The Midea device is set to automatically change the heating/cooling cycle
+  MIDEA_MODE_AUTO = 1 << 5,
+  /// The Midea device is manually set to cool mode (not in auto mode!)
+  MIDEA_MODE_COOL = 2 << 5,
+  /// The Midea device is manually set to dry mode
+  MIDEA_MODE_DRY = 3 << 5,
+  /// The Midea device is manually set to heat mode (not in auto mode!)
+  MIDEA_MODE_HEAT = 4 << 5,
+  /// The Midea device is manually set to fan only mode
+  MIDEA_MODE_FAN_ONLY = 5 << 5,
+  /// Bitmask
+  MIDEA_MODE_BITMASK = 7 << 5,
+};
+
+/// Enum for all modes a Midea fan can be in
+enum MideaFanMode : uint8_t {
+  /// The fan mode is set to Auto
+  MIDEA_FAN_AUTO = 102,
+  /// The fan mode is set to Low
+  MIDEA_FAN_LOW = 40,
+  /// The fan mode is set to Medium
+  MIDEA_FAN_MEDIUM = 60,
+  /// The fan mode is set to High
+  MIDEA_FAN_HIGH = 80,
+};
+
+/// Enum for all modes a Midea swing can be in
+enum MideaSwingMode : uint8_t {
+  /// The sing mode is set to Off
+  MIDEA_SWING_OFF = 0b0000,
+  /// The fan mode is set to Both
+  MIDEA_SWING_BOTH = 0b1111,
+  /// The fan mode is set to Vertical
+  MIDEA_SWING_VERTICAL = 0b1100,
+  /// The fan mode is set to Horizontal
+  MIDEA_SWING_HORIZONTAL = 0b0011,
+};
+
 class PropertiesFrame : public midea_dongle::BaseFrame {
  public:
   PropertiesFrame() = delete;

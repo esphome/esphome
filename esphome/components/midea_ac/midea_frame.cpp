@@ -32,16 +32,16 @@ float PropertiesFrame::get_outdoor_temp() const { return i8tof(this->pbuf_[22]);
 climate::ClimateMode PropertiesFrame::get_mode() const {
   if (!this->get_power_())
     return climate::CLIMATE_MODE_OFF;
-  switch (this->pbuf_[12] >> 5) {
-    case 1:
+  switch (this->pbuf_[12] & MIDEA_MODE_BITMASK) {
+    case MIDEA_MODE_AUTO:
       return climate::CLIMATE_MODE_AUTO;
-    case 2:
+    case MIDEA_MODE_COOL:
       return climate::CLIMATE_MODE_COOL;
-    case 3:
+    case MIDEA_MODE_DRY:
       return climate::CLIMATE_MODE_DRY;
-    case 4:
+    case MIDEA_MODE_HEAT:
       return climate::CLIMATE_MODE_HEAT;
-    case 5:
+    case MIDEA_MODE_FAN_ONLY:
       return climate::CLIMATE_MODE_FAN_ONLY;
     default:
       return climate::CLIMATE_MODE_OFF;
@@ -52,36 +52,36 @@ void PropertiesFrame::set_mode(climate::ClimateMode mode) {
   uint8_t m;
   switch (mode) {
     case climate::CLIMATE_MODE_AUTO:
-      m = (1 << 5);
+      m = MIDEA_MODE_AUTO;
       break;
     case climate::CLIMATE_MODE_COOL:
-      m = (2 << 5);
+      m = MIDEA_MODE_COOL;
       break;
     case climate::CLIMATE_MODE_DRY:
-      m = (3 << 5);
+      m = MIDEA_MODE_DRY;
       break;
     case climate::CLIMATE_MODE_HEAT:
-      m = (4 << 5);
+      m = MIDEA_MODE_HEAT;
       break;
     case climate::CLIMATE_MODE_FAN_ONLY:
-      m = (5 << 5);
+      m = MIDEA_MODE_FAN_ONLY;
       break;
     default:
       this->set_power_(false);
       return;
   }
   this->set_power_(true);
-  this->pbuf_[12] &= ~0xE0;
+  this->pbuf_[12] &= ~MIDEA_MODE_BITMASK;
   this->pbuf_[12] |= m;
 }
 
 climate::ClimateFanMode PropertiesFrame::get_fan_mode() const {
   switch (this->pbuf_[13]) {
-    case 40:
+    case MIDEA_FAN_LOW:
       return climate::CLIMATE_FAN_LOW;
-    case 60:
+    case MIDEA_FAN_MEDIUM:
       return climate::CLIMATE_FAN_MEDIUM;
-    case 80:
+    case MIDEA_FAN_HIGH:
       return climate::CLIMATE_FAN_HIGH;
     default:
       return climate::CLIMATE_FAN_AUTO;
@@ -92,16 +92,16 @@ void PropertiesFrame::set_fan_mode(climate::ClimateFanMode mode) {
   uint8_t m;
   switch (mode) {
     case climate::CLIMATE_FAN_LOW:
-      m = 40;
+      m = MIDEA_FAN_LOW;
       break;
     case climate::CLIMATE_FAN_MEDIUM:
-      m = 60;
+      m = MIDEA_FAN_MEDIUM;
       break;
     case climate::CLIMATE_FAN_HIGH:
-      m = 80;
+      m = MIDEA_FAN_HIGH;
       break;
     default:
-      m = 102;
+      m = MIDEA_FAN_AUTO;
       break;
   }
   this->pbuf_[13] = m;
@@ -109,11 +109,11 @@ void PropertiesFrame::set_fan_mode(climate::ClimateFanMode mode) {
 
 climate::ClimateSwingMode PropertiesFrame::get_swing_mode() const {
   switch (this->pbuf_[17] & 0x0F) {
-    case 0b1100:
+    case MIDEA_SWING_VERTICAL:
       return climate::CLIMATE_SWING_VERTICAL;
-    case 0b0011:
+    case MIDEA_SWING_HORIZONTAL:
       return climate::CLIMATE_SWING_HORIZONTAL;
-    case 0b1111:
+    case MIDEA_SWING_BOTH:
       return climate::CLIMATE_SWING_BOTH;
     default:
       return climate::CLIMATE_SWING_OFF;
@@ -124,19 +124,19 @@ void PropertiesFrame::set_swing_mode(climate::ClimateSwingMode mode) {
   uint8_t m;
   switch (mode) {
     case climate::CLIMATE_SWING_VERTICAL:
-      m = 0x30 | 0b1100;
+      m = MIDEA_SWING_VERTICAL;
       break;
     case climate::CLIMATE_SWING_HORIZONTAL:
-      m = 0x30 | 0b0011;
+      m = MIDEA_SWING_HORIZONTAL;
       break;
     case climate::CLIMATE_SWING_BOTH:
-      m = 0x30 | 0b1111;
+      m = MIDEA_SWING_BOTH;
       break;
     default:
-      m = 0x30;
+      m = MIDEA_SWING_OFF;
       break;
   }
-  this->pbuf_[17] = m;
+  this->pbuf_[17] = 0x30 | m;
 }
 
 }  // namespace midea_ac
