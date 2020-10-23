@@ -9,11 +9,11 @@ from . import st7735_ns
 
 DEPENDENCIES = ['spi']
 
-CONF_DEVICEWIDTH = 'devicewidth'
-CONF_DEVICEHEIGHT = 'deviceheight'
+CONF_WIDTH = 'devicewidth'
+CONF_HEIGHT = 'deviceheight'
 CONF_ROWSTART = 'rowstart'
 CONF_COLSTART = 'colstart'
-CONF_EIGHTBITCOLOR = 'eightbitcolor'
+CONF_EIGHTBIT = 'eightbitcolor'
 
 SPIST7735 = st7735_ns.class_('ST7735', cg.PollingComponent, display.DisplayBuffer, spi.SPIDevice)
 ST7735Model = st7735_ns.enum('ST7735Model')
@@ -22,7 +22,7 @@ MODELS = {
     'INITR_GREENTAB': ST7735Model.ST7735_INITR_GREENTAB,
     'INITR_REDTAB': ST7735Model.ST7735_INITR_REDTAB,
     'INITR_BLACKTAB': ST7735Model.ST7735_INITR_BLACKTAB,
-    'INITR_MIN_I160X80': ST7735Model.ST7735_INITR_MINI160x80,
+    'INITR_MINI160x80': ST7735Model.ST7735_INITR_MINI160x80,
     'INITR_18BLACKTAB':  ST7735Model.ST7735_INITR_18BLACKTAB,
     'INITR_18REDTAB': ST7735Model.ST7735_INITR_18REDTAB
 }
@@ -37,13 +37,13 @@ ST7735_SCHEMA = display.FULL_DISPLAY_SCHEMA.extend({
 CONFIG_SCHEMA = cv.All(ST7735_SCHEMA.extend({
     cv.GenerateID(): cv.declare_id(SPIST7735),
     cv.Required(CONF_DC_PIN): pins.gpio_output_pin_schema,
-    cv.Required(CONF_DEVICEWIDTH): cv.int_,
-    cv.Required(CONF_DEVICEHEIGHT):  cv.int_,
+    cv.Required(CONF_WIDTH): cv.int_,
+    cv.Required(CONF_HEIGHT):  cv.int_,
     cv.Required(CONF_COLSTART):  cv.int_,
     cv.Required(CONF_ROWSTART):  cv.int_,
-    cv.Optional(CONF_EIGHTBITCOLOR, default=False):  cv.boolean,
-}).extend(cv.COMPONENT_SCHEMA).extend(spi.SPI_DEVICE_SCHEMA),
-                       cv.has_at_most_one_key(CONF_PAGES, CONF_LAMBDA))
+    cv.Optional(CONF_EIGHTBIT, default=False):  cv.boolean,
+}).extend(cv.COMPONENT_SCHEMA).extend(spi.spi_device_schema()),
+    cv.has_at_most_one_key(CONF_PAGES, CONF_LAMBDA))
 
 
 @coroutine
@@ -61,13 +61,8 @@ def setup_st7735(var, config):
 
 
 def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID],
-                           config[CONF_MODEL],
-                           config[CONF_DEVICEWIDTH],
-                           config[CONF_DEVICEHEIGHT],
-                           config[CONF_COLSTART],
-                           config[CONF_ROWSTART],
-                           config[CONF_EIGHTBITCOLOR])
+    var = cg.new_Pvariable(config[CONF_ID], config[CONF_MODEL], config[CONF_WIDTH],
+                           config[CONF_HEIGHT], config[CONF_COLSTART], config[CONF_ROWSTART], config[CONF_EIGHTBIT])
     yield setup_st7735(var, config)
     yield spi.register_spi_device(var, config)
 
