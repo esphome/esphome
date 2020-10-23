@@ -1582,9 +1582,9 @@ display:
       // Draw a line from [0,0] to [100,50]
       it.line(0, 0, 100, 50);
       // Draw the outline of a rectangle with the top left at [50,60], a width of 30 and a height of 42
-      it.rectangle(50, 60, 30, 42,  id(my_yellow));
+      it.rectangle(50, 60, 30, 42,  id(kbx_red));
       // Draw the same rectangle, but this time filled.
-      it.filled_rectangle(50, 60, 30, 42,  id(my_red));
+      it.filled_rectangle(50, 60, 30, 42,  id(kbx_blue));
       // Circles! Let's draw one with the center at [25,25] and a radius of 10
       it.circle(25, 25, 10);
       // ... and the same thing filled again
