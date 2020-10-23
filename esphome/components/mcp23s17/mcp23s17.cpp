@@ -43,13 +43,13 @@ bool MCP23S17::digital_read(uint8_t pin) {
   uint8_t bit = pin % 8;
   uint8_t reg_addr = pin < 8 ? MCP23S17_GPIOA : MCP23S17_GPIOB;
   uint8_t value = 0;
-  this->read_reg_(reg_addr, &value);
+  this->read_reg(reg_addr, &value);
   return value & (1 << bit);
 }
 
 void MCP23S17::digital_write(uint8_t pin, bool value) {
   uint8_t reg_addr = pin < 8 ? MCP23S17_OLATA : MCP23S17_OLATB;
-  this->update_reg_(pin, value, reg_addr);
+  this->update_reg(pin, value, reg_addr);
 }
 
 void MCP23S17::pin_mode(uint8_t pin, uint8_t mode) {
@@ -57,21 +57,21 @@ void MCP23S17::pin_mode(uint8_t pin, uint8_t mode) {
   uint8_t gppu = pin < 8 ? MCP23S17_GPPUA : MCP23S17_GPPUB;
   switch (mode) {
     case MCP23S17_INPUT:
-      this->update_reg_(pin, true, iodir);
+      this->update_reg(pin, true, iodir);
       break;
     case MCP23S17_INPUT_PULLUP:
-      this->update_reg_(pin, true, iodir);
-      this->update_reg_(pin, true, gppu);
+      this->update_reg(pin, true, iodir);
+      this->update_reg(pin, true, gppu);
       break;
     case MCP23S17_OUTPUT:
-      this->update_reg_(pin, false, iodir);
+      this->update_reg(pin, false, iodir);
       break;
     default:
       break;
   }
 }
 
-void MCP23S17::update_reg_(uint8_t pin, bool pin_value, uint8_t reg_addr) {
+void MCP23S17::update_reg(uint8_t pin, bool pin_value, uint8_t reg_addr) {
   uint8_t bit = pin % 8;
   uint8_t reg_value = 0;
   if (reg_addr == MCP23S17_OLATA) {
@@ -79,7 +79,7 @@ void MCP23S17::update_reg_(uint8_t pin, bool pin_value, uint8_t reg_addr) {
   } else if (reg_addr == MCP23S17_OLATB) {
     reg_value = this->olat_b_;
   } else {
-    this->read_reg_(reg_addr, &reg_value);
+    this->read_reg(reg_addr, &reg_value);
   }
 
   if (pin_value)
@@ -87,7 +87,7 @@ void MCP23S17::update_reg_(uint8_t pin, bool pin_value, uint8_t reg_addr) {
   else
     reg_value &= ~(1 << bit);
 
-  this->write_reg_(reg_addr, reg_value);
+  this->write_reg(reg_addr, reg_value);
 
   if (reg_addr == MCP23S17_OLATA) {
     this->olat_a_ = reg_value;
@@ -96,7 +96,7 @@ void MCP23S17::update_reg_(uint8_t pin, bool pin_value, uint8_t reg_addr) {
   }
 }
 
-bool MCP23S17::read_reg_(uint8_t reg, uint8_t *value) {
+bool MCP23S17::read_reg(uint8_t reg, uint8_t *value) {
   this->enable();
   this->transfer_byte(this->device_opcode_ | 1);
   this->transfer_byte(reg);
@@ -105,7 +105,7 @@ bool MCP23S17::read_reg_(uint8_t reg, uint8_t *value) {
   return true;
 }
 
-bool MCP23S17::write_reg_(uint8_t reg, uint8_t value) {
+bool MCP23S17::write_reg(uint8_t reg, uint8_t value) {
   this->enable();
   this->transfer_byte(this->device_opcode_);
   this->transfer_byte(reg);
@@ -122,5 +122,5 @@ void MCP23S17GPIOPin::pin_mode(uint8_t mode) { this->parent_->pin_mode(this->pin
 bool MCP23S17GPIOPin::digital_read() { return this->parent_->digital_read(this->pin_) != this->inverted_; }
 void MCP23S17GPIOPin::digital_write(bool value) { this->parent_->digital_write(this->pin_, value != this->inverted_); }
 
-}  // namespace mcp23S17
+}  // namespace mcp23s17
 }  // namespace esphome

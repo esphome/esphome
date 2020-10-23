@@ -32,10 +32,11 @@ def to_code(config):
     yield cg.register_component(var, config)
     yield spi.register_spi_device(var, config)
 
+
 CONF_MCP23S17 = 'mcp23s17'
 CONF_MCP23S17_ID = 'mcp23s17_id'
 
-mcp23S17_OUTPUT_PIN_SCHEMA = cv.Schema({    
+mcp23S17_OUTPUT_PIN_SCHEMA = cv.Schema({
     cv.GenerateID(CONF_MCP23S17_ID): cv.use_id(mcp23S17),
     cv.Required(CONF_NUMBER): cv.int_,
     cv.Optional(CONF_MODE, default="OUTPUT"): cv.enum(mcp23S17_GPIO_MODES, upper=True),
