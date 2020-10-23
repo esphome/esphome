@@ -33,7 +33,7 @@ class AQICalculator : public AbstractAQICalculator {
   }
 
   int get_grid_index_(uint16_t value, int array[AMOUNT_OF_LEVELS][2]) {
-    for (int i = 0; i < AMOUNT_OF_LEVELS - 1; i++) {
+    for (int i = 0; i < AMOUNT_OF_LEVELS; i++) {
       if (value >= array[i][0] && value <= array[i][1]) {
         return i;
       }
