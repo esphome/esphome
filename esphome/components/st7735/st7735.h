@@ -87,7 +87,7 @@ class ST7735 : public PollingComponent,
   void init_reset_();
   void display_init_(const uint8_t *addr);
   void set_addr_window_(uint16_t x, uint16_t y, uint16_t w, uint16_t h);
-  void draw_absolute_pixel_internal(int x, int y, int color) override;
+  void draw_absolute_pixel_internal(int x, int y, Color color) override;
   void spi_master_write_addr_(uint16_t addr1, uint16_t addr2);
   void spi_master_write_color_(uint16_t color, uint16_t size);
 

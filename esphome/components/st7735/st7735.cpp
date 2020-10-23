@@ -295,23 +295,19 @@ size_t ST7735::get_buffer_length() {
   return size_t(this->get_width_internal()) * size_t(this->get_height_internal()) * 2;
 }
 
-void HOT ST7735::draw_absolute_pixel_internal(int x, int y, int color) {
+void HOT ST7735::draw_absolute_pixel_internal(int x, int y, Color color) {
   if (x >= this->get_width_internal() || x < 0 || y >= this->get_height_internal() || y < 0)
     return;
-
-  if (color == display::COLOR_ON) {
-    color = ST7735_WHITE;
-  } else if (color == display::COLOR_OFF) {
-    color = ST7735_BLACK;
-  }
+ 
+  auto color565 = color.to_rgb_565();
 
   if (this->eightbitcolor_) {
-    uint16_t pos = (x + y * this->get_width_internal());
-    this->buffer_[pos++] = (color >> 8) & 0xff;
-    this->buffer_[pos] = color & 0xff;
+    uint16_t pos = (x + y * this->get_width_internal());    
+    this->buffer_[pos++] = (color565 >> 8) & 0xff;
+    this->buffer_[pos] = color565 & 0xff;
   } else {
-    uint16_t pos = (x + y * this->get_width_internal()) * 2;
-    this->buffer_[pos] = (color >> 8) & 0xff;
+    uint16_t pos = (x + y * this->get_width_internal()) * 2;    
+    this->buffer_[pos++] = (color565 >> 8) & 0xff;
   }
 }
 
