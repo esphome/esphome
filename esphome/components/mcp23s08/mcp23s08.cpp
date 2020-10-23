@@ -39,7 +39,7 @@ bool MCP23S08::digital_read(uint8_t pin) {
   uint8_t bit = pin % 8;
   uint8_t reg_addr = MCP23S08_GPIO;
   uint8_t value = 0;
-  this->read_reg_(reg_addr, &value);
+  this->read_reg(reg_addr, &value);
   return value & (1 << bit);
 }
 
@@ -48,7 +48,7 @@ void MCP23S08::digital_write(uint8_t pin, bool value) {
     return;
   }
   uint8_t reg_addr = MCP23S08_OLAT;
-  this->update_reg_(pin, value, reg_addr);
+  this->update_reg(pin, value, reg_addr);
 }
 
 void MCP23S08::pin_mode(uint8_t pin, uint8_t mode) {
@@ -56,27 +56,27 @@ void MCP23S08::pin_mode(uint8_t pin, uint8_t mode) {
   uint8_t gppu = MCP23S08_GPPU;
   switch (mode) {
     case MCP23S08_INPUT:
-      this->update_reg_(pin, true, iodir);
+      this->update_reg(pin, true, iodir);
       break;
     case MCP23S08_INPUT_PULLUP:
-      this->update_reg_(pin, true, iodir);
-      this->update_reg_(pin, true, gppu);
+      this->update_reg(pin, true, iodir);
+      this->update_reg(pin, true, gppu);
       break;
     case MCP23S08_OUTPUT:
-      this->update_reg_(pin, false, iodir);
+      this->update_reg(pin, false, iodir);
       break;
     default:
       break;
   }
 }
 
-void MCP23S08::update_reg_(uint8_t pin, bool pin_value, uint8_t reg_addr) {
+void MCP23S08::update_reg(uint8_t pin, bool pin_value, uint8_t reg_addr) {
   uint8_t bit = pin % 8;
   uint8_t reg_value = 0;
   if (reg_addr == MCP23S08_OLAT) {
     reg_value = this->olat_;
   } else {
-    this->read_reg_(reg_addr, &reg_value);
+    this->read_reg(reg_addr, &reg_value);
   }
 
   if (pin_value)
@@ -84,14 +84,14 @@ void MCP23S08::update_reg_(uint8_t pin, bool pin_value, uint8_t reg_addr) {
   else
     reg_value &= ~(1 << bit);
 
-  this->write_reg_(reg_addr, reg_value);
+  this->write_reg(reg_addr, reg_value);
 
   if (reg_addr == MCP23S08_OLAT) {
     this->olat_ = reg_value;
   }
 }
 
-bool MCP23S08::write_reg_(uint8_t reg, uint8_t value) {
+bool MCP23S08::write_reg(uint8_t reg, uint8_t value) {
   this->enable();
   this->transfer_byte(this->device_opcode_);
   this->transfer_byte(reg);
@@ -100,7 +100,7 @@ bool MCP23S08::write_reg_(uint8_t reg, uint8_t value) {
   return true;
 }
 
-bool MCP23S08::read_reg_(uint8_t reg, uint8_t *value) {
+bool MCP23S08::read_reg(uint8_t reg, uint8_t *value) {
   uint8_t data;
   this->enable();
   this->transfer_byte(this->device_opcode_ | 1);

@@ -57,13 +57,14 @@ class MCP23S17 : public Component,
 
   float get_setup_priority() const override;
 
- protected:
   // read a given register
-  bool read_reg_(uint8_t reg, uint8_t *value);
+  bool read_reg(uint8_t reg, uint8_t *value);
   // write a value to a given register
-  bool write_reg_(uint8_t reg, uint8_t value);
+  bool write_reg(uint8_t reg, uint8_t value);
   // update registers with given pin value.
-  void update_reg_(uint8_t pin, bool pin_value, uint8_t reg_a);
+  void update_reg(uint8_t pin, bool pin_value, uint8_t reg_a);
+
+ protected:
   uint8_t device_opcode_ = 0x40;
   uint8_t olat_a_{0x00};
   uint8_t olat_b_{0x00};
