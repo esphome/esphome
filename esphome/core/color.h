@@ -200,52 +200,27 @@ struct Color {
   uint8_t to_332(ColorOrder color_order = ColorOrder::COLOR_ORDER_RGB) const {
     uint16_t red_color, green_color, blue_color;
 
-    red_color = esp_scale8(this->red, ((1 << 3) - 1));
-    green_color = esp_scale8(this->green, ((1 << 3) - 1));
-    blue_color = esp_scale8(this->blue, (1 << 2) - 1);
-
-    switch (color_order) {
-      case COLOR_ORDER_RGB:
-        return red_color << 5 | green_color << 2 | blue_color;
-      case COLOR_ORDER_BGR:
-        return blue_color << 6 | green_color << 3 | red_color;
-      case COLOR_ORDER_GRB:
-        return green_color << 5 | red_color << 2 | blue_color;
+    uint8_t to_rgb_332() const {
+      uint8_t color332 =
+          (esp_scale8(this->red, 7) << 5) | (esp_scale8(this->green, 7) << 2) | (esp_scale8(this->blue, 3) << 0);
+      return color332;
     }
-    return 0;
-  }
-  uint16_t to_565(ColorOrder color_order = ColorOrder::COLOR_ORDER_RGB) const {
-    uint16_t red_color, green_color, blue_color;
 
-    red_color = esp_scale8(this->red, ((1 << 5) - 1));
-    green_color = esp_scale8(this->green, ((1 << 6) - 1));
-    blue_color = esp_scale8(this->blue, (1 << 5) - 1);
-
-    switch (color_order) {
-      case COLOR_ORDER_RGB:
-        return red_color << 11 | green_color << 5 | blue_color;
-      case COLOR_ORDER_BGR:
-        return blue_color << 11 | green_color << 5 | red_color;
-      case COLOR_ORDER_GRB:
-        return green_color << 10 | red_color << 5 | blue_color;
+    uint32_t to_rgb_565() const {
+      uint32_t color565 =
+          (esp_scale8(this->red, 31) << 11) | (esp_scale8(this->green, 63) << 5) | (esp_scale8(this->blue, 31) << 0);
+      return color565;
     }
-    return 0;
-  }
-  uint32_t to_rgb_565() const {
-    uint32_t color565 =
-        (esp_scale8(this->red, 31) << 11) | (esp_scale8(this->green, 63) << 5) | (esp_scale8(this->blue, 31) << 0);
-    return color565;
-  }
-  uint32_t to_bgr_565() const {
-    uint32_t color565 =
-        (esp_scale8(this->blue, 31) << 11) | (esp_scale8(this->green, 63) << 5) | (esp_scale8(this->red, 31) << 0);
-    return color565;
-  }
-  uint32_t to_grayscale4() const {
-    uint32_t gs4 = esp_scale8(this->white, 15);
-    return gs4;
-  }
-};
-static const Color COLOR_BLACK(0, 0, 0);
-static const Color COLOR_WHITE(1, 1, 1);
+    uint32_t to_bgr_565() const {
+      uint32_t color565 =
+          (esp_scale8(this->blue, 31) << 11) | (esp_scale8(this->green, 63) << 5) | (esp_scale8(this->red, 31) << 0);
+      return color565;
+    }
+    uint32_t to_grayscale4() const {
+      uint32_t gs4 = esp_scale8(this->white, 15);
+      return gs4;
+    }
+  };
+  static const Color COLOR_BLACK(0, 0, 0);
+  static const Color COLOR_WHITE(1, 1, 1);
 };  // namespace esphome
