@@ -32,7 +32,7 @@ float PropertiesFrame::get_outdoor_temp() const { return i8tof(this->pbuf_[22]);
 climate::ClimateMode PropertiesFrame::get_mode() const {
   if (!this->get_power_())
     return climate::CLIMATE_MODE_OFF;
-  switch (this->pbuf_[12] & MIDEA_MODE_BITMASK) {
+  switch (this->pbuf_[12] >> 5) {
     case MIDEA_MODE_AUTO:
       return climate::CLIMATE_MODE_AUTO;
     case MIDEA_MODE_COOL:
@@ -71,8 +71,8 @@ void PropertiesFrame::set_mode(climate::ClimateMode mode) {
       return;
   }
   this->set_power_(true);
-  this->pbuf_[12] &= ~MIDEA_MODE_BITMASK;
-  this->pbuf_[12] |= m;
+  this->pbuf_[12] &= ~0xE0;
+  this->pbuf_[12] |= m << 5;
 }
 
 climate::ClimateFanMode PropertiesFrame::get_fan_mode() const {

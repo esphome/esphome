@@ -8,17 +8,15 @@ namespace midea_ac {
 /// Enum for all modes a Midea device can be in.
 enum MideaMode : uint8_t {
   /// The Midea device is set to automatically change the heating/cooling cycle
-  MIDEA_MODE_AUTO = 1 << 5,
+  MIDEA_MODE_AUTO = 1,
   /// The Midea device is manually set to cool mode (not in auto mode!)
-  MIDEA_MODE_COOL = 2 << 5,
+  MIDEA_MODE_COOL = 2,
   /// The Midea device is manually set to dry mode
-  MIDEA_MODE_DRY = 3 << 5,
+  MIDEA_MODE_DRY = 3,
   /// The Midea device is manually set to heat mode (not in auto mode!)
-  MIDEA_MODE_HEAT = 4 << 5,
+  MIDEA_MODE_HEAT = 4,
   /// The Midea device is manually set to fan only mode
-  MIDEA_MODE_FAN_ONLY = 5 << 5,
-  /// Bitmask
-  MIDEA_MODE_BITMASK = 7 << 5,
+  MIDEA_MODE_FAN_ONLY = 5,
 };
 
 /// Enum for all modes a Midea fan can be in
