@@ -19,9 +19,9 @@ const uint8_t BaseFrame::CRC_TABLE[] = {
     0x88, 0xD6, 0x34, 0x6A, 0x2B, 0x75, 0x97, 0xC9, 0x4A, 0x14, 0xF6, 0xA8, 0x74, 0x2A, 0xC8, 0x96, 0x15, 0x4B, 0xA9,
     0xF7, 0xB6, 0xE8, 0x0A, 0x54, 0xD7, 0x89, 0x6B, 0x35};
 
-const uint8_t NotifyFrame::INIT[] = {0xAA, 0x22, 0xAC, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0x0D, 0x01, 0x01,
-                                     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00,
-                                     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+const uint8_t NotifyFrame::INIT[] = {0xAA, 0x1F, 0xAC, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0x0D, 0x01, 0x01,
+                                     0x00, 0x00, 0x00, 0x00, 0x00, 0xFF, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 
 bool BaseFrame::is_valid() const {
   return (this->pbuf_[OFFSET_START] == SYNC_BYTE && this->has_valid_cs_() && this->has_valid_crc_());
@@ -36,11 +36,8 @@ void BaseFrame::update_crc_() {
   uint8_t crc = 0;
   uint8_t *ptr = this->pbuf_ + OFFSET_BODY;
   uint8_t len = this->length_() - OFFSET_BODY;
-
-  while (--len) {
-    crc = pgm_read_byte(this->CRC_TABLE + (crc ^ *ptr++));
-  }
-
+  while (--len)
+    crc = pgm_read_byte(BaseFrame::CRC_TABLE + (crc ^ *ptr++));
   *ptr = crc;
 }
 
@@ -48,46 +45,35 @@ void BaseFrame::update_cs_() {
   uint8_t cs = 0;
   uint8_t *ptr = this->pbuf_ + OFFSET_LENGTH;
   uint8_t len = this->length_();
-
-  while (--len) {
+  while (--len)
     cs -= *ptr++;
-  }
-
   *ptr = cs;
 }
 
 bool BaseFrame::has_valid_crc_() const {
   uint8_t crc = 0;
-  const uint8_t *ptr = this->pbuf_ + OFFSET_BODY;
   uint8_t len = this->length_() - OFFSET_BODY;
-
-  for (; len; ptr++, len--) {
-    crc = pgm_read_byte(this->CRC_TABLE + (crc ^ *ptr));
-  }
-
+  const uint8_t *ptr = this->pbuf_ + OFFSET_BODY;
+  for (; len; ptr++, len--)
+    crc = pgm_read_byte(BaseFrame::CRC_TABLE + (crc ^ *ptr));
   return !crc;
 }
 
 bool BaseFrame::has_valid_cs_() const {
   uint8_t cs = 0;
-  const uint8_t *ptr = this->pbuf_ + OFFSET_LENGTH;
   uint8_t len = this->length_();
-
-  for (; len; ptr++, len--) {
+  const uint8_t *ptr = this->pbuf_ + OFFSET_LENGTH;
+  for (; len; ptr++, len--)
     cs -= *ptr;
-  }
-
   return !cs;
 }
 
 void BaseFrame::set_bytemask_(uint8_t idx, uint8_t mask, bool state) {
   uint8_t *dst = this->pbuf_ + idx;
-
-  if (state) {
+  if (state)
     *dst |= mask;
-  } else {
+  else
     *dst &= ~mask;
-  }
 }
 
 }  // namespace midea_dongle
