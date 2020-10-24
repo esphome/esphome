@@ -195,6 +195,12 @@ struct Color {
   Color lighten(uint8_t delta) { return *this + delta; }
   Color darken(uint8_t delta) { return *this - delta; }
 
+  uint8_t to_rgb_332() const {
+    uint8_t color332 =
+        (esp_scale8(this->red, 7) << 5) | (esp_scale8(this->green, 7) << 2) | (esp_scale8(this->blue, 3) << 0);
+    return color332;
+  }
+
   uint32_t to_rgb_565() const {
     uint32_t color565 =
         (esp_scale8(this->red, 31) << 11) | (esp_scale8(this->green, 63) << 5) | (esp_scale8(this->blue, 31) << 0);

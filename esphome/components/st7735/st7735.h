@@ -1,7 +1,6 @@
 #pragma once
 
 #include "esphome/core/component.h"
-#include "esphome/core/esphal.h"
 #include "esphome/components/spi/spi.h"
 #include "esphome/components/display/display_buffer.h"
 
@@ -18,7 +17,7 @@ static const uint8_t INITR_GREENTAB = 0x00;
 static const uint8_t INITR_REDTAB = 0x01;
 static const uint8_t INITR_BLACKTAB = 0x02;
 static const uint8_t INITR_144GREENTAB = 0x01;
-static const uint8_t INITR_MIN_I160X80 = 0x04;
+static const uint8_t INITR_MINI_160X80 = 0x04;
 static const uint8_t INITR_HALLOWING = 0x05;
 static const uint8_t INITR_18GREENTAB = INITR_GREENTAB;
 static const uint8_t INITR_18REDTAB = INITR_REDTAB;
@@ -28,7 +27,7 @@ enum ST7735Model {
   ST7735_INITR_GREENTAB = INITR_GREENTAB,
   ST7735_INITR_REDTAB = INITR_REDTAB,
   ST7735_INITR_BLACKTAB = INITR_BLACKTAB,
-  ST7735_INITR_MINI_160X80 = INITR_MIN_I160X80,
+  ST7735_INITR_MINI_160X80 = INITR_MINI_160X80,
   ST7735_INITR_18BLACKTAB = INITR_18BLACKTAB,
   ST7735_INITR_18REDTAB = INITR_18REDTAB
 };
