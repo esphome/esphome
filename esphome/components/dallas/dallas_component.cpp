@@ -70,7 +70,7 @@ void DallasComponent::setup() {
 }
 void DallasComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "DallasComponent:");
-  LOG_PIN("  Pin: ", this->one_wire_->get_pin());
+  // LOG_PIN("  Pin: ", this->one_wire_->get_pin());
   LOG_UPDATE_INTERVAL(this);
 
   if (this->found_sensors_.empty()) {
@@ -155,7 +155,8 @@ void DallasComponent::update() {
     });
   }
 }
-DallasComponent::DallasComponent(ESPOneWire *one_wire) : one_wire_(one_wire) {}
+
+DallasComponent::DallasComponent(ESPOneWireBase *one_wire) : one_wire_(one_wire) {}
 
 DallasTemperatureSensor::DallasTemperatureSensor(uint64_t address, uint8_t resolution, DallasComponent *parent)
     : parent_(parent) {
@@ -176,7 +177,7 @@ const std::string &DallasTemperatureSensor::get_address_name() {
   return this->address_name_;
 }
 bool ICACHE_RAM_ATTR DallasTemperatureSensor::read_scratch_pad() {
-  ESPOneWire *wire = this->parent_->one_wire_;
+  ESPOneWireBase *wire = this->parent_->one_wire_;
   if (!wire->reset()) {
     return false;
   }
@@ -228,7 +229,7 @@ bool DallasTemperatureSensor::setup_sensor() {
       break;
   }
 
-  ESPOneWire *wire = this->parent_->one_wire_;
+  ESPOneWireBase *wire = this->parent_->one_wire_;
   {
     InterruptLock lock;
     if (wire->reset()) {

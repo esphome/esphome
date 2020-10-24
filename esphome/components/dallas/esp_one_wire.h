@@ -9,9 +9,9 @@ namespace dallas {
 extern const uint8_t ONE_WIRE_ROM_SELECT;
 extern const int ONE_WIRE_ROM_SEARCH;
 
-class ESPOneWire {
+class ESPOneWireBase {
  public:
-  explicit ESPOneWire(GPIOPin *pin);
+  explicit ESPOneWireBase() {}
 
   /** Reset the bus, should be done before all write operations.
    *
@@ -19,13 +19,13 @@ class ESPOneWire {
    *
    * @return Whether the operation was successful.
    */
-  bool reset();
+  virtual bool reset() = 0;
 
   /// Write a single bit to the bus, takes about 70µs.
-  void write_bit(bool bit);
+  virtual void write_bit(bool bit) = 0;
 
   /// Read a single bit from the bus, takes about 70µs
-  bool read_bit();
+  virtual bool read_bit();
 
   /// Write a word to the bus. LSB first.
   void write8(uint8_t val);
@@ -54,17 +54,50 @@ class ESPOneWire {
   /// Helper that wraps search in a std::vector.
   std::vector<uint64_t> search_vec();
 
-  GPIOPin *get_pin();
+  // Removed check if it is usefull
+  // GPIOPin *get_pin();
 
  protected:
   /// Helper to get the internal 64-bit unsigned rom number as a 8-bit integer pointer.
   inline uint8_t *rom_number8_();
 
-  GPIOPin *pin_;
   uint8_t last_discrepancy_{0};
   uint8_t last_family_discrepancy_{0};
   bool last_device_flag_{false};
   uint64_t rom_number_{0};
+};
+
+class ESPOneWire : public ESPOneWireBase {
+ public:
+  explicit ESPOneWire(GPIOPin *pin);
+
+  bool reset() override;
+
+  /// Write a single bit to the bus, takes about 70µs.
+  void write_bit(bool bit) override;
+
+  /// Read a single bit from the bus, takes about 70µs
+  bool read_bit() override;
+
+ protected:
+  GPIOPin *pin_;
+};
+
+class ShellyOneWire : public ESPOneWireBase {
+ public:
+  explicit ShellyOneWire(GPIOPin *pin_a, GPIOPin *pin_b);
+
+  bool reset() override;
+
+  /// Write a single bit to the bus, takes about 70µs.
+  void write_bit(bool bit) override;
+
+  /// Read a single bit from the bus, takes about 70µs
+  bool read_bit() override;
+
+ protected:
+  GPIOPin *in_pin_;
+  GPIOPin *out_pin_;
 };
 
 }  // namespace dallas

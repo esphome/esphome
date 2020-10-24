@@ -11,7 +11,7 @@ class DallasTemperatureSensor;
 
 class DallasComponent : public PollingComponent {
  public:
-  explicit DallasComponent(ESPOneWire *one_wire);
+  explicit DallasComponent(ESPOneWireBase *one_wire);
 
   DallasTemperatureSensor *get_sensor_by_address(uint64_t address, uint8_t resolution);
   DallasTemperatureSensor *get_sensor_by_index(uint8_t index, uint8_t resolution);
@@ -25,7 +25,7 @@ class DallasComponent : public PollingComponent {
  protected:
   friend DallasTemperatureSensor;
 
-  ESPOneWire *one_wire_;
+  ESPOneWireBase *one_wire_;
   std::vector<DallasTemperatureSensor *> sensors_;
   std::vector<uint64_t> found_sensors_;
 };

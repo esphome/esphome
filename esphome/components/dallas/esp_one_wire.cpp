@@ -10,7 +10,7 @@ static const char *TAG = "dallas.one_wire";
 const uint8_t ONE_WIRE_ROM_SELECT = 0x55;
 const int ONE_WIRE_ROM_SEARCH = 0xF0;
 
-ESPOneWire::ESPOneWire(GPIOPin *pin) : pin_(pin) {}
+ESPOneWire::ESPOneWire(GPIOPin *pin) : ESPOneWireBase(), pin_(pin) {}
 
 bool HOT ICACHE_RAM_ATTR ESPOneWire::reset() {
   uint8_t retries = 125;
@@ -76,43 +76,113 @@ bool HOT ICACHE_RAM_ATTR ESPOneWire::read_bit() {
   return r;
 }
 
-void ICACHE_RAM_ATTR ESPOneWire::write8(uint8_t val) {
+ShellyOneWire::ShellyOneWire(GPIOPin *pin_a, GPIOPin *pin_b) : ESPOneWireBase(), in_pin_(pin_a), out_pin_(pin_b) {
+  this->in_pin_->pin_mode(INPUT);
+  this->out_pin_->pin_mode(OUTPUT);
+  this->out_pin_->digital_write(true);
+}
+
+bool HOT ICACHE_RAM_ATTR ShellyOneWire::reset() {
+  uint8_t retries = 125;
+
+  do {
+    if (--retries == 0)
+      return false;
+    delayMicroseconds(2);
+  } while (!this->in_pin_->digital_read());
+
+  // Send 480µs LOW TX reset pulse
+  // FIXME this->pin_->pin_mode(OUTPUT);
+  this->out_pin_->digital_write(false);
+  delayMicroseconds(480);
+  this->out_pin_->digital_write(true);
+
+  // Switch into RX mode, letting the pin float
+  // FIXME this->pin_->pin_mode(INPUT_PULLUP);
+  // after 15µs-60µs wait time, device pulls low for 60µs-240µs
+  // let's have 70µs just in case
+  delayMicroseconds(70);
+
+  bool r = !this->in_pin_->digital_read();
+  delayMicroseconds(410);
+  return r;
+}
+
+void HOT ICACHE_RAM_ATTR ShellyOneWire::write_bit(bool bit) {
+  // Initiate write/read by pulling low.
+  // FIXME this->pin_->pin_mode(OUTPUT);
+  this->out_pin_->digital_write(false);
+
+  // bus sampled within 15µs and 60µs after pulling LOW.
+  if (bit) {
+    // pull high/release within 15µs
+    delayMicroseconds(10);
+    this->out_pin_->digital_write(true);
+    // in total minimum of 60µs long
+    delayMicroseconds(55);
+  } else {
+    // continue pulling LOW for at least 60µs
+    delayMicroseconds(65);
+    this->out_pin_->digital_write(true);
+    // grace period, 1µs recovery time
+    delayMicroseconds(5);
+  }
+}
+
+bool HOT ICACHE_RAM_ATTR ShellyOneWire::read_bit() {
+  // Initiate read slot by pulling LOW for at least 1µs
+  // FIXME this->pin_->pin_mode(OUTPUT);
+  this->out_pin_->digital_write(false);
+  delayMicroseconds(3);
+  this->out_pin_->digital_write(true);
+
+  // release bus, we have to sample within 15µs of pulling low
+  // FIXME this->pin_->pin_mode(INPUT_PULLUP);
+  delayMicroseconds(10);
+
+  bool r = this->in_pin_->digital_read();
+  // read time slot at least 60µs long + 1µs recovery time between slots
+  delayMicroseconds(53);
+  return r;
+}
+
+void ICACHE_RAM_ATTR ESPOneWireBase::write8(uint8_t val) {
   for (uint8_t i = 0; i < 8; i++) {
     this->write_bit(bool((1u << i) & val));
   }
 }
 
-void ICACHE_RAM_ATTR ESPOneWire::write64(uint64_t val) {
+void ICACHE_RAM_ATTR ESPOneWireBase::write64(uint64_t val) {
   for (uint8_t i = 0; i < 64; i++) {
     this->write_bit(bool((1ULL << i) & val));
   }
 }
 
-uint8_t ICACHE_RAM_ATTR ESPOneWire::read8() {
+uint8_t ICACHE_RAM_ATTR ESPOneWireBase::read8() {
   uint8_t ret = 0;
   for (uint8_t i = 0; i < 8; i++) {
     ret |= (uint8_t(this->read_bit()) << i);
   }
   return ret;
 }
-uint64_t ICACHE_RAM_ATTR ESPOneWire::read64() {
+uint64_t ICACHE_RAM_ATTR ESPOneWireBase::read64() {
   uint64_t ret = 0;
   for (uint8_t i = 0; i < 8; i++) {
     ret |= (uint64_t(this->read_bit()) << i);
   }
   return ret;
 }
-void ICACHE_RAM_ATTR ESPOneWire::select(uint64_t address) {
+void ICACHE_RAM_ATTR ESPOneWireBase::select(uint64_t address) {
   this->write8(ONE_WIRE_ROM_SELECT);
   this->write64(address);
 }
-void ICACHE_RAM_ATTR ESPOneWire::reset_search() {
+void ICACHE_RAM_ATTR ESPOneWireBase::reset_search() {
   this->last_discrepancy_ = 0;
   this->last_device_flag_ = false;
   this->last_family_discrepancy_ = 0;
   this->rom_number_ = 0;
 }
-uint64_t HOT ICACHE_RAM_ATTR ESPOneWire::search() {
+uint64_t HOT ICACHE_RAM_ATTR ESPOneWireBase::search() {
   if (this->last_device_flag_) {
     return 0u;
   }
@@ -196,7 +266,7 @@ uint64_t HOT ICACHE_RAM_ATTR ESPOneWire::search() {
 
   return this->rom_number_;
 }
-std::vector<uint64_t> ICACHE_RAM_ATTR ESPOneWire::search_vec() {
+std::vector<uint64_t> ICACHE_RAM_ATTR ESPOneWireBase::search_vec() {
   std::vector<uint64_t> res;
 
   this->reset_search();
@@ -206,12 +276,13 @@ std::vector<uint64_t> ICACHE_RAM_ATTR ESPOneWire::search_vec() {
 
   return res;
 }
-void ICACHE_RAM_ATTR ESPOneWire::skip() {
+void ICACHE_RAM_ATTR ESPOneWireBase::skip() {
   this->write8(0xCC);  // skip ROM
 }
-GPIOPin *ESPOneWire::get_pin() { return this->pin_; }
 
-uint8_t ICACHE_RAM_ATTR *ESPOneWire::rom_number8_() { return reinterpret_cast<uint8_t *>(&this->rom_number_); }
+// GPIOPin *ESPOneWireBase::get_pin() { return this->pin_; }
+
+uint8_t ICACHE_RAM_ATTR *ESPOneWireBase::rom_number8_() { return reinterpret_cast<uint8_t *>(&this->rom_number_); }
 
 }  // namespace dallas
 }  // namespace esphome

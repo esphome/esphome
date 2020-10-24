@@ -47,6 +47,9 @@ logger:
 as3935_i2c:
   irq_pin: GPIO12
 
+dallas:
+  pin: GPIO3
+  pin_a: GPIO0
 
 sensor:
   - platform: homeassistant
@@ -169,6 +172,15 @@ sensor:
       name: "JQJCY01YM Formaldehyde"
     battery_level:
       name: "JQJCY01YM Battery Level"
+  - platform: dallas
+    address: 0xCA011938282E5128
+    name: "Temperature #1"
+  - platform: dallas
+    address: 0x0B01193807DD3128
+    name: "Temperature #2"
+  - platform: dallas
+    address: 0x6E0119384DC70728
+    name: "Temperature #3"
 
 
 time:
