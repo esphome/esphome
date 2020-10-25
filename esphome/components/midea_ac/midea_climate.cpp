@@ -57,18 +57,26 @@ void MideaAC::control(const climate::ClimateCall &call) {
   if (call.get_mode().has_value() && call.get_mode().value() != this->mode) {
     this->cmd_frame_.set_mode(call.get_mode().value());
     this->ctrl_request_ = true;
+  } else {
+    this->cmd_frame_.set_mode(this->mode);
   }
   if (call.get_target_temperature().has_value() && call.get_target_temperature().value() != this->target_temperature) {
     this->cmd_frame_.set_target_temp(call.get_target_temperature().value());
     this->ctrl_request_ = true;
+  } else {
+    this->cmd_frame_.set_target_temp(this->target_temperature);
   }
   if (call.get_fan_mode().has_value() && call.get_fan_mode().value() != this->fan_mode) {
     this->cmd_frame_.set_fan_mode(call.get_fan_mode().value());
     this->ctrl_request_ = true;
+  } else {
+    this->cmd_frame_.set_fan_mode(this->fan_mode);
   }
   if (call.get_swing_mode().has_value() && call.get_swing_mode().value() != this->swing_mode) {
     this->cmd_frame_.set_swing_mode(call.get_swing_mode().value());
     this->ctrl_request_ = true;
+  } else {
+    this->cmd_frame_.set_swing_mode(this->swing_mode);
   }
   if (this->ctrl_request_)
     this->cmd_frame_.finalize();
