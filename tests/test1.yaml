@@ -1799,6 +1799,9 @@ text_sensor:
   - globals.set:
       id: glob_int
       value: '0'
+  - canbus.send:
+      can_id: 23
+      data: [ 0x10, 0x20, 0x30 ]
 - platform: template
   name: Template Text Sensor
   id: template_text
@@ -1825,3 +1828,22 @@ sn74hc595:
 
 rtttl:
   output: gpio_19
+
+canbus:
+  - platform: mcp2515
+    cs_pin: GPIO17
+    can_id: 4
+    bit_rate: 50kbps
+    on_frame:
+    - can_id: 500
+      then:
+      - lambda: |-
+          std::string b(x.begin(), x.end());
+          ESP_LOGD("canid 500", "%s", &b[0] );
+    - can_id: 23
+      then:
+        - if:
+            condition:
+              lambda: 'return x[0] == 0x11;'
+            then:
+              light.toggle: living_room_lights
