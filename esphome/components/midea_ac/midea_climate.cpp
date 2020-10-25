@@ -54,15 +54,24 @@ void MideaAC::on_update() {
 }
 
 void MideaAC::control(const climate::ClimateCall &call) {
-  this->cmd_frame_.set_mode(call.get_mode().value_or(this->mode));
-  this->cmd_frame_.set_target_temp(call.get_target_temperature().value_or(this->target_temperature));
-  this->cmd_frame_.set_fan_mode(call.get_fan_mode().value_or(this->fan_mode));
-  this->cmd_frame_.set_swing_mode(call.get_swing_mode().value_or(this->swing_mode));
-  this->cmd_frame_.disable_timer_on();
-  this->cmd_frame_.disable_timer_off();
-  this->cmd_frame_.set_beeper_feedback(this->beeper_feedback_);
-  this->cmd_frame_.finalize();
-  this->ctrl_request_ = true;
+  if (call.get_mode().has_value() && call.get_mode().value() != this->mode) {
+    this->cmd_frame_.set_mode(call.get_mode().value());
+    this->ctrl_request_ = true;
+  }
+  if (call.get_target_temperature().has_value() && call.get_target_temperature().value() != this->target_temperature) {
+    this->cmd_frame_.set_target_temp(call.get_target_temperature().value());
+    this->ctrl_request_ = true;
+  }
+  if (call.get_fan_mode().has_value() && call.get_fan_mode().value() != this->fan_mode) {
+    this->cmd_frame_.set_fan_mode(call.get_fan_mode().value());
+    this->ctrl_request_ = true;
+  }
+  if (call.get_swing_mode().has_value() && call.get_swing_mode().value() != this->swing_mode) {
+    this->cmd_frame_.set_swing_mode(call.get_swing_mode().value());
+    this->ctrl_request_ = true;
+  }
+  if (this->ctrl_request_)
+    this->cmd_frame_.finalize();
 }
 
 climate::ClimateTraits MideaAC::traits() {

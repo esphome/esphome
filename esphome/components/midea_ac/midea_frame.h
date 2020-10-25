@@ -66,16 +66,6 @@ class PropertiesFrame : public midea_dongle::BaseFrame {
   climate::ClimateFanMode get_fan_mode() const;
   void set_fan_mode(climate::ClimateFanMode mode);
 
-  void disable_timer_on() {
-    this->pbuf_[14] = 0x7F;
-    this->pbuf_[16] &= ~0xF0;
-  }
-
-  void disable_timer_off() {
-    this->pbuf_[15] = 0x7F;
-    this->pbuf_[16] &= ~0x0F;
-  }
-
   /* SWING MODE */
   climate::ClimateSwingMode get_swing_mode() const;
   void set_swing_mode(climate::ClimateSwingMode mode);
