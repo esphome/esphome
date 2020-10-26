@@ -12,6 +12,7 @@ void MideaAC::on_frame(midea_dongle::Frame &frame) {
     ESP_LOGW(TAG, "Response is not PropertiesFrame!");
     return;
   }
+  this->cmd_frame_.set_properties(p); // copy properties from response
   if (p.get_type() == midea_dongle::MideaMessageType::DEVICE_CONTROL) {
     ESP_LOGD(TAG, "Command: parsing response");
     this->ctrl_request_ = false;
@@ -57,29 +58,23 @@ void MideaAC::control(const climate::ClimateCall &call) {
   if (call.get_mode().has_value() && call.get_mode().value() != this->mode) {
     this->cmd_frame_.set_mode(call.get_mode().value());
     this->ctrl_request_ = true;
-  } else {
-    this->cmd_frame_.set_mode(this->mode);
   }
   if (call.get_target_temperature().has_value() && call.get_target_temperature().value() != this->target_temperature) {
     this->cmd_frame_.set_target_temp(call.get_target_temperature().value());
     this->ctrl_request_ = true;
-  } else {
-    this->cmd_frame_.set_target_temp(this->target_temperature);
   }
   if (call.get_fan_mode().has_value() && call.get_fan_mode().value() != this->fan_mode) {
     this->cmd_frame_.set_fan_mode(call.get_fan_mode().value());
     this->ctrl_request_ = true;
-  } else {
-    this->cmd_frame_.set_fan_mode(this->fan_mode);
   }
   if (call.get_swing_mode().has_value() && call.get_swing_mode().value() != this->swing_mode) {
     this->cmd_frame_.set_swing_mode(call.get_swing_mode().value());
     this->ctrl_request_ = true;
-  } else {
-    this->cmd_frame_.set_swing_mode(this->swing_mode);
   }
-  if (this->ctrl_request_)
+  if (this->ctrl_request_) {
+    this->cmd_frame_.set_beeper_feedback(this->beeper_feedback_);
     this->cmd_frame_.finalize();
+  }
 }
 
 climate::ClimateTraits MideaAC::traits() {

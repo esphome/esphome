@@ -15,7 +15,7 @@ class MideaAC : public midea_dongle::MideaAppliance, public climate::Climate, pu
   void on_update() override;
   void setup() override { this->parent_->set_appliance(this); }
   void set_midea_dongle_parent(midea_dongle::MideaDongle *parent) { this->parent_ = parent; }
-  void set_beeper_feedback(bool state) { this->cmd_frame_.set_beeper_feedback(state); }
+  void set_beeper_feedback(bool state) { this->beeper_feedback_ = state; }
 
  protected:
   /// Override control to change settings of the climate device.
@@ -26,6 +26,7 @@ class MideaAC : public midea_dongle::MideaAppliance, public climate::Climate, pu
   const QueryFrame query_frame_;
   CommandFrame cmd_frame_;
   bool ctrl_request_{false};
+  bool beeper_feedback_{false};
   midea_dongle::MideaDongle *parent_{nullptr};
 };
 
