@@ -45,11 +45,14 @@ void Canbus::loop() {
   if (this->read_message(&can_message) == canbus::ERROR_OK) {
     ESP_LOGD(TAG, "received can message can_id=%d size=%d", can_message.can_id, can_message.can_dlc);
 
-    std::vector<uint8_t> data(&can_message.data[0], &can_message.data[can_message.can_dlc - 1]);
+    std::vector<uint8_t> data;
 
     // show data received
-    for (int i = 0; i < can_message.can_dlc; i++)
-      ESP_LOGV(TAG, "  data[%d]=%02x", i, can_message.data[i]);
+    for (int i = 0; i < can_message.can_dlc; i++) {
+      ESP_LOGV(TAG, "  can_message.data[%d]=%02x", i, can_message.data[i]);
+      data.push_back(can_message.data[i]);
+    }
+
     // fire all triggers
     for (auto trigger : this->triggers_) {
       if (trigger->can_id_ == can_message.can_id) {
