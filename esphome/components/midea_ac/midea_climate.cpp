@@ -12,13 +12,14 @@ void MideaAC::on_frame(const midea_dongle::Frame &frame) {
     ESP_LOGW(TAG, "Response is not PropertiesFrame!");
     return;
   }
-  this->cmd_frame_.set_properties(p);  // copy properties from response
   if (p.get_type() == midea_dongle::MideaMessageType::DEVICE_CONTROL) {
     ESP_LOGD(TAG, "Command: parsing response");
     this->ctrl_request_ = false;
   } else {
     ESP_LOGD(TAG, "Query: parsing response");
   }
+  if (!this->ctrl_request_)
+    this->cmd_frame_.set_properties(p);  // copy properties from response
   bool need_publish = false;
   if (this->mode != p.get_mode()) {
     this->mode = p.get_mode();
