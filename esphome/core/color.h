@@ -6,7 +6,7 @@
 namespace esphome {
 
 inline static uint8_t esp_scale8(uint8_t i, uint8_t scale) { return (uint16_t(i) * (1 + uint16_t(scale))) / 256; }
-inline static uint8_t esp_scale(uint8_t i, uint8_t scale, uint8_t maxValue) { return (maxValue * i / scale); }
+inline static uint8_t esp_scale(uint8_t i, uint8_t scale, uint8_t max_value) { return (max_value * i / scale); }
 
 struct Color {
   union {
