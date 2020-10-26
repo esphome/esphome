@@ -45,6 +45,7 @@ static const uint8_t ST77XX_RDID4 = 0xDD;
 
 // Some register settings
 static const uint8_t ST7735_MADCTL_BGR = 0x08;
+
 static const uint8_t ST7735_MADCTL_MH = 0x04;
 
 static const uint8_t ST7735_FRMCTR1 = 0xB1;
@@ -271,7 +272,15 @@ void ST7735::setup() {
 
   // Black tab, change MADCTL color filter
   if ((this->model_ == INITR_BLACKTAB) || (this->model_ == INITR_MINI_160X80)) {
-    uint8_t data = ST7735_MADCTL_BGR | ST77XX_MADCTL_MX | ST77XX_MADCTL_MY | ST77XX_MADCTL_ML;
+    uint8_t data = ST77XX_MADCTL_MX | ST77XX_MADCTL_MV | ST77XX_MADCTL_RGB;
+    sendcommand_(ST77XX_MADCTL, &data, 1);
+  } else {
+    uint8_t data = ST77XX_MADCTL_MX | ST77XX_MADCTL_MV | ST7735_MADCTL_BGR;
+    sendcommand_(ST77XX_MADCTL, &data, 1);
+  }
+
+  if ((this->model_ == INITR_BLACKTAB) || (this->model_ == INITR_MINI_160X80)) {
+    uint8_t data = 0xc0;
     sendcommand_(ST77XX_MADCTL, &data, 1);
   }
 
