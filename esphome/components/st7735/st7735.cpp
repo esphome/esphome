@@ -220,13 +220,15 @@ static const uint8_t PROGMEM
 // clang-format on
 static const char *TAG = "st7735";
 
-ST7735::ST7735(ST7735Model model, int width, int height, int colstart, int rowstart, boolean eightbitcolor) {
+ST7735::ST7735(ST7735Model model, int width, int height, int colstart, int rowstart, boolean eightbitcolor,
+               boolean usebgr) {
   model_ = model;
   this->width_ = width;
   this->height_ = height;
   this->colstart_ = colstart;
   this->rowstart_ = rowstart;
   this->eightbitcolor_ = eightbitcolor;
+  this->usebgr = usebgr;
 }
 
 void ST7735::setup() {
@@ -270,12 +272,11 @@ void ST7735::setup() {
   }
   display_init_(RCMD3);
 
-  // Black tab, change MADCTL color filter
-  if ((this->model_ == INITR_BLACKTAB) || (this->model_ == INITR_MINI_160X80)) {
-    uint8_t data = ST77XX_MADCTL_MX | ST77XX_MADCTL_MV | ST77XX_MADCTL_RGB;
+  if (this->usebgr) {
+    uint8_t data = ST77XX_MADCTL_MX | ST77XX_MADCTL_MV | ST7735_MADCTL_BGR;
     sendcommand_(ST77XX_MADCTL, &data, 1);
   } else {
-    uint8_t data = ST77XX_MADCTL_MX | ST77XX_MADCTL_MV | ST7735_MADCTL_BGR;
+    uint8_t data = ST77XX_MADCTL_MX | ST77XX_MADCTL_MV | ST77XX_MADCTL_RGB;
     sendcommand_(ST77XX_MADCTL, &data, 1);
   }
 
@@ -310,7 +311,7 @@ void HOT ST7735::draw_absolute_pixel_internal(int x, int y, Color color) {
 
   if (this->eightbitcolor_) {
     // 8-Bit color space is in BGR332
-    const uint32_t color332 = color.to_rgb_332();
+    const uint32_t color332 = this->usebgr ? color.to_bgr_332() : color.to_rgb_332();
     uint16_t pos = (x + y * this->get_width_internal());
     this->buffer_[pos] = color332;
   } else {
@@ -447,7 +448,8 @@ void HOT ST7735::write_display_data_() {
   if (this->eightbitcolor_) {
     for (int line = 0; line < this->get_buffer_length(); line = line + this->get_width_internal()) {
       for (int index = 0; index < this->get_width_internal(); ++index) {
-        auto color = Color::rgb_332to_rgb_556(this->buffer_[index + line]);
+        auto color = this->usebgr ? Color::bgr_233to_rgb_565(this->buffer_[index + line])
+                                  : Color::rgb_332to_rgb_565(this->buffer_[index + line]);
         this->write_byte((color >> 8) & 0xff);
         this->write_byte(color & 0xff);
       }
