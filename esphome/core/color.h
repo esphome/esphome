@@ -234,7 +234,8 @@ struct Color {
     green = green << 5;  // green bits now 6 "middle" bits
 
     red = bgr233 & 0x07;  // rgb332 2 blue bits are right justified
-    red = esp_scale(blue, 7, 31);
+    red = esp_scale(red, 7, 31);
+
     return (uint16_t)(blue | green | red);
   }
   uint32_t to_rgb_565() const {
