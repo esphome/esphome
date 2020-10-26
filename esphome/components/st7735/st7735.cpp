@@ -271,7 +271,7 @@ void ST7735::setup() {
 
   // Black tab, change MADCTL color filter
   if ((this->model_ == INITR_BLACKTAB) || (this->model_ == INITR_MINI_160X80)) {
-    uint8_t data = 0xC0;
+    uint8_t data = ST7735_MADCTL_BGR | ST77XX_MADCTL_MX | ST77XX_MADCTL_MY | ST77XX_MADCTL_ML;
     sendcommand_(ST77XX_MADCTL, &data, 1);
   }
 
