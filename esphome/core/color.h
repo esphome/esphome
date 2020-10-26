@@ -207,7 +207,7 @@ struct Color {
   }
   uint8_t to_bgr_332() const {
     uint8_t color332 =
-        (esp_scale8(this->blue, 7) << 5) | (esp_scale8(this->green, 7) << 2) | (esp_scale8(this->red, 3) << 0);
+        (esp_scale8(this->blue, 3) << 6) | (esp_scale8(this->green, 7) << 3) | (esp_scale8(this->red, 7) << 0);
     return color332;
   }
   static uint32_t rgb_332to_rgb_565(uint8_t rgb332) {
