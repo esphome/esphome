@@ -272,17 +272,27 @@ void ST7735::setup() {
   }
   display_init_(RCMD3);
 
-  if (this->usebgr) {
-    uint8_t data = ST77XX_MADCTL_MX | ST77XX_MADCTL_MV | ST7735_MADCTL_BGR;
-    sendcommand_(ST77XX_MADCTL, &data, 1);
-  } else {
-    uint8_t data = ST77XX_MADCTL_MX | ST77XX_MADCTL_MV | ST77XX_MADCTL_RGB;
-    sendcommand_(ST77XX_MADCTL, &data, 1);
-  }
-
   if ((this->model_ == INITR_BLACKTAB) || (this->model_ == INITR_MINI_160X80)) {
     uint8_t data = 0xc0;
     sendcommand_(ST77XX_MADCTL, &data, 1);
+  }
+
+  if (this->model_ == INITR_HALLOWING) {
+    if ((this->model_ == INITR_BLACKTAB) || (this->model_ == INITR_MINI_160X80)) {
+      uint8_t data = ST77XX_MADCTL_RGB;
+      sendcommand_(ST77XX_MADCTL, &data, 1);
+    } else {
+      uint8_t data = ST7735_MADCTL_BGR;
+      sendcommand_(ST77XX_MADCTL, &data, 1);
+    }
+  } else {
+    if ((this->model_ == INITR_BLACKTAB) || (this->model_ == INITR_MINI_160X80)) {
+      uint8_t data = ST77XX_MADCTL_MX | ST77XX_MADCTL_MY | ST77XX_MADCTL_RGB;
+      sendcommand_(ST77XX_MADCTL, &data, 1);
+    } else {
+      uint8_t data = ST77XX_MADCTL_MX | ST77XX_MADCTL_MY | ST7735_MADCTL_BGR;
+      sendcommand_(ST77XX_MADCTL, &data, 1);
+    }
   }
 
   this->init_internal_(this->get_buffer_length());
@@ -299,7 +309,7 @@ int ST7735::get_height_internal() { return height_; }
 int ST7735::get_width_internal() { return width_; }
 
 size_t ST7735::get_buffer_length() {
-  if (eightbitcolor_) {
+  if (this->eightbitcolor_) {
     return size_t(this->get_width_internal()) * size_t(this->get_height_internal());
   }
   return size_t(this->get_width_internal()) * size_t(this->get_height_internal()) * 2;
@@ -316,7 +326,7 @@ void HOT ST7735::draw_absolute_pixel_internal(int x, int y, Color color) {
     this->buffer_[pos] = color332;
   } else {
     // 16-bit color-space is in BGR565
-    const uint32_t color565 = color.to_bgr_565();
+    const uint32_t color565 = this->usebgr ? color.to_bgr_565() : color.to_rgb_565();
     uint16_t pos = (x + y * this->get_width_internal()) * 2;
     this->buffer_[pos++] = (color565 >> 8) & 0xff;
     this->buffer_[pos] = color565 & 0xff;
