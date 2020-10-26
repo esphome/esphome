@@ -77,9 +77,7 @@ class PropertiesFrame : public midea_dongle::BaseFrame {
   float get_outdoor_temp() const;
 
   /// Set properties from another frame
-  void set_properties(const PropertiesFrame &p) {
-    memcpy(this->pbuf_ + 11, p.data() + 11, 10);
-  }
+  void set_properties(const PropertiesFrame &p) { memcpy(this->pbuf_ + 11, p.data() + 11, 10); }
 
  protected:
   /* POWER */
