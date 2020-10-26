@@ -14,6 +14,7 @@ CONF_DEVICEHEIGHT = 'deviceheight'
 CONF_ROWSTART = 'rowstart'
 CONF_COLSTART = 'colstart'
 CONF_EIGHTBITCOLOR = 'eightbitcolor'
+CONF_USE_BGR = 'usebgr'
 
 SPIST7735 = st7735_ns.class_('ST7735', cg.PollingComponent, display.DisplayBuffer, spi.SPIDevice)
 ST7735Model = st7735_ns.enum('ST7735Model')
@@ -41,9 +42,10 @@ CONFIG_SCHEMA = cv.All(ST7735_SCHEMA.extend({
     cv.Required(CONF_DEVICEHEIGHT):  cv.int_,
     cv.Required(CONF_COLSTART):  cv.int_,
     cv.Required(CONF_ROWSTART):  cv.int_,
-    cv.Optional(CONF_EIGHTBITCOLOR, default=False):  cv.boolean,
+    cv.Optional(CONF_EIGHTBITCOLOR, default=False): cv.boolean,
+    cv.Optional(CONF_USE_BGR, default=False):  cv.boolean,
 }).extend(cv.COMPONENT_SCHEMA).extend(spi.spi_device_schema()),
-                       cv.has_at_most_one_key(CONF_PAGES, CONF_LAMBDA))
+    cv.has_at_most_one_key(CONF_PAGES, CONF_LAMBDA))
 
 
 @coroutine
@@ -63,7 +65,7 @@ def setup_st7735(var, config):
 def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID], config[CONF_MODEL], config[CONF_DEVICEWIDTH],
                            config[CONF_DEVICEHEIGHT], config[CONF_COLSTART], config[CONF_ROWSTART],
-                           config[CONF_EIGHTBITCOLOR])
+                           config[CONF_EIGHTBITCOLOR], config[CONF_USE_BGR])
     yield setup_st7735(var, config)
     yield spi.register_spi_device(var, config)
 
