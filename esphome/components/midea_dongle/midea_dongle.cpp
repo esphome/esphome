@@ -26,7 +26,7 @@ void MideaDongle::loop() {
     if (--this->cnt_)
       continue;
     this->reset_();
-    BaseFrame frame(this->buf_);
+    const BaseFrame frame(this->buf_);
     if (frame.get_type() == DEVICE_NETWORK) {
       ESP_LOGD(TAG, "Notify: response OK");
       this->need_notify_ = false;

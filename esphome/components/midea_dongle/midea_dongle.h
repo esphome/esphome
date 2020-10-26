@@ -15,7 +15,7 @@ struct MideaAppliance {
   /// Calling on update event
   virtual void on_update() = 0;
   /// Calling on frame receive event
-  virtual void on_frame(Frame &frame) = 0;
+  virtual void on_frame(const Frame &frame) = 0;
 };
 
 class MideaDongle : public PollingComponent, public uart::UARTDevice {

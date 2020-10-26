@@ -11,7 +11,7 @@ namespace midea_ac {
 class MideaAC : public midea_dongle::MideaAppliance, public climate::Climate, public Component {
  public:
   float get_setup_priority() const override { return setup_priority::LATE; }
-  void on_frame(midea_dongle::Frame &frame) override;
+  void on_frame(const midea_dongle::Frame &frame) override;
   void on_update() override;
   void setup() override { this->parent_->set_appliance(this); }
   void set_midea_dongle_parent(midea_dongle::MideaDongle *parent) { this->parent_ = parent; }

@@ -6,8 +6,8 @@ namespace midea_ac {
 
 static const char *TAG = "midea_ac";
 
-void MideaAC::on_frame(midea_dongle::Frame &frame) {
-  auto p = frame.as<PropertiesFrame>();
+void MideaAC::on_frame(const midea_dongle::Frame &frame) {
+  const auto p = frame.as<PropertiesFrame>();
   if (!p.is<PropertiesFrame>()) {
     ESP_LOGW(TAG, "Response is not PropertiesFrame!");
     return;
