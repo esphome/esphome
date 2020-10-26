@@ -1657,6 +1657,13 @@ pn532:
 
 rdm6300:
 
+rc522_spi:
+  cs_pin: GPIO23
+  update_interval: 1s
+  on_tag:
+    - lambda: |-
+        ESP_LOGD("main", "Found tag %s", x.c_str());
+
 gps:
 
 time:

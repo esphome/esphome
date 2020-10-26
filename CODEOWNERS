@@ -44,6 +44,7 @@ esphome/components/output/* @esphome/core
 esphome/components/pid/* @OttoWinter
 esphome/components/pn532/* @OttoWinter
 esphome/components/power_supply/* @esphome/core
+esphome/components/rc522_spi/* @glmnet
 esphome/components/restart/* @esphome/core
 esphome/components/rf_bridge/* @jesserockz
 esphome/components/rtttl/* @glmnet
