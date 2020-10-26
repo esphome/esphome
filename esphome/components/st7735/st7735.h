@@ -76,7 +76,7 @@ class ST7735 : public PollingComponent,
   ST7735Model model_{ST7735_INITR_18BLACKTAB};
   uint8_t colstart_ = 0, rowstart_ = 0;
   boolean eightbitcolor_ = false;
-  boolean usebgr = false;
+  boolean usebgr_ = false;
   int16_t width_ = 80, height_ = 80;  // Watch heap size
 
   GPIOPin *reset_pin_{nullptr};
