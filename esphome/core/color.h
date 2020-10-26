@@ -6,6 +6,7 @@
 namespace esphome {
 
 inline static uint8_t esp_scale8(uint8_t i, uint8_t scale) { return (uint16_t(i) * (1 + uint16_t(scale))) / 256; }
+inline static uint8_t esp_scale(uint8_t i, uint8_t scale, uint8_t maxValue) { return (maxValue * i / scale); }
 
 struct Color {
   union {
@@ -200,7 +201,27 @@ struct Color {
         (esp_scale8(this->red, 7) << 5) | (esp_scale8(this->green, 7) << 2) | (esp_scale8(this->blue, 3) << 0);
     return color332;
   }
+  uint8_t to_bgr_332() const {
+    uint8_t color332 =
+        (esp_scale8(this->blue, 7) << 5) | (esp_scale8(this->green, 7) << 2) | (esp_scale8(this->red, 3) << 0);
+    return color332;
+  }
+  static uint32_t rgb_332to_rgb_556(uint8_t rgb332) {
+    uint16_t red, green, blue, blue2;
 
+    red = (rgb332 & 0xe0) >> 5;  // rgb332 3 red bits now right justified
+    red = esp_scale(red, 7, 31);
+    red = red << 11;  // red bits now 5 MSB bits
+
+    green = (rgb332 & 0x1c) >> 2;  // rgb332 3 green bits now right justified
+    green = esp_scale(green, 7, 63);
+    green = green << 5;  // green bits now 6 "middle" bits
+
+    blue = rgb332 & 0x03;  // rgb332 2 blue bits are right justified
+    blue = esp_scale(blue, 3, 31);
+
+    return (uint16_t)(red | green | blue);
+  }
   uint32_t to_rgb_565() const {
     uint32_t color565 =
         (esp_scale8(this->red, 31) << 11) | (esp_scale8(this->green, 63) << 5) | (esp_scale8(this->blue, 31) << 0);
