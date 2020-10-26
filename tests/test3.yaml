@@ -375,6 +375,8 @@ sensor:
       name: "PZEMDC Current"
     power:
       name: "PZEMDC Power"
+  - platform: tmp102
+    name: "TMP102 Temperature"
   - platform: hm3301
     pm_1_0:
       name: "PM1.0"
