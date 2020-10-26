@@ -9,17 +9,18 @@ static const char *TAG = "midea_ac";
 void MideaAC::on_frame(const midea_dongle::Frame &frame) {
   const auto p = frame.as<PropertiesFrame>();
   if (!p.is<PropertiesFrame>()) {
-    ESP_LOGW(TAG, "Response is not PropertiesFrame!");
+    ESP_LOGW(TAG, "RX: not PropertiesFrame!");
     return;
   }
   if (p.get_type() == midea_dongle::MideaMessageType::DEVICE_CONTROL) {
-    ESP_LOGD(TAG, "Command: parsing response");
+    ESP_LOGD(TAG, "RX: control frame");
     this->ctrl_request_ = false;
   } else {
-    ESP_LOGD(TAG, "Query: parsing response");
+    ESP_LOGD(TAG, "RX: query frame");
   }
-  if (!this->ctrl_request_)
-    this->cmd_frame_.set_properties(p);  // copy properties from response
+  if (this->ctrl_request_)
+    return;
+  this->cmd_frame_.set_properties(p);  // copy properties from response
   bool need_publish = false;
   if (this->mode != p.get_mode()) {
     this->mode = p.get_mode();
@@ -47,10 +48,10 @@ void MideaAC::on_frame(const midea_dongle::Frame &frame) {
 
 void MideaAC::on_update() {
   if (this->ctrl_request_) {
-    ESP_LOGD(TAG, "Command: sending request");
+    ESP_LOGD(TAG, "TX: control frame");
     this->parent_->write_frame(this->cmd_frame_);
   } else {
-    ESP_LOGD(TAG, "Query: sending request");
+    ESP_LOGD(TAG, "TX: query frame");
     this->parent_->write_frame(this->query_frame_);
   }
 }
