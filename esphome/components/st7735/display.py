@@ -45,7 +45,7 @@ CONFIG_SCHEMA = cv.All(ST7735_SCHEMA.extend({
     cv.Optional(CONF_EIGHTBITCOLOR, default=False): cv.boolean,
     cv.Optional(CONF_USEBGR, default=False):  cv.boolean,
 }).extend(cv.COMPONENT_SCHEMA).extend(spi.spi_device_schema()),
-    cv.has_at_most_one_key(CONF_PAGES, CONF_LAMBDA))
+                       cv.has_at_most_one_key(CONF_PAGES, CONF_LAMBDA))
 
 
 @coroutine
