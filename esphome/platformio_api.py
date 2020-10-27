@@ -205,7 +205,7 @@ def process_stacktrace(config, line, backtrace_state):
     # ESP8266 Exception type
     match = re.match(STACKTRACE_ESP8266_EXCEPTION_TYPE_RE, line)
     if match is not None:
-        code = match.group(1)
+        code = int(match.group(1))
         _LOGGER.warning("Exception type: %s", ESP8266_EXCEPTION_CODES.get(code, 'unknown'))
 
     # ESP8266 PC/EXCVADDR
@@ -273,4 +273,9 @@ class IDEData:
         if cc_path is None:
             return None
         # replace gcc at end with addr2line
+
+        # Windows
+        if cc_path.endswith('.exe'):
+            return cc_path[:-7] + 'addr2line.exe'
+
         return cc_path[:-3] + 'addr2line'
