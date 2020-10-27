@@ -139,7 +139,7 @@ void HitachiClimate::set_swing_v_(bool on) {
 }
 
 bool HitachiClimate::get_swing_v_() {
-  return GETBIT8(remote_base[HITACHI_AC344_SWINGV_BYTE], HITACHI_AC344_SWINGV_OFFSET);
+  return GETBIT8(remote_state_[HITACHI_AC344_SWINGV_BYTE], HITACHI_AC344_SWINGV_OFFSET);
 }
 
 void HitachiClimate::set_swing_h_(uint8_t position) {
@@ -151,7 +151,7 @@ void HitachiClimate::set_swing_h_(uint8_t position) {
 }
 
 uint8_t HitachiClimate::get_swing_h_() {
-  return GETBITS8(remote_base[HITACHI_AC344_SWINGH_BYTE], HITACHI_AC344_SWINGH_OFFSET, HITACHI_AC344_SWINGH_SIZE);
+  return GETBITS8(remote_state_[HITACHI_AC344_SWINGH_BYTE], HITACHI_AC344_SWINGH_OFFSET, HITACHI_AC344_SWINGH_SIZE);
 }
 
 uint8_t HitachiClimate::get_button_() { return remote_state_[HITACHI_AC344_BUTTON_BYTE]; }
