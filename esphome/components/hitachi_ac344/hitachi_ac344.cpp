@@ -180,7 +180,7 @@ void HitachiClimate::transmit_state() {
       break;
   }
 
-  set_temp_(this->target_temperature);
+  set_temp_(static_cast<uint8_t>(this->target_temperature));
 
   switch (this->fan_mode) {
     case climate::CLIMATE_FAN_LOW:
