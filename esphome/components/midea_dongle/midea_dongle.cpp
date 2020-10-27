@@ -43,18 +43,26 @@ void MideaDongle::loop() {
 void MideaDongle::update() {
   const bool is_conn = WiFi.isConnected();
   uint8_t wifi_stretch = 0;
-  if (this->wifi_sensor_ != nullptr && this->wifi_sensor_->has_state()) {
-    const float dbm = this->wifi_sensor_->get_state();
-    if (dbm > -62.5)
+  if (!this->rssi_timer_) {
+    if (is_conn)
       wifi_stretch = 4;
-    else if (dbm > -75.0)
-      wifi_stretch = 3;
-    else if (dbm > -87.5)
-      wifi_stretch = 2;
-    else if (dbm > -100.0)
-      wifi_stretch = 1;
   } else if (is_conn) {
-    wifi_stretch = 4;
+    if (--this->rssi_timer_) {
+      wifi_stretch = this->notify_.get_signal_stretch();
+    } else {
+      this->rssi_timer_ = 60;
+      const long dbm = WiFi.RSSI();
+      if (dbm > -63)
+        wifi_stretch = 4;
+      else if (dbm > -75)
+        wifi_stretch = 3;
+      else if (dbm > -88)
+        wifi_stretch = 2;
+      else if (dbm > -100)
+        wifi_stretch = 1;
+    }
+  } else {
+    this->rssi_timer_ = 1;
   }
   if (this->notify_.is_connected() != is_conn) {
     this->notify_.set_connected(is_conn);

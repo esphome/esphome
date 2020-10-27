@@ -1,7 +1,6 @@
 #pragma once
 #include "esphome/core/component.h"
 #include "esphome/components/wifi/wifi_component.h"
-#include "esphome/components/wifi_signal/wifi_signal_sensor.h"
 #include "esphome/components/uart/uart.h"
 #include "midea_frame.h"
 
@@ -25,11 +24,10 @@ class MideaDongle : public PollingComponent, public uart::UARTDevice {
   void update() override;
   void loop() override;
   void set_appliance(MideaAppliance *app) { this->appliance_ = app; }
-  void set_wifi_sensor(wifi_signal::WiFiSignalSensor *wfs) { this->wifi_sensor_ = wfs; }
+  void use_stretched_icon(bool state) { this->rssi_timer_ = state; }
   void write_frame(const Frame &frame) { this->write_array(frame.data(), frame.size()); }
 
  protected:
-  wifi_signal::WiFiSignalSensor *wifi_sensor_{nullptr};
   MideaAppliance *appliance_{nullptr};
   NotifyFrame notify_;
   unsigned notify_timer_{1};
@@ -39,6 +37,7 @@ class MideaDongle : public PollingComponent, public uart::UARTDevice {
   uint8_t idx_{0};
   // Reverse receive counter
   uint8_t cnt_{2};
+  uint8_t rssi_timer_{0};
   bool need_notify_{false};
 
   // Reset receiver state

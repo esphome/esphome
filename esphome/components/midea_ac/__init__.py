@@ -15,7 +15,7 @@ MideaAC = midea_ac_ns.class_('MideaAC', climate.Climate, cg.Component)
 CONFIG_SCHEMA = cv.All(climate.CLIMATE_SCHEMA.extend({
     cv.GenerateID(): cv.declare_id(MideaAC),
     cv.GenerateID(CONF_MIDEA_DONGLE_ID): cv.use_id(MideaDongle),
-    cv.Optional(CONF_BEEPER, default=False): cv.boolean,
+    cv.Optional(CONF_BEEPER): cv.boolean,
 }).extend(cv.COMPONENT_SCHEMA))
 
 
@@ -25,4 +25,5 @@ def to_code(config):
     yield climate.register_climate(var, config)
     paren = yield cg.get_variable(config[CONF_MIDEA_DONGLE_ID])
     cg.add(var.set_midea_dongle_parent(paren))
-    cg.add(var.set_beeper_feedback(config[CONF_BEEPER]))
+    if CONF_BEEPER in config:
+        cg.add(var.set_beeper_feedback(config[CONF_BEEPER]))
