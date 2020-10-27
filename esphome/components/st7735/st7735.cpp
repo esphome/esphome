@@ -272,28 +272,16 @@ void ST7735::setup() {
   }
   display_init_(RCMD3);
 
-  if ((this->model_ == INITR_BLACKTAB) || (this->model_ == INITR_MINI_160X80)) {
-    uint8_t data = 0xc0;
-    sendcommand_(ST77XX_MADCTL, &data, 1);
+  uint8_t data = 0;
+  if (this->model_ != INITR_HALLOWING) {
+    uint8_t data = data = ST77XX_MADCTL_MX | ST77XX_MADCTL_MY;
   }
-
-  if (this->model_ == INITR_HALLOWING) {
-    if ((this->model_ == INITR_BLACKTAB) || (this->model_ == INITR_MINI_160X80)) {
-      uint8_t data = ST77XX_MADCTL_RGB;
-      sendcommand_(ST77XX_MADCTL, &data, 1);
-    } else {
-      uint8_t data = ST7735_MADCTL_BGR;
-      sendcommand_(ST77XX_MADCTL, &data, 1);
-    }
+  if (this->usebgr_) {
+    data = data | ST7735_MADCTL_BGR;
   } else {
-    if ((this->model_ == INITR_BLACKTAB) || (this->model_ == INITR_MINI_160X80)) {
-      uint8_t data = ST77XX_MADCTL_MX | ST77XX_MADCTL_MY | ST77XX_MADCTL_RGB;
-      sendcommand_(ST77XX_MADCTL, &data, 1);
-    } else {
-      uint8_t data = ST77XX_MADCTL_MX | ST77XX_MADCTL_MY | ST7735_MADCTL_BGR;
-      sendcommand_(ST77XX_MADCTL, &data, 1);
-    }
+    data = data | ST77XX_MADCTL_RGB;
   }
+  sendcommand_(ST77XX_MADCTL, &data, 1);
 
   this->init_internal_(this->get_buffer_length());
   memset(this->buffer_, 0x00, this->get_buffer_length());
@@ -321,12 +309,12 @@ void HOT ST7735::draw_absolute_pixel_internal(int x, int y, Color color) {
 
   if (this->eightbitcolor_) {
     // 8-Bit color space is in BGR332
-    const uint32_t color332 = this->usebgr_ ? color.to_bgr_332() : color.to_rgb_332();
+    const uint32_t color332 = color.to_rgb_332();
     uint16_t pos = (x + y * this->get_width_internal());
     this->buffer_[pos] = color332;
   } else {
     // 16-bit color-space is in BGR565
-    const uint32_t color565 = this->usebgr_ ? color.to_bgr_565() : color.to_rgb_565();
+    const uint32_t color565 = color.to_rgb_565();
     uint16_t pos = (x + y * this->get_width_internal()) * 2;
     this->buffer_[pos++] = (color565 >> 8) & 0xff;
     this->buffer_[pos] = color565 & 0xff;
@@ -458,9 +446,10 @@ void HOT ST7735::write_display_data_() {
   if (this->eightbitcolor_) {
     for (int line = 0; line < this->get_buffer_length(); line = line + this->get_width_internal()) {
       for (int index = 0; index < this->get_width_internal(); ++index) {
-        auto color = this->usebgr_ ? Color::bgr_233to_rgb_565(this->buffer_[index + line])
-                                   : Color::rgb_332to_rgb_565(this->buffer_[index + line]);
-        this->write_byte((color >> 8) & 0xff);
+        // auto color = this->usebgr_ ? Color::bgr_233to_bgr_565(this->buffer_[index + line])
+        //                            : Color::rgb_332to_rgb_565(this->buffer_[index + line]);
+        auto color = Color::rgb_332to_rgb_565(this->buffer_[index + line]);
+        color this->write_byte((color >> 8) & 0xff);
         this->write_byte(color & 0xff);
       }
     }

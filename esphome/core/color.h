@@ -226,18 +226,18 @@ struct Color {
 
     return (uint16_t)(red | green | blue);
   }
-  static uint32_t bgr_233to_rgb_565(uint8_t bgr233) {
+  static uint32_t bgr_233to_bgr_565(uint8_t bgr233) {
     uint16_t red, green, blue;
 
-    blue = (bgr233 & 0xc0) >> 6;  // bgr233 2 green bits now right justified
+    blue = (bgr233 & 0xc0) >> 6;  // bgr233 2 blue bits now right justified
     blue = esp_scale(blue, 3, 31);
     blue = blue << 11;  // blue bits now 5 MSB bits
 
-    green = (bgr233 & 0x38) >> 2;  // bgr233 3 green bits now right justified
+    green = (bgr233 & 0x38) >> 3;  // bgr233 3 green bits now right justified
     green = esp_scale(green, 7, 63);
     green = green << 5;  // green bits now 6 "middle" bits
 
-    red = bgr233 & 0x07;  // rgb332 2 blue bits are right justified
+    red = bgr233 & 0x07;  // rgb332 3 red bits are right justified
     red = esp_scale(red, 7, 31);
 
     return (uint16_t)(blue | green | red);
