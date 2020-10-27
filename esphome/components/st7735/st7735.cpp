@@ -449,7 +449,7 @@ void HOT ST7735::write_display_data_() {
         // auto color = this->usebgr_ ? Color::bgr_233to_bgr_565(this->buffer_[index + line])
         //                            : Color::rgb_332to_rgb_565(this->buffer_[index + line]);
         auto color = Color::rgb_332to_rgb_565(this->buffer_[index + line]);
-        color this->write_byte((color >> 8) & 0xff);
+        this->write_byte((color >> 8) & 0xff);
         this->write_byte(color & 0xff);
       }
     }
