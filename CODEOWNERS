@@ -38,6 +38,7 @@ esphome/components/json/* @OttoWinter
 esphome/components/ledc/* @OttoWinter
 esphome/components/light/* @esphome/core
 esphome/components/logger/* @esphome/core
+esphome/components/mcp9808/* @k7hpn
 esphome/components/network/* @esphome/core
 esphome/components/ota/* @esphome/core
 esphome/components/output/* @esphome/core
@@ -59,6 +60,7 @@ esphome/components/switch/* @esphome/core
 esphome/components/tcl112/* @glmnet
 esphome/components/time/* @OttoWinter
 esphome/components/tm1637/* @glmnet
+esphome/components/tmp102/* @timsavage
 esphome/components/tuya/binary_sensor/* @jesserockz
 esphome/components/tuya/climate/* @jesserockz
 esphome/components/tuya/sensor/* @jesserockz
