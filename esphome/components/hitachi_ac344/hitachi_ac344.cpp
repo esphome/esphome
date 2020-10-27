@@ -289,7 +289,7 @@ bool HitachiClimate::parse_temperature_(const uint8_t remote_state[]) {
   uint8_t temperature = GETBITS8(remote_state[HITACHI_AC344_TEMP_BYTE], HITACHI_AC344_TEMP_OFFSET,
                   HITACHI_AC344_TEMP_SIZE);
   this->target_temperature = temperature;
-  ESP_LOGV(TAG, "Temperature: %02X %02X %02X",
+  ESP_LOGV(TAG, "Temperature: %02X %02u %04f",
            remote_state[HITACHI_AC344_TEMP_BYTE], temperature, this->target_temperature);
   return true;
 }
