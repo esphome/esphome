@@ -757,6 +757,9 @@ sensor:
     aqi:
       name: "AQI"
       calculation_type: "CAQI"
+  - platform: mcp9808
+    name: "MCP9808 Temperature"
+    update_interval: 15s
 
 esp32_touch:
   setup_mode: False
@@ -1653,6 +1656,13 @@ pn532:
         payload: !lambda 'return x;'
 
 rdm6300:
+
+rc522_spi:
+  cs_pin: GPIO23
+  update_interval: 1s
+  on_tag:
+    - lambda: |-
+        ESP_LOGD("main", "Found tag %s", x.c_str());
 
 gps:
 

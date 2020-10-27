@@ -38,6 +38,7 @@ esphome/components/json/* @OttoWinter
 esphome/components/ledc/* @OttoWinter
 esphome/components/light/* @esphome/core
 esphome/components/logger/* @esphome/core
+esphome/components/mcp9808/* @k7hpn
 esphome/components/midea_ac/* @dudanov
 esphome/components/midea_dongle/* @dudanov
 esphome/components/network/* @esphome/core
@@ -46,6 +47,7 @@ esphome/components/output/* @esphome/core
 esphome/components/pid/* @OttoWinter
 esphome/components/pn532/* @OttoWinter
 esphome/components/power_supply/* @esphome/core
+esphome/components/rc522_spi/* @glmnet
 esphome/components/restart/* @esphome/core
 esphome/components/rf_bridge/* @jesserockz
 esphome/components/rtttl/* @glmnet
@@ -60,6 +62,7 @@ esphome/components/switch/* @esphome/core
 esphome/components/tcl112/* @glmnet
 esphome/components/time/* @OttoWinter
 esphome/components/tm1637/* @glmnet
+esphome/components/tmp102/* @timsavage
 esphome/components/tuya/binary_sensor/* @jesserockz
 esphome/components/tuya/climate/* @jesserockz
 esphome/components/tuya/sensor/* @jesserockz
