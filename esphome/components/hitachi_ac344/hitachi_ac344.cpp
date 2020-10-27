@@ -200,9 +200,10 @@ void HitachiClimate::transmit_state() {
     case climate::CLIMATE_FAN_HIGH:
       setFan(HITACHI_AC344_FAN_HIGH);
       break;
+    case climate::CLIMATE_FAN_ON:
     case climate::CLIMATE_FAN_AUTO:
+    default:
       setFan(HITACHI_AC344_FAN_AUTO);
-      break;
   }
   
   switch (this->swing_mode) {
