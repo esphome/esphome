@@ -1226,6 +1226,7 @@ light:
     chipset: WS2801
     data_pin: GPIO23
     clock_pin: GPIO22
+    data_rate: 2MHz
     num_leds: 60
     rgb_order: BRG
     name: "FastLED SPI Light"
