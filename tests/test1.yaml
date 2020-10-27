@@ -1289,6 +1289,8 @@ climate:
     name: LG Climate
   - platform: toshiba
     name: Toshiba Climate
+  - platform: hitachi_ac344
+    name: Hitachi Climate
 
 switch:
   - platform: gpio
