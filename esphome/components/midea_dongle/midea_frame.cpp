@@ -24,7 +24,7 @@ const uint8_t NotifyFrame::INIT[] = {0xAA, 0x1F, 0xFF, 0x00, 0x00, 0x00, 0x00, 0
                                      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 
 bool BaseFrame::is_valid() const {
-  return (this->pbuf_[OFFSET_START] == SYNC_BYTE && this->has_valid_cs_() && this->has_valid_crc_());
+  return this->has_valid_crc_() && this->has_valid_cs_();
 }
 
 void BaseFrame::finalize() {

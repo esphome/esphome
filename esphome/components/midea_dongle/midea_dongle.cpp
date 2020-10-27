@@ -10,24 +10,23 @@ static const char *TAG = "midea_dongle";
 void MideaDongle::loop() {
   while (this->available()) {
     const uint8_t rx = this->read();
-    switch (this->idx_) {
-      case OFFSET_START:
-        if (rx != SYNC_BYTE)
-          continue;
-        break;
-      case OFFSET_LENGTH:
-        if (!rx || rx >= sizeof(buf_)) {
+    if (this->idx_ <= OFFSET_LENGTH) {
+      if (this->idx_ == OFFSET_LENGTH) {
+        if (rx <= OFFSET_BODY || rx >= sizeof(this->buf_)) {
           this->reset_();
           continue;
         }
         this->cnt_ = rx;
+      } else if (rx != SYNC_BYTE) {
+        continue;
+      }
     }
     this->buf_[this->idx_++] = rx;
     if (--this->cnt_)
       continue;
     this->reset_();
     const BaseFrame frame(this->buf_);
-    if (frame.get_type() == DEVICE_NETWORK) {
+    if (frame.get_type() == NETWORK_NOTIFY) {
       ESP_LOGD(TAG, "RX: notify frame");
       this->need_notify_ = false;
       continue;
