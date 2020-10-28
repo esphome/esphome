@@ -71,10 +71,12 @@ class Tuya : public Component, public uart::UARTDevice {
   void handle_command_(uint8_t command, uint8_t version, const uint8_t *buffer, size_t len);
   void send_command_(TuyaCommandType command, const uint8_t *buffer, uint16_t len);
   void send_empty_command_(TuyaCommandType command) { this->send_command_(command, nullptr, 0); }
+  void schedule_empty_command_(TuyaCommandType command);
 
   TuyaInitState init_state_ = TuyaInitState::INIT_HEARTBEAT;
   int gpio_status_ = -1;
   int gpio_reset_ = -1;
+  uint32_t last_command_timestamp_ = 0;
   std::string product_ = "";
   std::vector<TuyaDatapointListener> listeners_;
   std::vector<TuyaDatapoint> datapoints_;
