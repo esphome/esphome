@@ -68,7 +68,7 @@ enum VerticalDirection {
 };
 
 // Temperature
-const uint8_t TEMP_MIN = 0;  // Celsius
+const uint8_t TEMP_MIN = 0;    // Celsius
 const uint8_t TEMP_MAX = 100;  // Celsius
 
 class HeatpumpIRClimate : public climate_ir::ClimateIR {
@@ -81,8 +81,12 @@ class HeatpumpIRClimate : public climate_ir::ClimateIR {
             std::vector<climate::ClimateSwingMode>{climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_HORIZONTAL,
                                                    climate::CLIMATE_SWING_VERTICAL, climate::CLIMATE_SWING_BOTH}) {}
   void set_protocol(Protocol protocol) { this->protocol_ = protocol; }
-  void set_horizontal_default(HorizontalDirection horizontal_direction) { this->default_horizontal_direction_ = horizontal_direction; }
-  void set_vertical_default(VerticalDirection vertical_direction) { this->default_vertical_direction_ = vertical_direction; }
+  void set_horizontal_default(HorizontalDirection horizontal_direction) {
+    this->default_horizontal_direction_ = horizontal_direction;
+  }
+  void set_vertical_default(VerticalDirection vertical_direction) {
+    this->default_vertical_direction_ = vertical_direction;
+  }
 
   void set_max_temperature(float temperature) { this->max_temperature_ = temperature; }
   void set_min_temperature(float temperature) { this->min_temperature_ = temperature; }
@@ -98,5 +102,5 @@ class HeatpumpIRClimate : public climate_ir::ClimateIR {
   float min_temperature_;
 };
 
-}  // namespace esphome
+}  // namespace heatpumpir
 }  // namespace esphome
