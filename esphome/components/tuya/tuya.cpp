@@ -204,6 +204,40 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
       this->send_command_(TuyaCommandType::WIFI_TEST, c, 2);
       break;
     }
+    case TuyaCommandType::LOCAL_TIME_QUERY: {
+      if (this->clock_.has_value()) {
+        auto clock = *this->clock_;
+        auto now = clock->now();
+
+        if (now.is_valid()) {
+          this->set_timeout(COMMAND_DELAY, [this, now] {
+            uint8_t year = now.year - 2000;
+            uint8_t month = now.month;
+            uint8_t day_of_month = now.day_of_month;
+            uint8_t hour = now.hour;
+            uint8_t minute = now.minute;
+            uint8_t second = now.second;
+            // Tuya days starts from Monday, esphome uses Sunday as day 1
+            uint8_t day_of_week = now.day_of_week - 1;
+            if (day_of_week == 0) {
+              day_of_week = 7;
+            }
+            uint8_t c[] = {0x01, year, month, day_of_month, hour, minute, second, day_of_week};
+            this->send_command_(TuyaCommandType::LOCAL_TIME_QUERY, c, 8);
+          });
+        } else {
+          ESP_LOGW(TAG, "TUYA_CMD_LOCAL_TIME_QUERY is not handled because time is not valid");
+          // By spec we need to notify MCU that the time was not obtained
+          this->set_timeout(COMMAND_DELAY, [this] {
+            uint8_t c[] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+            this->send_command_(TuyaCommandType::LOCAL_TIME_QUERY, c, 8);
+          });
+        }
+      } else {
+        ESP_LOGW(TAG, "TUYA_CMD_LOCAL_TIME_QUERY is not handled because clock is not configured");
+      }
+      break;
+    }
     default:
       ESP_LOGE(TAG, "invalid command (%02x) received", command);
   }

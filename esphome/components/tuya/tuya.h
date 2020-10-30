@@ -2,6 +2,7 @@
 
 #include "esphome/core/component.h"
 #include "esphome/components/uart/uart.h"
+#include "esphome/components/time/real_time_clock.h"
 
 namespace esphome {
 namespace tuya {
@@ -43,6 +44,7 @@ enum class TuyaCommandType : uint8_t {
   DATAPOINT_REPORT = 0x07,
   DATAPOINT_QUERY = 0x08,
   WIFI_TEST = 0x0E,
+  LOCAL_TIME_QUERY = 0x1C,
 };
 
 enum class TuyaInitState : uint8_t {
@@ -62,6 +64,7 @@ class Tuya : public Component, public uart::UARTDevice {
   void dump_config() override;
   void register_listener(uint8_t datapoint_id, const std::function<void(TuyaDatapoint)> &func);
   void set_datapoint_value(TuyaDatapoint datapoint);
+  void set_clock(time::RealTimeClock *clock) { this->clock_ = clock; }
 
  protected:
   void handle_char_(uint8_t c);
@@ -73,6 +76,7 @@ class Tuya : public Component, public uart::UARTDevice {
   void send_empty_command_(TuyaCommandType command) { this->send_command_(command, nullptr, 0); }
   void schedule_empty_command_(TuyaCommandType command);
 
+  optional<time::RealTimeClock *> clock_{};
   TuyaInitState init_state_ = TuyaInitState::INIT_HEARTBEAT;
   int gpio_status_ = -1;
   int gpio_reset_ = -1;
