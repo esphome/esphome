@@ -1645,7 +1645,7 @@ remote_receiver:
 status_led:
   pin: GPIO2
 
-pn532:
+pn532_spi:
   cs_pin: GPIO23
   update_interval: 1s
   on_tag:
@@ -1654,6 +1654,8 @@ pn532:
     - mqtt.publish:
         topic: the/topic
         payload: !lambda 'return x;'
+
+pn532_i2c:
 
 rdm6300:
 
