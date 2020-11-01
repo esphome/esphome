@@ -12,6 +12,9 @@ class TuyaLight : public Component, public light::LightOutput {
   void setup() override;
   void dump_config() override;
   void set_dimmer_id(uint8_t dimmer_id) { this->dimmer_id_ = dimmer_id; }
+  void set_min_value_datapoint_id(uint8_t min_value_datapoint_id) {
+    this->min_value_datapoint_id_ = min_value_datapoint_id;
+  }
   void set_switch_id(uint8_t switch_id) { this->switch_id_ = switch_id; }
   void set_tuya_parent(Tuya *parent) { this->parent_ = parent; }
   void set_min_value(uint32_t min_value) { min_value_ = min_value; }
@@ -26,6 +29,7 @@ class TuyaLight : public Component, public light::LightOutput {
 
   Tuya *parent_;
   optional<uint8_t> dimmer_id_{};
+  optional<uint8_t> min_value_datapoint_id_{};
   optional<uint8_t> switch_id_{};
   uint32_t min_value_ = 0;
   uint32_t max_value_ = 255;
