@@ -177,7 +177,9 @@ class I2CDevice {
   void raw_begin_transmission() { this->parent_->raw_begin_transmission(this->address_); };
 
   /// End a write transmission, return true if successful.
-  bool raw_end_transmission(bool send_stop = true) { return this->parent_->raw_end_transmission(this->address_, send_stop); };
+  bool raw_end_transmission(bool send_stop = true) {
+    return this->parent_->raw_end_transmission(this->address_, send_stop);
+  };
 
   /// Write len amount of bytes from data. begin_transmission_ must be called before this.
   void raw_write(const uint8_t *data, uint8_t len) { this->parent_->raw_write(this->address_, data, len); };
