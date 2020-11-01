@@ -27,4 +27,4 @@ def to_code(config):
     if CONF_LIGHTNING_ENERGY in config:
         conf = config[CONF_LIGHTNING_ENERGY]
         lightning_energy_sensor = yield sensor.new_sensor(conf)
-        cg.add(hub.set_distance_sensor(lightning_energy_sensor))
+        cg.add(hub.set_energy_sensor(lightning_energy_sensor))

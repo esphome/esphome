@@ -85,16 +85,16 @@ std::string to_lowercase_underscore(std::string s) {
   return s;
 }
 
-std::string sanitize_string_whitelist(const std::string &s, const std::string &whitelist) {
+std::string sanitize_string_allowlist(const std::string &s, const std::string &allowlist) {
   std::string out(s);
   out.erase(std::remove_if(out.begin(), out.end(),
-                           [&whitelist](const char &c) { return whitelist.find(c) == std::string::npos; }),
+                           [&allowlist](const char &c) { return allowlist.find(c) == std::string::npos; }),
             out.end());
   return out;
 }
 
 std::string sanitize_hostname(const std::string &hostname) {
-  std::string s = sanitize_string_whitelist(hostname, HOSTNAME_CHARACTER_WHITELIST);
+  std::string s = sanitize_string_allowlist(hostname, HOSTNAME_CHARACTER_ALLOWLIST);
   return truncate_string(s, 63);
 }
 
@@ -154,7 +154,7 @@ ParseOnOffState parse_on_off(const char *str, const char *on, const char *off) {
   return PARSE_NONE;
 }
 
-const char *HOSTNAME_CHARACTER_WHITELIST = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_";
+const char *HOSTNAME_CHARACTER_ALLOWLIST = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_";
 
 uint8_t crc8(uint8_t *data, uint8_t len) {
   uint8_t crc = 0;
@@ -178,8 +178,8 @@ void delay_microseconds_accurate(uint32_t usec) {
   if (usec <= 16383UL) {
     delayMicroseconds(usec);
   } else {
-    delay(usec / 16383UL);
-    delayMicroseconds(usec % 16383UL);
+    delay(usec / 1000UL);
+    delayMicroseconds(usec % 1000UL);
   }
 }
 

@@ -3,7 +3,8 @@ import esphome.config_validation as cv
 from esphome.components import sensor, modbus
 from esphome.const import CONF_CURRENT, CONF_ID, CONF_POWER, CONF_VOLTAGE, \
     CONF_FREQUENCY, UNIT_VOLT, ICON_FLASH, UNIT_AMPERE, UNIT_WATT, UNIT_EMPTY, \
-    ICON_POWER, CONF_POWER_FACTOR, ICON_CURRENT_AC, UNIT_HERTZ
+    ICON_POWER, CONF_POWER_FACTOR, ICON_CURRENT_AC, UNIT_HERTZ, \
+    CONF_ENERGY, UNIT_WATT_HOURS, ICON_COUNTER
 
 AUTO_LOAD = ['modbus']
 
@@ -15,6 +16,7 @@ CONFIG_SCHEMA = cv.Schema({
     cv.Optional(CONF_VOLTAGE): sensor.sensor_schema(UNIT_VOLT, ICON_FLASH, 1),
     cv.Optional(CONF_CURRENT): sensor.sensor_schema(UNIT_AMPERE, ICON_CURRENT_AC, 3),
     cv.Optional(CONF_POWER): sensor.sensor_schema(UNIT_WATT, ICON_POWER, 1),
+    cv.Optional(CONF_ENERGY): sensor.sensor_schema(UNIT_WATT_HOURS, ICON_COUNTER, 0),
     cv.Optional(CONF_FREQUENCY): sensor.sensor_schema(UNIT_HERTZ, ICON_CURRENT_AC, 1),
     cv.Optional(CONF_POWER_FACTOR): sensor.sensor_schema(UNIT_EMPTY, ICON_FLASH, 2),
 }).extend(cv.polling_component_schema('60s')).extend(modbus.modbus_device_schema(0x01))
@@ -37,6 +39,10 @@ def to_code(config):
         conf = config[CONF_POWER]
         sens = yield sensor.new_sensor(conf)
         cg.add(var.set_power_sensor(sens))
+    if CONF_ENERGY in config:
+        conf = config[CONF_ENERGY]
+        sens = yield sensor.new_sensor(conf)
+        cg.add(var.set_energy_sensor(sens))
     if CONF_FREQUENCY in config:
         conf = config[CONF_FREQUENCY]
         sens = yield sensor.new_sensor(conf)

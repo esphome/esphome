@@ -108,7 +108,7 @@ void BangBangClimate::switch_to_action_(climate::ClimateAction action) {
   }
 
   if (this->prev_trigger_ != nullptr) {
-    this->prev_trigger_->stop();
+    this->prev_trigger_->stop_action();
     this->prev_trigger_ = nullptr;
   }
   Trigger<> *trig;

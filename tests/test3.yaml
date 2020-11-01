@@ -8,12 +8,15 @@ esphome:
     - wait_until:
         - api.connected
         - wifi.connected
+        - time.has_time
   includes:
     - custom.h
 
 substitutions:
   devicename: test3
   devicecomment: test3 device
+  min_sub: "0.03"
+  max_sub: "12.0%"
 
 api:
   port: 8000
@@ -167,6 +170,13 @@ api:
       then:
         - tm1651.turn_off:
             id: tm1651_battery
+    - service: pid_set_control_parameters
+      then:
+        - climate.pid.set_control_parameters:
+            id: pid_climate
+            kp: 1.0
+            kd: 1.0
+            ki: 1.0
 
 wifi:
   ssid: 'MySSID'
@@ -183,9 +193,13 @@ spi:
   miso_pin: GPIO14
 
 uart:
-  tx_pin: GPIO1
-  rx_pin: GPIO3
-  baud_rate: 115200
+  - tx_pin: GPIO1
+    rx_pin: GPIO3
+    baud_rate: 115200
+
+  - id: adalight_uart
+    rx_pin: GPIO3
+    baud_rate: 115200
 
 ota:
   safe_mode: True
@@ -202,10 +216,18 @@ deep_sleep:
   run_duration: 20s
   sleep_duration: 50s
 
+wled:
+
+adalight:
+
 sensor:
   - platform: apds9960
     type: proximity
     name: APDS9960 Proximity
+  - platform: vl53l0x
+    name: "VL53L0x Distance"
+    address: 0x29
+    update_interval: 60s
   - platform: apds9960
     type: clear
     name: APDS9960 Clear
@@ -221,6 +243,11 @@ sensor:
   - platform: homeassistant
     entity_id: sensor.hello_world
     id: ha_hello_world
+  - platform: aht10
+    temperature:
+      name: "Temperature"
+    humidity:
+      name: "Humidity"
   - platform: am2320
     temperature:
       name: "Temperature"
@@ -335,6 +362,8 @@ sensor:
       name: "PZEMAC Current"
     power:
       name: "PZEMAC Power"
+    energy:
+      name: "PZEMAC Energy"
     frequency:
       name: "PZEMAC Frequency"
     power_factor:
@@ -346,6 +375,51 @@ sensor:
       name: "PZEMDC Current"
     power:
       name: "PZEMDC Power"
+  - platform: tmp102
+    name: "TMP102 Temperature"
+  - platform: hm3301
+    pm_1_0:
+      name: "PM1.0"
+    pm_2_5:
+      name: "PM2.5"
+    pm_10_0:
+      name: "PM10.0"
+    aqi:
+      name: "AQI"
+      calculation_type: "AQI"
+  - platform: pmsx003
+    type: PMSX003
+    pm_1_0:
+      name: "PM 1.0 Concentration"
+    pm_2_5:
+      name: "PM 2.5 Concentration"
+    pm_10_0:
+      name: "PM 10.0 Concentration"
+  - platform: pmsx003
+    type: PMS5003T
+    pm_2_5:
+      name: "PM 2.5 Concentration"
+    temperature:
+      name: "PMS Temperature"
+    humidity:
+      name: "PMS Humidity"
+  - platform: pmsx003
+    type: PMS5003ST
+    pm_2_5:
+      name: "PM 2.5 Concentration"
+    temperature:
+      name: "PMS Temperature"
+    humidity:
+      name: "PMS Humidity"
+    formaldehyde:
+      name: "PMS Formaldehyde Concentration"
+  - platform: cse7766
+    voltage:
+      name: "CSE7766 Voltage"
+    current:
+      name: "CSE7766 Current"
+    power:
+      name: "CSE776 Power"
 
 time:
 - platform: homeassistant
@@ -559,6 +633,74 @@ climate:
     away_config:
       default_target_temperature_low: 16°C
       default_target_temperature_high: 20°C
+  - platform: thermostat
+    name: Thermostat Climate
+    sensor: ha_hello_world
+    default_target_temperature_low: 18°C
+    default_target_temperature_high: 24°C
+    idle_action:
+      - switch.turn_on: gpio_switch1
+    cool_action:
+      - switch.turn_on: gpio_switch2
+    heat_action:
+      - switch.turn_on: gpio_switch1
+    dry_action:
+      - switch.turn_on: gpio_switch2
+    fan_only_action:
+      - switch.turn_on: gpio_switch1
+    auto_mode:
+      - switch.turn_on: gpio_switch2
+    off_mode:
+      - switch.turn_on: gpio_switch1
+    heat_mode:
+      - switch.turn_on: gpio_switch2
+    cool_mode:
+      - switch.turn_on: gpio_switch1
+    dry_mode:
+      - switch.turn_on: gpio_switch2
+    fan_only_mode:
+      - switch.turn_on: gpio_switch1
+    fan_mode_auto_action:
+      - switch.turn_on: gpio_switch2
+    fan_mode_on_action:
+      - switch.turn_on: gpio_switch1
+    fan_mode_off_action:
+      - switch.turn_on: gpio_switch2
+    fan_mode_low_action:
+      - switch.turn_on: gpio_switch1
+    fan_mode_medium_action:
+      - switch.turn_on: gpio_switch2
+    fan_mode_high_action:
+      - switch.turn_on: gpio_switch1
+    fan_mode_middle_action:
+      - switch.turn_on: gpio_switch2
+    fan_mode_focus_action:
+      - switch.turn_on: gpio_switch1
+    fan_mode_diffuse_action:
+      - switch.turn_on: gpio_switch2
+    swing_off_action:
+      - switch.turn_on: gpio_switch1
+    swing_horizontal_action:
+      - switch.turn_on: gpio_switch2
+    swing_vertical_action:
+      - switch.turn_on: gpio_switch1
+    swing_both_action:
+      - switch.turn_on: gpio_switch2
+    hysteresis: 0.2
+    away_config:
+      default_target_temperature_low: 16°C
+      default_target_temperature_high: 20°C
+  - platform: pid
+    id: pid_climate
+    name: "PID Climate Controller"
+    sensor: ha_hello_world
+    default_target_temperature: 21°C
+    heat_output: my_slow_pwm
+    control_parameters:
+      kp: 0.0
+      ki: 0.0
+      kd: 0.0
+    
 
 cover:
   - platform: endstop
@@ -635,12 +777,23 @@ output:
       return {s};
     outputs:
       - id: custom_float
+  - platform: ac_dimmer
+    id: dimmer1
+    gate_pin: GPIO5
+    zero_cross_pin: GPIO12
+  - platform: slow_pwm
+    pin: GPIO5
+    id: my_slow_pwm
+    period: 15s
+
 
 mcp23017:
   id: mcp23017_hub
 
 mcp23008:
   id: mcp23008_hub
+
+e131:
 
 light:
   - platform: neopixelbus
@@ -650,11 +803,19 @@ light:
     variant: SK6812
     method: ESP8266_UART0
     num_leds: 100
+    effects:
+      - wled:
+      - adalight:
+          uart_id: adalight_uart
+      - e131:
+          universe: 1
 
 servo:
   id: my_servo
   output: out
   restore: true
+  min_level: $min_sub
+  max_level: $max_sub
 
 ttp229_lsf:
 
@@ -685,6 +846,7 @@ tm1651:
   id: tm1651_battery
   clk_pin: D6
   dio_pin: D5
+
 rf_bridge:
   on_code_received:
     - lambda: |-
@@ -699,3 +861,14 @@ rf_bridge:
         high: 0x1234
         code: 0x123456
     - rf_bridge.learn
+
+display:
+  - platform: max7219digit
+    cs_pin: GPIO15
+    num_chips: 4
+    rotate_chip: 0
+    intensity: 10
+    scroll_mode: 'STOP'
+    id: my_matrix
+    lambda: |-
+      it.printdigit("hello");

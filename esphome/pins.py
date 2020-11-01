@@ -33,7 +33,8 @@ ESP8266_BOARD_PINS = {
     'espresso_lite_v2': {'LED': 2},
     'gen4iod': {},
     'heltec_wifi_kit_8': 'd1_mini',
-    'huzzah': {'LED': 0},
+    'huzzah': {'LED': 0, 'LED_RED': 0, 'LED_BLUE': 2, 'D4': 4, 'D5': 5, 'D12': 12,
+               'D13': 13, 'D14': 14, 'D15': 15, 'D16': 16},
     'inventone': {},
     'modwifi': {},
     'nodemcu': {'D0': 16, 'D1': 5, 'D2': 4, 'D3': 0, 'D4': 2, 'D5': 14, 'D6': 12, 'D7': 13,
@@ -255,16 +256,20 @@ ESP32_BOARD_PINS = {
 
 def _lookup_pin(value):
     if CORE.is_esp8266:
-        board_pins = ESP8266_BOARD_PINS.get(CORE.board, {})
+        board_pins_dict = ESP8266_BOARD_PINS
         base_pins = ESP8266_BASE_PINS
     elif CORE.is_esp32:
-        board_pins = ESP32_BOARD_PINS.get(CORE.board, {})
+        board_pins_dict = ESP32_BOARD_PINS
         base_pins = ESP32_BASE_PINS
     else:
         raise NotImplementedError
 
+    board_pins = board_pins_dict.get(CORE.board, {})
+
+    # Resolved aliased board pins (shorthand when two boards have the same pin configuration)
     while isinstance(board_pins, str):
-        board_pins = ESP8266_BOARD_PINS.get(board_pins, {})
+        board_pins = board_pins_dict[board_pins]
+
     if value in board_pins:
         return board_pins[value]
     if value in base_pins:

@@ -32,6 +32,7 @@ class _Schema(vol.Schema):
             try:
                 res = extra(res)
             except vol.Invalid as err:
+                # pylint: disable=raise-missing-from
                 raise ensure_multiple_invalid(err)
         return res
 
@@ -52,7 +53,8 @@ class _Schema(vol.Schema):
         all_required_keys = {key for key in schema if isinstance(key, vol.Required)}
 
         # Keys that may have defaults
-        all_default_keys = {key for key in schema if isinstance(key, vol.Optional)}
+        # This is a list because sets do not guarantee insertion order
+        all_default_keys = [key for key in schema if isinstance(key, vol.Optional)]
 
         # Recursively compile schema
         _compiled_schema = {}
@@ -177,7 +179,7 @@ class _Schema(vol.Schema):
         self._extra_schemas.append(validator)
         return self
 
-    # pylint: disable=arguments-differ
+    # pylint: disable=signature-differs
     def extend(self, *schemas, **kwargs):
         extra = kwargs.pop('extra', None)
         if kwargs:

@@ -25,3 +25,6 @@ disable=
   stop-iteration-return,
   no-self-use,
   import-outside-toplevel,
+  # Broken
+  unsupported-membership-test,
+  unsubscriptable-object,

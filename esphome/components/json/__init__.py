@@ -1,6 +1,7 @@
 import esphome.codegen as cg
 from esphome.core import coroutine_with_priority
 
+CODEOWNERS = ['@OttoWinter']
 json_ns = cg.esphome_ns.namespace('json')
 
 

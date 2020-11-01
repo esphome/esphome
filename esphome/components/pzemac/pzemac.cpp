@@ -19,6 +19,7 @@ void PZEMAC::on_modbus_data(const std::vector<uint8_t> &data) {
   //  0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24
   // 01 04 14 08 D1 00 6C 00 00 00 F4 00 00 00 26 00 00 01 F4 00 64 00 00 51 34
   // Id Cc Sz Volt- Current---- Power------ Energy----- Frequ PFact Alarm Crc--
+  //           0     2           6          10          14    16
 
   auto pzem_get_16bit = [&](size_t i) -> uint16_t {
     return (uint16_t(data[i + 0]) << 8) | (uint16_t(data[i + 1]) << 0);
@@ -36,20 +37,24 @@ void PZEMAC::on_modbus_data(const std::vector<uint8_t> &data) {
   uint32_t raw_active_power = pzem_get_32bit(6);
   float active_power = raw_active_power / 10.0f;  // max 429496729.5 W
 
+  float active_energy = static_cast<float>(pzem_get_32bit(10));
+
   uint16_t raw_frequency = pzem_get_16bit(14);
   float frequency = raw_frequency / 10.0f;
 
   uint16_t raw_power_factor = pzem_get_16bit(16);
   float power_factor = raw_power_factor / 100.0f;
 
-  ESP_LOGD(TAG, "PZEM AC: V=%.1f V, I=%.3f A, P=%.1f W, F=%.1f Hz, PF=%.2f", voltage, current, active_power, frequency,
-           power_factor);
+  ESP_LOGD(TAG, "PZEM AC: V=%.1f V, I=%.3f A, P=%.1f W, E=%.1f Wh, F=%.1f Hz, PF=%.2f", voltage, current, active_power,
+           active_energy, frequency, power_factor);
   if (this->voltage_sensor_ != nullptr)
     this->voltage_sensor_->publish_state(voltage);
   if (this->current_sensor_ != nullptr)
     this->current_sensor_->publish_state(current);
   if (this->power_sensor_ != nullptr)
     this->power_sensor_->publish_state(active_power);
+  if (this->energy_sensor_ != nullptr)
+    this->energy_sensor_->publish_state(active_energy);
   if (this->frequency_sensor_ != nullptr)
     this->frequency_sensor_->publish_state(frequency);
   if (this->power_factor_sensor_ != nullptr)
@@ -63,6 +68,7 @@ void PZEMAC::dump_config() {
   LOG_SENSOR("", "Voltage", this->voltage_sensor_);
   LOG_SENSOR("", "Current", this->current_sensor_);
   LOG_SENSOR("", "Power", this->power_sensor_);
+  LOG_SENSOR("", "Energy", this->energy_sensor_);
   LOG_SENSOR("", "Frequency", this->frequency_sensor_);
   LOG_SENSOR("", "Power Factor", this->power_factor_sensor_);
 }

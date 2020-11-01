@@ -20,7 +20,7 @@ const uint8_t TM1637_UNKNOWN_CHAR = 0b11111111;
 //     ---
 //      D   X
 // XABCDEFG
-const uint8_t TM1637_ASCII_TO_RAW[94] PROGMEM = {
+const uint8_t TM1637_ASCII_TO_RAW[] PROGMEM = {
     0b00000000,           // ' ', ord 0x20
     0b10110000,           // '!', ord 0x21
     0b00100010,           // '"', ord 0x22
@@ -115,6 +115,7 @@ const uint8_t TM1637_ASCII_TO_RAW[94] PROGMEM = {
     0b00110001,           // '{', ord 0x7B
     0b00000110,           // '|', ord 0x7C
     0b00000111,           // '}', ord 0x7D
+    0b01100011,           // '~', ord 0x7E (degree symbol)
 };
 void TM1637Display::setup() {
   ESP_LOGCONFIG(TAG, "Setting up TM1637...");
@@ -231,7 +232,7 @@ uint8_t TM1637Display::print(uint8_t start_pos, const char* str) {
   uint8_t pos = start_pos;
   for (; *str != '\0'; str++) {
     uint8_t data = TM1637_UNKNOWN_CHAR;
-    if (*str >= ' ' && *str <= '}')
+    if (*str >= ' ' && *str <= '~')
       data = pgm_read_byte(&TM1637_ASCII_TO_RAW[*str - ' ']);
 
     if (data == TM1637_UNKNOWN_CHAR) {
