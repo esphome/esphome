@@ -29,7 +29,7 @@ class PCD8544 : public PollingComponent,
   const uint8_t PCD8544_SETTEMP = 0x04;
   const uint8_t PCD8544_SETBIAS = 0x10;
   const uint8_t PCD8544_SETVOP = 0x80;
-  uint8_t contrast_ = 0x7f;
+  uint8_t contrast_;
 
   void set_dc_pin(GPIOPin *dc_pin) { this->dc_pin_ = dc_pin; }
   void set_reset_pin(GPIOPin *reset) { this->reset_pin_ = reset; }

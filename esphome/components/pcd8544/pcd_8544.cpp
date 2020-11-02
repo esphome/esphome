@@ -35,7 +35,7 @@ void PCD8544::initialize() {
   this->command(this->PCD8544_SETBIAS | 0x04);
 
   // contrast
-  this->command(this->PCD8544_SETVOP | this->contrast_);  // Experimentally determined
+  this->command(this->PCD8544_SETVOP | this->contrast_);
 
   // normal mode
   this->command(this->PCD8544_FUNCTIONSET);

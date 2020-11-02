@@ -17,9 +17,9 @@ CONFIG_SCHEMA = cv.All(display.FULL_DISPLAY_SCHEMA.extend({
     cv.Required(CONF_DC_PIN): pins.gpio_output_pin_schema,
     cv.Required(CONF_RESET_PIN): pins.gpio_output_pin_schema,
     cv.Required(CONF_CS_PIN): pins.gpio_output_pin_schema,  # CE
-    cv.Optional(CONF_CONTRAST, 0x7f): cv.int_,
+    cv.Optional(CONF_CONTRAST, default=0x7f): cv.int_,
 }).extend(cv.polling_component_schema('1s')).extend(spi.spi_device_schema()),
-                       cv.has_at_most_one_key(CONF_PAGES, CONF_LAMBDA))
+    cv.has_at_most_one_key(CONF_PAGES, CONF_LAMBDA))
 
 
 def to_code(config):
@@ -34,8 +34,7 @@ def to_code(config):
     reset = yield cg.gpio_pin_expression(config[CONF_RESET_PIN])
     cg.add(var.set_reset_pin(reset))
 
-    if CONF_CONTRAST in config:
-        cg.add(var.set_contrast(config[CONF_CONTRAST]))
+    cg.add(var.set_contrast(config[CONF_CONTRAST]))
 
     if CONF_LAMBDA in config:
         lambda_ = yield cg.process_lambda(config[CONF_LAMBDA], [(display.DisplayBufferRef, 'it')],
