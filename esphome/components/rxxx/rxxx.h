@@ -75,7 +75,6 @@ class RxxxComponent : public PollingComponent, public uart::UARTDevice {
   void aura_led_control(uint8_t state, uint8_t speed, uint8_t color, uint8_t count);
 
  protected:
-
   void scan_and_match_();
   uint8_t scan_image_(uint8_t buffer);
 
