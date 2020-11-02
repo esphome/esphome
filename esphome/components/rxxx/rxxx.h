@@ -71,7 +71,7 @@ class RxxxComponent : public PollingComponent, public uart::UARTDevice {
   void delete_fingerprint(uint16_t finger_id);
   void delete_all_fingerprints();
 
-  void led_control(bool on);
+  void led_control(bool state);
   void aura_led_control(uint8_t state, uint8_t speed, uint8_t color, uint8_t count);
 
  protected:

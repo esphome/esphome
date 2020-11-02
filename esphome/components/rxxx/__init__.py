@@ -6,7 +6,7 @@ from esphome.components import uart
 from esphome.const import CONF_COLOR, CONF_COUNT, CONF_FINGER_ID, CONF_ID, CONF_NEW_PASSWORD, \
     CONF_NUM_SCANS, CONF_ON_ENROLLMENT_DONE, CONF_ON_ENROLLMENT_FAILED, CONF_ON_ENROLLMENT_SCAN, \
     CONF_ON_FINGER_SCAN_MATCHED, CONF_ON_FINGER_SCAN_UNMATCHED, CONF_PASSWORD, CONF_SENSING_PIN, \
-    CONF_SPEED, CONF_STATE, CONF_TRIGGER_ID, CONF_UART_ID
+    CONF_SPEED, CONF_STATE, CONF_TRIGGER_ID
 
 CODEOWNERS = ['@OnFreund', '@loongyh']
 DEPENDENCIES = ['uart']
@@ -19,23 +19,19 @@ rxxx_ns = cg.esphome_ns.namespace('rxxx')
 RxxxComponent = rxxx_ns.class_('RxxxComponent', cg.PollingComponent, uart.UARTDevice)
 
 FingerScanMatchedTrigger = rxxx_ns.class_('FingerScanMatchedTrigger',
-  automation.Trigger.template(
-    cg.uint16,
-    cg.uint16))
+                                          automation.Trigger.template(cg.uint16, cg.uint16))
 
 FingerScanUnmatchedTrigger = rxxx_ns.class_('FingerScanUnmatchedTrigger',
-    automation.Trigger.template())
+                                            automation.Trigger.template())
 
 EnrollmentScanTrigger = rxxx_ns.class_('EnrollmentScanTrigger',
-  automation.Trigger.template(
-    cg.uint8,
-    cg.uint16))
+                                       automation.Trigger.template(cg.uint8, cg.uint16))
 
 EnrollmentDoneTrigger = rxxx_ns.class_('EnrollmentDoneTrigger',
-    automation.Trigger.template(cg.uint16))
+                                       automation.Trigger.template(cg.uint16))
 
 EnrollmentFailedTrigger = rxxx_ns.class_('EnrollmentFailedTrigger',
-    automation.Trigger.template(cg.uint16))
+                                         automation.Trigger.template(cg.uint16))
 
 EnrollmentAction = rxxx_ns.class_('EnrollmentAction', automation.Action)
 CancelEnrollmentAction = rxxx_ns.class_('CancelEnrollmentAction', automation.Action)
@@ -104,7 +100,7 @@ def to_code(config):
     for conf in config.get(CONF_ON_FINGER_SCAN_MATCHED, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         yield automation.build_automation(trigger, [(cg.uint16, 'finger_id'),
-          (cg.uint16, 'confidence')], conf)
+                                          (cg.uint16, 'confidence')], conf)
 
     for conf in config.get(CONF_ON_FINGER_SCAN_UNMATCHED, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
@@ -113,7 +109,7 @@ def to_code(config):
     for conf in config.get(CONF_ON_ENROLLMENT_SCAN, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         yield automation.build_automation(trigger, [(cg.uint8, 'scan_num'),
-          (cg.uint16, 'finger_id')], conf)
+                                          (cg.uint16, 'finger_id')], conf)
 
     for conf in config.get(CONF_ON_ENROLLMENT_DONE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
@@ -135,7 +131,7 @@ def to_code(config):
 def rxxx_enroll_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     yield cg.register_parented(var, config[CONF_ID])
-    
+
     template_ = yield cg.templatable(config[CONF_FINGER_ID], args, cg.uint16)
     cg.add(var.set_finger_id(template_))
     if CONF_NUM_SCANS in config:
@@ -152,6 +148,7 @@ def rxxx_cancel_enroll_to_code(config, action_id, template_arg, args):
     yield cg.register_parented(var, config[CONF_ID])
     yield var
 
+
 @automation.register_action('rxxx.delete', DeleteAction, cv.maybe_simple_value({
     cv.GenerateID(): cv.use_id(RxxxComponent),
     cv.Required(CONF_FINGER_ID): cv.templatable(cv.uint16_t),
@@ -159,10 +156,11 @@ def rxxx_cancel_enroll_to_code(config, action_id, template_arg, args):
 def rxxx_delete_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     yield cg.register_parented(var, config[CONF_ID])
-    
+
     template_ = yield cg.templatable(config[CONF_FINGER_ID], args, cg.uint16)
     cg.add(var.set_finger_id(template_))
     yield var
+
 
 @automation.register_action('rxxx.delete_all', DeleteAllAction, cv.Schema({
     cv.GenerateID(): cv.use_id(RxxxComponent),
@@ -180,7 +178,7 @@ def rxxx_delete_all_to_code(config, action_id, template_arg, args):
 def rxxx_led_control_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     yield cg.register_parented(var, config[CONF_ID])
-    
+
     template_ = yield cg.templatable(config[CONF_STATE], args, cg.bool_)
     cg.add(var.set_state(template_))
     yield var
@@ -196,7 +194,7 @@ def rxxx_led_control_to_code(config, action_id, template_arg, args):
 def rxxx_aura_led_control_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     yield cg.register_parented(var, config[CONF_ID])
-    
+
     for key in [CONF_STATE, CONF_SPEED, CONF_COLOR, CONF_COUNT]:
         template_ = yield cg.templatable(config[key], args, cg.uint8)
         cg.add(getattr(var, f'set_{key}')(template_))

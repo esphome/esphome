@@ -18,6 +18,7 @@ CONFIG_SCHEMA = cv.Schema({
     cv.Optional(CONF_LAST_CONFIDENCE): sensor.sensor_schema(UNIT_EMPTY, ICON_ACCOUNT_CHECK, 0),
 })
 
+
 def to_code(config):
     hub = yield cg.get_variable(config[CONF_RXXX_ID])
 
