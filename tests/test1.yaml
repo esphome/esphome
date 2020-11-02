@@ -1585,6 +1585,7 @@ display:
   cs_pin: GPIO23
   dc_pin: GPIO23
   reset_pin: GPIO23
+  contrast: 60
   lambda: |-
     it.rectangle(0, 0, it.get_width(), it.get_height());
 - platform: ssd1306_i2c
