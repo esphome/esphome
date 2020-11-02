@@ -85,9 +85,9 @@ void RxxxComponent::update() {
 
 void RxxxComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up Rxxx Fingerprint Sensor...");
-  //uint8_t result = this->finger_->checkPassword();
+  // uint8_t result = this->finger_->checkPassword();
   uint8_t result = FINGERPRINT_PACKETRECIEVEERR;
-  //if (result == FINGERPRINT_OK) {
+  // if (result == FINGERPRINT_OK) {
   if (this->finger_->verifyPassword()) {
     ESP_LOGD(TAG, "Password verified");
     if (this->new_password_ != nullptr) {
@@ -172,10 +172,10 @@ void RxxxComponent::scan_and_match_() {
     result = this->finger_->fingerSearch();
     ESP_LOGD(TAG, "Finger searched");
     if (result == FINGERPRINT_OK) {
-      if (this->last_finger_id_sensor_ != nullptr) { 
+      if (this->last_finger_id_sensor_ != nullptr) {
         this->last_finger_id_sensor_->publish_state(this->finger_->fingerID);
       }
-      if (this->last_confidence_sensor_ != nullptr) { 
+      if (this->last_confidence_sensor_ != nullptr) {
         this->last_confidence_sensor_->publish_state(this->finger_->confidence);
       }
       this->finger_scan_matched_callback_.call(this->finger_->fingerID, this->finger_->confidence);
@@ -251,7 +251,7 @@ void RxxxComponent::get_fingerprint_count_() {
   switch (result) {
     case FINGERPRINT_OK:
       ESP_LOGD(TAG, "Got fingerprint count");
-      if (this->fingerprint_count_sensor_ != nullptr) { 
+      if (this->fingerprint_count_sensor_ != nullptr) {
         this->fingerprint_count_sensor_->publish_state(this->finger_->templateCount);
       }
       break;
@@ -321,7 +321,7 @@ void RxxxComponent::aura_led_control(uint8_t state, uint8_t speed, uint8_t color
   const uint32_t now = millis();
   const uint32_t elapsed = now - this->last_aura_led_control_;
   if (elapsed < this->last_aura_led_duration_) {
-      delay(this->last_aura_led_duration_ - elapsed);
+    delay(this->last_aura_led_duration_ - elapsed);
   }
   ESP_LOGD(TAG, "Setting Aura LED");
   uint8_t result = this->finger_->LEDcontrol(state, speed, color, count);

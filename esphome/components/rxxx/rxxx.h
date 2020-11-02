@@ -23,7 +23,7 @@ enum AuraLEDMode : uint8_t {
 };
 
 class RxxxComponent : public PollingComponent, public uart::UARTDevice {
-  public:
+ public:
   void update() override;
   void setup() override;
   void dump_config() override;
@@ -74,7 +74,7 @@ class RxxxComponent : public PollingComponent, public uart::UARTDevice {
   void led_control(bool on);
   void aura_led_control(uint8_t state, uint8_t speed, uint8_t color, uint8_t count);
 
-  protected:
+ protected:
 
   void scan_and_match_();
   uint8_t scan_image_(uint8_t buffer);
@@ -109,9 +109,7 @@ class FingerScanMatchedTrigger : public Trigger<uint16_t, uint16_t> {
  public:
   explicit FingerScanMatchedTrigger(RxxxComponent *parent) {
     parent->add_on_finger_scan_matched_callback(
-        [this](uint16_t finger_id, uint16_t confidence) {
-          this->trigger(finger_id, confidence);
-        });
+        [this](uint16_t finger_id, uint16_t confidence) { this->trigger(finger_id, confidence); });
   }
 };
 
@@ -126,29 +124,21 @@ class EnrollmentScanTrigger : public Trigger<uint8_t, uint16_t> {
  public:
   explicit EnrollmentScanTrigger(RxxxComponent *parent) {
     parent->add_on_enrollment_scan_callback(
-        [this](uint8_t scan_num, uint16_t finger_id) {
-          this->trigger(scan_num, finger_id);
-        });
+        [this](uint8_t scan_num, uint16_t finger_id) { this->trigger(scan_num, finger_id); });
   }
 };
 
 class EnrollmentDoneTrigger : public Trigger<uint16_t> {
  public:
   explicit EnrollmentDoneTrigger(RxxxComponent *parent) {
-    parent->add_on_enrollment_done_callback(
-        [this](uint16_t finger_id) {
-          this->trigger(finger_id);
-        });
+    parent->add_on_enrollment_done_callback([this](uint16_t finger_id) { this->trigger(finger_id); });
   }
 };
 
 class EnrollmentFailedTrigger : public Trigger<uint16_t> {
  public:
   explicit EnrollmentFailedTrigger(RxxxComponent *parent) {
-    parent->add_on_enrollment_failed_callback(
-        [this](uint16_t finger_id) {
-          this->trigger(finger_id);
-        });
+    parent->add_on_enrollment_failed_callback([this](uint16_t finger_id) { this->trigger(finger_id); });
   }
 };
 
@@ -206,7 +196,6 @@ template<typename... Ts> class AuraLEDControlAction : public Action<Ts...>, publ
   TEMPLATABLE_VALUE(uint8_t, count)
 
   void play(Ts... x) override {
-
     auto state = this->state_.value(x...);
     auto speed = this->speed_.value(x...);
     auto color = this->color_.value(x...);
