@@ -5,6 +5,8 @@ from esphome.const import CONF_BATTERY_LEVEL, CONF_BATTERY_VOLTAGE, CONF_MAC_ADD
     CONF_HUMIDITY, CONF_TEMPERATURE, CONF_ID, UNIT_CELSIUS, UNIT_PERCENT, UNIT_VOLT, \
     ICON_BATTERY, ICON_THERMOMETER, ICON_WATER_PERCENT
 
+CODEOWNERS = ['@ahpohl']
+
 DEPENDENCIES = ['esp32_ble_tracker']
 
 atc_mithermometer_ns = cg.esphome_ns.namespace('atc_mithermometer')
@@ -41,6 +43,3 @@ def to_code(config):
     if CONF_BATTERY_VOLTAGE in config:
         sens = yield sensor.new_sensor(config[CONF_BATTERY_VOLTAGE])
         cg.add(var.set_battery_voltage(sens))
-
-
-CODEOWNERS = ['@ahpohl']
