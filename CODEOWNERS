@@ -15,6 +15,7 @@ esphome/components/ac_dimmer/* @glmnet
 esphome/components/adc/* @esphome/core
 esphome/components/api/* @OttoWinter
 esphome/components/async_tcp/* @OttoWinter
+esphome/components/atc_mithermometer/* @ahpohl
 esphome/components/bang_bang/* @OttoWinter
 esphome/components/binary_sensor/* @esphome/core
 esphome/components/captive_portal/* @OttoWinter
@@ -43,7 +44,9 @@ esphome/components/network/* @esphome/core
 esphome/components/ota/* @esphome/core
 esphome/components/output/* @esphome/core
 esphome/components/pid/* @OttoWinter
-esphome/components/pn532/* @OttoWinter
+esphome/components/pn532/* @OttoWinter @jesserockz
+esphome/components/pn532_i2c/* @OttoWinter @jesserockz
+esphome/components/pn532_spi/* @OttoWinter @jesserockz
 esphome/components/power_supply/* @esphome/core
 esphome/components/rc522_spi/* @glmnet
 esphome/components/restart/* @esphome/core
@@ -70,3 +73,4 @@ esphome/components/ultrasonic/* @OttoWinter
 esphome/components/version/* @esphome/core
 esphome/components/web_server_base/* @OttoWinter
 esphome/components/whirlpool/* @glmnet
+esphome/components/xiaomi_lywsd03mmc/* @ahpohl

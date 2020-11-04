@@ -154,8 +154,8 @@ template<> const char *proto_enum_to_string<enums::ClimateSwingMode>(enums::Clim
       return "CLIMATE_SWING_BOTH";
     case enums::CLIMATE_SWING_VERTICAL:
       return "CLIMATE_SWING_VERTICAL";
-    case enums::CLIMATE_SWINT_HORIZONTAL:
-      return "CLIMATE_SWINT_HORIZONTAL";
+    case enums::CLIMATE_SWING_HORIZONTAL:
+      return "CLIMATE_SWING_HORIZONTAL";
     default:
       return "UNKNOWN";
   }
