@@ -29,7 +29,7 @@ class HBRIDGELightOutput : public PollingComponent, public light::LightOutput {
   void update() override {
     // This method runs around 60 times per second
     // We cannot do the PWM ourselves so we are reliant on the hardware PWM
-    if (this->forward_direction_ == false) {  // First LED Direction
+    if (!this->forward_direction_) {  // First LED Direction
       this->pinb_pin_->set_level(this->duty_off_);
       this->pina_pin_->set_level(this->pina_duty_);
       this->forward_direction_ = true;
@@ -50,8 +50,8 @@ class HBRIDGELightOutput : public PollingComponent, public light::LightOutput {
     float red, green, blue, white;
     state->current_values_as_rgbw(&red, &green, &blue, &white);
 
-    if ((white/bright) > 0.55) {
-      this->pina_duty_ = (bright * (1 - (white/bright)));
+    if ((white / bright) > 0.55) {
+      this->pina_duty_ = (bright * (1 - (white / bright)));
       this->pinb_duty_ = bright;
     } else if (white < 0.45) {
       this->pina_duty_ = bright;
