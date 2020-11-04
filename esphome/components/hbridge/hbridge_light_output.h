@@ -24,17 +24,19 @@ class HBRIDGELightOutput : public PollingComponent, public light::LightOutput {
     return traits;
   }
 
-  void setup() override { this->pwm_tick_count_ = 0; }
+  void setup() override { this->forward_direction_ = false; }
 
   void update() override {
-    if (this->pwm_tick_count_ == 0) {  // First LED Direction
+    // This method runs around 60 times per second
+    // We cannot do the PWM ourselves so we are reliant on the hardware PWM
+    if (this->forward_direction_ == false) {  // First LED Direction
       this->pinb_pin_->set_level(this->duty_off_);
       this->pina_pin_->set_level(this->pina_duty_);
-      this->pwm_tick_count_ = 1;
+      this->forward_direction_ = true;
     } else {  // Second LED Direction
       this->pina_pin_->set_level(this->duty_off_);
       this->pinb_pin_->set_level(this->pinb_duty_);
-      this->pwm_tick_count_ = 0;
+      this->forward_direction_ = false;
     }
   }
 
@@ -48,12 +50,12 @@ class HBRIDGELightOutput : public PollingComponent, public light::LightOutput {
     float red, green, blue, white;
     state->current_values_as_rgbw(&red, &green, &blue, &white);
 
-    if (white > 0.55) {
-      this->pina_duty_ = (bright * (1 - white));
+    if ((white/bright) > 0.55) {
+      this->pina_duty_ = (bright * (1 - (white/bright)));
       this->pinb_duty_ = bright;
     } else if (white < 0.45) {
       this->pina_duty_ = bright;
-      this->pinb_duty_ = (bright * (white));
+      this->pinb_duty_ = white;
     } else {
       this->pina_duty_ = bright;
       this->pinb_duty_ = bright;
@@ -66,7 +68,7 @@ class HBRIDGELightOutput : public PollingComponent, public light::LightOutput {
   float pina_duty_ = 0;
   float pinb_duty_ = 0;
   float duty_off_ = 0;
-  uint8_t pwm_tick_count_ = 0;
+  bool forward_direction_ = false;
 };
 
 }  // namespace hbridge
