@@ -8,6 +8,7 @@ from .display import Nextion
 DEPENDENCIES = ['display']
 
 CONF_NEXTION_ID = 'nextion_id'
+CONF_SLEEP_ACTIVATED = 'sleep_activated'
 
 NextionTouchComponent = nextion_ns.class_('NextionTouchComponent', binary_sensor.BinarySensor)
 
@@ -17,6 +18,7 @@ CONFIG_SCHEMA = binary_sensor.BINARY_SENSOR_SCHEMA.extend({
 
     cv.Required(CONF_PAGE_ID): cv.uint8_t,
     cv.Required(CONF_COMPONENT_ID): cv.uint8_t,
+    cv.Optional(CONF_SLEEP_ACTIVATED, default=False): cv.boolean,
 })
 
 
@@ -29,3 +31,4 @@ def to_code(config):
 
     cg.add(var.set_component_id(config[CONF_COMPONENT_ID]))
     cg.add(var.set_page_id(config[CONF_PAGE_ID]))
+    cg.add(var.set_sleep_activated(config[CONF_SLEEP_ACTIVATED]))

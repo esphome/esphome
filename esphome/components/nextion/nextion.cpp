@@ -222,6 +222,9 @@ bool Nextion::read_until_ack_() {
         uint16_t y = (uint16_t(data[2]) << 8) | data[3];
         uint8_t touch_event = data[4];  // 0 -> release, 1 -> press
         ESP_LOGD(TAG, "Got touch at x=%u y=%u type=%s", x, y, touch_event ? "PRESS" : "RELEASE");
+        for (auto *touch : this->touch_) {
+          touch->process(255, 255, touch_event);
+        }
         break;
       }
       case 0x66:  // sendme page id
@@ -263,6 +266,7 @@ void Nextion::set_nextion_rtc_time(time::ESPTime time) {
 
 void Nextion::set_backlight_brightness(uint8_t brightness) { this->send_command_printf("dim=%u", brightness); }
 void Nextion::set_touch_sleep_timeout(uint16_t timeout) { this->send_command_printf("thsp=%u", timeout); }
+void Nextion::set_sleep(bool sleep) { this->send_command_printf("sleep=%d", sleep ? 1 : 0); }
 
 void Nextion::set_writer(const nextion_writer_t &writer) { this->writer_ = writer; }
 void Nextion::set_component_text_printf(const char *component, const char *format, ...) {
@@ -277,7 +281,9 @@ void Nextion::set_component_text_printf(const char *component, const char *forma
 void Nextion::set_wait_for_ack(bool wait_for_ack) { this->wait_for_ack_ = wait_for_ack; }
 
 void NextionTouchComponent::process(uint8_t page_id, uint8_t component_id, bool on) {
-  if (this->page_id_ == page_id && this->component_id_ == component_id) {
+  if (this->sleep_activated_)
+    this->publish_state(on);
+  else if (this->page_id_ == page_id && this->component_id_ == component_id) {
     this->publish_state(on);
   }
 }

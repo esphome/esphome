@@ -360,6 +360,18 @@ class Nextion : public PollingComponent, public uart::UARTDevice {
    * `thup`.
    */
   void set_touch_sleep_timeout(uint16_t timeout);
+  /**
+   * Put the unit to sleep
+   * @param sleep - Go to sleep true or false (wake up)
+   *
+   * Example:
+   * ```cpp
+   * it.set_sleep(true);  // go to sleep
+   * it.set_sleep(false); // wake up
+   * ```
+   * `thup`.
+   */
+  void set_sleep(bool sleep);
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
@@ -400,11 +412,13 @@ class NextionTouchComponent : public binary_sensor::BinarySensorInitiallyOff {
  public:
   void set_page_id(uint8_t page_id) { page_id_ = page_id; }
   void set_component_id(uint8_t component_id) { component_id_ = component_id; }
+  void set_sleep_activated(bool sleep_activated) { sleep_activated_ = sleep_activated; }
   void process(uint8_t page_id, uint8_t component_id, bool on);
 
  protected:
   uint8_t page_id_;
   uint8_t component_id_;
+  bool sleep_activated_;
 };
 
 }  // namespace nextion
