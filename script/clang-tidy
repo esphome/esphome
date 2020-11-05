@@ -2,19 +2,18 @@
 
 from __future__ import print_function
 
+import argparse
 import multiprocessing
 import os
 import re
-
-import pexpect
 import shutil
 import subprocess
 import sys
 import tempfile
-
-import argparse
-import click
 import threading
+
+import click
+import pexpect
 
 sys.path.append(os.path.dirname(__file__))
 from helpers import basepath, shlex_quote, get_output, build_compile_commands, \
@@ -49,7 +48,7 @@ def run_tidy(args, tmpdir, queue, lock, failed_files):
 
         # Use pexpect for a pseudy-TTY with colored output
         output, rc = pexpect.run(invocation_s, withexitstatus=True, encoding='utf-8',
-                                 timeout=15*60)
+                                 timeout=15 * 60)
         with lock:
             if rc != 0:
                 print()
@@ -65,6 +64,11 @@ def progress_bar_show(value):
         return ''
 
 
+def split_list(a, n):
+    k, m = divmod(len(a), n)
+    return [a[i * k + min(i, m):(i + 1) * k + min(i + 1, m)] for i in range(n)]
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-j', '--jobs', type=int,
@@ -77,6 +81,10 @@ def main():
                         help='Run clang-tidy in quiet mode')
     parser.add_argument('-c', '--changed', action='store_true',
                         help='Only run on changed files')
+    parser.add_argument('--split-num', type=int, help='Split the files into X jobs.',
+                        default=None)
+    parser.add_argument('--split-at', type=int, help='Which split is this? Starts at 1',
+                        default=None)
     parser.add_argument('--all-headers', action='store_true',
                         help='Create a dummy file that checks all headers')
     args = parser.parse_args()
@@ -85,11 +93,11 @@ def main():
         get_output('clang-tidy-7', '-version')
     except:
         print("""
-        Oops. It looks like clang-tidy is not installed. 
-        
+        Oops. It looks like clang-tidy is not installed.
+
         Please check you can run "clang-tidy-7 -version" in your terminal and install
         clang-tidy (v7) if necessary.
-        
+
         Note you can also upload your code as a pull request on GitHub and see the CI check
         output to apply clang-tidy.
         """)
@@ -114,7 +122,10 @@ def main():
 
     files.sort()
 
-    if args.all_headers:
+    if args.split_num:
+        files = split_list(files, args.split_num)[args.split_at - 1]
+
+    if args.all_headers and args.split_at in (None, 1):
         files.insert(0, temp_header_file)
 
     tmpdir = None
@@ -157,8 +168,8 @@ def main():
             print('Error applying fixes.\n', file=sys.stderr)
             raise
 
-    sys.exit(return_code)
+    return return_code
 
 
 if __name__ == '__main__':
-    main()
+    sys.exit(main())

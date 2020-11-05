@@ -5,7 +5,7 @@ esphome:
   build_path: build/test4
 
 substitutions:
-  devicename: test4
+  devicename: test-4
 
 ethernet:
   type: LAN8720
@@ -49,10 +49,15 @@ web_server:
     username: admin
     password: admin
 
+tuya:
+
 sensor:
   - platform: homeassistant
     entity_id: sensor.hello_world
     id: ha_hello_world
+  - platform: tuya
+    id: tuya_sensor
+    sensor_datapoint: 1
 #
 # platform sensor.apds9960 requires component apds9960
 #
@@ -71,3 +76,20 @@ sensor:
 #  - platform: apds9960
 #    type: blue
 #    name: APDS9960 Blue
+
+binary_sensor:
+  - platform: tuya
+    id: tuya_binary_sensor
+    sensor_datapoint: 1
+
+climate:
+  - platform: tuya
+    id: tuya_climate
+    switch_datapoint: 1
+    target_temperature_datapoint: 3
+    temperature_multiplier: 0.5
+
+switch:
+  - platform: tuya
+    id: tuya_switch
+    switch_datapoint: 1

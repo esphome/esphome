@@ -301,11 +301,16 @@ message ListEntitiesFanResponse {
 
   bool supports_oscillation = 5;
   bool supports_speed = 6;
+  bool supports_direction = 7;
 }
 enum FanSpeed {
   FAN_SPEED_LOW = 0;
   FAN_SPEED_MEDIUM = 1;
   FAN_SPEED_HIGH = 2;
+}
+enum FanDirection {
+  FAN_DIRECTION_FORWARD = 0;
+  FAN_DIRECTION_REVERSE = 1;
 }
 message FanStateResponse {
   option (id) = 23;
@@ -317,6 +322,7 @@ message FanStateResponse {
   bool state = 2;
   bool oscillating = 3;
   FanSpeed speed = 4;
+  FanDirection direction = 5;
 }
 message FanCommandRequest {
   option (id) = 31;
@@ -331,6 +337,8 @@ message FanCommandRequest {
   FanSpeed speed = 5;
   bool has_oscillating = 6;
   bool oscillating = 7;
+  bool has_direction = 8;
+  FanDirection direction = 9;
 }
 
 // ==================== LIGHT ====================
@@ -671,7 +679,7 @@ enum ClimateSwingMode {
   CLIMATE_SWING_OFF = 0;
   CLIMATE_SWING_BOTH = 1;
   CLIMATE_SWING_VERTICAL = 2;
-  CLIMATE_SWINT_HORIZONTAL = 3;
+  CLIMATE_SWING_HORIZONTAL = 3;
 }
 enum ClimateAction {
   CLIMATE_ACTION_OFF = 0;

@@ -10,8 +10,8 @@ as3935_spi_ns = cg.esphome_ns.namespace('as3935_spi')
 SPIAS3935 = as3935_spi_ns.class_('SPIAS3935Component', as3935.AS3935, spi.SPIDevice)
 
 CONFIG_SCHEMA = cv.All(as3935.AS3935_SCHEMA.extend({
-    cv.GenerateID(): cv.declare_id(SPIAS3935)
-}).extend(cv.COMPONENT_SCHEMA).extend(spi.SPI_DEVICE_SCHEMA))
+    cv.GenerateID(): cv.declare_id(SPIAS3935),
+}).extend(cv.COMPONENT_SCHEMA).extend(spi.spi_device_schema(cs_pin_required=True)))
 
 
 def to_code(config):

@@ -12,8 +12,10 @@ void DaikinClimate::transmit_state() {
                               0x00, 0x00, 0x00, 0x06, 0x60, 0x00, 0x00, 0xC0, 0x00, 0x00, 0x00};
 
   remote_state[21] = this->operation_mode_();
-  remote_state[24] = this->fan_speed_();
   remote_state[22] = this->temperature_();
+  uint16_t fan_speed = this->fan_speed_();
+  remote_state[24] = fan_speed >> 8;
+  remote_state[25] = fan_speed & 0xff;
 
   // Calculate checksum
   for (int i = 16; i < 34; i++) {
@@ -90,25 +92,38 @@ uint8_t DaikinClimate::operation_mode_() {
   return operating_mode;
 }
 
-uint8_t DaikinClimate::fan_speed_() {
-  uint8_t fan_speed;
+uint16_t DaikinClimate::fan_speed_() {
+  uint16_t fan_speed;
   switch (this->fan_mode) {
     case climate::CLIMATE_FAN_LOW:
-      fan_speed = DAIKIN_FAN_1;
+      fan_speed = DAIKIN_FAN_1 << 8;
       break;
     case climate::CLIMATE_FAN_MEDIUM:
-      fan_speed = DAIKIN_FAN_3;
+      fan_speed = DAIKIN_FAN_3 << 8;
       break;
     case climate::CLIMATE_FAN_HIGH:
-      fan_speed = DAIKIN_FAN_5;
+      fan_speed = DAIKIN_FAN_5 << 8;
       break;
     case climate::CLIMATE_FAN_AUTO:
     default:
-      fan_speed = DAIKIN_FAN_AUTO;
+      fan_speed = DAIKIN_FAN_AUTO << 8;
   }
 
   // If swing is enabled switch first 4 bits to 1111
-  return this->swing_mode == climate::CLIMATE_SWING_VERTICAL ? fan_speed | 0xF : fan_speed;
+  switch (this->swing_mode) {
+    case climate::CLIMATE_SWING_VERTICAL:
+      fan_speed |= 0x0F00;
+      break;
+    case climate::CLIMATE_SWING_HORIZONTAL:
+      fan_speed |= 0x000F;
+      break;
+    case climate::CLIMATE_SWING_BOTH:
+      fan_speed |= 0x0F0F;
+      break;
+    default:
+      break;
+  }
+  return fan_speed;
 }
 
 uint8_t DaikinClimate::temperature_() {
@@ -159,13 +174,19 @@ bool DaikinClimate::parse_state_frame_(const uint8_t frame[]) {
     this->target_temperature = temperature >> 1;
   }
   uint8_t fan_mode = frame[8];
-  if (fan_mode & 0xF)
+  uint8_t swing_mode = frame[9];
+  if (fan_mode & 0xF && swing_mode & 0xF)
+    this->swing_mode = climate::CLIMATE_SWING_BOTH;
+  else if (fan_mode & 0xF)
     this->swing_mode = climate::CLIMATE_SWING_VERTICAL;
+  else if (swing_mode & 0xF)
+    this->swing_mode = climate::CLIMATE_SWING_HORIZONTAL;
   else
     this->swing_mode = climate::CLIMATE_SWING_OFF;
   switch (fan_mode & 0xF0) {
     case DAIKIN_FAN_1:
     case DAIKIN_FAN_2:
+    case DAIKIN_FAN_SILENT:
       this->fan_mode = climate::CLIMATE_FAN_LOW;
       break;
     case DAIKIN_FAN_3:

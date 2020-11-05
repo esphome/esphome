@@ -35,8 +35,7 @@ void PCD8544::initialize() {
   this->command(this->PCD8544_SETBIAS | 0x04);
 
   // contrast
-  // TODO: in future version we may add a user a control over contrast
-  this->command(this->PCD8544_SETVOP | 0x7f);  // Experimentally determined
+  this->command(this->PCD8544_SETVOP | this->contrast_);
 
   // normal mode
   this->command(this->PCD8544_FUNCTIONSET);
@@ -85,14 +84,14 @@ void HOT PCD8544::display() {
   this->command(this->PCD8544_SETYADDR);
 }
 
-void HOT PCD8544::draw_absolute_pixel_internal(int x, int y, int color) {
+void HOT PCD8544::draw_absolute_pixel_internal(int x, int y, Color color) {
   if (x >= this->get_width_internal() || y >= this->get_height_internal() || x < 0 || y < 0) {
     return;
   }
 
   uint16_t pos = x + (y / 8) * this->get_width_internal();
   uint8_t subpos = y % 8;
-  if (color) {
+  if (color.is_on()) {
     this->buffer_[pos] |= (1 << subpos);
   } else {
     this->buffer_[pos] &= ~(1 << subpos);
@@ -117,8 +116,8 @@ void PCD8544::update() {
   this->display();
 }
 
-void PCD8544::fill(int color) {
-  uint8_t fill = color ? 0xFF : 0x00;
+void PCD8544::fill(Color color) {
+  uint8_t fill = color.is_on() ? 0xFF : 0x00;
   for (uint32_t i = 0; i < this->get_buffer_length_(); i++)
     this->buffer_[i] = fill;
 }

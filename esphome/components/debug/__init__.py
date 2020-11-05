@@ -2,6 +2,7 @@ import esphome.config_validation as cv
 import esphome.codegen as cg
 from esphome.const import CONF_ID
 
+CODEOWNERS = ['@OttoWinter']
 DEPENDENCIES = ['logger']
 
 debug_ns = cg.esphome_ns.namespace('debug')

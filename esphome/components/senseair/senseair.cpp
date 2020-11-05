@@ -18,8 +18,19 @@ void SenseAirComponent::update() {
   }
 
   if (response[0] != 0xFE || response[1] != 0x04) {
-    ESP_LOGW(TAG, "Invalid preamble from SenseAir!");
+    ESP_LOGW(TAG, "Invalid preamble from SenseAir! %02x%02x%02x%02x %02x%02x%02x%02x %02x%02x%02x%02x %02x",
+             response[0], response[1], response[2], response[3], response[4], response[5], response[6], response[7],
+             response[8], response[9], response[10], response[11], response[12]);
+
     this->status_set_warning();
+    while (this->available()) {
+      uint8_t b;
+      if (this->read_byte(&b)) {
+        ESP_LOGV(TAG, "    ... %02x", b);
+      } else {
+        ESP_LOGV(TAG, "    ... nothing read");
+      }
+    }
     return;
   }
 

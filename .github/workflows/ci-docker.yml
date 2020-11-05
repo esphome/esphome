@@ -1,0 +1,55 @@
+name: CI for docker images
+
+# Only run when docker paths change
+on:
+  push:
+    branches: [dev, beta, master]
+    paths:
+      - 'docker/**'
+      - '.github/workflows/**'
+
+  pull_request:
+    paths:
+      - 'docker/**'
+      - '.github/workflows/**'
+
+jobs:
+  check-docker:
+    name: Build docker containers
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [amd64, armv7, aarch64]
+        build_type: ["hassio", "docker"]
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up env variables
+        run: |
+          base_version="2.6.0"
+
+          if [[ "${{ matrix.build_type }}" == "hassio" ]]; then
+            build_from="esphome/esphome-hassio-base-${{ matrix.arch }}:${base_version}"
+            build_to="esphome/esphome-hassio-${{ matrix.arch }}"
+            dockerfile="docker/Dockerfile.hassio"
+          else
+            build_from="esphome/esphome-base-${{ matrix.arch }}:${base_version}"
+            build_to="esphome/esphome-${{ matrix.arch }}"
+            dockerfile="docker/Dockerfile"
+          fi
+
+          echo "BUILD_FROM=${build_from}" >> $GITHUB_ENV
+          echo "BUILD_TO=${build_to}" >> $GITHUB_ENV
+          echo "DOCKERFILE=${dockerfile}" >> $GITHUB_ENV
+      - name: Pull for cache
+        run: |
+          docker pull "${BUILD_TO}:dev" || true
+      - name: Register QEMU binfmt
+        run: docker run --rm --privileged multiarch/qemu-user-static:5.0.0-2 --reset -p yes
+      - run: |
+          docker build \
+            --build-arg "BUILD_FROM=${BUILD_FROM}" \
+            --build-arg "BUILD_VERSION=ci" \
+            --cache-from "${BUILD_TO}:dev" \
+            --file "${DOCKERFILE}" \
+            .

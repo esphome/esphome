@@ -7,9 +7,18 @@ import os.path
 import re
 import subprocess
 import sys
+import time
+import functools
+import argparse
 
+sys.path.append(os.path.dirname(__file__))
+from helpers import git_ls_files, filter_changed
 
 def find_all(a_str, sub):
+    if not a_str.find(sub):
+        # Optimization: If str is not in whole text, then do not try
+        # on each line
+        return
     for i, line in enumerate(a_str.splitlines()):
         column = 0
         while True:
@@ -20,15 +29,24 @@ def find_all(a_str, sub):
             column += len(sub)
 
 
-command = ['git', 'ls-files', '-s']
-proc = subprocess.Popen(command, stdout=subprocess.PIPE)
-output, err = proc.communicate()
-lines = [x.split() for x in output.decode('utf-8').splitlines()]
-EXECUTABLE_BIT = {
-    s[3].strip(): int(s[0]) for s in lines
-}
-files = [s[3].strip() for s in lines]
-files = list(filter(os.path.exists, files))
+parser = argparse.ArgumentParser()
+parser.add_argument('files', nargs='*', default=[],
+                    help='files to be processed (regex on path)')
+parser.add_argument('-c', '--changed', action='store_true',
+                    help='Only run on changed files')
+parser.add_argument('--print-slowest', action='store_true',
+                    help='Print the slowest checks')
+args = parser.parse_args()
+
+EXECUTABLE_BIT = git_ls_files()
+files = list(EXECUTABLE_BIT.keys())
+# Match against re
+file_name_re = re.compile('|'.join(args.files))
+files = [p for p in files if file_name_re.search(p)]
+
+if args.changed:
+    files = filter_changed(files)
+
 files.sort()
 
 file_types = ('.h', '.c', '.cpp', '.tcc', '.yaml', '.yml', '.ini', '.txt', '.ico', '.svg',
@@ -60,7 +78,14 @@ def run_check(lint_obj, fname, *args):
 
 def run_checks(lints, fname, *args):
     for lint in lints:
-        add_errors(fname, run_check(lint, fname, *args))
+        start = time.process_time()
+        try:
+            add_errors(fname, run_check(lint, fname, *args))
+        except Exception:
+            print(f"Check {lint['func'].__name__} on file {fname} failed:")
+            raise
+        duration = time.process_time() - start
+        lint.setdefault('durations', []).append(duration)
 
 
 def _add_check(checks, func, include=None, exclude=None):
@@ -91,21 +116,26 @@ def lint_post_check(func):
 
 
 def lint_re_check(regex, **kwargs):
-    prog = re.compile(regex, re.MULTILINE)
+    flags = kwargs.pop('flags', re.MULTILINE)
+    prog = re.compile(regex, flags)
     decor = lint_content_check(**kwargs)
 
     def decorator(func):
+        @functools.wraps(func)
         def new_func(fname, content):
             errors = []
             for match in prog.finditer(content):
                 if 'NOLINT' in match.group(0):
                     continue
                 lineno = content.count("\n", 0, match.start()) + 1
+                substr = content[:match.start()]
+                col = len(substr) - substr.rfind('\n')
                 err = func(fname, match)
                 if err is None:
                     continue
-                errors.append(f"{err} See line {lineno}.")
+                errors.append((lineno, col+1, err))
             return errors
+
         return decor(new_func)
     return decorator
 
@@ -114,6 +144,7 @@ def lint_content_find_check(find, **kwargs):
     decor = lint_content_check(**kwargs)
 
     def decorator(func):
+        @functools.wraps(func)
         def new_func(fname, content):
             find_ = find
             if callable(find):
@@ -121,8 +152,7 @@ def lint_content_find_check(find, **kwargs):
             errors = []
             for line, col in find_all(content, find_):
                 err = func(fname)
-                errors.append("{err} See line {line}:{col}."
-                              "".format(err=err, line=line+1, col=col+1))
+                errors.append((line+1, col+1, err))
             return errors
         return decor(new_func)
     return decorator
@@ -204,6 +234,10 @@ def lint_no_long_delays(fname, match):
 
 @lint_content_check(include=['esphome/const.py'])
 def lint_const_ordered(fname, content):
+    """Lint that value in const.py are ordered.
+
+    Reason: Otherwise people add it to the end, and then that results in merge conflicts.
+    """
     lines = content.splitlines()
     errors = []
     for start in ['CONF_', 'ICON_', 'UNIT_']:
@@ -215,9 +249,10 @@ def lint_const_ordered(fname, content):
                 continue
             target = next(i for i, l in ordered if l == ml)
             target_text = next(l for i, l in matching if target == i)
-            errors.append("Constant {} is not ordered, please make sure all constants are ordered. "
-                          "See line {} (should go to line {}, {})"
-                          "".format(highlight(ml), mi, target, target_text))
+            errors.append((mi, 1,
+                           f"Constant {highlight(ml)} is not ordered, please make sure all "
+                           f"constants are ordered. See line {mi} (should go to line {target}, "
+                           f"{target_text})"))
     return errors
 
 
@@ -250,6 +285,63 @@ def lint_conf_from_const_py(fname, match):
         return None
     return ("Constant {} has already been defined in const.py - please import the constant from "
             "const.py directly.".format(highlight(name)))
+
+
+RAW_PIN_ACCESS_RE = r'^\s(pinMode|digitalWrite|digitalRead)\((.*)->get_pin\(\),\s*([^)]+).*\)'
+
+
+@lint_re_check(RAW_PIN_ACCESS_RE, include=cpp_include)
+def lint_no_raw_pin_access(fname, match):
+    func = match.group(1)
+    pin = match.group(2)
+    mode = match.group(3)
+    new_func = {
+        'pinMode': 'pin_mode',
+        'digitalWrite': 'digital_write',
+        'digitalRead': 'digital_read',
+    }[func]
+    new_code = highlight(f'{pin}->{new_func}({mode})')
+    return (f"Don't use raw {func} calls. Instead, use the `->{new_func}` function: {new_code}")
+
+
+# Functions from Arduino framework that are forbidden to use directly
+ARDUINO_FORBIDDEN = [
+    'digitalWrite', 'digitalRead', 'pinMode',
+    'shiftOut', 'shiftIn',
+    'radians', 'degrees',
+    'interrupts', 'noInterrupts',
+    'lowByte', 'highByte',
+    'bitRead', 'bitSet', 'bitClear', 'bitWrite',
+    'bit', 'analogRead', 'analogWrite',
+    'pulseIn', 'pulseInLong',
+    'tone',
+]
+ARDUINO_FORBIDDEN_RE = r'[^\w\d](' + r'|'.join(ARDUINO_FORBIDDEN) + r')\(.*'
+
+
+@lint_re_check(ARDUINO_FORBIDDEN_RE, include=cpp_include, exclude=[
+    'esphome/components/mqtt/custom_mqtt_device.h',
+    'esphome/core/esphal.*',
+])
+def lint_no_arduino_framework_functions(fname, match):
+    nolint = highlight("// NOLINT")
+    return (
+        f"The function {highlight(match.group(1))} from the Arduino framework is forbidden to be "
+        f"used directly in the ESPHome codebase. Please use ESPHome's abstractions and equivalent "
+        f"C++ instead.\n"
+        f"\n"
+        f"(If the function is strictly necessary, please add `{nolint}` to the end of the line)"
+    )
+
+
+@lint_re_check(r'[^\w\d]byte\s+[\w\d]+\s*=', include=cpp_include, exclude={
+    'esphome/components/tuya/tuya.h',
+})
+def lint_no_byte_datatype(fname, match):
+    return (
+        f"The datatype {highlight('byte')} is not allowed to be used in ESPHome. "
+        f"Please use {highlight('uint8_t')} instead."
+    )
 
 
 @lint_post_check
@@ -325,6 +417,24 @@ def lint_pragma_once(fname, content):
     return None
 
 
+@lint_re_check(r'(whitelist|blacklist|slave)',
+               exclude=['script/ci-custom.py'], flags=re.IGNORECASE | re.MULTILINE)
+def lint_inclusive_language(fname, match):
+    # From https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=49decddd39e5f6132ccd7d9fdc3d7c470b0061bb
+    return ("Avoid the use of whitelist/blacklist/slave.\n"
+            "Recommended replacements for 'master / slave' are:\n"
+            "    '{primary,main} / {secondary,replica,subordinate}\n"
+            "    '{initiator,requester} / {target,responder}'\n"
+            "    '{controller,host} / {device,worker,proxy}'\n"
+            "    'leader / follower'\n"
+            "    'director / performer'\n"
+            "\n"
+            "Recommended replacements for 'blacklist/whitelist' are:\n"
+            "    'denylist / allowlist'\n"
+            "    'blocklist / passlist'")
+
+
+
 @lint_content_find_check('ESP_LOG', include=['*.h', '*.tcc'], exclude=[
     'esphome/components/binary_sensor/binary_sensor.h',
     'esphome/components/cover/cover.h',
@@ -354,13 +464,22 @@ errors = collections.defaultdict(list)
 def add_errors(fname, errs):
     if not isinstance(errs, list):
         errs = [errs]
-    errs = [x for x in errs if x is not None]
     for err in errs:
-        if not isinstance(err, str):
+        if err is None:
+            continue
+        try:
+            lineno, col, msg = err
+        except ValueError:
+            lineno = 1
+            col = 1
+            msg = err
+        if not isinstance(msg, str):
             raise ValueError("Error is not instance of string!")
-    if not errs:
-        return
-    errors[fname].extend(errs)
+        if not isinstance(lineno, int):
+            raise ValueError("Line number is not an int!")
+        if not isinstance(col, int):
+            raise ValueError("Column number is not an int!")
+        errors[fname].append((lineno, col, msg))
 
 
 for fname in files:
@@ -380,8 +499,19 @@ run_checks(LINT_POST_CHECKS, 'POST')
 
 for f, errs in sorted(errors.items()):
     print(f"\033[0;32m************* File \033[1;32m{f}\033[0m")
-    for err in errs:
-        print(err)
+    for lineno, col, msg in errs:
+        print(f"ERROR {f}:{lineno}:{col} - {msg}")
     print()
+
+if args.print_slowest:
+    lint_times = []
+    for lint in LINT_FILE_CHECKS + LINT_CONTENT_CHECKS + LINT_POST_CHECKS:
+        durations = lint.get('durations', [])
+        lint_times.append((sum(durations), len(durations), lint['func'].__name__))
+    lint_times.sort(key=lambda x: -x[0])
+    for i in range(min(len(lint_times), 10)):
+        dur, invocations, name = lint_times[i]
+        print(f" - '{name}' took {dur:.2f}s total (ran on {invocations} files)")
+    print(f"Total time measured: {sum(x[0] for x in lint_times):.2f}s")
 
 sys.exit(len(errors))
