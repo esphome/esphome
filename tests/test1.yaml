@@ -851,6 +851,11 @@ binary_sensor:
     page_id: 0
     component_id: 2
     name: "Nextion Component 2 Touch"
+  - platform: nextion
+    page_id: 0
+    component_id: 2
+    sleep_activated: true
+    name: "Nextion Component 2 Touch"
   - platform: template
     name: "Garage Door Open"
     id: garage_door
