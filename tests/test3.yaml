@@ -338,6 +338,7 @@ sensor:
       - binary_sensor: bin3
         value: 100.0
   - platform: ade7953
+    irq_pin: GPIO16
     voltage:
       name: ADE7953 Voltage
     current_a:
