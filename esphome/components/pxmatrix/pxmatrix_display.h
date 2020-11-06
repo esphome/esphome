@@ -9,22 +9,21 @@ namespace esphome {
 namespace pxmatrix_display {
 
 class PxmatrixDisplay : public PollingComponent, public display::DisplayBuffer {
+
  public:
   void display();
   void update();
   void setup();
-  void fill(int color);
-
-
+  void fill(Color color);
 
  protected:
-  void draw_absolute_pixel_internal(int x, int y, int color) override;
+  void draw_absolute_pixel_internal(int x, int y, Color color) override;
   int get_width_internal() override;
   int get_height_internal() override;
 
  private:
-//  portMUX_TYPE timerMux = portMUX_INITIALIZER_UNLOCKED;
-  PxMATRIX pxMatrix;
+  //  portMUX_TYPE timerMux = portMUX_INITIALIZER_UNLOCKED;
+  PxMATRIX* pxMatrix;
   int display_loop = 0;
 };
 }  // namespace pxmatrix_display
