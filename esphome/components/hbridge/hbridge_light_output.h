@@ -8,7 +8,7 @@
 namespace esphome {
 namespace hbridge {
 
- // Using PollingComponent as the updates are more consistent and reduces flickering
+// Using PollingComponent as the updates are more consistent and reduces flickering
 class HBridgeLightOutput : public PollingComponent, public light::LightOutput {
  public:
   HBridgeLightOutput() : PollingComponent(1) {}
