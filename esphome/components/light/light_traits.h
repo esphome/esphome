@@ -1,5 +1,3 @@
-
-  //display_update_enable(true); // Screen seems to have better performance when it is updated through update() and not the timer
 #pragma once
 
 namespace esphome {
