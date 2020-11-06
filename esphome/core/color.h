@@ -42,12 +42,15 @@ struct Color {
                                                                                 w(uint8_t(white * 255)) {}
 
   inline Color(uint32_t colorcode, uint8_t red_bits, uint8_t green_bits, uint8_t blue_bits, bool right_bit_aligned)
-      : r(right_bit_aligned ? esp_scale(((colorcode >> (green_bits + blue_bits)) & (1 << red_bits) - 1), (1 << red_bits) - 1)
-                          : esp_scale(((colorcode >> 16) & 0xFF), (1 << red_bits) - 1)),
-        g(right_bit_aligned ? esp_scale(((colorcode >> blue_bits) & (1 << green_bits) - 1), (1 << green_bits) - 1)
-                          : esp_scale(((colorcode >> 8) & 0xFF), (1 << green_bits) - 1)),
-        b(right_bit_aligned ? esp_scale(((colorcode >> 0) & 0xFF), (1 << blue_bits) - 1)
-                          : esp_scale(((colorcode >> 0) & 0xFF), (1 << blue_bits) - 1)) {}
+      : r(right_bit_aligned
+              ? esp_scale(((colorcode >> (green_bits + blue_bits)) & (1 << red_bits) - 1), (1 << red_bits) - 1)
+              : esp_scale(((colorcode >> 16) & 0xFF), (1 << red_bits) - 1)),
+        g(right_bit_aligned
+              ? esp_scale(((colorcode >> blue_bits) & (1 << green_bits) - 1), (1 << green_bits) - 1)
+              : esp_scale(((colorcode >> 8) & 0xFF), (1 << green_bits) - 1)),
+        b(right_bit_aligned
+              ? esp_scale(((colorcode >> 0) & 0xFF), (1 << blue_bits) - 1)
+              : esp_scale(((colorcode >> 0) & 0xFF), (1 << blue_bits) - 1)) {}
 
   inline Color(uint32_t colorcode) ALWAYS_INLINE : r((colorcode >> 16) & 0xFF),
                                                    g((colorcode >> 8) & 0xFF),
@@ -220,7 +223,7 @@ struct Color {
   }
 
   uint32_t to_rgb_565() const {
-    uint32_t color565 = this->TriadTo16(5, 6, 5);
+    uint32_t color565 = this->triad_to16(5, 6, 5);
     return color565;
   }
 
