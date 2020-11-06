@@ -34,11 +34,11 @@ enum MuxPatterns {
   STRAIGHT = mux_patterns::STRAIGHT,
 };
 
-class PxmatrixDisplay : public Component, public display::DisplayBuffer {
+class PxmatrixDisplay : public PollingComponent, public display::DisplayBuffer {
  public:
   void display();
   void setup();
-  void loop() override;
+  void update() override;
   void fill(Color color);
 
   void set_pin_latch(GPIOPin *Pin_LATCH);

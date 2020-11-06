@@ -20,6 +20,7 @@ void PxmatrixDisplay::setup() {
   this->pxMatrix->setColorOrder((color_orders) color_orders_);
   //  this->pxMatrix->setBlockPattern(DBCA);
 
+  this->pxMatrix->setBrightness(brightness_);
   // this->pxMatrix->setRotate(true);
   // this->pxMatrix->setFlip(true);
 
@@ -38,10 +39,12 @@ void PxmatrixDisplay::fill(Color color) {
   this->pxMatrix->fillScreen(matrix_color);
 }
 
-void PxmatrixDisplay::loop() { this->display(); }
+void PxmatrixDisplay::update() {
+  this->do_update_();
+  this->display();
+}
 
 void HOT PxmatrixDisplay::display() {
-  this->pxMatrix->setBrightness(brightness_);
   this->pxMatrix->display();
 }
 

@@ -9,7 +9,7 @@ from esphome.const import CONF_WIDTH, CONF_HEIGHT, \
 
 pxmatrix_ns = cg.esphome_ns.namespace('pxmatrix_display')
 
-pxmatrix_gpio = pxmatrix_ns.class_('PxmatrixDisplay', cg.Component, display.DisplayBuffer)
+pxmatrix_gpio = pxmatrix_ns.class_('PxmatrixDisplay', cg.PollingComponent, display.DisplayBuffer)
 
 DriverChips = pxmatrix_ns.enum('DriverChips')
 DRIVER_CHIPS = {
@@ -68,8 +68,6 @@ CONFIG_SCHEMA = cv.All(
         # cv.Optional("block_pattern"): cv.one_of(*BLOCK_PATTERNS),
     }),
     cv.has_at_most_one_key(CONF_PAGES, CONF_LAMBDA))
-
-
 
 def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
