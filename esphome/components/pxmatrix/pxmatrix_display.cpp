@@ -3,39 +3,21 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-static const char* TAG = "pxmatrix_display";
+static const char *TAG = "pxmatrix_display";
 
 namespace esphome {
 namespace pxmatrix_display {
 
-static const uint8_t P_LAT = 16;
-static const uint8_t P_A = 5;
-static const uint8_t P_B = 4;
-static const uint8_t P_C = 15;
-static const uint8_t P_D = 12;
-static const uint8_t P_E = 0;
-static const uint8_t P_OE = 2;
-static const uint8_t WIDTH = 64;
-static const uint8_t HEIGHT = 64;
-static const uint8_t BRIGHTNESS = 64;
-static const uint8_t DISPLAY_DRAW_TIME = 10;
-static const uint8_t ROW_PATTERN = 64;
-
-static const driver_chips DRIVER_CHIP = driver_chips::FM6124;
-static const color_orders COLOR_ORDER = color_orders::RRGGBB;
-// static const block_patterns BLOCK_PATTERN = block_patterns::ABCD;
-static const mux_patterns MUX_PATTERN = mux_patterns::BINARY;
-static const scan_patterns SCAN_PATTERN = scan_patterns::LINE;
-
 void PxmatrixDisplay::setup() {
   ESP_LOGCONFIG(TAG, "Starting setup...");
-  this->pxMatrix = new PxMATRIX(WIDTH, HEIGHT, P_LAT, P_OE, P_A, P_B, P_C, P_D, P_E);
-  this->pxMatrix->begin(ROW_PATTERN);
+  this->pxMatrix = new PxMATRIX(width_, height_, pin_LATCH_->get_pin(), pin_OE_->get_pin(), pin_A_->get_pin(),
+                                pin_B_->get_pin(), pin_C_->get_pin(), pin_D_->get_pin(), pin_E_->get_pin());
+  this->pxMatrix->begin(row_pattern_);
 
-  this->pxMatrix->setDriverChip(DRIVER_CHIP);
-  this->pxMatrix->setMuxPattern(MUX_PATTERN);
-  this->pxMatrix->setScanPattern(SCAN_PATTERN);
-  this->pxMatrix->setColorOrder(COLOR_ORDER);
+  this->pxMatrix->setDriverChip((driver_chips) driver_chips_);
+  this->pxMatrix->setMuxPattern((mux_patterns) mux_patterns_);
+  this->pxMatrix->setScanPattern((scan_patterns) scan_patterns_);
+  this->pxMatrix->setColorOrder((color_orders) color_orders_);
   //  this->pxMatrix->setBlockPattern(DBCA);
 
   // this->pxMatrix->setRotate(true);
@@ -43,15 +25,12 @@ void PxmatrixDisplay::setup() {
 
   // this->pxMatrix->setColorOffset(5, 5,5);
   // this->pxMatrix->setMuxPattern(BINARY);
-
-  // The Delay makes the Display less flickery
-  this->pxMatrix->clearDisplay();
-  ESP_LOGCONFIG(TAG, "Finished Setup");
+  ESP_LOGI(TAG, "Finished Setup");
 }
 
 void HOT PxmatrixDisplay::draw_absolute_pixel_internal(int x, int y, Color color) {
   uint16_t matrix_color = color.to_bgr_565();
-  this->pxMatrix->drawPixel(x, y, matrix_color);
+  this->pxMatrix->drawPixelRGB565(x, y, matrix_color);
 }
 
 void PxmatrixDisplay::fill(Color color) {
@@ -59,16 +38,46 @@ void PxmatrixDisplay::fill(Color color) {
   this->pxMatrix->fillScreen(matrix_color);
 }
 
-void PxmatrixDisplay::update() {
-  this->pxMatrix->setBrightness(BRIGHTNESS);
-  this->pxMatrix->display(DISPLAY_DRAW_TIME);
+void PxmatrixDisplay::loop() { this->display(); }
+
+void HOT PxmatrixDisplay::display() {
+  this->pxMatrix->setBrightness(brightness_);
+  this->pxMatrix->display();
 }
 
-void HOT PxmatrixDisplay::display() { update(); }
+void PxmatrixDisplay::set_pin_latch(GPIOPin *P_Latch) { this->pin_LATCH_ = P_Latch; }
 
-int PxmatrixDisplay::get_width_internal() { return WIDTH; }
+void PxmatrixDisplay::set_pin_a(GPIOPin *Pin_A) { this->pin_A_ = Pin_A; }
 
-int PxmatrixDisplay::get_height_internal() { return HEIGHT; }
+void PxmatrixDisplay::set_pin_b(GPIOPin *Pin_B) { this->pin_B_ = Pin_B; }
+
+void PxmatrixDisplay::set_pin_c(GPIOPin *Pin_C) { this->pin_C_ = Pin_C; }
+
+void PxmatrixDisplay::set_pin_d(GPIOPin *Pin_D) { this->pin_D_ = Pin_D; }
+
+void PxmatrixDisplay::set_pin_e(GPIOPin *Pin_E) { this->pin_E_ = Pin_E; }
+
+void PxmatrixDisplay::set_pin_oe(GPIOPin *Pin_OE) { this->pin_OE_ = Pin_OE; }
+
+void PxmatrixDisplay::set_width(uint8_t width) { this->width_ = width; }
+
+void PxmatrixDisplay::set_height(uint8_t height) { this->height_ = height; }
+
+void PxmatrixDisplay::set_brightness(uint8_t brightness) { this->brightness_ = brightness; }
+
+void PxmatrixDisplay::set_row_patter(uint8_t row_pattern) { this->row_pattern_ = row_pattern; }
+
+void PxmatrixDisplay::set_driver_chips(DriverChips driver_chips) { this->driver_chips_ = driver_chips; }
+
+void PxmatrixDisplay::set_color_orders(ColorOrders color_orders) { this->color_orders_ = color_orders; }
+
+void PxmatrixDisplay::set_scan_patterns(ScanPatterns scan_patterns) { this->scan_patterns_ = scan_patterns; }
+
+void PxmatrixDisplay::set_mux_patterns(MuxPatterns mux_patterns) { this->mux_patterns_ = mux_patterns; }
+
+int PxmatrixDisplay::get_width_internal() { return this->width_; }
+
+int PxmatrixDisplay::get_height_internal() { return this->height_; }
 
 }  // namespace pxmatrix_display
 }  // namespace esphome
