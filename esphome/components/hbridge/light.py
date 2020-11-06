@@ -4,10 +4,10 @@ from esphome.components import light, output
 from esphome.const import CONF_OUTPUT_ID, CONF_PIN_A, CONF_PIN_B
 
 hbridge_ns = cg.esphome_ns.namespace('hbridge')
-HBRIDGELightOutput = hbridge_ns.class_('HBRIDGELightOutput', cg.PollingComponent, light.LightOutput)
+HBridgeLightOutput = hbridge_ns.class_('HBridgeLightOutput', cg.PollingComponent, light.LightOutput)
 
 CONFIG_SCHEMA = light.RGB_LIGHT_SCHEMA.extend({
-    cv.GenerateID(CONF_OUTPUT_ID): cv.declare_id(HBRIDGELightOutput),
+    cv.GenerateID(CONF_OUTPUT_ID): cv.declare_id(HBridgeLightOutput),
     cv.Required(CONF_PIN_A): cv.use_id(output.FloatOutput),
     cv.Required(CONF_PIN_B): cv.use_id(output.FloatOutput),
 })
