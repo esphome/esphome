@@ -8,7 +8,7 @@ static const char *TAG = "ade7953";
 
 void ADE7953::dump_config() {
   ESP_LOGCONFIG(TAG, "ADE7953:");
-  if(this->has_irq_){
+  if (this->has_irq_) {
     ESP_LOGCONFIG(TAG, "  IRQ Pin: GPIO%u", this->irq_pin_number_);
   }
   LOG_I2C_DEVICE(this);

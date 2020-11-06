@@ -9,10 +9,10 @@ namespace ade7953 {
 
 class ADE7953 : public i2c::I2CDevice, public PollingComponent {
  public:
-  void set_irq_pin(uint8_t irq_pin) { 
+  void set_irq_pin(uint8_t irq_pin) {
     has_irq_ = true;
-    irq_pin_number_ = irq_pin; 
-    }
+    irq_pin_number_ = irq_pin;
+  }
   void set_voltage_sensor(sensor::Sensor *voltage_sensor) { voltage_sensor_ = voltage_sensor; }
   void set_current_a_sensor(sensor::Sensor *current_a_sensor) { current_a_sensor_ = current_a_sensor; }
   void set_current_b_sensor(sensor::Sensor *current_b_sensor) { current_b_sensor_ = current_b_sensor; }
