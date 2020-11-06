@@ -225,7 +225,7 @@ struct Color {
     }
 
     uint32_t to_rgb_565() const {
-      uint32_t color565 = this->TriadTo16(5, 6, 5);
+      uint32_t color565 = this->triad_to16(5, 6, 5);
       return color565;
     }
 
