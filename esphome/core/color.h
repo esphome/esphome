@@ -6,7 +6,7 @@
 namespace esphome {
 
 inline static uint8_t esp_scale8(uint8_t i, uint8_t scale) { return (uint16_t(i) * (1 + uint16_t(scale))) / 256; }
-inline static uint8_t esp_scale(uint8_t i, uint8_t scale, uint8_t max_value) { return (max_value * i / scale); }
+inline static uint8_t esp_scale(uint8_t i, uint8_t scale, uint8_t max_value = 255) { return (max_value * i / scale); }
 
 struct Color {
   union {
@@ -42,6 +42,16 @@ struct Color {
                                                                                 g(uint8_t(green * 255)),
                                                                                 b(uint8_t(blue * 255)),
                                                                                 w(uint8_t(white * 255)) {}
+
+  inline Color(uint32_t colorcode, uint8_t red_bits, uint8_t green_bits, uint8_t blue_bits, bool right_bit_aligned)
+      : r(right_bit_aligned
+              ? esp_scale(((colorcode >> (green_bits + blue_bits)) & (1 << red_bits) - 1), (1 << red_bits) - 1)
+              : esp_scale(((colorcode >> 16) & 0xFF), (1 << red_bits) - 1)),
+        g(right_bit_aligned ? esp_scale(((colorcode >> blue_bits) & (1 << green_bits) - 1), (1 << green_bits) - 1)
+                            : esp_scale(((colorcode >> 8) & 0xFF), (1 << green_bits) - 1)),
+        b(right_bit_aligned ? esp_scale(((colorcode >> 0) & 0xFF), (1 << blue_bits) - 1)
+                            : esp_scale(((colorcode >> 0) & 0xFF), (1 << blue_bits) - 1)) {}
+
   inline Color(uint32_t colorcode) ALWAYS_INLINE : r((colorcode >> 16) & 0xFF),
                                                    g((colorcode >> 8) & 0xFF),
                                                    b((colorcode >> 0) & 0xFF),
@@ -200,52 +210,25 @@ struct Color {
   uint8_t to_332(ColorOrder color_order = ColorOrder::COLOR_ORDER_RGB) const {
     uint16_t red_color, green_color, blue_color;
 
-    uint8_t to_rgb_332() const {
-      uint8_t color332 =
-          (esp_scale8(this->red, 7) << 5) | (esp_scale8(this->green, 7) << 2) | (esp_scale8(this->blue, 3) << 0);
-      return color332;
+    uint8_t triad_to8(uint8_t red_bits, uint8_t green_bits, uint8_t blue_bits) const {
+      uint8_t color = (esp_scale8(this->red, ((1 << red_bits) - 1)) << (8 - red_bits)) |
+                      (esp_scale8(this->green, ((1 << green_bits) - 1)) << (8 - red_bits - green_bits)) |
+                      esp_scale8(this->blue, (1 << blue_bits) - 1);
+      return color;
     }
-    uint8_t to_bgr_332() const {
-      uint8_t color332 =
-          (esp_scale8(this->blue, 3) << 6) | (esp_scale8(this->green, 7) << 3) | (esp_scale8(this->red, 7) << 0);
-      return color332;
+
+    uint16_t triad_to16(uint8_t red_bits, uint8_t green_bits, uint8_t blue_bits) const {
+      uint16_t color = (esp_scale8(this->red, ((1 << red_bits) - 1)) << (16 - red_bits)) |
+                       (esp_scale8(this->green, ((1 << green_bits) - 1)) << (16 - red_bits - green_bits)) |
+                       esp_scale8(this->blue, (1 << blue_bits) - 1);
+      return color;
     }
-    uint8_t from_332_to_565() const {
-      uint16_t red, green, blue;
 
-      red = esp_scale(this->red, 7, 31);
-      red = red << 11;  // red bits now 5 MSB bits
-
-      green = esp_scale(this->green, 7, 63);
-      green = green << 5;  // green bits now 6 "middle" bits
-
-      blue = esp_scale(this->blue, 3, 31);
-
-      return (uint8_t)(red | green | blue);
-    }
-    uint16_t from_233_to_565() const {
-      uint16_t red, green, blue;
-
-      blue = esp_scale(this->blue, 3, 31);
-      blue = blue << 11;  // blue bits now 5 MSB bits
-
-      green = esp_scale(this->green, 7, 63);
-      green = green << 5;  // green bits now 6 "middle" bits
-
-      red = esp_scale(this->red, 7, 31);
-
-      return (uint16_t)(blue | green | red);
-    }
     uint32_t to_rgb_565() const {
-      uint32_t color565 =
-          (esp_scale8(this->red, 31) << 11) | (esp_scale8(this->green, 63) << 5) | (esp_scale8(this->blue, 31) << 0);
+      uint32_t color565 = this->TriadTo16(5, 6, 5);
       return color565;
     }
-    uint32_t to_bgr_565() const {
-      uint32_t color565 =
-          (esp_scale8(this->blue, 31) << 11) | (esp_scale8(this->green, 63) << 5) | (esp_scale8(this->red, 31) << 0);
-      return color565;
-    }
+
     uint32_t to_grayscale4() const {
       uint32_t gs4 = esp_scale8(this->white, 15);
       return gs4;
