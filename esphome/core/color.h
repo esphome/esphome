@@ -45,12 +45,10 @@ struct Color {
       : r(right_bit_aligned
               ? esp_scale(((colorcode >> (green_bits + blue_bits)) & (1 << red_bits) - 1), (1 << red_bits) - 1)
               : esp_scale(((colorcode >> 16) & 0xFF), (1 << red_bits) - 1)),
-        g(right_bit_aligned
-              ? esp_scale(((colorcode >> blue_bits) & (1 << green_bits) - 1), (1 << green_bits) - 1)
-              : esp_scale(((colorcode >> 8) & 0xFF), (1 << green_bits) - 1)),
-        b(right_bit_aligned
-              ? esp_scale(((colorcode >> 0) & 0xFF), (1 << blue_bits) - 1)
-              : esp_scale(((colorcode >> 0) & 0xFF), (1 << blue_bits) - 1)) {}
+        g(right_bit_aligned ? esp_scale(((colorcode >> blue_bits) & (1 << green_bits) - 1), (1 << green_bits) - 1)
+                            : esp_scale(((colorcode >> 8) & 0xFF), (1 << green_bits) - 1)),
+        b(right_bit_aligned ? esp_scale(((colorcode >> 0) & 0xFF), (1 << blue_bits) - 1)
+                            : esp_scale(((colorcode >> 0) & 0xFF), (1 << blue_bits) - 1)) {}
 
   inline Color(uint32_t colorcode) ALWAYS_INLINE : r((colorcode >> 16) & 0xFF),
                                                    g((colorcode >> 8) & 0xFF),

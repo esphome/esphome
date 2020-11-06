@@ -307,7 +307,7 @@ void HOT ST7735::draw_absolute_pixel_internal(int x, int y, Color color) {
   if (x >= this->get_width_internal() || x < 0 || y >= this->get_height_internal() || y < 0)
     return;
 
-  if (this->eightbitcolor_) {    
+  if (this->eightbitcolor_) {
     const uint32_t color332 = color.triad_to8(3, 3, 2);
     uint16_t pos = (x + y * this->get_width_internal());
     this->buffer_[pos] = color332;
