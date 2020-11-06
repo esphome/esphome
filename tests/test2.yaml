@@ -117,6 +117,8 @@ sensor:
       name: "Xiaomi LYWSD02 Temperature"
     humidity:
       name: "Xiaomi LYWSD02 Humidity"
+    battery_level:
+      name: "Xiaomi LYWSD02 Battery Level"
   - platform: xiaomi_cgg1
     mac_address: 7A:80:8E:19:36:BA
     temperature:
@@ -169,7 +171,16 @@ sensor:
       name: "JQJCY01YM Formaldehyde"
     battery_level:
       name: "JQJCY01YM Battery Level"
-
+  - platform: atc_mithermometer
+    mac_address: "A4:C1:38:4E:16:78"
+    temperature:
+      name: "ATC Temperature"
+    humidity:
+      name: "ATC Humidity"
+    battery_level:
+      name: "ATC Battery-Level"
+    battery_voltage:
+      name: "ATC Battery-Voltage"
 
 time:
 - platform: homeassistant

@@ -375,6 +375,8 @@ sensor:
       name: "PZEMDC Current"
     power:
       name: "PZEMDC Power"
+  - platform: tmp102
+    name: "TMP102 Temperature"
   - platform: hm3301
     pm_1_0:
       name: "PM1.0"
@@ -698,7 +700,7 @@ climate:
       kp: 0.0
       ki: 0.0
       kd: 0.0
-    
+
 
 cover:
   - platform: endstop
@@ -859,6 +861,22 @@ rf_bridge:
         high: 0x1234
         code: 0x123456
     - rf_bridge.learn
+
+  on_advanced_code_received:
+    - lambda: |-
+        uint32_t test;
+        std::string test_code;
+        test = data.length;
+        test = data.protocol;
+        test_code = data.code;
+    - rf_bridge.start_advanced_sniffing
+    - rf_bridge.stop_advanced_sniffing
+    - rf_bridge.send_advanced_code:
+        length: 0x04
+        protocol: 0x01
+        code: 'ABC123'
+    - rf_bridge.send_raw:
+        raw: 'AAA5070008001000ABC12355'
 
 display:
   - platform: max7219digit

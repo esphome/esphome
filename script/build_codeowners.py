@@ -48,6 +48,10 @@ for path in components_dir.iterdir():
 
     name = path.name
     comp = get_component(name)
+    if comp is None:
+        print(f'Cannot find component {name}. Make sure current path is pip installed ESPHome')
+        sys.exit(1)
+
     codeowners[f'esphome/components/{name}/*'].extend(comp.codeowners)
 
     for platform_path in path.iterdir():
