@@ -44,9 +44,7 @@ void PxmatrixDisplay::update() {
   this->display();
 }
 
-void HOT PxmatrixDisplay::display() {
-  this->pxMatrix->display();
-}
+void HOT PxmatrixDisplay::display() { this->pxMatrix->display(); }
 
 void PxmatrixDisplay::set_pin_latch(GPIOPin *pin_latch) { this->pin_latch_ = pin_latch; }
 
