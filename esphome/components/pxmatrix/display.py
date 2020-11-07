@@ -69,6 +69,7 @@ CONFIG_SCHEMA = cv.All(
     }),
     cv.has_at_most_one_key(CONF_PAGES, CONF_LAMBDA))
 
+
 def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
 
@@ -130,6 +131,3 @@ def to_code(config):
     # Adafruit GF https://github.com/adafruit/Adafruit-GFX-Library/releases
     cg.add_library("13", "1.10.2")
     cg.add_library("Wire", "1.0")
-
-
-

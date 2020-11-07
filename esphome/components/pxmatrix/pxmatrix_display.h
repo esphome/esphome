@@ -36,7 +36,7 @@ enum MuxPatterns {
 
 class PxmatrixDisplay : public PollingComponent, public display::DisplayBuffer {
  public:
-  void display() override;
+  void display();
   void setup() override;
   void update() override;
   void fill(Color color) override;
@@ -64,13 +64,13 @@ class PxmatrixDisplay : public PollingComponent, public display::DisplayBuffer {
 
   PxMATRIX *pxMatrix;
 
-  GPIOPin *pin_LATCH_{nullptr};
-  GPIOPin *pin_A_{nullptr};
-  GPIOPin *pin_B_{nullptr};
-  GPIOPin *pin_C_{nullptr};
-  GPIOPin *pin_D_{nullptr};
-  GPIOPin *pin_E_{nullptr};
-  GPIOPin *pin_OE_{nullptr};
+  GPIOPin *pin_latch_{nullptr};
+  GPIOPin *pin_a_{nullptr};
+  GPIOPin *pin_b_{nullptr};
+  GPIOPin *pin_c_{nullptr};
+  GPIOPin *pin_d_{nullptr};
+  GPIOPin *pin_e_{nullptr};
+  GPIOPin *pin_oe_{nullptr};
 
   uint8_t width_ = 32;
   uint8_t height_ = 32;

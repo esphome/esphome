@@ -10,8 +10,8 @@ namespace pxmatrix_display {
 
 void PxmatrixDisplay::setup() {
   ESP_LOGCONFIG(TAG, "Starting setup...");
-  this->pxMatrix = new PxMATRIX(width_, height_, pin_LATCH_->get_pin(), pin_OE_->get_pin(), pin_A_->get_pin(),
-                                pin_B_->get_pin(), pin_C_->get_pin(), pin_D_->get_pin(), pin_E_->get_pin());
+  this->pxMatrix = new PxMATRIX(width_, height_, pin_latch_->get_pin(), pin_oe_->get_pin(), pin_a_->get_pin(),
+                                pin_b_->get_pin(), pin_c_->get_pin(), pin_d_->get_pin(), pin_e_->get_pin());
   this->pxMatrix->begin(row_pattern_);
 
   this->pxMatrix->setDriverChip((driver_chips) driver_chips_);
@@ -48,19 +48,19 @@ void HOT PxmatrixDisplay::display() {
   this->pxMatrix->display();
 }
 
-void PxmatrixDisplay::set_pin_latch(GPIOPin *P_Latch) { this->pin_LATCH_ = P_Latch; }
+void PxmatrixDisplay::set_pin_latch(GPIOPin *pin_latch) { this->pin_latch_ = pin_latch; }
 
-void PxmatrixDisplay::set_pin_a(GPIOPin *Pin_A) { this->pin_A_ = Pin_A; }
+void PxmatrixDisplay::set_pin_a(GPIOPin *pin_a) { this->pin_a_ = pin_a; }
 
-void PxmatrixDisplay::set_pin_b(GPIOPin *Pin_B) { this->pin_B_ = Pin_B; }
+void PxmatrixDisplay::set_pin_b(GPIOPin *pin_b) { this->pin_b_ = pin_b; }
 
-void PxmatrixDisplay::set_pin_c(GPIOPin *Pin_C) { this->pin_C_ = Pin_C; }
+void PxmatrixDisplay::set_pin_c(GPIOPin *pin_c) { this->pin_c_ = pin_c; }
 
-void PxmatrixDisplay::set_pin_d(GPIOPin *Pin_D) { this->pin_D_ = Pin_D; }
+void PxmatrixDisplay::set_pin_d(GPIOPin *pin_d) { this->pin_d_ = pin_d; }
 
-void PxmatrixDisplay::set_pin_e(GPIOPin *Pin_E) { this->pin_E_ = Pin_E; }
+void PxmatrixDisplay::set_pin_e(GPIOPin *pin_e) { this->pin_e_ = pin_e; }
 
-void PxmatrixDisplay::set_pin_oe(GPIOPin *Pin_OE) { this->pin_OE_ = Pin_OE; }
+void PxmatrixDisplay::set_pin_oe(GPIOPin *pin_oe) { this->pin_oe_ = pin_oe; }
 
 void PxmatrixDisplay::set_width(uint8_t width) { this->width_ = width; }
 
