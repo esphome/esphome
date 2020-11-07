@@ -24,8 +24,6 @@ void PxmatrixDisplay::setup() {
   // this->px_matrix_->setRotate(true);
   // this->px_matrix_->setFlip(true);
 
-  // this->px_matrix_->setColorOffset(5, 5,5);
-  // this->px_matrix_->setMuxPattern(BINARY);
   ESP_LOGI(TAG, "Finished Setup");
 }
 
@@ -39,12 +37,12 @@ void PxmatrixDisplay::fill(Color color) {
   this->px_matrix_->fillScreen(matrix_color);
 }
 
-void PxmatrixDisplay::update() {
-  this->do_update_();
-  this->display();
-}
+void PxmatrixDisplay::update() { this->px_matrix_->display(); }
 
-void HOT PxmatrixDisplay::display() { this->px_matrix_->display(); }
+void HOT PxmatrixDisplay::display() {
+  this->do_update_();
+  this->px_matrix_->showBuffer();
+}
 
 void PxmatrixDisplay::set_pin_latch(GPIOPin *pin_latch) { this->pin_latch_ = pin_latch; }
 
