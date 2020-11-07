@@ -66,7 +66,7 @@ CONFIG_SCHEMA = cv.All(
         cv.Optional(CONF_MULTIPLEXER, default="BINARY"): cv.enum(MUX_PATTERNS),
         cv.Optional(CONF_SCAN_PATTERN, default="LINE"): cv.enum(SCAN_PATTERNS),
         # cv.Optional("block_pattern"): cv.one_of(*BLOCK_PATTERNS),
-    }),
+    }).extend(cv.COMPONENT_SCHEMA),
     cv.has_at_most_one_key(CONF_PAGES, CONF_LAMBDA))
 
 

@@ -23,6 +23,7 @@ void PxmatrixDisplay::setup() {
   this->px_matrix_->setBrightness(brightness_);
   // this->px_matrix_->setRotate(true);
   // this->px_matrix_->setFlip(true);
+  this->high_freq_.start();
 
   ESP_LOGI(TAG, "Finished Setup");
 }
@@ -37,7 +38,7 @@ void PxmatrixDisplay::fill(Color color) {
   this->px_matrix_->fillScreen(matrix_color);
 }
 
-void PxmatrixDisplay::update() { this->px_matrix_->display(); }
+void PxmatrixDisplay::loop() { this->px_matrix_->display(); }
 
 void HOT PxmatrixDisplay::display() {
   this->do_update_();

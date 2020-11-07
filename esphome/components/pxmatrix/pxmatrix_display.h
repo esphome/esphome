@@ -34,11 +34,11 @@ enum MuxPatterns {
   STRAIGHT = mux_patterns::STRAIGHT,
 };
 
-class PxmatrixDisplay : public PollingComponent, public display::DisplayBuffer {
+class PxmatrixDisplay : public Component, public display::DisplayBuffer {
  public:
   void display();
   void setup() override;
-  void update() override;
+  void loop() override;
   void fill(Color color) override;
 
   void set_pin_latch(GPIOPin *pin_latch);
@@ -64,6 +64,8 @@ class PxmatrixDisplay : public PollingComponent, public display::DisplayBuffer {
 
   PxMATRIX *px_matrix_;
 
+  HighFrequencyLoopRequester high_freq_;
+
   GPIOPin *pin_latch_{nullptr};
   GPIOPin *pin_a_{nullptr};
   GPIOPin *pin_b_{nullptr};
@@ -77,10 +79,10 @@ class PxmatrixDisplay : public PollingComponent, public display::DisplayBuffer {
   uint8_t brightness_ = 255;
   uint8_t row_pattern_ = 16;
 
-  DriverChips driver_chips_ = DriverChips::FM6124;
-  ColorOrders color_orders_ = ColorOrders::RRGGBB;
-  ScanPatterns scan_patterns_ = ScanPatterns::LINE;
-  MuxPatterns mux_patterns_ = MuxPatterns::BINARY;
+  DriverChips driver_chips_;
+  ColorOrders color_orders_;
+  ScanPatterns scan_patterns_;
+  MuxPatterns mux_patterns_;
   // block_patterns BLOCK_PATTERN = block_patterns::ABCD;
 };
 
