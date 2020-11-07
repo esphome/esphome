@@ -36,22 +36,22 @@ enum MuxPatterns {
 
 class PxmatrixDisplay : public PollingComponent, public display::DisplayBuffer {
  public:
-  void display();
-  void setup();
+  void display() override;
+  void setup() override;
   void update() override;
-  void fill(Color color);
+  void fill(Color color) override;
 
-  void set_pin_latch(GPIOPin *Pin_LATCH);
-  void set_pin_a(GPIOPin *Pin_A);
-  void set_pin_b(GPIOPin *Pin_B);
-  void set_pin_c(GPIOPin *Pin_C);
-  void set_pin_d(GPIOPin *Pin_D);
-  void set_pin_e(GPIOPin *Pin_E);
-  void set_pin_oe(GPIOPin *Pin_OE);
-  void set_width(uint8_t WIDTH);
-  void set_height(uint8_t HEIGHT);
-  void set_brightness(uint8_t BRIGHTNESS);
-  void set_row_patter(uint8_t ROW_PATTERN);
+  void set_pin_latch(GPIOPin *pin_latch);
+  void set_pin_a(GPIOPin *pin_a);
+  void set_pin_b(GPIOPin *pin_b);
+  void set_pin_c(GPIOPin *pin_c);
+  void set_pin_d(GPIOPin *pin_d);
+  void set_pin_e(GPIOPin *pin_e);
+  void set_pin_oe(GPIOPin *pin_oe);
+  void set_width(uint8_t width);
+  void set_height(uint8_t height);
+  void set_brightness(uint8_t brightness);
+  void set_row_patter(uint8_t row_pattern);
   void set_driver_chips(DriverChips driver_chips);
   void set_color_orders(ColorOrders color_orders);
   void set_scan_patterns(ScanPatterns scan_patterns);
@@ -62,10 +62,7 @@ class PxmatrixDisplay : public PollingComponent, public display::DisplayBuffer {
   int get_width_internal() override;
   int get_height_internal() override;
 
- private:
-  //  portMUX_TYPE timerMux = portMUX_INITIALIZER_UNLOCKED;
   PxMATRIX *pxMatrix;
-  int display_loop = 0;
 
   GPIOPin *pin_LATCH_{nullptr};
   GPIOPin *pin_A_{nullptr};
@@ -84,7 +81,6 @@ class PxmatrixDisplay : public PollingComponent, public display::DisplayBuffer {
   ColorOrders color_orders_ = ColorOrders::RRGGBB;
   ScanPatterns scan_patterns_ = ScanPatterns::LINE;
   MuxPatterns mux_patterns_ = MuxPatterns::BINARY;
-
   // block_patterns BLOCK_PATTERN = block_patterns::ABCD;
 };
 
