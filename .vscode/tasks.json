@@ -4,7 +4,8 @@
         {
             "label": "run",
             "type": "shell",
-            "command": "python3 -m esphome config dashboard"
+            "command": "python3 -m esphome config dashboard",
+            "problemMatcher": []
         }
     ]
 }
