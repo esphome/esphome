@@ -11,7 +11,7 @@ namespace pxmatrix_display {
 void PxmatrixDisplay::setup() {
   ESP_LOGCONFIG(TAG, "Starting setup...");
   this->px_matrix_ = new PxMATRIX(width_, height_, pin_latch_->get_pin(), pin_oe_->get_pin(), pin_a_->get_pin(),
-                                pin_b_->get_pin(), pin_c_->get_pin(), pin_d_->get_pin(), pin_e_->get_pin());
+                                  pin_b_->get_pin(), pin_c_->get_pin(), pin_d_->get_pin(), pin_e_->get_pin());
   this->px_matrix_->begin(row_pattern_);
 
   this->px_matrix_->setDriverChip((driver_chips) driver_chips_);

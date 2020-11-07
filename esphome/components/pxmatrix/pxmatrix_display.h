@@ -3,9 +3,6 @@
 #include "esphome/core/component.h"
 #include "esphome/components/display/display_buffer.h"
 #include "esphome/core/log.h"
-
-// Avoid annoying compiler messages
-#define PXMATRIX_INTERNAL
 #include "PxMatrix.h"
 
 namespace esphome {
@@ -65,7 +62,7 @@ class PxmatrixDisplay : public PollingComponent, public display::DisplayBuffer {
   int get_width_internal() override;
   int get_height_internal() override;
 
-  PxMATRIX *    px_matrix_;
+  PxMATRIX *px_matrix_;
 
   GPIOPin *pin_latch_{nullptr};
   GPIOPin *pin_a_{nullptr};
