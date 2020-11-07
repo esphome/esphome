@@ -10,33 +10,33 @@ namespace pxmatrix_display {
 
 void PxmatrixDisplay::setup() {
   ESP_LOGCONFIG(TAG, "Starting setup...");
-  this->pxMatrix = new PxMATRIX(width_, height_, pin_latch_->get_pin(), pin_oe_->get_pin(), pin_a_->get_pin(),
+  this->px_matrix_ = new PxMATRIX(width_, height_, pin_latch_->get_pin(), pin_oe_->get_pin(), pin_a_->get_pin(),
                                 pin_b_->get_pin(), pin_c_->get_pin(), pin_d_->get_pin(), pin_e_->get_pin());
-  this->pxMatrix->begin(row_pattern_);
+  this->px_matrix_->begin(row_pattern_);
 
-  this->pxMatrix->setDriverChip((driver_chips) driver_chips_);
-  this->pxMatrix->setMuxPattern((mux_patterns) mux_patterns_);
-  this->pxMatrix->setScanPattern((scan_patterns) scan_patterns_);
-  this->pxMatrix->setColorOrder((color_orders) color_orders_);
-  //  this->pxMatrix->setBlockPattern(DBCA);
+  this->px_matrix_->setDriverChip((driver_chips) driver_chips_);
+  this->px_matrix_->setMuxPattern((mux_patterns) mux_patterns_);
+  this->px_matrix_->setScanPattern((scan_patterns) scan_patterns_);
+  this->px_matrix_->setColorOrder((color_orders) color_orders_);
+  //  this->px_matrix_->setBlockPattern(DBCA);
 
-  this->pxMatrix->setBrightness(brightness_);
-  // this->pxMatrix->setRotate(true);
-  // this->pxMatrix->setFlip(true);
+  this->px_matrix_->setBrightness(brightness_);
+  // this->px_matrix_->setRotate(true);
+  // this->px_matrix_->setFlip(true);
 
-  // this->pxMatrix->setColorOffset(5, 5,5);
-  // this->pxMatrix->setMuxPattern(BINARY);
+  // this->px_matrix_->setColorOffset(5, 5,5);
+  // this->px_matrix_->setMuxPattern(BINARY);
   ESP_LOGI(TAG, "Finished Setup");
 }
 
 void HOT PxmatrixDisplay::draw_absolute_pixel_internal(int x, int y, Color color) {
   uint16_t matrix_color = color.to_bgr_565();
-  this->pxMatrix->drawPixelRGB565(x, y, matrix_color);
+  this->px_matrix_->drawPixelRGB565(x, y, matrix_color);
 }
 
 void PxmatrixDisplay::fill(Color color) {
   uint16_t matrix_color = color.to_bgr_565();
-  this->pxMatrix->fillScreen(matrix_color);
+  this->px_matrix_->fillScreen(matrix_color);
 }
 
 void PxmatrixDisplay::update() {
@@ -44,7 +44,7 @@ void PxmatrixDisplay::update() {
   this->display();
 }
 
-void HOT PxmatrixDisplay::display() { this->pxMatrix->display(); }
+void HOT PxmatrixDisplay::display() { this->px_matrix_->display(); }
 
 void PxmatrixDisplay::set_pin_latch(GPIOPin *pin_latch) { this->pin_latch_ = pin_latch; }
 
