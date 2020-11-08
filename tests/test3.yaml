@@ -761,6 +761,9 @@ output:
     id: out
     pin: D3
     frequency: 50Hz
+  - platform: esp8266_pwm
+    id: out2
+    pin: D4
   - platform: custom
     type: binary
     lambda: |-
@@ -809,6 +812,10 @@ light:
           uart_id: adalight_uart
       - e131:
           universe: 1
+  - platform: hbridge
+    name: Icicle Lights
+    pin_a: out
+    pin_b: out2
 
 servo:
   id: my_servo
