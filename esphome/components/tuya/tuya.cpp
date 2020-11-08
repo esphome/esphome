@@ -205,6 +205,7 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
       break;
     }
     case TuyaCommandType::LOCAL_TIME_QUERY: {
+#ifdef USE_TIME
       if (this->clock_.has_value()) {
         auto clock = *this->clock_;
         auto now = clock->now();
@@ -236,6 +237,9 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
       } else {
         ESP_LOGW(TAG, "TUYA_CMD_LOCAL_TIME_QUERY is not handled because clock is not configured");
       }
+#else
+      ESP_LOGE(TAG, "LOCAL_TIME_QUERY is not handled");
+#endif
       break;
     }
     default:

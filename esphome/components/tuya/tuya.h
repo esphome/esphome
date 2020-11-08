@@ -1,8 +1,12 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/defines.h"
 #include "esphome/components/uart/uart.h"
+
+#ifdef USE_TIME
 #include "esphome/components/time/real_time_clock.h"
+#endif
 
 namespace esphome {
 namespace tuya {
@@ -64,7 +68,9 @@ class Tuya : public Component, public uart::UARTDevice {
   void dump_config() override;
   void register_listener(uint8_t datapoint_id, const std::function<void(TuyaDatapoint)> &func);
   void set_datapoint_value(TuyaDatapoint datapoint);
+#ifdef USE_TIME
   void set_clock(time::RealTimeClock *clock) { this->clock_ = clock; }
+#endif
 
  protected:
   void handle_char_(uint8_t c);
@@ -76,7 +82,9 @@ class Tuya : public Component, public uart::UARTDevice {
   void send_empty_command_(TuyaCommandType command) { this->send_command_(command, nullptr, 0); }
   void schedule_empty_command_(TuyaCommandType command);
 
+#ifdef USE_TIME
   optional<time::RealTimeClock *> clock_{};
+#endif
   TuyaInitState init_state_ = TuyaInitState::INIT_HEARTBEAT;
   int gpio_status_ = -1;
   int gpio_reset_ = -1;
