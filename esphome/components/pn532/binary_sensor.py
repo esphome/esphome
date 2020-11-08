@@ -3,11 +3,9 @@ import esphome.config_validation as cv
 from esphome.components import binary_sensor
 from esphome.const import CONF_UID, CONF_ID
 from esphome.core import HexInt
-from . import pn532_ns, PN532
+from . import pn532_ns, PN532, CONF_PN532_ID
 
 DEPENDENCIES = ['pn532']
-
-CONF_PN532_ID = 'pn532_id'
 
 
 def validate_uid(value):

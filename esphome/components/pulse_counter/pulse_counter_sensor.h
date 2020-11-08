@@ -54,6 +54,7 @@ class PulseCounterSensor : public sensor::Sensor, public PollingComponent {
   void set_rising_edge_mode(PulseCounterCountMode mode) { storage_.rising_edge_mode = mode; }
   void set_falling_edge_mode(PulseCounterCountMode mode) { storage_.falling_edge_mode = mode; }
   void set_filter_us(uint32_t filter) { storage_.filter_us = filter; }
+  void set_total_sensor(sensor::Sensor *total_sensor) { total_sensor_ = total_sensor; }
 
   /// Unit of measurement is "pulses/min".
   void setup() override;
@@ -64,6 +65,8 @@ class PulseCounterSensor : public sensor::Sensor, public PollingComponent {
  protected:
   GPIOPin *pin_;
   PulseCounterStorage storage_;
+  uint32_t current_total_ = 0;
+  sensor::Sensor *total_sensor_;
 };
 
 #ifdef ARDUINO_ARCH_ESP32
