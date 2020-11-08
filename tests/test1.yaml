@@ -586,6 +586,10 @@ sensor:
       - sensor.rotary_encoder.set_value:
           id: rotary_encoder1
           value: !lambda 'return -1;'
+    on_clockwise:
+      - logger.log: "Clockwise"
+    on_anticlockwise:
+      - logger.log: "Anticlockwise"
   - platform: pulse_width
     name: Pulse Width
     pin: GPIO12
@@ -776,6 +780,9 @@ sensor:
         icon: mdi:flash
     update_interval: 60s
     historical_mode: true
+  - platform: mcp9808
+    name: "MCP9808 Temperature"
+    update_interval: 15s
 
 esp32_touch:
   setup_mode: False
@@ -1242,6 +1249,7 @@ light:
     chipset: WS2801
     data_pin: GPIO23
     clock_pin: GPIO22
+    data_rate: 2MHz
     num_leds: 60
     rgb_order: BRG
     name: "FastLED SPI Light"
@@ -1596,6 +1604,7 @@ display:
   cs_pin: GPIO23
   dc_pin: GPIO23
   reset_pin: GPIO23
+  contrast: 60
   lambda: |-
     it.rectangle(0, 0, it.get_width(), it.get_height());
 - platform: ssd1306_i2c
@@ -1661,7 +1670,7 @@ remote_receiver:
 status_led:
   pin: GPIO2
 
-pn532:
+pn532_spi:
   cs_pin: GPIO23
   update_interval: 1s
   on_tag:
@@ -1671,7 +1680,16 @@ pn532:
         topic: the/topic
         payload: !lambda 'return x;'
 
+pn532_i2c:
+
 rdm6300:
+
+rc522_spi:
+  cs_pin: GPIO23
+  update_interval: 1s
+  on_tag:
+    - lambda: |-
+        ESP_LOGD("main", "Found tag %s", x.c_str());
 
 gps:
 

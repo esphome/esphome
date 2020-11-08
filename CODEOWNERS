@@ -15,6 +15,7 @@ esphome/components/ac_dimmer/* @glmnet
 esphome/components/adc/* @esphome/core
 esphome/components/api/* @OttoWinter
 esphome/components/async_tcp/* @OttoWinter
+esphome/components/atc_mithermometer/* @ahpohl
 esphome/components/bang_bang/* @OttoWinter
 esphome/components/binary_sensor/* @esphome/core
 esphome/components/captive_portal/* @OttoWinter
@@ -38,12 +39,16 @@ esphome/components/json/* @OttoWinter
 esphome/components/ledc/* @OttoWinter
 esphome/components/light/* @esphome/core
 esphome/components/logger/* @esphome/core
+esphome/components/mcp9808/* @k7hpn
 esphome/components/network/* @esphome/core
 esphome/components/ota/* @esphome/core
 esphome/components/output/* @esphome/core
 esphome/components/pid/* @OttoWinter
-esphome/components/pn532/* @OttoWinter
+esphome/components/pn532/* @OttoWinter @jesserockz
+esphome/components/pn532_i2c/* @OttoWinter @jesserockz
+esphome/components/pn532_spi/* @OttoWinter @jesserockz
 esphome/components/power_supply/* @esphome/core
+esphome/components/rc522_spi/* @glmnet
 esphome/components/restart/* @esphome/core
 esphome/components/rf_bridge/* @jesserockz
 esphome/components/rtttl/* @glmnet
@@ -59,6 +64,7 @@ esphome/components/tcl112/* @glmnet
 esphome/components/teleinfo/* @0hax
 esphome/components/time/* @OttoWinter
 esphome/components/tm1637/* @glmnet
+esphome/components/tmp102/* @timsavage
 esphome/components/tuya/binary_sensor/* @jesserockz
 esphome/components/tuya/climate/* @jesserockz
 esphome/components/tuya/sensor/* @jesserockz
@@ -68,3 +74,4 @@ esphome/components/ultrasonic/* @OttoWinter
 esphome/components/version/* @esphome/core
 esphome/components/web_server_base/* @OttoWinter
 esphome/components/whirlpool/* @glmnet
+esphome/components/xiaomi_lywsd03mmc/* @ahpohl

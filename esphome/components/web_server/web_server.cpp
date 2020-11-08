@@ -31,6 +31,7 @@ void write_row(AsyncResponseStream *stream, Nameable *obj, const std::string &kl
   stream->print("</td><td></td><td>");
   stream->print(action.c_str());
   stream->print("</td>");
+  stream->print("</tr>");
 }
 
 UrlMatch match_url(const std::string &url, bool only_domain = false) {
