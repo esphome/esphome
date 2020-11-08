@@ -3,7 +3,8 @@
 #include "esphome/core/component.h"
 #include "esphome/components/display/display_buffer.h"
 #include "esphome/core/log.h"
-#include "PxMatrix.h"
+
+#include "PxMatrix.h"  // NOLINT
 
 namespace esphome {
 namespace pxmatrix_display {
@@ -55,7 +56,12 @@ class PxmatrixDisplay : public Component, public display::DisplayBuffer {
   void set_driver_chips(DriverChips driver_chips);
   void set_color_orders(ColorOrders color_orders);
   void set_scan_patterns(ScanPatterns scan_patterns);
+
   void set_mux_patterns(MuxPatterns mux_patterns);
+  void set_mux_delay(uint8_t mux_delay);
+
+  void set_rotate(bool rotate);
+  void set_flip(bool flip);
 
  protected:
   void draw_absolute_pixel_internal(int x, int y, Color color) override;
@@ -78,6 +84,9 @@ class PxmatrixDisplay : public Component, public display::DisplayBuffer {
   uint8_t height_ = 32;
   uint8_t brightness_ = 255;
   uint8_t row_pattern_ = 16;
+  uint8_t mux_delay_ = 5;
+  bool rotate_ = false;
+  bool flip_ = false;
 
   DriverChips driver_chips_;
   ColorOrders color_orders_;

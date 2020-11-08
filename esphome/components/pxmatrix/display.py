@@ -2,10 +2,11 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins
 from esphome.components import display
-from esphome.const import CONF_WIDTH, CONF_HEIGHT, \
+from esphome.const import CONF_WIDTH, CONF_HEIGHT, CONF_MULTIPLEXER_DELAY, \
     CONF_ID, CONF_LAMBDA, CONF_PAGES, CONF_BRIGHTNESS, CONF_RGB_ORDER, \
     CONF_PIN_A, CONF_PIN_B, CONF_PIN_C, CONF_PIN_D, CONF_PIN_E, CONF_PIN_OE, CONF_PIN_LATCH, \
-    CONF_CHIPSET, CONF_MULTIPLEXER, CONF_SCAN_PATTERN, CONF_ROW_PATTERN
+    CONF_CHIPSET, CONF_MULTIPLEXER, CONF_SCAN_PATTERN, CONF_ROW_PATTERN, \
+    CONF_ROTATE, CONF_FLIP
 
 pxmatrix_ns = cg.esphome_ns.namespace('pxmatrix_display')
 
@@ -52,6 +53,8 @@ CONFIG_SCHEMA = cv.All(
         cv.GenerateID(): cv.declare_id(pxmatrix_gpio),
         cv.Optional(CONF_WIDTH, default="32"): cv.uint8_t,
         cv.Optional(CONF_HEIGHT, default="32"): cv.uint8_t,
+        cv.Optional(CONF_ROTATE, default=False): cv.boolean,
+        cv.Optional(CONF_FLIP, default=False): cv.boolean,
         cv.Optional(CONF_BRIGHTNESS, default="255"): cv.uint8_t,
         cv.Optional(CONF_PIN_LATCH, default="GPIO16"): pins.gpio_output_pin_schema,
         cv.Optional(CONF_PIN_A, default="GPIO5"): pins.gpio_output_pin_schema,
@@ -64,6 +67,7 @@ CONFIG_SCHEMA = cv.All(
         cv.Optional(CONF_CHIPSET, default="FM6124"): cv.enum(DRIVER_CHIPS),
         cv.Optional(CONF_RGB_ORDER, default="RRGGBB"): cv.enum(COLOR_ORDERS),
         cv.Optional(CONF_MULTIPLEXER, default="BINARY"): cv.enum(MUX_PATTERNS),
+        cv.Optional(CONF_MULTIPLEXER_DELAY, default="32"): cv.uint8_t,
         cv.Optional(CONF_SCAN_PATTERN, default="LINE"): cv.enum(SCAN_PATTERNS),
         # cv.Optional("block_pattern"): cv.one_of(*BLOCK_PATTERNS),
     }).extend(cv.COMPONENT_SCHEMA),
@@ -126,8 +130,18 @@ def to_code(config):
     if CONF_ROW_PATTERN in config:
         cg.add(var.set_row_patter(config[CONF_ROW_PATTERN]))
 
+    if CONF_ROTATE in config:
+        cg.add(var.set_rotate(config[CONF_FLIP]))
+
+    if CONF_FLIP in config:
+        cg.add(var.set_flip(config[CONF_ROTATE]))
+
+    if CONF_MULTIPLEXER_DELAY in config:
+        cg.add(var.set_mux_delay(config[CONF_MULTIPLEXER_DELAY]))
+
     # https://github.com/2dom/PxMatrix/blob/master/PxMatrix.h
     cg.add_library("PxMatrix LED MATRIX library", "1.8.2")
     # Adafruit GF https://github.com/adafruit/Adafruit-GFX-Library/releases
     cg.add_library("13", "1.10.2")
     cg.add_library("Wire", "1.0")
+    cg.add_library("Adafruit BusIO", "1.6.0")

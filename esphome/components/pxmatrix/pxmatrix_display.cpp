@@ -21,8 +21,9 @@ void PxmatrixDisplay::setup() {
   //  this->px_matrix_->setBlockPattern(DBCA);
 
   this->px_matrix_->setBrightness(brightness_);
-  // this->px_matrix_->setRotate(true);
-  // this->px_matrix_->setFlip(true);
+  this->px_matrix_->setMuxDelay(mux_delay_, mux_delay_, mux_delay_, mux_delay_, mux_delay_);
+  this->px_matrix_->setRotate(rotate_);
+  this->px_matrix_->setFlip(flip_);
   this->high_freq_.start();
 
   ESP_LOGI(TAG, "Finished Setup");
@@ -74,6 +75,12 @@ void PxmatrixDisplay::set_color_orders(ColorOrders color_orders) { this->color_o
 void PxmatrixDisplay::set_scan_patterns(ScanPatterns scan_patterns) { this->scan_patterns_ = scan_patterns; }
 
 void PxmatrixDisplay::set_mux_patterns(MuxPatterns mux_patterns) { this->mux_patterns_ = mux_patterns; }
+
+void PxmatrixDisplay::set_mux_delay(uint8_t mux_delay) { this->mux_delay_ = mux_delay; }
+
+void PxmatrixDisplay::set_rotate(bool rotate) { this->rotate_ = rotate; }
+
+void PxmatrixDisplay::set_flip(bool flip) { this->flip_ = flip; }
 
 int PxmatrixDisplay::get_width_internal() { return this->width_; }
 
