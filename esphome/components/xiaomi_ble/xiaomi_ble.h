@@ -10,7 +10,6 @@ namespace xiaomi_ble {
 
 struct XiaomiParseResult {
   enum {
-    TYPE_XMTZC0XHM,
     TYPE_HHCCJCY01,
     TYPE_GCLS002,
     TYPE_HHCCPOT002,
@@ -22,7 +21,8 @@ struct XiaomiParseResult {
     TYPE_JQJCY01YM,
     TYPE_MUE4094RT,
     TYPE_WX08ZM,
-    TYPE_MJYD02YLA
+    TYPE_MJYD02YLA,
+    TYPE_XMTZC0XHM
   } type;
   std::string name;
   optional<float> temperature;
