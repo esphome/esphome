@@ -22,8 +22,21 @@ bool XiaomiMiscale::parse_device(const esp32_ble_tracker::ESPBTDevice &device) o
 
   bool success = false;
   for (auto &service_data : device.get_service_datas()) {
-    auto res = xiaomi_ble::parse_xiaomi(device);
-    if (!res.has_value())
+    auto res = xiaomi_ble::parse_xiaomi_header(service_data);
+    if (!res.has_value()) {
+      continue;
+    }
+    if (res->is_duplicate) {
+      continue;
+    }
+    if (res->has_encryption) {
+      ESP_LOGVV(TAG, "parse_device(): payload decryption is currently not supported on this device.");
+      continue;
+    }
+    if (!(xiaomi_ble::parse_xiaomi_message(service_data.data, *res))) {
+      continue;
+    }
+    if (!(xiaomi_ble::report_xiaomi_results(res, device.address_str()))) {
       continue;
     }
     if (res->weight.has_value() && this->weight_ != nullptr)
