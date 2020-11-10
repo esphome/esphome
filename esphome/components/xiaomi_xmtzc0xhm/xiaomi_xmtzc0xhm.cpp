@@ -13,7 +13,7 @@ void XiaomiMiscale::dump_config() {
   LOG_SENSOR("  ", "Measured Weight", this->weight_);
 }
 
-bool XiaomiMiscale::parse_device(const esp32_ble_tracker::ESPBTDevice &device) override {
+bool XiaomiMiscale::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
   if (device.address_uint64() != this->address_) {
     ESP_LOGVV(TAG, "parse_device(): unknown MAC address.");
     return false;
