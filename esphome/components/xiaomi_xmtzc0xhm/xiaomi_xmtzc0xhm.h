@@ -3,19 +3,25 @@
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
-#include "esphome/components/xiaomi_ble/xiaomi_ble.h"
 
 #ifdef ARDUINO_ARCH_ESP32
 
 namespace esphome {
 namespace xiaomi_xmtzc0xhm {
 
+struct ParseResult {
+  optional<float> battery_level;
+  optional<float> weight;
+  optional<float> impedance;
+  bool is_duplicate;
+  int raw_offset;
+};
+
 class XiaomiMiscale : public Component, public esp32_ble_tracker::ESPBTDeviceListener {
  public:
   void set_address(uint64_t address) { address_ = address; }
 
   bool parse_device(const esp32_ble_tracker::ESPBTDevice &device) override;
-
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::DATA; }
   void set_weight(sensor::Sensor *weight) { weight_ = weight; }
@@ -27,6 +33,10 @@ class XiaomiMiscale : public Component, public esp32_ble_tracker::ESPBTDeviceLis
   sensor::Sensor *weight_{nullptr};
   sensor::Sensor *battery_level_{nullptr};
   sensor::Sensor *impedance_{nullptr};
+
+  optional<ParseResult> parse_header(const esp32_ble_tracker::ServiceData &service_data);
+  bool parse_message(const std::vector<uint8_t> &message, ParseResult &result);
+  bool report_results(const optional<ParseResult> &result, const std::string &address);
 };
 
 }  // namespace xiaomi_xmtzc0xhm
