@@ -64,25 +64,6 @@ bool parse_xiaomi_value(uint8_t value_type, const uint8_t *data, uint8_t value_l
   else if ((value_type == 0x12) && (value_length == 1)) {
     result.is_active = (data[0]) ? true : false;
   }
-  // weight, 2 bytes, 16-bit  unsigned integer, 1 kg
-  else if ((value_type == 10) {
-    const uint16_t weight = uint16_t(data[1]) | (uint16_t(data[2]) << 8);
-    if (data[0] == 0x22 || data[0] == 0xa2)
-      result.weight = weight * 0.01f / 2.0f;
-    else if (data[0] == 0x12 || data[0] == 0xb2)
-      result.weight = weight * 0.01f * 0.6;
-    else if (data[0] == 0x03 || data[0] == 0xb3)
-      result.weight = weight * 0.01f * 0.453592;
-  }
-  else if ((value_type == 13) {
-    const uint16_t weight = uint16_t(data[11]) | (uint16_t(data[12]) << 8);
-    const uint16_t impedance = uint16_t(data[9]) | (uint16_t(data[10]) << 8);
-    result.impedance = impedance;
-    if (data[0] == 0x02)
-      result.weight = weight * 0.01f / 2.0f;
-    else if (data[0] == 0x03)
-      result.weight = weight * 0.01f * 0.453592;
-  }
   // mosquito tablet, 1 byte, 8-bit unsigned integer, 1 %
   else if ((value_type == 0x13) && (value_length == 1)) {
     result.tablet = data[0];
@@ -150,7 +131,7 @@ bool parse_xiaomi_message(const std::vector<uint8_t> &message, XiaomiParseResult
 
 optional<XiaomiParseResult> parse_xiaomi_header(const esp32_ble_tracker::ServiceData &service_data) {
   XiaomiParseResult result;
-  if (!service_data.uuid.contains(0x95, 0xFE) && !service_data.uuid.contains(0x1D, 0x18)) {
+  if (!service_data.uuid.contains(0x95, 0xFE)) {
     ESP_LOGVV(TAG, "parse_xiaomi_header(): no service data UUID magic bytes.");
     return {};
   }
@@ -203,12 +184,6 @@ optional<XiaomiParseResult> parse_xiaomi_header(const esp32_ble_tracker::Service
   } else if ((raw[2] == 0x0a) && (raw[3] == 0x04)) {  // Mosquito Repellent Smart Version
     result.type = XiaomiParseResult::TYPE_WX08ZM;
     result.name = "WX08ZM";
-  } else if (service_data.uuid.contains(0x1D, 0x18)) {  // Miscale
-    result.type = XiaomiParseResult::TYPE_XMTZC0XHM;
-    result.name = "XMTZC0XHM";
-  } else if (service_data.uuid.contains(0x1B, 0x18)) {  // Miscale
-    result.type = XiaomiParseResult::TYPE_XMTZC0XHM;
-    result.name = "XMTZC0XHM";
   } else if ((raw[2] == 0x76) && (raw[3] == 0x05)) {  // Cleargrass (Qingping) alarm clock, segment LCD
     result.type = XiaomiParseResult::TYPE_CGD1;
     result.name = "CGD1";
@@ -316,16 +291,6 @@ bool decrypt_xiaomi_payload(std::vector<uint8_t> &raw, const uint8_t *bindkey, c
   return true;
 }
 
-  // Hack for MiScale
-  if (is_xmtzc0xhm || is_mibfs) {
-    const uint8_t *datapoint_data = &raw[0];  // raw data
-    if (parse_xiaomi_data_byte(0x16, datapoint_data, raw.size(), result))
-      success = true;
-  }
-
-  return success;
-}
-
 bool report_xiaomi_results(const optional<XiaomiParseResult> &result, const std::string &address) {
   if (!result.has_value()) {
     ESP_LOGVV(TAG, "report_xiaomi_results(): no results available.");
@@ -363,12 +328,6 @@ bool report_xiaomi_results(const optional<XiaomiParseResult> &result, const std:
   }
   if (result->is_light.has_value()) {
     ESP_LOGD(TAG, "  Light: %s", (*result->is_light) ? "on" : "off");
-  }
-  if (res->weight.has_value()) {
-    ESP_LOGD(TAG, "  Weight: %.1fkg", *res->weight);
-  }
-  if (res->impedance.has_value()) {
-    ESP_LOGD(TAG, "  Impedance: %.0f", *res->impedance);
   }
 
   return true;
