@@ -10,6 +10,7 @@ namespace xiaomi_ble {
 
 struct XiaomiParseResult {
   enum {
+    TYPE_XMTZC0XHM,
     TYPE_HHCCJCY01,
     TYPE_GCLS002,
     TYPE_HHCCPOT002,
@@ -24,11 +25,14 @@ struct XiaomiParseResult {
     TYPE_MJYD02YLA
   } type;
   std::string name;
+
   optional<float> temperature;
   optional<float> humidity;
   optional<float> moisture;
   optional<float> conductivity;
   optional<float> illuminance;
+  optional<float> weight;
+  optional<float> impedance;
   optional<float> formaldehyde;
   optional<float> battery_level;
   optional<float> tablet;
@@ -57,11 +61,11 @@ struct XiaomiAESVector {
   size_t ivsize;
 };
 
-bool parse_xiaomi_value(uint8_t value_type, const uint8_t *data, uint8_t value_length, XiaomiParseResult &result);
 bool parse_xiaomi_message(const std::vector<uint8_t> &message, XiaomiParseResult &result);
 optional<XiaomiParseResult> parse_xiaomi_header(const esp32_ble_tracker::ServiceData &service_data);
 bool decrypt_xiaomi_payload(std::vector<uint8_t> &raw, const uint8_t *bindkey, const uint64_t &address);
 bool report_xiaomi_results(const optional<XiaomiParseResult> &result, const std::string &address);
+optional<XiaomiParseResult> parse_xiaomi(const esp32_ble_tracker::ESPBTDevice &device);
 
 class XiaomiListener : public esp32_ble_tracker::ESPBTDeviceListener {
  public:
