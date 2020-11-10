@@ -13,6 +13,35 @@ void XiaomiMiscale::dump_config() {
   LOG_SENSOR("  ", "Measured Weight", this->weight_);
 }
 
+bool XiaomiMiscale::parse_device(const esp32_ble_tracker::ESPBTDevice &device) override {
+  if (device.address_uint64() != this->address_) {
+    ESP_LOGVV(TAG, "parse_device(): unknown MAC address.");
+    return false;
+  }
+  ESP_LOGVV(TAG, "parse_device(): MAC address %s found.", device.address_str().c_str());
+
+  bool success = false;
+  for (auto &service_data : device.get_service_datas()) {
+    auto res = xiaomi_ble::parse_xiaomi(device);
+    if (!res.has_value())
+      continue;
+    }
+    if (res->weight.has_value() && this->weight_ != nullptr)
+      this->weight_->publish_state(*res->weight);
+    if (res->battery_level.has_value() && this->battery_level_ != nullptr)
+      this->battery_level_->publish_state(*res->battery_level);
+    if (res->impedance.has_value() && this->impedance_ != nullptr)
+      this->impedance_->publish_state(*res->impedance);
+    success = true;
+  }
+
+  if (!success) {
+    return false;
+  }
+
+  return true;
+}
+
 }  // namespace xiaomi_xmtzc0xhm
 }  // namespace esphome
 
