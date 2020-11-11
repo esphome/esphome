@@ -98,15 +98,14 @@ bool parse_xiaomi_data_byte(uint8_t data_type, const uint8_t *data, uint8_t data
 }
 
 bool parse_xiaomi_service_data(XiaomiParseResult &result, const esp32_ble_tracker::ServiceData &service_data) {
-  if (!service_data.uuid.contains(0x95, 0xFE) && (!service_data.uuid.contains(0x1D, 0x18)) {
+  if (!service_data.uuid.contains(0x95, 0xFE) && !service_data.uuid.contains(0x1D, 0x18)) {
     ESP_LOGVV(TAG, "Xiaomi no service data UUID magic bytes");
     return false;
   }
 
   const auto raw = service_data.data;
 
-
-  if (raw.size() < 13 ) {
+  if (raw.size() < 13) {
     ESP_LOGVV(TAG, "Xiaomi service data too short!");
     return false;
   }
@@ -125,7 +124,6 @@ bool parse_xiaomi_service_data(XiaomiParseResult &result, const esp32_ble_tracke
   }
   bool success;
   XiaomiParseResult result;
-
 
   result.type = XiaomiParseResult::TYPE_HHCCJCY01;
   if (is_lywsdcgq) {
@@ -174,10 +172,9 @@ bool parse_xiaomi_service_data(XiaomiParseResult &result, const esp32_ble_tracke
     data_length -= data_offset + 3 + datapoint_length;
     data_offset += 3 + datapoint_length;
   }
-//Hack for MiScale
-  if(is_xmtzc0xhm || is_mibfs)
-  {
-    const uint8_t *datapoint_data = &raw[0]; //raw data
+  // Hack for MiScale
+  if (is_xmtzc0xhm || is_mibfs) {
+    const uint8_t *datapoint_data = &raw[0];  // raw data
     if (parse_xiaomi_data_byte(0x16, datapoint_data, raw.size(), result))
       success = true;
   }
