@@ -11,12 +11,37 @@ namespace xiaomi_xmtzc0xhm_ble {
 struct XiaomiParseResult {
   enum {
     TYPE_XMTZC0XHM,
-    TYPE_HHCCJCY01
+    TYPE_HHCCJCY01,
+    TYPE_GCLS002,
+    TYPE_HHCCPOT002,
+    TYPE_LYWSDCGQ,
+    TYPE_LYWSD02,
+    TYPE_CGG1,
+    TYPE_LYWSD03MMC,
+    TYPE_CGD1,
+    TYPE_JQJCY01YM,
+    TYPE_MUE4094RT,
+    TYPE_WX08ZM,
+    TYPE_MJYD02YLA
   } type;
   std::string name;
+  optional<float> temperature;
+  optional<float> humidity;
+  optional<float> moisture;
+  optional<float> conductivity;
+  optional<float> illuminance;
   optional<float> weight;
   optional<float> impedance;
+  optional<float> formaldehyde;
   optional<float> battery_level;
+  optional<float> tablet;
+  optional<float> idle_time;
+  optional<bool> is_active;
+  optional<bool> has_motion;
+  optional<bool> is_light;
+  bool has_data;        // 0x40
+  bool has_capability;  // 0x20
+  bool has_encryption;  // 0x08
   bool is_duplicate;
   int raw_offset;
 };
