@@ -57,20 +57,6 @@ optional<ParseResult> XiaomiMiscale::parse_header(const esp32_ble_tracker::Servi
     return {};
   }
 
-  const auto raw = service_data.data;
-
-  bool success = false;
-  bool parse_xiaomi_data_byte(uint8_t data_type, const uint8_t *data, uint8_t data_length, ParseResult &result) {
-
-  // Hack for MiScale
-  const uint8_t *datapoint_data = &raw[0];  // raw data
-  if (parse_xiaomi_data_byte(0x16, datapoint_data, raw.size(), result)) {
-    success = true;
-  }
-
-  return result;
-}
-
 bool XiaomiMiscale::parse_message(const std::vector<uint8_t> &message, ParseResult &result) {
   // Byte 1-2 Weight (MISCALE - MISCALE 2 181D)
   // Byte 3-4 Years (MISCALE - MISCALE 2 181D)
@@ -97,7 +83,16 @@ bool XiaomiMiscale::parse_message(const std::vector<uint8_t> &message, ParseResu
   else if (data[0] == 0x03 || data[0] == 0xb3)
     result.weight = weight * 0.01f * 0.453592;  // unit 'lbs'
 
-  return true;
+    return true;
+  }
+
+  // Hack for MiScale
+  const uint8_t *datapoint_data = &raw[0];  // raw data
+  if (parse_message(0x16, datapoint_data, raw.size(), result)) {
+    success = true;
+  }
+
+  return result;
 }
 
 bool XiaomiMiscale::report_results(const optional<ParseResult> &result, const std::string &address) {
