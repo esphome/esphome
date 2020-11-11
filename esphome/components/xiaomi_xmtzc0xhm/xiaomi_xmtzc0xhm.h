@@ -3,7 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
-#include "esphome/components/xiaomi_xmtzc0xhm/xiaomi_ble_old.h"
+#include "esphome/components/xiaomi_xmtzc0xhm/xiaomi_xmtzc0xhm_ble.h"
 
 #ifdef ARDUINO_ARCH_ESP32
 
@@ -18,7 +18,7 @@ class XiaomiMiscale : public Component, public esp32_ble_tracker::ESPBTDeviceLis
     if (device.address_uint64() != this->address_)
       return false;
 
-    auto res = xiaomi_ble_old::parse_xiaomi(device);
+    auto res = xiaomi_xmtzc0xhm_ble::parse_xiaomi(device);
     if (!res.has_value())
       return false;
 

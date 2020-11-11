@@ -1,12 +1,12 @@
-#include "xiaomi_ble_old.h"
+#include "xiaomi_xmtzc0xhm_ble.h"
 #include "esphome/core/log.h"
 
 #ifdef ARDUINO_ARCH_ESP32
 
 namespace esphome {
-namespace xiaomi_ble_old {
+namespace xiaomi_xmtzc0xhm_ble {
 
-static const char *TAG = "xiaomi_ble_old";
+static const char *TAG = "xiaomi_xmtzc0xhm_ble";
 
 bool parse_xiaomi_data_byte(uint8_t data_type, const uint8_t *data, uint8_t data_length, XiaomiParseResult &result) {
   switch (data_type) {
@@ -122,7 +122,7 @@ bool XiaomiListener::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
   return true;
 }
 
-}  // namespace xiaomi_ble_old
+}  // namespace xiaomi_xmtzc0xhm_ble
 }  // namespace esphome
 
 #endif

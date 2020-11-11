@@ -6,7 +6,7 @@
 #ifdef ARDUINO_ARCH_ESP32
 
 namespace esphome {
-namespace xiaomi_ble_old {
+namespace xiaomi_xmtzc0xhm_ble {
 
 struct XiaomiParseResult {
   enum {
@@ -46,7 +46,7 @@ class XiaomiListener : public esp32_ble_tracker::ESPBTDeviceListener {
   bool parse_device(const esp32_ble_tracker::ESPBTDevice &device) override;
 };
 
-}  // namespace xiaomi_ble_old
+}  // namespace xiaomi_xmtzc0xhm_ble
 }  // namespace esphome
 
 #endif
