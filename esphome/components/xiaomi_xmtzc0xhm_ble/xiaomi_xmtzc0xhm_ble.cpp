@@ -98,7 +98,7 @@ bool parse_xiaomi_data_byte(uint8_t data_type, const uint8_t *data, uint8_t data
 }
 
 bool parse_xiaomi_service_data(XiaomiParseResult &result, const esp32_ble_tracker::ServiceData &service_data) {
-  if (!service_data.uuid.contains(0x95, 0xFE) && !service_data.uuid.contains(0x1D, 0x18)) {
+  if (!service_data.uuid.contains(0x95, 0xFE) && (!service_data.uuid.contains(0x1D, 0x18)) {
     ESP_LOGVV(TAG, "Xiaomi no service data UUID magic bytes");
     return false;
   }
