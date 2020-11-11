@@ -8,7 +8,7 @@ from esphome.const import CONF_BATTERY_LEVEL, CONF_MAC_ADDRESS, \
 
 
 DEPENDENCIES = ['esp32_ble_tracker']
-AUTO_LOAD = ['xiaomi_ble']
+AUTO_LOAD = ['xiaomi_ble_old']
 
 xiaomi_xmtzc0xhm_ns = cg.esphome_ns.namespace('xiaomi_xmtzc0xhm')
 XiaomiMiscale = xiaomi_xmtzc0xhm_ns.class_('XiaomiMiscale',
