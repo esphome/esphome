@@ -57,7 +57,7 @@ optional<ParseResult> XiaomiMiscale::parse_header(const esp32_ble_tracker::Servi
     return {};
   }
 
-  const auto raw = service_data.data;
+  auto raw = service_data.data;
 
   bool is_xiaomimiscale1 = service_data.uuid.contains(0x1D, 0x18);
   const uint8_t *raw_data = &raw[raw_offset];
