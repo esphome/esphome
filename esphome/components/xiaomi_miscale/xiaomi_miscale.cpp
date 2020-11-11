@@ -72,12 +72,6 @@ optional<ParseResult> XiaomiMiscale::parse_header(const esp32_ble_tracker::Servi
 }
 
 bool XiaomiMiscale::parse_message(const std::vector<uint8_t> &message, ParseResult &result) {
-  // Byte 0-5 mac in correct order
-  // Byte 6-7 Temperature in uint16
-  // Byte 8 Humidity in percent
-  // Byte 9 Battery in percent
-  // Byte 10-11 Battery in mV uint16_t
-  // Byte 12 frame packet counter
 
   const uint8_t *data = message.data();
   const int data_length = 10;
@@ -107,11 +101,11 @@ bool XiaomiMiscale::report_results(const optional<ParseResult> &result, const st
 
   ESP_LOGD(TAG, "Got Xiaomi Miscale (%s):", address.c_str());
 
-  if (res->weight.has_value()) {
-    ESP_LOGD(TAG, "  Weight: %.1fkg", *res->weight);
+  if (result->weight.has_value()) {
+    ESP_LOGD(TAG, "  Weight: %.1fkg", *result->weight);
   }
-  if (res->impedance.has_value()) {
-    ESP_LOGD(TAG, "  Impedance: %.0f", *res->impedance);
+  if (result->impedance.has_value()) {
+    ESP_LOGD(TAG, "  Impedance: %.0f", *result->impedance);
   }
   if (result->battery_level.has_value()) {
     ESP_LOGD(TAG, "  Battery Level: %.0f %%", *result->battery_level);
