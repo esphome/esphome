@@ -105,6 +105,8 @@ class LightCall {
   LightCall &set_effect(optional<uint32_t> effect_number);
   /// Set whether this light call should trigger a publish state.
   LightCall &set_publish(bool publish);
+  /// Set whether this light call should trigger an output write.
+  LightCall &set_output(bool output);
   /// Set whether this light call should trigger a save state to recover them at startup..
   LightCall &set_save(bool save);
 
@@ -157,6 +159,7 @@ class LightCall {
   optional<float> color_temperature_;
   optional<uint32_t> effect_;
   bool publish_{true};
+  bool output_{true};
   bool save_{true};
 };
 
@@ -222,6 +225,7 @@ class LightState : public Nameable, public Component {
 
   /// Publish the currently active state to the frontend.
   void publish_state();
+  void publish_state(bool write_state);
 
   /// Get the light output associated with this object.
   LightOutput *get_output() const;
@@ -301,6 +305,7 @@ class LightState : public Nameable, public Component {
 
   /// Internal method to set the color values to target immediately (with no transition).
   void set_immediately_(const LightColorValues &target, bool set_remote_values);
+  void set_immediately_(const LightColorValues &target, bool set_remote_values, bool write_state);
 
   /// Internal method to start a transformer.
   void set_transformer_(std::unique_ptr<LightTransformer> transformer);

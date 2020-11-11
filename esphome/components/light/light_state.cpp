@@ -25,19 +25,27 @@ void LightState::start_flash_(const LightColorValues &target, uint32_t length) {
 LightState::LightState(const std::string &name, LightOutput *output) : Nameable(name), output_(output) {}
 
 void LightState::set_immediately_(const LightColorValues &target, bool set_remote_values) {
+  this->set_immediately_(target, set_remote_values, true);
+}
+
+void LightState::set_immediately_(const LightColorValues &target, bool set_remote_values, bool write_state) {
   this->transformer_ = nullptr;
   this->current_values = target;
   if (set_remote_values) {
     this->remote_values = target;
   }
-  this->next_write_ = true;
+  if (write_state)
+    this->next_write_ = true;
 }
 
 LightColorValues LightState::get_current_values() { return this->current_values; }
 
-void LightState::publish_state() {
+void LightState::publish_state() { this->publish_state(true); }
+
+void LightState::publish_state(bool write_state) {
   this->remote_values_callback_.call();
-  this->next_write_ = true;
+  if (write_state)
+    this->next_write_ = true;
 }
 
 LightColorValues LightState::get_remote_values() { return this->remote_values; }
@@ -147,7 +155,7 @@ void LightState::loop() {
       this->remote_values = this->current_values = this->transformer_->get_end_values();
       this->target_state_reached_callback_.call();
       if (this->transformer_->publish_at_end())
-        this->publish_state();
+        this->publish_state(false);
       this->transformer_ = nullptr;
     } else {
       this->current_values = this->transformer_->get_values();
@@ -331,17 +339,17 @@ void LightCall::perform() {
 
     // Also set light color values when starting an effect
     // For example to turn off the light
-    this->parent_->set_immediately_(v, true);
+    this->parent_->set_immediately_(v, true, this->output_);
   } else {
     // INSTANT CHANGE
-    this->parent_->set_immediately_(v, this->publish_);
+    this->parent_->set_immediately_(v, this->publish_, this->output_);
   }
 
   if (!this->has_transition_()) {
     this->parent_->target_state_reached_callback_.call();
   }
   if (this->publish_) {
-    this->parent_->publish_state();
+    this->parent_->publish_state(false);
   }
 
   if (this->save_) {
@@ -710,6 +718,10 @@ LightCall &LightCall::set_effect(optional<uint32_t> effect_number) {
 }
 LightCall &LightCall::set_publish(bool publish) {
   this->publish_ = publish;
+  return *this;
+}
+LightCall &LightCall::set_output(bool output) {
+  this->output_ = output;
   return *this;
 }
 LightCall &LightCall::set_save(bool save) {
