@@ -101,7 +101,6 @@ bool XiaomiMiscale::parse_message(const std::vector<uint8_t> &message, ParseResu
   return true;
 }
 
-
 bool XiaomiMiscale::report_results(const optional<ParseResult> &result, const std::string &address) {
   if (!result.has_value()) {
     ESP_LOGVV(TAG, "report_results(): no results available.");
