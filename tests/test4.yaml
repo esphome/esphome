@@ -49,7 +49,12 @@ web_server:
     username: admin
     password: admin
 
+time:
+  - platform: sntp
+    id: sntp_time
+
 tuya:
+  time_id: sntp_time
 
 sensor:
   - platform: homeassistant
