@@ -3,7 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
-#include "esphome/components/xiaomi_xmtzc0xhm/xiaomi_xmtzc0xhm_ble.h"
+#include "esphome/components/xiaomi_xmtzc0xhm_ble/xiaomi_xmtzc0xhm_ble.h"
 
 #ifdef ARDUINO_ARCH_ESP32
 
