@@ -10,10 +10,10 @@ namespace xiaomi_xmtzc0xhm_ble {
 
 struct XiaomiParseResult {
   enum {
-    TYPE_XMTZC0XHM
+    TYPE_XMTZC0XHM,
+    TYPE_HHCCJCY01
   } type;
   std::string name;
-
   optional<float> weight;
   optional<float> impedance;
   optional<float> battery_level;
