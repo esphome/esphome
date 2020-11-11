@@ -57,18 +57,6 @@ optional<ParseResult> XiaomiMiscale::parse_header(const esp32_ble_tracker::Servi
     return {};
   }
 
-  auto raw = service_data.data;
-
-  static uint8_t last_frame_count = 0;
-  if (last_frame_count == raw[12]) {
-    ESP_LOGVV(TAG, "parse_header(): duplicate data packet received (%d).", static_cast<int>(last_frame_count));
-    result.is_duplicate = true;
-    return {};
-  }
-  }
-  last_frame_count = raw[12];
-  result.is_duplicate = false;
-
   return result;
 }
 
