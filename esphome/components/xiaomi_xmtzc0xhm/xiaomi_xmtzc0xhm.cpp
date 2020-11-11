@@ -9,7 +9,7 @@ namespace xiaomi_xmtzc0xhm {
 static const char *TAG = "xiaomi_xmtzc0xhm";
 
 void XiaomiMiscale::dump_config() {
-  ESP_LOGCONFIG(TAG, "Xiaomi Mijia");
+  ESP_LOGCONFIG(TAG, "Xiaomi Miscale");
   LOG_SENSOR("  ", "Measured Weight", this->weight_);
   LOG_SENSOR("  ", "Measured Impedance", this->impedance_);
   LOG_SENSOR("  ", "Battery Level", this->battery_level_);
@@ -73,7 +73,7 @@ optional<ParseResult> XiaomiMiscale::parse_header(const esp32_ble_tracker::Servi
 
 bool XiaomiMiscale::parse_message(const std::vector<uint8_t> &message, ParseResult &result) {
     case 0x16: {  // weight, 2 bytes, 16-bit  unsigned integer, 1 kg
-      if (result.type == XiaomiParseResult::TYPE_XMTZC0XHM) {
+      if (result.type == XiaomiMiscale::TYPE_XMTZC0XHM) {
         switch (data_length) {
           case 10: {
             const uint16_t weight = uint16_t(data[1]) | (uint16_t(data[2]) << 8);
