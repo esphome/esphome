@@ -60,10 +60,11 @@ optional<ParseResult> XiaomiMiscale::parse_header(const esp32_ble_tracker::Servi
   const auto raw = service_data.data;
 
   bool success = false;
+  bool parse_xiaomi_data_byte(uint8_t data_type, const uint8_t *data, uint8_t data_length, XiaomiParseResult &result) {
 
   // Hack for MiScale
   const uint8_t *datapoint_data = &raw[0];  // raw data
-  if (0x16, datapoint_data, raw.size(), result)) {
+  if (parse_xiaomi_data_byte(0x16, datapoint_data, raw.size(), result)) {
     success = true;
   }
 
