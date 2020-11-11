@@ -18,7 +18,7 @@ class XiaomiMiscale : public Component, public esp32_ble_tracker::ESPBTDeviceLis
     if (device.address_uint64() != this->address_)
       return false;
 
-    auto res = xiaomi_ble::parse_xiaomi(device);
+    auto res = xiaomi_xmtzc0xhm_ble::parse_xiaomi(device);
     if (!res.has_value())
       return false;
 
