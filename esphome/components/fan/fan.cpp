@@ -25,7 +25,8 @@ struct FanRTCState {
   FanDirection direction;
 };
 
-void Fan::setup() {
+
+void Fan::restore_state_() {
   this->rtc_ = global_preferences.make_preference<FanRTCState>(this->get_object_id_hash());
   FanRTCState recovered{};
   if (!this->rtc_.load(&recovered))
@@ -38,40 +39,42 @@ void Fan::setup() {
   call.set_direction(recovered.direction);
   call.perform();
 }
-float Fan::get_setup_priority() const { return setup_priority::HARDWARE - 1.0f; }
 uint32_t Fan::hash_base() { return 418001110UL; }
 
+void Fan::publish_state() {
+  this->state_callback_.call();
+
+  FanRTCState saved{};
+  saved.state = this->state;
+  saved.speed = this->speed;
+  saved.oscillating = this->oscillating;
+  saved.direction = this->direction;
+  this->rtc_.save(&saved);
+}
+
 void FanCall::perform() const {
-  if (this->binary_state_.has_value()) {
-    this->state_->state = *this->binary_state_;
+  if (this->state_.has_value()) {
+    this->parent_->state = *this->state_;
   }
   if (this->oscillating_.has_value()) {
-    this->state_->oscillating = *this->oscillating_;
+    this->parent_->oscillating = *this->oscillating_;
   }
   if (this->direction_.has_value()) {
-    this->state_->direction = *this->direction_;
+    this->parent_->direction = *this->direction_;
   }
   if (this->speed_.has_value()) {
     switch (*this->speed_) {
       case FAN_SPEED_LOW:
       case FAN_SPEED_MEDIUM:
       case FAN_SPEED_HIGH:
-        this->state_->speed = *this->speed_;
+        this->parent_->speed = *this->speed_;
         break;
       default:
         // protect from invalid input
         break;
     }
   }
-
-  FanRTCState saved{};
-  saved.state = this->state_->state;
-  saved.speed = this->state_->speed;
-  saved.oscillating = this->state_->oscillating;
-  saved.direction = this->state_->direction;
-  this->state_->rtc_.save(&saved);
-
-  this->state_->state_callback_.call();
+  this->parent_->control();
 }
 FanCall &FanCall::set_speed(const char *speed) {
   if (strcasecmp(speed, "low") == 0) {

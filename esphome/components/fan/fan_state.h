@@ -9,11 +9,17 @@
 namespace esphome {
 namespace fan {
 
-class FanState : public Fan {
+class FanState : public Component, public Fan {
  public:
   FanState() = default;
   /// Construct the fan state with name.
   explicit FanState(const std::string &name);
+
+  void setup() override;
+  float get_setup_priority() const override;
+
+protected:
+  void control() override;
 
 };
 

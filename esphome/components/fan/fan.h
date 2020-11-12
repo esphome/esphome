@@ -22,14 +22,14 @@ class Fan;
 
 class FanCall {
  public:
-  explicit FanCall(Fan *state) : state_(state) {}
+  explicit FanCall(Fan *fan) : parent_(fan) {}
 
-  FanCall &set_state(bool binary_state) {
-    this->binary_state_ = binary_state;
+  FanCall &set_state(bool state) {
+    this->state_ = state;
     return *this;
   }
-  FanCall &set_state(optional<bool> binary_state) {
-    this->binary_state_ = binary_state;
+  FanCall &set_state(optional<bool> state) {
+    this->state_ = state;
     return *this;
   }
   FanCall &set_oscillating(bool oscillating) {
@@ -61,14 +61,14 @@ class FanCall {
   void perform() const;
 
  protected:
-  Fan *const state_;
-  optional<bool> binary_state_;
+  Fan *const parent_;
+  optional<bool> state_;
   optional<bool> oscillating_{};
   optional<FanSpeed> speed_{};
   optional<FanDirection> direction_{};
 };
 
-class Fan : public Nameable, public Component {
+class Fan : public Nameable {
  public:
   Fan() = default;
   /// Construct the fan state with name.
@@ -96,14 +96,15 @@ class Fan : public Nameable, public Component {
   FanCall toggle();
   FanCall make_call();
 
-  void setup() override;
-  float get_setup_priority() const override;
-
   void publish_state();
 
  protected:
   friend FanCall;
 
+  virtual void control() = 0;
+
+    /// Restore the state of the fan, call this from your setup() method.
+  void restore_state_();
   uint32_t hash_base() override;
 
   FanTraits traits_{};
