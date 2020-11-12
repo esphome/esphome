@@ -1,10 +1,9 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import sensor, esp32_ble_tracker
-from esphome.const import CONF_BATTERY_LEVEL, CONF_MAC_ADDRESS, \
-    UNIT_PERCENT, ICON_BATTERY, CONF_ID, \
-    CONF_WEIGHT, UNIT_KILOGRAM, ICON_SCALE, \
-    UNIT_OHM, CONF_IMPEDANCE, ICON_OMEGA
+from esphome.const import CONF_BATTERY_LEVEL, CONF_MAC_ADDRESS, UNIT_PERCENT, \
+    ICON_BATTERY, CONF_ID, CONF_WEIGHT, UNIT_KILOGRAM, ICON_SCALE, UNIT_OHM, \
+    CONF_IMPEDANCE, ICON_OMEGA
 
 
 DEPENDENCIES = ['esp32_ble_tracker']
@@ -12,10 +11,10 @@ AUTO_LOAD = ['xiaomi_ble']
 
 xiaomi_xmtzc0xhm_ns = cg.esphome_ns.namespace('XiaomiXMTZC0XHM')
 XiaomiXMTZC0XHM = xiaomi_xmtzc0xhm_ns.class_('XiaomiXMTZC0XHM',
-                                           esp32_ble_tracker.ESPBTDeviceListener, cg.Component)
+                                             esp32_ble_tracker.ESPBTDeviceListener, cg.Component)
 
 CONFIG_SCHEMA = cv.Schema({
-    cv.GenerateID(): cv.declare_id(XiaomiXMTZC0XHM,
+    cv.GenerateID(): cv.declare_id(XiaomiXMTZC0XHM),
     cv.Required(CONF_MAC_ADDRESS): cv.mac_address,
     cv.Optional(CONF_WEIGHT): sensor.sensor_schema(UNIT_KILOGRAM, ICON_SCALE, 1),
     cv.Optional(CONF_IMPEDANCE): sensor.sensor_schema(UNIT_OHM, ICON_OMEGA, 1),
