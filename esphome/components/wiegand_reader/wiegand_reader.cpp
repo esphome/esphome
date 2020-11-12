@@ -12,8 +12,6 @@ void ICACHE_RAM_ATTR pin_state_changed_(WiegandReader *arg) {
 }
 
 static void receivedData(uint8_t* data, uint8_t bits, WiegandReader* device) {
-
-     ESP_LOGCONFIG(TAG, "data received");
     uint8_t byteCount = (bits+7)/8;
 
     long code = 0;
@@ -21,12 +19,10 @@ static void receivedData(uint8_t* data, uint8_t bits, WiegandReader* device) {
       code =  (code << 8) + data[i];
      }
      String code_str = String(code, 16);
-     ESP_LOGD(TAG, "%x", code);
+     ESP_LOGD(TAG, "Data received : %x", code);
 
      for (auto *trigger : device->triggers_)
         trigger->process(code_str);
-
-    ESP_LOGCONFIG(TAG, "event sent");
   }
 
 void receivedDataError(Wiegand::DataError error, uint8_t* rawData, uint8_t rawBits, const char* message) {
@@ -43,7 +39,7 @@ void receivedDataError(Wiegand::DataError error, uint8_t* rawData, uint8_t rawBi
 
 void WiegandReader::setup() {
   ESP_LOGCONFIG(TAG, "Setting up ...");
-
+  this->set_update_interval(500);
   this->pin_d0_->pin_mode(INPUT);
   this->pin_d1_->pin_mode(INPUT);
   this->wiegand_.onReceive(receivedData, this);
@@ -58,17 +54,11 @@ void WiegandReader::setup() {
 }
 
 void WiegandReader::update() {
-}
-
-void WiegandReader::loop() {
-  noInterrupts();
+noInterrupts();
   this->wiegand_.flush();
   interrupts();
-
-  delay(5000);
-
-  return;
 }
+
 
 void WiegandReader::set_data_pins(GPIOPin *pin_d0, GPIOPin *pin_d1){
     this->pin_d0_ = pin_d0;

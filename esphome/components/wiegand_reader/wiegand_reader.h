@@ -19,7 +19,6 @@ class WiegandReader : public PollingComponent {
   void update() override;
   float get_setup_priority() const override;
 
-  void loop() override;
   void register_trigger(WiegandReaderTrigger *trig) { this->triggers_.push_back(trig); }
 
   Wiegand wiegand_;
