@@ -61,13 +61,13 @@ optional<ParseResult> XiaomiMiscale::parse_header(const esp32_ble_tracker::Servi
 }
 
 bool XiaomiMiscale::parse_message(const std::vector<uint8_t> &message, ParseResult &result) {
-  // Byte 1-2 Weight (MISCALE - MISCALE 2 181D)
-  // Byte 3-4 Years (MISCALE - MISCALE 2 181D)
-  // Byte 5 month (MISCALE - MISCALE 2 181D)
-  // Byte 6 day (MISCALE - MISCALE 2 181D)
-  // Byte 7 hour (MISCALE - MISCALE 2 181D)
-  // Byte 8 minute (MISCALE - MISCALE 2 181D)
-  // Byte 9 second (MISCALE - MISCALE 2 181D)
+  // Byte 2-3 Weight (MISCALE - MISCALE 2 181D)
+  // Byte 4-5 Years (MISCALE - MISCALE 2 181D)
+  // Byte 6 month (MISCALE - MISCALE 2 181D)
+  // Byte 7 day (MISCALE - MISCALE 2 181D)
+  // Byte 8 hour (MISCALE - MISCALE 2 181D)
+  // Byte 9 minute (MISCALE - MISCALE 2 181D)
+  // Byte 10 second (MISCALE - MISCALE 2 181D)
 
   const uint8_t *data = message.data();
   const int data_length = 10;
