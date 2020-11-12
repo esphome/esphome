@@ -8,9 +8,7 @@ static const char *TAG = "fan";
 
 const FanTraits &Fan::get_traits() const { return this->traits_; }
 void Fan::set_traits(const FanTraits &traits) { this->traits_ = traits; }
-void Fan::add_on_state_callback(std::function<void()> &&callback) {
-  this->state_callback_.add(std::move(callback));
-}
+void Fan::add_on_state_callback(std::function<void()> &&callback) { this->state_callback_.add(std::move(callback)); }
 Fan::Fan(const std::string &name) : Nameable(name) {}
 
 FanCall Fan::turn_on() { return this->make_call().set_state(true); }
@@ -24,7 +22,6 @@ struct FanRTCState {
   bool oscillating;
   FanDirection direction;
 };
-
 
 void Fan::restore_state_() {
   this->rtc_ = global_preferences.make_preference<FanRTCState>(this->get_object_id_hash());

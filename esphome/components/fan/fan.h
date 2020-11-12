@@ -103,7 +103,7 @@ class Fan : public Nameable {
 
   virtual void control() = 0;
 
-    /// Restore the state of the fan, call this from your setup() method.
+  /// Restore the state of the fan, call this from your setup() method.
   void restore_state_();
   uint32_t hash_base() override;
 

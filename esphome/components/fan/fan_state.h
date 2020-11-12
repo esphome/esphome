@@ -18,9 +18,8 @@ class FanState : public Component, public Fan {
   void setup() override;
   float get_setup_priority() const override;
 
-protected:
+ protected:
   void control() override;
-
 };
 
 }  // namespace fan
