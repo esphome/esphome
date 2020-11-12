@@ -18,42 +18,42 @@ enum FanSpeed {
 /// Simple enum to represent the direction of a fan
 enum FanDirection { FAN_DIRECTION_FORWARD = 0, FAN_DIRECTION_REVERSE = 1 };
 
-class FanState;
+class Fan;
 
-class FanStateCall {
+class FanCall {
  public:
-  explicit FanStateCall(FanState *state) : state_(state) {}
+  explicit FanCall(Fan *state) : state_(state) {}
 
-  FanStateCall &set_state(bool binary_state) {
+  FanCall &set_state(bool binary_state) {
     this->binary_state_ = binary_state;
     return *this;
   }
-  FanStateCall &set_state(optional<bool> binary_state) {
+  FanCall &set_state(optional<bool> binary_state) {
     this->binary_state_ = binary_state;
     return *this;
   }
-  FanStateCall &set_oscillating(bool oscillating) {
+  FanCall &set_oscillating(bool oscillating) {
     this->oscillating_ = oscillating;
     return *this;
   }
-  FanStateCall &set_oscillating(optional<bool> oscillating) {
+  FanCall &set_oscillating(optional<bool> oscillating) {
     this->oscillating_ = oscillating;
     return *this;
   }
-  FanStateCall &set_speed(FanSpeed speed) {
+  FanCall &set_speed(FanSpeed speed) {
     this->speed_ = speed;
     return *this;
   }
-  FanStateCall &set_speed(optional<FanSpeed> speed) {
+  FanCall &set_speed(optional<FanSpeed> speed) {
     this->speed_ = speed;
     return *this;
   }
-  FanStateCall &set_speed(const char *speed);
-  FanStateCall &set_direction(FanDirection direction) {
+  FanCall &set_speed(const char *speed);
+  FanCall &set_direction(FanDirection direction) {
     this->direction_ = direction;
     return *this;
   }
-  FanStateCall &set_direction(optional<FanDirection> direction) {
+  FanCall &set_direction(optional<FanDirection> direction) {
     this->direction_ = direction;
     return *this;
   }
@@ -61,18 +61,18 @@ class FanStateCall {
   void perform() const;
 
  protected:
-  FanState *const state_;
+  Fan *const state_;
   optional<bool> binary_state_;
   optional<bool> oscillating_{};
   optional<FanSpeed> speed_{};
   optional<FanDirection> direction_{};
 };
 
-class FanState : public Nameable, public Component {
+class Fan : public Nameable, public Component {
  public:
-  FanState() = default;
+  Fan() = default;
   /// Construct the fan state with name.
-  explicit FanState(const std::string &name);
+  explicit Fan(const std::string &name);
 
   /// Register a callback that will be called each time the state changes.
   void add_on_state_callback(std::function<void()> &&callback);
@@ -91,16 +91,18 @@ class FanState : public Nameable, public Component {
   /// The current direction of the fan
   FanDirection direction{FAN_DIRECTION_FORWARD};
 
-  FanStateCall turn_on();
-  FanStateCall turn_off();
-  FanStateCall toggle();
-  FanStateCall make_call();
+  FanCall turn_on();
+  FanCall turn_off();
+  FanCall toggle();
+  FanCall make_call();
 
   void setup() override;
   float get_setup_priority() const override;
 
+  void publish_state();
+
  protected:
-  friend FanStateCall;
+  friend FanCall;
 
   uint32_t hash_base() override;
 

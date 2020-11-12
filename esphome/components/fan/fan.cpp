@@ -1,4 +1,4 @@
-#include "fan_state.h"
+#include "fan.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
@@ -6,28 +6,28 @@ namespace fan {
 
 static const char *TAG = "fan";
 
-const FanTraits &FanState::get_traits() const { return this->traits_; }
-void FanState::set_traits(const FanTraits &traits) { this->traits_ = traits; }
-void FanState::add_on_state_callback(std::function<void()> &&callback) {
+const FanTraits &Fan::get_traits() const { return this->traits_; }
+void Fan::set_traits(const FanTraits &traits) { this->traits_ = traits; }
+void Fan::add_on_state_callback(std::function<void()> &&callback) {
   this->state_callback_.add(std::move(callback));
 }
-FanState::FanState(const std::string &name) : Nameable(name) {}
+Fan::Fan(const std::string &name) : Nameable(name) {}
 
-FanStateCall FanState::turn_on() { return this->make_call().set_state(true); }
-FanStateCall FanState::turn_off() { return this->make_call().set_state(false); }
-FanStateCall FanState::toggle() { return this->make_call().set_state(!this->state); }
-FanStateCall FanState::make_call() { return FanStateCall(this); }
+FanCall Fan::turn_on() { return this->make_call().set_state(true); }
+FanCall Fan::turn_off() { return this->make_call().set_state(false); }
+FanCall Fan::toggle() { return this->make_call().set_state(!this->state); }
+FanCall Fan::make_call() { return FanCall(this); }
 
-struct FanStateRTCState {
+struct FanRTCState {
   bool state;
   FanSpeed speed;
   bool oscillating;
   FanDirection direction;
 };
 
-void FanState::setup() {
-  this->rtc_ = global_preferences.make_preference<FanStateRTCState>(this->get_object_id_hash());
-  FanStateRTCState recovered{};
+void Fan::setup() {
+  this->rtc_ = global_preferences.make_preference<FanRTCState>(this->get_object_id_hash());
+  FanRTCState recovered{};
   if (!this->rtc_.load(&recovered))
     return;
 
@@ -38,10 +38,10 @@ void FanState::setup() {
   call.set_direction(recovered.direction);
   call.perform();
 }
-float FanState::get_setup_priority() const { return setup_priority::HARDWARE - 1.0f; }
-uint32_t FanState::hash_base() { return 418001110UL; }
+float Fan::get_setup_priority() const { return setup_priority::HARDWARE - 1.0f; }
+uint32_t Fan::hash_base() { return 418001110UL; }
 
-void FanStateCall::perform() const {
+void FanCall::perform() const {
   if (this->binary_state_.has_value()) {
     this->state_->state = *this->binary_state_;
   }
@@ -64,7 +64,7 @@ void FanStateCall::perform() const {
     }
   }
 
-  FanStateRTCState saved{};
+  FanRTCState saved{};
   saved.state = this->state_->state;
   saved.speed = this->state_->speed;
   saved.oscillating = this->state_->oscillating;
@@ -73,7 +73,7 @@ void FanStateCall::perform() const {
 
   this->state_->state_callback_.call();
 }
-FanStateCall &FanStateCall::set_speed(const char *speed) {
+FanCall &FanCall::set_speed(const char *speed) {
   if (strcasecmp(speed, "low") == 0) {
     this->set_speed(FAN_SPEED_LOW);
   } else if (strcasecmp(speed, "medium") == 0) {
