@@ -311,7 +311,7 @@ bool HitachiClimate::parse_swing_(const uint8_t remote_state[]) {
 bool HitachiClimate::on_receive(remote_base::RemoteReceiveData data) {
   // Validate header
   if (!data.expect_item(HITACHI_AC344_HDR_MARK, HITACHI_AC344_HDR_SPACE)) {
-    ESP_LOGV(TAG, "Header fail");
+    ESP_LOGVV(TAG, "Header fail");
     return false;
   }
 
@@ -323,7 +323,7 @@ bool HitachiClimate::on_receive(remote_base::RemoteReceiveData data) {
       if (data.expect_item(HITACHI_AC344_BIT_MARK, HITACHI_AC344_ONE_SPACE))
         recv_state[pos] |= 1 << bit;
       else if (!data.expect_item(HITACHI_AC344_BIT_MARK, HITACHI_AC344_ZERO_SPACE)) {
-        ESP_LOGV(TAG, "Byte %d bit %d fail", pos, bit);
+        ESP_LOGVV(TAG, "Byte %d bit %d fail", pos, bit);
         return false;
       }
     }
@@ -331,7 +331,7 @@ bool HitachiClimate::on_receive(remote_base::RemoteReceiveData data) {
 
   // Validate footer
   if (!data.expect_mark(HITACHI_AC344_BIT_MARK)) {
-    ESP_LOGV(TAG, "Footer fail");
+    ESP_LOGVV(TAG, "Footer fail");
     return false;
   }
 
