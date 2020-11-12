@@ -22,7 +22,7 @@ void HBridgeFan::set_hbridge_levels_(float a_level, float b_level, float enable)
   ESP_LOGD(TAG, "Setting speed: a: %.2f, b: %.2f, enable: %.2f", a_level, b_level, enable);
 }
 
-fan::FanStateCall HBridgeFan::brake() {
+fan::FanCall HBridgeFan::brake() {
   ESP_LOGD(TAG, "Braking");
   (this->enable_ == nullptr) ? this->set_hbridge_levels_(1.0f, 1.0f) : this->set_hbridge_levels_(1.0f, 1.0f, 1.0f);
   return this->make_call().set_state(false);

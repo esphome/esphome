@@ -27,7 +27,7 @@ class ComponentIterator {
   virtual bool on_cover(cover::Cover *cover) = 0;
 #endif
 #ifdef USE_FAN
-  virtual bool on_fan(fan::FanState *fan) = 0;
+  virtual bool on_fan(fan::Fan *fan) = 0;
 #endif
 #ifdef USE_LIGHT
   virtual bool on_light(light::LightState *light) = 0;

@@ -14,7 +14,7 @@ bool InitialStateIterator::on_binary_sensor(binary_sensor::BinarySensor *binary_
 bool InitialStateIterator::on_cover(cover::Cover *cover) { return this->client_->send_cover_state(cover); }
 #endif
 #ifdef USE_FAN
-bool InitialStateIterator::on_fan(fan::FanState *fan) { return this->client_->send_fan_state(fan); }
+bool InitialStateIterator::on_fan(fan::Fan *fan) { return this->client_->send_fan_state(fan); }
 #endif
 #ifdef USE_LIGHT
 bool InitialStateIterator::on_light(light::LightState *light) { return this->client_->send_light_state(light); }

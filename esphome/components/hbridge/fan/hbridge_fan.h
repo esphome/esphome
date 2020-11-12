@@ -26,7 +26,7 @@ class HBridgeFan : public fan::FanState {
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
 
-  fan::FanStateCall brake();
+  fan::FanCall brake();
 
   int get_speed_count() { return this->speed_count_; }
   // update Hbridge without a triggered FanState change, eg. for acceleration/deceleration ramping

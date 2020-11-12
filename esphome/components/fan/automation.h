@@ -9,7 +9,7 @@ namespace fan {
 
 template<typename... Ts> class TurnOnAction : public Action<Ts...> {
  public:
-  explicit TurnOnAction(FanState *state) : state_(state) {}
+  explicit TurnOnAction(Fan *state) : state_(state) {}
 
   TEMPLATABLE_VALUE(bool, oscillating)
   TEMPLATABLE_VALUE(int, speed)
@@ -29,30 +29,30 @@ template<typename... Ts> class TurnOnAction : public Action<Ts...> {
     call.perform();
   }
 
-  FanState *state_;
+  Fan *state_;
 };
 
 template<typename... Ts> class TurnOffAction : public Action<Ts...> {
  public:
-  explicit TurnOffAction(FanState *state) : state_(state) {}
+  explicit TurnOffAction(Fan *state) : state_(state) {}
 
   void play(Ts... x) override { this->state_->turn_off().perform(); }
 
-  FanState *state_;
+  Fan *state_;
 };
 
 template<typename... Ts> class ToggleAction : public Action<Ts...> {
  public:
-  explicit ToggleAction(FanState *state) : state_(state) {}
+  explicit ToggleAction(Fan *state) : state_(state) {}
 
   void play(Ts... x) override { this->state_->toggle().perform(); }
 
-  FanState *state_;
+  Fan *state_;
 };
 
 template<typename... Ts> class CycleSpeedAction : public Action<Ts...> {
  public:
-  explicit CycleSpeedAction(FanState *state) : state_(state) {}
+  explicit CycleSpeedAction(Fan *state) : state_(state) {}
 
   void play(Ts... x) override {
     // check to see if fan supports speeds and is on
@@ -83,29 +83,29 @@ template<typename... Ts> class CycleSpeedAction : public Action<Ts...> {
     }
   }
 
-  FanState *state_;
+  Fan *state_;
 };
 
 template<typename... Ts> class FanIsOnCondition : public Condition<Ts...> {
  public:
-  explicit FanIsOnCondition(FanState *state) : state_(state) {}
+  explicit FanIsOnCondition(Fan *state) : state_(state) {}
   bool check(Ts... x) override { return this->state_->state; }
 
  protected:
-  FanState *state_;
+  Fan *state_;
 };
 template<typename... Ts> class FanIsOffCondition : public Condition<Ts...> {
  public:
-  explicit FanIsOffCondition(FanState *state) : state_(state) {}
+  explicit FanIsOffCondition(Fan *state) : state_(state) {}
   bool check(Ts... x) override { return !this->state_->state; }
 
  protected:
-  FanState *state_;
+  Fan *state_;
 };
 
 class FanTurnOnTrigger : public Trigger<> {
  public:
-  FanTurnOnTrigger(FanState *state) {
+  FanTurnOnTrigger(Fan *state) {
     state->add_on_state_callback([this, state]() {
       auto is_on = state->state;
       auto should_trigger = is_on && !this->last_on_;
@@ -123,7 +123,7 @@ class FanTurnOnTrigger : public Trigger<> {
 
 class FanTurnOffTrigger : public Trigger<> {
  public:
-  FanTurnOffTrigger(FanState *state) {
+  FanTurnOffTrigger(Fan *state) {
     state->add_on_state_callback([this, state]() {
       auto is_on = state->state;
       auto should_trigger = !is_on && this->last_on_;
@@ -141,7 +141,7 @@ class FanTurnOffTrigger : public Trigger<> {
 
 class FanSpeedSetTrigger : public Trigger<> {
  public:
-  FanSpeedSetTrigger(FanState *state) {
+  FanSpeedSetTrigger(Fan *state) {
     state->add_on_state_callback([this, state]() {
       auto speed = state->speed;
       auto should_trigger = speed != !this->last_speed_;

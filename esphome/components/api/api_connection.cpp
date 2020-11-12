@@ -254,7 +254,7 @@ void APIConnection::cover_command(const CoverCommandRequest &msg) {
 // Shut-up about usage of deprecated speed_level_to_enum/speed_enum_to_level functions for a bit.
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-bool APIConnection::send_fan_state(fan::FanState *fan) {
+bool APIConnection::send_fan_state(fan::Fan *fan) {
   if (!this->state_subscription_)
     return false;
 
@@ -272,7 +272,7 @@ bool APIConnection::send_fan_state(fan::FanState *fan) {
     resp.direction = static_cast<enums::FanDirection>(fan->direction);
   return this->send_fan_state_response(resp);
 }
-bool APIConnection::send_fan_info(fan::FanState *fan) {
+bool APIConnection::send_fan_info(fan::Fan *fan) {
   auto traits = fan->get_traits();
   ListEntitiesFanResponse msg;
   msg.key = fan->get_object_id_hash();
@@ -289,7 +289,7 @@ bool APIConnection::send_fan_info(fan::FanState *fan) {
   return this->send_list_entities_fan_response(msg);
 }
 void APIConnection::fan_command(const FanCommandRequest &msg) {
-  fan::FanState *fan = App.get_fan_by_key(msg.key);
+  fan::Fan *fan = App.get_fan_by_key(msg.key);
   if (fan == nullptr)
     return;
 

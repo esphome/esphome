@@ -26,7 +26,8 @@ from esphome.cpp_helpers import setup_entity
 IS_PLATFORM_COMPONENT = True
 
 fan_ns = cg.esphome_ns.namespace("fan")
-FanState = fan_ns.class_("FanState", cg.EntityBase, cg.Component)
+Fan = fan_ns.class_("Fan", cg.EntityBase)
+FanState = fan_ns.class_("Fan", Fan, cg.Component)
 MakeFan = cg.Application.struct("MakeFan")
 
 FanDirection = fan_ns.enum("FanDirection")
@@ -50,7 +51,7 @@ FanIsOffCondition = fan_ns.class_("FanIsOffCondition", automation.Condition.temp
 
 FAN_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).extend(
     {
-        cv.GenerateID(): cv.declare_id(FanState),
+        cv.GenerateID(): cv.declare_id(Fan),
         cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTFanComponent),
         cv.Optional(CONF_OSCILLATION_STATE_TOPIC): cv.All(
             cv.requires_component("mqtt"), cv.publish_topic
@@ -142,19 +143,19 @@ async def register_fan(var, config):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
     cg.add(cg.App.register_fan(var))
-    await cg.register_component(var, config)
     await setup_fan_core_(var, config)
 
 
 async def create_fan_state(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await register_fan(var, config)
+    await cg.register_component(var, config)
     return var
 
 
 FAN_ACTION_SCHEMA = maybe_simple_id(
     {
-        cv.Required(CONF_ID): cv.use_id(FanState),
+        cv.Required(CONF_ID): cv.use_id(Fan),
     }
 )
 
@@ -176,7 +177,7 @@ async def fan_turn_off_to_code(config, action_id, template_arg, args):
     TurnOnAction,
     maybe_simple_id(
         {
-            cv.Required(CONF_ID): cv.use_id(FanState),
+            cv.Required(CONF_ID): cv.use_id(Fan),
             cv.Optional(CONF_OSCILLATING): cv.templatable(cv.boolean),
             cv.Optional(CONF_SPEED): cv.templatable(cv.int_range(1)),
             cv.Optional(CONF_DIRECTION): cv.templatable(
@@ -211,7 +212,7 @@ async def fan_cycle_speed_to_code(config, action_id, template_arg, args):
     FanIsOnCondition,
     automation.maybe_simple_id(
         {
-            cv.Required(CONF_ID): cv.use_id(FanState),
+            cv.Required(CONF_ID): cv.use_id(Fan),
         }
     ),
 )
@@ -220,7 +221,7 @@ async def fan_cycle_speed_to_code(config, action_id, template_arg, args):
     FanIsOffCondition,
     automation.maybe_simple_id(
         {
-            cv.Required(CONF_ID): cv.use_id(FanState),
+            cv.Required(CONF_ID): cv.use_id(Fan),
         }
     ),
 )
