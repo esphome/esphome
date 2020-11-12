@@ -14,27 +14,25 @@ void ICACHE_RAM_ATTR pin_state_changed_(WiegandReader *arg) {
 static void receivedData(uint8_t* data, uint8_t bits, WiegandReader* device) {
     uint8_t byteCount = (bits+7)/8;
 
-    long code = 0;
+    String code = "";
     for (int i=0; i<byteCount; i++) {
-      code =  (code << 8) + data[i];
+      code = code + String(data[i], 16);
      }
-     String code_str = String(code, 16);
-     ESP_LOGD(TAG, "Data received : %x", code);
+     ESP_LOGD(TAG, "Data received : %s", code.c_str());
 
      for (auto *trigger : device->triggers_)
-        trigger->process(code_str);
+        trigger->process(code);
   }
 
 void receivedDataError(Wiegand::DataError error, uint8_t* rawData, uint8_t rawBits, const char* message) {
     ESP_LOGCONFIG(TAG, "FAILED");
     uint8_t byteCount = (rawBits+7)/8;
 
-    long code = 0;
+    String code = "";
     for (int i=0; i<byteCount; i++) {
-      code =  (code << 8) + rawData[i];
+      code = code + String(rawData[i], 16);
      }
-     String code_str = String(code, 16);
-     ESP_LOGD(TAG, "%x", code);
+     ESP_LOGD(TAG, "%s", code.c_str());
 }
 
 void WiegandReader::setup() {
