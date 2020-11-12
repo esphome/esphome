@@ -31,8 +31,8 @@ class APIConnection : public APIServerConnection {
   void cover_command(const CoverCommandRequest &msg) override;
 #endif
 #ifdef USE_FAN
-  bool send_fan_state(fan::FanState *fan);
-  bool send_fan_info(fan::FanState *fan);
+  bool send_fan_state(fan::Fan *fan);
+  bool send_fan_info(fan::Fan *fan);
   void fan_command(const FanCommandRequest &msg) override;
 #endif
 #ifdef USE_LIGHT

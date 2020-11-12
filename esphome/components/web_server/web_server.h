@@ -115,13 +115,13 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
 #endif
 
 #ifdef USE_FAN
-  void on_fan_update(fan::FanState *obj) override;
+  void on_fan_update(fan::Fan *obj) override;
 
   /// Handle a fan request under '/fan/<id>/</turn_on/turn_off/toggle>'.
   void handle_fan_request(AsyncWebServerRequest *request, UrlMatch match);
 
   /// Dump the fan state as a JSON string.
-  std::string fan_json(fan::FanState *obj);
+  std::string fan_json(fan::Fan *obj);
 #endif
 
 #ifdef USE_LIGHT

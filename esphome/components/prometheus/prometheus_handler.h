@@ -50,7 +50,7 @@ class PrometheusHandler : public AsyncWebHandler, public Component {
   /// Return the type for prometheus
   void fan_type_(AsyncResponseStream *stream);
   /// Return the sensor state as prometheus data point
-  void fan_row_(AsyncResponseStream *stream, fan::FanState *obj);
+  void fan_row_(AsyncResponseStream *stream, fan::Fan *obj);
 #endif
 
 #ifdef USE_LIGHT

@@ -35,7 +35,7 @@ class Controller {
   virtual void on_binary_sensor_update(binary_sensor::BinarySensor *obj, bool state){};
 #endif
 #ifdef USE_FAN
-  virtual void on_fan_update(fan::FanState *obj){};
+  virtual void on_fan_update(fan::Fan *obj){};
 #endif
 #ifdef USE_LIGHT
   virtual void on_light_update(light::LightState *obj){};

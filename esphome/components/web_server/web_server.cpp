@@ -354,12 +354,12 @@ void WebServer::handle_binary_sensor_request(AsyncWebServerRequest *request, Url
 #endif
 
 #ifdef USE_FAN
-void WebServer::on_fan_update(fan::FanState *obj) {
+void WebServer::on_fan_update(fan::Fan *obj) {
   if (obj->is_internal())
     return;
   this->events_.send(this->fan_json(obj).c_str(), "state");
 }
-std::string WebServer::fan_json(fan::FanState *obj) {
+std::string WebServer::fan_json(fan::Fan *obj) {
   return json::build_json([obj](JsonObject &root) {
     root["id"] = "fan-" + obj->get_object_id();
     root["state"] = obj->state ? "ON" : "OFF";
@@ -382,7 +382,7 @@ std::string WebServer::fan_json(fan::FanState *obj) {
   });
 }
 void WebServer::handle_fan_request(AsyncWebServerRequest *request, UrlMatch match) {
-  for (fan::FanState *obj : App.get_fans()) {
+  for (fan::Fan *obj : App.get_fans()) {
     if (obj->is_internal())
       continue;
     if (obj->get_object_id() != match.id)

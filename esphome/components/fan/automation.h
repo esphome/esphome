@@ -9,7 +9,7 @@ namespace fan {
 
 template<typename... Ts> class TurnOnAction : public Action<Ts...> {
  public:
-  explicit TurnOnAction(FanState *state) : state_(state) {}
+  explicit TurnOnAction(Fan *state) : state_(state) {}
 
   TEMPLATABLE_VALUE(bool, oscillating)
   TEMPLATABLE_VALUE(FanSpeed, speed)
@@ -25,25 +25,25 @@ template<typename... Ts> class TurnOnAction : public Action<Ts...> {
     call.perform();
   }
 
-  FanState *state_;
+  Fan *state_;
 };
 
 template<typename... Ts> class TurnOffAction : public Action<Ts...> {
  public:
-  explicit TurnOffAction(FanState *state) : state_(state) {}
+  explicit TurnOffAction(Fan *state) : state_(state) {}
 
   void play(Ts... x) override { this->state_->turn_off().perform(); }
 
-  FanState *state_;
+  Fan *state_;
 };
 
 template<typename... Ts> class ToggleAction : public Action<Ts...> {
  public:
-  explicit ToggleAction(FanState *state) : state_(state) {}
+  explicit ToggleAction(Fan *state) : state_(state) {}
 
   void play(Ts... x) override { this->state_->toggle().perform(); }
 
-  FanState *state_;
+  Fan *state_;
 };
 
 }  // namespace fan

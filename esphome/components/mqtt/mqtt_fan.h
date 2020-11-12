@@ -12,7 +12,7 @@ namespace mqtt {
 
 class MQTTFanComponent : public mqtt::MQTTComponent {
  public:
-  explicit MQTTFanComponent(fan::FanState *state);
+  explicit MQTTFanComponent(fan::Fan *state);
 
   MQTT_COMPONENT_CUSTOM_TOPIC(oscillation, command)
   MQTT_COMPONENT_CUSTOM_TOPIC(oscillation, state)
@@ -31,14 +31,14 @@ class MQTTFanComponent : public mqtt::MQTTComponent {
   /// 'fan' component type for discovery.
   std::string component_type() const override;
 
-  fan::FanState *get_state() const;
+  fan::Fan *get_state() const;
 
   bool is_internal() override;
 
  protected:
   std::string friendly_name() const override;
 
-  fan::FanState *state_;
+  fan::Fan *state_;
 };
 
 }  // namespace mqtt

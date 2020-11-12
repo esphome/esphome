@@ -125,7 +125,7 @@ void PrometheusHandler::fan_type_(AsyncResponseStream *stream) {
   stream->print(F("#TYPE esphome_fan_speed GAUGE\n"));
   stream->print(F("#TYPE esphome_fan_oscillation GAUGE\n"));
 }
-void PrometheusHandler::fan_row_(AsyncResponseStream *stream, fan::FanState *obj) {
+void PrometheusHandler::fan_row_(AsyncResponseStream *stream, fan::Fan *obj) {
   if (obj->is_internal())
     return;
   stream->print(F("esphome_fan_failed{id=\""));

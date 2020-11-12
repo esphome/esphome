@@ -62,7 +62,7 @@ class Application {
 #endif
 
 #ifdef USE_FAN
-  void register_fan(fan::FanState *state) { this->fans_.push_back(state); }
+  void register_fan(fan::Fan *state) { this->fans_.push_back(state); }
 #endif
 
 #ifdef USE_COVER
@@ -166,8 +166,8 @@ class Application {
   }
 #endif
 #ifdef USE_FAN
-  const std::vector<fan::FanState *> &get_fans() { return this->fans_; }
-  fan::FanState *get_fan_by_key(uint32_t key, bool include_internal = false) {
+  const std::vector<fan::Fan *> &get_fans() { return this->fans_; }
+  fan::Fan *get_fan_by_key(uint32_t key, bool include_internal = false) {
     for (auto *obj : this->fans_)
       if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal()))
         return obj;
@@ -227,7 +227,7 @@ class Application {
   std::vector<text_sensor::TextSensor *> text_sensors_{};
 #endif
 #ifdef USE_FAN
-  std::vector<fan::FanState *> fans_{};
+  std::vector<fan::Fan *> fans_{};
 #endif
 #ifdef USE_COVER
   std::vector<cover::Cover *> covers_{};
