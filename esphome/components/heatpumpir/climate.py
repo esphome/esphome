@@ -1,6 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import climate_ir
+from esphome.core import CORE
 from esphome.const import CONF_ID, CONF_MAX_TEMPERATURE, CONF_MIN_TEMPERATURE, CONF_PROTOCOL, \
     CONF_VISUAL
 
@@ -99,4 +100,6 @@ def to_code(config):
     cg.add(var.set_max_temperature(config[CONF_MIN_TEMPERATURE]))
     cg.add(var.set_min_temperature(config[CONF_MAX_TEMPERATURE]))
 
+    if CORE.is_esp8266:
+        cg.add_library('IRremoteESP8266', '2.7.11')
     cg.add_library('HeatpumpIR', None)

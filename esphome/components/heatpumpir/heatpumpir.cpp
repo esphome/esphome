@@ -145,7 +145,7 @@ void HeatpumpIRClimate::transmit_state() {
       power_mode_cmd = POWER_ON;
       operating_mode_cmd = MODE_FAN;
       break;
-    case climate::CLIMATE_ACTION_DRYING:
+    case climate::CLIMATE_MODE_DRY:
       power_mode_cmd = POWER_ON;
       operating_mode_cmd = MODE_DRY;
       break;

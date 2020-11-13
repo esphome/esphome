@@ -11,9 +11,9 @@ class IRSenderESPHome : public IRSender {
  public:
   IRSenderESPHome(uint8_t pin, remote_transmitter::RemoteTransmitterComponent *transmitter)
       : IRSender(pin), transmit_(transmitter->transmit()){};
-  void setFrequency(int frequency);  // NOLINT(readability-identifier-naming)
-  void space(int space_length);
-  void mark(int mark_length);
+  void setFrequency(int frequency) override;  // NOLINT(readability-identifier-naming)
+  void space(int space_length) override;
+  void mark(int mark_length) override;
 
  protected:
   remote_transmitter::RemoteTransmitterComponent::TransmitCall transmit_;
