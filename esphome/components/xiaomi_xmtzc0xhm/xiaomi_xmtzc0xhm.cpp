@@ -9,7 +9,7 @@ namespace xiaomi_xmtzc0xhm {
 static const char *TAG = "xiaomi_xmtzc0xhm";
 
 void XiaomiXMTZC0XHM::dump_config() {
-  ESP_LOGCONFIG(TAG, "Xiaomi Mijia");
+  ESP_LOGCONFIG(TAG, "Xiaomi XMTZC0XHM");
   LOG_SENSOR("  ", "Measured Weight", this->weight_);
 }
 
