@@ -9,7 +9,7 @@ from esphome.const import CONF_BATTERY_LEVEL, CONF_MAC_ADDRESS, UNIT_PERCENT, \
 DEPENDENCIES = ['esp32_ble_tracker']
 AUTO_LOAD = ['xiaomi_ble']
 
-xiaomi_xmtzc0xhm_ns = cg.esphome_ns.namespace('xiaomi_xmtzc0xhm')
+xiaomi_xmtzc0xhm_ns = cg.esphome_ns.namespace('XiaomiXMTZC0XHM')
 XiaomiXMTZC0XHM = xiaomi_xmtzc0xhm_ns.class_('XiaomiXMTZC0XHM',
                                              esp32_ble_tracker.ESPBTDeviceListener, cg.Component)
 
