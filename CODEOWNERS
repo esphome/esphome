@@ -51,7 +51,7 @@ esphome/components/rc522_spi/* @glmnet
 esphome/components/restart/* @esphome/core
 esphome/components/rf_bridge/* @jesserockz
 esphome/components/rtttl/* @glmnet
-esphome/components/rxxx/* @OnFreund @loongyh
+esphome/components/fingerprint_grow/* @OnFreund @loongyh
 esphome/components/script/* @esphome/core
 esphome/components/sensor/* @esphome/core
 esphome/components/shutdown/* @esphome/core

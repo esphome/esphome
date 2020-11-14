@@ -8,7 +8,7 @@
 #include <Adafruit_Fingerprint.h>
 
 namespace esphome {
-namespace rxxx {
+namespace fingerprint_grow {
 
 enum AuraLEDMode : uint8_t {
   BREATHING = FINGERPRINT_LED_BREATHING,
@@ -22,7 +22,7 @@ enum AuraLEDMode : uint8_t {
   PURPLE = FINGERPRINT_LED_PURPLE,
 };
 
-class RxxxComponent : public PollingComponent, public uart::UARTDevice {
+class FingerprintGrowComponent : public PollingComponent, public uart::UARTDevice {
  public:
   void update() override;
   void setup() override;
@@ -106,7 +106,7 @@ class RxxxComponent : public PollingComponent, public uart::UARTDevice {
 
 class FingerScanMatchedTrigger : public Trigger<uint16_t, uint16_t> {
  public:
-  explicit FingerScanMatchedTrigger(RxxxComponent *parent) {
+  explicit FingerScanMatchedTrigger(FingerprintGrowComponent *parent) {
     parent->add_on_finger_scan_matched_callback(
         [this](uint16_t finger_id, uint16_t confidence) { this->trigger(finger_id, confidence); });
   }
@@ -114,14 +114,14 @@ class FingerScanMatchedTrigger : public Trigger<uint16_t, uint16_t> {
 
 class FingerScanUnmatchedTrigger : public Trigger<> {
  public:
-  explicit FingerScanUnmatchedTrigger(RxxxComponent *parent) {
+  explicit FingerScanUnmatchedTrigger(FingerprintGrowComponent *parent) {
     parent->add_on_finger_scan_unmatched_callback([this]() { this->trigger(); });
   }
 };
 
 class EnrollmentScanTrigger : public Trigger<uint8_t, uint16_t> {
  public:
-  explicit EnrollmentScanTrigger(RxxxComponent *parent) {
+  explicit EnrollmentScanTrigger(FingerprintGrowComponent *parent) {
     parent->add_on_enrollment_scan_callback(
         [this](uint8_t scan_num, uint16_t finger_id) { this->trigger(scan_num, finger_id); });
   }
@@ -129,19 +129,19 @@ class EnrollmentScanTrigger : public Trigger<uint8_t, uint16_t> {
 
 class EnrollmentDoneTrigger : public Trigger<uint16_t> {
  public:
-  explicit EnrollmentDoneTrigger(RxxxComponent *parent) {
+  explicit EnrollmentDoneTrigger(FingerprintGrowComponent *parent) {
     parent->add_on_enrollment_done_callback([this](uint16_t finger_id) { this->trigger(finger_id); });
   }
 };
 
 class EnrollmentFailedTrigger : public Trigger<uint16_t> {
  public:
-  explicit EnrollmentFailedTrigger(RxxxComponent *parent) {
+  explicit EnrollmentFailedTrigger(FingerprintGrowComponent *parent) {
     parent->add_on_enrollment_failed_callback([this](uint16_t finger_id) { this->trigger(finger_id); });
   }
 };
 
-template<typename... Ts> class EnrollmentAction : public Action<Ts...>, public Parented<RxxxComponent> {
+template<typename... Ts> class EnrollmentAction : public Action<Ts...>, public Parented<FingerprintGrowComponent> {
  public:
   TEMPLATABLE_VALUE(uint16_t, finger_id)
   TEMPLATABLE_VALUE(uint8_t, num_scans)
@@ -157,12 +157,13 @@ template<typename... Ts> class EnrollmentAction : public Action<Ts...>, public P
   }
 };
 
-template<typename... Ts> class CancelEnrollmentAction : public Action<Ts...>, public Parented<RxxxComponent> {
+template<typename... Ts> class CancelEnrollmentAction : public Action<Ts...>,
+                                                        public Parented<FingerprintGrowComponent> {
  public:
   void play(Ts... x) override { this->parent_->finish_enrollment(1); }
 };
 
-template<typename... Ts> class DeleteAction : public Action<Ts...>, public Parented<RxxxComponent> {
+template<typename... Ts> class DeleteAction : public Action<Ts...>, public Parented<FingerprintGrowComponent> {
  public:
   TEMPLATABLE_VALUE(uint16_t, finger_id)
 
@@ -172,12 +173,12 @@ template<typename... Ts> class DeleteAction : public Action<Ts...>, public Paren
   }
 };
 
-template<typename... Ts> class DeleteAllAction : public Action<Ts...>, public Parented<RxxxComponent> {
+template<typename... Ts> class DeleteAllAction : public Action<Ts...>, public Parented<FingerprintGrowComponent> {
  public:
   void play(Ts... x) override { this->parent_->delete_all_fingerprints(); }
 };
 
-template<typename... Ts> class LEDControlAction : public Action<Ts...>, public Parented<RxxxComponent> {
+template<typename... Ts> class LEDControlAction : public Action<Ts...>, public Parented<FingerprintGrowComponent> {
  public:
   TEMPLATABLE_VALUE(bool, state)
 
@@ -187,7 +188,7 @@ template<typename... Ts> class LEDControlAction : public Action<Ts...>, public P
   }
 };
 
-template<typename... Ts> class AuraLEDControlAction : public Action<Ts...>, public Parented<RxxxComponent> {
+template<typename... Ts> class AuraLEDControlAction : public Action<Ts...>, public Parented<FingerprintGrowComponent> {
  public:
   TEMPLATABLE_VALUE(uint8_t, state)
   TEMPLATABLE_VALUE(uint8_t, speed)
@@ -204,5 +205,5 @@ template<typename... Ts> class AuraLEDControlAction : public Action<Ts...>, publ
   }
 };
 
-}  // namespace rxxx
+}  // namespace fingerprint_grow
 }  // namespace esphome

@@ -13,34 +13,37 @@ DEPENDENCIES = ['uart']
 AUTO_LOAD = ['binary_sensor', 'sensor']
 MULTI_CONF = True
 
-CONF_RXXX_ID = 'rxxx_id'
+CONF_FINGERPRINT_GROW_ID = 'fingerprint_grow_id'
 
-rxxx_ns = cg.esphome_ns.namespace('rxxx')
-RxxxComponent = rxxx_ns.class_('RxxxComponent', cg.PollingComponent, uart.UARTDevice)
+fingerprint_grow_ns = cg.esphome_ns.namespace('fingerprint_grow')
+FingerprintGrowComponent = fingerprint_grow_ns.class_('FingerprintGrowComponent',
+                                                      cg.PollingComponent, uart.UARTDevice)
 
-FingerScanMatchedTrigger = rxxx_ns.class_('FingerScanMatchedTrigger',
-                                          automation.Trigger.template(cg.uint16, cg.uint16))
+FingerScanMatchedTrigger = fingerprint_grow_ns.class_('FingerScanMatchedTrigger',
+                                                      automation.Trigger.template(cg.uint16,
+                                                                                  cg.uint16))
 
-FingerScanUnmatchedTrigger = rxxx_ns.class_('FingerScanUnmatchedTrigger',
-                                            automation.Trigger.template())
+FingerScanUnmatchedTrigger = fingerprint_grow_ns.class_('FingerScanUnmatchedTrigger',
+                                                        automation.Trigger.template())
 
-EnrollmentScanTrigger = rxxx_ns.class_('EnrollmentScanTrigger',
-                                       automation.Trigger.template(cg.uint8, cg.uint16))
+EnrollmentScanTrigger = fingerprint_grow_ns.class_('EnrollmentScanTrigger',
+                                                   automation.Trigger.template(cg.uint8,
+                                                                               cg.uint16))
 
-EnrollmentDoneTrigger = rxxx_ns.class_('EnrollmentDoneTrigger',
-                                       automation.Trigger.template(cg.uint16))
+EnrollmentDoneTrigger = fingerprint_grow_ns.class_('EnrollmentDoneTrigger',
+                                                   automation.Trigger.template(cg.uint16))
 
-EnrollmentFailedTrigger = rxxx_ns.class_('EnrollmentFailedTrigger',
-                                         automation.Trigger.template(cg.uint16))
+EnrollmentFailedTrigger = fingerprint_grow_ns.class_('EnrollmentFailedTrigger',
+                                                     automation.Trigger.template(cg.uint16))
 
-EnrollmentAction = rxxx_ns.class_('EnrollmentAction', automation.Action)
-CancelEnrollmentAction = rxxx_ns.class_('CancelEnrollmentAction', automation.Action)
-DeleteAction = rxxx_ns.class_('DeleteAction', automation.Action)
-DeleteAllAction = rxxx_ns.class_('DeleteAllAction', automation.Action)
-LEDControlAction = rxxx_ns.class_('LEDControlAction', automation.Action)
-AuraLEDControlAction = rxxx_ns.class_('AuraLEDControlAction', automation.Action)
+EnrollmentAction = fingerprint_grow_ns.class_('EnrollmentAction', automation.Action)
+CancelEnrollmentAction = fingerprint_grow_ns.class_('CancelEnrollmentAction', automation.Action)
+DeleteAction = fingerprint_grow_ns.class_('DeleteAction', automation.Action)
+DeleteAllAction = fingerprint_grow_ns.class_('DeleteAllAction', automation.Action)
+LEDControlAction = fingerprint_grow_ns.class_('LEDControlAction', automation.Action)
+AuraLEDControlAction = fingerprint_grow_ns.class_('AuraLEDControlAction', automation.Action)
 
-AuraLEDMode = rxxx_ns.enum('AuraLEDMode')
+AuraLEDMode = fingerprint_grow_ns.enum('AuraLEDMode')
 AURA_LED_STATES = {
     'BREATHING': AuraLEDMode.BREATHING,
     'FLASHING': AuraLEDMode.FLASHING,
@@ -58,7 +61,7 @@ AURA_LED_COLORS = {
 validate_aura_led_colors = cv.enum(AURA_LED_COLORS, upper=True)
 
 CONFIG_SCHEMA = cv.Schema({
-    cv.GenerateID(): cv.declare_id(RxxxComponent),
+    cv.GenerateID(): cv.declare_id(FingerprintGrowComponent),
     cv.Optional(CONF_SENSING_PIN): pins.gpio_input_pin_schema,
     cv.Optional(CONF_PASSWORD): cv.uint32_t,
     cv.Optional(CONF_NEW_PASSWORD): cv.uint32_t,
@@ -123,12 +126,12 @@ def to_code(config):
     cg.add_library('382', '2.0.4')
 
 
-@automation.register_action('rxxx.enroll', EnrollmentAction, cv.maybe_simple_value({
-    cv.GenerateID(): cv.use_id(RxxxComponent),
+@automation.register_action('fingerprint_grow.enroll', EnrollmentAction, cv.maybe_simple_value({
+    cv.GenerateID(): cv.use_id(FingerprintGrowComponent),
     cv.Required(CONF_FINGER_ID): cv.templatable(cv.uint16_t),
     cv.Optional(CONF_NUM_SCANS): cv.templatable(cv.uint8_t),
 }, key=CONF_FINGER_ID))
-def rxxx_enroll_to_code(config, action_id, template_arg, args):
+def fingerprint_grow_enroll_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     yield cg.register_parented(var, config[CONF_ID])
 
@@ -140,20 +143,20 @@ def rxxx_enroll_to_code(config, action_id, template_arg, args):
     yield var
 
 
-@automation.register_action('rxxx.cancel_enroll', CancelEnrollmentAction, cv.Schema({
-    cv.GenerateID(): cv.use_id(RxxxComponent),
+@automation.register_action('fingerprint_grow.cancel_enroll', CancelEnrollmentAction, cv.Schema({
+    cv.GenerateID(): cv.use_id(FingerprintGrowComponent),
 }))
-def rxxx_cancel_enroll_to_code(config, action_id, template_arg, args):
+def fingerprint_grow_cancel_enroll_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     yield cg.register_parented(var, config[CONF_ID])
     yield var
 
 
-@automation.register_action('rxxx.delete', DeleteAction, cv.maybe_simple_value({
-    cv.GenerateID(): cv.use_id(RxxxComponent),
+@automation.register_action('fingerprint_grow.delete', DeleteAction, cv.maybe_simple_value({
+    cv.GenerateID(): cv.use_id(FingerprintGrowComponent),
     cv.Required(CONF_FINGER_ID): cv.templatable(cv.uint16_t),
 }, key=CONF_FINGER_ID))
-def rxxx_delete_to_code(config, action_id, template_arg, args):
+def fingerprint_grow_delete_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     yield cg.register_parented(var, config[CONF_ID])
 
@@ -162,20 +165,21 @@ def rxxx_delete_to_code(config, action_id, template_arg, args):
     yield var
 
 
-@automation.register_action('rxxx.delete_all', DeleteAllAction, cv.Schema({
-    cv.GenerateID(): cv.use_id(RxxxComponent),
+@automation.register_action('fingerprint_grow.delete_all', DeleteAllAction, cv.Schema({
+    cv.GenerateID(): cv.use_id(FingerprintGrowComponent),
 }))
-def rxxx_delete_all_to_code(config, action_id, template_arg, args):
+def fingerprint_grow_delete_all_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     yield cg.register_parented(var, config[CONF_ID])
     yield var
 
 
-@automation.register_action('rxxx.led_control', LEDControlAction, cv.maybe_simple_value({
-    cv.GenerateID(): cv.use_id(RxxxComponent),
+@automation.register_action('fingerprint_grow.led_control', LEDControlAction,
+                            cv.maybe_simple_value({
+    cv.GenerateID(): cv.use_id(FingerprintGrowComponent),
     cv.Required(CONF_STATE): cv.templatable(cv.boolean),
 }, key=CONF_STATE))
-def rxxx_led_control_to_code(config, action_id, template_arg, args):
+def fingerprint_grow_led_control_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     yield cg.register_parented(var, config[CONF_ID])
 
@@ -184,14 +188,14 @@ def rxxx_led_control_to_code(config, action_id, template_arg, args):
     yield var
 
 
-@automation.register_action('rxxx.aura_led_control', AuraLEDControlAction, cv.Schema({
-    cv.GenerateID(): cv.use_id(RxxxComponent),
+@automation.register_action('fingerprint_grow.aura_led_control', AuraLEDControlAction, cv.Schema({
+    cv.GenerateID(): cv.use_id(FingerprintGrowComponent),
     cv.Required(CONF_STATE): cv.templatable(validate_aura_led_states),
     cv.Required(CONF_SPEED): cv.templatable(cv.uint8_t),
     cv.Required(CONF_COLOR): cv.templatable(validate_aura_led_colors),
     cv.Required(CONF_COUNT): cv.templatable(cv.uint8_t),
 }))
-def rxxx_aura_led_control_to_code(config, action_id, template_arg, args):
+def fingerprint_grow_aura_led_control_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     yield cg.register_parented(var, config[CONF_ID])
 

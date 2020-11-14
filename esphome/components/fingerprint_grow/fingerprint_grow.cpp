@@ -1,12 +1,12 @@
-#include "rxxx.h"
+#include "fingerprint_grow.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
-namespace rxxx {
+namespace fingerprint_grow {
 
-static const char* TAG = "rxxx";
+static const char* TAG = "fingerprint_grow";
 
-void RxxxComponent::update() {
+void FingerprintGrowComponent::update() {
   if (this->waiting_removal_) {
     if (this->finger_->getImage() == FINGERPRINT_NOFINGER) {
       ESP_LOGD(TAG, "Finger removed");
@@ -83,8 +83,8 @@ void RxxxComponent::update() {
   ++this->enrollment_image_;
 }
 
-void RxxxComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up Rxxx Fingerprint Sensor...");
+void FingerprintGrowComponent::setup() {
+  ESP_LOGCONFIG(TAG, "Setting up Grow Fingerprint Reader...");
   // uint8_t result = this->finger_->checkPassword();
   uint8_t result = FINGERPRINT_PACKETRECIEVEERR;
   // if (result == FINGERPRINT_OK) {
@@ -138,7 +138,7 @@ void RxxxComponent::setup() {
   }
 }
 
-void RxxxComponent::enroll_fingerprint(uint16_t finger_id, uint8_t num_buffers) {
+void FingerprintGrowComponent::enroll_fingerprint(uint16_t finger_id, uint8_t num_buffers) {
   ESP_LOGI(TAG, "Starting enrollment in slot %d", finger_id);
   if (this->enrolling_binary_sensor_ != nullptr) {
     this->enrolling_binary_sensor_->publish_state(true);
@@ -148,7 +148,7 @@ void RxxxComponent::enroll_fingerprint(uint16_t finger_id, uint8_t num_buffers) 
   this->enrollment_image_ = 1;
 }
 
-void RxxxComponent::finish_enrollment(uint8_t result) {
+void FingerprintGrowComponent::finish_enrollment(uint8_t result) {
   if (result == FINGERPRINT_OK) {
     this->enrollment_done_callback_.call(this->enrollment_slot_);
   } else {
@@ -162,7 +162,7 @@ void RxxxComponent::finish_enrollment(uint8_t result) {
   ESP_LOGI(TAG, "Finished enrollment");
 }
 
-void RxxxComponent::scan_and_match_() {
+void FingerprintGrowComponent::scan_and_match_() {
   uint8_t result = this->scan_image_(1);
   if (result == FINGERPRINT_NOFINGER) {
     return;
@@ -195,7 +195,7 @@ void RxxxComponent::scan_and_match_() {
   }
 }
 
-uint8_t RxxxComponent::scan_image_(uint8_t buffer) {
+uint8_t FingerprintGrowComponent::scan_image_(uint8_t buffer) {
   if (this->sensing_pin_ != nullptr) {
     ESP_LOGD(TAG, "Getting image %d", buffer);
   } else {
@@ -245,7 +245,7 @@ uint8_t RxxxComponent::scan_image_(uint8_t buffer) {
   }
 }
 
-void RxxxComponent::get_fingerprint_count_() {
+void FingerprintGrowComponent::get_fingerprint_count_() {
   ESP_LOGD(TAG, "Getting fingerprint count");
   uint8_t result = this->finger_->getTemplateCount();
   switch (result) {
@@ -263,7 +263,7 @@ void RxxxComponent::get_fingerprint_count_() {
   }
 }
 
-void RxxxComponent::delete_fingerprint(uint16_t finger_id) {
+void FingerprintGrowComponent::delete_fingerprint(uint16_t finger_id) {
   ESP_LOGI(TAG, "Deleting fingerprint in slot %d", finger_id);
   uint8_t result = this->finger_->deleteModel(finger_id);
   switch (result) {
@@ -282,7 +282,7 @@ void RxxxComponent::delete_fingerprint(uint16_t finger_id) {
   }
 }
 
-void RxxxComponent::delete_all_fingerprints() {
+void FingerprintGrowComponent::delete_all_fingerprints() {
   ESP_LOGI(TAG, "Deleting all stored fingerprints");
   uint8_t result = this->finger_->emptyDatabase();
   switch (result) {
@@ -301,7 +301,7 @@ void RxxxComponent::delete_all_fingerprints() {
   }
 }
 
-void RxxxComponent::led_control(bool state) {
+void FingerprintGrowComponent::led_control(bool state) {
   ESP_LOGD(TAG, "Setting LED");
   uint8_t result = this->finger_->LEDcontrol(state);
   switch (result) {
@@ -317,7 +317,7 @@ void RxxxComponent::led_control(bool state) {
   }
 }
 
-void RxxxComponent::aura_led_control(uint8_t state, uint8_t speed, uint8_t color, uint8_t count) {
+void FingerprintGrowComponent::aura_led_control(uint8_t state, uint8_t speed, uint8_t color, uint8_t count) {
   const uint32_t now = millis();
   const uint32_t elapsed = now - this->last_aura_led_control_;
   if (elapsed < this->last_aura_led_duration_) {
@@ -340,8 +340,8 @@ void RxxxComponent::aura_led_control(uint8_t state, uint8_t speed, uint8_t color
   }
 }
 
-void RxxxComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "RXXX_FINGERPRINT_READER:");
+void FingerprintGrowComponent::dump_config() {
+  ESP_LOGCONFIG(TAG, "GROW_FINGERPRINT_READER:");
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "Fingerprint Count", this->fingerprint_count_sensor_);
   LOG_SENSOR("  ", "Status", this->status_sensor_);
@@ -351,5 +351,5 @@ void RxxxComponent::dump_config() {
   LOG_SENSOR("  ", "Last Confidence", this->last_confidence_sensor_);
 }
 
-}  // namespace rxxx
+}  // namespace fingerprint_grow
 }  // namespace esphome

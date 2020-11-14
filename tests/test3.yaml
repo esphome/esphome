@@ -177,26 +177,26 @@ api:
             kp: 1.0
             kd: 1.0
             ki: 1.0
-    - service: rxxx_enroll
+    - service: fingerprint_grow_enroll
       variables:
         finger_id: int
         num_scans: int
       then:
-        - rxxx.enroll:
+        - fingerprint_grow.enroll:
             finger_id: !lambda 'return finger_id;'
             num_scans: !lambda 'return num_scans;'
-    - service: rxxx_cancel_enroll
+    - service: fingerprint_grow_cancel_enroll
       then:
-        - rxxx.cancel_enroll:
-    - service: rxxx_delete
+        - fingerprint_grow.cancel_enroll:
+    - service: fingerprint_grow_delete
       variables:
         finger_id: int
       then:
-        - rxxx.delete:
+        - fingerprint_grow.delete:
             finger_id: !lambda 'return finger_id;'
-    - service: rxxx_delete_all
+    - service: fingerprint_grow_delete_all
       then:
-        - rxxx.delete_all:
+        - fingerprint_grow.delete_all:
 
 wifi:
   ssid: 'MySSID'
@@ -440,19 +440,19 @@ sensor:
       name: "CSE7766 Current"
     power:
       name: "CSE776 Power"
-  - platform: rxxx
+  - platform: fingerprint_grow
     fingerprint_count:
-      name: "Rxxx Fingerprint Count"
+      name: "Fingerprint Count"
     status:
-      name: "Rxxx Status"
+      name: "Fingerprint Status"
     capacity:
-      name: "Rxxx Capacity"
+      name: "Fingerprint Capacity"
     security_level:
-      name: "Rxxx Security Level"
+      name: "Fingerprint Security Level"
     last_finger_id:
-      name: "Rxxx Last Finger ID"
+      name: "Fingerprint Last Finger ID"
     last_confidence:
-      name: "Rxxx Last Confidence"
+      name: "Fingerprint Last Confidence"
 
 time:
 - platform: homeassistant
@@ -515,8 +515,8 @@ binary_sensor:
   - platform: ttp229_bsf
     channel: 1
     name: TTP229 BSF Test
-  - platform: rxxx
-    name: "Rxxx Enrolling"
+  - platform: fingerprint_grow
+    name: "Fingerprint Enrolling"
   - platform: custom
     lambda: |-
       auto s = new CustomBinarySensor();
@@ -924,32 +924,32 @@ display:
     lambda: |-
       it.printdigit("hello");
 
-rxxx:
+fingerprint_grow:
   sensing_pin: 4
   password: 0x12FE37DC
   new_password: 0xA65B9840
   on_finger_scan_matched:
     - homeassistant.event:
-        event: esphome.${devicename}_rxxx_finger_scan_matched
+        event: esphome.${devicename}_fingerprint_grow_finger_scan_matched
         data:
           finger_id: !lambda 'return finger_id;'
           confidence: !lambda 'return confidence;'
   on_finger_scan_unmatched:
     - homeassistant.event:
-        event: esphome.${devicename}_rxxx_finger_scan_unmatched
+        event: esphome.${devicename}_fingerprint_grow_finger_scan_unmatched
   on_enrollment_scan:
     - homeassistant.event:
-        event: esphome.${devicename}_rxxx_enrollment_scan
+        event: esphome.${devicename}_fingerprint_grow_enrollment_scan
         data:
           finger_id: !lambda 'return finger_id;'
           scan_num: !lambda 'return scan_num;'
   on_enrollment_done:
     - homeassistant.event:
-        event: esphome.${devicename}_rxxx_node_enrollment_done
+        event: esphome.${devicename}_fingerprint_grow_node_enrollment_done
         data:
           finger_id: !lambda 'return finger_id;'
   on_enrollment_failed:
     - homeassistant.event:
-        event: esphome.${devicename}_rxxx_enrollment_failed
+        event: esphome.${devicename}_fingerprint_grow_enrollment_failed
         data:
           finger_id: !lambda 'return finger_id;'
