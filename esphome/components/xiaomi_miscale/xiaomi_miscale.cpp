@@ -12,7 +12,6 @@ void XiaomiMiscale::dump_config() {
   ESP_LOGCONFIG(TAG, "Xiaomi Miscale");
   LOG_SENSOR("  ", "Weight", this->weight_);
   LOG_SENSOR("  ", "Impedance", this->impedance_);
-  LOG_SENSOR("  ", "Battery Level", this->battery_level_);
 }
 
 bool XiaomiMiscale::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
@@ -36,8 +35,6 @@ bool XiaomiMiscale::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
     }
     if (res->weight.has_value() && this->weight_ != nullptr)
       this->weight_->publish_state(*res->weight);
-    if (res->battery_level.has_value() && this->battery_level_ != nullptr)
-      this->battery_level_->publish_state(*res->battery_level);
     if (res->impedance.has_value() && this->impedance_ != nullptr)
       this->impedance_->publish_state(*res->impedance);
     success = true;
@@ -103,9 +100,6 @@ bool XiaomiMiscale::report_results(const optional<ParseResult> &result, const st
   }
   if (result->impedance.has_value()) {
     ESP_LOGD(TAG, "  Impedance: %.0f", *result->impedance);
-  }
-  if (result->battery_level.has_value()) {
-    ESP_LOGD(TAG, "  Battery Level: %.0f %%", *result->battery_level);
   }
 
   return true;
