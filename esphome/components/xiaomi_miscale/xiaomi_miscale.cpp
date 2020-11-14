@@ -88,7 +88,7 @@ bool XiaomiMiscale::parse_message(const std::vector<uint8_t> &message, ParseResu
   }
 
   // weight, 2 bytes, 16-bit  unsigned integer, 1 kg
-  const uint16_t weight = uint16_t(data[1]) | (uint16_t(data[2]) << 8);
+  const int16_t weight = uint16_t(data[1]) | (uint16_t(data[2]) << 8);
   if (data[0] == 0x22 || data[0] == 0xa2)
     result.weight = weight * 0.01f / 2.0f;
   else if (data[0] == 0x12 || data[0] == 0xb2)
