@@ -57,27 +57,18 @@ optional<ParseResult> XiaomiMiscale::parse_header(const esp32_ble_tracker::Servi
     return {};
   }
 
-  auto raw = service_data.data;
-
-  static uint8_t last_frame_count = 0;
-  if (last_frame_count == raw[12]) {
-    ESP_LOGVV(TAG, "parse_header(): duplicate data packet received (%d).", static_cast<int>(last_frame_count));
-    result.is_duplicate = true;
-    return {};
-  }
-  last_frame_count = raw[12];
-  result.is_duplicate = false;
-
   return result;
 }
 
 bool XiaomiMiscale::parse_message(const std::vector<uint8_t> &message, ParseResult &result) {
-  // Byte 0-5 mac in correct order
-  // Byte 6-7 Temperature in uint16
-  // Byte 8 Humidity in percent
-  // Byte 9 Battery in percent
-  // Byte 10-11 Battery in mV uint16_t
-  // Byte 12 frame packet counter
+  // exemple 1d18 a2 6036 e307 07 11 0f1f11
+  // 2-3 Weight (MISCALE - MISCALE 2 181D)
+  // 4-5 Years (MISCALE - MISCALE 2 181D)
+  // 6 month (MISCALE - MISCALE 2 181D)
+  // 7 day (MISCALE - MISCALE 2 181D)
+  // 8 hour (MISCALE - MISCALE 2 181D)
+  // 9 minute (MISCALE - MISCALE 2 181D)
+  // 10 second (MISCALE - MISCALE 2 181D)
 
   const uint8_t *data = message.data();
   const int data_length = 10;
@@ -88,13 +79,13 @@ bool XiaomiMiscale::parse_message(const std::vector<uint8_t> &message, ParseResu
   }
 
   // weight, 2 bytes, 16-bit  unsigned integer, 1 kg
-  const int16_t weight = uint16_t(data[1]) | (uint16_t(data[2]) << 8);
+  const uint16_t weight = uint16_t(data[1]) | (uint16_t(data[2]) << 8);
   if (data[0] == 0x22 || data[0] == 0xa2)
-    result.weight = weight * 0.01f / 2.0f;
+    result.weight = weight * 0.01f / 2.0f;  // unit 'kg'
   else if (data[0] == 0x12 || data[0] == 0xb2)
-    result.weight = weight * 0.01f * 0.6;
+    result.weight = weight * 0.01f * 0.6;  // unit 'jin'
   else if (data[0] == 0x03 || data[0] == 0xb3)
-    result.weight = weight * 0.01f * 0.453592;
+    result.weight = weight * 0.01f * 0.453592;  // unit 'lbs'
 
   return true;
 }
