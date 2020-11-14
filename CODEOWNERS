@@ -28,6 +28,7 @@ esphome/components/dfplayer/* @glmnet
 esphome/components/dht/* @OttoWinter
 esphome/components/exposure_notifications/* @OttoWinter
 esphome/components/fastled_base/* @OttoWinter
+esphome/components/fingerprint_grow/* @OnFreund @loongyh
 esphome/components/globals/* @esphome/core
 esphome/components/gpio/* @esphome/core
 esphome/components/homeassistant/* @OttoWinter
@@ -51,7 +52,6 @@ esphome/components/rc522_spi/* @glmnet
 esphome/components/restart/* @esphome/core
 esphome/components/rf_bridge/* @jesserockz
 esphome/components/rtttl/* @glmnet
-esphome/components/fingerprint_grow/* @OnFreund @loongyh
 esphome/components/script/* @esphome/core
 esphome/components/sensor/* @esphome/core
 esphome/components/shutdown/* @esphome/core
