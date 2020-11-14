@@ -28,4 +28,3 @@ def to_code(config):
     if CONF_WEIGHT in config:
         sens = yield sensor.new_sensor(config[CONF_WEIGHT])
         cg.add(var.set_weight(sens))
-
