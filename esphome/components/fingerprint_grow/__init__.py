@@ -177,7 +177,7 @@ def fingerprint_grow_delete_all_to_code(config, action_id, template_arg, args):
 FINGERPRINT_GROW_LED_CONTROL_ACTION_SCHEMA = cv.maybe_simple_value({
     cv.GenerateID(): cv.use_id(FingerprintGrowComponent),
     cv.Required(CONF_STATE): cv.templatable(cv.boolean),
-}, key=CONF_STATE))
+}, key=CONF_STATE)
 
 
 @automation.register_action('fingerprint_grow.led_control', LEDControlAction,
