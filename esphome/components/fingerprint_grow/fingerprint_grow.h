@@ -157,8 +157,8 @@ template<typename... Ts> class EnrollmentAction : public Action<Ts...>, public P
   }
 };
 
-template<typename... Ts> class CancelEnrollmentAction : public Action<Ts...>,
-                                                        public Parented<FingerprintGrowComponent> {
+template<typename... Ts>
+class CancelEnrollmentAction : public Action<Ts...>, public Parented<FingerprintGrowComponent> {
  public:
   void play(Ts... x) override { this->parent_->finish_enrollment(1); }
 };

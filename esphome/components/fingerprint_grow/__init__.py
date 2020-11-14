@@ -174,11 +174,14 @@ def fingerprint_grow_delete_all_to_code(config, action_id, template_arg, args):
     yield var
 
 
-@automation.register_action('fingerprint_grow.led_control', LEDControlAction,
-                            cv.maybe_simple_value({
+FINGERPRINT_GROW_LED_CONTROL_ACTION_SCHEMA = cv.maybe_simple_value({
     cv.GenerateID(): cv.use_id(FingerprintGrowComponent),
     cv.Required(CONF_STATE): cv.templatable(cv.boolean),
 }, key=CONF_STATE))
+
+
+@automation.register_action('fingerprint_grow.led_control', LEDControlAction,
+                            FINGERPRINT_GROW_LED_CONTROL_ACTION_SCHEMA)
 def fingerprint_grow_led_control_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     yield cg.register_parented(var, config[CONF_ID])
