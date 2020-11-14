@@ -7,15 +7,16 @@
 #ifdef ARDUINO_ARCH_ESP32
 
 namespace esphome {
-namespace xiaomi_miscale {
+namespace xiaomi_miscale2 {
 
 struct ParseResult {
   optional<float> weight;
+  optional<float> impedance;
   bool is_duplicate;
   int raw_offset;
 };
 
-class XiaomiMiscale : public Component, public esp32_ble_tracker::ESPBTDeviceListener {
+class XiaomiMiscale2 : public Component, public esp32_ble_tracker::ESPBTDeviceListener {
  public:
   void set_address(uint64_t address) { address_ = address; };
 
@@ -23,6 +24,7 @@ class XiaomiMiscale : public Component, public esp32_ble_tracker::ESPBTDeviceLis
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::DATA; }
   void set_weight(sensor::Sensor *weight) { weight_ = weight; }
+  void set_impedance(sensor::Sensor *impedance) { impedance_ = impedance; }
 
  protected:
   uint64_t address_;
@@ -34,7 +36,7 @@ class XiaomiMiscale : public Component, public esp32_ble_tracker::ESPBTDeviceLis
   bool report_results(const optional<ParseResult> &result, const std::string &address);
 };
 
-}  // namespace xiaomi_miscale
+}  // namespace xiaomi_miscale2
 }  // namespace esphome
 
 #endif
