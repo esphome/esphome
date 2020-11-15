@@ -7,8 +7,8 @@ namespace esphome {
 namespace tof10120 {
 
 static const char *TAG = "tof10120";
-static const uint8_t TOF10120_READ_DISTANCE_CMD[] = { 0x00 };
-static const uint8_t TOF10120_DEFAULT_DELAY = 30;   
+static const uint8_t TOF10120_READ_DISTANCE_CMD[] = {0x00};
+static const uint8_t TOF10120_DEFAULT_DELAY = 30;
 
 static const uint8_t TOF10120_DIR_SEND_REGISTER = 0x0e;
 static const uint8_t TOF10120_DISTANCE_REGISTER = 0x00;
@@ -21,12 +21,10 @@ void TOF10120Sensor::dump_config() {
   LOG_I2C_DEVICE(this);
 }
 
-void TOF10120Sensor::setup() {
-}
-
+void TOF10120Sensor::setup() {}
 
 void TOF10120Sensor::update() {
-  if (!this->write_bytes(TOF10120_DISTANCE_REGISTER, TOF10120_READ_DISTANCE_CMD, sizeof(TOF10120_READ_DISTANCE_CMD))) { 
+  if (!this->write_bytes(TOF10120_DISTANCE_REGISTER, TOF10120_READ_DISTANCE_CMD, sizeof(TOF10120_READ_DISTANCE_CMD))) {
     ESP_LOGE(TAG, "Communication with TOF10120 failed on write");
     this->status_set_warning();
     return;
@@ -46,7 +44,7 @@ void TOF10120Sensor::update() {
     ESP_LOGW(TAG, "Distance measurement out of range");
     this->publish_state(NAN);
   } else {
-    this->publish_state(distance_mm / 1000.0); 
+    this->publish_state(distance_mm / 1000.0);
   }
   this->status_clear_warning();
 }
