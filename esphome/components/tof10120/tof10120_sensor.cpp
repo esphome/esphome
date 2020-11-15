@@ -36,7 +36,7 @@ void TOF10120Sensor::update() {
     this->status_set_warning();
     return;
   }
-  
+
   uint32_t distance_mm = (data[0] << 8) | data[1];
   ESP_LOGI(TAG, "Data read: %dmm", distance_mm);
 
