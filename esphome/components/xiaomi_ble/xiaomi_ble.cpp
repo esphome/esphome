@@ -162,6 +162,8 @@ optional<XiaomiParseResult> parse_xiaomi_header(const esp32_ble_tracker::Service
     return {};
   }
 
+  auto raw = service_data.data;
+
   bool is_xmtzc0xhm = service_data.uuid.contains(0x1D, 0x18);
   bool is_mibfs = service_data.uuid.contains(0x1B, 0x18);
   bool success = false;
