@@ -203,7 +203,7 @@ optional<XiaomiParseResult> parse_xiaomi_header(const esp32_ble_tracker::Service
   } else if ((raw[2] == 0x5b) && (raw[3] == 0x05)) {  // small square body, segment LCD, encrypted
     result.type = XiaomiParseResult::TYPE_LYWSD03MMC;
     result.name = "LYWSD03MMC";
-  } else if ((raw[3] == 0xE4) && (raw[4] == 0x07)) {
+  } else if ((raw[3] == 0xe4) && (raw[4] == 0x07)) {
     result.type = XiaomiParseResult::TYPE_XMTZC0XHM;
     result.name = "XMTZC0XHM";
   } else if ((raw[2] == 0xf6) && (raw[3] == 0x07)) {  // Xiaomi-Yeelight BLE nightlight
