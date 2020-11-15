@@ -80,19 +80,7 @@ bool parse_xiaomi_value(uint8_t value_type, const uint8_t *data, uint8_t value_l
         result.weight = weight * 0.01f * 0.453592;
     }
   }
-  // Miscale 2 weight, impedence, 2 bytes, 16-bit  unsigned integer, 1 kg
-  else if ((value_type == 0x16) && (value_length == 13)) {
-    if (result.type == XiaomiParseResult::TYPE_XMTZC0XHM) {
-      const uint16_t weight = uint16_t(data[11]) | (uint16_t(data[12]) << 8);
-      const uint16_t impedance = uint16_t(data[9]) | (uint16_t(data[10]) << 8);
-      result.impedance = impedance;
 
-      if (data[0] == 0x02)
-        result.weight = weight * 0.01f / 2.0f;
-      else if (data[0] == 0x03)
-        result.weight = weight * 0.01f * 0.453592;
-    }
-  }
   // idle time since last motion, 4 byte, 32-bit unsigned integer, 1 min
   else if ((value_type == 0x17) && (value_length == 4)) {
     const uint32_t idle_time =
@@ -110,14 +98,6 @@ bool parse_xiaomi_message(const std::vector<uint8_t> &message, XiaomiParseResult
   result.has_encryption = (message[0] & 0x08) ? true : false;  // update encryption status
   if (result.has_encryption) {
     ESP_LOGVV(TAG, "parse_xiaomi_message(): payload is encrypted, stop reading message.");
-    return false;
-  }
-
-  bool is_xmtzc0xhm = service_data.uuid.contains(0x1D, 0x18);
-  bool is_mibfs = service_data.uuid.contains(0x1B, 0x18);
-
-  if (!is_xmtzc0xhm && !is_mibfs) {
-    ESP_LOGVV(TAG, "Xiaomi no magic bytes");
     return false;
   }
 
@@ -159,13 +139,6 @@ bool parse_xiaomi_message(const std::vector<uint8_t> &message, XiaomiParseResult
     payload_offset += 3 + value_length;
   }
 
-  // Hack for MiScale
-  if (is_xmtzc0xhm || is_mibfs) {
-    const uint8_t *datapoint_data = &raw[0];  // raw data
-    if (parse_xiaomi_data_byte(0x16, datapoint_data, raw.size(), result))
-      success = true;
-  }
-
   return success;
 }
 
@@ -184,6 +157,13 @@ optional<XiaomiParseResult> parse_xiaomi_header(const esp32_ble_tracker::Service
 
   if (!result.has_data) {
     ESP_LOGVV(TAG, "parse_xiaomi_header(): service data has no DATA flag.");
+    return {};
+  }
+
+  // Hack for MiScale
+  const uint8_t *data = &payload[0];  // raw data
+  if (parse_xiaomi_value(0x16, data, message.size(), result))
+    result.is_duplicate = true;
     return {};
   }
 
@@ -231,10 +211,7 @@ optional<XiaomiParseResult> parse_xiaomi_header(const esp32_ble_tracker::Service
   } else if ((raw[2] == 0x5b) && (raw[3] == 0x05)) {  // small square body, segment LCD, encrypted
     result.type = XiaomiParseResult::TYPE_LYWSD03MMC;
     result.name = "LYWSD03MMC";
-  } else if (is_xmtzc0xhm) {
-    result.type = XiaomiParseResult::TYPE_XMTZC0XHM;
-    result.name = "XMTZC0XHM";
-  } else if (is_mibfs) {
+  } else if (service_data.uuid.contains(0x1D, 0x18)) {
     result.type = XiaomiParseResult::TYPE_XMTZC0XHM;
     result.name = "XMTZC0XHM";
   } else if ((raw[2] == 0xf6) && (raw[3] == 0x07)) {  // Xiaomi-Yeelight BLE nightlight
