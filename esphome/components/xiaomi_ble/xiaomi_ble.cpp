@@ -162,16 +162,6 @@ optional<XiaomiParseResult> parse_xiaomi_header(const esp32_ble_tracker::Service
     return {};
   }
 
-  auto raw = service_data.data;
-  result.has_data = (raw[0] & 0x40) ? true : false;
-  result.has_capability = (raw[0] & 0x20) ? true : false;
-  result.has_encryption = (raw[0] & 0x08) ? true : false;
-
-  if (!result.has_data) {
-    ESP_LOGVV(TAG, "parse_xiaomi_header(): service data has no DATA flag.");
-    return {};
-  }
-
   bool is_xmtzc0xhm = service_data.uuid.contains(0x1D, 0x18);
   bool is_mibfs = service_data.uuid.contains(0x1B, 0x18);
 
