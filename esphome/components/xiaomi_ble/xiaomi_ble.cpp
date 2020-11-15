@@ -161,13 +161,6 @@ optional<XiaomiParseResult> parse_xiaomi_header(const esp32_ble_tracker::Service
     return {};
   }
 
-  // Hack for MiScale
-  const uint8_t *datapoint_data = &raw[0];  // raw data
-  if (parse_xiaomi_value(0x16, datapoint_data, raw.size(), result))
-    success = true;
-    return {};
-  }
-
   static uint8_t last_frame_count = 0;
   if (last_frame_count == raw[4]) {
     ESP_LOGVV(TAG, "parse_xiaomi_header(): duplicate data packet received (%d).", static_cast<int>(last_frame_count));
@@ -177,6 +170,13 @@ optional<XiaomiParseResult> parse_xiaomi_header(const esp32_ble_tracker::Service
   last_frame_count = raw[4];
   result.is_duplicate = false;
   result.raw_offset = result.has_capability ? 12 : 11;
+
+  // Hack for MiScale
+  const uint8_t *datapoint_data = &raw[0];  // raw data
+  if (parse_xiaomi_value(0x16, datapoint_data, raw.size(), result))
+    success = true;
+    return {};
+  }
 
   if ((raw[2] == 0x98) && (raw[3] == 0x00)) {  // MiFlora
     result.type = XiaomiParseResult::TYPE_HHCCJCY01;
