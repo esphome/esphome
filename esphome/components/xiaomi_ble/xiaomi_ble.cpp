@@ -113,6 +113,14 @@ bool parse_xiaomi_message(const std::vector<uint8_t> &message, XiaomiParseResult
     return false;
   }
 
+  bool is_xmtzc0xhm = service_data.uuid.contains(0x1D, 0x18);
+  bool is_mibfs = service_data.uuid.contains(0x1B, 0x18);
+
+  if (!is_xmtzc0xhm && !is_mibfs) {
+    ESP_LOGVV(TAG, "Xiaomi no magic bytes");
+    return false;
+  }
+
   // Data point specs
   // Byte 0: type
   // Byte 1: fixed 0x10
@@ -151,6 +159,13 @@ bool parse_xiaomi_message(const std::vector<uint8_t> &message, XiaomiParseResult
     payload_offset += 3 + value_length;
   }
 
+  // Hack for MiScale
+  if (is_xmtzc0xhm || is_mibfs) {
+    const uint8_t *datapoint_data = &raw[0];  // raw data
+    if (parse_xiaomi_data_byte(0x16, datapoint_data, raw.size(), result))
+      success = true;
+  }
+
   return success;
 }
 
@@ -163,15 +178,24 @@ optional<XiaomiParseResult> parse_xiaomi_header(const esp32_ble_tracker::Service
   }
 
   auto raw = service_data.data;
+  result.has_data = (raw[0] & 0x40) ? true : false;
+  result.has_capability = (raw[0] & 0x20) ? true : false;
+  result.has_encryption = (raw[0] & 0x08) ? true : false;
 
-  bool is_xmtzc0xhm = service_data.uuid.contains(0x1D, 0x18);
-  bool is_mibfs = service_data.uuid.contains(0x1B, 0x18);
-  bool success = false;
-
-  if (!is_xmtzc0xhm && !is_mibfs) {
-    ESP_LOGVV(TAG, "Xiaomi no magic bytes");
-    success = true;
+  if (!result.has_data) {
+    ESP_LOGVV(TAG, "parse_xiaomi_header(): service data has no DATA flag.");
+    return {};
   }
+
+  static uint8_t last_frame_count = 0;
+  if (last_frame_count == raw[4]) {
+    ESP_LOGVV(TAG, "parse_xiaomi_header(): duplicate data packet received (%d).", static_cast<int>(last_frame_count));
+    result.is_duplicate = true;
+    return {};
+  }
+  last_frame_count = raw[4];
+  result.is_duplicate = false;
+  result.raw_offset = result.has_capability ? 12 : 11;
 
   if ((raw[2] == 0x98) && (raw[3] == 0x00)) {  // MiFlora
     result.type = XiaomiParseResult::TYPE_HHCCJCY01;
