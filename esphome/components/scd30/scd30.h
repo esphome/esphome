@@ -15,6 +15,9 @@ class SCD30Component : public PollingComponent, public i2c::I2CDevice {
   void set_temperature_sensor(sensor::Sensor *temperature) { temperature_sensor_ = temperature; }
   void set_automatic_self_calibration(bool asc) { enable_asc_ = asc; }
   void set_altitude_compensation(uint16_t altitude) { altitude_compensation_ = altitude; }
+  void set_ambient_pressure_compensation(float pressure) {
+    ambient_pressure_compensation_ = (uint16_t)(pressure * 1000);
+  }
 
   void setup() override;
   void update() override;
@@ -35,6 +38,7 @@ class SCD30Component : public PollingComponent, public i2c::I2CDevice {
   } error_code_{UNKNOWN};
   bool enable_asc_{true};
   uint16_t altitude_compensation_{0xFFFF};
+  uint16_t ambient_pressure_compensation_{0x0000};
 
   sensor::Sensor *co2_sensor_{nullptr};
   sensor::Sensor *humidity_sensor_{nullptr};
