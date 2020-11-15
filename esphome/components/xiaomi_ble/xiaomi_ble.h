@@ -21,7 +21,8 @@ struct XiaomiParseResult {
     TYPE_JQJCY01YM,
     TYPE_MUE4094RT,
     TYPE_WX08ZM,
-    TYPE_MJYD02YLA
+    TYPE_MJYD02YLA,
+    TYPE_XMTZC0XHM
   } type;
   std::string name;
   optional<float> temperature;
@@ -33,6 +34,8 @@ struct XiaomiParseResult {
   optional<float> battery_level;
   optional<float> tablet;
   optional<float> idle_time;
+  optional<float> weight;
+  optional<float> impedance;
   optional<bool> is_active;
   optional<bool> has_motion;
   optional<bool> is_light;
