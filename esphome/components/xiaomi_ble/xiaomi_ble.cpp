@@ -68,18 +68,6 @@ bool parse_xiaomi_value(uint8_t value_type, const uint8_t *data, uint8_t value_l
   else if ((value_type == 0x13) && (value_length == 1)) {
     result.tablet = data[0];
   }
-  // Miscale weight, 2 bytes, 16-bit  unsigned integer, 1 kg
-  else if ((value_type == 0x16) && (value_length == 10)) {
-    if (result.type == XiaomiParseResult::TYPE_XMTZC0XHM) {
-      const uint16_t weight = uint16_t(data[1]) | (uint16_t(data[2]) << 8);
-      if (data[0] == 0x22 || data[0] == 0xa2)
-        result.weight = weight * 0.01f / 2.0f;
-      else if (data[0] == 0x12 || data[0] == 0xb2)
-        result.weight = weight * 0.01f * 0.6;
-      else if (data[0] == 0x03 || data[0] == 0xb3)
-        result.weight = weight * 0.01f * 0.453592;
-    }
-  }
   // idle time since last motion, 4 byte, 32-bit unsigned integer, 1 min
   else if ((value_type == 0x17) && (value_length == 4)) {
     const uint32_t idle_time =
@@ -143,8 +131,7 @@ bool parse_xiaomi_message(const std::vector<uint8_t> &message, XiaomiParseResult
 
 optional<XiaomiParseResult> parse_xiaomi_header(const esp32_ble_tracker::ServiceData &service_data) {
   XiaomiParseResult result;
-  if (!service_data.uuid.contains(0x95, 0xFE) && !service_data.uuid.contains(0x1B, 0x18) &&
-      !service_data.uuid.contains(0x1D, 0x18)) {
+  if (!service_data.uuid.contains(0x95, 0xFE)) {
     ESP_LOGVV(TAG, "parse_xiaomi_header(): no service data UUID magic bytes.");
     return {};
   }
@@ -203,9 +190,6 @@ optional<XiaomiParseResult> parse_xiaomi_header(const esp32_ble_tracker::Service
   } else if ((raw[2] == 0x5b) && (raw[3] == 0x05)) {  // small square body, segment LCD, encrypted
     result.type = XiaomiParseResult::TYPE_LYWSD03MMC;
     result.name = "LYWSD03MMC";
-  } else if ((raw[3] == 0xe4) && (raw[4] == 0x07)) {
-    result.type = XiaomiParseResult::TYPE_XMTZC0XHM;
-    result.name = "XMTZC0XHM";
   } else if ((raw[2] == 0xf6) && (raw[3] == 0x07)) {  // Xiaomi-Yeelight BLE nightlight
     result.type = XiaomiParseResult::TYPE_MJYD02YLA;
     result.name = "MJYD02YLA";
@@ -335,12 +319,6 @@ bool report_xiaomi_results(const optional<XiaomiParseResult> &result, const std:
   }
   if (result->tablet.has_value()) {
     ESP_LOGD(TAG, "  Mosquito tablet: %.0f%%", *result->tablet);
-  }
-  if (result->weight.has_value()) {
-    ESP_LOGD(TAG, "  Weight: %.1fkg", *result->weight);
-  }
-  if (result->impedance.has_value()) {
-    ESP_LOGD(TAG, "  Impedance: %.0f", *result->impedance);
   }
   if (result->is_active.has_value()) {
     ESP_LOGD(TAG, "  Repellent: %s", (*result->is_active) ? "on" : "off");
