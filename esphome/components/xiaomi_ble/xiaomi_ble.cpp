@@ -151,6 +151,10 @@ optional<XiaomiParseResult> parse_xiaomi_header(const esp32_ble_tracker::Service
   }
 
   auto raw = service_data.data;
+  const uint8_t *payload = message.data() + result.raw_offset;
+  uint8_t payload_length = message.size() - result.raw_offset;
+  uint8_t payload_offset = 0;
+  bool success = false;
   result.has_data = (raw[0] & 0x40) ? true : false;
   result.has_capability = (raw[0] & 0x20) ? true : false;
   result.has_encryption = (raw[0] & 0x08) ? true : false;
@@ -163,7 +167,7 @@ optional<XiaomiParseResult> parse_xiaomi_header(const esp32_ble_tracker::Service
   // Hack for MiScale
   const uint8_t *data = &payload[0];  // raw data
   if (parse_xiaomi_value(0x16, data, message.size(), result))
-    result.is_duplicate = true;
+    success = true;
     return {};
   }
 
