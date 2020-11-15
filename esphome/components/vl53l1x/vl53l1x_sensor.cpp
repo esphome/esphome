@@ -21,6 +21,23 @@ void VL53L1XSensor::setup() {
   if (!vl53l1x_->init()) {
     ESP_LOGW(TAG, "'%s' - device not found", this->name_.c_str());
   }
+  vl53l1x_->setDistanceMode(static_cast<VL53L1X::DistanceMode>(distanceMode_));
+
+  switch (distanceMode_)
+  {
+    case DistanceMode::SHORT:
+	 if (timingBudget_ < 20000)
+	   timingBudget_ = 20000;
+	 break;
+
+    case DistanceMode::MEDIUM:
+    case DistanceMode::LONG:
+	 if (timingBudget_ < 33000)
+	   timingBudget_ = 33000;
+	 break;
+
+  }
+  vl53l1x_->setMeasurementTimingBudget(timingBudget_);
 }
 
 void VL53L1XSensor::update() {
