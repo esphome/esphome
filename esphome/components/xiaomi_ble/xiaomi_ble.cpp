@@ -164,10 +164,11 @@ optional<XiaomiParseResult> parse_xiaomi_header(const esp32_ble_tracker::Service
 
   bool is_xmtzc0xhm = service_data.uuid.contains(0x1D, 0x18);
   bool is_mibfs = service_data.uuid.contains(0x1B, 0x18);
+  bool success = false;
 
   if (!is_xmtzc0xhm && !is_mibfs) {
     ESP_LOGVV(TAG, "Xiaomi no magic bytes");
-    return {};
+    success = true;
   }
 
   if ((raw[2] == 0x98) && (raw[3] == 0x00)) {  // MiFlora
