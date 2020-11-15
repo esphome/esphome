@@ -420,6 +420,9 @@ sensor:
       name: "CSE7766 Current"
     power:
       name: "CSE776 Power"
+  - platform: tof10120
+    name: "Distance sensor"
+    update_interval: 5s
 
 time:
 - platform: homeassistant
