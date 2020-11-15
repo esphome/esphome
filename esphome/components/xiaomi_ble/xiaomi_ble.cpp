@@ -172,6 +172,14 @@ optional<XiaomiParseResult> parse_xiaomi_header(const esp32_ble_tracker::Service
     return {};
   }
 
+  bool is_xmtzc0xhm = service_data.uuid.contains(0x1D, 0x18);
+  bool is_mibfs = service_data.uuid.contains(0x1B, 0x18);
+
+  if (!is_mibfs && !is_lywsd02) {
+    ESP_LOGVV(TAG, "Xiaomi no magic bytes");
+    return false;
+  }
+
   static uint8_t last_frame_count = 0;
   if (last_frame_count == raw[4]) {
     ESP_LOGVV(TAG, "parse_xiaomi_header(): duplicate data packet received (%d).", static_cast<int>(last_frame_count));
@@ -216,10 +224,10 @@ optional<XiaomiParseResult> parse_xiaomi_header(const esp32_ble_tracker::Service
   } else if ((raw[2] == 0x5b) && (raw[3] == 0x05)) {  // small square body, segment LCD, encrypted
     result.type = XiaomiParseResult::TYPE_LYWSD03MMC;
     result.name = "LYWSD03MMC";
-  } else if (service_data.uuid.contains(0x1D, 0x18)) {  // Xiaomi Miscale
+  } else if (is_xmtzc0xhm) {
     result.type = XiaomiParseResult::TYPE_XMTZC0XHM;
     result.name = "XMTZC0XHM";
-  } else if (service_data.uuid.contains(0x1B, 0x18)) {  // Xiaomi Miscale 2
+  } else if (is_mibfs) {
     result.type = XiaomiParseResult::TYPE_XMTZC0XHM;
     result.name = "XMTZC0XHM";
   } else if ((raw[2] == 0xf6) && (raw[3] == 0x07)) {  // Xiaomi-Yeelight BLE nightlight
