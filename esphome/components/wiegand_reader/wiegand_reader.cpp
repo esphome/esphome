@@ -25,19 +25,22 @@ static void receivedData(uint8_t* data, uint8_t bits, WiegandReader* device) {
   }
 
 void receivedDataError(Wiegand::DataError error, uint8_t* rawData, uint8_t rawBits, const char* message) {
-    ESP_LOGCONFIG(TAG, "FAILED");
+    ESP_LOGCONFIG(TAG, "FAILED : %s", message);
+    ESP_LOGCONFIG(TAG, "ERROR : %s", Wiegand::DataErrorStr(error));
+
     uint8_t byteCount = (rawBits+7)/8;
+    ESP_LOGCONFIG(TAG, "BYTE COUNT : %i", byteCount);
 
     String code = "";
     for (int i=0; i<byteCount; i++) {
       code = code + String(rawData[i], 16);
      }
-     ESP_LOGD(TAG, "%s", code.c_str());
+     ESP_LOGD(TAG, "DECODED : %s", code.c_str());
 }
 
 void WiegandReader::setup() {
   ESP_LOGCONFIG(TAG, "Setting up ...");
-  this->set_update_interval(500);
+  //this->set_update_interval(500);
   this->pin_d0_->pin_mode(INPUT);
   this->pin_d1_->pin_mode(INPUT);
   this->wiegand_.onReceive(receivedData, this);
