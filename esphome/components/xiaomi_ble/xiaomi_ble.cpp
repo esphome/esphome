@@ -177,7 +177,7 @@ optional<XiaomiParseResult> parse_xiaomi_header(const esp32_ble_tracker::Service
 
   if (!is_xmtzc0xhm && !is_mibfs) {
     ESP_LOGVV(TAG, "Xiaomi no magic bytes");
-    return false;
+    return {};
   }
 
   static uint8_t last_frame_count = 0;
