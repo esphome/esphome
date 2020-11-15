@@ -80,7 +80,6 @@ bool parse_xiaomi_value(uint8_t value_type, const uint8_t *data, uint8_t value_l
         result.weight = weight * 0.01f * 0.453592;
     }
   }
-
   // idle time since last motion, 4 byte, 32-bit unsigned integer, 1 min
   else if ((value_type == 0x17) && (value_length == 4)) {
     const uint32_t idle_time =
@@ -170,13 +169,6 @@ optional<XiaomiParseResult> parse_xiaomi_header(const esp32_ble_tracker::Service
   last_frame_count = raw[4];
   result.is_duplicate = false;
   result.raw_offset = result.has_capability ? 12 : 11;
-
-  // Hack for MiScale
-  const uint8_t *datapoint_data = &raw[0];  // raw data
-  if (parse_xiaomi_value(0x16, datapoint_data, raw.size(), result))
-    success = true;
-    return {};
-  }
 
   if ((raw[2] == 0x98) && (raw[3] == 0x00)) {  // MiFlora
     result.type = XiaomiParseResult::TYPE_HHCCJCY01;
