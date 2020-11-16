@@ -388,18 +388,36 @@ class Font {
 class Image {
  public:
   Image(const uint8_t *data_start, int width, int height, ImageType type);
-  bool get_pixel(int x, int y) const;
-  Color get_color_pixel(int x, int y) const;
-  Color get_grayscale_pixel(int x, int y) const;
+  virtual bool get_pixel(int x, int y) const;
+  virtual Color get_color_pixel(int x, int y) const;
+  virtual Color get_grayscale_pixel(int x, int y) const;
   int get_width() const;
   int get_height() const;
   ImageType get_type() const;
 
  protected:
+
   int width_;
   int height_;
   ImageType type_;
   const uint8_t *data_start_;
+};
+
+class Animation : public Image {
+ public:
+  Animation(const uint8_t *data_start, int width, int height, uint32_t animation_Frame_Count, ImageType type);
+  bool get_pixel(int x, int y) const;
+  Color get_color_pixel(int x, int y) const;
+  Color get_grayscale_pixel(int x, int y) const;
+
+  int get_animation_frame_count() const;
+  int get_current_frame() const;
+  void next_frame();
+
+ protected:
+
+  int current_frame_;
+  int animation_frame_count_;
 };
 
 template<typename... Ts> class DisplayPageShowAction : public Action<Ts...> {
