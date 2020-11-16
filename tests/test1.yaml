@@ -618,6 +618,7 @@ sensor:
     update_interval: 15s
     automatic_self_calibration: true
     altitude_compensation: 10m
+    ambient_pressure_compensation: 961mBar
   - platform: sgp30
     eco2:
       name: "Workshop eCO2"
@@ -761,6 +762,25 @@ sensor:
     aqi:
       name: "AQI"
       calculation_type: "CAQI"
+  - platform: teleinfo
+    tags:
+     - tag_name: "HCHC"
+       sensor:
+        name: "hchc"
+        unit_of_measurement: "Wh"
+        icon: mdi:flash
+     - tag_name: "HCHP"
+       sensor:
+        name: "hchp"
+        unit_of_measurement: "Wh"
+        icon: mdi:flash
+     - tag_name: "PAPP"
+       sensor:
+        name: "papp"
+        unit_of_measurement: "VA"
+        icon: mdi:flash
+    update_interval: 60s
+    historical_mode: true
   - platform: mcp9808
     name: "MCP9808 Temperature"
     update_interval: 15s
