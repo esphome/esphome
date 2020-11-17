@@ -7,6 +7,8 @@ from esphome.core import coroutine
 from esphome.const import CONF_DC_PIN, CONF_ID, CONF_LAMBDA, CONF_MODEL, CONF_RESET_PIN, CONF_PAGES
 from . import st7735_ns
 
+CODEOWNERS = ['@SenexCrenshaw']
+
 DEPENDENCIES = ['spi']
 
 CONF_DEVICEWIDTH = 'devicewidth'
