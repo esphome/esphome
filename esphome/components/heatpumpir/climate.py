@@ -5,6 +5,8 @@ from esphome.core import CORE
 from esphome.const import CONF_ID, CONF_MAX_TEMPERATURE, CONF_MIN_TEMPERATURE, CONF_PROTOCOL, \
     CONF_VISUAL
 
+CODEOWNERS = ['@rob-deutsch']
+
 AUTO_LOAD = ['climate_ir']
 
 heatpumpir_ns = cg.esphome_ns.namespace('heatpumpir')
