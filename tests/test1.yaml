@@ -870,9 +870,6 @@ binary_sensor:
       - output.ledc.set_frequency:
           id: gpio_19
           frequency: !lambda 'return 500.0;'
-  - platform: pn532
-    uid: 74-10-37-94
-    name: 'PN532 NFC Tag'
   - platform: rdm6300
     uid: 7616525
     name: 'RDM6300 NFC Tag'
@@ -1567,7 +1564,7 @@ color:
 
 display:
   - platform: st7735
-    model: "INITR_18BLACKTAB"
+    model: 'INITR_18BLACKTAB'
     reset_pin: GPIO04
     cs_pin: GPIO05
     dc_pin: GPIO12
@@ -1698,16 +1695,6 @@ remote_receiver:
 
 status_led:
   pin: GPIO2
-
-pn532:
-  cs_pin: GPIO23
-  update_interval: 1s
-  on_tag:
-    - lambda: |-
-        ESP_LOGD("main", "Found tag %s", x.c_str());
-    - mqtt.publish:
-        topic: the/topic
-        payload: !lambda 'return x;'
 
 rdm6300:
 
