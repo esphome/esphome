@@ -274,7 +274,7 @@ void ST7735::setup() {
 
   uint8_t data = 0;
   if (this->model_ != INITR_HALLOWING) {
-    uint8_t data = data = ST77XX_MADCTL_MX | ST77XX_MADCTL_MY;
+    uint8_t data = ST77XX_MADCTL_MX | ST77XX_MADCTL_MY;
   }
   if (this->usebgr_) {
     data = data | ST7735_MADCTL_BGR;
@@ -308,11 +308,11 @@ void HOT ST7735::draw_absolute_pixel_internal(int x, int y, Color color) {
     return;
 
   if (this->eightbitcolor_) {
-    const uint32_t color332 = color.triad_to8(3, 3, 2);
+    const uint32_t color332 = color.triad_to8(Color::ColorOrder_RGB, Color::ColorBitness_332);
     uint16_t pos = (x + y * this->get_width_internal());
     this->buffer_[pos] = color332;
   } else {
-    const uint32_t color565 = color.triad_to16(5, 6, 5);
+    const uint32_t color565 = color.triad_to16(Color::ColorOrder_RGB, Color::ColorBitness_565);
     uint16_t pos = (x + y * this->get_width_internal()) * 2;
     this->buffer_[pos++] = (color565 >> 8) & 0xff;
     this->buffer_[pos] = color565 & 0xff;
@@ -444,7 +444,8 @@ void HOT ST7735::write_display_data_() {
   if (this->eightbitcolor_) {
     for (int line = 0; line < this->get_buffer_length(); line = line + this->get_width_internal()) {
       for (int index = 0; index < this->get_width_internal(); ++index) {
-        auto color = Color(this->buffer_[index + line], 3, 3, 2, true).triad_to16(5, 6, 5);
+        auto color = Color(this->buffer_[index + line], Color::ColorOrder_RGB, Color::ColorBitness_332, true)
+                         .triad_to16(Color::ColorOrder_RGB, Color::ColorBitness_565);
         this->write_byte((color >> 8) & 0xff);
         this->write_byte(color & 0xff);
       }
