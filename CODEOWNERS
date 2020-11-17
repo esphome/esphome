@@ -28,6 +28,7 @@ esphome/components/debug/* @OttoWinter
 esphome/components/dfplayer/* @glmnet
 esphome/components/dht/* @OttoWinter
 esphome/components/exposure_notifications/* @OttoWinter
+esphome/components/fan/* @rob-deutsch
 esphome/components/fastled_base/* @OttoWinter
 esphome/components/globals/* @esphome/core
 esphome/components/gpio/* @esphome/core

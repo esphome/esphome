@@ -8,6 +8,8 @@ from esphome.const import CONF_ID, CONF_INTERNAL, CONF_MQTT_ID, CONF_OSCILLATING
     CONF_SPEED_COMMAND_TOPIC, CONF_SPEED_STATE_TOPIC, CONF_NAME
 from esphome.core import CORE, coroutine, coroutine_with_priority
 
+CODEOWNERS = ['@rob-deutsch']
+
 IS_PLATFORM_COMPONENT = True
 
 fan_ns = cg.esphome_ns.namespace('fan')
