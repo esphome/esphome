@@ -378,7 +378,7 @@ def analog_pin(value):
 input_output_pin = cv.All(input_pin, output_pin)
 
 PIN_MODE_OUTPUT = [
-    'OUTPUT', 'OUTPUT_OPEN_DRAIN,
+    'OUTPUT', 'OUTPUT_OPEN_DRAIN
 ]
 PIN_MODE_INPUT_ESP32 = [
     'INPUT', 'INPUT_PULLUP', 'INPUT_PULLDOWN',
