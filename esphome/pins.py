@@ -377,6 +377,15 @@ def analog_pin(value):
 
 input_output_pin = cv.All(input_pin, output_pin)
 
+PIN_MODE_OUTPUT = [
+    'OUTPUT', 'OUTPUT_OPEN_DRAIN,
+]
+PIN_MODE_INPUT_ESP32 = [
+    'INPUT', 'INPUT_PULLUP', 'INPUT_PULLDOWN',
+]
+PIN_MODE_INPUT_ESP8266 = [
+    'INPUT', 'INPUT_PULLUP', 'INPUT_PULLDOWN_16',
+]
 PIN_MODES_ESP8266 = [
     'INPUT', 'OUTPUT', 'INPUT_PULLUP', 'OUTPUT_OPEN_DRAIN', 'SPECIAL', 'FUNCTION_1',
     'FUNCTION_2', 'FUNCTION_3', 'FUNCTION_4',
@@ -396,17 +405,28 @@ def pin_mode(value):
     if CORE.is_esp8266:
         return cv.one_of(*PIN_MODES_ESP8266, upper=True)(value)
     raise NotImplementedError
+    
+def pin_mode_output(value):
+    return cv.one_of(*PIN_MODE_OUTPUT, upper=True)(value)
+    raise NotImplementedError
+    
+def pin_mode_input(value):
+    if CORE.is_esp32:
+        return cv.one_of(*PIN_MODE_INPUT_ESP32, upper=True)(value)
+    if CORE.is_esp8266:
+        return cv.one_of(*PIN_MODE_INPUT_ESP8266, upper=True)(value)
+    raise NotImplementedError
 
 
 GPIO_FULL_OUTPUT_PIN_SCHEMA = cv.Schema({
     cv.Required(CONF_NUMBER): output_pin,
-    cv.Optional(CONF_MODE, default='OUTPUT'): pin_mode,
+    cv.Optional(CONF_MODE, default='OUTPUT'): pin_mode_output,
     cv.Optional(CONF_INVERTED, default=False): cv.boolean,
 })
 
 GPIO_FULL_INPUT_PIN_SCHEMA = cv.Schema({
     cv.Required(CONF_NUMBER): input_pin,
-    cv.Optional(CONF_MODE, default='INPUT'): pin_mode,
+    cv.Optional(CONF_MODE, default='INPUT'): pin_mode_input,
     cv.Optional(CONF_INVERTED, default=False): cv.boolean,
 })
 
@@ -457,7 +477,10 @@ PIN_SCHEMA_REGISTRY = SimpleRegistry()
 
 
 def internal_gpio_output_pin_schema(value):
+    # print (value)
     if isinstance(value, dict):
+        print (GPIO_FULL_OUTPUT_PIN_SCHEMA(value))
+        exit()
         return GPIO_FULL_OUTPUT_PIN_SCHEMA(value)
     return shorthand_output_pin(value)
 
@@ -467,6 +490,7 @@ def gpio_output_pin_schema(value):
         for key, entry in PIN_SCHEMA_REGISTRY.items():
             if key in value:
                 return entry[1][0](value)
+
     return internal_gpio_output_pin_schema(value)
 
 
