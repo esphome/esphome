@@ -1566,19 +1566,19 @@ color:
     blue: 100%
 
 display:
-- platform: st7735
-  model: "INITR_18BLACKTAB"
-  reset_pin: GPIO04
-  cs_pin: GPIO05
-  dc_pin: GPIO12
-  rotation: 0
-  devicewidth: 128
-  deviceheight: 160
-  colstart: 0
-  rowstart: 0
-  eightbitcolor: true
-  update_interval: 5s
-  lambda: |-
+  - platform: st7735
+    model: "INITR_18BLACKTAB"
+    reset_pin: GPIO04
+    cs_pin: GPIO05
+    dc_pin: GPIO12
+    rotation: 0
+    devicewidth: 128
+    deviceheight: 160
+    colstart: 0
+    rowstart: 0
+    eightbitcolor: true
+    update_interval: 5s
+    lambda: |-
       // Draw a line from [0,0] to [100,50]
       it.line(0, 0, 100, 50);
       // Draw the outline of a rectangle with the top left at [50,60], a width of 30 and a height of 42
@@ -1589,32 +1589,32 @@ display:
       it.circle(25, 25, 10);
       // ... and the same thing filled again
       it.filled_circle(25, 25, 10);
-- platform: lcd_gpio
-  dimensions: 18x4
-  data_pins:
-  - GPIO19
-  - GPIO21
-  - GPIO22
-  - GPIO23
-  enable_pin: GPIO23
-  rs_pin: GPIO25
-  lambda: |-
-    it.print("Hello World!");
-- platform: lcd_pcf8574
-  dimensions: 18x4
-  address: 0x3F
-  lambda: |-
-    it.print("Hello World!");
-- platform: max7219
-  cs_pin: GPIO23
-  num_chips: 1
-  lambda: |-
-    it.print("01234567");
-- platform: tm1637
-  clk_pin: GPIO23
-  dio_pin: GPIO25
-  intensity: 3
-  lambda: |-
+  - platform: lcd_gpio
+    dimensions: 18x4
+    data_pins:
+      - GPIO19
+      - GPIO21
+      - GPIO22
+      - GPIO23
+    enable_pin: GPIO23
+    rs_pin: GPIO25
+    lambda: |-
+      it.print("Hello World!");
+  - platform: lcd_pcf8574
+    dimensions: 18x4
+    address: 0x3F
+    lambda: |-
+      it.print("Hello World!");
+  - platform: max7219
+    cs_pin: GPIO23
+    num_chips: 1
+    lambda: |-
+      it.print("01234567");
+  - platform: tm1637
+    clk_pin: GPIO23
+    dio_pin: GPIO25
+    intensity: 3
+    lambda: |-
       it.print("1234");
   - platform: tm1637
     clk_pin:
