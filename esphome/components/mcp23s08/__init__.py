@@ -4,6 +4,8 @@ from esphome import pins
 from esphome.components import spi
 from esphome.const import CONF_ID, CONF_NUMBER, CONF_MODE, CONF_INVERTED
 
+CODEOWNERS = ['@SenexCrenshaw']
+
 DEPENDENCIES = ['spi']
 MULTI_CONF = True
 
