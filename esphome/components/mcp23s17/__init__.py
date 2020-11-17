@@ -7,6 +7,7 @@ from esphome.const import CONF_ID, CONF_NUMBER, CONF_MODE, CONF_INVERTED
 DEPENDENCIES = ['spi']
 MULTI_CONF = True
 
+
 CONF_DEVICEADDRESS = "deviceaddress"
 
 mcp23S17_ns = cg.esphome_ns.namespace('mcp23s17')
