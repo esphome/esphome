@@ -238,11 +238,11 @@ canbus::Error MCP2515::send_message_(TXBn txbn, struct canbus::CanFrame *frame) 
 
   uint8_t data[13];
 
-  bool ext = (frame->can_id & canbus::CAN_EFF_FLAG);
-  bool rtr = (frame->can_id & canbus::CAN_RTR_FLAG);
-  uint32_t id = (frame->can_id & (ext ? canbus::CAN_EFF_MASK : canbus::CAN_SFF_MASK));
-  prepare_id_(data, ext, id);
-  data[MCP_DLC] = rtr ? (frame->can_dlc | RTR_MASK) : frame->can_dlc;
+  //bool ext = (frame->can_id & canbus::CAN_EFF_FLAG);
+  //bool rtr = (frame->can_id & canbus::CAN_RTR_FLAG);
+  uint32_t id = (frame->can_id & (frame->ext_id ? canbus::CAN_EFF_MASK : canbus::CAN_SFF_MASK));
+  prepare_id_(data, frame->ext_id, id);
+  data[MCP_DLC] = frame->rtr ? (frame->can_dlc | RTR_MASK) : frame->can_dlc;
   memcpy(&data[MCP_DATA], frame->data, frame->can_dlc);
   set_registers_(txbuf->SIDH, data, 5 + frame->can_dlc);
   modify_register_(txbuf->CTRL, TXB_TXREQ, TXB_TXREQ);
@@ -275,12 +275,15 @@ canbus::Error MCP2515::read_message_(RXBn rxbn, struct canbus::CanFrame *frame) 
   read_registers_(rxb->SIDH, tbufdata, 5);
 
   uint32_t id = (tbufdata[MCP_SIDH] << 3) + (tbufdata[MCP_SIDL] >> 5);
+  bool ext_id = false;
+  bool rtr = false;
 
   if ((tbufdata[MCP_SIDL] & TXB_EXIDE_MASK) == TXB_EXIDE_MASK) {
     id = (id << 2) + (tbufdata[MCP_SIDL] & 0x03);
     id = (id << 8) + tbufdata[MCP_EID8];
     id = (id << 8) + tbufdata[MCP_EID0];
-    id |= canbus::CAN_EFF_FLAG;
+    //id |= canbus::CAN_EFF_FLAG;
+    ext_id=true;
   }
 
   uint8_t dlc = (tbufdata[MCP_DLC] & DLC_MASK);
@@ -290,11 +293,14 @@ canbus::Error MCP2515::read_message_(RXBn rxbn, struct canbus::CanFrame *frame) 
 
   uint8_t ctrl = read_register_(rxb->CTRL);
   if (ctrl & RXB_CTRL_RTR) {
-    id |= canbus::CAN_RTR_FLAG;
+    //id |= canbus::CAN_RTR_FLAG;
+    rtr=true;
   }
 
   frame->can_id = id;
   frame->can_dlc = dlc;
+  frame->ext_id = ext_id;
+  frame->rtr = rtr;
 
   read_registers_(rxb->DATA, frame->data, dlc);
 
