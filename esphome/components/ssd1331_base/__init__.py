@@ -5,6 +5,8 @@ from esphome.components import display
 from esphome.const import CONF_BRIGHTNESS, CONF_LAMBDA, CONF_RESET_PIN
 from esphome.core import coroutine
 
+CODEOWNERS = ['@kbx81']
+
 ssd1331_base_ns = cg.esphome_ns.namespace('ssd1331_base')
 SSD1331 = ssd1331_base_ns.class_('SSD1331', cg.PollingComponent, display.DisplayBuffer)
 
