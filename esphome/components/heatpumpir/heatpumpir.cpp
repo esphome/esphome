@@ -2,7 +2,6 @@
 #include "heatpumpir.h"
 #include "esphome/core/log.h"
 #include "ir_sender_esphome.h"
-#include <HeatpumpIRFactory.h>
 
 namespace esphome {
 namespace heatpumpir {
@@ -49,6 +48,16 @@ std::map<Protocol, std::function<HeatpumpIR *()>> protocol_constructor_map = {
     {PROTOCOL_TOSHIBA_DAISEIKAI, []() { return new ToshibaDaiseikaiHeatpumpIR(); }},
     {PROTOCOL_TOSHIBA, []() { return new ToshibaHeatpumpIR(); }},
 };
+
+void HeatpumpIRClimate::setup() {
+  auto protocol_constructor = protocol_constructor_map.find(protocol_);
+  if (protocol_constructor == protocol_constructor_map.end()) {
+    ESP_LOGE(TAG, "Invalid protocol");
+    return;
+  }
+  this->heatpump_ir_ = protocol_constructor->second();
+  climate_ir::ClimateIR::setup();
+}
 
 void HeatpumpIRClimate::transmit_state() {
   uint8_t power_mode_cmd;
@@ -158,19 +167,10 @@ void HeatpumpIRClimate::transmit_state() {
 
   temperature_cmd = (uint8_t) clamp(this->target_temperature, this->min_temperature_, this->max_temperature_);
 
-  // TODO: Is this a memory leak?
   IRSenderESPHome esp_sender(0, this->transmitter_);
 
-  auto protocol_constructor = protocol_constructor_map.find(protocol_);
-  if (protocol_constructor == protocol_constructor_map.end()) {
-    ESP_LOGE(TAG, "Invalid protocol");
-    return;
-  }
-
-  // TODO: Is this a memory leak?
-  HeatpumpIR *heatpump_ir = protocol_constructor->second();
-  heatpump_ir->send(esp_sender, power_mode_cmd, operating_mode_cmd, fan_speed_cmd, temperature_cmd, swing_v_cmd,
-                    swing_h_cmd);
+  heatpump_ir_->send(esp_sender, power_mode_cmd, operating_mode_cmd, fan_speed_cmd, temperature_cmd, swing_v_cmd,
+                     swing_h_cmd);
 }
 
 }  // namespace heatpumpir

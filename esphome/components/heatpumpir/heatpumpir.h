@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/components/climate_ir/climate_ir.h"
+#include "HeatpumpIRFactory.h"
 
 namespace esphome {
 namespace heatpumpir {
@@ -80,6 +81,7 @@ class HeatpumpIRClimate : public climate_ir::ClimateIR {
                                                  climate::CLIMATE_FAN_HIGH, climate::CLIMATE_FAN_AUTO},
             std::vector<climate::ClimateSwingMode>{climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_HORIZONTAL,
                                                    climate::CLIMATE_SWING_VERTICAL, climate::CLIMATE_SWING_BOTH}) {}
+  void setup() override;
   void set_protocol(Protocol protocol) { this->protocol_ = protocol; }
   void set_horizontal_default(HorizontalDirection horizontal_direction) {
     this->default_horizontal_direction_ = horizontal_direction;
@@ -92,6 +94,7 @@ class HeatpumpIRClimate : public climate_ir::ClimateIR {
   void set_min_temperature(float temperature) { this->min_temperature_ = temperature; }
 
  protected:
+  HeatpumpIR *heatpump_ir_;
   /// Transmit via IR the state of this climate controller.
   void transmit_state() override;
   Protocol protocol_;
