@@ -3,6 +3,8 @@ import esphome.config_validation as cv
 from esphome.components import i2c, sensor
 from esphome.const import CONF_ID
 
+CODEOWNERS = ['@ssieb']
+
 DEPENDENCIES = ['i2c']
 
 ezo_ns = cg.esphome_ns.namespace('ezo')
