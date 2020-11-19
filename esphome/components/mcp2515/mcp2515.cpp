@@ -279,8 +279,8 @@ canbus::Error MCP2515::read_message_(RXBn rxbn, struct canbus::CanFrame *frame) 
     id = (id << 2) + (tbufdata[MCP_SIDL] & 0x03);
     id = (id << 8) + tbufdata[MCP_EID8];
     id = (id << 8) + tbufdata[MCP_EID0];
-    //id |= canbus::CAN_EFF_FLAG;
-    ext_id=true;
+    // id |= canbus::CAN_EFF_FLAG;
+    ext_id = true;
   }
 
   uint8_t dlc = (tbufdata[MCP_DLC] & DLC_MASK);
@@ -290,8 +290,8 @@ canbus::Error MCP2515::read_message_(RXBn rxbn, struct canbus::CanFrame *frame) 
 
   uint8_t ctrl = read_register_(rxb->CTRL);
   if (ctrl & RXB_CTRL_RTR) {
-    //id |= canbus::CAN_RTR_FLAG;
-    rtr=true;
+    // id |= canbus::CAN_RTR_FLAG;
+    rtr = true;
   }
 
   frame->can_id = id;

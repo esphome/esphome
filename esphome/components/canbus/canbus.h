@@ -36,9 +36,9 @@ enum CanSpeed : uint8_t {
 };
 
 /* valid bits in CAN ID for frame formats */
-//static const uint32_t CAN_SFF_MASK = 0x000007FFUL; /* standard frame format (SFF) */
-//static const uint32_t CAN_EFF_MASK = 0x1FFFFFFFUL; /* extended frame format (EFF) */
-//static const uint32_t CAN_ERR_MASK = 0x1FFFFFFFUL; /* omit EFF, RTR, ERR flags */
+// static const uint32_t CAN_SFF_MASK = 0x000007FFUL; /* standard frame format (SFF) */
+// static const uint32_t CAN_EFF_MASK = 0x1FFFFFFFUL; /* extended frame format (EFF) */
+// static const uint32_t CAN_ERR_MASK = 0x1FFFFFFFUL; /* omit EFF, RTR, ERR flags */
 
 class CanbusTrigger;
 template<typename... Ts> class CanbusSendAction;
@@ -48,8 +48,8 @@ static const uint8_t CAN_MAX_DLC = 8;
 static const uint8_t CAN_MAX_DLEN = 8;
 
 struct CanFrame {
-  bool ext_id =false;
-  bool rtr =false;
+  bool ext_id = false;
+  bool rtr = false;
   uint32_t can_id; /* 29 or 11 bit CAN_ID  */
   uint8_t can_dlc; /* frame payload length in byte (0 .. CAN_MAX_DLEN) */
   uint8_t data[CAN_MAX_DLEN] __attribute__((aligned(8)));
@@ -94,7 +94,7 @@ template<typename... Ts> class CanbusSendAction : public Action<Ts...>, public P
   }
 
   void set_can_id(uint32_t can_id) { this->can_id_ = can_id; }
-  
+
   void set_can_ext_id(bool can_ext_id) { this->can_ext_id_ = can_ext_id; }
 
   void play(Ts... x) override {
@@ -120,7 +120,8 @@ class CanbusTrigger : public Trigger<std::vector<uint8_t>>, public Component {
   friend class Canbus;
 
  public:
-  explicit CanbusTrigger(Canbus *parent, const std::uint32_t can_id, const bool can_ext_id) : parent_(parent), can_id_(can_id), can_ext_id_(can_ext_id) {};
+  explicit CanbusTrigger(Canbus *parent, const std::uint32_t can_id, const bool can_ext_id)
+      : parent_(parent), can_id_(can_id), can_ext_id_(can_ext_id){};
   void setup() override { this->parent_->add_trigger(this); }
 
  protected:

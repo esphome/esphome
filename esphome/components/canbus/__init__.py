@@ -76,12 +76,10 @@ def setup_canbus_core_(var, config):
     cg.add(var.set_bitrate(CAN_SPEEDS[config[CONF_BIT_RATE]]))
 
     for conf in config.get(CONF_ON_FRAME, []):
-        validate_id(conf[CONF_CAN_ID], conf[CONF_CAN_EXT_ID])
-        trigger = cg.new_Pvariable(
-            conf[CONF_TRIGGER_ID], 
-            var, 
-            conf[CONF_CAN_ID], 
-            conf[CONF_CAN_EXT_ID])
+        can_id = conf[CONF_CAN_ID]
+        ext_id = conf[CONF_CAN_EXT_ID]
+        validate_id(can_id, ext_id)
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var, can_id, ext_id)
         yield cg.register_component(trigger, conf)
         yield automation.build_automation(trigger, [(cg.std_vector.template(cg.uint8), 'x')], conf)
 
