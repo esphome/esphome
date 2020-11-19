@@ -308,11 +308,11 @@ void HOT ST7735::draw_absolute_pixel_internal(int x, int y, Color color) {
     return;
 
   if (this->eightbitcolor_) {
-    const uint32_t color332 = color.triad_to8(Color::COLOR_ORDER_RGB, Color::COLOR_BITNESS_332);
+    const uint32_t color332 = to_rgb_332(color);
     uint16_t pos = (x + y * this->get_width_internal());
     this->buffer_[pos] = color332;
   } else {
-    const uint32_t color565 = color.triad_to16(Color::COLOR_ORDER_RGB, Color::COLOR_BITNESS_565);
+    const uint32_t color565 = color.to_rgb_565();
     uint16_t pos = (x + y * this->get_width_internal()) * 2;
     this->buffer_[pos++] = (color565 >> 8) & 0xff;
     this->buffer_[pos] = color565 & 0xff;
@@ -444,8 +444,7 @@ void HOT ST7735::write_display_data_() {
   if (this->eightbitcolor_) {
     for (int line = 0; line < this->get_buffer_length(); line = line + this->get_width_internal()) {
       for (int index = 0; index < this->get_width_internal(); ++index) {
-        auto color = Color(this->buffer_[index + line], Color::COLOR_ORDER_RGB, Color::COLOR_BITNESS_332, true)
-                         .triad_to16(Color::COLOR_ORDER_RGB, Color::COLOR_BITNESS_565);
+        auto color = Color(this->buffer_[index + line], Color::COLOR_ORDER_RGB, Color::COLOR_BITNESS_332, true).to565();
         this->write_byte((color >> 8) & 0xff);
         this->write_byte(color & 0xff);
       }
@@ -455,6 +454,11 @@ void HOT ST7735::write_display_data_() {
   }
 
   this->disable();
+}
+
+uint8_t to_rgb_332(Color color) {
+  return (esp_scale8(color.red, ((1 << 3) - 1) << (8 - 3))) | (esp_scale8(color.green, ((1 << 3) - 1) << (8 - 3 - 3))) |
+         esp_scale8(color.blue, (1 << 2) - 1);
 }
 
 void ST7735::spi_master_write_addr_(uint16_t addr1, uint16_t addr2) {
