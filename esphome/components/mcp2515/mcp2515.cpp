@@ -238,11 +238,7 @@ canbus::Error MCP2515::send_message_(TXBn txbn, struct canbus::CanFrame *frame) 
 
   uint8_t data[13];
 
-  //bool ext = (frame->can_id & canbus::CAN_EFF_FLAG);
-  //bool ext = (frame->can_id & canbus::CAN_EFF_FLAG);
-  //bool rtr = (frame->can_id & canbus::CAN_RTR_FLAG);
-  uint32_t id = (frame->can_id & (frame->ext_id ? canbus::CAN_EFF_MASK : canbus::CAN_SFF_MASK));
-  prepare_id_(data, frame->ext_id, id);
+  prepare_id_(data, frame->ext_id, frame->can_id);
   data[MCP_DLC] = frame->rtr ? (frame->can_dlc | RTR_MASK) : frame->can_dlc;
   memcpy(&data[MCP_DATA], frame->data, frame->can_dlc);
   set_registers_(txbuf->SIDH, data, 5 + frame->can_dlc);

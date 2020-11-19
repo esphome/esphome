@@ -35,14 +35,9 @@ enum CanSpeed : uint8_t {
   CAN_1000KBPS
 };
 
-/* special address description flags for the CAN_ID */
-//static const uint32_t CAN_EFF_FLAG = 0x80000000UL; /* EFF/SFF is set in the MSB */
-//static const uint32_t CAN_RTR_FLAG = 0x40000000UL; /* remote transmission request */
-//static const uint32_t CAN_ERR_FLAG = 0x20000000UL; /* error message frame */
-
 /* valid bits in CAN ID for frame formats */
-static const uint32_t CAN_SFF_MASK = 0x000007FFUL; /* standard frame format (SFF) */
-static const uint32_t CAN_EFF_MASK = 0x1FFFFFFFUL; /* extended frame format (EFF) */
+//static const uint32_t CAN_SFF_MASK = 0x000007FFUL; /* standard frame format (SFF) */
+//static const uint32_t CAN_EFF_MASK = 0x1FFFFFFFUL; /* extended frame format (EFF) */
 //static const uint32_t CAN_ERR_MASK = 0x1FFFFFFFUL; /* omit EFF, RTR, ERR flags */
 
 class CanbusTrigger;
