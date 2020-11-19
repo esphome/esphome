@@ -44,7 +44,7 @@ void MAX31855Sensor::read_data_() {
   const uint32_t mem = data[0] << 24 | data[1] << 16 | data[2] << 8 | data[3] << 0;
 
   // Verify we got data
-  if (mem != 0 && mem != 0xFFFFFFFF) {
+  if (mem != 0xFFFFFFFF) {
     this->status_clear_error();
   } else {
     ESP_LOGE(TAG, "No data received from MAX31855 (0x%08X). Check wiring!", mem);

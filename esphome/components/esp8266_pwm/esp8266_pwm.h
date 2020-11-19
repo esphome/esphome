@@ -13,7 +13,7 @@ class ESP8266PWM : public output::FloatOutput, public Component {
   void set_pin(GPIOPin *pin) { pin_ = pin; }
   void set_frequency(float frequency) { this->frequency_ = frequency; }
   /// Dynamically update frequency
-  void update_frequency(float frequency) {
+  void update_frequency(float frequency) override {
     this->set_frequency(frequency);
     this->write_state(this->last_output_);
   }
@@ -43,7 +43,6 @@ template<typename... Ts> class SetFrequencyAction : public Action<Ts...> {
     this->parent_->update_frequency(freq);
   }
 
- protected:
   ESP8266PWM *parent_;
 };
 

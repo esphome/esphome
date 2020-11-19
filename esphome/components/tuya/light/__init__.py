@@ -2,13 +2,13 @@ from esphome.components import light
 import esphome.config_validation as cv
 import esphome.codegen as cg
 from esphome.const import CONF_OUTPUT_ID, CONF_MIN_VALUE, CONF_MAX_VALUE, CONF_GAMMA_CORRECT, \
-    CONF_DEFAULT_TRANSITION_LENGTH
+    CONF_DEFAULT_TRANSITION_LENGTH, CONF_SWITCH_DATAPOINT
 from .. import tuya_ns, CONF_TUYA_ID, Tuya
 
 DEPENDENCIES = ['tuya']
 
 CONF_DIMMER_DATAPOINT = "dimmer_datapoint"
-CONF_SWITCH_DATAPOINT = "switch_datapoint"
+CONF_MIN_VALUE_DATAPOINT = "min_value_datapoint"
 
 TuyaLight = tuya_ns.class_('TuyaLight', light.LightOutput, cg.Component)
 
@@ -16,6 +16,7 @@ CONFIG_SCHEMA = cv.All(light.BRIGHTNESS_ONLY_LIGHT_SCHEMA.extend({
     cv.GenerateID(CONF_OUTPUT_ID): cv.declare_id(TuyaLight),
     cv.GenerateID(CONF_TUYA_ID): cv.use_id(Tuya),
     cv.Optional(CONF_DIMMER_DATAPOINT): cv.uint8_t,
+    cv.Optional(CONF_MIN_VALUE_DATAPOINT): cv.uint8_t,
     cv.Optional(CONF_SWITCH_DATAPOINT): cv.uint8_t,
     cv.Optional(CONF_MIN_VALUE): cv.int_,
     cv.Optional(CONF_MAX_VALUE): cv.int_,
@@ -35,6 +36,8 @@ def to_code(config):
 
     if CONF_DIMMER_DATAPOINT in config:
         cg.add(var.set_dimmer_id(config[CONF_DIMMER_DATAPOINT]))
+    if CONF_MIN_VALUE_DATAPOINT in config:
+        cg.add(var.set_min_value_datapoint_id(config[CONF_MIN_VALUE_DATAPOINT]))
     if CONF_SWITCH_DATAPOINT in config:
         cg.add(var.set_switch_id(config[CONF_SWITCH_DATAPOINT]))
     if CONF_MIN_VALUE in config:

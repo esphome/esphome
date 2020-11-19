@@ -14,6 +14,7 @@ from .types import (  # noqa
     LightState, AddressableLightState, light_ns, LightOutput, AddressableLight, \
     LightTurnOnTrigger, LightTurnOffTrigger)
 
+CODEOWNERS = ['@esphome/core']
 IS_PLATFORM_COMPONENT = True
 
 LightRestoreMode = light_ns.enum('LightRestoreMode')

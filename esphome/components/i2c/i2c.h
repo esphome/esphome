@@ -94,7 +94,7 @@ class I2CComponent : public Component {
   void raw_begin_transmission(uint8_t address);
 
   /// End a write transmission to an address, return true if successful.
-  bool raw_end_transmission(uint8_t address);
+  bool raw_end_transmission(uint8_t address, bool send_stop = true);
 
   /** Request data from an address with a number of (8-bit) bytes.
    *
@@ -172,6 +172,17 @@ class I2CDevice {
   void set_i2c_parent(I2CComponent *parent);
 
   I2CRegister reg(uint8_t a_register) { return {this, a_register}; }
+
+  /// Begin a write transmission.
+  void raw_begin_transmission() { this->parent_->raw_begin_transmission(this->address_); };
+
+  /// End a write transmission, return true if successful.
+  bool raw_end_transmission(bool send_stop = true) {
+    return this->parent_->raw_end_transmission(this->address_, send_stop);
+  };
+
+  /// Write len amount of bytes from data. begin_transmission_ must be called before this.
+  void raw_write(const uint8_t *data, uint8_t len) { this->parent_->raw_write(this->address_, data, len); };
 
   /** Read len amount of bytes from a register into data. Optionally with a conversion time after
    * writing the register value to the bus.

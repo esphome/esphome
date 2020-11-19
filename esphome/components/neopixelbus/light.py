@@ -181,4 +181,4 @@ def to_code(config):
     cg.add(var.set_pixel_order(getattr(ESPNeoPixelOrder, config[CONF_TYPE])))
 
     # https://github.com/Makuna/NeoPixelBus/blob/master/library.json
-    cg.add_library('NeoPixelBus-esphome', '2.5.2')
+    cg.add_library('NeoPixelBus-esphome', '2.5.7')

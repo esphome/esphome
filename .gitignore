@@ -54,6 +54,7 @@ htmlcov/
 .esphome
 nosetests.xml
 coverage.xml
+cov.xml
 *.cover
 .hypothesis/
 .pytest_cache/
@@ -118,3 +119,4 @@ config/
 tests/build/
 tests/.esphome/
 /.temp-clang-tidy.cpp
+.pio/

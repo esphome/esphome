@@ -5,7 +5,7 @@ esphome:
   build_path: build/test4
 
 substitutions:
-  devicename: test4
+  devicename: test-4
 
 ethernet:
   type: LAN8720
@@ -49,10 +49,18 @@ web_server:
     username: admin
     password: admin
 
+time:
+  - platform: sntp
+    id: sntp_time
+
+tuya:
+  time_id: sntp_time
+
 sensor:
   - platform: homeassistant
     entity_id: sensor.hello_world
     id: ha_hello_world
+<<<<<<< HEAD
   - platform: nextion
     page_id: 0
     component_id: 5 
@@ -75,6 +83,11 @@ display:
   - platform: nextion
 
 
+=======
+  - platform: tuya
+    id: tuya_sensor
+    sensor_datapoint: 1
+>>>>>>> b5e6ae0d692f3eebd2a6e8f8ee1f38ccdd4f51a8
 #
 # platform sensor.apds9960 requires component apds9960
 #
@@ -93,3 +106,21 @@ display:
 #  - platform: apds9960
 #    type: blue
 #    name: APDS9960 Blue
+
+binary_sensor:
+  - platform: tuya
+    id: tuya_binary_sensor
+    sensor_datapoint: 1
+
+climate:
+  - platform: tuya
+    id: tuya_climate
+    switch_datapoint: 1
+    target_temperature_datapoint: 3
+    current_temperature_multiplier: 0.5
+    target_temperature_multiplier: 0.5
+
+switch:
+  - platform: tuya
+    id: tuya_switch
+    switch_datapoint: 1

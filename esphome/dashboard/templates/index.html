@@ -31,8 +31,8 @@
 <body>
 
   <div class="navbar-fixed">
-    <nav>
-      <div class="nav-wrapper grey lighten-2">
+    <nav class="grey lighten-2">
+      <div class="nav-wrapper">
         <a href="#" class="black-text logo-wrapper">
           <img src="https://esphome.io/_static/logo-text.svg" alt="ESPHome Logo" class="logo">
         </a>
@@ -52,7 +52,9 @@
         <li><a data-action="update-all" data-filename="{{ escape(config_dir) }}">Update All</a></li>
         <li><a data-action="edit" data-filename="secrets.yaml">Secrets Editor</a></li>
         <li class="divider"></li>
+        {% if login_enabled %}
         <li><a href="{{ relative_url }}logout">Logout</a></li>
+        {% end %}
       </ul>
     </nav>
   </div>
@@ -357,7 +359,7 @@
                 <p>
                   Names must be all <strong>lowercase</strong> and <strong>must not contain any spaces</strong>!
                   Characters that are allowed are: <code class="inlinecode">a-z</code>,
-                  <code class="inlinecode">0-9</code> and <code class="inlinecode">_</code>.
+                  <code class="inlinecode">0-9</code>, <code class="inlinecode">_</code> and <code class="inlinecode">-</code>.
                 </p>
 
                 <div class="input-field col s12">

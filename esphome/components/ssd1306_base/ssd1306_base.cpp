@@ -5,7 +5,11 @@
 namespace esphome {
 namespace ssd1306_base {
 
-static const char *TAG = "sd1306";
+static const char *TAG = "ssd1306";
+
+static const uint8_t BLACK = 0;
+static const uint8_t WHITE = 1;
+static const uint8_t SSD1306_MAX_CONTRAST = 255;
 
 static const uint8_t SSD1306_COMMAND_DISPLAY_OFF = 0xAE;
 static const uint8_t SSD1306_COMMAND_DISPLAY_ON = 0xAF;
@@ -69,27 +73,6 @@ void SSD1306::setup() {
       break;
   }
 
-  this->command(SSD1306_COMMAND_SET_CONTRAST);
-  switch (this->model_) {
-    case SSD1306_MODEL_128_32:
-    case SH1106_MODEL_128_32:
-      this->command(0x8F);
-      break;
-    case SSD1306_MODEL_128_64:
-    case SH1106_MODEL_128_64:
-    case SSD1306_MODEL_64_48:
-    case SH1106_MODEL_64_48:
-      this->command(int(255 * (this->brightness_)));
-      break;
-    case SSD1306_MODEL_96_16:
-    case SH1106_MODEL_96_16:
-      if (this->external_vcc_)
-        this->command(0x10);
-      else
-        this->command(0xAF);
-      break;
-  }
-
   this->command(SSD1306_COMMAND_SET_PRE_CHARGE);
   if (this->external_vcc_)
     this->command(0x22);
@@ -104,7 +87,12 @@ void SSD1306::setup() {
 
   this->command(SSD1306_COMMAND_DEACTIVATE_SCROLL);
 
-  this->command(SSD1306_COMMAND_DISPLAY_ON);
+  set_brightness(this->brightness_);
+
+  this->fill(BLACK);  // clear display - ensures we do not see garbage at power-on
+  this->display();    // ...write buffer, which actually clears the display's memory
+
+  this->turn_on();
 }
 void SSD1306::display() {
   if (this->is_sh1106_()) {
@@ -139,6 +127,22 @@ bool SSD1306::is_sh1106_() const {
 void SSD1306::update() {
   this->do_update_();
   this->display();
+}
+void SSD1306::set_brightness(float brightness) {
+  // validation
+  this->brightness_ = clamp(brightness, 0, 1);
+  // now write the new brightness level to the display
+  this->command(SSD1306_COMMAND_SET_CONTRAST);
+  this->command(int(SSD1306_MAX_CONTRAST * (this->brightness_)));
+}
+bool SSD1306::is_on() { return this->is_on_; }
+void SSD1306::turn_on() {
+  this->command(SSD1306_COMMAND_DISPLAY_ON);
+  this->is_on_ = true;
+}
+void SSD1306::turn_off() {
+  this->command(SSD1306_COMMAND_DISPLAY_OFF);
+  this->is_on_ = false;
 }
 int SSD1306::get_height_internal() {
   switch (this->model_) {
@@ -178,21 +182,20 @@ int SSD1306::get_width_internal() {
 size_t SSD1306::get_buffer_length_() {
   return size_t(this->get_width_internal()) * size_t(this->get_height_internal()) / 8u;
 }
-
-void HOT SSD1306::draw_absolute_pixel_internal(int x, int y, int color) {
+void HOT SSD1306::draw_absolute_pixel_internal(int x, int y, Color color) {
   if (x >= this->get_width_internal() || x < 0 || y >= this->get_height_internal() || y < 0)
     return;
 
   uint16_t pos = x + (y / 8) * this->get_width_internal();
   uint8_t subpos = y & 0x07;
-  if (color) {
+  if (color.is_on()) {
     this->buffer_[pos] |= (1 << subpos);
   } else {
     this->buffer_[pos] &= ~(1 << subpos);
   }
 }
-void SSD1306::fill(int color) {
-  uint8_t fill = color ? 0xFF : 0x00;
+void SSD1306::fill(Color color) {
+  uint8_t fill = color.is_on() ? 0xFF : 0x00;
   for (uint32_t i = 0; i < this->get_buffer_length_(); i++)
     this->buffer_[i] = fill;
 }

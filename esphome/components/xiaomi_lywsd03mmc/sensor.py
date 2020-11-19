@@ -5,6 +5,8 @@ from esphome.const import CONF_BATTERY_LEVEL, CONF_HUMIDITY, CONF_MAC_ADDRESS, C
     UNIT_CELSIUS, ICON_THERMOMETER, UNIT_PERCENT, ICON_WATER_PERCENT, ICON_BATTERY, CONF_ID, \
     CONF_BINDKEY
 
+CODEOWNERS = ['@ahpohl']
+
 DEPENDENCIES = ['esp32_ble_tracker']
 AUTO_LOAD = ['xiaomi_ble']
 
@@ -40,5 +42,3 @@ def to_code(config):
     if CONF_BATTERY_LEVEL in config:
         sens = yield sensor.new_sensor(config[CONF_BATTERY_LEVEL])
         cg.add(var.set_battery_level(sens))
-
-    cg.add_library("mbedtls", "cdf462088d")

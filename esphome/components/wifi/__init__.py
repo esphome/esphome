@@ -5,12 +5,16 @@ from esphome.automation import Condition
 from esphome.const import CONF_AP, CONF_BSSID, CONF_CHANNEL, CONF_DNS1, CONF_DNS2, CONF_DOMAIN, \
     CONF_FAST_CONNECT, CONF_GATEWAY, CONF_HIDDEN, CONF_ID, CONF_MANUAL_IP, CONF_NETWORKS, \
     CONF_PASSWORD, CONF_POWER_SAVE_MODE, CONF_REBOOT_TIMEOUT, CONF_SSID, CONF_STATIC_IP, \
-    CONF_SUBNET, CONF_USE_ADDRESS, CONF_PRIORITY
+    CONF_SUBNET, CONF_USE_ADDRESS, CONF_PRIORITY, CONF_IDENTITY, CONF_CERTIFICATE_AUTHORITY, \
+    CONF_CERTIFICATE, CONF_KEY, CONF_USERNAME, CONF_EAP
 from esphome.core import CORE, HexInt, coroutine_with_priority
+from . import wpa2_eap
+
 
 AUTO_LOAD = ['network']
 
 wifi_ns = cg.esphome_ns.namespace('wifi')
+EAPAuth = wifi_ns.struct('EAPAuth')
 IPAddress = cg.global_ns.class_('IPAddress')
 ManualIP = wifi_ns.struct('ManualIP')
 WiFiComponent = wifi_ns.class_('WiFiComponent', cg.Component)
@@ -56,6 +60,17 @@ STA_MANUAL_IP_SCHEMA = AP_MANUAL_IP_SCHEMA.extend({
     cv.Optional(CONF_DNS2, default="0.0.0.0"): cv.ipv4,
 })
 
+EAP_AUTH_SCHEMA = cv.All(cv.Schema({
+    cv.Optional(CONF_IDENTITY): cv.string_strict,
+    cv.Optional(CONF_USERNAME): cv.string_strict,
+    cv.Optional(CONF_PASSWORD): cv.string_strict,
+    cv.Optional(CONF_CERTIFICATE_AUTHORITY): wpa2_eap.validate_certificate,
+    cv.Inclusive(CONF_CERTIFICATE, 'certificate_and_key'): wpa2_eap.validate_certificate,
+    # Only validate as file first because we need the password to load it
+    # Actual validation happens in validate_eap.
+    cv.Inclusive(CONF_KEY, 'certificate_and_key'): cv.file_,
+}), wpa2_eap.validate_eap, cv.has_at_least_one_key(CONF_IDENTITY, CONF_CERTIFICATE))
+
 WIFI_NETWORK_BASE = cv.Schema({
     cv.GenerateID(): cv.declare_id(WiFiAP),
     cv.Optional(CONF_SSID): cv.ssid,
@@ -73,6 +88,7 @@ WIFI_NETWORK_STA = WIFI_NETWORK_BASE.extend({
     cv.Optional(CONF_BSSID): cv.mac_address,
     cv.Optional(CONF_HIDDEN): cv.boolean,
     cv.Optional(CONF_PRIORITY, default=0.0): cv.float_,
+    cv.Optional(CONF_EAP): EAP_AUTH_SCHEMA,
 })
 
 
@@ -81,9 +97,13 @@ def validate(config):
         raise cv.Invalid("Cannot have WiFi password without SSID!")
 
     if CONF_SSID in config:
+        # Automatically move single network to 'networks' section
+        config = config.copy()
         network = {CONF_SSID: config.pop(CONF_SSID)}
         if CONF_PASSWORD in config:
             network[CONF_PASSWORD] = config.pop(CONF_PASSWORD)
+        if CONF_EAP in config:
+            network[CONF_EAP] = config.pop(CONF_EAP)
         if CONF_NETWORKS in config:
             raise cv.Invalid("You cannot use the 'ssid:' option together with 'networks:'. Please "
                              "copy your network into the 'networks:' key")
@@ -118,6 +138,7 @@ CONFIG_SCHEMA = cv.All(cv.Schema({
     cv.Optional(CONF_SSID): cv.ssid,
     cv.Optional(CONF_PASSWORD): validate_password,
     cv.Optional(CONF_MANUAL_IP): STA_MANUAL_IP_SCHEMA,
+    cv.Optional(CONF_EAP): EAP_AUTH_SCHEMA,
 
     cv.Optional(CONF_AP): WIFI_NETWORK_AP,
     cv.Optional(CONF_DOMAIN, default='.local'): cv.domain_name,
@@ -131,6 +152,29 @@ CONFIG_SCHEMA = cv.All(cv.Schema({
 
     cv.Optional('hostname'): cv.invalid("The hostname option has been removed in 1.11.0"),
 }), validate)
+
+
+def eap_auth(config):
+    if config is None:
+        return None
+    ca_cert = ""
+    if CONF_CERTIFICATE_AUTHORITY in config:
+        ca_cert = wpa2_eap.read_relative_config_path(config[CONF_CERTIFICATE_AUTHORITY])
+    client_cert = ""
+    if CONF_CERTIFICATE in config:
+        client_cert = wpa2_eap.read_relative_config_path(config[CONF_CERTIFICATE])
+    key = ""
+    if CONF_KEY in config:
+        key = wpa2_eap.read_relative_config_path(config[CONF_KEY])
+    return cg.StructInitializer(
+        EAPAuth,
+        ('identity', config.get(CONF_IDENTITY, "")),
+        ('username', config.get(CONF_USERNAME, "")),
+        ('password', config.get(CONF_PASSWORD, "")),
+        ('ca_cert', ca_cert),
+        ('client_cert', client_cert),
+        ('client_key', key),
+    )
 
 
 def safe_ip(ip):
@@ -158,6 +202,9 @@ def wifi_network(config, static_ip):
         cg.add(ap.set_ssid(config[CONF_SSID]))
     if CONF_PASSWORD in config:
         cg.add(ap.set_password(config[CONF_PASSWORD]))
+    if CONF_EAP in config:
+        cg.add(ap.set_eap(eap_auth(config[CONF_EAP])))
+        cg.add_define('ESPHOME_WIFI_WPA2_EAP')
     if CONF_BSSID in config:
         cg.add(ap.set_bssid([HexInt(i) for i in config[CONF_BSSID].parts]))
     if CONF_HIDDEN in config:

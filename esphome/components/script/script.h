@@ -1,29 +1,86 @@
 #pragma once
 
 #include "esphome/core/automation.h"
+#include "esphome/core/component.h"
 
 namespace esphome {
 namespace script {
 
+/// The abstract base class for all script types.
 class Script : public Trigger<> {
  public:
-  void execute() {
-    bool prev = this->in_stack_;
-    this->in_stack_ = true;
-    this->trigger();
-    this->in_stack_ = prev;
-  }
-  bool script_is_running() { return this->in_stack_ || this->is_running(); }
+  /** Execute a new instance of this script.
+   *
+   * The behavior of this function when a script is already running is defined by the subtypes
+   */
+  virtual void execute() = 0;
+  /// Check if any instance of this script is currently running.
+  virtual bool is_running() { return this->is_action_running(); }
+  /// Stop all instances of this script.
+  virtual void stop() { this->stop_action(); }
+
+  // Internal function to give scripts readable names.
+  void set_name(const std::string &name) { name_ = name; }
 
  protected:
-  bool in_stack_{false};
+  std::string name_;
+};
+
+/** A script type for which only a single instance at a time is allowed.
+ *
+ * If a new instance is executed while the previous one hasn't finished yet,
+ * a warning is printed and the new instance is discarded.
+ */
+class SingleScript : public Script {
+ public:
+  void execute() override;
+};
+
+/** A script type that restarts scripts from the beginning when a new instance is started.
+ *
+ * If a new instance is started but another one is already running, the existing
+ * script is stopped and the new instance starts from the beginning.
+ */
+class RestartScript : public Script {
+ public:
+  void execute() override;
+};
+
+/** A script type that queues new instances that are created.
+ *
+ * Only one instance of the script can be active at a time.
+ */
+class QueueingScript : public Script, public Component {
+ public:
+  void execute() override;
+  void stop() override;
+  void loop() override;
+  void set_max_runs(int max_runs) { max_runs_ = max_runs; }
+
+ protected:
+  int num_runs_ = 0;
+  int max_runs_ = 0;
+};
+
+/** A script type that executes new instances in parallel.
+ *
+ * If a new instance is started while previous ones haven't finished yet,
+ * the new one is exeucted in parallel to the other instances.
+ */
+class ParallelScript : public Script {
+ public:
+  void execute() override;
+  void set_max_runs(int max_runs) { max_runs_ = max_runs; }
+
+ protected:
+  int max_runs_ = 0;
 };
 
 template<typename... Ts> class ScriptExecuteAction : public Action<Ts...> {
  public:
   ScriptExecuteAction(Script *script) : script_(script) {}
 
-  void play(Ts... x) override { this->script_->trigger(); }
+  void play(Ts... x) override { this->script_->execute(); }
 
  protected:
   Script *script_;
@@ -43,7 +100,7 @@ template<typename... Ts> class IsRunningCondition : public Condition<Ts...> {
  public:
   explicit IsRunningCondition(Script *parent) : parent_(parent) {}
 
-  bool check(Ts... x) override { return this->parent_->script_is_running(); }
+  bool check(Ts... x) override { return this->parent_->is_running(); }
 
  protected:
   Script *parent_;
@@ -53,41 +110,34 @@ template<typename... Ts> class ScriptWaitAction : public Action<Ts...>, public C
  public:
   ScriptWaitAction(Script *script) : script_(script) {}
 
-  void play(Ts... x) { /* ignore - see play_complex */
-  }
-
   void play_complex(Ts... x) override {
+    this->num_running_++;
     // Check if we can continue immediately.
     if (!this->script_->is_running()) {
-      this->triggered_ = false;
-      this->play_next(x...);
+      this->play_next_(x...);
       return;
     }
     this->var_ = std::make_tuple(x...);
-    this->triggered_ = true;
     this->loop();
   }
 
-  void stop() override { this->triggered_ = false; }
-
   void loop() override {
-    if (!this->triggered_)
+    if (this->num_running_ == 0)
       return;
 
     if (this->script_->is_running())
       return;
 
-    this->triggered_ = false;
-    this->play_next_tuple(this->var_);
+    this->play_next_tuple_(this->var_);
   }
 
   float get_setup_priority() const override { return setup_priority::DATA; }
 
-  bool is_running() override { return this->triggered_ || this->is_running_next(); }
+  void play(Ts... x) override { /* ignore - see play_complex */
+  }
 
  protected:
   Script *script_;
-  bool triggered_{false};
   std::tuple<Ts...> var_{};
 };
 

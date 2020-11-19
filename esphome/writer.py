@@ -4,11 +4,12 @@ import re
 
 from esphome.config import iter_components
 from esphome.const import CONF_BOARD_FLASH_MODE, CONF_ESPHOME, CONF_PLATFORMIO_OPTIONS, \
-    HEADER_FILE_EXTENSIONS, SOURCE_FILE_EXTENSIONS, __version__
+    HEADER_FILE_EXTENSIONS, SOURCE_FILE_EXTENSIONS, __version__, ARDUINO_VERSION_ESP8266
 from esphome.core import CORE, EsphomeError
 from esphome.helpers import mkdir_p, read_file, write_file_if_changed, walk_files, \
     copy_file_if_changed
 from esphome.storage_json import StorageJSON, storage_path
+from esphome.pins import ESP8266_FLASH_SIZES, ESP8266_LD_SCRIPTS
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -180,6 +181,16 @@ def gather_build_flags():
     return list(sorted(list(build_flags)))
 
 
+ESP32_LARGE_PARTITIONS_CSV = """\
+nvs,      data, nvs,     0x009000, 0x005000,
+otadata,  data, ota,     0x00e000, 0x002000,
+app0,     app,  ota_0,   0x010000, 0x1C0000,
+app1,     app,  ota_1,   0x1D0000, 0x1C0000,
+eeprom,   data, 0x99,    0x390000, 0x001000,
+spiffs,   data, spiffs,  0x391000, 0x00F000
+"""
+
+
 def get_ini_content():
     lib_deps = gather_lib_deps()
     build_flags = gather_build_flags()
@@ -196,18 +207,34 @@ def get_ini_content():
     if CORE.is_esp32:
         data['board_build.partitions'] = "partitions.csv"
         partitions_csv = CORE.relative_build_path('partitions.csv')
-        if not os.path.isfile(partitions_csv):
-            with open(partitions_csv, "w") as f:
-                f.write("nvs,      data, nvs,     0x009000, 0x005000,\n")
-                f.write("otadata,  data, ota,     0x00e000, 0x002000,\n")
-                f.write("app0,     app,  ota_0,   0x010000, 0x190000,\n")
-                f.write("app1,     app,  ota_1,   0x200000, 0x190000,\n")
-                f.write("eeprom,   data, 0x99,    0x390000, 0x001000,\n")
-                f.write("spiffs,   data, spiffs,  0x391000, 0x00F000\n")
+        write_file_if_changed(partitions_csv, ESP32_LARGE_PARTITIONS_CSV)
 
+    # pylint: disable=unsubscriptable-object
     if CONF_BOARD_FLASH_MODE in CORE.config[CONF_ESPHOME]:
         flash_mode = CORE.config[CONF_ESPHOME][CONF_BOARD_FLASH_MODE]
         data['board_build.flash_mode'] = flash_mode
+
+    # Build flags
+    if CORE.is_esp8266 and CORE.board in ESP8266_FLASH_SIZES:
+        flash_size = ESP8266_FLASH_SIZES[CORE.board]
+        ld_scripts = ESP8266_LD_SCRIPTS[flash_size]
+
+        versions_with_old_ldscripts = [
+            ARDUINO_VERSION_ESP8266['2.4.0'],
+            ARDUINO_VERSION_ESP8266['2.4.1'],
+            ARDUINO_VERSION_ESP8266['2.4.2'],
+        ]
+        if CORE.arduino_version == ARDUINO_VERSION_ESP8266['2.3.0']:
+            # No ld script support
+            ld_script = None
+        if CORE.arduino_version in versions_with_old_ldscripts:
+            # Old ld script path
+            ld_script = ld_scripts[0]
+        else:
+            ld_script = ld_scripts[1]
+
+        if ld_script is not None:
+            data['board_build.ldscript'] = ld_script
 
     # Ignore libraries that are not explicitly used, but may
     # be added by LDF

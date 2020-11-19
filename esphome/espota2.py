@@ -83,19 +83,19 @@ def receive_exactly(sock, amount, msg, expect, decode=True):
     try:
         data += recv_decode(sock, 1, decode=decode)
     except OSError as err:
-        raise OTAError(f"Error receiving acknowledge {msg}: {err}")
+        raise OTAError(f"Error receiving acknowledge {msg}: {err}") from err
 
     try:
         check_error(data, expect)
     except OTAError as err:
         sock.close()
-        raise OTAError(f"Error {msg}: {err}")
+        raise OTAError(f"Error {msg}: {err}") from err
 
     while len(data) < amount:
         try:
             data += recv_decode(sock, amount - len(data), decode=decode)
         except OSError as err:
-            raise OTAError(f"Error receiving {msg}: {err}")
+            raise OTAError(f"Error receiving {msg}: {err}") from err
     return data
 
 
@@ -151,7 +151,7 @@ def send_check(sock, data, msg):
 
         sock.sendall(data)
     except OSError as err:
-        raise OTAError(f"Error sending {msg}: {err}")
+        raise OTAError(f"Error sending {msg}: {err}") from err
 
 
 def perform_ota(sock, password, file_handle, filename):
@@ -226,7 +226,7 @@ def perform_ota(sock, password, file_handle, filename):
             sock.sendall(chunk)
         except OSError as err:
             sys.stderr.write('\n')
-            raise OTAError(f"Error sending data: {err}")
+            raise OTAError(f"Error sending data: {err}") from err
 
         progress.update(offset / float(file_size))
     progress.done()
@@ -259,7 +259,7 @@ def run_ota_impl_(remote_host, remote_port, password, filename):
                           remote_host)
             _LOGGER.error("(If this error persists, please set a static IP address: "
                           "https://esphome.io/components/wifi.html#manual-ips)")
-            raise OTAError(err)
+            raise OTAError(err) from err
         _LOGGER.info(" -> %s", ip)
 
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
