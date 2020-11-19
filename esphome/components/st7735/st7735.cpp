@@ -309,7 +309,7 @@ void HOT ST7735::draw_absolute_pixel_internal(int x, int y, Color color) {
     return;
 
   if (this->eightbitcolor_) {
-    const uint32_t color332 = to_rgb_332(color);
+    const uint32_t color332 = to_rgb_332_(color);
     uint16_t pos = (x + y * this->get_width_internal());
     this->buffer_[pos] = color332;
   } else {
@@ -445,7 +445,7 @@ void HOT ST7735::write_display_data_() {
   if (this->eightbitcolor_) {
     for (int line = 0; line < this->get_buffer_length(); line = line + this->get_width_internal()) {
       for (int index = 0; index < this->get_width_internal(); ++index) {
-        auto color = rgb_332to_rgb_556(this->buffer_[index + line]);
+        auto color = rgb_332to_rgb_556_(this->buffer_[index + line]);
         this->write_byte((color >> 8) & 0xff);
         this->write_byte(color & 0xff);
       }
@@ -457,7 +457,7 @@ void HOT ST7735::write_display_data_() {
   this->disable();
 }
 
-uint16_t HOT ST7735::rgb_332to_rgb_556(uint8_t rgb332) {
+uint16_t HOT ST7735::rgb_332to_rgb_556_(uint8_t rgb332) {
   uint16_t red, green, blue, blue2;
 
   red = (rgb332 & 0xe0) >> 5;
@@ -474,7 +474,7 @@ uint16_t HOT ST7735::rgb_332to_rgb_556(uint8_t rgb332) {
   return (uint16_t)(red | green | blue);
 }
 
-uint8_t ST7735::to_rgb_332(Color color) {
+uint8_t ST7735::to_rgb_332_(Color color) {
   return (esp_scale8(color.red, ((1 << 3) - 1) << 5 )) | (esp_scale8(color.green, ((1 << 3) - 1) << 2 )) |
          esp_scale8(color.blue, (1 << 2) - 1);
 }
