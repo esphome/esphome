@@ -130,7 +130,7 @@ uint8_t ILI9341Display::convert_to_8bit_color_(uint16_t color_16bit) {
 }
 
 void ILI9341Display::fill(Color color) {
-  auto color565 = color.triad_to16(Color::COLOR_ORDER_RGB, Color::COLOR_BITNESS_565);
+  auto color565 = color.to_rgb_565();
   memset(this->buffer_, convert_to_8bit_color_(color565), this->get_buffer_length_());
   this->x_low_ = 0;
   this->y_low_ = 0;
@@ -142,7 +142,7 @@ void ILI9341Display::fill_internal_(Color color) {
   this->set_addr_window_(0, 0, this->get_width_internal(), this->get_height_internal());
   this->start_data_();
 
-  auto color565 = color.triad_to16(Color::COLOR_ORDER_RGB, Color::COLOR_BITNESS_565);
+  auto color565 = color.to_rgb_565();
   for (uint32_t i = 0; i < (this->get_width_internal()) * (this->get_height_internal()); i++) {
     this->write_byte(color565 >> 8);
     this->write_byte(color565);
@@ -162,7 +162,7 @@ void HOT ILI9341Display::draw_absolute_pixel_internal(int x, int y, Color color)
   this->y_high_ = (y > this->y_high_) ? y : this->y_high_;
 
   uint32_t pos = (y * width_) + x;
-  auto color565 = color.triad_to16(Color::COLOR_ORDER_RGB, Color::COLOR_BITNESS_565);
+  auto color565 = color.to_rgb_565();
   buffer_[pos] = convert_to_8bit_color_(color565);
 }
 
