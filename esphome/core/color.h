@@ -6,6 +6,7 @@
 namespace esphome {
 
 inline static uint8_t esp_scale8(uint8_t i, uint8_t scale) { return (uint16_t(i) * (1 + uint16_t(scale))) / 256; }
+inline static uint8_t esp_scale(uint8_t i, uint8_t scale, uint8_t max_value = 255) { return (max_value * i / scale); }
 
 struct Color {
   union {
@@ -30,6 +31,8 @@ struct Color {
     uint8_t raw[4];
     uint32_t raw_32;
   };
+  enum ColorOrder : uint8_t { COLOR_ORDER_RGB = 0, COLOR_ORDER_BGR = 1, COLOR_ORDER_GRB = 2 };
+  enum ColorBitness : uint8_t { COLOR_BITNESS_888 = 0, COLOR_BITNESS_565 = 1, COLOR_BITNESS_332 = 2 };
   inline Color() ALWAYS_INLINE : r(0), g(0), b(0), w(0) {}  // NOLINT
   inline Color(float red, float green, float blue) ALWAYS_INLINE : r(uint8_t(red * 255)),
                                                                    g(uint8_t(green * 255)),
@@ -194,7 +197,40 @@ struct Color {
   Color fade_to_black(uint8_t amnt) { return *this * amnt; }
   Color lighten(uint8_t delta) { return *this + delta; }
   Color darken(uint8_t delta) { return *this - delta; }
+  uint8_t to_332(ColorOrder color_order = ColorOrder::COLOR_ORDER_RGB) const {
+    uint16_t red_color, green_color, blue_color;
 
+    red_color = esp_scale8(this->red, ((1 << 3) - 1));
+    green_color = esp_scale8(this->green, ((1 << 3) - 1));
+    blue_color = esp_scale8(this->blue, (1 << 2) - 1);
+
+    switch (color_order) {
+      case COLOR_ORDER_RGB:
+        return red_color << 5 | green_color << 2 | blue_color;
+      case COLOR_ORDER_BGR:
+        return blue_color << 6 | green_color << 3 | red_color;
+      case COLOR_ORDER_GRB:
+        return green_color << 5 | red_color << 2 | blue_color;
+    }
+    return 0;
+  }
+  uint16_t to_565(ColorOrder color_order = ColorOrder::COLOR_ORDER_RGB) const {
+    uint16_t red_color, green_color, blue_color;
+
+    red_color = esp_scale8(this->red, ((1 << 5) - 1));
+    green_color = esp_scale8(this->green, ((1 << 6) - 1));
+    blue_color = esp_scale8(this->blue, (1 << 5) - 1);
+
+    switch (color_order) {
+      case COLOR_ORDER_RGB:
+        return red_color << 11 | green_color << 5 | blue_color;
+      case COLOR_ORDER_BGR:
+        return blue_color << 11 | green_color << 5 | red_color;
+      case COLOR_ORDER_GRB:
+        return green_color << 10 | red_color << 5 | blue_color;
+    }
+    return 0;
+  }
   uint32_t to_rgb_565() const {
     uint32_t color565 =
         (esp_scale8(this->red, 31) << 11) | (esp_scale8(this->green, 63) << 5) | (esp_scale8(this->blue, 31) << 0);
