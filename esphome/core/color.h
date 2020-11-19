@@ -200,34 +200,34 @@ struct Color {
   uint8_t to_332(ColorOrder color_order = ColorOrder::COLOR_ORDER_RGB) const {
     uint16_t red_color, green_color, blue_color;
 
-    red_color = (esp_scale8(this->red, ((1 << 3) - 1) << (8 - 3)));
-    green_color = (esp_scale8(this->green, ((1 << 3) - 1) << (8 - 3 - 3)));
+    red_color = esp_scale8(this->red, ((1 << 3) - 1));
+    green_color = esp_scale8(this->green, ((1 << 3) - 1));
     blue_color = esp_scale8(this->blue, (1 << 2) - 1);
 
     switch (color_order) {
       case COLOR_ORDER_RGB:
-        return red_color | blue_color | green_color;
+        return red_color << 5 | green_color << 2 | blue_color;
       case COLOR_ORDER_BGR:
-        return blue_color | green_color | red_color;
+        return blue_color << 6 | green_color << 3 | red_color;
       case COLOR_ORDER_GRB:
-        return green_color | red_color | blue_color;
+        return green_color << 5 | red_color << 2 | blue_color;
     }
     return 0;
   }
   uint16_t to_565(ColorOrder color_order = ColorOrder::COLOR_ORDER_RGB) const {
     uint16_t red_color, green_color, blue_color;
 
-    red_color = (esp_scale8(this->red, ((1 << 5) - 1)) << (16 - 5));
-    green_color = (esp_scale8(this->green, ((1 << 6) - 1)) << (16 - 5 - 6));
+    red_color = esp_scale8(this->red, ((1 << 5) - 1));
+    green_color = esp_scale8(this->green, ((1 << 6) - 1));
     blue_color = esp_scale8(this->blue, (1 << 5) - 1);
 
     switch (color_order) {
       case COLOR_ORDER_RGB:
-        return red_color | green_color | blue_color;
+        return red_color << 11 | green_color << 5 | blue_color;
       case COLOR_ORDER_BGR:
-        return blue_color | green_color | red_color;
+        return blue_color << 11 | green_color << 5 | red_color;
       case COLOR_ORDER_GRB:
-        return green_color | red_color | blue_color;
+        return green_color << 10 | red_color << 5 | blue_color;
     }
     return 0;
   }
