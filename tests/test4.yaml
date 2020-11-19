@@ -53,6 +53,28 @@ sensor:
   - platform: homeassistant
     entity_id: sensor.hello_world
     id: ha_hello_world
+  - platform: nextion
+    page_id: 0
+    component_id: 5 
+    name: "Nextion sensor"
+
+binary_sensor:
+  - platform: nextion
+    page_id: 0
+    component_id: 3
+    name: "Nextion Component Binary"
+
+switch:
+  - platform: nextion
+    page_id: 0
+    component_id: 3
+    name: "Nextion Component Switch"
+    button_id: "bt0"
+
+display:
+  - platform: nextion
+
+
 #
 # platform sensor.apds9960 requires component apds9960
 #
