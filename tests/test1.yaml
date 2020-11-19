@@ -586,6 +586,10 @@ sensor:
       - sensor.rotary_encoder.set_value:
           id: rotary_encoder1
           value: !lambda 'return -1;'
+    on_clockwise:
+      - logger.log: 'Clockwise'
+    on_anticlockwise:
+      - logger.log: 'Anticlockwise'
   - platform: pulse_width
     name: Pulse Width
     pin: GPIO12
@@ -614,6 +618,7 @@ sensor:
     update_interval: 15s
     automatic_self_calibration: true
     altitude_compensation: 10m
+    ambient_pressure_compensation: 961mBar
   - platform: sgp30
     eco2:
       name: 'Workshop eCO2'
@@ -757,6 +762,32 @@ sensor:
     aqi:
       name: 'AQI'
       calculation_type: 'CAQI'
+  - platform: teleinfo
+    tags:
+      - tag_name: 'HCHC'
+        sensor:
+          name: 'hchc'
+          unit_of_measurement: 'Wh'
+          icon: mdi:flash
+      - tag_name: 'HCHP'
+        sensor:
+          name: 'hchp'
+          unit_of_measurement: 'Wh'
+          icon: mdi:flash
+      - tag_name: 'PAPP'
+        sensor:
+          name: 'papp'
+          unit_of_measurement: 'VA'
+          icon: mdi:flash
+    update_interval: 60s
+    historical_mode: true
+  - platform: mcp9808
+    name: 'MCP9808 Temperature'
+    update_interval: 15s
+  - platform: ezo
+    id: ph_ezo
+    address: 99
+    unit_of_measurement: 'pH'
 
 esp32_touch:
   setup_mode: False
@@ -870,6 +901,9 @@ binary_sensor:
       - output.ledc.set_frequency:
           id: gpio_19
           frequency: !lambda 'return 500.0;'
+  - platform: pn532
+    uid: 74-10-37-94
+    name: 'PN532 NFC Tag'
   - platform: rdm6300
     uid: 7616525
     name: 'RDM6300 NFC Tag'
@@ -1254,6 +1288,7 @@ light:
     chipset: WS2801
     data_pin: GPIO23
     clock_pin: GPIO22
+    data_rate: 2MHz
     num_leds: 60
     rgb_order: BRG
     name: 'FastLED SPI Light'
@@ -1320,6 +1355,8 @@ climate:
     name: LG Climate
   - platform: toshiba
     name: Toshiba Climate
+  - platform: hitachi_ac344
+    name: Hitachi Climate
 
 switch:
   - platform: gpio
@@ -1563,29 +1600,6 @@ color:
     blue: 100%
 
 display:
-  - platform: st7735
-    model: 'INITR_18BLACKTAB'
-    reset_pin: GPIO04
-    cs_pin: GPIO05
-    dc_pin: GPIO12
-    rotation: 0
-    devicewidth: 128
-    deviceheight: 160
-    colstart: 0
-    rowstart: 0
-    eightbitcolor: true
-    update_interval: 5s
-    lambda: |-
-      // Draw a line from [0,0] to [100,50]
-      it.line(0, 0, 100, 50);
-      // Draw the outline of a rectangle with the top left at [50,60], a width of 30 and a height of 42
-      it.rectangle(50, 60, 30, 42,  id(kbx_red));
-      // Draw the same rectangle, but this time filled.
-      it.filled_rectangle(50, 60, 30, 42,  id(kbx_blue));
-      // Circles! Let's draw one with the center at [25,25] and a radius of 10
-      it.circle(25, 25, 10);
-      // ... and the same thing filled again
-      it.filled_circle(25, 25, 10);
   - platform: lcd_gpio
     dimensions: 18x4
     data_pins:
@@ -1631,6 +1645,7 @@ display:
     cs_pin: GPIO23
     dc_pin: GPIO23
     reset_pin: GPIO23
+    contrast: 60
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
   - platform: ssd1306_i2c
@@ -1655,6 +1670,12 @@ display:
       it.rectangle(0, 0, it.get_width(), it.get_height());
   - platform: ssd1325_spi
     model: 'SSD1325 128x64'
+    cs_pin: GPIO23
+    dc_pin: GPIO23
+    reset_pin: GPIO23
+    lambda: |-
+      it.rectangle(0, 0, it.get_width(), it.get_height());
+  - platform: ssd1331_spi
     cs_pin: GPIO23
     dc_pin: GPIO23
     reset_pin: GPIO23
@@ -1696,7 +1717,26 @@ remote_receiver:
 status_led:
   pin: GPIO2
 
+pn532_spi:
+  cs_pin: GPIO23
+  update_interval: 1s
+  on_tag:
+    - lambda: |-
+        ESP_LOGD("main", "Found tag %s", x.c_str());
+    - mqtt.publish:
+        topic: the/topic
+        payload: !lambda 'return x;'
+
+pn532_i2c:
+
 rdm6300:
+
+rc522_spi:
+  cs_pin: GPIO23
+  update_interval: 1s
+  on_tag:
+    - lambda: |-
+        ESP_LOGD("main", "Found tag %s", x.c_str());
 
 gps:
 
