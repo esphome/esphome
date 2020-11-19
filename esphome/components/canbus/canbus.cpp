@@ -14,16 +14,22 @@ void Canbus::setup() {
   }
 }
 
-void Canbus::dump_config() { ESP_LOGCONFIG(TAG, "Canbus: can_id=%d", this->can_id_); }
+void Canbus::dump_config() { 
+  if(this->can_ext_id_) {
+    ESP_LOGCONFIG(TAG, "Canbus: ext can_id=0x%08x", this->can_id_); 
+  } else {
+    ESP_LOGCONFIG(TAG, "Canbus: std can_id=0x%03x", this->can_id_); 
+  }
+}
 
 void Canbus::send_data(uint32_t can_id, bool can_ext_id, const std::vector<uint8_t> &data) {
   struct CanFrame can_message;
 
   uint8_t size = static_cast<uint8_t>(data.size());
   if(can_ext_id) {
-    ESP_LOGD(TAG, "send ext canid=%d size=%d", can_id, size);
+    ESP_LOGD(TAG, "send ext canid=0x%08x size=%d", can_id, size);
   } else {
-    ESP_LOGD(TAG, "send std canid=%d size=%d", can_id, size);
+    ESP_LOGD(TAG, "send std canid=0x%03x size=%d", can_id, size);
   }
   if (size > CAN_MAX_DLC)
     size = CAN_MAX_DLC;
@@ -40,7 +46,11 @@ void Canbus::send_data(uint32_t can_id, bool can_ext_id, const std::vector<uint8
 }
 
 void Canbus::add_trigger(CanbusTrigger *trigger) {
-  ESP_LOGVV(TAG, "add trigger for canid:%d", trigger->can_id_);
+  if(trigger->can_ext_id_) {
+    ESP_LOGVV(TAG, "add trigger for ext canid=0x%08x", trigger->can_id_);
+  } else {
+    ESP_LOGVV(TAG, "add trigger for std canid=0x%03x", trigger->can_id_);
+  }
   this->triggers_.push_back(trigger);
 };
 
@@ -49,9 +59,9 @@ void Canbus::loop() {
   // readmessage
   if (this->read_message(&can_message) == canbus::ERROR_OK) {
     if(can_message.ext_id) {
-      ESP_LOGD(TAG, "received ext can message can_id=%d size=%d", can_message.can_id, can_message.can_dlc);
+      ESP_LOGD(TAG, "received can message ext can_id=0x%x size=%d", can_message.can_id, can_message.can_dlc);
     } else {
-      ESP_LOGD(TAG, "received std can message can_id=%d size=%d", can_message.can_id, can_message.can_dlc);
+      ESP_LOGD(TAG, "received can message std can_id=0x%x size=%d", can_message.can_id, can_message.can_dlc);
     }
 
     std::vector<uint8_t> data;
@@ -71,5 +81,5 @@ void Canbus::loop() {
   }
 }
 
-}  // namespace canbus
+}  // namespace canbusS
 }  // namespace esphome
