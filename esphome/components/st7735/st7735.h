@@ -68,8 +68,8 @@ class ST7735 : public PollingComponent,
   void spi_master_write_addr_(uint16_t addr1, uint16_t addr2);
   void spi_master_write_color_(uint16_t color, uint16_t size);
 
-  uint8_t to_rgb_332(Color color);
-  uint16_t rgb_332to_rgb_556(uint8_t rgb332);
+  uint8_t to_rgb_332_(Color color);
+  uint16_t rgb_332to_rgb_556_(uint8_t rgb332);
   int get_width_internal() override;
   int get_height_internal() override;
 
