@@ -475,7 +475,7 @@ uint16_t HOT ST7735::rgb_332to_rgb_556_(uint8_t rgb332) {
 }
 
 uint8_t ST7735::to_rgb_332_(Color color) {
-  return (esp_scale8(color.red, ((1 << 3) - 1) << 5 )) | (esp_scale8(color.green, ((1 << 3) - 1) << 2 )) |
+  return (esp_scale8(color.red, ((1 << 3) - 1) << 5)) | (esp_scale8(color.green, ((1 << 3) - 1) << 2)) |
          esp_scale8(color.blue, (1 << 2) - 1);
 }
 
