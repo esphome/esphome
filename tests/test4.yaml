@@ -56,38 +56,21 @@ time:
 tuya:
   time_id: sntp_time
 
+display:
+  - platform: nextion
+
 sensor:
   - platform: homeassistant
     entity_id: sensor.hello_world
     id: ha_hello_world
-<<<<<<< HEAD
+  - platform: tuya
+    id: tuya_sensor
+    sensor_datapoint: 1
   - platform: nextion
     page_id: 0
     component_id: 5 
     name: "Nextion sensor"
 
-binary_sensor:
-  - platform: nextion
-    page_id: 0
-    component_id: 3
-    name: "Nextion Component Binary"
-
-switch:
-  - platform: nextion
-    page_id: 0
-    component_id: 3
-    name: "Nextion Component Switch"
-    button_id: "bt0"
-
-display:
-  - platform: nextion
-
-
-=======
-  - platform: tuya
-    id: tuya_sensor
-    sensor_datapoint: 1
->>>>>>> b5e6ae0d692f3eebd2a6e8f8ee1f38ccdd4f51a8
 #
 # platform sensor.apds9960 requires component apds9960
 #
@@ -111,6 +94,10 @@ binary_sensor:
   - platform: tuya
     id: tuya_binary_sensor
     sensor_datapoint: 1
+  - platform: nextion
+    page_id: 0
+    component_id: 3
+    name: "Nextion Component Binary"
 
 climate:
   - platform: tuya
@@ -124,3 +111,8 @@ switch:
   - platform: tuya
     id: tuya_switch
     switch_datapoint: 1
+  - platform: nextion
+    page_id: 0
+    component_id: 3
+    name: "Nextion Component Switch"
+    button_id: "bt0"
