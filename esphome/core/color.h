@@ -6,7 +6,6 @@
 namespace esphome {
 
 inline static uint8_t esp_scale8(uint8_t i, uint8_t scale) { return (uint16_t(i) * (1 + uint16_t(scale))) / 256; }
-inline static uint8_t esp_scale(uint8_t i, uint8_t scale, uint8_t max_value = 255) { return (max_value * i / scale); }
 
 struct Color {
   union {
@@ -31,8 +30,6 @@ struct Color {
     uint8_t raw[4];
     uint32_t raw_32;
   };
-  enum ColorOrder : uint8_t { COLOR_ORDER_RGB = 0, COLOR_ORDER_BGR = 1, COLOR_ORDER_GRB = 2 };
-  enum ColorBitness : uint8_t { COLOR_BITNESS_888 = 0, COLOR_BITNESS_565 = 1, COLOR_BITNESS_332 = 2 };
   inline Color() ALWAYS_INLINE : r(0), g(0), b(0), w(0) {}  // NOLINT
   inline Color(float red, float green, float blue) ALWAYS_INLINE : r(uint8_t(red * 255)),
                                                                    g(uint8_t(green * 255)),
@@ -42,61 +39,6 @@ struct Color {
                                                                                 g(uint8_t(green * 255)),
                                                                                 b(uint8_t(blue * 255)),
                                                                                 w(uint8_t(white * 255)) {}
-  inline Color(uint32_t colorcode, ColorOrder color_order, ColorBitness color_bitness = ColorBitness::COLOR_BITNESS_888,
-               bool right_bit_aligned = true) {
-    uint8_t first_color, second_color, third_color;
-    uint8_t first_bits = 0;
-    uint8_t second_bits = 0;
-    uint8_t third_bits = 0;
-
-    switch (color_bitness) {
-      case COLOR_BITNESS_888:
-        first_bits = 8;
-        second_bits = 8;
-        third_bits = 8;
-        break;
-      case COLOR_BITNESS_565:
-        first_bits = 5;
-        second_bits = 6;
-        third_bits = 5;
-        break;
-      case COLOR_BITNESS_332:
-        first_bits = 3;
-        second_bits = 3;
-        third_bits = 2;
-        break;
-    }
-
-    first_color = right_bit_aligned ? esp_scale(((colorcode >> (second_bits + third_bits)) & ((1 << first_bits) - 1)),
-                                                ((1 << first_bits) - 1))
-                                    : esp_scale(((colorcode >> 16) & 0xFF), (1 << first_bits) - 1);
-
-    second_color = right_bit_aligned
-                       ? esp_scale(((colorcode >> third_bits) & ((1 << second_bits) - 1)), ((1 << second_bits) - 1))
-                       : esp_scale(((colorcode >> 8) & 0xFF), ((1 << second_bits) - 1));
-
-    third_color = (right_bit_aligned ? esp_scale(((colorcode >> 0) & 0xFF), ((1 << third_bits) - 1))
-                                     : esp_scale(((colorcode >> 0) & 0xFF), (1 << third_bits) - 1));
-
-    switch (color_order) {
-      case COLOR_ORDER_RGB:
-        this->r = first_color;
-        this->g = second_color;
-        this->b = third_color;
-        break;
-      case COLOR_ORDER_BGR:
-        this->b = first_color;
-        this->g = second_color;
-        this->r = third_color;
-        break;
-      case COLOR_ORDER_GRB:
-        this->g = first_color;
-        this->r = second_color;
-        this->b = third_color;
-        break;
-    }
-  }
-
   inline Color(uint32_t colorcode) ALWAYS_INLINE : r((colorcode >> 16) & 0xFF),
                                                    g((colorcode >> 8) & 0xFF),
                                                    b((colorcode >> 0) & 0xFF),
@@ -253,49 +195,16 @@ struct Color {
   Color lighten(uint8_t delta) { return *this + delta; }
   Color darken(uint8_t delta) { return *this - delta; }
 
-  uint16_t to332(ColorOrder color_order = ColorOrder::COLOR_ORDER_RGB) const {
-    uint8_t first_bits = 3;
-    uint8_t second_bits = 3;
-    uint8_t third_bits = 2;
-    uint16_t red_color, green_color, blue_color;
-
-    red_color = (esp_scale8(this->red, ((1 << first_bits) - 1) << (8 - first_bits)));
-    green_color = (esp_scale8(this->green, ((1 << second_bits) - 1) << (8 - first_bits - second_bits)));
-    blue_color = esp_scale8(this->blue, (1 << third_bits) - 1);
-
-    switch (color_order) {
-      case COLOR_ORDER_RGB:
-        return red_color | blue_color | green_color;
-      case COLOR_ORDER_BGR:
-        return blue_color | green_color | red_color;
-      case COLOR_ORDER_GRB:
-        return green_color | red_color | blue_color;
-    }
-    return 0;
+  uint32_t to_rgb_565() const {
+    uint32_t color565 =
+        (esp_scale8(this->red, 31) << 11) | (esp_scale8(this->green, 63) << 5) | (esp_scale8(this->blue, 31) << 0);
+    return color565;
   }
-
-  uint16_t to565(ColorOrder color_order = ColorOrder::COLOR_ORDER_RGB) const {
-    uint8_t first_bits = 5;
-    uint8_t second_bits = 6;
-    uint8_t third_bits = 5;
-
-    uint16_t red_color, green_color, blue_color;
-
-    red_color = (esp_scale8(this->red, ((1 << first_bits) - 1)) << (16 - first_bits));
-    green_color = (esp_scale8(this->green, ((1 << second_bits) - 1)) << (16 - first_bits - second_bits));
-    blue_color = esp_scale8(this->blue, (1 << third_bits) - 1);
-
-    switch (color_order) {
-      case COLOR_ORDER_RGB:
-        return red_color | green_color | blue_color;
-      case COLOR_ORDER_BGR:
-        return blue_color | green_color | red_color;
-      case COLOR_ORDER_GRB:
-        return green_color | red_color | blue_color;
-    }
-    return 0;
+  uint32_t to_bgr_565() const {
+    uint32_t color565 =
+        (esp_scale8(this->blue, 31) << 11) | (esp_scale8(this->green, 63) << 5) | (esp_scale8(this->red, 31) << 0);
+    return color565;
   }
-
   uint32_t to_grayscale4() const {
     uint32_t gs4 = esp_scale8(this->white, 15);
     return gs4;
