@@ -14,6 +14,13 @@ CONF_ON_FRAME = 'on_frame'
 CONF_CANBUS_SEND = 'canbus.send'
 
 
+def validate_id(id_value, id_ext):
+    print(id_value, id_ext)
+    if(not id_ext):
+        if(id_value > 0x1ff):
+            raise cv.Invalid("Standard IDs must be 7Bit (0x000-0x1fff / 0-511)")
+
+
 def validate_raw_data(value):
     if isinstance(value, str):
         return value.encode('utf-8')
@@ -63,12 +70,14 @@ CONFIG_SCHEMA = cv.Schema({
 
 @coroutine
 def setup_canbus_core_(var, config):
+    validate_id(config[CONF_CAN_ID], config[CONF_CAN_EXT_ID])
     yield cg.register_component(var, config)
     cg.add(var.set_can_id([config[CONF_CAN_ID]]))
     cg.add(var.set_can_ext_id([config[CONF_CAN_EXT_ID]]))
     cg.add(var.set_bitrate(CAN_SPEEDS[config[CONF_BIT_RATE]]))
 
     for conf in config.get(CONF_ON_FRAME, []):
+        validate_id(conf[CONF_CAN_ID], conf[CONF_CAN_EXT_ID])
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var, conf[CONF_CAN_ID], conf[CONF_CAN_EXT_ID])
         yield cg.register_component(trigger, conf)
         yield automation.build_automation(trigger, [(cg.std_vector.template(cg.uint8), 'x')], conf)
@@ -90,7 +99,9 @@ def register_canbus(var, config):
                                 cv.Optional(CONF_CAN_EXT_ID, default=False): cv.boolean,
                                 cv.Required(CONF_DATA): cv.templatable(validate_raw_data),
                             }, key=CONF_DATA))
+
 def canbus_action_to_code(config, action_id, template_arg, args):
+    validate_id(config[CONF_CAN_ID], config[CONF_CAN_EXT_ID])
     var = cg.new_Pvariable(action_id, template_arg)
     yield cg.register_parented(var, config[CONF_CANBUS_ID])
 
