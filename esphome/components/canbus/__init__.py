@@ -15,7 +15,6 @@ CONF_CANBUS_SEND = 'canbus.send'
 
 
 def validate_id(id_value, id_ext):
-    print(id_value, id_ext)
     if(not id_ext):
         if(id_value > 0x1ff):
             raise cv.Invalid("Standard IDs must be 7Bit (0x000-0x1fff / 0-511)")
