@@ -1705,19 +1705,19 @@ display:
   lambda: |-
     it.rectangle(0, 0, it.get_width(), it.get_height());
 - platform: st7735
-    model: "INITR_18BLACKTAB"
-    reset_pin: GPIO04
-    cs_pin: GPIO05
-    dc_pin: GPIO12
-    rotation: 0
-    devicewidth: 128
-    deviceheight: 160
-    colstart: 0
-    rowstart: 0
-    eightbitcolor: true
-    update_interval: 5s
-    lambda: |-      
-      it.rectangle(0, 0, it.get_width(), it.get_height());     
+  model: "INITR_18BLACKTAB"
+  reset_pin: GPIO04
+  cs_pin: GPIO05
+  dc_pin: GPIO12
+  rotation: 0
+  devicewidth: 128
+  deviceheight: 160
+  colstart: 0
+  rowstart: 0
+  eightbitcolor: true
+  update_interval: 5s
+  lambda: |-      
+    it.rectangle(0, 0, it.get_width(), it.get_height());     
 tm1651:
   id: tm1651_battery
   clk_pin: GPIO23

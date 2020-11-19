@@ -219,6 +219,7 @@ static const uint8_t PROGMEM
 
 // clang-format on
 static const char *TAG = "st7735";
+inline static uint8_t esp_scale(uint8_t i, uint8_t scale, uint8_t max_value = 255) { return (max_value * i / scale); }
 
 ST7735::ST7735(ST7735Model model, int width, int height, int colstart, int rowstart, boolean eightbitcolor,
                boolean usebgr) {
@@ -444,7 +445,7 @@ void HOT ST7735::write_display_data_() {
   if (this->eightbitcolor_) {
     for (int line = 0; line < this->get_buffer_length(); line = line + this->get_width_internal()) {
       for (int index = 0; index < this->get_width_internal(); ++index) {
-        auto color = Color(this->buffer_[index + line], Color::COLOR_ORDER_RGB, Color::COLOR_BITNESS_332, true).to565();
+        auto color = rgb_332to_rgb_556(this->buffer_[index + line]);
         this->write_byte((color >> 8) & 0xff);
         this->write_byte(color & 0xff);
       }
@@ -456,8 +457,25 @@ void HOT ST7735::write_display_data_() {
   this->disable();
 }
 
-uint8_t to_rgb_332(Color color) {
-  return (esp_scale8(color.red, ((1 << 3) - 1) << (8 - 3))) | (esp_scale8(color.green, ((1 << 3) - 1) << (8 - 3 - 3))) |
+uint16_t HOT ST7735::rgb_332to_rgb_556(uint8_t rgb332) {
+  uint16_t red, green, blue, blue2;
+
+  red = (rgb332 & 0xe0) >> 5;
+  red = esp_scale(red, 7, 31);
+  red = red << 11;
+
+  green = (rgb332 & 0x1c) >> 2;
+  green = esp_scale(green, 7, 63);
+  green = green << 5;
+
+  blue = rgb332 & 0x03;
+  blue = esp_scale(blue, 3, 31);
+
+  return (uint16_t)(red | green | blue);
+}
+
+uint8_t ST7735::to_rgb_332(Color color) {
+  return (esp_scale8(color.red, ((1 << 3) - 1) << 5 )) | (esp_scale8(color.green, ((1 << 3) - 1) << 2 )) |
          esp_scale8(color.blue, (1 << 2) - 1);
 }
 
