@@ -35,11 +35,6 @@ enum CanSpeed : uint8_t {
   CAN_1000KBPS
 };
 
-/* valid bits in CAN ID for frame formats */
-// static const uint32_t CAN_SFF_MASK = 0x000007FFUL; /* standard frame format (SFF) */
-// static const uint32_t CAN_EFF_MASK = 0x1FFFFFFFUL; /* extended frame format (EFF) */
-// static const uint32_t CAN_ERR_MASK = 0x1FFFFFFFUL; /* omit EFF, RTR, ERR flags */
-
 class CanbusTrigger;
 template<typename... Ts> class CanbusSendAction;
 
@@ -64,7 +59,7 @@ class Canbus : public Component {
   void loop() override;
 
   void send_data(uint32_t can_id, bool can_ext_id, const std::vector<uint8_t> &data);
-  void set_can_id(int can_id) { this->can_id_ = can_id; }
+  void set_can_id(uint32_t can_id) { this->can_id_ = can_id; }
   void set_can_ext_id(bool can_ext_id) { this->can_ext_id_ = can_ext_id; }
   void set_bitrate(CanSpeed bit_rate) { this->bit_rate_ = bit_rate; }
 

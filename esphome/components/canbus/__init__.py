@@ -106,11 +106,11 @@ def canbus_action_to_code(config, action_id, template_arg, args):
     yield cg.register_parented(var, config[CONF_CANBUS_ID])
 
     if CONF_CAN_ID in config:
-        can_id = yield cg.templatable(config[CONF_CAN_ID], args, cg.uint16)
+        can_id = yield cg.templatable(config[CONF_CAN_ID], args, cg.uint32)
         cg.add(var.set_can_id(can_id))
-        
+
     if CONF_CAN_EXT_ID in config:
-        can_ext_id = yield cg.templatable(config[CONF_CAN_EXT_ID], args, cg.uint16)
+        can_ext_id = yield cg.templatable(config[CONF_CAN_EXT_ID], args, cg.uint32)
         cg.add(var.set_can_ext_id(can_ext_id))
 
     data = config[CONF_DATA]
