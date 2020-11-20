@@ -219,7 +219,6 @@ static const uint8_t PROGMEM
 
 // clang-format on
 static const char *TAG = "st7735";
-inline static uint8_t esp_scale(uint8_t i, uint8_t scale, uint8_t max_value = 255) { return (max_value * i / scale); }
 
 ST7735::ST7735(ST7735Model model, int width, int height, int colstart, int rowstart, boolean eightbitcolor,
                boolean usebgr) {
@@ -455,31 +454,7 @@ void HOT ST7735::write_display_data_() {
   } else {
     this->write_array(this->buffer_, this->get_buffer_length());
   }
-
-  this->disable();
 }
-
-// uint16_t HOT ST7735::rgb_332to_rgb_556_(uint8_t rgb332) {
-//   uint16_t red, green, blue, blue2;
-
-//   red = (rgb332 & 0xe0) >> 5;
-//   red = esp_scale(red, 7, 31);
-//   red = red << 11;
-
-//   green = (rgb332 & 0x1c) >> 2;
-//   green = esp_scale(green, 7, 63);
-//   green = green << 5;
-
-//   blue = rgb332 & 0x03;
-//   blue = esp_scale(blue, 3, 31);
-
-//   return (uint16_t)(red | green | blue);
-// }
-
-// uint8_t ST7735::to_rgb_332_(Color color) {
-//   return (esp_scale8(color.red, ((1 << 3) - 1) << 5)) | (esp_scale8(color.green, ((1 << 3) - 1) << 2)) |
-//          esp_scale8(color.blue, (1 << 2) - 1);
-// }
 
 void ST7735::spi_master_write_addr_(uint16_t addr1, uint16_t addr2) {
   static uint8_t BYTE[4];
