@@ -17,8 +17,8 @@ class CurrentBasedCover : public cover::Cover, public Component {
   float get_setup_priority() const override;
 
   Trigger<> *get_stop_trigger() const { return this->stop_trigger_; }
-
   Trigger<> *get_open_trigger() const { return this->open_trigger_; }
+
   void set_open_sensor(sensor::Sensor *open_sensor) { this->open_sensor_ = open_sensor; }
   void set_open_moving_current_threshold(float open_moving_current_threshold) {
     this->open_moving_current_threshold_ = open_moving_current_threshold;
@@ -49,14 +49,15 @@ class CurrentBasedCover : public cover::Cover, public Component {
  protected:
   void control(const cover::CoverCall &call) override;
   void stop_prev_trigger_();
-  bool is_at_target_() const;
-  bool is_opening() const;
-  bool is_opening_blocked() const;
-  bool is_closing() const;
-  bool is_closing_blocked() const;
-  bool is_initial_delay_finished() const;
-  /* bool is_moving() const;*/
 
+  bool is_at_target_() const;
+  bool is_opening_() const;
+  bool is_opening_blocked_() const;
+  bool is_closing_() const;
+  bool is_closing_blocked_() const;
+  bool is_initial_delay_finished_() const;
+
+  void direction_idle_(float new_position);
   void start_direction_(cover::CoverOperation dir);
 
   void recompute_position_();
@@ -73,7 +74,7 @@ class CurrentBasedCover : public cover::Cover, public Component {
 
   float open_obstacle_current_threshold_{FLT_MAX};
   float close_obstacle_current_threshold_{FLT_MAX};
-  
+
   uint32_t open_duration_;
   uint32_t close_duration_;
 

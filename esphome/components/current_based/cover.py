@@ -12,7 +12,6 @@ CONF_OPEN_MOVING_CURRENT_THRESHOLD = "open_moving_current_threshold"
 CONF_OPEN_OBSTACLE_CURRENT_THRESHOLD = "open_obstacle_current_threshold"
 
 CONF_CLOSE_SENSOR = 'close_sensor'
-CONF_CLOSE_CURRENT_THRESHOLD = "close_moving_current_threshold"
 CONF_CLOSE_MOVING_CURRENT_THRESHOLD = "close_moving_current_threshold"
 CONF_CLOSE_OBSTACLE_CURRENT_THRESHOLD = "close_obstacle_current_threshold"
 
@@ -53,7 +52,7 @@ def to_code(config):
 
     yield automation.build_automation(var.get_stop_trigger(), [], config[CONF_STOP_ACTION])
 
-    #OPEN
+    # OPEN
     bin = yield cg.get_variable(config[CONF_OPEN_SENSOR])
     cg.add(var.set_open_sensor(bin))
     cg.add(var.set_open_moving_current_threshold(config[CONF_OPEN_MOVING_CURRENT_THRESHOLD]))
@@ -62,7 +61,7 @@ def to_code(config):
     cg.add(var.set_open_duration(config[CONF_OPEN_DURATION]))
     yield automation.build_automation(var.get_open_trigger(), [], config[CONF_OPEN_ACTION])
 
-    #CLOSE
+    # CLOSE
     bin = yield cg.get_variable(config[CONF_CLOSE_SENSOR])
     cg.add(var.set_close_sensor(bin))
     cg.add(var.set_close_moving_current_threshold(config[CONF_CLOSE_MOVING_CURRENT_THRESHOLD]))
@@ -76,4 +75,3 @@ def to_code(config):
         cg.add(var.set_max_duration(config[CONF_MAX_DURATION]))
     cg.add(var.set_interlock(config[CONF_INTERLOCK]))
     cg.add(var.set_start_sensing_delay(config[CONF_START_SENSING_DELAY]))
-    

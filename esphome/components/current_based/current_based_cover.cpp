@@ -1,7 +1,6 @@
 #include "current_based_cover.h"
 #include "esphome/core/log.h"
 #include <float.h>
-
 namespace esphome {
 namespace current_based {
 
@@ -17,8 +16,7 @@ CoverTraits CurrentBasedCover::get_traits() {
 }
 void CurrentBasedCover::control(const CoverCall &call) {
   if (call.get_stop()) {
-    this->start_direction_(COVER_OPERATION_IDLE);
-    this->publish_state();
+    this->direction_idle_();
   }
   if (call.get_position().has_value()) {
     auto pos = *call.get_position();
@@ -47,36 +45,28 @@ void CurrentBasedCover::loop() {
   const uint32_t now = millis();
 
   if (this->current_operation == COVER_OPERATION_OPENING) {
-    if (this->is_initial_delay_finished() && !this->is_opening()) {
-      float dur = (now - this->start_dir_time_) / 1e3f;
+    if (this->is_initial_delay_finished_() && !this->is_opening_()) {
+      auto dur = (now - this->start_dir_time_) / 1e3f;
       ESP_LOGD(TAG, "'%s' - Open position reached. Took %.1fs.", this->name_.c_str(), dur);
-
-      this->start_direction_(COVER_OPERATION_IDLE);
-      this->position = COVER_OPEN;
-      this->publish_state();
-    } else if (this->is_opening_blocked()) {
+      this->direction_idle_(COVER_OPEN);
+    } else if (this->is_opening_blocked_()) {
       ESP_LOGD(TAG, "'%s' - Obstacle detected during opening.", this->name_.c_str());
       if (this->obstacle_rollback_ == 0) {
-        this->start_direction_(COVER_OPERATION_IDLE);
-        this->publish_state();
+        this->direction_idle_();
       } else {
         this->target_position_ = clamp(this->position - this->obstacle_rollback_, 0.0f, 1.0f);
         this->start_direction_(COVER_OPERATION_CLOSING);
       }
     }
   } else if (this->current_operation == COVER_OPERATION_CLOSING) {
-    if (this->is_initial_delay_finished() && !this->is_closing()) {
-      float dur = (now - this->start_dir_time_) / 1e3f;
+    if (this->is_initial_delay_finished_() && !this->is_closing_()) {
+      auto dur = (now - this->start_dir_time_) / 1e3f;
       ESP_LOGD(TAG, "'%s' - Close position reached. Took %.1fs.", this->name_.c_str(), dur);
-
-      this->start_direction_(COVER_OPERATION_IDLE);
-      this->position = COVER_CLOSED;
-      this->publish_state();
-    } else if (this->is_closing_blocked()) {
+      this->direction_idle_(COVER_CLOSED);
+    } else if (this->is_closing_blocked_()) {
       ESP_LOGD(TAG, "'%s' - Obstacle detected during closing.", this->name_.c_str());
       if (this->obstacle_rollback_ == 0) {
-        this->start_direction_(COVER_OPERATION_IDLE);
-        this->publish_state();
+        this->direction_idle_();
       } else {
         this->target_position_ = clamp(this->position + this->obstacle_rollback_, 0.0f, 1.0f);
         this->start_direction_(COVER_OPERATION_OPENING);
@@ -84,16 +74,14 @@ void CurrentBasedCover::loop() {
     }
   } else if (now - this->start_dir_time_ > this->max_duration_) {
     ESP_LOGD(TAG, "'%s' - Max duration reached. Stopping cover.", this->name_.c_str());
-    this->start_direction_(COVER_OPERATION_IDLE);
-    this->publish_state();
+    this->direction_idle_();
   }
 
   // Recompute position every loop cycle
   this->recompute_position_();
 
   if (this->current_operation != COVER_OPERATION_IDLE && this->is_at_target_()) {
-    this->start_direction_(COVER_OPERATION_IDLE);
-    this->publish_state();
+    this->direction_idle_();
   }
 
   // Send current position every second
@@ -101,6 +89,14 @@ void CurrentBasedCover::loop() {
     this->publish_state(false);
     this->last_publish_time_ = now;
   }
+}
+ 
+void CurrentBasedCover::direction_idle_(float new_position = FLT_MAX) {
+  this->start_direction_(COVER_OPERATION_IDLE);
+  if (position != FLT_MAX) {
+    this->position = position;
+  }
+  this->publish_state();
 }
 
 void CurrentBasedCover::dump_config() {
@@ -124,6 +120,7 @@ void CurrentBasedCover::dump_config() {
   ESP_LOGCONFIG(TAG, "Start sensing delay: %.1fs", this->start_sensing_delay_ / 1e3f);
   ESP_LOGCONFIG(TAG, "Interlock: %s", YESNO(this->interlock_));
 }
+
 float CurrentBasedCover::get_setup_priority() const { return setup_priority::DATA; }
 void CurrentBasedCover::stop_prev_trigger_() {
   if (this->prev_command_trigger_ != nullptr) {
@@ -132,28 +129,28 @@ void CurrentBasedCover::stop_prev_trigger_() {
   }
 }
 
-bool CurrentBasedCover::is_opening() const {
+bool CurrentBasedCover::is_opening_() const {
   return this->open_sensor_->get_state() > this->open_moving_current_threshold_;
 }
 
-bool CurrentBasedCover::is_opening_blocked() const {
+bool CurrentBasedCover::is_opening_blocked_() const {
   if (this->open_obstacle_current_threshold_ == FLT_MAX) {
     return false;
   }
   return this->open_sensor_->get_state() > this->open_obstacle_current_threshold_;
 }
 
-bool CurrentBasedCover::is_closing() const {
+bool CurrentBasedCover::is_closing_() const {
   return this->close_sensor_->get_state() > this->close_moving_current_threshold_;
 }
 
-bool CurrentBasedCover::is_closing_blocked() const {
+bool CurrentBasedCover::is_closing_blocked_() const {
   if (this->close_obstacle_current_threshold_ == FLT_MAX) {
     return false;
   }
   return this->open_sensor_->get_state() > this->open_obstacle_current_threshold_;
 }
-bool CurrentBasedCover::is_initial_delay_finished() const {
+bool CurrentBasedCover::is_initial_delay_finished_() const {
   return millis() - this->start_dir_time_ > this->start_sensing_delay_;
 }
 
@@ -161,16 +158,16 @@ bool CurrentBasedCover::is_at_target_() const {
   switch (this->current_operation) {
     case COVER_OPERATION_OPENING:
       if (this->target_position_ == COVER_OPEN) {
-        if (!this->is_initial_delay_finished()) // During initial delay, state is assumed
+        if (!this->is_initial_delay_finished_())  // During initial delay, state is assumed
           return false;
-        return !this->is_opening();
+        return !this->is_opening_();
       }
       return this->position >= this->target_position_;
     case COVER_OPERATION_CLOSING:
       if (this->target_position_ == COVER_CLOSED) {
-        if (!this->is_initial_delay_finished()) // During initial delay, state is assumed
+        if (!this->is_initial_delay_finished_())  // During initial delay, state is assumed
           return false;
-        return !this->is_closing();
+        return !this->is_closing_();
       }
       return this->position <= this->target_position_;
     case COVER_OPERATION_IDLE:
@@ -204,7 +201,7 @@ void CurrentBasedCover::start_direction_(CoverOperation dir) {
   trig->trigger();
   this->prev_command_trigger_ = trig;
 
-  const uint32_t now = millis();
+  const auto now = millis();
   this->start_dir_time_ = now;
   this->last_recompute_time_ = now;
 }
@@ -227,7 +224,7 @@ void CurrentBasedCover::recompute_position_() {
       return;
   }
 
-  const uint32_t now = millis();
+  const auto now = millis();
   this->position += dir * (now - this->last_recompute_time_) / action_dur;
   this->position = clamp(this->position, 0.0f, 1.0f);
 
