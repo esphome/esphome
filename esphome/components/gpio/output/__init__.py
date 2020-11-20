@@ -10,7 +10,7 @@ GPIOBinaryOutput = gpio_ns.class_('GPIOBinaryOutput', output.BinaryOutput,
 
 CONFIG_SCHEMA = output.BINARY_OUTPUT_SCHEMA.extend({
     cv.Required(CONF_ID): cv.declare_id(GPIOBinaryOutput),
-    cv.Required(CONF_PIN): pins.gpio_output_pin_schema,
+    cv.Required(CONF_PIN): pins.gpio_strict_output_pin_schema,
 }).extend(cv.COMPONENT_SCHEMA)
 
 

@@ -132,7 +132,7 @@ void HOT MAX7219Component::draw_absolute_pixel_internal(int x, int y, Color colo
     this->max_displaybuffer_.resize(x + 1, this->bckgrnd_);
   }
 
-  if ((y >= this->get_height_internal()) || (y < 0) || (x < 0))  // If pixel is outside display then dont draw
+  if (y >= this->get_height_internal() || y < 0)  // If pixel is outside display then dont draw
     return;
 
   uint16_t pos = x;    // X is starting at 0 top left

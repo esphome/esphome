@@ -387,16 +387,17 @@ PIN_MODE_INPUT_ESP8266 = [
     'INPUT', 'INPUT_PULLUP', 'INPUT_PULLDOWN_16',
 ]
 PIN_MODES_ESP8266 = [
-    'INPUT', 'OUTPUT', 'INPUT_PULLUP', 'OUTPUT_OPEN_DRAIN', 'SPECIAL', 'FUNCTION_1',
+    'SPECIAL', 'FUNCTION_1',
     'FUNCTION_2', 'FUNCTION_3', 'FUNCTION_4',
-    'FUNCTION_0', 'WAKEUP_PULLUP', 'WAKEUP_PULLDOWN', 'INPUT_PULLDOWN_16',
-]
+    'FUNCTION_0', 'WAKEUP_PULLUP', 'WAKEUP_PULLDOWN',
+] + PIN_MODE_OUTPUT + PIN_MODE_INPUT_ESP8266
+
 PIN_MODES_ESP32 = [
-    'INPUT', 'OUTPUT', 'INPUT_PULLUP', 'OUTPUT_OPEN_DRAIN', 'SPECIAL', 'FUNCTION_1',
+    'SPECIAL', 'FUNCTION_1',
     'FUNCTION_2', 'FUNCTION_3', 'FUNCTION_4',
-    'PULLUP', 'PULLDOWN', 'INPUT_PULLDOWN', 'OPEN_DRAIN', 'FUNCTION_5',
+    'PULLUP', 'PULLDOWN', 'OPEN_DRAIN', 'FUNCTION_5',
     'FUNCTION_6', 'ANALOG',
-]
+] + PIN_MODE_OUTPUT + PIN_MODE_INPUT_ESP32
 
 
 def pin_mode(value):
@@ -408,7 +409,6 @@ def pin_mode(value):
     
 def pin_mode_output(value):
     return cv.one_of(*PIN_MODE_OUTPUT, upper=True)(value)
-    raise NotImplementedError
     
 def pin_mode_input(value):
     if CORE.is_esp32:
@@ -420,11 +420,23 @@ def pin_mode_input(value):
 
 GPIO_FULL_OUTPUT_PIN_SCHEMA = cv.Schema({
     cv.Required(CONF_NUMBER): output_pin,
-    cv.Optional(CONF_MODE, default='OUTPUT'): pin_mode_output,
+    cv.Optional(CONF_MODE, default='OUTPUT'): pin_mode,
     cv.Optional(CONF_INVERTED, default=False): cv.boolean,
 })
 
 GPIO_FULL_INPUT_PIN_SCHEMA = cv.Schema({
+    cv.Required(CONF_NUMBER): input_pin,
+    cv.Optional(CONF_MODE, default='INPUT'): pin_mode,
+    cv.Optional(CONF_INVERTED, default=False): cv.boolean,
+})
+
+GPIO_STRICT_OUTPUT_PIN_SCHEMA = cv.Schema({
+    cv.Required(CONF_NUMBER): output_pin,
+    cv.Optional(CONF_MODE, default='OUTPUT'): pin_mode_output,
+    cv.Optional(CONF_INVERTED, default=False): cv.boolean,
+})
+
+GPIO_STRICT_INPUT_PIN_SCHEMA = cv.Schema({
     cv.Required(CONF_NUMBER): input_pin,
     cv.Optional(CONF_MODE, default='INPUT'): pin_mode_input,
     cv.Optional(CONF_INVERTED, default=False): cv.boolean,
@@ -476,11 +488,10 @@ def validate_has_interrupt(value):
 PIN_SCHEMA_REGISTRY = SimpleRegistry()
 
 
-def internal_gpio_output_pin_schema(value):
-    # print (value)
+def internal_gpio_output_pin_schema(value, strict=False):
     if isinstance(value, dict):
-        print (GPIO_FULL_OUTPUT_PIN_SCHEMA(value))
-        exit()
+        if strict:
+            return GPIO_STRICT_OUTPUT_PIN_SCHEMA(value)
         return GPIO_FULL_OUTPUT_PIN_SCHEMA(value)
     return shorthand_output_pin(value)
 
@@ -490,12 +501,21 @@ def gpio_output_pin_schema(value):
         for key, entry in PIN_SCHEMA_REGISTRY.items():
             if key in value:
                 return entry[1][0](value)
-
     return internal_gpio_output_pin_schema(value)
 
 
-def internal_gpio_input_pin_schema(value):
+def gpio_strict_output_pin_schema(value):
     if isinstance(value, dict):
+        for key, entry in PIN_SCHEMA_REGISTRY.items():
+            if key in value:
+                return entry[1][2](value)
+    return internal_gpio_output_pin_schema(value, True)
+
+
+def internal_gpio_input_pin_schema(value, strict=False):
+    if isinstance(value, dict):
+        if strict:
+            return GPIO_STRICT_INPUT_PIN_SCHEMA(value)
         return GPIO_FULL_INPUT_PIN_SCHEMA(value)
     return shorthand_input_pin(value)
 
@@ -512,6 +532,14 @@ def gpio_input_pin_schema(value):
             if key in value:
                 return entry[1][1](value)
     return internal_gpio_input_pin_schema(value)
+
+
+def gpio_strict_input_pin_schema(value):
+    if isinstance(value, dict):
+        for key, entry in PIN_SCHEMA_REGISTRY.items():
+            if key in value:
+                return entry[1][3](value)
+    return internal_gpio_input_pin_schema(value, True)
 
 
 def internal_gpio_input_pullup_pin_schema(value):
