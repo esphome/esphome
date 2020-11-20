@@ -4,6 +4,7 @@
 #include "esphome/core/esphal.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/spi/spi.h"
+#include "esphome/components/voltage_sampler/voltage_sampler.h"
 
 namespace esphome {
 namespace mcp3008 {
