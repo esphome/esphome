@@ -508,7 +508,7 @@ def gpio_strict_output_pin_schema(value):
     if isinstance(value, dict):
         for key, entry in PIN_SCHEMA_REGISTRY.items():
             if key in value:
-                return entry[1][2](value)
+                return entry[1][0](value)
     return internal_gpio_output_pin_schema(value, True)
 
 
@@ -538,7 +538,7 @@ def gpio_strict_input_pin_schema(value):
     if isinstance(value, dict):
         for key, entry in PIN_SCHEMA_REGISTRY.items():
             if key in value:
-                return entry[1][3](value)
+                return entry[1][1](value)
     return internal_gpio_input_pin_schema(value, True)
 
 
