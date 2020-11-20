@@ -9,7 +9,7 @@ GPIOBinarySensor = gpio_ns.class_('GPIOBinarySensor', binary_sensor.BinarySensor
 
 CONFIG_SCHEMA = binary_sensor.BINARY_SENSOR_SCHEMA.extend({
     cv.GenerateID(): cv.declare_id(GPIOBinarySensor),
-    cv.Required(CONF_PIN): pins.gpio_input_pin_schema
+    cv.Required(CONF_PIN): pins.gpio_strict_input_pin_schema
 }).extend(cv.COMPONENT_SCHEMA)
 
 
