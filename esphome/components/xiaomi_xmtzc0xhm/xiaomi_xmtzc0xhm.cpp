@@ -72,7 +72,7 @@ bool XiaomiXMTZC0XHM::parse_message(const std::vector<uint8_t> &message, ParseRe
   const int data_length = 10;
   const int data_length1 = data_length + 3;
 
-  if (message.size() != data_length1) {
+  if (message.size() == data_length1) {
   // impedance, 2 bytes, 16-bit
   const int16_t impedance = uint16_t(data[9]) | (uint16_t(data[10]) << 8);
   result.impedance = impedance;
@@ -85,7 +85,7 @@ bool XiaomiXMTZC0XHM::parse_message(const std::vector<uint8_t> &message, ParseRe
     result.weight = weight * 0.01f * 0.453592;  // unit 'lbs'
   }
 
-  else if (message.size() != data_length) {
+  else if (message.size() == data_length) {
   // weight, 2 bytes, 16-bit  unsigned integer, 1 kg
   const int16_t weight = uint16_t(data[1]) | (uint16_t(data[2]) << 8);
   if (data[0] == 0x22 || data[0] == 0xa2)
