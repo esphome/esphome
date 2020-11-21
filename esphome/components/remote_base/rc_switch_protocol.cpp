@@ -16,8 +16,9 @@ RCSwitchBase rc_switch_protocols[9] = {RCSwitchBase(0, 0, 0, 0, 0, 0, 0, 0, fals
                                        RCSwitchBase(300, 9300, 150, 900, 900, 150, 0, 0, false),
                                        RCSwitchBase(250, 2500, 250, 1250, 250, 250, 0, 0, false)};
 
-RCSwitchBase::RCSwitchBase(uint32_t sync_high, uint32_t sync_low, uint32_t zero_high, uint32_t zero_low, 
-                           uint32_t one_high, uint32_t one_low, uint32_t pause_high, uint32_t pause_low, bool inverted)
+RCSwitchBase::RCSwitchBase(uint32_t sync_high, uint32_t sync_low, uint32_t zero_high,
+                           uint32_t zero_low, uint32_t one_high, uint32_t one_low, 
+                           uint32_t pause_high, uint32_t pause_low, bool inverted)
     : sync_high_(sync_high),
       sync_low_(sync_low),
       zero_high_(zero_high),
