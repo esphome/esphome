@@ -54,20 +54,6 @@ optional<ParseResult> XiaomiXMTZC0XHM::parse_header(const esp32_ble_tracker::Ser
     return false;
   }
 
-  bool is_miscale = service_data.uuid.contains(0x1D, 0x18);
-  bool is_miscale2 = service_data.uuid.contains(0x1B, 0x18);
-
-  if (!is_miscale && !is_miscale2) {
-    ESP_LOGVV(TAG, "Xiaomi no magic bytes");
-    return false;
-  }
-
-  if (is_miscale) {
-    result.type = XiaomiParseResult::TYPE_XMTZC0XHM;
-  } else if (is_miscale2) {
-    result.type = XiaomiParseResult::TYPE_XMTZC0XHM;
-  }
-
   return result;
 }
 
@@ -110,7 +96,7 @@ bool XiaomiXMTZC0XHM::parse_message(const std::vector<uint8_t> &message, ParseRe
   }
 
   // weight, 2 bytes, 16-bit  unsigned integer, 1 kg
-  const int16_t weight = uint16_t(data[1]) | (uint16_t(data[2]) << 8);
+  const uint16_t weight = uint16_t(data[1]) | (uint16_t(data[2]) << 8);
   if (data[0] == 0x22 || data[0] == 0xa2)
     result.weight = weight * 0.01f / 2.0f;  // unit 'kg'
   else if (data[0] == 0x12 || data[0] == 0xb2)
