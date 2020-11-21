@@ -45,32 +45,46 @@ void CurrentBasedCover::loop() {
   const uint32_t now = millis();
 
   if (this->current_operation == COVER_OPERATION_OPENING) {
-    if (this->is_initial_delay_finished_() && !this->is_opening_()) {
+    if (this->malfunction_detection_ && this->is_closing_()) {  // Malfunction
+      this->direction_idle_();
+      this->malfunction_trigger_->trigger();
+      ESP_LOGI(TAG, "'%s' - Malfunction detected during opening. Current flow detected in close circuit",
+               this->name_.c_str());
+    } else if (this->is_opening_blocked_()) {  // Blocked
+      ESP_LOGD(TAG, "'%s' - Obstacle detected during opening.", this->name_.c_str());
+      this->direction_idle_();
+      if (this->obstacle_rollback_ != 0) {
+        this->set_timeout("rollback", 300, [this]() {
+          ESP_LOGD(TAG, "'%s' - Rollback.", this->name_.c_str());
+          this->target_position_ = clamp(this->position - this->obstacle_rollback_, 0.0F, 1.0F);
+          this->start_direction_(COVER_OPERATION_CLOSING);
+        });
+      }
+    } else if (this->is_initial_delay_finished_() && !this->is_opening_()) {  // End reached
       auto dur = (now - this->start_dir_time_) / 1e3f;
       ESP_LOGD(TAG, "'%s' - Open position reached. Took %.1fs.", this->name_.c_str(), dur);
       this->direction_idle_(COVER_OPEN);
-    } else if (this->is_opening_blocked_()) {
-      ESP_LOGD(TAG, "'%s' - Obstacle detected during opening.", this->name_.c_str());
-      if (this->obstacle_rollback_ == 0) {
-        this->direction_idle_();
-      } else {
-        this->target_position_ = clamp(this->position - this->obstacle_rollback_, 0.0f, 1.0f);
-        this->start_direction_(COVER_OPERATION_CLOSING);
-      }
     }
   } else if (this->current_operation == COVER_OPERATION_CLOSING) {
-    if (this->is_initial_delay_finished_() && !this->is_closing_()) {
+    if (this->malfunction_detection_ && this->is_opening_()) {  // Malfunction
+      this->direction_idle_();
+      this->malfunction_trigger_->trigger();
+      ESP_LOGI(TAG, "'%s' - Malfunction detected during closing. Current flow detected in open circuit",
+               this->name_.c_str());
+    } else if (this->is_closing_blocked_()) {  // Blocked
+      ESP_LOGD(TAG, "'%s' - Obstacle detected during closing.", this->name_.c_str());
+      this->direction_idle_();
+      if (this->obstacle_rollback_ != 0) {
+        this->set_timeout("rollback", 300, [this]() {
+          ESP_LOGD(TAG, "'%s' - Rollback.", this->name_.c_str());
+          this->target_position_ = clamp(this->position + this->obstacle_rollback_, 0.0F, 1.0F);
+          this->start_direction_(COVER_OPERATION_OPENING);
+        });
+      }
+    } else if (this->is_initial_delay_finished_() && !this->is_closing_()) {  // End reached
       auto dur = (now - this->start_dir_time_) / 1e3f;
       ESP_LOGD(TAG, "'%s' - Close position reached. Took %.1fs.", this->name_.c_str(), dur);
       this->direction_idle_(COVER_CLOSED);
-    } else if (this->is_closing_blocked_()) {
-      ESP_LOGD(TAG, "'%s' - Obstacle detected during closing.", this->name_.c_str());
-      if (this->obstacle_rollback_ == 0) {
-        this->direction_idle_();
-      } else {
-        this->target_position_ = clamp(this->position + this->obstacle_rollback_, 0.0f, 1.0f);
-        this->start_direction_(COVER_OPERATION_OPENING);
-      }
     }
   } else if (now - this->start_dir_time_ > this->max_duration_) {
     ESP_LOGD(TAG, "'%s' - Max duration reached. Stopping cover.", this->name_.c_str());
@@ -90,8 +104,8 @@ void CurrentBasedCover::loop() {
     this->last_publish_time_ = now;
   }
 }
- 
-void CurrentBasedCover::direction_idle_(float new_position = FLT_MAX) {
+
+void CurrentBasedCover::direction_idle_(float new_position) {
   this->start_direction_(COVER_OPERATION_IDLE);
   if (position != FLT_MAX) {
     this->position = position;
@@ -118,7 +132,7 @@ void CurrentBasedCover::dump_config() {
     ESP_LOGCONFIG(TAG, "Maximun duration: %.1fs", this->max_duration_ / 1e3f);
   }
   ESP_LOGCONFIG(TAG, "Start sensing delay: %.1fs", this->start_sensing_delay_ / 1e3f);
-  ESP_LOGCONFIG(TAG, "Interlock: %s", YESNO(this->interlock_));
+  ESP_LOGCONFIG(TAG, "Malfunction detection: %s", YESNO(this->malfunction_detection_));
 }
 
 float CurrentBasedCover::get_setup_priority() const { return setup_priority::DATA; }
@@ -213,11 +227,11 @@ void CurrentBasedCover::recompute_position_() {
   float action_dur;
   switch (this->current_operation) {
     case COVER_OPERATION_OPENING:
-      dir = 1.0f;
+      dir = 1.0F;
       action_dur = this->open_duration_;
       break;
     case COVER_OPERATION_CLOSING:
-      dir = -1.0f;
+      dir = -1.0F;
       action_dur = this->close_duration_;
       break;
     default:
@@ -226,7 +240,7 @@ void CurrentBasedCover::recompute_position_() {
 
   const auto now = millis();
   this->position += dir * (now - this->last_recompute_time_) / action_dur;
-  this->position = clamp(this->position, 0.0f, 1.0f);
+  this->position = clamp(this->position, 0.0F, 1.0F);
 
   this->last_recompute_time_ = now;
 }

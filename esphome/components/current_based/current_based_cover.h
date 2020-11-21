@@ -17,8 +17,8 @@ class CurrentBasedCover : public cover::Cover, public Component {
   float get_setup_priority() const override;
 
   Trigger<> *get_stop_trigger() const { return this->stop_trigger_; }
-  Trigger<> *get_open_trigger() const { return this->open_trigger_; }
 
+  Trigger<> *get_open_trigger() const { return this->open_trigger_; }
   void set_open_sensor(sensor::Sensor *open_sensor) { this->open_sensor_ = open_sensor; }
   void set_open_moving_current_threshold(float open_moving_current_threshold) {
     this->open_moving_current_threshold_ = open_moving_current_threshold;
@@ -41,8 +41,10 @@ class CurrentBasedCover : public cover::Cover, public Component {
   void set_max_duration(uint32_t max_duration) { this->max_duration_ = max_duration; }
   void set_obstacle_rollback(float obstacle_rollback) { this->obstacle_rollback_ = obstacle_rollback; }
 
-  void set_interlock(bool interlock) { this->interlock_ = interlock; }
+  void set_malfunction_detection(bool malfunction_detection) { this->malfunction_detection_ = malfunction_detection; }
   void set_start_sensing_delay(uint32_t start_sensing_delay) { this->start_sensing_delay_ = start_sensing_delay; }
+
+  Trigger<> *get_malfunction_trigger() const { return this->malfunction_trigger_; }
 
   cover::CoverTraits get_traits() override;
 
@@ -57,29 +59,28 @@ class CurrentBasedCover : public cover::Cover, public Component {
   bool is_closing_blocked_() const;
   bool is_initial_delay_finished_() const;
 
-  void direction_idle_(float new_position);
+  void direction_idle_(float new_position = FLT_MAX);
   void start_direction_(cover::CoverOperation dir);
 
   void recompute_position_();
 
-  sensor::Sensor *open_sensor_{nullptr};
-  sensor::Sensor *close_sensor_{nullptr};
-
-  Trigger<> *open_trigger_{new Trigger<>()};
-  Trigger<> *close_trigger_{new Trigger<>()};
   Trigger<> *stop_trigger_{new Trigger<>()};
 
+  sensor::Sensor *open_sensor_{nullptr};
+  Trigger<> *open_trigger_{new Trigger<>()};
   float open_moving_current_threshold_;
-  float close_moving_current_threshold_;
-
   float open_obstacle_current_threshold_{FLT_MAX};
-  float close_obstacle_current_threshold_{FLT_MAX};
-
   uint32_t open_duration_;
+
+  sensor::Sensor *close_sensor_{nullptr};
+  Trigger<> *close_trigger_{new Trigger<>()};
+  float close_moving_current_threshold_;
+  float close_obstacle_current_threshold_{FLT_MAX};
   uint32_t close_duration_;
 
   uint32_t max_duration_{UINT32_MAX};
-  bool interlock_{false};
+  bool malfunction_detection_{true};
+  Trigger<> *malfunction_trigger_{new Trigger<>()};
   uint32_t start_sensing_delay_;
   float obstacle_rollback_;
 

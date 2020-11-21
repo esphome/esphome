@@ -4,7 +4,7 @@ from esphome import automation
 from esphome.components import sensor, cover
 from esphome.const import CONF_CLOSE_ACTION, CONF_CLOSE_DURATION, \
     CONF_ID, CONF_OPEN_ACTION, CONF_OPEN_DURATION, \
-    CONF_STOP_ACTION, CONF_MAX_DURATION, CONF_INTERLOCK
+    CONF_STOP_ACTION, CONF_MAX_DURATION
 
 
 CONF_OPEN_SENSOR = 'open_sensor'
@@ -16,7 +16,8 @@ CONF_CLOSE_MOVING_CURRENT_THRESHOLD = "close_moving_current_threshold"
 CONF_CLOSE_OBSTACLE_CURRENT_THRESHOLD = "close_obstacle_current_threshold"
 
 CONF_OBSTACLE_ROLLBACK = "obstacle_rollback"
-
+CONF_MALFUNCTION_DETECTION = "malfunction_detection"
+CONF_MALFUNCTION_ACTION = "malfunction_action"
 CONF_START_SENSING_DELAY = "start_sensing_delay"
 
 current_based_ns = cg.esphome_ns.namespace('current_based')
@@ -40,7 +41,8 @@ CONFIG_SCHEMA = cover.COVER_SCHEMA.extend({
 
     cv.Optional(CONF_OBSTACLE_ROLLBACK, default="10%"): cv.percentage,
     cv.Optional(CONF_MAX_DURATION): cv.positive_time_period_milliseconds,
-    cv.Optional(CONF_INTERLOCK, default=True): cv.boolean,
+    cv.Optional(CONF_MALFUNCTION_DETECTION, default=True): cv.boolean,
+    cv.Optional(CONF_MALFUNCTION_ACTION): automation.validate_automation(single=True),
     cv.Optional(CONF_START_SENSING_DELAY, default='500ms'): cv.positive_time_period_milliseconds
 }).extend(cv.COMPONENT_SCHEMA)
 
@@ -73,5 +75,7 @@ def to_code(config):
     cg.add(var.set_obstacle_rollback(config[CONF_OBSTACLE_ROLLBACK]))
     if CONF_MAX_DURATION in config:
         cg.add(var.set_max_duration(config[CONF_MAX_DURATION]))
-    cg.add(var.set_interlock(config[CONF_INTERLOCK]))
+    cg.add(var.set_malfunction_detection(config[CONF_MALFUNCTION_DETECTION]))
+    if CONF_MALFUNCTION_ACTION in config:
+        yield automation.build_automation(var.get_malfunction_trigger(), [], config[CONF_MALFUNCTION_ACTION])
     cg.add(var.set_start_sensing_delay(config[CONF_START_SENSING_DELAY]))
