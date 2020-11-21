@@ -43,6 +43,10 @@ bool network_is_connected() {
 bool mdns_setup;
 #endif
 
+#ifndef WEBSERVER_PORT
+static const uint8_t WEBSERVER_PORT = 80;
+#endif
+
 #ifdef ARDUINO_ARCH_ESP8266
 void network_setup_mdns(IPAddress address, int interface) {
   // Latest arduino framework breaks mDNS for AP interface
@@ -65,9 +69,9 @@ void network_setup_mdns(IPAddress address, int interface) {
       MDNS.addServiceTxt("esphomelib", "tcp", "mac", get_mac_address().c_str());
     } else {
 #endif
-      // Publish "http" service if not using native API.
+      // Publish "http" service if not using native API nor the webserver component
       // This is just to have *some* mDNS service so that .local resolution works
-      MDNS.addService("http", "tcp", 80);
+      MDNS.addService("http", "tcp", WEBSERVER_PORT);
       MDNS.addServiceTxt("http", "tcp", "version", ESPHOME_VERSION);
 #ifdef USE_API
     }
