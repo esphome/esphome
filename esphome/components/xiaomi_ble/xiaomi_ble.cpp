@@ -231,11 +231,11 @@ optional<XiaomiParseResult> parse_xiaomi_header(const esp32_ble_tracker::Service
     if (raw.size() == 19)
       result.raw_offset -= 6;
   } else if (is_xmtzc0xhm) {  // Xiaomi Miscale
-    result.type = XiaomiParseResult::TYPE_XMTZC0XHM;
-    result.name = "XMTZC0XHM";
+    result.type = XiaomiParseResult::TYPE_XMTZC1XHM;
+    result.name = "XMTZC1XHM";
   } else if (is_mibfs) {  // Xiaomi Miscale 2
-    result.type = XiaomiParseResult::TYPE_XMTZC0XHM;
-    result.name = "XMTZC0XHM";
+    result.type = XiaomiParseResult::TYPE_XMTZC1XHM;
+    result.name = "XMTZC1XHM";
   } else {
     ESP_LOGVV(TAG, "parse_xiaomi_header(): unknown device, no magic bytes.");
     return {};
