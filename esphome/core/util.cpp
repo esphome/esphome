@@ -76,6 +76,9 @@ void network_setup_mdns(IPAddress address, int interface) {
 #ifdef USE_API
     }
 #endif
+#ifdef USE_PROMETHEUS
+    MDNS.addService("prometheus-http", "tcp", WEBSERVER_PORT);
+#endif
   }
   void network_tick_mdns() {
 #ifdef ARDUINO_ARCH_ESP8266
