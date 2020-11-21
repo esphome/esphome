@@ -8,8 +8,8 @@ DEPENDENCIES = ['esp32_ble_tracker']
 
 xiaomi_xmtzc0xhm_ns = cg.esphome_ns.namespace('xiaomi_xmtzc0xhm')
 XiaomiXMTZC0XHM = xiaomi_xmtzc0xhm_ns.class_('XiaomiXMTZC0XHM',
-                                           esp32_ble_tracker.ESPBTDeviceListener,
-                                           cg.Component)
+                                             esp32_ble_tracker.ESPBTDeviceListener,
+                                             cg.Component)
 
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(XiaomiXMTZC0XHM),
