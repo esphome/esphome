@@ -3,7 +3,7 @@ import esphome.config_validation as cv
 from esphome import automation
 from esphome.components import binary_sensor
 from esphome.const import CONF_DATA, CONF_TRIGGER_ID, CONF_NBITS, CONF_ADDRESS, \
-    CONF_COMMAND, CONF_CODE, CONF_PULSE_LENGTH, CONF_SYNC, CONF_ZERO, CONF_ONE, CONF_INVERTED, \
+    CONF_COMMAND, CONF_CODE, CONF_PULSE_LENGTH, CONF_SYNC, CONF_ZERO, CONF_ONE, CONF_PAUSE, CONF_INVERTED, \
     CONF_PROTOCOL, CONF_GROUP, CONF_DEVICE, CONF_STATE, CONF_CHANNEL, CONF_FAMILY, CONF_REPEAT, \
     CONF_WAIT_TIME, CONF_TIMES, CONF_TYPE_ID, CONF_CARRIER_FREQUENCY, CONF_RC_CODE_1, CONF_RC_CODE_2
 from esphome.core import coroutine
@@ -461,6 +461,7 @@ RC_SWITCH_PROTOCOL_SCHEMA = cv.Any(
         cv.Optional(CONF_SYNC, default=[1, 31]): RC_SWITCH_TIMING_SCHEMA,
         cv.Optional(CONF_ZERO, default=[1, 3]): RC_SWITCH_TIMING_SCHEMA,
         cv.Optional(CONF_ONE, default=[3, 1]): RC_SWITCH_TIMING_SCHEMA,
+        cv.Optional(CONF_PAUSE, default=[0, 0]): RC_SWITCH_TIMING_SCHEMA,
         cv.Optional(CONF_INVERTED, default=False): cv.boolean,
     })
 )
@@ -504,6 +505,7 @@ def build_rc_switch_protocol(config):
     return RCSwitchBase(config[CONF_SYNC][0] * pl, config[CONF_SYNC][1] * pl,
                         config[CONF_ZERO][0] * pl, config[CONF_ZERO][1] * pl,
                         config[CONF_ONE][0] * pl, config[CONF_ONE][1] * pl,
+                        config[CONF_PAUSE][0] * pl, config[CONF_PAUSE][1] * pl,
                         config[CONF_INVERTED])
 
 

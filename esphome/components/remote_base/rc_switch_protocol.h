@@ -17,13 +17,15 @@ class RCSwitchBase {
  public:
   RCSwitchBase() = default;
   RCSwitchBase(uint32_t sync_high, uint32_t sync_low, uint32_t zero_high, uint32_t zero_low, uint32_t one_high,
-               uint32_t one_low, bool inverted);
+               uint32_t one_low, uint32_t pause_high, uint32_t pause_low, bool inverted);
 
   void one(RemoteTransmitData *dst) const;
 
   void zero(RemoteTransmitData *dst) const;
 
   void sync(RemoteTransmitData *dst) const;
+
+  void pause(RemoteTransmitData *dst) const;
 
   void transmit(RemoteTransmitData *dst, uint64_t code, uint8_t len) const;
 
@@ -57,6 +59,8 @@ class RCSwitchBase {
   uint32_t zero_low_{};
   uint32_t one_high_{};
   uint32_t one_low_{};
+  uint32_t pause_high_{};
+  uint32_t pause_low_{};
   bool inverted_{};
 };
 
