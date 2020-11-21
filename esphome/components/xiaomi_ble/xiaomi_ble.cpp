@@ -74,6 +74,27 @@ bool parse_xiaomi_value(uint8_t value_type, const uint8_t *data, uint8_t value_l
         uint32_t(data[0]) | (uint32_t(data[1]) << 8) | (uint32_t(data[2]) << 16) | (uint32_t(data[2]) << 24);
     result.idle_time = idle_time / 60.0f;
     result.has_motion = (idle_time) ? false : true;
+  } 
+  // Miscale weight, 2 bytes, 16-bit  unsigned integer, 1 kg
+  else if ((value_type == 0x16) && (value_length == 10)) {
+    const uint16_t weight = uint16_t(data[1]) | (uint16_t(data[2]) << 8);
+    if (data[0] == 0x22 || data[0] == 0xa2)
+      result.weight = weight * 0.01f / 2.0f;
+    else if (data[0] == 0x12 || data[0] == 0xb2)
+      result.weight = weight * 0.01f * 0.6;
+    else if (data[0] == 0x03 || data[0] == 0xb3)
+      result.weight = weight * 0.01f * 0.453592;
+  }
+  // Miscale 2 weight, impedence, 2 bytes, 16-bit  unsigned integer, 1 kg
+  else if ((value_type == 0x16) && (value_length == 13)) {
+    const uint16_t weight = uint16_t(data[11]) | (uint16_t(data[12]) << 8);
+    const uint16_t impedance = uint16_t(data[9]) | (uint16_t(data[10]) << 8);
+    result.impedance = impedance;
+
+    if (data[0] == 0x02)
+      result.weight = weight * 0.01f / 2.0f;
+    else if (data[0] == 0x03)
+      result.weight = weight * 0.01f * 0.453592;
   } else {
     return false;
   }
@@ -126,12 +147,18 @@ bool parse_xiaomi_message(const std::vector<uint8_t> &message, XiaomiParseResult
     payload_offset += 3 + value_length;
   }
 
+  // Hack for MiScale
+  const uint8_t *data = &raw[0];  // raw data
+  if (parse_xiaomi_value(0x16, data, message.size(), result))
+    success = true;
+  }
+
   return success;
 }
 
 optional<XiaomiParseResult> parse_xiaomi_header(const esp32_ble_tracker::ServiceData &service_data) {
   XiaomiParseResult result;
-  if (!service_data.uuid.contains(0x95, 0xFE)) {
+  if (!service_data.uuid.contains(0x95, 0xFE) && !service_data.uuid.contains(0x1B, 0x18) && !service_data.uuid.contains(0x1D, 0x18)) {
     ESP_LOGVV(TAG, "parse_xiaomi_header(): no service data UUID magic bytes.");
     return {};
   }
@@ -143,6 +170,14 @@ optional<XiaomiParseResult> parse_xiaomi_header(const esp32_ble_tracker::Service
 
   if (!result.has_data) {
     ESP_LOGVV(TAG, "parse_xiaomi_header(): service data has no DATA flag.");
+    return {};
+  }
+
+  bool is_xmtzc0xhm = service_data.uuid.contains(0x1D, 0x18);
+  bool is_mibfs = service_data.uuid.contains(0x1B, 0x18);
+
+  if (!is_xmtzc0xhm && !is_mibfs) {
+    ESP_LOGVV(TAG, "Xiaomi no magic bytes");
     return {};
   }
 
@@ -195,6 +230,12 @@ optional<XiaomiParseResult> parse_xiaomi_header(const esp32_ble_tracker::Service
     result.name = "MJYD02YLA";
     if (raw.size() == 19)
       result.raw_offset -= 6;
+  } else if (is_xmtzc0xhm) {  // Xiaomi Miscale
+    result.type = XiaomiParseResult::TYPE_XMTZC0XHM;
+    result.name = "XMTZC0XHM";
+  } else if (is_mibfs) {  // Xiaomi Miscale 2
+    result.type = XiaomiParseResult::TYPE_XMTZC0XHM;
+    result.name = "XMTZC0XHM";
   } else {
     ESP_LOGVV(TAG, "parse_xiaomi_header(): unknown device, no magic bytes.");
     return {};
@@ -328,6 +369,12 @@ bool report_xiaomi_results(const optional<XiaomiParseResult> &result, const std:
   }
   if (result->is_light.has_value()) {
     ESP_LOGD(TAG, "  Light: %s", (*result->is_light) ? "on" : "off");
+  }
+  if (result->weight.has_value()) {
+    ESP_LOGD(TAG, "  Weight: %.1fkg", *result->weight);
+  }
+  if (result->impedance.has_value()) {
+    ESP_LOGD(TAG, "  Impedance: %.0f", *result->impedance);
   }
 
   return true;
