@@ -406,10 +406,12 @@ def pin_mode(value):
     if CORE.is_esp8266:
         return cv.one_of(*PIN_MODES_ESP8266, upper=True)(value)
     raise NotImplementedError
-    
+
+
 def pin_mode_output(value):
     return cv.one_of(*PIN_MODE_OUTPUT, upper=True)(value)
-    
+
+
 def pin_mode_input(value):
     if CORE.is_esp32:
         return cv.one_of(*PIN_MODE_INPUT_ESP32, upper=True)(value)
