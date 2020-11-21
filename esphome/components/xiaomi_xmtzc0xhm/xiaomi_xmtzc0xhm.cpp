@@ -70,8 +70,9 @@ bool XiaomiXMTZC0XHM::parse_message(const std::vector<uint8_t> &message, ParseRe
 
   const uint8_t *data = message.data();
   const int data_length = 10;
+  const int data_length1 = data_length + 3;
 
-  if (message.size() != data_length + 3) {
+  if (message.size() != data_length1) {
   // impedance, 2 bytes, 16-bit
   const int16_t impedance = uint16_t(data[9]) | (uint16_t(data[10]) << 8);
   result.impedance = impedance;
