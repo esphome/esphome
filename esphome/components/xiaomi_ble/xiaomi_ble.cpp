@@ -146,6 +146,10 @@ bool parse_xiaomi_message(const std::vector<uint8_t> &message, XiaomiParseResult
     payload_length -= 3 + value_length;
     payload_offset += 3 + value_length;
   }
+  const int value_length = 10;
+  if ((message.size() == value_length) || (message.size() == value_length + 3)) {
+    success = true;
+  }
 
   return success;
 }
