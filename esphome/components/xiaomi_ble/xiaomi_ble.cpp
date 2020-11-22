@@ -146,10 +146,6 @@ bool parse_xiaomi_message(const std::vector<uint8_t> &message, XiaomiParseResult
     payload_length -= 3 + value_length;
     payload_offset += 3 + value_length;
   }
-  const int value_length = 10;
-  if ((message.size() == value_length) || (message.size() == value_length + 3)) {
-    success = true;
-  }
 
   return success;
 }
@@ -220,10 +216,10 @@ optional<XiaomiParseResult> parse_xiaomi_header(const esp32_ble_tracker::Service
     result.name = "MJYD02YLA";
     if (raw.size() == 19)
       result.raw_offset -= 6;
-  } else if (service_data.uuid.contains(0x1D, 0x18)) {  // Xiaomi Miscale
+  } else if ((raw[3] == 0xe4) && (raw[4] == 0x07)) {  // Xiaomi Miscale
     result.type = XiaomiParseResult::TYPE_XMTZC1XHM;
     result.name = "XMTZC1XHM";
-  } else if (service_data.uuid.contains(0x1B, 0x18)) {  // Xiaomi Miscale 2
+  } else if ((raw[2] == 0xe4) && (raw[3] == 0x07)) {  // Xiaomi Miscale 2
     result.type = XiaomiParseResult::TYPE_XMTZC1XHM;
     result.name = "XMTZC1XHM";
   } else {
