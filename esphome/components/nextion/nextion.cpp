@@ -226,13 +226,13 @@ bool Nextion::read_until_ack_() {
         ESP_LOGD(TAG, "Got touch at x=%u y=%u type=%s", x, y, touch_event ? "PRESS" : "RELEASE");
         break;
       }
-      case 0x66:    // sendme page id
-      case 0x70:    // string variable data return
-      case 0x71:    // numeric variable data return
-      case 0x86:    // device automatically enters into sleep mode
-      case 0x87:    // device automatically wakes up
-      case 0x88:    // system successful start up
-      case 0x89:    // start SD card upgrade
+      case 0x66:  // sendme page id
+      case 0x70:  // string variable data return
+      case 0x71:  // numeric variable data return
+      case 0x86:  // device automatically enters into sleep mode
+      case 0x87:  // device automatically wakes up
+      case 0x88:  // system successful start up
+      case 0x89:  // start SD card upgrade
         break;
       case 0x90: {  // Response number made to read state from Nextion
         if (data_length != 3) {
