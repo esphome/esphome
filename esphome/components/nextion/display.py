@@ -5,9 +5,7 @@ from esphome.const import CONF_ID, CONF_LAMBDA, CONF_BRIGHTNESS
 from . import nextion_ns
 
 DEPENDENCIES = ['uart']
-AUTO_LOAD = ['binary_sensor']
-AUTO_LOAD = ['switch']
-AUTO_LOAD = ['switch', 'sensor']
+AUTO_LOAD = ['binary_sensor', 'switch', 'sensor']
 
 Nextion = nextion_ns.class_('Nextion', cg.PollingComponent, uart.UARTDevice)
 NextionRef = Nextion.operator('ref')
