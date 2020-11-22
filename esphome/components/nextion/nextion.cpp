@@ -233,6 +233,7 @@ bool Nextion::read_until_ack_() {
       case 0x87:    // device automatically wakes up
       case 0x88:    // system successful start up
       case 0x89:    // start SD card upgrade
+        break;
       case 0x90: {  // Response number made to read state from Nextion
         if (data_length != 3) {
           invalid_data_length = true;
