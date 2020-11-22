@@ -77,7 +77,7 @@ bool parse_xiaomi_value(uint8_t value_type, const uint8_t *data, uint8_t value_l
   }
   // Miscale weight, 2 bytes, 16-bit  unsigned integer, 1 kg
   else if ((value_type == 0x16) && (value_length == 10)) {
-    const uint16_t weight = uint16_t(data[1]) | (uint16_t(data[2]) << 8);
+    const int16_t weight = uint16_t(data[1]) | (uint16_t(data[2]) << 8);
     if (data[0] == 0x22 || data[0] == 0xa2)
       result.weight = weight * 0.01f / 2.0f;
     else if (data[0] == 0x12 || data[0] == 0xb2)
@@ -87,8 +87,8 @@ bool parse_xiaomi_value(uint8_t value_type, const uint8_t *data, uint8_t value_l
   }
   // Miscale 2 weight, impedence, 2 bytes, 16-bit  unsigned integer, 1 kg
   else if ((value_type == 0x16) && (value_length == 13)) {
-    const uint16_t weight = uint16_t(data[11]) | (uint16_t(data[12]) << 8);
-    const uint16_t impedance = uint16_t(data[9]) | (uint16_t(data[10]) << 8);
+    const int16_t weight = uint16_t(data[11]) | (uint16_t(data[12]) << 8);
+    const int16_t impedance = uint16_t(data[9]) | (uint16_t(data[10]) << 8);
     result.impedance = impedance;
 
     if (data[0] == 0x02)
