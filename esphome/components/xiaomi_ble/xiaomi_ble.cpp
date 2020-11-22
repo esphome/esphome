@@ -11,7 +11,6 @@ namespace esphome {
 namespace xiaomi_ble {
 
 static const char *TAG = "xiaomi_ble";
-static int year = 0;
 
 bool parse_xiaomi_value(uint8_t value_type, const uint8_t *data, uint8_t value_length, XiaomiParseResult &result) {
   // motion detection, 1 byte, 8-bit unsigned integer
@@ -168,6 +167,9 @@ optional<XiaomiParseResult> parse_xiaomi_header(const esp32_ble_tracker::Service
     return {};
   }
 
+  bool is_xmtzc0xhm = service_data.uuid.contains(0x1D, 0x18);
+  bool is_mibfs = service_data.uuid.contains(0x1B, 0x18);
+
   static uint8_t last_frame_count = 0;
   if (last_frame_count == raw[4]) {
     ESP_LOGVV(TAG, "parse_xiaomi_header(): duplicate data packet received (%d).", static_cast<int>(last_frame_count));
@@ -217,11 +219,10 @@ optional<XiaomiParseResult> parse_xiaomi_header(const esp32_ble_tracker::Service
     result.name = "MJYD02YLA";
     if (raw.size() == 19)
       result.raw_offset -= 6;
-  } int rcvdYear = (raw[3]);
-    else if (rcvdYear > year) {  // Xiaomi Miscale
+  } else if (is_xmtzc0xhm) {  // Xiaomi Miscale
     result.type = XiaomiParseResult::TYPE_XMTZC1XHM;
     result.name = "XMTZC1XHM";
-  } else if (raw[3] == 0x07) {  // Xiaomi Miscale 2
+  } else if (is_mibfs) {  // Xiaomi Miscale 2
     result.type = XiaomiParseResult::TYPE_XMTZC1XHM;
     result.name = "XMTZC1XHM";
   } else {
