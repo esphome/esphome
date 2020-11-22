@@ -353,6 +353,12 @@ bool report_xiaomi_results(const optional<XiaomiParseResult> &result, const std:
   if (result->tablet.has_value()) {
     ESP_LOGD(TAG, "  Mosquito tablet: %.0f%%", *result->tablet);
   }
+  if (result->weight.has_value()) {
+    ESP_LOGD(TAG, "  Weight: %.1fkg", *result->weight);
+  }
+  if (result->impedance.has_value()) {
+    ESP_LOGD(TAG, "  Impedance: %.0f", *result->impedance);
+  }
   if (result->is_active.has_value()) {
     ESP_LOGD(TAG, "  Repellent: %s", (*result->is_active) ? "on" : "off");
   }
@@ -361,12 +367,6 @@ bool report_xiaomi_results(const optional<XiaomiParseResult> &result, const std:
   }
   if (result->is_light.has_value()) {
     ESP_LOGD(TAG, "  Light: %s", (*result->is_light) ? "on" : "off");
-  }
-  if (result->weight.has_value()) {
-    ESP_LOGD(TAG, "  Weight: %.1fkg", *result->weight);
-  }
-  if (result->impedance.has_value()) {
-    ESP_LOGD(TAG, "  Impedance: %.0f", *result->impedance);
   }
 
   return true;
