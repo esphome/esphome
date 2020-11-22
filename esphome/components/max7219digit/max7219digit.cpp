@@ -132,7 +132,7 @@ void HOT MAX7219Component::draw_absolute_pixel_internal(int x, int y, Color colo
     this->max_displaybuffer_.resize(x + 1, this->bckgrnd_);
   }
 
-  if (y >= this->get_height_internal() || y < 0)  // If pixel is outside display then dont draw
+  if ((y >= this->get_height_internal()) || (y < 0) || (x < 0))  // If pixel is outside display then dont draw
     return;
 
   uint16_t pos = x;    // X is starting at 0 top left
@@ -233,7 +233,7 @@ void MAX7219Component::send64pixels(uint8_t chip, const uint8_t pixels[8]) {
       b = pixels[col];
     } else if (this->orientation_ == 2) {
       for (uint8_t i = 0; i < 8; i++) {
-        b |= ((pixels[i] >> (7 - col)) << (7 - i));
+        b |= ((pixels[i] >> (7 - col)) & 1) << i;
       }
     } else {
       b = pixels[7 - col];
