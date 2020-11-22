@@ -2,12 +2,10 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import sensor
 from esphome.const import CONF_COMPONENT_ID, CONF_PAGE_ID, CONF_ID, UNIT_EMPTY, ICON_EMPTY
-from . import nextion_ns
+from . import nextion_ns, CONF_NEXTION_ID
 from .display import Nextion
 
 DEPENDENCIES = ['display']
-
-CONF_NEXTION_ID = 'nextion_id'
 
 NextionSensor = nextion_ns.class_('NextionSensor', sensor.Sensor)
 
