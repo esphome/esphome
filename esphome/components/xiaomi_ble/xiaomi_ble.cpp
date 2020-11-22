@@ -11,6 +11,7 @@ namespace esphome {
 namespace xiaomi_ble {
 
 static const char *TAG = "xiaomi_ble";
+static int year = 0;
 
 bool parse_xiaomi_value(uint8_t value_type, const uint8_t *data, uint8_t value_length, XiaomiParseResult &result) {
   // motion detection, 1 byte, 8-bit unsigned integer
@@ -216,7 +217,8 @@ optional<XiaomiParseResult> parse_xiaomi_header(const esp32_ble_tracker::Service
     result.name = "MJYD02YLA";
     if (raw.size() == 19)
       result.raw_offset -= 6;
-  } else if (raw[4] == 0x07) {  // Xiaomi Miscale
+  } int rcvdYear = (raw[3]);
+    else if (rcvdYear > year) {  // Xiaomi Miscale
     result.type = XiaomiParseResult::TYPE_XMTZC1XHM;
     result.name = "XMTZC1XHM";
   } else if (raw[3] == 0x07) {  // Xiaomi Miscale 2
