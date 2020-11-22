@@ -151,7 +151,7 @@ bool parse_xiaomi_message(const std::vector<uint8_t> &message, XiaomiParseResult
     payload_offset += 3 + value_length;
   }
   // Hack for MiScale
-  const uint8_t *data = &payload;  // raw data
+  const uint8_t *data = message.data() + result.raw_offset;  // raw data
   if (parse_xiaomi_value(0x16, data, message.size(), result)) {
     success = true;
   }
