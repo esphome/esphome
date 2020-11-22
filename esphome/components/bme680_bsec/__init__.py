@@ -42,4 +42,4 @@ def to_code(config):
     cg.add(var.set_state_save_interval(config[CONF_STATE_SAVE_INTERVAL].total_milliseconds))
 
     cg.add_build_flag('-DUSING_BSEC')
-    cg.add_library('bsec=https://github.com/trvrnrth/BSEC-Arduino-library', None)
+    cg.add_library('BSEC Software Library', '1.6.1480')
