@@ -2,12 +2,11 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import switch, uart
 from esphome.const import CONF_COMPONENT_ID, CONF_PAGE_ID, CONF_ID
-from . import nextion_ns
+from . import nextion_ns, CONF_NEXTION_ID
 from .display import Nextion
 
 DEPENDENCIES = ['display']
 
-CONF_NEXTION_ID = 'nextion_id'
 CONF_BUTTON_ID = 'button_id'
 
 NextionSwitch = nextion_ns.class_('NextionSwitch', switch.Switch, cg.Component, uart.UARTDevice)
