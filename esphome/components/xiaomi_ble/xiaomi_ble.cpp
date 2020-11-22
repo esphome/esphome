@@ -113,6 +113,8 @@ bool parse_xiaomi_message(const std::vector<uint8_t> &message, XiaomiParseResult
     return {};
   }
 
+  bool success = false;
+
   return success;
 }
 
