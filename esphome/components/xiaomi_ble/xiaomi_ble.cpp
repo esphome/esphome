@@ -137,8 +137,8 @@ bool parse_xiaomi_message(const std::vector<uint8_t> &message, XiaomiParseResult
   }
   // For MiScale
   const uint8_t *data = message.data();
-  const int data_length = 10;
-  if ((message.size() == data_length, result) || (message.size() == data_length + 3, result)) {
+  const int value_length = 10;
+  if ((message.size() == value_length, result) || (message.size() == value_length + 3, result)) {
     success = true;
   }
 
