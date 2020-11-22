@@ -130,11 +130,11 @@ bool Nextion::read_until_ack_() {
     // this variable keeps track of ohow many of those have
     // been received
     uint8_t end_length = 0;
-    ESP_LOGD(TAG, "Received byte %x from Nextion", event);
+    ESP_LOGV(TAG, "Received byte %x from Nextion", event);
     while (this->available() && end_length < 3 && data_length < sizeof(data)) {
       uint8_t byte;
       this->read_byte(&byte);
-      ESP_LOGD(TAG, "Received byte %x from Nextion", byte);
+      ESP_LOGV(TAG, "Received byte %x from Nextion", byte);
       if (byte == 0xFF) {
         end_length++;
       } else {
