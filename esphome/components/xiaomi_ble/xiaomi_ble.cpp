@@ -152,7 +152,7 @@ bool parse_xiaomi_message(const std::vector<uint8_t> &message, XiaomiParseResult
 
 optional<XiaomiParseResult> parse_xiaomi_header(const esp32_ble_tracker::ServiceData &service_data) {
   XiaomiParseResult result;
-  if (!service_data.uuid.contains(0x95, 0xFE) && !service_data.uuid.contains(0x1B, 0x18) && !service_data.uuid.contains(0x1D, 0x18)) {
+  if (service_data.uuid.contains(0x95, 0xFE) || service_data.uuid.contains(0x1B, 0x18) || service_data.uuid.contains(0x1D, 0x18)) {
     ESP_LOGVV(TAG, "parse_xiaomi_header(): no service data UUID magic bytes.");
     return {};
   }
