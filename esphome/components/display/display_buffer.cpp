@@ -480,7 +480,7 @@ bool Animation::get_pixel(int x, int y) const {
   const uint32_t width_8 = ((this->width_ + 7u) / 8u) * 8u;
   const uint32_t frame_index = this->height_ * width_8 * this->current_frame_;
   if (frame_index >= this->width_ * this->height_ * this->animation_frame_count_)
-    return 0;
+    return false;
   const uint32_t pos = x + y * width_8 + frame_index;
   return pgm_read_byte(this->data_start_ + (pos / 8u)) & (0x80 >> (pos % 8u));
 }
