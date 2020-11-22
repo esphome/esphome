@@ -152,7 +152,7 @@ bool parse_xiaomi_message(const std::vector<uint8_t> &message, XiaomiParseResult
 
 optional<XiaomiParseResult> parse_xiaomi_header(const esp32_ble_tracker::ServiceData &service_data) {
   XiaomiParseResult result;
-  if (service_data.uuid.contains(0x95, 0xFE) || service_data.uuid.contains(0x1B, 0x18) || service_data.uuid.contains(0x1D, 0x18)) {
+  if (!service_data.uuid.contains(0x95, 0xFE) && !service_data.uuid.contains(0x1B, 0x18) !service_data.uuid.contains(0x1D, 0x18)) {
     ESP_LOGVV(TAG, "parse_xiaomi_header(): no service data UUID magic bytes.");
     return {};
   }
@@ -216,10 +216,10 @@ optional<XiaomiParseResult> parse_xiaomi_header(const esp32_ble_tracker::Service
     result.name = "MJYD02YLA";
     if (raw.size() == 19)
       result.raw_offset -= 6;
-  } else if ((raw[3] == 0xe4) && (raw[4] == 0x07)) {  // Xiaomi Miscale
+  } else if (raw[4] == 0x07) {  // Xiaomi Miscale
     result.type = XiaomiParseResult::TYPE_XMTZC1XHM;
     result.name = "XMTZC1XHM";
-  } else if ((raw[2] == 0xe4) && (raw[3] == 0x07)) {  // Xiaomi Miscale 2
+  } else if (raw[3] == 0x07) {  // Xiaomi Miscale 2
     result.type = XiaomiParseResult::TYPE_XMTZC1XHM;
     result.name = "XMTZC1XHM";
   } else {
