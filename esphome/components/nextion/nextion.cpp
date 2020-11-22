@@ -335,18 +335,10 @@ bool NextionSwitch::send_command_printf(const char *format, ...) {
     return false;
   }
   this->send_command_no_ack(buffer);
-  // if (!this->ack_()) {
-  // ESP_LOGW(TAG, "Sending command '%s' failed because no ACK was received", buffer);
-  // return false;
-  // }
-
   return true;
 }
 
 void NextionSwitch::send_command_no_ack(const char *command) {
-  // Flush RX...
-  // this->loop();
-
   this->write_str(command);
   const uint8_t data[3] = {0xFF, 0xFF, 0xFF};
   this->write_array(data, sizeof(data));
@@ -355,7 +347,7 @@ void NextionSwitch::send_command_no_ack(const char *command) {
 void NextionSensor::process(uint8_t page_id, uint8_t component_id, float state) {
   if (this->page_id_ == page_id && this->component_id_ == component_id) {
     this->publish_state(state);
-    ESP_LOGW(TAG, "Sensor state published");
+    ESP_LOGD(TAG, "Sensor state published");
   }
 }
 
