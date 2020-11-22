@@ -140,8 +140,7 @@ bool parse_xiaomi_message(const std::vector<uint8_t> &message, XiaomiParseResult
   const int value_length = 10;
   if ((message.size() == value_length, result) {
     success = true;
-  else if (message.size() == value_length + 3, result)
-    success = true;
+    else if (message.size() == value_length + 3, result) success = true;
   }
 
   return success;
