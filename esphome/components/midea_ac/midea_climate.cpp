@@ -45,7 +45,7 @@ void MideaAC::on_frame(const midea_dongle::Frame &frame) {
   if (need_publish)
     this->publish_state();
   if (this->outdoor_sensor_ != nullptr &&
-      (!this->outdoor_sensor_->has_state() || this->outdoor_sensor_->get_state() != p.get_outdoor_temp()))
+      (!this->outdoor_sensor_->has_state() || this->outdoor_sensor_->get_raw_state() != p.get_outdoor_temp()))
     this->outdoor_sensor_->publish_state(p.get_outdoor_temp());
 }
 
