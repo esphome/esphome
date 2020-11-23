@@ -104,8 +104,10 @@ bool Tuya::validate_message_() {
 
   // valid message
   const uint8_t *message_data = data + 6;
-  ESP_LOGV(TAG, "Received Tuya: CMD=0x%02X VERSION=%u DATA=[%s] INIT_STATE=%u", command, version,  // NOLINT
-           hexencode(message_data, length).c_str(), this->init_state_);
+  if (command != 0x00) {
+    ESP_LOGV(TAG, "Received Tuya: CMD=0x%02X VERSION=%u DATA=[%s] INIT_STATE=%u", command, version,  // NOLINT
+             hexencode(message_data, length).c_str(), this->init_state_);
+  }
   this->handle_command_(command, version, message_data, length);
 
   // return false to reset rx buffer
@@ -123,7 +125,7 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
   this->last_command_timestamp_ = millis();
   switch ((TuyaCommandType) command) {
     case TuyaCommandType::HEARTBEAT:
-      ESP_LOGV(TAG, "MCU Heartbeat (0x%02X)", buffer[0]);
+      // ESP_LOGV(TAG, "MCU Heartbeat (0x%02X)", buffer[0]);
       if (buffer[0] == 0) {
         ESP_LOGI(TAG, "MCU restarted");
         this->init_state_ = TuyaInitState::INIT_HEARTBEAT;
@@ -256,8 +258,12 @@ void Tuya::handle_datapoint_(const uint8_t *buffer, size_t len) {
   datapoint.type = (TuyaDatapointType) buffer[1];
   datapoint.value_uint = 0;
 
-  if (datapoint.id == 0x2)
-    return;
+  // drop update if datapoint is in ignore_mcu_datapoint_update list
+  for (size_t i = 0; i < this->ignore_mcu_update_on_datapoints_.size(); i++) {
+    if (datapoint.id == this->ignore_mcu_update_on_datapoints_[i])
+      ESP_LOGV(TAG, "Datapoint %u found in ignore_mcu_update_on_datapoints list, dropping MCU update", datapoint.id);
+      return;
+  }
 
   size_t data_size = (buffer[2] << 8) + buffer[3];
   const uint8_t *data = buffer + 4;
@@ -317,8 +323,10 @@ void Tuya::send_command_(TuyaCommandType command, const uint8_t *buffer, uint16_
   uint8_t len_lo = len >> 0;
   uint8_t version = 0;
 
-  ESP_LOGV(TAG, "Sending Tuya: CMD=0x%02X VERSION=%u DATA=[%s] INIT_STATE=%u", command, version,  // NOLINT
-           hexencode(buffer, len).c_str(), this->init_state_);
+  if (command != TuyaCommandType::HEARTBEAT) {
+    ESP_LOGV(TAG, "Sending Tuya: CMD=0x%02X VERSION=%u DATA=[%s] INIT_STATE=%u", command, version,  // NOLINT
+             hexencode(buffer, len).c_str(), this->init_state_);
+  }
 
   this->write_array({0x55, 0xAA, version, (uint8_t) command, len_hi, len_lo});
   if (len != 0)
@@ -334,7 +342,7 @@ void Tuya::set_datapoint_value(TuyaDatapoint datapoint) {
   std::vector<uint8_t> buffer;
   ESP_LOGV(TAG, "Datapoint %u set to %u", datapoint.id, datapoint.value_uint);
   for (auto &other : this->datapoints_) {
-    if (other.id == datapoint.id) {
+    if (other.id == datapoint.id && datapoint.id != 0x2) {
       if (other.value_uint == datapoint.value_uint) {
         ESP_LOGV(TAG, "Not sending unchanged value");
         return;
