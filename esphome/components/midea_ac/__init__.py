@@ -5,7 +5,7 @@ from esphome.const import CONF_ID, UNIT_CELSIUS, ICON_THERMOMETER
 from esphome.components.midea_dongle import CONF_MIDEA_DONGLE_ID, MideaDongle
 
 DEPENDENCIES = ['midea_dongle']
-AUTO_LOAD = ['climate','sensor']
+AUTO_LOAD = ['climate', 'sensor']
 CODEOWNERS = ['@dudanov']
 
 CONF_BEEPER = 'beeper'
