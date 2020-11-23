@@ -13,11 +13,11 @@ void TuyaFan::setup() {
   if (this->speed_id_.has_value()) {
     this->parent_->register_listener(*this->speed_id_, [this](TuyaDatapoint datapoint) {
       auto call = this->fan_->make_call();
-      if (datapoint.value_enum == 0x0)
+      if (datapoint.value_enum == speed_value_low_id_)
         call.set_speed(fan::FAN_SPEED_LOW);
-      else if (datapoint.value_enum == 0x1)
+      else if (datapoint.value_enum == speed_value_medium_id_)
         call.set_speed(fan::FAN_SPEED_MEDIUM);
-      else if (datapoint.value_enum == 0x2)
+      else if (datapoint.value_enum == speed_value_high_id_)
         call.set_speed(fan::FAN_SPEED_HIGH);
       else
         ESP_LOGCONFIG(TAG, "Speed has invalid value %d", datapoint.value_enum);
@@ -52,6 +52,11 @@ void TuyaFan::dump_config() {
     ESP_LOGCONFIG(TAG, "  Switch has datapoint ID %u", *this->switch_id_);
   if (this->oscillation_id_.has_value())
     ESP_LOGCONFIG(TAG, "  Oscillation has datapoint ID %u", *this->oscillation_id_);
+  //help  
+  // ESP_LOGCONFIG(TAG, "  Speed low is %u", *this->speed_low_id_);
+  // ESP_LOGCONFIG(TAG, "  Speed medium is %u", *this->speed_medium_id_); 
+  // ESP_LOGCONFIG(TAG, "  Speed high is %u", *this->speed_high_id_);
+  
 }
 
 void TuyaFan::write_state() {
@@ -76,11 +81,11 @@ void TuyaFan::write_state() {
     datapoint.id = *this->speed_id_;
     datapoint.type = TuyaDatapointType::ENUM;
     if (this->fan_->speed == fan::FAN_SPEED_LOW)
-      datapoint.value_enum = 0;
+      datapoint.value_enum = speed_value_low_id_;
     if (this->fan_->speed == fan::FAN_SPEED_MEDIUM)
-      datapoint.value_enum = 1;
+      datapoint.value_enum = speed_value_medium_id_;
     if (this->fan_->speed == fan::FAN_SPEED_HIGH)
-      datapoint.value_enum = 2;
+      datapoint.value_enum = speed_value_high_id_;
     ESP_LOGD(TAG, "Setting speed: %d", datapoint.value_enum);
     this->parent_->set_datapoint_value(datapoint);
   }

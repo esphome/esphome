@@ -13,6 +13,9 @@ class TuyaFan : public Component {
   void dump_config() override;
   void set_speed_id(uint8_t speed_id) { this->speed_id_ = speed_id; }
   void set_switch_id(uint8_t switch_id) { this->switch_id_ = switch_id; }
+  void set_speed_value_low_id(uint8_t speed_value_low_id) { this->speed_value_low_id_ = speed_value_low_id; }
+  void set_speed_value_medium_id(uint8_t speed_value_medium_id) { this->speed_value_medium_id_ = speed_value_medium_id; }
+  void set_speed_value_high_id(uint8_t speed_value_high_id) { this->speed_value_high_id_ = speed_value_high_id; }
   void set_oscillation_id(uint8_t oscillation_id) { this->oscillation_id_ = oscillation_id; }
   void set_fan(fan::FanState *fan) { this->fan_ = fan; }
   void set_tuya_parent(Tuya *parent) { this->parent_ = parent; }
@@ -27,6 +30,9 @@ class TuyaFan : public Component {
   optional<uint8_t> speed_id_{};
   optional<uint8_t> switch_id_{};
   optional<uint8_t> oscillation_id_{};
+  uint8_t speed_value_low_id_ = 0;
+  uint8_t speed_value_medium_id_ = 1;
+  uint8_t speed_value_high_id_ = 2;
   fan::FanState *fan_;
 };
 
