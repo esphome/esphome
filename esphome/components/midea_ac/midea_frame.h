@@ -84,7 +84,7 @@ class PropertiesFrame : public midea_dongle::BaseFrame {
   bool get_sleep_mode() const { return this->pbuf_[20] & 0x01; }
   void set_sleep_mode(bool state) { this->set_bytemask_(20, 0x01, state); }
 
-  /* TURBO MODE */  
+  /* TURBO MODE */
   bool get_turbo_mode() const { return this->pbuf_[20] & 0x02; }
   void set_turbo_mode(bool state) { this->set_bytemask_(20, 0x02, state); }
 
