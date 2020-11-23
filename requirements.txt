@@ -7,7 +7,7 @@ tornado==6.0.4
 protobuf==3.13.0
 tzlocal==2.1
 pytz==2020.4
-pyserial==3.4
+pyserial==3.5
 ifaddr==0.1.7
 platformio==5.0.3
 esptool==2.8
