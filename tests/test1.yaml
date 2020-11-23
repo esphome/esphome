@@ -1704,7 +1704,18 @@ display:
     backlight_pin: GPIO4
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
-
+  - platform: st7735
+    model: 'INITR_BLACKTAB'
+    cs_pin: GPIO5
+    dc_pin: GPIO16
+    reset_pin: GPIO23
+    rotation: 0
+    devicewidth: 128
+    deviceheight: 160
+    colstart: 0
+    rowstart: 0
+    lambda: |-
+      it.rectangle(0, 0, it.get_width(), it.get_height());
 tm1651:
   id: tm1651_battery
   clk_pin: GPIO23
