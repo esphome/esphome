@@ -104,8 +104,10 @@ bool Tuya::validate_message_() {
 
   // valid message
   const uint8_t *message_data = data + 6;
-  ESP_LOGV(TAG, "Received Tuya: CMD=0x%02X VERSION=%u DATA=[%s] INIT_STATE=%u", command, version,  // NOLINT
-           hexencode(message_data, length).c_str(), this->init_state_);
+  if (command != 0x00) {
+    ESP_LOGV(TAG, "Received Tuya: CMD=0x%02X VERSION=%u DATA=[%s] INIT_STATE=%u", command, version,  // NOLINT
+             hexencode(message_data, length).c_str(), this->init_state_);
+  }
   this->handle_command_(command, version, message_data, length);
 
   // return false to reset rx buffer
@@ -340,7 +342,7 @@ void Tuya::set_datapoint_value(TuyaDatapoint datapoint) {
   std::vector<uint8_t> buffer;
   ESP_LOGV(TAG, "Datapoint %u set to %u", datapoint.id, datapoint.value_uint);
   for (auto &other : this->datapoints_) {
-    if (other.id == datapoint.id) {
+    if (other.id == datapoint.id && datapoint.id != 0x2) {
       if (other.value_uint == datapoint.value_uint) {
         ESP_LOGV(TAG, "Not sending unchanged value");
         return;
