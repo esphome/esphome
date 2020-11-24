@@ -104,10 +104,8 @@ bool Tuya::validate_message_() {
 
   // valid message
   const uint8_t *message_data = data + 6;
-  if (command != 0x00) {
-    ESP_LOGV(TAG, "Received Tuya: CMD=0x%02X VERSION=%u DATA=[%s] INIT_STATE=%u", command, version,  // NOLINT
-             hexencode(message_data, length).c_str(), this->init_state_);
-  }
+  ESP_LOGV(TAG, "Received Tuya: CMD=0x%02X VERSION=%u DATA=[%s] INIT_STATE=%u", command, version,  // NOLINT
+           hexencode(message_data, length).c_str(), this->init_state_);
   this->handle_command_(command, version, message_data, length);
 
   // return false to reset rx buffer
@@ -125,7 +123,7 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
   this->last_command_timestamp_ = millis();
   switch ((TuyaCommandType) command) {
     case TuyaCommandType::HEARTBEAT:
-      // ESP_LOGV(TAG, "MCU Heartbeat (0x%02X)", buffer[0]);
+      ESP_LOGV(TAG, "MCU Heartbeat (0x%02X)", buffer[0]);
       if (buffer[0] == 0) {
         ESP_LOGI(TAG, "MCU restarted");
         this->init_state_ = TuyaInitState::INIT_HEARTBEAT;
@@ -323,10 +321,8 @@ void Tuya::send_command_(TuyaCommandType command, const uint8_t *buffer, uint16_
   uint8_t len_lo = len >> 0;
   uint8_t version = 0;
 
-  if (command != TuyaCommandType::HEARTBEAT) {
-    ESP_LOGV(TAG, "Sending Tuya: CMD=0x%02X VERSION=%u DATA=[%s] INIT_STATE=%u", command, version,  // NOLINT
-             hexencode(buffer, len).c_str(), this->init_state_);
-  }
+  ESP_LOGV(TAG, "Sending Tuya: CMD=0x%02X VERSION=%u DATA=[%s] INIT_STATE=%u", command, version,  // NOLINT
+           hexencode(buffer, len).c_str(), this->init_state_);
 
   this->write_array({0x55, 0xAA, version, (uint8_t) command, len_hi, len_lo});
   if (len != 0)
