@@ -104,10 +104,8 @@ bool Tuya::validate_message_() {
 
   // valid message
   const uint8_t *message_data = data + 6;
-  if (command != 0x00) {
-    ESP_LOGV(TAG, "Received Tuya: CMD=0x%02X VERSION=%u DATA=[%s] INIT_STATE=%u", command, version,  // NOLINT
-             hexencode(message_data, length).c_str(), this->init_state_);
-  }
+  ESP_LOGV(TAG, "Received Tuya: CMD=0x%02X VERSION=%u DATA=[%s] INIT_STATE=%u", command, version,  // NOLINT
+           hexencode(message_data, length).c_str(), this->init_state_);
   this->handle_command_(command, version, message_data, length);
 
   // return false to reset rx buffer
