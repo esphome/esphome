@@ -1362,7 +1362,7 @@ switch:
   - platform: gpio
     name: "MCP23S17 Pin #0"
     pin:
-      mcp23s17_id: mcp23s17_hub
+      mcp23s17: mcp23s17_hub
       # Use pin number 0
       number: 1
       mode: OUTPUT
