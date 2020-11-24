@@ -34,7 +34,7 @@ void MCP23S17::setup() {
 
 void MCP23S17::dump_config() {
   ESP_LOGCONFIG(TAG, "MCP23S17:");
-  ESP_LOGCONFIG(TAG, "  CS Pin: %u", this->cs_->get_pin());
+  LOG_PIN("  CS Pin: ", this->cs_);
 }
 
 float MCP23S17::get_setup_priority() const { return setup_priority::HARDWARE; }
