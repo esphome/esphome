@@ -1354,11 +1354,10 @@ switch:
   - platform: gpio
     name: "MCP23S08 Pin #0"
     pin:
-      mcp23s08_id: mcp23s08_hub
+      mcp23s08: mcp23s08_hub
       # Use pin number 0
       number: 0
-      # One of INPUT, INPUT_PULLUP or OUTPUT
-      mode: INPUT_PULLUP
+      mode: OUTPUT
       inverted: False
   - platform: gpio
     name: "MCP23S17 Pin #0"
