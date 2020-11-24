@@ -812,7 +812,7 @@ binary_sensor:
   - platform: gpio
     name: "MCP23S08 Pin #1"
     pin:
-      mcp23s08_id: mcp23s08_hub
+      mcp23s08: mcp23s08_hub
       # Use pin number 1
       number: 1
       # One of INPUT or INPUT_PULLUP
