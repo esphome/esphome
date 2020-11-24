@@ -342,7 +342,7 @@ void Tuya::set_datapoint_value(TuyaDatapoint datapoint) {
   std::vector<uint8_t> buffer;
   ESP_LOGV(TAG, "Datapoint %u set to %u", datapoint.id, datapoint.value_uint);
   for (auto &other : this->datapoints_) {
-    if (other.id == datapoint.id && datapoint.id != 0x2) {
+    if (other.id == datapoint.id) {
       if (other.value_uint == datapoint.value_uint) {
         ESP_LOGV(TAG, "Not sending unchanged value");
         return;
