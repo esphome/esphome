@@ -10,6 +10,8 @@ CODEOWNERS = ['@dudanov']
 
 CONF_BEEPER = 'beeper'
 CONF_OUTDOOR_TEMPERATURE = 'outdoor_temperature'
+CONF_SLEEP_STATUS = 'sleep_status'
+CONF_TURBO_STATUS = 'turbo_status'
 midea_ac_ns = cg.esphome_ns.namespace('midea_ac')
 MideaAC = midea_ac_ns.class_('MideaAC', climate.Climate, cg.Component)
 
@@ -17,6 +19,8 @@ CONFIG_SCHEMA = cv.All(climate.CLIMATE_SCHEMA.extend({
     cv.GenerateID(): cv.declare_id(MideaAC),
     cv.GenerateID(CONF_MIDEA_DONGLE_ID): cv.use_id(MideaDongle),
     cv.Optional(CONF_BEEPER): cv.boolean,
+    cv.Optional(CONF_TURBO_STATUS): cv.boolean,
+    cv.Optional(CONF_SLEEP_STATUS): cv.boolean,
     cv.Optional(CONF_OUTDOOR_TEMPERATURE): sensor.sensor_schema(UNIT_CELSIUS, ICON_THERMOMETER, 0),
 }).extend(cv.COMPONENT_SCHEMA))
 
@@ -32,3 +36,9 @@ def to_code(config):
     if CONF_OUTDOOR_TEMPERATURE in config:
         sens = yield sensor.new_sensor(config[CONF_OUTDOOR_TEMPERATURE])
         cg.add(var.set_outdoor_temperature_sensor(sens))
+    if CONF_SLEEP_STATUS in config:
+        swit = yield switch.new_switch(config[CONF_SLEEP_STATUS])
+        cg.add(var.set_sleep_sensor(swit))
+    if CONF_TURBO_STATUS in config:
+        swit = yield switch.new_switch(config[CONF_STATUS_STATUS])
+        cg.add(var.set_status_sensor(swit)) 
