@@ -9,10 +9,8 @@ static const char *TAG = "midea_ac";
 void MideaAC::on_frame(const midea_dongle::Frame &frame) {
   const auto p = frame.as<PropertiesFrame>();
   for (auto f : frame) {
-     ESP_LOGD(TAG, f)
+     ESP_LOGD(TAG, f);
   }
-  for data in frame:
-      ESP_LOGD(TAG, data);
   if (!p.is<PropertiesFrame>()) {
     ESP_LOGW(TAG, "RX: not PropertiesFrame!");
     return;
