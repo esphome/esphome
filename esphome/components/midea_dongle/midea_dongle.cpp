@@ -22,11 +22,12 @@ void MideaDongle::loop() {
       }
     }
     this->buf_[this->idx_++] = rx;
+    //Debug
+    ESP_LOGD(TAG, rx);
     if (--this->cnt_)
       continue;
     this->reset_();
     const BaseFrame frame(this->buf_);
-    ESP_LOGD(TAG, frame.data);
     if (frame.get_type() == NETWORK_NOTIFY) {
       ESP_LOGD(TAG, "RX: notify frame");
       this->need_notify_ = false;
