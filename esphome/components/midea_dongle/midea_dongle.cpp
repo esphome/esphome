@@ -23,7 +23,7 @@ void MideaDongle::loop() {
     }
     this->buf_[this->idx_++] = rx;
     //Debug
-    ESP_LOGD(TAG, rx);
+    ESP_LOGD(TAG, "data %d",rx);
     if (--this->cnt_)
       continue;
     this->reset_();
