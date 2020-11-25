@@ -52,7 +52,7 @@ void MideaAC::on_frame(const midea_dongle::Frame &frame) {
 
 void MideaAC::on_update() {
   if (this->ctrl_request_) {
-    ESP_LOGD(TAG, "TX: control frame")
+    ESP_LOGD(TAG, "TX: control frame");
     this->parent_->write_frame(this->cmd_frame_);
   } else {
     ESP_LOGD(TAG, "TX: query frame");
