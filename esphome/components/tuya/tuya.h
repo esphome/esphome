@@ -72,7 +72,7 @@ class Tuya : public Component, public uart::UARTDevice {
   void set_time_id(time::RealTimeClock *time_id) { this->time_id_ = time_id; }
 #endif
   void add_ignore_mcu_update_on_datapoints(uint8_t ignore_mcu_update_on_datapoints) {
-	  this->ignore_mcu_update_on_datapoints_.push_back(ignore_mcu_update_on_datapoints);
+    this->ignore_mcu_update_on_datapoints_.push_back(ignore_mcu_update_on_datapoints);
   }
 
  protected:

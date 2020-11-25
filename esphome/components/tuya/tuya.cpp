@@ -257,10 +257,11 @@ void Tuya::handle_datapoint_(const uint8_t *buffer, size_t len) {
   datapoint.value_uint = 0;
 
   // drop update if datapoint is in ignore_mcu_datapoint_update list
-  for (size_t i = 0; i < this->ignore_mcu_update_on_datapoints_.size(); i++) {
-    if (datapoint.id == this->ignore_mcu_update_on_datapoints_[i])
+  for (auto i : this->ignore_mcu_update_on_datapoints_) {
+    if (datapoint.id == i) {
       ESP_LOGV(TAG, "Datapoint %u found in ignore_mcu_update_on_datapoints list, dropping MCU update", datapoint.id);
       return;
+    }
   }
 
   size_t data_size = (buffer[2] << 8) + buffer[3];
