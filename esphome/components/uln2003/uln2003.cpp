@@ -70,7 +70,7 @@ void ULN2003::write_step_(int32_t step) {
     }
     case ULN2003_STEP_MODE_HALF_STEP: {
       // A, AB, B, BC, C, CD, D, DA
-      if (i == 0 || i == 2 || i == 7)
+      if (i == 0 || i == 1 || i == 7)
         res |= 1 << 0;
       if (i == 1 || i == 2 || i == 3)
         res |= 1 << 1;
