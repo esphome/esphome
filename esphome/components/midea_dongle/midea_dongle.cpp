@@ -26,9 +26,9 @@ void MideaDongle::loop() {
     if (--this->cnt_)
       continue;
     this->reset_();
-    ESP_LOGD(TAG, "byte 11 %d",this->buf_[11]);
-    ESP_LOGD(TAG, "byte 18 %d",this->buf_[18]);
-    ESP_LOGD(TAG, "byte 21 %d",this->buf_[21]);
+    ESP_LOGD(TAG, "Error Code: %d",this->buf_[26]);
+    ESP_LOGD(TAG, "Byte14: %d",this->buf_[24]);
+    ESP_LOGD(TAG, "Byte10: %d",this->buf_[20]);
     const BaseFrame frame(this->buf_);
     if (frame.get_type() == NETWORK_NOTIFY) {
       ESP_LOGD(TAG, "RX: notify frame");
