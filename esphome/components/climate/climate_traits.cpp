@@ -38,6 +38,7 @@ void ClimateTraits::set_supports_fan_only_mode(bool supports_fan_only_mode) {
 }
 void ClimateTraits::set_supports_dry_mode(bool supports_dry_mode) { supports_dry_mode_ = supports_dry_mode; }
 void ClimateTraits::set_supports_away(bool supports_away) { supports_away_ = supports_away; }
+void ClimateTraits::set_supports_turbo(bool supports_turbo) { supports_turbo_ = supports_turbo; }
 void ClimateTraits::set_supports_action(bool supports_action) { supports_action_ = supports_action; }
 float ClimateTraits::get_visual_min_temperature() const { return visual_min_temperature_; }
 void ClimateTraits::set_visual_min_temperature(float visual_min_temperature) {
@@ -61,6 +62,7 @@ int8_t ClimateTraits::get_temperature_accuracy_decimals() const {
 }
 void ClimateTraits::set_visual_temperature_step(float temperature_step) { visual_temperature_step_ = temperature_step; }
 bool ClimateTraits::get_supports_away() const { return supports_away_; }
+bool ClimateTraits::get_supports_turbo() const { return supports_turbo_; }
 bool ClimateTraits::get_supports_action() const { return supports_action_; }
 
 void ClimateTraits::set_supports_fan_mode_on(bool supports_fan_mode_on) {

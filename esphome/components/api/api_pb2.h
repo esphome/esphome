@@ -686,6 +686,7 @@ class ListEntitiesClimateResponse : public ProtoMessage {
   float visual_max_temperature{0.0f};                            // NOLINT
   float visual_temperature_step{0.0f};                           // NOLINT
   bool supports_away{false};                                     // NOLINT
+  bool supports_turbo{false};                                     // NOLINT
   bool supports_action{false};                                   // NOLINT
   std::vector<enums::ClimateFanMode> supported_fan_modes{};      // NOLINT
   std::vector<enums::ClimateSwingMode> supported_swing_modes{};  // NOLINT
@@ -706,6 +707,7 @@ class ClimateStateResponse : public ProtoMessage {
   float target_temperature_low{0.0f};    // NOLINT
   float target_temperature_high{0.0f};   // NOLINT
   bool away{false};                      // NOLINT
+  bool turbo{false};                     // NOLINT
   enums::ClimateAction action{};         // NOLINT
   enums::ClimateFanMode fan_mode{};      // NOLINT
   enums::ClimateSwingMode swing_mode{};  // NOLINT
@@ -729,6 +731,8 @@ class ClimateCommandRequest : public ProtoMessage {
   float target_temperature_high{0.0f};      // NOLINT
   bool has_away{false};                     // NOLINT
   bool away{false};                         // NOLINT
+  bool has_turbo{false};                    // NOLINT
+  bool turbo{false};                        // NOLINT
   bool has_fan_mode{false};                 // NOLINT
   enums::ClimateFanMode fan_mode{};         // NOLINT
   bool has_swing_mode{false};               // NOLINT

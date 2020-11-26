@@ -34,7 +34,8 @@ void BangBangClimate::control(const climate::ClimateCall &call) {
     this->target_temperature_high = *call.get_target_temperature_high();
   if (call.get_away().has_value())
     this->change_away_(*call.get_away());
-
+  if (call.get_turbo().has_value())
+    this->change_turbo_(*call.get_turbo());
   this->compute_state_();
   this->publish_state();
 }
@@ -46,6 +47,7 @@ climate::ClimateTraits BangBangClimate::traits() {
   traits.set_supports_heat_mode(this->supports_heat_);
   traits.set_supports_two_point_target_temperature(true);
   traits.set_supports_away(this->supports_away_);
+  traits.set_supports_turbo(this->supports_turbo_);
   traits.set_supports_action(true);
   return traits;
 }
@@ -142,6 +144,18 @@ void BangBangClimate::change_away_(bool away) {
   }
   this->away = away;
 }
+////////////////////////////////////////////////////////////////////////////////////
+void BangBangClimate::change_turbo_(bool turbo) {
+  if (!turbo) {
+    this->target_temperature_low = this->normal_config_.default_temperature_low;
+    this->target_temperature_high = this->normal_config_.default_temperature_high;
+  } else {
+    this->target_temperature_low = this->away_config_.default_temperature_low;
+    this->target_temperature_high = this->away_config_.default_temperature_high;
+  }
+  this->turbo = turbo;
+}
+
 void BangBangClimate::set_normal_config(const BangBangClimateTargetTempConfig &normal_config) {
   this->normal_config_ = normal_config;
 }
@@ -149,6 +163,12 @@ void BangBangClimate::set_away_config(const BangBangClimateTargetTempConfig &awa
   this->supports_away_ = true;
   this->away_config_ = away_config;
 }
+
+void BangBangClimate::set_supports_turbo(bool turbo) {
+  this->supports_turbo_ = true;
+  //this->away_config_ = away_config;
+}
+
 BangBangClimate::BangBangClimate()
     : idle_trigger_(new Trigger<>()), cool_trigger_(new Trigger<>()), heat_trigger_(new Trigger<>()) {}
 void BangBangClimate::set_sensor(sensor::Sensor *sensor) { this->sensor_ = sensor; }
@@ -162,6 +182,7 @@ void BangBangClimate::dump_config() {
   ESP_LOGCONFIG(TAG, "  Supports HEAT: %s", YESNO(this->supports_heat_));
   ESP_LOGCONFIG(TAG, "  Supports COOL: %s", YESNO(this->supports_cool_));
   ESP_LOGCONFIG(TAG, "  Supports AWAY mode: %s", YESNO(this->supports_away_));
+  ESP_LOGCONFIG(TAG, "  Supports turbo mode: %s", YESNO(this->supports_turbo_));
   ESP_LOGCONFIG(TAG, "  Default Target Temperature Low: %.1f°C", this->normal_config_.default_temperature_low);
   ESP_LOGCONFIG(TAG, "  Default Target Temperature High: %.1f°C", this->normal_config_.default_temperature_high);
 }
