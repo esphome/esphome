@@ -128,12 +128,12 @@ def do_substitution_pass(config, command_line_substitutions):
 
     # Iterativly substitute substitutions within substitutions
     while True:
-        subs_count = sum(1 for key,val in substitutions.items() if '$' in val)
+        subs_count = sum(1 for key, val in substitutions.items() if '$' in val)
         if subs_count > 0:
             _substitute_item(substitutions, substitutions, [])
-        if subs_count == sum(1 for key,val in substitutions.items() if '$' in val):
+        if subs_count == sum(1 for key, val in substitutions.items() if '$' in val):
             # No substitutions were substituted
             break
-    
+
     config[CONF_SUBSTITUTIONS] = substitutions
     _substitute_item(substitutions, config, [])
