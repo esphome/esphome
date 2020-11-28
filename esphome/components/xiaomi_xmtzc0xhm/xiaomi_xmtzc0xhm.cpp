@@ -49,7 +49,7 @@ bool XiaomiXMTZC0XHM::parse_device(const esp32_ble_tracker::ESPBTDevice &device)
 
 optional<ParseResult> XiaomiXMTZC0XHM::parse_header(const esp32_ble_tracker::ServiceData &service_data) {
   ParseResult result;
-  if (!service_data.uuid.contains(0x1B, 0x18) && !service_data.uuid.contains(0x1B, 0x18)) {
+  if (!service_data.uuid.contains(0x1D, 0x18) && !service_data.uuid.contains(0x1B, 0x18)) {
     ESP_LOGVV(TAG, "parse_header(): no service data UUID magic bytes.");
     return {};
   }
