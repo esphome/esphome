@@ -64,6 +64,10 @@ class ClimateCall {
   ClimateCall &set_target_temperature_high(optional<float> target_temperature_high);
   ClimateCall &set_away(bool away);
   ClimateCall &set_away(optional<bool> away);
+  ClimateCall &set_boost(bool boost);
+  ClimateCall &set_boost(optional<bool> boost);
+  ClimateCall &set_sleep(bool sleep);
+  ClimateCall &set_sleep(optional<bool> sleep);
   /// Set the fan mode of the climate device.
   ClimateCall &set_fan_mode(ClimateFanMode fan_mode);
   /// Set the fan mode of the climate device.
@@ -84,6 +88,8 @@ class ClimateCall {
   const optional<float> &get_target_temperature_low() const;
   const optional<float> &get_target_temperature_high() const;
   const optional<bool> &get_away() const;
+  const optional<bool> &get_boost() const;
+  const optional<bool> &get_sleep() const;
   const optional<ClimateFanMode> &get_fan_mode() const;
   const optional<ClimateSwingMode> &get_swing_mode() const;
 
@@ -96,6 +102,8 @@ class ClimateCall {
   optional<float> target_temperature_low_;
   optional<float> target_temperature_high_;
   optional<bool> away_;
+  optional<bool> boost_;
+  optional<bool> sleep_;
   optional<ClimateFanMode> fan_mode_;
   optional<ClimateSwingMode> swing_mode_;
 };
@@ -104,6 +112,8 @@ class ClimateCall {
 struct ClimateDeviceRestoreState {
   ClimateMode mode;
   bool away;
+  bool boost;
+  bool sleep;
   ClimateFanMode fan_mode;
   ClimateSwingMode swing_mode;
   union {
@@ -166,6 +176,18 @@ class Climate : public Nameable {
    * one for normal mode and one for away mode.
    */
   bool away{false};
+
+  /** Whether the climate device is in boost mode.
+   *
+   * Boost or turbo Mode usually used to reach setTemp in the lowest time:
+   */
+  bool boost{false};
+
+  /** Whether the climate device is in Sleep mode.
+   *
+   * Sleep allows climate devices to have a silent mode:
+   */
+  bool sleep{false};
 
   /// The active fan mode of the climate device.
   ClimateFanMode fan_mode;

@@ -25,6 +25,11 @@ namespace climate {
  *    - fan mode (only turns on fan)
  *  - supports away - away mode means that the climate device supports two different
  *      target temperature settings: one target temp setting for "away" mode and one for non-away mode.
+ *  - supports boost - boost mode means that the climate device supports boost or turbo mode:
+ *      it's device specific - usually a combination of settings that allow to reach setTemp in the lowest time
+ *      possible
+ *  - supports sleep - sleep mode means that the climate device supports sleep mode 
+ *      it's device specific - usually a silent mode with low fan for night use.
  *  - supports action - if the climate device supports reporting the active
  *    current action of the device with the action property.
  *  - supports fan modes - optionally, if it has a fan which can be configured in different ways:
@@ -51,6 +56,10 @@ class ClimateTraits {
   void set_supports_dry_mode(bool supports_dry_mode);
   void set_supports_away(bool supports_away);
   bool get_supports_away() const;
+  void set_supports_boost(bool supports_boost);
+  bool get_supports_boost() const;
+  void set_supports_sleep(bool supports_sleep);
+  bool get_supports_sleep() const;
   void set_supports_action(bool supports_action);
   bool get_supports_action() const;
   bool supports_mode(ClimateMode mode) const;
@@ -89,6 +98,8 @@ class ClimateTraits {
   bool supports_fan_only_mode_{false};
   bool supports_dry_mode_{false};
   bool supports_away_{false};
+  bool supports_boost_{false};
+  bool supports_sleep_{false};
   bool supports_action_{false};
   bool supports_fan_mode_on_{false};
   bool supports_fan_mode_off_{false};
