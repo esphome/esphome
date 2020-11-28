@@ -163,7 +163,7 @@ void BangBangClimate::set_away_config(const BangBangClimateTargetTempConfig &awa
 void BangBangClimate::set_boost_config(const BangBangClimateTargetTempConfig &boost_config) {
   this->supports_boost_ = true;
   this->boost_config_ = boost_config;
-
+}
 
 BangBangClimate::BangBangClimate()
     : idle_trigger_(new Trigger<>()), cool_trigger_(new Trigger<>()), heat_trigger_(new Trigger<>()) {}
