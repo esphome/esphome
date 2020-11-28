@@ -6,6 +6,8 @@ from esphome.const import CONF_BRIGHTNESS, CONF_EXTERNAL_VCC, CONF_LAMBDA, CONF_
                           CONF_RESET_PIN
 from esphome.core import coroutine
 
+CODEOWNERS = ['@kbx81']
+
 ssd1325_base_ns = cg.esphome_ns.namespace('ssd1325_base')
 SSD1325 = ssd1325_base_ns.class_('SSD1325', cg.PollingComponent, display.DisplayBuffer)
 SSD1325Model = ssd1325_base_ns.enum('SSD1325Model')

@@ -12,6 +12,7 @@ import esphome.config_validation as cv
 from esphome.components import i2c, sensor
 from esphome.const import CONF_ID, UNIT_CELSIUS, ICON_THERMOMETER
 
+CODEOWNERS = ['@timsavage']
 DEPENDENCIES = ['i2c']
 
 tmp102_ns = cg.esphome_ns.namespace('tmp102')

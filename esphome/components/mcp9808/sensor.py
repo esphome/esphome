@@ -3,6 +3,7 @@ import esphome.config_validation as cv
 from esphome.components import i2c, sensor
 from esphome.const import CONF_ID, ICON_THERMOMETER, UNIT_CELSIUS
 
+CODEOWNERS = ['@k7hpn']
 DEPENDENCIES = ['i2c']
 
 mcp9808_ns = cg.esphome_ns.namespace('mcp9808')
