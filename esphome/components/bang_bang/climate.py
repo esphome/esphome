@@ -4,7 +4,7 @@ from esphome import automation
 from esphome.components import climate, sensor
 from esphome.const import CONF_BOOST, CONF_AWAY_CONFIG, CONF_COOL_ACTION, \
     CONF_DEFAULT_TARGET_TEMPERATURE_HIGH, CONF_DEFAULT_TARGET_TEMPERATURE_LOW, CONF_HEAT_ACTION, \
-    CONF_ID, CONF_IDLE_ACTION, CONF_SENSOR, CONF_TURBO
+    CONF_ID, CONF_IDLE_ACTION, CONF_SENSOR
 
 bang_bang_ns = cg.esphome_ns.namespace('bang_bang')
 BangBangClimate = bang_bang_ns.class_('BangBangClimate', climate.Climate, cg.Component)

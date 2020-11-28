@@ -707,7 +707,6 @@ message ListEntitiesClimateResponse {
   float visual_max_temperature = 9;
   float visual_temperature_step = 10;
   bool supports_away = 11;
-  bool supports_turbo=20;
   bool supports_action = 12;
   repeated ClimateFanMode supported_fan_modes = 13;
   repeated ClimateSwingMode supported_swing_modes = 14;
@@ -727,7 +726,6 @@ message ClimateStateResponse {
   float target_temperature_low = 5;
   float target_temperature_high = 6;
   bool away = 7;
-  bool turbo = 20;
   ClimateAction action = 8;
   ClimateFanMode fan_mode = 9;
   ClimateSwingMode swing_mode = 10;
@@ -751,8 +749,6 @@ message ClimateCommandRequest {
   float target_temperature_high = 9;
   bool has_away = 10;
   bool away = 11;
-  bool has_away = 20;
-  bool away = 21; 
   bool has_fan_mode = 12;
   ClimateFanMode fan_mode = 13;
   bool has_swing_mode = 14;

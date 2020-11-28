@@ -213,8 +213,8 @@ ClimateCall &ClimateCall::set_away(bool away) {
   this->away_ = away;
   return *this;
 }
-ClimateCall &ClimateCall::set_turbo(bool turbo) {
-  this->turbo_ = turbo;
+ClimateCall &ClimateCall::set_boost(bool boost) {
+  this->boost_ = boost;
   return *this;
 }
 ClimateCall &ClimateCall::set_away(optional<bool> away) {
