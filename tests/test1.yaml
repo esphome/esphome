@@ -619,6 +619,7 @@ sensor:
     automatic_self_calibration: true
     altitude_compensation: 10m
     ambient_pressure_compensation: 961mBar
+    temperature_offset: 4.2C
   - platform: sgp30
     eco2:
       name: 'Workshop eCO2'
