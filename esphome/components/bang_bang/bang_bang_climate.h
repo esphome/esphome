@@ -38,7 +38,7 @@ class BangBangClimate : public climate::Climate, public Component {
   /// Change the away setting, will reset target temperatures to defaults.
   void change_away_(bool away);
   /// Change the boost setting.
-  void change_boost_(bool boost;
+  void change_boost_(bool boost);
 
   /// Return the traits of this controller.
   climate::ClimateTraits traits() override;
@@ -82,6 +82,8 @@ class BangBangClimate : public climate::Climate, public Component {
   BangBangClimateTargetTempConfig normal_config_{};
   bool supports_away_{false};
   BangBangClimateTargetTempConfig away_config_{};
+
+  bool supports_boost_{false};
 
 };
 
