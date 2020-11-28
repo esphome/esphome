@@ -31,7 +31,6 @@ class BangBangClimate : public climate::Climate, public Component {
   void set_supports_heat(bool supports_heat);
   void set_normal_config(const BangBangClimateTargetTempConfig &normal_config);
   void set_away_config(const BangBangClimateTargetTempConfig &away_config);
-  void set_supports_turbo(bool supports_turbo);
 
  protected:
   /// Override control to change settings of the climate device.
@@ -39,7 +38,6 @@ class BangBangClimate : public climate::Climate, public Component {
   /// Change the away setting, will reset target temperatures to defaults.
   void change_away_(bool away);
 
-  void change_turbo_(bool turbo);
   /// Return the traits of this controller.
   climate::ClimateTraits traits() override;
 
@@ -83,10 +81,6 @@ class BangBangClimate : public climate::Climate, public Component {
   bool supports_away_{false};
   BangBangClimateTargetTempConfig away_config_{};
 
-  //Uhm
-  //Trigger<> *turbo_trigger_{nullptr};
-  //bool supports_turbo_{false};
-  bool supports_turbo_{false};
 };
 
 }  // namespace bang_bang

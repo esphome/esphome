@@ -22,7 +22,6 @@ CONFIG_SCHEMA = cv.All(climate.CLIMATE_SCHEMA.extend({
         cv.Required(CONF_DEFAULT_TARGET_TEMPERATURE_LOW): cv.temperature,
         cv.Required(CONF_DEFAULT_TARGET_TEMPERATURE_HIGH): cv.temperature,
     }), 
-    cv.Optional(CONF_TURBO): cv.boolean,
 }).extend(cv.COMPONENT_SCHEMA), cv.has_at_least_one_key(CONF_COOL_ACTION, CONF_HEAT_ACTION))
 
 
@@ -57,5 +56,3 @@ def to_code(config):
         )
         cg.add(var.set_away_config(away_config))
     
-    if CONF_TURBO in config:
-        cg.add(var.set_supports_turbo(True))
