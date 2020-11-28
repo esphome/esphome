@@ -2557,17 +2557,12 @@ bool ListEntitiesClimateResponse::decode_varint(uint32_t field_id, ProtoVarInt v
       this->supported_swing_modes.push_back(value.as_enum<enums::ClimateSwingMode>());
       return true;
     }
-<<<<<<< HEAD
-    case 20: {
-      this->supports_turbo = value.as_bool();
-=======
     case 15: {
       this->supports_boost = value.as_bool();
       return true;
     }
     case 16: {
       this->supports_sleep = value.as_bool();
->>>>>>> dev
       return true;
     }
     default:
@@ -2629,15 +2624,6 @@ void ListEntitiesClimateResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_float(10, this->visual_temperature_step);
   buffer.encode_bool(11, this->supports_away);
   buffer.encode_bool(12, this->supports_action);
-<<<<<<< HEAD
-  buffer.encode_bool(13, this->supports_turbo);
-  for (auto &it : this->supported_fan_modes) {
-    buffer.encode_enum<enums::ClimateFanMode>(13, it, true);
-  }
-  for (auto &it : this->supported_swing_modes) {
-    buffer.encode_enum<enums::ClimateSwingMode>(14, it, true);
-  }
-=======
           for (auto &it : this->supported_fan_modes) {
             buffer.encode_enum<enums::ClimateFanMode>(13, it, true);
           }
@@ -2646,7 +2632,6 @@ void ListEntitiesClimateResponse::encode(ProtoWriteBuffer buffer) const {
           }
   buffer.encode_bool(15, this->supports_boost);
   buffer.encode_bool(16, this->supports_sleep);
->>>>>>> dev
 }
 void ListEntitiesClimateResponse::dump_to(std::string &out) const {
   char buffer[64];
@@ -2704,15 +2689,7 @@ void ListEntitiesClimateResponse::dump_to(std::string &out) const {
   out.append("  supports_action: ");
   out.append(YESNO(this->supports_action));
   out.append("\n");
-<<<<<<< HEAD
-
-  out.append("  supports_turbo: ");
-  out.append(YESNO(this->supports_turbo));
-  out.append("\n");
-
-=======
   
->>>>>>> dev
   for (const auto &it : this->supported_fan_modes) {
     out.append("  supported_fan_modes: ");
     out.append(proto_enum_to_string<enums::ClimateFanMode>(it));
@@ -2756,17 +2733,12 @@ bool ClimateStateResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
       this->swing_mode = value.as_enum<enums::ClimateSwingMode>();
       return true;
     }
-<<<<<<< HEAD
-    case 20: {
-      this->turbo = value.as_bool();
-=======
     case 11: {
       this->boost = value.as_bool();
       return true;
     }
     case 12: {
       this->sleep = value.as_bool();
->>>>>>> dev
       return true;
     }
     default:
@@ -2849,15 +2821,7 @@ void ClimateStateResponse::dump_to(std::string &out) const {
   out.append("  away: ");
   out.append(YESNO(this->away));
   out.append("\n");
-<<<<<<< HEAD
-
-  out.append("  turbo: ");
-  out.append(YESNO(this->turbo));
-  out.append("\n");
-
-=======
   
->>>>>>> dev
   out.append("  action: ");
   out.append(proto_enum_to_string<enums::ClimateAction>(this->action));
   out.append("\n");
@@ -2925,14 +2889,6 @@ bool ClimateCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) 
       this->swing_mode = value.as_enum<enums::ClimateSwingMode>();
       return true;
     }
-<<<<<<< HEAD
-    case 20: {
-      this->has_turbo = value.as_bool();
-      return true;
-    }
-    case 21: {
-      this->turbo = value.as_bool();
-=======
     case 16: {
       this->has_boost = value.as_bool();
       return true;
@@ -2947,7 +2903,6 @@ bool ClimateCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) 
     }
     case 19: {
       this->sleep = value.as_bool();
->>>>>>> dev
       return true;
     }
     default:
@@ -3049,19 +3004,7 @@ void ClimateCommandRequest::dump_to(std::string &out) const {
   out.append("  away: ");
   out.append(YESNO(this->away));
   out.append("\n");
-<<<<<<< HEAD
-
-  out.append("  has_turbo: ");
-  out.append(YESNO(this->has_turbo));
-  out.append("\n");
-
-  out.append("  turbo: ");
-  out.append(YESNO(this->turbo));
-  out.append("\n");
-
-=======
   
->>>>>>> dev
   out.append("  has_fan_mode: ");
   out.append(YESNO(this->has_fan_mode));
   out.append("\n");

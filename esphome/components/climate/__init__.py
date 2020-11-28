@@ -102,12 +102,8 @@ CLIMATE_CONTROL_ACTION_SCHEMA = cv.Schema({
     cv.Optional(CONF_TARGET_TEMPERATURE_LOW): cv.templatable(cv.temperature),
     cv.Optional(CONF_TARGET_TEMPERATURE_HIGH): cv.templatable(cv.temperature),
     cv.Optional(CONF_AWAY): cv.templatable(cv.boolean),
-<<<<<<< HEAD
-    cv.Optional(CONF_TURBO): cv.templatable(cv.boolean),
-=======
     cv.Optional(CONF_BOOST): cv.templatable(cv.boolean),
     cv.Optional(CONF_SLEEP: cv.templatable(cv.boolean),
->>>>>>> dev
     cv.Optional(CONF_FAN_MODE): cv.templatable(validate_climate_fan_mode),
     cv.Optional(CONF_SWING_MODE): cv.templatable(validate_climate_swing_mode),
 })

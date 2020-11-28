@@ -64,15 +64,10 @@ class ClimateCall {
   ClimateCall &set_target_temperature_high(optional<float> target_temperature_high);
   ClimateCall &set_away(bool away);
   ClimateCall &set_away(optional<bool> away);
-<<<<<<< HEAD
-  ClimateCall &set_turbo(bool turbo);
-  ClimateCall &set_turbo(optional<bool> turbo);
-=======
   ClimateCall &set_boost(bool boost);
   ClimateCall &set_boost(optional<bool> boost);
   ClimateCall &set_sleep(bool sleep);
   ClimateCall &set_sleep(optional<bool> sleep);
->>>>>>> dev
   /// Set the fan mode of the climate device.
   ClimateCall &set_fan_mode(ClimateFanMode fan_mode);
   /// Set the fan mode of the climate device.
@@ -93,12 +88,8 @@ class ClimateCall {
   const optional<float> &get_target_temperature_low() const;
   const optional<float> &get_target_temperature_high() const;
   const optional<bool> &get_away() const;
-<<<<<<< HEAD
-  const optional<bool> &get_turbo() const;
-=======
   const optional<bool> &get_boost() const;
   const optional<bool> &get_sleep() const;
->>>>>>> dev
   const optional<ClimateFanMode> &get_fan_mode() const;
   const optional<ClimateSwingMode> &get_swing_mode() const;
 
@@ -111,12 +102,8 @@ class ClimateCall {
   optional<float> target_temperature_low_;
   optional<float> target_temperature_high_;
   optional<bool> away_;
-<<<<<<< HEAD
-  optional<bool> turbo_;
-=======
   optional<bool> boost_;
   optional<bool> sleep_;
->>>>>>> dev
   optional<ClimateFanMode> fan_mode_;
   optional<ClimateSwingMode> swing_mode_;
 };
@@ -125,12 +112,8 @@ class ClimateCall {
 struct ClimateDeviceRestoreState {
   ClimateMode mode;
   bool away;
-<<<<<<< HEAD
-  bool turbo;
-=======
   bool boost;
   bool sleep;
->>>>>>> dev
   ClimateFanMode fan_mode;
   ClimateSwingMode swing_mode;
   union {
@@ -194,9 +177,6 @@ class Climate : public Nameable {
    */
   bool away{false};
 
-<<<<<<< HEAD
-  bool turbo{false};
-=======
   /** Whether the climate device is in boost mode.
    *
    * Boost or turbo Mode usually used to reach setTemp in the lowest time:
@@ -208,7 +188,6 @@ class Climate : public Nameable {
    * Sleep allows climate devices to have a silent mode:
    */
   bool sleep{false};
->>>>>>> dev
 
   /// The active fan mode of the climate device.
   ClimateFanMode fan_mode;
