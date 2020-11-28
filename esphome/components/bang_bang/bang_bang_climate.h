@@ -37,7 +37,9 @@ class BangBangClimate : public climate::Climate, public Component {
   void control(const climate::ClimateCall &call) override;
   /// Change the away setting, will reset target temperatures to defaults.
   void change_away_(bool away);
-
+  /// Change the turbo setting.
+  void change_turbo_(bool turbo);
+  
   /// Return the traits of this controller.
   climate::ClimateTraits traits() override;
 

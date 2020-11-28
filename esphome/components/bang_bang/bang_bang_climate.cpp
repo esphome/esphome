@@ -34,6 +34,8 @@ void BangBangClimate::control(const climate::ClimateCall &call) {
     this->target_temperature_high = *call.get_target_temperature_high();
   if (call.get_away().has_value())
     this->change_away_(*call.get_away());
+  if (call.get_boost().has_value())
+    this->change_boost_(*call.get_boost());
   this->compute_state_();
   this->publish_state();
 }
@@ -45,6 +47,7 @@ climate::ClimateTraits BangBangClimate::traits() {
   traits.set_supports_heat_mode(this->supports_heat_);
   traits.set_supports_two_point_target_temperature(true);
   traits.set_supports_away(this->supports_away_);
+  traits.set_supports_boost(this->supports_boost_);
   traits.set_supports_action(true);
   return traits;
 }
@@ -142,6 +145,12 @@ void BangBangClimate::change_away_(bool away) {
   this->away = away;
 }
 
+void BangBangClimate::change_boost_(bool boost) {
+  //TO DO
+  this->boost = boost;
+}
+
+
 
 void BangBangClimate::set_normal_config(const BangBangClimateTargetTempConfig &normal_config) {
   this->normal_config_ = normal_config;
@@ -150,6 +159,10 @@ void BangBangClimate::set_away_config(const BangBangClimateTargetTempConfig &awa
   this->supports_away_ = true;
   this->away_config_ = away_config;
 }
+
+void BangBangClimate::set_boost_config(const BangBangClimateTargetTempConfig &boost_config) {
+  this->supports_boost_ = true;
+  this->boost_config_ = boost_config;
 
 
 BangBangClimate::BangBangClimate()
@@ -165,6 +178,7 @@ void BangBangClimate::dump_config() {
   ESP_LOGCONFIG(TAG, "  Supports HEAT: %s", YESNO(this->supports_heat_));
   ESP_LOGCONFIG(TAG, "  Supports COOL: %s", YESNO(this->supports_cool_));
   ESP_LOGCONFIG(TAG, "  Supports AWAY mode: %s", YESNO(this->supports_away_));
+  ESP_LOGCONFIG(TAG, "  Supports BOOST mode: %s", YESNO(this->supports_boost_));
   ESP_LOGCONFIG(TAG, "  Default Target Temperature Low: %.1f°C", this->normal_config_.default_temperature_low);
   ESP_LOGCONFIG(TAG, "  Default Target Temperature High: %.1f°C", this->normal_config_.default_temperature_high);
 }

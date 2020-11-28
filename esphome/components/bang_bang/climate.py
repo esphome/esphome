@@ -2,7 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
 from esphome.components import climate, sensor
-from esphome.const import CONF_AWAY_CONFIG, CONF_COOL_ACTION, \
+from esphome.const import CONF_BOOST, CONF_AWAY_CONFIG, CONF_COOL_ACTION, \
     CONF_DEFAULT_TARGET_TEMPERATURE_HIGH, CONF_DEFAULT_TARGET_TEMPERATURE_LOW, CONF_HEAT_ACTION, \
     CONF_ID, CONF_IDLE_ACTION, CONF_SENSOR, CONF_TURBO
 
@@ -18,6 +18,7 @@ CONFIG_SCHEMA = cv.All(climate.CLIMATE_SCHEMA.extend({
     cv.Required(CONF_IDLE_ACTION): automation.validate_automation(single=True),
     cv.Optional(CONF_COOL_ACTION): automation.validate_automation(single=True),
     cv.Optional(CONF_HEAT_ACTION): automation.validate_automation(single=True),
+    cv.Optional(CONF_BOOST): cv.boolean,
     cv.Optional(CONF_AWAY_CONFIG): cv.Schema({
         cv.Required(CONF_DEFAULT_TARGET_TEMPERATURE_LOW): cv.temperature,
         cv.Required(CONF_DEFAULT_TARGET_TEMPERATURE_HIGH): cv.temperature,
@@ -55,4 +56,7 @@ def to_code(config):
             away[CONF_DEFAULT_TARGET_TEMPERATURE_HIGH]
         )
         cg.add(var.set_away_config(away_config))
-    
+   
+    if CONF_BOOST in config:
+       boost = config[CONF_BOOST]
+       cg.add(var.set_support_boost(True))
