@@ -33,8 +33,16 @@ void ClimateCall::perform() {
   if (this->away_.has_value()) {
     ESP_LOGD(TAG, "  Away Mode: %s", ONOFF(*this->away_));
   }
+<<<<<<< HEAD
   if (this->turbo_.has_value()) {
     ESP_LOGD(TAG, "  turbo Mode: %s", ONOFF(*this->turbo_));
+=======
+  if (this->boost_.has_value()) {
+    ESP_LOGD(TAG, "  Boost Mode: %s", ONOFF(*this->boost_));
+  }
+  if (this->sleep_.has_value()) {
+    ESP_LOGD(TAG, "  Sleep Mode: %s", ONOFF(*this->sleep_));
+>>>>>>> dev
   }
   this->parent_->control(*this);
 }
@@ -102,10 +110,23 @@ void ClimateCall::validate_() {
       this->away_.reset();
     }
   }
+<<<<<<< HEAD
   if (this->turbo_.has_value()) {
     if (!traits.get_supports_turbo()) {
       ESP_LOGW(TAG, "  Cannot set turbo mode for this device!");
       this->turbo_.reset();
+=======
+  if (this->boost_.has_value()) {
+    if (!traits.get_supports_boost()) {
+      ESP_LOGW(TAG, "  Cannot set boost mode for this device!");
+      this->boost_.reset();
+    }
+  }
+  if (this->sleep_.has_value()) {
+    if (!traits.get_supports_sleep()) {
+      ESP_LOGW(TAG, "  Cannot set sleep mode for this device!");
+      this->sleep_.reset();
+>>>>>>> dev
     }
   }
 }
@@ -196,7 +217,12 @@ const optional<float> &ClimateCall::get_target_temperature() const { return this
 const optional<float> &ClimateCall::get_target_temperature_low() const { return this->target_temperature_low_; }
 const optional<float> &ClimateCall::get_target_temperature_high() const { return this->target_temperature_high_; }
 const optional<bool> &ClimateCall::get_away() const { return this->away_; }
+<<<<<<< HEAD
 const optional<bool> &ClimateCall::get_turbo() const { return this->turbo_; }
+=======
+const optional<bool> &ClimateCall::get_boost() const { return this->boost_; }
+const optional<bool> &ClimateCall::get_sleep() const { return this->sleep_; }
+>>>>>>> dev
 const optional<ClimateFanMode> &ClimateCall::get_fan_mode() const { return this->fan_mode_; }
 const optional<ClimateSwingMode> &ClimateCall::get_swing_mode() const { return this->swing_mode_; }
 ClimateCall &ClimateCall::set_away(bool away) {
@@ -211,8 +237,25 @@ ClimateCall &ClimateCall::set_away(optional<bool> away) {
   this->away_ = away;
   return *this;
 }
+<<<<<<< HEAD
 ClimateCall &ClimateCall::set_turbo(optional<bool> turbo) {
   this->turbo_ = turbo;
+=======
+ClimateCall &ClimateCall::set_boost(bool boost) {
+  this->boost_ = boost;
+  return *this;
+}
+ClimateCall &ClimateCall::set_boost(optional<bool> boost) {
+  this->boost_ = boost;
+  return *this;
+}
+ClimateCall &ClimateCall::set_sleep(bool sleep) {
+  this->sleep_ = sleep;
+  return *this;
+}
+ClimateCall &ClimateCall::set_sleep(optional<bool> sleep) {
+  this->sleep_ = sleep;
+>>>>>>> dev
   return *this;
 }
 ClimateCall &ClimateCall::set_target_temperature_high(optional<float> target_temperature_high) {
@@ -267,8 +310,16 @@ void Climate::save_state_() {
   if (traits.get_supports_away()) {
     state.away = this->away;
   }
+<<<<<<< HEAD
   if (traits.get_supports_turbo()) {
     state.turbo = this->turbo;
+=======
+  if (traits.get_supports_boost()) {
+    state.boost = this->boost;
+  }
+  if (traits.get_supports_sleep()) {
+    state.sleep = this->sleep;
+>>>>>>> dev
   }
   if (traits.get_supports_fan_modes()) {
     state.fan_mode = this->fan_mode;
@@ -305,8 +356,16 @@ void Climate::publish_state() {
   if (traits.get_supports_away()) {
     ESP_LOGD(TAG, "  Away: %s", ONOFF(this->away));
   }
+<<<<<<< HEAD
   if (traits.get_supports_turbo()) {
     ESP_LOGD(TAG, "  turbo: %s", ONOFF(this->away));
+=======
+  if (traits.get_supports_boost()) {
+    ESP_LOGD(TAG, "  Boost: %s", ONOFF(this->boost));
+  }
+  if (traits.get_supports_sleep()) {
+    ESP_LOGD(TAG, "  Sleep: %s", ONOFF(this->sleep));
+>>>>>>> dev
   }
 
   // Send state to frontend
@@ -356,8 +415,16 @@ ClimateCall ClimateDeviceRestoreState::to_call(Climate *climate) {
   if (traits.get_supports_away()) {
     call.set_away(this->away);
   }
+<<<<<<< HEAD
   if (traits.get_supports_turbo()) {
     call.set_turbo(this->turbo);
+=======
+  if (traits.get_supports_boost()) {
+    call.set_boost(this->boost);
+  }
+  if (traits.get_supports_sleep()) {
+    call.set_sleep(this->sleep);
+>>>>>>> dev
   }
   if (traits.get_supports_fan_modes()) {
     call.set_fan_mode(this->fan_mode);
@@ -379,8 +446,16 @@ void ClimateDeviceRestoreState::apply(Climate *climate) {
   if (traits.get_supports_away()) {
     climate->away = this->away;
   }
+<<<<<<< HEAD
   if (traits.get_supports_turbo()) {
     climate->turbo = this->turbo;
+=======
+  if (traits.get_supports_boost()) {
+    climate->boost = this->boost;
+  }
+  if (traits.get_supports_sleep()) {
+    climate->sleep = this->sleep;
+>>>>>>> dev
   }
   if (traits.get_supports_fan_modes()) {
     climate->fan_mode = this->fan_mode;

@@ -65,6 +65,18 @@ void MQTTClimateComponent::send_discovery(JsonObject &root, mqtt::SendDiscoveryC
     // away_mode_state_topic
     root["away_mode_stat_t"] = this->get_away_state_topic();
   }
+  if (traits.get_supports_boost()) {
+    // boost_mode_command_topic
+    root["boost_mode_cmd_t"] = this->get_boost_command_topic();
+    // boost_mode_state_topic
+    root["boost_mode_stat_t"] = this->get_boost_state_topic();
+  }
+  if (traits.get_supports_sleep()) {
+    // sleep_mode_command_topic
+    root["sleep_mode_cmd_t"] = this->get_sleep_command_topic();
+    // sleep_mode_state_topic
+    root["sleep_mode_stat_t"] = this->get_sleep_state_topic();
+  }
   if (traits.get_supports_action()) {
     // action_topic
     root["act_t"] = this->get_action_state_topic();
@@ -160,6 +172,52 @@ void MQTTClimateComponent::setup() {
                       call.set_target_temperature(*val);
                       call.perform();
                     });
+  }
+
+  if (traits.get_supports_away()) {
+    this->subscribe(this->get_away_command_topic(), [this](const std::string &topic, const std::string &payload) {
+      auto onoff = parse_on_off(payload.c_str());
+      auto call = this->device_->make_call();
+      switch (onoff) {
+        case PARSE_ON:
+          call.set_away(true);
+          break;
+        case PARSE_OFF:
+          call.set_away(false);
+          break;
+        case PARSE_TOGGLE:
+          call.set_away(!this->device_->away);
+          break;
+        case PARSE_NONE:
+        default:
+          ESP_LOGW(TAG, "Unknown payload '%s'", payload.c_str());
+          return;
+      }
+      call.perform();
+    });
+  }
+
+  if (traits.get_supports_turbo()) {
+    this->subscribe(this->get_turbo_command_topic(), [this](const std::string &topic, const std::string &payload) {
+      auto onoff = parse_on_off(payload.c_str());
+      auto call = this->device_->make_call();
+      switch (onoff) {
+        case PARSE_ON:
+          call.set_turbo(true);
+          break;
+        case PARSE_OFF:
+          call.set_turbo(false);
+          break;
+        case PARSE_TOGGLE:
+          call.set_turbo(!this->device_->turbo);
+          break;
+        case PARSE_NONE:
+        default:
+          ESP_LOGW(TAG, "Unknown payload '%s'", payload.c_str());
+          return;
+      }
+      call.perform();
+    });
   }
 
   if (traits.get_supports_away()) {

@@ -15,7 +15,12 @@ template<typename... Ts> class ControlAction : public Action<Ts...> {
   TEMPLATABLE_VALUE(float, target_temperature_low)
   TEMPLATABLE_VALUE(float, target_temperature_high)
   TEMPLATABLE_VALUE(bool, away)
+<<<<<<< HEAD
   TEMPLATABLE_VALUE(bool, turbo)
+=======
+  TEMPLATABLE_VALUE(bool, boost)
+  TEMPLATABLE_VALUE(bool, sleep)
+>>>>>>> dev
   TEMPLATABLE_VALUE(ClimateFanMode, fan_mode)
   TEMPLATABLE_VALUE(ClimateSwingMode, swing_mode)
 
@@ -26,7 +31,12 @@ template<typename... Ts> class ControlAction : public Action<Ts...> {
     call.set_target_temperature_low(this->target_temperature_low_.optional_value(x...));
     call.set_target_temperature_high(this->target_temperature_high_.optional_value(x...));
     call.set_away(this->away_.optional_value(x...));
+<<<<<<< HEAD
     call.set_turbo(this->_.optional_value(x...));
+=======
+    call.set_boost(this->boost_.optional_value(x...));
+    call.set_sleep(this->sleep_.optional_value(x...));
+>>>>>>> dev
     call.set_fan_mode(this->fan_mode_.optional_value(x...));
     call.set_swing_mode(this->swing_mode_.optional_value(x...));
     call.perform();
