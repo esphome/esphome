@@ -110,7 +110,7 @@ bool XiaomiXMTZC0XHM::report_results(const optional<ParseResult> &result, const 
   ESP_LOGD(TAG, "Got Xiaomi XMTZC0XHM (%s):", address.c_str());
 
   if (result->weight.has_value()) {
-    ESP_LOGD(TAG, "  Weight: %.1fkg", *result->weight);
+    ESP_LOGD(TAG, "  Weight: %.2fkg", *result->weight);
   }
   if (result->impedance.has_value()) {
     ESP_LOGD(TAG, "  Impedance: %.0f", *result->impedance);
