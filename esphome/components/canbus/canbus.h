@@ -41,7 +41,7 @@ template<typename... Ts> class CanbusSendAction;
 /* CAN payload length definitions according to ISO 11898-1 */
 static const uint8_t CAN_MAX_DATA_LENGTH = 8;
 
-/* 
+/*
 Can Frame describes a normative CAN Frame
 The RTR = Remote Transmission Request is implemented in every CAN controller but rarely used
 So currently the flag is passed to and from the hardware but currently ignored to the user application.
@@ -49,8 +49,8 @@ So currently the flag is passed to and from the hardware but currently ignored t
 struct CanFrame {
   bool use_extended_id = false;
   bool remote_transmission_request = false;
-  uint32_t can_id; /* 29 or 11 bit CAN_ID  */
-  uint8_t can_data_length_code; /* frame payload length in byte (0 .. CAN_MAX_DLEN) */
+  uint32_t can_id;              /* 29 or 11 bit CAN_ID  */
+  uint8_t can_data_length_code; /* frame payload length in byte (0 .. CAN_MAX_DATA_LENGTH) */
   uint8_t data[CAN_MAX_DATA_LENGTH] __attribute__((aligned(8)));
 };
 
