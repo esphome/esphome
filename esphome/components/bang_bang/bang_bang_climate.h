@@ -42,6 +42,8 @@ class BangBangClimate : public climate::Climate, public Component {
   void change_away_(bool away);
   /// Change the boost setting.
   void change_boost_(bool boost);
+  /// Change the boost setting.
+  void change_sleep_(bool sleep);
 
   /// Return the traits of this controller.
   climate::ClimateTraits traits() override;
