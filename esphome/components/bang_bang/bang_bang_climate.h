@@ -42,7 +42,7 @@ class BangBangClimate : public climate::Climate, public Component {
   void change_away_(bool away);
   /// Change the boost setting.
   void change_boost_(bool boost);
-  /// Change the boost setting.
+  /// Change the night setting.
   void change_night_(bool night);
 
   /// Return the traits of this controller.
@@ -89,6 +89,7 @@ class BangBangClimate : public climate::Climate, public Component {
   BangBangClimateTargetTempConfig away_config_{};
 
   bool supports_boost_{false};
+
   bool supports_night_{false};
 
 };
