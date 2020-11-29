@@ -28,7 +28,7 @@ namespace climate {
  *  - supports boost - boost mode means that the climate device supports boost or turbo mode:
  *      it's device specific - usually a combination of settings that allow to reach setTemp in the lowest time
  *      possible
- *  - supports night - sleep mode means that the climate device supports sleep mode 
+ *  - supports sleep - sleep mode means that the climate device supports sleep mode
  *      it's device specific - usually a silent mode with low fan for night use.
  *  - supports action - if the climate device supports reporting the active
  *    current action of the device with the action property.
