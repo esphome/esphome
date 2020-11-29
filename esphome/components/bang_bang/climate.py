@@ -23,7 +23,7 @@ CONFIG_SCHEMA = cv.All(climate.CLIMATE_SCHEMA.extend({
     cv.Optional(CONF_AWAY_CONFIG): cv.Schema({
         cv.Required(CONF_DEFAULT_TARGET_TEMPERATURE_LOW): cv.temperature,
         cv.Required(CONF_DEFAULT_TARGET_TEMPERATURE_HIGH): cv.temperature,
-    }), 
+        }), 
 }).extend(cv.COMPONENT_SCHEMA), cv.has_at_least_one_key(CONF_COOL_ACTION, CONF_HEAT_ACTION))
 
 
@@ -57,11 +57,11 @@ def to_code(config):
             away[CONF_DEFAULT_TARGET_TEMPERATURE_HIGH]
         )
         cg.add(var.set_away_config(away_config))
-   
+        
     if CONF_BOOST in config:
-       boost = config[CONF_BOOST]
-       cg.add(var.set_supports_boost(True))
+        boost = config[CONF_BOOST]
+        cg.add(var.set_supports_boost(True))
 
     if CONF_SLEEP in config:
-       night = config[CONF_SLEEP]
-       cg.add(var.set_supports_night(True))
+        night = config[CONF_SLEEP]
+        cg.add(var.set_supports_night(True))
