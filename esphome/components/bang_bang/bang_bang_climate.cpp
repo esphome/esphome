@@ -168,6 +168,7 @@ void BangBangClimate::set_supports_cool(bool supports_cool) { this->supports_coo
 Trigger<> *BangBangClimate::get_heat_trigger() const { return this->heat_trigger_; }
 void BangBangClimate::set_supports_heat(bool supports_heat) { this->supports_heat_ = supports_heat; }
 void BangBangClimate::set_supports_boost(bool supports_boost) { this->supports_boost_ = supports_boost; }
+
 void BangBangClimate::dump_config() {
   LOG_CLIMATE("", "Bang Bang Climate", this);
   ESP_LOGCONFIG(TAG, "  Supports HEAT: %s", YESNO(this->supports_heat_));

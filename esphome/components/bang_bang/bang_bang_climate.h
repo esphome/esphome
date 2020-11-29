@@ -31,6 +31,7 @@ class BangBangClimate : public climate::Climate, public Component {
   void set_supports_heat(bool supports_heat);
   void set_normal_config(const BangBangClimateTargetTempConfig &normal_config);
   void set_away_config(const BangBangClimateTargetTempConfig &away_config);
+  void set_supports_boost(bool supports_boost)
 
  protected:
   /// Override control to change settings of the climate device.
