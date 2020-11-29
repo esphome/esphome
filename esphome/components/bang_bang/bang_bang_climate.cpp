@@ -50,7 +50,7 @@ climate::ClimateTraits BangBangClimate::traits() {
   traits.set_supports_two_point_target_temperature(true);
   traits.set_supports_away(this->supports_away_);
   traits.set_supports_boost(this->supports_boost_);
-  traits.set_supports_sleep(this->supports_boost_);
+  traits.set_supports_sleep(this->supports_sleep_);
   traits.set_supports_action(true);
   return traits;
 }
@@ -186,6 +186,7 @@ void BangBangClimate::dump_config() {
   ESP_LOGCONFIG(TAG, "  Supports COOL: %s", YESNO(this->supports_cool_));
   ESP_LOGCONFIG(TAG, "  Supports AWAY mode: %s", YESNO(this->supports_away_));
   ESP_LOGCONFIG(TAG, "  Supports BOOST mode: %s", YESNO(this->supports_boost_));
+  ESP_LOGCONFIG(TAG, "  Supports SLEEP mode: %s", YESNO(this->supports_sleep_));
   ESP_LOGCONFIG(TAG, "  Default Target Temperature Low: %.1f°C", this->normal_config_.default_temperature_low);
   ESP_LOGCONFIG(TAG, "  Default Target Temperature High: %.1f°C", this->normal_config_.default_temperature_high);
 }

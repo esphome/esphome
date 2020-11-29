@@ -89,6 +89,7 @@ class BangBangClimate : public climate::Climate, public Component {
   BangBangClimateTargetTempConfig away_config_{};
 
   bool supports_boost_{false};
+  bool supports_sleep_{false};
 
 };
 
