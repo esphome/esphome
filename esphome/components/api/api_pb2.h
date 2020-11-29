@@ -74,7 +74,7 @@ enum ClimateSwingMode : uint32_t {
   CLIMATE_SWING_OFF = 0,
   CLIMATE_SWING_BOTH = 1,
   CLIMATE_SWING_VERTICAL = 2,
-  CLIMATE_SWINT_HORIZONTAL = 3,
+  CLIMATE_SWING_HORIZONTAL = 3,
 };
 enum ClimateAction : uint32_t {
   CLIMATE_ACTION_OFF = 0,

@@ -2,7 +2,8 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins
 from esphome.const import CONF_FREQUENCY, CONF_ID, CONF_NAME, CONF_PIN, CONF_SCL, CONF_SDA, \
-    ESP_PLATFORM_ESP32, CONF_DATA_PINS, CONF_RESET_PIN, CONF_RESOLUTION, CONF_BRIGHTNESS
+    ESP_PLATFORM_ESP32, CONF_DATA_PINS, CONF_RESET_PIN, CONF_RESOLUTION, CONF_BRIGHTNESS, \
+    CONF_CONTRAST
 
 ESP_PLATFORMS = [ESP_PLATFORM_ESP32]
 DEPENDENCIES = ['api']
@@ -47,7 +48,6 @@ CONF_IDLE_FRAMERATE = 'idle_framerate'
 CONF_JPEG_QUALITY = 'jpeg_quality'
 CONF_VERTICAL_FLIP = 'vertical_flip'
 CONF_HORIZONTAL_MIRROR = 'horizontal_mirror'
-CONF_CONTRAST = 'contrast'
 CONF_SATURATION = 'saturation'
 CONF_TEST_PATTERN = 'test_pattern'
 

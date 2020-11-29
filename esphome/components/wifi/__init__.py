@@ -60,7 +60,7 @@ STA_MANUAL_IP_SCHEMA = AP_MANUAL_IP_SCHEMA.extend({
     cv.Optional(CONF_DNS2, default="0.0.0.0"): cv.ipv4,
 })
 
-EAP_AUTH_SCHEMA = cv.All(cv.only_on_esp32, cv.Schema({
+EAP_AUTH_SCHEMA = cv.All(cv.Schema({
     cv.Optional(CONF_IDENTITY): cv.string_strict,
     cv.Optional(CONF_USERNAME): cv.string_strict,
     cv.Optional(CONF_PASSWORD): cv.string_strict,
