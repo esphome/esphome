@@ -63,5 +63,5 @@ def to_code(config):
        cg.add(var.set_supports_boost(True))
 
     if CONF_SLEEP in config:
-       sleep = config[CONF_SLEEP]
-       cg.add(var.set_supports_sleep(True))
+       night = config[CONF_SLEEP]
+       cg.add(var.set_supports_night(True))

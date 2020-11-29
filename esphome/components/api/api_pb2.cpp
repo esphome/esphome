@@ -2562,7 +2562,7 @@ bool ListEntitiesClimateResponse::decode_varint(uint32_t field_id, ProtoVarInt v
       return true;
     }
     case 16: {
-      this->supports_sleep = value.as_bool();
+      this->supports_night = value.as_bool();
       return true;
     }
     default:
@@ -2631,7 +2631,7 @@ void ListEntitiesClimateResponse::encode(ProtoWriteBuffer buffer) const {
             buffer.encode_enum<enums::ClimateSwingMode>(14, it, true);
           }
   buffer.encode_bool(15, this->supports_boost);
-  buffer.encode_bool(16, this->supports_sleep);
+  buffer.encode_bool(16, this->supports_night);
 }
 void ListEntitiesClimateResponse::dump_to(std::string &out) const {
   char buffer[64];
@@ -2706,8 +2706,8 @@ void ListEntitiesClimateResponse::dump_to(std::string &out) const {
   out.append(YESNO(this->supports_boost));
   out.append("\n");
   
-  out.append("  supports_sleep: ");
-  out.append(YESNO(this->supports_sleep));
+  out.append("  supports_night: ");
+  out.append(YESNO(this->supports_night));
   out.append("\n");
   out.append("}");
 }
@@ -2738,7 +2738,7 @@ bool ClimateStateResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
       return true;
     }
     case 12: {
-      this->sleep = value.as_bool();
+      this->night = value.as_bool();
       return true;
     }
     default:
@@ -2783,7 +2783,7 @@ void ClimateStateResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_enum<enums::ClimateFanMode>(9, this->fan_mode);
   buffer.encode_enum<enums::ClimateSwingMode>(10, this->swing_mode);
   buffer.encode_bool(11, this->boost);
-  buffer.encode_bool(12, this->sleep);
+  buffer.encode_bool(12, this->night);
 }
 void ClimateStateResponse::dump_to(std::string &out) const {
   char buffer[64];
@@ -2837,8 +2837,8 @@ void ClimateStateResponse::dump_to(std::string &out) const {
   out.append(YESNO(this->boost));
   out.append("\n");
   
-  out.append("  sleep: ");
-  out.append(YESNO(this->sleep));
+  out.append("  night: ");
+  out.append(YESNO(this->night));
   out.append("\n");
   out.append("}");
 }
@@ -2897,11 +2897,11 @@ bool ClimateCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) 
       return true;
     }
     case 18: {
-      this->has_sleep = value.as_bool();
+      this->has_night = value.as_bool();
       return true;
     }
     case 19: {
-      this->sleep = value.as_bool();
+      this->night = value.as_bool();
       return true;
     }
     default:
@@ -2948,8 +2948,8 @@ void ClimateCommandRequest::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_enum<enums::ClimateSwingMode>(15, this->swing_mode);
   buffer.encode_bool(16, this->has_boost);
   buffer.encode_bool(17, this->boost);
-  buffer.encode_bool(18, this->has_sleep);
-  buffer.encode_bool(19, this->sleep);
+  buffer.encode_bool(18, this->has_night);
+  buffer.encode_bool(19, this->night);
 }
 void ClimateCommandRequest::dump_to(std::string &out) const {
   char buffer[64];
@@ -3026,12 +3026,12 @@ void ClimateCommandRequest::dump_to(std::string &out) const {
   out.append(YESNO(this->boost));
   out.append("\n");
   
-  out.append("  has_sleep: ");
-  out.append(YESNO(this->has_sleep));
+  out.append("  has_night: ");
+  out.append(YESNO(this->has_night));
   out.append("\n");
   
-  out.append("  sleep: ");
-  out.append(YESNO(this->sleep));
+  out.append("  night: ");
+  out.append(YESNO(this->night));
   out.append("\n");
   out.append("}");
 }

@@ -36,8 +36,8 @@ void BangBangClimate::control(const climate::ClimateCall &call) {
     this->change_away_(*call.get_away());
   if (call.get_boost().has_value())
     this->change_boost_(*call.get_boost());
-  if (call.get_sleep().has_value())
-    this->change_sleep_(*call.get_sleep());
+  if (call.get_night().has_value())
+    this->change_night_(*call.get_night());
   this->compute_state_();
   this->publish_state();
 }
@@ -50,7 +50,7 @@ climate::ClimateTraits BangBangClimate::traits() {
   traits.set_supports_two_point_target_temperature(true);
   traits.set_supports_away(this->supports_away_);
   traits.set_supports_boost(this->supports_boost_);
-  traits.set_supports_sleep(this->supports_sleep_);
+  traits.set_supports_night(this->supports_night_);
   traits.set_supports_action(true);
   return traits;
 }
@@ -154,10 +154,10 @@ void BangBangClimate::change_boost_(bool boost) {
   this->boost = boost;
 }
 
-void BangBangClimate::change_sleep_(bool boost) {
+void BangBangClimate::change_night_(bool boost) {
   //TO DO
-  ESP_LOGCONFIG(TAG, "  SLEEP: %s", YESNO(this->sleep));
-  this->sleep = sleep;
+  ESP_LOGCONFIG(TAG, "  Night: %s", YESNO(this->night));
+  this->night = night;
 }
 
 
@@ -178,7 +178,7 @@ void BangBangClimate::set_supports_cool(bool supports_cool) { this->supports_coo
 Trigger<> *BangBangClimate::get_heat_trigger() const { return this->heat_trigger_; }
 void BangBangClimate::set_supports_heat(bool supports_heat) { this->supports_heat_ = supports_heat; }
 void BangBangClimate::set_supports_boost(bool supports_boost) { this->supports_boost_ = supports_boost; }
-void BangBangClimate::set_supports_sleep(bool supports_sleep) { this->supports_sleep_ = supports_sleep; }
+void BangBangClimate::set_supports_night(bool supports_night) { this->supports_night_ = supports_night; }
 
 void BangBangClimate::dump_config() {
   LOG_CLIMATE("", "Bang Bang Climate", this);
@@ -186,7 +186,7 @@ void BangBangClimate::dump_config() {
   ESP_LOGCONFIG(TAG, "  Supports COOL: %s", YESNO(this->supports_cool_));
   ESP_LOGCONFIG(TAG, "  Supports AWAY mode: %s", YESNO(this->supports_away_));
   ESP_LOGCONFIG(TAG, "  Supports BOOST mode: %s", YESNO(this->supports_boost_));
-  ESP_LOGCONFIG(TAG, "  Supports SLEEP mode: %s", YESNO(this->supports_sleep_));
+  ESP_LOGCONFIG(TAG, "  Supports NIGHT mode: %s", YESNO(this->supports_night_));
   ESP_LOGCONFIG(TAG, "  Default Target Temperature Low: %.1f°C", this->normal_config_.default_temperature_low);
   ESP_LOGCONFIG(TAG, "  Default Target Temperature High: %.1f°C", this->normal_config_.default_temperature_high);
 }

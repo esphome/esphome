@@ -32,7 +32,7 @@ class BangBangClimate : public climate::Climate, public Component {
   void set_normal_config(const BangBangClimateTargetTempConfig &normal_config);
   void set_away_config(const BangBangClimateTargetTempConfig &away_config);
   void set_supports_boost(bool supports_boost);
-  void set_supports_sleep(bool supports_boost);
+  void set_supports_night(bool supports_boost);
 
 
  protected:
@@ -43,7 +43,7 @@ class BangBangClimate : public climate::Climate, public Component {
   /// Change the boost setting.
   void change_boost_(bool boost);
   /// Change the boost setting.
-  void change_sleep_(bool sleep);
+  void change_night_(bool night);
 
   /// Return the traits of this controller.
   climate::ClimateTraits traits() override;
@@ -89,7 +89,7 @@ class BangBangClimate : public climate::Climate, public Component {
   BangBangClimateTargetTempConfig away_config_{};
 
   bool supports_boost_{false};
-  bool supports_sleep_{false};
+  bool supports_night_{false};
 
 };
 
