@@ -59,9 +59,7 @@ def to_code(config):
         cg.add(var.set_away_config(away_config))
 
     if CONF_BOOST in config:
-        #boost = config[CONF_BOOST]
         cg.add(var.set_supports_boost(True))
 
     if CONF_SLEEP in config:
-        #night = config[CONF_SLEEP]
         cg.add(var.set_supports_night(True))
