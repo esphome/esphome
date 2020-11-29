@@ -106,11 +106,16 @@ const char *proto_enum_to_string<enums::ClimateFanMode>(enums::ClimateFanMode va
 template<>
 const char *proto_enum_to_string<enums::ClimateSwingMode>(enums::ClimateSwingMode value) {
   switch (value) {
-    case enums::CLIMATE_SWING_OFF: return "CLIMATE_SWING_OFF";
-    case enums::CLIMATE_SWING_BOTH: return "CLIMATE_SWING_BOTH";
-    case enums::CLIMATE_SWING_VERTICAL: return "CLIMATE_SWING_VERTICAL";
-    case enums::CLIMATE_SWINT_HORIZONTAL: return "CLIMATE_SWINT_HORIZONTAL";
-    default: return "UNKNOWN";
+    case enums::CLIMATE_SWING_OFF:
+      return "CLIMATE_SWING_OFF";
+    case enums::CLIMATE_SWING_BOTH:
+      return "CLIMATE_SWING_BOTH";
+    case enums::CLIMATE_SWING_VERTICAL:
+      return "CLIMATE_SWING_VERTICAL";
+    case enums::CLIMATE_SWING_HORIZONTAL:
+      return "CLIMATE_SWING_HORIZONTAL";
+    default:
+      return "UNKNOWN";
   }
 }
 template<>
