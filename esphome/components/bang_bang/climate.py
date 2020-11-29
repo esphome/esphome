@@ -2,7 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
 from esphome.components import climate, sensor
-from esphome.const import CONF_BOOST, CONF_AWAY_CONFIG, CONF_COOL_ACTION, \
+from esphome.const import CONF_BOOST, CONF_SLEEP, CONF_AWAY_CONFIG, CONF_COOL_ACTION, \
     CONF_DEFAULT_TARGET_TEMPERATURE_HIGH, CONF_DEFAULT_TARGET_TEMPERATURE_LOW, CONF_HEAT_ACTION, \
     CONF_ID, CONF_IDLE_ACTION, CONF_SENSOR
 
@@ -19,6 +19,7 @@ CONFIG_SCHEMA = cv.All(climate.CLIMATE_SCHEMA.extend({
     cv.Optional(CONF_COOL_ACTION): automation.validate_automation(single=True),
     cv.Optional(CONF_HEAT_ACTION): automation.validate_automation(single=True),
     cv.Optional(CONF_BOOST): cv.boolean,
+    cv.Optional(CONF_SLEEP): cv.boolean,
     cv.Optional(CONF_AWAY_CONFIG): cv.Schema({
         cv.Required(CONF_DEFAULT_TARGET_TEMPERATURE_LOW): cv.temperature,
         cv.Required(CONF_DEFAULT_TARGET_TEMPERATURE_HIGH): cv.temperature,
