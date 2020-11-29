@@ -22,11 +22,11 @@ void Canbus::dump_config() {
   }
 }
 
-void Canbus::send_data(uint32_t can_id, bool can_extended_id, const std::vector<uint8_t> &data) {
+void Canbus::send_data(uint32_t can_id, bool use_extended_id, const std::vector<uint8_t> &data) {
   struct CanFrame can_message;
 
   uint8_t size = static_cast<uint8_t>(data.size());
-  if (can_extended_id) {
+  if (use_extended_id) {
     ESP_LOGD(TAG, "send extended id=0x%08x size=%d", can_id, size);
   } else {
     ESP_LOGD(TAG, "send extended id=0x%03x size=%d", can_id, size);
@@ -35,7 +35,7 @@ void Canbus::send_data(uint32_t can_id, bool can_extended_id, const std::vector<
     size = CAN_MAX_DATA_LENGTH;
   can_message.can_data_length_code = size;
   can_message.can_id = can_id;
-  can_message.use_extended_id = can_extended_id;
+  can_message.use_extended_id = use_extended_id;
 
   for (int i = 0; i < size; i++) {
     can_message.data[i] = data[i];
