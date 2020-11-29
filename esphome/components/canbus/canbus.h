@@ -41,14 +41,12 @@ template<typename... Ts> class CanbusSendAction;
 /* CAN payload length definitions according to ISO 11898-1 */
 static const uint8_t CAN_MAX_DATA_LENGTH = 8;
 
-/*
-Can Frame describes a normative CAN Frame  
-The RTR = Remote Transmission Request is implemented in every CAN controller but rarely used
-So currently the flag is passed to and from the hardware but currently ignored to the user application.
-*/
+/* Can Frame describes a normative CAN Frame  
+   The RTR = Remote Transmission Request is implemented in every CAN controller but rarely used
+   So currently the flag is passed to and from the hardware but currently ignored to the user application. */
 struct CanFrame {
   bool use_extended_id = false;
-  bool remote_transmission_request = false; 
+  bool remote_transmission_request = false;
   uint32_t can_id; /* 29 or 11 bit CAN_ID  */
   uint8_t can_data_length_code; /* frame payload length in byte (0 .. CAN_MAX_DLEN) */
   uint8_t data[CAN_MAX_DATA_LENGTH] __attribute__((aligned(8)));
@@ -98,7 +96,8 @@ template<typename... Ts> class CanbusSendAction : public Action<Ts...>, public P
 
   void play(Ts... x) override {
     auto can_id = this->can_id_.has_value() ? *this->can_id_ : this->parent_->can_id_;
-    auto can_extended_id = this->can_extended_id_.has_value() ? *this->can_extended_id_ : this->parent_->can_extended_id_;
+    auto can_extended_id = 
+        this->can_extended_id_.has_value() ? *this->can_extended_id_ : this->parent_->can_extended_id_;
     if (this->static_) {
       this->parent_->send_data(can_id, can_extended_id, this->data_static_);
     } else {

@@ -59,9 +59,11 @@ void Canbus::loop() {
   // readmessage
   if (this->read_message(&can_message) == canbus::ERROR_OK) {
     if (can_message.use_extended_id) {
-      ESP_LOGD(TAG, "received can message extended can_id=0x%x size=%d", can_message.can_id, can_message.can_data_length_code);
+      ESP_LOGD(TAG, "received can message extended can_id=0x%x size=%d", can_message.can_id, 
+               can_message.can_data_length_code);
     } else {
-      ESP_LOGD(TAG, "received can message std can_id=0x%x size=%d", can_message.can_id, can_message.can_data_length_code);
+      ESP_LOGD(TAG, "received can message std can_id=0x%x size=%d", can_message.can_id,
+               can_message.can_data_length_code);
     }
 
     std::vector<uint8_t> data;
