@@ -15,7 +15,7 @@ void Canbus::setup() {
 }
 
 void Canbus::dump_config() {
-  if (this->can_extended_id_) {
+  if (this->use_extended_id_) {
     ESP_LOGCONFIG(TAG, "config extended id=0x%08x", this->can_id_);
   } else {
     ESP_LOGCONFIG(TAG, "config standard id=0x%03x", this->can_id_);
@@ -46,7 +46,7 @@ void Canbus::send_data(uint32_t can_id, bool can_extended_id, const std::vector<
 }
 
 void Canbus::add_trigger(CanbusTrigger *trigger) {
-  if (trigger->can_extended_id_) {
+  if (trigger->use_extended_id_) {
     ESP_LOGVV(TAG, "add trigger for extended canid=0x%08x", trigger->can_id_);
   } else {
     ESP_LOGVV(TAG, "add trigger for std canid=0x%03x", trigger->can_id_);
@@ -59,7 +59,7 @@ void Canbus::loop() {
   // readmessage
   if (this->read_message(&can_message) == canbus::ERROR_OK) {
     if (can_message.use_extended_id) {
-      ESP_LOGD(TAG, "received can message extended can_id=0x%x size=%d", can_message.can_id, 
+      ESP_LOGD(TAG, "received can message extended can_id=0x%x size=%d", can_message.can_id,
                can_message.can_data_length_code);
     } else {
       ESP_LOGD(TAG, "received can message std can_id=0x%x size=%d", can_message.can_id,
@@ -76,7 +76,7 @@ void Canbus::loop() {
 
     // fire all triggers
     for (auto trigger : this->triggers_) {
-      if ((trigger->can_id_ == can_message.can_id) && (trigger->can_extended_id_ == can_message.use_extended_id)) {
+      if ((trigger->can_id_ == can_message.can_id) && (trigger->use_extended_id_ == can_message.use_extended_id)) {
         trigger->trigger(data);
       }
     }

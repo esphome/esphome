@@ -239,7 +239,7 @@ canbus::Error MCP2515::send_message_(TXBn txbn, struct canbus::CanFrame *frame) 
   uint8_t data[13];
 
   prepare_id_(data, frame->use_extended_id, frame->can_id);
-  data[MCP_DLC] = 
+  data[MCP_DLC] =
     frame->remote_transmission_request ? (frame->can_data_length_code | RTR_MASK) : frame->can_data_length_code;
   memcpy(&data[MCP_DATA], frame->data, frame->can_data_length_code);
   set_registers_(txbuf->SIDH, data, 5 + frame->can_data_length_code);

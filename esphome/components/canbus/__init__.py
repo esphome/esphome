@@ -109,9 +109,8 @@ def canbus_action_to_code(config, action_id, template_arg, args):
         can_id = yield cg.templatable(config[CONF_CAN_ID], args, cg.uint32)
         cg.add(var.set_can_id(can_id))
 
-    if CONF_USE_EXTENDED_ID in config:
-        can_ext_id = yield cg.templatable(config[CONF_USE_EXTENDED_ID], args, cg.uint32)
-        cg.add(var.set_use_extended_id(can_ext_id))
+    use_extended_id = yield cg.templatable(config[CONF_USE_EXTENDED_ID], args, cg.uint32)
+    cg.add(var.set_use_extended_id(use_extended_id))
 
     data = config[CONF_DATA]
     if isinstance(data, bytes):
