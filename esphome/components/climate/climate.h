@@ -66,6 +66,8 @@ class ClimateCall {
   ClimateCall &set_away(optional<bool> away);
   ClimateCall &set_boost(bool boost);
   ClimateCall &set_boost(optional<bool> boost);
+  ClimateCall &set_eco(bool eco);
+  ClimateCall &set_eco(optional<bool> eco);
   ClimateCall &set_night(bool night);
   ClimateCall &set_night(optional<bool> night);
   /// Set the fan mode of the climate device.
@@ -89,6 +91,7 @@ class ClimateCall {
   const optional<float> &get_target_temperature_high() const;
   const optional<bool> &get_away() const;
   const optional<bool> &get_boost() const;
+  const optional<bool> &get_eco() const;
   const optional<bool> &get_night() const;
   const optional<ClimateFanMode> &get_fan_mode() const;
   const optional<ClimateSwingMode> &get_swing_mode() const;
@@ -103,6 +106,7 @@ class ClimateCall {
   optional<float> target_temperature_high_;
   optional<bool> away_;
   optional<bool> boost_;
+  optional<bool> eco_;
   optional<bool> night_;
   optional<ClimateFanMode> fan_mode_;
   optional<ClimateSwingMode> swing_mode_;
@@ -113,6 +117,7 @@ struct ClimateDeviceRestoreState {
   ClimateMode mode;
   bool away;
   bool boost;
+  bool eco;
   bool night;
   ClimateFanMode fan_mode;
   ClimateSwingMode swing_mode;
@@ -182,6 +187,12 @@ class Climate : public Nameable {
    * Boost or turbo Mode usually used to reach setTemp in the lowest time:
    */
   bool boost{false};
+
+  /** Whether the climate device is in eco mode.
+   *
+   * Eco Mode usually used to use less power as possible:
+   */
+  bool eco{false};
 
   /** Whether the climate device is in Sleep mode.
    *

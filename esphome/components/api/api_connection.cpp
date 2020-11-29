@@ -466,6 +466,8 @@ bool APIConnection::send_climate_state(climate::Climate *climate) {
     resp.boost = climate->boost;
   if (traits.get_supports_night())
     resp.night = climate->night;
+  if (traits.get_supports_eco())
+    resp.eco = climate->eco;
   if (traits.get_supports_fan_modes())
     resp.fan_mode = static_cast<enums::ClimateFanMode>(climate->fan_mode);
   if (traits.get_supports_swing_modes())
@@ -492,6 +494,7 @@ bool APIConnection::send_climate_info(climate::Climate *climate) {
   msg.supports_away = traits.get_supports_away();
   msg.supports_night = traits.get_supports_night();
   msg.supports_boost = traits.get_supports_boost();
+  msg.supports_eco = traits.get_supports_eco();
   msg.supports_action = traits.get_supports_action();
   for (auto fan_mode : {climate::CLIMATE_FAN_ON, climate::CLIMATE_FAN_OFF, climate::CLIMATE_FAN_AUTO,
                         climate::CLIMATE_FAN_LOW, climate::CLIMATE_FAN_MEDIUM, climate::CLIMATE_FAN_HIGH,
@@ -524,6 +527,8 @@ void APIConnection::climate_command(const ClimateCommandRequest &msg) {
     call.set_away(msg.away);
   if (msg.has_boost)
     call.set_boost(msg.boost);
+  if (msg.has_eco)
+    call.set_eco(msg.eco);
   if (msg.has_night)
     call.set_night(msg.night);
   if (msg.has_fan_mode)

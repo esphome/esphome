@@ -712,6 +712,7 @@ message ListEntitiesClimateResponse {
   repeated ClimateSwingMode supported_swing_modes = 14;
   bool supports_boost = 15;
   bool supports_night = 16;
+  bool supports_eco = 17;
 }
 message ClimateStateResponse {
   option (id) = 47;
@@ -731,6 +732,7 @@ message ClimateStateResponse {
   ClimateSwingMode swing_mode = 10;
   bool boost = 11;
   bool night = 12;
+  bool eco = 13;
 }
 message ClimateCommandRequest {
   option (id) = 48;
@@ -757,4 +759,6 @@ message ClimateCommandRequest {
   bool boost = 17;
   bool has_night = 18;
   bool night = 19;
+  bool has_eco = 20;
+  bool eco = 21;
 }

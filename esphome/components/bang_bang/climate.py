@@ -4,7 +4,7 @@ from esphome import automation
 from esphome.components import climate, sensor
 from esphome.const import CONF_BOOST, CONF_SLEEP, CONF_AWAY_CONFIG, CONF_COOL_ACTION, \
     CONF_DEFAULT_TARGET_TEMPERATURE_HIGH, CONF_DEFAULT_TARGET_TEMPERATURE_LOW, CONF_HEAT_ACTION, \
-    CONF_ID, CONF_IDLE_ACTION, CONF_SENSOR
+    CONF_ID, CONF_IDLE_ACTION, CONF_SENSOR, CONF_ECO
 
 bang_bang_ns = cg.esphome_ns.namespace('bang_bang')
 BangBangClimate = bang_bang_ns.class_('BangBangClimate', climate.Climate, cg.Component)
@@ -20,6 +20,7 @@ CONFIG_SCHEMA = cv.All(climate.CLIMATE_SCHEMA.extend({
     cv.Optional(CONF_HEAT_ACTION): automation.validate_automation(single=True),
     cv.Optional(CONF_BOOST): cv.boolean,
     cv.Optional(CONF_SLEEP): cv.boolean,
+    cv.Optional(CONF_ECO): cv.boolean,
     cv.Optional(CONF_AWAY_CONFIG): cv.Schema({
         cv.Required(CONF_DEFAULT_TARGET_TEMPERATURE_LOW): cv.temperature,
         cv.Required(CONF_DEFAULT_TARGET_TEMPERATURE_HIGH): cv.temperature,
@@ -63,3 +64,6 @@ def to_code(config):
 
     if CONF_SLEEP in config:
         cg.add(var.set_supports_night(True))
+
+    if CONF_ECO in config:
+        cg.add(var.set_supports_eco(True))

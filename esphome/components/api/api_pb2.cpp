@@ -2570,6 +2570,10 @@ bool ListEntitiesClimateResponse::decode_varint(uint32_t field_id, ProtoVarInt v
       this->supports_night = value.as_bool();
       return true;
     }
+    case 17: {
+      this->supports_eco = value.as_bool();
+      return true;
+    }
     default:
       return false;
   }
@@ -2637,6 +2641,7 @@ void ListEntitiesClimateResponse::encode(ProtoWriteBuffer buffer) const {
   }
   buffer.encode_bool(15, this->supports_boost);
   buffer.encode_bool(16, this->supports_night);
+  buffer.encode_bool(17, this->supports_eco);
 }
 void ListEntitiesClimateResponse::dump_to(std::string &out) const {
   char buffer[64];
@@ -2714,6 +2719,10 @@ void ListEntitiesClimateResponse::dump_to(std::string &out) const {
   out.append("  supports_night: ");
   out.append(YESNO(this->supports_night));
   out.append("\n");
+
+  out.append("  supports_eco: ");
+  out.append(YESNO(this->supports_eco));
+  out.append("\n");
   out.append("}");
 }
 bool ClimateStateResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
@@ -2744,6 +2753,10 @@ bool ClimateStateResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
     }
     case 12: {
       this->night = value.as_bool();
+      return true;
+    }
+    case 13: {
+      this->eco = value.as_bool();
       return true;
     }
     default:
@@ -2789,6 +2802,7 @@ void ClimateStateResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_enum<enums::ClimateSwingMode>(10, this->swing_mode);
   buffer.encode_bool(11, this->boost);
   buffer.encode_bool(12, this->night);
+  buffer.encode_bool(13, this->eco);
 }
 void ClimateStateResponse::dump_to(std::string &out) const {
   char buffer[64];
@@ -2844,6 +2858,10 @@ void ClimateStateResponse::dump_to(std::string &out) const {
 
   out.append("  night: ");
   out.append(YESNO(this->night));
+  out.append("\n");
+
+  out.append("  eco: ");
+  out.append(YESNO(this->eco));
   out.append("\n");
   out.append("}");
 }
@@ -2909,6 +2927,14 @@ bool ClimateCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) 
       this->night = value.as_bool();
       return true;
     }
+    case 20: {
+      this->has_eco = value.as_bool();
+      return true;
+    }
+    case 21: {
+      this->eco = value.as_bool();
+      return true;
+    }
     default:
       return false;
   }
@@ -2955,6 +2981,8 @@ void ClimateCommandRequest::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_bool(17, this->boost);
   buffer.encode_bool(18, this->has_night);
   buffer.encode_bool(19, this->night);
+  buffer.encode_bool(20, this->has_eco);
+  buffer.encode_bool(21, this->eco);
 }
 void ClimateCommandRequest::dump_to(std::string &out) const {
   char buffer[64];
@@ -3037,6 +3065,14 @@ void ClimateCommandRequest::dump_to(std::string &out) const {
 
   out.append("  night: ");
   out.append(YESNO(this->night));
+  out.append("\n");
+
+  out.append("  has_eco: ");
+  out.append(YESNO(this->has_eco));
+  out.append("\n");
+
+  out.append("  eco: ");
+  out.append(YESNO(this->eco));
   out.append("\n");
   out.append("}");
 }

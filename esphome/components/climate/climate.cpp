@@ -36,6 +36,9 @@ void ClimateCall::perform() {
   if (this->boost_.has_value()) {
     ESP_LOGD(TAG, "  Boost Mode: %s", ONOFF(*this->boost_));
   }
+  if (this->eco_.has_value()) {
+    ESP_LOGD(TAG, "  Eco Mode: %s", ONOFF(*this->eco_));
+  }
   if (this->night_.has_value()) {
     ESP_LOGD(TAG, "  Night Mode: %s", ONOFF(*this->night_));
   }
@@ -109,6 +112,12 @@ void ClimateCall::validate_() {
     if (!traits.get_supports_boost()) {
       ESP_LOGW(TAG, "  Cannot set boost mode for this device!");
       this->boost_.reset();
+    }
+  }
+  if (this->eco_.has_value()) {
+    if (!traits.get_supports_eco()) {
+      ESP_LOGW(TAG, "  Cannot set eco mode for this device!");
+      this->eco_.reset();
     }
   }
   if (this->night_.has_value()) {
@@ -206,6 +215,7 @@ const optional<float> &ClimateCall::get_target_temperature_low() const { return 
 const optional<float> &ClimateCall::get_target_temperature_high() const { return this->target_temperature_high_; }
 const optional<bool> &ClimateCall::get_away() const { return this->away_; }
 const optional<bool> &ClimateCall::get_boost() const { return this->boost_; }
+const optional<bool> &ClimateCall::get_eco() const { return this->eco_; }
 const optional<bool> &ClimateCall::get_night() const { return this->night_; }
 const optional<ClimateFanMode> &ClimateCall::get_fan_mode() const { return this->fan_mode_; }
 const optional<ClimateSwingMode> &ClimateCall::get_swing_mode() const { return this->swing_mode_; }
@@ -223,6 +233,14 @@ ClimateCall &ClimateCall::set_boost(bool boost) {
 }
 ClimateCall &ClimateCall::set_boost(optional<bool> boost) {
   this->boost_ = boost;
+  return *this;
+}
+ClimateCall &ClimateCall::set_eco(bool eco) {
+  this->eco_ = eco;
+  return *this;
+}
+ClimateCall &ClimateCall::set_eco(optional<bool> eco) {
+  this->eco_ = eco;
   return *this;
 }
 ClimateCall &ClimateCall::set_night(bool night) {
@@ -288,6 +306,9 @@ void Climate::save_state_() {
   if (traits.get_supports_boost()) {
     state.boost = this->boost;
   }
+  if (traits.get_supports_eco()) {
+    state.eco = this->eco;
+  }
   if (traits.get_supports_night()) {
     state.night = this->night;
   }
@@ -328,6 +349,9 @@ void Climate::publish_state() {
   }
   if (traits.get_supports_boost()) {
     ESP_LOGD(TAG, "  Boost: %s", ONOFF(this->boost));
+  }
+  if (traits.get_supports_eco()) {
+    ESP_LOGD(TAG, "  Eco: %s", ONOFF(this->eco));
   }
   if (traits.get_supports_night()) {
     ESP_LOGD(TAG, "  Night: %s", ONOFF(this->night));
@@ -383,6 +407,9 @@ ClimateCall ClimateDeviceRestoreState::to_call(Climate *climate) {
   if (traits.get_supports_boost()) {
     call.set_boost(this->boost);
   }
+  if (traits.get_supports_eco()) {
+    call.set_eco(this->eco);
+  }
   if (traits.get_supports_night()) {
     call.set_night(this->night);
   }
@@ -408,6 +435,9 @@ void ClimateDeviceRestoreState::apply(Climate *climate) {
   }
   if (traits.get_supports_boost()) {
     climate->boost = this->boost;
+  }
+  if (traits.get_supports_eco()) {
+    climate->eco = this->eco;
   }
   if (traits.get_supports_night()) {
     climate->night = this->night;

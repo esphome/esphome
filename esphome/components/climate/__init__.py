@@ -5,7 +5,7 @@ from esphome.components import mqtt
 from esphome.const import CONF_AWAY, CONF_BOOST, CONF_SLEEP, CONF_ID, CONF_INTERNAL, \
     CONF_MAX_TEMPERATURE, CONF_MIN_TEMPERATURE, CONF_MODE, CONF_TARGET_TEMPERATURE, \
     CONF_TARGET_TEMPERATURE_HIGH, CONF_TARGET_TEMPERATURE_LOW, CONF_TEMPERATURE_STEP, \
-    CONF_VISUAL, CONF_MQTT_ID, CONF_NAME, CONF_FAN_MODE, CONF_SWING_MODE
+    CONF_VISUAL, CONF_MQTT_ID, CONF_NAME, CONF_FAN_MODE, CONF_SWING_MODE, CONF_ECO
 from esphome.core import CORE, coroutine, coroutine_with_priority
 
 IS_PLATFORM_COMPONENT = True
@@ -103,6 +103,7 @@ CLIMATE_CONTROL_ACTION_SCHEMA = cv.Schema({
     cv.Optional(CONF_AWAY): cv.templatable(cv.boolean),
     cv.Optional(CONF_BOOST): cv.templatable(cv.boolean),
     cv.Optional(CONF_SLEEP): cv.templatable(cv.boolean),
+    cv.Optional(CONF_ECO): cv.templatable(cv.boolean),
     cv.Optional(CONF_FAN_MODE): cv.templatable(validate_climate_fan_mode),
     cv.Optional(CONF_SWING_MODE): cv.templatable(validate_climate_swing_mode),
 })
@@ -130,6 +131,9 @@ def climate_control_to_code(config, action_id, template_arg, args):
     if CONF_BOOST in config:
         template_ = yield cg.templatable(config[CONF_BOOST], args, bool)
         cg.add(var.set_boost(template_))
+    if CONF_ECO in config:
+        template_ = yield cg.templatable(config[CONF_ECO], args, bool)
+        cg.add(var.set_eco(template_))
     if CONF_SLEEP in config:
         template_ = yield cg.templatable(config[CONF_SLEEP], args, bool)
         cg.add(var.set_night(template_))
