@@ -39,3 +39,4 @@ def to_code(config):
         cg.add(var.set_sleep_sensor(swit))
 
     #TO DO
+    
