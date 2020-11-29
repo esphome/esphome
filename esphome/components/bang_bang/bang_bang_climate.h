@@ -32,7 +32,7 @@ class BangBangClimate : public climate::Climate, public Component {
   void set_normal_config(const BangBangClimateTargetTempConfig &normal_config);
   void set_away_config(const BangBangClimateTargetTempConfig &away_config);
   void set_supports_boost(bool supports_boost);
-  void set_supports_night(bool supports_boost);
+  void set_supports_night(bool supports_night);
 
 
  protected:
