@@ -65,18 +65,6 @@ void MQTTClimateComponent::send_discovery(JsonObject &root, mqtt::SendDiscoveryC
     // away_mode_state_topic
     root["away_mode_stat_t"] = this->get_away_state_topic();
   }
-  if (traits.get_supports_boost()) {
-    // boost_mode_command_topic
-    root["boost_mode_cmd_t"] = this->get_boost_command_topic();
-    // boost_mode_state_topic
-    root["boost_mode_stat_t"] = this->get_boost_state_topic();
-  }
-  if (traits.get_supports_sleep()) {
-    // sleep_mode_command_topic
-    root["sleep_mode_cmd_t"] = this->get_sleep_command_topic();
-    // sleep_mode_state_topic
-    root["sleep_mode_stat_t"] = this->get_sleep_state_topic();
-  }
   if (traits.get_supports_action()) {
     // action_topic
     root["act_t"] = this->get_action_state_topic();

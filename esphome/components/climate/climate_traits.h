@@ -56,8 +56,8 @@ class ClimateTraits {
   void set_supports_dry_mode(bool supports_dry_mode);
   void set_supports_away(bool supports_away);
   bool get_supports_away() const;
-  void set_supports_boost_mode(bool supports_boost_mode);
-  bool get_supports_boost_mode() const;
+  void set_supports_boost(bool supports_boost);
+  bool get_supports_boost() const;
   void set_supports_sleep(bool supports_sleep);
   bool get_supports_sleep() const;
   void set_supports_action(bool supports_action);
