@@ -7,7 +7,7 @@ from esphome.const import CONF_ID, CONF_TRIGGER_ID, CONF_DATA
 IS_PLATFORM_COMPONENT = True
 
 CONF_CAN_ID = 'can_id'
-CONF_CAN_EXT_ID = 'can_ext_id'
+CONF_USE_EXTENDED_ID = 'use_extended_id'
 CONF_CANBUS_ID = 'canbus_id'
 CONF_BIT_RATE = 'bit_rate'
 CONF_ON_FRAME = 'on_frame'
@@ -58,26 +58,26 @@ CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(CanbusComponent),
     cv.Required(CONF_CAN_ID): cv.int_range(min=0, max=0x1fffffff),
     cv.Optional(CONF_BIT_RATE, default='125KBPS'): cv.enum(CAN_SPEEDS, upper=True),
-    cv.Optional(CONF_CAN_EXT_ID, default=False): cv.boolean,
+    cv.Optional(CONF_USE_EXTENDED_ID, default=False): cv.boolean,
     cv.Optional(CONF_ON_FRAME): automation.validate_automation({
         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(CanbusTrigger),
         cv.GenerateID(CONF_CAN_ID): cv.int_range(min=0, max=0x1fffffff),
-        cv.Optional(CONF_CAN_EXT_ID, default=False): cv.boolean,
+        cv.Optional(CONF_USE_EXTENDED_ID, default=False): cv.boolean,
     }),
 }).extend(cv.COMPONENT_SCHEMA)
 
 
 @coroutine
 def setup_canbus_core_(var, config):
-    validate_id(config[CONF_CAN_ID], config[CONF_CAN_EXT_ID])
+    validate_id(config[CONF_CAN_ID], config[CONF_USE_EXTENDED_ID])
     yield cg.register_component(var, config)
     cg.add(var.set_can_id([config[CONF_CAN_ID]]))
-    cg.add(var.set_can_ext_id([config[CONF_CAN_EXT_ID]]))
+    cg.add(var.set_use_extended_id([config[CONF_USE_EXTENDED_ID]]))
     cg.add(var.set_bitrate(CAN_SPEEDS[config[CONF_BIT_RATE]]))
 
     for conf in config.get(CONF_ON_FRAME, []):
         can_id = conf[CONF_CAN_ID]
-        ext_id = conf[CONF_CAN_EXT_ID]
+        ext_id = conf[CONF_USE_EXTENDED_ID]
         validate_id(can_id, ext_id)
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var, can_id, ext_id)
         yield cg.register_component(trigger, conf)
@@ -97,11 +97,11 @@ def register_canbus(var, config):
                             cv.maybe_simple_value({
                                 cv.GenerateID(CONF_CANBUS_ID): cv.use_id(CanbusComponent),
                                 cv.Optional(CONF_CAN_ID): cv.int_range(min=0, max=0x1fffffff),
-                                cv.Optional(CONF_CAN_EXT_ID, default=False): cv.boolean,
+                                cv.Optional(CONF_USE_EXTENDED_ID, default=False): cv.boolean,
                                 cv.Required(CONF_DATA): cv.templatable(validate_raw_data),
                             }, key=CONF_DATA))
 def canbus_action_to_code(config, action_id, template_arg, args):
-    validate_id(config[CONF_CAN_ID], config[CONF_CAN_EXT_ID])
+    validate_id(config[CONF_CAN_ID], config[CONF_USE_EXTENDED_ID])
     var = cg.new_Pvariable(action_id, template_arg)
     yield cg.register_parented(var, config[CONF_CANBUS_ID])
 
@@ -109,9 +109,9 @@ def canbus_action_to_code(config, action_id, template_arg, args):
         can_id = yield cg.templatable(config[CONF_CAN_ID], args, cg.uint32)
         cg.add(var.set_can_id(can_id))
 
-    if CONF_CAN_EXT_ID in config:
-        can_ext_id = yield cg.templatable(config[CONF_CAN_EXT_ID], args, cg.uint32)
-        cg.add(var.set_can_ext_id(can_ext_id))
+    if CONF_USE_EXTENDED_ID in config:
+        can_ext_id = yield cg.templatable(config[CONF_USE_EXTENDED_ID], args, cg.uint32)
+        cg.add(var.set_use_extended_id(can_ext_id))
 
     data = config[CONF_DATA]
     if isinstance(data, bytes):

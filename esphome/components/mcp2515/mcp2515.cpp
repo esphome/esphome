@@ -150,10 +150,10 @@ canbus::Error MCP2515::set_clk_out_(const CanClkOut divisor) {
   return canbus::ERROR_OK;
 }
 
-void MCP2515::prepare_id_(uint8_t *buffer, const bool ext, const uint32_t id) {
+void MCP2515::prepare_id_(uint8_t *buffer, const bool extended, const uint32_t id) {
   uint16_t canid = (uint16_t)(id & 0x0FFFF);
 
-  if (ext) {
+  if (extended) {
     buffer[MCP_EID0] = (uint8_t)(canid & 0xFF);
     buffer[MCP_EID8] = (uint8_t)(canid >> 8);
     canid = (uint16_t)(id >> 16);
@@ -169,14 +169,14 @@ void MCP2515::prepare_id_(uint8_t *buffer, const bool ext, const uint32_t id) {
   }
 }
 
-canbus::Error MCP2515::set_filter_mask_(const MASK mask, const bool ext, const uint32_t ul_data) {
+canbus::Error MCP2515::set_filter_mask_(const MASK mask, const bool extended, const uint32_t ul_data) {
   canbus::Error res = set_mode_(CANCTRL_REQOP_CONFIG);
   if (res != canbus::ERROR_OK) {
     return res;
   }
 
   uint8_t tbufdata[4];
-  prepare_id_(tbufdata, ext, ul_data);
+  prepare_id_(tbufdata, extended, ul_data);
 
   REGISTER reg;
   switch (mask) {
@@ -195,7 +195,7 @@ canbus::Error MCP2515::set_filter_mask_(const MASK mask, const bool ext, const u
   return canbus::ERROR_OK;
 }
 
-canbus::Error MCP2515::set_filter_(const RXF num, const bool ext, const uint32_t ul_data) {
+canbus::Error MCP2515::set_filter_(const RXF num, const bool extended, const uint32_t ul_data) {
   canbus::Error res = set_mode_(CANCTRL_REQOP_CONFIG);
   if (res != canbus::ERROR_OK) {
     return res;
@@ -227,7 +227,7 @@ canbus::Error MCP2515::set_filter_(const RXF num, const bool ext, const uint32_t
   }
 
   uint8_t tbufdata[4];
-  prepare_id_(tbufdata, ext, ul_data);
+  prepare_id_(tbufdata, extended, ul_data);
   set_registers_(reg, tbufdata, 4);
 
   return canbus::ERROR_OK;
@@ -238,17 +238,17 @@ canbus::Error MCP2515::send_message_(TXBn txbn, struct canbus::CanFrame *frame) 
 
   uint8_t data[13];
 
-  prepare_id_(data, frame->ext_id, frame->can_id);
-  data[MCP_DLC] = frame->rtr ? (frame->can_dlc | RTR_MASK) : frame->can_dlc;
-  memcpy(&data[MCP_DATA], frame->data, frame->can_dlc);
-  set_registers_(txbuf->SIDH, data, 5 + frame->can_dlc);
+  prepare_id_(data, frame->use_extended_id, frame->can_id);
+  data[MCP_DLC] = frame->remote_transmission_request ? (frame->can_data_length_code | RTR_MASK) : frame->can_data_length_code;
+  memcpy(&data[MCP_DATA], frame->data, frame->can_data_length_code);
+  set_registers_(txbuf->SIDH, data, 5 + frame->can_data_length_code);
   modify_register_(txbuf->CTRL, TXB_TXREQ, TXB_TXREQ);
 
   return canbus::ERROR_OK;
 }
 
 canbus::Error MCP2515::send_message(struct canbus::CanFrame *frame) {
-  if (frame->can_dlc > canbus::CAN_MAX_DLEN) {
+  if (frame->can_data_length_code > canbus::CAN_MAX_DATA_LENGTH) {
     return canbus::ERROR_FAILTX;
   }
   TXBn tx_buffers[N_TXBUFFERS] = {TXB0, TXB1, TXB2};
@@ -272,32 +272,32 @@ canbus::Error MCP2515::read_message_(RXBn rxbn, struct canbus::CanFrame *frame) 
   read_registers_(rxb->SIDH, tbufdata, 5);
 
   uint32_t id = (tbufdata[MCP_SIDH] << 3) + (tbufdata[MCP_SIDL] >> 5);
-  bool ext_id = false;
-  bool rtr = false;
+  bool use_extended_id = false;
+  bool remote_transmission_request = false;
 
   if ((tbufdata[MCP_SIDL] & TXB_EXIDE_MASK) == TXB_EXIDE_MASK) {
     id = (id << 2) + (tbufdata[MCP_SIDL] & 0x03);
     id = (id << 8) + tbufdata[MCP_EID8];
     id = (id << 8) + tbufdata[MCP_EID0];
     // id |= canbus::CAN_EFF_FLAG;
-    ext_id = true;
+    use_extended_id = true;
   }
 
   uint8_t dlc = (tbufdata[MCP_DLC] & DLC_MASK);
-  if (dlc > canbus::CAN_MAX_DLEN) {
+  if (dlc > canbus::CAN_MAX_DATA_LENGTH) {
     return canbus::ERROR_FAIL;
   }
 
   uint8_t ctrl = read_register_(rxb->CTRL);
   if (ctrl & RXB_CTRL_RTR) {
     // id |= canbus::CAN_RTR_FLAG;
-    rtr = true;
+    remote_transmission_request = true;
   }
 
   frame->can_id = id;
-  frame->can_dlc = dlc;
-  frame->ext_id = ext_id;
-  frame->rtr = rtr;
+  frame->can_data_length_code = dlc;
+  frame->use_extended_id = use_extended_id;
+  frame->remote_transmission_request = remote_transmission_request;
 
   read_registers_(rxb->DATA, frame->data, dlc);
 

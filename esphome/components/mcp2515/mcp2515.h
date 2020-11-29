@@ -84,13 +84,13 @@ class MCP2515 : public canbus::Canbus,
   void set_registers_(REGISTER reg, uint8_t values[], uint8_t n);
   void modify_register_(REGISTER reg, uint8_t mask, uint8_t data);
 
-  void prepare_id_(uint8_t *buffer, bool ext, uint32_t id);
+  void prepare_id_(uint8_t *buffer, bool extended, uint32_t id);
   canbus::Error reset_();
   canbus::Error set_clk_out_(CanClkOut divisor);
   canbus::Error set_bitrate_(canbus::CanSpeed can_speed);
   canbus::Error set_bitrate_(canbus::CanSpeed can_speed, CanClock can_clock);
-  canbus::Error set_filter_mask_(MASK mask, bool ext, uint32_t ul_data);
-  canbus::Error set_filter_(RXF num, bool ext, uint32_t ul_data);
+  canbus::Error set_filter_mask_(MASK mask, bool extended, uint32_t ul_data);
+  canbus::Error set_filter_(RXF num, bool extended, uint32_t ul_data);
   canbus::Error send_message_(TXBn txbn, struct canbus::CanFrame *frame);
   canbus::Error send_message(struct canbus::CanFrame *frame) override;
   canbus::Error read_message_(RXBn rxbn, struct canbus::CanFrame *frame);
