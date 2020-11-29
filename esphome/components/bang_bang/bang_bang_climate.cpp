@@ -47,7 +47,7 @@ climate::ClimateTraits BangBangClimate::traits() {
   traits.set_supports_heat_mode(this->supports_heat_);
   traits.set_supports_two_point_target_temperature(true);
   traits.set_supports_away(this->supports_away_);
-  traits.set_supports_boost(this->supports_boost_);
+  traits.set_supports_boost_mode(this->supports_boost_);
   traits.set_supports_action(true);
   return traits;
 }

@@ -16,8 +16,6 @@ climate::ClimateTraits ClimateIR::traits() {
   traits.set_supports_fan_only_mode(this->supports_fan_only_);
   traits.set_supports_two_point_target_temperature(false);
   traits.set_supports_away(false);
-  traits.set_supports_boost(false);
-  traits.set_supports_sleep(false);
   traits.set_visual_min_temperature(this->minimum_temperature_);
   traits.set_visual_max_temperature(this->maximum_temperature_);
   traits.set_visual_temperature_step(this->temperature_step_);
