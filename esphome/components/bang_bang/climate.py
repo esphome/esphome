@@ -59,4 +59,8 @@ def to_code(config):
    
     if CONF_BOOST in config:
        boost = config[CONF_BOOST]
-       cg.add(var.set_support_boost(True))
+       cg.add(var.set_supports_boost(True))
+
+    if CONF_SLEEP in config:
+       sleep = config[CONF_SLEEP]
+       cg.add(var.set_supports_sleep(True))
