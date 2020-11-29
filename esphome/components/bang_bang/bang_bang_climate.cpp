@@ -154,7 +154,7 @@ void BangBangClimate::change_boost_(bool boost) {
   this->boost = boost;
 }
 
-void BangBangClimate::change_night_(bool boost) {
+void BangBangClimate::change_night_(bool night) {
   //TO DO
   ESP_LOGCONFIG(TAG, "  Night: %s", YESNO(this->night));
   this->night = night;
