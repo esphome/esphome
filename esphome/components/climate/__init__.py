@@ -2,10 +2,10 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
 from esphome.components import mqtt
-from esphome.const import CONF_AWAY, CONF_BOOST, CONF_SLEEP, CONF_ID, CONF_INTERNAL, CONF_MAX_TEMPERATURE, \
-    CONF_MIN_TEMPERATURE, CONF_MODE, CONF_TARGET_TEMPERATURE, \
-    CONF_TARGET_TEMPERATURE_HIGH, CONF_TARGET_TEMPERATURE_LOW, CONF_TEMPERATURE_STEP, CONF_VISUAL, \
-    CONF_MQTT_ID, CONF_NAME, CONF_FAN_MODE, CONF_SWING_MODE
+from esphome.const import CONF_AWAY, CONF_BOOST, CONF_SLEEP, CONF_ID, CONF_INTERNAL, \ 
+    CONF_MAX_TEMPERATURE, CONF_MIN_TEMPERATURE, CONF_MODE, CONF_TARGET_TEMPERATURE, \
+    CONF_TARGET_TEMPERATURE_HIGH, CONF_TARGET_TEMPERATURE_LOW, CONF_TEMPERATURE_STEP, \
+    CONF_VISUAL, CONF_MQTT_ID, CONF_NAME, CONF_FAN_MODE, CONF_SWING_MODE
 from esphome.core import CORE, coroutine, coroutine_with_priority
 
 IS_PLATFORM_COMPONENT = True
@@ -106,6 +106,7 @@ CLIMATE_CONTROL_ACTION_SCHEMA = cv.Schema({
     cv.Optional(CONF_FAN_MODE): cv.templatable(validate_climate_fan_mode),
     cv.Optional(CONF_SWING_MODE): cv.templatable(validate_climate_swing_mode),
 })
+
 
 @automation.register_action('climate.control', ControlAction, CLIMATE_CONTROL_ACTION_SCHEMA)
 def climate_control_to_code(config, action_id, template_arg, args):
