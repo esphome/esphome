@@ -65,4 +65,4 @@ def to_code(config):
     if CONF_SLEEP in config:
        night = config[CONF_SLEEP]
        cg.add(var.set_supports_night(True))
-       
+    
