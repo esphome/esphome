@@ -34,7 +34,6 @@ class BangBangClimate : public climate::Climate, public Component {
   void set_supports_boost(bool supports_boost);
   void set_supports_night(bool supports_night);
 
-
  protected:
   /// Override control to change settings of the climate device.
   void control(const climate::ClimateCall &call) override;
@@ -91,7 +90,6 @@ class BangBangClimate : public climate::Climate, public Component {
   bool supports_boost_{false};
 
   bool supports_night_{false};
-
 };
 
 }  // namespace bang_bang

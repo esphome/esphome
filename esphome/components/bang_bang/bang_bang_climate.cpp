@@ -149,17 +149,16 @@ void BangBangClimate::change_away_(bool away) {
 }
 
 void BangBangClimate::change_boost_(bool boost) {
-  //TO DO
+  // TO DO
   ESP_LOGCONFIG(TAG, "  Boost: %s", YESNO(this->boost));
   this->boost = boost;
 }
 
 void BangBangClimate::change_night_(bool night) {
-  //TO DO
+  // TO DO
   ESP_LOGCONFIG(TAG, "  Night: %s", YESNO(this->night));
   this->night = night;
 }
-
 
 void BangBangClimate::set_normal_config(const BangBangClimateTargetTempConfig &normal_config) {
   this->normal_config_ = normal_config;
