@@ -1,7 +1,6 @@
 #pragma once
 
 #include "esphome/core/component.h"
-#include "esphome/components/sensor/sensor.h"
 #include "esphome/components/uart/uart.h"
 
 namespace esphome {
@@ -14,20 +13,21 @@ static const uint8_t MAX_TAG_SIZE = 64;
 static const uint16_t MAX_VAL_SIZE = 256;
 static const uint16_t MAX_BUF_SIZE = 1024;
 
-struct TeleinfoSensorElement {
-  const char *tag;
-  sensor::Sensor *sensor;
+class TeleInfoListener {
+ public:
+  std::string tag;
+  virtual void publish_val(std::string val){};
+  virtual void dump_config(){};
 };
-
 class TeleInfo : public PollingComponent, public uart::UARTDevice {
  public:
   TeleInfo(bool historical_mode);
-  void register_teleinfo_sensor(const char *tag, sensor::Sensor *sensors);
+  void register_teleinfo_listener(TeleInfoListener *listener);
   void loop() override;
   void setup() override;
   void update() override;
   void dump_config() override;
-  std::vector<const TeleinfoSensorElement *> teleinfo_sensors_{};
+  std::vector<TeleInfoListener *> teleinfo_listeners_{};
 
  protected:
   uint32_t baud_rate_;
