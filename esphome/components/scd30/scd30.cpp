@@ -12,6 +12,7 @@ static const uint16_t SCD30_CMD_ALTITUDE_COMPENSATION = 0x5102;
 static const uint16_t SCD30_CMD_AUTOMATIC_SELF_CALIBRATION = 0x5306;
 static const uint16_t SCD30_CMD_GET_DATA_READY_STATUS = 0x0202;
 static const uint16_t SCD30_CMD_READ_MEASUREMENT = 0x0300;
+static const uint16_t SCD30_CMD_SET_FORCED_RECALIBRATION_VALUE = 0x5204;
 
 /// Commands for future use
 static const uint16_t SCD30_CMD_STOP_MEASUREMENTS = 0x0104;
@@ -151,6 +152,14 @@ void SCD30Component::update() {
 
     this->status_clear_warning();
   });
+}
+
+void SCD30Component::set_forced_recalibration_value(uint16_t value) {
+  if (!this->write_command_(SCD30_CMD_SET_FORCED_RECALIBRATION_VALUE, value)) {
+    ESP_LOGW(TAG, "Error reading measurement!");
+    this->status_set_warning();
+  }
+  ESP_LOGD(TAG, "Set forced recalibration value CO2=%d ppm", value);
 }
 
 bool SCD30Component::write_command_(uint16_t command) {

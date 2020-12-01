@@ -1,6 +1,8 @@
 import re
 import esphome.codegen as cg
 import esphome.config_validation as cv
+from esphome import automation
+from esphome.automation import maybe_simple_id
 from esphome.components import i2c, sensor
 from esphome.const import CONF_ID, UNIT_PARTS_PER_MILLION, \
     CONF_HUMIDITY, CONF_TEMPERATURE, ICON_MOLECULE_CO2, \
@@ -14,11 +16,15 @@ SCD30Component = scd30_ns.class_('SCD30Component', cg.PollingComponent, i2c.I2CD
 CONF_AUTOMATIC_SELF_CALIBRATION = 'automatic_self_calibration'
 CONF_ALTITUDE_COMPENSATION = 'altitude_compensation'
 CONF_AMBIENT_PRESSURE_COMPENSATION = 'ambient_pressure_compensation'
+CONF_FORCED_RECALIBRATION_VALUE = 'forced_recalibration_value'
 
 
 def remove_altitude_suffix(value):
     return re.sub(r"\s*(?:m(?:\s+a\.s\.l)?)|(?:MAM?SL)$", '', value)
 
+
+SetForcedRecalibrationValueAction = scd30_ns.class_(
+    'SetForcedRecalibrationValueAction', automation.Action)
 
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(SCD30Component),
@@ -57,3 +63,19 @@ def to_code(config):
     if CONF_TEMPERATURE in config:
         sens = yield sensor.new_sensor(config[CONF_TEMPERATURE])
         cg.add(var.set_temperature_sensor(sens))
+
+
+@automation.register_action(
+    'scd30.set_forced_recalibration_value',
+    SetForcedRecalibrationValueAction,
+    maybe_simple_id({
+        cv.Required(CONF_ID): cv.use_id(SCD30Component),
+        cv.Required(CONF_FORCED_RECALIBRATION_VALUE): cv.templatable(
+            cv.int_range(min=0, max=0xFFFF, max_included=False)),
+    }))
+def set_forced_recalibration_value_to_code(config, action_id, template_arg, args):
+    paren = yield cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, paren)
+    template_ = yield cg.templatable(config[CONF_FORCED_RECALIBRATION_VALUE], args, int)
+    cg.add(var.set_forced_recalibration_value(template_))
+    yield var

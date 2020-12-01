@@ -18,6 +18,7 @@ class SCD30Component : public PollingComponent, public i2c::I2CDevice {
   void set_ambient_pressure_compensation(float pressure) {
     ambient_pressure_compensation_ = (uint16_t)(pressure * 1000);
   }
+  void set_forced_recalibration_value(uint16_t value);
 
   void setup() override;
   void update() override;
