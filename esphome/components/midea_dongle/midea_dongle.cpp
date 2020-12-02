@@ -26,13 +26,13 @@ void MideaDongle::loop() {
       continue;
     this->reset_();
     const BaseFrame frame(this->buf_);
-    if (frame.get_type() == NETWORK_NOTIFY) {
-      ESP_LOGD(TAG, "RX: notify frame");
-      this->need_notify_ = false;
-      continue;
-    }
     if (!frame.is_valid()) {
       ESP_LOGW(TAG, "RX: frame check failed!");
+      continue;
+    }
+    if (frame.get_type() == QUERY_NETWORK) {
+      this->notify_.set_type(QUERY_NETWORK);
+      this->need_notify_ = true;
       continue;
     }
     if (this->appliance_ != nullptr)
@@ -72,10 +72,13 @@ void MideaDongle::update() {
     this->notify_.set_signal_stretch(wifi_stretch);
     this->need_notify_ = true;
   }
-  if (!--this->notify_timer_)
+  if (!--this->notify_timer_) {
+    this->notify_.set_type(NETWORK_NOTIFY);
     this->need_notify_ = true;
+  }
   if (this->need_notify_) {
     ESP_LOGD(TAG, "TX: notify WiFi STA %s, signal stretch %d", is_conn ? "connected" : "not connected", wifi_stretch);
+    this->need_notify_ = false;
     this->notify_timer_ = 600;
     this->notify_.finalize();
     this->write_frame(this->notify_);

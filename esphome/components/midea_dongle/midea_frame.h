@@ -42,6 +42,7 @@ class BaseFrame : public Frame {
   // Prepare for sending to device
   void finalize();
   uint8_t get_type() const { return this->pbuf_[9]; }
+  void set_type(uint8_t value) { this->pbuf_[9] = value; }
 
  protected:
   static const uint8_t PROGMEM CRC_TABLE[256];

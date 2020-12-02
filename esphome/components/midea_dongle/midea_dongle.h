@@ -8,7 +8,8 @@ namespace esphome {
 namespace midea_dongle {
 
 enum MideaApplianceType : uint8_t { DEHUMIDIFIER = 0xA1, AIR_CONDITIONER = 0xAC, BROADCAST = 0xFF };
-enum MideaMessageType : uint8_t { DEVICE_CONTROL = 0x02, DEVICE_QUERY = 0x03, NETWORK_NOTIFY = 0x0D };
+enum MideaMessageType : uint8_t { DEVICE_CONTROL = 0x02, DEVICE_QUERY = 0x03, NETWORK_NOTIFY = 0x0D,
+  QUERY_NETWORK = 0x63, };
 
 struct MideaAppliance {
   /// Calling on update event
