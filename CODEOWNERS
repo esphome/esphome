@@ -58,6 +58,8 @@ esphome/components/sensor/* @esphome/core
 esphome/components/shutdown/* @esphome/core
 esphome/components/sim800l/* @glmnet
 esphome/components/spi/* @esphome/core
+esphome/components/ssd1322_base/* @kbx81
+esphome/components/ssd1322_spi/* @kbx81
 esphome/components/ssd1325_base/* @kbx81
 esphome/components/ssd1325_spi/* @kbx81
 esphome/components/ssd1331_base/* @kbx81
