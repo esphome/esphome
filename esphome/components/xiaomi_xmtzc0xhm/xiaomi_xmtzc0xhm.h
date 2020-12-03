@@ -12,6 +12,7 @@ namespace xiaomi_xmtzc0xhm {
 struct ParseResult {
   optional<float> weight;
   optional<float> impedance;
+  bool isStabilized;
   bool is_duplicate;
   int raw_offset;
 };
