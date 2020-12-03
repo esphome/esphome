@@ -12,60 +12,60 @@ static const uint8_t SSD1322_COLORMASK = 0x0f;
 static const uint8_t SSD1322_COLORSHIFT = 4;
 static const uint8_t SSD1322_PIXELSPERBYTE = 2;
 
-static const uint8_t SSD1322_ENABLEGRAYSCALETABLE               = 0x00;
-static const uint8_t SSD1322_SETCOLUMNADDRESS                   = 0x15;
-static const uint8_t SSD1322_WRITERAM                           = 0x5C;
-static const uint8_t SSD1322_READRAM                            = 0x5D;
-static const uint8_t SSD1322_SETROWADDRESS                      = 0x75;
-static const uint8_t SSD1322_SETREMAP                           = 0xA0;
-static const uint8_t SSD1322_SETSTARTLINE                       = 0xA1;
-static const uint8_t SSD1322_SETOFFSET                          = 0xA2;
-static const uint8_t SSD1322_SETMODEALLOFF                      = 0xA4;
-static const uint8_t SSD1322_SETMODEALLON                       = 0xA5;
-static const uint8_t SSD1322_SETMODENORMAL                      = 0xA6;
-static const uint8_t SSD1322_SETMODEINVERTED                    = 0xA7;
-static const uint8_t SSD1322_ENABLEPARTIALDISPLAY               = 0xA8;
-static const uint8_t SSD1322_EXITPARTIALDISPLAY                 = 0xA9;
-static const uint8_t SSD1322_SETFUNCTIONSELECTION               = 0xAB;
-static const uint8_t SSD1322_SETDISPLAYOFF                      = 0xAE;
-static const uint8_t SSD1322_SETDISPLAYON                       = 0xAF;
-static const uint8_t SSD1322_SETPHASELENGTH                     = 0xB1;
-static const uint8_t SSD1322_SETFRONTCLOCKDIVIDER               = 0xB3;
-static const uint8_t SSD1322_DISPLAYENHANCEMENTA                = 0xB4;
-static const uint8_t SSD1322_SETGPIO                            = 0xB5;
-static const uint8_t SSD1322_SETSECONDPRECHARGEPERIOD           = 0xB6;
-static const uint8_t SSD1322_SETGRAYSCALETABLE                  = 0xB8;
-static const uint8_t SSD1322_SELECTDEFAULTLINEARGRAYSCALETABLE  = 0xB9;
-static const uint8_t SSD1322_SETPRECHARGEVOLTAGE                = 0xBB;
-static const uint8_t SSD1322_SETVCOMHVOLTAGE                    = 0xBE;
-static const uint8_t SSD1322_SETCONTRAST                        = 0xC1;
-static const uint8_t SSD1322_MASTERCURRENTCONTROL               = 0xC7;
-static const uint8_t SSD1322_SETMULTIPLEXRATIO                  = 0xCA;
-static const uint8_t SSD1322_DISPLAYENHANCEMENTB                = 0xD1;
-static const uint8_t SSD1322_SETCOMMANDLOCK                     = 0xFD;
+static const uint8_t SSD1322_ENABLEGRAYSCALETABLE = 0x00;
+static const uint8_t SSD1322_SETCOLUMNADDRESS = 0x15;
+static const uint8_t SSD1322_WRITERAM = 0x5C;
+static const uint8_t SSD1322_READRAM = 0x5D;
+static const uint8_t SSD1322_SETROWADDRESS = 0x75;
+static const uint8_t SSD1322_SETREMAP = 0xA0;
+static const uint8_t SSD1322_SETSTARTLINE = 0xA1;
+static const uint8_t SSD1322_SETOFFSET = 0xA2;
+static const uint8_t SSD1322_SETMODEALLOFF = 0xA4;
+static const uint8_t SSD1322_SETMODEALLON = 0xA5;
+static const uint8_t SSD1322_SETMODENORMAL = 0xA6;
+static const uint8_t SSD1322_SETMODEINVERTED = 0xA7;
+static const uint8_t SSD1322_ENABLEPARTIALDISPLAY = 0xA8;
+static const uint8_t SSD1322_EXITPARTIALDISPLAY = 0xA9;
+static const uint8_t SSD1322_SETFUNCTIONSELECTION = 0xAB;
+static const uint8_t SSD1322_SETDISPLAYOFF = 0xAE;
+static const uint8_t SSD1322_SETDISPLAYON = 0xAF;
+static const uint8_t SSD1322_SETPHASELENGTH = 0xB1;
+static const uint8_t SSD1322_SETFRONTCLOCKDIVIDER = 0xB3;
+static const uint8_t SSD1322_DISPLAYENHANCEMENTA = 0xB4;
+static const uint8_t SSD1322_SETGPIO = 0xB5;
+static const uint8_t SSD1322_SETSECONDPRECHARGEPERIOD = 0xB6;
+static const uint8_t SSD1322_SETGRAYSCALETABLE = 0xB8;
+static const uint8_t SSD1322_SELECTDEFAULTLINEARGRAYSCALETABLE = 0xB9;
+static const uint8_t SSD1322_SETPRECHARGEVOLTAGE = 0xBB;
+static const uint8_t SSD1322_SETVCOMHVOLTAGE = 0xBE;
+static const uint8_t SSD1322_SETCONTRAST = 0xC1;
+static const uint8_t SSD1322_MASTERCURRENTCONTROL = 0xC7;
+static const uint8_t SSD1322_SETMULTIPLEXRATIO = 0xCA;
+static const uint8_t SSD1322_DISPLAYENHANCEMENTB = 0xD1;
+static const uint8_t SSD1322_SETCOMMANDLOCK = 0xFD;
 
-static const uint8_t SSD1322_SETCOMMANDLOCK_UNLOCK              = 0x12;
-static const uint8_t SSD1322_SETCOMMANDLOCK_LOCK                = 0x16;
+static const uint8_t SSD1322_SETCOMMANDLOCK_UNLOCK = 0x12;
+static const uint8_t SSD1322_SETCOMMANDLOCK_LOCK = 0x16;
 
 void SSD1322::setup() {
   this->init_internal_(this->get_buffer_length_());
 
   this->command(SSD1322_SETCOMMANDLOCK);
   this->data(SSD1322_SETCOMMANDLOCK_UNLOCK);
-  this->turn_off();    // display OFF
-  this->command(SSD1322_SETFRONTCLOCKDIVIDER);      // set osc division
-  this->data(0x91);                  // 145
-  this->command(SSD1322_SETMULTIPLEXRATIO);  // multiplex ratio
-  this->data(0x3F);             // duty = 1/64
-  this->command(SSD1322_SETOFFSET);  // set display offset
-  this->data(0x00);                // 76
-  this->command(SSD1322_SETSTARTLINE);  // set start line
-  this->data(0x00);                  // ...
-  this->command(SSD1322_SETREMAP);  // set segment remapping
-  this->data(0x14);                    // COM bottom-up, split odd/even
-  this->data(0x11);                    // COM bottom-up, split odd/even
-  this->command(SSD1322_SETGPIO);  // Set Full Current Range
-  this->data(0x00);                  // ...
+  this->turn_off();
+  this->command(SSD1322_SETFRONTCLOCKDIVIDER);
+  this->data(0x91);
+  this->command(SSD1322_SETMULTIPLEXRATIO);
+  this->data(0x3F);
+  this->command(SSD1322_SETOFFSET);
+  this->data(0x00);
+  this->command(SSD1322_SETSTARTLINE);
+  this->data(0x00);
+  this->command(SSD1322_SETREMAP);
+  this->data(0x14);
+  this->data(0x11);
+  this->command(SSD1322_SETGPIO);
+  this->data(0x00);
   this->command(SSD1322_SETFUNCTIONSELECTION);
   this->data(0x01);
   this->command(SSD1322_DISPLAYENHANCEMENTA);
@@ -107,17 +107,17 @@ void SSD1322::setup() {
   this->command(SSD1322_ENABLEGRAYSCALETABLE);
   set_brightness(this->brightness_);
   this->fill(COLOR_BLACK);  // clear display - ensures we do not see garbage at power-on
-  this->display();    // ...write buffer, which actually clears the display's memory
-  this->turn_on();    // display ON
+  this->display();          // ...write buffer, which actually clears the display's memory
+  this->turn_on();          // display ON
 }
 void SSD1322::display() {
   this->command(SSD1322_SETCOLUMNADDRESS);  // set column address
-  this->data(0x1C);                // set column start address
-  this->data(0x5B);                // set column end address
-  this->command(SSD1322_SETROWADDRESS);  // set row address
-  this->data(0x00);                // set row start address
-  this->data(0x3F);  // set last row
-  this->command(SSD1322_WRITERAM);  // write
+  this->data(0x1C);                         // set column start address
+  this->data(0x5B);                         // set column end address
+  this->command(SSD1322_SETROWADDRESS);     // set row address
+  this->data(0x00);                         // set row start address
+  this->data(0x3F);                         // set last row
+  this->command(SSD1322_WRITERAM);          // write
 
   this->write_display_data();
 }
