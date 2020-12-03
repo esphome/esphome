@@ -24,7 +24,7 @@ bool XiaomiXMTZC0XHM::parse_device(const esp32_ble_tracker::ESPBTDevice &device)
   bool success = false;
   for (auto &service_data : device.get_service_datas()) {
     auto res = parse_header(service_data);
-    if (res->isStabilized) {
+    if (res->is_stabilized) {
       continue;
     }
     if (!(parse_message(service_data.data, *res))) {
@@ -56,10 +56,14 @@ optional<ParseResult> XiaomiXMTZC0XHM::parse_header(const esp32_ble_tracker::Ser
 
   auto raw = service_data.data;
 
-  if (raw[0] & (1 << 5)) {
-    ESP_LOGVV(TAG, "parse_xiaomi_header(): service data has no DATA flag.");
-    result.isStabilized = true
+  static uint8_t stabilized = 0;
+  if (stabilized == raw[0] & (1 << 5)) {
+    ESP_LOGVV(TAG, "parse_header(): duplicate data packet received (%d).", static_cast<int>(stabilized));
+    result.is_stabilized = true;
+    return {};
   }
+  stabilized = raw[0] & (1 << 5);
+  result.is_stabilized = false;
 
   return result;
 }
