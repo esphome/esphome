@@ -1670,6 +1670,13 @@ display:
     reset_pin: GPIO23
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
+  - platform: ssd1322_spi
+    model: "SSD1322 256x64"
+    cs_pin: GPIO23
+    dc_pin: GPIO23
+    reset_pin: GPIO23
+    lambda: |-
+      it.rectangle(0, 0, it.get_width(), it.get_height());
   - platform: ssd1325_spi
     model: 'SSD1325 128x64'
     cs_pin: GPIO23
