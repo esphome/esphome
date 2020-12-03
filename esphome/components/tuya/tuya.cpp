@@ -256,6 +256,14 @@ void Tuya::handle_datapoint_(const uint8_t *buffer, size_t len) {
   datapoint.type = (TuyaDatapointType) buffer[1];
   datapoint.value_uint = 0;
 
+  // drop update if datapoint is in ignore_mcu_datapoint_update list
+  for (auto i : this->ignore_mcu_update_on_datapoints_) {
+    if (datapoint.id == i) {
+      ESP_LOGV(TAG, "Datapoint %u found in ignore_mcu_update_on_datapoints list, dropping MCU update", datapoint.id);
+      return;
+    }
+  }
+
   size_t data_size = (buffer[2] << 8) + buffer[3];
   const uint8_t *data = buffer + 4;
   size_t data_len = len - 4;
