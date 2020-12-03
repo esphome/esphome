@@ -54,6 +54,14 @@ optional<ParseResult> XiaomiXMTZC0XHM::parse_header(const esp32_ble_tracker::Ser
     return {};
   }
 
+  auto raw = service_data.data;
+  result.isStabilized = (raw[0] & (1<<5)) !== 0) ? true : false;
+
+  if (!result.isStabilized) {
+    ESP_LOGVV(TAG, "parse_xiaomi_header(): service data has no DATA flag.");
+    return {};
+  }
+
   return result;
 }
 
