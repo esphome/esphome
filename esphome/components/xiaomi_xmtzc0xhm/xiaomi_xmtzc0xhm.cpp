@@ -57,12 +57,12 @@ optional<ParseResult> XiaomiXMTZC0XHM::parse_header(const esp32_ble_tracker::Ser
   auto raw = service_data.data;
 
   static uint8_t stabilized = 0;
-  if (stabilized == raw[0] & (1 << 5)) {
+  if (stabilized == (raw[0] & (1 << 5))) {
     ESP_LOGVV(TAG, "parse_header(): duplicate data packet received (%d).", static_cast<int>(stabilized));
     result.is_stabilized = true;
     return {};
   }
-  stabilized = raw[0] & (1 << 5);
+  stabilized = (raw[0] & (1 << 5));
   result.is_stabilized = false;
 
   return result;
