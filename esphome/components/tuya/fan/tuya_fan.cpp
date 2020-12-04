@@ -51,12 +51,7 @@ void TuyaFan::dump_config() {
   if (this->switch_id_.has_value())
     ESP_LOGCONFIG(TAG, "  Switch has datapoint ID %u", *this->switch_id_);
   if (this->oscillation_id_.has_value())
-    ESP_LOGCONFIG(TAG, "  Oscillation has datapoint ID %u", *this->oscillation_id_);
-  //help  
-  // ESP_LOGCONFIG(TAG, "  Speed low is %u", *this->speed_low_id_);
-  // ESP_LOGCONFIG(TAG, "  Speed medium is %u", *this->speed_medium_id_); 
-  // ESP_LOGCONFIG(TAG, "  Speed high is %u", *this->speed_high_id_);
-  
+    ESP_LOGCONFIG(TAG, "  Oscillation has datapoint ID %u", *this->oscillation_id_);  
 }
 
 void TuyaFan::write_state() {
