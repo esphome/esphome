@@ -14,7 +14,9 @@ class TuyaFan : public Component {
   void set_speed_id(uint8_t speed_id) { this->speed_id_ = speed_id; }
   void set_switch_id(uint8_t switch_id) { this->switch_id_ = switch_id; }
   void set_speed_value_low_id(uint8_t speed_value_low_id) { this->speed_value_low_id_ = speed_value_low_id; }
-  void set_speed_value_medium_id(uint8_t speed_value_medium_id) { this->speed_value_medium_id_ = speed_value_medium_id; }
+  void set_speed_value_medium_id(uint8_t speed_value_medium_id) {
+    this->speed_value_medium_id_ = speed_value_medium_id;
+  }
   void set_speed_value_high_id(uint8_t speed_value_high_id) { this->speed_value_high_id_ = speed_value_high_id; }
   void set_oscillation_id(uint8_t oscillation_id) { this->oscillation_id_ = oscillation_id; }
   void set_fan(fan::FanState *fan) { this->fan_ = fan; }
