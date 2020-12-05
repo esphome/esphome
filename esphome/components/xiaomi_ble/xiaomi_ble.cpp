@@ -103,7 +103,7 @@ bool parse_xiaomi_message(const std::vector<uint8_t> &message, XiaomiParseResult
     return false;
   }
 
-  while (payload_length > 0) {
+  while (payload_length > 3) {
     if (payload[payload_offset + 1] != 0x10) {
       ESP_LOGVV(TAG, "parse_xiaomi_message(): fixed byte not found, stop parsing residual data.");
       break;
