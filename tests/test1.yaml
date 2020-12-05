@@ -1679,7 +1679,7 @@ display:
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
   - platform: ssd1327_i2c
-    model: 'SSD1327_128X64'
+    model: 'SSD1327_128X128'
     reset_pin: GPIO23
     address: 0x3D
     id: display1
@@ -1692,7 +1692,7 @@ display:
         lambda: |-
           // Nothing
   - platform: ssd1327_spi
-    model: 'SSD1327 128x64'
+    model: 'SSD1327 128x128'
     cs_pin: GPIO23
     dc_pin: GPIO23
     reset_pin: GPIO23
