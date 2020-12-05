@@ -898,6 +898,29 @@ cover:
     close_action:
       - switch.turn_on: gpio_switch2
     close_duration: 4.5min
+  - platform: current_based
+    name: "Current Based Cover"
+    open_sensor: open_current_sensor
+    open_moving_current_threshold: 0.5
+    open_obstacle_current_threshold: 0.8
+    open_duration: 12s
+    open_action:
+      - switch.turn_on: gpio_switch1
+    close_sensor: close_current_sensor
+    close_moving_current_threshold: 0.5
+    close_obstacle_current_threshold: 0.8
+    close_duration: 10s
+    close_action:
+      - switch.turn_on: gpio_switch2
+    stop_action:
+      - switch.turn_off: gpio_switch1
+      - switch.turn_off: gpio_switch2
+    obstacle_rollback: 30%
+    start_sensing_delay: 0.8s
+    malfunction_detection: true
+    malfunction_action:
+      then:
+        - logger.log: "Malfunction Detected"
   - platform: template
     name: Template Cover with Tilt
     tilt_lambda: 'return 0.5;'
