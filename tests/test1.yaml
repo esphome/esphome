@@ -1685,10 +1685,10 @@ display:
     id: display1327
     brightness: 60%
     pages:
-      - id: page1
+      - id: page13271
         lambda: |-
           it.rectangle(0, 0, it.get_width(), it.get_height());
-      - id: page2
+      - id: page13272
         lambda: |-
           // Nothing
   - platform: ssd1327_spi
