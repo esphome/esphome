@@ -1679,10 +1679,10 @@ display:
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
   - platform: ssd1327_i2c
-    model: 'SSD1327_128X128'
+    model: 'SSD1327 128X128'
     reset_pin: GPIO23
     address: 0x3D
-    id: display1
+    id: display1327
     brightness: 60%
     pages:
       - id: page1
