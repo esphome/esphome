@@ -179,14 +179,14 @@ bool I2CComponent::write_byte_16(uint8_t address, uint8_t a_register, uint16_t d
 
 void I2CDevice::set_i2c_address(uint8_t address) { this->address_ = address; }
 void I2CDevice::set_i2c_multiplexer(I2CMultiplexer *multiplexer, uint8_t channel) {
-    ESP_LOGVV(TAG, "    Setting Multiplexer %p for channel %d",multiplexer,channel);
-    this->multiplexer_ = multiplexer; this->channel_ = channel;
+  ESP_LOGVV(TAG, "    Setting Multiplexer %p for channel %d", multiplexer, channel);
+  this->multiplexer_ = multiplexer;
+  this->channel_ = channel;
 }
-void I2CDevice::check_multiplexer()
-{
+void I2CDevice::check_multiplexer() {
   if (this->multiplexer_) {
-      ESP_LOGVV(TAG, "Multiplexer present setting channel to channel %d", this->channel_);
-      this->multiplexer_->set_channel(this->channel_);
+    ESP_LOGVV(TAG, "Multiplexer present setting channel to channel %d", this->channel_);
+    this->multiplexer_->set_channel(this->channel_);
   }
 }
 bool I2CDevice::read_bytes(uint8_t a_register, uint8_t *data, uint8_t len, uint32_t conversion) {  // NOLINT

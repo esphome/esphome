@@ -172,7 +172,7 @@ class I2CDevice {
   /// Manually set the i2c multiplexer of this device.
   void set_i2c_multiplexer(I2CMultiplexer *multiplexer, uint8_t channel);
 
-  //checks for multiplexer set and set channel
+  // Checks for multiplexer set and set channel
   void check_multiplexer();
   /// Manually set the parent i2c bus for this device.
   void set_i2c_parent(I2CComponent *parent);
@@ -283,8 +283,8 @@ class I2CDevice {
 
 class I2CMultiplexer : public I2CDevice {
  public:
-    I2CMultiplexer() = default;
-    virtual bool set_channel(uint8_t channelno);
+  I2CMultiplexer() = default;
+  virtual bool set_channel(uint8_t channelno);
 };
 
 }  // namespace i2c

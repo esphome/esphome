@@ -8,7 +8,6 @@ namespace tca9548a {
 
 class TCA9548AComponent : public Component, public i2c::I2CMultiplexer {
  public:
-
   void set_scan(bool scan) { scan_ = scan; }
   void setup() override;
   void dump_config() override;
@@ -17,10 +16,7 @@ class TCA9548AComponent : public Component, public i2c::I2CMultiplexer {
 
  protected:
   bool scan_;
-
 };
-
-
 
 }  // namespace tca9548a
 }  // namespace esphome
