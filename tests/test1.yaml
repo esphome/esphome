@@ -197,6 +197,16 @@ wled:
 
 adalight:
 
+mcp23s08:
+  - id: 'mcp23s08_hub'
+    cs_pin: GPIO12
+    deviceaddress: 0
+    
+mcp23s17:
+  - id: 'mcp23s17_hub'
+    cs_pin: GPIO12
+    deviceaddress: 1
+
 sensor:
   - platform: adc
     pin: A0
@@ -803,6 +813,24 @@ esp32_touch:
 
 binary_sensor:
   - platform: gpio
+    name: "MCP23S08 Pin #1"
+    pin:
+      mcp23s08: mcp23s08_hub
+      # Use pin number 1
+      number: 1
+      # One of INPUT or INPUT_PULLUP
+      mode: INPUT_PULLUP
+      inverted: False
+  - platform: gpio
+    name: "MCP23S17 Pin #1"
+    pin:
+      mcp23s17: mcp23s17_hub
+      # Use pin number 1
+      number: 1
+      # One of INPUT or INPUT_PULLUP
+      mode: INPUT_PULLUP
+      inverted: False
+  - platform: gpio
     pin: GPIO9
     name: 'Living Room Window'
     device_class: window
@@ -1362,6 +1390,22 @@ climate:
     name: Hitachi Climate
 
 switch:
+  - platform: gpio
+    name: "MCP23S08 Pin #0"
+    pin:
+      mcp23s08: mcp23s08_hub
+      # Use pin number 0
+      number: 0
+      mode: OUTPUT
+      inverted: False
+  - platform: gpio
+    name: "MCP23S17 Pin #0"
+    pin:
+      mcp23s17: mcp23s17_hub
+      # Use pin number 0
+      number: 1
+      mode: OUTPUT
+      inverted: False
   - platform: gpio
     pin: GPIO25
     name: 'Living Room Dehumidifier'
