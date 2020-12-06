@@ -45,7 +45,6 @@ class SSD1322 : public PollingComponent, public display::DisplayBuffer {
 
   SSD1322Model model_{SSD1322_MODEL_256_64};
   GPIOPin *reset_pin_{nullptr};
-  bool external_vcc_{false};
   bool is_on_{false};
   float brightness_{1.0};
 };
