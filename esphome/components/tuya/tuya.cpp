@@ -160,7 +160,7 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
       }
       if (this->init_state_ == TuyaInitState::INIT_CONF) {
         // If mcu returned status gpio, then we can ommit sending wifi state
-        if (this->gpio_status_ != 0) {
+        if (this->gpio_status_ != -1) {
           this->init_state_ = TuyaInitState::INIT_DATAPOINT;
           this->schedule_empty_command_(TuyaCommandType::DATAPOINT_QUERY);
         } else {
