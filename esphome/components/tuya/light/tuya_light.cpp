@@ -7,6 +7,15 @@ namespace tuya {
 static const char *TAG = "tuya.light";
 
 void TuyaLight::setup() {
+  if (this->color_temperature_id_.has_value()) {
+    this->parent_->register_listener(*this->color_temperature_id_, [this](TuyaDatapoint datapoint) {
+      auto call = this->state_->make_call();
+      call.set_color_temperature(this->cold_white_temperature_ +
+                                 (this->warm_white_temperature_ - this->cold_white_temperature_) *
+                                     (float(datapoint.value_uint) / float(this->color_temperature_max_value_)));
+      call.perform();
+    });
+  }
   if (this->dimmer_id_.has_value()) {
     this->parent_->register_listener(*this->dimmer_id_, [this](TuyaDatapoint datapoint) {
       auto call = this->state_->make_call();
@@ -41,6 +50,11 @@ void TuyaLight::dump_config() {
 light::LightTraits TuyaLight::get_traits() {
   auto traits = light::LightTraits();
   traits.set_supports_brightness(this->dimmer_id_.has_value());
+  traits.set_supports_color_temperature(this->color_temperature_id_.has_value());
+  if (this->color_temperature_id_.has_value()) {
+    traits.set_min_mireds(this->cold_white_temperature_);
+    traits.set_max_mireds(this->warm_white_temperature_);
+  }
   return traits;
 }
 
@@ -67,6 +81,17 @@ void TuyaLight::write_state(light::LightState *state) {
       parent_->set_datapoint_value(datapoint);
     }
     return;
+  }
+
+  if (this->color_temperature_id_.has_value()) {
+    TuyaDatapoint datapoint{};
+    datapoint.id = *this->color_temperature_id_;
+    datapoint.type = TuyaDatapointType::INTEGER;
+    datapoint.value_int =
+        static_cast<uint32_t>(this->color_temperature_max_value_ *
+                              (state->current_values.get_color_temperature() - this->cold_white_temperature_) /
+                              (this->warm_white_temperature_ - this->cold_white_temperature_));
+    parent_->set_datapoint_value(datapoint);
   }
 
   auto brightness_int = static_cast<uint32_t>(brightness * this->max_value_);
