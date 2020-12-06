@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.components import i2c, sensor
-from esphome.const import CONF_HUMIDITY, CONF_ID, CONF_SCAN, CONF_I2C_ID
+from esphome.components import i2c
+from esphome.const import CONF_ID, CONF_SCAN
 
 DEPENDENCIES = ['i2c']
 
@@ -14,6 +14,7 @@ CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(TCA9548AComponent),
     cv.Optional(CONF_SCAN, default=True): cv.boolean,
 }).extend(i2c.i2c_device_schema(0x70))
+
 
 def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])

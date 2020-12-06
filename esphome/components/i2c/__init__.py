@@ -72,4 +72,4 @@ def register_i2c_device(var, config):
     cg.add(var.set_i2c_address(config[CONF_ADDRESS]))
     if CONF_MULTIPLEXER in config:
         multiplexer = yield cg.get_variable(config[CONF_MULTIPLEXER][CONF_ID])
-        cg.add(var.set_i2c_multiplexer(multiplexer,config[CONF_MULTIPLEXER][CONF_CHANNEL]))
+        cg.add(var.set_i2c_multiplexer(multiplexer, config[CONF_MULTIPLEXER][CONF_CHANNEL]))
