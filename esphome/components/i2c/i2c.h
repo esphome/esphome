@@ -283,8 +283,8 @@ class I2CDevice {
 
 class I2CMultiplexer : public I2CDevice {
  public:
-	I2CMultiplexer() = default;
-	virtual bool set_channel(uint8_t channelno);
+    I2CMultiplexer() = default;
+    virtual bool set_channel(uint8_t channelno);
 };
 
 }  // namespace i2c

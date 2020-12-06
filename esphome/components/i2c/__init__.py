@@ -2,7 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins
 from esphome.const import CONF_FREQUENCY, CONF_ID, CONF_SCAN, CONF_SCL, CONF_SDA, CONF_ADDRESS, \
-    CONF_I2C_ID
+    CONF_I2C_ID, CONF_CHANNEL, CONF_MULTIPLEXER
 from esphome.core import coroutine, coroutine_with_priority
 
 CODEOWNERS = ['@esphome/core']
@@ -11,8 +11,6 @@ I2CComponent = i2c_ns.class_('I2CComponent', cg.Component)
 I2CDevice = i2c_ns.class_('I2CDevice')
 I2CMultiplexer = i2c_ns.class_('I2CMultiplexer')
 
-CONF_CHANNEL = "channel"
-CONF_MULTIPLEXER = "multiplexer"
 
 MULTI_CONF = True
 CONFIG_SCHEMA = cv.Schema({
