@@ -33,4 +33,3 @@ bool TCA9548AComponent::set_channel(uint8_t channelno) {
 
 }  // namespace tca9548a
 }  // namespace esphome
-
