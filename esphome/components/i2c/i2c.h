@@ -135,6 +135,7 @@ extern uint8_t next_i2c_bus_num_;
 #endif
 
 class I2CDevice;
+class I2CMultiplexer;
 
 class I2CRegister {
  public:
@@ -168,6 +169,11 @@ class I2CDevice {
   /// Manually set the i2c address of this device.
   void set_i2c_address(uint8_t address);
 
+  /// Manually set the i2c multiplexer of this device.
+  void set_i2c_multiplexer(I2CMultiplexer *multiplexer, uint8_t channel);
+
+  //checks for multiplexer set and set channel
+  void check_multiplexer();
   /// Manually set the parent i2c bus for this device.
   void set_i2c_parent(I2CComponent *parent);
 
@@ -271,6 +277,14 @@ class I2CDevice {
  protected:
   uint8_t address_{0x00};
   I2CComponent *parent_{nullptr};
+  I2CMultiplexer *multiplexer_{nullptr};
+  uint8_t channel_;
+};
+
+class I2CMultiplexer : public I2CDevice {
+ public:
+	I2CMultiplexer() = default;
+	virtual bool set_channel(uint8_t channelno);
 };
 
 }  // namespace i2c
