@@ -13,13 +13,13 @@ void TCA9548AComponent::setup() {
     ESP_LOGI(TAG, "TCA9548A failed");
     return;
   }
-  ESP_LOGCONFIG(TAG, "Channels currently open: %d",status);
+  ESP_LOGCONFIG(TAG, "Channels currently open: %d", status);
 }
 void TCA9548AComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "TCA9548A:");
   LOG_I2C_DEVICE(this);
   for (uint8_t i = 0; i < 8; i++) {
-    ESP_LOGCONFIG(TAG, "Activating channel: %d",i);
+    ESP_LOGCONFIG(TAG, "Activating channel: %d", i);
     this->set_channel(i);
     this->parent_->dump_config();
   }
