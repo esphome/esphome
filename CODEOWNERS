@@ -59,6 +59,7 @@ esphome/components/spi/* @esphome/core
 esphome/components/substitutions/* @esphome/core
 esphome/components/sun/* @OttoWinter
 esphome/components/switch/* @esphome/core
+esphome/components/tca9548a/* @andreashergert1984
 esphome/components/tcl112/* @glmnet
 esphome/components/time/* @OttoWinter
 esphome/components/tm1637/* @glmnet
