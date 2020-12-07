@@ -10,5 +10,5 @@ pytz==2020.4
 pyserial==3.5
 ifaddr==0.1.7
 platformio==5.0.3
-esptool==2.8
+esptool==3.0
 click==7.1.2
