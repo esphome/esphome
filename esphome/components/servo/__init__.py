@@ -4,7 +4,7 @@ from esphome import automation
 from esphome.automation import maybe_simple_id
 from esphome.components.output import FloatOutput
 from esphome.const import CONF_ID, CONF_IDLE_LEVEL, CONF_MAX_LEVEL, CONF_MIN_LEVEL, CONF_OUTPUT, \
-    CONF_LEVEL, CONF_RESTORE
+    CONF_LEVEL, CONF_RESTORE, CONF_KEEP_ON_TIME,CONF_RUN_DURATION
 
 servo_ns = cg.esphome_ns.namespace('servo')
 Servo = servo_ns.class_('Servo', cg.Component)
@@ -19,6 +19,8 @@ CONFIG_SCHEMA = cv.Schema({
     cv.Optional(CONF_IDLE_LEVEL, default='7.5%'): cv.percentage,
     cv.Optional(CONF_MAX_LEVEL, default='12%'): cv.percentage,
     cv.Optional(CONF_RESTORE, default=False): cv.boolean,
+    cv.Optional(CONF_KEEP_ON_TIME, default='10s'): cv.positive_time_period_milliseconds,
+    cv.Optional(CONF_RUN_DURATION, default='0s'): cv.positive_time_period_milliseconds
 }).extend(cv.COMPONENT_SCHEMA)
 
 
@@ -32,6 +34,8 @@ def to_code(config):
     cg.add(var.set_idle_level(config[CONF_IDLE_LEVEL]))
     cg.add(var.set_max_level(config[CONF_MAX_LEVEL]))
     cg.add(var.set_restore(config[CONF_RESTORE]))
+    cg.add(var.set_keep_on_time(config[CONF_KEEP_ON_TIME]))
+    cg.add(var.set_run_duration(config[CONF_RUN_DURATION]))
 
 
 @automation.register_action('servo.write', ServoWriteAction, cv.Schema({
