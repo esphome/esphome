@@ -16,7 +16,7 @@ class Servo : public Component {
   void set_output(output::FloatOutput *output) { output_ = output; }
   void loop() override;
   void write(float value);
-  void write_(float value);
+  void write_internal(float value);
   void detach() {
     this->output_->set_level(0.0f);
     this->save_level_(0.0f);
@@ -53,7 +53,7 @@ class Servo : public Component {
   uint32_t keep_on_time_ = 0;
   uint32_t run_duration_ = 0;
   ESPPreferenceObject rtc_;
-  uint8_t state_; // current state of servo: 0:detached, 1:moving, 2:target reached
+  uint8_t state_;  // current state of servo: 0:detached, 1:moving, 2:target reached
   float target_value_ = 0;
   float source_value_ = 0;
   float current_value_ = 0;

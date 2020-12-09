@@ -4,7 +4,7 @@ from esphome import automation
 from esphome.automation import maybe_simple_id
 from esphome.components.output import FloatOutput
 from esphome.const import CONF_ID, CONF_IDLE_LEVEL, CONF_MAX_LEVEL, CONF_MIN_LEVEL, CONF_OUTPUT, \
-    CONF_LEVEL, CONF_RESTORE, CONF_KEEP_ON_TIME,CONF_RUN_DURATION
+    CONF_LEVEL, CONF_RESTORE, CONF_KEEP_ON_TIME, CONF_RUN_DURATION
 
 servo_ns = cg.esphome_ns.namespace('servo')
 Servo = servo_ns.class_('Servo', cg.Component)
