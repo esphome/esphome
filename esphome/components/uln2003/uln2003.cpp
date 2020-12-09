@@ -70,14 +70,11 @@ void ULN2003::write_step_(int32_t step) {
     }
     case ULN2003_STEP_MODE_HALF_STEP: {
       // A, AB, B, BC, C, CD, D, DA
-      if (i == 0 || i == 1 || i == 7)
-        res |= 1 << 0;
-      if (i == 1 || i == 2 || i == 3)
-        res |= 1 << 1;
-      if (i == 3 || i == 4 || i == 5)
-        res |= 1 << 2;
-      if (i == 5 || i == 6 || i == 7)
-        res |= 1 << 3;
+      uint32_t j = i >> 1;
+      uint32_t k = i  & 1;
+
+      res |= 1 << j;
+      res |= 1 << ((j + k) & 0x3);
       break;
     }
     case ULN2003_STEP_MODE_WAVE_DRIVE: {
