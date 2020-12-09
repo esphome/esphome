@@ -32,10 +32,10 @@ void Servo::loop() {
   if (this->run_duration_ && this->target_value_ != this->current_value_ && this->state_ == 1) {
     float new_value;
     float travel_diff = this->target_value_ - this->source_value_;
-    long long target_runtime = abs((int)((travel_diff) * this->run_duration_ * 1.0f / 2.0f));
+    long long target_runtime = abs((int) ((travel_diff) * this->run_duration_ * 1.0f / 2.0f));
     long long current_runtime = millis() - this->start_millis_;
     float percentage_run = current_runtime * 1.0f / target_runtime * 1.0f;
-	if (percentage_run > 1.0f) {
+    if (percentage_run > 1.0f) {
       percentage_run = 1.0f;
     }
     new_value = this->target_value_ - (1.0f - percentage_run) * (this->target_value_ - this->source_value_);
