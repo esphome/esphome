@@ -27,9 +27,6 @@ bool XiaomiXMTZC0XHM::parse_device(const esp32_ble_tracker::ESPBTDevice &device)
     if (res->is_stabilized) {
       continue;
     }
-    if (res->is_loadremoved) {
-      continue;
-    }
     if (!(parse_message(service_data.data, *res))) {
       continue;
     }
