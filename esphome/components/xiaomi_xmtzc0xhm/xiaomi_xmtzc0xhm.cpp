@@ -66,15 +66,20 @@ optional<ParseResult> XiaomiXMTZC0XHM::parse_header(const esp32_ble_tracker::Ser
     result.is_stabilized = true;
     result.is_loadremoved = true;
     return {};
-  } else if (stabilized == (raw[1] & (1 << 5))) {
-      ESP_LOGVV(TAG, "parse_header(): duplicate data packet received (%d).", static_cast<int>(stabilized));
-      result.is_stabilized = true;
-      return {};
   }
-  stabilized = (raw[1] & (1 << 5));
-  loadremoved = (raw[1] & (1<<7));
+  stabilized = (raw[0] & (1 << 5));
+  loadremoved = (raw[0] & (1<<7));
   result.is_stabilized = false;
   result.is_loadremoved = false;
+
+  static uint8_t stabilized = 0;
+  if (stabilized == (raw[0] & (1 << 5))) {
+    ESP_LOGVV(TAG, "parse_header(): duplicate data packet received (%d).", static_cast<int>(stabilized));
+    result.is_stabilized = true;
+    return {};
+  }
+  stabilized = (raw[0] & (1 << 5));
+  result.is_stabilized = false;
 
   return result;
 }
