@@ -61,15 +61,10 @@ optional<ParseResult> XiaomiXMTZC0XHM::parse_header(const esp32_ble_tracker::Ser
   result.is_stabilized = ((raw[1] & (1<<5)) != 0) ? true : false;
   result.is_loadremoved = ((raw[1] & (1<<7)) != 0) ? true : false;
 
-  bool is_xmtzc0xhm = service_data.uuid.contains(0x1D, 0x18);
-  bool is_mibfs = service_data.uuid.contains(0x1B, 0x18);
-
-  if (is_xmtzc0xhm) {
-    if (result.is_stabilized)
-      ESP_LOGVV(TAG, "parse_xiaomi_header(): service data has no DATA flag.");
-      return {};
-  } else if (is_mibfs) {
-      if (result.is_stabilized && result.is_loadremoved)
+  if (result.is_stabilized) {
+    ESP_LOGVV(TAG, "parse_xiaomi_header(): service data has no DATA flag.");
+    return {};
+  } else if (result.is_stabilized && result.is_loadremoved) {
       ESP_LOGVV(TAG, "parse_xiaomi_header(): service data has no DATA flag.");
       return {};
   }
