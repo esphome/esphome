@@ -71,7 +71,8 @@ optional<ParseResult> XiaomiXMTZC0XHM::parse_header(const esp32_ble_tracker::Ser
       result.is_stabilized = true;
       return {};
   }
-  stabilized = (raw[1] & (1 << 5)) || loadremoved = (raw[1] & (1<<7));
+  stabilized = (raw[1] & (1 << 5));
+  loadremoved = (raw[1] & (1<<7));
   result.is_stabilized = false;
   result.is_loadremoved = false;
 
