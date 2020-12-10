@@ -58,16 +58,22 @@ optional<ParseResult> XiaomiXMTZC0XHM::parse_header(const esp32_ble_tracker::Ser
   }
 
   auto raw = service_data.data;
-  result.is_stabilized = ((raw[1] & (1<<5)) != 0) ? true : false;
-  result.is_loadremoved = ((raw[1] & (1<<7)) != 0) ? true : false;
 
-  if (result.is_stabilized) {
-    ESP_LOGVV(TAG, "parse_xiaomi_header(): service data has no DATA flag.");
+  static uint8_t stabilized = 0;
+  if ((stabilized == (raw[1] & (1 << 5))) && (loadremoved = ((raw[1] & (1<<7))))) {
+    ESP_LOGVV(TAG, "parse_header(): duplicate data packet received (%d).", static_cast<int>(stabilized));
+    result.is_stabilized && result.is_loadremoved = true;
     return {};
-  } else if (result.is_stabilized && result.is_loadremoved) {
-      ESP_LOGVV(TAG, "parse_xiaomi_header(): service data has no DATA flag.");
-      return {};
   }
+  stabilized = (raw[1] & (1 << 5)) && loadremoved = (raw[1] & (1<<7));
+  result.is_stabilized && result.is_loadremoved = false;
+  else if (stabilized == (raw[1] & (1 << 5))) {
+    ESP_LOGVV(TAG, "parse_header(): duplicate data packet received (%d).", static_cast<int>(stabilized));
+    result.is_stabilized = true;
+    return {};
+  }
+  stabilized = (raw[1] & (1 << 5));
+  result.is_stabilized = false;
 
   return result;
 }
@@ -98,17 +104,15 @@ bool XiaomiXMTZC0XHM::parse_message(const std::vector<uint8_t> &message, ParseRe
       result.weight = weight * 0.01f / 2.0f;  // unit 'kg'
     else if (data[0] == 0x03)
       result.weight = weight * 0.01f * 0.453592;  // unit 'lbs'
-  }
-
-  else if (message.size() == data_length) {
+  } else if (message.size() == data_length) {
     // Miscale weight, 2 bytes, 16-bit  unsigned integer, 1 kg
-    const int16_t weight = uint16_t(data[1]) | (uint16_t(data[2]) << 8);
-    if (data[0] == 0x22 || data[0] == 0xa2)
-      result.weight = weight * 0.01f / 2.0f;  // unit 'kg'
-    else if (data[0] == 0x12 || data[0] == 0xb2)
-      result.weight = weight * 0.01f * 0.6;  // unit 'jin'
-    else if (data[0] == 0x03 || data[0] == 0xb3)
-      result.weight = weight * 0.01f * 0.453592;  // unit 'lbs'
+      const int16_t weight = uint16_t(data[1]) | (uint16_t(data[2]) << 8);
+      if (data[0] == 0x22 || data[0] == 0xa2)
+        result.weight = weight * 0.01f / 2.0f;  // unit 'kg'
+      else if (data[0] == 0x12 || data[0] == 0xb2)
+        result.weight = weight * 0.01f * 0.6;  // unit 'jin'
+      else if (data[0] == 0x03 || data[0] == 0xb3)
+        result.weight = weight * 0.01f * 0.453592;  // unit 'lbs'
   } else {
     return false;
   }
