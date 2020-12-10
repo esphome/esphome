@@ -69,7 +69,7 @@ optional<ParseResult> XiaomiXMTZC0XHM::parse_header(const esp32_ble_tracker::Ser
       ESP_LOGVV(TAG, "parse_xiaomi_header(): service data has no DATA flag.");
       return {};
   } else if (is_mibfs) {
-      if (result.stabilized && result.is_loadremoved)
+      if (result.is_stabilized && result.is_loadremoved)
       ESP_LOGVV(TAG, "parse_xiaomi_header(): service data has no DATA flag.");
       return {};
   }
