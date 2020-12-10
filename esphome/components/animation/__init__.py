@@ -27,6 +27,8 @@ ANIMATION_SCHEMA = cv.Schema({
 
 CONFIG_SCHEMA = cv.All(font.validate_pillow_installed, ANIMATION_SCHEMA)
 
+CODEOWNERS = ['@syndlex']
+
 
 def to_code(config):
     from PIL import Image
