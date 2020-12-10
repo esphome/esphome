@@ -56,7 +56,9 @@ optional<ParseResult> XiaomiXMTZC0XHM::parse_header(const esp32_ble_tracker::Ser
     ESP_LOGVV(TAG, "parse_header(): no service data UUID magic bytes.");
     return {};
   }
-  
+
+  auto raw = service_data.data;
+
   static uint8_t stabilized = 0;
   if (stabilized == (raw[0] & (1 << 5))) {
     ESP_LOGVV(TAG, "parse_header(): duplicate data packet received (%d).", static_cast<int>(stabilized));
