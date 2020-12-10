@@ -58,8 +58,8 @@ optional<ParseResult> XiaomiXMTZC0XHM::parse_header(const esp32_ble_tracker::Ser
   }
 
   auto raw = service_data.data;
-  result.is_stabilized = ((raw[1] & (1<<5)) !== 0) ? true : false;
-  result.is_loadremoved = ((raw[1] & (1<<7)) !== 0) ? true : false;
+  result.is_stabilized = ((raw[1] & (1<<5)) != 0) ? true : false;
+  result.is_loadremoved = ((raw[1] & (1<<7)) != 0) ? true : false;
 
   bool is_xmtzc0xhm = service_data.uuid.contains(0x1D, 0x18);
   bool is_mibfs = service_data.uuid.contains(0x1B, 0x18);
