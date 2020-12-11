@@ -117,7 +117,7 @@ bool report_results(const optional<ParseResult> &result, const std::string &addr
     return false;
   }
 
-  ESP_LOGD(TAG, "Got Xiaomi %s (%s):", result->name.c_str(), address.c_str());
+  ESP_LOGD(TAG, "Got Xiaomi XMTZC0XHM (%s):", address.c_str());
 
   if (result->weight.has_value()) {
     ESP_LOGD(TAG, "  Weight: %.2fkg", *result->weight);
@@ -129,18 +129,7 @@ bool report_results(const optional<ParseResult> &result, const std::string &addr
   return true;
 }
 
-bool Listener::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
-  // Previously the message was parsed twice per packet, once by Listener::parse_device()
-  // and then again by the respective device class's parse_device() function. Parsing the header
-  // here and then for each device seems to be unneccessary and complicates the duplicate packet filtering.
-  // Hence I disabled the call to parse_header() here and the message parsing is done entirely
-  // in the respecive device instance. The Listener class is defined in __init__.py and I was not
-  // able to remove it entirely.
-
-  return false;  // with true it's not showing device scans
-}
-
-}  // namespace xiaomi_ble
+}  // namespace xiaomi_xmtzc0xhm
 }  // namespace esphome
 
 #endif
