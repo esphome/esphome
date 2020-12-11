@@ -10,7 +10,7 @@ static const char *TAG = "xiaomi_xmtzc0xhm";
 
 bool parse_value(uint8_t value_type, const uint8_t *data, uint8_t value_length, ParseResult &result) {
   // Miscale weight, 2 bytes, 16-bit  unsigned integer, 1 kg
-  else if ((value_type == 0x16) && (value_length == 10)) {
+  if ((value_type == 0x16) && (value_length == 10)) {
     const uint16_t weight = uint16_t(data[1]) | (uint16_t(data[2]) << 8);
     if (data[0] == 0x22 || data[0] == 0xa2)
       result.weight = weight * 0.01f / 2.0f;
@@ -37,11 +37,6 @@ bool parse_value(uint8_t value_type, const uint8_t *data, uint8_t value_length, 
 }
 
 bool parse_message(const std::vector<uint8_t> &message, ParseResult &result) {
-  result.has_encryption = (message[0] & 0x08) ? true : false;  // update encryption status
-  if (result.has_encryption) {
-    ESP_LOGVV(TAG, "parse_message(): payload is encrypted, stop reading message.");
-    return false;
-  }
 
   // Data point specs
   // Byte 0: type
@@ -97,15 +92,6 @@ optional<ParseResult> parse_header(const esp32_ble_tracker::ServiceData &service
   if (!is_xmtzc0xhm && !is_mibfs) {
     ESP_LOGVV(TAG, "Xiaomi no magic bytes");
     return false;
-  }
-
-  if (is_xmtzc0xhm) {  // Xiaomi Miscale
-    success = true
-  } else if (is_mibfs) {  // Xiaomi Miscale 2
-    success = true
-  } else {
-    ESP_LOGVV(TAG, "parse_header(): unknown device, no magic bytes.");
-    return {};
   }
 
   return result;
