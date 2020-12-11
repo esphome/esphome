@@ -54,16 +54,27 @@ optional<ParseResult> XiaomiXMTZC0XHM::parse_header(const esp32_ble_tracker::Ser
     return {};
   }
 
-  auto raw = service_data.data;
+  const auto raw = service_data.data;
 
+  bool is_xmtzc0xhm = service_data.uuid.contains(0x1D, 0x18);
+  bool is_mibfs = service_data.uuid.contains(0x1B, 0x18);
 
-  static uint8_t stabilized = (raw[0] & (1 << 5)) != 0;
-  static uint8_t stabilized1 = (raw[1] & (1 << 5)) != 0;
-  static uint8_t loadremoved = (raw[1] & (1 << 7)) != 0;
-  if (stabilized || stabilized1 & loadremoved) {
-    ESP_LOGVV(TAG, "parse_header(): duplicate data packet received (%d).");
-    result.is_stabilized = true;
-    return {};
+  if (!is_xmtzc0xhm && !is_mibfs) {
+    ESP_LOGVV(TAG, "Xiaomi no magic bytes");
+    return false;
+  }
+
+  int rcvdYear = uint16_t(data[4]) | (uint16_t(data[5]) << 8);
+  static int year = 0;
+  if (is_xmtzc0xhm) {
+    if (year == 0) {
+      year = rcvdYear;
+    } else {
+      if(rcvdYear > year) {
+        result.is_stabilized = true;
+        return {};
+      }
+    }
   }
 
   return result;
