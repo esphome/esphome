@@ -8,7 +8,7 @@ namespace xiaomi_xmtzc0xhm {
 
 static const char *TAG = "xiaomi_xmtzc0xhm";
 
-bool parse_value(uint8_t value_type, const uint8_t *data, uint8_t value_length, ParseResult &result) {
+bool XiaomiXMTZC0XHM::parse_value(uint8_t value_type, const uint8_t *data, uint8_t value_length, ParseResult &result) {
   // Miscale weight, 2 bytes, 16-bit  unsigned integer, 1 kg
   if ((value_type == 0x16) && (value_length == 10)) {
     const uint16_t weight = uint16_t(data[1]) | (uint16_t(data[2]) << 8);
@@ -36,7 +36,7 @@ bool parse_value(uint8_t value_type, const uint8_t *data, uint8_t value_length, 
   return true;
 }
 
-bool parse_message(const std::vector<uint8_t> &message, ParseResult &result) {
+bool XiaomiXMTZC0XHM::parse_message(const std::vector<uint8_t> &message, ParseResult &result) {
 
   // Data point specs
   // Byte 0: type
@@ -97,7 +97,7 @@ optional<ParseResult> parse_header(const esp32_ble_tracker::ServiceData &service
   return result;
 }
 
-bool report_results(const optional<ParseResult> &result, const std::string &address) {
+bool XiaomiXMTZC0XHM::report_results(const optional<ParseResult> &result, const std::string &address) {
   if (!result.has_value()) {
     ESP_LOGVV(TAG, "report_results(): no results available.");
     return false;
