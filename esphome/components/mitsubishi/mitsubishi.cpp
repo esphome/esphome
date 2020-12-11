@@ -23,8 +23,21 @@ const uint16_t MITSUBISHI_HEADER_SPACE = 1700;
 const uint16_t MITSUBISHI_MIN_GAP = 17500;
 
 void MitsubishiClimate::transmit_state() {
-  uint32_t remote_state[18] = {0x23, 0xCB, 0x26, 0x01, 0x00, 0x20, 0x48, 0x00, 0x30,
-                               0x58, 0x61, 0x00, 0x00, 0x00, 0x10, 0x40, 0x00, 0x00};
+  uint32_t remote_state[18] = {0x23, 0xCB, 0x26, 0x01, 0x00, 0x20, 0x08, 0x00, 0x30,
+                               0x58, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+//                              0     1     2     3     4     5     6     7     8  
+//                              9    10    11    12    13    14    15    16    17
+// 0 to 4 = Constant
+// 5 = On / Off
+// 6 = HVAC Mode (Heat, Dry {currently not used} , Cool, Auto)
+// 7 = Temperature
+// 8 = Mode / Horiz Vane
+// 9 = Fan / Vert Vane {0x58 Fan Auto / Vert Vane mid for most units}
+// 10, 11, 12 = Clock, Start and End Time
+// 13 = Constant
+// 14, 15 = Speciality bytes, used for custom settings and controls
+// 16 = Constant
+// 17 = Checksum
 
   switch (this->mode) {
     case climate::CLIMATE_MODE_COOL:
