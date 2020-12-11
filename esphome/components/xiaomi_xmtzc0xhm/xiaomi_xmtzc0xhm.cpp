@@ -51,14 +51,14 @@ optional<ParseResult> XiaomiXMTZC0XHM::parse_header(const esp32_ble_tracker::Ser
   ParseResult result;
   if (!service_data.uuid.contains(0x1D, 0x18) && !service_data.uuid.contains(0x1B, 0x18)) {
     ESP_LOGVV(TAG, "parse_header(): no service data UUID magic bytes.");
-    return false;
+    return {};
   }
 
   const auto raw = service_data.data;
 
   if (raw.size() < 13) {
     ESP_LOGVV(TAG, "Xiaomi service data too short!");
-    return false;
+    return {};
   }
 
   bool is_xmtzc0xhm = service_data.uuid.contains(0x1D, 0x18);
@@ -69,15 +69,12 @@ optional<ParseResult> XiaomiXMTZC0XHM::parse_header(const esp32_ble_tracker::Ser
     return {};
   }
 
-  const uint8_t *raw_data = &raw[raw_offset];
-  uint8_t data_offset = 0;
-  uint8_t data_length = raw.size() - raw_offset;
   bool is_stabilized = false;
 
   // Hack for MiScale
   if (is_xmtzc0xhm || is_mibfs) {
     const uint8_t *datapoint_data = &raw[0];  // raw data
-    if (parse_xiaomi_data_byte(0x16, datapoint_data, raw.size(), result))
+    if (parse_message(0x16, datapoint_data, raw.size(), result))
       result.is_stabilized = true;
   }
 
