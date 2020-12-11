@@ -83,7 +83,7 @@ optional<ParseResult> parse_header(const esp32_ble_tracker::ServiceData &service
   ParseResult result;
   if (!service_data.uuid.contains(0x1D, 0x18) && !service_data.uuid.contains(0x1B, 0x18)) {
     ESP_LOGVV(TAG, "parse_header(): no service data UUID magic bytes.");
-    return false;
+    return {};
   }
 
   bool is_xmtzc0xhm = service_data.uuid.contains(0x1D, 0x18);
@@ -91,7 +91,7 @@ optional<ParseResult> parse_header(const esp32_ble_tracker::ServiceData &service
 
   if (is_xmtzc0xhm || is_mibfs) {
     ESP_LOGVV(TAG, "Xiaomi no magic bytes");
-    return true;
+    return {};
   }
 
   return result;
