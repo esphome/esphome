@@ -118,7 +118,7 @@ void BME680BSECComponent::publish_state_(sensor::Sensor *sensor, float value) {
 }
 
 void BME680BSECComponent::publish_state_(text_sensor::TextSensor *sensor, std::string value) {
-  if (!sensor) {
+  if (!sensor || (sensor->has_state() && sensor->state == value)) {
     return;
   }
   sensor->publish_state(value);
