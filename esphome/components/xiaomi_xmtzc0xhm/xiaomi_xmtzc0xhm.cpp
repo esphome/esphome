@@ -69,8 +69,10 @@ optional<ParseResult> XiaomiXMTZC0XHM::parse_header(const esp32_ble_tracker::Ser
     result.is_stabilized = true;
   } else if (is_mibfs) {
     result.is_stabilized = true;
-    return {};
   }
+
+  if (!is_stabilized)
+    return {};
 
   return result;
 }
