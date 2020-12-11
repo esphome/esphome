@@ -74,7 +74,7 @@ optional<ParseResult> XiaomiXMTZC0XHM::parse_header(const esp32_ble_tracker::Ser
   // Hack for MiScale
   if (is_xmtzc0xhm || is_mibfs) {
     const uint8_t *data = &raw[0];  // raw data
-    if (parse_message(0x16, data, raw.size(), result))
+    if (parse_value(0x16, data, raw.size(), result))
       result.is_stabilized = true;
   }
 
