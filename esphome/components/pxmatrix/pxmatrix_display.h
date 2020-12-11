@@ -4,7 +4,9 @@
 #include "esphome/components/display/display_buffer.h"
 #include "esphome/core/log.h"
 
-#include "PxMatrix.h"  // NOLINT
+#define PxMATRIX_double_buffer true
+
+#include <PxMatrix.h>  // NOLINT
 
 namespace esphome {
 namespace pxmatrix_display {
@@ -35,11 +37,11 @@ enum MuxPatterns {
   STRAIGHT = mux_patterns::STRAIGHT,
 };
 
-class PxmatrixDisplay : public Component, public display::DisplayBuffer {
+class PxmatrixDisplay : public PollingComponent, public display::DisplayBuffer {
  public:
   void display();
   void setup() override;
-  void loop() override;
+  void update() override;
   void fill(Color color) override;
 
   void set_pin_latch(GPIOPin *pin_latch);

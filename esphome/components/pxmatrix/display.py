@@ -70,7 +70,7 @@ CONFIG_SCHEMA = cv.All(
         cv.Optional(CONF_MULTIPLEXER_DELAY, default="32"): cv.uint8_t,
         cv.Optional(CONF_SCAN_PATTERN, default="LINE"): cv.enum(SCAN_PATTERNS),
         # cv.Optional("block_pattern"): cv.one_of(*BLOCK_PATTERNS),
-    }).extend(cv.COMPONENT_SCHEMA),
+    }).extend(cv.polling_component_schema('1s')),
     cv.has_at_most_one_key(CONF_PAGES, CONF_LAMBDA))
 
 

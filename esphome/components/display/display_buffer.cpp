@@ -212,6 +212,7 @@ void DisplayBuffer::image(int x, int y, Image *image, Color color_on, Color colo
         for (int img_y = 0; img_y < image->get_height(); img_y++) {
           this->draw_pixel_at(x + img_x, y + img_y, image->get_pixel(img_x, img_y) ? color_on : color_off);
         }
+        yield();
       }
       break;
     case IMAGE_TYPE_GRAYSCALE:
@@ -219,6 +220,7 @@ void DisplayBuffer::image(int x, int y, Image *image, Color color_on, Color colo
         for (int img_y = 0; img_y < image->get_height(); img_y++) {
           this->draw_pixel_at(x + img_x, y + img_y, image->get_grayscale_pixel(img_x, img_y));
         }
+        yield();
       }
       break;
     case IMAGE_TYPE_RGB24:
@@ -226,6 +228,7 @@ void DisplayBuffer::image(int x, int y, Image *image, Color color_on, Color colo
         for (int img_y = 0; img_y < image->get_height(); img_y++) {
           this->draw_pixel_at(x + img_x, y + img_y, image->get_color_pixel(img_x, img_y));
         }
+        yield();
       }
       break;
   }

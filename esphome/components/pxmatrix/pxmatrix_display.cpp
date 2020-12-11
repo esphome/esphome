@@ -2,30 +2,35 @@
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include <Ticker.h>
 
 static const char *TAG = "pxmatrix_display";
 
 namespace esphome {
 namespace pxmatrix_display {
 
+Ticker display_ticker;
+PxMATRIX *pxMatrix;
+void display_updater() { pxMatrix->display(); }
+
 void PxmatrixDisplay::setup() {
   ESP_LOGCONFIG(TAG, "Starting setup...");
   this->px_matrix_ = new PxMATRIX(width_, height_, pin_latch_->get_pin(), pin_oe_->get_pin(), pin_a_->get_pin(),
                                   pin_b_->get_pin(), pin_c_->get_pin(), pin_d_->get_pin(), pin_e_->get_pin());
+  pxMatrix = this->px_matrix_;
+
   this->px_matrix_->begin(row_pattern_);
 
   this->px_matrix_->setDriverChip((driver_chips) driver_chips_);
   this->px_matrix_->setMuxPattern((mux_patterns) mux_patterns_);
   this->px_matrix_->setScanPattern((scan_patterns) scan_patterns_);
   this->px_matrix_->setColorOrder((color_orders) color_orders_);
-  //  this->px_matrix_->setBlockPattern(DBCA);
 
   this->px_matrix_->setBrightness(brightness_);
   this->px_matrix_->setMuxDelay(mux_delay_, mux_delay_, mux_delay_, mux_delay_, mux_delay_);
   this->px_matrix_->setRotate(rotate_);
   this->px_matrix_->setFlip(flip_);
-  this->high_freq_.start();
-
+  display_ticker.attach(0.004, display_updater);
   ESP_LOGI(TAG, "Finished Setup");
 }
 
@@ -39,12 +44,12 @@ void PxmatrixDisplay::fill(Color color) {
   this->px_matrix_->fillScreen(matrix_color);
 }
 
-void PxmatrixDisplay::loop() { this->px_matrix_->display(); }
-
-void HOT PxmatrixDisplay::display() {
+void PxmatrixDisplay::update() {
   this->do_update_();
   this->px_matrix_->showBuffer();
 }
+
+void HOT PxmatrixDisplay::display() {}
 
 void PxmatrixDisplay::set_pin_latch(GPIOPin *pin_latch) { this->pin_latch_ = pin_latch; }
 
