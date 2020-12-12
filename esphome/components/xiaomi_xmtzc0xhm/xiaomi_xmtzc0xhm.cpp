@@ -101,7 +101,7 @@ bool XiaomiXMTZC0XHM::parse_message(const std::vector<uint8_t> &message, ParseRe
       result.weight = weight * 0.01f * 0.453592;  // unit 'lbs'
   }
 
-  if (data_length) {
+  else if (data_length) {
     // Miscale weight, 2 bytes, 16-bit  unsigned integer, 1 kg
     const int16_t weight = uint16_t(data[1]) | (uint16_t(data[2]) << 8);
     if (data[0] == 0x22 || data[0] == 0xa2)
