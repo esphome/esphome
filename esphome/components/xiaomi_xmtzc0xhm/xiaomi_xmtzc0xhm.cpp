@@ -54,6 +54,7 @@ optional<ParseResult> XiaomiXMTZC0XHM::parse_header(const esp32_ble_tracker::Ser
     return {};
   }
 
+  bool XiaomiXMTZC0XHM::parse_message(const std::vector<uint8_t> &message, ParseResult &result)
   static int year = 0;
   const uint8_t *data = message.data();
   const int16_t rcvdYear = uint16_t(data[2]) | (uint16_t(data[3]) << 8);
