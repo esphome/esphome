@@ -7,6 +7,44 @@ namespace esphome {
 namespace xiaomi_xmtzc0xhm {
 
 static const char *TAG = "xiaomi_xmtzc0xhm";
+void XiaomiXMTZC0XHM::dump_config() {
+  ESP_LOGCONFIG(TAG, "Xiaomi XMTZC0XHM");
+  LOG_SENSOR("  ", "Weight", this->weight_);
+  LOG_SENSOR("  ", "Impedance", this->impedance_);
+}
+
+bool XiaomiXMTZC0XHM::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
+  if (device.address_uint64() != this->address_) {
+    ESP_LOGVV(TAG, "parse_device(): unknown MAC address.");
+    return false;
+  }
+  ESP_LOGVV(TAG, "parse_device(): MAC address %s found.", device.address_str().c_str());
+
+  bool success = false;
+  for (auto &service_data : device.get_service_datas()) {
+    auto res = parse_header(service_data);
+    if (res->is_stabilized) {
+      continue;
+    }
+    if (!(parse_message(service_data.data, *res))) {
+      continue;
+    }
+    if (!(report_results(res, device.address_str()))) {
+      continue;
+    }
+    if (res->weight.has_value() && this->weight_ != nullptr)
+      this->weight_->publish_state(*res->weight);
+    if (res->impedance.has_value() && this->impedance_ != nullptr)
+      this->impedance_->publish_state(*res->impedance);
+    success = true;
+  }
+
+  if (!success) {
+    return false;
+  }
+
+  return true;
+}
 
 bool XiaomiXMTZC0XHM::parse_value(uint8_t value_type, const uint8_t *data, uint8_t value_length, ParseResult &result) {
   // Miscale weight, 2 bytes, 16-bit  unsigned integer, 1 kg
