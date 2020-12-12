@@ -55,6 +55,7 @@ optional<ParseResult> XiaomiXMTZC0XHM::parse_header(const esp32_ble_tracker::Ser
   }
 
   static int year = 0;
+  const uint8_t *data = message.data();
   const int16_t rcvdYear = uint16_t(data[2]) | (uint16_t(data[3]) << 8);
   if (year == 0) {
     result.is_duplicate = true;
