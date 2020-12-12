@@ -37,8 +37,6 @@ bool parse_message(const std::vector<uint8_t> &message, ParseResult &result);
 optional<ParseResult> parse_header(const esp32_ble_tracker::ServiceData &service_data);
 bool report_results(const optional<ParseResult> &result, const std::string &address);
 
-};
-
 }  // namespace xiaomi_xmtzc0xhm
 }  // namespace esphome
 
