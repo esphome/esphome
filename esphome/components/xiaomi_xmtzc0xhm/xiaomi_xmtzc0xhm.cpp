@@ -83,37 +83,34 @@ bool XiaomiXMTZC0XHM::parse_message(const std::vector<uint8_t> &message, ParseRe
   const int data_length = 10;
   const int data_length1 = data_length + 3;
 
-  if (message.size() != data_length1) {
+  if (message.size() != data_length1 && message.size() != data_length) {
     ESP_LOGVV(TAG, "parse_message(): payload has wrong size (%d)!", message.size());
     return false;
   }
 
-  // Miscale2 impedance, 2 bytes, 16-bit
-  const int16_t impedance = uint16_t(data[9]) | (uint16_t(data[10]) << 8);
-  result.impedance = impedance;
+  if (data_length1) {
+    // Miscale2 impedance, 2 bytes, 16-bit
+    const int16_t impedance = uint16_t(data[9]) | (uint16_t(data[10]) << 8);
+    result.impedance = impedance;
 
-  // Miscale2 weight, 2 bytes, 16-bit  unsigned integer, 1 kg
-  const int16_t weight = uint16_t(data[11]) | (uint16_t(data[12]) << 8);
-  if (data[0] == 0x02)
-    result.weight = weight * 0.01f / 2.0f;  // unit 'kg'
-  else if (data[0] == 0x03)
-    result.weight = weight * 0.01f * 0.453592;  // unit 'lbs'
-  return true;
+    // Miscale2 weight, 2 bytes, 16-bit  unsigned integer, 1 kg
+    const int16_t weight = uint16_t(data[11]) | (uint16_t(data[12]) << 8);
+    if (data[0] == 0x02)
+      result.weight = weight * 0.01f / 2.0f;  // unit 'kg'
+    else if (data[0] == 0x03)
+      result.weight = weight * 0.01f * 0.453592;  // unit 'lbs'
   }
 
-  else if (message.size() != data_length) {
-    ESP_LOGVV(TAG, "parse_message(): payload has wrong size (%d)!", message.size());
-    return false;
+  if (data_length) {
+    // Miscale weight, 2 bytes, 16-bit  unsigned integer, 1 kg
+    const int16_t weight = uint16_t(data[1]) | (uint16_t(data[2]) << 8);
+    if (data[0] == 0x22 || data[0] == 0xa2)
+      result.weight = weight * 0.01f / 2.0f;  // unit 'kg'
+    else if (data[0] == 0x12 || data[0] == 0xb2)
+      result.weight = weight * 0.01f * 0.6;  // unit 'jin'
+    else if (data[0] == 0x03 || data[0] == 0xb3)
+      result.weight = weight * 0.01f * 0.453592;  // unit 'lbs'
   }
-
-  // Miscale weight, 2 bytes, 16-bit  unsigned integer, 1 kg
-  const int16_t weight = uint16_t(data[1]) | (uint16_t(data[2]) << 8);
-  if (data[0] == 0x22 || data[0] == 0xa2)
-    result.weight = weight * 0.01f / 2.0f;  // unit 'kg'
-  else if (data[0] == 0x12 || data[0] == 0xb2)
-    result.weight = weight * 0.01f * 0.6;  // unit 'jin'
-  else if (data[0] == 0x03 || data[0] == 0xb3)
-    result.weight = weight * 0.01f * 0.453592;  // unit 'lbs'
 
   return true;
 }
