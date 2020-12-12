@@ -208,12 +208,8 @@ def _esp8266_add_lwip_type():
     # Other projects like Tasmota & ESPEasy also use this
     cg.add_build_flag('-DPIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH')
 
-
-@coroutine_with_priority(100.0)
-def to_code(config):
-    cg.add_global(cg.global_ns.namespace('esphome').using)
-    cg.add(cg.App.pre_setup(config[CONF_NAME], cg.RawExpression('__DATE__ ", " __TIME__')))
-
+@coroutine_with_priority(30.0)
+def _add_automations(config):
     for conf in config.get(CONF_ON_BOOT, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], conf.get(CONF_PRIORITY))
         yield cg.register_component(trigger, conf)
@@ -228,6 +224,13 @@ def to_code(config):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
         yield cg.register_component(trigger, conf)
         yield automation.build_automation(trigger, [], conf)
+
+@coroutine_with_priority(100.0)
+def to_code(config):
+    cg.add_global(cg.global_ns.namespace('esphome').using)
+    cg.add(cg.App.pre_setup(config[CONF_NAME], cg.RawExpression('__DATE__ ", " __TIME__')))
+
+    CORE.add_job(_add_automations, config)
 
     # Set LWIP build constants for ESP8266
     if CORE.is_esp8266:
