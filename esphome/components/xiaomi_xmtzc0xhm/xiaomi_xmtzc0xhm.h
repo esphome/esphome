@@ -12,7 +12,6 @@ namespace xiaomi_xmtzc0xhm {
 struct ParseResult {
   optional<float> weight;
   optional<float> impedance;
-  bool is_stabilized;
   int raw_offset;
 };
 
@@ -31,10 +30,12 @@ class XiaomiXMTZC0XHM : public Component, public esp32_ble_tracker::ESPBTDeviceL
   sensor::Sensor *weight_{nullptr};
   sensor::Sensor *impedance_{nullptr};
 
-  bool parse_value(uint8_t value_type, const uint8_t *data, uint8_t value_length, ParseResult &result);
-  bool parse_message(const std::vector<uint8_t> &message, ParseResult &result);
-  optional<ParseResult> parse_header(const esp32_ble_tracker::ServiceData &service_data);
-  bool report_results(const optional<ParseResult> &result, const std::string &address);
+};
+
+bool parse_value(uint8_t value_type, const uint8_t *data, uint8_t value_length, ParseResult &result);
+bool parse_message(const std::vector<uint8_t> &message, ParseResult &result);
+optional<ParseResult> parse_header(const esp32_ble_tracker::ServiceData &service_data);
+bool report_results(const optional<ParseResult> &result, const std::string &address);
 
 };
 
