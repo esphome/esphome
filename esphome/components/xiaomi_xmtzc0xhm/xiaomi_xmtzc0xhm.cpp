@@ -79,8 +79,13 @@ bool XiaomiXMTZC0XHM::parse_message(const std::vector<uint8_t> &message, ParseRe
   // 10 second (MISCALE 181D)  //
   //                           // 11-12 weight (MISCALE 2 181B)
 
-  const uint8_t *data = message.data();
+  const uint8_t *payload = message.data() + result.raw_offset;
+  uint8_t payload_length = message.size() - result.raw_offset;
+  uint8_t payload_offset = 0;
 
+  const uint8_t value_length = payload[payload_offset + 2];
+  const uint8_t value_type = payload[payload_offset + 0];
+  const uint8_t *data = &payload[payload_offset + 3];
   if ((value_type == 0x16) && (value_length == 13)) {
     // Miscale2 impedance, 2 bytes, 16-bit
     const int16_t impedance = uint16_t(data[9]) | (uint16_t(data[10]) << 8);
@@ -94,6 +99,9 @@ bool XiaomiXMTZC0XHM::parse_message(const std::vector<uint8_t> &message, ParseRe
       result.weight = weight * 0.01f * 0.453592;  // unit 'lbs'
   }
 
+  const uint8_t value_length = payload[payload_offset + 2];
+  const uint8_t value_type = payload[payload_offset + 0];
+  const uint8_t *data = &payload[payload_offset + 3];
   else if ((value_type == 0x16) && (value_length == 10)) {
     // Miscale weight, 2 bytes, 16-bit  unsigned integer, 1 kg
     const int16_t weight = uint16_t(data[1]) | (uint16_t(data[2]) << 8);
