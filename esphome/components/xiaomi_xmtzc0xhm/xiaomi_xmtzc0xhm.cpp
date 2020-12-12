@@ -87,7 +87,7 @@ bool XiaomiXMTZC0XHM::parse_message(const std::vector<uint8_t> &message, ParseRe
 
   else if (message.size() == data_length) {
     static int year = 0;
-    int rcvdYear = uint16_t(data[2]) | (uint16_t(data[3]) << 8);
+    const int16_t rcvdYear = uint16_t(data[2]) | (uint16_t(data[3]) << 8);
     if (year == 0) {
       year = rcvdYear;
     } else {
