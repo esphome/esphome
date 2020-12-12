@@ -83,6 +83,11 @@ bool XiaomiXMTZC0XHM::parse_message(const std::vector<uint8_t> &message, ParseRe
   const int data_length = 10;
   const int data_length1 = data_length + 3;
 
+  if (message.size() != data_length || message.size() != data_length1) {
+    ESP_LOGVV(TAG, "parse_message(): payload has wrong size (%d)!", message.size());
+    return false;
+  }
+
   if (message.size() == data_length1) {
     // Miscale2 impedance, 2 bytes, 16-bit
     const int16_t impedance = uint16_t(data[9]) | (uint16_t(data[10]) << 8);
@@ -105,9 +110,6 @@ bool XiaomiXMTZC0XHM::parse_message(const std::vector<uint8_t> &message, ParseRe
       result.weight = weight * 0.01f * 0.6;  // unit 'jin'
     else if (data[0] == 0x03 || data[0] == 0xb3)
       result.weight = weight * 0.01f * 0.453592;  // unit 'lbs'
-  } else {
-    return false;
-  }
 
   return true;
 }
