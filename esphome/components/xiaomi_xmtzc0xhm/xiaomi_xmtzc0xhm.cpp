@@ -80,15 +80,8 @@ bool XiaomiXMTZC0XHM::parse_message(const std::vector<uint8_t> &message, ParseRe
   //                           // 11-12 weight (MISCALE 2 181B)
 
   const uint8_t *data = message.data();
-  const int data_length = 10;
-  const int data_length1 = data_length + 3;
 
-  if (message.size() != data_length1 && message.size() != data_length) {
-    ESP_LOGVV(TAG, "parse_message(): payload has wrong size (%d)!", message.size());
-    return {};
-  }
-
-  if (message.size() == 13) {
+  if ((data_type == 0x16) && (data_length == 13)) {
     // Miscale2 impedance, 2 bytes, 16-bit
     const int16_t impedance = uint16_t(data[9]) | (uint16_t(data[10]) << 8);
     result.impedance = impedance;
@@ -99,13 +92,9 @@ bool XiaomiXMTZC0XHM::parse_message(const std::vector<uint8_t> &message, ParseRe
       result.weight = weight * 0.01f / 2.0f;  // unit 'kg'
     else if (data[0] == 0x03)
       result.weight = weight * 0.01f * 0.453592;  // unit 'lbs'
-    else
-      return false;
-
-    return true;
   }
 
-  else if (message.size() == 10) {
+  else if ((data_type == 0x16) && (data_length == 10)) {
     // Miscale weight, 2 bytes, 16-bit  unsigned integer, 1 kg
     const int16_t weight = uint16_t(data[1]) | (uint16_t(data[2]) << 8);
     if (data[0] == 0x22 || data[0] == 0xa2)
@@ -114,10 +103,8 @@ bool XiaomiXMTZC0XHM::parse_message(const std::vector<uint8_t> &message, ParseRe
       result.weight = weight * 0.01f * 0.6;  // unit 'jin'
     else if (data[0] == 0x03 || data[0] == 0xb3)
       result.weight = weight * 0.01f * 0.453592;  // unit 'lbs'
-    else
+  } else {
       return false;
-
-    return true;
   }
 
   return true;
