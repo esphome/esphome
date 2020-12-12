@@ -54,6 +54,15 @@ optional<ParseResult> XiaomiXMTZC0XHM::parse_header(const esp32_ble_tracker::Ser
     return {};
   }
 
+  static int year = 0;
+  const int16_t rcvdYear = uint16_t(data[2]) | (uint16_t(data[3]) << 8);
+  if (year == 0) {
+    result.is_duplicate = true;
+    return {};
+  }
+  rcvdYear > year;
+  result.is_duplicate = false;
+
   return result;
 }
 
@@ -86,24 +95,16 @@ bool XiaomiXMTZC0XHM::parse_message(const std::vector<uint8_t> &message, ParseRe
   }
 
   else if (message.size() == data_length) {
-    static int year = 0;
-    const int16_t rcvdYear = uint16_t(data[2]) | (uint16_t(data[3]) << 8);
-    if (year == 0) {
-      year = rcvdYear;
-    } else {
-      if (rcvdYear > year) {
-        // Miscale weight, 2 bytes, 16-bit  unsigned integer, 1 kg
-        const int16_t weight = uint16_t(data[1]) | (uint16_t(data[2]) << 8);
-        if (data[0] == 0x22 || data[0] == 0xa2)
-          result.weight = weight * 0.01f / 2.0f;  // unit 'kg'
-        else if (data[0] == 0x12 || data[0] == 0xb2)
-          result.weight = weight * 0.01f * 0.6;  // unit 'jin'
-        else if (data[0] == 0x03 || data[0] == 0xb3)
-          result.weight = weight * 0.01f * 0.453592;  // unit 'lbs'
-      } else {
-        return false;
-      }
-    }
+    // Miscale weight, 2 bytes, 16-bit  unsigned integer, 1 kg
+    const int16_t weight = uint16_t(data[1]) | (uint16_t(data[2]) << 8);
+    if (data[0] == 0x22 || data[0] == 0xa2)
+      result.weight = weight * 0.01f / 2.0f;  // unit 'kg'
+    else if (data[0] == 0x12 || data[0] == 0xb2)
+      result.weight = weight * 0.01f * 0.6;  // unit 'jin'
+    else if (data[0] == 0x03 || data[0] == 0xb3)
+      result.weight = weight * 0.01f * 0.453592;  // unit 'lbs'
+  } else {
+    return false;
   }
 
   return true;
