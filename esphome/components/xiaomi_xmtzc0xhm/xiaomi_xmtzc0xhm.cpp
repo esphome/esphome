@@ -83,7 +83,7 @@ bool XiaomiXMTZC0XHM::parse_message(const std::vector<uint8_t> &message, ParseRe
   const int data_length = 10;
   const int data_length1 = data_length + 3;
 
-  if (message.size() != data_length1 && message.size() != data_length) {
+  if (message.size() != data_length1 || message.size() != data_length) {
     ESP_LOGVV(TAG, "parse_message(): payload has wrong size (%d)!", message.size());
     return false;
   }
