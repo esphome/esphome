@@ -22,17 +22,17 @@ bool XiaomiXMTZC0XHM::parse_device(const esp32_ble_tracker::ESPBTDevice &device)
 
   bool success = false;
   for (auto &service_data : device.get_service_datas()) {
-    auto res = XiaomiXMTZC0XHM::parse_xiaomi_header(service_data);
+    auto res = XiaomiXMTZC0XHM::parse_header(service_data);
     if (!res.has_value()) {
       continue;
     }
     if (res->is_duplicate) {
       continue;
     }
-    if (!(XiaomiXMTZC0XHM::parse_xiaomi_message(service_data.data, *res))) {
+    if (!(XiaomiXMTZC0XHM::parse_message(service_data.data, *res))) {
       continue;
     }
-    if (!(XiaomiXMTZC0XHM::report_xiaomi_results(res, device.address_str()))) {
+    if (!(XiaomiXMTZC0XHM::report_results(res, device.address_str()))) {
       continue;
     }
     if (res->weight.has_value() && this->weight_ != nullptr)
