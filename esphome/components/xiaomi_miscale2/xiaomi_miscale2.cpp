@@ -98,7 +98,7 @@ bool XiaomiMiscale2::report_results(const optional<ParseResult> &result, const s
   ESP_LOGD(TAG, "Got Xiaomi Miscale2 (%s):", address.c_str());
 
   if (result->weight.has_value()) {
-    ESP_LOGD(TAG, "  Weight: %.1fkg", *result->weight);
+    ESP_LOGD(TAG, "  Weight: %.2fkg", *result->weight);
   }
   if (result->impedance.has_value()) {
     ESP_LOGD(TAG, "  Impedance: %.0f", *result->impedance);

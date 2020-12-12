@@ -93,7 +93,7 @@ bool XiaomiMiscale::report_results(const optional<ParseResult> &result, const st
   ESP_LOGD(TAG, "Got Xiaomi Miscale (%s):", address.c_str());
 
   if (result->weight.has_value()) {
-    ESP_LOGD(TAG, "  Weight: %.1fkg", *result->weight);
+    ESP_LOGD(TAG, "  Weight: %.2fkg", *result->weight);
   }
 
   return true;
