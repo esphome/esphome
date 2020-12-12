@@ -26,9 +26,6 @@ bool XiaomiXMTZC0XHM::parse_device(const esp32_ble_tracker::ESPBTDevice &device)
     if (!res.has_value()) {
       continue;
     }
-    if (res->is_duplicate) {
-      continue;
-    }
     if (!(XiaomiXMTZC0XHM::parse_message(service_data.data, *res))) {
       continue;
     }
