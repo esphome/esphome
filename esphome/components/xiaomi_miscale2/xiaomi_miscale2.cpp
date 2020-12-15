@@ -75,8 +75,13 @@ bool XiaomiMiscale2::parse_message(const std::vector<uint8_t> &message, ParseRes
     return false;
   }
 
-  is_stabilized = ((data[1] & (1<<5)) === 0) ? true : false;
-  loadremoved = ((data[1] & (1<<7)) === 0) ? true : false;
+  result.is_stabilized = ((data[1] & (1<<5)) === 0) ? true : false;
+  result.loadremoved = ((data[1] & (1<<7)) === 0) ? true : false;
+
+  if (result.is_stabilized && result.loadremoved) {
+    ESP_LOGVV(TAG, "parse_message(): payload is no stabilized.");
+    return false;
+  }
 
   // impedance, 2 bytes, 16-bit
   const int16_t impedance = uint16_t(data[9]) | (uint16_t(data[10]) << 8);
