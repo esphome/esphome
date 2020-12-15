@@ -45,9 +45,9 @@ class Version:
 def sub(path, pattern, repl, expected_count=1):
     with open(path) as fh:
         content = fh.read()
-    content, count = re.subn(pattern, repl, content, re.MULTILINE)
+    content, count = re.subn(pattern, repl, content, flags=re.MULTILINE)
     if expected_count is not None:
-        assert count == expected_count
+        assert count == expected_count, f"Pattern {pattern} replacement failed!"
     with open(path, "wt") as fh:
         fh.write(content)
 
@@ -66,27 +66,19 @@ def write_version(version: Version):
     sub(
         'esphome/const.py',
         r"^PATCH_VERSION = .*$",
-        f"PATCH_VERSION = {version.full_patch}"
+        f"PATCH_VERSION = '{version.full_patch}'"
     )
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('new_version', type=str)
-    parser.add_argument('--commit', action='store_true')
     args = parser.parse_args()
-
-    if args.commit and subprocess.call(["git", "diff", "--quiet"]) == 1:
-        print("Cannot use --commit because git is dirty.")
-        return 1
 
     version = Version.parse(args.new_version)
     print(f"Bumping to {version}")
     write_version(version)
-
-    if args.commit:
-        subprocess.check_call(["git", "commit", "-nam", f"Bump version to v{version}"])
-    return 1
+    return 0
 
 
 if __name__ == "__main__":

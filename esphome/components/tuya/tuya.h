@@ -1,7 +1,12 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/defines.h"
 #include "esphome/components/uart/uart.h"
+
+#ifdef USE_TIME
+#include "esphome/components/time/real_time_clock.h"
+#endif
 
 namespace esphome {
 namespace tuya {
@@ -43,6 +48,7 @@ enum class TuyaCommandType : uint8_t {
   DATAPOINT_REPORT = 0x07,
   DATAPOINT_QUERY = 0x08,
   WIFI_TEST = 0x0E,
+  LOCAL_TIME_QUERY = 0x1C,
 };
 
 enum class TuyaInitState : uint8_t {
@@ -62,6 +68,12 @@ class Tuya : public Component, public uart::UARTDevice {
   void dump_config() override;
   void register_listener(uint8_t datapoint_id, const std::function<void(TuyaDatapoint)> &func);
   void set_datapoint_value(TuyaDatapoint datapoint);
+#ifdef USE_TIME
+  void set_time_id(time::RealTimeClock *time_id) { this->time_id_ = time_id; }
+#endif
+  void add_ignore_mcu_update_on_datapoints(uint8_t ignore_mcu_update_on_datapoints) {
+    this->ignore_mcu_update_on_datapoints_.push_back(ignore_mcu_update_on_datapoints);
+  }
 
  protected:
   void handle_char_(uint8_t c);
@@ -71,14 +83,20 @@ class Tuya : public Component, public uart::UARTDevice {
   void handle_command_(uint8_t command, uint8_t version, const uint8_t *buffer, size_t len);
   void send_command_(TuyaCommandType command, const uint8_t *buffer, uint16_t len);
   void send_empty_command_(TuyaCommandType command) { this->send_command_(command, nullptr, 0); }
+  void schedule_empty_command_(TuyaCommandType command);
 
+#ifdef USE_TIME
+  optional<time::RealTimeClock *> time_id_{};
+#endif
   TuyaInitState init_state_ = TuyaInitState::INIT_HEARTBEAT;
   int gpio_status_ = -1;
   int gpio_reset_ = -1;
+  uint32_t last_command_timestamp_ = 0;
   std::string product_ = "";
   std::vector<TuyaDatapointListener> listeners_;
   std::vector<TuyaDatapoint> datapoints_;
   std::vector<uint8_t> rx_message_;
+  std::vector<uint8_t> ignore_mcu_update_on_datapoints_{};
 };
 
 }  // namespace tuya

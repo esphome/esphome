@@ -40,6 +40,7 @@ jobs:
     container: esphome/esphome-lint:latest
     # Split clang-tidy check into 4 jobs. Each one will check 1/4th of the .cpp files
     strategy:
+      fail-fast: false
       matrix:
         split: [1, 2, 3, 4]
     steps:
@@ -97,10 +98,13 @@ jobs:
         run: script/ci-custom.py
       - name: Lint Python
         run: script/lint-python
+      - name: Lint CODEOWNERS
+        run: script/build_codeowners.py --check
 
   test:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
           test:
           - test1
@@ -205,10 +209,10 @@ jobs:
       - name: Set TAG
         run: |
           TAG="${GITHUB_REF#refs/tags/v}"
-          echo "::set-env name=TAG::${TAG}"
+          echo "TAG=${TAG}" >> $GITHUB_ENV
       - name: Set up env variables
         run: |
-          base_version="2.3.4"
+          base_version="2.6.0"
 
           if [[ "${{ matrix.build_type }}" == "hassio" ]]; then
             build_from="esphome/esphome-hassio-base-${{ matrix.arch }}:${base_version}"
@@ -220,13 +224,20 @@ jobs:
             dockerfile="docker/Dockerfile"
           fi
 
+          if [[ "${{ github.event.release.prerelease }}" == "true" ]]; then
+            cache_tag="beta"
+          else
+            cache_tag="latest"
+          fi
+
           # Set env variables so these values don't need to be calculated again
-          echo "::set-env name=BUILD_FROM::${build_from}"
-          echo "::set-env name=BUILD_TO::${build_to}"
-          echo "::set-env name=DOCKERFILE::${dockerfile}"
+          echo "BUILD_FROM=${build_from}" >> $GITHUB_ENV
+          echo "BUILD_TO=${build_to}" >> $GITHUB_ENV
+          echo "DOCKERFILE=${dockerfile}" >> $GITHUB_ENV
+          echo "CACHE_TAG=${cache_tag}" >> $GITHUB_ENV
       - name: Pull for cache
         run: |
-          docker pull "${BUILD_TO}:latest" || true
+          docker pull "${BUILD_TO}:${CACHE_TAG}" || true
       - name: Register QEMU binfmt
         run: docker run --rm --privileged multiarch/qemu-user-static:5.0.0-2 --reset -p yes
       - run: |
@@ -234,7 +245,7 @@ jobs:
             --build-arg "BUILD_FROM=${BUILD_FROM}" \
             --build-arg "BUILD_VERSION=${TAG}" \
             --tag "${BUILD_TO}:${TAG}" \
-            --cache-from "${BUILD_TO}:latest" \
+            --cache-from "${BUILD_TO}:${CACHE_TAG}" \
             --file "${DOCKERFILE}" \
             .
       - name: Log in to docker hub
@@ -250,7 +261,7 @@ jobs:
           docker tag "${BUILD_TO}:${TAG}" "${BUILD_TO}:beta"
           docker push "${BUILD_TO}:beta"
 
-      - if: ${{ !github.event.release.prerelease) }}
+      - if: ${{ !github.event.release.prerelease }}
         name: Publish docker latest tag
         run: |
           docker tag "${BUILD_TO}:${TAG}" "${BUILD_TO}:latest"
@@ -268,7 +279,7 @@ jobs:
     - name: Set TAG
       run: |
         TAG="${GITHUB_REF#refs/tags/v}"
-        echo "::set-env name=TAG::${TAG}"
+        echo "TAG=${TAG}" >> $GITHUB_ENV
     - name: Log in to docker hub
       env:
         DOCKER_USER: ${{ secrets.DOCKER_USER }}
@@ -291,10 +302,26 @@ jobs:
         docker manifest push esphome/esphome:beta
 
     - name: Publish docker latest tag
-      if: ${{ !github.event.release.prerelease) }}
+      if: ${{ !github.event.release.prerelease }}
       run: |
         docker manifest create esphome/esphome:latest \
           esphome/esphome-aarch64:${TAG} \
           esphome/esphome-amd64:${TAG} \
           esphome/esphome-armv7:${TAG}
         docker manifest push esphome/esphome:latest
+
+  deploy-hassio-repo:
+    if: github.repository == 'esphome/esphome'
+    runs-on: ubuntu-latest
+    needs: [deploy-docker]
+    steps:
+      - env:
+          TOKEN: ${{ secrets.DEPLOY_HASSIO_TOKEN }}
+        run: |
+          TAG="${GITHUB_REF#refs/tags/v}"
+          curl \
+            -u ":$TOKEN" \
+            -X POST \
+            -H "Accept: application/vnd.github.v3+json" \
+            https://api.github.com/repos/esphome/hassio/actions/workflows/bump-version.yml/dispatches \
+            -d "{\"ref\":\"master\",\"inputs\":{\"version\":\"$TAG\"}}"

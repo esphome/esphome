@@ -6,6 +6,8 @@ from esphome.const import CONF_BACKLIGHT_PIN, CONF_BRIGHTNESS, CONF_CS_PIN, CONF
                           CONF_LAMBDA, CONF_RESET_PIN
 from . import st7789v_ns
 
+CODEOWNERS = ['@kbx81']
+
 DEPENDENCIES = ['spi']
 
 ST7789V = st7789v_ns.class_('ST7789V', cg.PollingComponent, spi.SPIDevice,
@@ -19,7 +21,7 @@ CONFIG_SCHEMA = display.FULL_DISPLAY_SCHEMA.extend({
     cv.Required(CONF_CS_PIN): pins.gpio_output_pin_schema,
     cv.Required(CONF_BACKLIGHT_PIN): pins.gpio_output_pin_schema,
     cv.Optional(CONF_BRIGHTNESS, default=1.0): cv.percentage,
-}).extend(cv.COMPONENT_SCHEMA).extend(spi.spi_device_schema())
+}).extend(cv.polling_component_schema('5s')).extend(spi.spi_device_schema())
 
 
 def to_code(config):

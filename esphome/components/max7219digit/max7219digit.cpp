@@ -101,14 +101,18 @@ void MAX7219Component::loop() {
 }
 
 void MAX7219Component::display() {
-  byte pixels[8];
+  uint8_t pixels[8];
   // Run this loop for every MAX CHIP (GRID OF 64 leds)
   // Run this routine for the rows of every chip 8x row 0 top to 7 bottom
   // Fill the pixel parameter with diplay data
   // Send the data to the chip
   for (uint8_t i = 0; i < this->num_chips_; i++) {
     for (uint8_t j = 0; j < 8; j++) {
-      pixels[j] = this->max_displaybuffer_[i * 8 + j];
+      if (this->reverse_) {
+        pixels[j] = this->max_displaybuffer_[(this->num_chips_ - i - 1) * 8 + j];
+      } else {
+        pixels[j] = this->max_displaybuffer_[i * 8 + j];
+      }
     }
     this->send64pixels(i, pixels);
   }
@@ -128,7 +132,7 @@ void HOT MAX7219Component::draw_absolute_pixel_internal(int x, int y, Color colo
     this->max_displaybuffer_.resize(x + 1, this->bckgrnd_);
   }
 
-  if (y >= this->get_height_internal() || y < 0)  // If pixel is outside display then dont draw
+  if ((y >= this->get_height_internal()) || (y < 0) || (x < 0))  // If pixel is outside display then dont draw
     return;
 
   uint16_t pos = x;    // X is starting at 0 top left
@@ -205,29 +209,32 @@ void MAX7219Component::scroll_left() {
   this->stepsleft_++;
 }
 
-void MAX7219Component::send_char(byte chip, byte data) {
+void MAX7219Component::send_char(uint8_t chip, uint8_t data) {
   // get this character from PROGMEM
-  for (byte i = 0; i < 8; i++)
+  for (uint8_t i = 0; i < 8; i++)
     this->max_displaybuffer_[chip * 8 + i] = pgm_read_byte(&MAX7219_DOT_MATRIX_FONT[data][i]);
 }  // end of send_char
 
 // send one character (data) to position (chip)
 
-void MAX7219Component::send64pixels(byte chip, const byte pixels[8]) {
-  for (byte col = 0; col < 8; col++) {  // RUN THIS LOOP 8 times until column is 7
-    this->enable();                     // start sending by enabling SPI
-    for (byte i = 0; i < chip; i++)     // send extra NOPs to push the pixels out to extra displays
+void MAX7219Component::send64pixels(uint8_t chip, const uint8_t pixels[8]) {
+  for (uint8_t col = 0; col < 8; col++) {  // RUN THIS LOOP 8 times until column is 7
+    this->enable();                        // start sending by enabling SPI
+    for (uint8_t i = 0; i < chip; i++)     // send extra NOPs to push the pixels out to extra displays
       this->send_byte_(MAX7219_REGISTER_NOOP,
                        MAX7219_REGISTER_NOOP);  // run this loop unit the matching chip is reached
-    byte b = 0;                                 // rotate pixels 90 degrees -- set byte to 0
+    uint8_t b = 0;                              // rotate pixels 90 degrees -- set byte to 0
     if (this->orientation_ == 0) {
-      for (byte i = 0; i < 8; i++)                // run this loop 8 times for all the pixels[8] received
-        b |= bitRead(pixels[i], col) << (7 - i);  // change the column bits into row bits
+      for (uint8_t i = 0; i < 8; i++) {
+        // run this loop 8 times for all the pixels[8] received
+        b |= ((pixels[i] >> col) & 1) << (7 - i);  // change the column bits into row bits
+      }
     } else if (this->orientation_ == 1) {
       b = pixels[col];
     } else if (this->orientation_ == 2) {
-      for (byte i = 0; i < 8; i++)
-        b |= bitRead(pixels[i], 7 - col) << (7 - i);
+      for (uint8_t i = 0; i < 8; i++) {
+        b |= ((pixels[i] >> (7 - col)) & 1) << i;
+      }
     } else {
       b = pixels[7 - col];
     }
@@ -246,8 +253,8 @@ void MAX7219Component::send64pixels(byte chip, const byte pixels[8]) {
 uint8_t MAX7219Component::printdigit(const char *str) { return this->printdigit(0, str); }
 
 uint8_t MAX7219Component::printdigit(uint8_t start_pos, const char *s) {
-  byte chip;
-  for (chip = start_pos; chip < this->num_chips_ && *s; chip++)
+  uint8_t chip = start_pos;
+  for (; chip < this->num_chips_ && *s; chip++)
     send_char(chip, *s++);
   // space out rest
   while (chip < (this->num_chips_))

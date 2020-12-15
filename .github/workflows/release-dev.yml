@@ -41,6 +41,7 @@ jobs:
     container: esphome/esphome-lint:latest
     # Split clang-tidy check into 4 jobs. Each one will check 1/4th of the .cpp files
     strategy:
+      fail-fast: false
       matrix:
         split: [1, 2, 3, 4]
     steps:
@@ -98,10 +99,13 @@ jobs:
         run: script/ci-custom.py
       - name: Lint Python
         run: script/lint-python
+      - name: Lint CODEOWNERS
+        run: script/build_codeowners.py --check
 
   test:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
           test:
           - test1
@@ -185,10 +189,10 @@ jobs:
       - name: Set TAG
         run: |
           TAG="${GITHUB_SHA:0:7}"
-          echo "::set-env name=TAG::${TAG}"
+          echo "TAG=${TAG}" >> $GITHUB_ENV
       - name: Set up env variables
         run: |
-          base_version="2.3.4"
+          base_version="2.6.0"
 
           if [[ "${{ matrix.build_type }}" == "hassio" ]]; then
             build_from="esphome/esphome-hassio-base-${{ matrix.arch }}:${base_version}"
@@ -200,9 +204,9 @@ jobs:
             dockerfile="docker/Dockerfile"
           fi
 
-          echo "::set-env name=BUILD_FROM::${build_from}"
-          echo "::set-env name=BUILD_TO::${build_to}"
-          echo "::set-env name=DOCKERFILE::${dockerfile}"
+          echo "BUILD_FROM=${build_from}" >> $GITHUB_ENV
+          echo "BUILD_TO=${build_to}" >> $GITHUB_ENV
+          echo "DOCKERFILE=${dockerfile}" >> $GITHUB_ENV
       - name: Pull for cache
         run: |
           docker pull "${BUILD_TO}:dev" || true
@@ -239,7 +243,7 @@ jobs:
     - name: Set TAG
       run: |
         TAG="${GITHUB_SHA:0:7}"
-        echo "::set-env name=TAG::${TAG}"
+        echo "TAG=${TAG}" >> $GITHUB_ENV
     - name: Log in to docker hub
       env:
         DOCKER_USER: ${{ secrets.DOCKER_USER }}

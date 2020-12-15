@@ -14,7 +14,7 @@ MCP3008 = mcp3008_ns.class_('MCP3008', cg.Component, spi.SPIDevice)
 
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(MCP3008),
-}).extend(spi.spi_device_schema(CS_PIN_required=True))
+}).extend(spi.spi_device_schema(cs_pin_required=True))
 
 
 def to_code(config):

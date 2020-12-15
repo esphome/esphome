@@ -1,11 +1,12 @@
-pylint==2.5.3
-flake8==3.8.3
-pillow
-pexpect
+pylint==2.6.0
+flake8==3.8.4
+pillow>4.0.0
+cryptography>=2.0.0,<4
+pexpect==4.8.0
 
 # Unit tests
-pytest==5.4.3
-pytest-cov==2.10.0
-pytest-mock==3.2.0
+pytest==6.1.2
+pytest-cov==2.10.1
+pytest-mock==3.3.1
 asyncmock==0.4.2
-hypothesis==5.19.3
+hypothesis==5.21.0

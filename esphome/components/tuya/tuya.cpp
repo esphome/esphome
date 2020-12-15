@@ -6,9 +6,10 @@ namespace esphome {
 namespace tuya {
 
 static const char *TAG = "tuya";
+static const int COMMAND_DELAY = 50;
 
 void Tuya::setup() {
-  this->set_interval("heartbeat", 1000, [this] { this->send_empty_command_(TuyaCommandType::HEARTBEAT); });
+  this->set_interval("heartbeat", 1000, [this] { this->schedule_empty_command_(TuyaCommandType::HEARTBEAT); });
 }
 
 void Tuya::loop() {
@@ -19,11 +20,20 @@ void Tuya::loop() {
   }
 }
 
+void Tuya::schedule_empty_command_(TuyaCommandType command) {
+  uint32_t delay = millis() - this->last_command_timestamp_;
+  if (delay > COMMAND_DELAY) {
+    send_empty_command_(command);
+  } else {
+    this->set_timeout(COMMAND_DELAY - delay, [this, command] { this->send_empty_command_(command); });
+  }
+}
+
 void Tuya::dump_config() {
   ESP_LOGCONFIG(TAG, "Tuya:");
   if (this->init_state_ != TuyaInitState::INIT_DONE) {
-    ESP_LOGCONFIG(TAG, "  Configuration will be reported when setup is complete. Current init_state: %u",  // NOLINT
-                  this->init_state_);
+    ESP_LOGCONFIG(TAG, "  Configuration will be reported when setup is complete. Current init_state: %u",
+                  static_cast<uint8_t>(this->init_state_));
     ESP_LOGCONFIG(TAG, "  If no further output is received, confirm that this is a supported Tuya device.");
     return;
   }
@@ -110,6 +120,7 @@ void Tuya::handle_char_(uint8_t c) {
 }
 
 void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buffer, size_t len) {
+  this->last_command_timestamp_ = millis();
   switch ((TuyaCommandType) command) {
     case TuyaCommandType::HEARTBEAT:
       ESP_LOGV(TAG, "MCU Heartbeat (0x%02X)", buffer[0]);
@@ -119,7 +130,7 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
       }
       if (this->init_state_ == TuyaInitState::INIT_HEARTBEAT) {
         this->init_state_ = TuyaInitState::INIT_PRODUCT;
-        this->send_empty_command_(TuyaCommandType::PRODUCT_QUERY);
+        this->schedule_empty_command_(TuyaCommandType::PRODUCT_QUERY);
       }
       break;
     case TuyaCommandType::PRODUCT_QUERY: {
@@ -138,7 +149,7 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
       }
       if (this->init_state_ == TuyaInitState::INIT_PRODUCT) {
         this->init_state_ = TuyaInitState::INIT_CONF;
-        this->send_empty_command_(TuyaCommandType::CONF_QUERY);
+        this->schedule_empty_command_(TuyaCommandType::CONF_QUERY);
       }
       break;
     }
@@ -148,19 +159,27 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
         gpio_reset_ = buffer[1];
       }
       if (this->init_state_ == TuyaInitState::INIT_CONF) {
-        // If we were following the spec to the letter we would send
-        // state updates until connected to both WiFi and API/MQTT.
-        // Instead we just claim to be connected immediately and move on.
-        uint8_t c[] = {0x04};
-        this->init_state_ = TuyaInitState::INIT_WIFI;
-        this->send_command_(TuyaCommandType::WIFI_STATE, c, 1);
+        // If mcu returned status gpio, then we can ommit sending wifi state
+        if (this->gpio_status_ != -1) {
+          this->init_state_ = TuyaInitState::INIT_DATAPOINT;
+          this->schedule_empty_command_(TuyaCommandType::DATAPOINT_QUERY);
+        } else {
+          this->init_state_ = TuyaInitState::INIT_WIFI;
+          this->set_timeout(COMMAND_DELAY, [this] {
+            // If we were following the spec to the letter we would send
+            // state updates until connected to both WiFi and API/MQTT.
+            // Instead we just claim to be connected immediately and move on.
+            uint8_t c[] = {0x04};
+            this->send_command_(TuyaCommandType::WIFI_STATE, c, 1);
+          });
+        }
       }
       break;
     }
     case TuyaCommandType::WIFI_STATE:
       if (this->init_state_ == TuyaInitState::INIT_WIFI) {
         this->init_state_ = TuyaInitState::INIT_DATAPOINT;
-        this->send_empty_command_(TuyaCommandType::DATAPOINT_QUERY);
+        this->schedule_empty_command_(TuyaCommandType::DATAPOINT_QUERY);
       }
       break;
     case TuyaCommandType::WIFI_RESET:
@@ -185,6 +204,44 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
       this->send_command_(TuyaCommandType::WIFI_TEST, c, 2);
       break;
     }
+    case TuyaCommandType::LOCAL_TIME_QUERY: {
+#ifdef USE_TIME
+      if (this->time_id_.has_value()) {
+        auto time_id = *this->time_id_;
+        auto now = time_id->now();
+
+        if (now.is_valid()) {
+          this->set_timeout(COMMAND_DELAY, [this, now] {
+            uint8_t year = now.year - 2000;
+            uint8_t month = now.month;
+            uint8_t day_of_month = now.day_of_month;
+            uint8_t hour = now.hour;
+            uint8_t minute = now.minute;
+            uint8_t second = now.second;
+            // Tuya days starts from Monday, esphome uses Sunday as day 1
+            uint8_t day_of_week = now.day_of_week - 1;
+            if (day_of_week == 0) {
+              day_of_week = 7;
+            }
+            uint8_t c[] = {0x01, year, month, day_of_month, hour, minute, second, day_of_week};
+            this->send_command_(TuyaCommandType::LOCAL_TIME_QUERY, c, 8);
+          });
+        } else {
+          ESP_LOGW(TAG, "TUYA_CMD_LOCAL_TIME_QUERY is not handled because time is not valid");
+          // By spec we need to notify MCU that the time was not obtained
+          this->set_timeout(COMMAND_DELAY, [this] {
+            uint8_t c[] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+            this->send_command_(TuyaCommandType::LOCAL_TIME_QUERY, c, 8);
+          });
+        }
+      } else {
+        ESP_LOGW(TAG, "TUYA_CMD_LOCAL_TIME_QUERY is not handled because time is not configured");
+      }
+#else
+      ESP_LOGE(TAG, "LOCAL_TIME_QUERY is not handled");
+#endif
+      break;
+    }
     default:
       ESP_LOGE(TAG, "invalid command (%02x) received", command);
   }
@@ -198,6 +255,14 @@ void Tuya::handle_datapoint_(const uint8_t *buffer, size_t len) {
   datapoint.id = buffer[0];
   datapoint.type = (TuyaDatapointType) buffer[1];
   datapoint.value_uint = 0;
+
+  // drop update if datapoint is in ignore_mcu_datapoint_update list
+  for (auto i : this->ignore_mcu_update_on_datapoints_) {
+    if (datapoint.id == i) {
+      ESP_LOGV(TAG, "Datapoint %u found in ignore_mcu_update_on_datapoints list, dropping MCU update", datapoint.id);
+      return;
+    }
+  }
 
   size_t data_size = (buffer[2] << 8) + buffer[3];
   const uint8_t *data = buffer + 4;

@@ -38,7 +38,7 @@ def do_packages_pass(config: dict):
                 recursive_package = package_config
                 if isinstance(package_config, dict):
                     recursive_package = do_packages_pass(package_config)
-                config = _merge_package(config, recursive_package)
+                config = _merge_package(recursive_package, config)
 
         del config[CONF_PACKAGES]
     return config

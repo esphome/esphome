@@ -11,6 +11,7 @@ from esphome.const import CONF_DEVICE_CLASS, CONF_FILTERS, \
 from esphome.core import CORE, coroutine, coroutine_with_priority
 from esphome.util import Registry
 
+CODEOWNERS = ['@esphome/core']
 DEVICE_CLASSES = [
     '', 'battery', 'cold', 'connectivity', 'door', 'garage_door', 'gas',
     'heat', 'light', 'lock', 'moisture', 'motion', 'moving', 'occupancy',
@@ -103,6 +104,7 @@ def parse_multi_click_timing_str(value):
     try:
         state = cv.boolean(parts[0])
     except cv.Invalid:
+        # pylint: disable=raise-missing-from
         raise cv.Invalid("First word must either be ON or OFF, not {}".format(parts[0]))
 
     if parts[1] != 'for':

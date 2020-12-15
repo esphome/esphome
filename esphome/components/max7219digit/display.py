@@ -11,6 +11,7 @@ CONF_SCROLL_DWELL = 'scroll_dwell'
 CONF_SCROLL_DELAY = 'scroll_delay'
 CONF_SCROLL_ENABLE = 'scroll_enable'
 CONF_SCROLL_MODE = 'scroll_mode'
+CONF_REVERSE_ENABLE = 'reverse_enable'
 
 SCROLL_MODES = {
     'CONTINUOUS': 0,
@@ -39,7 +40,8 @@ CONFIG_SCHEMA = display.BASIC_DISPLAY_SCHEMA.extend({
     cv.Optional(CONF_SCROLL_SPEED, default='250ms'): cv.positive_time_period_milliseconds,
     cv.Optional(CONF_SCROLL_DELAY, default='1000ms'): cv.positive_time_period_milliseconds,
     cv.Optional(CONF_SCROLL_DWELL, default='1000ms'): cv.positive_time_period_milliseconds,
-}).extend(cv.polling_component_schema('500ms')).extend(spi.spi_device_schema(CS_PIN_required=True))
+    cv.Optional(CONF_REVERSE_ENABLE, default=False): cv.boolean,
+}).extend(cv.polling_component_schema('500ms')).extend(spi.spi_device_schema(cs_pin_required=True))
 
 
 def to_code(config):
@@ -56,6 +58,7 @@ def to_code(config):
     cg.add(var.set_scroll_delay(config[CONF_SCROLL_DELAY]))
     cg.add(var.set_scroll(config[CONF_SCROLL_ENABLE]))
     cg.add(var.set_scroll_mode(config[CONF_SCROLL_MODE]))
+    cg.add(var.set_reverse(config[CONF_REVERSE_ENABLE]))
 
     if CONF_LAMBDA in config:
         lambda_ = yield cg.process_lambda(config[CONF_LAMBDA], [(MAX7219ComponentRef, 'it')],

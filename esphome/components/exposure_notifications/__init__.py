@@ -4,6 +4,7 @@ import esphome.config_validation as cv
 from esphome.components import esp32_ble_tracker
 from esphome.const import CONF_TRIGGER_ID
 
+CODEOWNERS = ['@OttoWinter']
 DEPENDENCIES = ['esp32_ble_tracker']
 
 exposure_notifications_ns = cg.esphome_ns.namespace('exposure_notifications')

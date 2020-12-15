@@ -5,6 +5,7 @@ from esphome.const import CONF_BAUD_RATE, CONF_ID, CONF_RX_PIN, CONF_TX_PIN, CON
     CONF_DATA, CONF_RX_BUFFER_SIZE
 from esphome.core import CORE, coroutine
 
+CODEOWNERS = ['@esphome/core']
 uart_ns = cg.esphome_ns.namespace('uart')
 UARTComponent = uart_ns.class_('UARTComponent', cg.Component)
 UARTDevice = uart_ns.class_('UARTDevice')

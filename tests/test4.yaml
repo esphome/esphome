@@ -5,7 +5,7 @@ esphome:
   build_path: build/test4
 
 substitutions:
-  devicename: test4
+  devicename: test-4
 
 ethernet:
   type: LAN8720
@@ -49,7 +49,12 @@ web_server:
     username: admin
     password: admin
 
+time:
+  - platform: sntp
+    id: sntp_time
+
 tuya:
+  time_id: sntp_time
 
 sensor:
   - platform: homeassistant
@@ -87,6 +92,8 @@ climate:
     id: tuya_climate
     switch_datapoint: 1
     target_temperature_datapoint: 3
+    current_temperature_multiplier: 0.5
+    target_temperature_multiplier: 0.5
 
 switch:
   - platform: tuya

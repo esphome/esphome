@@ -42,9 +42,9 @@ def validate_glyphs(value):
 def validate_pillow_installed(value):
     try:
         import PIL
-    except ImportError:
+    except ImportError as err:
         raise cv.Invalid("Please install the pillow python package to use this feature. "
-                         "(pip install pillow)")
+                         "(pip install pillow)") from err
 
     if PIL.__version__[0] < '4':
         raise cv.Invalid("Please update your pillow installation to at least 4.0.x. "
