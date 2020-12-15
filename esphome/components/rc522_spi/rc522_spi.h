@@ -182,6 +182,7 @@ class RC522 : public PollingComponent,
     uint8_t size;  // Number of uint8_ts in the UID. 4, 7 or 10.
     uint8_t uiduint8_t[10];
     uint8_t sak;  // The SAK (Select acknowledge) uint8_t returned from the PICC after successful selection.
+    bool last_seen; //new property, indicating if the tag has been successfully scaned durig the previous iteration. 
   };
 
   Uid uid_;

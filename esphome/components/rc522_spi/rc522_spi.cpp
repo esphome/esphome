@@ -77,7 +77,7 @@ void RC522::initialize_() {
   pcd_write_register_(MODE_REG, 0x3D);  // Default 0x3F. Set the preset value for the CRC coprocessor for the CalcCRC
                                         // command to 0x6363 (ISO 14443-3 part 6.2.4)
   pcd_antenna_on_();                    // Enable the antenna driver pins TX1 and TX2 (they were disabled by the reset)
-
+  this->uid_.size=0;
   initialize_pending_ = false;
 }
 
@@ -112,20 +112,39 @@ void RC522::loop() {
     return;
   }
 
-  if (millis() - update_wait_ < this->update_interval_)
+  if (millis() - update_wait_ < this->update_interval_){
+    // set binary sensor states
+    for (auto *tag : this->binary_sensors_) 
+      tag->process(uid_.uiduint8_t, uid_.size);
     return;
+  }
 
+  //when we get here, at least 1 second passed since last update
   auto status = picc_is_new_card_present_();
+  update_wait_ = millis(); // modification: 
+    // if update_wait is not set here, there will be a scan on every iteration
+    // until a card is detected
 
-  if (status == STATUS_ERROR)  // No card
-  {
-    ESP_LOGE(TAG, "Error");
+  if (status == STATUS_ERROR)  //this happes if the card is not close enough,
+  {                            // but also if spi communication is disturbed ??
+    ESP_LOGW(TAG, "Error: Card not close enough?"); 
     // mark_failed();
     return;
   }
 
-  if (status != STATUS_OK)  // We can receive STATUS_TIMEOUT when no card, or unexpected status.
+  if (status == STATUS_OK)
+  { 
+    this->uid_.last_seen=true;
+  } else 
+  { // We can receive STATUS_TIMEOUT when no card, or unexpected status.
+    // I get STATUS_COLLITION (3) if no tag, and if a tag is present on every second scan
+    if (!this->uid_.last_seen)
+    { //second time we do not see a tag
+      this->uid_.size=0; //this results in unsetting the binary switch
+    } else 
+      this->uid_.last_seen=false; // first time no tag
     return;
+  }
 
   // Try process card
   if (!picc_read_card_serial_()) {
@@ -134,11 +153,9 @@ void RC522::loop() {
   };
 
   if (uid_.size < 4) {
-    return;
     ESP_LOGW(TAG, "Read serial size: %d", uid_.size);
+    return;
   }
-
-  update_wait_ = millis();
 
   bool report = true;
   // 1. Go through all triggers
@@ -835,12 +852,16 @@ RC522::StatusCode RC522::picc_select_(
 }
 
 bool RC522BinarySensor::process(const uint8_t *data, uint8_t len) {
-  if (len != this->uid_.size())
+  if (len != this->uid_.size()){
+    this->publish_state(false); //activly unset binary sensor
     return false;
+  }
 
   for (uint8_t i = 0; i < len; i++) {
-    if (data[i] != this->uid_[i])
+    if (data[i] != this->uid_[i]){
+      this->publish_state(false);//activly unset binary sensor
       return false;
+    }
   }
 
   this->publish_state(true);
