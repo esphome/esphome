@@ -29,10 +29,9 @@ void MCP4725::dump_config() {
 
 // https://learn.sparkfun.com/tutorials/mcp4725-digital-to-analog-converter-hookup-guide?_ga=2.176055202.1402343014.1607953301-893095255.1606753886
 void MCP4725::write_state(float state) {
-  const int value = (int) state * (pow(2, MCP4725_RES) - 1);
-  const uint8_t data[2] = { (uint8_t) (value >> 4), (uint8_t) ((value & 15) << 4) };
+  const uint16_t value = (uint16_t) round(state * (pow(2, MCP4725_RES) - 1));
 
-  this->parent_->write_bytes(this->address_, 64, data, 2);
+  this->write_byte_16(64, value  << 4);
 }
 
 }  // namespace mcp4725
