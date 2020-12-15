@@ -31,7 +31,7 @@ void MCP4725::dump_config() {
 void MCP4725::write_state(float state) {
   const uint16_t value = (uint16_t) round(state * (pow(2, MCP4725_RES) - 1));
 
-  this->write_byte_16(64, value  << 4);
+  this->write_byte_16(64, value << 4);
 }
 
 }  // namespace mcp4725
