@@ -13,8 +13,8 @@ struct ParseResult {
   optional<float> weight;
   optional<float> impedance;
   bool is_duplicate;
-  bool is_stabilized
-  bool loadremoved
+  bool is_stabilized;
+  bool loadremoved;
   int raw_offset;
 };
 
