@@ -2,36 +2,38 @@
 #include "esphome/core/log.h"
 
 namespace esphome {
-  namespace mcp4725 {
-    static const char *TAG = "mcp4725";
+namespace mcp4725 {
 
-    void MCP4725::setup() {
-      ESP_LOGCONFIG(TAG, "Setting up MCP4725 (0x%02X)...", this->address_);
+static const char *TAG = "mcp4725";
 
-      this->parent_->raw_begin_transmission(this->address_);
+void MCP4725::setup() {
+  ESP_LOGCONFIG(TAG, "Setting up MCP4725 (0x%02X)...", this->address_);
 
-      if (!this->parent_->raw_end_transmission(this->address_)) {
-        this->error_code_ = COMMUNICATION_FAILED;
-        this->mark_failed();
+  this->parent_->raw_begin_transmission(this->address_);
 
-        return;
-      }
-    }
+  if (!this->parent_->raw_end_transmission(this->address_)) {
+    this->error_code_ = COMMUNICATION_FAILED;
+    this->mark_failed();
 
-    void MCP4725::dump_config() {
-      LOG_I2C_DEVICE(this);
-
-      if (this->error_code_ == COMMUNICATION_FAILED) {
-        ESP_LOGE(TAG, "Communication with MCP4725 failed!");
-      }
-    }
-
-    // https://learn.sparkfun.com/tutorials/mcp4725-digital-to-analog-converter-hookup-guide?_ga=2.176055202.1402343014.1607953301-893095255.1606753886
-    void MCP4725::write_state(float state) {
-      const int value = state * (pow(2, MCP4725_RES) - 1);
-      const uint8_t data[2] = { (uint8_t) (value >> 4), (uint8_t) ((value & 15) << 4) };
-
-      this->parent_->write_bytes(this->address_, 64, data, 2);
-    }
+    return;
   }
 }
+
+void MCP4725::dump_config() {
+  LOG_I2C_DEVICE(this);
+
+  if (this->error_code_ == COMMUNICATION_FAILED) {
+    ESP_LOGE(TAG, "Communication with MCP4725 failed!");
+  }
+}
+
+// https://learn.sparkfun.com/tutorials/mcp4725-digital-to-analog-converter-hookup-guide?_ga=2.176055202.1402343014.1607953301-893095255.1606753886
+void MCP4725::write_state(float state) {
+  const int value = state * (pow(2, MCP4725_RES) - 1);
+  const uint8_t data[2] = { (uint8_t) (value >> 4), (uint8_t) ((value & 15) << 4) };
+
+  this->parent_->write_bytes(this->address_, 64, data, 2);
+}
+
+}  // namespace mcp4725
+}  // namespace esphome
