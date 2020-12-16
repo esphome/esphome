@@ -11,14 +11,14 @@ namespace fingerprint_grow {
 
 static const uint16_t START_CODE = 0xEF01;
 
-enum class GrowPacketType : uint8_t {
+enum GrowPacketType {
   COMMAND = 0x01,
   DATA = 0x02,
   ACK = 0x07,
   END_DATA = 0x08,
 };
 
-enum class GrowCommand : uint8_t {
+enum GrowCommand {
   GET_IMAGE = 0x01,
   IMAGE_2_TZ = 0x02,
   SEARCH = 0x04,
@@ -38,7 +38,7 @@ enum class GrowCommand : uint8_t {
   LED_OFF = 0x51,
 };
 
-enum class GrowResponse : uint8_t {
+enum GrowResponse {
   OK = 0x00,
   PACKET_RCV_ERR = 0x01,
   NO_FINGER = 0x02,
@@ -63,7 +63,7 @@ enum class GrowResponse : uint8_t {
   TIMEOUT = 0xFF,
 };
 
-enum class GrowAuraLEDState : uint8_t {
+enum GrowAuraLEDState {
   BREATHING = 0x01,
   FLASHING = 0x02,
   ALWAYS_ON = 0x03,
@@ -72,15 +72,10 @@ enum class GrowAuraLEDState : uint8_t {
   GRADUAL_OFF = 0x06,
 };
 
-enum class GrowAuraLEDColor : uint8_t {
+enum GrowAuraLEDColor {
   RED = 0x01,
   BLUE = 0x02,
   PURPLE = 0x03,
-};
-
-struct FingerprintPacket {
-  uint16_t length;
-  uint8_t data[64];
 };
 
 class FingerprintGrowComponent : public PollingComponent, public uart::UARTDevice {
@@ -90,8 +85,10 @@ class FingerprintGrowComponent : public PollingComponent, public uart::UARTDevic
   void dump_config() override;
 
   void set_address(uint32_t address) {
-    for (uint8_t i = 0; i < 4; i++)
-      this->address_[i] = address >> (3 - i) 
+    this->address_[0] = (uint8_t)(address >> 24);
+    this->address_[1] = (uint8_t)(address >> 16);
+    this->address_[2] = (uint8_t)(address >> 8);
+    this->address_[3] = (uint8_t)(address & 0xFF);
   }
   void set_sensing_pin(GPIOPin *sensing_pin) { this->sensing_pin_ = sensing_pin; }
   void set_password(uint32_t password) { this->password_ = password; }
@@ -146,11 +143,9 @@ class FingerprintGrowComponent : public PollingComponent, public uart::UARTDevic
   bool set_password_();
   bool get_parameters_();
   void get_fingerprint_count_();
+  uint8_t send_command_();
 
-  void write_packet_(const FingerprintPacket &p);
-  uint8_t get_packet_(FingerprintPacket *p);
-
-  FingerprintPacket packet_;
+  std::vector<uint8_t> data_ = {};
   uint8_t address_[4] = {0xFF};
   uint16_t capacity_ = 64;
   uint32_t password_ = 0x0;
