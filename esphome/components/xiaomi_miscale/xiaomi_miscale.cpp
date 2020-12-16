@@ -51,6 +51,8 @@ optional<ParseResult> XiaomiMiscale::parse_header(const esp32_ble_tracker::Servi
     return {};
   }
 
+  const uint8_t *data = message.data();
+
   static int year = 0;
   bool temporary = true;
   const int16_t rcvdYear = uint16_t(data[3]) | (uint16_t(data[4]) << 8);
