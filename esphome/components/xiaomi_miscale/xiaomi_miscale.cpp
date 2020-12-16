@@ -51,11 +51,11 @@ optional<ParseResult> XiaomiMiscale::parse_header(const esp32_ble_tracker::Servi
     return {};
   }
 
-  const uint8_t *data = message.data();
+  auto raw = service_data.data;
 
   static int year = 0;
   bool temporary = true;
-  const int16_t rcvdYear = uint16_t(data[3]) | (uint16_t(data[4]) << 8);
+  const int16_t rcvdYear = uint16_t(raw[3]) | (uint16_t(raw[4]) << 8);
   //If we received a year for the first time, store it in the year variable
   //The first year we receive indicates a temporary measurement
   if (year == 0){
