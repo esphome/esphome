@@ -24,13 +24,7 @@ bool XiaomiMiscale2::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
   bool success = false;
   for (auto &service_data : device.get_service_datas()) {
     auto res = parse_header(service_data);
-    if (res->is_duplicate) {
-      continue;
-    }
-    if (res->is_stabilized) {
-      continue;
-    }
-    if (res->loadremoved) {
+    if (res->stabilized) {
       continue;
     }
     if (res->hasimpedance) {
@@ -84,20 +78,28 @@ bool XiaomiMiscale2::parse_message(const std::vector<uint8_t> &message, ParseRes
     return false;
   }
 
-  result.is_stabilized = ((data[1] & (1 << 5)) != 0) ? true : false;
-  result.loadremoved = ((data[1] & (1 << 7)) != 0) ? true : false;
-  result.hasimpedance = ((data[1] & (1 << 1)) != 0) ? true : false;
-
-  // impedance, 2 bytes, 16-bit
-  const int16_t impedance = uint16_t(data[9]) | (uint16_t(data[10]) << 8);
-  result.impedance = impedance;
-
+  bool is_Stabilized = (data[0] >> 5 & 1);
+  bool is_WeightRemoved = (data[0] >> 7 & 1);
+  bool hasimpedance = (data[0] >> 1 & 1);
+  
   // weight, 2 bytes, 16-bit  unsigned integer, 1 kg
   const int16_t weight = uint16_t(data[11]) | (uint16_t(data[12]) << 8);
   if (data[0] == 0x02)
     result.weight = weight * 0.01f / 2.0f;  // unit 'kg'
   else if (data[0] == 0x03)
     result.weight = weight * 0.01f * 0.453592;  // unit 'lbs'
+
+  // impedance, 2 bytes, 16-bit
+  const int16_t impedance = uint16_t(data[9]) | (uint16_t(data[10]) << 8);
+  result.impedance = impedance;
+
+  if (is_Stabilized == 1 && is_WeightRemoved != 1)
+    return false;
+  }
+
+  if (hasimpedance != 1)
+    return false;
+  }
 
   return true;
 }
