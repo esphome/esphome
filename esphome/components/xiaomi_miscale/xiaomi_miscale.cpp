@@ -105,7 +105,7 @@ bool XiaomiMiscale::parse_message(const std::vector<uint8_t> &message, ParseResu
   else if (data[0] == 0x03 || data[0] == 0xb3)
     result.weight = weight * 0.01f * 0.453592;  // unit 'lbs'
 
-  return true
+  return true;
 }
 
 bool XiaomiMiscale::report_results(const optional<ParseResult> &result, const std::string &address) {
