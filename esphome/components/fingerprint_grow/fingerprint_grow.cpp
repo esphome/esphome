@@ -6,9 +6,11 @@ namespace fingerprint_grow {
 
 static const char* TAG = "fingerprint_grow";
 
+// Based on Adafruit's library: https://github.com/adafruit/Adafruit-Fingerprint-Sensor-Library
+
 void FingerprintGrowComponent::update() {
   if (this->waiting_removal_) {
-    if (this->finger_->getImage() == FINGERPRINT_NOFINGER) {
+    if (this->scan_image_(0) == GrowResponse::NO_FINGER) {
       ESP_LOGD(TAG, "Finger removed");
       this->waiting_removal_ = false;
     }
@@ -16,42 +18,7 @@ void FingerprintGrowComponent::update() {
   }
 
   if (this->enrollment_image_ > this->enrollment_buffers_) {
-    ESP_LOGI(TAG, "Creating model");
-    uint8_t result = this->finger_->createModel();
-    if (result == FINGERPRINT_OK) {
-      ESP_LOGI(TAG, "Storing model");
-      result = this->finger_->storeModel(this->enrollment_slot_);
-      if (result == FINGERPRINT_OK) {
-        ESP_LOGI(TAG, "Stored model");
-        this->get_fingerprint_count_();
-      } else {
-        switch (result) {
-          case FINGERPRINT_PACKETRECIEVEERR:
-            ESP_LOGE(TAG, "Communication error");
-            break;
-          case FINGERPRINT_BADLOCATION:
-            ESP_LOGE(TAG, "Invalid slot");
-            break;
-          case FINGERPRINT_FLASHERR:
-            ESP_LOGE(TAG, "Error writing to flash");
-            break;
-          default:
-            ESP_LOGE(TAG, "Unknown error: %d", result);
-        }
-      }
-    } else {
-      switch (result) {
-        case FINGERPRINT_PACKETRECIEVEERR:
-          ESP_LOGE(TAG, "Communication error");
-          break;
-        case FINGERPRINT_ENROLLMISMATCH:
-          ESP_LOGE(TAG, "Scans do not match");
-          break;
-        default:
-          ESP_LOGE(TAG, "Unknown error: %d", result);
-      }
-    }
-    this->finish_enrollment(result);
+    this->finish_enrollment(this->save_fingerprint_());
     return;
   }
 
@@ -61,21 +28,16 @@ void FingerprintGrowComponent::update() {
   }
 
   if (this->enrollment_image_ == 0) {
-    if (this->sensing_pin_ != nullptr) {
-      ESP_LOGD(TAG, "Scan and match");
-    } else {
-      ESP_LOGV(TAG, "Scan and match");
-    }
     this->scan_and_match_();
     return;
   }
 
   uint8_t result = this->scan_image_(this->enrollment_image_);
-  if (result == FINGERPRINT_NOFINGER) {
+  if (result == GrowResponse::NO_FINGER) {
     return;
   }
   this->waiting_removal_ = true;
-  if (result != FINGERPRINT_OK) {
+  if (result != GrowResponse::OK) {
     this->finish_enrollment(result);
     return;
   }
@@ -85,57 +47,16 @@ void FingerprintGrowComponent::update() {
 
 void FingerprintGrowComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up Grow Fingerprint Reader...");
-  // uint8_t result = this->finger_->checkPassword();
-  uint8_t result = FINGERPRINT_PACKETRECIEVEERR;
-  // if (result == FINGERPRINT_OK) {
-  if (this->finger_->verifyPassword()) {
-    ESP_LOGD(TAG, "Password verified");
+  if (this->check_password_()) {
     if (this->new_password_ != nullptr) {
-      ESP_LOGI(TAG, "Setting new password: %d", *this->new_password_);
-      result = this->finger_->setPassword(*this->new_password_);
-      if (result == FINGERPRINT_OK) {
-        ESP_LOGI(TAG, "New password successfully set");
-        ESP_LOGI(TAG, "Define the new password in your configuration and reflash now");
-        ESP_LOGW(TAG, "!!!Forgetting the password will render your device unusable!!!");
-      } else {
-        ESP_LOGE(TAG, "Communication error");
-        this->mark_failed();
-      }
+      if (this->set_password_())
+        return;
     } else {
-      ESP_LOGD(TAG, "Getting parameters");
-      result = this->finger_->getParameters();
-      if (result != FINGERPRINT_OK) {
-        ESP_LOGE(TAG, "Error getting parameters");
-        this->mark_failed();
-      } else {
-        if (this->status_sensor_ != nullptr) {
-          this->status_sensor_->publish_state(this->finger_->status_reg);
-        }
-        if (this->capacity_sensor_ != nullptr) {
-          this->capacity_sensor_->publish_state(this->finger_->capacity);
-        }
-        if (this->security_level_sensor_ != nullptr) {
-          this->security_level_sensor_->publish_state(this->finger_->security_level);
-        }
-        if (this->enrolling_binary_sensor_ != nullptr) {
-          this->enrolling_binary_sensor_->publish_state(false);
-        }
-        this->get_fingerprint_count_();
-      }
+      if (this->get_parameters_())
+        return;
     }
-  } else {
-    switch (result) {
-      case FINGERPRINT_PACKETRECIEVEERR:
-        ESP_LOGE(TAG, "Communication error");
-        break;
-      case FINGERPRINT_PASSFAIL:
-        ESP_LOGE(TAG, "Wrong password");
-        break;
-      default:
-        ESP_LOGE(TAG, "Unknown error: %d", result);
-    }
-    this->mark_failed();
   }
+  this->mark_failed();
 }
 
 void FingerprintGrowComponent::enroll_fingerprint(uint16_t finger_id, uint8_t num_buffers) {
@@ -149,7 +70,7 @@ void FingerprintGrowComponent::enroll_fingerprint(uint16_t finger_id, uint8_t nu
 }
 
 void FingerprintGrowComponent::finish_enrollment(uint8_t result) {
-  if (result == FINGERPRINT_OK) {
+  if (result == GrowResponse::OK) {
     this->enrollment_done_callback_.call(this->enrollment_slot_);
   } else {
     this->enrollment_failed_callback_.call(this->enrollment_slot_);
@@ -163,34 +84,53 @@ void FingerprintGrowComponent::finish_enrollment(uint8_t result) {
 }
 
 void FingerprintGrowComponent::scan_and_match_() {
+  if (this->sensing_pin_ != nullptr) {
+    ESP_LOGD(TAG, "Scan and match");
+  } else {
+    ESP_LOGV(TAG, "Scan and match");
+  }
   uint8_t result = this->scan_image_(1);
-  if (result == FINGERPRINT_NOFINGER) {
+  if (result == GrowResponse::NO_FINGER) {
     return;
   }
   this->waiting_removal_ = true;
-  if (result == FINGERPRINT_OK) {
-    result = this->finger_->fingerSearch();
-    ESP_LOGD(TAG, "Finger searched");
-    if (result == FINGERPRINT_OK) {
-      if (this->last_finger_id_sensor_ != nullptr) {
-        this->last_finger_id_sensor_->publish_state(this->finger_->fingerID);
+  if (result == GrowResponse::OK) {
+    this->write_packet_({
+      GrowCommand::SEARCH,
+      0x01,
+      0x00,
+      0x00,
+      (uint8_t)(this->capacity_ >> 8),
+      (uint8_t)(this->capacity_ & 0xFF)
+    });
+    if (this->read_packet_()) {
+      ESP_LOGD(TAG, "Finger searched");
+      if (this->packet_.data[0] == GrowResponse::OK) {
+        uint16_t finger_id = ((uint16_t)this->packet_.data[1] << 8) | this->packet_.data[2];
+        uint16_t confidence = ((uint16_t)this->packet_.data[3] << 8) | this->packet_.data[4];
+        if (this->last_finger_id_sensor_ != nullptr) {
+          this->last_finger_id_sensor_->publish_state(finger_id);
+        }
+        if (this->last_confidence_sensor_ != nullptr) {
+          this->last_confidence_sensor_->publish_state(confidence);
+        }
+        this->finger_scan_matched_callback_.call(finger_id, confidence);
+      } else {
+        switch (this->packet_.data[0]) {
+          case GrowResponse::PACKET_RCV_ERR:
+            ESP_LOGE(TAG, "Reader failed to process request");
+            break;
+          case GrowResponse::NOT_FOUND:
+            ESP_LOGD(TAG, "Fingerprint not matched to any saved slots");
+            this->finger_scan_unmatched_callback_.call();
+            break;
+          default:
+            ESP_LOGE(TAG, "Unknown response received from reader: %d", this->packet_.data[0]);
+            break;
+        }
       }
-      if (this->last_confidence_sensor_ != nullptr) {
-        this->last_confidence_sensor_->publish_state(this->finger_->confidence);
-      }
-      this->finger_scan_matched_callback_.call(this->finger_->fingerID, this->finger_->confidence);
     } else {
-      switch (result) {
-        case FINGERPRINT_PACKETRECIEVEERR:
-          ESP_LOGE(TAG, "Communication error");
-          break;
-        case FINGERPRINT_NOTFOUND:
-          ESP_LOGD(TAG, "Fingerprint not matched to any saved slots");
-          this->finger_scan_unmatched_callback_.call();
-          break;
-        default:
-          ESP_LOGE(TAG, "Unknown error: %d", result);
-      }
+      ESP_LOGE(TAG, "No valid response received from reader");
     }
   }
 }
@@ -201,119 +141,305 @@ uint8_t FingerprintGrowComponent::scan_image_(uint8_t buffer) {
   } else {
     ESP_LOGV(TAG, "Getting image %d", buffer);
   }
-  uint8_t p = this->finger_->getImage();
-  if (p != FINGERPRINT_OK) {
-    switch (p) {
-      case FINGERPRINT_PACKETRECIEVEERR:
-        ESP_LOGE(TAG, "Communication error");
-        return p;
-      case FINGERPRINT_NOFINGER:
-        if (this->sensing_pin_ != nullptr) {
-          ESP_LOGD(TAG, "No finger");
-        } else {
-          ESP_LOGV(TAG, "No finger");
-        }
-        return p;
-      case FINGERPRINT_IMAGEFAIL:
-        ESP_LOGE(TAG, "Imaging error");
-        return p;
-      default:
-        ESP_LOGE(TAG, "Unknown error: %d", p);
-        return p;
+  this->write_packet_({GrowCommand::GET_IMAGE});
+  if (this->read_packet_()) {
+    if (this->packet_.data[0] != GrowResponse::OK) {
+      switch (this->packet_.data[0]) {
+        case GrowResponse::PACKET_RCV_ERR:
+          ESP_LOGE(TAG, "Reader failed to process request");
+          break;
+        case GrowResponse::NO_FINGER:
+          if (this->sensing_pin_ != nullptr) {
+            ESP_LOGD(TAG, "No finger");
+          } else {
+            ESP_LOGV(TAG, "No finger");
+          }
+          break;
+        case GrowResponse::IMAGE_FAIL:
+          ESP_LOGE(TAG, "Imaging error");
+          break;
+        default:
+          ESP_LOGE(TAG, "Unknown response received from reader: %d", this->packet_.data[0]);
+          break;
+      }
+      return this->packet_.data[0];
     }
+  } else {
+    ESP_LOGE(TAG, "No valid response received from reader");
+    return GrowResponse::TIMEOUT;
   }
 
   ESP_LOGD(TAG, "Processing image %d", buffer);
-  p = this->finger_->image2Tz(buffer);
-  switch (p) {
-    case FINGERPRINT_OK:
-      ESP_LOGI(TAG, "Processed image %d", buffer);
-      return p;
-    case FINGERPRINT_IMAGEMESS:
-      ESP_LOGE(TAG, "Image too messy");
-      return p;
-    case FINGERPRINT_PACKETRECIEVEERR:
-      ESP_LOGE(TAG, "Communication error");
-      return p;
-    case FINGERPRINT_FEATUREFAIL:
-    case FINGERPRINT_INVALIDIMAGE:
-      ESP_LOGE(TAG, "Could not find fingerprint features");
-      return p;
-    default:
-      ESP_LOGE(TAG, "Unknown error: %d", p);
-      return p;
+  this->write_packet_({GrowCommand::IMAGE_2_TZ, buffer});
+  if (this->read_packet_()) {
+    switch (this->packet_.data[0]) {
+      case GrowResponse::OK:
+        ESP_LOGI(TAG, "Processed image %d", buffer);
+        break;
+      case GrowResponse::IMAGE_MESS:
+        ESP_LOGE(TAG, "Image too messy");
+        break;
+      case GrowResponse::PACKET_RCV_ERR:
+        ESP_LOGE(TAG, "Reader failed to process request");
+        break;
+      case GrowResponse::FEATURE_FAIL:
+      case GrowResponse::INVALID_IMAGE:
+        ESP_LOGE(TAG, "Could not find fingerprint features");
+        break;
+      default:
+        ESP_LOGE(TAG, "Unknown response received from reader: %d", this->packet_.data[0]);
+        break;
+    }
+    return this->packet_.data[0];
+  } else {
+    ESP_LOGE(TAG, "No valid response received from reader");
+    return GrowResponse::TIMEOUT;
   }
+}
+
+uint8_t FingerprintGrowComponent::save_fingerprint_() {
+  ESP_LOGI(TAG, "Creating model");
+  this->write_packet_({GrowCommand::REG_MODEL});
+  if (this->read_packet_()) {
+    if (this->packet_.data[0] != GrowResponse::OK) {
+      switch (this->packet_.data[0]) {
+        case GrowResponse::PACKET_RCV_ERR:
+          ESP_LOGE(TAG, "Reader failed to process request");
+          break;
+        case GrowResponse::ENROLL_MISMATCH:
+          ESP_LOGE(TAG, "Scans do not match");
+          break;
+        default:
+          ESP_LOGE(TAG, "Unknown response received from reader: %d", this->packet_.data[0]);
+          break;
+      }
+      return this->packet_.data[0];
+    }
+  } else {
+    ESP_LOGE(TAG, "No valid response received from reader");
+    return GrowResponse::TIMEOUT;
+  }
+
+  ESP_LOGI(TAG, "Storing model");
+  this->write_packet_({
+    GrowCommand::STORE,
+    0x01,
+    (uint8_t)(this->enrollment_slot_ >> 8),
+    (uint8_t)(this->enrollment_slot_ & 0xFF)
+  });
+  if (this->read_packet_()) {
+    switch (this->packet_.data[0]) {
+      case GrowResponse::OK:
+        ESP_LOGI(TAG, "Stored model");
+        break;
+      case GrowResponse::PACKET_RCV_ERR:
+        ESP_LOGE(TAG, "Reader failed to process request");
+        break;
+      case GrowResponse::BAD_LOCATION:
+        ESP_LOGE(TAG, "Invalid slot");
+        break;
+      case GrowResponse::FLASH_ERR:
+        ESP_LOGE(TAG, "Error writing to flash");
+        break;
+      default:
+        ESP_LOGE(TAG, "Unknown response received from reader: %d", this->packet_.data[0]);
+        break;
+    }
+    return this->packet_.data[0];
+  } else {
+    ESP_LOGE(TAG, "No valid response received from reader");
+    return GrowResponse::TIMEOUT;
+  }
+}
+
+bool FingerprintGrowComponent::check_password_() {
+  ESP_LOGD(TAG, "Checking password");
+  this->write_packet_({
+    GrowCommand::VERIFY_PASSWORD,
+    (uint8_t)(this->password_ >> 24),
+    (uint8_t)(this->password_ >> 16),
+    (uint8_t)(this->password_ >> 8),
+    (uint8_t)(this->password_ & 0xFF)
+  });
+  if (this->read_packet_()) {
+    switch (this->packet_.data[0]) {
+      case GrowResponse::OK:
+        ESP_LOGD(TAG, "Password verified");
+        return true;
+      case GrowResponse::PACKET_RCV_ERR:
+        ESP_LOGE(TAG, "Reader failed to process request");
+        break;
+      case GrowResponse::PASSWORD_FAIL:
+        ESP_LOGE(TAG, "Wrong password");
+        break;
+      default:
+        ESP_LOGE(TAG, "Unknown response received from reader: %d", this->packet_.data[0]);
+        break;
+    }
+  } else {
+    ESP_LOGE(TAG, "No valid response received from reader");
+  }
+  return false;
+}
+
+bool FingerprintGrowComponent::set_password_() {
+  ESP_LOGI(TAG, "Setting new password: %d", *this->new_password_);
+  this->write_packet_({
+    GrowCommand::SET_PASSWORD,
+    (uint8_t)(this->new_password_ >> 24),
+    (uint8_t)(this->new_password_ >> 16),
+    (uint8_t)(this->new_password_ >> 8),
+    (uint8_t)(this->new_password_ & 0xFF)
+  });
+  if (this->read_packet_()) {
+    switch (this->packet_.data[0]) {
+      case GrowResponse::OK:
+        ESP_LOGI(TAG, "New password successfully set");
+        ESP_LOGI(TAG, "Define the new password in your configuration and reflash now");
+        ESP_LOGW(TAG, "!!!Forgetting the password will render your device unusable!!!");
+        return true;
+      case GrowResponse::PACKET_RCV_ERR:
+        ESP_LOGE(TAG, "Reader failed to process request");
+        break;
+      default:
+        ESP_LOGE(TAG, "Unknown response received from reader: %d", this->packet_.data[0]);
+        break;
+    }
+  } else {
+    ESP_LOGE(TAG, "No valid response received from reader");
+  }
+  return false;
+}
+
+bool FingerprintGrowComponent::get_parameters_() {
+  ESP_LOGD(TAG, "Getting parameters");
+  this->write_packet_({GrowCommand::READ_SYS_PARAM});
+  if (this->read_packet_()) {
+    switch (this->packet_.data[0]) {
+      case GrowResponse::OK:
+        ESP_LOGD(TAG, "Got parameters");
+        if (this->status_sensor_ != nullptr) {
+          this->status_sensor_->publish_state(((uint16_t)packet.data[1] << 8) | packet.data[2]);
+        }
+        this->capacity_ = ((uint16_t)packet.data[5] << 8) | packet.data[6];
+        if (this->capacity_sensor_ != nullptr) {
+          this->capacity_sensor_->publish_state(this->capacity_);
+        }
+        if (this->security_level_sensor_ != nullptr) {
+          this->security_level_sensor_->publish_state(((uint16_t)packet.data[7] << 8) | packet.data[8]);
+        }
+        if (this->enrolling_binary_sensor_ != nullptr) {
+          this->enrolling_binary_sensor_->publish_state(false);
+        }
+        this->get_fingerprint_count_();
+        return true;
+      case GrowResponse::PACKET_RCV_ERR:
+        ESP_LOGE(TAG, "Reader failed to process request");
+        break;
+      default:
+        ESP_LOGE(TAG, "Unknown response received from reader: %d", this->packet_.data[0]);
+        break;
+    }
+  } else {
+    ESP_LOGE(TAG, "No valid response received from reader");
+  }
+  return false
 }
 
 void FingerprintGrowComponent::get_fingerprint_count_() {
   ESP_LOGD(TAG, "Getting fingerprint count");
-  uint8_t result = this->finger_->getTemplateCount();
-  switch (result) {
-    case FINGERPRINT_OK:
-      ESP_LOGD(TAG, "Got fingerprint count");
-      if (this->fingerprint_count_sensor_ != nullptr) {
-        this->fingerprint_count_sensor_->publish_state(this->finger_->templateCount);
-      }
-      break;
-    case FINGERPRINT_PACKETRECIEVEERR:
-      ESP_LOGE(TAG, "Communication error");
-      break;
-    default:
-      ESP_LOGE(TAG, "Unknown error: %d", result);
+  this->write_packet_({GrowCommand::TEMPLATE_COUNT});
+  if (this->read_packet_()) {
+    switch (this->packet_.data[0]) {
+      case GrowResponse::OK:
+        ESP_LOGD(TAG, "Got fingerprint count");
+        if (this->fingerprint_count_sensor_ != nullptr) {
+          this->fingerprint_count_sensor_->publish_state(
+            ((uint16_t)this->packet_.data[1] << 8) | this->packet_.data[2]
+          );
+        }
+        break;
+      case GrowResponse::PACKET_RCV_ERR:
+        ESP_LOGE(TAG, "Reader failed to process request");
+        break;
+      default:
+        ESP_LOGE(TAG, "Unknown response received from reader: %d", this->packet_.data[0]);
+        break;
+    }
+  } else {
+    ESP_LOGE(TAG, "No valid response received from reader");
   }
 }
 
 void FingerprintGrowComponent::delete_fingerprint(uint16_t finger_id) {
   ESP_LOGI(TAG, "Deleting fingerprint in slot %d", finger_id);
-  uint8_t result = this->finger_->deleteModel(finger_id);
-  switch (result) {
-    case FINGERPRINT_OK:
-      ESP_LOGI(TAG, "Deleted fingerprint");
-      this->get_fingerprint_count_();
-      break;
-    case FINGERPRINT_PACKETRECIEVEERR:
-      ESP_LOGE(TAG, "Communication error");
-      break;
-    case FINGERPRINT_DELETEFAIL:
-      ESP_LOGE(TAG, "Failed to delete fingerprint");
-      break;
-    default:
-      ESP_LOGE(TAG, "Unknown error: %d", result);
+  this->write_packet_({GrowCommand::DELETE, (uint8_t)(finger_id >> 8), (uint8_t)(finger_id & 0xFF), 0x00, 0x01});
+  if (this->read_packet_()) {
+    switch (this->packet_.data[0]) {
+      case GrowResponse::OK:
+        ESP_LOGI(TAG, "Deleted fingerprint");
+        this->get_fingerprint_count_();
+        break;
+      case GrowResponse::PACKET_RCV_ERR:
+        ESP_LOGE(TAG, "Reader failed to process request");
+        break;
+      case GrowResponse::DELETE_FAIL:
+        ESP_LOGE(TAG, "Reader failed to delete fingerprint");
+        break;
+      default:
+        ESP_LOGE(TAG, "Unknown response received from reader: %d", this->packet_.data[0]);
+        break;
+    }
+  } else {
+    ESP_LOGE(TAG, "No valid response received from reader");
   }
 }
 
 void FingerprintGrowComponent::delete_all_fingerprints() {
   ESP_LOGI(TAG, "Deleting all stored fingerprints");
-  uint8_t result = this->finger_->emptyDatabase();
-  switch (result) {
-    case FINGERPRINT_OK:
-      ESP_LOGI(TAG, "Deleted all fingerprints");
-      this->get_fingerprint_count_();
-      break;
-    case FINGERPRINT_PACKETRECIEVEERR:
-      ESP_LOGE(TAG, "Communication error");
-      break;
-    case FINGERPRINT_DBCLEARFAIL:
-      ESP_LOGE(TAG, "Failed to clear fingerprint library");
-      break;
-    default:
-      ESP_LOGE(TAG, "Unknown error: %d", result);
+  this->write_packet_({GrowCommand::EMPTY});
+  if (this->read_packet_()) {
+    switch (this->packet_.data[0]) {
+      case GrowResponse::OK:
+        ESP_LOGI(TAG, "Deleted all fingerprints");
+        this->get_fingerprint_count_();
+        break;
+      case GrowResponse::PACKET_RCV_ERR:
+        ESP_LOGE(TAG, "Reader failed to process request");
+        break;
+      case GrowResponse::DB_CLEAR_FAIL:
+        ESP_LOGE(TAG, "Reader failed to clear fingerprint library");
+        break;
+      default:
+        ESP_LOGE(TAG, "Unknown response received from reader: %d", this->packet_.data[0]);
+        break;
+    }
+  } else {
+    ESP_LOGE(TAG, "No valid response received from reader");
   }
 }
 
 void FingerprintGrowComponent::led_control(bool state) {
   ESP_LOGD(TAG, "Setting LED");
-  uint8_t result = this->finger_->LEDcontrol(state);
-  switch (result) {
-    case FINGERPRINT_OK:
-      ESP_LOGD(TAG, "LED set");
-      break;
-    case FINGERPRINT_PACKETRECIEVEERR:
-      ESP_LOGE(TAG, "Communication error");
-      break;
-    default:
-      ESP_LOGE(TAG, "Unknown error: %d", result);
-      ESP_LOGE(TAG, "Try aura_led_control instead");
+  if (state)
+    this->write_packet_({GrowCommand::LED_ON});
+  else
+    this->write_packet_({GrowCommand::LED_OFF});
+  if (this->read_packet_()) {
+    switch (this->packet_.data[0]) {
+      case GrowResponse::OK:
+        ESP_LOGD(TAG, "LED set");
+        break;
+      case GrowResponse::PACKET_RCV_ERR:
+        ESP_LOGE(TAG, "Reader failed to process request");
+        break;
+      default:
+        ESP_LOGE(TAG, "Unknown response received from reader: %d", this->packet_.data[0]);
+        ESP_LOGE(TAG, "Try aura_led_control instead");
+        break;
+    }
+  } else {
+    ESP_LOGE(TAG, "No valid response received from reader");
   }
 }
 
@@ -324,20 +450,102 @@ void FingerprintGrowComponent::aura_led_control(uint8_t state, uint8_t speed, ui
     delay(this->last_aura_led_duration_ - elapsed);
   }
   ESP_LOGD(TAG, "Setting Aura LED");
-  uint8_t result = this->finger_->LEDcontrol(state, speed, color, count);
-  switch (result) {
-    case FINGERPRINT_OK:
-      ESP_LOGD(TAG, "Aura LED set");
-      this->last_aura_led_control_ = millis();
-      this->last_aura_led_duration_ = 10 * speed * count;
+  this->write_packet_({GrowCommand::AURA_CONFIG, state, speed, color, count});
+  if (this->read_packet_()) {
+    switch (this->packet_.data[0]) {
+      case GrowResponse::OK:
+        ESP_LOGD(TAG, "Aura LED set");
+        this->last_aura_led_control_ = millis();
+        this->last_aura_led_duration_ = 10 * speed * count;
+        break;
+      case GrowResponse::PACKET_RCV_ERR:
+        ESP_LOGE(TAG, "Reader failed to process request");
+        break;
+      default:
+        ESP_LOGE(TAG, "Unknown response received from reader: %d", this->packet_.data[0]);
+        ESP_LOGE(TAG, "Try led_control instead");
+        break;
+    }
+  } else {
+    ESP_LOGE(TAG, "No valid response received from reader");
+  }
+}
+
+void FingerprintGrowComponent::write_packet_(const uint8_t data[]) {
+  this->write((uint8_t)(START_CODE >> 8));
+  this->write((uint8_t)(START_CODE & 0xFF));
+  this->write(this->address_[0]);
+  this->write(this->address_[1]);
+  this->write(this->address_[2]);
+  this->write(this->address_[3]);
+  this->write(GrowPacketType::COMMAND);
+
+  uint16_t wire_length = sizeof(data) + 2;
+  this->write((uint8_t)(wire_length >> 8));
+  this->write((uint8_t)(wire_length & 0xFF));
+
+  uint16_t sum = ((wire_length) >> 8) + ((wire_length) & 0xFF) + GrowPacketType::COMMAND;
+  for (uint8_t i = 0; i < sizeof(data); i++) {
+    this->write(data[i]);
+    sum += data[i];
+  }
+
+  this->write((uint8_t)(sum >> 8));
+  this->write((uint8_t)(sum & 0xFF));
+}
+
+bool FingerprintGrowComponent::read_packet_() {
+  uint8_t byte;
+  uint16_t idx = 0;
+
+  for (uint16_t timer = 0; timer >= 1000; timer++) {
+    if (!this->available()) {
+      delay(1);
+      continue;
+    }
+    byte = this->read();
+    switch (idx) {
+    case 0:
+      if (byte != (uint8_t)(START_CODE >> 8))
+        continue;
       break;
-    case FINGERPRINT_PACKETRECIEVEERR:
-      ESP_LOGE(TAG, "Communication error");
+    case 1:
+      if (byte != (uint8_t)(START_CODE & 0xFF)) {
+        idx = 0;
+        continue;
+      }
+      break;
+    case 2:
+    case 3:
+    case 4:
+    case 5:
+      if (byte != this->address[idx - 2]) {
+        idx = 0;
+        continue;
+      }
+      break;
+    case 6:
+      if (byte != GrowPacketType::ACK) {
+        idx = 0;
+        continue;
+      }
+      break;
+    case 7:
+      this->packet_.length = (uint16_t)byte << 8;
+      break;
+    case 8:
+      this->packet_.length |= byte;
       break;
     default:
-      ESP_LOGE(TAG, "Unknown error: %d", result);
-      ESP_LOGE(TAG, "Try led_control instead");
+      this->packet_.data[idx - 9] = byte;
+      if ((idx - 8) == this->packet_.length) {
+        return true;
+      }
+      break;
+    }
+    idx++;
   }
+  return false;
 }
 
 void FingerprintGrowComponent::dump_config() {
