@@ -27,6 +27,15 @@ bool XiaomiMiscale2::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
     if (res->is_duplicate) {
       continue;
     }
+    if (res->is_stabilized) {
+      continue;
+    }
+    if (res->loadremoved) {
+      continue;
+    }
+    if (res->hasimpedance) {
+      continue;
+    }
     if (!(parse_message(service_data.data, *res))) {
       continue;
     }
@@ -78,11 +87,6 @@ bool XiaomiMiscale2::parse_message(const std::vector<uint8_t> &message, ParseRes
   result.is_stabilized = ((data[1] & (1 << 5)) != 0) ? true : false;
   result.loadremoved = ((data[1] & (1 << 7)) != 0) ? true : false;
   result.hasimpedance = ((data[1] & (1 << 1)) != 0) ? true : false;
-
-  if (result.is_stabilized && result.loadremoved && result.hasimpedance) {
-    ESP_LOGVV(TAG, "parse_message(): payload is no stabilized.");
-    return false;
-  }
 
   // impedance, 2 bytes, 16-bit
   const int16_t impedance = uint16_t(data[9]) | (uint16_t(data[10]) << 8);
