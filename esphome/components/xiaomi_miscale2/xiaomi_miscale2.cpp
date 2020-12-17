@@ -69,7 +69,7 @@ bool XiaomiMiscale2::parse_message(const std::vector<uint8_t> &message, ParseRes
 
   if (message.size() != data_length) {
     ESP_LOGVV(TAG, "parse_message(): payload has wrong size (%d)!", message.size());
-    return false;
+    return {};
   }
 
   bool is_Stabilized = (data[0] >> 5 & 1);
