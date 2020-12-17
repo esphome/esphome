@@ -86,7 +86,7 @@ bool XiaomiMiscale2::parse_message(const std::vector<uint8_t> &message, ParseRes
   const int16_t impedance = uint16_t(data[9]) | (uint16_t(data[10]) << 8);
   result.impedance = impedance;
 
-  if (is_Stabilized == 1 && is_WeightRemoved != 1)
+  if (is_Stabilized == 1 && is_WeightRemoved != 1) {
     return false;
   }
 
