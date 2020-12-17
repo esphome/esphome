@@ -24,12 +24,6 @@ bool XiaomiMiscale2::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
   bool success = false;
   for (auto &service_data : device.get_service_datas()) {
     auto res = parse_header(service_data);
-    if (res->stabilized) {
-      continue;
-    }
-    if (res->hasimpedance) {
-      continue;
-    }
     if (!(parse_message(service_data.data, *res))) {
       continue;
     }
@@ -80,7 +74,6 @@ bool XiaomiMiscale2::parse_message(const std::vector<uint8_t> &message, ParseRes
 
   bool is_Stabilized = (data[0] >> 5 & 1);
   bool is_WeightRemoved = (data[0] >> 7 & 1);
-  bool hasimpedance = (data[0] >> 1 & 1);
   
   // weight, 2 bytes, 16-bit  unsigned integer, 1 kg
   const int16_t weight = uint16_t(data[11]) | (uint16_t(data[12]) << 8);
@@ -94,10 +87,6 @@ bool XiaomiMiscale2::parse_message(const std::vector<uint8_t> &message, ParseRes
   result.impedance = impedance;
 
   if (is_Stabilized == 1 && is_WeightRemoved != 1)
-    return false;
-  }
-
-  if (hasimpedance != 1)
     return false;
   }
 

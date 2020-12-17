@@ -23,9 +23,6 @@ bool XiaomiMiscale::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
   bool success = false;
   for (auto &service_data : device.get_service_datas()) {
     auto res = parse_header(service_data);
-    if (res->temporary) {
-      continue;
-    }
     if (!(parse_message(service_data.data, *res))) {
       continue;
     }
@@ -72,22 +69,6 @@ bool XiaomiMiscale::parse_message(const std::vector<uint8_t> &message, ParseResu
     return false;
   }
 
-  static int year = 0;
-  bool temporary = true;
-  const int16_t rcvdYear = uint16_t(data[3]) | (uint16_t(data[4]) << 8);
-  //If we received a year for the first time, store it in the year variable
-  //The first year we receive indicates a temporary measurement
-  if (year == 0){
-    year = rcvdYear;
-  } else {
-    //If year has been previously defined and the year we have received is
-    //greater than it, then the measurement is not temporary, is the final one
-    if (rcvdYear > year){
-      temporary = false;
-      return {};
-    }
-  }
-
   // weight, 2 bytes, 16-bit  unsigned integer, 1 kg
   const int16_t weight = uint16_t(data[1]) | (uint16_t(data[2]) << 8);
   if (data[0] == 0x22 || data[0] == 0xa2)
@@ -96,10 +77,6 @@ bool XiaomiMiscale::parse_message(const std::vector<uint8_t> &message, ParseResu
     result.weight = weight * 0.01f * 0.6;  // unit 'jin'
   else if (data[0] == 0x03 || data[0] == 0xb3)
     result.weight = weight * 0.01f * 0.453592;  // unit 'lbs'
-
-  if (!temporary) {
-    return false;
-  }
 
   return true;
 }
