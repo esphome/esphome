@@ -84,20 +84,20 @@ bool XiaomiMiscale::parse_message(const std::vector<uint8_t> &message, ParseResu
   // weight, 2 bytes, 16-bit  unsigned integer, 1 kg
   const int16_t weight = uint16_t(data[1]) | (uint16_t(data[2]) << 8);
   if (kg) {
-    if (OLD_MEASURE != measured)
+    if (old_measure != measured)
       result.measured = weight * 0.01f / 2.0f;  // unit 'kg'
       result.weight = measured
-      OLD_MEASURE = measured
+      old_measure = measured
   } else if (jin) {
-    if (OLD_MEASURE != measured)
+    if (old_measure != measured)
       result.measured = weight * 0.01f * 0.6;  // unit 'jin'
       result.weight = measured
-      OLD_MEASURE = measured
+      old_measure = measured
   } else if (lbs) {
-    if (OLD_MEASURE != measured)
+    if (old_measure != measured)
       result.measured = weight * 0.01f * 0.453592;  // unit 'lbs'
       result.weight = measured
-      OLD_MEASURE = measured
+      old_measure = measured
   }
   return true;
 }
