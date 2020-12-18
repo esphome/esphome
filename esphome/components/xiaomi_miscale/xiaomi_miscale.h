@@ -11,10 +11,9 @@ namespace xiaomi_miscale {
 
 struct ParseResult {
   optional<float> weight;
-  optional<float> old_measure;
-  optional<float> measured;
-  char unit;
+  bool temporary;
   int raw_offset;
+  int rcvdYear;
 };
 
 class XiaomiMiscale : public Component, public esp32_ble_tracker::ESPBTDeviceListener {

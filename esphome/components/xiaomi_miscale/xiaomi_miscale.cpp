@@ -7,6 +7,7 @@ namespace esphome {
 namespace xiaomi_miscale {
 
 static const char *TAG = "xiaomi_miscale";
+static int year = 0;
 
 void XiaomiMiscale::dump_config() {
   ESP_LOGCONFIG(TAG, "Xiaomi Miscale");
@@ -69,41 +70,31 @@ bool XiaomiMiscale::parse_message(const std::vector<uint8_t> &message, ParseResu
     return false;
   }
 
-  float old_measure = 0;
-  float measured = 0;
-  char unit;
-  bool kg;
-  bool jin;
-  bool lbs;
-
-  if (data[0] == 0x22 || data[0] == 0xa2) {
-    result.unit = kg;
-  } else if (data[0] == 0x12 || data[0] == 0xb2) {
-    result.unit = jin;
-  } else if (data[0] == 0x03 || data[0] == 0xb3) {
-    result.unit = lbs;
+  bool temporary = true;
+  int rcvdYear = data[3];
+  //If we received a year for the first time, store it in the year variable
+  //The first year we receive indicates a temporary measurement
+  if (year == 0) {
+    year = rcvdYear;
+  } else {
+    //If year has been previously defined and the year we have received is
+    //greater than it, then the measurement is not temporary, is the final one
+    if (rcvdYear > year) {
+      temporary = false;
+    }
   }
-  return {};
   // weight, 2 bytes, 16-bit  unsigned integer, 1 kg
   const int16_t weight = uint16_t(data[1]) | (uint16_t(data[2]) << 8);
-  if (kg) {
-    if (old_measure != measured)
-      result.measured = weight * 0.01f / 2.0f;  // unit 'kg'
-      result.weight = measured;
-      old_measure = measured;
-  } else if (jin) {
-    if (old_measure != measured)
-      result.measured = weight * 0.01f * 0.6;  // unit 'jin'
-      result.weight = measured;
-      old_measure = measured;
-  } else if (lbs) {
-    if (old_measure != measured)
-      result.measured = weight * 0.01f * 0.453592;  // unit 'lbs'
-      result.weight = measured;
-      old_measure = measured;
-  }
+  if (data[0] == 0x22 || data[0] == 0xa2)
+    result.weight = weight * 0.01f / 2.0f;  // unit 'kg'
+  else if (data[0] == 0x12 || data[0] == 0xb2)
+    result.weight = weight * 0.01f * 0.6;  // unit 'jin'
+  else if (data[0] == 0x03 || data[0] == 0xb3)
+    result.weight = weight * 0.01f * 0.453592;  // unit 'lbs'
+
   return true;
 }
+
 
 bool XiaomiMiscale::report_results(const optional<ParseResult> &result, const std::string &address) {
   if (!result.has_value()) {
