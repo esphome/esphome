@@ -11,9 +11,8 @@ namespace xiaomi_miscale {
 
 struct ParseResult {
   optional<float> weight;
-  bool is_Stabilized;
-  bool is_duplicate;
-  bool unit;
+  optional<float> old_measure;
+  optional<float> measured;
   int raw_offset;
 };
 

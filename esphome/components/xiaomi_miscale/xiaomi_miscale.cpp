@@ -23,9 +23,6 @@ bool XiaomiMiscale::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
   bool success = false;
   for (auto &service_data : device.get_service_datas()) {
     auto res = parse_header(service_data);
-    if (res->is_duplicate) {
-      continue;
-    }
     if (!(parse_message(service_data.data, *res))) {
       continue;
     }
@@ -72,24 +69,23 @@ bool XiaomiMiscale::parse_message(const std::vector<uint8_t> &message, ParseResu
     return false;
   }
 
-  float OLD_MEASURE = 0;
-  float unit = 0;
+  old_measure = 0;
+  measured = 0;
 
   // weight, 2 bytes, 16-bit  unsigned integer, 1 kg
   const int16_t weight = uint16_t(data[1]) | (uint16_t(data[2]) << 8);
   if (data[0] == 0x22 || data[0] == 0xa2) {
-    result.unit = weight * 0.01f / 2.0f;  // unit 'kg'
+    result.measured = weight * 0.01f / 2.0f;  // unit 'kg'
   } else if (data[0] == 0x12 || data[0] == 0xb2) {
-    result.unit = weight * 0.01f * 0.6;  // unit 'jin'
+    result.measured = weight * 0.01f * 0.6;  // unit 'jin'
   } else if (data[0] == 0x03 || data[0] == 0xb3) {
-    result.unit = weight * 0.01f * 0.453592;  // unit 'lbs'
+    result.measured = weight * 0.01f * 0.453592;  // unit 'lbs'
   }
   return {};
 
-  if (unit) {
-    if (OLD_MEASURE != weight)
-      result.weight = weight;
-      OLD_MEASURE = weight;
+  if (old_measure != measured) {
+      result.weight = measured;
+      old_measure = measured;
   }
 
   return true;
