@@ -75,6 +75,8 @@ bool XiaomiMiscale::parse_message(const std::vector<uint8_t> &message, ParseResu
   float OLD_MEASURE = 0;
   bool unit{};
 
+  // weight, 2 bytes, 16-bit  unsigned integer, 1 kg
+  const int16_t weight = uint16_t(data[1]) | (uint16_t(data[2]) << 8);
   if (data[0] == 0x22 || data[0] == 0xa2) {
     result.unit = 'kg', weight * 0.01f / 2.0f;  // unit 'kg'
   } else if (data[0] == 0x12 || data[0] == 0xb2) {
@@ -83,32 +85,11 @@ bool XiaomiMiscale::parse_message(const std::vector<uint8_t> &message, ParseResu
     result.unit = 'lbs', weight * 0.01f * 0.453592;  // unit 'lbs'
   }
   return {};
-  // weight, 2 bytes, 16-bit  unsigned integer, 1 kg
-  const int16_t weight = uint16_t(data[1]) | (uint16_t(data[2]) << 8);
+
   if (unit) {
     if (OLD_MEASURE != weight)
       result.weight = weight;
       OLD_MEASURE = weight;
-  }
-
-  return true;
-}
-
-  // weight, 2 bytes, 16-bit  unsigned integer, 1 kg
-  const int16_t weight = uint16_t(data[1]) | (uint16_t(data[2]) << 8);
-
-  if (data[0] == 0x22 || data[0] == 0xa2) {
-    if (OLD_MEASURE != weight)
-      result.weight = weight * 0.01f / 2.0f;  // unit 'kg'
-      OLD_MEASURE = weight;
-  } else if (data[0] == 0x12 || data[0] == 0xb2) {
-      if (OLD_MEASURE != weight)
-        result.weight = weight * 0.01f * 0.6;  // unit 'jin'
-        OLD_MEASURE = weight;
-  } else if (data[0] == 0x03 || data[0] == 0xb3) {
-      if (OLD_MEASURE != weight)
-        result.weight = weight * 0.01f * 0.453592;  // unit 'lbs'
-        OLD_MEASURE = weight;
   }
 
   return true;
