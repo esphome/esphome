@@ -48,10 +48,10 @@ optional<ParseResult> XiaomiMiscale::parse_header(const esp32_ble_tracker::Servi
   ParseResult result;
   if (!service_data.uuid.contains(0x1D, 0x18)) {
     ESP_LOGVV(TAG, "parse_header(): no service data UUID magic bytes.");
-    return false;
+  return {};
   }
 
-  return true;
+  return result;
 }
 
 bool XiaomiMiscale::parse_message(const std::vector<uint8_t> &message, ParseResult &result) {
