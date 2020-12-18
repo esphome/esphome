@@ -13,6 +13,7 @@ struct ParseResult {
   optional<float> weight;
   bool is_Stabilized;
   bool is_duplicate;
+  bool unit;
   int raw_offset;
 };
 
