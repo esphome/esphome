@@ -46,7 +46,7 @@ optional<ParseResult> XiaomiMiscale::parse_header(const esp32_ble_tracker::Servi
   ParseResult result;
   if (!service_data.uuid.contains(0x1D, 0x18)) {
     ESP_LOGVV(TAG, "parse_header(): no service data UUID magic bytes.");
-  return {};
+    return {};
   }
 
   return result;
@@ -72,13 +72,13 @@ bool XiaomiMiscale::parse_message(const std::vector<uint8_t> &message, ParseResu
 
   bool temporary = true;
   int rcvdYear = data[3];
-  //If we received a year for the first time, store it in the year variable
-  //The first year we receive indicates a temporary measurement
+  // If we received a year for the first time, store it in the year variable
+  // The first year we receive indicates a temporary measurement
   if (year == 0) {
     year = rcvdYear;
   } else {
-    //If year has been previously defined and the year we have received is
-    //greater than it, then the measurement is not temporary, is the final one
+    // If year has been previously defined and the year we have received is
+    // greater than it, then the measurement is not temporary, is the final one
     if (rcvdYear > year) {
       temporary = false;
     }
@@ -94,7 +94,6 @@ bool XiaomiMiscale::parse_message(const std::vector<uint8_t> &message, ParseResu
 
   return true;
 }
-
 
 bool XiaomiMiscale::report_results(const optional<ParseResult> &result, const std::string &address) {
   if (!result.has_value()) {
