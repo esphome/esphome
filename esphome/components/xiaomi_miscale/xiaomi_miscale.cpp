@@ -74,11 +74,11 @@ bool XiaomiMiscale::parse_message(const std::vector<uint8_t> &message, ParseResu
   char unit;
 
   if (data[0] == 0x22 || data[0] == 0xa2) {
-    result.unit = 'kg'
+    result.unit = 'kg';
   } else if (data[0] == 0x12 || data[0] == 0xb2) {
-    result.unit = 'jin'
+    result.unit = 'jin';
   } else if (data[0] == 0x03 || data[0] == 0xb3) {
-    result.unit = 'lbs'
+    result.unit = 'lbs';
   }
   return {};
   // weight, 2 bytes, 16-bit  unsigned integer, 1 kg
@@ -86,18 +86,18 @@ bool XiaomiMiscale::parse_message(const std::vector<uint8_t> &message, ParseResu
   if (kg) {
     if (old_measure != measured)
       result.measured = weight * 0.01f / 2.0f;  // unit 'kg'
-      result.weight = measured
-      old_measure = measured
+      result.weight = measured;
+      old_measure = measured;
   } else if (jin) {
     if (old_measure != measured)
       result.measured = weight * 0.01f * 0.6;  // unit 'jin'
-      result.weight = measured
-      old_measure = measured
+      result.weight = measured;
+      old_measure = measured;
   } else if (lbs) {
     if (old_measure != measured)
       result.measured = weight * 0.01f * 0.453592;  // unit 'lbs'
-      result.weight = measured
-      old_measure = measured
+      result.weight = measured;
+      old_measure = measured;
   }
   return true;
 }
