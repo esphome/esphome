@@ -13,6 +13,7 @@ struct ParseResult {
   optional<float> weight;
   optional<float> old_measure;
   optional<float> measured;
+  char unit;
   int raw_offset;
 };
 
