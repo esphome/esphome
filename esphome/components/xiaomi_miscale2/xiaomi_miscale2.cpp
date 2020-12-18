@@ -24,6 +24,9 @@ bool XiaomiMiscale2::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
   bool success = false;
   for (auto &service_data : device.get_service_datas()) {
     auto res = parse_header(service_data);
+    if (res->Stabilized) {
+      continue;
+    }
     if (!(parse_message(service_data.data, *res))) {
       continue;
     }
@@ -51,6 +54,17 @@ optional<ParseResult> XiaomiMiscale2::parse_header(const esp32_ble_tracker::Serv
     return {};
   }
 
+  auto raw = service_data.data;
+
+  bool is_Stabilized = ((raw[1] & (1 << 5)) != 0);
+  bool is_WeightRemoved = ((raw[1] & (1 << 7)) != 0);
+
+  if (is_Stabilized && !is_WeightRemoved) {
+    result.Stabilized = true;
+  } else {
+    result.Stabilized = false;
+  }
+
   return result;
 }
 
@@ -69,13 +83,6 @@ bool XiaomiMiscale2::parse_message(const std::vector<uint8_t> &message, ParseRes
 
   if (message.size() != data_length) {
     ESP_LOGVV(TAG, "parse_message(): payload has wrong size (%d)!", message.size());
-    return {};
-  }
-
-  bool is_Stabilized = (data[1] & (1 << 5));
-  bool is_WeightRemoved = (data[1] & (1 << 7));
-
-  if (is_Stabilized && !is_WeightRemoved) {
     return false;
   }
 
