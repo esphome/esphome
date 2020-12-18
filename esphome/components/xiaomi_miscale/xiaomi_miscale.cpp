@@ -53,8 +53,8 @@ optional<ParseResult> XiaomiMiscale::parse_header(const esp32_ble_tracker::Servi
 
   auto raw = service_data.data;
 
-  bool is_Stabilized = ((raw[1] & (1 << 5)) != 0);
-  bool is_WeightRemoved = ((raw[1] & (1 << 7)) != 0);
+  bool is_Stabilized = ((raw[0] & (1 << 5)) != 0);
+  bool is_WeightRemoved = ((raw[0] & (1 << 7)) != 0);
 
   if (is_Stabilized && !is_WeightRemoved) {
     result.Stabilized = true;
