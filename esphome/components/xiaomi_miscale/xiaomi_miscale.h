@@ -13,6 +13,7 @@ struct ParseResult {
   optional<float> weight;
   bool is_Stabilized;
   bool is_WeightRemoved;
+  bool Stabilized;
   int raw_offset;
 };
 
