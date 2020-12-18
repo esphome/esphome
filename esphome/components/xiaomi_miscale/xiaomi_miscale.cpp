@@ -23,7 +23,7 @@ bool XiaomiMiscale::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
   bool success = false;
   for (auto &service_data : device.get_service_datas()) {
     auto res = parse_header(service_data);
-    if (res->Stabilized) {
+    if (res->is_duplicate) {
       continue;
     }
     if (!(parse_message(service_data.data, *res))) {
@@ -53,14 +53,14 @@ optional<ParseResult> XiaomiMiscale::parse_header(const esp32_ble_tracker::Servi
 
   auto raw = service_data.data;
 
-  bool is_Stabilized = ((raw[0] & (1 << 5)) != 0);
-  bool is_WeightRemoved = ((raw[0] & (1 << 7)) != 0);
-
-  if (is_Stabilized && !is_WeightRemoved) {
-    result.Stabilized = true;
-  } else {
-    result.Stabilized = false;
+  static uint8_t last_frame_count = 0;
+  if (last_frame_count == raw[0]) {
+    ESP_LOGVV(TAG, "parse_header(): duplicate data packet received (%d).", static_cast<int>(last_frame_count));
+    result.is_duplicate = true;
+    return {};
   }
+  last_frame_count = raw[0];
+  result.is_duplicate = false;
 
   return result;
 }
@@ -83,14 +83,21 @@ bool XiaomiMiscale::parse_message(const std::vector<uint8_t> &message, ParseResu
     return false;
   }
 
+  float OLD_MEASURE;
   // weight, 2 bytes, 16-bit  unsigned integer, 1 kg
   const int16_t weight = uint16_t(data[1]) | (uint16_t(data[2]) << 8);
   if (data[0] == 0x22 || data[0] == 0xa2)
-    result.weight = weight * 0.01f / 2.0f;  // unit 'kg'
+    if (OLD_MEASURE != weight)
+      result.weight = weight * 0.01f / 2.0f;  // unit 'kg'
+      OLD_MEASURE = weight
   else if (data[0] == 0x12 || data[0] == 0xb2)
-    result.weight = weight * 0.01f * 0.6;  // unit 'jin'
+    if (OLD_MEASURE != weight)
+      result.weight = weight * 0.01f * 0.6;  // unit 'jin'
+      OLD_MEASURE = weight
   else if (data[0] == 0x03 || data[0] == 0xb3)
-    result.weight = weight * 0.01f * 0.453592;  // unit 'lbs'
+    if (OLD_MEASURE != weight)
+      result.weight = weight * 0.01f * 0.453592;  // unit 'lbs'
+      OLD_MEASURE = weight
 
   return true;
 }

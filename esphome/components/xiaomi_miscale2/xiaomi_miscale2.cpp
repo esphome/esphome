@@ -57,9 +57,9 @@ optional<ParseResult> XiaomiMiscale2::parse_header(const esp32_ble_tracker::Serv
   auto raw = service_data.data;
 
   bool is_Stabilized = ((raw[1] & (1 << 5)) != 0);
-  bool is_WeightRemoved = ((raw[1] & (1 << 7)) != 0);
+  bool hasImpedance = ((raw[1] & (1 << 1)) != 0);
 
-  if (is_Stabilized && !is_WeightRemoved) {
+  if (is_Stabilized && hasImpedance) {
     result.Stabilized = true;
   } else {
     result.Stabilized = false;
