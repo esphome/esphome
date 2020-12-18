@@ -85,7 +85,7 @@ bool XiaomiMiscale2::parse_message(const std::vector<uint8_t> &message, ParseRes
       result.weight = weight * 0.01f / 2.0f;  // unit 'kg'
     else if (data[0] == 0x03)
       result.weight = weight * 0.01f * 0.453592;  // unit 'lbs'
-      return {};
+    return {};
   }
 
   if (hasImpedance) {
