@@ -53,19 +53,26 @@ optional<ParseResult> XiaomiMiscale::parse_header(const esp32_ble_tracker::Servi
 
 bool XiaomiMiscale::parse_message(const std::vector<uint8_t> &message, ParseResult &result) {
   // exemple 1d18 a2 6036 e307 07 11 0f1f11
-  // 2-3 Weight (MISCALE 181D)
-  // 4-5 Years (MISCALE 181D)
-  // 6 month (MISCALE 181D)
-  // 7 day (MISCALE 181D)
-  // 8 hour (MISCALE 181D)
-  // 9 minute (MISCALE 181D)
-  // 10 second (MISCALE 181D)
+  // 1-2 Weight (MISCALE 181D)
+  // 3-4 Years (MISCALE 181D)
+  // 5 month (MISCALE 181D)
+  // 6 day (MISCALE 181D)
+  // 7 hour (MISCALE 181D)
+  // 8 minute (MISCALE 181D)
+  // 9 second (MISCALE 181D)
 
   const uint8_t *data = message.data();
   const int data_length = 10;
 
   if (message.size() != data_length) {
     ESP_LOGVV(TAG, "parse_message(): payload has wrong size (%d)!", message.size());
+    return {};
+  }
+
+  bool is_Stabilized = (data[1] & (1 << 5));
+  bool is_WeightRemoved = (data[1] & (1 << 7));
+
+  if (is_Stabilized && !is_WeightRemoved) {
     return false;
   }
 

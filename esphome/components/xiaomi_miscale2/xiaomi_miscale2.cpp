@@ -75,7 +75,7 @@ bool XiaomiMiscale2::parse_message(const std::vector<uint8_t> &message, ParseRes
   bool is_Stabilized = (data[1] & (1 << 5));
   bool is_WeightRemoved = (data[1] & (1 << 7));
 
-  if (is_Stabilized == 1 && is_WeightRemoved != 1) {
+  if (is_Stabilized && !is_WeightRemoved) {
     return false;
   }
 
