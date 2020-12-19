@@ -31,16 +31,16 @@ void Servo::loop() {
     if (this->transition_length_) {
       float new_value;
       float travel_diff = this->target_value_ - this->source_value_;
-      uint32_t target_runtime = abs(((travel_diff) * this->transition_length_ * 1.0f / 2.0f));
+      uint32_t target_runtime = target_runtime = abs((int) ((travel_diff) * this->transition_length_ * 1.0f / 2.0f));
       uint32_t current_runtime = millis() - this->start_millis_;
       float percentage_run = current_runtime * 1.0f / target_runtime * 1.0f;
       if (percentage_run > 1.0f) {
-          percentage_run = 1.0f;
+        percentage_run = 1.0f;
       }
       new_value = this->target_value_ - (1.0f - percentage_run) * (this->target_value_ - this->source_value_);
-      this->write_(new_value);
+      this->internal_write(new_value);
     } else {
-      this->write_(this->target_value_);
+      this->internal_write(this->target_value_);
     }
   }
   if (this->target_value_ == this->current_value_ && this->state_ == STATE_ATTACHED) {
@@ -59,7 +59,7 @@ void Servo::write(float value) {
   ESP_LOGD(TAG, "Servo new target: %f", value);
 }
 
-void Servo::write_(float value) {
+void Servo::internal_write(float value) {
   value = clamp(value, -1.0f, 1.0f);
   float level;
   if (value < 0.0)
@@ -69,7 +69,7 @@ void Servo::write_(float value) {
   this->output_->set_level(level);
   if (this->target_value_ == this->current_value_) {
     this->save_level_(level);
-    }
+  }
   this->current_value_ = value;
 }
 

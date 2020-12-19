@@ -16,7 +16,7 @@ class Servo : public Component {
   void set_output(output::FloatOutput *output) { output_ = output; }
   void loop() override;
   void write(float value);
-  void write_(float value);
+  void internal_write(float value);
   void detach() {
     this->output_->set_level(0.0f);
     this->save_level_(0.0f);
