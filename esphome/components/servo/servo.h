@@ -53,7 +53,7 @@ class Servo : public Component {
   uint32_t auto_detach_time_ = 0;
   uint32_t transition_length_ = 0;
   ESPPreferenceObject rtc_;
-  uint8_t state_; // current state of servo: 0:detached, 1:moving, 2:target reached
+  uint8_t state_;
   float target_value_ = 0;
   float source_value_ = 0;
   float current_value_ = 0;
