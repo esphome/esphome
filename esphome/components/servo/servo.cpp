@@ -18,7 +18,7 @@ void Servo::dump_config() {
 }
 
 void Servo::loop() {
-  // check if auto_detach_time_ is set and 
+  // check if auto_detach_time_ is set and servo reached target
   if (this->auto_detach_time_ && this->state_ == STATE_TARGET_REACHED) {
     if (millis() - this->start_millis_ > this->auto_detach_time_) {
       this->detach();
@@ -28,15 +28,16 @@ void Servo::loop() {
     }
   }
   if (this->target_value_ != this->current_value_ && this->state_ == STATE_ATTACHED) {
-    if (this->transition_length_)
-    {
+    if (this->transition_length_) {
       float new_value;
       float travel_diff = this->target_value_ - this->source_value_;
-      uint32_t target_runtime = abs(((travel_diff)*this->transition_length_*1.0f/2.0f));
+      uint32_t target_runtime = abs(((travel_diff) * this->transition_length_ * 1.0f / 2.0f));
       uint32_t current_runtime = millis() - this->start_millis_;
-      float percentage_run = current_runtime*1.0f / target_runtime*1.0f;
-      if (percentage_run > 1.0f) {percentage_run = 1.0f;}
-      new_value = this->target_value_ - (1.0f-percentage_run)*(this->target_value_-this->source_value_);
+      float percentage_run = current_runtime * 1.0f / target_runtime * 1.0f;
+      if (percentage_run > 1.0f) {
+          percentage_run = 1.0f;
+      }
+      new_value = this->target_value_ - (1.0f - percentage_run) * (this->target_value_ - this->source_value_);
       this->write_(new_value);
     } else {
       this->write_(this->target_value_);
@@ -55,7 +56,7 @@ void Servo::write(float value) {
   this->source_value_ = this->current_value_;
   this->state_ = STATE_ATTACHED;
   this->start_millis_ = millis();
-  ESP_LOGD(TAG, "Servo new target: %f",value);
+  ESP_LOGD(TAG, "Servo new target: %f", value);
 }
 
 void Servo::write_(float value) {
@@ -66,7 +67,9 @@ void Servo::write_(float value) {
   else
     level = lerp(value, this->idle_level_, this->max_level_);
   this->output_->set_level(level);
-  if (this->target_value_ == this->current_value_) {this->save_level_(level);}
+  if (this->target_value_ == this->current_value_) {
+    this->save_level_(level);
+    }
   this->current_value_ = value;
 }
 

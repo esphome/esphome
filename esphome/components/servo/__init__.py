@@ -11,7 +11,7 @@ Servo = servo_ns.class_('Servo', cg.Component)
 ServoWriteAction = servo_ns.class_('ServoWriteAction', automation.Action)
 ServoDetachAction = servo_ns.class_('ServoDetachAction', automation.Action)
 
-CONF_AUTO_DETACH_TIME = 'auto_detach_time';
+CONF_AUTO_DETACH_TIME = 'auto_detach_time'
 MULTI_CONF = True
 CONFIG_SCHEMA = cv.Schema({
     cv.Required(CONF_ID): cv.declare_id(Servo),
