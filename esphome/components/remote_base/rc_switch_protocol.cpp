@@ -55,13 +55,13 @@ void RCSwitchBase::sync(RemoteTransmitData *dst) const {
 }
 void RCSwitchBase::transmit(RemoteTransmitData *dst, uint64_t code, uint8_t len) const {
   dst->set_carrier_frequency(0);
+  this->sync(dst);
   for (int16_t i = len - 1; i >= 0; i--) {
     if (code & ((uint64_t) 1 << i))
       this->one(dst);
     else
       this->zero(dst);
   }
-  this->sync(dst);
 }
 
 bool RCSwitchBase::expect_one(RemoteReceiveData &src) const {
