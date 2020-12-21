@@ -44,13 +44,21 @@ void SCD30Component::setup() {
            uint16_t(raw_firmware_version[0] & 0xFF));
 
   /// Sensor initialization
-  if (!this->write_command_(SCD30_CMD_START_CONTINUOUS_MEASUREMENTS, 0)) {
+  if (!this->write_command_(SCD30_CMD_START_CONTINUOUS_MEASUREMENTS, this->ambient_pressure_compensation_)) {
     ESP_LOGE(TAG, "Sensor SCD30 error starting continuous measurements.");
     this->error_code_ = MEASUREMENT_INIT_FAILED;
     this->mark_failed();
     return;
   }
 
+  if (this->temperature_offset_ != 0) {
+    if (!this->write_command_(SCD30_CMD_TEMPERATURE_OFFSET, (uint16_t)(temperature_offset_ * 100.0))) {
+      ESP_LOGE(TAG, "Sensor SCD30 error setting temperature offset.");
+      this->error_code_ = MEASUREMENT_INIT_FAILED;
+      this->mark_failed();
+      return;
+    }
+  }
   // The start measurement command disables the altitude compensation, if any, so we only set it if it's turned on
   if (this->altitude_compensation_ != 0xFFFF) {
     if (!this->write_command_(SCD30_CMD_ALTITUDE_COMPENSATION, altitude_compensation_)) {
@@ -94,6 +102,8 @@ void SCD30Component::dump_config() {
     ESP_LOGCONFIG(TAG, "  Altitude compensation: %dm", this->altitude_compensation_);
   }
   ESP_LOGCONFIG(TAG, "  Automatic self calibration: %s", ONOFF(this->enable_asc_));
+  ESP_LOGCONFIG(TAG, "  Ambient pressure compensation: %dmBar", this->ambient_pressure_compensation_);
+  ESP_LOGCONFIG(TAG, "  Temperature offset: %.2f °C", this->temperature_offset_);
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "CO2", this->co2_sensor_);
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);

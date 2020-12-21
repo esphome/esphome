@@ -56,8 +56,8 @@ void I2CComponent::raw_begin_transmission(uint8_t address) {
   ESP_LOGVV(TAG, "Beginning Transmission to 0x%02X:", address);
   this->wire_->beginTransmission(address);
 }
-bool I2CComponent::raw_end_transmission(uint8_t address) {
-  uint8_t status = this->wire_->endTransmission();
+bool I2CComponent::raw_end_transmission(uint8_t address, bool send_stop) {
+  uint8_t status = this->wire_->endTransmission(send_stop);
   ESP_LOGVV(TAG, "    Transmission ended. Status code: 0x%02X", status);
 
   switch (status) {

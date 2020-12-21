@@ -622,6 +622,7 @@ _temperature_c = float_with_unit("temperature", "(°C|° C|°|C)?")
 _temperature_k = float_with_unit("temperature", "(° K|° K|K)?")
 _temperature_f = float_with_unit("temperature", "(°F|° F|F)?")
 decibel = float_with_unit("decibel", "(dB|dBm|db|dbm)", optional_unit=True)
+pressure = float_with_unit("pressure", "(bar|Bar)", optional_unit=True)
 
 
 def temperature(value):
