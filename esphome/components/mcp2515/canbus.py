@@ -4,6 +4,7 @@ from esphome.components import spi, canbus
 from esphome.const import CONF_ID, CONF_MODE
 from esphome.components.canbus import CanbusComponent
 
+CODEOWNERS = ['@mvturnho', '@danielschramm']
 DEPENDENCIES = ['spi']
 
 CONF_CLOCK = 'clock'

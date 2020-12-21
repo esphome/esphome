@@ -4,6 +4,7 @@ from esphome import automation
 from esphome.core import CORE, coroutine
 from esphome.const import CONF_ID, CONF_TRIGGER_ID, CONF_DATA
 
+CODEOWNERS = ['@mvturnho', '@danielschramm']
 IS_PLATFORM_COMPONENT = True
 
 CONF_CAN_ID = 'can_id'
