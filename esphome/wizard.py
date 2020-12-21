@@ -11,7 +11,7 @@ from esphome.helpers import color, get_bool_env, write_file
 from esphome.pins import ESP32_BOARD_PINS, ESP8266_BOARD_PINS
 from esphome.storage_json import StorageJSON, ext_storage_path
 from esphome.util import safe_print
-from esphome.const import ALLOWED_NAME_CHARS
+from esphome.const import ALLOWED_NAME_CHARS, ENV_QUICKWIZARD
 
 CORE_BIG = r"""    _____ ____  _____  ______
    / ____/ __ \|  __ \|  ____|
@@ -107,7 +107,7 @@ def wizard_write(path, **kwargs):
     storage.save(storage_path)
 
 
-if get_bool_env('ESPHOME_QUICKWIZARD'):
+if get_bool_env(ENV_QUICKWIZARD):
     def sleep(time):
         pass
 else:
