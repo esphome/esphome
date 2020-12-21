@@ -3,6 +3,8 @@ import esphome.config_validation as cv
 from esphome.components import i2c
 from esphome.const import CONF_ID, CONF_SCAN
 
+CODEOWNERS = ['@andreashergert1984']
+
 DEPENDENCIES = ['i2c']
 
 tca9548a_ns = cg.esphome_ns.namespace('tca9548a')
