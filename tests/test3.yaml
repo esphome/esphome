@@ -204,6 +204,7 @@ uart:
 ota:
   safe_mode: True
   port: 3286
+  reboot_timeout: 15min
 
 logger:
   hardware_uart: UART1
