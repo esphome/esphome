@@ -13,6 +13,8 @@ SCD30Component = scd30_ns.class_('SCD30Component', cg.PollingComponent, i2c.I2CD
 
 CONF_AUTOMATIC_SELF_CALIBRATION = 'automatic_self_calibration'
 CONF_ALTITUDE_COMPENSATION = 'altitude_compensation'
+CONF_AMBIENT_PRESSURE_COMPENSATION = 'ambient_pressure_compensation'
+CONF_TEMPERATURE_OFFSET = 'temperature_offset'
 
 
 def remove_altitude_suffix(value):
@@ -29,6 +31,8 @@ CONFIG_SCHEMA = cv.Schema({
     cv.Optional(CONF_ALTITUDE_COMPENSATION): cv.All(remove_altitude_suffix,
                                                     cv.int_range(min=0, max=0xFFFF,
                                                                  max_included=False)),
+    cv.Optional(CONF_AMBIENT_PRESSURE_COMPENSATION, default=0): cv.pressure,
+    cv.Optional(CONF_TEMPERATURE_OFFSET): cv.temperature,
 }).extend(cv.polling_component_schema('60s')).extend(i2c.i2c_device_schema(0x61))
 
 
@@ -40,6 +44,12 @@ def to_code(config):
     cg.add(var.set_automatic_self_calibration(config[CONF_AUTOMATIC_SELF_CALIBRATION]))
     if CONF_ALTITUDE_COMPENSATION in config:
         cg.add(var.set_altitude_compensation(config[CONF_ALTITUDE_COMPENSATION]))
+
+    if CONF_AMBIENT_PRESSURE_COMPENSATION in config:
+        cg.add(var.set_ambient_pressure_compensation(config[CONF_AMBIENT_PRESSURE_COMPENSATION]))
+
+    if CONF_TEMPERATURE_OFFSET in config:
+        cg.add(var.set_temperature_offset(config[CONF_TEMPERATURE_OFFSET]))
 
     if CONF_CO2 in config:
         sens = yield sensor.new_sensor(config[CONF_CO2])

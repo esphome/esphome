@@ -94,10 +94,12 @@ void ICACHE_RAM_ATTR HOT RotaryEncoderSensorStore::gpio_intr(RotaryEncoderSensor
   if ((new_state & arg->resolution & STATE_HAS_INCREMENTED) != 0) {
     if (arg->counter < arg->max_value)
       arg->counter++;
+    arg->on_clockwise_callback_.call();
   }
   if ((new_state & arg->resolution & STATE_HAS_DECREMENTED) != 0) {
     if (arg->counter > arg->min_value)
       arg->counter--;
+    arg->on_anticlockwise_callback_.call();
   }
 
   arg->state = new_state;

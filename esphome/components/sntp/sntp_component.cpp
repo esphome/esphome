@@ -33,10 +33,6 @@ void SNTPComponent::setup() {
     sntp_setservername(2, strdup(this->server_3_.c_str()));
   }
 
-#ifdef ARDUINO_ARCH_ESP8266
-  // let localtime/gmtime handle timezones, not sntp
-  sntp_set_timezone(0);
-#endif
   sntp_init();
 }
 void SNTPComponent::dump_config() {

@@ -126,6 +126,7 @@ class ESPHomeLoader(yaml.SafeLoader):  # pylint: disable=too-many-ancestors
                 try:
                     hash(key)
                 except TypeError:
+                    # pylint: disable=raise-missing-from
                     raise yaml.constructor.ConstructorError(
                         f'Invalid key "{key}" (not hashable)', key_node.start_mark)
 
@@ -297,7 +298,7 @@ def _load_yaml_internal(fname):
     try:
         return loader.get_single_data() or OrderedDict()
     except yaml.YAMLError as exc:
-        raise EsphomeError(exc)
+        raise EsphomeError(exc) from exc
     finally:
         loader.dispose()
 
