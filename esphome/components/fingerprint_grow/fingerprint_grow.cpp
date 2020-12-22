@@ -415,6 +415,7 @@ uint8_t FingerprintGrowComponent::send_command_() {
     idx++;
   }
   ESP_LOGE(TAG, "No response received from reader");
+  this->data_[0] = TIMEOUT;
   return TIMEOUT;
 }
 
