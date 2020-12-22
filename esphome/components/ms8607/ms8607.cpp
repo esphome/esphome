@@ -267,7 +267,7 @@ void MS8607Component::calculate_values_(uint32_t raw_temperature, uint32_t raw_p
   const int32_t d_t = int32_t(raw_temperature) - (int32_t(this->calibration_values_.reference_temperature) << 8);
   // actual temperature as hundredths of degree celsius in range [-4000, 8500]
   // 2000 + d_t * [C6] / (2**23)
-  int32_t temperature = 2000 + (int64_t(d_t) * this->calibration_values_.temperature_coefficient_of_temperature) >> 23;
+  int32_t temperature = 2000 + ((int64_t(d_t) * this->calibration_values_.temperature_coefficient_of_temperature) >> 23);
 
   // offset at actual temperature. [C2] * (2**17) + (d_t * [C4] / (2**6))
   int64_t pressure_offset = (int64_t(this->calibration_values_.pressure_offset) << 17) + ((int64_t(d_t) * this->calibration_values_.pressure_offset_temperature_coefficient) >> 6);
@@ -301,7 +301,7 @@ void MS8607Component::calculate_values_(uint32_t raw_temperature, uint32_t raw_p
   pressure_sensitivity -= pressure_sensitivity_2;
 
   // Temperature compensated pressure. [1000, 120000] => [10.00 mbar, 1200.00 mbar]
-  const int32_t pressure = ((raw_pressure * pressure_sensitivity) >> 21 - pressure_offset) >> 15;
+  const int32_t pressure = (((raw_pressure * pressure_sensitivity) >> 21) - pressure_offset) >> 15;
 
   const float temperature_float = temperature / 100.0f;
   const float pressure_float = pressure / 100.0f;
