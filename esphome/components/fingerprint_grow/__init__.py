@@ -90,7 +90,7 @@ def to_code(config):
     if CONF_PASSWORD in config:
         password = config[CONF_PASSWORD]
         cg.add(var.set_password(password))
-    uart_device = yield uart.register_uart_device(var, config)
+    yield uart.register_uart_device(var, config)
 
     if CONF_NEW_PASSWORD in config:
         new_password = config[CONF_NEW_PASSWORD]

@@ -146,7 +146,7 @@ class FingerprintGrowComponent : public PollingComponent, public uart::UARTDevic
   uint8_t send_command_();
 
   std::vector<uint8_t> data_ = {};
-  uint8_t address_[4] = {0xFF};
+  uint8_t address_[4] = {0xFF, 0xFF, 0xFF, 0xFF};
   uint16_t capacity_ = 64;
   uint32_t password_ = 0x0;
   uint32_t *new_password_{nullptr};
