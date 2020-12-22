@@ -5,21 +5,77 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #include "esphome/components/uart/uart.h"
-#include <Adafruit_Fingerprint.h>
 
 namespace esphome {
 namespace fingerprint_grow {
 
-enum AuraLEDMode : uint8_t {
-  BREATHING = FINGERPRINT_LED_BREATHING,
-  FLASHING = FINGERPRINT_LED_FLASHING,
-  ALWAYS_ON = FINGERPRINT_LED_ON,
-  ALWAYS_OFF = FINGERPRINT_LED_OFF,
-  GRADUAL_ON = FINGERPRINT_LED_GRADUAL_ON,
-  GRADUAL_OFF = FINGERPRINT_LED_GRADUAL_OFF,
-  RED = FINGERPRINT_LED_RED,
-  BLUE = FINGERPRINT_LED_BLUE,
-  PURPLE = FINGERPRINT_LED_PURPLE,
+static const uint16_t START_CODE = 0xEF01;
+
+enum GrowPacketType {
+  COMMAND = 0x01,
+  DATA = 0x02,
+  ACK = 0x07,
+  END_DATA = 0x08,
+};
+
+enum GrowCommand {
+  GET_IMAGE = 0x01,
+  IMAGE_2_TZ = 0x02,
+  SEARCH = 0x04,
+  REG_MODEL = 0x05,
+  STORE = 0x06,
+  LOAD = 0x07,
+  UPLOAD = 0x08,
+  DELETE = 0x0C,
+  EMPTY = 0x0D,
+  READ_SYS_PARAM = 0x0F,
+  SET_PASSWORD = 0x12,
+  VERIFY_PASSWORD = 0x13,
+  HI_SPEED_SEARCH = 0x1B,
+  TEMPLATE_COUNT = 0x1D,
+  AURA_CONFIG = 0x35,
+  LED_ON = 0x50,
+  LED_OFF = 0x51,
+};
+
+enum GrowResponse {
+  OK = 0x00,
+  PACKET_RCV_ERR = 0x01,
+  NO_FINGER = 0x02,
+  IMAGE_FAIL = 0x03,
+  IMAGE_MESS = 0x06,
+  FEATURE_FAIL = 0x07,
+  NO_MATCH = 0x08,
+  NOT_FOUND = 0x09,
+  ENROLL_MISMATCH = 0x0A,
+  BAD_LOCATION = 0x0B,
+  DB_RANGE_FAIL = 0x0C,
+  UPLOAD_FEATURE_FAIL = 0x0D,
+  PACKET_RESPONSE_FAIL = 0x0E,
+  UPLOAD_FAIL = 0x0F,
+  DELETE_FAIL = 0x10,
+  DB_CLEAR_FAIL = 0x11,
+  PASSWORD_FAIL = 0x13,
+  INVALID_IMAGE = 0x15,
+  FLASH_ERR = 0x18,
+  INVALID_REG = 0x1A,
+  BAD_PACKET = 0xFE,
+  TIMEOUT = 0xFF,
+};
+
+enum GrowAuraLEDState {
+  BREATHING = 0x01,
+  FLASHING = 0x02,
+  ALWAYS_ON = 0x03,
+  ALWAYS_OFF = 0x04,
+  GRADUAL_ON = 0x05,
+  GRADUAL_OFF = 0x06,
+};
+
+enum GrowAuraLEDColor {
+  RED = 0x01,
+  BLUE = 0x02,
+  PURPLE = 0x03,
 };
 
 class FingerprintGrowComponent : public PollingComponent, public uart::UARTDevice {
@@ -28,10 +84,15 @@ class FingerprintGrowComponent : public PollingComponent, public uart::UARTDevic
   void setup() override;
   void dump_config() override;
 
+  void set_address(uint32_t address) {
+    this->address_[0] = (uint8_t)(address >> 24);
+    this->address_[1] = (uint8_t)(address >> 16);
+    this->address_[2] = (uint8_t)(address >> 8);
+    this->address_[3] = (uint8_t)(address & 0xFF);
+  }
   void set_sensing_pin(GPIOPin *sensing_pin) { this->sensing_pin_ = sensing_pin; }
   void set_password(uint32_t password) { this->password_ = password; }
   void set_new_password(uint32_t new_password) { this->new_password_ = &new_password; }
-  void set_uart(Stream *uart_device) { this->finger_ = new Adafruit_Fingerprint(uart_device, password_); }
   void set_fingerprint_count_sensor(sensor::Sensor *fingerprint_count_sensor) {
     this->fingerprint_count_sensor_ = fingerprint_count_sensor;
   }
@@ -77,10 +138,16 @@ class FingerprintGrowComponent : public PollingComponent, public uart::UARTDevic
  protected:
   void scan_and_match_();
   uint8_t scan_image_(uint8_t buffer);
-
+  uint8_t save_fingerprint_();
+  bool check_password_();
+  bool set_password_();
+  bool get_parameters_();
   void get_fingerprint_count_();
+  uint8_t send_command_();
 
-  Adafruit_Fingerprint *finger_;
+  std::vector<uint8_t> data_ = {};
+  uint8_t address_[4] = {0xFF, 0xFF, 0xFF, 0xFF};
+  uint16_t capacity_ = 64;
   uint32_t password_ = 0x0;
   uint32_t *new_password_{nullptr};
   GPIOPin *sensing_pin_{nullptr};

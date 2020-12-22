@@ -43,20 +43,21 @@ DeleteAllAction = fingerprint_grow_ns.class_('DeleteAllAction', automation.Actio
 LEDControlAction = fingerprint_grow_ns.class_('LEDControlAction', automation.Action)
 AuraLEDControlAction = fingerprint_grow_ns.class_('AuraLEDControlAction', automation.Action)
 
-AuraLEDMode = fingerprint_grow_ns.enum('AuraLEDMode')
+AuraLEDState = fingerprint_grow_ns.enum('GrowAuraLEDState', True)
 AURA_LED_STATES = {
-    'BREATHING': AuraLEDMode.BREATHING,
-    'FLASHING': AuraLEDMode.FLASHING,
-    'ALWAYS_ON': AuraLEDMode.ALWAYS_ON,
-    'ALWAYS_OFF': AuraLEDMode.ALWAYS_OFF,
-    'GRADUAL_ON': AuraLEDMode.GRADUAL_ON,
-    'GRADUAL_OFF': AuraLEDMode.GRADUAL_OFF,
+    'BREATHING': AuraLEDState.BREATHING,
+    'FLASHING': AuraLEDState.FLASHING,
+    'ALWAYS_ON': AuraLEDState.ALWAYS_ON,
+    'ALWAYS_OFF': AuraLEDState.ALWAYS_OFF,
+    'GRADUAL_ON': AuraLEDState.GRADUAL_ON,
+    'GRADUAL_OFF': AuraLEDState.GRADUAL_OFF,
 }
 validate_aura_led_states = cv.enum(AURA_LED_STATES, upper=True)
+AuraLEDColor = fingerprint_grow_ns.enum('GrowAuraLEDColor', True)
 AURA_LED_COLORS = {
-    'RED': AuraLEDMode.RED,
-    'BLUE': AuraLEDMode.BLUE,
-    'PURPLE': AuraLEDMode.PURPLE,
+    'RED': AuraLEDColor.RED,
+    'BLUE': AuraLEDColor.BLUE,
+    'PURPLE': AuraLEDColor.PURPLE,
 }
 validate_aura_led_colors = cv.enum(AURA_LED_COLORS, upper=True)
 
@@ -89,8 +90,7 @@ def to_code(config):
     if CONF_PASSWORD in config:
         password = config[CONF_PASSWORD]
         cg.add(var.set_password(password))
-    uart_device = yield uart.register_uart_device(var, config)
-    cg.add(var.set_uart(uart_device))
+    yield uart.register_uart_device(var, config)
 
     if CONF_NEW_PASSWORD in config:
         new_password = config[CONF_NEW_PASSWORD]
@@ -121,9 +121,6 @@ def to_code(config):
     for conf in config.get(CONF_ON_ENROLLMENT_FAILED, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         yield automation.build_automation(trigger, [(cg.uint16, 'finger_id')], conf)
-
-    # https://platformio.org/lib/show/382/Adafruit%20Fingerprint%20Sensor%20Library
-    cg.add_library('382', '2.0.4')
 
 
 @automation.register_action('fingerprint_grow.enroll', EnrollmentAction, cv.maybe_simple_value({
