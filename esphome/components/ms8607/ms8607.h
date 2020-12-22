@@ -10,9 +10,9 @@ namespace ms8607 {
 /**
  Temperature, pressure, and humidity sensor.
 
- By default, the MS8607 measures humidity at the highest resolution (12 bits)
+ By default, the MS8607 measures sensors at the highest resolution.
  A potential enhancement would be to expose the resolution as a configurable
- setting. 
+ setting.  A lower resolution speeds up ADC conversion time.
  */
 class MS8607Component : public PollingComponent, public i2c::I2CDevice {
  public:
@@ -34,9 +34,16 @@ class MS8607Component : public PollingComponent, public i2c::I2CDevice {
    */
   bool read_calibration_values_from_prom_();
 
+  /// Start async temperature read
+  void request_read_temperature_();
+  /// Process async temperature read
   void read_temperature_();
+  /// start async pressure read
+  void request_read_pressure_(uint32_t raw_temperature);
+  /// process async pressure read
   void read_pressure_(uint32_t raw_temperature);
   void read_humidity_();
+  /// use raw temperature & pressure to calculate & publish values
   void calculate_values_(uint32_t raw_temperature, uint32_t raw_pressure);
 
   sensor::Sensor *temperature_sensor_;
@@ -73,8 +80,6 @@ class MS8607Component : public PollingComponent, public i2c::I2CDevice {
   enum class ErrorCode;
   /// Keep track of the reason why this component failed, to augment the dumped config
   ErrorCode error_code_;
-
-  uint16_t prom_[7];
 };
 
 }  // namespace ms8607

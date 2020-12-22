@@ -27,8 +27,8 @@ static const uint8_t MS8607_CMD_H_WRITE_USER_REGISTER = 0xE6;
 
 static const uint8_t MS8607_CMD_ADC_READ = 0x00;
 
-static const uint8_t MS8607_CMD_CONV_D1 = 0x40;
-static const uint8_t MS8607_CMD_CONV_D2 = 0x50;
+static const uint8_t MS8607_CMD_CONV_D1_OSR_8K = 0x4A;
+static const uint8_t MS8607_CMD_CONV_D2_OSR_8K = 0x5A;
 
 enum class MS8607Component::ErrorCode {
   /// Component hasn't failed (yet?)
@@ -80,16 +80,8 @@ void MS8607Component::setup() {
 
 void MS8607Component::update() {
   this->read_humidity_();
-  // TODO: implement
-  return;
-  // request temperature reading
-  if (!this->write_bytes(MS8607_CMD_CONV_D2 + 0x08, nullptr, 0)) {
-    this->status_set_warning();
-    return;
-  }
 
-  auto f = std::bind(&MS8607Component::read_temperature_, this);
-  this->set_timeout("temperature", 10, f);
+  this->request_read_temperature_();
 }
 
 void MS8607Component::dump_config() {
@@ -154,6 +146,8 @@ bool MS8607Component::read_calibration_values_from_prom_() {
   this->calibration_values_.temperature_coefficient_of_temperature = buffer[6];
   ESP_LOGD(TAG, "Finished reading calibration values");
 
+  // Skipping reading Humidity PROM, since it doesn't have anything interesting for us
+
   return true;
 }
 
@@ -188,34 +182,50 @@ static uint8_t crc4(uint16_t *buffer, size_t length) {
   apply_crc(0);
   apply_crc(0);
 
-  return crc_remainder >> 12; // only the most significant 4 bits
+  return (crc_remainder >> 12) & 0xF; // only the most significant 4 bits
+}
+
+void MS8607Component::request_read_temperature_() {
+  // Tell MS8607 to start ADC conversion of temperature sensor
+  if (!this->write_bytes(MS8607_CMD_CONV_D2_OSR_8K, nullptr, 0)) {
+    this->status_set_warning();
+    return;
+  }
+
+  auto f = std::bind(&MS8607Component::read_temperature_, this);
+  // datasheet says 17.2ms max conversion time at OSR 8192
+  this->set_timeout("temperature", 20, f);
 }
 
 void MS8607Component::read_temperature_() {
-  uint8_t bytes[3];
+  uint8_t bytes[3]; // 24 bits
   if (!this->read_bytes(MS8607_CMD_ADC_READ, bytes, 3)) {
     this->status_set_warning();
     return;
   }
-  const uint32_t raw_temperature = (uint32_t(bytes[0]) << 16) | (uint32_t(bytes[1]) << 8) | (uint32_t(bytes[2]));
 
-  // request pressure reading
-  if (!this->write_bytes(MS8607_CMD_CONV_D1 + 0x08, nullptr, 0)) {
+  const uint32_t raw_temperature = encode_uint32(0, bytes[0], bytes[1], bytes[2]);
+  this->request_read_pressure_(raw_temperature);
+}
+
+void MS8607Component::request_read_pressure_(uint32_t raw_temperature) {
+  if (!this->write_bytes(MS8607_CMD_CONV_D1_OSR_8K, nullptr, 0)) {
     this->status_set_warning();
     return;
   }
 
   auto f = std::bind(&MS8607Component::read_pressure_, this, raw_temperature);
-  this->set_timeout("pressure", 10, f);
+  // datasheet says 17.2ms max conversion time at OSR 8192
+  this->set_timeout("pressure", 20, f);
 }
 
 void MS8607Component::read_pressure_(uint32_t raw_temperature) {
-  uint8_t bytes[3];
+  uint8_t bytes[3]; // 24 bits
   if (!this->read_bytes(MS8607_CMD_ADC_READ, bytes, 3)) {
     this->status_set_warning();
     return;
   }
-  const uint32_t raw_pressure = (uint32_t(bytes[0]) << 16) | (uint32_t(bytes[1]) << 8) | (uint32_t(bytes[2]));
+  const uint32_t raw_pressure = encode_uint32(0, bytes[0], bytes[1], bytes[2]);
   this->calculate_values_(raw_temperature, raw_pressure);
 }
 
@@ -251,35 +261,58 @@ void MS8607Component::read_humidity_() {
 }
 
 void MS8607Component::calculate_values_(uint32_t raw_temperature, uint32_t raw_pressure) {
-  const int32_t d_t = int32_t(raw_temperature) - (uint32_t(this->prom_[4]) << 8);
-  float temperature = (2000 + (int64_t(d_t) * this->prom_[5]) / 8388608.0f) / 100.0f;
+  // Perform the first order pressure/temperature calculation
 
-  float pressure_offset = (uint32_t(this->prom_[1]) << 16) + ((this->prom_[3] * d_t) >> 7);
-  float pressure_sensitivity = (uint32_t(this->prom_[0]) << 15) + ((this->prom_[2] * d_t) >> 8);
+  // d_t: "difference between actual and reference temperature" = D2 - [C5] * 2**8
+  const int32_t d_t = int32_t(raw_temperature) - (int32_t(this->calibration_values_.reference_temperature) << 8);
+  // actual temperature as hundredths of degree celsius in range [-4000, 8500]
+  // 2000 + d_t * [C6] / (2**23)
+  int32_t temperature = 2000 + (int64_t(d_t) * this->calibration_values_.temperature_coefficient_of_temperature) >> 23;
 
-  if (temperature < 20.0f) {
-    const float t2 = (d_t * d_t) / 2147483648.0f;
-    const float temp20 = (temperature - 20.0f) * 100.0f;
-    float pressure_offset_2 = 2.5f * temp20 * temp20;
-    float pressure_sensitivity_2 = 1.25f * temp20 * temp20;
-    if (temp20 < -15.0f) {
-      const float temp15 = (temperature + 15.0f) * 100.0f;
-      pressure_offset_2 += 7.0f * temp15;
-      pressure_sensitivity_2 += 5.5f * temp15;
+  // offset at actual temperature. [C2] * (2**17) + (d_t * [C4] / (2**6))
+  int64_t pressure_offset = (int64_t(this->calibration_values_.pressure_offset) << 17) + ((int64_t(d_t) * this->calibration_values_.pressure_offset_temperature_coefficient) >> 6);
+  // sensitivity at actual temperature
+  int64_t pressure_sensitivity = (int64_t(this->calibration_values_.pressure_sensitivity) << 16) + ((int64_t(d_t) * this->calibration_values_.pressure_sensitivity_temperature_coefficient) >> 7);
+
+  // Perform the second order compensation, for non-linearity over temperature range
+  const int64_t d_t_squared = int64_t(d_t) * d_t;
+  int64_t temperature_2 = 0;
+  int32_t pressure_offset_2 = 0;
+  int32_t pressure_sensitivity_2 = 0;
+  if (temperature < 2000) {
+    const int32_t low_temperature_adjustment = (temperature - 2000) * (temperature - 2000) >> 4;
+
+    temperature_2 = (3 * d_t_squared) >> 33;
+    pressure_offset_2 = 61 * low_temperature_adjustment;
+    pressure_sensitivity_2 = 29 * low_temperature_adjustment;
+
+    if (temperature < -1500) {
+      const int32_t very_low_temperature_adjustment = (temperature + 1500) * (temperature + 1500);
+
+      pressure_offset_2 += 17 * very_low_temperature_adjustment;
+      pressure_sensitivity_2 += 9 * very_low_temperature_adjustment;
     }
-    temperature -= t2;
-    pressure_offset -= pressure_offset_2;
-    pressure_sensitivity -= pressure_sensitivity_2;
+  } else {
+    temperature_2 = (5 * d_t_squared) >> 38;
   }
 
-  const float pressure = ((raw_pressure * pressure_sensitivity) / 2097152.0f - pressure_offset) / 3276800.0f;
+  temperature -= temperature_2;
+  pressure_offset -= pressure_offset_2;
+  pressure_sensitivity -= pressure_sensitivity_2;
 
-  ESP_LOGD(TAG, "Got temperature=%0.02f°C pressure=%0.01fhPa", temperature, pressure);
+  // Temperature compensated pressure. [1000, 120000] => [10.00 mbar, 1200.00 mbar]
+  const int32_t pressure = ((raw_pressure * pressure_sensitivity) >> 21 - pressure_offset) >> 15;
 
-  if (this->temperature_sensor_ != nullptr)
-    this->temperature_sensor_->publish_state(temperature);
-  if (this->pressure_sensor_ != nullptr)
-    this->pressure_sensor_->publish_state(pressure);  // hPa
+  const float temperature_float = temperature / 100.0f;
+  const float pressure_float = pressure / 100.0f;
+  ESP_LOGD(TAG, "Got temperature=%0.2f°C pressure=%0.2fhPa", temperature_float, pressure_float);
+
+  if (this->temperature_sensor_ != nullptr) {
+    this->temperature_sensor_->publish_state(temperature_float);
+  }
+  if (this->pressure_sensor_ != nullptr) {
+    this->pressure_sensor_->publish_state(pressure_float);  // hPa aka mbar
+  }
   this->status_clear_warning();
 }
 
