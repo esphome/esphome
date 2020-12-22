@@ -13,10 +13,13 @@ esphome/core/* @esphome/core
 # Integrations
 esphome/components/ac_dimmer/* @glmnet
 esphome/components/adc/* @esphome/core
+esphome/components/animation/* @syndlex
 esphome/components/api/* @OttoWinter
 esphome/components/async_tcp/* @OttoWinter
+esphome/components/atc_mithermometer/* @ahpohl
 esphome/components/bang_bang/* @OttoWinter
 esphome/components/binary_sensor/* @esphome/core
+esphome/components/canbus/* @danielschramm @mvturnho
 esphome/components/captive_portal/* @OttoWinter
 esphome/components/climate/* @esphome/core
 esphome/components/climate_ir/* @glmnet
@@ -27,6 +30,7 @@ esphome/components/debug/* @OttoWinter
 esphome/components/dfplayer/* @glmnet
 esphome/components/dht/* @OttoWinter
 esphome/components/exposure_notifications/* @OttoWinter
+esphome/components/ezo/* @ssieb
 esphome/components/fastled_base/* @OttoWinter
 esphome/components/fingerprint_grow/* @OnFreund @loongyh
 esphome/components/globals/* @esphome/core
@@ -39,6 +43,9 @@ esphome/components/json/* @OttoWinter
 esphome/components/ledc/* @OttoWinter
 esphome/components/light/* @esphome/core
 esphome/components/logger/* @esphome/core
+esphome/components/mcp23s08/* @SenexCrenshaw
+esphome/components/mcp23s17/* @SenexCrenshaw
+esphome/components/mcp2515/* @danielschramm @mvturnho
 esphome/components/mcp9808/* @k7hpn
 esphome/components/network/* @esphome/core
 esphome/components/ota/* @esphome/core
@@ -57,10 +64,20 @@ esphome/components/sensor/* @esphome/core
 esphome/components/shutdown/* @esphome/core
 esphome/components/sim800l/* @glmnet
 esphome/components/spi/* @esphome/core
+esphome/components/ssd1325_base/* @kbx81
+esphome/components/ssd1325_spi/* @kbx81
+esphome/components/ssd1331_base/* @kbx81
+esphome/components/ssd1331_spi/* @kbx81
+esphome/components/ssd1351_base/* @kbx81
+esphome/components/ssd1351_spi/* @kbx81
+esphome/components/st7735/* @SenexCrenshaw
+esphome/components/st7789v/* @kbx81
 esphome/components/substitutions/* @esphome/core
 esphome/components/sun/* @OttoWinter
 esphome/components/switch/* @esphome/core
 esphome/components/tcl112/* @glmnet
+esphome/components/teleinfo/* @0hax
+esphome/components/thermostat/* @kbx81
 esphome/components/time/* @OttoWinter
 esphome/components/tm1637/* @glmnet
 esphome/components/tmp102/* @timsavage
@@ -73,3 +90,4 @@ esphome/components/ultrasonic/* @OttoWinter
 esphome/components/version/* @esphome/core
 esphome/components/web_server_base/* @OttoWinter
 esphome/components/whirlpool/* @glmnet
+esphome/components/xiaomi_lywsd03mmc/* @ahpohl
