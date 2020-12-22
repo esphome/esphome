@@ -299,6 +299,11 @@ std::array<uint8_t, 2> decode_uint16(uint16_t value) {
   return {msb, lsb};
 }
 
+uint32_t encode_uint32(uint8_t msb, uint8_t byte2, uint8_t byte3, uint8_t lsb) {
+  return ((uint32_t(msb) << 24) | (uint32_t(byte2) << 16)
+          | (uint32_t(byte3) << 8) | (uint32_t(lsb)));
+}
+
 std::string hexencode(const uint8_t *data, uint32_t len) {
   char buf[20];
   std::string res;
