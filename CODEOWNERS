@@ -72,6 +72,11 @@ esphome/components/midea_ac/* @dudanov
 esphome/components/midea_dongle/* @dudanov
 esphome/components/mitsubishi/* @RubyBailey
 esphome/components/network/* @esphome/core
+esphome/components/nextion/* @senexcrenshaw
+esphome/components/nextion/binary_sensor/* @senexcrenshaw
+esphome/components/nextion/sensor/* @senexcrenshaw
+esphome/components/nextion/switch/* @senexcrenshaw
+esphome/components/nextion/text_sensor/* @senexcrenshaw
 esphome/components/nfc/* @jesserockz
 esphome/components/ota/* @esphome/core
 esphome/components/output/* @esphome/core
