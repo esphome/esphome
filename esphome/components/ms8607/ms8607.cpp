@@ -258,6 +258,8 @@ void MS8607Component::read_humidity_() {
   ESP_LOGD(TAG, "Read humidity percentage of %.4f", humidity_percentage);
 
   // TODO: compensate for temperature
+
+    this->humidity_sensor_->publish_state(humidity_percentage);
 }
 
 void MS8607Component::calculate_values_(uint32_t raw_temperature, uint32_t raw_pressure) {
