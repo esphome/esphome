@@ -9,6 +9,8 @@ AUTO_LOAD = ['climate', 'sensor']
 CODEOWNERS = ['@dudanov']
 
 CONF_BEEPER = 'beeper'
+CONF_SWING_HORIZONTAL = 'swing_horizontal'
+CONF_SWING_BOTH = 'swing_both'
 CONF_OUTDOOR_TEMPERATURE = 'outdoor_temperature'
 CONF_HUMIDITY_SETPOINT = 'humidity_setpoint'
 midea_ac_ns = cg.esphome_ns.namespace('midea_ac')
@@ -18,6 +20,8 @@ CONFIG_SCHEMA = cv.All(climate.CLIMATE_SCHEMA.extend({
     cv.GenerateID(): cv.declare_id(MideaAC),
     cv.GenerateID(CONF_MIDEA_DONGLE_ID): cv.use_id(MideaDongle),
     cv.Optional(CONF_BEEPER): cv.boolean,
+    cv.Optional(CONF_SWING_HORIZONTAL): cv.boolean,
+    cv.Optional(CONF_SWING_BOTH): cv.boolean,
     cv.Optional(CONF_OUTDOOR_TEMPERATURE): sensor.sensor_schema(UNIT_CELSIUS, ICON_THERMOMETER, 0),
     cv.Optional(CONF_HUMIDITY_SETPOINT): sensor.sensor_schema(UNIT_PERCENT, ICON_WATER_PERCENT, 0),
 }).extend(cv.COMPONENT_SCHEMA))
@@ -31,6 +35,10 @@ def to_code(config):
     cg.add(var.set_midea_dongle_parent(paren))
     if CONF_BEEPER in config:
         cg.add(var.set_beeper_feedback(config[CONF_BEEPER]))
+    if CONF_SWING_HORIZONTAL in config:
+        cg.add(var.set_swing_horizontal(config[CONF_SWING_HORIZONTAL]))
+    if CONF_SWING_BOTH in config:
+        cg.add(var.set_swing_both(config[CONF_SWING_BOTH]))
     if CONF_OUTDOOR_TEMPERATURE in config:
         sens = yield sensor.new_sensor(config[CONF_OUTDOOR_TEMPERATURE])
         cg.add(var.set_outdoor_temperature_sensor(sens))

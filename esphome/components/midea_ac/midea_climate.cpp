@@ -101,6 +101,8 @@ climate::ClimateTraits MideaAC::traits() {
   traits.set_supports_fan_mode_high(true);
   traits.set_supports_swing_mode_off(true);
   traits.set_supports_swing_mode_vertical(true);
+  traits.set_supports_swing_mode_horizontal(this->traits_swing_horizontal_);
+  traits.set_supports_swing_mode_both(this->traits_swing_both_);
   traits.set_supports_current_temperature(true);
   return traits;
 }
