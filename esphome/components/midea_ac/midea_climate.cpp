@@ -47,6 +47,9 @@ void MideaAC::on_frame(const midea_dongle::Frame &frame) {
   if (this->outdoor_sensor_ != nullptr &&
       (!this->outdoor_sensor_->has_state() || this->outdoor_sensor_->get_raw_state() != p.get_outdoor_temp()))
     this->outdoor_sensor_->publish_state(p.get_outdoor_temp());
+  if (this->humidity_sensor_ != nullptr &&
+      (!this->humidity_sensor_->has_state() || this->humidity_sensor_->get_raw_state() != p.get_humidity_setpoint()))
+    this->humidity_sensor_->publish_state(p.get_humidity_setpoint());
 }
 
 void MideaAC::on_update() {

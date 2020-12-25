@@ -76,6 +76,9 @@ class PropertiesFrame : public midea_dongle::BaseFrame {
   /* OUTDOOR TEMPERATURE */
   float get_outdoor_temp() const;
 
+  /* HUMIDITY SETPOINT */
+  float get_humidity_setpoint() const;
+
   /* ECO MODE */
   bool get_eco_mode() const { return this->pbuf_[19]; }
   void set_eco_mode(bool state) { this->set_bytemask_(19, 0xFF, state); }

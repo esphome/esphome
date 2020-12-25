@@ -1,7 +1,7 @@
 from esphome.components import climate, sensor
 import esphome.config_validation as cv
 import esphome.codegen as cg
-from esphome.const import CONF_ID, UNIT_CELSIUS, ICON_THERMOMETER
+from esphome.const import CONF_ID, UNIT_CELSIUS, UNIT_PERCENT, ICON_THERMOMETER, ICON_WATER_PERCENT
 from esphome.components.midea_dongle import CONF_MIDEA_DONGLE_ID, MideaDongle
 
 DEPENDENCIES = ['midea_dongle']
@@ -10,6 +10,7 @@ CODEOWNERS = ['@dudanov']
 
 CONF_BEEPER = 'beeper'
 CONF_OUTDOOR_TEMPERATURE = 'outdoor_temperature'
+CONF_HUMIDITY_SETPOINT = 'humidity_setpoint'
 midea_ac_ns = cg.esphome_ns.namespace('midea_ac')
 MideaAC = midea_ac_ns.class_('MideaAC', climate.Climate, cg.Component)
 
@@ -18,6 +19,7 @@ CONFIG_SCHEMA = cv.All(climate.CLIMATE_SCHEMA.extend({
     cv.GenerateID(CONF_MIDEA_DONGLE_ID): cv.use_id(MideaDongle),
     cv.Optional(CONF_BEEPER): cv.boolean,
     cv.Optional(CONF_OUTDOOR_TEMPERATURE): sensor.sensor_schema(UNIT_CELSIUS, ICON_THERMOMETER, 0),
+    cv.Optional(CONF_HUMIDITY_SETPOINT): sensor.sensor_schema(UNIT_PERCENT, ICON_WATER_PERCENT, 0),
 }).extend(cv.COMPONENT_SCHEMA))
 
 
@@ -32,3 +34,6 @@ def to_code(config):
     if CONF_OUTDOOR_TEMPERATURE in config:
         sens = yield sensor.new_sensor(config[CONF_OUTDOOR_TEMPERATURE])
         cg.add(var.set_outdoor_temperature_sensor(sens))
+    if CONF_HUMIDITY_SETPOINT in config:
+        sens = yield sensor.new_sensor(config[CONF_HUMIDITY_SETPOINT])
+        cg.add(var.set_humidity_setpoint_sensor(sens))

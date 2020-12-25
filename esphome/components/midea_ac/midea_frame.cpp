@@ -28,6 +28,7 @@ void PropertiesFrame::set_target_temp(float temp) {
 static float i16tof(int16_t in) { return static_cast<float>(in - 50) / 2.0; }
 float PropertiesFrame::get_indoor_temp() const { return i16tof(this->pbuf_[21]); }
 float PropertiesFrame::get_outdoor_temp() const { return i16tof(this->pbuf_[22]); }
+float PropertiesFrame::get_humidity_setpoint() const { return static_cast<float>(this->pbuf_[29] & 0x7F); }
 
 climate::ClimateMode PropertiesFrame::get_mode() const {
   if (!this->get_power_())
