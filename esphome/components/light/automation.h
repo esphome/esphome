@@ -102,18 +102,17 @@ class LightTurnOnTrigger : public Trigger<> {
  public:
   LightTurnOnTrigger(LightState *a_light) {
     a_light->add_new_remote_values_callback([this, a_light]() {
-      // using the remote value because of transitions we need to trigger as early as possible
-      auto is_on = a_light->remote_values.is_on();
+      auto is_on = a_light->current_values.is_on();
       // only trigger when going from off to on
-      auto should_trigger = is_on && !this->last_on_;
+      auto should_trigger = is_on && !last_on_;
       // Set new state immediately so that trigger() doesn't devolve
       // into infinite loop
-      this->last_on_ = is_on;
+      last_on_ = is_on;
       if (should_trigger) {
         this->trigger();
       }
     });
-    this->last_on_ = a_light->current_values.is_on();
+    last_on_ = a_light->current_values.is_on();
   }
 
  protected:
@@ -123,14 +122,22 @@ class LightTurnOnTrigger : public Trigger<> {
 class LightTurnOffTrigger : public Trigger<> {
  public:
   LightTurnOffTrigger(LightState *a_light) {
-    a_light->add_new_target_state_reached_callback([this, a_light]() {
+    a_light->add_new_remote_values_callback([this, a_light]() {
       auto is_on = a_light->current_values.is_on();
       // only trigger when going from on to off
-      if (!is_on) {
+      auto should_trigger = !is_on && last_on_;
+      // Set new state immediately so that trigger() doesn't devolve
+      // into infinite loop
+      last_on_ = is_on;
+      if (should_trigger) {
         this->trigger();
       }
     });
+    last_on_ = a_light->current_values.is_on();
   }
+
+ protected:
+  bool last_on_;
 };
 
 template<typename... Ts> class AddressableSet : public Action<Ts...> {

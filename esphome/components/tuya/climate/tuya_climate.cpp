@@ -21,7 +21,7 @@ void TuyaClimate::setup() {
   }
   if (this->target_temperature_id_.has_value()) {
     this->parent_->register_listener(*this->target_temperature_id_, [this](TuyaDatapoint datapoint) {
-      this->target_temperature = datapoint.value_int * this->target_temperature_multiplier_;
+      this->target_temperature = datapoint.value_int * this->temperature_multiplier_;
       this->compute_state_();
       this->publish_state();
       ESP_LOGD(TAG, "MCU reported target temperature is: %.1f", this->target_temperature);
@@ -29,7 +29,7 @@ void TuyaClimate::setup() {
   }
   if (this->current_temperature_id_.has_value()) {
     this->parent_->register_listener(*this->current_temperature_id_, [this](TuyaDatapoint datapoint) {
-      this->current_temperature = datapoint.value_int * this->current_temperature_multiplier_;
+      this->current_temperature = datapoint.value_int * this->temperature_multiplier_;
       this->compute_state_();
       this->publish_state();
       ESP_LOGD(TAG, "MCU reported current temperature is: %.1f", this->current_temperature);
@@ -55,7 +55,7 @@ void TuyaClimate::control(const climate::ClimateCall &call) {
     TuyaDatapoint datapoint{};
     datapoint.id = *this->target_temperature_id_;
     datapoint.type = TuyaDatapointType::INTEGER;
-    datapoint.value_int = (int) (this->target_temperature / this->target_temperature_multiplier_);
+    datapoint.value_int = (int) (this->target_temperature / this->temperature_multiplier_);
     this->parent_->set_datapoint_value(datapoint);
     ESP_LOGD(TAG, "Setting target temperature: %.1f", this->target_temperature);
   }

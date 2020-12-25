@@ -66,6 +66,7 @@ def to_code(config):
     cg.add(var.set_optimistic(config[CONF_OPTIMISTIC]))
     cg.add(var.set_assumed_state(config[CONF_ASSUMED_STATE]))
     cg.add(var.set_restore_mode(config[CONF_RESTORE_MODE]))
+    cg.add(var.set_has_position(config[CONF_HAS_POSITION]))
 
 
 @automation.register_action('cover.template.publish', cover.CoverPublishAction, cv.Schema({
