@@ -40,6 +40,7 @@ uart:
 ota:
   safe_mode: True
   port: 3286
+  num_attempts: 15
 
 logger:
   level: DEBUG

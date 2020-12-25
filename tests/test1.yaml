@@ -154,6 +154,8 @@ ota:
   safe_mode: True
   password: 'superlongpasswordthatnoonewillknow'
   port: 3286
+  reboot_timeout: 2min
+  num_attempts: 5
 
 logger:
   baud_rate: 0
@@ -194,6 +196,16 @@ as3935_spi:
 wled:
 
 adalight:
+
+mcp23s08:
+  - id: 'mcp23s08_hub'
+    cs_pin: GPIO12
+    deviceaddress: 0
+    
+mcp23s17:
+  - id: 'mcp23s17_hub'
+    cs_pin: GPIO12
+    deviceaddress: 1
 
 sensor:
   - platform: adc
@@ -619,6 +631,7 @@ sensor:
     automatic_self_calibration: true
     altitude_compensation: 10m
     ambient_pressure_compensation: 961mBar
+    temperature_offset: 4.2C
   - platform: sgp30
     eco2:
       name: 'Workshop eCO2'
@@ -799,6 +812,24 @@ esp32_touch:
   voltage_attenuation: 1.5V
 
 binary_sensor:
+  - platform: gpio
+    name: "MCP23S08 Pin #1"
+    pin:
+      mcp23s08: mcp23s08_hub
+      # Use pin number 1
+      number: 1
+      # One of INPUT or INPUT_PULLUP
+      mode: INPUT_PULLUP
+      inverted: False
+  - platform: gpio
+    name: "MCP23S17 Pin #1"
+    pin:
+      mcp23s17: mcp23s17_hub
+      # Use pin number 1
+      number: 1
+      # One of INPUT or INPUT_PULLUP
+      mode: INPUT_PULLUP
+      inverted: False
   - platform: gpio
     pin: GPIO9
     name: 'Living Room Window'
@@ -1360,6 +1391,22 @@ climate:
 
 switch:
   - platform: gpio
+    name: "MCP23S08 Pin #0"
+    pin:
+      mcp23s08: mcp23s08_hub
+      # Use pin number 0
+      number: 0
+      mode: OUTPUT
+      inverted: False
+  - platform: gpio
+    name: "MCP23S17 Pin #0"
+    pin:
+      mcp23s17: mcp23s17_hub
+      # Use pin number 0
+      number: 1
+      mode: OUTPUT
+      inverted: False
+  - platform: gpio
     pin: GPIO25
     name: 'Living Room Dehumidifier'
     icon: 'mdi:restart'
@@ -1843,6 +1890,9 @@ text_sensor:
       - globals.set:
           id: glob_int
           value: '0'
+      - canbus.send:
+          can_id: 23
+          data: [ 0x10, 0x20, 0x30 ]
   - platform: template
     name: Template Text Sensor
     id: template_text
@@ -1869,3 +1919,22 @@ sn74hc595:
 
 rtttl:
   output: gpio_19
+
+canbus:
+  - platform: mcp2515
+    cs_pin: GPIO17
+    can_id: 4
+    bit_rate: 50kbps
+    on_frame:
+    - can_id: 500
+      then:
+      - lambda: |-
+          std::string b(x.begin(), x.end());
+          ESP_LOGD("canid 500", "%s", &b[0] );
+    - can_id: 23
+      then:
+        - if:
+            condition:
+              lambda: 'return x[0] == 0x11;'
+            then:
+              light.toggle: living_room_lights
