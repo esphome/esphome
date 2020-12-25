@@ -135,10 +135,12 @@ void LightState::setup() {
   call.perform();
 }
 void LightState::loop() {
-  // Apply effect (if any)
-  auto *effect = this->get_active_effect_();
-  if (effect != nullptr) {
-    effect->apply();
+  // Apply effect (if any) if the light is on
+  if (this->state_.value_or(false)) {
+    auto *effect = this->get_active_effect_();
+    if (effect != nullptr) {
+      effect->apply();
+    }
   }
 
   // Apply transformer (if any)
@@ -545,9 +547,6 @@ LightColorValues LightCall::validate_() {
     if (this->has_effect_()) {
       ESP_LOGW(TAG, "'%s' - Cannot start an effect when turning off!", name);
       this->effect_.reset();
-    } else if (this->parent_->active_effect_index_ != 0) {
-      // Auto turn off effect
-      this->effect_ = 0;
     }
   }
 
