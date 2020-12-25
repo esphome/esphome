@@ -30,6 +30,7 @@ void MideaDongle::loop() {
       ESP_LOGW(TAG, "RX: frame check failed!");
       continue;
     }
+    ESP_LOGD(TAG, "RX: %s", frame.toString().c_str());
     if (frame.get_type() == QUERY_NETWORK) {
       this->notify_.set_type(QUERY_NETWORK);
       this->need_notify_ = true;

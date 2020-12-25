@@ -74,5 +74,17 @@ void BaseFrame::set_bytemask_(uint8_t idx, uint8_t mask, bool state) {
     *dst &= ~mask;
 }
 
+String Frame::toString() const {
+  String ret;
+  char buf[8];
+  ret.reserve(120);
+  auto it = this->data();
+  for (size_t i = 0; i < this->size(); i++, it++) {
+    sprintf(buf, "%02X ", *it);
+    ret += buf;
+  }
+  return ret;
+}
+
 }  // namespace midea_dongle
 }  // namespace esphome
