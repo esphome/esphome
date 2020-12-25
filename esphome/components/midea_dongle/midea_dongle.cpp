@@ -89,5 +89,10 @@ void MideaDongle::update() {
     this->appliance_->on_update();
 }
 
+void MideaDongle::write_frame(const Frame &frame) {
+  ESP_LOGD(TAG, "TX: %s", frame.toString().c_str());
+  this->write_array(frame.data(), frame.size());
+}
+
 }  // namespace midea_dongle
 }  // namespace esphome
