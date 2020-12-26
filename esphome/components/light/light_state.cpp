@@ -136,7 +136,7 @@ void LightState::setup() {
 }
 void LightState::loop() {
   // Apply effect (if any) if the light is on
-  if (this->state_.value_or(false)) {
+  if (remote_values.is_on()) {
     auto *effect = this->get_active_effect_();
     if (effect != nullptr) {
       effect->apply();
@@ -542,7 +542,7 @@ LightColorValues LightCall::validate_() {
 
   // If not a flash and turning the light off, then disable the light
   // Do not use light color values directly, so that effects can set 0% brightness
-  // Reason: When user turns off the light in frontend, the effect should also stop
+  // Reason: When user turns off the light in frontend
   if (!this->has_flash_() && !this->state_.value_or(v.is_on())) {
     if (this->has_effect_()) {
       ESP_LOGW(TAG, "'%s' - Cannot start an effect when turning off!", name);
