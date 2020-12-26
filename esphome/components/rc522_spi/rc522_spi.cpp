@@ -32,7 +32,7 @@ uint8_t RC522Spi::pcd_read_register_(PcdRegister reg  ///< The register to read 
   transfer_byte(0x80 | reg);
   value = read_byte();
   disable();
-  ESP_LOGVV(TAG, "read_register_(%x) -> %x", reg, value);
+  ESP_LOGV(TAG, "read_register_(%x) -> %x", reg, value);
   return value;
 }
 
