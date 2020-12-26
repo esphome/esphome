@@ -6,6 +6,18 @@ namespace midea_ac {
 
 static const char *TAG = "midea_ac";
 
+static void set_sensor(sensor::Sensor *sensor, float value) {
+  if (sensor != nullptr && (!sensor->has_state() || sensor->get_raw_state() != value))
+    sensor->publish_state(value);
+}
+
+template <typename T> void set_property(T &property, T value, bool &flag) {
+  if (property != value) {
+    property = value;
+    flag = true;
+  }
+}
+
 void MideaAC::on_frame(const midea_dongle::Frame &frame) {
   const auto p = frame.as<PropertiesFrame>();
   if (!p.is<PropertiesFrame>()) {
@@ -22,42 +34,23 @@ void MideaAC::on_frame(const midea_dongle::Frame &frame) {
     return;
   this->cmd_frame_.set_properties(p);  // copy properties from response
   bool need_publish = false;
-  if (this->mode != p.get_mode()) {
-    this->mode = p.get_mode();
-    need_publish = true;
-  }
-  if (this->target_temperature != p.get_target_temp()) {
-    this->target_temperature = p.get_target_temp();
-    need_publish = true;
-  }
-  if (this->current_temperature != p.get_indoor_temp()) {
-    this->current_temperature = p.get_indoor_temp();
-    need_publish = true;
-  }
-  if (this->fan_mode != p.get_fan_mode()) {
-    this->fan_mode = p.get_fan_mode();
-    need_publish = true;
-  }
-  if (this->swing_mode != p.get_swing_mode()) {
-    this->swing_mode = p.get_swing_mode();
-    need_publish = true;
-  }
+  set_property(this->mode, p.get_mode(), need_publish);
+  set_property(this->target_temperature, p.get_target_temp(), need_publish);
+  set_property(this->current_temperature, p.get_indoor_temp(), need_publish);
+  set_property(this->fan_mode, p.get_fan_mode(), need_publish);
+  set_property(this->swing_mode, p.get_swing_mode(), need_publish);
   if (need_publish)
     this->publish_state();
-  if (this->outdoor_sensor_ != nullptr &&
-      (!this->outdoor_sensor_->has_state() || this->outdoor_sensor_->get_raw_state() != p.get_outdoor_temp()))
-    this->outdoor_sensor_->publish_state(p.get_outdoor_temp());
-  if (this->humidity_sensor_ != nullptr &&
-      (!this->humidity_sensor_->has_state() || this->humidity_sensor_->get_raw_state() != p.get_humidity_setpoint()))
-    this->humidity_sensor_->publish_state(p.get_humidity_setpoint());
+  set_sensor(this->outdoor_sensor_, p.get_outdoor_temp());
+  set_sensor(this->humidity_sensor_, p.get_humidity_setpoint());
 }
 
 void MideaAC::on_update() {
   if (this->ctrl_request_) {
-    ESP_LOGD(TAG, "TX: control frame");
+    ESP_LOGD(TAG, "TX: control");
     this->parent_->write_frame(this->cmd_frame_);
   } else {
-    ESP_LOGD(TAG, "TX: query frame");
+    ESP_LOGD(TAG, "TX: query");
     this->parent_->write_frame(this->query_frame_);
   }
 }
