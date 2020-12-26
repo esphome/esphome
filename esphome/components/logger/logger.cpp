@@ -136,7 +136,11 @@ void Logger::pre_setup() {
         break;
 #ifdef ARDUINO_ARCH_ESP32
       case UART_SELECTION_UART2:
+#if ESP_IDF_VERSION_MAJOR >= 4
+        this->hw_serial_ = &Serial1;
+#else
         this->hw_serial_ = &Serial2;
+#endif
         break;
 #endif
     }
