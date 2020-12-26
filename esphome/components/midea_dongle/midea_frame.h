@@ -25,7 +25,7 @@ class Frame {
   template<typename T> typename std::enable_if<std::is_base_of<Frame, T>::value, T>::type as() const {
     return T(*this);
   }
-  String toString() const;
+  String to_string() const;
 
  protected:
   uint8_t *pbuf_;

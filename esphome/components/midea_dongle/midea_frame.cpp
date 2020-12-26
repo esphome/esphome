@@ -74,7 +74,7 @@ void BaseFrame::set_bytemask_(uint8_t idx, uint8_t mask, bool state) {
     *dst &= ~mask;
 }
 
-String Frame::toString() const {
+String Frame::to_string() const {
   String ret;
   char buf[8];
   ret.reserve(120);

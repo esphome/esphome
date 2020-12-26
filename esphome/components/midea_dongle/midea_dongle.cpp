@@ -30,7 +30,7 @@ void MideaDongle::loop() {
       ESP_LOGW(TAG, "RX: frame check failed!");
       continue;
     }
-    ESP_LOGD(TAG, "RX: %s", frame.toString().c_str());
+    ESP_LOGD(TAG, "RX: %s", frame.to_string().c_str());
     if (frame.get_type() == QUERY_NETWORK) {
       this->notify_.set_type(QUERY_NETWORK);
       this->need_notify_ = true;
@@ -90,8 +90,8 @@ void MideaDongle::update() {
 }
 
 void MideaDongle::write_frame(const Frame &frame) {
-  ESP_LOGD(TAG, "TX: %s", frame.toString().c_str());
   this->write_array(frame.data(), frame.size());
+  ESP_LOGD(TAG, "TX: %s", frame.to_string().c_str());
 }
 
 }  // namespace midea_dongle
