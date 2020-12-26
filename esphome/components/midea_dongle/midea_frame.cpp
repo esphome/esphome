@@ -81,7 +81,7 @@ String Frame::to_string() const {
   char buf[4];
   buf[2] = ' ';
   buf[3] = '\0';
-  ret.reserve(3*36);
+  ret.reserve(3 * 36);
   const uint8_t *it = this->data();
   for (size_t i = 0; i < this->size(); i++, it++) {
     buf[0] = u4hex(*it >> 4);
