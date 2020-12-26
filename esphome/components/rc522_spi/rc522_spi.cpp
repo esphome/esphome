@@ -13,8 +13,6 @@ void RC522Spi::setup() {
   ESP_LOGI(TAG, "SPI Setup");
   this->spi_setup();
 
-  this->cs_->digital_write(false);
-  delay(1);
   RC522::setup();
 }
 
