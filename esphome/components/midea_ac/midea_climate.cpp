@@ -11,7 +11,7 @@ static void set_sensor(sensor::Sensor *sensor, float value) {
     sensor->publish_state(value);
 }
 
-template <typename T> void set_property(T &property, T value, bool &flag) {
+template<typename T> void set_property(T &property, T value, bool &flag) {
   if (property != value) {
     property = value;
     flag = true;
