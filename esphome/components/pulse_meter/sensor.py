@@ -19,7 +19,10 @@ def validate_internal_filter(value):
 
 
 def validate_timeout(value):
-    return cv.positive_time_period_microseconds(value)
+    value = cv.positive_time_period_microseconds(value)
+    if value.total_minutes > 70:
+        raise cv.Invalid("Maximum timeout is 70 minutes")
+    return value
 
 
 def validate_pulse_meter_pin(value):
