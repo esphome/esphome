@@ -935,6 +935,9 @@ binary_sensor:
   - platform: pn532
     uid: 74-10-37-94
     name: 'PN532 NFC Tag'
+  - platform: pn532
+    uid: '*'
+    name: 'PN532 wildcard NFC Tag'
   - platform: rdm6300
     uid: 7616525
     name: 'RDM6300 NFC Tag'
