@@ -6,95 +6,97 @@ namespace pulse_meter {
 
 static const char *TAG = "pulse_meter";
 
-void PulseMeterSensorStore::setup(GPIOPin *pin) {
-  pin->setup();
-  this->isr_pin = pin->to_isr();
-  pin->attach_interrupt(PulseMeterSensorStore::gpio_intr, this, CHANGE);
-
-  const uint32_t now = micros();
-  this->last_detected_edge_us = now;
-  this->last_valid_edge_us = now;
-}
-
-uint32_t PulseMeterSensorStore::get_filter_us() const {
-  return this->filter_us;
-}
-
-void PulseMeterSensorStore::set_filter_us(uint32_t filter) {
-  this->filter_us = filter;
-}
-
-uint32_t PulseMeterSensorStore::get_pulse_width_ms() const {
-  return this->pulse_width_ms;
-}
-
-uint32_t PulseMeterSensorStore::get_total_pulses() const {
-  return this->total_pulses;
-}
-
-void ICACHE_RAM_ATTR PulseMeterSensorStore::gpio_intr(PulseMeterSensorStore *store) {
-  const uint32_t now = micros();
-
-  // We only look at rising edges
-  if (store->isr_pin->digital_read()) {
-    // Check to see if we should filter this edge out
-    if ((now - store->last_detected_edge_us) >= store->filter_us) {
-      // This looks like a valid pulse. 
-      store->total_pulses++;
-
-      // We store the pulse width in ms to avoid wrapping with very slow pulses (>71 
-      // mins/pulse) at the cost of under-reading at very high frequencies. In 
-      // practice, for a typical electricity meter that outputs 1 pulse per Wh, 1 
-      // ms pulses would be ~3.6 MW, this is an unlikely situation. Very low 
-      // usage is more likely in a domestic setup (e.g. an empty house with 
-      // all appliances turned off).
-      store->pulse_width_ms = (now - store->last_valid_edge_us) / 1000;
-
-      store->last_valid_edge_us = now;
-    }
-
-    store->last_detected_edge_us = now;
-  }
-}
-
 void PulseMeterSensor::set_pin(GPIOPin *pin) {
-  this->pin = pin;
+  this->pin_ = pin;
 }
 
 void PulseMeterSensor::set_filter_us(uint32_t filter) {
-  this->storage.set_filter_us(filter);
+  this->filter_us_ = filter;
+}
+
+void PulseMeterSensor::set_timeout_us(uint32_t timeout) {
+  this->timeout_us_ = timeout;
 }
 
 void PulseMeterSensor::set_total_sensor(sensor::Sensor *sensor) {
-  this->total_sensor = sensor;
+  this->total_sensor_ = sensor;
 }
 
 void PulseMeterSensor::setup() {
-  this->storage.setup(this->pin);
+  this->pin_->setup();
+  this->isr_pin_ = pin_->to_isr();
+  this->pin_->attach_interrupt(PulseMeterSensor::gpio_intr, this, CHANGE);
+
+  this->last_detected_edge_us_ = 0;
+  this->last_valid_edge_us_ = 0;
 }
 
 void PulseMeterSensor::loop() {
-  const uint32_t pulse_width_ms = this->storage.get_pulse_width_ms();
+  const uint32_t now = micros();
+
+  // If we've exceeded our timeout interval without receiving any pulses, assume 0 pulses/min until
+  // we get at least two valid pulses.
+  const uint32_t time_since_valid_edge_us = now - this->last_valid_edge_us_;
+  if ((this->last_valid_edge_us_ != 0) && (time_since_valid_edge_us > this->timeout_us_)) {
+      ESP_LOGD(TAG, "No pulse detected for %us, assuming 0 pulses/min", time_since_valid_edge_us / 1000000);
+      this->last_detected_edge_us_ = 0;
+      this->last_valid_edge_us_ = 0;
+      this->pulse_width_us_ = 0;
+  }
+
+  // We quantize our pulse widths to 1 ms to avoid unnecessary jitter
+  const uint32_t pulse_width_ms = this->pulse_width_us_ / 1000;
   if (this->pulse_width_dedupe_.next(pulse_width_ms)) {
     if (pulse_width_ms == 0) {
+      // Treat 0 pulse width as 0 pulses/min (normally because we've not detected any pulses for a while)
       this->publish_state(0);
     } else {
+      // Calculate pulses/min from the pulse width in ms
       this->publish_state((60.0 * 1000.0) / pulse_width_ms);
     }
   }
 
-  if (this->total_sensor != nullptr) {
-    const uint32_t total = storage.get_total_pulses();
+  if (this->total_sensor_ != nullptr) {
+    const uint32_t total = this->total_pulses_;
     if (this->total_dedupe_.next(total)) {
-      this->total_sensor->publish_state(total);
+      this->total_sensor_->publish_state(total);
     }   
   }
 }
 
 void PulseMeterSensor::dump_config() {
   LOG_SENSOR("", "Pulse Meter", this);
-  LOG_PIN("  Pin: ", this->pin);
-  ESP_LOGCONFIG(TAG, "  Filtering pulses shorter than %u µs", this->storage.get_filter_us());
+  LOG_PIN("  Pin: ", this->pin_);
+  ESP_LOGCONFIG(TAG, "  Filtering pulses shorter than %u µs", this->filter_us_);
+  ESP_LOGCONFIG(TAG, "  Assuming 0 pulses/min after not receiving a pulse for %us", this->timeout_us_ / 1000000);
+}
+
+void ICACHE_RAM_ATTR PulseMeterSensor::gpio_intr(PulseMeterSensor *sensor) {
+  // This is an interrupt handler - we can't call any virtual method from this method
+
+  // Get the current time before we do anything else so the measurements are consistent
+  const uint32_t now = micros();
+
+  // We only look at rising edges
+  if (!sensor->isr_pin_->digital_read()) {
+    return;
+  }
+
+  // Ignore the first detected pulse (we need at least two pulses to measure the width)
+  if (sensor->last_detected_edge_us_ != 0) {
+    // Check to see if we should filter this edge out
+    if ((now - sensor->last_detected_edge_us_) >= sensor->filter_us_) {
+      // Don't measure the first valid pulse (we need at least two pulses to measure the width)
+      if (sensor->last_valid_edge_us_ != 0) {
+        sensor->pulse_width_us_ = (now - sensor->last_valid_edge_us_);
+      }
+
+      sensor->total_pulses_++;
+      sensor->last_valid_edge_us_ = now;
+    }
+  }
+
+  sensor->last_detected_edge_us_ = now;
 }
 
 }  // namespace pulse_counter

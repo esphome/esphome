@@ -3,14 +3,11 @@ import esphome.config_validation as cv
 from esphome import pins
 from esphome.components import sensor
 from esphome.const import CONF_ID, CONF_INTERNAL_FILTER, \
-    CONF_PIN, CONF_NUMBER, \
-    ICON_PULSE, UNIT_PULSES_PER_MINUTE
+    CONF_PIN, CONF_NUMBER, CONF_TIMEOUT, CONF_TOTAL, \
+    ICON_PULSE, UNIT_PULSES, UNIT_PULSES_PER_MINUTE
 from esphome.core import CORE
 
 pulse_meter_ns = cg.esphome_ns.namespace('pulse_meter')
-
-CONF_TOTAL = 'total'
-UNIT_PULSES = 'pulses'
 
 PulseMeterSensor = pulse_meter_ns.class_('PulseMeterSensor',
                                          sensor.Sensor, 
@@ -18,6 +15,10 @@ PulseMeterSensor = pulse_meter_ns.class_('PulseMeterSensor',
 
 
 def validate_internal_filter(value):
+    return cv.positive_time_period_microseconds(value)
+
+
+def validate_timeout(value):
     return cv.positive_time_period_microseconds(value)
 
 
@@ -32,6 +33,7 @@ CONFIG_SCHEMA = sensor.sensor_schema(UNIT_PULSES_PER_MINUTE, ICON_PULSE, 2).exte
     cv.GenerateID(): cv.declare_id(PulseMeterSensor),
     cv.Required(CONF_PIN): validate_pulse_meter_pin,
     cv.Optional(CONF_INTERNAL_FILTER, default='13us'): validate_internal_filter,
+    cv.Optional(CONF_TIMEOUT, default='5min'): validate_timeout,
     cv.Optional(CONF_TOTAL): sensor.sensor_schema(UNIT_PULSES, ICON_PULSE, 0)
 })
 
@@ -44,6 +46,7 @@ def to_code(config):
     pin = yield cg.gpio_pin_expression(config[CONF_PIN])
     cg.add(var.set_pin(pin))
     cg.add(var.set_filter_us(config[CONF_INTERNAL_FILTER]))
+    cg.add(var.set_timeout_us(config[CONF_TIMEOUT]))
 
     if CONF_TOTAL in config:
         sens = yield sensor.new_sensor(config[CONF_TOTAL])
