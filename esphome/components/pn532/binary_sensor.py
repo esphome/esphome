@@ -10,6 +10,8 @@ DEPENDENCIES = ['pn532']
 
 def validate_uid(value):
     value = cv.string_strict(value)
+    if value == '*':
+        return value
     for x in value.split('-'):
         if len(x) != 2:
             raise cv.Invalid("Each part (separated by '-') of the UID must be two characters "
@@ -38,5 +40,8 @@ def to_code(config):
 
     hub = yield cg.get_variable(config[CONF_PN532_ID])
     cg.add(hub.register_tag(var))
-    addr = [HexInt(int(x, 16)) for x in config[CONF_UID].split('-')]
-    cg.add(var.set_uid(addr))
+    if config[CONF_UID] == "*":
+        cg.add(var.set_uid([]))
+    else:
+        addr = [HexInt(int(x, 16)) for x in config[CONF_UID].split('-')]
+        cg.add(var.set_uid(addr))

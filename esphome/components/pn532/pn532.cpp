@@ -338,6 +338,12 @@ void PN532::dump_config() {
 }
 
 bool PN532BinarySensor::process(std::vector<uint8_t> &data) {
+  if(this->uid_.size() == 0) {
+    this->publish_state(true);
+    this->found_ = true;
+    return true;
+  }
+
   if (data.size() != this->uid_.size())
     return false;
 
