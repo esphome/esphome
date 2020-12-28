@@ -103,6 +103,10 @@ void PN532::loop() {
 
   if (!success) {
     // Something failed
+    if (this->current_uid_.size() > 0) {
+      for (auto *trigger : this->triggers_onrelease_)
+        trigger->process(this->current_uid_);
+    }
     this->current_uid_ = {};
     this->turn_off_rf_();
     return;
@@ -111,6 +115,10 @@ void PN532::loop() {
   uint8_t num_targets = read[0];
   if (num_targets != 1) {
     // no tags found or too many
+    if (this->current_uid_.size() > 0) {
+      for (auto *trigger : this->triggers_onrelease_)
+        trigger->process(this->current_uid_);
+    }
     this->current_uid_ = {};
     this->turn_off_rf_();
     return;
@@ -142,7 +150,7 @@ void PN532::loop() {
 
   if (next_task_ == READ) {
     auto tag = this->read_tag_(nfcid);
-    for (auto *trigger : this->triggers_)
+    for (auto *trigger : this->triggers_ontag_)
       trigger->process(tag);
 
     if (report) {
