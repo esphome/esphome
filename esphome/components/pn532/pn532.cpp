@@ -103,7 +103,7 @@ void PN532::loop() {
 
   if (!success) {
     // Something failed
-    if (this->current_uid_.size() > 0) {
+    if (!this->current_uid_.empty()) {
       for (auto *trigger : this->triggers_onrelease_)
         trigger->process(this->current_uid_);
     }
@@ -115,7 +115,7 @@ void PN532::loop() {
   uint8_t num_targets = read[0];
   if (num_targets != 1) {
     // no tags found or too many
-    if (this->current_uid_.size() > 0) {
+    if (!this->current_uid_.empty()) {
       for (auto *trigger : this->triggers_onrelease_)
         trigger->process(this->current_uid_);
     }
