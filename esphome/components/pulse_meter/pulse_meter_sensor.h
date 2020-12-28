@@ -10,10 +10,10 @@ namespace pulse_meter {
 
 class PulseMeterSensor : public sensor::Sensor, public Component {
  public:
-  void set_pin(GPIOPin *pin);
-  void set_filter_us(uint32_t filter);
-  void set_timeout_us(uint32_t timeout);
-  void set_total_sensor(sensor::Sensor *sensor);
+  void PulseMeterSensor::set_pin(GPIOPin *pin) { this->pin_ = pin; }
+  void PulseMeterSensor::set_filter_us(uint32_t filter) { this->filter_us_ = filter; }
+  void PulseMeterSensor::set_timeout_us(uint32_t timeout) { this->timeout_us_ = timeout; }
+  void PulseMeterSensor::set_total_sensor(sensor::Sensor *sensor) { this->total_sensor_ = sensor; }
 
   void setup() override;
   void loop() override;

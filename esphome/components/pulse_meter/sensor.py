@@ -10,7 +10,7 @@ from esphome.core import CORE
 pulse_meter_ns = cg.esphome_ns.namespace('pulse_meter')
 
 PulseMeterSensor = pulse_meter_ns.class_('PulseMeterSensor',
-                                         sensor.Sensor, 
+                                         sensor.Sensor,
                                          cg.Component)
 
 

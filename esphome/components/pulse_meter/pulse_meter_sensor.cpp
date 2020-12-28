@@ -6,22 +6,6 @@ namespace pulse_meter {
 
 static const char *TAG = "pulse_meter";
 
-void PulseMeterSensor::set_pin(GPIOPin *pin) {
-  this->pin_ = pin;
-}
-
-void PulseMeterSensor::set_filter_us(uint32_t filter) {
-  this->filter_us_ = filter;
-}
-
-void PulseMeterSensor::set_timeout_us(uint32_t timeout) {
-  this->timeout_us_ = timeout;
-}
-
-void PulseMeterSensor::set_total_sensor(sensor::Sensor *sensor) {
-  this->total_sensor_ = sensor;
-}
-
 void PulseMeterSensor::setup() {
   this->pin_->setup();
   this->isr_pin_ = pin_->to_isr();
@@ -38,10 +22,10 @@ void PulseMeterSensor::loop() {
   // we get at least two valid pulses.
   const uint32_t time_since_valid_edge_us = now - this->last_valid_edge_us_;
   if ((this->last_valid_edge_us_ != 0) && (time_since_valid_edge_us > this->timeout_us_)) {
-      ESP_LOGD(TAG, "No pulse detected for %us, assuming 0 pulses/min", time_since_valid_edge_us / 1000000);
-      this->last_detected_edge_us_ = 0;
-      this->last_valid_edge_us_ = 0;
-      this->pulse_width_us_ = 0;
+    ESP_LOGD(TAG, "No pulse detected for %us, assuming 0 pulses/min", time_since_valid_edge_us / 1000000);
+    this->last_detected_edge_us_ = 0;
+    this->last_valid_edge_us_ = 0;
+    this->pulse_width_us_ = 0;
   }
 
   // We quantize our pulse widths to 1 ms to avoid unnecessary jitter
@@ -60,7 +44,7 @@ void PulseMeterSensor::loop() {
     const uint32_t total = this->total_pulses_;
     if (this->total_dedupe_.next(total)) {
       this->total_sensor_->publish_state(total);
-    }   
+    }
   }
 }
 
@@ -99,5 +83,5 @@ void ICACHE_RAM_ATTR PulseMeterSensor::gpio_intr(PulseMeterSensor *sensor) {
   sensor->last_detected_edge_us_ = now;
 }
 
-}  // namespace pulse_counter
+}  // namespace pulse_meter
 }  // namespace esphome
