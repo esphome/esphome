@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import uart
-from esphome.const import CONF_ID, CONF_ADDRESS, CONF_START_CODE
+from esphome.const import CONF_ID
 from esphome.core import coroutine
 
 DEPENDENCIES = ['uart']
@@ -25,23 +25,13 @@ def to_code(config):
     yield uart.register_uart_device(var, config)
 
 
-def rs485_device_schema(start_code, address, crc):
-    schema = {
-        cv.GenerateID(CONF_RS485_ID): cv.use_id(RS485),
-        cv.Required(CONF_START_CODE): cv.All([cv.uint8_t], cv.Length(min=1)),
-        cv.Required(CONF_ADDRESS): cv.All([cv.uint8_t], cv.Length(min=1)),
-    }
-    if default_address is None:
-        schema[cv.Required(CONF_ADDRESS)] = cv.All([cv.uint8_t], cv.Length(min=1)),
-    else:
-        schema[cv.Optional(CONF_ADDRESS, default=default_address)] = cv.hex_uint8_t
-    return cv.Schema(schema)
+RS485_DEVICE_SCHEMA = cv.Schema({
+    cv.GenerateID(CONF_RS485_ID): cv.use_id(RS485),
+})
 
 
 @coroutine
 def register_rs485_device(var, config):
     parent = yield cg.get_variable(config[CONF_RS485_ID])
     cg.add(var.set_parent(parent))
-    cg.add(var.set_start_code(config[CONF_START_CODE]))
-    cg.add(var.set_address(config[CONF_ADDRESS]))
     cg.add(parent.register_device(var))
