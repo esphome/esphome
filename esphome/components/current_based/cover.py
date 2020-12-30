@@ -59,7 +59,9 @@ def to_code(config):
     cg.add(var.set_open_sensor(bin))
     cg.add(var.set_open_moving_current_threshold(config[CONF_OPEN_MOVING_CURRENT_THRESHOLD]))
     if CONF_OPEN_OBSTACLE_CURRENT_THRESHOLD in config:
-        cg.add(var.set_open_obstacle_current_threshold(config[CONF_OPEN_OBSTACLE_CURRENT_THRESHOLD]))
+        cg.add(var.set_open_obstacle_current_threshold(
+            config[CONF_OPEN_OBSTACLE_CURRENT_THRESHOLD])
+        )
     cg.add(var.set_open_duration(config[CONF_OPEN_DURATION]))
     yield automation.build_automation(var.get_open_trigger(), [], config[CONF_OPEN_ACTION])
 
@@ -68,7 +70,9 @@ def to_code(config):
     cg.add(var.set_close_sensor(bin))
     cg.add(var.set_close_moving_current_threshold(config[CONF_CLOSE_MOVING_CURRENT_THRESHOLD]))
     if CONF_CLOSE_OBSTACLE_CURRENT_THRESHOLD in config:
-        cg.add(var.set_close_obstacle_current_threshold(config[CONF_CLOSE_OBSTACLE_CURRENT_THRESHOLD]))
+        cg.add(var.set_close_obstacle_current_threshold(
+            config[CONF_CLOSE_OBSTACLE_CURRENT_THRESHOLD])
+        )
     cg.add(var.set_close_duration(config[CONF_CLOSE_DURATION]))
     yield automation.build_automation(var.get_close_trigger(), [], config[CONF_CLOSE_ACTION])
 
@@ -77,5 +81,7 @@ def to_code(config):
         cg.add(var.set_max_duration(config[CONF_MAX_DURATION]))
     cg.add(var.set_malfunction_detection(config[CONF_MALFUNCTION_DETECTION]))
     if CONF_MALFUNCTION_ACTION in config:
-        yield automation.build_automation(var.get_malfunction_trigger(), [], config[CONF_MALFUNCTION_ACTION])
+        yield automation.build_automation(var.get_malfunction_trigger(), [],
+                                          config[CONF_MALFUNCTION_ACTION]
+                                          )
     cg.add(var.set_start_sensing_delay(config[CONF_START_SENSING_DELAY]))
