@@ -1722,6 +1722,26 @@ display:
     reset_pin: GPIO23
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
+  - platform: ssd1327_i2c
+    model: 'SSD1327 128X128'
+    reset_pin: GPIO23
+    address: 0x3D
+    id: display1327
+    brightness: 60%
+    pages:
+      - id: page13271
+        lambda: |-
+          it.rectangle(0, 0, it.get_width(), it.get_height());
+      - id: page13272
+        lambda: |-
+          // Nothing
+  - platform: ssd1327_spi
+    model: 'SSD1327 128x128'
+    cs_pin: GPIO23
+    dc_pin: GPIO23
+    reset_pin: GPIO23
+    lambda: |-
+      it.rectangle(0, 0, it.get_width(), it.get_height());
   - platform: ssd1331_spi
     cs_pin: GPIO23
     dc_pin: GPIO23

@@ -65,6 +65,9 @@ esphome/components/sim800l/* @glmnet
 esphome/components/spi/* @esphome/core
 esphome/components/ssd1325_base/* @kbx81
 esphome/components/ssd1325_spi/* @kbx81
+esphome/components/ssd1327_base/* @kbx81
+esphome/components/ssd1327_i2c/* @kbx81
+esphome/components/ssd1327_spi/* @kbx81
 esphome/components/ssd1331_base/* @kbx81
 esphome/components/ssd1331_spi/* @kbx81
 esphome/components/ssd1351_base/* @kbx81
