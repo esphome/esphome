@@ -33,8 +33,9 @@ void Samsung36Protocol::encode(RemoteTransmitData *dst, const Samsung36Data &dat
       dst->item(BIT_HIGH_US, BIT_ZERO_LOW_US);
     }
   }
+
   // send middle header
-  dst->item(MIDDLE_HIGH_US, MIDDLE_LOW_US);   
+  dst->item(MIDDLE_HIGH_US, MIDDLE_LOW_US);
 
   // send last 20 bits
   for (uint32_t mask = 1UL << 19; mask != 0; mask >>= 1) {
@@ -42,10 +43,11 @@ void Samsung36Protocol::encode(RemoteTransmitData *dst, const Samsung36Data &dat
       dst->item(BIT_HIGH_US, BIT_ONE_LOW_US);
     } else {
       dst->item(BIT_HIGH_US, BIT_ZERO_LOW_US);
-    }  
+    }
   }
+  
   // footer
-  dst->item(FOOTER_HIGH_US,FOOTER_LOW_US);
+  dst->item(FOOTER_HIGH_US, FOOTER_LOW_US);
 }
 
 optional<Samsung36Data> Samsung36Protocol::decode(RemoteReceiveData src) {
