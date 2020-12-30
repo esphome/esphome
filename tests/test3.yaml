@@ -392,14 +392,19 @@ sensor:
     irq_pin: GPIO16
     voltage:
       name: ADE7953 Voltage
+      id: ade7953_voltage
     current_a:
       name: ADE7953 Current A
+      id: ade7953_current_a
     current_b:
       name: ADE7953 Current B
+      id: ade7953_current_b
     active_power_a:
       name: ADE7953 Active Power A
+      id: ade7953_active_power_a
     active_power_b:
       name: ADE7953 Active Power B
+      id: ade7953_active_power_b
   - platform: pzem004t
     uart_id: uart3
     voltage:
