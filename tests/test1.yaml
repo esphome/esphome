@@ -1929,6 +1929,12 @@ display:
     backlight_pin: GPIO4
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
+  - platform: st7920
+    width: 128
+    height: 64
+    rs_pin: GPIO23
+    lambda: |-
+      it.rectangle(0, 0, it.get_width(), it.get_height());
   - platform: st7735
     model: 'INITR_BLACKTAB'
     cs_pin: GPIO5
