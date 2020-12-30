@@ -45,7 +45,7 @@ void Samsung36Protocol::encode(RemoteTransmitData *dst, const Samsung36Data &dat
       dst->item(BIT_HIGH_US, BIT_ZERO_LOW_US);
     }
   }
-  
+
   // footer
   dst->item(FOOTER_HIGH_US, FOOTER_LOW_US);
 }
@@ -59,11 +59,11 @@ optional<Samsung36Data> Samsung36Protocol::decode(RemoteReceiveData src) {
   // check if header matches
   if (!src.expect_item(HEADER_HIGH_US, HEADER_LOW_US))
     return {};
- 
+
   // check if we have enough bits
   if (src.size() != NBITS)
     return {};
-  
+
   // get the first 16 bits
   for (uint8_t i = 0; i < 16; i++) {
     out.address <<= 1UL;
@@ -71,13 +71,13 @@ optional<Samsung36Data> Samsung36Protocol::decode(RemoteReceiveData src) {
       out.address |= 1UL;
     } else if (src.expect_item(BIT_HIGH_US, BIT_ZERO_LOW_US)) {
       out.address |= 0UL;
-    } else {      
+    } else {
       return {};
     }
   }
-  
+
   // check if the middle mark matches
-  if(!src.expect_item(MIDDLE_HIGH_US, MIDDLE_LOW_US)) {      
+  if (!src.expect_item(MIDDLE_HIGH_US, MIDDLE_LOW_US)) {
     return {};
   }
 
@@ -88,14 +88,14 @@ optional<Samsung36Data> Samsung36Protocol::decode(RemoteReceiveData src) {
       out.command |= 1UL;
     } else if (src.expect_item(BIT_HIGH_US, BIT_ZERO_LOW_US)) {
       out.command |= 0UL;
-    } else {      
+    } else {
       return {};
     }
   }
 
   return out;
 }
-void Samsung36Protocol::dump(const Samsung36Data &data) { 
+void Samsung36Protocol::dump(const Samsung36Data &data) {
   ESP_LOGD(TAG, "Received Samsung36: address=0x%04X, command=0x%08X", data.address, data.command);
 }
 
