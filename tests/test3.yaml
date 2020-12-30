@@ -900,13 +900,13 @@ cover:
     close_duration: 4.5min
   - platform: current_based
     name: "Current Based Cover"
-    open_sensor: open_current_sensor
+    open_sensor: ade7953_current_a
     open_moving_current_threshold: 0.5
     open_obstacle_current_threshold: 0.8
     open_duration: 12s
     open_action:
       - switch.turn_on: gpio_switch1
-    close_sensor: close_current_sensor
+    close_sensor: ade7953_current_b
     close_moving_current_threshold: 0.5
     close_obstacle_current_threshold: 0.8
     close_duration: 10s
