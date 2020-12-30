@@ -687,7 +687,8 @@ def samsung_action(var, config, args):
 
 
 # Samsung36
-Samsung36Data, Samsung36BinarySensor, Samsung36Trigger, Samsung36Action, Samsung36Dumper = declare_protocol('Samsung36')
+Samsung36Data, Samsung36BinarySensor, Samsung36Trigger, Samsung36Action, 
+Samsung36Dumper = declare_protocol('Samsung36')
 SAMSUNG36_SCHEMA = cv.Schema({
     cv.Required(CONF_ADDRESS): cv.hex_uint16_t,
     cv.Required(CONF_COMMAND): cv.hex_uint32_t,
