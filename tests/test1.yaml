@@ -1438,6 +1438,12 @@ switch:
       remote_transmitter.transmit_samsung:
         data: 0xABCDEF
   - platform: template
+    name: Samsung36
+    turn_on_action:
+      remote_transmitter.transmit_samsung36:
+        address: 0x0400
+        command: 0x000E00FF      
+  - platform: template
     name: Sony
     turn_on_action:
       remote_transmitter.transmit_sony:
