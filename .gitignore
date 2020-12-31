@@ -81,7 +81,8 @@ venv.bak/
 .pioenvs
 .piolibdeps
 .pio
-.vscode
+.vscode/
+!.vscode/tasks.json
 CMakeListsPrivate.txt
 CMakeLists.txt
 
