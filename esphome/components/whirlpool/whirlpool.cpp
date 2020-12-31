@@ -184,7 +184,7 @@ bool WhirlpoolClimate::on_receive(remote_base::RemoteReceiveData data) {
   uint8_t checksum13 = 0;
   uint8_t checksum20 = 0;
   // Calculate  checksum and compare with signal value.
-  for (uint8_t i = 2; i < 12; i++)
+  for (uint8_t i = 2; i < 13; i++)
     checksum13 ^= remote_state[i];
   for (uint8_t i = 14; i < 20; i++)
     checksum20 ^= remote_state[i];
