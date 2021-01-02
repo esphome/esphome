@@ -25,7 +25,7 @@ void RC522Spi::dump_config() {
  * Reads a uint8_t from the specified register in the MFRC522 chip.
  * The interface is described in the datasheet section 8.1.2.
  */
-uint8_t RC522Spi::pcd_read_register_(PcdRegister reg  ///< The register to read from. One of the PCD_Register enums.
+uint8_t RC522Spi::pcd_read_register(PcdRegister reg  ///< The register to read from. One of the PCD_Register enums.
 ) {
   uint8_t value;
   enable();
@@ -40,7 +40,7 @@ uint8_t RC522Spi::pcd_read_register_(PcdRegister reg  ///< The register to read 
  * Reads a number of uint8_ts from the specified register in the MFRC522 chip.
  * The interface is described in the datasheet section 8.1.2.
  */
-void RC522Spi::pcd_read_register_(PcdRegister reg,  ///< The register to read from. One of the PCD_Register enums.
+void RC522Spi::pcd_read_register(PcdRegister reg,  ///< The register to read from. One of the PCD_Register enums.
                                   uint8_t count,    ///< The number of uint8_ts to read
                                   uint8_t *values,  ///< uint8_t array to store the values in.
                                   uint8_t rx_align  ///< Only bit positions rxAlign..7 in values[0] are updated.
@@ -90,7 +90,7 @@ void RC522Spi::pcd_read_register_(PcdRegister reg,  ///< The register to read fr
   disable();
 }
 
-void RC522Spi::pcd_write_register_(PcdRegister reg,  ///< The register to write to. One of the PCD_Register enums.
+void RC522Spi::pcd_write_register(PcdRegister reg,  ///< The register to write to. One of the PCD_Register enums.
                                    uint8_t value     ///< The value to write.
 ) {
   enable();
@@ -104,7 +104,7 @@ void RC522Spi::pcd_write_register_(PcdRegister reg,  ///< The register to write 
  * Writes a number of uint8_ts to the specified register in the MFRC522 chip.
  * The interface is described in the datasheet section 8.1.2.
  */
-void RC522Spi::pcd_write_register_(PcdRegister reg,  ///< The register to write to. One of the PCD_Register enums.
+void RC522Spi::pcd_write_register(PcdRegister reg,  ///< The register to write to. One of the PCD_Register enums.
                                    uint8_t count,    ///< The number of uint8_ts to write to the register
                                    uint8_t *values   ///< The values to write. uint8_t array.
 ) {

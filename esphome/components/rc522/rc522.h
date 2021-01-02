@@ -177,19 +177,19 @@ class RC522 : public PollingComponent {
   void pcd_reset_();
   void initialize_();
   void pcd_antenna_on_();
-  virtual uint8_t pcd_read_register_(PcdRegister reg  ///< The register to read from. One of the PCD_Register enums.
+  virtual uint8_t pcd_read_register(PcdRegister reg  ///< The register to read from. One of the PCD_Register enums.
                                      ) = 0;
 
   /**
    * Reads a number of uint8_ts from the specified register in the MFRC522 chip.
    * The interface is described in the datasheet section 8.1.2.
    */
-  virtual void pcd_read_register_(PcdRegister reg,  ///< The register to read from. One of the PCD_Register enums.
+  virtual void pcd_read_register(PcdRegister reg,  ///< The register to read from. One of the PCD_Register enums.
                                   uint8_t count,    ///< The number of uint8_ts to read
                                   uint8_t *values,  ///< uint8_t array to store the values in.
                                   uint8_t rx_align  ///< Only bit positions rxAlign..7 in values[0] are updated.
                                   ) = 0;
-  virtual void pcd_write_register_(PcdRegister reg,  ///< The register to write to. One of the PCD_Register enums.
+  virtual void pcd_write_register(PcdRegister reg,  ///< The register to write to. One of the PCD_Register enums.
                                    uint8_t value     ///< The value to write.
                                    ) = 0;
 
@@ -197,7 +197,7 @@ class RC522 : public PollingComponent {
    * Writes a number of uint8_ts to the specified register in the MFRC522 chip.
    * The interface is described in the datasheet section 8.1.2.
    */
-  virtual void pcd_write_register_(PcdRegister reg,  ///< The register to write to. One of the PCD_Register enums.
+  virtual void pcd_write_register(PcdRegister reg,  ///< The register to write to. One of the PCD_Register enums.
                                    uint8_t count,    ///< The number of uint8_ts to write to the register
                                    uint8_t *values   ///< The values to write. uint8_t array.
                                    ) = 0;

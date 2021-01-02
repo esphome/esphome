@@ -2,7 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation, pins
 from esphome.components import i2c
-from esphome.const import CONF_ID, CONF_ON_TAG, CONF_TRIGGER_ID, CONF_RESET_PIN
+from esphome.const import CONF_ON_TAG, CONF_TRIGGER_ID, CONF_RESET_PIN
 from esphome.core import coroutine
 
 CODEOWNERS = ['@glmnet']

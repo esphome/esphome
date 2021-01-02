@@ -115,11 +115,11 @@ void RC522::loop() {
 
   auto status = picc_is_new_card_present_();
 
-  static StatusCode lastStatus = StatusCode::STATUS_OK;
+  static StatusCode LAST_STATUS = StatusCode::STATUS_OK;
 
-  if (status != lastStatus) {
+  if (status != LAST_STATUS) {
     ESP_LOGD(TAG, "Status is now: %d", status);
-    lastStatus = status;
+    LAST_STATUS = status;
   }
 
   if (status == STATUS_ERROR)  // No card
