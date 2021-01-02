@@ -82,8 +82,6 @@ bool XiaomiMiscale2::parse_message(const std::vector<uint8_t> &message, ParseRes
     unit = "lbs";
   } else if (data[0] == 0x02) {  // MKS kg
     unit = "kg";
-  } else {
-    throw new Error("Invalid data!");
   }
 
   const int16_t weight = uint16_t(data[11]) | (uint16_t(data[12]) << 8);

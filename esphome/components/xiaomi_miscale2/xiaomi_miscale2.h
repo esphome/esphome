@@ -14,7 +14,7 @@ struct ParseResult {
   optional<float> impedance;
   bool is_Stabilized;
   bool loadRemoved;
-  bool Stabilized;
+  bool unit;
   int raw_offset;
 };
 
