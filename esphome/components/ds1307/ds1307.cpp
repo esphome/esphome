@@ -15,7 +15,6 @@ void DS1307Component::setup() {
     this->mark_failed();
   }
   this->set_interval(15 * 60 * 1000, [&]() { this->sync_from_rtc(); });
-  this->set_interval(60 * 60 * 1000, [&]() { this->sync_to_rtc(); });
 }
 
 void DS1307Component::dump_config() {

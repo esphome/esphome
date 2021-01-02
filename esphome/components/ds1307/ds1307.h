@@ -12,10 +12,10 @@ class DS1307Component : public time::RealTimeClock, public i2c::I2CDevice {
   void setup() override;
   void dump_config() override;
   float get_setup_priority() const override;
-  // void loop() override;
- protected:
   void sync_from_rtc();
   void sync_to_rtc();
+
+ protected:
   bool read_rtc();
   bool write_rtc();
   union DS1307Reg {
