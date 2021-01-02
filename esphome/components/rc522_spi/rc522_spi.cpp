@@ -41,9 +41,9 @@ uint8_t RC522Spi::pcd_read_register(PcdRegister reg  ///< The register to read f
  * The interface is described in the datasheet section 8.1.2.
  */
 void RC522Spi::pcd_read_register(PcdRegister reg,  ///< The register to read from. One of the PCD_Register enums.
-                                  uint8_t count,    ///< The number of uint8_ts to read
-                                  uint8_t *values,  ///< uint8_t array to store the values in.
-                                  uint8_t rx_align  ///< Only bit positions rxAlign..7 in values[0] are updated.
+                                 uint8_t count,    ///< The number of uint8_ts to read
+                                 uint8_t *values,  ///< uint8_t array to store the values in.
+                                 uint8_t rx_align  ///< Only bit positions rxAlign..7 in values[0] are updated.
 ) {
   std::string buf;
   buf = "Rx";
@@ -91,7 +91,7 @@ void RC522Spi::pcd_read_register(PcdRegister reg,  ///< The register to read fro
 }
 
 void RC522Spi::pcd_write_register(PcdRegister reg,  ///< The register to write to. One of the PCD_Register enums.
-                                   uint8_t value     ///< The value to write.
+                                  uint8_t value     ///< The value to write.
 ) {
   enable();
   // MSB == 0 is for writing. LSB is not used in address. Datasheet section 8.1.2.3.
@@ -105,8 +105,8 @@ void RC522Spi::pcd_write_register(PcdRegister reg,  ///< The register to write t
  * The interface is described in the datasheet section 8.1.2.
  */
 void RC522Spi::pcd_write_register(PcdRegister reg,  ///< The register to write to. One of the PCD_Register enums.
-                                   uint8_t count,    ///< The number of uint8_ts to write to the register
-                                   uint8_t *values   ///< The values to write. uint8_t array.
+                                  uint8_t count,    ///< The number of uint8_ts to write to the register
+                                  uint8_t *values   ///< The values to write. uint8_t array.
 ) {
   std::string buf;
   buf = "Tx";
