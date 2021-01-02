@@ -75,25 +75,28 @@ bool XiaomiMiscale2::parse_message(const std::vector<uint8_t> &message, ParseRes
     return false;
   }
 
-  bool is_Stabilized = ((data[1] & (1 << 5)) != 0);
-  bool hasImpedance = ((data[1] & (1 << 1)) != 0);
+  bool is_Stabilized = ((data[1] & (1 << 5)) != 0) ? true : false;
+  bool loadRemoved = ((data[1] & (1 << 7)) != 0) ? true : false;
 
-  if (!is_Stabilized) {
-    ESP_LOGVV(TAG, "Stabilized %s", is_Stabilized);
-    // weight, 2 bytes, 16-bit  unsigned integer, 1 kg
-    const int16_t weight = uint16_t(data[11]) | (uint16_t(data[12]) << 8);
-    if (data[0] == 0x02)
-      result.weight = weight * 0.01f / 2.0f;  // unit 'kg'
-    else if (data[0] == 0x03)
-      result.weight = weight * 0.01f * 0.453592;  // unit 'lbs'
-    return {};
+  if (data[0] == 0x03) {  // Imperial pound
+    scale.unit = "lbs";
+  } else if (data[0] == 0x02) {  // MKS kg
+    scale.unit = "kg";
+  } else {
+    throw new Error("Invalid data!");
   }
 
-  if (!hasImpedance) {
-    ESP_LOGVV(TAG, "hasImpedance %s", hasImpedance);
-    // impedance, 2 bytes, 16-bit
-    const int16_t impedance = uint16_t(data[9]) | (uint16_t(data[10]) << 8);
-    result.impedance = impedance;
+  const int16_t weight = uint16_t(data[11]) | (uint16_t(data[12]) << 8);
+  if (scale.unit == "kg") {
+    weight = weight * 0.01f / 2.0f;  // unit 'kg'
+  } else if (scale.unit == "lbs")
+    weight = weight * 0.01f * 0.453592;  // unit 'lbs'
+  }
+
+  const int16_t impedance = uint16_t(data[9]) | (uint16_t(data[10]) << 8);
+
+  if (!is_Stabilized || loadRemoved || impedance == = 0 || impedance >= 3000) {
+    result.weight && result.impedance;
     return {};
   }
 
