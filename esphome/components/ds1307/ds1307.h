@@ -16,8 +16,8 @@ class DS1307Component : public time::RealTimeClock, public i2c::I2CDevice {
   void sync_to_rtc();
 
  protected:
-  bool read_rtc();
-  bool write_rtc();
+  bool read_rtc_();
+  bool write_rtc_();
   union DS1307Reg {
     struct {
       uint8_t second : 4;

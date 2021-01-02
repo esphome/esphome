@@ -11,7 +11,7 @@ static const char *TAG = "ds1307";
 
 void DS1307Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up DS1307...");
-  if (!this->read_rtc()) {
+  if (!this->read_rtc_()) {
     this->mark_failed();
   }
   this->set_interval(15 * 60 * 1000, [&]() { this->sync_from_rtc(); });
@@ -29,7 +29,7 @@ void DS1307Component::dump_config() {
 float DS1307Component::get_setup_priority() const { return setup_priority::DATA; }
 
 void DS1307Component::sync_from_rtc() {
-  if (!this->read_rtc()) {
+  if (!this->read_rtc_()) {
     return;
   }
   if (ds1307_.reg.ch) {
@@ -73,10 +73,10 @@ void DS1307Component::sync_to_rtc() {
   ds1307_.reg.second_10 = now.second / 10;
   ds1307_.reg.ch = false;
 
-  this->write_rtc();
+  this->write_rtc_();
 }
 
-bool DS1307Component::read_rtc() {
+bool DS1307Component::read_rtc_() {
   if (!this->read_bytes(0, this->ds1307_.raw, sizeof(this->ds1307_.raw))) {
     ESP_LOGE(TAG, "Can't read I2C data.");
     return false;
@@ -89,7 +89,7 @@ bool DS1307Component::read_rtc() {
   return true;
 }
 
-bool DS1307Component::write_rtc() {
+bool DS1307Component::write_rtc_() {
   if (!this->write_bytes(0, this->ds1307_.raw, sizeof(this->ds1307_.raw))) {
     ESP_LOGE(TAG, "Can't write I2C data.");
     return false;
