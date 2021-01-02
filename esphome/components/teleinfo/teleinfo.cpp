@@ -157,8 +157,6 @@ void TeleInfo::publish_value_(std::string tag, std::string val) {
 }
 void TeleInfo::dump_config() {
   ESP_LOGCONFIG(TAG, "TeleInfo:");
-  for (auto element : teleinfo_listeners_)
-    element->dump_config();
   this->check_uart_settings(baud_rate_, 1, uart::UART_CONFIG_PARITY_EVEN, 7);
 }
 TeleInfo::TeleInfo(bool historical_mode) {

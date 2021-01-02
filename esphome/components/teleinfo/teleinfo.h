@@ -17,7 +17,6 @@ class TeleInfoListener {
  public:
   std::string tag;
   virtual void publish_val(std::string val){};
-  virtual void dump_config(){};
 };
 class TeleInfo : public PollingComponent, public uart::UARTDevice {
  public:
