@@ -55,27 +55,27 @@ void RC522::initialize_() {
   // Reset baud rates
   ESP_LOGV(TAG, "Initialize");
 
-  pcd_write_register_(TX_MODE_REG, 0x00);
-  pcd_write_register_(RX_MODE_REG, 0x00);
+  pcd_write_register(TX_MODE_REG, 0x00);
+  pcd_write_register(RX_MODE_REG, 0x00);
   // Reset ModWidthReg
-  pcd_write_register_(MOD_WIDTH_REG, 0x26);
+  pcd_write_register(MOD_WIDTH_REG, 0x26);
 
   // When communicating with a PICC we need a timeout if something goes wrong.
   // f_timer = 13.56 MHz / (2*TPreScaler+1) where TPreScaler = [TPrescaler_Hi:TPrescaler_Lo].
   // TPrescaler_Hi are the four low bits in TModeReg. TPrescaler_Lo is TPrescalerReg.
-  pcd_write_register_(T_MODE_REG, 0x80);  // TAuto=1; timer starts automatically at the end of the transmission in all
-                                          // communication modes at all speeds
+  pcd_write_register(T_MODE_REG, 0x80);  // TAuto=1; timer starts automatically at the end of the transmission in all
+                                         // communication modes at all speeds
 
   // TPreScaler = TModeReg[3..0]:TPrescalerReg, ie 0x0A9 = 169 => f_timer=40kHz, ie a timer period of 25μs.
-  pcd_write_register_(T_PRESCALER_REG, 0xA9);
-  pcd_write_register_(T_RELOAD_REG_H, 0x03);  // Reload timer with 0x3E8 = 1000, ie 25ms before timeout.
-  pcd_write_register_(T_RELOAD_REG_L, 0xE8);
+  pcd_write_register(T_PRESCALER_REG, 0xA9);
+  pcd_write_register(T_RELOAD_REG_H, 0x03);  // Reload timer with 0x3E8 = 1000, ie 25ms before timeout.
+  pcd_write_register(T_RELOAD_REG_L, 0xE8);
 
   // Default 0x00. Force a 100 % ASK modulation independent of the ModGsPReg register setting
-  pcd_write_register_(TX_ASK_REG, 0x40);
-  pcd_write_register_(MODE_REG, 0x3D);  // Default 0x3F. Set the preset value for the CRC coprocessor for the CalcCRC
-                                        // command to 0x6363 (ISO 14443-3 part 6.2.4)
-  pcd_antenna_on_();                    // Enable the antenna driver pins TX1 and TX2 (they were disabled by the reset)
+  pcd_write_register(TX_ASK_REG, 0x40);
+  pcd_write_register(MODE_REG, 0x3D);  // Default 0x3F. Set the preset value for the CRC coprocessor for the CalcCRC
+                                       // command to 0x6363 (ISO 14443-3 part 6.2.4)
+  pcd_antenna_on_();                   // Enable the antenna driver pins TX1 and TX2 (they were disabled by the reset)
 
   initialize_pending_ = false;
 }
@@ -185,11 +185,11 @@ void RC522::pcd_reset_() {
   if (reset_count_ == RESET_COUNT) {
     ESP_LOGV(TAG, "Soft reset...");
     // Issue the SoftReset command.
-    pcd_write_register_(COMMAND_REG, PCD_SOFT_RESET);
+    pcd_write_register(COMMAND_REG, PCD_SOFT_RESET);
   }
 
   // Expect the PowerDown bit in CommandReg to be cleared (max 3x50ms)
-  if ((pcd_read_register_(COMMAND_REG) & (1 << 4)) == 0) {
+  if ((pcd_read_register(COMMAND_REG) & (1 << 4)) == 0) {
     reset_count_ = 0;
     ESP_LOGI(TAG, "Device online.");
     // Wait for initialize
@@ -208,9 +208,9 @@ void RC522::pcd_reset_() {
  * After a reset these pins are disabled.
  */
 void RC522::pcd_antenna_on_() {
-  uint8_t value = pcd_read_register_(TX_CONTROL_REG);
+  uint8_t value = pcd_read_register(TX_CONTROL_REG);
   if ((value & 0x03) != 0x03) {
-    pcd_write_register_(TX_CONTROL_REG, value | 0x03);
+    pcd_write_register(TX_CONTROL_REG, value | 0x03);
   }
 }
 
@@ -266,8 +266,8 @@ RC522::StatusCode RC522::picc_reqa_or_wupa_(
 void RC522::pcd_set_register_bit_mask_(PcdRegister reg,  ///< The register to update. One of the PCD_Register enums.
                                        uint8_t mask      ///< The bits to set.
 ) {
-  uint8_t tmp = pcd_read_register_(reg);
-  pcd_write_register_(reg, tmp | mask);  // set bit mask
+  uint8_t tmp = pcd_read_register(reg);
+  pcd_write_register(reg, tmp | mask);  // set bit mask
 }
 
 /**
@@ -276,8 +276,8 @@ void RC522::pcd_set_register_bit_mask_(PcdRegister reg,  ///< The register to up
 void RC522::pcd_clear_register_bit_mask_(PcdRegister reg,  ///< The register to update. One of the PCD_Register enums.
                                          uint8_t mask      ///< The bits to clear.
 ) {
-  uint8_t tmp = pcd_read_register_(reg);
-  pcd_write_register_(reg, tmp & (~mask));  // clear bit mask
+  uint8_t tmp = pcd_read_register(reg);
+  pcd_write_register(reg, tmp & (~mask));  // clear bit mask
 }
 
 /**
@@ -334,12 +334,12 @@ RC522::StatusCode RC522::pcd_communicate_with_picc_(
   uint8_t bit_framing =
       (rx_align << 4) + tx_last_bits;  // RxAlign = BitFramingReg[6..4]. TxLastBits = BitFramingReg[2..0]
 
-  pcd_write_register_(COMMAND_REG, PCD_IDLE);               // Stop any active command.
-  pcd_write_register_(COM_IRQ_REG, 0x7F);                   // Clear all seven interrupt request bits
-  pcd_write_register_(FIFO_LEVEL_REG, 0x80);                // FlushBuffer = 1, FIFO initialization
-  pcd_write_register_(FIFO_DATA_REG, send_len, send_data);  // Write sendData to the FIFO
-  pcd_write_register_(BIT_FRAMING_REG, bit_framing);        // Bit adjustments
-  pcd_write_register_(COMMAND_REG, command);                // Execute the command
+  pcd_write_register(COMMAND_REG, PCD_IDLE);               // Stop any active command.
+  pcd_write_register(COM_IRQ_REG, 0x7F);                   // Clear all seven interrupt request bits
+  pcd_write_register(FIFO_LEVEL_REG, 0x80);                // FlushBuffer = 1, FIFO initialization
+  pcd_write_register(FIFO_DATA_REG, send_len, send_data);  // Write sendData to the FIFO
+  pcd_write_register(BIT_FRAMING_REG, bit_framing);        // Bit adjustments
+  pcd_write_register(COMMAND_REG, command);                // Execute the command
   if (command == PCD_TRANSCEIVE) {
     pcd_set_register_bit_mask_(BIT_FRAMING_REG, 0x80);  // StartSend=1, transmission of data starts
   }
@@ -350,7 +350,7 @@ RC522::StatusCode RC522::pcd_communicate_with_picc_(
   // TODO check/modify for other architectures than Arduino Uno 16bit
   uint16_t i;
   for (i = 4; i > 0; i--) {
-    uint8_t n = pcd_read_register_(
+    uint8_t n = pcd_read_register(
         COM_IRQ_REG);     // ComIrqReg[7..0] bits are: Set1 TxIRq RxIRq IdleIRq HiAlertIRq LoAlertIRq ErrIRq TimerIRq
     if (n & wait_i_rq) {  // One of the interrupts that signal success has been set.
       break;
@@ -365,7 +365,7 @@ RC522::StatusCode RC522::pcd_communicate_with_picc_(
   }
 
   // Stop now if any errors except collisions were detected.
-  uint8_t error_reg_value = pcd_read_register_(
+  uint8_t error_reg_value = pcd_read_register(
       ERROR_REG);  // ErrorReg[7..0] bits are: WrErr TempErr reserved BufferOvfl CollErr CRCErr ParityErr ProtocolErr
   if (error_reg_value & 0x13) {  // BufferOvfl ParityErr ProtocolErr
     return STATUS_ERROR;
@@ -375,15 +375,15 @@ RC522::StatusCode RC522::pcd_communicate_with_picc_(
 
   // If the caller wants data back, get it from the MFRC522.
   if (back_data && back_len) {
-    uint8_t n = pcd_read_register_(FIFO_LEVEL_REG);  // Number of uint8_ts in the FIFO
+    uint8_t n = pcd_read_register(FIFO_LEVEL_REG);  // Number of uint8_ts in the FIFO
     if (n > *back_len) {
       return STATUS_NO_ROOM;
     }
-    *back_len = n;                                              // Number of uint8_ts returned
-    pcd_read_register_(FIFO_DATA_REG, n, back_data, rx_align);  // Get received data from FIFO
+    *back_len = n;                                             // Number of uint8_ts returned
+    pcd_read_register(FIFO_DATA_REG, n, back_data, rx_align);  // Get received data from FIFO
     valid_bits_local =
-        pcd_read_register_(CONTROL_REG) & 0x07;  // RxLastBits[2:0] indicates the number of valid bits in the last
-                                                 // received uint8_t. If this value is 000b, the whole uint8_t is valid.
+        pcd_read_register(CONTROL_REG) & 0x07;  // RxLastBits[2:0] indicates the number of valid bits in the last
+                                                // received uint8_t. If this value is 000b, the whole uint8_t is valid.
     if (valid_bits) {
       *valid_bits = valid_bits_local;
     }
@@ -430,11 +430,11 @@ RC522::StatusCode RC522::pcd_calculate_crc_(
     uint8_t *result  ///< Out: Pointer to result buffer. Result is written to result[0..1], low uint8_t first.
 ) {
   ESP_LOGVV(TAG, "pcd_calculate_crc_(..., %d, ...)", length);
-  pcd_write_register_(COMMAND_REG, PCD_IDLE);        // Stop any active command.
-  pcd_write_register_(DIV_IRQ_REG, 0x04);            // Clear the CRCIRq interrupt request bit
-  pcd_write_register_(FIFO_LEVEL_REG, 0x80);         // FlushBuffer = 1, FIFO initialization
-  pcd_write_register_(FIFO_DATA_REG, length, data);  // Write data to the FIFO
-  pcd_write_register_(COMMAND_REG, PCD_CALC_CRC);    // Start the calculation
+  pcd_write_register(COMMAND_REG, PCD_IDLE);        // Stop any active command.
+  pcd_write_register(DIV_IRQ_REG, 0x04);            // Clear the CRCIRq interrupt request bit
+  pcd_write_register(FIFO_LEVEL_REG, 0x80);         // FlushBuffer = 1, FIFO initialization
+  pcd_write_register(FIFO_DATA_REG, length, data);  // Write data to the FIFO
+  pcd_write_register(COMMAND_REG, PCD_CALC_CRC);    // Start the calculation
 
   // Wait for the CRC calculation to complete. Each iteration of the while-loop takes 17.73μs.
   // TODO check/modify for other architectures than Arduino Uno 16bit
@@ -442,12 +442,12 @@ RC522::StatusCode RC522::pcd_calculate_crc_(
   // Wait for the CRC calculation to complete. Each iteration of the while-loop takes 17.73us.
   for (uint16_t i = 5000; i > 0; i--) {
     // DivIrqReg[7..0] bits are: Set2 reserved reserved MfinActIRq reserved CRCIRq reserved reserved
-    uint8_t n = pcd_read_register_(DIV_IRQ_REG);
-    if (n & 0x04) {                                // CRCIRq bit set - calculation done
-      pcd_write_register_(COMMAND_REG, PCD_IDLE);  // Stop calculating CRC for new content in the FIFO.
+    uint8_t n = pcd_read_register(DIV_IRQ_REG);
+    if (n & 0x04) {                               // CRCIRq bit set - calculation done
+      pcd_write_register(COMMAND_REG, PCD_IDLE);  // Stop calculating CRC for new content in the FIFO.
       // Transfer the result from the registers to the result buffer
-      result[0] = pcd_read_register_(CRC_RESULT_REG_L);
-      result[1] = pcd_read_register_(CRC_RESULT_REG_H);
+      result[0] = pcd_read_register(CRC_RESULT_REG_L);
+      result[1] = pcd_read_register(CRC_RESULT_REG_H);
 
       ESP_LOGVV(TAG, "pcd_calculate_crc_() STATUS_OK");
       return STATUS_OK;
@@ -469,10 +469,10 @@ RC522::StatusCode RC522::picc_is_new_card_present_() {
   uint8_t buffer_size = sizeof(buffer_atqa);
 
   // Reset baud rates
-  pcd_write_register_(TX_MODE_REG, 0x00);
-  pcd_write_register_(RX_MODE_REG, 0x00);
+  pcd_write_register(TX_MODE_REG, 0x00);
+  pcd_write_register(RX_MODE_REG, 0x00);
   // Reset ModWidthReg
-  pcd_write_register_(MOD_WIDTH_REG, 0x26);
+  pcd_write_register(MOD_WIDTH_REG, 0x26);
 
   auto result = picc_request_a_(buffer_atqa, &buffer_size);
 
@@ -659,14 +659,14 @@ RC522::StatusCode RC522::picc_select_(
 
       // Set bit adjustments
       rx_align = tx_last_bits;  // Having a separate variable is overkill. But it makes the next line easier to read.
-      pcd_write_register_(
+      pcd_write_register(
           BIT_FRAMING_REG,
           (rx_align << 4) + tx_last_bits);  // RxAlign = BitFramingReg[6..4]. TxLastBits = BitFramingReg[2..0]
 
       // Transmit the buffer and receive the response.
       result = pcd_transceive_data_(buffer, buffer_used, response_buffer, &response_length, &tx_last_bits, rx_align);
       if (result == STATUS_COLLISION) {  // More than one PICC in the field => collision.
-        uint8_t value_of_coll_reg = pcd_read_register_(
+        uint8_t value_of_coll_reg = pcd_read_register(
             COLL_REG);  // CollReg[7..0] bits are: ValuesAfterColl reserved CollPosNotValid CollPos[4:0]
         if (value_of_coll_reg & 0x20) {  // CollPosNotValid
           return STATUS_COLLISION;       // Without a valid collision position we cannot continue
