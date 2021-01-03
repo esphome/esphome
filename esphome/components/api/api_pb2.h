@@ -92,7 +92,6 @@ class HelloRequest : public ProtoMessage {
   std::string client_info{};  // NOLINT
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
-
  protected:
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
 };
@@ -100,10 +99,9 @@ class HelloResponse : public ProtoMessage {
  public:
   uint32_t api_version_major{0};  // NOLINT
   uint32_t api_version_minor{0};  // NOLINT
-  std::string server_info{};      // NOLINT
+  std::string server_info{};  // NOLINT
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
-
  protected:
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
@@ -113,7 +111,6 @@ class ConnectRequest : public ProtoMessage {
   std::string password{};  // NOLINT
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
-
  protected:
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
 };
@@ -122,7 +119,6 @@ class ConnectResponse : public ProtoMessage {
   bool invalid_password{false};  // NOLINT
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
-
  protected:
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
@@ -130,49 +126,48 @@ class DisconnectRequest : public ProtoMessage {
  public:
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
-
  protected:
+
 };
 class DisconnectResponse : public ProtoMessage {
  public:
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
-
  protected:
+
 };
 class PingRequest : public ProtoMessage {
  public:
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
-
  protected:
+
 };
 class PingResponse : public ProtoMessage {
  public:
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
-
  protected:
+
 };
 class DeviceInfoRequest : public ProtoMessage {
  public:
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
-
  protected:
+
 };
 class DeviceInfoResponse : public ProtoMessage {
  public:
-  bool uses_password{false};       // NOLINT
-  std::string name{};              // NOLINT
-  std::string mac_address{};       // NOLINT
-  std::string esphome_version{};   // NOLINT
+  bool uses_password{false};  // NOLINT
+  std::string name{};  // NOLINT
+  std::string mac_address{};  // NOLINT
+  std::string esphome_version{};  // NOLINT
   std::string compilation_time{};  // NOLINT
-  std::string model{};             // NOLINT
-  bool has_deep_sleep{false};      // NOLINT
+  std::string model{};  // NOLINT
+  bool has_deep_sleep{false};  // NOLINT
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
-
  protected:
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
@@ -181,34 +176,33 @@ class ListEntitiesRequest : public ProtoMessage {
  public:
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
-
  protected:
+
 };
 class ListEntitiesDoneResponse : public ProtoMessage {
  public:
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
-
  protected:
+
 };
 class SubscribeStatesRequest : public ProtoMessage {
  public:
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
-
  protected:
+
 };
 class ListEntitiesBinarySensorResponse : public ProtoMessage {
  public:
-  std::string object_id{};              // NOLINT
-  uint32_t key{0};                      // NOLINT
-  std::string name{};                   // NOLINT
-  std::string unique_id{};              // NOLINT
-  std::string device_class{};           // NOLINT
+  std::string object_id{};  // NOLINT
+  uint32_t key{0};  // NOLINT
+  std::string name{};  // NOLINT
+  std::string unique_id{};  // NOLINT
+  std::string device_class{};  // NOLINT
   bool is_status_binary_sensor{false};  // NOLINT
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
-
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
@@ -216,29 +210,27 @@ class ListEntitiesBinarySensorResponse : public ProtoMessage {
 };
 class BinarySensorStateResponse : public ProtoMessage {
  public:
-  uint32_t key{0};            // NOLINT
-  bool state{false};          // NOLINT
+  uint32_t key{0};  // NOLINT
+  bool state{false};  // NOLINT
   bool missing_state{false};  // NOLINT
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
-
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
 class ListEntitiesCoverResponse : public ProtoMessage {
  public:
-  std::string object_id{};        // NOLINT
-  uint32_t key{0};                // NOLINT
-  std::string name{};             // NOLINT
-  std::string unique_id{};        // NOLINT
-  bool assumed_state{false};      // NOLINT
+  std::string object_id{};  // NOLINT
+  uint32_t key{0};  // NOLINT
+  std::string name{};  // NOLINT
+  std::string unique_id{};  // NOLINT
+  bool assumed_state{false};  // NOLINT
   bool supports_position{false};  // NOLINT
-  bool supports_tilt{false};      // NOLINT
-  std::string device_class{};     // NOLINT
+  bool supports_tilt{false};  // NOLINT
+  std::string device_class{};  // NOLINT
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
-
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
@@ -246,47 +238,44 @@ class ListEntitiesCoverResponse : public ProtoMessage {
 };
 class CoverStateResponse : public ProtoMessage {
  public:
-  uint32_t key{0};                            // NOLINT
-  enums::LegacyCoverState legacy_state{};     // NOLINT
-  float position{0.0f};                       // NOLINT
-  float tilt{0.0f};                           // NOLINT
+  uint32_t key{0};  // NOLINT
+  enums::LegacyCoverState legacy_state{};  // NOLINT
+  float position{0.0f};  // NOLINT
+  float tilt{0.0f};  // NOLINT
   enums::CoverOperation current_operation{};  // NOLINT
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
-
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
 class CoverCommandRequest : public ProtoMessage {
  public:
-  uint32_t key{0};                             // NOLINT
-  bool has_legacy_command{false};              // NOLINT
+  uint32_t key{0};  // NOLINT
+  bool has_legacy_command{false};  // NOLINT
   enums::LegacyCoverCommand legacy_command{};  // NOLINT
-  bool has_position{false};                    // NOLINT
-  float position{0.0f};                        // NOLINT
-  bool has_tilt{false};                        // NOLINT
-  float tilt{0.0f};                            // NOLINT
-  bool stop{false};                            // NOLINT
+  bool has_position{false};  // NOLINT
+  float position{0.0f};  // NOLINT
+  bool has_tilt{false};  // NOLINT
+  float tilt{0.0f};  // NOLINT
+  bool stop{false};  // NOLINT
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
-
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
 class ListEntitiesFanResponse : public ProtoMessage {
  public:
-  std::string object_id{};           // NOLINT
-  uint32_t key{0};                   // NOLINT
-  std::string name{};                // NOLINT
-  std::string unique_id{};           // NOLINT
+  std::string object_id{};  // NOLINT
+  uint32_t key{0};  // NOLINT
+  std::string name{};  // NOLINT
+  std::string unique_id{};  // NOLINT
   bool supports_oscillation{false};  // NOLINT
-  bool supports_speed{false};        // NOLINT
-  bool supports_direction{false};    // NOLINT
+  bool supports_speed{false};  // NOLINT
+  bool supports_direction{false};  // NOLINT
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
-
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
@@ -294,52 +283,49 @@ class ListEntitiesFanResponse : public ProtoMessage {
 };
 class FanStateResponse : public ProtoMessage {
  public:
-  uint32_t key{0};                  // NOLINT
-  bool state{false};                // NOLINT
-  bool oscillating{false};          // NOLINT
-  enums::FanSpeed speed{};          // NOLINT
+  uint32_t key{0};  // NOLINT
+  bool state{false};  // NOLINT
+  bool oscillating{false};  // NOLINT
+  enums::FanSpeed speed{};  // NOLINT
   enums::FanDirection direction{};  // NOLINT
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
-
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
 class FanCommandRequest : public ProtoMessage {
  public:
-  uint32_t key{0};                  // NOLINT
-  bool has_state{false};            // NOLINT
-  bool state{false};                // NOLINT
-  bool has_speed{false};            // NOLINT
-  enums::FanSpeed speed{};          // NOLINT
-  bool has_oscillating{false};      // NOLINT
-  bool oscillating{false};          // NOLINT
-  bool has_direction{false};        // NOLINT
+  uint32_t key{0};  // NOLINT
+  bool has_state{false};  // NOLINT
+  bool state{false};  // NOLINT
+  bool has_speed{false};  // NOLINT
+  enums::FanSpeed speed{};  // NOLINT
+  bool has_oscillating{false};  // NOLINT
+  bool oscillating{false};  // NOLINT
+  bool has_direction{false};  // NOLINT
   enums::FanDirection direction{};  // NOLINT
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
-
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
 class ListEntitiesLightResponse : public ProtoMessage {
  public:
-  std::string object_id{};                 // NOLINT
-  uint32_t key{0};                         // NOLINT
-  std::string name{};                      // NOLINT
-  std::string unique_id{};                 // NOLINT
-  bool supports_brightness{false};         // NOLINT
-  bool supports_rgb{false};                // NOLINT
-  bool supports_white_value{false};        // NOLINT
+  std::string object_id{};  // NOLINT
+  uint32_t key{0};  // NOLINT
+  std::string name{};  // NOLINT
+  std::string unique_id{};  // NOLINT
+  bool supports_brightness{false};  // NOLINT
+  bool supports_rgb{false};  // NOLINT
+  bool supports_white_value{false};  // NOLINT
   bool supports_color_temperature{false};  // NOLINT
-  float min_mireds{0.0f};                  // NOLINT
-  float max_mireds{0.0f};                  // NOLINT
-  std::vector<std::string> effects{};      // NOLINT
+  float min_mireds{0.0f};  // NOLINT
+  float max_mireds{0.0f};  // NOLINT
+  std::vector<std::string> effects{};  // NOLINT
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
-
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
@@ -347,18 +333,17 @@ class ListEntitiesLightResponse : public ProtoMessage {
 };
 class LightStateResponse : public ProtoMessage {
  public:
-  uint32_t key{0};                // NOLINT
-  bool state{false};              // NOLINT
-  float brightness{0.0f};         // NOLINT
-  float red{0.0f};                // NOLINT
-  float green{0.0f};              // NOLINT
-  float blue{0.0f};               // NOLINT
-  float white{0.0f};              // NOLINT
+  uint32_t key{0};  // NOLINT
+  bool state{false};  // NOLINT
+  float brightness{0.0f};  // NOLINT
+  float red{0.0f};  // NOLINT
+  float green{0.0f};  // NOLINT
+  float blue{0.0f};  // NOLINT
+  float white{0.0f};  // NOLINT
   float color_temperature{0.0f};  // NOLINT
-  std::string effect{};           // NOLINT
+  std::string effect{};  // NOLINT
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
-
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
@@ -366,28 +351,27 @@ class LightStateResponse : public ProtoMessage {
 };
 class LightCommandRequest : public ProtoMessage {
  public:
-  uint32_t key{0};                    // NOLINT
-  bool has_state{false};              // NOLINT
-  bool state{false};                  // NOLINT
-  bool has_brightness{false};         // NOLINT
-  float brightness{0.0f};             // NOLINT
-  bool has_rgb{false};                // NOLINT
-  float red{0.0f};                    // NOLINT
-  float green{0.0f};                  // NOLINT
-  float blue{0.0f};                   // NOLINT
-  bool has_white{false};              // NOLINT
-  float white{0.0f};                  // NOLINT
+  uint32_t key{0};  // NOLINT
+  bool has_state{false};  // NOLINT
+  bool state{false};  // NOLINT
+  bool has_brightness{false};  // NOLINT
+  float brightness{0.0f};  // NOLINT
+  bool has_rgb{false};  // NOLINT
+  float red{0.0f};  // NOLINT
+  float green{0.0f};  // NOLINT
+  float blue{0.0f};  // NOLINT
+  bool has_white{false};  // NOLINT
+  float white{0.0f};  // NOLINT
   bool has_color_temperature{false};  // NOLINT
-  float color_temperature{0.0f};      // NOLINT
+  float color_temperature{0.0f};  // NOLINT
   bool has_transition_length{false};  // NOLINT
-  uint32_t transition_length{0};      // NOLINT
-  bool has_flash_length{false};       // NOLINT
-  uint32_t flash_length{0};           // NOLINT
-  bool has_effect{false};             // NOLINT
-  std::string effect{};               // NOLINT
+  uint32_t transition_length{0};  // NOLINT
+  bool has_flash_length{false};  // NOLINT
+  uint32_t flash_length{0};  // NOLINT
+  bool has_effect{false};  // NOLINT
+  std::string effect{};  // NOLINT
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
-
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
@@ -395,17 +379,16 @@ class LightCommandRequest : public ProtoMessage {
 };
 class ListEntitiesSensorResponse : public ProtoMessage {
  public:
-  std::string object_id{};            // NOLINT
-  uint32_t key{0};                    // NOLINT
-  std::string name{};                 // NOLINT
-  std::string unique_id{};            // NOLINT
-  std::string icon{};                 // NOLINT
+  std::string object_id{};  // NOLINT
+  uint32_t key{0};  // NOLINT
+  std::string name{};  // NOLINT
+  std::string unique_id{};  // NOLINT
+  std::string icon{};  // NOLINT
   std::string unit_of_measurement{};  // NOLINT
-  int32_t accuracy_decimals{0};       // NOLINT
-  bool force_update{false};           // NOLINT
+  int32_t accuracy_decimals{0};  // NOLINT
+  bool force_update{false};  // NOLINT
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
-
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
@@ -413,27 +396,25 @@ class ListEntitiesSensorResponse : public ProtoMessage {
 };
 class SensorStateResponse : public ProtoMessage {
  public:
-  uint32_t key{0};            // NOLINT
-  float state{0.0f};          // NOLINT
+  uint32_t key{0};  // NOLINT
+  float state{0.0f};  // NOLINT
   bool missing_state{false};  // NOLINT
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
-
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
 class ListEntitiesSwitchResponse : public ProtoMessage {
  public:
-  std::string object_id{};    // NOLINT
-  uint32_t key{0};            // NOLINT
-  std::string name{};         // NOLINT
-  std::string unique_id{};    // NOLINT
-  std::string icon{};         // NOLINT
+  std::string object_id{};  // NOLINT
+  uint32_t key{0};  // NOLINT
+  std::string name{};  // NOLINT
+  std::string unique_id{};  // NOLINT
+  std::string icon{};  // NOLINT
   bool assumed_state{false};  // NOLINT
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
-
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
@@ -441,22 +422,20 @@ class ListEntitiesSwitchResponse : public ProtoMessage {
 };
 class SwitchStateResponse : public ProtoMessage {
  public:
-  uint32_t key{0};    // NOLINT
+  uint32_t key{0};  // NOLINT
   bool state{false};  // NOLINT
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
-
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
 class SwitchCommandRequest : public ProtoMessage {
  public:
-  uint32_t key{0};    // NOLINT
+  uint32_t key{0};  // NOLINT
   bool state{false};  // NOLINT
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
-
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
@@ -464,25 +443,23 @@ class SwitchCommandRequest : public ProtoMessage {
 class ListEntitiesTextSensorResponse : public ProtoMessage {
  public:
   std::string object_id{};  // NOLINT
-  uint32_t key{0};          // NOLINT
-  std::string name{};       // NOLINT
+  uint32_t key{0};  // NOLINT
+  std::string name{};  // NOLINT
   std::string unique_id{};  // NOLINT
-  std::string icon{};       // NOLINT
+  std::string icon{};  // NOLINT
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
-
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
 };
 class TextSensorStateResponse : public ProtoMessage {
  public:
-  uint32_t key{0};            // NOLINT
-  std::string state{};        // NOLINT
+  uint32_t key{0};  // NOLINT
+  std::string state{};  // NOLINT
   bool missing_state{false};  // NOLINT
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
-
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
@@ -494,19 +471,17 @@ class SubscribeLogsRequest : public ProtoMessage {
   bool dump_config{false};  // NOLINT
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
-
  protected:
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
 class SubscribeLogsResponse : public ProtoMessage {
  public:
   enums::LogLevel level{};  // NOLINT
-  std::string tag{};        // NOLINT
-  std::string message{};    // NOLINT
+  std::string tag{};  // NOLINT
+  std::string message{};  // NOLINT
   bool send_failed{false};  // NOLINT
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
-
  protected:
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
@@ -515,29 +490,27 @@ class SubscribeHomeassistantServicesRequest : public ProtoMessage {
  public:
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
-
  protected:
+
 };
 class HomeassistantServiceMap : public ProtoMessage {
  public:
-  std::string key{};    // NOLINT
+  std::string key{};  // NOLINT
   std::string value{};  // NOLINT
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
-
  protected:
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
 };
 class HomeassistantServiceResponse : public ProtoMessage {
  public:
-  std::string service{};                                 // NOLINT
-  std::vector<HomeassistantServiceMap> data{};           // NOLINT
+  std::string service{};  // NOLINT
+  std::vector<HomeassistantServiceMap> data{};  // NOLINT
   std::vector<HomeassistantServiceMap> data_template{};  // NOLINT
-  std::vector<HomeassistantServiceMap> variables{};      // NOLINT
-  bool is_event{false};                                  // NOLINT
+  std::vector<HomeassistantServiceMap> variables{};  // NOLINT
+  bool is_event{false};  // NOLINT
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
-
  protected:
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
@@ -546,25 +519,23 @@ class SubscribeHomeAssistantStatesRequest : public ProtoMessage {
  public:
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
-
  protected:
+
 };
 class SubscribeHomeAssistantStateResponse : public ProtoMessage {
  public:
   std::string entity_id{};  // NOLINT
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
-
  protected:
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
 };
 class HomeAssistantStateResponse : public ProtoMessage {
  public:
   std::string entity_id{};  // NOLINT
-  std::string state{};      // NOLINT
+  std::string state{};  // NOLINT
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
-
  protected:
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
 };
@@ -572,55 +543,51 @@ class GetTimeRequest : public ProtoMessage {
  public:
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
-
  protected:
+
 };
 class GetTimeResponse : public ProtoMessage {
  public:
   uint32_t epoch_seconds{0};  // NOLINT
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
-
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
 };
 class ListEntitiesServicesArgument : public ProtoMessage {
  public:
-  std::string name{};            // NOLINT
+  std::string name{};  // NOLINT
   enums::ServiceArgType type{};  // NOLINT
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
-
  protected:
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
 class ListEntitiesServicesResponse : public ProtoMessage {
  public:
-  std::string name{};                                // NOLINT
-  uint32_t key{0};                                   // NOLINT
+  std::string name{};  // NOLINT
+  uint32_t key{0};  // NOLINT
   std::vector<ListEntitiesServicesArgument> args{};  // NOLINT
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
-
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
 };
 class ExecuteServiceArgument : public ProtoMessage {
  public:
-  bool bool_{false};                        // NOLINT
-  int32_t legacy_int{0};                    // NOLINT
-  float float_{0.0f};                       // NOLINT
-  std::string string_{};                    // NOLINT
-  int32_t int_{0};                          // NOLINT
-  std::vector<bool> bool_array{};           // NOLINT
-  std::vector<int32_t> int_array{};         // NOLINT
-  std::vector<float> float_array{};         // NOLINT
+  bool bool_{false};  // NOLINT
+  int32_t legacy_int{0};  // NOLINT
+  float float_{0.0f};  // NOLINT
+  std::string string_{};  // NOLINT
+  int32_t int_{0};  // NOLINT
+  std::vector<bool> bool_array{};  // NOLINT
+  std::vector<int32_t> int_array{};  // NOLINT
+  std::vector<float> float_array{};  // NOLINT
   std::vector<std::string> string_array{};  // NOLINT
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
-
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
@@ -628,11 +595,10 @@ class ExecuteServiceArgument : public ProtoMessage {
 };
 class ExecuteServiceRequest : public ProtoMessage {
  public:
-  uint32_t key{0};                             // NOLINT
+  uint32_t key{0};  // NOLINT
   std::vector<ExecuteServiceArgument> args{};  // NOLINT
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
-
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
@@ -640,24 +606,22 @@ class ExecuteServiceRequest : public ProtoMessage {
 class ListEntitiesCameraResponse : public ProtoMessage {
  public:
   std::string object_id{};  // NOLINT
-  uint32_t key{0};          // NOLINT
-  std::string name{};       // NOLINT
+  uint32_t key{0};  // NOLINT
+  std::string name{};  // NOLINT
   std::string unique_id{};  // NOLINT
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
-
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
 };
 class CameraImageResponse : public ProtoMessage {
  public:
-  uint32_t key{0};     // NOLINT
+  uint32_t key{0};  // NOLINT
   std::string data{};  // NOLINT
-  bool done{false};    // NOLINT
+  bool done{false};  // NOLINT
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
-
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
@@ -669,32 +633,30 @@ class CameraImageRequest : public ProtoMessage {
   bool stream{false};  // NOLINT
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
-
  protected:
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
 class ListEntitiesClimateResponse : public ProtoMessage {
  public:
-  std::string object_id{};                                       // NOLINT
-  uint32_t key{0};                                               // NOLINT
-  std::string name{};                                            // NOLINT
-  std::string unique_id{};                                       // NOLINT
-  bool supports_current_temperature{false};                      // NOLINT
-  bool supports_two_point_target_temperature{false};             // NOLINT
-  std::vector<enums::ClimateMode> supported_modes{};             // NOLINT
-  float visual_min_temperature{0.0f};                            // NOLINT
-  float visual_max_temperature{0.0f};                            // NOLINT
-  float visual_temperature_step{0.0f};                           // NOLINT
-  bool supports_away{false};                                     // NOLINT
-  bool supports_action{false};                                   // NOLINT
-  std::vector<enums::ClimateFanMode> supported_fan_modes{};      // NOLINT
+  std::string object_id{};  // NOLINT
+  uint32_t key{0};  // NOLINT
+  std::string name{};  // NOLINT
+  std::string unique_id{};  // NOLINT
+  bool supports_current_temperature{false};  // NOLINT
+  bool supports_two_point_target_temperature{false};  // NOLINT
+  std::vector<enums::ClimateMode> supported_modes{};  // NOLINT
+  float visual_min_temperature{0.0f};  // NOLINT
+  float visual_max_temperature{0.0f};  // NOLINT
+  float visual_temperature_step{0.0f};  // NOLINT
+  bool supports_away{false};  // NOLINT
+  bool supports_action{false};  // NOLINT
+  std::vector<enums::ClimateFanMode> supported_fan_modes{};  // NOLINT
   std::vector<enums::ClimateSwingMode> supported_swing_modes{};  // NOLINT
-  bool supports_boost{false};                                    // NOLINT
-  bool supports_sleep_{false};                                    // NOLINT
-  bool supports_eco{false};                                      // NOLINT
+  bool supports_boost{false};  // NOLINT
+  bool supports_sleep_{false};  // NOLINT
+  bool supports_eco{false};  // NOLINT
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
-
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
@@ -702,52 +664,50 @@ class ListEntitiesClimateResponse : public ProtoMessage {
 };
 class ClimateStateResponse : public ProtoMessage {
  public:
-  uint32_t key{0};                       // NOLINT
-  enums::ClimateMode mode{};             // NOLINT
-  float current_temperature{0.0f};       // NOLINT
-  float target_temperature{0.0f};        // NOLINT
-  float target_temperature_low{0.0f};    // NOLINT
-  float target_temperature_high{0.0f};   // NOLINT
-  bool away{false};                      // NOLINT
-  enums::ClimateAction action{};         // NOLINT
-  enums::ClimateFanMode fan_mode{};      // NOLINT
+  uint32_t key{0};  // NOLINT
+  enums::ClimateMode mode{};  // NOLINT
+  float current_temperature{0.0f};  // NOLINT
+  float target_temperature{0.0f};  // NOLINT
+  float target_temperature_low{0.0f};  // NOLINT
+  float target_temperature_high{0.0f};  // NOLINT
+  bool away{false};  // NOLINT
+  enums::ClimateAction action{};  // NOLINT
+  enums::ClimateFanMode fan_mode{};  // NOLINT
   enums::ClimateSwingMode swing_mode{};  // NOLINT
-  bool boost{false};                     // NOLINT
-  bool sleep_{false};                     // NOLINT
-  bool eco{false};                       // NOLINT
+  bool boost{false};  // NOLINT
+  bool sleep_{false};  // NOLINT
+  bool eco{false};  // NOLINT
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
-
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
 class ClimateCommandRequest : public ProtoMessage {
  public:
-  uint32_t key{0};                          // NOLINT
-  bool has_mode{false};                     // NOLINT
-  enums::ClimateMode mode{};                // NOLINT
-  bool has_target_temperature{false};       // NOLINT
-  float target_temperature{0.0f};           // NOLINT
-  bool has_target_temperature_low{false};   // NOLINT
-  float target_temperature_low{0.0f};       // NOLINT
+  uint32_t key{0};  // NOLINT
+  bool has_mode{false};  // NOLINT
+  enums::ClimateMode mode{};  // NOLINT
+  bool has_target_temperature{false};  // NOLINT
+  float target_temperature{0.0f};  // NOLINT
+  bool has_target_temperature_low{false};  // NOLINT
+  float target_temperature_low{0.0f};  // NOLINT
   bool has_target_temperature_high{false};  // NOLINT
-  float target_temperature_high{0.0f};      // NOLINT
-  bool has_away{false};                     // NOLINT
-  bool away{false};                         // NOLINT
-  bool has_fan_mode{false};                 // NOLINT
-  enums::ClimateFanMode fan_mode{};         // NOLINT
-  bool has_swing_mode{false};               // NOLINT
-  enums::ClimateSwingMode swing_mode{};     // NOLINT
-  bool has_boost{false};                    // NOLINT
-  bool boost{false};                        // NOLINT
-  bool has_sleep_{false};                    // NOLINT
-  bool sleep_{false};                        // NOLINT
-  bool has_eco{false};                      // NOLINT
-  bool eco{false};                          // NOLINT
+  float target_temperature_high{0.0f};  // NOLINT
+  bool has_away{false};  // NOLINT
+  bool away{false};  // NOLINT
+  bool has_fan_mode{false};  // NOLINT
+  enums::ClimateFanMode fan_mode{};  // NOLINT
+  bool has_swing_mode{false};  // NOLINT
+  enums::ClimateSwingMode swing_mode{};  // NOLINT
+  bool has_boost{false};  // NOLINT
+  bool boost{false};  // NOLINT
+  bool has_sleep_{false};  // NOLINT
+  bool sleep_{false};  // NOLINT
+  bool has_eco{false};  // NOLINT
+  bool eco{false};  // NOLINT
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
-
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
