@@ -168,7 +168,7 @@ optional<XiaomiParseResult> parse_xiaomi_header(const esp32_ble_tracker::Service
   } else if ((raw[2] == 0xdf) && (raw[3] == 0x02)) {  // Xiaomi (Honeywell) formaldehyde sensor, OLED display
     result.type = XiaomiParseResult::TYPE_JQJCY01YM;
     result.name = "JQJCY01YM";
-  } else if ((raw[2] == 0xdd) && (raw[3] == 0x03)) {  // Philips/Xiaomi BLE nightlight
+  } else if ((raw[2] == 0xdd) && (raw[3] == 0x03)) {  // Philips/Xiaomi BLE sleep_light
     result.type = XiaomiParseResult::TYPE_MUE4094RT;
     result.name = "MUE4094RT";
     result.raw_offset -= 6;
@@ -190,7 +190,7 @@ optional<XiaomiParseResult> parse_xiaomi_header(const esp32_ble_tracker::Service
   } else if ((raw[2] == 0x5b) && (raw[3] == 0x05)) {  // small square body, segment LCD, encrypted
     result.type = XiaomiParseResult::TYPE_LYWSD03MMC;
     result.name = "LYWSD03MMC";
-  } else if ((raw[2] == 0xf6) && (raw[3] == 0x07)) {  // Xiaomi-Yeelight BLE nightlight
+  } else if ((raw[2] == 0xf6) && (raw[3] == 0x07)) {  // Xiaomi-Yeelight BLE sleep_light
     result.type = XiaomiParseResult::TYPE_MJYD02YLA;
     result.name = "MJYD02YLA";
     if (raw.size() == 19)

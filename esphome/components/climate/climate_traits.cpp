@@ -40,7 +40,7 @@ void ClimateTraits::set_supports_dry_mode(bool supports_dry_mode) { supports_dry
 void ClimateTraits::set_supports_away(bool supports_away) { supports_away_ = supports_away; }
 void ClimateTraits::set_supports_boost(bool supports_boost) { supports_boost_ = supports_boost; }
 void ClimateTraits::set_supports_eco(bool supports_eco) { supports_eco_ = supports_eco; }
-void ClimateTraits::set_supports_night(bool supports_night) { supports_night_ = supports_night; }
+void ClimateTraits::set_supports_sleep_(bool supports_sleep_) { supports_sleep__ = supports_sleep_; }
 void ClimateTraits::set_supports_action(bool supports_action) { supports_action_ = supports_action; }
 float ClimateTraits::get_visual_min_temperature() const { return visual_min_temperature_; }
 void ClimateTraits::set_visual_min_temperature(float visual_min_temperature) {
@@ -66,7 +66,7 @@ void ClimateTraits::set_visual_temperature_step(float temperature_step) { visual
 bool ClimateTraits::get_supports_away() const { return supports_away_; }
 bool ClimateTraits::get_supports_boost() const { return supports_boost_; }
 bool ClimateTraits::get_supports_eco() const { return supports_eco_; }
-bool ClimateTraits::get_supports_night() const { return supports_night_; }
+bool ClimateTraits::get_supports_sleep_() const { return supports_sleep__; }
 bool ClimateTraits::get_supports_action() const { return supports_action_; }
 
 void ClimateTraits::set_supports_fan_mode_on(bool supports_fan_mode_on) {

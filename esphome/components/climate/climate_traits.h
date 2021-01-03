@@ -29,7 +29,7 @@ namespace climate {
  *      it's device specific - usually a combination of settings that allow to reach setTemp in the lowest time
  *      possible
  *  - supports sleep - sleep mode means that the climate device supports sleep mode
- *      it's device specific - usually a silent mode with low fan for night use.
+ *      it's device specific - usually a silent mode with low fan for sleep_ use.
  *  - supports eco - eco mode means that the climate device supports eco mode
  *      it's device specific - usually a low power consumption setting.
  *  - supports action - if the climate device supports reporting the active
@@ -62,8 +62,8 @@ class ClimateTraits {
   bool get_supports_boost() const;
   void set_supports_eco(bool supports_eco);
   bool get_supports_eco() const;
-  void set_supports_night(bool supports_night);
-  bool get_supports_night() const;
+  void set_supports_sleep_(bool supports_sleep_);
+  bool get_supports_sleep_() const;
   void set_supports_action(bool supports_action);
   bool get_supports_action() const;
   bool supports_mode(ClimateMode mode) const;
@@ -104,7 +104,7 @@ class ClimateTraits {
   bool supports_away_{false};
   bool supports_boost_{false};
   bool supports_eco_{false};
-  bool supports_night_{false};
+  bool supports_sleep__{false};
   bool supports_action_{false};
   bool supports_fan_mode_on_{false};
   bool supports_fan_mode_off_{false};

@@ -33,7 +33,7 @@ class BangBangClimate : public climate::Climate, public Component {
   void set_away_config(const BangBangClimateTargetTempConfig &away_config);
   void set_supports_boost(bool supports_boost);
   void set_supports_eco(bool supports_eco);
-  void set_supports_night(bool supports_night);
+  void set_supports_sleep_(bool supports_sleep_);
 
  protected:
   /// Override control to change settings of the climate device.
@@ -42,8 +42,8 @@ class BangBangClimate : public climate::Climate, public Component {
   void change_away_(bool away);
   /// Change the boost setting.
   void change_boost_(bool boost);
-  /// Change the night (sleep) setting.
-  void change_night_(bool night);
+  /// Change the sleep_ (sleep) setting.
+  void change_sleep__(bool sleep_);
   /// Change the eco setting.
   void change_eco_(bool eco);
 
@@ -92,7 +92,7 @@ class BangBangClimate : public climate::Climate, public Component {
 
   bool supports_boost_{false};
 
-  bool supports_night_{false};
+  bool supports_sleep__{false};
 
   bool supports_eco_{false};
 };

@@ -18,7 +18,7 @@ struct ESPTime {
   uint8_t second;
   /// minutes after the hour [0-59]
   uint8_t minute;
-  /// hours since midnight [0-23]
+  /// hours since midsleep_ [0-23]
   uint8_t hour;
   /// day of the week; sunday=1 [1-7]
   uint8_t day_of_week;
@@ -34,7 +34,7 @@ struct ESPTime {
   bool is_dst;
   union {
     ESPDEPRECATED(".time is deprecated, use .timestamp instead") time_t time;
-    /// unix epoch time (seconds since UTC Midnight January 1, 1970)
+    /// unix epoch time (seconds since UTC Midsleep_ January 1, 1970)
     time_t timestamp;
   };
 

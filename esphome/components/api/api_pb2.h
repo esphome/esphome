@@ -690,7 +690,7 @@ class ListEntitiesClimateResponse : public ProtoMessage {
   std::vector<enums::ClimateFanMode> supported_fan_modes{};      // NOLINT
   std::vector<enums::ClimateSwingMode> supported_swing_modes{};  // NOLINT
   bool supports_boost{false};                                    // NOLINT
-  bool supports_night{false};                                    // NOLINT
+  bool supports_sleep_{false};                                    // NOLINT
   bool supports_eco{false};                                      // NOLINT
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
@@ -713,7 +713,7 @@ class ClimateStateResponse : public ProtoMessage {
   enums::ClimateFanMode fan_mode{};      // NOLINT
   enums::ClimateSwingMode swing_mode{};  // NOLINT
   bool boost{false};                     // NOLINT
-  bool night{false};                     // NOLINT
+  bool sleep_{false};                     // NOLINT
   bool eco{false};                       // NOLINT
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
@@ -741,8 +741,8 @@ class ClimateCommandRequest : public ProtoMessage {
   enums::ClimateSwingMode swing_mode{};     // NOLINT
   bool has_boost{false};                    // NOLINT
   bool boost{false};                        // NOLINT
-  bool has_night{false};                    // NOLINT
-  bool night{false};                        // NOLINT
+  bool has_sleep_{false};                    // NOLINT
+  bool sleep_{false};                        // NOLINT
   bool has_eco{false};                      // NOLINT
   bool eco{false};                          // NOLINT
   void encode(ProtoWriteBuffer buffer) const override;

@@ -136,7 +136,7 @@ def climate_control_to_code(config, action_id, template_arg, args):
         cg.add(var.set_eco(template_))
     if CONF_SLEEP in config:
         template_ = yield cg.templatable(config[CONF_SLEEP], args, bool)
-        cg.add(var.set_night(template_))
+        cg.add(var.set_sleep_(template_))
     if CONF_FAN_MODE in config:
         template_ = yield cg.templatable(config[CONF_FAN_MODE], args, ClimateFanMode)
         cg.add(var.set_fan_mode(template_))
