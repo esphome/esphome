@@ -68,8 +68,8 @@ class ClimateCall {
   ClimateCall &set_boost(optional<bool> boost);
   ClimateCall &set_eco(bool eco);
   ClimateCall &set_eco(optional<bool> eco);
-  ClimateCall &set_sleep_(bool sleep_);
-  ClimateCall &set_sleep_(optional<bool> sleep_);
+  ClimateCall &set_sleep(bool sleep);
+  ClimateCall &set_sleep(optional<bool> sleep);
   /// Set the fan mode of the climate device.
   ClimateCall &set_fan_mode(ClimateFanMode fan_mode);
   /// Set the fan mode of the climate device.
@@ -92,7 +92,7 @@ class ClimateCall {
   const optional<bool> &get_away() const;
   const optional<bool> &get_boost() const;
   const optional<bool> &get_eco() const;
-  const optional<bool> &get_sleep_() const;
+  const optional<bool> &get_sleep() const;
   const optional<ClimateFanMode> &get_fan_mode() const;
   const optional<ClimateSwingMode> &get_swing_mode() const;
 
@@ -107,7 +107,7 @@ class ClimateCall {
   optional<bool> away_;
   optional<bool> boost_;
   optional<bool> eco_;
-  optional<bool> sleep__;
+  optional<bool> sleep_;
   optional<ClimateFanMode> fan_mode_;
   optional<ClimateSwingMode> swing_mode_;
 };
@@ -118,7 +118,7 @@ struct ClimateDeviceRestoreState {
   bool away;
   bool boost;
   bool eco;
-  bool sleep_;
+  bool sleep;
   ClimateFanMode fan_mode;
   ClimateSwingMode swing_mode;
   union {
@@ -198,7 +198,7 @@ class Climate : public Nameable {
    *
    * Sleep allows climate devices to have a silent mode:
    */
-  bool sleep_{false};
+  bool sleep{false};
 
   /// The active fan mode of the climate device.
   ClimateFanMode fan_mode;
