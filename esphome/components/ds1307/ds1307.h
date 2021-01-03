@@ -12,8 +12,8 @@ class DS1307Component : public time::RealTimeClock, public i2c::I2CDevice {
   void setup() override;
   void dump_config() override;
   float get_setup_priority() const override;
-  void sync_from_rtc();
-  void sync_to_rtc();
+  void read();
+  void write();
 
  protected:
   bool read_rtc_();
@@ -56,14 +56,14 @@ class DS1307Component : public time::RealTimeClock, public i2c::I2CDevice {
   } ds1307_;
 };
 
-template<typename... Ts> class SyncToRtcAction : public Action<Ts...>, public Parented<DS1307Component> {
+template<typename... Ts> class WriteAction : public Action<Ts...>, public Parented<DS1307Component> {
  public:
-  void play(Ts... x) override { this->parent_->sync_to_rtc(); }
+  void play(Ts... x) override { this->parent_->write(); }
 };
 
-template<typename... Ts> class SyncFromRtcAction : public Action<Ts...>, public Parented<DS1307Component> {
+template<typename... Ts> class ReadAction : public Action<Ts...>, public Parented<DS1307Component> {
  public:
-  void play(Ts... x) override { this->parent_->sync_from_rtc(); }
+  void play(Ts... x) override { this->parent_->read(); }
 };
 }  // namespace ds1307
 }  // namespace esphome
