@@ -40,7 +40,7 @@ void ClimateTraits::set_supports_dry_mode(bool supports_dry_mode) { supports_dry
 void ClimateTraits::set_supports_away(bool supports_away) { supports_away_ = supports_away; }
 void ClimateTraits::set_supports_boost(bool supports_boost) { supports_boost_ = supports_boost; }
 void ClimateTraits::set_supports_eco(bool supports_eco) { supports_eco_ = supports_eco; }
-void ClimateTraits::set_supports_(bool supports_sleep) { supports_sleep_ = supports_sleep; }
+void ClimateTraits::set_supports_sleep(bool supports_sleep) { supports_sleep_ = supports_sleep; }
 void ClimateTraits::set_supports_action(bool supports_action) { supports_action_ = supports_action; }
 float ClimateTraits::get_visual_min_temperature() const { return visual_min_temperature_; }
 void ClimateTraits::set_visual_min_temperature(float visual_min_temperature) {
