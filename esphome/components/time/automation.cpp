@@ -76,8 +76,7 @@ void CronTrigger::add_days_of_week(const std::vector<uint8_t> &days_of_week) {
 float CronTrigger::get_setup_priority() const { return setup_priority::HARDWARE; }
 
 SyncTrigger::SyncTrigger(RealTimeClock *rtc) : rtc_(rtc) {
-  rtc->add_on_time_sync_callback(
-        [this]() { this->trigger(); });
+  rtc->add_on_time_sync_callback([this]() { this->trigger(); });
 }
 
 }  // namespace time

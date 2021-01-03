@@ -11,8 +11,8 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
 from esphome.const import CONF_ID, CONF_CRON, CONF_DAYS_OF_MONTH, CONF_DAYS_OF_WEEK, CONF_HOURS, \
-    CONF_MINUTES, CONF_MONTHS, CONF_ON_TIME, CONF_ON_TIME_SYNC, CONF_SECONDS, CONF_TIMEZONE, CONF_TRIGGER_ID, \
-    CONF_AT, CONF_SECOND, CONF_HOUR, CONF_MINUTE
+    CONF_MINUTES, CONF_MONTHS, CONF_ON_TIME, CONF_ON_TIME_SYNC, CONF_SECONDS, CONF_TIMEZONE, \
+    CONF_TRIGGER_ID, CONF_AT, CONF_SECOND, CONF_HOUR, CONF_MINUTE
 from esphome.core import coroutine, coroutine_with_priority
 from esphome.automation import Condition
 
