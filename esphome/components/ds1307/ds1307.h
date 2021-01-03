@@ -55,5 +55,15 @@ class DS1307Component : public time::RealTimeClock, public i2c::I2CDevice {
     mutable uint8_t raw[sizeof(reg)];
   } ds1307_;
 };
+
+template<typename... Ts> class SyncToRtcAction : public Action<Ts...>, public Parented<DS1307Component> {
+ public:
+  void play(Ts... x) override { this->parent_->sync_to_rtc(); }
+};
+
+template<typename... Ts> class SyncFromRtcAction : public Action<Ts...>, public Parented<DS1307Component> {
+ public:
+  void play(Ts... x) override { this->parent_->sync_from_rtc(); }
+};
 }  // namespace ds1307
 }  // namespace esphome

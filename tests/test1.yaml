@@ -1841,9 +1841,15 @@ time:
       seconds: 0
       minutes: /15
       then:
-        - lambda: 'ds1307_time->sync_to_rtc();'
+        ds1307.sync_to_rtc:
+          id: ds1307_time
   - platform: ds1307
     id: ds1307_time
+    on_time:
+      seconds: 0
+      then:
+          ds1307.sync_from_rtc
+
 
 
 cover:

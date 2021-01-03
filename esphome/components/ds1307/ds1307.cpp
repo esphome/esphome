@@ -81,7 +81,7 @@ bool DS1307Component::read_rtc_() {
     ESP_LOGE(TAG, "Can't read I2C data.");
     return false;
   }
-  ESP_LOGV(TAG, "Read  %0u%0u:%0u%0u:%0u%0u 20%0u%0u-%0u%0u-%0u%0u  CH:%s RS:%0u SQWE:%s OUT:%s", ds1307_.reg.hour_10,
+  ESP_LOGD(TAG, "Read  %0u%0u:%0u%0u:%0u%0u 20%0u%0u-%0u%0u-%0u%0u  CH:%s RS:%0u SQWE:%s OUT:%s", ds1307_.reg.hour_10,
            ds1307_.reg.hour, ds1307_.reg.minute_10, ds1307_.reg.minute, ds1307_.reg.second_10, ds1307_.reg.second,
            ds1307_.reg.year_10, ds1307_.reg.year, ds1307_.reg.month_10, ds1307_.reg.month, ds1307_.reg.day_10,
            ds1307_.reg.day, ONOFF(ds1307_.reg.ch), ds1307_.reg.rs, ONOFF(ds1307_.reg.sqwe), ONOFF(ds1307_.reg.out));
@@ -94,7 +94,7 @@ bool DS1307Component::write_rtc_() {
     ESP_LOGE(TAG, "Can't write I2C data.");
     return false;
   }
-  ESP_LOGV(TAG, "Write %0u%0u:%0u%0u:%0u%0u 20%0u%0u-%0u%0u-%0u%0u  CH:%s RS:%0u SQWE:%s OUT:%s", ds1307_.reg.hour_10,
+  ESP_LOGD(TAG, "Write %0u%0u:%0u%0u:%0u%0u 20%0u%0u-%0u%0u-%0u%0u  CH:%s RS:%0u SQWE:%s OUT:%s", ds1307_.reg.hour_10,
            ds1307_.reg.hour, ds1307_.reg.minute_10, ds1307_.reg.minute, ds1307_.reg.second_10, ds1307_.reg.second,
            ds1307_.reg.year_10, ds1307_.reg.year, ds1307_.reg.month_10, ds1307_.reg.month, ds1307_.reg.day_10,
            ds1307_.reg.day, ONOFF(ds1307_.reg.ch), ds1307_.reg.rs, ONOFF(ds1307_.reg.sqwe), ONOFF(ds1307_.reg.out));
