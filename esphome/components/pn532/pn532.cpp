@@ -104,8 +104,9 @@ void PN532::loop() {
   if (!success) {
     // Something failed
     if (!this->current_uid_.empty()) {
-      for (auto *trigger : this->triggers_onrelease_)
-        trigger->process(this->current_uid_);
+      auto tag = this->read_tag_(this->current_uid_);
+      for (auto *trigger : this->triggers_ontagremoved_)
+        trigger->process(tag);
     }
     this->current_uid_ = {};
     this->turn_off_rf_();
@@ -116,8 +117,9 @@ void PN532::loop() {
   if (num_targets != 1) {
     // no tags found or too many
     if (!this->current_uid_.empty()) {
-      for (auto *trigger : this->triggers_onrelease_)
-        trigger->process(this->current_uid_);
+      auto tag = this->read_tag_(this->current_uid_);
+      for (auto *trigger : this->triggers_ontagremoved_)
+        trigger->process(tag);
     }
     this->current_uid_ = {};
     this->turn_off_rf_();

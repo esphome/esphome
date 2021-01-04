@@ -2,7 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
 from esphome.components import nfc
-from esphome.const import CONF_ID, CONF_ON_RELEASE, CONF_ON_TAG, CONF_TRIGGER_ID
+from esphome.const import CONF_ID, CONF_ON_TAG_REMOVED, CONF_ON_TAG, CONF_TRIGGER_ID
 from esphome.core import coroutine
 
 CODEOWNERS = ['@OttoWinter', '@jesserockz']
@@ -30,8 +30,8 @@ PN532_SCHEMA = cv.Schema({
     cv.Optional(CONF_ON_FINISHED_WRITE): automation.validate_automation({
         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(PN532OnFinishedWriteTrigger),
     }),
-    cv.Optional(CONF_ON_RELEASE): automation.validate_automation({
-        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(PN532Trigger),
+    cv.Optional(CONF_ON_TAG_REMOVED): automation.validate_automation({
+        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(PN532OnTagTrigger),
     }),
 }).extend(cv.polling_component_schema('1s'))
 
@@ -52,10 +52,11 @@ def setup_pn532(var, config):
         yield automation.build_automation(trigger, [(cg.std_string, 'x'), (nfc.NfcTag, 'tag')],
                                           conf)
 
-    for conf in config.get(CONF_ON_RELEASE, []):
+    for conf in config.get(CONF_ON_TAG_REMOVED, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
-        cg.add(var.register_onrelease_trigger(trigger))
-        yield automation.build_automation(trigger, [(cg.std_string, 'x')], conf)
+        cg.add(var.register_ontagremoved_trigger(trigger))
+        yield automation.build_automation(trigger, [(cg.std_string, 'x'), (nfc.NfcTag, 'tag')],
+                                          conf)
 
     for conf in config.get(CONF_ON_FINISHED_WRITE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
