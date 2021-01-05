@@ -29,10 +29,14 @@ class VL53L1XSensor : public sensor::Sensor, public PollingComponent, public i2c
   void set_i2c_parent(i2c::I2CComponent* parent);
   void set_i2c_address(uint8_t address);
 
+  void set_retry_budget(uint8_t budget) { retryBudget_ = budget; }
+
  protected:
   VL53L1X* vl53l1x_{nullptr};
   DistanceMode distanceMode_{DistanceMode::LONG};
   uint32_t timingBudget_{50000};
+  uint8_t retryBudget_{5};
+  uint8_t retryCount_{0};
 };
 
 }  // namespace vl53l1x
