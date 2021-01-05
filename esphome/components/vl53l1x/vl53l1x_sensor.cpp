@@ -26,15 +26,15 @@ void VL53L1XSensor::setup() {
   switch (distanceMode_)
   {
     case DistanceMode::SHORT:
-	 if (timingBudget_ < 20000)
-	   timingBudget_ = 20000;
-	 break;
+      if (timingBudget_ < 20000)
+        timingBudget_ = 20000;
+    break;
 
     case DistanceMode::MEDIUM:
     case DistanceMode::LONG:
-	 if (timingBudget_ < 33000)
-	   timingBudget_ = 33000;
-	 break;
+      if (timingBudget_ < 33000)
+        timingBudget_ = 33000;
+    break;
 
   }
   vl53l1x_->setMeasurementTimingBudget(timingBudget_);
