@@ -50,6 +50,10 @@ wifi:
   reboot_timeout: 120s
   power_save_mode: none
 
+http_request:
+  useragent: esphome/device
+  timeout: 10s
+
 mqtt:
   broker: '192.168.178.84'
   port: 1883
@@ -121,7 +125,25 @@ mqtt:
             - uart.write: [0x00, 0x20, 0x30]
             - uart.write: !lambda |-
                 return {};
-
+            - http_request.get:
+                url: https://esphome.io
+                headers:
+                  Content-Type: application/json
+                verify_ssl: false
+            - http_request.post:
+                url: https://esphome.io
+                verify_ssl: false
+                json:
+                  key: !lambda |-
+                    return id(my_sensor).state;
+                  greeting: "Hello World"
+            - http_request.send:
+                method: PUT
+                url: https://esphome.io
+                headers:
+                  Content-Type: application/json
+                body: "Some data"
+                verify_ssl: false
 i2c:
   sda: 21
   scl: 22
