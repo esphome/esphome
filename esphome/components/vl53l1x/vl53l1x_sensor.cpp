@@ -21,29 +21,29 @@ void VL53L1XSensor::setup() {
   if (!vl53l1x_->init()) {
     ESP_LOGW(TAG, "'%s' - device not found", this->name_.c_str());
   }
-  vl53l1x_->setDistanceMode(static_cast<VL53L1X::DistanceMode>(distanceMode_));
+  vl53l1x_->setDistanceMode(static_cast<VL53L1X::DistanceMode>(distance_mode_));
 
-  switch (distanceMode_)
+  switch (distance_mode_)
   {
     case DistanceMode::SHORT:
-      if (timingBudget_ < 20000)
-        timingBudget_ = 20000;
+      if (timing_budget_ < 20000)
+        timing_budget_ = 20000;
     break;
 
     case DistanceMode::MEDIUM:
     case DistanceMode::LONG:
-      if (timingBudget_ < 33000)
-        timingBudget_ = 33000;
+      if (timing_budget_ < 33000)
+        timing_budget_ = 33000;
     break;
 
   }
-  vl53l1x_->setMeasurementTimingBudget(timingBudget_);
+  vl53l1x_->setMeasurementTimingBudget(timing_budget_);
 }
 
 void VL53L1XSensor::update() {
   // initiate non-blocking single shot measurement
   (void)vl53l1x_->readSingle(false);
-  retryCount_ = retryBudget_;
+  retry_count_ = retry_budget_;
 }
 
 void VL53L1XSensor::loop() {
@@ -55,10 +55,10 @@ void VL53L1XSensor::loop() {
       float range_m = static_cast<float>(range_mm) / 1000.0;
       ESP_LOGD(TAG, "'%s' - Got distance %.3f m", this->name_.c_str(), range_m);
       this->publish_state(range_m);
-    } else if (retryCount_ > 0) {
-      ESP_LOGW(TAG, "'%s' - %s --> retrying %d", this->name_.c_str(), VL53L1X::rangeStatusToString(vl53l1x_->ranging_data.range_status), retryCount_);
+    } else if (retry_count_ > 0) {
+      ESP_LOGW(TAG, "'%s' - %s --> retrying %d", this->name_.c_str(), VL53L1X::rangeStatusToString(vl53l1x_->ranging_data.range_status), retry_count_);
       (void)vl53l1x_->readSingle(false);
-      retryCount_--;
+      retry_count_--;
     } else {
       ESP_LOGW(TAG, "'%s' - %s", this->name_.c_str(), VL53L1X::rangeStatusToString(vl53l1x_->ranging_data.range_status));
       this->publish_state(NAN);
