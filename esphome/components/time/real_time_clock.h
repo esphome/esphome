@@ -53,6 +53,19 @@ struct ESPTime {
    */
   std::string strftime(const std::string &format);
 
+  /** Update an ESPTime struct based on a string as specified by the format argument.
+   * @see https://www.gnu.org/software/libc/manual/html_node/Formatting-Calendar-Time.html#index-strftime
+   */
+  ESPTime &strptime(const char *time, const char *format) __attribute__((format(strftime, 3, 0)));
+
+  /** Update an ESPTime struct based on a string as specified by the format argument.
+   * @see https://www.gnu.org/software/libc/manual/html_node/Formatting-Calendar-Time.html#index-strftime
+   *
+   * @warning This method uses dynamically allocated strings which can cause heap fragmentation with some
+   * microcontrollers.
+   */
+  ESPTime &strptime(const std::string &time, const std::string &format);
+
   /// Check if this ESPTime is valid (all fields in range and year is greater than 2018)
   bool is_valid() const { return this->year >= 2019 && this->fields_in_range(); }
 
@@ -127,7 +140,13 @@ class RealTimeClock : public Component {
 
   void call_setup() override;
 
+  /// Set the current time.
+  virtual void set(const ESPTime &time) { synchronize_time_(time); };
+
  protected:
+  /// Report an ESPTime as current time.
+  void synchronize_time_(const ESPTime &now);
+
   /// Report a unix epoch as current time.
   void synchronize_epoch_(uint32_t epoch);
 

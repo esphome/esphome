@@ -84,6 +84,11 @@ mqtt:
     - topic: livingroom/ota_mode
       then:
         - deep_sleep.enter:
+    - topic: livingroom/back_to_the_future
+      then:
+        - lambda: |-
+            auto time = id(sntp_time);
+            time->set(time->now().strptime("1985-10-26 01:24:00","%Y-%m-%d %T"));
   on_json_message:
     topic: the/topic
     then:

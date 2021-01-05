@@ -12,11 +12,15 @@ namespace time {
 static const char *TAG = "time";
 
 RealTimeClock::RealTimeClock() = default;
+
 void RealTimeClock::call_setup() {
   setenv("TZ", this->timezone_.c_str(), 1);
   tzset();
   this->setup();
 }
+
+void RealTimeClock::synchronize_time_(const ESPTime &time) { synchronize_epoch_(time.timestamp); }
+
 void RealTimeClock::synchronize_epoch_(uint32_t epoch) {
   struct timeval timev {
     .tv_sec = static_cast<time_t>(epoch), .tv_usec = 0,
@@ -44,6 +48,22 @@ size_t ESPTime::strftime(char *buffer, size_t buffer_len, const char *format) {
   struct tm c_tm = this->to_c_tm();
   return ::strftime(buffer, buffer_len, format, &c_tm);
 }
+
+ESPTime &ESPTime::strptime(const std::string &time, const std::string &format) {
+  return this->strptime(time.c_str(), format.c_str());
+}
+
+ESPTime &ESPTime::strptime(const char *time, const char *format) {
+  auto c_tm = this->to_c_tm();
+  auto pos = ::strptime(time, format, &c_tm);
+  if (pos != NULL) {
+    return *this = ESPTime::from_c_tm(&c_tm, mktime(&c_tm));
+  } else {
+    ESP_LOGE(TAG, "could not parse time string '%s'", time);
+  }
+  return *this;
+}
+
 ESPTime ESPTime::from_c_tm(struct tm *c_tm, time_t c_time) {
   ESPTime res{};
   res.second = uint8_t(c_tm->tm_sec);
@@ -71,6 +91,7 @@ struct tm ESPTime::to_c_tm() {
   c_tm.tm_isdst = this->is_dst;
   return c_tm;
 }
+
 std::string ESPTime::strftime(const std::string &format) {
   std::string timestr;
   timestr.resize(format.size() * 4);
@@ -130,6 +151,7 @@ void ESPTime::increment_second() {
     this->year++;
   }
 }
+
 void ESPTime::recalc_timestamp_utc(bool use_day_of_year) {
   time_t res = 0;
 
@@ -158,6 +180,7 @@ void ESPTime::recalc_timestamp_utc(bool use_day_of_year) {
   res += this->second;
   this->timestamp = res;
 }
+
 bool ESPTime::operator<(ESPTime other) { return this->timestamp < other.timestamp; }
 bool ESPTime::operator<=(ESPTime other) { return this->timestamp <= other.timestamp; }
 bool ESPTime::operator==(ESPTime other) { return this->timestamp == other.timestamp; }
