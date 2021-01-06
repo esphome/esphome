@@ -145,7 +145,7 @@ class RealTimeClock : public Component {
 
  protected:
   /// Report an ESPTime as current time.
-  void synchronize_time_(const ESPTime &now);
+  void synchronize_time_(const ESPTime &time);
 
   /// Report a unix epoch as current time.
   void synchronize_epoch_(uint32_t epoch);
