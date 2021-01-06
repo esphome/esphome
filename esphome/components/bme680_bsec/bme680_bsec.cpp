@@ -12,8 +12,11 @@ static const char *TAG = "bme680_bsec.sensor";
 
 static const std::string IAQ_ACCURACY_STATES[4] = {"Stabilizing", "Uncertain", "Calibrating", "Calibrated"};
 
-static const uint8_t BSEC_CONFIG_IAQ[] = {
+static const uint8_t BSEC_CONFIG_IAQ_LP[] = {
 #include "config/generic_33v_3s_28d/bsec_iaq.txt"
+};
+static const uint8_t BSEC_CONFIG_IAQ_ULP[] = {
+#include "config/generic_33v_300s_28d/bsec_iaq.txt"
 };
 
 std::map<uint8_t, BME680BSECComponent *> BME680BSECComponent::instances;
@@ -29,7 +32,14 @@ void BME680BSECComponent::setup() {
     return;
   }
 
-  this->bsec_.setConfig(BSEC_CONFIG_IAQ);
+  const uint8_t *bsec_config = BSEC_CONFIG_IAQ_LP;
+  float bsec_sample_rate = BSEC_SAMPLE_RATE_LP;
+  if (this->sample_rate_ == SAMPLE_RATE_ULP) {
+    bsec_config = BSEC_CONFIG_IAQ_ULP;
+    bsec_sample_rate = BSEC_SAMPLE_RATE_ULP;
+  }
+
+  this->bsec_.setConfig(bsec_config);
   this->load_state_();
 
   // Subscribe to sensor values
@@ -38,11 +48,11 @@ void BME680BSECComponent::setup() {
       BSEC_OUTPUT_SENSOR_HEAT_COMPENSATED_HUMIDITY,
       BSEC_OUTPUT_RAW_PRESSURE,
       BSEC_OUTPUT_RAW_GAS,
-      this->iaq_mode_ == BME680_IAQ_MODE_STATIC ? BSEC_OUTPUT_STATIC_IAQ : BSEC_OUTPUT_IAQ,
+      this->iaq_mode_ == IAQ_MODE_STATIC ? BSEC_OUTPUT_STATIC_IAQ : BSEC_OUTPUT_IAQ,
       BSEC_OUTPUT_CO2_EQUIVALENT,
       BSEC_OUTPUT_BREATH_VOC_EQUIVALENT,
   };
-  this->bsec_.updateSubscription(sensor_list, 7, BSEC_SAMPLE_RATE_LP);
+  this->bsec_.updateSubscription(sensor_list, 7, bsec_sample_rate);
 }
 
 void BME680BSECComponent::dump_config() {
@@ -57,7 +67,8 @@ void BME680BSECComponent::dump_config() {
   }
 
   ESP_LOGCONFIG(TAG, "  Temperature Offset: %.2f", this->temperature_offset_);
-  ESP_LOGCONFIG(TAG, "  IAQ Mode: %s", this->iaq_mode_ == BME680_IAQ_MODE_STATIC ? "Static" : "Mobile");
+  ESP_LOGCONFIG(TAG, "  IAQ Mode: %s", this->iaq_mode_ == IAQ_MODE_STATIC ? "Static" : "Mobile");
+  ESP_LOGCONFIG(TAG, "  Sample Rate: %s", this->sample_rate_ == SAMPLE_RATE_ULP ? "ULP" : "LP");
   ESP_LOGCONFIG(TAG, "  State Save Interval: %ims", this->state_save_interval_);
 
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
@@ -65,7 +76,8 @@ void BME680BSECComponent::dump_config() {
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
   LOG_SENSOR("  ", "Gas Resistance", this->gas_resistance_sensor_);
   LOG_SENSOR("  ", "IAQ", this->iaq_sensor_);
-  LOG_TEXT_SENSOR("  ", "IAQ Accuracy", this->iaq_accuracy_sensor_);
+  LOG_SENSOR("  ", "Numeric IAQ Accuracy", this->iaq_accuracy_sensor_);
+  LOG_TEXT_SENSOR("  ", "IAQ Accuracy", this->iaq_accuracy_text_sensor_);
   LOG_SENSOR("  ", "CO2 Equivalent", this->co2_equivalent_sensor_);
   LOG_SENSOR("  ", "Breath VOC Equivalent", this->breath_voc_equivalent_sensor_);
 }
@@ -74,47 +86,26 @@ float BME680BSECComponent::get_setup_priority() const { return setup_priority::D
 
 void BME680BSECComponent::loop() {
   if (this->check_bsec_status_() && this->bsec_.run()) {
-    this->sensor_push_num_ = 1;
+    yield();
     this->save_state_();
-  }
-
-  // In order not to block here, spread the sensor state pushes
-  // across subsequent calls otherwise we end up with API disconnects
-  if (this->sensor_push_num_ > 0 && this->sensor_push_num_ <= 8) {
-    switch (this->sensor_push_num_++) {
-      case 1:
-        this->publish_state_(this->temperature_sensor_, this->bsec_.temperature);
-        break;
-      case 2:
-        this->publish_state_(this->humidity_sensor_, this->bsec_.humidity);
-        break;
-      case 3:
-        this->publish_state_(this->pressure_sensor_, this->bsec_.pressure / 100.0);
-        break;
-      case 4:
-        this->publish_state_(this->gas_resistance_sensor_, this->bsec_.gasResistance);
-        break;
-      case 5:
-        this->publish_state_(this->iaq_sensor_, this->get_iaq_());
-        break;
-      case 6:
-        this->publish_state_(this->iaq_accuracy_sensor_, IAQ_ACCURACY_STATES[this->get_iaq_accuracy_()]);
-        break;
-      case 7:
-        this->publish_state_(this->co2_equivalent_sensor_, this->bsec_.co2Equivalent);
-        break;
-      case 8:
-        this->publish_state_(this->breath_voc_equivalent_sensor_, this->bsec_.breathVocEquivalent);
-        break;
-    }
+    this->publish_state_(this->temperature_sensor_, this->bsec_.temperature);
+    this->publish_state_(this->humidity_sensor_, this->bsec_.humidity);
+    this->publish_state_(this->pressure_sensor_, this->bsec_.pressure / 100.0);
+    this->publish_state_(this->gas_resistance_sensor_, this->bsec_.gasResistance);
+    this->publish_state_(this->iaq_sensor_, this->get_iaq_());
+    this->publish_state_(this->iaq_accuracy_text_sensor_, IAQ_ACCURACY_STATES[this->get_iaq_accuracy_()]);
+    this->publish_state_(this->iaq_accuracy_sensor_, this->get_iaq_accuracy_(), true);
+    this->publish_state_(this->co2_equivalent_sensor_, this->bsec_.co2Equivalent);
+    this->publish_state_(this->breath_voc_equivalent_sensor_, this->bsec_.breathVocEquivalent);
   }
 }
 
-void BME680BSECComponent::publish_state_(sensor::Sensor *sensor, float value) {
-  if (!sensor) {
+void BME680BSECComponent::publish_state_(sensor::Sensor *sensor, float value, bool change_only) {
+  if (!sensor || (change_only && sensor->has_state() && sensor->state == value)) {
     return;
   }
   sensor->publish_state(value);
+  yield();
 }
 
 void BME680BSECComponent::publish_state_(text_sensor::TextSensor *sensor, std::string value) {
@@ -122,6 +113,7 @@ void BME680BSECComponent::publish_state_(text_sensor::TextSensor *sensor, std::s
     return;
   }
   sensor->publish_state(value);
+  yield();
 }
 
 void BME680BSECComponent::set_temperature_offset(float offset) {
@@ -129,16 +121,18 @@ void BME680BSECComponent::set_temperature_offset(float offset) {
   this->bsec_.setTemperatureOffset(offset);
 }
 
-void BME680BSECComponent::set_iaq_mode(BME680BSECIAQMode iaq_mode) { this->iaq_mode_ = iaq_mode; }
+void BME680BSECComponent::set_iaq_mode(IAQMode iaq_mode) { this->iaq_mode_ = iaq_mode; }
+
+void BME680BSECComponent::set_sample_rate(SampleRate sample_rate) { this->sample_rate_ = sample_rate; }
 
 void BME680BSECComponent::set_state_save_interval(uint32_t interval) { this->state_save_interval_ = interval; }
 
 float BME680BSECComponent::get_iaq_() {
-  return this->iaq_mode_ == BME680_IAQ_MODE_STATIC ? this->bsec_.staticIaq : this->bsec_.iaq;
+  return this->iaq_mode_ == IAQ_MODE_STATIC ? this->bsec_.staticIaq : this->bsec_.iaq;
 }
 
 uint8_t BME680BSECComponent::get_iaq_accuracy_() {
-  return this->iaq_mode_ == BME680_IAQ_MODE_STATIC ? this->bsec_.staticIaqAccuracy : this->bsec_.iaqAccuracy;
+  return this->iaq_mode_ == IAQ_MODE_STATIC ? this->bsec_.staticIaqAccuracy : this->bsec_.iaqAccuracy;
 }
 
 int8_t BME680BSECComponent::read_bytes_wrapper(uint8_t address, uint8_t a_register, uint8_t *data, uint16_t len) {
@@ -187,8 +181,10 @@ void BME680BSECComponent::load_state_() {
 
   uint8_t state[BSEC_MAX_STATE_BLOB_SIZE];
   if (this->bsec_state_.load(&state)) {
+    yield();
     ESP_LOGI(TAG, "Loading state");
     this->bsec_.setState(state);
+    yield();
     this->check_bsec_status_();
   }
 }
@@ -201,6 +197,7 @@ void BME680BSECComponent::save_state_() {
 
   uint8_t state[BSEC_MAX_STATE_BLOB_SIZE];
   this->bsec_.getState(state);
+  yield();
   if (!this->check_bsec_status_()) {
     return;
   }
@@ -208,6 +205,7 @@ void BME680BSECComponent::save_state_() {
   ESP_LOGI(TAG, "Saving state");
   this->bsec_state_.save(&state);
   last_millis = millis();
+  yield();
 }
 
 }  // namespace bme680_bsec

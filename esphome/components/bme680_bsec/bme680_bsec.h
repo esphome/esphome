@@ -13,15 +13,21 @@
 namespace esphome {
 namespace bme680_bsec {
 
-enum BME680BSECIAQMode {
-  BME680_IAQ_MODE_STATIC = 0,
-  BME680_IAQ_MODE_MOBILE = 1,
+enum IAQMode {
+  IAQ_MODE_STATIC = 0,
+  IAQ_MODE_MOBILE = 1,
+};
+
+enum SampleRate {
+  SAMPLE_RATE_LP = 0,
+  SAMPLE_RATE_ULP = 1,
 };
 
 class BME680BSECComponent : public Component, public i2c::I2CDevice {
  public:
   void set_temperature_offset(float offset);
-  void set_iaq_mode(BME680BSECIAQMode iaq_mode);
+  void set_iaq_mode(IAQMode iaq_mode);
+  void set_sample_rate(SampleRate sample_rate);
   void set_state_save_interval(uint32_t interval);
 
   void set_temperature_sensor(sensor::Sensor *temperature_sensor) { temperature_sensor_ = temperature_sensor; }
@@ -31,9 +37,10 @@ class BME680BSECComponent : public Component, public i2c::I2CDevice {
     gas_resistance_sensor_ = gas_resistance_sensor;
   }
   void set_iaq_sensor(sensor::Sensor *iaq_sensor) { iaq_sensor_ = iaq_sensor; }
-  void set_iaq_accuracy_sensor(text_sensor::TextSensor *iaq_accuracy_sensor) {
-    iaq_accuracy_sensor_ = iaq_accuracy_sensor;
+  void set_iaq_accuracy_text_sensor(text_sensor::TextSensor *iaq_accuracy_text_sensor) {
+    iaq_accuracy_text_sensor_ = iaq_accuracy_text_sensor;
   }
+  void set_iaq_accuracy_sensor(sensor::Sensor *iaq_accuracy_sensor) { iaq_accuracy_sensor_ = iaq_accuracy_sensor; }
   void set_co2_equivalent_sensor(sensor::Sensor *co2_equivalent_sensor) {
     co2_equivalent_sensor_ = co2_equivalent_sensor;
   }
@@ -56,7 +63,7 @@ class BME680BSECComponent : public Component, public i2c::I2CDevice {
   void save_state_();
   float get_iaq_();
   uint8_t get_iaq_accuracy_();
-  void publish_state_(sensor::Sensor *sensor, float value);
+  void publish_state_(sensor::Sensor *sensor, float value, bool change_only = false);
   void publish_state_(text_sensor::TextSensor *sensor, std::string value);
 
   Bsec bsec_;
@@ -65,15 +72,16 @@ class BME680BSECComponent : public Component, public i2c::I2CDevice {
   float temperature_offset_{0};
   ESPPreferenceObject bsec_state_;
   uint32_t state_save_interval_{21600000};  // 6 hours - 4 times a day
-  BME680BSECIAQMode iaq_mode_{BME680_IAQ_MODE_STATIC};
-  uint8_t sensor_push_num_{0};
+  IAQMode iaq_mode_{IAQ_MODE_STATIC};
+  SampleRate sample_rate_{SAMPLE_RATE_LP};
 
   sensor::Sensor *temperature_sensor_;
   sensor::Sensor *pressure_sensor_;
   sensor::Sensor *humidity_sensor_;
   sensor::Sensor *gas_resistance_sensor_;
   sensor::Sensor *iaq_sensor_;
-  text_sensor::TextSensor *iaq_accuracy_sensor_;
+  text_sensor::TextSensor *iaq_accuracy_text_sensor_;
+  sensor::Sensor *iaq_accuracy_sensor_;
   sensor::Sensor *co2_equivalent_sensor_;
   sensor::Sensor *breath_voc_equivalent_sensor_;
 };

@@ -11,7 +11,7 @@ CONF_IAQ_ACCURACY = 'iaq_accuracy'
 ICON_ACCURACY = 'mdi:checkbox-marked-circle-outline'
 
 TYPES = {
-    CONF_IAQ_ACCURACY: 'set_iaq_accuracy_sensor',
+    CONF_IAQ_ACCURACY: 'set_iaq_accuracy_text_sensor',
 }
 
 CONFIG_SCHEMA = cv.Schema({

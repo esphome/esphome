@@ -2,7 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import sensor
 from esphome.const import CONF_TEMPERATURE, CONF_PRESSURE, CONF_HUMIDITY, CONF_GAS_RESISTANCE, \
-    UNIT_CELSIUS, UNIT_HECTOPASCAL, UNIT_PERCENT, UNIT_OHM, UNIT_PARTS_PER_MILLION, \
+    UNIT_CELSIUS, UNIT_EMPTY, UNIT_HECTOPASCAL, UNIT_PERCENT, UNIT_OHM, UNIT_PARTS_PER_MILLION, \
     ICON_THERMOMETER, ICON_GAUGE, ICON_WATER_PERCENT, ICON_GAS_CYLINDER
 from esphome.core import coroutine
 from . import BME680BSECComponent, CONF_BME680_BSEC_ID
@@ -10,9 +10,11 @@ from . import BME680BSECComponent, CONF_BME680_BSEC_ID
 DEPENDENCIES = ['bme680_bsec']
 
 CONF_IAQ = 'iaq'
+CONF_IAQ_ACCURACY = 'iaq_accuracy'
 CONF_CO2_EQUIVALENT = 'co2_equivalent'
 CONF_BREATH_VOC_EQUIVALENT = 'breath_voc_equivalent'
 UNIT_IAQ = 'IAQ'
+ICON_ACCURACY = 'mdi:checkbox-marked-circle-outline'
 ICON_TEST_TUBE = 'mdi:test-tube'
 
 TYPES = {
@@ -21,6 +23,7 @@ TYPES = {
     CONF_HUMIDITY: 'set_humidity_sensor',
     CONF_GAS_RESISTANCE: 'set_gas_resistance_sensor',
     CONF_IAQ: 'set_iaq_sensor',
+    CONF_IAQ_ACCURACY: 'set_iaq_accuracy_sensor',
     CONF_CO2_EQUIVALENT: 'set_co2_equivalent_sensor',
     CONF_BREATH_VOC_EQUIVALENT: 'set_breath_voc_equivalent_sensor',
 }
@@ -37,6 +40,8 @@ CONFIG_SCHEMA = cv.Schema({
         sensor.sensor_schema(UNIT_OHM, ICON_GAS_CYLINDER, 0),
     cv.Optional(CONF_IAQ):
         sensor.sensor_schema(UNIT_IAQ, ICON_GAUGE, 0),
+    cv.Optional(CONF_IAQ_ACCURACY):
+        sensor.sensor_schema(UNIT_EMPTY, ICON_ACCURACY, 0),
     cv.Optional(CONF_CO2_EQUIVALENT):
         sensor.sensor_schema(UNIT_PARTS_PER_MILLION, ICON_TEST_TUBE, 1),
     cv.Optional(CONF_BREATH_VOC_EQUIVALENT):
