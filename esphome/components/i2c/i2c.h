@@ -285,7 +285,7 @@ class I2CDevice {
 
  protected:
   // Checks for multiplexer set and set channel
-  void check_multiplexer();
+  void check_multiplexer_();
   uint8_t address_{0x00};
   I2CComponent *parent_{nullptr};
   I2CMultiplexer *multiplexer_{nullptr};
