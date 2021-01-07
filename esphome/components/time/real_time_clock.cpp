@@ -57,10 +57,12 @@ ESPTime &ESPTime::strptime(const char *time, const char *format) {
   auto c_tm = this->to_c_tm();
   auto pos = ::strptime(time, format, &c_tm);
   if (pos != nullptr) {
-    return *this = ESPTime::from_c_tm(&c_tm, mktime(&c_tm));
+    *this = ESPTime::from_c_tm(&c_tm, mktime(&c_tm));
   } else {
     ESP_LOGE(TAG, "could not parse time string '%s'", time);
   }
+  const bool use_time_of_year { ::strchr(format, 'j')!=nullptr };
+  this->recalc_timestamp_utc(use_time_of_year);
   return *this;
 }
 
