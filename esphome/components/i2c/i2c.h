@@ -172,8 +172,6 @@ class I2CDevice {
   /// Manually set the i2c multiplexer of this device.
   void set_i2c_multiplexer(I2CMultiplexer *multiplexer, uint8_t channel);
 
-  // Checks for multiplexer set and set channel
-  void check_multiplexer();
   /// Manually set the parent i2c bus for this device.
   void set_i2c_parent(I2CComponent *parent);
 
@@ -286,6 +284,8 @@ class I2CDevice {
   bool write_byte_16(uint8_t a_register, uint16_t data);
 
  protected:
+  // Checks for multiplexer set and set channel
+  void check_multiplexer();
   uint8_t address_{0x00};
   I2CComponent *parent_{nullptr};
   I2CMultiplexer *multiplexer_{nullptr};
