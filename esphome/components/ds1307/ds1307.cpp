@@ -18,7 +18,7 @@ void DS1307Component::setup() {
 }
 
 void DS1307Component::dump_config() {
-  ESP_LOGD(TAG, "DS1307:");
+  ESP_LOGCONFIG(TAG, "DS1307:");
   LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
     ESP_LOGE(TAG, "Communication with DS1307 failed!");
