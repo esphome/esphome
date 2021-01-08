@@ -1830,6 +1830,11 @@ cover:
 
 debug:
 
+tca9548a:
+  - address: 0x70
+    id: multiplex0
+    scan: True
+
 pcf8574:
   - id: 'pcf8574_hub'
     address: 0x21
