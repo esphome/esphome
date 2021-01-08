@@ -27,8 +27,8 @@ def ds1307_write_to_code(config, action_id, template_arg, args):
     yield var
 
 
-@automation.register_action('ds1307.read', ReadAction, cv.Schema({
-    cv.GenerateID(): cv.use_id(DS1307Component),
+@automation.register_action('ds1307.read', ReadAction, automation.maybe_simple_id(
+    {cv.GenerateID(): cv.use_id(DS1307Component)}))
 }))
 def ds1307_read_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
