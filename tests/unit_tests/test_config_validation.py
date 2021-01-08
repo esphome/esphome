@@ -27,7 +27,7 @@ def test_alphanumeric__invalid(value):
         actual = config_validation.alphanumeric(value)
 
 
-@given(value=text(alphabet=string.ascii_lowercase + string.digits + "_"))
+@given(value=text(alphabet=string.ascii_lowercase + string.digits + "_-"))
 def test_valid_name__valid(value):
     actual = config_validation.valid_name(value)
 
