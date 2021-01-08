@@ -6,6 +6,8 @@ from esphome.const import CONF_BACKLIGHT_PIN, CONF_BRIGHTNESS, CONF_CS_PIN, CONF
                           CONF_LAMBDA, CONF_RESET_PIN
 from . import st7789v_ns
 
+CODEOWNERS = ['@kbx81']
+
 DEPENDENCIES = ['spi']
 
 ST7789V = st7789v_ns.class_('ST7789V', cg.PollingComponent, spi.SPIDevice,

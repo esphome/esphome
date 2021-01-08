@@ -11,45 +11,6 @@ on:
   pull_request:
 
 jobs:
-  # A fast overview job that checks only changed files
-  overview:
-    runs-on: ubuntu-latest
-    container: esphome/esphome-lint:latest
-    steps:
-      # Also fetch history and dev branch so that we can check which files changed
-      - uses: actions/checkout@v2
-        with:
-          fetch-depth: 0
-      - name: Fetch dev branch
-        run: git fetch origin dev
-
-      # Cache the .pio directory with (primarily) library dependencies
-      - name: Cache .pio lib_deps
-        uses: actions/cache@v1
-        with:
-          path: .pio
-          key: lint-cpp-pio-${{ hashFiles('platformio.ini') }}
-          restore-keys: |
-            lint-cpp-pio-
-      - name: Set up python environment
-        run: script/setup
-      # Set up the pio project so that the cpp checks know how files are compiled
-      # (build flags, libraries etc)
-      - name: Set up platformio environment
-        run: pio init --ide atom
-
-      - name: Register problem matchers
-        run: |
-          echo "::add-matcher::.github/workflows/matchers/ci-custom.json"
-          echo "::add-matcher::.github/workflows/matchers/clang-tidy.json"
-          echo "::add-matcher::.github/workflows/matchers/gcc.json"
-          echo "::add-matcher::.github/workflows/matchers/lint-python.json"
-          echo "::add-matcher::.github/workflows/matchers/python.json"
-      - name: Run a quick lint over all changed files
-        run: script/quicklint
-      - name: Suggest changes
-        run: script/ci-suggest-changes
-
   lint-clang-format:
     runs-on: ubuntu-latest
     # cpp lint job runs with esphome-lint docker image so that clang-format-*
@@ -83,6 +44,7 @@ jobs:
     container: esphome/esphome-lint:latest
     # Split clang-tidy check into 4 jobs. Each one will check 1/4th of the .cpp files
     strategy:
+      fail-fast: false
       matrix:
         split: [1, 2, 3, 4]
     steps:
@@ -146,6 +108,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
           test:
           - test1

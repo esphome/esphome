@@ -40,6 +40,7 @@ jobs:
     container: esphome/esphome-lint:latest
     # Split clang-tidy check into 4 jobs. Each one will check 1/4th of the .cpp files
     strategy:
+      fail-fast: false
       matrix:
         split: [1, 2, 3, 4]
     steps:
@@ -103,6 +104,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
           test:
           - test1
@@ -207,7 +209,7 @@ jobs:
       - name: Set TAG
         run: |
           TAG="${GITHUB_REF#refs/tags/v}"
-          echo "::set-env name=TAG::${TAG}"
+          echo "TAG=${TAG}" >> $GITHUB_ENV
       - name: Set up env variables
         run: |
           base_version="2.6.0"
@@ -229,10 +231,10 @@ jobs:
           fi
 
           # Set env variables so these values don't need to be calculated again
-          echo "::set-env name=BUILD_FROM::${build_from}"
-          echo "::set-env name=BUILD_TO::${build_to}"
-          echo "::set-env name=DOCKERFILE::${dockerfile}"
-          echo "::set-env name=CACHE_TAG::${cache_tag}"
+          echo "BUILD_FROM=${build_from}" >> $GITHUB_ENV
+          echo "BUILD_TO=${build_to}" >> $GITHUB_ENV
+          echo "DOCKERFILE=${dockerfile}" >> $GITHUB_ENV
+          echo "CACHE_TAG=${cache_tag}" >> $GITHUB_ENV
       - name: Pull for cache
         run: |
           docker pull "${BUILD_TO}:${CACHE_TAG}" || true
@@ -277,7 +279,7 @@ jobs:
     - name: Set TAG
       run: |
         TAG="${GITHUB_REF#refs/tags/v}"
-        echo "::set-env name=TAG::${TAG}"
+        echo "TAG=${TAG}" >> $GITHUB_ENV
     - name: Log in to docker hub
       env:
         DOCKER_USER: ${{ secrets.DOCKER_USER }}

@@ -4,10 +4,11 @@ import re
 
 from esphome.config import iter_components
 from esphome.const import CONF_BOARD_FLASH_MODE, CONF_ESPHOME, CONF_PLATFORMIO_OPTIONS, \
-    HEADER_FILE_EXTENSIONS, SOURCE_FILE_EXTENSIONS, __version__, ARDUINO_VERSION_ESP8266
+    HEADER_FILE_EXTENSIONS, SOURCE_FILE_EXTENSIONS, __version__, ARDUINO_VERSION_ESP8266, \
+    ENV_NOGITIGNORE
 from esphome.core import CORE, EsphomeError
 from esphome.helpers import mkdir_p, read_file, write_file_if_changed, walk_files, \
-    copy_file_if_changed
+    copy_file_if_changed, get_bool_env
 from esphome.storage_json import StorageJSON, storage_path
 from esphome.pins import ESP8266_FLASH_SIZES, ESP8266_LD_SCRIPTS
 
@@ -284,7 +285,8 @@ def write_platformio_project():
     mkdir_p(CORE.build_path)
 
     content = get_ini_content()
-    write_gitignore()
+    if not get_bool_env(ENV_NOGITIGNORE):
+        write_gitignore()
     write_platformio_ini(content)
 
 

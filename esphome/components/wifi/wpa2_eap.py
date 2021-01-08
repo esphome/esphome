@@ -18,9 +18,9 @@ _LOGGER = logging.getLogger(__name__)
 def validate_cryptography_installed():
     try:
         import cryptography
-    except ImportError:
+    except ImportError as err:
         raise cv.Invalid("This settings requires the cryptography python package. "
-                         "Please install it with `pip install cryptography`")
+                         "Please install it with `pip install cryptography`") from err
 
     if cryptography.__version__[0] < '2':
         raise cv.Invalid("Please update your python cryptography installation to least 2.x "

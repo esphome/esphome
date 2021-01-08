@@ -43,8 +43,8 @@ def validate_url(value):
     value = cv.string(value)
     try:
         parsed = list(urlparse.urlparse(value))
-    except Exception:
-        raise cv.Invalid('Invalid URL')
+    except Exception as err:
+        raise cv.Invalid('Invalid URL') from err
 
     if not parsed[0] or not parsed[1]:
         raise cv.Invalid('URL must have a URL scheme and host')
