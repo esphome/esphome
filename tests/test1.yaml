@@ -1837,6 +1837,20 @@ time:
       then:
         - lambda: 'ESP_LOGD("main", "time");'
   - platform: gps
+    on_time:
+      seconds: 0
+      minutes: /15
+      then:
+        ds1307.write:
+          id: ds1307_time
+  - platform: ds1307
+    id: ds1307_time
+    on_time:
+      seconds: 0
+      then:
+          ds1307.read
+
+
 
 cover:
   - platform: template
