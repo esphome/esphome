@@ -94,14 +94,19 @@ void ICACHE_RAM_ATTR HOT RotaryEncoderSensorStore::gpio_intr(RotaryEncoderSensor
   if ((new_state & arg->resolution & STATE_HAS_INCREMENTED) != 0) {
     if (arg->counter < arg->max_value)
       arg->counter++;
-    arg->on_clockwise_callback_.call();
+    if (arg->direction_count < arg->direction_vector.size()) {
+      arg->direction_vector[arg->direction_count] = true;  // true means clockwise
+      arg->direction_count++;
+    }
   }
   if ((new_state & arg->resolution & STATE_HAS_DECREMENTED) != 0) {
     if (arg->counter > arg->min_value)
       arg->counter--;
-    arg->on_anticlockwise_callback_.call();
+    if (arg->direction_count < arg->direction_vector.size()) {
+      arg->direction_vector[arg->direction_count] = false;  // false means anticlockwise
+      arg->direction_count++;
+    }
   }
-
   arg->state = new_state;
 }
 
@@ -137,6 +142,27 @@ void RotaryEncoderSensor::dump_config() {
   }
 }
 void RotaryEncoderSensor::loop() {
+  uint8_t direction_count;
+  std::bitset<128> direction_vector;
+  ets_intr_lock();
+  direction_vector = this->store_.direction_vector;
+  direction_count = this->store_.direction_count;
+
+  this->store_.direction_count = 0;
+  ets_intr_unlock();
+
+  for (int i = 0; i < direction_count; ++i) {
+    if (direction_vector[i] /* == true */) {
+      this->store_.on_clockwise_callback_.call();
+    } else {
+      this->store_.on_anticlockwise_callback_.call();
+    }
+  }
+
+  if (direction_count == direction_vector.size()) {
+    ESP_LOGW(TAG, "Captured maybe more rotation events than expected");
+  }
+
   if (this->pin_i_ != nullptr && this->pin_i_->digital_read()) {
     this->store_.counter = 0;
   }

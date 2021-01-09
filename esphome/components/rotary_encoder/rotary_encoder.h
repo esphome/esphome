@@ -1,5 +1,7 @@
 #pragma once
 
+#include <bitset>
+
 #include "esphome/core/component.h"
 #include "esphome/core/esphal.h"
 #include "esphome/core/automation.h"
@@ -27,6 +29,8 @@ struct RotaryEncoderSensorStore {
   int32_t last_read{0};
   uint8_t state{0};
 
+  std::bitset<128> direction_vector;
+  volatile uint8_t direction_count;
   CallbackManager<void()> on_clockwise_callback_;
   CallbackManager<void()> on_anticlockwise_callback_;
 
