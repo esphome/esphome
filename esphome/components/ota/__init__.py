@@ -12,14 +12,26 @@ DEPENDENCIES = ['network']
 ota_ns = cg.esphome_ns.namespace('ota')
 OTAComponent = ota_ns.class_('OTAComponent', cg.Component)
 
-CONFIG_SCHEMA = cv.Schema({
+
+def validate(config):
+    safe_mode_config = [CONF_NUM_ATTEMPTS, CONF_REBOOT_TIMEOUT]
+    if any(config_option in config for config_option in safe_mode_config) and \
+            not config[CONF_SAFE_MODE]:
+        raise cv.Invalid(f"Cannot have {CONF_NUM_ATTEMPTS} or {CONF_REBOOT_TIMEOUT} "
+                         f"without safe mode enabled!")
+    if config[CONF_REBOOT_TIMEOUT].total_milliseconds > 4294967295:
+        raise cv.Invalid("Cannot have a reboot timeout that long")
+    return config
+
+
+CONFIG_SCHEMA = cv.All(cv.Schema({
     cv.GenerateID(): cv.declare_id(OTAComponent),
     cv.Optional(CONF_SAFE_MODE, default=True): cv.boolean,
     cv.SplitDefault(CONF_PORT, esp8266=8266, esp32=3232): cv.port,
     cv.Optional(CONF_PASSWORD, default=''): cv.string,
     cv.Optional(CONF_REBOOT_TIMEOUT, default='5min'): cv.positive_time_period_milliseconds,
-    cv.Optional(CONF_NUM_ATTEMPTS, default='10'): cv.positive_not_null_int
-}).extend(cv.COMPONENT_SCHEMA)
+    cv.Optional(CONF_NUM_ATTEMPTS, default='10'): cv.uint8_t
+}).extend(cv.COMPONENT_SCHEMA), validate)
 
 
 @coroutine_with_priority(50.0)
