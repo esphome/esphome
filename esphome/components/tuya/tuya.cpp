@@ -281,8 +281,7 @@ void Tuya::handle_datapoint_(const uint8_t *buffer, size_t len) {
     case TuyaDatapointType::INTEGER:
       if (data_len != 4)
         return;
-      datapoint.value_uint =
-          (uint32_t(data[0]) << 24) | (uint32_t(data[1]) << 16) | (uint32_t(data[2]) << 8) | (uint32_t(data[3]) << 0);
+      datapoint.value_uint = encode_uint32(data[0], data[1], data[2], data[3]);
       break;
     case TuyaDatapointType::ENUM:
       if (data_len != 1)
