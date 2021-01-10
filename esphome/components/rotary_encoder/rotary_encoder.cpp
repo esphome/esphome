@@ -153,9 +153,9 @@ void RotaryEncoderSensor::loop() {
 
   for (int i = 0; i < direction_count; ++i) {
     if (direction_vector[i] /* == true */) {
-      this->store_.on_clockwise_callback_.call();
+      this->on_clockwise_callback_.call();
     } else {
-      this->store_.on_anticlockwise_callback_.call();
+      this->on_anticlockwise_callback_.call();
     }
   }
 
