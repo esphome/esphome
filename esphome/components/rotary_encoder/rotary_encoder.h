@@ -1,6 +1,6 @@
 #pragma once
 
-#include <bitset>
+#include <array>
 
 #include "esphome/core/component.h"
 #include "esphome/core/esphal.h"
@@ -29,8 +29,8 @@ struct RotaryEncoderSensorStore {
   int32_t last_read{0};
   uint8_t state{0};
 
-  std::bitset<128> direction_vector;
-  volatile uint8_t direction_count;
+  std::array<int8_t, 8> rotation_events{};
+  bool rotation_events_overflow{false};
 
   static void gpio_intr(RotaryEncoderSensorStore *arg);
 };
