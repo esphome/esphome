@@ -2,6 +2,7 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/automation.h"
 #include <stdlib.h>
 #include <time.h>
 #include <bitset>
@@ -131,6 +132,15 @@ class RealTimeClock : public Component {
   void synchronize_epoch_(uint32_t epoch);
 
   std::string timezone_{};
+};
+
+template<typename... Ts> class TimeHasTimeCondition : public Condition<Ts...> {
+ public:
+  TimeHasTimeCondition(RealTimeClock *parent) : parent_(parent) {}
+  bool check(Ts... x) override { return this->parent_->now().is_valid(); }
+
+ protected:
+  RealTimeClock *parent_;
 };
 
 }  // namespace time

@@ -1,11 +1,11 @@
 pylint==2.6.0
-flake8==3.8.3
+flake8==3.8.4
 pillow>4.0.0
 cryptography>=2.0.0,<4
 pexpect==4.8.0
 
 # Unit tests
-pytest==6.0.2
+pytest==6.2.1
 pytest-cov==2.10.1
 pytest-mock==3.3.1
 asyncmock==0.4.2

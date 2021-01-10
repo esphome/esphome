@@ -132,6 +132,8 @@ uint32_t reverse_bits_32(uint32_t x);
 uint16_t encode_uint16(uint8_t msb, uint8_t lsb);
 /// Decode a 16-bit unsigned integer into an array of two values: most significant byte, least significant byte.
 std::array<uint8_t, 2> decode_uint16(uint16_t value);
+/// Encode a 32-bit unsigned integer given four bytes in MSB -> LSB order
+uint32_t encode_uint32(uint8_t msb, uint8_t byte2, uint8_t byte3, uint8_t lsb);
 
 /***
  * An interrupt helper class.
