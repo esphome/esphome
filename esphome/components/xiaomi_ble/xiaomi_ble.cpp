@@ -70,8 +70,7 @@ bool parse_xiaomi_value(uint8_t value_type, const uint8_t *data, uint8_t value_l
   }
   // idle time since last motion, 4 byte, 32-bit unsigned integer, 1 min
   else if ((value_type == 0x17) && (value_length == 4)) {
-    const uint32_t idle_time =
-        uint32_t(data[0]) | (uint32_t(data[1]) << 8) | (uint32_t(data[2]) << 16) | (uint32_t(data[2]) << 24);
+    const uint32_t idle_time = encode_uint32(data[3], data[2], data[1], data[0]);
     result.idle_time = idle_time / 60.0f;
     result.has_motion = (idle_time) ? false : true;
   } else {
