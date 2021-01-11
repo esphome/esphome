@@ -1,5 +1,7 @@
 import re
 
+from voluptuous import Range
+
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
@@ -12,7 +14,7 @@ from esphome.const import CONF_AVAILABILITY, CONF_BIRTH_MESSAGE, CONF_BROKER, CO
     CONF_QOS, CONF_REBOOT_TIMEOUT, CONF_RETAIN, CONF_SHUTDOWN_MESSAGE, CONF_SSL_FINGERPRINTS, \
     CONF_STATE_TOPIC, CONF_TOPIC, CONF_TOPIC_PREFIX, CONF_TRIGGER_ID, CONF_USERNAME, \
     CONF_WILL_MESSAGE
-from esphome.core import coroutine_with_priority, coroutine, CORE
+from esphome.core import coroutine_with_priority, coroutine, CORE, TimePeriod
 
 DEPENDENCIES = ['network']
 AUTO_LOAD = ['json', 'async_tcp']
@@ -120,7 +122,9 @@ CONFIG_SCHEMA = cv.All(cv.Schema({
 
     cv.Optional(CONF_SSL_FINGERPRINTS): cv.All(cv.only_on_esp8266,
                                                cv.ensure_list(validate_fingerprint)),
-    cv.Optional(CONF_KEEPALIVE, default='15s'): cv.positive_time_period_seconds,
+    cv.Optional(CONF_KEEPALIVE, default='15s'): cv.All(
+        cv.positive_time_period_seconds,
+        Range(max=TimePeriod(seconds=65535))),
     cv.Optional(CONF_REBOOT_TIMEOUT, default='15min'): cv.positive_time_period_milliseconds,
     cv.Optional(CONF_ON_MESSAGE): automation.validate_automation({
         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(MQTTMessageTrigger),
