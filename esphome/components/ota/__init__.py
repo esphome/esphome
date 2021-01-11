@@ -29,7 +29,7 @@ CONFIG_SCHEMA = cv.All(cv.Schema({
     cv.Optional(CONF_PASSWORD, default=''): cv.string,
     cv.Optional(CONF_REBOOT_TIMEOUT, default='5min'): cv.All(
         cv.positive_time_period_milliseconds,
-        cv.Range(max=TimePeriod(milliseconds=4294967295)),
+        cv.Range(max=TimePeriod(milliseconds=4294967294)),
     ),
     cv.Optional(CONF_NUM_ATTEMPTS, default='10'): cv.uint8_t
 }).extend(cv.COMPONENT_SCHEMA), validate)
