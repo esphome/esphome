@@ -512,7 +512,8 @@ def update_interval(value):
 
 
 time_period = Any(time_period_str_unit, time_period_str_colon, time_period_dict)
-positive_time_period = All(time_period, Range(min=TimePeriod()))
+positive_time_period = All(time_period, Range(min=TimePeriod(), max=TimePeriod(4294967295),
+                                              max_included=False)) # 4294967295 means 'never'
 positive_time_period_milliseconds = All(positive_time_period, time_period_in_milliseconds_)
 positive_time_period_seconds = All(positive_time_period, time_period_in_seconds_)
 positive_time_period_minutes = All(positive_time_period, time_period_in_minutes_)
