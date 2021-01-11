@@ -512,15 +512,34 @@ def update_interval(value):
 
 
 time_period = Any(time_period_str_unit, time_period_str_colon, time_period_dict)
-positive_time_period = All(time_period, Range(min=TimePeriod(), max=TimePeriod(4294967295),
-                                              max_included=False))  # 4294967295 means 'never'
-positive_time_period_milliseconds = All(positive_time_period, time_period_in_milliseconds_)
-positive_time_period_seconds = All(positive_time_period, time_period_in_seconds_)
-positive_time_period_minutes = All(positive_time_period, time_period_in_minutes_)
-time_period_microseconds = All(time_period, time_period_in_microseconds_)
-positive_time_period_microseconds = All(positive_time_period, time_period_in_microseconds_)
-positive_not_null_time_period = All(time_period,
-                                    Range(min=TimePeriod(), min_included=False))
+positive_time_period = All(
+    time_period,
+    Range(min=TimePeriod()))
+positive_time_period_milliseconds = All(
+    positive_time_period,
+    Range(max=TimePeriod(milliseconds=4294967295),
+          max_included=False),  # 4294967295ms means 'never'
+    time_period_in_milliseconds_)
+positive_time_period_seconds = All(
+    positive_time_period,
+    Range(max=TimePeriod(seconds=4294967295)),
+    time_period_in_seconds_)
+positive_time_period_minutes = All(
+    positive_time_period,
+    Range(max=TimePeriod(minutes=4294967295)),
+    time_period_in_minutes_)
+time_period_microseconds = All(
+    time_period,
+    Range(min=TimePeriod(microseconds=-2147483648),
+          max=TimePeriod(microseconds=2147483647)),
+    time_period_in_microseconds_)
+positive_time_period_microseconds = All(
+    positive_time_period,
+    Range(max=TimePeriod(microseconds=4294967295)),
+    time_period_in_microseconds_)
+positive_not_null_time_period = All(
+    time_period,
+    Range(min=TimePeriod(), min_included=False))
 
 
 def time_of_day(value):
