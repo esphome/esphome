@@ -154,7 +154,7 @@ ota:
   safe_mode: True
   password: 'superlongpasswordthatnoonewillknow'
   port: 3286
-  reboot_timeout: 2min
+  reboot_timeout: 4294967296ms
   num_attempts: 5
 
 logger:
