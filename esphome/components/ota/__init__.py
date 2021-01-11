@@ -27,8 +27,10 @@ CONFIG_SCHEMA = cv.All(cv.Schema({
     cv.Optional(CONF_SAFE_MODE, default=True): cv.boolean,
     cv.SplitDefault(CONF_PORT, esp8266=8266, esp32=3232): cv.port,
     cv.Optional(CONF_PASSWORD, default=''): cv.string,
-    cv.Optional(CONF_REBOOT_TIMEOUT, default='5min'):
-      cv.All(cv.positive_time_period_milliseconds, cv.Range(max=TimePeriod(milliseconds=4294967295))),
+    cv.Optional(CONF_REBOOT_TIMEOUT, default='5min'): cv.All(
+        cv.positive_time_period_milliseconds,
+        cv.Range(max=TimePeriod(milliseconds=4294967295)),
+    ),
     cv.Optional(CONF_NUM_ATTEMPTS, default='10'): cv.uint8_t
 }).extend(cv.COMPONENT_SCHEMA), validate)
 
