@@ -4,7 +4,7 @@ from esphome import pins
 from esphome.components import remote_base
 from esphome.const import CONF_BUFFER_SIZE, CONF_DUMP, CONF_FILTER, CONF_ID, CONF_IDLE, \
     CONF_PIN, CONF_TOLERANCE, CONF_MEMORY_BLOCKS
-from esphome.core import CORE
+from esphome.core import CORE, TimePeriod
 
 AUTO_LOAD = ['remote_base']
 remote_receiver_ns = cg.esphome_ns.namespace('remote_receiver')
@@ -20,7 +20,9 @@ CONFIG_SCHEMA = remote_base.validate_triggers(cv.Schema({
     cv.Optional(CONF_DUMP, default=[]): remote_base.validate_dumpers,
     cv.Optional(CONF_TOLERANCE, default=25): cv.All(cv.percentage_int, cv.Range(min=0)),
     cv.SplitDefault(CONF_BUFFER_SIZE, esp32='10000b', esp8266='1000b'): cv.validate_bytes,
-    cv.Optional(CONF_FILTER, default='50us'): cv.positive_time_period_microseconds,
+    cv.Optional(CONF_FILTER, default='50us'): cv.All(
+        cv.positive_time_period_microseconds,
+        cv.Range(max=TimePeriod(microseconds=255))),
     cv.Optional(CONF_IDLE, default='10ms'): cv.positive_time_period_microseconds,
     cv.Optional(CONF_MEMORY_BLOCKS, default=3): cv.Range(min=1, max=8),
 }).extend(cv.COMPONENT_SCHEMA))
