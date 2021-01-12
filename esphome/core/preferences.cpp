@@ -1,17 +1,7 @@
-#include "esphome/core/preferences.h"
+#include "preferences.h"
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/application.h"
-
-#ifdef ARDUINO_ARCH_ESP8266
-extern "C" {
-#include "spi_flash.h"
-}
-#endif
-#ifdef ARDUINO_ARCH_ESP32
-#include "nvs.h"
-#include "nvs_flash.h"
-#endif
 
 namespace esphome {
 
@@ -52,12 +42,69 @@ bool ESPPreferenceObject::save_() {
   return true;
 }
 
+ESPPreferences::ESPPreferences()
+    // offset starts from start of user RTC mem (64 words before that are reserved for system),
+    // an additional 32 words at the start of user RTC are for eboot (OTA, see eboot_command.h),
+    // which will be reset each time OTA occurs
+    : current_offset_(0) {}
+
+uint32_t ESPPreferenceObject::calculate_crc_() const {
+  uint32_t crc = this->type_;
+  for (size_t i = 0; i < this->length_words_; i++) {
+    crc ^= (this->data_[i] * 2654435769UL) >> 1;
+  }
+  return crc;
+}
+bool ESPPreferenceObject::is_initialized() const { return this->data_ != nullptr; }
+
 #ifdef ARDUINO_ARCH_ESP8266
+extern "C" {
+#include "spi_flash.h"
+}
 
 static const uint32_t ESP_RTC_USER_MEM_START = 0x60001200;
 #define ESP_RTC_USER_MEM ((uint32_t *) ESP_RTC_USER_MEM_START)
 static const uint32_t ESP_RTC_USER_MEM_SIZE_WORDS = 128;
 static const uint32_t ESP_RTC_USER_MEM_SIZE_BYTES = ESP_RTC_USER_MEM_SIZE_WORDS * 4;
+
+class ESP8266PreferenceObject : public ESPPreferenceObject {
+ public:
+  ESP8266PreferenceObject(size_t offset, size_t length, uint32_t type) : ESPPreferenceObject(offset, length, type){};
+
+ protected:
+  friend class ESP8266Preferences;
+
+  bool save_internal_() override;
+  bool load_internal_() override;
+
+  bool in_flash_{false};
+};
+
+class ESP8266Preferences : public ESPPreferences {
+ public:
+  void begin() override;
+  /** On the ESP8266, we can't override the first 128 bytes during OTA uploads
+   * as the eboot parameters are stored there. Writing there during an OTA upload
+   * would invalidate applying the new firmware. During normal operation, we use
+   * this part of the RTC user memory, but stop writing to it during OTA uploads.
+   *
+   * @param prevent Whether to prevent writing to the first 32 words of RTC user memory.
+   */
+  ESPPreferenceObject make_preference(size_t length, uint32_t type, bool in_flash = DEFAULT_IN_FLASH) override;
+  void prevent_write(bool prevent) override;
+  bool is_prevent_write() override;
+
+ protected:
+  friend ESP8266PreferenceObject;
+
+  void save_esp8266_flash_();
+  bool prevent_write_{false};
+  uint32_t *flash_storage_;
+  uint32_t current_flash_offset_;
+};
+
+ESP8266Preferences global_esp8266_preferences;
+ESPPreferences &global_preferences = global_esp8266_preferences;
 
 #ifdef USE_ESP8266_PREFERENCES_FLASH
 static const uint32_t ESP8266_FLASH_STORAGE_SIZE = 128;
@@ -79,7 +126,7 @@ static inline bool esp_rtc_user_mem_write(uint32_t index, uint32_t value) {
   if (index >= ESP_RTC_USER_MEM_SIZE_WORDS) {
     return false;
   }
-  if (index < 32 && global_preferences.is_prevent_write()) {
+  if (index < 32 && global_esp8266_preferences.is_prevent_write()) {
     return false;
   }
 
@@ -100,7 +147,7 @@ static const uint32_t get_esp8266_flash_sector() {
 }
 static const uint32_t get_esp8266_flash_address() { return get_esp8266_flash_sector() * SPI_FLASH_SEC_SIZE; }
 
-void ESPPreferences::save_esp8266_flash_() {
+void ESP8266Preferences::save_esp8266_flash_() {
   if (!esp8266_flash_dirty)
     return;
 
@@ -125,19 +172,19 @@ void ESPPreferences::save_esp8266_flash_() {
   esp8266_flash_dirty = false;
 }
 
-bool ESPPreferenceObject::save_internal_() {
+bool ESP8266PreferenceObject::save_internal_() {
   if (this->in_flash_) {
     for (uint32_t i = 0; i <= this->length_words_; i++) {
       uint32_t j = this->offset_ + i;
       if (j >= ESP8266_FLASH_STORAGE_SIZE)
         return false;
       uint32_t v = this->data_[i];
-      uint32_t *ptr = &global_preferences.flash_storage_[j];
+      uint32_t *ptr = &global_esp8266_preferences.flash_storage_[j];
       if (*ptr != v)
         esp8266_flash_dirty = true;
       *ptr = v;
     }
-    global_preferences.save_esp8266_flash_();
+    global_esp8266_preferences.save_esp8266_flash_();
     return true;
   }
 
@@ -148,13 +195,13 @@ bool ESPPreferenceObject::save_internal_() {
 
   return true;
 }
-bool ESPPreferenceObject::load_internal_() {
+bool ESP8266PreferenceObject::load_internal_() {
   if (this->in_flash_) {
     for (uint32_t i = 0; i <= this->length_words_; i++) {
       uint32_t j = this->offset_ + i;
       if (j >= ESP8266_FLASH_STORAGE_SIZE)
         return false;
-      this->data_[i] = global_preferences.flash_storage_[j];
+      this->data_[i] = global_esp8266_preferences.flash_storage_[j];
     }
 
     return true;
@@ -166,13 +213,8 @@ bool ESPPreferenceObject::load_internal_() {
   }
   return true;
 }
-ESPPreferences::ESPPreferences()
-    // offset starts from start of user RTC mem (64 words before that are reserved for system),
-    // an additional 32 words at the start of user RTC are for eboot (OTA, see eboot_command.h),
-    // which will be reset each time OTA occurs
-    : current_offset_(0) {}
 
-void ESPPreferences::begin() {
+void ESP8266Preferences::begin() {
   this->flash_storage_ = new uint32_t[ESP8266_FLASH_STORAGE_SIZE];
   ESP_LOGVV(TAG, "Loading preferences from flash...");
 
@@ -182,13 +224,13 @@ void ESPPreferences::begin() {
   }
 }
 
-ESPPreferenceObject ESPPreferences::make_preference(size_t length, uint32_t type, bool in_flash) {
+ESPPreferenceObject ESP8266Preferences::make_preference(size_t length, uint32_t type, bool in_flash) {
   if (in_flash) {
     uint32_t start = this->current_flash_offset_;
     uint32_t end = start + length + 1;
     if (end > ESP8266_FLASH_STORAGE_SIZE)
       return {};
-    auto pref = ESPPreferenceObject(start, length, type);
+    auto pref = ESP8266PreferenceObject(start, length, type);
     pref.in_flash_ = true;
     this->current_flash_offset_ = end;
     return pref;
@@ -218,36 +260,64 @@ ESPPreferenceObject ESPPreferences::make_preference(size_t length, uint32_t type
     rtc_offset = start - 96;
   }
 
-  auto pref = ESPPreferenceObject(rtc_offset, length, type);
+  auto pref = ESP8266PreferenceObject(rtc_offset, length, type);
   this->current_offset_ += length + 1;
   return pref;
 }
-void ESPPreferences::prevent_write(bool prevent) { this->prevent_write_ = prevent; }
-bool ESPPreferences::is_prevent_write() { return this->prevent_write_; }
+void ESP8266Preferences::prevent_write(bool prevent) { this->prevent_write_ = prevent; }
+bool ESP8266Preferences::is_prevent_write() { return this->prevent_write_; }
 #endif
 
 #ifdef ARDUINO_ARCH_ESP32
-bool ESPPreferenceObject::save_internal_() {
-  if (global_preferences.nvs_handle_ == 0)
+#include "nvs.h"
+#include "nvs_flash.h"
+
+class ESP32PreferenceObject : public ESPPreferenceObject {
+ public:
+  ESP32PreferenceObject(size_t offset, size_t length, uint32_t type) : ESPPreferenceObject(offset, length, type){};
+
+ protected:
+  friend class ESP32Preferences;
+
+  bool save_internal_() override;
+  bool load_internal_() override;
+};
+
+class ESP32Preferences : public ESPPreferences {
+ public:
+  void begin() override;
+  ESPPreferenceObject make_preference(size_t length, uint32_t type, bool in_flash = DEFAULT_IN_FLASH) override;
+
+ protected:
+  friend ESP32PreferenceObject;
+
+  uint32_t nvs_handle_;
+};
+
+ESP32Preferences global_esp32_preferences;
+ESPPreferences &global_preferences = global_esp32_preferences;
+
+bool ESP32PreferenceObject::save_internal_() {
+  if (global_esp32_preferences.nvs_handle_ == 0)
     return false;
 
   char key[32];
   sprintf(key, "%u", this->offset_);
   uint32_t len = (this->length_words_ + 1) * 4;
-  esp_err_t err = nvs_set_blob(global_preferences.nvs_handle_, key, this->data_, len);
+  esp_err_t err = nvs_set_blob(global_esp32_preferences.nvs_handle_, key, this->data_, len);
   if (err) {
     ESP_LOGV(TAG, "nvs_set_blob('%s', len=%u) failed: %s", key, len, esp_err_to_name(err));
     return false;
   }
-  err = nvs_commit(global_preferences.nvs_handle_);
+  err = nvs_commit(global_esp32_preferences.nvs_handle_);
   if (err) {
     ESP_LOGV(TAG, "nvs_commit('%s', len=%u) failed: %s", key, len, esp_err_to_name(err));
     return false;
   }
   return true;
 }
-bool ESPPreferenceObject::load_internal_() {
-  if (global_preferences.nvs_handle_ == 0)
+bool ESP32PreferenceObject::load_internal_() {
+  if (global_esp32_preferences.nvs_handle_ == 0)
     return false;
 
   char key[32];
@@ -255,7 +325,7 @@ bool ESPPreferenceObject::load_internal_() {
   uint32_t len = (this->length_words_ + 1) * 4;
 
   uint32_t actual_len;
-  esp_err_t err = nvs_get_blob(global_preferences.nvs_handle_, key, nullptr, &actual_len);
+  esp_err_t err = nvs_get_blob(global_esp32_preferences.nvs_handle_, key, nullptr, &actual_len);
   if (err) {
     ESP_LOGV(TAG, "nvs_get_blob('%s'): %s - the key might not be set yet", key, esp_err_to_name(err));
     return false;
@@ -264,15 +334,15 @@ bool ESPPreferenceObject::load_internal_() {
     ESP_LOGVV(TAG, "NVS length does not match. Assuming key changed (%u!=%u)", actual_len, len);
     return false;
   }
-  err = nvs_get_blob(global_preferences.nvs_handle_, key, this->data_, &len);
+  err = nvs_get_blob(global_esp32_preferences.nvs_handle_, key, this->data_, &len);
   if (err) {
     ESP_LOGV(TAG, "nvs_get_blob('%s') failed: %s", key, esp_err_to_name(err));
     return false;
   }
   return true;
 }
-ESPPreferences::ESPPreferences() : current_offset_(0) {}
-void ESPPreferences::begin() {
+
+void ESP32Preferences::begin() {
   auto ns = truncate_string(App.get_name(), 15);
   esp_err_t err = nvs_open(ns.c_str(), NVS_READWRITE, &this->nvs_handle_);
   if (err) {
@@ -288,21 +358,10 @@ void ESPPreferences::begin() {
   }
 }
 
-ESPPreferenceObject ESPPreferences::make_preference(size_t length, uint32_t type, bool in_flash) {
-  auto pref = ESPPreferenceObject(this->current_offset_, length, type);
+ESPPreferenceObject ESP32Preferences::make_preference(size_t length, uint32_t type, bool in_flash) {
+  auto pref = ESP32PreferenceObject(this->current_offset_, length, type);
   this->current_offset_++;
   return pref;
 }
 #endif
-uint32_t ESPPreferenceObject::calculate_crc_() const {
-  uint32_t crc = this->type_;
-  for (size_t i = 0; i < this->length_words_; i++) {
-    crc ^= (this->data_[i] * 2654435769UL) >> 1;
-  }
-  return crc;
-}
-bool ESPPreferenceObject::is_initialized() const { return this->data_ != nullptr; }
-
-ESPPreferences global_preferences;
-
 }  // namespace esphome

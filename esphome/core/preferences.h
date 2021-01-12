@@ -1,7 +1,5 @@
 #pragma once
 
-#include <string>
-
 #include "esphome/core/esphal.h"
 #include "esphome/core/defines.h"
 
@@ -10,7 +8,7 @@ namespace esphome {
 class ESPPreferenceObject {
  public:
   ESPPreferenceObject();
-  ESPPreferenceObject(size_t offset, size_t length, uint32_t type);
+  virtual ~ESPPreferenceObject() = default;
 
   template<typename T> bool save(T *src);
 
@@ -19,12 +17,12 @@ class ESPPreferenceObject {
   bool is_initialized() const;
 
  protected:
-  friend class ESPPreferences;
+  ESPPreferenceObject(size_t offset, size_t length, uint32_t type);
 
   bool save_();
   bool load_();
-  bool save_internal_();
-  bool load_internal_();
+  virtual bool save_internal_() { return false; }
+  virtual bool load_internal_() { return false; }
 
   uint32_t calculate_crc_() const;
 
@@ -32,58 +30,31 @@ class ESPPreferenceObject {
   size_t length_words_;
   uint32_t type_;
   uint32_t *data_;
-#ifdef ARDUINO_ARCH_ESP8266
-  bool in_flash_{false};
-#endif
 };
 
-#ifdef ARDUINO_ARCH_ESP8266
 #ifdef USE_ESP8266_PREFERENCES_FLASH
 static bool DEFAULT_IN_FLASH = true;
 #else
 static bool DEFAULT_IN_FLASH = false;
 #endif
-#endif
-
-#ifdef ARDUINO_ARCH_ESP32
-static bool DEFAULT_IN_FLASH = true;
-#endif
 
 class ESPPreferences {
  public:
   ESPPreferences();
-  void begin();
-  ESPPreferenceObject make_preference(size_t length, uint32_t type, bool in_flash = DEFAULT_IN_FLASH);
+  virtual ~ESPPreferences() = default;
+
+  virtual void begin() = 0;
+  virtual ESPPreferenceObject make_preference(size_t length, uint32_t type, bool in_flash = DEFAULT_IN_FLASH) = 0;
   template<typename T> ESPPreferenceObject make_preference(uint32_t type, bool in_flash = DEFAULT_IN_FLASH);
 
-#ifdef ARDUINO_ARCH_ESP8266
-  /** On the ESP8266, we can't override the first 128 bytes during OTA uploads
-   * as the eboot parameters are stored there. Writing there during an OTA upload
-   * would invalidate applying the new firmware. During normal operation, we use
-   * this part of the RTC user memory, but stop writing to it during OTA uploads.
-   *
-   * @param prevent Whether to prevent writing to the first 32 words of RTC user memory.
-   */
-  void prevent_write(bool prevent);
-  bool is_prevent_write();
-#endif
+  virtual void prevent_write(bool) {}
+  virtual bool is_prevent_write() { return false; }
 
  protected:
-  friend ESPPreferenceObject;
-
   uint32_t current_offset_;
-#ifdef ARDUINO_ARCH_ESP32
-  uint32_t nvs_handle_;
-#endif
-#ifdef ARDUINO_ARCH_ESP8266
-  void save_esp8266_flash_();
-  bool prevent_write_{false};
-  uint32_t *flash_storage_;
-  uint32_t current_flash_offset_;
-#endif
 };
 
-extern ESPPreferences global_preferences;
+extern ESPPreferences &global_preferences;
 
 template<typename T> ESPPreferenceObject ESPPreferences::make_preference(uint32_t type, bool in_flash) {
   return this->make_preference((sizeof(T) + 3) / 4, type, in_flash);
