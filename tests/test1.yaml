@@ -1847,16 +1847,14 @@ time:
       seconds: 0
       minutes: /15
       then:
-        ds1307.write:
+        ds1307.write_time:
           id: ds1307_time
   - platform: ds1307
     id: ds1307_time
     on_time:
       seconds: 0
       then:
-          ds1307.read
-
-
+        ds1307.read_time
 
 cover:
   - platform: template
