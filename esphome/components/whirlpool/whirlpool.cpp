@@ -105,7 +105,7 @@ void WhirlpoolClimate::transmit_state() {
   }
 
   // Checksum
-  for (uint8_t i = 2; i < 12; i++)
+  for (uint8_t i = 2; i < 13; i++)
     remote_state[13] ^= remote_state[i];
   for (uint8_t i = 14; i < 20; i++)
     remote_state[20] ^= remote_state[i];
