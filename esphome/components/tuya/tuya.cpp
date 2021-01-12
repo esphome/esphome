@@ -160,7 +160,7 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
       }
       if (this->init_state_ == TuyaInitState::INIT_CONF) {
         // If mcu returned status gpio, then we can ommit sending wifi state
-        if (this->gpio_status_ != 0) {
+        if (this->gpio_status_ != -1) {
           this->init_state_ = TuyaInitState::INIT_DATAPOINT;
           this->schedule_empty_command_(TuyaCommandType::DATAPOINT_QUERY);
         } else {
@@ -256,6 +256,14 @@ void Tuya::handle_datapoint_(const uint8_t *buffer, size_t len) {
   datapoint.type = (TuyaDatapointType) buffer[1];
   datapoint.value_uint = 0;
 
+  // drop update if datapoint is in ignore_mcu_datapoint_update list
+  for (auto i : this->ignore_mcu_update_on_datapoints_) {
+    if (datapoint.id == i) {
+      ESP_LOGV(TAG, "Datapoint %u found in ignore_mcu_update_on_datapoints list, dropping MCU update", datapoint.id);
+      return;
+    }
+  }
+
   size_t data_size = (buffer[2] << 8) + buffer[3];
   const uint8_t *data = buffer + 4;
   size_t data_len = len - 4;
@@ -273,8 +281,7 @@ void Tuya::handle_datapoint_(const uint8_t *buffer, size_t len) {
     case TuyaDatapointType::INTEGER:
       if (data_len != 4)
         return;
-      datapoint.value_uint =
-          (uint32_t(data[0]) << 24) | (uint32_t(data[1]) << 16) | (uint32_t(data[2]) << 8) | (uint32_t(data[3]) << 0);
+      datapoint.value_uint = encode_uint32(data[0], data[1], data[2], data[3]);
       break;
     case TuyaDatapointType::ENUM:
       if (data_len != 1)
