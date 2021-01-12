@@ -8,11 +8,28 @@ AUTO_LOAD = ['climate_ir']
 climate_ir_lg_ns = cg.esphome_ns.namespace('climate_ir_lg')
 LgIrClimate = climate_ir_lg_ns.class_('LgIrClimate', climate_ir.ClimateIR)
 
+CONF_CLIMATE_IR_LG_HEADER_HIGH = 'header_high'
+CONF_CLIMATE_IR_LG_HEADER_LOW = 'header_low'
+CONF_CLIMATE_IR_LG_BIT_HIGH = 'bit_high'
+CONF_CLIMATE_IR_LG_BIT_ONE_LOW = 'bit_one_low'
+CONF_CLIMATE_IR_LG_BIT_ZERO_LOW = 'bit_zero_low'
+
 CONFIG_SCHEMA = climate_ir.CLIMATE_IR_WITH_RECEIVER_SCHEMA.extend({
     cv.GenerateID(): cv.declare_id(LgIrClimate),
+    cv.Optional(CONF_CLIMATE_IR_LG_HEADER_HIGH, default = 8000): cv.int_,
+    cv.Optional(CONF_CLIMATE_IR_LG_HEADER_LOW, default = 4000): cv.int_,
+    cv.Optional(CONF_CLIMATE_IR_LG_BIT_HIGH, default = 600): cv.int_,
+    cv.Optional(CONF_CLIMATE_IR_LG_BIT_ONE_LOW, default = 1600): cv.int_,
+    cv.Optional(CONF_CLIMATE_IR_LG_BIT_ZERO_LOW, default = 550): cv.int_,
 })
 
 
 def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     yield climate_ir.register_climate_ir(var, config)
+
+    cg.add(var.set_header_high(config[CONF_CLIMATE_IR_LG_HEADER_HIGH]))
+    cg.add(var.set_header_low(config[CONF_CLIMATE_IR_LG_HEADER_LOW]))
+    cg.add(var.set_bit_high(config[CONF_CLIMATE_IR_LG_BIT_HIGH]))
+    cg.add(var.set_bit_one_low(config[CONF_CLIMATE_IR_LG_BIT_ONE_LOW]))
+    cg.add(var.set_bit_zero_low(config[CONF_CLIMATE_IR_LG_BIT_ZERO_LOW]))
