@@ -42,6 +42,7 @@ void SNTPComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "  Server 3: '%s'", this->server_3_.c_str());
   ESP_LOGCONFIG(TAG, "  Timezone: '%s'", this->timezone_.c_str());
 }
+void SNTPComponent::update() {}
 void SNTPComponent::loop() {
   if (this->has_time_)
     return;

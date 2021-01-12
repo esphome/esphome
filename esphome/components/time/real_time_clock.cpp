@@ -15,7 +15,7 @@ RealTimeClock::RealTimeClock() = default;
 void RealTimeClock::call_setup() {
   setenv("TZ", this->timezone_.c_str(), 1);
   tzset();
-  this->setup();
+  PollingComponent::call_setup();
 }
 void RealTimeClock::synchronize_epoch_(uint32_t epoch) {
   struct timeval timev {
