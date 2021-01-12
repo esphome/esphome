@@ -6,7 +6,7 @@ esphome:
   platform: ESP32
   board: nodemcu-32s
   on_boot:
-    priority: 150.0
+    priority: 15git checkout epever0.0
     then:
       - lambda: >-
           ESP_LOGD("main", "ON BOOT!");
