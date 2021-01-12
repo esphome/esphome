@@ -1,27 +1,14 @@
-/**
- * Library based on https://github.com/miguelbalboa/rfid
- * and adapted to ESPHome by @glmnet
- *
- * original authors Dr.Leong, Miguel Balboa, Søren Thing Andersen, Tom Clement, many more! See GitLog.
- *
- *
- */
-
 #pragma once
 
 #include "esphome/core/component.h"
 #include "esphome/components/rc522/rc522.h"
-#include "esphome/components/spi/spi.h"
+#include "esphome/components/i2c/i2c.h"
 
 namespace esphome {
-namespace rc522_spi {
+namespace rc522_i2c {
 
-class RC522Spi : public rc522::RC522,
-                 public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
-                                       spi::DATA_RATE_4MHZ> {
+class RC522I2C : public rc522::RC522, public i2c::I2CDevice {
  public:
-  void setup() override;
-
   void dump_config() override;
 
  protected:
@@ -51,5 +38,5 @@ class RC522Spi : public rc522::RC522,
                           ) override;
 };
 
-}  // namespace rc522_spi
+}  // namespace rc522_i2c
 }  // namespace esphome
