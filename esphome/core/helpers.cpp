@@ -175,12 +175,9 @@ void delay_microseconds_accurate(uint32_t usec) {
   if (usec == 0)
     return;
 
-  if (usec <= 16383UL) {
-    delayMicroseconds(usec);
-  } else {
-    delay(usec / 1000UL);
-    delayMicroseconds(usec % 1000UL);
-  }
+  for (; usec > 16383UL; usec -= 16383UL)
+    delayMicroseconds(16383UL);
+  delayMicroseconds(usec);
 }
 
 uint8_t reverse_bits_8(uint8_t x) {
