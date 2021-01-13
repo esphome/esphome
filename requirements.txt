@@ -1,4 +1,4 @@
-voluptuous==0.12.0
+voluptuous==0.12.1
 PyYAML==5.3.1
 paho-mqtt==1.5.1
 colorama==0.4.4
@@ -10,5 +10,5 @@ pytz==2020.5
 pyserial==3.5
 ifaddr==0.1.7
 platformio==5.0.4
-esptool==3.0
+esptool==2.8
 click==7.1.2

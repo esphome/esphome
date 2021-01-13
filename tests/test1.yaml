@@ -201,7 +201,7 @@ mcp23s08:
   - id: 'mcp23s08_hub'
     cs_pin: GPIO12
     deviceaddress: 0
-    
+
 mcp23s17:
   - id: 'mcp23s17_hub'
     cs_pin: GPIO12
@@ -813,7 +813,7 @@ esp32_touch:
 
 binary_sensor:
   - platform: gpio
-    name: "MCP23S08 Pin #1"
+    name: 'MCP23S08 Pin #1'
     pin:
       mcp23s08: mcp23s08_hub
       # Use pin number 1
@@ -822,7 +822,7 @@ binary_sensor:
       mode: INPUT_PULLUP
       inverted: False
   - platform: gpio
-    name: "MCP23S17 Pin #1"
+    name: 'MCP23S17 Pin #1'
     pin:
       mcp23s17: mcp23s17_hub
       # Use pin number 1
@@ -1391,7 +1391,7 @@ climate:
 
 switch:
   - platform: gpio
-    name: "MCP23S08 Pin #0"
+    name: 'MCP23S08 Pin #0'
     pin:
       mcp23s08: mcp23s08_hub
       # Use pin number 0
@@ -1399,7 +1399,7 @@ switch:
       mode: OUTPUT
       inverted: False
   - platform: gpio
-    name: "MCP23S17 Pin #0"
+    name: 'MCP23S17 Pin #0'
     pin:
       mcp23s17: mcp23s17_hub
       # Use pin number 0
@@ -1823,6 +1823,12 @@ rc522_spi:
     - lambda: |-
         ESP_LOGD("main", "Found tag %s", x.c_str());
 
+rc522_i2c:
+  update_interval: 1s
+  on_tag:
+    - lambda: |-
+        ESP_LOGD("main", "Found tag %s", x.c_str());
+
 gps:
 
 time:
@@ -1843,6 +1849,7 @@ time:
           id: ds1307_time
   - platform: ds1307
     id: ds1307_time
+    update_interval: never
     on_time:
       seconds: 0
       then:
@@ -1929,7 +1936,7 @@ text_sensor:
           value: '0'
       - canbus.send:
           can_id: 23
-          data: [ 0x10, 0x20, 0x30 ]
+          data: [0x10, 0x20, 0x30]
   - platform: template
     name: Template Text Sensor
     id: template_text
@@ -1963,15 +1970,15 @@ canbus:
     can_id: 4
     bit_rate: 50kbps
     on_frame:
-    - can_id: 500
-      then:
-      - lambda: |-
-          std::string b(x.begin(), x.end());
-          ESP_LOGD("canid 500", "%s", &b[0] );
-    - can_id: 23
-      then:
-        - if:
-            condition:
-              lambda: 'return x[0] == 0x11;'
-            then:
-              light.toggle: living_room_lights
+      - can_id: 500
+        then:
+          - lambda: |-
+              std::string b(x.begin(), x.end());
+              ESP_LOGD("canid 500", "%s", &b[0] );
+      - can_id: 23
+        then:
+          - if:
+              condition:
+                lambda: 'return x[0] == 0x11;'
+              then:
+                light.toggle: living_room_lights

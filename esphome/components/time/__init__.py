@@ -22,7 +22,7 @@ CODEOWNERS = ['@OttoWinter']
 IS_PLATFORM_COMPONENT = True
 
 time_ns = cg.esphome_ns.namespace('time')
-RealTimeClock = time_ns.class_('RealTimeClock', cg.Component)
+RealTimeClock = time_ns.class_('RealTimeClock', cg.PollingComponent)
 CronTrigger = time_ns.class_('CronTrigger', automation.Trigger.template(), cg.Component)
 SyncTrigger = time_ns.class_('SyncTrigger', automation.Trigger.template(), cg.Component)
 ESPTime = time_ns.struct('ESPTime')
@@ -298,7 +298,7 @@ TIME_SCHEMA = cv.Schema({
     cv.Optional(CONF_ON_TIME_SYNC): automation.validate_automation({
         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(SyncTrigger),
     }),
-})
+}).extend(cv.polling_component_schema('15min'))
 
 
 @coroutine
