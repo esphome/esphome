@@ -197,6 +197,10 @@ wled:
 
 adalight:
 
+mcp3008:
+  - id: 'mcp3008_hub'
+    cs_pin: GPIO12
+
 mcp23s08:
   - id: 'mcp23s08_hub'
     cs_pin: GPIO12
@@ -206,6 +210,7 @@ mcp23s17:
   - id: 'mcp23s17_hub'
     cs_pin: GPIO12
     deviceaddress: 1
+
 
 sensor:
   - platform: adc
@@ -801,6 +806,12 @@ sensor:
     id: ph_ezo
     address: 99
     unit_of_measurement: 'pH'
+  - platform: mcp3008
+    update_interval: 5s
+    mcp3008_id: 'mcp3008_hub'
+    id: freezer_temp_source
+    reference_voltage: 3.19
+    number: 0
 
 esp32_touch:
   setup_mode: False
