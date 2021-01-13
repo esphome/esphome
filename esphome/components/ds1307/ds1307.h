@@ -10,6 +10,7 @@ namespace ds1307 {
 class DS1307Component : public time::RealTimeClock, public i2c::I2CDevice {
  public:
   void setup() override;
+  void update() override;
   void dump_config() override;
   float get_setup_priority() const override;
   void read_time();

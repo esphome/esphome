@@ -14,8 +14,9 @@ void DS1307Component::setup() {
   if (!this->read_rtc_()) {
     this->mark_failed();
   }
-  this->set_interval(15 * 60 * 1000, [&]() { this->read_time(); });
 }
+
+void DS1307Component::update() { this->read_time(); }
 
 void DS1307Component::dump_config() {
   ESP_LOGCONFIG(TAG, "DS1307:");
