@@ -28,12 +28,6 @@ const uint8_t TEMP_RANGE = TEMP_MAX - TEMP_MIN + 1;
 const uint32_t TEMP_MASK = 0XF00;
 const uint32_t TEMP_SHIFT = 8;
 
-// Constants
-static const uint32_t HEADER_HIGH_US = 8000;
-static const uint32_t HEADER_LOW_US = 4000;
-static const uint32_t BIT_HIGH_US = 600;
-static const uint32_t BIT_ONE_LOW_US = 1600;
-static const uint32_t BIT_ZERO_LOW_US = 550;
 
 const uint16_t BITS = 28;
 
