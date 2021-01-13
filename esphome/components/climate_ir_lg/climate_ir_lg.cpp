@@ -28,7 +28,6 @@ const uint8_t TEMP_RANGE = TEMP_MAX - TEMP_MIN + 1;
 const uint32_t TEMP_MASK = 0XF00;
 const uint32_t TEMP_SHIFT = 8;
 
-
 const uint16_t BITS = 28;
 
 void LgIrClimate::transmit_state() {
