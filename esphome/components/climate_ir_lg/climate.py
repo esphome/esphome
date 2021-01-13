@@ -16,11 +16,11 @@ CONF_BIT_ZERO_LOW = 'bit_zero_low'
 
 CONFIG_SCHEMA = climate_ir.CLIMATE_IR_WITH_RECEIVER_SCHEMA.extend({
     cv.GenerateID(): cv.declare_id(LgIrClimate),
-    cv.Optional(CONF_HEADER_HIGH, default = 8000): cv.int_,
-    cv.Optional(CONF_HEADER_LOW, default = 4000): cv.int_,
-    cv.Optional(CONF_BIT_HIGH, default = 600): cv.int_,
-    cv.Optional(CONF_BIT_ONE_LOW, default = 1600): cv.int_,
-    cv.Optional(CONF_BIT_ZERO_LOW, default = 550): cv.int_,
+    cv.Optional(CONF_HEADER_HIGH, default=8000): cv.int_,
+    cv.Optional(CONF_HEADER_LOW, default=4000): cv.int_,
+    cv.Optional(CONF_BIT_HIGH, default=600): cv.int_,
+    cv.Optional(CONF_BIT_ONE_LOW, default=1600): cv.int_,
+    cv.Optional(CONF_BIT_ZERO_LOW, default=550): cv.int_,
 })
 
 
