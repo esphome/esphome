@@ -23,10 +23,8 @@ class ESP8266PreferenceObject : public ESPPreferenceObject {
  protected:
   friend class ESP8266Preferences;
 
-  bool save_internal_() override;
-  bool load_internal_() override;
-
-  bool in_flash_{false};
+  bool save_internal() override;
+  bool load_internal() override;
 };
 
 class ESP8266Preferences : public ESPPreferences {
@@ -39,7 +37,7 @@ class ESP8266Preferences : public ESPPreferences {
    *
    * @param prevent Whether to prevent writing to the first 32 words of RTC user memory.
    */
-  ESPPreferenceObject make_preference(size_t length, uint32_t type, bool in_flash = DEFAULT_IN_FLASH) override;
+  ESPPreferenceObject make_preference(size_t length, uint32_t type, bool in_flash) override;
   void prevent_write(bool prevent) override;
   bool is_prevent_write() override;
 
@@ -121,7 +119,7 @@ void ESP8266Preferences::save_esp8266_flash_() {
   esp8266_flash_dirty = false;
 }
 
-bool ESP8266PreferenceObject::save_internal_() {
+bool ESP8266PreferenceObject::save_internal() {
   if (this->in_flash_) {
     for (uint32_t i = 0; i <= this->length_words_; i++) {
       uint32_t j = this->offset_ + i;
@@ -144,7 +142,7 @@ bool ESP8266PreferenceObject::save_internal_() {
 
   return true;
 }
-bool ESP8266PreferenceObject::load_internal_() {
+bool ESP8266PreferenceObject::load_internal() {
   if (this->in_flash_) {
     for (uint32_t i = 0; i <= this->length_words_; i++) {
       uint32_t j = this->offset_ + i;

@@ -17,14 +17,14 @@ class ESP32PreferenceObject : public ESPPreferenceObject {
  protected:
   friend class ESP32Preferences;
 
-  bool save_internal_() override;
-  bool load_internal_() override;
+  bool save_internal() override;
+  bool load_internal() override;
 };
 
 class ESP32Preferences : public ESPPreferences {
  public:
   void begin() override;
-  ESPPreferenceObject make_preference(size_t length, uint32_t type, bool in_flash = DEFAULT_IN_FLASH) override;
+  ESPPreferenceObject make_preference(size_t length, uint32_t type, bool in_flash) override;
 
  protected:
   friend ESP32PreferenceObject;
@@ -35,7 +35,7 @@ class ESP32Preferences : public ESPPreferences {
 ESP32Preferences global_esp32_preferences;
 ESPPreferences &global_preferences = global_esp32_preferences;
 
-bool ESP32PreferenceObject::save_internal_() {
+bool ESP32PreferenceObject::save_internal() {
   if (global_esp32_preferences.nvs_handle_ == 0)
     return false;
 
@@ -54,7 +54,7 @@ bool ESP32PreferenceObject::save_internal_() {
   }
   return true;
 }
-bool ESP32PreferenceObject::load_internal_() {
+bool ESP32PreferenceObject::load_internal() {
   if (global_esp32_preferences.nvs_handle_ == 0)
     return false;
 

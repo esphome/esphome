@@ -21,8 +21,8 @@ class ESPPreferenceObject {
 
   bool save_();
   bool load_();
-  virtual bool save_internal_() { return false; }
-  virtual bool load_internal_() { return false; }
+  virtual bool save_internal() { return false; }
+  virtual bool load_internal() { return false; }
 
   uint32_t calculate_crc_() const;
 
@@ -30,6 +30,7 @@ class ESPPreferenceObject {
   size_t length_words_;
   uint32_t type_;
   uint32_t *data_;
+  bool in_flash_{false};
 };
 
 #ifdef USE_ESP8266_PREFERENCES_FLASH
@@ -44,7 +45,10 @@ class ESPPreferences {
   virtual ~ESPPreferences() = default;
 
   virtual void begin() = 0;
-  virtual ESPPreferenceObject make_preference(size_t length, uint32_t type, bool in_flash = DEFAULT_IN_FLASH) = 0;
+  ESPPreferenceObject make_preference(size_t length, uint32_t type) {
+    return this->make_preference(length, type, DEFAULT_IN_FLASH);
+  }
+  virtual ESPPreferenceObject make_preference(size_t length, uint32_t type, bool in_flash) = 0;
   template<typename T> ESPPreferenceObject make_preference(uint32_t type, bool in_flash = DEFAULT_IN_FLASH);
 
   virtual void prevent_write(bool) {}

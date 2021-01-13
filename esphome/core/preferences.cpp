@@ -17,7 +17,7 @@ bool ESPPreferenceObject::load_() {
     ESP_LOGV(TAG, "Load Pref Not initialized!");
     return false;
   }
-  if (!this->load_internal_())
+  if (!this->load_internal())
     return false;
 
   bool valid = this->data_[this->length_words_] == this->calculate_crc_();
@@ -33,7 +33,7 @@ bool ESPPreferenceObject::save_() {
   }
 
   this->data_[this->length_words_] = this->calculate_crc_();
-  if (!this->save_internal_())
+  if (!this->save_internal())
     return false;
   ESP_LOGVV(TAG, "SAVE %u: 0=0x%08X 1=0x%08X (Type=%u, CRC=0x%08X)", this->offset_,  // NOLINT
             this->data_[0], this->data_[1], this->type_, this->calculate_crc_());
