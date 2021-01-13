@@ -183,9 +183,9 @@ void LgIrClimate::transmit_(uint32_t value) {
   data->item(this->header_high_, this->header_low_);
 
   for (uint32_t mask = 1UL << (BITS - 1); mask != 0; mask >>= 1) {
-    if (value & mask){
+    if (value & mask) {
       data->item(this->bit_high_, this->bit_one_low_);
-    }else{
+    } else {
       data->item(this->bit_high_, this->bit_zero_low_);
     }
   }
