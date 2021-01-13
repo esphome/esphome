@@ -119,6 +119,69 @@ bool ClimateTraits::get_supports_fan_modes() const {
          this->supports_fan_mode_low_ || this->supports_fan_mode_medium_ || this->supports_fan_mode_high_ ||
          this->supports_fan_mode_middle_ || this->supports_fan_mode_focus_ || this->supports_fan_mode_diffuse_;
 }
+void ClimateTraits::set_supported_custom_fan_modes(std::vector<std::string> supported_custom_fan_modes) {
+  this->supported_custom_fan_modes_ = supported_custom_fan_modes;
+}
+std::vector<std::string> ClimateTraits::get_supported_custom_fan_modes() const {
+  return this->supported_custom_fan_modes_;
+}
+bool ClimateTraits::supports_custom_fan_mode(std::string custom_fan_mode) const {
+  return std::count(this->supported_custom_fan_modes_.begin(), this->supported_custom_fan_modes_.end(),
+                    custom_fan_mode);
+}
+bool ClimateTraits::supports_preset(ClimatePreset preset) const {
+  switch (preset) {
+    case climate::CLIMATE_PRESET_ECO:
+      return this->supports_preset_eco_;
+    case climate::CLIMATE_PRESET_AWAY:
+      return this->supports_preset_away_;
+    case climate::CLIMATE_PRESET_BOOST:
+      return this->supports_preset_boost_;
+    case climate::CLIMATE_PRESET_COMFORT:
+      return this->supports_preset_comfort_;
+    case climate::CLIMATE_PRESET_HOME:
+      return this->supports_preset_home_;
+    case climate::CLIMATE_PRESET_SLEEP:
+      return this->supports_preset_sleep_;
+    case climate::CLIMATE_PRESET_ACTIVITY:
+      return this->supports_preset_activity_;
+    default:
+      return false;
+  }
+}
+void ClimateTraits::set_supports_preset_eco(bool supports_preset_eco) {
+  this->supports_preset_eco_ = supports_preset_eco;
+}
+void ClimateTraits::set_supports_preset_away(bool supports_preset_away) {
+  this->supports_preset_away_ = supports_preset_away;
+}
+void ClimateTraits::set_supports_preset_boost(bool supports_preset_boost) {
+  this->supports_preset_boost_ = supports_preset_boost;
+}
+void ClimateTraits::set_supports_preset_comfort(bool supports_preset_comfort) {
+  this->supports_preset_comfort_ = supports_preset_comfort;
+}
+void ClimateTraits::set_supports_preset_home(bool supports_preset_home) {
+  this->supports_preset_home_ = supports_preset_home;
+}
+void ClimateTraits::set_supports_preset_sleep(bool supports_preset_sleep) {
+  this->supports_preset_sleep_ = supports_preset_sleep;
+}
+void ClimateTraits::set_supports_preset_activity(bool supports_preset_activity) {
+  this->supports_preset_activity_ = supports_preset_activity;
+}
+bool ClimateTraits::get_supports_presets() const {
+  return this->supports_preset_eco_ || this->supports_preset_away_ || this->supports_preset_boost_ ||
+         this->supports_preset_comfort_ || this->supports_preset_home_ || this->supports_preset_sleep_ ||
+         this->supports_preset_activity_;
+}
+void ClimateTraits::set_supported_custom_presets(std::vector<std::string> supported_custom_presets) {
+  this->supported_custom_presets_ = supported_custom_presets;
+}
+std::vector<std::string> ClimateTraits::get_supported_custom_presets() const { return this->supported_custom_presets_; }
+bool ClimateTraits::supports_custom_preset(std::string custom_preset) const {
+  return std::count(this->supported_custom_presets_.begin(), this->supported_custom_presets_.end(), custom_preset);
+}
 void ClimateTraits::set_supports_swing_mode_off(bool supports_swing_mode_off) {
   this->supports_swing_mode_off_ = supports_swing_mode_off;
 }

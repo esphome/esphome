@@ -16,6 +16,9 @@ template<typename... Ts> class ControlAction : public Action<Ts...> {
   TEMPLATABLE_VALUE(float, target_temperature_high)
   TEMPLATABLE_VALUE(bool, away)
   TEMPLATABLE_VALUE(ClimateFanMode, fan_mode)
+  TEMPLATABLE_VALUE(std::string, custom_fan_mode)
+  TEMPLATABLE_VALUE(ClimatePreset, preset)
+  TEMPLATABLE_VALUE(std::string, custom_preset)
   TEMPLATABLE_VALUE(ClimateSwingMode, swing_mode)
 
   void play(Ts... x) override {
@@ -26,6 +29,9 @@ template<typename... Ts> class ControlAction : public Action<Ts...> {
     call.set_target_temperature_high(this->target_temperature_high_.optional_value(x...));
     call.set_away(this->away_.optional_value(x...));
     call.set_fan_mode(this->fan_mode_.optional_value(x...));
+    call.set_custom_fan_mode(this->custom_fan_mode_.optional_value(x...));
+    call.set_preset(this->preset_.optional_value(x...));
+    call.set_custom_preset(this->custom_preset_.optional_value(x...));
     call.set_swing_mode(this->swing_mode_.optional_value(x...));
     call.perform();
   }
