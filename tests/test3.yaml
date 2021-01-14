@@ -506,6 +506,9 @@ remote_receiver:
   pin: GPIO12
   dump: []
 
+heartbeat_led:
+  pin: GPIO2
+
 status_led:
   pin: GPIO2
 

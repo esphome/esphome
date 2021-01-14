@@ -1832,6 +1832,9 @@ remote_receiver:
   pin: GPIO32
   dump: all
 
+heartbeat_led:
+  pin: GPIO2
+
 status_led:
   pin: GPIO2
 
