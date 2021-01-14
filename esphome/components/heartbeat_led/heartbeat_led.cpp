@@ -19,9 +19,7 @@ void HeartbeatLED::dump_config() {
   ESP_LOGCONFIG(TAG, "Heartbeat LED:");
   LOG_PIN("  Pin: ", this->pin_);
 }
-void HeartbeatLED::loop() {
-  this->pin_->digital_write(millis() % 1500u < 250u);
-}
+void HeartbeatLED::loop() { this->pin_->digital_write(millis() % 1500u < 250u); }
 float HeartbeatLED::get_setup_priority() const { return setup_priority::HARDWARE; }
 float HeartbeatLED::get_loop_priority() const { return 50.0f; }
 
