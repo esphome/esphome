@@ -25,8 +25,8 @@ bool XiaomiMiscale2::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
   for (auto &service_data : device.get_service_datas()) {
     auto res = parse_header(service_data);
     if (!res.has_value()) {
-		continue;
-	}
+      continue;
+    }
     if (!(parse_message(service_data.data, *res))) {
       continue;
     }
