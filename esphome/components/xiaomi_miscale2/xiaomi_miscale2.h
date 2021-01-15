@@ -12,9 +12,6 @@ namespace xiaomi_miscale2 {
 struct ParseResult {
   optional<float> weight;
   optional<float> impedance;
-  bool is_Stabilized;
-  bool loadRemoved;
-  int raw_offset;
 };
 
 class XiaomiMiscale2 : public Component, public esp32_ble_tracker::ESPBTDeviceListener {

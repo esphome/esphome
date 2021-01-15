@@ -24,6 +24,9 @@ bool XiaomiMiscale2::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
   bool success = false;
   for (auto &service_data : device.get_service_datas()) {
     auto res = parse_header(service_data);
+    if (!res.has_value()) {
+		continue;
+	}
     if (!(parse_message(service_data.data, *res))) {
       continue;
     }
@@ -87,7 +90,7 @@ bool XiaomiMiscale2::parse_message(const std::vector<uint8_t> &message, ParseRes
   result.impedance = impedance;
 
   if (!is_Stabilized || loadRemoved || impedance == 0 || impedance >= 3000) {
-    return {};
+    return false;
   }
 
   return true;

@@ -7,7 +7,6 @@ namespace esphome {
 namespace xiaomi_miscale {
 
 static const char *TAG = "xiaomi_miscale";
-static int year = 0;
 
 void XiaomiMiscale::dump_config() {
   ESP_LOGCONFIG(TAG, "Xiaomi Miscale");
@@ -24,6 +23,9 @@ bool XiaomiMiscale::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
   bool success = false;
   for (auto &service_data : device.get_service_datas()) {
     auto res = parse_header(service_data);
+    if (!res.has_value()) {
+		continue;
+	}
     if (!(parse_message(service_data.data, *res))) {
       continue;
     }
@@ -39,7 +41,7 @@ bool XiaomiMiscale::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
     return false;
   }
 
-  return true;
+  return success;
 }
 
 optional<ParseResult> XiaomiMiscale::parse_header(const esp32_ble_tracker::ServiceData &service_data) {
@@ -71,6 +73,7 @@ bool XiaomiMiscale::parse_message(const std::vector<uint8_t> &message, ParseResu
   }
 
   bool temporary = true;
+  int year = 0;
   int rcvdYear = data[3];
   // If we received a year for the first time, store it in the year variable
   // The first year we receive indicates a temporary measurement
