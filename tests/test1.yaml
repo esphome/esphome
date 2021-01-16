@@ -856,6 +856,28 @@ sensor:
     id: freezer_temp_source
     reference_voltage: 3.19
     number: 0
+  - platform: cs5460a
+    id: cs5460a1
+    current:
+      name: "Socket current"
+    voltage:
+      name: "Mains voltage"
+    power:
+      name: "Socket power"
+      on_value:
+        then:
+          sensor.cs5460a.restart: cs5460a1
+    samples: 1600
+    pga_gain: 10X
+    current_gain: 0.01
+    voltage_gain: 0.000573
+    current_hpf: on
+    voltage_hpf: on
+    phase_offset: 20
+    pulse_energy: 0.01 kWh
+    cs_pin:
+      mcp23017: mcp23017_hub
+      number: 14
 
 esp32_touch:
   setup_mode: False
