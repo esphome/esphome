@@ -12,13 +12,6 @@ static const char *TAG = "bme680_bsec.sensor";
 
 static const std::string IAQ_ACCURACY_STATES[4] = {"Stabilizing", "Uncertain", "Calibrating", "Calibrated"};
 
-static const uint8_t BSEC_CONFIG_IAQ_LP[] = {
-#include "config/generic_33v_3s_28d/bsec_iaq.txt"
-};
-static const uint8_t BSEC_CONFIG_IAQ_ULP[] = {
-#include "config/generic_33v_300s_28d/bsec_iaq.txt"
-};
-
 std::map<uint8_t, BME680BSECComponent *> BME680BSECComponent::instances;
 
 void BME680BSECComponent::setup() {
@@ -32,14 +25,21 @@ void BME680BSECComponent::setup() {
     return;
   }
 
-  const uint8_t *bsec_config = BSEC_CONFIG_IAQ_LP;
-  float bsec_sample_rate = BSEC_SAMPLE_RATE_LP;
+  float bsec_sample_rate;
   if (this->sample_rate_ == SAMPLE_RATE_ULP) {
-    bsec_config = BSEC_CONFIG_IAQ_ULP;
+    const uint8_t bsec_config[] = {
+      #include "config/generic_33v_300s_28d/bsec_iaq.txt"
+    };
+    this->bsec_.setConfig(bsec_config);
     bsec_sample_rate = BSEC_SAMPLE_RATE_ULP;
+  } else {
+    const uint8_t bsec_config[] = {
+      #include "config/generic_33v_3s_28d/bsec_iaq.txt"
+    };
+    this->bsec_.setConfig(bsec_config);
+    bsec_sample_rate = BSEC_SAMPLE_RATE_LP;
   }
 
-  this->bsec_.setConfig(bsec_config);
   this->load_state_();
 
   // Subscribe to sensor values
