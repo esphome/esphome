@@ -28,13 +28,13 @@ void BME680BSECComponent::setup() {
   float bsec_sample_rate;
   if (this->sample_rate_ == SAMPLE_RATE_ULP) {
     const uint8_t bsec_config[] = {
-      #include "config/generic_33v_300s_28d/bsec_iaq.txt"
+#include "config/generic_33v_300s_28d/bsec_iaq.txt"
     };
     this->bsec_.setConfig(bsec_config);
     bsec_sample_rate = BSEC_SAMPLE_RATE_ULP;
   } else {
     const uint8_t bsec_config[] = {
-      #include "config/generic_33v_3s_28d/bsec_iaq.txt"
+#include "config/generic_33v_3s_28d/bsec_iaq.txt"
     };
     this->bsec_.setConfig(bsec_config);
     bsec_sample_rate = BSEC_SAMPLE_RATE_LP;
