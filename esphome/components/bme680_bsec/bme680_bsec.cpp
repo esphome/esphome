@@ -190,8 +190,7 @@ void BME680BSECComponent::load_state_() {
 }
 
 void BME680BSECComponent::save_state_() {
-  static unsigned long last_millis = 0;
-  if (this->get_iaq_accuracy_() < 3 || (millis() - last_millis < this->state_save_interval_)) {
+  if (this->get_iaq_accuracy_() < 3 || (millis() - this->last_state_save_ < this->state_save_interval_)) {
     return;
   }
 
@@ -204,7 +203,7 @@ void BME680BSECComponent::save_state_() {
 
   ESP_LOGI(TAG, "Saving state");
   this->bsec_state_.save(&state);
-  last_millis = millis();
+  this->last_state_save_ = millis();
   yield();
 }
 
