@@ -106,7 +106,7 @@ struct ESPTime {
 /// The C library (newlib) available on ESPs only supports TZ strings that specify an offset and DST info;
 /// you cannot specify zone names or paths to zoneinfo files.
 /// \see https://www.gnu.org/software/libc/manual/html_node/TZ-Variable.html
-class RealTimeClock : public Component {
+class RealTimeClock : public PollingComponent {
  public:
   explicit RealTimeClock();
 
