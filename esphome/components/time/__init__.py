@@ -22,7 +22,7 @@ CODEOWNERS = ['@OttoWinter']
 IS_PLATFORM_COMPONENT = True
 
 time_ns = cg.esphome_ns.namespace('time')
-RealTimeClock = time_ns.class_('RealTimeClock', cg.Component)
+RealTimeClock = time_ns.class_('RealTimeClock', cg.PollingComponent)
 CronTrigger = time_ns.class_('CronTrigger', automation.Trigger.template(), cg.Component)
 ESPTime = time_ns.struct('ESPTime')
 TimeHasTimeCondition = time_ns.class_('TimeHasTimeCondition', Condition)
@@ -294,7 +294,7 @@ TIME_SCHEMA = cv.Schema({
         cv.Optional(CONF_CRON): validate_cron_raw,
         cv.Optional(CONF_AT): validate_time_at,
     }, validate_cron_keys),
-})
+}).extend(cv.polling_component_schema('15min'))
 
 
 @coroutine

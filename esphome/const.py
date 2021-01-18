@@ -1,7 +1,7 @@
 """Constants used by esphome."""
 
 MAJOR_VERSION = 1
-MINOR_VERSION = 16
+MINOR_VERSION = 17
 PATCH_VERSION = '0-dev'
 __short_version__ = f'{MAJOR_VERSION}.{MINOR_VERSION}'
 __version__ = f'{__short_version__}.{PATCH_VERSION}'
@@ -572,6 +572,9 @@ CONF_WIND_DIRECTION_DEGREES = 'wind_direction_degrees'
 CONF_WIND_SPEED = 'wind_speed'
 CONF_WINDOW_SIZE = 'window_size'
 CONF_ZERO = 'zero'
+
+ENV_NOGITIGNORE = 'ESPHOME_NOGITIGNORE'
+ENV_QUICKWIZARD = 'ESPHOME_QUICKWIZARD'
 
 ICON_ACCELERATION = 'mdi:axis-arrow'
 ICON_ACCELERATION_X = 'mdi:axis-x-arrow'
