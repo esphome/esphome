@@ -1854,10 +1854,7 @@ time:
       then:
         - lambda: 'ESP_LOGD("main", "time");'
   - platform: gps
-    update_interval: 1h
-    on_time:
-      seconds: 0
-      minutes: /15
+    on_time_sync:
       then:
         ds1307.write:
           id: ds1307_time

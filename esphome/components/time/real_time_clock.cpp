@@ -38,6 +38,8 @@ void RealTimeClock::synchronize_epoch_(uint32_t epoch) {
   char buf[128];
   time.strftime(buf, sizeof(buf), "%c");
   ESP_LOGD(TAG, "Synchronized time: %s", buf);
+
+  this->time_sync_callback_.call();
 }
 
 size_t ESPTime::strftime(char *buffer, size_t buffer_len, const char *format) {
