@@ -188,13 +188,14 @@ class ParameterListExpression(Expression):
 
 
 class LambdaExpression(Expression):
-    __slots__ = ("parts", "parameters", "capture", "return_type")
+    __slots__ = ("parts", "parameters", "capture", "return_type", "source")
 
-    def __init__(self, parts, parameters, capture: str = '=', return_type=None):
+    def __init__(self, parts, parameters, capture: str = '=', return_type=None, source=None):
         self.parts = parts
         if not isinstance(parameters, ParameterListExpression):
             parameters = ParameterListExpression(*parameters)
         self.parameters = parameters
+        self.source = source
         self.capture = capture
         self.return_type = safe_exp(return_type) if return_type is not None else None
 
@@ -202,7 +203,10 @@ class LambdaExpression(Expression):
         cpp = f'[{self.capture}]({self.parameters})'
         if self.return_type is not None:
             cpp += f' -> {self.return_type}'
-        cpp += f' {{\n{self.content}\n}}'
+        cpp += ' {\n'
+        if self.source is not None:
+            cpp += f'{self.source.as_line_directive}\n'
+        cpp += f'{self.content}\n}}'
         return indent_all_but_first_and_last(cpp)
 
     @property
@@ -555,7 +559,7 @@ def process_lambda(
         else:
             parts[i * 3 + 1] = var
         parts[i * 3 + 2] = ''
-    yield LambdaExpression(parts, parameters, capture, return_type)
+    yield LambdaExpression(parts, parameters, capture, return_type, value.source_location)
 
 
 def is_template(value):
