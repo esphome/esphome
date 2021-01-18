@@ -43,6 +43,7 @@ esphome/components/logger/* @esphome/core
 esphome/components/mcp23s08/* @SenexCrenshaw
 esphome/components/mcp23s17/* @SenexCrenshaw
 esphome/components/mcp9808/* @k7hpn
+esphome/components/mitsubishi/* @RubyBailey
 esphome/components/network/* @esphome/core
 esphome/components/ota/* @esphome/core
 esphome/components/output/* @esphome/core
