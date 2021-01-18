@@ -1,6 +1,7 @@
 import abc
 import inspect
 import math
+import re
 
 # pylint: disable=unused-import, wrong-import-order
 from typing import Any, Generator, List, Optional, Tuple, Type, Union, Sequence
@@ -364,7 +365,7 @@ class LineComment(Statement):
         self.value = value
 
     def __str__(self):
-        parts = self.value.split('\n')
+        parts = re.sub(r'\\\s*\n', r'<cont>\n', self.value, re.MULTILINE).split('\n')
         parts = [f'// {x}' for x in parts]
         return '\n'.join(parts)
 
