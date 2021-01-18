@@ -4,6 +4,7 @@ from esphome.components import climate_ir
 from esphome.const import CONF_ID
 
 AUTO_LOAD = ['climate_ir']
+CODEOWNERS = ['@RubyBailey']
 
 mitsubishi_ns = cg.esphome_ns.namespace('mitsubishi')
 MitsubishiClimate = mitsubishi_ns.class_('MitsubishiClimate', climate_ir.ClimateIR)
