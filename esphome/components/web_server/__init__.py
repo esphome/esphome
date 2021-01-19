@@ -36,6 +36,7 @@ def to_code(config):
     yield cg.register_component(var, config)
 
     cg.add(paren.set_port(config[CONF_PORT]))
+    cg.add_define('WEBSERVER_PORT', config[CONF_PORT])
     cg.add(var.set_css_url(config[CONF_CSS_URL]))
     cg.add(var.set_js_url(config[CONF_JS_URL]))
     if CONF_AUTH in config:

@@ -90,14 +90,34 @@ void ICACHE_RAM_ATTR HOT RotaryEncoderSensorStore::gpio_intr(RotaryEncoderSensor
   if (arg->pin_b->digital_read())
     input_state |= STATE_PIN_B_HIGH;
 
+  int8_t rotation_dir = 0;
   uint16_t new_state = STATE_LOOKUP_TABLE[input_state];
   if ((new_state & arg->resolution & STATE_HAS_INCREMENTED) != 0) {
     if (arg->counter < arg->max_value)
       arg->counter++;
+    rotation_dir = 1;
   }
   if ((new_state & arg->resolution & STATE_HAS_DECREMENTED) != 0) {
     if (arg->counter > arg->min_value)
       arg->counter--;
+    rotation_dir = -1;
+  }
+
+  if (rotation_dir != 0) {
+    auto first_zero = std::find(arg->rotation_events.begin(), arg->rotation_events.end(), 0);  // find first zero
+    if (first_zero == arg->rotation_events.begin()  // are we at the start (first event this loop iteration)
+        || std::signbit(*std::prev(first_zero)) !=
+               std::signbit(rotation_dir)  // or is the last stored event the wrong direction
+        || *std::prev(first_zero) == std::numeric_limits<int8_t>::lowest()  // or the last event slot is full (negative)
+        || *std::prev(first_zero) == std::numeric_limits<int8_t>::max()) {  // or the last event slot is full (positive)
+      if (first_zero != arg->rotation_events.end()) {                       // we have a free rotation slot
+        *first_zero += rotation_dir;                                        // store the rotation into a new slot
+      } else {
+        arg->rotation_events_overflow = true;
+      }
+    } else {
+      *std::prev(first_zero) += rotation_dir;  // store the rotation into the previous slot
+    }
   }
 
   arg->state = new_state;
@@ -135,6 +155,35 @@ void RotaryEncoderSensor::dump_config() {
   }
 }
 void RotaryEncoderSensor::loop() {
+  std::array<int8_t, 8> rotation_events;
+  bool rotation_events_overflow;
+  ets_intr_lock();
+  rotation_events = this->store_.rotation_events;
+  rotation_events_overflow = this->store_.rotation_events_overflow;
+
+  this->store_.rotation_events.fill(0);
+  this->store_.rotation_events_overflow = false;
+  ets_intr_unlock();
+
+  if (rotation_events_overflow) {
+    ESP_LOGW(TAG, "Captured more rotation events than expected");
+  }
+
+  for (auto events : rotation_events) {
+    if (events == 0)  // we are at the end of the recorded events
+      break;
+
+    if (events > 0) {
+      while (events--) {
+        this->on_clockwise_callback_.call();
+      }
+    } else {
+      while (events++) {
+        this->on_anticlockwise_callback_.call();
+      }
+    }
+  }
+
   if (this->pin_i_ != nullptr && this->pin_i_->digital_read()) {
     this->store_.counter = 0;
   }
