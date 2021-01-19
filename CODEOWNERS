@@ -100,3 +100,4 @@ esphome/components/version/* @esphome/core
 esphome/components/web_server_base/* @OttoWinter
 esphome/components/whirlpool/* @glmnet
 esphome/components/xiaomi_lywsd03mmc/* @ahpohl
+esphome/components/xiaomi_mhoc401/* @vevsvevs
