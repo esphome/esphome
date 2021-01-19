@@ -7,6 +7,15 @@
 namespace esphome {
 namespace rc522 {
 
+enum State {
+  STATE_NONE = 0,
+  STATE_SETUP,
+  STATE_INIT,
+  STATE_PICC_REQUEST_A,
+  STATE_PICC_REQUEST_A_DONE,
+  STATE_READ_SERIAL,
+};
+
 class RC522BinarySensor;
 class RC522Trigger;
 class RC522 : public PollingComponent {
@@ -26,6 +35,24 @@ class RC522 : public PollingComponent {
   void set_reset_pin(GPIOPin *reset) { this->reset_pin_ = reset; }
 
  protected:
+  // Return codes from the functions in this class. Remember to update GetStatusCodeName() if you add more.
+  // last value set to 0xff, then compiler uses less ram, it seems some optimisations are triggered
+  enum StatusCode : uint8_t {
+    STATUS_OK,                 // Success
+    STATUS_ERROR,              // Error in communication
+    STATUS_COLLISION,          // Collission detected
+    STATUS_TIMEOUT,            // Timeout in communication.
+    STATUS_NO_ROOM,            // A buffer is not big enough.
+    STATUS_INTERNAL_ERROR,     // Internal error in the code. Should not happen ;-)
+    STATUS_INVALID,            // Invalid argument.
+    STATUS_CRC_WRONG,          // The CRC_A does not match
+    STATUS_MIFARE_NACK = 0xff  // A MIFARE PICC responded with NAK.
+  };
+
+  bool awaiting_comm_;
+  uint32_t awaiting_comm_time_;
+  bool await_communication(StatusCode *return_code);
+  State state_{STATE_NONE};
   enum PcdRegister : uint8_t {
     // Page 0: Command and status
     // 0x00      // reserved for future use
@@ -150,20 +177,6 @@ class RC522 : public PollingComponent {
     PICC_CMD_UL_WRITE = 0xA2  // Writes one 4 uint8_t page to the PICC.
   };
 
-  // Return codes from the functions in this class. Remember to update GetStatusCodeName() if you add more.
-  // last value set to 0xff, then compiler uses less ram, it seems some optimisations are triggered
-  enum StatusCode : uint8_t {
-    STATUS_OK,                 // Success
-    STATUS_ERROR,              // Error in communication
-    STATUS_COLLISION,          // Collission detected
-    STATUS_TIMEOUT,            // Timeout in communication.
-    STATUS_NO_ROOM,            // A buffer is not big enough.
-    STATUS_INTERNAL_ERROR,     // Internal error in the code. Should not happen ;-)
-    STATUS_INVALID,            // Invalid argument.
-    STATUS_CRC_WRONG,          // The CRC_A does not match
-    STATUS_MIFARE_NACK = 0xff  // A MIFARE PICC responded with NAK.
-  };
-
   // A struct used for passing the UID of a PICC.
   using Uid = struct {
     uint8_t size;  // Number of uint8_ts in the UID. 4, 7 or 10.
@@ -172,7 +185,6 @@ class RC522 : public PollingComponent {
   };
 
   Uid uid_;
-  uint32_t update_wait_{0};
 
   void pcd_reset_();
   void initialize_();
@@ -218,11 +230,11 @@ class RC522 : public PollingComponent {
                                     uint8_t mask      ///< The bits to clear.
   );
 
-  StatusCode pcd_transceive_data_(uint8_t *send_data, uint8_t send_len, uint8_t *back_data, uint8_t *back_len,
+  void pcd_transceive_data_(uint8_t *send_data, uint8_t send_len, uint8_t *back_data, uint8_t *back_len,
+                            uint8_t *valid_bits = nullptr, uint8_t rx_align = 0, bool check_crc = false);
+  void pcd_communicate_with_picc_(uint8_t command, uint8_t wait_i_rq, uint8_t *send_data, uint8_t send_len,
+                                  uint8_t *back_data = nullptr, uint8_t *back_len = nullptr,
                                   uint8_t *valid_bits = nullptr, uint8_t rx_align = 0, bool check_crc = false);
-  StatusCode pcd_communicate_with_picc_(uint8_t command, uint8_t wait_i_rq, uint8_t *send_data, uint8_t send_len,
-                                        uint8_t *back_data = nullptr, uint8_t *back_len = nullptr,
-                                        uint8_t *valid_bits = nullptr, uint8_t rx_align = 0, bool check_crc = false);
   StatusCode pcd_calculate_crc_(
       uint8_t *data,   ///< In: Pointer to the data to transfer to the FIFO for CRC calculation.
       uint8_t length,  ///< In: The number of uint8_ts to transfer.
@@ -244,10 +256,16 @@ class RC522 : public PollingComponent {
    */
   std::vector<uint8_t> r_c522_read_data_();
 
+  uint8_t back_data_[9];  ///< buffer if data should be read back after executing the command.
+  uint8_t back_length_;   ///< In: Max number of uint8_ts to write to *backData. Out: The number of uint8_ts returned.
+
+  uint8_t rx_align_;
+  uint8_t *valid_bits_;
+  bool check_crc_;
+
   GPIOPin *reset_pin_{nullptr};
   uint8_t reset_count_{0};
   uint32_t reset_timeout_{0};
-  bool initialize_pending_{false};
   std::vector<RC522BinarySensor *> binary_sensors_;
   std::vector<RC522Trigger *> triggers_;
 

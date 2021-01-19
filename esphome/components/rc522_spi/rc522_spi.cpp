@@ -32,7 +32,7 @@ uint8_t RC522Spi::pcd_read_register(PcdRegister reg  ///< The register to read f
   transfer_byte(0x80 | reg);
   value = read_byte();
   disable();
-  ESP_LOGV(TAG, "read_register_(%x) -> %x", reg, value);
+  ESP_LOGV(TAG, "read_register_(%d) -> %d", reg, value);
   return value;
 }
 
@@ -85,7 +85,7 @@ void RC522Spi::pcd_read_register(PcdRegister reg,  ///< The register to read fro
   sprintf(cstrb, "%x", values[index]);
   buf.append(cstrb);
 
-  ESP_LOGVV(TAG, "read_register_array_(%x, %d, , %d) -> %s", reg, count, rx_align, buf.c_str());
+  ESP_LOGV(TAG, "read_register_array_(%x, %d, , %d) -> %s", reg, count, rx_align, buf.c_str());
 
   disable();
 }
@@ -122,7 +122,7 @@ void RC522Spi::pcd_write_register(PcdRegister reg,  ///< The register to write t
     buf.append(cstrb);
   }
   disable();
-  ESP_LOGVV(TAG, "write_register_(%x, %d) -> %s", reg, count, buf.c_str());
+  ESP_LOGV(TAG, "write_register_(%d, %d) -> %s", reg, count, buf.c_str());
 }
 
 }  // namespace rc522_spi
