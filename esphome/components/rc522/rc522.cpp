@@ -7,7 +7,7 @@
 namespace esphome {
 namespace rc522 {
 
-static const uint8_t wait_i_rq = 0x30;  // RxIRq and IdleIRq
+static const uint8_t WAIT_I_RQ = 0x30;  // RxIRq and IdleIRq
 
 static const char *TAG = "rc522";
 
@@ -136,7 +136,7 @@ void RC522::loop() {
 
   StatusCode status;
   if (awaiting_comm_) {
-    if (await_communication(&status)) {
+    if (await_communication_(&status)) {
       awaiting_comm_ = false;
     } else
       return;
@@ -283,7 +283,7 @@ void RC522::pcd_transceive_data_(
     bool check_crc     ///< In: True => The last two uint8_ts of the response is assumed to be a CRC_A that must be
                        ///< validated.
 ) {
-  pcd_communicate_with_picc_(PCD_TRANSCEIVE, wait_i_rq, send_data, send_len, back_data, back_len, valid_bits, rx_align,
+  pcd_communicate_with_picc_(PCD_TRANSCEIVE, WAIT_I_RQ, send_data, send_len, back_data, back_len, valid_bits, rx_align,
                              check_crc);
 }
 
@@ -330,22 +330,21 @@ void RC522::pcd_communicate_with_picc_(
   awaiting_comm_time_ = millis();
 }
 
-bool RC522::await_communication(RC522::StatusCode *return_code) {
+bool RC522::await_communication_(RC522::StatusCode *return_code) {
   *return_code = STATUS_TIMEOUT;
   uint8_t n = pcd_read_register(
       COM_IRQ_REG);  // ComIrqReg[7..0] bits are: Set1 TxIRq RxIRq IdleIRq HiAlertIRq LoAlertIRq ErrIRq TimerIRq
   if (n & 0x01) {    // Timer interrupt - nothing received in 25ms
     return true;
   }
-  if (!(n & wait_i_rq)) {  // None of the interrupts that signal success has been set.
+  if (!(n & WAIT_I_RQ)) {  // None of the interrupts that signal success has been set.
                            // Wait for the command to complete.
 
-    if (millis() - awaiting_comm_time_ > 40) {
-      return true;
-      ESP_LOGW(TAG, "await comm no comm result!");
-    } else {
+    if (millis() - awaiting_comm_time_ < 40)
       return false;
-    }
+
+    ESP_LOGW(TAG, "Await comm timeout!");
+    return true;
   }
 
   // Stop now if any errors except collisions were detected.

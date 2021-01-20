@@ -44,7 +44,7 @@ class RC522 : public PollingComponent {
 
   bool awaiting_comm_;
   uint32_t awaiting_comm_time_;
-  bool await_communication(StatusCode *return_code);
+  bool await_communication_(StatusCode *return_code);
   State state_{STATE_NONE};
   enum PcdRegister : uint8_t {
     // Page 0: Command and status
