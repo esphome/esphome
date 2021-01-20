@@ -7,8 +7,6 @@
 namespace esphome {
 namespace rc522 {
 
-enum State { STATE_NONE = 0, STATE_SETUP, STATE_INIT, STATE_PICC_REQUEST_A, STATE_READ_SERIAL, STATE_READ_SERIAL_DONE };
-
 class RC522BinarySensor;
 class RC522Trigger;
 class RC522 : public PollingComponent {
@@ -42,10 +40,15 @@ class RC522 : public PollingComponent {
     STATUS_MIFARE_NACK = 0xff  // A MIFARE PICC responded with NAK.
   };
 
-  bool awaiting_comm_;
-  uint32_t awaiting_comm_time_;
-  bool await_communication_(StatusCode *return_code);
-  State state_{STATE_NONE};
+  enum State {
+    STATE_NONE = 0,
+    STATE_SETUP,
+    STATE_INIT,
+    STATE_PICC_REQUEST_A,
+    STATE_READ_SERIAL,
+    STATE_READ_SERIAL_DONE
+  } state_{STATE_NONE};
+
   enum PcdRegister : uint8_t {
     // Page 0: Command and status
     // 0x00      // reserved for future use
@@ -206,25 +209,20 @@ class RC522 : public PollingComponent {
   );
 
   void pcd_transceive_data_(uint8_t *send_data, uint8_t send_len, uint8_t *back_data, uint8_t *back_len,
-                            uint8_t *valid_bits = nullptr, uint8_t rx_align = 0, bool check_crc = false);
+                            uint8_t *valid_bits = nullptr, uint8_t rx_align = 0);
   void pcd_communicate_with_picc_(uint8_t command, uint8_t wait_i_rq, uint8_t *send_data, uint8_t send_len,
                                   uint8_t *back_data = nullptr, uint8_t *back_len = nullptr,
-                                  uint8_t *valid_bits = nullptr, uint8_t rx_align = 0, bool check_crc = false);
+                                  uint8_t *valid_bits = nullptr, uint8_t rx_align = 0);
 
-  /** Read a data frame from the RC522 and return the result as a vector.
-   *
-   * Note that is_ready needs to be checked first before requesting this method.
-   *
-   * On failure, an empty vector is returned.
-   */
-  std::vector<uint8_t> r_c522_read_data_();
+  bool awaiting_comm_;
+  uint32_t awaiting_comm_time_;
+  bool await_communication_(StatusCode *return_code);
 
   uint8_t back_data_[9];  ///< buffer if data should be read back after executing the command.
   uint8_t back_length_;   ///< In: Max number of uint8_ts to write to *backData. Out: The number of uint8_ts returned.
 
   uint8_t rx_align_;
   uint8_t *valid_bits_;
-  bool check_crc_;
 
   GPIOPin *reset_pin_{nullptr};
   uint8_t reset_count_{0};

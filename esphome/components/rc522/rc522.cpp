@@ -278,13 +278,11 @@ void RC522::pcd_transceive_data_(
     uint8_t *back_data,  ///< nullptr or pointer to buffer if data should be read back after executing the command.
     uint8_t *back_len,   ///< In: Max number of uint8_ts to write to *backData. Out: The number of uint8_ts returned.
     uint8_t
-        *valid_bits,   ///< In/Out: The number of valid bits in the last uint8_t. 0 for 8 valid bits. Default nullptr.
-    uint8_t rx_align,  ///< In: Defines the bit position in backData[0] for the first bit received. Default 0.
-    bool check_crc     ///< In: True => The last two uint8_ts of the response is assumed to be a CRC_A that must be
-                       ///< validated.
+        *valid_bits,  ///< In/Out: The number of valid bits in the last uint8_t. 0 for 8 valid bits. Default nullptr.
+    uint8_t rx_align  ///< In: Defines the bit position in backData[0] for the first bit received. Default 0.
+
 ) {
-  pcd_communicate_with_picc_(PCD_TRANSCEIVE, WAIT_I_RQ, send_data, send_len, back_data, back_len, valid_bits, rx_align,
-                             check_crc);
+  pcd_communicate_with_picc_(PCD_TRANSCEIVE, WAIT_I_RQ, send_data, send_len, back_data, back_len, valid_bits, rx_align);
 }
 
 /**
@@ -301,11 +299,9 @@ void RC522::pcd_communicate_with_picc_(
     uint8_t *back_data,   ///< nullptr or pointer to buffer if data should be read back after executing the command.
     uint8_t *back_len,    ///< In: Max number of uint8_ts to write to *backData. Out: The number of uint8_ts returned.
     uint8_t *valid_bits,  ///< In/Out: The number of valid bits in the last uint8_t. 0 for 8 valid bits.
-    uint8_t rx_align,     ///< In: Defines the bit position in backData[0] for the first bit received. Default 0.
-    bool check_crc        ///< In: True => The last two uint8_ts of the response is assumed to be a CRC_A that must be
-                          ///< validated.
+    uint8_t rx_align      ///< In: Defines the bit position in backData[0] for the first bit received. Default 0.
 ) {
-  ESP_LOGV(TAG, "pcd_communicate_with_picc_(%d, %d,... %d) %d", command, wait_i_rq, check_crc, state_);
+  ESP_LOGV(TAG, "pcd_communicate_with_picc_(%d, %d,... ) %d", command, wait_i_rq, state_);
 
   // Prepare values for BitFramingReg
   uint8_t tx_last_bits = valid_bits ? *valid_bits : 0;
@@ -324,7 +320,6 @@ void RC522::pcd_communicate_with_picc_(
 
   rx_align_ = rx_align;
   valid_bits_ = valid_bits;
-  check_crc_ = check_crc;
 
   awaiting_comm_ = true;
   awaiting_comm_time_ = millis();
