@@ -101,6 +101,28 @@ void RC522::dump_config() {
   }
 }
 
+void RC522::update() {
+  for (auto *obj : this->binary_sensors_)
+    obj->on_scan_end();
+
+  if (state_ == STATE_INIT) {
+    uint8_t buffer_atqa[2];
+    uint8_t buffer_size = sizeof(buffer_atqa);
+
+    uint8_t valid_bits = 7;  // For REQA and WUPA we need the short frame format - transmit only 7 bits of the last (and
+                             // only) uint8_t. TxLastBits = BitFramingReg[2..0]
+
+    pcd_clear_register_bit_mask_(COLL_REG, 0x80);  // ValuesAfterColl=1 => Bits received after collision are cleared.
+
+    uint8_t command = PICC_CMD_REQA;
+    pcd_transceive_data_(&command, 1, buffer_atqa, &buffer_size, &valid_bits);
+
+    state_ = STATE_PICC_REQUEST_A;
+  } else {
+    ESP_LOGD(TAG, "State: %d awaiting comm: %d", state_, awaiting_comm_);
+  }
+}
+
 void RC522::loop() {
   // First check reset is needed
   if (reset_count_ > 0) {
@@ -116,25 +138,27 @@ void RC522::loop() {
   if (awaiting_comm_) {
     if (await_communication(&status)) {
       awaiting_comm_ = false;
-      // ESP_LOGD(TAG, "awaiting_comm_ %d", status);
-
     } else
       return;
   }
 
   switch (state_) {
     case STATE_PICC_REQUEST_A:
-      if (status != STATUS_OK) {
-        ESP_LOGD(TAG, "picc_reqa_or_wupa_() -> !!STATUS_OK:%d %d", status, state_);
+      if (status == STATUS_TIMEOUT) {
+        // This is normal
+        ESP_LOGV(TAG, "CMD_REQA -> status: %d", status);
+        state_ = STATE_INIT;
+        return;
+      } else if (status != STATUS_OK) {
+        ESP_LOGW(TAG, "CMD_REQA -> status: %d", status);
+        state_ = STATE_INIT;
+        return;
+      } else if (back_length_ != 2 || *valid_bits_ != 0) {  // ATQA must be exactly 16 bits.
+        ESP_LOGW(TAG, "CMD_REQA -> back_length_ %d, valid bits: %d", back_length_, *valid_bits_);
         state_ = STATE_INIT;
         return;
       }
-      if (back_length_ != 2 || *valid_bits_ != 0) {  // ATQA must be exactly 16 bits.
-        ESP_LOGD(TAG, "picc_reqa_or_wupa_() -> STATUS_ERROR %d", state_);
-        state_ = STATE_INIT;
-        return;
-      }
-      ESP_LOGD(TAG, "picc_reqa_or_wupa_() -> STATUS_OK %d", state_);
+
       state_ = STATE_READ_SERIAL;
       break;
 
@@ -145,7 +169,7 @@ void RC522::loop() {
       break;
     }
 
-    case STATE_READ_SERIAL_DONE:
+    case STATE_READ_SERIAL_DONE: {
       if (status != STATUS_OK || back_length_ != 5) {
         ESP_LOGW(TAG, "Unexpected response. Read status is %d. Read bytes: %d", status, back_length_);
         state_ = STATE_INIT;
@@ -153,32 +177,14 @@ void RC522::loop() {
       }
       state_ = STATE_INIT;
 
-      // TODO: Check CRC
-      this->back_data_[7] = 0;
-      this->back_data_[8] = 0;
-      status = pcd_calculate_crc_(this->back_data_, 1, &this->back_data_[7]);
-
-      // result = pcd_calculate_crc_(response_buffer, 1, &buffer[2]);
-      if (status != STATUS_OK) {
-        ESP_LOGW(TAG, "Calc CRC. Read status is %d.", status);
-      }
-      ESP_LOGI(TAG, "Crc Calc: %d, %d, %d, %d", this->back_data_[7], this->back_data_[1], this->back_data_[8],
-               this->back_data_[2]);
-      if ((this->back_data_[7] != this->back_data_[1]) || (this->back_data_[8] != this->back_data_[2])) {
-        ESP_LOGW(TAG, "Calc CRC. Read status is %d.", status);
-        return;
-      }
-
-      memcpy(uid_.uiduint8_t, this->back_data_, 4);
-      uid_.size = 4;
       bool report = true;
       // 1. Go through all triggers
       for (auto *trigger : this->triggers_)
-        trigger->process(uid_.uiduint8_t, uid_.size);
+        trigger->process(this->back_data_, 4);
 
       // 2. Find a binary sensor
       for (auto *tag : this->binary_sensors_) {
-        if (tag->process(uid_.uiduint8_t, uid_.size)) {
+        if (tag->process(this->back_data_, 4)) {
           // 2.1 if found, do not dump
           report = false;
         }
@@ -186,69 +192,14 @@ void RC522::loop() {
 
       if (report) {
         char buf[32];
-        format_uid(buf, uid_.uiduint8_t, uid_.size);
-        ESP_LOGI(TAG, "Found new tag '%s'", buf);
+        format_uid(buf, this->back_data_, 4);
+        ESP_LOGD(TAG, "Found new tag '%s'", buf);
       }
       break;
+    }
+    default:
+      break;
   }
-}
-
-void RC522::update() {
-  ESP_LOGD(TAG, "State: %d awaiting comm: %d", state_, awaiting_comm_);
-  for (auto *obj : this->binary_sensors_)
-    obj->on_scan_end();
-
-  if (state_ == STATE_INIT) {
-    // auto status = picc_is_new_card_present_();
-
-    uint8_t buffer_atqa[2];
-    uint8_t buffer_size = sizeof(buffer_atqa);
-
-    // // Reset baud rates
-    // pcd_write_register(TX_MODE_REG, 0x00);
-    // pcd_write_register(RX_MODE_REG, 0x00);
-    // // Reset ModWidthReg
-    // pcd_write_register(MOD_WIDTH_REG, 0x26);
-
-    // auto result = picc_request_a_(buffer_atqa, &buffer_size);
-
-    uint8_t valid_bits;
-    RC522::StatusCode status;
-
-    pcd_clear_register_bit_mask_(COLL_REG, 0x80);  // ValuesAfterColl=1 => Bits received after collision are cleared.
-    valid_bits = 7;  // For REQA and WUPA we need the short frame format - transmit only 7 bits of the last (and only)
-                     // uint8_t. TxLastBits = BitFramingReg[2..0]
-
-    uint8_t command = PICC_CMD_REQA;
-
-    pcd_transceive_data_(&command, 1, buffer_atqa, &buffer_size, &valid_bits);
-
-    state_ = STATE_PICC_REQUEST_A;
-    return;
-  }
-
-  //--
-
-  static StatusCode LAST_STATUS = StatusCode::STATUS_OK;
-
-  // if (status != LAST_STATUS) {
-  //   ESP_LOGD(TAG, "Status is now: %d", status);
-  //   LAST_STATUS = status;
-  // }
-
-  // if (status == STATUS_ERROR)  // No card
-  // {
-  //   // ESP_LOGE(TAG, "Error");
-  //   // mark_failed();
-  //   return;
-  // }
-
-  // if (status != STATUS_OK)  // We can receive STATUS_TIMEOUT when no card, or unexpected status.
-  //   return;
-
-  // state_ = STATE_READ_SERIAL;
-
-  return;
 }
 
 /**
@@ -293,57 +244,6 @@ void RC522::pcd_antenna_on_() {
   if ((value & 0x03) != 0x03) {
     pcd_write_register(TX_CONTROL_REG, value | 0x03);
   }
-}
-
-/**
- * Transmits a REQuest command, Type A. Invites PICCs in state IDLE to go to READY and prepare for anticollision or
- * selection. 7 bit frame. Beware: When two PICCs are in the field at the same time I often get STATUS_TIMEOUT -
- * probably due do bad antenna design.
- *
- * @return STATUS_OK on success, STATUS_??? otherwise.
- */
-RC522::StatusCode RC522::picc_request_a_(
-    uint8_t *buffer_atqa,  ///< The buffer to store the ATQA (Answer to request) in
-    uint8_t *buffer_size   ///< Buffer size, at least two uint8_ts. Also number of uint8_ts returned if STATUS_OK.
-) {
-  return picc_reqa_or_wupa_(PICC_CMD_REQA, buffer_atqa, buffer_size);
-}
-
-/**
- * Transmits REQA or WUPA commands.
- * Beware: When two PICCs are in the field at the same time I often get STATUS_TIMEOUT - probably due do bad antenna
- * design.
- *
- * @return STATUS_OK on success, STATUS_??? otherwise.
- */
-RC522::StatusCode RC522::picc_reqa_or_wupa_(
-    uint8_t command,       ///< The command to send - PICC_CMD_REQA or PICC_CMD_WUPA
-    uint8_t *buffer_atqa,  ///< The buffer to store the ATQA (Answer to request) in
-    uint8_t *buffer_size   ///< Buffer size, at least two uint8_ts. Also number of uint8_ts returned if STATUS_OK.
-) {
-  uint8_t valid_bits;
-  RC522::StatusCode status;
-
-  if (buffer_atqa == nullptr || *buffer_size < 2) {  // The ATQA response is 2 uint8_ts long.
-    {
-      ESP_LOGD(TAG, "picc_reqa_or_wupa_() -> STATUS_NO_ROOM %d", state_);
-      return STATUS_NO_ROOM;
-    }
-  }
-  pcd_clear_register_bit_mask_(COLL_REG, 0x80);  // ValuesAfterColl=1 => Bits received after collision are cleared.
-  valid_bits = 7;  // For REQA and WUPA we need the short frame format - transmit only 7 bits of the last (and only)
-                   // uint8_t. TxLastBits = BitFramingReg[2..0]
-  pcd_transceive_data_(&command, 1, buffer_atqa, buffer_size, &valid_bits);
-  // if (status != STATUS_OK) {
-  //   ESP_LOGD(TAG, "picc_reqa_or_wupa_() -> !!STATUS_OK:%d %d", status, state_);
-  //   return status;
-  // }
-  // if (*buffer_size != 2 || valid_bits != 0) {  // ATQA must be exactly 16 bits.
-  //   ESP_LOGD(TAG, "picc_reqa_or_wupa_() -> STATUS_ERROR %d", state_);
-  //   return STATUS_ERROR;
-  // }
-  // ESP_LOGD(TAG, "picc_reqa_or_wupa_() -> STATUS_OK %d", state_);
-  return STATUS_OK;
 }
 
 /**
@@ -405,7 +305,7 @@ void RC522::pcd_communicate_with_picc_(
     bool check_crc        ///< In: True => The last two uint8_ts of the response is assumed to be a CRC_A that must be
                           ///< validated.
 ) {
-  ESP_LOGD(TAG, "pcd_communicate_with_picc_(%d, %d,... %d) %d", command, wait_i_rq, check_crc, state_);
+  ESP_LOGV(TAG, "pcd_communicate_with_picc_(%d, %d,... %d) %d", command, wait_i_rq, check_crc, state_);
 
   // Prepare values for BitFramingReg
   uint8_t tx_last_bits = valid_bits ? *valid_bits : 0;
@@ -482,351 +382,8 @@ bool RC522::await_communication(RC522::StatusCode *return_code) {
     return true;
   }
 
-  // Perform CRC_A validation if requested.
-  if (back_data_ && back_length_ && check_crc_) {
-    // In this case a MIFARE Classic NAK is not OK.
-    if (back_length_ == 1 && valid_bits_local == 4) {
-      *return_code = STATUS_MIFARE_NACK;
-      return true;
-    }
-    // We need at least the CRC_A value and all 8 bits of the last uint8_t must be received.
-    if (back_length_ < 2 || valid_bits_local != 0) {
-      *return_code = STATUS_CRC_WRONG;
-      return true;
-    }
-    // Verify CRC_A - do our own calculation and store the control in controlBuffer.
-    uint8_t control_buffer[2];
-    RC522::StatusCode status = pcd_calculate_crc_(&back_data_[0], back_length_ - 2, &control_buffer[0]);
-    if (status != STATUS_OK) {
-      *return_code = status;
-      return true;
-    }
-    if ((back_data_[back_length_ - 2] != control_buffer[0]) || (back_data_[back_length_ - 1] != control_buffer[1])) {
-      *return_code = STATUS_CRC_WRONG;
-      return true;
-    }
-  }
-
   *return_code = STATUS_OK;
   return true;
-}
-
-/**
- * Use the CRC coprocessor in the MFRC522 to calculate a CRC_A.
- *
- * @return STATUS_OK on success, STATUS_??? otherwise.
- */
-
-RC522::StatusCode RC522::pcd_calculate_crc_(
-    uint8_t *data,   ///< In: Pointer to the data to transfer to the FIFO for CRC calculation.
-    uint8_t length,  ///< In: The number of uint8_ts to transfer.
-    uint8_t *result  ///< Out: Pointer to result buffer. Result is written to result[0..1], low uint8_t first.
-) {
-  ESP_LOGD(TAG, "pcd_calculate_crc_(..., %d, ..., %d)", length, state_);
-  pcd_write_register(COMMAND_REG, PCD_IDLE);        // Stop any active command.
-  pcd_write_register(DIV_IRQ_REG, 0x04);            // Clear the CRCIRq interrupt request bit
-  pcd_write_register(FIFO_LEVEL_REG, 0x80);         // FlushBuffer = 1, FIFO initialization
-  pcd_write_register(FIFO_DATA_REG, length, data);  // Write data to the FIFO
-  pcd_write_register(COMMAND_REG, PCD_CALC_CRC);    // Start the calculation
-
-  // Wait for the CRC calculation to complete. Each iteration of the while-loop takes 17.73μs.
-  // TODO check/modify for other architectures than Arduino Uno 16bit
-
-  // Wait for the CRC calculation to complete. Each iteration of the while-loop takes 17.73us.
-  for (uint16_t i = 5000; i > 0; i--) {
-    // DivIrqReg[7..0] bits are: Set2 reserved reserved MfinActIRq reserved CRCIRq reserved reserved
-    uint8_t n = pcd_read_register(DIV_IRQ_REG);
-    if (n & 0x04) {                               // CRCIRq bit set - calculation done
-      pcd_write_register(COMMAND_REG, PCD_IDLE);  // Stop calculating CRC for new content in the FIFO.
-      // Transfer the result from the registers to the result buffer
-      result[0] = pcd_read_register(CRC_RESULT_REG_L);
-      result[1] = pcd_read_register(CRC_RESULT_REG_H);
-
-      ESP_LOGVV(TAG, "pcd_calculate_crc_() STATUS_OK");
-      return STATUS_OK;
-    }
-  }
-  ESP_LOGVV(TAG, "pcd_calculate_crc_() TIMEOUT");
-  // 89ms passed and nothing happend. Communication with the MFRC522 might be down.
-  return STATUS_TIMEOUT;
-}
-/**
- * Returns STATUS_OK if a PICC responds to PICC_CMD_REQA.
- * Only "new" cards in state IDLE are invited. Sleeping cards in state HALT are ignored.
- *
- * @return  STATUS_OK on success, STATUS_??? otherwise.
- */
-
-RC522::StatusCode RC522::picc_is_new_card_present_() {
-  uint8_t buffer_atqa[2];
-  uint8_t buffer_size = sizeof(buffer_atqa);
-
-  // // Reset baud rates
-  // pcd_write_register(TX_MODE_REG, 0x00);
-  // pcd_write_register(RX_MODE_REG, 0x00);
-  // // Reset ModWidthReg
-  pcd_write_register(MOD_WIDTH_REG, 0x26);
-
-  auto result = picc_request_a_(buffer_atqa, &buffer_size);
-
-  ESP_LOGD(TAG, "picc_is_new_card_present_() -> %d", result, state_);
-  return result;
-}
-
-/**
- * Simple wrapper around PICC_Select.
- * Returns true if a UID could be read.
- * Remember to call PICC_IsNewCardPresent(), PICC_RequestA() or PICC_WakeupA() first.
- * The read UID is available in the class variable uid.
- *
- * @return bool
- */
-bool RC522::picc_read_card_serial_() {
-  RC522::StatusCode result = picc_select_(&this->uid_);
-  ESP_LOGD(TAG, "picc_select_(...) -> %d %d", result, state_);
-  return (result == STATUS_OK);
-}
-
-/**
- * Transmits SELECT/ANTICOLLISION commands to select a single PICC.
- * Before calling this function the PICCs must be placed in the READY(*) state by calling PICC_RequestA() or
- * PICC_WakeupA(). On success:
- *     - The chosen PICC is in state ACTIVE(*) and all other PICCs have returned to state IDLE/HALT. (Figure 7 of the
- * ISO/IEC 14443-3 draft.)
- *     - The UID size and value of the chosen PICC is returned in *uid along with the SAK.
- *
- * A PICC UID consists of 4, 7 or 10 uint8_ts.
- * Only 4 uint8_ts can be specified in a SELECT command, so for the longer UIDs two or three iterations are used:
- *     UID size  Number of UID uint8_ts    Cascade levels    Example of PICC
- *     ========  ===================    ==============    ===============
- *     single         4            1        MIFARE Classic
- *     double         7            2        MIFARE Ultralight
- *     triple        10            3        Not currently in use?
- *
- * @return STATUS_OK on success, STATUS_??? otherwise.
- */
-RC522::StatusCode RC522::picc_select_(
-    Uid *uid,           ///< Pointer to Uid struct. Normally output, but can also be used to supply a known UID.
-    uint8_t valid_bits  ///< The number of known UID bits supplied in *uid. Normally 0. If set you must also supply
-                        ///< uid->size.
-) {
-  bool uid_complete;
-  bool select_done;
-  bool use_cascade_tag;
-  uint8_t cascade_level = 1;
-  RC522::StatusCode result;
-  uint8_t count;
-  uint8_t check_bit;
-  uint8_t index;
-  uint8_t uid_index;                // The first index in uid->uiduint8_t[] that is used in the current Cascade Level.
-  int8_t current_level_known_bits;  // The number of known UID bits in the current Cascade Level.
-  uint8_t buffer[9];    // The SELECT/ANTICOLLISION commands uses a 7 uint8_t standard frame + 2 uint8_ts CRC_A
-  uint8_t buffer_used;  // The number of uint8_ts used in the buffer, ie the number of uint8_ts to transfer to the FIFO.
-  uint8_t rx_align;     // Used in BitFramingReg. Defines the bit position for the first bit received.
-  uint8_t tx_last_bits;  // Used in BitFramingReg. The number of valid bits in the last transmitted uint8_t.
-  uint8_t *response_buffer;
-  uint8_t response_length;
-
-  // Description of buffer structure:
-  //    uint8_t 0: SEL         Indicates the Cascade Level: PICC_CMD_SEL_CL1, PICC_CMD_SEL_CL2 or PICC_CMD_SEL_CL3
-  //    uint8_t 1: NVB          Number of Valid Bits (in complete command, not just the UID): High nibble: complete
-  // uint8_ts,
-  // Low nibble: Extra bits.     uint8_t 2: UID-data or CT    See explanation below. CT means Cascade Tag.     uint8_t
-  // 3: UID-data uint8_t 4: UID-data     uint8_t 5: UID-data     uint8_t 6: BCC          Block Check Character - XOR
-  // of uint8_ts 2-5 uint8_t 7: CRC_A uint8_t 8: CRC_A The BCC and CRC_A are only transmitted if we know all the UID
-  // bits of the current Cascade Level.
-  //
-  // Description of uint8_ts 2-5: (Section 6.5.4 of the ISO/IEC 14443-3 draft: UID contents and cascade levels)
-  //    UID size  Cascade level  uint8_t2  uint8_t3  uint8_t4  uint8_t5
-  //    ========  =============  =====  =====  =====  =====
-  //     4 uint8_ts    1      uid0  uid1  uid2  uid3
-  //     7 uint8_ts    1      CT    uid0  uid1  uid2
-  //            2      uid3  uid4  uid5  uid6
-  //    10 uint8_ts    1      CT    uid0  uid1  uid2
-  //            2      CT    uid3  uid4  uid5
-  //            3      uid6  uid7  uid8  uid9
-
-  // Sanity checks
-  if (valid_bits > 80) {
-    return STATUS_INVALID;
-  }
-
-  ESP_LOGD(TAG, "picc_select_(&, %d)", valid_bits);
-
-  // Prepare MFRC522
-  pcd_clear_register_bit_mask_(COLL_REG, 0x80);  // ValuesAfterColl=1 => Bits received after collision are cleared.
-
-  // Repeat Cascade Level loop until we have a complete UID.
-  uid_complete = false;
-  while (!uid_complete) {
-    // Set the Cascade Level in the SEL uint8_t, find out if we need to use the Cascade Tag in uint8_t 2.
-    switch (cascade_level) {
-      case 1:
-        buffer[0] = PICC_CMD_SEL_CL1;
-        uid_index = 0;
-        use_cascade_tag = valid_bits && uid->size > 4;  // When we know that the UID has more than 4 uint8_ts
-        break;
-
-      case 2:
-        buffer[0] = PICC_CMD_SEL_CL2;
-        uid_index = 3;
-        use_cascade_tag = valid_bits && uid->size > 7;  // When we know that the UID has more than 7 uint8_ts
-        break;
-
-      case 3:
-        buffer[0] = PICC_CMD_SEL_CL3;
-        uid_index = 6;
-        use_cascade_tag = false;  // Never used in CL3.
-        break;
-
-      default:
-        return STATUS_INTERNAL_ERROR;
-        break;
-    }
-
-    // How many UID bits are known in this Cascade Level?
-    current_level_known_bits = valid_bits - (8 * uid_index);
-    if (current_level_known_bits < 0) {
-      current_level_known_bits = 0;
-    }
-    // Copy the known bits from uid->uiduint8_t[] to buffer[]
-    index = 2;  // destination index in buffer[]
-    if (use_cascade_tag) {
-      buffer[index++] = PICC_CMD_CT;
-    }
-    uint8_t uint8_ts_to_copy = current_level_known_bits / 8 +
-                               (current_level_known_bits % 8
-                                    ? 1
-                                    : 0);  // The number of uint8_ts needed to represent the known bits for this level.
-    if (uint8_ts_to_copy) {
-      uint8_t maxuint8_ts =
-          use_cascade_tag ? 3 : 4;  // Max 4 uint8_ts in each Cascade Level. Only 3 left if we use the Cascade Tag
-      if (uint8_ts_to_copy > maxuint8_ts) {
-        uint8_ts_to_copy = maxuint8_ts;
-      }
-      for (count = 0; count < uint8_ts_to_copy; count++) {
-        buffer[index++] = uid->uiduint8_t[uid_index + count];
-      }
-    }
-    // Now that the data has been copied we need to include the 8 bits in CT in currentLevelKnownBits
-    if (use_cascade_tag) {
-      current_level_known_bits += 8;
-    }
-
-    // Repeat anti collision loop until we can transmit all UID bits + BCC and receive a SAK - max 32 iterations.
-    select_done = false;
-    while (!select_done) {
-      // Find out how many bits and uint8_ts to send and receive.
-      if (current_level_known_bits >= 32) {  // All UID bits in this Cascade Level are known. This is a SELECT.
-
-        if (response_length < 4) {
-          ESP_LOGW(TAG, "Not enough data received.");
-          return STATUS_INVALID;
-        }
-
-        // Serial.print(F("SELECT: currentLevelKnownBits=")); Serial.println(currentLevelKnownBits, DEC);
-        buffer[1] = 0x70;  // NVB - Number of Valid Bits: Seven whole uint8_ts
-        // Calculate BCC - Block Check Character
-        buffer[6] = buffer[2] ^ buffer[3] ^ buffer[4] ^ buffer[5];
-        // Calculate CRC_A
-        result = pcd_calculate_crc_(buffer, 7, &buffer[7]);
-        if (result != STATUS_OK) {
-          return result;
-        }
-        tx_last_bits = 0;  // 0 => All 8 bits are valid.
-        buffer_used = 9;
-        // Store response in the last 3 uint8_ts of buffer (BCC and CRC_A - not needed after tx)
-        response_buffer = &buffer[6];
-        response_length = 3;
-      } else {  // This is an ANTICOLLISION.
-        // Serial.print(F("ANTICOLLISION: currentLevelKnownBits=")); Serial.println(currentLevelKnownBits, DEC);
-        tx_last_bits = current_level_known_bits % 8;
-        count = current_level_known_bits / 8;     // Number of whole uint8_ts in the UID part.
-        index = 2 + count;                        // Number of whole uint8_ts: SEL + NVB + UIDs
-        buffer[1] = (index << 4) + tx_last_bits;  // NVB - Number of Valid Bits
-        buffer_used = index + (tx_last_bits ? 1 : 0);
-        // Store response in the unused part of buffer
-        response_buffer = &buffer[index];
-        response_length = sizeof(buffer) - index;
-      }
-
-      // Set bit adjustments
-      rx_align = tx_last_bits;  // Having a separate variable is overkill. But it makes the next line easier to read.
-      pcd_write_register(
-          BIT_FRAMING_REG,
-          (rx_align << 4) + tx_last_bits);  // RxAlign = BitFramingReg[6..4]. TxLastBits = BitFramingReg[2..0]
-
-      // Transmit the buffer and receive the response.
-      // result =
-      pcd_transceive_data_(buffer, buffer_used, response_buffer, &response_length, &tx_last_bits, rx_align);
-      if (result == STATUS_COLLISION) {  // More than one PICC in the field => collision.
-        uint8_t value_of_coll_reg = pcd_read_register(
-            COLL_REG);  // CollReg[7..0] bits are: ValuesAfterColl reserved CollPosNotValid CollPos[4:0]
-        if (value_of_coll_reg & 0x20) {  // CollPosNotValid
-          return STATUS_COLLISION;       // Without a valid collision position we cannot continue
-        }
-        uint8_t collision_pos = value_of_coll_reg & 0x1F;  // Values 0-31, 0 means bit 32.
-        if (collision_pos == 0) {
-          collision_pos = 32;
-        }
-        if (collision_pos <= current_level_known_bits) {  // No progress - should not happen
-          return STATUS_INTERNAL_ERROR;
-        }
-        // Choose the PICC with the bit set.
-        current_level_known_bits = collision_pos;
-        count = current_level_known_bits % 8;  // The bit to modify
-        check_bit = (current_level_known_bits - 1) % 8;
-        index = 1 + (current_level_known_bits / 8) + (count ? 1 : 0);  // First uint8_t is index 0.
-        if (response_length > 2)  // Note: Otherwise buffer[index] might be not initialized
-          buffer[index] |= (1 << check_bit);
-      } else if (result != STATUS_OK) {
-        return result;
-      } else {                                 // STATUS_OK
-        if (current_level_known_bits >= 32) {  // This was a SELECT.
-          select_done = true;                  // No more anticollision
-                                               // We continue below outside the while.
-        } else {                               // This was an ANTICOLLISION.
-          // We now have all 32 bits of the UID in this Cascade Level
-          current_level_known_bits = 32;
-          // Run loop again to do the SELECT.
-        }
-      }
-    }  // End of while (!selectDone)
-
-    // We do not check the CBB - it was constructed by us above.
-
-    // Copy the found UID uint8_ts from buffer[] to uid->uiduint8_t[]
-    index = (buffer[2] == PICC_CMD_CT) ? 3 : 2;  // source index in buffer[]
-    uint8_ts_to_copy = (buffer[2] == PICC_CMD_CT) ? 3 : 4;
-    for (count = 0; count < uint8_ts_to_copy; count++) {
-      uid->uiduint8_t[uid_index + count] = buffer[index++];
-    }
-
-    // Check response SAK (Select Acknowledge)
-    if (response_length != 3 || tx_last_bits != 0) {  // SAK must be exactly 24 bits (1 uint8_t + CRC_A).
-      return STATUS_ERROR;
-    }
-    // Verify CRC_A - do our own calculation and store the control in buffer[2..3] - those uint8_ts are not needed
-    // anymore.
-    result = pcd_calculate_crc_(response_buffer, 1, &buffer[2]);
-    if (result != STATUS_OK) {
-      return result;
-    }
-    if ((buffer[2] != response_buffer[1]) || (buffer[3] != response_buffer[2])) {
-      return STATUS_CRC_WRONG;
-    }
-    if (response_buffer[0] & 0x04) {  // Cascade bit set - UID not complete yes
-      cascade_level++;
-    } else {
-      uid_complete = true;
-      uid->sak = response_buffer[0];
-    }
-  }  // End of while (!uidComplete)
-
-  // Set correct uid->size
-  uid->size = 3 * cascade_level + 1;
-
-  return STATUS_OK;
 }
 
 bool RC522BinarySensor::process(const uint8_t *data, uint8_t len) {

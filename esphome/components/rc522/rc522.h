@@ -170,15 +170,6 @@ class RC522 : public PollingComponent {
     PICC_CMD_UL_WRITE = 0xA2  // Writes one 4 uint8_t page to the PICC.
   };
 
-  // A struct used for passing the UID of a PICC.
-  using Uid = struct {
-    uint8_t size;  // Number of uint8_ts in the UID. 4, 7 or 10.
-    uint8_t uiduint8_t[10];
-    uint8_t sak;  // The SAK (Select acknowledge) uint8_t returned from the PICC after successful selection.
-  };
-
-  Uid uid_;
-
   void pcd_reset_();
   void initialize_();
   void pcd_antenna_on_();
@@ -207,15 +198,6 @@ class RC522 : public PollingComponent {
                                   uint8_t *values   ///< The values to write. uint8_t array.
                                   ) = 0;
 
-  StatusCode picc_request_a_(
-      uint8_t *buffer_atqa,  ///< The buffer to store the ATQA (Answer to request) in
-      uint8_t *buffer_size   ///< Buffer size, at least two uint8_ts. Also number of uint8_ts returned if STATUS_OK.
-  );
-  StatusCode picc_reqa_or_wupa_(
-      uint8_t command,       ///< The command to send - PICC_CMD_REQA or PICC_CMD_WUPA
-      uint8_t *buffer_atqa,  ///< The buffer to store the ATQA (Answer to request) in
-      uint8_t *buffer_size   ///< Buffer size, at least two uint8_ts. Also number of uint8_ts returned if STATUS_OK.
-  );
   void pcd_set_register_bit_mask_(PcdRegister reg,  ///< The register to update. One of the PCD_Register enums.
                                   uint8_t mask      ///< The bits to set.
   );
@@ -228,18 +210,6 @@ class RC522 : public PollingComponent {
   void pcd_communicate_with_picc_(uint8_t command, uint8_t wait_i_rq, uint8_t *send_data, uint8_t send_len,
                                   uint8_t *back_data = nullptr, uint8_t *back_len = nullptr,
                                   uint8_t *valid_bits = nullptr, uint8_t rx_align = 0, bool check_crc = false);
-  StatusCode pcd_calculate_crc_(
-      uint8_t *data,   ///< In: Pointer to the data to transfer to the FIFO for CRC calculation.
-      uint8_t length,  ///< In: The number of uint8_ts to transfer.
-      uint8_t *result  ///< Out: Pointer to result buffer. Result is written to result[0..1], low uint8_t first.
-  );
-  RC522::StatusCode picc_is_new_card_present_();
-  bool picc_read_card_serial_();
-  StatusCode picc_select_(
-      Uid *uid,               ///< Pointer to Uid struct. Normally output, but can also be used to supply a known UID.
-      uint8_t valid_bits = 0  ///< The number of known UID bits supplied in *uid. Normally 0. If set you must also
-                              ///< supply uid->size.
-  );
 
   /** Read a data frame from the RC522 and return the result as a vector.
    *
