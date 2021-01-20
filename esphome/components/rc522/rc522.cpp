@@ -116,64 +116,85 @@ void RC522::loop() {
   if (awaiting_comm_) {
     if (await_communication(&status)) {
       awaiting_comm_ = false;
-      state_ = (State)(state_ + 1);
+      // ESP_LOGD(TAG, "awaiting_comm_ %d", status);
+
     } else
       return;
   }
 
-  if (state_ == STATE_PICC_REQUEST_A_DONE) {
-    if (status != STATUS_OK) {
-      ESP_LOGI(TAG, "picc_reqa_or_wupa_() -> !!STATUS_OK:%d %d", status, state_);
-      state_ = STATE_INIT;
-      return;
-    }
-    if (back_length_ != 2 || *valid_bits_ != 0) {  // ATQA must be exactly 16 bits.
-      ESP_LOGI(TAG, "picc_reqa_or_wupa_() -> STATUS_ERROR %d", state_);
-      state_ = STATE_INIT;
-      return;
-    }
-    ESP_LOGI(TAG, "picc_reqa_or_wupa_() -> STATUS_OK %d", state_);
-    state_ = STATE_READ_SERIAL;
-  }
-
-  if (state_ == STATE_READ_SERIAL) {
-    // Try process card
-    if (!picc_read_card_serial_()) {
-      ESP_LOGW(TAG, "Requesting tag read failed!");
-      state_ = STATE_INIT;
-      return;
-    };
-
-    if (uid_.size < 4) {
-      ESP_LOGW(TAG, "Read serial size: %d", uid_.size);
-      state_ = STATE_INIT;
-      return;
-    }
-
-    bool report = true;
-    // 1. Go through all triggers
-    for (auto *trigger : this->triggers_)
-      trigger->process(uid_.uiduint8_t, uid_.size);
-
-    // 2. Find a binary sensor
-    for (auto *tag : this->binary_sensors_) {
-      if (tag->process(uid_.uiduint8_t, uid_.size)) {
-        // 2.1 if found, do not dump
-        report = false;
+  switch (state_) {
+    case STATE_PICC_REQUEST_A:
+      if (status != STATUS_OK) {
+        ESP_LOGD(TAG, "picc_reqa_or_wupa_() -> !!STATUS_OK:%d %d", status, state_);
+        state_ = STATE_INIT;
+        return;
       }
+      if (back_length_ != 2 || *valid_bits_ != 0) {  // ATQA must be exactly 16 bits.
+        ESP_LOGD(TAG, "picc_reqa_or_wupa_() -> STATUS_ERROR %d", state_);
+        state_ = STATE_INIT;
+        return;
+      }
+      ESP_LOGD(TAG, "picc_reqa_or_wupa_() -> STATUS_OK %d", state_);
+      state_ = STATE_READ_SERIAL;
+      break;
+
+    case STATE_READ_SERIAL: {
+      uint8_t tx_buffer[2] = {PICC_CMD_SEL_CL1, 32};
+      pcd_transceive_data_(tx_buffer, 2, this->back_data_, &this->back_length_);
+      state_ = STATE_READ_SERIAL_DONE;
+      break;
     }
 
-    if (report) {
-      char buf[32];
-      format_uid(buf, uid_.uiduint8_t, uid_.size);
-      ESP_LOGD(TAG, "Found new tag '%s'", buf);
-    }
-    state_ = STATE_INIT;
+    case STATE_READ_SERIAL_DONE:
+      if (status != STATUS_OK || back_length_ != 5) {
+        ESP_LOGW(TAG, "Unexpected response. Read status is %d. Read bytes: %d", status, back_length_);
+        state_ = STATE_INIT;
+        return;
+      }
+      state_ = STATE_INIT;
+
+      // TODO: Check CRC
+      this->back_data_[7] = 0;
+      this->back_data_[8] = 0;
+      status = pcd_calculate_crc_(this->back_data_, 1, &this->back_data_[7]);
+
+      // result = pcd_calculate_crc_(response_buffer, 1, &buffer[2]);
+      if (status != STATUS_OK) {
+        ESP_LOGW(TAG, "Calc CRC. Read status is %d.", status);
+      }
+      ESP_LOGI(TAG, "Crc Calc: %d, %d, %d, %d", this->back_data_[7], this->back_data_[1], this->back_data_[8],
+               this->back_data_[2]);
+      if ((this->back_data_[7] != this->back_data_[1]) || (this->back_data_[8] != this->back_data_[2])) {
+        ESP_LOGW(TAG, "Calc CRC. Read status is %d.", status);
+        return;
+      }
+
+      memcpy(uid_.uiduint8_t, this->back_data_, 4);
+      uid_.size = 4;
+      bool report = true;
+      // 1. Go through all triggers
+      for (auto *trigger : this->triggers_)
+        trigger->process(uid_.uiduint8_t, uid_.size);
+
+      // 2. Find a binary sensor
+      for (auto *tag : this->binary_sensors_) {
+        if (tag->process(uid_.uiduint8_t, uid_.size)) {
+          // 2.1 if found, do not dump
+          report = false;
+        }
+      }
+
+      if (report) {
+        char buf[32];
+        format_uid(buf, uid_.uiduint8_t, uid_.size);
+        ESP_LOGI(TAG, "Found new tag '%s'", buf);
+      }
+      break;
   }
 }
 
 void RC522::update() {
-  ESP_LOGI(TAG, "State: %d awaiting comm: %d", state_, awaiting_comm_);
+  ESP_LOGD(TAG, "State: %d awaiting comm: %d", state_, awaiting_comm_);
   for (auto *obj : this->binary_sensors_)
     obj->on_scan_end();
 
@@ -183,11 +204,11 @@ void RC522::update() {
     uint8_t buffer_atqa[2];
     uint8_t buffer_size = sizeof(buffer_atqa);
 
-    // Reset baud rates
-    pcd_write_register(TX_MODE_REG, 0x00);
-    pcd_write_register(RX_MODE_REG, 0x00);
-    // Reset ModWidthReg
-    pcd_write_register(MOD_WIDTH_REG, 0x26);
+    // // Reset baud rates
+    // pcd_write_register(TX_MODE_REG, 0x00);
+    // pcd_write_register(RX_MODE_REG, 0x00);
+    // // Reset ModWidthReg
+    // pcd_write_register(MOD_WIDTH_REG, 0x26);
 
     // auto result = picc_request_a_(buffer_atqa, &buffer_size);
 
@@ -236,8 +257,8 @@ void RC522::update() {
 void RC522::pcd_reset_() {
   // The datasheet does not mention how long the SoftRest command takes to complete.
   // But the MFRC522 might have been in soft power-down mode (triggered by bit 4 of CommandReg)
-  // Section 8.8.2 in the datasheet says the oscillator start-up time is the start up time of the crystal + 37,74μs. Let
-  // us be generous: 50ms.
+  // Section 8.8.2 in the datasheet says the oscillator start-up time is the start up time of the crystal + 37,74μs.
+  // Let us be generous: 50ms.
 
   if (millis() - reset_timeout_ < 50)
     return;
@@ -305,7 +326,7 @@ RC522::StatusCode RC522::picc_reqa_or_wupa_(
 
   if (buffer_atqa == nullptr || *buffer_size < 2) {  // The ATQA response is 2 uint8_ts long.
     {
-      ESP_LOGI(TAG, "picc_reqa_or_wupa_() -> STATUS_NO_ROOM %d", state_);
+      ESP_LOGD(TAG, "picc_reqa_or_wupa_() -> STATUS_NO_ROOM %d", state_);
       return STATUS_NO_ROOM;
     }
   }
@@ -314,15 +335,15 @@ RC522::StatusCode RC522::picc_reqa_or_wupa_(
                    // uint8_t. TxLastBits = BitFramingReg[2..0]
   pcd_transceive_data_(&command, 1, buffer_atqa, buffer_size, &valid_bits);
   // if (status != STATUS_OK) {
-  //   ESP_LOGI(TAG, "picc_reqa_or_wupa_() -> !!STATUS_OK:%d %d", status, state_);
+  //   ESP_LOGD(TAG, "picc_reqa_or_wupa_() -> !!STATUS_OK:%d %d", status, state_);
   //   return status;
   // }
   // if (*buffer_size != 2 || valid_bits != 0) {  // ATQA must be exactly 16 bits.
-  //   ESP_LOGI(TAG, "picc_reqa_or_wupa_() -> STATUS_ERROR %d", state_);
+  //   ESP_LOGD(TAG, "picc_reqa_or_wupa_() -> STATUS_ERROR %d", state_);
   //   return STATUS_ERROR;
   // }
-  // ESP_LOGI(TAG, "picc_reqa_or_wupa_() -> STATUS_OK %d", state_);
-  // return STATUS_OK;
+  // ESP_LOGD(TAG, "picc_reqa_or_wupa_() -> STATUS_OK %d", state_);
+  return STATUS_OK;
 }
 
 /**
@@ -384,7 +405,7 @@ void RC522::pcd_communicate_with_picc_(
     bool check_crc        ///< In: True => The last two uint8_ts of the response is assumed to be a CRC_A that must be
                           ///< validated.
 ) {
-  ESP_LOGI(TAG, "pcd_communicate_with_picc_(%d, %d,... %d) %d", command, wait_i_rq, check_crc, state_);
+  ESP_LOGD(TAG, "pcd_communicate_with_picc_(%d, %d,... %d) %d", command, wait_i_rq, check_crc, state_);
 
   // Prepare values for BitFramingReg
   uint8_t tx_last_bits = valid_bits ? *valid_bits : 0;
@@ -414,7 +435,6 @@ bool RC522::await_communication(RC522::StatusCode *return_code) {
   uint8_t n = pcd_read_register(
       COM_IRQ_REG);  // ComIrqReg[7..0] bits are: Set1 TxIRq RxIRq IdleIRq HiAlertIRq LoAlertIRq ErrIRq TimerIRq
   if (n & 0x01) {    // Timer interrupt - nothing received in 25ms
-
     return true;
   }
   if (!(n & wait_i_rq)) {  // None of the interrupts that signal success has been set.
@@ -502,7 +522,7 @@ RC522::StatusCode RC522::pcd_calculate_crc_(
     uint8_t length,  ///< In: The number of uint8_ts to transfer.
     uint8_t *result  ///< Out: Pointer to result buffer. Result is written to result[0..1], low uint8_t first.
 ) {
-  ESP_LOGI(TAG, "pcd_calculate_crc_(..., %d, ..., %d)", length, state_);
+  ESP_LOGD(TAG, "pcd_calculate_crc_(..., %d, ..., %d)", length, state_);
   pcd_write_register(COMMAND_REG, PCD_IDLE);        // Stop any active command.
   pcd_write_register(DIV_IRQ_REG, 0x04);            // Clear the CRCIRq interrupt request bit
   pcd_write_register(FIFO_LEVEL_REG, 0x80);         // FlushBuffer = 1, FIFO initialization
@@ -541,15 +561,15 @@ RC522::StatusCode RC522::picc_is_new_card_present_() {
   uint8_t buffer_atqa[2];
   uint8_t buffer_size = sizeof(buffer_atqa);
 
-  // Reset baud rates
-  pcd_write_register(TX_MODE_REG, 0x00);
-  pcd_write_register(RX_MODE_REG, 0x00);
-  // Reset ModWidthReg
+  // // Reset baud rates
+  // pcd_write_register(TX_MODE_REG, 0x00);
+  // pcd_write_register(RX_MODE_REG, 0x00);
+  // // Reset ModWidthReg
   pcd_write_register(MOD_WIDTH_REG, 0x26);
 
   auto result = picc_request_a_(buffer_atqa, &buffer_size);
 
-  ESP_LOGI(TAG, "picc_is_new_card_present_() -> %d", result, state_);
+  ESP_LOGD(TAG, "picc_is_new_card_present_() -> %d", result, state_);
   return result;
 }
 
@@ -563,7 +583,7 @@ RC522::StatusCode RC522::picc_is_new_card_present_() {
  */
 bool RC522::picc_read_card_serial_() {
   RC522::StatusCode result = picc_select_(&this->uid_);
-  ESP_LOGI(TAG, "picc_select_(...) -> %d %d", result, state_);
+  ESP_LOGD(TAG, "picc_select_(...) -> %d %d", result, state_);
   return (result == STATUS_OK);
 }
 
@@ -631,7 +651,7 @@ RC522::StatusCode RC522::picc_select_(
     return STATUS_INVALID;
   }
 
-  ESP_LOGI(TAG, "picc_select_(&, %d)", valid_bits);
+  ESP_LOGD(TAG, "picc_select_(&, %d)", valid_bits);
 
   // Prepare MFRC522
   pcd_clear_register_bit_mask_(COLL_REG, 0x80);  // ValuesAfterColl=1 => Bits received after collision are cleared.

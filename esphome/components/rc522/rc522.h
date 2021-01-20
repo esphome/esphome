@@ -7,14 +7,7 @@
 namespace esphome {
 namespace rc522 {
 
-enum State {
-  STATE_NONE = 0,
-  STATE_SETUP,
-  STATE_INIT,
-  STATE_PICC_REQUEST_A,
-  STATE_PICC_REQUEST_A_DONE,
-  STATE_READ_SERIAL,
-};
+enum State { STATE_NONE = 0, STATE_SETUP, STATE_INIT, STATE_PICC_REQUEST_A, STATE_READ_SERIAL, STATE_READ_SERIAL_DONE };
 
 class RC522BinarySensor;
 class RC522Trigger;
