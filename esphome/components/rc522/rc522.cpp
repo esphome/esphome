@@ -134,7 +134,7 @@ void RC522::loop() {
     return;
   }
 
-  StatusCode status;
+  StatusCode status = STATUS_ERROR;  // For lint passing. TODO: refactor this
   if (awaiting_comm_) {
     if (await_communication_(&status)) {
       awaiting_comm_ = false;
@@ -356,23 +356,20 @@ bool RC522::await_communication_(RC522::StatusCode *return_code) {
   }
 
   uint8_t valid_bits_local = 0;
-
   back_length_ = sizeof(back_data_);
-  // If the caller wants data back, get it from the MFRC522.
-  if (back_data_ && back_length_) {
-    uint8_t n = pcd_read_register(FIFO_LEVEL_REG);  // Number of uint8_ts in the FIFO
-    if (n > back_length_) {
-      *return_code = STATUS_NO_ROOM;
-      return true;
-    }
-    back_length_ = n;                                            // Number of uint8_ts returned
-    pcd_read_register(FIFO_DATA_REG, n, back_data_, rx_align_);  // Get received data from FIFO
-    valid_bits_local =
-        pcd_read_register(CONTROL_REG) & 0x07;  // RxLastBits[2:0] indicates the number of valid bits in the last
-                                                // received uint8_t. If this value is 000b, the whole uint8_t is valid.
-    if (valid_bits_) {
-      *valid_bits_ = valid_bits_local;
-    }
+
+  n = pcd_read_register(FIFO_LEVEL_REG);  // Number of uint8_ts in the FIFO
+  if (n > back_length_) {
+    *return_code = STATUS_NO_ROOM;
+    return true;
+  }
+  back_length_ = n;                                            // Number of uint8_ts returned
+  pcd_read_register(FIFO_DATA_REG, n, back_data_, rx_align_);  // Get received data from FIFO
+  valid_bits_local =
+      pcd_read_register(CONTROL_REG) & 0x07;  // RxLastBits[2:0] indicates the number of valid bits in the last
+                                              // received uint8_t. If this value is 000b, the whole uint8_t is valid.
+  if (valid_bits_) {
+    *valid_bits_ = valid_bits_local;
   }
 
   // Tell about collisions
