@@ -312,10 +312,9 @@ void HOT WaveshareEPaperTypeA::display() {
   // COMMAND DISPLAY UPDATE CONTROL 2
   this->command(0x22);
   if (this->model_ == TTGO_EPAPER_2_13_IN_B72B) {
-      this->data(0xC7);
-  }
-  else {
-      this->data(0xC4);
+    this->data(0xC7);
+  } else {
+    this->data(0xC4);
   }
   // COMMAND MASTER ACTIVATION
   this->command(0x20);
