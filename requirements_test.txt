@@ -6,7 +6,7 @@ pexpect==4.8.0
 
 # Unit tests
 pytest==6.2.1
-pytest-cov==2.10.1
+pytest-cov==2.11.1
 pytest-mock==3.5.1
 asyncmock==0.4.2
 hypothesis==5.21.0
