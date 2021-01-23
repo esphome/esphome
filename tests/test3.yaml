@@ -896,7 +896,7 @@ rf_bridge:
         verify_ssl: false
         json:
           key: !lambda |-
-            return id(my_sensor).state;
+            return id(version_sensor).state;
           greeting: 'Hello World'
     - http_request.send:
         method: PUT
