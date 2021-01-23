@@ -26,6 +26,25 @@ esphome:
           green: !lambda 'return 255;'
           blue: 0%
           white: 100%
+      - http_request.get:
+          url: https://esphome.io
+          headers:
+            Content-Type: application/json
+          verify_ssl: false
+      - http_request.post:
+          url: https://esphome.io
+          verify_ssl: false
+          json:
+            key: !lambda |-
+              return id(template_text).state;
+            greeting: 'Hello World'
+      - http_request.send:
+          method: PUT
+          url: https://esphome.io
+          headers:
+            Content-Type: application/json
+          body: 'Some data'
+          verify_ssl: false
   build_path: build/test1
 
 packages:
@@ -49,6 +68,10 @@ wifi:
   domain: .local
   reboot_timeout: 120s
   power_save_mode: none
+
+http_request:
+  useragent: esphome/device
+  timeout: 10s
 
 mqtt:
   broker: '192.168.178.84'
@@ -210,7 +233,6 @@ mcp23s17:
   - id: 'mcp23s17_hub'
     cs_pin: GPIO12
     deviceaddress: 1
-
 
 sensor:
   - platform: adc
@@ -1727,7 +1749,7 @@ display:
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
   - platform: ssd1322_spi
-    model: "SSD1322 256x64"
+    model: 'SSD1322 256x64'
     cs_pin: GPIO23
     dc_pin: GPIO23
     reset_pin: GPIO23
@@ -1863,8 +1885,7 @@ time:
     update_interval: never
     on_time:
       seconds: 0
-      then:
-        ds1307.read_time
+      then: ds1307.read_time
 
 cover:
   - platform: template
