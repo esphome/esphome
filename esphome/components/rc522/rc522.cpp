@@ -13,14 +13,16 @@ static const char *TAG = "rc522";
 
 static const uint8_t RESET_COUNT = 5;
 
-void format_uid(char *buf, const uint8_t *uid, uint8_t uid_length) {
+std::string format_uid(std::vector<uint8_t> &uid) {
+  char buf[32];
   int offset = 0;
-  for (uint8_t i = 0; i < uid_length; i++) {
+  for (uint8_t i = 0; i < uid.size(); i++) {
     const char *format = "%02X";
-    if (i + 1 < uid_length)
+    if (i + 1 < uid.size())
       format = "%02X-";
     offset += sprintf(buf + offset, format, uid[i]);
   }
+  return std::string(buf);
 }
 
 void RC522::setup() {
@@ -171,40 +173,46 @@ void RC522::loop() {
     }
 
     case STATE_READ_SERIAL_DONE: {
-      state_ = STATE_DONE;
       pcd_antenna_off_();
       if (status != STATUS_OK || back_length_ != 5) {
         ESP_LOGW(TAG, "Unexpected response. Read status is %d. Read bytes: %d", status, back_length_);
+        state_ = STATE_DONE;
         return;
       }
-
+      state_ = STATE_INIT;
       bool report = true;
-      // 1. Go through all triggers
-      for (auto *trigger : this->triggers_)
-        trigger->process(this->back_data_, 4);
 
-      // 2. Find a binary sensor
+      const int32_t TAG_LENGTH = 4;
+      std::vector<uint8_t> rfid_uid(std::begin(this->back_data_), std::begin(this->back_data_) + TAG_LENGTH);
+
       for (auto *tag : this->binary_sensors_) {
-        if (tag->process(this->back_data_, 4)) {
-          // 2.1 if found, do not dump
+        if (tag->process(rfid_uid)) {
           report = false;
         }
       }
 
+      if (this->current_uid_ == rfid_uid) {
+        return;
+      }
+
+      this->current_uid_ = rfid_uid;
+
+      for (auto *trigger : this->triggers_)
+        trigger->process(rfid_uid);
+
       if (report) {
-        char buf[32];
-        format_uid(buf, this->back_data_, 4);
-        ESP_LOGD(TAG, "Found new tag '%s'", buf);
+        ESP_LOGD(TAG, "Found new tag '%s'", format_uid(rfid_uid).c_str());
       }
       break;
     }
     case STATE_DONE:
+      this->current_uid_ = {};
       state_ = STATE_INIT;
       break;
     default:
       break;
   }
-}
+}  // namespace rc522
 
 /**
  * Performs a soft reset on the MFRC522 chip and waits for it to be ready again.
@@ -387,11 +395,11 @@ RC522::StatusCode RC522::await_communication_() {
   return STATUS_OK;
 }
 
-bool RC522BinarySensor::process(const uint8_t *data, uint8_t len) {
-  if (len != this->uid_.size())
+bool RC522BinarySensor::process(std::vector<uint8_t> &data) {
+  if (data.size() != this->uid_.size())
     return false;
 
-  for (uint8_t i = 0; i < len; i++) {
+  for (uint8_t i = 0; i < data.size(); i++) {
     if (data[i] != this->uid_[i])
       return false;
   }
@@ -400,11 +408,7 @@ bool RC522BinarySensor::process(const uint8_t *data, uint8_t len) {
   this->found_ = true;
   return true;
 }
-void RC522Trigger::process(const uint8_t *uid, uint8_t uid_length) {
-  char buf[32];
-  format_uid(buf, uid, uid_length);
-  this->trigger(std::string(buf));
-}
+void RC522Trigger::process(std::vector<uint8_t> &data) { this->trigger(format_uid(data)); }
 
 }  // namespace rc522
 }  // namespace esphome

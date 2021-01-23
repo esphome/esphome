@@ -233,6 +233,7 @@ class RC522 : public PollingComponent {
   uint32_t reset_timeout_{0};
   std::vector<RC522BinarySensor *> binary_sensors_;
   std::vector<RC522Trigger *> triggers_;
+  std::vector<uint8_t> current_uid_;
 
   enum RC522Error {
     NONE = 0,
@@ -244,7 +245,7 @@ class RC522BinarySensor : public binary_sensor::BinarySensor {
  public:
   void set_uid(const std::vector<uint8_t> &uid) { uid_ = uid; }
 
-  bool process(const uint8_t *data, uint8_t len);
+  bool process(std::vector<uint8_t> &data);
 
   void on_scan_end() {
     if (!this->found_) {
@@ -260,7 +261,7 @@ class RC522BinarySensor : public binary_sensor::BinarySensor {
 
 class RC522Trigger : public Trigger<std::string> {
  public:
-  void process(const uint8_t *uid, uint8_t uid_length);
+  void process(std::vector<uint8_t> &data);
 };
 
 }  // namespace rc522
