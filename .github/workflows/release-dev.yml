@@ -189,7 +189,7 @@ jobs:
       - name: Set TAG
         run: |
           TAG="${GITHUB_SHA:0:7}"
-          echo "::set-env name=TAG::${TAG}"
+          echo "TAG=${TAG}" >> $GITHUB_ENV
       - name: Set up env variables
         run: |
           base_version="2.6.0"
@@ -204,9 +204,9 @@ jobs:
             dockerfile="docker/Dockerfile"
           fi
 
-          echo "::set-env name=BUILD_FROM::${build_from}"
-          echo "::set-env name=BUILD_TO::${build_to}"
-          echo "::set-env name=DOCKERFILE::${dockerfile}"
+          echo "BUILD_FROM=${build_from}" >> $GITHUB_ENV
+          echo "BUILD_TO=${build_to}" >> $GITHUB_ENV
+          echo "DOCKERFILE=${dockerfile}" >> $GITHUB_ENV
       - name: Pull for cache
         run: |
           docker pull "${BUILD_TO}:dev" || true
@@ -243,7 +243,7 @@ jobs:
     - name: Set TAG
       run: |
         TAG="${GITHUB_SHA:0:7}"
-        echo "::set-env name=TAG::${TAG}"
+        echo "TAG=${TAG}" >> $GITHUB_ENV
     - name: Log in to docker hub
       env:
         DOCKER_USER: ${{ secrets.DOCKER_USER }}

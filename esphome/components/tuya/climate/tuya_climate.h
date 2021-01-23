@@ -18,8 +18,11 @@ class TuyaClimate : public climate::Climate, public Component {
   void set_current_temperature_id(uint8_t current_temperature_id) {
     this->current_temperature_id_ = current_temperature_id;
   }
-  void set_temperature_multiplier(float temperature_multiplier) {
-    this->temperature_multiplier_ = temperature_multiplier;
+  void set_current_temperature_multiplier(float temperature_multiplier) {
+    this->current_temperature_multiplier_ = temperature_multiplier;
+  }
+  void set_target_temperature_multiplier(float temperature_multiplier) {
+    this->target_temperature_multiplier_ = temperature_multiplier;
   }
 
   void set_tuya_parent(Tuya *parent) { this->parent_ = parent; }
@@ -40,7 +43,8 @@ class TuyaClimate : public climate::Climate, public Component {
   optional<uint8_t> switch_id_{};
   optional<uint8_t> target_temperature_id_{};
   optional<uint8_t> current_temperature_id_{};
-  float temperature_multiplier_{1.0f};
+  float current_temperature_multiplier_{1.0f};
+  float target_temperature_multiplier_{1.0f};
 };
 
 }  // namespace tuya
