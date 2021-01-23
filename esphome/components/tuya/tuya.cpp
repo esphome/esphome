@@ -42,6 +42,8 @@ void Tuya::dump_config() {
       ESP_LOGCONFIG(TAG, "  Datapoint %d: switch (value: %s)", info.id, ONOFF(info.value_bool));
     else if (info.type == TuyaDatapointType::INTEGER)
       ESP_LOGCONFIG(TAG, "  Datapoint %d: int value (value: %d)", info.id, info.value_int);
+    else if (info.type == TuyaDatapointType::STRING)
+      ESP_LOGCONFIG(TAG, "  Datapoint %d: string value (value: %s)", info.id, info.value_string.c_str());
     else if (info.type == TuyaDatapointType::ENUM)
       ESP_LOGCONFIG(TAG, "  Datapoint %d: enum (value: %d)", info.id, info.value_enum);
     else if (info.type == TuyaDatapointType::BITMASK)
@@ -283,6 +285,9 @@ void Tuya::handle_datapoint_(const uint8_t *buffer, size_t len) {
         return;
       datapoint.value_uint = encode_uint32(data[0], data[1], data[2], data[3]);
       break;
+    case TuyaDatapointType::STRING:
+      datapoint.value_string = std::string(reinterpret_cast<const char *>(data), data_len);
+      break;
     case TuyaDatapointType::ENUM:
       if (data_len != 1)
         return;
@@ -339,7 +344,13 @@ void Tuya::set_datapoint_value(TuyaDatapoint datapoint) {
   ESP_LOGV(TAG, "Datapoint %u set to %u", datapoint.id, datapoint.value_uint);
   for (auto &other : this->datapoints_) {
     if (other.id == datapoint.id) {
-      if (other.value_uint == datapoint.value_uint) {
+      // String value is stored outside the union; must be checked separately.
+      if (datapoint.type == TuyaDatapointType::STRING) {
+        if (other.value_string == datapoint.value_string) {
+          ESP_LOGV(TAG, "Not sending unchanged value");
+          return;
+        }
+      } else if (other.value_uint == datapoint.value_uint) {
         ESP_LOGV(TAG, "Not sending unchanged value");
         return;
       }
@@ -358,6 +369,11 @@ void Tuya::set_datapoint_value(TuyaDatapoint datapoint) {
       data.push_back(datapoint.value_uint >> 16);
       data.push_back(datapoint.value_uint >> 8);
       data.push_back(datapoint.value_uint >> 0);
+      break;
+    case TuyaDatapointType::STRING:
+      for (char const &c : datapoint.value_string) {
+        data.push_back(c);
+      }
       break;
     case TuyaDatapointType::ENUM:
       data.push_back(datapoint.value_enum);
