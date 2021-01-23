@@ -8,6 +8,7 @@ namespace esphome {
 namespace rc522 {
 
 static const uint8_t WAIT_I_RQ = 0x30;  // RxIRq and IdleIRq
+static const int32_t TAG_LENGTH = 4;
 
 static const char *TAG = "rc522";
 
@@ -182,7 +183,6 @@ void RC522::loop() {
       state_ = STATE_INIT;
       bool report = true;
 
-      const int32_t TAG_LENGTH = 4;
       std::vector<uint8_t> rfid_uid(std::begin(this->back_data_), std::begin(this->back_data_) + TAG_LENGTH);
 
       for (auto *tag : this->binary_sensors_) {
