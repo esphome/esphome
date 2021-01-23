@@ -77,7 +77,6 @@ void RC522::initialize_() {
   pcd_write_register(TX_ASK_REG, 0x40);
   pcd_write_register(MODE_REG, 0x3D);  // Default 0x3F. Set the preset value for the CRC coprocessor for the CalcCRC
                                        // command to 0x6363 (ISO 14443-3 part 6.2.4)
-  pcd_antenna_on_();                   // Enable the antenna driver pins TX1 and TX2 (they were disabled by the reset)
 
   state_ = STATE_INIT;
 }
@@ -106,6 +105,7 @@ void RC522::update() {
     obj->on_scan_end();
 
   if (state_ == STATE_INIT) {
+    pcd_antenna_on_();
     uint8_t buffer_atqa[2];
     uint8_t buffer_size = sizeof(buffer_atqa);
 
@@ -136,10 +136,10 @@ void RC522::loop() {
 
   StatusCode status = STATUS_ERROR;  // For lint passing. TODO: refactor this
   if (awaiting_comm_) {
-    if (await_communication_(&status)) {
-      awaiting_comm_ = false;
-    } else
+    status = await_communication_();
+    if (status == STATUS_WAITING)
       return;
+    awaiting_comm_ = false;
   }
 
   switch (state_) {
@@ -147,19 +147,20 @@ void RC522::loop() {
       if (status == STATUS_TIMEOUT) {
         // This is normal
         ESP_LOGV(TAG, "CMD_REQA -> status: %d", status);
-        state_ = STATE_INIT;
-        return;
+        state_ = STATE_DONE;
       } else if (status != STATUS_OK) {
         ESP_LOGW(TAG, "CMD_REQA -> status: %d", status);
-        state_ = STATE_INIT;
-        return;
+        state_ = STATE_DONE;
       } else if (back_length_ != 2 || *valid_bits_ != 0) {  // ATQA must be exactly 16 bits.
         ESP_LOGW(TAG, "CMD_REQA -> back_length_ %d, valid bits: %d", back_length_, *valid_bits_);
-        state_ = STATE_INIT;
-        return;
+        state_ = STATE_DONE;
+      } else {
+        state_ = STATE_READ_SERIAL;
       }
-
-      state_ = STATE_READ_SERIAL;
+      if (state_ == STATE_DONE) {
+        // Don't wait another loop cycle
+        pcd_antenna_off_();
+      }
       break;
 
     case STATE_READ_SERIAL: {
@@ -170,12 +171,12 @@ void RC522::loop() {
     }
 
     case STATE_READ_SERIAL_DONE: {
+      state_ = STATE_DONE;
+      pcd_antenna_off_();
       if (status != STATUS_OK || back_length_ != 5) {
         ESP_LOGW(TAG, "Unexpected response. Read status is %d. Read bytes: %d", status, back_length_);
-        state_ = STATE_INIT;
         return;
       }
-      state_ = STATE_INIT;
 
       bool report = true;
       // 1. Go through all triggers
@@ -197,6 +198,9 @@ void RC522::loop() {
       }
       break;
     }
+    case STATE_DONE:
+      state_ = STATE_INIT;
+      break;
     default:
       break;
   }
@@ -231,6 +235,7 @@ void RC522::pcd_reset_() {
 
   if (--reset_count_ == 0) {
     ESP_LOGE(TAG, "Unable to reset RC522.");
+    this->error_code_ = RESET_FAILED;
     mark_failed();
   }
 }
@@ -243,6 +248,16 @@ void RC522::pcd_antenna_on_() {
   uint8_t value = pcd_read_register(TX_CONTROL_REG);
   if ((value & 0x03) != 0x03) {
     pcd_write_register(TX_CONTROL_REG, value | 0x03);
+  }
+}
+
+/**
+ * Turns the antenna off by disabling pins TX1 and TX2.
+ */
+void RC522::pcd_antenna_off_() {
+  uint8_t value = pcd_read_register(TX_CONTROL_REG);
+  if ((value & 0x03) != 0x00) {
+    pcd_write_register(TX_CONTROL_REG, value & ~0x03);
   }
 }
 
@@ -325,29 +340,27 @@ void RC522::pcd_communicate_with_picc_(
   awaiting_comm_time_ = millis();
 }
 
-bool RC522::await_communication_(RC522::StatusCode *return_code) {
-  *return_code = STATUS_TIMEOUT;
+RC522::StatusCode RC522::await_communication_() {
   uint8_t n = pcd_read_register(
       COM_IRQ_REG);  // ComIrqReg[7..0] bits are: Set1 TxIRq RxIRq IdleIRq HiAlertIRq LoAlertIRq ErrIRq TimerIRq
   if (n & 0x01) {    // Timer interrupt - nothing received in 25ms
-    return true;
+    return STATUS_TIMEOUT;
   }
   if (!(n & WAIT_I_RQ)) {  // None of the interrupts that signal success has been set.
                            // Wait for the command to complete.
 
     if (millis() - awaiting_comm_time_ < 40)
-      return false;
+      return STATUS_WAITING;
 
-    ESP_LOGW(TAG, "Await comm timeout!");
-    return true;
+    ESP_LOGW(TAG, "Comm timeout");
+    return STATUS_TIMEOUT;
   }
 
   // Stop now if any errors except collisions were detected.
   uint8_t error_reg_value = pcd_read_register(
       ERROR_REG);  // ErrorReg[7..0] bits are: WrErr TempErr reserved BufferOvfl CollErr CRCErr ParityErr ProtocolErr
   if (error_reg_value & 0x13) {  // BufferOvfl ParityErr ProtocolErr
-    *return_code = STATUS_ERROR;
-    return true;
+    return STATUS_ERROR;
   }
 
   uint8_t valid_bits_local = 0;
@@ -355,8 +368,7 @@ bool RC522::await_communication_(RC522::StatusCode *return_code) {
 
   n = pcd_read_register(FIFO_LEVEL_REG);  // Number of uint8_ts in the FIFO
   if (n > back_length_) {
-    *return_code = STATUS_NO_ROOM;
-    return true;
+    return STATUS_NO_ROOM;
   }
   back_length_ = n;                                            // Number of uint8_ts returned
   pcd_read_register(FIFO_DATA_REG, n, back_data_, rx_align_);  // Get received data from FIFO
@@ -369,12 +381,10 @@ bool RC522::await_communication_(RC522::StatusCode *return_code) {
 
   // Tell about collisions
   if (error_reg_value & 0x08) {  // CollErr
-    *return_code = STATUS_COLLISION;
-    return true;
+    return STATUS_COLLISION;
   }
 
-  *return_code = STATUS_OK;
-  return true;
+  return STATUS_OK;
 }
 
 bool RC522BinarySensor::process(const uint8_t *data, uint8_t len) {

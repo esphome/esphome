@@ -30,6 +30,7 @@ class RC522 : public PollingComponent {
   // last value set to 0xff, then compiler uses less ram, it seems some optimisations are triggered
   enum StatusCode : uint8_t {
     STATUS_OK,                 // Success
+    STATUS_WAITING,            // Waiting result from RC522 chip
     STATUS_ERROR,              // Error in communication
     STATUS_COLLISION,          // Collission detected
     STATUS_TIMEOUT,            // Timeout in communication.
@@ -46,7 +47,8 @@ class RC522 : public PollingComponent {
     STATE_INIT,
     STATE_PICC_REQUEST_A,
     STATE_READ_SERIAL,
-    STATE_READ_SERIAL_DONE
+    STATE_READ_SERIAL_DONE,
+    STATE_DONE,
   } state_{STATE_NONE};
 
   enum PcdRegister : uint8_t {
@@ -176,6 +178,8 @@ class RC522 : public PollingComponent {
   void pcd_reset_();
   void initialize_();
   void pcd_antenna_on_();
+  void pcd_antenna_off_();
+
   virtual uint8_t pcd_read_register(PcdRegister reg  ///< The register to read from. One of the PCD_Register enums.
                                     ) = 0;
 
@@ -216,7 +220,7 @@ class RC522 : public PollingComponent {
 
   bool awaiting_comm_;
   uint32_t awaiting_comm_time_;
-  bool await_communication_(StatusCode *return_code);
+  StatusCode await_communication_();
 
   uint8_t back_data_[9];  ///< buffer if data should be read back after executing the command.
   uint8_t back_length_;   ///< In: Max number of uint8_ts to write to *backData. Out: The number of uint8_ts returned.
