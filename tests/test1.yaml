@@ -156,6 +156,7 @@ ota:
   port: 3286
   reboot_timeout: 2min
   num_attempts: 5
+  store_bootloops_in_flash_and_brick: true
 
 logger:
   baud_rate: 0

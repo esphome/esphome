@@ -31,9 +31,9 @@ void OTAComponent::dump_config() {
   if (!this->password_.empty()) {
     ESP_LOGCONFIG(TAG, "  Using Password.");
   }
-  if (this->has_safe_mode_ && this->safe_mode_rtc_value_ > 1) {
+  if (this->has_safe_mode_ && this->safe_mode_prefs_value_ > 1) {
     ESP_LOGW(TAG, "Last Boot was an unhandled reset, will proceed to safe mode in %d restarts",
-             this->safe_mode_num_attempts_ - this->safe_mode_rtc_value_);
+             this->safe_mode_num_attempts_ - this->safe_mode_prefs_value_);
   }
 }
 
@@ -44,7 +44,7 @@ void OTAComponent::loop() {
     this->has_safe_mode_ = false;
     // successful boot, reset counter
     ESP_LOGI(TAG, "Boot seems successful, resetting boot loop counter.");
-    this->clean_rtc();
+    this->clean_prefs();
   }
 }
 
@@ -355,18 +355,23 @@ void OTAComponent::set_auth_password(const std::string &password) { this->passwo
 float OTAComponent::get_setup_priority() const { return setup_priority::AFTER_WIFI; }
 uint16_t OTAComponent::get_port() const { return this->port_; }
 void OTAComponent::set_port(uint16_t port) { this->port_ = port; }
-void OTAComponent::start_safe_mode(uint8_t num_attempts, uint32_t enable_time) {
+void OTAComponent::start_safe_mode(uint8_t num_attempts, uint32_t enable_time,
+                                   bool store_bootloops_in_flash_and_brick) {
   this->has_safe_mode_ = true;
   this->safe_mode_start_time_ = millis();
   this->safe_mode_enable_time_ = enable_time;
   this->safe_mode_num_attempts_ = num_attempts;
-  this->rtc_ = global_preferences.make_preference<uint32_t>(233825507UL, false);
-  this->safe_mode_rtc_value_ = this->read_rtc_();
 
-  ESP_LOGCONFIG(TAG, "There have been %u suspected unsuccessful boot attempts.", this->safe_mode_rtc_value_);
+  this->prefs_ = global_preferences.make_preference<uint32_t>(233825507UL, store_bootloops_in_flash_and_brick);
 
-  if (this->safe_mode_rtc_value_ >= num_attempts) {
-    this->clean_rtc();
+  this->safe_mode_prefs_value_ = this->read_prefs_();
+
+  ESP_LOGCONFIG(TAG, "There have been %u suspected unsuccessful boot attempts.", this->safe_mode_prefs_value_);
+
+  if (this->safe_mode_prefs_value_ >= num_attempts) {
+    if (!store_bootloops_in_flash_and_brick) {
+      this->clean_prefs();
+    }
 
     ESP_LOGE(TAG, "Boot loop detected. Proceeding to safe mode.");
 
@@ -385,20 +390,20 @@ void OTAComponent::start_safe_mode(uint8_t num_attempts, uint32_t enable_time) {
     }
   } else {
     // increment counter
-    this->write_rtc_(this->safe_mode_rtc_value_ + 1);
+    this->write_prefs_(this->safe_mode_prefs_value_ + 1);
   }
 }
-void OTAComponent::write_rtc_(uint32_t val) { this->rtc_.save(&val); }
-uint32_t OTAComponent::read_rtc_() {
+void OTAComponent::write_prefs_(uint32_t val) { this->prefs_.save(&val); }
+uint32_t OTAComponent::read_prefs_() {
   uint32_t val;
-  if (!this->rtc_.load(&val))
+  if (!this->prefs_.load(&val))
     return 0;
   return val;
 }
-void OTAComponent::clean_rtc() { this->write_rtc_(0); }
+void OTAComponent::clean_prefs() { this->write_prefs_(0); }
 void OTAComponent::on_safe_shutdown() {
   if (this->has_safe_mode_)
-    this->clean_rtc();
+    this->clean_prefs();
 }
 
 }  // namespace ota

@@ -47,7 +47,7 @@ class OTAComponent : public Component {
   /// Manually set the port OTA should listen on.
   void set_port(uint16_t port);
 
-  void start_safe_mode(uint8_t num_attempts, uint32_t enable_time);
+  void start_safe_mode(uint8_t num_attempts, uint32_t enable_time, bool store_bootloops_in_flash_and_brick);
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
@@ -58,13 +58,13 @@ class OTAComponent : public Component {
 
   uint16_t get_port() const;
 
-  void clean_rtc();
+  void clean_prefs();
 
   void on_safe_shutdown() override;
 
  protected:
-  void write_rtc_(uint32_t val);
-  uint32_t read_rtc_();
+  void write_prefs_(uint32_t val);
+  uint32_t read_prefs_();
 
   void handle_();
   size_t wait_receive_(uint8_t *buf, size_t bytes, bool check_disconnected = true);
@@ -79,9 +79,9 @@ class OTAComponent : public Component {
   bool has_safe_mode_{false};              ///< stores whether safe mode can be enabled.
   uint32_t safe_mode_start_time_;          ///< stores when safe mode was enabled.
   uint32_t safe_mode_enable_time_{60000};  ///< The time safe mode should be on for.
-  uint32_t safe_mode_rtc_value_;
+  uint32_t safe_mode_prefs_value_;
   uint8_t safe_mode_num_attempts_;
-  ESPPreferenceObject rtc_;
+  ESPPreferenceObject prefs_;
 };
 
 }  // namespace ota
