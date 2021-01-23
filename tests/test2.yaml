@@ -170,7 +170,6 @@ sensor:
     formaldehyde:
       name: 'JQJCY01YM Formaldehyde'
     battery_level:
-<<<<<<< HEAD
       name: "JQJCY01YM Battery Level"
   - platform: atc_mithermometer
     mac_address: "A4:C1:38:4E:16:78"
