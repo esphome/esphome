@@ -17,10 +17,10 @@ from esphome.const import ALLOWED_NAME_CHARS, CONF_AVAILABILITY, CONF_COMMAND_TO
     CONF_HOUR, CONF_MINUTE, CONF_SECOND, CONF_VALUE, CONF_UPDATE_INTERVAL, CONF_TYPE_ID, \
     CONF_TYPE, CONF_PACKAGES
 from esphome.core import CORE, HexInt, IPAddress, Lambda, TimePeriod, TimePeriodMicroseconds, \
-    TimePeriodMilliseconds, TimePeriodSeconds, TimePeriodMinutes, DocumentLocation
+    TimePeriodMilliseconds, TimePeriodSeconds, TimePeriodMinutes
 from esphome.helpers import list_starts_with, add_class_to_obj
 from esphome.voluptuous_schema import _Schema
-from esphome.yaml_util import ESPHomeDataBase, make_data_base
+from esphome.yaml_util import make_data_base
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -983,11 +983,7 @@ LAMBDA_ENTITY_ID_PROG = re.compile(r'id\(\s*([a-zA-Z0-9_]+\.[.a-zA-Z0-9_]+)\s*\)
 def lambda_(value):
     """Coerce this configuration option to a lambda."""
     if not isinstance(value, Lambda):
-        start_mark = None
-        if isinstance(value, ESPHomeDataBase) and value.esp_range is not None:
-            start_mark = DocumentLocation.copy(value.esp_range.start_mark)
-            start_mark.line += value.content_offset
-        value = make_data_base(Lambda(string_strict(value), start_mark), value)
+        value = make_data_base(Lambda(string_strict(value)), value)
     entity_id_parts = re.split(LAMBDA_ENTITY_ID_PROG, value.value)
     if len(entity_id_parts) != 1:
         entity_ids = ' '.join("'{}'".format(entity_id_parts[i])

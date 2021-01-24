@@ -12,7 +12,7 @@ import yaml.constructor
 from esphome import core
 from esphome.config_helpers import read_config_file
 from esphome.core import EsphomeError, IPAddress, Lambda, MACAddress, TimePeriod, \
-    DocumentRange, DocumentLocation
+    DocumentRange
 from esphome.helpers import add_class_to_obj
 from esphome.util import OrderedDict, filter_yaml_files
 
@@ -270,10 +270,7 @@ class ESPHomeLoader(yaml.SafeLoader):  # pylint: disable=too-many-ancestors
 
     @_add_data_ref
     def construct_lambda(self, node):
-        start_mark = DocumentLocation.from_mark(node.start_mark)
-        if node.style is not None and node.style in '|>':
-            start_mark.line += 1
-        return Lambda(str(node.value), start_mark)
+        return Lambda(str(node.value))
 
     @_add_data_ref
     def construct_force(self, node):
