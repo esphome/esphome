@@ -42,14 +42,19 @@ class ESPHomeDataBase:
             if node.style is not None and node.style in '|>':
                 self._content_offset = 1
 
+    def from_database(self, database):
+        self._esp_range = database.esp_range
 
 class ESPForceValue:
     pass
 
 
-def make_data_base(value):
+def make_data_base(value, from_database:ESPHomeDataBase = None):
     try:
-        return add_class_to_obj(value, ESPHomeDataBase)
+        value = add_class_to_obj(value, ESPHomeDataBase)
+        if isinstance(value, ESPHomeDataBase) and from_database is not None:
+            value.from_database(from_database)
+        return value
     except TypeError:
         # Adding class failed, ignore error
         return value
