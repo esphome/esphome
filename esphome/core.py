@@ -334,14 +334,6 @@ class DocumentLocation:
             mark.column
         )
 
-    @classmethod
-    def copy(cls, location):
-        return cls(
-            location.document,
-            location.line,
-            location.column
-        )
-
     def __str__(self):
         return f'{self.document} {self.line}:{self.column}'
 

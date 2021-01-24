@@ -44,6 +44,7 @@ class ESPHomeDataBase:
 
     def from_database(self, database):
         self._esp_range = database.esp_range
+        self._content_offset = database.content_offset
 
 class ESPForceValue:
     pass
