@@ -1178,8 +1178,8 @@ class OnlyWith(Optional):
         # pylint: disable=unsupported-membership-test
         if (self._component in CORE.raw_config or
                 (CONF_PACKAGES in CORE.raw_config and
-                    self._component in
-                    {list(x.keys())[0] for x in CORE.raw_config[CONF_PACKAGES].values()})):
+                 self._component in
+                 {list(x.keys())[0] for x in CORE.raw_config[CONF_PACKAGES].values()})):
             return self._default
         return vol.UNDEFINED
 

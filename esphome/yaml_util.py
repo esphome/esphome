@@ -43,14 +43,16 @@ class ESPHomeDataBase:
                 self._content_offset = 1
 
     def from_database(self, database):
+        # pylint: disable=attribute-defined-outside-init
         self._esp_range = database.esp_range
         self._content_offset = database.content_offset
+
 
 class ESPForceValue:
     pass
 
 
-def make_data_base(value, from_database:ESPHomeDataBase = None):
+def make_data_base(value, from_database: ESPHomeDataBase = None):
     try:
         value = add_class_to_obj(value, ESPHomeDataBase)
         if isinstance(value, ESPHomeDataBase) and from_database is not None:
