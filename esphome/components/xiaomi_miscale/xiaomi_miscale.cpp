@@ -68,20 +68,6 @@ bool XiaomiMiscale::parse_message(const std::vector<uint8_t> &message, ParseResu
     return false;
   }
 
-  bool temporary = true;
-  int year = 0;
-  int rcvdYear = data[3];
-  // If we received a year for the first time, store it in the year variable
-  // The first year we receive indicates a temporary measurement
-  if (year == 0) {
-    year = rcvdYear;
-  } else {
-    // If year has been previously defined and the year we have received is
-    // greater than it, then the measurement is not temporary, is the final one
-    if (rcvdYear > year) {
-      temporary = false;
-    }
-  }
   // weight, 2 bytes, 16-bit  unsigned integer, 1 kg
   const int16_t weight = uint16_t(data[1]) | (uint16_t(data[2]) << 8);
   if (data[0] == 0x22 || data[0] == 0xa2)
