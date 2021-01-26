@@ -87,7 +87,9 @@ CONFIG_SCHEMA = cv.All(
                 CONF_DISPLAY_DATA_7_PIN, default=27
             ): pins.internal_gpio_output_pin_schema,
         }
-    ).extend(cv.polling_component_schema("5s").extend(i2c.i2c_device_schema(0x48))),
+    )
+    .extend(cv.polling_component_schema("5s"))
+    .extend(i2c.i2c_device_schema(0x48)),
     cv.has_at_most_one_key(CONF_PAGES, CONF_LAMBDA),
 )
 

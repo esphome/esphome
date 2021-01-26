@@ -12,7 +12,6 @@ CONF_USE_EXTENDED_ID = "use_extended_id"
 CONF_CANBUS_ID = "canbus_id"
 CONF_BIT_RATE = "bit_rate"
 CONF_ON_FRAME = "on_frame"
-CONF_CANBUS_SEND = "canbus.send"
 
 
 def validate_id(id_value, id_ext):
@@ -59,7 +58,7 @@ CAN_SPEEDS = {
     "1000KBPS": CanSpeed.CAN_1000KBPS,
 }
 
-CONFIG_SCHEMA = cv.Schema(
+CANBUS_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(CanbusComponent),
         cv.Required(CONF_CAN_ID): cv.int_range(min=0, max=0x1FFFFFFF),
@@ -70,6 +69,13 @@ CONFIG_SCHEMA = cv.Schema(
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(CanbusTrigger),
                 cv.GenerateID(CONF_CAN_ID): cv.int_range(min=0, max=0x1FFFFFFF),
                 cv.Optional(CONF_USE_EXTENDED_ID, default=False): cv.boolean,
+                cv.Optional(CONF_ON_FRAME): automation.validate_automation(
+                    {
+                        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(CanbusTrigger),
+                        cv.GenerateID(CONF_CAN_ID): cv.int_range(min=0, max=0x1FFFFFFF),
+                        cv.Optional(CONF_USE_EXTENDED_ID, default=False): cv.boolean,
+                    }
+                ),
             }
         ),
     }
@@ -104,7 +110,7 @@ def register_canbus(var, config):
 
 # Actions
 @automation.register_action(
-    CONF_CANBUS_SEND,
+    "canbus.send",
     canbus_ns.class_("CanbusSendAction", automation.Action),
     cv.maybe_simple_value(
         {

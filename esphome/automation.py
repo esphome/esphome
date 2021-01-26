@@ -11,6 +11,7 @@ from esphome.const import (
     CONF_TIME,
 )
 from esphome.core import coroutine
+from esphome.jsonschema import jschema_extractor
 from esphome.util import Registry
 
 
@@ -21,7 +22,12 @@ def maybe_simple_id(*validators):
 def maybe_conf(conf, *validators):
     validator = cv.All(*validators)
 
+    @jschema_extractor('maybe')
     def validate(value):
+        # pylint: disable=comparison-with-callable
+        if value == jschema_extractor:
+            return validator
+
         if isinstance(value, dict):
             return validator(value)
         with cv.remove_prepend_path([conf]):
@@ -103,7 +109,13 @@ def validate_automation(extra_schema=None, extra_validators=None, single=False):
         # This should only happen with invalid configs, but let's have a nice error message.
         return [schema(value)]
 
+    @jschema_extractor('automation')
     def validator(value):
+        # hack to get the schema
+        # pylint: disable=comparison-with-callable
+        if value == jschema_extractor:
+            return schema
+
         value = validator_(value)
         if extra_validators is not None:
             value = cv.Schema([extra_validators])(value)

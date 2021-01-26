@@ -29,6 +29,7 @@ from esphome.const import (
     CONF_RC_CODE_2,
 )
 from esphome.core import coroutine
+from esphome.jsonschema import jschema_extractor
 from esphome.util import Registry, SimpleRegistry
 
 AUTO_LOAD = ["binary_sensor"]
@@ -123,13 +124,16 @@ def validate_repeat(value):
     return validate_repeat({CONF_TIMES: value})
 
 
+BASE_REMOTE_TRANSMITTER_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(CONF_TRANSMITTER_ID): cv.use_id(RemoteTransmitterBase),
+        cv.Optional(CONF_REPEAT): validate_repeat,
+    }
+)
+
+
 def register_action(name, type_, schema):
-    validator = templatize(schema).extend(
-        {
-            cv.GenerateID(CONF_TRANSMITTER_ID): cv.use_id(RemoteTransmitterBase),
-            cv.Optional(CONF_REPEAT): validate_repeat,
-        }
-    )
+    validator = templatize(schema).extend(BASE_REMOTE_TRANSMITTER_SCHEMA)
     registerer = automation.register_action(
         f"remote_transmitter.transmit_{name}", type_, validator
     )
@@ -190,11 +194,15 @@ def validate_dumpers(value):
 def validate_triggers(base_schema):
     assert isinstance(base_schema, cv.Schema)
 
+    @jschema_extractor("triggers")
     def validator(config):
         added_keys = {}
         for key, (_, valid) in TRIGGER_REGISTRY.items():
             added_keys[cv.Optional(key)] = valid
         new_schema = base_schema.extend(added_keys)
+        # pylint: disable=comparison-with-callable
+        if config == jschema_extractor:
+            return new_schema
         return new_schema(config)
 
     return validator
