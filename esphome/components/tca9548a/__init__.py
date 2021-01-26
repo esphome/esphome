@@ -8,7 +8,7 @@ CODEOWNERS = ['@andreashergert1984']
 DEPENDENCIES = ['i2c']
 
 tca9548a_ns = cg.esphome_ns.namespace('tca9548a')
-TCA9548AComponent = tca9548a_ns.class_('TCA9548AComponent', cg.PollingComponent, i2c.I2CDevice)
+TCA9548AComponent = tca9548a_ns.class_('TCA9548AComponent', cg.PollingComponent, i2c.I2CMultiplexer)
 
 MULTI_CONF = True
 
