@@ -11,8 +11,8 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
 from esphome.const import CONF_ID, CONF_CRON, CONF_DAYS_OF_MONTH, CONF_DAYS_OF_WEEK, CONF_HOURS, \
-    CONF_MINUTES, CONF_MONTHS, CONF_ON_TIME, CONF_SECONDS, CONF_TIMEZONE, CONF_TRIGGER_ID, \
-    CONF_AT, CONF_SECOND, CONF_HOUR, CONF_MINUTE
+    CONF_MINUTES, CONF_MONTHS, CONF_ON_TIME, CONF_ON_TIME_SYNC, CONF_SECONDS, CONF_TIMEZONE, \
+    CONF_TRIGGER_ID, CONF_AT, CONF_SECOND, CONF_HOUR, CONF_MINUTE
 from esphome.core import coroutine, coroutine_with_priority
 from esphome.automation import Condition
 
@@ -24,6 +24,7 @@ IS_PLATFORM_COMPONENT = True
 time_ns = cg.esphome_ns.namespace('time')
 RealTimeClock = time_ns.class_('RealTimeClock', cg.PollingComponent)
 CronTrigger = time_ns.class_('CronTrigger', automation.Trigger.template(), cg.Component)
+SyncTrigger = time_ns.class_('SyncTrigger', automation.Trigger.template(), cg.Component)
 ESPTime = time_ns.struct('ESPTime')
 TimeHasTimeCondition = time_ns.class_('TimeHasTimeCondition', Condition)
 
@@ -294,6 +295,9 @@ TIME_SCHEMA = cv.Schema({
         cv.Optional(CONF_CRON): validate_cron_raw,
         cv.Optional(CONF_AT): validate_time_at,
     }, validate_cron_keys),
+    cv.Optional(CONF_ON_TIME_SYNC): automation.validate_automation({
+        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(SyncTrigger),
+    }),
 }).extend(cv.polling_component_schema('15min'))
 
 
@@ -316,6 +320,12 @@ def setup_time_core_(time_var, config):
         cg.add(trigger.add_months(months))
         days_of_week = conf.get(CONF_DAYS_OF_WEEK, list(range(1, 8)))
         cg.add(trigger.add_days_of_week(days_of_week))
+
+        yield cg.register_component(trigger, conf)
+        yield automation.build_automation(trigger, [], conf)
+
+    for conf in config.get(CONF_ON_TIME_SYNC, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], time_var)
 
         yield cg.register_component(trigger, conf)
         yield automation.build_automation(trigger, [], conf)
