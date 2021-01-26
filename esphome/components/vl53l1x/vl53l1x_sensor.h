@@ -4,10 +4,11 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
 
-class VL53L1X;
 
 namespace esphome {
 namespace vl53l1x {
+
+class VL53L1X;
 
 enum DistanceMode { SHORT, MEDIUM, LONG };
 

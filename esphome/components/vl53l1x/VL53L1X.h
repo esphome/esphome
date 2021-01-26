@@ -3,6 +3,9 @@
 #include <Arduino.h>
 #include <Wire.h>
 
+namespace esphome {
+namespace vl53l1x {
+
 class VL53L1X {
  public:
   // register addresses from API vl53l1x_register_map.h
@@ -1388,3 +1391,6 @@ class VL53L1X {
   // Convert count rate from fixed point 9.7 format to float
   float count_rate_fixed_to_float_(uint16_t count_rate_fixed) { return (float) count_rate_fixed / (1 << 7); }
 };
+
+}  // namespace vl53l1x
+}  // namespace esphome

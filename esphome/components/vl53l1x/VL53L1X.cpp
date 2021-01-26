@@ -5,6 +5,9 @@
 
 #include "VL53L1X.h"
 
+namespace esphome {
+namespace vl53l1x {
+
 // Constructors ////////////////////////////////////////////////////////////////
 
 VL53L1X::VL53L1X()
@@ -764,3 +767,6 @@ uint32_t VL53L1X::calc_macro_period_(uint8_t vcsel_period) {
 
   return macro_period_us;
 }
+
+}  // namespace vl53l1x
+}  // namespace esphome
