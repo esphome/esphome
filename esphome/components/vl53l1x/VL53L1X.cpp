@@ -157,8 +157,8 @@ bool VL53L1X::init(bool io_2v8) {
 // Write an 8-bit register
 void VL53L1X::write_reg(uint16_t reg, uint8_t value) {
   bus_->beginTransmission(address_);
-  bus_->write((reg >> 8) & 0xFF);  // reg high byte
-  bus_->write(reg & 0xFF);         // reg low byte
+  bus_->write((reg >> 8) & 0xFF);  // reg high octet
+  bus_->write(reg & 0xFF);         // reg low octet
   bus_->write(value);
   last_status = bus_->endTransmission();
 }
@@ -166,22 +166,22 @@ void VL53L1X::write_reg(uint16_t reg, uint8_t value) {
 // Write a 16-bit register
 void VL53L1X::write_reg16_bit(uint16_t reg, uint16_t value) {
   bus_->beginTransmission(address_);
-  bus_->write((reg >> 8) & 0xFF);    // reg high byte
-  bus_->write(reg & 0xFF);           // reg low byte
-  bus_->write((value >> 8) & 0xFF);  // value high byte
-  bus_->write(value & 0xFF);         // value low byte
+  bus_->write((reg >> 8) & 0xFF);    // reg high octet
+  bus_->write(reg & 0xFF);           // reg low octet
+  bus_->write((value >> 8) & 0xFF);  // value high octet
+  bus_->write(value & 0xFF);         // value low octet
   last_status = bus_->endTransmission();
 }
 
 // Write a 32-bit register
 void VL53L1X::write_reg32_bit(uint16_t reg, uint32_t value) {
   bus_->beginTransmission(address_);
-  bus_->write((reg >> 8) & 0xFF);     // reg high byte
-  bus_->write(reg & 0xFF);            // reg low byte
-  bus_->write((value >> 24) & 0xFF);  // value highest byte
+  bus_->write((reg >> 8) & 0xFF);     // reg high octet
+  bus_->write(reg & 0xFF);            // reg low octet
+  bus_->write((value >> 24) & 0xFF);  // value highest octet
   bus_->write((value >> 16) & 0xFF);
   bus_->write((value >> 8) & 0xFF);
-  bus_->write(value & 0xFF);  // value lowest byte
+  bus_->write(value & 0xFF);  // value lowest octet
   last_status = bus_->endTransmission();
 }
 
@@ -190,8 +190,8 @@ uint8_t VL53L1X::read_reg(RegAddr reg) {
   uint8_t value;
 
   bus_->beginTransmission(address_);
-  bus_->write((reg >> 8) & 0xFF);  // reg high byte
-  bus_->write(reg & 0xFF);         // reg low byte
+  bus_->write((reg >> 8) & 0xFF);  // reg high octet
+  bus_->write(reg & 0xFF);         // reg low octet
   last_status = bus_->endTransmission();
 
   bus_->requestFrom(address_, (uint8_t) 1);
@@ -205,13 +205,13 @@ uint16_t VL53L1X::read_reg16_bit(uint16_t reg) {
   uint16_t value;
 
   bus_->beginTransmission(address_);
-  bus_->write((reg >> 8) & 0xFF);  // reg high byte
-  bus_->write(reg & 0xFF);         // reg low byte
+  bus_->write((reg >> 8) & 0xFF);  // reg high octet
+  bus_->write(reg & 0xFF);         // reg low octet
   last_status = bus_->endTransmission();
 
   bus_->requestFrom(address_, (uint8_t) 2);
-  value = (uint16_t) bus_->read() << 8;  // value high byte
-  value |= bus_->read();                 // value low byte
+  value = (uint16_t) bus_->read() << 8;  // value high octet
+  value |= bus_->read();                 // value low octet
 
   return value;
 }
@@ -221,15 +221,15 @@ uint32_t VL53L1X::read_reg32_bit(uint16_t reg) {
   uint32_t value;
 
   bus_->beginTransmission(address_);
-  bus_->write((reg >> 8) & 0xFF);  // reg high byte
-  bus_->write(reg & 0xFF);         // reg low byte
+  bus_->write((reg >> 8) & 0xFF);  // reg high octet
+  bus_->write(reg & 0xFF);         // reg low octet
   last_status = bus_->endTransmission();
 
   bus_->requestFrom(address_, (uint8_t) 4);
-  value = (uint32_t) bus_->read() << 24;  // value highest byte
+  value = (uint32_t) bus_->read() << 24;  // value highest octet
   value |= (uint32_t) bus_->read() << 16;
   value |= (uint16_t) bus_->read() << 8;
-  value |= bus_->read();  // value lowest byte
+  value |= bus_->read();  // value lowest octet
 
   return value;
 }
@@ -547,8 +547,8 @@ void VL53L1X::setup_manual_calibration_() {
 // read measurement results into buffer
 void VL53L1X::read_results_() {
   bus_->beginTransmission(address_);
-  bus_->write((RESULT__RANGE_STATUS >> 8) & 0xFF);  // reg high byte
-  bus_->write(RESULT__RANGE_STATUS & 0xFF);         // reg low byte
+  bus_->write((RESULT__RANGE_STATUS >> 8) & 0xFF);  // reg high octet
+  bus_->write(RESULT__RANGE_STATUS & 0xFF);         // reg low octet
   last_status = bus_->endTransmission();
 
   bus_->requestFrom(address_, (uint8_t) 17);
@@ -559,14 +559,14 @@ void VL53L1X::read_results_() {
 
   results_.stream_count = bus_->read();
 
-  results_.dss_actual_effective_spads_sd0 = (uint16_t) bus_->read() << 8;  // high byte
-  results_.dss_actual_effective_spads_sd0 |= bus_->read();                 // low byte
+  results_.dss_actual_effective_spads_sd0 = (uint16_t) bus_->read() << 8;  // high octet
+  results_.dss_actual_effective_spads_sd0 |= bus_->read();                 // low octet
 
   bus_->read();  // peak_signal_count_rate_mcps_sd0: not used
   bus_->read();
 
-  results_.ambient_count_rate_mcps_sd0 = (uint16_t) bus_->read() << 8;  // high byte
-  results_.ambient_count_rate_mcps_sd0 |= bus_->read();                 // low byte
+  results_.ambient_count_rate_mcps_sd0 = (uint16_t) bus_->read() << 8;  // high octet
+  results_.ambient_count_rate_mcps_sd0 |= bus_->read();                 // low octet
 
   bus_->read();  // sigma_sd0: not used
   bus_->read();
@@ -574,11 +574,11 @@ void VL53L1X::read_results_() {
   bus_->read();  // phase_sd0: not used
   bus_->read();
 
-  results_.final_crosstalk_corrected_range_mm_sd0 = (uint16_t) bus_->read() << 8;  // high byte
-  results_.final_crosstalk_corrected_range_mm_sd0 |= bus_->read();                 // low byte
+  results_.final_crosstalk_corrected_range_mm_sd0 = (uint16_t) bus_->read() << 8;  // high octet
+  results_.final_crosstalk_corrected_range_mm_sd0 |= bus_->read();                 // low octet
 
-  results_.peak_signal_count_rate_crosstalk_corrected_mcps_sd0 = (uint16_t) bus_->read() << 8;  // high byte
-  results_.peak_signal_count_rate_crosstalk_corrected_mcps_sd0 |= bus_->read();                 // low byte
+  results_.peak_signal_count_rate_crosstalk_corrected_mcps_sd0 = (uint16_t) bus_->read() << 8;  // high octet
+  results_.peak_signal_count_rate_crosstalk_corrected_mcps_sd0 |= bus_->read();                 // low octet
 }
 
 // perform Dynamic SPAD Selection calculation/update
