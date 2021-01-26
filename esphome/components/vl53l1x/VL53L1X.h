@@ -1,15 +1,14 @@
 #pragma once
 
 #include <Arduino.h>
-
-class TwoWire;	// from Wire.h
+#include <Wire.h>
 
 class VL53L1X
 {
   public:
 
     // register addresses from API vl53l1x_register_map.h
-    enum regAddr : uint16_t
+    enum RegAddr : uint16_t
     {
       SOFT_RESET                                                                 = 0x0000,
       I2C_SLAVE__DEVICE_ADDRESS                                                  = 0x0001,
@@ -1199,35 +1198,35 @@ class VL53L1X
       SHADOW_PHASECAL_RESULT__REFERENCE_PHASE_LO                                 = 0x0FFF,
     };
 
-    enum DistanceMode { Short, Medium, Long, Unknown };
+    enum DistanceMode { SHORT, MEDIUM, LONG, UNKNOWN };
 
     enum RangeStatus : uint8_t
     {
-      RangeValid                =   0,
+      RANGE_VALID                =   0,
 
       // "sigma estimator check is above the internal defined threshold"
       // (sigma = standard deviation of measurement)
-      SigmaFail                 =   1,
+      SIGMA_FAIL                 =   1,
 
       // "signal value is below the internal defined threshold"
-      SignalFail                =   2,
+      SIGNAL_FAIL                =   2,
 
       // "Target is below minimum detection threshold."
-      RangeValidMinRangeClipped =   3,
+      RANGE_VALID_MIN_RANGE_CLIPPED =   3,
 
       // "phase is out of bounds"
       // (nothing detected in range; try a longer distance mode if applicable)
-      OutOfBoundsFail           =   4,
+      OUT_OF_BOUNDS_FAIL           =   4,
 
       // "HW or VCSEL failure"
-      HardwareFail              =   5,
+      HARDWARE_FAIL              =   5,
 
       // "The Range is valid but the wraparound check has not been done."
-      RangeValidNoWrapCheckFail =   6,
+      RANGE_VALID_NO_WRAP_CHECK_FAIL =   6,
 
       // "Wrapped target, not matching phases"
       // "no matching phase in other VCSEL period timing."
-      WrapTargetFail            =   7,
+      WRAP_TARGET_FAIL            =   7,
 
       // "Internal algo underflow or overflow in lite ranging."
    // ProcessingFail            =   8: not used in API
@@ -1235,12 +1234,12 @@ class VL53L1X
       // "Specific to lite ranging."
       // should never occur with this lib (which uses low power auto ranging,
       // as the API does)
-      XtalkSignalFail           =   9,
+      XTALK_SIGNAL_FAIL           =   9,
 
       // "1st interrupt when starting ranging in back to back mode. Ignore
       // data."
       // should never occur with this lib
-      SynchronizationInt         =  10, // (the API spells this "syncronisation")
+      SYNCHRONIZATION_INT         =  10, // (the API spells this "syncronisation")
 
       // "All Range ok but object is result of multiple pulses merging together.
       // Used by RQL for merged pulse detection"
@@ -1250,13 +1249,13 @@ class VL53L1X
    // TargetPresentLackOfSignal =  12:
 
       // "Target is below minimum detection threshold."
-      MinRangeFail              =  13,
+      MIN_RANGE_FAIL              =  13,
 
       // "The reported range is invalid"
    // RangeInvalid              =  14: can't actually be returned by API (range can never become negative, even after correction)
 
       // "No Update."
-      None                      = 255,
+      NONE                      = 255,
     };
 
     struct RangingData
@@ -1273,49 +1272,49 @@ class VL53L1X
 
     VL53L1X();
 
-    void setBus(TwoWire * bus) { this->bus = bus; }
-    TwoWire * getBus() { return bus; }
+    void set_bus(TwoWire * bus) { this->bus_ = bus; }
+    TwoWire * get_bus() { return bus_; }
 
-    void setAddress(uint8_t new_addr);
-    uint8_t getAddress() { return address; }
+    void set_address(uint8_t new_addr);
+    uint8_t get_address() { return address_; }
 
     bool init(bool io_2v8 = true);
 
-    void writeReg(uint16_t reg, uint8_t value);
-    void writeReg16Bit(uint16_t reg, uint16_t value);
-    void writeReg32Bit(uint16_t reg, uint32_t value);
-    uint8_t readReg(regAddr reg);
-    uint16_t readReg16Bit(uint16_t reg);
-    uint32_t readReg32Bit(uint16_t reg);
+    void write_reg(uint16_t reg, uint8_t value);
+    void write_reg16_bit(uint16_t reg, uint16_t value);
+    void write_reg32_bit(uint16_t reg, uint32_t value);
+    uint8_t read_reg(RegAddr reg);
+    uint16_t read_reg16_bit(uint16_t reg);
+    uint32_t read_reg32_bit(uint16_t reg);
 
-    bool setDistanceMode(DistanceMode mode);
-    DistanceMode getDistanceMode() { return distance_mode; }
+    bool set_distance_mode(DistanceMode mode);
+    DistanceMode get_distance_mode() { return distance_mode_; }
 
-    bool setMeasurementTimingBudget(uint32_t budget_us);
-    uint32_t getMeasurementTimingBudget();
+    bool set_measurement_timing_budget(uint32_t budget_us);
+    uint32_t get_measurement_timing_budget();
 
-    void startContinuous(uint32_t period_ms);
-    void stopContinuous();
+    void start_continuous(uint32_t period_ms);
+    void stop_continuous();
     uint16_t read(bool blocking = true);
-    uint16_t readRangeContinuousMillimeters(bool blocking = true) { return read(blocking); } // alias of read()
-    uint16_t readSingle(bool blocking = true);
-    uint16_t readRangeSingleMillimeters(bool blocking = true) { return readSingle(blocking); } // alias of readSingle()
+    uint16_t read_range_continuous_millimeters(bool blocking = true) { return read(blocking); } // alias of read()
+    uint16_t read_single(bool blocking = true);
+    uint16_t read_range_single_millimeters(bool blocking = true) { return read_single(blocking); } // alias of readSingle()
 
     // check if sensor has new reading available
     // assumes interrupt is active low (GPIO_HV_MUX__CTRL bit 4 is 1)
-    bool dataReady() { return (readReg(GPIO__TIO_HV_STATUS) & 0x01) == 0; }
+    bool data_ready() { return (read_reg(GPIO__TIO_HV_STATUS) & 0x01) == 0; }
 
-    static const char * rangeStatusToString(RangeStatus status);
+    static const char * range_status_to_string(RangeStatus status);
 
-    void setTimeout(uint16_t timeout) { io_timeout = timeout; }
-    uint16_t getTimeout() { return io_timeout; }
-    bool timeoutOccurred();
+    void set_timeout(uint16_t timeout) { io_timeout_ = timeout; }
+    uint16_t get_timeout() { return io_timeout_; }
+    bool timeout_occurred();
 
-  private:
+  protected:
 
     // The Arduino two-wire interface uses a 7-bit number for the address,
     // and sets the last bit correctly based on reads and writes
-    static const uint8_t AddressDefault = 0b0101001;
+    static const uint8_t ADDRESS_DEFAULT = 0b0101001;
 
     // value used in measurement timing budget calculations
     // assumes PresetMode is LOWPOWER_AUTONOMOUS
@@ -1326,11 +1325,11 @@ class VL53L1X
     // TimingGuard = LOWPOWER_AUTO_OVERHEAD_BEFORE_A_RANGING +
     //               LOWPOWER_AUTO_OVERHEAD_BETWEEN_A_B_RANGING + vhv
     //             = 1448 + 2100 + 980 = 4528
-    static const uint32_t TimingGuard = 4528;
+    static const uint32_t TIMING_GUARD = 4528;
 
     // value in DSS_CONFIG__TARGET_TOTAL_RATE_MCPS register, used in DSS
     // calculations
-    static const uint16_t TargetRate = 0x0A00;
+    static const uint16_t TARGET_RATE = 0x0A00;
 
     // for storing values read from RESULT__RANGE_STATUS (0x0089)
     // through RESULT__PEAK_SIGNAL_COUNT_RATE_CROSSTALK_CORRECTED_MCPS_SD0_LOW
@@ -1352,42 +1351,42 @@ class VL53L1X
     // making this static would save RAM for multiple instances as long as there
     // aren't multiple sensors being read at the same time (e.g. on separate
     // I2C buses)
-    ResultBuffer results;
+    ResultBuffer results_;
 
-    TwoWire * bus;
+    TwoWire * bus_;
 
-    uint8_t address;
+    uint8_t address_;
 
-    uint16_t io_timeout;
-    bool did_timeout;
-    uint16_t timeout_start_ms;
+    uint16_t io_timeout_;
+    bool did_timeout_;
+    uint16_t timeout_start_ms_;
 
-    uint16_t fast_osc_frequency;
-    uint16_t osc_calibrate_val;
+    uint16_t fast_osc_frequency_;
+    uint16_t osc_calibrate_val_;
 
-    bool calibrated;
-    uint8_t saved_vhv_init;
-    uint8_t saved_vhv_timeout;
+    bool calibrated_;
+    uint8_t saved_vhv_init_;
+    uint8_t saved_vhv_timeout_;
 
-    DistanceMode distance_mode;
+    DistanceMode distance_mode_;
 
     // Record the current time to check an upcoming timeout against
-    void startTimeout() { timeout_start_ms = millis(); }
+    void start_timeout_() { timeout_start_ms_ = millis(); }
 
     // Check if timeout is enabled (set to nonzero value) and has expired
-    bool checkTimeoutExpired() {return (io_timeout > 0) && ((uint16_t)(millis() - timeout_start_ms) > io_timeout); }
+    bool check_timeout_expired_() { return (io_timeout_ > 0) && ((uint16_t)(millis() - timeout_start_ms_) > io_timeout_); }
 
-    void setupManualCalibration();
-    void readResults();
-    void updateDSS();
-    void getRangingData();
+    void setup_manual_calibration_();
+    void read_results_();
+    void update_dss_();
+    void get_ranging_data_();
 
-    static uint32_t decodeTimeout(uint16_t reg_val);
-    static uint16_t encodeTimeout(uint32_t timeout_mclks);
-    static uint32_t timeoutMclksToMicroseconds(uint32_t timeout_mclks, uint32_t macro_period_us);
-    static uint32_t timeoutMicrosecondsToMclks(uint32_t timeout_us, uint32_t macro_period_us);
-    uint32_t calcMacroPeriod(uint8_t vcsel_period);
+    static uint32_t decode_timeout(uint16_t reg_val);
+    static uint16_t encode_timeout(uint32_t timeout_mclks);
+    static uint32_t timeout_mclks_to_microseconds(uint32_t timeout_mclks, uint32_t macro_period_us);
+    static uint32_t timeout_microseconds_to_mclks(uint32_t timeout_us, uint32_t macro_period_us);
+    uint32_t calc_macro_period_(uint8_t vcsel_period);
 
     // Convert count rate from fixed point 9.7 format to float
-    float countRateFixedToFloat(uint16_t count_rate_fixed) { return (float)count_rate_fixed / (1 << 7); }
+    float count_rate_fixed_to_float_(uint16_t count_rate_fixed) { return (float)count_rate_fixed / (1 << 7); }
 };
