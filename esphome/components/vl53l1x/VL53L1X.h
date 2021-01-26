@@ -11,7 +11,7 @@ class VL53L1X {
   // register addresses from API vl53l1x_register_map.h
   enum RegAddr : uint16_t {
     SOFT_RESET = 0x0000,
-    I2C_SLAVE__DEVICE_ADDRESS = 0x0001,
+    I2C_SEC_DEVICE_ADDRESS = 0x0001,
     ANA_CONFIG__VHV_REF_SEL_VDDPIX = 0x0002,
     ANA_CONFIG__VHV_REF_SEL_VQUENCH = 0x0003,
     ANA_CONFIG__REG_AVDD1V2_SEL = 0x0004,

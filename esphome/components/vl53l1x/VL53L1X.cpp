@@ -30,7 +30,7 @@ VL53L1X::VL53L1X()
 // Public Methods //////////////////////////////////////////////////////////////
 
 void VL53L1X::set_address(uint8_t new_addr) {
-  write_reg(I2C_SLAVE__DEVICE_ADDRESS, new_addr & 0x7F);
+  write_reg(I2C_SEC_DEVICE_ADDRESS, new_addr & 0x7F);
   address_ = new_addr;
 }
 
