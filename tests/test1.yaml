@@ -834,6 +834,9 @@ sensor:
     id: freezer_temp_source
     reference_voltage: 3.19
     number: 0
+  - platform: ds3231
+    temperature:
+      name: 'DS3231 Temperature'
 
 esp32_touch:
   setup_mode: False
@@ -1864,6 +1867,8 @@ rc522_i2c:
 
 gps:
 
+ds3231:
+
 time:
   - platform: sntp
     id: sntp_time
@@ -1886,6 +1891,8 @@ time:
     on_time:
       seconds: 0
       then: ds1307.read_time
+  - platform: ds3231
+    id: ds3231_time
 
 cover:
   - platform: template
