@@ -3,6 +3,7 @@ import esphome.config_validation as cv
 from esphome.components import i2c
 from esphome.const import (CONF_ID)
 
+CODEOWNERS = ['@snakeye']
 DEPENDENCIES = ['i2c']
 
 ds3231_ns = cg.esphome_ns.namespace('ds3231')
