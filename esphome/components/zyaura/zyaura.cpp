@@ -57,15 +57,15 @@ void ICACHE_RAM_ATTR ZaSensorStore::interrupt(ZaSensorStore *arg) {
 void ICACHE_RAM_ATTR ZaSensorStore::set_data_(ZaMessage *message) {
   switch (message->type) {
     case HUMIDITY:
-      this->humidity = (message->value > 10000) ? NAN : (message->value / 100.0f);
+      this->humidity = (message->value > 10000) ? NAN : ((double)message->value / 100.0);
       break;
 
     case TEMPERATURE:
-      this->temperature = (message->value > 5970) ? NAN : (message->value / 16.0f - 273.15f);
+      this->temperature = (message->value > 5970) ? NAN : ((double)message->value / 16.0 - 273.15);
       break;
 
     case CO2:
-      this->co2 = (message->value > 10000) ? NAN : message->value;
+      this->co2 = (message->value > 10000) ? NAN : (double)message->value;
       break;
 
     default:
@@ -73,13 +73,13 @@ void ICACHE_RAM_ATTR ZaSensorStore::set_data_(ZaMessage *message) {
   }
 }
 
-bool ZyAuraSensor::publish_state_(sensor::Sensor *sensor, float *value) {
+bool ZyAuraSensor::publish_state_(sensor::Sensor *sensor, double *value) {
   // Sensor doesn't added to configuration
   if (sensor == nullptr) {
     return true;
   }
 
-  sensor->publish_state(*value);
+  sensor->publish_state((float)*value);
 
   // Sensor reported wrong value
   if (isnan(*value)) {
