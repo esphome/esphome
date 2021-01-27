@@ -48,7 +48,7 @@ class BME680BSECComponent : public Component, public i2c::I2CDevice {
     breath_voc_equivalent_sensor_ = breath_voc_equivalent_sensor;
   }
 
-  static BME680BSECComponent * instance;
+  static BME680BSECComponent *instance;
   static int8_t read_bytes_wrapper(uint8_t address, uint8_t a_register, uint8_t *data, uint16_t len);
   static int8_t write_bytes_wrapper(uint8_t address, uint8_t a_register, uint8_t *data, uint16_t len);
   static void delay_ms(uint32_t period);
@@ -64,7 +64,7 @@ class BME680BSECComponent : public Component, public i2c::I2CDevice {
 
   void run_();
   void read_(bsec_bme_settings_t bme680_settings);
-  void publish_(const bsec_output_t * outputs, uint8_t num_outputs);
+  void publish_(const bsec_output_t *outputs, uint8_t num_outputs);
   int64_t get_time_ns_();
 
   void publish_sensor_state_(sensor::Sensor *sensor, float value, bool change_only = false);

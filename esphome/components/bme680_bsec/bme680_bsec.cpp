@@ -12,7 +12,7 @@ static const char *TAG = "bme680_bsec.sensor";
 
 static const std::string IAQ_ACCURACY_STATES[4] = {"Stabilizing", "Uncertain", "Calibrating", "Calibrated"};
 
-BME680BSECComponent * BME680BSECComponent::instance;
+BME680BSECComponent *BME680BSECComponent::instance;
 
 void BME680BSECComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up BME680 via BSEC...");
@@ -69,7 +69,8 @@ void BME680BSECComponent::update_subscription_(float sample_rate) {
   int num_virtual_sensors = 0;
 
   if (this->iaq_sensor_) {
-    virtual_sensors[num_virtual_sensors].sensor_id = this->iaq_mode_ == IAQ_MODE_STATIC ? BSEC_OUTPUT_STATIC_IAQ : BSEC_OUTPUT_IAQ;
+    virtual_sensors[num_virtual_sensors].sensor_id =
+        this->iaq_mode_ == IAQ_MODE_STATIC ? BSEC_OUTPUT_STATIC_IAQ : BSEC_OUTPUT_IAQ;
     virtual_sensors[num_virtual_sensors].sample_rate = sample_rate;
     num_virtual_sensors++;
   }
@@ -112,7 +113,8 @@ void BME680BSECComponent::update_subscription_(float sample_rate) {
 
   bsec_sensor_configuration_t sensor_settings[BSEC_MAX_PHYSICAL_SENSOR];
   uint8_t num_sensor_settings = BSEC_MAX_PHYSICAL_SENSOR;
-  this->bsec_status_ = bsec_update_subscription(virtual_sensors, num_virtual_sensors, sensor_settings, &num_sensor_settings);
+  this->bsec_status_ =
+      bsec_update_subscription(virtual_sensors, num_virtual_sensors, sensor_settings, &num_sensor_settings);
 }
 
 void BME680BSECComponent::dump_config() {
@@ -120,12 +122,14 @@ void BME680BSECComponent::dump_config() {
 
   bsec_version_t version;
   bsec_get_version(&version);
-  ESP_LOGCONFIG(TAG, "  BSEC Version: %d.%d.%d.%d", version.major, version.minor, version.major_bugfix, version.minor_bugfix);
-  
+  ESP_LOGCONFIG(TAG, "  BSEC Version: %d.%d.%d.%d", version.major, version.minor, version.major_bugfix,
+                version.minor_bugfix);
+
   LOG_I2C_DEVICE(this);
 
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication failed (BSEC Status: %d, BME680 Status: %d)", this->bsec_status_, this->bme680_status_);
+    ESP_LOGE(TAG, "Communication failed (BSEC Status: %d, BME680 Status: %d)", this->bsec_status_,
+             this->bme680_status_);
   }
 
   ESP_LOGCONFIG(TAG, "  Temperature Offset: %.2f", this->temperature_offset_);
@@ -183,7 +187,8 @@ void BME680BSECComponent::run_() {
   this->bme680_.tph_sett.os_pres = bme680_settings.pressure_oversampling;
   this->bme680_.gas_sett.heatr_temp = bme680_settings.heater_temperature;
   this->bme680_.gas_sett.heatr_dur = bme680_settings.heating_duration;
-  uint16_t desired_settings = BME680_OST_SEL | BME680_OSP_SEL | BME680_OSH_SEL | BME680_FILTER_SEL | BME680_GAS_SENSOR_SEL;
+  uint16_t desired_settings =
+      BME680_OST_SEL | BME680_OSP_SEL | BME680_OSH_SEL | BME680_FILTER_SEL | BME680_GAS_SENSOR_SEL;
   this->bme680_status_ = bme680_set_sensor_settings(desired_settings, &this->bme680_);
   if (this->bme680_status_ != BME680_OK) {
     ESP_LOGW(TAG, "Failed to set sensor settings (BME680 Error Code %d)", this->bme680_status_);
@@ -216,7 +221,7 @@ void BME680BSECComponent::read_(bsec_bme_settings_t bme680_settings) {
     return;
   }
 
-  bsec_input_t inputs[BSEC_MAX_PHYSICAL_SENSOR]; // Temperature, Pressure, Humidity & Gas Resistance
+  bsec_input_t inputs[BSEC_MAX_PHYSICAL_SENSOR];  // Temperature, Pressure, Humidity & Gas Resistance
   uint8_t num_inputs = 0;
   int64_t curr_time_ns = this->get_time_ns_();
 
@@ -270,7 +275,7 @@ void BME680BSECComponent::read_(bsec_bme_settings_t bme680_settings) {
   this->publish_(outputs, num_outputs);
 }
 
-void BME680BSECComponent::publish_(const bsec_output_t * outputs, uint8_t num_outputs) {
+void BME680BSECComponent::publish_(const bsec_output_t *outputs, uint8_t num_outputs) {
   ESP_LOGV(TAG, "Publishing sensor states");
   for (uint8_t i = 0; i < num_outputs; i++) {
     switch (outputs[i].sensor_id) {
@@ -314,7 +319,7 @@ int64_t BME680BSECComponent::get_time_ns_() {
   }
   this->last_time_ms_ = time_ms;
 
-  return (time_ms + ((int64_t)this->millis_overflow_counter_ << 32)) * INT64_C(1000000);
+  return (time_ms + ((int64_t) this->millis_overflow_counter_ << 32)) * INT64_C(1000000);
 }
 
 void BME680BSECComponent::publish_sensor_state_(sensor::Sensor *sensor, float value, bool change_only) {
@@ -371,7 +376,8 @@ void BME680BSECComponent::save_state_(uint8_t accuracy) {
   uint8_t work_buffer[BSEC_MAX_STATE_BLOB_SIZE];
   uint32_t num_serialized_state = BSEC_MAX_STATE_BLOB_SIZE;
 
-  this->bsec_status_ = bsec_get_state(0, state, BSEC_MAX_STATE_BLOB_SIZE, work_buffer, BSEC_MAX_STATE_BLOB_SIZE, &num_serialized_state);
+  this->bsec_status_ =
+      bsec_get_state(0, state, BSEC_MAX_STATE_BLOB_SIZE, work_buffer, BSEC_MAX_STATE_BLOB_SIZE, &num_serialized_state);
   if (this->bsec_status_ != BSEC_OK) {
     ESP_LOGW(TAG, "Failed fetch state for save (BSEC Error Code %d)", this->bsec_status_);
     return;

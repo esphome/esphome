@@ -56,6 +56,12 @@ time:
 tuya:
   time_id: sntp_time
 
+bme680_bsec:
+  address: 0x76
+  temperature_offset: 0
+  iaq_mode: static
+  state_save_interval: 6h
+
 sensor:
   - platform: homeassistant
     entity_id: sensor.hello_world
@@ -81,11 +87,32 @@ sensor:
 #  - platform: apds9960
 #    type: blue
 #    name: APDS9960 Blue
+#
+  - platform: bme680_bsec
+    temperature:
+      name: "BME680 Temperature"
+    pressure:
+      name: "BME680 Pressure"
+    humidity:
+      name: "BME680 Humidity"
+    gas_resistance:
+      name: "BME680 Gas Resistance"
+    iaq:
+      name: "BME680 IAQ"
+    co2_equivalent:
+      name: "BME680 CO2 Equivalent"
+    breath_voc_equivalent:
+      name: "BME680 Breath VOC Equivalent"
 
 binary_sensor:
   - platform: tuya
     id: tuya_binary_sensor
     sensor_datapoint: 1
+
+text_sensor:
+  - platform: bme680_bsec
+    iaq_accuracy:
+      name: "BME680 IAQ Accuracy"
 
 climate:
   - platform: tuya
