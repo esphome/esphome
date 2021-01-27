@@ -9,7 +9,8 @@ namespace partition {
 class AddressableSegment {
  public:
   AddressableSegment(light::LightState *src, int32_t src_offset, int32_t size, bool reversed)
-      : src_(static_cast<light::AddressableLight *>(src->get_output())), src_offset_(src_offset),
+      : src_(static_cast<light::AddressableLight *>(src->get_output())),
+        src_offset_(src_offset),
         size_(size),
         reversed_(reversed) {}
 
