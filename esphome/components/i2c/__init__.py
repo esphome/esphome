@@ -23,7 +23,7 @@ CONFIG_SCHEMA = cv.Schema({
 }).extend(cv.COMPONENT_SCHEMA)
 
 I2CMULTIPLEXER_SCHEMA = cv.Schema({
-    cv.Required(CONF_ID): cv.use_id(I2CDevice),
+    cv.Required(CONF_ID): cv.use_id(I2CMultiplexer),
     cv.Required(CONF_CHANNEL): cv.uint8_t,
 })
 
