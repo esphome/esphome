@@ -9,14 +9,16 @@ namespace partition {
 class AddressableSegment {
  public:
   AddressableSegment(light::LightState *src, int32_t src_offset, int32_t size, bool reversed)
-      : src_(static_cast<light::AddressableLight *>(src->get_output())), src_offset_(src_offset), size_(size), reversed_(reversed) {}
+      : src_(static_cast<light::AddressableLight *>(src->get_output())), src_offset_(src_offset),
+        size_(size),
+        reversed_(reversed) {}
 
   light::AddressableLight *get_src() const { return this->src_; }
   int32_t get_src_offset() const { return this->src_offset_; }
   int32_t get_size() const { return this->size_; }
   int32_t get_dst_offset() const { return this->dst_offset_; }
   void set_dst_offset(int32_t dst_offset) { this->dst_offset_ = dst_offset; }
-  bool is_reversed() const { return this->reversed_ ; }
+  bool is_reversed() const { return this->reversed_; }
 
  protected:
   light::AddressableLight *src_;
