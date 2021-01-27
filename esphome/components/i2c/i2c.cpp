@@ -184,7 +184,7 @@ void I2CDevice::set_i2c_multiplexer(I2CMultiplexer *multiplexer, uint8_t channel
   this->channel_ = channel;
 }
 void I2CDevice::check_multiplexer_() {
-  if (this->multiplexer_) {
+  if (this->multiplexer_ != nullptr) {
     ESP_LOGVV(TAG, "Multiplexer present setting channel to channel %d", this->channel_);
     this->multiplexer_->set_channel(this->channel_);
   }
