@@ -50,7 +50,7 @@ def i2c_device_schema(default_address):
     """
     schema = {
         cv.GenerateID(CONF_I2C_ID): cv.use_id(I2CComponent),
-        cv.Optional(CONF_MULTIPLEXER): cv.Schema(I2CMULTIPLEXER_SCHEMA),
+        cv.Optional(CONF_MULTIPLEXER): I2CMULTIPLEXER_SCHEMA,
     }
     if default_address is None:
         schema[cv.Required(CONF_ADDRESS)] = cv.i2c_address
