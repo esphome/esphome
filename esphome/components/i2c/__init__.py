@@ -9,7 +9,7 @@ CODEOWNERS = ['@esphome/core']
 i2c_ns = cg.esphome_ns.namespace('i2c')
 I2CComponent = i2c_ns.class_('I2CComponent', cg.Component)
 I2CDevice = i2c_ns.class_('I2CDevice')
-I2CMultiplexer = i2c_ns.class_('I2CMultiplexer')
+I2CMultiplexer = i2c_ns.class_('I2CMultiplexer', I2CDevice)
 
 
 MULTI_CONF = True
