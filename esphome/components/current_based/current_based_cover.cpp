@@ -108,7 +108,7 @@ void CurrentBasedCover::loop() {
 void CurrentBasedCover::direction_idle_(float new_position) {
   this->start_direction_(COVER_OPERATION_IDLE);
   if (position != FLT_MAX) {
-    this->position = position;
+    this->position = new_position;
   }
   this->publish_state();
 }
