@@ -179,17 +179,6 @@ class LightColorValues {
     *brightness = gamma_correct(this->state_ * this->brightness_, gamma);
   }
 
-  /// Convert these light color values to an RGB representation and write them to red, green, blue.
-  /*void as_rgb(float *red, float *green, float *blue, float gamma = 0, bool color_interlock = false) const {
-    float brightness = this->state_ * this->brightness_;
-    if (color_interlock) {
-      brightness = brightness * (1.0f - this->white_);
-    }
-    *red = gamma_correct(brightness * this->red_, gamma);
-    *green = gamma_correct(brightness * this->green_, gamma);
-    *blue = gamma_correct(brightness * this->blue_, gamma);
-  }*/
-
   /// Convert color temperature to an RGB representation and write them to red, green, blue.
   void as_rgb(float *red, float *green, float *blue, float gamma = 0, bool color_interlock = false, bool rgb_temperature_emulation = true) const {
     float brightness = this->state_ * this->brightness_;
@@ -199,7 +188,6 @@ class LightColorValues {
     float color_fraction = (1.0f - this->white_);
     if (rgb_temperature_emulation){
       // Implementation comming from https://github.com/Aircoookie/Espalexa/issues/33
-
     	int k = round(1000000 / clamp(this->color_temperature_, 1, 500));
       //int k = clamp(this->color_temperature_, 2000, 40000);
     	int ktemp = k / 100;
