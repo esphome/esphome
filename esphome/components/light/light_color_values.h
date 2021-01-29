@@ -3,7 +3,6 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/defines.h"
 #include "light_traits.h"
-#include "esphome/core/log.h"
 
 #ifdef USE_JSON
 #include "esphome/components/json/json_util.h"
@@ -208,7 +207,6 @@ class LightColorValues {
     		temp_g = 288.1221695283 * pow(temp_g, -0.0755148492 );
     		temp_b = 255;
     	}
-      ESP_LOGD("Debug", "red: %.1f green: %.1f blue: %.1f white: %.1f k: %d temp: %.1f", temp_r, temp_g, temp_b, this->white_, k, this->color_temperature_);
       temp_r = this->white_ * clamp(temp_r/255, 0, 1);
       temp_g = this->white_ * clamp(temp_g/255, 0, 1);
       temp_b = this->white_ * clamp(temp_b/255, 0, 1);
