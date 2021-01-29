@@ -273,7 +273,8 @@ class LightState : public Nameable, public Component {
 
   void current_values_as_brightness(float *brightness);
 
-  void current_values_as_rgb(float *red, float *green, float *blue, bool color_interlock = false, bool rgb_temperature_emulation = false);
+  void current_values_as_rgb(float *red, float *green, float *blue, bool color_interlock = false,
+                             bool rgb_temperature_emulation = false);
 
   void current_values_as_rgbw(float *red, float *green, float *blue, float *white, bool color_interlock = false);
 

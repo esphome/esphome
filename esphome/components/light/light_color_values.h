@@ -179,7 +179,8 @@ class LightColorValues {
   }
 
   /// Convert color temperature to an RGB representation and write them to red, green, blue.
-  void as_rgb(float *red, float *green, float *blue, float gamma = 0, bool color_interlock = false, bool rgb_temperature_emulation = false) const {
+  void as_rgb(float *red, float *green, float *blue, float gamma = 0, bool color_interlock = false,
+              bool rgb_temperature_emulation = false) const {
     float brightness = this->state_ * this->brightness_;
     float temp_r = 0;
     float temp_g = 0;
@@ -190,11 +191,11 @@ class LightColorValues {
       // Implementation adapted from https://github.com/Aircoookie/Espalexa/issues/33
       int k = round(1000000 / clamp(this->color_temperature_, 1, 500));
       int ktemp = k / 100;
-      if ( ktemp <= 66 ) {
+      if (ktemp <= 66) {
         temp_r = 255;
         temp_g = ktemp - 10;
-        temp_g = ( 138.5177312231 * log(temp_g) - 305.0447927307) * 1.8;
-        if ( ktemp <= 19) {
+        temp_g = (138.5177312231 * log(temp_g) - 305.0447927307) * 1.8;
+        if (ktemp <= 19) {
           temp_b = 0;
         } else {
           temp_b = ktemp - 10;
@@ -204,20 +205,20 @@ class LightColorValues {
         temp_r = ktemp - 60;
         temp_r = 329.698727446 * pow(temp_r, -0.1332047592);
         temp_g = ktemp - 60;
-        temp_g = 288.1221695283 * pow(temp_g, -0.0755148492 );
+        temp_g = 288.1221695283 * pow(temp_g, -0.0755148492);
         temp_b = 255;
       }
-      temp_r = this->white_ * clamp(temp_r/255, 0, 1);
-      temp_g = this->white_ * clamp(temp_g/255, 0, 1);
-      temp_b = this->white_ * clamp(temp_b/255, 0, 1);
+      temp_r = this->white_ * clamp(temp_r / 255, 0, 1);
+      temp_g = this->white_ * clamp(temp_g / 255, 0, 1);
+      temp_b = this->white_ * clamp(temp_b / 255, 0, 1);
     } else {
       if (color_interlock) {
         brightness = brightness * color_fraction;
       }
     }
-    *red = gamma_correct(brightness * (color_fraction*this->red_ + temp_r), gamma);
-    *green = gamma_correct(brightness * (color_fraction*this->green_ + temp_g), gamma);
-    *blue = gamma_correct(brightness * (color_fraction*this->blue_ + temp_b), gamma);
+    *red = gamma_correct(brightness * (color_fraction * this->red_ + temp_r), gamma);
+    *green = gamma_correct(brightness * (color_fraction * this->green_ + temp_g), gamma);
+    *blue = gamma_correct(brightness * (color_fraction * this->blue_ + temp_b), gamma);
   }
 
   /// Convert these light color values to an RGBW representation and write them to red, green, blue, white.
