@@ -186,18 +186,15 @@ class LightColorValues {
     float temp_g = 0;
     float temp_b = 0;
     float color_fraction = 1.0;
-    if (rgb_temperature_emulation){
+    if (rgb_temperature_emulation) {
       color_fraction = (1.0f - this->white_);
-      // Implementation comming from https://github.com/Aircoookie/Espalexa/issues/33
+      // Implementation adapted from https://github.com/Aircoookie/Espalexa/issues/33
     	int k = round(1000000 / clamp(this->color_temperature_, 1, 500));
-      //int k = clamp(this->color_temperature_, 2000, 40000);
     	int ktemp = k / 100;
     	if ( ktemp <= 66 ) {
     		temp_r = 255;
-    		//temp_g = _ct;
     		temp_g = ktemp - 10;
     		temp_g = ( 138.5177312231 * log(temp_g) - 305.0447927307) * 1.8;
-    		//temp_g = 99.4708025861 * log(temp_g) - 161.1195681661;
     		if ( ktemp <= 19) {
     			temp_b = 0;
     		} else {
@@ -215,7 +212,6 @@ class LightColorValues {
       temp_r = this->white_ * clamp(temp_r/255, 0, 1);
       temp_g = this->white_ * clamp(temp_g/255, 0, 1);
       temp_b = this->white_ * clamp(temp_b/255, 0, 1);
-
     } else {
       if (color_interlock) {
         brightness = brightness * color_fraction;
@@ -224,7 +220,6 @@ class LightColorValues {
     *red = gamma_correct(brightness * (color_fraction*this->red_ + temp_r), gamma);
     *green = gamma_correct(brightness * (color_fraction*this->green_ + temp_g), gamma);
     *blue = gamma_correct(brightness * (color_fraction*this->blue_ + temp_b), gamma);
-
   }
 
   /// Convert these light color values to an RGBW representation and write them to red, green, blue, white.

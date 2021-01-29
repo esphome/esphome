@@ -37,12 +37,9 @@ class RGBLightOutput : public light::LightOutput {
   void write_state(light::LightState *state) override {
     float red, green, blue;
     state->current_values_as_rgb(&red, &green, &blue, this->color_interlock_, this->rgb_temperature_emulation_);
-
     this->red_->set_level(red);
     this->green_->set_level(green);
     this->blue_->set_level(blue);
-    ESP_LOGD(TAG, "red: %.1f green: %.1f blue: %.1f", red, green, blue);
-    //ESP_LOGD(TAG, "  Color Temperature: %.1f mireds", v.get_color_temperature());
   }
 
  protected:
