@@ -188,25 +188,25 @@ class LightColorValues {
     if (rgb_temperature_emulation) {
       color_fraction = (1.0f - this->white_);
       // Implementation adapted from https://github.com/Aircoookie/Espalexa/issues/33
-    	int k = round(1000000 / clamp(this->color_temperature_, 1, 500));
-    	int ktemp = k / 100;
-    	if ( ktemp <= 66 ) {
-    		temp_r = 255;
-    		temp_g = ktemp - 10;
-    		temp_g = ( 138.5177312231 * log(temp_g) - 305.0447927307) * 1.8;
-    		if ( ktemp <= 19) {
-    			temp_b = 0;
-    		} else {
-    			temp_b = ktemp - 10;
-    			temp_b = 138.5177312231 * log(temp_b) - 305.0447927307;
-    		}
-    	} else {
-    		temp_r = ktemp - 60;
-    		temp_r = 329.698727446 * pow(temp_r, -0.1332047592);
-    		temp_g = ktemp - 60;
-    		temp_g = 288.1221695283 * pow(temp_g, -0.0755148492 );
-    		temp_b = 255;
-    	}
+      int k = round(1000000 / clamp(this->color_temperature_, 1, 500));
+      int ktemp = k / 100;
+      if ( ktemp <= 66 ) {
+        temp_r = 255;
+        temp_g = ktemp - 10;
+        temp_g = ( 138.5177312231 * log(temp_g) - 305.0447927307) * 1.8;
+        if ( ktemp <= 19) {
+          temp_b = 0;
+        } else {
+          temp_b = ktemp - 10;
+          temp_b = 138.5177312231 * log(temp_b) - 305.0447927307;
+        }
+      } else {
+        temp_r = ktemp - 60;
+        temp_r = 329.698727446 * pow(temp_r, -0.1332047592);
+        temp_g = ktemp - 60;
+        temp_g = 288.1221695283 * pow(temp_g, -0.0755148492 );
+        temp_b = 255;
+      }
       temp_r = this->white_ * clamp(temp_r/255, 0, 1);
       temp_g = this->white_ * clamp(temp_g/255, 0, 1);
       temp_b = this->white_ * clamp(temp_b/255, 0, 1);
