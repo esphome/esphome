@@ -1,16 +1,22 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import light, output
-from esphome.const import CONF_BLUE, CONF_GREEN, CONF_RED, CONF_OUTPUT_ID
+from esphome.const import CONF_BLUE, CONF_GREEN, CONF_RED, CONF_OUTPUT_ID, CONF_COLD_WHITE_COLOR_TEMPERATURE, \
+CONF_WARM_WHITE_COLOR_TEMPERATURE
 
 rgb_ns = cg.esphome_ns.namespace('rgb')
 RGBLightOutput = rgb_ns.class_('RGBLightOutput', light.LightOutput)
+
+CONF_RGB_TEMPERATURE_EMULATION = 'rgb_temperature_emulation'
 
 CONFIG_SCHEMA = light.RGB_LIGHT_SCHEMA.extend({
     cv.GenerateID(CONF_OUTPUT_ID): cv.declare_id(RGBLightOutput),
     cv.Required(CONF_RED): cv.use_id(output.FloatOutput),
     cv.Required(CONF_GREEN): cv.use_id(output.FloatOutput),
     cv.Required(CONF_BLUE): cv.use_id(output.FloatOutput),
+    cv.Optional(CONF_COLD_WHITE_COLOR_TEMPERATURE, default='6700 K'): cv.color_temperature,
+    cv.Optional(CONF_WARM_WHITE_COLOR_TEMPERATURE, default='2700 K'): cv.color_temperature,
+    cv.Optional(CONF_RGB_TEMPERATURE_EMULATION, default=False): cv.boolean,
 })
 
 
@@ -24,3 +30,7 @@ def to_code(config):
     cg.add(var.set_green(green))
     blue = yield cg.get_variable(config[CONF_BLUE])
     cg.add(var.set_blue(blue))
+
+    cg.add(var.set_cold_white_temperature(config[CONF_COLD_WHITE_COLOR_TEMPERATURE]))
+    cg.add(var.set_warm_white_temperature(config[CONF_WARM_WHITE_COLOR_TEMPERATURE]))
+    cg.add(var.set_rgb_temperature_emulation(config[CONF_RGB_TEMPERATURE_EMULATION]))

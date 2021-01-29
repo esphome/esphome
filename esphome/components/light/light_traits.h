@@ -24,6 +24,10 @@ class LightTraits {
   void set_supports_color_interlock(bool supports_color_interlock) {
     this->supports_color_interlock_ = supports_color_interlock;
   }
+  bool get_supports_rgb_temperature_emulation() const { return this->supports_rgb_temperature_emulation_; }
+  void set_supports_rgb_temperature_emulation(bool supports_rgb_temperature_emulation) {
+    this->supports_rgb_temperature_emulation_ = supports_rgb_temperature_emulation;
+  }
   float get_min_mireds() const { return this->min_mireds_; }
   void set_min_mireds(float min_mireds) { this->min_mireds_ = min_mireds; }
   float get_max_mireds() const { return this->max_mireds_; }
@@ -37,6 +41,7 @@ class LightTraits {
   float min_mireds_{0};
   float max_mireds_{0};
   bool supports_color_interlock_{false};
+  bool supports_rgb_temperature_emulation_{false};
 };
 
 }  // namespace light

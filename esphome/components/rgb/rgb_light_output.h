@@ -14,14 +14,19 @@ class RGBLightOutput : public light::LightOutput {
   void set_red(output::FloatOutput *red) { red_ = red; }
   void set_green(output::FloatOutput *green) { green_ = green; }
   void set_blue(output::FloatOutput *blue) { blue_ = blue; }
+  void set_cold_white_temperature(float cold_white_temperature) { cold_white_temperature_ = cold_white_temperature; }
+  void set_warm_white_temperature(float warm_white_temperature) { warm_white_temperature_ = warm_white_temperature; }
+  void set_rgb_temperature_emulation(bool rgb_temperature_emulation) { rgb_temperature_emulation_ = rgb_temperature_emulation; }
   light::LightTraits get_traits() override {
     auto traits = light::LightTraits();
     traits.set_supports_brightness(true);
     traits.set_supports_rgb(true);
-    traits.set_supports_color_temperature(true);
-    traits.set_min_mireds(100);
-    traits.set_max_mireds(500);
-    traits.set_supports_color_interlock(true);
+    traits.set_min_mireds(this->cold_white_temperature_);
+    traits.set_max_mireds(this->warm_white_temperature_);
+    if(this->rgb_temperature_emulation_){
+      traits.set_supports_color_interlock(true);
+      traits.set_supports_color_temperature(true);
+    }
     return traits;
   }
   void write_state(light::LightState *state) override {
@@ -39,6 +44,9 @@ class RGBLightOutput : public light::LightOutput {
   output::FloatOutput *red_;
   output::FloatOutput *green_;
   output::FloatOutput *blue_;
+  float cold_white_temperature_;
+  float warm_white_temperature_;
+  bool rgb_temperature_emulation_;
 };
 
 }  // namespace rgb
