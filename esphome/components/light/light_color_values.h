@@ -189,7 +189,7 @@ class LightColorValues {
     if (rgb_temperature_emulation) {
       color_fraction = (1.0f - this->white_);
       // Implementation adapted from https://github.com/Aircoookie/Espalexa/issues/33
-      int k = (int)(1000000 / clamp(this->color_temperature_, 1, 500));
+      int k = (int) (1000000 / clamp(this->color_temperature_, 1, 500));
       int ktemp = k / 100;
       if (ktemp <= 66) {
         temp_r = 255;
