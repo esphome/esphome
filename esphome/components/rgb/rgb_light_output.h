@@ -18,7 +18,7 @@ class RGBLightOutput : public light::LightOutput {
   void set_warm_white_temperature(float warm_white_temperature) { warm_white_temperature_ = warm_white_temperature; }
   void set_rgb_temperature_emulation(bool rgb_temperature_emulation) {
     rgb_temperature_emulation_ = rgb_temperature_emulation;
-    if (rgb_temperature_emulation_){
+    if (rgb_temperature_emulation_) {
       this->color_interlock_ = true;
     }
   }
