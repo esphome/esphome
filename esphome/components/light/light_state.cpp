@@ -735,14 +735,9 @@ void LightState::current_values_as_binary(bool *binary) { this->current_values.a
 void LightState::current_values_as_brightness(float *brightness) {
   this->current_values.as_brightness(brightness, this->gamma_correct_);
 }
-void LightState::current_values_as_rgb(float *red, float *green, float *blue, bool color_interlock) {
+void LightState::current_values_as_rgb(float *red, float *green, float *blue, bool color_interlock, bool rgb_temperature_emulation) {
   auto traits = this->get_traits();
-  /*if (this->color_temperature_.has_value()) { //this means we want to emulate CWWW with the RGB output
-    this->current_values.as_rgb_from_temperature(red, green, blue, this->gamma_correct_, traits.get_supports_color_interlock());
-  }
-  else{*/
-    this->current_values.as_rgb(red, green, blue, this->gamma_correct_, traits.get_supports_color_interlock());
-  //}
+  this->current_values.as_rgb(red, green, blue, this->gamma_correct_, traits.get_supports_color_interlock(), rgb_temperature_emulation);
 }
 void LightState::current_values_as_rgbw(float *red, float *green, float *blue, float *white, bool color_interlock) {
   auto traits = this->get_traits();
