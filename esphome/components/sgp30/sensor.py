@@ -27,7 +27,7 @@ CONFIG_SCHEMA = cv.Schema({
     cv.Required(CONF_TVOC): sensor.sensor_schema(UNIT_PARTS_PER_BILLION, ICON_RADIATOR, 0),
     cv.Optional(CONF_ECO2_BASELINE): sensor.sensor_schema(UNIT_EMPTY, ICON_MOLECULE_CO2, 0),
     cv.Optional(CONF_TVOC_BASELINE): sensor.sensor_schema(UNIT_EMPTY, ICON_RADIATOR, 0),
-    cv.Optional(CONF_STORE_BASELINE, default=False): cv.boolean,
+    cv.Optional(CONF_STORE_BASELINE, default=True): cv.boolean,
     cv.Optional(CONF_BASELINE): cv.Schema({
         cv.Required(CONF_ECO2_BASELINE): cv.hex_uint16_t,
         cv.Required(CONF_TVOC_BASELINE): cv.hex_uint16_t,
