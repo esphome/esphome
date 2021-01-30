@@ -35,15 +35,14 @@ void PMSA003IComponent::update() {
       if (this->pm_2_5_sensor_ != nullptr)
         this->pm_2_5_sensor_->publish_state(data.pm25_standard);
       if (this->pm_10_0_sensor_ != nullptr)
-       this->pm_10_0_sensor_->publish_state(data.pm100_standard);
-    }
-    else {
+        this->pm_10_0_sensor_->publish_state(data.pm100_standard);
+    } else {
       if (this->pm_1_0_sensor_ != nullptr)
         this->pm_1_0_sensor_->publish_state(data.pm10_env);
       if (this->pm_2_5_sensor_ != nullptr)
         this->pm_2_5_sensor_->publish_state(data.pm25_env);
       if (this->pm_10_0_sensor_ != nullptr)
-       this->pm_10_0_sensor_->publish_state(data.pm100_env);
+        this->pm_10_0_sensor_->publish_state(data.pm100_env);
     }
 
     if (this->pmc_0_3_sensor_ != nullptr)
