@@ -10,7 +10,7 @@ void PMSA003IComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up pmsa003i...");
 
   PM25AQIData data;
-  bool successful_read = this->read_data(&data);
+  bool successful_read = this->read_data_(&data);
 
   if (!successful_read) {
     this->mark_failed();
@@ -23,7 +23,7 @@ void PMSA003IComponent::dump_config() { LOG_I2C_DEVICE(this); }
 void PMSA003IComponent::update() {
   PM25AQIData data;
 
-  bool successful_read = this->read_data(&data);
+  bool successful_read = this->read_data_(&data);
 
   // Update sensors
   if (successful_read) {
@@ -91,11 +91,7 @@ bool PMSA003IComponent::read_data_(PM25AQIData *data) {
   // put it into a nice struct :)
   memcpy((void *) data, (void *) buffer_u16, 30);
 
-  if (sum != data->checksum) {
-    return false;
-  }
-
-  return true;
+  return (sum == data->checksum);
 }
 
 }  // namespace pmsa003i
