@@ -61,11 +61,9 @@ void PMSA003IComponent::update() {
   } else {
     ESP_LOGD(TAG, "Read failure. Skipping update.");
   }
-
-
 }
 
-bool PMSA003IComponent::read_data(PM25AQIData *data) {
+bool PMSA003IComponent::read_data_(PM25AQIData *data) {
   const uint8_t num_bytes = 32;
   uint8_t buffer[num_bytes];
 

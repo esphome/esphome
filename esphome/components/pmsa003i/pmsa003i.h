@@ -9,7 +9,7 @@ namespace pmsa003i {
 
 /**! Structure holding Plantower's standard packet **/
 // From https://github.com/adafruit/Adafruit_PM25AQI
-typedef struct PMSAQIdata {
+using PM25AQIData = struct PMSAQIdata {
   uint16_t framelen;          ///< How long this data chunk is
   uint16_t pm10_standard,     ///< Standard PM1.0
       pm25_standard,          ///< Standard PM2.5
@@ -25,7 +25,7 @@ typedef struct PMSAQIdata {
       particles_100um;        ///< 10.0um Particle Count
   uint16_t unused;            ///< Unused
   uint16_t checksum;          ///< Packet checksum
-} PM25AQIData;
+};
 
 
 class PMSA003IComponent : public PollingComponent, public i2c::I2CDevice {
@@ -49,7 +49,7 @@ class PMSA003IComponent : public PollingComponent, public i2c::I2CDevice {
     void set_pmc_10_0_sensor(sensor::Sensor *pmc_10_0) { pmc_10_0_sensor_ = pmc_10_0; }
 
  protected:
-  bool read_data(PM25AQIData *data);
+  bool read_data_(PM25AQIData *data);
 
   bool standard_units_;
 
