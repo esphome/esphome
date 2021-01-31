@@ -43,6 +43,8 @@ class SGP30Component : public PollingComponent, public i2c::I2CDevice {
   uint64_t serial_number_;
   uint16_t featureset_;
   long required_warm_up_time_;
+  long seconds_since_last_store_;
+  SGP30Baselines baselines_storage_;
   ESPPreferenceObject pref_;
 
   enum ErrorCode {

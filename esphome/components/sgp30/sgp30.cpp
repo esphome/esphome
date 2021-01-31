@@ -23,6 +23,13 @@ const long IAQ_BASELINE_WARM_UP_SECONDS_WITH_BASELINE_PROVIDED = 3600;
 // if the sensor starts without any prior baseline value provided
 const long IAQ_BASELINE_WARM_UP_SECONDS_WITHOUT_BASELINE = 43200;
 
+// Shortest time interval of 1H for storing baseline values.
+// Prevents wear of the flash because of too many write operations
+const long SHORTEST_BASELINE_STORE_INTERVAL = 3600;
+
+// Store anyway if the baseline difference exceeds the max storage diff value
+const long MAXIMUM_STORAGE_DIFF = 50;
+
 void SGP30Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up SGP30...");
 
@@ -79,13 +86,15 @@ void SGP30Component::setup() {
   uint32_t hash = fnv1_hash(App.get_compilation_time());
   this->pref_ = global_preferences.make_preference<SGP30Baselines>(hash, true);
 
-  SGP30Baselines baselines_storage{};
-  if (this->pref_.load(&baselines_storage)) {
-    ESP_LOGI(TAG, "Loaded eCO2 baseline: 0x%04X, TVOC baseline: 0x%04X", baselines_storage.eco2,
-             baselines_storage.tvoc);
-    this->eco2_baseline_ = baselines_storage.eco2;
-    this->tvoc_baseline_ = baselines_storage.tvoc;
+  if (this->pref_.load(&this->baselines_storage_)) {
+    ESP_LOGI(TAG, "Loaded eCO2 baseline: 0x%04X, TVOC baseline: 0x%04X", this->baselines_storage_.eco2,
+             baselines_storage_.tvoc);
+    this->eco2_baseline_ = this->baselines_storage_.eco2;
+    this->tvoc_baseline_ = this->baselines_storage_.tvoc;
   }
+
+  // Initialize storage timestamp
+  this->seconds_since_last_store_ = 0;
 
   // Sensor baseline reliability timer
   if (this->eco2_baseline_ > 0 && this->tvoc_baseline_ > 0) {
@@ -132,12 +141,18 @@ void SGP30Component::read_iaq_baseline_() {
         if (this->tvoc_sensor_baseline_ != nullptr)
           this->tvoc_sensor_baseline_->publish_state(this->tvoc_baseline_);
 
-        if (this->store_baseline_) {
-          SGP30Baselines baselines_storage{};
-          baselines_storage.eco2 = this->eco2_baseline_;
-          baselines_storage.tvoc = this->tvoc_baseline_;
-          if (this->pref_.save(&baselines_storage)) {
-            ESP_LOGI(TAG, "Store eCO2 baseline: 0x%04X, TVOC baseline: 0x%04X", eco2baseline, tvocbaseline);
+        // Store baselines after defined interval or if the difference between current and stored baseline becomes too
+        // much
+        if (this->store_baseline_ &&
+            (this->seconds_since_last_store_ > SHORTEST_BASELINE_STORE_INTERVAL ||
+             abs(this->baselines_storage_.eco2 - this->eco2_baseline_) > MAXIMUM_STORAGE_DIFF ||
+             abs(this->baselines_storage_.tvoc - this->tvoc_baseline_) > MAXIMUM_STORAGE_DIFF)) {
+          this->seconds_since_last_store_ = 0;
+          this->baselines_storage_.eco2 = this->eco2_baseline_;
+          this->baselines_storage_.tvoc = this->tvoc_baseline_;
+          if (this->pref_.save(&this->baselines_storage_)) {
+            ESP_LOGI(TAG, "Store eCO2 baseline: 0x%04X, TVOC baseline: 0x%04X", this->baselines_storage_.eco2,
+                     this->baselines_storage_.tvoc);
           } else {
             ESP_LOGW(TAG, "Could not store eCO2 and TVOC baselines");
           }
@@ -260,7 +275,7 @@ void SGP30Component::update() {
     this->status_set_warning();
     return;
   }
-
+  this->seconds_since_last_store_ += this->update_interval_ / 1000;
   this->set_timeout(50, [this]() {
     uint16_t raw_data[2];
     if (!this->read_data_(raw_data, 2)) {
