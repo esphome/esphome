@@ -177,7 +177,7 @@ void delay_microseconds_accurate(uint32_t usec) {
     return;
 
   uint32_t start = micros();
-  for (uint32_t us_left=usec; us_left > 2000UL; us_left -= 1000UL) {
+  for (uint32_t us_left = usec; us_left > 2000UL; us_left -= 1000UL) {
     delay(0);
     delayMicroseconds(usec);
   }
