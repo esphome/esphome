@@ -137,7 +137,7 @@ void LTR390Component::read_mode_(int mode_index) {
   this->set_mode_(std::get<0>(this->mode_funcs_->at(mode_index)));
 
   // After the sensor integration time do the following
-  this->set_timeout(RESOLUTIONVALUE[this->res_] * 100, [this, mode_index]() {
+  this->set_timeout(((unsigned int) RESOLUTIONVALUE[this->res_]) * 100, [this, mode_index]() {
     // Read from the sensor
     std::get<1>(this->mode_funcs_->at(mode_index))();
 
