@@ -1,6 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import sensor, uart
+
 from esphome.const import (
     CONF_FORMALDEHYDE,
     CONF_HUMIDITY,
@@ -17,6 +18,7 @@ from esphome.const import (
     CONF_PM_2_5UM,
     CONF_PM_5_0UM,
     CONF_PM_10_0UM,
+    CONF_UPDATE_INTERVAL,
     CONF_TEMPERATURE,
     CONF_TYPE,
     DEVICE_CLASS_PM1,
@@ -45,6 +47,7 @@ TYPE_PMS5003ST = "PMS5003ST"
 TYPE_PMS5003S = "PMS5003S"
 
 PMSX003Type = pmsx003_ns.enum("PMSX003Type")
+
 PMSX003_TYPES = {
     TYPE_PMSX003: PMSX003Type.PMSX003_TYPE_X003,
     TYPE_PMS5003T: PMSX003Type.PMSX003_TYPE_5003T,
@@ -164,6 +167,9 @@ CONFIG_SCHEMA = (
                 accuracy_decimals=0,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
+            cv.Optional(
+                CONF_UPDATE_INTERVAL, default="0ms"
+            ): cv.positive_time_period_milliseconds,
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
@@ -237,3 +243,6 @@ async def to_code(config):
     if CONF_FORMALDEHYDE in config:
         sens = await sensor.new_sensor(config[CONF_FORMALDEHYDE])
         cg.add(var.set_formaldehyde_sensor(sens))
+
+    if CONF_UPDATE_INTERVAL in config:
+        cg.add(var.set_update_interval(config[CONF_UPDATE_INTERVAL]))
