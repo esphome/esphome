@@ -38,25 +38,25 @@ bool LTR390Component::reset_(void) {
   return true;
 }
 
-void LTR390Component::set_mode_(ltr390_mode_t mode) {
+void LTR390Component::set_mode_(LTR390MODE mode) {
   std::bitset<8> crtl_value(this->ctrl_reg_->get());
   crtl_value[LTR390_CTRL_MODE] = mode;
   *this->ctrl_reg_ = crtl_value.to_ulong();
 }
 
-ltr390_mode_t LTR390Component::get_mode_(void) {
+LTR390MODE LTR390Component::get_mode_(void) {
   std::bitset<8> crtl_value(this->ctrl_reg_->get());
-  return (ltr390_mode_t)(int) crtl_value[LTR390_CTRL_MODE];
+  return (LTR390MODE)(int) crtl_value[LTR390_CTRL_MODE];
 }
 
-void LTR390Component::set_gain_(ltr390_gain_t gain) { *this->gain_reg_ = gain; }
+void LTR390Component::set_gain_(LTR390GAIN gain) { *this->gain_reg_ = gain; }
 
-ltr390_gain_t LTR390Component::get_gain_(void) {
+LTR390GAIN LTR390Component::get_gain_(void) {
   std::bitset<8> gain_value(this->gain_reg_->get());
-  return (ltr390_gain_t) gain_value.to_ulong();
+  return (LTR390GAIN) gain_value.to_ulong();
 }
 
-void LTR390Component::set_resolution_(ltr390_resolution_t res) {
+void LTR390Component::set_resolution_(LTR390RESOLUTION res) {
   std::bitset<8> res_value(this->res_reg_->get());
 
   std::bitset<3> new_res_value(res);
@@ -68,7 +68,7 @@ void LTR390Component::set_resolution_(ltr390_resolution_t res) {
   *this->res_reg_ = res_value.to_ulong();
 }
 
-ltr390_resolution_t LTR390Component::get_resolution_(void) {
+LTR390RESOLUTION LTR390Component::get_resolution_(void) {
   std::bitset<8> res_value(this->res_reg_->get());
 
   std::bitset<3> output_value(0);
@@ -76,7 +76,7 @@ ltr390_resolution_t LTR390Component::get_resolution_(void) {
     output_value[i] = res_value[4 + i];
   }
 
-  return (ltr390_resolution_t) output_value.to_ulong();
+  return (LTR390RESOLUTION) output_value.to_ulong();
 }
 
 bool LTR390Component::new_data_available_(void) {
@@ -95,7 +95,7 @@ uint32_t little_endian_bytes_to_int(uint8_t *buffer, uint8_t num_bytes) {
   return value;
 }
 
-uint32_t LTR390Component::read_sensor_data_(ltr390_mode_t mode) {
+uint32_t LTR390Component::read_sensor_data_(LTR390MODE mode) {
   const uint8_t num_bytes = 3;
   uint8_t buffer[num_bytes];
 
@@ -180,7 +180,7 @@ void LTR390Component::setup() {
   this->reading = false;
 
   // Create a list of modes and corresponding read functions
-  this->mode_funcs_ = new std::vector<std::tuple<ltr390_mode_t, std::function<void(void)> > >();
+  this->mode_funcs_ = new std::vector<std::tuple<LTR390MODE, std::function<void(void)> > >();
 
   // If we need the light sensor then add to the list
   if (this->light_sensor_ != nullptr || this->als_sensor_ != nullptr) {
