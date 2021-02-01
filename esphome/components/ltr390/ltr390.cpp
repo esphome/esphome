@@ -49,9 +49,7 @@ ltr390_mode_t LTR390Component::get_mode_(void) {
   return (ltr390_mode_t)(int) crtl_value[LTR390_CTRL_MODE];
 }
 
-void LTR390Component::set_gain_(ltr390_gain_t gain) {
-  *this->gain_reg_ = gain;
-}
+void LTR390Component::set_gain_(ltr390_gain_t gain) { *this->gain_reg_ = gain; }
 
 ltr390_gain_t LTR390Component::get_gain_(void) {
   std::bitset<8> gain_value(this->gain_reg_->get());
@@ -73,7 +71,7 @@ void LTR390Component::set_resolution_(ltr390_resolution_t res) {
 ltr390_resolution_t LTR390Component::get_resolution_(void) {
   std::bitset<8> res_value(this->res_reg_->get());
 
-  std::bitset<3> output_value (0);
+  std::bitset<3> output_value(0);
   for (int i = 0; i < 3; i++) {
     output_value[i] = res_value[4 + i];
   }
@@ -109,6 +107,50 @@ uint32_t LTR390Component::read_sensor_data_(ltr390_mode_t mode) {
   this->read_bytes(mode_addresses_[mode], buffer, num_bytes);
 
   return little_endian_bytes_to_int(buffer, num_bytes);
+}
+
+void LTR390Component::read_als_() {
+  uint32_t als = this->read_sensor_data(LTR390_MODE_ALS);
+
+  if (this->light_sensor_ != nullptr) {
+    float lux = (0.6 * als) / (gain_values_[this->gain_] * resolution_values_[this->res_]) * this->wfac_;
+    this->light_sensor_->publish_state(lux);
+  }
+
+  if (this->als_sensor_ != nullptr) {
+    this->als_sensor_->publish_state(als);
+  }
+}
+
+void LTR390Component::read_uvs_() {
+  uint32_t uv = this->read_sensor_data(LTR390_MODE_UVS);
+
+  if (this->uvi_sensor_ != nullptr) {
+    this->uvi_sensor_->publish_state(uv / LTR390_SENSITIVITY * this->wfac_);
+  }
+
+  if (this->uv_sensor_ != nullptr) {
+    this->uv_sensor_->publish_state(uv);
+  }
+}
+
+void LTR390Component::read_mode_(int mode_index) {
+  // Set mode
+  this->set_mode(std::get<0>(this->mode_funcs_->at(mode_index)));
+
+  // After the sensor integration time do the following
+  this->set_timeout(resolution_values_[this->res_] * 100, [this, mode_index]() {
+    // Read from the sensor
+    std::get<1>(this->mode_funcs_->at(mode_index))();
+
+    // If there are more modes to read then begin the next
+    // otherwise stop
+    if (mode_index + 1 < this->mode_funcs_->size()) {
+      this->read_mode(mode_index + 1);
+    } else {
+      this->reading = false;
+    }
+  });
 }
 
 void LTR390Component::setup() {
@@ -151,57 +193,9 @@ void LTR390Component::setup() {
   }
 }
 
-void LTR390Component::dump_config() {
-    LOG_I2C_DEVICE(this);
-}
-
-void LTR390Component::read_als_() {
-  uint32_t als = this->read_sensor_data(LTR390_MODE_ALS);
-
-  if (this->light_sensor_ != nullptr) {
-    float lux = (0.6 * als) / (gain_values_[this->gain_] * resolution_values_[this->res_]) * this->wfac_;
-    this->light_sensor_->publish_state(lux);
-  }
-
-  if (this->als_sensor_ != nullptr) {
-    this->als_sensor_->publish_state(als);
-  }
-}
-
-void LTR390Component::read_uvs_() {
-  uint32_t uv = this->read_sensor_data(LTR390_MODE_UVS);
-
-  if (this->uvi_sensor_ != nullptr) {
-    this->uvi_sensor_->publish_state(uv / LTR390_SENSITIVITY * this->wfac_);
-  }
-
-  if (this->uv_sensor_ != nullptr) {
-    this->uv_sensor_->publish_state(uv);
-  }
-}
-
-void LTR390Component::read_mode_(int mode_index) {
-
-  // Set mode
-  this->set_mode(std::get<0>(this->mode_funcs_->at(mode_index)));
-
-  // After the sensor integration time do the following
-  this->set_timeout(resolution_values_[this->res_] * 100, [this, mode_index]() {
-    // Read from the sensor
-    std::get<1>(this->mode_funcs_->at(mode_index))();
-
-    // If there are more modes to read then begin the next
-    // otherwise stop
-    if (mode_index + 1 < this->mode_funcs_->size()) {
-      this->read_mode(mode_index + 1);
-    } else {
-      this->reading = false;
-    }
-  });
-}
+void LTR390Component::dump_config() { LOG_I2C_DEVICE(this); }
 
 void LTR390Component::update() {
-
   if (!this->reading) {
     this->reading = true;
     this->read_mode(0);

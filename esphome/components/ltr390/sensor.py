@@ -1,7 +1,8 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import i2c, sensor
-from esphome.const import CONF_ID, CONF_GAIN, CONF_LIGHT, CONF_RESOLUTION, UNIT_LUX, ICON_BRIGHTNESS_5
+from esphome.const import CONF_ID, CONF_GAIN, CONF_LIGHT, CONF_RESOLUTION,
+    UNIT_LUX, ICON_BRIGHTNESS_5
 
 DEPENDENCIES = ['i2c']
 
@@ -57,6 +58,7 @@ TYPES = {
     CONF_UVI: 'set_uvi_sensor',
     CONF_UV: 'set_uv_sensor',
 }
+
 
 def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])

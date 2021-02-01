@@ -52,11 +52,11 @@ enum ltr390_resolution_t {
 };
 
 class LTR390Component : public PollingComponent, public i2c::I2CDevice {
-public:
+ public:
+  float get_setup_priority() const override { return setup_priority::DATA; }
   void setup() override;
   void dump_config() override;
   void update() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
 
   void set_gain_value(ltr390_gain_t gain) { this->gain_ = gain; }
   void set_res_value(ltr390_resolution_t res) { this->res_ = res; }
@@ -67,7 +67,7 @@ public:
   void set_uvi_sensor(sensor::Sensor *uvi_sensor) { this->uvi_sensor_ = uvi_sensor; }
   void set_uv_sensor(sensor::Sensor *uv_sensor) { this->uv_sensor_ = uv_sensor; }
 
-protected:
+ protected:
   bool enabled_();
   void enable_(bool en);
 
@@ -92,7 +92,7 @@ protected:
 
   std::atomic<bool> reading_;
 
-  std::vector< std::tuple< ltr390_mode_t, std::function<void(void)> > > *mode_funcs_;
+  std::vector<std::tuple<ltr390_mode_t, std::function<void(void)> > > *mode_funcs_;
 
   i2c::I2CRegister *ctrl_reg_;
   i2c::I2CRegister *status_reg_;
