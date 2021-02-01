@@ -200,7 +200,6 @@ void LTR390Component::update() {
     this->reading = true;
     this->read_mode(0);
   }
-
 }
 
 }  // namespace ltr390
