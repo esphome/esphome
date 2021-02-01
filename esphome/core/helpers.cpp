@@ -171,15 +171,17 @@ uint8_t crc8(uint8_t *data, uint8_t len) {
   }
   return crc;
 }
+
 void delay_microseconds_accurate(uint32_t usec) {
   if (usec == 0)
     return;
-
-  if (usec <= 16383UL) {
+  if (usec < 5000UL) {
     delayMicroseconds(usec);
-  } else {
-    delay(usec / 1000UL);
-    delayMicroseconds(usec % 1000UL);
+    return;
+  }
+  uint32_t start = micros();
+  while (micros() - start < usec) {
+    delay(0);
   }
 }
 
