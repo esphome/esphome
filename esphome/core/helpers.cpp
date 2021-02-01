@@ -180,7 +180,7 @@ void delay_microseconds_accurate(uint32_t usec) {
     return;
   }
   uint32_t start = micros();
-  while ( micros() < (start + usec)) {
+  while (micros() - start < usec) {
     delay(0);
   }
 }
