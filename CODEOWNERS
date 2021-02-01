@@ -38,6 +38,7 @@ esphome/components/gpio/* @esphome/core
 esphome/components/homeassistant/* @OttoWinter
 esphome/components/i2c/* @esphome/core
 esphome/components/inkbird_ibsth1_mini/* @fkirill
+esphome/components/inkplate6/* @jesserockz
 esphome/components/integration/* @OttoWinter
 esphome/components/interval/* @esphome/core
 esphome/components/json/* @OttoWinter
@@ -49,6 +50,7 @@ esphome/components/mcp23s17/* @SenexCrenshaw
 esphome/components/mcp2515/* @danielschramm @mvturnho
 esphome/components/mcp9808/* @k7hpn
 esphome/components/network/* @esphome/core
+esphome/components/nfc/* @jesserockz
 esphome/components/ota/* @esphome/core
 esphome/components/output/* @esphome/core
 esphome/components/pid/* @OttoWinter
@@ -56,6 +58,8 @@ esphome/components/pn532/* @OttoWinter @jesserockz
 esphome/components/pn532_i2c/* @OttoWinter @jesserockz
 esphome/components/pn532_spi/* @OttoWinter @jesserockz
 esphome/components/power_supply/* @esphome/core
+esphome/components/rc522/* @glmnet
+esphome/components/rc522_i2c/* @glmnet
 esphome/components/rc522_spi/* @glmnet
 esphome/components/restart/* @esphome/core
 esphome/components/rf_bridge/* @jesserockz
@@ -97,3 +101,4 @@ esphome/components/version/* @esphome/core
 esphome/components/web_server_base/* @OttoWinter
 esphome/components/whirlpool/* @glmnet
 esphome/components/xiaomi_lywsd03mmc/* @ahpohl
+esphome/components/xiaomi_mhoc401/* @vevsvevs

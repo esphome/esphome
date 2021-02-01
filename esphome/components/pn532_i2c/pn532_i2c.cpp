@@ -14,7 +14,7 @@ static const char *TAG = "pn532_i2c";
 bool PN532I2C::write_data(const std::vector<uint8_t> &data) { return this->write_bytes_raw(data.data(), data.size()); }
 
 bool PN532I2C::read_data(std::vector<uint8_t> &data, uint8_t len) {
-  delay(5);
+  delay(1);
 
   std::vector<uint8_t> ready;
   ready.resize(1);

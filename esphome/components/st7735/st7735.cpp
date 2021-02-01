@@ -454,6 +454,7 @@ void HOT ST7735::write_display_data_() {
   } else {
     this->write_array(this->buffer_, this->get_buffer_length());
   }
+  this->disable();
 }
 
 void ST7735::spi_master_write_addr_(uint16_t addr1, uint16_t addr2) {

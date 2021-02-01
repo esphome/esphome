@@ -1,39 +1,21 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome import automation, pins
-from esphome.components import spi
-from esphome.const import CONF_ID, CONF_ON_TAG, CONF_TRIGGER_ID, CONF_RESET_PIN, CONF_CS_PIN
+from esphome.components import spi, rc522
+from esphome.const import CONF_ID
 
 CODEOWNERS = ['@glmnet']
 DEPENDENCIES = ['spi']
-AUTO_LOAD = ['binary_sensor']
-MULTI_CONF = True
-
+AUTO_LOAD = ['rc522']
 
 rc522_spi_ns = cg.esphome_ns.namespace('rc522_spi')
-RC522 = rc522_spi_ns.class_('RC522', cg.PollingComponent, spi.SPIDevice)
-RC522Trigger = rc522_spi_ns.class_('RC522Trigger', automation.Trigger.template(cg.std_string))
+RC522Spi = rc522_spi_ns.class_('RC522Spi', rc522.RC522, spi.SPIDevice)
 
-CONFIG_SCHEMA = cv.Schema({
-    cv.GenerateID(): cv.declare_id(RC522),
-    cv.Optional(CONF_RESET_PIN): pins.gpio_output_pin_schema,
-    cv.Required(CONF_CS_PIN): pins.gpio_output_pin_schema,
-    cv.Optional(CONF_ON_TAG): automation.validate_automation({
-        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(RC522Trigger),
-    }),
-}).extend(cv.polling_component_schema('1s')).extend(spi.spi_device_schema())
+CONFIG_SCHEMA = cv.All(rc522.RC522_SCHEMA.extend({
+    cv.GenerateID(): cv.declare_id(RC522Spi),
+}).extend(spi.spi_device_schema(cs_pin_required=True)))
 
 
 def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
+    yield rc522.setup_rc522(var, config)
     yield spi.register_spi_device(var, config)
-
-    if CONF_RESET_PIN in config:
-        reset = yield cg.gpio_pin_expression(config[CONF_RESET_PIN])
-        cg.add(var.set_reset_pin(reset))
-
-    for conf in config.get(CONF_ON_TAG, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
-        cg.add(var.register_trigger(trigger))
-        yield automation.build_automation(trigger, [(cg.std_string, 'x')], conf)

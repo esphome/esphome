@@ -18,19 +18,19 @@ CONFIG_SCHEMA = time.TIME_SCHEMA.extend({
 }).extend(i2c.i2c_device_schema(0x68))
 
 
-@automation.register_action('ds1307.write', WriteAction, cv.Schema({
+@automation.register_action('ds1307.write_time', WriteAction, cv.Schema({
     cv.GenerateID(): cv.use_id(DS1307Component),
 }))
-def ds1307_write_to_code(config, action_id, template_arg, args):
+def ds1307_write_time_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     yield cg.register_parented(var, config[CONF_ID])
     yield var
 
 
-@automation.register_action('ds1307.read', ReadAction, automation.maybe_simple_id({
+@automation.register_action('ds1307.read_time', ReadAction, automation.maybe_simple_id({
     cv.GenerateID(): cv.use_id(DS1307Component),
 }))
-def ds1307_read_to_code(config, action_id, template_arg, args):
+def ds1307_read_time_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     yield cg.register_parented(var, config[CONF_ID])
     yield var
