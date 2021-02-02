@@ -17,7 +17,7 @@ void InkbirdIBSTH1_MINI::dump_config() {
 
 bool InkbirdIBSTH1_MINI::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
   // The below is based on my research and reverse engineering of a single device
-  // It i sentirely possible that some of that may be inaccurate or incomplete
+  // It is entirely possible that some of that may be inaccurate or incomplete
 
   // for Inkbird IBS-TH1 Mini device we expect
   // 1) expected mac address
@@ -40,11 +40,12 @@ bool InkbirdIBSTH1_MINI::parse_device(const esp32_ble_tracker::ESPBTDevice &devi
     ESP_LOGVV(TAG, "parse_device(): service_data is expected to be empty");
     return false;
   }
-  if (device.get_manufacturer_datas().size() != 1) {
+  auto mnfDatas = device.get_manufacturer_datas();
+  if (mnfDatas.size() != 1) {
     ESP_LOGVV(TAG, "parse_device(): manufacturer_datas is expected to have a single element");
     return false;
   }
-  esphome::esp32_ble_tracker::ServiceData mnfData = device.get_manufacturer_datas()[0];
+  auto mnfData = mnfDatas[0];
   if (mnfData.uuid.get_uuid().len != ESP_UUID_LEN_16) {
     ESP_LOGVV(TAG, "parse_device(): manufacturer data element is expected to have uuid of length 16");
     return false;
@@ -62,9 +63,9 @@ bool InkbirdIBSTH1_MINI::parse_device(const esp32_ble_tracker::ESPBTDevice &devi
   // data[5] is a battery level
   // data[0] and data[1] is humidity * 100 (in pct)
   // uuid is a temperature * 100 (in Celcius)
-  float battery_level = mnfData.data[5];
-  float temperature = mnfData.uuid.get_uuid().uuid.uuid16 / 100.0f;
-  float humidity = ((mnfData.data[1] << 8) + mnfData.data[0]) / 100.0f;
+  auto battery_level = mnfData.data[5];
+  auto temperature = mnfData.uuid.get_uuid().uuid.uuid16 / 100.0f;
+  auto humidity = ((mnfData.data[1] << 8) + mnfData.data[0]) / 100.0f;
 
   if (this->temperature_ != nullptr) {
     this->temperature_->publish_state(temperature);
