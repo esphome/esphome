@@ -214,23 +214,24 @@ class RC522 : public PollingComponent {
   );
 
   void pcd_transceive_data_(uint8_t send_len_);
-  
+
   StatusCode pcd_calculate_crc_(
       uint8_t *data,   ///< In: Pointer to the data to transfer to the FIFO for CRC calculation.
       uint8_t length,  ///< In: The number of uint8_ts to transfer.
       uint8_t *result  ///< Out: Pointer to result buffer. Result is written to result[0..1], low uint8_t first.
   );
-  
+
   bool awaiting_comm_;
   uint32_t awaiting_comm_time_;
   StatusCode await_communication_();
 
-  uint8_t buffer[9];  ///< buffer for communication, the first bits [0..back_idx-1] are for tx , [back_idx..back_idx+back_len] for rx
-  uint8_t send_len;  // index of first byte for RX
-  uint8_t back_length;   ///< In: Max number of uint8_ts to write to *backData. Out: The number of uint8_ts returned.
-  uint8_t uid_buffer[10]; // buffer to construct the uid (for 7 and 10 bit uids)
-  uint8_t uid_idx=0; //number of read uid bytes e.g. index of the next available position in uid_buffer
-  uint8_t error_counter=0; // to reset if unresponsive
+  uint8_t buffer_[9];       ///< buffer for communication, the first bits [0..back_idx-1] are for tx ,
+                            ///< [back_idx..back_idx+back_len] for rx
+  uint8_t send_len_;        // index of first byte for RX
+  uint8_t back_length_;     ///< In: Max number of uint8_ts to write to *backData. Out: The number of uint8_ts returned.
+  uint8_t uid_buffer_[10];  // buffer to construct the uid (for 7 and 10 bit uids)
+  uint8_t uid_idx_ = 0;     // number of read uid bytes e.g. index of the next available position in uid_buffer
+  uint8_t error_counter_ = 0;  // to reset if unresponsive
   uint8_t rx_align_;
   uint8_t *valid_bits_;
 

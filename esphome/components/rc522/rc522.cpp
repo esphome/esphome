@@ -14,7 +14,6 @@ static const char *TAG = "rc522";
 
 static const uint8_t RESET_COUNT = 5;
 
-
 std::string format_buffer(uint8_t *b, uint8_t len) {
   char buf[32];
   int offset = 0;
@@ -117,12 +116,10 @@ void RC522::dump_config() {
 }
 
 void RC522::update() {
-  
-
   if (state_ == STATE_INIT) {
     pcd_antenna_on_();
     pcd_clear_register_bit_mask_(COLL_REG, 0x80);  // ValuesAfterColl=1 => Bits received after collision are cleared.
-    buffer[0]=PICC_CMD_REQA;
+    buffer_[0] = PICC_CMD_REQA;
     pcd_transceive_data_(1);
     state_ = STATE_PICC_REQUEST_A;
   } else {
@@ -144,7 +141,7 @@ void RC522::loop() {
   StatusCode status = STATUS_ERROR;  // For lint passing. TODO: refactor this
   if (awaiting_comm_) {
     status = await_communication_();
-    if (status == STATUS_WAITING){
+    if (status == STATUS_WAITING) {
       return;
     }
     awaiting_comm_ = false;
@@ -152,17 +149,17 @@ void RC522::loop() {
   }
 
   switch (state_) {
-    case STATE_PICC_REQUEST_A:{
-      if (status == STATUS_TIMEOUT) { // no tag present
+    case STATE_PICC_REQUEST_A: {
+      if (status == STATUS_TIMEOUT) {  // no tag present
         for (auto *obj : this->binary_sensors_)
-          obj->on_scan_end(); // reset the binary sensors
+          obj->on_scan_end();  // reset the binary sensors
         ESP_LOGV(TAG, "CMD_REQA -> TIMEOUT (no tag present) %d", status);
         state_ = STATE_DONE;
       } else if (status != STATUS_OK) {
         ESP_LOGW(TAG, "CMD_REQA -> Not OK %d", status);
         state_ = STATE_DONE;
-      } else if (back_length != 2){// || *valid_bits_ != 0) {  // ATQA must be exactly 16 bits.
-        ESP_LOGW(TAG, "CMD_REQA -> OK, but unexpacted back_length of %d", back_length);
+      } else if (back_length_ != 2) {  // || *valid_bits_ != 0) {  // ATQA must be exactly 16 bits.
+        ESP_LOGW(TAG, "CMD_REQA -> OK, but unexpacted back_length_ of %d", back_length_);
         state_ = STATE_DONE;
       } else {
         state_ = STATE_READ_SERIAL;
@@ -175,66 +172,67 @@ void RC522::loop() {
     }
     case STATE_READ_SERIAL: {
       ESP_LOGV(TAG, "STATE_READ_SERIAL (%d)", status);
-      switch (uid_idx) {
+      switch (uid_idx_) {
         case 0:
-          buffer[0]=PICC_CMD_SEL_CL1;
+          buffer_[0] = PICC_CMD_SEL_CL1;
           break;
         case 3:
-          buffer[0]=PICC_CMD_SEL_CL2;
+          buffer_[0] = PICC_CMD_SEL_CL2;
           break;
         case 6:
-          buffer[0]=PICC_CMD_SEL_CL3;
+          buffer_[0] = PICC_CMD_SEL_CL3;
           break;
         default:
-          ESP_LOGE(TAG, "uid_idx invalid, uid_idx = %d",uid_idx );
-          state_=STATE_DONE;
+          ESP_LOGE(TAG, "uid_idx_ invalid, uid_idx_ = %d", uid_idx_);
+          state_ = STATE_DONE;
       }
-      buffer[1]=32;
+      buffer_[1] = 32;
       pcd_transceive_data_(2);
       state_ = STATE_SELECT_SERIAL;
       break;
     }
-    case STATE_SELECT_SERIAL: {  
-      buffer[1]=0x70; //select
+    case STATE_SELECT_SERIAL: {
+      buffer_[1] = 0x70;  // select
       // todo: set CRC
-      buffer[6] = buffer[2] ^ buffer[3] ^ buffer[4] ^ buffer[5];
-      pcd_calculate_crc_(buffer, 7, &buffer[7]);
-      send_len=6;
+      buffer_[6] = buffer_[2] ^ buffer_[3] ^ buffer_[4] ^ buffer_[5];
+      pcd_calculate_crc_(buffer_, 7, &buffer_[7]);
+      send_len_ = 6;
       pcd_transceive_data_(9);
       state_ = STATE_READ_SERIAL_DONE;
       break;
     }
-    case STATE_READ_SERIAL_DONE: {      
-      if (status != STATUS_OK || back_length != 3) {
+    case STATE_READ_SERIAL_DONE: {
+      if (status != STATUS_OK || back_length_ != 3) {
         if (status == STATUS_TIMEOUT)
           ESP_LOGV(TAG, "STATE_READ_SERIAL_DONE -> TIMEOUT (no tag present) %d", status);
         else
-          ESP_LOGW(TAG, "Unexpected response. Read status is %d. Read bytes: %d (%s)", status, back_length,format_buffer(buffer,9).c_str());
-        
-        state_ = STATE_DONE;      
-        uid_idx=0;
+          ESP_LOGW(TAG, "Unexpected response. Read status is %d. Read bytes: %d (%s)", status, back_length_,
+                   format_buffer(buffer_, 9).c_str());
+
+        state_ = STATE_DONE;
+        uid_idx_ = 0;
 
         pcd_antenna_off_();
         return;
       }
-      
-      //copy the uid
-      bool cascade= buffer[2]==PICC_CMD_CT;// todo: should be determined based on select response (buffer[6]) 
-      for (uint8_t i = 2+cascade; i < 6; i++) 
-          uid_buffer[uid_idx++] = buffer[i];
-      ESP_LOGVV(TAG, "copied uid to idx %d last byte is 0x%x, cascade is %d",uid_idx, uid_buffer[uid_idx-1], cascade );
 
+      // copy the uid
+      bool cascade = buffer_[2] == PICC_CMD_CT;  // todo: should be determined based on select response (buffer[6])
+      for (uint8_t i = 2 + cascade; i < 6; i++)
+        uid_buffer_[uid_idx_++] = buffer_[i];
+      ESP_LOGVV(TAG, "copied uid to idx %d last byte is 0x%x, cascade is %d", uid_idx_, uid_buffer_[uid_idx_ - 1],
+                cascade);
 
-      if (cascade) { // there is more bytes in the UID
+      if (cascade) {  // there is more bytes in the UID
         state_ = STATE_READ_SERIAL;
         return;
       }
-      
-      std::vector<uint8_t> rfid_uid(std::begin(uid_buffer), std::begin(uid_buffer) + uid_idx);
-      uid_idx=0;
+
+      std::vector<uint8_t> rfid_uid(std::begin(uid_buffer_), std::begin(uid_buffer_) + uid_idx_);
+      uid_idx_ = 0;
       // ESP_LOGD(TAG, "Processing '%s'", format_uid(rfid_uid).c_str());
       pcd_antenna_off_();
-      state_ = STATE_INIT; //scan again on next update
+      state_ = STATE_INIT;  // scan again on next update
       bool report = true;
 
       for (auto *tag : this->binary_sensors_) {
@@ -248,7 +246,7 @@ void RC522::loop() {
       }
 
       this->current_uid_ = rfid_uid;
-      
+
       for (auto *trigger : this->triggers_)
         trigger->process(rfid_uid);
 
@@ -257,7 +255,7 @@ void RC522::loop() {
       }
       break;
     }
-    case STATE_DONE:{
+    case STATE_DONE: {
       this->current_uid_ = {};
       state_ = STATE_INIT;
       break;
@@ -342,84 +340,86 @@ void RC522::pcd_clear_register_bit_mask_(PcdRegister reg,  ///< The register to 
   pcd_write_register(reg, tmp & (~mask));  // clear bit mask
 }
 
-
 /**
  * Transfers data to the MFRC522 FIFO, executes a command, waits for completion and transfers data back from the FIFO.
  * CRC validation can only be done if backData and backLen are specified.
  *
  * @return STATUS_OK on success, STATUS_??? otherwise.
  */
-void RC522::pcd_transceive_data_(uint8_t send_len_) {
-  ESP_LOGV(TAG, "PCD TRANSCEIVE: RX: %s", format_buffer(buffer,send_len_).c_str());
-  delayMicroseconds(1000); // we need 1 ms delay between antenna on and those communication commands
-  send_len=send_len_;
+void RC522::pcd_transceive_data_(uint8_t send_len) {
+  ESP_LOGV(TAG, "PCD TRANSCEIVE: RX: %s", format_buffer(buffer_, send_len).c_str());
+  delayMicroseconds(1000);  // we need 1 ms delay between antenna on and those communication commands
+  send_len_ = send_len;
   // Prepare values for BitFramingReg
   // For REQA and WUPA we need the short frame format - transmit only 7 bits of the last (and only)
   // uint8_t. TxLastBits = BitFramingReg[2..0]
-  uint8_t bit_framing = (buffer[0]==PICC_CMD_REQA) ? 7 : 0;
+  uint8_t bit_framing = (buffer_[0] == PICC_CMD_REQA) ? 7 : 0;
 
-  pcd_write_register(COMMAND_REG, PCD_IDLE);               // Stop any active command.
-  pcd_write_register(COM_IRQ_REG, 0x7F);                   // Clear all seven interrupt request bits
-  pcd_write_register(FIFO_LEVEL_REG, 0x80);                // FlushBuffer = 1, FIFO initialization
-  pcd_write_register(FIFO_DATA_REG, send_len, buffer);  // Write sendData to the FIFO
-  pcd_write_register(BIT_FRAMING_REG, bit_framing);        // Bit adjustments
-  pcd_write_register(COMMAND_REG, PCD_TRANSCEIVE);                // Execute the command
-  pcd_set_register_bit_mask_(BIT_FRAMING_REG, 0x80);  // StartSend=1, transmission of data starts
+  pcd_write_register(COMMAND_REG, PCD_IDLE);              // Stop any active command.
+  pcd_write_register(COM_IRQ_REG, 0x7F);                  // Clear all seven interrupt request bits
+  pcd_write_register(FIFO_LEVEL_REG, 0x80);               // FlushBuffer = 1, FIFO initialization
+  pcd_write_register(FIFO_DATA_REG, send_len_, buffer_);  // Write sendData to the FIFO
+  pcd_write_register(BIT_FRAMING_REG, bit_framing);       // Bit adjustments
+  pcd_write_register(COMMAND_REG, PCD_TRANSCEIVE);        // Execute the command
+  pcd_set_register_bit_mask_(BIT_FRAMING_REG, 0x80);      // StartSend=1, transmission of data starts
   awaiting_comm_ = true;
   awaiting_comm_time_ = millis();
 }
 
 RC522::StatusCode RC522::await_communication_() {
-  if (millis() - awaiting_comm_time_ < 2) //wait at least 2 ms
+  if (millis() - awaiting_comm_time_ < 2)  // wait at least 2 ms
     return STATUS_WAITING;
   uint8_t n = pcd_read_register(
       COM_IRQ_REG);  // ComIrqReg[7..0] bits are: Set1 TxIRq RxIRq IdleIRq HiAlertIRq LoAlertIRq ErrIRq TimerIRq
   if (n & 0x01) {    // Timer interrupt - nothing received in 25ms
-    back_length=0;
-    error_counter=0; //reset the error counter
+    back_length_ = 0;
+    error_counter_ = 0;  // reset the error counter
     return STATUS_TIMEOUT;
   }
   if (!(n & WAIT_I_RQ)) {  // None of the interrupts that signal success has been set.
                            // Wait for the command to complete.
     if (millis() - awaiting_comm_time_ < 40)
       return STATUS_WAITING;
-    back_length=0;
-    ESP_LOGW(TAG, "Communication with the MFRC522 might be down, reset in %d",10-error_counter); //todo: trigger reset?
-    if (error_counter++ > 10)
+    back_length_ = 0;
+    ESP_LOGW(TAG, "Communication with the MFRC522 might be down, reset in %d",
+             10 - error_counter_);  // todo: trigger reset?
+    if (error_counter_++ > 10)
       setup();
-       
+
     return STATUS_TIMEOUT;
   }
-    // Stop now if any errors except collisions were detected.
+  // Stop now if any errors except collisions were detected.
   uint8_t error_reg_value = pcd_read_register(
       ERROR_REG);  // ErrorReg[7..0] bits are: WrErr TempErr reserved BufferOvfl CollErr CRCErr ParityErr ProtocolErr
-  if (error_reg_value & 0x13) {  // BufferOvfl ParityErr ProtocolErr 
+  if (error_reg_value & 0x13) {  // BufferOvfl ParityErr ProtocolErr
     return STATUS_ERROR;
   }
-  error_counter=0; //reset the error counter
+  error_counter_ = 0;  // reset the error counter
 
   n = pcd_read_register(FIFO_LEVEL_REG);  // Number of uint8_ts in the FIFO
-  if (n > sizeof(buffer)) 
+  if (n > sizeof(buffer_))
     return STATUS_NO_ROOM;
-  if (n > sizeof(buffer)-send_len) 
-    send_len=sizeof(buffer)-n; //simply overwrite the sent values
-  back_length = n;                                            // Number of uint8_ts returned
-  pcd_read_register(FIFO_DATA_REG, n, buffer+send_len, rx_align_);  // Get received data from FIFO
+  if (n > sizeof(buffer_) - send_len_)
+    send_len_ = sizeof(buffer_) - n;                                    // simply overwrite the sent values
+  back_length_ = n;                                                     // Number of uint8_ts returned
+  pcd_read_register(FIFO_DATA_REG, n, buffer_ + send_len_, rx_align_);  // Get received data from FIFO
   uint8_t valid_bits_local =
       pcd_read_register(CONTROL_REG) & 0x07;  // RxLastBits[2:0] indicates the number of valid bits in the last
                                               // received uint8_t. If this value is 000b, the whole uint8_t is valid.
 
   // Tell about collisions
   if (error_reg_value & 0x08) {  // CollErr
-    ESP_LOGW(TAG, "collision error, received %d bytes + %d bits (but anticollision not implemented)", back_length -(valid_bits_local>0), valid_bits_local); 
+    ESP_LOGW(TAG, "collision error, received %d bytes + %d bits (but anticollision not implemented)",
+             back_length_ - (valid_bits_local > 0), valid_bits_local);
     return STATUS_COLLISION;
   }
-  // Tell about collisions                                      
+  // Tell about collisions
   if (valid_bits_local) {
-    ESP_LOGW(TAG, "only %d valid bits received, tag distance to high? Error code is 0x%x", valid_bits_local,error_reg_value); //todo: is this always due to collissions?
+    ESP_LOGW(TAG, "only %d valid bits received, tag distance to high? Error code is 0x%x", valid_bits_local,
+             error_reg_value);  // todo: is this always due to collissions?
     return STATUS_ERROR;
   }
-  ESP_LOGV(TAG, "received %d bytes: %s", back_length, format_buffer(buffer+send_len, back_length).c_str()); 
+  ESP_LOGV(TAG, "received %d bytes: %s", back_length_, format_buffer(buffer_ + send_len_, back_length_).c_str());
 
   return STATUS_OK;
 }
@@ -446,7 +446,7 @@ RC522::StatusCode RC522::pcd_calculate_crc_(
   for (uint16_t i = 5000; i > 0; i--) {
     // DivIrqReg[7..0] bits are: Set2 reserved reserved MfinActIRq reserved CRCIRq reserved reserved
     uint8_t n = pcd_read_register(DIV_IRQ_REG);
-    if (n & 0x04) {                                // CRCIRq bit set - calculation done
+    if (n & 0x04) {                               // CRCIRq bit set - calculation done
       pcd_write_register(COMMAND_REG, PCD_IDLE);  // Stop calculating CRC for new content in the FIFO.
       // Transfer the result from the registers to the result buffer
       result[0] = pcd_read_register(CRC_RESULT_REG_L);
@@ -462,13 +462,13 @@ RC522::StatusCode RC522::pcd_calculate_crc_(
 }
 
 bool RC522BinarySensor::process(std::vector<uint8_t> &data) {
-  bool result=true;
+  bool result = true;
   if (data.size() != this->uid_.size())
-    result=false;
-  else{
+    result = false;
+  else {
     for (uint8_t i = 0; i < data.size(); i++) {
-      if (data[i] != this->uid_[i]){
-        result=false;
+      if (data[i] != this->uid_[i]) {
+        result = false;
         break;
       }
     }
