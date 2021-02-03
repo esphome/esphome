@@ -84,6 +84,7 @@ def validate_automation(extra_schema=None, extra_validators=None, single=False):
                     return cv.Schema([schema])(value)
                 except cv.Invalid as err2:
                     if 'extra keys not allowed' in str(err2) and len(err2.path) == 2:
+                        # pylint: disable=raise-missing-from
                         raise err
                     if 'Unable to find action' in str(err):
                         raise err2

@@ -6,12 +6,12 @@ from .. import gps_ns, GPSListener, CONF_GPS_ID, GPS
 
 DEPENDENCIES = ['gps']
 
-GPSTime = gps_ns.class_('GPSTime', time_.RealTimeClock, GPSListener)
+GPSTime = gps_ns.class_('GPSTime', cg.PollingComponent, time_.RealTimeClock, GPSListener)
 
 CONFIG_SCHEMA = time_.TIME_SCHEMA.extend({
     cv.GenerateID(): cv.declare_id(GPSTime),
     cv.GenerateID(CONF_GPS_ID): cv.use_id(GPS),
-}).extend(cv.COMPONENT_SCHEMA)
+}).extend(cv.polling_component_schema('5min'))
 
 
 def to_code(config):
