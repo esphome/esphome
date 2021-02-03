@@ -54,6 +54,7 @@ void SNTPComponent::loop() {
   char buf[128];
   time.strftime(buf, sizeof(buf), "%c");
   ESP_LOGD(TAG, "Synchronized time: %s", buf);
+  this->time_sync_callback_.call();
   this->has_time_ = true;
 }
 

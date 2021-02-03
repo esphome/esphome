@@ -16,7 +16,7 @@ void DS1307Component::setup() {
   }
 }
 
-void DS1307Component::update() { this->read(); }
+void DS1307Component::update() { this->read_time(); }
 
 void DS1307Component::dump_config() {
   ESP_LOGCONFIG(TAG, "DS1307:");
@@ -29,7 +29,7 @@ void DS1307Component::dump_config() {
 
 float DS1307Component::get_setup_priority() const { return setup_priority::DATA; }
 
-void DS1307Component::read() {
+void DS1307Component::read_time() {
   if (!this->read_rtc_()) {
     return;
   }
@@ -53,7 +53,7 @@ void DS1307Component::read() {
   time::RealTimeClock::synchronize_epoch_(rtc_time.timestamp);
 }
 
-void DS1307Component::write() {
+void DS1307Component::write_time() {
   auto now = time::RealTimeClock::utcnow();
   if (!now.is_valid()) {
     ESP_LOGE(TAG, "Invalid system time, not syncing to RTC.");

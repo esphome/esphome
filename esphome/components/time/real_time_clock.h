@@ -127,11 +127,17 @@ class RealTimeClock : public PollingComponent {
 
   void call_setup() override;
 
+  void add_on_time_sync_callback(std::function<void()> callback) {
+    this->time_sync_callback_.add(std::move(callback));
+  };
+
  protected:
   /// Report a unix epoch as current time.
   void synchronize_epoch_(uint32_t epoch);
 
   std::string timezone_{};
+
+  CallbackManager<void()> time_sync_callback_;
 };
 
 template<typename... Ts> class TimeHasTimeCondition : public Condition<Ts...> {
