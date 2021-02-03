@@ -213,7 +213,7 @@ class RC522 : public PollingComponent {
                                     uint8_t mask      ///< The bits to clear.
   );
 
-  void pcd_transceive_data_(uint8_t send_len_);
+  void pcd_transceive_data_(uint8_t send_len);
 
   StatusCode pcd_calculate_crc_(
       uint8_t *data,   ///< In: Pointer to the data to transfer to the FIFO for CRC calculation.
