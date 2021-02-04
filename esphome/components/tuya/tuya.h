@@ -30,6 +30,7 @@ struct TuyaDatapoint {
     uint8_t value_enum;
     uint16_t value_bitmask;
   };
+  std::string value_string;
 };
 
 struct TuyaDatapointListener {
@@ -71,6 +72,9 @@ class Tuya : public Component, public uart::UARTDevice {
 #ifdef USE_TIME
   void set_time_id(time::RealTimeClock *time_id) { this->time_id_ = time_id; }
 #endif
+  void add_ignore_mcu_update_on_datapoints(uint8_t ignore_mcu_update_on_datapoints) {
+    this->ignore_mcu_update_on_datapoints_.push_back(ignore_mcu_update_on_datapoints);
+  }
 
  protected:
   void handle_char_(uint8_t c);
@@ -93,6 +97,7 @@ class Tuya : public Component, public uart::UARTDevice {
   std::vector<TuyaDatapointListener> listeners_;
   std::vector<TuyaDatapoint> datapoints_;
   std::vector<uint8_t> rx_message_;
+  std::vector<uint8_t> ignore_mcu_update_on_datapoints_{};
 };
 
 }  // namespace tuya

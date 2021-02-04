@@ -12,9 +12,20 @@ void HttpRequestComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "  User-Agent: %s", this->useragent_);
 }
 
+void HttpRequestComponent::set_url(std::string url) {
+  this->url_ = url;
+  this->secure_ = url.compare(0, 6, "https:") == 0;
+
+  if (!this->last_url_.empty() && this->url_ != this->last_url_) {
+    // Close connection if url has been changed
+    this->client_.setReuse(false);
+    this->client_.end();
+  }
+  this->client_.setReuse(true);
+}
+
 void HttpRequestComponent::send() {
   bool begin_status = false;
-  this->client_.setReuse(true);
   const String url = this->url_.c_str();
 #ifdef ARDUINO_ARCH_ESP32
   begin_status = this->client_.begin(url);
@@ -78,7 +89,10 @@ WiFiClient *HttpRequestComponent::get_wifi_client_() {
 }
 #endif
 
-void HttpRequestComponent::close() { this->client_.end(); }
+void HttpRequestComponent::close() {
+  this->last_url_ = this->url_;
+  this->client_.end();
+}
 
 const char *HttpRequestComponent::get_string() {
   static const String STR = this->client_.getString();
