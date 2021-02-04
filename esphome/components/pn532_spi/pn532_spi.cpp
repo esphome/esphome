@@ -34,7 +34,6 @@ bool PN532Spi::write_data(const std::vector<uint8_t> &data) {
 }
 
 bool PN532Spi::read_data(std::vector<uint8_t> &data, uint8_t len) {
-
   ESP_LOGV(TAG, "Waiting for ready byte...");
 
   uint32_t start_time = millis();
@@ -107,8 +106,8 @@ bool PN532Spi::read_response(uint8_t command, std::vector<uint8_t> &data) {
   }
 
   bool valid_header = (static_cast<uint8_t>(header[3] + header[4]) == 0 &&  // LCS, len + lcs = 0
-                       header[5] == 0xD5 &&                                 // TFI - frame from PN532 to system controller
-                       header[6] == command + 1);                           // Correct command response
+                       header[5] == 0xD5 &&        // TFI - frame from PN532 to system controller
+                       header[6] == command + 1);  // Correct command response
 
   if (!valid_header) {
     ESP_LOGV(TAG, "read data invalid header!");
@@ -124,14 +123,13 @@ bool PN532Spi::read_response(uint8_t command, std::vector<uint8_t> &data) {
 
   ESP_LOGV(TAG, "Reading response of length %d", len);
 
-  data.resize(len+1);
+  data.resize(len + 1);
   this->read_array(data.data(), len + 1);
   this->disable();
 
   ESP_LOGV(TAG, "Response data: %s", hexencode(data).c_str());
 
-
-  uint8_t checksum = header[5] + header[6]; // TFI + Command response code
+  uint8_t checksum = header[5] + header[6];  // TFI + Command response code
   for (int i = 0; i < len - 1; i++) {
     uint8_t dat = data[i];
     checksum += dat;
@@ -148,7 +146,7 @@ bool PN532Spi::read_response(uint8_t command, std::vector<uint8_t> &data) {
     return false;
   }
 
-  data.erase(data.end() - 2, data.end());      // Remove checksum and postamble
+  data.erase(data.end() - 2, data.end());  // Remove checksum and postamble
 
   return true;
 }

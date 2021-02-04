@@ -36,7 +36,6 @@ bool PN532I2C::read_data(std::vector<uint8_t> &data, uint8_t len) {
   return true;
 }
 
-
 bool PN532I2C::read_response(uint8_t command, std::vector<uint8_t> &data) {
   ESP_LOGV(TAG, "Reading response");
   uint8_t len = this->read_response_length_();
