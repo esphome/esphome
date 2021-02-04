@@ -30,7 +30,7 @@ static const uint16_t SGP40_CMD_SELF_TEST = 0x280e;
 class SGP40Component;
 
 /// This class implements support for the Sensirion sgp40 i2c GAS (VOC) sensors.
-class SGP40Component : public PollingComponent, public i2c::I2CDevice {
+class SGP40Component : public PollingComponent, public sensor::Sensor, public i2c::I2CDevice {
  public:
   void set_humidity_sensor(sensor::Sensor *humidity) { humidity_sensor_ = humidity; }
   void set_temperature_sensor(sensor::Sensor *temperature) { temperature_sensor_ = temperature; }
@@ -51,6 +51,9 @@ class SGP40Component : public PollingComponent, public i2c::I2CDevice {
   uint8_t sht_crc_(uint8_t data1, uint8_t data2);
   uint64_t serial_number_;
   uint16_t featureset_;
+  int32_t measureVocIndex_();
+  uint8_t generateCRC(uint8_t *data, uint8_t datalen);
+  uint16_t measure_raw_();
   VocAlgorithmParams voc_algorithm_params_;
 
   /**
