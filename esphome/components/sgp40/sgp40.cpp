@@ -90,13 +90,12 @@ int32_t SGP40Component::measureVocIndex_() {
   int32_t voc_index;
 
   uint16_t sraw = measure_raw_();
-  ESP_LOGD(TAG, "Got sraw %d", sraw);
 
   if (sraw == UINT16_MAX)
     return UINT16_MAX;
 
   VocAlgorithm_process(&voc_algorithm_params_, sraw, &voc_index);
-  ESP_LOGD(TAG, "Got voc_index %d", voc_index);
+
   return voc_index;
 }
 
@@ -151,7 +150,6 @@ uint16_t SGP40Component::measure_raw_() {
     ESP_LOGD(TAG, "read_data_ error");
     return UINT16_MAX;
   }
-  ESP_LOGD(TAG, "measureRaw %d", raw_data[0]);
   return raw_data[0];
 }
 

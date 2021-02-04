@@ -3,6 +3,8 @@ import esphome.config_validation as cv
 from esphome.components import i2c, sensor
 from esphome.const import (
     CONF_ID,
+    ICON_RADIATOR,
+    UNIT_PARTS_PER_BILLION,
 )
 
 DEPENDENCIES = ["i2c"]
@@ -12,19 +14,15 @@ SGP40Component = sgp40_ns.class_(
     "SGP40Component", sensor.Sensor, cg.PollingComponent, i2c.I2CDevice
 )
 
-CONF_ECO2 = "eco2"
-CONF_TVOC = "tvoc"
-CONF_BASELINE = "baseline"
-CONF_ECO2_BASELINE = "eco2_baseline"
-CONF_TVOC_BASELINE = "tvoc_baseline"
-CONF_UPTIME = "uptime"
+
 CONF_COMPENSATION = "compensation"
 CONF_HUMIDITY_SOURCE = "humidity_source"
 CONF_TEMPERATURE_SOURCE = "temperature_source"
 
 
 CONFIG_SCHEMA = (
-    sensor.SENSOR_SCHEMA.extend(
+    sensor.sensor_schema(UNIT_PARTS_PER_BILLION, ICON_RADIATOR, 0)
+    .extend(
         {
             cv.GenerateID(): cv.declare_id(SGP40Component),
             cv.Optional(CONF_COMPENSATION): cv.Schema(
@@ -44,6 +42,7 @@ def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     yield cg.register_component(var, config)
     yield i2c.register_i2c_device(var, config)
+    yield sensor.register_sensor(var, config)
 
     if CONF_COMPENSATION in config:
         compensation_config = config[CONF_COMPENSATION]
