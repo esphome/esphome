@@ -7,6 +7,11 @@
 namespace esphome {
 namespace wiegand_reader {
 
+class WiegandReaderTrigger : public Trigger<std::string> {
+ public:
+  void process(String tag);
+};
+
 class WiegandReader : public PollingComponent {
  public:
   void setup() override;
@@ -18,19 +23,16 @@ class WiegandReader : public PollingComponent {
 
   void register_trigger(WiegandReaderTrigger *trig) { this->triggers_.push_back(trig); }
 
-
  protected:
+  static void received_data_(uint8_t* data, uint8_t bits, WiegandReader *reader);
+  static void pin_state_changed_(WiegandReader *reader);
+  static void received_data_error_(Wiegand::DataError error, uint8_t* rawData, uint8_t rawBits, const char* message);
+
   Wiegand wiegand_;
   GPIOPin *pin_d0_;
   GPIOPin *pin_d1_;
   std::vector<WiegandReaderTrigger *> triggers_;
 };
 
-
-class WiegandReaderTrigger : public Trigger<std::string> {
- public:
-  void process(String tag);
-};
-
-}  // namespace pn532
 }  // namespace wiegand_reader
+}  // namespace esphome
