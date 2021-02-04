@@ -64,7 +64,7 @@ bool PN532::read_mifare_classic_block_(uint8_t block_num, std::vector<uint8_t> &
     return false;
   }
 
-  if (!this->read_response_(PN532_COMMAND_INDATAEXCHANGE, data) || data[0] != 0x00) {
+  if (!this->read_response(PN532_COMMAND_INDATAEXCHANGE, data) || data[0] != 0x00) {
     return false;
   }
   data.erase(data.begin());
@@ -89,7 +89,7 @@ bool PN532::auth_mifare_classic_block_(std::vector<uint8_t> &uid, uint8_t block_
   }
 
   std::vector<uint8_t> response;
-  if (!this->read_response_(PN532_COMMAND_INDATAEXCHANGE, response) || response[0] != 0x00) {
+  if (!this->read_response(PN532_COMMAND_INDATAEXCHANGE, response) || response[0] != 0x00) {
     ESP_LOGE(TAG, "Authentication failed - Block 0x%02x", block_num);
     return false;
   }
@@ -194,7 +194,7 @@ bool PN532::write_mifare_classic_block_(uint8_t block_num, std::vector<uint8_t> 
   }
 
   std::vector<uint8_t> response;
-  if (!this->read_response_(PN532_COMMAND_INDATAEXCHANGE, response)) {
+  if (!this->read_response(PN532_COMMAND_INDATAEXCHANGE, response)) {
     ESP_LOGE(TAG, "Error writing block %d", block_num);
     return false;
   }

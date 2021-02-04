@@ -52,7 +52,7 @@ bool PN532::read_mifare_ultralight_page_(uint8_t page_num, std::vector<uint8_t> 
     return false;
   }
 
-  if (!this->read_response_(PN532_COMMAND_INDATAEXCHANGE, data) || data[0] != 0x00) {
+  if (!this->read_response(PN532_COMMAND_INDATAEXCHANGE, data) || data[0] != 0x00) {
     return false;
   }
   data.erase(data.begin());
@@ -168,7 +168,7 @@ bool PN532::write_mifare_ultralight_page_(uint8_t page_num, std::vector<uint8_t>
   }
 
   std::vector<uint8_t> response;
-  if (!this->read_response_(PN532_COMMAND_INDATAEXCHANGE, response)) {
+  if (!this->read_response(PN532_COMMAND_INDATAEXCHANGE, response)) {
     ESP_LOGE(TAG, "Error writing page %d", page_num);
     return false;
   }
