@@ -5,10 +5,7 @@
 #include "Wiegand.h"
 
 namespace esphome {
-
 namespace wiegand_reader {
-
-class WiegandReaderTrigger;
 
 class WiegandReader : public PollingComponent {
  public:
@@ -21,12 +18,12 @@ class WiegandReader : public PollingComponent {
 
   void register_trigger(WiegandReaderTrigger *trig) { this->triggers_.push_back(trig); }
 
+
+ protected:
   Wiegand wiegand_;
   GPIOPin *pin_d0_;
   GPIOPin *pin_d1_;
   std::vector<WiegandReaderTrigger *> triggers_;
- protected:
-
 };
 
 
@@ -36,4 +33,4 @@ class WiegandReaderTrigger : public Trigger<std::string> {
 };
 
 }  // namespace pn532
-}  // namespace esphome
+}  // namespace wiegand_reader
