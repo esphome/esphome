@@ -59,14 +59,16 @@ void SGP40Component::setup() {
     if (this->pref_.load(&this->baselines_storage_)) {
       this->state0_ = this->baselines_storage_.state0;
       this->state1_ = this->baselines_storage_.state1;
-      ESP_LOGI(TAG, "Loaded VOC baseline state0: 0x%04X ,state1: 0x%04X", this->baselines_storage_.state0,
+      ESP_LOGI(TAG, "Loaded VOC baseline state0: 0x%04X, state1: 0x%04X", this->baselines_storage_.state0,
                baselines_storage_.state1);
     }
 
     // Initialize storage timestamp
     this->seconds_since_last_store_ = 0;
 
-    if (this->store_baseline_ && this->baselines_storage_.state0 > 0 && this->baselines_storage_.state1 > 0) {
+    if (this->baselines_storage_.state0 > 0 && this->baselines_storage_.state1 > 0) {
+      ESP_LOGI(TAG, "Setting VOC baseline from save state0: 0x%04X, state1: 0x%04X", this->baselines_storage_.state0,
+               baselines_storage_.state1);
       voc_algorithm_set_states(&this->voc_algorithm_params_, this->baselines_storage_.state0,
                                this->baselines_storage_.state1);
     }
