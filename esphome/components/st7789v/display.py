@@ -15,6 +15,7 @@ from esphome.const import (
 )
 from . import st7789v_ns
 
+CONF_EIGHTBITCOLOR = "eightbitcolor"
 CONF_OFFSET_HEIGHT = "offset_height"
 CONF_OFFSET_WIDTH = "offset_width"
 
@@ -68,6 +69,7 @@ async def to_code(config):
         )
         cg.add(var.set_writer(lambda_))
 
+    cg.add(var.set_eightbitcolor(config[CONF_EIGHTBITCOLOR]))
     cg.add(var.set_height(config[CONF_HEIGHT]))
     cg.add(var.set_width(config[CONF_WIDTH]))
     cg.add(var.set_offset_height(config[CONF_OFFSET_HEIGHT]))
