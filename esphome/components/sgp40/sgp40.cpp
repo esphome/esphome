@@ -45,11 +45,35 @@ void SGP40Component::setup() {
     this->mark_failed();
     return;
   }
+
   ESP_LOGD(TAG, "Product version: 0x%0X", uint16_t(this->featureset_ & 0x1FF));
 
-  VocAlgorithm_init(&this->voc_algorithm_params_);
+  voc_algorithm_init(&this->voc_algorithm_params_);
 
-  this->self_test_();
+  if (this->store_baseline_) {
+    // Hash with compilation time
+    // This ensures the baseline storage is cleared after OTA
+    uint32_t hash = fnv1_hash(App.get_compilation_time());
+    this->pref_ = global_preferences.make_preference<SGP40Baselines>(hash, true);
+
+    if (this->pref_.load(&this->baselines_storage_)) {
+      this->state0_ = this->baselines_storage_.state0;
+      this->state1_ = this->baselines_storage_.state1;
+      ESP_LOGI(TAG, "Loaded VOC baseline state0: 0x%04X ,state1: 0x%04X", this->baselines_storage_.state0,
+               baselines_storage_.state1);
+    }
+
+    // Initialize storage timestamp
+    this->seconds_since_last_store_ = 0;
+
+    if (this->baselines_storage_.state0 > 0 && this->baselines_storage_.state1 > 0) {
+      voc_algorithm_set_states(&this->voc_algorithm_params_, this->baselines_storage_.state0,
+                               this->baselines_storage_.state1);
+    }
+  }
+
+  if (!this->self_test_())
+    this->mark_failed();
 }
 
 bool SGP40Component::self_test_() {
@@ -59,13 +83,11 @@ bool SGP40Component::self_test_() {
   if (!this->write_command_(SGP40_CMD_SELF_TEST)) {
     this->error_code_ = COMMUNICATION_FAILED;
     ESP_LOGD(TAG, "selfTest SGP40_CMD_SELF_TEST failed");
-    this->mark_failed();
     return false;
   }
   delay(250);  // NOLINT
   if (!this->read_data_(reply, 1)) {
     ESP_LOGD(TAG, "selfTest read_data_ failed");
-    this->mark_failed();
     return false;
   }
 
@@ -74,7 +96,6 @@ bool SGP40Component::self_test_() {
     return true;
   }
   ESP_LOGD(TAG, "selfTest failed");
-  this->mark_failed();
   return false;
 }
 
@@ -86,7 +107,7 @@ bool SGP40Component::self_test_() {
  * @param humidity The measured relative humidity in % rH
  * @return int32_t The VOC Index
  */
-int32_t SGP40Component::measureVocIndex_() {
+int32_t SGP40Component::measure_voc_index_() {
   int32_t voc_index;
 
   uint16_t sraw = measure_raw_();
@@ -94,7 +115,28 @@ int32_t SGP40Component::measureVocIndex_() {
   if (sraw == UINT16_MAX)
     return UINT16_MAX;
 
-  VocAlgorithm_process(&voc_algorithm_params_, sraw, &voc_index);
+  this->status_clear_warning();
+
+  voc_algorithm_process(&voc_algorithm_params_, sraw, &voc_index);
+
+  // Store baselines after defined interval or if the difference between current and stored baseline becomes too
+  // much
+  if (this->store_baseline_ && this->seconds_since_last_store_ > SHORTEST_BASELINE_STORE_INTERVAL) {
+    voc_algorithm_get_states(&voc_algorithm_params_, &this->state0_, &this->state1_);
+    if (abs(this->baselines_storage_.state0 - this->state0_) > MAXIMUM_STORAGE_DIFF ||
+        abs(this->baselines_storage_.state1 - this->state1_) > MAXIMUM_STORAGE_DIFF) {
+      this->seconds_since_last_store_ = 0;
+      this->baselines_storage_.state0 = this->state0_;
+      this->baselines_storage_.state1 = this->state1_;
+
+      if (this->pref_.save(&this->baselines_storage_)) {
+        ESP_LOGI(TAG, "Stored VOC baseline state0: 0x%04X ,state1: 0x%04X", this->baselines_storage_.state0,
+                 baselines_storage_.state1);
+      } else {
+        ESP_LOGW(TAG, "Could not store VOC baselines");
+      }
+    }
+  }
 
   return voc_index;
 }
@@ -128,14 +170,14 @@ uint16_t SGP40Component::measure_raw_() {
   command[0] = 0x26;
   command[1] = 0x0F;
 
-  uint16_t rhticks = (uint16_t)((humidity * 65535) / 100 + 0.5);
+  uint16_t rhticks = llround((uint16_t)((humidity * 65535) / 100));
   command[2] = rhticks >> 8;
   command[3] = rhticks & 0xFF;
-  command[4] = generateCRC(command + 2, 2);
+  command[4] = generate_crc_(command + 2, 2);
   uint16_t tempticks = (uint16_t)(((temperature + 45) * 65535) / 175);
   command[5] = tempticks >> 8;
   command[6] = tempticks & 0xFF;
-  command[7] = generateCRC(command + 5, 2);
+  command[7] = generate_crc_(command + 5, 2);
 
   if (!this->write_bytes_raw(command, 8)) {
     this->status_set_warning();
@@ -153,7 +195,7 @@ uint16_t SGP40Component::measure_raw_() {
   return raw_data[0];
 }
 
-uint8_t SGP40Component::generateCRC(uint8_t *data, uint8_t datalen) {
+uint8_t SGP40Component::generate_crc_(const uint8_t *data, uint8_t datalen) {
   // calculates 8-Bit checksum with given polynomial
   uint8_t crc = SGP40_CRC8_INIT;
 
@@ -170,8 +212,9 @@ uint8_t SGP40Component::generateCRC(uint8_t *data, uint8_t datalen) {
 }
 
 void SGP40Component::update() {
-  this->set_timeout(50, [this]() {
-    uint32_t voc_index = this->measureVocIndex_();
+  this->seconds_since_last_store_ += this->update_interval_ / 1000;
+  this->set_timeout(250, [this]() {
+    uint32_t voc_index = this->measure_voc_index_();
     if (voc_index != UINT16_MAX)
       this->publish_state(voc_index);
   });
