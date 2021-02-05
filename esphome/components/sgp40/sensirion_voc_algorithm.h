@@ -14,7 +14,7 @@ using fix16_t = int32_t;
 #define F16(x) ((fix16_t)(((x) >= 0) ? ((x) *65536.0 + 0.5) : ((x) *65536.0 - 0.5)))
 
 #define VocAlgorithm_SAMPLING_INTERVAL (1.)
-#define voc_algorithm_initIAL_BLACKOUT (45.)
+#define VocAlgorithm_INITIAL_BLACKOUT (45.)
 #define VocAlgorithm_VOC_INDEX_GAIN (230.)
 #define VocAlgorithm_SRAW_STD_INITIAL (50.)
 #define VocAlgorithm_SRAW_STD_BONUS (220.)

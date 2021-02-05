@@ -834,6 +834,10 @@ sensor:
     id: freezer_temp_source
     reference_voltage: 3.19
     number: 0
+  - platform: sgp40
+    name: "Workshop VOC"
+    update_interval: 5s
+    store_baseline: "true"
 
 esp32_touch:
   setup_mode: False
