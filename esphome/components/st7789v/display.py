@@ -26,7 +26,7 @@ CONFIG_SCHEMA = display.FULL_DISPLAY_SCHEMA.extend({
     cv.Optional(CONF_WIDTH, default=135): cv.int_,
     cv.Optional(CONF_OFFSET_HEIGHT, default=52): cv.int_,
     cv.Optional(CONF_OFFSET_WIDTH, default=40): cv.int_,
-}).extend(cv.polling_component_schema('5s')).extend(spi.spi_device_schema())
+}).extend(cv.polling_component_schema('5s')).extend(spi.spi_device_schema(cs_pin_required=False))
 
 
 def to_code(config):
