@@ -50,13 +50,13 @@ static fix16_t fix16_mul(fix16_t in_arg0, fix16_t in_arg1) {
   uint32_t b = (in_arg0 & 0xFFFF), d = (in_arg1 & 0xFFFF);
 
   int32_t ac = a * c;
-  uint32_t ad_cb = a * d + c * b;
+  int32_t ad_cb = a * d + c * b;
   uint32_t bd = b * d;
 
-  uint32_t product_hi = ac + (ad_cb >> 16);
+  int32_t product_hi = ac + (ad_cb >> 16);  // NOLINT
 
   // Handle carry from lower 32 bits to upper part of result.
-  uint32_t ad_cb_temp = ad_cb << 16;
+  uint32_t ad_cb_temp = ad_cb << 16;  // NOLINT
   uint32_t product_lo = bd + ad_cb_temp;
   if (product_lo < bd)
     product_hi++;
@@ -84,7 +84,7 @@ static fix16_t fix16_mul(fix16_t in_arg0, fix16_t in_arg1) {
   // as dividing by 0x10000. For example if product = -1, result will
   // also be -1 and not 0. This is compensated by adding +1 to the result
   // and compensating this in turn in the rounding above.
-  fix16_t result = (product_hi << 16) | (product_lo >> 16);
+  fix16_t result = (product_hi << 16) | (product_lo >> 16);  // NOLINT
   result += 1;
   return result;
 #endif
