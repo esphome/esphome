@@ -116,6 +116,7 @@ class ST7789V : public PollingComponent,
   void set_reset_pin(GPIOPin *reset_pin) { this->reset_pin_ = reset_pin; }
   void set_backlight_pin(GPIOPin *backlight_pin) { this->backlight_pin_ = backlight_pin; }
 
+  void set_eightbitcolor(bool eightbitcolor) { this->eightbitcolor_ = eightbitcolor; }
   void set_height(uint32_t height) { this->height_ = height; }
   void set_width(uint16_t width) { this->width_ = width; }
   void set_offset_height(uint32_t offset_height) { this->offset_height_ = offset_height; }
@@ -136,6 +137,7 @@ class ST7789V : public PollingComponent,
   GPIOPin *reset_pin_{nullptr};
   GPIOPin *backlight_pin_{nullptr};
 
+  boolean eightbitcolor_ = false;
   uint16_t height_{240};
   uint16_t width_{135};
   uint16_t offset_height_{52};
