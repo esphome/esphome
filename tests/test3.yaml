@@ -15,8 +15,8 @@ esphome:
 substitutions:
   devicename: test3
   devicecomment: test3 device
-  min_sub: "0.03"
-  max_sub: "12.0%"
+  min_sub: '0.03'
+  max_sub: '12.0%'
 
 api:
   port: 8000
@@ -204,6 +204,7 @@ uart:
 ota:
   safe_mode: True
   port: 3286
+  reboot_timeout: 15min
 
 logger:
   hardware_uart: UART1
@@ -225,7 +226,7 @@ sensor:
     type: proximity
     name: APDS9960 Proximity
   - platform: vl53l0x
-    name: "VL53L0x Distance"
+    name: 'VL53L0x Distance'
     address: 0x29
     update_interval: 60s
   - platform: apds9960
@@ -245,14 +246,14 @@ sensor:
     id: ha_hello_world
   - platform: aht10
     temperature:
-      name: "Temperature"
+      name: 'Temperature'
     humidity:
-      name: "Humidity"
+      name: 'Humidity'
   - platform: am2320
     temperature:
-      name: "Temperature"
+      name: 'Temperature'
     humidity:
-      name: "Humidity"
+      name: 'Humidity'
   - platform: adc
     pin: VCC
     id: my_sensor
@@ -338,6 +339,7 @@ sensor:
       - binary_sensor: bin3
         value: 100.0
   - platform: ade7953
+    irq_pin: GPIO16
     voltage:
       name: ADE7953 Voltage
     current_a:
@@ -350,82 +352,86 @@ sensor:
       name: ADE7953 Active Power B
   - platform: pzem004t
     voltage:
-      name: "PZEM00T Voltage"
+      name: 'PZEM00T Voltage'
     current:
-      name: "PZEM004T Current"
+      name: 'PZEM004T Current'
     power:
-      name: "PZEM004T Power"
+      name: 'PZEM004T Power'
   - platform: pzemac
     voltage:
-      name: "PZEMAC Voltage"
+      name: 'PZEMAC Voltage'
     current:
-      name: "PZEMAC Current"
+      name: 'PZEMAC Current'
     power:
-      name: "PZEMAC Power"
+      name: 'PZEMAC Power'
     energy:
-      name: "PZEMAC Energy"
+      name: 'PZEMAC Energy'
     frequency:
-      name: "PZEMAC Frequency"
+      name: 'PZEMAC Frequency'
     power_factor:
-      name: "PZEMAC Power Factor"
+      name: 'PZEMAC Power Factor'
   - platform: pzemdc
     voltage:
-      name: "PZEMDC Voltage"
+      name: 'PZEMDC Voltage'
     current:
-      name: "PZEMDC Current"
+      name: 'PZEMDC Current'
     power:
-      name: "PZEMDC Power"
+      name: 'PZEMDC Power'
   - platform: tmp102
-    name: "TMP102 Temperature"
+    name: 'TMP102 Temperature'
   - platform: hm3301
     pm_1_0:
-      name: "PM1.0"
+      name: 'PM1.0'
     pm_2_5:
-      name: "PM2.5"
+      name: 'PM2.5'
     pm_10_0:
-      name: "PM10.0"
+      name: 'PM10.0'
     aqi:
-      name: "AQI"
-      calculation_type: "AQI"
+      name: 'AQI'
+      calculation_type: 'AQI'
   - platform: pmsx003
     type: PMSX003
     pm_1_0:
-      name: "PM 1.0 Concentration"
+      name: 'PM 1.0 Concentration'
     pm_2_5:
-      name: "PM 2.5 Concentration"
+      name: 'PM 2.5 Concentration'
     pm_10_0:
-      name: "PM 10.0 Concentration"
+      name: 'PM 10.0 Concentration'
   - platform: pmsx003
     type: PMS5003T
     pm_2_5:
-      name: "PM 2.5 Concentration"
+      name: 'PM 2.5 Concentration'
     temperature:
-      name: "PMS Temperature"
+      name: 'PMS Temperature'
     humidity:
-      name: "PMS Humidity"
+      name: 'PMS Humidity'
   - platform: pmsx003
     type: PMS5003ST
     pm_2_5:
-      name: "PM 2.5 Concentration"
+      name: 'PM 2.5 Concentration'
     temperature:
-      name: "PMS Temperature"
+      name: 'PMS Temperature'
     humidity:
-      name: "PMS Humidity"
+      name: 'PMS Humidity'
     formaldehyde:
-      name: "PMS Formaldehyde Concentration"
+      name: 'PMS Formaldehyde Concentration'
   - platform: cse7766
     voltage:
-      name: "CSE7766 Voltage"
+      name: 'CSE7766 Voltage'
     current:
-      name: "CSE7766 Current"
+      name: 'CSE7766 Current'
     power:
-      name: "CSE776 Power"
+      name: 'CSE776 Power'
+  - platform: ezo
+    id: ph_ezo
+    address: 99
+    unit_of_measurement: 'pH'  
   - platform: tof10120
     name: "Distance sensor"
     update_interval: 5s
 
 time:
-- platform: homeassistant
+  - platform: homeassistant
 
 apds9960:
   address: 0x20
@@ -463,18 +469,18 @@ binary_sensor:
   - platform: mpr121
     id: touchkey0
     channel: 0
-    name: "touchkey0"
+    name: 'touchkey0'
   - platform: mpr121
     channel: 1
-    name: "touchkey1"
+    name: 'touchkey1'
     id: bin1
   - platform: mpr121
     channel: 2
-    name: "touchkey2"
+    name: 'touchkey2'
     id: bin2
   - platform: mpr121
     channel: 3
-    name: "touchkey3"
+    name: 'touchkey3'
     id: bin3
     on_press:
       then:
@@ -508,7 +514,7 @@ status_led:
 
 text_sensor:
   - platform: version
-    name: "ESPHome Version"
+    name: 'ESPHome Version'
     icon: mdi:icon
     id: version_sensor
     on_value:
@@ -527,7 +533,7 @@ text_sensor:
             my_variable: |-
               return id(version_sensor).state;
   - platform: template
-    name: "Template Text Sensor"
+    name: 'Template Text Sensor'
     lambda: |-
       return {"Hello World"};
   - platform: homeassistant
@@ -549,7 +555,7 @@ script:
 
 switch:
   - platform: template
-    name: "mpr121_toggle"
+    name: 'mpr121_toggle'
     id: mpr121_toggle
     optimistic: True
   - platform: gpio
@@ -579,10 +585,10 @@ switch:
         name: Custom Switch
 
 custom_component:
-   lambda: |-
-     auto s = new CustomComponent();
-     s->set_update_interval(15000);
-     return {s};
+  lambda: |-
+    auto s = new CustomComponent();
+    s->set_update_interval(15000);
+    return {s};
 
 stepper:
   - platform: uln2003
@@ -607,7 +613,7 @@ stepper:
 interval:
   interval: 5s
   then:
-    - logger.log: "Interval Run"
+    - logger.log: 'Interval Run'
     - stepper.set_target:
         id: my_stepper2
         target: 500
@@ -695,7 +701,7 @@ climate:
       default_target_temperature_high: 20°C
   - platform: pid
     id: pid_climate
-    name: "PID Climate Controller"
+    name: 'PID Climate Controller'
     sensor: ha_hello_world
     default_target_temperature: 21°C
     heat_output: my_slow_pwm
@@ -703,7 +709,6 @@ climate:
       kp: 0.0
       ki: 0.0
       kd: 0.0
-
 
 cover:
   - platform: endstop
@@ -748,16 +753,15 @@ cover:
     close_duration: 4.5min
   - platform: template
     name: Template Cover with Tilt
-    tilt_lambda: "return 0.5;"
+    tilt_lambda: 'return 0.5;'
     tilt_action:
       - output.set_level:
           id: out
-          level: !lambda "return tilt;"
+          level: !lambda 'return tilt;'
     position_action:
       - output.set_level:
           id: out
-          level: !lambda "return pos;"
-
+          level: !lambda 'return pos;'
 
 output:
   - platform: esp8266_pwm
@@ -791,7 +795,6 @@ output:
     pin: GPIO5
     id: my_slow_pwm
     period: 15s
-
 
 mcp23017:
   id: mcp23017_hub
@@ -848,8 +851,7 @@ dfplayer:
     then:
       if:
         condition:
-          not:
-            dfplayer.is_playing
+          not: dfplayer.is_playing
         then:
           logger.log: 'Playback finished event'
 tm1651:
@@ -887,6 +889,25 @@ rf_bridge:
         code: 'ABC123'
     - rf_bridge.send_raw:
         raw: 'AAA5070008001000ABC12355'
+    - http_request.get:
+        url: https://esphome.io
+        headers:
+          Content-Type: application/json
+        verify_ssl: false
+    - http_request.post:
+        url: https://esphome.io
+        verify_ssl: false
+        json:
+          key: !lambda |-
+            return id(version_sensor).state;
+          greeting: 'Hello World'
+    - http_request.send:
+        method: PUT
+        url: https://esphome.io
+        headers:
+          Content-Type: application/json
+        body: 'Some data'
+        verify_ssl: false
 
 display:
   - platform: max7219digit
@@ -898,3 +919,7 @@ display:
     id: my_matrix
     lambda: |-
       it.printdigit("hello");
+
+http_request:
+  useragent: esphome/device
+  timeout: 10s

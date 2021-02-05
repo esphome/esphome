@@ -42,6 +42,7 @@ void SNTPComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "  Server 3: '%s'", this->server_3_.c_str());
   ESP_LOGCONFIG(TAG, "  Timezone: '%s'", this->timezone_.c_str());
 }
+void SNTPComponent::update() {}
 void SNTPComponent::loop() {
   if (this->has_time_)
     return;
@@ -53,6 +54,7 @@ void SNTPComponent::loop() {
   char buf[128];
   time.strftime(buf, sizeof(buf), "%c");
   ESP_LOGD(TAG, "Synchronized time: %s", buf);
+  this->time_sync_callback_.call();
   this->has_time_ = true;
 }
 

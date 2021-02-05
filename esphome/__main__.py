@@ -235,6 +235,9 @@ def setup_log(debug=False, quiet=False):
     logging.getLogger('urllib3').setLevel(logging.WARNING)
 
     try:
+        import colorama
+        colorama.init(strip=True)
+
         from colorlog import ColoredFormatter
         logging.getLogger().handlers[0].setFormatter(ColoredFormatter(
             colorfmt,

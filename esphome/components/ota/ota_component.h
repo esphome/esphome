@@ -47,7 +47,7 @@ class OTAComponent : public Component {
   /// Manually set the port OTA should listen on.
   void set_port(uint16_t port);
 
-  void start_safe_mode(uint8_t num_attempts = 10, uint32_t enable_time = 120000);
+  void start_safe_mode(uint8_t num_attempts, uint32_t enable_time);
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
