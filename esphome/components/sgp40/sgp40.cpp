@@ -66,7 +66,7 @@ void SGP40Component::setup() {
     // Initialize storage timestamp
     this->seconds_since_last_store_ = 0;
 
-    if (this->baselines_storage_.state0 > 0 && this->baselines_storage_.state1 > 0) {
+    if (this->store_baseline_ && this->baselines_storage_.state0 > 0 && this->baselines_storage_.state1 > 0) {
       voc_algorithm_set_states(&this->voc_algorithm_params_, this->baselines_storage_.state0,
                                this->baselines_storage_.state1);
     }
