@@ -55,7 +55,7 @@ class ESPForceValue:
 def make_data_base(value, from_database: ESPHomeDataBase = None):
     try:
         value = add_class_to_obj(value, ESPHomeDataBase)
-        if isinstance(value, ESPHomeDataBase) and from_database is not None:
+        if from_database is not None:
             value.from_database(from_database)
         return value
     except TypeError:
