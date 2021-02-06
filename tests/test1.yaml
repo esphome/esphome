@@ -201,7 +201,7 @@ mcp23s08:
   - id: 'mcp23s08_hub'
     cs_pin: GPIO12
     deviceaddress: 0
-    
+
 mcp23s17:
   - id: 'mcp23s17_hub'
     cs_pin: GPIO12
@@ -1159,6 +1159,8 @@ output:
   - platform: esp32_dac
     pin: GPIO25
     id: dac_output
+  - platform: mcp4725
+    id: mcp4725_dac_output
 
 e131:
 
@@ -1527,6 +1529,9 @@ switch:
           level: 50%
       - output.set_level:
           id: dac_output
+          level: !lambda 'return 0.5;'
+      - output.set_level:
+          id: mcp4725_dac_output
           level: !lambda 'return 0.5;'
     turn_off_action:
       - switch.turn_on: living_room_lights_off
