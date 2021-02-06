@@ -11,6 +11,7 @@ from esphome.helpers import color, get_bool_env, write_file
 from esphome.pins import ESP32_BOARD_PINS, ESP8266_BOARD_PINS
 from esphome.storage_json import StorageJSON, ext_storage_path
 from esphome.util import safe_print
+from esphome.const import ALLOWED_NAME_CHARS, ENV_QUICKWIZARD
 
 CORE_BIG = r"""    _____ ____  _____  ______
    / ____/ __ \|  __ \|  ____|
@@ -106,7 +107,7 @@ def wizard_write(path, **kwargs):
     storage.save(storage_path)
 
 
-if get_bool_env('ESPHOME_QUICKWIZARD'):
+if get_bool_env(ENV_QUICKWIZARD):
     def sleep(time):
         pass
 else:
@@ -142,7 +143,7 @@ def wizard(path):
     if os.path.exists(path):
         safe_print("Uh oh, it seems like {} already exists, please delete that file first "
                    "or chose another configuration file.".format(color('cyan', path)))
-        return 1
+        return 2
     safe_print("Hi there!")
     sleep(1.5)
     safe_print("I'm the wizard of ESPHome :)")
@@ -162,15 +163,17 @@ def wizard(path):
     safe_print()
     sleep(1)
     name = input(color("bold_white", "(name): "))
+
     while True:
         try:
             name = cv.valid_name(name)
             break
         except vol.Invalid:
-            safe_print(color("red", "Oh noes, \"{}\" isn't a valid name. Names can only include "
-                                    "numbers, letters and underscores.".format(name)))
-            name = strip_accents(name).replace(' ', '_')
-            name = ''.join(c for c in name if c in cv.ALLOWED_NAME_CHARS)
+            safe_print(color("red", f"Oh noes, \"{name}\" isn't a valid name. Names can only "
+                                    f"include numbers, lower-case letters, underscores and "
+                                    f"hyphens."))
+            name = strip_accents(name).lower().replace(' ', '_')
+            name = ''.join(c for c in name if c in ALLOWED_NAME_CHARS)
             safe_print("Shall I use \"{}\" as the name instead?".format(color('cyan', name)))
             sleep(0.5)
             name = default_input("(name [{}]): ", name)

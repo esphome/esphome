@@ -99,13 +99,13 @@ bool ESP32BLETracker::ble_setup() {
     return false;
   }
 
+  esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT);
+
   // Initialize the bluetooth controller with the default configuration
   if (!btStart()) {
     ESP_LOGE(TAG, "btStart failed: %d", esp_bt_controller_get_status());
     return false;
   }
-
-  esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT);
 
   err = esp_bluedroid_init();
   if (err != ESP_OK) {

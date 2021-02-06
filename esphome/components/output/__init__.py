@@ -7,6 +7,8 @@ from esphome.const import CONF_ID, CONF_INVERTED, CONF_LEVEL, CONF_MAX_POWER, \
     CONF_MIN_POWER, CONF_POWER_SUPPLY
 from esphome.core import CORE, coroutine
 
+
+CODEOWNERS = ['@esphome/core']
 IS_PLATFORM_COMPONENT = True
 
 BINARY_OUTPUT_SCHEMA = cv.Schema({

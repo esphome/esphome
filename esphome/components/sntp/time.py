@@ -1,6 +1,7 @@
 from esphome.components import time as time_
 import esphome.config_validation as cv
 import esphome.codegen as cg
+from esphome.core import CORE
 from esphome.const import CONF_ID, CONF_SERVERS
 
 
@@ -27,3 +28,7 @@ def to_code(config):
 
     yield cg.register_component(var, config)
     yield time_.register_time(var, config)
+
+    if CORE.is_esp8266 and len(servers) > 1:
+        # We need LwIP features enabled to get 3 SNTP servers (not just one)
+        cg.add_build_flag('-DPIO_FRAMEWORK_ARDUINO_LWIP2_LOW_MEMORY')

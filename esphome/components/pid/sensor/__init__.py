@@ -15,6 +15,9 @@ PID_CLIMATE_SENSOR_TYPES = {
     'DERIVATIVE': PIDClimateSensorType.PID_SENSOR_TYPE_DERIVATIVE,
     'HEAT': PIDClimateSensorType.PID_SENSOR_TYPE_HEAT,
     'COOL': PIDClimateSensorType.PID_SENSOR_TYPE_COOL,
+    'KP': PIDClimateSensorType.PID_SENSOR_TYPE_KP,
+    'KI': PIDClimateSensorType.PID_SENSOR_TYPE_KI,
+    'KD': PIDClimateSensorType.PID_SENSOR_TYPE_KD,
 }
 
 CONF_CLIMATE_ID = 'climate_id'

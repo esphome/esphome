@@ -11,14 +11,16 @@ from string import ascii_letters, digits
 import voluptuous as vol
 
 from esphome import core
-from esphome.const import CONF_AVAILABILITY, CONF_COMMAND_TOPIC, CONF_DISCOVERY, CONF_ID, \
-    CONF_INTERNAL, CONF_NAME, CONF_PAYLOAD_AVAILABLE, CONF_PAYLOAD_NOT_AVAILABLE, \
-    CONF_RETAIN, CONF_SETUP_PRIORITY, CONF_STATE_TOPIC, CONF_TOPIC, \
-    CONF_HOUR, CONF_MINUTE, CONF_SECOND, CONF_VALUE, CONF_UPDATE_INTERVAL, CONF_TYPE_ID, CONF_TYPE
+from esphome.const import ALLOWED_NAME_CHARS, CONF_AVAILABILITY, CONF_COMMAND_TOPIC, \
+    CONF_DISCOVERY, CONF_ID, CONF_INTERNAL, CONF_NAME, CONF_PAYLOAD_AVAILABLE, \
+    CONF_PAYLOAD_NOT_AVAILABLE, CONF_RETAIN, CONF_SETUP_PRIORITY, CONF_STATE_TOPIC, CONF_TOPIC, \
+    CONF_HOUR, CONF_MINUTE, CONF_SECOND, CONF_VALUE, CONF_UPDATE_INTERVAL, CONF_TYPE_ID, \
+    CONF_TYPE, CONF_PACKAGES
 from esphome.core import CORE, HexInt, IPAddress, Lambda, TimePeriod, TimePeriodMicroseconds, \
-    TimePeriodMilliseconds, TimePeriodSeconds, TimePeriodMinutes
+    TimePeriodMilliseconds, TimePeriodSeconds, TimePeriodMinutes, DocumentLocation
 from esphome.helpers import list_starts_with, add_class_to_obj
 from esphome.voluptuous_schema import _Schema
+from esphome.yaml_util import ESPHomeDataBase
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -39,8 +41,6 @@ Inclusive = vol.Inclusive
 ALLOW_EXTRA = vol.ALLOW_EXTRA
 UNDEFINED = vol.UNDEFINED
 RequiredFieldInvalid = vol.RequiredFieldInvalid
-
-ALLOWED_NAME_CHARS = 'abcdefghijklmnopqrstuvwxyz0123456789_'
 
 RESERVED_IDS = [
     # C++ keywords http://en.cppreference.com/w/cpp/keyword
@@ -104,7 +104,7 @@ def alphanumeric(value):
         raise Invalid("string value is None")
     value = str(value)
     if not value.isalnum():
-        raise Invalid("string value is not alphanumeric")
+        raise Invalid(f"{value} is not alphanumeric")
     return value
 
 
@@ -186,6 +186,7 @@ def ensure_list(*validators):
     None and empty dictionaries are converted to empty lists.
     """
     user = All(*validators)
+    list_schema = Schema([user])
 
     def validator(value):
         check_not_templatable(value)
@@ -193,19 +194,7 @@ def ensure_list(*validators):
             return []
         if not isinstance(value, list):
             return [user(value)]
-        ret = []
-        errs = []
-        for i, val in enumerate(value):
-            try:
-                with prepend_path([i]):
-                    ret.append(user(val))
-            except MultipleInvalid as err:
-                errs.extend(err.errors)
-            except Invalid as err:
-                errs.append(err)
-        if errs:
-            raise MultipleInvalid(errs)
-        return ret
+        return list_schema(value)
 
     return validator
 
@@ -237,6 +226,7 @@ def int_(value):
     try:
         return int(value, base)
     except ValueError:
+        # pylint: disable=raise-missing-from
         raise Invalid(f"Expected integer, but cannot parse {value} as an integer")
 
 
@@ -436,6 +426,7 @@ def time_period_str_colon(value):
     try:
         parsed = [int(x) for x in value.split(':')]
     except ValueError:
+        # pylint: disable=raise-missing-from
         raise Invalid(TIME_PERIOD_ERROR.format(value))
 
     if len(parsed) == 2:
@@ -540,6 +531,7 @@ def time_of_day(value):
         try:
             date = datetime.strptime(value, '%H:%M:%S %p')
         except ValueError:
+            # pylint: disable=raise-missing-from
             raise Invalid(f"Invalid time of day: {err}")
 
     return {
@@ -561,6 +553,7 @@ def mac_address(value):
         try:
             parts_int.append(int(part, 16))
         except ValueError:
+            # pylint: disable=raise-missing-from
             raise Invalid("MAC Address parts must be hexadecimal values from 00 to FF")
 
     return core.MACAddress(*parts_int)
@@ -578,6 +571,7 @@ def bind_key(value):
         try:
             parts_int.append(int(part, 16))
         except ValueError:
+            # pylint: disable=raise-missing-from
             raise Invalid("Bind key must be hex values from 00 to FF")
 
     return ''.join(f'{part:02X}' for part in parts_int)
@@ -629,6 +623,7 @@ _temperature_c = float_with_unit("temperature", "(°C|° C|°|C)?")
 _temperature_k = float_with_unit("temperature", "(° K|° K|K)?")
 _temperature_f = float_with_unit("temperature", "(°F|° F|F)?")
 decibel = float_with_unit("decibel", "(dB|dBm|db|dbm)", optional_unit=True)
+pressure = float_with_unit("pressure", "(bar|Bar)", optional_unit=True)
 
 
 def temperature(value):
@@ -699,8 +694,8 @@ def domain(value):
         return value
     try:
         return str(ipv4(value))
-    except Invalid:
-        raise Invalid(f"Invalid domain: {value}")
+    except Invalid as err:
+        raise Invalid(f"Invalid domain: {value}") from err
 
 
 def domain_name(value):
@@ -752,8 +747,8 @@ def _valid_topic(value):
     value = string(value)
     try:
         raw_value = value.encode('utf-8')
-    except UnicodeError:
-        raise Invalid("MQTT topic name/filter must be valid UTF-8 string.")
+    except UnicodeError as err:
+        raise Invalid("MQTT topic name/filter must be valid UTF-8 string.") from err
     if not raw_value:
         raise Invalid("MQTT topic name/filter must not be empty.")
     if len(raw_value) > 65535:
@@ -805,13 +800,16 @@ def mqtt_qos(value):
     try:
         value = int(value)
     except (TypeError, ValueError):
+        # pylint: disable=raise-missing-from
         raise Invalid(f"MQTT Quality of Service must be integer, got {value}")
     return one_of(0, 1, 2)(value)
 
 
 def requires_component(comp):
     """Validate that this option can only be specified when the component `comp` is loaded."""
+    # pylint: disable=unsupported-membership-test
     def validator(value):
+        # pylint: disable=unsupported-membership-test
         if comp not in CORE.raw_config:
             raise Invalid(f"This option requires component {comp}")
         return value
@@ -838,9 +836,17 @@ def percentage(value):
 
 
 def possibly_negative_percentage(value):
-    has_percent_sign = isinstance(value, str) and value.endswith('%')
-    if has_percent_sign:
-        value = float(value[:-1].rstrip()) / 100.0
+    has_percent_sign = False
+    if isinstance(value, str):
+        try:
+            if value.endswith('%'):
+                has_percent_sign = False
+                value = float(value[:-1].rstrip()) / 100.0
+            else:
+                value = float(value)
+        except ValueError:
+            # pylint: disable=raise-missing-from
+            raise Invalid("invalid number")
     if value > 1:
         msg = "Percentage must not be higher than 100%."
         if not has_percent_sign:
@@ -977,7 +983,11 @@ LAMBDA_ENTITY_ID_PROG = re.compile(r'id\(\s*([a-zA-Z0-9_]+\.[.a-zA-Z0-9_]+)\s*\)
 def lambda_(value):
     """Coerce this configuration option to a lambda."""
     if not isinstance(value, Lambda):
-        value = Lambda(string_strict(value))
+        start_mark = None
+        if isinstance(value, ESPHomeDataBase) and value.esp_range is not None:
+            start_mark = DocumentLocation.copy(value.esp_range.start_mark)
+            start_mark.line += value.content_offset
+        value = Lambda(string_strict(value), start_mark)
     entity_id_parts = re.split(LAMBDA_ENTITY_ID_PROG, value.value)
     if len(entity_id_parts) != 1:
         entity_ids = ' '.join("'{}'".format(entity_id_parts[i])
@@ -1010,6 +1020,7 @@ def dimensions(value):
         try:
             width, height = int(value[0]), int(value[1])
         except ValueError:
+            # pylint: disable=raise-missing-from
             raise Invalid("Width and height dimensions must be integers")
         if width <= 0 or height <= 0:
             raise Invalid("Width and height must at least be 1")
@@ -1118,7 +1129,7 @@ def typed_schema(schemas, **kwargs):
     def validator(value):
         if not isinstance(value, dict):
             raise Invalid("Value must be dict")
-        if CONF_TYPE not in value:
+        if key not in value:
             raise Invalid("type not specified!")
         value = value.copy()
         key_v = key_validator(value.pop(key))
@@ -1168,9 +1179,13 @@ class OnlyWith(Optional):
 
     @property
     def default(self):
-        if self._component not in CORE.raw_config:
-            return vol.UNDEFINED
-        return self._default
+        # pylint: disable=unsupported-membership-test
+        if (self._component in CORE.raw_config or
+                (CONF_PACKAGES in CORE.raw_config and
+                    self._component in
+                    {list(x.keys())[0] for x in CORE.raw_config[CONF_PACKAGES].values()})):
+            return self._default
+        return vol.UNDEFINED
 
     @default.setter
     def default(self, value):

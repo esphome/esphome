@@ -4,6 +4,8 @@ from esphome import pins
 from esphome.components import output
 from esphome.const import CONF_ID, CONF_MIN_POWER, CONF_METHOD
 
+CODEOWNERS = ['@glmnet']
+
 ac_dimmer_ns = cg.esphome_ns.namespace('ac_dimmer')
 AcDimmer = ac_dimmer_ns.class_('AcDimmer', output.FloatOutput, cg.Component)
 

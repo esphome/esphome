@@ -2,6 +2,7 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/automation.h"
 #include <stdlib.h>
 #include <time.h>
 #include <bitset>
@@ -105,7 +106,7 @@ struct ESPTime {
 /// The C library (newlib) available on ESPs only supports TZ strings that specify an offset and DST info;
 /// you cannot specify zone names or paths to zoneinfo files.
 /// \see https://www.gnu.org/software/libc/manual/html_node/TZ-Variable.html
-class RealTimeClock : public Component {
+class RealTimeClock : public PollingComponent {
  public:
   explicit RealTimeClock();
 
@@ -126,11 +127,26 @@ class RealTimeClock : public Component {
 
   void call_setup() override;
 
+  void add_on_time_sync_callback(std::function<void()> callback) {
+    this->time_sync_callback_.add(std::move(callback));
+  };
+
  protected:
   /// Report a unix epoch as current time.
   void synchronize_epoch_(uint32_t epoch);
 
   std::string timezone_{};
+
+  CallbackManager<void()> time_sync_callback_;
+};
+
+template<typename... Ts> class TimeHasTimeCondition : public Condition<Ts...> {
+ public:
+  TimeHasTimeCondition(RealTimeClock *parent) : parent_(parent) {}
+  bool check(Ts... x) override { return this->parent_->now().is_valid(); }
+
+ protected:
+  RealTimeClock *parent_;
 };
 
 }  // namespace time

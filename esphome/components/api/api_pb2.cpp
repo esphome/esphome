@@ -52,6 +52,16 @@ template<> const char *proto_enum_to_string<enums::FanSpeed>(enums::FanSpeed val
       return "UNKNOWN";
   }
 }
+template<> const char *proto_enum_to_string<enums::FanDirection>(enums::FanDirection value) {
+  switch (value) {
+    case enums::FAN_DIRECTION_FORWARD:
+      return "FAN_DIRECTION_FORWARD";
+    case enums::FAN_DIRECTION_REVERSE:
+      return "FAN_DIRECTION_REVERSE";
+    default:
+      return "UNKNOWN";
+  }
+}
 template<> const char *proto_enum_to_string<enums::LogLevel>(enums::LogLevel value) {
   switch (value) {
     case enums::LOG_LEVEL_NONE:
@@ -144,8 +154,8 @@ template<> const char *proto_enum_to_string<enums::ClimateSwingMode>(enums::Clim
       return "CLIMATE_SWING_BOTH";
     case enums::CLIMATE_SWING_VERTICAL:
       return "CLIMATE_SWING_VERTICAL";
-    case enums::CLIMATE_SWINT_HORIZONTAL:
-      return "CLIMATE_SWINT_HORIZONTAL";
+    case enums::CLIMATE_SWING_HORIZONTAL:
+      return "CLIMATE_SWING_HORIZONTAL";
     default:
       return "UNKNOWN";
   }
@@ -760,6 +770,10 @@ bool ListEntitiesFanResponse::decode_varint(uint32_t field_id, ProtoVarInt value
       this->supports_speed = value.as_bool();
       return true;
     }
+    case 7: {
+      this->supports_direction = value.as_bool();
+      return true;
+    }
     default:
       return false;
   }
@@ -799,6 +813,7 @@ void ListEntitiesFanResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(4, this->unique_id);
   buffer.encode_bool(5, this->supports_oscillation);
   buffer.encode_bool(6, this->supports_speed);
+  buffer.encode_bool(7, this->supports_direction);
 }
 void ListEntitiesFanResponse::dump_to(std::string &out) const {
   char buffer[64];
@@ -827,6 +842,10 @@ void ListEntitiesFanResponse::dump_to(std::string &out) const {
   out.append("  supports_speed: ");
   out.append(YESNO(this->supports_speed));
   out.append("\n");
+
+  out.append("  supports_direction: ");
+  out.append(YESNO(this->supports_direction));
+  out.append("\n");
   out.append("}");
 }
 bool FanStateResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
@@ -841,6 +860,10 @@ bool FanStateResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
     }
     case 4: {
       this->speed = value.as_enum<enums::FanSpeed>();
+      return true;
+    }
+    case 5: {
+      this->direction = value.as_enum<enums::FanDirection>();
       return true;
     }
     default:
@@ -862,6 +885,7 @@ void FanStateResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_bool(2, this->state);
   buffer.encode_bool(3, this->oscillating);
   buffer.encode_enum<enums::FanSpeed>(4, this->speed);
+  buffer.encode_enum<enums::FanDirection>(5, this->direction);
 }
 void FanStateResponse::dump_to(std::string &out) const {
   char buffer[64];
@@ -881,6 +905,10 @@ void FanStateResponse::dump_to(std::string &out) const {
 
   out.append("  speed: ");
   out.append(proto_enum_to_string<enums::FanSpeed>(this->speed));
+  out.append("\n");
+
+  out.append("  direction: ");
+  out.append(proto_enum_to_string<enums::FanDirection>(this->direction));
   out.append("\n");
   out.append("}");
 }
@@ -910,6 +938,14 @@ bool FanCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
       this->oscillating = value.as_bool();
       return true;
     }
+    case 8: {
+      this->has_direction = value.as_bool();
+      return true;
+    }
+    case 9: {
+      this->direction = value.as_enum<enums::FanDirection>();
+      return true;
+    }
     default:
       return false;
   }
@@ -932,6 +968,8 @@ void FanCommandRequest::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_enum<enums::FanSpeed>(5, this->speed);
   buffer.encode_bool(6, this->has_oscillating);
   buffer.encode_bool(7, this->oscillating);
+  buffer.encode_bool(8, this->has_direction);
+  buffer.encode_enum<enums::FanDirection>(9, this->direction);
 }
 void FanCommandRequest::dump_to(std::string &out) const {
   char buffer[64];
@@ -963,6 +1001,14 @@ void FanCommandRequest::dump_to(std::string &out) const {
 
   out.append("  oscillating: ");
   out.append(YESNO(this->oscillating));
+  out.append("\n");
+
+  out.append("  has_direction: ");
+  out.append(YESNO(this->has_direction));
+  out.append("\n");
+
+  out.append("  direction: ");
+  out.append(proto_enum_to_string<enums::FanDirection>(this->direction));
   out.append("\n");
   out.append("}");
 }

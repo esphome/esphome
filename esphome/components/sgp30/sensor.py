@@ -2,7 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import i2c, sensor
 from esphome.const import CONF_ID, ICON_RADIATOR, UNIT_PARTS_PER_MILLION, \
-    UNIT_PARTS_PER_BILLION, ICON_PERIODIC_TABLE_CO2
+    UNIT_PARTS_PER_BILLION, ICON_MOLECULE_CO2
 
 DEPENDENCIES = ['i2c']
 
@@ -22,7 +22,7 @@ CONF_TEMPERATURE_SOURCE = 'temperature_source'
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(SGP30Component),
     cv.Required(CONF_ECO2): sensor.sensor_schema(UNIT_PARTS_PER_MILLION,
-                                                 ICON_PERIODIC_TABLE_CO2, 0),
+                                                 ICON_MOLECULE_CO2, 0),
     cv.Required(CONF_TVOC): sensor.sensor_schema(UNIT_PARTS_PER_BILLION, ICON_RADIATOR, 0),
     cv.Optional(CONF_BASELINE): cv.Schema({
         cv.Required(CONF_ECO2_BASELINE): cv.hex_uint16_t,

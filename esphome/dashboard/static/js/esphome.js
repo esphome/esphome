@@ -5,6 +5,7 @@ $(document).ready(function () {
   M.AutoInit(document.body);
   nodeGrid();
   startAceWebsocket();
+  fixNavbarHeight();
 });
 
 // WebSocket URL Helper
@@ -16,6 +17,17 @@ if (loc.protocol === "https:") {
 }
 const wsUrl = wsLoc.href;
 
+/**
+ * Fix NavBar height
+ */
+const fixNavbarHeight = () => {
+  const fixFunc = () => {
+    const sel = $(".select-wrapper");
+    $(".navbar-fixed").css("height", (sel.position().top + sel.outerHeight()) + "px");
+  }
+  $(window).resize(fixFunc);
+  fixFunc();
+}
 
 /**
  *  Dashboard Dynamic Grid
@@ -735,6 +747,7 @@ document.querySelectorAll("[data-action='edit']").forEach((button) => {
     const closeButton = document.querySelector("#js-editor-modal [data-action='close']");
     saveButton.setAttribute('data-filename', editorActiveFilename);
     uploadButton.setAttribute('data-filename', editorActiveFilename);
+    uploadButton.setAttribute('onClick', `saveFile("${editorActiveFilename}")`);
     if (editorActiveFilename === "secrets.yaml") {
       uploadButton.classList.add("disabled");
       editorActiveSecrets = true;
@@ -1002,4 +1015,3 @@ jQuery.validator.addMethod("nospaces", (value, element) => {
 jQuery.validator.addMethod("lowercase", (value, element) => {
   return value === value.toLowerCase();
 }, "Name must be all lower case!");
-

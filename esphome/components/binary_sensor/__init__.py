@@ -11,6 +11,7 @@ from esphome.const import CONF_DEVICE_CLASS, CONF_FILTERS, \
 from esphome.core import CORE, coroutine, coroutine_with_priority
 from esphome.util import Registry
 
+CODEOWNERS = ['@esphome/core']
 DEVICE_CLASSES = [
     '', 'battery', 'cold', 'connectivity', 'door', 'garage_door', 'gas',
     'heat', 'light', 'lock', 'moisture', 'motion', 'moving', 'occupancy',
@@ -103,6 +104,7 @@ def parse_multi_click_timing_str(value):
     try:
         state = cv.boolean(parts[0])
     except cv.Invalid:
+        # pylint: disable=raise-missing-from
         raise cv.Invalid("First word must either be ON or OFF, not {}".format(parts[0]))
 
     if parts[1] != 'for':
@@ -224,7 +226,7 @@ BINARY_SENSOR_SCHEMA = cv.MQTT_COMPONENT_SCHEMA.extend({
 def setup_binary_sensor_core_(var, config):
     cg.add(var.set_name(config[CONF_NAME]))
     if CONF_INTERNAL in config:
-        cg.add(var.set_internal(CONF_INTERNAL))
+        cg.add(var.set_internal(config[CONF_INTERNAL]))
     if CONF_DEVICE_CLASS in config:
         cg.add(var.set_device_class(config[CONF_DEVICE_CLASS]))
     if CONF_INVERTED in config:

@@ -8,6 +8,7 @@ from esphome.const import CONF_ARGS, CONF_BAUD_RATE, CONF_FORMAT, CONF_HARDWARE_
     CONF_LEVEL, CONF_LOGS, CONF_ON_MESSAGE, CONF_TAG, CONF_TRIGGER_ID, CONF_TX_BUFFER_SIZE
 from esphome.core import CORE, EsphomeError, Lambda, coroutine_with_priority
 
+CODEOWNERS = ['@esphome/core']
 logger_ns = cg.esphome_ns.namespace('logger')
 LOG_LEVELS = {
     'NONE': cg.global_ns.ESPHOME_LOG_LEVEL_NONE,

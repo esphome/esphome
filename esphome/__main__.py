@@ -12,29 +12,17 @@ from esphome.const import CONF_BAUD_RATE, CONF_BROKER, CONF_LOGGER, CONF_OTA, \
     CONF_PASSWORD, CONF_PORT, CONF_ESPHOME, CONF_PLATFORMIO_OPTIONS
 from esphome.core import CORE, EsphomeError, coroutine, coroutine_with_priority
 from esphome.helpers import color, indent
-from esphome.util import run_external_command, run_external_process, safe_print, list_yaml_files
+from esphome.util import run_external_command, run_external_process, safe_print, list_yaml_files, \
+    get_serial_ports
 
 _LOGGER = logging.getLogger(__name__)
-
-
-def get_serial_ports():
-    # from https://github.com/pyserial/pyserial/blob/master/serial/tools/list_ports.py
-    from serial.tools.list_ports import comports
-    result = []
-    for port, desc, info in comports(include_links=True):
-        if not port:
-            continue
-        if "VID:PID" in info:
-            result.append((port, desc))
-    result.sort(key=lambda x: x[0])
-    return result
 
 
 def choose_prompt(options):
     if not options:
         raise EsphomeError("Found no valid options for upload/logging, please make sure relevant "
-                           "sections (ota, mqtt, ...) are in your configuration and/or the device "
-                           "is plugged in.")
+                           "sections (ota, api, mqtt, ...) are in your configuration and/or the "
+                           "device is plugged in.")
 
     if len(options) == 1:
         return options[0][1]
@@ -60,8 +48,8 @@ def choose_prompt(options):
 
 def choose_upload_log_host(default, check_default, show_ota, show_mqtt, show_api):
     options = []
-    for res, desc in get_serial_ports():
-        options.append((f"{res} ({desc})", res))
+    for port in get_serial_ports():
+        options.append((f"{port.path} ({port.description})", port.path))
     if (show_ota and 'ota' in CORE.config) or (show_api and 'api' in CORE.config):
         options.append((f"Over The Air ({CORE.address})", CORE.address))
         if default == 'OTA':
@@ -131,6 +119,11 @@ def wrap_to_code(name, comp):
 
 
 def write_cpp(config):
+    generate_cpp_contents(config)
+    return write_cpp_file()
+
+
+def generate_cpp_contents(config):
     _LOGGER.info("Generating C++ source...")
 
     for name, component, conf in iter_components(CORE.config):
@@ -140,6 +133,8 @@ def write_cpp(config):
 
     CORE.flush_tasks()
 
+
+def write_cpp_file():
     writer.write_platformio_project()
 
     code_s = indent(CORE.cpp_main_section)
@@ -240,6 +235,9 @@ def setup_log(debug=False, quiet=False):
     logging.getLogger('urllib3').setLevel(logging.WARNING)
 
     try:
+        import colorama
+        colorama.init(strip=True)
+
         from colorlog import ColoredFormatter
         logging.getLogger().handlers[0].setFormatter(ColoredFormatter(
             colorfmt,
@@ -428,6 +426,8 @@ def parse_args(argv):
     parser.add_argument('-q', '--quiet', help="Disable all esphome logs.",
                         action='store_true')
     parser.add_argument('--dashboard', help=argparse.SUPPRESS, action='store_true')
+    parser.add_argument('-s', '--substitution', nargs=2, action='append',
+                        help='Add a substitution', metavar=('key', 'value'))
     parser.add_argument('configuration', help='Your YAML configuration file.', nargs='*')
 
     subparsers = parser.add_subparsers(help='Commands', dest='command')
@@ -532,7 +532,7 @@ def run_esphome(argv):
         CORE.config_path = conf_path
         CORE.dashboard = args.dashboard
 
-        config = read_config()
+        config = read_config(dict(args.substitution) if args.substitution else {})
         if config is None:
             return 1
         CORE.config = config
