@@ -12,14 +12,12 @@ CONF_LED_PIN = 'led_pin'
 ili9486_ns = cg.esphome_ns.namespace('ili9486')
 ili9486 = ili9486_ns.class_('ILI9486Display', cg.PollingComponent, spi.SPIDevice,
                             display.DisplayBuffer)
-ILI9486M5Stack = ili9486_ns.class_('ILI9486M5Stack', ili9486)
-ILI9486TFT24 = ili9486_ns.class_('ILI9486TFT24', ili9486)
+ILI9486TFT35 = ili9486_ns.class_('ILI9486TFT35', ili9486)
 
 ILI9486Model = ili9486_ns.enum('ILI9486Model')
 
 MODELS = {
-    'M5STACK': ILI9486Model.M5STACK,
-    'TFT_2.4': ILI9486Model.TFT_24,
+    'TFT_3.5': ILI9486Model.TFT_35,
 }
 
 ILI9486_MODEL = cv.enum(MODELS, upper=True, space="_")
@@ -35,10 +33,8 @@ CONFIG_SCHEMA = cv.All(display.FULL_DISPLAY_SCHEMA.extend({
 
 
 def to_code(config):
-    if config[CONF_MODEL] == 'M5STACK':
-        lcd_type = ILI9486M5Stack
-    if config[CONF_MODEL] == 'TFT_2.4':
-        lcd_type = ILI9486TFT24
+    if config[CONF_MODEL] == 'TFT_3.5':
+        lcd_type = ILI9486TFT35
     rhs = lcd_type.new()
     var = cg.Pvariable(config[CONF_ID], rhs)
 

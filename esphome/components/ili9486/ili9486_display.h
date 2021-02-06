@@ -76,12 +76,6 @@ class ILI9486Display : public PollingComponent,
   GPIOPin *busy_pin_{nullptr};
 };
 
-//-----------   M5Stack display --------------
-class ILI9486M5Stack : public ILI9486Display {
- public:
-  void initialize() override;
-};
-
 //-----------   ILI9486_24_TFT display --------------
 class ILI9486TFT35 : public ILI9486Display {
  public:
