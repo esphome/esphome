@@ -12,30 +12,30 @@ void ICACHE_RAM_ATTR WiegandReader::pin_state_changed_(WiegandReader *reader) {
 }
 
 void WiegandReader::received_data_(uint8_t* data, uint8_t bits, WiegandReader *reader) {
-    uint8_t byteCount = (bits + 7) / 8;
+  uint8_t byte_count = (bits + 7) / 8;
 
-    String code = "";
-    for (int i=0; i<byteCount; i++) {
-      code = code + String(data[i], 16);
-     }
-     ESP_LOGD(TAG, "Data received : %s", code.c_str());
-
-     for (auto *trigger : reader->triggers_)
-        trigger->process(code);
+  String code = "";
+  for (int i=0; i<byte_count; i++) {
+    code = code + String(data[i], 16);
   }
+  ESP_LOGD(TAG, "Data received : %s", code.c_str());
 
-void WiegandReader::received_data_error_(Wiegand::DataError error, uint8_t* rawData, uint8_t rawBits, const char* message) {
-    ESP_LOGE(TAG, "FAILED : %s", message);
-    ESP_LOGE(TAG, "   ERROR : %s", Wiegand::DataErrorStr(error));
+  for (auto *trigger : reader->triggers_)
+    trigger->process(code);
+}
 
-    uint8_t byteCount = (rawBits + 7) / 8;
-    ESP_LOGE(TAG, "   BYTE COUNT : %i", byteCount);
+void WiegandReader::received_data_error_(Wiegand::DataError error, uint8_t* raw_data, uint8_t raw_bits, const char* message) {
+  ESP_LOGE(TAG, "FAILED : %s", message);
+  ESP_LOGE(TAG, "   ERROR : %s", Wiegand::DataErrorStr(error));
 
-    String code = "";
-    for (int i=0; i<byteCount; i++) {
-      code = code + String(rawData[i], 16);
-    }
-    ESP_LOGE(TAG, "   DECODED : %s", code.c_str());
+  uint8_t byte_count = (raw_bits + 7) / 8;
+  ESP_LOGE(TAG, "   BYTE COUNT : %i", byte_count);
+
+  String code = "";
+  for (int i=0; i<byte_count; i++) {
+    code = code + String(raw_data[i], 16);
+  }
+  ESP_LOGE(TAG, "   DECODED : %s", code.c_str());
 }
 
 void WiegandReader::setup() {
@@ -51,13 +51,11 @@ void WiegandReader::setup() {
   this->pin_d0_->attach_interrupt(WiegandReader::pin_state_changed_, this, CHANGE);
   this->pin_d1_->attach_interrupt(WiegandReader::pin_state_changed_, this, CHANGE);
   this->pin_state_changed_(this);
-
 }
 
 void WiegandReader::update() {
-  noInterrupts();
+  InterruptLock lock;
   this->wiegand_.flush();
-  interrupts();
 }
 
 void WiegandReader::set_data_pins(GPIOPin *pin_d0, GPIOPin *pin_d1){

@@ -17,17 +17,14 @@ class WiegandReader : public PollingComponent {
   void setup() override;
   void set_data_pins(GPIOPin *pin_d0, GPIOPin *pin_d1);
   void dump_config() override;
-
   void update() override;
   float get_setup_priority() const override;
-
   void register_trigger(WiegandReaderTrigger *trig) { this->triggers_.push_back(trig); }
 
  protected:
   static void received_data_(uint8_t* data, uint8_t bits, WiegandReader *reader);
   static void pin_state_changed_(WiegandReader *reader);
-  static void received_data_error_(Wiegand::DataError error, uint8_t* rawData, uint8_t rawBits, const char* message);
-
+  static void received_data_error_(Wiegand::DataError error, uint8_t* raw_data, uint8_t raw_bits, const char* message);
   Wiegand wiegand_;
   GPIOPin *pin_d0_;
   GPIOPin *pin_d1_;
