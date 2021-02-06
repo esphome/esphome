@@ -12,6 +12,10 @@
 namespace esphome {
 namespace display {
 
+  #define DISPLAY_BUFFER_PARTS 4
+  #define DISPLAY_BUFFER_PART(x) ((int)(x/(this->get_buffer_length_()/DISPLAY_BUFFER_PARTS)))
+  #define DISPLAY_BUFFER_POS(x) (x%(this->get_buffer_length_()/DISPLAY_BUFFER_PARTS))
+
 /** TextAlign is used to tell the display class how to position a piece of text. By default
  * the coordinates you enter for the print*() functions take the upper left corner of the text
  * as the "anchor" point. You can customize this behavior to, for example, make the coordinates
@@ -312,7 +316,7 @@ class DisplayBuffer {
 
   void do_update_();
 
-  uint8_t *buffer_{nullptr};
+  uint8_t *buffer_[DISPLAY_BUFFER_PARTS]{nullptr};
   DisplayRotation rotation_{DISPLAY_ROTATION_0_DEGREES};
   optional<display_writer_t> writer_{};
   DisplayPage *page_{nullptr};
