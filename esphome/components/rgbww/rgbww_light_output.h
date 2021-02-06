@@ -22,7 +22,7 @@ class RGBWWLightOutput : public light::LightOutput {
     auto traits = light::LightTraits();
     traits.set_supports_brightness(true);
     traits.set_supports_rgb(true);
-    traits.set_supports_rgb_white_value(true);
+    traits.set_supports_rgb_white_value(!color_interlock_);
     traits.set_supports_color_temperature(true);
     traits.set_supports_color_interlock(this->color_interlock_);
     traits.set_min_mireds(this->cold_white_temperature_);
