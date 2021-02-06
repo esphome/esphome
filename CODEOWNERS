@@ -37,6 +37,7 @@ esphome/components/globals/* @esphome/core
 esphome/components/gpio/* @esphome/core
 esphome/components/homeassistant/* @OttoWinter
 esphome/components/i2c/* @esphome/core
+esphome/components/inkbird_ibsth1_mini/* @fkirill
 esphome/components/inkplate6/* @jesserockz
 esphome/components/integration/* @OttoWinter
 esphome/components/interval/* @esphome/core
