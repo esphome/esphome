@@ -1192,6 +1192,8 @@ output:
   - platform: esp32_dac
     pin: GPIO25
     id: dac_output
+  - platform: mcp4725
+    id: mcp4725_dac_output
 
 e131:
 
@@ -1560,6 +1562,9 @@ switch:
           level: 50%
       - output.set_level:
           id: dac_output
+          level: !lambda 'return 0.5;'
+      - output.set_level:
+          id: mcp4725_dac_output
           level: !lambda 'return 0.5;'
     turn_off_action:
       - switch.turn_on: living_room_lights_off
