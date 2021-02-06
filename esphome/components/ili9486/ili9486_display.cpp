@@ -219,18 +219,9 @@ void ILI9486Display::invert_display_(bool invert) { this->command(invert ? ILI94
 int ILI9486Display::get_width_internal() { return this->width_; }
 int ILI9486Display::get_height_internal() { return this->height_; }
 
-//   M5Stack display
-void ILI9486M5Stack::initialize() {
-  this->init_lcd_(INITCMD_M5STACK);
-  this->width_ = 320;
-  this->height_ = 240;
-  this->invert_display_(true);
-  this->fill_internal_(COLOR_BLACK);
-}
-
 //   24_TFT display
-void ILI9486TFT24::initialize() {
-  this->init_lcd_(INITCMD_TFT);
+void ILI9486TFT35::initialize() {
+  this->init_lcd_(INITCMD_TFT35);
   this->width_ = 240;
   this->height_ = 320;
   this->fill_internal_(COLOR_BLACK);

@@ -10,8 +10,7 @@ namespace esphome {
 namespace ili9486 {
 
 enum ILI9486Model {
-  M5STACK = 0,
-  TFT_24,
+  TFT_35
 };
 
 class ILI9486Display : public PollingComponent,
@@ -55,8 +54,8 @@ class ILI9486Display : public PollingComponent,
   uint8_t convert_to_8bit_color_(uint16_t color_16bit);
 
   ILI9486Model model_;
-  int16_t width_{320};   ///< Display width as modified by current rotation
-  int16_t height_{240};  ///< Display height as modified by current rotation
+  int16_t width_{480};   ///< Display width as modified by current rotation
+  int16_t height_{320};  ///< Display height as modified by current rotation
   uint16_t x_low_{0};
   uint16_t y_low_{0};
   uint16_t x_high_{0};
@@ -84,7 +83,7 @@ class ILI9486M5Stack : public ILI9486Display {
 };
 
 //-----------   ILI9486_24_TFT display --------------
-class ILI9486TFT24 : public ILI9486Display {
+class ILI9486TFT35 : public ILI9486Display {
  public:
   void initialize() override;
 };
