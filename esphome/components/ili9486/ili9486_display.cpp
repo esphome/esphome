@@ -222,7 +222,7 @@ int ILI9486Display::get_height_internal() { return this->height_; }
 //   24_TFT display
 void ILI9486TFT35::initialize() {
   this->init_lcd_(INITCMD_TFT35);
-  this->width_ = 240;
+  this->width_ = 480;
   this->height_ = 320;
   this->fill_internal_(COLOR_BLACK);
 }
