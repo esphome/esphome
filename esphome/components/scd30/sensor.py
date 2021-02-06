@@ -23,10 +23,10 @@ def remove_altitude_suffix(value):
 
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(SCD30Component),
-    cv.Required(CONF_CO2): sensor.sensor_schema(UNIT_PARTS_PER_MILLION,
+    cv.Optional(CONF_CO2): sensor.sensor_schema(UNIT_PARTS_PER_MILLION,
                                                 ICON_MOLECULE_CO2, 0),
-    cv.Required(CONF_TEMPERATURE): sensor.sensor_schema(UNIT_CELSIUS, ICON_THERMOMETER, 1),
-    cv.Required(CONF_HUMIDITY): sensor.sensor_schema(UNIT_PERCENT, ICON_WATER_PERCENT, 1),
+    cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(UNIT_CELSIUS, ICON_THERMOMETER, 1),
+    cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(UNIT_PERCENT, ICON_WATER_PERCENT, 1),
     cv.Optional(CONF_AUTOMATIC_SELF_CALIBRATION, default=True): cv.boolean,
     cv.Optional(CONF_ALTITUDE_COMPENSATION): cv.All(remove_altitude_suffix,
                                                     cv.int_range(min=0, max=0xFFFF,
