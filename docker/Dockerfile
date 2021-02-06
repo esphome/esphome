@@ -16,7 +16,7 @@ ENV USERNAME="" PASSWORD=""
 EXPOSE 6052
 
 # Run healthcheck (heartbeat)
-HEALTHCHECK --interval=5m --timeout=3s \
+HEALTHCHECK --interval=5m --timeout=2m \
   CMD curl --fail http://localhost:6052 || exit 1
 
 # The directory the user should mount their configuration files to
