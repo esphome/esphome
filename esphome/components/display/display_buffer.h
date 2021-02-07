@@ -12,6 +12,7 @@
 namespace esphome {
 namespace display {
 
+  // defines for buffer splitting
   #define DISPLAY_BUFFER_PARTS 4
   #define DISPLAY_BUFFER_PART(x) ((int)(x/(this->get_buffer_length_()/DISPLAY_BUFFER_PARTS)))
   #define DISPLAY_BUFFER_POS(x) (x%(this->get_buffer_length_()/DISPLAY_BUFFER_PARTS))
@@ -313,10 +314,13 @@ class DisplayBuffer {
   virtual int get_width_internal() = 0;
 
   void init_internal_(uint32_t buffer_length);
+  void init_internal_multiple_(uint32_t buffer_length);
+
 
   void do_update_();
 
-  uint8_t *buffer_[DISPLAY_BUFFER_PARTS]{nullptr};
+  uint8_t *buffer_{nullptr};
+  uint8_t *buffer_multiple_[DISPLAY_BUFFER_PARTS]{nullptr};
   DisplayRotation rotation_{DISPLAY_ROTATION_0_DEGREES};
   optional<display_writer_t> writer_{};
   DisplayPage *page_{nullptr};

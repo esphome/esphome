@@ -9,7 +9,7 @@ namespace ili9486 {
 static const char *TAG = "ili9486";
 
 void ILI9486Display::setup_pins_() {
-  this->init_internal_(this->get_buffer_length_());
+  this->init_internal_multiple_(this->get_buffer_length_());
   this->dc_pin_->setup();  // OUTPUT
   this->dc_pin_->digital_write(false);
   if (this->reset_pin_ != nullptr) {
@@ -95,7 +95,7 @@ void ILI9486Display::display_() {
     for (uint16_t col = 0; col < w; col++) {
       uint32_t pos = start_pos + (row * width_) + col;
 
-      uint16_t color = convert_to_16bit_color_(buffer_[DISPLAY_BUFFER_PART(pos)][DISPLAY_BUFFER_POS(pos)]);
+      uint16_t color = convert_to_16bit_color_(buffer_multiple_[DISPLAY_BUFFER_PART(pos)][DISPLAY_BUFFER_POS(pos)]);
       this->write_byte(color >> 8);
       this->write_byte(color);
     }
@@ -132,7 +132,7 @@ uint8_t ILI9486Display::convert_to_8bit_color_(uint16_t color_16bit) {
 void ILI9486Display::fill(Color color) {
   auto color565 = color.to_rgb_565();
   for (int i = 0; i < DISPLAY_BUFFER_PARTS; i++) {
-    memset(this->buffer_[i], convert_to_8bit_color_(color565), this->get_buffer_length_() / DISPLAY_BUFFER_PARTS);
+    memset(this->buffer_multiple_[i], convert_to_8bit_color_(color565), this->get_buffer_length_() / DISPLAY_BUFFER_PARTS);
   }
   this->x_low_ = 0;
   this->y_low_ = 0;
@@ -148,7 +148,7 @@ void ILI9486Display::fill_internal_(Color color) {
   for (uint32_t i = 0; i < (this->get_width_internal()) * (this->get_height_internal()); i++) {
     this->write_byte(color565 >> 8);
     this->write_byte(color565);
-    buffer_[DISPLAY_BUFFER_PART(i)][DISPLAY_BUFFER_POS(i)] = 0;
+    buffer_multiple_[DISPLAY_BUFFER_PART(i)][DISPLAY_BUFFER_POS(i)] = 0;
   }
   this->end_data_();
 }
@@ -165,7 +165,7 @@ void HOT ILI9486Display::draw_absolute_pixel_internal(int x, int y, Color color)
 
   uint32_t pos = (y * width_) + x;
   auto color565 = color.to_rgb_565();
-  buffer_[DISPLAY_BUFFER_PART(pos)][DISPLAY_BUFFER_POS(pos)] = convert_to_8bit_color_(color565);
+  buffer_multiple_[DISPLAY_BUFFER_PART(pos)][DISPLAY_BUFFER_POS(pos)] = convert_to_8bit_color_(color565);
 }
 
 // should return the total size: return this->get_width_internal() * this->get_height_internal() * 2 // 16bit color
@@ -224,8 +224,8 @@ int ILI9486Display::get_height_internal() { return this->height_; }
 //   24_TFT display
 void ILI9486TFT35::initialize() {
   this->init_lcd_(INITCMD_TFT35);
-  this->width_ = 480;
-  this->height_ = 320;
+  this->width_ = 320;
+  this->height_ = 480;
   this->fill_internal_(COLOR_BLACK);
 }
 

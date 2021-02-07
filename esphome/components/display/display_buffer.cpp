@@ -13,8 +13,18 @@ const Color COLOR_ON(1, 1, 1, 1);
 
 void DisplayBuffer::init_internal_(uint32_t buffer_length) {
   for (int i = 0; i < DISPLAY_BUFFER_PARTS; i++) {
-    this->buffer_[i] = new uint8_t[buffer_length / DISPLAY_BUFFER_PARTS];
-    if (this->buffer_[i] == nullptr) {
+    this->buffer_ = new uint8_t[buffer_length];
+    if (this->buffer_ == nullptr) {
+      ESP_LOGE(TAG, "Could not allocate buffer for display!");
+      return;
+    }
+  }
+  this->clear();
+}
+void DisplayBuffer::init_internal_multiple_(uint32_t buffer_length) {
+  for (int i = 0; i < DISPLAY_BUFFER_PARTS; i++) {
+    this->buffer_multiple_[i] = new uint8_t[buffer_length / DISPLAY_BUFFER_PARTS];
+    if (this->buffer_multiple_[i] == nullptr) {
       ESP_LOGE(TAG, "Could not allocate buffer for display!");
       return;
     }

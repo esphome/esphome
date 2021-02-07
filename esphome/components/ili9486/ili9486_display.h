@@ -16,7 +16,7 @@ enum ILI9486Model {
 class ILI9486Display : public PollingComponent,
                        public display::DisplayBuffer,
                        public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
-                                             spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_40MHZ> {
+                                             spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_20MHZ> {
  public:
   void set_dc_pin(GPIOPin *dc_pin) { dc_pin_ = dc_pin; }
   float get_setup_priority() const override;
@@ -54,8 +54,8 @@ class ILI9486Display : public PollingComponent,
   uint8_t convert_to_8bit_color_(uint16_t color_16bit);
 
   ILI9486Model model_;
-  int16_t width_{480};   ///< Display width as modified by current rotation
-  int16_t height_{320};  ///< Display height as modified by current rotation
+  int16_t width_{320};   ///< Display width as modified by current rotation
+  int16_t height_{480};  ///< Display height as modified by current rotation
   uint16_t x_low_{0};
   uint16_t y_low_{0};
   uint16_t x_high_{0};
