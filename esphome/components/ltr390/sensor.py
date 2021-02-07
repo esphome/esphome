@@ -4,6 +4,7 @@ from esphome.components import i2c, sensor
 from esphome.const import CONF_ID, CONF_GAIN, CONF_LIGHT, CONF_RESOLUTION, \
     UNIT_LUX, ICON_BRIGHTNESS_5
 
+CODEOWNERS = ['@sjtrny']
 DEPENDENCIES = ['i2c']
 
 ltr390_ns = cg.esphome_ns.namespace('ltr390')
