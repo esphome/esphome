@@ -46,8 +46,8 @@ class RGBWWLightOutput : public light::LightOutput {
   output::FloatOutput *blue_;
   output::FloatOutput *cold_white_;
   output::FloatOutput *warm_white_;
-  float cold_white_temperature_;
-  float warm_white_temperature_;
+  int cold_white_temperature_;
+  int warm_white_temperature_;
   bool constant_brightness_;
   bool color_interlock_{false};
 };
