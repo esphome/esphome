@@ -7,6 +7,8 @@ from esphome.const import CONF_ID, CONF_INTERNAL_FILTER, \
     ICON_PULSE, UNIT_PULSES, UNIT_PULSES_PER_MINUTE
 from esphome.core import CORE
 
+CODEOWNERS = ['@stevebaxter']
+
 pulse_meter_ns = cg.esphome_ns.namespace('pulse_meter')
 
 PulseMeterSensor = pulse_meter_ns.class_('PulseMeterSensor',
