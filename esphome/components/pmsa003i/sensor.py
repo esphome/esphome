@@ -6,6 +6,7 @@ from esphome.const import CONF_ID, CONF_PM_1_0, CONF_PM_2_5, CONF_PM_10_0, \
     UNIT_MICROGRAMS_PER_CUBIC_METER, \
     ICON_CHEMICAL_WEAPON, ICON_COUNTER
 
+CODEOWNERS = ['@sjtrny']
 DEPENDENCIES = ['i2c']
 
 pmsa003i_ns = cg.esphome_ns.namespace('pmsa003i')
