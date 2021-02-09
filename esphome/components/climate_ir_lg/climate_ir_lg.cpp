@@ -28,13 +28,6 @@ const uint8_t TEMP_RANGE = TEMP_MAX - TEMP_MIN + 1;
 const uint32_t TEMP_MASK = 0XF00;
 const uint32_t TEMP_SHIFT = 8;
 
-// Constants
-static const uint32_t HEADER_HIGH_US = 8000;
-static const uint32_t HEADER_LOW_US = 4000;
-static const uint32_t BIT_HIGH_US = 600;
-static const uint32_t BIT_ONE_LOW_US = 1600;
-static const uint32_t BIT_ZERO_LOW_US = 550;
-
 const uint16_t BITS = 28;
 
 void LgIrClimate::transmit_state() {
@@ -108,13 +101,13 @@ bool LgIrClimate::on_receive(remote_base::RemoteReceiveData data) {
   uint8_t nbits = 0;
   uint32_t remote_state = 0;
 
-  if (!data.expect_item(HEADER_HIGH_US, HEADER_LOW_US))
+  if (!data.expect_item(this->header_high_, this->header_low_))
     return false;
 
   for (nbits = 0; nbits < 32; nbits++) {
-    if (data.expect_item(BIT_HIGH_US, BIT_ONE_LOW_US)) {
+    if (data.expect_item(this->bit_high_, this->bit_one_low_)) {
       remote_state = (remote_state << 1) | 1;
-    } else if (data.expect_item(BIT_HIGH_US, BIT_ZERO_LOW_US)) {
+    } else if (data.expect_item(this->bit_high_, this->bit_zero_low_)) {
       remote_state = (remote_state << 1) | 0;
     } else if (nbits == BITS) {
       break;
@@ -179,15 +172,16 @@ void LgIrClimate::transmit_(uint32_t value) {
   data->set_carrier_frequency(38000);
   data->reserve(2 + BITS * 2u);
 
-  data->item(HEADER_HIGH_US, HEADER_LOW_US);
+  data->item(this->header_high_, this->header_low_);
 
   for (uint32_t mask = 1UL << (BITS - 1); mask != 0; mask >>= 1) {
-    if (value & mask)
-      data->item(BIT_HIGH_US, BIT_ONE_LOW_US);
-    else
-      data->item(BIT_HIGH_US, BIT_ZERO_LOW_US);
+    if (value & mask) {
+      data->item(this->bit_high_, this->bit_one_low_);
+    } else {
+      data->item(this->bit_high_, this->bit_zero_low_);
+    }
   }
-  data->mark(BIT_HIGH_US);
+  data->mark(this->bit_high_);
   transmit.perform();
 }
 void LgIrClimate::calc_checksum_(uint32_t &value) {
