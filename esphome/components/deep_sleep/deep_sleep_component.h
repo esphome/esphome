@@ -84,8 +84,14 @@ extern bool global_has_deep_sleep;
 template<typename... Ts> class EnterDeepSleepAction : public Action<Ts...> {
  public:
   EnterDeepSleepAction(DeepSleepComponent *deep_sleep) : deep_sleep_(deep_sleep) {}
+  TEMPLATABLE_VALUE(uint32_t duration_ms);
 
-  void play(Ts... x) override { this->deep_sleep_->begin_sleep(true); }
+  void play(Ts... x) override {
+   if (this->duration_ms_.has_value()) {
+    this->deep_sleep_->set_sleep_duration(this->duration_ms_.value(x...));
+   }
+   this->deep_sleep_->begin_sleep(true);
+  }
 
  protected:
   DeepSleepComponent *deep_sleep_;
