@@ -83,10 +83,16 @@ def to_code(config):
 
     cg.add_define('USE_DEEP_SLEEP')
 
-@automation.register_action('deep_sleep.enter', EnterDeepSleepAction, automation.maybe_simple_id({
+DEEP_SLEEP_ENTER_SCHEMA = automation.maybe_simple_id({	
     cv.GenerateID(): cv.use_id(DeepSleepComponent),
     cv.Optional(CONF_SLEEP_DURATION): cv.templatable(cv.int_),
-}))
+})
+
+DEEP_SLEEP_PREVENT_SCHEMA = automation.maybe_simple_id({	
+    cv.GenerateID(): cv.use_id(DeepSleepComponent),
+})
+
+@automation.register_action('deep_sleep.enter', EnterDeepSleepAction, DEEP_SLEEP_ENTER_SCHEMA)
 def deep_sleep_enter_to_code(config, action_id, template_arg, args):
     paren = yield cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
@@ -96,9 +102,7 @@ def deep_sleep_enter_to_code(config, action_id, template_arg, args):
     yield var
 
 
-@automation.register_action('deep_sleep.prevent', PreventDeepSleepAction, automation.maybe_simple_id({
-    cv.GenerateID(): cv.use_id(DeepSleepComponent),
-}))
+@automation.register_action('deep_sleep.prevent', PreventDeepSleepAction, DEEP_SLEEP_PREVENT_SCHEMA)
 def deep_sleep_prevent_to_code(config, action_id, template_arg, args):
     paren = yield cg.get_variable(config[CONF_ID])
     yield cg.new_Pvariable(action_id, template_arg, paren)
