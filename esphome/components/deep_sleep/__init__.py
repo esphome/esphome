@@ -83,14 +83,17 @@ def to_code(config):
 
     cg.add_define('USE_DEEP_SLEEP')
 
-DEEP_SLEEP_ENTER_SCHEMA = automation.maybe_simple_id({	
+
+DEEP_SLEEP_ENTER_SCHEMA = automation.maybe_simple_id({
     cv.GenerateID(): cv.use_id(DeepSleepComponent),
     cv.Optional(CONF_SLEEP_DURATION): cv.templatable(cv.int_),
 })
 
-DEEP_SLEEP_PREVENT_SCHEMA = automation.maybe_simple_id({	
+
+DEEP_SLEEP_PREVENT_SCHEMA = automation.maybe_simple_id({
     cv.GenerateID(): cv.use_id(DeepSleepComponent),
 })
+
 
 @automation.register_action('deep_sleep.enter', EnterDeepSleepAction, DEEP_SLEEP_ENTER_SCHEMA)
 def deep_sleep_enter_to_code(config, action_id, template_arg, args):
