@@ -309,7 +309,7 @@ text_sensor:
           tag: 1234-abcd
       - homeassistant.tag_scanned: 1234-abcd
       - deep_sleep.enter:
-          duration: 5000
+          sleep_duration: 5000
   - platform: template
     name: 'Template Text Sensor'
     lambda: |-

@@ -83,8 +83,7 @@ def to_code(config):
 
     cg.add_define('USE_DEEP_SLEEP')
 
-
-@automation.register_action('deep_sleep.enter', EnterDeepSleepAction, maybe_simple_id({
+@automation.register_action('deep_sleep.enter', EnterDeepSleepAction, automation.maybe_simple_id({
     cv.GenerateID(): cv.use_id(DeepSleepComponent),
     cv.Optional(CONF_SLEEP_DURATION): cv.templatable(cv.int_),
 }))
@@ -93,7 +92,7 @@ def deep_sleep_enter_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg, paren)
     if CONF_SLEEP_DURATION in config:
         template_ = yield cg.templatable(config[CONF_SLEEP_DURATION], args, cg.int32)
-        cg.add(var.set_duration(template_))
+        cg.add(var.set_duration_ms(template_))
     yield var
 
 
