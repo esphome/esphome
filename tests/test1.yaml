@@ -26,6 +26,25 @@ esphome:
           green: !lambda 'return 255;'
           blue: 0%
           white: 100%
+      - http_request.get:
+          url: https://esphome.io
+          headers:
+            Content-Type: application/json
+          verify_ssl: false
+      - http_request.post:
+          url: https://esphome.io
+          verify_ssl: false
+          json:
+            key: !lambda |-
+              return id(template_text).state;
+            greeting: 'Hello World'
+      - http_request.send:
+          method: PUT
+          url: https://esphome.io
+          headers:
+            Content-Type: application/json
+          body: 'Some data'
+          verify_ssl: false
   build_path: build/test1
 
 packages:
@@ -49,6 +68,10 @@ wifi:
   domain: .local
   reboot_timeout: 120s
   power_save_mode: none
+
+http_request:
+  useragent: esphome/device
+  timeout: 10s
 
 mqtt:
   broker: '192.168.178.84'
@@ -210,11 +233,15 @@ wled:
 
 adalight:
 
+mcp3008:
+  - id: 'mcp3008_hub'
+    cs_pin: GPIO12
+
 mcp23s08:
   - id: 'mcp23s08_hub'
     cs_pin: GPIO12
     deviceaddress: 0
-    
+
 mcp23s17:
   - id: 'mcp23s17_hub'
     cs_pin: GPIO12
@@ -814,6 +841,12 @@ sensor:
     id: ph_ezo
     address: 99
     unit_of_measurement: 'pH'
+  - platform: mcp3008
+    update_interval: 5s
+    mcp3008_id: 'mcp3008_hub'
+    id: freezer_temp_source
+    reference_voltage: 3.19
+    number: 0
 
 ### Note enabling all sensors will probably cause a stackoverflow
 ### https://github.com/esphome/issues/issues/855
@@ -1012,7 +1045,7 @@ esp32_touch:
 
 binary_sensor:
   - platform: gpio
-    name: "MCP23S08 Pin #1"
+    name: 'MCP23S08 Pin #1'
     pin:
       mcp23s08: mcp23s08_hub
       # Use pin number 1
@@ -1021,7 +1054,7 @@ binary_sensor:
       mode: INPUT_PULLUP
       inverted: False
   - platform: gpio
-    name: "MCP23S17 Pin #1"
+    name: 'MCP23S17 Pin #1'
     pin:
       mcp23s17: mcp23s17_hub
       # Use pin number 1
@@ -1358,6 +1391,8 @@ output:
   - platform: esp32_dac
     pin: GPIO25
     id: dac_output
+  - platform: mcp4725
+    id: mcp4725_dac_output
 
 e131:
 
@@ -1590,7 +1625,7 @@ climate:
 
 switch:
   - platform: gpio
-    name: "MCP23S08 Pin #0"
+    name: 'MCP23S08 Pin #0'
     pin:
       mcp23s08: mcp23s08_hub
       # Use pin number 0
@@ -1598,7 +1633,7 @@ switch:
       mode: OUTPUT
       inverted: False
   - platform: gpio
-    name: "MCP23S17 Pin #0"
+    name: 'MCP23S17 Pin #0'
     pin:
       mcp23s17: mcp23s17_hub
       # Use pin number 0
@@ -1726,6 +1761,9 @@ switch:
           level: 50%
       - output.set_level:
           id: dac_output
+          level: !lambda 'return 0.5;'
+      - output.set_level:
+          id: mcp4725_dac_output
           level: !lambda 'return 0.5;'
     turn_off_action:
       - switch.turn_on: living_room_lights_off
@@ -1915,7 +1953,7 @@ display:
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
   - platform: ssd1322_spi
-    model: "SSD1322 256x64"
+    model: 'SSD1322 256x64'
     cs_pin: GPIO23
     dc_pin: GPIO23
     reset_pin: GPIO23
@@ -2022,6 +2060,12 @@ rc522_spi:
     - lambda: |-
         ESP_LOGD("main", "Found tag %s", x.c_str());
 
+rc522_i2c:
+  update_interval: 1s
+  on_tag:
+    - lambda: |-
+        ESP_LOGD("main", "Found tag %s", x.c_str());
+
 gps:
 
 time:
@@ -2036,20 +2080,16 @@ time:
       then:
         - lambda: 'ESP_LOGD("main", "time");'
   - platform: gps
-    on_time:
-      seconds: 0
-      minutes: /15
+    on_time_sync:
       then:
-        ds1307.write:
+        ds1307.write_time:
           id: ds1307_time
   - platform: ds1307
     id: ds1307_time
+    update_interval: never
     on_time:
       seconds: 0
-      then:
-          ds1307.read
-
-
+      then: ds1307.read_time
 
 cover:
   - platform: template
@@ -2132,7 +2172,7 @@ text_sensor:
           value: '0'
       - canbus.send:
           can_id: 23
-          data: [ 0x10, 0x20, 0x30 ]
+          data: [0x10, 0x20, 0x30]
   - platform: template
     name: Template Text Sensor
     id: template_text
@@ -2160,3 +2200,21 @@ sn74hc595:
 rtttl:
   output: gpio_19
 
+canbus:
+  - platform: mcp2515
+    cs_pin: GPIO17
+    can_id: 4
+    bit_rate: 50kbps
+    on_frame:
+      - can_id: 500
+        then:
+          - lambda: |-
+              std::string b(x.begin(), x.end());
+              ESP_LOGD("canid 500", "%s", &b[0] );
+      - can_id: 23
+        then:
+          - if:
+              condition:
+                lambda: 'return x[0] == 0x11;'
+              then:
+                light.toggle: living_room_lights

@@ -30,6 +30,7 @@ struct TuyaDatapoint {
     uint8_t value_enum;
     uint16_t value_bitmask;
   };
+  std::string value_string;
 };
 
 struct TuyaDatapointListener {
