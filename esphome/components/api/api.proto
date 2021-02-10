@@ -418,6 +418,7 @@ message ListEntitiesSensorResponse {
   string unit_of_measurement = 6;
   int32 accuracy_decimals = 7;
   bool force_update = 8;
+  string device_class = 9;
 }
 message SensorStateResponse {
   option (id) = 25;
