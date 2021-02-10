@@ -91,7 +91,7 @@ def to_code(config):
 def deep_sleep_enter_to_code(config, action_id, template_arg, args):
     paren = yield cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
-    if CONF_SLEEP_DURATION in config
+    if CONF_SLEEP_DURATION in config:
         template_ = yield cg.templatable(config[CONF_SLEEP_DURATION], args, cg.int32)
         cg.add(var.set_duration(template_))
     yield var
