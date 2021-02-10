@@ -1,14 +1,16 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import sensor, i2c
+from esphome import pins
 from esphome.const import CONF_ID, CONF_VOLTAGE, \
     UNIT_VOLT, ICON_FLASH, UNIT_AMPERE, UNIT_WATT
 
 DEPENDENCIES = ['i2c']
 
-ace7953_ns = cg.esphome_ns.namespace('ade7953')
-ADE7953 = ace7953_ns.class_('ADE7953', cg.PollingComponent, i2c.I2CDevice)
+ade7953_ns = cg.esphome_ns.namespace('ade7953')
+ADE7953 = ade7953_ns.class_('ADE7953', cg.PollingComponent, i2c.I2CDevice)
 
+CONF_IRQ_PIN = 'irq_pin'
 CONF_CURRENT_A = 'current_a'
 CONF_CURRENT_B = 'current_b'
 CONF_ACTIVE_POWER_A = 'active_power_a'
@@ -16,7 +18,7 @@ CONF_ACTIVE_POWER_B = 'active_power_b'
 
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(ADE7953),
-
+    cv.Optional(CONF_IRQ_PIN): pins.input_pin,
     cv.Optional(CONF_VOLTAGE): sensor.sensor_schema(UNIT_VOLT, ICON_FLASH, 1),
     cv.Optional(CONF_CURRENT_A): sensor.sensor_schema(UNIT_AMPERE, ICON_FLASH, 2),
     cv.Optional(CONF_CURRENT_B): sensor.sensor_schema(UNIT_AMPERE, ICON_FLASH, 2),
@@ -29,6 +31,9 @@ def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     yield cg.register_component(var, config)
     yield i2c.register_i2c_device(var, config)
+
+    if CONF_IRQ_PIN in config:
+        cg.add(var.set_irq_pin(config[CONF_IRQ_PIN]))
 
     for key in [CONF_VOLTAGE, CONF_CURRENT_A, CONF_CURRENT_B, CONF_ACTIVE_POWER_A,
                 CONF_ACTIVE_POWER_B]:

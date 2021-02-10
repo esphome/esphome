@@ -10,6 +10,7 @@ namespace homeassistant {
 class HomeassistantTime : public time::RealTimeClock {
  public:
   void setup() override;
+  void update() override;
   void dump_config() override;
   void set_epoch_time(uint32_t epoch) { this->synchronize_epoch_(epoch); }
   float get_setup_priority() const override;
