@@ -87,10 +87,10 @@ template<typename... Ts> class EnterDeepSleepAction : public Action<Ts...> {
   TEMPLATABLE_VALUE(uint32_t, duration_ms);
 
   void play(Ts... x) override {
-   if (this->duration_ms_.has_value()) {
-    this->deep_sleep_->set_sleep_duration(this->duration_ms_.value(x...));
-   }
-   this->deep_sleep_->begin_sleep(true);
+    if (this->duration_ms_.has_value()) {
+      this->deep_sleep_->set_sleep_duration(this->duration_ms_.value(x...));
+    }
+    this->deep_sleep_->begin_sleep(true);
   }
 
  protected:
