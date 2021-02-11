@@ -11,6 +11,8 @@ from esphome.const import CONF_AUTO_MODE, CONF_AWAY_CONFIG, CONF_COOL_ACTION, CO
     CONF_ID, CONF_IDLE_ACTION, CONF_OFF_MODE, CONF_SENSOR, CONF_SWING_BOTH_ACTION, \
     CONF_SWING_HORIZONTAL_ACTION, CONF_SWING_OFF_ACTION, CONF_SWING_VERTICAL_ACTION
 
+CODEOWNERS = ['@kbx81']
+
 thermostat_ns = cg.esphome_ns.namespace('thermostat')
 ThermostatClimate = thermostat_ns.class_('ThermostatClimate', climate.Climate, cg.Component)
 ThermostatClimateTargetTempConfig = thermostat_ns.struct('ThermostatClimateTargetTempConfig')

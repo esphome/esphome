@@ -268,6 +268,8 @@ class Config(OrderedDict):
                 data = data[item_index]
             except (KeyError, IndexError, TypeError):
                 return doc_range
+            if isinstance(data, core.ID):
+                data = data.id
             if isinstance(data, ESPHomeDataBase) and data.esp_range is not None:
                 doc_range = data.esp_range
 
@@ -675,7 +677,7 @@ def _load_config(command_line_substitutions):
     try:
         config = yaml_util.load_yaml(CORE.config_path)
     except EsphomeError as e:
-        raise InvalidYAMLError(e)
+        raise InvalidYAMLError(e) from e
     CORE.raw_config = config
 
     try:
@@ -693,13 +695,15 @@ def load_config(command_line_substitutions):
     try:
         return _load_config(command_line_substitutions)
     except vol.Invalid as err:
-        raise EsphomeError(f"Error while parsing config: {err}")
+        raise EsphomeError(f"Error while parsing config: {err}") from err
 
 
 def line_info(obj, highlight=True):
     """Display line config source."""
     if not highlight:
         return None
+    if isinstance(obj, core.ID):
+        obj = obj.id
     if isinstance(obj, ESPHomeDataBase) and obj.esp_range is not None:
         mark = obj.esp_range.start_mark
         source = "[source {}:{}]".format(mark.document, mark.line + 1)

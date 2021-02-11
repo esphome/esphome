@@ -10,6 +10,8 @@ CONF_EIGHTBITCOLOR = 'eightbitcolor'
 CONF_OFFSET_HEIGHT = 'offset_height'
 CONF_OFFSET_WIDTH = 'offset_width'
 
+CODEOWNERS = ['@kbx81']
+
 DEPENDENCIES = ['spi']
 
 ST7789V = st7789v_ns.class_('ST7789V', cg.PollingComponent, spi.SPIDevice,

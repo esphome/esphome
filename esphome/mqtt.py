@@ -67,7 +67,7 @@ def initialize(config, subscriptions, on_message, username, password, client_id)
         port = int(config[CONF_MQTT][CONF_PORT])
         client.connect(host, port)
     except OSError as err:
-        raise EsphomeError(f"Cannot connect to MQTT broker: {err}")
+        raise EsphomeError(f"Cannot connect to MQTT broker: {err}") from err
 
     try:
         client.loop_forever()
