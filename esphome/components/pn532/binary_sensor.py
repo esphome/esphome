@@ -3,11 +3,9 @@ import esphome.config_validation as cv
 from esphome.components import binary_sensor
 from esphome.const import CONF_UID, CONF_ID
 from esphome.core import HexInt
-from . import pn532_ns, PN532
+from . import pn532_ns, PN532, CONF_PN532_ID
 
 DEPENDENCIES = ['pn532']
-
-CONF_PN532_ID = 'pn532_id'
 
 
 def validate_uid(value):
@@ -18,8 +16,8 @@ def validate_uid(value):
                              "long.")
         try:
             x = int(x, 16)
-        except ValueError:
-            raise cv.Invalid("Valid characters for parts of a UID are 0123456789ABCDEF.")
+        except ValueError as err:
+            raise cv.Invalid("Valid characters for parts of a UID are 0123456789ABCDEF.") from err
         if x < 0 or x > 255:
             raise cv.Invalid("Valid values for UID parts (separated by '-') are 00 to FF")
     return value
