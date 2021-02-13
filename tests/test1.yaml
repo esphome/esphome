@@ -1282,6 +1282,15 @@ light:
     default_transition_length: 0s
     color_correct: [50%, 50%, 50%]
   - platform: fastled_clockless
+    id: led_matrix_32x8
+    name: "led_matrix_32x8"
+    chipset: WS2812B
+    pin: GPIO15
+    num_leds: 256
+    rgb_order: GRB
+    default_transition_length: 0s
+    color_correct: [50%, 50%, 50%]
+  - platform: fastled_clockless
     id: addr1
     chipset: WS2811
     pin: GPIO23
@@ -1856,6 +1865,18 @@ display:
       it.rectangle(1, 1, 6, 6, green);
       it.rectangle(2, 2, 4, 4, blue);
       it.rectangle(3, 3, 2, 2, red);
+  - platform: addressable_light_display
+    id: led_matrix_32x8_display
+    addressable_light_id: led_matrix_32x8
+    width: 32
+    height: 8
+    pixel_mapper: |-
+      if (x % 2 == 0) {
+        return (x * 8) + y;
+      }
+      return (x * 8) + (7 - y);
+    rotation: 0°
+    update_interval: 16ms
 tm1651:
   id: tm1651_battery
   clk_pin: GPIO23

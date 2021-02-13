@@ -3,9 +3,10 @@ import esphome.config_validation as cv
 from esphome.components import display, light
 from esphome.const import (
     CONF_ID, CONF_LAMBDA, CONF_PAGES, CONF_ADDRESSABLE_LIGHT_ID, CONF_HEIGHT, CONF_WIDTH,
-    CONF_UPDATE_INTERVAL,
+    CONF_UPDATE_INTERVAL, CONF_PIXEL_MAPPER
 )
 
+IntRef = cg.int_.operator('ref')
 addressable_light_display_ns = cg.esphome_ns.namespace('addressable_light_display')
 AddressableLightDisplay = addressable_light_display_ns.class_('AddressableLightDisplay',
                                                               display.DisplayBuffer,
@@ -17,6 +18,7 @@ CONFIG_SCHEMA = cv.All(display.FULL_DISPLAY_SCHEMA.extend({
     cv.Required(CONF_WIDTH): cv.positive_int,
     cv.Required(CONF_HEIGHT): cv.positive_int,
     cv.Optional(CONF_UPDATE_INTERVAL, default='16ms'): cv.positive_time_period_milliseconds,
+    cv.Optional(CONF_PIXEL_MAPPER): cv.returning_lambda,
 }), cv.has_at_most_one_key(CONF_PAGES, CONF_LAMBDA))
 
 
@@ -29,6 +31,12 @@ def to_code(config):
 
     yield cg.register_component(var, config)
     yield display.register_display(var, config)
+
+    if CONF_PIXEL_MAPPER in config:
+        pixel_mapper_template_ = yield cg.process_lambda(config[CONF_PIXEL_MAPPER],
+                                                 [(IntRef, 'x'), (IntRef, 'y')],
+                                                 return_type=cg.int_)
+        cg.add(var.set_pixel_mapper(pixel_mapper_template_))
 
     if CONF_LAMBDA in config:
         lambda_ = yield cg.process_lambda(config[CONF_LAMBDA], [(display.DisplayBufferRef, 'it')],

@@ -56,7 +56,12 @@ void HOT AddressableLightDisplay::draw_absolute_pixel_internal(int x, int y, Col
   if (x >= this->get_width_internal() || x < 0 || y >= this->get_height_internal() || y < 0)
     return;
 
-  this->addressable_light_buffer_[y * this->get_width_internal() + x] = color;
+  if (this->pixel_mapper_f_.has_value()) {
+    // Params are passed by reference, so they may be modified in call.
+    this->addressable_light_buffer_[(*this->pixel_mapper_f_)(x, y)] = color;
+  } else {
+    this->addressable_light_buffer_[y * this->get_width_internal() + x] = color;
+  }
 }
 }  // namespace addressable_light_display
 }  // namespace esphome
