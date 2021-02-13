@@ -9,4 +9,24 @@ wifi:
     - ssid: 'MySSID'
       password: 'password1'
 
+api:
+
+ota:
+
+logger:
+
+binary_sensor:
+  - platform: gpio
+    pin: GPIO0
+    id: io0_button
+
+output:
+  - platform: gpio
+    pin: GPIO2
+    id: built_in_led
+
 esp32_ble_server:
+
+esp32_improv:
+  activator: io0_button
+  status_indicator: built_in_led

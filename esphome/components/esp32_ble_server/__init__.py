@@ -1,6 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, ESP_PLATFORM_ESP32
+from esphome.core import coroutine_with_priority
 
 
 ESP_PLATFORMS = [ESP_PLATFORM_ESP32]
@@ -18,6 +19,7 @@ CONFIG_SCHEMA = cv.Schema({
 }).extend(cv.COMPONENT_SCHEMA)
 
 
+@coroutine_with_priority(60.0)
 def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     yield cg.register_component(var, config)
