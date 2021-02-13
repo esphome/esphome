@@ -111,6 +111,7 @@ jobs:
           - test2
           - test3
           - test4
+          - test5
     steps:
       - uses: actions/checkout@v2
       - name: Set up Python
