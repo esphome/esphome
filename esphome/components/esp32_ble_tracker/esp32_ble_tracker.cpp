@@ -54,7 +54,7 @@ void ESP32BLETracker::loop() {
   }
 
   if (xSemaphoreTake(this->scan_result_lock_, 5L / portTICK_PERIOD_MS)) {
-    uint32_t index = this->scan_result_index_;
+    int32_t index = this->scan_result_index_ - 1;
     xSemaphoreGive(this->scan_result_lock_);
 
     if (index >= 16) {
