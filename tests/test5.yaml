@@ -1,0 +1,12 @@
+esphome:
+  name: test5
+  platform: ESP32
+  board: nodemcu-32s
+  build_path: build/test5
+
+wifi:
+  networks:
+    - ssid: 'MySSID'
+      password: 'password1'
+
+esp32_ble_server:
