@@ -268,6 +268,8 @@ class Config(OrderedDict):
                 data = data[item_index]
             except (KeyError, IndexError, TypeError):
                 return doc_range
+            if isinstance(data, core.ID):
+                data = data.id
             if isinstance(data, ESPHomeDataBase) and data.esp_range is not None:
                 doc_range = data.esp_range
 
@@ -700,6 +702,8 @@ def line_info(obj, highlight=True):
     """Display line config source."""
     if not highlight:
         return None
+    if isinstance(obj, core.ID):
+        obj = obj.id
     if isinstance(obj, ESPHomeDataBase) and obj.esp_range is not None:
         mark = obj.esp_range.start_mark
         source = "[source {}:{}]".format(mark.document, mark.line + 1)
