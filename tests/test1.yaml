@@ -434,6 +434,9 @@ sensor:
     power:
       name: 'HLW8012 Power'
       id: hlw8012_power
+    energy:
+      name: "HLW8012 Energy"
+      id: hlw8012_energy
     update_interval: 15s
     current_resistor: 0.001 ohm
     voltage_divider: 2351
