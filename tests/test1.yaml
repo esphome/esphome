@@ -2019,3 +2019,5 @@ canbus:
                 lambda: 'return x[0] == 0x11;'
               then:
                 light.toggle: living_room_lights
+
+esp32_ble_server:
