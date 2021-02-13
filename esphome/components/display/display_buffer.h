@@ -308,7 +308,7 @@ class DisplayBuffer {
 
   virtual int get_width_internal() = 0;
 
-  void init_internal_(uint32_t buffer_length);
+  virtual void init_internal_(uint32_t buffer_length);
 
   void do_update_();
 

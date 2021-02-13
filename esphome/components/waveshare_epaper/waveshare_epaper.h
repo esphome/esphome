@@ -26,7 +26,7 @@ class WaveshareEPaper : public PollingComponent,
 
   void update() override;
 
-  void fill(Color color) override;
+  virtual void fill(Color color) override;
 
   void setup() override {
     this->setup_pins_();
@@ -38,7 +38,7 @@ class WaveshareEPaper : public PollingComponent,
  protected:
   void draw_absolute_pixel_internal(int x, int y, Color color) override;
 
-  bool wait_until_idle_();
+  virtual bool wait_until_idle_();
 
   void setup_pins_();
 
@@ -51,7 +51,7 @@ class WaveshareEPaper : public PollingComponent,
     }
   }
 
-  uint32_t get_buffer_length_();
+  virtual uint32_t get_buffer_length_();
 
   void start_command_();
   void end_command_();
@@ -269,6 +269,61 @@ class WaveshareEPaper7P5InV2 : public WaveshareEPaper {
 
   int get_height_internal() override;
 };
+
+
+enum WaveshareEPaperTypeFModel {
+  WAVESHARE_ACEP_5_65_IN = 0,
+};
+
+static const Color COLOR_F_BLACK(0, 0, 0);
+static const Color COLOR_F_WHITE(1, 1, 1);
+static const Color COLOR_F_GREEN(0, 1, 0);
+static const Color COLOR_F_BLUE(0, 0, 1);
+static const Color COLOR_F_RED(1, 0, 0);
+static const Color COLOR_F_YELLOW(1, 1, 0);
+static const Color COLOR_F_ORANGE(1, 0.5, 0);
+static const Color COLOR_F_CLEAN(0x123456); // Anything that isn't one of the above will do.
+
+class WaveshareEPaperTypeF : public WaveshareEPaper {
+ public:
+  WaveshareEPaperTypeF(WaveshareEPaperTypeFModel model);
+
+  void initialize() override;
+
+  void dump_config() override;
+
+  void display() override;
+
+  virtual void fill(Color color) override;
+
+  void deep_sleep() override {
+    if (this->reset_pin_ != nullptr) {
+      delay(100);  // NOLINT
+      this->command(0x07);
+      this->data(0xA5);
+      delay(100);  // NOLINT
+      this->reset_pin_->digital_write(false);
+    }
+  }
+
+ protected:
+  uint32_t *buffer_{nullptr};
+  virtual uint8_t color_(Color color);
+  
+  void init_internal_(uint32_t buffer_length) override;
+  void draw_absolute_pixel_internal(int x, int y, Color color) override;
+
+  int get_width_internal() override;
+  int get_height_internal() override;
+  uint32_t get_buffer_length_() override;
+  
+  bool wait_until_idle_() override;
+  bool wait_until_busy_();
+
+  WaveshareEPaperTypeFModel model_;
+};
+
+
 
 }  // namespace waveshare_epaper
 }  // namespace esphome
