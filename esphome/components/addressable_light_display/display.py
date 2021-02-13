@@ -34,8 +34,8 @@ def to_code(config):
 
     if CONF_PIXEL_MAPPER in config:
         pixel_mapper_template_ = yield cg.process_lambda(config[CONF_PIXEL_MAPPER],
-                                                 [(IntRef, 'x'), (IntRef, 'y')],
-                                                 return_type=cg.int_)
+                                                         [(IntRef, 'x'), (IntRef, 'y')],
+                                                         return_type=cg.int_)
         cg.add(var.set_pixel_mapper(pixel_mapper_template_))
 
     if CONF_LAMBDA in config:
