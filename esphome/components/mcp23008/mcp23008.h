@@ -39,6 +39,8 @@ class MCP23008 : public Component, public i2c::I2CDevice {
   void digital_write(uint8_t pin, bool value);
   void pin_mode(uint8_t pin, uint8_t mode);
 
+  void set_open_drain_ints(const bool value) { open_drain_ints_ = value; }
+
   float get_setup_priority() const override;
 
  protected:
@@ -50,6 +52,7 @@ class MCP23008 : public Component, public i2c::I2CDevice {
   void update_reg_(uint8_t pin, bool pin_value, uint8_t reg_a);
 
   uint8_t olat_{0x00};
+  bool open_drain_ints_;
 };
 
 class MCP23008GPIOPin : public GPIOPin {

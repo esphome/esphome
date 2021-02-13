@@ -1895,10 +1895,12 @@ pcf8574:
 
 mcp23017:
   - id: 'mcp23017_hub'
+    open_drain_interrupt: 'true'
 
 mcp23008:
   - id: 'mcp23008_hub'
     address: 0x22
+    open_drain_interrupt: 'true'
 
 mcp23016:
   - id: 'mcp23016_hub'
