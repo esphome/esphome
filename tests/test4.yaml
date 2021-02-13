@@ -22,8 +22,6 @@ ethernet:
 
 api:
 
-esp32_ble_server:
-
 i2c:
   sda: 21
   scl: 22
