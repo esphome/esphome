@@ -46,11 +46,6 @@ CONFIG_SCHEMA = cv.Schema({
     cv.Optional(CONF_HEATER_POWER, default="High"): cv.enum(HEATER_POWER_OPTIONS),
     cv.Optional(CONF_HEATER_TIME, default="Long"): cv.enum(HEATER_TIME_OPTIONS),
     cv.Optional(CONF_HEATER_MAX_DUTY, default=0.0): cv.float_range(min=0.0, max=0.05),
-
-    # TODO:
-    # - Prevent reading while heating
-    # - CHECKSUM
-
 }).extend(cv.polling_component_schema('60s')).extend(i2c.i2c_device_schema(0x44))
 
 TYPES = {
