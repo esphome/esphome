@@ -27,8 +27,15 @@ bool Parasite::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
       ESP_LOGD(TAG, "0x%02x", byte);
     }
     const auto &data = service_data.data;
-    uint16_t raw_moisture = data[0] << 8 | data[1];
-    ESP_LOGD(TAG, "Moisture: %u", raw_moisture);
+
+    // A 16-bit encoded raw value.
+    uint16_t moisture_raw = data[0] << 8 | data[1];
+
+    // A 16-bit encoded percentage value.
+    uint16_t moisture_percent_raw = data[2] << 8 | data[3];
+    double mositure_percent = (100.0 * moisture_percent_raw) / ((1 << 16) - 1);
+
+    ESP_LOGD(TAG, "Moisture: %u (%f)", moisture_raw, mositure_percent);
   }
   // TODO(rbaron): publish value (for MQTT).
   // this->humidity_->publish_state();
