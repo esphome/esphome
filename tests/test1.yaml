@@ -434,6 +434,9 @@ sensor:
     power:
       name: 'HLW8012 Power'
       id: hlw8012_power
+    energy:
+      name: "HLW8012 Energy"
+      id: hlw8012_energy
     update_interval: 15s
     current_resistor: 0.001 ohm
     voltage_divider: 2351
@@ -1892,10 +1895,12 @@ pcf8574:
 
 mcp23017:
   - id: 'mcp23017_hub'
+    open_drain_interrupt: 'true'
 
 mcp23008:
   - id: 'mcp23008_hub'
     address: 0x22
+    open_drain_interrupt: 'true'
 
 mcp23016:
   - id: 'mcp23016_hub'

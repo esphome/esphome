@@ -2,7 +2,7 @@
 
 MAJOR_VERSION = 1
 MINOR_VERSION = 16
-PATCH_VERSION = '0'
+PATCH_VERSION = '1'
 __short_version__ = f'{MAJOR_VERSION}.{MINOR_VERSION}'
 __version__ = f'{__short_version__}.{PATCH_VERSION}'
 
@@ -357,6 +357,7 @@ CONF_ON_VALUE = 'on_value'
 CONF_ON_VALUE_RANGE = 'on_value_range'
 CONF_ONE = 'one'
 CONF_OPEN_ACTION = 'open_action'
+CONF_OPEN_DRAIN_INTERRUPT = 'open_drain_interrupt'
 CONF_OPEN_DURATION = 'open_duration'
 CONF_OPEN_ENDSTOP = 'open_endstop'
 CONF_OPTIMISTIC = 'optimistic'
