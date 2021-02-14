@@ -18,38 +18,33 @@ void SHT4XComponent::start_heater_() {
 void SHT4XComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up sht4x...");
 
-  uint32_t heater_interval;
+  if (this->duty_cycle_ > 0.0) {
+    uint32_t heater_interval = (uint32_t)(this->heater_time_ / this->duty_cycle_);
+    ESP_LOGD(TAG, "Heater interval: %i", heater_interval);
 
-  // Calculate time interval for heater
-  if (this->duty_cycle_ > 0) {
-    heater_interval = (uint32_t)(this->heater_time_ / this->duty_cycle_);
-  } else {
-    heater_interval = 0;
+    if (this->heater_power_ == SHT4X_HEATERPOWER_HIGH) {
+      if (this->heater_time_ == SHT4X_HEATERTIME_LONG) {
+        this->heater_command_ = 0x39;
+      } else {
+        this->heater_command_ = 0x32;
+      }
+    } else if (this->heater_power_ == SHT4X_HEATERPOWER_MED) {
+      if (this->heater_time_ == SHT4X_HEATERTIME_LONG) {
+        this->heater_command_ = 0x2F;
+      } else {
+        this->heater_command_ = 0x24;
+      }
+    } else {
+      if (this->heater_time_ == SHT4X_HEATERTIME_LONG) {
+        this->heater_command_ = 0x1E;
+      } else {
+        this->heater_command_ = 0x15;
+      }
+    }
+    ESP_LOGD(TAG, "Heater command: %x", this->heater_command_);
+    
+    this->set_interval(heater_interval, std::bind(&SHT4XComponent::start_heater_, this));
   }
-  ESP_LOGD(TAG, "Heater interval: %i", heater_interval);
-
-  if (this->heater_power_ == SHT4X_HEATERPOWER_HIGH) {
-    if (this->heater_time_ == SHT4X_HEATERTIME_LONG) {
-      this->heater_command_ = 0x39;
-    } else {
-      this->heater_command_ = 0x32;
-    }
-  } else if (this->heater_power_ == SHT4X_HEATERPOWER_MED) {
-    if (this->heater_time_ == SHT4X_HEATERTIME_LONG) {
-      this->heater_command_ = 0x2F;
-    } else {
-      this->heater_command_ = 0x24;
-    }
-  } else {
-    if (this->heater_time_ == SHT4X_HEATERTIME_LONG) {
-      this->heater_command_ = 0x1E;
-    } else {
-      this->heater_command_ = 0x15;
-    }
-  }
-  ESP_LOGD(TAG, "Heater command: %x", this->heater_command_);
-
-  this->set_interval(heater_interval, std::bind(&SHT4XComponent::start_heater_, this));
 }
 
 void SHT4XComponent::dump_config() { LOG_I2C_DEVICE(this); }
