@@ -1825,10 +1825,10 @@ display:
     dc_pin: GPIO16
     reset_pin: GPIO23
     rotation: 0
-    devicewidth: 128
-    deviceheight: 160
-    colstart: 0
-    rowstart: 0
+    device_width: 128
+    device_height: 160
+    col_start: 0
+    row_start: 0
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
 tm1651:
