@@ -35,7 +35,11 @@ bool Parasite::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
     uint16_t moisture_percent_raw = data[2] << 8 | data[3];
     double mositure_percent = (100.0 * moisture_percent_raw) / ((1 << 16) - 1);
 
-    ESP_LOGD(TAG, "Moisture: %u (%f)", moisture_raw, mositure_percent);
+    // A 16-bit encoded millivolt value for the battery voltage.
+    uint16_t battery_millivolt = data[4] << 8 | data[5];
+    double battery_voltage = battery_millivolt / 1000.0;
+
+    ESP_LOGD(TAG, "Moisture: %u (%f%%), Battery voltage %fV", moisture_raw, mositure_percent, battery_voltage);
   }
   // TODO(rbaron): publish value (for MQTT).
   // this->humidity_->publish_state();
