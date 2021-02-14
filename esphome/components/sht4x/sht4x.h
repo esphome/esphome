@@ -5,33 +5,33 @@
 #include "esphome/components/i2c/i2c.h"
 
 namespace esphome {
-namespace sht40 {
+namespace sht4x {
 
-enum SHT40PRECISION { SHT40_PRECISION_HIGH = 0, SHT40_PRECISION_MED, SHT40_PRECISION_LOW };
+enum SHT4XPRECISION { SHT4X_PRECISION_HIGH = 0, SHT4X_PRECISION_MED, SHT4X_PRECISION_LOW };
 
-enum SHT40HEATERPOWER { SHT40_HEATERPOWER_HIGH, SHT40_HEATERPOWER_MED, SHT40_HEATERPOWER_LOW };
+enum SHT4XHEATERPOWER { SHT4X_HEATERPOWER_HIGH, SHT4X_HEATERPOWER_MED, SHT4X_HEATERPOWER_LOW };
 
-enum SHT40HEATERTIME { SHT40_HEATERTIME_LONG = 1100, SHT40_HEATERTIME_SHORT = 110 };
+enum SHT4XHEATERTIME { SHT4X_HEATERTIME_LONG = 1100, SHT4X_HEATERTIME_SHORT = 110 };
 
-class SHT40Component : public PollingComponent, public i2c::I2CDevice {
+class SHT4XComponent : public PollingComponent, public i2c::I2CDevice {
  public:
   float get_setup_priority() const override { return setup_priority::DATA; }
   void setup() override;
   void dump_config() override;
   void update() override;
 
-  void set_precision_value(SHT40PRECISION precision) { this->precision_ = precision; };
-  void set_heater_power_value(SHT40HEATERPOWER heater_power) { this->heater_power_ = heater_power; };
-  void set_heater_time_value(SHT40HEATERTIME heater_time) { this->heater_time_ = heater_time; };
+  void set_precision_value(SHT4XPRECISION precision) { this->precision_ = precision; };
+  void set_heater_power_value(SHT4XHEATERPOWER heater_power) { this->heater_power_ = heater_power; };
+  void set_heater_time_value(SHT4XHEATERTIME heater_time) { this->heater_time_ = heater_time; };
   void set_heater_duty_value(float duty_cycle) { this->duty_cycle_ = duty_cycle; };
 
   void set_temp_sensor(sensor::Sensor *temp_sensor) { this->temp_sensor_ = temp_sensor; }
   void set_humidity_sensor(sensor::Sensor *humidity_sensor) { this->humidity_sensor_ = humidity_sensor; }
 
  protected:
-  SHT40PRECISION precision_;
-  SHT40HEATERPOWER heater_power_;
-  SHT40HEATERTIME heater_time_;
+  SHT4XPRECISION precision_;
+  SHT4XHEATERPOWER heater_power_;
+  SHT4XHEATERTIME heater_time_;
   float duty_cycle_;
 
   void start_heater_();
@@ -41,5 +41,5 @@ class SHT40Component : public PollingComponent, public i2c::I2CDevice {
   sensor::Sensor *humidity_sensor_{nullptr};
 };
 
-}  // namespace sht40
+}  // namespace sht4x
 }  // namespace esphome

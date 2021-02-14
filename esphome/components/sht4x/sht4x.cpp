@@ -1,22 +1,22 @@
-#include "sht40.h"
+#include "sht4x.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
-namespace sht40 {
+namespace sht4x {
 
-static const char *TAG = "sht40";
+static const char *TAG = "sht4x";
 
 static const uint8_t MEASURECOMMANDS[] = {0xFD, 0xF6, 0xE0};
 
-void SHT40Component::start_heater_() {
+void SHT4XComponent::start_heater_() {
   uint8_t cmd[] = {MEASURECOMMANDS[this->heater_command_]};
 
   ESP_LOGD(TAG, "Heater turning on");
   this->write_bytes_raw(cmd, 1);
 }
 
-void SHT40Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up sht40...");
+void SHT4XComponent::setup() {
+  ESP_LOGCONFIG(TAG, "Setting up sht4x...");
 
   uint32_t heater_interval;
 
@@ -28,20 +28,20 @@ void SHT40Component::setup() {
   }
   ESP_LOGD(TAG, "Heater interval: %i", heater_interval);
 
-  if (this->heater_power_ == SHT40_HEATERPOWER_HIGH) {
-    if (this->heater_time_ == SHT40_HEATERTIME_LONG) {
+  if (this->heater_power_ == SHT4X_HEATERPOWER_HIGH) {
+    if (this->heater_time_ == SHT4X_HEATERTIME_LONG) {
       this->heater_command_ = 0x39;
     } else {
       this->heater_command_ = 0x32;
     }
-  } else if (this->heater_power_ == SHT40_HEATERPOWER_MED) {
-    if (this->heater_time_ == SHT40_HEATERTIME_LONG) {
+  } else if (this->heater_power_ == SHT4X_HEATERPOWER_MED) {
+    if (this->heater_time_ == SHT4X_HEATERTIME_LONG) {
       this->heater_command_ = 0x2F;
     } else {
       this->heater_command_ = 0x24;
     }
   } else {
-    if (this->heater_time_ == SHT40_HEATERTIME_LONG) {
+    if (this->heater_time_ == SHT4X_HEATERTIME_LONG) {
       this->heater_command_ = 0x1E;
     } else {
       this->heater_command_ = 0x15;
@@ -49,12 +49,12 @@ void SHT40Component::setup() {
   }
   ESP_LOGD(TAG, "Heater command: %x", this->heater_command_);
 
-  this->set_interval(heater_interval, std::bind(&SHT40Component::start_heater_, this));
+  this->set_interval(heater_interval, std::bind(&SHT4XComponent::start_heater_, this));
 }
 
-void SHT40Component::dump_config() { LOG_I2C_DEVICE(this); }
+void SHT4XComponent::dump_config() { LOG_I2C_DEVICE(this); }
 
-void SHT40Component::update() {
+void SHT4XComponent::update() {
   uint8_t cmd[] = {MEASURECOMMANDS[this->precision_]};
 
   // Send command
@@ -90,5 +90,5 @@ void SHT40Component::update() {
   });
 }
 
-}  // namespace sht40
+}  // namespace sht4x
 }  // namespace esphome
