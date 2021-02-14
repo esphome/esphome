@@ -736,6 +736,13 @@ sensor:
       id: 'workshop_PMC_10_0'
     address: 0x69
     update_interval: 10s
+  - platform: sht40
+    temperature:
+      name: 'SHT40 Temperature'
+    humidity:
+      name: 'SHT40 Humidity'
+    address: 0x44
+    update_interval: 15s
   - platform: shtcx
     temperature:
       name: 'Living Room Temperature 10'
