@@ -72,7 +72,7 @@ esphome/components/rf_bridge/* @jesserockz
 esphome/components/rtttl/* @glmnet
 esphome/components/script/* @esphome/core
 esphome/components/sensor/* @esphome/core
-esphome/components/sht40/* @sjtrny
+esphome/components/sht4x/* @sjtrny
 esphome/components/shutdown/* @esphome/core
 esphome/components/sim800l/* @glmnet
 esphome/components/spi/* @esphome/core
