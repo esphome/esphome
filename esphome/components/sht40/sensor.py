@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import i2c, sensor
-from esphome.const import CONF_ID, CONF_TEMPERATURE, CONF_HUMIDITY, CONF_HEATER, UNIT_CELSIUS, \
+from esphome.const import CONF_ID, CONF_TEMPERATURE, CONF_HUMIDITY, UNIT_CELSIUS, \
     UNIT_PERCENT, ICON_THERMOMETER, ICON_WATER_PERCENT
 
 CODEOWNERS = ['@sjtrny']
@@ -45,7 +45,7 @@ CONFIG_SCHEMA = cv.Schema({
     cv.Optional(CONF_PRECISION, default="High"): cv.enum(PRECISION_OPTIONS),
     cv.Optional(CONF_HEATER_POWER, default="High"): cv.enum(HEATER_POWER_OPTIONS),
     cv.Optional(CONF_HEATER_TIME, default="Long"): cv.enum(HEATER_TIME_OPTIONS),
-    cv.Optional(CONF_HEATER_DUTY, default=0.0): cv.float_range(min=0.0, max=0.05),
+    cv.Optional(CONF_HEATER_MAX_DUTY, default=0.0): cv.float_range(min=0.0, max=0.05),
 
     # TODO:
     # - Prevent reading while heating
@@ -64,10 +64,10 @@ def to_code(config):
     yield cg.register_component(var, config)
     yield i2c.register_i2c_device(var, config)
 
-    cg.add(var.set_precision_value(config[CONF_PRECISION]));
-    cg.add(var.set_heater_power_value(config[CONF_HEATER_POWER]));
-    cg.add(var.set_heater_time_value(config[CONF_HEATER_TIME]));
-    cg.add(var.set_heater_duty_value(config[CONF_HEATER_DUTY]));
+    cg.add(var.set_precision_value(config[CONF_PRECISION]))
+    cg.add(var.set_heater_power_value(config[CONF_HEATER_POWER]))
+    cg.add(var.set_heater_time_value(config[CONF_HEATER_TIME]))
+    cg.add(var.set_heater_duty_value(config[CONF_HEATER_MAX_DUTY]))
 
     for key, funcName in TYPES.items():
 
