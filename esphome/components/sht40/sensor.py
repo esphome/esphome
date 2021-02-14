@@ -34,7 +34,7 @@ HEATER_TIME_OPTIONS = {
   "Short": SHT40HEATERTIME.SHT40_HEATERTIME_SHORT,
 }
 
-CONF_HEATER_DUTY = 'heater_max_duty'
+CONF_HEATER_MAX_DUTY = 'heater_max_duty'
 
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(SHT40Component),

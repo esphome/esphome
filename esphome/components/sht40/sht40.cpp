@@ -22,7 +22,7 @@ void SHT40Component::setup() {
 
   // Calculate time interval for heater
   if (this->duty_cycle_ > 0) {
-    heater_interval = this->heater_time_/this->duty_cycle_;
+    heater_interval = (uint32_t)(this->heater_time_ / this->duty_cycle_);
   } else {
     heater_interval = 0;
   }
@@ -31,22 +31,19 @@ void SHT40Component::setup() {
   if (this->heater_power_ == SHT40_HEATERPOWER_HIGH) {
     if (this->heater_time_ == SHT40_HEATERTIME_LONG) {
       this->heater_command_ = 0x39;
-    }
-    else {
+    } else {
       this->heater_command_ = 0x32;
     }
   } else if (this->heater_power_ == SHT40_HEATERPOWER_MED) {
     if (this->heater_time_ == SHT40_HEATERTIME_LONG) {
       this->heater_command_ = 0x2F;
-    }
-    else {
+    } else {
       this->heater_command_ = 0x24;
     }
   } else {
     if (this->heater_time_ == SHT40_HEATERTIME_LONG) {
       this->heater_command_ = 0x1E;
-    }
-    else {
+    } else {
       this->heater_command_ = 0x15;
     }
   }
@@ -63,7 +60,7 @@ void SHT40Component::update() {
   // Send command
   this->write_bytes_raw(cmd, 1);
 
-  this->set_timeout(10, [this] () {
+  this->set_timeout(10, [this]() {
     const uint8_t num_bytes = 6;
     uint8_t buffer[num_bytes];
 
