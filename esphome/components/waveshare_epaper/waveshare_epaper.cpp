@@ -535,6 +535,96 @@ void WaveshareEPaper2P9InB::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 }
 
+// ========================================================
+//               2.90in Type D (LUT from OTP)
+// Datasheet:
+//  - https://www.waveshare.com/w/upload/b/b5/2.9inch_e-Paper_(D)_Specification.pdf
+// ========================================================
+
+void WaveshareEPaper2P9InD::initialize() {
+  // from https://www.waveshare.com/w/upload/b/b5/2.9inch_e-Paper_(D)_Specification.pdf, page 19
+  // EPD hardware init start
+  this->reset_();
+
+  // COMMAND BOOSTER SOFT START
+  this->command(0x06);
+  this->data(0x17);
+  this->data(0x17);
+  this->data(0x17);
+
+  // COMMAND POWER SETTING
+  this->command(0x01);
+  this->data(0x03);
+  this->data(0x00);
+  this->data(0x2b);
+  this->data(0x2b);
+  this->data(0x09);
+
+  // COMMAND POWER ON
+  this->command(0x04);
+  this->wait_until_idle_();
+
+  // COMMAND PANEL SETTING
+  this->command(0x00);
+  this->data(0xbf);
+
+  // COMMAND PLL SETTING
+  this->command(0x30);
+  this->data(0x3a);
+
+  // COMMAND RESOLUTION SETTING
+  this->command(0x61);
+  this->data(0x80);
+  this->data(0x01);
+  this->data(0x28);
+
+  // COMMAND VCM_DC SETTING
+  this->command(0x82);
+  this->data(0x12);
+
+  // VCOM AND DATA INTERVAL SETTING
+  this->command(0x50);
+  this->data(0x87);
+
+  // EPD hardware init end
+}
+void HOT WaveshareEPaper2P9InD::display() {
+  // COMMAND DATA START TRANSMISSION
+  this->command(0x10);
+  delay(2);
+  this->start_data_();
+  this->write_array(this->buffer_, this->get_buffer_length_());
+  this->end_data_();
+  delay(2);
+
+  // COMMAND DISPLAY REFRESH
+  this->command(0x12);
+  delay(2);
+  this->wait_until_idle_();
+
+  // VCOM AND DATA INTERVAL SETTING
+  this->command(0x50);
+  this->data(0xf7);
+
+  // COMMAND POWER OFF
+  this->command(0x02);
+  this->wait_until_idle_();
+
+  // COMMAND DEEP SLEEP
+  this->command(0x07);
+  this->data(0xA5);
+}
+int WaveshareEPaper2P9InD::get_width_internal() { return 128; }
+int WaveshareEPaper2P9InD::get_height_internal() { return 296; }
+void WaveshareEPaper2P9InD::dump_config() {
+  LOG_DISPLAY("", "Waveshare E-Paper", this);
+  ESP_LOGCONFIG(TAG, "  Model: 2.9in (D)");
+  LOG_PIN("  Reset Pin: ", this->reset_pin_);
+  LOG_PIN("  DC Pin: ", this->dc_pin_);
+  LOG_PIN("  Busy Pin: ", this->busy_pin_);
+  LOG_UPDATE_INTERVAL(this);
+}
+
 static const uint8_t LUT_VCOM_DC_4_2[] = {
     0x00, 0x17, 0x00, 0x00, 0x00, 0x02, 0x00, 0x17, 0x17, 0x00, 0x00, 0x02, 0x00, 0x0A, 0x01,
     0x00, 0x00, 0x01, 0x00, 0x0E, 0x0E, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
