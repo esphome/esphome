@@ -74,6 +74,8 @@ class SGP40Component : public PollingComponent, public sensor::Sensor, public i2
   bool store_baseline_;
   int32_t state0_;
   int32_t state1_;
+  uint8_t samples_read_ = 0;
+  uint8_t samples_to_stabalize_ = static_cast<int8_t>(VOC_ALGORITHM_INITIAL_BLACKOUT) * 2;
 
   /**
    * @brief Request the sensor to perform a self-test, returning the result

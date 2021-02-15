@@ -215,11 +215,21 @@ uint8_t SGP40Component::generate_crc_(const uint8_t *data, uint8_t datalen) {
 
 void SGP40Component::update() {
   this->seconds_since_last_store_ += this->update_interval_ / 1000;
-  this->set_timeout(250, [this]() {
-    uint32_t voc_index = this->measure_voc_index_();
-    if (voc_index != UINT16_MAX)
-      this->publish_state(voc_index);
-  });
+
+  uint32_t voc_index = this->measure_voc_index_();
+
+  if (this->samples_read_ < this->samples_to_stabalize_) {
+    ESP_LOGD(TAG, "Sensor has not collected enough samples yet. %d/%d %u", ++this->samples_read_,
+             this->samples_to_stabalize_, voc_index);
+    return;
+  }
+
+  if (voc_index != UINT16_MAX) {
+    this->status_clear_warning();
+    this->publish_state(voc_index);
+  } else {
+    this->status_set_warning();
+  }
 }
 
 void SGP40Component::dump_config() {
@@ -236,6 +246,7 @@ void SGP40Component::dump_config() {
     }
   } else {
     ESP_LOGCONFIG(TAG, "  Serial number: %llu", this->serial_number_);
+    ESP_LOGCONFIG(TAG, "  Minimum Samples: %f", VOC_ALGORITHM_INITIAL_BLACKOUT);
   }
   LOG_UPDATE_INTERVAL(this);
 
