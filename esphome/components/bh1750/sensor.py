@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import i2c, sensor
-from esphome.const import CONF_ID, CONF_RESOLUTION, UNIT_LUX, ICON_BRIGHTNESS_5
+from esphome.const import CONF_ID, CONF_RESOLUTION, DEVICE_CLASS_ILLUMINANCE, ICON_EMPTY, UNIT_LUX
 
 DEPENDENCIES = ['i2c']
 
@@ -16,7 +16,7 @@ BH1750_RESOLUTIONS = {
 BH1750Sensor = bh1750_ns.class_('BH1750Sensor', sensor.Sensor, cg.PollingComponent, i2c.I2CDevice)
 
 CONF_MEASUREMENT_TIME = 'measurement_time'
-CONFIG_SCHEMA = sensor.sensor_schema(UNIT_LUX, ICON_BRIGHTNESS_5, 1).extend({
+CONFIG_SCHEMA = sensor.sensor_schema(UNIT_LUX, ICON_EMPTY, 1, DEVICE_CLASS_ILLUMINANCE).extend({
     cv.GenerateID(): cv.declare_id(BH1750Sensor),
     cv.Optional(CONF_RESOLUTION, default=0.5): cv.enum(BH1750_RESOLUTIONS, float=True),
     cv.Optional(CONF_MEASUREMENT_TIME, default=69): cv.int_range(min=31, max=254),
