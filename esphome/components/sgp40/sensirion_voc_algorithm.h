@@ -13,33 +13,33 @@ using fix16_t = int32_t;
 
 #define F16(x) ((fix16_t)(((x) >= 0) ? ((x) *65536.0 + 0.5) : ((x) *65536.0 - 0.5)))
 
-#define VocAlgorithm_SAMPLING_INTERVAL (1.)
-#define VocAlgorithm_INITIAL_BLACKOUT (45.)
-#define VocAlgorithm_VOC_INDEX_GAIN (230.)
-#define VocAlgorithm_SRAW_STD_INITIAL (50.)
-#define VocAlgorithm_SRAW_STD_BONUS (220.)
-#define VocAlgorithm_TAU_MEAN_VARIANCE_HOURS (12.)
-#define VocAlgorithm_TAU_INITIAL_MEAN (20.)
-#define voc_algorithm_init_DURATION_MEAN ((3600. * 0.75))
-#define voc_algorithm_init_TRANSITION_MEAN (0.01)
-#define VocAlgorithm_TAU_INITIAL_VARIANCE (2500.)
-#define voc_algorithm_init_DURATION_VARIANCE ((3600. * 1.45))
-#define voc_algorithm_init_TRANSITION_VARIANCE (0.01)
-#define VocAlgorithm_GATING_THRESHOLD (340.)
-#define VocAlgorithm_GATING_THRESHOLD_INITIAL (510.)
-#define VocAlgorithm_GATING_THRESHOLD_TRANSITION (0.09)
-#define VocAlgorithm_GATING_MAX_DURATION_MINUTES ((60. * 3.))
-#define VocAlgorithm_GATING_MAX_RATIO (0.3)
-#define VocAlgorithm_SIGMOID_L (500.)
-#define VocAlgorithm_SIGMOID_K (-0.0065)
-#define VocAlgorithm_SIGMOID_X0 (213.)
-#define VocAlgorithm_VOC_INDEX_OFFSET_DEFAULT (100.)
-#define VocAlgorithm_LP_TAU_FAST (20.0)
-#define VocAlgorithm_LP_TAU_SLOW (500.0)
-#define VocAlgorithm_LP_ALPHA (-0.2)
-#define VocAlgorithm_PERSISTENCE_UPTIME_GAMMA ((3. * 3600.))
-#define VocAlgorithm_MEAN_VARIANCE_ESTIMATOR__GAMMA_SCALING (64.)
-#define VocAlgorithm_MEAN_VARIANCE_ESTIMATOR__FIX16_MAX (32767.)
+static const double VOC_ALGORITHM_SAMPLING_INTERVAL(1.);
+static const double VOC_ALGORITHM_INITIAL_BLACKOUT(45.);
+static const double VOC_ALGORITHM_VOC_INDEX_GAIN(230.);
+static const double VOC_ALGORITHM_SRAW_STD_INITIAL(50.);
+static const double VOC_ALGORITHM_SRAW_STD_BONUS(220.);
+static const double VOC_ALGORITHM_TAU_MEAN_VARIANCE_HOURS(12.);
+static const double VOC_ALGORITHM_TAU_INITIAL_MEAN(20.);
+static const double VOC_ALGORITHM_INIT_DURATION_MEAN((3600. * 0.75));
+static const double VOC_ALGORITHM_INIT_TRANSITION_MEAN(0.01);
+static const double VOC_ALGORITHM_TAU_INITIAL_VARIANCE(2500.);
+static const double VOC_ALGORITHM_INIT_DURATION_VARIANCE((3600. * 1.45));
+static const double VOC_ALGORITHM_INIT_TRANSITION_VARIANCE(0.01);
+static const double VOC_ALGORITHM_GATING_THRESHOLD(340.);
+static const double VOC_ALGORITHM_GATING_THRESHOLD_INITIAL(510.);
+static const double VOC_ALGORITHM_GATING_THRESHOLD_TRANSITION(0.09);
+static const double VOC_ALGORITHM_GATING_MAX_DURATION_MINUTES((60. * 3.));
+static const double VOC_ALGORITHM_GATING_MAX_RATIO(0.3);
+static const double VOC_ALGORITHM_SIGMOID_L(500.);
+static const double VOC_ALGORITHM_SIGMOID_K(-0.0065);
+static const double VOC_ALGORITHM_SIGMOID_X0(213.);
+static const double VOC_ALGORITHM_VOC_INDEX_OFFSET_DEFAULT(100.);
+static const double VOC_ALGORITHM_LP_TAU_FAST(20.0);
+static const double VOC_ALGORITHM_LP_TAU_SLOW(500.0);
+static const double VOC_ALGORITHM_LP_ALPHA(-0.2);
+static const double VOC_ALGORITHM_PERSISTENCE_UPTIME_GAMMA((3. * 3600.));
+static const double VOC_ALGORITHM_MEAN_VARIANCE_ESTIMATOR_GAMMA_SCALING(64.);
+static const double VOC_ALGORITHM_MEAN_VARIANCE_ESTIMATOR_FI_X16_MAX(32767.);
 
 /**
  * Struct to hold all the states of the VOC algorithm.
