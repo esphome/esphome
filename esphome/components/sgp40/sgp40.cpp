@@ -74,31 +74,33 @@ void SGP40Component::setup() {
     }
   }
 
-  if (!this->self_test_())
-    this->mark_failed();
+  this->self_test_();
 }
 
-bool SGP40Component::self_test_() {
-  uint16_t reply[1];
-
-  ESP_LOGD(TAG, "selfTest start");
+void SGP40Component::self_test_() {
+  ESP_LOGD(TAG, "selfTest started");
   if (!this->write_command_(SGP40_CMD_SELF_TEST)) {
     this->error_code_ = COMMUNICATION_FAILED;
-    ESP_LOGD(TAG, "selfTest SGP40_CMD_SELF_TEST failed");
-    return false;
-  }
-  delay(250);  // NOLINT
-  if (!this->read_data_(reply, 1)) {
-    ESP_LOGD(TAG, "selfTest read_data_ failed");
-    return false;
+    ESP_LOGD(TAG, "selfTest communicatin failed");
+    this->mark_failed();
   }
 
-  if (reply[0] == 0xD400) {
-    ESP_LOGD(TAG, "selfTest completed");
-    return true;
-  }
-  ESP_LOGD(TAG, "selfTest failed");
-  return false;
+  this->set_timeout(250, [this]() {
+    uint16_t reply[1];
+    if (!this->read_data_(reply, 1)) {
+      ESP_LOGD(TAG, "selfTest read_data_ failed");
+      this->mark_failed();
+      return;
+    }
+
+    if (reply[0] == 0xD400) {
+      ESP_LOGD(TAG, "selfTest completed");
+      return;
+    }
+
+    ESP_LOGD(TAG, "selfTest failed");
+    this->mark_failed();
+  });
 }
 
 /**
@@ -289,10 +291,9 @@ uint8_t SGP40Component::sht_crc_(uint8_t data1, uint8_t data2) {
 
 bool SGP40Component::read_data_(uint16_t *data, uint8_t len) {
   const uint8_t num_bytes = len * 3;
-  auto *buf = new uint8_t[num_bytes];
+  std::vector<uint8_t> buf(num_bytes);
 
-  if (!this->parent_->raw_receive(this->address_, buf, num_bytes)) {
-    delete[](buf);
+  if (!this->parent_->raw_receive(this->address_, buf.data(), num_bytes)) {
     return false;
   }
 
@@ -301,13 +302,11 @@ bool SGP40Component::read_data_(uint16_t *data, uint8_t len) {
     uint8_t crc = sht_crc_(buf[j], buf[j + 1]);
     if (crc != buf[j + 2]) {
       ESP_LOGE(TAG, "CRC8 Checksum invalid! 0x%02X != 0x%02X", buf[j + 2], crc);
-      delete[](buf);
       return false;
     }
     data[i] = (buf[j] << 8) | buf[j + 1];
   }
 
-  delete[](buf);
   return true;
 }
 

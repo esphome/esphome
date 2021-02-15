@@ -17,9 +17,6 @@ struct SGP40Baselines {
   int32_t state1;
 } PACKED;  // NOLINT
 
-// the i2c address
-static const uint8_t SGP40_I2CADDR_DEFAULT = 0x59;
-
 // commands and constants
 static const uint8_t SGP40_FEATURESET = 0x0020;     ///< The required set for this library
 static const uint8_t SGP40_CRC8_POLYNOMIAL = 0x31;  ///< Seed for SGP40's CRC polynomial
@@ -82,7 +79,7 @@ class SGP40Component : public PollingComponent, public sensor::Sensor, public i2
    *
    * @return true: success false:failure
    */
-  bool self_test_();
+  void self_test_();
   enum ErrorCode {
     COMMUNICATION_FAILED,
     MEASUREMENT_INIT_FAILED,
