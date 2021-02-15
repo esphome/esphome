@@ -8,8 +8,8 @@ from esphome.const import CONF_DEVICE_CLASS, CONF_ABOVE, CONF_ACCURACY_DECIMALS,
     CONF_BELOW, CONF_EXPIRE_AFTER, CONF_FILTERS, CONF_FROM, CONF_ICON, CONF_ID, CONF_INTERNAL, \
     CONF_ON_RAW_VALUE, CONF_ON_VALUE, CONF_ON_VALUE_RANGE, CONF_SEND_EVERY, CONF_SEND_FIRST_AT, \
     CONF_TO, CONF_TRIGGER_ID, CONF_UNIT_OF_MEASUREMENT, CONF_WINDOW_SIZE, CONF_NAME, CONF_MQTT_ID, \
-    CONF_FORCE_UPDATE, DEVICE_CLASS_EMPTY, DEVICE_CLASS_BATTERY, DEVICE_CLASS_CURRENT, \
-    DEVICE_CLASS_ENERGY, DEVICE_CLASS_HUMIDITY, DEVICE_CLASS_ILLUMINANCE, \
+    CONF_FORCE_UPDATE, UNIT_EMPTY, ICON_EMPTY, DEVICE_CLASS_EMPTY, DEVICE_CLASS_BATTERY, \
+    DEVICE_CLASS_CURRENT, DEVICE_CLASS_ENERGY, DEVICE_CLASS_HUMIDITY, DEVICE_CLASS_ILLUMINANCE, \
     DEVICE_CLASS_SIGNAL_STRENGTH, DEVICE_CLASS_TEMPERATURE, DEVICE_CLASS_POWER, \
     DEVICE_CLASS_POWER_FACTOR, DEVICE_CLASS_PRESSURE, DEVICE_CLASS_TIMESTAMP, DEVICE_CLASS_VOLTAGE
 from esphome.core import CORE, coroutine, coroutine_with_priority
@@ -117,15 +117,25 @@ SENSOR_SCHEMA = cv.MQTT_COMPONENT_SCHEMA.extend({
 })
 
 
-def sensor_schema(unit_of_measurement_, icon_, accuracy_decimals_,
+def sensor_schema(unit_of_measurement_=UNIT_EMPTY, icon_=ICON_EMPTY, accuracy_decimals_=0,
                   device_class_=DEVICE_CLASS_EMPTY):
     # type: (str, str, int, str) -> cv.Schema
-    return SENSOR_SCHEMA.extend({
-        cv.Optional(CONF_UNIT_OF_MEASUREMENT, default=unit_of_measurement_): unit_of_measurement,
-        cv.Optional(CONF_ICON, default=icon_): icon,
-        cv.Optional(CONF_ACCURACY_DECIMALS, default=accuracy_decimals_): accuracy_decimals,
-        cv.Optional(CONF_DEVICE_CLASS, default=device_class_): device_class,
-    })
+    schema = SENSOR_SCHEMA
+    if unit_of_measurement_ != UNIT_EMPTY:
+        schema = schema.extend({
+            cv.Optional(CONF_UNIT_OF_MEASUREMENT, default=unit_of_measurement_): unit_of_measurement
+        })
+    if icon_ != ICON_EMPTY:
+        schema = schema.extend({cv.Optional(CONF_ICON, default=icon_): icon})
+    if accuracy_decimals_ != 0:
+        schema = schema.extend({
+            cv.Optional(CONF_ACCURACY_DECIMALS, default=accuracy_decimals_): accuracy_decimals,
+        })
+    if device_class_ != DEVICE_CLASS_EMPTY:
+        schema = schema.extend({
+            cv.Optional(CONF_DEVICE_CLASS, default=device_class_): device_class
+        })
+    return schema
 
 
 @FILTER_REGISTRY.register('offset', OffsetFilter, cv.float_)
