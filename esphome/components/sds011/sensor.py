@@ -1,9 +1,8 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import sensor, uart
-from esphome.const import (CONF_ID, CONF_PM_10_0, CONF_PM_2_5, CONF_RX_ONLY,
-                           CONF_UPDATE_INTERVAL, UNIT_MICROGRAMS_PER_CUBIC_METER,
-                           ICON_CHEMICAL_WEAPON)
+from esphome.const import CONF_ID, CONF_PM_10_0, CONF_PM_2_5, CONF_RX_ONLY, CONF_UPDATE_INTERVAL, \
+    DEVICE_CLASS_EMPTY, UNIT_MICROGRAMS_PER_CUBIC_METER, ICON_CHEMICAL_WEAPON
 
 DEPENDENCIES = ['uart']
 
@@ -28,9 +27,11 @@ CONFIG_SCHEMA = cv.All(cv.Schema({
     cv.GenerateID(): cv.declare_id(SDS011Component),
 
     cv.Optional(CONF_PM_2_5):
-        sensor.sensor_schema(UNIT_MICROGRAMS_PER_CUBIC_METER, ICON_CHEMICAL_WEAPON, 1),
+        sensor.sensor_schema(UNIT_MICROGRAMS_PER_CUBIC_METER, ICON_CHEMICAL_WEAPON, 1,
+                             DEVICE_CLASS_EMPTY),
     cv.Optional(CONF_PM_10_0):
-        sensor.sensor_schema(UNIT_MICROGRAMS_PER_CUBIC_METER, ICON_CHEMICAL_WEAPON, 1),
+        sensor.sensor_schema(UNIT_MICROGRAMS_PER_CUBIC_METER, ICON_CHEMICAL_WEAPON, 1,
+                             DEVICE_CLASS_EMPTY),
 
     cv.Optional(CONF_RX_ONLY, default=False): cv.boolean,
     cv.Optional(CONF_UPDATE_INTERVAL): cv.positive_time_period_minutes,
