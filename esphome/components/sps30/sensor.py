@@ -3,8 +3,8 @@ import esphome.config_validation as cv
 from esphome.components import i2c, sensor
 from esphome.const import CONF_ID, CONF_PM_1_0, CONF_PM_2_5, CONF_PM_4_0, CONF_PM_10_0, \
     CONF_PMC_0_5, CONF_PMC_1_0, CONF_PMC_2_5, CONF_PMC_4_0, CONF_PMC_10_0, CONF_PM_SIZE, \
-    UNIT_MICROGRAMS_PER_CUBIC_METER, UNIT_COUNTS_PER_CUBIC_METER, UNIT_MICROMETER, \
-    ICON_CHEMICAL_WEAPON, ICON_COUNTER, ICON_RULER
+    DEVICE_CLASS_EMPTY, UNIT_MICROGRAMS_PER_CUBIC_METER, UNIT_COUNTS_PER_CUBIC_METER, \
+    UNIT_MICROMETER, ICON_CHEMICAL_WEAPON, ICON_COUNTER, ICON_RULER
 
 DEPENDENCIES = ['i2c']
 
@@ -14,25 +14,25 @@ SPS30Component = sps30_ns.class_('SPS30Component', cg.PollingComponent, i2c.I2CD
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(SPS30Component),
     cv.Optional(CONF_PM_1_0): sensor.sensor_schema(UNIT_MICROGRAMS_PER_CUBIC_METER,
-                                                   ICON_CHEMICAL_WEAPON, 2),
+                                                   ICON_CHEMICAL_WEAPON, 2, DEVICE_CLASS_EMPTY),
     cv.Optional(CONF_PM_2_5): sensor.sensor_schema(UNIT_MICROGRAMS_PER_CUBIC_METER,
-                                                   ICON_CHEMICAL_WEAPON, 2),
+                                                   ICON_CHEMICAL_WEAPON, 2, DEVICE_CLASS_EMPTY),
     cv.Optional(CONF_PM_4_0): sensor.sensor_schema(UNIT_MICROGRAMS_PER_CUBIC_METER,
-                                                   ICON_CHEMICAL_WEAPON, 2),
+                                                   ICON_CHEMICAL_WEAPON, 2, DEVICE_CLASS_EMPTY),
     cv.Optional(CONF_PM_10_0): sensor.sensor_schema(UNIT_MICROGRAMS_PER_CUBIC_METER,
-                                                    ICON_CHEMICAL_WEAPON, 2),
+                                                    ICON_CHEMICAL_WEAPON, 2, DEVICE_CLASS_EMPTY),
     cv.Optional(CONF_PMC_0_5): sensor.sensor_schema(UNIT_COUNTS_PER_CUBIC_METER,
-                                                    ICON_COUNTER, 2),
+                                                    ICON_COUNTER, 2, DEVICE_CLASS_EMPTY),
     cv.Optional(CONF_PMC_1_0): sensor.sensor_schema(UNIT_COUNTS_PER_CUBIC_METER,
-                                                    ICON_COUNTER, 2),
+                                                    ICON_COUNTER, 2, DEVICE_CLASS_EMPTY),
     cv.Optional(CONF_PMC_2_5): sensor.sensor_schema(UNIT_COUNTS_PER_CUBIC_METER,
-                                                    ICON_COUNTER, 2),
+                                                    ICON_COUNTER, 2, DEVICE_CLASS_EMPTY),
     cv.Optional(CONF_PMC_4_0): sensor.sensor_schema(UNIT_COUNTS_PER_CUBIC_METER,
-                                                    ICON_COUNTER, 2),
+                                                    ICON_COUNTER, 2, DEVICE_CLASS_EMPTY),
     cv.Optional(CONF_PMC_10_0): sensor.sensor_schema(UNIT_COUNTS_PER_CUBIC_METER,
-                                                     ICON_COUNTER, 2),
+                                                     ICON_COUNTER, 2, DEVICE_CLASS_EMPTY),
     cv.Optional(CONF_PM_SIZE): sensor.sensor_schema(UNIT_MICROMETER,
-                                                    ICON_RULER, 0),
+                                                    ICON_RULER, 0, DEVICE_CLASS_EMPTY),
 }).extend(cv.polling_component_schema('60s')).extend(i2c.i2c_device_schema(0x69))
 
 
