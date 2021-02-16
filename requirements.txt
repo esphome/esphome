@@ -12,3 +12,4 @@ ifaddr==0.1.7
 platformio==5.0.4
 esptool==2.8
 click==7.1.2
+Jinja2==2.11.3
