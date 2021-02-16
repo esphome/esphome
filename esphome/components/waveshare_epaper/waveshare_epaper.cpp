@@ -210,7 +210,7 @@ void HOT WaveshareEPaperTypeA::display() {
     return;
   }
 
-  if (this->full_update_every_ >= 2) {
+  if (this->full_update_every_ >= 1) {
     bool prev_full_update = this->at_update_ == 1;
     bool full_update = this->at_update_ == 0;
     if (full_update != prev_full_update) {
