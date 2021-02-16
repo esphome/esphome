@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import sensor
-from esphome.const import CONF_ID, UNIT_PERCENT, ICON_GAUGE, CONF_TYPE
+from esphome.const import CONF_ID, DEVICE_CLASS_EMPTY, UNIT_PERCENT, ICON_GAUGE, CONF_TYPE
 from ..climate import pid_ns, PIDClimate
 
 PIDClimateSensor = pid_ns.class_('PIDClimateSensor', sensor.Sensor, cg.Component)
@@ -21,7 +21,7 @@ PID_CLIMATE_SENSOR_TYPES = {
 }
 
 CONF_CLIMATE_ID = 'climate_id'
-CONFIG_SCHEMA = sensor.sensor_schema(UNIT_PERCENT, ICON_GAUGE, 1).extend({
+CONFIG_SCHEMA = sensor.sensor_schema(UNIT_PERCENT, ICON_GAUGE, 1, DEVICE_CLASS_EMPTY).extend({
     cv.GenerateID(): cv.declare_id(PIDClimateSensor),
     cv.GenerateID(CONF_CLIMATE_ID): cv.use_id(PIDClimate),
 
