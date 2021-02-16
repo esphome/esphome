@@ -1,0 +1,37 @@
+output:
+  - platform: gpio
+    id: "{{ pkg_params.zone_id }}_output"
+    pin:
+      number: "{{ pkg_params.relay_pin }}"
+      mode: OUTPUT
+      inverted: false
+
+switch:
+  - platform: output
+    internal: "{{ pkg_params.not_expose_valves }}"
+    name: "{{ pkg_params.zone_verbose_name }} valve"
+    id: "{{ pkg_params.zone_id }}_valve"
+    output: "{{ pkg_params.zone_id }}_output"
+
+sensor:
+  - platform: dallas
+    address: "{{ pkg_params.sensor_address }}"
+    dallas_id: dallas_hub0
+    name: "{{ pkg_params.zone_verbose_name }} temperature"
+    id: "{{ pkg_params.zone_id }}_temperature"
+
+climate:
+  - platform: bang_bang
+    id: "{{ pkg_params.zone_id }}_controller"
+    name: "{{ pkg_params.zone_verbose_name }}"
+    sensor: "{{ pkg_params.zone_id }}_temperature"
+    default_target_temperature_low: "{{ pkg_params.default_temperature|default(25) - 2 }}"
+    default_target_temperature_high: "{{ pkg_params.default_temperature|default(25) + 2 }}"
+    heat_action:
+      - switch.turn_on: "{{ pkg_params.zone_id }}_valve"
+    idle_action:
+      - switch.turn_off: "{{ pkg_params.zone_id }}_valve"
+    visual:
+      min_temperature: 18
+      max_temperature: 30
+      temperature_step: 0.1

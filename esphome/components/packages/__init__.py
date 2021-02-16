@@ -1,12 +1,35 @@
 import copy
-from typing import Union, Optional
+from typing import Union, Optional, Dict, Any
 
 import jinja2
 
 import esphome.config_validation as cv
 from esphome.const import CONF_PACKAGES
 
+CODEOWNERS = ['@corvis', '@esphome/core']
+
 TreeItem = Union[dict, list, str]
+PackageConfig = Union[dict, str]
+PackageSource = Union[dict, str]
+PackageParams = Dict[str, Any]
+
+
+class PackageDefinition(object):
+    """
+    The class representing package instantiated with particular params
+    """
+
+    def __init__(self, local_name: str) -> None:
+        self.local_name: str = local_name
+        self.content: dict = None
+        self.external_ref: str = None
+        self.params: PackageParams = {}
+
+
+CONF_PACKAGE_SOURCE = 'source'
+CONF_PACKAGE_PARAMS = 'params'
+
+CONTEXT_PKG_PARAMS = 'pkg_params'
 
 
 class TemplateRenderingError(Exception):
@@ -46,6 +69,12 @@ def _create_template_for_str(str_val: str) -> jinja2.Template:
     return jinja2.Template(str_val)
 
 
+def _create_context_for_package(package: PackageDefinition) -> dict:
+    return {
+        CONTEXT_PKG_PARAMS: package.params
+    }
+
+
 def _process_template_value(value, context: dict):
     if not isinstance(value, str):
         return value  # Skip non-string values
@@ -79,6 +108,66 @@ def _render_templates_for_item(val: TreeItem, context: dict, path: list) -> Opti
     return None
 
 
+def _is_short_package_config_syntax(package_config: PackageConfig) -> bool:
+    if isinstance(package_config, str):
+        return True
+    elif isinstance(package_config, dict):
+        return not (CONF_PACKAGE_SOURCE in package_config.keys())
+    return False
+
+
+def _load_package_source(package_source: PackageSource):
+    if isinstance(package_source, dict):
+        return copy.deepcopy(package_source)
+    else:
+        raise cv.Invalid('Package source is incorrect. Expected source definition is a dictionary '
+                         'containing package configuration. You may also use include syntax '
+                         'like this: !include pathto/my/file.yaml')
+    # Validation on of the string uri should be added here
+
+
+def _validate_package_config(package_name: str, package_config: PackageConfig):
+    """
+    There are 2 versions of the syntax supported.
+    The short one: just dictionary representing package source.
+                   In future it will be good to extend to support string URI pointing external resource
+    The regular one: dictionary of the following structure
+                     source: dict or string - required, dictionary representing package source
+                     params: dict           - optional, key-value params to be added to expression
+                                                        evaluator scope for this package. Value could be
+                                                        any type supported by YAML
+    :param package_name:    name of the package to be validated
+    :param package_config:  package configuration to be validated
+    :return: None
+    :raises: cv.Invalid - in case when configuration is invalid
+    """
+    if not _is_short_package_config_syntax(package_config):
+        # Nothing to validate short syntax means config is actually a source declaration
+        # which will be validated during package loading phase
+        pass
+    else:
+        if CONF_PACKAGE_PARAMS in package_config:
+            if not isinstance(package_config[CONF_PACKAGE_PARAMS], dict):
+                cv.Invalid('Package params should be key value mapping got {} instead'.format(
+                    type(package_config[CONF_PACKAGE_PARAMS])), [CONF_PACKAGE_PARAMS])
+            else:
+                for key in package_config[CONF_PACKAGE_PARAMS].keys():
+                    pass  # TODO: Validate key to be a correct identifier
+
+
+def _load_package(package_name, package_config: PackageConfig) -> PackageDefinition:
+    _validate_package_config(package_name, package_config)
+    package = PackageDefinition(package_name)
+    if _is_short_package_config_syntax(package_config):
+        package.content = _load_package_source(package_config)
+    else:
+        package.content = _load_package_source(package_config[CONF_PACKAGE_SOURCE])
+        package.params = package_config.get(CONF_PACKAGE_PARAMS, {})
+        if isinstance(package_config[CONF_PACKAGE_SOURCE], str):
+            package.external_ref = package_config[CONF_PACKAGE_SOURCE]
+    return package
+
+
 def do_template_rendering_pass(val: dict, context: dict):
     _render_templates_for_item(val, context, [])
 
@@ -93,7 +182,7 @@ def do_packages_pass(config: dict):
         packages:
             pkg_name:
                 source: !include folder/file_name.yaml
-                variables:
+                params:
                     var1: 1234
                     var2: abc
     :param config:
@@ -109,12 +198,12 @@ def do_packages_pass(config: dict):
 
         for package_name, package_config in packages.items():
             with cv.prepend_path(package_name):
-                recursive_package = package_config
+                package = _load_package(package_name, package_config)
+                recursive_package_content = package.content
                 if isinstance(package_config, dict):
-                    recursive_package = do_packages_pass(package_config)
-                processed_package = copy.deepcopy(recursive_package)
-                do_template_rendering_pass(processed_package, {})
-                config = _merge_package(processed_package, config)
+                    recursive_package_content = do_packages_pass(recursive_package_content)
+                do_template_rendering_pass(recursive_package_content, _create_context_for_package(package))
+                config = _merge_package(recursive_package_content, config)
 
         del config[CONF_PACKAGES]
     return config

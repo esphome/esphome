@@ -395,18 +395,7 @@ def recursive_check_replaceme(value):
 def validate_config(config, command_line_substitutions):
     result = Config()
 
-    # 0. Load packages
-    if CONF_PACKAGES in config:
-        from esphome.components.packages import do_packages_pass
-        result.add_output_path([CONF_PACKAGES], CONF_PACKAGES)
-        try:
-            config = do_packages_pass(config)
-        except vol.Invalid as err:
-            result.update(config)
-            result.add_error(err)
-            return result
-
-    # 1. Load substitutions
+    # 0. Load substitutions
     if CONF_SUBSTITUTIONS in config:
         from esphome.components import substitutions
         result[CONF_SUBSTITUTIONS] = {**config[CONF_SUBSTITUTIONS], **command_line_substitutions}
@@ -414,6 +403,17 @@ def validate_config(config, command_line_substitutions):
         try:
             substitutions.do_substitution_pass(config, command_line_substitutions)
         except vol.Invalid as err:
+            result.add_error(err)
+            return result
+
+    # 1. Load packages
+    if CONF_PACKAGES in config:
+        from esphome.components.packages import do_packages_pass
+        result.add_output_path([CONF_PACKAGES], CONF_PACKAGES)
+        try:
+            config = do_packages_pass(config)
+        except vol.Invalid as err:
+            result.update(config)
             result.add_error(err)
             return result
 
