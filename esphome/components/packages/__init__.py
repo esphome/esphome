@@ -8,10 +8,18 @@ from esphome.const import CONF_PACKAGES
 
 CODEOWNERS = ['@corvis', '@esphome/core']
 
+# Typings
 TreeItem = Union[dict, list, str]
 PackageConfig = Union[dict, str]
 PackageSource = Union[dict, str]
 PackageParams = Dict[str, Any]
+
+# Config
+CONF_SOURCE = 'source'
+CONF_PARAMS = 'params'
+
+# Context
+CONTEXT_PKG_PARAMS = 'pkg_params'
 
 
 class PackageDefinition(object):
@@ -24,12 +32,6 @@ class PackageDefinition(object):
         self.content: dict = None
         self.external_ref: str = None
         self.params: PackageParams = {}
-
-
-CONF_PACKAGE_SOURCE = 'source'
-CONF_PACKAGE_PARAMS = 'params'
-
-CONTEXT_PKG_PARAMS = 'pkg_params'
 
 
 class TemplateRenderingError(Exception):
@@ -84,7 +86,8 @@ def _process_template_value(value, context: dict):
         template = _create_template_for_str(value)
         return template.render(context)
     except jinja2.TemplateError as e:
-        raise TemplateRenderingError('Error in expression value \"{}\"'.format(value), e)
+        raise TemplateRenderingError(
+            'Error in expression value \"{}\"'.format(value), e) from e
 
 
 def _render_templates_for_item(val: TreeItem, context: dict, path: list) -> Optional[TreeItem]:
@@ -111,18 +114,18 @@ def _render_templates_for_item(val: TreeItem, context: dict, path: list) -> Opti
 def _is_short_package_config_syntax(package_config: PackageConfig) -> bool:
     if isinstance(package_config, str):
         return True
-    elif isinstance(package_config, dict):
-        return not (CONF_PACKAGE_SOURCE in package_config.keys())
+    if isinstance(package_config, dict):
+        return CONF_SOURCE not in package_config.keys()
     return False
 
 
 def _load_package_source(package_source: PackageSource):
     if isinstance(package_source, dict):
         return copy.deepcopy(package_source)
-    else:
-        raise cv.Invalid('Package source is incorrect. Expected source definition is a dictionary '
-                         'containing package configuration. You may also use include syntax '
-                         'like this: !include pathto/my/file.yaml')
+
+    raise cv.Invalid('Package source is incorrect. Expected source definition is a dictionary '
+                     'containing package configuration. You may also use include syntax '
+                     'like this: !include pathto/my/file.yaml')
     # Validation on of the string uri should be added here
 
 
@@ -130,12 +133,13 @@ def _validate_package_config(package_name: str, package_config: PackageConfig):
     """
     There are 2 versions of the syntax supported.
     The short one: just dictionary representing package source.
-                   In future it will be good to extend to support string URI pointing external resource
+                   In future it will be good to extend to support string URI pointing external
+                   resource
     The regular one: dictionary of the following structure
                      source: dict or string - required, dictionary representing package source
                      params: dict           - optional, key-value params to be added to expression
-                                                        evaluator scope for this package. Value could be
-                                                        any type supported by YAML
+                                                        evaluator scope for this package.
+                                                        Value could be any type supported by YAML
     :param package_name:    name of the package to be validated
     :param package_config:  package configuration to be validated
     :return: None
@@ -146,13 +150,13 @@ def _validate_package_config(package_name: str, package_config: PackageConfig):
         # which will be validated during package loading phase
         pass
     else:
-        if CONF_PACKAGE_PARAMS in package_config:
-            if not isinstance(package_config[CONF_PACKAGE_PARAMS], dict):
+        if CONF_PARAMS in package_config:
+            if not isinstance(package_config[CONF_PARAMS], dict):
                 cv.Invalid('Package params should be key value mapping got {} instead'.format(
-                    type(package_config[CONF_PACKAGE_PARAMS])), [CONF_PACKAGE_PARAMS])
-            else:
-                for key in package_config[CONF_PACKAGE_PARAMS].keys():
-                    pass  # TODO: Validate key to be a correct identifier
+                    type(package_config[CONF_PARAMS])), [CONF_PARAMS])
+            # else:
+            #     for key in package_config[CONF_PACKAGE_PARAMS].keys():
+            #         pass  # TODO: Validate key to be a correct identifier
 
 
 def _load_package(package_name, package_config: PackageConfig) -> PackageDefinition:
@@ -161,10 +165,10 @@ def _load_package(package_name, package_config: PackageConfig) -> PackageDefinit
     if _is_short_package_config_syntax(package_config):
         package.content = _load_package_source(package_config)
     else:
-        package.content = _load_package_source(package_config[CONF_PACKAGE_SOURCE])
-        package.params = package_config.get(CONF_PACKAGE_PARAMS, {})
-        if isinstance(package_config[CONF_PACKAGE_SOURCE], str):
-            package.external_ref = package_config[CONF_PACKAGE_SOURCE]
+        package.content = _load_package_source(package_config[CONF_SOURCE])
+        package.params = package_config.get(CONF_PARAMS, {})
+        if isinstance(package_config[CONF_SOURCE], str):
+            package.external_ref = package_config[CONF_SOURCE]
     return package
 
 
@@ -202,7 +206,8 @@ def do_packages_pass(config: dict):
                 recursive_package_content = package.content
                 if isinstance(package_config, dict):
                     recursive_package_content = do_packages_pass(recursive_package_content)
-                do_template_rendering_pass(recursive_package_content, _create_context_for_package(package))
+                do_template_rendering_pass(recursive_package_content,
+                                           _create_context_for_package(package))
                 config = _merge_package(recursive_package_content, config)
 
         del config[CONF_PACKAGES]
