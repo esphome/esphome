@@ -2,8 +2,8 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import i2c, sensor
 from esphome.const import CONF_BUS_VOLTAGE, CONF_CURRENT, CONF_ID, CONF_POWER, \
-    CONF_SHUNT_RESISTANCE, CONF_SHUNT_VOLTAGE, ICON_FLASH, \
-    UNIT_VOLT, UNIT_AMPERE, UNIT_WATT
+    CONF_SHUNT_RESISTANCE, CONF_SHUNT_VOLTAGE, DEVICE_CLASS_VOLTAGE, DEVICE_CLASS_CURRENT, \
+    DEVICE_CLASS_POWER, ICON_EMPTY, UNIT_VOLT, UNIT_AMPERE, UNIT_WATT
 
 DEPENDENCIES = ['i2c']
 
@@ -15,10 +15,13 @@ ina3221_ns = cg.esphome_ns.namespace('ina3221')
 INA3221Component = ina3221_ns.class_('INA3221Component', cg.PollingComponent, i2c.I2CDevice)
 
 INA3221_CHANNEL_SCHEMA = cv.Schema({
-    cv.Optional(CONF_BUS_VOLTAGE): sensor.sensor_schema(UNIT_VOLT, ICON_FLASH, 2),
-    cv.Optional(CONF_SHUNT_VOLTAGE): sensor.sensor_schema(UNIT_VOLT, ICON_FLASH, 2),
-    cv.Optional(CONF_CURRENT): sensor.sensor_schema(UNIT_AMPERE, ICON_FLASH, 2),
-    cv.Optional(CONF_POWER): sensor.sensor_schema(UNIT_WATT, ICON_FLASH, 2),
+    cv.Optional(CONF_BUS_VOLTAGE): sensor.sensor_schema(UNIT_VOLT, ICON_EMPTY, 2,
+                                                        DEVICE_CLASS_VOLTAGE),
+    cv.Optional(CONF_SHUNT_VOLTAGE): sensor.sensor_schema(UNIT_VOLT, ICON_EMPTY, 2,
+                                                          DEVICE_CLASS_VOLTAGE),
+    cv.Optional(CONF_CURRENT): sensor.sensor_schema(UNIT_AMPERE, ICON_EMPTY, 2,
+                                                    DEVICE_CLASS_CURRENT),
+    cv.Optional(CONF_POWER): sensor.sensor_schema(UNIT_WATT, ICON_EMPTY, 2, DEVICE_CLASS_POWER),
     cv.Optional(CONF_SHUNT_RESISTANCE, default=0.1): cv.All(cv.resistance,
                                                             cv.Range(min=0.0, max=32.0)),
 })
