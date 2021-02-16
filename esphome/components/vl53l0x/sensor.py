@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import i2c, sensor
-from esphome.const import CONF_ID, UNIT_METER, ICON_ARROW_EXPAND_VERTICAL
+from esphome.const import CONF_ID, DEVICE_CLASS_EMPTY, UNIT_METER, ICON_ARROW_EXPAND_VERTICAL
 
 DEPENDENCIES = ['i2c']
 
@@ -12,7 +12,9 @@ VL53L0XSensor = vl53l0x_ns.class_('VL53L0XSensor', sensor.Sensor, cg.PollingComp
 CONF_SIGNAL_RATE_LIMIT = 'signal_rate_limit'
 CONF_LONG_RANGE = 'long_range'
 
-CONFIG_SCHEMA = sensor.sensor_schema(UNIT_METER, ICON_ARROW_EXPAND_VERTICAL, 2).extend({
+CONFIG_SCHEMA = sensor.sensor_schema(
+    UNIT_METER, ICON_ARROW_EXPAND_VERTICAL, 2, DEVICE_CLASS_EMPTY
+).extend({
     cv.GenerateID(): cv.declare_id(VL53L0XSensor),
     cv.Optional(CONF_SIGNAL_RATE_LIMIT, default=0.25): cv.float_range(
         min=0.0, max=512.0, min_included=False, max_included=False),
