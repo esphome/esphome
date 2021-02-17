@@ -13,6 +13,7 @@ template<typename... Ts> class TurnOnAction : public Action<Ts...> {
 
   TEMPLATABLE_VALUE(bool, oscillating)
   TEMPLATABLE_VALUE(FanSpeed, speed)
+  TEMPLATABLE_VALUE(float, speed_percentage)
 
   void play(Ts... x) override {
     auto call = this->state_->turn_on();
@@ -21,6 +22,9 @@ template<typename... Ts> class TurnOnAction : public Action<Ts...> {
     }
     if (this->speed_.has_value()) {
       call.set_speed(this->speed_.value(x...));
+    }
+    if (this->speed_percentage_.has_value()) {
+      call.set_speed(this->speed_percentage_.value(x...));
     }
     call.perform();
   }
