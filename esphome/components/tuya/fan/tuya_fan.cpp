@@ -1,4 +1,5 @@
 #include "esphome/core/log.h"
+#include "esphome/components/fan/fan_helpers.h"
 #include "tuya_fan.h"
 
 namespace esphome {
@@ -75,12 +76,8 @@ void TuyaFan::write_state() {
     TuyaDatapoint datapoint{};
     datapoint.id = *this->speed_id_;
     datapoint.type = TuyaDatapointType::ENUM;
-    if (this->fan_->speed == fan::FAN_SPEED_LOW)
-      datapoint.value_enum = 0;
-    if (this->fan_->speed == fan::FAN_SPEED_MEDIUM)
-      datapoint.value_enum = 1;
-    if (this->fan_->speed == fan::FAN_SPEED_HIGH)
-      datapoint.value_enum = 2;
+    float speed = fan::speed_percentage_from_state(this->fan_);
+    datapoint.value_enum = fan::percentage_to_range(speed, 0, 2);
     ESP_LOGD(TAG, "Setting speed: %d", datapoint.value_enum);
     this->parent_->set_datapoint_value(datapoint);
   }
