@@ -1,3 +1,4 @@
+from esphome.cpp_generator import RawExpression
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import (
@@ -31,7 +32,9 @@ def to_code(config):
     yield cg.register_component(var, config)
 
     if config[CONF_SAFE_MODE]:
-        cg.add(var.start_safe_mode(config[CONF_NUM_ATTEMPTS], config[CONF_REBOOT_TIMEOUT]))
+        condition = var.should_enter_safe_mode(config[CONF_NUM_ATTEMPTS],
+                                               config[CONF_REBOOT_TIMEOUT])
+        cg.add(RawExpression(f"if ({condition}) return"))
 
     if CORE.is_esp8266:
         cg.add_library('Update', None)
