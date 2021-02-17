@@ -32,7 +32,8 @@ def to_code(config):
     yield cg.register_component(var, config)
 
     if config[CONF_SAFE_MODE]:
-        condition = var.should_enter_safe_mode(config[CONF_NUM_ATTEMPTS], config[CONF_REBOOT_TIMEOUT])
+        condition = var.should_enter_safe_mode(config[CONF_NUM_ATTEMPTS],
+                                               config[CONF_REBOOT_TIMEOUT])
         cg.add(RawExpression(f"if ({condition}) return"))
 
     if CORE.is_esp8266:
