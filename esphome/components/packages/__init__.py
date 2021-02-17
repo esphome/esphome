@@ -1,4 +1,5 @@
 import copy
+import re
 from typing import Union, Optional, Dict, Any
 
 import jinja2
@@ -17,6 +18,8 @@ PackageParams = Dict[str, Any]
 # Config
 CONF_SOURCE = 'source'
 CONF_PARAMS = 'params'
+
+VALID_CONTEXT_VAR_RE = re.compile('^[a-zA-Z_][a-zA-Z0-9_]*(\.[a-zA-Z_][a-zA-Z0-9_]*)*$')
 
 # Context
 CONTEXT_PKG_PARAMS = 'pkg_params'
@@ -145,7 +148,7 @@ def _validate_package_config(package_name: str, package_config: PackageConfig):
     :return: None
     :raises: cv.Invalid - in case when configuration is invalid
     """
-    if not _is_short_package_config_syntax(package_config):
+    if _is_short_package_config_syntax(package_config):
         # Nothing to validate short syntax means config is actually a source declaration
         # which will be validated during package loading phase
         pass
@@ -154,9 +157,11 @@ def _validate_package_config(package_name: str, package_config: PackageConfig):
             if not isinstance(package_config[CONF_PARAMS], dict):
                 cv.Invalid('Package params should be key value mapping got {} instead'.format(
                     type(package_config[CONF_PARAMS])), [CONF_PARAMS])
-            # else:
-            #     for key in package_config[CONF_PACKAGE_PARAMS].keys():
-            #         pass  # TODO: Validate key to be a correct identifier
+            else:
+                for key in package_config[CONF_PARAMS].keys():
+                    if not VALID_CONTEXT_VAR_RE.fullmatch(key):
+                        raise cv.Invalid("Invalid package parameter name {}. Parameter names "
+                                         "must be valid python identifiers.".format(key), [CONF_PARAMS, key])
 
 
 def _load_package(package_name, package_config: PackageConfig) -> PackageDefinition:
