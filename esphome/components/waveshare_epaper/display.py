@@ -27,6 +27,7 @@ MODELS = {
     '2.13in-ttgo': ('a', WaveshareEPaperTypeAModel.TTGO_EPAPER_2_13_IN),
     '2.13in-ttgo-b73': ('a', WaveshareEPaperTypeAModel.TTGO_EPAPER_2_13_IN_B73),
     '2.90in': ('a', WaveshareEPaperTypeAModel.WAVESHARE_EPAPER_2_9_IN),
+    '2.90inv2': ('a', WaveshareEPaperTypeAModel.WAVESHARE_EPAPER_2_9_IN_V2),
     '2.70in': ('b', WaveshareEPaper2P7In),
     '2.90in-b': ('b', WaveshareEPaper2P9InB),
     '4.20in': ('b', WaveshareEPaper4P2In),
@@ -41,7 +42,7 @@ def validate_full_update_every_only_type_a(value):
         return value
     if MODELS[value[CONF_MODEL]][0] != 'a':
         raise cv.Invalid("The 'full_update_every' option is only available for models "
-                         "'1.54in', '2.13in' and '2.90in'.")
+                         "'1.54in', '2.13in', '2.90in', and '2.90inV2'.")
     return value
 
 
