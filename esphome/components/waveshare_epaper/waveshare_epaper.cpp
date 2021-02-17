@@ -269,10 +269,10 @@ void HOT WaveshareEPaperTypeA::display() {
 
   // COMMAND DISPLAY UPDATE CONTROL 2
   this->command(0x22);
-  if (this->model_ != WAVESHARE_EPAPER_2_9_IN_V2) {
-    this->data(0xC4);
-  } else {
+  if (this->model_ == WAVESHARE_EPAPER_2_9_IN_V2) {
     this->data(full_update ? 0xF7 : 0xFF);
+  } else {
+    this->data(0xC4);
   }
 
   // COMMAND MASTER ACTIVATION
