@@ -23,6 +23,7 @@ from esphome.yaml_util import is_secret, ESPHomeDataBase, ESPForceValue
 from esphome.voluptuous_schema import ExtraKeysInvalid
 
 _LOGGER = logging.getLogger(__name__)
+OUTPUT_PATH_ROOT = ([], '')
 
 _COMPONENT_CACHE = {}
 
@@ -394,6 +395,9 @@ def recursive_check_replaceme(value):
 
 def validate_config(config, command_line_substitutions):
     result = Config()
+    # Adding root path to make error reporter render errors not related to any
+    # of the domains e.g. missing esphome section
+    result.output_paths.append(OUTPUT_PATH_ROOT)
 
     # 0. Load substitutions
     if CONF_SUBSTITUTIONS in config:
@@ -849,8 +853,9 @@ def read_config(command_line_substitutions):
             if not res.is_in_error_path(path):
                 continue
 
-            safe_print(color('bold_red', f'{domain}:') + ' ' +
-                       (line_info(res.get_nested_item(path)) or ''))
+            if len(domain) > 0:     # Skip printing domain and line for root
+                safe_print(color('bold_red', f'{domain}:') + ' ' +
+                           (line_info(res.get_nested_item(path)) or ''))
             safe_print(indent(dump_dict(res, path)[0]))
         return None
     return OrderedDict(res)
