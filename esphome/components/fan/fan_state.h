@@ -15,6 +15,9 @@ enum FanSpeed {
   FAN_SPEED_HIGH = 2     ///< The fan is running on high/full speed.
 };
 
+/// Simple enum to represent which speed mode the fan uses (for backward compatibility)
+enum FanSpeedMode { FAN_SPEED_MODE_PERCENTAGE = 0, FAN_SPEED_MODE_PRESET = 1 };
+
 /// Simple enum to represent the direction of a fan
 enum FanDirection { FAN_DIRECTION_FORWARD = 0, FAN_DIRECTION_REVERSE = 1 };
 
@@ -44,8 +47,8 @@ class FanStateCall {
     this->speed_ = speed;
     return *this;
   }
-  FanStateCall &set_speed(optional<FanSpeed> speed) {
-    this->speed_ = speed;
+  FanStateCall &set_speed(float speed) {
+    this->speed_percentage_ = speed;
     return *this;
   }
   FanStateCall &set_speed(const char *speed);
@@ -65,6 +68,7 @@ class FanStateCall {
   optional<bool> binary_state_;
   optional<bool> oscillating_{};
   optional<FanSpeed> speed_{};
+  optional<float> speed_percentage_{};
   optional<FanDirection> direction_{};
 };
 
@@ -88,6 +92,10 @@ class FanState : public Nameable, public Component {
   bool oscillating{false};
   /// The current fan speed.
   FanSpeed speed{FAN_SPEED_HIGH};
+  /// The current fan speed percentage
+  float speed_percentage{1.0f};
+  /// The current fan speed mode (for backward compatibility)
+  FanSpeedMode speed_mode_{fan::FAN_SPEED_MODE_PERCENTAGE};
   /// The current direction of the fan
   FanDirection direction{FAN_DIRECTION_FORWARD};
 

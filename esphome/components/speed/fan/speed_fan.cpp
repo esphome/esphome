@@ -1,4 +1,5 @@
 #include "speed_fan.h"
+#include "esphome/components/fan/fan_helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
@@ -29,12 +30,8 @@ void SpeedFan::loop() {
   {
     float speed = 0.0f;
     if (this->fan_->state) {
-      if (this->fan_->speed == fan::FAN_SPEED_LOW)
-        speed = this->low_speed_;
-      else if (this->fan_->speed == fan::FAN_SPEED_MEDIUM)
-        speed = this->medium_speed_;
-      else if (this->fan_->speed == fan::FAN_SPEED_HIGH)
-        speed = this->high_speed_;
+      speed = fan::speed_percentage_from_state(this->fan_, this->low_speed_, this->medium_speed_, this->high_speed_);
+      this->fan_->speed_percentage = speed;
     }
     ESP_LOGD(TAG, "Setting speed: %.2f", speed);
     this->output_->set_level(speed);

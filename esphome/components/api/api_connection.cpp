@@ -246,8 +246,16 @@ bool APIConnection::send_fan_state(fan::FanState *fan) {
   resp.state = fan->state;
   if (traits.supports_oscillation())
     resp.oscillating = fan->oscillating;
-  if (traits.supports_speed())
-    resp.speed = static_cast<enums::FanSpeed>(fan->speed);
+  if (traits.supports_speed()) {
+    switch (fan->speed_mode_) {
+      case fan::FanSpeedMode::FAN_SPEED_MODE_PERCENTAGE:
+        resp.speed_percentage = fan->speed_percentage;
+        break;
+      case fan::FanSpeedMode::FAN_SPEED_MODE_PRESET:
+        resp.speed = static_cast<enums::FanSpeed>(fan->speed);
+        break;
+    }
+  }
   if (traits.supports_direction())
     resp.direction = static_cast<enums::FanDirection>(fan->direction);
   return this->send_fan_state_response(resp);
@@ -274,8 +282,12 @@ void APIConnection::fan_command(const FanCommandRequest &msg) {
     call.set_state(msg.state);
   if (msg.has_oscillating)
     call.set_oscillating(msg.oscillating);
-  if (msg.has_speed)
+  if (msg.has_speed_percentage) {
+    // Prefer percentage
+    call.set_speed(msg.speed_percentage);
+  } else if (msg.has_speed) {
     call.set_speed(static_cast<fan::FanSpeed>(msg.speed));
+  }
   if (msg.has_direction)
     call.set_direction(static_cast<fan::FanDirection>(msg.direction));
   call.perform();
@@ -590,7 +602,7 @@ HelloResponse APIConnection::hello(const HelloRequest &msg) {
 
   HelloResponse resp;
   resp.api_version_major = 1;
-  resp.api_version_minor = 3;
+  resp.api_version_minor = 4;
   resp.server_info = App.get_name() + " (esphome v" ESPHOME_VERSION ")";
   this->connection_state_ = ConnectionState::CONNECTED;
   return resp;

@@ -20,7 +20,7 @@ FanStateCall FanState::make_call() { return FanStateCall(this); }
 
 struct FanStateRTCState {
   bool state;
-  FanSpeed speed;
+  float speed;
   bool oscillating;
   FanDirection direction;
 };
@@ -51,12 +51,16 @@ void FanStateCall::perform() const {
   if (this->direction_.has_value()) {
     this->state_->direction = *this->direction_;
   }
-  if (this->speed_.has_value()) {
+  if (this->speed_percentage_.has_value()) {
+    this->state_->speed_percentage = *this->speed_percentage_;
+    this->state_->speed_mode_ = fan::FAN_SPEED_MODE_PERCENTAGE;
+  } else if (this->speed_.has_value()) {
     switch (*this->speed_) {
       case FAN_SPEED_LOW:
       case FAN_SPEED_MEDIUM:
       case FAN_SPEED_HIGH:
         this->state_->speed = *this->speed_;
+        this->state_->speed_mode_ = fan::FAN_SPEED_MODE_PRESET;
         break;
       default:
         // protect from invalid input
@@ -66,7 +70,7 @@ void FanStateCall::perform() const {
 
   FanStateRTCState saved{};
   saved.state = this->state_->state;
-  saved.speed = this->state_->speed;
+  saved.speed = this->state_->speed_percentage;
   saved.oscillating = this->state_->oscillating;
   saved.direction = this->state_->direction;
   this->state_->rtc_.save(&saved);
