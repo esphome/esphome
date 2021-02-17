@@ -299,6 +299,7 @@ class FanStateResponse : public ProtoMessage {
   bool oscillating{false};          // NOLINT
   enums::FanSpeed speed{};          // NOLINT
   enums::FanDirection direction{};  // NOLINT
+  float speed_percentage{0.0f};     // NOLINT
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
 
@@ -308,15 +309,17 @@ class FanStateResponse : public ProtoMessage {
 };
 class FanCommandRequest : public ProtoMessage {
  public:
-  uint32_t key{0};                  // NOLINT
-  bool has_state{false};            // NOLINT
-  bool state{false};                // NOLINT
-  bool has_speed{false};            // NOLINT
-  enums::FanSpeed speed{};          // NOLINT
-  bool has_oscillating{false};      // NOLINT
-  bool oscillating{false};          // NOLINT
-  bool has_direction{false};        // NOLINT
-  enums::FanDirection direction{};  // NOLINT
+  uint32_t key{0};                   // NOLINT
+  bool has_state{false};             // NOLINT
+  bool state{false};                 // NOLINT
+  bool has_speed{false};             // NOLINT
+  enums::FanSpeed speed{};           // NOLINT
+  bool has_oscillating{false};       // NOLINT
+  bool oscillating{false};           // NOLINT
+  bool has_direction{false};         // NOLINT
+  enums::FanDirection direction{};   // NOLINT
+  bool has_speed_percentage{false};  // NOLINT
+  float speed_percentage{0.0f};      // NOLINT
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
 
@@ -401,9 +404,9 @@ class ListEntitiesSensorResponse : public ProtoMessage {
   std::string unique_id{};            // NOLINT
   std::string icon{};                 // NOLINT
   std::string unit_of_measurement{};  // NOLINT
-  std::string device_class{};         // NOLINT
   int32_t accuracy_decimals{0};       // NOLINT
   bool force_update{false};           // NOLINT
+  std::string device_class{};         // NOLINT
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
 

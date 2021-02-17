@@ -876,6 +876,10 @@ bool FanStateResponse::decode_32bit(uint32_t field_id, Proto32Bit value) {
       this->key = value.as_fixed32();
       return true;
     }
+    case 6: {
+      this->speed_percentage = value.as_float();
+      return true;
+    }
     default:
       return false;
   }
@@ -886,6 +890,7 @@ void FanStateResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_bool(3, this->oscillating);
   buffer.encode_enum<enums::FanSpeed>(4, this->speed);
   buffer.encode_enum<enums::FanDirection>(5, this->direction);
+  buffer.encode_float(6, this->speed_percentage);
 }
 void FanStateResponse::dump_to(std::string &out) const {
   char buffer[64];
@@ -909,6 +914,11 @@ void FanStateResponse::dump_to(std::string &out) const {
 
   out.append("  direction: ");
   out.append(proto_enum_to_string<enums::FanDirection>(this->direction));
+  out.append("\n");
+
+  out.append("  speed_percentage: ");
+  sprintf(buffer, "%g", this->speed_percentage);
+  out.append(buffer);
   out.append("\n");
   out.append("}");
 }
@@ -946,6 +956,10 @@ bool FanCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
       this->direction = value.as_enum<enums::FanDirection>();
       return true;
     }
+    case 10: {
+      this->has_speed_percentage = value.as_bool();
+      return true;
+    }
     default:
       return false;
   }
@@ -954,6 +968,10 @@ bool FanCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
   switch (field_id) {
     case 1: {
       this->key = value.as_fixed32();
+      return true;
+    }
+    case 11: {
+      this->speed_percentage = value.as_float();
       return true;
     }
     default:
@@ -970,6 +988,8 @@ void FanCommandRequest::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_bool(7, this->oscillating);
   buffer.encode_bool(8, this->has_direction);
   buffer.encode_enum<enums::FanDirection>(9, this->direction);
+  buffer.encode_bool(10, this->has_speed_percentage);
+  buffer.encode_float(11, this->speed_percentage);
 }
 void FanCommandRequest::dump_to(std::string &out) const {
   char buffer[64];
@@ -1009,6 +1029,15 @@ void FanCommandRequest::dump_to(std::string &out) const {
 
   out.append("  direction: ");
   out.append(proto_enum_to_string<enums::FanDirection>(this->direction));
+  out.append("\n");
+
+  out.append("  has_speed_percentage: ");
+  out.append(YESNO(this->has_speed_percentage));
+  out.append("\n");
+
+  out.append("  speed_percentage: ");
+  sprintf(buffer, "%g", this->speed_percentage);
+  out.append(buffer);
   out.append("\n");
   out.append("}");
 }

@@ -322,8 +322,9 @@ message FanStateResponse {
   fixed32 key = 1;
   bool state = 2;
   bool oscillating = 3;
-  FanSpeed speed = 4;
+  FanSpeed speed = 4 [deprecated = true];
   FanDirection direction = 5;
+  float speed_percentage = 6;
 }
 message FanCommandRequest {
   option (id) = 31;
@@ -334,12 +335,14 @@ message FanCommandRequest {
   fixed32 key = 1;
   bool has_state = 2;
   bool state = 3;
-  bool has_speed = 4;
-  FanSpeed speed = 5;
+  bool has_speed = 4 [deprecated = true];
+  FanSpeed speed = 5 [deprecated = true];
   bool has_oscillating = 6;
   bool oscillating = 7;
   bool has_direction = 8;
   FanDirection direction = 9;
+  bool has_speed_percentage = 10;
+  float speed_percentage = 11;
 }
 
 // ==================== LIGHT ====================
