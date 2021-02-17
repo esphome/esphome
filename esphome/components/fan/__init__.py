@@ -101,7 +101,8 @@ def fan_turn_off_to_code(config, action_id, template_arg, args):
 @automation.register_action('fan.turn_on', TurnOnAction, maybe_simple_id({
     cv.Required(CONF_ID): cv.use_id(FanState),
     cv.Optional(CONF_OSCILLATING): cv.templatable(cv.boolean),
-    cv.Optional(CONF_SPEED): cv.templatable(cv.Any(cv.enum(FAN_SPEEDS, upper=True), cv.float_range(0.0, 1.0))),
+    cv.Optional(CONF_SPEED): cv.templatable(cv.Any(cv.enum(FAN_SPEEDS, upper=True),
+                                                   cv.float_range(0.0, 1.0))),
 }))
 def fan_turn_on_to_code(config, action_id, template_arg, args):
     paren = yield cg.get_variable(config[CONF_ID])
@@ -112,7 +113,8 @@ def fan_turn_on_to_code(config, action_id, template_arg, args):
     if CONF_SPEED in config:
         speed = config[CONF_SPEED]
         if speed in FAN_SPEEDS:
-            _LOGGER.warning(f"Fan speed {speed} in fan.turn_on is deprecated and will be removed in the future.")
+            _LOGGER.warning("Fan speed %s in fan.turn_on is deprecated "
+                            "and will be removed in the future.", speed)
             template_ = yield cg.templatable(config[CONF_SPEED], args, FanSpeed)
             cg.add(var.set_speed(template_))
         else:
