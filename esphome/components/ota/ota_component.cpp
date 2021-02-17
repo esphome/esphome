@@ -355,7 +355,7 @@ void OTAComponent::set_auth_password(const std::string &password) { this->passwo
 float OTAComponent::get_setup_priority() const { return setup_priority::AFTER_WIFI; }
 uint16_t OTAComponent::get_port() const { return this->port_; }
 void OTAComponent::set_port(uint16_t port) { this->port_ = port; }
-bool OTAComponent::start_safe_mode(uint8_t num_attempts, uint32_t enable_time) {
+bool OTAComponent::should_enter_safe_mode(uint8_t num_attempts, uint32_t enable_time) {
   this->has_safe_mode_ = true;
   this->safe_mode_start_time_ = millis();
   this->safe_mode_enable_time_ = enable_time;
