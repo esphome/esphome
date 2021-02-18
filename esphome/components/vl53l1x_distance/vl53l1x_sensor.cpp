@@ -15,11 +15,11 @@ void VL53L1XSensor::dump_config() {
 void VL53L1XSensor::setup() {
   ESP_LOGCONFIG(TAG, "Setting up VL53L1X...");
   // begin and log if not connected
-  if (VL53L1X_begin() != 0) {
+  if (begin() != 0) {
     ESP_LOGW(TAG, "'%s' - failed to begin. Please check wiring.", this->name_.c_str());
   }
 
-  VL53L1X_set_distance_mode(static_cast<DistanceMode>(distance_mode_));
+  set_distance_mode(static_cast<DistanceMode>(distance_mode_));
   switch (distance_mode_) {
     case DistanceMode::SHORT:
       if (timing_budget_ < 20)
@@ -32,18 +32,18 @@ void VL53L1XSensor::setup() {
         timing_budget_ = 33;
       break;
   }
-  VL53L1X_set_timing_budget_in_ms(timing_budget_);
+  set_timing_budget_in_ms(timing_budget_);
 }
 
 void VL53L1XSensor::update() {
   // initiate single shot measurement]
   uint16_t distance_mm;
 
-  VL53L1X_start_ranging();  // Write configuration bytes to initiate measurement
-  if (VL53L1X_check_for_data_ready() == 0) {
-    distance_mm = VL53L1X_get_distance();  // Get the result of the measurement from the sensor
+  start_ranging();  // Write configuration bytes to initiate measurement
+  if (check_for_data_ready() == 0) {
+    distance_mm = get_distance();  // Get the result of the measurement from the sensor
     // VL53L1X_clearInterrupt();
-    VL53L1X_stop_ranging();
+    stop_ranging();
     float distance_m = static_cast<float>(distance_mm) / 1000.0;
     ESP_LOGD(TAG, "'%s' - Got distance %.3f m", this->name_.c_str(), distance_m);
     this->publish_state(distance_m);
@@ -53,11 +53,11 @@ void VL53L1XSensor::update() {
 void VL53L1XSensor::loop() {
   uint16_t distance_mm;
 
-  VL53L1X_start_ranging();  // Write configuration bytes to initiate measurement
-  if (VL53L1X_check_for_data_ready() == 0) {
-    distance_mm = VL53L1X_get_distance();  // Get the result of the measurement from the sensor
+  start_ranging();  // Write configuration bytes to initiate measurement
+  if (check_for_data_ready() == 0) {
+    distance_mm = get_distance();  // Get the result of the measurement from the sensor
     // VL53L1X_clearInterrupt();
-    VL53L1X_stop_ranging();
+    stop_ranging();
     float distance_m = static_cast<float>(distance_mm) / 1000.0;
     ESP_LOGD(TAG, "'%s' - Got distance %.3f m", this->name_.c_str(), distance_m);
     this->publish_state(distance_m);
@@ -80,8 +80,8 @@ void VL53L1XSensor::loop() {
 }
 // VL53L1X_
 
-bool VL53L1XSensor::VL53L1X_begin() {
-  if (VL53L1X_check_id() == false)
+bool VL53L1XSensor::begin() {
+  if (check_id() == false)
     return (VL53L1_ERROR_PLATFORM_SPECIFIC_START);
 
   // return _device->VL53L1X_SensorInit();
@@ -93,19 +93,19 @@ bool VL53L1XSensor::VL53L1X_begin() {
   for (Addr = 0x2D; Addr <= 0x87; Addr++) {
     this->write_byte(Addr, VL51L1X_DEFAULT_CONFIGURATION[Addr - 0x2D]);
   }
-  VL53L1X_start_ranging();
+  start_ranging();
 
   // We need to wait at least the default intermeasurement period of 103ms before dataready will occur
   // But if a unit has already been powered and polling, it may happen much faster
   while (dataReady == 0) {
-    status = VL53L1X_check_for_data_ready(&dataReady);
+    status = check_for_data_ready(&dataReady);
     if (timeout++ > 150)
       return VL53L1_ERROR_TIME_OUT;
     delay(1);
   }
   // status = VL53L1_WrByte(Device, SYSTEM__MODE_START, 0x00); /* Disable VL53L1X */
 
-  VL53L1X_stop_ranging();
+  stop_ranging();
   status = this->write_byte(VL53L1_VHV_CONFIG__TIMEOUT_MACROP_LOOP_BOUND, 0x09); /* two bounds VHV */
   status = this->write_byte(0x0B, 0); /* start VHV from the previous temperature */
   return false;
@@ -113,7 +113,7 @@ bool VL53L1XSensor::VL53L1X_begin() {
 
 /*Checks the ID of the device, returns true if ID is correct*/
 
-bool VL53L1XSensor::VL53L1X_check_id() {
+bool VL53L1XSensor::check_id() {
   uint16_t sensorId;
   uint16_t tmp = 0;
 
@@ -125,27 +125,27 @@ bool VL53L1XSensor::VL53L1X_check_id() {
   return false;
 }
 
-uint16_t VL53L1XSensor::VL53L1X_get_distance() {
+uint16_t VL53L1XSensor::get_distance() {
   uint16_t distance;
   // _device->VL53L1X_GetDistance(&distance);
   VL53L1X_ERROR status = 0;
   uint16_t tmp;
 
-  status = (read_byte_16(VL53L1_RESULT__FINAL_CROSSTALK_CORRECTED_RANGE_MM_SD0, &tmp));
+  status = this->read_byte_16(VL53L1_RESULT__FINAL_CROSSTALK_CORRECTED_RANGE_MM_SD0, &tmp);
 
   distance = tmp;
   // return status;
   return (int) distance;
 }
 
-void VL53L1XSensor::VL53L1X_start_ranging() {
+void VL53L1XSensor::start_ranging() {
   // _device->VL53L1X_StartRanging();
   int8_t status = 0;
 
   this->write_byte(SYSTEM__MODE_START, 0x40); /* Enable VL53L1X */
 }
 
-void VL53L1XSensor::VL53L1X_stop_ranging() {
+void VL53L1XSensor::stop_ranging() {
   // _device->VL53L1X_StopRanging();
 
   int8_t status = 0;
@@ -153,7 +153,7 @@ void VL53L1XSensor::VL53L1X_stop_ranging() {
   this->write_byte(SYSTEM__MODE_START, 0x00); /* Disable VL53L1X */
 }
 
-bool VL53L1XSensor::VL53L1X_check_for_data_ready(uint8_t *isdataReady) {
+bool VL53L1XSensor::check_for_data_ready(uint8_t *isdataReady) {
   uint8_t dataReady;
   uint8_t IntPol;
   VL53L1X_ERROR status = 0;
@@ -178,7 +178,7 @@ bool VL53L1XSensor::VL53L1X_check_for_data_ready(uint8_t *isdataReady) {
   return (bool) dataReady;
 }
 
-int8_t VL53L1XSensor::VL53L1X_set_timing_budget_in_ms(uint16_t TimingBudgetInMs) {
+int8_t VL53L1XSensor::apply_timing_budget_in_ms(uint16_t TimingBudgetInMs) {
   // _device->VL53L1X_SetTimingBudgetInMs(timingBudget);
   int8_t status = 0;
   uint16_t DM;
@@ -262,9 +262,7 @@ int8_t VL53L1XSensor::VL53L1X_set_timing_budget_in_ms(uint16_t TimingBudgetInMs)
   return status;
 }
 
-uint16_t VL53L1XSensor::VL53L1X_get_timing_budget_in_ms(
-    uint16_t *pTimingBudgetInMs)  // See sparkfun_VL531LX.cpp line 153 and vl531lx_class.cpp line 365
-{
+uint16_t VL53L1XSensor::get_timing_budget_in_ms(uint16_t *pTimingBudgetInMs){  // See sparkfun_VL531LX.cpp line 153 and vl531lx_class.cpp line 365
   uint16_t TimingBudgetInMs;
   //_device->VL53L1X_GetTimingBudgetInMs(&timingBudget);
 
@@ -308,15 +306,15 @@ uint16_t VL53L1XSensor::VL53L1X_get_timing_budget_in_ms(
   return TimingBudgetInMs;
 }
 
-int8_t VL53L1XSensor::VL53L1X_set_distance_mode_long() { VL53L1X_set_distance_mode(SHORT); }
+int8_t VL53L1XSensor::apply_distance_mode_long() { apply_distance_mode(DistanceMode(SHORT)); }
 
-int8_t VL53L1XSensor::VL53L1X_set_distance_mode_short() { VL53L1X_set_distance_mode(LONG); }
+int8_t VL53L1XSensor::apply_distance_mode_short() { apply_distance_mode(DistanceMode(LONG)); }
 
-int8_t VL53L1XSensor::VL53L1X_set_distance_mode(DistanceMode mode) {
+int8_t VL53L1XSensor::apply_distance_mode(DistanceMode mode) {
   uint16_t TB;
   VL53L1X_ERROR status = 0;
 
-  status = VL53L1X_get_timing_budget_in_ms(&TB);
+  status = get_timing_budget_in_ms(&TB);
   switch (mode) {
     case SHORT:
       status = this->write_byte(PHASECAL_CONFIG__TIMEOUT_MACROP, 0x14);
@@ -339,11 +337,11 @@ int8_t VL53L1XSensor::VL53L1X_set_distance_mode(DistanceMode mode) {
     default:
       break;
   }
-  status = VL53L1X_set_timing_budget_in_ms(TB);
+  status = apply_timing_budget_in_ms(TB);
   return status;
 }
 // ROI
-uint8_t VL53L1XSensor::VL53L1X_set_ROI(uint8_t X, uint8_t Y, uint8_t opticalCenter) {
+uint8_t VL53L1XSensor::apply_ROI(uint8_t X, uint8_t Y, uint8_t opticalCenter) {
   // _device->VL53L1X_SetROI(x, y, opticalCenter);
 
   VL53L1X_ERROR status = 0;
@@ -359,7 +357,7 @@ uint8_t VL53L1XSensor::VL53L1X_set_ROI(uint8_t X, uint8_t Y, uint8_t opticalCent
   return status;
 }
 
-uint16_t VL53L1XSensor::VL53L1X_get_ROIX() {
+uint16_t VL53L1XSensor::get_ROIX() {
   VL53L1X_ERROR status = 0;
 
   uint16_t ROI_X;
@@ -370,7 +368,7 @@ uint16_t VL53L1XSensor::VL53L1X_get_ROIX() {
   return ROI_X;
 }
 
-uint16_t VL53L1XSensor::VL53L1X_get_ROIY() {
+uint16_t VL53L1XSensor::get_ROIY() {
   VL53L1X_ERROR status = 0;
   uint16_t ROI_Y;
   uint8_t tmp;
