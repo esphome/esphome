@@ -45,6 +45,8 @@ LoopTrigger = cg.esphome_ns.class_(
 
 VERSION_REGEX = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+(?:[ab]\d+)?$")
 
+CONF_NAME_MAC_SUFFIX = "name_mac_suffix"
+
 
 def validate_board(value):
     if CORE.is_esp8266:
@@ -173,6 +175,7 @@ CONFIG_SCHEMA = cv.Schema(
         ),
         cv.Optional(CONF_INCLUDES, default=[]): cv.ensure_list(valid_include),
         cv.Optional(CONF_LIBRARIES, default=[]): cv.ensure_list(cv.string_strict),
+        cv.Optional(CONF_NAME_MAC_SUFFIX, default=False): cv.boolean,
         cv.Optional("esphome_core_version"): cv.invalid(
             "The esphome_core_version option has been "
             "removed in 1.13 - the esphome core source "
@@ -289,7 +292,11 @@ def _add_automations(config):
 def to_code(config):
     cg.add_global(cg.global_ns.namespace("esphome").using)
     cg.add(
-        cg.App.pre_setup(config[CONF_NAME], cg.RawExpression('__DATE__ ", " __TIME__'))
+        cg.App.pre_setup(
+            config[CONF_NAME],
+            cg.RawExpression('__DATE__ ", " __TIME__'),
+            config[CONF_NAME_MAC_SUFFIX],
+        )
     )
 
     CORE.add_job(_add_automations, config)
