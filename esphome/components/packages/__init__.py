@@ -2,10 +2,9 @@ import copy
 import re
 from typing import Union, Optional, Dict, Any
 
-import jinja2
-
 import esphome.config_validation as cv
 from esphome.const import CONF_PACKAGES
+from .expressions import process_expression_value, TemplateRenderingError
 
 CODEOWNERS = ['@corvis', '@esphome/core']
 
@@ -19,10 +18,11 @@ PackageParams = Dict[str, Any]
 CONF_SOURCE = 'source'
 CONF_PARAMS = 'params'
 
-VALID_CONTEXT_VAR_RE = re.compile('^[a-zA-Z_][a-zA-Z0-9_]*(\.[a-zA-Z_][a-zA-Z0-9_]*)*$')
+VALID_CONTEXT_VAR_RE = re.compile(r'^[a-zA-Z_][a-zA-Z0-9_]*(\.[a-zA-Z_][a-zA-Z0-9_]*)*$')
 
 # Context
-CONTEXT_PKG_PARAMS = 'pkg_params'
+CONTEXT_PKG = 'pkg'
+CONTEXT_PKG_PARAMS = 'params'
 
 
 class PackageDefinition(object):
@@ -35,14 +35,6 @@ class PackageDefinition(object):
         self.content: dict = None
         self.external_ref: str = None
         self.params: PackageParams = {}
-
-
-class TemplateRenderingError(Exception):
-
-    def __init__(self, msg: str, original_error: Exception) -> None:
-        msg += ': ' + str(original_error)
-        super().__init__(msg)
-        self.original_error = original_error
 
 
 def _merge_package(full_old, full_new):
@@ -65,32 +57,12 @@ def _merge_package(full_old, full_new):
     return merge(full_old, full_new)
 
 
-def _has_jinja2_tags(value) -> bool:
-    return '{{' in value or '{%' in value
-
-
-def _create_template_for_str(str_val: str) -> jinja2.Template:
-    # Configure template instance with required filters, extensions, blocks here
-    return jinja2.Template(str_val)
-
-
 def _create_context_for_package(package: PackageDefinition) -> dict:
     return {
-        CONTEXT_PKG_PARAMS: package.params
+        CONTEXT_PKG: {
+            CONTEXT_PKG_PARAMS: package.params
+        }
     }
-
-
-def _process_template_value(value, context: dict):
-    if not isinstance(value, str):
-        return value  # Skip non-string values
-    if not _has_jinja2_tags(value):
-        return value  # If there are no Jinja2 tags - just skip it too
-    try:
-        template = _create_template_for_str(value)
-        return template.render(context)
-    except jinja2.TemplateError as e:
-        raise TemplateRenderingError(
-            'Error in expression value \"{}\"'.format(value), e) from e
 
 
 def _render_templates_for_item(val: TreeItem, context: dict, path: list) -> Optional[TreeItem]:
@@ -107,7 +79,7 @@ def _render_templates_for_item(val: TreeItem, context: dict, path: list) -> Opti
                 val[i] = res
     elif isinstance(val, str):
         try:
-            return _process_template_value(val, context)
+            return process_expression_value(val, context)
         except TemplateRenderingError as e:
             raise cv.Invalid(str(e), path)
 
@@ -161,7 +133,8 @@ def _validate_package_config(package_name: str, package_config: PackageConfig):
                 for key in package_config[CONF_PARAMS].keys():
                     if not VALID_CONTEXT_VAR_RE.fullmatch(key):
                         raise cv.Invalid("Invalid package parameter name {}. Parameter names "
-                                         "must be valid python identifiers.".format(key), [CONF_PARAMS, key])
+                                         "must be valid python identifiers."
+                                         .format(key), [CONF_PARAMS, key])
 
 
 def _load_package(package_name, package_config: PackageConfig) -> PackageDefinition:

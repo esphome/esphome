@@ -1,8 +1,8 @@
 esphome:
-  name: "{{ pkg_params.node_name }}"
+  name: "{{ pkg.params.node_name }}"
   platform: ESP32
   board: wemos_d1_mini32
-  build_path: ./build/{{ pkg_params.node_name }}
+  build_path: ./build/{{ pkg.params.node_name }}
 
 # I2C Bus
 i2c:
@@ -13,7 +13,7 @@ i2c:
 
 # Enable logging
 logger:
-  level: "{{ pkg_params.log_level }}"
+  level: "{{ pkg.params.log_level }}"
 
 # Dallas
 dallas:

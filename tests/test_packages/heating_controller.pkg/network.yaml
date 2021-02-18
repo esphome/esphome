@@ -1,5 +1,5 @@
 wifi:
-  ssid: "{{ pkg_params.wifi_ssid }}"
-  password: "{{ pkg_params.wifi_password }}"
-  domain: "{{ pkg_params.domain }}"
+  ssid: "{{ pkg.params.wifi_ssid }}"
+  password: "{{ pkg.params.wifi_password }}"
+  domain: "{{ pkg.params.domain }}"
   fast_connect: true
