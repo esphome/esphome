@@ -32,7 +32,7 @@ void VL53L1XSensor::setup() {
         timing_budget_ = 33;
       break;
   }
-  set_timing_budget_in_ms(timing_budget_);
+  apply_timing_budget_in_ms(timing_budget_);
 }
 
 void VL53L1XSensor::update() {
@@ -73,7 +73,7 @@ void VL53L1XSensor::loop() {
 
   //   Already some presence zone smartness
   //   VL53L1X_set_ROI(ROI_height, ROI_width, center[Zone]);  // first value: height of the zone, second value: width of
-  //   the zone delayMicroseconds(50); VL53L1X_set_timing_budget_in_ms(50); // Could this be set into setup as well?
+  //   the zone delayMicroseconds(50); apply_timing_budget_in_ms(50); // Could this be set into setup as well?
   //   VL53L1X_start_ranging(); //Write configuration bytes to initiate measurement
   //   distance_mm = VL53L1X_getDistance(); //Get the result of the measurement from the sensor
   //   VL53L1X_stop_ranging();
