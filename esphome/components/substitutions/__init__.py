@@ -4,6 +4,7 @@ import re
 import esphome.config_validation as cv
 from esphome import core
 from esphome.const import CONF_SUBSTITUTIONS
+from esphome.yaml_util import ESPHomeDataBase, make_data_base
 
 CODEOWNERS = ['@esphome/core']
 _LOGGER = logging.getLogger(__name__)
@@ -68,7 +69,11 @@ def _expand_substitutions(substitutions, value, path):
         value = value[:i] + sub
         i = len(value)
         value += tail
-    return value
+
+    assert isinstance(orig_value, ESPHomeDataBase)
+    # even though string can get larger or smaller, the range should point
+    # to original document marks
+    return make_data_base(value, orig_value)
 
 
 def _substitute_item(substitutions, item, path):
