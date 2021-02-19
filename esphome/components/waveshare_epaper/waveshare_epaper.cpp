@@ -1047,6 +1047,7 @@ void WaveshareEPaperTypeF::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 }
 void HOT WaveshareEPaperTypeF::display() {
+  uint32_t total_pixels = this->get_width_internal() * this->get_height_internal();
   ESP_LOGD(TAG, "Clean display");
   this->command(0x61);  // Pixel dimensions (resolution)
   this->data(0x02);
@@ -1057,7 +1058,8 @@ void HOT WaveshareEPaperTypeF::display() {
   // "Clean" display to avoid/prevent ghosting
   this->command(0x10);
   this->start_data_();
-  for (size_t i = 0; i < this->get_buffer_length_() * 5; i++) {
+  uint32_t num_bytes = total_pixels / 2;
+  for (size_t i = 0; i < num_bytes; i++) {
     this->write_byte(0x77);
     App.feed_wdt();
   }
@@ -1085,15 +1087,12 @@ void HOT WaveshareEPaperTypeF::display() {
   this->command(0x10);
   this->start_data_();
   
-  uint32_t buffer_length = this->get_buffer_length_();
-  for (size_t i = 0; i < buffer_length; i++) {
-    for (size_t j = 0; j < 10; j++) {
-      size_t shift = j * 3;
-      size_t shift2 = ++j * 3;
-      uint8_t pixel1 = (this->buffer_[i] & (0x07 << shift)) >> shift;
-      uint8_t pixel2 = (this->buffer_[i] & (0x07 << shift2)) >> shift2;
-      this->write_byte(pixel1 << 4 | pixel2);
+  for (uint32_t pos = 0; pos < total_pixels; pos+= 2) {
+    uint8_t out = this->get_index_value_(pos) << 4;
+    if (pos < total_pixels - 1) {
+      out |= this->get_index_value_(pos+1);
     }
+    this->write_byte(out);
     App.feed_wdt();
   }
   
@@ -1113,13 +1112,10 @@ void HOT WaveshareEPaperTypeF::display() {
 }
 void WaveshareEPaperTypeF::fill(Color color) {
   const uint8_t fill = this->color_(color);
-  uint32_t pixels = 0;
-  for(int i=0; i<10; i++) {
-    pixels |= (fill << (i*3));
-  }
-  uint32_t buffer_length = this->get_buffer_length_();
-  for (uint32_t i = 0; i < buffer_length; i++) {
-    this->buffer_[i] = pixels;
+  for (uint16_t x = 0; x < this->get_width_internal(); x++) {
+    for (uint16_t y = 0; y < this->get_height_internal(); y++) {
+      this->draw_absolute_pixel_internal(x, y, fill);
+    }
   }
 }
 uint8_t HOT WaveshareEPaperTypeF::color_(Color color) {
@@ -1140,28 +1136,74 @@ uint8_t HOT WaveshareEPaperTypeF::color_(Color color) {
   }
   return 0x07; // "clean"
 }
-void WaveshareEPaperTypeF::init_internal_(uint32_t buffer_length) {
-  ESP_LOGD(TAG, "Allocating pixel buffer, %d bytes free", ESP.getFreeHeap());
-  this->buffer_ = new uint32_t[buffer_length];
-  if (this->buffer_ == nullptr) {
-    ESP_LOGE(TAG, "Could not allocate buffer for display!");
-    return;
-  }
-  ESP_LOGD(TAG, "Allocated pixel buffer, %d bytes free", ESP.getFreeHeap());
-  this->clear();
-  ESP_LOGD(TAG, "Cleared");
-}
 void HOT WaveshareEPaperTypeF::draw_absolute_pixel_internal(int x, int y, Color color) {
+  const uint8_t index = this->color_(color);
+  
+  this->draw_absolute_pixel_internal(x, y, index);
+}
+void HOT WaveshareEPaperTypeF::draw_absolute_pixel_internal(int x, int y, uint8_t index) {
   if (x >= this->get_width_internal() || y >= this->get_height_internal() || x < 0 || y < 0)
     return;
+  
+  uint32_t pos = (x + y * this->get_width_internal());
+  
+  const uint32_t pixel_bit_start = pos * pixel_storage_size_;
+  const uint32_t pixel_bit_end = pixel_bit_start + pixel_storage_size_;
 
-  const uint32_t pxl = x + y * this->get_width_internal();
-  const int pos = pxl / 10u;
-  const int offset = pxl % 10u;
-  const uint8_t c = this->color_(color);
-  uint8_t shift = offset * 3;
-  this->buffer_[pos] &= ~ (0x07 << shift);
-  this->buffer_[pos] |= (c & 0x07) << shift;
+  const uint32_t byte_location_start = pixel_bit_start / 8;
+  const uint32_t byte_location_end = pixel_bit_end / 8;
+
+  const uint8_t byte_offset_start = pixel_bit_start % 8;
+  uint8_t index_byte_start = this->buffer_[byte_location_start];
+
+  uint8_t mask = ((1 << pixel_storage_size_) - 1) << byte_offset_start;
+
+  index_byte_start = (index_byte_start & ~mask) | ((index << byte_offset_start) & mask);
+  this->buffer_[byte_location_start] = index_byte_start;
+  
+  if (byte_location_start == byte_location_end) {  // Index is in the same byte
+    return;
+  }
+
+  const uint8_t byte_offset_end = pixel_bit_end % 8;
+
+  uint8_t index_byte_end = this->buffer_[byte_location_end];
+  mask = (((uint8_t) 1 << pixel_storage_size_) - 1) >> (pixel_storage_size_ - byte_offset_end);
+
+  index_byte_end = (index_byte_end & ~mask) | ((index >> (pixel_storage_size_ - byte_offset_end)) & mask);
+
+  this->buffer_[byte_location_end] = index_byte_end;
+}
+
+uint8_t HOT WaveshareEPaperTypeF::get_index_value_(uint32_t pos) {
+  const uint32_t pixel_bit_start = pos * pixel_storage_size_;
+  const uint32_t pixel_bit_end = pixel_bit_start + pixel_storage_size_;
+
+  const uint32_t byte_location_start = pixel_bit_start / 8;
+  const uint32_t byte_location_end = pixel_bit_end / 8;
+
+  uint8_t index_byte_start = this->buffer_[byte_location_start];
+  const uint8_t byte_offset_start = pixel_bit_start % 8;
+  
+  uint8_t mask = (1 << pixel_storage_size_) - 1;
+
+  index_byte_start = (index_byte_start >> byte_offset_start);
+
+  if (byte_location_start == byte_location_end) {  // Index is in the same byte
+    return index_byte_start & mask;
+  }
+  
+  const uint8_t byte_offset_end = pixel_bit_end % 8;
+
+  uint8_t end_mask = mask >> (pixel_storage_size_ - byte_offset_end);
+
+  uint8_t index_byte_end = this->buffer_[byte_location_end];
+
+  index_byte_end = (index_byte_end & end_mask) << (pixel_storage_size_ - byte_offset_end);
+
+  index_byte_end = index_byte_end | index_byte_start;
+
+  return index_byte_end & mask;
 }
 int WaveshareEPaperTypeF::get_width_internal() {
   switch (this->model_) {
@@ -1179,7 +1221,12 @@ int WaveshareEPaperTypeF::get_height_internal() {
 }
 
 uint32_t WaveshareEPaperTypeF::get_buffer_length_() {
-  return this->get_width_internal() * this->get_height_internal() / 10u + 1u;
+  uint32_t total_pixels = this->get_width_internal() * this->get_height_internal();
+  uint32_t screensize = total_pixels * this->pixel_storage_size_;
+
+  uint32_t bufflength = (screensize % 8) ? screensize / 8 + 1 : screensize / 8;
+
+  return bufflength;
 }
 bool WaveshareEPaperTypeF::wait_until_idle_() {
   if (this->busy_pin_ == nullptr) {

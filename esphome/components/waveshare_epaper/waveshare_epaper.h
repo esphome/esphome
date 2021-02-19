@@ -307,11 +307,13 @@ class WaveshareEPaperTypeF : public WaveshareEPaper {
   }
 
  protected:
-  uint32_t *buffer_{nullptr};
   virtual uint8_t color_(Color color);
   
-  void init_internal_(uint32_t buffer_length) override;
+  uint8_t pixel_storage_size_ = 3;
+  
   void draw_absolute_pixel_internal(int x, int y, Color color) override;
+  void draw_absolute_pixel_internal(int x, int y, uint8_t index);
+  uint8_t get_index_value_(uint32_t pos);
 
   int get_width_internal() override;
   int get_height_internal() override;
