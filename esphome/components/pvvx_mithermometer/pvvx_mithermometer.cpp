@@ -75,22 +75,19 @@ optional<ParseResult> PVVXMiThermometer::parse_header(const esp32_ble_tracker::S
 }
 
 bool PVVXMiThermometer::parse_message(const std::vector<uint8_t> &message, ParseResult &result) {
-  // All data little endian
-  // uint8_t     size;   // = 19
-  // uint8_t     uid;    // = 0x16, 16-bit UUID
-  // uint16_t    UUID;   // = 0x181A, GATT Service 0x181A Environmental Sensing
-  // uint8_t     MAC[6]; // [0] - lo, .. [5] - hi digits
-  // int16_t     temperature;    // x 0.01 degree     [6,7]
-  // uint16_t    humidity;       // x 0.01 %          [8,9]
-  // uint16_t    battery_mv;     // mV                [10,11]
-  // uint8_t     battery_level;  // 0..100 %          [12]
-  // uint8_t     counter;        // measurement count [13]
-  // uint8_t     flags;  // GPIO_TRG pin (marking "reset" on circuit board) flags: 
-  //                     // bit0: GPIO_TRG pin input value (real level)
-  //                     // bit1: GPIO_TRG pin output value (pull Up/Down)
-  //                     // bit2: Output GPIO_TRG pin is controlled according to the set parameters
-  //                     // bit3: Temperature trigger event
-  //                     // bit4: Humidity trigger event
+/*
+All data little endian
+uint8_t     size;   // = 19
+uint8_t     uid;    // = 0x16, 16-bit UUID
+uint16_t    UUID;   // = 0x181A, GATT Service 0x181A Environmental Sensing
+uint8_t     MAC[6]; // [0] - lo, .. [5] - hi digits
+int16_t     temperature;    // x 0.01 degree     [6,7]
+uint16_t    humidity;       // x 0.01 %          [8,9]
+uint16_t    battery_mv;     // mV                [10,11]
+uint8_t     battery_level;  // 0..100 %          [12]
+uint8_t     counter;        // measurement count [13]
+uint8_t     flags;  [14]
+*/
 
   const uint8_t *data = message.data();
   const int data_length = 15;
