@@ -11,8 +11,8 @@ DEPENDENCIES = ['esp32_ble_tracker']
 
 pvvx_mithermometer_ns = cg.esphome_ns.namespace('pvvx_mithermometer')
 PVVXMiThermometer = pvvx_mithermometer_ns.class_('PVVXMiThermometer',
-                                                    esp32_ble_tracker.ESPBTDeviceListener,
-                                                    cg.Component)
+                                                esp32_ble_tracker.ESPBTDeviceListener,
+                                                cg.Component)
 
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(PVVXMiThermometer),
