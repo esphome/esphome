@@ -1,18 +1,17 @@
+import logging
+
 import copy
 import re
 from typing import Union, Optional, Dict, Any
 
 import esphome.config_validation as cv
 from esphome.const import CONF_PACKAGES
+from . import source_handlers
+from .common import PackageDefinition, TreeItem, PackageConfig, PackageSource
 from .expressions import process_expression_value, TemplateRenderingError
 
 CODEOWNERS = ['@corvis', '@esphome/core']
-
-# Typings
-TreeItem = Union[dict, list, str]
-PackageConfig = Union[dict, str]
-PackageSource = Union[dict, str]
-PackageParams = Dict[str, Any]
+_LOGGER = logging.getLogger(__name__)
 
 # Config
 CONF_SOURCE = 'source'
@@ -20,21 +19,15 @@ CONF_PARAMS = 'params'
 
 VALID_CONTEXT_VAR_RE = re.compile(r'^[a-zA-Z_][a-zA-Z0-9_]*(\.[a-zA-Z_][a-zA-Z0-9_]*)*$')
 
+PACKAGE_SOURCE_LOADERS: Dict[str, source_handlers.BaseSourceLoader] = {
+    'local': source_handlers.LocalSourceLoader
+}
+
+PACKAGE_SOURCE_DEFAULT_HANDLER = 'local'
+
 # Context
 CONTEXT_PKG = 'pkg'
 CONTEXT_PKG_PARAMS = 'params'
-
-
-class PackageDefinition(object):
-    """
-    The class representing package instantiated with particular params
-    """
-
-    def __init__(self, local_name: str) -> None:
-        self.local_name: str = local_name
-        self.content: dict = None
-        self.external_ref: str = None
-        self.params: PackageParams = {}
 
 
 def _merge_package(full_old, full_new):
@@ -94,14 +87,31 @@ def _is_short_package_config_syntax(package_config: PackageConfig) -> bool:
     return False
 
 
-def _load_package_source(package_source: PackageSource):
+def _load_package_source(package_source: PackageSource, package_def: PackageDefinition):
     if isinstance(package_source, dict):
-        return copy.deepcopy(package_source)
+        package_def.content = copy.deepcopy(package_source)
+        _LOGGER.warning("You are using outdated syntax for {package_name} definition. "
+                        "Consider specifying package with string locator e.g. "
+                        "\"local:path/to/package.yaml\" (path is relative to the current "
+                        "yaml file)"
+                        .format(package_name=package_def.local_name))
+        return
 
-    raise cv.Invalid('Package source is incorrect. Expected source definition is a dictionary '
-                     'containing package configuration. You may also use include syntax '
-                     'like this: !include pathto/my/file.yaml')
-    # Validation on of the string uri should be added here
+    if not isinstance(package_source, str):
+        raise cv.Invalid('Package source is incorrect. Expected source definition is either'
+                         'a string locator or dictionary containing package configuration. '
+                         )
+    handler = PACKAGE_SOURCE_LOADERS[PACKAGE_SOURCE_DEFAULT_HANDLER]
+    locator = package_source
+    for prefix in PACKAGE_SOURCE_LOADERS.keys():
+        if package_source.startswith(prefix + ':'):
+            handler = PACKAGE_SOURCE_LOADERS[prefix]
+            locator = package_source.replace(prefix + ':', '', 1)
+            break
+    handler.load(locator, package_def)
+
+
+# Validation on of the string uri should be added here
 
 
 def _validate_package_config(package_name: str, package_config: PackageConfig):
@@ -141,9 +151,9 @@ def _load_package(package_name, package_config: PackageConfig) -> PackageDefinit
     _validate_package_config(package_name, package_config)
     package = PackageDefinition(package_name)
     if _is_short_package_config_syntax(package_config):
-        package.content = _load_package_source(package_config)
+        _load_package_source(package_config, package)
     else:
-        package.content = _load_package_source(package_config[CONF_SOURCE])
+        _load_package_source(package_config[CONF_SOURCE], package)
         package.params = package_config.get(CONF_PARAMS, {})
         if isinstance(package_config[CONF_SOURCE], str):
             package.external_ref = package_config[CONF_SOURCE]
