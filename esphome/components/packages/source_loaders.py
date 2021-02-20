@@ -3,14 +3,18 @@ import os.path
 
 import esphome.config_validation as cv
 from esphome import yaml_util
-from .utils import get_abs_path_from_config_relative, get_abs_path_from_package_relative
 from .common import PackageDefinition, ParsedLocator
+from .utils import get_abs_path_from_config_relative, get_abs_path_from_package_relative
 
 DEFAULT_PACKAGE_FILE = 'main.yaml'
 FILE_LOCATOR_SUFFIXES = ['.yaml', '.yml']
 
 
 class BaseSourceLoader(object, metaclass=abc.ABCMeta):
+    LOCATOR_PREFIX: str = None
+
+    def can_handle(self, locator: str) -> bool:
+        return locator.startswith(self.LOCATOR_PREFIX + ':')
 
     @abc.abstractmethod
     def load(self, locator: str, package: PackageDefinition):
@@ -22,6 +26,7 @@ class LocalLocator(ParsedLocator):
 
 
 class LocalSourceLoader(BaseSourceLoader):
+    LOCATOR_PREFIX = 'local'
 
     def load(self, locator: str, package: PackageDefinition):
         package.locator = LocalLocator(locator)

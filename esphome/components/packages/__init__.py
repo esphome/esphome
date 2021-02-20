@@ -1,13 +1,13 @@
 import copy
 import logging
 import re
-from typing import Optional, Dict
+from typing import Optional, Tuple
 
 import esphome.config_validation as cv
-from esphome.const import CONF_PACKAGES
-from . import source_loaders
-from .common import PackageDefinition, TreeItem, PackageConfig, PackageSource
 from esphome.components.expressions import process_expression_value, TemplateRenderingError
+from esphome.const import CONF_PACKAGES
+from .source_loaders import BaseSourceLoader, LocalSourceLoader
+from .common import PackageDefinition, TreeItem, PackageConfig, PackageSource
 
 CODEOWNERS = ['@corvis', '@esphome/core']
 _LOGGER = logging.getLogger(__name__)
@@ -18,11 +18,11 @@ CONF_PARAMS = 'params'
 
 VALID_CONTEXT_VAR_RE = re.compile(r'^[a-zA-Z_][a-zA-Z0-9_]*(\.[a-zA-Z_][a-zA-Z0-9_]*)*$')
 
-PACKAGE_SOURCE_LOADERS: Dict[str, source_loaders.BaseSourceLoader] = {
-    'local': source_loaders.LocalSourceLoader()
-}
+PACKAGE_SOURCE_DEFAULT_LOADER = LocalSourceLoader()
+PACKAGE_SOURCE_LOADERS: Tuple[BaseSourceLoader] = (
+    PACKAGE_SOURCE_DEFAULT_LOADER,
+)
 
-PACKAGE_SOURCE_DEFAULT_HANDLER = 'local'
 
 # Context
 CONTEXT_PKG = 'pkg'
@@ -97,22 +97,22 @@ def _load_package_source(package_source: PackageSource, package_def: PackageDefi
         raise cv.Invalid('Package source is incorrect. Expected source definition is either'
                          'a string locator or dictionary containing package configuration. '
                          )
-    handler: source_loaders.BaseSourceLoader = None
+    source_loader: BaseSourceLoader = None
     locator: str = None
-    for prefix in PACKAGE_SOURCE_LOADERS:
-        if package_source.startswith(prefix + ':'):
-            handler = PACKAGE_SOURCE_LOADERS[prefix]
+    for l in PACKAGE_SOURCE_LOADERS:
+        if l.can_handle(package_source):
+            source_loader = l
             locator = package_source
             break
-    if handler is None:
+    if source_loader is None:
         if ':' in package_source:
             raise cv.Invalid('Unknown package loader \"{loader}\" for package {package}'
                              .format(loader=package_source.split(':', 1)[0],
                                      package=package_def.local_name))
         # If there is no prefix - default locator should be used
-        locator = ':'.join((PACKAGE_SOURCE_DEFAULT_HANDLER, package_source))
-        handler = PACKAGE_SOURCE_LOADERS[PACKAGE_SOURCE_DEFAULT_HANDLER]
-    handler.load(locator, package_def)
+        locator = ':'.join((PACKAGE_SOURCE_DEFAULT_LOADER.LOCATOR_PREFIX, package_source))
+        source_loader = PACKAGE_SOURCE_DEFAULT_LOADER
+    source_loader.load(locator, package_def)
     assert package_def.content is not None, "Package loader {} didn't update content of " \
                                             "the package. By convention it should either " \
                                             "update content or raise error."
@@ -168,7 +168,7 @@ def do_template_rendering_pass(val: dict, context: dict):
     _render_templates_for_item(val, context, [])
 
 
-def do_packages_pass(config: dict, parent: PackageConfig = None):
+def do_packages_pass(config: dict, parent: Optional[PackageDefinition] = None):
     """
     Packages syntax:
     Short (the old one):
@@ -182,6 +182,7 @@ def do_packages_pass(config: dict, parent: PackageConfig = None):
                     var1: 1234
                     var2: abc
     :param config:
+    :param parent:
     :return:
     """
     if CONF_PACKAGES not in config:
