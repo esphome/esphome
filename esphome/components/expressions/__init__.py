@@ -5,6 +5,8 @@ from . import filters as custom_filters
 
 __ENVIRONMENT__: Environment = None
 
+CODEOWNERS = ['@corvis', '@esphome/core']
+
 FILTER_FUNCTION_PREFIX = 'filter_'
 
 
