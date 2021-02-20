@@ -6,65 +6,62 @@
 #include "vl53l1_error_codes.h"
 
 // imported from vl531lx_class.h
-static const uint8_t VL53L1X_IMPLEMENTATION_VER_MAJOR = 1;
-static const uint8_t VL53L1X_IMPLEMENTATION_VER_MINOR = 0;
-static const uint8_t VL53L1X_IMPLEMENTATION_VER_SUB = 1;
-static const uint8_t VL53L1X_IMPLEMENTATION_VER_REVISION = 0000;
 
+// typedef int8_t VL53L1X_ERROR;
 using VL53L1X_ERROR = int8_t;
 
-static const uint8_t SOFT_RESET = 0x0000;
-static const uint8_t VL53L1_I2C_SLAVE__DEVICE_ADDRESS = 0x0001;
-static const uint8_t VL53L1_VHV_CONFIG__TIMEOUT_MACROP_LOOP_BOUND = 0x0008;
-static const uint8_t ALGO__CROSSTALK_COMPENSATION_PLANE_OFFSET_KCPS = 0x0016;
-static const uint8_t ALGO__CROSSTALK_COMPENSATION_X_PLANE_GRADIENT_KCPS = 0x0018;
-static const uint8_t ALGO__CROSSTALK_COMPENSATION_Y_PLANE_GRADIENT_KCPS = 0x001A;
-static const uint8_t ALGO__PART_TO_PART_RANGE_OFFSET_MM = 0x001E;
-static const uint8_t MM_CONFIG__INNER_OFFSET_MM = 0x0020;
-static const uint8_t MM_CONFIG__OUTER_OFFSET_MM = 0x0022;
-static const uint8_t GPIO_HV_MUX__CTRL = 0x0030;
-static const uint8_t GPIO__TIO_HV_STATUS = 0x0031;
-static const uint8_t SYSTEM__INTERRUPT_CONFIG_GPIO = 0x0046;
-static const uint8_t PHASECAL_CONFIG__TIMEOUT_MACROP = 0x004B;
-static const uint8_t RANGE_CONFIG__TIMEOUT_MACROP_A_HI = 0x005E;
-static const uint8_t RANGE_CONFIG__VCSEL_PERIOD_A = 0x0060;
-static const uint8_t RANGE_CONFIG__VCSEL_PERIOD_B = 0x0063;
-static const uint8_t RANGE_CONFIG__TIMEOUT_MACROP_B_HI = 0x0061;
-static const uint8_t RANGE_CONFIG__TIMEOUT_MACROP_B_LO = 0x0062;
-static const uint8_t RANGE_CONFIG__SIGMA_THRESH = 0x0064;
-static const uint8_t RANGE_CONFIG__MIN_COUNT_RATE_RTN_LIMIT_MCPS = 0x0066;
-static const uint8_t RANGE_CONFIG__VALID_PHASE_HIGH = 0x0069;
-static const uint8_t VL53L1_SYSTEM__INTERMEASUREMENT_PERIOD = 0x006C;
-static const uint8_t SYSTEM__THRESH_HIGH = 0x0072;
-static const uint8_t SYSTEM__THRESH_LOW = 0x0074;
-static const uint8_t SD_CONFIG__WOI_SD0 = 0x0078;
-static const uint8_t SD_CONFIG__INITIAL_PHASE_SD0 = 0x007A;
-static const uint8_t ROI_CONFIG__USER_ROI_CENTRE_SPAD = 0x007F;
-static const uint8_t ROI_CONFIG__USER_ROI_REQUESTED_GLOBAL_XY_SIZE = 0x0080;
-static const uint8_t SYSTEM__SEQUENCE_CONFIG = 0x0081;
-static const uint8_t VL53L1_SYSTEM__GROUPED_PARAMETER_HOLD = 0x0082;
-static const uint8_t SYSTEM__INTERRUPT_CLEAR = 0x0086;
-static const uint8_t SYSTEM__MODE_START = 0x0087;
-static const uint8_t VL53L1_RESULT__RANGE_STATUS = 0x0089;
-static const uint8_t VL53L1_RESULT__DSS_ACTUAL_EFFECTIVE_SPADS_SD0 = 0x008C;
-static const uint8_t RESULT__AMBIENT_COUNT_RATE_MCPS_SD = 0x0090;
-static const uint8_t VL53L1_RESULT__FINAL_CROSSTALK_CORRECTED_RANGE_MM_SD0 = 0x0096;
-static const uint8_t VL53L1_RESULT__PEAK_SIGNAL_COUNT_RATE_CROSSTALK_CORRECTED_MCPS_SD0 = 0x0098;
-static const uint8_t VL53L1_RESULT__OSC_CALIBRATE_VAL = 0x00DE;
-static const uint8_t VL53L1_FIRMWARE__SYSTEM_STATUS = 0x00E5;
-static const uint8_t VL53L1_IDENTIFICATION__MODEL_ID = 0x010F;
-static const uint8_t VL53L1_ROI_CONFIG__MODE_ROI_CENTRE_SPAD = 0x013E;
+static const uint16_t SOFT_RESET = 0x0000;
+static const uint16_t VL53L1_I2C_SLAVE__DEVICE_ADDRESS = 0x0001;
+static const uint16_t VL53L1_VHV_CONFIG__TIMEOUT_MACROP_LOOP_BOUND = 0x0008;
+static const uint16_t ALGO__CROSSTALK_COMPENSATION_PLANE_OFFSET_KCPS = 0x0016;
+static const uint16_t ALGO__CROSSTALK_COMPENSATION_X_PLANE_GRADIENT_KCPS = 0x0018;
+static const uint16_t ALGO__CROSSTALK_COMPENSATION_Y_PLANE_GRADIENT_KCPS = 0x001A;
+static const uint16_t ALGO__PART_TO_PART_RANGE_OFFSET_MM = 0x001E;
+static const uint16_t MM_CONFIG__INNER_OFFSET_MM = 0x0020;
+static const uint16_t MM_CONFIG__OUTER_OFFSET_MM = 0x0022;
+static const uint16_t GPIO_HV_MUX__CTRL = 0x0030;
+static const uint16_t GPIO__TIO_HV_STATUS = 0x0031;
+static const uint16_t SYSTEM__INTERRUPT_CONFIG_GPIO = 0x0046;
+static const uint16_t PHASECAL_CONFIG__TIMEOUT_MACROP = 0x004B;
+static const uint16_t RANGE_CONFIG__TIMEOUT_MACROP_A_HI = 0x005E;
+static const uint16_t RANGE_CONFIG__VCSEL_PERIOD_A = 0x0060;
+static const uint16_t RANGE_CONFIG__VCSEL_PERIOD_B = 0x0063;
+static const uint16_t RANGE_CONFIG__TIMEOUT_MACROP_B_HI = 0x0061;
+static const uint16_t RANGE_CONFIG__TIMEOUT_MACROP_B_LO = 0x0062;
+static const uint16_t RANGE_CONFIG__SIGMA_THRESH = 0x0064;
+static const uint16_t RANGE_CONFIG__MIN_COUNT_RATE_RTN_LIMIT_MCPS = 0x0066;
+static const uint16_t RANGE_CONFIG__VALID_PHASE_HIGH = 0x0069;
+static const uint16_t VL53L1_SYSTEM__INTERMEASUREMENT_PERIOD = 0x006C;
+static const uint16_t SYSTEM__THRESH_HIGH = 0x0072;
+static const uint16_t SYSTEM__THRESH_LOW = 0x0074;
+static const uint16_t SD_CONFIG__WOI_SD0 = 0x0078;
+static const uint16_t SD_CONFIG__INITIAL_PHASE_SD0 = 0x007A;
+static const uint16_t ROI_CONFIG__USER_ROI_CENTRE_SPAD = 0x007F;
+static const uint16_t ROI_CONFIG__USER_ROI_REQUESTED_GLOBAL_XY_SIZE = 0x0080;
+static const uint16_t SYSTEM__SEQUENCE_CONFIG = 0x0081;
+static const uint16_t VL53L1_SYSTEM__GROUPED_PARAMETER_HOLD = 0x0082;
+static const uint16_t SYSTEM__INTERRUPT_CLEAR = 0x0086;
+static const uint16_t SYSTEM__MODE_START = 0x0087;
+static const uint16_t VL53L1_RESULT__RANGE_STATUS = 0x0089;
+static const uint16_t VL53L1_RESULT__DSS_ACTUAL_EFFECTIVE_SPADS_SD0 = 0x008C;
+static const uint16_t RESULT__AMBIENT_COUNT_RATE_MCPS_SD = 0x0090;
+static const uint16_t VL53L1_RESULT__FINAL_CROSSTALK_CORRECTED_RANGE_MM_SD0 = 0x0096;
+static const uint16_t VL53L1_RESULT__PEAK_SIGNAL_COUNT_RATE_CROSSTALK_CORRECTED_MCPS_SD0 = 0x0098;
+static const uint16_t VL53L1_RESULT__OSC_CALIBRATE_VAL = 0x00DE;
+static const uint16_t VL53L1_FIRMWARE__SYSTEM_STATUS = 0x00E5;
+static const uint16_t VL53L1_IDENTIFICATION__MODEL_ID = 0x010F;
+static const uint16_t VL53L1_ROI_CONFIG__MODE_ROI_CENTRE_SPAD = 0x013E;
 
 static const uint8_t VL53L1X_DEFAULT_DEVICE_ADDRESS = 0x52;
 
 // imported from vl531lx_class.cpp
-const uint8_t VL51L1X_DEFAULT_CONFIGURATION[] = {
+const uint8_t VL51L1X_DEFAULT_CONFIGURATION[]{
     0x00, /* 0x2d : set bit 2 and 5 to 1 for fast plus mode (1MHz I2C), else don't touch */
     0x01, /* 0x2e : bit 0 if I2C pulled up at 1.8V, else set bit 0 to 1 (pull up at AVDD) */
     0x01, /* 0x2f : bit 0 if GPIO pulled up at 1.8V, else set bit 0 to 1 (pull up at AVDD) */
     0x01, /* 0x30 : set bit 4 to 0 for active high interrupt and 1 for active low (bits 3:0 must be 0x1), use
              SetInterruptPolarity() */
-    0x02, /* 0x31 : bit 1 = interrupt depending on the polarity, use CheckForDataReady() */
+    0x02, /* 0x31 : bit 1 interrupt depending on the polarity, use CheckForDataReady() */
     0x00, /* 0x32 : not user-modifiable */
     0x02, /* 0x33 : not user-modifiable */
     0x08, /* 0x34 : not user-modifiable */
@@ -164,9 +161,9 @@ enum DistanceMode { SHORT, MEDIUM, LONG };
 
 class VL53L1XSensor : public sensor::Sensor, public PollingComponent, public i2c::I2CDevice {
  public:
-  void setup() override;
-
   void dump_config() override;
+
+  void setup() override;
   float get_setup_priority() const override { return setup_priority::DATA; }
   void update() override;
 
@@ -176,30 +173,28 @@ class VL53L1XSensor : public sensor::Sensor, public PollingComponent, public i2c
   void set_timing_budget(uint32_t budget) { timing_budget_ = budget; }
   void set_distance_mode(DistanceMode mode) { distance_mode_ = mode; }
 
-  // void set_retry_budget(uint8_t budget) { retry_budget_ = budget; }
+  // void set_retry_budget(uint8_t budget) { retry_budget_ budget; }
 
   // VL53L1X booleans and function
   bool begin();     // Initialization of sensor
   bool check_id();  // Check the ID of the sensor, returns true if ID is correct
+  uint16_t get_distance();  // Returns distance
 
-  void start_ranging();                                   // Begins taking measurements
-  void stop_ranging();                                    // Stops taking measurements
-  bool check_for_data_ready(uint8_t isdataReady);         // Checks the to see if data is ready
-  int8_t apply_timing_budget_in_ms(uint16_t timingBudget);  // Set the timing budget for a measurement
-  uint16_t get_timing_budget_in_ms();                     // Get the timing budget for a measurement
+  void start_ranging();                                     // Begins taking measurements
+  void stop_ranging();                                      // Stops taking measurements
+  bool check_for_data_ready(uint8_t is_data_ready);           // Checks the to see if data is ready
+  int8_t apply_timing_budget_in_ms(uint16_t timing_budget_in_ms);  // Set the timing budget for a measurement
+  uint16_t get_timing_budget_in_ms();                       // Get the timing budget for a measurement
   int8_t apply_distance_mode(DistanceMode mode);
   int8_t apply_distance_mode_long();   // Set to 4M range
   int8_t apply_distance_mode_short();  // Set to 1.3M range
 
-  uint16_t get_distance();  // Returns distance
-
-  // ROI
-  uint8_t apply_ROI(
-      uint8_t X, uint8_t Y,
-      uint8_t opticalCenter);   // Set the height and width of the ROI(region of interest) in SPADs, lowest possible
-                                // option is 4. Set optical center based on above table
-  uint16_t get_ROIX();  // Returns the width of the ROI in SPADs
-  uint16_t get_ROIY();  // Returns the height of the ROI in SPADs
+  // region of intereset
+  uint8_t apply_roi(uint8_t x, uint8_t y,
+                    uint8_t optical_center);  // Set the height and width of the ROI(region of interest) in SPADs, lowest
+                                             // possible option is 4. Set optical center based on above table
+  uint16_t get_roi_x();                       // Returns the width of the ROI in SPADs
+  uint16_t get_roi_y();                       // Returns the height of the ROI in SPADs
 
  protected:
   DistanceMode distance_mode_{DistanceMode::LONG};
@@ -209,5 +204,5 @@ class VL53L1XSensor : public sensor::Sensor, public PollingComponent, public i2c
   //   uint8_t retry_count_{0};
 };
 
-}  // namespace vl53l1x_distance
+}  // namespace vl53l1x
 }  // namespace esphome

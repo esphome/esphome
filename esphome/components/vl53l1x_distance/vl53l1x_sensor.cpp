@@ -82,7 +82,7 @@ void VL53L1XSensor::loop() {
 
 bool VL53L1XSensor::begin() {
   if (check_id() == false)
-    ESP_LOGW(TAG, "'%s' - There is an error: '%s'", this->name_.c_str(), VL53L1_ERROR_PLATFORM_SPECIFIC_START);
+    ESP_LOGW(TAG, VL53L1_ERROR_PLATFORM_SPECIFIC_START);
 
   // return _device->VL53L1X_SensorInit();
 
@@ -100,7 +100,7 @@ bool VL53L1XSensor::begin() {
   while (data_ready == 0) {
     status = check_for_data_ready(&data_ready);
     if (timeout++ > 150)
-	  ESP_LOGW(TAG, "'%s' - There is an error: '%s'", this->name_.c_str(), VL53L1_ERROR_TIME_OUT);
+      ESP_LOGW(TAG, VL53L1_ERROR_TIME_OUT);
     delay(1);
   }
   // status = VL53L1_WrByte(Device, SYSTEM__MODE_START, 0x00); /* Disable VL53L1X */
@@ -262,8 +262,10 @@ int8_t VL53L1XSensor::apply_timing_budget_in_ms(uint16_t timing_budget_in_ms) {
   return status;
 }
 
-uint16_t VL53L1XSensor::get_timing_budget_in_ms(uint16_t *pTimingBudgetInMs){  // See sparkfun_VL531LX.cpp line 153 and vl531lx_class.cpp line 365
-  uint16_t TimingBudgetInMs;
+uint16_t VL53L1XSensor::get_timing_budget_in_ms(uint16_t *p_timing_budget_in_ms) {  
+  // See sparkfun_VL531LX.cpp line 153 and vl531lx_class.cpp line 365
+  
+  uint16_t timing_budget_in_ms;
   //_device->VL53L1X_GetTimingBudgetInMs(&timingBudget);
 
   uint16_t Temp;
@@ -272,43 +274,39 @@ uint16_t VL53L1XSensor::get_timing_budget_in_ms(uint16_t *pTimingBudgetInMs){  /
   status = this->read_byte(RANGE_CONFIG__TIMEOUT_MACROP_A_HI, &Temp);
   switch (Temp) {
     case 0x001D:
-      TimingBudgetInMs = 15;
+      timing_budget_in_ms = 15;
       break;
     case 0x0051:
     case 0x001E:
-      TimingBudgetInMs = 20;
+      timing_budget_in_ms = 20;
       break;
     case 0x00D6:
     case 0x0060:
-      TimingBudgetInMs = 33;
+      timing_budget_in_ms = 33;
       break;
     case 0x1AE:
     case 0x00AD:
-      TimingBudgetInMs = 50;
+      timing_budget_in_ms = 50;
       break;
     case 0x02E1:
     case 0x01CC:
-      TimingBudgetInMs = 100;
+      timing_budget_in_ms = 100;
       break;
     case 0x03E1:
     case 0x02D9:
-      TimingBudgetInMs = 200;
+      timing_budget_in_ms = 200;
       break;
     case 0x0591:
     case 0x048F:
-      TimingBudgetInMs = 500;
+      timing_budget_in_ms = 500;
       break;
     default:
-      TimingBudgetInMs = 0;
+      timing_budget_in_ms = 0;
       break;
   }
   // return status;
-  return TimingBudgetInMs;
+  return timing_budget_in_ms;
 }
-
-int8_t VL53L1XSensor::apply_distance_mode_long() { apply_distance_mode(DistanceMode(SHORT)); }
-
-int8_t VL53L1XSensor::apply_distance_mode_short() { apply_distance_mode(DistanceMode(LONG)); }
 
 int8_t VL53L1XSensor::apply_distance_mode(DistanceMode mode) {
   uint16_t TB;
@@ -357,6 +355,10 @@ uint8_t VL53L1XSensor::apply_roi(uint8_t x, uint8_t y, uint8_t optical_center) {
   status = this->write_byte(ROI_CONFIG__USER_ROI_REQUESTED_GLOBAL_XY_SIZE, (y - 1) << 4 | (x - 1));
   return status;
 }
+
+int8_t VL53L1XSensor::apply_distance_mode_long() { apply_distance_mode(DistanceMode(SHORT)); }
+
+int8_t VL53L1XSensor::apply_distance_mode_short() { apply_distance_mode(DistanceMode(LONG)); }
 
 uint16_t VL53L1XSensor::get_roi_x() {
   VL53L1X_ERROR status = 0;
