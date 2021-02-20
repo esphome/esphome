@@ -70,10 +70,14 @@ def _expand_substitutions(substitutions, value, path):
         i = len(value)
         value += tail
 
-    assert isinstance(orig_value, ESPHomeDataBase)
-    # even though string can get larger or smaller, the range should point
-    # to original document marks
-    return make_data_base(value, orig_value)
+    # orig_value can also already be a lambda with esp_range info, and only
+    # a plain string is sent in orig_value
+    if isinstance(orig_value, ESPHomeDataBase):
+        # even though string can get larger or smaller, the range should point
+        # to original document marks
+        return make_data_base(value, orig_value)
+    else:
+        return value
 
 
 def _substitute_item(substitutions, item, path):
