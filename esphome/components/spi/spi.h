@@ -112,20 +112,34 @@ class SPIComponent : public Component {
 
   template<SPIBitOrder BIT_ORDER, SPIClockPolarity CLOCK_POLARITY, SPIClockPhase CLOCK_PHASE>
   uint8_t transfer_byte(uint8_t data) {
-    if (this->hw_spi_ != nullptr) {
-      return this->hw_spi_->transfer(data);
+    if (this->miso_ != nullptr) {
+      if (this->hw_spi_ != nullptr) {
+        return this->hw_spi_->transfer(data);
+      } else {
+        return this->transfer_<BIT_ORDER, CLOCK_POLARITY, CLOCK_PHASE, true, true>(data);
+      }
     }
-    return this->transfer_<BIT_ORDER, CLOCK_POLARITY, CLOCK_PHASE, true, true>(data);
+    this->write_byte<BIT_ORDER, CLOCK_POLARITY, CLOCK_PHASE>(data);
+    return 0;
   }
 
   template<SPIBitOrder BIT_ORDER, SPIClockPolarity CLOCK_POLARITY, SPIClockPhase CLOCK_PHASE>
   void transfer_array(uint8_t *data, size_t length) {
     if (this->hw_spi_ != nullptr) {
-      this->hw_spi_->transfer(data, length);
+      if (this->miso_ != nullptr) {
+        this->hw_spi_->transfer(data, length);
+      } else {
+        this->hw_spi_->writeBytes(data, length);
+      }
       return;
     }
-    for (size_t i = 0; i < length; i++) {
-      data[i] = this->transfer_byte<BIT_ORDER, CLOCK_POLARITY, CLOCK_PHASE>(data[i]);
+
+    if (this->miso_ != nullptr) {
+      for (size_t i = 0; i < length; i++) {
+        data[i] = this->transfer_byte<BIT_ORDER, CLOCK_POLARITY, CLOCK_PHASE>(data[i]);
+      }
+    } else {
+      this->write_array<BIT_ORDER, CLOCK_POLARITY, CLOCK_PHASE>(data, length);
     }
   }
 
@@ -170,7 +184,7 @@ class SPIComponent : public Component {
   GPIOPin *active_cs_{nullptr};
   SPIClass *hw_spi_{nullptr};
   uint32_t wait_cycle_;
-};
+};  // namespace spi
 
 template<SPIBitOrder BIT_ORDER, SPIClockPolarity CLOCK_POLARITY, SPIClockPhase CLOCK_PHASE, SPIDataRate DATA_RATE>
 class SPIDevice {
