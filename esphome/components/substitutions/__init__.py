@@ -76,8 +76,8 @@ def _expand_substitutions(substitutions, value, path):
         # even though string can get larger or smaller, the range should point
         # to original document marks
         return make_data_base(value, orig_value)
-    else:
-        return value
+
+    return value
 
 
 def _substitute_item(substitutions, item, path):
