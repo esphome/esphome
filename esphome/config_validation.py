@@ -983,7 +983,7 @@ LAMBDA_ENTITY_ID_PROG = re.compile(r'id\(\s*([a-zA-Z0-9_]+\.[.a-zA-Z0-9_]+)\s*\)
 def lambda_(value):
     """Coerce this configuration option to a lambda."""
     if not isinstance(value, Lambda):
-        value = make_data_base(Lambda(string_strict(value)), None)
+        value = make_data_base(Lambda(string_strict(value)), value)
     entity_id_parts = re.split(LAMBDA_ENTITY_ID_PROG, value.value)
     if len(entity_id_parts) != 1:
         entity_ids = ' '.join("'{}'".format(entity_id_parts[i])
