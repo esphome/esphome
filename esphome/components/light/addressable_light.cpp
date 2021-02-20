@@ -6,10 +6,10 @@ namespace light {
 
 static const char *TAG = "light.addressable";
 
-const ESPColor ESPColor::BLACK = ESPColor(0, 0, 0, 0);
-const ESPColor ESPColor::WHITE = ESPColor(255, 255, 255, 255);
+// const Color Color::BLACK = Color(0, 0, 0, 0);
+// const Color Color::WHITE = Color(255, 255, 255, 255);
 
-ESPColor ESPHSVColor::to_rgb() const {
+Color ESPHSVColor::to_rgb() const {
   // based on FastLED's hsv rainbow to rgb
   const uint8_t hue = this->hue;
   const uint8_t sat = this->saturation;
@@ -19,7 +19,7 @@ ESPColor ESPHSVColor::to_rgb() const {
   // third of the offset, 255/3 = 85 (actually only up to 82; 164)
   const uint8_t third = esp_scale8(offset8, 85);
   const uint8_t two_thirds = esp_scale8(offset8, 170);
-  ESPColor rgb(255, 255, 255, 0);
+  Color rgb(255, 255, 255, 0);
   switch (hue >> 5) {
     case 0b000:
       rgb.r = 255 - third;
@@ -76,7 +76,7 @@ ESPColor ESPHSVColor::to_rgb() const {
   return rgb;
 }
 
-void ESPRangeView::set(const ESPColor &color) {
+void ESPRangeView::set(const Color &color) {
   for (int32_t i = this->begin_; i < this->end_; i++) {
     (*this->parent_)[i] = color;
   }
@@ -179,12 +179,12 @@ void AddressableLight::call_setup() {
 #endif
 }
 
-ESPColor esp_color_from_light_color_values(LightColorValues val) {
+Color esp_color_from_light_color_values(LightColorValues val) {
   auto r = static_cast<uint8_t>(roundf(val.get_red() * 255.0f));
   auto g = static_cast<uint8_t>(roundf(val.get_green() * 255.0f));
   auto b = static_cast<uint8_t>(roundf(val.get_blue() * 255.0f));
   auto w = static_cast<uint8_t>(roundf(val.get_white() * val.get_state() * 255.0f));
-  return ESPColor(r, g, b, w);
+  return Color(r, g, b, w);
 }
 
 void AddressableLight::write_state(LightState *state) {
@@ -219,7 +219,7 @@ void AddressableLight::write_state(LightState *state) {
     this->last_transition_progress_ = new_progress;
 
     auto end_values = state->transformer_->get_end_values();
-    ESPColor target_color = esp_color_from_light_color_values(end_values);
+    Color target_color = esp_color_from_light_color_values(end_values);
 
     // our transition will handle brightness, disable brightness in correction.
     this->correction_.set_local_brightness(255);
@@ -247,7 +247,7 @@ void AddressableLight::write_state(LightState *state) {
 
     if (alpha8 != 0) {
       uint8_t inv_alpha8 = 255 - alpha8;
-      ESPColor add = target_color * alpha8;
+      Color add = target_color * alpha8;
 
       for (auto led : *this)
         led = add + led.get() * inv_alpha8;
