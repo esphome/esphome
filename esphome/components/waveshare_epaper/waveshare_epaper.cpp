@@ -178,6 +178,13 @@ void WaveshareEPaperTypeA::initialize() {
   // COMMAND DATA ENTRY MODE SETTING
   this->command(0x11);
   this->data(0x03);  // from top left to bottom right
+
+  if (this->model_ == WAVESHARE_EPAPER_2_9_IN_V2) {
+    // RAM content option for Display Update
+    this->command(0x21);
+    this->data(0x00);
+    this->data(0x80);
+  }
 }
 void WaveshareEPaperTypeA::dump_config() {
   LOG_DISPLAY("", "Waveshare E-Paper", this);
@@ -197,6 +204,9 @@ void WaveshareEPaperTypeA::dump_config() {
     case WAVESHARE_EPAPER_2_9_IN:
       ESP_LOGCONFIG(TAG, "  Model: 2.9in");
       break;
+    case WAVESHARE_EPAPER_2_9_IN_V2:
+      ESP_LOGCONFIG(TAG, "  Model: 2.9inV2");
+      break;
   }
   ESP_LOGCONFIG(TAG, "  Full Update Every: %u", this->full_update_every_);
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
@@ -205,14 +215,15 @@ void WaveshareEPaperTypeA::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 }
 void HOT WaveshareEPaperTypeA::display() {
+  bool full_update = this->at_update_ == 0;
+  bool prev_full_update = this->at_update_ == 1;
+
   if (!this->wait_until_idle_()) {
     this->status_set_warning();
     return;
   }
 
   if (this->full_update_every_ >= 2) {
-    bool prev_full_update = this->at_update_ == 1;
-    bool full_update = this->at_update_ == 0;
     if (full_update != prev_full_update) {
       if (this->model_ == TTGO_EPAPER_2_13_IN) {
         this->write_lut_(full_update ? FULL_UPDATE_LUT_TTGO : PARTIAL_UPDATE_LUT_TTGO, LUT_SIZE_TTGO);
@@ -258,7 +269,12 @@ void HOT WaveshareEPaperTypeA::display() {
 
   // COMMAND DISPLAY UPDATE CONTROL 2
   this->command(0x22);
-  this->data(0xC4);
+  if (this->model_ == WAVESHARE_EPAPER_2_9_IN_V2) {
+    this->data(full_update ? 0xF7 : 0xFF);
+  } else {
+    this->data(0xC4);
+  }
+
   // COMMAND MASTER ACTIVATION
   this->command(0x20);
   // COMMAND TERMINATE FRAME READ WRITE
@@ -278,6 +294,8 @@ int WaveshareEPaperTypeA::get_width_internal() {
       return 128;
     case WAVESHARE_EPAPER_2_9_IN:
       return 128;
+    case WAVESHARE_EPAPER_2_9_IN_V2:
+      return 128;
   }
   return 0;
 }
@@ -292,6 +310,8 @@ int WaveshareEPaperTypeA::get_height_internal() {
     case TTGO_EPAPER_2_13_IN_B73:
       return 250;
     case WAVESHARE_EPAPER_2_9_IN:
+      return 296;
+    case WAVESHARE_EPAPER_2_9_IN_V2:
       return 296;
   }
   return 0;
