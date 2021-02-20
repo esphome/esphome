@@ -11,7 +11,7 @@ static const uint8_t VL53L1X_IMPLEMENTATION_VER_MINOR = 0;
 static const uint8_t VL53L1X_IMPLEMENTATION_VER_SUB = 1;
 static const uint8_t VL53L1X_IMPLEMENTATION_VER_REVISION = 0000;
 
-typedef int8_t VL53L1X_ERROR;
+using VL53L1X_ERROR = int8_t;
 
 static const uint8_t SOFT_RESET = 0x0000;
 static const uint8_t VL53L1_I2C_SLAVE__DEVICE_ADDRESS = 0x0001;
@@ -209,5 +209,5 @@ class VL53L1XSensor : public sensor::Sensor, public PollingComponent, public i2c
   //   uint8_t retry_count_{0};
 };
 
-}  // namespace vl53l1x
+}  // namespace vl53l1x_distance
 }  // namespace esphome

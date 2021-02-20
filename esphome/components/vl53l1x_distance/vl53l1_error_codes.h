@@ -84,7 +84,8 @@ extern "C" {
  *  @{
  */
 
-typedef int8_t VL53L1_Error;
+// typedef int8_t VL53L1_Error; old 
+using VL53L1_Error = int8_t;
 
 #define VL53L1_ERROR_NONE                              ((VL53L1_Error)  0)
 #define VL53L1_ERROR_CALIBRATION_WARNING               ((VL53L1_Error) - 1)
