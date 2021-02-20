@@ -319,6 +319,10 @@ def _load_yaml_internal(fname):
         loader.dispose()
 
 
+def load_yaml_package(fname):
+    return _load_yaml_internal(fname)
+
+
 def dump(dict_):
     """Dump YAML to a string and remove null."""
     return yaml.dump(dict_, default_flow_style=False, allow_unicode=True,

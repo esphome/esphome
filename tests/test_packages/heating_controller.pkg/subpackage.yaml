@@ -1,0 +1,6 @@
+sensor:
+  - platform: uptime
+    id: "{{ pkg.params.node_name }}_uptime"
+    name: Uptime
+    update_interval: 5min
+    icon: mdi:timer

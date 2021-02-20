@@ -4,6 +4,9 @@ esphome:
   board: wemos_d1_mini32
   build_path: ./build/{{ pkg.params.node_name }}
 
+packages:
+  subpackage: subpackage.yaml
+
 # I2C Bus
 i2c:
   sda: GPIO21
