@@ -135,10 +135,12 @@ void LightState::setup() {
   call.perform();
 }
 void LightState::loop() {
-  // Apply effect (if any)
-  auto *effect = this->get_active_effect_();
-  if (effect != nullptr) {
-    effect->apply();
+  // Apply effect (if any and light is on)
+  if (this->current_values.is_on()) {
+    auto *effect = this->get_active_effect_();
+    if (effect != nullptr) {
+      effect->apply();
+    }
   }
 
   // Apply transformer (if any)
@@ -536,19 +538,6 @@ LightColorValues LightCall::validate_() {
   if (this->has_transition_() && !supports_transition) {
     ESP_LOGW(TAG, "'%s' - Light does not support transitions!", name);
     this->transition_length_.reset();
-  }
-
-  // If not a flash and turning the light off, then disable the light
-  // Do not use light color values directly, so that effects can set 0% brightness
-  // Reason: When user turns off the light in frontend, the effect should also stop
-  if (!this->has_flash_() && !this->state_.value_or(v.is_on())) {
-    if (this->has_effect_()) {
-      ESP_LOGW(TAG, "'%s' - Cannot start an effect when turning off!", name);
-      this->effect_.reset();
-    } else if (this->parent_->active_effect_index_ != 0) {
-      // Auto turn off effect
-      this->effect_ = 0;
-    }
   }
 
   // Disable saving for flashes
