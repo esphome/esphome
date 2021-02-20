@@ -7,7 +7,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_PACKAGES
 from . import source_loaders
 from .common import PackageDefinition, TreeItem, PackageConfig, PackageSource
-from .expressions import process_expression_value, TemplateRenderingError
+from esphome.components.expressions import process_expression_value, TemplateRenderingError
 
 CODEOWNERS = ['@corvis', '@esphome/core']
 _LOGGER = logging.getLogger(__name__)
@@ -51,9 +51,7 @@ def _merge_package(full_old, full_new):
 
 def _create_context_for_package(package: PackageDefinition) -> dict:
     return {
-        CONTEXT_PKG: {
-            CONTEXT_PKG_PARAMS: package.params
-        }
+        CONTEXT_PKG: package
     }
 
 
