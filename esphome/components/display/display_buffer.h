@@ -3,6 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/automation.h"
+#include "esphome/core/color.h"
 
 #ifdef USE_TIME
 #include "esphome/components/time/real_time_clock.h"
@@ -63,9 +64,11 @@ enum class TextAlign {
 };
 
 /// Turn the pixel OFF.
-extern const uint8_t COLOR_OFF;
+extern const Color COLOR_OFF;
 /// Turn the pixel ON.
-extern const uint8_t COLOR_ON;
+extern const Color COLOR_ON;
+
+enum ImageType { IMAGE_TYPE_BINARY = 0, IMAGE_TYPE_GRAYSCALE = 1, IMAGE_TYPE_RGB24 = 2 };
 
 enum DisplayRotation {
   DISPLAY_ROTATION_0_DEGREES = 0,
@@ -91,7 +94,7 @@ using display_writer_t = std::function<void(DisplayBuffer &)>;
 class DisplayBuffer {
  public:
   /// Fill the entire screen with the given color.
-  virtual void fill(int color);
+  virtual void fill(Color color);
   /// Clear the entire screen by filling it with OFF pixels.
   void clear();
 
@@ -100,29 +103,29 @@ class DisplayBuffer {
   /// Get the height of the image in pixels with rotation applied.
   int get_height();
   /// Set a single pixel at the specified coordinates to the given color.
-  void draw_pixel_at(int x, int y, int color = COLOR_ON);
+  void draw_pixel_at(int x, int y, Color color = COLOR_ON);
 
   /// Draw a straight line from the point [x1,y1] to [x2,y2] with the given color.
-  void line(int x1, int y1, int x2, int y2, int color = COLOR_ON);
+  void line(int x1, int y1, int x2, int y2, Color color = COLOR_ON);
 
   /// Draw a horizontal line from the point [x,y] to [x+width,y] with the given color.
-  void horizontal_line(int x, int y, int width, int color = COLOR_ON);
+  void horizontal_line(int x, int y, int width, Color color = COLOR_ON);
 
   /// Draw a vertical line from the point [x,y] to [x,y+width] with the given color.
-  void vertical_line(int x, int y, int height, int color = COLOR_ON);
+  void vertical_line(int x, int y, int height, Color color = COLOR_ON);
 
   /// Draw the outline of a rectangle with the top left point at [x1,y1] and the bottom right point at
   /// [x1+width,y1+height].
-  void rectangle(int x1, int y1, int width, int height, int color = COLOR_ON);
+  void rectangle(int x1, int y1, int width, int height, Color color = COLOR_ON);
 
   /// Fill a rectangle with the top left point at [x1,y1] and the bottom right point at [x1+width,y1+height].
-  void filled_rectangle(int x1, int y1, int width, int height, int color = COLOR_ON);
+  void filled_rectangle(int x1, int y1, int width, int height, Color color = COLOR_ON);
 
   /// Draw the outline of a circle centered around [center_x,center_y] with the radius radius with the given color.
-  void circle(int center_x, int center_xy, int radius, int color = COLOR_ON);
+  void circle(int center_x, int center_xy, int radius, Color color = COLOR_ON);
 
   /// Fill a circle centered around [center_x,center_y] with the radius radius with the given color.
-  void filled_circle(int center_x, int center_y, int radius, int color = COLOR_ON);
+  void filled_circle(int center_x, int center_y, int radius, Color color = COLOR_ON);
 
   /** Print `text` with the anchor point at [x,y] with `font`.
    *
@@ -133,7 +136,7 @@ class DisplayBuffer {
    * @param align The alignment of the text.
    * @param text The text to draw.
    */
-  void print(int x, int y, Font *font, int color, TextAlign align, const char *text);
+  void print(int x, int y, Font *font, Color color, TextAlign align, const char *text);
 
   /** Print `text` with the top left at [x,y] with `font`.
    *
@@ -143,7 +146,7 @@ class DisplayBuffer {
    * @param color The color to draw the text with.
    * @param text The text to draw.
    */
-  void print(int x, int y, Font *font, int color, const char *text);
+  void print(int x, int y, Font *font, Color color, const char *text);
 
   /** Print `text` with the anchor point at [x,y] with `font`.
    *
@@ -174,7 +177,7 @@ class DisplayBuffer {
    * @param format The format to use.
    * @param ... The arguments to use for the text formatting.
    */
-  void printf(int x, int y, Font *font, int color, TextAlign align, const char *format, ...)
+  void printf(int x, int y, Font *font, Color color, TextAlign align, const char *format, ...)
       __attribute__((format(printf, 7, 8)));
 
   /** Evaluate the printf-format `format` and print the result with the top left at [x,y] with `font`.
@@ -186,7 +189,7 @@ class DisplayBuffer {
    * @param format The format to use.
    * @param ... The arguments to use for the text formatting.
    */
-  void printf(int x, int y, Font *font, int color, const char *format, ...) __attribute__((format(printf, 6, 7)));
+  void printf(int x, int y, Font *font, Color color, const char *format, ...) __attribute__((format(printf, 6, 7)));
 
   /** Evaluate the printf-format `format` and print the result with the anchor point at [x,y] with `font`.
    *
@@ -220,7 +223,7 @@ class DisplayBuffer {
    * @param format The strftime format to use.
    * @param time The time to format.
    */
-  void strftime(int x, int y, Font *font, int color, TextAlign align, const char *format, time::ESPTime time)
+  void strftime(int x, int y, Font *font, Color color, TextAlign align, const char *format, time::ESPTime time)
       __attribute__((format(strftime, 7, 0)));
 
   /** Evaluate the strftime-format `format` and print the result with the top left at [x,y] with `font`.
@@ -232,7 +235,7 @@ class DisplayBuffer {
    * @param format The strftime format to use.
    * @param time The time to format.
    */
-  void strftime(int x, int y, Font *font, int color, const char *format, time::ESPTime time)
+  void strftime(int x, int y, Font *font, Color color, const char *format, time::ESPTime time)
       __attribute__((format(strftime, 6, 0)));
 
   /** Evaluate the strftime-format `format` and print the result with the anchor point at [x,y] with `font`.
@@ -259,8 +262,15 @@ class DisplayBuffer {
       __attribute__((format(strftime, 5, 0)));
 #endif
 
-  /// Draw the `image` with the top-left corner at [x,y] to the screen.
-  void image(int x, int y, Image *image);
+  /** Draw the `image` with the top-left corner at [x,y] to the screen.
+   *
+   * @param x The x coordinate of the upper left corner.
+   * @param y The y coordinate of the upper left corner.
+   * @param image The image to draw
+   * @param color_on The color to replace in binary images for the on bits.
+   * @param color_off The color to replace in binary images for the off bits.
+   */
+  void image(int x, int y, Image *image, Color color_on = COLOR_ON, Color color_off = COLOR_OFF);
 
   /** Get the text bounds of the given string.
    *
@@ -290,9 +300,9 @@ class DisplayBuffer {
   void set_rotation(DisplayRotation rotation);
 
  protected:
-  void vprintf_(int x, int y, Font *font, int color, TextAlign align, const char *format, va_list arg);
+  void vprintf_(int x, int y, Font *font, Color color, TextAlign align, const char *format, va_list arg);
 
-  virtual void draw_absolute_pixel_internal(int x, int y, int color) = 0;
+  virtual void draw_absolute_pixel_internal(int x, int y, Color color) = 0;
 
   virtual int get_height_internal() = 0;
 
@@ -377,20 +387,41 @@ class Font {
 
 class Image {
  public:
-  Image(const uint8_t *data_start, int width, int height);
-  bool get_pixel(int x, int y) const;
+  Image(const uint8_t *data_start, int width, int height, ImageType type);
+  virtual bool get_pixel(int x, int y) const;
+  virtual Color get_color_pixel(int x, int y) const;
+  virtual Color get_grayscale_pixel(int x, int y) const;
   int get_width() const;
   int get_height() const;
+  ImageType get_type() const;
 
  protected:
   int width_;
   int height_;
+  ImageType type_;
   const uint8_t *data_start_;
+};
+
+class Animation : public Image {
+ public:
+  Animation(const uint8_t *data_start, int width, int height, uint32_t animation_frame_count, ImageType type);
+  bool get_pixel(int x, int y) const override;
+  Color get_color_pixel(int x, int y) const override;
+  Color get_grayscale_pixel(int x, int y) const override;
+
+  int get_animation_frame_count() const;
+  int get_current_frame() const;
+  void next_frame();
+
+ protected:
+  int current_frame_;
+  int animation_frame_count_;
 };
 
 template<typename... Ts> class DisplayPageShowAction : public Action<Ts...> {
  public:
   TEMPLATABLE_VALUE(DisplayPage *, page)
+
   void play(Ts... x) override {
     auto *page = this->page_.value(x...);
     if (page != nullptr) {
@@ -402,18 +433,18 @@ template<typename... Ts> class DisplayPageShowAction : public Action<Ts...> {
 template<typename... Ts> class DisplayPageShowNextAction : public Action<Ts...> {
  public:
   DisplayPageShowNextAction(DisplayBuffer *buffer) : buffer_(buffer) {}
+
   void play(Ts... x) override { this->buffer_->show_next_page(); }
 
- protected:
   DisplayBuffer *buffer_;
 };
 
 template<typename... Ts> class DisplayPageShowPrevAction : public Action<Ts...> {
  public:
   DisplayPageShowPrevAction(DisplayBuffer *buffer) : buffer_(buffer) {}
+
   void play(Ts... x) override { this->buffer_->show_prev_page(); }
 
- protected:
   DisplayBuffer *buffer_;
 };
 

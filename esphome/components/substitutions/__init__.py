@@ -3,10 +3,11 @@ import re
 
 import esphome.config_validation as cv
 from esphome import core
+from esphome.const import CONF_SUBSTITUTIONS
+from esphome.yaml_util import ESPHomeDataBase, make_data_base
 
+CODEOWNERS = ['@esphome/core']
 _LOGGER = logging.getLogger(__name__)
-
-CONF_SUBSTITUTIONS = 'substitutions'
 
 VALID_SUBSTITUTIONS_CHARACTERS = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ' \
                                  '0123456789_'
@@ -68,6 +69,14 @@ def _expand_substitutions(substitutions, value, path):
         value = value[:i] + sub
         i = len(value)
         value += tail
+
+    # orig_value can also already be a lambda with esp_range info, and only
+    # a plain string is sent in orig_value
+    if isinstance(orig_value, ESPHomeDataBase):
+        # even though string can get larger or smaller, the range should point
+        # to original document marks
+        return make_data_base(value, orig_value)
+
     return value
 
 
@@ -101,11 +110,15 @@ def _substitute_item(substitutions, item, path):
     return None
 
 
-def do_substitution_pass(config):
-    if CONF_SUBSTITUTIONS not in config:
+def do_substitution_pass(config, command_line_substitutions):
+    if CONF_SUBSTITUTIONS not in config and not command_line_substitutions:
         return
 
     substitutions = config[CONF_SUBSTITUTIONS]
+    if substitutions is None:
+        substitutions = command_line_substitutions
+    elif command_line_substitutions:
+        substitutions = {**substitutions, **command_line_substitutions}
     with cv.prepend_path('substitutions'):
         if not isinstance(substitutions, dict):
             raise cv.Invalid("Substitutions must be a key to value mapping, got {}"

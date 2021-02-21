@@ -181,7 +181,7 @@ class APIClient(threading.Thread):
                             self._address)
             _LOGGER.warning("(If this error persists, please set a static IP address: "
                             "https://esphome.io/components/wifi.html#manual-ips)")
-            raise APIConnectionError(err)
+            raise APIConnectionError(err) from err
 
         _LOGGER.info("Connecting to %s:%s (%s)", self._address, self._port, ip)
         self._socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -346,12 +346,12 @@ class APIClient(threading.Thread):
                 raise APIConnectionError("No socket!")
             try:
                 val = self._socket.recv(amount - len(ret))
-            except AttributeError:
-                raise APIConnectionError("Socket was closed")
+            except AttributeError as err:
+                raise APIConnectionError("Socket was closed") from err
             except socket.timeout:
                 continue
             except OSError as err:
-                raise APIConnectionError(f"Error while receiving data: {err}")
+                raise APIConnectionError(f"Error while receiving data: {err}") from err
             ret += val
         return ret
 

@@ -1,16 +1,20 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
+import esphome.automation as auto
 from esphome.components import mqtt, power_supply
 from esphome.const import CONF_COLOR_CORRECT, \
     CONF_DEFAULT_TRANSITION_LENGTH, CONF_EFFECTS, CONF_GAMMA_CORRECT, CONF_ID, \
-    CONF_INTERNAL, CONF_NAME, CONF_MQTT_ID, CONF_POWER_SUPPLY, CONF_RESTORE_MODE
+    CONF_INTERNAL, CONF_NAME, CONF_MQTT_ID, CONF_POWER_SUPPLY, CONF_RESTORE_MODE, \
+    CONF_ON_TURN_OFF, CONF_ON_TURN_ON, CONF_TRIGGER_ID
 from esphome.core import coroutine, coroutine_with_priority
 from .automation import light_control_to_code  # noqa
 from .effects import validate_effects, BINARY_EFFECTS, \
     MONOCHROMATIC_EFFECTS, RGB_EFFECTS, ADDRESSABLE_EFFECTS, EFFECTS_REGISTRY
 from .types import (  # noqa
-    LightState, AddressableLightState, light_ns, LightOutput, AddressableLight)
+    LightState, AddressableLightState, light_ns, LightOutput, AddressableLight, \
+    LightTurnOnTrigger, LightTurnOffTrigger)
 
+CODEOWNERS = ['@esphome/core']
 IS_PLATFORM_COMPONENT = True
 
 LightRestoreMode = light_ns.enum('LightRestoreMode')
@@ -26,6 +30,12 @@ LIGHT_SCHEMA = cv.MQTT_COMMAND_COMPONENT_SCHEMA.extend({
     cv.OnlyWith(CONF_MQTT_ID, 'mqtt'): cv.declare_id(mqtt.MQTTJSONLightComponent),
     cv.Optional(CONF_RESTORE_MODE, default='restore_default_off'):
         cv.enum(RESTORE_MODES, upper=True, space='_'),
+    cv.Optional(CONF_ON_TURN_ON): auto.validate_automation({
+        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(LightTurnOnTrigger),
+    }),
+    cv.Optional(CONF_ON_TURN_OFF): auto.validate_automation({
+        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(LightTurnOffTrigger),
+    }),
 })
 
 BINARY_LIGHT_SCHEMA = LIGHT_SCHEMA.extend({
@@ -61,6 +71,13 @@ def setup_light_core_(light_var, output_var, config):
         cg.add(light_var.set_gamma_correct(config[CONF_GAMMA_CORRECT]))
     effects = yield cg.build_registry_list(EFFECTS_REGISTRY, config.get(CONF_EFFECTS, []))
     cg.add(light_var.add_effects(effects))
+
+    for conf in config.get(CONF_ON_TURN_ON, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], light_var)
+        yield auto.build_automation(trigger, [], conf)
+    for conf in config.get(CONF_ON_TURN_OFF, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], light_var)
+        yield auto.build_automation(trigger, [], conf)
 
     if CONF_COLOR_CORRECT in config:
         cg.add(output_var.set_correction(*config[CONF_COLOR_CORRECT]))

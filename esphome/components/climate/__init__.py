@@ -10,6 +10,7 @@ from esphome.core import CORE, coroutine, coroutine_with_priority
 
 IS_PLATFORM_COMPONENT = True
 
+CODEOWNERS = ['@esphome/core']
 climate_ns = cg.esphome_ns.namespace('climate')
 
 Climate = climate_ns.class_('Climate', cg.Nameable)

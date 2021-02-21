@@ -149,10 +149,10 @@ struct ESPColor {
     return ESPColor(uint8_t((uint16_t(r) * 255U / max_rgb)), uint8_t((uint16_t(g) * 255U / max_rgb)),
                     uint8_t((uint16_t(b) * 255U / max_rgb)), w);
   }
-  ESPColor fade_to_white(uint8_t amnt) { return ESPColor(255, 255, 255, 255) - (*this * amnt); }
-  ESPColor fade_to_black(uint8_t amnt) { return *this * amnt; }
-  ESPColor lighten(uint8_t delta) { return *this + delta; }
-  ESPColor darken(uint8_t delta) { return *this - delta; }
+  ESPColor fade_to_white(uint8_t amnt) const { return ESPColor(255, 255, 255, 255) - (*this * amnt); }
+  ESPColor fade_to_black(uint8_t amnt) const { return *this * amnt; }
+  ESPColor lighten(uint8_t delta) const { return *this + delta; }
+  ESPColor darken(uint8_t delta) const { return *this - delta; }
 
   static const ESPColor BLACK;
   static const ESPColor WHITE;

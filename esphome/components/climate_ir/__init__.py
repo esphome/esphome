@@ -6,6 +6,7 @@ from esphome.const import CONF_SUPPORTS_COOL, CONF_SUPPORTS_HEAT, CONF_SENSOR
 from esphome.core import coroutine
 
 AUTO_LOAD = ['sensor', 'remote_base']
+CODEOWNERS = ['@glmnet']
 
 climate_ir_ns = cg.esphome_ns.namespace('climate_ir')
 ClimateIR = climate_ir_ns.class_('ClimateIR', climate.Climate, cg.Component,

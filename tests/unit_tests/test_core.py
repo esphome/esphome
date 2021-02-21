@@ -1,7 +1,7 @@
 import pytest
 
 from hypothesis import given
-from hypothesis.provisional import ip4_addr_strings
+from hypothesis.provisional import ip_addresses
 from strategies import mac_addr_strings
 
 from esphome import core, const
@@ -24,7 +24,7 @@ class TestHexInt:
 
 
 class TestIPAddress:
-    @given(value=ip4_addr_strings())
+    @given(value=ip_addresses(v=4).map(str))
     def test_init__valid(self, value):
         core.IPAddress(*value.split("."))
 
@@ -33,7 +33,7 @@ class TestIPAddress:
         with pytest.raises(ValueError, match="IPAddress must consist of 4 items"):
             core.IPAddress(*value.split("."))
 
-    @given(value=ip4_addr_strings())
+    @given(value=ip_addresses(v=4).map(str))
     def test_str(self, value):
         target = core.IPAddress(*value.split("."))
 
@@ -465,19 +465,21 @@ class TestEsphomeCore:
 
         target.reset()
 
-        # TODO: raw_config and config differ, should they?
         assert target.__dict__ == other.__dict__
 
     def test_address__none(self, target):
+        target.config = {}
         assert target.address is None
 
     def test_address__wifi(self, target):
+        target.config = {}
         target.config[const.CONF_WIFI] = {const.CONF_USE_ADDRESS: "1.2.3.4"}
         target.config["ethernet"] = {const.CONF_USE_ADDRESS: "4.3.2.1"}
 
         assert target.address == "1.2.3.4"
 
     def test_address__ethernet(self, target):
+        target.config = {}
         target.config["ethernet"] = {const.CONF_USE_ADDRESS: "4.3.2.1"}
 
         assert target.address == "4.3.2.1"

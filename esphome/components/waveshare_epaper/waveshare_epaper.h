@@ -26,7 +26,7 @@ class WaveshareEPaper : public PollingComponent,
 
   void update() override;
 
-  void fill(int color) override;
+  void fill(Color color) override;
 
   void setup() override {
     this->setup_pins_();
@@ -36,7 +36,7 @@ class WaveshareEPaper : public PollingComponent,
   void on_safe_shutdown() override;
 
  protected:
-  void draw_absolute_pixel_internal(int x, int y, int color) override;
+  void draw_absolute_pixel_internal(int x, int y, Color color) override;
 
   bool wait_until_idle_();
 
@@ -67,6 +67,7 @@ enum WaveshareEPaperTypeAModel {
   WAVESHARE_EPAPER_1_54_IN = 0,
   WAVESHARE_EPAPER_2_13_IN,
   WAVESHARE_EPAPER_2_9_IN,
+  WAVESHARE_EPAPER_2_9_IN_V2,
   TTGO_EPAPER_2_13_IN,
   TTGO_EPAPER_2_13_IN_B73,
 };
@@ -82,8 +83,14 @@ class WaveshareEPaperTypeA : public WaveshareEPaper {
   void display() override;
 
   void deep_sleep() override {
-    // COMMAND DEEP SLEEP MODE
-    this->command(0x10);
+    if (this->model_ == WAVESHARE_EPAPER_2_9_IN_V2) {
+      // COMMAND DEEP SLEEP MODE
+      this->command(0x10);
+      this->data(0x01);
+    } else {
+      // COMMAND DEEP SLEEP MODE
+      this->command(0x10);
+    }
     this->wait_until_idle_();
   }
 
@@ -105,6 +112,7 @@ enum WaveshareEPaperTypeBModel {
   WAVESHARE_EPAPER_2_7_IN = 0,
   WAVESHARE_EPAPER_4_2_IN,
   WAVESHARE_EPAPER_7_5_IN,
+  WAVESHARE_EPAPER_7_5_INV2,
 };
 
 class WaveshareEPaper2P7In : public WaveshareEPaper {
@@ -190,7 +198,53 @@ class WaveshareEPaper4P2In : public WaveshareEPaper {
   int get_height_internal() override;
 };
 
+class WaveshareEPaper5P8In : public WaveshareEPaper {
+ public:
+  void initialize() override;
+
+  void display() override;
+
+  void dump_config() override;
+
+  void deep_sleep() override {
+    // COMMAND POWER OFF
+    this->command(0x02);
+    this->wait_until_idle_();
+    // COMMAND DEEP SLEEP
+    this->command(0x07);
+    this->data(0xA5);  // check byte
+  }
+
+ protected:
+  int get_width_internal() override;
+
+  int get_height_internal() override;
+};
+
 class WaveshareEPaper7P5In : public WaveshareEPaper {
+ public:
+  void initialize() override;
+
+  void display() override;
+
+  void dump_config() override;
+
+  void deep_sleep() override {
+    // COMMAND POWER OFF
+    this->command(0x02);
+    this->wait_until_idle_();
+    // COMMAND DEEP SLEEP
+    this->command(0x07);
+    this->data(0xA5);  // check byte
+  }
+
+ protected:
+  int get_width_internal() override;
+
+  int get_height_internal() override;
+};
+
+class WaveshareEPaper7P5InV2 : public WaveshareEPaper {
  public:
   void initialize() override;
 

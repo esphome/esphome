@@ -144,7 +144,7 @@ void SX1509Component::clock_(byte osc_source, byte osc_pin_function, byte osc_fr
   osc_source = (osc_source & 0b11) << 5;           // 2-bit value, bits 6:5
   osc_pin_function = (osc_pin_function & 1) << 4;  // 1-bit value bit 4
   osc_freq_out = (osc_freq_out & 0b1111);          // 4-bit value, bits 3:0
-  byte reg_clock = osc_source | osc_pin_function | osc_freq_out;
+  uint8_t reg_clock = osc_source | osc_pin_function | osc_freq_out;
   this->write_byte(REG_CLOCK, reg_clock);
 
   osc_divider = constrain(osc_divider, 1, 7);

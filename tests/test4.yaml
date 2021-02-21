@@ -1,0 +1,101 @@
+esphome:
+  name: $devicename
+  platform: ESP32
+  board: nodemcu-32s
+  build_path: build/test4
+
+substitutions:
+  devicename: test-4
+
+ethernet:
+  type: LAN8720
+  mdc_pin: GPIO23
+  mdio_pin: GPIO25
+  clk_mode: GPIO0_IN
+  phy_addr: 0
+  power_pin: GPIO25
+  manual_ip:
+    static_ip: 192.168.178.56
+    gateway: 192.168.178.1
+    subnet: 255.255.255.0
+  domain: .local
+
+api:
+
+i2c:
+  sda: 21
+  scl: 22
+  scan: False
+
+spi:
+  clk_pin: GPIO21
+  mosi_pin: GPIO22
+  miso_pin: GPIO23
+
+uart:
+  tx_pin: GPIO22
+  rx_pin: GPIO23
+  baud_rate: 115200
+
+ota:
+  safe_mode: True
+  port: 3286
+
+logger:
+  level: DEBUG
+
+web_server:
+  auth:
+    username: admin
+    password: admin
+
+time:
+  - platform: sntp
+    id: sntp_time
+
+tuya:
+  time_id: sntp_time
+
+sensor:
+  - platform: homeassistant
+    entity_id: sensor.hello_world
+    id: ha_hello_world
+  - platform: tuya
+    id: tuya_sensor
+    sensor_datapoint: 1
+#
+# platform sensor.apds9960 requires component apds9960
+#
+#  - platform: apds9960
+#    type: proximity
+#    name: APDS9960 Proximity
+#  - platform: apds9960
+#    type: clear
+#    name: APDS9960 Clear
+#  - platform: apds9960
+#    type: red
+#    name: APDS9960 Red
+#  - platform: apds9960
+#    type: green
+#    name: APDS9960 Green
+#  - platform: apds9960
+#    type: blue
+#    name: APDS9960 Blue
+
+binary_sensor:
+  - platform: tuya
+    id: tuya_binary_sensor
+    sensor_datapoint: 1
+
+climate:
+  - platform: tuya
+    id: tuya_climate
+    switch_datapoint: 1
+    target_temperature_datapoint: 3
+    current_temperature_multiplier: 0.5
+    target_temperature_multiplier: 0.5
+
+switch:
+  - platform: tuya
+    id: tuya_switch
+    switch_datapoint: 1
