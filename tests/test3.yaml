@@ -842,6 +842,8 @@ sim800l:
     - sim800l.send_sms:
         message: 'hello you'
         recipient: '+1234'
+    - sim800l.dial:
+        recipient: '+1234'
 
 dfplayer:
   on_finished_playback:
