@@ -70,7 +70,8 @@ void LgIrClimate::transmit_state() {
 
     if (this->mode == climate::CLIMATE_MODE_OFF) {
       remote_state |= FAN_AUTO;
-    } else if (this->mode == climate::CLIMATE_MODE_COOL || this->mode == climate::CLIMATE_MODE_DRY || this->mode == climate::CLIMATE_MODE_HEAT) {
+    } else if (this->mode == climate::CLIMATE_MODE_COOL || this->mode == climate::CLIMATE_MODE_DRY ||
+               this->mode == climate::CLIMATE_MODE_HEAT) {
       switch (this->fan_mode) {
         case climate::CLIMATE_FAN_HIGH:
           remote_state |= FAN_MAX;
@@ -154,7 +155,8 @@ bool LgIrClimate::on_receive(remote_base::RemoteReceiveData data) {
   // Fan Speed
   if (this->mode == climate::CLIMATE_MODE_AUTO) {
     this->fan_mode = climate::CLIMATE_FAN_AUTO;
-  } else if (this->mode == climate::CLIMATE_MODE_COOL || this->mode == climate::CLIMATE_MODE_HEAT || this->mode == climate::CLIMATE_MODE_DRY) {
+  } else if (this->mode == climate::CLIMATE_MODE_COOL || this->mode == climate::CLIMATE_MODE_HEAT ||
+             this->mode == climate::CLIMATE_MODE_DRY) {
     if ((remote_state & FAN_MASK) == FAN_AUTO)
       this->fan_mode = climate::CLIMATE_FAN_AUTO;
     else if ((remote_state & FAN_MASK) == FAN_MIN)
