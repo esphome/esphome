@@ -139,24 +139,24 @@ bool LgIrClimate::on_receive(remote_base::RemoteReceiveData data) {
     } else {
       this->mode = climate::CLIMATE_MODE_COOL;
     }
-  }
 
-  // Temperature
-  if (this->mode == climate::CLIMATE_MODE_COOL)
-    this->target_temperature = ((remote_state & TEMP_MASK) >> TEMP_SHIFT) + 15;
+    // Temperature
+    if (this->mode == climate::CLIMATE_MODE_COOL)
+      this->target_temperature = ((remote_state & TEMP_MASK) >> TEMP_SHIFT) + 15;
 
-  // Fan Speed
-  if (this->mode == climate::CLIMATE_MODE_AUTO) {
-    this->fan_mode = climate::CLIMATE_FAN_AUTO;
-  } else if (this->mode == climate::CLIMATE_MODE_COOL || this->mode == climate::CLIMATE_MODE_DRY) {
-    if ((remote_state & FAN_MASK) == FAN_AUTO)
+    // Fan Speed
+    if (this->mode == climate::CLIMATE_MODE_AUTO) {
       this->fan_mode = climate::CLIMATE_FAN_AUTO;
-    else if ((remote_state & FAN_MASK) == FAN_MIN)
-      this->fan_mode = climate::CLIMATE_FAN_LOW;
-    else if ((remote_state & FAN_MASK) == FAN_MED)
-      this->fan_mode = climate::CLIMATE_FAN_MEDIUM;
-    else if ((remote_state & FAN_MASK) == FAN_MAX)
-      this->fan_mode = climate::CLIMATE_FAN_HIGH;
+    } else if (this->mode == climate::CLIMATE_MODE_COOL || this->mode == climate::CLIMATE_MODE_DRY) {
+      if ((remote_state & FAN_MASK) == FAN_AUTO)
+        this->fan_mode = climate::CLIMATE_FAN_AUTO;
+      else if ((remote_state & FAN_MASK) == FAN_MIN)
+        this->fan_mode = climate::CLIMATE_FAN_LOW;
+      else if ((remote_state & FAN_MASK) == FAN_MED)
+        this->fan_mode = climate::CLIMATE_FAN_MEDIUM;
+      else if ((remote_state & FAN_MASK) == FAN_MAX)
+        this->fan_mode = climate::CLIMATE_FAN_HIGH;
+    }
   }
   this->publish_state();
 
