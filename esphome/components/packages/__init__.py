@@ -1,13 +1,12 @@
 import copy
 import logging
-import re
 from typing import Optional, Tuple
 
 import esphome.config_validation as cv
 from esphome.components.expressions import process_expression_value, TemplateRenderingError
 from esphome.const import CONF_PACKAGES
-from .source_loaders import BaseSourceLoader, LocalSourceLoader
 from .common import PackageDefinition, TreeItem, PackageConfig, PackageSource
+from .source_loaders import BaseSourceLoader, LocalSourceLoader
 
 CODEOWNERS = ['@corvis', '@esphome/core']
 _LOGGER = logging.getLogger(__name__)
@@ -16,17 +15,37 @@ _LOGGER = logging.getLogger(__name__)
 CONF_SOURCE = 'source'
 CONF_PARAMS = 'params'
 
-VALID_CONTEXT_VAR_RE = re.compile(r'^[a-zA-Z_][a-zA-Z0-9_]*(\.[a-zA-Z_][a-zA-Z0-9_]*)*$')
-
 PACKAGE_SOURCE_DEFAULT_LOADER = LocalSourceLoader()
 PACKAGE_SOURCE_LOADERS: Tuple[BaseSourceLoader] = (
     PACKAGE_SOURCE_DEFAULT_LOADER,
 )
 
-
 # Context
 CONTEXT_PKG = 'pkg'
-CONTEXT_PKG_PARAMS = 'params'
+
+
+# Validation
+def _validate_package_definition(value):
+    return _validate_package_source(value) \
+        if isinstance(value, str) else FULL_PACKAGE_SCHEMA(value)
+
+
+def _validate_package_source(value):
+    if isinstance(value, str):
+        return cv.string_strict(value)
+    if isinstance(value, dict):
+        return value
+    raise cv.Invalid('Package should be defined either by locator string pointing the file'
+                     'or dictionary holding package content (deprecated)')
+
+
+FULL_PACKAGE_SCHEMA = cv.Schema({
+    cv.Required(CONF_SOURCE): _validate_package_source,
+    cv.Optional(CONF_PARAMS, default={}): cv.ensure_schema(cv.Schema({
+        cv.valid_param_name: lambda v: v
+    }))
+})
+PACKAGE_DEFINITION_SCHEMA = cv.Schema(_validate_package_definition)
 
 
 def _merge_package(full_old, full_new):
@@ -99,9 +118,9 @@ def _load_package_source(package_source: PackageSource, package_def: PackageDefi
                          )
     source_loader: BaseSourceLoader = None
     locator: str = None
-    for l in PACKAGE_SOURCE_LOADERS:
-        if l.can_handle(package_source):
-            source_loader = l
+    for loader in PACKAGE_SOURCE_LOADERS:
+        if loader.can_handle(package_source):
+            source_loader = loader
             locator = package_source
             break
     if source_loader is None:
@@ -118,7 +137,7 @@ def _load_package_source(package_source: PackageSource, package_def: PackageDefi
                                             "update content or raise error."
 
 
-def _validate_package_config(package_name: str, package_config: PackageConfig):
+def _validate_package_config(package_name: str, package_config: PackageConfig) -> PackageConfig:
     """
     There are 2 versions of the syntax supported.
     The short one: Either dictionary representing package source or string locator pointing
@@ -133,21 +152,7 @@ def _validate_package_config(package_name: str, package_config: PackageConfig):
     :return: None
     :raises: cv.Invalid - in case when configuration is invalid
     """
-    if _is_short_package_config_syntax(package_config):
-        # Nothing to validate short syntax means config is actually a source declaration
-        # which will be validated during package loading phase
-        pass
-    else:
-        if CONF_PARAMS in package_config:
-            if not isinstance(package_config[CONF_PARAMS], dict):
-                cv.Invalid('Package params should be key value mapping got {} instead'.format(
-                    type(package_config[CONF_PARAMS])), [CONF_PARAMS])
-            else:
-                for key in package_config[CONF_PARAMS].keys():
-                    if not VALID_CONTEXT_VAR_RE.fullmatch(key):
-                        raise cv.Invalid("Invalid package parameter name {}. Parameter names "
-                                         "must be valid python identifiers."
-                                         .format(key), [CONF_PARAMS, key])
+    return PACKAGE_DEFINITION_SCHEMA(package_config)
 
 
 def _load_package(package_name, package_config: PackageConfig,

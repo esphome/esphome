@@ -1,0 +1,5 @@
+sensor:
+  - platform: wifi_signal
+    id: just_wifi_signal
+    name: Just WiFi Signal
+    update_interval: 5min

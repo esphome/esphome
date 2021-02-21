@@ -15,7 +15,7 @@ from esphome.const import ALLOWED_NAME_CHARS, CONF_AVAILABILITY, CONF_COMMAND_TO
     CONF_DISCOVERY, CONF_ID, CONF_INTERNAL, CONF_NAME, CONF_PAYLOAD_AVAILABLE, \
     CONF_PAYLOAD_NOT_AVAILABLE, CONF_RETAIN, CONF_SETUP_PRIORITY, CONF_STATE_TOPIC, CONF_TOPIC, \
     CONF_HOUR, CONF_MINUTE, CONF_SECOND, CONF_VALUE, CONF_UPDATE_INTERVAL, CONF_TYPE_ID, \
-    CONF_TYPE, CONF_PACKAGES
+    CONF_TYPE
 from esphome.core import CORE, HexInt, IPAddress, Lambda, TimePeriod, TimePeriodMicroseconds, \
     TimePeriodMilliseconds, TimePeriodSeconds, TimePeriodMinutes
 from esphome.helpers import list_starts_with, add_class_to_obj
@@ -60,6 +60,8 @@ RESERVED_IDS = [
     'uint8_t', 'uint16_t', 'uint32_t', 'uint64_t', 'int8_t', 'int16_t', 'int32_t', 'int64_t',
     'close', 'pause', 'sleep', 'open', 'setup', 'loop',
 ]
+
+VALID_PARAM_NAME_REGEX = re.compile(r'^[a-zA-Z_][a-zA-Z0-9_]*(\.[a-zA-Z_][a-zA-Z0-9_]*)*$')
 
 
 class Optional(vol.Optional):
@@ -114,6 +116,18 @@ def valid_name(value):
         if c not in ALLOWED_NAME_CHARS:
             raise Invalid(f"'{c}' is an invalid character for names. Valid characters are: "
                           f"{ALLOWED_NAME_CHARS} (lowercase, no spaces)")
+    return value
+
+
+def valid_param_name(value):
+    """
+    Validate that given value is a valid parameter name. It could include latin letters,
+    numbers and symbol _. It also can't start with number
+    """
+    value = string_strict(value)
+    if not VALID_PARAM_NAME_REGEX.fullmatch(value):
+        raise Invalid("Invalid name \"{}\". Name should consist of latin letters, "
+                      "numbers symbol _ and can't start with digit".format(value))
     return value
 
 
@@ -1176,10 +1190,7 @@ class OnlyWith(Optional):
     @property
     def default(self):
         # pylint: disable=unsupported-membership-test
-        if (self._component in CORE.raw_config or
-                (CONF_PACKAGES in CORE.raw_config and
-                 self._component in
-                 {list(x.keys())[0] for x in CORE.raw_config[CONF_PACKAGES].values()})):
+        if self._component in CORE.resolved_config:
             return self._default
         return vol.UNDEFINED
 

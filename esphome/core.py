@@ -501,6 +501,8 @@ class EsphomeCore:
         self.board: Optional[str] = None
         # The full raw configuration
         self.raw_config: Optional[ConfigType] = None
+        # The raw configuration with resolved dependencies, expressions and substitutions
+        self.resolved_config: Optional[ConfigType] = None
         # The validated configuration, this is None until the config has been validated
         self.config: Optional[ConfigType] = None
         # The pending tasks in the task queue (mostly for C++ generation)
@@ -539,6 +541,7 @@ class EsphomeCore:
         self.esp_platform = None
         self.board = None
         self.raw_config = None
+        self.resolved_config = None
         self.config = None
         self.pending_tasks = []
         self.task_counter = 0

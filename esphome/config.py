@@ -1,4 +1,5 @@
 import collections
+import copy
 import importlib
 import logging
 import re
@@ -420,6 +421,7 @@ def validate_config(config, command_line_substitutions):
             result.update(config)
             result.add_error(err)
             return result
+    CORE.resolved_config = copy.deepcopy(config)
 
     # 1.1. Check for REPLACEME special value
     try:

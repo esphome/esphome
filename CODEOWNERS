@@ -31,6 +31,7 @@ esphome/components/dfplayer/* @glmnet
 esphome/components/dht/* @OttoWinter
 esphome/components/ds1307/* @badbadc0ffee
 esphome/components/exposure_notifications/* @OttoWinter
+esphome/components/expressions/* @corvis @esphome/core
 esphome/components/ezo/* @ssieb
 esphome/components/fastled_base/* @OttoWinter
 esphome/components/globals/* @esphome/core
