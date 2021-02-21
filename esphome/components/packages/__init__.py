@@ -26,8 +26,20 @@ CONTEXT_PKG = 'pkg'
 
 # Validation
 def _validate_package_definition(value):
-    return _validate_package_source(value) \
-        if isinstance(value, str) else FULL_PACKAGE_SCHEMA(value)
+    # Shorthand - just string locator
+    #   Example:
+    #   packages:
+    #     my_package: my_packages/package_file.yaml
+    if isinstance(value, str):
+        return _validate_package_source(value)
+    # Legacy - using include syntax
+    #   Example:
+    #   packages:
+    #     my_package: !include my_packages/package_file.yaml
+    if isinstance(value, dict) and CONF_SOURCE not in value:
+        return value
+    # Everything else should be validated using full config schema
+    return FULL_PACKAGE_SCHEMA(value)
 
 
 def _validate_package_source(value):

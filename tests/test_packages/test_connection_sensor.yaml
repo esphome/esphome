@@ -1,0 +1,4 @@
+binary_sensor:
+  - platform: status
+    id: my_connection_status
+    name: My Connection Status
