@@ -51,7 +51,7 @@ void BLESensor::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t ga
                  this->char_uuid_.to_string().c_str());
         break;
       }
-      this->sensor_handle_ = chr->handle_;
+      this->sensor_handle_ = chr->handle;
       if (this->descr_uuid_.get_uuid().len > 0) {
         auto descr = chr->get_descriptor(this->descr_uuid_);
         if (descr == nullptr) {
@@ -71,7 +71,7 @@ void BLESensor::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t ga
           ESP_LOGW(TAG, "esp_ble_gattc_register_for_notify failed, status=%d", status);
         }
       } else {
-        this->node_state_ = espbt::ClientState::Established;
+        this->node_state = espbt::ClientState::Established;
       }
       break;
     }
@@ -97,7 +97,7 @@ void BLESensor::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t ga
       break;
     }
     case ESP_GATTC_REG_FOR_NOTIFY_EVT: {
-      this->node_state_ = espbt::ClientState::Established;
+      this->node_state = espbt::ClientState::Established;
       break;
     }
     default:
@@ -106,7 +106,7 @@ void BLESensor::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t ga
 }
 
 void BLESensor::update() {
-  if (this->node_state_ != espbt::ClientState::Established) {
+  if (this->node_state != espbt::ClientState::Established) {
     ESP_LOGW(TAG, "[%s] Cannot poll, not connected", this->get_name().c_str());
     return;
   }

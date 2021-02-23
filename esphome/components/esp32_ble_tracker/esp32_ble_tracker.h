@@ -165,7 +165,6 @@ class ESPBTClient : public ESPBTDeviceListener {
   ClientState state_;
 };
 
-
 class ESP32BLETracker : public Component {
  public:
   void set_scan_duration(uint32_t scan_duration) { scan_duration_ = scan_duration; }

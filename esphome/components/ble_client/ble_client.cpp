@@ -304,9 +304,8 @@ void BLEService::parse_characteristics() {
 
   while (true) {
     uint16_t count = 1;
-    esp_gatt_status_t status =
-        esp_ble_gattc_get_all_char(this->client->gattc_if, this->client->conn_id, this->start_handle,
-                                   this->end_handle, &result, &count, offset);
+    esp_gatt_status_t status = esp_ble_gattc_get_all_char(
+        this->client->gattc_if, this->client->conn_id, this->start_handle, this->end_handle, &result, &count, offset);
     if (status == ESP_GATT_INVALID_OFFSET || status == ESP_GATT_NOT_FOUND) {
       break;
     }
@@ -325,7 +324,7 @@ void BLEService::parse_characteristics() {
     characteristic->service = this;
     this->characteristics.push_back(characteristic);
     ESP_LOGI(TAG, " characteristic %s, handle 0x%x, properties 0x%x", characteristic->uuid.to_string().c_str(),
-        characteristic->handle, characteristic->properties);
+             characteristic->handle, characteristic->properties);
     characteristic->parse_descriptors();
     offset++;
   }
