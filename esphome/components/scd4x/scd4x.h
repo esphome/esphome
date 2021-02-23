@@ -27,6 +27,7 @@ class SCD4XComponent : public PollingComponent, public i2c::I2CDevice {
   float get_setup_priority() const override { return setup_priority::DATA; }
 
  protected:
+  bool initialized_{false};
   bool write_command_(uint16_t command);
   bool write_command_(uint16_t command, uint16_t data);
   bool read_data_(uint16_t *data, uint8_t len);

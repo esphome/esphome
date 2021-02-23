@@ -23,9 +23,7 @@ float raw_temperature_to_temperature(uint16_t raw_temperature) {
   return -45.0f + (175.0f * (raw_temperature)) / (1 << 16);
 }
 
-float raw_humidity_to_humidity(uint16_t raw_humidity) {
-  return (100.0f * raw_humidity)/(1 << 16);
-}
+float raw_humidity_to_humidity(uint16_t raw_humidity) { return (100.0f * raw_humidity) / (1 << 16); }
 
 void SCD4XComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up scd4x...");
@@ -33,65 +31,93 @@ void SCD4XComponent::setup() {
 #ifdef ARDUINO_ARCH_ESP8266
   Wire.setClockStretchLimit(150000);
 #endif
+  this->set_timeout(1000, [this]() {
+    // Check if measurement is ready before reading the value
+    if (!this->write_command_(SCD4X_CMD_GET_DATA_READY_STATUS)) {
+      ESP_LOGE(TAG, "Failed to write data ready status command");
+      this->mark_failed();
+      return;
+    }
 
-  if (!this->write_command_(SCD4X_CMD_GET_SERIAL_NUMBER)) {
-    this->error_code_ = COMMUNICATION_FAILED;
-    this->mark_failed();
-    return;
-  }
-  uint16_t raw_serial_number[3];
+    uint16_t raw_read_status[1];
+    if (!this->read_data_(raw_read_status, 1)) {
+      ESP_LOGE(TAG, "Failed to read data ready status");
+      this->mark_failed();
+      return;
+    }
+    ESP_LOGD(TAG, "Data ready: %d", raw_read_status[0]);
 
-  if (!this->read_data_(raw_serial_number, 3)) {
-    this->error_code_ = SERIAL_NUMBER_IDENTIFICATION_FAILED;
-    this->mark_failed();
-    return;
-  }
-  ESP_LOGD(TAG, "SCD4X serial number %02d.%02d.%02d", (uint16_t(raw_serial_number[0]) >> 8),
-           uint16_t(raw_serial_number[0] & 0xFF), (uint16_t(raw_serial_number[1]) >> 8));
+    if (raw_read_status[0]) {
+      ESP_LOGD(TAG, "Sensor already has data, resetting");
+      if (!this->write_command_(SCD4X_CMD_STOP_MEASUREMENTS)) {
+        ESP_LOGE(TAG, "Failed to stop measurements");
+        this->mark_failed();
+        return;
+      }
+    }
 
-  if (this->temperature_offset_ != 0) {
-    if (!this->write_command_(SCD4X_CMD_TEMPERATURE_OFFSET,
-                              (uint16_t)(temperature_offset_ * SCD4X_TEMPERATURE_OFFSET_MULTIPLIER))) {
-      ESP_LOGE(TAG, "Sensor SCD4X error setting temperature offset.");
+    if (!this->write_command_(SCD4X_CMD_GET_SERIAL_NUMBER)) {
+      ESP_LOGE(TAG, "Failed to write get serial command");
+      this->error_code_ = COMMUNICATION_FAILED;
+      this->mark_failed();
+      return;
+    }
+    uint16_t raw_serial_number[3];
+
+    if (!this->read_data_(raw_serial_number, 3)) {
+      ESP_LOGE(TAG, "Failed to read serial number");
+      this->error_code_ = SERIAL_NUMBER_IDENTIFICATION_FAILED;
+      this->mark_failed();
+      return;
+    }
+    ESP_LOGD(TAG, "SCD4X serial number %02d.%02d.%02d", (uint16_t(raw_serial_number[0]) >> 8),
+             uint16_t(raw_serial_number[0] & 0xFF), (uint16_t(raw_serial_number[1]) >> 8));
+
+    if (this->temperature_offset_ != 0) {
+      if (!this->write_command_(SCD4X_CMD_TEMPERATURE_OFFSET,
+                                (uint16_t)(temperature_offset_ * SCD4X_TEMPERATURE_OFFSET_MULTIPLIER))) {
+        ESP_LOGE(TAG, "Sensor SCD4X error setting temperature offset.");
+        this->error_code_ = MEASUREMENT_INIT_FAILED;
+        this->mark_failed();
+        return;
+      }
+    }
+
+    if (this->altitude_compensation_ != 0xFFFF) {
+      if (!this->write_command_(SCD4X_CMD_ALTITUDE_COMPENSATION, altitude_compensation_)) {
+        ESP_LOGE(TAG, "Sensor SCD4X error starting continuous measurements.");
+        this->error_code_ = MEASUREMENT_INIT_FAILED;
+        this->mark_failed();
+        return;
+      }
+    }
+
+    if (this->ambient_pressure_compensation_ != 0xFFFF) {
+      if (!this->write_command_(SCD4X_CMD_AMBIENT_PRESSURE_COMPENSATION, ambient_pressure_compensation_)) {
+        ESP_LOGE(TAG, "Sensor SCD4X error starting continuous measurements.");
+        this->error_code_ = MEASUREMENT_INIT_FAILED;
+        this->mark_failed();
+        return;
+      }
+    }
+
+    if (!this->write_command_(SCD4X_CMD_AUTOMATIC_SELF_CALIBRATION, enable_asc_ ? 1 : 0)) {
+      ESP_LOGE(TAG, "Sensor SCD4X error setting automatic self calibration.");
       this->error_code_ = MEASUREMENT_INIT_FAILED;
       this->mark_failed();
       return;
     }
-  }
 
-  if (this->altitude_compensation_ != 0xFFFF) {
-    if (!this->write_command_(SCD4X_CMD_ALTITUDE_COMPENSATION, altitude_compensation_)) {
+    if (!this->write_command_(SCD4X_CMD_START_CONTINUOUS_MEASUREMENTS)) {
       ESP_LOGE(TAG, "Sensor SCD4X error starting continuous measurements.");
       this->error_code_ = MEASUREMENT_INIT_FAILED;
       this->mark_failed();
       return;
     }
-  }
 
-  if (this->ambient_pressure_compensation_ != 0xFFFF) {
-    if (!this->write_command_(SCD4X_CMD_AMBIENT_PRESSURE_COMPENSATION, ambient_pressure_compensation_)) {
-      ESP_LOGE(TAG, "Sensor SCD4X error starting continuous measurements.");
-      this->error_code_ = MEASUREMENT_INIT_FAILED;
-      this->mark_failed();
-      return;
-    }
-  }
-
-  if (!this->write_command_(SCD4X_CMD_AUTOMATIC_SELF_CALIBRATION, enable_asc_ ? 1 : 0)) {
-    ESP_LOGE(TAG, "Sensor SCD4X error setting automatic self calibration.");
-    this->error_code_ = MEASUREMENT_INIT_FAILED;
-    this->mark_failed();
-    return;
-  }
-
-  if (!this->write_command_(SCD4X_CMD_START_CONTINUOUS_MEASUREMENTS)) {
-    ESP_LOGE(TAG, "Sensor SCD4X error starting continuous measurements.");
-    this->error_code_ = MEASUREMENT_INIT_FAILED;
-    this->mark_failed();
-    return;
-  }
-
-  ESP_LOGD(TAG, "Sensor initialized");
+    initialized_ = true;
+    ESP_LOGD(TAG, "Sensor initialized");
+  });
 }
 
 void SCD4XComponent::dump_config() {
@@ -128,6 +154,9 @@ void SCD4XComponent::dump_config() {
 }
 
 void SCD4XComponent::update() {
+  if (!initialized_) {
+    return;
+  }
   /// Check if measurement is ready before reading the value
   if (!this->write_command_(SCD4X_CMD_GET_DATA_READY_STATUS)) {
     this->status_set_warning();
@@ -155,7 +184,7 @@ void SCD4XComponent::update() {
       };
     };
     reading_t reading;
-    
+
     if (!this->read_data_(reading.raw_data, 3)) {
       this->status_set_warning();
       return;
@@ -176,6 +205,9 @@ void SCD4XComponent::update() {
 }
 
 void SCD4XComponent::set_forced_recalibration_value(uint16_t value) {
+  if (!initialized_) {
+    return;
+  }
   if (!this->write_command_(SCD4X_CMD_STOP_MEASUREMENTS)) {
     ESP_LOGW(TAG, "Error stopping measurements");
     this->status_set_warning();
