@@ -34,6 +34,7 @@ class BLEClientNode {
   // allow some memory to be freed.
   espbt::ClientState node_state;
 
+  BLEClient* parent() { return this->parent_; }
   void set_ble_client_parent(BLEClient *parent) { this->parent_ = parent; }
 
  protected:

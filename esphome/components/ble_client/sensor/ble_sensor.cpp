@@ -17,7 +17,7 @@ void BLESensor::loop() {}
 
 void BLESensor::dump_config() {
   LOG_SENSOR("", "BLE Sensor", this);
-  ESP_LOGCONFIG(TAG, "  MAC address        : %s", this->parent_->address_str().c_str());
+  ESP_LOGCONFIG(TAG, "  MAC address        : %s", this->parent()->address_str().c_str());
   ESP_LOGCONFIG(TAG, "  Service UUID       : %s", this->service_uuid_.to_string().c_str());
   ESP_LOGCONFIG(TAG, "  Characteristic UUID: %s", this->char_uuid_.to_string().c_str());
   ESP_LOGCONFIG(TAG, "  Descriptor UUID    : %s", this->descr_uuid_.to_string().c_str());
@@ -42,8 +42,8 @@ void BLESensor::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t ga
       break;
     }
     case ESP_GATTC_SEARCH_CMPL_EVT: {
-      this->sensor_handle_ = 0;
-      auto chr = this->parent_->get_characteristic(this->service_uuid_, this->char_uuid_);
+      this->handle = 0;
+      auto chr = this->parent()->get_characteristic(this->service_uuid_, this->char_uuid_);
       if (chr == nullptr) {
         this->status_set_warning();
         this->publish_state(NAN);
@@ -51,7 +51,7 @@ void BLESensor::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t ga
                  this->char_uuid_.to_string().c_str());
         break;
       }
-      this->sensor_handle_ = chr->handle;
+      this->handle = chr->handle;
       if (this->descr_uuid_.get_uuid().len > 0) {
         auto descr = chr->get_descriptor(this->descr_uuid_);
         if (descr == nullptr) {
@@ -62,11 +62,11 @@ void BLESensor::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t ga
                    this->descr_uuid_.to_string().c_str());
           break;
         }
-        this->sensor_handle_ = descr->handle;
+        this->handle = descr->handle;
       }
       if (this->notify_) {
         auto status =
-            esp_ble_gattc_register_for_notify(this->parent_->gattc_if, this->parent_->remote_bda, chr->handle);
+            esp_ble_gattc_register_for_notify(this->parent()->gattc_if, this->parent()->remote_bda, chr->handle);
         if (status) {
           ESP_LOGW(TAG, "esp_ble_gattc_register_for_notify failed, status=%d", status);
         }
@@ -76,20 +76,20 @@ void BLESensor::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t ga
       break;
     }
     case ESP_GATTC_READ_CHAR_EVT: {
-      if (param->read.conn_id != this->parent_->conn_id)
+      if (param->read.conn_id != this->parent()->conn_id)
         break;
       if (param->read.status != ESP_GATT_OK) {
         ESP_LOGW(TAG, "Error reading char at handle %d, status=%d", param->read.handle, param->read.status);
         break;
       }
-      if (param->read.handle == this->sensor_handle_) {
+      if (param->read.handle == this->handle) {
         this->status_clear_warning();
         this->publish_state((float) param->read.value[0]);
       }
       break;
     }
     case ESP_GATTC_NOTIFY_EVT: {
-      if (param->notify.conn_id != this->parent_->conn_id || param->notify.handle != this->sensor_handle_)
+      if (param->notify.conn_id != this->parent()->conn_id || param->notify.handle != this->handle)
         break;
       ESP_LOGI(TAG, "[%s] ESP_GATTC_NOTIFY_EVT: handle=0x%x, value=0x%x", this->get_name().c_str(),
                param->notify.handle, param->notify.value[0]);
@@ -110,12 +110,12 @@ void BLESensor::update() {
     ESP_LOGW(TAG, "[%s] Cannot poll, not connected", this->get_name().c_str());
     return;
   }
-  if (this->sensor_handle_ == 0) {
+  if (this->handle == 0) {
     ESP_LOGW(TAG, "[%s] Cannot poll, no service or characteristic found", this->get_name().c_str());
     return;
   }
 
-  auto status = esp_ble_gattc_read_char(this->parent_->gattc_if, this->parent_->conn_id, this->sensor_handle_,
+  auto status = esp_ble_gattc_read_char(this->parent()->gattc_if, this->parent()->conn_id, this->handle,
                                         ESP_GATT_AUTH_REQ_NONE);
   if (status) {
     this->status_set_warning();
