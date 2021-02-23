@@ -7,19 +7,21 @@ namespace scd4x {
 static const char *TAG = "scd4x";
 
 static const uint16_t SCD4X_CMD_GET_SERIAL_NUMBER = 0x3682;
+static const uint16_t SCD4X_CMD_TEMPERATURE_OFFSET = 0x241d;
+
 static const uint16_t SCD4X_CMD_START_CONTINUOUS_MEASUREMENTS = 0x0010;
 static const uint16_t SCD4X_CMD_ALTITUDE_COMPENSATION = 0x5102;
 static const uint16_t SCD4X_CMD_AUTOMATIC_SELF_CALIBRATION = 0x5306;
 static const uint16_t SCD4X_CMD_GET_DATA_READY_STATUS = 0x0202;
 static const uint16_t SCD4X_CMD_READ_MEASUREMENT = 0x0300;
 static const uint16_t SCD4X_CMD_SET_FORCED_RECALIBRATION_VALUE = 0x5204;
-
-/// Commands for future use
 static const uint16_t SCD4X_CMD_STOP_MEASUREMENTS = 0x0104;
 static const uint16_t SCD4X_CMD_MEASUREMENT_INTERVAL = 0x4600;
 static const uint16_t SCD4X_CMD_FORCED_CALIBRATION = 0x5204;
-static const uint16_t SCD4X_CMD_TEMPERATURE_OFFSET = 0x5403;
+
 static const uint16_t SCD4X_CMD_SOFT_RESET = 0xD304;
+
+static const float SCD4X_TEMPERATURE_OFFSET_MULTIPLIER = (1 << 16) / 175.0f
 
 void SCD4XComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up scd4x...");
@@ -43,16 +45,8 @@ void SCD4XComponent::setup() {
   ESP_LOGD(TAG, "SCD4X serial number %02d.%02d.%02d", (uint16_t(raw_serial_number[0]) >> 8),
            uint16_t(raw_serial_number[0] & 0xFF), (uint16_t(raw_serial_number[1]) >> 8));
 
-  /// Sensor initialization
-  if (!this->write_command_(SCD4X_CMD_START_CONTINUOUS_MEASUREMENTS, this->ambient_pressure_compensation_)) {
-    ESP_LOGE(TAG, "Sensor SCD4X error starting continuous measurements.");
-    this->error_code_ = MEASUREMENT_INIT_FAILED;
-    this->mark_failed();
-    return;
-  }
-
   if (this->temperature_offset_ != 0) {
-    if (!this->write_command_(SCD4X_CMD_TEMPERATURE_OFFSET, (uint16_t)(temperature_offset_ * 100.0))) {
+    if (!this->write_command_(SCD4X_CMD_TEMPERATURE_OFFSET, (uint16_t)(temperature_offset_ * SCD4X_TEMPERATURE_OFFSET_MULTIPLIER))) {
       ESP_LOGE(TAG, "Sensor SCD4X error setting temperature offset.");
       this->error_code_ = MEASUREMENT_INIT_FAILED;
       this->mark_failed();
@@ -71,6 +65,13 @@ void SCD4XComponent::setup() {
 
   if (!this->write_command_(SCD4X_CMD_AUTOMATIC_SELF_CALIBRATION, enable_asc_ ? 1 : 0)) {
     ESP_LOGE(TAG, "Sensor SCD4X error setting automatic self calibration.");
+    this->error_code_ = MEASUREMENT_INIT_FAILED;
+    this->mark_failed();
+    return;
+  }
+
+  if (!this->write_command_(SCD4X_CMD_START_CONTINUOUS_MEASUREMENTS, this->ambient_pressure_compensation_)) {
+    ESP_LOGE(TAG, "Sensor SCD4X error starting continuous measurements.");
     this->error_code_ = MEASUREMENT_INIT_FAILED;
     this->mark_failed();
     return;
