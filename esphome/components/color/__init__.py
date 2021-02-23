@@ -16,7 +16,8 @@ def percentage_or_uint8_t(value):
             else:
                 value = int(value)
         except ValueError:
-            raise cv.Invalid("invalid number")
+            raise cv.Invalid("invalid number") from None
+
     if value > 255:
         msg = "Percentage must not be higher than 100% or value greater than 255."
         raise cv.Invalid(msg)
