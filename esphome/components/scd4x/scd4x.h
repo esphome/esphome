@@ -40,7 +40,7 @@ class SCD4XComponent : public PollingComponent, public i2c::I2CDevice {
   } error_code_{UNKNOWN};
   bool enable_asc_{true};
   uint16_t altitude_compensation_{0xFFFF};
-  uint16_t ambient_pressure_compensation_{0x0000};
+  uint16_t ambient_pressure_compensation_{0xFFFF};
   float temperature_offset_{0.0};
 
   sensor::Sensor *co2_sensor_{nullptr};
