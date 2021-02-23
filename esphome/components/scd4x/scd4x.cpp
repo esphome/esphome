@@ -6,7 +6,7 @@ namespace scd4x {
 
 static const char *TAG = "scd4x";
 
-static const uint16_t SCD4X_CMD_GET_FIRMWARE_VERSION = 0xd100;
+static const uint16_t SCD4X_CMD_GET_SERIAL_NUMBER = 0x3682;
 static const uint16_t SCD4X_CMD_START_CONTINUOUS_MEASUREMENTS = 0x0010;
 static const uint16_t SCD4X_CMD_ALTITUDE_COMPENSATION = 0x5102;
 static const uint16_t SCD4X_CMD_AUTOMATIC_SELF_CALIBRATION = 0x5306;
@@ -28,21 +28,20 @@ void SCD4XComponent::setup() {
   Wire.setClockStretchLimit(150000);
 #endif
 
-  /// Firmware version identification
-  if (!this->write_command_(SCD4X_CMD_GET_FIRMWARE_VERSION)) {
+  if (!this->write_command_(SCD4X_CMD_GET_SERIAL_NUMBER)) {
     this->error_code_ = COMMUNICATION_FAILED;
     this->mark_failed();
     return;
   }
-  uint16_t raw_firmware_version[3];
+  uint16_t raw_serial_number[3];
 
-  if (!this->read_data_(raw_firmware_version, 3)) {
+  if (!this->read_data_(raw_serial_number, 3)) {
     this->error_code_ = FIRMWARE_IDENTIFICATION_FAILED;
     this->mark_failed();
     return;
   }
-  ESP_LOGD(TAG, "SCD4X Firmware v%0d.%02d", (uint16_t(raw_firmware_version[0]) >> 8),
-           uint16_t(raw_firmware_version[0] & 0xFF));
+  ESP_LOGD(TAG, "SCD4X serial number %02d.%02d.%02d", (uint16_t(raw_serial_number[0]) >> 8),
+           uint16_t(raw_serial_number[0] & 0xFF), (uint16_t(raw_serial_number[1]) >> 8));
 
   /// Sensor initialization
   if (!this->write_command_(SCD4X_CMD_START_CONTINUOUS_MEASUREMENTS, this->ambient_pressure_compensation_)) {

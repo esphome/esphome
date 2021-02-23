@@ -34,7 +34,7 @@ class SCD4XComponent : public PollingComponent, public i2c::I2CDevice {
 
   enum ErrorCode {
     COMMUNICATION_FAILED,
-    FIRMWARE_IDENTIFICATION_FAILED,
+    SERIAL_NUMBER_IDENTIFICATION_FAILED,
     MEASUREMENT_INIT_FAILED,
     UNKNOWN
   } error_code_{UNKNOWN};
