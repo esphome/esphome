@@ -33,14 +33,12 @@ struct Color {
   };
 
   inline Color() ALWAYS_INLINE : r(0), g(0), b(0), w(0) {}  // NOLINT
-  inline Color(uint8_t red, uint8_t green, uint8_t blue) ALWAYS_INLINE : r(red),
-                                                                         g(green),
-                                                                         b(blue),
-                                                                         w(0) {}
+  inline Color(uint8_t red, uint8_t green, uint8_t blue) ALWAYS_INLINE : r(red), g(green), b(blue), w(0) {}
+
   inline Color(uint8_t red, uint8_t green, uint8_t blue, uint8_t white) ALWAYS_INLINE : r(red),
                                                                                         g(green),
                                                                                         b(blue),
-                                                                                        w(white)) {}
+                                                                                        w(white) {}
   inline Color(uint32_t colorcode) ALWAYS_INLINE : r((colorcode >> 16) & 0xFF),
                                                    g((colorcode >> 8) & 0xFF),
                                                    b((colorcode >> 0) & 0xFF),

@@ -1243,6 +1243,7 @@ light:
           lambda: |-
             static int state = 0;
             state += 1;
+            ESPColor c1 = kbx_red;
             if (state == 4)
               state = 0;
   - platform: rgb

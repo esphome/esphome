@@ -10,7 +10,7 @@ LightOutput = light_ns.class_("LightOutput")
 AddressableLight = light_ns.class_("AddressableLight", cg.Component)
 AddressableLightRef = AddressableLight.operator("ref")
 
-Color = light_ns.class_("Color")
+Color = cg.esphome_ns.namespace("Color")
 LightColorValues = light_ns.class_("LightColorValues")
 
 # Actions

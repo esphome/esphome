@@ -14,6 +14,8 @@
 namespace esphome {
 namespace light {
 
+using ESPColor = Color;
+
 struct ESPHSVColor {
   union {
     struct {
