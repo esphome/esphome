@@ -115,8 +115,8 @@ void BLESensor::update() {
     return;
   }
 
-  auto status = esp_ble_gattc_read_char(this->parent()->gattc_if, this->parent()->conn_id, this->handle,
-                                        ESP_GATT_AUTH_REQ_NONE);
+  auto status =
+      esp_ble_gattc_read_char(this->parent()->gattc_if, this->parent()->conn_id, this->handle, ESP_GATT_AUTH_REQ_NONE);
   if (status) {
     this->status_set_warning();
     this->publish_state(NAN);
