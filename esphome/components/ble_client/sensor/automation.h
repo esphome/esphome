@@ -19,9 +19,9 @@ class BLESensorNotifyTrigger : public Trigger<float>, public BLESensor {
         break;
       }
       case ESP_GATTC_NOTIFY_EVT: {
-        if (param->notify.conn_id != this->parent_->conn_id_ || param->notify.handle != this->sensor_->sensor_handle_)
+        if (param->notify.conn_id != this->parent_->conn_id || param->notify.handle != this->sensor_->sensor_handle_)
           break;
-        this->trigger(this->parent_->parse_char_value(param->notify.value, param->notify.value_len));
+        this->trigger(this->parent->parse_char_value(param->notify.value, param->notify.value_len));
       }
       default:
         break;

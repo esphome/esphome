@@ -28,49 +28,49 @@ class BLEClientNode {
                                    esp_ble_gattc_cb_param_t *param) = 0;
   virtual void loop() = 0;
   void set_address(uint64_t address) { address_ = address; }
-  uint64_t address_;
-  espbt::ESPBTClient *client_;
+  espbt::ESPBTClient *client;
   // This should be transitioned to Established once the node no longer needs
   // the services/descriptors/characteristics of the parent client. This will
   // allow some memory to be freed.
-  espbt::ClientState node_state_;
+  espbt::ClientState node_state;
 
   void set_ble_client_parent(BLEClient *parent) { this->parent_ = parent; }
 
  protected:
   BLEClient *parent_;
+  uint64_t address_;
 };
 
 class BLEDescriptor {
  public:
-  espbt::ESPBTUUID uuid_;
-  uint16_t handle_;
+  espbt::ESPBTUUID uuid;
+  uint16_t handle;
 
-  BLECharacteristic *characteristic_;
+  BLECharacteristic *characteristic;
 };
 
 class BLECharacteristic {
  public:
   ~BLECharacteristic();
-  espbt::ESPBTUUID uuid_;
-  uint16_t handle_;
-  esp_gatt_char_prop_t properties_;
-  std::vector<BLEDescriptor *> descriptors_;
+  espbt::ESPBTUUID uuid;
+  uint16_t handle;
+  esp_gatt_char_prop_t properties;
+  std::vector<BLEDescriptor *> descriptors;
   void parse_descriptors();
   BLEDescriptor *get_descriptor(espbt::ESPBTUUID uuid);
   BLEDescriptor *get_descriptor(uint16_t uuid);
 
-  BLEService *service_;
+  BLEService *service;
 };
 
 class BLEService {
  public:
   ~BLEService();
-  espbt::ESPBTUUID uuid_;
-  uint16_t start_handle_;
-  uint16_t end_handle_;
-  std::vector<BLECharacteristic *> characteristics_;
-  BLEClient *client_;
+  espbt::ESPBTUUID uuid;
+  uint16_t start_handle;
+  uint16_t end_handle;
+  std::vector<BLECharacteristic *> characteristics;
+  BLEClient *client;
   void parse_characteristics();
   BLECharacteristic *get_characteristic(espbt::ESPBTUUID uuid);
   BLECharacteristic *get_characteristic(uint16_t uuid);
@@ -87,12 +87,12 @@ class BLEClient : public espbt::ESPBTClient, public Component {
   void on_scan_end() override {}
   void connect();
 
-  void set_address(uint64_t address) { address_ = address; }
+  void set_address(uint64_t address) { this->address = address; }
 
   void set_enabled(bool enabled);
 
   void register_ble_node(BLEClientNode *node) {
-    node->client_ = this;
+    node->client = this;
     node->set_ble_client_parent(this);
     this->nodes_.push_back(node);
   }
@@ -108,24 +108,24 @@ class BLEClient : public espbt::ESPBTClient, public Component {
 
   float parse_char_value(uint8_t *value, uint16_t length);
 
-  int gattc_if_;
-  esp_bd_addr_t remote_bda_;
-  uint16_t conn_id_;
-  uint64_t address_;
-  bool enabled_;
+  int gattc_if;
+  esp_bd_addr_t remote_bda;
+  uint16_t conn_id;
+  uint64_t address;
+  bool enabled;
   std::string address_str() const;
 
  protected:
   void set_states(espbt::ClientState st) {
-    this->state_ = st;
+    this->set_state(st);
     for (auto &node : nodes_)
-      node->node_state_ = st;
+      node->node_state = st;
   }
   bool all_nodes_established() {
-    if (this->state_ != espbt::ClientState::Established)
+    if (this->state() != espbt::ClientState::Established)
       return false;
     for (auto &node : nodes_)
-      if (node->node_state_ != espbt::ClientState::Established)
+      if (node->node_state != espbt::ClientState::Established)
         return false;
     return true;
   }

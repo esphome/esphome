@@ -61,7 +61,7 @@ void ESP32BLETracker::loop() {
 
   bool connecting = false;
   for (auto *client : this->clients_) {
-    if (client->state_ == ClientState::Connecting || client->state_ == ClientState::Discovered)
+    if (client->state() == ClientState::Connecting || client->state() == ClientState::Discovered)
       connecting = true;
   }
   if (!connecting && xSemaphoreTake(this->scan_end_lock_, 0L)) {
@@ -88,7 +88,7 @@ void ESP32BLETracker::loop() {
       for (auto *client : this->clients_)
         if (client->parse_device(device)) {
           found = true;
-          if (client->state_ == ClientState::Discovered) {
+          if (client->state() == ClientState::Discovered) {
             esp_ble_gap_stop_scanning();
             if (xSemaphoreTake(this->scan_end_lock_, 10L / portTICK_PERIOD_MS)) {
               xSemaphoreGive(this->scan_end_lock_);
@@ -199,7 +199,7 @@ void ESP32BLETracker::start_scan(bool first) {
 }
 
 void ESP32BLETracker::register_client(ESPBTClient *client) {
-  client->app_id_ = ++this->app_id_;
+  client->app_id = ++this->app_id_;
   this->clients_.push_back(client);
 }
 

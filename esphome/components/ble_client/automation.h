@@ -15,7 +15,7 @@ class BLEClientConnectTrigger : public Trigger<>, public BLEClientNode {
     if (event == ESP_GATTC_OPEN_EVT && param->open.status == ESP_GATT_OK)
       this->trigger();
     if (event == ESP_GATTC_SEARCH_CMPL_EVT)
-      this->node_state_ = espbt::ClientState::Established;
+      this->node_state = espbt::ClientState::Established;
   }
 };
 
@@ -24,10 +24,10 @@ class BLEClientDisconnectTrigger : public Trigger<>, public BLEClientNode {
   explicit BLEClientDisconnectTrigger(BLEClient *parent) { parent->register_ble_node(this); }
   void loop() override {}
   void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp_ble_gattc_cb_param_t *param) {
-    if (event == ESP_GATTC_DISCONNECT_EVT && memcmp(param->disconnect.remote_bda, this->parent_->remote_bda_, 6) == 0)
+    if (event == ESP_GATTC_DISCONNECT_EVT && memcmp(param->disconnect.remote_bda, this->parent_->remote_bda, 6) == 0)
       this->trigger();
     if (event == ESP_GATTC_SEARCH_CMPL_EVT)
-      this->node_state_ = espbt::ClientState::Established;
+      this->node_state = espbt::ClientState::Established;
   }
 };
 

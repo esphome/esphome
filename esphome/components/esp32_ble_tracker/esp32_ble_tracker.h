@@ -157,10 +157,14 @@ class ESPBTClient : public ESPBTDeviceListener {
   virtual void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
                                    esp_ble_gattc_cb_param_t *param) = 0;
   virtual void connect() = 0;
+  void set_state(ClientState st) { this->state_ = st; }
+  ClientState state() const { return state_; }
+  int app_id;
 
-  int app_id_;
+ protected:
   ClientState state_;
 };
+
 
 class ESP32BLETracker : public Component {
  public:

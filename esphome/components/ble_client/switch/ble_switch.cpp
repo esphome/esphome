@@ -18,14 +18,14 @@ void BLEClientSwitch::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_i
                                           esp_ble_gattc_cb_param_t *param) {
   switch (event) {
     case ESP_GATTC_REG_EVT:
-      this->publish_state(this->parent_->enabled_);
+      this->publish_state(this->parent_->enabled);
       break;
     case ESP_GATTC_OPEN_EVT:
-      this->node_state_ = espbt::ClientState::Established;
+      this->node_state = espbt::ClientState::Established;
       break;
     case ESP_GATTC_DISCONNECT_EVT:
-      this->node_state_ = espbt::ClientState::Idle;
-      this->publish_state(this->parent_->enabled_);
+      this->node_state = espbt::ClientState::Idle;
+      this->publish_state(this->parent_->enabled);
       break;
     default:
       break;

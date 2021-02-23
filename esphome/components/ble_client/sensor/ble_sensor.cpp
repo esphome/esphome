@@ -62,11 +62,11 @@ void BLESensor::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t ga
                    this->descr_uuid_.to_string().c_str());
           break;
         }
-        this->sensor_handle_ = descr->handle_;
+        this->sensor_handle_ = descr->handle;
       }
       if (this->notify_) {
         auto status =
-            esp_ble_gattc_register_for_notify(this->parent_->gattc_if_, this->parent_->remote_bda_, chr->handle_);
+            esp_ble_gattc_register_for_notify(this->parent_->gattc_if, this->parent_->remote_bda, chr->handle);
         if (status) {
           ESP_LOGW(TAG, "esp_ble_gattc_register_for_notify failed, status=%d", status);
         }
@@ -76,7 +76,7 @@ void BLESensor::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t ga
       break;
     }
     case ESP_GATTC_READ_CHAR_EVT: {
-      if (param->read.conn_id != this->parent_->conn_id_)
+      if (param->read.conn_id != this->parent_->conn_id)
         break;
       if (param->read.status != ESP_GATT_OK) {
         ESP_LOGW(TAG, "Error reading char at handle %d, status=%d", param->read.handle, param->read.status);
@@ -89,7 +89,7 @@ void BLESensor::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t ga
       break;
     }
     case ESP_GATTC_NOTIFY_EVT: {
-      if (param->notify.conn_id != this->parent_->conn_id_ || param->notify.handle != this->sensor_handle_)
+      if (param->notify.conn_id != this->parent_->conn_id || param->notify.handle != this->sensor_handle_)
         break;
       ESP_LOGI(TAG, "[%s] ESP_GATTC_NOTIFY_EVT: handle=0x%x, value=0x%x", this->get_name().c_str(),
                param->notify.handle, param->notify.value[0]);
@@ -115,7 +115,7 @@ void BLESensor::update() {
     return;
   }
 
-  auto status = esp_ble_gattc_read_char(this->parent_->gattc_if_, this->parent_->conn_id_, this->sensor_handle_,
+  auto status = esp_ble_gattc_read_char(this->parent_->gattc_if, this->parent_->conn_id, this->sensor_handle_,
                                         ESP_GATT_AUTH_REQ_NONE);
   if (status) {
     this->status_set_warning();
