@@ -93,9 +93,7 @@ def register_binary_effect(name, effect_type, default_name, schema, *extra_valid
     return register_effect(name, effect_type, default_name, schema, *extra_validators)
 
 
-def register_monochromatic_effect(
-    name, effect_type, default_name, schema, *extra_validators
-):
+def register_monochromatic_effect(name, effect_type, default_name, schema, *extra_validators):
     # monochromatic effect can be used for all lights expect binary
     MONOCHROMATIC_EFFECTS.append(name)
     RGB_EFFECTS.append(name)
@@ -112,9 +110,7 @@ def register_rgb_effect(name, effect_type, default_name, schema, *extra_validato
     return register_effect(name, effect_type, default_name, schema, *extra_validators)
 
 
-def register_addressable_effect(
-    name, effect_type, default_name, schema, *extra_validators
-):
+def register_addressable_effect(name, effect_type, default_name, schema, *extra_validators):
     # addressable effect can be used only in addressable
     ADDRESSABLE_EFFECTS.append(name)
 
