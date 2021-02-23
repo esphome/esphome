@@ -8,9 +8,9 @@ static const char *TAG = "scd4x";
 
 static const uint16_t SCD4X_CMD_GET_SERIAL_NUMBER = 0x3682;
 static const uint16_t SCD4X_CMD_TEMPERATURE_OFFSET = 0x241d;
+static const uint16_t SCD4X_CMD_ALTITUDE_COMPENSATION = 0x2427;
 
 static const uint16_t SCD4X_CMD_START_CONTINUOUS_MEASUREMENTS = 0x0010;
-static const uint16_t SCD4X_CMD_ALTITUDE_COMPENSATION = 0x5102;
 static const uint16_t SCD4X_CMD_AUTOMATIC_SELF_CALIBRATION = 0x5306;
 static const uint16_t SCD4X_CMD_GET_DATA_READY_STATUS = 0x0202;
 static const uint16_t SCD4X_CMD_READ_MEASUREMENT = 0x0300;
@@ -53,7 +53,7 @@ void SCD4XComponent::setup() {
       return;
     }
   }
-  // The start measurement command disables the altitude compensation, if any, so we only set it if it's turned on
+
   if (this->altitude_compensation_ != 0xFFFF) {
     if (!this->write_command_(SCD4X_CMD_ALTITUDE_COMPENSATION, altitude_compensation_)) {
       ESP_LOGE(TAG, "Sensor SCD4X error starting continuous measurements.");
