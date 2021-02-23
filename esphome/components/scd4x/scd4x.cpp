@@ -1,35 +1,35 @@
-#include "scd30.h"
+#include "scd4x.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
-namespace scd30 {
+namespace scd4x {
 
-static const char *TAG = "scd30";
+static const char *TAG = "scd4x";
 
-static const uint16_t SCD30_CMD_GET_FIRMWARE_VERSION = 0xd100;
-static const uint16_t SCD30_CMD_START_CONTINUOUS_MEASUREMENTS = 0x0010;
-static const uint16_t SCD30_CMD_ALTITUDE_COMPENSATION = 0x5102;
-static const uint16_t SCD30_CMD_AUTOMATIC_SELF_CALIBRATION = 0x5306;
-static const uint16_t SCD30_CMD_GET_DATA_READY_STATUS = 0x0202;
-static const uint16_t SCD30_CMD_READ_MEASUREMENT = 0x0300;
-static const uint16_t SCD30_CMD_SET_FORCED_RECALIBRATION_VALUE = 0x5204;
+static const uint16_t SCD4X_CMD_GET_FIRMWARE_VERSION = 0xd100;
+static const uint16_t SCD4X_CMD_START_CONTINUOUS_MEASUREMENTS = 0x0010;
+static const uint16_t SCD4X_CMD_ALTITUDE_COMPENSATION = 0x5102;
+static const uint16_t SCD4X_CMD_AUTOMATIC_SELF_CALIBRATION = 0x5306;
+static const uint16_t SCD4X_CMD_GET_DATA_READY_STATUS = 0x0202;
+static const uint16_t SCD4X_CMD_READ_MEASUREMENT = 0x0300;
+static const uint16_t SCD4X_CMD_SET_FORCED_RECALIBRATION_VALUE = 0x5204;
 
 /// Commands for future use
-static const uint16_t SCD30_CMD_STOP_MEASUREMENTS = 0x0104;
-static const uint16_t SCD30_CMD_MEASUREMENT_INTERVAL = 0x4600;
-static const uint16_t SCD30_CMD_FORCED_CALIBRATION = 0x5204;
-static const uint16_t SCD30_CMD_TEMPERATURE_OFFSET = 0x5403;
-static const uint16_t SCD30_CMD_SOFT_RESET = 0xD304;
+static const uint16_t SCD4X_CMD_STOP_MEASUREMENTS = 0x0104;
+static const uint16_t SCD4X_CMD_MEASUREMENT_INTERVAL = 0x4600;
+static const uint16_t SCD4X_CMD_FORCED_CALIBRATION = 0x5204;
+static const uint16_t SCD4X_CMD_TEMPERATURE_OFFSET = 0x5403;
+static const uint16_t SCD4X_CMD_SOFT_RESET = 0xD304;
 
-void SCD30Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up scd30...");
+void SCD4XComponent::setup() {
+  ESP_LOGCONFIG(TAG, "Setting up scd4x...");
 
 #ifdef ARDUINO_ARCH_ESP8266
   Wire.setClockStretchLimit(150000);
 #endif
 
   /// Firmware version identification
-  if (!this->write_command_(SCD30_CMD_GET_FIRMWARE_VERSION)) {
+  if (!this->write_command_(SCD4X_CMD_GET_FIRMWARE_VERSION)) {
     this->error_code_ = COMMUNICATION_FAILED;
     this->mark_failed();
     return;
@@ -41,20 +41,20 @@ void SCD30Component::setup() {
     this->mark_failed();
     return;
   }
-  ESP_LOGD(TAG, "SCD30 Firmware v%0d.%02d", (uint16_t(raw_firmware_version[0]) >> 8),
+  ESP_LOGD(TAG, "SCD4X Firmware v%0d.%02d", (uint16_t(raw_firmware_version[0]) >> 8),
            uint16_t(raw_firmware_version[0] & 0xFF));
 
   /// Sensor initialization
-  if (!this->write_command_(SCD30_CMD_START_CONTINUOUS_MEASUREMENTS, this->ambient_pressure_compensation_)) {
-    ESP_LOGE(TAG, "Sensor SCD30 error starting continuous measurements.");
+  if (!this->write_command_(SCD4X_CMD_START_CONTINUOUS_MEASUREMENTS, this->ambient_pressure_compensation_)) {
+    ESP_LOGE(TAG, "Sensor SCD4X error starting continuous measurements.");
     this->error_code_ = MEASUREMENT_INIT_FAILED;
     this->mark_failed();
     return;
   }
 
   if (this->temperature_offset_ != 0) {
-    if (!this->write_command_(SCD30_CMD_TEMPERATURE_OFFSET, (uint16_t)(temperature_offset_ * 100.0))) {
-      ESP_LOGE(TAG, "Sensor SCD30 error setting temperature offset.");
+    if (!this->write_command_(SCD4X_CMD_TEMPERATURE_OFFSET, (uint16_t)(temperature_offset_ * 100.0))) {
+      ESP_LOGE(TAG, "Sensor SCD4X error setting temperature offset.");
       this->error_code_ = MEASUREMENT_INIT_FAILED;
       this->mark_failed();
       return;
@@ -62,24 +62,24 @@ void SCD30Component::setup() {
   }
   // The start measurement command disables the altitude compensation, if any, so we only set it if it's turned on
   if (this->altitude_compensation_ != 0xFFFF) {
-    if (!this->write_command_(SCD30_CMD_ALTITUDE_COMPENSATION, altitude_compensation_)) {
-      ESP_LOGE(TAG, "Sensor SCD30 error starting continuous measurements.");
+    if (!this->write_command_(SCD4X_CMD_ALTITUDE_COMPENSATION, altitude_compensation_)) {
+      ESP_LOGE(TAG, "Sensor SCD4X error starting continuous measurements.");
       this->error_code_ = MEASUREMENT_INIT_FAILED;
       this->mark_failed();
       return;
     }
   }
 
-  if (!this->write_command_(SCD30_CMD_AUTOMATIC_SELF_CALIBRATION, enable_asc_ ? 1 : 0)) {
-    ESP_LOGE(TAG, "Sensor SCD30 error setting automatic self calibration.");
+  if (!this->write_command_(SCD4X_CMD_AUTOMATIC_SELF_CALIBRATION, enable_asc_ ? 1 : 0)) {
+    ESP_LOGE(TAG, "Sensor SCD4X error setting automatic self calibration.");
     this->error_code_ = MEASUREMENT_INIT_FAILED;
     this->mark_failed();
     return;
   }
 }
 
-void SCD30Component::dump_config() {
-  ESP_LOGCONFIG(TAG, "scd30:");
+void SCD4XComponent::dump_config() {
+  ESP_LOGCONFIG(TAG, "scd4x:");
   LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
     switch (this->error_code_) {
@@ -111,9 +111,9 @@ void SCD30Component::dump_config() {
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
 }
 
-void SCD30Component::update() {
+void SCD4XComponent::update() {
   /// Check if measurement is ready before reading the value
-  if (!this->write_command_(SCD30_CMD_GET_DATA_READY_STATUS)) {
+  if (!this->write_command_(SCD4X_CMD_GET_DATA_READY_STATUS)) {
     this->status_set_warning();
     return;
   }
@@ -125,7 +125,7 @@ void SCD30Component::update() {
     return;
   }
 
-  if (!this->write_command_(SCD30_CMD_READ_MEASUREMENT)) {
+  if (!this->write_command_(SCD4X_CMD_READ_MEASUREMENT)) {
     ESP_LOGW(TAG, "Error reading measurement!");
     this->status_set_warning();
     return;
@@ -163,20 +163,20 @@ void SCD30Component::update() {
   });
 }
 
-void SCD30Component::set_forced_recalibration_value(uint16_t value) {
-  if (!this->write_command_(SCD30_CMD_SET_FORCED_RECALIBRATION_VALUE, value)) {
+void SCD4XComponent::set_forced_recalibration_value(uint16_t value) {
+  if (!this->write_command_(SCD4X_CMD_SET_FORCED_RECALIBRATION_VALUE, value)) {
     ESP_LOGW(TAG, "Error reading measurement!");
     this->status_set_warning();
   }
   ESP_LOGD(TAG, "Set forced recalibration value CO2=%d ppm", value);
 }
 
-bool SCD30Component::write_command_(uint16_t command) {
+bool SCD4XComponent::write_command_(uint16_t command) {
   // Warning ugly, trick the I2Ccomponent base by setting register to the first 8 bit.
   return this->write_byte(command >> 8, command & 0xFF);
 }
 
-bool SCD30Component::write_command_(uint16_t command, uint16_t data) {
+bool SCD4XComponent::write_command_(uint16_t command, uint16_t data) {
   uint8_t raw[5];
   raw[0] = command >> 8;
   raw[1] = command & 0xFF;
@@ -186,7 +186,7 @@ bool SCD30Component::write_command_(uint16_t command, uint16_t data) {
   return this->write_bytes_raw(raw, 5);
 }
 
-uint8_t SCD30Component::sht_crc_(uint8_t data1, uint8_t data2) {
+uint8_t SCD4XComponent::sht_crc_(uint8_t data1, uint8_t data2) {
   uint8_t bit;
   uint8_t crc = 0xFF;
 
@@ -209,7 +209,7 @@ uint8_t SCD30Component::sht_crc_(uint8_t data1, uint8_t data2) {
   return crc;
 }
 
-bool SCD30Component::read_data_(uint16_t *data, uint8_t len) {
+bool SCD4XComponent::read_data_(uint16_t *data, uint8_t len) {
   const uint8_t num_bytes = len * 3;
   auto *buf = new uint8_t[num_bytes];
 
@@ -233,5 +233,5 @@ bool SCD30Component::read_data_(uint16_t *data, uint8_t len) {
   return true;
 }
 
-}  // namespace scd30
+}  // namespace scd4x
 }  // namespace esphome

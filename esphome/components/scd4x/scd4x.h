@@ -5,10 +5,10 @@
 #include "esphome/components/i2c/i2c.h"
 
 namespace esphome {
-namespace scd30 {
+namespace scd4x {
 
-/// This class implements support for the Sensirion scd30 i2c GAS (VOC and CO2eq) sensors.
-class SCD30Component : public PollingComponent, public i2c::I2CDevice {
+/// This class implements support for the Sensirion scd4x i2c GAS (VOC and CO2eq) sensors.
+class SCD4XComponent : public PollingComponent, public i2c::I2CDevice {
  public:
   void set_co2_sensor(sensor::Sensor *co2) { co2_sensor_ = co2; }
   void set_humidity_sensor(sensor::Sensor *humidity) { humidity_sensor_ = humidity; }
@@ -48,5 +48,5 @@ class SCD30Component : public PollingComponent, public i2c::I2CDevice {
   sensor::Sensor *temperature_sensor_{nullptr};
 };
 
-}  // namespace scd30
+}  // namespace scd4x
 }  // namespace esphome
