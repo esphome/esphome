@@ -407,7 +407,7 @@ void HOT ST7735::senddata_(const uint8_t *data_bytes, uint8_t num_data_bytes) {
   this->cs_->digital_write(false);
   this->enable();
   for (uint8_t i = 0; i < num_data_bytes; i++) {
-    this->transfer_byte(pgm_read_byte(data_bytes++));  // write byte - SPI library
+    this->write_byte(pgm_read_byte(data_bytes++));  // write byte - SPI library
   }
   this->cs_->digital_write(true);
   this->disable();
@@ -454,6 +454,7 @@ void HOT ST7735::write_display_data_() {
   } else {
     this->write_array(this->buffer_, this->get_buffer_length());
   }
+  this->disable();
 }
 
 void ST7735::spi_master_write_addr_(uint16_t addr1, uint16_t addr2) {

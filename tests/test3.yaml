@@ -204,6 +204,7 @@ uart:
 ota:
   safe_mode: True
   port: 3286
+  reboot_timeout: 15min
 
 logger:
   hardware_uart: UART1
@@ -885,6 +886,25 @@ rf_bridge:
         code: 'ABC123'
     - rf_bridge.send_raw:
         raw: 'AAA5070008001000ABC12355'
+    - http_request.get:
+        url: https://esphome.io
+        headers:
+          Content-Type: application/json
+        verify_ssl: false
+    - http_request.post:
+        url: https://esphome.io
+        verify_ssl: false
+        json:
+          key: !lambda |-
+            return id(version_sensor).state;
+          greeting: 'Hello World'
+    - http_request.send:
+        method: PUT
+        url: https://esphome.io
+        headers:
+          Content-Type: application/json
+        body: 'Some data'
+        verify_ssl: false
 
 display:
   - platform: max7219digit
@@ -896,3 +916,7 @@ display:
     id: my_matrix
     lambda: |-
       it.printdigit("hello");
+
+http_request:
+  useragent: esphome/device
+  timeout: 10s

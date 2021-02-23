@@ -14,9 +14,11 @@ void MCP23017::setup() {
     return;
   }
 
-  // all pins input
-  this->write_reg_(MCP23017_IODIRA, 0xFF);
-  this->write_reg_(MCP23017_IODIRB, 0xFF);
+  if (this->open_drain_ints_) {
+    // enable open-drain interrupt pins, 3.3V-safe
+    this->write_reg_(MCP23017_IOCONA, 0x04);
+    this->write_reg_(MCP23017_IOCONB, 0x04);
+  }
 }
 bool MCP23017::digital_read(uint8_t pin) {
   uint8_t bit = pin % 8;

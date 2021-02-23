@@ -382,6 +382,7 @@ bool APIConnection::send_sensor_info(sensor::Sensor *sensor) {
   msg.unit_of_measurement = sensor->get_unit_of_measurement();
   msg.accuracy_decimals = sensor->get_accuracy_decimals();
   msg.force_update = sensor->get_force_update();
+  msg.device_class = sensor->get_device_class();
   return this->send_list_entities_sensor_response(msg);
 }
 #endif
@@ -676,8 +677,10 @@ bool APIConnection::send_buffer(ProtoWriteBuffer buffer, uint32_t message_type) 
     }
   }
 
-  this->client_->add(reinterpret_cast<char *>(header.data()), header.size());
-  this->client_->add(reinterpret_cast<char *>(buffer.get_buffer()->data()), buffer.get_buffer()->size());
+  this->client_->add(reinterpret_cast<char *>(header.data()), header.size(),
+                     ASYNC_WRITE_FLAG_COPY | ASYNC_WRITE_FLAG_MORE);
+  this->client_->add(reinterpret_cast<char *>(buffer.get_buffer()->data()), buffer.get_buffer()->size(),
+                     ASYNC_WRITE_FLAG_COPY);
   bool ret = this->client_->send();
   return ret;
 }
