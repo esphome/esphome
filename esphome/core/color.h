@@ -144,17 +144,6 @@ struct Color {
   Color fade_to_black(uint8_t amnt) { return *this * amnt; }
   Color lighten(uint8_t delta) { return *this + delta; }
   Color darken(uint8_t delta) { return *this - delta; }
-
-  uint32_t to_rgb_565() const {
-    uint32_t color565 =
-        (esp_scale8(this->red, 31) << 11) | (esp_scale8(this->green, 63) << 5) | (esp_scale8(this->blue, 31) << 0);
-    return color565;
-  }
-
-  uint32_t to_grayscale4() const {
-    uint32_t gs4 = esp_scale8(this->white, 15);
-    return gs4;
-  }
 };
 static const Color COLOR_BLACK(0, 0, 0);
 static const Color COLOR_WHITE(1, 1, 1);

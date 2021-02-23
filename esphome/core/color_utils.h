@@ -98,5 +98,10 @@ class ColorUtil {
     }
     return 0;
   }
+
+  static uint32_t color_to_grayscale4(Color color) {
+    uint32_t gs4 = esp_scale8(color.white, 15);
+    return gs4;
+  }
 };
 }  // namespace esphome

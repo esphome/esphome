@@ -136,7 +136,7 @@ size_t SSD1327::get_buffer_length_() {
 void HOT SSD1327::draw_absolute_pixel_internal(int x, int y, Color color) {
   if (x >= this->get_width_internal() || x < 0 || y >= this->get_height_internal() || y < 0)
     return;
-  uint32_t color4 = color.to_grayscale4();
+  uint32_t color4 = ColorUtil::color_to_grayscale4(color);
   // where should the bits go in the big buffer array? math...
   uint16_t pos = (x / SSD1327_PIXELSPERBYTE) + (y * this->get_width_internal() / SSD1327_PIXELSPERBYTE);
   uint8_t shift = (x % SSD1327_PIXELSPERBYTE) * SSD1327_COLORSHIFT;
@@ -148,7 +148,7 @@ void HOT SSD1327::draw_absolute_pixel_internal(int x, int y, Color color) {
   this->buffer_[pos] |= color4;
 }
 void SSD1327::fill(Color color) {
-  const uint32_t color4 = color.to_grayscale4();
+  const uint32_t color4 = ColorUtil::color_to_grayscale4(color);
   uint8_t fill = (color4 & SSD1327_COLORMASK) | ((color4 & SSD1327_COLORMASK) << SSD1327_COLORSHIFT);
   for (uint32_t i = 0; i < this->get_buffer_length_(); i++)
     this->buffer_[i] = fill;

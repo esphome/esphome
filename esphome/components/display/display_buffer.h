@@ -3,7 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/automation.h"
-#include "esphome/core/color.h"
+#include "esphome/core/color_utils.h"
 
 #ifdef USE_TIME
 #include "esphome/components/time/real_time_clock.h"
