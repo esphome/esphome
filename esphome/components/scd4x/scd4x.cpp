@@ -12,17 +12,20 @@ static const uint16_t SCD4X_CMD_ALTITUDE_COMPENSATION = 0x2427;
 static const uint16_t SCD4X_CMD_AMBIENT_PRESSURE_COMPENSATION = 0xe000;
 static const uint16_t SCD4X_CMD_AUTOMATIC_SELF_CALIBRATION = 0x2416;
 static const uint16_t SCD4X_CMD_START_CONTINUOUS_MEASUREMENTS = 0x21b1;
+static const uint16_t SCD4X_CMD_GET_DATA_READY_STATUS = 0xe4b8;
+static const uint16_t SCD4X_CMD_READ_MEASUREMENT = 0xec05;
+static const uint16_t SCD4X_CMD_PERFORM_FORCED_CALIBRATION = 0x362f;
+static const uint16_t SCD4X_CMD_STOP_MEASUREMENTS = 0x3f86;
 
-static const uint16_t SCD4X_CMD_GET_DATA_READY_STATUS = 0x0202;
-static const uint16_t SCD4X_CMD_READ_MEASUREMENT = 0x0300;
-static const uint16_t SCD4X_CMD_SET_FORCED_RECALIBRATION_VALUE = 0x5204;
-static const uint16_t SCD4X_CMD_STOP_MEASUREMENTS = 0x0104;
-static const uint16_t SCD4X_CMD_MEASUREMENT_INTERVAL = 0x4600;
-static const uint16_t SCD4X_CMD_FORCED_CALIBRATION = 0x5204;
+static const float SCD4X_TEMPERATURE_OFFSET_MULTIPLIER = (1 << 16) / 175.0f;
 
-static const uint16_t SCD4X_CMD_SOFT_RESET = 0xD304;
+float raw_temperature_to_temperature(uint16_t raw_temperature) {
+  return -45.0f + (175.0f * (raw_temperature)) / (1 << 16);
+}
 
-static const float SCD4X_TEMPERATURE_OFFSET_MULTIPLIER = (1 << 16) / 175.0f
+float raw_humidity_to_humidity(uint16_t raw_humidity) {
+  return (100.0f * raw_humidity)/(1 << 16);
+}
 
 void SCD4XComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up scd4x...");
@@ -39,7 +42,7 @@ void SCD4XComponent::setup() {
   uint16_t raw_serial_number[3];
 
   if (!this->read_data_(raw_serial_number, 3)) {
-    this->error_code_ = FIRMWARE_IDENTIFICATION_FAILED;
+    this->error_code_ = SERIAL_NUMBER_IDENTIFICATION_FAILED;
     this->mark_failed();
     return;
   }
@@ -47,7 +50,8 @@ void SCD4XComponent::setup() {
            uint16_t(raw_serial_number[0] & 0xFF), (uint16_t(raw_serial_number[1]) >> 8));
 
   if (this->temperature_offset_ != 0) {
-    if (!this->write_command_(SCD4X_CMD_TEMPERATURE_OFFSET, (uint16_t)(temperature_offset_ * SCD4X_TEMPERATURE_OFFSET_MULTIPLIER))) {
+    if (!this->write_command_(SCD4X_CMD_TEMPERATURE_OFFSET,
+                              (uint16_t)(temperature_offset_ * SCD4X_TEMPERATURE_OFFSET_MULTIPLIER))) {
       ESP_LOGE(TAG, "Sensor SCD4X error setting temperature offset.");
       this->error_code_ = MEASUREMENT_INIT_FAILED;
       this->mark_failed();
@@ -86,6 +90,8 @@ void SCD4XComponent::setup() {
     this->mark_failed();
     return;
   }
+
+  ESP_LOGD(TAG, "Sensor initialized");
 }
 
 void SCD4XComponent::dump_config() {
@@ -99,7 +105,7 @@ void SCD4XComponent::dump_config() {
       case MEASUREMENT_INIT_FAILED:
         ESP_LOGW(TAG, "Measurement Initialization failed!");
         break;
-      case FIRMWARE_IDENTIFICATION_FAILED:
+      case SERIAL_NUMBER_IDENTIFICATION_FAILED:
         ESP_LOGW(TAG, "Unable to read sensor firmware version");
         break;
       default:
@@ -142,43 +148,57 @@ void SCD4XComponent::update() {
   }
 
   this->set_timeout(50, [this]() {
-    uint16_t raw_data[6];
-    if (!this->read_data_(raw_data, 6)) {
+    union reading_t {
+      uint16_t raw_data[3];
+      struct {
+        uint16_t co2, raw_temperature, raw_humidity;
+      };
+    };
+    reading_t reading;
+    
+    if (!this->read_data_(reading.raw_data, 3)) {
       this->status_set_warning();
       return;
     }
 
-    union uint32_float_t {
-      uint32_t uint32;
-      float value;
-    };
-    uint32_t temp_c_o2_u32 = (((uint32_t(raw_data[0])) << 16) | (uint32_t(raw_data[1])));
-    uint32_float_t co2{.uint32 = temp_c_o2_u32};
-
-    uint32_t temp_temp_u32 = (((uint32_t(raw_data[2])) << 16) | (uint32_t(raw_data[3])));
-    uint32_float_t temperature{.uint32 = temp_temp_u32};
-
-    uint32_t temp_hum_u32 = (((uint32_t(raw_data[4])) << 16) | (uint32_t(raw_data[5])));
-    uint32_float_t humidity{.uint32 = temp_hum_u32};
-
-    ESP_LOGD(TAG, "Got CO2=%.2fppm temperature=%.2f°C humidity=%.2f%%", co2.value, temperature.value, humidity.value);
+    const float temperature = raw_temperature_to_temperature(reading.raw_temperature);
+    const float humidity = raw_humidity_to_humidity(reading.raw_humidity);
+    ESP_LOGD(TAG, "Got CO2=%dppm temperature=%.2f°C humidity=%.2f%%", reading.co2, temperature, humidity);
     if (this->co2_sensor_ != nullptr)
-      this->co2_sensor_->publish_state(co2.value);
+      this->co2_sensor_->publish_state(reading.co2);
     if (this->temperature_sensor_ != nullptr)
-      this->temperature_sensor_->publish_state(temperature.value);
+      this->temperature_sensor_->publish_state(temperature);
     if (this->humidity_sensor_ != nullptr)
-      this->humidity_sensor_->publish_state(humidity.value);
+      this->humidity_sensor_->publish_state(humidity);
 
     this->status_clear_warning();
   });
 }
 
 void SCD4XComponent::set_forced_recalibration_value(uint16_t value) {
-  if (!this->write_command_(SCD4X_CMD_SET_FORCED_RECALIBRATION_VALUE, value)) {
-    ESP_LOGW(TAG, "Error reading measurement!");
+  if (!this->write_command_(SCD4X_CMD_STOP_MEASUREMENTS)) {
+    ESP_LOGW(TAG, "Error stopping measurements");
     this->status_set_warning();
+    return;
   }
-  ESP_LOGD(TAG, "Set forced recalibration value CO2=%d ppm", value);
+  this->set_timeout(500, [this, value]() {
+    if (!this->write_command_(SCD4X_CMD_PERFORM_FORCED_CALIBRATION, value)) {
+      ESP_LOGW(TAG, "Error calibrating!");
+      this->status_set_warning();
+    }
+    this->set_timeout(500, [this]() {
+      uint16_t correction[1];
+
+      if (!this->read_data_(correction, 1)) {
+        ESP_LOGW(TAG, "Failed to read correction data");
+      } else {
+        ESP_LOGD(TAG, "Correction %d", ((correction[0] >> 8) - 0x8000));
+      }
+      if (!this->write_command_(SCD4X_CMD_START_CONTINUOUS_MEASUREMENTS)) {
+        ESP_LOGW(TAG, "Error re-starting measurements after forced calibration");
+      }
+    });
+  });
 }
 
 bool SCD4XComponent::write_command_(uint16_t command) {
