@@ -314,7 +314,7 @@ void Tuya::send_raw_command_(TuyaCommand command) {
   this->last_command_timestamp_ = millis();
 
   ESP_LOGV(TAG, "Sending Tuya: CMD=0x%02X VERSION=%u DATA=[%s] INIT_STATE=%u", command.cmd, version,  // NOLINT
-           hexencode(command.payload.data(), command.payload.size()).c_str(), this->init_state_);
+           hexencode(command.payload).c_str(), this->init_state_);
 
   this->write_array({0x55, 0xAA, version, (uint8_t) command.cmd, len_hi, len_lo});
   if (!command.payload.empty())
