@@ -307,8 +307,8 @@ void Tuya::handle_datapoint_(const uint8_t *buffer, size_t len) {
 }
 
 void Tuya::send_raw_command_(TuyaCommand command) {
-  uint8_t len_hi = (uint8_t) command.payload.size() >> 8;
-  uint8_t len_lo = (uint8_t) command.payload.size() >> 0;
+  uint8_t len_hi = (uint8_t) (command.payload.size() >> 8) & 0xFF;
+  uint8_t len_lo = (uint8_t) (command.payload.size() >> 0) & 0xFF;
   uint8_t version = 0;
 
   this->last_command_timestamp_ = millis();
@@ -336,13 +336,8 @@ void Tuya::process_command_queue_() {
 }
 
 void Tuya::send_command_(TuyaCommand command) {
-  uint32_t delay = millis() - this->last_command_timestamp_;
-  // check if COMMAND_DELAY has already elapsed and no queued command, if so bypass queue and send command immediately
-  if (command_queue_.empty() && delay > COMMAND_DELAY)
-    this->send_raw_command_(command);
-  // otherwise queue command to be sent when COMMAND_DELAY has elapsed
-  else
-    command_queue_.push_back(command);
+  command_queue_.push_back(command);
+  process_command_queue_();
 }
 
 void Tuya::send_empty_command_(TuyaCommandType command) {
