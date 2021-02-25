@@ -145,6 +145,7 @@ struct Color {
   Color lighten(uint8_t delta) { return *this + delta; }
   Color darken(uint8_t delta) { return *this - delta; }
 };
+
 static const Color COLOR_BLACK(0, 0, 0);
-static const Color COLOR_WHITE(1, 1, 1);
+static const Color COLOR_WHITE(255, 255, 255, 255);
 };  // namespace esphome
