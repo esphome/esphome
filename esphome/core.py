@@ -227,7 +227,7 @@ LAMBDA_PROG = re.compile(r'id\(\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\)(\.?)')
 
 
 class Lambda:
-    def __init__(self, value, start_mark=None):
+    def __init__(self, value):
         # pylint: disable=protected-access
         if isinstance(value, Lambda):
             self._value = value._value
@@ -235,7 +235,6 @@ class Lambda:
             self._value = value
         self._parts = None
         self._requires_ids = None
-        self._source_location = start_mark
 
     # https://stackoverflow.com/a/241506/229052
     def comment_remover(self, text):
@@ -277,10 +276,6 @@ class Lambda:
 
     def __repr__(self):
         return f'Lambda<{self.value}>'
-
-    @property
-    def source_location(self):
-        return self._source_location
 
 
 class ID:
@@ -337,14 +332,6 @@ class DocumentLocation:
             mark.name,
             mark.line,
             mark.column
-        )
-
-    @classmethod
-    def copy(cls, location):
-        return cls(
-            location.document,
-            location.line,
-            location.column
         )
 
     def __str__(self):

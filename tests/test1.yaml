@@ -1,5 +1,8 @@
 substitutions:
   devicename: test1
+  sensorname: my
+  textname: template
+  roomname: living_room
 
 esphome:
   name: test1
@@ -36,7 +39,7 @@ esphome:
           verify_ssl: false
           json:
             key: !lambda |-
-              return id(template_text).state;
+              return id(${textname}_text).state;
             greeting: 'Hello World'
       - http_request.send:
           method: PUT
@@ -121,7 +124,7 @@ mqtt:
                 int data = x["my_data"];
                 ESP_LOGD("main", "The data is: %d", data);
             - light.turn_on:
-                id: living_room_lights
+                id: ${roomname}_lights
                 brightness: !lambda |-
                   float brightness = 1.0;
                   if (x.containsKey("brightness"))
@@ -133,10 +136,10 @@ mqtt:
                     effect = x["effect"];
                   return effect;
             - light.control:
-                id: living_room_lights
-                brightness: !lambda 'return id(living_room_lights).current_values.get_brightness() + 0.5;'
+                id: ${roomname}_lights
+                brightness: !lambda 'return id(${roomname}_lights).current_values.get_brightness() + 0.5;'
             - light.dim_relative:
-                id: living_room_lights
+                id: ${roomname}_lights
                 relative_brightness: 5%
             - uart.write:
                 id: uart0
@@ -278,9 +281,9 @@ sensor:
       then:
         - lambda: |-
             ESP_LOGD("main", "Got value %f", x);
-            id(my_sensor).publish_state(42.0);
-            ESP_LOGI("main", "Value of my sensor: %f", id(my_sensor).state);
-            ESP_LOGI("main", "Raw Value of my sensor: %f", id(my_sensor).state);
+            id(${sensorname}_sensor).publish_state(42.0);
+            ESP_LOGI("main", "Value of my sensor: %f", id(${sensorname}_sensor).state);
+            ESP_LOGI("main", "Raw Value of my sensor: %f", id(${sensorname}_sensor).state);
     on_value_range:
       above: 5
       below: 10
@@ -307,7 +310,7 @@ sensor:
   - platform: ads1115
     multiplexer: 'A0_A1'
     gain: 1.024
-    id: my_sensor
+    id: ${sensorname}_sensor
     filters:
     state_topic: hi/me
     retain: false
@@ -456,6 +459,9 @@ sensor:
     power:
       name: 'HLW8012 Power'
       id: hlw8012_power
+    energy:
+      name: "HLW8012 Energy"
+      id: hlw8012_energy
     update_interval: 15s
     current_resistor: 0.001 ohm
     voltage_divider: 2351
@@ -946,12 +952,12 @@ binary_sensor:
     name: 'Garage Door Open'
     id: garage_door
     lambda: |-
-      if (isnan(id(my_sensor).state)) {
+      if (isnan(id(${sensorname}_sensor).state)) {
         // isnan checks if the ultrasonic sensor echo
         // has timed out, resulting in a NaN (not a number) state
         // in that case, return {} to indicate that we don't know.
         return {};
-      } else if (id(my_sensor).state > 30) {
+      } else if (id(${sensorname}_sensor).state > 30) {
         // Garage Door is open.
         return true;
       } else {
@@ -1195,6 +1201,8 @@ output:
   - platform: esp32_dac
     pin: GPIO25
     id: dac_output
+  - platform: mcp4725
+    id: mcp4725_dac_output
 
 e131:
 
@@ -1242,7 +1250,7 @@ light:
               state = 0;
   - platform: rgb
     name: 'Living Room Lights'
-    id: living_room_lights
+    id: ${roomname}_lights
     red: pca_0
     green: pca_1
     blue: pca_2
@@ -1398,14 +1406,14 @@ climate:
     name: TCL112 Climate With Sensor
     supports_heat: True
     supports_cool: True
-    sensor: my_sensor
+    sensor: ${sensorname}_sensor
   - platform: tcl112
     name: TCL112 Climate
   - platform: coolix
     name: Coolix Climate With Sensor
     supports_heat: True
     supports_cool: True
-    sensor: my_sensor
+    sensor: ${sensorname}_sensor
   - platform: coolix
     name: Coolix Climate
   - platform: fujitsu_general
@@ -1563,6 +1571,9 @@ switch:
           level: 50%
       - output.set_level:
           id: dac_output
+          level: !lambda 'return 0.5;'
+      - output.set_level:
+          id: mcp4725_dac_output
           level: !lambda 'return 0.5;'
     turn_off_action:
       - switch.turn_on: living_room_lights_off
@@ -1807,6 +1818,15 @@ display:
     full_update_every: 30
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
+  - platform: waveshare_epaper
+    cs_pin: GPIO23
+    dc_pin: GPIO23
+    busy_pin: GPIO23
+    reset_pin: GPIO23
+    model: 2.90inv2
+    full_update_every: 30
+    lambda: |-
+      it.rectangle(0, 0, it.get_width(), it.get_height());
   - platform: st7789v
     cs_pin: GPIO5
     dc_pin: GPIO16
@@ -1820,10 +1840,10 @@ display:
     dc_pin: GPIO16
     reset_pin: GPIO23
     rotation: 0
-    devicewidth: 128
-    deviceheight: 160
-    colstart: 0
-    rowstart: 0
+    device_width: 128
+    device_height: 160
+    col_start: 0
+    row_start: 0
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
 tm1651:
@@ -1920,10 +1940,12 @@ pcf8574:
 
 mcp23017:
   - id: 'mcp23017_hub'
+    open_drain_interrupt: 'true'
 
 mcp23008:
   - id: 'mcp23008_hub'
     address: 0x22
+    open_drain_interrupt: 'true'
 
 mcp23016:
   - id: 'mcp23016_hub'
@@ -1964,10 +1986,10 @@ text_sensor:
     qos: 2
     on_value:
       - text_sensor.template.publish:
-          id: template_text
+          id: ${textname}_text
           state: Hello World
       - text_sensor.template.publish:
-          id: template_text
+          id: ${textname}_text
           state: |-
             return "Hello World2";
       - globals.set:
@@ -1978,7 +2000,7 @@ text_sensor:
           data: [0x10, 0x20, 0x30]
   - platform: template
     name: Template Text Sensor
-    id: template_text
+    id: ${textname}_text
   - platform: wifi_info
     ip_address:
       name: 'IP Address'
@@ -2020,4 +2042,4 @@ canbus:
               condition:
                 lambda: 'return x[0] == 0x11;'
               then:
-                light.toggle: living_room_lights
+                light.toggle: ${roomname}_lights

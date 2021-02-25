@@ -2,6 +2,7 @@ import abc
 import inspect
 import math
 import re
+from esphome.yaml_util import ESPHomeDataBase
 
 # pylint: disable=unused-import, wrong-import-order
 from typing import Any, Generator, List, Optional, Tuple, Type, Union, Sequence
@@ -560,7 +561,13 @@ def process_lambda(
         else:
             parts[i * 3 + 1] = var
         parts[i * 3 + 2] = ''
-    yield LambdaExpression(parts, parameters, capture, return_type, value.source_location)
+
+    if isinstance(value, ESPHomeDataBase) and value.esp_range is not None:
+        location = value.esp_range.start_mark
+        location.line += value.content_offset
+    else:
+        location = None
+    yield LambdaExpression(parts, parameters, capture, return_type, location)
 
 
 def is_template(value):
