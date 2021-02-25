@@ -229,6 +229,8 @@ sensor:
     name: 'VL53L0x Distance'
     address: 0x29
     update_interval: 60s
+    enable_pin: GPIO13
+    timeout: 200us
   - platform: apds9960
     type: clear
     name: APDS9960 Clear
