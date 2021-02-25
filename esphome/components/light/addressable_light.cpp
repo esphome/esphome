@@ -6,9 +6,6 @@ namespace light {
 
 static const char *TAG = "light.addressable";
 
-// const Color Color::BLACK = Color(0, 0, 0, 0);
-// const Color Color::WHITE = Color(255, 255, 255, 255);
-
 Color ESPHSVColor::to_rgb() const {
   // based on FastLED's hsv rainbow to rgb
   const uint8_t hue = this->hue;

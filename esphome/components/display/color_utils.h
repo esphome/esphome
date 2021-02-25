@@ -1,8 +1,8 @@
 #pragma once
-
-#include "color.h"
+#include "esphome/core/color.h"
 
 namespace esphome {
+namespace display {
 enum ColorOrder : uint8_t { COLOR_ORDER_RGB = 0, COLOR_ORDER_BGR = 1, COLOR_ORDER_GRB = 2 };
 enum ColorBitness : uint8_t { COLOR_BITNESS_888 = 0, COLOR_BITNESS_565 = 1, COLOR_BITNESS_332 = 2 };
 class ColorUtil {
@@ -104,4 +104,5 @@ class ColorUtil {
     return gs4;
   }
 };
+}  // namespace display
 }  // namespace esphome

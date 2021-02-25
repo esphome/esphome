@@ -308,11 +308,11 @@ void HOT ST7735::draw_absolute_pixel_internal(int x, int y, Color color) {
     return;
 
   if (this->eightbitcolor_) {
-    const uint32_t color332 = ColorUtil::color_to_332(color);
+    const uint32_t color332 = display::ColorUtil::color_to_332(color);
     uint16_t pos = (x + y * this->get_width_internal());
     this->buffer_[pos] = color332;
   } else {
-    const uint32_t color565 = ColorUtil::color_to_565(color);
+    const uint32_t color565 = display::ColorUtil::color_to_565(color);
     uint16_t pos = (x + y * this->get_width_internal()) * 2;
     this->buffer_[pos++] = (color565 >> 8) & 0xff;
     this->buffer_[pos] = color565 & 0xff;
@@ -444,10 +444,10 @@ void HOT ST7735::write_display_data_() {
   if (this->eightbitcolor_) {
     for (int line = 0; line < this->get_buffer_length(); line = line + this->get_width_internal()) {
       for (int index = 0; index < this->get_width_internal(); ++index) {
-        auto color332 = ColorUtil::to_color(this->buffer_[index + line], ColorOrder::COLOR_ORDER_RGB,
-                                            ColorBitness::COLOR_BITNESS_332, true);
+        auto color332 = display::ColorUtil::to_color(this->buffer_[index + line], display::ColorOrder::COLOR_ORDER_RGB,
+                                                     display::ColorBitness::COLOR_BITNESS_332, true);
 
-        auto color = ColorUtil::color_to_565(color332);
+        auto color = display::ColorUtil::color_to_565(color332);
 
         this->write_byte((color >> 8) & 0xff);
         this->write_byte(color & 0xff);

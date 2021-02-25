@@ -1683,7 +1683,7 @@ interval:
 color:
   - id: kbx_red
     red: 100%
-    green: 123
+    green_int: 123
     blue: 2%
   - id: kbx_blue
     red: 0%

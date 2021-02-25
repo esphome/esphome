@@ -2,7 +2,6 @@
 
 #include "esphome/core/component.h"
 #include "esphome/components/spi/spi.h"
-#include "esphome/core/color_utils.h"
 #include "esphome/components/display/display_buffer.h"
 
 namespace esphome {
