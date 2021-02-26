@@ -17,11 +17,11 @@ void SX1276::setup() {
   this->rst_pin_->digital_write(LOW);
   delay(20);
   this->rst_pin_->digital_write(HIGH);
-  delay(50);
+  delay(50);  // NOLINT
 
   this->cs_->digital_write(true);
 
-  uint8_t version = readRegister(REG_VERSION);
+  uint8_t version = read_register(REG_VERSION);
 
   if (version != 0x12) {
     this->mark_failed();
@@ -31,39 +31,39 @@ void SX1276::setup() {
   // put in sleep mode
   SX1276::sleep();
   // set frequency
-  SX1276::setFrequency();
+  SX1276::set_frequency();
 
   // set base addresses
-  this->writeRegister(REG_FIFO_TX_BASE_ADDR, 0);
-  this->writeRegister(REG_FIFO_RX_BASE_ADDR, 0);
+  this->write_register(REG_FIFO_TX_BASE_ADDR, 0);
+  this->write_register(REG_FIFO_RX_BASE_ADDR, 0);
 
   // set LNA boost
-  this->writeRegister(REG_LNA, this->readRegister(REG_LNA) | 0x03);
+  this->write_register(REG_LNA, this->read_register(REG_LNA) | 0x03);
   // set auto AGC
-  this->writeRegister(REG_MODEM_CONFIG_3, 0x04);
+  this->write_register(REG_MODEM_CONFIG_3, 0x04);
 
   // set output power to 14 dBm
 
-  this->setTxPower(14, RF_PACONFIG_PASELECT_PABOOST);
+  this->set_tx_power(14, RF_PACONFIG_PASELECT_PABOOST);
   //   else
-  //     setTxPower(14, RF_PACONFIG_PASELECT_RFO);
+  //     set_tx_power(14, RF_PACONFIG_PASELECT_RFO);
 
-  this->setSpreadingFactor(11);
+  this->set_spreading_factor(11);
   // put in standby mode
-  this->setSignalBandwidth(125E3);
+  this->set_signal_bandwidth(125E3);
   // setCodingRate4(5);
-  this->setSyncWord(0x34);
-  this->disableCrc();
-  this->enableCrc();
+  this->set_sync_word(0x34);
+  this->disable_crc();
+  this->enable_crc();
   this->idle();
 }
 
 void SX1276::update() {
   std::string to_write = "Hello";
-  this->beginPacket();
+  this->begin_packet();
   this->send_text_printf("Hello");
   this->write("%d", this->counter_++);
-  this->endPacket();
+  this->end_packet();
   ESP_LOGD(TAG, "Updated");
 }
 
@@ -88,80 +88,80 @@ void SX1276::dump_config() {
 
 void SX1276::receive(int size) {
   if (size > 0) {
-    implicitHeaderMode();
-    writeRegister(REG_PAYLOAD_LENGTH, size & 0xff);
+    implicit_header_mode();
+    write_register(REG_PAYLOAD_LENGTH, size & 0xff);
   } else {
-    explicitHeaderMode();
+    explicit_header_mode();
   }
 
-  writeRegister(REG_OP_MODE, MODE_LONG_RANGE_MODE | MODE_RX_CONTINUOUS);
+  write_register(REG_OP_MODE, MODE_LONG_RANGE_MODE | MODE_RX_CONTINUOUS);
 }
 
 size_t SX1276::write(const char *buffer, int size) {
-  int currentLength = readRegister(REG_PAYLOAD_LENGTH);
+  int current_length = read_register(REG_PAYLOAD_LENGTH);
   // check size
-  if ((currentLength + size) > MAX_PKT_LENGTH) {
-    size = MAX_PKT_LENGTH - currentLength;
+  if ((current_length + size) > MAX_PKT_LENGTH) {
+    size = MAX_PKT_LENGTH - current_length;
   }
   // write data
   for (size_t i = 0; i < size; i++) {
-    writeRegister(REG_FIFO, buffer[i]);
+    write_register(REG_FIFO, buffer[i]);
   }
   // update length
-  writeRegister(REG_PAYLOAD_LENGTH, currentLength + size);
+  write_register(REG_PAYLOAD_LENGTH, current_length + size);
   return size;
 }
 
-int SX1276::endPacket(bool async) {
+int SX1276::end_packet(bool async) {
   // put in TX mode
-  writeRegister(REG_OP_MODE, MODE_LONG_RANGE_MODE | MODE_TX);
+  write_register(REG_OP_MODE, MODE_LONG_RANGE_MODE | MODE_TX);
 
   // wait for TX done
-  while ((readRegister(REG_IRQ_FLAGS) & IRQ_TX_DONE_MASK) == 0) {
+  while ((read_register(REG_IRQ_FLAGS) & IRQ_TX_DONE_MASK) == 0) {
     yield();
   }
   // clear IRQ's
-  writeRegister(REG_IRQ_FLAGS, IRQ_TX_DONE_MASK);
+  write_register(REG_IRQ_FLAGS, IRQ_TX_DONE_MASK);
 
   return 1;
 }
 
-int SX1276::beginPacket(int implicitHeader) {
+int SX1276::begin_packet(int implicit_header) {
   // put in standby mode
   this->idle();
-  if (implicitHeader) {
-    this->implicitHeaderMode();
+  if (implicit_header) {
+    this->implicit_header_mode();
   } else {
-    this->explicitHeaderMode();
+    this->explicit_header_mode();
   }
   // reset FIFO address and paload length
-  this->writeRegister(REG_FIFO_ADDR_PTR, 0);
-  this->writeRegister(REG_PAYLOAD_LENGTH, 0);
+  this->write_register(REG_FIFO_ADDR_PTR, 0);
+  this->write_register(REG_PAYLOAD_LENGTH, 0);
   return 1;
 }
 
-void SX1276::explicitHeaderMode() {
-  _implicitHeaderMode = 0;
-  this->writeRegister(REG_MODEM_CONFIG_1, readRegister(REG_MODEM_CONFIG_1) & 0xfe);
+void SX1276::explicit_header_mode() {
+  implicit_header_mode_ = 0;
+  this->write_register(REG_MODEM_CONFIG_1, read_register(REG_MODEM_CONFIG_1) & 0xfe);
 }
 
-void SX1276::implicitHeaderMode() {
-  _implicitHeaderMode = 1;
-  this->writeRegister(REG_MODEM_CONFIG_1, readRegister(REG_MODEM_CONFIG_1) | 0x01);
+void SX1276::implicit_header_mode() {
+  implicit_header_mode_ = 1;
+  this->write_register(REG_MODEM_CONFIG_1, read_register(REG_MODEM_CONFIG_1) | 0x01);
 }
 
-void SX1276::sleep() { writeRegister(REG_OP_MODE, MODE_LONG_RANGE_MODE | MODE_SLEEP); }
+void SX1276::sleep() { write_register(REG_OP_MODE, MODE_LONG_RANGE_MODE | MODE_SLEEP); }
 
-void SX1276::setFrequency() {
+void SX1276::set_frequency() {
   long freq = this->band_ * 1000000;
 
   uint64_t frf = ((uint64_t) freq << 19) / 32000000;
-  writeRegister(REG_FRF_MSB, (uint8_t)(frf >> 16));
-  writeRegister(REG_FRF_MID, (uint8_t)(frf >> 8));
-  writeRegister(REG_FRF_LSB, (uint8_t)(frf >> 0));
+  write_register(REG_FRF_MSB, (uint8_t)(frf >> 16));
+  write_register(REG_FRF_MID, (uint8_t)(frf >> 8));
+  write_register(REG_FRF_LSB, (uint8_t)(frf >> 0));
 }
 
-void SX1276::setSignalBandwidth(long sbw) {
+void SX1276::set_signal_bandwidth(double sbw) {
   int bw;
 
   if (sbw <= 7.8E3) {
@@ -185,57 +185,57 @@ void SX1276::setSignalBandwidth(long sbw) {
   } else /*if (sbw <= 250E3)*/ {
     bw = 9;
   }
-  writeRegister(REG_MODEM_CONFIG_1, (readRegister(REG_MODEM_CONFIG_1) & 0x0f) | (bw << 4));
+  write_register(REG_MODEM_CONFIG_1, (read_register(REG_MODEM_CONFIG_1) & 0x0f) | (bw << 4));
 }
 
-void SX1276::setSyncWord(int sw) { writeRegister(REG_SYNC_WORD, sw); }
+void SX1276::set_sync_word(int sw) { write_register(REG_SYNC_WORD, sw); }
 
-void SX1276::enableCrc() { writeRegister(REG_MODEM_CONFIG_2, readRegister(REG_MODEM_CONFIG_2) | 0x04); }
+void SX1276::enable_crc() { write_register(REG_MODEM_CONFIG_2, read_register(REG_MODEM_CONFIG_2) | 0x04); }
 
-void SX1276::disableCrc() { writeRegister(REG_MODEM_CONFIG_2, readRegister(REG_MODEM_CONFIG_2) & 0xfb); }
+void SX1276::disable_crc() { write_register(REG_MODEM_CONFIG_2, read_register(REG_MODEM_CONFIG_2) & 0xfb); }
 
-void SX1276::idle() { writeRegister(REG_OP_MODE, MODE_LONG_RANGE_MODE | MODE_STDBY); }
+void SX1276::idle() { write_register(REG_OP_MODE, MODE_LONG_RANGE_MODE | MODE_STDBY); }
 
-void SX1276::setSpreadingFactor(int sf) {
+void SX1276::set_spreading_factor(int sf) {
   if (sf < 6) {
     sf = 6;
   } else if (sf > 12) {
     sf = 12;
   }
   if (sf == 6) {
-    writeRegister(REG_DETECTION_OPTIMIZE, 0xc5);
-    writeRegister(REG_DETECTION_THRESHOLD, 0x0c);
+    write_register(REG_DETECTION_OPTIMIZE, 0xc5);
+    write_register(REG_DETECTION_THRESHOLD, 0x0c);
   } else {
-    writeRegister(REG_DETECTION_OPTIMIZE, 0xc3);
-    writeRegister(REG_DETECTION_THRESHOLD, 0x0a);
+    write_register(REG_DETECTION_OPTIMIZE, 0xc3);
+    write_register(REG_DETECTION_THRESHOLD, 0x0a);
   }
-  writeRegister(REG_MODEM_CONFIG_2, (readRegister(REG_MODEM_CONFIG_2) & 0x0f) | ((sf << 4) & 0xf0));
+  write_register(REG_MODEM_CONFIG_2, (read_register(REG_MODEM_CONFIG_2) & 0x0f) | ((sf << 4) & 0xf0));
 }
 
-void SX1276::setTxPower(int8_t power, int8_t outputPin) {
-  uint8_t paConfig = 0;
-  uint8_t paDac = 0;
+void SX1276::set_tx_power(int8_t power, int8_t output_pin) {
+  uint8_t pa_config = 0;
+  uint8_t pa_dac = 0;
 
-  paConfig = readRegister(REG_PA_CONFIG);
-  paDac = readRegister(REG_PaDac);
+  pa_config = read_register(REG_PA_CONFIG);
+  pa_dac = read_register(REG_PA_DAC);
 
-  paConfig = (paConfig & RF_PACONFIG_PASELECT_MASK) | outputPin;
-  paConfig = (paConfig & RF_PACONFIG_MAX_POWER_MASK) | 0x70;
+  pa_config = (pa_config & RF_PACONFIG_PASELECT_MASK) | output_pin;
+  pa_config = (pa_config & RF_PACONFIG_MAX_POWER_MASK) | 0x70;
 
-  if ((paConfig & RF_PACONFIG_PASELECT_PABOOST) == RF_PACONFIG_PASELECT_PABOOST) {
+  if ((pa_config & RF_PACONFIG_PASELECT_PABOOST) == RF_PACONFIG_PASELECT_PABOOST) {
     if (power > 17) {
-      paDac = (paDac & RF_PADAC_20DBM_MASK) | RF_PADAC_20DBM_ON;
+      pa_dac = (pa_dac & RF_PADAC_20DBM_MASK) | RF_PADAC_20DBM_ON;
     } else {
-      paDac = (paDac & RF_PADAC_20DBM_MASK) | RF_PADAC_20DBM_OFF;
+      pa_dac = (pa_dac & RF_PADAC_20DBM_MASK) | RF_PADAC_20DBM_OFF;
     }
-    if ((paDac & RF_PADAC_20DBM_ON) == RF_PADAC_20DBM_ON) {
+    if ((pa_dac & RF_PADAC_20DBM_ON) == RF_PADAC_20DBM_ON) {
       if (power < 5) {
         power = 5;
       }
       if (power > 20) {
         power = 20;
       }
-      paConfig = (paConfig & RF_PACONFIG_OUTPUTPOWER_MASK) | (uint8_t)((uint16_t)(power - 5) & 0x0F);
+      pa_config = (pa_config & RF_PACONFIG_OUTPUTPOWER_MASK) | (uint8_t)((uint16_t)(power - 5) & 0x0F);
     } else {
       if (power < 2) {
         power = 2;
@@ -243,7 +243,7 @@ void SX1276::setTxPower(int8_t power, int8_t outputPin) {
       if (power > 17) {
         power = 17;
       }
-      paConfig = (paConfig & RF_PACONFIG_OUTPUTPOWER_MASK) | (uint8_t)((uint16_t)(power - 2) & 0x0F);
+      pa_config = (pa_config & RF_PACONFIG_OUTPUTPOWER_MASK) | (uint8_t)((uint16_t)(power - 2) & 0x0F);
     }
   } else {
     if (power < -1) {
@@ -252,17 +252,17 @@ void SX1276::setTxPower(int8_t power, int8_t outputPin) {
     if (power > 14) {
       power = 14;
     }
-    paConfig = (paConfig & RF_PACONFIG_OUTPUTPOWER_MASK) | (uint8_t)((uint16_t)(power + 1) & 0x0F);
+    pa_config = (pa_config & RF_PACONFIG_OUTPUTPOWER_MASK) | (uint8_t)((uint16_t)(power + 1) & 0x0F);
   }
-  writeRegister(REG_PA_CONFIG, paConfig);
-  writeRegister(REG_PaDac, paDac);
+  write_register(REG_PA_CONFIG, pa_config);
+  write_register(REG_PA_DAC, pa_dac);
 }
 
-uint8_t SX1276::readRegister(uint8_t address) { return singleTransfer(address & 0x7f, 0x00); }
+uint8_t SX1276::read_register(uint8_t address) { return single_transfer(address & 0x7f, 0x00); }
 
-void SX1276::writeRegister(uint8_t address, uint8_t value) { singleTransfer(address | 0x80, value); }
+void SX1276::write_register(uint8_t address, uint8_t value) { single_transfer(address | 0x80, value); }
 
-uint8_t SX1276::singleTransfer(uint8_t address, uint8_t value) {
+uint8_t SX1276::single_transfer(uint8_t address, uint8_t value) {
   uint8_t response;
   this->enable();
   this->transfer_byte(address);

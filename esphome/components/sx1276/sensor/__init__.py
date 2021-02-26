@@ -7,7 +7,7 @@ from esphome.const import CONF_ID
 
 DEPENDENCIES = ['spi']
 
-CONF_DIO_PIN = 'di0_pin'
+CONF_DI0_PIN = 'di0_pin'
 CONF_RST_PIN = 'rst_pin'
 CONF_BAND = "band"
 
@@ -30,7 +30,7 @@ ST7735_BAND = cv.enum(BANDS, upper=True, space="_")
 CONFIG_SCHEMA = sensor.sensor_schema().extend({
     cv.GenerateID(): cv.declare_id(SX1276),
     cv.Required(CONF_BAND): ST7735_BAND,
-    cv.Required(CONF_DIO_PIN): pins.gpio_input_pin_schema,
+    cv.Required(CONF_DI0_PIN): pins.gpio_input_pin_schema,
     cv.Required(CONF_RST_PIN): pins.gpio_output_pin_schema,
 }).extend(spi.spi_device_schema(cs_pin_required=True))
 
@@ -41,7 +41,7 @@ def to_code(config):
     yield cg.register_component(var, config)
     yield sensor.register_sensor(var, config)
 
-    di0 = yield cg.gpio_pin_expression(config[CONF_DIO_PIN])
+    di0 = yield cg.gpio_pin_expression(config[CONF_DI0_PIN])
     cg.add(var.set_di0_pin(di0))
 
     rst = yield cg.gpio_pin_expression(config[CONF_RST_PIN])
