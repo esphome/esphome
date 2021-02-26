@@ -3,6 +3,7 @@ import esphome.config_validation as cv
 from esphome import pins
 from esphome.components import spi
 from esphome.components import sensor
+from esphome.components import lora
 from esphome.const import CONF_ID
 
 DEPENDENCIES = ['spi']
@@ -12,7 +13,7 @@ CONF_RST_PIN = 'rst_pin'
 CONF_BAND = "band"
 
 sx1276_ns = cg.esphome_ns.namespace('sx1276')
-SX1276 = sx1276_ns.class_('SX1276', sensor.Sensor, cg.Component, spi.SPIDevice)
+SX1276 = sx1276_ns.class_('SX1276', lora.Lora, sensor.Sensor, cg.Component, spi.SPIDevice)
 
 SX1276DIOPin = sx1276_ns.class_('SX1276DIOPin', cg.GPIOPin)
 
@@ -27,7 +28,7 @@ BANDS = {
 
 ST7735_BAND = cv.enum(BANDS, upper=True, space="_")
 
-CONFIG_SCHEMA = sensor.sensor_schema().extend({
+CONFIG_SCHEMA = lora.CONFIG_SCHEMA.extend({
     cv.GenerateID(): cv.declare_id(SX1276),
     cv.Required(CONF_BAND): ST7735_BAND,
     cv.Required(CONF_DI0_PIN): pins.gpio_input_pin_schema,
