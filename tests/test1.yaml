@@ -1617,6 +1617,10 @@ switch:
   - platform: uart
     name: 'UART Bytes Output'
     data: [0xDE, 0xAD, 0xBE, 0xEF]
+  - platform: uart
+    name: 'UART Recurring Output'
+    data: [0xDE, 0xAD, 0xBE, 0xEF]
+    send_every: 1s
   - platform: template
     assumed_state: yes
     name: Stepper Switch
