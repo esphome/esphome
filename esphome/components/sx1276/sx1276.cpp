@@ -4,7 +4,7 @@
 namespace esphome {
 namespace sx1276 {
 
-static const char *TAG = "sx1276.sensor";
+static const char *TAG = "sx1276";
 
 void SX1276::setup() {
   ESP_LOGCONFIG(TAG, "Setting up SX1276...");
@@ -58,16 +58,16 @@ void SX1276::setup() {
   this->idle();
 }
 
-void SX1276::update() {
-  std::string to_write = "Hello";
-  this->begin_packet();
-  this->send_text_printf("Hello");
-  this->write("%d", this->counter_++);
-  this->end_packet();
-  ESP_LOGD(TAG, "Updated");
-}
+// void SX1276::update() {
+//   std::string to_write = "Hello";
+//   this->begin_packet();
+//   this->send_text_printf("Hello");
+//   this->write("%d", this->counter_++);
+//   this->end_packet();
+//   ESP_LOGD(TAG, "Updated");
+// }
 
-void SX1276::send_text_printf(const char *format, ...) {
+void SX1276::send_printf(const char *format, ...) {
   va_list arg;
   va_start(arg, format);
   char buffer[256];
@@ -78,12 +78,11 @@ void SX1276::send_text_printf(const char *format, ...) {
 }
 
 void SX1276::dump_config() {
-  LOG_SENSOR(TAG, "SX1276 Sensor", this);
+  ESP_LOGCONFIG(TAG, "SX1276");
   LOG_PIN("  CS Pin: ", this->cs_);
   LOG_PIN("  DI0 Pin: ", this->di0_pin_);
   LOG_PIN("  RST Pin: ", this->rst_pin_);
   ESP_LOGCONFIG(TAG, "  Band: %d MHz", this->band_);
-  LOG_UPDATE_INTERVAL(this);
 }
 
 void SX1276::receive(int size) {

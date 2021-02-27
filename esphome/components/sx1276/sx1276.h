@@ -1,7 +1,7 @@
 #pragma once
 #include "esphome/core/component.h"
+#include "esphome/components/lora/lora_component.h"
 #include "esphome/components/spi/spi.h"
-#include "esphome/components/sensor/sensor.h"
 
 namespace esphome {
 namespace sx1276 {
@@ -58,14 +58,14 @@ static const uint8_t RF_PADAC_20DBM_OFF = 0x04;  // Default
 
 static const uint8_t MAX_PKT_LENGTH = 255;
 
-class SX1276 : public sensor::Sensor,
-               public PollingComponent,
+class SX1276 : public lora::LoraComponent,
                public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
                                      spi::DATA_RATE_8MHZ> {
  public:
   void setup() override;
   void dump_config() override;
-  void update() override;
+  // void update() override;
+
   void set_di0_pin(GPIOPin *di0_pin) { this->di0_pin_ = di0_pin; }
   void set_rst_pin(GPIOPin *rst_pin) { this->rst_pin_ = rst_pin; }
   void set_band(uint16_t band) { this->band_ = band; }
@@ -88,7 +88,7 @@ class SX1276 : public sensor::Sensor,
   int end_packet(bool async = false);
 
   size_t write(const char *buffer, int size);
-  void send_text_printf(const char *format, ...) __attribute__((format(printf, 2, 3)));
+  void send_printf(const char *format, ...) override __attribute__((format(printf, 2, 3)));
   void receive(int size = 0);
 
  protected:
