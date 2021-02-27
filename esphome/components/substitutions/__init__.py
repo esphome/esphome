@@ -136,4 +136,6 @@ def do_substitution_pass(config, command_line_substitutions):
             del substitutions[old]
 
     config[CONF_SUBSTITUTIONS] = substitutions
+    # Move substitutions to the first place to replace substitutions in them correctly
+    config.move_to_end(CONF_SUBSTITUTIONS, False)
     _substitute_item(substitutions, config, [])
