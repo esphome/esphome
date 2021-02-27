@@ -265,7 +265,12 @@ class Config(OrderedDict):
         doc_range = None
         for item_index in path:
             try:
-                data = data[item_index]
+                val = data[item_index]
+                if not val:
+                    # the key (not the path) has ESPHomeDatabase info
+                    data = [x for x in data.keys() if x == item_index][0]
+                else:
+                    data = val
             except (KeyError, IndexError, TypeError):
                 return doc_range
             if isinstance(data, core.ID):
@@ -280,7 +285,11 @@ class Config(OrderedDict):
         data = self
         for item_index in path:
             try:
-                data = data[item_index]
+                val = data[item_index]
+                if not val:
+                    # the key (not the path) hast ESPHomeDatabase info
+                    return [x for x in data.keys() if x == item_index][0]
+                data = val
             except (KeyError, IndexError, TypeError):
                 return {}
         return data
@@ -461,7 +470,6 @@ def validate_config(config, command_line_substitutions):
 
     while load_queue:
         domain, conf = load_queue.popleft()
-        domain = str(domain)
         if domain.startswith('.'):
             # Ignore top-level keys starting with a dot
             continue
