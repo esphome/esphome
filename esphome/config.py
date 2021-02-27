@@ -265,12 +265,9 @@ class Config(OrderedDict):
         doc_range = None
         for item_index in path:
             try:
-                val = data[item_index]
-                if not val:
-                    # the key (not the path) has ESPHomeDatabase info
-                    data = [x for x in data.keys() if x == item_index][0]
-                else:
-                    data = val
+                if item_index in data:
+                    doc_range = [x for x in data.keys() if x == item_index][0].esp_range
+                data = data[item_index]
             except (KeyError, IndexError, TypeError):
                 return doc_range
             if isinstance(data, core.ID):
@@ -285,11 +282,7 @@ class Config(OrderedDict):
         data = self
         for item_index in path:
             try:
-                val = data[item_index]
-                if not val:
-                    # the key (not the path) hast ESPHomeDatabase info
-                    return [x for x in data.keys() if x == item_index][0]
-                data = val
+                data = data[item_index]
             except (KeyError, IndexError, TypeError):
                 return {}
         return data
@@ -706,17 +699,16 @@ def load_config(command_line_substitutions):
         raise EsphomeError(f"Error while parsing config: {err}") from err
 
 
-def line_info(obj, highlight=True):
+def line_info(config, path, highlight=True):
     """Display line config source."""
     if not highlight:
         return None
-    if isinstance(obj, core.ID):
-        obj = obj.id
-    if isinstance(obj, ESPHomeDataBase) and obj.esp_range is not None:
-        mark = obj.esp_range.start_mark
+    obj = config.get_deepest_document_range_for_path(path)
+    if obj:
+        mark = obj.start_mark
         source = "[source {}:{}]".format(mark.document, mark.line + 1)
         return color('cyan', source)
-    return None
+    return 'None'
 
 
 def _print_on_next_line(obj):
@@ -757,7 +749,7 @@ def dump_dict(config, path, at_root=True):
                 sep = color('red', sep)
             msg, _ = dump_dict(config, path_, at_root=False)
             msg = indent(msg)
-            inf = line_info(config.get_nested_item(path_), highlight=config.is_in_error_path(path_))
+            inf = line_info(config, path_, highlight=config.is_in_error_path(path_))
             if inf is not None:
                 msg = inf + '\n' + msg
             elif msg:
@@ -780,7 +772,7 @@ def dump_dict(config, path, at_root=True):
                 st = color('red', st)
             msg, m = dump_dict(config, path_, at_root=False)
 
-            inf = line_info(config.get_nested_item(path_), highlight=config.is_in_error_path(path_))
+            inf = line_info(config, path_, highlight=config.is_in_error_path(path_))
             if m:
                 msg = '\n' + indent(msg)
 
@@ -857,8 +849,11 @@ def read_config(command_line_substitutions):
             if not res.is_in_error_path(path):
                 continue
 
-            safe_print(color('bold_red', f'{domain}:') + ' ' +
-                       (line_info(res.get_nested_item(path)) or ''))
+            errstr = color('bold_red', f'{domain}:')
+            errline = line_info(res, path)
+            if errline:
+                errstr += ' ' + errline
+            safe_print(errstr)
             safe_print(indent(dump_dict(res, path)[0]))
         return None
     return OrderedDict(res)
