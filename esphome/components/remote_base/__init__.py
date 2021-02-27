@@ -686,6 +686,42 @@ def samsung_action(var, config, args):
     cg.add(var.set_data(template_))
 
 
+# Samsung36
+(Samsung36Data, Samsung36BinarySensor, Samsung36Trigger, Samsung36Action,
+ Samsung36Dumper) = declare_protocol('Samsung36')
+SAMSUNG36_SCHEMA = cv.Schema({
+    cv.Required(CONF_ADDRESS): cv.hex_uint16_t,
+    cv.Required(CONF_COMMAND): cv.hex_uint32_t,
+})
+
+
+@register_binary_sensor('samsung36', Samsung36BinarySensor, SAMSUNG36_SCHEMA)
+def samsung36_binary_sensor(var, config):
+    cg.add(var.set_data(cg.StructInitializer(
+        Samsung36Data,
+        ('address', config[CONF_ADDRESS]),
+        ('command', config[CONF_COMMAND]),
+    )))
+
+
+@register_trigger('samsung36', Samsung36Trigger, Samsung36Data)
+def samsung36_trigger(var, config):
+    pass
+
+
+@register_dumper('samsung36', Samsung36Dumper)
+def samsung36_dumper(var, config):
+    pass
+
+
+@register_action('samsung36', Samsung36Action, SAMSUNG36_SCHEMA)
+def samsung36_action(var, config, args):
+    template_ = yield cg.templatable(config[CONF_ADDRESS], args, cg.uint16)
+    cg.add(var.set_address(template_))
+    template_ = yield cg.templatable(config[CONF_COMMAND], args, cg.uint32)
+    cg.add(var.set_command(template_))
+
+
 # Panasonic
 (PanasonicData, PanasonicBinarySensor, PanasonicTrigger, PanasonicAction,
  PanasonicDumper) = declare_protocol('Panasonic')
