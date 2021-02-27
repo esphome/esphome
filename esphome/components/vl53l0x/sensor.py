@@ -31,14 +31,15 @@ def check_timeout(value):
     return value
 
 
-CONFIG_SCHEMA = cv.All(sensor.sensor_schema(UNIT_METER, ICON_ARROW_EXPAND_VERTICAL, 2, DEVICE_CLASS_EMPTY).extend({
-    cv.GenerateID(): cv.declare_id(VL53L0XSensor),
-    cv.Optional(CONF_SIGNAL_RATE_LIMIT, default=0.25): cv.float_range(
-        min=0.0, max=512.0, min_included=False, max_included=False),
-    cv.Optional(CONF_LONG_RANGE, default=False): cv.boolean,
-    cv.Optional(CONF_TIMEOUT, default='10ms'): check_timeout,
-    cv.Optional(CONF_ENABLE_PIN): pins.gpio_output_pin_schema,
-}).extend(cv.polling_component_schema('60s')).extend(i2c.i2c_device_schema(0x29)), check_keys)
+CONFIG_SCHEMA = cv.All(
+    sensor.sensor_schema(UNIT_METER, ICON_ARROW_EXPAND_VERTICAL, 2, DEVICE_CLASS_EMPTY).extend({
+        cv.GenerateID(): cv.declare_id(VL53L0XSensor),
+        cv.Optional(CONF_SIGNAL_RATE_LIMIT, default=0.25): cv.float_range(
+            min=0.0, max=512.0, min_included=False, max_included=False),
+        cv.Optional(CONF_LONG_RANGE, default=False): cv.boolean,
+        cv.Optional(CONF_TIMEOUT, default='10ms'): check_timeout,
+        cv.Optional(CONF_ENABLE_PIN): pins.gpio_output_pin_schema,
+    }).extend(cv.polling_component_schema('60s')).extend(i2c.i2c_device_schema(0x29)), check_keys)
 
 
 def to_code(config):
