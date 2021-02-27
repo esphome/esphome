@@ -2,9 +2,9 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import sensor, uart
 from esphome.const import CONF_FORMALDEHYDE, CONF_HUMIDITY, CONF_ID, CONF_PM_10_0, \
-    CONF_PM_1_0, CONF_PM_2_5, CONF_TEMPERATURE, CONF_TYPE, ICON_CHEMICAL_WEAPON, \
-    UNIT_MICROGRAMS_PER_CUBIC_METER, ICON_THERMOMETER, ICON_WATER_PERCENT, UNIT_CELSIUS, \
-    UNIT_PERCENT
+    CONF_PM_1_0, CONF_PM_2_5, CONF_TEMPERATURE, CONF_TYPE, DEVICE_CLASS_EMPTY, \
+    DEVICE_CLASS_HUMIDITY, DEVICE_CLASS_TEMPERATURE, ICON_CHEMICAL_WEAPON, ICON_EMPTY, \
+    UNIT_MICROGRAMS_PER_CUBIC_METER, UNIT_CELSIUS, UNIT_PERCENT
 
 DEPENDENCIES = ['uart']
 
@@ -45,17 +45,21 @@ CONFIG_SCHEMA = cv.Schema({
     cv.Required(CONF_TYPE): cv.enum(PMSX003_TYPES, upper=True),
 
     cv.Optional(CONF_PM_1_0):
-        sensor.sensor_schema(UNIT_MICROGRAMS_PER_CUBIC_METER, ICON_CHEMICAL_WEAPON, 0),
+        sensor.sensor_schema(UNIT_MICROGRAMS_PER_CUBIC_METER, ICON_CHEMICAL_WEAPON, 0,
+                             DEVICE_CLASS_EMPTY),
     cv.Optional(CONF_PM_2_5):
-        sensor.sensor_schema(UNIT_MICROGRAMS_PER_CUBIC_METER, ICON_CHEMICAL_WEAPON, 0),
+        sensor.sensor_schema(UNIT_MICROGRAMS_PER_CUBIC_METER, ICON_CHEMICAL_WEAPON, 0,
+                             DEVICE_CLASS_EMPTY),
     cv.Optional(CONF_PM_10_0):
-        sensor.sensor_schema(UNIT_MICROGRAMS_PER_CUBIC_METER, ICON_CHEMICAL_WEAPON, 0),
+        sensor.sensor_schema(UNIT_MICROGRAMS_PER_CUBIC_METER, ICON_CHEMICAL_WEAPON, 0,
+                             DEVICE_CLASS_EMPTY),
     cv.Optional(CONF_TEMPERATURE):
-        sensor.sensor_schema(UNIT_CELSIUS, ICON_THERMOMETER, 1),
+        sensor.sensor_schema(UNIT_CELSIUS, ICON_EMPTY, 1, DEVICE_CLASS_TEMPERATURE),
     cv.Optional(CONF_HUMIDITY):
-        sensor.sensor_schema(UNIT_PERCENT, ICON_WATER_PERCENT, 1),
+        sensor.sensor_schema(UNIT_PERCENT, ICON_EMPTY, 1, DEVICE_CLASS_HUMIDITY),
     cv.Optional(CONF_FORMALDEHYDE):
-        sensor.sensor_schema(UNIT_MICROGRAMS_PER_CUBIC_METER, ICON_CHEMICAL_WEAPON, 0),
+        sensor.sensor_schema(UNIT_MICROGRAMS_PER_CUBIC_METER, ICON_CHEMICAL_WEAPON, 0,
+                             DEVICE_CLASS_EMPTY),
 }).extend(cv.COMPONENT_SCHEMA).extend(uart.UART_DEVICE_SCHEMA)
 
 

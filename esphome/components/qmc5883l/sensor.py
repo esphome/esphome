@@ -1,9 +1,9 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import i2c, sensor
-from esphome.const import (CONF_ADDRESS, CONF_ID, CONF_OVERSAMPLING, CONF_RANGE, ICON_MAGNET,
-                           UNIT_MICROTESLA, UNIT_DEGREES, ICON_SCREEN_ROTATION,
-                           CONF_UPDATE_INTERVAL)
+from esphome.const import CONF_ADDRESS, CONF_ID, CONF_OVERSAMPLING, CONF_RANGE, \
+    DEVICE_CLASS_EMPTY, ICON_MAGNET, UNIT_MICROTESLA, UNIT_DEGREES, ICON_SCREEN_ROTATION, \
+    CONF_UPDATE_INTERVAL
 
 DEPENDENCIES = ['i2c']
 
@@ -57,8 +57,8 @@ def validate_enum(enum_values, units=None, int=True):
     return validate_enum_bound
 
 
-field_strength_schema = sensor.sensor_schema(UNIT_MICROTESLA, ICON_MAGNET, 1)
-heading_schema = sensor.sensor_schema(UNIT_DEGREES, ICON_SCREEN_ROTATION, 1)
+field_strength_schema = sensor.sensor_schema(UNIT_MICROTESLA, ICON_MAGNET, 1, DEVICE_CLASS_EMPTY)
+heading_schema = sensor.sensor_schema(UNIT_DEGREES, ICON_SCREEN_ROTATION, 1, DEVICE_CLASS_EMPTY)
 
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(QMC5883LComponent),

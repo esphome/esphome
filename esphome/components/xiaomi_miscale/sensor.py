@@ -2,7 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import sensor, esp32_ble_tracker
 from esphome.const import CONF_MAC_ADDRESS, CONF_ID, CONF_WEIGHT, UNIT_KILOGRAM, \
-    ICON_SCALE_BATHROOM
+    ICON_SCALE_BATHROOM, DEVICE_CLASS_EMPTY
 
 DEPENDENCIES = ['esp32_ble_tracker']
 
@@ -14,7 +14,8 @@ XiaomiMiscale = xiaomi_miscale_ns.class_('XiaomiMiscale',
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(XiaomiMiscale),
     cv.Required(CONF_MAC_ADDRESS): cv.mac_address,
-    cv.Optional(CONF_WEIGHT): sensor.sensor_schema(UNIT_KILOGRAM, ICON_SCALE_BATHROOM, 2),
+    cv.Optional(CONF_WEIGHT): sensor.sensor_schema(
+        UNIT_KILOGRAM, ICON_SCALE_BATHROOM, 2, DEVICE_CLASS_EMPTY),
 }).extend(esp32_ble_tracker.ESP_BLE_DEVICE_SCHEMA).extend(cv.COMPONENT_SCHEMA)
 
 

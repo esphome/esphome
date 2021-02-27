@@ -2,7 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import sensor, spi
 from esphome.const import CONF_ID, CONF_MAINS_FILTER, CONF_REFERENCE_RESISTANCE, \
-    CONF_RTD_NOMINAL_RESISTANCE, CONF_RTD_WIRES, ICON_THERMOMETER, UNIT_CELSIUS
+    CONF_RTD_NOMINAL_RESISTANCE, CONF_RTD_WIRES, DEVICE_CLASS_TEMPERATURE, ICON_EMPTY, UNIT_CELSIUS
 
 max31865_ns = cg.esphome_ns.namespace('max31865')
 MAX31865Sensor = max31865_ns.class_('MAX31865Sensor', sensor.Sensor, cg.PollingComponent,
@@ -14,7 +14,7 @@ FILTER = {
     '60HZ': MAX31865ConfigFilter.FILTER_60HZ,
 }
 
-CONFIG_SCHEMA = sensor.sensor_schema(UNIT_CELSIUS, ICON_THERMOMETER, 2).extend({
+CONFIG_SCHEMA = sensor.sensor_schema(UNIT_CELSIUS, ICON_EMPTY, 2, DEVICE_CLASS_TEMPERATURE).extend({
     cv.GenerateID(): cv.declare_id(MAX31865Sensor),
     cv.Required(CONF_REFERENCE_RESISTANCE): cv.All(cv.resistance, cv.Range(min=100, max=10000)),
     cv.Required(CONF_RTD_NOMINAL_RESISTANCE): cv.All(cv.resistance, cv.Range(min=100, max=1000)),

@@ -1,8 +1,8 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import i2c, sensor
-from esphome.const import (CONF_ID, UNIT_METER, ICON_ARROW_EXPAND_VERTICAL, CONF_ADDRESS,
-                           CONF_TIMEOUT, CONF_ENABLE_PIN)
+from esphome.const import (CONF_ID, DEVICE_CLASS_EMPTY, UNIT_METER, ICON_ARROW_EXPAND_VERTICAL,
+                           CONF_ADDRESS, CONF_TIMEOUT, CONF_ENABLE_PIN)
 from esphome import pins
 
 DEPENDENCIES = ['i2c']
@@ -31,7 +31,8 @@ def check_timeout(value):
     return value
 
 
-CONFIG_SCHEMA = cv.All(sensor.sensor_schema(UNIT_METER, ICON_ARROW_EXPAND_VERTICAL, 2).extend({
+CONFIG_SCHEMA = cv.All(
+    sensor.sensor_schema(UNIT_METER, ICON_ARROW_EXPAND_VERTICAL, 2, DEVICE_CLASS_EMPTY).extend({
         cv.GenerateID(): cv.declare_id(VL53L0XSensor),
         cv.Optional(CONF_SIGNAL_RATE_LIMIT, default=0.25): cv.float_range(
             min=0.0, max=512.0, min_included=False, max_included=False),

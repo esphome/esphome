@@ -3,8 +3,8 @@ import esphome.config_validation as cv
 from esphome import automation
 from esphome.automation import maybe_simple_id
 from esphome.components import sensor, uart
-from esphome.const import CONF_CO2, CONF_ID, CONF_TEMPERATURE, ICON_MOLECULE_CO2, \
-    UNIT_PARTS_PER_MILLION, UNIT_CELSIUS, ICON_EMPTY, DEVICE_CLASS_TEMPERATURE
+from esphome.const import CONF_CO2, CONF_ID, CONF_TEMPERATURE, DEVICE_CLASS_EMPTY, \
+    DEVICE_CLASS_TEMPERATURE, ICON_MOLECULE_CO2, UNIT_PARTS_PER_MILLION, UNIT_CELSIUS, ICON_EMPTY
 
 DEPENDENCIES = ['uart']
 
@@ -18,7 +18,8 @@ MHZ19ABCDisableAction = mhz19_ns.class_('MHZ19ABCDisableAction', automation.Acti
 
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(MHZ19Component),
-    cv.Required(CONF_CO2): sensor.sensor_schema(UNIT_PARTS_PER_MILLION, ICON_MOLECULE_CO2, 0),
+    cv.Required(CONF_CO2): sensor.sensor_schema(
+        UNIT_PARTS_PER_MILLION, ICON_MOLECULE_CO2, 0, DEVICE_CLASS_EMPTY),
     cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
         UNIT_CELSIUS, ICON_EMPTY, 0, DEVICE_CLASS_TEMPERATURE),
     cv.Optional(CONF_AUTOMATIC_BASELINE_CALIBRATION): cv.boolean,

@@ -117,8 +117,7 @@ SENSOR_SCHEMA = cv.MQTT_COMPONENT_SCHEMA.extend({
 })
 
 
-def sensor_schema(unit_of_measurement_=UNIT_EMPTY, icon_=ICON_EMPTY, accuracy_decimals_=0,
-                  device_class_=DEVICE_CLASS_EMPTY):
+def sensor_schema(unit_of_measurement_, icon_, accuracy_decimals_, device_class_):
     # type: (str, str, int, str) -> cv.Schema
     schema = SENSOR_SCHEMA
     if unit_of_measurement_ != UNIT_EMPTY:
