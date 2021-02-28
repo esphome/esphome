@@ -16,7 +16,9 @@ void ADCSensor::set_attenuation(adc_attenuation_t attenuation) { this->attenuati
 
 void ADCSensor::setup() {
   ESP_LOGCONFIG(TAG, "Setting up ADC '%s'...", this->get_name().c_str());
+#ifndef USE_ADC_SENSOR_VCC
   GPIOPin(this->pin_, INPUT).setup();
+#endif
 
 #ifdef ARDUINO_ARCH_ESP32
   analogSetPinAttenuation(this->pin_, this->attenuation_);
