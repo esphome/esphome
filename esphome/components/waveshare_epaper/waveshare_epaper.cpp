@@ -995,41 +995,35 @@ void WaveshareEPaperTypeF::initialize() {
   ESP_LOGD(TAG, "Init display");
   this->reset_();
   this->wait_until_busy_();
-  this->command(0x00);
-  this->data(0xEF);
+  this->command(0x00); // 0x00: Panel Settings
+  this->data(0xEF); // Scan up, shift right, DC/DC enabled
   this->data(0x08);
-  this->command(0x01);
-  this->data(0x37);
+  this->command(0x01); // 0x01: Power settings
+  this->data(0x37); // Use internal DC/DC for everything
   this->data(0x00);
   this->data(0x23);
   this->data(0x23);
-  this->command(0x03);
-  this->data(0x00);
-  this->command(0x06);
+  this->command(0x03); // 0x03: Power off sequence
+  this->data(0x00); // 0x00: 1 frame (default)
+  this->command(0x06); // 0x06: Booster soft start
   this->data(0xC7);
   this->data(0xC7);
   this->data(0x1D);
-  this->command(0x30);
-  this->data(0x3C);
-  this->command(0x40);
-  this->data(0x00);
-  this->command(0x50);
-  this->data(0x37);
-  this->command(0x60);
+  this->command(0x30); // 0x30: PLL control
+  this->data(0x3C); // 0x3C: 50Hz
+  this->command(0x41); // 0x41: Temperature sensor
+  this->data(0x00); // 0x00: Use internal temperature sensor
+  this->command(0x50); // 0x50: Border color, color LUT, VCOM + data interval
+  this->data(0x37); // White border, default LUT, default VCOM + data interval
+  this->command(0x60); // 0x60: Undocumented
   this->data(0x22);
-  this->command(0x61);  // Pixel dimensions (resolution)
-  this->data(0x02);
-  this->data(0x58);
-  this->data(0x01);
-  this->data(0xC0);
-  this->command(0xE3);
+  this->send_display_size_(this->get_width_internal(), this->get_height_internal());
+  this->command(0xE3); // 0xE3: Undocumented
   this->data(0xAA);
   
   delay(100); // NOLINT
   App.feed_wdt();
   
-  this->command(0x50);
-  this->data(0x37);
   ESP_LOGD(TAG, "Init display complete");
   
   App.feed_wdt();
@@ -1060,8 +1054,8 @@ void HOT WaveshareEPaperTypeF::display() {
   ESP_LOGD(TAG, "Clean display");
   this->send_display_size_(this->get_width_internal(), this->get_height_internal());
   
-  // "Clean" display to avoid/prevent ghosting
-  this->command(0x10);
+  // "Clean" display (fill with 0x7) to avoid/prevent ghosting
+  this->command(0x10); // 0x10: Start data transmission (for display)
   this->start_data_();
   uint32_t num_bytes = total_pixels / 2;
   for (size_t i = 0; i < num_bytes; i++) {
@@ -1070,11 +1064,11 @@ void HOT WaveshareEPaperTypeF::display() {
   }
   this->end_data_();
   
-  this->command(0x04);
+  this->command(0x04); // 0x04: Turn power ON
   this->wait_until_busy_();
-  this->command(0x12);
+  this->command(0x12); // 0x12: Refresh Display
   this->wait_until_busy_();
-  this->command(0x02);
+  this->command(0x02); // 0x02: Turn power OFF
   this->wait_until_idle_();
   App.feed_wdt();
   
@@ -1085,7 +1079,7 @@ void HOT WaveshareEPaperTypeF::display() {
   this->send_display_size_(this->get_width_internal(), this->get_height_internal());
   
   // Send actual pixel buffer
-  this->command(0x10);
+  this->command(0x10); // 0x10: Start data transmission (for display)
   this->start_data_();
   
   for (uint32_t pos = 0; pos < total_pixels; pos+= 2) {
@@ -1099,11 +1093,11 @@ void HOT WaveshareEPaperTypeF::display() {
   
   this->end_data_();
   
-  this->command(0x04);
+  this->command(0x04); // 0x04: Turn power ON
   this->wait_until_busy_();
-  this->command(0x12);
+  this->command(0x12); // 0x12: Refresh Display
   this->wait_until_busy_();
-  this->command(0x02);
+  this->command(0x02); // 0x02: Turn power OFF
   this->wait_until_idle_();
   App.feed_wdt();
   
