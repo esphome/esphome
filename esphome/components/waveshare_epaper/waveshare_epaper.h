@@ -314,6 +314,7 @@ class WaveshareEPaperTypeF : public WaveshareEPaper {
   void draw_absolute_pixel_internal(int x, int y, Color color) override;
   void draw_absolute_pixel_internal(int x, int y, uint8_t index);
   uint8_t get_index_value_(uint32_t pos);
+  void send_display_size_(uint16_t width, uint16_t height);
 
   int get_width_internal() override;
   int get_height_internal() override;

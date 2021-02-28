@@ -1046,14 +1046,19 @@ void WaveshareEPaperTypeF::dump_config() {
   LOG_PIN("  Busy Pin: ", this->busy_pin_);
   LOG_UPDATE_INTERVAL(this);
 }
+void HOT WaveshareEPaperTypeF::send_display_size_(uint16_t width, uint16_t height) {
+  this->command(0x61); // 0x61: Set Display Resolution
+  this->start_data_();
+  this->write_byte(width >> 8);
+  this->write_byte(width & 0xFF);
+  this->write_byte(height >> 8);
+  this->write_byte(height & 0xFF);
+  this->end_data_();
+}
 void HOT WaveshareEPaperTypeF::display() {
   uint32_t total_pixels = this->get_width_internal() * this->get_height_internal();
   ESP_LOGD(TAG, "Clean display");
-  this->command(0x61);  // Pixel dimensions (resolution)
-  this->data(0x02);
-  this->data(0x58);
-  this->data(0x01);
-  this->data(0xC0);
+  this->send_display_size_(this->get_width_internal(), this->get_height_internal());
   
   // "Clean" display to avoid/prevent ghosting
   this->command(0x10);
@@ -1077,11 +1082,7 @@ void HOT WaveshareEPaperTypeF::display() {
   
   ESP_LOGD(TAG, "Output buffer to display");
   
-  this->command(0x61);  // Pixel dimensions (resolution)
-  this->data(0x02);
-  this->data(0x58);
-  this->data(0x01);
-  this->data(0xC0);
+  this->send_display_size_(this->get_width_internal(), this->get_height_internal());
   
   // Send actual pixel buffer
   this->command(0x10);
