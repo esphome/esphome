@@ -56,7 +56,20 @@ void ModbusSensor::on_modbus_data(const std::vector<uint8_t> &data) {
 
 void ModbusSensor::dump_config() {
   ESP_LOGCONFIG(TAG, "ModbusSensor:");
-  ESP_LOGCONFIG(TAG, "  Address: 0x%02X", this->address_);
+  ESP_LOGCONFIG(TAG, "  Address: %d", this->address_);
+  ESP_LOGCONFIG(TAG, "  Register: %d", this->register_);
+  const char *reverse_order;
+  for (uint16_t i = 0 ; i < this->sensors_.size(); i++) {
+    if ( this->sensors_reverse_order_[i] ) {
+      reverse_order = "true";
+    } else {
+      reverse_order = "false";
+    }
+    ESP_LOGCONFIG(TAG, "  Sensor %d:", i);
+    ESP_LOGCONFIG(TAG, "    Lenght: %d", this->sensors_length_[i]);
+    ESP_LOGCONFIG(TAG, "    Reverse order: %s", reverse_order);
+    LOG_SENSOR("  ", "  Name: ", this->sensors_[i]);
+  }
 }
 
 }  // namespace modbus_sensor
