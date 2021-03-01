@@ -1,3 +1,7 @@
+#pragma once
+
+namespace esphome {
+namespace vl53l1x_distance {
 /*
  * Copyright (c) 2017, STMicroelectronics - All Rights Reserved
  *
@@ -84,7 +88,7 @@ extern "C" {
  */
 
 // typedef int8_t VL53L1_Error;
-using VL53L1_Error= int8_t;
+using VL53L1_Error = int8_t;
 
 #define VL53L1_ERROR_NONE ((VL53L1_Error) 0)
 #define VL53L1_ERROR_CALIBRATION_WARNING ((VL53L1_Error) -1)
@@ -243,3 +247,5 @@ using VL53L1_Error= int8_t;
 #endif
 
 #endif /* _VL53L1_ERROR_CODES_H_ */
+}  // namespace vl53l1x_distance
+}  // namespace esphome

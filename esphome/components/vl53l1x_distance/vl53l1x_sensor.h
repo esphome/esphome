@@ -6,7 +6,7 @@
 #include "vl53l1_error_codes.h"
 
 namespace esphome {
-namespace vl53l1x {
+namespace vl53l1x_distance {
 
 // imported from vl531lx_class.h
 
@@ -176,25 +176,25 @@ class VL53L1XSensor : public sensor::Sensor, public PollingComponent, public i2c
   // void set_retry_budget(uint8_t budget) { retry_budget_ budget; }
 
   // VL53L1X booleans and function
-  bool begin();     // Initialization of sensor
-  bool check_id();  // Check the ID of the sensor, returns true if ID is correct
+  bool begin();             // Initialization of sensor
+  bool check_id();          // Check the ID of the sensor, returns true if ID is correct
   uint16_t get_distance();  // Returns distance
 
-  void start_ranging();                                     // Begins taking measurements
-  void stop_ranging();                                      // Stops taking measurements
-  bool check_for_data_ready(uint8_t is_data_ready);           // Checks the to see if data is ready
+  void start_ranging();                                            // Begins taking measurements
+  void stop_ranging();                                             // Stops taking measurements
+  bool check_for_data_ready(uint8_t is_data_ready);                // Checks the to see if data is ready
   int8_t apply_timing_budget_in_ms(uint16_t timing_budget_in_ms);  // Set the timing budget for a measurement
-  uint16_t get_timing_budget_in_ms();                       // Get the timing budget for a measurement
+  uint16_t get_timing_budget_in_ms();                              // Get the timing budget for a measurement
   int8_t apply_distance_mode(DistanceMode mode);
   int8_t apply_distance_mode_long();   // Set to 4M range
   int8_t apply_distance_mode_short();  // Set to 1.3M range
 
   // region of intereset
   uint8_t apply_roi(uint8_t x, uint8_t y,
-                    uint8_t optical_center);  // Set the height and width of the ROI(region of interest) in SPADs, lowest
-                                             // possible option is 4. Set optical center based on above table
-  uint16_t get_roi_x();                       // Returns the width of the ROI in SPADs
-  uint16_t get_roi_y();                       // Returns the height of the ROI in SPADs
+                    uint8_t optical_center);  // Set the height and width of the ROI(region of interest) in SPADs,
+                                              // lowest possible option is 4. Set optical center based on above table
+  uint16_t get_roi_x();  // Returns the width of the ROI in SPADs
+  uint16_t get_roi_y();  // Returns the height of the ROI in SPADs
 
  protected:
   DistanceMode distance_mode_{DistanceMode::LONG};

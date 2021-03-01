@@ -261,9 +261,9 @@ int8_t VL53L1XSensor::apply_timing_budget_in_ms(uint16_t timing_budget_in_ms) {
   return status;
 }
 
-uint16_t VL53L1XSensor::get_timing_budget_in_ms(uint16_t *p_timing_budget_in_ms) {  
+uint16_t VL53L1XSensor::get_timing_budget_in_ms(uint16_t *p_timing_budget_in_ms) {
   // See sparkfun_VL531LX.cpp line 153 and vl531lx_class.cpp line 365
-  
+
   uint16_t timing_budget_in_ms;
   //_device->VL53L1X_GetTimingBudgetInMs(&timingBudget);
 
@@ -382,28 +382,28 @@ uint16_t VL53L1XSensor::get_roi_y() {
 
 // int8_t VL53L1XSensor::GetROI_XY(uint16_t *ROI_X, uint16_t *ROI_Y)
 // {
-// 	VL53L1X_ERROR status = 0;
-// 	uint8_t tmp;
+// \sVL53L1X_ERROR status = 0;
+// \suint8_t tmp;
 
-// 	status = this->read_byte(ROI_CONFIG__USER_ROI_REQUESTED_GLOBAL_XY_SIZE, &tmp);
-// 	*ROI_X = ((uint16_t)tmp & 0x0F) + 1;
-// 	*ROI_Y = (((uint16_t)tmp & 0xF0) >> 4) + 1;
-// 	return status;
+// \sstatus = this->read_byte(ROI_CONFIG__USER_ROI_REQUESTED_GLOBAL_XY_SIZE, &tmp);
+// \s*ROI_X = ((uint16_t)tmp & 0x0F) + 1;
+// \s*ROI_Y = (((uint16_t)tmp & 0xF0) >> 4) + 1;
+// \sreturn status;
 // }
 
 // uint16_t VL53L1XSensor::getROIX()
 // {
-// 	uint16_t tempX;
-// 	uint16_t tempY;
-// 	// this->VL53L1X_GetROI_XY(&tempX, &tempY);
-// 	return tempX;
+// \suint16_t tempX;
+// \suint16_t tempY;
+// \s// this->VL53L1X_GetROI_XY(&tempX, &tempY);
+// \sreturn tempX;
 // }
 
 // uint16_t VL53L1XSensor::getROIY()
 // {
-// 	uint16_t tempX;
-// 	uint16_t tempY;
-// 	_device->VL53L1X_GetROI_XY(&tempX, &tempY);
-// 	return tempY;
+// \suint16_t tempX;
+// \suint16_t tempY;
+// \s_device->VL53L1X_GetROI_XY(&tempX, &tempY);
+// \sreturn tempY;
 }  // namespace vl53l1x_distance
 }  // namespace esphome
