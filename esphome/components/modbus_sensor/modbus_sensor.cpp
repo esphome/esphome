@@ -19,7 +19,7 @@ void ModbusSensor::set_sensor_length(uint8_t length) {
 void ModbusSensor::on_modbus_data(const std::vector<uint8_t> &data) {
   // Skip if data size doesn't mach the expected size
   if (data.size() != this->response_size_) {
-    ESP_LOGV(TAG, "Skip data - size %d - expected size: %d", data.size(), this->response_size_);
+    ESP_LOGV(TAG, "Skip data - size %lu - expected size: %d", data.size(), this->response_size_);
     return;
   }
 
