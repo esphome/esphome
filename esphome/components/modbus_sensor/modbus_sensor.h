@@ -10,7 +10,7 @@ namespace modbus_sensor {
 static const uint8_t READ_REGISTERS_FUNCTION = 0x04;
 
 class ModbusSensor : public PollingComponent, public modbus::ModbusDevice {
-public:
+ public:
   void set_sensor(sensor::Sensor *sensor) { sensors_.push_back(sensor); }
   void set_sensor_reverse_order(bool reverse_order) { sensors_reverse_order_.push_back(reverse_order); }
   void set_register(uint16_t register_address) { this->register_ = register_address; }
@@ -21,7 +21,7 @@ public:
   void on_modbus_data(const std::vector<uint8_t> &data) override;
   void dump_config() override;
 
-protected:
+ protected:
   std::vector<sensor::Sensor*> sensors_;
   std::vector<uint8_t> sensors_length_;
   std::vector<bool> sensors_reverse_order_;

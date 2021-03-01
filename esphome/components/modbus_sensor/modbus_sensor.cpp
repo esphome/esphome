@@ -37,8 +37,7 @@ void ModbusSensor::on_modbus_data(const std::vector<uint8_t> &data) {
     if (this->sensors_length_[i] == 1) {
       value = get_16bit_value(start);
       this->sensors_[i]->publish_state(value);
-    }
-    else if (this->sensors_length_[i] == 2) {
+    } else if (this->sensors_length_[i] == 2) {
       if (this->sensors_reverse_order_[i]) {
         value = get_32bit_value_reverse(start);
       } else {
