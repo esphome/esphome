@@ -34,8 +34,9 @@ def to_code(config):
     cg.add(var.set_clock_pin(clock_pin))
     latch_pin = yield cg.gpio_pin_expression(config[CONF_LATCH_PIN])
     cg.add(var.set_latch_pin(latch_pin))
-    oe_pin = yield cg.gpio_pin_expression(config[CONF_OE_PIN])
-    cg.add(var.set_oe_pin(oe_pin))
+    if CONF_OE_PIN in config:
+        oe_pin = yield cg.gpio_pin_expression(config[CONF_OE_PIN])
+        cg.add(var.set_oe_pin(oe_pin))
     cg.add(var.set_sr_count(config[CONF_SR_COUNT]))
 
 

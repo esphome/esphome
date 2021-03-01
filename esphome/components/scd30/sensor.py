@@ -2,9 +2,9 @@ import re
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import i2c, sensor
-from esphome.const import CONF_ID, UNIT_PARTS_PER_MILLION, \
-    CONF_HUMIDITY, CONF_TEMPERATURE, ICON_MOLECULE_CO2, \
-    UNIT_CELSIUS, ICON_THERMOMETER, ICON_WATER_PERCENT, UNIT_PERCENT, CONF_CO2
+from esphome.const import CONF_ID, DEVICE_CLASS_EMPTY, CONF_HUMIDITY, CONF_TEMPERATURE, CONF_CO2, \
+    DEVICE_CLASS_HUMIDITY, DEVICE_CLASS_TEMPERATURE, ICON_EMPTY, UNIT_PARTS_PER_MILLION, \
+    ICON_MOLECULE_CO2, UNIT_CELSIUS, UNIT_PERCENT
 
 DEPENDENCIES = ['i2c']
 
@@ -23,10 +23,12 @@ def remove_altitude_suffix(value):
 
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(SCD30Component),
-    cv.Required(CONF_CO2): sensor.sensor_schema(UNIT_PARTS_PER_MILLION,
-                                                ICON_MOLECULE_CO2, 0),
-    cv.Required(CONF_TEMPERATURE): sensor.sensor_schema(UNIT_CELSIUS, ICON_THERMOMETER, 1),
-    cv.Required(CONF_HUMIDITY): sensor.sensor_schema(UNIT_PERCENT, ICON_WATER_PERCENT, 1),
+    cv.Optional(CONF_CO2): sensor.sensor_schema(UNIT_PARTS_PER_MILLION,
+                                                ICON_MOLECULE_CO2, 0, DEVICE_CLASS_EMPTY),
+    cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(UNIT_CELSIUS, ICON_EMPTY, 1,
+                                                        DEVICE_CLASS_TEMPERATURE),
+    cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(UNIT_PERCENT, ICON_EMPTY, 1,
+                                                     DEVICE_CLASS_HUMIDITY),
     cv.Optional(CONF_AUTOMATIC_SELF_CALIBRATION, default=True): cv.boolean,
     cv.Optional(CONF_ALTITUDE_COMPENSATION): cv.All(remove_altitude_suffix,
                                                     cv.int_range(min=0, max=0xFFFF,

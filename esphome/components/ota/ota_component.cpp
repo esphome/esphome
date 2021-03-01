@@ -355,7 +355,7 @@ void OTAComponent::set_auth_password(const std::string &password) { this->passwo
 float OTAComponent::get_setup_priority() const { return setup_priority::AFTER_WIFI; }
 uint16_t OTAComponent::get_port() const { return this->port_; }
 void OTAComponent::set_port(uint16_t port) { this->port_ = port; }
-void OTAComponent::start_safe_mode(uint8_t num_attempts, uint32_t enable_time) {
+bool OTAComponent::should_enter_safe_mode(uint8_t num_attempts, uint32_t enable_time) {
   this->has_safe_mode_ = true;
   this->safe_mode_start_time_ = millis();
   this->safe_mode_enable_time_ = enable_time;
@@ -380,12 +380,11 @@ void OTAComponent::start_safe_mode(uint8_t num_attempts, uint32_t enable_time) {
 
     ESP_LOGI(TAG, "Waiting for OTA attempt.");
 
-    while (true) {
-      App.loop();
-    }
+    return true;
   } else {
     // increment counter
     this->write_rtc_(this->safe_mode_rtc_value_ + 1);
+    return false;
   }
 }
 void OTAComponent::write_rtc_(uint32_t val) { this->rtc_.save(&val); }

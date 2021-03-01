@@ -2,8 +2,8 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 
 from esphome.components import sensor, binary_sensor
-from esphome.const import CONF_ID, CONF_CHANNELS, CONF_VALUE, CONF_TYPE, UNIT_EMPTY, \
-    ICON_CHECK_CIRCLE_OUTLINE, CONF_BINARY_SENSOR, CONF_GROUP
+from esphome.const import CONF_ID, CONF_CHANNELS, CONF_VALUE, CONF_TYPE, DEVICE_CLASS_EMPTY, \
+    UNIT_EMPTY, ICON_CHECK_CIRCLE_OUTLINE, CONF_BINARY_SENSOR, CONF_GROUP
 
 DEPENDENCIES = ['binary_sensor']
 
@@ -21,7 +21,9 @@ entry = {
 }
 
 CONFIG_SCHEMA = cv.typed_schema({
-    CONF_GROUP: sensor.sensor_schema(UNIT_EMPTY, ICON_CHECK_CIRCLE_OUTLINE, 0).extend({
+    CONF_GROUP: sensor.sensor_schema(
+        UNIT_EMPTY, ICON_CHECK_CIRCLE_OUTLINE, 0, DEVICE_CLASS_EMPTY
+    ).extend({
         cv.GenerateID(): cv.declare_id(BinarySensorMap),
         cv.Required(CONF_CHANNELS): cv.All(cv.ensure_list(entry), cv.Length(min=1)),
     }),

@@ -1,7 +1,8 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import sensor, voltage_sampler
-from esphome.const import CONF_GAIN, CONF_MULTIPLEXER, ICON_FLASH, UNIT_VOLT, CONF_ID
+from esphome.const import CONF_GAIN, CONF_MULTIPLEXER, DEVICE_CLASS_VOLTAGE, ICON_EMPTY, \
+    UNIT_VOLT, CONF_ID
 from . import ads1115_ns, ADS1115Component
 
 DEPENDENCIES = ['ads1115']
@@ -42,7 +43,7 @@ ADS1115Sensor = ads1115_ns.class_('ADS1115Sensor', sensor.Sensor, cg.PollingComp
                                   voltage_sampler.VoltageSampler)
 
 CONF_ADS1115_ID = 'ads1115_id'
-CONFIG_SCHEMA = sensor.sensor_schema(UNIT_VOLT, ICON_FLASH, 3).extend({
+CONFIG_SCHEMA = sensor.sensor_schema(UNIT_VOLT, ICON_EMPTY, 3, DEVICE_CLASS_VOLTAGE).extend({
     cv.GenerateID(): cv.declare_id(ADS1115Sensor),
     cv.GenerateID(CONF_ADS1115_ID): cv.use_id(ADS1115Component),
     cv.Required(CONF_MULTIPLEXER): cv.enum(MUX, upper=True, space='_'),

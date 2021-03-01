@@ -1,9 +1,9 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import i2c, sensor
-from esphome.const import CONF_ID, CONF_TEMPERATURE, \
-    ICON_BRIEFCASE_DOWNLOAD, UNIT_METER_PER_SECOND_SQUARED, \
-    ICON_SCREEN_ROTATION, UNIT_DEGREE_PER_SECOND, ICON_THERMOMETER, UNIT_CELSIUS
+from esphome.const import CONF_ID, CONF_TEMPERATURE, DEVICE_CLASS_EMPTY, DEVICE_CLASS_TEMPERATURE, \
+    ICON_BRIEFCASE_DOWNLOAD, ICON_EMPTY, UNIT_METER_PER_SECOND_SQUARED, \
+    ICON_SCREEN_ROTATION, UNIT_DEGREE_PER_SECOND, UNIT_CELSIUS
 
 DEPENDENCIES = ['i2c']
 
@@ -17,9 +17,11 @@ CONF_GYRO_Z = 'gyro_z'
 mpu6050_ns = cg.esphome_ns.namespace('mpu6050')
 MPU6050Component = mpu6050_ns.class_('MPU6050Component', cg.PollingComponent, i2c.I2CDevice)
 
-accel_schema = sensor.sensor_schema(UNIT_METER_PER_SECOND_SQUARED, ICON_BRIEFCASE_DOWNLOAD, 2)
-gyro_schema = sensor.sensor_schema(UNIT_DEGREE_PER_SECOND, ICON_SCREEN_ROTATION, 2)
-temperature_schema = sensor.sensor_schema(UNIT_CELSIUS, ICON_THERMOMETER, 1)
+accel_schema = sensor.sensor_schema(UNIT_METER_PER_SECOND_SQUARED, ICON_BRIEFCASE_DOWNLOAD, 2,
+                                    DEVICE_CLASS_EMPTY)
+gyro_schema = sensor.sensor_schema(UNIT_DEGREE_PER_SECOND, ICON_SCREEN_ROTATION, 2,
+                                   DEVICE_CLASS_EMPTY)
+temperature_schema = sensor.sensor_schema(UNIT_CELSIUS, ICON_EMPTY, 1, DEVICE_CLASS_TEMPERATURE)
 
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(MPU6050Component),

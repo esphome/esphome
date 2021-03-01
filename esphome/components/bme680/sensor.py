@@ -4,8 +4,9 @@ from esphome import core
 from esphome.components import i2c, sensor
 from esphome.const import CONF_DURATION, CONF_GAS_RESISTANCE, CONF_HEATER, \
     CONF_HUMIDITY, CONF_ID, CONF_IIR_FILTER, CONF_OVERSAMPLING, CONF_PRESSURE, \
-    CONF_TEMPERATURE, UNIT_OHM, ICON_GAS_CYLINDER, UNIT_CELSIUS, \
-    ICON_THERMOMETER, UNIT_HECTOPASCAL, ICON_GAUGE, ICON_WATER_PERCENT, UNIT_PERCENT
+    CONF_TEMPERATURE, DEVICE_CLASS_EMPTY, DEVICE_CLASS_HUMIDITY, DEVICE_CLASS_PRESSURE, \
+    DEVICE_CLASS_TEMPERATURE, UNIT_OHM, ICON_GAS_CYLINDER, UNIT_CELSIUS, ICON_EMPTY, \
+    UNIT_HECTOPASCAL, UNIT_PERCENT
 
 DEPENDENCIES = ['i2c']
 
@@ -37,22 +38,22 @@ BME680Component = bme680_ns.class_('BME680Component', cg.PollingComponent, i2c.I
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(BME680Component),
     cv.Optional(CONF_TEMPERATURE):
-        sensor.sensor_schema(UNIT_CELSIUS, ICON_THERMOMETER, 1).extend({
+        sensor.sensor_schema(UNIT_CELSIUS, ICON_EMPTY, 1, DEVICE_CLASS_TEMPERATURE).extend({
             cv.Optional(CONF_OVERSAMPLING, default='16X'):
                 cv.enum(OVERSAMPLING_OPTIONS, upper=True),
         }),
     cv.Optional(CONF_PRESSURE):
-        sensor.sensor_schema(UNIT_HECTOPASCAL, ICON_GAUGE, 1).extend({
+        sensor.sensor_schema(UNIT_HECTOPASCAL, ICON_EMPTY, 1, DEVICE_CLASS_PRESSURE).extend({
             cv.Optional(CONF_OVERSAMPLING, default='16X'):
                 cv.enum(OVERSAMPLING_OPTIONS, upper=True),
         }),
     cv.Optional(CONF_HUMIDITY):
-        sensor.sensor_schema(UNIT_PERCENT, ICON_WATER_PERCENT, 1).extend({
+        sensor.sensor_schema(UNIT_PERCENT, ICON_EMPTY, 1, DEVICE_CLASS_HUMIDITY).extend({
             cv.Optional(CONF_OVERSAMPLING, default='16X'):
                 cv.enum(OVERSAMPLING_OPTIONS, upper=True),
         }),
     cv.Optional(CONF_GAS_RESISTANCE):
-        sensor.sensor_schema(UNIT_OHM, ICON_GAS_CYLINDER, 1),
+        sensor.sensor_schema(UNIT_OHM, ICON_GAS_CYLINDER, 1, DEVICE_CLASS_EMPTY),
     cv.Optional(CONF_IIR_FILTER, default='OFF'): cv.enum(IIR_FILTER_OPTIONS, upper=True),
     cv.Optional(CONF_HEATER): cv.Any(None, cv.All(cv.Schema({
         cv.Optional(CONF_TEMPERATURE, default=320): cv.int_range(min=200, max=400),

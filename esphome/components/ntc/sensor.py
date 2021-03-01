@@ -4,8 +4,8 @@ import esphome.config_validation as cv
 import esphome.codegen as cg
 from esphome.components import sensor
 from esphome.const import CONF_CALIBRATION, CONF_ID, CONF_REFERENCE_RESISTANCE, \
-    CONF_REFERENCE_TEMPERATURE, CONF_SENSOR, CONF_TEMPERATURE, CONF_VALUE, ICON_THERMOMETER, \
-    UNIT_CELSIUS
+    CONF_REFERENCE_TEMPERATURE, CONF_SENSOR, CONF_TEMPERATURE, CONF_VALUE, \
+    DEVICE_CLASS_TEMPERATURE, ICON_EMPTY, UNIT_CELSIUS
 
 ntc_ns = cg.esphome_ns.namespace('ntc')
 NTC = ntc_ns.class_('NTC', cg.Component, sensor.Sensor)
@@ -98,7 +98,7 @@ def process_calibration(value):
     }
 
 
-CONFIG_SCHEMA = sensor.sensor_schema(UNIT_CELSIUS, ICON_THERMOMETER, 1).extend({
+CONFIG_SCHEMA = sensor.sensor_schema(UNIT_CELSIUS, ICON_EMPTY, 1, DEVICE_CLASS_TEMPERATURE).extend({
     cv.GenerateID(): cv.declare_id(NTC),
     cv.Required(CONF_SENSOR): cv.use_id(sensor.Sensor),
     cv.Required(CONF_CALIBRATION): process_calibration,
