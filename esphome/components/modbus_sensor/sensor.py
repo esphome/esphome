@@ -7,7 +7,7 @@ from esphome.const import CONF_ID, CONF_LENGTH, CONF_SENSORS, DEVICE_CLASS_EMPTY
 AUTO_LOAD = ['modbus']
 
 CONF_REGISTER = 'register'
-CONF_REVERSE_ORDER = ' reverse_order'
+CONF_REVERSE_ORDER = 'reverse_order'
 
 modbus_sensor_ns = cg.esphome_ns.namespace('modbus_sensor')
 ModbusSensor = modbus_sensor_ns.class_('ModbusSensor', cg.PollingComponent, modbus.ModbusDevice)
