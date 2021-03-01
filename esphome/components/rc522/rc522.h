@@ -222,7 +222,7 @@ class RC522 : public PollingComponent {
 
   bool awaiting_comm_;
   uint32_t awaiting_comm_time_;
-  StatusCode await_communication_();
+  StatusCode await_transceive_();
   StatusCode await_crc_();
 
   uint8_t buffer_[9];       ///< buffer for communication, the first bits [0..back_idx-1] are for tx ,

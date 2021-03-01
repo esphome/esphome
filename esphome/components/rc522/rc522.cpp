@@ -8,7 +8,6 @@ namespace esphome {
 namespace rc522 {
 
 static const uint8_t WAIT_I_RQ = 0x30;  // RxIRq and IdleIRq
-// static const int32_t TAG_LENGTH = 7;
 
 static const char *TAG = "rc522";
 
@@ -143,7 +142,7 @@ void RC522::loop() {
     if (state_ == STATE_SELECT_SERIAL_DONE)
       status = await_crc_();
     else
-      status = await_communication_();
+      status = await_transceive_();
 
     if (status == STATUS_WAITING) {
       return;
@@ -374,7 +373,7 @@ void RC522::pcd_transceive_data_(uint8_t send_len) {
   awaiting_comm_time_ = millis();
 }
 
-RC522::StatusCode RC522::await_communication_() {
+RC522::StatusCode RC522::await_transceive_() {
   if (millis() - awaiting_comm_time_ < 2)  // wait at least 2 ms
     return STATUS_WAITING;
   uint8_t n = pcd_read_register(
@@ -424,7 +423,7 @@ RC522::StatusCode RC522::await_communication_() {
   // Tell about collisions
   if (valid_bits_local) {
     ESP_LOGW(TAG, "only %d valid bits received, tag distance to high? Error code is 0x%x", valid_bits_local,
-             error_reg_value);  // todo: is this always due to collissions?
+             error_reg_value);  // TODO: is this always due to collissions?
     return STATUS_ERROR;
   }
   ESP_LOGV(TAG, "received %d bytes: %s", back_length_, format_buffer(buffer_ + send_len_, back_length_).c_str());
@@ -467,10 +466,10 @@ RC522::StatusCode RC522::await_crc_() {
     ESP_LOGVV(TAG, "pcd_calculate_crc_() STATUS_OK");
     return STATUS_OK;
   }
-  if (millis() - awaiting_comm_time_ < 40)
+  if (millis() - awaiting_comm_time_ < 89)
     return STATUS_WAITING;
 
-  ESP_LOGVV(TAG, "pcd_calculate_crc_() TIMEOUT");
+  ESP_LOGD(TAG, "pcd_calculate_crc_() TIMEOUT");
   // 89ms passed and nothing happend. Communication with the MFRC522 might be down.
   return STATUS_TIMEOUT;
 }
