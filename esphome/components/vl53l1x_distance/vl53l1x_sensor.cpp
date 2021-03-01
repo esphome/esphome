@@ -87,11 +87,11 @@ bool VL53L1XSensor::begin() {
   // return _device->VL53L1X_SensorInit();
 
   int8_t status = 0;
-  uint8_t Addr = 0x00, dataReady = 0, timeout = 0;
+  uint8_t addr = 0x00, data_ready = 0, timeout = 0;
 
   // write the default configuration
-  for (Addr = 0x2D; Addr <= 0x87; Addr++) {
-    this->write_byte(Addr, VL51L1X_DEFAULT_CONFIGURATION[Addr - 0x2D]);
+  for (addr = 0x2D; addr <= 0x87; addr++) {
+    this->write_byte(addr, VL51L1X_DEFAULT_CONFIGURATION[addr - 0x2D]);
   }
   start_ranging();
 
@@ -114,14 +114,15 @@ bool VL53L1XSensor::begin() {
 /*Checks the ID of the device, returns true if ID is correct*/
 
 bool VL53L1XSensor::check_id() {
-  uint16_t sensorId;
+  uint16_t sensor_id;
   uint16_t tmp = 0;
 
   this->read_byte_16(VL53L1_IDENTIFICATION__MODEL_ID, &tmp);
-  sensorId = tmp;
+  sensor_id = tmp;
 
-  if (sensorId == 0xEACC)
+  if (sensor_id == 0xEACC){
     return true;
+  }
   return false;
 }
 
@@ -153,21 +154,21 @@ void VL53L1XSensor::stop_ranging() {
   this->write_byte(SYSTEM__MODE_START, 0x00); /* Disable VL53L1X */
 }
 
-bool VL53L1XSensor::check_for_data_ready(uint8_t *is_data_ready) {
+bool VL53L1XSensor::check_for_data_ready(uint8_t is_data_ready) {
   uint8_t data_ready;
-  uint8_t IntPol;
+  uint8_t int_pol;
   VL53L1X_ERROR status = 0;
 
   // translated from the library VL53L1X_GetInterruptPolarity();
-  uint8_t Temp;
-  status = this->read_byte(GPIO_HV_MUX__CTRL, &Temp);
-  Temp = Temp & 0x10;
-  IntPol = !(Temp >> 4);
+  uint8_t temp;
+  status = this->read_byte(GPIO_HV_MUX__CTRL, &temp);
+  temp = temp & 0x10;
+  int_pol = !(temp >> 4);
 
-  uint8_t Temp = 0;
-  status = this->read_byte(GPIO__TIO_HV_STATUS, &Temp);
+  uint8_t temp = 0;
+  status = this->read_byte(GPIO__TIO_HV_STATUS, &temp);
   if (status == 0) {
-    if ((Temp & 1) == IntPol)
+    if ((temp & 1) == int_pol)
       is_data_ready = 1;
     else
       is_data_ready = 0;
@@ -180,20 +181,20 @@ bool VL53L1XSensor::check_for_data_ready(uint8_t *is_data_ready) {
 int8_t VL53L1XSensor::apply_timing_budget_in_ms(uint16_t timing_budget_in_ms) {
   // _device->VL53L1X_SetTimingBudgetInMs(timingBudget);
   int8_t status = 0;
-  uint16_t DM;
+  uint16_t dm;
 
   // status = VL53L1X_GetDistanceMode(&DM);
-  uint8_t TempDM = 0;
+  uint8_t temp_dm = 0;
 
-  status = this->read_byte(PHASECAL_CONFIG__TIMEOUT_MACROP, &TempDM);
-  if (TempDM == 0x14)
-    DM = 1;
-  if (TempDM == 0x0A)
-    DM = 2;
+  status = this->read_byte(PHASECAL_CONFIG__TIMEOUT_MACROP, &temp_dm);
+  if (temp_dm == 0x14)
+    dm = 1;
+  if (temp_dm == 0x0A)
+    dm = 2;
 
-  if (DM == 0)
+  if (dm == 0)
     return 1;
-  else if (DM == 1) { /* Short DistanceMode */
+  else if (dm == 1) { /* Short DistanceMode */
     switch (timing_budget_in_ms) {
       case 15: /* only available in short distance mode */
         this->write_byte_16(RANGE_CONFIG__TIMEOUT_MACROP_A_HI, 0x01D);
@@ -267,11 +268,11 @@ uint16_t VL53L1XSensor::get_timing_budget_in_ms(uint16_t *p_timing_budget_in_ms)
   uint16_t timing_budget_in_ms;
   //_device->VL53L1X_GetTimingBudgetInMs(&timingBudget);
 
-  uint16_t Temp;
+  uint16_t temp;
   VL53L1X_ERROR status = 0;
 
-  status = this->read_byte(RANGE_CONFIG__TIMEOUT_MACROP_A_HI, &Temp);
-  switch (Temp) {
+  status = this->read_byte(RANGE_CONFIG__TIMEOUT_MACROP_A_HI, &temp);
+  switch (temp) {
     case 0x001D:
       timing_budget_in_ms = 15;
       break;
@@ -308,10 +309,10 @@ uint16_t VL53L1XSensor::get_timing_budget_in_ms(uint16_t *p_timing_budget_in_ms)
 }
 
 int8_t VL53L1XSensor::apply_distance_mode(DistanceMode mode) {
-  uint16_t TB;
+  uint16_t tb;
   VL53L1X_ERROR status = 0;
 
-  status = get_timing_budget_in_ms(&TB);
+  status = get_timing_budget_in_ms(&tb);
   switch (mode) {
     case SHORT:
       status = this->write_byte(PHASECAL_CONFIG__TIMEOUT_MACROP, 0x14);
@@ -334,7 +335,7 @@ int8_t VL53L1XSensor::apply_distance_mode(DistanceMode mode) {
     default:
       break;
   }
-  status = apply_timing_budget_in_ms(TB);
+  status = apply_timing_budget_in_ms(tb);
   return status;
 }
 
@@ -362,22 +363,22 @@ int8_t VL53L1XSensor::apply_distance_mode_short() { apply_distance_mode(Distance
 uint16_t VL53L1XSensor::get_roi_x() {
   VL53L1X_ERROR status = 0;
 
-  uint16_t ROI_X;
+  uint16_t roi_x;
   uint8_t tmp;
   status = this->read_byte(ROI_CONFIG__USER_ROI_REQUESTED_GLOBAL_XY_SIZE, &tmp);
-  ROI_X = ((uint16_t) tmp & 0x0F) + 1;
+  roi_x = ((uint16_t) tmp & 0x0F) + 1;
 
-  return ROI_X;
+  return roi_x;
 }
 
 uint16_t VL53L1XSensor::get_roi_y() {
   VL53L1X_ERROR status = 0;
-  uint16_t ROI_Y;
+  uint16_t roi_y;
   uint8_t tmp;
   status = this->read_byte(ROI_CONFIG__USER_ROI_REQUESTED_GLOBAL_XY_SIZE, &tmp);
-  ROI_Y = (((uint16_t) tmp & 0xF0) >> 4) + 1;
+  roi_y = (((uint16_t) tmp & 0xF0) >> 4) + 1;
 
-  return ROI_Y;
+  return roi_y;
 }
 
 // int8_t VL53L1XSensor::GetROI_XY(uint16_t *ROI_X, uint16_t *ROI_Y)

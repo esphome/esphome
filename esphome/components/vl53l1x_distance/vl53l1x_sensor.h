@@ -204,5 +204,5 @@ class VL53L1XSensor : public sensor::Sensor, public PollingComponent, public i2c
   //   uint8_t retry_count_{0};
 };
 
-}  // namespace vl53l1x
+}  // namespace vl53l1x_distance
 }  // namespace esphome
