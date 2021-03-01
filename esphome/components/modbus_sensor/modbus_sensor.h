@@ -22,7 +22,7 @@ class ModbusSensor : public PollingComponent, public modbus::ModbusDevice {
   void dump_config() override;
 
  protected:
-  std::vector<sensor::Sensor*> sensors_;
+  std::vector<sensor::Sensor *> sensors_;
   std::vector<uint8_t> sensors_length_;
   std::vector<bool> sensors_reverse_order_;
   uint16_t register_;
