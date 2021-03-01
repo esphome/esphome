@@ -7,7 +7,9 @@ from esphome.util import Registry
 from esphome.const import CONF_MQTT_ID, CONF_ID, ICON_CURRENT_AC, \
     UNIT_VOLT, ICON_FLASH, UNIT_AMPERE, UNIT_WATT, UNIT_EMPTY, CONF_BATTERY_VOLTAGE, \
     ICON_POWER, UNIT_CELSIUS, ICON_THERMOMETER, UNIT_PERCENT, ICON_PERCENT, ICON_BATTERY, \
-    ICON_MOLECULE_CO2, UNIT_MINUTE, UNIT_SECOND, ICON_EMPTY, CONF_ADDRESS, CONF_OFFSET
+    ICON_MOLECULE_CO2, UNIT_MINUTE, UNIT_SECOND, ICON_EMPTY, CONF_ADDRESS, CONF_OFFSET, \
+    DEVICE_CLASS_EMPTY, DEVICE_CLASS_CURRENT, DEVICE_CLASS_ENERGY, \
+    DEVICE_CLASS_TEMPERATURE, DEVICE_CLASS_VOLTAGE
 
 from .const import CONF_ARRAY_RATED_VOLTAGE, CONF_ARRAY_RATED_CURRENT, CONF_ARRAY_RATED_POWER, \
     CONF_BATTERY_RATED_VOLTAGE, CONF_BATTERY_RATED_CURRENT, CONF_BATTERY_RATED_POWER, \
@@ -99,16 +101,28 @@ binary_sensor_entry = binary_sensor.BINARY_SENSOR_SCHEMA.extend({
 def modbus_sensor_schema(
         modbus_functioncode_, register_address_, register_offset_,
         bitmask_, value_type_, scale_factor_,
-        unit_of_measurement_, icon_, accuracy_decimals_):
-    return sensor.sensor_schema(unit_of_measurement_, icon_, accuracy_decimals_, ).extend({
-        cv.Optional(CONF_MODBUS_FUNCTIONCODE, default=modbus_functioncode_):
-        cv.enum(MODBUS_FUNCTION_CODE),
-        cv.Optional(CONF_ADDRESS, default=register_address_): cv.int_,
-        cv.Optional(CONF_OFFSET, default=register_offset_): cv.int_,
-        cv.Optional(CONF_BITMASK, default=bitmask_): cv.int_,
-        cv.Optional(CONF_VALUE_TYPE, default=value_type_): cv.enum(SENSOR_VALUE_TYPE),
-        cv.Optional(CONF_SCALE_FACTOR, default=scale_factor_): cv.float_,
-    })
+        unit_of_measurement_, icon_, accuracy_decimals_, device_class_=DEVICE_CLASS_EMPTY):
+    if device_class_ == DEVICE_CLASS_EMPTY:
+        if unit_of_measurement_ == UNIT_AMPERE:
+            device_class_ = DEVICE_CLASS_CURRENT
+        if unit_of_measurement_ == UNIT_CELSIUS:
+            device_class_ = DEVICE_CLASS_TEMPERATURE
+        if unit_of_measurement_ == UNIT_KWATT_HOURS:
+            device_class_ = DEVICE_CLASS_ENERGY
+        if unit_of_measurement_ == UNIT_WATT:
+            device_class_ = DEVICE_CLASS_ENERGY
+        if unit_of_measurement_ == UNIT_VOLT:
+            device_class_ = DEVICE_CLASS_VOLTAGE
+    return sensor.sensor_schema(
+        unit_of_measurement_, icon_, accuracy_decimals_, device_class_).extend({
+            cv.Optional(CONF_MODBUS_FUNCTIONCODE, default=modbus_functioncode_):
+            cv.enum(MODBUS_FUNCTION_CODE),
+            cv.Optional(CONF_ADDRESS, default=register_address_): cv.int_,
+            cv.Optional(CONF_OFFSET, default=register_offset_): cv.int_,
+            cv.Optional(CONF_BITMASK, default=bitmask_): cv.int_,
+            cv.Optional(CONF_VALUE_TYPE, default=value_type_): cv.enum(SENSOR_VALUE_TYPE),
+            cv.Optional(CONF_SCALE_FACTOR, default=scale_factor_): cv.float_,
+        })
 
 
 def modbus_binarysensor_schema(

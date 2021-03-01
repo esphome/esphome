@@ -136,7 +136,7 @@ size_t ModbusComponent::create_register_ranges() {
   uint32_t first_sensorkey = ix->second->getkey();
 
   while (ix != sensormap.end()) {
-    auto diff = ix->second->start_address - prev->second->start_address;
+    size_t diff = ix->second->start_address - prev->second->start_address;
 
     if (diff > ix->second->get_register_size() || ix->second->register_type != prev->second->register_type) {
       // Difference doesn't match so we have a gap
