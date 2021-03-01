@@ -48,6 +48,7 @@ class RC522 : public PollingComponent {
     STATE_PICC_REQUEST_A,
     STATE_READ_SERIAL,
     STATE_SELECT_SERIAL,
+    STATE_SELECT_SERIAL_DONE,
     STATE_READ_SERIAL_DONE,
     STATE_DONE,
   } state_{STATE_NONE};
@@ -215,15 +216,14 @@ class RC522 : public PollingComponent {
 
   void pcd_transceive_data_(uint8_t send_len);
 
-  StatusCode pcd_calculate_crc_(
-      uint8_t *data,   ///< In: Pointer to the data to transfer to the FIFO for CRC calculation.
-      uint8_t length,  ///< In: The number of uint8_ts to transfer.
-      uint8_t *result  ///< Out: Pointer to result buffer. Result is written to result[0..1], low uint8_t first.
+  void pcd_calculate_crc_(uint8_t *data,  ///< In: Pointer to the data to transfer to the FIFO for CRC calculation.
+                          uint8_t length  ///< In: The number of uint8_ts to transfer.
   );
 
   bool awaiting_comm_;
   uint32_t awaiting_comm_time_;
   StatusCode await_communication_();
+  StatusCode await_crc_();
 
   uint8_t buffer_[9];       ///< buffer for communication, the first bits [0..back_idx-1] are for tx ,
                             ///< [back_idx..back_idx+back_len] for rx

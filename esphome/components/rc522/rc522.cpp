@@ -140,7 +140,11 @@ void RC522::loop() {
 
   StatusCode status = STATUS_ERROR;  // For lint passing. TODO: refactor this
   if (awaiting_comm_) {
-    status = await_communication_();
+    if (state_ == STATE_SELECT_SERIAL_DONE)
+      status = await_crc_();
+    else
+      status = await_communication_();
+
     if (status == STATUS_WAITING) {
       return;
     }
@@ -195,7 +199,11 @@ void RC522::loop() {
       buffer_[1] = 0x70;  // select
       // todo: set CRC
       buffer_[6] = buffer_[2] ^ buffer_[3] ^ buffer_[4] ^ buffer_[5];
-      pcd_calculate_crc_(buffer_, 7, &buffer_[7]);
+      pcd_calculate_crc_(buffer_, 7);
+      state_ = STATE_SELECT_SERIAL_DONE;
+      break;
+    }
+    case STATE_SELECT_SERIAL_DONE: {
       send_len_ = 6;
       pcd_transceive_data_(9);
       state_ = STATE_READ_SERIAL_DONE;
@@ -430,10 +438,8 @@ RC522::StatusCode RC522::await_communication_() {
  * @return STATUS_OK on success, STATUS_??? otherwise.
  */
 
-RC522::StatusCode RC522::pcd_calculate_crc_(
-    uint8_t *data,   ///< In: Pointer to the data to transfer to the FIFO for CRC calculation.
-    uint8_t length,  ///< In: The number of uint8_ts to transfer.
-    uint8_t *result  ///< Out: Pointer to result buffer. Result is written to result[0..1], low uint8_t first.
+void RC522::pcd_calculate_crc_(uint8_t *data,  ///< In: Pointer to the data to transfer to the FIFO for CRC calculation.
+                               uint8_t length  ///< In: The number of uint8_ts to transfer.
 ) {
   ESP_LOGVV(TAG, "pcd_calculate_crc_(..., %d, ...)", length);
   pcd_write_register(COMMAND_REG, PCD_IDLE);        // Stop any active command.
@@ -442,20 +448,28 @@ RC522::StatusCode RC522::pcd_calculate_crc_(
   pcd_write_register(FIFO_DATA_REG, length, data);  // Write data to the FIFO
   pcd_write_register(COMMAND_REG, PCD_CALC_CRC);    // Start the calculation
 
-  // Wait for the CRC calculation to complete. Each iteration of the while-loop takes 17.73μs.
-  for (uint16_t i = 5000; i > 0; i--) {
-    // DivIrqReg[7..0] bits are: Set2 reserved reserved MfinActIRq reserved CRCIRq reserved reserved
-    uint8_t n = pcd_read_register(DIV_IRQ_REG);
-    if (n & 0x04) {                               // CRCIRq bit set - calculation done
-      pcd_write_register(COMMAND_REG, PCD_IDLE);  // Stop calculating CRC for new content in the FIFO.
-      // Transfer the result from the registers to the result buffer
-      result[0] = pcd_read_register(CRC_RESULT_REG_L);
-      result[1] = pcd_read_register(CRC_RESULT_REG_H);
+  awaiting_comm_ = true;
+  awaiting_comm_time_ = millis();
+}
 
-      ESP_LOGVV(TAG, "pcd_calculate_crc_() STATUS_OK");
-      return STATUS_OK;
-    }
+RC522::StatusCode RC522::await_crc_() {
+  if (millis() - awaiting_comm_time_ < 2)  // wait at least 2 ms
+    return STATUS_WAITING;
+
+  // DivIrqReg[7..0] bits are: Set2 reserved reserved MfinActIRq reserved CRCIRq reserved reserved
+  uint8_t n = pcd_read_register(DIV_IRQ_REG);
+  if (n & 0x04) {                               // CRCIRq bit set - calculation done
+    pcd_write_register(COMMAND_REG, PCD_IDLE);  // Stop calculating CRC for new content in the FIFO.
+    // Transfer the result from the registers to the result buffer
+    buffer_[7] = pcd_read_register(CRC_RESULT_REG_L);
+    buffer_[8] = pcd_read_register(CRC_RESULT_REG_H);
+
+    ESP_LOGVV(TAG, "pcd_calculate_crc_() STATUS_OK");
+    return STATUS_OK;
   }
+  if (millis() - awaiting_comm_time_ < 40)
+    return STATUS_WAITING;
+
   ESP_LOGVV(TAG, "pcd_calculate_crc_() TIMEOUT");
   // 89ms passed and nothing happend. Communication with the MFRC522 might be down.
   return STATUS_TIMEOUT;
