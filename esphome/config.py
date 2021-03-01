@@ -389,15 +389,21 @@ def do_id_pass(result):  # type: (Config) -> None
                 )
 
         if id.id is None and id.type is not None:
+            matches = []
             for v in declare_ids:
                 if v[0] is None or not isinstance(v[0].type, MockObjClass):
                     continue
                 inherits = v[0].type.inherits_from(id.type)
                 if inherits:
-                    id.id = v[0].id
-                    break
-            else:
+                    matches.append(v[0].id)
+
+            if len(matches) == 0:
                 result.add_str_error(f"Couldn't resolve ID for type '{id.type}'", path)
+            elif len(matches) == 1:
+                id.id = matches[0]
+            elif len(matches) > 1:
+                result.add_str_error(
+                    f"Too many candidates found for '{path[-1]}' type '{id.type}' Some are '{matches[0]}' and '{matches[1]}'", path)
 
 
 def recursive_check_replaceme(value):
