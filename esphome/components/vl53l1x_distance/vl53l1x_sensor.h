@@ -5,6 +5,9 @@
 #include "esphome/components/i2c/i2c.h"
 #include "vl53l1_error_codes.h"
 
+namespace esphome {
+namespace vl53l1x {
+
 // imported from vl531lx_class.h
 
 // typedef int8_t VL53L1X_ERROR;
@@ -55,7 +58,7 @@ static const uint16_t VL53L1_ROI_CONFIG__MODE_ROI_CENTRE_SPAD = 0x013E;
 static const uint8_t VL53L1X_DEFAULT_DEVICE_ADDRESS = 0x52;
 
 // imported from vl531lx_class.cpp
-const uint8_t VL51L1X_DEFAULT_CONFIGURATION[]{
+static const uint8_t VL51L1X_DEFAULT_CONFIGURATION[]{
     0x00, /* 0x2d : set bit 2 and 5 to 1 for fast plus mode (1MHz I2C), else don't touch */
     0x01, /* 0x2e : bit 0 if I2C pulled up at 1.8V, else set bit 0 to 1 (pull up at AVDD) */
     0x01, /* 0x2f : bit 0 if GPIO pulled up at 1.8V, else set bit 0 to 1 (pull up at AVDD) */
@@ -153,9 +156,6 @@ const uint8_t VL51L1X_DEFAULT_CONFIGURATION[]{
              VL53L1X_init() call, put 0x40 in location 0x87 */
 };
 //
-
-namespace esphome {
-namespace vl53l1x {
 
 enum DistanceMode { SHORT, MEDIUM, LONG };
 

@@ -16,10 +16,10 @@ void VL53L1XSensor::setup() {
   ESP_LOGCONFIG(TAG, "Setting up VL53L1X...");
   // begin and log if not connected
   if (begin() != 0) {
-    ESP_LOGW(TAG, "'%s' - failed to begin. Please check wiring.", this->name_.c_str());
+    ESP_LOGW(TAG, "%s- failed to begin. Please check wiring.", this->name_.c_str());
   }
 
-  set_distance_mode(static_cast<DistanceMode>(distance_mode_));
+  apply_distance_mode(static_cast<DistanceMode>(distance_mode_));
   switch (distance_mode_) {
     case DistanceMode::SHORT:
       if (timing_budget_ < 20)
@@ -45,7 +45,7 @@ void VL53L1XSensor::update() {
     // VL53L1X_clearInterrupt();
     stop_ranging();
     float distance_m = static_cast<float>(distance_mm) / 1000.0;
-    ESP_LOGD(TAG, "'%s' - Got distance %.3f m", this->name_.c_str(), distance_m);
+    ESP_LOGD(TAG, "%s - Got distance %.3f m", this->name_.c_str(), distance_m);
     this->publish_state(distance_m);
   }
 }
@@ -59,10 +59,10 @@ void VL53L1XSensor::loop() {
     // VL53L1X_clearInterrupt();
     stop_ranging();
     float distance_m = static_cast<float>(distance_mm) / 1000.0;
-    ESP_LOGD(TAG, "'%s' - Got distance %.3f m", this->name_.c_str(), distance_m);
+    ESP_LOGD(TAG, "%s - Got distance %.3f m", this->name_.c_str(), distance_m);
     this->publish_state(distance_m);
   } else {
-    ESP_LOGW(TAG, "'%s' - There is an error data not ready.", this->name_.c_str());
+    ESP_LOGW(TAG, "%s- There is an error data not ready.", this->name_.c_str());
     this->publish_state(NAN);
   }
 
@@ -160,7 +160,6 @@ bool VL53L1XSensor::check_for_data_ready(uint8_t *is_data_ready) {
 
   // translated from the library VL53L1X_GetInterruptPolarity();
   uint8_t Temp;
-
   status = this->read_byte(GPIO_HV_MUX__CTRL, &Temp);
   Temp = Temp & 0x10;
   IntPol = !(Temp >> 4);
