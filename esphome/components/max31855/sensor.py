@@ -1,16 +1,17 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import sensor, spi
-from esphome.const import CONF_ID, CONF_REFERENCE_TEMPERATURE, ICON_THERMOMETER, UNIT_CELSIUS
+from esphome.const import CONF_ID, CONF_REFERENCE_TEMPERATURE, DEVICE_CLASS_TEMPERATURE, \
+    ICON_EMPTY, UNIT_CELSIUS
 
 max31855_ns = cg.esphome_ns.namespace('max31855')
 MAX31855Sensor = max31855_ns.class_('MAX31855Sensor', sensor.Sensor, cg.PollingComponent,
                                     spi.SPIDevice)
 
-CONFIG_SCHEMA = sensor.sensor_schema(UNIT_CELSIUS, ICON_THERMOMETER, 1).extend({
+CONFIG_SCHEMA = sensor.sensor_schema(UNIT_CELSIUS, ICON_EMPTY, 1, DEVICE_CLASS_TEMPERATURE).extend({
     cv.GenerateID(): cv.declare_id(MAX31855Sensor),
     cv.Optional(CONF_REFERENCE_TEMPERATURE):
-        sensor.sensor_schema(UNIT_CELSIUS, ICON_THERMOMETER, 2),
+        sensor.sensor_schema(UNIT_CELSIUS, ICON_EMPTY, 2, DEVICE_CLASS_TEMPERATURE),
 }).extend(cv.polling_component_schema('60s')).extend(spi.spi_device_schema())
 
 

@@ -2,12 +2,13 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
 from esphome.components import sensor
-from esphome.const import CONF_ID, CONF_LAMBDA, CONF_STATE, UNIT_EMPTY, ICON_EMPTY
+from esphome.const import CONF_ID, CONF_LAMBDA, CONF_STATE, DEVICE_CLASS_EMPTY, UNIT_EMPTY, \
+    ICON_EMPTY
 from .. import template_ns
 
 TemplateSensor = template_ns.class_('TemplateSensor', sensor.Sensor, cg.PollingComponent)
 
-CONFIG_SCHEMA = sensor.sensor_schema(UNIT_EMPTY, ICON_EMPTY, 1).extend({
+CONFIG_SCHEMA = sensor.sensor_schema(UNIT_EMPTY, ICON_EMPTY, 1, DEVICE_CLASS_EMPTY).extend({
     cv.GenerateID(): cv.declare_id(TemplateSensor),
     cv.Optional(CONF_LAMBDA): cv.returning_lambda,
 }).extend(cv.polling_component_schema('60s'))
