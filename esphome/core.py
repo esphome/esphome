@@ -339,7 +339,8 @@ class DocumentLocation:
 
     @property
     def as_line_directive(self):
-        return f'#line {self.line + 1} "{self.document}"'
+        document_path = str(self.document).replace('\\', '\\\\')
+        return f'#line {self.line + 1} "{document_path}"'
 
 
 class DocumentRange:
