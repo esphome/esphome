@@ -9,25 +9,34 @@ namespace modbus_sensor {
 
 static const uint8_t READ_REGISTERS_FUNCTION = 0x04;
 
+enum RegisterType {
+  REGISTER_TYPE_16BIT,
+  REGISTER_TYPE_32BIT,
+  REGISTER_TYPE_32BIT_REVERSED
+};
+
+struct Register
+{
+  sensor::Sensor *sensor;
+  RegisterType register_type;
+};
+
 class ModbusSensor : public PollingComponent, public modbus::ModbusDevice {
  public:
-  void set_sensor(sensor::Sensor *sensor) { sensors_.push_back(sensor); }
-  void set_sensor_reverse_order(bool reverse_order) { sensors_reverse_order_.push_back(reverse_order); }
-  void set_register(uint16_t register_address) { this->register_ = register_address; }
+  void set_register_address(uint16_t register_address) { this->register_address_ = register_address; }
   void set_register_count(uint16_t register_count) { this->register_count_ = register_count; }
-  void update() override { this->send(READ_REGISTERS_FUNCTION, register_, register_count_); }
+  void update() override { this->send(READ_REGISTERS_FUNCTION, register_address_, register_count_); }
 
-  void set_sensor_length(uint8_t length);
+  void set_sensor(sensor::Sensor *sensor, RegisterType register_type);
   void on_modbus_data(const std::vector<uint8_t> &data) override;
   void dump_config() override;
 
  protected:
-  std::vector<sensor::Sensor *> sensors_;
+  std::vector<Register> registers_;
   std::vector<uint8_t> sensors_length_;
   std::vector<bool> sensors_reverse_order_;
-  uint16_t register_;
-  uint16_t register_count_;
-  uint16_t response_size_;
+  uint16_t register_address_;
+  uint16_t register_count_ = 0;
 };
 
 }  // namespace modbus_sensor

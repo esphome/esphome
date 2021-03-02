@@ -6,18 +6,19 @@ namespace modbus_sensor {
 
 static const char *TAG = "modbus.sensor";
 
-void ModbusSensor::set_sensor_length(uint8_t length) {
-  sensors_length_.push_back(length);
-  this->response_size_ = 0;
-  for (int i = 0; i < this->sensors_.size(); i++) {
-    this->response_size_ += this->sensors_length_[i] * 2;
+void ModbusSensor::set_sensor(sensor::Sensor *sensor, RegisterType register_type) {
+  this->registers_.push_back({sensor, register_type});
+  if (register_type == REGISTER_TYPE_16BIT) {
+    this->register_count_ += 2;
+  } else {
+    this->register_count_ += 4;
   }
 }
 
 void ModbusSensor::on_modbus_data(const std::vector<uint8_t> &data) {
   // Skip if data size doesn't mach the expected size
-  if (data.size() != this->response_size_) {
-    ESP_LOGV(TAG, "Skip data - size %lu - expected size: %d", data.size(), this->response_size_);
+  if (data.size() != this->register_count_) {
+    ESP_LOGV(TAG, "Skip data - size %lu - expected size: %d", data.size(), this->register_count_);
     return;
   }
 
@@ -31,21 +32,19 @@ void ModbusSensor::on_modbus_data(const std::vector<uint8_t> &data) {
     return (uint32_t(get_16bit_value(i + 0)) << 16) | (uint32_t(get_16bit_value(i + 2)) << 0);
   };
 
+  RegisterType register_type;
   uint16_t value;
   uint16_t start = 0;
-  for (uint16_t i = 0; i < this->sensors_.size(); i++) {
-    if (this->sensors_length_[i] == 1) {
+  for (uint16_t i = 0; i < this->registers_.size(); i++) {
+    register_type = this->registers_[i].register_type;
+    if (register_type == REGISTER_TYPE_16BIT) {
       value = get_16bit_value(start);
-      this->sensors_[i]->publish_state(value);
-    } else if (this->sensors_length_[i] == 2) {
-      if (this->sensors_reverse_order_[i]) {
-        value = get_32bit_value_reverse(start);
-      } else {
-        value = get_32bit_value(start);
-      }
-      this->sensors_[i]->publish_state(value);
+    } else if (register_type == REGISTER_TYPE_32BIT) {
+      value = get_32bit_value(start);
+    } else {
+      value = get_32bit_value_reverse(start);
     }
-
+    this->registers_[i].sensor->publish_state(value);
     start += this->sensors_length_[i] * 2;
   }
 }
@@ -53,18 +52,21 @@ void ModbusSensor::on_modbus_data(const std::vector<uint8_t> &data) {
 void ModbusSensor::dump_config() {
   ESP_LOGCONFIG(TAG, "ModbusSensor:");
   ESP_LOGCONFIG(TAG, "  Address: %d", this->address_);
-  ESP_LOGCONFIG(TAG, "  Register: %d", this->register_);
-  const char *reverse_order;
-  for (uint16_t i = 0; i < this->sensors_.size(); i++) {
-    if (this->sensors_reverse_order_[i]) {
-      reverse_order = "true";
+  ESP_LOGCONFIG(TAG, "  Register address: %d", this->register_address_);
+  const char *register_type;
+  for (uint16_t i = 0; i < this->registers_.size(); i++) {
+    if (this->registers_[i].register_type == REGISTER_TYPE_16BIT) {
+      register_type = "16bit";
+    } else if (this->registers_[i].register_type == REGISTER_TYPE_32BIT) {
+      register_type = "32bit";
+    } else if (this->registers_[i].register_type == REGISTER_TYPE_32BIT_REVERSED) {
+      register_type = "32bit_reversed";
     } else {
-      reverse_order = "false";
+          register_type = "";
     }
     ESP_LOGCONFIG(TAG, "  Sensor %d:", i);
-    ESP_LOGCONFIG(TAG, "    Lenght: %d", this->sensors_length_[i]);
-    ESP_LOGCONFIG(TAG, "    Reverse order: %s", reverse_order);
-    LOG_SENSOR("  ", "  Name: ", this->sensors_[i]);
+    ESP_LOGCONFIG(TAG, "    Register type: %s", register_type);
+    LOG_SENSOR("  ", "  Name: ", this->registers_[i].sensor);
   }
 }
 
