@@ -62,7 +62,7 @@ void ModbusSensor::dump_config() {
     } else if (this->registers_[i].register_type == REGISTER_TYPE_32BIT_REVERSED) {
       register_type = "32bit_reversed";
     } else {
-          register_type = "";
+      register_type = "";
     }
     ESP_LOGCONFIG(TAG, "  Sensor %d:", i);
     ESP_LOGCONFIG(TAG, "    Register type: %s", register_type);

@@ -9,14 +9,9 @@ namespace modbus_sensor {
 
 static const uint8_t READ_REGISTERS_FUNCTION = 0x04;
 
-enum RegisterType {
-  REGISTER_TYPE_16BIT,
-  REGISTER_TYPE_32BIT,
-  REGISTER_TYPE_32BIT_REVERSED
-};
+enum RegisterType { REGISTER_TYPE_16BIT, REGISTER_TYPE_32BIT, REGISTER_TYPE_32BIT_REVERSED };
 
-struct Register
-{
+struct Register {
   sensor::Sensor *sensor;
   RegisterType register_type;
 };
