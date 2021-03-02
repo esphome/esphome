@@ -1,8 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import sensor, modbus
-from esphome.const import CONF_ID, CONF_LENGTH, CONF_SENSORS, \
-    DEVICE_CLASS_EMPTY, ICON_EMPTY, UNIT_EMPTY
+from esphome.const import CONF_ID, CONF_SENSORS, DEVICE_CLASS_EMPTY, ICON_EMPTY, UNIT_EMPTY
 
 
 modbus_sensor_ns = cg.esphome_ns.namespace('modbus_sensor')
