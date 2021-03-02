@@ -4,7 +4,7 @@
 namespace esphome {
 namespace modbus_sensor {
 
-static const char *TAG = "modbus_sensor";
+static const char *TAG = "modbus.sensor";
 
 void ModbusSensor::set_sensor_length(uint8_t length) {
   sensors_length_.push_back(length);
