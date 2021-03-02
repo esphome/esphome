@@ -39,7 +39,7 @@ CONFIG_SCHEMA = cv.Schema({
                                                                  max_included=False)),
     cv.Optional(CONF_AMBIENT_PRESSURE_COMPENSATION, default=0): cv.pressure,
     cv.Optional(CONF_TEMPERATURE_OFFSET): cv.temperature,
-}).extend(cv.polling_component_schema('60s')).extend(i2c.i2c_device_schema(0x61))
+}).extend(cv.polling_component_schema('60s')).extend(i2c.i2c_device_schema(0x62))
 
 
 def to_code(config):
