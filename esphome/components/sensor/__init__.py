@@ -147,8 +147,10 @@ device_class = cv.one_of(*DEVICE_CLASSES, lower=True, space="_")
 SENSOR_SCHEMA = cv.MQTT_COMPONENT_SCHEMA.extend(
     {
         cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTSensorComponent),
-        cv.OnlyWith(lora.CONF_LORA_ID, "lora"): cv.declare_id(lora.LoraSensorComponent),
-        # cv.Optional(lora.CONF_SEND_TO_LORA, default=False): cv.boolean,
+        cv.OnlyWith(lora.CONF_LORA_ID, "lora"): cv.use_id(lora.LoraComponent),
+        cv.OnlyWith(lora.CONF_SEND_TO_LORA, "lora", default=False): cv.boolean,
+        cv.OnlyWith(lora.CONF_RECEIVE_FROM_LORA, "lora", default=False): cv.boolean,
+        cv.OnlyWith(lora.CONF_LORA_NAME, "lora", default=""): cv.valid_name,
         cv.GenerateID(): cv.declare_id(Sensor),
         cv.Optional(CONF_UNIT_OF_MEASUREMENT): unit_of_measurement,
         cv.Optional(CONF_ICON): icon,
@@ -484,8 +486,16 @@ def setup_sensor_core_(var, config):
         yield automation.build_automation(trigger, [(float, "x")], conf)
 
     if lora.CONF_LORA_ID in config:
-        lora_ = cg.new_Pvariable(config[lora.CONF_LORA_ID], var)
-        yield cg.register_component(lora_, config)
+        send_to_lora = config[lora.CONF_SEND_TO_LORA] is True
+        receive_from_lora = config[lora.CONF_RECEIVE_FROM_LORA] is True
+        if send_to_lora is True or receive_from_lora is True:
+            parent = yield cg.get_variable(config[lora.CONF_LORA_ID])
+            lora_name = ""
+            if lora.CONF_LORA_NAME in config:
+                lora_name = config[lora.CONF_LORA_NAME]
+            cg.add(
+                parent.register_sensor(var, send_to_lora, receive_from_lora, lora_name)
+            )
 
     if CONF_MQTT_ID in config:
         mqtt_ = cg.new_Pvariable(config[CONF_MQTT_ID], var)

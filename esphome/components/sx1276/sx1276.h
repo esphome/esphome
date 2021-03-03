@@ -2,6 +2,7 @@
 #include "esphome/core/component.h"
 #include "esphome/components/lora/lora_component.h"
 #include "esphome/components/spi/spi.h"
+#include <regex>
 
 namespace esphome {
 namespace sx1276 {
@@ -12,11 +13,14 @@ static const uint8_t REG_FRF_MSB = 0x06;
 static const uint8_t REG_FRF_MID = 0x07;
 static const uint8_t REG_FRF_LSB = 0x08;
 static const uint8_t REG_PA_CONFIG = 0x09;
+static const uint8_t REG_FIFO_RX_CURRENT_ADDR = 0x10;
 static const uint8_t REG_LNA = 0x0c;
 static const uint8_t REG_FIFO_ADDR_PTR = 0x0d;
 static const uint8_t REG_FIFO_TX_BASE_ADDR = 0x0e;
 static const uint8_t REG_FIFO_RX_BASE_ADDR = 0x0f;
 static const uint8_t REG_IRQ_FLAGS = 0x12;
+static const uint8_t REG_RX_NB_BYTES = 0x13;
+static const uint8_t REG_PKT_RSSI_VALUE = 0x1a;
 static const uint8_t REG_MODEM_CONFIG_1 = 0x1d;
 static const uint8_t REG_MODEM_CONFIG_2 = 0x1e;
 static const uint8_t REG_PAYLOAD_LENGTH = 0x22;
@@ -32,12 +36,15 @@ static const uint8_t MODE_SLEEP = 0x00;
 static const uint8_t MODE_STDBY = 0x01;
 static const uint8_t MODE_TX = 0x03;
 static const uint8_t MODE_RX_CONTINUOUS = 0x05;
+static const uint8_t MODE_RX_SINGLE = 0x06;
 
 // PA config
 // static const uint8_t PA_BOOST                 0x80
 // static const uint8_t RFO                      0x70
 // IRQ masks
 static const uint8_t IRQ_TX_DONE_MASK = 0x08;
+static const uint8_t IRQ_PAYLOAD_CRC_ERROR_MASK = 0x20;
+static const uint8_t IRQ_RX_DONE_MASK = 0x40;
 
 /*!
  * RegPaConfig
@@ -64,7 +71,7 @@ class SX1276 : public lora::LoraComponent,
  public:
   void setup() override;
   void dump_config() override;
-  // void update() override;
+  void loop() override;
 
   void set_di0_pin(GPIOPin *di0_pin) { this->di0_pin_ = di0_pin; }
   void set_rst_pin(GPIOPin *rst_pin) { this->rst_pin_ = rst_pin; }
@@ -90,13 +97,19 @@ class SX1276 : public lora::LoraComponent,
   size_t write(const char *buffer, int size);
   void send_printf(const char *format, ...) override __attribute__((format(printf, 2, 3)));
   void receive(int size = 0);
+  int parse_packet(int size = 0);
+  int packet_rssi();
+  int available();
+  int read();
 
  protected:
   GPIOPin *di0_pin_{nullptr};
   GPIOPin *rst_pin_{nullptr};
   uint16_t band_;
+  long frequency_;
   uint8_t implicit_header_mode_;
   unsigned int counter_ = 0;
+  uint8_t packet_index_ = 0;
 };
 }  // namespace sx1276
 }  // namespace esphome

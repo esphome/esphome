@@ -1,5 +1,7 @@
+
 import esphome.codegen as cg
 import esphome.config_validation as cv
+
 
 # rom esphome.const import CONF_ID
 
@@ -7,6 +9,9 @@ IS_PLATFORM_COMPONENT = True
 
 CONF_LORA_ID = "lora_id"
 CONF_SEND_TO_LORA = "send_to_lora"
+CONF_RECEIVE_FROM_LORA = "receive_from_lora"
+CONF_SYNC_WORD = "sync_word"
+CONF_LORA_NAME = "lora_name"
 
 # Base
 lora_ns = cg.esphome_ns.namespace('lora')
@@ -16,12 +21,10 @@ LoraPtr = Lora.operator('ptr')
 LoraComponent = lora_ns.class_(
     'LoraComponent', cg.Component)
 
-LoraSensorComponent = lora_ns.class_(
-    'LoraSensorComponent', LoraComponent)
-
 
 LORA_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(LoraComponent),
+    cv.Required(CONF_SYNC_WORD): cv.hex_int_range(min=0x00, max=0xFF)
 })
 
 

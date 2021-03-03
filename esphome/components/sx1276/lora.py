@@ -52,3 +52,5 @@ def to_code(config):
     cg.add(var.set_rst_pin(rst))
 
     cg.add(var.set_band(config[CONF_BAND]))
+
+    cg.add(var.set_sync_word_internal(config[lora.CONF_SYNC_WORD]))
