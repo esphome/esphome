@@ -223,7 +223,7 @@ void HOT WaveshareEPaperTypeA::display() {
     return;
   }
 
-  if (this->full_update_every_ >= 2) {
+  if (this->full_update_every_ >= 1) {
     if (full_update != prev_full_update) {
       if (this->model_ == TTGO_EPAPER_2_13_IN) {
         this->write_lut_(full_update ? FULL_UPDATE_LUT_TTGO : PARTIAL_UPDATE_LUT_TTGO, LUT_SIZE_TTGO);
