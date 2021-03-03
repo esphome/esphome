@@ -1,7 +1,8 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import i2c, sensor
-from esphome.const import CONF_GAIN, CONF_ID, CONF_INTEGRATION_TIME, UNIT_LUX, ICON_BRIGHTNESS_5
+from esphome.const import CONF_GAIN, CONF_ID, CONF_INTEGRATION_TIME, DEVICE_CLASS_ILLUMINANCE, \
+    ICON_EMPTY, UNIT_LUX
 
 DEPENDENCIES = ['i2c']
 
@@ -30,7 +31,7 @@ def validate_integration_time(value):
 TSL2561Sensor = tsl2561_ns.class_('TSL2561Sensor', sensor.Sensor, cg.PollingComponent,
                                   i2c.I2CDevice)
 
-CONFIG_SCHEMA = sensor.sensor_schema(UNIT_LUX, ICON_BRIGHTNESS_5, 1).extend({
+CONFIG_SCHEMA = sensor.sensor_schema(UNIT_LUX, ICON_EMPTY, 1, DEVICE_CLASS_ILLUMINANCE).extend({
     cv.GenerateID(): cv.declare_id(TSL2561Sensor),
     cv.Optional(CONF_INTEGRATION_TIME, default='402ms'): validate_integration_time,
     cv.Optional(CONF_GAIN, default='1X'): cv.enum(GAINS, upper=True),

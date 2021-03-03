@@ -1,7 +1,8 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import sensor, spi
-from esphome.const import CONF_ID, CONF_MAINS_FILTER, ICON_THERMOMETER, UNIT_CELSIUS
+from esphome.const import CONF_ID, CONF_MAINS_FILTER, DEVICE_CLASS_TEMPERATURE, ICON_EMPTY, \
+    UNIT_CELSIUS
 
 max31856_ns = cg.esphome_ns.namespace('max31856')
 MAX31856Sensor = max31856_ns.class_('MAX31856Sensor', sensor.Sensor, cg.PollingComponent,
@@ -13,7 +14,7 @@ FILTER = {
     '60HZ': MAX31865ConfigFilter.FILTER_60HZ,
 }
 
-CONFIG_SCHEMA = sensor.sensor_schema(UNIT_CELSIUS, ICON_THERMOMETER, 1).extend({
+CONFIG_SCHEMA = sensor.sensor_schema(UNIT_CELSIUS, ICON_EMPTY, 1, DEVICE_CLASS_TEMPERATURE).extend({
     cv.GenerateID(): cv.declare_id(MAX31856Sensor),
     cv.Optional(CONF_MAINS_FILTER, default='60HZ'): cv.enum(FILTER, upper=True, space=''),
 }).extend(cv.polling_component_schema('60s')).extend(spi.spi_device_schema())

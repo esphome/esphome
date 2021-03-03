@@ -1,8 +1,8 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import sensor, modbus
-from esphome.const import CONF_CURRENT, CONF_ID, CONF_POWER, CONF_VOLTAGE, \
-    UNIT_VOLT, ICON_FLASH, UNIT_AMPERE, UNIT_WATT, ICON_POWER, ICON_CURRENT_AC
+from esphome.const import CONF_CURRENT, CONF_ID, CONF_POWER, CONF_VOLTAGE, DEVICE_CLASS_CURRENT, \
+    DEVICE_CLASS_POWER, DEVICE_CLASS_VOLTAGE, ICON_EMPTY, UNIT_VOLT, UNIT_AMPERE, UNIT_WATT
 
 AUTO_LOAD = ['modbus']
 
@@ -11,9 +11,11 @@ PZEMDC = pzemdc_ns.class_('PZEMDC', cg.PollingComponent, modbus.ModbusDevice)
 
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(PZEMDC),
-    cv.Optional(CONF_VOLTAGE): sensor.sensor_schema(UNIT_VOLT, ICON_FLASH, 1),
-    cv.Optional(CONF_CURRENT): sensor.sensor_schema(UNIT_AMPERE, ICON_CURRENT_AC, 3),
-    cv.Optional(CONF_POWER): sensor.sensor_schema(UNIT_WATT, ICON_POWER, 1),
+    cv.Optional(CONF_VOLTAGE): sensor.sensor_schema(UNIT_VOLT, ICON_EMPTY, 1, DEVICE_CLASS_VOLTAGE),
+    cv.Optional(CONF_CURRENT): sensor.sensor_schema(UNIT_AMPERE, ICON_EMPTY, 3,
+                                                    DEVICE_CLASS_CURRENT),
+    cv.Optional(CONF_POWER): sensor.sensor_schema(UNIT_WATT, ICON_EMPTY, 1,
+                                                  DEVICE_CLASS_POWER),
 }).extend(cv.polling_component_schema('60s')).extend(modbus.modbus_device_schema(0x01))
 
 

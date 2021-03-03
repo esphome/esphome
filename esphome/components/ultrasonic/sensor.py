@@ -3,7 +3,7 @@ import esphome.config_validation as cv
 from esphome import pins
 from esphome.components import sensor
 from esphome.const import CONF_ECHO_PIN, CONF_ID, CONF_TRIGGER_PIN, \
-    CONF_TIMEOUT, UNIT_METER, ICON_ARROW_EXPAND_VERTICAL
+    CONF_TIMEOUT, DEVICE_CLASS_EMPTY, UNIT_METER, ICON_ARROW_EXPAND_VERTICAL
 
 CONF_PULSE_TIME = 'pulse_time'
 
@@ -11,7 +11,9 @@ ultrasonic_ns = cg.esphome_ns.namespace('ultrasonic')
 UltrasonicSensorComponent = ultrasonic_ns.class_('UltrasonicSensorComponent',
                                                  sensor.Sensor, cg.PollingComponent)
 
-CONFIG_SCHEMA = sensor.sensor_schema(UNIT_METER, ICON_ARROW_EXPAND_VERTICAL, 2).extend({
+CONFIG_SCHEMA = sensor.sensor_schema(
+    UNIT_METER, ICON_ARROW_EXPAND_VERTICAL, 2, DEVICE_CLASS_EMPTY
+).extend({
     cv.GenerateID(): cv.declare_id(UltrasonicSensorComponent),
     cv.Required(CONF_TRIGGER_PIN): pins.gpio_output_pin_schema,
     cv.Required(CONF_ECHO_PIN): pins.internal_gpio_input_pin_schema,

@@ -1,9 +1,9 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import i2c, sensor
-from esphome.const import CONF_COLOR_TEMPERATURE, CONF_GAIN, CONF_ID, \
-    CONF_ILLUMINANCE, CONF_INTEGRATION_TIME, ICON_LIGHTBULB, \
-    UNIT_PERCENT, ICON_THERMOMETER, UNIT_KELVIN, ICON_BRIGHTNESS_5, UNIT_LUX
+from esphome.const import CONF_COLOR_TEMPERATURE, CONF_GAIN, CONF_ID, CONF_ILLUMINANCE, \
+    CONF_INTEGRATION_TIME, DEVICE_CLASS_EMPTY, DEVICE_CLASS_ILLUMINANCE, ICON_EMPTY, \
+    ICON_LIGHTBULB, UNIT_PERCENT, ICON_THERMOMETER, UNIT_KELVIN, UNIT_LUX
 
 DEPENDENCIES = ['i2c']
 
@@ -33,9 +33,10 @@ TCS34725_GAINS = {
     '60X': TCS34725Gain.TCS34725_GAIN_60X,
 }
 
-color_channel_schema = sensor.sensor_schema(UNIT_PERCENT, ICON_LIGHTBULB, 1)
-color_temperature_schema = sensor.sensor_schema(UNIT_KELVIN, ICON_THERMOMETER, 1)
-illuminance_schema = sensor.sensor_schema(UNIT_LUX, ICON_BRIGHTNESS_5, 1)
+color_channel_schema = sensor.sensor_schema(UNIT_PERCENT, ICON_LIGHTBULB, 1, DEVICE_CLASS_EMPTY)
+color_temperature_schema = sensor.sensor_schema(UNIT_KELVIN, ICON_THERMOMETER, 1,
+                                                DEVICE_CLASS_EMPTY)
+illuminance_schema = sensor.sensor_schema(UNIT_LUX, ICON_EMPTY, 1, DEVICE_CLASS_ILLUMINANCE)
 
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(TCS34725Component),

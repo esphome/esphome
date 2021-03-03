@@ -2,8 +2,9 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins, automation
 from esphome.components import sensor
-from esphome.const import CONF_ID, CONF_RESOLUTION, CONF_MIN_VALUE, CONF_MAX_VALUE, UNIT_STEPS, \
-    ICON_ROTATE_RIGHT, CONF_VALUE, CONF_PIN_A, CONF_PIN_B, CONF_TRIGGER_ID
+from esphome.const import CONF_ID, CONF_RESOLUTION, CONF_MIN_VALUE, CONF_MAX_VALUE, \
+    DEVICE_CLASS_EMPTY, UNIT_STEPS, ICON_ROTATE_RIGHT, CONF_VALUE, CONF_PIN_A, CONF_PIN_B, \
+    CONF_TRIGGER_ID
 
 rotary_encoder_ns = cg.esphome_ns.namespace('rotary_encoder')
 RotaryEncoderResolution = rotary_encoder_ns.enum('RotaryEncoderResolution')
@@ -37,7 +38,9 @@ def validate_min_max_value(config):
     return config
 
 
-CONFIG_SCHEMA = cv.All(sensor.sensor_schema(UNIT_STEPS, ICON_ROTATE_RIGHT, 0).extend({
+CONFIG_SCHEMA = cv.All(sensor.sensor_schema(
+    UNIT_STEPS, ICON_ROTATE_RIGHT, 0, DEVICE_CLASS_EMPTY
+).extend({
     cv.GenerateID(): cv.declare_id(RotaryEncoderSensor),
     cv.Required(CONF_PIN_A): cv.All(pins.internal_gpio_input_pin_schema,
                                     pins.validate_has_interrupt),
