@@ -486,16 +486,7 @@ def setup_sensor_core_(var, config):
         yield automation.build_automation(trigger, [(float, "x")], conf)
 
     if lora.CONF_LORA_ID in config:
-        send_to_lora = config[lora.CONF_SEND_TO_LORA] is True
-        receive_from_lora = config[lora.CONF_RECEIVE_FROM_LORA] is True
-        if send_to_lora is True or receive_from_lora is True:
-            parent = yield cg.get_variable(config[lora.CONF_LORA_ID])
-            lora_name = ""
-            if lora.CONF_LORA_NAME in config:
-                lora_name = config[lora.CONF_LORA_NAME]
-            cg.add(
-                parent.register_sensor(var, send_to_lora, receive_from_lora, lora_name)
-            )
+        yield lora.register_lora_component(var, config, 0)
 
     if CONF_MQTT_ID in config:
         mqtt_ = cg.new_Pvariable(config[CONF_MQTT_ID], var)

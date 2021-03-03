@@ -107,6 +107,9 @@ void SX1276::loop() {
     }
 
     if (full_packet) {
+      if (this->available())
+        ESP_LOGE(TAG, "full packet and more to available");
+
       ESP_LOGD(TAG, "stringToSplit %s", string_to_split.c_str());
 
       std::vector<std::string> c(
@@ -114,8 +117,8 @@ void SX1276::loop() {
           {});
 
       lora_packet.appname = c[0];
-      lora_packet.data_type = strtol(c[1].c_str(), nullptr, 10);
-      lora_packet.sensor_name = c[2];
+      lora_packet.component_type = strtol(c[1].c_str(), nullptr, 10);
+      lora_packet.component_name = c[2];
 
       auto state = parse_float(c[3]);
       if (!state.has_value()) {
@@ -123,17 +126,6 @@ void SX1276::loop() {
         return;
       }
       lora_packet.state = *state;
-
-      // lora_packet.device_class = c[4];
-      // lora_packet.icon = c[5];
-      // lora_packet.uom = c[6];
-
-      // auto accuracy = parse_float(c[7]);
-      // if (!accuracy.has_value()) {
-      //   ESP_LOGE(TAG, "Can't convert '%s' to float!", c[7].c_str());
-      //   return;
-      // }
-      // lora_packet.accuracy = *accuracy;
 
       lora_packet.rssi = this->packet_rssi();
 

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+from helpers import git_ls_files, filter_changed
 import codecs
 import collections
 import fnmatch
@@ -12,7 +13,6 @@ import functools
 import argparse
 
 sys.path.append(os.path.dirname(__file__))
-from helpers import git_ls_files, filter_changed
 
 
 def find_all(a_str, sub):
@@ -557,6 +557,7 @@ def lint_inclusive_language(fname, match):
         "esphome/components/cover/cover.h",
         "esphome/components/display/display_buffer.h",
         "esphome/components/i2c/i2c.h",
+        "esphome/components/lora/lora_component.h",
         "esphome/components/mqtt/mqtt_component.h",
         "esphome/components/output/binary_output.h",
         "esphome/components/output/float_output.h",
