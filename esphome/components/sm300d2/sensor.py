@@ -2,10 +2,9 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import sensor, uart
 from esphome.const import CONF_ID, CONF_CO2, CONF_FORMALDEHYDE, CONF_TVOC, CONF_PM_2_5, \
-    CONF_PM_10_0, CONF_TEMPERATURE, CONF_HUMIDITY, UNIT_PARTS_PER_MILLION, \
-    UNIT_MICROGRAMS_PER_CUBIC_METER, UNIT_CELSIUS, UNIT_PERCENT, \
-    ICON_MOLECULE_CO2, ICON_FLASK, ICON_CHEMICAL_WEAPON, \
-    ICON_GRAIN, ICON_THERMOMETER, ICON_WATER_PERCENT
+    CONF_PM_10_0, CONF_TEMPERATURE, CONF_HUMIDITY, DEVICE_CLASS_EMPTY, DEVICE_CLASS_TEMPERATURE, \
+    DEVICE_CLASS_HUMIDITY, UNIT_PARTS_PER_MILLION, UNIT_MICROGRAMS_PER_CUBIC_METER, UNIT_CELSIUS, \
+    UNIT_PERCENT, ICON_EMPTY, ICON_MOLECULE_CO2, ICON_FLASK, ICON_CHEMICAL_WEAPON, ICON_GRAIN
 
 DEPENDENCIES = ['uart']
 
@@ -16,19 +15,20 @@ CONFIG_SCHEMA = cv.All(cv.Schema({
     cv.GenerateID(): cv.declare_id(SM300D2Sensor),
 
     cv.Optional(CONF_CO2):
-        sensor.sensor_schema(UNIT_PARTS_PER_MILLION, ICON_MOLECULE_CO2, 0),
+        sensor.sensor_schema(UNIT_PARTS_PER_MILLION, ICON_MOLECULE_CO2, 0, DEVICE_CLASS_EMPTY),
     cv.Optional(CONF_FORMALDEHYDE):
-        sensor.sensor_schema(UNIT_MICROGRAMS_PER_CUBIC_METER, ICON_FLASK, 0),
+        sensor.sensor_schema(UNIT_MICROGRAMS_PER_CUBIC_METER, ICON_FLASK, 0, DEVICE_CLASS_EMPTY),
     cv.Optional(CONF_TVOC):
-        sensor.sensor_schema(UNIT_MICROGRAMS_PER_CUBIC_METER, ICON_CHEMICAL_WEAPON, 0),
+        sensor.sensor_schema(UNIT_MICROGRAMS_PER_CUBIC_METER, ICON_CHEMICAL_WEAPON, 0,
+                             DEVICE_CLASS_EMPTY),
     cv.Optional(CONF_PM_2_5):
-        sensor.sensor_schema(UNIT_MICROGRAMS_PER_CUBIC_METER, ICON_GRAIN, 0),
+        sensor.sensor_schema(UNIT_MICROGRAMS_PER_CUBIC_METER, ICON_GRAIN, 0, DEVICE_CLASS_EMPTY),
     cv.Optional(CONF_PM_10_0):
-        sensor.sensor_schema(UNIT_MICROGRAMS_PER_CUBIC_METER, ICON_GRAIN, 0),
+        sensor.sensor_schema(UNIT_MICROGRAMS_PER_CUBIC_METER, ICON_GRAIN, 0, DEVICE_CLASS_EMPTY),
     cv.Optional(CONF_TEMPERATURE):
-        sensor.sensor_schema(UNIT_CELSIUS, ICON_THERMOMETER, 0),
+        sensor.sensor_schema(UNIT_CELSIUS, ICON_EMPTY, 0, DEVICE_CLASS_TEMPERATURE),
     cv.Optional(CONF_HUMIDITY):
-        sensor.sensor_schema(UNIT_PERCENT, ICON_WATER_PERCENT, 0),
+        sensor.sensor_schema(UNIT_PERCENT, ICON_EMPTY, 0, DEVICE_CLASS_HUMIDITY),
 
 }).extend(cv.polling_component_schema('60s')).extend(uart.UART_DEVICE_SCHEMA))
 
