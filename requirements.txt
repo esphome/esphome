@@ -4,7 +4,7 @@ paho-mqtt==1.5.1
 colorama==0.4.4
 colorlog==4.7.2
 tornado==6.1
-protobuf==3.13.0
+protobuf==3.15.3
 tzlocal==2.1
 pytz==2021.1
 pyserial==3.5
