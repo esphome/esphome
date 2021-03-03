@@ -2,8 +2,8 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import sensor, i2c
 from esphome import pins
-from esphome.const import CONF_ID, CONF_VOLTAGE, \
-    UNIT_VOLT, ICON_FLASH, UNIT_AMPERE, UNIT_WATT
+from esphome.const import CONF_ID, CONF_VOLTAGE, DEVICE_CLASS_CURRENT, DEVICE_CLASS_POWER, \
+    DEVICE_CLASS_VOLTAGE, ICON_EMPTY, UNIT_VOLT, UNIT_AMPERE, UNIT_WATT
 
 DEPENDENCIES = ['i2c']
 
@@ -19,11 +19,15 @@ CONF_ACTIVE_POWER_B = 'active_power_b'
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(ADE7953),
     cv.Optional(CONF_IRQ_PIN): pins.input_pin,
-    cv.Optional(CONF_VOLTAGE): sensor.sensor_schema(UNIT_VOLT, ICON_FLASH, 1),
-    cv.Optional(CONF_CURRENT_A): sensor.sensor_schema(UNIT_AMPERE, ICON_FLASH, 2),
-    cv.Optional(CONF_CURRENT_B): sensor.sensor_schema(UNIT_AMPERE, ICON_FLASH, 2),
-    cv.Optional(CONF_ACTIVE_POWER_A): sensor.sensor_schema(UNIT_WATT, ICON_FLASH, 1),
-    cv.Optional(CONF_ACTIVE_POWER_B): sensor.sensor_schema(UNIT_WATT, ICON_FLASH, 1),
+    cv.Optional(CONF_VOLTAGE): sensor.sensor_schema(UNIT_VOLT, ICON_EMPTY, 1, DEVICE_CLASS_VOLTAGE),
+    cv.Optional(CONF_CURRENT_A): sensor.sensor_schema(UNIT_AMPERE, ICON_EMPTY, 2,
+                                                      DEVICE_CLASS_CURRENT),
+    cv.Optional(CONF_CURRENT_B): sensor.sensor_schema(UNIT_AMPERE, ICON_EMPTY, 2,
+                                                      DEVICE_CLASS_CURRENT),
+    cv.Optional(CONF_ACTIVE_POWER_A): sensor.sensor_schema(UNIT_WATT, ICON_EMPTY, 1,
+                                                           DEVICE_CLASS_POWER),
+    cv.Optional(CONF_ACTIVE_POWER_B): sensor.sensor_schema(UNIT_WATT, ICON_EMPTY, 1,
+                                                           DEVICE_CLASS_POWER),
 }).extend(cv.polling_component_schema('60s')).extend(i2c.i2c_device_schema(0x38))
 
 

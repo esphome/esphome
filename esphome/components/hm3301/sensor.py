@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import i2c, sensor
-from esphome.const import CONF_ID, CONF_PM_2_5, CONF_PM_10_0, CONF_PM_1_0, \
+from esphome.const import CONF_ID, CONF_PM_2_5, CONF_PM_10_0, CONF_PM_1_0, DEVICE_CLASS_EMPTY, \
     UNIT_MICROGRAMS_PER_CUBIC_METER, ICON_CHEMICAL_WEAPON
 
 DEPENDENCIES = ['i2c']
@@ -32,13 +32,16 @@ CONFIG_SCHEMA = cv.All(cv.Schema({
     cv.GenerateID(): cv.declare_id(HM3301Component),
 
     cv.Optional(CONF_PM_1_0):
-        sensor.sensor_schema(UNIT_MICROGRAMS_PER_CUBIC_METER, ICON_CHEMICAL_WEAPON, 0),
+        sensor.sensor_schema(UNIT_MICROGRAMS_PER_CUBIC_METER, ICON_CHEMICAL_WEAPON, 0,
+                             DEVICE_CLASS_EMPTY),
     cv.Optional(CONF_PM_2_5):
-        sensor.sensor_schema(UNIT_MICROGRAMS_PER_CUBIC_METER, ICON_CHEMICAL_WEAPON, 0),
+        sensor.sensor_schema(UNIT_MICROGRAMS_PER_CUBIC_METER, ICON_CHEMICAL_WEAPON, 0,
+                             DEVICE_CLASS_EMPTY),
     cv.Optional(CONF_PM_10_0):
-        sensor.sensor_schema(UNIT_MICROGRAMS_PER_CUBIC_METER, ICON_CHEMICAL_WEAPON, 0),
+        sensor.sensor_schema(UNIT_MICROGRAMS_PER_CUBIC_METER, ICON_CHEMICAL_WEAPON, 0,
+                             DEVICE_CLASS_EMPTY),
     cv.Optional(CONF_AQI):
-        sensor.sensor_schema(UNIT_INDEX, ICON_CHEMICAL_WEAPON, 0).extend({
+        sensor.sensor_schema(UNIT_INDEX, ICON_CHEMICAL_WEAPON, 0, DEVICE_CLASS_EMPTY).extend({
             cv.Required(CONF_CALCULATION_TYPE): cv.enum(AQI_CALCULATION_TYPE, upper=True),
         })
 }).extend(cv.polling_component_schema('60s')).extend(i2c.i2c_device_schema(0x40)), validate)
