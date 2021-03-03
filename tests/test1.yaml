@@ -642,6 +642,22 @@ sensor:
     co2:
       name: 'SenseAir CO2 Value'
     update_interval: 15s
+  - platform: sm300d2
+    co2:
+      name: "SM300D2 CO2 Value"
+    formaldehyde:
+      name: "SM300D2 Formaldehyde Value"    
+    tvoc:
+      name: "SM300D2 TVOC Value"
+    pm_2_5:
+      name: "SM300D2 PM2.5 Value"
+    pm_10_0:
+      name: "SM300D2 PM10 Value"
+    temperature:
+      name: "SM300D2 Temperature Value"
+    humidity:
+      name: "SM300D2 Humidity Value"   
+    update_interval: 60s    
   - platform: sht3xd
     temperature:
       name: 'Living Room Temperature 8'

@@ -2,7 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import i2c, sensor
 from esphome.const import CONF_ID, DEVICE_CLASS_EMPTY, ICON_RADIATOR, UNIT_PARTS_PER_MILLION, \
-    UNIT_PARTS_PER_BILLION, CONF_TEMPERATURE, CONF_HUMIDITY, ICON_MOLECULE_CO2
+    UNIT_PARTS_PER_BILLION, CONF_TEMPERATURE, CONF_TVOC, CONF_HUMIDITY, ICON_MOLECULE_CO2
 
 DEPENDENCIES = ['i2c']
 
@@ -10,7 +10,6 @@ ccs811_ns = cg.esphome_ns.namespace('ccs811')
 CCS811Component = ccs811_ns.class_('CCS811Component', cg.PollingComponent, i2c.I2CDevice)
 
 CONF_ECO2 = 'eco2'
-CONF_TVOC = 'tvoc'
 CONF_BASELINE = 'baseline'
 
 CONFIG_SCHEMA = cv.Schema({
