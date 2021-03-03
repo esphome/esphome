@@ -6,7 +6,7 @@ colorlog==4.6.2
 tornado==6.1
 protobuf==3.13.0
 tzlocal==2.1
-pytz==2020.5
+pytz==2021.1
 pyserial==3.5
 ifaddr==0.1.7
 platformio==5.0.4
