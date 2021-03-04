@@ -50,6 +50,7 @@ CONF_VERTICAL_FLIP = 'vertical_flip'
 CONF_HORIZONTAL_MIRROR = 'horizontal_mirror'
 CONF_SATURATION = 'saturation'
 CONF_TEST_PATTERN = 'test_pattern'
+CONF_NIGHT_MODE = 'night_mode'
 
 camera_range_param = cv.int_range(min=-2, max=2)
 
@@ -84,6 +85,7 @@ CONFIG_SCHEMA = cv.Schema({
     cv.Optional(CONF_VERTICAL_FLIP, default=True): cv.boolean,
     cv.Optional(CONF_HORIZONTAL_MIRROR, default=True): cv.boolean,
     cv.Optional(CONF_TEST_PATTERN, default=False): cv.boolean,
+    cv.Optional(CONF_NIGHT_MODE, default=False): cv.boolean,
 }).extend(cv.COMPONENT_SCHEMA)
 
 SETTERS = {
@@ -100,6 +102,7 @@ SETTERS = {
     CONF_BRIGHTNESS: 'set_brightness',
     CONF_SATURATION: 'set_saturation',
     CONF_TEST_PATTERN: 'set_test_pattern',
+    CONF_NIGHT_MODE: 'set_night_mode',
 }
 
 
