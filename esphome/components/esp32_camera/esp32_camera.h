@@ -70,6 +70,7 @@ class ESP32Camera : public Component, public Nameable {
   void set_max_update_interval(uint32_t max_update_interval);
   void set_idle_update_interval(uint32_t idle_update_interval);
   void set_test_pattern(bool test_pattern);
+  void set_night_mode(bool night_mode);
   void setup() override;
   void loop() override;
   void dump_config() override;
@@ -92,6 +93,7 @@ class ESP32Camera : public Component, public Nameable {
   int brightness_{0};
   int saturation_{0};
   bool test_pattern_{false};
+  bool night_mode_{false};
 
   esp_err_t init_error_{ESP_OK};
   std::shared_ptr<CameraImage> current_image_;
