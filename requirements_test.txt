@@ -1,4 +1,4 @@
-pylint==2.6.0
+pylint==2.7.2
 flake8==3.8.4
 pillow>4.0.0
 cryptography>=2.0.0,<4
