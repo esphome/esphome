@@ -87,10 +87,10 @@ class NetworksWifiInfo : public Component, public text_sensor::TextSensor {
       char buf1[32]{'\0'};
       bool bssid_match = memcmp(scan.get_bssid().data(), WiFi.BSSID(), 6) == 0;
       sprintf(buf1, " %d %02X%02X%02X%02X%02X%02X %d %X %.1f", scan.get_rssi(), scan.get_bssid()[0],
-        scan.get_bssid()[1], scan.get_bssid()[2], scan.get_bssid()[3], scan.get_bssid()[4], scan.get_bssid()[5],
-        scan.get_channel(),
-        scan.get_with_auth() + 2 * scan.get_is_hidden() + 4 * scan.get_matches() + 8 * bssid_match,
-        scan.get_priority());
+              scan.get_bssid()[1], scan.get_bssid()[2], scan.get_bssid()[3], scan.get_bssid()[4], scan.get_bssid()[5],
+              scan.get_channel(),
+              scan.get_with_auth() + 2 * scan.get_is_hidden() + 4 * scan.get_matches() + 8 * bssid_match,
+              scan.get_priority());
 
       int len = strlen(buf);
       if (len + strlen(scan.get_ssid().data()) + strlen(buf1) > 255) {
@@ -125,5 +125,5 @@ class NetworksWifiInfo : public Component, public text_sensor::TextSensor {
   bool is_connected_{false};
 };
 
-} // namespace wifi_info
-} // namespace esphome
+}  // namespace wifi_info
+}  // namespace esphome
