@@ -72,6 +72,8 @@ SensorPublishAction = sensor_ns.class_('SensorPublishAction', automation.Action)
 # Filters
 Filter = sensor_ns.class_('Filter')
 MedianFilter = sensor_ns.class_('MedianFilter', Filter)
+MinFilter = sensor_ns.class_('MinFilter', Filter)
+MaxFilter = sensor_ns.class_('MaxFilter', Filter)
 SlidingWindowMovingAverageFilter = sensor_ns.class_('SlidingWindowMovingAverageFilter', Filter)
 ExponentialMovingAverageFilter = sensor_ns.class_('ExponentialMovingAverageFilter', Filter)
 LambdaFilter = sensor_ns.class_('LambdaFilter', Filter)
@@ -161,6 +163,32 @@ MEDIAN_SCHEMA = cv.All(cv.Schema({
 
 @FILTER_REGISTRY.register('median', MedianFilter, MEDIAN_SCHEMA)
 def median_filter_to_code(config, filter_id):
+    yield cg.new_Pvariable(filter_id, config[CONF_WINDOW_SIZE], config[CONF_SEND_EVERY],
+                           config[CONF_SEND_FIRST_AT])
+
+
+MIN_SCHEMA = cv.All(cv.Schema({
+    cv.Optional(CONF_WINDOW_SIZE, default=5): cv.positive_not_null_int,
+    cv.Optional(CONF_SEND_EVERY, default=5): cv.positive_not_null_int,
+    cv.Optional(CONF_SEND_FIRST_AT, default=1): cv.positive_not_null_int,
+}), validate_send_first_at)
+
+
+@FILTER_REGISTRY.register('min', MinFilter, MIN_SCHEMA)
+def min_filter_to_code(config, filter_id):
+    yield cg.new_Pvariable(filter_id, config[CONF_WINDOW_SIZE], config[CONF_SEND_EVERY],
+                           config[CONF_SEND_FIRST_AT])
+
+
+MAX_SCHEMA = cv.All(cv.Schema({
+    cv.Optional(CONF_WINDOW_SIZE, default=5): cv.positive_not_null_int,
+    cv.Optional(CONF_SEND_EVERY, default=5): cv.positive_not_null_int,
+    cv.Optional(CONF_SEND_FIRST_AT, default=1): cv.positive_not_null_int,
+}), validate_send_first_at)
+
+
+@FILTER_REGISTRY.register('max', MaxFilter, MAX_SCHEMA)
+def max_filter_to_code(config, filter_id):
     yield cg.new_Pvariable(filter_id, config[CONF_WINDOW_SIZE], config[CONF_SEND_EVERY],
                            config[CONF_SEND_FIRST_AT])
 
