@@ -204,12 +204,10 @@ void Inkplate6::fill(Color color) {
 
   if (this->greyscale_) {
     uint8_t fill = ((color.red * 2126 / 10000) + (color.green * 7152 / 10000) + (color.blue * 722 / 10000)) >> 5;
-    for (uint32_t i = 0; i < this->get_buffer_length_(); i++)
-      this->buffer_[i] = (fill << 4) | fill;
+    memset(this->buffer_, (fill << 4) | fill, this->get_buffer_length_());
   } else {
     uint8_t fill = color.is_on() ? 0x00 : 0xFF;
-    for (uint32_t i = 0; i < this->get_buffer_length_(); i++)
-      this->partial_buffer_[i] = fill;
+    memset(this->partial_buffer_, fill, this->get_buffer_length_());
   }
 
   ESP_LOGV(TAG, "Fill finished (%lums)", millis() - start_time);
@@ -233,15 +231,12 @@ void Inkplate6::display1b_() {
   ESP_LOGV(TAG, "Display1b called");
   unsigned long start_time = millis();
 
-  for (int i = 0; i < this->get_buffer_length_(); i++) {
-    this->buffer_[i] &= this->partial_buffer_[i];
-    this->buffer_[i] |= this->partial_buffer_[i];
-  }
+  memcpy(this->buffer_, this->partial_buffer_, this->get_buffer_length_());
 
-  uint16_t pos;
   uint32_t send;
   uint8_t data;
   uint8_t buffer_value;
+  const uint8_t *buffer_ptr;
   eink_on_();
   clean_fast_(0, 1);
   clean_fast_(1, 5);
@@ -252,75 +247,72 @@ void Inkplate6::display1b_() {
   clean_fast_(2, 1);
   clean_fast_(0, 11);
 
+  uint32_t clock = (1 << this->cl_pin_->get_pin());
   ESP_LOGV(TAG, "Display1b start loops (%lums)", millis() - start_time);
   for (int k = 0; k < 3; k++) {
-    pos = this->get_buffer_length_() - 1;
+    buffer_ptr = &this->buffer_[this->get_buffer_length_() - 1];
     vscan_start_();
     for (int i = 0; i < this->get_height_internal(); i++) {
-      buffer_value = this->buffer_[pos];
+      buffer_value = *(buffer_ptr--);
       data = LUTB[(buffer_value >> 4) & 0x0F];
       send = ((data & B00000011) << 4) | (((data & B00001100) >> 2) << 18) | (((data & B00010000) >> 4) << 23) |
              (((data & B11100000) >> 5) << 25);
       hscan_start_(send);
       data = LUTB[buffer_value & 0x0F];
       send = ((data & B00000011) << 4) | (((data & B00001100) >> 2) << 18) | (((data & B00010000) >> 4) << 23) |
-             (((data & B11100000) >> 5) << 25);
-      GPIO.out_w1ts = (send) | (1 << this->cl_pin_->get_pin());
-      GPIO.out_w1tc = get_data_pin_mask_() | (1 << this->cl_pin_->get_pin());
-      pos--;
+             (((data & B11100000) >> 5) << 25) | clock;
+      GPIO.out_w1ts = send;
+      GPIO.out_w1tc = send;
 
-      for (int j = 0; j < (this->get_width_internal() / 8) - 1; j++) {
-        buffer_value = this->buffer_[pos];
+      for (int j = 0, jm = (this->get_width_internal() / 8) - 1; j < jm; j++) {
+        buffer_value = *(buffer_ptr--);
         data = LUTB[(buffer_value >> 4) & 0x0F];
         send = ((data & B00000011) << 4) | (((data & B00001100) >> 2) << 18) | (((data & B00010000) >> 4) << 23) |
-               (((data & B11100000) >> 5) << 25);
-        GPIO.out_w1ts = (send) | (1 << this->cl_pin_->get_pin());
-        GPIO.out_w1tc = get_data_pin_mask_() | (1 << this->cl_pin_->get_pin());
+               (((data & B11100000) >> 5) << 25) | clock;
+        GPIO.out_w1ts = send;
+        GPIO.out_w1tc = send;
         data = LUTB[buffer_value & 0x0F];
         send = ((data & B00000011) << 4) | (((data & B00001100) >> 2) << 18) | (((data & B00010000) >> 4) << 23) |
-               (((data & B11100000) >> 5) << 25);
-        GPIO.out_w1ts = (send) | (1 << this->cl_pin_->get_pin());
-        GPIO.out_w1tc = get_data_pin_mask_() | (1 << this->cl_pin_->get_pin());
-        pos--;
+               (((data & B11100000) >> 5) << 25) | clock;
+        GPIO.out_w1ts = send;
+        GPIO.out_w1tc = send;
       }
-      GPIO.out_w1ts = (send) | (1 << this->cl_pin_->get_pin());
-      GPIO.out_w1tc = get_data_pin_mask_() | (1 << this->cl_pin_->get_pin());
+      GPIO.out_w1ts = send;
+      GPIO.out_w1tc = get_data_pin_mask_() | clock;
       vscan_end_();
     }
     delayMicroseconds(230);
   }
   ESP_LOGV(TAG, "Display1b first loop x %d (%lums)", 3, millis() - start_time);
 
-  pos = this->get_buffer_length_() - 1;
+  buffer_ptr = &this->buffer_[this->get_buffer_length_() - 1];
   vscan_start_();
   for (int i = 0; i < this->get_height_internal(); i++) {
-    buffer_value = this->buffer_[pos];
+    buffer_value = *(buffer_ptr--);
     data = LUT2[(buffer_value >> 4) & 0x0F];
     send = ((data & B00000011) << 4) | (((data & B00001100) >> 2) << 18) | (((data & B00010000) >> 4) << 23) |
            (((data & B11100000) >> 5) << 25);
     hscan_start_(send);
     data = LUT2[buffer_value & 0x0F];
     send = ((data & B00000011) << 4) | (((data & B00001100) >> 2) << 18) | (((data & B00010000) >> 4) << 23) |
-           (((data & B11100000) >> 5) << 25);
-    GPIO.out_w1ts = (send) | (1 << this->cl_pin_->get_pin());
-    GPIO.out_w1tc = get_data_pin_mask_() | (1 << this->cl_pin_->get_pin());
-    pos--;
-    for (int j = 0; j < (this->get_width_internal() / 8) - 1; j++) {
-      buffer_value = this->buffer_[pos];
+           (((data & B11100000) >> 5) << 25) | clock;
+    GPIO.out_w1ts = send;
+    GPIO.out_w1tc = send;
+    for (int j = 0, jm = (this->get_width_internal() / 8) - 1; j < jm; j++) {
+      buffer_value = *(buffer_ptr--);
       data = LUT2[(buffer_value >> 4) & 0x0F];
       send = ((data & B00000011) << 4) | (((data & B00001100) >> 2) << 18) | (((data & B00010000) >> 4) << 23) |
-             (((data & B11100000) >> 5) << 25);
-      GPIO.out_w1ts = (send) | (1 << this->cl_pin_->get_pin());
-      GPIO.out_w1tc = get_data_pin_mask_() | (1 << this->cl_pin_->get_pin());
+             (((data & B11100000) >> 5) << 25) | clock;
+      GPIO.out_w1ts = send;
+      GPIO.out_w1tc = send;
       data = LUT2[buffer_value & 0x0F];
       send = ((data & B00000011) << 4) | (((data & B00001100) >> 2) << 18) | (((data & B00010000) >> 4) << 23) |
-             (((data & B11100000) >> 5) << 25);
-      GPIO.out_w1ts = (send) | (1 << this->cl_pin_->get_pin());
-      GPIO.out_w1tc = get_data_pin_mask_() | (1 << this->cl_pin_->get_pin());
-      pos--;
+             (((data & B11100000) >> 5) << 25) | clock;
+      GPIO.out_w1ts = send;
+      GPIO.out_w1tc = send;
     }
-    GPIO.out_w1ts = (send) | (1 << this->cl_pin_->get_pin());
-    GPIO.out_w1tc = get_data_pin_mask_() | (1 << this->cl_pin_->get_pin());
+    GPIO.out_w1ts = send;
+    GPIO.out_w1tc = get_data_pin_mask_() | clock;
     vscan_end_();
   }
   delayMicroseconds(230);
@@ -328,21 +320,21 @@ void Inkplate6::display1b_() {
 
   vscan_start_();
   for (int i = 0; i < this->get_height_internal(); i++) {
-    buffer_value = this->buffer_[pos];
     data = 0b00000000;
     send = ((data & B00000011) << 4) | (((data & B00001100) >> 2) << 18) | (((data & B00010000) >> 4) << 23) |
            (((data & B11100000) >> 5) << 25);
     hscan_start_(send);
-    GPIO.out_w1ts = (send) | (1 << this->cl_pin_->get_pin());
-    GPIO.out_w1tc = get_data_pin_mask_() | (1 << this->cl_pin_->get_pin());
+    send |= clock;
+    GPIO.out_w1ts = send;
+    GPIO.out_w1tc = send;
     for (int j = 0; j < (this->get_width_internal() / 8) - 1; j++) {
-      GPIO.out_w1ts = (send) | (1 << this->cl_pin_->get_pin());
-      GPIO.out_w1tc = get_data_pin_mask_() | (1 << this->cl_pin_->get_pin());
-      GPIO.out_w1ts = (send) | (1 << this->cl_pin_->get_pin());
-      GPIO.out_w1tc = get_data_pin_mask_() | (1 << this->cl_pin_->get_pin());
+      GPIO.out_w1ts = send;
+      GPIO.out_w1tc = send;
+      GPIO.out_w1ts = send;
+      GPIO.out_w1tc = send;
     }
-    GPIO.out_w1ts = (send) | (1 << this->cl_pin_->get_pin());
-    GPIO.out_w1tc = get_data_pin_mask_() | (1 << this->cl_pin_->get_pin());
+    GPIO.out_w1ts = clock;
+    GPIO.out_w1tc = get_data_pin_mask_() | clock;
     vscan_end_();
   }
   delayMicroseconds(230);
@@ -368,8 +360,9 @@ void Inkplate6::display3b_() {
   clean_fast_(2, 1);
   clean_fast_(0, 11);
 
+  uint32_t clock = (1 << this->cl_pin_->get_pin());
   for (int k = 0; k < 8; k++) {
-    uint32_t pos = this->get_buffer_length_() - 1;
+    const uint8_t *buffer_ptr = &this->buffer_[this->get_buffer_length_() - 1];
     uint32_t send;
     uint8_t pix1;
     uint8_t pix2;
@@ -380,10 +373,10 @@ void Inkplate6::display3b_() {
 
     vscan_start_();
     for (int i = 0; i < this->get_height_internal(); i++) {
-      pix1 = this->buffer_[pos--];
-      pix2 = this->buffer_[pos--];
-      pix3 = this->buffer_[pos--];
-      pix4 = this->buffer_[pos--];
+      pix1 = (*buffer_ptr--);
+      pix2 = (*buffer_ptr--);
+      pix3 = (*buffer_ptr--);
+      pix4 = (*buffer_ptr--);
       pixel = (waveform3Bit[pix1 & 0x07][k] << 6) | (waveform3Bit[(pix1 >> 4) & 0x07][k] << 4) |
               (waveform3Bit[pix2 & 0x07][k] << 2) | (waveform3Bit[(pix2 >> 4) & 0x07][k] << 0);
       pixel2 = (waveform3Bit[pix3 & 0x07][k] << 6) | (waveform3Bit[(pix3 >> 4) & 0x07][k] << 4) |
@@ -393,32 +386,32 @@ void Inkplate6::display3b_() {
              (((pixel & B11100000) >> 5) << 25);
       hscan_start_(send);
       send = ((pixel2 & B00000011) << 4) | (((pixel2 & B00001100) >> 2) << 18) | (((pixel2 & B00010000) >> 4) << 23) |
-             (((pixel2 & B11100000) >> 5) << 25);
-      GPIO.out_w1ts = (send) | (1 << this->cl_pin_->get_pin());
-      GPIO.out_w1tc = get_data_pin_mask_() | (1 << this->cl_pin_->get_pin());
+             (((pixel2 & B11100000) >> 5) << 25) | clock;
+      GPIO.out_w1ts = send;
+      GPIO.out_w1tc = send;
 
-      for (int j = 0; j < (this->get_width_internal() / 8) - 1; j++) {
-        pix1 = this->buffer_[pos--];
-        pix2 = this->buffer_[pos--];
-        pix3 = this->buffer_[pos--];
-        pix4 = this->buffer_[pos--];
+      for (int j = 0, jm = (this->get_width_internal() / 8) - 1; j < jm; j++) {
+        pix1 = (*buffer_ptr--);
+        pix2 = (*buffer_ptr--);
+        pix3 = (*buffer_ptr--);
+        pix4 = (*buffer_ptr--);
         pixel = (waveform3Bit[pix1 & 0x07][k] << 6) | (waveform3Bit[(pix1 >> 4) & 0x07][k] << 4) |
                 (waveform3Bit[pix2 & 0x07][k] << 2) | (waveform3Bit[(pix2 >> 4) & 0x07][k] << 0);
         pixel2 = (waveform3Bit[pix3 & 0x07][k] << 6) | (waveform3Bit[(pix3 >> 4) & 0x07][k] << 4) |
                  (waveform3Bit[pix4 & 0x07][k] << 2) | (waveform3Bit[(pix4 >> 4) & 0x07][k] << 0);
 
         send = ((pixel & B00000011) << 4) | (((pixel & B00001100) >> 2) << 18) | (((pixel & B00010000) >> 4) << 23) |
-               (((pixel & B11100000) >> 5) << 25);
-        GPIO.out_w1ts = (send) | (1 << this->cl_pin_->get_pin());
-        GPIO.out_w1tc = get_data_pin_mask_() | (1 << this->cl_pin_->get_pin());
+               (((pixel & B11100000) >> 5) << 25) | clock;
+        GPIO.out_w1ts = send;
+        GPIO.out_w1tc = send;
 
         send = ((pixel2 & B00000011) << 4) | (((pixel2 & B00001100) >> 2) << 18) | (((pixel2 & B00010000) >> 4) << 23) |
-               (((pixel2 & B11100000) >> 5) << 25);
-        GPIO.out_w1ts = (send) | (1 << this->cl_pin_->get_pin());
-        GPIO.out_w1tc = get_data_pin_mask_() | (1 << this->cl_pin_->get_pin());
+               (((pixel2 & B11100000) >> 5) << 25) | clock;
+        GPIO.out_w1ts = send;
+        GPIO.out_w1tc = send;
       }
-      GPIO.out_w1ts = (send) | (1 << this->cl_pin_->get_pin());
-      GPIO.out_w1tc = get_data_pin_mask_() | (1 << this->cl_pin_->get_pin());
+      GPIO.out_w1ts = send;
+      GPIO.out_w1tc = get_data_pin_mask_() | clock;
       vscan_end_();
     }
     delayMicroseconds(230);
@@ -445,8 +438,8 @@ bool Inkplate6::partial_update_() {
   uint8_t diffw, diffb;
   uint32_t n = (this->get_buffer_length_() * 2) - 1;
 
-  for (int i = 0; i < this->get_height_internal(); i++) {
-    for (int j = 0; j < (this->get_width_internal() / 8); j++) {
+  for (int i = 0, im = this->get_height_internal(); i < im; i++) {
+    for (int j = 0, jm = (this->get_width_internal() / 8); j < jm; j++) {
       diffw = (this->buffer_[pos] ^ this->partial_buffer_[pos]) & ~(this->partial_buffer_[pos]);
       diffb = (this->buffer_[pos] ^ this->partial_buffer_[pos]) & this->partial_buffer_[pos];
       pos--;
@@ -457,23 +450,24 @@ bool Inkplate6::partial_update_() {
   ESP_LOGV(TAG, "Partial update buffer built after (%lums)", millis() - start_time);
 
   eink_on_();
+  uint32_t clock = (1 << this->cl_pin_->get_pin());
   for (int k = 0; k < 5; k++) {
     vscan_start_();
-    n = (this->get_buffer_length_() * 2) - 1;
+    const uint8_t *data_ptr = &this->partial_buffer_2_[(this->get_buffer_length_() * 2) - 1];
     for (int i = 0; i < this->get_height_internal(); i++) {
-      data = this->partial_buffer_2_[n--];
+      data = *(data_ptr--);
       send = ((data & B00000011) << 4) | (((data & B00001100) >> 2) << 18) | (((data & B00010000) >> 4) << 23) |
              (((data & B11100000) >> 5) << 25);
       hscan_start_(send);
-      for (int j = 0; j < (this->get_width_internal() / 4) - 1; j++) {
-        data = this->partial_buffer_2_[n--];
+      for (int j = 0, jm = (this->get_width_internal() / 4) - 1; j < jm; j++) {
+        data = *(data_ptr--);
         send = ((data & B00000011) << 4) | (((data & B00001100) >> 2) << 18) | (((data & B00010000) >> 4) << 23) |
-               (((data & B11100000) >> 5) << 25);
-        GPIO.out_w1ts = (send) | (1 << this->cl_pin_->get_pin());
-        GPIO.out_w1tc = get_data_pin_mask_() | (1 << this->cl_pin_->get_pin());
+               (((data & B11100000) >> 5) << 25) | clock;
+        GPIO.out_w1ts = send;
+        GPIO.out_w1tc = send;
       }
-      GPIO.out_w1ts = (send) | (1 << this->cl_pin_->get_pin());
-      GPIO.out_w1tc = get_data_pin_mask_() | (1 << this->cl_pin_->get_pin());
+      GPIO.out_w1ts = send;
+      GPIO.out_w1tc = get_data_pin_mask_() | clock;
       vscan_end_();
     }
     delayMicroseconds(230);
@@ -484,9 +478,7 @@ bool Inkplate6::partial_update_() {
   vscan_start_();
   eink_off_();
 
-  for (int i = 0; i < this->get_buffer_length_(); i++) {
-    this->buffer_[i] = this->partial_buffer_[i];
-  }
+  memcpy(this->buffer_, this->partial_buffer_, this->get_buffer_length_());
   ESP_LOGV(TAG, "Partial update finished (%lums)", millis() - start_time);
   return true;
 }
@@ -567,21 +559,22 @@ void Inkplate6::clean_fast_(uint8_t c, uint8_t rep) {
 
   uint32_t send = ((data & B00000011) << 4) | (((data & B00001100) >> 2) << 18) | (((data & B00010000) >> 4) << 23) |
                   (((data & B11100000) >> 5) << 25);
+  uint32_t clock = (1 << this->cl_pin_->get_pin());
 
   for (int k = 0; k < rep; k++) {
     vscan_start_();
     for (int i = 0; i < this->get_height_internal(); i++) {
       hscan_start_(send);
-      GPIO.out_w1ts = (send) | (1 << this->cl_pin_->get_pin());
-      GPIO.out_w1tc = get_data_pin_mask_() | (1 << this->cl_pin_->get_pin());
-      for (int j = 0; j < this->get_width_internal() / 8; j++) {
-        GPIO.out_w1ts = (send) | (1 << this->cl_pin_->get_pin());
-        GPIO.out_w1tc = get_data_pin_mask_() | (1 << this->cl_pin_->get_pin());
-        GPIO.out_w1ts = (send) | (1 << this->cl_pin_->get_pin());
-        GPIO.out_w1tc = get_data_pin_mask_() | (1 << this->cl_pin_->get_pin());
+      GPIO.out_w1ts = send | clock;
+      GPIO.out_w1tc = clock;
+      for (int j = 0, jm =  this->get_width_internal() / 8; j < jm; j++) {
+        GPIO.out_w1ts = clock;
+        GPIO.out_w1tc = clock;
+        GPIO.out_w1ts = clock;
+        GPIO.out_w1tc = clock;
       }
-      GPIO.out_w1ts = (send) | (1 << this->cl_pin_->get_pin());
-      GPIO.out_w1tc = get_data_pin_mask_() | (1 << this->cl_pin_->get_pin());
+      GPIO.out_w1ts = clock;
+      GPIO.out_w1tc = get_data_pin_mask_() | clock;
       vscan_end_();
     }
     delayMicroseconds(230);
