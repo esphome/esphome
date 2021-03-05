@@ -1,8 +1,8 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import sensor
-from esphome.const import CONF_ID, ICON_COUNTER, DEVICE_CLASS_EMPTY, 
-  CONF_FREE, CONF_FRAGMENTATION, CONF_BLOCK
+from esphome.const import CONF_ID, ICON_COUNTER, DEVICE_CLASS_EMPTY, \
+    CONF_FREE, CONF_FRAGMENTATION, CONF_BLOCK
 
 heap_sensor_ns = cg.esphome_ns.namespace('heap')
 HeapSensor = heap_sensor_ns.class_('HeapSensor', cg.PollingComponent)
