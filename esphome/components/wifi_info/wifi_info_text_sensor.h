@@ -68,28 +68,28 @@ class MacAddressWifiInfo : public Component, public text_sensor::TextSensor {
 };
 
 class NetworksWifiInfo : public Component, public text_sensor::TextSensor {
-	public:
-		void loop() override {
+  public:
+    void loop() override {
       // Parse network data only once when a connection is established
       if (is_connected_ == wifi::global_wifi_component->is_connected())
         return;
       is_connected_ = wifi::global_wifi_component->is_connected();
 
       auto scan_result = wifi::global_wifi_component->get_scan_result();
-			// No results found.
-			if (scan_result.empty())
-				return;
+      // No results found.
+      if (scan_result.empty())
+        return;
 
       // Compact network data & limit total string length to 255 chars - HA text length limit
       char buf[256]{'\0'};
 
-			for (auto &scan : scan_result) {
+      for (auto &scan : scan_result) {
         char buf1[32]{'\0'};
         bool bssid_match = memcmp(scan.get_bssid().data(), WiFi.BSSID(), 6) == 0;
         sprintf(buf1, " %d %02X%02X%02X%02X%02X%02X %d %X %.1f",
           scan.get_rssi(),
-					scan.get_bssid()[0], scan.get_bssid()[1], scan.get_bssid()[2], scan.get_bssid()[3], scan.get_bssid()[4], scan.get_bssid()[5],
-				  scan.get_channel(), scan.get_with_auth()+2*scan.get_is_hidden()+4*scan.get_matches()+8*bssid_match, scan.get_priority());
+          scan.get_bssid()[0], scan.get_bssid()[1], scan.get_bssid()[2], scan.get_bssid()[3], scan.get_bssid()[4], scan.get_bssid()[5],
+          scan.get_channel(), scan.get_with_auth()+2*scan.get_is_hidden()+4*scan.get_matches()+8*bssid_match, scan.get_priority());
 
         int len = strlen(buf);
         if (len + strlen(scan.get_ssid().data()) + strlen(buf1) > 255) {
@@ -103,23 +103,23 @@ class NetworksWifiInfo : public Component, public text_sensor::TextSensor {
         strcpy(buf+len, scan.get_ssid().data());
         len+=strlen(scan.get_ssid().data());
         strcpy(buf+len, buf1);
-			}
+      }
 
       char cs{0};
       for (auto x : buf) cs += x;
 
-			if (this->cs_ != cs) {
-				this->cs_ = cs;
-				this->publish_state(buf);
-			}
-		}
+      if (this->cs_ != cs) {
+        this->cs_ = cs;
+        this->publish_state(buf);
+      }
+    }
 
     float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
     std::string unique_id() override { return get_mac_address() + "-wifiinfo-networks"; }
     void dump_config() override;
 
-	protected:
-		char cs_{0};
+  protected:
+    char cs_{0};
     bool is_connected_{false};
 };
 
