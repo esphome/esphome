@@ -26,7 +26,8 @@ namespace lora {
   ESP_LOGD(TAG, "component type %d", lora_packet.component_type); \
   ESP_LOGD(TAG, "component name %s", lora_packet.component_name.c_str()); \
   ESP_LOGD(TAG, "state %lf", lora_packet.state); \
-  ESP_LOGD(TAG, "RSSI %d", lora_packet.rssi);
+  ESP_LOGD(TAG, "RSSI %d", lora_packet.rssi); \
+  ESP_LOGD(TAG, "Snr: %lf", lora_packet.snr);
 
 class LoraPacket {
  public:
@@ -35,6 +36,7 @@ class LoraPacket {
   std::string component_name;
   float state = 0;
   int rssi = 0;
+  float snr = 0.0;
 
   // float accuracy = 0;
   // std::string device_class;

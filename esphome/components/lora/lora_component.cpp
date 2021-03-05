@@ -5,6 +5,8 @@ namespace lora {
 static const char *TAG = "lora_component";
 
 void LoraComponent::process_lora_packet(LoraPacket lora_packet) {
+  LOG_LORA_PACKET(lora_packet);
+
   this->last_rssi = lora_packet.rssi;
   ESP_LOGD(TAG, "Checking %s component_type %d", lora_packet.component_name.c_str(), lora_packet.component_type);
   switch (lora_packet.component_type) {

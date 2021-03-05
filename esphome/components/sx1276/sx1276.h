@@ -20,6 +20,7 @@ static const uint8_t REG_FIFO_TX_BASE_ADDR = 0x0e;
 static const uint8_t REG_FIFO_RX_BASE_ADDR = 0x0f;
 static const uint8_t REG_IRQ_FLAGS = 0x12;
 static const uint8_t REG_RX_NB_BYTES = 0x13;
+static const uint8_t REG_PKT_SNR_VALUE = 0x19;
 static const uint8_t REG_PKT_RSSI_VALUE = 0x1a;
 static const uint8_t REG_MODEM_CONFIG_1 = 0x1d;
 static const uint8_t REG_MODEM_CONFIG_2 = 0x1e;
@@ -64,6 +65,19 @@ static const uint8_t RF_PADAC_20DBM_ON = 0x07;
 static const uint8_t RF_PADAC_20DBM_OFF = 0x04;  // Default
 
 static const uint8_t MAX_PKT_LENGTH = 255;
+class SX1276;
+
+struct LoraComponentStore {
+  volatile uint32_t last_interrupt{0};
+  ISRInternalGPIOPin *pin;
+  int packet_size;
+  bool found_packet;
+  int packetLength = 0;
+  int todelete = 0;
+  SX1276 *sx1276;
+  std::string *receive_buffer;
+  static void gpio_intr(LoraComponentStore *arg);
+};
 
 class SX1276 : public lora::LoraComponent,
                public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
@@ -99,17 +113,34 @@ class SX1276 : public lora::LoraComponent,
   void receive(int size = 0);
   int parse_packet(int size = 0);
   int packet_rssi();
+  float packet_snr();
+  void parse_buffer();
   int available();
   int read();
+
+  // void on_receive(void (*callback)(int));
+  // static void on_receive_callback(int packet_size);
+
+  // void on_tx_done(void (*callback)());
+  uint8_t implicit_header_mode_;
+  uint8_t packet_index_ = 0;
+  void handle_di0();
+  void packet(int packet_size);
 
  protected:
   GPIOPin *di0_pin_{nullptr};
   GPIOPin *rst_pin_{nullptr};
   uint16_t band_;
   long frequency_;
-  uint8_t implicit_header_mode_;
+
   unsigned int counter_ = 0;
-  uint8_t packet_index_ = 0;
+
+  LoraComponentStore store_;
+  void (*_on_receive_)(int);
+  void (*on_tx_done_)();
+  std::deque<lora::LoraPacket> lora_packets_;
+  std::string receive_buffer_;
 };
+
 }  // namespace sx1276
 }  // namespace esphome

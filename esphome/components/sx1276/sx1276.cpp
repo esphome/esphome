@@ -7,12 +7,19 @@ namespace sx1276 {
 
 static const char *TAG = "sx1276";
 
+void ICACHE_RAM_ATTR LoraComponentStore::gpio_intr(LoraComponentStore *arg) {
+  arg->last_interrupt = micros();
+  arg->found_packet = false;
+  arg->sx1276->handle_di0();
+}
+
 void SX1276::setup() {
   ESP_LOGCONFIG(TAG, "Setting up SX1276...");
   this->spi_setup();
 
   this->rst_pin_->setup();
   this->di0_pin_->setup();
+
   this->cs_->setup();
 
   this->rst_pin_->digital_write(LOW);
@@ -58,7 +65,17 @@ void SX1276::setup() {
 
   this->disable_crc();
   this->enable_crc();
+  ESP_LOGD(TAG, "Idle");
   this->idle();
+
+  ESP_LOGD(TAG, "Attaching interrupt");
+
+  this->store_.sx1276 = this;
+  this->store_.receive_buffer = &this->receive_buffer_;
+  this->di0_pin_->attach_interrupt(LoraComponentStore::gpio_intr, &this->store_, CHANGE);
+
+  ESP_LOGD(TAG, "Done attaching interrupt");
+  this->receive();  // go back into receive mode
 }
 
 void SX1276::send_printf(const char *format, ...) {
@@ -73,6 +90,7 @@ void SX1276::send_printf(const char *format, ...) {
     this->write(buffer, ret);
     this->end_packet();
   }
+  this->receive();  // go back into receive mode
 }
 
 void SX1276::dump_config() {
@@ -84,57 +102,83 @@ void SX1276::dump_config() {
   ESP_LOGCONFIG(TAG, "  Sync Word: 0x%2X", this->sync_word_);
 }
 
+uint32_t oldvalue = 0;
 void SX1276::loop() {
-  int packet_size = this->parse_packet();
+  if (oldvalue != this->store_.last_interrupt) {
+    ESP_LOGD(TAG, "Loop %zu found packet %s receive_buffer_ %zu packetLength %d todelete %d",
+             this->store_.last_interrupt, YESNO(this->store_.found_packet), this->receive_buffer_.length(),
+             this->store_.packetLength, this->store_.todelete);
+    oldvalue = this->store_.last_interrupt;
+  }
+  this->parse_buffer();
 
-  if (packet_size) {
-    lora::LoraPacket lora_packet;
-    std::string string_to_split;
+  while (!this->lora_packets_.empty()) {
+    auto lora_packet = this->lora_packets_.front();
+    this->process_lora_packet(lora_packet);
+    this->lora_packets_.pop_front();
+  }
 
-    bool full_packet = false;
+  this->receive();  // go back into receive mode
+}
 
-    while (this->available()) {
-      string_to_split += static_cast<char>(this->read());
+// void SX1276::loop2() {
 
-      std::ptrdiff_t const match_count(std::distance(
-          std::sregex_iterator(string_to_split.begin(), string_to_split.end(), this->lora_regex_delimiter_),
-          std::sregex_iterator()));
+// }
 
-      if (match_count == 4) {
-        full_packet = true;
-        break;
-      }
-    }
+void SX1276::parse_buffer() {
+  lora::LoraPacket lora_packet;
 
-    if (full_packet) {
-      if (this->available())
-        ESP_LOGE(TAG, "full packet and more to available");
+  std::ptrdiff_t const match_count(std::distance(
+      std::sregex_iterator(this->receive_buffer_.begin(), this->receive_buffer_.end(), this->lora_regex_delimiter_),
+      std::sregex_iterator()));
 
-      ESP_LOGD(TAG, "stringToSplit %s", string_to_split.c_str());
+  if (match_count < 4)
+    return;
 
-      std::vector<std::string> c(
-          std::sregex_token_iterator(string_to_split.begin(), string_to_split.end(), this->lora_regex_delimiter_, -1),
-          {});
+  this->store_.found_packet = true;
+  int loop = match_count / 4;
 
-      lora_packet.appname = c[0];
-      lora_packet.component_type = strtol(c[1].c_str(), nullptr, 10);
-      lora_packet.component_name = c[2];
+  // JUST GET THE 4 |
 
-      auto state = parse_float(c[3]);
+  int todelete = 0;
+  std::vector<std::string> c(std::sregex_token_iterator(this->receive_buffer_.begin(), this->receive_buffer_.end(),
+                                                        this->lora_regex_delimiter_, -1),
+                             {});
+
+  ESP_LOGD(TAG, "receive_buffer_ %s", this->receive_buffer_.c_str());
+  for (int i = 0; i < loop; ++i) {
+    int offset = i * 4;
+
+    todelete += c[0 + offset].length() + 1 + c[1 + offset].length() + 1 + c[2 + offset].length() + 1 +
+                c[3 + offset].length() + 1;
+
+    lora_packet.appname = c[0 + offset];
+    lora_packet.component_type = strtol(c[1 + offset].c_str(), nullptr, 10);
+    lora_packet.component_name = c[2 + offset];
+
+    // if (lora_packet.component_name == "switch_binary_sensor_1") {
+    //   ESP_LOGD(TAG, "Can't convert '%s' to float!", c[3 + offset].c_str());
+    // }
+    //    auto state = parse_float(c[3 + offset)].substr(0, c[3 + offset].size() - 1));
+    auto state = parse_float(c[3 + offset]);
+    if (!state.has_value()) {
+      state = parse_float(c[3 + offset].substr(0, c[3 + offset].size() - 1));
       if (!state.has_value()) {
-        ESP_LOGE(TAG, "Can't convert '%s' to float!", c[4].c_str());
+        ESP_LOGE(TAG, "Can't convert '%s' to float!", c[3 + offset].c_str());
         return;
       }
-      lora_packet.state = *state;
-
-      lora_packet.rssi = this->packet_rssi();
-
-      LOG_LORA_PACKET(lora_packet) this->process_lora_packet(lora_packet);
-    } else {
-      ESP_LOGE(TAG, "Received bad packet");
-      return;
     }
+
+    lora_packet.state = *state;
+
+    lora_packet.rssi = this->packet_rssi();
+    lora_packet.snr = this->packet_snr();
+    this->lora_packets_.push_back(lora_packet);
   }
+  ESP_LOGD(TAG, "Deleting %d", todelete);
+  this->store_.todelete = todelete;
+
+  this->receive_buffer_.erase(0, todelete);
 }  // namespace sx1276
 
 int SX1276::read() {
@@ -143,6 +187,31 @@ int SX1276::read() {
   }
   this->packet_index_++;
   return this->read_register(REG_FIFO);
+}
+
+void SX1276::handle_di0() {
+  int irqFlags = this->read_register(REG_IRQ_FLAGS);
+  // clear IRQ's
+  this->write_register(REG_IRQ_FLAGS, irqFlags);
+  if ((irqFlags & IRQ_PAYLOAD_CRC_ERROR_MASK) == 0) {
+    // received a packet
+    this->packet_index_ = 0;
+    // read packet length
+    int packetLength =
+        this->implicit_header_mode_ ? this->read_register(REG_PAYLOAD_LENGTH) : this->read_register(REG_RX_NB_BYTES);
+    // set FIFO address to current RX address
+    this->store_.packetLength = packetLength;
+
+    this->write_register(REG_FIFO_ADDR_PTR, this->read_register(REG_FIFO_RX_CURRENT_ADDR));
+    // this->read_available(packetLength);
+
+    if (packetLength != 0)
+      while (this->available())
+        this->receive_buffer_ += this->read();
+
+    // reset FIFO address
+    this->write_register(REG_FIFO_ADDR_PTR, 0);
+  }
 }
 
 int SX1276::parse_packet(int size) {
@@ -188,6 +257,8 @@ int SX1276::parse_packet(int size) {
 
   return packet_length;
 }
+
+float SX1276::packet_snr() { return ((int8_t) this->read_register(REG_PKT_SNR_VALUE)) * 0.25; }
 
 int SX1276::packet_rssi() {
   int8_t snr = 0;
