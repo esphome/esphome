@@ -16,10 +16,6 @@ void ILI9486Display::setup_pins_() {
     this->reset_pin_->setup();  // OUTPUT
     this->reset_pin_->digital_write(true);
   }
-  if (this->led_pin_ != nullptr) {
-    this->led_pin_->setup();
-    this->led_pin_->digital_write(true);
-  }
   this->spi_setup();
 
   this->reset_();
