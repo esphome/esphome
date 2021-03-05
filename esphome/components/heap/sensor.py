@@ -10,9 +10,10 @@ HeapSensor = heap_sensor_ns.class_('HeapSensor', cg.PollingComponent)
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(HeapSensor),
     cv.Optional(CONF_FREE): sensor.sensor_schema('Number', ICON_COUNTER, 0, DEVICE_CLASS_EMPTY),
-    cv.Optional(CONF_FRAGMENTATION):
-        sensor.sensor_schema('Number', ICON_COUNTER, 0, DEVICE_CLASS_EMPTY),
-    cv.Optional(CONF_BLOCK): sensor.sensor_schema('Number', ICON_COUNTER, 0, DEVICE_CLASS_EMPTY),
+    cv.Optional(CONF_FRAGMENTATION): cv.All(cv.only_on_esp8266,
+        sensor.sensor_schema('Number', ICON_COUNTER, 0, DEVICE_CLASS_EMPTY)),
+    cv.Optional(CONF_BLOCK): cv.All(cv.only_on_esp8266, 
+        sensor.sensor_schema('Number', ICON_COUNTER, 0, DEVICE_CLASS_EMPTY)),
 }).extend(cv.polling_component_schema('60s'))
 
 
