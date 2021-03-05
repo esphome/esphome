@@ -6,7 +6,7 @@ namespace heap {
 
 static const char *TAG = "heap";
 
-void HeapSensor::dump_config() { 
+void HeapSensor::dump_config() {
   ESP_LOGCONFIG(TAG, "Heap:");
   LOG_SENSOR("  ", "Free", this->free_sensor_);
   LOG_SENSOR("  ", "Fragmentation", this->fragmentation_sensor_);

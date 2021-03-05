@@ -9,13 +9,21 @@ namespace heap {
 
 class HeapSensor : public PollingComponent {
  public:
-  void update() override { 
-    int free = ESP.getFreeHeap();
-    int frag = ESP.getHeapFragmentation();
-    int block = ESP.getMaxFreeBlockSize();
-    if (this->free_sensor_          != nullptr) this->free_sensor_->publish_state(free);
-    if (this->fragmentation_sensor_ != nullptr) this->fragmentation_sensor_->publish_state(frag);
-    if (this->block_sensor_         != nullptr) this->block_sensor_->publish_state(block);
+  void update() override {
+    if (this->free_sensor_ != nullptr) {
+      int free = ESP.getFreeHeap();
+      this->free_sensor_->publish_state(free);
+    }
+    
+    if (this->fragmentation_sensor_ != nullptr) {
+      int frag = ESP.getHeapFragmentation();
+      this->fragmentation_sensor_->publish_state(frag);
+    }
+    
+    if (this->block_sensor_ != nullptr) {
+      int block = ESP.getMaxFreeBlockSize();
+      this->block_sensor_->publish_state(block);
+    }
   }
 
   void dump_config() override;
