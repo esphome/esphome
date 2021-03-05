@@ -169,6 +169,7 @@ uart:
     data_bits: 8
     stop_bits: 1
     rx_buffer_size: 512
+    invert: false
 
   - id: adalight_uart
     tx_pin: GPIO25
