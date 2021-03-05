@@ -14,12 +14,12 @@ class HeapSensor : public PollingComponent {
       int free = ESP.getFreeHeap();
       this->free_sensor_->publish_state(free);
     }
-    
+
     if (this->fragmentation_sensor_ != nullptr) {
       int frag = ESP.getHeapFragmentation();
       this->fragmentation_sensor_->publish_state(frag);
     }
-    
+
     if (this->block_sensor_ != nullptr) {
       int block = ESP.getMaxFreeBlockSize();
       this->block_sensor_->publish_state(block);
