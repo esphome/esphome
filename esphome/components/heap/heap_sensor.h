@@ -17,12 +17,12 @@ class HeapSensor : public PollingComponent {
 
 #ifdef ARDUINO_ARCH_ESP8266
     if (this->fragmentation_sensor_ != nullptr) {
-      int frag = ESP.getHeapFragmentation();
-      this->fragmentation_sensor_->publish_state(frag);
+      int frag = ESP.getHeapFragmentation(); // NO LINT
+      this->fragmentation_sensor_->publish_state(frag); 
     }
 
     if (this->block_sensor_ != nullptr) {
-      int block = ESP.getMaxFreeBlockSize();
+      int block = ESP.getMaxFreeBlockSize(); // NO LINT
       this->block_sensor_->publish_state(block);
     }
 #endif
