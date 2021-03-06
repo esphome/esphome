@@ -10,14 +10,17 @@ from esphome.core_config import PLATFORMIO_ESP8266_LUT
 heap_sensor_ns = cg.esphome_ns.namespace('heap')
 HeapSensor = heap_sensor_ns.class_('HeapSensor', cg.PollingComponent)
 
+
 def _finditem(obj, key):
-    if key in obj: return obj[key]
-    for k, v in obj.items():
-        if isinstance(v,dict):
+    if key in obj:
+        return obj[key]
+    for v in obj.values():
+        if isinstance(v, dict):
             item = _finditem(v, key)
             if item is not None:
                 return item
-                
+
+
 def validate_framework(config):
     if CORE.is_esp32:
         return config
@@ -31,6 +34,7 @@ def validate_framework(config):
     if framework < ARDUINO_VERSION_ESP8266['2.5.2']:
         raise cv.Invalid('This component is not supported on arduino framework version below 2.5.2')
     return config
+
 
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(HeapSensor),
