@@ -544,17 +544,15 @@ MQTTMessageTrigger::MQTTMessageTrigger(const std::string &topic) : topic_(topic)
 void MQTTMessageTrigger::set_qos(uint8_t qos) { this->qos_ = qos; }
 void MQTTMessageTrigger::set_payload(const std::string &payload) { this->payload_ = payload; }
 void MQTTMessageTrigger::setup() {
-  global_mqtt_client->subscribe(
-      this->topic_,
-      [this](const std::string &topic, const std::string &payload) {
-        if (this->payload_.has_value() && payload != *this->payload_) {
-          return;
-        }
+  global_mqtt_client->subscribe(this->topic_,
+                                [this](const std::string &topic, const std::string &payload) {
+                                  if (this->payload_.has_value() && payload != *this->payload_) {
+                                    return;
+                                  }
 
-        this->trigger(payload);
-      },
-      this->qos_);
-}
+                                  this->trigger(payload);
+                                },
+                                this->qos_);
 void MQTTMessageTrigger::dump_config() {
   ESP_LOGCONFIG(TAG, "MQTT Message Trigger:");
   ESP_LOGCONFIG(TAG, "  Topic: '%s'", this->topic_.c_str());
