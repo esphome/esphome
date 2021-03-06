@@ -1,5 +1,7 @@
 #pragma once
 
+#include <list>
+
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
@@ -20,6 +22,8 @@ struct SequenceStepTimeouts {
 
 class VL53L0XSensor : public sensor::Sensor, public PollingComponent, public i2c::I2CDevice {
  public:
+  VL53L0XSensor();
+
   void setup() override;
 
   void dump_config() override;
@@ -30,6 +34,8 @@ class VL53L0XSensor : public sensor::Sensor, public PollingComponent, public i2c
 
   void set_signal_rate_limit(float signal_rate_limit) { signal_rate_limit_ = signal_rate_limit; }
   void set_long_range(bool long_range) { long_range_ = long_range; }
+  void set_timeout_us(uint32_t timeout_us) { this->timeout_us_ = timeout_us; }
+  void set_enable_pin(GPIOPin *enable) { this->enable_pin_ = enable; }
 
  protected:
   uint32_t get_measurement_timing_budget_() {
@@ -249,10 +255,17 @@ class VL53L0XSensor : public sensor::Sensor, public PollingComponent, public i2c
 
   float signal_rate_limit_;
   bool long_range_;
+  GPIOPin *enable_pin_{nullptr};
   uint32_t measurement_timing_budget_us_;
   bool initiated_read_{false};
   bool waiting_for_interrupt_{false};
   uint8_t stop_variable_;
+
+  uint16_t timeout_start_us_;
+  uint16_t timeout_us_{};
+
+  static std::list<VL53L0XSensor *> vl53_sensors;
+  static bool enable_pin_setup_complete;
 };
 
 }  // namespace vl53l0x

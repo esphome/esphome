@@ -146,6 +146,9 @@ class ESPHomeLoader(yaml.SafeLoader):  # pylint: disable=too-many-ancestors
                     raise yaml.constructor.ConstructorError(
                         f'Invalid key "{key}" (not hashable)', key_node.start_mark)
 
+                key = make_data_base(str(key))
+                key.from_node(key_node)
+
                 # Check if it is a duplicate key
                 if key in seen_keys:
                     raise yaml.constructor.ConstructorError(

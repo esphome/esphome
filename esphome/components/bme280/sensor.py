@@ -2,8 +2,8 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import i2c, sensor
 from esphome.const import CONF_HUMIDITY, CONF_ID, CONF_IIR_FILTER, CONF_OVERSAMPLING, \
-    CONF_PRESSURE, CONF_TEMPERATURE, ICON_THERMOMETER, \
-    UNIT_CELSIUS, UNIT_HECTOPASCAL, ICON_GAUGE, ICON_WATER_PERCENT, UNIT_PERCENT
+    CONF_PRESSURE, CONF_TEMPERATURE, DEVICE_CLASS_HUMIDITY, DEVICE_CLASS_PRESSURE, \
+    DEVICE_CLASS_TEMPERATURE, ICON_EMPTY, UNIT_CELSIUS, UNIT_HECTOPASCAL, UNIT_PERCENT
 
 DEPENDENCIES = ['i2c']
 
@@ -32,17 +32,17 @@ BME280Component = bme280_ns.class_('BME280Component', cg.PollingComponent, i2c.I
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(BME280Component),
     cv.Optional(CONF_TEMPERATURE):
-        sensor.sensor_schema(UNIT_CELSIUS, ICON_THERMOMETER, 1).extend({
+        sensor.sensor_schema(UNIT_CELSIUS, ICON_EMPTY, 1, DEVICE_CLASS_TEMPERATURE).extend({
             cv.Optional(CONF_OVERSAMPLING, default='16X'):
                 cv.enum(OVERSAMPLING_OPTIONS, upper=True),
         }),
     cv.Optional(CONF_PRESSURE):
-        sensor.sensor_schema(UNIT_HECTOPASCAL, ICON_GAUGE, 1).extend({
+        sensor.sensor_schema(UNIT_HECTOPASCAL, ICON_EMPTY, 1, DEVICE_CLASS_PRESSURE).extend({
             cv.Optional(CONF_OVERSAMPLING, default='16X'):
                 cv.enum(OVERSAMPLING_OPTIONS, upper=True),
         }),
     cv.Optional(CONF_HUMIDITY):
-        sensor.sensor_schema(UNIT_PERCENT, ICON_WATER_PERCENT, 1).extend({
+        sensor.sensor_schema(UNIT_PERCENT, ICON_EMPTY, 1, DEVICE_CLASS_HUMIDITY).extend({
             cv.Optional(CONF_OVERSAMPLING, default='16X'):
                 cv.enum(OVERSAMPLING_OPTIONS, upper=True),
         }),

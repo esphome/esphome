@@ -229,6 +229,8 @@ sensor:
     name: 'VL53L0x Distance'
     address: 0x29
     update_interval: 60s
+    enable_pin: GPIO13
+    timeout: 200us
   - platform: apds9960
     type: clear
     name: APDS9960 Clear
@@ -841,6 +843,8 @@ sim800l:
         str = message;
     - sim800l.send_sms:
         message: 'hello you'
+        recipient: '+1234'
+    - sim800l.dial:
         recipient: '+1234'
 
 dfplayer:

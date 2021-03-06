@@ -1,13 +1,15 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import sensor
-from esphome.const import CONF_ADDRESS, CONF_DALLAS_ID, CONF_INDEX, CONF_RESOLUTION, UNIT_CELSIUS, \
-    ICON_THERMOMETER, CONF_ID
+from esphome.const import CONF_ADDRESS, CONF_DALLAS_ID, CONF_INDEX, CONF_RESOLUTION, \
+    DEVICE_CLASS_TEMPERATURE, ICON_EMPTY, UNIT_CELSIUS, CONF_ID
 from . import DallasComponent, dallas_ns
 
 DallasTemperatureSensor = dallas_ns.class_('DallasTemperatureSensor', sensor.Sensor)
 
-CONFIG_SCHEMA = cv.All(sensor.sensor_schema(UNIT_CELSIUS, ICON_THERMOMETER, 1).extend({
+CONFIG_SCHEMA = cv.All(sensor.sensor_schema(
+    UNIT_CELSIUS, ICON_EMPTY, 1, DEVICE_CLASS_TEMPERATURE
+).extend({
     cv.GenerateID(): cv.declare_id(DallasTemperatureSensor),
     cv.GenerateID(CONF_DALLAS_ID): cv.use_id(DallasComponent),
 

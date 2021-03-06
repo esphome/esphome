@@ -1,6 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
+
 from esphome.const import CONF_NAME, CONF_LAMBDA, CONF_UPDATE_INTERVAL, CONF_TRANSITION_LENGTH, \
     CONF_COLORS, CONF_STATE, CONF_DURATION, CONF_BRIGHTNESS, CONF_RED, CONF_GREEN, CONF_BLUE, \
     CONF_WHITE, CONF_ALPHA, CONF_INTENSITY, CONF_SPEED, CONF_WIDTH, CONF_NUM_LEDS, CONF_RANDOM, \
@@ -11,7 +12,7 @@ from .types import LambdaLightEffect, RandomLightEffect, StrobeLightEffect, \
     FlickerLightEffect, AddressableRainbowLightEffect, AddressableColorWipeEffect, \
     AddressableColorWipeEffectColor, AddressableScanEffect, AddressableTwinkleEffect, \
     AddressableRandomTwinkleEffect, AddressableFireworksEffect, AddressableFlickerEffect, \
-    AutomationLightEffect, ESPColor
+    AutomationLightEffect, Color
 
 CONF_ADD_LED_INTERVAL = 'add_led_interval'
 CONF_REVERSE = 'reverse'
@@ -162,7 +163,7 @@ def flicker_effect_to_code(config, effect_id):
     }
 )
 def addressable_lambda_effect_to_code(config, effect_id):
-    args = [(AddressableLightRef, 'it'), (ESPColor, 'current_color'), (bool, 'initial_run')]
+    args = [(AddressableLightRef, 'it'), (Color, 'current_color'), (bool, 'initial_run')]
     lambda_ = yield cg.process_lambda(config[CONF_LAMBDA], args, return_type=cg.void)
     var = cg.new_Pvariable(effect_id, config[CONF_NAME], lambda_,
                            config[CONF_UPDATE_INTERVAL])

@@ -1,9 +1,9 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import i2c, sensor
-from esphome.const import CONF_ID, CONF_PRESSURE, CONF_TEMPERATURE, \
-    UNIT_CELSIUS, ICON_THERMOMETER, ICON_GAUGE, UNIT_HECTOPASCAL, \
-    CONF_IIR_FILTER, CONF_OVERSAMPLING
+from esphome.const import CONF_ID, CONF_PRESSURE, CONF_TEMPERATURE, DEVICE_CLASS_PRESSURE, \
+    DEVICE_CLASS_TEMPERATURE, UNIT_CELSIUS, ICON_EMPTY, UNIT_HECTOPASCAL, CONF_IIR_FILTER, \
+    CONF_OVERSAMPLING
 
 DEPENDENCIES = ['i2c']
 
@@ -31,10 +31,14 @@ BMP280Component = bmp280_ns.class_('BMP280Component', cg.PollingComponent, i2c.I
 
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(BMP280Component),
-    cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(UNIT_CELSIUS, ICON_THERMOMETER, 1).extend({
+    cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
+        UNIT_CELSIUS, ICON_EMPTY, 1, DEVICE_CLASS_TEMPERATURE
+    ).extend({
         cv.Optional(CONF_OVERSAMPLING, default='16X'): cv.enum(OVERSAMPLING_OPTIONS, upper=True),
     }),
-    cv.Optional(CONF_PRESSURE): sensor.sensor_schema(UNIT_HECTOPASCAL, ICON_GAUGE, 1).extend({
+    cv.Optional(CONF_PRESSURE): sensor.sensor_schema(
+        UNIT_HECTOPASCAL, ICON_EMPTY, 1, DEVICE_CLASS_PRESSURE
+    ).extend({
         cv.Optional(CONF_OVERSAMPLING, default='16X'): cv.enum(OVERSAMPLING_OPTIONS, upper=True),
     }),
     cv.Optional(CONF_IIR_FILTER, default='OFF'): cv.enum(IIR_FILTER_OPTIONS, upper=True),
