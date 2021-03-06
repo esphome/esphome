@@ -9,6 +9,6 @@ tzlocal==2.1
 pytz==2021.1
 pyserial==3.5
 ifaddr==0.1.7
-platformio==5.0.4
+platformio==5.1.0
 esptool==2.8
 click==7.1.2
