@@ -4,15 +4,25 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
 from esphome.components import mqtt
-from esphome.const import CONF_ABOVE, CONF_ACCURACY_DECIMALS, CONF_ALPHA, CONF_BELOW, \
-    CONF_EXPIRE_AFTER, CONF_FILTERS, CONF_FROM, CONF_ICON, CONF_ID, CONF_INTERNAL, \
+from esphome.const import CONF_DEVICE_CLASS, CONF_ABOVE, CONF_ACCURACY_DECIMALS, CONF_ALPHA, \
+    CONF_BELOW, CONF_EXPIRE_AFTER, CONF_FILTERS, CONF_FROM, CONF_ICON, CONF_ID, CONF_INTERNAL, \
     CONF_ON_RAW_VALUE, CONF_ON_VALUE, CONF_ON_VALUE_RANGE, CONF_SEND_EVERY, CONF_SEND_FIRST_AT, \
     CONF_TO, CONF_TRIGGER_ID, CONF_UNIT_OF_MEASUREMENT, CONF_WINDOW_SIZE, CONF_NAME, CONF_MQTT_ID, \
-    CONF_FORCE_UPDATE
+    CONF_FORCE_UPDATE, UNIT_EMPTY, ICON_EMPTY, DEVICE_CLASS_EMPTY, DEVICE_CLASS_BATTERY, \
+    DEVICE_CLASS_CURRENT, DEVICE_CLASS_ENERGY, DEVICE_CLASS_HUMIDITY, DEVICE_CLASS_ILLUMINANCE, \
+    DEVICE_CLASS_SIGNAL_STRENGTH, DEVICE_CLASS_TEMPERATURE, DEVICE_CLASS_POWER, \
+    DEVICE_CLASS_POWER_FACTOR, DEVICE_CLASS_PRESSURE, DEVICE_CLASS_TIMESTAMP, DEVICE_CLASS_VOLTAGE
 from esphome.core import CORE, coroutine, coroutine_with_priority
 from esphome.util import Registry
 
 CODEOWNERS = ['@esphome/core']
+DEVICE_CLASSES = [
+    DEVICE_CLASS_EMPTY, DEVICE_CLASS_BATTERY, DEVICE_CLASS_CURRENT, DEVICE_CLASS_ENERGY,
+    DEVICE_CLASS_HUMIDITY, DEVICE_CLASS_ILLUMINANCE, DEVICE_CLASS_SIGNAL_STRENGTH,
+    DEVICE_CLASS_TEMPERATURE, DEVICE_CLASS_POWER, DEVICE_CLASS_POWER_FACTOR, DEVICE_CLASS_PRESSURE,
+    DEVICE_CLASS_TIMESTAMP, DEVICE_CLASS_VOLTAGE
+]
+
 IS_PLATFORM_COMPONENT = True
 
 
@@ -62,6 +72,8 @@ SensorPublishAction = sensor_ns.class_('SensorPublishAction', automation.Action)
 # Filters
 Filter = sensor_ns.class_('Filter')
 MedianFilter = sensor_ns.class_('MedianFilter', Filter)
+MinFilter = sensor_ns.class_('MinFilter', Filter)
+MaxFilter = sensor_ns.class_('MaxFilter', Filter)
 SlidingWindowMovingAverageFilter = sensor_ns.class_('SlidingWindowMovingAverageFilter', Filter)
 ExponentialMovingAverageFilter = sensor_ns.class_('ExponentialMovingAverageFilter', Filter)
 LambdaFilter = sensor_ns.class_('LambdaFilter', Filter)
@@ -80,6 +92,7 @@ SensorInRangeCondition = sensor_ns.class_('SensorInRangeCondition', Filter)
 unit_of_measurement = cv.string_strict
 accuracy_decimals = cv.int_
 icon = cv.icon
+device_class = cv.one_of(*DEVICE_CLASSES, lower=True, space='_')
 
 SENSOR_SCHEMA = cv.MQTT_COMPONENT_SCHEMA.extend({
     cv.OnlyWith(CONF_MQTT_ID, 'mqtt'): cv.declare_id(mqtt.MQTTSensorComponent),
@@ -87,6 +100,7 @@ SENSOR_SCHEMA = cv.MQTT_COMPONENT_SCHEMA.extend({
     cv.Optional(CONF_UNIT_OF_MEASUREMENT): unit_of_measurement,
     cv.Optional(CONF_ICON): icon,
     cv.Optional(CONF_ACCURACY_DECIMALS): accuracy_decimals,
+    cv.Optional(CONF_DEVICE_CLASS): device_class,
     cv.Optional(CONF_FORCE_UPDATE, default=False): cv.boolean,
     cv.Optional(CONF_EXPIRE_AFTER): cv.All(cv.requires_component('mqtt'),
                                            cv.Any(None, cv.positive_time_period_milliseconds)),
@@ -105,13 +119,24 @@ SENSOR_SCHEMA = cv.MQTT_COMPONENT_SCHEMA.extend({
 })
 
 
-def sensor_schema(unit_of_measurement_, icon_, accuracy_decimals_):
-    # type: (str, str, int) -> cv.Schema
-    return SENSOR_SCHEMA.extend({
-        cv.Optional(CONF_UNIT_OF_MEASUREMENT, default=unit_of_measurement_): unit_of_measurement,
-        cv.Optional(CONF_ICON, default=icon_): icon,
-        cv.Optional(CONF_ACCURACY_DECIMALS, default=accuracy_decimals_): accuracy_decimals,
-    })
+def sensor_schema(unit_of_measurement_, icon_, accuracy_decimals_, device_class_):
+    # type: (str, str, int, str) -> cv.Schema
+    schema = SENSOR_SCHEMA
+    if unit_of_measurement_ != UNIT_EMPTY:
+        schema = schema.extend({
+            cv.Optional(CONF_UNIT_OF_MEASUREMENT, default=unit_of_measurement_): unit_of_measurement
+        })
+    if icon_ != ICON_EMPTY:
+        schema = schema.extend({cv.Optional(CONF_ICON, default=icon_): icon})
+    if accuracy_decimals_ != 0:
+        schema = schema.extend({
+            cv.Optional(CONF_ACCURACY_DECIMALS, default=accuracy_decimals_): accuracy_decimals,
+        })
+    if device_class_ != DEVICE_CLASS_EMPTY:
+        schema = schema.extend({
+            cv.Optional(CONF_DEVICE_CLASS, default=device_class_): device_class
+        })
+    return schema
 
 
 @FILTER_REGISTRY.register('offset', OffsetFilter, cv.float_)
@@ -138,6 +163,32 @@ MEDIAN_SCHEMA = cv.All(cv.Schema({
 
 @FILTER_REGISTRY.register('median', MedianFilter, MEDIAN_SCHEMA)
 def median_filter_to_code(config, filter_id):
+    yield cg.new_Pvariable(filter_id, config[CONF_WINDOW_SIZE], config[CONF_SEND_EVERY],
+                           config[CONF_SEND_FIRST_AT])
+
+
+MIN_SCHEMA = cv.All(cv.Schema({
+    cv.Optional(CONF_WINDOW_SIZE, default=5): cv.positive_not_null_int,
+    cv.Optional(CONF_SEND_EVERY, default=5): cv.positive_not_null_int,
+    cv.Optional(CONF_SEND_FIRST_AT, default=1): cv.positive_not_null_int,
+}), validate_send_first_at)
+
+
+@FILTER_REGISTRY.register('min', MinFilter, MIN_SCHEMA)
+def min_filter_to_code(config, filter_id):
+    yield cg.new_Pvariable(filter_id, config[CONF_WINDOW_SIZE], config[CONF_SEND_EVERY],
+                           config[CONF_SEND_FIRST_AT])
+
+
+MAX_SCHEMA = cv.All(cv.Schema({
+    cv.Optional(CONF_WINDOW_SIZE, default=5): cv.positive_not_null_int,
+    cv.Optional(CONF_SEND_EVERY, default=5): cv.positive_not_null_int,
+    cv.Optional(CONF_SEND_FIRST_AT, default=1): cv.positive_not_null_int,
+}), validate_send_first_at)
+
+
+@FILTER_REGISTRY.register('max', MaxFilter, MAX_SCHEMA)
+def max_filter_to_code(config, filter_id):
     yield cg.new_Pvariable(filter_id, config[CONF_WINDOW_SIZE], config[CONF_SEND_EVERY],
                            config[CONF_SEND_FIRST_AT])
 
@@ -253,6 +304,8 @@ def setup_sensor_core_(var, config):
     cg.add(var.set_name(config[CONF_NAME]))
     if CONF_INTERNAL in config:
         cg.add(var.set_internal(config[CONF_INTERNAL]))
+    if CONF_DEVICE_CLASS in config:
+        cg.add(var.set_device_class(config[CONF_DEVICE_CLASS]))
     if CONF_UNIT_OF_MEASUREMENT in config:
         cg.add(var.set_unit_of_measurement(config[CONF_UNIT_OF_MEASUREMENT]))
     if CONF_ICON in config:

@@ -337,6 +337,11 @@ class DocumentLocation:
     def __str__(self):
         return f'{self.document} {self.line}:{self.column}'
 
+    @property
+    def as_line_directive(self):
+        document_path = str(self.document).replace('\\', '\\\\')
+        return f'#line {self.line + 1} "{document_path}"'
+
 
 class DocumentRange:
     def __init__(self, start_mark: DocumentLocation, end_mark: DocumentLocation):

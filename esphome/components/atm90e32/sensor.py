@@ -3,7 +3,8 @@ import esphome.config_validation as cv
 from esphome.components import sensor, spi
 from esphome.const import \
     CONF_ID, CONF_VOLTAGE, CONF_CURRENT, CONF_POWER, CONF_POWER_FACTOR, CONF_FREQUENCY, \
-    ICON_FLASH, ICON_LIGHTBULB, ICON_CURRENT_AC, ICON_THERMOMETER, \
+    DEVICE_CLASS_CURRENT, DEVICE_CLASS_EMPTY, DEVICE_CLASS_POWER, DEVICE_CLASS_POWER_FACTOR, \
+    DEVICE_CLASS_TEMPERATURE, DEVICE_CLASS_VOLTAGE, ICON_EMPTY, ICON_LIGHTBULB, ICON_CURRENT_AC, \
     UNIT_HERTZ, UNIT_VOLT, UNIT_AMPERE, UNIT_WATT, UNIT_EMPTY, UNIT_CELSIUS, UNIT_VOLT_AMPS_REACTIVE
 
 CONF_PHASE_A = 'phase_a'
@@ -35,12 +36,14 @@ atm90e32_ns = cg.esphome_ns.namespace('atm90e32')
 ATM90E32Component = atm90e32_ns.class_('ATM90E32Component', cg.PollingComponent, spi.SPIDevice)
 
 ATM90E32_PHASE_SCHEMA = cv.Schema({
-    cv.Optional(CONF_VOLTAGE): sensor.sensor_schema(UNIT_VOLT, ICON_FLASH, 2),
-    cv.Optional(CONF_CURRENT): sensor.sensor_schema(UNIT_AMPERE, ICON_CURRENT_AC, 2),
-    cv.Optional(CONF_POWER): sensor.sensor_schema(UNIT_WATT, ICON_FLASH, 2),
+    cv.Optional(CONF_VOLTAGE): sensor.sensor_schema(UNIT_VOLT, ICON_EMPTY, 2, DEVICE_CLASS_VOLTAGE),
+    cv.Optional(CONF_CURRENT): sensor.sensor_schema(UNIT_AMPERE, ICON_EMPTY, 2,
+                                                    DEVICE_CLASS_CURRENT),
+    cv.Optional(CONF_POWER): sensor.sensor_schema(UNIT_WATT, ICON_EMPTY, 2, DEVICE_CLASS_POWER),
     cv.Optional(CONF_REACTIVE_POWER): sensor.sensor_schema(UNIT_VOLT_AMPS_REACTIVE,
-                                                           ICON_LIGHTBULB, 2),
-    cv.Optional(CONF_POWER_FACTOR): sensor.sensor_schema(UNIT_EMPTY, ICON_FLASH, 2),
+                                                           ICON_LIGHTBULB, 2, DEVICE_CLASS_EMPTY),
+    cv.Optional(CONF_POWER_FACTOR): sensor.sensor_schema(UNIT_EMPTY, ICON_EMPTY, 2,
+                                                         DEVICE_CLASS_POWER_FACTOR),
     cv.Optional(CONF_GAIN_VOLTAGE, default=7305): cv.uint16_t,
     cv.Optional(CONF_GAIN_CT, default=27961): cv.uint16_t,
 })
@@ -50,8 +53,10 @@ CONFIG_SCHEMA = cv.Schema({
     cv.Optional(CONF_PHASE_A): ATM90E32_PHASE_SCHEMA,
     cv.Optional(CONF_PHASE_B): ATM90E32_PHASE_SCHEMA,
     cv.Optional(CONF_PHASE_C): ATM90E32_PHASE_SCHEMA,
-    cv.Optional(CONF_FREQUENCY): sensor.sensor_schema(UNIT_HERTZ, ICON_CURRENT_AC, 1),
-    cv.Optional(CONF_CHIP_TEMPERATURE): sensor.sensor_schema(UNIT_CELSIUS, ICON_THERMOMETER, 1),
+    cv.Optional(CONF_FREQUENCY): sensor.sensor_schema(UNIT_HERTZ, ICON_CURRENT_AC, 1,
+                                                      DEVICE_CLASS_EMPTY),
+    cv.Optional(CONF_CHIP_TEMPERATURE): sensor.sensor_schema(UNIT_CELSIUS, ICON_EMPTY, 1,
+                                                             DEVICE_CLASS_TEMPERATURE),
     cv.Required(CONF_LINE_FREQUENCY): cv.enum(LINE_FREQS, upper=True),
     cv.Optional(CONF_CURRENT_PHASES, default='3'): cv.enum(CURRENT_PHASES, upper=True),
     cv.Optional(CONF_GAIN_PGA, default='2X'): cv.enum(PGA_GAINS, upper=True),

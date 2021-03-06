@@ -2,8 +2,8 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import i2c, sensor
 from esphome.const import CONF_ID, CONF_PRESSURE, \
-    CONF_TEMPERATURE, ICON_THERMOMETER, UNIT_CELSIUS, ICON_GAUGE, \
-    UNIT_HECTOPASCAL
+    CONF_TEMPERATURE, DEVICE_CLASS_PRESSURE, DEVICE_CLASS_TEMPERATURE, ICON_EMPTY, UNIT_CELSIUS, \
+    ICON_GAUGE, UNIT_HECTOPASCAL
 
 DEPENDENCIES = ['i2c']
 
@@ -12,8 +12,10 @@ MS5611Component = ms5611_ns.class_('MS5611Component', cg.PollingComponent, i2c.I
 
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(MS5611Component),
-    cv.Required(CONF_TEMPERATURE): sensor.sensor_schema(UNIT_CELSIUS, ICON_THERMOMETER, 1),
-    cv.Required(CONF_PRESSURE): sensor.sensor_schema(UNIT_HECTOPASCAL, ICON_GAUGE, 1),
+    cv.Required(CONF_TEMPERATURE): sensor.sensor_schema(UNIT_CELSIUS, ICON_EMPTY, 1,
+                                                        DEVICE_CLASS_TEMPERATURE),
+    cv.Required(CONF_PRESSURE): sensor.sensor_schema(UNIT_HECTOPASCAL, ICON_GAUGE, 1,
+                                                     DEVICE_CLASS_PRESSURE),
 }).extend(cv.polling_component_schema('60s')).extend(i2c.i2c_device_schema(0x77))
 
 

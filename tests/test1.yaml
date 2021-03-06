@@ -1,5 +1,8 @@
 substitutions:
   devicename: test1
+  sensorname: my
+  textname: template
+  roomname: living_room
 
 esphome:
   name: test1
@@ -26,6 +29,25 @@ esphome:
           green: !lambda 'return 255;'
           blue: 0%
           white: 100%
+      - http_request.get:
+          url: https://esphome.io
+          headers:
+            Content-Type: application/json
+          verify_ssl: false
+      - http_request.post:
+          url: https://esphome.io
+          verify_ssl: false
+          json:
+            key: !lambda |-
+              return id(${textname}_text).state;
+            greeting: 'Hello World'
+      - http_request.send:
+          method: PUT
+          url: https://esphome.io
+          headers:
+            Content-Type: application/json
+          body: 'Some data'
+          verify_ssl: false
   build_path: build/test1
 
 packages:
@@ -49,6 +71,10 @@ wifi:
   domain: .local
   reboot_timeout: 120s
   power_save_mode: none
+
+http_request:
+  useragent: esphome/device
+  timeout: 10s
 
 mqtt:
   broker: '192.168.178.84'
@@ -98,7 +124,7 @@ mqtt:
                 int data = x["my_data"];
                 ESP_LOGD("main", "The data is: %d", data);
             - light.turn_on:
-                id: living_room_lights
+                id: ${roomname}_lights
                 brightness: !lambda |-
                   float brightness = 1.0;
                   if (x.containsKey("brightness"))
@@ -110,10 +136,10 @@ mqtt:
                     effect = x["effect"];
                   return effect;
             - light.control:
-                id: living_room_lights
-                brightness: !lambda 'return id(living_room_lights).current_values.get_brightness() + 0.5;'
+                id: ${roomname}_lights
+                brightness: !lambda 'return id(${roomname}_lights).current_values.get_brightness() + 0.5;'
             - light.dim_relative:
-                id: living_room_lights
+                id: ${roomname}_lights
                 relative_brightness: 5%
             - uart.write:
                 id: uart0
@@ -143,6 +169,7 @@ uart:
     data_bits: 8
     stop_bits: 1
     rx_buffer_size: 512
+    invert: false
 
   - id: adalight_uart
     tx_pin: GPIO25
@@ -237,6 +264,14 @@ sensor:
           window_size: 5
           send_every: 5
           send_first_at: 3
+      - min:
+          window_size: 5
+          send_every: 5
+          send_first_at: 3
+      - max:
+          window_size: 5
+          send_every: 5
+          send_first_at: 3
       - sliding_window_moving_average:
           window_size: 15
           send_every: 15
@@ -256,9 +291,9 @@ sensor:
       then:
         - lambda: |-
             ESP_LOGD("main", "Got value %f", x);
-            id(my_sensor).publish_state(42.0);
-            ESP_LOGI("main", "Value of my sensor: %f", id(my_sensor).state);
-            ESP_LOGI("main", "Raw Value of my sensor: %f", id(my_sensor).state);
+            id(${sensorname}_sensor).publish_state(42.0);
+            ESP_LOGI("main", "Value of my sensor: %f", id(${sensorname}_sensor).state);
+            ESP_LOGI("main", "Raw Value of my sensor: %f", id(${sensorname}_sensor).state);
     on_value_range:
       above: 5
       below: 10
@@ -285,7 +320,7 @@ sensor:
   - platform: ads1115
     multiplexer: 'A0_A1'
     gain: 1.024
-    id: my_sensor
+    id: ${sensorname}_sensor
     filters:
     state_topic: hi/me
     retain: false
@@ -617,6 +652,22 @@ sensor:
     co2:
       name: 'SenseAir CO2 Value'
     update_interval: 15s
+  - platform: sm300d2
+    co2:
+      name: "SM300D2 CO2 Value"
+    formaldehyde:
+      name: "SM300D2 Formaldehyde Value"    
+    tvoc:
+      name: "SM300D2 TVOC Value"
+    pm_2_5:
+      name: "SM300D2 PM2.5 Value"
+    pm_10_0:
+      name: "SM300D2 PM10 Value"
+    temperature:
+      name: "SM300D2 Temperature Value"
+    humidity:
+      name: "SM300D2 Humidity Value"   
+    update_interval: 60s    
   - platform: sht3xd
     temperature:
       name: 'Living Room Temperature 8'
@@ -924,12 +975,12 @@ binary_sensor:
     name: 'Garage Door Open'
     id: garage_door
     lambda: |-
-      if (isnan(id(my_sensor).state)) {
+      if (isnan(id(${sensorname}_sensor).state)) {
         // isnan checks if the ultrasonic sensor echo
         // has timed out, resulting in a NaN (not a number) state
         // in that case, return {} to indicate that we don't know.
         return {};
-      } else if (id(my_sensor).state > 30) {
+      } else if (id(${sensorname}_sensor).state > 30) {
         // Garage Door is open.
         return true;
       } else {
@@ -1173,6 +1224,8 @@ output:
   - platform: esp32_dac
     pin: GPIO25
     id: dac_output
+  - platform: mcp4725
+    id: mcp4725_dac_output
 
 e131:
 
@@ -1220,7 +1273,7 @@ light:
               state = 0;
   - platform: rgb
     name: 'Living Room Lights'
-    id: living_room_lights
+    id: ${roomname}_lights
     red: pca_0
     green: pca_1
     blue: pca_2
@@ -1376,14 +1429,14 @@ climate:
     name: TCL112 Climate With Sensor
     supports_heat: True
     supports_cool: True
-    sensor: my_sensor
+    sensor: ${sensorname}_sensor
   - platform: tcl112
     name: TCL112 Climate
   - platform: coolix
     name: Coolix Climate With Sensor
     supports_heat: True
     supports_cool: True
-    sensor: my_sensor
+    sensor: ${sensorname}_sensor
   - platform: coolix
     name: Coolix Climate
   - platform: fujitsu_general
@@ -1451,6 +1504,12 @@ switch:
     turn_on_action:
       remote_transmitter.transmit_samsung:
         data: 0xABCDEF
+  - platform: template
+    name: Samsung36
+    turn_on_action:
+      remote_transmitter.transmit_samsung36:
+        address: 0x0400
+        command: 0x000E00FF      
   - platform: template
     name: Sony
     turn_on_action:
@@ -1542,6 +1601,9 @@ switch:
       - output.set_level:
           id: dac_output
           level: !lambda 'return 0.5;'
+      - output.set_level:
+          id: mcp4725_dac_output
+          level: !lambda 'return 0.5;'
     turn_off_action:
       - switch.turn_on: living_room_lights_off
     restore_state: False
@@ -1587,6 +1649,10 @@ switch:
   - platform: uart
     name: 'UART Bytes Output'
     data: [0xDE, 0xAD, 0xBE, 0xEF]
+  - platform: uart
+    name: 'UART Recurring Output'
+    data: [0xDE, 0xAD, 0xBE, 0xEF]
+    send_every: 1s
   - platform: template
     assumed_state: yes
     name: Stepper Switch
@@ -1653,7 +1719,7 @@ interval:
 color:
   - id: kbx_red
     red: 100%
-    green: 1%
+    green_int: 123
     blue: 2%
   - id: kbx_blue
     red: 0%
@@ -1730,7 +1796,7 @@ display:
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
   - platform: ssd1322_spi
-    model: "SSD1322 256x64"
+    model: 'SSD1322 256x64'
     cs_pin: GPIO23
     dc_pin: GPIO23
     reset_pin: GPIO23
@@ -1807,10 +1873,10 @@ display:
     dc_pin: GPIO16
     reset_pin: GPIO23
     rotation: 0
-    devicewidth: 128
-    deviceheight: 160
-    colstart: 0
-    rowstart: 0
+    device_width: 128
+    device_height: 160
+    col_start: 0
+    row_start: 0
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
 tm1651:
@@ -1875,8 +1941,7 @@ time:
     update_interval: never
     on_time:
       seconds: 0
-      then:
-        ds1307.read_time
+      then: ds1307.read_time
 
 cover:
   - platform: template
@@ -1950,10 +2015,10 @@ text_sensor:
     qos: 2
     on_value:
       - text_sensor.template.publish:
-          id: template_text
+          id: ${textname}_text
           state: Hello World
       - text_sensor.template.publish:
-          id: template_text
+          id: ${textname}_text
           state: |-
             return "Hello World2";
       - globals.set:
@@ -1964,7 +2029,7 @@ text_sensor:
           data: [0x10, 0x20, 0x30]
   - platform: template
     name: Template Text Sensor
-    id: template_text
+    id: ${textname}_text
   - platform: wifi_info
     ip_address:
       name: 'IP Address'
@@ -2006,4 +2071,4 @@ canbus:
               condition:
                 lambda: 'return x[0] == 0x11;'
               then:
-                light.toggle: living_room_lights
+                light.toggle: ${roomname}_lights

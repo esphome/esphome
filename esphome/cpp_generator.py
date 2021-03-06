@@ -1,6 +1,8 @@
 import abc
 import inspect
 import math
+import re
+from esphome.yaml_util import ESPHomeDataBase
 
 # pylint: disable=unused-import, wrong-import-order
 from typing import Any, Generator, List, Optional, Tuple, Type, Union, Sequence
@@ -188,13 +190,14 @@ class ParameterListExpression(Expression):
 
 
 class LambdaExpression(Expression):
-    __slots__ = ("parts", "parameters", "capture", "return_type")
+    __slots__ = ("parts", "parameters", "capture", "return_type", "source")
 
-    def __init__(self, parts, parameters, capture: str = '=', return_type=None):
+    def __init__(self, parts, parameters, capture: str = '=', return_type=None, source=None):
         self.parts = parts
         if not isinstance(parameters, ParameterListExpression):
             parameters = ParameterListExpression(*parameters)
         self.parameters = parameters
+        self.source = source
         self.capture = capture
         self.return_type = safe_exp(return_type) if return_type is not None else None
 
@@ -202,7 +205,10 @@ class LambdaExpression(Expression):
         cpp = f'[{self.capture}]({self.parameters})'
         if self.return_type is not None:
             cpp += f' -> {self.return_type}'
-        cpp += f' {{\n{self.content}\n}}'
+        cpp += ' {\n'
+        if self.source is not None:
+            cpp += f'{self.source.as_line_directive}\n'
+        cpp += f'{self.content}\n}}'
         return indent_all_but_first_and_last(cpp)
 
     @property
@@ -360,7 +366,7 @@ class LineComment(Statement):
         self.value = value
 
     def __str__(self):
-        parts = self.value.split('\n')
+        parts = re.sub(r'\\\s*\n', r'<cont>\n', self.value, re.MULTILINE).split('\n')
         parts = [f'// {x}' for x in parts]
         return '\n'.join(parts)
 
@@ -555,7 +561,13 @@ def process_lambda(
         else:
             parts[i * 3 + 1] = var
         parts[i * 3 + 2] = ''
-    yield LambdaExpression(parts, parameters, capture, return_type)
+
+    if isinstance(value, ESPHomeDataBase) and value.esp_range is not None:
+        location = value.esp_range.start_mark
+        location.line += value.content_offset
+    else:
+        location = None
+    yield LambdaExpression(parts, parameters, capture, return_type, location)
 
 
 def is_template(value):

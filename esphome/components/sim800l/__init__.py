@@ -17,6 +17,7 @@ Sim800LReceivedMessageTrigger = sim800l_ns.class_('Sim800LReceivedMessageTrigger
 
 # Actions
 Sim800LSendSmsAction = sim800l_ns.class_('Sim800LSendSmsAction', automation.Action)
+Sim800LDialAction = sim800l_ns.class_('Sim800LDialAction', automation.Action)
 
 CONF_ON_SMS_RECEIVED = 'on_sms_received'
 CONF_RECIPIENT = 'recipient'
@@ -56,4 +57,19 @@ def sim800l_send_sms_to_code(config, action_id, template_arg, args):
     cg.add(var.set_recipient(template_))
     template_ = yield cg.templatable(config[CONF_MESSAGE], args, cg.std_string)
     cg.add(var.set_message(template_))
+    yield var
+
+
+SIM800L_DIAL_SCHEMA = cv.Schema({
+    cv.GenerateID(): cv.use_id(Sim800LComponent),
+    cv.Required(CONF_RECIPIENT): cv.templatable(cv.string_strict),
+})
+
+
+@automation.register_action('sim800l.dial', Sim800LDialAction, SIM800L_DIAL_SCHEMA)
+def sim800l_dial_to_code(config, action_id, template_arg, args):
+    paren = yield cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, paren)
+    template_ = yield cg.templatable(config[CONF_RECIPIENT], args, cg.std_string)
+    cg.add(var.set_recipient(template_))
     yield var

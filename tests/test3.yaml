@@ -229,6 +229,8 @@ sensor:
     name: 'VL53L0x Distance'
     address: 0x29
     update_interval: 60s
+    enable_pin: GPIO13
+    timeout: 200us
   - platform: apds9960
     type: clear
     name: APDS9960 Clear
@@ -842,6 +844,8 @@ sim800l:
     - sim800l.send_sms:
         message: 'hello you'
         recipient: '+1234'
+    - sim800l.dial:
+        recipient: '+1234'
 
 dfplayer:
   on_finished_playback:
@@ -886,6 +890,25 @@ rf_bridge:
         code: 'ABC123'
     - rf_bridge.send_raw:
         raw: 'AAA5070008001000ABC12355'
+    - http_request.get:
+        url: https://esphome.io
+        headers:
+          Content-Type: application/json
+        verify_ssl: false
+    - http_request.post:
+        url: https://esphome.io
+        verify_ssl: false
+        json:
+          key: !lambda |-
+            return id(version_sensor).state;
+          greeting: 'Hello World'
+    - http_request.send:
+        method: PUT
+        url: https://esphome.io
+        headers:
+          Content-Type: application/json
+        body: 'Some data'
+        verify_ssl: false
 
 display:
   - platform: max7219digit
@@ -897,3 +920,7 @@ display:
     id: my_matrix
     lambda: |-
       it.printdigit("hello");
+
+http_request:
+  useragent: esphome/device
+  timeout: 10s

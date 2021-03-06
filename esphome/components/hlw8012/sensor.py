@@ -4,7 +4,8 @@ from esphome import pins
 from esphome.components import sensor
 from esphome.const import CONF_CHANGE_MODE_EVERY, CONF_INITIAL_MODE, CONF_CURRENT, \
     CONF_CURRENT_RESISTOR, CONF_ID, CONF_POWER, CONF_ENERGY, CONF_SEL_PIN, CONF_VOLTAGE, \
-    CONF_VOLTAGE_DIVIDER, ICON_FLASH, UNIT_VOLT, UNIT_AMPERE, UNIT_WATT, UNIT_WATT_HOURS
+    CONF_VOLTAGE_DIVIDER, DEVICE_CLASS_CURRENT, DEVICE_CLASS_ENERGY, DEVICE_CLASS_POWER, \
+    DEVICE_CLASS_VOLTAGE, ICON_EMPTY, UNIT_VOLT, UNIT_AMPERE, UNIT_WATT, UNIT_WATT_HOURS
 
 AUTO_LOAD = ['pulse_counter']
 
@@ -26,10 +27,12 @@ CONFIG_SCHEMA = cv.Schema({
     cv.Required(CONF_CF1_PIN): cv.All(pins.internal_gpio_input_pullup_pin_schema,
                                       pins.validate_has_interrupt),
 
-    cv.Optional(CONF_VOLTAGE): sensor.sensor_schema(UNIT_VOLT, ICON_FLASH, 1),
-    cv.Optional(CONF_CURRENT): sensor.sensor_schema(UNIT_AMPERE, ICON_FLASH, 2),
-    cv.Optional(CONF_POWER): sensor.sensor_schema(UNIT_WATT, ICON_FLASH, 1),
-    cv.Optional(CONF_ENERGY): sensor.sensor_schema(UNIT_WATT_HOURS, ICON_FLASH, 1),
+    cv.Optional(CONF_VOLTAGE): sensor.sensor_schema(UNIT_VOLT, ICON_EMPTY, 1, DEVICE_CLASS_VOLTAGE),
+    cv.Optional(CONF_CURRENT): sensor.sensor_schema(UNIT_AMPERE, ICON_EMPTY, 2,
+                                                    DEVICE_CLASS_CURRENT),
+    cv.Optional(CONF_POWER): sensor.sensor_schema(UNIT_WATT, ICON_EMPTY, 1, DEVICE_CLASS_POWER),
+    cv.Optional(CONF_ENERGY): sensor.sensor_schema(UNIT_WATT_HOURS, ICON_EMPTY, 1,
+                                                   DEVICE_CLASS_ENERGY),
 
     cv.Optional(CONF_CURRENT_RESISTOR, default=0.001): cv.resistance,
     cv.Optional(CONF_VOLTAGE_DIVIDER, default=2351): cv.positive_float,

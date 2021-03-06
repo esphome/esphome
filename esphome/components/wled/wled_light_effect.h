@@ -18,7 +18,7 @@ class WLEDLightEffect : public light::AddressableLightEffect {
  public:
   void start() override;
   void stop() override;
-  void apply(light::AddressableLight &it, const light::ESPColor &current_color) override;
+  void apply(light::AddressableLight &it, const Color &current_color) override;
   void set_port(uint16_t port) { this->port_ = port; }
 
  protected:
