@@ -553,6 +553,7 @@ void MQTTMessageTrigger::setup() {
                                   this->trigger(payload);
                                 },
                                 this->qos_);
+}
 void MQTTMessageTrigger::dump_config() {
   ESP_LOGCONFIG(TAG, "MQTT Message Trigger:");
   ESP_LOGCONFIG(TAG, "  Topic: '%s'", this->topic_.c_str());
