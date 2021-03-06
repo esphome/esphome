@@ -1,4 +1,5 @@
 #include "fan_state.h"
+#include "fan_helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
@@ -20,7 +21,7 @@ FanStateCall FanState::make_call() { return FanStateCall(this); }
 
 struct FanStateRTCState {
   bool state;
-  float speed;
+  int speed;
   bool oscillating;
   FanDirection direction;
 };
@@ -51,41 +52,19 @@ void FanStateCall::perform() const {
   if (this->direction_.has_value()) {
     this->state_->direction = *this->direction_;
   }
-  if (this->speed_percentage_.has_value()) {
-    this->state_->speed_percentage = *this->speed_percentage_;
-    this->state_->speed_mode_ = fan::FAN_SPEED_MODE_PERCENTAGE;
-  } else if (this->speed_.has_value()) {
-    switch (*this->speed_) {
-      case FAN_SPEED_LOW:
-      case FAN_SPEED_MEDIUM:
-      case FAN_SPEED_HIGH:
-        this->state_->speed = *this->speed_;
-        this->state_->speed_mode_ = fan::FAN_SPEED_MODE_PRESET;
-        break;
-      default:
-        // protect from invalid input
-        break;
-    }
+  if (this->speed_level_.has_value()) {
+    const int speed_levels = this->state_->get_traits().supported_speed_levels();
+    this->state_->speed_level = clamp(*this->speed_level_, 1, speed_levels);
   }
 
   FanStateRTCState saved{};
   saved.state = this->state_->state;
-  saved.speed = this->state_->speed_percentage;
+  saved.speed = this->state_->speed_level;
   saved.oscillating = this->state_->oscillating;
   saved.direction = this->state_->direction;
   this->state_->rtc_.save(&saved);
 
   this->state_->state_callback_.call();
-}
-FanStateCall &FanStateCall::set_speed(const char *speed) {
-  if (strcasecmp(speed, "low") == 0) {
-    this->set_speed(FAN_SPEED_LOW);
-  } else if (strcasecmp(speed, "medium") == 0) {
-    this->set_speed(FAN_SPEED_MEDIUM);
-  } else if (strcasecmp(speed, "high") == 0) {
-    this->set_speed(FAN_SPEED_HIGH);
-  }
-  return *this;
 }
 
 }  // namespace fan

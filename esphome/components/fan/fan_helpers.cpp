@@ -1,32 +1,19 @@
+#include <cassert>
 #include "fan_helpers.h"
-#include "fan_state.h"
-#include "esphome/core/helpers.h"
 
 namespace esphome {
 namespace fan {
 
-int percentage_to_range(float percentage, int start, int end) {
-  const int num_steps = end - start + 1;
-  const int value = static_cast<int>(std::ceil(clamp(percentage, 0.0f, 1.0f) * num_steps));
-  return value > 0 ? start + value - 1 : start;
+FanSpeed speed_level_to_enum(int speed_level, int supported_speed_levels) {
+  const auto speed_ratio = static_cast<float>(speed_level) / (supported_speed_levels + 1);
+  const auto legacy_level = static_cast<int>(clamp(ceil(speed_ratio * 3), 1, 3));
+  return static_cast<FanSpeed>(legacy_level - 1);
 }
 
-float speed_percentage_from_state(fan::FanState* state, float low, float medium, float high) {
-  switch (state->speed_mode_) {
-    case fan::FAN_SPEED_MODE_PRESET:
-      switch (state->speed) {
-        case fan::FAN_SPEED_LOW:
-          return low;
-        case fan::FAN_SPEED_MEDIUM:
-          return medium;
-        case fan::FAN_SPEED_HIGH:
-          return high;
-      }
-    case fan::FAN_SPEED_MODE_PERCENTAGE:
-      return state->speed_percentage;
-  }
-
-  return 0.0f;
+int speed_enum_to_level(FanSpeed speed, int supported_speed_levels) {
+  const auto enum_level = static_cast<int>(speed) + 1;
+  const auto speed_level = round(enum_level / 3.0f * supported_speed_levels);
+  return static_cast<int>(speed_level);
 }
 
 }  // namespace fan

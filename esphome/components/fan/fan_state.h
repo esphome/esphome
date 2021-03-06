@@ -3,20 +3,18 @@
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/preferences.h"
+#include "esphome/core/log.h"
 #include "fan_traits.h"
 
 namespace esphome {
 namespace fan {
 
-/// Simple enum to represent the speed of a fan.
+/// Simple enum to represent the speed of a fan. - DEPRECATED - Will be deleted soon
 enum FanSpeed {
   FAN_SPEED_LOW = 0,     ///< The fan is running on low speed.
   FAN_SPEED_MEDIUM = 1,  ///< The fan is running on medium speed.
   FAN_SPEED_HIGH = 2     ///< The fan is running on high/full speed.
 };
-
-/// Simple enum to represent which speed mode the fan uses (for backward compatibility)
-enum FanSpeedMode { FAN_SPEED_MODE_PERCENTAGE = 0, FAN_SPEED_MODE_PRESET = 1 };
 
 /// Simple enum to represent the direction of a fan
 enum FanDirection { FAN_DIRECTION_FORWARD = 0, FAN_DIRECTION_REVERSE = 1 };
@@ -43,15 +41,10 @@ class FanStateCall {
     this->oscillating_ = oscillating;
     return *this;
   }
-  FanStateCall &set_speed(FanSpeed speed) {
-    this->speed_ = speed;
+  FanStateCall &set_speed(int speed_level) {
+    this->speed_level_ = speed_level;
     return *this;
   }
-  FanStateCall &set_speed(float speed) {
-    this->speed_percentage_ = speed;
-    return *this;
-  }
-  FanStateCall &set_speed(const char *speed);
   FanStateCall &set_direction(FanDirection direction) {
     this->direction_ = direction;
     return *this;
@@ -66,9 +59,8 @@ class FanStateCall {
  protected:
   FanState *const state_;
   optional<bool> binary_state_;
-  optional<bool> oscillating_{};
-  optional<FanSpeed> speed_{};
-  optional<float> speed_percentage_{};
+  optional<bool> oscillating_;
+  optional<int> speed_level_;
   optional<FanDirection> direction_{};
 };
 
@@ -90,12 +82,8 @@ class FanState : public Nameable, public Component {
   bool state{false};
   /// The current oscillation state of the fan.
   bool oscillating{false};
-  /// The current fan speed.
-  FanSpeed speed{FAN_SPEED_HIGH};
-  /// The current fan speed percentage
-  float speed_percentage{1.0f};
-  /// The current fan speed mode (for backward compatibility)
-  FanSpeedMode speed_mode_{fan::FAN_SPEED_MODE_PERCENTAGE};
+  /// The current fan speed level
+  int speed_level{};
   /// The current direction of the fan
   FanDirection direction{FAN_DIRECTION_FORWARD};
 

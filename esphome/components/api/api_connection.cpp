@@ -276,6 +276,8 @@ void APIConnection::fan_command(const FanCommandRequest &msg) {
   if (fan == nullptr)
     return;
 
+  auto traits = fan->get_traits();
+
   auto call = fan->make_call();
   if (msg.has_state)
     call.set_state(msg.state);
@@ -285,7 +287,7 @@ void APIConnection::fan_command(const FanCommandRequest &msg) {
     // Prefer level
     call.set_speed(msg.speed_level);
   } else if (msg.has_speed) {
-    call.set_speed(fan::speed_enum_to_level(static_cast<fan::FanSpeed>(msg.speed)));
+    call.set_speed(fan::speed_enum_to_level(static_cast<fan::FanSpeed>(msg.speed), traits.supported_speed_levels()));
   }
   if (msg.has_direction)
     call.set_direction(static_cast<fan::FanDirection>(msg.direction));
