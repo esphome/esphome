@@ -19,6 +19,7 @@ def _finditem(obj, key):
             item = _finditem(v, key)
             if item is not None:
                 return item
+    return None
 
 
 def validate_framework(config):
