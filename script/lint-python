@@ -1,15 +1,14 @@
 #!/usr/bin/env python3
 
 from __future__ import print_function
+from helpers import get_output, get_err, git_ls_files, filter_changed
 
 import argparse
-import collections
 import os
 import re
 import sys
 
 sys.path.append(os.path.dirname(__file__))
-from helpers import get_output, git_ls_files, filter_changed
 
 curfile = None
 
@@ -52,6 +51,17 @@ def main():
         sys.exit(0)
 
     errors = 0
+
+    cmd = ['black', '--verbose', '--check'] + files
+    print("Running black...")
+    log = get_err(*cmd)
+    for line in log.splitlines():
+        WOULD_REFORMAT = 'would reformat'
+        if line.startswith(WOULD_REFORMAT):
+            file_ = line[len(WOULD_REFORMAT) + 1:]
+            print_error(file_, None, 'Please format this file with the black formatter')
+            errors += 1
+
     cmd = ['flake8'] + files
     print("Running flake8...")
     log = get_output(*cmd)

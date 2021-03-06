@@ -96,6 +96,12 @@ def get_output(*args):
     return output.decode('utf-8')
 
 
+def get_err(*args):
+    proc = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    output, err = proc.communicate()
+    return err.decode('utf-8')
+
+
 def splitlines_no_ends(string):
     return [s.strip() for s in string.splitlines()]
 
