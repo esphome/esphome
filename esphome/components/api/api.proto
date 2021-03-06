@@ -303,6 +303,7 @@ message ListEntitiesFanResponse {
   bool supports_oscillation = 5;
   bool supports_speed = 6;
   bool supports_direction = 7;
+  int32 supported_speed_levels = 8;
 }
 enum FanSpeed {
   FAN_SPEED_LOW = 0;
@@ -324,7 +325,7 @@ message FanStateResponse {
   bool oscillating = 3;
   FanSpeed speed = 4 [deprecated = true];
   FanDirection direction = 5;
-  float speed_percentage = 6;
+  int32 speed_level = 6;
 }
 message FanCommandRequest {
   option (id) = 31;
@@ -341,8 +342,8 @@ message FanCommandRequest {
   bool oscillating = 7;
   bool has_direction = 8;
   FanDirection direction = 9;
-  bool has_speed_percentage = 10;
-  float speed_percentage = 11;
+  bool has_speed_level = 10;
+  int32 speed_level = 11;
 }
 
 // ==================== LIGHT ====================

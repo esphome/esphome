@@ -76,8 +76,7 @@ void TuyaFan::write_state() {
     TuyaDatapoint datapoint{};
     datapoint.id = *this->speed_id_;
     datapoint.type = TuyaDatapointType::ENUM;
-    float speed = fan::speed_percentage_from_state(this->fan_);
-    datapoint.value_enum = fan::percentage_to_range(speed, 0, 2);
+    datapoint.value_enum = this->fan_->speed_level - 1;
     ESP_LOGD(TAG, "Setting speed: %d", datapoint.value_enum);
     this->parent_->set_datapoint_value(datapoint);
   }

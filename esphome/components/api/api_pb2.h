@@ -277,13 +277,14 @@ class CoverCommandRequest : public ProtoMessage {
 };
 class ListEntitiesFanResponse : public ProtoMessage {
  public:
-  std::string object_id{};           // NOLINT
-  uint32_t key{0};                   // NOLINT
-  std::string name{};                // NOLINT
-  std::string unique_id{};           // NOLINT
-  bool supports_oscillation{false};  // NOLINT
-  bool supports_speed{false};        // NOLINT
-  bool supports_direction{false};    // NOLINT
+  std::string object_id{};            // NOLINT
+  uint32_t key{0};                    // NOLINT
+  std::string name{};                 // NOLINT
+  std::string unique_id{};            // NOLINT
+  bool supports_oscillation{false};   // NOLINT
+  bool supports_speed{false};         // NOLINT
+  bool supports_direction{false};     // NOLINT
+  int32_t supported_speed_levels{0};  // NOLINT
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
 
@@ -299,7 +300,7 @@ class FanStateResponse : public ProtoMessage {
   bool oscillating{false};          // NOLINT
   enums::FanSpeed speed{};          // NOLINT
   enums::FanDirection direction{};  // NOLINT
-  float speed_percentage{0.0f};     // NOLINT
+  int32_t speed_level{0};           // NOLINT
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
 
@@ -309,17 +310,17 @@ class FanStateResponse : public ProtoMessage {
 };
 class FanCommandRequest : public ProtoMessage {
  public:
-  uint32_t key{0};                   // NOLINT
-  bool has_state{false};             // NOLINT
-  bool state{false};                 // NOLINT
-  bool has_speed{false};             // NOLINT
-  enums::FanSpeed speed{};           // NOLINT
-  bool has_oscillating{false};       // NOLINT
-  bool oscillating{false};           // NOLINT
-  bool has_direction{false};         // NOLINT
-  enums::FanDirection direction{};   // NOLINT
-  bool has_speed_percentage{false};  // NOLINT
-  float speed_percentage{0.0f};      // NOLINT
+  uint32_t key{0};                  // NOLINT
+  bool has_state{false};            // NOLINT
+  bool state{false};                // NOLINT
+  bool has_speed{false};            // NOLINT
+  enums::FanSpeed speed{};          // NOLINT
+  bool has_oscillating{false};      // NOLINT
+  bool oscillating{false};          // NOLINT
+  bool has_direction{false};        // NOLINT
+  enums::FanDirection direction{};  // NOLINT
+  bool has_speed_level{false};      // NOLINT
+  int32_t speed_level{0};           // NOLINT
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
 

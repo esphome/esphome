@@ -9,6 +9,9 @@
 #ifdef USE_HOMEASSISTANT_TIME
 #include "esphome/components/homeassistant/time/homeassistant_time.h"
 #endif
+#ifdef USE_FAN
+#include "esphome/components/fan/fan_helpers.h"
+#endif
 
 namespace esphome {
 namespace api {
@@ -247,14 +250,9 @@ bool APIConnection::send_fan_state(fan::FanState *fan) {
   if (traits.supports_oscillation())
     resp.oscillating = fan->oscillating;
   if (traits.supports_speed()) {
-    switch (fan->speed_mode_) {
-      case fan::FanSpeedMode::FAN_SPEED_MODE_PERCENTAGE:
-        resp.speed_percentage = fan->speed_percentage;
-        break;
-      case fan::FanSpeedMode::FAN_SPEED_MODE_PRESET:
-        resp.speed = static_cast<enums::FanSpeed>(fan->speed);
-        break;
-    }
+    resp.speed_level = fan->speed_level;
+    resp.speed =
+        static_cast<enums::FanSpeed>(fan::speed_level_to_enum(fan->speed_level, traits.supported_speed_levels()));
   }
   if (traits.supports_direction())
     resp.direction = static_cast<enums::FanDirection>(fan->direction);
@@ -270,6 +268,7 @@ bool APIConnection::send_fan_info(fan::FanState *fan) {
   msg.supports_oscillation = traits.supports_oscillation();
   msg.supports_speed = traits.supports_speed();
   msg.supports_direction = traits.supports_direction();
+  msg.supported_speed_levels = traits.supported_speed_levels();
   return this->send_list_entities_fan_response(msg);
 }
 void APIConnection::fan_command(const FanCommandRequest &msg) {
@@ -282,11 +281,11 @@ void APIConnection::fan_command(const FanCommandRequest &msg) {
     call.set_state(msg.state);
   if (msg.has_oscillating)
     call.set_oscillating(msg.oscillating);
-  if (msg.has_speed_percentage) {
-    // Prefer percentage
-    call.set_speed(msg.speed_percentage);
+  if (msg.has_speed_level) {
+    // Prefer level
+    call.set_speed(msg.speed_level);
   } else if (msg.has_speed) {
-    call.set_speed(static_cast<fan::FanSpeed>(msg.speed));
+    call.set_speed(fan::speed_enum_to_level(static_cast<fan::FanSpeed>(msg.speed)));
   }
   if (msg.has_direction)
     call.set_direction(static_cast<fan::FanDirection>(msg.direction));

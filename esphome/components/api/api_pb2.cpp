@@ -774,6 +774,10 @@ bool ListEntitiesFanResponse::decode_varint(uint32_t field_id, ProtoVarInt value
       this->supports_direction = value.as_bool();
       return true;
     }
+    case 8: {
+      this->supported_speed_levels = value.as_int32();
+      return true;
+    }
     default:
       return false;
   }
@@ -814,6 +818,7 @@ void ListEntitiesFanResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_bool(5, this->supports_oscillation);
   buffer.encode_bool(6, this->supports_speed);
   buffer.encode_bool(7, this->supports_direction);
+  buffer.encode_int32(8, this->supported_speed_levels);
 }
 void ListEntitiesFanResponse::dump_to(std::string &out) const {
   char buffer[64];
@@ -846,6 +851,11 @@ void ListEntitiesFanResponse::dump_to(std::string &out) const {
   out.append("  supports_direction: ");
   out.append(YESNO(this->supports_direction));
   out.append("\n");
+
+  out.append("  supported_speed_levels: ");
+  sprintf(buffer, "%d", this->supported_speed_levels);
+  out.append(buffer);
+  out.append("\n");
   out.append("}");
 }
 bool FanStateResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
@@ -866,6 +876,10 @@ bool FanStateResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
       this->direction = value.as_enum<enums::FanDirection>();
       return true;
     }
+    case 6: {
+      this->speed_level = value.as_int32();
+      return true;
+    }
     default:
       return false;
   }
@@ -874,10 +888,6 @@ bool FanStateResponse::decode_32bit(uint32_t field_id, Proto32Bit value) {
   switch (field_id) {
     case 1: {
       this->key = value.as_fixed32();
-      return true;
-    }
-    case 6: {
-      this->speed_percentage = value.as_float();
       return true;
     }
     default:
@@ -890,7 +900,7 @@ void FanStateResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_bool(3, this->oscillating);
   buffer.encode_enum<enums::FanSpeed>(4, this->speed);
   buffer.encode_enum<enums::FanDirection>(5, this->direction);
-  buffer.encode_float(6, this->speed_percentage);
+  buffer.encode_int32(6, this->speed_level);
 }
 void FanStateResponse::dump_to(std::string &out) const {
   char buffer[64];
@@ -916,8 +926,8 @@ void FanStateResponse::dump_to(std::string &out) const {
   out.append(proto_enum_to_string<enums::FanDirection>(this->direction));
   out.append("\n");
 
-  out.append("  speed_percentage: ");
-  sprintf(buffer, "%g", this->speed_percentage);
+  out.append("  speed_level: ");
+  sprintf(buffer, "%d", this->speed_level);
   out.append(buffer);
   out.append("\n");
   out.append("}");
@@ -957,7 +967,11 @@ bool FanCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
       return true;
     }
     case 10: {
-      this->has_speed_percentage = value.as_bool();
+      this->has_speed_level = value.as_bool();
+      return true;
+    }
+    case 11: {
+      this->speed_level = value.as_int32();
       return true;
     }
     default:
@@ -968,10 +982,6 @@ bool FanCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
   switch (field_id) {
     case 1: {
       this->key = value.as_fixed32();
-      return true;
-    }
-    case 11: {
-      this->speed_percentage = value.as_float();
       return true;
     }
     default:
@@ -988,8 +998,8 @@ void FanCommandRequest::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_bool(7, this->oscillating);
   buffer.encode_bool(8, this->has_direction);
   buffer.encode_enum<enums::FanDirection>(9, this->direction);
-  buffer.encode_bool(10, this->has_speed_percentage);
-  buffer.encode_float(11, this->speed_percentage);
+  buffer.encode_bool(10, this->has_speed_level);
+  buffer.encode_int32(11, this->speed_level);
 }
 void FanCommandRequest::dump_to(std::string &out) const {
   char buffer[64];
@@ -1031,12 +1041,12 @@ void FanCommandRequest::dump_to(std::string &out) const {
   out.append(proto_enum_to_string<enums::FanDirection>(this->direction));
   out.append("\n");
 
-  out.append("  has_speed_percentage: ");
-  out.append(YESNO(this->has_speed_percentage));
+  out.append("  has_speed_level: ");
+  out.append(YESNO(this->has_speed_level));
   out.append("\n");
 
-  out.append("  speed_percentage: ");
-  sprintf(buffer, "%g", this->speed_percentage);
+  out.append("  speed_level: ");
+  sprintf(buffer, "%d", this->speed_level);
   out.append(buffer);
   out.append("\n");
   out.append("}");
