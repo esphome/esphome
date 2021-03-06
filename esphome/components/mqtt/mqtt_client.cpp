@@ -25,9 +25,27 @@ void MQTTClientComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up MQTT...");
   this->mqtt_client_.onMessage([this](char *topic, char *payload, AsyncMqttClientMessageProperties properties,
                                       size_t len, size_t index, size_t total) {
-    std::string payload_s(payload, len);
-    std::string topic_s(topic);
-    this->on_message(topic_s, payload_s);
+    /** test
+    char result[20];
+    sprintf(result, "total: %zu", total);
+    ESP_LOGD("mqtt-test", result);
+    */
+
+    // append payload to existing string, may be incomplete MQTT message
+    this->payload_s_.append(payload, len);
+
+    // MQTT fully received, send to on_message callabck
+    if (len + index == total) {
+      std::string topic_s(topic);
+      this->on_message(topic_s, this->payload_s_);
+
+      /*
+      sprintf(result, "size: %zu", this->payload_s.size());
+      ESP_LOGD("mqtt-test", result);
+      */
+
+      this->payload_s_.clear();
+    }
   });
   this->mqtt_client_.onDisconnect([this](AsyncMqttClientDisconnectReason reason) {
     this->state_ = MQTT_CLIENT_DISCONNECTED;
@@ -537,15 +555,16 @@ MQTTMessageTrigger::MQTTMessageTrigger(const std::string &topic) : topic_(topic)
 void MQTTMessageTrigger::set_qos(uint8_t qos) { this->qos_ = qos; }
 void MQTTMessageTrigger::set_payload(const std::string &payload) { this->payload_ = payload; }
 void MQTTMessageTrigger::setup() {
-  global_mqtt_client->subscribe(this->topic_,
-                                [this](const std::string &topic, const std::string &payload) {
-                                  if (this->payload_.has_value() && payload != *this->payload_) {
-                                    return;
-                                  }
+  global_mqtt_client->subscribe(
+      this->topic_,
+      [this](const std::string &topic, const std::string &payload) {
+        if (this->payload_.has_value() && payload != *this->payload_) {
+          return;
+        }
 
-                                  this->trigger(payload);
-                                },
-                                this->qos_);
+        this->trigger(payload);
+      },
+      this->qos_);
 }
 void MQTTMessageTrigger::dump_config() {
   ESP_LOGCONFIG(TAG, "MQTT Message Trigger:");
