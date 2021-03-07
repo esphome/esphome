@@ -3,18 +3,24 @@ import esphome.config_validation as cv
 from esphome.components import uart
 from esphome.const import CONF_ID
 
-DEPENDENCIES = ['uart']
-CODEOWNERS = ['@dudanov']
+DEPENDENCIES = ["uart"]
+CODEOWNERS = ["@dudanov"]
 
-midea_dongle_ns = cg.esphome_ns.namespace('midea_dongle')
-MideaDongle = midea_dongle_ns.class_('MideaDongle', cg.Component, uart.UARTDevice)
+midea_dongle_ns = cg.esphome_ns.namespace("midea_dongle")
+MideaDongle = midea_dongle_ns.class_("MideaDongle", cg.Component, uart.UARTDevice)
 
-CONF_MIDEA_DONGLE_ID = 'midea_dongle_id'
-CONF_STRETCHED_ICON = 'stretched_icon'
-CONFIG_SCHEMA = cv.Schema({
-    cv.GenerateID(): cv.declare_id(MideaDongle),
-    cv.Optional(CONF_STRETCHED_ICON): cv.boolean,
-}).extend(cv.COMPONENT_SCHEMA).extend(uart.UART_DEVICE_SCHEMA)
+CONF_MIDEA_DONGLE_ID = "midea_dongle_id"
+CONF_STRETCHED_ICON = "stretched_icon"
+CONFIG_SCHEMA = (
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(MideaDongle),
+            cv.Optional(CONF_STRETCHED_ICON): cv.boolean,
+        }
+    )
+    .extend(cv.COMPONENT_SCHEMA)
+    .extend(uart.UART_DEVICE_SCHEMA)
+)
 
 
 def to_code(config):
