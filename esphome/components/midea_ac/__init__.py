@@ -1,7 +1,7 @@
 from esphome.components import climate, sensor
 import esphome.config_validation as cv
 import esphome.codegen as cg
-from esphome.const import CONF_ID, UNIT_CELSIUS, UNIT_PERCENT, ICON_THERMOMETER, ICON_WATER_PERCENT
+from esphome.const import CONF_ID, UNIT_CELSIUS, UNIT_PERCENT, ICON_THERMOMETER, DEVICE_CLASS_TEMPERATURE, ICON_WATER_PERCENT, DEVICE_CLASS_HUMIDITY
 from esphome.components.midea_dongle import CONF_MIDEA_DONGLE_ID, MideaDongle
 
 DEPENDENCIES = ['midea_dongle']
@@ -22,8 +22,8 @@ CONFIG_SCHEMA = cv.All(climate.CLIMATE_SCHEMA.extend({
     cv.Optional(CONF_BEEPER): cv.boolean,
     cv.Optional(CONF_SWING_HORIZONTAL): cv.boolean,
     cv.Optional(CONF_SWING_BOTH): cv.boolean,
-    cv.Optional(CONF_OUTDOOR_TEMPERATURE): sensor.sensor_schema(UNIT_CELSIUS, ICON_THERMOMETER, 0),
-    cv.Optional(CONF_HUMIDITY_SETPOINT): sensor.sensor_schema(UNIT_PERCENT, ICON_WATER_PERCENT, 0),
+    cv.Optional(CONF_OUTDOOR_TEMPERATURE): sensor.sensor_schema(UNIT_CELSIUS, ICON_THERMOMETER, 0, DEVICE_CLASS_TEMPERATURE),
+    cv.Optional(CONF_HUMIDITY_SETPOINT): sensor.sensor_schema(UNIT_PERCENT, ICON_WATER_PERCENT, 0, DEVICE_CLASS_HUMIDITY),
 }).extend(cv.COMPONENT_SCHEMA))
 
 
