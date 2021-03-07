@@ -567,7 +567,7 @@ void Inkplate6::clean_fast_(uint8_t c, uint8_t rep) {
       hscan_start_(send);
       GPIO.out_w1ts = send | clock;
       GPIO.out_w1tc = clock;
-      for (int j = 0, jm =  this->get_width_internal() / 8; j < jm; j++) {
+      for (int j = 0, jm = this->get_width_internal() / 8; j < jm; j++) {
         GPIO.out_w1ts = clock;
         GPIO.out_w1tc = clock;
         GPIO.out_w1ts = clock;
