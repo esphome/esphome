@@ -4,33 +4,35 @@ from esphome.components import spi, canbus
 from esphome.const import CONF_ID, CONF_MODE
 from esphome.components.canbus import CanbusComponent
 
-CODEOWNERS = ['@mvturnho', '@danielschramm']
-DEPENDENCIES = ['spi']
+CODEOWNERS = ["@mvturnho", "@danielschramm"]
+DEPENDENCIES = ["spi"]
 
-CONF_CLOCK = 'clock'
+CONF_CLOCK = "clock"
 
-mcp2515_ns = cg.esphome_ns.namespace('mcp2515')
-mcp2515 = mcp2515_ns.class_('MCP2515', CanbusComponent, spi.SPIDevice)
-CanClock = mcp2515_ns.enum('CAN_CLOCK')
-McpMode = mcp2515_ns.enum('CANCTRL_REQOP_MODE')
+mcp2515_ns = cg.esphome_ns.namespace("mcp2515")
+mcp2515 = mcp2515_ns.class_("MCP2515", CanbusComponent, spi.SPIDevice)
+CanClock = mcp2515_ns.enum("CAN_CLOCK")
+McpMode = mcp2515_ns.enum("CANCTRL_REQOP_MODE")
 
 CAN_CLOCK = {
-    '8MHZ': CanClock.MCP_8MHZ,
-    '16MHZ': CanClock.MCP_16MHZ,
-    '20MHZ': CanClock.MCP_20MHZ,
+    "8MHZ": CanClock.MCP_8MHZ,
+    "16MHZ": CanClock.MCP_16MHZ,
+    "20MHZ": CanClock.MCP_20MHZ,
 }
 
 MCP_MODE = {
-    'NORMAL': McpMode.CANCTRL_REQOP_NORMAL,
-    'LOOPBACK': McpMode.CANCTRL_REQOP_LOOPBACK,
-    'LISTENONLY': McpMode.CANCTRL_REQOP_LISTENONLY,
+    "NORMAL": McpMode.CANCTRL_REQOP_NORMAL,
+    "LOOPBACK": McpMode.CANCTRL_REQOP_LOOPBACK,
+    "LISTENONLY": McpMode.CANCTRL_REQOP_LISTENONLY,
 }
 
-CONFIG_SCHEMA = canbus.CONFIG_SCHEMA.extend({
-    cv.GenerateID(): cv.declare_id(mcp2515),
-    cv.Optional(CONF_CLOCK, default='8MHZ'): cv.enum(CAN_CLOCK, upper=True),
-    cv.Optional(CONF_MODE, default='NORMAL'): cv.enum(MCP_MODE, upper=True),
-}).extend(spi.spi_device_schema(True))
+CONFIG_SCHEMA = canbus.CONFIG_SCHEMA.extend(
+    {
+        cv.GenerateID(): cv.declare_id(mcp2515),
+        cv.Optional(CONF_CLOCK, default="8MHZ"): cv.enum(CAN_CLOCK, upper=True),
+        cv.Optional(CONF_MODE, default="NORMAL"): cv.enum(MCP_MODE, upper=True),
+    }
+).extend(spi.spi_device_schema(True))
 
 
 def to_code(config):
