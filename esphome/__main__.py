@@ -320,6 +320,8 @@ def command_config(args, config):
 def command_vscode(args):
     from esphome import vscode
 
+    logging.disable(logging.INFO)
+    logging.disable(logging.WARNING)
     CORE.config_path = args.configuration[0]
     vscode.read_config(args)
 

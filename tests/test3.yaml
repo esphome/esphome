@@ -197,10 +197,6 @@ uart:
     rx_pin: GPIO3
     baud_rate: 115200
 
-  - id: adalight_uart
-    rx_pin: GPIO3
-    baud_rate: 115200
-
 ota:
   safe_mode: True
   port: 3286
@@ -814,7 +810,6 @@ light:
     effects:
       - wled:
       - adalight:
-          uart_id: adalight_uart
       - e131:
           universe: 1
   - platform: hbridge
