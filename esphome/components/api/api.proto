@@ -46,6 +46,7 @@ service APIConnection {
 // The Home Assistant protocol is structured as a simple
 // TCP socket with short binary messages encoded in the protocol buffers format
 // First, a message in this protocol has a specific format:
+//  * A zero byte.
 //  * VarInt denoting the size of the message object. (type is not part of this)
 //  * VarInt denoting the type of message.
 //  * The message object encoded as a ProtoBuf message
@@ -418,6 +419,7 @@ message ListEntitiesSensorResponse {
   string unit_of_measurement = 6;
   int32 accuracy_decimals = 7;
   bool force_update = 8;
+  string device_class = 9;
 }
 message SensorStateResponse {
   option (id) = 25;
@@ -679,7 +681,7 @@ enum ClimateSwingMode {
   CLIMATE_SWING_OFF = 0;
   CLIMATE_SWING_BOTH = 1;
   CLIMATE_SWING_VERTICAL = 2;
-  CLIMATE_SWINT_HORIZONTAL = 3;
+  CLIMATE_SWING_HORIZONTAL = 3;
 }
 enum ClimateAction {
   CLIMATE_ACTION_OFF = 0;

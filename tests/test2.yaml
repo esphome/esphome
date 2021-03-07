@@ -40,13 +40,19 @@ uart:
 ota:
   safe_mode: True
   port: 3286
+  num_attempts: 15
 
 logger:
   level: DEBUG
 
+deep_sleep:
+  run_duration: 20s
+  sleep_duration: 50s
+  wakeup_pin: GPIO39
+  wakeup_pin_mode: INVERT_WAKEUP
+
 as3935_i2c:
   irq_pin: GPIO12
-
 
 sensor:
   - platform: homeassistant
@@ -54,131 +60,148 @@ sensor:
     id: ha_hello_world
   - platform: ble_rssi
     mac_address: AC:37:43:77:5F:4C
-    name: "BLE Google Home Mini RSSI value"
+    name: 'BLE Google Home Mini RSSI value'
   - platform: ble_rssi
     service_uuid: '11aa'
-    name: "BLE Test Service 16"
+    name: 'BLE Test Service 16'
   - platform: ble_rssi
     service_uuid: '11223344'
-    name: "BLE Test Service 32"
+    name: 'BLE Test Service 32'
   - platform: ble_rssi
     service_uuid: '11223344-5566-7788-99aa-bbccddeeff00'
-    name: "BLE Test Service 128"
+    name: 'BLE Test Service 128'
   - platform: ruuvitag
     mac_address: FF:56:D3:2F:7D:E8
     humidity:
-      name: "RuuviTag Humidity"
+      name: 'RuuviTag Humidity'
     temperature:
-      name: "RuuviTag Temperature"
+      name: 'RuuviTag Temperature'
     pressure:
-      name: "RuuviTag Pressure"
+      name: 'RuuviTag Pressure'
     acceleration_x:
-      name: "RuuviTag Acceleration X"
+      name: 'RuuviTag Acceleration X'
     acceleration_y:
-      name: "RuuviTag Acceleration Y"
+      name: 'RuuviTag Acceleration Y'
     acceleration_z:
-      name: "RuuviTag Acceleration Z"
+      name: 'RuuviTag Acceleration Z'
     battery_voltage:
-      name: "RuuviTag Battery Voltage"
+      name: 'RuuviTag Battery Voltage'
     tx_power:
-      name: "RuuviTag TX Power"
+      name: 'RuuviTag TX Power'
     movement_counter:
-      name: "RuuviTag Movement Counter"
+      name: 'RuuviTag Movement Counter'
     measurement_sequence_number:
-      name: "RuuviTag Measurement Sequence Number"
+      name: 'RuuviTag Measurement Sequence Number'
   - platform: as3935
     lightning_energy:
-      name: "Lightning Energy"
+      name: 'Lightning Energy'
     distance:
-      name: "Distance Storm"
+      name: 'Distance Storm'
   - platform: xiaomi_hhccjcy01
     mac_address: 94:2B:FF:5C:91:61
     temperature:
-      name: "Xiaomi HHCCJCY01 Temperature"
+      name: 'Xiaomi HHCCJCY01 Temperature'
     moisture:
-      name: "Xiaomi HHCCJCY01 Moisture"
+      name: 'Xiaomi HHCCJCY01 Moisture'
     illuminance:
-      name: "Xiaomi HHCCJCY01 Illuminance"
+      name: 'Xiaomi HHCCJCY01 Illuminance'
     conductivity:
-      name: "Xiaomi HHCCJCY01 Soil Conductivity"
+      name: 'Xiaomi HHCCJCY01 Soil Conductivity'
     battery_level:
-      name: "Xiaomi HHCCJCY01 Battery Level"
+      name: 'Xiaomi HHCCJCY01 Battery Level'
   - platform: xiaomi_lywsdcgq
     mac_address: 7A:80:8E:19:36:BA
     temperature:
-      name: "Xiaomi LYWSDCGQ Temperature"
+      name: 'Xiaomi LYWSDCGQ Temperature'
     humidity:
-      name: "Xiaomi LYWSDCGQ Humidity"
+      name: 'Xiaomi LYWSDCGQ Humidity'
     battery_level:
-      name: "Xiaomi LYWSDCGQ Battery Level"
+      name: 'Xiaomi LYWSDCGQ Battery Level'
   - platform: xiaomi_lywsd02
     mac_address: 3F:5B:7D:82:58:4E
     temperature:
-      name: "Xiaomi LYWSD02 Temperature"
+      name: 'Xiaomi LYWSD02 Temperature'
     humidity:
-      name: "Xiaomi LYWSD02 Humidity"
+      name: 'Xiaomi LYWSD02 Humidity'
     battery_level:
-      name: "Xiaomi LYWSD02 Battery Level"
+      name: 'Xiaomi LYWSD02 Battery Level'
   - platform: xiaomi_cgg1
     mac_address: 7A:80:8E:19:36:BA
     temperature:
-      name: "Xiaomi CGG1 Temperature"
+      name: 'Xiaomi CGG1 Temperature'
     humidity:
-      name: "Xiaomi CGG1 Humidity"
+      name: 'Xiaomi CGG1 Humidity'
     battery_level:
-      name: "Xiaomi CGG1 Battery Level"
+      name: 'Xiaomi CGG1 Battery Level'
   - platform: xiaomi_gcls002
-    mac_address: "94:2B:FF:5C:91:61"
+    mac_address: '94:2B:FF:5C:91:61'
     temperature:
-      name: "GCLS02 Temperature"
+      name: 'GCLS02 Temperature'
     moisture:
-      name: "GCLS02 Moisture"
+      name: 'GCLS02 Moisture'
     conductivity:
-      name: "GCLS02 Soil Conductivity"
+      name: 'GCLS02 Soil Conductivity'
     illuminance:
-      name: "GCLS02 Illuminance"
+      name: 'GCLS02 Illuminance'
   - platform: xiaomi_hhccpot002
-    mac_address: "94:2B:FF:5C:91:61"
+    mac_address: '94:2B:FF:5C:91:61'
     moisture:
-      name: "HHCCPOT002 Moisture"
+      name: 'HHCCPOT002 Moisture'
     conductivity:
-      name: "HHCCPOT002 Soil Conductivity"
+      name: 'HHCCPOT002 Soil Conductivity'
   - platform: xiaomi_lywsd03mmc
-    mac_address: "A4:C1:38:4E:16:78"
-    bindkey: "e9efaa6873f9f9c87a5e75a5f814801c"
+    mac_address: 'A4:C1:38:4E:16:78'
+    bindkey: 'e9efaa6873f9f9c87a5e75a5f814801c'
     temperature:
-      name: "Xiaomi LYWSD03MMC Temperature"
+      name: 'Xiaomi LYWSD03MMC Temperature'
     humidity:
-      name: "Xiaomi LYWSD03MMC Humidity"
+      name: 'Xiaomi LYWSD03MMC Humidity'
     battery_level:
-      name: "Xiaomi LYWSD03MMC Battery Level"
+      name: 'Xiaomi LYWSD03MMC Battery Level'
   - platform: xiaomi_cgd1
-    mac_address: "A4:C1:38:D1:61:7D"
-    bindkey: "c99d2313182473b38001086febf781bd"
+    mac_address: 'A4:C1:38:D1:61:7D'
+    bindkey: 'c99d2313182473b38001086febf781bd'
     temperature:
-      name: "Xiaomi CGD1 Temperature"
+      name: 'Xiaomi CGD1 Temperature'
     humidity:
-      name: "Xiaomi CGD1 Humidity"
+      name: 'Xiaomi CGD1 Humidity'
     battery_level:
-      name: "Xiaomi CGD1 Battery Level"
+      name: 'Xiaomi CGD1 Battery Level'
   - platform: xiaomi_jqjcy01ym
-    mac_address: "7A:80:8E:19:36:BA"
+    mac_address: '7A:80:8E:19:36:BA'
     temperature:
-      name: "JQJCY01YM Temperature"
+      name: 'JQJCY01YM Temperature'
     humidity:
-      name: "JQJCY01YM Humidity"
+      name: 'JQJCY01YM Humidity'
     formaldehyde:
-      name: "JQJCY01YM Formaldehyde"
+      name: 'JQJCY01YM Formaldehyde'
     battery_level:
-      name: "JQJCY01YM Battery Level"
-
+      name: 'JQJCY01YM Battery Level'
+  - platform: atc_mithermometer
+    mac_address: 'A4:C1:38:4E:16:78'
+    temperature:
+      name: 'ATC Temperature'
+    humidity:
+      name: 'ATC Humidity'
+    battery_level:
+      name: 'ATC Battery-Level'
+    battery_voltage:
+      name: 'ATC Battery-Voltage'
+  - platform: inkbird_ibsth1_mini
+    mac_address: 38:81:D7:0A:9C:11
+    temperature:
+        name: 'Inkbird IBS-TH1 Temperature'
+    humidity:
+        name: 'Inkbird IBS-TH1 Humidity'
+    battery_level:
+        name: 'Inkbird IBS-TH1 Battery Level'
 
 time:
-- platform: homeassistant
-  on_time:
-    - at: '16:00:00'
-      then:
-        - logger.log: It's 16:00
+  - platform: homeassistant
+    on_time:
+      - at: '16:00:00'
+        then:
+          - logger.log: It's 16:00
 
 esp32_touch:
   setup_mode: True
@@ -189,44 +212,43 @@ binary_sensor:
     id: ha_hello_world_binary
   - platform: ble_presence
     mac_address: AC:37:43:77:5F:4C
-    name: "ESP32 BLE Tracker Google Home Mini"
+    name: 'ESP32 BLE Tracker Google Home Mini'
   - platform: ble_presence
     service_uuid: '11aa'
-    name: "BLE Test Service 16 Presence"
+    name: 'BLE Test Service 16 Presence'
   - platform: ble_presence
     service_uuid: '11223344'
-    name: "BLE Test Service 32 Presence"
+    name: 'BLE Test Service 32 Presence'
   - platform: ble_presence
     service_uuid: '11223344-5566-7788-99aa-bbccddeeff00'
-    name: "BLE Test Service 128 Presence"
+    name: 'BLE Test Service 128 Presence'
   - platform: esp32_touch
-    name: "ESP32 Touch Pad GPIO27"
+    name: 'ESP32 Touch Pad GPIO27'
     pin: GPIO27
     threshold: 1000
   - platform: as3935
-    name: "Storm Alert"
+    name: 'Storm Alert'
   - platform: xiaomi_mue4094rt
-    name: "MUE4094RT Motion"
-    mac_address: "7A:80:8E:19:36:BA"
-    timeout: "5s"
+    name: 'MUE4094RT Motion'
+    mac_address: '7A:80:8E:19:36:BA'
+    timeout: '5s'
   - platform: xiaomi_mjyd02yla
-    name: "MJYD02YL-A Motion"
-    mac_address: "50:EC:50:CD:32:02"
-    bindkey: "48403ebe2d385db8d0c187f81e62cb64"
+    name: 'MJYD02YL-A Motion'
+    mac_address: '50:EC:50:CD:32:02'
+    bindkey: '48403ebe2d385db8d0c187f81e62cb64'
     idle_time:
-      name: "MJYD02YL-A Idle Time"
+      name: 'MJYD02YL-A Idle Time'
     light:
-      name: "MJYD02YL-A Light Status"
+      name: 'MJYD02YL-A Light Status'
     battery_level:
-      name: "MJYD02YL-A Battery Level"
+      name: 'MJYD02YL-A Battery Level'
   - platform: xiaomi_wx08zm
-    name: "WX08ZM Activation State"
-    mac_address: "74:a3:4a:b5:07:34"
+    name: 'WX08ZM Activation State'
+    mac_address: '74:a3:4a:b5:07:34'
     tablet:
-      name: "WX08ZM Tablet Resource"
+      name: 'WX08ZM Tablet Resource'
     battery_level:
-      name: "WX08ZM Battery Level"
-
+      name: 'WX08ZM Battery Level'
 
 esp32_ble_tracker:
   on_ble_advertise:
@@ -248,7 +270,6 @@ esp32_ble_tracker:
         - lambda: !lambda |-
             ESP_LOGD("main", "Length of manufacturer data is %i", x.size());
 
-
 #esp32_ble_beacon:
 #  type: iBeacon
 #  uuid: 'c29ce823-e67a-4e71-bff2-abaa32e77a98'
@@ -258,7 +279,7 @@ status_led:
 
 text_sensor:
   - platform: version
-    name: "ESPHome Version"
+    name: 'ESPHome Version'
     icon: mdi:icon
     id: version_sensor
     on_value:
@@ -266,8 +287,8 @@ text_sensor:
           condition:
             - api.connected:
           then:
-          - lambda: !lambda |-
-              ESP_LOGD("main", "The state is %s=%s", x.c_str(), id(version_sensor).state.c_str());
+            - lambda: !lambda |-
+                ESP_LOGD("main", "The state is %s=%s", x.c_str(), id(version_sensor).state.c_str());
       - script.execute: my_script
       - homeassistant.service:
           service: notify.html5
@@ -287,8 +308,10 @@ text_sensor:
       - homeassistant.tag_scanned:
           tag: 1234-abcd
       - homeassistant.tag_scanned: 1234-abcd
+      - deep_sleep.enter:
+          sleep_duration: 30min
   - platform: template
-    name: "Template Text Sensor"
+    name: 'Template Text Sensor'
     lambda: |-
       return {"Hello World"};
   - platform: homeassistant
@@ -335,6 +358,6 @@ stepper:
 interval:
   interval: 5s
   then:
-    - logger.log: "Interval Run"
+    - logger.log: 'Interval Run'
 
 display:

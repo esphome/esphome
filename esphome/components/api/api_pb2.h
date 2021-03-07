@@ -74,7 +74,7 @@ enum ClimateSwingMode : uint32_t {
   CLIMATE_SWING_OFF = 0,
   CLIMATE_SWING_BOTH = 1,
   CLIMATE_SWING_VERTICAL = 2,
-  CLIMATE_SWINT_HORIZONTAL = 3,
+  CLIMATE_SWING_HORIZONTAL = 3,
 };
 enum ClimateAction : uint32_t {
   CLIMATE_ACTION_OFF = 0,
@@ -401,6 +401,7 @@ class ListEntitiesSensorResponse : public ProtoMessage {
   std::string unique_id{};            // NOLINT
   std::string icon{};                 // NOLINT
   std::string unit_of_measurement{};  // NOLINT
+  std::string device_class{};         // NOLINT
   int32_t accuracy_decimals{0};       // NOLINT
   bool force_update{false};           // NOLINT
   void encode(ProtoWriteBuffer buffer) const override;

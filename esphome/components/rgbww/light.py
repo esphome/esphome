@@ -1,28 +1,37 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import light, output
-from esphome.const import CONF_BLUE, CONF_GREEN, CONF_RED, CONF_OUTPUT_ID, CONF_COLD_WHITE, \
-    CONF_WARM_WHITE, CONF_COLD_WHITE_COLOR_TEMPERATURE, \
-    CONF_WARM_WHITE_COLOR_TEMPERATURE
+from esphome.const import (
+    CONF_BLUE,
+    CONF_GREEN,
+    CONF_RED,
+    CONF_OUTPUT_ID,
+    CONF_COLD_WHITE,
+    CONF_WARM_WHITE,
+    CONF_COLD_WHITE_COLOR_TEMPERATURE,
+    CONF_WARM_WHITE_COLOR_TEMPERATURE,
+)
 
-rgbww_ns = cg.esphome_ns.namespace('rgbww')
-RGBWWLightOutput = rgbww_ns.class_('RGBWWLightOutput', light.LightOutput)
+rgbww_ns = cg.esphome_ns.namespace("rgbww")
+RGBWWLightOutput = rgbww_ns.class_("RGBWWLightOutput", light.LightOutput)
 
-CONF_CONSTANT_BRIGHTNESS = 'constant_brightness'
-CONF_COLOR_INTERLOCK = 'color_interlock'
+CONF_CONSTANT_BRIGHTNESS = "constant_brightness"
+CONF_COLOR_INTERLOCK = "color_interlock"
 
-CONFIG_SCHEMA = light.RGB_LIGHT_SCHEMA.extend({
-    cv.GenerateID(CONF_OUTPUT_ID): cv.declare_id(RGBWWLightOutput),
-    cv.Required(CONF_RED): cv.use_id(output.FloatOutput),
-    cv.Required(CONF_GREEN): cv.use_id(output.FloatOutput),
-    cv.Required(CONF_BLUE): cv.use_id(output.FloatOutput),
-    cv.Required(CONF_COLD_WHITE): cv.use_id(output.FloatOutput),
-    cv.Required(CONF_WARM_WHITE): cv.use_id(output.FloatOutput),
-    cv.Required(CONF_COLD_WHITE_COLOR_TEMPERATURE): cv.color_temperature,
-    cv.Required(CONF_WARM_WHITE_COLOR_TEMPERATURE): cv.color_temperature,
-    cv.Optional(CONF_CONSTANT_BRIGHTNESS, default=False): cv.boolean,
-    cv.Optional(CONF_COLOR_INTERLOCK, default=False): cv.boolean,
-})
+CONFIG_SCHEMA = light.RGB_LIGHT_SCHEMA.extend(
+    {
+        cv.GenerateID(CONF_OUTPUT_ID): cv.declare_id(RGBWWLightOutput),
+        cv.Required(CONF_RED): cv.use_id(output.FloatOutput),
+        cv.Required(CONF_GREEN): cv.use_id(output.FloatOutput),
+        cv.Required(CONF_BLUE): cv.use_id(output.FloatOutput),
+        cv.Required(CONF_COLD_WHITE): cv.use_id(output.FloatOutput),
+        cv.Required(CONF_WARM_WHITE): cv.use_id(output.FloatOutput),
+        cv.Required(CONF_COLD_WHITE_COLOR_TEMPERATURE): cv.color_temperature,
+        cv.Required(CONF_WARM_WHITE_COLOR_TEMPERATURE): cv.color_temperature,
+        cv.Optional(CONF_CONSTANT_BRIGHTNESS, default=False): cv.boolean,
+        cv.Optional(CONF_COLOR_INTERLOCK, default=False): cv.boolean,
+    }
+)
 
 
 def to_code(config):
