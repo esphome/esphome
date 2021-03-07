@@ -22,7 +22,7 @@ def maybe_simple_id(*validators):
 def maybe_conf(conf, *validators):
     validator = cv.All(*validators)
 
-    @jschema_extractor('maybe')
+    @jschema_extractor("maybe")
     def validate(value):
         # pylint: disable=comparison-with-callable
         if value == jschema_extractor:
@@ -109,7 +109,7 @@ def validate_automation(extra_schema=None, extra_validators=None, single=False):
         # This should only happen with invalid configs, but let's have a nice error message.
         return [schema(value)]
 
-    @jschema_extractor('automation')
+    @jschema_extractor("automation")
     def validator(value):
         # hack to get the schema
         # pylint: disable=comparison-with-callable

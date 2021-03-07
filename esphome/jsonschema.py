@@ -21,23 +21,28 @@ typed_schemas = {}
 
 def jschema_extractor(validator_name):
     if EnableJsonSchemaCollect:
+
         def decorator(func):
             hidden_schemas[str(func)] = validator_name
             return func
+
         return decorator
 
     def dummy(f):
         return f
+
     return dummy
 
 
 def jschema_extended(func):
     if EnableJsonSchemaCollect:
+
         def decorate(*args, **kwargs):
             ret = func(*args, **kwargs)
             assert len(args) == 2
             extended_schemas[str(ret)] = args
             return ret
+
         return decorate
 
     return func
@@ -45,11 +50,13 @@ def jschema_extended(func):
 
 def jschema_composite(func):
     if EnableJsonSchemaCollect:
+
         def decorate(*args, **kwargs):
             ret = func(*args, **kwargs)
             # args length might be 2, but 2nd is always validator
             list_schemas[str(ret)] = args
             return ret
+
         return decorate
 
     return func
@@ -57,22 +64,27 @@ def jschema_composite(func):
 
 def jschema_registry(registry):
     if EnableJsonSchemaCollect:
+
         def decorator(func):
             registry_schemas[str(func)] = registry
             return func
+
         return decorator
 
     def dummy(f):
         return f
+
     return dummy
 
 
 def jschema_typed(func):
     if EnableJsonSchemaCollect:
+
         def decorate(*args, **kwargs):
             ret = func(*args, **kwargs)
             typed_schemas[str(ret)] = (args, kwargs)
             return ret
+
         return decorate
 
     return func
