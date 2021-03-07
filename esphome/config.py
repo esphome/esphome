@@ -282,12 +282,19 @@ class Config(OrderedDict):
                 if item_index in data:
                     doc_range = [x for x in data.keys() if x == item_index][0].esp_range
                 data = data[item_index]
-            except (KeyError, IndexError, TypeError):
+            except (KeyError, IndexError, TypeError, AttributeError):
                 return doc_range
             if isinstance(data, core.ID):
                 data = data.id
             if isinstance(data, ESPHomeDataBase) and data.esp_range is not None:
                 doc_range = data.esp_range
+            elif isinstance(data, dict):
+                platform_item = data.get("platform")
+                if (
+                    isinstance(platform_item, ESPHomeDataBase)
+                    and platform_item.esp_range is not None
+                ):
+                    doc_range = platform_item.esp_range
 
         return doc_range
 
@@ -359,7 +366,7 @@ def do_id_pass(result):  # type: (Config) -> None
         if id.id is not None:
             # manually declared
             match = next((v[0] for v in declare_ids if v[0].id == id.id), None)
-            if match is None:
+            if match is None or not match.is_manual:
                 # No declared ID with this name
                 import difflib
 
@@ -369,7 +376,7 @@ def do_id_pass(result):  # type: (Config) -> None
                 )
                 # Find candidates
                 matches = difflib.get_close_matches(
-                    id.id, [v[0].id for v in declare_ids]
+                    id.id, [v[0].id for v in declare_ids if v[0].is_manual]
                 )
                 if matches:
                     matches_s = ", ".join(f'"{x}"' for x in matches)
@@ -395,15 +402,31 @@ def do_id_pass(result):  # type: (Config) -> None
                     continue
                 inherits = v[0].type.inherits_from(id.type)
                 if inherits:
-                    matches.append(v[0].id)
+                    matches.append(v[0])
 
             if len(matches) == 0:
-                result.add_str_error(f"Couldn't resolve ID for type '{id.type}'", path)
-            elif len(matches) == 1:
-                id.id = matches[0]
-            elif len(matches) > 1:
                 result.add_str_error(
-                    f"Too many candidates found for '{path[-1]}' type '{id.type}' Some are '{matches[0]}' and '{matches[1]}'", path)
+                    f"Couldn't find any component that can be used for '{id.type}'. Are you missing a hub declaration?",
+                    path,
+                )
+            elif len(matches) == 1:
+                id.id = matches[0].id
+            elif len(matches) > 1:
+                if str(id.type) == "time::RealTimeClock":
+                    id.id = matches[0].id
+                else:
+                    manual_declared_count = sum(1 for m in matches if m.is_manual)
+                    if manual_declared_count > 0:
+                        ids = ", ".join([f"'{m.id}'" for m in matches if m.is_manual])
+                        result.add_str_error(
+                            f"Too many candidates found for '{path[-1]}' type '{id.type}' {'Some are' if manual_declared_count > 1 else 'One is'} {ids}",
+                            path,
+                        )
+                    else:
+                        result.add_str_error(
+                            f"Too many candidates found for '{path[-1]}' type '{id.type}' You must assign an explicit ID to the parent component you want to use.",
+                            path,
+                        )
 
 
 def recursive_check_replaceme(value):
