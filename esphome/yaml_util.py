@@ -11,7 +11,8 @@ import yaml.constructor
 
 from esphome import core
 from esphome.config_helpers import read_config_file
-from esphome.core import EsphomeError, IPAddress, Lambda, MACAddress, TimePeriod, DocumentRange
+from esphome.core import EsphomeError, IPAddress, Lambda, MACAddress, TimePeriod, \
+    DocumentRange
 from esphome.helpers import add_class_to_obj
 from esphome.util import OrderedDict, filter_yaml_files
 
@@ -30,18 +31,33 @@ class ESPHomeDataBase:
     def esp_range(self):
         return getattr(self, '_esp_range', None)
 
+    @property
+    def content_offset(self):
+        return getattr(self, '_content_offset', 0)
+
     def from_node(self, node):
         # pylint: disable=attribute-defined-outside-init
         self._esp_range = DocumentRange.from_marks(node.start_mark, node.end_mark)
+        if isinstance(node, yaml.ScalarNode):
+            if node.style is not None and node.style in '|>':
+                self._content_offset = 1
+
+    def from_database(self, database):
+        # pylint: disable=attribute-defined-outside-init
+        self._esp_range = database.esp_range
+        self._content_offset = database.content_offset
 
 
 class ESPForceValue:
     pass
 
 
-def make_data_base(value):
+def make_data_base(value, from_database: ESPHomeDataBase = None):
     try:
-        return add_class_to_obj(value, ESPHomeDataBase)
+        value = add_class_to_obj(value, ESPHomeDataBase)
+        if from_database is not None:
+            value.from_database(from_database)
+        return value
     except TypeError:
         # Adding class failed, ignore error
         return value
@@ -129,6 +145,9 @@ class ESPHomeLoader(yaml.SafeLoader):  # pylint: disable=too-many-ancestors
                     # pylint: disable=raise-missing-from
                     raise yaml.constructor.ConstructorError(
                         f'Invalid key "{key}" (not hashable)', key_node.start_mark)
+
+                key = make_data_base(str(key))
+                key.from_node(key_node)
 
                 # Check if it is a duplicate key
                 if key in seen_keys:

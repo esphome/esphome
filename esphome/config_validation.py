@@ -14,11 +14,13 @@ from esphome import core
 from esphome.const import ALLOWED_NAME_CHARS, CONF_AVAILABILITY, CONF_COMMAND_TOPIC, \
     CONF_DISCOVERY, CONF_ID, CONF_INTERNAL, CONF_NAME, CONF_PAYLOAD_AVAILABLE, \
     CONF_PAYLOAD_NOT_AVAILABLE, CONF_RETAIN, CONF_SETUP_PRIORITY, CONF_STATE_TOPIC, CONF_TOPIC, \
-    CONF_HOUR, CONF_MINUTE, CONF_SECOND, CONF_VALUE, CONF_UPDATE_INTERVAL, CONF_TYPE_ID, CONF_TYPE
+    CONF_HOUR, CONF_MINUTE, CONF_SECOND, CONF_VALUE, CONF_UPDATE_INTERVAL, CONF_TYPE_ID, \
+    CONF_TYPE, CONF_PACKAGES
 from esphome.core import CORE, HexInt, IPAddress, Lambda, TimePeriod, TimePeriodMicroseconds, \
     TimePeriodMilliseconds, TimePeriodSeconds, TimePeriodMinutes
 from esphome.helpers import list_starts_with, add_class_to_obj
 from esphome.voluptuous_schema import _Schema
+from esphome.yaml_util import make_data_base
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -621,6 +623,7 @@ _temperature_c = float_with_unit("temperature", "(°C|° C|°|C)?")
 _temperature_k = float_with_unit("temperature", "(° K|° K|K)?")
 _temperature_f = float_with_unit("temperature", "(°F|° F|F)?")
 decibel = float_with_unit("decibel", "(dB|dBm|db|dbm)", optional_unit=True)
+pressure = float_with_unit("pressure", "(bar|Bar)", optional_unit=True)
 
 
 def temperature(value):
@@ -980,7 +983,7 @@ LAMBDA_ENTITY_ID_PROG = re.compile(r'id\(\s*([a-zA-Z0-9_]+\.[.a-zA-Z0-9_]+)\s*\)
 def lambda_(value):
     """Coerce this configuration option to a lambda."""
     if not isinstance(value, Lambda):
-        value = Lambda(string_strict(value))
+        value = make_data_base(Lambda(string_strict(value)), value)
     entity_id_parts = re.split(LAMBDA_ENTITY_ID_PROG, value.value)
     if len(entity_id_parts) != 1:
         entity_ids = ' '.join("'{}'".format(entity_id_parts[i])
@@ -1173,9 +1176,12 @@ class OnlyWith(Optional):
     @property
     def default(self):
         # pylint: disable=unsupported-membership-test
-        if self._component not in CORE.raw_config:
-            return vol.UNDEFINED
-        return self._default
+        if (self._component in CORE.raw_config or
+                (CONF_PACKAGES in CORE.raw_config and
+                 self._component in
+                 {list(x.keys())[0] for x in CORE.raw_config[CONF_PACKAGES].values()})):
+            return self._default
+        return vol.UNDEFINED
 
     @default.setter
     def default(self, value):

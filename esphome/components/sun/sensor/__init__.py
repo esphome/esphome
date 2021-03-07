@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import sensor
-from esphome.const import UNIT_DEGREES, ICON_WEATHER_SUNSET, CONF_ID, CONF_TYPE
+from esphome.const import DEVICE_CLASS_EMPTY, UNIT_DEGREES, ICON_WEATHER_SUNSET, CONF_ID, CONF_TYPE
 from .. import sun_ns, CONF_SUN_ID, Sun
 
 DEPENDENCIES = ['sun']
@@ -13,7 +13,9 @@ TYPES = {
     'azimuth': SensorType.SUN_SENSOR_AZIMUTH,
 }
 
-CONFIG_SCHEMA = sensor.sensor_schema(UNIT_DEGREES, ICON_WEATHER_SUNSET, 1).extend({
+CONFIG_SCHEMA = sensor.sensor_schema(
+    UNIT_DEGREES, ICON_WEATHER_SUNSET, 1, DEVICE_CLASS_EMPTY
+).extend({
     cv.GenerateID(): cv.declare_id(SunSensor),
     cv.GenerateID(CONF_SUN_ID): cv.use_id(Sun),
     cv.Required(CONF_TYPE): cv.enum(TYPES, lower=True),

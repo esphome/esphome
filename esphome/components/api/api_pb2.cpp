@@ -154,8 +154,8 @@ template<> const char *proto_enum_to_string<enums::ClimateSwingMode>(enums::Clim
       return "CLIMATE_SWING_BOTH";
     case enums::CLIMATE_SWING_VERTICAL:
       return "CLIMATE_SWING_VERTICAL";
-    case enums::CLIMATE_SWINT_HORIZONTAL:
-      return "CLIMATE_SWINT_HORIZONTAL";
+    case enums::CLIMATE_SWING_HORIZONTAL:
+      return "CLIMATE_SWING_HORIZONTAL";
     default:
       return "UNKNOWN";
   }
@@ -1494,6 +1494,10 @@ bool ListEntitiesSensorResponse::decode_length(uint32_t field_id, ProtoLengthDel
       this->unit_of_measurement = value.as_string();
       return true;
     }
+    case 9: {
+      this->device_class = value.as_string();
+      return true;
+    }
     default:
       return false;
   }
@@ -1517,6 +1521,7 @@ void ListEntitiesSensorResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(6, this->unit_of_measurement);
   buffer.encode_int32(7, this->accuracy_decimals);
   buffer.encode_bool(8, this->force_update);
+  buffer.encode_string(9, this->device_class);
 }
 void ListEntitiesSensorResponse::dump_to(std::string &out) const {
   char buffer[64];
@@ -1553,6 +1558,10 @@ void ListEntitiesSensorResponse::dump_to(std::string &out) const {
 
   out.append("  force_update: ");
   out.append(YESNO(this->force_update));
+  out.append("\n");
+
+  out.append("  device_class: ");
+  out.append("'").append(this->device_class).append("'");
   out.append("\n");
   out.append("}");
 }

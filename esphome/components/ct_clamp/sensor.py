@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import sensor, voltage_sampler
-from esphome.const import CONF_SENSOR, CONF_ID, ICON_FLASH, UNIT_AMPERE
+from esphome.const import CONF_SENSOR, CONF_ID, DEVICE_CLASS_CURRENT, ICON_EMPTY, UNIT_AMPERE
 
 AUTO_LOAD = ['voltage_sampler']
 CODEOWNERS = ['@jesserockz']
@@ -11,7 +11,7 @@ CONF_SAMPLE_DURATION = 'sample_duration'
 ct_clamp_ns = cg.esphome_ns.namespace('ct_clamp')
 CTClampSensor = ct_clamp_ns.class_('CTClampSensor', sensor.Sensor, cg.PollingComponent)
 
-CONFIG_SCHEMA = sensor.sensor_schema(UNIT_AMPERE, ICON_FLASH, 2).extend({
+CONFIG_SCHEMA = sensor.sensor_schema(UNIT_AMPERE, ICON_EMPTY, 2, DEVICE_CLASS_CURRENT).extend({
     cv.GenerateID(): cv.declare_id(CTClampSensor),
     cv.Required(CONF_SENSOR): cv.use_id(voltage_sampler.VoltageSampler),
     cv.Optional(CONF_SAMPLE_DURATION, default='200ms'): cv.positive_time_period_milliseconds,

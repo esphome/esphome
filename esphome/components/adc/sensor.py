@@ -2,7 +2,8 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins
 from esphome.components import sensor, voltage_sampler
-from esphome.const import CONF_ATTENUATION, CONF_ID, CONF_PIN, ICON_FLASH, UNIT_VOLT
+from esphome.const import CONF_ATTENUATION, CONF_ID, CONF_PIN, DEVICE_CLASS_VOLTAGE, ICON_EMPTY, \
+    UNIT_VOLT
 
 
 AUTO_LOAD = ['voltage_sampler']
@@ -26,7 +27,7 @@ adc_ns = cg.esphome_ns.namespace('adc')
 ADCSensor = adc_ns.class_('ADCSensor', sensor.Sensor, cg.PollingComponent,
                           voltage_sampler.VoltageSampler)
 
-CONFIG_SCHEMA = sensor.sensor_schema(UNIT_VOLT, ICON_FLASH, 2).extend({
+CONFIG_SCHEMA = sensor.sensor_schema(UNIT_VOLT, ICON_EMPTY, 2, DEVICE_CLASS_VOLTAGE).extend({
     cv.GenerateID(): cv.declare_id(ADCSensor),
     cv.Required(CONF_PIN): validate_adc_pin,
     cv.SplitDefault(CONF_ATTENUATION, esp32='0db'):

@@ -10,10 +10,11 @@ import tzlocal
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
-from esphome.const import CONF_CRON, CONF_DAYS_OF_MONTH, CONF_DAYS_OF_WEEK, CONF_HOURS, \
-    CONF_MINUTES, CONF_MONTHS, CONF_ON_TIME, CONF_SECONDS, CONF_TIMEZONE, CONF_TRIGGER_ID, \
-    CONF_AT, CONF_SECOND, CONF_HOUR, CONF_MINUTE
+from esphome.const import CONF_ID, CONF_CRON, CONF_DAYS_OF_MONTH, CONF_DAYS_OF_WEEK, CONF_HOURS, \
+    CONF_MINUTES, CONF_MONTHS, CONF_ON_TIME, CONF_ON_TIME_SYNC, CONF_SECONDS, CONF_TIMEZONE, \
+    CONF_TRIGGER_ID, CONF_AT, CONF_SECOND, CONF_HOUR, CONF_MINUTE
 from esphome.core import coroutine, coroutine_with_priority
+from esphome.automation import Condition
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -21,9 +22,11 @@ CODEOWNERS = ['@OttoWinter']
 IS_PLATFORM_COMPONENT = True
 
 time_ns = cg.esphome_ns.namespace('time')
-RealTimeClock = time_ns.class_('RealTimeClock', cg.Component)
+RealTimeClock = time_ns.class_('RealTimeClock', cg.PollingComponent)
 CronTrigger = time_ns.class_('CronTrigger', automation.Trigger.template(), cg.Component)
+SyncTrigger = time_ns.class_('SyncTrigger', automation.Trigger.template(), cg.Component)
 ESPTime = time_ns.struct('ESPTime')
+TimeHasTimeCondition = time_ns.class_('TimeHasTimeCondition', Condition)
 
 
 def _tz_timedelta(td):
@@ -292,7 +295,10 @@ TIME_SCHEMA = cv.Schema({
         cv.Optional(CONF_CRON): validate_cron_raw,
         cv.Optional(CONF_AT): validate_time_at,
     }, validate_cron_keys),
-})
+    cv.Optional(CONF_ON_TIME_SYNC): automation.validate_automation({
+        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(SyncTrigger),
+    }),
+}).extend(cv.polling_component_schema('15min'))
 
 
 @coroutine
@@ -318,6 +324,12 @@ def setup_time_core_(time_var, config):
         yield cg.register_component(trigger, conf)
         yield automation.build_automation(trigger, [], conf)
 
+    for conf in config.get(CONF_ON_TIME_SYNC, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], time_var)
+
+        yield cg.register_component(trigger, conf)
+        yield automation.build_automation(trigger, [], conf)
+
 
 @coroutine
 def register_time(time_var, config):
@@ -328,3 +340,11 @@ def register_time(time_var, config):
 def to_code(config):
     cg.add_define('USE_TIME')
     cg.add_global(time_ns.using)
+
+
+@automation.register_condition('time.has_time', TimeHasTimeCondition, cv.Schema({
+    cv.GenerateID(): cv.use_id(RealTimeClock),
+}))
+def time_has_time_to_code(config, condition_id, template_arg, args):
+    paren = yield cg.get_variable(config[CONF_ID])
+    yield cg.new_Pvariable(condition_id, template_arg, paren)

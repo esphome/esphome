@@ -3,8 +3,8 @@ import esphome.config_validation as cv
 from esphome import pins
 from esphome.components import sensor
 from esphome.const import CONF_COUNT_MODE, CONF_FALLING_EDGE, CONF_ID, CONF_INTERNAL_FILTER, \
-    CONF_PIN, CONF_RISING_EDGE, CONF_NUMBER, \
-    ICON_PULSE, UNIT_PULSES_PER_MINUTE
+    CONF_PIN, CONF_RISING_EDGE, CONF_NUMBER, CONF_TOTAL, DEVICE_CLASS_EMPTY, \
+    ICON_PULSE, UNIT_PULSES_PER_MINUTE, UNIT_PULSES
 from esphome.core import CORE
 
 pulse_counter_ns = cg.esphome_ns.namespace('pulse_counter')
@@ -47,7 +47,9 @@ def validate_count_mode(value):
     return value
 
 
-CONFIG_SCHEMA = sensor.sensor_schema(UNIT_PULSES_PER_MINUTE, ICON_PULSE, 2).extend({
+CONFIG_SCHEMA = sensor.sensor_schema(
+    UNIT_PULSES_PER_MINUTE, ICON_PULSE, 2, DEVICE_CLASS_EMPTY
+).extend({
     cv.GenerateID(): cv.declare_id(PulseCounterSensor),
     cv.Required(CONF_PIN): validate_pulse_counter_pin,
     cv.Optional(CONF_COUNT_MODE, default={
@@ -58,6 +60,8 @@ CONFIG_SCHEMA = sensor.sensor_schema(UNIT_PULSES_PER_MINUTE, ICON_PULSE, 2).exte
         cv.Required(CONF_FALLING_EDGE): COUNT_MODE_SCHEMA,
     }), validate_count_mode),
     cv.Optional(CONF_INTERNAL_FILTER, default='13us'): validate_internal_filter,
+    cv.Optional(CONF_TOTAL): sensor.sensor_schema(UNIT_PULSES, ICON_PULSE, 0, DEVICE_CLASS_EMPTY),
+
 }).extend(cv.polling_component_schema('60s'))
 
 
@@ -72,3 +76,7 @@ def to_code(config):
     cg.add(var.set_rising_edge_mode(count[CONF_RISING_EDGE]))
     cg.add(var.set_falling_edge_mode(count[CONF_FALLING_EDGE]))
     cg.add(var.set_filter_us(config[CONF_INTERNAL_FILTER]))
+
+    if CONF_TOTAL in config:
+        sens = yield sensor.new_sensor(config[CONF_TOTAL])
+        cg.add(var.set_total_sensor(sens))

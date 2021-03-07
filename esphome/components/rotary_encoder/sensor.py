@@ -2,8 +2,9 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins, automation
 from esphome.components import sensor
-from esphome.const import CONF_ID, CONF_RESOLUTION, CONF_MIN_VALUE, CONF_MAX_VALUE, UNIT_STEPS, \
-    ICON_ROTATE_RIGHT, CONF_VALUE, CONF_PIN_A, CONF_PIN_B
+from esphome.const import CONF_ID, CONF_RESOLUTION, CONF_MIN_VALUE, CONF_MAX_VALUE, \
+    DEVICE_CLASS_EMPTY, UNIT_STEPS, ICON_ROTATE_RIGHT, CONF_VALUE, CONF_PIN_A, CONF_PIN_B, \
+    CONF_TRIGGER_ID
 
 rotary_encoder_ns = cg.esphome_ns.namespace('rotary_encoder')
 RotaryEncoderResolution = rotary_encoder_ns.enum('RotaryEncoderResolution')
@@ -14,10 +15,17 @@ RESOLUTIONS = {
 }
 
 CONF_PIN_RESET = 'pin_reset'
+CONF_ON_CLOCKWISE = 'on_clockwise'
+CONF_ON_ANTICLOCKWISE = 'on_anticlockwise'
 
 RotaryEncoderSensor = rotary_encoder_ns.class_('RotaryEncoderSensor', sensor.Sensor, cg.Component)
 RotaryEncoderSetValueAction = rotary_encoder_ns.class_('RotaryEncoderSetValueAction',
                                                        automation.Action)
+
+RotaryEncoderClockwiseTrigger = rotary_encoder_ns.class_('RotaryEncoderClockwiseTrigger',
+                                                         automation.Trigger)
+RotaryEncoderAnticlockwiseTrigger = rotary_encoder_ns.class_('RotaryEncoderAnticlockwiseTrigger',
+                                                             automation.Trigger)
 
 
 def validate_min_max_value(config):
@@ -30,7 +38,9 @@ def validate_min_max_value(config):
     return config
 
 
-CONFIG_SCHEMA = cv.All(sensor.sensor_schema(UNIT_STEPS, ICON_ROTATE_RIGHT, 0).extend({
+CONFIG_SCHEMA = cv.All(sensor.sensor_schema(
+    UNIT_STEPS, ICON_ROTATE_RIGHT, 0, DEVICE_CLASS_EMPTY
+).extend({
     cv.GenerateID(): cv.declare_id(RotaryEncoderSensor),
     cv.Required(CONF_PIN_A): cv.All(pins.internal_gpio_input_pin_schema,
                                     pins.validate_has_interrupt),
@@ -40,6 +50,12 @@ CONFIG_SCHEMA = cv.All(sensor.sensor_schema(UNIT_STEPS, ICON_ROTATE_RIGHT, 0).ex
     cv.Optional(CONF_RESOLUTION, default=1): cv.enum(RESOLUTIONS, int=True),
     cv.Optional(CONF_MIN_VALUE): cv.int_,
     cv.Optional(CONF_MAX_VALUE): cv.int_,
+    cv.Optional(CONF_ON_CLOCKWISE): automation.validate_automation({
+        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(RotaryEncoderClockwiseTrigger),
+    }),
+    cv.Optional(CONF_ON_ANTICLOCKWISE): automation.validate_automation({
+        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(RotaryEncoderAnticlockwiseTrigger),
+    }),
 }).extend(cv.COMPONENT_SCHEMA), validate_min_max_value)
 
 
@@ -60,6 +76,13 @@ def to_code(config):
         cg.add(var.set_min_value(config[CONF_MIN_VALUE]))
     if CONF_MAX_VALUE in config:
         cg.add(var.set_max_value(config[CONF_MAX_VALUE]))
+
+    for conf in config.get(CONF_ON_CLOCKWISE, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        yield automation.build_automation(trigger, [], conf)
+    for conf in config.get(CONF_ON_ANTICLOCKWISE, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        yield automation.build_automation(trigger, [], conf)
 
 
 @automation.register_action('sensor.rotary_encoder.set_value', RotaryEncoderSetValueAction,
