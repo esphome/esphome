@@ -1,18 +1,29 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import sensor
-from esphome.const import CONF_ENTITY_ID, CONF_ID, ICON_EMPTY, UNIT_EMPTY, DEVICE_CLASS_EMPTY
+from esphome.const import (
+    CONF_ENTITY_ID,
+    CONF_ID,
+    ICON_EMPTY,
+    UNIT_EMPTY,
+    DEVICE_CLASS_EMPTY,
+)
 from .. import homeassistant_ns
 
-DEPENDENCIES = ['api']
+DEPENDENCIES = ["api"]
 
-HomeassistantSensor = homeassistant_ns.class_('HomeassistantSensor', sensor.Sensor,
-                                              cg.Component)
+HomeassistantSensor = homeassistant_ns.class_(
+    "HomeassistantSensor", sensor.Sensor, cg.Component
+)
 
-CONFIG_SCHEMA = sensor.sensor_schema(UNIT_EMPTY, ICON_EMPTY, 1, DEVICE_CLASS_EMPTY).extend({
-    cv.GenerateID(): cv.declare_id(HomeassistantSensor),
-    cv.Required(CONF_ENTITY_ID): cv.entity_id,
-})
+CONFIG_SCHEMA = sensor.sensor_schema(
+    UNIT_EMPTY, ICON_EMPTY, 1, DEVICE_CLASS_EMPTY
+).extend(
+    {
+        cv.GenerateID(): cv.declare_id(HomeassistantSensor),
+        cv.Required(CONF_ENTITY_ID): cv.entity_id,
+    }
+)
 
 
 def to_code(config):

@@ -27,4 +27,3 @@ def fixture_path() -> Path:
     Location of all fixture files.
     """
     return here / "fixtures"
-

@@ -5,13 +5,16 @@ from esphome.components import binary_sensor
 from esphome.const import CONF_ID, CONF_LAMBDA, CONF_STATE
 from .. import template_ns
 
-TemplateBinarySensor = template_ns.class_('TemplateBinarySensor', binary_sensor.BinarySensor,
-                                          cg.Component)
+TemplateBinarySensor = template_ns.class_(
+    "TemplateBinarySensor", binary_sensor.BinarySensor, cg.Component
+)
 
-CONFIG_SCHEMA = binary_sensor.BINARY_SENSOR_SCHEMA.extend({
-    cv.GenerateID(): cv.declare_id(TemplateBinarySensor),
-    cv.Optional(CONF_LAMBDA): cv.returning_lambda,
-}).extend(cv.COMPONENT_SCHEMA)
+CONFIG_SCHEMA = binary_sensor.BINARY_SENSOR_SCHEMA.extend(
+    {
+        cv.GenerateID(): cv.declare_id(TemplateBinarySensor),
+        cv.Optional(CONF_LAMBDA): cv.returning_lambda,
+    }
+).extend(cv.COMPONENT_SCHEMA)
 
 
 def to_code(config):
@@ -20,17 +23,22 @@ def to_code(config):
     yield binary_sensor.register_binary_sensor(var, config)
 
     if CONF_LAMBDA in config:
-        template_ = yield cg.process_lambda(config[CONF_LAMBDA], [],
-                                            return_type=cg.optional.template(bool))
+        template_ = yield cg.process_lambda(
+            config[CONF_LAMBDA], [], return_type=cg.optional.template(bool)
+        )
         cg.add(var.set_template(template_))
 
 
-@automation.register_action('binary_sensor.template.publish',
-                            binary_sensor.BinarySensorPublishAction,
-                            cv.Schema({
-                                cv.Required(CONF_ID): cv.use_id(binary_sensor.BinarySensor),
-                                cv.Required(CONF_STATE): cv.templatable(cv.boolean),
-                            }))
+@automation.register_action(
+    "binary_sensor.template.publish",
+    binary_sensor.BinarySensorPublishAction,
+    cv.Schema(
+        {
+            cv.Required(CONF_ID): cv.use_id(binary_sensor.BinarySensor),
+            cv.Required(CONF_STATE): cv.templatable(cv.boolean),
+        }
+    ),
+)
 def binary_sensor_template_publish_to_code(config, action_id, template_arg, args):
     paren = yield cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
