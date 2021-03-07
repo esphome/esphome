@@ -560,14 +560,14 @@ switch:
   - platform: gpio
     id: gpio_switch1
     pin:
-      mcp23017: mcp23017_hub
+      mcp23xxx: mcp23017_hub
       number: 0
       mode: OUTPUT
     interlock: &interlock [gpio_switch1, gpio_switch2, gpio_switch3]
   - platform: gpio
     id: gpio_switch2
     pin:
-      mcp23008: mcp23008_hub
+      mcp23xxx: mcp23008_hub
       number: 0
       mode: OUTPUT
     interlock: *interlock
