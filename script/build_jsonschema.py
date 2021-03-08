@@ -195,7 +195,7 @@ def add_components():
                     "properties": {"platform": {"type": "string"}},
                 }
             ]
-            if domain != "output" and domain != "display":
+            if domain not in ("output", "display"):
                 # output bases are either FLOAT or BINARY so don't add common base for this
                 # display bases are either simple or FULL so don't add common base for this
                 platform_schema = [
@@ -601,6 +601,42 @@ def convert_schema(path, vschema, un_extend=True):
     return output
 
 
+def add_pin_schema():
+    from esphome import pins
+
+    add_module_schemas("PIN", pins)
+
+
+def add_pin_registry():
+    from esphome import pins
+
+    pin_registry = pins.PIN_SCHEMA_REGISTRY
+    assert len(pin_registry) > 0
+    # Here are schemas for pcf8574, mcp23xxx and other port expanders which add
+    # gpio registers
+    # ESPHome validates pins schemas if it founds a key in the pin configuration.
+    # This key is added to a required in jsonschema, and all options are part of a
+    # oneOf section, so only one is selected. Also internal schema adds number as required.
+
+    for mode in ("INPUT", "OUTPUT"):
+        schema_name = f"PIN.GPIO_FULL_{mode}_PIN_SCHEMA"
+        internal = definitions[schema_name]
+        definitions[schema_name]["additionalItems"] = False
+        definitions[f"PIN.{mode}_INTERNAL"] = internal
+        schemas = [get_ref(f"PIN.{mode}_INTERNAL")]
+        schemas[0]["required"] = ["number"]
+        # accept string and object, for internal shorthand pin IO:
+        definitions[schema_name] = {"oneOf": schemas, "type": ["string", "object"]}
+
+        for k, v in pin_registry.items():
+            pin_jschema = get_jschema(
+                f"PIN.{mode}_" + k, v[1][0 if mode == "OUTPUT" else 1]
+            )
+            if unref(pin_jschema):
+                pin_jschema["required"] = [k]
+                schemas.append(pin_jschema)
+
+
 def dump_schema():
     import esphome.config_validation as cv
 
@@ -669,10 +705,7 @@ def dump_schema():
     add_module_schemas("CONFIG", cv)
     get_jschema("POLLING_COMPONENT", cv.polling_component_schema("60s"))
 
-    add_module_schemas("PIN", pins)
-    # fix short shothand pin IO:
-    definitions["PIN.GPIO_FULL_INPUT_PIN_SCHEMA"]["type"] = ["string", "object"]
-    definitions["PIN.GPIO_FULL_OUTPUT_PIN_SCHEMA"]["type"] = ["string", "object"]
+    add_pin_schema()
 
     add_module_schemas("REMOTE_BASE", remote_base)
     add_module_schemas("AUTOMATION", automation)
@@ -699,6 +732,7 @@ def dump_schema():
     add_components()
 
     add_registries()  # need second pass, e.g. climate.pid.autotune
+    add_pin_registry()
     solve_pending_refs()
 
     write_file_if_changed(file_path, json.dumps(output))
