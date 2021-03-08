@@ -42,6 +42,7 @@ std::string to_string(float val);
 std::string to_string(double val);
 std::string to_string(long double val);
 optional<float> parse_float(const std::string &str);
+optional<int> parse_int(const std::string &str);
 
 /// Sanitize the hostname by removing characters that are not in the allowlist and truncating it to 63 chars.
 std::string sanitize_hostname(const std::string &hostname);
