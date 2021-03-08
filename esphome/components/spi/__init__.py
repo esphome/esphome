@@ -1,22 +1,33 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins
-from esphome.const import CONF_CLK_PIN, CONF_ID, CONF_MISO_PIN, CONF_MOSI_PIN, CONF_SPI_ID, \
-    CONF_CS_PIN
+from esphome.const import (
+    CONF_CLK_PIN,
+    CONF_ID,
+    CONF_MISO_PIN,
+    CONF_MOSI_PIN,
+    CONF_SPI_ID,
+    CONF_CS_PIN,
+)
 from esphome.core import coroutine, coroutine_with_priority
 
-CODEOWNERS = ['@esphome/core']
-spi_ns = cg.esphome_ns.namespace('spi')
-SPIComponent = spi_ns.class_('SPIComponent', cg.Component)
-SPIDevice = spi_ns.class_('SPIDevice')
+CODEOWNERS = ["@esphome/core"]
+spi_ns = cg.esphome_ns.namespace("spi")
+SPIComponent = spi_ns.class_("SPIComponent", cg.Component)
+SPIDevice = spi_ns.class_("SPIDevice")
 MULTI_CONF = True
 
-CONFIG_SCHEMA = cv.All(cv.Schema({
-    cv.GenerateID(): cv.declare_id(SPIComponent),
-    cv.Required(CONF_CLK_PIN): pins.gpio_output_pin_schema,
-    cv.Optional(CONF_MISO_PIN): pins.gpio_input_pin_schema,
-    cv.Optional(CONF_MOSI_PIN): pins.gpio_output_pin_schema,
-}), cv.has_at_least_one_key(CONF_MISO_PIN, CONF_MOSI_PIN))
+CONFIG_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(SPIComponent),
+            cv.Required(CONF_CLK_PIN): pins.gpio_output_pin_schema,
+            cv.Optional(CONF_MISO_PIN): pins.gpio_input_pin_schema,
+            cv.Optional(CONF_MOSI_PIN): pins.gpio_output_pin_schema,
+        }
+    ),
+    cv.has_at_least_one_key(CONF_MISO_PIN, CONF_MOSI_PIN),
+)
 
 
 @coroutine_with_priority(1.0)

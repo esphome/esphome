@@ -1,12 +1,14 @@
-pylint==2.6.0
+pylint==2.7.2
 flake8==3.8.4
+black==20.8b1
 pillow>4.0.0
 cryptography>=2.0.0,<4
 pexpect==4.8.0
+pre-commit
 
 # Unit tests
-pytest==6.1.2
-pytest-cov==2.10.1
-pytest-mock==3.3.1
+pytest==6.2.2
+pytest-cov==2.11.1
+pytest-mock==3.5.1
 asyncmock==0.4.2
 hypothesis==5.21.0

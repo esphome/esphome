@@ -12,6 +12,13 @@ RUN pip3 install --no-cache-dir -e .
 # Settings for dashboard
 ENV USERNAME="" PASSWORD=""
 
+# Expose the dashboard to Docker
+EXPOSE 6052
+
+# Run healthcheck (heartbeat)
+HEALTHCHECK --interval=30s --timeout=30s \
+  CMD curl --fail http://localhost:6052 || exit 1
+
 # The directory the user should mount their configuration files to
 WORKDIR /config
 # Set entrypoint to esphome so that the user doesn't have to type 'esphome'
