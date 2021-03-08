@@ -54,7 +54,7 @@ void FanStateCall::perform() const {
   }
   if (this->speed_level_.has_value()) {
     const int speed_levels = this->state_->get_traits().supported_speed_levels();
-    this->state_->speed_level = clamp(*this->speed_level_, 1, speed_levels);
+    this->state_->speed_level = static_cast<int>(clamp(*this->speed_level_, 1, speed_levels));
   }
 
   FanStateRTCState saved{};
