@@ -26,7 +26,7 @@ MCP_MODE = {
     "LISTENONLY": McpMode.CANCTRL_REQOP_LISTENONLY,
 }
 
-CONFIG_SCHEMA = canbus.CONFIG_SCHEMA.extend(
+CONFIG_SCHEMA = canbus.CANBUS_SCHEMA.extend(
     {
         cv.GenerateID(): cv.declare_id(mcp2515),
         cv.Optional(CONF_CLOCK, default="8MHZ"): cv.enum(CAN_CLOCK, upper=True),

@@ -46,6 +46,7 @@ from esphome.core import (
     TimePeriodMinutes,
 )
 from esphome.helpers import list_starts_with, add_class_to_obj
+from esphome.jsonschema import jschema_composite, jschema_registry, jschema_typed
 from esphome.voluptuous_schema import _Schema
 from esphome.yaml_util import make_data_base
 
@@ -306,6 +307,7 @@ def boolean(value):
     )
 
 
+@jschema_composite
 def ensure_list(*validators):
     """Validate this configuration option to be a list.
 
@@ -1341,6 +1343,7 @@ def extract_keys(schema):
     return keys
 
 
+@jschema_typed
 def typed_schema(schemas, **kwargs):
     """Create a schema that has a key to distinguish between schemas"""
     key = kwargs.pop("key", CONF_TYPE)
@@ -1442,6 +1445,7 @@ def validate_registry_entry(name, registry):
     )
     ignore_keys = extract_keys(base_schema)
 
+    @jschema_registry(registry)
     def validator(value):
         if isinstance(value, str):
             value = {value: {}}
@@ -1488,6 +1492,7 @@ def validate_registry(name, registry):
     return ensure_list(validate_registry_entry(name, registry))
 
 
+@jschema_composite
 def maybe_simple_value(*validators, **kwargs):
     key = kwargs.pop("key", CONF_VALUE)
     validator = All(*validators)
