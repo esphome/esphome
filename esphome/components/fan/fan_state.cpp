@@ -67,5 +67,17 @@ void FanStateCall::perform() const {
   this->state_->state_callback_.call();
 }
 
+FanStateCall &FanStateCall::set_speed(const char *legacy_speed) {
+  const auto supported_speed_levels = this->state_->get_traits().supported_speed_levels();
+  if (strcasecmp(legacy_speed, "low") == 0) {
+    this->set_speed(fan::speed_enum_to_level(FAN_SPEED_LOW, supported_speed_levels));
+  } else if (strcasecmp(legacy_speed, "medium") == 0) {
+    this->set_speed(fan::speed_enum_to_level(FAN_SPEED_MEDIUM, supported_speed_levels));
+  } else if (strcasecmp(legacy_speed, "high") == 0) {
+    this->set_speed(fan::speed_enum_to_level(FAN_SPEED_HIGH, supported_speed_levels));
+  }
+  return *this;
+}
+
 }  // namespace fan
 }  // namespace esphome

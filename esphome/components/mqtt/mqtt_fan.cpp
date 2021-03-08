@@ -2,6 +2,7 @@
 #include "esphome/core/log.h"
 
 #ifdef USE_FAN
+#include "esphome/components/fan/fan_helpers.h"
 
 namespace esphome {
 namespace mqtt {
@@ -94,9 +95,10 @@ bool MQTTFanComponent::publish_state() {
                                  this->state_->oscillating ? "oscillate_on" : "oscillate_off");
     failed = failed || !success;
   }
-  if (this->state_->get_traits().supports_speed()) {
+  auto traits = this->state_->get_traits();
+  if (traits.supports_speed()) {
     const char *payload;
-    switch (this->state_->speed) {
+    switch (fan::speed_level_to_enum(this->state_->speed_level, traits.supported_speed_levels())) {
       case FAN_SPEED_LOW: {
         payload = "low";
         break;

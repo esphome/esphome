@@ -45,6 +45,7 @@ class FanStateCall {
     this->speed_level_ = speed_level;
     return *this;
   }
+  FanStateCall &set_speed(const char *legacy_speed);
   FanStateCall &set_direction(FanDirection direction) {
     this->direction_ = direction;
     return *this;
