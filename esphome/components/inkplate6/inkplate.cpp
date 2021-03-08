@@ -36,8 +36,6 @@ void Inkplate6::setup() {
   this->display_data_6_pin_->setup();
   this->display_data_7_pin_->setup();
 
-  this->clean();
-  this->display();
 }
 void Inkplate6::initialize_() {
   uint32_t buffer_size = this->get_buffer_length_();
@@ -50,6 +48,12 @@ void Inkplate6::initialize_() {
   }
   if (this->buffer_ != nullptr) {
     free(this->buffer_);  // NOLINT
+  }
+  if(this->glut_ != nullptr) {
+    free(this->glut_);  // NOLINT
+  }
+  if(this->glut2_ != nullptr) {
+    free(this->glut2_);  // NOLINT
   }
 
   this->buffer_ = (uint8_t *) ps_malloc(buffer_size);
@@ -71,8 +75,36 @@ void Inkplate6::initialize_() {
       this->mark_failed();
       return;
     }
+
     memset(this->partial_buffer_, 0, buffer_size);
     memset(this->partial_buffer_2_, 0, buffer_size * 2);
+
+  } else {
+    this->glut_ = (uint32_t *) malloc(256 * 8 * sizeof(uint32_t));
+    if (this->glut_ == nullptr) {
+      ESP_LOGE(TAG, "Could not allocate glut!");
+      this->mark_failed();
+      return;
+    }
+    this->glut2_ = (uint32_t *) malloc(256 * 8 * sizeof(uint32_t));
+    if (this->glut2_ == nullptr) {
+      ESP_LOGE(TAG, "Could not allocate glut2!");
+      this->mark_failed();
+      return;
+    }
+
+    for (int i = 0; i < 8; ++i) {
+      for (uint32_t j = 0; j < 256; ++j) {
+        uint8_t z = (waveform3Bit[j & 0x07][i] << 2) | (waveform3Bit[(j >> 4) & 0x07][i]);
+        uint32_t glut = ((z & B00000011) << 4) | (((z & B00001100) >> 2) << 18) | (((z & B00010000) >> 4) << 23) |
+                                    (((z & B11100000) >> 5) << 25);
+        this->glut_[i * 256 + j] = glut;
+        z = z << 4;
+        uint32_t glut2 = ((z & B00000011) << 4) | (((z & B00001100) >> 2) << 18) | (((z & B00010000) >> 4) << 23) |
+                                    (((z & B11100000) >> 5) << 25);
+        this->glut2_[i * 256 + j] = glut2;
+      }
+    }
   }
 
   memset(this->buffer_, 0, buffer_size);
@@ -352,71 +384,43 @@ void Inkplate6::display3b_() {
 
   eink_on_();
   clean_fast_(0, 1);
-  clean_fast_(1, 12);
+  clean_fast_(1, 21);
   clean_fast_(2, 1);
-  clean_fast_(0, 11);
+  clean_fast_(0, 12);
   clean_fast_(2, 1);
-  clean_fast_(1, 12);
+  clean_fast_(1, 21);
   clean_fast_(2, 1);
-  clean_fast_(0, 11);
+  clean_fast_(0, 12);
 
   uint32_t clock = (1 << this->cl_pin_->get_pin());
+  uint32_t data_pin_mask = get_data_pin_mask_();
+  uint32_t clear = data_pin_mask | clock;
   for (int k = 0; k < 8; k++) {
     const uint8_t *buffer_ptr = &this->buffer_[this->get_buffer_length_() - 1];
     uint32_t send;
-    uint8_t pix1;
-    uint8_t pix2;
-    uint8_t pix3;
-    uint8_t pix4;
-    uint8_t pixel;
-    uint8_t pixel2;
 
     vscan_start_();
-    for (int i = 0; i < this->get_height_internal(); i++) {
-      pix1 = (*buffer_ptr--);
-      pix2 = (*buffer_ptr--);
-      pix3 = (*buffer_ptr--);
-      pix4 = (*buffer_ptr--);
-      pixel = (waveform3Bit[pix1 & 0x07][k] << 6) | (waveform3Bit[(pix1 >> 4) & 0x07][k] << 4) |
-              (waveform3Bit[pix2 & 0x07][k] << 2) | (waveform3Bit[(pix2 >> 4) & 0x07][k] << 0);
-      pixel2 = (waveform3Bit[pix3 & 0x07][k] << 6) | (waveform3Bit[(pix3 >> 4) & 0x07][k] << 4) |
-               (waveform3Bit[pix4 & 0x07][k] << 2) | (waveform3Bit[(pix4 >> 4) & 0x07][k] << 0);
-
-      send = ((pixel & B00000011) << 4) | (((pixel & B00001100) >> 2) << 18) | (((pixel & B00010000) >> 4) << 23) |
-             (((pixel & B11100000) >> 5) << 25);
+    for (int i = 0, im = this->get_height_internal(); i < im; i++) {
+      send = (this->glut2_[k * 256 + *buffer_ptr--] | this->glut_[k * 256 + *buffer_ptr--]);
       hscan_start_(send);
-      send = ((pixel2 & B00000011) << 4) | (((pixel2 & B00001100) >> 2) << 18) | (((pixel2 & B00010000) >> 4) << 23) |
-             (((pixel2 & B11100000) >> 5) << 25) | clock;
+      send = (this->glut2_[k * 256 + *buffer_ptr--] | this->glut_[k * 256 + *buffer_ptr--]) | clock;
       GPIO.out_w1ts = send;
-      GPIO.out_w1tc = send;
+      GPIO.out_w1tc = clear;
 
       for (int j = 0, jm = (this->get_width_internal() / 8) - 1; j < jm; j++) {
-        pix1 = (*buffer_ptr--);
-        pix2 = (*buffer_ptr--);
-        pix3 = (*buffer_ptr--);
-        pix4 = (*buffer_ptr--);
-        pixel = (waveform3Bit[pix1 & 0x07][k] << 6) | (waveform3Bit[(pix1 >> 4) & 0x07][k] << 4) |
-                (waveform3Bit[pix2 & 0x07][k] << 2) | (waveform3Bit[(pix2 >> 4) & 0x07][k] << 0);
-        pixel2 = (waveform3Bit[pix3 & 0x07][k] << 6) | (waveform3Bit[(pix3 >> 4) & 0x07][k] << 4) |
-                 (waveform3Bit[pix4 & 0x07][k] << 2) | (waveform3Bit[(pix4 >> 4) & 0x07][k] << 0);
-
-        send = ((pixel & B00000011) << 4) | (((pixel & B00001100) >> 2) << 18) | (((pixel & B00010000) >> 4) << 23) |
-               (((pixel & B11100000) >> 5) << 25) | clock;
+        send = (this->glut2_[k * 256 + *buffer_ptr--] | this->glut_[k * 256 + *buffer_ptr--]) | clock;
         GPIO.out_w1ts = send;
-        GPIO.out_w1tc = send;
-
-        send = ((pixel2 & B00000011) << 4) | (((pixel2 & B00001100) >> 2) << 18) | (((pixel2 & B00010000) >> 4) << 23) |
-               (((pixel2 & B11100000) >> 5) << 25) | clock;
+        GPIO.out_w1tc = clear;
+        send = (this->glut2_[k * 256 + *buffer_ptr--] | this->glut_[k * 256 + *buffer_ptr--]) | clock;
         GPIO.out_w1ts = send;
-        GPIO.out_w1tc = send;
+        GPIO.out_w1tc = clear;
       }
-      GPIO.out_w1ts = send;
-      GPIO.out_w1tc = get_data_pin_mask_() | clock;
+      GPIO.out_w1ts = clock;
+      GPIO.out_w1tc = clear;
       vscan_end_();
     }
     delayMicroseconds(230);
   }
-  clean_fast_(2, 1);
   clean_fast_(3, 1);
   vscan_start_();
   eink_off_();

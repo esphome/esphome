@@ -20,8 +20,8 @@ class Inkplate6 : public PollingComponent, public display::DisplayBuffer, public
   const uint8_t pixelMaskLUT[8] = {B00000001, B00000010, B00000100, B00001000,
                                    B00010000, B00100000, B01000000, B10000000};
   const uint8_t pixelMaskGLUT[2] = {B00001111, B11110000};
-  const uint8_t waveform3Bit[8][8] = {{0, 0, 0, 0, 1, 1, 1, 0}, {1, 2, 2, 2, 1, 1, 1, 0}, {0, 1, 2, 1, 1, 2, 1, 0},
-                                      {0, 2, 1, 2, 1, 2, 1, 0}, {0, 0, 0, 1, 1, 1, 2, 0}, {2, 1, 1, 1, 2, 1, 2, 0},
+  const uint8_t waveform3Bit[8][8] = {{0, 1, 1, 0, 0, 1, 1, 0}, {0, 1, 2, 1, 1, 2, 1, 0}, {1, 1, 1, 2, 2, 1, 0, 0},
+                                      {0, 0, 0, 1, 1, 1, 2, 0}, {2, 1, 1, 1, 2, 1, 2, 0}, {2, 2, 1, 1, 2, 1, 2, 0},
                                       {1, 1, 1, 2, 1, 2, 2, 0}, {0, 0, 0, 0, 0, 0, 2, 0}};
   const uint32_t waveform[50] = {
       0x00000008, 0x00000008, 0x00200408, 0x80281888, 0x60a81898, 0x60a8a8a8, 0x60a8a8a8, 0x6068a868, 0x6868a868,
@@ -121,6 +121,9 @@ class Inkplate6 : public PollingComponent, public display::DisplayBuffer, public
 
   uint8_t *partial_buffer_{nullptr};
   uint8_t *partial_buffer_2_{nullptr};
+
+  uint32_t *glut_{nullptr};
+  uint32_t *glut2_{nullptr};
 
   uint32_t full_update_every_;
   uint32_t partial_updates_{0};
