@@ -148,7 +148,7 @@ void PrometheusHandler::fan_row_(AsyncResponseStream *stream, fan::FanState *obj
     stream->print(F("\",name=\""));
     stream->print(obj->get_name().c_str());
     stream->print(F("\"} "));
-    stream->print(obj->speed);
+    stream->print(obj->speed_level);
     stream->print('\n');
   }
   // Oscillation if available
