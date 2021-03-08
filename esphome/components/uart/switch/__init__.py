@@ -5,17 +5,25 @@ from esphome.const import CONF_DATA, CONF_ID, CONF_INVERTED, CONF_SEND_EVERY
 from esphome.core import HexInt
 from .. import uart_ns, validate_raw_data
 
-DEPENDENCIES = ['uart']
+DEPENDENCIES = ["uart"]
 
-UARTSwitch = uart_ns.class_('UARTSwitch', switch.Switch, uart.UARTDevice, cg.Component)
+UARTSwitch = uart_ns.class_("UARTSwitch", switch.Switch, uart.UARTDevice, cg.Component)
 
 
-CONFIG_SCHEMA = switch.SWITCH_SCHEMA.extend({
-    cv.GenerateID(): cv.declare_id(UARTSwitch),
-    cv.Required(CONF_DATA): validate_raw_data,
-    cv.Optional(CONF_INVERTED): cv.invalid("UART switches do not support inverted mode!"),
-    cv.Optional(CONF_SEND_EVERY): cv.positive_time_period_milliseconds,
-}).extend(uart.UART_DEVICE_SCHEMA).extend(cv.COMPONENT_SCHEMA)
+CONFIG_SCHEMA = (
+    switch.SWITCH_SCHEMA.extend(
+        {
+            cv.GenerateID(): cv.declare_id(UARTSwitch),
+            cv.Required(CONF_DATA): validate_raw_data,
+            cv.Optional(CONF_INVERTED): cv.invalid(
+                "UART switches do not support inverted mode!"
+            ),
+            cv.Optional(CONF_SEND_EVERY): cv.positive_time_period_milliseconds,
+        }
+    )
+    .extend(uart.UART_DEVICE_SCHEMA)
+    .extend(cv.COMPONENT_SCHEMA)
+)
 
 
 def to_code(config):

@@ -4,18 +4,21 @@ from esphome.components import text_sensor, mqtt
 from esphome.const import CONF_ID, CONF_QOS, CONF_TOPIC
 from .. import mqtt_subscribe_ns
 
-DEPENDENCIES = ['mqtt']
+DEPENDENCIES = ["mqtt"]
 
-CONF_MQTT_PARENT_ID = 'mqtt_parent_id'
-MQTTSubscribeTextSensor = mqtt_subscribe_ns.class_('MQTTSubscribeTextSensor',
-                                                   text_sensor.TextSensor, cg.Component)
+CONF_MQTT_PARENT_ID = "mqtt_parent_id"
+MQTTSubscribeTextSensor = mqtt_subscribe_ns.class_(
+    "MQTTSubscribeTextSensor", text_sensor.TextSensor, cg.Component
+)
 
-CONFIG_SCHEMA = text_sensor.TEXT_SENSOR_SCHEMA.extend({
-    cv.GenerateID(): cv.declare_id(MQTTSubscribeTextSensor),
-    cv.GenerateID(CONF_MQTT_PARENT_ID): cv.use_id(mqtt.MQTTClientComponent),
-    cv.Required(CONF_TOPIC): cv.subscribe_topic,
-    cv.Optional(CONF_QOS, default=0): cv.mqtt_qos,
-}).extend(cv.COMPONENT_SCHEMA)
+CONFIG_SCHEMA = text_sensor.TEXT_SENSOR_SCHEMA.extend(
+    {
+        cv.GenerateID(): cv.declare_id(MQTTSubscribeTextSensor),
+        cv.GenerateID(CONF_MQTT_PARENT_ID): cv.use_id(mqtt.MQTTClientComponent),
+        cv.Required(CONF_TOPIC): cv.subscribe_topic,
+        cv.Optional(CONF_QOS, default=0): cv.mqtt_qos,
+    }
+).extend(cv.COMPONENT_SCHEMA)
 
 
 def to_code(config):
