@@ -31,14 +31,6 @@ TurnOnAction = fan_ns.class_("TurnOnAction", automation.Action)
 TurnOffAction = fan_ns.class_("TurnOffAction", automation.Action)
 ToggleAction = fan_ns.class_("ToggleAction", automation.Action)
 
-FanSpeed = fan_ns.enum("FanSpeed")
-FAN_SPEEDS = {
-    "OFF": FanSpeed.FAN_SPEED_OFF,
-    "LOW": FanSpeed.FAN_SPEED_LOW,
-    "MEDIUM": FanSpeed.FAN_SPEED_MEDIUM,
-    "HIGH": FanSpeed.FAN_SPEED_HIGH,
-}
-
 FAN_SCHEMA = cv.MQTT_COMMAND_COMPONENT_SCHEMA.extend(
     {
         cv.GenerateID(): cv.declare_id(FanState),
