@@ -1688,10 +1688,6 @@ fan:
     name: 'Living Room Fan 2'
     oscillation_output: gpio_19
     direction_output: gpio_26
-    speed:
-      low: 0.45
-      medium: 0.75
-      high: 1.0
     oscillation_state_topic: oscillation/state/topic
     oscillation_command_topic: oscillation/command/topic
     speed_state_topic: speed/state/topic
