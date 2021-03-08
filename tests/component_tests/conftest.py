@@ -1,4 +1,4 @@
-""" Fixtures for component tests """
+"""Fixtures for component tests."""
 
 import pytest
 
@@ -9,7 +9,7 @@ from esphome.__main__ import generate_cpp_contents
 
 @pytest.fixture
 def generate_main():
-    """ Generates the C++ main.cpp file and returns it in string form """
+    """Generates the C++ main.cpp file and returns it in string form."""
 
     def generator(path: str) -> str:
         CORE.config_path = path

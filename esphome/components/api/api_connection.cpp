@@ -382,6 +382,7 @@ bool APIConnection::send_sensor_info(sensor::Sensor *sensor) {
   msg.unit_of_measurement = sensor->get_unit_of_measurement();
   msg.accuracy_decimals = sensor->get_accuracy_decimals();
   msg.force_update = sensor->get_force_update();
+  msg.device_class = sensor->get_device_class();
   return this->send_list_entities_sensor_response(msg);
 }
 #endif

@@ -1,23 +1,35 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import fan, output
-from esphome.const import CONF_OSCILLATION_OUTPUT, CONF_OUTPUT, CONF_DIRECTION_OUTPUT, \
-    CONF_OUTPUT_ID, CONF_SPEED, CONF_LOW, CONF_MEDIUM, CONF_HIGH
+from esphome.const import (
+    CONF_OSCILLATION_OUTPUT,
+    CONF_OUTPUT,
+    CONF_DIRECTION_OUTPUT,
+    CONF_OUTPUT_ID,
+    CONF_SPEED,
+    CONF_LOW,
+    CONF_MEDIUM,
+    CONF_HIGH,
+)
 from .. import speed_ns
 
-SpeedFan = speed_ns.class_('SpeedFan', cg.Component)
+SpeedFan = speed_ns.class_("SpeedFan", cg.Component)
 
-CONFIG_SCHEMA = fan.FAN_SCHEMA.extend({
-    cv.GenerateID(CONF_OUTPUT_ID): cv.declare_id(SpeedFan),
-    cv.Required(CONF_OUTPUT): cv.use_id(output.FloatOutput),
-    cv.Optional(CONF_OSCILLATION_OUTPUT): cv.use_id(output.BinaryOutput),
-    cv.Optional(CONF_DIRECTION_OUTPUT): cv.use_id(output.BinaryOutput),
-    cv.Optional(CONF_SPEED, default={}): cv.Schema({
-        cv.Optional(CONF_LOW, default=0.33): cv.percentage,
-        cv.Optional(CONF_MEDIUM, default=0.66): cv.percentage,
-        cv.Optional(CONF_HIGH, default=1.0): cv.percentage,
-    }),
-}).extend(cv.COMPONENT_SCHEMA)
+CONFIG_SCHEMA = fan.FAN_SCHEMA.extend(
+    {
+        cv.GenerateID(CONF_OUTPUT_ID): cv.declare_id(SpeedFan),
+        cv.Required(CONF_OUTPUT): cv.use_id(output.FloatOutput),
+        cv.Optional(CONF_OSCILLATION_OUTPUT): cv.use_id(output.BinaryOutput),
+        cv.Optional(CONF_DIRECTION_OUTPUT): cv.use_id(output.BinaryOutput),
+        cv.Optional(CONF_SPEED, default={}): cv.Schema(
+            {
+                cv.Optional(CONF_LOW, default=0.33): cv.percentage,
+                cv.Optional(CONF_MEDIUM, default=0.66): cv.percentage,
+                cv.Optional(CONF_HIGH, default=1.0): cv.percentage,
+            }
+        ),
+    }
+).extend(cv.COMPONENT_SCHEMA)
 
 
 def to_code(config):

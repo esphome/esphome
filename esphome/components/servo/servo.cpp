@@ -31,7 +31,7 @@ void Servo::loop() {
     if (this->transition_length_) {
       float new_value;
       float travel_diff = this->target_value_ - this->source_value_;
-      uint32_t target_runtime = target_runtime = abs((int) ((travel_diff) * this->transition_length_ * 1.0f / 2.0f));
+      uint32_t target_runtime = abs((int) ((travel_diff) * this->transition_length_ * 1.0f / 2.0f));
       uint32_t current_runtime = millis() - this->start_millis_;
       float percentage_run = current_runtime * 1.0f / target_runtime * 1.0f;
       if (percentage_run > 1.0f) {
