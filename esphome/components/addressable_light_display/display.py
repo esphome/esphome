@@ -5,6 +5,7 @@ from esphome.const import (
     CONF_ID, CONF_LAMBDA, CONF_PAGES, CONF_ADDRESSABLE_LIGHT_ID, CONF_HEIGHT, CONF_WIDTH,
     CONF_UPDATE_INTERVAL, CONF_PIXEL_MAPPER
 )
+CODEOWNERS = ["@justfalter"]
 
 IntRef = cg.int_.operator('ref')
 addressable_light_display_ns = cg.esphome_ns.namespace('addressable_light_display')
