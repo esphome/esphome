@@ -24,6 +24,33 @@ class IPAddressWiFiInfo : public Component, public text_sensor::TextSensor {
   IPAddress last_ip_;
 };
 
+class ScanResultsWiFiInfo : public Component, public text_sensor::TextSensor {
+ public:
+  void loop() override {
+    std::string scan_results;
+    for (auto &scan : wifi::global_wifi_component->get_scan_result()) {
+      if (scan.get_is_hidden())
+        continue;
+
+      scan_results += scan.get_ssid().c_str();
+      scan_results += ": ";
+      scan_results += esphome::to_string(scan.get_rssi());
+      scan_results += "dB\n";
+    }
+    
+    if (this->last_scan_results_ != scan_results) {
+      this->last_scan_results_ = scan_results;
+      this->publish_state(scan_results.substr(0, 255));
+    }
+  }
+  float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
+  std::string unique_id() override { return get_mac_address() + "-wifiinfo-scanresults"; }
+  void dump_config() override;
+
+ protected:
+  std::string last_scan_results_;
+};
+
 class SSIDWiFiInfo : public Component, public text_sensor::TextSensor {
  public:
   void loop() override {
