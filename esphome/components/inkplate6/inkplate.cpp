@@ -35,7 +35,6 @@ void Inkplate6::setup() {
   this->display_data_5_pin_->setup();
   this->display_data_6_pin_->setup();
   this->display_data_7_pin_->setup();
-
 }
 void Inkplate6::initialize_() {
   uint32_t buffer_size = this->get_buffer_length_();
@@ -49,10 +48,10 @@ void Inkplate6::initialize_() {
   if (this->buffer_ != nullptr) {
     free(this->buffer_);  // NOLINT
   }
-  if(this->glut_ != nullptr) {
+  if (this->glut_ != nullptr) {
     free(this->glut_);  // NOLINT
   }
-  if(this->glut2_ != nullptr) {
+  if (this->glut2_ != nullptr) {
     free(this->glut2_);  // NOLINT
   }
 
@@ -97,11 +96,11 @@ void Inkplate6::initialize_() {
       for (uint32_t j = 0; j < 256; ++j) {
         uint8_t z = (waveform3Bit[j & 0x07][i] << 2) | (waveform3Bit[(j >> 4) & 0x07][i]);
         uint32_t glut = ((z & B00000011) << 4) | (((z & B00001100) >> 2) << 18) | (((z & B00010000) >> 4) << 23) |
-                                    (((z & B11100000) >> 5) << 25);
+                        (((z & B11100000) >> 5) << 25);
         this->glut_[i * 256 + j] = glut;
         z = z << 4;
         uint32_t glut2 = ((z & B00000011) << 4) | (((z & B00001100) >> 2) << 18) | (((z & B00010000) >> 4) << 23) |
-                                    (((z & B11100000) >> 5) << 25);
+                         (((z & B11100000) >> 5) << 25);
         this->glut2_[i * 256 + j] = glut2;
       }
     }
