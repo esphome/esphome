@@ -9,6 +9,18 @@ import tempfile
 _LOGGER = logging.getLogger(__name__)
 
 
+def find_item(obj, key):
+    """Iteratively look for a key in list which contains simple keys or other lists"""
+    if key in obj:
+        return obj[key]
+    for v in obj.values():
+        if isinstance(v, dict):
+            item = find_item(v, key)
+            if item is not None:
+                return item
+    return None
+
+
 def ensure_unique_string(preferred_string, current_strings):
     test_string = preferred_string
     current_strings_set = set(current_strings)
