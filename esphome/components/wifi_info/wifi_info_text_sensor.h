@@ -40,6 +40,8 @@ class ScanResultsWiFiInfo : public Component, public text_sensor::TextSensor {
     
     if (this->last_scan_results_ != scan_results) {
       this->last_scan_results_ = scan_results;
+      // There's a limit of 255 characters per state.
+      // Longer states just don't get sent so we truncate it.
       this->publish_state(scan_results.substr(0, 255));
     }
   }
