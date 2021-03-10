@@ -4,12 +4,14 @@ from esphome.components import binary_sensor
 from esphome.const import CONF_ICON, ICON_KEY_PLUS
 from . import CONF_FINGERPRINT_GROW_ID, FingerprintGrowComponent
 
-DEPENDENCIES = ['fingerprint_grow']
+DEPENDENCIES = ["fingerprint_grow"]
 
-CONFIG_SCHEMA = binary_sensor.BINARY_SENSOR_SCHEMA.extend({
-    cv.GenerateID(CONF_FINGERPRINT_GROW_ID): cv.use_id(FingerprintGrowComponent),
-    cv.Optional(CONF_ICON, default=ICON_KEY_PLUS): cv.icon,
-})
+CONFIG_SCHEMA = binary_sensor.BINARY_SENSOR_SCHEMA.extend(
+    {
+        cv.GenerateID(CONF_FINGERPRINT_GROW_ID): cv.use_id(FingerprintGrowComponent),
+        cv.Optional(CONF_ICON, default=ICON_KEY_PLUS): cv.icon,
+    }
+)
 
 
 def to_code(config):
