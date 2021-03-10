@@ -10,12 +10,24 @@ DEPENDENCIES = ['fingerprint_grow']
 
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(CONF_FINGERPRINT_GROW_ID): cv.use_id(FingerprintGrowComponent),
-    cv.Optional(CONF_FINGERPRINT_COUNT): sensor.sensor_schema(UNIT_EMPTY, ICON_FINGERPRINT, 0),
-    cv.Optional(CONF_STATUS): sensor.sensor_schema(UNIT_EMPTY, ICON_EMPTY, 0),
-    cv.Optional(CONF_CAPACITY): sensor.sensor_schema(UNIT_EMPTY, ICON_DATABASE, 0),
-    cv.Optional(CONF_SECURITY_LEVEL): sensor.sensor_schema(UNIT_EMPTY, ICON_SECURITY, 0),
-    cv.Optional(CONF_LAST_FINGER_ID): sensor.sensor_schema(UNIT_EMPTY, ICON_ACCOUNT, 0),
-    cv.Optional(CONF_LAST_CONFIDENCE): sensor.sensor_schema(UNIT_EMPTY, ICON_ACCOUNT_CHECK, 0),
+    cv.Optional(CONF_FINGERPRINT_COUNT): sensor.sensor_schema(
+        UNIT_EMPTY, ICON_FINGERPRINT, 0, DEVICE_CLASS_EMPTY
+    ),
+    cv.Optional(CONF_STATUS): sensor.sensor_schema(
+        UNIT_EMPTY, ICON_EMPTY, 0, DEVICE_CLASS_EMPTY
+    ),
+    cv.Optional(CONF_CAPACITY): sensor.sensor_schema(
+        UNIT_EMPTY, ICON_DATABASE, 0, DEVICE_CLASS_EMPTY
+    ),
+    cv.Optional(CONF_SECURITY_LEVEL): sensor.sensor_schema(
+        UNIT_EMPTY, ICON_SECURITY, 0, DEVICE_CLASS_EMPTY
+    ),
+    cv.Optional(CONF_LAST_FINGER_ID): sensor.sensor_schema(
+        UNIT_EMPTY, ICON_ACCOUNT, 0, DEVICE_CLASS_EMPTY
+    ),
+    cv.Optional(CONF_LAST_CONFIDENCE): sensor.sensor_schema(
+        UNIT_EMPTY, ICON_ACCOUNT_CHECK, 0, DEVICE_CLASS_EMPTY
+    ),
 })
 
 
