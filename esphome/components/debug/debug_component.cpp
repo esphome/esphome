@@ -20,6 +20,13 @@ void DebugComponent::dump_config() {
   return;
 #endif
 
+  ESP_LOGCONFIG(TAG, "Heap:");
+  LOG_SENSOR("  ", "Free", this->free_sensor_);
+#ifdef ARDUINO_ARCH_ESP8266
+  LOG_SENSOR("  ", "Fragmentation", this->fragmentation_sensor_);
+  LOG_SENSOR("  ", "Max Block", this->block_sensor_);
+#endif
+
   ESP_LOGD(TAG, "ESPHome version %s", ESPHOME_VERSION);
   this->free_heap_ = ESP.getFreeHeap();
   ESP_LOGD(TAG, "Free Heap Size: %u bytes", this->free_heap_);
@@ -197,6 +204,7 @@ void DebugComponent::dump_config() {
   ESP_LOGD(TAG, "Reset Info: %s", ESP.getResetInfo().c_str());
 #endif
 }
+
 void DebugComponent::loop() {
   uint32_t new_free_heap = ESP.getFreeHeap();
   if (new_free_heap < this->free_heap_ / 2) {
@@ -205,6 +213,31 @@ void DebugComponent::loop() {
     this->status_momentary_warning("heap", 1000);
   }
 }
+
+void DebugComponent::update() {
+if (this->free_sensor_ != nullptr) {
+  int free = ESP.getFreeHeap();
+  this->free_sensor_->publish_state(free);
+}
+
+#ifdef ARDUINO_ARCH_ESP8266
+// CLANG_TIDY uses an old arduino framework which doesn't support the heap state functions
+#ifndef CLANG_TIDY
+if (this->fragmentation_sensor_ != nullptr) {
+  // NOTE: Requires arduino_version 2.5.2 or above
+  int frag = ESP.getHeapFragmentation();
+  this->fragmentation_sensor_->publish_state(frag);
+}
+
+if (this->block_sensor_ != nullptr) {
+  // NOTE: Requires arduino_version 2.5.2 or above
+  int block = ESP.getMaxFreeBlockSize();
+  this->block_sensor_->publish_state(block);
+}
+#endif
+#endif
+}
+
 float DebugComponent::get_setup_priority() const { return setup_priority::LATE; }
 
 }  // namespace debug
