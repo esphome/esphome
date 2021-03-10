@@ -80,7 +80,7 @@ void UARTComponent::setup() {
   }
   int8_t tx = this->tx_pin_.has_value() ? *this->tx_pin_ : -1;
   int8_t rx = this->rx_pin_.has_value() ? *this->rx_pin_ : -1;
-  this->hw_serial_->begin(this->baud_rate_, get_config(), rx, tx);
+  this->hw_serial_->begin(this->baud_rate_, get_config(), rx, tx, this->invert_);
   this->hw_serial_->setRxBufferSize(this->rx_buffer_size_);
 }
 
