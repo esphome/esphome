@@ -24,7 +24,7 @@ void HttpRequestComponent::set_url(std::string url) {
   this->client_.setReuse(true);
 }
 
-void HttpRequestComponent::send() {
+void HttpRequestComponent::send(std::vector<HttpRequestResponseTrigger *> response_triggers) {
   bool begin_status = false;
   const String url = this->url_.c_str();
 #ifdef ARDUINO_ARCH_ESP32
@@ -54,6 +54,9 @@ void HttpRequestComponent::send() {
   }
 
   int http_code = this->client_.sendRequest(this->method_, this->body_.c_str());
+  for (auto *trigger : response_triggers)
+    trigger->process(http_code);
+
   if (http_code < 0) {
     ESP_LOGW(TAG, "HTTP Request failed; URL: %s; Error: %s", this->url_.c_str(),
              HTTPClient::errorToString(http_code).c_str());
