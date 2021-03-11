@@ -32,7 +32,7 @@ class ScanResultsWiFiInfo : public Component, public text_sensor::TextSensor {
       if (scan.get_is_hidden())
         continue;
 
-      scan_results += scan.get_ssid().c_str();
+      scan_results += scan.get_ssid();
       scan_results += ": ";
       scan_results += esphome::to_string(scan.get_rssi());
       scan_results += "dB\n";
