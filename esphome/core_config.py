@@ -113,7 +113,7 @@ def validate_arduino_version(value):
 
 
 def atleast_esp8266_framework(atleast_version):
-    """Validate that the Arduino framework version is at least the specified version."""    
+    """Validate that the Arduino framework version is at least the specified version."""
     def validator_(obj):
         version = find_item(CORE.raw_config, CONF_ARDUINO_VERSION)
         if version in [None, 'RECOMMENDED', 'LATEST', 'DEV']:

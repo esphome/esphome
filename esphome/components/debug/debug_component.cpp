@@ -16,7 +16,7 @@ static const char *TAG = "debug";
 void DebugComponent::dump_config() {
   std::string device_info;
   device_info.reserve(256);
-  
+
 #ifndef ESPHOME_LOG_HAS_DEBUG
   ESP_LOGE(TAG, "Debug Component requires debug log level!");
   this->status_set_error();
@@ -33,7 +33,7 @@ void DebugComponent::dump_config() {
 
   ESP_LOGD(TAG, "ESPHome version %s", ESPHOME_VERSION);
   device_info += ESPHOME_VERSION;
-  
+
   this->free_heap_ = ESP.getFreeHeap();
   ESP_LOGD(TAG, "Free Heap Size: %u bytes", this->free_heap_);
 //  device_info += "|Heap " + to_string(this->free_heap_);
@@ -65,8 +65,8 @@ void DebugComponent::dump_config() {
   }
   ESP_LOGD(TAG, "Flash Chip: Size=%ukB Speed=%uMHz Mode=%s", ESP.getFlashChipSize() / 1024,
            ESP.getFlashChipSpeed() / 1000000, flash_mode);
-  device_info += "|Flash: " + to_string(ESP.getFlashChipSize() / 1024) + 
-                 "kB Speed:" + to_string(ESP.getFlashChipSpeed() / 1000000) + 
+  device_info += "|Flash: " + to_string(ESP.getFlashChipSize() / 1024) +
+                 "kB Speed:" + to_string(ESP.getFlashChipSpeed() / 1000000) +
                  "MHz Mode:";
   device_info += flash_mode;
 
@@ -247,8 +247,8 @@ void DebugComponent::dump_config() {
   if (this->device_info_ != nullptr) {
     if (device_info.length() > 255)
       device_info.resize(255);
-    this->device_info_->publish_state(device_info.c_str());
-  } 
+    this->device_info_->publish_state(device_info);
+  }
 }
 
 void DebugComponent::loop() {
@@ -256,7 +256,7 @@ void DebugComponent::loop() {
   uint32_t loop_time = now - this->loop_time_;
   this->max_loop_time_ = max(this->max_loop_time_, loop_time);
   this->loop_time_ = now;
-  
+
   uint32_t new_free_heap = ESP.getFreeHeap();
   if (new_free_heap < this->free_heap_ / 2) {
     this->free_heap_ = new_free_heap;
@@ -264,12 +264,12 @@ void DebugComponent::loop() {
     this->status_momentary_warning("heap", 1000);
   }
 
-  this->min_free_heap_ = min(this->min_free_heap_, (uint32_t)ESP.getFreeHeap());
+  this->min_free_heap_ = min(this->min_free_heap_, (uint32_t) ESP.getFreeHeap());
 // CLANG_TIDY uses an old arduino framework which doesn't support the heap state functions
 #if defined(ARDUINO_ARCH_ESP8266) & !defined(CLANG_TIDY)
   // NOTE: Requires arduino_version 2.5.2 or above
-  this->min_heap_fragmentation_ = max(this->min_heap_fragmentation_, (uint32_t)ESP.getHeapFragmentation());
-  this->min_heap_block_ = min(this->min_heap_block_, (uint32_t)ESP.getMaxFreeBlockSize());
+  this->min_heap_fragmentation_ = max(this->min_heap_fragmentation_, (uint32_t) ESP.getHeapFragmentation());
+  this->min_heap_block_ = min(this->min_heap_block_, (uint32_t) ESP.getMaxFreeBlockSize());
 #endif
 }
 

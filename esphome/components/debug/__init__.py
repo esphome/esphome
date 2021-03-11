@@ -1,7 +1,7 @@
 import esphome.config_validation as cv
 import esphome.codegen as cg
 from esphome.components import sensor, text_sensor
-from esphome.const import CONF_ID, ICON_COUNTER, DEVICE_CLASS_EMPTY, \
+from esphome.const import CONF_ID, ICON_COUNTER, \
     CONF_DEVICE, CONF_FREE, CONF_FRAGMENTATION, CONF_BLOCK, CONF_LOOP_TIME, \
     UNIT_MILISECOND, ICON_TIMER, UNIT_COUNTS, UNIT_BYTES, \
     DEVICE_CLASS_MEMORY, DEVICE_CLASS_ESPHOME
