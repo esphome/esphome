@@ -2057,6 +2057,8 @@ text_sensor:
     name: Template Text Sensor
     id: ${textname}_text
   - platform: wifi_info
+    scan_results:
+      name: 'Scan Results'
     ip_address:
       name: 'IP Address'
     ssid:
