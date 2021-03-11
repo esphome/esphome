@@ -7,10 +7,10 @@ namespace pzemac {
 static const char *TAG = "pzemac";
 
 static const uint8_t PZEM_CMD_READ_IN_REGISTERS = 0x04;
-static const uint8_t PZEM_REGISTER_COUNT = 10;  // 10x 16-bit registers
+static const uint8_t PZEM_REGISTER_COUNT = 1;  // 10x 16-bit registers
 
 void PZEMAC::on_modbus_data(const std::vector<uint8_t> &data) {
-  if (data.size() < 20) {
+  if (data.size() < 1) {
     ESP_LOGW(TAG, "Invalid size for PZEM AC!");
     return;
   }
@@ -31,18 +31,18 @@ void PZEMAC::on_modbus_data(const std::vector<uint8_t> &data) {
   uint16_t raw_voltage = pzem_get_16bit(0);
   float voltage = raw_voltage / 10.0f;  // max 6553.5 V
 
-  uint32_t raw_current = pzem_get_32bit(2);
+  uint32_t raw_current = pzem_get_32bit(0);
   float current = raw_current / 1000.0f;  // max 4294967.295 A
 
-  uint32_t raw_active_power = pzem_get_32bit(6);
+  uint32_t raw_active_power = pzem_get_32bit(0);
   float active_power = raw_active_power / 10.0f;  // max 429496729.5 W
 
-  float active_energy = static_cast<float>(pzem_get_32bit(10));
+  float active_energy = static_cast<float>(pzem_get_32bit(0));
 
-  uint16_t raw_frequency = pzem_get_16bit(14);
+  uint16_t raw_frequency = pzem_get_16bit(0);
   float frequency = raw_frequency / 10.0f;
 
-  uint16_t raw_power_factor = pzem_get_16bit(16);
+  uint16_t raw_power_factor = pzem_get_16bit(0);
   float power_factor = raw_power_factor / 100.0f;
 
   ESP_LOGD(TAG, "PZEM AC: V=%.1f V, I=%.3f A, P=%.1f W, E=%.1f Wh, F=%.1f Hz, PF=%.2f", voltage, current, active_power,
