@@ -4,28 +4,32 @@ from esphome import pins
 from esphome.components import output
 from esphome.const import CONF_ID, CONF_MIN_POWER, CONF_METHOD
 
-CODEOWNERS = ['@glmnet']
+CODEOWNERS = ["@glmnet"]
 
-ac_dimmer_ns = cg.esphome_ns.namespace('ac_dimmer')
-AcDimmer = ac_dimmer_ns.class_('AcDimmer', output.FloatOutput, cg.Component)
+ac_dimmer_ns = cg.esphome_ns.namespace("ac_dimmer")
+AcDimmer = ac_dimmer_ns.class_("AcDimmer", output.FloatOutput, cg.Component)
 
-DimMethod = ac_dimmer_ns.enum('DimMethod')
+DimMethod = ac_dimmer_ns.enum("DimMethod")
 DIM_METHODS = {
-    'LEADING_PULSE': DimMethod.DIM_METHOD_LEADING_PULSE,
-    'LEADING': DimMethod.DIM_METHOD_LEADING,
-    'TRAILING': DimMethod.DIM_METHOD_TRAILING,
+    "LEADING_PULSE": DimMethod.DIM_METHOD_LEADING_PULSE,
+    "LEADING": DimMethod.DIM_METHOD_LEADING,
+    "TRAILING": DimMethod.DIM_METHOD_TRAILING,
 }
 
-CONF_GATE_PIN = 'gate_pin'
-CONF_ZERO_CROSS_PIN = 'zero_cross_pin'
-CONF_INIT_WITH_HALF_CYCLE = 'init_with_half_cycle'
-CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend({
-    cv.Required(CONF_ID): cv.declare_id(AcDimmer),
-    cv.Required(CONF_GATE_PIN): pins.internal_gpio_output_pin_schema,
-    cv.Required(CONF_ZERO_CROSS_PIN): pins.internal_gpio_input_pin_schema,
-    cv.Optional(CONF_INIT_WITH_HALF_CYCLE, default=True): cv.boolean,
-    cv.Optional(CONF_METHOD, default='leading pulse'): cv.enum(DIM_METHODS, upper=True, space='_'),
-}).extend(cv.COMPONENT_SCHEMA)
+CONF_GATE_PIN = "gate_pin"
+CONF_ZERO_CROSS_PIN = "zero_cross_pin"
+CONF_INIT_WITH_HALF_CYCLE = "init_with_half_cycle"
+CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
+    {
+        cv.Required(CONF_ID): cv.declare_id(AcDimmer),
+        cv.Required(CONF_GATE_PIN): pins.internal_gpio_output_pin_schema,
+        cv.Required(CONF_ZERO_CROSS_PIN): pins.internal_gpio_input_pin_schema,
+        cv.Optional(CONF_INIT_WITH_HALF_CYCLE, default=True): cv.boolean,
+        cv.Optional(CONF_METHOD, default="leading pulse"): cv.enum(
+            DIM_METHODS, upper=True, space="_"
+        ),
+    }
+).extend(cv.COMPONENT_SCHEMA)
 
 
 def to_code(config):

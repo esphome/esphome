@@ -3,15 +3,17 @@ import esphome.config_validation as cv
 from esphome.components import climate_ir
 from esphome.const import CONF_ID
 
-AUTO_LOAD = ['climate_ir']
-CODEOWNERS = ['@glmnet']
+AUTO_LOAD = ["climate_ir"]
+CODEOWNERS = ["@glmnet"]
 
-tcl112_ns = cg.esphome_ns.namespace('tcl112')
-Tcl112Climate = tcl112_ns.class_('Tcl112Climate', climate_ir.ClimateIR)
+tcl112_ns = cg.esphome_ns.namespace("tcl112")
+Tcl112Climate = tcl112_ns.class_("Tcl112Climate", climate_ir.ClimateIR)
 
-CONFIG_SCHEMA = climate_ir.CLIMATE_IR_WITH_RECEIVER_SCHEMA.extend({
-    cv.GenerateID(): cv.declare_id(Tcl112Climate),
-})
+CONFIG_SCHEMA = climate_ir.CLIMATE_IR_WITH_RECEIVER_SCHEMA.extend(
+    {
+        cv.GenerateID(): cv.declare_id(Tcl112Climate),
+    }
+)
 
 
 def to_code(config):
