@@ -27,11 +27,11 @@ void EDPBOX::on_modbus_data(const std::vector<uint8_t> &data) {
     return (uint32_t(edpbox_get_16bit(i + 2)) << 16) | (uint32_t(edpbox_get_16bit(i + 0)) << 0);
   };
 
-  uint16_t raw_voltage = edpbox_get_16bit(0);
-  float voltage = raw_voltage / 10.0f;  // max 6553.5 V
+  uint16_t raw_voltage = edpbox_get_32bit(0);
+  float voltage = raw_voltage / 10.0f;  // V
 
   uint32_t raw_current = edpbox_get_32bit(2);
-  float current = raw_current / 1000.0f;  // max 4294967.295 A
+  float current = raw_current / 10.0f;  // A
 
   uint32_t raw_active_power = edpbox_get_32bit(6);
   float active_power = raw_active_power / 10.0f;  // max 429496729.5 W
