@@ -12,4 +12,6 @@ def mac_addr_strings():
     This consists of six strings representing integers [0..255],
     without zero-padding, joined by dots.
     """
-    return st.builds("{:02X}:{:02X}:{:02X}:{:02X}:{:02X}:{:02X}".format, *(6 * [st.integers(0, 255)]))
+    return st.builds(
+        "{:02X}:{:02X}:{:02X}:{:02X}:{:02X}:{:02X}".format, *(6 * [st.integers(0, 255)])
+    )

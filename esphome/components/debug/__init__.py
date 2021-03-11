@@ -7,8 +7,8 @@ from esphome.const import CONF_ID, ICON_COUNTER, DEVICE_CLASS_EMPTY, \
     DEVICE_CLASS_MEMORY, DEVICE_CLASS_ESPHOME
 import esphome.core_config as cc
 
-CODEOWNERS = ['@OttoWinter']
-DEPENDENCIES = ['logger']
+CODEOWNERS = ["@OttoWinter"]
+DEPENDENCIES = ["logger"]
 
 debug_ns = cg.esphome_ns.namespace('debug')
 DebugComponent = debug_ns.class_('DebugComponent', cg.PollingComponent)
@@ -32,6 +32,7 @@ CONFIG_SCHEMA = cv.Schema({
     ),
     cv.Optional(CONF_LOOP_TIME): sensor.sensor_schema(UNIT_MILISECOND, ICON_TIMER, 1, DEVICE_CLASS_ESPHOME),
 }).extend(cv.polling_component_schema('60s'))
+
 
 def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])

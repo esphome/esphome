@@ -5,25 +5,45 @@ import re
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation, pins
-from esphome.const import CONF_ARDUINO_VERSION, CONF_BOARD, CONF_BOARD_FLASH_MODE, \
-    CONF_BUILD_PATH, CONF_COMMENT, CONF_ESPHOME, CONF_INCLUDES, CONF_LIBRARIES, \
-    CONF_NAME, CONF_ON_BOOT, CONF_ON_LOOP, CONF_ON_SHUTDOWN, CONF_PLATFORM, \
-    CONF_PLATFORMIO_OPTIONS, CONF_PRIORITY, CONF_TRIGGER_ID, \
-    CONF_ESP8266_RESTORE_FROM_FLASH, ARDUINO_VERSION_ESP8266, \
-    ARDUINO_VERSION_ESP32, ESP_PLATFORMS
+from esphome.const import (
+    CONF_ARDUINO_VERSION,
+    CONF_BOARD,
+    CONF_BOARD_FLASH_MODE,
+    CONF_BUILD_PATH,
+    CONF_COMMENT,
+    CONF_ESPHOME,
+    CONF_INCLUDES,
+    CONF_LIBRARIES,
+    CONF_NAME,
+    CONF_ON_BOOT,
+    CONF_ON_LOOP,
+    CONF_ON_SHUTDOWN,
+    CONF_PLATFORM,
+    CONF_PLATFORMIO_OPTIONS,
+    CONF_PRIORITY,
+    CONF_TRIGGER_ID,
+    CONF_ESP8266_RESTORE_FROM_FLASH,
+    ARDUINO_VERSION_ESP8266,
+    ARDUINO_VERSION_ESP32,
+    ESP_PLATFORMS,
+)
 from esphome.core import CORE, coroutine_with_priority
 from esphome.helpers import copy_file_if_changed, walk_files, find_item
 
 _LOGGER = logging.getLogger(__name__)
 
-BUILD_FLASH_MODES = ['qio', 'qout', 'dio', 'dout']
-StartupTrigger = cg.esphome_ns.class_('StartupTrigger', cg.Component, automation.Trigger.template())
-ShutdownTrigger = cg.esphome_ns.class_('ShutdownTrigger', cg.Component,
-                                       automation.Trigger.template())
-LoopTrigger = cg.esphome_ns.class_('LoopTrigger', cg.Component,
-                                   automation.Trigger.template())
+BUILD_FLASH_MODES = ["qio", "qout", "dio", "dout"]
+StartupTrigger = cg.esphome_ns.class_(
+    "StartupTrigger", cg.Component, automation.Trigger.template()
+)
+ShutdownTrigger = cg.esphome_ns.class_(
+    "ShutdownTrigger", cg.Component, automation.Trigger.template()
+)
+LoopTrigger = cg.esphome_ns.class_(
+    "LoopTrigger", cg.Component, automation.Trigger.template()
+)
 
-VERSION_REGEX = re.compile(r'^[0-9]+\.[0-9]+\.[0-9]+(?:[ab]\d+)?$')
+VERSION_REGEX = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+(?:[ab]\d+)?$")
 
 
 def validate_board(value):
@@ -35,8 +55,11 @@ def validate_board(value):
         raise NotImplementedError
 
     if value not in board_pins:
-        raise cv.Invalid("Could not find board '{}'. Valid boards are {}".format(
-            value, ', '.join(sorted(board_pins.keys()))))
+        raise cv.Invalid(
+            "Could not find board '{}'. Valid boards are {}".format(
+                value, ", ".join(sorted(board_pins.keys()))
+            )
+        )
     return value
 
 
@@ -44,16 +67,16 @@ validate_platform = cv.one_of(*ESP_PLATFORMS, upper=True)
 
 PLATFORMIO_ESP8266_LUT = {
     **ARDUINO_VERSION_ESP8266,
-    'RECOMMENDED': ARDUINO_VERSION_ESP8266['2.7.4'],
-    'LATEST': 'espressif8266',
-    'DEV': ARDUINO_VERSION_ESP8266['dev'],
+    "RECOMMENDED": ARDUINO_VERSION_ESP8266["2.7.4"],
+    "LATEST": "espressif8266",
+    "DEV": ARDUINO_VERSION_ESP8266["dev"],
 }
 
 PLATFORMIO_ESP32_LUT = {
     **ARDUINO_VERSION_ESP32,
-    'RECOMMENDED': ARDUINO_VERSION_ESP32['1.0.4'],
-    'LATEST': 'espressif32',
-    'DEV': ARDUINO_VERSION_ESP32['dev'],
+    "RECOMMENDED": ARDUINO_VERSION_ESP32["1.0.4"],
+    "LATEST": "espressif32",
+    "DEV": ARDUINO_VERSION_ESP32["dev"],
 }
 
 
@@ -61,18 +84,28 @@ def validate_arduino_version(value):
     value = cv.string_strict(value)
     value_ = value.upper()
     if CORE.is_esp8266:
-        if VERSION_REGEX.match(value) is not None and value_ not in PLATFORMIO_ESP8266_LUT:
-            raise cv.Invalid("Unfortunately the arduino framework version '{}' is unsupported "
-                             "at this time. You can override this by manually using "
-                             "espressif8266@<platformio version>".format(value))
+        if (
+            VERSION_REGEX.match(value) is not None
+            and value_ not in PLATFORMIO_ESP8266_LUT
+        ):
+            raise cv.Invalid(
+                "Unfortunately the arduino framework version '{}' is unsupported "
+                "at this time. You can override this by manually using "
+                "espressif8266@<platformio version>".format(value)
+            )
         if value_ in PLATFORMIO_ESP8266_LUT:
             return PLATFORMIO_ESP8266_LUT[value_]
         return value
     if CORE.is_esp32:
-        if VERSION_REGEX.match(value) is not None and value_ not in PLATFORMIO_ESP32_LUT:
-            raise cv.Invalid("Unfortunately the arduino framework version '{}' is unsupported "
-                             "at this time. You can override this by manually using "
-                             "espressif32@<platformio version>".format(value))
+        if (
+            VERSION_REGEX.match(value) is not None
+            and value_ not in PLATFORMIO_ESP32_LUT
+        ):
+            raise cv.Invalid(
+                "Unfortunately the arduino framework version '{}' is unsupported "
+                "at this time. You can override this by manually using "
+                "espressif32@<platformio version>".format(value)
+            )
         if value_ in PLATFORMIO_ESP32_LUT:
             return PLATFORMIO_ESP32_LUT[value_]
         return value
@@ -98,7 +131,7 @@ def default_build_path():
     return CORE.name
 
 
-VALID_INCLUDE_EXTS = {'.h', '.hpp', '.tcc', '.ino', '.cpp', '.c'}
+VALID_INCLUDE_EXTS = {".h", ".hpp", ".tcc", ".ino", ".cpp", ".c"}
 
 
 def valid_include(value):
@@ -109,62 +142,85 @@ def valid_include(value):
     value = cv.file_(value)
     _, ext = os.path.splitext(value)
     if ext not in VALID_INCLUDE_EXTS:
-        raise cv.Invalid("Include has invalid file extension {} - valid extensions are {}"
-                         "".format(ext, ', '.join(VALID_INCLUDE_EXTS)))
+        raise cv.Invalid(
+            "Include has invalid file extension {} - valid extensions are {}"
+            "".format(ext, ", ".join(VALID_INCLUDE_EXTS))
+        )
     return value
 
 
-CONFIG_SCHEMA = cv.Schema({
-    cv.Required(CONF_NAME): cv.valid_name,
-    cv.Required(CONF_PLATFORM): cv.one_of('ESP8266', 'ESP32', upper=True),
-    cv.Required(CONF_BOARD): validate_board,
-    cv.Optional(CONF_COMMENT): cv.string,
-    cv.Optional(CONF_ARDUINO_VERSION, default='recommended'): validate_arduino_version,
-    cv.Optional(CONF_BUILD_PATH, default=default_build_path): cv.string,
-    cv.Optional(CONF_PLATFORMIO_OPTIONS, default={}): cv.Schema({
-        cv.string_strict: cv.Any([cv.string], cv.string),
-    }),
-    cv.SplitDefault(CONF_ESP8266_RESTORE_FROM_FLASH, esp8266=False): cv.All(cv.only_on_esp8266,
-                                                                            cv.boolean),
+CONFIG_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_NAME): cv.valid_name,
+        cv.Required(CONF_PLATFORM): cv.one_of("ESP8266", "ESP32", upper=True),
+        cv.Required(CONF_BOARD): validate_board,
+        cv.Optional(CONF_COMMENT): cv.string,
+        cv.Optional(
+            CONF_ARDUINO_VERSION, default="recommended"
+        ): validate_arduino_version,
+        cv.Optional(CONF_BUILD_PATH, default=default_build_path): cv.string,
+        cv.Optional(CONF_PLATFORMIO_OPTIONS, default={}): cv.Schema(
+            {
+                cv.string_strict: cv.Any([cv.string], cv.string),
+            }
+        ),
+        cv.SplitDefault(CONF_ESP8266_RESTORE_FROM_FLASH, esp8266=False): cv.All(
+            cv.only_on_esp8266, cv.boolean
+        ),
+        cv.SplitDefault(CONF_BOARD_FLASH_MODE, esp8266="dout"): cv.one_of(
+            *BUILD_FLASH_MODES, lower=True
+        ),
+        cv.Optional(CONF_ON_BOOT): automation.validate_automation(
+            {
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(StartupTrigger),
+                cv.Optional(CONF_PRIORITY, default=600.0): cv.float_,
+            }
+        ),
+        cv.Optional(CONF_ON_SHUTDOWN): automation.validate_automation(
+            {
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ShutdownTrigger),
+            }
+        ),
+        cv.Optional(CONF_ON_LOOP): automation.validate_automation(
+            {
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(LoopTrigger),
+            }
+        ),
+        cv.Optional(CONF_INCLUDES, default=[]): cv.ensure_list(valid_include),
+        cv.Optional(CONF_LIBRARIES, default=[]): cv.ensure_list(cv.string_strict),
+        cv.Optional("esphome_core_version"): cv.invalid(
+            "The esphome_core_version option has been "
+            "removed in 1.13 - the esphome core source "
+            "files are now bundled with ESPHome."
+        ),
+    }
+)
 
-    cv.SplitDefault(CONF_BOARD_FLASH_MODE, esp8266='dout'): cv.one_of(*BUILD_FLASH_MODES,
-                                                                      lower=True),
-    cv.Optional(CONF_ON_BOOT): automation.validate_automation({
-        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(StartupTrigger),
-        cv.Optional(CONF_PRIORITY, default=600.0): cv.float_,
-    }),
-    cv.Optional(CONF_ON_SHUTDOWN): automation.validate_automation({
-        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ShutdownTrigger),
-    }),
-    cv.Optional(CONF_ON_LOOP): automation.validate_automation({
-        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(LoopTrigger),
-    }),
-    cv.Optional(CONF_INCLUDES, default=[]): cv.ensure_list(valid_include),
-    cv.Optional(CONF_LIBRARIES, default=[]): cv.ensure_list(cv.string_strict),
+PRELOAD_CONFIG_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_NAME): cv.valid_name,
+        cv.Required(CONF_PLATFORM): validate_platform,
+    },
+    extra=cv.ALLOW_EXTRA,
+)
 
-    cv.Optional('esphome_core_version'): cv.invalid("The esphome_core_version option has been "
-                                                    "removed in 1.13 - the esphome core source "
-                                                    "files are now bundled with ESPHome.")
-})
-
-PRELOAD_CONFIG_SCHEMA = cv.Schema({
-    cv.Required(CONF_NAME): cv.valid_name,
-    cv.Required(CONF_PLATFORM): validate_platform,
-}, extra=cv.ALLOW_EXTRA)
-
-PRELOAD_CONFIG_SCHEMA2 = PRELOAD_CONFIG_SCHEMA.extend({
-    cv.Required(CONF_BOARD): validate_board,
-    cv.Optional(CONF_BUILD_PATH, default=default_build_path): cv.string,
-})
+PRELOAD_CONFIG_SCHEMA2 = PRELOAD_CONFIG_SCHEMA.extend(
+    {
+        cv.Required(CONF_BOARD): validate_board,
+        cv.Optional(CONF_BUILD_PATH, default=default_build_path): cv.string,
+    }
+)
 
 
 def preload_core_config(config):
-    core_key = 'esphome'
-    if 'esphomeyaml' in config:
-        _LOGGER.warning("The esphomeyaml section has been renamed to esphome in 1.11.0. "
-                        "Please replace 'esphomeyaml:' in your configuration with 'esphome:'.")
-        config[CONF_ESPHOME] = config.pop('esphomeyaml')
-        core_key = 'esphomeyaml'
+    core_key = "esphome"
+    if "esphomeyaml" in config:
+        _LOGGER.warning(
+            "The esphomeyaml section has been renamed to esphome in 1.11.0. "
+            "Please replace 'esphomeyaml:' in your configuration with 'esphome:'."
+        )
+        config[CONF_ESPHOME] = config.pop("esphomeyaml")
+        core_key = "esphomeyaml"
     if CONF_ESPHOME not in config:
         raise cv.RequiredFieldInvalid("required key not provided", CONF_ESPHOME)
     with cv.prepend_path(core_key):
@@ -183,7 +239,7 @@ def include_file(path, basename):
     copy_file_if_changed(path, dst)
 
     _, ext = os.path.splitext(path)
-    if ext in ['.h', '.hpp', '.tcc']:
+    if ext in [".h", ".hpp", ".tcc"]:
         # Header, add include statement
         cg.add_global(cg.RawStatement(f'#include "{basename}"'))
 
@@ -207,7 +263,9 @@ def add_includes(includes):
 @coroutine_with_priority(-1000.0)
 def _esp8266_add_lwip_type():
     # If any component has already set this, do not change it
-    if any(flag.startswith('-DPIO_FRAMEWORK_ARDUINO_LWIP2_') for flag in CORE.build_flags):
+    if any(
+        flag.startswith("-DPIO_FRAMEWORK_ARDUINO_LWIP2_") for flag in CORE.build_flags
+    ):
         return
 
     # Default for platformio is LWIP2_LOW_MEMORY with:
@@ -221,7 +279,7 @@ def _esp8266_add_lwip_type():
     #  - MSS=1460
     #  - LWIP_FEATURES disabled (because we don't need them)
     # Other projects like Tasmota & ESPEasy also use this
-    cg.add_build_flag('-DPIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH')
+    cg.add_build_flag("-DPIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH")
 
 
 @coroutine_with_priority(30.0)
@@ -244,8 +302,10 @@ def _add_automations(config):
 
 @coroutine_with_priority(100.0)
 def to_code(config):
-    cg.add_global(cg.global_ns.namespace('esphome').using)
-    cg.add(cg.App.pre_setup(config[CONF_NAME], cg.RawExpression('__DATE__ ", " __TIME__')))
+    cg.add_global(cg.global_ns.namespace("esphome").using)
+    cg.add(
+        cg.App.pre_setup(config[CONF_NAME], cg.RawExpression('__DATE__ ", " __TIME__'))
+    )
 
     CORE.add_job(_add_automations, config)
 
@@ -253,27 +313,27 @@ def to_code(config):
     if CORE.is_esp8266:
         CORE.add_job(_esp8266_add_lwip_type)
 
-    cg.add_build_flag('-fno-exceptions')
+    cg.add_build_flag("-fno-exceptions")
 
     # Libraries
     if CORE.is_esp32:
-        cg.add_library('ESPmDNS', None)
+        cg.add_library("ESPmDNS", None)
     elif CORE.is_esp8266:
-        cg.add_library('ESP8266WiFi', None)
-        cg.add_library('ESP8266mDNS', None)
+        cg.add_library("ESP8266WiFi", None)
+        cg.add_library("ESP8266mDNS", None)
 
     for lib in config[CONF_LIBRARIES]:
-        if '@' in lib:
-            name, vers = lib.split('@', 1)
+        if "@" in lib:
+            name, vers = lib.split("@", 1)
             cg.add_library(name, vers)
         else:
             cg.add_library(lib, None)
 
-    cg.add_build_flag('-Wno-unused-variable')
-    cg.add_build_flag('-Wno-unused-but-set-variable')
-    cg.add_build_flag('-Wno-sign-compare')
+    cg.add_build_flag("-Wno-unused-variable")
+    cg.add_build_flag("-Wno-unused-but-set-variable")
+    cg.add_build_flag("-Wno-sign-compare")
     if config.get(CONF_ESP8266_RESTORE_FROM_FLASH, False):
-        cg.add_define('USE_ESP8266_PREFERENCES_FLASH')
+        cg.add_define("USE_ESP8266_PREFERENCES_FLASH")
 
     if config[CONF_INCLUDES]:
         CORE.add_job(add_includes, config[CONF_INCLUDES])

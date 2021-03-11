@@ -34,48 +34,48 @@ def ensure_unique_string(preferred_string, current_strings):
     return test_string
 
 
-def indent_all_but_first_and_last(text, padding='  '):
+def indent_all_but_first_and_last(text, padding="  "):
     lines = text.splitlines(True)
     if len(lines) <= 2:
         return text
-    return lines[0] + ''.join(padding + line for line in lines[1:-1]) + lines[-1]
+    return lines[0] + "".join(padding + line for line in lines[1:-1]) + lines[-1]
 
 
-def indent_list(text, padding='  '):
+def indent_list(text, padding="  "):
     return [padding + line for line in text.splitlines()]
 
 
-def indent(text, padding='  '):
-    return '\n'.join(indent_list(text, padding))
+def indent(text, padding="  "):
+    return "\n".join(indent_list(text, padding))
 
 
 # From https://stackoverflow.com/a/14945195/8924614
-def cpp_string_escape(string, encoding='utf-8'):
+def cpp_string_escape(string, encoding="utf-8"):
     def _should_escape(byte):  # type: (int) -> bool
         if not 32 <= byte < 127:
             return True
-        if byte in (ord('\\'), ord('"')):
+        if byte in (ord("\\"), ord('"')):
             return True
         return False
 
     if isinstance(string, str):
         string = string.encode(encoding)
-    result = ''
+    result = ""
     for character in string:
         if _should_escape(character):
-            result += f'\\{character:03o}'
+            result += f"\\{character:03o}"
         else:
             result += chr(character)
     return '"' + result + '"'
 
 
-def color(the_color, message=''):
+def color(the_color, message=""):
     from colorlog.escape_codes import escape_codes, parse_colors
 
     if not message:
         res = parse_colors(the_color)
     else:
-        res = parse_colors(the_color) + message + escape_codes['reset']
+        res = parse_colors(the_color) + message + escape_codes["reset"]
 
     return res
 
@@ -97,15 +97,17 @@ def mkdir_p(path):
         os.makedirs(path)
     except OSError as err:
         import errno
+
         if err.errno == errno.EEXIST and os.path.isdir(path):
             pass
         else:
             from esphome.core import EsphomeError
+
             raise EsphomeError(f"Error creating directories {path}: {err}") from err
 
 
 def is_ip_address(host):
-    parts = host.split('.')
+    parts = host.split(".")
     if len(parts) != 4:
         return False
     try:
@@ -123,17 +125,21 @@ def _resolve_with_zeroconf(host):
     try:
         zc = Zeroconf()
     except Exception as err:
-        raise EsphomeError("Cannot start mDNS sockets, is this a docker container without "
-                           "host network mode?") from err
+        raise EsphomeError(
+            "Cannot start mDNS sockets, is this a docker container without "
+            "host network mode?"
+        ) from err
     try:
-        info = zc.resolve_host(host + '.')
+        info = zc.resolve_host(host + ".")
     except Exception as err:
         raise EsphomeError(f"Error resolving mDNS hostname: {err}") from err
     finally:
         zc.close()
     if info is None:
-        raise EsphomeError("Error resolving address with mDNS: Did not respond. "
-                           "Maybe the device is offline.")
+        raise EsphomeError(
+            "Error resolving address with mDNS: Did not respond. "
+            "Maybe the device is offline."
+        )
     return info
 
 
@@ -143,7 +149,7 @@ def resolve_ip_address(host):
 
     errs = []
 
-    if host.endswith('.local'):
+    if host.endswith(".local"):
         try:
             return _resolve_with_zeroconf(host)
         except EsphomeError as err:
@@ -153,8 +159,9 @@ def resolve_ip_address(host):
         return socket.gethostbyname(host)
     except OSError as err:
         errs.append(str(err))
-        raise EsphomeError("Error resolving IP address: {}"
-                           "".format(', '.join(errs))) from err
+        raise EsphomeError(
+            "Error resolving IP address: {}" "".format(", ".join(errs))
+        ) from err
 
 
 def get_bool_env(var, default=False):
@@ -162,7 +169,7 @@ def get_bool_env(var, default=False):
 
 
 def is_hassio():
-    return get_bool_env('ESPHOME_IS_HASSIO')
+    return get_bool_env("ESPHOME_IS_HASSIO")
 
 
 def walk_files(path):
@@ -173,13 +180,15 @@ def walk_files(path):
 
 def read_file(path):
     try:
-        with codecs.open(path, 'r', encoding='utf-8') as f_handle:
+        with codecs.open(path, "r", encoding="utf-8") as f_handle:
             return f_handle.read()
     except OSError as err:
         from esphome.core import EsphomeError
+
         raise EsphomeError(f"Error reading file {path}: {err}") from err
     except UnicodeDecodeError as err:
         from esphome.core import EsphomeError
+
         raise EsphomeError(f"Error reading file {path}: {err}") from err
 
 
@@ -199,7 +208,9 @@ def _write_file(path: Union[Path, str], text: Union[str, bytes]):
 
     tmp_path = None
     try:
-        with tempfile.NamedTemporaryFile(mode="wb", dir=directory, delete=False) as f_handle:
+        with tempfile.NamedTemporaryFile(
+            mode="wb", dir=directory, delete=False
+        ) as f_handle:
             tmp_path = f_handle.name
             f_handle.write(data)
         # Newer tempfile implementations create the file with mode 0o600
@@ -219,6 +230,7 @@ def write_file(path: Union[Path, str], text: str):
         _write_file(path, text)
     except OSError as err:
         from esphome.core import EsphomeError
+
         raise EsphomeError(f"Could not write file at {path}") from err
 
 
@@ -235,6 +247,7 @@ def write_file_if_changed(path: Union[Path, str], text: str):
 
 def copy_file_if_changed(src, dst):
     import shutil
+
     if file_compare(src, dst):
         return
     mkdir_p(os.path.dirname(dst))
@@ -242,6 +255,7 @@ def copy_file_if_changed(src, dst):
         shutil.copy(src, dst)
     except OSError as err:
         from esphome.core import EsphomeError
+
         raise EsphomeError(f"Error copying file {src} to {dst}: {err}") from err
 
 
@@ -259,16 +273,19 @@ def file_compare(path1, path2):
         # File doesn't exist or another error -> not equal
         return False
 
-    if stat.S_IFMT(stat1.st_mode) != stat.S_IFREG or stat.S_IFMT(stat2.st_mode) != stat.S_IFREG:
+    if (
+        stat.S_IFMT(stat1.st_mode) != stat.S_IFREG
+        or stat.S_IFMT(stat2.st_mode) != stat.S_IFREG
+    ):
         # At least one of them is not a regular file (or does not exist)
         return False
     if stat1.st_size != stat2.st_size:
         # Different sizes
         return False
 
-    bufsize = 8*1024
+    bufsize = 8 * 1024
     # Read files in blocks until a mismatch is found
-    with open(path1, 'rb') as fh1, open(path2, 'rb') as fh2:
+    with open(path1, "rb") as fh1, open(path2, "rb") as fh2:
         while True:
             blob1, blob2 = fh1.read(bufsize), fh2.read(bufsize)
             if blob1 != blob2:
@@ -282,11 +299,11 @@ def file_compare(path1, path2):
 # A dict of types that need to be converted to heaptypes before a class can be added
 # to the object
 _TYPE_OVERLOADS = {
-    int: type('EInt', (int,), dict()),
-    float: type('EFloat', (float,), dict()),
-    str: type('EStr', (str,), dict()),
-    dict: type('EDict', (str,), dict()),
-    list: type('EList', (list,), dict()),
+    int: type("EInt", (int,), dict()),
+    float: type("EFloat", (float,), dict()),
+    str: type("EStr", (str,), dict()),
+    dict: type("EDict", (str,), dict()),
+    list: type("EList", (list,), dict()),
 }
 
 # cache created classes here

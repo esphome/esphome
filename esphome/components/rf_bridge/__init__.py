@@ -14,47 +14,69 @@ from esphome.const import (
     CONF_TRIGGER_ID,
 )
 
-DEPENDENCIES = ['uart']
-CODEOWNERS = ['@jesserockz']
+DEPENDENCIES = ["uart"]
+CODEOWNERS = ["@jesserockz"]
 
-rf_bridge_ns = cg.esphome_ns.namespace('rf_bridge')
-RFBridgeComponent = rf_bridge_ns.class_('RFBridgeComponent', cg.Component, uart.UARTDevice)
+rf_bridge_ns = cg.esphome_ns.namespace("rf_bridge")
+RFBridgeComponent = rf_bridge_ns.class_(
+    "RFBridgeComponent", cg.Component, uart.UARTDevice
+)
 
-RFBridgeData = rf_bridge_ns.struct('RFBridgeData')
-RFBridgeAdvancedData = rf_bridge_ns.struct('RFBridgeAdvancedData')
+RFBridgeData = rf_bridge_ns.struct("RFBridgeData")
+RFBridgeAdvancedData = rf_bridge_ns.struct("RFBridgeAdvancedData")
 
-RFBridgeReceivedCodeTrigger = rf_bridge_ns.class_('RFBridgeReceivedCodeTrigger',
-                                                  automation.Trigger.template(RFBridgeData))
+RFBridgeReceivedCodeTrigger = rf_bridge_ns.class_(
+    "RFBridgeReceivedCodeTrigger", automation.Trigger.template(RFBridgeData)
+)
 RFBridgeReceivedAdvancedCodeTrigger = rf_bridge_ns.class_(
-    'RFBridgeReceivedAdvancedCodeTrigger',
+    "RFBridgeReceivedAdvancedCodeTrigger",
     automation.Trigger.template(RFBridgeAdvancedData),
 )
 
-RFBridgeSendCodeAction = rf_bridge_ns.class_('RFBridgeSendCodeAction', automation.Action)
+RFBridgeSendCodeAction = rf_bridge_ns.class_(
+    "RFBridgeSendCodeAction", automation.Action
+)
 RFBridgeSendAdvancedCodeAction = rf_bridge_ns.class_(
-    'RFBridgeSendAdvancedCodeAction', automation.Action)
+    "RFBridgeSendAdvancedCodeAction", automation.Action
+)
 
-RFBridgeLearnAction = rf_bridge_ns.class_('RFBridgeLearnAction', automation.Action)
+RFBridgeLearnAction = rf_bridge_ns.class_("RFBridgeLearnAction", automation.Action)
 
 RFBridgeStartAdvancedSniffingAction = rf_bridge_ns.class_(
-    'RFBridgeStartAdvancedSniffingAction', automation.Action)
+    "RFBridgeStartAdvancedSniffingAction", automation.Action
+)
 RFBridgeStopAdvancedSniffingAction = rf_bridge_ns.class_(
-    'RFBridgeStopAdvancedSniffingAction', automation.Action)
+    "RFBridgeStopAdvancedSniffingAction", automation.Action
+)
 
-RFBridgeSendRawAction = rf_bridge_ns.class_('RFBridgeSendRawAction', automation.Action)
+RFBridgeSendRawAction = rf_bridge_ns.class_("RFBridgeSendRawAction", automation.Action)
 
-CONF_ON_CODE_RECEIVED = 'on_code_received'
-CONF_ON_ADVANCED_CODE_RECEIVED = 'on_advanced_code_received'
+CONF_ON_CODE_RECEIVED = "on_code_received"
+CONF_ON_ADVANCED_CODE_RECEIVED = "on_advanced_code_received"
 
-CONFIG_SCHEMA = cv.All(cv.Schema({
-    cv.GenerateID(): cv.declare_id(RFBridgeComponent),
-    cv.Optional(CONF_ON_CODE_RECEIVED): automation.validate_automation({
-        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(RFBridgeReceivedCodeTrigger),
-    }),
-    cv.Optional(CONF_ON_ADVANCED_CODE_RECEIVED): automation.validate_automation({
-        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(RFBridgeReceivedAdvancedCodeTrigger),
-    }),
-}).extend(uart.UART_DEVICE_SCHEMA).extend(cv.COMPONENT_SCHEMA))
+CONFIG_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(RFBridgeComponent),
+            cv.Optional(CONF_ON_CODE_RECEIVED): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                        RFBridgeReceivedCodeTrigger
+                    ),
+                }
+            ),
+            cv.Optional(CONF_ON_ADVANCED_CODE_RECEIVED): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                        RFBridgeReceivedAdvancedCodeTrigger
+                    ),
+                }
+            ),
+        }
+    )
+    .extend(uart.UART_DEVICE_SCHEMA)
+    .extend(cv.COMPONENT_SCHEMA)
+)
 
 
 def to_code(config):
@@ -64,26 +86,29 @@ def to_code(config):
 
     for conf in config.get(CONF_ON_CODE_RECEIVED, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        yield automation.build_automation(trigger, [(RFBridgeData, 'data')], conf)
+        yield automation.build_automation(trigger, [(RFBridgeData, "data")], conf)
 
     for conf in config.get(CONF_ON_ADVANCED_CODE_RECEIVED, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         yield automation.build_automation(
-            trigger, [(RFBridgeAdvancedData, 'data')], conf
+            trigger, [(RFBridgeAdvancedData, "data")], conf
         )
 
 
-RFBRIDGE_SEND_CODE_SCHEMA = cv.Schema({
-    cv.GenerateID(): cv.use_id(RFBridgeComponent),
-    cv.Required(CONF_SYNC): cv.templatable(cv.hex_uint16_t),
-    cv.Required(CONF_LOW): cv.templatable(cv.hex_uint16_t),
-    cv.Required(CONF_HIGH): cv.templatable(cv.hex_uint16_t),
-    cv.Required(CONF_CODE): cv.templatable(cv.hex_uint32_t)
-})
+RFBRIDGE_SEND_CODE_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.use_id(RFBridgeComponent),
+        cv.Required(CONF_SYNC): cv.templatable(cv.hex_uint16_t),
+        cv.Required(CONF_LOW): cv.templatable(cv.hex_uint16_t),
+        cv.Required(CONF_HIGH): cv.templatable(cv.hex_uint16_t),
+        cv.Required(CONF_CODE): cv.templatable(cv.hex_uint32_t),
+    }
+)
 
 
-@automation.register_action('rf_bridge.send_code', RFBridgeSendCodeAction,
-                            RFBRIDGE_SEND_CODE_SCHEMA)
+@automation.register_action(
+    "rf_bridge.send_code", RFBridgeSendCodeAction, RFBRIDGE_SEND_CODE_SCHEMA
+)
 def rf_bridge_send_code_to_code(config, action_id, template_args, args):
     paren = yield cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_args, paren)
@@ -98,12 +123,10 @@ def rf_bridge_send_code_to_code(config, action_id, template_args, args):
     yield var
 
 
-RFBRIDGE_ID_SCHEMA = cv.Schema({
-    cv.GenerateID(): cv.use_id(RFBridgeComponent)
-})
+RFBRIDGE_ID_SCHEMA = cv.Schema({cv.GenerateID(): cv.use_id(RFBridgeComponent)})
 
 
-@automation.register_action('rf_bridge.learn', RFBridgeLearnAction, RFBRIDGE_ID_SCHEMA)
+@automation.register_action("rf_bridge.learn", RFBridgeLearnAction, RFBRIDGE_ID_SCHEMA)
 def rf_bridge_learnx_to_code(config, action_id, template_args, args):
     paren = yield cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_args, paren)
@@ -111,7 +134,7 @@ def rf_bridge_learnx_to_code(config, action_id, template_args, args):
 
 
 @automation.register_action(
-    'rf_bridge.start_advanced_sniffing',
+    "rf_bridge.start_advanced_sniffing",
     RFBridgeStartAdvancedSniffingAction,
     RFBRIDGE_ID_SCHEMA,
 )
@@ -122,7 +145,7 @@ def rf_bridge_start_advanced_sniffing_to_code(config, action_id, template_args, 
 
 
 @automation.register_action(
-    'rf_bridge.stop_advanced_sniffing',
+    "rf_bridge.stop_advanced_sniffing",
     RFBridgeStopAdvancedSniffingAction,
     RFBRIDGE_ID_SCHEMA,
 )
@@ -132,18 +155,20 @@ def rf_bridge_stop_advanced_sniffing_to_code(config, action_id, template_args, a
     yield var
 
 
-RFBRIDGE_SEND_ADVANCED_CODE_SCHEMA = cv.Schema({
-    cv.GenerateID(): cv.use_id(RFBridgeComponent),
-    cv.Required(CONF_LENGTH): cv.templatable(cv.hex_uint8_t),
-    cv.Required(CONF_PROTOCOL): cv.templatable(cv.hex_uint8_t),
-    cv.Required(CONF_CODE): cv.templatable(cv.string),
-})
+RFBRIDGE_SEND_ADVANCED_CODE_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.use_id(RFBridgeComponent),
+        cv.Required(CONF_LENGTH): cv.templatable(cv.hex_uint8_t),
+        cv.Required(CONF_PROTOCOL): cv.templatable(cv.hex_uint8_t),
+        cv.Required(CONF_CODE): cv.templatable(cv.string),
+    }
+)
 
 
 @automation.register_action(
-    'rf_bridge.send_advanced_code',
+    "rf_bridge.send_advanced_code",
     RFBridgeSendAdvancedCodeAction,
-    RFBRIDGE_SEND_ADVANCED_CODE_SCHEMA
+    RFBRIDGE_SEND_ADVANCED_CODE_SCHEMA,
 )
 def rf_bridge_send_advanced_code_to_code(config, action_id, template_args, args):
     paren = yield cg.get_variable(config[CONF_ID])
@@ -166,9 +191,7 @@ RFBRIDGE_SEND_RAW_SCHEMA = cv.Schema(
 
 
 @automation.register_action(
-    'rf_bridge.send_raw',
-    RFBridgeSendRawAction,
-    RFBRIDGE_SEND_RAW_SCHEMA
+    "rf_bridge.send_raw", RFBridgeSendRawAction, RFBRIDGE_SEND_RAW_SCHEMA
 )
 def rf_bridge_send_raw_to_code(config, action_id, template_args, args):
     paren = yield cg.get_variable(config[CONF_ID])
