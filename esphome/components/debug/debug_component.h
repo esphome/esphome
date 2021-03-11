@@ -33,7 +33,7 @@ class DebugComponent : public PollingComponent {
   uint32_t loop_time_{0};
   uint32_t max_loop_time_{0};
 
-	text_sensor::TextSensor *device_info_{nullptr};
+  text_sensor::TextSensor *device_info_{nullptr};
   sensor::Sensor *free_sensor_{nullptr};
 #ifdef ARDUINO_ARCH_ESP8266
   sensor::Sensor *fragmentation_sensor_{nullptr};
