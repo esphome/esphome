@@ -279,6 +279,7 @@ void DebugComponent::update() {
     this->min_free_heap_ = UINT32_MAX;
   }
 
+#ifdef ARDUINO_ARCH_ESP8266
   if (this->fragmentation_sensor_ != nullptr) {
     this->fragmentation_sensor_->publish_state(this->min_heap_fragmentation_);
     this->min_heap_fragmentation_ = 0;
@@ -288,6 +289,7 @@ void DebugComponent::update() {
     this->block_sensor_->publish_state(this->min_heap_block_);
     this->min_heap_block_ = UINT32_MAX;
   }
+#endif
 
   if (this->loop_time_sensor_ != nullptr) {
     this->loop_time_sensor_->publish_state(this->max_loop_time_);
