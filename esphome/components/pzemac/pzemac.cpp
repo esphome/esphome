@@ -11,7 +11,7 @@ static const uint8_t PZEM_REGISTER_COUNT = 1; // 10x 16-bit registers
 static const uint8_t PZEM_REGISTER_START = 108; // todo: add to yaml
 
 void PZEMAC::on_modbus_data(const std::vector<uint8_t> &data) {
-  if (data.size() < 1) {
+  if (data.size() < 2) {
     ESP_LOGW(TAG, "Invalid size for PZEM AC!");
     return;
   }
