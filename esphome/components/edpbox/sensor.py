@@ -27,13 +27,13 @@ from esphome.const import (
 
 AUTO_LOAD = ["modbus"]
 
-pzemac_ns = cg.esphome_ns.namespace("pzemac")
-PZEMAC = pzemac_ns.class_("PZEMAC", cg.PollingComponent, modbus.ModbusDevice)
+edpbox_ns = cg.esphome_ns.namespace("edpbox")
+EDPBOX = edpbox_ns.class_("EDPBOX", cg.PollingComponent, modbus.ModbusDevice)
 
 CONFIG_SCHEMA = (
     cv.Schema(
         {
-            cv.GenerateID(): cv.declare_id(PZEMAC),
+            cv.GenerateID(): cv.declare_id(EDPBOX),
             cv.Optional(CONF_VOLTAGE): sensor.sensor_schema(
                 UNIT_VOLT, ICON_EMPTY, 1, DEVICE_CLASS_VOLTAGE
             ),
