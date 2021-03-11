@@ -37,7 +37,7 @@ class ScanResultsWiFiInfo : public Component, public text_sensor::TextSensor {
       scan_results += esphome::to_string(scan.get_rssi());
       scan_results += "dB\n";
     }
-    
+
     if (this->last_scan_results_ != scan_results) {
       this->last_scan_results_ = scan_results;
       // There's a limit of 255 characters per state.
