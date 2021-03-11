@@ -8,6 +8,7 @@ static const char *TAG = "pzemac";
 
 static const uint8_t PZEM_CMD_READ_IN_REGISTERS = 0x04;
 static const uint8_t PZEM_REGISTER_COUNT = 1;  // 10x 16-bit registers
+static const uint8_t PZEM_REGISTER_START = 1;  
 
 void PZEMAC::on_modbus_data(const std::vector<uint8_t> &data) {
   if (data.size() < 1) {
@@ -61,7 +62,7 @@ void PZEMAC::on_modbus_data(const std::vector<uint8_t> &data) {
     this->power_factor_sensor_->publish_state(power_factor);
 }
 
-void PZEMAC::update() { this->send(PZEM_CMD_READ_IN_REGISTERS, 0, PZEM_REGISTER_COUNT); }
+void PZEMAC::update() { this->send(PZEM_CMD_READ_IN_REGISTERS, PZEM_REGISTER_START, PZEM_REGISTER_COUNT); }
 void PZEMAC::dump_config() {
   ESP_LOGCONFIG(TAG, "PZEMAC:");
   ESP_LOGCONFIG(TAG, "  Address: 0x%02X", this->address_);
