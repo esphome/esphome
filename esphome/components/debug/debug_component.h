@@ -21,6 +21,7 @@ class DebugComponent : public PollingComponent {
   void set_fragmentation_sensor(sensor::Sensor *fragmentation_sensor) { fragmentation_sensor_ = fragmentation_sensor; }
   void set_block_sensor(sensor::Sensor *block_sensor) { block_sensor_ = block_sensor; }
 #endif
+  void set_loop_time_sensor(sensor::Sensor *loop_time_sensor) { loop_time_sensor_ = loop_time_sensor; }
 
  protected:
   uint32_t free_heap_{};
@@ -29,12 +30,16 @@ class DebugComponent : public PollingComponent {
   uint32_t min_heap_fragmentation_{0};
   uint32_t min_heap_block_{UINT32_MAX};
 
+  uint32_t loop_time_{0};
+  uint32_t max_loop_time_{0};
+
 	text_sensor::TextSensor *device_info_{nullptr};
   sensor::Sensor *free_sensor_{nullptr};
 #ifdef ARDUINO_ARCH_ESP8266
   sensor::Sensor *fragmentation_sensor_{nullptr};
   sensor::Sensor *block_sensor_{nullptr};
 #endif
+  sensor::Sensor *loop_time_sensor_{nullptr};
 };
 
 }  // namespace debug

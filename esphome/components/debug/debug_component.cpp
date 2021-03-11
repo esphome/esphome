@@ -252,6 +252,11 @@ void DebugComponent::dump_config() {
 }
 
 void DebugComponent::loop() {
+	uint32_t now = millis();
+	uint32_t loop_time = now - this->loop_time_;
+	this->max_loop_time_ = max(this->max_loop_time_, loop_time);
+	this->loop_time_ = now;
+	
   uint32_t new_free_heap = ESP.getFreeHeap();
   if (new_free_heap < this->free_heap_ / 2) {
     this->free_heap_ = new_free_heap;
@@ -282,6 +287,11 @@ void DebugComponent::update() {
 	if (this->block_sensor_ != nullptr) {
 		this->block_sensor_->publish_state(this->min_heap_block_);
 		this->min_heap_block_ = UINT32_MAX;
+	}
+
+	if (this->loop_time_sensor_ != nullptr) {
+		this->loop_time_sensor_->publish_state(this->max_loop_time_);
+		this->max_loop_time_ = 0;
 	}
 }
 
