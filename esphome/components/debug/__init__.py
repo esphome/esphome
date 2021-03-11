@@ -1,8 +1,8 @@
 import esphome.config_validation as cv
 import esphome.codegen as cg
-from esphome.components import sensor
+from esphome.components import sensor, text_sensor
 from esphome.const import CONF_ID, ICON_COUNTER, DEVICE_CLASS_EMPTY, \
-    CONF_FREE, CONF_FRAGMENTATION, CONF_BLOCK
+    CONF_DEVICE, CONF_FREE, CONF_FRAGMENTATION, CONF_BLOCK
 import esphome.core_config as cc
 
 CODEOWNERS = ['@OttoWinter']
@@ -14,6 +14,9 @@ DebugComponent = debug_ns.class_('DebugComponent', cg.PollingComponent)
 
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(DebugComponent),
+    cv.Optional(CONF_DEVICE): text_sensor.TEXT_SENSOR_SCHEMA.extend({
+        cv.GenerateID(): cv.declare_id(text_sensor.TextSensor)
+    }),
     cv.Optional(CONF_FREE): sensor.sensor_schema('Number', ICON_COUNTER, 0, DEVICE_CLASS_EMPTY),
     cv.Optional(CONF_FRAGMENTATION): cv.All(
         cc.atleast_esp8266_framework('2.5.2'),
@@ -31,6 +34,11 @@ CONFIG_SCHEMA = cv.Schema({
 def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     yield cg.register_component(var, config)
+
+    if CONF_DEVICE in config:
+        sens = cg.new_Pvariable(config[CONF_DEVICE][CONF_ID])
+        yield text_sensor.register_text_sensor(sens, config[CONF_DEVICE])
+        cg.add(var.set_device_info_sensor(sens))
 
     if CONF_FREE in config:
         sens = yield sensor.new_sensor(config[CONF_FREE])
