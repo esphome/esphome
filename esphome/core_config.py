@@ -114,14 +114,21 @@ def validate_arduino_version(value):
 
 def atleast_esp8266_framework(atleast_version):
     """Validate that the Arduino framework version is at least the specified version."""
+
     def validator_(obj):
         version = find_item(CORE.raw_config, CONF_ARDUINO_VERSION)
-        if version in [None, 'RECOMMENDED', 'LATEST', 'DEV']:
+        if version in [None, "RECOMMENDED", "LATEST", "DEV"]:
             return obj
 
-        framework = PLATFORMIO_ESP8266_LUT[version] if version in PLATFORMIO_ESP8266_LUT else version
+        framework = (
+            PLATFORMIO_ESP8266_LUT[version]
+            if version in PLATFORMIO_ESP8266_LUT
+            else version
+        )
         if framework < ARDUINO_VERSION_ESP8266[atleast_version]:
-            raise cv.Invalid(f"This component is not supported on arduino framework version below {atleast_version}")
+            raise cv.Invalid(
+                f"This component is not supported on arduino framework version below {atleast_version}"
+            )
         return obj
 
     return validator_

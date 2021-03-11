@@ -36,7 +36,7 @@ void DebugComponent::dump_config() {
 
   this->free_heap_ = ESP.getFreeHeap();
   ESP_LOGD(TAG, "Free Heap Size: %u bytes", this->free_heap_);
-//  device_info += "|Heap " + to_string(this->free_heap_);
+  //  device_info += "|Heap " + to_string(this->free_heap_);
 
   const char *flash_mode;
   switch (ESP.getFlashChipMode()) {
@@ -66,8 +66,7 @@ void DebugComponent::dump_config() {
   ESP_LOGD(TAG, "Flash Chip: Size=%ukB Speed=%uMHz Mode=%s", ESP.getFlashChipSize() / 1024,
            ESP.getFlashChipSpeed() / 1000000, flash_mode);
   device_info += "|Flash: " + to_string(ESP.getFlashChipSize() / 1024) +
-                 "kB Speed:" + to_string(ESP.getFlashChipSpeed() / 1000000) +
-                 "MHz Mode:";
+                 "kB Speed:" + to_string(ESP.getFlashChipSpeed() / 1000000) + "MHz Mode:";
   device_info += flash_mode;
 
 #ifdef ARDUINO_ARCH_ESP32
