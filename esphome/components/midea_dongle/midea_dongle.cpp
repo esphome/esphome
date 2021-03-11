@@ -26,11 +26,11 @@ void MideaDongle::loop() {
       continue;
     this->reset_();
     const BaseFrame frame(this->buf_);
+    ESP_LOGD(TAG, "RX: %s", frame.to_string().c_str());
     if (!frame.is_valid()) {
       ESP_LOGW(TAG, "RX: frame check failed!");
       continue;
     }
-    ESP_LOGD(TAG, "RX: %s", frame.to_string().c_str());
     if (frame.get_type() == QUERY_NETWORK) {
       this->notify_.set_type(QUERY_NETWORK);
       this->need_notify_ = true;
