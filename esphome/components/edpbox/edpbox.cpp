@@ -16,11 +16,9 @@ void EDPBOX::on_modbus_data(const std::vector<uint8_t> &data) {
     return;
   }
 
-  // See https://github.com/esphome/feature-requests/issues/49#issuecomment-538636809
-  //  0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24
-  // 01 04 14 08 D1 00 6C 00 00 00 F4 00 00 00 26 00 00 01 F4 00 64 00 00 51 34
-  // Id Cc Sz Volt- Current---- Power------ Energy----- Frequ PFact Alarm Crc--
-  //           0     2           6          10          14    16
+  // 01 04 0e 09 21 00 37 09 32 00 01 09 2f 00 0c 00 45 65 9a 
+  // Id Cc Sz Volt  Curr  Volt  Curr  Volt  Curr  Curtt crc
+  //           0     2    4     6     8     10    12
 
   auto edpbox_get_16bit = [&](size_t i) -> uint16_t {
     return (uint16_t(data[i + 0]) << 8) | (uint16_t(data[i + 1]) << 0);
