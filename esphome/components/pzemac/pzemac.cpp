@@ -8,7 +8,7 @@ static const char *TAG = "pzemac";
 
 static const uint8_t PZEM_CMD_READ_IN_REGISTERS = 0x04;
 static const uint8_t PZEM_REGISTER_COUNT = 1;  // 10x 16-bit registers
-static const uint8_t PZEM_REGISTER_START = 1;  
+static const uint8_t PZEM_REGISTER_START = 108;  
 
 void PZEMAC::on_modbus_data(const std::vector<uint8_t> &data) {
   if (data.size() < 1) {
