@@ -1,17 +1,30 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import sensor
-from esphome.const import CONF_ID, UNIT_DECIBEL, ICON_SIGNAL
+from esphome.const import (
+    CONF_ID,
+    UNIT_DECIBEL,
+    ICON_SIGNAL,
+    DEVICE_CLASS_SIGNAL_STRENGTH,
+)
 from esphome.components import lora
 
-DEPENDENCIES = ['lora']
+DEPENDENCIES = ["lora"]
 
-LoraRSSISensor = lora.lora_ns.class_('LoraRSSISensor', sensor.Sensor, cg.PollingComponent)
+LoraRSSISensor = lora.lora_ns.class_(
+    "LoraRSSISensor", sensor.Sensor, cg.PollingComponent
+)
 
-CONFIG_SCHEMA = sensor.sensor_schema(UNIT_DECIBEL, ICON_SIGNAL, 0).extend({
-    cv.GenerateID(): cv.declare_id(LoraRSSISensor),
-    cv.GenerateID(lora.CONF_LORA_ID): cv.use_id(lora.LoraComponent),
-}).extend(cv.polling_component_schema('60s'))
+CONFIG_SCHEMA = (
+    sensor.sensor_schema(UNIT_DECIBEL, ICON_SIGNAL, 2, DEVICE_CLASS_SIGNAL_STRENGTH)
+    .extend(
+        {
+            cv.GenerateID(): cv.declare_id(LoraRSSISensor),
+            cv.GenerateID(lora.CONF_LORA_ID): cv.use_id(lora.LoraComponent),
+        }
+    )
+    .extend(cv.polling_component_schema("60s"))
+)
 
 
 def to_code(config):

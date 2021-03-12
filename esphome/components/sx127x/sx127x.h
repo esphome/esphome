@@ -5,7 +5,7 @@
 #include <regex>
 
 namespace esphome {
-namespace sx1276 {
+namespace sx127x {
 static const uint8_t REG_FIFO = 0x00;
 static const uint8_t REG_VERSION = 0x42;
 static const uint8_t REG_OP_MODE = 0x01;
@@ -65,7 +65,7 @@ static const uint8_t RF_PADAC_20DBM_ON = 0x07;
 static const uint8_t RF_PADAC_20DBM_OFF = 0x04;  // Default
 
 static const uint8_t MAX_PKT_LENGTH = 255;
-class SX1276;
+class SX127X;
 
 struct LoraComponentStore {
   volatile uint32_t last_interrupt{0};
@@ -74,12 +74,12 @@ struct LoraComponentStore {
   bool found_packet;
   int packetLength = 0;
   int todelete = 0;
-  SX1276 *sx1276;
+  SX127X *sx127x;
   std::string *receive_buffer;
   static void gpio_intr(LoraComponentStore *arg);
 };
 
-class SX1276 : public lora::LoraComponent,
+class SX127X : public lora::LoraComponent,
                public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
                                      spi::DATA_RATE_8MHZ> {
  public:
@@ -142,5 +142,5 @@ class SX1276 : public lora::LoraComponent,
   std::string receive_buffer_;
 };
 
-}  // namespace sx1276
+}  // namespace sx127x
 }  // namespace esphome

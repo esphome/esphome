@@ -1,4 +1,3 @@
-
 from esphome.core import coroutine
 import esphome.codegen as cg
 import esphome.config_validation as cv
@@ -12,18 +11,19 @@ CONF_SYNC_WORD = "sync_word"
 CONF_LORA_NAME = "lora_name"
 
 # Base
-lora_ns = cg.esphome_ns.namespace('lora')
-Lora = lora_ns.class_('Lora', cg.Component)
+lora_ns = cg.esphome_ns.namespace("lora")
+Lora = lora_ns.class_("Lora", cg.Component)
 
 
-LoraComponent = lora_ns.class_(
-    'LoraComponent', cg.Component)
+LoraComponent = lora_ns.class_("LoraComponent", cg.Component)
 
 
-LORA_SCHEMA = cv.Schema({
-    cv.GenerateID(): cv.declare_id(LoraComponent),
-    cv.Required(CONF_SYNC_WORD): cv.hex_int_range(min=0x00, max=0xFF)
-})
+LORA_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.declare_id(LoraComponent),
+        cv.Required(CONF_SYNC_WORD): cv.hex_int_range(min=0x00, max=0xFF),
+    }
+)
 
 
 def dump(obj):
@@ -42,10 +42,18 @@ def register_lora_component(var, config, type):
             lora_name = config[CONF_LORA_NAME]
 
         if type == 0:
-            cg.add(parent.register_sensor(var, send_to_lora, receive_from_lora, lora_name))
+            cg.add(
+                parent.register_sensor(var, send_to_lora, receive_from_lora, lora_name)
+            )
 
         elif type == 1:
-            cg.add(parent.register_switch(var, send_to_lora, receive_from_lora, lora_name))
+            cg.add(
+                parent.register_switch(var, send_to_lora, receive_from_lora, lora_name)
+            )
 
         elif type == 2:
-            cg.add(parent.register_binary_sensor(var, send_to_lora, receive_from_lora, lora_name))
+            cg.add(
+                parent.register_binary_sensor(
+                    var, send_to_lora, receive_from_lora, lora_name
+                )
+            )

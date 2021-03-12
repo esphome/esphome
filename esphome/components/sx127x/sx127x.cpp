@@ -1,20 +1,20 @@
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
-#include "sx1276.h"
+#include "sx127x.h"
 
 namespace esphome {
-namespace sx1276 {
+namespace sx127x {
 
-static const char *TAG = "sx1276";
+static const char *TAG = "sx127x";
 
 void ICACHE_RAM_ATTR LoraComponentStore::gpio_intr(LoraComponentStore *arg) {
   arg->last_interrupt = micros();
   arg->found_packet = false;
-  arg->sx1276->handle_di0();
+  arg->sx127x->handle_di0();
 }
 
-void SX1276::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up SX1276...");
+void SX127X::setup() {
+  ESP_LOGCONFIG(TAG, "Setting up SX127X...");
   this->spi_setup();
 
   this->rst_pin_->setup();
@@ -37,9 +37,9 @@ void SX1276::setup() {
   }
 
   // put in sleep mode
-  SX1276::sleep();
+  SX127X::sleep();
   // set frequency
-  SX1276::set_frequency();
+  SX127X::set_frequency();
 
   // set base addresses
   this->write_register(REG_FIFO_TX_BASE_ADDR, 0);
@@ -70,7 +70,7 @@ void SX1276::setup() {
 
   ESP_LOGD(TAG, "Attaching interrupt");
 
-  this->store_.sx1276 = this;
+  this->store_.sx127x = this;
   this->store_.receive_buffer = &this->receive_buffer_;
   this->di0_pin_->attach_interrupt(LoraComponentStore::gpio_intr, &this->store_, CHANGE);
 
@@ -78,7 +78,7 @@ void SX1276::setup() {
   this->receive();  // go back into receive mode
 }
 
-void SX1276::send_printf(const char *format, ...) {
+void SX127X::send_printf(const char *format, ...) {
   va_list arg;
   va_start(arg, format);
   char buffer[256];
@@ -93,8 +93,8 @@ void SX1276::send_printf(const char *format, ...) {
   this->receive();  // go back into receive mode
 }
 
-void SX1276::dump_config() {
-  ESP_LOGCONFIG(TAG, "SX1276");
+void SX127X::dump_config() {
+  ESP_LOGCONFIG(TAG, "SX127X");
   LOG_PIN("  CS Pin: ", this->cs_);
   LOG_PIN("  DI0 Pin: ", this->di0_pin_);
   LOG_PIN("  RST Pin: ", this->rst_pin_);
@@ -103,7 +103,7 @@ void SX1276::dump_config() {
 }
 
 uint32_t oldvalue = 0;
-void SX1276::loop() {
+void SX127X::loop() {
   if (oldvalue != this->store_.last_interrupt) {
     ESP_LOGD(TAG, "Loop %zu found packet %s receive_buffer_ %zu packetLength %d todelete %d",
              this->store_.last_interrupt, YESNO(this->store_.found_packet), this->receive_buffer_.length(),
@@ -121,11 +121,11 @@ void SX1276::loop() {
   this->receive();  // go back into receive mode
 }
 
-// void SX1276::loop2() {
+// void SX127X::loop2() {
 
 // }
 
-void SX1276::parse_buffer() {
+void SX127X::parse_buffer() {
   lora::LoraPacket lora_packet;
 
   std::ptrdiff_t const match_count(std::distance(
@@ -179,9 +179,9 @@ void SX1276::parse_buffer() {
   this->store_.todelete = todelete;
 
   this->receive_buffer_.erase(0, todelete);
-}  // namespace sx1276
+}  // namespace sx127x
 
-int SX1276::read() {
+int SX127X::read() {
   if (!this->available()) {
     return -1;
   }
@@ -189,7 +189,7 @@ int SX1276::read() {
   return this->read_register(REG_FIFO);
 }
 
-void SX1276::handle_di0() {
+void SX127X::handle_di0() {
   int irqFlags = this->read_register(REG_IRQ_FLAGS);
   // clear IRQ's
   this->write_register(REG_IRQ_FLAGS, irqFlags);
@@ -214,7 +214,7 @@ void SX1276::handle_di0() {
   }
 }
 
-int SX1276::parse_packet(int size) {
+int SX127X::parse_packet(int size) {
   int packet_length = 0;
   int irq_flags = this->read_register(REG_IRQ_FLAGS);
 
@@ -258,9 +258,9 @@ int SX1276::parse_packet(int size) {
   return packet_length;
 }
 
-float SX1276::packet_snr() { return ((int8_t) this->read_register(REG_PKT_SNR_VALUE)) * 0.25; }
+float SX127X::packet_snr() { return ((int8_t) this->read_register(REG_PKT_SNR_VALUE)) * 0.25; }
 
-int SX1276::packet_rssi() {
+int SX127X::packet_rssi() {
   int8_t snr = 0;
   int8_t snr_value = this->read_register(0x19);
   int16_t rssi = this->read_register(REG_PKT_RSSI_VALUE);
@@ -283,9 +283,9 @@ int SX1276::packet_rssi() {
   return (rssi);
 }
 
-int SX1276::available() { return (this->read_register(REG_RX_NB_BYTES) - this->packet_index_); }
+int SX127X::available() { return (this->read_register(REG_RX_NB_BYTES) - this->packet_index_); }
 
-void SX1276::receive(int size) {
+void SX127X::receive(int size) {
   if (size > 0) {
     implicit_header_mode();
     write_register(REG_PAYLOAD_LENGTH, size & 0xff);
@@ -296,7 +296,7 @@ void SX1276::receive(int size) {
   write_register(REG_OP_MODE, MODE_LONG_RANGE_MODE | MODE_RX_CONTINUOUS);
 }
 
-size_t SX1276::write(const char *buffer, int size) {
+size_t SX127X::write(const char *buffer, int size) {
   int current_length = read_register(REG_PAYLOAD_LENGTH);
   // check size
   if ((current_length + size) > MAX_PKT_LENGTH) {
@@ -311,7 +311,7 @@ size_t SX1276::write(const char *buffer, int size) {
   return size;
 }
 
-int SX1276::end_packet(bool async) {
+int SX127X::end_packet(bool async) {
   // put in TX mode
   write_register(REG_OP_MODE, MODE_LONG_RANGE_MODE | MODE_TX);
 
@@ -325,7 +325,7 @@ int SX1276::end_packet(bool async) {
   return 1;
 }
 
-int SX1276::begin_packet(int implicit_header) {
+int SX127X::begin_packet(int implicit_header) {
   // put in standby mode
   this->idle();
   if (implicit_header) {
@@ -339,19 +339,19 @@ int SX1276::begin_packet(int implicit_header) {
   return 1;
 }
 
-void SX1276::explicit_header_mode() {
+void SX127X::explicit_header_mode() {
   implicit_header_mode_ = 0;
   this->write_register(REG_MODEM_CONFIG_1, read_register(REG_MODEM_CONFIG_1) & 0xfe);
 }
 
-void SX1276::implicit_header_mode() {
+void SX127X::implicit_header_mode() {
   implicit_header_mode_ = 1;
   this->write_register(REG_MODEM_CONFIG_1, read_register(REG_MODEM_CONFIG_1) | 0x01);
 }
 
-void SX1276::sleep() { write_register(REG_OP_MODE, MODE_LONG_RANGE_MODE | MODE_SLEEP); }
+void SX127X::sleep() { write_register(REG_OP_MODE, MODE_LONG_RANGE_MODE | MODE_SLEEP); }
 
-void SX1276::set_frequency() {
+void SX127X::set_frequency() {
   this->frequency_ = this->band_ * 1000000;
 
   uint64_t frf = ((uint64_t) this->frequency_ << 19) / 32000000;
@@ -360,7 +360,7 @@ void SX1276::set_frequency() {
   write_register(REG_FRF_LSB, (uint8_t)(frf >> 0));
 }
 
-void SX1276::set_signal_bandwidth(double sbw) {
+void SX127X::set_signal_bandwidth(double sbw) {
   int bw;
 
   if (sbw <= 7.8E3) {
@@ -387,15 +387,15 @@ void SX1276::set_signal_bandwidth(double sbw) {
   write_register(REG_MODEM_CONFIG_1, (read_register(REG_MODEM_CONFIG_1) & 0x0f) | (bw << 4));
 }
 
-void SX1276::set_sync_word(int sw) { write_register(REG_SYNC_WORD, sw); }
+void SX127X::set_sync_word(int sw) { write_register(REG_SYNC_WORD, sw); }
 
-void SX1276::enable_crc() { write_register(REG_MODEM_CONFIG_2, read_register(REG_MODEM_CONFIG_2) | 0x04); }
+void SX127X::enable_crc() { write_register(REG_MODEM_CONFIG_2, read_register(REG_MODEM_CONFIG_2) | 0x04); }
 
-void SX1276::disable_crc() { write_register(REG_MODEM_CONFIG_2, read_register(REG_MODEM_CONFIG_2) & 0xfb); }
+void SX127X::disable_crc() { write_register(REG_MODEM_CONFIG_2, read_register(REG_MODEM_CONFIG_2) & 0xfb); }
 
-void SX1276::idle() { write_register(REG_OP_MODE, MODE_LONG_RANGE_MODE | MODE_STDBY); }
+void SX127X::idle() { write_register(REG_OP_MODE, MODE_LONG_RANGE_MODE | MODE_STDBY); }
 
-void SX1276::set_spreading_factor(int sf) {
+void SX127X::set_spreading_factor(int sf) {
   if (sf < 6) {
     sf = 6;
   } else if (sf > 12) {
@@ -411,7 +411,7 @@ void SX1276::set_spreading_factor(int sf) {
   write_register(REG_MODEM_CONFIG_2, (read_register(REG_MODEM_CONFIG_2) & 0x0f) | ((sf << 4) & 0xf0));
 }
 
-void SX1276::set_tx_power(int8_t power, int8_t output_pin) {
+void SX127X::set_tx_power(int8_t power, int8_t output_pin) {
   uint8_t pa_config = 0;
   uint8_t pa_dac = 0;
 
@@ -457,11 +457,11 @@ void SX1276::set_tx_power(int8_t power, int8_t output_pin) {
   write_register(REG_PA_DAC, pa_dac);
 }
 
-uint8_t SX1276::read_register(uint8_t address) { return single_transfer(address & 0x7f, 0x00); }
+uint8_t SX127X::read_register(uint8_t address) { return single_transfer(address & 0x7f, 0x00); }
 
-void SX1276::write_register(uint8_t address, uint8_t value) { single_transfer(address | 0x80, value); }
+void SX127X::write_register(uint8_t address, uint8_t value) { single_transfer(address | 0x80, value); }
 
-uint8_t SX1276::single_transfer(uint8_t address, uint8_t value) {
+uint8_t SX127X::single_transfer(uint8_t address, uint8_t value) {
   uint8_t response;
   this->enable();
   this->transfer_byte(address);
@@ -470,5 +470,5 @@ uint8_t SX1276::single_transfer(uint8_t address, uint8_t value) {
   return response;
 }
 
-}  // namespace sx1276
+}  // namespace sx127x
 }  // namespace esphome
