@@ -9,7 +9,6 @@ static const char *TAG = "edpbox";
 static const uint8_t EDPBOX_INDEX = 1;
 
 void EDPBOX::on_modbus_data(const std::vector<uint8_t> &data) {
-
   if (data.size() < 10) {
     ESP_LOGW(TAG, "Invalid size for EDPBOX!");
     return;
@@ -22,14 +21,13 @@ void EDPBOX::on_modbus_data(const std::vector<uint8_t> &data) {
   auto edpbox_get_16bit = [&](size_t i) -> uint16_t {
     return (uint16_t(data[i + 0]) << 8) | (uint16_t(data[i + 1]) << 0);
   };
+
   auto edpbox_get_32bit = [&](size_t i) -> uint32_t {
     return (uint32_t(edpbox_get_16bit(i + 2)) << 16) | (uint32_t(edpbox_get_16bit(i + 0)) << 0);
   };
 
   // decode
-  
   // auto edpbox_check = uint8_t EDPBOX_INDEX;
-
   // switch (edpbox_check) {
   //  case 1: {
 
