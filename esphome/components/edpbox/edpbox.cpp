@@ -30,18 +30,21 @@ void EDPBOX::on_modbus_data(const std::vector<uint8_t> &data) {
   
   auto edpbox_check = uint8_t EDPBOX_INDEX;
 
-  switch (edpbox_check) {
-    case 1: {
-      uint16_t raw_voltage = edpbox_get_16bit(0);
-      float voltage = raw_voltage / 10.0f;  // V
-      uint32_t raw_current = edpbox_get_16bit(2);
-      float current = raw_current / 10.0f;  // A
-      break;
-    }
-    case 2: {
-      break;
-    }
-  } // end switch
+  //switch (edpbox_check) {
+  //  case 1: {
+
+  uint16_t raw_voltage = edpbox_get_16bit(0);
+  float voltage = raw_voltage / 10.0f;  // V
+
+  uint32_t raw_current = edpbox_get_16bit(2);
+  float current = raw_current / 10.0f;  // A
+
+  //   break;
+  // }
+  // case 2: {
+  //   break;
+  // }
+  // } // end switch
 
   ESP_LOGD(TAG, "EDPBOX:" EDPBOX_INDEX);
 
@@ -54,12 +57,15 @@ void EDPBOX::on_modbus_data(const std::vector<uint8_t> &data) {
 void EDPBOX::update() {
   // function register_start count
   // 6C = 108
-  uint8_t EDPBOX_INDEX = 1;
+  // uint8_t EDPBOX_INDEX = 1;
+
   this->send(0x04, 108, 7);
   delay(1500);
+
   // test
-  uint8_t EDPBOX_INDEX = 2;
-  this->send(0x04, 108, 7);
+  // uint8_t EDPBOX_INDEX = 2;
+
+  this->send(0x04, 110, 7);
   delay(1500);
 }
 
