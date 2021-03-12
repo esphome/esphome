@@ -6,7 +6,7 @@ namespace edpbox {
 
 static const char *TAG = "edpbox";
 
-static const uint8_t EDPBOX_INDEX = 0;
+auto EDPBOX_INDEX = 0;
 
 void EDPBOX::on_modbus_data(const std::vector<uint8_t> &data) {
   if (data.size() < 10) {
