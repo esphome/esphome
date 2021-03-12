@@ -42,9 +42,12 @@ void EDPBOX::on_modbus_data(const std::vector<uint8_t> &data) {
 
 void EDPBOX::update() {
   // function register_start count
-  // 006C = 108
-  this->send(0x01, 108, 7);
-  delay(1000);
+  // 6C = 108
+  this->send(0x04, 108, 7);
+  delay(1500);
+  // test
+  this->send(0x04, 108, 7);
+  delay(1500);
 }
 
 void EDPBOX::dump_config() {
