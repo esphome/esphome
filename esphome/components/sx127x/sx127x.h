@@ -74,6 +74,8 @@ struct LoraComponentStore {
   bool found_packet;
   int packetLength = 0;
   int todelete = 0;
+  bool badcrc = false;
+
   SX127X *sx127x;
   std::string *receive_buffer;
   static void gpio_intr(LoraComponentStore *arg);
@@ -138,7 +140,7 @@ class SX127X : public lora::LoraComponent,
   LoraComponentStore store_;
   void (*_on_receive_)(int);
   void (*on_tx_done_)();
-  std::deque<lora::LoraPacket> lora_packets_;
+  std::deque<lora::LoraPacket *> lora_packets_;
   std::string receive_buffer_;
 };
 

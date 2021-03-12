@@ -57,3 +57,10 @@ def register_lora_component(var, config, type):
                     var, send_to_lora, receive_from_lora, lora_name
                 )
             )
+
+        elif type == 3:
+            cg.add(
+                parent.register_text_sensor(
+                    var, send_to_lora, receive_from_lora, lora_name
+                )
+            )

@@ -19,8 +19,8 @@ CONFIG_SCHEMA = (
     sensor.sensor_schema(UNIT_DECIBEL, ICON_SIGNAL, 2, DEVICE_CLASS_SIGNAL_STRENGTH)
     .extend(
         {
-            cv.GenerateID(): cv.declare_id(LoraRSSISensor),
             cv.GenerateID(lora.CONF_LORA_ID): cv.use_id(lora.LoraComponent),
+            cv.GenerateID(): cv.declare_id(LoraRSSISensor),
         }
     )
     .extend(cv.polling_component_schema("60s"))
