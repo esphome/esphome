@@ -28,7 +28,7 @@ void EDPBOX::on_modbus_data(const std::vector<uint8_t> &data) {
 
   // decode
   
-  auto edpbox_check = uint8_t EDPBOX_INDEX;
+  // auto edpbox_check = uint8_t EDPBOX_INDEX;
 
   //switch (edpbox_check) {
   //  case 1: {
@@ -46,7 +46,7 @@ void EDPBOX::on_modbus_data(const std::vector<uint8_t> &data) {
   // }
   // } // end switch
 
-  ESP_LOGD(TAG, "EDPBOX:" EDPBOX_INDEX);
+  ESP_LOGD(TAG, "EDPBOX: reading...");
 
   if (this->voltage_sensor_ != nullptr)
     this->voltage_sensor_->publish_state(voltage);
