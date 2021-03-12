@@ -19,6 +19,9 @@ void ModbusComponent::setup() { this->create_register_ranges(); }
 bool ModbusComponent::send_next_command_() {
   if (!command_queue_.empty()) {
     auto &command = command_queue_.front();
+    delay(500);  //
+    delay(500);  // will fail lint
+    delay(500);  //
     command->send();
     if (!command->on_data_func)  // No handler remove from queue directly after sending
       command_queue_.pop();
