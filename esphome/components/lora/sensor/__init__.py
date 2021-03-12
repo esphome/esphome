@@ -15,21 +15,51 @@ LoraRSSISensor = lora.lora_ns.class_(
     "LoraRSSISensor", sensor.Sensor, cg.PollingComponent
 )
 
-CONFIG_SCHEMA = (
-    sensor.sensor_schema(UNIT_DECIBEL, ICON_SIGNAL, 2, DEVICE_CLASS_SIGNAL_STRENGTH)
-    .extend(
-        {
-            cv.GenerateID(lora.CONF_LORA_ID): cv.use_id(lora.LoraComponent),
-            cv.GenerateID(): cv.declare_id(LoraRSSISensor),
-        }
-    )
-    .extend(cv.polling_component_schema("60s"))
+LoraSNRSensor = lora.lora_ns.class_("LoraSNRSensor", sensor.Sensor, cg.PollingComponent)
+
+
+CONF_RSSI = "rssi"
+CONF_SNR = "snr"
+
+CONFIG_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(lora.CONF_LORA_ID): cv.use_id(lora.LoraComponent),
+        cv.Optional(CONF_RSSI): sensor.sensor_schema(
+            UNIT_DECIBEL, ICON_SIGNAL, 2, DEVICE_CLASS_SIGNAL_STRENGTH
+        )
+        .extend(
+            {
+                cv.GenerateID(): cv.declare_id(LoraRSSISensor),
+            }
+        )
+        .extend(cv.polling_component_schema("60s")),
+        cv.Optional(CONF_SNR): sensor.sensor_schema(
+            UNIT_DECIBEL, ICON_SIGNAL, 2, DEVICE_CLASS_SIGNAL_STRENGTH
+        )
+        .extend(
+            {
+                cv.GenerateID(): cv.declare_id(LoraSNRSensor),
+            }
+        )
+        .extend(cv.polling_component_schema("60s")),
+    }
 )
 
 
 def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
-    yield sensor.register_sensor(var, config)
+
     parent = yield cg.get_variable(config[lora.CONF_LORA_ID])
-    cg.add(var.register_lora(parent))
+
+    if CONF_RSSI in config:
+        conf = config[CONF_RSSI]
+        var = cg.new_Pvariable(conf[CONF_ID])
+        yield sensor.register_sensor(var, conf)
+        yield cg.register_component(var, conf)
+        cg.add(var.register_lora(parent))
+
+    if CONF_SNR in config:
+        conf = config[CONF_SNR]
+        var = cg.new_Pvariable(conf[CONF_ID])
+        yield sensor.register_sensor(var, conf)
+        yield cg.register_component(var, conf)
+        cg.add(var.register_lora(parent))

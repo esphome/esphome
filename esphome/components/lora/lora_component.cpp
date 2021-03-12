@@ -8,6 +8,8 @@ void LoraComponent::process_lora_packet(LoraPacket *lora_packet) {
   LOG_LORA_PACKET(lora_packet);
 
   this->last_rssi = lora_packet->rssi;
+  this->last_snr = lora_packet->snr;
+
   ESP_LOGD(TAG, "Checking %s component_type %d", lora_packet->component_name.c_str(), lora_packet->component_type);
   switch (lora_packet->component_type) {
     case 0: {
@@ -48,6 +50,7 @@ void LoraComponent::process_lora_packet(LoraPacket *lora_packet) {
     }
     case 3: {
 #ifdef USE_TEXT_SENSOR
+
       for (auto *lora_component : this->text_sensors_) {
         if (lora_component->receive_from_lora && lora_component->lora_name == lora_packet->component_name) {
           ESP_LOGD(TAG, "Processing Text Sensor %s state %s", lora_component->lora_name.c_str(),
@@ -60,6 +63,7 @@ void LoraComponent::process_lora_packet(LoraPacket *lora_packet) {
       break;
     }
   }
+  App.feed_wdt();
 }
 
 std::string LoraComponent::build_to_send_(std::string type, std::string name, std::string state) {

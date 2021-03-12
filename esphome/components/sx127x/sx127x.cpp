@@ -150,10 +150,6 @@ void SX127X::parse_buffer() {
 
     lora::LoraPacket *lora_packet = new lora::LoraPacket();
 
-    for (int index = 0; index < data.size(); ++index) {
-      ESP_LOGD(TAG, "data %d %s", index, data[index].c_str());
-    }
-
     todelete += c[i].length() + 1;
 
     size_t found = data[0].find(this->lora_group_start_delimiter_);
@@ -168,9 +164,9 @@ void SX127X::parse_buffer() {
     auto to_test = c[i].substr(0, c[i].find_last_of(this->lora_delimiter_) + 1);
     auto test = fnv1_hash(to_test);
 
-    ESP_LOGD(TAG, "CRC %s %d %d %s", to_test.c_str(), to_test.length(), test, data[4].c_str());
+    // ESP_LOGD(TAG, "CRC %s %d %d %s", to_test.c_str(), to_test.length(), test, data[4].c_str());
     if (to_string(test) != data[4]) {
-      ESP_LOGE(TAG, "Bad CRC %d %s %d", data.size(), data[0].c_str(), c[i].length());
+      ESP_LOGE(TAG, "Bad hash %d %s %d", data.size(), data[0].c_str(), c[i].length());
       this->store_.todelete = todelete;
       this->receive_buffer_.erase(0, todelete);
       return;

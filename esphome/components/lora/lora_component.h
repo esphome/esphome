@@ -118,6 +118,7 @@ class LoraComponent : public Component {
   void register_sensor(sensor::Sensor *sensor, bool send_to_lora, bool receive_from_lora, std::string lora_name);
 #endif
   int last_rssi = 0;
+  int last_snr = 0;
 
  protected:
 #ifdef USE_SWITCH
