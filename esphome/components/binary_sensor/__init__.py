@@ -2,7 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation, core
 from esphome.automation import Condition, maybe_simple_id
-from esphome.components import mqtt, lora
+from esphome.components import mqtt
 from esphome.const import (
     CONF_DEVICE_CLASS,
     CONF_FILTERS,
@@ -24,6 +24,31 @@ from esphome.const import (
     CONF_FOR,
     CONF_NAME,
     CONF_MQTT_ID,
+    DEVICE_CLASS_EMPTY,
+    DEVICE_CLASS_BATTERY,
+    DEVICE_CLASS_BATTERY_CHARGING,
+    DEVICE_CLASS_COLD,
+    DEVICE_CLASS_CONNECTIVITY,
+    DEVICE_CLASS_DOOR,
+    DEVICE_CLASS_GARAGE_DOOR,
+    DEVICE_CLASS_GAS,
+    DEVICE_CLASS_HEAT,
+    DEVICE_CLASS_LIGHT,
+    DEVICE_CLASS_LOCK,
+    DEVICE_CLASS_MOISTURE,
+    DEVICE_CLASS_MOTION,
+    DEVICE_CLASS_MOVING,
+    DEVICE_CLASS_OCCUPANCY,
+    DEVICE_CLASS_OPENING,
+    DEVICE_CLASS_PLUG,
+    DEVICE_CLASS_POWER,
+    DEVICE_CLASS_PRESENCE,
+    DEVICE_CLASS_PROBLEM,
+    DEVICE_CLASS_SAFETY,
+    DEVICE_CLASS_SMOKE,
+    DEVICE_CLASS_SOUND,
+    DEVICE_CLASS_VIBRATION,
+    DEVICE_CLASS_WINDOW,
 )
 from esphome.core import CORE, coroutine, coroutine_with_priority
 from esphome.util import Registry
@@ -250,10 +275,6 @@ BINARY_SENSOR_SCHEMA = cv.MQTT_COMPONENT_SCHEMA.extend(
         cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(
             mqtt.MQTTBinarySensorComponent
         ),
-        cv.OnlyWith(lora.CONF_LORA_ID, "lora"): cv.use_id(lora.LoraComponent),
-        cv.OnlyWith(lora.CONF_SEND_TO_LORA, "lora", default=False): cv.boolean,
-        cv.OnlyWith(lora.CONF_RECEIVE_FROM_LORA, "lora", default=False): cv.boolean,
-        cv.OnlyWith(lora.CONF_LORA_NAME, "lora", default=""): cv.valid_name,
         cv.Optional(CONF_DEVICE_CLASS): device_class,
         cv.Optional(CONF_FILTERS): validate_filters,
         cv.Optional(CONF_ON_PRESS): automation.validate_automation(
@@ -366,9 +387,6 @@ def setup_binary_sensor_core_(var, config):
     for conf in config.get(CONF_ON_STATE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         yield automation.build_automation(trigger, [(bool, "x")], conf)
-
-    if lora.CONF_LORA_ID in config:
-        yield lora.register_lora_component(var, config, 2)
 
     if CONF_MQTT_ID in config:
         mqtt_ = cg.new_Pvariable(config[CONF_MQTT_ID], var)
