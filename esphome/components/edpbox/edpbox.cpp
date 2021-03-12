@@ -44,7 +44,7 @@ void EDPBOX::update() {
   // function register_start count
   // 006C = 108
   this->send(0x01, 108, 7);
-  this->delay(1000);
+  delay(1000);
 }
 
 void EDPBOX::dump_config() {
