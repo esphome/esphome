@@ -1,88 +1,58 @@
 esphome:
-  name: $devicename
+  name: solarstation2
   platform: ESP32
-  board: nodemcu-32s
-  build_path: build/test4
+  board: esp32dev
 
-substitutions:
-  devicename: test-4
-
-ethernet:
-  type: LAN8720
-  mdc_pin: GPIO23
-  mdio_pin: GPIO25
-  clk_mode: GPIO0_IN
-  phy_addr: 0
-  power_pin: GPIO25
+wifi:
+  ssid: !secret wifi_sid
+  password: !secret wifi_password
+  use_address: espsolar.int.grasruck.net
   manual_ip:
-    static_ip: 192.168.178.56
-    gateway: 192.168.178.1
+    static_ip: 192.168.66.89
+    gateway: 192.168.66.1
     subnet: 255.255.255.0
-  domain: .local
-
-api:
-
-i2c:
-  sda: 21
-  scl: 22
-  scan: False
-
-spi:
-  clk_pin: GPIO21
-  mosi_pin: GPIO22
-  miso_pin: GPIO23
-
-uart:
-  tx_pin: GPIO22
-  rx_pin: GPIO23
-  baud_rate: 115200
-  id: uart_1
-
-ota:
-  safe_mode: True
-  port: 3286
-
-logger:
-  level: DEBUG
-
-web_server:
-  auth:
-    username: admin
-    password: admin
+    dns1: 192.168.66.9
 
 time:
   - platform: sntp
     id: sntp_time
+    timezone: "CET-1CEST,M3.5.0,M10.5.0/3"
+    servers: "192.168.66.45"
 
-tuya:
-  time_id: sntp_time
+# Enable logging
+logger:
+  level: DEBUG
 
+# Enable Home Assistant API
+api:
+  password: !secret api_password
+
+ota:
+  password: !secret ota_password
+
+mqtt:
+  broker: 192.168.66.114
+#  on_message:
+#    topic: ${unique_id}/ota_mode
+#    payload: 'ON'
+#    then:
+#      - deep_sleep.prevent: deep_sleep_1
+
+uart:
+  id: mod_bus
+  tx_pin: 25
+  rx_pin: 27
+  baud_rate: 115200
+  stop_bits: 1
+
+modbus:
+  id: modbus_epsolar
+  # ctrl_pin: 5    # if you need to set the driver enable (DE) pin high before transmitting data configure it here
+  uart_id: mod_bus
+
+### Note enabling all sensors will probably cause a stackoverflow
+### https://github.com/esphome/issues/issues/855
 sensor:
-  - platform: homeassistant
-    entity_id: sensor.hello_world
-    id: ha_hello_world
-  - platform: tuya
-    id: tuya_sensor
-    sensor_datapoint: 1
-  #
-  # platform sensor.apds9960 requires component apds9960
-  #
-  #  - platform: apds9960
-  #    type: proximity
-  #    name: APDS9960 Proximity
-  #  - platform: apds9960
-  #    type: clear
-  #    name: APDS9960 Clear
-  #  - platform: apds9960
-  #    type: red
-  #    name: APDS9960 Red
-  #  - platform: apds9960
-  #    type: green
-  #    name: APDS9960 Green
-  #  - platform: apds9960
-  #    type: blue
-  #    name: APDS9960 Blue
-
   - platform: modbus_component
     modbus_id: modbus_epsolar
     id: traceranx
@@ -164,8 +134,8 @@ sensor:
       - id: battery_temperature
         name: "Battery temperature"
         address: 0x3100
-        offset: 10
-        unit_of_measurement: "°C" ## for any other unit the value is returned in minutes
+        offset: 0x10
+        unit_of_measurement: °C ## for any other unit the value is returned in minutes
         modbus_functioncode: "read_input_registers"
         value_type: U_SINGLE
         scale_factor: 0.01
@@ -173,22 +143,22 @@ sensor:
 
       - id: device_temperature
         name: "Device temperature"
+        address: 0x3100
+        offset: 0x11
+        unit_of_measurement: °C ## for any other unit the value is returned in minutes
+        modbus_functioncode: "read_input_registers"
+        value_type: U_SINGLE
+        scale_factor: 0.01
+        accuracy_decimals: 1
+
+      - id: battery_soc
+        name: "Battery SOC"
         address: 0x311A
         offset: 0
         unit_of_measurement: "%" ## for any other unit the value is returned in minutes
         modbus_functioncode: "read_input_registers"
         value_type: U_SINGLE
         scale_factor: 1
-        accuracy_decimals: 1
-
-      - id: battery_soc
-        name: "Battery SOC"
-        address: 0x3100
-        offset: 11
-        unit_of_measurement: "°C" ## for any other unit the value is returned in minutes
-        modbus_functioncode: "read_input_registers"
-        value_type: U_SINGLE
-        scale_factor: 0.01
         accuracy_decimals: 0
 
       - id: remote_battery_temperature
@@ -259,21 +229,3 @@ sensor:
 #      offset: 2
 #      name: max
 #      value_type: 1
-
-binary_sensor:
-  - platform: tuya
-    id: tuya_binary_sensor
-    sensor_datapoint: 1
-
-climate:
-  - platform: tuya
-    id: tuya_climate
-    switch_datapoint: 1
-    target_temperature_datapoint: 3
-    current_temperature_multiplier: 0.5
-    target_temperature_multiplier: 0.5
-
-switch:
-  - platform: tuya
-    id: tuya_switch
-    switch_datapoint: 1
