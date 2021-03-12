@@ -6,10 +6,6 @@ namespace edpbox {
 
 static const char *TAG = "edpbox";
 
-static const uint8_t EDPBOX_CMD_READ_IN_REGISTERS = 0x04;
-static const uint8_t EDPBOX_REGISTER_COUNT = 7;  // 7x 16-bit registers
-static const uint8_t EDPBOX_REGISTER_START = 108;  // 006C
-
 void EDPBOX::on_modbus_data(const std::vector<uint8_t> &data) {
 
   if (data.size() < 10) {
@@ -36,35 +32,19 @@ void EDPBOX::on_modbus_data(const std::vector<uint8_t> &data) {
   uint32_t raw_current = edpbox_get_16bit(2);
   float current = raw_current / 10.0f;  // A
 
-  uint32_t raw_active_power = edpbox_get_32bit(6);
-  float active_power = raw_active_power / 10.0f;  // max 429496729.5 W
-
-  float active_energy = static_cast<float>(edpbox_get_32bit(10));
-
-  uint16_t raw_frequency = edpbox_get_16bit(14);
-  float frequency = raw_frequency / 10.0f;
-
-  uint16_t raw_power_factor = edpbox_get_16bit(16);
-  float power_factor = raw_power_factor / 100.0f;
-
   ESP_LOGD(TAG, "EDPBOX: reading...");
 
   if (this->voltage_sensor_ != nullptr)
     this->voltage_sensor_->publish_state(voltage);
   if (this->current_sensor_ != nullptr)
     this->current_sensor_->publish_state(current);
-  if (this->power_sensor_ != nullptr)
-    this->power_sensor_->publish_state(active_power);
-  if (this->energy_sensor_ != nullptr)
-    this->energy_sensor_->publish_state(active_energy);
-  if (this->frequency_sensor_ != nullptr)
-    this->frequency_sensor_->publish_state(frequency);
-  if (this->power_factor_sensor_ != nullptr)
-    this->power_factor_sensor_->publish_state(power_factor);
 }
 
 void EDPBOX::update() {
-  this->send(EDPBOX_CMD_READ_IN_REGISTERS, EDPBOX_REGISTER_START, EDPBOX_REGISTER_COUNT);
+  // function register_start count
+  // 006C = 108
+  this->send(0x01, 108, 7);
+  this->delay(1000);
 }
 
 void EDPBOX::dump_config() {
@@ -72,10 +52,6 @@ void EDPBOX::dump_config() {
   ESP_LOGCONFIG(TAG, "  Address: 0x%02X", this->address_);
   LOG_SENSOR("", "Voltage", this->voltage_sensor_);
   LOG_SENSOR("", "Current", this->current_sensor_);
-  LOG_SENSOR("", "Power", this->power_sensor_);
-  LOG_SENSOR("", "Energy", this->energy_sensor_);
-  LOG_SENSOR("", "Frequency", this->frequency_sensor_);
-  LOG_SENSOR("", "Power Factor", this->power_factor_sensor_);
 }
 
 }  // namespace edpbox
