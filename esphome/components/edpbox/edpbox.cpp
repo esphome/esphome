@@ -44,7 +44,7 @@ void EDPBOX::on_modbus_data(const std::vector<uint8_t> &data) {
   // }
   // } // end switch
 
-  ESP_LOGD(TAG, "EDPBOX: Index " + EDPBOX_INDEX);
+  ESP_LOGD(TAG, "EDPBOX: Index ", EDPBOX_INDEX);
 
   if (this->voltage_sensor_ != nullptr)
     this->voltage_sensor_->publish_state(voltage);
