@@ -1,3 +1,4 @@
+from esphome.jsonschema import jschema_extractor
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
@@ -431,7 +432,11 @@ def addressable_flicker_effect_to_code(config, effect_id):
 
 
 def validate_effects(allowed_effects):
+    @jschema_extractor("effects")
     def validator(value):
+        # pylint: disable=comparison-with-callable
+        if value == jschema_extractor:
+            return (allowed_effects, EFFECTS_REGISTRY)
         value = cv.validate_registry("effect", EFFECTS_REGISTRY)(value)
         errors = []
         names = set()

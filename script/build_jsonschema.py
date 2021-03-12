@@ -55,7 +55,7 @@ def is_ref(jschema):
 
 
 def unref(jschema):
-    return definitions[jschema[JSC_REF][len("#/definitions/") :]]
+    return definitions.get(jschema[JSC_REF][len("#/definitions/") :])
 
 
 def add_definition_array_or_single_object(ref):
@@ -105,8 +105,11 @@ def add_registry(registry_name, registry):
     for name in registry.keys():
         schema = get_jschema(str(name), registry[name].schema, create_return_ref=False)
         if not schema:
-            schema = {"type": "string"}
+            schema = {"type": "null"}
         o_schema = {"type": "object", JSC_PROPERTIES: {name: schema}}
+        o_schema = create_ref(
+            registry_name + "-" + name, str(registry[name].schema) + "x", o_schema
+        )
         validators.append(o_schema)
     definitions[registry_name] = {JSC_ANYOF: validators}
 
@@ -323,7 +326,6 @@ def get_entry(parent_key, vschema):
     elif str(vschema) in ejs.list_schemas:
         ref = get_jschema(parent_key, ejs.list_schemas[str(vschema)][0])
         entry = {JSC_ANYOF: [ref, {"type": "array", "items": ref}]}
-
     elif str(vschema) in ejs.typed_schemas:
         schema_types = [{"type": "object", "properties": {"type": {"type": "string"}}}]
         entry = {"allOf": schema_types}
@@ -347,6 +349,18 @@ def get_entry(parent_key, vschema):
             entry = {"enum": list(inner_vschema)}
         elif type == "enum":
             entry = {"enum": list(inner_vschema.keys())}
+        elif type == "effects":
+            # Like list schema but subset from list.
+            subset_list = inner_vschema[0]
+            # get_jschema('strobex', registry['strobe'].schema)
+            registry_schemas = []
+            for name in subset_list:
+                registry_schemas.append(get_ref("light.EFFECTS_REGISTRY-" + name))
+
+            entry = {
+                JSC_ANYOF: [{"type": "array", "items": {JSC_ANYOF: registry_schemas}}]
+            }
+
         else:
             raise ValueError("Unknown extracted schema type")
     elif str(vschema).startswith("<function invalid."):
@@ -379,7 +393,10 @@ def default_schema():
 
 def is_default_schema(jschema):
     if is_ref(jschema):
-        return is_default_schema(unref(jschema))
+        jschema = unref(jschema)
+        if not jschema:
+            return False
+        return is_default_schema(jschema)
     return "type" in jschema and jschema["type"] == default_schema()["type"]
 
 
@@ -706,9 +723,13 @@ def dump_schema():
 
     for v in [pins.gpio_input_pin_schema, pins.gpio_input_pullup_pin_schema]:
         schema_registry[v] = get_ref("PIN.GPIO_FULL_INPUT_PIN_SCHEMA")
+    for v in [pins.internal_gpio_input_pin_schema]:
+        schema_registry[v] = get_ref("PIN.INPUT_INTERNAL")
 
     for v in [pins.gpio_output_pin_schema, pins.internal_gpio_output_pin_schema]:
         schema_registry[v] = get_ref("PIN.GPIO_FULL_OUTPUT_PIN_SCHEMA")
+    for v in [pins.internal_gpio_output_pin_schema]:
+        schema_registry[v] = get_ref("PIN.OUTPUT_INTERNAL")
 
     add_module_schemas("CONFIG", cv)
     get_jschema("POLLING_COMPONENT", cv.polling_component_schema("60s"))
