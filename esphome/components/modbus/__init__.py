@@ -5,20 +5,25 @@ from esphome.components import uart
 from esphome.const import CONF_ID, CONF_ADDRESS
 from esphome.core import coroutine
 
-DEPENDENCIES = ['uart']
+DEPENDENCIES = ["uart"]
 
-modbus_ns = cg.esphome_ns.namespace('modbus')
-Modbus = modbus_ns.class_('Modbus', cg.Component, uart.UARTDevice)
-ModbusDevice = modbus_ns.class_('ModbusDevice')
+modbus_ns = cg.esphome_ns.namespace("modbus")
+Modbus = modbus_ns.class_("Modbus", cg.Component, uart.UARTDevice)
+ModbusDevice = modbus_ns.class_("ModbusDevice")
 MULTI_CONF = True
 
-CONF_MODBUS_ID = 'modbus_id'
-CONF_CTRL_PIN = 'ctrl_pin'
-CONFIG_SCHEMA = cv.Schema({
-    cv.GenerateID(): cv.declare_id(Modbus),
-    cv.Optional(CONF_CTRL_PIN): pins.output_pin,
-
-}).extend(cv.COMPONENT_SCHEMA).extend(uart.UART_DEVICE_SCHEMA)
+CONF_MODBUS_ID = "modbus_id"
+CONF_CTRL_PIN = "ctrl_pin"
+CONFIG_SCHEMA = (
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(Modbus),
+            cv.Optional(CONF_CTRL_PIN): pins.output_pin,
+        }
+    )
+    .extend(cv.COMPONENT_SCHEMA)
+    .extend(uart.UART_DEVICE_SCHEMA)
+)
 
 
 def to_code(config):
