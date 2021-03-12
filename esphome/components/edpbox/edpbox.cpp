@@ -6,7 +6,7 @@ namespace edpbox {
 
 static const char *TAG = "edpbox";
 
-uint8_t EDPBOX_INDEX = 0;
+static const uint8_t EDPBOX_INDEX = 0;
 
 void EDPBOX::on_modbus_data(const std::vector<uint8_t> &data) {
   if (data.size() < 10) {
@@ -27,9 +27,6 @@ void EDPBOX::on_modbus_data(const std::vector<uint8_t> &data) {
   };
 
   // decode
-  // auto edpbox_check = uint8_t EDPBOX_INDEX;
-  // switch (edpbox_check) {
-  //  case 1: {
 
   uint16_t raw_voltage = edpbox_get_16bit(0);
   float voltage = raw_voltage / 10.0f;  // V
@@ -37,14 +34,9 @@ void EDPBOX::on_modbus_data(const std::vector<uint8_t> &data) {
   uint32_t raw_current = edpbox_get_16bit(2);
   float current = raw_current / 10.0f;  // A
 
-  // break;
-  // }
-  // case 2: {
-  //   break;
-  // }
-  // } // end switch
+  auto raw_index = EDPBOX_INDEX;
 
-  ESP_LOGD(TAG, "EDPBOX: Index ", EDPBOX_INDEX);
+  ESP_LOGD(TAG, "EDPBOX: Index ", raw_index);
 
   if (this->voltage_sensor_ != nullptr)
     this->voltage_sensor_->publish_state(voltage);
@@ -57,7 +49,8 @@ void EDPBOX::update() {
   // 6C = 108
   EDPBOX_INDEX = 1;
   this->send(0x04, 108, 7);
-  delay(1000);
+  delay(500);
+  delay(500);
   EDPBOX_INDEX = 2;
   this->send(0x04, 110, 7);
 }
