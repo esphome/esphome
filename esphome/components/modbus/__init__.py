@@ -14,6 +14,7 @@ MULTI_CONF = True
 
 CONF_MODBUS_ID = "modbus_id"
 CONF_CTRL_PIN = "ctrl_pin"
+
 CONFIG_SCHEMA = (
     cv.Schema(
         {
