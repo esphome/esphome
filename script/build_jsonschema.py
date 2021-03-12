@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+from esphome.cpp_generator import MockObj
 import json
 import argparse
 import os
@@ -342,6 +343,10 @@ def get_entry(parent_key, vschema):
             entry = get_automation_schema(parent_key, inner_vschema)
         elif type == "maybe":
             entry = get_jschema(parent_key, inner_vschema)
+        elif type == "one_of":
+            entry = {"enum": list(inner_vschema)}
+        elif type == "enum":
+            entry = {"enum": list(inner_vschema.keys())}
         else:
             raise ValueError("Unknown extracted schema type")
     elif str(vschema).startswith("<function invalid."):
@@ -512,6 +517,10 @@ def convert_schema(path, vschema, un_extend=True):
 
     # When schema contains all, all also has a schema which points
     # back to the containing schema
+
+    if isinstance(vschema, MockObj):
+        return output
+
     while hasattr(vschema, "schema") and not hasattr(vschema, "validators"):
         vschema = vschema.schema
 
@@ -531,7 +540,6 @@ def convert_schema(path, vschema, un_extend=True):
                         output = val_schema
                     else:
                         output = {**output, **val_schema}
-
         return output
 
     if not vschema:
