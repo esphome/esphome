@@ -60,13 +60,12 @@ void EDPBOX::update() {
   // uint8_t EDPBOX_INDEX = 1;
 
   this->send(0x04, 108, 7);
-  delay(1500);
 
+  // delay(1500); not allowed :(
   // test
   // uint8_t EDPBOX_INDEX = 2;
-
-  this->send(0x04, 110, 7);
-  delay(1500);
+  // this->send(0x04, 110, 7);
+  // delay(1500);
 }
 
 void EDPBOX::dump_config() {
