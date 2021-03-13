@@ -7,6 +7,15 @@
 namespace esphome {
 namespace waveshare_epaper {
 
+static const Color Waveshare_Black(0, 0, 0);
+static const Color Waveshare_White(1, 1, 1);
+static const Color Waveshare_Green(0, 1, 0);
+static const Color Waveshare_Blue(0, 0, 1);
+static const Color Waveshare_Red(1, 0, 0);
+static const Color Waveshare_Yellow(1, 1, 0);
+static const Color Waveshare_Orange(1, 0.5, 0);
+static const Color Waveshare_Blank(0x123456);  // Anything that isn't one of the above will do.
+
 class WaveshareEPaper : public PollingComponent,
                         public display::DisplayBuffer,
                         public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
@@ -39,7 +48,7 @@ class WaveshareEPaper : public PollingComponent,
  protected:
   void draw_absolute_pixel_internal(int x, int y, Color color) override;
 
-  virtual bool wait_until_idle();
+  virtual bool wait_until_idle_();
 
   void setup_pins_();
 
@@ -52,7 +61,7 @@ class WaveshareEPaper : public PollingComponent,
     }
   }
 
-  virtual uint32_t get_buffer_length();
+  virtual uint32_t get_buffer_length_();
 
   void start_command_();
   void end_command_();
@@ -273,15 +282,6 @@ enum WaveshareEPaperTypeFModel {
   WAVESHARE_ACEP_5_65_IN = 0,
 };
 
-static const Color COLOR_F_BLACK(0, 0, 0);
-static const Color COLOR_F_WHITE(1, 1, 1);
-static const Color COLOR_F_GREEN(0, 1, 0);
-static const Color COLOR_F_BLUE(0, 0, 1);
-static const Color COLOR_F_RED(1, 0, 0);
-static const Color COLOR_F_YELLOW(1, 1, 0);
-static const Color COLOR_F_ORANGE(1, 0.5, 0);
-static const Color COLOR_F_CLEAN(0x123456);  // Anything that isn't one of the above will do.
-
 class WaveshareEPaperTypeF : public WaveshareEPaper {
  public:
   WaveshareEPaperTypeF(WaveshareEPaperTypeFModel model);
@@ -324,8 +324,8 @@ class WaveshareEPaperTypeF : public WaveshareEPaper {
   WaveshareEPaperTypeFModel model_;
 
   std::vector<Color> get_model_colors() override {
-    std::vector<Color> colors = {Color(0, 0, 0), Color(1, 1, 1), Color(0, 1, 0),   Color(0, 0, 1),
-                                 Color(1, 0, 0), Color(1, 1, 0), Color(1, 0.5, 0), Color(0x123456)};
+    std::vector<Color> colors = {Waveshare_Black, Waveshare_White,  Waveshare_Green,  Waveshare_Blue,
+                                 Waveshare_Red,   Waveshare_Yellow, Waveshare_Orange, Waveshare_Blank};
     return colors;
   }
 };

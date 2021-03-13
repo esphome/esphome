@@ -1,6 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import core, automation
+from esphome.components.waveshare_epaper.waveshare_enum import WAVESHARE_COLORS_ENUM
 from esphome.automation import maybe_simple_id
 from esphome.const import (
     CONF_ID,
@@ -19,6 +20,8 @@ CONF_COLOR_ON = "color_on"
 CONF_BUFFER_ID = "buffer_id"
 CONF_INDEX_SIZE = "index_size"
 CONF_COLOR = "color"
+CONF_WAVESHARE_COLORS = "waveshare_colors"
+CONF_BUFFER_INDEX_SIZE = "buffer_index_size"
 
 IS_PLATFORM_COMPONENT = True
 
@@ -58,12 +61,12 @@ BASIC_BUFFER_SCHEMA = cv.Schema(
         cv.Required(CONF_TYPE): BUFFER_TYPES,
         cv.Optional(CONF_COLOR_ON): cv.use_id(color),
         cv.Optional(CONF_COLOR_OFF): cv.use_id(color),
-        cv.Optional(CONF_INDEX_SIZE, default=1): cv.uint8_t,
         cv.Optional(CONF_COLORS): cv.ensure_list(
             {
                 cv.Required(CONF_COLOR): cv.use_id(color),
             }
         ),
+        cv.Optional(CONF_INDEX_SIZE, default=1): cv.int_range(min=1, max=255),
     }
 )
 
@@ -159,6 +162,13 @@ def register_display(var, config):
         buffer = yield cg.new_Pvariable(config[CONF_BUFFER_ID])
         cg.add(var.set_buffer(buffer))
 
+        if CONF_WAVESHARE_COLORS in config:
+            colors = []
+            for color_conf in config[CONF_WAVESHARE_COLORS]:
+                colors.append(WAVESHARE_COLORS_ENUM[color_conf[CONF_COLOR]])
+
+            cg.add(buffer.set_colors(colors))
+
         if CONF_BUFFER in config and config[CONF_BUFFER][CONF_TYPE] == "RGB1BIT":
             if CONF_COLOR_ON in config[CONF_BUFFER]:
                 color_on = yield cg.get_variable(config[CONF_BUFFER][CONF_COLOR_ON])
@@ -172,25 +182,21 @@ def register_display(var, config):
             if CONF_INDEX_SIZE in config[CONF_BUFFER]:
                 cg.add(buffer.set_index_size(config[CONF_BUFFER][CONF_INDEX_SIZE]))
 
-            if CONF_COLORS in config[CONF_BUFFER]:
-                colors = []
-                for color_conf in config[CONF_BUFFER][CONF_COLORS]:
-                    color_ = yield cg.get_variable(color_conf[CONF_COLOR])
-                    colors.append(color_)
+        if CONF_BUFFER_INDEX_SIZE in config:
+            cg.add(buffer.set_index_size(config[CONF_BUFFER_INDEX_SIZE]))
 
-                cg.add(buffer.set_colors(colors))
-                #     lambda_ = yield cg.process_lambda(
-                #         conf[CONF_LAMBDA],
-                #         [(DisplayBufferRef, "it")],
-                #         return_type=cg.void,
-                #     )
-                #     page = cg.new_Pvariable(conf[CONF_ID], lambda_)
-                #     pages.append(page)
-                # cg.add(var.set_pages(pages))
+            #     lambda_ = yield cg.process_lambda(
+            #         conf[CONF_LAMBDA],
+            #         [(DisplayBufferRef, "it")],
+            #         return_type=cg.void,
+            #     )
+            #     page = cg.new_Pvariable(conf[CONF_ID], lambda_)
+            #     pages.append(page)
+            # cg.add(var.set_pages(pages))
 
-            # if CONF_COLORS in config[CONF_BUFFER]:
-            #     colors = yield cg.get_variable(config[CONF_BUFFER][CONF_COLORS])
-            #     cg.add(buffer.set_colors(colors))
+        # if CONF_COLORS in config[CONF_BUFFER]:
+        #     colors = yield cg.get_variable(config[CONF_BUFFER][CONF_COLORS])
+        #     cg.add(buffer.set_colors(colors))
 
 
 @automation.register_action(

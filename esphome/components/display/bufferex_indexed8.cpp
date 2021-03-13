@@ -9,19 +9,18 @@ void BufferexIndexed8::init_buffer(int width, int height) {
   this->height_ = height;
 
 #ifdef ARDUINO_ARCH_ESP32
-  uint8_t *psrambuffer = (uint8_t *) malloc(1);  // NOLINT
-
-  if (psrambuffer == nullptr) {
-    ESP_LOGW(TAG, "PSRAM is NOT supported");
-  } else {
+  if (psramFound()) {
     ESP_LOGW(TAG, "PSRAM is supported");
-    ESP_LOGW(TAG, "Total heap: %d", ESP.getHeapSize());
-    ESP_LOGW(TAG, "Free heap: %d", ESP.getFreeHeap());
     ESP_LOGW(TAG, "Total PSRAM: %d", ESP.getPsramSize());
     ESP_LOGW(TAG, "Free PSRAM: %d", ESP.getFreeHeap());
+    this->buffer_ = (uint8_t *) ps_malloc(this->get_buffer_length());
+  } else {
+    this->buffer_ = new uint8_t[this->get_buffer_length()];
   }
-#endif
+#else
   this->buffer_ = new uint8_t[this->get_buffer_length()];
+#endif
+
   if (this->buffer_ == nullptr) {
     ESP_LOGE(TAG, "Could not allocate buffer for display!");
     return;
@@ -30,8 +29,17 @@ void BufferexIndexed8::init_buffer(int width, int height) {
 }
 
 uint8_t BufferexIndexed8::get_index_from_color_(Color color) {
-  for (int i = 0; i < colors_.size(); i++) {
-    if (colors_[i].r == color.r && colors_[i].g == color.g && colors_[i].b == color.b) {
+  for (int i = 0; i < this->colors_.size(); i++) {
+    if (this->colors_[i].raw_32 == color.raw_32) {
+      return i;
+    }
+  }
+  return this->default_index_value_;
+}
+
+uint8_t BufferexIndexed8::get_value_from_color_index_(uint8_t index) {
+  for (int i = 0; i < this->indexed_colors_.size(); i++) {
+    if (this->indexed_colors_[i].raw_32 == this->colors_[index].raw_32) {
       return i;
     }
   }
@@ -132,7 +140,7 @@ uint8_t BufferexIndexed8::get_pixel_value(uint32_t pos) {
   if (value > this->index_size_)
     value = 0;
 
-  return value;
+  return this->get_value_from_color_index_(value);
 }
 
 uint16_t BufferexIndexed8::get_pixel_to_565(uint32_t pos) {

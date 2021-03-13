@@ -34,6 +34,7 @@ class BufferexIndexed8 : public display::BufferexBase {
   display::BufferType get_buffer_type() override { return this->buffer_type_; }
   uint8_t get_pixel_storage_size() override { return this->pixel_storage_size_; }
   uint8_t get_index_from_color_(Color color);
+  uint8_t get_value_from_color_index_(uint8_t index);
 
   display::BufferType buffer_type_ = display::BufferType::BUFFER_TYPE_INDEXED;
   uint8_t pixel_storage_size_ = 1;

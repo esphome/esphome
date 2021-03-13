@@ -52,20 +52,35 @@ class BufferexBase {
     this->driver_right_bit_aligned_ = driver_right_bit_aligned;
   }
 
-  void set_colors(std::vector<Color> colors) { this->colors_ = colors; }
+  size_t get_color_count() { return this->colors_.size(); }
+
+  void set_colors(std::vector<Color> colors) {
+    this->colors_is_set = true;
+    this->colors_ = colors;
+    if (this->indexed_colors_.empty())
+      this->indexed_colors_ = colors;
+  }
+  void set_indexed_colors(std::vector<Color> indexed_colors) { this->indexed_colors_ = indexed_colors; }
+
   void set_default_index_value(uint8_t default_index_value) { this->default_index_value_ = default_index_value; }
-  void set_index_size(uint8_t index_size) { this->index_size_ = index_size; }
+  void set_index_size(uint8_t index_size) {
+    this->index_size_is_set = true;
+    this->index_size_ = index_size;
+  }
   uint16_t pixel_count_ = 0;
   uint16_t x_low_ = 0;
   uint16_t y_low_ = 0;
   uint16_t x_high_ = 0;
   uint16_t y_high_ = 0;
+  bool index_size_is_set = false;
+  bool colors_is_set = false;
 
  protected:
   int16_t width_ = 0, height_ = 0;
   bool driver_right_bit_aligned_ = false;
   uint32_t get_pixel_buffer_position_(int x, int y) { return (x + y * width_); }
   std::vector<Color> colors_;
+  std::vector<Color> indexed_colors_;
   uint8_t default_index_value_ = 0;
   uint8_t index_size_ = 1;
 

@@ -2,6 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins
 from esphome.components import display, spi
+from .waveshare_enum import WAVESHARE_COLORS_ENUM
 
 from esphome.const import (
     CONF_BUSY_PIN,
@@ -86,9 +87,16 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_RESET_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_BUSY_PIN): pins.gpio_input_pin_schema,
             cv.Optional(CONF_FULL_UPDATE_EVERY): cv.uint32_t,
+            cv.Optional(display.CONF_WAVESHARE_COLORS): cv.ensure_list(
+                {
+                    cv.Required(display.CONF_COLOR): cv.one_of(
+                        *WAVESHARE_COLORS_ENUM, lower=False
+                    ),
+                }
+            ),
         }
     )
-    .extend(cv.polling_component_schema("1s"))
+    .extend(cv.polling_component_schema("30s"))
     .extend(spi.spi_device_schema()),
     validate_full_update_every_only_type_a,
     cv.has_at_most_one_key(CONF_PAGES, CONF_LAMBDA),

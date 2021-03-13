@@ -111,7 +111,7 @@ void WaveshareEPaper::data(uint8_t value) {
   this->write_byte(value);
   this->end_data_();
 }
-bool WaveshareEPaper::wait_until_idle() {
+bool WaveshareEPaper::wait_until_idle_() {
   if (this->busy_pin_ == nullptr) {
     return true;
   }
@@ -148,7 +148,7 @@ void HOT WaveshareEPaper::draw_absolute_pixel_internal(int x, int y, Color color
   else
     this->buffer_[pos] &= ~(0x80 >> subpos);
 }
-uint32_t WaveshareEPaper::get_buffer_length() { return this->get_width_internal() * this->get_height_internal() / 8u; }
+uint32_t WaveshareEPaper::get_buffer_length_() { return this->get_width_internal() * this->get_height_internal() / 8u; }
 void WaveshareEPaper::start_command_() {
   this->dc_pin_->digital_write(false);
   this->enable();
@@ -1014,11 +1014,19 @@ void WaveshareEPaperTypeF::initialize() {
   ESP_LOGD(TAG, "Init display complete");
 
   App.feed_wdt();
-  this->bufferex_base_->set_index_size(8);
+
+  if (!this->bufferex_base_->colors_is_set)
+    this->bufferex_base_->set_colors(this->get_model_colors());
+
+  this->bufferex_base_->set_indexed_colors(this->get_model_colors());
+
+  if (!this->bufferex_base_->index_size_is_set)
+    this->bufferex_base_->set_index_size(this->bufferex_base_->get_color_count());
+
   this->init_buffer(this->get_width_internal(), this->get_height_internal());
-  this->bufferex_base_->set_colors(this->get_model_colors());
+
   this->bufferex_base_->set_default_index_value(0x07);  // "clean"
-  this->bufferex_base_->fill_buffer(COLOR_F_BLUE);
+  this->bufferex_base_->fill_buffer(Waveshare_Blue);
 }
 void WaveshareEPaperTypeF::dump_config() {
   LOG_DISPLAY("", "Waveshare Advanced Color E-Paper", this);
