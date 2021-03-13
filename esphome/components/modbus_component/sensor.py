@@ -55,9 +55,10 @@ SENSOR_VALUE_TYPE = {
     "RAW": SensorValueType.RAW,
     "U_SINGLE": SensorValueType.U_SINGLE,
     "U_DOUBLE": SensorValueType.U_DOUBLE,
-    "U_DOUBLE_HILO": SensorValueType.U_DOUBLE_HILO,    
+    "U_DOUBLE_HILO": SensorValueType.U_DOUBLE_HILO,
     "S_SINGLE": SensorValueType.S_SINGLE,
     "S_DOUBLE": SensorValueType.S_DOUBLE,
+    "S_DOUBLE_HILO": SensorValueType.S_DOUBLE_HILO,
 }
 
 MODBUS_REGISTRY = Registry()
@@ -221,6 +222,7 @@ def to_code(config):
                     s[CONF_BITMASK],
                 )
             )
+
 
 @coroutine
 def build_modbus_registers(config):
