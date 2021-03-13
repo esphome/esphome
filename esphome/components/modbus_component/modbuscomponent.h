@@ -31,7 +31,8 @@ enum class SensorValueType : uint8_t {
   U_DOUBLE = 0x02,  // 2 Registers unsigned
   S_SINGLE = 0x03,  // 1 Register signed
   S_DOUBLE = 0x04,  // 2 Registers signed
-  BIT = 0x05
+  BIT = 0x05,
+  U_DOUBLE_HILO = 0x06,  // 2 Registers unsigned  
 };
 
 struct RegisterRange {
@@ -85,6 +86,9 @@ struct SensorItem {
         break;
       case SensorValueType::BIT:
         size = 1;
+        break;
+      case SensorValueType::U_DOUBLE_HILO:
+        size = 2 ;
         break;
       default:
         size = 1;

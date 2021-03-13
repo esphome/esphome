@@ -23,6 +23,7 @@ bool ModbusComponent::send_next_command_() {
     if (!command->on_data_func)  // No handler remove from queue directly after sending
       command_queue_.pop();
   }
+  delay(100);
   return (!command_queue_.empty());
 }
 
@@ -45,6 +46,7 @@ void ModbusComponent::on_modbus_data(const std::vector<uint8_t> &data) {
 
   if (!command_queue_.empty()) {
     send_next_command_();
+    
   }
 }
 void ModbusComponent::on_modbus_error(uint8_t function_code, uint8_t exception_code) {
@@ -231,6 +233,10 @@ float FloatSensorItem::parse_and_publish(const std::vector<uint8_t> &data) {
     case SensorValueType::U_DOUBLE:
       value = get_data<uint32_t>(data, this->offset);  // Ignore bitmask for double register values.
       break;                                           // define 2 Singlebit regs instead
+    case SensorValueType::U_DOUBLE_HILO:
+      value = get_data<uint32_t>(data, this->offset);  // Ignore bitmask for double register values.
+      value = (value & 0xFFFF)<<16 | (value & 0xFFFF0000)>>16;
+      break;
     case SensorValueType::S_SINGLE:
       value = mask_and_shift_by_rightbit(get_data<int16_t>(data, this->offset),
                                          (int16_t) this->bitmask);  // default is 0xFFFF ;
@@ -308,6 +314,7 @@ ModbusCommandItem ModbusCommandItem::create_write_single_command(ModbusComponent
 }
 
 bool ModbusCommandItem::send() {
+  ESP_LOGV(TAG,"Command sent %d 0x%X %d",this->function_code, this->register_address, this->register_count);
   modbusdevice->send(uint8_t(this->function_code), this->register_address, this->register_count,
                      this->payload.empty() ? nullptr : &this->payload[0]);
   return true;
