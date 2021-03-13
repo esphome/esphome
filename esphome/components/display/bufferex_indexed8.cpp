@@ -29,28 +29,36 @@ void BufferexIndexed8::init_buffer(int width, int height) {
   memset(this->buffer_, 0x00, this->get_buffer_size());
 }
 
+uint8_t BufferexIndexed8::get_index_from_color_(Color color) {
+  for (int i = 0; i < colors_.size(); i++) {
+    if (colors_[i].r == color.r && colors_[i].g == color.g && colors_[i].b == color.b) {
+      return i;
+    }
+  }
+  return this->default_index_value_;
+}
+
 void BufferexIndexed8::fill_buffer(Color color) {
   display::BufferexBase::fill_buffer(color);
 
-  ESP_LOGD(TAG, "fill_buffer %d", color.b);
-  for (uint16_t x = 0; x < this->height_; ++x) {
-    for (uint16_t y = 0; y < this->width_; y++) {
-      this->set_buffer(x, y, color.b);
+  ESP_LOGD(TAG, "fill_buffer %d %d/%d", color.g, this->width_, this->height_);
+  for (uint16_t h = 0; h < this->height_; h++) {
+    for (uint16_t w = 0; w < this->width_; w++) {
+      this->set_buffer(w, h, color);
     }
   }
+  ESP_LOGD(TAG, "fill_buffer done");
 }
 
 void HOT BufferexIndexed8::set_buffer(int x, int y, Color color) {
-  uint32_t pos = (x + y * this->width_);
+  uint32_t pos = this->get_pixel_buffer_position_(x, y);
+
   bool debug = false;
 
-  uint8_t index = 0;
-  for (int i = 0; i < colors_.size(); i++) {
-    if (colors_[i].r == color.r && colors_[i].g == color.g && colors_[i].b == color.b) {
-      index = i;
-      break;
-    }
-  }
+  uint8_t index = this->get_index_from_color_(color);
+
+  if (debug && y == 0 && (color.g != 0 || index != 0))
+    ESP_LOGD(TAG, "set_buffer raw %d %d %d", color.raw_32, index, pos);
 
   const uint32_t pixel_bit_start = pos * this->pixel_storage_size_;
   const uint32_t pixel_bit_end = pixel_bit_start + this->pixel_storage_size_;
@@ -64,6 +72,8 @@ void HOT BufferexIndexed8::set_buffer(int x, int y, Color color) {
   uint8_t mask = ((1 << this->pixel_storage_size_) - 1) << byte_offset_start;
 
   index_byte_start = (index_byte_start & ~mask) | ((index << byte_offset_start) & mask);
+
+  // ESP_LOGD(TAG, "set_buffer byte_location_start %d", byte_location_start);
   this->buffer_[byte_location_start] = index_byte_start;
 
   if (byte_location_start == byte_location_end) {
@@ -90,6 +100,7 @@ uint8_t HOT BufferexIndexed8::get_index_value_(uint32_t pos) {
   const uint32_t byte_location_start = pixel_bit_start / 8;
   const uint32_t byte_location_end = pixel_bit_end / 8;
 
+  //  ESP_LOGE(TAG, "get_index_value_ %d exceeds buffer length %d", pos, this->get_buffer_length());
   uint8_t index_byte_start = this->buffer_[byte_location_start];
   const uint8_t byte_offset_start = pixel_bit_start % 8;
 
@@ -115,13 +126,13 @@ uint8_t HOT BufferexIndexed8::get_index_value_(uint32_t pos) {
   return index_byte_end & mask;
 }
 
-uint16_t BufferexIndexed8::get_pixel_to_565(int x, int y) {
-  uint8_t value = this->get_index_value_(x, y);
+uint8_t BufferexIndexed8::get_pixel_value(uint32_t pos) {
+  uint8_t value = this->get_index_value_(pos);
 
   if (value > this->index_size_)
     value = 0;
 
-  return ColorUtil::color_to_565(this->colors_[value]);
+  return value;
 }
 
 uint16_t BufferexIndexed8::get_pixel_to_565(uint32_t pos) {
@@ -131,18 +142,6 @@ uint16_t BufferexIndexed8::get_pixel_to_565(uint32_t pos) {
     value = 0;
 
   return ColorUtil::color_to_565(this->colors_[value]);
-}
-
-uint32_t HOT BufferexIndexed8::get_pixel_to_666(int x, int y) {
-  uint8_t value = this->get_index_value_(x, y);
-
-  if (x == 0)
-    ESP_LOGD(TAG, "Got value %d from x %d, y %d", value, x, y);
-
-  if (value > this->index_size_)
-    value = 0;
-
-  return ColorUtil::color_to_666(this->colors_[value], this->driver_right_bit_aligned_);
 }
 
 uint32_t HOT BufferexIndexed8::get_pixel_to_666(uint32_t pos) {

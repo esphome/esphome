@@ -105,6 +105,22 @@ FULL_DISPLAY_SCHEMA = BASIC_DISPLAY_SCHEMA.extend(
     }
 )
 
+FULL_DISPLAY_NO_BUFFER_SCHEMA = BASIC_DISPLAY_SCHEMA.extend(
+    {
+        cv.GenerateID(CONF_BUFFER_ID): cv.declare_id(bufferex_base),
+        cv.Optional(CONF_ROTATION): validate_rotation,
+        cv.Optional(CONF_PAGES): cv.All(
+            cv.ensure_list(
+                {
+                    cv.GenerateID(): cv.declare_id(DisplayPage),
+                    cv.Required(CONF_LAMBDA): cv.lambda_,
+                }
+            ),
+            cv.Length(min=1),
+        ),
+    }
+)
+
 
 @coroutine
 def setup_display_core_(var, config):
@@ -124,7 +140,7 @@ def setup_display_core_(var, config):
 @coroutine
 def register_display(var, config):
     yield setup_display_core_(var, config)
-
+    print(config[CONF_BUFFER][CONF_TYPE])
     if CONF_BUFFER_ID in config:
         if CONF_BUFFER not in config:
             config[CONF_BUFFER_ID].type = bufferex_565

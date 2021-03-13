@@ -2,6 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins
 from esphome.components import display, spi
+
 from esphome.const import (
     CONF_BUSY_PIN,
     CONF_DC_PIN,
@@ -21,6 +22,9 @@ WaveshareEPaper = waveshare_epaper_ns.class_(
 )
 WaveshareEPaperTypeA = waveshare_epaper_ns.class_(
     "WaveshareEPaperTypeA", WaveshareEPaper
+)
+WaveshareEPaperTypeF = waveshare_epaper_ns.class_(
+    "WaveshareEPaperTypeF", WaveshareEPaper
 )
 WaveshareEPaper2P7In = waveshare_epaper_ns.class_(
     "WaveshareEPaper2P7In", WaveshareEPaper
@@ -43,6 +47,7 @@ WaveshareEPaper7P5InV2 = waveshare_epaper_ns.class_(
 
 WaveshareEPaperTypeAModel = waveshare_epaper_ns.enum("WaveshareEPaperTypeAModel")
 WaveshareEPaperTypeBModel = waveshare_epaper_ns.enum("WaveshareEPaperTypeBModel")
+WaveshareEPaperTypeFModel = waveshare_epaper_ns.enum("WaveshareEPaperTypeFModel")
 
 MODELS = {
     "1.54in": ("a", WaveshareEPaperTypeAModel.WAVESHARE_EPAPER_1_54_IN),
@@ -51,10 +56,10 @@ MODELS = {
     "2.13in-ttgo-b1": ("a", WaveshareEPaperTypeAModel.TTGO_EPAPER_2_13_IN_B1),
     "2.13in-ttgo-b73": ("a", WaveshareEPaperTypeAModel.TTGO_EPAPER_2_13_IN_B73),
     "2.90in": ("a", WaveshareEPaperTypeAModel.WAVESHARE_EPAPER_2_9_IN),
-    "2.90inv2": ("a", WaveshareEPaperTypeAModel.WAVESHARE_EPAPER_2_9_IN_V2),
     "2.70in": ("b", WaveshareEPaper2P7In),
     "2.90in-b": ("b", WaveshareEPaper2P9InB),
     "4.20in": ("b", WaveshareEPaper4P2In),
+    "5.65in": ("f", WaveshareEPaperTypeFModel.WAVESHARE_ACEP_5_65_IN),
     "5.83in": ("b", WaveshareEPaper5P8In),
     "7.50in": ("b", WaveshareEPaper7P5In),
     "7.50inv2": ("b", WaveshareEPaper7P5InV2),
@@ -67,13 +72,13 @@ def validate_full_update_every_only_type_a(value):
     if MODELS[value[CONF_MODEL]][0] != "a":
         raise cv.Invalid(
             "The 'full_update_every' option is only available for models "
-            "'1.54in', '2.13in', '2.90in', and '2.90inV2'."
+            "'1.54in', '2.13in' and '2.90in'."
         )
     return value
 
 
 CONFIG_SCHEMA = cv.All(
-    display.FULL_DISPLAY_SCHEMA.extend(
+    display.FULL_DISPLAY_NO_BUFFER_SCHEMA.extend(
         {
             cv.GenerateID(): cv.declare_id(WaveshareEPaper),
             cv.Required(CONF_DC_PIN): pins.gpio_output_pin_schema,
@@ -98,10 +103,20 @@ def to_code(config):
     elif model_type == "b":
         rhs = model.new()
         var = cg.Pvariable(config[CONF_ID], rhs, model)
+    elif model_type == "f":
+        rhs = WaveshareEPaperTypeF.new(model)
+
+        var = cg.Pvariable(config[CONF_ID], rhs, WaveshareEPaperTypeF)
+
+        config[display.CONF_BUFFER] = {}
+        config[display.CONF_BUFFER][display.CONF_TYPE] = "INDEXED8"
+        config[display.CONF_BUFFER_ID].type = display.bufferex_indexed8
+
     else:
         raise NotImplementedError()
 
     yield cg.register_component(var, config)
+
     yield display.register_display(var, config)
     yield spi.register_spi_device(var, config)
 

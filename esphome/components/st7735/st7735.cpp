@@ -40,6 +40,7 @@ void ST7735::setup() {
   }
 
   this->init_buffer(this->width_, this->height_);
+
   if (this->model_ == INITR_GREENTAB) {
     display_init_(RCMD2GREEN);
     colstart_ == 0 ? colstart_ = 2 : colstart_;

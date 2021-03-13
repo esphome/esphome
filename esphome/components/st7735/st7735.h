@@ -35,7 +35,6 @@ class ST7735 : public PollingComponent,
   void set_dc_pin(GPIOPin *value) { dc_pin_ = value; }
 
  protected:
-  uint16_t pixel_count_ = 0;
   bool usebgr_ = false;
   bool driver_right_bit_aligned_ = false;
   void draw_absolute_pixel_internal(int x, int y, Color color) override;

@@ -25,6 +25,7 @@ void HOT BufferexBase::set_pixel(int x, int y, Color color) {
   this->x_high_ = (x > this->x_high_) ? x : this->x_high_;
   this->y_high_ = (y > this->y_high_) ? y : this->y_high_;
 
+  this->pixel_count_++;
   this->set_buffer(x, y, color);
 }
 
