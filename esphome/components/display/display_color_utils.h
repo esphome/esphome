@@ -4,7 +4,12 @@
 namespace esphome {
 namespace display {
 enum ColorOrder : uint8_t { COLOR_ORDER_RGB = 0, COLOR_ORDER_BGR = 1, COLOR_ORDER_GRB = 2 };
-enum ColorBitness : uint8_t { COLOR_BITNESS_888 = 0, COLOR_BITNESS_565 = 1, COLOR_BITNESS_332 = 2 };
+enum ColorBitness : uint8_t {
+  COLOR_BITNESS_888 = 0,
+  COLOR_BITNESS_565 = 1,
+  COLOR_BITNESS_332 = 2,
+  COLOR_BITNESS_666 = 3
+};
 inline static uint8_t esp_scale(uint8_t i, uint8_t scale, uint8_t max_value = 255) { return (max_value * i / scale); }
 
 class ColorUtil {
@@ -21,6 +26,11 @@ class ColorUtil {
         first_bits = 8;
         second_bits = 8;
         third_bits = 8;
+        break;
+      case COLOR_BITNESS_666:
+        first_bits = 6;
+        second_bits = 6;
+        third_bits = 6;
         break;
       case COLOR_BITNESS_565:
         first_bits = 5;
@@ -83,6 +93,7 @@ class ColorUtil {
     }
     return 0;
   }
+
   static uint16_t color_to_565(Color color, ColorOrder color_order = ColorOrder::COLOR_ORDER_RGB) {
     uint16_t red_color, green_color, blue_color;
 
@@ -97,6 +108,31 @@ class ColorUtil {
         return blue_color << 11 | green_color << 5 | red_color;
       case COLOR_ORDER_GRB:
         return green_color << 10 | red_color << 5 | blue_color;
+    }
+    return 0;
+  }
+
+  static uint32_t color_to_666(Color color, bool right_bit_aligned) {
+    return color_to_666(color, ColorOrder::COLOR_ORDER_RGB, right_bit_aligned);
+  }
+  static uint32_t color_to_666(Color color, ColorOrder color_order = ColorOrder::COLOR_ORDER_RGB,
+                               bool right_bit_aligned = true) {
+    uint32_t red_color, green_color, blue_color;
+
+    uint8_t first_shift = right_bit_aligned ? 12 : 16;
+    uint8_t second_shift = right_bit_aligned ? 6 : 8;
+
+    red_color = esp_scale8(color.red, ((1 << 6) - 1));
+    green_color = esp_scale8(color.green, ((1 << 6) - 1));
+    blue_color = esp_scale8(color.blue, (1 << 6) - 1);
+
+    switch (color_order) {
+      case COLOR_ORDER_RGB:
+        return red_color << first_shift | green_color << second_shift | blue_color;
+      case COLOR_ORDER_BGR:
+        return blue_color << first_shift | green_color << second_shift | red_color;
+      case COLOR_ORDER_GRB:
+        return green_color << first_shift | red_color << second_shift | blue_color;
     }
     return 0;
   }

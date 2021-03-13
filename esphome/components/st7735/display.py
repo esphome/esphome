@@ -4,6 +4,7 @@ from esphome import pins
 from esphome.components import spi
 from esphome.components import display
 from esphome.core import coroutine
+
 from esphome.const import (
     CONF_DC_PIN,
     CONF_ID,
@@ -22,9 +23,7 @@ CONF_DEVICE_WIDTH = "device_width"
 CONF_DEVICE_HEIGHT = "device_height"
 CONF_ROW_START = "row_start"
 CONF_COL_START = "col_start"
-CONF_EIGHT_BIT_COLOR = "eight_bit_color"
 CONF_USE_BGR = "use_bgr"
-
 SPIST7735 = st7735_ns.class_(
     "ST7735", cg.PollingComponent, display.DisplayBuffer, spi.SPIDevice
 )
@@ -57,7 +56,6 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_DEVICE_HEIGHT): cv.int_,
             cv.Required(CONF_COL_START): cv.int_,
             cv.Required(CONF_ROW_START): cv.int_,
-            cv.Optional(CONF_EIGHT_BIT_COLOR, default=False): cv.boolean,
             cv.Optional(CONF_USE_BGR, default=False): cv.boolean,
         }
     )
@@ -90,7 +88,6 @@ def to_code(config):
         config[CONF_DEVICE_HEIGHT],
         config[CONF_COL_START],
         config[CONF_ROW_START],
-        config[CONF_EIGHT_BIT_COLOR],
         config[CONF_USE_BGR],
     )
     yield setup_st7735(var, config)

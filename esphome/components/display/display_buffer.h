@@ -3,7 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/automation.h"
-#include "display_color_utils.h"
+#include "bufferex_base.h"
 
 #ifdef USE_TIME
 #include "esphome/components/time/real_time_clock.h"
@@ -299,6 +299,28 @@ class DisplayBuffer {
   /// Internal method to set the display rotation with.
   void set_rotation(DisplayRotation rotation);
 
+  void set_buffer(display::BufferexBase *bufferex_base) { this->bufferex_base_ = bufferex_base; }
+  size_t get_buffer_length();
+  void set_pixel(int x, int y, Color color);
+  size_t get_buffer_size();
+  void fill_buffer(Color color);
+
+  // 565
+  uint16_t get_pixel_to_565(int x, int y);
+  uint16_t get_pixel_to_565(uint16_t pos);
+  // 666
+  uint32_t get_pixel_to_666(int x, int y);
+  uint32_t get_pixel_to_666(uint16_t pos);
+
+  void init_buffer(int width, int height);
+  display::BufferType get_buffer_type() { return this->bufferex_base_->get_buffer_type(); };
+  std::string get_buffer_type_string() { return BUFFER_TYPE_STRINGS[this->bufferex_base_->get_buffer_type()]; }
+  uint8_t get_pixel_storage_size() { return this->bufferex_base_->get_pixel_storage_size(); }
+
+  void set_driver_right_bit_aligned(bool driver_right_bit_aligned) {
+    this->bufferex_base_->set_driver_right_bit_aligned(driver_right_bit_aligned);
+  }
+
  protected:
   void vprintf_(int x, int y, Font *font, Color color, TextAlign align, const char *format, va_list arg);
 
@@ -308,11 +330,15 @@ class DisplayBuffer {
 
   virtual int get_width_internal() = 0;
 
+  virtual void display_clear();
+
   void init_internal_(uint32_t buffer_length);
 
   void do_update_();
 
   uint8_t *buffer_{nullptr};
+  display::BufferexBase *bufferex_base_ = nullptr;
+
   DisplayRotation rotation_{DISPLAY_ROTATION_0_DEGREES};
   optional<display_writer_t> writer_{};
   DisplayPage *page_{nullptr};
