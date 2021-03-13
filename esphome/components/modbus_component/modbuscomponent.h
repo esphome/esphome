@@ -77,7 +77,7 @@ struct SensorItem {
         size = 1;
         break;
       case SensorValueType::U_DOUBLE:
-        size = 2;
+        size = 1;
         break;
       case SensorValueType::S_SINGLE:
         size = 1;
