@@ -40,10 +40,11 @@ void ModbusComponent::on_modbus_data(const std::vector<uint8_t> &data) {
     if (data.size() != current_command->expected_response_size) {
       ESP_LOGE(TAG, "Unexpected modbus response size. Expected=%d actual=%zu", current_command->expected_response_size,
                data.size());
-    } else {
-      ESP_LOGVV(TAG, "Dispatch to handler");
-      current_command->on_data_func(current_command->register_address, data);
     }
+    
+    ESP_LOGVV(TAG, "Dispatch to handler");
+    current_command->on_data_func(current_command->register_address, data);
+     
     command_queue_.pop();
   }
 
