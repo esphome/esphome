@@ -238,7 +238,7 @@ struct ModbusCommandItem {
     cmd.modbusdevice = modbusdevice;
     cmd.function_code = function_code;
     cmd.register_address = start_address;
-    cmd.expected_response_size = register_count * 1; // fix UDOUBLE ?
+    cmd.expected_response_size = register_count * 1; // fix UDOUBLE ? No
     cmd.register_count = register_count;
     cmd.on_data_func = std::move(handler);
     // adjust expected response size for ReadCoils and DiscretInput
@@ -257,7 +257,7 @@ struct ModbusCommandItem {
     cmd.modbusdevice = modbusdevice;
     cmd.function_code = function_code;
     cmd.register_address = start_address;
-    cmd.expected_response_size = register_count * 2;
+    cmd.expected_response_size = register_count * 1;  // fix UDOUBLE?
     cmd.register_count = register_count;
     cmd.on_data_func = [modbusdevice](uint16_t start_address, const std::vector<uint8_t> data) {
       modbusdevice->on_register_data(start_address, data);
