@@ -704,6 +704,7 @@ def dump_schema():
         pins.output_pin,
         pins.input_pin,
         pins.input_pullup_pin,
+        cv.float_with_unit,
         cv.subscribe_topic,
         cv.publish_topic,
         cv.mqtt_payload,
@@ -723,12 +724,12 @@ def dump_schema():
 
     for v in [pins.gpio_input_pin_schema, pins.gpio_input_pullup_pin_schema]:
         schema_registry[v] = get_ref("PIN.GPIO_FULL_INPUT_PIN_SCHEMA")
-    for v in [pins.internal_gpio_input_pin_schema]:
+    for v in [pins.internal_gpio_input_pin_schema, pins.input_pin]:
         schema_registry[v] = get_ref("PIN.INPUT_INTERNAL")
 
     for v in [pins.gpio_output_pin_schema, pins.internal_gpio_output_pin_schema]:
         schema_registry[v] = get_ref("PIN.GPIO_FULL_OUTPUT_PIN_SCHEMA")
-    for v in [pins.internal_gpio_output_pin_schema]:
+    for v in [pins.internal_gpio_output_pin_schema, pins.output_pin]:
         schema_registry[v] = get_ref("PIN.OUTPUT_INTERNAL")
 
     add_module_schemas("CONFIG", cv)
