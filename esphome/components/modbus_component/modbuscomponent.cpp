@@ -193,8 +193,8 @@ template<typename T> T get_data(const std::vector<uint8_t> &data, size_t offset)
     return T((uint16_t(data[offset + 0]) << 8) | (uint16_t(data[offset + 1]) << 0));
   }
   if (sizeof(T) == sizeof(uint32_t)) {
-    return T((uint16_t(data[offset + 0]) << 8) | (uint16_t(data[offset + 1]) << 0) | ((uint16_t(data[offset + 2]) << 8) |
-             (uint16_t(data[offset + 3]) << 0)) << 16);
+    return T(((uint16_t(data[offset + 0]) << 8) | (uint16_t(data[offset + 1]) << 0)) | ((uint16_t(data[offset + 2]) << 8) |
+             (uint16_t(data[offset + 3]) << 0)) << 16));
   }
 }
 
