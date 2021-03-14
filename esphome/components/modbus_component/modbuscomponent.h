@@ -251,26 +251,26 @@ struct ModbusCommandItem {
     return cmd;
   }
 
-//  static ModbusCommandItem create_read_command(ModbusComponent *modbusdevice, ModbusFunctionCode function_code,
-//                                               uint16_t start_address, uint16_t register_count) {
-//    ModbusCommandItem cmd;
-//    cmd.modbusdevice = modbusdevice;
-//    cmd.function_code = function_code;
-//    cmd.register_address = start_address;
-//    cmd.expected_response_size = register_count * 2;
-//    cmd.register_count = register_count;
-//    cmd.on_data_func = [modbusdevice](uint16_t start_address, const std::vector<uint8_t> data) {
-//      modbusdevice->on_register_data(start_address, data);
-//    };
-//    // adjust expected response size for ReadCoils and DiscretInput
-//    if (cmd.function_code == ModbusFunctionCode::READ_COILS) {
-//      cmd.expected_response_size = (register_count + 7) / 8;
-//    }
-//    if (cmd.function_code == ModbusFunctionCode::READ_DISCRETE_INPUTS) {
-//      cmd.expected_response_size = 1;
-//    }
-//    return cmd;
-//  }
+  static ModbusCommandItem create_read2_command(ModbusComponent *modbusdevice, ModbusFunctionCode function_code,
+                                               uint16_t start_address, uint16_t register_count) {
+    ModbusCommandItem cmd;
+    cmd.modbusdevice = modbusdevice;
+    cmd.function_code = function_code;
+    cmd.register_address = start_address;
+    cmd.expected_response_size = register_count * 2;
+    cmd.register_count = register_count;
+    cmd.on_data_func = [modbusdevice](uint16_t start_address, const std::vector<uint8_t> data) {
+      modbusdevice->on_register_data(start_address, data);
+    };
+    // adjust expected response size for ReadCoils and DiscretInput
+    if (cmd.function_code == ModbusFunctionCode::READ_COILS) {
+      cmd.expected_response_size = (register_count + 7) / 8;
+    }
+    if (cmd.function_code == ModbusFunctionCode::READ_DISCRETE_INPUTS) {
+      cmd.expected_response_size = 1;
+    }
+    return cmd;
+  }
 
   static ModbusCommandItem create_write_multiple_command(ModbusComponent *modbusdevice, uint16_t start_address,
                                                          uint16_t register_count, const std::vector<uint16_t> &values);
