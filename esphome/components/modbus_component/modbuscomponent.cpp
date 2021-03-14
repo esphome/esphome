@@ -203,8 +203,8 @@ template<typename T> T get_data(const std::vector<uint8_t> &data, size_t offset)
     return T((uint16_t(data[offset + 0]) << 8) | (uint16_t(data[offset + 1]) << 0));
   }
   if (sizeof(T) == sizeof(uint32_t)) {
-    return T((uint16_t(data[offset + 0]) << 8) | (uint16_t(data[offset + 1]) << 0) |
-             ((uint16_t(data[offset + 2]) << 8) | (uint16_t(data[offset + 3]) << 0)) << 16);
+    return T((uint16_t(data[offset + 0]) << 8) | (uint16_t(data[offset + 1]) << 16) |
+            ((uint16_t(data[offset + 2]) << 8) | (uint16_t(data[offset + 3]) << 0)) );
   }
   if (sizeof(T) == sizeof(uint64_t)) {
     uint64_t result = 0;
@@ -257,7 +257,7 @@ float FloatSensorItem::parse_and_publish(const std::vector<uint8_t> &data) {
     case SensorValueType::U_LONG:
       value = get_data<uint32_t>(data, this->offset);  // Ignore bitmask for double register values.
       break;                                           // define 2 Singlebit regs instead
-    case SensorValueType::U_LONG_HILO:
+    case SensorValueType::U_LONG_R:
       value = get_data<uint32_t>(data, this->offset);  // Ignore bitmask for double register values.
       value = (value & 0xFFFF) << 16 | (value & 0xFFFF0000) >> 16;
       break;
@@ -268,7 +268,7 @@ float FloatSensorItem::parse_and_publish(const std::vector<uint8_t> &data) {
     case SensorValueType::S_LONG:
       value = get_data<int32_t>(data, this->offset);
       break;
-    case SensorValueType::S_LONG_HILO: {
+    case SensorValueType::S_LONG_R: {
       value = get_data<uint32_t>(data, this->offset);
       // Currently the high word is at the low position
       // the sign bit is therefore at low before the switch

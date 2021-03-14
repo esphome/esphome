@@ -69,17 +69,17 @@ SensorValueType = SensorValueType_ns.enum("SensorValueType")
 SENSOR_VALUE_TYPE = {
     "RAW": SensorValueType.RAW,
     "U_SINGLE": SensorValueType.U_SINGLE,
+    "U_LONG_R": SensorValueType.U_LONG_R,
+    "U_LONGLONG": SensorValueType.U_LONGLONG,
     "U_LONG": SensorValueType.U_LONG,
-    "U_LONGLONG": SensorValueType.U_LONGLONG,    
-    "U_LONG_HILO": SensorValueType.U_LONG_HILO,
     "S_SINGLE": SensorValueType.S_SINGLE,
+    "S_LONG_R": SensorValueType.S_LONG_R,
     "S_LONG": SensorValueType.S_LONG,
-    "S_LONG_HILO": SensorValueType.S_LONG_HILO,
-    ## decpracted names keep them for now
-    "U_DOUBLE": SensorValueType.U_LONG,
-    "U_DOUBLE_HILO": SensorValueType.U_LONG_HILO,
+    # decpracted names keep them for now
+    "U_DOUBLE": SensorValueType.U_LONGX,
+    "U_DOUBLE_HILO": SensorValueType.U_LONG2,
     "S_DOUBLE": SensorValueType.S_LONG,
-    "S_DOUBLE_HILO": SensorValueType.S_LONG_HILO,
+    "S_DOUBLE_HILO": SensorValueType.S_LONG2,
 }
 
 MODBUS_REGISTRY = Registry()

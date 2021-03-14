@@ -33,8 +33,8 @@ enum class SensorValueType : uint8_t {
   S_SINGLE = 0x03,  // 1 Register signed
   S_LONG = 0x04,    // 2 Registers signed
   BIT = 0x05,
-  U_LONG_HILO = 0x06,  // 2 Registers unsigned
-  S_LONG_HILO = 0x07,  // 2 Registers unsigned
+  U_LONG_R = 0x06,  // 2 Registers unsigned
+  S_LONG_R = 0x07,  // 2 Registers unsigned
   U_LONGLONG = 0x8
 };
 
@@ -93,11 +93,11 @@ struct SensorItem {
       case SensorValueType::BIT:
         size = 1;
         break;
-      case SensorValueType::U_LONG_HILO:
+      case SensorValueType::U_LONG_R:
         //        size = 2 ;
         size = register_count;
         break;
-      case SensorValueType::S_LONG_HILO:
+      case SensorValueType::S_LONG_R:
         //        size = 2 ;
         size = register_count;
         break;
