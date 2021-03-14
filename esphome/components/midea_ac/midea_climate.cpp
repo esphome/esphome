@@ -54,7 +54,7 @@ void MideaAC::on_update() {
     this->parent_->write_frame(this->cmd_frame_);
   } else {
     ESP_LOGD(TAG, "TX: query");
-    if (this->power_sensor_ == nullptr || this->request_num_++ % this->power_request_period_)
+    if (this->power_sensor_ == nullptr || this->request_num_++ % 32)
       this->parent_->write_frame(this->query_frame_);
     else
       this->parent_->write_frame(this->power_frame_);

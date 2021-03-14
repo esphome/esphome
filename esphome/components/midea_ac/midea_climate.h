@@ -37,7 +37,6 @@ class MideaAC : public midea_dongle::MideaAppliance, public climate::Climate, pu
   sensor::Sensor *humidity_sensor_;
   sensor::Sensor *power_sensor_;
   uint8_t request_num_;
-  uint8_t power_request_period_{2};
   bool ctrl_request_;
   bool beeper_feedback_;
   bool traits_swing_horizontal_;
