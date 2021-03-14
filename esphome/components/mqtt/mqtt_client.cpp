@@ -25,14 +25,17 @@ void MQTTClientComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up MQTT...");
   this->mqtt_client_.onMessage([this](char *topic, char *payload, AsyncMqttClientMessageProperties properties,
                                       size_t len, size_t index, size_t total) {
+    if (index == 0)
+      this->payload_buffer_.reserve(total);
+
     // append new payload, may contain incomplete MQTT message
-    this->payload_s_.append(payload, len);
+    this->payload_buffer_.append(payload, len);
 
     // MQTT fully received
     if (len + index == total) {
-      std::string topic_s(topic);
-      this->on_message(topic_s, this->payload_s_);
-      this->payload_s_.clear();
+      this->on_message(topic, this->payload_buffer_);
+      this->payload_buffer_.clear();
+      this->payload_buffer_.shrink_to_fit();
     }
   });
   this->mqtt_client_.onDisconnect([this](AsyncMqttClientDisconnectReason reason) {
