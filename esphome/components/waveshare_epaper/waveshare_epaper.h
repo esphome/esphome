@@ -8,12 +8,12 @@ namespace esphome {
 namespace waveshare_epaper {
 
 static const Color Waveshare_Black(0, 0, 0);
-static const Color Waveshare_White(1, 1, 1);
-static const Color Waveshare_Green(0, 1, 0);
-static const Color Waveshare_Blue(0, 0, 1);
-static const Color Waveshare_Red(1, 0, 0);
-static const Color Waveshare_Yellow(1, 1, 0);
-static const Color Waveshare_Orange(1, 0.5, 0);
+static const Color Waveshare_White(255, 255, 255);
+static const Color Waveshare_Green(0, 255, 0);
+static const Color Waveshare_Blue(0, 0, 255);
+static const Color Waveshare_Red(255, 0, 0);
+static const Color Waveshare_Yellow(255, 255, 0);
+static const Color Waveshare_Orange(255, 127, 0);
 static const Color Waveshare_Blank(0x123456);  // Anything that isn't one of the above will do.
 
 class WaveshareEPaper : public PollingComponent,
