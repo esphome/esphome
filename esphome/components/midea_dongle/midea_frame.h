@@ -44,6 +44,8 @@ class BaseFrame : public Frame {
   void finalize();
   uint8_t get_type() const { return this->pbuf_[9]; }
   void set_type(uint8_t value) { this->pbuf_[9] = value; }
+  bool has_response_type(uint8_t type) const { return this->resp_type_() == type; }
+  bool has_type(uint8_t type) const { return this->get_type() == type; }
 
  protected:
   static const uint8_t PROGMEM CRC_TABLE[256];

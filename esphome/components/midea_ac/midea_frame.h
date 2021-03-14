@@ -49,8 +49,12 @@ class PropertiesFrame : public midea_dongle::BaseFrame {
   PropertiesFrame(uint8_t *data) : BaseFrame(data) {}
   PropertiesFrame(const Frame &frame) : BaseFrame(frame) {}
 
-  template<typename TF> typename std::enable_if<std::is_base_of<PropertiesFrame, TF>::value, bool>::type is() const {
-    return (this->resp_type_() == 0xC0) && (this->get_type() == 0x03 || this->get_type() == 0x02);
+  bool has_properties() const {
+    return this->has_response_type(0xC0) && (this->has_type(0x03) || this->has_type(0x02));
+  }
+
+  bool has_power_info() const {
+    return this->has_response_type(0xC1);
   }
 
   /* TARGET TEMPERATURE */
@@ -91,6 +95,9 @@ class PropertiesFrame : public midea_dongle::BaseFrame {
   bool get_turbo_mode() const { return this->pbuf_[20] & 0x02; }
   void set_turbo_mode(bool state) { this->set_bytemask_(20, 0x02, state); }
 
+  /* POWER USAGE */
+  float get_power_usage() const;
+
   /// Set properties from another frame
   void set_properties(const PropertiesFrame &p) { memcpy(this->pbuf_ + 11, p.data() + 11, 10); }
 
@@ -109,7 +116,16 @@ class QueryFrame : public midea_dongle::StaticFrame<midea_dongle::Frame> {
   static const uint8_t PROGMEM INIT[];
 };
 
-// Query state frame (read-only)
+// Power query state frame (read-only)
+class PowerQueryFrame : public midea_dongle::StaticFrame<midea_dongle::Frame> {
+ public:
+  PowerQueryFrame() : StaticFrame(FPSTR(this->INIT)) {}
+
+ private:
+  static const uint8_t PROGMEM INIT[];
+};
+
+// Command frame
 class CommandFrame : public midea_dongle::StaticFrame<PropertiesFrame> {
  public:
   CommandFrame() : StaticFrame(FPSTR(this->INIT)) {}

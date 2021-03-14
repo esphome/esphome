@@ -20,8 +20,11 @@ template<typename T> void set_property(T &property, T value, bool &flag) {
 
 void MideaAC::on_frame(const midea_dongle::Frame &frame) {
   const auto p = frame.as<PropertiesFrame>();
-  if (!p.is<PropertiesFrame>()) {
-    ESP_LOGW(TAG, "RX: not PropertiesFrame!");
+  if (p.has_power_info()) {
+    set_sensor(this->power_sensor_, p.get_power_usage());
+    return;
+  } else if (!p.has_properties()) {
+    ESP_LOGW(TAG, "RX: frame has unknown type");
     return;
   }
   if (p.get_type() == midea_dongle::MideaMessageType::DEVICE_CONTROL) {
@@ -51,7 +54,10 @@ void MideaAC::on_update() {
     this->parent_->write_frame(this->cmd_frame_);
   } else {
     ESP_LOGD(TAG, "TX: query");
-    this->parent_->write_frame(this->query_frame_);
+    if (this->power_sensor_ == nullptr || this->request_num_++ % this->power_request_period_)
+      this->parent_->write_frame(this->query_frame_);
+    else
+      this->parent_->write_frame(this->power_frame_);
   }
 }
 
