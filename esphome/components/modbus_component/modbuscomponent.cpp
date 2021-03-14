@@ -17,11 +17,14 @@ void ModbusComponent::setup() { this->create_register_ranges(); }
 */
 
 bool ModbusComponent::send_next_command_() {
-    uint32_t delay = millis() - this->last_command_timestamp_;
+     
+  uint32_t delay = millis() - this->last_command_timestamp_;
+//  ESP_LOGD(TAG,"Sending  %u %u",delay,this->command_throttle_);
   // Left check of delay since last command in case theres ever a command sent by calling send_raw_command_ directly
-  if (delay > command_throttle_ && !command_queue_.empty()) {
-//  if (!command_queue_.empty()) {
+  if ((delay > this->command_throttle_) && (!command_queue_.empty())) {
     auto &command = command_queue_.front();
+    ESP_LOGD(TAG,"Sending next modbus command %u %u",delay,this->command_throttle_);
+    this->sending_ = true ; 
     command->send();
     this->last_command_timestamp_ = millis();
     if (!command->on_data_func)  // No handler remove from queue directly after sending
@@ -33,6 +36,7 @@ bool ModbusComponent::send_next_command_() {
 // Dispatch the response to the registered handler
 void ModbusComponent::on_modbus_data(const std::vector<uint8_t> &data) {
   ESP_LOGD(TAG, "Modbus data %zu", data.size());
+  this->sending_ = false ;
   auto &current_command = this->command_queue_.front();
   if (current_command != nullptr) {
 #ifdef CHECK_RESPONSE_SIZE
@@ -59,6 +63,7 @@ void ModbusComponent::on_modbus_data(const std::vector<uint8_t> &data) {
 }
 void ModbusComponent::on_modbus_error(uint8_t function_code, uint8_t exception_code) {
   ESP_LOGE(TAG, "Modbus error function code: 0x%X exception: %d ", function_code, exception_code);
+  this->sending_ = false ;  
   // Remove pending command waiting for a response
   auto &current_command = this->command_queue_.front();
   if (current_command != nullptr) {

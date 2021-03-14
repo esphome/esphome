@@ -1,6 +1,12 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.components import sensor, modbus, binary_sensor, text_sensor, modbus_component
+from esphome.components import (
+    sensor,
+    modbus,
+    binary_sensor,
+    text_sensor,
+    modbus_component,
+)
 from esphome.core import coroutine
 from esphome.util import Registry
 
@@ -33,7 +39,13 @@ from .const import (
 )
 
 
-AUTO_LOAD = ["modbus", "binary_sensor","text_sensor", "status", "modbus_component"]
+AUTO_LOAD = [
+    "modbus", 
+    "binary_sensor", 
+    "text_sensor",
+    "status", 
+    "modbus_component"
+    ]
 
 modbus_component_ns = cg.esphome_ns.namespace("modbus_component")
 ModbusComponent = modbus_component_ns.class_(
@@ -62,12 +74,11 @@ SENSOR_VALUE_TYPE = {
     "S_SINGLE": SensorValueType.S_SINGLE,
     "S_LONG": SensorValueType.S_LONG,
     "S_LONG_HILO": SensorValueType.S_LONG_HILO,
-## decpracted names keep them for now 
+    ## decpracted names keep them for now
     "U_DOUBLE": SensorValueType.U_LONG,
     "U_DOUBLE_HILO": SensorValueType.U_LONG_HILO,
     "S_DOUBLE": SensorValueType.S_LONG,
     "S_DOUBLE_HILO": SensorValueType.S_LONG_HILO,
-
 }
 
 MODBUS_REGISTRY = Registry()
@@ -102,6 +113,7 @@ text_sensor_entry = text_sensor.TEXT_SENSOR_SCHEMA.extend(
         cv.Optional(CONF_RESPONSE_SIZE, default=0): cv.int_,
     }
 )
+
 
 def modbus_sensor_schema(
     modbus_functioncode_,
@@ -160,8 +172,9 @@ def modbus_binarysensor_schema(
         }
     )
 
+
 def modbus_textsensor_schema(
-    modbus_functioncode_, register_address_, register_offset_
+    modbus_functioncode_, register_address_, register_offset_, response_size_
 ):
     return text_sensor.BINARY_SENSOR_SCHEMA.extend(
         {
@@ -170,7 +183,7 @@ def modbus_textsensor_schema(
             ): cv.enum(MODBUS_FUNCTION_CODE),
             cv.Optional(CONF_ADDRESS, default=register_address_): cv.int_,
             cv.Optional(CONF_OFFSET, default=register_offset_): cv.int_,
-            cv.Optional(CONF_RESPONSE_SIZE, default=response_size_): cv.int_,            
+            cv.Optional(CONF_RESPONSE_SIZE, default=response_size_): cv.int_,
         }
     )
 
@@ -179,7 +192,7 @@ MODBUS_CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.Optional(CONF_MODBUSDEVICE_ADDRESS, default=0x1): cv.hex_uint8_t,
-            cv.Optional(CONF_COMMAND_THROTTLE, default=0x0): cv.hex_uint8_t,
+            cv.Optional(CONF_COMMAND_THROTTLE, default=0x0): cv.hex_uint16_t,
             cv.Optional("sensors"): cv.All(
                 cv.ensure_list(sensor_entry), cv.Length(min=0)
             ),
@@ -188,7 +201,7 @@ MODBUS_CONFIG_SCHEMA = (
             ),
             cv.Optional("text_sensors"): cv.All(
                 cv.ensure_list(text_sensor_entry), cv.Length(min=0)
-            ),            
+            ),
         }
     )
     .extend(cv.polling_component_schema("60s"))
@@ -201,7 +214,7 @@ def modbus_component_schema(device_address=0x1):
         cv.Schema(
             {
                 cv.Optional(CONF_MODBUSDEVICE_ADDRESS, default=0x1): cv.hex_uint8_t,
-                cv.Optional(CONF_COMMAND_THROTTLE, default=0x0): cv.hex_uint8_t,
+                cv.Optional(CONF_COMMAND_THROTTLE, default=0x0500): cv.hex_uint16_t,
                 cv.Optional("sensors"): cv.All(
                     cv.ensure_list(sensor_entry), cv.Length(min=0)
                 ),
@@ -210,7 +223,7 @@ def modbus_component_schema(device_address=0x1):
                 ),
                 cv.Optional("text_sensors"): cv.All(
                     cv.ensure_list(binary_sensor_entry), cv.Length(min=0)
-                ),                
+                ),
             }
         )
         .extend(cv.polling_component_schema("60s"))
@@ -232,12 +245,10 @@ CONFIG_SCHEMA = (
 
 
 def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
+    var = cg.new_Pvariable(config[CONF_ID], config[CONF_COMMAND_THROTTLE])
+    yield cg.add(var.set_command_throttle(config[CONF_COMMAND_THROTTLE]))    
     yield cg.register_component(var, config)
     yield modbus.register_modbus_device(var, config)
-    if config.get(CONF_COMMAND_THROTTLE):    
-        yield cg.add(var.set_command_throttle(config[CONF_COMMAND_THROTTLE]))
-
     if config.get("sensors"):
         conf = config["sensors"]
         for s in conf:

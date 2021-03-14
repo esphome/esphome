@@ -57,4 +57,3 @@ def register_modbus_device(var, config):
     cg.add(var.set_parent(parent))
     cg.add(var.set_address(config[CONF_ADDRESS]))
     cg.add(parent.register_device(var))
-    cg.

@@ -136,6 +136,7 @@ struct TextSensorItem : public SensorItem {
 // class ModbusSensor ;
 class ModbusComponent : public PollingComponent, public modbus::ModbusDevice {
  public:
+  ModbusComponent(uint16_t throttle ) : PollingComponent() , modbus::ModbusDevice() , command_throttle_(throttle)  {};
   std::map<uint32_t, std::unique_ptr<SensorItem>> sensormap;
   std::vector<RegisterRange> register_ranges;
   void add_sensor(sensor::Sensor *sensor, ModbusFunctionCode register_type, uint16_t start_address, uint8_t offset,
@@ -237,6 +238,7 @@ class ModbusComponent : public PollingComponent, public modbus::ModbusDevice {
   void on_register_data(uint16_t start_address, const std::vector<uint8_t> &data);
   void set_command_throttle(uint16_t command_throttle)
   {
+    ESP_LOGE("MMMM","Throttle = %d",command_throttle);
     this->command_throttle_ = command_throttle_ ;
   }
  protected:
@@ -249,7 +251,8 @@ class ModbusComponent : public PollingComponent, public modbus::ModbusDevice {
 
   bool send_next_command_();
   uint32_t last_command_timestamp_;
-  uint32_t command_throttle_=10;
+  uint16_t command_throttle_;  
+  bool sending_ ; 
 
 };
 
