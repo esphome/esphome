@@ -3,6 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
+#include "esphome/components/text_sensor/text_sensor.h"
 #include "esphome/components/modbus/modbus.h"
 #include <queue>
 #include <map>
@@ -28,12 +29,12 @@ enum class ModbusFunctionCode {
 enum class SensorValueType : uint8_t {
   RAW = 0x00,       // variable length
   U_SINGLE = 0x01,  // 1 Register unsigned
-  U_DOUBLE = 0x02,  // 2 Registers unsigned
+  U_LONG = 0x02,  // 2 Registers unsigned
   S_SINGLE = 0x03,  // 1 Register signed
-  S_DOUBLE = 0x04,  // 2 Registers signed
+  S_LONG = 0x04,  // 2 Registers signed
   BIT = 0x05,
-  U_DOUBLE_HILO = 0x06,  // 2 Registers unsigned
-  S_DOUBLE_HILO = 0x07,  // 2 Registers unsigned    
+  U_LONG_HILO = 0x06,  // 2 Registers unsigned
+  S_LONG_HILO = 0x07,  // 2 Registers unsigned    
 };
 
 struct RegisterRange {
@@ -59,6 +60,7 @@ struct SensorItem {
   uint16_t start_address;
   uint8_t offset;
   uint16_t bitmask;
+  uint8_t register_count;  
   SensorValueType sensor_value_type;
   int64_t last_value;
   std::function<float(int64_t)> transform_expression;
@@ -76,23 +78,27 @@ struct SensorItem {
       case SensorValueType::U_SINGLE:
         size = 1;
         break;
-      case SensorValueType::U_DOUBLE:
-        size = 2;
+      case SensorValueType::U_LONG:
+//        size = 2;
+        size = register_count;
         break;
       case SensorValueType::S_SINGLE:
         size = 1;
         break;
-      case SensorValueType::S_DOUBLE:
-        size = 2;
+      case SensorValueType::S_LONG:
+//        size = 2;
+        size = register_count;
         break;
       case SensorValueType::BIT:
         size = 1;
         break;
-      case SensorValueType::U_DOUBLE_HILO:
-        size = 2 ;
+      case SensorValueType::U_LONG_HILO:
+//        size = 2 ;
+        size = register_count;
         break;
-      case SensorValueType::S_DOUBLE_HILO:
-        size = 2 ;
+      case SensorValueType::S_LONG_HILO:
+//        size = 2 ;
+        size = register_count;
         break;        
       default:
         size = 1;
@@ -118,13 +124,22 @@ struct BinarySensorItem : public SensorItem {
   float parse_and_publish(const std::vector<uint8_t> &data) override;
 };
 
+struct TextSensorItem : public SensorItem {
+  text_sensor::TextSensor *sensor_;
+  TextSensorItem(text_sensor::TextSensor *sensor) : sensor_(sensor) {}
+  std::string const &get_name() override { return sensor_->get_name(); }
+  void log() override;
+  float parse_and_publish(const std::vector<uint8_t> &data) override;
+  uint16_t response_bytes_;
+};
+
 // class ModbusSensor ;
 class ModbusComponent : public PollingComponent, public modbus::ModbusDevice {
  public:
   std::map<uint32_t, std::unique_ptr<SensorItem>> sensormap;
   std::vector<RegisterRange> register_ranges;
   void add_sensor(sensor::Sensor *sensor, ModbusFunctionCode register_type, uint16_t start_address, uint8_t offset,
-                  uint16_t bitmask, SensorValueType value_type = SensorValueType::U_SINGLE, float scale_factor = 0.01) {
+                  uint16_t bitmask, SensorValueType value_type = SensorValueType::U_SINGLE, float scale_factor = 1,int register_count = 1) {
     auto new_item = make_unique<FloatSensorItem>(sensor);
     new_item->register_type = register_type;
     new_item->start_address = start_address;
@@ -136,6 +151,7 @@ class ModbusComponent : public PollingComponent, public modbus::ModbusDevice {
     new_item->last_value = INT64_MIN;
     // Default transformation is divide by 100
     new_item->transform_expression = [scale_factor](int64_t val) { return val * scale_factor; };
+    new_item->register_count = register_count;
     sensormap[new_item->getkey()] = std::move(new_item);
   }
   void add_binarysensor(binary_sensor::BinarySensor *sensor, ModbusFunctionCode register_type, uint16_t start_address,
@@ -149,6 +165,20 @@ class ModbusComponent : public PollingComponent, public modbus::ModbusDevice {
     new_item->last_value = INT64_MIN;
     // not sure we need it anymore
     new_item->transform_expression = [bitmask](int64_t val) { return (val & bitmask & 0x0000FFFFF) ? 1 : 0; };
+    auto key = new_item->getkey();
+    sensormap[key] = std::move(new_item);
+  }
+
+  void add_textsensor(text_sensor::TextSensor *sensor, ModbusFunctionCode register_type, uint16_t start_address,
+                        uint8_t offset, uint16_t response_bytes) {
+    auto new_item = make_unique<TextSensorItem>(sensor);
+    new_item->register_type = register_type;
+    new_item->start_address = start_address;
+    new_item->offset = offset;
+    new_item->sensor_value_type = SensorValueType::RAW;
+    new_item->response_bytes_ = response_bytes ;
+    new_item->last_value = INT64_MIN;
+    // not sure we need it anymore
     auto key = new_item->getkey();
     sensormap[key] = std::move(new_item);
   }
@@ -195,7 +225,7 @@ class ModbusComponent : public PollingComponent, public modbus::ModbusDevice {
 
   void update() override;
   void setup() override;
-
+  void loop() override ;
   void on_modbus_data(const std::vector<uint8_t> &data) override;
   void on_modbus_error(uint8_t function_code, uint8_t exception_code) override;
 
@@ -205,7 +235,10 @@ class ModbusComponent : public PollingComponent, public modbus::ModbusDevice {
 
   void on_write_register_response(uint16_t start_address, const std::vector<uint8_t> &data);
   void on_register_data(uint16_t start_address, const std::vector<uint8_t> &data);
-
+  void set_command_throttle(uint16_t command_throttle)
+  {
+    this->command_throttle_ = command_throttle_ ;
+  }
  protected:
   // Hold the pending requests to sent
   std::queue<std::unique_ptr<ModbusCommandItem>> command_queue_;
@@ -215,6 +248,9 @@ class ModbusComponent : public PollingComponent, public modbus::ModbusDevice {
   }
 
   bool send_next_command_();
+  uint32_t last_command_timestamp_;
+  uint32_t command_throttle_=10;
+
 };
 
 struct ModbusCommandItem {

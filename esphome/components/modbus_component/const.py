@@ -103,10 +103,13 @@ CONF_BATTERY_MANAGEMENT_MODE = "battery_management_mode"
 
 
 CONF_MODBUSDEVICE_ADDRESS = "modbusdevice_address"
+CONF_COMMAND_THROTTLE = "command_throttle"
 CONF_VALUE_TYPE = "value_type"
 CONF_SCALE_FACTOR = "scale_factor"
 CONF_MODBUS_FUNCTIONCODE = "modbus_functioncode"
 CONF_BITMASK = "bitmask"
+CONF_REGISTER_COUNT = "register_count"
+CONF_RESPONSE_SIZE = "response_size"
 
 UNIT_KWATT_HOURS = "kWh"
 UNIT_AMPERE_HOURS = "Ah"

@@ -1,17 +1,12 @@
 esphome:
-  name: solarstation2
+  name: dc
   platform: ESP32
   board: esp32dev
 
 wifi:
   ssid: !secret wifi_sid
   password: !secret wifi_password
-  use_address: espsolar.int.grasruck.net
-  manual_ip:
-    static_ip: 192.168.66.89
-    gateway: 192.168.66.1
-    subnet: 255.255.255.0
-    dns1: 192.168.66.9
+  use_address: espsolar
 
 time:
   - platform: sntp
@@ -55,6 +50,7 @@ modbus:
 sensor:
   - platform: modbus_component
     modbus_id: modbus_epsolar
+    command_throttle: 10
     id: traceranx
     ## the Modbus device addr
     address: 0x1
@@ -68,8 +64,9 @@ sensor:
         unit_of_measurement: "V" ## for any other unit the value is returned in minutes
         modbus_functioncode: "read_input_registers"
         value_type: U_SINGLE
-        scale_factor: 0.01
         accuracy_decimals: 1
+        filters:
+        - multiply: 0.01        
 
       - id: pv_input_current
         name: "PV array input current"
@@ -78,8 +75,9 @@ sensor:
         unit_of_measurement: "A" ## for any other unit the value is returned in minutes
         modbus_functioncode: "read_input_registers"
         value_type: U_SINGLE
-        scale_factor: 0.01
         accuracy_decimals: 1
+        filters:
+        - multiply: 0.01
 
       - id: pv_input_power
         name: "PV array input power"
@@ -87,9 +85,11 @@ sensor:
         offset: 2
         unit_of_measurement: "W" ## for any other unit the value is returned in minutes
         modbus_functioncode: "read_input_registers"
-        value_type: U_DOUBLE
-        scale_factor: 0.01
+        value_type: U_LONG
         accuracy_decimals: 1
+        register_count: 2
+        filters:
+        - multiply: 0.01
 
       - id: battery_power
         name: "Battery power"
@@ -97,9 +97,11 @@ sensor:
         offset: 6
         unit_of_measurement: "W" ## for any other unit the value is returned in minutes
         modbus_functioncode: "read_input_registers"
-        value_type: U_DOUBLE
-        scale_factor: 0.01
+        value_type: U_LONG
         accuracy_decimals: 1
+        register_count: 2        
+        filters:
+        - multiply: 0.01
 
       - id: load_voltage
         name: "Load voltage"
@@ -108,8 +110,9 @@ sensor:
         unit_of_measurement: "V" ## for any other unit the value is returned in minutes
         modbus_functioncode: "read_input_registers"
         value_type: U_SINGLE
-        scale_factor: 0.01
         accuracy_decimals: 1
+        filters:
+        - multiply: 0.01        
 
       - id: load_current
         name: "Load Current"
@@ -118,8 +121,9 @@ sensor:
         unit_of_measurement: "V" ## for any other unit the value is returned in minutes
         modbus_functioncode: "read_input_registers"
         value_type: U_SINGLE
-        scale_factor: 0.01
         accuracy_decimals: 1
+        filters:
+        - multiply: 0.01        
 
       - id: load_power
         name: "Load power"
@@ -127,9 +131,11 @@ sensor:
         offset: 0xE
         unit_of_measurement: "W" ## for any other unit the value is returned in minutes
         modbus_functioncode: "read_input_registers"
-        value_type: U_DOUBLE
-        scale_factor: 0.01
+        value_type: U_LONG
         accuracy_decimals: 1
+        register_count: 2
+        filters:
+        - multiply: 0.01        
 
       - id: battery_temperature
         name: "Battery temperature"
@@ -138,8 +144,9 @@ sensor:
         unit_of_measurement: °C ## for any other unit the value is returned in minutes
         modbus_functioncode: "read_input_registers"
         value_type: U_SINGLE
-        scale_factor: 0.01
         accuracy_decimals: 1
+        filters:
+        - multiply: 0.01        
 
       - id: device_temperature
         name: "Device temperature"
@@ -148,8 +155,9 @@ sensor:
         unit_of_measurement: °C ## for any other unit the value is returned in minutes
         modbus_functioncode: "read_input_registers"
         value_type: U_SINGLE
-        scale_factor: 0.01
         accuracy_decimals: 1
+        filters:
+        - multiply: 0.01
 
       - id: battery_soc
         name: "Battery SOC"
@@ -158,7 +166,6 @@ sensor:
         unit_of_measurement: "%" ## for any other unit the value is returned in minutes
         modbus_functioncode: "read_input_registers"
         value_type: U_SINGLE
-        scale_factor: 1
         accuracy_decimals: 0
 
       - id: remote_battery_temperature
@@ -168,8 +175,9 @@ sensor:
         unit_of_measurement: "°C" ## for any other unit the value is returned in minutes
         modbus_functioncode: "read_input_registers"
         value_type: U_SINGLE
-        scale_factor: 0.01
         accuracy_decimals: 1
+        filters:
+        - multiply: 0.01
 
       - id: length_of_night_hours
         address: 0x9065
@@ -178,7 +186,6 @@ sensor:
         name: "Length of night"
         modbus_functioncode: read_holding_registers
         value_type: U_SINGLE
-        scale_factor: 1.0
 
     binary_sensors:
       - id: default_load_mode

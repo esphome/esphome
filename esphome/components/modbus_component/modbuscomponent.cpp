@@ -17,13 +17,16 @@ void ModbusComponent::setup() { this->create_register_ranges(); }
 */
 
 bool ModbusComponent::send_next_command_() {
-  if (!command_queue_.empty()) {
+    uint32_t delay = millis() - this->last_command_timestamp_;
+  // Left check of delay since last command in case theres ever a command sent by calling send_raw_command_ directly
+  if (delay > command_throttle_ && !command_queue_.empty()) {
+//  if (!command_queue_.empty()) {
     auto &command = command_queue_.front();
     command->send();
+    this->last_command_timestamp_ = millis();
     if (!command->on_data_func)  // No handler remove from queue directly after sending
       command_queue_.pop();
   }
-  delay(100);
   return (!command_queue_.empty());
 }
 
@@ -32,6 +35,7 @@ void ModbusComponent::on_modbus_data(const std::vector<uint8_t> &data) {
   ESP_LOGD(TAG, "Modbus data %zu", data.size());
   auto &current_command = this->command_queue_.front();
   if (current_command != nullptr) {
+#ifdef CHECK_RESPONSE_SIZE
     // Because modbus has no header to indicate the response the expected response size is used to check if the correct
     // callback is place
     if (data.size() != current_command->expected_response_size) {
@@ -41,6 +45,10 @@ void ModbusComponent::on_modbus_data(const std::vector<uint8_t> &data) {
       ESP_LOGVV(TAG, "Dispatch to handler");
       current_command->on_data_func(current_command->register_address, data);
     }
+#else
+    ESP_LOGVV(TAG, "Dispatch to handler");
+    current_command->on_data_func(current_command->register_address, data);
+#endif    
     command_queue_.pop();
   }
 
@@ -180,6 +188,10 @@ void ModbusComponent::dump_config() {
   }
 }
 
+void ModbusComponent::loop() {
+  send_next_command_();
+}
+
 // Extract data from modbus response buffer
 template<typename T> T get_data(const std::vector<uint8_t> &data, size_t offset) {
   offset <<= 1;
@@ -230,10 +242,10 @@ float FloatSensorItem::parse_and_publish(const std::vector<uint8_t> &data) {
     case SensorValueType::U_SINGLE:
       value = mask_and_shift_by_rightbit(get_data<uint16_t>(data, this->offset), this->bitmask);  // default is 0xFFFF ;
       break;
-    case SensorValueType::U_DOUBLE:
+    case SensorValueType::U_LONG:
       value = get_data<uint32_t>(data, this->offset);  // Ignore bitmask for double register values.
       break;                                           // define 2 Singlebit regs instead
-    case SensorValueType::U_DOUBLE_HILO:
+    case SensorValueType::U_LONG_HILO:
       value = get_data<uint32_t>(data, this->offset);  // Ignore bitmask for double register values.
       value = (value & 0xFFFF)<<16 | (value & 0xFFFF0000)>>16;
       break;
@@ -241,10 +253,10 @@ float FloatSensorItem::parse_and_publish(const std::vector<uint8_t> &data) {
       value = mask_and_shift_by_rightbit(get_data<int16_t>(data, this->offset),
                                          (int16_t) this->bitmask);  // default is 0xFFFF ;
       break;
-    case SensorValueType::S_DOUBLE:
+    case SensorValueType::S_LONG:
       value = get_data<int32_t>(data, this->offset);
       break;
-    case SensorValueType::S_DOUBLE_HILO: {
+    case SensorValueType::S_LONG_HILO: {
         value = get_data<uint32_t>(data, this->offset);
         // Currently the high word is at the low position
         // the sign bit is therefore at low before the switch
@@ -289,6 +301,20 @@ float BinarySensorItem::parse_and_publish(const std::vector<uint8_t> &data) {
   return result;
 }
 
+float TextSensorItem::parse_and_publish(const std::vector<uint8_t> &data) {
+  int64_t value = 0;
+  float result = NAN;
+  char tmp[256];
+  result = float(response_bytes_);
+  memcpy(tmp,data.data(),data.size());
+  tmp[data.size()]=0;
+  // No need tp publish if the value didn't change since the last publish
+//  if (value != this->last_value) {
+    this->sensor_->publish_state(tmp);
+//    this->last_value = value;
+  
+  return result;
+}
 ModbusCommandItem ModbusCommandItem::create_write_multiple_command(ModbusComponent *modbusdevice,
                                                                    uint16_t start_address, uint16_t register_count,
                                                                    const std::vector<uint16_t> &values) {
