@@ -17,14 +17,13 @@ void ModbusComponent::setup() { this->create_register_ranges(); }
 */
 
 bool ModbusComponent::send_next_command_() {
-     
-  uint32_t delay = millis() - this->last_command_timestamp_;
-//  ESP_LOGD(TAG,"Sending  %u %u",delay,this->command_throttle_);
+  uint32_t command_delay = millis() - this->last_command_timestamp_;
+  //  ESP_LOGD(TAG,"Sending  %u %u",delay,this->command_throttle_);
   // Left check of delay since last command in case theres ever a command sent by calling send_raw_command_ directly
-  if ((delay > this->command_throttle_) && (!command_queue_.empty())) {
+  if ((command_delay > this->command_throttle_) && (!command_queue_.empty())) {
     auto &command = command_queue_.front();
-    ESP_LOGD(TAG,"Sending next modbus command %u %u",delay,this->command_throttle_);
-    this->sending_ = true ; 
+    ESP_LOGD(TAG, "Sending next modbus command %u %u", command_delay, this->command_throttle_);
+    this->sending_ = true;
     command->send();
     this->last_command_timestamp_ = millis();
     if (!command->on_data_func)  // No handler remove from queue directly after sending
@@ -36,7 +35,7 @@ bool ModbusComponent::send_next_command_() {
 // Dispatch the response to the registered handler
 void ModbusComponent::on_modbus_data(const std::vector<uint8_t> &data) {
   ESP_LOGD(TAG, "Modbus data %zu", data.size());
-  this->sending_ = false ;
+  this->sending_ = false;
   auto &current_command = this->command_queue_.front();
   if (current_command != nullptr) {
 #ifdef CHECK_RESPONSE_SIZE
@@ -52,18 +51,17 @@ void ModbusComponent::on_modbus_data(const std::vector<uint8_t> &data) {
 #else
     ESP_LOGVV(TAG, "Dispatch to handler");
     current_command->on_data_func(current_command->register_address, data);
-#endif    
+#endif
     command_queue_.pop();
   }
 
   if (!command_queue_.empty()) {
     send_next_command_();
-    
   }
 }
 void ModbusComponent::on_modbus_error(uint8_t function_code, uint8_t exception_code) {
   ESP_LOGE(TAG, "Modbus error function code: 0x%X exception: %d ", function_code, exception_code);
-  this->sending_ = false ;  
+  this->sending_ = false;
   // Remove pending command waiting for a response
   auto &current_command = this->command_queue_.front();
   if (current_command != nullptr) {
@@ -193,9 +191,7 @@ void ModbusComponent::dump_config() {
   }
 }
 
-void ModbusComponent::loop() {
-  send_next_command_();
-}
+void ModbusComponent::loop() { send_next_command_(); }
 
 // Extract data from modbus response buffer
 template<typename T> T get_data(const std::vector<uint8_t> &data, size_t offset) {
@@ -207,8 +203,19 @@ template<typename T> T get_data(const std::vector<uint8_t> &data, size_t offset)
     return T((uint16_t(data[offset + 0]) << 8) | (uint16_t(data[offset + 1]) << 0));
   }
   if (sizeof(T) == sizeof(uint32_t)) {
-    return T((uint16_t(data[offset + 0]) << 8) | (uint16_t(data[offset + 1]) << 0) | ((uint16_t(data[offset + 2]) << 8) |
-             (uint16_t(data[offset + 3]) << 0)) << 16);
+    return T((uint16_t(data[offset + 0]) << 8) | (uint16_t(data[offset + 1]) << 0) |
+             ((uint16_t(data[offset + 2]) << 8) | (uint16_t(data[offset + 3]) << 0)) << 16);
+  }
+  if (sizeof(T) == sizeof(uint64_t)) {
+    uint64_t result = 0;
+    result = (((uint16_t(data[offset + 0]) << 8) | uint16_t(data[offset + 1]) << 16) |
+              ((uint16_t(data[offset + 2]) << 8) | uint16_t(data[offset + 3])));
+
+    result <<= 32;
+    result |= (((uint16_t(data[offset + 4]) << 8) | uint16_t(data[offset + 5]) << 16) |
+               ((uint16_t(data[offset + 6]) << 8) | uint16_t(data[offset + 7])));
+
+    return result;
   }
 }
 
@@ -252,7 +259,7 @@ float FloatSensorItem::parse_and_publish(const std::vector<uint8_t> &data) {
       break;                                           // define 2 Singlebit regs instead
     case SensorValueType::U_LONG_HILO:
       value = get_data<uint32_t>(data, this->offset);  // Ignore bitmask for double register values.
-      value = (value & 0xFFFF)<<16 | (value & 0xFFFF0000)>>16;
+      value = (value & 0xFFFF) << 16 | (value & 0xFFFF0000) >> 16;
       break;
     case SensorValueType::S_SINGLE:
       value = mask_and_shift_by_rightbit(get_data<int16_t>(data, this->offset),
@@ -262,13 +269,16 @@ float FloatSensorItem::parse_and_publish(const std::vector<uint8_t> &data) {
       value = get_data<int32_t>(data, this->offset);
       break;
     case SensorValueType::S_LONG_HILO: {
-        value = get_data<uint32_t>(data, this->offset);
-        // Currently the high word is at the low position
-        // the sign bit is therefore at low before the switch
-        int sign = (value & 0x8000) ? -1 : 1; 
-        value = ((value & 0x7FFF)<<16 | (value & 0xFFFF0000)>>16)*sign;
-      }
-      break;
+      value = get_data<uint32_t>(data, this->offset);
+      // Currently the high word is at the low position
+      // the sign bit is therefore at low before the switch
+      int sign = (value & 0x8000) ? -1 : 1;
+      value = ((value & 0x7FFF) << 16 | (value & 0xFFFF0000) >> 16) * sign;
+    } break;
+    case SensorValueType::U_LONGLONG: {
+      value = get_data<uint64_t>(data, this->offset);
+    } break;
+
     default:
       break;
   }
@@ -311,13 +321,13 @@ float TextSensorItem::parse_and_publish(const std::vector<uint8_t> &data) {
   float result = NAN;
   char tmp[256];
   result = float(response_bytes_);
-  memcpy(tmp,data.data(),data.size());
-  tmp[data.size()]=0;
+  memcpy(tmp, data.data(), data.size());
+  tmp[data.size()] = 0;
   // No need tp publish if the value didn't change since the last publish
-//  if (value != this->last_value) {
-    this->sensor_->publish_state(tmp);
-//    this->last_value = value;
-  
+  //  if (value != this->last_value) {
+  this->sensor_->publish_state(tmp);
+  //    this->last_value = value;
+
   return result;
 }
 ModbusCommandItem ModbusCommandItem::create_write_multiple_command(ModbusComponent *modbusdevice,
@@ -352,7 +362,7 @@ ModbusCommandItem ModbusCommandItem::create_write_single_command(ModbusComponent
 }
 
 bool ModbusCommandItem::send() {
-  ESP_LOGV(TAG,"Command sent %d 0x%X %d",uint8_t(this->function_code), this->register_address, this->register_count);
+  ESP_LOGV(TAG, "Command sent %d 0x%X %d", uint8_t(this->function_code), this->register_address, this->register_count);
   modbusdevice->send(uint8_t(this->function_code), this->register_address, this->register_count,
                      this->payload.empty() ? nullptr : &this->payload[0]);
   return true;

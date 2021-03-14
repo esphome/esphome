@@ -70,6 +70,7 @@ SENSOR_VALUE_TYPE = {
     "RAW": SensorValueType.RAW,
     "U_SINGLE": SensorValueType.U_SINGLE,
     "U_LONG": SensorValueType.U_LONG,
+    "U_LONGLONG": SensorValueType.U_LONGLONG,    
     "U_LONG_HILO": SensorValueType.U_LONG_HILO,
     "S_SINGLE": SensorValueType.S_SINGLE,
     "S_LONG": SensorValueType.S_LONG,
