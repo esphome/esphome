@@ -53,9 +53,7 @@ class PropertiesFrame : public midea_dongle::BaseFrame {
     return this->has_response_type(0xC0) && (this->has_type(0x03) || this->has_type(0x02));
   }
 
-  bool has_power_info() const {
-    return this->has_response_type(0xC1);
-  }
+  bool has_power_info() const { return this->has_response_type(0xC1); }
 
   /* TARGET TEMPERATURE */
 
