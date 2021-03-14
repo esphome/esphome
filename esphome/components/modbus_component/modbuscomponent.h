@@ -244,8 +244,7 @@ class ModbusComponent : public PollingComponent, public modbus::ModbusDevice {
   void on_write_register_response(uint16_t start_address, const std::vector<uint8_t> &data);
   void on_register_data(uint16_t start_address, const std::vector<uint8_t> &data);
   void set_command_throttle(uint16_t command_throttle) {
-    ESP_LOGE("MMMM", "Throttle = %d", command_throttle);
-    this->command_throttle_ = command_throttle_;
+    this->command_throttle_ = command_throttle;
   }
 
  protected:
