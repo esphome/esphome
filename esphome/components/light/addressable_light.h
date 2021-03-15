@@ -43,8 +43,10 @@ struct ESPHSVColor {
 
 class ESPColorCorrection {
  public:
-  ESPColorCorrection() : max_individual_brightness_(255, 255, 255, 255) {}
+  ESPColorCorrection() : max_individual_brightness_(255, 255, 255, 255), max_overall_brightness_(255), min_overall_brightness_(0) {}
   void set_max_individual_brightness(const Color &max_individual_brightness) { this->max_individual_brightness_ = max_individual_brightness; }
+  void set_max_overall_brightness(uint8_t max_overall_brightness) { this->max_overall_brightness_ = max_overall_brightness);
+  void set_min_overall_brightness(uint8_t min_overall_brightness) { this->min_overall_brightness_ = min_overall_brightness);
   void set_local_brightness(uint8_t local_brightness) { this->local_brightness_ = local_brightness; }
   void calculate_gamma_table(float gamma);
   inline Color color_correct(Color color) const ALWAYS_INLINE {
@@ -107,6 +109,8 @@ class ESPColorCorrection {
   uint8_t gamma_table_[256];
   uint8_t gamma_reverse_table_[256];
   Color max_individual_brightness_;
+  uint8_t max_overall_brightness_;
+  uint8_t min_overall_brightness_;
   uint8_t local_brightness_{255};
 };
 
