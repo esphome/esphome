@@ -61,5 +61,7 @@ class RGBWWLightOutput : public light::LightOutput {
   bool color_interlock_{false};
   float max_brightness_{1.0f};
   float min_brightness_{0.0f};
+};
+
 }  // namespace rgbww
 }  // namespace esphome
