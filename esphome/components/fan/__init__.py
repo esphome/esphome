@@ -18,8 +18,6 @@ from esphome.const import (
 )
 from esphome.core import CORE, coroutine, coroutine_with_priority
 
-_LOGGER = logging.getLogger(__name__)
-
 IS_PLATFORM_COMPONENT = True
 
 fan_ns = cg.esphome_ns.namespace("fan")

@@ -10,7 +10,8 @@ namespace speed {
 
 class SpeedFan : public Component {
  public:
-  SpeedFan(fan::FanState *fan, output::FloatOutput *output) : fan_(fan), output_(output) {}
+  SpeedFan(fan::FanState *fan, output::FloatOutput *output, int speed_levels)
+      : fan_(fan), output_(output), speed_levels_(speed_levels) {}
   void setup() override;
   void loop() override;
   void dump_config() override;
@@ -24,6 +25,7 @@ class SpeedFan : public Component {
   output::BinaryOutput *oscillating_{nullptr};
   output::BinaryOutput *direction_{nullptr};
   bool next_update_{true};
+  int speed_levels_{100};
 };
 
 }  // namespace speed
