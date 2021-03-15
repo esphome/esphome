@@ -10,6 +10,8 @@ from esphome.const import (
     CONF_ID,
     CONF_INTERNAL,
     CONF_NAME,
+    CONF_MAX_BRIGHTNESS,
+    CONF_MIN_BRIGHTNESS,
     CONF_MQTT_ID,
     CONF_POWER_SUPPLY,
     CONF_RESTORE_MODE,
@@ -81,6 +83,8 @@ BRIGHTNESS_ONLY_LIGHT_SCHEMA = LIGHT_SCHEMA.extend(
             CONF_DEFAULT_TRANSITION_LENGTH, default="1s"
         ): cv.positive_time_period_milliseconds,
         cv.Optional(CONF_EFFECTS): validate_effects(MONOCHROMATIC_EFFECTS),
+        cv.Optional(CONF_MIN_BRIGHTNESS, default=0.0): cv.percentage,
+        cv.Optional(CONF_MAX_BRIGHTNESS, default=1.0): cv.percentage,
     }
 )
 
@@ -137,6 +141,12 @@ def setup_light_core_(light_var, output_var, config):
     if CONF_MQTT_ID in config:
         mqtt_ = cg.new_Pvariable(config[CONF_MQTT_ID], light_var)
         yield mqtt.register_mqtt_component(mqtt_, config)
+        
+    if CONF_MAX_BRIGHTNESS in config:
+        cg.add(output_var.set_max_brightness(config[CONF_MAX_BRIGHTNESS]))
+                
+    if CONF_MIN_BRIGHTNESS in config:
+        cg.add(output_var.set_min_brightness(config[CONF_MIN_BRIGHTNESS]))
 
 
 @coroutine
@@ -151,3 +161,4 @@ def register_light(output_var, config):
 def to_code(config):
     cg.add_define("USE_LIGHT")
     cg.add_global(light_ns.using)
+    
