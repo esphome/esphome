@@ -37,6 +37,7 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(MAX7219Component),
             cv.Optional(CONF_NUM_CHIPS, default=4): cv.int_range(min=1, max=255),
+            cv.Optional("num_lines", default=1): cv.int_range(min=1, max=255),
             cv.Optional(CONF_INTENSITY, default=15): cv.int_range(min=0, max=15),
             cv.Optional(CONF_ROTATE_CHIP, default="0"): cv.enum(CHIP_MODES, upper=True),
             cv.Optional(CONF_SCROLL_MODE, default="CONTINUOUS"): cv.enum(
@@ -67,6 +68,7 @@ def to_code(config):
     yield display.register_display(var, config)
 
     cg.add(var.set_num_chips(config[CONF_NUM_CHIPS]))
+    cg.add(var.set_num_lines(config["num_lines"]))
     cg.add(var.set_intensity(config[CONF_INTENSITY]))
     cg.add(var.set_chip_orientation(config[CONF_ROTATE_CHIP]))
     cg.add(var.set_scroll_speed(config[CONF_SCROLL_SPEED]))

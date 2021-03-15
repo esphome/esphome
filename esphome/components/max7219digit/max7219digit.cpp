@@ -27,7 +27,7 @@ void MAX7219Component::setup() {
   this->stepsleft_ = 0;
   this->max_displaybuffer_.reserve(500);  // Create base space to write buffer
   // Initialize buffer with 0 for display so all non written pixels are blank
-  this->max_displaybuffer_.resize(this->num_chips_ * 8, 0);
+  this->max_displaybuffer_.resize(this->num_chips_ / 2 * 8, 0);
   // let's assume the user has all 8 digits connected, only important in daisy chained setups anyway
   this->send_to_all_(MAX7219_REGISTER_SCAN_LIMIT, 7);
   // let's use our own ASCII -> led pattern encoding
@@ -45,6 +45,7 @@ void MAX7219Component::setup() {
 void MAX7219Component::dump_config() {
   ESP_LOGCONFIG(TAG, "MAX7219DIGIT:");
   ESP_LOGCONFIG(TAG, "  Number of Chips: %u", this->num_chips_);
+  ESP_LOGCONFIG(TAG, "  Number of Lines: %u", this->num_lines_);
   ESP_LOGCONFIG(TAG, "  Intensity: %u", this->intensity_);
   ESP_LOGCONFIG(TAG, "  Scroll Mode: %u", this->scroll_mode_);
   ESP_LOGCONFIG(TAG, "  Scroll Speed: %u", this->scroll_speed_);
@@ -70,7 +71,7 @@ void MAX7219Component::loop() {
     this->stepsleft_ = 0;
 
   // Return if there is no need to scroll or scroll is off
-  if (!this->scroll_ || (this->max_displaybuffer_.size() <= this->num_chips_ * 8)) {
+  if (!this->scroll_ || (this->max_displaybuffer_.size() <= this->num_chips_ / this->num_lines_ * 8 )) {
     this->display();
     return;
   }
@@ -82,7 +83,7 @@ void MAX7219Component::loop() {
 
   // Dwell time at end of string in case of stop at end
   if (this->scroll_mode_ == 1) {
-    if (this->stepsleft_ >= this->max_displaybuffer_.size() - this->num_chips_ * 8 + 1) {
+    if (this->stepsleft_ >= this->max_displaybuffer_.size() - this->num_chips_ / this->num_lines_ * 8 + 1) {
       if (now - this->last_scroll_ >= this->scroll_dwell_) {
         this->stepsleft_ = 0;
         this->last_scroll_ = now;
@@ -101,31 +102,34 @@ void MAX7219Component::loop() {
 }
 
 void MAX7219Component::display() {
-  uint8_t pixels[8];
+  uint8_t pixels[this->num_lines_][8];
   // Run this loop for every MAX CHIP (GRID OF 64 leds)
   // Run this routine for the rows of every chip 8x row 0 top to 7 bottom
   // Fill the pixel parameter with diplay data
   // Send the data to the chip
-  for (uint8_t i = 0; i < this->num_chips_; i++) {
+  for (uint8_t i = 0; i < this->num_chips_ / this->num_lines_ ; i++) {
     for (uint8_t j = 0; j < 8; j++) {
       if (this->reverse_) {
-        pixels[j] = this->max_displaybuffer_[(this->num_chips_ - i - 1) * 8 + j];
+        pixels[0][j] = this->max_displaybuffer_[(this->num_chips_ - i - 1) * 8 + j];
       } else {
-        pixels[j] = this->max_displaybuffer_[i * 8 + j];
+        for (uint8_t line = 0; line < this->num_lines_; line++){
+          pixels[line][j] = this->max_displaybuffer_[i * 8 + j] >> (line * 8);
+        }
       }
     }
-    this->send64pixels(i, pixels);
+    for (uint8_t line = 0; line < this->num_lines_; line++){
+      this->send64pixels(line * this->num_chips_ / this->num_lines_ + i, pixels[line]);
+    }
   }
 }
 
 int MAX7219Component::get_height_internal() {
-  return 8;  // TO BE DONE -> STACK TWO DISPLAYS ON TOP OF EACH OTHE
-             // TO BE DONE -> CREATE Virtual size of screen and scroll
+  return 8* this->num_lines_;  // TO BE DONE -> CREATE Virtual size of screen and scroll
 }
 
-int MAX7219Component::get_width_internal() { return this->num_chips_ * 8; }
+int MAX7219Component::get_width_internal() { return this->num_chips_ / this->num_lines_ * 8; }
 
-size_t MAX7219Component::get_buffer_length_() { return this->num_chips_ * 8; }
+size_t MAX7219Component::get_buffer_length_() { return this->num_chips_ / this->num_lines_ * 8; }
 
 void HOT MAX7219Component::draw_absolute_pixel_internal(int x, int y, Color color) {
   if (x + 1 > this->max_displaybuffer_.size()) {  // Extend the display buffer in case required
@@ -158,7 +162,7 @@ void MAX7219Component::send_to_all_(uint8_t a_register, uint8_t data) {
 void MAX7219Component::update() {
   this->update_ = true;
   this->max_displaybuffer_.clear();
-  this->max_displaybuffer_.resize(this->num_chips_ * 8, this->bckgrnd_);
+  this->max_displaybuffer_.resize(this->num_chips_ / this->num_lines_ * 8, this->bckgrnd_);
   if (this->writer_local_.has_value())  // insert Labda function if available
     (*this->writer_local_)(*this);
 }
