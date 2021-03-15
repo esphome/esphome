@@ -15,6 +15,8 @@ class HBridgeLightOutput : public PollingComponent, public light::LightOutput {
 
   void set_pina_pin(output::FloatOutput *pina_pin) { pina_pin_ = pina_pin; }
   void set_pinb_pin(output::FloatOutput *pinb_pin) { pinb_pin_ = pinb_pin; }
+  void set_max_brightness(float max_brightness) { max_brightness_ = max_brightness; }
+  void set_min_brightness(float min_brightness) { min_brightness_ = min_brightness; }
 
   light::LightTraits get_traits() override {
     auto traits = light::LightTraits();
@@ -46,6 +48,10 @@ class HBridgeLightOutput : public PollingComponent, public light::LightOutput {
   void write_state(light::LightState *state) override {
     float bright;
     state->current_values_as_brightness(&bright);
+    
+    if (min_brightness_ != 0.0f || max_brightness_ != 1.0f) {
+      bright = bright == 0.0f ? 0.0f : min_brightness_ + bright * (max_brightness_ - min_brightness_);
+    }
 
     state->set_gamma_correct(0);
     float red, green, blue, white;
@@ -70,6 +76,8 @@ class HBridgeLightOutput : public PollingComponent, public light::LightOutput {
   float pinb_duty_ = 0;
   float duty_off_ = 0;
   bool forward_direction_ = false;
+  float max_brightness_{1.0f};
+  float min_brightness_{0.0f};
 };
 
 }  // namespace hbridge
