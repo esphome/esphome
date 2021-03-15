@@ -14,6 +14,8 @@ class CWWWLightOutput : public light::LightOutput {
   void set_cold_white_temperature(float cold_white_temperature) { cold_white_temperature_ = cold_white_temperature; }
   void set_warm_white_temperature(float warm_white_temperature) { warm_white_temperature_ = warm_white_temperature; }
   void set_constant_brightness(bool constant_brightness) { constant_brightness_ = constant_brightness; }
+  void set_max_brightness(float max_brightness) { max_brightness_ = max_brightness; }
+  void set_min_brightness(float min_brightness) { min_brightness_ = min_brightness; }
   light::LightTraits get_traits() override {
     auto traits = light::LightTraits();
     traits.set_supports_brightness(true);
@@ -37,6 +39,8 @@ class CWWWLightOutput : public light::LightOutput {
   float cold_white_temperature_;
   float warm_white_temperature_;
   bool constant_brightness_;
+  float max_brightness_{1.0f};
+  float min_brightness_{0.0f};
 };
 
 }  // namespace cwww

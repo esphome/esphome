@@ -18,6 +18,8 @@ class RGBWWLightOutput : public light::LightOutput {
   void set_warm_white_temperature(int warm_white_temperature) { warm_white_temperature_ = warm_white_temperature; }
   void set_constant_brightness(bool constant_brightness) { constant_brightness_ = constant_brightness; }
   void set_color_interlock(bool color_interlock) { color_interlock_ = color_interlock; }
+  void set_max_brightness(float max_brightness) { max_brightness_ = max_brightness; }
+  void set_min_brightness(float min_brightness) { min_brightness_ = min_brightness; }
   light::LightTraits get_traits() override {
     auto traits = light::LightTraits();
     traits.set_supports_brightness(true);
@@ -32,7 +34,14 @@ class RGBWWLightOutput : public light::LightOutput {
   void write_state(light::LightState *state) override {
     float red, green, blue, cwhite, wwhite;
     state->current_values_as_rgbww(&red, &green, &blue, &cwhite, &wwhite, this->constant_brightness_,
-                                   this->color_interlock_);
+      this->color_interlock_);
+    if (min_brightness_ != 0.0f || max_brightness_ != 1.0f) {
+      red = red == 0.0f ? 0.0f : min_brightness_ + red * (max_brightness_ - min_brightness_);
+      green = green == 0.0f ? 0.0f : min_brightness_ + green * (max_brightness_ - min_brightness_);
+      blue = blue == 0.0f ? 0.0f : min_brightness_ + blue * (max_brightness_ - min_brightness_);
+      cwhite = cwhite == 0.0f ? 0.0f : min_brightness_ + cwhite * (max_brightness_ - min_brightness_);
+      wwhite = wwhite == 0.0f ? 0.0f : min_brightness_ + wwhite * (max_brightness_ - min_brightness_);
+    }
     this->red_->set_level(red);
     this->green_->set_level(green);
     this->blue_->set_level(blue);
@@ -50,7 +59,7 @@ class RGBWWLightOutput : public light::LightOutput {
   int warm_white_temperature_;
   bool constant_brightness_;
   bool color_interlock_{false};
-};
-
+  float max_brightness_{1.0f};
+  float min_brightness_{0.0f};
 }  // namespace rgbww
 }  // namespace esphome
