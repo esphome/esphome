@@ -62,7 +62,6 @@ class PMSA003IComponent : public PollingComponent, public i2c::I2CDevice {
   sensor::Sensor *pmc_2_5_sensor_{nullptr};
   sensor::Sensor *pmc_5_0_sensor_{nullptr};
   sensor::Sensor *pmc_10_0_sensor_{nullptr};
-  sensor::Sensor *pm_size_sensor_{nullptr};
 };
 
 }  // namespace pmsa003i
