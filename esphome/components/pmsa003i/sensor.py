@@ -4,7 +4,7 @@ from esphome.components import i2c, sensor
 from esphome.const import CONF_ID, CONF_PM_1_0, CONF_PM_2_5, CONF_PM_10_0, \
     CONF_PMC_0_5, CONF_PMC_1_0, CONF_PMC_2_5, CONF_PMC_10_0, \
     UNIT_MICROGRAMS_PER_CUBIC_METER, \
-    ICON_CHEMICAL_WEAPON, ICON_COUNTER
+    ICON_CHEMICAL_WEAPON, ICON_COUNTER, DEVICE_CLASS_EMPTY
 
 CODEOWNERS = ['@sjtrny']
 DEPENDENCIES = ['i2c']
@@ -31,17 +31,17 @@ CONFIG_SCHEMA = cv.Schema({
                                                     ICON_CHEMICAL_WEAPON, 2, DEVICE_CLASS_EMPTY),
 
     cv.Optional(CONF_PMC_0_3): sensor.sensor_schema(UNIT_COUNTS_PER_100ML,
-                                                    ICON_COUNTER, 2, DEVICE_CLASS_EMPTY),
+                                                    ICON_COUNTER, 0, DEVICE_CLASS_EMPTY),
     cv.Optional(CONF_PMC_0_5): sensor.sensor_schema(UNIT_COUNTS_PER_100ML,
-                                                    ICON_COUNTER, 2, DEVICE_CLASS_EMPTY),
+                                                    ICON_COUNTER, 0, DEVICE_CLASS_EMPTY),
     cv.Optional(CONF_PMC_1_0): sensor.sensor_schema(UNIT_COUNTS_PER_100ML,
-                                                    ICON_COUNTER, 2, DEVICE_CLASS_EMPTY),
+                                                    ICON_COUNTER, 0, DEVICE_CLASS_EMPTY),
     cv.Optional(CONF_PMC_2_5): sensor.sensor_schema(UNIT_COUNTS_PER_100ML,
-                                                    ICON_COUNTER, 2, DEVICE_CLASS_EMPTY),
+                                                    ICON_COUNTER, 0, DEVICE_CLASS_EMPTY),
     cv.Optional(CONF_PMC_5_0): sensor.sensor_schema(UNIT_COUNTS_PER_100ML,
-                                                    ICON_COUNTER, 2, DEVICE_CLASS_EMPTY),
+                                                    ICON_COUNTER, 0, DEVICE_CLASS_EMPTY),
     cv.Optional(CONF_PMC_10_0): sensor.sensor_schema(UNIT_COUNTS_PER_100ML,
-                                                     ICON_COUNTER, 2, DEVICE_CLASS_EMPTY),
+                                                     ICON_COUNTER, 0, DEVICE_CLASS_EMPTY),
 
 }).extend(cv.polling_component_schema('60s')).extend(i2c.i2c_device_schema(0x12))
 
