@@ -68,18 +68,17 @@ SensorValueType_ns = cg.esphome_ns.namespace("modbus_component::SensorValueType"
 SensorValueType = SensorValueType_ns.enum("SensorValueType")
 SENSOR_VALUE_TYPE = {
     "RAW": SensorValueType.RAW,
-    "U_SINGLE": SensorValueType.U_SINGLE,
-    "U_LONG_R": SensorValueType.U_LONG_R,
-    "U_LONGLONG": SensorValueType.U_LONGLONG,
-    "U_LONG": SensorValueType.U_LONG,
-    "S_SINGLE": SensorValueType.S_SINGLE,
-    "S_LONG_R": SensorValueType.S_LONG_R,
-    "S_LONG": SensorValueType.S_LONG,
-    # decpracted names keep them for now
-    "U_DOUBLE": SensorValueType.U_LONGX,
-    "U_DOUBLE_HILO": SensorValueType.U_LONG2,
-    "S_DOUBLE": SensorValueType.S_LONG,
-    "S_DOUBLE_HILO": SensorValueType.S_LONG2,
+    "U_WORD": SensorValueType.U_WORD,
+    "S_WORD": SensorValueType.S_WORD,
+    "U_DWORD": SensorValueType.U_DWORD,
+    "U_DWORD_R": SensorValueType.U_DWORD_R,
+    "S_DWORD": SensorValueType.S_DWORD,
+    "S_DWORD_R": SensorValueType.S_DWORD_R,
+    "U_QWORD": SensorValueType.U_QWORD,
+    "U_QWORDU_R": SensorValueType.U_QWORD_R,
+    "S_QWORD": SensorValueType.S_QWORD,
+    "U_QWORD_R": SensorValueType.S_QWORD_R,
+
 }
 
 MODBUS_REGISTRY = Registry()
@@ -90,7 +89,7 @@ sensor_entry = sensor.SENSOR_SCHEMA.extend(
         cv.Optional(CONF_MODBUS_FUNCTIONCODE): cv.enum(MODBUS_FUNCTION_CODE),
         cv.Optional(CONF_ADDRESS): cv.int_,
         cv.Optional(CONF_OFFSET): cv.int_,
-        cv.Optional(CONF_BITMASK, default=0xFFFF): cv.int_,
+        cv.Optional(CONF_BITMASK, default=0xFFFFFFFF): cv.hex_uint32_t,
         cv.Optional(CONF_VALUE_TYPE): cv.enum(SENSOR_VALUE_TYPE),
         cv.Optional(CONF_SCALE_FACTOR): cv.float_,
         cv.Optional(CONF_REGISTER_COUNT, default=1): cv.int_,
@@ -102,7 +101,7 @@ binary_sensor_entry = binary_sensor.BINARY_SENSOR_SCHEMA.extend(
         cv.Optional(CONF_MODBUS_FUNCTIONCODE): cv.enum(MODBUS_FUNCTION_CODE),
         cv.Optional(CONF_ADDRESS): cv.int_,
         cv.Optional(CONF_OFFSET): cv.int_,
-        cv.Optional(CONF_BITMASK, default=0x1): cv.int_,
+        cv.Optional(CONF_BITMASK, default=0x1): cv.hex_uint32_t,
     }
 )
 
@@ -149,7 +148,7 @@ def modbus_sensor_schema(
             ): cv.enum(MODBUS_FUNCTION_CODE),
             cv.Optional(CONF_ADDRESS, default=register_address_): cv.int_,
             cv.Optional(CONF_OFFSET, default=register_offset_): cv.int_,
-            cv.Optional(CONF_BITMASK, default=bitmask_): cv.int_,
+            cv.Optional(CONF_BITMASK, default=bitmask_): cv.hex_uint32_t,
             cv.Optional(CONF_VALUE_TYPE, default=value_type_): cv.enum(
                 SENSOR_VALUE_TYPE
             ),
@@ -169,7 +168,7 @@ def modbus_binarysensor_schema(
             ): cv.enum(MODBUS_FUNCTION_CODE),
             cv.Optional(CONF_ADDRESS, default=register_address_): cv.int_,
             cv.Optional(CONF_OFFSET, default=register_offset_): cv.int_,
-            cv.Optional(CONF_BITMASK, default=bitmask_): cv.int_,
+            cv.Optional(CONF_BITMASK, default=bitmask_): cv.hex_uint32_t,
         }
     )
 
@@ -232,7 +231,7 @@ def modbus_component_schema(device_address=0x1):
     )
 
 
-ALLBITS = 0xFFFF
+ALLBITS = 0xFFFFFFFF
 
 CONFIG_SCHEMA = (
     MODBUS_CONFIG_SCHEMA.extend(

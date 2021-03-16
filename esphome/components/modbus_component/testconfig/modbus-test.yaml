@@ -50,7 +50,7 @@ modbus:
 sensor:
   - platform: modbus_component
     modbus_id: modbus_epsolar
-    command_throttle: 10
+    command_throttle: 0
     id: traceranx
     ## the Modbus device addr
     address: 0x1
@@ -63,18 +63,19 @@ sensor:
         offset: 0
         unit_of_measurement: "V" ## for any other unit the value is returned in minutes
         modbus_functioncode: "read_input_registers"
-        value_type: U_SINGLE
+        value_type: U_WORD
         accuracy_decimals: 1
+        scale_factor: 1
         filters:
-        - multiply: 0.01        
+        - multiply: 0.01
 
       - id: pv_input_current
         name: "PV array input current"
         address: 0x3100
-        offset: 1
+        offset: 2
         unit_of_measurement: "A" ## for any other unit the value is returned in minutes
         modbus_functioncode: "read_input_registers"
-        value_type: U_SINGLE
+        value_type: U_WORD
         accuracy_decimals: 1
         filters:
         - multiply: 0.01
@@ -82,79 +83,101 @@ sensor:
       - id: pv_input_power
         name: "PV array input power"
         address: 0x3100
-        offset: 2
+        offset: 4
         unit_of_measurement: "W" ## for any other unit the value is returned in minutes
         modbus_functioncode: "read_input_registers"
-        value_type: U_LONG
+        value_type: U_DWORD_R
         accuracy_decimals: 1
         register_count: 2
         filters:
         - multiply: 0.01
+
+      - id: pv_unknown1
+        name: "pv_unknown1"
+        address: 0x3100
+        offset: 8
+        unit_of_measurement: "W" ## for any other unit the value is returned in minutes
+        modbus_functioncode: "read_input_registers"
+        value_type: U_WORD
+        accuracy_decimals: 1
+        register_count: 1
+
+      - id: pv_unknown2
+        name: "pv_unknown2"
+        address: 0x3100
+        offset: 10
+        unit_of_measurement: "W" ## for any other unit the value is returned in minutes
+        modbus_functioncode: "read_input_registers"
+        value_type: U_WORD
+        accuracy_decimals: 1
+        register_count: 1
+
 
       - id: battery_power
         name: "Battery power"
         address: 0x3100
-        offset: 6
+        offset: 12
         unit_of_measurement: "W" ## for any other unit the value is returned in minutes
         modbus_functioncode: "read_input_registers"
-        value_type: U_LONG
-        accuracy_decimals: 1
-        register_count: 2        
-        filters:
-        - multiply: 0.01
-
-      - id: load_voltage
-        name: "Load voltage"
-        address: 0x3100
-        offset: 0xC
-        unit_of_measurement: "V" ## for any other unit the value is returned in minutes
-        modbus_functioncode: "read_input_registers"
-        value_type: U_SINGLE
-        accuracy_decimals: 1
-        filters:
-        - multiply: 0.01        
-
-      - id: load_current
-        name: "Load Current"
-        address: 0x3100
-        offset: 0xD
-        unit_of_measurement: "V" ## for any other unit the value is returned in minutes
-        modbus_functioncode: "read_input_registers"
-        value_type: U_SINGLE
-        accuracy_decimals: 1
-        filters:
-        - multiply: 0.01        
-
-      - id: load_power
-        name: "Load power"
-        address: 0x3100
-        offset: 0xE
-        unit_of_measurement: "W" ## for any other unit the value is returned in minutes
-        modbus_functioncode: "read_input_registers"
-        value_type: U_LONG
+        value_type: U_DWORD_R
         accuracy_decimals: 1
         register_count: 2
         filters:
-        - multiply: 0.01        
+        - multiply: 0.01
+
+      
+      - id: load_voltage
+        name: "Load voltage"
+        address: 0x310C
+        offset: 0x0
+        unit_of_measurement: "V" ## for any other unit the value is returned in minutes
+        modbus_functioncode: "read_input_registers"
+        value_type: U_WORD
+        accuracy_decimals: 1
+        filters:
+        - multiply: 0.01
+
+      - id: load_current
+        name: "Load Current"
+        address: 0x310C
+        offset: 0x2
+        unit_of_measurement: "A" ## for any other unit the value is returned in minutes
+        modbus_functioncode: "read_input_registers"
+        value_type: U_WORD
+        accuracy_decimals: 1
+        filters:
+        - multiply: 0.01
+
+      - id: load_power
+        name: "Load power"
+        address: 0x310C
+        offset: 0x04
+        unit_of_measurement: "W" ## for any other unit the value is returned in minutes
+        modbus_functioncode: "read_input_registers"
+        value_type: U_DWORD_R
+        accuracy_decimals: 1
+        register_count: 2
+        filters:
+        - multiply: 0.01
 
       - id: battery_temperature
         name: "Battery temperature"
-        address: 0x3100
-        offset: 0x10
+        address: 0x310C
+        offset: 0x8
         unit_of_measurement: °C ## for any other unit the value is returned in minutes
         modbus_functioncode: "read_input_registers"
-        value_type: U_SINGLE
+        value_type: U_WORD
         accuracy_decimals: 1
         filters:
-        - multiply: 0.01        
+        - multiply: 0.01
 
       - id: device_temperature
         name: "Device temperature"
-        address: 0x3100
-        offset: 0x11
+        address: 0x310C
+        offset: 0xA
         unit_of_measurement: °C ## for any other unit the value is returned in minutes
         modbus_functioncode: "read_input_registers"
-        value_type: U_SINGLE
+        value_type: U_WORD
         accuracy_decimals: 1
         filters:
         - multiply: 0.01
@@ -165,27 +188,40 @@ sensor:
         offset: 0
         unit_of_measurement: "%" ## for any other unit the value is returned in minutes
         modbus_functioncode: "read_input_registers"
-        value_type: U_SINGLE
+        value_type: U_WORD
         accuracy_decimals: 0
 
       - id: remote_battery_temperature
         name: "Remote battery temperature"
         address: 0x311A
-        offset: 1
+        offset: 2
         unit_of_measurement: "°C" ## for any other unit the value is returned in minutes
         modbus_functioncode: "read_input_registers"
-        value_type: U_SINGLE
+        value_type: U_WORD
         accuracy_decimals: 1
         filters:
         - multiply: 0.01
 
-      - id: length_of_night_hours
+      - id: length_of_night_minutes
+        address: 0x9065
+        internal: true
+        offset: 0
+        bitmask: 0xFF
+        unit_of_measurement: "m" ## for any other unit the value is returned in minutes
+        name: "Length of night-mins"
+        modbus_functioncode: read_holding_registers
+        value_type: U_WORD
+
+      - id: length_of_night
         address: 0x9065
         offset: 0
-        unit_of_measurement: "h" ## for any other unit the value is returned in minutes
+        bitmask: 0xFF00
+        unit_of_measurement: "m" ## for any other unit the value is returned in minutes
         name: "Length of night"
         modbus_functioncode: read_holding_registers
-        value_type: U_SINGLE
+        value_type: U_WORD
+        filters:
+        - lambda: return id(length_of_night_minutes).state  + ( 60 * x);
 
     binary_sensors:
       - id: default_load_mode
@@ -195,44 +231,3 @@ sensor:
         name: "Default Load On/Off"
         bitmask: 1
     update_interval: 30s
-  # - platform: modbus_component
-  #   id: modbase
-  #   binary_sensors:
-  #   - id: default_load_mode2
-  #     modbus_functioncode: read_holding_registers
-  #     address: 0x906A
-  #     offset: 0
-  #     name: 'Default Load On/Off 2'
-  #     bitmask: 1
-#        sensor:
-#        - sensor1:
-#          - offset: 1
-#            name: max
-#            value_type: 1
-#        - sensor1:
-#          - offset: 1
-#            name: max
-#            value_type: 1
-#      - start_address: 0x3300
-#        type: read_discrete_inputs
-#        sensor:
-#        - sensor1:
-#          - offset: 1
-#            name: max
-#            value_type: 1
-#        - sensor1:
-#          - offset: 1
-#            name: max
-#            value_type: 1
-
-#  ranges:
-#  - start_address: '0x3100'
-#    registerType: 0
-#    sensor:
-#     offset: 1
-#     name: max
-#     value_type: 1
-#    binarysensor:
-#      offset: 2
-#      name: max
-#      value_type: 1

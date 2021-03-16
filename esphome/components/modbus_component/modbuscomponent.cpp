@@ -13,12 +13,10 @@ void ModbusComponent::setup() { this->create_register_ranges(); }
   send_next_command will submit the command at the top of the queue and set the corresponding callback
   to handle the response from the device.
   Once the response has been processed it is removed from the queue and the next command is sent
-
 */
-
 bool ModbusComponent::send_next_command_() {
   uint32_t command_delay = millis() - this->last_command_timestamp_;
-  //  ESP_LOGD(TAG,"Sending  %u %u",delay,this->command_throttle_);
+
   // Left check of delay since last command in case theres ever a command sent by calling send_raw_command_ directly
   if ((command_delay > this->command_throttle_) && (!command_queue_.empty())) {
     auto &command = command_queue_.front();
@@ -28,7 +26,10 @@ bool ModbusComponent::send_next_command_() {
     this->last_command_timestamp_ = millis();
     if (!command->on_data_func)  // No handler remove from queue directly after sending
       command_queue_.pop();
+  } else {
+    yield();
   }
+  this->sending_ = false;
   return (!command_queue_.empty());
 }
 
@@ -55,9 +56,9 @@ void ModbusComponent::on_modbus_data(const std::vector<uint8_t> &data) {
     command_queue_.pop();
   }
 
-  if (!command_queue_.empty()) {
-    send_next_command_();
-  }
+  // if (!command_queue_.empty()) {
+  //   send_next_command_();
+  // }
 }
 void ModbusComponent::on_modbus_error(uint8_t function_code, uint8_t exception_code) {
   ESP_LOGE(TAG, "Modbus error function code: 0x%X exception: %d ", function_code, exception_code);
@@ -73,9 +74,9 @@ void ModbusComponent::on_modbus_error(uint8_t function_code, uint8_t exception_c
     command_queue_.pop();
   }
   // pump the next command in the queue
-  if (!command_queue_.empty()) {
-    send_next_command_();
-  }
+  // if (!command_queue_.empty()) {
+  //  send_next_command_();
+  //}
 }
 
 void ModbusComponent::on_register_data(uint16_t start_address, const std::vector<uint8_t> &data) {
@@ -100,19 +101,6 @@ void ModbusComponent::on_register_data(uint16_t start_address, const std::vector
     ESP_LOGD(TAG, " Sensor : %s = %.02f ", map_it->second->get_name().c_str(), val);
     map_it++;
   }
-
-#if TESTREMOVE
-  // Because the values are now cached the only benefit of removing is avoiding modbus traffic
-
-  // The register range 3000 and 300E only contain device config settings - remove them once they have been published
-  // TODO Should be a config setting rather than hardcoded here
-  if (start_address == 0x3000) {
-    remove_register_range(0x3000);
-  }
-  if (start_address == 0x300E) {
-    remove_register_range(0x300E);
-  }
-#endif
 }
 
 //
@@ -127,6 +115,7 @@ void ModbusComponent::update() {
     ESP_LOGD(TAG, "Skipping update");
     return;
   }
+  create_register_ranges();
 
   for (auto r : this->register_ranges) {
     ESP_LOGV(TAG, " Range : %X Size: %x (%d)", r.start_address, r.register_count, (int) r.register_type);
@@ -134,7 +123,7 @@ void ModbusComponent::update() {
         ModbusCommandItem::create_read_command(this, r.register_type, r.start_address, r.register_count);
     queue_command_(command_item);
   }
-  send_next_command_();
+  // send_next_command_();
   ESP_LOGD(TAG, "Modbus  update complete");
 }
 
@@ -146,27 +135,44 @@ size_t ModbusComponent::create_register_ranges() {
   auto ix = sensormap.begin();
   auto prev = ix;
   uint16_t current_start_address = ix->second->start_address;
-  uint32_t first_sensorkey = ix->second->getkey();
-
+  uint8_t buffer_offset = ix->second->offset;
+  uint8_t buffer_gap = 0;
+  auto first_sensorkey = ix->second->getkey();
+  int count = ix->second->register_count;
   while (ix != sensormap.end()) {
     size_t diff = ix->second->start_address - prev->second->start_address;
-
-    if (diff > ix->second->get_register_size() || ix->second->register_type != prev->second->register_type) {
+    ESP_LOGV(TAG, "Register:: 0x%X %d %d  0x%llx (%d) buffer_offset = %d (0x%X)", ix->second->start_address,
+             ix->second->register_count, ix->second->offset, ix->second->getkey(), count, buffer_offset, buffer_offset);
+    // if (diff > ix->second->get_register_size() || ix->second->register_type != prev->second->register_type) {
+    // f (diff > ix->second->get_register_size() || ix->second->register_type != prev->second->register_type) {
+    if (current_start_address != ix->second->start_address ||
+        //  ( prev->second->start_address + prev->second->offset != ix->second->start_address) ||
+        ix->second->register_type != prev->second->register_type) {
       // Difference doesn't match so we have a gap
       if (n > 0) {
         RegisterRange r;
         r.start_address = current_start_address;
-        r.register_count = prev->second->offset + prev->second->get_register_size();
+
+        //        r.register_count = (prev->second->offset >> 1 )  + prev->second->get_register_size();
+        r.register_count = count;
+        //        r.register_count = (prev->second->offset >> 1 )  + prev->second->get_register_size();
         r.register_type = prev->second->register_type;
         r.first_sensorkey = first_sensorkey;
+        ESP_LOGD(TAG, "Add range 0x%X %d %d %d", r.start_address, r.register_count, count, diff);
         register_ranges.push_back(r);
       }
-
       current_start_address = ix->second->start_address;
       first_sensorkey = ix->second->getkey();
+      count = ix->second->register_count;
+      buffer_offset = ix->second->offset;
+      buffer_gap = ix->second->offset;
       n = 1;
     } else {
       n++;
+      if (ix->second->offset != prev->second->offset || n == 1) {
+        count += ix->second->register_count;
+        buffer_offset += ix->second->get_register_size();
+      }
     }
     prev = ix++;
   }
@@ -174,13 +180,86 @@ size_t ModbusComponent::create_register_ranges() {
   if (n > 0) {
     RegisterRange r;
     r.start_address = current_start_address;
-    r.register_count = prev->second->offset + prev->second->get_register_size();
+    //    r.register_count = prev->second->offset>>1 + prev->second->get_register_size();
+    r.register_count = count;
     r.register_type = prev->second->register_type;
     r.first_sensorkey = first_sensorkey;
     register_ranges.push_back(r);
   }
   return register_ranges.size();
 }
+
+#ifdef OLD
+// walk through the sensors and determine the registerranges to read
+size_t ModbusComponent::create_register_ranges() {
+  register_ranges.clear();
+  uint8_t n = 0;
+  // map is already sorted by keys so we start with the lowest address ;
+  auto ix = sensormap.begin();
+  auto prev = ix;
+  uint16_t current_start_address = ix->second->start_address;
+  uint8_t buffer_offset =  ix->second->offset;
+  uint8_t buffer_gap = 0 ; 
+  auto first_sensorkey = ix->second->getkey();
+  int count = ix->second->register_count;
+  while (ix != sensormap.end()) {
+    size_t diff = ix->second->start_address - prev->second->start_address;
+    if ( ix->second->offset != buffer_offset  )
+    {
+      ESP_LOGW(TAG,"GAP:  0x%X %d %d  0x%llx (%d) buffer_offset = %d (0x%X)", ix->second->start_address, ix->second->register_count,
+             ix->second->offset, ix->second->getkey(), count, buffer_offset,buffer_offset);
+
+    }
+    ESP_LOGD(TAG, "Register:: 0x%X %d %d  0x%llx (%d) buffer_offset = %d (0x%X)", ix->second->start_address, ix->second->register_count,
+             ix->second->offset, ix->second->getkey(), count, buffer_offset,buffer_offset);
+    // if (diff > ix->second->get_register_size() || ix->second->register_type != prev->second->register_type) {
+    // f (diff > ix->second->get_register_size() || ix->second->register_type != prev->second->register_type) {
+    if (current_start_address != ix->second->start_address  || 
+     //  ( prev->second->start_address + prev->second->offset != ix->second->start_address) ||
+        ix->second->register_type != prev->second->register_type) {
+      // Difference doesn't match so we have a gap
+      if (n > 0) {
+        RegisterRange r;
+        r.start_address = current_start_address;
+        
+        //        r.register_count = (prev->second->offset >> 1 )  + prev->second->get_register_size();
+        r.register_count = count;
+        //        r.register_count = (prev->second->offset >> 1 )  + prev->second->get_register_size();
+        r.register_type = prev->second->register_type;
+        r.first_sensorkey = first_sensorkey;
+        ESP_LOGD(TAG, "Add range 0x%X %d %d %d", r.start_address, r.register_count, count, diff);
+        register_ranges.push_back(r);
+      }
+      current_start_address = ix->second->start_address;
+      first_sensorkey = ix->second->getkey();
+      count = ix->second->register_count;
+      buffer_offset = ix->second->offset;
+      buffer_gap = ix->second->offset;
+      n = 1;
+    } else {
+      n++;
+      if (ix->second->offset != prev->second->offset || n == 1) {
+        count += ix->second->register_count;
+        buffer_offset += ix->second->get_register_size() ;
+      }
+    }
+    prev = ix++;
+  }
+  // Add the last range
+  if (n > 0) {
+    RegisterRange r;
+    r.start_address = current_start_address;
+    //    r.register_count = prev->second->offset>>1 + prev->second->get_register_size();
+    r.register_count = count;
+    r.register_type = prev->second->register_type;
+    r.first_sensorkey = first_sensorkey;
+    register_ranges.push_back(r);
+  }
+  return register_ranges.size();
+}
+#endif
+
+
 
 void ModbusComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "EPSOLAR:");
@@ -189,10 +268,31 @@ void ModbusComponent::dump_config() {
   for (auto &item : this->sensormap) {
     item.second->log();
   }
+  create_register_ranges();
 }
 
 void ModbusComponent::loop() { send_next_command_(); }
 
+#ifndef USE_OLD
+// Extract data from modbus response buffer
+template<typename T> T get_data(const std::vector<uint8_t> &data, size_t offset) {
+  if (sizeof(T) == sizeof(uint8_t)) {
+    return T(data[offset]);
+  }
+  if (sizeof(T) == sizeof(uint16_t)) {
+    return T((uint16_t(data[offset + 0]) << 8) | (uint16_t(data[offset + 1]) << 0));
+  }
+
+  if (sizeof(T) == sizeof(uint32_t)) {
+    return get_data<uint16_t>(data, offset) << 16 | get_data<uint16_t>(data, (offset + 2));
+  }
+
+  if (sizeof(T) == sizeof(uint64_t)) {
+    return static_cast<uint64_t>(get_data<uint32_t>(data, offset)) << 32 |
+           (static_cast<uint64_t>(get_data<uint32_t>(data, offset + 4)));
+  }
+}
+#else
 // Extract data from modbus response buffer
 template<typename T> T get_data(const std::vector<uint8_t> &data, size_t offset) {
   offset <<= 1;
@@ -204,7 +304,7 @@ template<typename T> T get_data(const std::vector<uint8_t> &data, size_t offset)
   }
   if (sizeof(T) == sizeof(uint32_t)) {
     return T((uint16_t(data[offset + 0]) << 8) | (uint16_t(data[offset + 1]) << 16) |
-            ((uint16_t(data[offset + 2]) << 8) | (uint16_t(data[offset + 3]) << 0)) );
+             ((uint16_t(data[offset + 2]) << 8) | (uint16_t(data[offset + 3]) << 0)));
   }
   if (sizeof(T) == sizeof(uint64_t)) {
     uint64_t result = 0;
@@ -218,6 +318,7 @@ template<typename T> T get_data(const std::vector<uint8_t> &data, size_t offset)
     return result;
   }
 }
+#endif
 
 void ModbusComponent::on_write_register_response(uint16_t start_address, const std::vector<uint8_t> &data) {
   ESP_LOGD(TAG, "Command ACK 0x%X %d ", get_data<uint16_t>(data, 0), get_data<int16_t>(data, 1));
@@ -234,7 +335,7 @@ void BinarySensorItem::log() { LOG_BINARY_SENSOR("", sensor_->get_name().c_str()
 // Example: on Epever the "Length of night" register 0x9065 encodes values of the whole night length of time as
 // D15 - D8 =  hour, D7 - D0 = minute
 // To get the hours use mask 0xFF00 and  0x00FF for the minute
-template<typename N> N mask_and_shift_by_rightbit(N data, N mask) {
+template<typename N> N mask_and_shift_by_rightbit(N data, uint32_t mask) {
   auto result = (mask & data);
   if (result == 0) {
     return result;
@@ -246,45 +347,78 @@ template<typename N> N mask_and_shift_by_rightbit(N data, N mask) {
   return 0;
 }
 
+union dataresults {
+  byte raw[16];
+  uint8_t u_byte;
+  uint16_t u_word;
+  uint32_t u_dword;
+  uint64_t u_qword;
+  int8_t s_byte;
+  int16_t s_word;
+  int32_t s_dword;
+  int64_t s_qword;
+};
+
 float FloatSensorItem::parse_and_publish(const std::vector<uint8_t> &data) {
   int64_t value = 0;  // int64_t because it can hold signed and unsigned 32 bits
   float result = NAN;
 
   switch (sensor_value_type) {
-    case SensorValueType::U_SINGLE:
+    case SensorValueType::U_WORD:
       value = mask_and_shift_by_rightbit(get_data<uint16_t>(data, this->offset), this->bitmask);  // default is 0xFFFF ;
       break;
-    case SensorValueType::U_LONG:
-      value = get_data<uint32_t>(data, this->offset);  // Ignore bitmask for double register values.
-      break;                                           // define 2 Singlebit regs instead
-    case SensorValueType::U_LONG_R:
-      value = get_data<uint32_t>(data, this->offset);  // Ignore bitmask for double register values.
-      value = (value & 0xFFFF) << 16 | (value & 0xFFFF0000) >> 16;
+    case SensorValueType::U_DWORD:
+      value = get_data<uint32_t>(data, this->offset);
+      value = mask_and_shift_by_rightbit((uint32_t) value, this->bitmask);
       break;
-    case SensorValueType::S_SINGLE:
+    case SensorValueType::U_DWORD_R:
+      value = get_data<uint32_t>(data, this->offset);
+      value = static_cast<uint32_t>(value & 0xFFFF) << 16 | (value & 0xFFFF0000) >> 16;
+      value = mask_and_shift_by_rightbit((uint32_t) value, this->bitmask);
+      break;
+    case SensorValueType::S_WORD:
       value = mask_and_shift_by_rightbit(get_data<int16_t>(data, this->offset),
-                                         (int16_t) this->bitmask);  // default is 0xFFFF ;
+                                         this->bitmask);  // default is 0xFFFF ;
       break;
-    case SensorValueType::S_LONG:
-      value = get_data<int32_t>(data, this->offset);
+    case SensorValueType::S_DWORD:
+      value = mask_and_shift_by_rightbit(get_data<int32_t>(data, this->offset), this->bitmask);
       break;
-    case SensorValueType::S_LONG_R: {
+    case SensorValueType::S_DWORD_R: {
       value = get_data<uint32_t>(data, this->offset);
       // Currently the high word is at the low position
       // the sign bit is therefore at low before the switch
-      int sign = (value & 0x8000) ? -1 : 1;
-      value = ((value & 0x7FFF) << 16 | (value & 0xFFFF0000) >> 16) * sign;
+      uint32_t sign_bit = (value & 0x8000) << 16;
+      value = mask_and_shift_by_rightbit(
+          static_cast<int32_t>(((value & 0x7FFF) << 16 | (value & 0xFFFF0000) >> 16) | sign_bit), this->bitmask);
     } break;
-    case SensorValueType::U_LONGLONG: {
+    case SensorValueType::U_QWORD:
+      // Ignore bitmask for U_QWORD
       value = get_data<uint64_t>(data, this->offset);
-    } break;
+      break;
 
+    case SensorValueType::S_QWORD:
+      // Ignore bitmask for S_QWORD
+      value = get_data<int64_t>(data, this->offset);
+      break;
+    case SensorValueType::U_QWORD_R:
+      // Ignore bitmask for U_QWORD
+      value = get_data<uint64_t>(data, this->offset);
+      value = static_cast<uint64_t>(value & 0xFFFF) << 48 | (value & 0xFFFF000000000000) >> 48 |
+              static_cast<uint64_t>(value & 0xFFFF0000) << 32 | (value & 0x0000FFFF00000000) >> 32 |
+              static_cast<uint64_t>(value & 0xFFFF00000000) << 16 | (value & 0x00000000FFFF0000) >> 16 ;
+      break;
+
+    case SensorValueType::S_QWORD_R:
+      // Ignore bitmask for S_QWORD
+      value = get_data<int64_t>(data, this->offset);
+      break;
     default:
       break;
   }
-  result = float(value);
+
   if (transform_expression != nullptr)
     result = transform_expression(value);
+  result = float(value);
   this->sensor_->state = result;
   // No need to publish if the value didn't change since the last publish
   // can reduce mqtt traffic considerably if many sensors are used

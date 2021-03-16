@@ -28,31 +28,34 @@ enum class ModbusFunctionCode {
 
 enum class SensorValueType : uint8_t {
   RAW = 0x00,       // variable length
-  U_SINGLE = 0x01,  // 1 Register unsigned
-  U_LONG = 0x02,    // 2 Registers unsigned
-  S_SINGLE = 0x03,  // 1 Register signed
-  S_LONG = 0x04,    // 2 Registers signed
+  U_WORD = 0x01,  // 1 Register unsigned
+  U_DWORD = 0x02,    // 2 Registers unsigned
+  S_WORD = 0x03,  // 1 Register signed
+  S_DWORD = 0x04,    // 2 Registers signed
   BIT = 0x05,
-  U_LONG_R = 0x06,  // 2 Registers unsigned
-  S_LONG_R = 0x07,  // 2 Registers unsigned
-  U_LONGLONG = 0x8
-};
+  U_DWORD_R = 0x06,  // 2 Registers unsigned
+  S_DWORD_R = 0x07,  // 2 Registers unsigned
+  U_QWORD = 0x8,
+  S_QWORD = 0x9,
+  U_QWORD_R = 0xA,
+  S_QWORD_R = 0xB
+  };
 
 struct RegisterRange {
   uint16_t start_address;
   uint8_t register_count;
   ModbusFunctionCode register_type;
-  uint32_t first_sensorkey;
+  uint64_t first_sensorkey;
 };
 
 // All sensors are stored in a map
 // to enable binary sensors for values encoded as bits in the same register the key of each sensor
-// is start address +  off << 16 | bitpos
+// is start address +  off << 32 | bitpos
 
-inline uint32_t calc_key(uint16_t start_address, uint8_t offset = 0, uint16_t bitmask = 0) {
-  return (start_address + offset) << 16 | bitmask;
+inline uint64_t calc_key(uint16_t start_address, uint8_t offset = 0, uint32_t bitmask = 0) {
+  return uint64_t((start_address << 16) + offset) << 32 | bitmask;
 }
-inline uint16_t register_from_key(uint32_t key) { return key >> 16; }
+inline uint16_t register_from_key(uint64_t key) { return key >> 48; }
 
 const std::function<float(int64_t)> DIVIDE_BY_100 = [](int64_t val) { return val / 100.0; };
 
@@ -60,7 +63,7 @@ struct SensorItem {
   ModbusFunctionCode register_type;
   uint16_t start_address;
   uint8_t offset;
-  uint16_t bitmask;
+  uint32_t bitmask;
   uint8_t register_count;
   SensorValueType sensor_value_type;
   int64_t last_value;
@@ -69,45 +72,43 @@ struct SensorItem {
   virtual std::string const &get_name() = 0;
   virtual void log() = 0;  // {}
   virtual float parse_and_publish(const std::vector<uint8_t> &data) = 0;
-  uint32_t getkey() const { return calc_key(start_address, offset, bitmask); }
+  uint64_t getkey() const { return calc_key(start_address, offset, bitmask); }
   size_t get_register_size() {
     size_t size = 0;
     switch (sensor_value_type) {
       case SensorValueType::RAW:
         size = 4;
         break;
-      case SensorValueType::U_SINGLE:
-        size = 1;
+      case SensorValueType::U_WORD:
+        size = 2;
         break;
-      case SensorValueType::U_LONG:
-        //        size = 2;
-        size = register_count;
+      case SensorValueType::U_DWORD:
+        size = 4;
         break;
-      case SensorValueType::S_SINGLE:
-        size = 1;
+      case SensorValueType::S_WORD:
+        size = 2;
         break;
-      case SensorValueType::S_LONG:
-        //        size = 2;
+      case SensorValueType::S_DWORD:
+        size = 4;
         size = register_count;
         break;
       case SensorValueType::BIT:
         size = 1;
         break;
-      case SensorValueType::U_LONG_R:
-        //        size = 2 ;
-        size = register_count;
+      case SensorValueType::U_DWORD_R:
+        size = 4 ;
         break;
-      case SensorValueType::S_LONG_R:
-        //        size = 2 ;
-        size = register_count;
+      case SensorValueType::S_DWORD_R:
+        size = 4 ;
         break;
-      case SensorValueType::U_LONGLONG:
-        //        size = 2 ;
-        size = register_count;
+      case SensorValueType::U_QWORD:
+        size = 8 ;
         break;
-
+      case SensorValueType::S_QWORD:
+        size = 8 ;
+        break;
       default:
-        size = 1;
+        size = 2;
         break;
     }
     return size;
@@ -143,11 +144,10 @@ struct TextSensorItem : public SensorItem {
 class ModbusComponent : public PollingComponent, public modbus::ModbusDevice {
  public:
   ModbusComponent(uint16_t throttle = 0) : PollingComponent(), modbus::ModbusDevice(), command_throttle_(throttle){};
-  std::map<uint32_t, std::unique_ptr<SensorItem>> sensormap;
+  std::map<uint64_t, std::unique_ptr<SensorItem>> sensormap;
   std::vector<RegisterRange> register_ranges;
   void add_sensor(sensor::Sensor *sensor, ModbusFunctionCode register_type, uint16_t start_address, uint8_t offset,
-                  uint16_t bitmask, SensorValueType value_type = SensorValueType::U_SINGLE, float scale_factor = 1,
-                  int register_count = 1) {
+                  uint32_t bitmask, SensorValueType value_type = SensorValueType::U_WORD, int register_count = 1) {
     auto new_item = make_unique<FloatSensorItem>(sensor);
     new_item->register_type = register_type;
     new_item->start_address = start_address;
@@ -158,12 +158,12 @@ class ModbusComponent : public PollingComponent, public modbus::ModbusDevice {
     // because values are  only in the int32_t range it's a safe "marker" value
     new_item->last_value = INT64_MIN;
     // Default transformation is divide by 100
-    new_item->transform_expression = [scale_factor](int64_t val) { return val * scale_factor; };
+    // new_item->transform_expression = [scale_factor](int64_t val) { return val *scale_factor; };
     new_item->register_count = register_count;
     sensormap[new_item->getkey()] = std::move(new_item);
   }
   void add_binarysensor(binary_sensor::BinarySensor *sensor, ModbusFunctionCode register_type, uint16_t start_address,
-                        uint8_t offset, uint16_t bitmask) {
+                        uint8_t offset, uint32_t bitmask) {
     auto new_item = make_unique<BinarySensorItem>(sensor);
     new_item->register_type = register_type;
     new_item->start_address = start_address;
@@ -171,6 +171,7 @@ class ModbusComponent : public PollingComponent, public modbus::ModbusDevice {
     new_item->bitmask = bitmask;
     new_item->sensor_value_type = SensorValueType::BIT;
     new_item->last_value = INT64_MIN;
+    new_item->register_count = 1;
     // not sure we need it anymore
     new_item->transform_expression = [bitmask](int64_t val) { return (val & bitmask & 0x0000FFFFF) ? 1 : 0; };
     auto key = new_item->getkey();
@@ -186,6 +187,7 @@ class ModbusComponent : public PollingComponent, public modbus::ModbusDevice {
     new_item->sensor_value_type = SensorValueType::RAW;
     new_item->response_bytes_ = response_bytes;
     new_item->last_value = INT64_MIN;
+    new_item->register_count = 1;
     // not sure we need it anymore
     auto key = new_item->getkey();
     sensormap[key] = std::move(new_item);
@@ -243,9 +245,7 @@ class ModbusComponent : public PollingComponent, public modbus::ModbusDevice {
 
   void on_write_register_response(uint16_t start_address, const std::vector<uint8_t> &data);
   void on_register_data(uint16_t start_address, const std::vector<uint8_t> &data);
-  void set_command_throttle(uint16_t command_throttle) {
-    this->command_throttle_ = command_throttle;
-  }
+  void set_command_throttle(uint16_t command_throttle) { this->command_throttle_ = command_throttle; }
 
  protected:
   // Hold the pending requests to sent
