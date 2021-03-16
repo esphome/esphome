@@ -138,10 +138,74 @@ size_t ModbusComponent::create_register_ranges() {
   uint8_t buffer_offset = ix->second->offset;
   uint8_t buffer_gap = 0;
   auto first_sensorkey = ix->second->getkey();
-  int count = ix->second->register_count;
+  int total_register_count = 0;
   while (ix != sensormap.end()) {
     size_t diff = ix->second->start_address - prev->second->start_address;
     ESP_LOGV(TAG, "Register:: 0x%X %d %d  0x%llx (%d) buffer_offset = %d (0x%X)", ix->second->start_address,
+             ix->second->register_count, ix->second->offset, ix->second->getkey(), total_register_count, buffer_offset,
+             buffer_offset);
+    if (current_start_address != ix->second->start_address ||
+        //  ( prev->second->start_address + prev->second->offset != ix->second->start_address) ||
+        ix->second->register_type != prev->second->register_type) {
+      // Difference doesn't match so we have a gap
+      if (n > 0) {
+        RegisterRange r;
+        r.start_address = current_start_address;
+        r.register_count = total_register_count;
+        r.register_type = prev->second->register_type;
+        r.first_sensorkey = first_sensorkey;
+        ESP_LOGD(TAG, "Add range 0x%X %d", r.start_address, r.register_count);
+        register_ranges.push_back(r);
+      }
+      current_start_address = ix->second->start_address;
+      first_sensorkey = ix->second->getkey();
+      total_register_count = ix->second->register_count;
+      buffer_offset = ix->second->offset;
+      buffer_gap = ix->second->offset;
+      n = 1;
+    } else {
+      n++;
+      if (ix->second->offset != prev->second->offset || n == 1) {
+        total_register_count += ix->second->register_count;
+        buffer_offset += ix->second->get_register_size();
+      }
+    }
+    prev = ix++;
+  }
+  // Add the last range
+  if (n > 0) {
+    RegisterRange r;
+    r.start_address = current_start_address;
+    //    r.register_count = prev->second->offset>>1 + prev->second->get_register_size();
+    r.register_count = total_register_count;
+    r.register_type = prev->second->register_type;
+    r.first_sensorkey = first_sensorkey;
+    register_ranges.push_back(r);
+  }
+  return register_ranges.size();
+}
+
+#ifdef OLD
+// walk through the sensors and determine the registerranges to read
+size_t ModbusComponent::create_register_ranges() {
+  register_ranges.clear();
+  uint8_t n = 0;
+  // map is already sorted by keys so we start with the lowest address ;
+  auto ix = sensormap.begin();
+  auto prev = ix;
+  uint16_t current_start_address = ix->second->start_address;
+  uint8_t buffer_offset = ix->second->offset;
+  uint8_t buffer_gap = 0;
+  auto first_sensorkey = ix->second->getkey();
+  int count = ix->second->register_count;
+  while (ix != sensormap.end()) {
+    size_t diff = ix->second->start_address - prev->second->start_address;
+    if (ix->second->offset != buffer_offset) {
+      ESP_LOGW(TAG, "GAP:  0x%X %d %d  0x%llx (%d) buffer_offset = %d (0x%X)", ix->second->start_address,
+               ix->second->register_count, ix->second->offset, ix->second->getkey(), count, buffer_offset,
+               buffer_offset);
+    }
+    ESP_LOGD(TAG, "Register:: 0x%X %d %d  0x%llx (%d) buffer_offset = %d (0x%X)", ix->second->start_address,
              ix->second->register_count, ix->second->offset, ix->second->getkey(), count, buffer_offset, buffer_offset);
     // if (diff > ix->second->get_register_size() || ix->second->register_type != prev->second->register_type) {
     // f (diff > ix->second->get_register_size() || ix->second->register_type != prev->second->register_type) {
@@ -188,78 +252,7 @@ size_t ModbusComponent::create_register_ranges() {
   }
   return register_ranges.size();
 }
-
-#ifdef OLD
-// walk through the sensors and determine the registerranges to read
-size_t ModbusComponent::create_register_ranges() {
-  register_ranges.clear();
-  uint8_t n = 0;
-  // map is already sorted by keys so we start with the lowest address ;
-  auto ix = sensormap.begin();
-  auto prev = ix;
-  uint16_t current_start_address = ix->second->start_address;
-  uint8_t buffer_offset =  ix->second->offset;
-  uint8_t buffer_gap = 0 ; 
-  auto first_sensorkey = ix->second->getkey();
-  int count = ix->second->register_count;
-  while (ix != sensormap.end()) {
-    size_t diff = ix->second->start_address - prev->second->start_address;
-    if ( ix->second->offset != buffer_offset  )
-    {
-      ESP_LOGW(TAG,"GAP:  0x%X %d %d  0x%llx (%d) buffer_offset = %d (0x%X)", ix->second->start_address, ix->second->register_count,
-             ix->second->offset, ix->second->getkey(), count, buffer_offset,buffer_offset);
-
-    }
-    ESP_LOGD(TAG, "Register:: 0x%X %d %d  0x%llx (%d) buffer_offset = %d (0x%X)", ix->second->start_address, ix->second->register_count,
-             ix->second->offset, ix->second->getkey(), count, buffer_offset,buffer_offset);
-    // if (diff > ix->second->get_register_size() || ix->second->register_type != prev->second->register_type) {
-    // f (diff > ix->second->get_register_size() || ix->second->register_type != prev->second->register_type) {
-    if (current_start_address != ix->second->start_address  || 
-     //  ( prev->second->start_address + prev->second->offset != ix->second->start_address) ||
-        ix->second->register_type != prev->second->register_type) {
-      // Difference doesn't match so we have a gap
-      if (n > 0) {
-        RegisterRange r;
-        r.start_address = current_start_address;
-        
-        //        r.register_count = (prev->second->offset >> 1 )  + prev->second->get_register_size();
-        r.register_count = count;
-        //        r.register_count = (prev->second->offset >> 1 )  + prev->second->get_register_size();
-        r.register_type = prev->second->register_type;
-        r.first_sensorkey = first_sensorkey;
-        ESP_LOGD(TAG, "Add range 0x%X %d %d %d", r.start_address, r.register_count, count, diff);
-        register_ranges.push_back(r);
-      }
-      current_start_address = ix->second->start_address;
-      first_sensorkey = ix->second->getkey();
-      count = ix->second->register_count;
-      buffer_offset = ix->second->offset;
-      buffer_gap = ix->second->offset;
-      n = 1;
-    } else {
-      n++;
-      if (ix->second->offset != prev->second->offset || n == 1) {
-        count += ix->second->register_count;
-        buffer_offset += ix->second->get_register_size() ;
-      }
-    }
-    prev = ix++;
-  }
-  // Add the last range
-  if (n > 0) {
-    RegisterRange r;
-    r.start_address = current_start_address;
-    //    r.register_count = prev->second->offset>>1 + prev->second->get_register_size();
-    r.register_count = count;
-    r.register_type = prev->second->register_type;
-    r.first_sensorkey = first_sensorkey;
-    register_ranges.push_back(r);
-  }
-  return register_ranges.size();
-}
 #endif
-
-
 
 void ModbusComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "EPSOLAR:");
@@ -405,7 +398,7 @@ float FloatSensorItem::parse_and_publish(const std::vector<uint8_t> &data) {
       value = get_data<uint64_t>(data, this->offset);
       value = static_cast<uint64_t>(value & 0xFFFF) << 48 | (value & 0xFFFF000000000000) >> 48 |
               static_cast<uint64_t>(value & 0xFFFF0000) << 32 | (value & 0x0000FFFF00000000) >> 32 |
-              static_cast<uint64_t>(value & 0xFFFF00000000) << 16 | (value & 0x00000000FFFF0000) >> 16 ;
+              static_cast<uint64_t>(value & 0xFFFF00000000) << 16 | (value & 0x00000000FFFF0000) >> 16;
       break;
 
     case SensorValueType::S_QWORD_R:

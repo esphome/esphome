@@ -5,6 +5,8 @@
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #include "esphome/components/text_sensor/text_sensor.h"
 #include "esphome/components/modbus/modbus.h"
+#include "esphome/components/switch/switch.h"
+
 #include <queue>
 #include <map>
 #include <memory>
@@ -140,6 +142,16 @@ struct TextSensorItem : public SensorItem {
   uint16_t response_bytes_;
 };
 
+struct ModbusSwitchItem : public SensorItem {
+  switch_::Switch *modbus_switch_;
+  ModbusSwitchItem( switch_::Switch *modbus_switch) : modbus_switch_(modbus_switch) {}
+  std::string const &get_name() override { return modbus_switch_->get_name(); }
+  void log() override;
+  float parse_and_publish(const std::vector<uint8_t> &data) override;
+  uint16_t response_bytes_;
+};
+
+
 // class ModbusSensor ;
 class ModbusComponent : public PollingComponent, public modbus::ModbusDevice {
  public:
@@ -193,6 +205,10 @@ class ModbusComponent : public PollingComponent, public modbus::ModbusDevice {
     sensormap[key] = std::move(new_item);
   }
 
+  void modbus_switch_entry( switch_::Switch *modbus_switch, ModbusFunctionCode register_type, uint16_t start_address,
+                        uint8_t offset, uint32_t bitmask) {
+   // TODO implement switch                         
+}
   size_t create_register_ranges();
 
   bool remove_register_range(uint16_t start_address) {

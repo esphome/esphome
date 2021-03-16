@@ -6,6 +6,7 @@ from esphome.components import (
     binary_sensor,
     text_sensor,
     modbus_component,
+    switch,
 )
 from esphome.core import coroutine
 from esphome.util import Registry
@@ -40,12 +41,13 @@ from .const import (
 
 
 AUTO_LOAD = [
-    "modbus", 
-    "binary_sensor", 
+    "modbus",
+    "binary_sensor",
     "text_sensor",
-    "status", 
-    "modbus_component"
-    ]
+    "status",
+    "switch",
+    "modbus_component",
+]
 
 modbus_component_ns = cg.esphome_ns.namespace("modbus_component")
 ModbusComponent = modbus_component_ns.class_(
@@ -78,8 +80,14 @@ SENSOR_VALUE_TYPE = {
     "U_QWORDU_R": SensorValueType.U_QWORD_R,
     "S_QWORD": SensorValueType.S_QWORD,
     "U_QWORD_R": SensorValueType.S_QWORD_R,
-
 }
+
+# Filters
+# Filter = binary_sensor_ns.class_(" RAW_Filter")
+# LambdaFilter = binary_sensor_ns.class_("LambdaFilter", Filter)
+## not yet used: Filter operating at the raw modbus data
+RAW_FILTER_REGISTRY = Registry()
+validate_filters = cv.validate_registry("raw_filter", RAW_FILTER_REGISTRY)
 
 MODBUS_REGISTRY = Registry()
 validate_modbus_range = cv.validate_registry("sensors", MODBUS_REGISTRY)
@@ -104,6 +112,15 @@ binary_sensor_entry = binary_sensor.BINARY_SENSOR_SCHEMA.extend(
         cv.Optional(CONF_BITMASK, default=0x1): cv.hex_uint32_t,
     }
 )
+
+modbus_switch_entry = switch.SWITCH_SCHEMA.extend(
+    {
+        cv.Optional(CONF_MODBUS_FUNCTIONCODE): cv.enum(MODBUS_FUNCTION_CODE),
+        cv.Optional(CONF_ADDRESS): cv.int_,
+        cv.Optional(CONF_OFFSET): cv.int_,
+        cv.Optional(CONF_BITMASK, default=0x1): cv.hex_uint32_t,
+    }
+).extend(cv.COMPONENT_SCHEMA)
 
 text_sensor_entry = text_sensor.TEXT_SENSOR_SCHEMA.extend(
     {
@@ -173,10 +190,25 @@ def modbus_binarysensor_schema(
     )
 
 
+def modbus_switch_schema(
+    modbus_functioncode_, register_address_, register_offset_, bitmask_=1
+):
+    return switch.SWITCH_SCHEMA.extend(
+        {
+            cv.Optional(
+                CONF_MODBUS_FUNCTIONCODE, default=modbus_functioncode_
+            ): cv.enum(MODBUS_FUNCTION_CODE),
+            cv.Optional(CONF_ADDRESS, default=register_address_): cv.int_,
+            cv.Optional(CONF_OFFSET, default=register_offset_): cv.int_,
+            cv.Optional(CONF_BITMASK, default=bitmask_): cv.hex_uint32_t,
+        }
+    )
+
+
 def modbus_textsensor_schema(
     modbus_functioncode_, register_address_, register_offset_, response_size_
 ):
-    return text_sensor.BINARY_SENSOR_SCHEMA.extend(
+    return text_sensor.TEXT_SENSOR_SCHEMA.extend(
         {
             cv.Optional(
                 CONF_MODBUS_FUNCTIONCODE, default=modbus_functioncode_
@@ -202,6 +234,9 @@ MODBUS_CONFIG_SCHEMA = (
             cv.Optional("text_sensors"): cv.All(
                 cv.ensure_list(text_sensor_entry), cv.Length(min=0)
             ),
+            cv.Optional("switches"): cv.All(
+                cv.ensure_list(modbus_switch_entry), cv.Length(min=0)
+            ),
         }
     )
     .extend(cv.polling_component_schema("60s"))
@@ -222,7 +257,10 @@ def modbus_component_schema(device_address=0x1):
                     cv.ensure_list(binary_sensor_entry), cv.Length(min=0)
                 ),
                 cv.Optional("text_sensors"): cv.All(
-                    cv.ensure_list(binary_sensor_entry), cv.Length(min=0)
+                    cv.ensure_list(text_sensor_entry), cv.Length(min=0)
+                ),
+                cv.Optional("switches"): cv.All(
+                    cv.ensure_list(modbus_switch_entry), cv.Length(min=0)
                 ),
             }
         )
@@ -246,7 +284,7 @@ CONFIG_SCHEMA = (
 
 def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID], config[CONF_COMMAND_THROTTLE])
-    yield cg.add(var.set_command_throttle(config[CONF_COMMAND_THROTTLE]))    
+    yield cg.add(var.set_command_throttle(config[CONF_COMMAND_THROTTLE]))
     yield cg.register_component(var, config)
     yield modbus.register_modbus_device(var, config)
     if config.get("sensors"):
