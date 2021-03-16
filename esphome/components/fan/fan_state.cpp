@@ -53,7 +53,7 @@ void FanStateCall::perform() const {
     this->state_->direction = *this->direction_;
   }
   if (this->speed_.has_value()) {
-    const int speed_count = this->state_->get_traits().supported_speed_levels();
+    const int speed_count = this->state_->get_traits().supported_speed_count();
     this->state_->speed = static_cast<int>(clamp(*this->speed_, 1, speed_count));
   }
 
@@ -68,13 +68,13 @@ void FanStateCall::perform() const {
 }
 
 FanStateCall &FanStateCall::set_speed(const char *legacy_speed) {
-  const auto supported_speed_levels = this->state_->get_traits().supported_speed_levels();
+  const auto supported_speed_count = this->state_->get_traits().supported_speed_count();
   if (strcasecmp(legacy_speed, "low") == 0) {
-    this->set_speed(fan::speed_enum_to_level(FAN_SPEED_LOW, supported_speed_levels));
+    this->set_speed(fan::speed_enum_to_level(FAN_SPEED_LOW, supported_speed_count));
   } else if (strcasecmp(legacy_speed, "medium") == 0) {
-    this->set_speed(fan::speed_enum_to_level(FAN_SPEED_MEDIUM, supported_speed_levels));
+    this->set_speed(fan::speed_enum_to_level(FAN_SPEED_MEDIUM, supported_speed_count));
   } else if (strcasecmp(legacy_speed, "high") == 0) {
-    this->set_speed(fan::speed_enum_to_level(FAN_SPEED_HIGH, supported_speed_levels));
+    this->set_speed(fan::speed_enum_to_level(FAN_SPEED_HIGH, supported_speed_count));
   }
   return *this;
 }

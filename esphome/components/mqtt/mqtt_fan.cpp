@@ -98,7 +98,7 @@ bool MQTTFanComponent::publish_state() {
   auto traits = this->state_->get_traits();
   if (traits.supports_speed()) {
     const char *payload;
-    switch (fan::speed_level_to_enum(this->state_->speed, traits.supported_speed_levels())) {
+    switch (fan::speed_level_to_enum(this->state_->speed, traits.supported_speed_count())) {
       case FAN_SPEED_LOW: {
         payload = "low";
         break;
