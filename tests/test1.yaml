@@ -1708,6 +1708,7 @@ fan:
     direction_output: gpio_26
   - platform: speed
     output: pca_6
+    speed_count: 10
     name: 'Living Room Fan 2'
     oscillation_output: gpio_19
     direction_output: gpio_26

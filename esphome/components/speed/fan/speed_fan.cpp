@@ -17,7 +17,7 @@ void SpeedFan::dump_config() {
   }
 }
 void SpeedFan::setup() {
-  auto traits = fan::FanTraits(this->oscillating_ != nullptr, true, this->direction_ != nullptr, this->speed_levels_);
+  auto traits = fan::FanTraits(this->oscillating_ != nullptr, true, this->direction_ != nullptr, this->speed_count_);
   this->fan_->set_traits(traits);
   this->fan_->add_on_state_callback([this]() { this->next_update_ = true; });
 }
@@ -30,7 +30,7 @@ void SpeedFan::loop() {
   {
     float speed = 0.0f;
     if (this->fan_->state) {
-      speed = static_cast<float>(this->fan_->speed_level) / static_cast<float>(this->speed_levels_);
+      speed = static_cast<float>(this->fan_->speed) / static_cast<float>(this->speed_count_);
     }
     ESP_LOGD(TAG, "Setting speed: %.2f", speed);
     this->output_->set_level(speed);

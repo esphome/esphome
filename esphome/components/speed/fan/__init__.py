@@ -7,7 +7,7 @@ from esphome.const import (
     CONF_DIRECTION_OUTPUT,
     CONF_OUTPUT_ID,
     CONF_SPEED,
-    CONF_SPEED_LEVELS,
+    CONF_SPEED_COUNT,
 )
 from .. import speed_ns
 
@@ -22,7 +22,7 @@ CONFIG_SCHEMA = fan.FAN_SCHEMA.extend(
         cv.Optional(CONF_SPEED): cv.invalid(
             "Configuring individual speeds is deprecated."
         ),
-        cv.Optional(CONF_SPEED_LEVELS, default=100): cv.int_range(min=1),
+        cv.Optional(CONF_SPEED_COUNT, default=100): cv.int_range(min=1),
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -31,7 +31,7 @@ def to_code(config):
     output_ = yield cg.get_variable(config[CONF_OUTPUT])
     state = yield fan.create_fan_state(config)
     var = cg.new_Pvariable(
-        config[CONF_OUTPUT_ID], state, output_, config[CONF_SPEED_LEVELS]
+        config[CONF_OUTPUT_ID], state, output_, config[CONF_SPEED_COUNT]
     )
     yield cg.register_component(var, config)
 

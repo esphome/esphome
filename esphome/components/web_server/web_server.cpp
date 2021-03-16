@@ -370,8 +370,8 @@ std::string WebServer::fan_json(fan::FanState *obj) {
     root["value"] = obj->state;
     const auto traits = obj->get_traits();
     if (traits.supports_speed()) {
-      root["speed_level"] = obj->speed_level;
-      switch (fan::speed_level_to_enum(obj->speed_level, traits.supported_speed_levels())) {
+      root["speed_level"] = obj->speed;
+      switch (fan::speed_level_to_enum(obj->speed, traits.supported_speed_levels())) {
         case fan::FAN_SPEED_LOW:
           root["speed"] = "low";
           break;

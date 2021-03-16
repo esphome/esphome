@@ -250,9 +250,8 @@ bool APIConnection::send_fan_state(fan::FanState *fan) {
   if (traits.supports_oscillation())
     resp.oscillating = fan->oscillating;
   if (traits.supports_speed()) {
-    resp.speed_level = fan->speed_level;
-    resp.speed =
-        static_cast<enums::FanSpeed>(fan::speed_level_to_enum(fan->speed_level, traits.supported_speed_levels()));
+    resp.speed_level = fan->speed;
+    resp.speed = static_cast<enums::FanSpeed>(fan::speed_level_to_enum(fan->speed, traits.supported_speed_levels()));
   }
   if (traits.supports_direction())
     resp.direction = static_cast<enums::FanDirection>(fan->direction);

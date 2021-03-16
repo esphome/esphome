@@ -52,14 +52,14 @@ void FanStateCall::perform() const {
   if (this->direction_.has_value()) {
     this->state_->direction = *this->direction_;
   }
-  if (this->speed_level_.has_value()) {
-    const int speed_levels = this->state_->get_traits().supported_speed_levels();
-    this->state_->speed_level = static_cast<int>(clamp(*this->speed_level_, 1, speed_levels));
+  if (this->speed_.has_value()) {
+    const int speed_count = this->state_->get_traits().supported_speed_levels();
+    this->state_->speed = static_cast<int>(clamp(*this->speed_, 1, speed_count));
   }
 
   FanStateRTCState saved{};
   saved.state = this->state_->state;
-  saved.speed = this->state_->speed_level;
+  saved.speed = this->state_->speed;
   saved.oscillating = this->state_->oscillating;
   saved.direction = this->state_->direction;
   this->state_->rtc_.save(&saved);

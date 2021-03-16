@@ -41,8 +41,8 @@ class FanStateCall {
     this->oscillating_ = oscillating;
     return *this;
   }
-  FanStateCall &set_speed(int speed_level) {
-    this->speed_level_ = speed_level;
+  FanStateCall &set_speed(int speed) {
+    this->speed_ = speed;
     return *this;
   }
   FanStateCall &set_speed(const char *legacy_speed);
@@ -61,7 +61,7 @@ class FanStateCall {
   FanState *const state_;
   optional<bool> binary_state_;
   optional<bool> oscillating_;
-  optional<int> speed_level_;
+  optional<int> speed_;
   optional<FanDirection> direction_{};
 };
 
@@ -84,7 +84,7 @@ class FanState : public Nameable, public Component {
   /// The current oscillation state of the fan.
   bool oscillating{false};
   /// The current fan speed level
-  int speed_level{};
+  int speed{};
   /// The current direction of the fan
   FanDirection direction{FAN_DIRECTION_FORWARD};
 
