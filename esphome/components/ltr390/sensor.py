@@ -41,11 +41,11 @@ RES_OPTIONS = {
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(LTR390Component),
 
-    cv.Optional(CONF_LIGHT): sensor.sensor_schema(UNIT_LUX, ICON_BRIGHTNESS_5, 1),
-    cv.Optional(CONF_ALS): sensor.sensor_schema(UNIT_COUNTS, ICON_BRIGHTNESS_5, 1),
+    cv.Optional(CONF_LIGHT): sensor.sensor_schema(UNIT_LUX, ICON_BRIGHTNESS_5, 1, DEVICE_CLASS_ILLUMINANCE),
+    cv.Optional(CONF_ALS): sensor.sensor_schema(UNIT_COUNTS, ICON_BRIGHTNESS_5, 1, DEVICE_CLASS_ILLUMINANCE),
 
-    cv.Optional(CONF_UVI): sensor.sensor_schema(UNIT_UVI, ICON_BRIGHTNESS_5, 5),
-    cv.Optional(CONF_UV): sensor.sensor_schema(UNIT_COUNTS, ICON_BRIGHTNESS_5, 1),
+    cv.Optional(CONF_UVI): sensor.sensor_schema(UNIT_UVI, ICON_BRIGHTNESS_5, 5, DEVICE_CLASS_ILLUMINANCE),
+    cv.Optional(CONF_UV): sensor.sensor_schema(UNIT_COUNTS, ICON_BRIGHTNESS_5, 1, DEVICE_CLASS_ILLUMINANCE),
 
     cv.Optional(CONF_GAIN, default="X3"): cv.enum(GAIN_OPTIONS),
     cv.Optional(CONF_RESOLUTION, default=18): cv.enum(RES_OPTIONS),
