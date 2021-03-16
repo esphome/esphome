@@ -2,6 +2,7 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/color.h"
 #include "esphome/components/light/light_output.h"
 #include "esphome/components/light/addressable_light.h"
 
@@ -73,7 +74,7 @@ class NeoPixelBusLightOutputBase : public light::AddressableLight {
   // ========== INTERNAL METHODS ==========
   void setup() override {
     for (int i = 0; i < this->size(); i++) {
-      (*this)[i] = light::ESPColor(0, 0, 0, 0);
+      (*this)[i] = Color(0, 0, 0, 0);
     }
 
     this->effect_data_ = new uint8_t[this->size()];
