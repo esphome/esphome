@@ -11,6 +11,9 @@ namespace esp32_ble_server {
 static const char *TAG = "esp32_ble_server";
 
 static const char *DEVICE_INFORMATION_SERVICE_UUID = "180A";
+#ifdef ARDUINO_BOARD
+static const char *MODEL_UUID = "2A24";
+#endif
 static const char *VERSION_UUID = "2A26";
 static const char *MANUFACTURER_UUID = "2A29";
 
@@ -22,12 +25,17 @@ void ESP32BLEServer::setup() {
   this->server_->setCallbacks(new ESP32BLEServerCallback());
 
   BLEService *device_information_service = this->server_->createService(DEVICE_INFORMATION_SERVICE_UUID);
+#ifdef ARDUINO_BOARD
+  BLECharacteristic *model =
+      device_information_service->createCharacteristic(MODEL_UUID, BLECharacteristic::PROPERTY_READ);
+  model->setValue(ARDUINO_BOARD);
+#endif
   BLECharacteristic *version =
       device_information_service->createCharacteristic(VERSION_UUID, BLECharacteristic::PROPERTY_READ);
-  version->setValue(ESPHOME_VERSION);
+  version->setValue("ESPHome " ESPHOME_VERSION);
   BLECharacteristic *manufacturer =
       device_information_service->createCharacteristic(MANUFACTURER_UUID, BLECharacteristic::PROPERTY_READ);
-  manufacturer->setValue("ESPHome");
+  manufacturer->setValue(this->manufacturer_);
   device_information_service->start();
 
   BLEAdvertising *advertising = BLEDevice::getAdvertising();

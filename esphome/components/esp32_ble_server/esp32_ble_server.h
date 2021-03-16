@@ -33,8 +33,11 @@ class ESP32BLEServer : public Component {
 
   BLEService *add_service(const char *uuid);
 
+  void set_manufacturer(const std::string manufacturer) { this->manufacturer_ = manufacturer; }
+
  protected:
   BLEServer *server_;
+  std::string manufacturer_;
 };
 
 extern ESP32BLEServer *global_ble_server;
