@@ -60,7 +60,7 @@ void PMSA003IComponent::update() {
       this->pmc_10_0_sensor_->publish_state(data.particles_100um);
   } else {
     this->status_set_warning();
-    ESP_LOGD(TAG, "Read failure. Skipping update.");
+    ESP_LOGV(TAG, "Read failure. Skipping update.");
   }
 }
 
