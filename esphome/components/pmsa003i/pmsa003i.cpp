@@ -27,7 +27,7 @@ void PMSA003IComponent::update() {
 
   // Update sensors
   if (successful_read) {
-    ESP_LOGD(TAG, "Read success. Updating sensors.");
+    ESP_LOGV(TAG, "Read success. Updating sensors.");
 
     if (this->standard_units_) {
       if (this->pm_1_0_sensor_ != nullptr)
