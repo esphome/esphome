@@ -171,6 +171,7 @@ CONF_DUMP = "dump"
 CONF_DURATION = "duration"
 CONF_EAP = "eap"
 CONF_ECHO_PIN = "echo_pin"
+CONF_ECO2 = 'eco2'
 CONF_EFFECT = "effect"
 CONF_EFFECTS = "effects"
 CONF_ELSE = "else"

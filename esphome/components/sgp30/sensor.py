@@ -9,8 +9,6 @@ DEPENDENCIES = ['i2c']
 sgp30_ns = cg.esphome_ns.namespace('sgp30')
 SGP30Component = sgp30_ns.class_('SGP30Component', cg.PollingComponent, i2c.I2CDevice)
 
-CONF_ECO2 = 'eco2'
-CONF_TVOC = 'tvoc'
 CONF_BASELINE = 'baseline'
 CONF_ECO2_BASELINE = 'eco2_baseline'
 CONF_TVOC_BASELINE = 'tvoc_baseline'
