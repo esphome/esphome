@@ -37,8 +37,8 @@ namespace esphome {
 
 class Application {
  public:
-  void pre_setup(const std::string &name, const char *compilation_time, bool name_mac_suffix) {
-    if (name_mac_suffix) {
+  void pre_setup(const std::string &name, const char *compilation_time, bool name_add_mac_suffix) {
+    if (name_add_mac_suffix) {
       this->name_ = name + "_" + get_mac_address().substr(6);
     } else {
       this->name_ = name;
