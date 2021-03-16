@@ -2,7 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import i2c, sensor
 from esphome.const import CONF_ID, CONF_TEMPERATURE, CONF_HUMIDITY, UNIT_CELSIUS, \
-    UNIT_PERCENT, ICON_THERMOMETER, ICON_WATER_PERCENT
+    UNIT_PERCENT, ICON_THERMOMETER, ICON_WATER_PERCENT, DEVICE_CLASS_TEMPERATURE, DEVICE_CLASS_HUMIDITY
 
 CODEOWNERS = ['@sjtrny']
 DEPENDENCIES = ['i2c']
@@ -39,8 +39,8 @@ CONF_HEATER_MAX_DUTY = 'heater_max_duty'
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(SHT4XComponent),
 
-    cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(UNIT_CELSIUS, ICON_THERMOMETER, 1),
-    cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(UNIT_PERCENT, ICON_WATER_PERCENT, 1),
+    cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(UNIT_CELSIUS, ICON_THERMOMETER, 2, DEVICE_CLASS_TEMPERATURE),
+    cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(UNIT_PERCENT, ICON_WATER_PERCENT, 2, DEVICE_CLASS_HUMIDITY),
 
     cv.Optional(CONF_PRECISION, default="High"): cv.enum(PRECISION_OPTIONS),
     cv.Optional(CONF_HEATER_POWER, default="High"): cv.enum(HEATER_POWER_OPTIONS),
