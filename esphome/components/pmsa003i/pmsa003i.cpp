@@ -27,6 +27,7 @@ void PMSA003IComponent::update() {
 
   // Update sensors
   if (successful_read) {
+    this->status_clear_warning();
     ESP_LOGV(TAG, "Read success. Updating sensors.");
 
     if (this->standard_units_) {
@@ -58,6 +59,7 @@ void PMSA003IComponent::update() {
     if (this->pmc_10_0_sensor_ != nullptr)
       this->pmc_10_0_sensor_->publish_state(data.particles_100um);
   } else {
+    this->status_set_warning();
     ESP_LOGD(TAG, "Read failure. Skipping update.");
   }
 }
