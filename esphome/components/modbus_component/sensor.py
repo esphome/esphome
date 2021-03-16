@@ -5,7 +5,6 @@ from esphome.components import (
     modbus,
     binary_sensor,
     text_sensor,
-    modbus_component,
     switch,
 )
 from esphome.core import coroutine
@@ -13,9 +12,13 @@ from esphome.util import Registry
 
 from esphome.const import (
     CONF_ID,
-    ICON_EMPTY,
     CONF_ADDRESS,
     CONF_OFFSET,
+    CONF_NAME,
+    UNIT_AMPERE,
+    UNIT_CELSIUS,
+    UNIT_WATT,
+    UNIT_VOLT,
     DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_CURRENT,
     DEVICE_CLASS_ENERGY,
@@ -32,11 +35,8 @@ from .const import (
     CONF_COMMAND_THROTTLE,
     CONF_RESPONSE_SIZE,
     CONF_BITMASK,
-    UNIT_AMPERE_HOURS,
-    UNIT_KG,
+    CONF_SKIP_UPDATES,
     UNIT_KWATT_HOURS,
-    UNIT_MILLIOHM,
-    UNIT_HOURS,
 )
 
 
@@ -85,7 +85,7 @@ SENSOR_VALUE_TYPE = {
 # Filters
 # Filter = binary_sensor_ns.class_(" RAW_Filter")
 # LambdaFilter = binary_sensor_ns.class_("LambdaFilter", Filter)
-## not yet used: Filter operating at the raw modbus data
+# not yet used: Filter operating at the raw modbus data
 RAW_FILTER_REGISTRY = Registry()
 validate_filters = cv.validate_registry("raw_filter", RAW_FILTER_REGISTRY)
 
@@ -99,8 +99,9 @@ sensor_entry = sensor.SENSOR_SCHEMA.extend(
         cv.Optional(CONF_OFFSET): cv.int_,
         cv.Optional(CONF_BITMASK, default=0xFFFFFFFF): cv.hex_uint32_t,
         cv.Optional(CONF_VALUE_TYPE): cv.enum(SENSOR_VALUE_TYPE),
-        cv.Optional(CONF_SCALE_FACTOR): cv.float_,
+        cv.Optional(CONF_SCALE_FACTOR, default=1.0): cv.float_,
         cv.Optional(CONF_REGISTER_COUNT, default=1): cv.int_,
+        cv.Optional(CONF_SKIP_UPDATES, default=1): cv.int_,
     }
 )
 
@@ -110,6 +111,7 @@ binary_sensor_entry = binary_sensor.BINARY_SENSOR_SCHEMA.extend(
         cv.Optional(CONF_ADDRESS): cv.int_,
         cv.Optional(CONF_OFFSET): cv.int_,
         cv.Optional(CONF_BITMASK, default=0x1): cv.hex_uint32_t,
+        cv.Optional(CONF_SKIP_UPDATES, default=1): cv.int_,
     }
 )
 
@@ -119,6 +121,7 @@ modbus_switch_entry = switch.SWITCH_SCHEMA.extend(
         cv.Optional(CONF_ADDRESS): cv.int_,
         cv.Optional(CONF_OFFSET): cv.int_,
         cv.Optional(CONF_BITMASK, default=0x1): cv.hex_uint32_t,
+        cv.Optional(CONF_SKIP_UPDATES, default=1): cv.int_,
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -128,6 +131,7 @@ text_sensor_entry = text_sensor.TEXT_SENSOR_SCHEMA.extend(
         cv.Optional(CONF_ADDRESS): cv.int_,
         cv.Optional(CONF_OFFSET): cv.int_,
         cv.Optional(CONF_RESPONSE_SIZE, default=0): cv.int_,
+        cv.Optional(CONF_SKIP_UPDATES, default=1): cv.int_,
     }
 )
 
@@ -143,6 +147,7 @@ def modbus_sensor_schema(
     unit_of_measurement_,
     icon_,
     accuracy_decimals_,
+    skip_updates_,
     device_class_=DEVICE_CLASS_EMPTY,
 ):
     if device_class_ == DEVICE_CLASS_EMPTY:
@@ -169,14 +174,19 @@ def modbus_sensor_schema(
             cv.Optional(CONF_VALUE_TYPE, default=value_type_): cv.enum(
                 SENSOR_VALUE_TYPE
             ),
-            cv.Optional(CONF_SCALE_FACTOR, default=scale_factor_): cv.float_,
             cv.Optional(CONF_REGISTER_COUNT, default=register_count_): cv.int_,
+            cv.Optional(CONF_REGISTER_COUNT, default=skip_updates_): cv.int_,
+            cv.Optional(CONF_SCALE_FACTOR, default=scale_factor_): cv.float_,
         }
     )
 
 
 def modbus_binarysensor_schema(
-    modbus_functioncode_, register_address_, register_offset_, bitmask_=1
+    modbus_functioncode_,
+    register_address_,
+    register_offset_,
+    bitmask_=1,
+    skip_updates_=0,
 ):
     return binary_sensor.BINARY_SENSOR_SCHEMA.extend(
         {
@@ -186,27 +196,17 @@ def modbus_binarysensor_schema(
             cv.Optional(CONF_ADDRESS, default=register_address_): cv.int_,
             cv.Optional(CONF_OFFSET, default=register_offset_): cv.int_,
             cv.Optional(CONF_BITMASK, default=bitmask_): cv.hex_uint32_t,
-        }
-    )
-
-
-def modbus_switch_schema(
-    modbus_functioncode_, register_address_, register_offset_, bitmask_=1
-):
-    return switch.SWITCH_SCHEMA.extend(
-        {
-            cv.Optional(
-                CONF_MODBUS_FUNCTIONCODE, default=modbus_functioncode_
-            ): cv.enum(MODBUS_FUNCTION_CODE),
-            cv.Optional(CONF_ADDRESS, default=register_address_): cv.int_,
-            cv.Optional(CONF_OFFSET, default=register_offset_): cv.int_,
-            cv.Optional(CONF_BITMASK, default=bitmask_): cv.hex_uint32_t,
+            cv.Optional(CONF_REGISTER_COUNT, default=skip_updates_): cv.int_,
         }
     )
 
 
 def modbus_textsensor_schema(
-    modbus_functioncode_, register_address_, register_offset_, response_size_
+    modbus_functioncode_,
+    register_address_,
+    register_offset_,
+    response_size_,
+    skip_updates_=0,
 ):
     return text_sensor.TEXT_SENSOR_SCHEMA.extend(
         {
@@ -216,6 +216,7 @@ def modbus_textsensor_schema(
             cv.Optional(CONF_ADDRESS, default=register_address_): cv.int_,
             cv.Optional(CONF_OFFSET, default=register_offset_): cv.int_,
             cv.Optional(CONF_RESPONSE_SIZE, default=response_size_): cv.int_,
+            cv.Optional(CONF_REGISTER_COUNT, default=skip_updates_): cv.int_,
         }
     )
 
@@ -289,43 +290,61 @@ def to_code(config):
     yield modbus.register_modbus_device(var, config)
     if config.get("sensors"):
         conf = config["sensors"]
-        for s in conf:
-            sens = yield sensor.new_sensor(s)
+        for cfg in conf:
+            sens = yield sensor.new_sensor(cfg)
             cg.add(
                 var.add_sensor(
                     sens,
-                    s[CONF_MODBUS_FUNCTIONCODE],
-                    s[CONF_ADDRESS],
-                    s[CONF_OFFSET],
-                    s[CONF_BITMASK],
-                    s[CONF_VALUE_TYPE],
-                    s[CONF_REGISTER_COUNT],
+                    cfg[CONF_MODBUS_FUNCTIONCODE],
+                    cfg[CONF_ADDRESS],
+                    cfg[CONF_OFFSET],
+                    cfg[CONF_BITMASK],
+                    cfg[CONF_VALUE_TYPE],
+                    cfg[CONF_REGISTER_COUNT],
+                    cfg[CONF_SKIP_UPDATES],
+                    cfg[CONF_SCALE_FACTOR],
                 )
             )
     if config.get("binary_sensors"):
         conf = config["binary_sensors"]
-        for s in conf:
-            sens = yield binary_sensor.new_binary_sensor(s)
+        for cfg in conf:
+            sens = yield binary_sensor.new_binary_sensor(cfg)
             cg.add(
                 var.add_binarysensor(
                     sens,
-                    s[CONF_MODBUS_FUNCTIONCODE],
-                    s[CONF_ADDRESS],
-                    s[CONF_OFFSET],
-                    s[CONF_BITMASK],
+                    cfg[CONF_MODBUS_FUNCTIONCODE],
+                    cfg[CONF_ADDRESS],
+                    cfg[CONF_OFFSET],
+                    cfg[CONF_BITMASK],
+                    cfg[CONF_SKIP_UPDATES],
                 )
             )
     if config.get("text_sensors"):
         conf = config["text_sensors"]
-        for s in conf:
-            sens = yield text_sensor.new_text_sensor(s)
+        for cfg in conf:
+            sens = yield new_text_sensor(cfg)
             cg.add(
                 var.add_textsensor(
                     sens,
-                    s[CONF_MODBUS_FUNCTIONCODE],
-                    s[CONF_ADDRESS],
-                    s[CONF_OFFSET],
-                    s[CONF_RESPONSE_SIZE],
+                    cfg[CONF_MODBUS_FUNCTIONCODE],
+                    cfg[CONF_ADDRESS],
+                    cfg[CONF_OFFSET],
+                    cfg[CONF_RESPONSE_SIZE],
+                    cfg[CONF_SKIP_UPDATES],
+                )
+            )
+    if config.get("switches"):
+        conf = config["switches"]
+        for cfg in conf:
+            sens = yield new_modbus_switch(cfg)
+            cg.add(
+                var.add_modbus_switch(
+                    sens,
+                    cfg[CONF_MODBUS_FUNCTIONCODE],
+                    cfg[CONF_ADDRESS],
+                    cfg[CONF_OFFSET],
+                    cfg[CONF_RESPONSE_SIZE],
+                    cfg[CONF_SKIP_UPDATES],
                 )
             )
 
@@ -333,3 +352,17 @@ def to_code(config):
 @coroutine
 def build_modbus_registers(config):
     yield cg.build_registry_list(MODBUS_REGISTRY, config)
+
+
+@coroutine
+def new_text_sensor(config):
+    var = cg.new_Pvariable(config[CONF_ID], config[CONF_NAME])
+    yield text_sensor.register_text_sensor(var, config)
+    yield var
+
+
+@coroutine
+def new_modbus_switch(config):
+    var = cg.new_Pvariable(config[CONF_ID], config[CONF_NAME])
+    yield switch.register_switch(var, config)
+    yield var

@@ -110,6 +110,7 @@ CONF_MODBUS_FUNCTIONCODE = "modbus_functioncode"
 CONF_BITMASK = "bitmask"
 CONF_REGISTER_COUNT = "register_count"
 CONF_RESPONSE_SIZE = "response_size"
+CONF_SKIP_UPDATES = "skip_updates"
 
 UNIT_KWATT_HOURS = "kWh"
 UNIT_AMPERE_HOURS = "Ah"

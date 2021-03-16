@@ -115,13 +115,16 @@ void ModbusComponent::update() {
     ESP_LOGD(TAG, "Skipping update");
     return;
   }
-  create_register_ranges();
-
   for (auto r : this->register_ranges) {
-    ESP_LOGV(TAG, " Range : %X Size: %x (%d)", r.start_address, r.register_count, (int) r.register_type);
+    ESP_LOGV(TAG, " Range : %X Size: %x (%d) skip: %d", r.start_address, r.register_count, (int) r.register_type,r.skip_updates_counter );
+    if (r.skip_updates_counter == 0 ) {
     ModbusCommandItem command_item =
         ModbusCommandItem::create_read_command(this, r.register_type, r.start_address, r.register_count);
     queue_command_(command_item);
+     r.skip_updates_counter =  r.skip_updates; // reset counter to config value 
+    } else { r.skip_updates_counter--; }
+
+
   }
   // send_next_command_();
   ESP_LOGD(TAG, "Modbus  update complete");
@@ -154,6 +157,7 @@ size_t ModbusComponent::create_register_ranges() {
         r.register_count = total_register_count;
         r.register_type = prev->second->register_type;
         r.first_sensorkey = first_sensorkey;
+        r.skip_updates = prev->second->skip_updates;
         ESP_LOGD(TAG, "Add range 0x%X %d", r.start_address, r.register_count);
         register_ranges.push_back(r);
       }
@@ -180,6 +184,7 @@ size_t ModbusComponent::create_register_ranges() {
     r.register_count = total_register_count;
     r.register_type = prev->second->register_type;
     r.first_sensorkey = first_sensorkey;
+    r.skip_updates = prev->second->skip_updates;    
     register_ranges.push_back(r);
   }
   return register_ranges.size();
@@ -446,10 +451,16 @@ float BinarySensorItem::parse_and_publish(const std::vector<uint8_t> &data) {
 float TextSensorItem::parse_and_publish(const std::vector<uint8_t> &data) {
   int64_t value = 0;
   float result = NAN;
-  char tmp[256];
+  char tmp[256*2];
+  char *p=tmp ;  
   result = float(response_bytes_);
-  memcpy(tmp, data.data(), data.size());
-  tmp[data.size()] = 0;
+
+  for (auto byte : data) {
+    snprintf(p,3,"%X",byte);
+    p += 2 ; 
+  }
+//  memcpy(tmp, data.data(), data.size());
+//  tmp[data.size()] = 0;
   // No need tp publish if the value didn't change since the last publish
   //  if (value != this->last_value) {
   this->sensor_->publish_state(tmp);
