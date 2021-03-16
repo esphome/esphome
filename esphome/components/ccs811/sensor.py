@@ -20,9 +20,6 @@ CCS811Component = ccs811_ns.class_(
     "CCS811Component", cg.PollingComponent, i2c.I2CDevice
 )
 
-CONF_ECO2 = "eco2"
-CONF_BASELINE = "baseline"
-
 CONFIG_SCHEMA = (
     cv.Schema(
         {
