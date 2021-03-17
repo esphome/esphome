@@ -130,7 +130,7 @@ void ModbusComponent::update() {
     }
   }
   // send_next_command_();
-  ESP_LOGD(TAG, "Modbus  update complete");
+  ESP_LOGD(TAG, "Modbus  update complete Free Heap  %u bytes",ESP.getFreeHeap());
 }
 
 // walk through the sensors and determine the registerranges to read
