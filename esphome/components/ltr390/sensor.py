@@ -8,6 +8,7 @@ from esphome.const import (
     CONF_RESOLUTION,
     UNIT_LUX,
     ICON_BRIGHTNESS_5,
+    DEVICE_CLASS_ILLUMINANCE,
 )
 
 CODEOWNERS = ["@sjtrny"]
