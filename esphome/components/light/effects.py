@@ -152,6 +152,7 @@ def automation_effect_to_code(config, effect_id):
     yield automation.build_automation(var.get_trig(), [], config[CONF_SEQUENCE])
     yield var
 
+
 @register_rgb_effect(
     "pulse",
     PulseLightEffect,
@@ -183,6 +184,7 @@ def pulse_effect_to_code(config, effect_id):
     cg.add(effect.set_transition_length(config[CONF_TRANSITION_LENGTH]))
     cg.add(effect.set_update_interval(config[CONF_UPDATE_INTERVAL]))
     yield effect
+
 
 @register_rgb_effect(
     "random",
