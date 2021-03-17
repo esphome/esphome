@@ -11,6 +11,40 @@ inline static float random_cubic_float() {
   return r * r * r;
 }
 
+/// Pulse effect.
+class PulseLightEffect : public LightEffect {
+ public:
+  explicit PulseLightEffect(const std::string &name) : LightEffect(name) {}
+
+  void apply() override {
+    const uint32_t now = millis();
+    if (now - this->last_color_change_ < this->transition_length_) {
+      return;
+    }
+    auto call = this->state_->turn_on();
+    float out=this->on ? 1.0 : 0.0;
+    call.set_brightness_if_supported(out);
+    this->on=!this->on;
+    call.set_transition_length_if_supported(this->transition_length_);
+    // don't tell HA every change
+    call.set_publish(false);
+    call.set_save(false);
+    call.perform();
+
+    this->last_color_change_ = now;
+  }
+
+  void set_transition_length(uint32_t transition_length) { this->transition_length_ = transition_length; }
+
+  void set_update_interval(uint32_t update_interval) { this->update_interval_ = update_interval; }
+
+ protected:
+  bool on=false;
+  uint32_t last_color_change_{0};
+  uint32_t transition_length_{};
+  uint32_t update_interval_{};
+};
+
 /// Random effect. Sets random colors every 10 seconds and slowly transitions between them.
 class RandomLightEffect : public LightEffect {
  public:
@@ -22,10 +56,14 @@ class RandomLightEffect : public LightEffect {
       return;
     }
     auto call = this->state_->turn_on();
+    if(this->state_->get_traits().get_supports_rgb()) {
     call.set_red_if_supported(random_float());
     call.set_green_if_supported(random_float());
     call.set_blue_if_supported(random_float());
     call.set_white_if_supported(random_float());
+    } else {
+      call.set_brightness_if_supported(random_float());
+    }
     call.set_color_temperature_if_supported(random_float());
     call.set_transition_length_if_supported(this->transition_length_);
     call.set_publish(true);
