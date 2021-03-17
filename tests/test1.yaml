@@ -1470,7 +1470,7 @@ climate:
 
 midea_dongle:
   uart_id: uart0
-  stretched_icon: true
+  strength_icon: true
 
 switch:
   - platform: gpio

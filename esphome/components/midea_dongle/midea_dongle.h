@@ -29,7 +29,7 @@ class MideaDongle : public PollingComponent, public uart::UARTDevice {
   void update() override;
   void loop() override;
   void set_appliance(MideaAppliance *app) { this->appliance_ = app; }
-  void use_stretched_icon(bool state) { this->rssi_timer_ = state; }
+  void use_strength_icon(bool state) { this->rssi_timer_ = state; }
   void write_frame(const Frame &frame);
 
  protected:
