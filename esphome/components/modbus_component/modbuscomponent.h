@@ -29,11 +29,11 @@ enum class ModbusFunctionCode {
 };
 
 enum class SensorValueType : uint8_t {
-  RAW = 0x00,       // variable length
-  U_WORD = 0x01,  // 1 Register unsigned
-  U_DWORD = 0x02,    // 2 Registers unsigned
-  S_WORD = 0x03,  // 1 Register signed
-  S_DWORD = 0x04,    // 2 Registers signed
+  RAW = 0x00,      // variable length
+  U_WORD = 0x01,   // 1 Register unsigned
+  U_DWORD = 0x02,  // 2 Registers unsigned
+  S_WORD = 0x03,   // 1 Register signed
+  S_DWORD = 0x04,  // 2 Registers signed
   BIT = 0x05,
   U_DWORD_R = 0x06,  // 2 Registers unsigned
   S_DWORD_R = 0x07,  // 2 Registers unsigned
@@ -41,15 +41,15 @@ enum class SensorValueType : uint8_t {
   S_QWORD = 0x9,
   U_QWORD_R = 0xA,
   S_QWORD_R = 0xB
-  };
+};
 
 struct RegisterRange {
   uint16_t start_address;
   uint8_t register_count;
   ModbusFunctionCode register_type;
   uint64_t first_sensorkey;
-  uint8_t skip_updates ;  // the config value 
-    uint8_t skip_updates_counter ; // the running value
+  uint8_t skip_updates;          // the config value
+  uint8_t skip_updates_counter;  // the running value
 };
 
 // All sensors are stored in a map
@@ -101,17 +101,17 @@ struct SensorItem {
         size = 1;
         break;
       case SensorValueType::U_DWORD_R:
-        size = 4 ;
+        size = 4;
         break;
       case SensorValueType::S_DWORD_R:
-        size = 4 ;
+        size = 4;
         break;
       case SensorValueType::U_QWORD:
       case SensorValueType::U_QWORD_R:
-        size = 8 ;
+        size = 8;
         break;
       case SensorValueType::S_QWORD:
-        size = 8 ;
+        size = 8;
         break;
       default:
         size = 2;
@@ -144,17 +144,17 @@ struct TextSensorItem : public SensorItem {
   void log() override;
   float parse_and_publish(const std::vector<uint8_t> &data) override;
   uint16_t response_bytes_;
+  bool hex_encode;
 };
 
 struct ModbusSwitchItem : public SensorItem {
   switch_::Switch *modbus_switch_;
-  ModbusSwitchItem( switch_::Switch *modbus_switch) : modbus_switch_(modbus_switch) {}
+  ModbusSwitchItem(switch_::Switch *modbus_switch) : modbus_switch_(modbus_switch) {}
   std::string const &get_name() override { return modbus_switch_->get_name(); }
   void log() override;
   float parse_and_publish(const std::vector<uint8_t> &data) override;
   uint16_t response_bytes_;
 };
-
 
 // class ModbusSensor ;
 class ModbusComponent : public PollingComponent, public modbus::ModbusDevice {
@@ -163,7 +163,8 @@ class ModbusComponent : public PollingComponent, public modbus::ModbusDevice {
   std::map<uint64_t, std::unique_ptr<SensorItem>> sensormap;
   std::vector<RegisterRange> register_ranges;
   void add_sensor(sensor::Sensor *sensor, ModbusFunctionCode register_type, uint16_t start_address, uint8_t offset,
-                  uint32_t bitmask, SensorValueType value_type = SensorValueType::U_WORD, int register_count = 1,uint8_t skip_updates=0,float scale_factor=1.0) {
+                  uint32_t bitmask, SensorValueType value_type = SensorValueType::U_WORD, int register_count = 1,
+                  uint8_t skip_updates = 0, float scale_factor = 1.0) {
     auto new_item = make_unique<FloatSensorItem>(sensor);
     new_item->register_type = register_type;
     new_item->start_address = start_address;
@@ -174,13 +175,13 @@ class ModbusComponent : public PollingComponent, public modbus::ModbusDevice {
     // because values are  only in the int32_t range it's a safe "marker" value
     new_item->last_value = INT64_MIN;
     // Default transformation is divide by 100
-    new_item->transform_expression = [scale_factor](int64_t val) { return val *scale_factor; };
+    new_item->transform_expression = [scale_factor](int64_t val) { return val * scale_factor; };
     new_item->register_count = register_count;
     new_item->skip_updates = skip_updates;
     sensormap[new_item->getkey()] = std::move(new_item);
   }
   void add_binarysensor(binary_sensor::BinarySensor *sensor, ModbusFunctionCode register_type, uint16_t start_address,
-                        uint8_t offset, uint32_t bitmask,uint8_t skip_updates) {
+                        uint8_t offset, uint32_t bitmask, uint8_t skip_updates) {
     auto new_item = make_unique<BinarySensorItem>(sensor);
     new_item->register_type = register_type;
     new_item->start_address = start_address;
@@ -197,7 +198,8 @@ class ModbusComponent : public PollingComponent, public modbus::ModbusDevice {
   }
 
   void add_textsensor(text_sensor::TextSensor *sensor, ModbusFunctionCode register_type, uint16_t start_address,
-                      uint8_t offset, uint16_t response_bytes,uint8_t skip_updates) {
+                      uint8_t offset, uint8_t register_count, uint16_t response_bytes, bool hex_encode,
+                      uint8_t skip_updates) {
     auto new_item = make_unique<TextSensorItem>(sensor);
     new_item->register_type = register_type;
     new_item->start_address = start_address;
@@ -205,17 +207,18 @@ class ModbusComponent : public PollingComponent, public modbus::ModbusDevice {
     new_item->sensor_value_type = SensorValueType::RAW;
     new_item->response_bytes_ = response_bytes;
     new_item->last_value = INT64_MIN;
-    new_item->register_count = 1;
+    new_item->register_count = register_count;
+    new_item->hex_encode = hex_encode;
     new_item->skip_updates = skip_updates;
     // not sure we need it anymore
     auto key = new_item->getkey();
     sensormap[key] = std::move(new_item);
   }
 
-  void add_modbus_switch( switch_::Switch *modbus_switch, ModbusFunctionCode register_type, uint16_t start_address,
-                        uint8_t offset, uint32_t bitmask,uint8_t skip_updates) {
-   // TODO implement switch                         
-}
+  void add_modbus_switch(switch_::Switch *modbus_switch, ModbusFunctionCode register_type, uint16_t start_address,
+                         uint8_t offset, uint32_t bitmask, uint8_t skip_updates) {
+    // TODO implement switch
+  }
   size_t create_register_ranges();
 
   bool remove_register_range(uint16_t start_address) {

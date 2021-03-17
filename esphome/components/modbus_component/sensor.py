@@ -36,6 +36,7 @@ from .const import (
     CONF_RESPONSE_SIZE,
     CONF_BITMASK,
     CONF_SKIP_UPDATES,
+    CONF_HEX_ENCODE,
     UNIT_KWATT_HOURS,
 )
 
@@ -125,15 +126,23 @@ modbus_switch_entry = switch.SWITCH_SCHEMA.extend(
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
+
+# pylint: disable=invalid-name
+text_sensor_ns = cg.esphome_ns.namespace("text_sensor")
+TextSensor = text_sensor_ns.class_("TextSensor", cg.Nameable)
+
 text_sensor_entry = text_sensor.TEXT_SENSOR_SCHEMA.extend(
     {
+        cv.GenerateID(): cv.declare_id(TextSensor),
         cv.Optional(CONF_MODBUS_FUNCTIONCODE): cv.enum(MODBUS_FUNCTION_CODE),
         cv.Optional(CONF_ADDRESS): cv.int_,
         cv.Optional(CONF_OFFSET): cv.int_,
+        cv.Optional(CONF_REGISTER_COUNT, default=1): cv.int_,
         cv.Optional(CONF_RESPONSE_SIZE, default=0): cv.int_,
+        cv.Optional(CONF_HEX_ENCODE, default=0): cv.boolean,
         cv.Optional(CONF_SKIP_UPDATES, default=0): cv.int_,
     }
-)
+).extend(cv.COMPONENT_SCHEMA)
 
 
 def modbus_sensor_schema(
@@ -150,6 +159,7 @@ def modbus_sensor_schema(
     skip_updates_,
     device_class_=DEVICE_CLASS_EMPTY,
 ):
+    """Create the schema for a modbus sensor"""
     if device_class_ == DEVICE_CLASS_EMPTY:
         if unit_of_measurement_ == UNIT_AMPERE:
             device_class_ = DEVICE_CLASS_CURRENT
@@ -205,17 +215,22 @@ def modbus_textsensor_schema(
     modbus_functioncode_,
     register_address_,
     register_offset_,
+    register_count_,
     response_size_,
+    hex_encode_,
     skip_updates_=0,
 ):
     return text_sensor.TEXT_SENSOR_SCHEMA.extend(
         {
+            cv.GenerateID(): cv.declare_id(TextSensor),
             cv.Optional(
                 CONF_MODBUS_FUNCTIONCODE, default=modbus_functioncode_
             ): cv.enum(MODBUS_FUNCTION_CODE),
             cv.Optional(CONF_ADDRESS, default=register_address_): cv.int_,
             cv.Optional(CONF_OFFSET, default=register_offset_): cv.int_,
+            cv.Optional(CONF_REGISTER_COUNT, default=register_count_): cv.int_,
             cv.Optional(CONF_RESPONSE_SIZE, default=response_size_): cv.int_,
+            cv.Optional(CONF_HEX_ENCODE, default=hex_encode_): cv.boolean,
             cv.Optional(CONF_SKIP_UPDATES, default=skip_updates_): cv.int_,
         }
     )
@@ -329,7 +344,9 @@ def to_code(config):
                     cfg[CONF_MODBUS_FUNCTIONCODE],
                     cfg[CONF_ADDRESS],
                     cfg[CONF_OFFSET],
+                    cfg[CONF_REGISTER_COUNT],
                     cfg[CONF_RESPONSE_SIZE],
+                    cfg[CONF_HEX_ENCODE],
                     cfg[CONF_SKIP_UPDATES],
                 )
             )

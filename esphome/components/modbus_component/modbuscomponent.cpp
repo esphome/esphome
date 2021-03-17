@@ -1,5 +1,7 @@
 #include "modbuscomponent.h"
 #include "esphome/core/log.h"
+#include <sstream>
+#include <iomanip>
 
 namespace esphome {
 namespace modbus_component {
@@ -116,15 +118,16 @@ void ModbusComponent::update() {
     return;
   }
   for (auto &r : this->register_ranges) {
-    ESP_LOGV(TAG, " Range : %X Size: %x (%d) skip: %d", r.start_address, r.register_count, (int) r.register_type,r.skip_updates_counter );
-    if (r.skip_updates_counter == 0 ) {
-    ModbusCommandItem command_item =
-        ModbusCommandItem::create_read_command(this, r.register_type, r.start_address, r.register_count);
-    queue_command_(command_item);
-     r.skip_updates_counter =  r.skip_updates; // reset counter to config value 
-    } else { r.skip_updates_counter--; }
-
-
+    ESP_LOGV(TAG, " Range : %X Size: %x (%d) skip: %d", r.start_address, r.register_count, (int) r.register_type,
+             r.skip_updates_counter);
+    if (r.skip_updates_counter == 0) {
+      ModbusCommandItem command_item =
+          ModbusCommandItem::create_read_command(this, r.register_type, r.start_address, r.register_count);
+      queue_command_(command_item);
+      r.skip_updates_counter = r.skip_updates;  // reset counter to config value
+    } else {
+      r.skip_updates_counter--;
+    }
   }
   // send_next_command_();
   ESP_LOGD(TAG, "Modbus  update complete");
@@ -140,7 +143,7 @@ size_t ModbusComponent::create_register_ranges() {
   uint16_t current_start_address = ix->second->start_address;
   uint8_t buffer_offset = ix->second->offset;
   uint8_t buffer_gap = 0;
-  uint8_t skip_updates = 0; 
+  uint8_t skip_updates = 0;
   auto first_sensorkey = ix->second->getkey();
   int total_register_count = 0;
   while (ix != sensormap.end()) {
@@ -162,7 +165,7 @@ size_t ModbusComponent::create_register_ranges() {
         r.skip_updates = skip_updates;
         r.skip_updates_counter = 0;
         skip_updates = 0;
-        ESP_LOGD(TAG, "Add range 0x%X %d skip:%d", r.start_address, r.register_count,r.skip_updates);
+        ESP_LOGD(TAG, "Add range 0x%X %d skip:%d", r.start_address, r.register_count, r.skip_updates);
         register_ranges.push_back(r);
       }
       current_start_address = ix->second->start_address;
@@ -189,7 +192,7 @@ size_t ModbusComponent::create_register_ranges() {
     r.register_type = prev->second->register_type;
     r.first_sensorkey = first_sensorkey;
     r.skip_updates = skip_updates;
-   r.skip_updates_counter = 0;
+    r.skip_updates_counter = 0;
     register_ranges.push_back(r);
   }
   return register_ranges.size();
@@ -267,10 +270,10 @@ size_t ModbusComponent::create_register_ranges() {
 void ModbusComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "EPSOLAR:");
   ESP_LOGCONFIG(TAG, "  Address: 0x%02X", this->address_);
-    for (auto &item : this->sensormap) {
+  for (auto &item : this->sensormap) {
     item.second->log();
   }
-    create_register_ranges();
+  create_register_ranges();
 }
 
 void ModbusComponent::loop() { send_next_command_(); }
@@ -329,6 +332,8 @@ void ModbusComponent::on_write_register_response(uint16_t start_address, const s
 void FloatSensorItem::log() { LOG_SENSOR("", sensor_->get_name().c_str(), this->sensor_); }
 
 void BinarySensorItem::log() { LOG_BINARY_SENSOR("", sensor_->get_name().c_str(), this->sensor_); }
+
+void TextSensorItem::log() { LOG_TEXT_SENSOR("", sensor_->get_name().c_str(), this->sensor_); }
 
 // Extract bits from value and shift right according to the bitmask
 // if the bitmask is 0x00F0  we want the values frrom bit 5 - 8.
@@ -454,21 +459,20 @@ float BinarySensorItem::parse_and_publish(const std::vector<uint8_t> &data) {
 
 float TextSensorItem::parse_and_publish(const std::vector<uint8_t> &data) {
   int64_t value = 0;
-  float result = NAN;
-  char tmp[256*2];
-  char *p=tmp ;  
-  result = float(response_bytes_);
-
-  for (auto byte : data) {
-    snprintf(p,3,"%X",byte);
-    p += 2 ; 
+  float result = this->response_bytes_;
+  std::ostringstream output;
+  uint8_t max_items = this->response_bytes_;
+  for (uint16_t b : data) {
+    if (this->hex_encode) {
+      output << std::setfill('0') << std::setw(2) << std::hex << b;
+    } else {
+      output << (char) b;
+      if (--max_items == 0) {
+        break;
+      }
+    }
+    this->sensor_->publish_state(output.str());
   }
-//  memcpy(tmp, data.data(), data.size());
-//  tmp[data.size()] = 0;
-  // No need tp publish if the value didn't change since the last publish
-  //  if (value != this->last_value) {
-  this->sensor_->publish_state(tmp);
-  //    this->last_value = value;
 
   return result;
 }
