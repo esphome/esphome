@@ -45,7 +45,6 @@ esphome/components/json/* @OttoWinter
 esphome/components/ledc/* @OttoWinter
 esphome/components/light/* @esphome/core
 esphome/components/logger/* @esphome/core
-esphome/components/ltr390/* @esphome/core
 esphome/components/max7219digit/* @rspaargaren
 esphome/components/mcp23008/* @jesserockz
 esphome/components/mcp23017/* @jesserockz
