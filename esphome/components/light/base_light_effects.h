@@ -22,9 +22,9 @@ class PulseLightEffect : public LightEffect {
       return;
     }
     auto call = this->state_->turn_on();
-    float out=this->on ? 1.0 : 0.0;
+    float out = this->on ? 1.0 : 0.0;
     call.set_brightness_if_supported(out);
-    this->on=!this->on;
+    this->on = !this->on;
     call.set_transition_length_if_supported(this->transition_length_);
     // don't tell HA every change
     call.set_publish(false);
@@ -39,7 +39,7 @@ class PulseLightEffect : public LightEffect {
   void set_update_interval(uint32_t update_interval) { this->update_interval_ = update_interval; }
 
  protected:
-  bool on=false;
+  bool on = false;
   uint32_t last_color_change_{0};
   uint32_t transition_length_{};
   uint32_t update_interval_{};
@@ -56,7 +56,7 @@ class RandomLightEffect : public LightEffect {
       return;
     }
     auto call = this->state_->turn_on();
-    if(this->state_->get_traits().get_supports_rgb()) {
+    if (this->state_->get_traits().get_supports_rgb()) {
       call.set_red_if_supported(random_float());
       call.set_green_if_supported(random_float());
       call.set_blue_if_supported(random_float());
