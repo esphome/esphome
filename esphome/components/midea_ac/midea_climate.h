@@ -32,15 +32,15 @@ class MideaAC : public midea_dongle::MideaAppliance, public climate::Climate, pu
   const QueryFrame query_frame_;
   const PowerQueryFrame power_frame_;
   CommandFrame cmd_frame_;
-  midea_dongle::MideaDongle *parent_;
-  sensor::Sensor *outdoor_sensor_;
-  sensor::Sensor *humidity_sensor_;
-  sensor::Sensor *power_sensor_;
-  uint8_t request_num_;
-  bool ctrl_request_;
-  bool beeper_feedback_;
-  bool traits_swing_horizontal_;
-  bool traits_swing_both_;
+  midea_dongle::MideaDongle *parent_{nullptr};
+  sensor::Sensor *outdoor_sensor_{nullptr};
+  sensor::Sensor *humidity_sensor_{nullptr};
+  sensor::Sensor *power_sensor_{nullptr};
+  uint8_t request_num_{0};
+  bool ctrl_request_{false};
+  bool beeper_feedback_{false};
+  bool traits_swing_horizontal_{false};
+  bool traits_swing_both_{false};
 };
 
 }  // namespace midea_ac
