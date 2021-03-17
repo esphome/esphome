@@ -4,17 +4,18 @@ from esphome.components import output
 from esphome.const import CONF_CHANNEL, CONF_ID
 from . import MY9231OutputComponent
 
-DEPENDENCIES = ['my9231']
+DEPENDENCIES = ["my9231"]
 
-Channel = MY9231OutputComponent.class_('Channel', output.FloatOutput)
+Channel = MY9231OutputComponent.class_("Channel", output.FloatOutput)
 
-CONF_MY9231_ID = 'my9231_id'
-CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend({
-    cv.GenerateID(CONF_MY9231_ID): cv.use_id(MY9231OutputComponent),
-
-    cv.Required(CONF_ID): cv.declare_id(Channel),
-    cv.Required(CONF_CHANNEL): cv.uint16_t,
-}).extend(cv.COMPONENT_SCHEMA)
+CONF_MY9231_ID = "my9231_id"
+CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
+    {
+        cv.GenerateID(CONF_MY9231_ID): cv.use_id(MY9231OutputComponent),
+        cv.Required(CONF_ID): cv.declare_id(Channel),
+        cv.Required(CONF_CHANNEL): cv.uint16_t,
+    }
+).extend(cv.COMPONENT_SCHEMA)
 
 
 def to_code(config):
