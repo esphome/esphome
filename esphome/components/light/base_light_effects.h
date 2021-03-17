@@ -57,10 +57,10 @@ class RandomLightEffect : public LightEffect {
     }
     auto call = this->state_->turn_on();
     if(this->state_->get_traits().get_supports_rgb()) {
-    call.set_red_if_supported(random_float());
-    call.set_green_if_supported(random_float());
-    call.set_blue_if_supported(random_float());
-    call.set_white_if_supported(random_float());
+      call.set_red_if_supported(random_float());
+      call.set_green_if_supported(random_float());
+      call.set_blue_if_supported(random_float());
+      call.set_white_if_supported(random_float());
     } else {
       call.set_brightness_if_supported(random_float());
     }

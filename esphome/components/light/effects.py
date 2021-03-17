@@ -168,15 +168,15 @@ def automation_effect_to_code(config, effect_id):
 @register_monochromatic_effect(
     "pulse",
     PulseLightEffect,
-   "Pulse",
-   {
+    "Pulse",
+    {
         cv.Optional(
             CONF_TRANSITION_LENGTH, default="7.5s"
         ): cv.positive_time_period_milliseconds,
         cv.Optional(
             CONF_UPDATE_INTERVAL, default="0.01s"
         ): cv.positive_time_period_milliseconds,
-   }
+    }
 )
 def pulse_effect_to_code(config, effect_id):
     effect = cg.new_Pvariable(effect_id, config[CONF_NAME])
