@@ -101,7 +101,7 @@ sensor_entry = sensor.SENSOR_SCHEMA.extend(
         cv.Optional(CONF_VALUE_TYPE): cv.enum(SENSOR_VALUE_TYPE),
         cv.Optional(CONF_SCALE_FACTOR, default=1.0): cv.float_,
         cv.Optional(CONF_REGISTER_COUNT, default=1): cv.int_,
-        cv.Optional(CONF_SKIP_UPDATES, default=1): cv.int_,
+        cv.Optional(CONF_SKIP_UPDATES, default=0): cv.int_,
     }
 )
 
@@ -111,7 +111,7 @@ binary_sensor_entry = binary_sensor.BINARY_SENSOR_SCHEMA.extend(
         cv.Optional(CONF_ADDRESS): cv.int_,
         cv.Optional(CONF_OFFSET): cv.int_,
         cv.Optional(CONF_BITMASK, default=0x1): cv.hex_uint32_t,
-        cv.Optional(CONF_SKIP_UPDATES, default=1): cv.int_,
+        cv.Optional(CONF_SKIP_UPDATES, default=0): cv.int_,
     }
 )
 
@@ -121,7 +121,7 @@ modbus_switch_entry = switch.SWITCH_SCHEMA.extend(
         cv.Optional(CONF_ADDRESS): cv.int_,
         cv.Optional(CONF_OFFSET): cv.int_,
         cv.Optional(CONF_BITMASK, default=0x1): cv.hex_uint32_t,
-        cv.Optional(CONF_SKIP_UPDATES, default=1): cv.int_,
+        cv.Optional(CONF_SKIP_UPDATES, default=0): cv.int_,
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -131,7 +131,7 @@ text_sensor_entry = text_sensor.TEXT_SENSOR_SCHEMA.extend(
         cv.Optional(CONF_ADDRESS): cv.int_,
         cv.Optional(CONF_OFFSET): cv.int_,
         cv.Optional(CONF_RESPONSE_SIZE, default=0): cv.int_,
-        cv.Optional(CONF_SKIP_UPDATES, default=1): cv.int_,
+        cv.Optional(CONF_SKIP_UPDATES, default=0): cv.int_,
     }
 )
 
@@ -175,7 +175,7 @@ def modbus_sensor_schema(
                 SENSOR_VALUE_TYPE
             ),
             cv.Optional(CONF_REGISTER_COUNT, default=register_count_): cv.int_,
-            cv.Optional(CONF_REGISTER_COUNT, default=skip_updates_): cv.int_,
+            cv.Optional(CONF_SKIP_UPDATES, default=skip_updates_): cv.int_,
             cv.Optional(CONF_SCALE_FACTOR, default=scale_factor_): cv.float_,
         }
     )
@@ -196,7 +196,7 @@ def modbus_binarysensor_schema(
             cv.Optional(CONF_ADDRESS, default=register_address_): cv.int_,
             cv.Optional(CONF_OFFSET, default=register_offset_): cv.int_,
             cv.Optional(CONF_BITMASK, default=bitmask_): cv.hex_uint32_t,
-            cv.Optional(CONF_REGISTER_COUNT, default=skip_updates_): cv.int_,
+            cv.Optional(CONF_SKIP_UPDATES, default=skip_updates_): cv.int_,
         }
     )
 
@@ -216,7 +216,7 @@ def modbus_textsensor_schema(
             cv.Optional(CONF_ADDRESS, default=register_address_): cv.int_,
             cv.Optional(CONF_OFFSET, default=register_offset_): cv.int_,
             cv.Optional(CONF_RESPONSE_SIZE, default=response_size_): cv.int_,
-            cv.Optional(CONF_REGISTER_COUNT, default=skip_updates_): cv.int_,
+            cv.Optional(CONF_SKIP_UPDATES, default=skip_updates_): cv.int_,
         }
     )
 

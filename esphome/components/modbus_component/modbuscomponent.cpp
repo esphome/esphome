@@ -115,7 +115,7 @@ void ModbusComponent::update() {
     ESP_LOGD(TAG, "Skipping update");
     return;
   }
-  for (auto r : this->register_ranges) {
+  for (auto &r : this->register_ranges) {
     ESP_LOGV(TAG, " Range : %X Size: %x (%d) skip: %d", r.start_address, r.register_count, (int) r.register_type,r.skip_updates_counter );
     if (r.skip_updates_counter == 0 ) {
     ModbusCommandItem command_item =
@@ -140,10 +140,12 @@ size_t ModbusComponent::create_register_ranges() {
   uint16_t current_start_address = ix->second->start_address;
   uint8_t buffer_offset = ix->second->offset;
   uint8_t buffer_gap = 0;
+  uint8_t skip_updates = 0; 
   auto first_sensorkey = ix->second->getkey();
   int total_register_count = 0;
   while (ix != sensormap.end()) {
     size_t diff = ix->second->start_address - prev->second->start_address;
+    skip_updates = std::max(skip_updates, prev->second->skip_updates);
     ESP_LOGV(TAG, "Register:: 0x%X %d %d  0x%llx (%d) buffer_offset = %d (0x%X)", ix->second->start_address,
              ix->second->register_count, ix->second->offset, ix->second->getkey(), total_register_count, buffer_offset,
              buffer_offset);
@@ -157,8 +159,10 @@ size_t ModbusComponent::create_register_ranges() {
         r.register_count = total_register_count;
         r.register_type = prev->second->register_type;
         r.first_sensorkey = first_sensorkey;
-        r.skip_updates = prev->second->skip_updates;
-        ESP_LOGD(TAG, "Add range 0x%X %d", r.start_address, r.register_count);
+        r.skip_updates = skip_updates;
+        r.skip_updates_counter = 0;
+        skip_updates = 0;
+        ESP_LOGD(TAG, "Add range 0x%X %d skip:%d", r.start_address, r.register_count,r.skip_updates);
         register_ranges.push_back(r);
       }
       current_start_address = ix->second->start_address;
@@ -184,7 +188,8 @@ size_t ModbusComponent::create_register_ranges() {
     r.register_count = total_register_count;
     r.register_type = prev->second->register_type;
     r.first_sensorkey = first_sensorkey;
-    r.skip_updates = prev->second->skip_updates;    
+    r.skip_updates = skip_updates;
+   r.skip_updates_counter = 0;
     register_ranges.push_back(r);
   }
   return register_ranges.size();
@@ -262,11 +267,10 @@ size_t ModbusComponent::create_register_ranges() {
 void ModbusComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "EPSOLAR:");
   ESP_LOGCONFIG(TAG, "  Address: 0x%02X", this->address_);
-
-  for (auto &item : this->sensormap) {
+    for (auto &item : this->sensormap) {
     item.second->log();
   }
-  create_register_ranges();
+    create_register_ranges();
 }
 
 void ModbusComponent::loop() { send_next_command_(); }
