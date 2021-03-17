@@ -43,24 +43,24 @@ void MideaDongle::loop() {
 
 void MideaDongle::update() {
   const bool is_conn = WiFi.isConnected();
-  uint8_t wifi_stretch = 0;
+  uint8_t wifi_strength = 0;
   if (!this->rssi_timer_) {
     if (is_conn)
-      wifi_stretch = 4;
+      wifi_strength = 4;
   } else if (is_conn) {
     if (--this->rssi_timer_) {
-      wifi_stretch = this->notify_.get_signal_stretch();
+      wifi_strength = this->notify_.get_signal_stretch();
     } else {
       this->rssi_timer_ = 60;
       const long dbm = WiFi.RSSI();
       if (dbm > -63)
-        wifi_stretch = 4;
+        wifi_strength = 4;
       else if (dbm > -75)
-        wifi_stretch = 3;
+        wifi_strength = 3;
       else if (dbm > -88)
-        wifi_stretch = 2;
+        wifi_strength = 2;
       else if (dbm > -100)
-        wifi_stretch = 1;
+        wifi_strength = 1;
     }
   } else {
     this->rssi_timer_ = 1;
@@ -69,8 +69,8 @@ void MideaDongle::update() {
     this->notify_.set_connected(is_conn);
     this->need_notify_ = true;
   }
-  if (this->notify_.get_signal_stretch() != wifi_stretch) {
-    this->notify_.set_signal_stretch(wifi_stretch);
+  if (this->notify_.get_signal_stretch() != wifi_strength) {
+    this->notify_.set_signal_stretch(wifi_strength);
     this->need_notify_ = true;
   }
   if (!--this->notify_timer_) {
@@ -78,7 +78,7 @@ void MideaDongle::update() {
     this->need_notify_ = true;
   }
   if (this->need_notify_) {
-    ESP_LOGD(TAG, "TX: notify WiFi STA %s, signal stretch %d", is_conn ? "connected" : "not connected", wifi_stretch);
+    ESP_LOGD(TAG, "TX: notify WiFi STA %s, signal stretch %d", is_conn ? "connected" : "not connected", wifi_strength);
     this->need_notify_ = false;
     this->notify_timer_ = 600;
     this->notify_.finalize();
