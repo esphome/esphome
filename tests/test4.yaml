@@ -94,22 +94,6 @@ climate:
     target_temperature_datapoint: 3
     current_temperature_multiplier: 0.5
     target_temperature_multiplier: 0.5
-  - platform: midea_ac
-    visual:
-      min_temperature: 18 °C
-      max_temperature: 25 °C
-      temperature_step: 0.1 °C
-    name: "Electrolux EACS"
-    beeper: true
-    outdoor_temperature:
-      name: "Temp"
-    power_usage:
-      name: "Power"
-    humidity_setpoint:
-      name: "Hum"
-
-midea_dongle:
-  stretched_icon: true
 
 switch:
   - platform: tuya
