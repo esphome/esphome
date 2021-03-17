@@ -78,7 +78,7 @@ void MideaDongle::update() {
     this->need_notify_ = true;
   }
   if (this->need_notify_) {
-    ESP_LOGD(TAG, "TX: notify WiFi STA %s, signal stretch %d", is_conn ? "connected" : "not connected", wifi_strength);
+    ESP_LOGD(TAG, "TX: notify WiFi STA %s, signal strength %d", is_conn ? "connected" : "not connected", wifi_strength);
     this->need_notify_ = false;
     this->notify_timer_ = 600;
     this->notify_.finalize();
