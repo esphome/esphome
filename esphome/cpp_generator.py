@@ -460,12 +460,12 @@ def new_variable(id_: ID, rhs: SafeExpType, type_: "MockObj" = None) -> "MockObj
     """
     assert isinstance(id_, ID)
     rhs = safe_exp(rhs)
-    obj = MockObj(id_, '.')
+    obj = MockObj(id_, ".")
     if type_ is not None:
         id_.type = type_
-    decl = VariableDeclarationExpression(id_.type, '', id_)
+    decl = VariableDeclarationExpression(id_.type, "", id_)
     CORE.add_global(decl)
-    assignment = AssignmentExpression(None, '', id_, rhs, obj)
+    assignment = AssignmentExpression(None, "", id_, rhs, obj)
     CORE.add(assignment)
     CORE.register_variable(id_, obj)
     return obj
