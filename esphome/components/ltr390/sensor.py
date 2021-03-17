@@ -1,25 +1,33 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import i2c, sensor
-from esphome.const import CONF_ID, CONF_GAIN, CONF_LIGHT, CONF_RESOLUTION, \
-    UNIT_LUX, ICON_BRIGHTNESS_5
+from esphome.const import (
+    CONF_ID,
+    CONF_GAIN,
+    CONF_LIGHT,
+    CONF_RESOLUTION,
+    UNIT_LUX,
+    ICON_BRIGHTNESS_5,
+)
 
-CODEOWNERS = ['@sjtrny']
-DEPENDENCIES = ['i2c']
+CODEOWNERS = ["@sjtrny"]
+DEPENDENCIES = ["i2c"]
 
-ltr390_ns = cg.esphome_ns.namespace('ltr390')
+ltr390_ns = cg.esphome_ns.namespace("ltr390")
 
-LTR390Component = ltr390_ns.class_('LTR390Component', cg.PollingComponent, i2c.I2CDevice)
+LTR390Component = ltr390_ns.class_(
+    "LTR390Component", cg.PollingComponent, i2c.I2CDevice
+)
 
-CONF_ALS = 'als'
-CONF_UVI = 'uvi'
-CONF_UV = 'uv'
-CONF_WFAC = 'wfac'
+CONF_ALS = "als"
+CONF_UVI = "uvi"
+CONF_UV = "uv"
+CONF_WFAC = "wfac"
 
-UNIT_COUNTS = '#'
-UNIT_UVI = 'UVI'
+UNIT_COUNTS = "#"
+UNIT_UVI = "UVI"
 
-LTR390GAIN = ltr390_ns.enum('LTR390GAIN')
+LTR390GAIN = ltr390_ns.enum("LTR390GAIN")
 GAIN_OPTIONS = {
     "X1": LTR390GAIN.LTR390_GAIN_1,
     "X3": LTR390GAIN.LTR390_GAIN_3,
@@ -28,7 +36,7 @@ GAIN_OPTIONS = {
     "X18": LTR390GAIN.LTR390_GAIN_18,
 }
 
-LTR390RESOLUTION = ltr390_ns.enum('LTR390RESOLUTION')
+LTR390RESOLUTION = ltr390_ns.enum("LTR390RESOLUTION")
 RES_OPTIONS = {
     20: LTR390RESOLUTION.LTR390_RESOLUTION_20BIT,
     19: LTR390RESOLUTION.LTR390_RESOLUTION_19BIT,
@@ -38,26 +46,36 @@ RES_OPTIONS = {
     13: LTR390RESOLUTION.LTR390_RESOLUTION_13BIT,
 }
 
-CONFIG_SCHEMA = cv.Schema({
-    cv.GenerateID(): cv.declare_id(LTR390Component),
-
-    cv.Optional(CONF_LIGHT): sensor.sensor_schema(UNIT_LUX, ICON_BRIGHTNESS_5, 1, DEVICE_CLASS_ILLUMINANCE),
-    cv.Optional(CONF_ALS): sensor.sensor_schema(UNIT_COUNTS, ICON_BRIGHTNESS_5, 1, DEVICE_CLASS_ILLUMINANCE),
-
-    cv.Optional(CONF_UVI): sensor.sensor_schema(UNIT_UVI, ICON_BRIGHTNESS_5, 5, DEVICE_CLASS_ILLUMINANCE),
-    cv.Optional(CONF_UV): sensor.sensor_schema(UNIT_COUNTS, ICON_BRIGHTNESS_5, 1, DEVICE_CLASS_ILLUMINANCE),
-
-    cv.Optional(CONF_GAIN, default="X3"): cv.enum(GAIN_OPTIONS),
-    cv.Optional(CONF_RESOLUTION, default=18): cv.enum(RES_OPTIONS),
-    cv.Optional(CONF_WFAC, default=1.0): cv.float_range(min=1.0),
-
-}).extend(cv.polling_component_schema('60s')).extend(i2c.i2c_device_schema(0x53))
+CONFIG_SCHEMA = (
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(LTR390Component),
+            cv.Optional(CONF_LIGHT): sensor.sensor_schema(
+                UNIT_LUX, ICON_BRIGHTNESS_5, 1, DEVICE_CLASS_ILLUMINANCE
+            ),
+            cv.Optional(CONF_ALS): sensor.sensor_schema(
+                UNIT_COUNTS, ICON_BRIGHTNESS_5, 1, DEVICE_CLASS_ILLUMINANCE
+            ),
+            cv.Optional(CONF_UVI): sensor.sensor_schema(
+                UNIT_UVI, ICON_BRIGHTNESS_5, 5, DEVICE_CLASS_ILLUMINANCE
+            ),
+            cv.Optional(CONF_UV): sensor.sensor_schema(
+                UNIT_COUNTS, ICON_BRIGHTNESS_5, 1, DEVICE_CLASS_ILLUMINANCE
+            ),
+            cv.Optional(CONF_GAIN, default="X3"): cv.enum(GAIN_OPTIONS),
+            cv.Optional(CONF_RESOLUTION, default=18): cv.enum(RES_OPTIONS),
+            cv.Optional(CONF_WFAC, default=1.0): cv.float_range(min=1.0),
+        }
+    )
+    .extend(cv.polling_component_schema("60s"))
+    .extend(i2c.i2c_device_schema(0x53))
+)
 
 TYPES = {
-    CONF_LIGHT: 'set_light_sensor',
-    CONF_ALS: 'set_als_sensor',
-    CONF_UVI: 'set_uvi_sensor',
-    CONF_UV: 'set_uv_sensor',
+    CONF_LIGHT: "set_light_sensor",
+    CONF_ALS: "set_als_sensor",
+    CONF_UVI: "set_uvi_sensor",
+    CONF_UV: "set_uv_sensor",
 }
 
 
