@@ -6,6 +6,7 @@ substitutions:
 
 esphome:
   name: test1
+  name_add_mac_suffix: true
   platform: ESP32
   board: nodemcu-32s
   on_boot:
@@ -1474,6 +1475,23 @@ climate:
     name: Toshiba Climate
   - platform: hitachi_ac344
     name: Hitachi Climate
+  - platform: midea_ac
+    visual:
+      min_temperature: 18 °C
+      max_temperature: 25 °C
+      temperature_step: 0.1 °C
+    name: "Electrolux EACS"
+    beeper: true
+    outdoor_temperature:
+      name: "Temp"
+    power_usage:
+      name: "Power"
+    humidity_setpoint:
+      name: "Hum"
+
+midea_dongle:
+  uart_id: uart0
+  strength_icon: true
 
 switch:
   - platform: gpio
@@ -1708,13 +1726,10 @@ fan:
     direction_output: gpio_26
   - platform: speed
     output: pca_6
+    speed_count: 10
     name: 'Living Room Fan 2'
     oscillation_output: gpio_19
     direction_output: gpio_26
-    speed:
-      low: 0.45
-      medium: 0.75
-      high: 1.0
     oscillation_state_topic: oscillation/state/topic
     oscillation_command_topic: oscillation/command/topic
     speed_state_topic: speed/state/topic
