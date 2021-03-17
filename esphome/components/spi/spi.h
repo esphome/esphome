@@ -184,7 +184,7 @@ class SPIComponent : public Component {
   GPIOPin *active_cs_{nullptr};
   SPIClass *hw_spi_{nullptr};
   uint32_t wait_cycle_;
-};  // namespace spi
+};
 
 template<SPIBitOrder BIT_ORDER, SPIClockPolarity CLOCK_POLARITY, SPIClockPhase CLOCK_PHASE, SPIDataRate DATA_RATE>
 class SPIDevice {
