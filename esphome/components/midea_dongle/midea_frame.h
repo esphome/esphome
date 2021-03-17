@@ -91,8 +91,8 @@ template<typename T = Frame, size_t buf_size = 36> class StaticFrame : public T 
 class NotifyFrame : public midea_dongle::StaticFrame<BaseFrame, 32> {
  public:
   NotifyFrame() : StaticFrame(FPSTR(NotifyFrame::INIT)) {}
-  void set_signal_stretch(uint8_t value) { this->pbuf_[12] = value; }
-  uint8_t get_signal_stretch() const { return this->pbuf_[12]; }
+  void set_signal_strength(uint8_t value) { this->pbuf_[12] = value; }
+  uint8_t get_signal_strength() const { return this->pbuf_[12]; }
   void set_connected(bool state) { this->pbuf_[18] = state ? 0 : 1; }
   bool is_connected() const { return !this->pbuf_[18]; }
 

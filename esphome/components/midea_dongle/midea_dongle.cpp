@@ -49,7 +49,7 @@ void MideaDongle::update() {
       wifi_strength = 4;
   } else if (is_conn) {
     if (--this->rssi_timer_) {
-      wifi_strength = this->notify_.get_signal_stretch();
+      wifi_strength = this->notify_.get_signal_strength();
     } else {
       this->rssi_timer_ = 60;
       const long dbm = WiFi.RSSI();
@@ -69,8 +69,8 @@ void MideaDongle::update() {
     this->notify_.set_connected(is_conn);
     this->need_notify_ = true;
   }
-  if (this->notify_.get_signal_stretch() != wifi_strength) {
-    this->notify_.set_signal_stretch(wifi_strength);
+  if (this->notify_.get_signal_strength() != wifi_strength) {
+    this->notify_.set_signal_strength(wifi_strength);
     this->need_notify_ = true;
   }
   if (!--this->notify_timer_) {
