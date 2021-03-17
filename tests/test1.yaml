@@ -1469,6 +1469,7 @@ climate:
       name: "Hum"
 
 midea_dongle:
+  uart_id: uart0
   stretched_icon: true
 
 switch:
