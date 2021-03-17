@@ -12,6 +12,10 @@
 #include <esphome/components/logger/logger.h>
 #endif
 
+#ifdef USE_FAN
+#include "esphome/components/fan/fan_helpers.h"
+#endif
+
 namespace esphome {
 namespace web_server {
 
@@ -364,8 +368,10 @@ std::string WebServer::fan_json(fan::FanState *obj) {
     root["id"] = "fan-" + obj->get_object_id();
     root["state"] = obj->state ? "ON" : "OFF";
     root["value"] = obj->state;
-    if (obj->get_traits().supports_speed()) {
-      switch (obj->speed) {
+    const auto traits = obj->get_traits();
+    if (traits.supports_speed()) {
+      root["speed_level"] = obj->speed;
+      switch (fan::speed_level_to_enum(obj->speed, traits.supported_speed_count())) {
         case fan::FAN_SPEED_LOW:
           root["speed"] = "low";
           break;
@@ -399,6 +405,15 @@ void WebServer::handle_fan_request(AsyncWebServerRequest *request, UrlMatch matc
       if (request->hasParam("speed")) {
         String speed = request->getParam("speed")->value();
         call.set_speed(speed.c_str());
+      }
+      if (request->hasParam("speed_level")) {
+        String speed_level = request->getParam("speed_level")->value();
+        auto val = parse_int(speed_level.c_str());
+        if (!val.has_value()) {
+          ESP_LOGW(TAG, "Can't convert '%s' to number!", speed_level.c_str());
+          return;
+        }
+        call.set_speed(*val);
       }
       if (request->hasParam("oscillation")) {
         String speed = request->getParam("oscillation")->value();
