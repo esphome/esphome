@@ -4,7 +4,7 @@
 namespace esphome {
 namespace addressable_light {
 
-static const char* TAG = "display.addressable_light";
+static const char *TAG = "addressable_light.display";
 
 int AddressableLightDisplay::get_width_internal() { return this->width_; }
 int AddressableLightDisplay::get_height_internal() { return this->height_; }
