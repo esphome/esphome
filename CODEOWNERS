@@ -13,6 +13,7 @@ esphome/core/* @esphome/core
 # Integrations
 esphome/components/ac_dimmer/* @glmnet
 esphome/components/adc/* @esphome/core
+esphome/components/addressable_light/* @justfalter
 esphome/components/animation/* @syndlex
 esphome/components/api/* @OttoWinter
 esphome/components/async_tcp/* @OttoWinter
@@ -55,6 +56,8 @@ esphome/components/mcp23x17_base/* @jesserockz
 esphome/components/mcp23xxx_base/* @jesserockz
 esphome/components/mcp2515/* @danielschramm @mvturnho
 esphome/components/mcp9808/* @k7hpn
+esphome/components/midea_ac/* @dudanov
+esphome/components/midea_dongle/* @dudanov
 esphome/components/network/* @esphome/core
 esphome/components/nfc/* @jesserockz
 esphome/components/ota/* @esphome/core
