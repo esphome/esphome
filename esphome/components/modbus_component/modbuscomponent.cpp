@@ -11,34 +11,34 @@ static const char *TAG = "ModbusComponent";
 void ModbusComponent::setup() { this->create_register_ranges(); }
 
 /*
-  To work with the existing modbus class and avoid polling for responses a command queue is used.
-  send_next_command will submit the command at the top of the queue and set the corresponding callback
-  to handle the response from the device.
-  Once the response has been processed it is removed from the queue and the next command is sent
+ To work with the existing modbus class and avoid polling for responses a command queue is used.
+ send_next_command will submit the command at the top of the queue and set the corresponding callback
+ to handle the response from the device.
+ Once the response has been processed it is removed from the queue and the next command is sent
 */
 bool ModbusComponent::send_next_command_() {
   uint32_t command_delay = millis() - this->last_command_timestamp_;
 
-  // Left check of delay since last command in case theres ever a command sent by calling send_raw_command_ directly
-  if ((command_delay > this->command_throttle_) && (!command_queue_.empty())) {
+  if (!sending_ && (command_delay > this->command_throttle_) && (!command_queue_.empty())) {
+    this->sending_ = true;
     auto &command = command_queue_.front();
     ESP_LOGD(TAG, "Sending next modbus command %u %u", command_delay, this->command_throttle_);
-    this->sending_ = true;
     command->send();
     this->last_command_timestamp_ = millis();
-    if (!command->on_data_func)  // No handler remove from queue directly after sending
+    if (!command->on_data_func) {  // No handler remove from queue directly after sending
       command_queue_.pop();
+      this->sending_ = false;
+    }
   } else {
     yield();
   }
-  this->sending_ = false;
   return (!command_queue_.empty());
 }
 
 // Dispatch the response to the registered handler
 void ModbusComponent::on_modbus_data(const std::vector<uint8_t> &data) {
   ESP_LOGD(TAG, "Modbus data %zu", data.size());
-  this->sending_ = false;
+
   auto &current_command = this->command_queue_.front();
   if (current_command != nullptr) {
 #ifdef CHECK_RESPONSE_SIZE
@@ -55,9 +55,9 @@ void ModbusComponent::on_modbus_data(const std::vector<uint8_t> &data) {
     ESP_LOGVV(TAG, "Dispatch to handler");
     current_command->on_data_func(current_command->register_address, data);
 #endif
+    this->sending_ = false;
     command_queue_.pop();
   }
-
 
   // if (!command_queue_.empty()) {
   //   send_next_command_();
@@ -131,7 +131,7 @@ void ModbusComponent::update() {
     }
   }
   // send_next_command_();
-  ESP_LOGI(TAG, "Modbus  update complete Free Heap  %u bytes",ESP.getFreeHeap());
+  ESP_LOGI(TAG, "Modbus  update complete Free Heap  %u bytes", ESP.getFreeHeap());
 }
 
 // walk through the sensors and determine the registerranges to read
@@ -144,15 +144,17 @@ size_t ModbusComponent::create_register_ranges() {
   uint16_t current_start_address = ix->second->start_address;
   uint8_t buffer_offset = ix->second->offset;
   uint8_t buffer_gap = 0;
-  uint8_t skip_updates = 0;
+  uint8_t skip_updates = ix->second->skip_updates;
   auto first_sensorkey = ix->second->getkey();
   int total_register_count = 0;
   while (ix != sensormap.end()) {
     size_t diff = ix->second->start_address - prev->second->start_address;
-    skip_updates = std::max(skip_updates, prev->second->skip_updates);
-    ESP_LOGV(TAG, "Register:: 0x%X %d %d  0x%llx (%d) buffer_offset = %d (0x%X)", ix->second->start_address,
+    // use the lowest non zero value for the whole range
+    // Because zero is the default value for skip_updates it is excluded from getting the min value. 
+  
+    ESP_LOGV(TAG, "Register:: 0x%X %d %d  0x%llx (%d) buffer_offset = %d (0x%X) skip=%u", ix->second->start_address,
              ix->second->register_count, ix->second->offset, ix->second->getkey(), total_register_count, buffer_offset,
-             buffer_offset);
+             buffer_offset,ix->second->skip_updates);
     if (current_start_address != ix->second->start_address ||
         //  ( prev->second->start_address + prev->second->offset != ix->second->start_address) ||
         ix->second->register_type != prev->second->register_type) {
@@ -165,10 +167,10 @@ size_t ModbusComponent::create_register_ranges() {
         r.first_sensorkey = first_sensorkey;
         r.skip_updates = skip_updates;
         r.skip_updates_counter = 0;
-        skip_updates = 0;
         ESP_LOGD(TAG, "Add range 0x%X %d skip:%d", r.start_address, r.register_count, r.skip_updates);
         register_ranges.push_back(r);
       }
+      skip_updates = ix->second->skip_updates;
       current_start_address = ix->second->start_address;
       first_sensorkey = ix->second->getkey();
       total_register_count = ix->second->register_count;
@@ -180,6 +182,14 @@ size_t ModbusComponent::create_register_ranges() {
       if (ix->second->offset != prev->second->offset || n == 1) {
         total_register_count += ix->second->register_count;
         buffer_offset += ix->second->get_register_size();
+      }
+      // Use the lowest non zero skip_upates value for the range
+      if (ix->second->skip_updates != 0) {
+        if (skip_updates != 0) {
+          skip_updates = std::min(skip_updates, ix->second->skip_updates);
+        } else {
+          skip_updates = ix->second->skip_updates;
+        }
       }
     }
     prev = ix++;
@@ -330,6 +340,8 @@ void ModbusComponent::on_write_register_response(uint16_t start_address, const s
   ESP_LOGD(TAG, "Command ACK 0x%X %d ", get_data<uint16_t>(data, 0), get_data<int16_t>(data, 1));
 }
 
+bool ModbusComponent::sending_ = false;
+
 void FloatSensorItem::log() { LOG_SENSOR("", sensor_->get_name().c_str(), this->sensor_); }
 
 void BinarySensorItem::log() { LOG_BINARY_SENSOR("", sensor_->get_name().c_str(), this->sensor_); }
@@ -426,7 +438,7 @@ float FloatSensorItem::parse_and_publish(const std::vector<uint8_t> &data) {
 
   if (transform_expression != nullptr) {
     result = transform_expression(value);
-  }  else {
+  } else {
     result = float(value);
   }
   this->sensor_->state = result;
@@ -465,18 +477,19 @@ float TextSensorItem::parse_and_publish(const std::vector<uint8_t> &data) {
   float result = this->response_bytes_;
   std::ostringstream output;
   uint8_t max_items = this->response_bytes_;
-  for (uint16_t b : data) {
+  char buffer[4];
+  for (auto b : data) {
     if (this->hex_encode) {
-      output << std::setfill('0') << std::setw(2) << std::hex << b;
+      sprintf(buffer, "%02x", b);
+      output << buffer;
     } else {
       output << (char) b;
       if (--max_items == 0) {
         break;
       }
     }
-    this->sensor_->publish_state(output.str());
   }
-
+  this->sensor_->publish_state(output.str());
   return result;
 }
 ModbusCommandItem ModbusCommandItem::create_write_multiple_command(ModbusComponent *modbusdevice,

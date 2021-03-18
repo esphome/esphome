@@ -61,6 +61,16 @@ inline uint64_t calc_key(uint16_t start_address, uint8_t offset = 0, uint32_t bi
 }
 inline uint16_t register_from_key(uint64_t key) { return key >> 48; }
 
+// Get a byte from a hex string 
+//  hex_byte_from_str("1122",1) returns uint_8 value 0x22 == 34 
+//  hex_byte_from_str("1122",0) returns 0x11
+inline uint8_t hex_byte_from_str(const std::string &value, uint8_t pos) {
+  auto c = value.c_str()[pos*2];
+  uint8_t hi = (c >= 'A') ? (c >= 'a') ? (c - 'a' + 10) : (c - 'A' + 10) : (c - '0');
+  c =value.c_str()[pos*2+1];
+  return ((c >= 'A') ? (c >= 'a') ? (c - 'a' + 10) : (c - 'A' + 10) : (c - '0')) | hi << 4;
+}
+
 const std::function<float(int64_t)> DIVIDE_BY_100 = [](int64_t val) { return val / 100.0; };
 
 struct SensorItem {
@@ -274,6 +284,7 @@ class ModbusComponent : public PollingComponent, public modbus::ModbusDevice {
   void set_command_throttle(uint16_t command_throttle) { this->command_throttle_ = command_throttle; }
 
  protected:
+
   // Hold the pending requests to sent
   std::queue<std::unique_ptr<ModbusCommandItem>> command_queue_;
 
@@ -284,7 +295,7 @@ class ModbusComponent : public PollingComponent, public modbus::ModbusDevice {
   bool send_next_command_();
   uint32_t last_command_timestamp_;
   uint16_t command_throttle_;
-  bool sending_;
+  static bool sending_;
 };
 
 struct ModbusCommandItem {

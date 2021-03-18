@@ -65,9 +65,9 @@ sensor:
         modbus_functioncode: "read_input_registers"
         value_type: U_WORD
         accuracy_decimals: 1
-        scale_factor: 1
+        scale_factor: 0.01
         filters:
-        - multiply: 0.01
+        - multiply: 1.0
 
       - id: pv_input_current
         name: "PV array input current"
@@ -101,6 +101,7 @@ sensor:
         value_type: U_WORD
         accuracy_decimals: 1
         register_count: 1
+        skip_updates: 5
 
       - id: pv_unknown2
         name: "pv_unknown2"
@@ -122,6 +123,7 @@ sensor:
         value_type: U_DWORD_R
         accuracy_decimals: 1
         register_count: 2
+        skip_updates: 3
         filters:
         - multiply: 0.01
 
@@ -222,7 +224,7 @@ sensor:
         value_type: U_WORD
         filters:
         - lambda: return id(length_of_night_minutes).state  + ( 60 * x);
-
+      
     binary_sensors:
       - id: default_load_mode
         modbus_functioncode: read_holding_registers
@@ -230,4 +232,50 @@ sensor:
         offset: 0
         name: "Default Load On/Off"
         bitmask: 1
-    update_interval: 30s
+
+    text_sensors:
+      - name: "rtc_clock"
+        id: rtc_clock
+        modbus_functioncode: read_holding_registers
+        address: 0x9013
+        offset: 0
+        register_count: 3
+        hex_encode: true
+        response_size: 6
+#                /*
+#                E20 Real time clock 9013 D7-0 Sec, D15-8 Min
+#                E21 Real time clock 9014 D7-0 Hour, D15-8 Day
+#                E22 Real time clock 9015 D7-0 Month, D15-8 Year
+#                */
+        on_value:
+          then:
+            - lambda: |-
+                ESP_LOGV("main", "decoding rtc hex encoded raw data: %s", x.c_str());
+                uint8_t h=0,m=0,s=0,d=0,month_=0,y = 0 ;
+                m = esphome::modbus_component::hex_byte_from_str(x,0);
+                s = esphome::modbus_component::hex_byte_from_str(x,1);
+                d = esphome::modbus_component::hex_byte_from_str(x,2);
+                h = esphome::modbus_component::hex_byte_from_str(x,3);
+                y = esphome::modbus_component::hex_byte_from_str(x,4);
+                month_ = esphome::modbus_component::hex_byte_from_str(x,5);
+                char buffer[20];
+                // format time as YYYY:mm:dd hh:mm:ss
+                sprintf(buffer,"%04d:%02d:%02d %02d:%02d:%02d",y+2000,month_,d,h,m,s);
+                id(template_rtc).publish_state(buffer);
+
+
+#    switches:
+#      - id: default_load_mode
+#        modbus_functioncode: read_holding_registers
+#        address: 0x906A
+#        offset: 0
+#        name: "Default Load On/Off"
+#        bitmask: 1#
+
+    update_interval: 10s
+
+text_sensor:
+   - platform: template
+     name: "RTC Time Sensor"
+     id: template_rtc
+
