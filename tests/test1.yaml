@@ -1321,15 +1321,6 @@ light:
     warm_white_color_temperature: 500 mireds
     constant_brightness: true
   - platform: fastled_clockless
-    id: led_matrix_light
-    name: "led_matrix"
-    chipset: WS2812B
-    pin: GPIO23
-    num_leds: 64
-    rgb_order: GRB
-    default_transition_length: 0s
-    color_correct: [50%, 50%, 50%]
-  - platform: fastled_clockless
     id: led_matrix_32x8
     name: "led_matrix_32x8"
     chipset: WS2812B
@@ -1921,22 +1912,6 @@ display:
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
   - platform: addressable_light_display
-    id: led_matrix_display
-    addressable_light_id: led_matrix_light
-    width: 8
-    height: 8
-    rotation: 180°
-    update_interval: 16ms
-    lambda: |-
-      // Draw a bulls-eye
-      Color red = Color(0xFF0000);
-      Color green = Color(0x00FF00);
-      Color blue = Color(0x0000FF);
-      it.rectangle(0, 0, 8, 8, red);
-      it.rectangle(1, 1, 6, 6, green);
-      it.rectangle(2, 2, 4, 4, blue);
-      it.rectangle(3, 3, 2, 2, red);
-  - platform: addressable_light_display
     id: led_matrix_32x8_display
     addressable_light_id: led_matrix_32x8
     width: 32
@@ -1946,6 +1921,14 @@ display:
         return (x * 8) + y;
       }
       return (x * 8) + (7 - y);
+    lambda: |-
+      Color red = Color(0xFF0000);
+      Color green = Color(0x00FF00);
+      Color blue = Color(0x0000FF);
+      it.rectangle(0, 0, it.get_width(), it.get_height(), red);
+      it.rectangle(1, 1, it.get_width()-2, it.get_height()-2, green);
+      it.rectangle(2, 2, it.get_width()-4, it.get_height()-4, blue);
+      it.rectangle(3, 3, it.get_width()-6, it.get_height()-6, red);
     rotation: 0°
     update_interval: 16ms
 tm1651:
