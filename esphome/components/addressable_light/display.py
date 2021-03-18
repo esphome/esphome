@@ -14,8 +14,8 @@ from esphome.const import (
 
 CODEOWNERS = ["@justfalter"]
 
-addressable_light_display_ns = cg.esphome_ns.namespace("addressable_light_display")
-AddressableLightDisplay = addressable_light_display_ns.class_(
+addressable_light_ns = cg.esphome_ns.namespace("addressable_light")
+AddressableLightDisplay = addressable_light_ns.class_(
     "AddressableLightDisplay", display.DisplayBuffer, cg.PollingComponent
 )
 

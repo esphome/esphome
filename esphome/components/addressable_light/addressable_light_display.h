@@ -6,7 +6,7 @@
 #include "esphome/components/light/addressable_light.h"
 
 namespace esphome {
-namespace addressable_light_display {
+namespace addressable_light {
 
 class AddressableLightDisplay : public display::DisplayBuffer, public PollingComponent {
  public:
@@ -55,5 +55,5 @@ class AddressableLightDisplay : public display::DisplayBuffer, public PollingCom
   optional<std::string> last_effect_;
   optional<std::function<int(int, int)>> pixel_mapper_f_;
 };
-}  // namespace addressable_light_display
+}  // namespace addressable_light
 }  // namespace esphome

@@ -1911,7 +1911,7 @@ display:
     row_start: 0
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
-  - platform: addressable_light_display
+  - platform: addressable_light
     id: led_matrix_32x8_display
     addressable_light_id: led_matrix_32x8
     width: 32
