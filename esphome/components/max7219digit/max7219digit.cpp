@@ -114,7 +114,7 @@ void MAX7219Component::display() {
     for (uint8_t j = 0; j < 8; j++) {
       for (uint8_t chip_line = 0; chip_line < this->num_chip_lines_; chip_line++){
         if (this->reverse_) {
-          pixels[chip_line][j] = this->max_displaybuffer_[chip_line][(this->num_chips_ - i - 1) * 8 + j];
+          pixels[chip_line][j] = this->max_displaybuffer_[chip_line][(this->num_chips_ / this->num_chip_lines_ - i - 1) * 8 + j];
         } else {
           pixels[chip_line][j] = this->max_displaybuffer_[chip_line][i * 8 + j];
         }
