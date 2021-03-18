@@ -25,9 +25,12 @@ void MAX7219Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up MAX7219_DIGITS...");
   this->spi_setup();
   this->stepsleft_ = 0;
-  this->max_displaybuffer_.reserve(500);  // Create base space to write buffer
-  // Initialize buffer with 0 for display so all non written pixels are blank
-  this->max_displaybuffer_.resize(this->num_chips_ / 2 * 8, 0);
+  for (int chip_line =0; chip_line < this->num_chip_lines_; chip_line++){
+    std::vector<uint8_t> vec (1);
+    this->max_displaybuffer_.push_back(vec);
+    // Initialize buffer with 0 for display so all non written pixels are blank
+    this->max_displaybuffer_[chip_line].resize(get_width_internal(), 0);
+  }
   // let's assume the user has all 8 digits connected, only important in daisy chained setups anyway
   this->send_to_all_(MAX7219_REGISTER_SCAN_LIMIT, 7);
   // let's use our own ASCII -> led pattern encoding
@@ -45,7 +48,7 @@ void MAX7219Component::setup() {
 void MAX7219Component::dump_config() {
   ESP_LOGCONFIG(TAG, "MAX7219DIGIT:");
   ESP_LOGCONFIG(TAG, "  Number of Chips: %u", this->num_chips_);
-  ESP_LOGCONFIG(TAG, "  Number of Lines: %u", this->num_lines_);
+  ESP_LOGCONFIG(TAG, "  Number of Lines: %u", this->num_chip_lines_);
   ESP_LOGCONFIG(TAG, "  Intensity: %u", this->intensity_);
   ESP_LOGCONFIG(TAG, "  Scroll Mode: %u", this->scroll_mode_);
   ESP_LOGCONFIG(TAG, "  Scroll Speed: %u", this->scroll_speed_);
@@ -59,19 +62,19 @@ void MAX7219Component::loop() {
   unsigned long now = millis();
 
   // check if the buffer has shrunk past the current position since last update
-  if ((this->max_displaybuffer_.size() >= this->old_buffer_size_ + 3) ||
-      (this->max_displaybuffer_.size() <= this->old_buffer_size_ - 3)) {
+  if ((this->max_displaybuffer_[0].size() >= this->old_buffer_size_ + 3) ||
+      (this->max_displaybuffer_[0].size() <= this->old_buffer_size_ - 3)) {
     this->stepsleft_ = 0;
     this->display();
-    this->old_buffer_size_ = this->max_displaybuffer_.size();
+    this->old_buffer_size_ = this->max_displaybuffer_[0].size();
   }
 
   // Reset the counter back to 0 when full string has been displayed.
-  if (this->stepsleft_ > this->max_displaybuffer_.size())
+  if (this->stepsleft_ > this->max_displaybuffer_[0].size())
     this->stepsleft_ = 0;
 
   // Return if there is no need to scroll or scroll is off
-  if (!this->scroll_ || (this->max_displaybuffer_.size() <= this->num_chips_ / this->num_lines_ * 8 )) {
+  if (!this->scroll_ || (this->max_displaybuffer_[0].size() <= get_width_internal() )) {
     this->display();
     return;
   }
@@ -83,7 +86,7 @@ void MAX7219Component::loop() {
 
   // Dwell time at end of string in case of stop at end
   if (this->scroll_mode_ == 1) {
-    if (this->stepsleft_ >= this->max_displaybuffer_.size() - this->num_chips_ / this->num_lines_ * 8 + 1) {
+    if (this->stepsleft_ >= this->max_displaybuffer_[0].size() - get_width_internal() + 1) {
       if (now - this->last_scroll_ >= this->scroll_dwell_) {
         this->stepsleft_ = 0;
         this->last_scroll_ = now;
@@ -102,38 +105,38 @@ void MAX7219Component::loop() {
 }
 
 void MAX7219Component::display() {
-  uint8_t pixels[this->num_lines_][8];
+  uint8_t pixels[this->num_chip_lines_][8];
   // Run this loop for every MAX CHIP (GRID OF 64 leds)
   // Run this routine for the rows of every chip 8x row 0 top to 7 bottom
   // Fill the pixel parameter with diplay data
   // Send the data to the chip
-  for (uint8_t i = 0; i < this->num_chips_ / this->num_lines_ ; i++) {
+  for (uint8_t i = 0; i < this->num_chips_ / this->num_chip_lines_ ; i++) {
     for (uint8_t j = 0; j < 8; j++) {
-      if (this->reverse_) {
-        pixels[0][j] = this->max_displaybuffer_[(this->num_chips_ - i - 1) * 8 + j];
-      } else {
-        for (uint8_t line = 0; line < this->num_lines_; line++){
-          pixels[line][j] = this->max_displaybuffer_[i * 8 + j] >> (line * 8);
+      for (uint8_t chip_line = 0; chip_line < this->num_chip_lines_; chip_line++){
+        if (this->reverse_) {
+          pixels[chip_line][j] = this->max_displaybuffer_[chip_line][(this->num_chips_ - i - 1) * 8 + j];
+        } else {
+          pixels[chip_line][j] = this->max_displaybuffer_[chip_line][i * 8 + j];
         }
       }
     }
-    for (uint8_t line = 0; line < this->num_lines_; line++){
-      this->send64pixels(line * this->num_chips_ / this->num_lines_ + i, pixels[line]);
+    for (uint8_t chip_line = 0; chip_line < this->num_chip_lines_; chip_line++){
+      this->send64pixels(chip_line * this->num_chips_ / this->num_chip_lines_ + i, pixels[chip_line]);
     }
   }
 }
 
 int MAX7219Component::get_height_internal() {
-  return 8* this->num_lines_;  // TO BE DONE -> CREATE Virtual size of screen and scroll
+  return 8* this->num_chip_lines_;  // TO BE DONE -> CREATE Virtual size of screen and scroll
 }
 
-int MAX7219Component::get_width_internal() { return this->num_chips_ / this->num_lines_ * 8; }
-
-size_t MAX7219Component::get_buffer_length_() { return this->num_chips_ / this->num_lines_ * 8; }
+int MAX7219Component::get_width_internal() { return this->num_chips_ / this->num_chip_lines_ * 8; }
 
 void HOT MAX7219Component::draw_absolute_pixel_internal(int x, int y, Color color) {
-  if (x + 1 > this->max_displaybuffer_.size()) {  // Extend the display buffer in case required
-    this->max_displaybuffer_.resize(x + 1, this->bckgrnd_);
+  if (x + 1 > this->max_displaybuffer_[0].size()) {  // Extend the display buffer in case required
+    for (int chip_line = 0; chip_line < this->num_chip_lines_; chip_line++){
+      this->max_displaybuffer_[chip_line].resize(x + 1, this->bckgrnd_);
+    }
   }
 
   if ((y >= this->get_height_internal()) || (y < 0) || (x < 0))  // If pixel is outside display then dont draw
@@ -141,11 +144,11 @@ void HOT MAX7219Component::draw_absolute_pixel_internal(int x, int y, Color colo
 
   uint16_t pos = x;    // X is starting at 0 top left
   uint8_t subpos = y;  // Y is starting at 0 top left
-
+  
   if (color.is_on()) {
-    this->max_displaybuffer_[pos] |= (1 << subpos);
+    this->max_displaybuffer_[subpos / 8][pos] |= (1 << subpos % 8);
   } else {
-    this->max_displaybuffer_[pos] &= ~(1 << subpos);
+    this->max_displaybuffer_[subpos / 8][pos] &= ~(1 << subpos % 8);
   }
 }
 
@@ -161,8 +164,10 @@ void MAX7219Component::send_to_all_(uint8_t a_register, uint8_t data) {
 }
 void MAX7219Component::update() {
   this->update_ = true;
-  this->max_displaybuffer_.clear();
-  this->max_displaybuffer_.resize(this->num_chips_ / this->num_lines_ * 8, this->bckgrnd_);
+  for (int chip_line = 0; chip_line < this->num_chip_lines_; chip_line++){
+    this->max_displaybuffer_[chip_line].clear();
+    this->max_displaybuffer_[chip_line].resize(get_width_internal(), this->bckgrnd_);
+  }
   if (this->writer_local_.has_value())  // insert Labda function if available
     (*this->writer_local_)(*this);
 }
@@ -199,24 +204,26 @@ void MAX7219Component::intensity(uint8_t intensity) {
 void MAX7219Component::scroll(bool on_off) { this->set_scroll(on_off); }
 
 void MAX7219Component::scroll_left() {
-  if (this->update_) {
-    this->max_displaybuffer_.push_back(this->bckgrnd_);
-    for (uint16_t i = 0; i < this->stepsleft_; i++) {
-      this->max_displaybuffer_.push_back(this->max_displaybuffer_.front());
-      this->max_displaybuffer_.erase(this->max_displaybuffer_.begin());
-      this->update_ = false;
+  for (int chip_line = 0; chip_line < this->num_chip_lines_; chip_line++){
+    if (this->update_) {
+      this->max_displaybuffer_[chip_line].push_back(this->bckgrnd_);
+      for (uint16_t i = 0; i < this->stepsleft_; i++) {
+        this->max_displaybuffer_[chip_line].push_back(this->max_displaybuffer_[chip_line].front());
+        this->max_displaybuffer_[chip_line].erase(this->max_displaybuffer_[chip_line].begin());
+      }
+    } else {
+      this->max_displaybuffer_[chip_line].push_back(this->max_displaybuffer_[chip_line].front());
+      this->max_displaybuffer_[chip_line].erase(this->max_displaybuffer_[chip_line].begin());
     }
-  } else {
-    this->max_displaybuffer_.push_back(this->max_displaybuffer_.front());
-    this->max_displaybuffer_.erase(this->max_displaybuffer_.begin());
   }
+  this->update_ = false;
   this->stepsleft_++;
 }
 
 void MAX7219Component::send_char(uint8_t chip, uint8_t data) {
   // get this character from PROGMEM
   for (uint8_t i = 0; i < 8; i++)
-    this->max_displaybuffer_[chip * 8 + i] = pgm_read_byte(&MAX7219_DOT_MATRIX_FONT[data][i]);
+    this->max_displaybuffer_[0][chip * 8 + i] = pgm_read_byte(&MAX7219_DOT_MATRIX_FONT[data][i]);
 }  // end of send_char
 
 // send one character (data) to position (chip)
