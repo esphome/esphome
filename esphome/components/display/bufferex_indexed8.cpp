@@ -11,6 +11,10 @@ bool BufferexIndexed8::init_buffer(int width, int height) {
   this->height_ = height;
 
   this->buffer_ = new_buffer<uint8_t>(this->get_buffer_length());
+  if (this->buffer_ == nullptr) {
+    return false;
+  }
+
   memset(this->buffer_, 0x00, this->get_buffer_size());
   return true;
 }

@@ -13,7 +13,6 @@ bool Bufferex666::init_buffer(int width, int height) {
   this->height_ = height;
 
   this->buffer_ = new_buffer<uint32_t>(this->get_buffer_length());
-
   if (this->buffer_ == nullptr) {
     return false;
   }

@@ -25,7 +25,6 @@ bool DisplayBuffer::init_buffer(int width, int height) {
 
   bool result = this->bufferex_base_->init_buffer(width, height);
   this->bufferex_base_->set_is_buffer_set(result);
-  ESP_LOGE(TAG, "res %s", TRUEFALSE(result));
   return result;
 }
 

@@ -9,9 +9,8 @@ bool Bufferex565::init_buffer(int width, int height) {
   this->width_ = width;
   this->height_ = height;
 
-  this->buffer_ = new uint16_t[this->get_buffer_length()];
+  this->buffer_ = new_buffer<uint16_t>(this->get_buffer_length());
   if (this->buffer_ == nullptr) {
-    ESP_LOGE(TAG, "Could not allocate buffer for display!");
     return false;
   }
   memset(this->buffer_, 0x00, this->get_buffer_size());
