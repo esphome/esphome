@@ -2,18 +2,22 @@
 
 namespace esphome {
 namespace display {
-  #ifdef USE_BUFFER_RGB666
+#ifdef USE_BUFFER_RGB666
 static const char *TAG = "bufferex_666";
 
 bool Bufferex666::init_buffer(int width, int height) {
+  if (this->buffer_ != nullptr) {
+    return true;
+  }
   this->width_ = width;
   this->height_ = height;
 
-  this->buffer_ = new uint32_t[this->get_buffer_length()];
+  this->buffer_ = new_buffer<uint32_t>(this->get_buffer_length());
+
   if (this->buffer_ == nullptr) {
-    ESP_LOGE(TAG, "Could not allocate buffer size of %zu for display!",this->get_buffer_length());
     return false;
   }
+
   memset(this->buffer_, 0x00, this->get_buffer_size());
   return true;
 }
@@ -40,8 +44,7 @@ uint16_t Bufferex666::get_pixel_to_565(uint32_t pos) {
 }
 
 // 666
-uint32_t Bufferex666::get_pixel_to_666(uint32_t pos) {
-  return this->buffer_[pos]; }
+uint32_t Bufferex666::get_pixel_to_666(uint32_t pos) { return this->buffer_[pos]; }
 #endif
 }  // namespace display
 }  // namespace esphome

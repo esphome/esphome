@@ -37,11 +37,11 @@ class ST7735 : public PollingComponent,
  protected:
   bool usebgr_ = false;
   bool driver_right_bit_aligned_ = false;
-  void draw_absolute_pixel_internal(int x, int y, Color color) override;
-  void fill(Color color) override;
+  // void draw_absolute_pixel_internal(int x, int y, Color color) override;
+  // void fill(Color color) override;
   int get_width_internal() override;
   int get_height_internal() override;
-  void display_clear() override{};
+  void display_clear() override;
 
   void sendcommand_(uint8_t cmd, const uint8_t *data_bytes, uint8_t num_data_bytes);
   void senddata_(const uint8_t *data_bytes, uint8_t num_data_bytes);
@@ -49,7 +49,7 @@ class ST7735 : public PollingComponent,
   void end_data_();
   void writecommand_(uint8_t value);
   void writedata_(uint8_t value);
-  void fill_internal_(Color color);
+  // void fill_internal_(Color color);
   void display_buffer_();
   void init_reset_();
   void display_init_(const uint8_t *addr);

@@ -5,6 +5,7 @@
 #include <vector>
 #include <memory>
 #include <type_traits>
+#include "esphome/core/log.h"
 
 #include "esphome/core/optional.h"
 #include "esphome/core/esphal.h"
@@ -57,6 +58,24 @@ std::string to_lowercase_underscore(std::string s);
 bool str_equals_case_insensitive(const std::string &a, const std::string &b);
 bool str_startswith(const std::string &full, const std::string &start);
 bool str_endswith(const std::string &full, const std::string &ending);
+
+template<typename T> T *new_buffer(size_t length) {
+  T *buffer;
+#ifdef ARDUINO_ARCH_ESP32
+  if (psramFound()) {
+    buffer = (T *) ps_malloc(length);
+  } else {
+    buffer = new T[length];
+  }
+#else
+  buffer = new T[length];
+#endif
+  if (buffer == nullptr) {
+    ESP_LOGE("core", "Could not allocate buffer of size %zu!", sizeof(T) * length);
+  }
+
+  return buffer;
+}
 
 class HighFrequencyLoopRequester {
  public:

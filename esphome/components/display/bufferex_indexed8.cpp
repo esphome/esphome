@@ -10,23 +10,7 @@ bool BufferexIndexed8::init_buffer(int width, int height) {
   this->width_ = width;
   this->height_ = height;
 
-#ifdef ARDUINO_ARCH_ESP32
-  if (psramFound()) {
-    ESP_LOGW(TAG, "PSRAM is supported");
-    ESP_LOGW(TAG, "Total PSRAM: %d", ESP.getPsramSize());
-    ESP_LOGW(TAG, "Free PSRAM: %d", ESP.getFreeHeap());
-    this->buffer_ = (uint8_t *) ps_malloc(this->get_buffer_length());
-  } else {
-    this->buffer_ = new uint8_t[this->get_buffer_length()];
-  }
-#else
-  this->buffer_ = new uint8_t[this->get_buffer_length()];
-#endif
-
-  if (this->buffer_ == nullptr) {
-    ESP_LOGE(TAG, "Could not allocate buffer for display!");
-    return false;
-  }
+  this->buffer_ = new_buffer<uint8_t>(this->get_buffer_length());
   memset(this->buffer_, 0x00, this->get_buffer_size());
   return true;
 }

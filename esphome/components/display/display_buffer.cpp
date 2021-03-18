@@ -19,7 +19,16 @@ void DisplayBuffer::init_internal_(uint32_t buffer_length) {
   this->clear();
 }
 
-bool DisplayBuffer::init_buffer(int width, int height) { return this->bufferex_base_->init_buffer(width, height); }
+bool DisplayBuffer::init_buffer(int width, int height) {
+  if (this->bufferex_base_->is_buffer_set())
+    return true;
+
+  bool result = this->bufferex_base_->init_buffer(width, height);
+  this->bufferex_base_->set_is_buffer_set(result);
+  ESP_LOGE(TAG, "res %s", TRUEFALSE(result));
+  return result;
+}
+
 void DisplayBuffer::fill(Color color) { this->filled_rectangle(0, 0, this->get_width(), this->get_height(), color); }
 void DisplayBuffer::clear() { this->fill(COLOR_OFF); }
 void DisplayBuffer::display_clear() { this->clear(); }
@@ -319,16 +328,16 @@ void DisplayBuffer::set_pages(std::vector<DisplayPage *> pages) {
 }
 // Buffer helpers
 size_t DisplayBuffer::get_buffer_length() { return this->bufferex_base_->get_buffer_length(); }
-void DisplayBuffer::set_pixel(int x, int y, Color color) { this->bufferex_base_->set_pixel(x, y, color); }
+void HOT DisplayBuffer::set_pixel(int x, int y, Color color) { this->bufferex_base_->set_pixel(x, y, color); }
 size_t DisplayBuffer::get_buffer_size() { return this->bufferex_base_->get_buffer_size(); }
-void DisplayBuffer::fill_buffer(Color color) { this->bufferex_base_->fill_buffer(color); }
+void HOT DisplayBuffer::fill_buffer(Color color) { this->bufferex_base_->fill_buffer(color); }
 
 // 565
-uint16_t DisplayBuffer::get_pixel_to_565(int x, int y) { return this->bufferex_base_->get_pixel_to_565(x, y); }
-uint16_t DisplayBuffer::get_pixel_to_565(uint16_t pos) { return this->bufferex_base_->get_pixel_to_565(pos); }
+uint16_t HOT DisplayBuffer::get_pixel_to_565(int x, int y) { return this->bufferex_base_->get_pixel_to_565(x, y); }
+uint16_t HOT DisplayBuffer::get_pixel_to_565(uint16_t pos) { return this->bufferex_base_->get_pixel_to_565(pos); }
 // 666
-uint32_t DisplayBuffer::get_pixel_to_666(int x, int y) { return this->bufferex_base_->get_pixel_to_666(x, y); }
-uint32_t DisplayBuffer::get_pixel_to_666(uint16_t pos) { return this->bufferex_base_->get_pixel_to_666(pos); }
+uint32_t HOT DisplayBuffer::get_pixel_to_666(int x, int y) { return this->bufferex_base_->get_pixel_to_666(x, y); }
+uint32_t HOT DisplayBuffer::get_pixel_to_666(uint16_t pos) { return this->bufferex_base_->get_pixel_to_666(pos); }
 
 void DisplayBuffer::show_page(DisplayPage *page) { this->page_ = page; }
 void DisplayBuffer::show_next_page() { this->page_->show_next(); }

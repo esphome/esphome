@@ -21,12 +21,6 @@ ST7735::ST7735(ST7735Model model, int width, int height, int colstart, int rowst
 void ST7735::setup() {
   ESP_LOGCONFIG(TAG, "Setting up ST7735... %d %d", this->width_, this->height_);
 
-  if ( !this->init_buffer(this->width_, this->height_)){
-    this->mark_failed();
-    ESP_LOGD(TAG, "FAILED");
-    return;
-  }
-
   this->spi_setup();
 
   this->dc_pin_->setup();
@@ -80,36 +74,18 @@ void ST7735::setup() {
   sendcommand_(ST77XX_MADCTL, &data, 1);
 
   this->set_driver_right_bit_aligned(this->driver_right_bit_aligned_);
-  this->init_buffer(this->width_, this->height_);
 
-  this->fill_internal_(COLOR_BLACK);
+  bool res = this->init_buffer(this->width_, this->height_);
+  if (!res) {
+    ESP_LOGE(TAG, "Could not allocate buffer space. Consider changing the buffer type or resolution!");
+    this->mark_failed();
+    return;
+  }
+
+  this->fill(COLOR_BLACK);
 }
 
 bool HOT ST7735::is_18bit_() { return this->get_buffer_type() != display::BufferType::BUFFER_TYPE_565; }
-
-void HOT ST7735::fill_internal_(Color color) {
-  auto color_to_write = this->is_18bit_() ? display::ColorUtil::color_to_666(color, this->driver_right_bit_aligned_)
-                                          : display::ColorUtil::color_to_565(color);
-
-  this->set_addr_window_(0, 0, this->get_width_internal(), this->get_height_internal());
-  this->start_data_();
-
-#ifdef USE_BUFFER_RGB565
-  auto buff =static_cast<display::Bufferex565*>(this->bufferex_base_);
-  this->write_array16(buff->buffer_, this->bufferex_base_->get_buffer_length());
-  #else
-  for (uint32_t i = 0; i < this->get_buffer_length(); i++) {
-      if (this->is_18bit_()) {
-        this->write_byte(color_to_write >> 14);
-        this->write_byte(color_to_write >> 6);
-        this->write_byte(color_to_write << 2);
-      } else {
-        this->write_byte16(color_to_write);
-      }
-  }
-  #endif
-  this->end_data_();
-}
 
 void ST7735::update() {
   this->do_update_();
@@ -120,10 +96,6 @@ void ST7735::update() {
 int ST7735::get_height_internal() { return height_; }
 
 int ST7735::get_width_internal() { return width_; }
-
-void HOT ST7735::draw_absolute_pixel_internal(int x, int y, Color color) {
-  this->bufferex_base_->set_pixel(x, y, color);
-}
 
 void ST7735::init_reset_() {
   if (this->reset_pin_ != nullptr) {
@@ -180,20 +152,10 @@ void ST7735::dump_config() {
   LOG_PIN("  CS Pin: ", this->cs_);
   LOG_PIN("  DC Pin: ", this->dc_pin_);
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
-  ESP_LOGD(TAG, "  Buffer Type: %s", this->get_buffer_type_string().c_str());
-  ESP_LOGD(TAG, "  Buffer Type: %d", this->get_buffer_type());
-  ESP_LOGD(TAG, "  Buffer Length: %zu", this->get_buffer_length());
-  ESP_LOGD(TAG, "  Buffer Size: %zu", this->get_buffer_size());
-  ESP_LOGD(TAG, "  Buffer Pixel Size: %hhu", this->get_pixel_storage_size());
-  ESP_LOGD(TAG, "  Height: %d", this->height_);
-  ESP_LOGD(TAG, "  Width: %d", this->width_);
-  ESP_LOGD(TAG, "  ColStart: %d", this->colstart_);
-  ESP_LOGD(TAG, "  RowStart: %d", this->rowstart_);
-  ESP_LOGD(TAG, "  18Bit: %s", this->is_18bit_() ? "True" : "False");
   LOG_UPDATE_INTERVAL(this);
 }
 
-void ST7735::fill(Color color) { this->fill_buffer(color); }
+void ST7735::display_clear() { this->fill(display::COLOR_OFF); }
 
 void HOT ST7735::writecommand_(uint8_t value) {
   this->enable();
@@ -227,7 +189,7 @@ void HOT ST7735::senddata_(const uint8_t *data_bytes, uint8_t num_data_bytes) {
 }
 
 void HOT ST7735::display_buffer_() {
-  // ESP_LOGD(TAG, "Asked to write %d pixels", this->pixel_count_);
+  // ESP_LOGD(TAG, "Asked to write %d pixels", this->bufferex_base_->pixel_count_);
 
   const int w = this->bufferex_base_->x_high_ - this->bufferex_base_->x_low_ + 1;
   const int h = this->bufferex_base_->y_high_ - this->bufferex_base_->y_low_ + 1;
@@ -237,10 +199,10 @@ void HOT ST7735::display_buffer_() {
 
   this->start_data_();
 
-  #ifdef USE_BUFFER_RGB565
-  auto buff =static_cast<display::Bufferex565*>(this->bufferex_base_);
+#ifdef USE_BUFFER_RGB565
+  auto buff = static_cast<display::Bufferex565 *>(this->bufferex_base_);
   this->write_array16(buff->buffer_, this->bufferex_base_->get_buffer_length());
-  #else
+#else
   for (uint16_t row = 0; row < h; row++) {
     for (uint16_t col = 0; col < w; col++) {
       uint32_t pos = start_pos + (row * width_) + col;
@@ -256,32 +218,8 @@ void HOT ST7735::display_buffer_() {
       }
     }
   }
-  #endif
+#endif
 
-// if ( !this->is_18bit_()){
-//   auto buff =static_cast<display::Bufferex565*>(this->bufferex_base_);
-//   this->write_array16(buff->buffer_, this->bufferex_base_->get_buffer_length());
-
-// }else {
-
-//   for (uint16_t row = 0; row < h; row++) {
-//     for (uint16_t col = 0; col < w; col++) {
-//       uint32_t pos = start_pos + (row * width_) + col;
-
-//       uint16_t color_to_write =
-//           this->is_18bit_() ? this->bufferex_base_->get_pixel_to_666(pos) : this->bufferex_base_->get_pixel_to_565(pos);
-
-//       if (this->is_18bit_()) {
-//         this->write_byte(color_to_write >> 14);
-//         this->write_byte(color_to_write >> 6);
-//         this->write_byte(color_to_write << 2);
-//       } else {
-//         this->write_byte(color_to_write >> 8);
-//         this->write_byte(color_to_write);
-//       }
-//     }
-//   }
-// }
   this->end_data_();
 
   this->bufferex_base_->pixel_count_ = 0;

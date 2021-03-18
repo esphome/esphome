@@ -84,12 +84,36 @@ class DisplayPage;
 
 using display_writer_t = std::function<void(DisplayBuffer &)>;
 
+#ifdef ARDUINO_ARCH_ESP32
 #define LOG_DISPLAY(prefix, type, obj) \
   if (obj != nullptr) { \
     ESP_LOGCONFIG(TAG, prefix type); \
     ESP_LOGCONFIG(TAG, "%s  Rotations: %d °", prefix, obj->rotation_); \
     ESP_LOGCONFIG(TAG, "%s  Dimensions: %dpx x %dpx", prefix, obj->get_width(), obj->get_height()); \
+    ESP_LOGCONFIG(TAG, "%s  Column Start: %d", prefix, this->colstart_); \
+    ESP_LOGCONFIG(TAG, "%s  Row Start:: %d", prefix, this->rowstart_); \
+    ESP_LOGCONFIG(TAG, "%s  PSRAM Enabled: %s", prefix, TRUEFALSE(psramFound())); \
+    ESP_LOGCONFIG(TAG, "%s  Buffer: %s", prefix, this->get_buffer_type_string().c_str()); \
+    ESP_LOGCONFIG(TAG, "%s  Buffer Type: %d", prefix, this->get_buffer_type()); \
+    ESP_LOGCONFIG(TAG, "%s  Buffer Length: %zu", prefix, this->get_buffer_length()); \
+    ESP_LOGCONFIG(TAG, "%s  Buffer Size: %zu", prefix, this->get_buffer_size()); \
+    ESP_LOGCONFIG(TAG, "%s  Buffer Pixel Size: %hhu", prefix, this->get_pixel_storage_size()); \
   }
+
+#else
+#define LOG_DISPLAY(prefix, type, obj) \
+  if (obj != nullptr) { \
+    ESP_LOGCONFIG(TAG, prefix type); \
+    ESP_LOGCONFIG(TAG, "%s  Rotations: %d °", prefix, obj->rotation_); \
+    ESP_LOGCONFIG(TAG, "%s  Dimensions: %dpx x %dpx", prefix, obj->get_width(), obj->get_height()); \
+    ESP_LOGCONFIG(TAG, "%s  Column Start: %d", prefix, this->colstart_); \
+    ESP_LOGCONFIG(TAG, "%s  Row Start: %d", prefix, this->rowstart_); \
+    ESP_LOGCONFIG(TAG, "%s  Buffer: %s", prefix, this->get_buffer_type_string().c_str()); \
+    ESP_LOGCONFIG(TAG, "%s  Buffer Length: %zu", prefix, this->get_buffer_length()); \
+    ESP_LOGCONFIG(TAG, "%s  Buffer Size: %zu", prefix, this->get_buffer_size()); \
+    ESP_LOGCONFIG(TAG, "%s  Buffer Pixel Size: %hhu", prefix, this->get_pixel_storage_size()); \
+  }
+#endif
 
 class DisplayBuffer {
  public:
@@ -299,18 +323,19 @@ class DisplayBuffer {
   /// Internal method to set the display rotation with.
   void set_rotation(DisplayRotation rotation);
 
-  void set_buffer(display::BufferexBase *bufferex_base) { this->bufferex_base_ = bufferex_base; }
+  void HOT set_buffer(display::BufferexBase *bufferex_base) { this->bufferex_base_ = bufferex_base; }
+
   size_t get_buffer_length();
   void set_pixel(int x, int y, Color color);
   size_t get_buffer_size();
   void fill_buffer(Color color);
 
   // 565
-  uint16_t get_pixel_to_565(int x, int y);
-  uint16_t get_pixel_to_565(uint16_t pos);
+  uint16_t HOT get_pixel_to_565(int x, int y);
+  uint16_t HOT get_pixel_to_565(uint16_t pos);
   // 666
-  uint32_t get_pixel_to_666(int x, int y);
-  uint32_t get_pixel_to_666(uint16_t pos);
+  uint32_t HOT get_pixel_to_666(int x, int y);
+  uint32_t HOT get_pixel_to_666(uint16_t pos);
 
   bool init_buffer(int width, int height);
   display::BufferType get_buffer_type() { return this->bufferex_base_->get_buffer_type(); };
@@ -324,7 +349,9 @@ class DisplayBuffer {
  protected:
   void vprintf_(int x, int y, Font *font, Color color, TextAlign align, const char *format, va_list arg);
 
-  virtual void draw_absolute_pixel_internal(int x, int y, Color color) = 0;
+  virtual void HOT draw_absolute_pixel_internal(int x, int y, Color color) {
+    this->bufferex_base_->set_pixel(x, y, color);
+  }
 
   virtual int get_height_internal() = 0;
 

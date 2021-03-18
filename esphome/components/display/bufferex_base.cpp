@@ -29,13 +29,5 @@ void HOT BufferexBase::set_pixel(int x, int y, Color color) {
   this->set_buffer(x, y, color);
 }
 
-void HOT BufferexBase::fill_buffer(Color color) {
-  ESP_LOGD(TAG, "fill_buffer");
-  this->x_low_ = 0;
-  this->y_low_ = 0;
-  this->x_high_ = this->width_ - 1;
-  this->y_high_ = this->height_ - 1;
-}
-
 }  // namespace display
 }  // namespace esphome

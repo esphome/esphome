@@ -2,8 +2,6 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins
 from esphome.components import display, spi
-from .waveshare_enum import WAVESHARE_COLORS_ENUM
-
 from esphome.const import (
     CONF_BUSY_PIN,
     CONF_DC_PIN,
@@ -14,6 +12,8 @@ from esphome.const import (
     CONF_PAGES,
     CONF_RESET_PIN,
 )
+from .waveshare_enum import WAVESHARE_COLORS_ENUM
+
 
 DEPENDENCIES = ["spi"]
 

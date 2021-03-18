@@ -567,6 +567,7 @@ def lint_inclusive_language(fname, match):
         "esphome/components/climate/climate.h",
         "esphome/core/component.h",
         "esphome/core/esphal.h",
+        "esphome/core/helpers.h",
         "esphome/core/log.h",
         "tests/custom.h",
     ],

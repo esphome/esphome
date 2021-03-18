@@ -10,9 +10,9 @@ enum BufferType : uint8_t {
   BUFFER_TYPE_332 = 1,
   BUFFER_TYPE_565 = 2,
   BUFFER_TYPE_666 = 3,
-  BUFFER_TYPE_INDEXED = 4,
+  BUFFER_TYPE_INDEXED8 = 4,
 };
-static const std::string BUFFER_TYPE_STRINGS[] = {"1BIT", "332", "565", "666", "888"};
+static const std::string BUFFER_TYPE_STRINGS[] = {"1BIT", "332", "565", "666", "INDEXED8"};
 
 class BufferexBase {
  public:
@@ -22,35 +22,37 @@ class BufferexBase {
 
 #ifdef USE_BUFFER_INDEXED8
   // value
-  virtual uint8_t get_pixel_value(int x, int y) {
+  virtual uint8_t HOT get_pixel_value(int x, int y) {
     const uint32_t pos = get_pixel_buffer_position_(x, y);
     return this->get_pixel_value(pos);
   };
-  virtual uint8_t get_pixel_value(uint32_t pos) = 0;
+  virtual uint8_t HOT get_pixel_value(uint32_t pos) = 0;
 #endif
 
   // 565
-  virtual uint16_t get_pixel_to_565(int x, int y) {
+  virtual uint16_t HOT get_pixel_to_565(int x, int y) {
     const uint32_t pos = get_pixel_buffer_position_(x, y);
     return this->get_pixel_to_565(pos);
   }
-  virtual uint16_t get_pixel_to_565(uint32_t pos) = 0;
+  virtual uint16_t HOT get_pixel_to_565(uint32_t pos) = 0;
 
   // 666
-  virtual uint32_t get_pixel_to_666(int x, int y) {
+  virtual uint32_t HOT get_pixel_to_666(int x, int y) {
     const uint32_t pos = get_pixel_buffer_position_(x, y);
     return this->get_pixel_to_666(pos);
   };
-  virtual uint32_t get_pixel_to_666(uint32_t pos) = 0;
+  virtual uint32_t HOT get_pixel_to_666(uint32_t pos) = 0;
 
   virtual size_t get_buffer_size() = 0;
   virtual size_t get_buffer_length();
   virtual display::BufferType get_buffer_type() = 0;
   virtual uint8_t get_pixel_storage_size() = 0;
-  virtual void fill_buffer(Color color);
+  virtual void HOT fill_buffer(Color color){};
+  bool is_buffer_set() { return this->is_buffer_set_; }
+  void set_is_buffer_set(bool is_buffer_set) { this->is_buffer_set_ = is_buffer_set; }
 
   void display();
-  void set_pixel(int x, int y, Color color);
+  void HOT set_pixel(int x, int y, Color color);
   void set_driver_right_bit_aligned(bool driver_right_bit_aligned) {
     this->driver_right_bit_aligned_ = driver_right_bit_aligned;
   }
@@ -86,6 +88,7 @@ class BufferexBase {
   std::vector<Color> indexed_colors_;
   uint8_t default_index_value_ = 0;
   uint8_t index_size_ = 1;
+  bool is_buffer_set_ = false;
 
 };  // class BufferexBase
 }  // namespace display
