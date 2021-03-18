@@ -112,10 +112,10 @@ class ColorUtil {
     return 0;
   }
 
-  static uint32_t color_to_666(Color color, bool right_bit_aligned) {
+  static HOT uint32_t color_to_666(Color color, bool right_bit_aligned) {
     return color_to_666(color, ColorOrder::COLOR_ORDER_RGB, right_bit_aligned);
   }
-  static uint32_t color_to_666(Color color, ColorOrder color_order = ColorOrder::COLOR_ORDER_RGB,
+  static HOT uint32_t color_to_666(Color color, ColorOrder color_order = ColorOrder::COLOR_ORDER_RGB,
                                bool right_bit_aligned = true) {
     uint32_t red_color, green_color, blue_color;
 

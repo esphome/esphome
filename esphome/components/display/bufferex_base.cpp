@@ -29,7 +29,7 @@ void HOT BufferexBase::set_pixel(int x, int y, Color color) {
   this->set_buffer(x, y, color);
 }
 
-void BufferexBase::fill_buffer(Color color) {
+void HOT BufferexBase::fill_buffer(Color color) {
   ESP_LOGD(TAG, "fill_buffer");
   this->x_low_ = 0;
   this->y_low_ = 0;

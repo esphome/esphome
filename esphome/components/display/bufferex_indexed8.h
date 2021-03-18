@@ -4,16 +4,20 @@
 namespace esphome {
 namespace display {
 
+#ifdef USE_BUFFER_INDEXED8
 class BufferexIndexed8 : public display::BufferexBase {
  public:
   uint8_t *buffer_{nullptr};
 
-  void init_buffer(int width, int height) override;
+  bool init_buffer(int width, int height) override;
   void set_buffer(int x, int y, Color color) override;
 
   void fill_buffer(Color color) override;
 
+
   uint8_t get_pixel_value(uint32_t pos) override;
+
+
   uint16_t get_pixel_to_565(uint32_t pos) override;
   uint32_t get_pixel_to_666(uint32_t pos) override;
 
@@ -38,6 +42,8 @@ class BufferexIndexed8 : public display::BufferexBase {
 
   display::BufferType buffer_type_ = display::BufferType::BUFFER_TYPE_INDEXED;
   uint8_t pixel_storage_size_ = 1;
-};  // class Bufferex332
+};
+
+#endif
 }  // namespace display
 }  // namespace esphome

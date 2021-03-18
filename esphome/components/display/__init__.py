@@ -66,7 +66,7 @@ BASIC_BUFFER_SCHEMA = cv.Schema(
                 cv.Required(CONF_COLOR): cv.use_id(color),
             }
         ),
-        cv.Optional(CONF_INDEX_SIZE, default=1): cv.int_range(min=1, max=255),
+        cv.Optional(CONF_INDEX_SIZE): cv.int_range(min=1, max=255),
     }
 )
 
@@ -143,11 +143,12 @@ def setup_display_core_(var, config):
 @coroutine
 def register_display(var, config):
     yield setup_display_core_(var, config)
-    print(config[CONF_BUFFER][CONF_TYPE])
     if CONF_BUFFER_ID in config:
         if CONF_BUFFER not in config:
             config[CONF_BUFFER_ID].type = bufferex_565
+            cg.add_define("USE_BUFFER_RGB565")
         else:
+            cg.add_define("USE_BUFFER_" + config[CONF_BUFFER][CONF_TYPE])
             if config[CONF_BUFFER][CONF_TYPE] == "RGB666":
                 config[CONF_BUFFER_ID].type = bufferex_666
             if config[CONF_BUFFER][CONF_TYPE] == "RGB565":
@@ -157,6 +158,7 @@ def register_display(var, config):
             elif config[CONF_BUFFER][CONF_TYPE] == "RGB1BIT":
                 config[CONF_BUFFER_ID].type = bufferex_1bit_2color
             elif config[CONF_BUFFER][CONF_TYPE] == "INDEXED8":
+
                 config[CONF_BUFFER_ID].type = bufferex_indexed8
 
         buffer = yield cg.new_Pvariable(config[CONF_BUFFER_ID])
@@ -178,25 +180,25 @@ def register_display(var, config):
                 color_off = yield cg.get_variable(config[CONF_BUFFER][CONF_COLOR_OFF])
                 cg.add(buffer.set_color_off(color_off))
 
+        index_size = 1
+
         if CONF_BUFFER in config and config[CONF_BUFFER][CONF_TYPE] == "INDEXED8":
             if CONF_INDEX_SIZE in config[CONF_BUFFER]:
-                cg.add(buffer.set_index_size(config[CONF_BUFFER][CONF_INDEX_SIZE]))
+                index_size = config[CONF_BUFFER][CONF_INDEX_SIZE]
+
+            if CONF_COLORS in config[CONF_BUFFER]:
+                colors = []
+                for color_conf in config[CONF_BUFFER][CONF_COLORS]:
+                    color_ = yield cg.get_variable(color_conf[CONF_COLOR])
+                    colors.append(color_)
+                cg.add(buffer.set_colors(colors))
+                if CONF_INDEX_SIZE not in config[CONF_BUFFER]:
+                    index_size = len(colors)
 
         if CONF_BUFFER_INDEX_SIZE in config:
-            cg.add(buffer.set_index_size(config[CONF_BUFFER_INDEX_SIZE]))
+            index_size = config[CONF_BUFFER_INDEX_SIZE]
 
-            #     lambda_ = yield cg.process_lambda(
-            #         conf[CONF_LAMBDA],
-            #         [(DisplayBufferRef, "it")],
-            #         return_type=cg.void,
-            #     )
-            #     page = cg.new_Pvariable(conf[CONF_ID], lambda_)
-            #     pages.append(page)
-            # cg.add(var.set_pages(pages))
-
-        # if CONF_COLORS in config[CONF_BUFFER]:
-        #     colors = yield cg.get_variable(config[CONF_BUFFER][CONF_COLORS])
-        #     cg.add(buffer.set_colors(colors))
+        cg.add(buffer.set_index_size(index_size))
 
 
 @automation.register_action(

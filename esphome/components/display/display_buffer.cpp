@@ -19,7 +19,7 @@ void DisplayBuffer::init_internal_(uint32_t buffer_length) {
   this->clear();
 }
 
-void DisplayBuffer::init_buffer(int width, int height) { this->bufferex_base_->init_buffer(width, height); }
+bool DisplayBuffer::init_buffer(int width, int height) { return this->bufferex_base_->init_buffer(width, height); }
 void DisplayBuffer::fill(Color color) { this->filled_rectangle(0, 0, this->get_width(), this->get_height(), color); }
 void DisplayBuffer::clear() { this->fill(COLOR_OFF); }
 void DisplayBuffer::display_clear() { this->clear(); }

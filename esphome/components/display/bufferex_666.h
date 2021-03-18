@@ -3,12 +3,12 @@
 
 namespace esphome {
 namespace display {
-
+#ifdef USE_BUFFER_RGB666
 class Bufferex666 : public display::BufferexBase {
  public:
   uint32_t *buffer_{nullptr};
 
-  void init_buffer(int width, int height) override;
+  bool init_buffer(int width, int height) override;
   void set_buffer(int x, int y, Color color) override;
   void fill_buffer(Color color) override;
   uint16_t get_pixel_to_565(uint32_t pos) override;
@@ -21,5 +21,6 @@ class Bufferex666 : public display::BufferexBase {
   display::BufferType buffer_type_ = display::BufferType::BUFFER_TYPE_666;
   uint8_t pixel_storage_size_ = 32;
 };  // class Bufferex666
+#endif
 }  // namespace display
 }  // namespace esphome

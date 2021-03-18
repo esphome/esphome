@@ -2,9 +2,11 @@
 
 namespace esphome {
 namespace display {
+
+#ifdef USE_BUFFER_INDEXED8
 static const char *TAG = "bufferex_indexed8";
 
-void BufferexIndexed8::init_buffer(int width, int height) {
+bool BufferexIndexed8::init_buffer(int width, int height) {
   this->width_ = width;
   this->height_ = height;
 
@@ -23,12 +25,13 @@ void BufferexIndexed8::init_buffer(int width, int height) {
 
   if (this->buffer_ == nullptr) {
     ESP_LOGE(TAG, "Could not allocate buffer for display!");
-    return;
+    return false;
   }
   memset(this->buffer_, 0x00, this->get_buffer_size());
+  return true;
 }
 
-uint8_t BufferexIndexed8::get_index_from_color_(Color color) {
+uint8_t HOT BufferexIndexed8::get_index_from_color_(Color color) {
   for (int i = 0; i < this->colors_.size(); i++) {
     if (this->colors_[i].raw_32 == color.raw_32) {
       return i;
@@ -37,7 +40,7 @@ uint8_t BufferexIndexed8::get_index_from_color_(Color color) {
   return this->default_index_value_;
 }
 
-uint8_t BufferexIndexed8::get_value_from_color_index_(uint8_t index) {
+uint8_t HOT BufferexIndexed8::get_value_from_color_index_(uint8_t index) {
   for (int i = 0; i < this->indexed_colors_.size(); i++) {
     if (this->indexed_colors_[i].raw_32 == this->colors_[index].raw_32) {
       return i;
@@ -46,7 +49,7 @@ uint8_t BufferexIndexed8::get_value_from_color_index_(uint8_t index) {
   return this->default_index_value_;
 }
 
-void BufferexIndexed8::fill_buffer(Color color) {
+void HOT BufferexIndexed8::fill_buffer(Color color) {
   display::BufferexBase::fill_buffer(color);
 
   ESP_LOGD(TAG, "fill_buffer %d %d/%d", color.g, this->width_, this->height_);
@@ -134,7 +137,7 @@ uint8_t HOT BufferexIndexed8::get_index_value_(uint32_t pos) {
   return index_byte_end & mask;
 }
 
-uint8_t BufferexIndexed8::get_pixel_value(uint32_t pos) {
+uint8_t HOT BufferexIndexed8::get_pixel_value(uint32_t pos) {
   uint8_t value = this->get_index_value_(pos);
 
   if (value > this->index_size_)
@@ -143,7 +146,7 @@ uint8_t BufferexIndexed8::get_pixel_value(uint32_t pos) {
   return this->get_value_from_color_index_(value);
 }
 
-uint16_t BufferexIndexed8::get_pixel_to_565(uint32_t pos) {
+uint16_t HOT BufferexIndexed8::get_pixel_to_565(uint32_t pos) {
   uint8_t value = this->get_index_value_(pos);
 
   if (value > this->index_size_)
@@ -161,7 +164,7 @@ uint32_t HOT BufferexIndexed8::get_pixel_to_666(uint32_t pos) {
   return ColorUtil::color_to_666(this->colors_[value], this->driver_right_bit_aligned_);
 }
 
-size_t BufferexIndexed8::get_buffer_length() {  // How many unint8_t bytes does the buffer need
+size_t HOT BufferexIndexed8::get_buffer_length() {  // How many unint8_t bytes does the buffer need
   if (this->get_buffer_length_ != 0)
     return this->get_buffer_length_;
 
@@ -187,7 +190,7 @@ size_t BufferexIndexed8::get_buffer_length() {  // How many unint8_t bytes does 
   return bufflength;
 }
 
-size_t BufferexIndexed8::get_buffer_size() { return this->get_buffer_length(); }
-
+size_t HOT BufferexIndexed8::get_buffer_size() { return this->get_buffer_length(); }
+#endif
 }  // namespace display
 }  // namespace esphome

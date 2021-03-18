@@ -1,4 +1,5 @@
 #pragma once
+#include "esphome/core/defines.h"
 #include "display_color_utils.h"
 #include "esphome/core/log.h"
 namespace esphome {
@@ -15,16 +16,18 @@ static const std::string BUFFER_TYPE_STRINGS[] = {"1BIT", "332", "565", "666", "
 
 class BufferexBase {
  public:
-  virtual void init_buffer(int width, int height) = 0;
+  virtual bool init_buffer(int width, int height) = 0;
 
   virtual void set_buffer(int x, int y, Color color) = 0;
 
+#ifdef USE_BUFFER_INDEXED8
   // value
   virtual uint8_t get_pixel_value(int x, int y) {
     const uint32_t pos = get_pixel_buffer_position_(x, y);
     return this->get_pixel_value(pos);
   };
   virtual uint8_t get_pixel_value(uint32_t pos) = 0;
+#endif
 
   // 565
   virtual uint16_t get_pixel_to_565(int x, int y) {

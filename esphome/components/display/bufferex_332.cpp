@@ -2,18 +2,20 @@
 
 namespace esphome {
 namespace display {
+  #ifdef USE_BUFFER_RGB332
 static const char *TAG = "bufferex_332";
 
-void Bufferex332::init_buffer(int width, int height) {
+bool Bufferex332::init_buffer(int width, int height) {
   this->width_ = width;
   this->height_ = height;
 
   this->buffer_ = new uint8_t[this->get_buffer_length()];
   if (this->buffer_ == nullptr) {
     ESP_LOGE(TAG, "Could not allocate buffer for display!");
-    return;
+    return false;
   }
   memset(this->buffer_, 0x00, this->get_buffer_size());
+  return true;
 }
 
 void Bufferex332::fill_buffer(Color color) {
@@ -44,6 +46,7 @@ uint32_t Bufferex332::get_pixel_to_666(uint32_t pos) {
       ColorUtil::to_color(this->buffer_[pos], ColorOrder::COLOR_ORDER_RGB, ColorBitness::COLOR_BITNESS_332, true),
       this->driver_right_bit_aligned_);
 }
+#endif
 
 }  // namespace display
 }  // namespace esphome

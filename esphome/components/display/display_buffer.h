@@ -312,7 +312,7 @@ class DisplayBuffer {
   uint32_t get_pixel_to_666(int x, int y);
   uint32_t get_pixel_to_666(uint16_t pos);
 
-  void init_buffer(int width, int height);
+  bool init_buffer(int width, int height);
   display::BufferType get_buffer_type() { return this->bufferex_base_->get_buffer_type(); };
   std::string get_buffer_type_string() { return BUFFER_TYPE_STRINGS[this->bufferex_base_->get_buffer_type()]; }
   uint8_t get_pixel_storage_size() { return this->bufferex_base_->get_pixel_storage_size(); }
