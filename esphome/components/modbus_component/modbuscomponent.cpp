@@ -58,6 +58,7 @@ void ModbusComponent::on_modbus_data(const std::vector<uint8_t> &data) {
     command_queue_.pop();
   }
 
+
   // if (!command_queue_.empty()) {
   //   send_next_command_();
   // }
@@ -130,7 +131,7 @@ void ModbusComponent::update() {
     }
   }
   // send_next_command_();
-  ESP_LOGD(TAG, "Modbus  update complete Free Heap  %u bytes",ESP.getFreeHeap());
+  ESP_LOGI(TAG, "Modbus  update complete Free Heap  %u bytes",ESP.getFreeHeap());
 }
 
 // walk through the sensors and determine the registerranges to read
@@ -423,9 +424,11 @@ float FloatSensorItem::parse_and_publish(const std::vector<uint8_t> &data) {
       break;
   }
 
-  if (transform_expression != nullptr)
+  if (transform_expression != nullptr) {
     result = transform_expression(value);
-  result = float(value);
+  }  else {
+    result = float(value);
+  }
   this->sensor_->state = result;
   // No need to publish if the value didn't change since the last publish
   // can reduce mqtt traffic considerably if many sensors are used
