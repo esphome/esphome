@@ -36,7 +36,7 @@ class AddressableLightDisplay : public display::DisplayBuffer, public PollingCom
   }
   bool get_enabled() { return enabled_; }
 
-  void set_pixel_mapper(std::function<int(int &, int &)> &&pixel_mapper_f) { this->pixel_mapper_f_ = pixel_mapper_f; }
+  void set_pixel_mapper(std::function<int(int, int)> &&pixel_mapper_f) { this->pixel_mapper_f_ = pixel_mapper_f; }
   void setup() override;
   void display();
 
@@ -53,7 +53,7 @@ class AddressableLightDisplay : public display::DisplayBuffer, public PollingCom
   int32_t height_;
   std::vector<Color> addressable_light_buffer_;
   optional<std::string> last_effect_;
-  optional<std::function<int(int &, int &)>> pixel_mapper_f_;
+  optional<std::function<int(int, int)>> pixel_mapper_f_;
 };
 }  // namespace addressable_light_display
 }  // namespace esphome

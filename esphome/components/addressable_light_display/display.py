@@ -14,7 +14,6 @@ from esphome.const import (
 
 CODEOWNERS = ["@justfalter"]
 
-IntRef = cg.int_.operator("ref")
 addressable_light_display_ns = cg.esphome_ns.namespace("addressable_light_display")
 AddressableLightDisplay = addressable_light_display_ns.class_(
     "AddressableLightDisplay", display.DisplayBuffer, cg.PollingComponent
@@ -52,7 +51,7 @@ def to_code(config):
     if CONF_PIXEL_MAPPER in config:
         pixel_mapper_template_ = yield cg.process_lambda(
             config[CONF_PIXEL_MAPPER],
-            [(IntRef, "x"), (IntRef, "y")],
+            [(int, "x"), (int, "y")],
             return_type=cg.int_,
         )
         cg.add(var.set_pixel_mapper(pixel_mapper_template_))
