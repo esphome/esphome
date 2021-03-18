@@ -99,6 +99,30 @@ class SPIComponent : public Component {
   }
 
   template<SPIBitOrder BIT_ORDER, SPIClockPolarity CLOCK_POLARITY, SPIClockPhase CLOCK_PHASE>
+  void write_byte16(const uint16_t data) {
+    if (this->hw_spi_ != nullptr) {
+      this->hw_spi_->write16(data);
+      return;
+    }
+
+    this->write_byte<BIT_ORDER, CLOCK_POLARITY, CLOCK_PHASE>(data >> 8);
+    this->write_byte<BIT_ORDER, CLOCK_POLARITY, CLOCK_PHASE>(data);
+  }
+
+  template<SPIBitOrder BIT_ORDER, SPIClockPolarity CLOCK_POLARITY, SPIClockPhase CLOCK_PHASE>
+  void write_array16(const uint16_t *data, size_t length) {
+    if (this->hw_spi_ != nullptr) {
+      for (size_t i = 0; i < length; i++) {
+        this->hw_spi_->write16(data[i]);
+      }
+      return;
+    }
+    for (size_t i = 0; i < length; i++) {
+      this->write_byte16<BIT_ORDER, CLOCK_POLARITY, CLOCK_PHASE>(data[i]);
+    }
+  }
+
+  template<SPIBitOrder BIT_ORDER, SPIClockPolarity CLOCK_POLARITY, SPIClockPhase CLOCK_PHASE>
   void write_array(const uint8_t *data, size_t length) {
     if (this->hw_spi_ != nullptr) {
       auto *data_c = const_cast<uint8_t *>(data);
@@ -220,6 +244,14 @@ class SPIDevice {
 
   void write_byte(uint8_t data) {
     return this->parent_->template write_byte<BIT_ORDER, CLOCK_POLARITY, CLOCK_PHASE>(data);
+  }
+
+  void write_byte16(uint8_t data) {
+    return this->parent_->template write_byte16<BIT_ORDER, CLOCK_POLARITY, CLOCK_PHASE>(data);
+  }
+
+  void write_array16(const uint16_t *data, size_t length) {
+    this->parent_->template write_array16<BIT_ORDER, CLOCK_POLARITY, CLOCK_PHASE>(data, length);
   }
 
   void write_array(const uint8_t *data, size_t length) {
