@@ -349,7 +349,7 @@ RC522::StatusCode RC522::pcd_communicate_with_picc_(
   // transmitting. Each iteration of the do-while-loop takes 17.86μs.
   // TODO check/modify for other architectures than Arduino Uno 16bit
   uint16_t i;
-  for (i = 4; i > 0; i--) {
+  for (i = 2000; i > 0; i--) {
     uint8_t n = pcd_read_register(
         COM_IRQ_REG);     // ComIrqReg[7..0] bits are: Set1 TxIRq RxIRq IdleIRq HiAlertIRq LoAlertIRq ErrIRq TimerIRq
     if (n & wait_i_rq) {  // One of the interrupts that signal success has been set.

@@ -1,4 +1,4 @@
-""" Tests for the binary sensor component """
+"""Tests for the binary sensor component."""
 
 
 def test_binary_sensor_is_setup(generate_main):
@@ -8,7 +8,9 @@ def test_binary_sensor_is_setup(generate_main):
     # Given
 
     # When
-    main_cpp = generate_main("tests/component_tests/binary_sensor/test_binary_sensor.yaml")
+    main_cpp = generate_main(
+        "tests/component_tests/binary_sensor/test_binary_sensor.yaml"
+    )
 
     # Then
     assert "new gpio::GPIOBinarySensor();" in main_cpp
@@ -22,10 +24,12 @@ def test_binary_sensor_sets_mandatory_fields(generate_main):
     # Given
 
     # When
-    main_cpp = generate_main("tests/component_tests/binary_sensor/test_binary_sensor.yaml")
+    main_cpp = generate_main(
+        "tests/component_tests/binary_sensor/test_binary_sensor.yaml"
+    )
 
     # Then
-    assert "bs_1->set_name(\"test bs1\");" in main_cpp
+    assert 'bs_1->set_name("test bs1");' in main_cpp
     assert "bs_1->set_pin(new GPIOPin" in main_cpp
 
 
@@ -36,7 +40,9 @@ def test_binary_sensor_config_value_internal_set(generate_main):
     # Given
 
     # When
-    main_cpp = generate_main("tests/component_tests/binary_sensor/test_binary_sensor.yaml")
+    main_cpp = generate_main(
+        "tests/component_tests/binary_sensor/test_binary_sensor.yaml"
+    )
 
     # Then
     assert "bs_1->set_internal(true);" in main_cpp
