@@ -4,21 +4,27 @@ from esphome.components import switch
 from esphome.const import CONF_ID, CONF_LAMBDA, CONF_SWITCHES
 from .. import custom_ns
 
-CustomSwitchConstructor = custom_ns.class_('CustomSwitchConstructor')
+CustomSwitchConstructor = custom_ns.class_("CustomSwitchConstructor")
 
-CONFIG_SCHEMA = cv.Schema({
-    cv.GenerateID(): cv.declare_id(CustomSwitchConstructor),
-    cv.Required(CONF_LAMBDA): cv.returning_lambda,
-    cv.Required(CONF_SWITCHES):
-        cv.ensure_list(switch.SWITCH_SCHEMA.extend({
-            cv.GenerateID(): cv.declare_id(switch.Switch),
-        })),
-})
+CONFIG_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.declare_id(CustomSwitchConstructor),
+        cv.Required(CONF_LAMBDA): cv.returning_lambda,
+        cv.Required(CONF_SWITCHES): cv.ensure_list(
+            switch.SWITCH_SCHEMA.extend(
+                {
+                    cv.GenerateID(): cv.declare_id(switch.Switch),
+                }
+            )
+        ),
+    }
+)
 
 
 def to_code(config):
     template_ = yield cg.process_lambda(
-        config[CONF_LAMBDA], [], return_type=cg.std_vector.template(switch.SwitchPtr))
+        config[CONF_LAMBDA], [], return_type=cg.std_vector.template(switch.SwitchPtr)
+    )
 
     rhs = CustomSwitchConstructor(template_)
     var = cg.variable(config[CONF_ID], rhs)

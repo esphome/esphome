@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 
-CODEOWNERS = ['@jesserockz']
+CODEOWNERS = ["@jesserockz"]
 
-nfc_ns = cg.esphome_ns.namespace('nfc')
+nfc_ns = cg.esphome_ns.namespace("nfc")
 
-NfcTag = nfc_ns.class_('NfcTag')
+NfcTag = nfc_ns.class_("NfcTag")

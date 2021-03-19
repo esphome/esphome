@@ -244,7 +244,7 @@ void HOT WaveshareEPaperTypeA::display() {
     return;
   }
 
-  if (this->full_update_every_ >= 2) {
+  if (this->full_update_every_ >= 1) {
     if (full_update != prev_full_update) {
       switch (this->model_) {
         case TTGO_EPAPER_2_13_IN:
@@ -336,6 +336,8 @@ void HOT WaveshareEPaperTypeA::display() {
   this->command(0x22);
   if (this->model_ == WAVESHARE_EPAPER_2_9_IN_V2) {
     this->data(full_update ? 0xF7 : 0xFF);
+  } else if (this->model_ == TTGO_EPAPER_2_13_IN_B73) {
+    this->data(0xC7);
   } else {
     this->data(0xC4);
   }

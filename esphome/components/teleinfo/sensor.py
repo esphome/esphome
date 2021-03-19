@@ -1,27 +1,42 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import sensor, uart
-from esphome.const import CONF_ID, CONF_SENSOR, DEVICE_CLASS_POWER, ICON_EMPTY, UNIT_WATT_HOURS
+from esphome.const import (
+    CONF_ID,
+    CONF_SENSOR,
+    DEVICE_CLASS_POWER,
+    ICON_EMPTY,
+    UNIT_WATT_HOURS,
+)
 
-DEPENDENCIES = ['uart']
+DEPENDENCIES = ["uart"]
 
-teleinfo_ns = cg.esphome_ns.namespace('teleinfo')
-TeleInfo = teleinfo_ns.class_('TeleInfo', cg.PollingComponent, uart.UARTDevice)
+teleinfo_ns = cg.esphome_ns.namespace("teleinfo")
+TeleInfo = teleinfo_ns.class_("TeleInfo", cg.PollingComponent, uart.UARTDevice)
 
 CONF_TAG_NAME = "tag_name"
-TELEINFO_TAG_SCHEMA = cv.Schema({
-    cv.Required(CONF_TAG_NAME): cv.string,
-    cv.Required(CONF_SENSOR): sensor.sensor_schema(UNIT_WATT_HOURS, ICON_EMPTY, 0,
-                                                   DEVICE_CLASS_POWER)
-})
+TELEINFO_TAG_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_TAG_NAME): cv.string,
+        cv.Required(CONF_SENSOR): sensor.sensor_schema(
+            UNIT_WATT_HOURS, ICON_EMPTY, 0, DEVICE_CLASS_POWER
+        ),
+    }
+)
 
 CONF_TAGS = "tags"
 CONF_HISTORICAL_MODE = "historical_mode"
-CONFIG_SCHEMA = cv.Schema({
-    cv.GenerateID(): cv.declare_id(TeleInfo),
-    cv.Optional(CONF_HISTORICAL_MODE, default=False): cv.boolean,
-    cv.Optional(CONF_TAGS): cv.ensure_list(TELEINFO_TAG_SCHEMA),
-}).extend(cv.polling_component_schema('60s')).extend(uart.UART_DEVICE_SCHEMA)
+CONFIG_SCHEMA = (
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(TeleInfo),
+            cv.Optional(CONF_HISTORICAL_MODE, default=False): cv.boolean,
+            cv.Optional(CONF_TAGS): cv.ensure_list(TELEINFO_TAG_SCHEMA),
+        }
+    )
+    .extend(cv.polling_component_schema("60s"))
+    .extend(uart.UART_DEVICE_SCHEMA)
+)
 
 
 def to_code(config):

@@ -15,11 +15,9 @@ def test_gpio_pin_expression__conf_is_none(monkeypatch):
 
 
 def test_gpio_pin_expression__new_pin(monkeypatch):
-    target = ch.gpio_pin_expression({
-        const.CONF_NUMBER: 42,
-        const.CONF_MODE: "input",
-        const.CONF_INVERTED: False
-    })
+    target = ch.gpio_pin_expression(
+        {const.CONF_NUMBER: 42, const.CONF_MODE: "input", const.CONF_INVERTED: False}
+    )
 
     actual = next(target)
 
@@ -71,10 +69,13 @@ def test_register_component__with_setup_priority(monkeypatch):
     add_mock = Mock()
     monkeypatch.setattr(ch, "add", add_mock)
 
-    target = ch.register_component(var, {
-        const.CONF_SETUP_PRIORITY: "123",
-        const.CONF_UPDATE_INTERVAL: "456",
-    })
+    target = ch.register_component(
+        var,
+        {
+            const.CONF_SETUP_PRIORITY: "123",
+            const.CONF_UPDATE_INTERVAL: "456",
+        },
+    )
 
     actual = next(target)
 
