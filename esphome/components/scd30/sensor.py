@@ -34,8 +34,10 @@ CONF_TEMPERATURE_OFFSET = "temperature_offset"
 def remove_altitude_suffix(value):
     return re.sub(r"\s*(?:m(?:\s+a\.s\.l)?)|(?:MAM?SL)$", "", value)
 
+
 SetForcedRecalibrationValueAction = scd30_ns.class_(
-    'SetForcedRecalibrationValueAction', automation.Action)
+    "SetForcedRecalibrationValueAction", automation.Action
+)
 
 CONFIG_SCHEMA = (
     cv.Schema(
@@ -97,13 +99,17 @@ def to_code(config):
 
 
 @automation.register_action(
-    'scd30.set_forced_recalibration_value',
+    "scd30.set_forced_recalibration_value",
     SetForcedRecalibrationValueAction,
-    maybe_simple_id({
-        cv.Required(CONF_ID): cv.use_id(SCD30Component),
-        cv.Required(CONF_FORCED_RECALIBRATION_VALUE): cv.templatable(
-            cv.int_range(min=0, max=0xFFFF, max_included=False)),
-    }))
+    maybe_simple_id(
+        {
+            cv.Required(CONF_ID): cv.use_id(SCD30Component),
+            cv.Required(CONF_FORCED_RECALIBRATION_VALUE): cv.templatable(
+                cv.int_range(min=0, max=0xFFFF, max_included=False)
+            ),
+        }
+    ),
+)
 def set_forced_recalibration_value_to_code(config, action_id, template_arg, args):
     paren = yield cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
