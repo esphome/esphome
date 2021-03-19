@@ -2,18 +2,27 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins
 from esphome.components import sensor
-from esphome.const import CONF_ID, CONF_INTERNAL_FILTER, \
-    CONF_PIN, CONF_NUMBER, CONF_TIMEOUT, CONF_TOTAL, \
-    ICON_PULSE, UNIT_PULSES, UNIT_PULSES_PER_MINUTE
+from esphome.const import (
+    CONF_ID,
+    CONF_INTERNAL_FILTER,
+    CONF_PIN,
+    CONF_NUMBER,
+    CONF_TIMEOUT,
+    CONF_TOTAL,
+    ICON_PULSE,
+    UNIT_PULSES,
+    UNIT_PULSES_PER_MINUTE,
+    DEVICE_CLASS_EMPTY,
+)
 from esphome.core import CORE
 
-CODEOWNERS = ['@stevebaxter']
+CODEOWNERS = ["@stevebaxter"]
 
-pulse_meter_ns = cg.esphome_ns.namespace('pulse_meter')
+pulse_meter_ns = cg.esphome_ns.namespace("pulse_meter")
 
-PulseMeterSensor = pulse_meter_ns.class_('PulseMeterSensor',
-                                         sensor.Sensor,
-                                         cg.Component)
+PulseMeterSensor = pulse_meter_ns.class_(
+    "PulseMeterSensor", sensor.Sensor, cg.Component
+)
 
 
 def validate_internal_filter(value):
@@ -30,17 +39,25 @@ def validate_timeout(value):
 def validate_pulse_meter_pin(value):
     value = pins.internal_gpio_input_pin_schema(value)
     if CORE.is_esp8266 and value[CONF_NUMBER] >= 16:
-        raise cv.Invalid("Pins GPIO16 and GPIO17 cannot be used as pulse counters on ESP8266.")
+        raise cv.Invalid(
+            "Pins GPIO16 and GPIO17 cannot be used as pulse counters on ESP8266."
+        )
     return value
 
 
-CONFIG_SCHEMA = sensor.sensor_schema(UNIT_PULSES_PER_MINUTE, ICON_PULSE, 2).extend({
-    cv.GenerateID(): cv.declare_id(PulseMeterSensor),
-    cv.Required(CONF_PIN): validate_pulse_meter_pin,
-    cv.Optional(CONF_INTERNAL_FILTER, default='13us'): validate_internal_filter,
-    cv.Optional(CONF_TIMEOUT, default='5min'): validate_timeout,
-    cv.Optional(CONF_TOTAL): sensor.sensor_schema(UNIT_PULSES, ICON_PULSE, 0)
-})
+CONFIG_SCHEMA = sensor.sensor_schema(
+    UNIT_PULSES_PER_MINUTE, ICON_PULSE, 2, DEVICE_CLASS_EMPTY
+).extend(
+    {
+        cv.GenerateID(): cv.declare_id(PulseMeterSensor),
+        cv.Required(CONF_PIN): validate_pulse_meter_pin,
+        cv.Optional(CONF_INTERNAL_FILTER, default="13us"): validate_internal_filter,
+        cv.Optional(CONF_TIMEOUT, default="5min"): validate_timeout,
+        cv.Optional(CONF_TOTAL): sensor.sensor_schema(
+            UNIT_PULSES, ICON_PULSE, 0, DEVICE_CLASS_EMPTY
+        ),
+    }
+)
 
 
 def to_code(config):
