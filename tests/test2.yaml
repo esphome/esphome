@@ -70,6 +70,10 @@ sensor:
   - platform: ble_rssi
     service_uuid: '11223344-5566-7788-99aa-bbccddeeff00'
     name: 'BLE Test Service 128'
+  - platform: senseair
+    co2:
+      name: 'SenseAir CO2 Value'
+    update_interval: 15s
   - platform: ruuvitag
     mac_address: FF:56:D3:2F:7D:E8
     humidity:
