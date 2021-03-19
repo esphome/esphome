@@ -46,7 +46,7 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_NUM_CHIPS, default=4): cv.int_range(min=1, max=255),
             cv.Optional(CONF_NUM_CHIP_LINES, default=1): cv.int_range(min=1, max=255),
             cv.Optional(CONF_CHIP_LINES_STYLE, default="SNAKE"): cv.enum(
-                CHIP_LINES_STYLE,  upper=True),
+                CHIP_LINES_STYLE, upper=True),
             cv.Optional(CONF_INTENSITY, default=15): cv.int_range(min=0, max=15),
             cv.Optional(CONF_ROTATE_CHIP, default="0"): cv.enum(CHIP_MODES, upper=True),
             cv.Optional(CONF_SCROLL_MODE, default="CONTINUOUS"): cv.enum(

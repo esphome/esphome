@@ -86,7 +86,7 @@ class MAX7219Component : public PollingComponent,
  protected:
   void send_byte_(uint8_t a_register, uint8_t data);
   void send_to_all_(uint8_t a_register, uint8_t data);
-  uint8_t orientation_180();
+  uint8_t orientation_180_();
 
   uint8_t intensity_;  /// Intensity of the display from 0 to 15 (most)
   uint8_t num_chips_;

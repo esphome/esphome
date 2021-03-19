@@ -25,8 +25,8 @@ void MAX7219Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up MAX7219_DIGITS...");
   this->spi_setup();
   this->stepsleft_ = 0;
-  for (int chip_line =0; chip_line < this->num_chip_lines_; chip_line++){
-    std::vector<uint8_t> vec (1);
+  for (int chip_line = 0; chip_line < this->num_chip_lines_; chip_line++) {
+    std::vector<uint8_t> vec(1);
     this->max_displaybuffer_.push_back(vec);
     // Initialize buffer with 0 for display so all non written pixels are blank
     this->max_displaybuffer_[chip_line].resize(get_width_internal(), 0);
@@ -75,7 +75,7 @@ void MAX7219Component::loop() {
     this->stepsleft_ = 0;
 
   // Return if there is no need to scroll or scroll is off
-  if (!this->scroll_ || (this->max_displaybuffer_[0].size() <= get_width_internal() )) {
+  if (!this->scroll_ || (this->max_displaybuffer_[0].size() <= get_width_internal())) {
     this->display();
     return;
   }
@@ -111,35 +111,38 @@ void MAX7219Component::display() {
   // Run this routine for the rows of every chip 8x row 0 top to 7 bottom
   // Fill the pixel parameter with diplay data
   // Send the data to the chip
-  for (uint8_t chip = 0; chip < this->num_chips_ / this->num_chip_lines_ ; chip++) {
-    for (uint8_t chip_line = 0; chip_line < this->num_chip_lines_; chip_line++){
+  for (uint8_t chip = 0; chip < this->num_chips_ / this->num_chip_lines_; chip++) {
+    for (uint8_t chip_line = 0; chip_line < this->num_chip_lines_; chip_line++) {
       for (uint8_t j = 0; j < 8; j++) {
-        bool reverse = chip_line % 2 != 0 && this->chip_lines_style_ ? !this->reverse_: this->reverse_;
+        bool reverse = chip_line % 2 != 0 && this->chip_lines_style_ ? !this->reverse_ : this->reverse_;
         if (reverse) {
-          pixels[j] = this->max_displaybuffer_[chip_line][(this->num_chips_ / this->num_chip_lines_ - chip - 1) * 8 + j];
+          pixels[j] = 
+              this->max_displaybuffer_[chip_line][(this->num_chips_ / this->num_chip_lines_ - chip - 1) * 8 + j];
         } else {
           pixels[j] = this->max_displaybuffer_[chip_line][chip * 8 + j];
         }
       }
-      if (chip_line % 2 != 0 && this->chip_lines_style_) this->orientation_ = orientation_180();
+      if (chip_line % 2 != 0 && this->chip_lines_style_)
+        this->orientation_ = orientation_180_();
       this->send64pixels(chip_line * this->num_chips_ / this->num_chip_lines_ + chip, pixels);
-      if (chip_line % 2 != 0 && this->chip_lines_style_) this->orientation_ = orientation_180();
+            if (chip_line % 2 != 0 && this->chip_lines_style_)
+        this->orientation_ = orientation_180_();
     }
   }
 }
 
-uint8_t MAX7219Component::orientation_180(){
-  switch (this->orientation_){
-  case 0:
-    return 2;
-  case 1:
-    return 3;
-  case 2:
-    return 0;
-  case 3:
-    return 1;
-  default:
-    return 0;
+uint8_t MAX7219Component::orientation_180_() {
+  switch (this->orientation_) {
+    case 0:
+      return 2;
+    case 1:
+      return 3;
+    case 2:
+      return 0;
+    case 3:
+      return 1;
+    default:
+      return 0;
   }
 }
 
@@ -151,7 +154,7 @@ int MAX7219Component::get_width_internal() { return this->num_chips_ / this->num
 
 void HOT MAX7219Component::draw_absolute_pixel_internal(int x, int y, Color color) {
   if (x + 1 > this->max_displaybuffer_[0].size()) {  // Extend the display buffer in case required
-    for (int chip_line = 0; chip_line < this->num_chip_lines_; chip_line++){
+    for (int chip_line = 0; chip_line < this->num_chip_lines_; chip_line++) {
       this->max_displaybuffer_[chip_line].resize(x + 1, this->bckgrnd_);
     }
   }
@@ -161,7 +164,7 @@ void HOT MAX7219Component::draw_absolute_pixel_internal(int x, int y, Color colo
 
   uint16_t pos = x;    // X is starting at 0 top left
   uint8_t subpos = y;  // Y is starting at 0 top left
-  
+
   if (color.is_on()) {
     this->max_displaybuffer_[subpos / 8][pos] |= (1 << subpos % 8);
   } else {
@@ -181,7 +184,7 @@ void MAX7219Component::send_to_all_(uint8_t a_register, uint8_t data) {
 }
 void MAX7219Component::update() {
   this->update_ = true;
-  for (int chip_line = 0; chip_line < this->num_chip_lines_; chip_line++){
+  for (int chip_line = 0; chip_line < this->num_chip_lines_; chip_line++) {
     this->max_displaybuffer_[chip_line].clear();
     this->max_displaybuffer_[chip_line].resize(get_width_internal(), this->bckgrnd_);
   }
