@@ -22,60 +22,65 @@ static const uint16_t SCD30_CMD_TEMPERATURE_OFFSET = 0x5403;
 static const uint16_t SCD30_CMD_SOFT_RESET = 0xD304;
 
 void SCD30Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up scd30...");
+  this->set_timeout(1000, [this]() {
+    ESP_LOGCONFIG(TAG, "Setting up scd30...");
 
 #ifdef ARDUINO_ARCH_ESP8266
-  Wire.setClockStretchLimit(150000);
+    Wire.setClockStretchLimit(150000);
 #endif
 
-  /// Firmware version identification
-  if (!this->write_command_(SCD30_CMD_GET_FIRMWARE_VERSION)) {
-    this->error_code_ = COMMUNICATION_FAILED;
-    this->mark_failed();
-    return;
-  }
-  uint16_t raw_firmware_version[3];
-
-  if (!this->read_data_(raw_firmware_version, 3)) {
-    this->error_code_ = FIRMWARE_IDENTIFICATION_FAILED;
-    this->mark_failed();
-    return;
-  }
-  ESP_LOGD(TAG, "SCD30 Firmware v%0d.%02d", (uint16_t(raw_firmware_version[0]) >> 8),
-           uint16_t(raw_firmware_version[0] & 0xFF));
-
-  /// Sensor initialization
-  if (!this->write_command_(SCD30_CMD_START_CONTINUOUS_MEASUREMENTS, this->ambient_pressure_compensation_)) {
-    ESP_LOGE(TAG, "Sensor SCD30 error starting continuous measurements.");
-    this->error_code_ = MEASUREMENT_INIT_FAILED;
-    this->mark_failed();
-    return;
-  }
-
-  if (this->temperature_offset_ != 0) {
-    if (!this->write_command_(SCD30_CMD_TEMPERATURE_OFFSET, (uint16_t)(temperature_offset_ * 100.0))) {
-      ESP_LOGE(TAG, "Sensor SCD30 error setting temperature offset.");
-      this->error_code_ = MEASUREMENT_INIT_FAILED;
+    /// Firmware version identification
+    if (!this->write_command_(SCD30_CMD_GET_FIRMWARE_VERSION)) {
+      this->error_code_ = COMMUNICATION_FAILED;
       this->mark_failed();
       return;
     }
-  }
-  // The start measurement command disables the altitude compensation, if any, so we only set it if it's turned on
-  if (this->altitude_compensation_ != 0xFFFF) {
-    if (!this->write_command_(SCD30_CMD_ALTITUDE_COMPENSATION, altitude_compensation_)) {
+    uint16_t raw_firmware_version[3];
+
+    if (!this->read_data_(raw_firmware_version, 3)) {
+      this->error_code_ = FIRMWARE_IDENTIFICATION_FAILED;
+      this->mark_failed();
+      return;
+    }
+    ESP_LOGD(TAG, "SCD30 Firmware v%0d.%02d", (uint16_t(raw_firmware_version[0]) >> 8),
+             uint16_t(raw_firmware_version[0] & 0xFF));
+
+    /// Sensor initialization
+    if (!this->write_command_(SCD30_CMD_START_CONTINUOUS_MEASUREMENTS, this->ambient_pressure_compensation_)) {
       ESP_LOGE(TAG, "Sensor SCD30 error starting continuous measurements.");
       this->error_code_ = MEASUREMENT_INIT_FAILED;
       this->mark_failed();
       return;
     }
-  }
 
-  if (!this->write_command_(SCD30_CMD_AUTOMATIC_SELF_CALIBRATION, enable_asc_ ? 1 : 0)) {
-    ESP_LOGE(TAG, "Sensor SCD30 error setting automatic self calibration.");
-    this->error_code_ = MEASUREMENT_INIT_FAILED;
-    this->mark_failed();
-    return;
-  }
+    if (this->temperature_offset_ != 0) {
+      const uint16_t calculated_offset = temperature_offset_ * 100.0;
+      if (!this->write_command_(SCD30_CMD_TEMPERATURE_OFFSET, calculated_offset)) {
+        ESP_LOGE(TAG, "Sensor SCD30 error setting temperature offset: %f°C, 0x%x.", temperature_offset_,
+                 calculated_offset);
+        this->error_code_ = MEASUREMENT_INIT_FAILED;
+        this->mark_failed();
+        return;
+      }
+    }
+    // The start measurement command disables the altitude compensation, if any, so we only set it if it's turned on
+    if (this->altitude_compensation_ != 0xFFFF) {
+      if (!this->write_command_(SCD30_CMD_ALTITUDE_COMPENSATION, altitude_compensation_)) {
+        ESP_LOGE(TAG, "Sensor SCD30 error starting continuous measurements.");
+        this->error_code_ = MEASUREMENT_INIT_FAILED;
+        this->mark_failed();
+        return;
+      }
+    }
+
+    if (!this->write_command_(SCD30_CMD_AUTOMATIC_SELF_CALIBRATION, enable_asc_ ? 1 : 0)) {
+      ESP_LOGE(TAG, "Sensor SCD30 error setting automatic self calibration.");
+      this->error_code_ = MEASUREMENT_INIT_FAILED;
+      this->mark_failed();
+      return;
+    }
+    initialized_ = true;
+  });
 }
 
 void SCD30Component::dump_config() {
@@ -112,6 +117,10 @@ void SCD30Component::dump_config() {
 }
 
 void SCD30Component::update() {
+  if (!initialized_) {
+    ESP_LOGD(TAG, "Not initiallized yet");
+    return;
+  }
   /// Check if measurement is ready before reading the value
   if (!this->write_command_(SCD30_CMD_GET_DATA_READY_STATUS)) {
     this->status_set_warning();
