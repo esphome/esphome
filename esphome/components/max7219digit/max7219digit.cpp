@@ -116,7 +116,7 @@ void MAX7219Component::display() {
       for (uint8_t j = 0; j < 8; j++) {
         bool reverse = chip_line % 2 != 0 && this->chip_lines_style_ ? !this->reverse_ : this->reverse_;
         if (reverse) {
-          pixels[j] = 
+          pixels[j] =
               this->max_displaybuffer_[chip_line][(this->num_chips_ / this->num_chip_lines_ - chip - 1) * 8 + j];
         } else {
           pixels[j] = this->max_displaybuffer_[chip_line][chip * 8 + j];
@@ -125,7 +125,7 @@ void MAX7219Component::display() {
       if (chip_line % 2 != 0 && this->chip_lines_style_)
         this->orientation_ = orientation_180_();
       this->send64pixels(chip_line * this->num_chips_ / this->num_chip_lines_ + chip, pixels);
-            if (chip_line % 2 != 0 && this->chip_lines_style_)
+      if (chip_line % 2 != 0 && this->chip_lines_style_)
         this->orientation_ = orientation_180_();
     }
   }
@@ -147,7 +147,7 @@ uint8_t MAX7219Component::orientation_180_() {
 }
 
 int MAX7219Component::get_height_internal() {
-  return 8* this->num_chip_lines_;  // TO BE DONE -> CREATE Virtual size of screen and scroll
+  return 8 * this->num_chip_lines_;  // TO BE DONE -> CREATE Virtual size of screen and scroll
 }
 
 int MAX7219Component::get_width_internal() { return this->num_chips_ / this->num_chip_lines_ * 8; }
@@ -224,7 +224,7 @@ void MAX7219Component::intensity(uint8_t intensity) {
 void MAX7219Component::scroll(bool on_off) { this->set_scroll(on_off); }
 
 void MAX7219Component::scroll_left() {
-  for (int chip_line = 0; chip_line < this->num_chip_lines_; chip_line++){
+  for (int chip_line = 0; chip_line < this->num_chip_lines_; chip_line++) {
     if (this->update_) {
       this->max_displaybuffer_[chip_line].push_back(this->bckgrnd_);
       for (uint16_t i = 0; i < this->stepsleft_; i++) {
