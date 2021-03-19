@@ -127,19 +127,21 @@ async def register_climate(var, config):
     await setup_climate_core_(var, config)
 
 
-CLIMATE_CONTROL_ACTION_SCHEMA = cv.Schema({
-    cv.Required(CONF_ID): cv.use_id(Climate),
-    cv.Optional(CONF_MODE): cv.templatable(validate_climate_mode),
-    cv.Optional(CONF_TARGET_TEMPERATURE): cv.templatable(cv.temperature),
-    cv.Optional(CONF_TARGET_TEMPERATURE_LOW): cv.templatable(cv.temperature),
-    cv.Optional(CONF_TARGET_TEMPERATURE_HIGH): cv.templatable(cv.temperature),
-    cv.Optional(CONF_AWAY): cv.templatable(cv.boolean),
-    cv.Optional(CONF_FAN_MODE): cv.templatable(validate_climate_fan_mode),
-    cv.Optional(CONF_CUSTOM_FAN_MODE): cv.string_strict,
-    cv.Optional(CONF_PRESET): cv.templatable(validate_climate_preset),
-    cv.Optional(CONF_CUSTOM_PRESET): cv.string_strict,
-    cv.Optional(CONF_SWING_MODE): cv.templatable(validate_climate_swing_mode),
-})
+CLIMATE_CONTROL_ACTION_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_ID): cv.use_id(Climate),
+        cv.Optional(CONF_MODE): cv.templatable(validate_climate_mode),
+        cv.Optional(CONF_TARGET_TEMPERATURE): cv.templatable(cv.temperature),
+        cv.Optional(CONF_TARGET_TEMPERATURE_LOW): cv.templatable(cv.temperature),
+        cv.Optional(CONF_TARGET_TEMPERATURE_HIGH): cv.templatable(cv.temperature),
+        cv.Optional(CONF_AWAY): cv.templatable(cv.boolean),
+        cv.Optional(CONF_FAN_MODE): cv.templatable(validate_climate_fan_mode),
+        cv.Optional(CONF_CUSTOM_FAN_MODE): cv.string_strict,
+        cv.Optional(CONF_PRESET): cv.templatable(validate_climate_preset),
+        cv.Optional(CONF_CUSTOM_PRESET): cv.string_strict,
+        cv.Optional(CONF_SWING_MODE): cv.templatable(validate_climate_swing_mode),
+    }
+)
 
 
 @automation.register_action(

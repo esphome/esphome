@@ -1521,6 +1521,14 @@ climate:
       temperature_step: 0.1 °C
     name: 'Electrolux EACS'
     beeper: true
+    custom_fan_modes:
+      - SILENT
+      - TURBO
+    preset_eco: true
+    preset_sleep: true
+    preset_boost: true
+    custom_presets:
+      - FREEZE_PROTECTION
     outdoor_temperature:
       name: 'Temp'
     power_usage:

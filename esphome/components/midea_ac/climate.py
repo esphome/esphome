@@ -51,8 +51,12 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(): cv.declare_id(MideaAC),
             cv.GenerateID(CONF_MIDEA_DONGLE_ID): cv.use_id(MideaDongle),
             cv.Optional(CONF_BEEPER, default=False): cv.boolean,
-            cv.Optional(CONF_CUSTOM_FAN_MODES): cv.ensure_list(validate_climate_custom_fan_mode),
-            cv.Optional(CONF_CUSTOM_PRESETS): cv.ensure_list(validate_climate_custom_preset),
+            cv.Optional(CONF_CUSTOM_FAN_MODES): cv.ensure_list(
+                validate_climate_custom_fan_mode
+            ),
+            cv.Optional(CONF_CUSTOM_PRESETS): cv.ensure_list(
+                validate_climate_custom_preset
+            ),
             cv.Optional(CONF_SWING_HORIZONTAL, default=False): cv.boolean,
             cv.Optional(CONF_SWING_BOTH, default=False): cv.boolean,
             cv.Optional(CONF_PRESET_ECO, default=False): cv.boolean,
