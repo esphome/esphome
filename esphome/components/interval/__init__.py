@@ -3,15 +3,20 @@ import esphome.config_validation as cv
 from esphome import automation
 from esphome.const import CONF_ID, CONF_INTERVAL
 
-CODEOWNERS = ['@esphome/core']
-interval_ns = cg.esphome_ns.namespace('interval')
-IntervalTrigger = interval_ns.class_('IntervalTrigger', automation.Trigger.template(),
-                                     cg.PollingComponent)
+CODEOWNERS = ["@esphome/core"]
+interval_ns = cg.esphome_ns.namespace("interval")
+IntervalTrigger = interval_ns.class_(
+    "IntervalTrigger", automation.Trigger.template(), cg.PollingComponent
+)
 
-CONFIG_SCHEMA = automation.validate_automation(cv.Schema({
-    cv.GenerateID(): cv.declare_id(IntervalTrigger),
-    cv.Required(CONF_INTERVAL): cv.positive_time_period_milliseconds,
-}).extend(cv.COMPONENT_SCHEMA))
+CONFIG_SCHEMA = automation.validate_automation(
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(IntervalTrigger),
+            cv.Required(CONF_INTERVAL): cv.positive_time_period_milliseconds,
+        }
+    ).extend(cv.COMPONENT_SCHEMA)
+)
 
 
 def to_code(config):
