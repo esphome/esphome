@@ -61,6 +61,11 @@ enum class TuyaInitState : uint8_t {
   INIT_DONE,
 };
 
+struct TuyaCommand {
+  TuyaCommandType cmd;
+  std::vector<uint8_t> payload;
+};
+
 class Tuya : public Component, public uart::UARTDevice {
  public:
   float get_setup_priority() const override { return setup_priority::LATE; }
@@ -82,9 +87,10 @@ class Tuya : public Component, public uart::UARTDevice {
   bool validate_message_();
 
   void handle_command_(uint8_t command, uint8_t version, const uint8_t *buffer, size_t len);
-  void send_command_(TuyaCommandType command, const uint8_t *buffer, uint16_t len);
-  void send_empty_command_(TuyaCommandType command) { this->send_command_(command, nullptr, 0); }
-  void schedule_empty_command_(TuyaCommandType command);
+  void send_raw_command_(TuyaCommand command);
+  void process_command_queue_();
+  void send_command_(TuyaCommand command);
+  void send_empty_command_(TuyaCommandType command);
 
 #ifdef USE_TIME
   optional<time::RealTimeClock *> time_id_{};
@@ -98,6 +104,7 @@ class Tuya : public Component, public uart::UARTDevice {
   std::vector<TuyaDatapoint> datapoints_;
   std::vector<uint8_t> rx_message_;
   std::vector<uint8_t> ignore_mcu_update_on_datapoints_{};
+  std::vector<TuyaCommand> command_queue_;
 };
 
 }  // namespace tuya

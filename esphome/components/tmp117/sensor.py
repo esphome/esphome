@@ -1,18 +1,31 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import i2c, sensor
-from esphome.const import CONF_ID, CONF_UPDATE_INTERVAL, \
-    UNIT_CELSIUS, ICON_THERMOMETER
+from esphome.const import (
+    CONF_ID,
+    CONF_UPDATE_INTERVAL,
+    DEVICE_CLASS_TEMPERATURE,
+    ICON_EMPTY,
+    UNIT_CELSIUS,
+)
 
-DEPENDENCIES = ['i2c']
+DEPENDENCIES = ["i2c"]
 
-tmp117_ns = cg.esphome_ns.namespace('tmp117')
-TMP117Component = tmp117_ns.class_('TMP117Component',
-                                   cg.PollingComponent, i2c.I2CDevice, sensor.Sensor)
+tmp117_ns = cg.esphome_ns.namespace("tmp117")
+TMP117Component = tmp117_ns.class_(
+    "TMP117Component", cg.PollingComponent, i2c.I2CDevice, sensor.Sensor
+)
 
-CONFIG_SCHEMA = cv.All(sensor.sensor_schema(UNIT_CELSIUS, ICON_THERMOMETER, 1).extend({
-    cv.GenerateID(): cv.declare_id(TMP117Component),
-}).extend(cv.polling_component_schema('60s')).extend(i2c.i2c_device_schema(0x48)))
+CONFIG_SCHEMA = cv.All(
+    sensor.sensor_schema(UNIT_CELSIUS, ICON_EMPTY, 1, DEVICE_CLASS_TEMPERATURE)
+    .extend(
+        {
+            cv.GenerateID(): cv.declare_id(TMP117Component),
+        }
+    )
+    .extend(cv.polling_component_schema("60s"))
+    .extend(i2c.i2c_device_schema(0x48))
+)
 
 
 def determine_config_register(polling_period):
