@@ -14,9 +14,7 @@ template<typename... Ts> class SetForcedRecalibrationValueAction : public Action
   TEMPLATABLE_VALUE(uint16_t, forced_recalibration_value);
 
   void play(Ts... x) override {
-    if (this->forced_recalibration_value_.has_value()) {
-      this->scd30_->set_forced_recalibration_value(this->forced_recalibration_value_.value(x...));
-    }
+    this->scd30_->set_forced_recalibration_value(this->forced_recalibration_value_.value(x...));
   }
 
   SCD30Component *scd30_;
