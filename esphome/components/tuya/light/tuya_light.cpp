@@ -22,11 +22,7 @@ void TuyaLight::setup() {
     });
   }
   if (min_value_datapoint_id_.has_value()) {
-    TuyaDatapoint datapoint{};
-    datapoint.id = *this->min_value_datapoint_id_;
-    datapoint.type = TuyaDatapointType::INTEGER;
-    datapoint.value_int = this->min_value_;
-    parent_->set_datapoint_value(datapoint);
+    parent_->set_datapoint_value(*this->min_value_datapoint_id_, this->min_value_);
   }
 }
 
@@ -53,18 +49,9 @@ void TuyaLight::write_state(light::LightState *state) {
   if (brightness == 0.0f) {
     // turning off, first try via switch (if exists), then dimmer
     if (switch_id_.has_value()) {
-      TuyaDatapoint datapoint{};
-      datapoint.id = *this->switch_id_;
-      datapoint.type = TuyaDatapointType::BOOLEAN;
-      datapoint.value_bool = false;
-
-      parent_->set_datapoint_value(datapoint);
+      parent_->set_datapoint_value(*this->switch_id_, false);
     } else if (dimmer_id_.has_value()) {
-      TuyaDatapoint datapoint{};
-      datapoint.id = *this->dimmer_id_;
-      datapoint.type = TuyaDatapointType::INTEGER;
-      datapoint.value_int = 0;
-      parent_->set_datapoint_value(datapoint);
+      parent_->set_datapoint_value(*this->dimmer_id_, 0);
     }
     return;
   }
@@ -73,18 +60,10 @@ void TuyaLight::write_state(light::LightState *state) {
   brightness_int = std::max(brightness_int, this->min_value_);
 
   if (this->dimmer_id_.has_value()) {
-    TuyaDatapoint datapoint{};
-    datapoint.id = *this->dimmer_id_;
-    datapoint.type = TuyaDatapointType::INTEGER;
-    datapoint.value_int = brightness_int;
-    parent_->set_datapoint_value(datapoint);
+    parent_->set_datapoint_value(*this->dimmer_id_, brightness_int);
   }
   if (this->switch_id_.has_value()) {
-    TuyaDatapoint datapoint{};
-    datapoint.id = *this->switch_id_;
-    datapoint.type = TuyaDatapointType::BOOLEAN;
-    datapoint.value_bool = true;
-    parent_->set_datapoint_value(datapoint);
+    parent_->set_datapoint_value(*this->switch_id_, true);
   }
 }
 

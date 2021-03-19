@@ -13,33 +13,30 @@ void TuyaFan::setup() {
 
   if (this->speed_id_.has_value()) {
     this->parent_->register_listener(*this->speed_id_, [this](TuyaDatapoint datapoint) {
+      ESP_LOGV(TAG, "MCU reported speed of: %d", datapoint.value_enum);
+      if (datapoint.value_enum > 0x02) {
+        ESP_LOGE(TAG, "Speed has invalid value %d", datapoint.value_enum);
+        return;
+      }
       auto call = this->fan_->make_call();
-      if (datapoint.value_enum == 0x0)
-        call.set_speed(1);
-      else if (datapoint.value_enum == 0x1)
-        call.set_speed(2);
-      else if (datapoint.value_enum == 0x2)
-        call.set_speed(3);
-      else
-        ESP_LOGCONFIG(TAG, "Speed has invalid value %d", datapoint.value_enum);
-      ESP_LOGD(TAG, "MCU reported speed of: %d", datapoint.value_enum);
+      call.set_speed(datapoint.value_enum);
       call.perform();
     });
   }
   if (this->switch_id_.has_value()) {
     this->parent_->register_listener(*this->switch_id_, [this](TuyaDatapoint datapoint) {
+      ESP_LOGV(TAG, "MCU reported switch is: %s", ONOFF(datapoint.value_bool));
       auto call = this->fan_->make_call();
       call.set_state(datapoint.value_bool);
       call.perform();
-      ESP_LOGD(TAG, "MCU reported switch is: %s", ONOFF(datapoint.value_bool));
     });
   }
   if (this->oscillation_id_.has_value()) {
     this->parent_->register_listener(*this->oscillation_id_, [this](TuyaDatapoint datapoint) {
+      ESP_LOGV(TAG, "MCU reported oscillation is: %s", ONOFF(datapoint.value_bool));
       auto call = this->fan_->make_call();
       call.set_oscillating(datapoint.value_bool);
       call.perform();
-      ESP_LOGD(TAG, "MCU reported oscillation is: %s", ONOFF(datapoint.value_bool));
     });
   }
   this->fan_->add_on_state_callback([this]() { this->write_state(); });
@@ -57,28 +54,16 @@ void TuyaFan::dump_config() {
 
 void TuyaFan::write_state() {
   if (this->switch_id_.has_value()) {
-    TuyaDatapoint datapoint{};
-    datapoint.id = *this->switch_id_;
-    datapoint.type = TuyaDatapointType::BOOLEAN;
-    datapoint.value_bool = this->fan_->state;
-    this->parent_->set_datapoint_value(datapoint);
-    ESP_LOGD(TAG, "Setting switch: %s", ONOFF(this->fan_->state));
+    ESP_LOGV(TAG, "Setting switch: %s", ONOFF(this->fan_->state));
+    this->parent_->set_datapoint_value(*this->switch_id_, this->fan_->state);
   }
   if (this->oscillation_id_.has_value()) {
-    TuyaDatapoint datapoint{};
-    datapoint.id = *this->oscillation_id_;
-    datapoint.type = TuyaDatapointType::BOOLEAN;
-    datapoint.value_bool = this->fan_->oscillating;
-    this->parent_->set_datapoint_value(datapoint);
-    ESP_LOGD(TAG, "Setting oscillating: %s", ONOFF(this->fan_->oscillating));
+    ESP_LOGV(TAG, "Setting oscillating: %s", ONOFF(this->fan_->oscillating));
+    this->parent_->set_datapoint_value(*this->oscillation_id_, this->fan_->oscillating);
   }
   if (this->speed_id_.has_value()) {
-    TuyaDatapoint datapoint{};
-    datapoint.id = *this->speed_id_;
-    datapoint.type = TuyaDatapointType::ENUM;
-    datapoint.value_enum = this->fan_->speed - 1;
-    ESP_LOGD(TAG, "Setting speed: %d", datapoint.value_enum);
-    this->parent_->set_datapoint_value(datapoint);
+    ESP_LOGV(TAG, "Setting speed: %d", this->fan_->speed);
+    this->parent_->set_datapoint_value(*this->speed_id_, this->fan_->speed);
   }
 }
 
