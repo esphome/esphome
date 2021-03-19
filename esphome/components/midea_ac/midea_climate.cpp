@@ -40,8 +40,24 @@ void MideaAC::on_frame(const midea_dongle::Frame &frame) {
   set_property(this->mode, p.get_mode(), need_publish);
   set_property(this->target_temperature, p.get_target_temp(), need_publish);
   set_property(this->current_temperature, p.get_indoor_temp(), need_publish);
-  set_property(this->fan_mode, p.get_fan_mode(), need_publish);
+  if (p.is_custom_fan_mode()) {
+    this->fan_mode.reset();
+    optional<std::string> mode = p.get_custom_fan_mode();
+    set_property(this->custom_fan_mode, mode, need_publish);
+  }else {
+    this->custom_fan_mode.reset();
+    optional<climate::ClimateFanMode> mode = p.get_fan_mode();
+    set_property(this->fan_mode, mode, need_publish);
+  }
   set_property(this->swing_mode, p.get_swing_mode(), need_publish);
+  if (p.is_custom_preset()) {
+    this->preset.reset();
+    optional<std::string> preset = p.get_custom_preset();
+    set_property(this->custom_preset, preset, need_publish);
+  } else {
+    this->custom_preset.reset();
+    set_property(this->preset, p.get_preset(), need_publish);
+  }
   if (need_publish)
     this->publish_state();
   set_sensor(this->outdoor_sensor_, p.get_outdoor_temp());
@@ -70,12 +86,36 @@ void MideaAC::control(const climate::ClimateCall &call) {
     this->cmd_frame_.set_target_temp(call.get_target_temperature().value());
     this->ctrl_request_ = true;
   }
-  if (call.get_fan_mode().has_value() && call.get_fan_mode().value() != this->fan_mode) {
+  if (call.get_fan_mode().has_value() && 
+      (!this->fan_mode.has_value() ||
+        this->fan_mode.value() != call.get_fan_mode().value())) {
+    this->custom_fan_mode.reset();
     this->cmd_frame_.set_fan_mode(call.get_fan_mode().value());
+    this->ctrl_request_ = true;
+  }
+  if (call.get_custom_fan_mode().has_value() && 
+      (!this->custom_fan_mode.has_value() ||
+        this->custom_fan_mode.value().compare(call.get_custom_fan_mode().value()) != 0)) {
+    this->fan_mode.reset();
+    this->cmd_frame_.set_custom_fan_mode(call.get_custom_fan_mode().value());
     this->ctrl_request_ = true;
   }
   if (call.get_swing_mode().has_value() && call.get_swing_mode().value() != this->swing_mode) {
     this->cmd_frame_.set_swing_mode(call.get_swing_mode().value());
+    this->ctrl_request_ = true;
+  }
+  if (call.get_preset().has_value() && 
+      (!this->preset.has_value() ||
+        this->preset.value() != call.get_preset().value())) {
+    this->custom_preset.reset();
+    this->cmd_frame_.set_preset(call.get_preset().value());
+    this->ctrl_request_ = true;
+  }
+  if (call.get_custom_preset().has_value() && 
+      (!this->custom_preset.has_value() ||
+        this->custom_preset.value().compare(call.get_custom_preset().value()) != 0)) {
+    this->preset.reset();
+    this->cmd_frame_.set_custom_preset(call.get_custom_preset().value());
     this->ctrl_request_ = true;
   }
   if (this->ctrl_request_) {
@@ -98,10 +138,16 @@ climate::ClimateTraits MideaAC::traits() {
   traits.set_supports_fan_mode_low(true);
   traits.set_supports_fan_mode_medium(true);
   traits.set_supports_fan_mode_high(true);
+  traits.set_supported_custom_fan_modes(this->traits_custom_fan_modes_);
   traits.set_supports_swing_mode_off(true);
   traits.set_supports_swing_mode_vertical(true);
   traits.set_supports_swing_mode_horizontal(this->traits_swing_horizontal_);
   traits.set_supports_swing_mode_both(this->traits_swing_both_);
+  traits.set_supports_preset_home(true);
+  traits.set_supports_preset_eco(this->traits_preset_eco_);
+  traits.set_supports_preset_sleep(this->traits_preset_sleep_);
+  traits.set_supports_preset_boost(this->traits_preset_boost_);
+  traits.set_supported_custom_presets(this->traits_custom_presets_);
   traits.set_supports_current_temperature(true);
   return traits;
 }

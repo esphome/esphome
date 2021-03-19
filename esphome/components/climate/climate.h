@@ -3,6 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/preferences.h"
+#include "esphome/core/log.h"
 #include "climate_mode.h"
 #include "climate_traits.h"
 

@@ -1,5 +1,4 @@
 #include "climate.h"
-#include "esphome/core/log.h"
 
 namespace esphome {
 namespace climate {
@@ -14,14 +13,18 @@ void ClimateCall::perform() {
     ESP_LOGD(TAG, "  Mode: %s", mode_s);
   }
   if (this->custom_fan_mode_.has_value()) {
-    ESP_LOGD(TAG, "  Fan: %s", this->custom_fan_mode_.value().c_str());
-  } else if (this->fan_mode_.has_value()) {
+    ESP_LOGD(TAG, " Custom Fan: %s", this->custom_fan_mode_.value().c_str());
+  }
+  if (this->fan_mode_.has_value()) {
     const char *fan_mode_s = climate_fan_mode_to_string(*this->fan_mode_);
     ESP_LOGD(TAG, "  Fan: %s", fan_mode_s);
   }
   if (this->custom_preset_.has_value()) {
-    ESP_LOGD(TAG, "  Preset: %s", this->custom_preset_.value().c_str());
-  } else if (this->preset_.has_value()) {
+    this->preset_.reset();
+    ESP_LOGD(TAG, " Custom Preset: %s", this->custom_preset_.value().c_str());
+  }
+  if (this->preset_.has_value()) {
+    this->custom_preset_.reset();
     const char *preset_s = climate_preset_to_string(*this->preset_);
     ESP_LOGD(TAG, "  Preset: %s", preset_s);
   }
@@ -366,13 +369,13 @@ void Climate::publish_state() {
     ESP_LOGD(TAG, "  Fan Mode: %s", climate_fan_mode_to_string(this->fan_mode.value()));
   }
   if (!traits.get_supported_custom_fan_modes().empty() && this->custom_fan_mode.has_value()) {
-    ESP_LOGD(TAG, "  Fan Mode: %s", this->custom_fan_mode.value().c_str());
+    ESP_LOGD(TAG, "  Custom Fan Mode: %s", this->custom_fan_mode.value().c_str());
   }
   if (traits.get_supports_presets() && this->preset.has_value()) {
     ESP_LOGD(TAG, "  Preset: %s", climate_preset_to_string(this->preset.value()));
   }
   if (!traits.get_supported_custom_presets().empty() && this->custom_preset.has_value()) {
-    ESP_LOGD(TAG, "  Preset: %s", this->custom_preset.value().c_str());
+    ESP_LOGD(TAG, "  Custom Preset: %s", this->custom_preset.value().c_str());
   }
   if (traits.get_supports_swing_modes()) {
     ESP_LOGD(TAG, "  Swing Mode: %s", climate_swing_mode_to_string(this->swing_mode));

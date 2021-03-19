@@ -23,12 +23,16 @@ enum MideaMode : uint8_t {
 enum MideaFanMode : uint8_t {
   /// The fan mode is set to Auto
   MIDEA_FAN_AUTO = 102,
+  /// The fan mode is set to Silent
+  MIDEA_FAN_SILENT = 20,
   /// The fan mode is set to Low
   MIDEA_FAN_LOW = 40,
   /// The fan mode is set to Medium
   MIDEA_FAN_MEDIUM = 60,
   /// The fan mode is set to High
   MIDEA_FAN_HIGH = 80,
+  /// The fan mode is set to Turbo
+  MIDEA_FAN_TURBO = 100,
 };
 
 /// Enum for all modes a Midea swing can be in
@@ -43,6 +47,9 @@ enum MideaSwingMode : uint8_t {
   MIDEA_SWING_HORIZONTAL = 0b0011,
 };
 
+const std::string MIDEA_SILENT_FAN_MODE = "silent";
+const std::string MIDEA_TURBO_FAN_MODE = "turbo";
+const std::string MIDEA_FREEZE_PROTECTION_PRESET = "freeze protection";
 class PropertiesFrame : public midea_dongle::BaseFrame {
  public:
   PropertiesFrame() = delete;
@@ -65,8 +72,12 @@ class PropertiesFrame : public midea_dongle::BaseFrame {
   void set_mode(climate::ClimateMode mode);
 
   /* FAN SPEED */
+  bool is_custom_fan_mode() const;
   climate::ClimateFanMode get_fan_mode() const;
   void set_fan_mode(climate::ClimateFanMode mode);
+
+  std::string get_custom_fan_mode() const;
+  void set_custom_fan_mode(std::string mode);
 
   /* SWING MODE */
   climate::ClimateSwingMode get_swing_mode() const;
@@ -82,16 +93,28 @@ class PropertiesFrame : public midea_dongle::BaseFrame {
   float get_humidity_setpoint() const;
 
   /* ECO MODE */
-  bool get_eco_mode() const { return this->pbuf_[19]; }
-  void set_eco_mode(bool state) { this->set_bytemask_(19, 0xFF, state); }
+  bool get_eco_mode() const { return this->pbuf_[19] & 0x10; }
+  void set_eco_mode(bool state) { this->set_bytemask_(19, 0x80, state); };
 
   /* SLEEP MODE */
   bool get_sleep_mode() const { return this->pbuf_[20] & 0x01; }
-  void set_sleep_mode(bool state) { this->set_bytemask_(20, 0x01, state); }
+  void set_sleep_mode(bool state) { this->set_bytemask_(20, 0x01, state); };
 
   /* TURBO MODE */
-  bool get_turbo_mode() const { return this->pbuf_[20] & 0x02; }
-  void set_turbo_mode(bool state) { this->set_bytemask_(20, 0x02, state); }
+  bool get_turbo_mode() const { return this->pbuf_[18] & 0x20; }
+  void set_turbo_mode(bool state) { this->set_bytemask_(18, 0x20, state); };
+
+  /* FREEZE PROTECTION */
+  bool get_freeze_protection_mode() const { return this->pbuf_[31] & 0x80; }
+  void set_freeze_protection_mode(bool state) { this->set_bytemask_(31, 0x80, state); };
+
+  /* PRESET */
+  optional<climate::ClimatePreset> get_preset() const;
+  void set_preset(climate::ClimatePreset preset);
+
+  bool is_custom_preset() const;
+  optional<std::string> get_custom_preset() const;
+  void set_custom_preset(std::string preset);
 
   /* POWER USAGE */
   float get_power_usage() const;
