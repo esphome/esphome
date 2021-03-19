@@ -565,20 +565,6 @@ sensor:
     humidity:
       name: 'Living Room Humidity 6'
     update_interval: 15s
-  - platform: ltr390
-    uv:
-      name: "LTR390 UV"
-    uvi:
-      name: "LTR390 UVI"
-    light:
-      name: "LTR390 Light"
-    als:
-      name: "LTR390 ALS"
-    gain: "X3"
-    resolution: 18
-    wfac: 1.0
-    address: 0x53
-    update_interval: 60s 
   - platform: max6675
     name: 'Living Room Temperature'
     cs_pin: GPIO23
