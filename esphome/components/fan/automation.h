@@ -12,7 +12,7 @@ template<typename... Ts> class TurnOnAction : public Action<Ts...> {
   explicit TurnOnAction(FanState *state) : state_(state) {}
 
   TEMPLATABLE_VALUE(bool, oscillating)
-  TEMPLATABLE_VALUE(FanSpeed, speed)
+  TEMPLATABLE_VALUE(int, speed)
 
   void play(Ts... x) override {
     auto call = this->state_->turn_on();

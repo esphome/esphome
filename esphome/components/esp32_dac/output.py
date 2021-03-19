@@ -13,13 +13,17 @@ def valid_dac_pin(value):
     return value
 
 
-esp32_dac_ns = cg.esphome_ns.namespace('esp32_dac')
-ESP32DAC = esp32_dac_ns.class_('ESP32DAC', output.FloatOutput, cg.Component)
+esp32_dac_ns = cg.esphome_ns.namespace("esp32_dac")
+ESP32DAC = esp32_dac_ns.class_("ESP32DAC", output.FloatOutput, cg.Component)
 
-CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend({
-    cv.Required(CONF_ID): cv.declare_id(ESP32DAC),
-    cv.Required(CONF_PIN): cv.All(pins.internal_gpio_output_pin_schema, valid_dac_pin),
-}).extend(cv.COMPONENT_SCHEMA)
+CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
+    {
+        cv.Required(CONF_ID): cv.declare_id(ESP32DAC),
+        cv.Required(CONF_PIN): cv.All(
+            pins.internal_gpio_output_pin_schema, valid_dac_pin
+        ),
+    }
+).extend(cv.COMPONENT_SCHEMA)
 
 
 def to_code(config):
