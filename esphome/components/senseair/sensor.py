@@ -65,10 +65,14 @@ CALIBRATION_ACTION_SCHEMA = maybe_simple_id(
 
 
 @automation.register_action(
-    "senseair.background_calibration", SenseAirBackgroundCalibrationAction, CALIBRATION_ACTION_SCHEMA
+    "senseair.background_calibration",
+    SenseAirBackgroundCalibrationAction,
+    CALIBRATION_ACTION_SCHEMA,
 )
 @automation.register_action(
-    "senseair.background_calibration_result", SenseAirBackgroundCalibrationResultAction, CALIBRATION_ACTION_SCHEMA
+    "senseair.background_calibration_result",
+    SenseAirBackgroundCalibrationResultAction,
+    CALIBRATION_ACTION_SCHEMA,
 )
 @automation.register_action(
     "senseair.abc_enable", SenseAirABCEnableAction, CALIBRATION_ACTION_SCHEMA

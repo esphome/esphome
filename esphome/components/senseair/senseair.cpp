@@ -8,11 +8,11 @@ static const char *TAG = "senseair";
 static const uint8_t SENSEAIR_REQUEST_LENGTH = 8;
 static const uint8_t SENSEAIR_PPM_STATUS_RESPONSE_LENGTH = 13;
 static const uint8_t SENSEAIR_ABC_PERIOD_RESPONSE_LENGTH = 7;
-static const uint8_t SENSEAIR_CALIBRATION_RESPONSE_RESPONSE_LENGTH = 7;
+static const uint8_t SENSEAIR_CAL_RESULT_RESPONSE_LENGTH = 7;
 static const uint8_t SENSEAIR_COMMAND_GET_PPM_STATUS[] = {0xFE, 0x04, 0x00, 0x00, 0x00, 0x04, 0xE5, 0xC6};
 static const uint8_t SENSEAIR_COMMAND_CLEAR_ACK_REGISTER[] = {0xFE, 0x06, 0x00, 0x00, 0x00, 0x00, 0x9D, 0xC5};
-static const uint8_t SENSEAIR_COMMAND_BACKGROUND_CALIBRATION[] = {0xFE, 0x06, 0x00, 0x01, 0x7C, 0x06, 0x6C, 0xC7};
-static const uint8_t SENSEAIR_COMMAND_BACKGROUND_CALIBRATION_RESULT[] = {0xFE, 0x03, 0x00, 0x00, 0x00, 0x01, 0x90, 0x05};
+static const uint8_t SENSEAIR_COMMAND_BACKGROUND_CAL[] = {0xFE, 0x06, 0x00, 0x01, 0x7C, 0x06, 0x6C, 0xC7};
+static const uint8_t SENSEAIR_COMMAND_BACKGROUND_CAL_RESULT[] = {0xFE, 0x03, 0x00, 0x00, 0x00, 0x01, 0x90, 0x05};
 static const uint8_t SENSEAIR_COMMAND_ABC_ENABLE[] = {0xFE, 0x06, 0x00, 0x1F, 0x00, 0xB4, 0xAC, 0x74};  // 180 hours
 static const uint8_t SENSEAIR_COMMAND_ABC_DISABLE[] = {0xFE, 0x06, 0x00, 0x1F, 0x00, 0x00, 0xAC, 0x03};
 static const uint8_t SENSEAIR_COMMAND_ABC_GET_PERIOD[] = {0xFE, 0x03, 0x00, 0x1F, 0x00, 0x01, 0xA1, 0xC3};
@@ -80,25 +80,26 @@ uint16_t SenseAirComponent::senseair_checksum_(uint8_t *ptr, uint8_t length) {
 void SenseAirComponent::background_calibration() {
   ESP_LOGD(TAG, "SenseAir Starting background calibration");
   this->senseair_write_command_(SENSEAIR_COMMAND_CLEAR_ACK_REGISTER, nullptr, 0);
-  this->senseair_write_command_(SENSEAIR_COMMAND_BACKGROUND_CALIBRATION, nullptr, 0);
+  this->senseair_write_command_(SENSEAIR_COMMAND_BACKGROUND_CAL, nullptr, 0);
 }
 
 void SenseAirComponent::background_calibration_result() {
   ESP_LOGD(TAG, "SenseAir Requesting background calibration result");
-  uint8_t response[SENSEAIR_CALIBRATION_RESPONSE_RESPONSE_LENGTH];
-  if (!this->senseair_write_command_(SENSEAIR_COMMAND_BACKGROUND_CALIBRATION_RESULT, response, SENSEAIR_CALIBRATION_RESPONSE_RESPONSE_LENGTH)) {
+  uint8_t response[SENSEAIR_CAL_RESULT_RESPONSE_LENGTH];
+  if (!this->senseair_write_command_(SENSEAIR_COMMAND_BACKGROUND_CAL_RESULT, response,
+                                     SENSEAIR_CAL_RESULT_RESPONSE_LENGTH)) {
     ESP_LOGE(TAG, "Requesting background calibration result from SenseAir failed!");
     return;
   }
 
   if (response[0] != 0xFE || response[1] != 0x03) {
-    ESP_LOGE(TAG, "Invalid reply from SenseAir! %02x%02x%02x %02x%02x %02x%02x",
-    response[0], response[1], response[2], response[3], response[4], response[5], response[6]);
+    ESP_LOGE(TAG, "Invalid reply from SenseAir! %02x%02x%02x %02x%02x %02x%02x", response[0], response[1], response[2],
+             response[3], response[4], response[5], response[6]);
     return;
   }
 
-  ESP_LOGD(TAG, "SenseAir Result=%s (%02x%02x%02x)",
-    response[2] == 2 ? "OK" : "NOT_OK", response[2], response[3], response[4]);
+  ESP_LOGD(TAG, "SenseAir Result=%s (%02x%02x%02x)", response[2] == 2 ? "OK" : "NOT_OK", response[2], response[3],
+           response[4]);
 }
 
 void SenseAirComponent::abc_enable() {
@@ -120,8 +121,8 @@ void SenseAirComponent::abc_get_period() {
   }
 
   if (response[0] != 0xFE || response[1] != 0x03) {
-    ESP_LOGE(TAG, "Invalid reply from SenseAir! %02x%02x%02x %02x%02x %02x%02x",
-    response[0], response[1], response[2], response[3], response[4], response[5], response[6]);
+    ESP_LOGE(TAG, "Invalid reply from SenseAir! %02x%02x%02x %02x%02x %02x%02x", response[0], response[1], response[2],
+             response[3], response[4], response[5], response[6]);
     return;
   }
 
