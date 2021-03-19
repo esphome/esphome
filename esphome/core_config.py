@@ -160,7 +160,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_ON_BOOT): automation.validate_automation(
             {
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(StartupTrigger),
-                cv.Optional(CONF_PRIORITY, default=600.0): cv.float_,
+                cv.Optional(CONF_PRIORITY, default=399.0): cv.float_,
             }
         ),
         cv.Optional(CONF_ON_SHUTDOWN): automation.validate_automation(
