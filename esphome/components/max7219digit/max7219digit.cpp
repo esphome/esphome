@@ -48,7 +48,8 @@ void MAX7219Component::setup() {
 void MAX7219Component::dump_config() {
   ESP_LOGCONFIG(TAG, "MAX7219DIGIT:");
   ESP_LOGCONFIG(TAG, "  Number of Chips: %u", this->num_chips_);
-  ESP_LOGCONFIG(TAG, "  Number of Lines: %u", this->num_chip_lines_);
+  ESP_LOGCONFIG(TAG, "  Number of Chips Lines: %u", this->num_chip_lines_);
+  ESP_LOGCONFIG(TAG, "  Chips Lines Style : %u", this->chip_lines_style_);
   ESP_LOGCONFIG(TAG, "  Intensity: %u", this->intensity_);
   ESP_LOGCONFIG(TAG, "  Scroll Mode: %u", this->scroll_mode_);
   ESP_LOGCONFIG(TAG, "  Scroll Speed: %u", this->scroll_speed_);
@@ -105,26 +106,24 @@ void MAX7219Component::loop() {
 }
 
 void MAX7219Component::display() {
-  uint8_t pixels[this->num_chip_lines_][8];
+  uint8_t pixels[8];
   // Run this loop for every MAX CHIP (GRID OF 64 leds)
   // Run this routine for the rows of every chip 8x row 0 top to 7 bottom
   // Fill the pixel parameter with diplay data
   // Send the data to the chip
-  for (uint8_t i = 0; i < this->num_chips_ / this->num_chip_lines_ ; i++) {
-    for (uint8_t j = 0; j < 8; j++) {
-      for (uint8_t chip_line = 0; chip_line < this->num_chip_lines_; chip_line++){
-        bool reverse = chip_line % 2 == 0 ? this->reverse_: !this->reverse_;
+  for (uint8_t chip = 0; chip < this->num_chips_ / this->num_chip_lines_ ; chip++) {
+    for (uint8_t chip_line = 0; chip_line < this->num_chip_lines_; chip_line++){
+      for (uint8_t j = 0; j < 8; j++) {
+        bool reverse = chip_line % 2 != 0 && this->chip_lines_style_ ? !this->reverse_: this->reverse_;
         if (reverse) {
-          pixels[chip_line][j] = this->max_displaybuffer_[chip_line][(this->num_chips_ / this->num_chip_lines_ - i - 1) * 8 + j];
+          pixels[j] = this->max_displaybuffer_[chip_line][(this->num_chips_ / this->num_chip_lines_ - chip - 1) * 8 + j];
         } else {
-          pixels[chip_line][j] = this->max_displaybuffer_[chip_line][i * 8 + j];
+          pixels[j] = this->max_displaybuffer_[chip_line][chip * 8 + j];
         }
       }
-    }
-    for (uint8_t chip_line = 0; chip_line < this->num_chip_lines_; chip_line++){
-      if (chip_line % 2 != 0) this->orientation_ = orientation_180();
-      this->send64pixels(chip_line * this->num_chips_ / this->num_chip_lines_ + i, pixels[chip_line]);
-      if (chip_line % 2 != 0) this->orientation_ = orientation_180();
+      if (chip_line % 2 != 0 && this->chip_lines_style_) this->orientation_ = orientation_180();
+      this->send64pixels(chip_line * this->num_chips_ / this->num_chip_lines_ + chip, pixels);
+      if (chip_line % 2 != 0 && this->chip_lines_style_) this->orientation_ = orientation_180();
     }
   }
 }

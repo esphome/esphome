@@ -47,6 +47,7 @@ class MAX7219Component : public PollingComponent,
   void set_intensity(uint8_t intensity) { this->intensity_ = intensity; };
   void set_num_chips(uint8_t num_chips) { this->num_chips_ = num_chips; };
   void set_num_chip_lines(uint8_t num_chip_lines) { this->num_chip_lines_ = num_chip_lines; };
+  void set_chip_lines_style(uint8_t chip_lines_style) { this->chip_lines_style_ = chip_lines_style; };
   void set_chip_orientation(uint8_t rotate) { this->orientation_ = rotate; };
   void set_scroll_speed(uint16_t speed) { this->scroll_speed_ = speed; };
   void set_scroll_dwell(uint16_t dwell) { this->scroll_dwell_ = dwell; };
@@ -90,6 +91,7 @@ class MAX7219Component : public PollingComponent,
   uint8_t intensity_;  /// Intensity of the display from 0 to 15 (most)
   uint8_t num_chips_;
   uint8_t num_chip_lines_;
+  uint8_t chip_lines_style_;
   bool scroll_;
   bool reverse_;
   bool update_{false};

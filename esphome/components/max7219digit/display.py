@@ -14,6 +14,12 @@ CONF_SCROLL_ENABLE = "scroll_enable"
 CONF_SCROLL_MODE = "scroll_mode"
 CONF_REVERSE_ENABLE = "reverse_enable"
 CONF_NUM_CHIP_LINES = "num_chip_lines"
+CONF_CHIP_LINES_STYLE = "chip_lines_style"
+
+CHIP_LINES_STYLE = {
+    "ZIGZAG": 0,
+    "SNAKE": 1,
+}
 
 SCROLL_MODES = {
     "CONTINUOUS": 0,
@@ -39,6 +45,8 @@ CONFIG_SCHEMA = (
             cv.GenerateID(): cv.declare_id(MAX7219Component),
             cv.Optional(CONF_NUM_CHIPS, default=4): cv.int_range(min=1, max=255),
             cv.Optional(CONF_NUM_CHIP_LINES, default=1): cv.int_range(min=1, max=255),
+            cv.Optional(CONF_CHIP_LINES_STYLE, default="SNAKE"): cv.enum(
+                CHIP_LINES_STYLE,  upper=True),
             cv.Optional(CONF_INTENSITY, default=15): cv.int_range(min=0, max=15),
             cv.Optional(CONF_ROTATE_CHIP, default="0"): cv.enum(CHIP_MODES, upper=True),
             cv.Optional(CONF_SCROLL_MODE, default="CONTINUOUS"): cv.enum(
@@ -70,6 +78,7 @@ def to_code(config):
 
     cg.add(var.set_num_chips(config[CONF_NUM_CHIPS]))
     cg.add(var.set_num_chip_lines(config[CONF_NUM_CHIP_LINES]))
+    cg.add(var.set_chip_lines_style(config[CONF_CHIP_LINES_STYLE]))
     cg.add(var.set_intensity(config[CONF_INTENSITY]))
     cg.add(var.set_chip_orientation(config[CONF_ROTATE_CHIP]))
     cg.add(var.set_scroll_speed(config[CONF_SCROLL_SPEED]))
