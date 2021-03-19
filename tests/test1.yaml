@@ -1514,31 +1514,6 @@ climate:
     name: Toshiba Climate
   - platform: hitachi_ac344
     name: Hitachi Climate
-  - platform: midea_ac
-    visual:
-      min_temperature: 18 °C
-      max_temperature: 25 °C
-      temperature_step: 0.1 °C
-    name: 'Electrolux EACS'
-    beeper: true
-    custom_fan_modes:
-      - SILENT
-      - TURBO
-    preset_eco: true
-    preset_sleep: true
-    preset_boost: true
-    custom_presets:
-      - FREEZE_PROTECTION
-    outdoor_temperature:
-      name: 'Temp'
-    power_usage:
-      name: 'Power'
-    humidity_setpoint:
-      name: 'Hum'
-
-midea_dongle:
-  uart_id: uart0
-  strength_icon: true
 
 switch:
   - platform: gpio
