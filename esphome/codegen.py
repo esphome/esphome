@@ -21,6 +21,7 @@ from esphome.cpp_generator import (  # noqa
     progmem_array,
     statement,
     variable,
+    new_variable,
     Pvariable,
     new_Pvariable,
     add,

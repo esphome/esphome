@@ -7,9 +7,7 @@ from esphome.const import (
     CONF_DIRECTION_OUTPUT,
     CONF_OUTPUT_ID,
     CONF_SPEED,
-    CONF_LOW,
-    CONF_MEDIUM,
-    CONF_HIGH,
+    CONF_SPEED_COUNT,
 )
 from .. import speed_ns
 
@@ -21,13 +19,10 @@ CONFIG_SCHEMA = fan.FAN_SCHEMA.extend(
         cv.Required(CONF_OUTPUT): cv.use_id(output.FloatOutput),
         cv.Optional(CONF_OSCILLATION_OUTPUT): cv.use_id(output.BinaryOutput),
         cv.Optional(CONF_DIRECTION_OUTPUT): cv.use_id(output.BinaryOutput),
-        cv.Optional(CONF_SPEED, default={}): cv.Schema(
-            {
-                cv.Optional(CONF_LOW, default=0.33): cv.percentage,
-                cv.Optional(CONF_MEDIUM, default=0.66): cv.percentage,
-                cv.Optional(CONF_HIGH, default=1.0): cv.percentage,
-            }
+        cv.Optional(CONF_SPEED): cv.invalid(
+            "Configuring individual speeds is deprecated."
         ),
+        cv.Optional(CONF_SPEED_COUNT, default=100): cv.int_range(min=1),
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -35,10 +30,10 @@ CONFIG_SCHEMA = fan.FAN_SCHEMA.extend(
 def to_code(config):
     output_ = yield cg.get_variable(config[CONF_OUTPUT])
     state = yield fan.create_fan_state(config)
-    var = cg.new_Pvariable(config[CONF_OUTPUT_ID], state, output_)
+    var = cg.new_Pvariable(
+        config[CONF_OUTPUT_ID], state, output_, config[CONF_SPEED_COUNT]
+    )
     yield cg.register_component(var, config)
-    speeds = config[CONF_SPEED]
-    cg.add(var.set_speeds(speeds[CONF_LOW], speeds[CONF_MEDIUM], speeds[CONF_HIGH]))
 
     if CONF_OSCILLATION_OUTPUT in config:
         oscillation_output = yield cg.get_variable(config[CONF_OSCILLATION_OUTPUT])
