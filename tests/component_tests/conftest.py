@@ -1,5 +1,13 @@
 """Fixtures for component tests."""
 
+import sys
+from pathlib import Path
+
+# Add package root to python path
+here = Path(__file__).parent
+package_root = here.parent.parent
+sys.path.insert(0, package_root.as_posix())
+
 import pytest
 
 from esphome.core import CORE

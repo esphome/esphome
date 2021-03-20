@@ -28,14 +28,6 @@ TurnOnAction = fan_ns.class_("TurnOnAction", automation.Action)
 TurnOffAction = fan_ns.class_("TurnOffAction", automation.Action)
 ToggleAction = fan_ns.class_("ToggleAction", automation.Action)
 
-FanSpeed = fan_ns.enum("FanSpeed")
-FAN_SPEEDS = {
-    "OFF": FanSpeed.FAN_SPEED_OFF,
-    "LOW": FanSpeed.FAN_SPEED_LOW,
-    "MEDIUM": FanSpeed.FAN_SPEED_MEDIUM,
-    "HIGH": FanSpeed.FAN_SPEED_HIGH,
-}
-
 FAN_SCHEMA = cv.MQTT_COMMAND_COMPONENT_SCHEMA.extend(
     {
         cv.GenerateID(): cv.declare_id(FanState),
@@ -128,7 +120,7 @@ def fan_turn_off_to_code(config, action_id, template_arg, args):
         {
             cv.Required(CONF_ID): cv.use_id(FanState),
             cv.Optional(CONF_OSCILLATING): cv.templatable(cv.boolean),
-            cv.Optional(CONF_SPEED): cv.templatable(cv.enum(FAN_SPEEDS, upper=True)),
+            cv.Optional(CONF_SPEED): cv.templatable(cv.int_range(1)),
         }
     ),
 )
@@ -139,7 +131,7 @@ def fan_turn_on_to_code(config, action_id, template_arg, args):
         template_ = yield cg.templatable(config[CONF_OSCILLATING], args, bool)
         cg.add(var.set_oscillating(template_))
     if CONF_SPEED in config:
-        template_ = yield cg.templatable(config[CONF_SPEED], args, FanSpeed)
+        template_ = yield cg.templatable(config[CONF_SPEED], args, int)
         cg.add(var.set_speed(template_))
     yield var
 
