@@ -122,7 +122,7 @@ bool ClimateTraits::get_supports_fan_modes() const {
 void ClimateTraits::set_supported_custom_fan_modes(std::vector<std::string> &supported_custom_fan_modes) {
   this->supported_custom_fan_modes_ = supported_custom_fan_modes;
 }
-const std::vector<std::string>& ClimateTraits::get_supported_custom_fan_modes() const {
+const std::vector<std::string> &ClimateTraits::get_supported_custom_fan_modes() const {
   return this->supported_custom_fan_modes_;
 }
 bool ClimateTraits::supports_custom_fan_mode(std::string &custom_fan_mode) const {
@@ -178,7 +178,9 @@ bool ClimateTraits::get_supports_presets() const {
 void ClimateTraits::set_supported_custom_presets(std::vector<std::string> &supported_custom_presets) {
   this->supported_custom_presets_ = supported_custom_presets;
 }
-const std::vector<std::string>& ClimateTraits::get_supported_custom_presets() const { return this->supported_custom_presets_; }
+const std::vector<std::string> &ClimateTraits::get_supported_custom_presets() const {
+  return this->supported_custom_presets_;
+}
 bool ClimateTraits::supports_custom_preset(std::string &custom_preset) const {
   return std::count(this->supported_custom_presets_.begin(), this->supported_custom_presets_.end(), custom_preset);
 }

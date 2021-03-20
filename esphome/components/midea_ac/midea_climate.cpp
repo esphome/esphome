@@ -78,7 +78,7 @@ void MideaAC::on_update() {
 }
 
 bool MideaAC::allow_preset(climate::ClimatePreset preset) const {
-  switch(preset) {
+  switch (preset) {
     case climate::CLIMATE_PRESET_ECO:
       if (this->mode == climate::CLIMATE_MODE_COOL) {
         return true;
@@ -108,7 +108,7 @@ bool MideaAC::allow_preset(climate::ClimatePreset preset) const {
   return false;
 }
 
-bool MideaAC::allow_custom_preset(const std::string& custom_preset) const {
+bool MideaAC::allow_custom_preset(const std::string &custom_preset) const {
   if (custom_preset == MIDEA_FREEZE_PROTECTION_PRESET) {
     if (this->mode == climate::CLIMATE_MODE_HEAT) {
       return true;

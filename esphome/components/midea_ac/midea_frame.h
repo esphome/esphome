@@ -77,7 +77,7 @@ class PropertiesFrame : public midea_dongle::BaseFrame {
   climate::ClimateFanMode get_fan_mode() const;
   void set_fan_mode(climate::ClimateFanMode mode);
 
-  const std::string& get_custom_fan_mode() const;
+  const std::string &get_custom_fan_mode() const;
   void set_custom_fan_mode(const std::string &mode);
 
   /* SWING MODE */
@@ -114,7 +114,7 @@ class PropertiesFrame : public midea_dongle::BaseFrame {
   void set_preset(climate::ClimatePreset preset);
 
   bool is_custom_preset() const;
-  const std::string& get_custom_preset() const;
+  const std::string &get_custom_preset() const;
   void set_custom_preset(const std::string &preset);
 
   /* POWER USAGE */
