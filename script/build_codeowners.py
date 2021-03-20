@@ -36,7 +36,7 @@ esphome/core/* @esphome/core
 
 parts = [BASE]
 
-# Fake some diretory so that get_component works
+# Fake some directory so that get_component works
 CORE.config_path = str(root)
 
 codeowners = defaultdict(list)
