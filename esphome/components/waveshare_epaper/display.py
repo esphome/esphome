@@ -45,19 +45,19 @@ WaveshareEPaperTypeAModel = waveshare_epaper_ns.enum("WaveshareEPaperTypeAModel"
 WaveshareEPaperTypeBModel = waveshare_epaper_ns.enum("WaveshareEPaperTypeBModel")
 
 MODELS = {
-    '1.54in': ('a', WaveshareEPaperTypeAModel.WAVESHARE_EPAPER_1_54_IN),
-    '2.13in': ('a', WaveshareEPaperTypeAModel.WAVESHARE_EPAPER_2_13_IN),
-    '2.13in-ttgo': ('a', WaveshareEPaperTypeAModel.TTGO_EPAPER_2_13_IN),
-    '2.13in-ttgo-b1': ('a', WaveshareEPaperTypeAModel.TTGO_EPAPER_2_13_IN_B1),
-    '2.13in-ttgo-b73': ('a', WaveshareEPaperTypeAModel.TTGO_EPAPER_2_13_IN_B73),
-    '2.90in': ('a', WaveshareEPaperTypeAModel.WAVESHARE_EPAPER_2_9_IN),
-    '2.90inv2': ('a', WaveshareEPaperTypeAModel.WAVESHARE_EPAPER_2_9_IN_V2),
-    '2.70in': ('b', WaveshareEPaper2P7In),
-    '2.90in-b': ('b', WaveshareEPaper2P9InB),
-    '4.20in': ('b', WaveshareEPaper4P2In),
-    '5.83in': ('b', WaveshareEPaper5P8In),
-    '7.50in': ('b', WaveshareEPaper7P5In),
-    '7.50inv2': ('b', WaveshareEPaper7P5InV2),
+    "1.54in": ("a", WaveshareEPaperTypeAModel.WAVESHARE_EPAPER_1_54_IN),
+    "2.13in": ("a", WaveshareEPaperTypeAModel.WAVESHARE_EPAPER_2_13_IN),
+    "2.13in-ttgo": ("a", WaveshareEPaperTypeAModel.TTGO_EPAPER_2_13_IN),
+    "2.13in-ttgo-b1": ("a", WaveshareEPaperTypeAModel.TTGO_EPAPER_2_13_IN_B1),
+    "2.13in-ttgo-b73": ("a", WaveshareEPaperTypeAModel.TTGO_EPAPER_2_13_IN_B73),
+    "2.90in": ("a", WaveshareEPaperTypeAModel.WAVESHARE_EPAPER_2_9_IN),
+    "2.90inv2": ("a", WaveshareEPaperTypeAModel.WAVESHARE_EPAPER_2_9_IN_V2),
+    "2.70in": ("b", WaveshareEPaper2P7In),
+    "2.90in-b": ("b", WaveshareEPaper2P9InB),
+    "4.20in": ("b", WaveshareEPaper4P2In),
+    "5.83in": ("b", WaveshareEPaper5P8In),
+    "7.50in": ("b", WaveshareEPaper7P5In),
+    "7.50inv2": ("b", WaveshareEPaper7P5InV2),
 }
 
 

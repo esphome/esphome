@@ -1,0 +1,74 @@
+substitutions:
+  devicename: test5
+  sensorname: my
+  textname: template
+  roomname: living_room
+
+esphome:
+  name: test-5
+  name_add_mac_suffix: true
+  platform: ESP32
+  board: nodemcu-32s
+
+api:
+
+i2c:
+  sda: 21
+  scl: 22
+  scan: False
+
+spi:
+  clk_pin: GPIO21
+  mosi_pin: GPIO22
+  miso_pin: GPIO23
+
+uart:
+  tx_pin: GPIO22
+  rx_pin: GPIO23
+  baud_rate: 115200
+
+ota:
+  safe_mode: True
+  port: 3286
+
+logger:
+  level: DEBUG
+
+web_server:
+  auth:
+    username: admin
+    password: admin
+
+time:
+  - platform: sntp
+    id: sntp_time
+
+display:
+  - platform: waveshare_epaper
+    cs_pin: GPIO23
+    dc_pin: GPIO23
+    busy_pin: GPIO23
+    reset_pin: GPIO23
+    model: 2.90in
+    full_update_every: 30
+    lambda: |-
+      it.rectangle(0, 0, it.get_width(), it.get_height());
+  - platform: waveshare_epaper
+    cs_pin: GPIO23
+    dc_pin: GPIO23
+    busy_pin: GPIO23
+    reset_pin: GPIO23
+    model: 2.90inv2
+    full_update_every: 30
+    lambda: |-
+      it.rectangle(0, 0, it.get_width(), it.get_height());
+  - platform: waveshare_epaper
+    cs_pin: GPIO23
+    dc_pin: GPIO23
+    busy_pin: GPIO23
+    reset_pin: GPIO23
+    model: 2.13in-ttgo-b1
+    full_update_every: 30
+    lambda: |-
+      it.rectangle(0, 0, it.get_width(), it.get_height());
+
