@@ -13,6 +13,7 @@ esphome/core/* @esphome/core
 # Integrations
 esphome/components/ac_dimmer/* @glmnet
 esphome/components/adc/* @esphome/core
+esphome/components/addressable_light/* @justfalter
 esphome/components/animation/* @syndlex
 esphome/components/api/* @OttoWinter
 esphome/components/async_tcp/* @OttoWinter
@@ -46,10 +47,17 @@ esphome/components/ledc/* @OttoWinter
 esphome/components/light/* @esphome/core
 esphome/components/logger/* @esphome/core
 esphome/components/max7219digit/* @rspaargaren
-esphome/components/mcp23s08/* @SenexCrenshaw
-esphome/components/mcp23s17/* @SenexCrenshaw
+esphome/components/mcp23008/* @jesserockz
+esphome/components/mcp23017/* @jesserockz
+esphome/components/mcp23s08/* @SenexCrenshaw @jesserockz
+esphome/components/mcp23s17/* @SenexCrenshaw @jesserockz
+esphome/components/mcp23x08_base/* @jesserockz
+esphome/components/mcp23x17_base/* @jesserockz
+esphome/components/mcp23xxx_base/* @jesserockz
 esphome/components/mcp2515/* @danielschramm @mvturnho
 esphome/components/mcp9808/* @k7hpn
+esphome/components/midea_ac/* @dudanov
+esphome/components/midea_dongle/* @dudanov
 esphome/components/network/* @esphome/core
 esphome/components/nfc/* @jesserockz
 esphome/components/ota/* @esphome/core
@@ -59,6 +67,7 @@ esphome/components/pn532/* @OttoWinter @jesserockz
 esphome/components/pn532_i2c/* @OttoWinter @jesserockz
 esphome/components/pn532_spi/* @OttoWinter @jesserockz
 esphome/components/power_supply/* @esphome/core
+esphome/components/pulse_meter/* @stevebaxter
 esphome/components/rc522/* @glmnet
 esphome/components/rc522_i2c/* @glmnet
 esphome/components/rc522_spi/* @glmnet
