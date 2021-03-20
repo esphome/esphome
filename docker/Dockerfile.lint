@@ -1,7 +1,9 @@
-FROM esphome/esphome-lint-base:2.6.0
+FROM esphome/esphome-lint-base:2.8.0
 
-COPY requirements.txt requirements_test.txt /
-RUN pip3 install --no-cache-dir -r /requirements.txt -r /requirements_test.txt
+COPY requirements.txt requirements_test.txt docker/platformio_install_deps.py  platformio.ini /
+RUN \
+    pip3 install --no-cache-dir -r /requirements.txt -r /requirements_test.txt \
+    && /platformio_install_deps.py /platformio.ini
 
 VOLUME ["/esphome"]
 WORKDIR /esphome

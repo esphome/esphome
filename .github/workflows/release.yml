@@ -14,15 +14,6 @@ jobs:
     container: esphome/esphome-lint:latest
     steps:
       - uses: actions/checkout@v2
-      # Cache platformio intermediary files (like libraries etc)
-      # Note: platformio platform versions should be cached via the esphome-lint image
-      - name: Cache Platformio
-        uses: actions/cache@v1
-        with:
-          path: .pio
-          key: lint-cpp-pio-${{ hashFiles('platformio.ini') }}
-          restore-keys: |
-            lint-cpp-pio-
       # Set up the pio project so that the cpp checks know how files are compiled
       # (build flags, libraries etc)
       - name: Set up platformio environment
@@ -45,15 +36,6 @@ jobs:
         split: [1, 2, 3, 4]
     steps:
       - uses: actions/checkout@v2
-      # Cache platformio intermediary files (like libraries etc)
-      # Note: platformio platform versions should be cached via the esphome-lint image
-      - name: Cache Platformio
-        uses: actions/cache@v1
-        with:
-          path: .pio
-          key: lint-cpp-pio-${{ hashFiles('platformio.ini') }}
-          restore-keys: |
-            lint-cpp-pio-
       # Set up the pio project so that the cpp checks know how files are compiled
       # (build flags, libraries etc)
       - name: Set up platformio environment
@@ -212,7 +194,7 @@ jobs:
           echo "TAG=${TAG}" >> $GITHUB_ENV
       - name: Set up env variables
         run: |
-          base_version="2.6.0"
+          base_version="2.8.0"
 
           if [[ "${{ matrix.build_type }}" == "hassio" ]]; then
             build_from="esphome/esphome-hassio-base-${{ matrix.arch }}:${base_version}"
