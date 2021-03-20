@@ -13,9 +13,11 @@ void ClimateCall::perform() {
     ESP_LOGD(TAG, "  Mode: %s", mode_s);
   }
   if (this->custom_fan_mode_.has_value()) {
+    this->fan_mode_.reset();
     ESP_LOGD(TAG, " Custom Fan: %s", this->custom_fan_mode_.value().c_str());
   }
   if (this->fan_mode_.has_value()) {
+    this->custom_fan_mode_.reset();
     const char *fan_mode_s = climate_fan_mode_to_string(*this->fan_mode_);
     ESP_LOGD(TAG, "  Fan: %s", fan_mode_s);
   }
@@ -471,6 +473,9 @@ void ClimateDeviceRestoreState::apply(Climate *climate) {
   }
   if (traits.get_supports_presets() && !this->uses_custom_preset) {
     climate->preset = this->preset;
+  }
+  if (!traits.get_supported_custom_presets().empty() && this->uses_custom_preset) {
+    climate->custom_preset = traits.get_supported_custom_presets()[this->custom_preset];
   }
   if (!traits.get_supported_custom_presets().empty() && uses_custom_preset) {
     climate->custom_preset = traits.get_supported_custom_presets()[this->preset];
