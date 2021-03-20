@@ -153,19 +153,6 @@ def automation_effect_to_code(config, effect_id):
     yield var
 
 
-@register_rgb_effect(
-    "pulse",
-    PulseLightEffect,
-    "Pulse",
-    {
-        cv.Optional(
-            CONF_TRANSITION_LENGTH, default="7.5s"
-        ): cv.positive_time_period_milliseconds,
-        cv.Optional(
-            CONF_UPDATE_INTERVAL, default="0.01s"
-        ): cv.positive_time_period_milliseconds,
-    },
-)
 @register_monochromatic_effect(
     "pulse",
     PulseLightEffect,
@@ -186,19 +173,6 @@ def pulse_effect_to_code(config, effect_id):
     yield effect
 
 
-@register_rgb_effect(
-    "random",
-    RandomLightEffect,
-    "Random",
-    {
-        cv.Optional(
-            CONF_TRANSITION_LENGTH, default="7.5s"
-        ): cv.positive_time_period_milliseconds,
-        cv.Optional(
-            CONF_UPDATE_INTERVAL, default="10s"
-        ): cv.positive_time_period_milliseconds,
-    },
-)
 @register_monochromatic_effect(
     "random",
     RandomLightEffect,
