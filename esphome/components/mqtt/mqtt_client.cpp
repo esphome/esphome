@@ -35,7 +35,6 @@ void MQTTClientComponent::setup() {
     if (len + index == total) {
       this->on_message(topic, this->payload_buffer_);
       this->payload_buffer_.clear();
-      this->payload_buffer_.shrink_to_fit();
     }
   });
   this->mqtt_client_.onDisconnect([this](AsyncMqttClientDisconnectReason reason) {
