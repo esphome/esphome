@@ -18,7 +18,7 @@ class PulseLightEffect : public LightEffect {
 
   void apply() override {
     const uint32_t now = millis();
-    if (now - this->last_color_change_ < this->transition_length_) {
+    if (now - this->last_color_change_ < this->update_interval_) {
       return;
     }
     auto call = this->state_->turn_on();

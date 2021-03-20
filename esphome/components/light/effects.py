@@ -159,10 +159,10 @@ def automation_effect_to_code(config, effect_id):
     "Pulse",
     {
         cv.Optional(
-            CONF_TRANSITION_LENGTH, default="7.5s"
+            CONF_TRANSITION_LENGTH, default="1s"
         ): cv.positive_time_period_milliseconds,
         cv.Optional(
-            CONF_UPDATE_INTERVAL, default="0.01s"
+            CONF_UPDATE_INTERVAL, default="1s"
         ): cv.positive_time_period_milliseconds,
     },
 )
