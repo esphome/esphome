@@ -86,7 +86,7 @@ void MAX7219Component::loop() {
   }
 
   // Dwell time at end of string in case of stop at end
-  if (this->scroll_mode_ == 1) {
+  if (this->scroll_mode_ == ScrollMode::STOP) {
     if (this->stepsleft_ >= this->max_displaybuffer_[0].size() - get_width_internal() + 1) {
       if (now - this->last_scroll_ >= this->scroll_dwell_) {
         this->stepsleft_ = 0;
@@ -114,7 +114,7 @@ void MAX7219Component::display() {
   for (uint8_t chip = 0; chip < this->num_chips_ / this->num_chip_lines_; chip++) {
     for (uint8_t chip_line = 0; chip_line < this->num_chip_lines_; chip_line++) {
       for (uint8_t j = 0; j < 8; j++) {
-        bool reverse = chip_line % 2 != 0 && this->chip_lines_style_ ? !this->reverse_ : this->reverse_;
+        bool reverse = chip_line % 2 != 0 && this->chip_lines_style_ == ChipLinesStyle::SNAKE ? !this->reverse_ : this->reverse_;
         if (reverse) {
           pixels[j] =
               this->max_displaybuffer_[chip_line][(this->num_chips_ / this->num_chip_lines_ - chip - 1) * 8 + j];
@@ -122,10 +122,10 @@ void MAX7219Component::display() {
           pixels[j] = this->max_displaybuffer_[chip_line][chip * 8 + j];
         }
       }
-      if (chip_line % 2 != 0 && this->chip_lines_style_)
+      if (chip_line % 2 != 0 && this->chip_lines_style_ == ChipLinesStyle::SNAKE)
         this->orientation_ = orientation_180_();
       this->send64pixels(chip_line * this->num_chips_ / this->num_chip_lines_ + chip, pixels);
-      if (chip_line % 2 != 0 && this->chip_lines_style_)
+      if (chip_line % 2 != 0 && this->chip_lines_style_ == ChipLinesStyle::SNAKE)
         this->orientation_ = orientation_180_();
     }
   }
@@ -203,7 +203,7 @@ void MAX7219Component::turn_on_off(bool on_off) {
   }
 }
 
-void MAX7219Component::scroll(bool on_off, uint8_t mode, uint16_t speed, uint16_t delay, uint16_t dwell) {
+void MAX7219Component::scroll(bool on_off, ScrollMode mode, uint16_t speed, uint16_t delay, uint16_t dwell) {
   this->set_scroll(on_off);
   this->set_scroll_mode(mode);
   this->set_scroll_speed(speed);
@@ -211,7 +211,7 @@ void MAX7219Component::scroll(bool on_off, uint8_t mode, uint16_t speed, uint16_
   this->set_scroll_delay(delay);
 }
 
-void MAX7219Component::scroll(bool on_off, uint8_t mode) {
+void MAX7219Component::scroll(bool on_off, ScrollMode mode) {
   this->set_scroll(on_off);
   this->set_scroll_mode(mode);
 }

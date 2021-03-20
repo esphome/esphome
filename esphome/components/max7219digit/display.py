@@ -16,14 +16,17 @@ CONF_REVERSE_ENABLE = "reverse_enable"
 CONF_NUM_CHIP_LINES = "num_chip_lines"
 CONF_CHIP_LINES_STYLE = "chip_lines_style"
 
+integration_ns = cg.esphome_ns.namespace("max7219digit")
+ChipLinesStyle = integration_ns.enum("ChipLinesStyle")
 CHIP_LINES_STYLE = {
-    "ZIGZAG": 0,
-    "SNAKE": 1,
+    "ZIGZAG": ChipLinesStyle.ZIGZAG,
+    "SNAKE": ChipLinesStyle.SNAKE,
 }
 
+ScrollMode = integration_ns.enum("ScrollMode")
 SCROLL_MODES = {
-    "CONTINUOUS": 0,
-    "STOP": 1,
+    "CONTINUOUS": ScrollMode.CONTINUOUS,
+    "STOP": ScrollMode.STOP,
 }
 
 CHIP_MODES = {

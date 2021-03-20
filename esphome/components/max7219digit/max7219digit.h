@@ -12,6 +12,16 @@
 namespace esphome {
 namespace max7219digit {
 
+enum ChipLinesStyle {
+  ZIGZAG = 0,
+  SNAKE,
+};
+
+enum ScrollMode {
+  CONTINUOUS = 0,
+  STOP,
+};
+
 class MAX7219Component;
 
 using max7219_writer_t = std::function<void(MAX7219Component &)>;
@@ -47,21 +57,21 @@ class MAX7219Component : public PollingComponent,
   void set_intensity(uint8_t intensity) { this->intensity_ = intensity; };
   void set_num_chips(uint8_t num_chips) { this->num_chips_ = num_chips; };
   void set_num_chip_lines(uint8_t num_chip_lines) { this->num_chip_lines_ = num_chip_lines; };
-  void set_chip_lines_style(uint8_t chip_lines_style) { this->chip_lines_style_ = chip_lines_style; };
+  void set_chip_lines_style(ChipLinesStyle chip_lines_style) { this->chip_lines_style_ = chip_lines_style; };
   void set_chip_orientation(uint8_t rotate) { this->orientation_ = rotate; };
   void set_scroll_speed(uint16_t speed) { this->scroll_speed_ = speed; };
   void set_scroll_dwell(uint16_t dwell) { this->scroll_dwell_ = dwell; };
   void set_scroll_delay(uint16_t delay) { this->scroll_delay_ = delay; };
   void set_scroll(bool on_off) { this->scroll_ = on_off; };
-  void set_scroll_mode(uint8_t mode) { this->scroll_mode_ = mode; };
+  void set_scroll_mode(ScrollMode mode) { this->scroll_mode_ = mode; };
   void set_reverse(bool on_off) { this->reverse_ = on_off; };
 
   void send_char(byte chip, byte data);
   void send64pixels(byte chip, const byte pixels[8]);
 
   void scroll_left();
-  void scroll(bool on_off, uint8_t mode, uint16_t speed, uint16_t delay, uint16_t dwell);
-  void scroll(bool on_off, uint8_t mode);
+  void scroll(bool on_off, ScrollMode mode, uint16_t speed, uint16_t delay, uint16_t dwell);
+  void scroll(bool on_off, ScrollMode mode);
   void scroll(bool on_off);
   void intensity(uint8_t intensity);
 
@@ -91,7 +101,7 @@ class MAX7219Component : public PollingComponent,
   uint8_t intensity_;  /// Intensity of the display from 0 to 15 (most)
   uint8_t num_chips_;
   uint8_t num_chip_lines_;
-  uint8_t chip_lines_style_;
+  ChipLinesStyle chip_lines_style_;
   bool scroll_;
   bool reverse_;
   bool update_{false};
@@ -99,7 +109,7 @@ class MAX7219Component : public PollingComponent,
   uint16_t scroll_delay_;
   uint16_t scroll_dwell_;
   uint16_t old_buffer_size_ = 0;
-  uint8_t scroll_mode_;
+  ScrollMode scroll_mode_;
   bool invert_ = false;
   uint8_t orientation_;
   uint8_t bckgrnd_ = 0x0;
