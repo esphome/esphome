@@ -87,7 +87,6 @@ async def to_code(config):
         cg.add(var.set_custom_fan_modes(config[CONF_CUSTOM_FAN_MODES]))
     if CONF_CUSTOM_PRESETS in config:
         cg.add(var.set_custom_presets(config[CONF_CUSTOM_PRESETS]))
-    cg.add(var.set_custom_fan_modes(config[CONF_CUSTOM_FAN_MODES]))
     cg.add(var.set_swing_horizontal(config[CONF_SWING_HORIZONTAL]))
     cg.add(var.set_swing_both(config[CONF_SWING_BOTH]))
     cg.add(var.set_preset_eco(config[CONF_PRESET_ECO]))
