@@ -119,13 +119,13 @@ bool ClimateTraits::get_supports_fan_modes() const {
          this->supports_fan_mode_low_ || this->supports_fan_mode_medium_ || this->supports_fan_mode_high_ ||
          this->supports_fan_mode_middle_ || this->supports_fan_mode_focus_ || this->supports_fan_mode_diffuse_;
 }
-void ClimateTraits::set_supported_custom_fan_modes(std::vector<std::string> supported_custom_fan_modes) {
+void ClimateTraits::set_supported_custom_fan_modes(std::vector<std::string> &supported_custom_fan_modes) {
   this->supported_custom_fan_modes_ = supported_custom_fan_modes;
 }
-std::vector<std::string> ClimateTraits::get_supported_custom_fan_modes() const {
+const std::vector<std::string>& ClimateTraits::get_supported_custom_fan_modes() const {
   return this->supported_custom_fan_modes_;
 }
-bool ClimateTraits::supports_custom_fan_mode(std::string custom_fan_mode) const {
+bool ClimateTraits::supports_custom_fan_mode(std::string &custom_fan_mode) const {
   return std::count(this->supported_custom_fan_modes_.begin(), this->supported_custom_fan_modes_.end(),
                     custom_fan_mode);
 }
@@ -175,11 +175,11 @@ bool ClimateTraits::get_supports_presets() const {
          this->supports_preset_comfort_ || this->supports_preset_home_ || this->supports_preset_sleep_ ||
          this->supports_preset_activity_;
 }
-void ClimateTraits::set_supported_custom_presets(std::vector<std::string> supported_custom_presets) {
+void ClimateTraits::set_supported_custom_presets(std::vector<std::string> &supported_custom_presets) {
   this->supported_custom_presets_ = supported_custom_presets;
 }
-std::vector<std::string> ClimateTraits::get_supported_custom_presets() const { return this->supported_custom_presets_; }
-bool ClimateTraits::supports_custom_preset(std::string custom_preset) const {
+const std::vector<std::string>& ClimateTraits::get_supported_custom_presets() const { return this->supported_custom_presets_; }
+bool ClimateTraits::supports_custom_preset(std::string &custom_preset) const {
   return std::count(this->supported_custom_presets_.begin(), this->supported_custom_presets_.end(), custom_preset);
 }
 void ClimateTraits::set_supports_swing_mode_off(bool supports_swing_mode_off) {

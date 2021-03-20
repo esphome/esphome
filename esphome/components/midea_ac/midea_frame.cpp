@@ -4,6 +4,9 @@ namespace esphome {
 namespace midea_ac {
 
 static const char *TAG = "midea_ac";
+const std::string MIDEA_SILENT_FAN_MODE = "silent";
+const std::string MIDEA_TURBO_FAN_MODE = "turbo";
+const std::string MIDEA_FREEZE_PROTECTION_PRESET = "freeze protection";
 
 const uint8_t QueryFrame::INIT[] = {0xAA, 0x22, 0xAC, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0x03, 0x41, 0x00,
                                     0x00, 0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -97,25 +100,13 @@ optional<climate::ClimatePreset> PropertiesFrame::get_preset() const {
 void PropertiesFrame::set_preset(climate::ClimatePreset preset) {
   switch (preset) {
     case climate::CLIMATE_PRESET_ECO:
-      if (this->get_mode() == climate::CLIMATE_MODE_COOL) {
-        this->set_eco_mode(true);
-      } else {
-        ESP_LOGD(TAG, "ECO preset is only available in COOL mode");
-      }
+      this->set_eco_mode(true);
       break;
     case climate::CLIMATE_PRESET_SLEEP:
-      if (this->get_mode() == climate::CLIMATE_MODE_FAN_ONLY || this->get_mode() == climate::CLIMATE_MODE_DRY) {
-        ESP_LOGD(TAG, "SLEEP preset is not available in FAN_ONLY or DRY mode");
-      } else {
-        this->set_sleep_mode(true);
-      }
+      this->set_sleep_mode(true);
       break;
     case climate::CLIMATE_PRESET_BOOST:
-      if (this->get_mode() == climate::CLIMATE_MODE_HEAT || this->get_mode() == climate::CLIMATE_MODE_COOL) {
-        this->set_turbo_mode(true);
-      } else {
-        ESP_LOGD(TAG, "BOOST preset is only available in HEAT or COOL mode");
-      }
+      this->set_turbo_mode(true);
       break;
     default:
       break;
@@ -124,15 +115,11 @@ void PropertiesFrame::set_preset(climate::ClimatePreset preset) {
 
 bool PropertiesFrame::is_custom_preset() const { return this->get_freeze_protection_mode(); }
 
-optional<std::string> PropertiesFrame::get_custom_preset() const { return MIDEA_FREEZE_PROTECTION_PRESET; };
+const std::string& PropertiesFrame::get_custom_preset() const { return midea_ac::MIDEA_FREEZE_PROTECTION_PRESET; };
 
-void PropertiesFrame::set_custom_preset(std::string preset) {
+void PropertiesFrame::set_custom_preset(const std::string &preset) {
   if (preset == MIDEA_FREEZE_PROTECTION_PRESET) {
-    if (this->get_mode() == climate::CLIMATE_MODE_HEAT) {
-      this->set_freeze_protection_mode(true);
-    } else {
-      ESP_LOGD(TAG, "%s is only available in HEAT mode", MIDEA_FREEZE_PROTECTION_PRESET.c_str());
-    }
+    this->set_freeze_protection_mode(true);
   }
 }
 
@@ -178,7 +165,7 @@ void PropertiesFrame::set_fan_mode(climate::ClimateFanMode mode) {
   this->pbuf_[13] = m;
 }
 
-std::string PropertiesFrame::get_custom_fan_mode() const {
+const std::string& PropertiesFrame::get_custom_fan_mode() const {
   switch (this->pbuf_[13]) {
     case MIDEA_FAN_SILENT:
       return MIDEA_SILENT_FAN_MODE;
@@ -187,7 +174,7 @@ std::string PropertiesFrame::get_custom_fan_mode() const {
   }
 }
 
-void PropertiesFrame::set_custom_fan_mode(std::string mode) {
+void PropertiesFrame::set_custom_fan_mode(const std::string &mode) {
   uint8_t m;
   if (mode == MIDEA_SILENT_FAN_MODE) {
     m = MIDEA_FAN_SILENT;

@@ -25,10 +25,12 @@ class MideaAC : public midea_dongle::MideaAppliance, public climate::Climate, pu
   void set_preset_eco(bool state) { this->traits_preset_eco_ = state; }
   void set_preset_sleep(bool state) { this->traits_preset_sleep_ = state; }
   void set_preset_boost(bool state) { this->traits_preset_boost_ = state; }
+  bool allow_preset(climate::ClimatePreset preset) const;
   void set_custom_fan_modes(std::vector<std::string> custom_fan_modes) {
     this->traits_custom_fan_modes_ = custom_fan_modes;
   }
   void set_custom_presets(std::vector<std::string> custom_presets) { this->traits_custom_presets_ = custom_presets; }
+  bool allow_custom_preset(const std::string& custom_preset) const;
 
  protected:
   /// Override control to change settings of the climate device.

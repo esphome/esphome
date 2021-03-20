@@ -77,6 +77,48 @@ void MideaAC::on_update() {
   }
 }
 
+bool MideaAC::allow_preset(climate::ClimatePreset preset) const {
+  switch(preset) {
+    case climate::CLIMATE_PRESET_ECO:
+      if (this->mode == climate::CLIMATE_MODE_COOL) {
+        return true;
+      } else {
+        ESP_LOGD(TAG, "ECO preset is only available in COOL mode");
+      }
+      break;
+    case climate::CLIMATE_PRESET_SLEEP:
+      if (this->mode == climate::CLIMATE_MODE_FAN_ONLY || this->mode == climate::CLIMATE_MODE_DRY) {
+        ESP_LOGD(TAG, "SLEEP preset is not available in FAN_ONLY or DRY mode");
+      } else {
+        return true;
+      }
+      break;
+    case climate::CLIMATE_PRESET_BOOST:
+      if (this->mode == climate::CLIMATE_MODE_HEAT || this->mode == climate::CLIMATE_MODE_COOL) {
+        return true;
+      } else {
+        ESP_LOGD(TAG, "BOOST preset is only available in HEAT or COOL mode");
+      }
+      break;
+    case climate::CLIMATE_PRESET_HOME:
+      return true;
+    default:
+      break;
+  }
+  return false;
+}
+
+bool MideaAC::allow_custom_preset(const std::string& custom_preset) const {
+  if (custom_preset == MIDEA_FREEZE_PROTECTION_PRESET) {
+    if (this->mode == climate::CLIMATE_MODE_HEAT) {
+      return true;
+    } else {
+      ESP_LOGD(TAG, "%s is only available in HEAT mode", MIDEA_FREEZE_PROTECTION_PRESET.c_str());
+    }
+  }
+  return false;
+}
+
 void MideaAC::control(const climate::ClimateCall &call) {
   if (call.get_mode().has_value() && call.get_mode().value() != this->mode) {
     this->cmd_frame_.set_mode(call.get_mode().value());
@@ -102,13 +144,13 @@ void MideaAC::control(const climate::ClimateCall &call) {
     this->cmd_frame_.set_swing_mode(call.get_swing_mode().value());
     this->ctrl_request_ = true;
   }
-  if (call.get_preset().has_value() &&
+  if (call.get_preset().has_value() && this->allow_preset(call.get_preset().value()) &&
       (!this->preset.has_value() || this->preset.value() != call.get_preset().value())) {
     this->custom_preset.reset();
     this->cmd_frame_.set_preset(call.get_preset().value());
     this->ctrl_request_ = true;
   }
-  if (call.get_custom_preset().has_value() &&
+  if (call.get_custom_preset().has_value() && this->allow_custom_preset(call.get_custom_preset().value()) &&
       (!this->custom_preset.has_value() || this->custom_preset.value() == call.get_custom_preset().value())) {
     this->preset.reset();
     this->cmd_frame_.set_custom_preset(call.get_custom_preset().value());

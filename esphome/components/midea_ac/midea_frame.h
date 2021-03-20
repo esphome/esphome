@@ -5,6 +5,10 @@
 namespace esphome {
 namespace midea_ac {
 
+extern const std::string MIDEA_SILENT_FAN_MODE;
+extern const std::string MIDEA_TURBO_FAN_MODE;
+extern const std::string MIDEA_FREEZE_PROTECTION_PRESET;
+
 /// Enum for all modes a Midea device can be in.
 enum MideaMode : uint8_t {
   /// The Midea device is set to automatically change the heating/cooling cycle
@@ -47,9 +51,6 @@ enum MideaSwingMode : uint8_t {
   MIDEA_SWING_HORIZONTAL = 0b0011,
 };
 
-const std::string MIDEA_SILENT_FAN_MODE = "silent";
-const std::string MIDEA_TURBO_FAN_MODE = "turbo";
-const std::string MIDEA_FREEZE_PROTECTION_PRESET = "freeze protection";
 class PropertiesFrame : public midea_dongle::BaseFrame {
  public:
   PropertiesFrame() = delete;
@@ -76,8 +77,8 @@ class PropertiesFrame : public midea_dongle::BaseFrame {
   climate::ClimateFanMode get_fan_mode() const;
   void set_fan_mode(climate::ClimateFanMode mode);
 
-  std::string get_custom_fan_mode() const;
-  void set_custom_fan_mode(std::string mode);
+  const std::string& get_custom_fan_mode() const;
+  void set_custom_fan_mode(const std::string &mode);
 
   /* SWING MODE */
   climate::ClimateSwingMode get_swing_mode() const;
@@ -113,8 +114,8 @@ class PropertiesFrame : public midea_dongle::BaseFrame {
   void set_preset(climate::ClimatePreset preset);
 
   bool is_custom_preset() const;
-  optional<std::string> get_custom_preset() const;
-  void set_custom_preset(std::string preset);
+  const std::string& get_custom_preset() const;
+  void set_custom_preset(const std::string &preset);
 
   /* POWER USAGE */
   float get_power_usage() const;
