@@ -50,5 +50,5 @@ async def to_code(config):
                 )
             )
         elif len(config[CONF_SERVICE_UUID]) == len(esp32_ble_tracker.bt_uuid128_format):
-            uuid128 = esp32_ble_tracker.as_hex_array(config[CONF_SERVICE_UUID])
+            uuid128 = esp32_ble_tracker.as_reversed_hex_array(config[CONF_SERVICE_UUID])
             cg.add(var.set_service_uuid128(uuid128))
