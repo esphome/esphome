@@ -17,6 +17,7 @@ enum PollingCommand {
   POLLING_QPIRI = 0,
   POLLING_QPIGS = 1,
   POLLING_QMOD = 2,
+  POLLING_QFLAG = 3,
 };
 struct polling_command {
   uint8_t *command;
@@ -86,9 +87,20 @@ class Pipsolar : public uart::UARTDevice, public PollingComponent {
 
   void set_device_mode_sensor(text_sensor::TextSensor *device_mode_sensor) {device_mode_ = device_mode_sensor; this->add_polling_command("QMOD",POLLING_QMOD);}
 
+  void set_silence_buzzer_open_buzzer_sensor(binary_sensor::BinarySensor *silence_buzzer_open_buzzer_sensor) {silence_buzzer_open_buzzer_ = silence_buzzer_open_buzzer_sensor; this->add_polling_command("QFLAG",POLLING_QFLAG);}
+  void set_overload_bypass_function_sensor(binary_sensor::BinarySensor *overload_bypass_function_sensor) {overload_bypass_function_ = overload_bypass_function_sensor; this->add_polling_command("QFLAG",POLLING_QFLAG);}
+  void set_lcd_escape_to_default_sensor(binary_sensor::BinarySensor *lcd_escape_to_default_sensor) {lcd_escape_to_default_ = lcd_escape_to_default_sensor; this->add_polling_command("QFLAG",POLLING_QFLAG);}
+  void set_overload_restart_function_sensor(binary_sensor::BinarySensor *overload_restart_function_sensor) {overload_restart_function_ = overload_restart_function_sensor; this->add_polling_command("QFLAG",POLLING_QFLAG);}
+  void set_over_temperature_restart_function_sensor(binary_sensor::BinarySensor *over_temperature_restart_function_sensor) {over_temperature_restart_function_ = over_temperature_restart_function_sensor; this->add_polling_command("QFLAG",POLLING_QFLAG);}
+  void set_backlight_on_sensor(binary_sensor::BinarySensor *backlight_on_sensor) {backlight_on_ = backlight_on_sensor; this->add_polling_command("QFLAG",POLLING_QFLAG);}
+  void set_alarm_on_when_primary_source_interrupt_sensor(binary_sensor::BinarySensor *alarm_on_when_primary_source_interrupt_sensor) {alarm_on_when_primary_source_interrupt_ = alarm_on_when_primary_source_interrupt_sensor; this->add_polling_command("QFLAG",POLLING_QFLAG);}
+  void set_fault_code_record_sensor(binary_sensor::BinarySensor *fault_code_record_sensor) {fault_code_record_ = fault_code_record_sensor; this->add_polling_command("QFLAG",POLLING_QFLAG);}
+
+
   void set_last_qpigs_sensor(text_sensor::TextSensor *last_qpigs_sensor) {last_qpigs_ = last_qpigs_sensor; this->add_polling_command("QPIGS",POLLING_QPIGS);}
   void set_last_qpiri_sensor(text_sensor::TextSensor *last_qpiri_sensor) {last_qpiri_ = last_qpiri_sensor; this->add_polling_command("QPIRI",POLLING_QPIRI);}
   void set_last_qmod_sensor(text_sensor::TextSensor *last_qmod_sensor) {last_qmod_ = last_qmod_sensor; this->add_polling_command("QMOD",POLLING_QMOD);}
+  void set_last_qflag_sensor(text_sensor::TextSensor *last_qflag_sensor) {last_qflag_ = last_qflag_sensor; this->add_polling_command("QFLAG",POLLING_QFLAG);}
 
   void set_output_source_priority_utility_switch(PipsolarSwitch *output_source_priority_utility_switch) { output_source_priority_utility_switch_ = output_source_priority_utility_switch; this->add_polling_command("QPIRI",POLLING_QPIRI);}
   void set_output_source_priority_solar_switch(PipsolarSwitch *output_source_priority_solar_switch) { output_source_priority_solar_switch_ = output_source_priority_solar_switch; this->add_polling_command("QPIRI",POLLING_QPIRI);}
@@ -133,7 +145,7 @@ class Pipsolar : public uart::UARTDevice, public PollingComponent {
   text_sensor::TextSensor *last_qpigs_;
   text_sensor::TextSensor *last_qpiri_;
   text_sensor::TextSensor *last_qmod_;
-
+  text_sensor::TextSensor *last_qflag_;
 //QPIRI Sensors
   sensor::Sensor *grid_rating_voltage_;
   sensor::Sensor *grid_rating_current_;
@@ -201,6 +213,16 @@ class Pipsolar : public uart::UARTDevice, public PollingComponent {
   binary_sensor::BinarySensor *device_mode_fault_;
   binary_sensor::BinarySensor *device_mode_power_saving_;
 
+//QFLAG Sensors
+  binary_sensor::BinarySensor *silence_buzzer_open_buzzer_;
+  binary_sensor::BinarySensor *overload_bypass_function_;
+  binary_sensor::BinarySensor *lcd_escape_to_default_;
+  binary_sensor::BinarySensor *overload_restart_function_;
+  binary_sensor::BinarySensor *over_temperature_restart_function_;
+  binary_sensor::BinarySensor *backlight_on_;
+  binary_sensor::BinarySensor *alarm_on_when_primary_source_interrupt_;
+  binary_sensor::BinarySensor *fault_code_record_;
+
 
 
 //QPIRI values
@@ -265,6 +287,16 @@ class Pipsolar : public uart::UARTDevice, public PollingComponent {
 //QMOD values
   char device_mode;
 
+//QFLAG values
+  int silence_buzzer_open_buzzer;
+  int overload_bypass_function;
+  int lcd_escape_to_default;
+  int overload_restart_function;
+  int over_temperature_restart_function;
+  int backlight_on;
+  int alarm_on_when_primary_source_interrupt;
+  int fault_code_record;
+
   
   uint32_t command_start_millis_ = 0;
   uint8_t state_;
@@ -285,3 +317,4 @@ class Pipsolar : public uart::UARTDevice, public PollingComponent {
 
 }  // namespace pipsolar
 }  // namespace esphome
+

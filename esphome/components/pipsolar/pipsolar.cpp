@@ -142,10 +142,22 @@ void Pipsolar::loop() {
         if (this->device_mode_) {this->device_mode_->publish_state(String(device_mode).c_str());}
         this->state_ = STATE_IDLE;
         break;
+      case POLLING_QFLAG:
+        if (this->silence_buzzer_open_buzzer_) {this->silence_buzzer_open_buzzer_->publish_state(this->silence_buzzer_open_buzzer);}
+        if (this->overload_bypass_function_) {this->overload_bypass_function_->publish_state(this->overload_bypass_function);}
+        if (this->lcd_escape_to_default_) {this->lcd_escape_to_default_->publish_state(this->lcd_escape_to_default);}
+        if (this->overload_restart_function_) {this->overload_restart_function_->publish_state(this->overload_restart_function);}
+        if (this->over_temperature_restart_function_) {this->over_temperature_restart_function_->publish_state(this->over_temperature_restart_function);}
+        if (this->backlight_on_) {this->backlight_on_->publish_state(this->backlight_on);}
+        if (this->alarm_on_when_primary_source_interrupt_) {this->alarm_on_when_primary_source_interrupt_->publish_state(this->alarm_on_when_primary_source_interrupt);}
+        if (this->fault_code_record_) {this->fault_code_record_->publish_state(this->fault_code_record);}
+        this->state_ = STATE_IDLE;
+        break;
     }
   }
 
   if (this->state_ == STATE_POLL_CHECKED) {
+    bool enabled = true;
     char tmp[PIPSOLAR_READ_BUFFER_LENGTH];
     sprintf(tmp,"%s",this->read_buffer_);
     switch(this->used_polling_commands_[this->last_polling_command].identifier) {
@@ -216,13 +228,31 @@ void Pipsolar::loop() {
         );
 
         if (this->last_qpigs_) {this->last_qpigs_->publish_state(tmp);}
-
         this->state_ = STATE_POLL_DECODED;
         break;
       case POLLING_QMOD:
         this->device_mode = char(this->read_buffer_[1]);
         if (this->last_qmod_) {this->last_qmod_->publish_state(tmp);}
-
+        this->state_ = STATE_POLL_DECODED;
+        break;
+      case POLLING_QFLAG:
+        //result like:"(EbkuvxzDajy"
+        //get through all char: ignore first "(" Enable flag on 'E', Disable on 'D') else set the corresponding value
+        for (int i = 1; i < strlen(tmp); i++) {
+          switch (tmp[i]) {
+            case 'E': enabled = true; break;
+            case 'D': enabled = false; break;
+            case 'a': this->silence_buzzer_open_buzzer = enabled; break;
+            case 'b': this->overload_bypass_function = enabled; break;
+            case 'k': this->lcd_escape_to_default = enabled; break;
+            case 'u': this->overload_restart_function = enabled; break;
+            case 'v': this->over_temperature_restart_function = enabled; break;
+            case 'x': this->backlight_on = enabled; break;
+            case 'y': this->alarm_on_when_primary_source_interrupt = enabled; break;
+            case 'z': this->fault_code_record = enabled; break;
+          }
+        }
+        if (this->last_qflag_) {this->last_qflag_->publish_state(tmp);}
         this->state_ = STATE_POLL_DECODED;
         break;
       default:

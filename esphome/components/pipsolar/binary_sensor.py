@@ -21,6 +21,15 @@ CONF_AC_CHARGING_STATUS = 'ac_charging_status';
 CONF_CHARGING_TO_FLOATING_MODE = 'charging_to_floating_mode';
 CONF_SWITCH_ON = 'switch_on';
 CONF_DUSTPROOF_INSTALLED = 'dustproof_installed';
+CONF_SILENCE_BUZZER_OPEN_BUZZER = 'silence_buzzer_open_buzzer';
+CONF_OVERLOAD_BYPASS_FUNCTION = 'overload_bypass_function';
+CONF_LCD_ESCAPE_TO_DEFAULT = 'lcd_escape_to_default';
+CONF_OVERLOAD_RESTART_FUNCTION = 'overload_restart_function';
+CONF_OVER_TEMPERATURE_RESTART_FUNCTION = 'over_temperature_restart_function';
+CONF_BACKLIGHT_ON = 'backlight_on';
+CONF_ALARM_ON_WHEN_PRIMARY_SOURCE_INTERRUPT = 'alarm_on_when_primary_source_interrupt';
+CONF_FAULT_CODE_RECORD = 'fault_code_record';
+
 
 
 pipsolar_binary_sensor_ns = cg.esphome_ns.namespace('pipsolarbinarysensor')
@@ -39,6 +48,15 @@ CONFIG_SCHEMA = cv.Schema({
     cv.Optional(CONF_CHARGING_TO_FLOATING_MODE ): binary_sensor.BINARY_SENSOR_SCHEMA,
     cv.Optional(CONF_SWITCH_ON ): binary_sensor.BINARY_SENSOR_SCHEMA,
     cv.Optional(CONF_DUSTPROOF_INSTALLED ): binary_sensor.BINARY_SENSOR_SCHEMA,
+    cv.Optional(CONF_SILENCE_BUZZER_OPEN_BUZZER ): binary_sensor.BINARY_SENSOR_SCHEMA,
+    cv.Optional(CONF_OVERLOAD_BYPASS_FUNCTION ): binary_sensor.BINARY_SENSOR_SCHEMA,
+    cv.Optional(CONF_LCD_ESCAPE_TO_DEFAULT ): binary_sensor.BINARY_SENSOR_SCHEMA,
+    cv.Optional(CONF_OVERLOAD_RESTART_FUNCTION ): binary_sensor.BINARY_SENSOR_SCHEMA,
+    cv.Optional(CONF_OVER_TEMPERATURE_RESTART_FUNCTION ): binary_sensor.BINARY_SENSOR_SCHEMA,
+    cv.Optional(CONF_BACKLIGHT_ON ): binary_sensor.BINARY_SENSOR_SCHEMA,
+    cv.Optional(CONF_ALARM_ON_WHEN_PRIMARY_SOURCE_INTERRUPT ): binary_sensor.BINARY_SENSOR_SCHEMA,
+    cv.Optional(CONF_FAULT_CODE_RECORD ): binary_sensor.BINARY_SENSOR_SCHEMA,
+
         })
 
 
@@ -100,3 +118,43 @@ def to_code(config):
       sens = cg.new_Pvariable(conf[CONF_ID])
       yield binary_sensor.register_binary_sensor(sens, conf)
       cg.add(paren.set_dustproof_installed_sensor(sens))
+    if CONF_SILENCE_BUZZER_OPEN_BUZZER in config:
+      conf = config[CONF_SILENCE_BUZZER_OPEN_BUZZER]
+      sens = cg.new_Pvariable(conf[CONF_ID])
+      yield binary_sensor.register_binary_sensor(sens, conf)
+      cg.add(paren.set_silence_buzzer_open_buzzer_sensor(sens))
+    if CONF_OVERLOAD_BYPASS_FUNCTION in config:
+      conf = config[CONF_OVERLOAD_BYPASS_FUNCTION]
+      sens = cg.new_Pvariable(conf[CONF_ID])
+      yield binary_sensor.register_binary_sensor(sens, conf)
+      cg.add(paren.set_overload_bypass_function_sensor(sens))
+    if CONF_LCD_ESCAPE_TO_DEFAULT in config:
+      conf = config[CONF_LCD_ESCAPE_TO_DEFAULT]
+      sens = cg.new_Pvariable(conf[CONF_ID])
+      yield binary_sensor.register_binary_sensor(sens, conf)
+      cg.add(paren.set_lcd_escape_to_default_sensor(sens))
+    if CONF_OVERLOAD_RESTART_FUNCTION in config:
+      conf = config[CONF_OVERLOAD_RESTART_FUNCTION]
+      sens = cg.new_Pvariable(conf[CONF_ID])
+      yield binary_sensor.register_binary_sensor(sens, conf)
+      cg.add(paren.set_overload_restart_function_sensor(sens))
+    if CONF_OVER_TEMPERATURE_RESTART_FUNCTION in config:
+      conf = config[CONF_OVER_TEMPERATURE_RESTART_FUNCTION]
+      sens = cg.new_Pvariable(conf[CONF_ID])
+      yield binary_sensor.register_binary_sensor(sens, conf)
+      cg.add(paren.set_over_temperature_restart_function_sensor(sens))
+    if CONF_BACKLIGHT_ON in config:
+      conf = config[CONF_BACKLIGHT_ON]
+      sens = cg.new_Pvariable(conf[CONF_ID])
+      yield binary_sensor.register_binary_sensor(sens, conf)
+      cg.add(paren.set_backlight_on_sensor(sens))
+    if CONF_ALARM_ON_WHEN_PRIMARY_SOURCE_INTERRUPT in config:
+      conf = config[CONF_ALARM_ON_WHEN_PRIMARY_SOURCE_INTERRUPT]
+      sens = cg.new_Pvariable(conf[CONF_ID])
+      yield binary_sensor.register_binary_sensor(sens, conf)
+      cg.add(paren.set_alarm_on_when_primary_source_interrupt_sensor(sens))
+    if CONF_FAULT_CODE_RECORD in config:
+      conf = config[CONF_FAULT_CODE_RECORD]
+      sens = cg.new_Pvariable(conf[CONF_ID])
+      yield binary_sensor.register_binary_sensor(sens, conf)
+      cg.add(paren.set_fault_code_record_sensor(sens))

@@ -13,6 +13,7 @@ CONF_DEVICE_MODE = 'device_mode';
 CONF_LAST_QPIGS = 'last_qpigs';
 CONF_LAST_QPIRI = 'last_qpiri';
 CONF_LAST_QMOD = 'last_qmod';
+CONF_LAST_QFLAG = 'last_qflag';
 
 #pipsolar_text_sensor_ns = cg.esphome_ns.namespace('pipsolartextsensor')
 pipsolar_text_sensor_ns = pipsolar_ns.class_(
@@ -39,6 +40,11 @@ CONFIG_SCHEMA = cv.COMPONENT_SCHEMA.extend({
             }
         ),
     cv.Optional(CONF_LAST_QMOD ): text_sensor.TEXT_SENSOR_SCHEMA.extend(
+            {
+                cv.GenerateID(): cv.declare_id(pipsolar_text_sensor_ns),
+            }
+        ),
+    cv.Optional(CONF_LAST_QFLAG ): text_sensor.TEXT_SENSOR_SCHEMA.extend(
             {
                 cv.GenerateID(): cv.declare_id(pipsolar_text_sensor_ns),
             }
@@ -74,3 +80,9 @@ def to_code(config):
       yield text_sensor.register_text_sensor(var, conf)
       yield cg.register_component(var, conf)
       cg.add(paren.set_last_qmod_sensor(var))
+    if CONF_LAST_QFLAG in config:
+      conf = config[CONF_LAST_QFLAG]
+      var = cg.new_Pvariable(conf[CONF_ID])
+      yield text_sensor.register_text_sensor(var, conf)
+      yield cg.register_component(var, conf)
+      cg.add(paren.set_last_qflag_sensor(var))
