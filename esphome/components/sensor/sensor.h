@@ -3,7 +3,6 @@
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include "esphome/components/sensor/filter.h"
-#include "esphome/components/sensor/sensor.h"
 
 namespace esphome {
 namespace sensor {
