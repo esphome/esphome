@@ -312,13 +312,13 @@ class Config(OrderedDict):
                 return {}
         return data
 
-    def get_component(config, path):
+    def get_component(self, path):
         if (
             len(path) > 1
             and isinstance(path[1], int)
-            and "platform" in config[path[0]][path[1]]
+            and "platform" in self[path[0]][path[1]]
         ):
-            return get_platform(path[0], config[path[0]][path[1]].get("platform"))
+            return get_platform(path[0], self[path[0]][path[1]].get("platform"))
         return get_component(path[0])
 
     def get_deepest_path(self, path):
