@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import sensor, ble_client, esp32_ble_tracker
-from esphome.const import CONF_ID, UNIT_EMPTY, ICON_EMPTY, CONF_TRIGGER_ID, CONF_SERVICE_UUID
+from esphome.const import DEVICE_CLASS_EMPTY, CONF_ID, UNIT_EMPTY, ICON_EMPTY, CONF_TRIGGER_ID, CONF_SERVICE_UUID
 from esphome import automation
 from .. import ble_client_ns
 
@@ -18,7 +18,7 @@ BLESensor = ble_client_ns.class_('BLESensor', sensor.Sensor, cg.PollingComponent
 BLESensorNotifyTrigger = ble_client_ns.class_(
     'BLESensorNotifyTrigger', automation.Trigger.template(cg.float_))
 
-CONFIG_SCHEMA = cv.All(sensor.sensor_schema(UNIT_EMPTY, ICON_EMPTY, 0).extend({
+CONFIG_SCHEMA = cv.All(sensor.sensor_schema(UNIT_EMPTY, ICON_EMPTY, 0, DEVICE_CLASS_EMPTY).extend({
     cv.GenerateID(): cv.declare_id(BLESensor),
     cv.Required(CONF_SERVICE_UUID): esp32_ble_tracker.bt_uuid,
     cv.Required(CONF_CHARACTERISTIC_UUID): esp32_ble_tracker.bt_uuid,
