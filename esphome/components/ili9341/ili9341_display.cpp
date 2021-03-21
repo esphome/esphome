@@ -92,12 +92,14 @@ void ILI9341Display::display_() {
   this->start_data_();
   uint32_t start_pos = ((this->y_low_ * this->width_) + x_low_);
   for (uint16_t row = 0; row < h; row++) {
-    for (uint16_t col = 0; col < w; col++) {
-      uint32_t pos = start_pos + (row * width_) + col;
+    uint32_t pos = start_pos + (row * width_);
+    uint32_t rem = w;
 
-      uint16_t color = convert_to_16bit_color_(buffer_[pos]);
-      this->write_byte(color >> 8);
-      this->write_byte(color);
+    while (rem > 0) {
+      uint32_t sz = buffer_to_transfer_(pos, rem);
+      this->write_array(transfer_buffer_, 2 * sz);
+      pos += sz;
+      rem -= sz;
     }
   }
   this->end_data_();
@@ -139,16 +141,32 @@ void ILI9341Display::fill(Color color) {
 }
 
 void ILI9341Display::fill_internal_(Color color) {
+  if (color.raw_32 == COLOR_BLACK.raw_32) {
+    memset(transfer_buffer_, 0, sizeof(transfer_buffer_));
+  } else {
+    uint8_t *dst = transfer_buffer_;
+    auto color565 = display::ColorUtil::color_to_565(color);
+
+    while (dst < transfer_buffer_ + sizeof(transfer_buffer_)) {
+      *dst++ = (uint8_t)(color565 >> 8);
+      *dst++ = (uint8_t) color565;
+    }
+  }
+
+  uint32_t rem = this->get_width_internal() * this->get_height_internal();
+
   this->set_addr_window_(0, 0, this->get_width_internal(), this->get_height_internal());
   this->start_data_();
 
-  auto color565 = display::ColorUtil::color_to_565(color);
-  for (uint32_t i = 0; i < (this->get_width_internal()) * (this->get_height_internal()); i++) {
-    this->write_byte(color565 >> 8);
-    this->write_byte(color565);
-    buffer_[i] = 0;
+  while (rem > 0) {
+    size_t sz = rem <= sizeof(transfer_buffer_) ? rem : sizeof(transfer_buffer_);
+    this->write_array(transfer_buffer_, sz);
+    rem -= sz;
   }
+
   this->end_data_();
+
+  memset(buffer_, 0, (this->get_width_internal()) * (this->get_height_internal()));
 }
 
 void HOT ILI9341Display::draw_absolute_pixel_internal(int x, int y, Color color) {
@@ -218,6 +236,23 @@ void ILI9341Display::invert_display_(bool invert) { this->command(invert ? ILI93
 
 int ILI9341Display::get_width_internal() { return this->width_; }
 int ILI9341Display::get_height_internal() { return this->height_; }
+
+uint32_t ILI9341Display::buffer_to_transfer_(uint32_t pos, uint32_t sz) {
+  uint8_t *src = buffer_ + pos;
+  uint8_t *dst = transfer_buffer_;
+
+  if (sz > sizeof(transfer_buffer_) / 2) {
+    sz = sizeof(transfer_buffer_) / 2;
+  }
+
+  for (uint32_t i = 0; i < sz; ++i) {
+    uint16_t color = convert_to_16bit_color_(*src++);
+    *dst++ = (uint8_t)(color >> 8);
+    *dst++ = (uint8_t) color;
+  }
+
+  return sz;
+}
 
 //   M5Stack display
 void ILI9341M5Stack::initialize() {
