@@ -11,7 +11,7 @@ class ESP32Can : public canbus::Canbus {
   ESP32Can(){};
 
  protected:
-  bool setup_internal_() override;
+  bool setup_internal() override;
   canbus::Error send_message(struct canbus::CanFrame *frame) override;
   canbus::Error read_message(struct canbus::CanFrame *frame) override;
 };

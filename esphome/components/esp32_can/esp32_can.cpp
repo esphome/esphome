@@ -47,7 +47,7 @@ static int get_bitrate(CanSpeed bitrate) {
   }
 }
 
-bool ESP32Can::setup_internal_() {
+bool ESP32Can::setup_internal() {
   int rx_pin = GPIO_NUM_13;
   int tx_pin = GPIO_NUM_22;
   CAN.setPins(rx_pin, tx_pin);
