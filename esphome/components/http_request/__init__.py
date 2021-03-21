@@ -13,7 +13,7 @@ from esphome.const import (
     CONF_URL,
 )
 from esphome.core import CORE, Lambda
-from esphome.core_config import PLATFORMIO_ESP8266_LUT
+from esphome.core.config import PLATFORMIO_ESP8266_LUT
 
 DEPENDENCIES = ["network"]
 AUTO_LOAD = ["json"]
