@@ -20,7 +20,7 @@ SetOutputAction = pipsolar_ns.class_("SetOutputAction", automation.Action)
 
 CONFIG_SCHEMA = cv.All(cv.Schema({
     cv.GenerateID(): cv.declare_id(PipsolarComponent)
-}).extend(cv.polling_component_schema('60s')).extend(uart.UART_DEVICE_SCHEMA))
+}).extend(cv.polling_component_schema('1s')).extend(uart.UART_DEVICE_SCHEMA))
 
 
 def to_code(config):

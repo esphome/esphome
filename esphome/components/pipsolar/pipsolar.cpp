@@ -25,7 +25,10 @@ void Pipsolar::loop() {
     switch (this->send_next_command()) {
       case 0:
         // no command send (empty queue) time to poll
-        this->send_next_poll();
+        if (millis() - this->last_poll > this->update_interval_) {
+          this->send_next_poll();
+          this->last_poll = millis();
+        }
         return;
         break;
       case 1: 
@@ -153,6 +156,9 @@ void Pipsolar::loop() {
         if (this->fault_code_record_) {this->fault_code_record_->publish_state(this->fault_code_record);}
         this->state_ = STATE_IDLE;
         break;
+      case POLLING_QPIWS:
+        this->state_ = STATE_IDLE;
+        break;
     }
   }
 
@@ -231,11 +237,13 @@ void Pipsolar::loop() {
         this->state_ = STATE_POLL_DECODED;
         break;
       case POLLING_QMOD:
+        ESP_LOGD(TAG,"Decode QMOD");
         this->device_mode = char(this->read_buffer_[1]);
         if (this->last_qmod_) {this->last_qmod_->publish_state(tmp);}
         this->state_ = STATE_POLL_DECODED;
         break;
       case POLLING_QFLAG:
+        ESP_LOGD(TAG,"Decode QFLAG");
         //result like:"(EbkuvxzDajy"
         //get through all char: ignore first "(" Enable flag on 'E', Disable on 'D') else set the corresponding value
         for (int i = 1; i < strlen(tmp); i++) {
@@ -255,6 +263,13 @@ void Pipsolar::loop() {
         if (this->last_qflag_) {this->last_qflag_->publish_state(tmp);}
         this->state_ = STATE_POLL_DECODED;
         break;
+      case POLLING_QPIWS:
+        ESP_LOGD(TAG,"Decode QPIWS");
+        // '(00000000000000000000000000000000'
+        if (this->last_qpiws_) {this->last_qpiws_->publish_state(tmp);}
+        this->state_ = STATE_POLL_DECODED;
+        break;
+
       default:
         this->state_ = STATE_IDLE;
         break;
