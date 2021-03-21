@@ -10,7 +10,11 @@ ESP_PLATFORM_ESP32 = "ESP32"
 ESP_PLATFORM_ESP8266 = "ESP8266"
 ESP_PLATFORMS = [ESP_PLATFORM_ESP32, ESP_PLATFORM_ESP8266]
 
-ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789_-"
+# List of characters allowd in the name of the board
+# Note this also forms the hostname
+# see https://man7.org/linux/man-pages/man7/hostname.7.html
+ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-"
+
 # Lookup table from ESP32 arduino framework version to latest platformio
 # package with that version
 # See also https://github.com/platformio/platform-espressif32/releases
