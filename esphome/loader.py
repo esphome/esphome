@@ -57,7 +57,7 @@ class ComponentManifest:
         return getattr(self.module, "MULTI_CONF", False)
 
     @property
-    def to_code(self) -> Optional[Callable[[], None]]:
+    def to_code(self) -> Optional[Callable[[Any], None]]:
         return getattr(self.module, "to_code", None)
 
     @property
@@ -121,6 +121,10 @@ class ComponentMetaFinder(importlib.abc.MetaPathFinder):
             return None
 
         return importlib.util.spec_from_file_location(fullname, init_path)
+
+
+def clear_component_meta_finders():
+    sys.meta_path = [x for x in sys.meta_path if not isinstance(x, ComponentMetaFinder)]
 
 
 def install_meta_finder(

@@ -14,6 +14,7 @@ from esphome.const import (
     CONF_PLATFORM,
     CONF_PACKAGES,
     CONF_SUBSTITUTIONS,
+    CONF_EXTERNAL_COMPONENTS,
 )
 from esphome.core import CORE, EsphomeError
 from esphome.helpers import color, indent
@@ -290,6 +291,9 @@ def recursive_check_replaceme(value):
 def validate_config(config, command_line_substitutions):
     result = Config()
 
+    loader.clear_component_meta_finders()
+    loader.install_custom_components_meta_finder()
+
     # 0. Load packages
     if CONF_PACKAGES in config:
         from esphome.components.packages import do_packages_pass
@@ -322,6 +326,18 @@ def validate_config(config, command_line_substitutions):
         recursive_check_replaceme(config)
     except vol.Invalid as err:
         result.add_error(err)
+
+    # 1.2. Load external_components
+    if CONF_EXTERNAL_COMPONENTS in config:
+        from esphome.components.external_components import do_external_components_pass
+
+        result.add_output_path([CONF_EXTERNAL_COMPONENTS], CONF_EXTERNAL_COMPONENTS)
+        try:
+            do_external_components_pass(config)
+        except vol.Invalid as err:
+            result.update(config)
+            result.add_error(err)
+            return result
 
     if "esphomeyaml" in config:
         _LOGGER.warning(
@@ -365,8 +381,6 @@ def validate_config(config, command_line_substitutions):
     # - Adding output path
     # - Auto Load
     # - Loading configs into result
-
-    loader.install_custom_components_meta_finder()
 
     while load_queue:
         domain, conf = load_queue.popleft()
