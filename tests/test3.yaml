@@ -23,7 +23,7 @@ api:
   password: 'pwd'
   reboot_timeout: 0min
   services:
-    - service: hello_world
+    - service: hello-world
       variables:
         name: string
       then:
@@ -31,10 +31,10 @@ api:
             format: 'Hello World %s!'
             args:
               - name.c_str()
-    - service: empty_service
+    - service: empty-service
       then:
         - logger.log: 'Service Called'
-    - service: all_types
+    - service: all-types
       variables:
         bool_: bool
         int_: int
@@ -45,7 +45,7 @@ api:
         - stepper.set_target:
             id: my_stepper2
             target: !lambda 'return int_;'
-    - service: array_types
+    - service: array-types
       variables:
         bool_arr: bool[]
         int_arr: int[]
@@ -63,18 +63,18 @@ api:
               - float_arr.size()
               - string_arr[0].c_str()
               - string_arr.size()
-    - service: dfplayer_next
+    - service: dfplayer-next
       then:
         - dfplayer.play_next:
-    - service: dfplayer_previous
+    - service: dfplayer-previous
       then:
         - dfplayer.play_previous:
-    - service: dfplayer_play
+    - service: dfplayer-play
       variables:
         file: int
       then:
         - dfplayer.play: !lambda 'return file;'
-    - service: dfplayer_play_loop
+    - service: dfplayer-play-loop
       variables:
         file: int
         loop_: bool
@@ -82,7 +82,7 @@ api:
         - dfplayer.play:
             file: !lambda 'return file;'
             loop: !lambda 'return loop_;'
-    - service: dfplayer_play_folder
+    - service: dfplayer-play-folder
       variables:
         folder: int
         file: int
@@ -91,7 +91,7 @@ api:
             folder: !lambda 'return folder;'
             file: !lambda 'return file;'
 
-    - service: dfplayer_play_loo_folder
+    - service: dfplayer-play-loo-folder
       variables:
         folder: int
       then:
@@ -99,78 +99,78 @@ api:
             folder: !lambda 'return folder;'
             loop: True
 
-    - service: dfplayer_set_device
+    - service: dfplayer-set-device
       variables:
         device: int
       then:
         - dfplayer.set_device:
             device: TF_CARD
 
-    - service: dfplayer_set_volume
+    - service: dfplayer-set-volume
       variables:
         volume: int
       then:
         - dfplayer.set_volume: !lambda 'return volume;'
-    - service: dfplayer_set_eq
+    - service: dfplayer-set-eq
       variables:
         preset: int
       then:
         - dfplayer.set_eq: !lambda 'return static_cast<dfplayer::EqPreset>(preset);'
 
-    - service: dfplayer_sleep
+    - service: dfplayer-sleep
       then:
         - dfplayer.sleep
 
-    - service: dfplayer_reset
+    - service: dfplayer-reset
       then:
         - dfplayer.reset
 
-    - service: dfplayer_start
+    - service: dfplayer-start
       then:
         - dfplayer.start
 
-    - service: dfplayer_pause
+    - service: dfplayer-pause
       then:
         - dfplayer.pause
 
-    - service: dfplayer_stop
+    - service: dfplayer-stop
       then:
         - dfplayer.stop
 
-    - service: dfplayer_random
+    - service: dfplayer-random
       then:
         - dfplayer.random
 
-    - service: battery_level_percent
+    - service: battery-level-percent
       variables:
         level_percent: int
       then:
         - tm1651.set_level_percent:
             id: tm1651_battery
             level_percent: !lambda 'return level_percent;'
-    - service: battery_level
+    - service: battery-level
       variables:
         level: int
       then:
         - tm1651.set_level:
             id: tm1651_battery
             level: !lambda 'return level;'
-    - service: battery_brightness
+    - service: battery-brightness
       variables:
         brightness: int
       then:
         - tm1651.set_brightness:
             id: tm1651_battery
             brightness: !lambda 'return brightness;'
-    - service: battery_turn_on
+    - service: battery-turn-on
       then:
         - tm1651.turn_on:
             id: tm1651_battery
-    - service: battery_turn_on
+    - service: battery-turn-on
       then:
         - tm1651.turn_off:
             id: tm1651_battery
-    - service: pid_set_control_parameters
+    - service: pid-set-control-parameters
       then:
         - climate.pid.set_control_parameters:
             id: pid_climate
