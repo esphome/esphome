@@ -27,7 +27,7 @@ def to_code(config):
 
 def validate_parent(property, config, component):
     # validate given SPI hub is suitable for rc522_spi, it needs both miso and mosi
-    if not CONF_MISO_PIN in config:
+    if CONF_MISO_PIN not in config:
         raise ValueError("requires spi declare MISO_PIN")
-    if not CONF_MOSI_PIN in config:
+    if CONF_MOSI_PIN not in config:
         raise ValueError("requires spi declare MOSI_PIN")
