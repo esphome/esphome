@@ -42,7 +42,7 @@ class ComponentManifest:
 
     @property
     def is_platform(self) -> bool:
-        return len(self.package.split(".")) == 4
+        return len(self.module.__name__.split(".")) == 4
 
     @property
     def is_platform_component(self) -> bool:
