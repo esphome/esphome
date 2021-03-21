@@ -1,26 +1,61 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import i2c, sensor
-from esphome.const import CONF_BUS_VOLTAGE, CONF_CURRENT, CONF_ID, \
-    CONF_MAX_CURRENT, CONF_MAX_VOLTAGE, CONF_POWER, CONF_SHUNT_RESISTANCE, \
-    CONF_SHUNT_VOLTAGE, ICON_FLASH, UNIT_VOLT, UNIT_AMPERE, UNIT_WATT
+from esphome.const import (
+    CONF_BUS_VOLTAGE,
+    CONF_CURRENT,
+    CONF_ID,
+    CONF_MAX_CURRENT,
+    CONF_MAX_VOLTAGE,
+    CONF_POWER,
+    CONF_SHUNT_RESISTANCE,
+    CONF_SHUNT_VOLTAGE,
+    DEVICE_CLASS_CURRENT,
+    DEVICE_CLASS_POWER,
+    DEVICE_CLASS_VOLTAGE,
+    ICON_EMPTY,
+    UNIT_VOLT,
+    UNIT_AMPERE,
+    UNIT_WATT,
+)
 
-DEPENDENCIES = ['i2c']
+DEPENDENCIES = ["i2c"]
 
-ina219_ns = cg.esphome_ns.namespace('ina219')
-INA219Component = ina219_ns.class_('INA219Component', cg.PollingComponent, i2c.I2CDevice)
+ina219_ns = cg.esphome_ns.namespace("ina219")
+INA219Component = ina219_ns.class_(
+    "INA219Component", cg.PollingComponent, i2c.I2CDevice
+)
 
-CONFIG_SCHEMA = cv.Schema({
-    cv.GenerateID(): cv.declare_id(INA219Component),
-    cv.Optional(CONF_BUS_VOLTAGE): sensor.sensor_schema(UNIT_VOLT, ICON_FLASH, 2),
-    cv.Optional(CONF_SHUNT_VOLTAGE): sensor.sensor_schema(UNIT_VOLT, ICON_FLASH, 2),
-    cv.Optional(CONF_CURRENT): sensor.sensor_schema(UNIT_AMPERE, ICON_FLASH, 3),
-    cv.Optional(CONF_POWER): sensor.sensor_schema(UNIT_WATT, ICON_FLASH, 2),
-    cv.Optional(CONF_SHUNT_RESISTANCE, default=0.1): cv.All(cv.resistance,
-                                                            cv.Range(min=0.0, max=32.0)),
-    cv.Optional(CONF_MAX_VOLTAGE, default=32.0): cv.All(cv.voltage, cv.Range(min=0.0, max=32.0)),
-    cv.Optional(CONF_MAX_CURRENT, default=3.2): cv.All(cv.current, cv.Range(min=0.0)),
-}).extend(cv.polling_component_schema('60s')).extend(i2c.i2c_device_schema(0x40))
+CONFIG_SCHEMA = (
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(INA219Component),
+            cv.Optional(CONF_BUS_VOLTAGE): sensor.sensor_schema(
+                UNIT_VOLT, ICON_EMPTY, 2, DEVICE_CLASS_VOLTAGE
+            ),
+            cv.Optional(CONF_SHUNT_VOLTAGE): sensor.sensor_schema(
+                UNIT_VOLT, ICON_EMPTY, 2, DEVICE_CLASS_VOLTAGE
+            ),
+            cv.Optional(CONF_CURRENT): sensor.sensor_schema(
+                UNIT_AMPERE, ICON_EMPTY, 3, DEVICE_CLASS_CURRENT
+            ),
+            cv.Optional(CONF_POWER): sensor.sensor_schema(
+                UNIT_WATT, ICON_EMPTY, 2, DEVICE_CLASS_POWER
+            ),
+            cv.Optional(CONF_SHUNT_RESISTANCE, default=0.1): cv.All(
+                cv.resistance, cv.Range(min=0.0, max=32.0)
+            ),
+            cv.Optional(CONF_MAX_VOLTAGE, default=32.0): cv.All(
+                cv.voltage, cv.Range(min=0.0, max=32.0)
+            ),
+            cv.Optional(CONF_MAX_CURRENT, default=3.2): cv.All(
+                cv.current, cv.Range(min=0.0)
+            ),
+        }
+    )
+    .extend(cv.polling_component_schema("60s"))
+    .extend(i2c.i2c_device_schema(0x40))
+)
 
 
 def to_code(config):

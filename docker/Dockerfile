@@ -1,9 +1,11 @@
-ARG BUILD_FROM=esphome/esphome-base-amd64:2.6.0
+ARG BUILD_FROM=esphome/esphome-base-amd64:3.0.0
 FROM ${BUILD_FROM}
 
 # First install requirements to leverage caching when requirements don't change
-COPY requirements.txt /
-RUN pip3 install --no-cache-dir -r /requirements.txt
+COPY requirements.txt docker/platformio_install_deps.py platformio.ini /
+RUN \
+    pip3 install --no-cache-dir -r /requirements.txt \
+    && /platformio_install_deps.py /platformio.ini
 
 # Then copy esphome and install
 COPY . .
@@ -16,7 +18,7 @@ ENV USERNAME="" PASSWORD=""
 EXPOSE 6052
 
 # Run healthcheck (heartbeat)
-HEALTHCHECK --interval=5m --timeout=3s \
+HEALTHCHECK --interval=30s --timeout=30s \
   CMD curl --fail http://localhost:6052 || exit 1
 
 # The directory the user should mount their configuration files to
