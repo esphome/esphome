@@ -157,6 +157,42 @@ void Pipsolar::loop() {
         this->state_ = STATE_IDLE;
         break;
       case POLLING_QPIWS:
+        if (this->warnings_present_) {this->warnings_present_->publish_state(this->warnings_present);}
+        if (this->faults_present_) {this->faults_present_->publish_state(this->faults_present);}
+        if (this->warning_power_loss_) {this->warning_power_loss_->publish_state(this->warning_power_loss);}
+        if (this->fault_inverter_fault_) {this->fault_inverter_fault_->publish_state(this->fault_inverter_fault);}
+        if (this->fault_bus_over_) {this->fault_bus_over_->publish_state(this->fault_bus_over);}
+        if (this->fault_bus_under_) {this->fault_bus_under_->publish_state(this->fault_bus_under);}
+        if (this->fault_bus_soft_fail_) {this->fault_bus_soft_fail_->publish_state(this->fault_bus_soft_fail);}
+        if (this->warning_line_fail_) {this->warning_line_fail_->publish_state(this->warning_line_fail);}
+        if (this->fault_opvshort_) {this->fault_opvshort_->publish_state(this->fault_opvshort);}
+        if (this->fault_inverter_voltage_too_low_) {this->fault_inverter_voltage_too_low_->publish_state(this->fault_inverter_voltage_too_low);}
+        if (this->fault_inverter_voltage_too_high_) {this->fault_inverter_voltage_too_high_->publish_state(this->fault_inverter_voltage_too_high);}
+        if (this->warning_over_temperature_) {this->warning_over_temperature_->publish_state(this->warning_over_temperature);}
+        if (this->warning_fan_lock_) {this->warning_fan_lock_->publish_state(this->warning_fan_lock);}
+        if (this->warning_battery_voltage_high_) {this->warning_battery_voltage_high_->publish_state(this->warning_battery_voltage_high);}
+        if (this->warning_battery_low_alarm_) {this->warning_battery_low_alarm_->publish_state(this->warning_battery_low_alarm);}
+        if (this->warning_battery_under_shutdown_) {this->warning_battery_under_shutdown_->publish_state(this->warning_battery_under_shutdown);}
+        if (this->warning_battery_derating_) {this->warning_battery_derating_->publish_state(this->warning_battery_derating);}
+        if (this->warning_over_load_) {this->warning_over_load_->publish_state(this->warning_over_load);}
+        if (this->warning_eeprom_failed_) {this->warning_eeprom_failed_->publish_state(this->warning_eeprom_failed);}
+        if (this->fault_inverter_over_current_) {this->fault_inverter_over_current_->publish_state(this->fault_inverter_over_current);}
+        if (this->fault_inverter_soft_failed_) {this->fault_inverter_soft_failed_->publish_state(this->fault_inverter_soft_failed);}
+        if (this->fault_self_test_failed_) {this->fault_self_test_failed_->publish_state(this->fault_self_test_failed);}
+        if (this->fault_op_dc_voltage_over_) {this->fault_op_dc_voltage_over_->publish_state(this->fault_op_dc_voltage_over);}
+        if (this->fault_battery_open_) {this->fault_battery_open_->publish_state(this->fault_battery_open);}
+        if (this->fault_current_sensor_failed_) {this->fault_current_sensor_failed_->publish_state(this->fault_current_sensor_failed);}
+        if (this->fault_battery_short_) {this->fault_battery_short_->publish_state(this->fault_battery_short);}
+        if (this->warning_power_limit_) {this->warning_power_limit_->publish_state(this->warning_power_limit);}
+        if (this->warning_pv_voltage_high_) {this->warning_pv_voltage_high_->publish_state(this->warning_pv_voltage_high);}
+        if (this->fault_mppt_overload_) {this->fault_mppt_overload_->publish_state(this->fault_mppt_overload);}
+        if (this->warning_mppt_overload_) {this->warning_mppt_overload_->publish_state(this->warning_mppt_overload);}
+        if (this->warning_battery_too_low_to_charge_) {this->warning_battery_too_low_to_charge_->publish_state(this->warning_battery_too_low_to_charge);}
+        if (this->fault_dc_dc_over_current_) {this->fault_dc_dc_over_current_->publish_state(this->fault_dc_dc_over_current);}
+        if (this->fault_code_) {this->fault_code_->publish_state(this->fault_code);}
+        if (this->warnung_low_pv_energy_) {this->warnung_low_pv_energy_->publish_state(this->warnung_low_pv_energy);}
+        if (this->warning_high_ac_input_during_bus_soft_start_) {this->warning_high_ac_input_during_bus_soft_start_->publish_state(this->warning_high_ac_input_during_bus_soft_start);}
+        if (this->warning_battery_equalization_) {this->warning_battery_equalization_->publish_state(this->warning_battery_equalization);}
         this->state_ = STATE_IDLE;
         break;
     }
@@ -164,6 +200,7 @@ void Pipsolar::loop() {
 
   if (this->state_ == STATE_POLL_CHECKED) {
     bool enabled = true;
+    String fc;
     char tmp[PIPSOLAR_READ_BUFFER_LENGTH];
     sprintf(tmp,"%s",this->read_buffer_);
     switch(this->used_polling_commands_[this->last_polling_command].identifier) {
@@ -266,6 +303,53 @@ void Pipsolar::loop() {
       case POLLING_QPIWS:
         ESP_LOGD(TAG,"Decode QPIWS");
         // '(00000000000000000000000000000000'
+        //iterate over all available flag (as not all models have all flags, but at least in the same order)
+        this->warnings_present = 0;
+        this->faults_present = 0;
+
+        for (int i = 1; i < strlen(tmp); i++) {
+          switch (i) {
+            case 1:   this->warning_power_loss = (tmp[i] == '1')?true:false;this->warnings_present++; break;
+            case 2:   this->fault_inverter_fault = (tmp[i] == '1')?true:false; break;
+            case 3:   this->fault_bus_over = (tmp[i] == '1')?true:false; break;
+            case 4:   this->fault_bus_under = (tmp[i] == '1')?true:false; break;
+            case 5:   this->fault_bus_soft_fail = (tmp[i] == '1')?true:false; break;
+            case 6:   this->warning_line_fail = (tmp[i] == '1')?true:false;this->warnings_present++; break;
+            case 7:   this->fault_opvshort = (tmp[i] == '1')?true:false; break;
+            case 8:   this->fault_inverter_voltage_too_low = (tmp[i] == '1')?true:false; break;
+            case 9:   this->fault_inverter_voltage_too_high = (tmp[i] == '1')?true:false; break;
+            case 10:  this->warning_over_temperature = (tmp[i] == '1')?true:false;this->warnings_present++; break;
+            case 11:  this->warning_fan_lock = (tmp[i] == '1')?true:false;this->warnings_present++; break;
+            case 12:  this->warning_battery_voltage_high = (tmp[i] == '1')?true:false;this->warnings_present++; break;
+            case 13:  this->warning_battery_low_alarm = (tmp[i] == '1')?true:false;this->warnings_present++; break;
+            case 15:  this->warning_battery_under_shutdown = (tmp[i] == '1')?true:false;this->warnings_present++; break;
+            case 16:  this->warning_battery_derating = (tmp[i] == '1')?true:false;this->warnings_present++; break;
+            case 17:  this->warning_over_load = (tmp[i] == '1')?true:false;this->warnings_present++; break;
+            case 18:  this->warning_eeprom_failed = (tmp[i] == '1')?true:false;this->warnings_present++; break;
+            case 19:  this->fault_inverter_over_current = (tmp[i] == '1')?true:false; break;
+            case 20:  this->fault_inverter_soft_failed = (tmp[i] == '1')?true:false; break;
+            case 21:  this->fault_self_test_failed = (tmp[i] == '1')?true:false; break;
+            case 22:  this->fault_op_dc_voltage_over = (tmp[i] == '1')?true:false; break;
+            case 23:  this->fault_battery_open = (tmp[i] == '1')?true:false; break;
+            case 24:  this->fault_current_sensor_failed = (tmp[i] == '1')?true:false; break;
+            case 25:  this->fault_battery_short = (tmp[i] == '1')?true:false; break;
+            case 26:  this->warning_power_limit = (tmp[i] == '1')?true:false;this->warnings_present++; break;
+            case 27:  this->warning_pv_voltage_high = (tmp[i] == '1')?true:false;this->warnings_present++; break;
+            case 28:  this->fault_mppt_overload = (tmp[i] == '1')?true:false; break;
+            case 29:  this->warning_mppt_overload = (tmp[i] == '1')?true:false;this->warnings_present++; break;
+            case 30:  this->warning_battery_too_low_to_charge = (tmp[i] == '1')?true:false;this->warnings_present++; break;
+            case 31:  this->fault_dc_dc_over_current = (tmp[i] == '1')?true:false; break;
+            case 32:  
+                      fc = String(tmp[i]);
+                      fc.concat(tmp[i+1]);
+                      this->fault_code = fc.toInt();
+                      break;
+            case 34:  this->warnung_low_pv_energy = (tmp[i] == '1')?true:false;this->warnings_present++; break;
+            case 35:  this->warning_high_ac_input_during_bus_soft_start = (tmp[i] == '1')?true:false;this->warnings_present++; break;
+            case 36:  this->warning_battery_equalization = (tmp[i] == '1')?true:false;this->warnings_present++; break;
+
+          }
+        }
         if (this->last_qpiws_) {this->last_qpiws_->publish_state(tmp);}
         this->state_ = STATE_POLL_DECODED;
         break;
