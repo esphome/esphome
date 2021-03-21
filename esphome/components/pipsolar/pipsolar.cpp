@@ -308,45 +308,46 @@ void Pipsolar::loop() {
         this->faults_present = 0;
 
         for (int i = 1; i < strlen(tmp); i++) {
+          enabled = tmp[i] == '1';
           switch (i) {
-            case 1:   this->warning_power_loss = (tmp[i] == '1')?true:false;this->warnings_present++; break;
-            case 2:   this->fault_inverter_fault = (tmp[i] == '1')?true:false; break;
-            case 3:   this->fault_bus_over = (tmp[i] == '1')?true:false; break;
-            case 4:   this->fault_bus_under = (tmp[i] == '1')?true:false; break;
-            case 5:   this->fault_bus_soft_fail = (tmp[i] == '1')?true:false; break;
-            case 6:   this->warning_line_fail = (tmp[i] == '1')?true:false;this->warnings_present++; break;
-            case 7:   this->fault_opvshort = (tmp[i] == '1')?true:false; break;
-            case 8:   this->fault_inverter_voltage_too_low = (tmp[i] == '1')?true:false; break;
-            case 9:   this->fault_inverter_voltage_too_high = (tmp[i] == '1')?true:false; break;
-            case 10:  this->warning_over_temperature = (tmp[i] == '1')?true:false;this->warnings_present++; break;
-            case 11:  this->warning_fan_lock = (tmp[i] == '1')?true:false;this->warnings_present++; break;
-            case 12:  this->warning_battery_voltage_high = (tmp[i] == '1')?true:false;this->warnings_present++; break;
-            case 13:  this->warning_battery_low_alarm = (tmp[i] == '1')?true:false;this->warnings_present++; break;
-            case 15:  this->warning_battery_under_shutdown = (tmp[i] == '1')?true:false;this->warnings_present++; break;
-            case 16:  this->warning_battery_derating = (tmp[i] == '1')?true:false;this->warnings_present++; break;
-            case 17:  this->warning_over_load = (tmp[i] == '1')?true:false;this->warnings_present++; break;
-            case 18:  this->warning_eeprom_failed = (tmp[i] == '1')?true:false;this->warnings_present++; break;
-            case 19:  this->fault_inverter_over_current = (tmp[i] == '1')?true:false; break;
-            case 20:  this->fault_inverter_soft_failed = (tmp[i] == '1')?true:false; break;
-            case 21:  this->fault_self_test_failed = (tmp[i] == '1')?true:false; break;
-            case 22:  this->fault_op_dc_voltage_over = (tmp[i] == '1')?true:false; break;
-            case 23:  this->fault_battery_open = (tmp[i] == '1')?true:false; break;
-            case 24:  this->fault_current_sensor_failed = (tmp[i] == '1')?true:false; break;
-            case 25:  this->fault_battery_short = (tmp[i] == '1')?true:false; break;
-            case 26:  this->warning_power_limit = (tmp[i] == '1')?true:false;this->warnings_present++; break;
-            case 27:  this->warning_pv_voltage_high = (tmp[i] == '1')?true:false;this->warnings_present++; break;
-            case 28:  this->fault_mppt_overload = (tmp[i] == '1')?true:false; break;
-            case 29:  this->warning_mppt_overload = (tmp[i] == '1')?true:false;this->warnings_present++; break;
-            case 30:  this->warning_battery_too_low_to_charge = (tmp[i] == '1')?true:false;this->warnings_present++; break;
-            case 31:  this->fault_dc_dc_over_current = (tmp[i] == '1')?true:false; break;
+            case 1:   this->warning_power_loss = enabled; this->warnings_present += enabled; break;
+            case 2:   this->fault_inverter_fault = enabled; this->faults_present += enabled; break;
+            case 3:   this->fault_bus_over = enabled; this->faults_present += enabled; break;
+            case 4:   this->fault_bus_under = enabled; this->faults_present += enabled; break;
+            case 5:   this->fault_bus_soft_fail = enabled; this->faults_present += enabled; break;
+            case 6:   this->warning_line_fail = enabled; this->warnings_present += enabled; break;
+            case 7:   this->fault_opvshort = enabled; this->faults_present += enabled; break;
+            case 8:   this->fault_inverter_voltage_too_low = enabled; this->faults_present += enabled; break;
+            case 9:   this->fault_inverter_voltage_too_high = enabled; this->faults_present += enabled; break;
+            case 10:  this->warning_over_temperature = enabled; this->warnings_present += enabled; break;
+            case 11:  this->warning_fan_lock = enabled; this->warnings_present += enabled; break;
+            case 12:  this->warning_battery_voltage_high = enabled; this->warnings_present += enabled; break;
+            case 13:  this->warning_battery_low_alarm = enabled; this->warnings_present += enabled; break;
+            case 15:  this->warning_battery_under_shutdown = enabled; this->warnings_present += enabled; break;
+            case 16:  this->warning_battery_derating = enabled; this->warnings_present += enabled; break;
+            case 17:  this->warning_over_load = enabled; this->warnings_present += enabled; break;
+            case 18:  this->warning_eeprom_failed = enabled; this->warnings_present += enabled; break;
+            case 19:  this->fault_inverter_over_current = enabled; this->faults_present += enabled; break;
+            case 20:  this->fault_inverter_soft_failed = enabled; this->faults_present += enabled; break;
+            case 21:  this->fault_self_test_failed = enabled; this->faults_present += enabled; break;
+            case 22:  this->fault_op_dc_voltage_over = enabled; this->faults_present += enabled; break;
+            case 23:  this->fault_battery_open = enabled; this->faults_present += enabled; break;
+            case 24:  this->fault_current_sensor_failed = enabled; this->faults_present += enabled; break;
+            case 25:  this->fault_battery_short = enabled; this->faults_present += enabled; break;
+            case 26:  this->warning_power_limit = enabled; this->warnings_present += enabled; break;
+            case 27:  this->warning_pv_voltage_high = enabled; this->warnings_present += enabled; break;
+            case 28:  this->fault_mppt_overload = enabled; this->faults_present += enabled; break;
+            case 29:  this->warning_mppt_overload = enabled; this->warnings_present += enabled; break;
+            case 30:  this->warning_battery_too_low_to_charge = enabled; this->warnings_present += enabled; break;
+            case 31:  this->fault_dc_dc_over_current = enabled; this->faults_present += enabled; break;
             case 32:  
                       fc = String(tmp[i]);
                       fc.concat(tmp[i+1]);
                       this->fault_code = fc.toInt();
                       break;
-            case 34:  this->warnung_low_pv_energy = (tmp[i] == '1')?true:false;this->warnings_present++; break;
-            case 35:  this->warning_high_ac_input_during_bus_soft_start = (tmp[i] == '1')?true:false;this->warnings_present++; break;
-            case 36:  this->warning_battery_equalization = (tmp[i] == '1')?true:false;this->warnings_present++; break;
+            case 34:  this->warnung_low_pv_energy = enabled; this->warnings_present += enabled; break;
+            case 35:  this->warning_high_ac_input_during_bus_soft_start = enabled; this->warnings_present += enabled; break;
+            case 36:  this->warning_battery_equalization = enabled; this->warnings_present += enabled; break;
 
           }
         }
