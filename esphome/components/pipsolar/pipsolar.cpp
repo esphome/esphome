@@ -199,6 +199,9 @@ void Pipsolar::loop() {
       case POLLING_QT:
         this->state_ = STATE_IDLE;
         break;
+      case POLLING_QMN:
+        this->state_ = STATE_IDLE;
+        break;
 
     }
   }
@@ -364,6 +367,11 @@ void Pipsolar::loop() {
       case POLLING_QT:
         ESP_LOGD(TAG,"Decode QT");
         if (this->last_qt_) {this->last_qt_->publish_state(tmp);}
+        this->state_ = STATE_POLL_DECODED;
+        break;
+      case POLLING_QMN:
+        ESP_LOGD(TAG,"Decode QMN");
+        if (this->last_qmn_) {this->last_qmn_->publish_state(tmp);}
         this->state_ = STATE_POLL_DECODED;
         break;
 

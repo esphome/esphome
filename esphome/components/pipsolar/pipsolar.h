@@ -20,6 +20,7 @@ enum PollingCommand {
   POLLING_QFLAG = 3,
   POLLING_QPIWS = 4,
   POLLING_QT = 5,
+  POLLING_QMN = 6,
 };
 struct polling_command {
   uint8_t *command;
@@ -142,6 +143,7 @@ class Pipsolar : public uart::UARTDevice, public PollingComponent {
   void set_last_qflag_sensor(text_sensor::TextSensor *last_qflag_sensor) {last_qflag_ = last_qflag_sensor; this->add_polling_command("QFLAG",POLLING_QFLAG);}
   void set_last_qpiws_sensor(text_sensor::TextSensor *last_qpiws_sensor) {last_qpiws_ = last_qpiws_sensor; this->add_polling_command("QPIWS",POLLING_QPIWS);}
   void set_last_qt_sensor(text_sensor::TextSensor *last_qt_sensor) {last_qt_ = last_qt_sensor; this->add_polling_command("QT",POLLING_QT);}
+  void set_last_qmn_sensor(text_sensor::TextSensor *last_qmn_sensor) {last_qmn_ = last_qmn_sensor; this->add_polling_command("QMN",POLLING_QMN);}
 
   void set_output_source_priority_utility_switch(PipsolarSwitch *output_source_priority_utility_switch) { output_source_priority_utility_switch_ = output_source_priority_utility_switch; this->add_polling_command("QPIRI",POLLING_QPIRI);}
   void set_output_source_priority_solar_switch(PipsolarSwitch *output_source_priority_solar_switch) { output_source_priority_solar_switch_ = output_source_priority_solar_switch; this->add_polling_command("QPIRI",POLLING_QPIRI);}
@@ -190,6 +192,7 @@ class Pipsolar : public uart::UARTDevice, public PollingComponent {
   text_sensor::TextSensor *last_qflag_;
   text_sensor::TextSensor *last_qpiws_;
   text_sensor::TextSensor *last_qt_;
+  text_sensor::TextSensor *last_qmn_;
 
 
 //QPIRI Sensors
