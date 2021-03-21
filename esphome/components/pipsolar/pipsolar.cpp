@@ -196,6 +196,10 @@ void Pipsolar::loop() {
         if (this->warning_battery_equalization_) {this->warning_battery_equalization_->publish_state(this->warning_battery_equalization);}
         this->state_ = STATE_IDLE;
         break;
+      case POLLING_QT:
+        this->state_ = STATE_IDLE;
+        break;
+
     }
   }
 
@@ -355,6 +359,11 @@ void Pipsolar::loop() {
           }
         }
         if (this->last_qpiws_) {this->last_qpiws_->publish_state(tmp);}
+        this->state_ = STATE_POLL_DECODED;
+        break;
+      case POLLING_QT:
+        ESP_LOGD(TAG,"Decode QT");
+        if (this->last_qt_) {this->last_qt_->publish_state(tmp);}
         this->state_ = STATE_POLL_DECODED;
         break;
 
