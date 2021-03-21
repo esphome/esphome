@@ -96,6 +96,7 @@ class Pipsolar : public uart::UARTDevice, public PollingComponent {
   void set_backlight_on_sensor(binary_sensor::BinarySensor *backlight_on_sensor) {backlight_on_ = backlight_on_sensor; this->add_polling_command("QFLAG",POLLING_QFLAG);}
   void set_alarm_on_when_primary_source_interrupt_sensor(binary_sensor::BinarySensor *alarm_on_when_primary_source_interrupt_sensor) {alarm_on_when_primary_source_interrupt_ = alarm_on_when_primary_source_interrupt_sensor; this->add_polling_command("QFLAG",POLLING_QFLAG);}
   void set_fault_code_record_sensor(binary_sensor::BinarySensor *fault_code_record_sensor) {fault_code_record_ = fault_code_record_sensor; this->add_polling_command("QFLAG",POLLING_QFLAG);}
+  void set_power_saving_sensor(binary_sensor::BinarySensor *power_saving_sensor) {power_saving_ = power_saving_sensor; this->add_polling_command("QFLAG",POLLING_QFLAG);}
 
   void set_warnings_present_sensor(binary_sensor::BinarySensor *warnings_present_sensor) {warnings_present_ = warnings_present_sensor; this->add_polling_command("QPIWS",POLLING_QPIWS);}
   void set_faults_present_sensor(binary_sensor::BinarySensor *faults_present_sensor) {faults_present_ = faults_present_sensor; this->add_polling_command("QPIWS",POLLING_QPIWS);}
@@ -264,6 +265,7 @@ class Pipsolar : public uart::UARTDevice, public PollingComponent {
   binary_sensor::BinarySensor *backlight_on_;
   binary_sensor::BinarySensor *alarm_on_when_primary_source_interrupt_;
   binary_sensor::BinarySensor *fault_code_record_;
+  binary_sensor::BinarySensor *power_saving_;
 
 //QPIWS Sensors
   binary_sensor::BinarySensor *warnings_present_;
@@ -376,6 +378,7 @@ class Pipsolar : public uart::UARTDevice, public PollingComponent {
   int backlight_on;
   int alarm_on_when_primary_source_interrupt;
   int fault_code_record;
+  int power_saving;  
 
 //QPIWS values
   bool warnings_present;

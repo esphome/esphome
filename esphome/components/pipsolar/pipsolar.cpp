@@ -154,6 +154,7 @@ void Pipsolar::loop() {
         if (this->backlight_on_) {this->backlight_on_->publish_state(this->backlight_on);}
         if (this->alarm_on_when_primary_source_interrupt_) {this->alarm_on_when_primary_source_interrupt_->publish_state(this->alarm_on_when_primary_source_interrupt);}
         if (this->fault_code_record_) {this->fault_code_record_->publish_state(this->fault_code_record);}
+        if (this->power_saving_) {this->power_saving_->publish_state(this->power_saving);}
         this->state_ = STATE_IDLE;
         break;
       case POLLING_QPIWS:
@@ -295,6 +296,8 @@ void Pipsolar::loop() {
             case 'x': this->backlight_on = enabled; break;
             case 'y': this->alarm_on_when_primary_source_interrupt = enabled; break;
             case 'z': this->fault_code_record = enabled; break;
+            case 'j': this->power_saving = enabled; break;
+
           }
         }
         if (this->last_qflag_) {this->last_qflag_->publish_state(tmp);}
