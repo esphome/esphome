@@ -186,16 +186,6 @@ def get_platform(domain, platform):
     return _lookup_module(full, True)
 
 
-def get_component_from_path(config, path):
-    if (
-        len(path) > 1
-        and isinstance(path[1], int)
-        and "platform" in config[path[0]][path[1]]
-    ):
-        return get_platform(path[0], config[path[0]][path[1]].get("platform"))
-    return get_component(path[0])
-
-
 _COMPONENT_CACHE["esphome"] = ComponentManifest(
     core_config,
     CORE_COMPONENTS_PATH,
@@ -321,6 +311,15 @@ class Config(OrderedDict):
             except (KeyError, IndexError, TypeError):
                 return {}
         return data
+
+    def get_component(config, path):
+        if (
+            len(path) > 1
+            and isinstance(path[1], int)
+            and "platform" in config[path[0]][path[1]]
+        ):
+            return get_platform(path[0], config[path[0]][path[1]].get("platform"))
+        return get_component(path[0])
 
     def get_deepest_path(self, path):
         # type: (ConfigPath) -> ConfigPath
