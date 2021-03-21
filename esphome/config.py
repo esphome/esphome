@@ -49,7 +49,7 @@ class ComponentManifest:
 
     @property
     def multi_conf(self):
-        return getattr(self.module, 'MULTI_CONF', False)
+        return getattr(self.module, "MULTI_CONF", False)
 
     @property
     def to_code(self):
@@ -654,9 +654,11 @@ def validate_config(config, command_line_substitutions):
             if not isinstance(conf, list):
                 result[domain] = conf = [conf]
             if not isinstance(comp.multi_conf, bool) and len(conf) > comp.multi_conf:
-                result.add_str_error(u"Component {} supports a maximum of {} "
-                                     u"entries ({} found).".format(domain, comp.multi_conf,
-                                                                   len(conf)), path)
+                result.add_str_error(
+                    "Component {} supports a maximum of {} "
+                    "entries ({} found).".format(domain, comp.multi_conf, len(conf)),
+                    path,
+                )
                 continue
             for i, part_conf in enumerate(conf):
                 validate_queue.append((path + [i], part_conf, comp))
