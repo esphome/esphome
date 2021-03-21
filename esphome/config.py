@@ -56,6 +56,10 @@ class ComponentManifest:
         return getattr(self.module, "to_code", None)
 
     @property
+    def validate_parent(self):
+        return getattr(self.module, "validate_parent", None)
+
+    @property
     def esp_platforms(self):
         return getattr(self.module, "ESP_PLATFORMS", ESP_PLATFORMS)
 
@@ -180,6 +184,16 @@ def get_component(domain):
 def get_platform(domain, platform):
     full = f"{platform}.{domain}"
     return _lookup_module(full, True)
+
+
+def get_component_from_path(config, path):
+    if (
+        len(path) > 1
+        and isinstance(path[1], int)
+        and "platform" in config[path[0]][path[1]]
+    ):
+        return get_platform(path[0], config[path[0]][path[1]].get("platform"))
+    return get_component(path[0])
 
 
 _COMPONENT_CACHE["esphome"] = ComponentManifest(
@@ -341,6 +355,7 @@ def do_id_pass(result):  # type: (Config) -> None
     from esphome.cpp_generator import MockObjClass
     from esphome.cpp_types import Component
 
+    partent_id_check = []  # type: List[Tuple[ConfigPath, ConfigPath]]
     declare_ids = []  # type: List[Tuple[core.ID, ConfigPath]]
     searching_ids = []  # type: List[Tuple[core.ID, ConfigPath]]
     for id, path in iter_ids(result):
@@ -365,8 +380,8 @@ def do_id_pass(result):  # type: (Config) -> None
     for id, path in searching_ids:
         if id.id is not None:
             # manually declared
-            match = next((v[0] for v in declare_ids if v[0].id == id.id), None)
-            if match is None or not match.is_manual:
+            match_pair = next((v for v in declare_ids if v[0].id == id.id), None)
+            if match_pair is None or not match_pair[0].is_manual:
                 # No declared ID with this name
                 import difflib
 
@@ -383,6 +398,7 @@ def do_id_pass(result):  # type: (Config) -> None
                     error += f" These IDs look similar: {matches_s}."
                 result.add_str_error(error, path)
                 continue
+            match = match_pair[0]
             if not isinstance(match.type, MockObjClass) or not isinstance(
                 id.type, MockObjClass
             ):
@@ -394,15 +410,18 @@ def do_id_pass(result):  # type: (Config) -> None
                     "".format(id.id, match.type, id.type),
                     path,
                 )
+            partent_id_check.append((path, match_pair[1]))
 
         if id.id is None and id.type is not None:
             matches = []
+            match_path = None
             for v in declare_ids:
                 if v[0] is None or not isinstance(v[0].type, MockObjClass):
                     continue
                 inherits = v[0].type.inherits_from(id.type)
                 if inherits:
                     matches.append(v[0])
+                    match_path = v[1]
 
             if len(matches) == 0:
                 result.add_str_error(
@@ -411,6 +430,7 @@ def do_id_pass(result):  # type: (Config) -> None
                 )
             elif len(matches) == 1:
                 id.id = matches[0].id
+                partent_id_check.append((path, match_path))
             elif len(matches) > 1:
                 if str(id.type) == "time::RealTimeClock":
                     id.id = matches[0].id
@@ -427,6 +447,20 @@ def do_id_pass(result):  # type: (Config) -> None
                             f"Too many candidates found for '{path[-1]}' type '{id.type}' You must assign an explicit ID to the parent component you want to use.",
                             path,
                         )
+
+    if result.errors:
+        return
+
+    for item_path, parent_path in partent_id_check:
+        item_component = result.get_component(item_path)
+        validate_parent = item_component.validate_parent
+        if callable(validate_parent):
+            parent_component = result.get_component(parent_path)
+            config = result.get_nested_item(parent_path[:-1])
+            try:
+                validate_parent(item_path[-1], config, parent_component)
+            except ValueError as err:
+                result.add_str_error(err, item_path)
 
 
 def recursive_check_replaceme(value):
