@@ -674,7 +674,6 @@ def dump_schema():
         cv.string,
         cv.string_strict,
         cv.valid_name,
-        cv.valid_node_name,
         cv.hex_int,
         cv.hex_int_range,
         pins.output_pin,
