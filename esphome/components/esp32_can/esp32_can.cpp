@@ -8,39 +8,39 @@ namespace esp32_can {
 
 static const char *TAG = "esp32_can";
 
-static int get_bitrate(CanSpeed bitrate) {
+static int get_bitrate(canbus::CanSpeed bitrate) {
   switch (bitrate) {
-    case CAN_5KBPS:
+    case canbus::CAN_5KBPS:
       return 5000;
-    case CAN_10KBPS:
+    case canbus::CAN_10KBPS:
       return 10000;
-    case CAN_20KBPS:
+    case canbus::CAN_20KBPS:
       return 20000;
-    case CAN_31K25BPS:
+    case canbus::CAN_31K25BPS:
       return 31250;
-    case CAN_33KBPS:
+    case canbus::CAN_33KBPS:
       return 33000;
-    case CAN_40KBPS:
+    case canbus::CAN_40KBPS:
       return 40000;
-    case CAN_50KBPS:
+    case canbus::CAN_50KBPS:
       return 50000;
-    case CAN_80KBPS:
+    case canbus::CAN_80KBPS:
       return 80000;
-    case CAN_83K3BPS:
+    case canbus::CAN_83K3BPS:
       return 83300;
-    case CAN_95KBPS:
+    case canbus::CAN_95KBPS:
       return 95000;
-    case CAN_100KBPS:
+    case canbus::CAN_100KBPS:
       return 100000;
-    case CAN_125KBPS:
+    case canbus::CAN_125KBPS:
       return 125000;
-    case CAN_200KBPS:
+    case canbus::CAN_200KBPS:
       return 200000;
-    case CAN_250KBPS:
+    case canbus::CAN_250KBPS:
       return 250000;
-    case CAN_500KBPS:
+    case canbus::CAN_500KBPS:
       return 500000;
-    case CAN_1000KBPS:
+    case canbus::CAN_1000KBPS:
       return 1000000;
     default:
       return -1;
@@ -86,7 +86,7 @@ canbus::Error ESP32Can::read_message(struct canbus::CanFrame *frame) {
   if (packet_size) {
     frame->can_id = CAN.packetId();
     frame->use_extended_id = CAN.packetExtended();
-    frame->remote_transmission_request = CAN.packetRtr());
+    frame->remote_transmission_request = CAN.packetRtr();
     frame->can_data_length_code = CAN.packetDlc();
 
     if (!frame->remote_transmission_request) {
