@@ -7,13 +7,7 @@ namespace xpt2046 {
 
 static const char *TAG = "xpt2046";
 
-const int16_t Z_THRESHOLD = 400;
-
 void XPT2046Component::setup() {
-  if (this->tirq_pin_ != nullptr) {
-    this->tirq_pin_->setup();
-  }
-
   spi_setup();
 }
 
@@ -29,7 +23,7 @@ void XPT2046Component::update() {
 
   this->z_raw_ = z1 + 4095 - z2;
 
-  touched = (this->z_raw_ >= Z_THRESHOLD);
+  touched = (this->z_raw_ >= this->threshold_);
   if (touched) {
     read_adc_(0x91 /* Y */);  // dummy Y measure, 1st is always noisy
     data[0] = read_adc_(0xD1 /* X */);
@@ -44,8 +38,8 @@ void XPT2046Component::update() {
   disable();
 
   if (touched) {
-    this->x_raw_ = best_two_avg(data[0], data[2], data[4]);
-    this->y_raw_ = best_two_avg(data[1], data[3], data[5]);
+    this->x_raw_ = best_two_avg_(data[0], data[2], data[4]);
+    this->y_raw_ = best_two_avg_(data[1], data[3], data[5]);
   } else {
     this->x_raw_ = this->y_raw_ = 0;
   }
@@ -55,8 +49,8 @@ void XPT2046Component::update() {
   if (touched) {
     // Normalize raw data according to calibration min and max
 
-    int16_t x_raw_norm = normalize(this->x_raw_, this->x_raw_min_, this->x_raw_max_);
-    int16_t y_raw_norm = normalize(this->y_raw_, this->y_raw_min_, this->y_raw_max_);
+    int16_t x_raw_norm = normalize_(this->x_raw_, this->x_raw_min_, this->x_raw_max_);
+    int16_t y_raw_norm = normalize_(this->y_raw_, this->y_raw_min_, this->y_raw_max_);
 
     int16_t x = (this->transform_ & (1 << (int) SWAP_X_Y)) ? y_raw_norm : x_raw_norm;
     int16_t y = (this->transform_ & (1 << (int) SWAP_X_Y)) ? x_raw_norm : y_raw_norm;
@@ -73,33 +67,19 @@ void XPT2046Component::update() {
     y = (int16_t)((int) y * this->y_dim_ / 0x7fff);
 
     if (!touched_out_ ||
-        ((x != this->x_out_ || y != this->y_out_) && (now - this->last_pos_ms_) >= this->report_millis_)) {
+        (this->report_millis_ != 0 && (now - this->last_pos_ms_) >= this->report_millis_)) {
       ESP_LOGD(TAG, "Raw [x, y] = [%d, %d], transformed = [%d, %d]", this->x_raw_, this->y_raw_, x, y);
 
-      if (this->x_sensor_ != nullptr) {
-        this->x_sensor_->publish_state(x);
-      }
-
-      if (this->y_sensor_ != nullptr) {
-        this->y_sensor_->publish_state(y);
-      }
+      this->on_state_trigger_->process(x, y, true);
 
       this->x_out_ = x;
       this->y_out_ = y;
-
-      this->last_pos_ms_ = now;
-    }
-
-    if (!this->touched_out_) {
-      if (this->touched_sensor_ != nullptr) {
-        this->touched_sensor_->publish_state(1);
-      }
       this->touched_out_ = true;
+      this->last_pos_ms_ = now;
     }
   } else {
     if (this->touched_out_) {
-      if (this->touched_sensor_ != nullptr)
-        this->touched_sensor_->publish_state(0);
+      this->on_state_trigger_->process(this->x_out_, this->y_out_, false);
 
       this->touched_out_ = false;
     }
@@ -115,6 +95,7 @@ void XPT2046Component::dump_config() {
   ESP_LOGCONFIG(TAG, "  Y max: %d", this->y_raw_max_);
   ESP_LOGCONFIG(TAG, "  X dim: %d", this->x_dim_);
   ESP_LOGCONFIG(TAG, "  Y dim: %d", this->y_dim_);
+  ESP_LOGCONFIG(TAG, "  threshold: %d", this->threshold_);
   ESP_LOGCONFIG(TAG, "  Report interval: %u", this->report_millis_);
 
   if (this->transform_) {
@@ -123,17 +104,12 @@ void XPT2046Component::dump_config() {
                   (this->transform_ & (1 << INVERT_Y)) ? "invert_y" : "");
   }
 
-  LOG_PIN("  TIRQ Pin: ", this->tirq_pin_);
-  LOG_SENSOR("  ", "Touched", this->touched_sensor_);
-  LOG_SENSOR("  ", "X Coord", this->x_sensor_);
-  LOG_SENSOR("  ", "Y Coord", this->y_sensor_);
-
   LOG_UPDATE_INTERVAL(this);
 }
 
 float XPT2046Component::get_setup_priority() const { return setup_priority::DATA; }
 
-int16_t XPT2046Component::best_two_avg(int16_t x, int16_t y, int16_t z) {
+int16_t XPT2046Component::best_two_avg_(int16_t x, int16_t y, int16_t z) {
   int16_t da, db, dc;
   int16_t reta = 0;
 
@@ -152,7 +128,7 @@ int16_t XPT2046Component::best_two_avg(int16_t x, int16_t y, int16_t z) {
   return reta;
 }
 
-int16_t XPT2046Component::normalize(int16_t val, int16_t min_val, int16_t max_val) {
+int16_t XPT2046Component::normalize_(int16_t val, int16_t min_val, int16_t max_val) {
   int16_t ret;
 
   if (val <= min_val) {
@@ -175,6 +151,8 @@ int16_t XPT2046Component::read_adc_(uint8_t ctrl) {
 
   return ((data[0] << 8) | data[1]) >> 3;
 }
+
+void XPT2046OnStateTrigger::process(int x, int y, bool touched) { this->trigger(x, y, touched); }
 
 }  // namespace xpt2046
 }  // namespace esphome
