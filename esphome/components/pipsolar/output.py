@@ -168,7 +168,7 @@ def to_code(config):
       var = cg.new_Pvariable(conf[CONF_ID])
       yield output.register_output(var, conf)
       cg.add(var.set_parent(paren))
-      cg.add(var.set_set_command("PBT%02d"))
+      cg.add(var.set_set_command("PBT%02.0f"))
       if (CONF_POSSIBLE_VALUES) in conf:
         cg.add(var.set_possible_values(conf[CONF_POSSIBLE_VALUES]))
     if CONF_CURRENT_MAX_AC_CHARGING_CURRENT in config:
@@ -176,7 +176,7 @@ def to_code(config):
       var = cg.new_Pvariable(conf[CONF_ID])
       yield output.register_output(var, conf)
       cg.add(var.set_parent(paren))
-      cg.add(var.set_set_command("MUCHGC0%02d"))
+      cg.add(var.set_set_command("MUCHGC0%02.0f"))
       if (CONF_POSSIBLE_VALUES) in conf:
         cg.add(var.set_possible_values(conf[CONF_POSSIBLE_VALUES]))
     if CONF_CURRENT_MAX_CHARGING_CURRENT in config:
@@ -184,7 +184,7 @@ def to_code(config):
       var = cg.new_Pvariable(conf[CONF_ID])
       yield output.register_output(var, conf)
       cg.add(var.set_parent(paren))
-      cg.add(var.set_set_command("MCHGC0%02d"))
+      cg.add(var.set_set_command("MCHGC0%02.0f"))
       if (CONF_POSSIBLE_VALUES) in conf:
         cg.add(var.set_possible_values(conf[CONF_POSSIBLE_VALUES]))
     if CONF_OUTPUT_SOURCE_PRIORITY in config:
@@ -192,7 +192,7 @@ def to_code(config):
       var = cg.new_Pvariable(conf[CONF_ID])
       yield output.register_output(var, conf)
       cg.add(var.set_parent(paren))
-      cg.add(var.set_set_command("POP%02d"))
+      cg.add(var.set_set_command("POP%02.0f"))
       if (CONF_POSSIBLE_VALUES) in conf:
         cg.add(var.set_possible_values(conf[CONF_POSSIBLE_VALUES]))
     if CONF_CHARGER_SOURCE_PRIORITY in config:
@@ -200,7 +200,7 @@ def to_code(config):
       var = cg.new_Pvariable(conf[CONF_ID])
       yield output.register_output(var, conf)
       cg.add(var.set_parent(paren))
-      cg.add(var.set_set_command("PCP%02d"))
+      cg.add(var.set_set_command("PCP%02.0f"))
       if (CONF_POSSIBLE_VALUES) in conf:
         cg.add(var.set_possible_values(conf[CONF_POSSIBLE_VALUES]))
     if CONF_BATTERY_REDISCHARGE_VOLTAGE in config:
