@@ -10,10 +10,9 @@ ESP_PLATFORM_ESP32 = "ESP32"
 ESP_PLATFORM_ESP8266 = "ESP8266"
 ESP_PLATFORMS = [ESP_PLATFORM_ESP32, ESP_PLATFORM_ESP8266]
 
-# List of characters allowd in the name of the node
-# Note this also forms the hostname
+# List of characters that shouldn't be allowed in the name of a node
 # see https://man7.org/linux/man-pages/man7/hostname.7.html
-ALLOWED_NODE_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-"
+WARNABLE_NAME_CHARS = "_"
 
 # List of characters allowd in the name of anything that's named
 # and not a node, e.g. services in `api`

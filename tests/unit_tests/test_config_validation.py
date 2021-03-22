@@ -27,14 +27,14 @@ def test_alphanumeric__invalid(value):
         config_validation.alphanumeric(value)
 
 
-@given(value=text(alphabet=string.ascii_lowercase + string.digits + "-"))
+@given(value=text(alphabet=string.ascii_lowercase + string.digits + "-_"))
 def test_valid_node_name__valid(value):
     actual = config_validation.valid_node_name(value)
 
     assert actual == value
 
 
-@pytest.mark.parametrize("value", ("foo bar", "FooBar", "foo::bar", "foo_bar"))
+@pytest.mark.parametrize("value", ("foo bar", "FooBar", "foo::bar"))
 def test_valid_node_name__invalid(value):
     with pytest.raises(Invalid):
         config_validation.valid_node_name(value)

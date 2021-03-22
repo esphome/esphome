@@ -186,7 +186,7 @@ CONFIG_SCHEMA = cv.Schema(
 
 PRELOAD_CONFIG_SCHEMA = cv.Schema(
     {
-        cv.Required(CONF_NAME): cv.valid_node_name,
+        cv.Required(CONF_NAME): cv.valid_name,
         cv.Required(CONF_PLATFORM): validate_platform,
     },
     extra=cv.ALLOW_EXTRA,

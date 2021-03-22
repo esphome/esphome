@@ -5,7 +5,7 @@ substitutions:
   roomname: living_room
 
 esphome:
-  name: test1
+  name: test_1
   name_add_mac_suffix: true
   platform: ESP32
   board: nodemcu-32s

@@ -13,7 +13,7 @@ import voluptuous as vol
 from esphome import core
 from esphome.const import (
     ALLOWED_NAME_CHARS,
-    ALLOWED_NODE_NAME_CHARS,
+    WARNABLE_NAME_CHARS,
     CONF_AVAILABILITY,
     CONF_COMMAND_TOPIC,
     CONF_DISCOVERY,
@@ -234,15 +234,18 @@ def alphanumeric(value):
 def valid_node_name(value):
     """
     Validates the input string for node names and raises an exception
-    specifying the first invalid char found.
+    specifying the first invalid char found. Warns about characters
+    that should be avoided.
     Otherwise returns the input string.
     """
     value = string_strict(value)
+    value = valid_name(value)
     for c in value:
-        if c not in ALLOWED_NODE_NAME_CHARS:
-            raise Invalid(
-                f"'{c}' is an invalid character for names. Valid characters are: "
-                f"{ALLOWED_NODE_NAME_CHARS} (lowercase, no spaces)"
+        if c in WARNABLE_NAME_CHARS:
+            _LOGGER.warning(
+                "%s should not be used in node names. It could "
+                "cause issues with your router.",
+                c,
             )
     return value
 
