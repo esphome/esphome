@@ -3,32 +3,44 @@ import esphome.config_validation as cv
 from esphome import automation
 from esphome.automation import maybe_simple_id
 from esphome.components import power_supply
-from esphome.const import CONF_ID, CONF_INVERTED, CONF_LEVEL, CONF_MAX_POWER, \
-    CONF_MIN_POWER, CONF_POWER_SUPPLY
+from esphome.const import (
+    CONF_ID,
+    CONF_INVERTED,
+    CONF_LEVEL,
+    CONF_MAX_POWER,
+    CONF_MIN_POWER,
+    CONF_POWER_SUPPLY,
+)
 from esphome.core import CORE, coroutine
 
+
+CODEOWNERS = ["@esphome/core"]
 IS_PLATFORM_COMPONENT = True
 
-BINARY_OUTPUT_SCHEMA = cv.Schema({
-    cv.Optional(CONF_POWER_SUPPLY): cv.use_id(power_supply.PowerSupply),
-    cv.Optional(CONF_INVERTED): cv.boolean,
-})
+BINARY_OUTPUT_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_POWER_SUPPLY): cv.use_id(power_supply.PowerSupply),
+        cv.Optional(CONF_INVERTED): cv.boolean,
+    }
+)
 
-FLOAT_OUTPUT_SCHEMA = BINARY_OUTPUT_SCHEMA.extend({
-    cv.Optional(CONF_MAX_POWER): cv.percentage,
-    cv.Optional(CONF_MIN_POWER): cv.percentage,
-})
+FLOAT_OUTPUT_SCHEMA = BINARY_OUTPUT_SCHEMA.extend(
+    {
+        cv.Optional(CONF_MAX_POWER): cv.percentage,
+        cv.Optional(CONF_MIN_POWER): cv.percentage,
+    }
+)
 
-output_ns = cg.esphome_ns.namespace('output')
-BinaryOutput = output_ns.class_('BinaryOutput')
-BinaryOutputPtr = BinaryOutput.operator('ptr')
-FloatOutput = output_ns.class_('FloatOutput', BinaryOutput)
-FloatOutputPtr = FloatOutput.operator('ptr')
+output_ns = cg.esphome_ns.namespace("output")
+BinaryOutput = output_ns.class_("BinaryOutput")
+BinaryOutputPtr = BinaryOutput.operator("ptr")
+FloatOutput = output_ns.class_("FloatOutput", BinaryOutput)
+FloatOutputPtr = FloatOutput.operator("ptr")
 
 # Actions
-TurnOffAction = output_ns.class_('TurnOffAction', automation.Action)
-TurnOnAction = output_ns.class_('TurnOnAction', automation.Action)
-SetLevelAction = output_ns.class_('SetLevelAction', automation.Action)
+TurnOffAction = output_ns.class_("TurnOffAction", automation.Action)
+TurnOnAction = output_ns.class_("TurnOnAction", automation.Action)
+SetLevelAction = output_ns.class_("SetLevelAction", automation.Action)
 
 
 @coroutine
@@ -51,27 +63,37 @@ def register_output(var, config):
     yield setup_output_platform_(var, config)
 
 
-BINARY_OUTPUT_ACTION_SCHEMA = maybe_simple_id({
-    cv.Required(CONF_ID): cv.use_id(BinaryOutput),
-})
+BINARY_OUTPUT_ACTION_SCHEMA = maybe_simple_id(
+    {
+        cv.Required(CONF_ID): cv.use_id(BinaryOutput),
+    }
+)
 
 
-@automation.register_action('output.turn_on', TurnOnAction, BINARY_OUTPUT_ACTION_SCHEMA)
+@automation.register_action("output.turn_on", TurnOnAction, BINARY_OUTPUT_ACTION_SCHEMA)
 def output_turn_on_to_code(config, action_id, template_arg, args):
     paren = yield cg.get_variable(config[CONF_ID])
     yield cg.new_Pvariable(action_id, template_arg, paren)
 
 
-@automation.register_action('output.turn_off', TurnOffAction, BINARY_OUTPUT_ACTION_SCHEMA)
+@automation.register_action(
+    "output.turn_off", TurnOffAction, BINARY_OUTPUT_ACTION_SCHEMA
+)
 def output_turn_off_to_code(config, action_id, template_arg, args):
     paren = yield cg.get_variable(config[CONF_ID])
     yield cg.new_Pvariable(action_id, template_arg, paren)
 
 
-@automation.register_action('output.set_level', SetLevelAction, cv.Schema({
-    cv.Required(CONF_ID): cv.use_id(FloatOutput),
-    cv.Required(CONF_LEVEL): cv.templatable(cv.percentage),
-}))
+@automation.register_action(
+    "output.set_level",
+    SetLevelAction,
+    cv.Schema(
+        {
+            cv.Required(CONF_ID): cv.use_id(FloatOutput),
+            cv.Required(CONF_LEVEL): cv.templatable(cv.percentage),
+        }
+    ),
+)
 def output_set_level_to_code(config, action_id, template_arg, args):
     paren = yield cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)

@@ -43,7 +43,7 @@ uint32_t UARTComponent::get_config() {
   else if (this->parity_ == UART_CONFIG_PARITY_ODD)
     config |= UART_PARITY_ODD | UART_PARITY_EN;
 
-  switch (this->nr_bits_) {
+  switch (this->data_bits_) {
     case 5:
       config |= UART_NB_BIT_5;
       break;
@@ -80,7 +80,7 @@ void UARTComponent::setup() {
   }
   int8_t tx = this->tx_pin_.has_value() ? *this->tx_pin_ : -1;
   int8_t rx = this->rx_pin_.has_value() ? *this->rx_pin_ : -1;
-  this->hw_serial_->begin(this->baud_rate_, get_config(), rx, tx);
+  this->hw_serial_->begin(this->baud_rate_, get_config(), rx, tx, this->invert_);
   this->hw_serial_->setRxBufferSize(this->rx_buffer_size_);
 }
 
@@ -94,7 +94,7 @@ void UARTComponent::dump_config() {
     ESP_LOGCONFIG(TAG, "  RX Buffer Size: %u", this->rx_buffer_size_);
   }
   ESP_LOGCONFIG(TAG, "  Baud Rate: %u baud", this->baud_rate_);
-  ESP_LOGCONFIG(TAG, "  Bits: %u", this->nr_bits_);
+  ESP_LOGCONFIG(TAG, "  Data Bits: %u", this->data_bits_);
   ESP_LOGCONFIG(TAG, "  Parity: %s", parity_to_str(this->parity_));
   ESP_LOGCONFIG(TAG, "  Stop bits: %u", this->stop_bits_);
   this->check_logger_conflict_();
@@ -114,8 +114,6 @@ void UARTComponent::write_str(const char *str) {
   this->hw_serial_->write(str);
   ESP_LOGVV(TAG, "    Wrote \"%s\"", str);
 }
-void UARTComponent::end() { this->hw_serial_->end(); }
-void UARTComponent::begin() { this->hw_serial_->begin(this->baud_rate_, get_config()); }
 bool UARTComponent::read_byte(uint8_t *data) {
   if (!this->check_read_timeout_())
     return false;
@@ -161,4 +159,4 @@ void UARTComponent::flush() {
 
 }  // namespace uart
 }  // namespace esphome
-#endif  // ESP32
+#endif  // ARDUINO_ARCH_ESP32

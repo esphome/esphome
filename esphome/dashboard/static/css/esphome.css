@@ -163,6 +163,11 @@ main {
   color: black;
 }
 
+nav {
+  height: auto;
+  line-height: normal;
+}
+
 .select-port-container {
   margin-top: 8px;
   margin-right: 10px;

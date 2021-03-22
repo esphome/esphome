@@ -34,6 +34,7 @@ class MAX7219Component : public PollingComponent,
 
   void set_intensity(uint8_t intensity);
   void set_num_chips(uint8_t num_chips);
+  void set_reverse(bool reverse) { this->reverse_ = reverse; };
 
   /// Evaluate the printf-format and print the result at the given position.
   uint8_t printf(uint8_t pos, const char *format, ...) __attribute__((format(printf, 3, 4)));
@@ -60,6 +61,7 @@ class MAX7219Component : public PollingComponent,
   uint8_t intensity_{15};  /// Intensity of the display from 0 to 15 (most)
   uint8_t num_chips_{1};
   uint8_t *buffer_;
+  bool reverse_{false};
   optional<max7219_writer_t> writer_{};
 };
 

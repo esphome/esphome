@@ -22,27 +22,27 @@ struct Header {
   const char *value;
 };
 
+class HttpRequestResponseTrigger;
+
 class HttpRequestComponent : public Component {
  public:
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
 
-  void set_url(std::string url) {
-    this->url_ = url;
-    this->secure_ = url.compare(0, 6, "https:") == 0;
-  }
+  void set_url(std::string url);
   void set_method(const char *method) { this->method_ = method; }
   void set_useragent(const char *useragent) { this->useragent_ = useragent; }
   void set_timeout(uint16_t timeout) { this->timeout_ = timeout; }
   void set_body(std::string body) { this->body_ = body; }
   void set_headers(std::list<Header> headers) { this->headers_ = headers; }
-  void send();
+  void send(const std::vector<HttpRequestResponseTrigger *> &response_triggers);
   void close();
   const String get_string();
 
  protected:
   HTTPClient client_{};
   std::string url_;
+  std::string last_url_;
   const char *method_;
   const char *useragent_{nullptr};
   bool secure_;
@@ -70,6 +70,8 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
   void add_json(const char *key, TemplatableValue<std::string, Ts...> value) { this->json_.insert({key, value}); }
 
   void set_json(std::function<void(Ts..., JsonObject &)> json_func) { this->json_func_ = json_func; }
+
+  void register_response_trigger(HttpRequestResponseTrigger *trigger) { this->response_triggers_.push_back(trigger); }
 
   void play(Ts... x) override {
     this->parent_->set_url(this->url_.value(x...));
@@ -102,7 +104,7 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
       }
       this->parent_->set_headers(headers);
     }
-    this->parent_->send();
+    this->parent_->send(this->response_triggers_);
     this->parent_->close();
   }
 
@@ -118,6 +120,12 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
   std::map<const char *, TemplatableValue<const char *, Ts...>> headers_{};
   std::map<const char *, TemplatableValue<std::string, Ts...>> json_{};
   std::function<void(Ts..., JsonObject &)> json_func_{nullptr};
+  std::vector<HttpRequestResponseTrigger *> response_triggers_;
+};
+
+class HttpRequestResponseTrigger : public Trigger<int> {
+ public:
+  void process(int status_code) { this->trigger(status_code); }
 };
 
 }  // namespace http_request

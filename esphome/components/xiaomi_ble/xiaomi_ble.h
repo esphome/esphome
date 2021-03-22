@@ -21,7 +21,8 @@ struct XiaomiParseResult {
     TYPE_JQJCY01YM,
     TYPE_MUE4094RT,
     TYPE_WX08ZM,
-    TYPE_MJYD02YLA
+    TYPE_MJYD02YLA,
+    TYPE_MHOC401
   } type;
   std::string name;
   optional<float> temperature;
@@ -57,6 +58,7 @@ struct XiaomiAESVector {
   size_t ivsize;
 };
 
+bool parse_xiaomi_value(uint8_t value_type, const uint8_t *data, uint8_t value_length, XiaomiParseResult &result);
 bool parse_xiaomi_message(const std::vector<uint8_t> &message, XiaomiParseResult &result);
 optional<XiaomiParseResult> parse_xiaomi_header(const esp32_ble_tracker::ServiceData &service_data);
 bool decrypt_xiaomi_payload(std::vector<uint8_t> &raw, const uint8_t *bindkey, const uint64_t &address);

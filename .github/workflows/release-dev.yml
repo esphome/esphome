@@ -15,15 +15,6 @@ jobs:
     container: esphome/esphome-lint:latest
     steps:
       - uses: actions/checkout@v2
-      # Cache platformio intermediary files (like libraries etc)
-      # Note: platformio platform versions should be cached via the esphome-lint image
-      - name: Cache Platformio
-        uses: actions/cache@v1
-        with:
-          path: .pio
-          key: lint-cpp-pio-${{ hashFiles('platformio.ini') }}
-          restore-keys: |
-            lint-cpp-pio-
       # Set up the pio project so that the cpp checks know how files are compiled
       # (build flags, libraries etc)
       - name: Set up platformio environment
@@ -41,19 +32,11 @@ jobs:
     container: esphome/esphome-lint:latest
     # Split clang-tidy check into 4 jobs. Each one will check 1/4th of the .cpp files
     strategy:
+      fail-fast: false
       matrix:
         split: [1, 2, 3, 4]
     steps:
       - uses: actions/checkout@v2
-      # Cache platformio intermediary files (like libraries etc)
-      # Note: platformio platform versions should be cached via the esphome-lint image
-      - name: Cache Platformio
-        uses: actions/cache@v1
-        with:
-          path: .pio
-          key: lint-cpp-pio-${{ hashFiles('platformio.ini') }}
-          restore-keys: |
-            lint-cpp-pio-
       # Set up the pio project so that the cpp checks know how files are compiled
       # (build flags, libraries etc)
       - name: Set up platformio environment
@@ -98,10 +81,13 @@ jobs:
         run: script/ci-custom.py
       - name: Lint Python
         run: script/lint-python
+      - name: Lint CODEOWNERS
+        run: script/build_codeowners.py --check
 
   test:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
           test:
           - test1
@@ -185,10 +171,10 @@ jobs:
       - name: Set TAG
         run: |
           TAG="${GITHUB_SHA:0:7}"
-          echo "::set-env name=TAG::${TAG}"
+          echo "TAG=${TAG}" >> $GITHUB_ENV
       - name: Set up env variables
         run: |
-          base_version="2.3.4"
+          base_version="3.0.0"
 
           if [[ "${{ matrix.build_type }}" == "hassio" ]]; then
             build_from="esphome/esphome-hassio-base-${{ matrix.arch }}:${base_version}"
@@ -200,14 +186,14 @@ jobs:
             dockerfile="docker/Dockerfile"
           fi
 
-          echo "::set-env name=BUILD_FROM::${build_from}"
-          echo "::set-env name=BUILD_TO::${build_to}"
-          echo "::set-env name=DOCKERFILE::${dockerfile}"
+          echo "BUILD_FROM=${build_from}" >> $GITHUB_ENV
+          echo "BUILD_TO=${build_to}" >> $GITHUB_ENV
+          echo "DOCKERFILE=${dockerfile}" >> $GITHUB_ENV
       - name: Pull for cache
         run: |
           docker pull "${BUILD_TO}:dev" || true
       - name: Register QEMU binfmt
-        run: docker run --rm --privileged multiarch/qemu-user-static:5.0.0-2 --reset -p yes
+        run: docker run --rm --privileged multiarch/qemu-user-static:5.2.0-2 --reset -p yes
       - run: |
           docker build \
             --build-arg "BUILD_FROM=${BUILD_FROM}" \
@@ -239,7 +225,7 @@ jobs:
     - name: Set TAG
       run: |
         TAG="${GITHUB_SHA:0:7}"
-        echo "::set-env name=TAG::${TAG}"
+        echo "TAG=${TAG}" >> $GITHUB_ENV
     - name: Log in to docker hub
       env:
         DOCKER_USER: ${{ secrets.DOCKER_USER }}

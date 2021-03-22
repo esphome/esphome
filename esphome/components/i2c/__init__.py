@@ -1,23 +1,34 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins
-from esphome.const import CONF_FREQUENCY, CONF_ID, CONF_SCAN, CONF_SCL, CONF_SDA, CONF_ADDRESS, \
-    CONF_I2C_ID
+from esphome.const import (
+    CONF_FREQUENCY,
+    CONF_ID,
+    CONF_SCAN,
+    CONF_SCL,
+    CONF_SDA,
+    CONF_ADDRESS,
+    CONF_I2C_ID,
+)
 from esphome.core import coroutine, coroutine_with_priority
 
-i2c_ns = cg.esphome_ns.namespace('i2c')
-I2CComponent = i2c_ns.class_('I2CComponent', cg.Component)
-I2CDevice = i2c_ns.class_('I2CDevice')
+CODEOWNERS = ["@esphome/core"]
+i2c_ns = cg.esphome_ns.namespace("i2c")
+I2CComponent = i2c_ns.class_("I2CComponent", cg.Component)
+I2CDevice = i2c_ns.class_("I2CDevice")
 
 MULTI_CONF = True
-CONFIG_SCHEMA = cv.Schema({
-    cv.GenerateID(): cv.declare_id(I2CComponent),
-    cv.Optional(CONF_SDA, default='SDA'): pins.input_pin,
-    cv.Optional(CONF_SCL, default='SCL'): pins.input_pin,
-    cv.Optional(CONF_FREQUENCY, default='50kHz'):
-        cv.All(cv.frequency, cv.Range(min=0, min_included=False)),
-    cv.Optional(CONF_SCAN, default=True): cv.boolean,
-}).extend(cv.COMPONENT_SCHEMA)
+CONFIG_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.declare_id(I2CComponent),
+        cv.Optional(CONF_SDA, default="SDA"): pins.input_pin,
+        cv.Optional(CONF_SCL, default="SCL"): pins.input_pin,
+        cv.Optional(CONF_FREQUENCY, default="50kHz"): cv.All(
+            cv.frequency, cv.Range(min=0, min_included=False)
+        ),
+        cv.Optional(CONF_SCAN, default=True): cv.boolean,
+    }
+).extend(cv.COMPONENT_SCHEMA)
 
 
 @coroutine_with_priority(1.0)
@@ -30,7 +41,7 @@ def to_code(config):
     cg.add(var.set_scl_pin(config[CONF_SCL]))
     cg.add(var.set_frequency(int(config[CONF_FREQUENCY])))
     cg.add(var.set_scan(config[CONF_SCAN]))
-    cg.add_library('Wire', None)
+    cg.add_library("Wire", None)
 
 
 def i2c_device_schema(default_address):

@@ -10,17 +10,17 @@ void SN74HC595Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up SN74HC595...");
 
   if (this->have_oe_pin_) {  // disable output
-    pinMode(this->oe_pin_->get_pin(), OUTPUT);
-    digitalWrite(this->oe_pin_->get_pin(), HIGH);
+    this->oe_pin_->pin_mode(OUTPUT);
+    this->oe_pin_->digital_write(true);
   }
 
   // initialize output pins
-  pinMode(this->clock_pin_->get_pin(), OUTPUT);
-  pinMode(this->data_pin_->get_pin(), OUTPUT);
-  pinMode(this->latch_pin_->get_pin(), OUTPUT);
-  digitalWrite(this->clock_pin_->get_pin(), LOW);
-  digitalWrite(this->data_pin_->get_pin(), LOW);
-  digitalWrite(this->latch_pin_->get_pin(), LOW);
+  this->clock_pin_->pin_mode(OUTPUT);
+  this->data_pin_->pin_mode(OUTPUT);
+  this->latch_pin_->pin_mode(OUTPUT);
+  this->clock_pin_->digital_write(LOW);
+  this->data_pin_->digital_write(LOW);
+  this->latch_pin_->digital_write(LOW);
 
   // send state to shift register
   this->write_gpio_();
@@ -28,26 +28,33 @@ void SN74HC595Component::setup() {
 
 void SN74HC595Component::dump_config() { ESP_LOGCONFIG(TAG, "SN74HC595:"); }
 
-bool SN74HC595Component::digital_read_(uint8_t pin) { return bitRead(this->output_bits_, pin); }
+bool SN74HC595Component::digital_read_(uint8_t pin) { return this->output_bits_ >> pin; }
 
 void SN74HC595Component::digital_write_(uint8_t pin, bool value) {
-  bitWrite(this->output_bits_, pin, value);
+  uint32_t mask = 1UL << pin;
+  this->output_bits_ &= ~mask;
+  if (value)
+    this->output_bits_ |= mask;
   this->write_gpio_();
 }
 
 bool SN74HC595Component::write_gpio_() {
   for (int i = this->sr_count_ - 1; i >= 0; i--) {
     uint8_t data = (uint8_t)(this->output_bits_ >> (8 * i) & 0xff);
-    shiftOut(this->data_pin_->get_pin(), this->clock_pin_->get_pin(), MSBFIRST, data);
+    for (int j = 0; j < 8; j++) {
+      this->data_pin_->digital_write(data & (1 << (7 - j)));
+      this->clock_pin_->digital_write(true);
+      this->clock_pin_->digital_write(false);
+    }
   }
 
   // pulse latch to activate new values
-  digitalWrite(this->latch_pin_->get_pin(), HIGH);
-  digitalWrite(this->latch_pin_->get_pin(), LOW);
+  this->latch_pin_->digital_write(true);
+  this->latch_pin_->digital_write(false);
 
   // enable output if configured
   if (this->have_oe_pin_) {
-    digitalWrite(this->oe_pin_->get_pin(), LOW);
+    this->oe_pin_->digital_write(false);
   }
 
   return true;

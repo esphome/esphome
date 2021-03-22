@@ -40,22 +40,23 @@ void WLEDLightEffect::stop() {
 
 void WLEDLightEffect::blank_all_leds_(light::AddressableLight &it) {
   for (int led = it.size(); led-- > 0;) {
-    it[led].set(light::ESPColor::BLACK);
+    it[led].set(COLOR_BLACK);
   }
 }
 
-void WLEDLightEffect::apply(light::AddressableLight &it, const light::ESPColor &current_color) {
+void WLEDLightEffect::apply(light::AddressableLight &it, const Color &current_color) {
   // Init UDP lazily
   if (!udp_) {
     udp_.reset(new WiFiUDP());
 
     if (!udp_->begin(port_)) {
-      ESP_LOGE(TAG, "Cannot bind WLEDLightEffect to %d.", port_);
+      ESP_LOGW(TAG, "Cannot bind WLEDLightEffect to %d.", port_);
+      return;
     }
   }
 
+  std::vector<uint8_t> payload;
   while (uint16_t packet_size = udp_->parsePacket()) {
-    std::vector<uint8_t> payload;
     payload.resize(packet_size);
 
     if (!udp_->read(&payload[0], payload.size())) {
@@ -63,11 +64,12 @@ void WLEDLightEffect::apply(light::AddressableLight &it, const light::ESPColor &
     }
 
     if (!this->parse_frame_(it, &payload[0], payload.size())) {
-      ESP_LOGD(TAG, "Frame: Invalid (size=%zu, first=%c/%d).", payload.size(), payload[0], payload[0]);
+      ESP_LOGD(TAG, "Frame: Invalid (size=%zu, first=0x%02X).", payload.size(), payload[0]);
       continue;
     }
   }
 
+  // FIXME: Use roll-over safe arithmetic
   if (blank_at_ < millis()) {
     blank_all_leds_(it);
     blank_at_ = millis() + DEFAULT_BLANK_TIME;
@@ -150,7 +152,7 @@ bool WLEDLightEffect::parse_warls_frame_(light::AddressableLight &it, const uint
     uint8_t b = payload[3];
 
     if (led < max_leds) {
-      it[led].set(light::ESPColor(r, g, b));
+      it[led].set(Color(r, g, b));
     }
   }
 
@@ -172,7 +174,7 @@ bool WLEDLightEffect::parse_drgb_frame_(light::AddressableLight &it, const uint8
     uint8_t b = payload[2];
 
     if (led < max_leds) {
-      it[led].set(light::ESPColor(r, g, b));
+      it[led].set(Color(r, g, b));
     }
   }
 
@@ -195,7 +197,7 @@ bool WLEDLightEffect::parse_drgbw_frame_(light::AddressableLight &it, const uint
     uint8_t w = payload[3];
 
     if (led < max_leds) {
-      it[led].set(light::ESPColor(r, g, b, w));
+      it[led].set(Color(r, g, b, w));
     }
   }
 
@@ -226,7 +228,7 @@ bool WLEDLightEffect::parse_dnrgb_frame_(light::AddressableLight &it, const uint
     uint8_t b = payload[2];
 
     if (led < max_leds) {
-      it[led].set(light::ESPColor(r, g, b));
+      it[led].set(Color(r, g, b));
     }
   }
 

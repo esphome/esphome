@@ -50,18 +50,22 @@ template<typename... Ts> class Automation;
 
 template<typename... Ts> class Trigger {
  public:
+  /// Inform the parent automation that the event has triggered.
   void trigger(Ts... x) {
     if (this->automation_parent_ == nullptr)
       return;
     this->automation_parent_->trigger(x...);
   }
   void set_automation_parent(Automation<Ts...> *automation_parent) { this->automation_parent_ = automation_parent; }
-  void stop() {
+
+  /// Stop any action connected to this trigger.
+  void stop_action() {
     if (this->automation_parent_ == nullptr)
       return;
     this->automation_parent_->stop();
   }
-  bool is_running() {
+  /// Returns true if any action connected to this trigger is running.
+  bool is_action_running() {
     if (this->automation_parent_ == nullptr)
       return false;
     return this->automation_parent_->is_running();
@@ -87,7 +91,17 @@ template<typename... Ts> class Action {
     }
     this->stop_next_();
   }
+  /// Check if this or any of the following actions are currently running.
   virtual bool is_running() { return this->num_running_ > 0 || this->is_running_next_(); }
+
+  /// The total number of actions that are currently running in this plus any of
+  /// the following actions in the chain.
+  int num_running_total() {
+    int total = this->num_running_;
+    if (this->next_ != nullptr)
+      total += this->next_->num_running_total();
+    return total;
+  }
 
  protected:
   friend ActionList<Ts...>;
@@ -123,6 +137,8 @@ template<typename... Ts> class Action {
 
   Action<Ts...> *next_ = nullptr;
 
+  /// The number of instances of this sequence in the list of actions
+  /// that is currently being executed.
   int num_running_{0};
 };
 
@@ -151,10 +167,18 @@ template<typename... Ts> class ActionList {
       this->actions_begin_->stop_complex();
   }
   bool empty() const { return this->actions_begin_ == nullptr; }
+
+  /// Check if any action in this action list is currently running.
   bool is_running() {
     if (this->actions_begin_ == nullptr)
       return false;
     return this->actions_begin_->is_running();
+  }
+  /// Return the number of actions in this action list that are currently running.
+  int num_running() {
+    if (this->actions_begin_ == nullptr)
+      return false;
+    return this->actions_begin_->num_running_total();
   }
 
  protected:
@@ -176,6 +200,9 @@ template<typename... Ts> class Automation {
   void trigger(Ts... x) { this->actions_.play(x...); }
 
   bool is_running() { return this->actions_.is_running(); }
+
+  /// Return the number of actions in the action part of this automation that are currently running.
+  int num_running() { return this->actions_.num_running(); }
 
  protected:
   Trigger<Ts...> *trigger_;

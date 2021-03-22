@@ -46,6 +46,7 @@ service APIConnection {
 // The Home Assistant protocol is structured as a simple
 // TCP socket with short binary messages encoded in the protocol buffers format
 // First, a message in this protocol has a specific format:
+//  * A zero byte.
 //  * VarInt denoting the size of the message object. (type is not part of this)
 //  * VarInt denoting the type of message.
 //  * The message object encoded as a ProtoBuf message
@@ -302,6 +303,7 @@ message ListEntitiesFanResponse {
   bool supports_oscillation = 5;
   bool supports_speed = 6;
   bool supports_direction = 7;
+  int32 supported_speed_count = 8;
 }
 enum FanSpeed {
   FAN_SPEED_LOW = 0;
@@ -321,8 +323,9 @@ message FanStateResponse {
   fixed32 key = 1;
   bool state = 2;
   bool oscillating = 3;
-  FanSpeed speed = 4;
+  FanSpeed speed = 4 [deprecated = true];
   FanDirection direction = 5;
+  int32 speed_level = 6;
 }
 message FanCommandRequest {
   option (id) = 31;
@@ -333,12 +336,14 @@ message FanCommandRequest {
   fixed32 key = 1;
   bool has_state = 2;
   bool state = 3;
-  bool has_speed = 4;
-  FanSpeed speed = 5;
+  bool has_speed = 4 [deprecated = true];
+  FanSpeed speed = 5 [deprecated = true];
   bool has_oscillating = 6;
   bool oscillating = 7;
   bool has_direction = 8;
   FanDirection direction = 9;
+  bool has_speed_level = 10;
+  int32 speed_level = 11;
 }
 
 // ==================== LIGHT ====================
@@ -418,6 +423,7 @@ message ListEntitiesSensorResponse {
   string unit_of_measurement = 6;
   int32 accuracy_decimals = 7;
   bool force_update = 8;
+  string device_class = 9;
 }
 message SensorStateResponse {
   option (id) = 25;
@@ -679,7 +685,7 @@ enum ClimateSwingMode {
   CLIMATE_SWING_OFF = 0;
   CLIMATE_SWING_BOTH = 1;
   CLIMATE_SWING_VERTICAL = 2;
-  CLIMATE_SWINT_HORIZONTAL = 3;
+  CLIMATE_SWING_HORIZONTAL = 3;
 }
 enum ClimateAction {
   CLIMATE_ACTION_OFF = 0;
