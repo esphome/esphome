@@ -7,13 +7,6 @@
 namespace esphome {
 namespace xpt2046 {
 
-enum XPT2046Transform {
-  SWAP_X_Y,
-  INVERT_X,
-  INVERT_Y,
-};
-
-
 class XPT2046OnStateTrigger : public Trigger<int, int, bool> {
  public:
   void process(int x, int y, bool touched);
@@ -24,18 +17,12 @@ class XPT2046Component : public PollingComponent,
                          public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
                                                spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_2MHZ> {
  public:
-  void set_transform(XPT2046Transform trans) { this->transform_ |= (1U << (int) trans); }
-
   void set_dimensions(int16_t x, int16_t y) {
     this->x_dim_ = x;
     this->y_dim_ = y;
   }
-  void set_calibration(int16_t x_min, int16_t x_max, int16_t y_min, int16_t y_max) {
-    this->x_raw_min_ = x_min;
-    this->x_raw_max_ = x_max;
-    this->y_raw_min_ = y_min;
-    this->y_raw_max_ = y_max;
-  }
+  void set_calibration(int16_t x_min, int16_t x_max, int16_t y_min, int16_t y_max);
+  void set_swap_x_y(bool val) { this->swap_x_y_ = val; }
 
   void set_report_interval(uint16_t interval) { this->report_millis_ = interval; }
   void set_threshold(int16_t threshold) { this->threshold_ = threshold; }
@@ -62,6 +49,8 @@ class XPT2046Component : public PollingComponent,
   int16_t threshold_;
   int16_t x_raw_min_, x_raw_max_, y_raw_min_, y_raw_max_;
   int16_t x_dim_, y_dim_;
+  bool invert_x_, invert_y_;
+  bool swap_x_y_;
 
   uint16_t report_millis_;
   unsigned long last_pos_ms_{0};

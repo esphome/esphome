@@ -2,6 +2,8 @@
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
 
+#include <algorithm>
+
 namespace esphome {
 namespace xpt2046 {
 
@@ -52,14 +54,14 @@ void XPT2046Component::update() {
     int16_t x_raw_norm = normalize_(this->x_raw_, this->x_raw_min_, this->x_raw_max_);
     int16_t y_raw_norm = normalize_(this->y_raw_, this->y_raw_min_, this->y_raw_max_);
 
-    int16_t x = (this->transform_ & (1 << (int) SWAP_X_Y)) ? y_raw_norm : x_raw_norm;
-    int16_t y = (this->transform_ & (1 << (int) SWAP_X_Y)) ? x_raw_norm : y_raw_norm;
+    int16_t x = this->swap_x_y_ ? y_raw_norm : x_raw_norm;
+    int16_t y = this->swap_x_y_ ? x_raw_norm : y_raw_norm;
 
-    if (this->transform_ & (1 << (int) INVERT_X)) {
+    if (this->invert_x_) {
       x = 0x7fff - x;
     }
 
-    if (this->transform_ & (1 << (int) INVERT_Y)) {
+    if (this->invert_y_) {
       y = 0x7fff - y;
     }
 
@@ -86,6 +88,15 @@ void XPT2046Component::update() {
   }
 }
 
+void XPT2046Component::set_calibration(int16_t x_min, int16_t x_max, int16_t y_min, int16_t y_max) {
+  this->x_raw_min_ = std::min(x_min, x_max);
+  this->x_raw_max_ = std::max(x_min, x_max);
+  this->y_raw_min_ = std::min(y_min, y_max);
+  this->y_raw_max_ = std::max(y_min, y_max);
+  this->invert_x_ = (x_min > x_max);
+  this->invert_y_ = (y_min > y_max);
+}
+
 void XPT2046Component::dump_config() {
   ESP_LOGCONFIG(TAG, "XPT2046:");
 
@@ -95,14 +106,11 @@ void XPT2046Component::dump_config() {
   ESP_LOGCONFIG(TAG, "  Y max: %d", this->y_raw_max_);
   ESP_LOGCONFIG(TAG, "  X dim: %d", this->x_dim_);
   ESP_LOGCONFIG(TAG, "  Y dim: %d", this->y_dim_);
+  if (this->swap_x_y_) {
+    ESP_LOGCONFIG(TAG, "  Swap X/Y");
+  }
   ESP_LOGCONFIG(TAG, "  threshold: %d", this->threshold_);
   ESP_LOGCONFIG(TAG, "  Report interval: %u", this->report_millis_);
-
-  if (this->transform_) {
-    ESP_LOGCONFIG(TAG, "  Transform: %s %s %s", (this->transform_ & (1 << SWAP_X_Y)) ? "swap_x_y" : "",
-                  (this->transform_ & (1 << INVERT_X)) ? "invert_x" : "",
-                  (this->transform_ & (1 << INVERT_Y)) ? "invert_y" : "");
-  }
 
   LOG_UPDATE_INTERVAL(this);
 }
