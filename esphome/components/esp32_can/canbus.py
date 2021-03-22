@@ -21,4 +21,7 @@ def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     yield canbus.register_canbus(var, config)
 
-    cg.add_library("sandeepmistry/CAN", "~0.3.1")
+    rx = yield cg.gpio_pin_expression(config[CONF_RX_PIN])
+    cg.add(var.set_rx(rx))
+    tx = yield cg.gpio_pin_expression(config[CONF_TX_PIN])
+    cg.add(var.set_tx(tx))
