@@ -81,8 +81,8 @@ def to_code(config):
       yield switch.register_switch(var, conf)
       cg.add(paren.set_pv_ok_condition_for_parallel_switch(var))
       cg.add(var.set_parent(paren))
-      cg.add(var.set_on_command("PPVOK1"))
-      cg.add(var.set_off_command("PPVOK0"))
+      cg.add(var.set_on_command("PPVOKC1"))
+      cg.add(var.set_off_command("PPVOKC0"))
     if CONF_PV_POWER_BALANCE in config:
       conf = config[CONF_PV_POWER_BALANCE]
       var = cg.new_Pvariable(conf[CONF_ID])

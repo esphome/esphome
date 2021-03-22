@@ -38,11 +38,12 @@ void Pipsolar::loop() {
     }
   }
   if (this->state_ == STATE_COMMAND_COMPLETE ) {
-    if (this->check_incoming_length(3)) {
+    if (this->check_incoming_length(4)) 
+    {
       ESP_LOGD(TAG,"response length for command OK");
       if (this->check_incoming_crc()) {
         //crc ok
-        if (this->read_buffer_[0] == 'A' && this->read_buffer_[1] == 'C' && this->read_buffer_[2] == 'K') {
+        if (this->read_buffer_[1] == 'A' && this->read_buffer_[2] == 'C' && this->read_buffer_[3] == 'K') {
           ESP_LOGD(TAG,"command successful");
         } else {
           ESP_LOGD(TAG,"command not successful");
@@ -57,12 +58,12 @@ void Pipsolar::loop() {
         this->command_queue_position_ = (command_queue_position_ + 1) % COMMAND_QUEUE_LENGTH;
         this->state_ = STATE_IDLE;
       }
-    } else {
+    }
+     else {
+      ESP_LOGD(TAG,"response length for command %s not OK: with length %d",this->command_queue_[this->command_queue_position_].c_str(),this->read_pos_);
       this->command_queue_[this->command_queue_position_] = String("");
       this->command_queue_position_ = (command_queue_position_ + 1) % COMMAND_QUEUE_LENGTH;
       this->state_ = STATE_IDLE;
-      ESP_LOGD(TAG,"response length for command not OK: with length %d",this->read_pos_);
-
     }
   }
 
@@ -86,7 +87,7 @@ void Pipsolar::loop() {
         if (this->current_max_charging_current_) {this->current_max_charging_current_->publish_state(current_max_charging_current);}
         if (this->input_voltage_range_) {this->input_voltage_range_->publish_state(input_voltage_range);}
         // special for input voltage range switch
-        if (this->input_voltage_range_switch_) {this->input_voltage_range_switch_->publish_state(this->input_voltage_range_);}
+        if (this->input_voltage_range_switch_) {this->input_voltage_range_switch_->publish_state(this->input_voltage_range == 1);}
         if (this->output_source_priority_) {this->output_source_priority_->publish_state(output_source_priority);}
         // special for output source priority switches
         if (this->output_source_priority_utility_switch_) {this->output_source_priority_utility_switch_->publish_state(output_source_priority == 0);}
@@ -100,10 +101,10 @@ void Pipsolar::loop() {
         if (this->battery_redischarge_voltage_) {this->battery_redischarge_voltage_->publish_state(battery_redischarge_voltage);}
         if (this->pv_ok_condition_for_parallel_) {this->pv_ok_condition_for_parallel_->publish_state(pv_ok_condition_for_parallel);}
         // special for pv ok condition switch
-        if (this->pv_ok_condition_for_parallel_switch_) {this->pv_ok_condition_for_parallel_switch_->publish_state(this->pv_ok_condition_for_parallel_);}
-        if (this->pv_power_balance_) {this->pv_power_balance_->publish_state(pv_power_balance);}
+        if (this->pv_ok_condition_for_parallel_switch_) {this->pv_ok_condition_for_parallel_switch_->publish_state(this->pv_ok_condition_for_parallel == 1);}
+        if (this->pv_power_balance_) {this->pv_power_balance_->publish_state(this->pv_power_balance == 1);}
         // special for power balance switch
-        if (this->pv_power_balance_switch_) {this->pv_power_balance_switch_->publish_state(this->pv_power_balance_);}
+        if (this->pv_power_balance_switch_) {this->pv_power_balance_switch_->publish_state(this->pv_power_balance == 1);}
 
 
         this->state_ = STATE_IDLE;
@@ -384,11 +385,9 @@ void Pipsolar::loop() {
 
   if (this->state_ == STATE_POLL_COMPLETE ) {
     if (this->check_incoming_crc()) {
-      if (this->read_pos_ > 3) {
-        if (this->read_buffer_[0] == '(' && this->read_buffer_[1] == 'N' && this->read_buffer_[2] == 'A' && this->read_buffer_[3] == 'K') {
-          this->state_ = STATE_IDLE;
-          return;
-        }
+      if (this->read_buffer_[0] == '(' && this->read_buffer_[1] == 'N' && this->read_buffer_[2] == 'A' && this->read_buffer_[3] == 'K') {
+        this->state_ = STATE_IDLE;
+        return;
       }
       //crc ok
       this->state_ = STATE_POLL_CHECKED;
@@ -541,27 +540,6 @@ void Pipsolar::switch_command(String command) {
   ESP_LOGD(TAG,"got command: %s",command.c_str());
 
   queue_command(command.c_str(),command.length());
-  // if (command.equals(String("ospu"))) {
-  //   // set output source priority to utility
-  //   queue_command("POP00",5);
-  //   this->output_source_priority_utility_switch_->publish_state(true);
-  //   this->output_source_priority_solar_switch_->publish_state(false);
-  //   this->output_source_priority_battery_switch_->publish_state(false);
-  // }
-  // if (command.equals(String("osps"))) {
-  //   // set output source priority to solar
-  //   queue_command("POP01",5);
-  //   this->output_source_priority_utility_switch_->publish_state(false);
-  //   this->output_source_priority_solar_switch_->publish_state(true);
-  //   this->output_source_priority_battery_switch_->publish_state(false);
-  // }
-  // if (command.equals(String("ospb"))) {
-  //   // set output source priority to battery
-  //   queue_command("POP02",5);
-  //   this->output_source_priority_utility_switch_->publish_state(false);
-  //   this->output_source_priority_solar_switch_->publish_state(false);
-  //   this->output_source_priority_battery_switch_->publish_state(true);
-  // }
 }
 void Pipsolar::dump_config() {
   ESP_LOGCONFIG(TAG, "Pipsolar:");
