@@ -24,7 +24,7 @@ void HttpRequestComponent::set_url(std::string url) {
   this->client_.setReuse(true);
 }
 
-void HttpRequestComponent::send(std::vector<HttpRequestResponseTrigger *> response_triggers) {
+void HttpRequestComponent::send(const std::vector<HttpRequestResponseTrigger *> &response_triggers) {
   bool begin_status = false;
   const String url = this->url_.c_str();
 #ifdef ARDUINO_ARCH_ESP32

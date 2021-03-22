@@ -200,6 +200,6 @@ def http_request_action_to_code(config, action_id, template_arg, args):
     for conf in config.get(CONF_ON_RESPONSE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
         cg.add(var.register_response_trigger(trigger))
-        yield automation.build_automation(trigger, [(int, "x")], conf)
+        yield automation.build_automation(trigger, [(int, "status_code")], conf)
 
     yield var
