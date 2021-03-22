@@ -1,7 +1,7 @@
 #include "st7735.h"
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
-#include "esphome/components/display/bufferex_565.h"
+#include "esphome/components/display/buffer_565.h"
 
 namespace esphome {
 namespace st7735 {
@@ -90,7 +90,7 @@ bool HOT ST7735::is_18bit_() { return this->get_buffer_type() != display::Buffer
 void ST7735::update() {
   this->do_update_();
   this->display_buffer_();
-  this->bufferex_base_->display_end();
+  this->buffer_base_->display_end();
 }
 
 int ST7735::get_height_internal() { return height_; }
@@ -191,29 +191,29 @@ void HOT ST7735::senddata_(const uint8_t *data_bytes, uint8_t num_data_bytes) {
 
 void HOT ST7735::display_buffer_() {
 #ifdef USE_BUFFER_RGB565
-  auto buff = static_cast<display::Bufferex565 *>(this->bufferex_base_);
+  auto buff = static_cast<display::Bufferex565 *>(this->buffer_base_);
   set_addr_window_(colstart_, rowstart_, this->width_, this->height_);
   this->start_data_();
-  this->write_array16(buff->buffer_, this->bufferex_base_->get_buffer_length());
+  this->write_array16(buff->buffer_, this->buffer_base_->get_buffer_length());
 #else
-  int w = this->bufferex_base_->get_partial_update_x();
-  int h = this->bufferex_base_->get_partial_update_y();
+  int w = this->buffer_base_->get_partial_update_x();
+  int h = this->buffer_base_->get_partial_update_y();
 
-  ESP_LOGD(TAG, "Asked to update %d/%d to %d/%d", this->bufferex_base_->get_partial_update_x_low() + colstart_,
-           this->bufferex_base_->get_partial_update_y_low() + rowstart_, w, h);
+  ESP_LOGD(TAG, "Asked to update %d/%d to %d/%d", this->buffer_base_->get_partial_update_x_low() + colstart_,
+           this->buffer_base_->get_partial_update_y_low() + rowstart_, w, h);
 
-  const uint32_t start_pos = ((this->bufferex_base_->get_partial_update_y_low() * this->width_) +
-                              this->bufferex_base_->get_partial_update_x_low());
+  const uint32_t start_pos = ((this->buffer_base_->get_partial_update_y_low() * this->width_) +
+                              this->buffer_base_->get_partial_update_x_low());
 
-  set_addr_window_(this->bufferex_base_->get_partial_update_x_low() + colstart_,
-                   this->bufferex_base_->get_partial_update_y_low() + rowstart_, w, h);
+  set_addr_window_(this->buffer_base_->get_partial_update_x_low() + colstart_,
+                   this->buffer_base_->get_partial_update_y_low() + rowstart_, w, h);
 
   this->start_data_();
   for (uint16_t row = 0; row < h; row++) {
     for (uint16_t col = 0; col < w; col++) {
       uint32_t pos = start_pos + (row * width_) + col;
 
-      uint32_t color_to_write = this->bufferex_base_->get_pixel_to_666(pos);
+      uint32_t color_to_write = this->buffer_base_->get_pixel_to_666(pos);
 
       if (this->is_18bit_()) {
         this->write_byte(color_to_write >> 14);
@@ -228,7 +228,7 @@ void HOT ST7735::display_buffer_() {
 
   this->end_data_();
 
-  this->bufferex_base_->pixel_count_ = 0;
+  this->buffer_base_->pixel_count_ = 0;
 }
 
 void HOT ST7735::start_data_() {

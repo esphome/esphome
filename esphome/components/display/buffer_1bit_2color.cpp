@@ -1,8 +1,8 @@
-#include "bufferex_1bit_2color.h"
+#include "buffer_1bit_2color.h"
 
 namespace esphome {
 namespace display {
-static const char *TAG = "bufferex_1bit_2color";
+static const char *TAG = "buffer_1bit_2color";
 
 bool Bufferex1bit2color::init_buffer(int width, int height) {
   this->width_ = width;

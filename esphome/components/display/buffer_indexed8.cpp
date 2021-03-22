@@ -1,10 +1,10 @@
-#include "bufferex_indexed8.h"
+#include "buffer_indexed8.h"
 
 namespace esphome {
 namespace display {
 
 #ifdef USE_BUFFER_INDEXED8
-static const char *TAG = "bufferex_indexed8";
+static const char *TAG = "buffer_indexed8";
 
 bool BufferexIndexed8::init_buffer(int width, int height) {
   this->width_ = width;

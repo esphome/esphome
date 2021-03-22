@@ -38,12 +38,12 @@ DisplayPageShowPrevAction = display_ns.class_(
     "DisplayPageShowPrevAction", automation.Action
 )
 
-bufferex_base = display_ns.class_("BufferexBase")
-bufferex_565 = display_ns.class_("Bufferex565")
-bufferex_666 = display_ns.class_("Bufferex666")
-bufferex_332 = display_ns.class_("Bufferex332")
-bufferex_indexed8 = display_ns.class_("BufferexIndexed8")
-bufferex_1bit_2color = display_ns.class_("Bufferex1bit2color")
+buffer_base = display_ns.class_("BufferexBase")
+buffer_565 = display_ns.class_("Bufferex565")
+buffer_666 = display_ns.class_("Bufferex666")
+buffer_332 = display_ns.class_("Bufferex332")
+buffer_indexed8 = display_ns.class_("BufferexIndexed8")
+buffer_1bit_2color = display_ns.class_("Bufferex1bit2color")
 
 BufferType = display_ns.enum("BufferType")
 
@@ -93,7 +93,7 @@ BASIC_DISPLAY_SCHEMA = cv.Schema(
 
 FULL_DISPLAY_SCHEMA = BASIC_DISPLAY_SCHEMA.extend(
     {
-        cv.GenerateID(CONF_BUFFER_ID): cv.declare_id(bufferex_base),
+        cv.GenerateID(CONF_BUFFER_ID): cv.declare_id(buffer_base),
         cv.Optional(CONF_ROTATION): validate_rotation,
         cv.Optional(CONF_BUFFER): cv.All(BASIC_BUFFER_SCHEMA),
         cv.Optional(CONF_PAGES): cv.All(
@@ -110,7 +110,7 @@ FULL_DISPLAY_SCHEMA = BASIC_DISPLAY_SCHEMA.extend(
 
 FULL_DISPLAY_NO_BUFFER_SCHEMA = BASIC_DISPLAY_SCHEMA.extend(
     {
-        cv.GenerateID(CONF_BUFFER_ID): cv.declare_id(bufferex_base),
+        cv.GenerateID(CONF_BUFFER_ID): cv.declare_id(buffer_base),
         cv.Optional(CONF_ROTATION): validate_rotation,
         cv.Optional(CONF_PAGES): cv.All(
             cv.ensure_list(
@@ -145,21 +145,21 @@ def register_display(var, config):
     yield setup_display_core_(var, config)
     if CONF_BUFFER_ID in config:
         if CONF_BUFFER not in config:
-            config[CONF_BUFFER_ID].type = bufferex_565
+            config[CONF_BUFFER_ID].type = buffer_565
             cg.add_define("USE_BUFFER_RGB565")
         else:
             cg.add_define("USE_BUFFER_" + config[CONF_BUFFER][CONF_TYPE])
             if config[CONF_BUFFER][CONF_TYPE] == "RGB666":
-                config[CONF_BUFFER_ID].type = bufferex_666
+                config[CONF_BUFFER_ID].type = buffer_666
             if config[CONF_BUFFER][CONF_TYPE] == "RGB565":
-                config[CONF_BUFFER_ID].type = bufferex_565
+                config[CONF_BUFFER_ID].type = buffer_565
             elif config[CONF_BUFFER][CONF_TYPE] == "RGB332":
-                config[CONF_BUFFER_ID].type = bufferex_332
+                config[CONF_BUFFER_ID].type = buffer_332
             elif config[CONF_BUFFER][CONF_TYPE] == "RGB1BIT":
-                config[CONF_BUFFER_ID].type = bufferex_1bit_2color
+                config[CONF_BUFFER_ID].type = buffer_1bit_2color
             elif config[CONF_BUFFER][CONF_TYPE] == "INDEXED8":
 
-                config[CONF_BUFFER_ID].type = bufferex_indexed8
+                config[CONF_BUFFER_ID].type = buffer_indexed8
 
         buffer = yield cg.new_Pvariable(config[CONF_BUFFER_ID])
         cg.add(var.set_buffer_base(buffer))

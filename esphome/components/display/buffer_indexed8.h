@@ -1,5 +1,5 @@
 #pragma once
-#include "bufferex_base.h"
+#include "buffer_base.h"
 
 namespace esphome {
 namespace display {

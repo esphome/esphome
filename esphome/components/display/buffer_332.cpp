@@ -1,9 +1,9 @@
-#include "bufferex_332.h"
+#include "buffer_332.h"
 
 namespace esphome {
 namespace display {
 #ifdef USE_BUFFER_RGB332
-static const char *TAG = "bufferex_332";
+static const char *TAG = "buffer_332";
 
 bool Bufferex332::init_buffer(int width, int height) {
   this->width_ = width;

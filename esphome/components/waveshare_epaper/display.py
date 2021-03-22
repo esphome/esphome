@@ -118,7 +118,7 @@ def to_code(config):
 
         config[display.CONF_BUFFER] = {}
         config[display.CONF_BUFFER][display.CONF_TYPE] = "INDEXED8"
-        config[display.CONF_BUFFER_ID].type = display.bufferex_indexed8
+        config[display.CONF_BUFFER_ID].type = display.buffer_indexed8
 
     else:
         raise NotImplementedError()

@@ -43,7 +43,7 @@ class WaveshareEPaper : public PollingComponent,
   }
 
   void on_safe_shutdown() override;
-  virtual bool use_bufferex() { return false; }
+  virtual bool use_buffer() { return false; }
 
  protected:
   void draw_absolute_pixel_internal(int x, int y, Color color) override;
@@ -304,7 +304,7 @@ class WaveshareEPaperTypeF : public WaveshareEPaper {
     }
   }
 
-  bool use_bufferex() override { return true; }
+  bool use_buffer() override { return true; }
 
  protected:
   // virtual uint8_t color_(Color color);

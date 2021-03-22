@@ -1,8 +1,8 @@
-#include "bufferex_base.h"
+#include "buffer_base.h"
 
 namespace esphome {
 namespace display {
-static const char *TAG = "bufferex_base";
+static const char *TAG = "buffer_base";
 
 size_t BufferexBase::get_buffer_length() { return size_t(this->width_) * size_t(this->height_); }
 

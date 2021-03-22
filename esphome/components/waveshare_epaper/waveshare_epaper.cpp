@@ -84,7 +84,7 @@ static const uint8_t PARTIAL_UPDATE_LUT_TTGO_B1[LUT_SIZE_TTGO_B1] = {
 
 void WaveshareEPaper::setup_pins_() {
   ESP_LOGD(TAG, "Setup pins");
-  if (!this->use_bufferex())
+  if (!this->use_buffer())
     this->init_internal_(this->get_buffer_length_());
 
   this->dc_pin_->setup();  // OUTPUT
@@ -1015,18 +1015,18 @@ void WaveshareEPaperTypeF::initialize() {
 
   App.feed_wdt();
 
-  if (!this->bufferex_base_->colors_is_set)
-    this->bufferex_base_->set_colors(this->get_model_colors());
+  if (!this->buffer_base_->colors_is_set)
+    this->buffer_base_->set_colors(this->get_model_colors());
 
-  this->bufferex_base_->set_indexed_colors(this->get_model_colors());
+  this->buffer_base_->set_indexed_colors(this->get_model_colors());
 
-  if (!this->bufferex_base_->index_size_is_set)
-    this->bufferex_base_->set_index_size(this->bufferex_base_->get_color_count());
+  if (!this->buffer_base_->index_size_is_set)
+    this->buffer_base_->set_index_size(this->buffer_base_->get_color_count());
 
   this->init_buffer(this->get_width_internal(), this->get_height_internal());
 
-  this->bufferex_base_->set_default_index_value(0x07);  // "clean"
-  this->bufferex_base_->fill_buffer(Waveshare_Blue);
+  this->buffer_base_->set_default_index_value(0x07);  // "clean"
+  this->buffer_base_->fill_buffer(Waveshare_Blue);
 }
 void WaveshareEPaperTypeF::dump_config() {
   LOG_DISPLAY("", "Waveshare Advanced Color E-Paper", this);
@@ -1050,7 +1050,7 @@ void HOT WaveshareEPaperTypeF::send_display_size_(uint16_t width, uint16_t heigh
   this->end_data_();
 }
 void HOT WaveshareEPaperTypeF::display() {
-  ESP_LOGD(TAG, "Asked to write %d pixels", this->bufferex_base_->pixel_count_);
+  ESP_LOGD(TAG, "Asked to write %d pixels", this->buffer_base_->pixel_count_);
   uint32_t total_pixels = this->get_width_internal() * this->get_height_internal();
   ESP_LOGD(TAG, "Clean display");
   this->send_display_size_(this->get_width_internal(), this->get_height_internal());
@@ -1085,10 +1085,10 @@ void HOT WaveshareEPaperTypeF::display() {
   this->start_data_();
 
   for (uint32_t pos = 0; pos < total_pixels; pos += 2) {
-    uint8_t out = this->bufferex_base_->get_pixel_value(pos) << 4;
+    uint8_t out = this->buffer_base_->get_pixel_value(pos) << 4;
     // uint8_t out = this->get_index_value_(pos) << 4;
     if (pos < total_pixels - 1) {
-      out |= this->bufferex_base_->get_pixel_value(pos + 1);
+      out |= this->buffer_base_->get_pixel_value(pos + 1);
     }
 
     this->write_byte(out);
@@ -1129,7 +1129,7 @@ void WaveshareEPaperTypeF::fill(Color color) { this->fill_buffer(color); }
 //   return 0x07;  // "clean"
 // }
 void HOT WaveshareEPaperTypeF::draw_absolute_pixel_internal(int x, int y, Color color) {
-  this->bufferex_base_->set_pixel(x, y, color);
+  this->buffer_base_->set_pixel(x, y, color);
 }
 
 int WaveshareEPaperTypeF::get_width_internal() {

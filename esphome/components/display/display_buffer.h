@@ -3,7 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/automation.h"
-#include "bufferex_base.h"
+#include "buffer_base.h"
 
 #ifdef USE_TIME
 #include "esphome/components/time/real_time_clock.h"
@@ -323,7 +323,7 @@ class DisplayBuffer {
   /// Internal method to set the display rotation with.
   void set_rotation(DisplayRotation rotation);
 
-  void HOT set_buffer_base(display::BufferexBase *bufferex_base) { this->bufferex_base_ = bufferex_base; }
+  void HOT set_buffer_base(display::BufferexBase *buffer_base) { this->buffer_base_ = buffer_base; }
 
   size_t get_buffer_length();
   void set_pixel(int x, int y, Color color);
@@ -338,19 +338,19 @@ class DisplayBuffer {
   uint32_t HOT get_pixel_to_666(uint16_t pos);
 
   bool init_buffer(int width, int height);
-  display::BufferType get_buffer_type() { return this->bufferex_base_->get_buffer_type(); };
-  std::string get_buffer_type_string() { return BUFFER_TYPE_STRINGS[this->bufferex_base_->get_buffer_type()]; }
-  uint8_t get_pixel_storage_size() { return this->bufferex_base_->get_pixel_storage_size(); }
+  display::BufferType get_buffer_type() { return this->buffer_base_->get_buffer_type(); };
+  std::string get_buffer_type_string() { return BUFFER_TYPE_STRINGS[this->buffer_base_->get_buffer_type()]; }
+  uint8_t get_pixel_storage_size() { return this->buffer_base_->get_pixel_storage_size(); }
 
   void set_driver_right_bit_aligned(bool driver_right_bit_aligned) {
-    this->bufferex_base_->set_driver_right_bit_aligned(driver_right_bit_aligned);
+    this->buffer_base_->set_driver_right_bit_aligned(driver_right_bit_aligned);
   }
 
  protected:
   void vprintf_(int x, int y, Font *font, Color color, TextAlign align, const char *format, va_list arg);
 
   virtual void HOT draw_absolute_pixel_internal(int x, int y, Color color) {
-    this->bufferex_base_->set_pixel(x, y, color);
+    this->buffer_base_->set_pixel(x, y, color);
   }
 
   virtual int get_height_internal() = 0;
@@ -364,7 +364,7 @@ class DisplayBuffer {
   void do_update_();
 
   uint8_t *buffer_{nullptr};
-  display::BufferexBase *bufferex_base_ = nullptr;
+  display::BufferexBase *buffer_base_ = nullptr;
 
   DisplayRotation rotation_{DISPLAY_ROTATION_0_DEGREES};
   optional<display_writer_t> writer_{};
