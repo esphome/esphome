@@ -38,7 +38,7 @@ class ST7735 : public PollingComponent,
   bool usebgr_ = false;
   bool driver_right_bit_aligned_ = false;
   // void draw_absolute_pixel_internal(int x, int y, Color color) override;
-  // void fill(Color color) override;
+  void fill(Color color) override;
   int get_width_internal() override;
   int get_height_internal() override;
   void display_clear() override;

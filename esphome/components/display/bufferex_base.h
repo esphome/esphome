@@ -5,6 +5,13 @@
 namespace esphome {
 namespace display {
 
+struct partial_info {
+  uint16_t x_low = 0;
+  uint16_t y_low = 0;
+  uint16_t x_high = 0;
+  uint16_t y_high = 0;
+};
+
 enum BufferType : uint8_t {
   BUFFER_TYPE_1BIT = 0,
   BUFFER_TYPE_332 = 1,
@@ -18,7 +25,7 @@ class BufferexBase {
  public:
   virtual bool init_buffer(int width, int height) = 0;
 
-  virtual void set_buffer(int x, int y, Color color) = 0;
+  virtual bool set_buffer(int x, int y, Color color) = 0;
 
 #ifdef USE_BUFFER_INDEXED8
   // value
@@ -51,7 +58,7 @@ class BufferexBase {
   bool is_buffer_set() { return this->is_buffer_set_; }
   void set_is_buffer_set(bool is_buffer_set) { this->is_buffer_set_ = is_buffer_set; }
 
-  void display();
+  void display_end();
   void HOT set_pixel(int x, int y, Color color);
   void set_driver_right_bit_aligned(bool driver_right_bit_aligned) {
     this->driver_right_bit_aligned_ = driver_right_bit_aligned;
@@ -72,13 +79,19 @@ class BufferexBase {
     this->index_size_is_set = true;
     this->index_size_ = index_size;
   }
-  uint16_t pixel_count_ = 0;
-  uint16_t x_low_ = 0;
-  uint16_t y_low_ = 0;
-  uint16_t x_high_ = 0;
-  uint16_t y_high_ = 0;
+  uint32_t pixel_count_ = 0;
+  partial_info current_info;
+  partial_info previous_info;
+
   bool index_size_is_set = false;
   bool colors_is_set = false;
+  uint16_t HOT get_partial_update_x();
+  uint16_t HOT get_partial_update_y();
+
+  uint16_t HOT get_partial_update_x_low();
+  uint16_t HOT get_partial_update_x_high();
+  uint16_t HOT get_partial_update_y_low();
+  uint16_t HOT get_partial_update_y_high();
 
  protected:
   int16_t width_ = 0, height_ = 0;

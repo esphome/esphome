@@ -6,12 +6,41 @@ static const char *TAG = "bufferex_base";
 
 size_t BufferexBase::get_buffer_length() { return size_t(this->width_) * size_t(this->height_); }
 
-void HOT BufferexBase::display() {
+void HOT BufferexBase::display_end() {
   // invalidate watermarks
-  this->x_low_ = this->width_;
-  this->y_low_ = this->height_;
-  this->x_high_ = 0;
-  this->y_high_ = 0;
+  this->previous_info = this->current_info;
+
+  this->current_info.x_low = this->width_;
+  this->current_info.y_low = this->height_;
+  this->current_info.x_high = 0;
+  this->current_info.y_high = 0;
+  this->pixel_count_ = 0;
+}
+
+uint16_t HOT BufferexBase::get_partial_update_x() {
+  return this->get_partial_update_x_high() - this->get_partial_update_x_low() + 1;
+}
+
+uint16_t HOT BufferexBase::get_partial_update_y() {
+  return this->get_partial_update_y_high() - this->get_partial_update_y_low() + 1;
+}
+
+uint16_t HOT BufferexBase::get_partial_update_x_low() {
+  return this->current_info.x_low < this->previous_info.x_low ? this->current_info.x_low : this->previous_info.x_low;
+}
+
+uint16_t HOT BufferexBase::get_partial_update_x_high() {
+  return this->current_info.x_high > this->previous_info.x_high ? this->current_info.x_high
+                                                                : this->previous_info.x_high;
+}
+
+uint16_t HOT BufferexBase::get_partial_update_y_low() {
+  return this->current_info.y_low < this->previous_info.y_low ? this->current_info.y_low : this->previous_info.y_low;
+}
+
+uint16_t HOT BufferexBase::get_partial_update_y_high() {
+  return this->current_info.y_high > this->previous_info.y_high ? this->current_info.y_high
+                                                                : this->previous_info.y_high;
 }
 
 void HOT BufferexBase::set_pixel(int x, int y, Color color) {
@@ -20,13 +49,17 @@ void HOT BufferexBase::set_pixel(int x, int y, Color color) {
     return;
   }
 
-  this->x_low_ = (x < this->x_low_) ? x : this->x_low_;
-  this->y_low_ = (y < this->y_low_) ? y : this->y_low_;
-  this->x_high_ = (x > this->x_high_) ? x : this->x_high_;
-  this->y_high_ = (y > this->y_high_) ? y : this->y_high_;
+  bool result = this->set_buffer(x, y, color);
+  if (!result) {
+    return;
+  }
+
+  this->current_info.x_low = (x < this->current_info.x_low) ? x : this->current_info.x_low;
+  this->current_info.y_low = (y < this->current_info.y_low) ? y : this->current_info.y_low;
+  this->current_info.x_high = (x > this->current_info.x_high) ? x : this->current_info.x_high;
+  this->current_info.y_high = (y > this->current_info.y_high) ? y : this->current_info.y_high;
 
   this->pixel_count_++;
-  this->set_buffer(x, y, color);
 }
 
 }  // namespace display

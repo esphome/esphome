@@ -24,13 +24,17 @@ void Bufferex1bit2color::fill_buffer(Color color) {
 
 uint32_t Bufferex1bit2color::get_pixel_buffer_position_internal_(int x, int y) { return (x + y * this->width_); }
 
-void HOT Bufferex1bit2color::set_buffer(int x, int y, Color color) {
+bool HOT Bufferex1bit2color::set_buffer(int x, int y, Color color) {
   const uint32_t byte_location = get_pixel_buffer_position_internal_(x, y) / 8;
   const uint8_t byte_offset = get_pixel_buffer_position_internal_(x, y) - (byte_location * 8);
 
   uint8_t color_byte = this->buffer_[byte_location];
   color_byte ^= (-(color.r + color.b + color.g == 0 ? 0 : 1) ^ color_byte) & (1UL << byte_offset);
-  this->buffer_[byte_location] = color_byte;
+  if (this->buffer_[byte_location] != color_byte) {
+    this->buffer_[byte_location] = color_byte;
+    return true;
+  }
+  return false;
 }
 
 uint8_t Bufferex1bit2color::get_color_bit_(int x, int y) {

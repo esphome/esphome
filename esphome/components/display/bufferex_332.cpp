@@ -25,10 +25,14 @@ void Bufferex332::fill_buffer(Color color) {
   memset(this->buffer_, color332, this->get_buffer_size());
 }
 
-void HOT Bufferex332::set_buffer(int x, int y, Color color) {
+bool HOT Bufferex332::set_buffer(int x, int y, Color color) {
   uint32_t pos = get_pixel_buffer_position_(x, y);
-  const uint16_t color332 = ColorUtil::color_to_332(color);
-  this->buffer_[pos] = color332;
+  const uint8_t color332 = ColorUtil::color_to_332(color);
+  if (this->buffer_[pos] != color332) {
+    this->buffer_[pos] = color332;
+    return true;
+  }
+  return false;
 }
 
 size_t Bufferex332::get_buffer_size() { return this->get_buffer_length(); }

@@ -9,7 +9,7 @@ class Bufferex666 : public display::BufferexBase {
   uint32_t *buffer_{nullptr};
 
   bool init_buffer(int width, int height) override;
-  void set_buffer(int x, int y, Color color) override;
+  bool set_buffer(int x, int y, Color color) override;
   void fill_buffer(Color color) override;
   uint16_t get_pixel_to_565(uint32_t pos) override;
   uint32_t get_pixel_to_666(uint32_t pos) override;

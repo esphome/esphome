@@ -90,7 +90,7 @@ bool HOT ST7735::is_18bit_() { return this->get_buffer_type() != display::Buffer
 void ST7735::update() {
   this->do_update_();
   this->display_buffer_();
-  this->bufferex_base_->display();
+  this->bufferex_base_->display_end();
 }
 
 int ST7735::get_height_internal() { return height_; }
@@ -156,6 +156,7 @@ void ST7735::dump_config() {
 }
 
 void ST7735::display_clear() { this->fill(display::COLOR_OFF); }
+void ST7735::fill(Color color) { this->fill_buffer(color); }
 
 void HOT ST7735::writecommand_(uint8_t value) {
   this->enable();
@@ -189,20 +190,25 @@ void HOT ST7735::senddata_(const uint8_t *data_bytes, uint8_t num_data_bytes) {
 }
 
 void HOT ST7735::display_buffer_() {
-  // ESP_LOGD(TAG, "Asked to write %d pixels", this->bufferex_base_->pixel_count_);
-
-  const int w = this->bufferex_base_->x_high_ - this->bufferex_base_->x_low_ + 1;
-  const int h = this->bufferex_base_->y_high_ - this->bufferex_base_->y_low_ + 1;
-  const uint32_t start_pos = ((this->bufferex_base_->y_low_ * this->width_) + this->bufferex_base_->x_low_);
-
-  set_addr_window_(this->bufferex_base_->x_low_ + colstart_, this->bufferex_base_->y_low_ + rowstart_, w, h);
-
-  this->start_data_();
-
 #ifdef USE_BUFFER_RGB565
   auto buff = static_cast<display::Bufferex565 *>(this->bufferex_base_);
+  set_addr_window_(colstart_, rowstart_, this->width_, this->height_);
+  this->start_data_();
   this->write_array16(buff->buffer_, this->bufferex_base_->get_buffer_length());
 #else
+  int w = this->bufferex_base_->get_partial_update_x();
+  int h = this->bufferex_base_->get_partial_update_y();
+
+  ESP_LOGD(TAG, "Asked to update %d/%d to %d/%d", this->bufferex_base_->get_partial_update_x_low() + colstart_,
+           this->bufferex_base_->get_partial_update_y_low() + rowstart_, w, h);
+
+  const uint32_t start_pos = ((this->bufferex_base_->get_partial_update_y_low() * this->width_) +
+                              this->bufferex_base_->get_partial_update_x_low());
+
+  set_addr_window_(this->bufferex_base_->get_partial_update_x_low() + colstart_,
+                   this->bufferex_base_->get_partial_update_y_low() + rowstart_, w, h);
+
+  this->start_data_();
   for (uint16_t row = 0; row < h; row++) {
     for (uint16_t col = 0; col < w; col++) {
       uint32_t pos = start_pos + (row * width_) + col;

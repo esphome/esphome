@@ -10,11 +10,11 @@ class Bufferex332 : public display::BufferexBase {
   uint8_t *buffer_{nullptr};
 
   bool init_buffer(int width, int height) override;
-  void set_buffer(int x, int y, Color color) override;
-  void fill_buffer(Color color) override;
-  uint16_t get_pixel_to_565(uint32_t pos) override;
-  uint32_t get_pixel_to_666(uint32_t pos) override;
-  size_t get_buffer_size() override;
+  bool HOT set_buffer(int x, int y, Color color) override;
+  void HOT fill_buffer(Color color) override;
+  uint16_t HOT get_pixel_to_565(uint32_t pos) override;
+  uint32_t HOT get_pixel_to_666(uint32_t pos) override;
+  size_t HOT get_buffer_size() override;
   display::BufferType get_buffer_type() override { return this->buffer_type_; }
   uint8_t get_pixel_storage_size() override { return this->pixel_storage_size_; }
 

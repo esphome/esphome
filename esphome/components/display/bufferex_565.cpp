@@ -27,11 +27,14 @@ void HOT Bufferex565::fill_buffer(Color color) {
 
 size_t HOT Bufferex565::get_buffer_size() { return this->get_buffer_length() * 2; }
 
-void HOT Bufferex565::set_buffer(int x, int y, Color color) {
+bool HOT Bufferex565::set_buffer(int x, int y, Color color) {
   const uint16_t color565 = ColorUtil::color_to_565(color);
   uint32_t pos = get_pixel_buffer_position_(x, y);
-
-  this->buffer_[pos] = color565;
+  if (this->buffer_[pos] != color565) {
+    this->buffer_[pos] = color565;
+    return true;
+  }
+  return false;
 }
 
 // 565

@@ -162,7 +162,7 @@ def register_display(var, config):
                 config[CONF_BUFFER_ID].type = bufferex_indexed8
 
         buffer = yield cg.new_Pvariable(config[CONF_BUFFER_ID])
-        cg.add(var.set_buffer(buffer))
+        cg.add(var.set_buffer_base(buffer))
 
         if CONF_WAVESHARE_COLORS in config:
             colors = []

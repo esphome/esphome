@@ -39,17 +39,20 @@ uint8_t HOT BufferexIndexed8::get_value_from_color_index_(uint8_t index) {
 
 void HOT BufferexIndexed8::fill_buffer(Color color) {
   display::BufferexBase::fill_buffer(color);
-
+  int count = 0;
   ESP_LOGD(TAG, "fill_buffer %d %d/%d", color.g, this->width_, this->height_);
   for (uint16_t h = 0; h < this->height_; h++) {
     for (uint16_t w = 0; w < this->width_; w++) {
-      this->set_buffer(w, h, color);
+      if (this->set_buffer(w, h, color))
+        ++count;
     }
   }
-  ESP_LOGD(TAG, "fill_buffer done");
+  ESP_LOGD(TAG, "fill_buffer done, count %d", count);
 }
 
-void HOT BufferexIndexed8::set_buffer(int x, int y, Color color) {
+bool HOT BufferexIndexed8::set_buffer(int x, int y, Color color) {
+  bool result = false;
+
   uint32_t pos = this->get_pixel_buffer_position_(x, y);
 
   bool debug = false;
@@ -73,11 +76,14 @@ void HOT BufferexIndexed8::set_buffer(int x, int y, Color color) {
   index_byte_start = (index_byte_start & ~mask) | ((index << byte_offset_start) & mask);
 
   // ESP_LOGD(TAG, "set_buffer byte_location_start %d", byte_location_start);
-  this->buffer_[byte_location_start] = index_byte_start;
+  if (this->buffer_[byte_location_start] != index_byte_start) {
+    this->buffer_[byte_location_start] = index_byte_start;
+    result = true;
+  }
 
   if (byte_location_start == byte_location_end) {
     // Pixel starts and ends in the same byte, so we're done.
-    return;
+    return result;
   }
 
   const uint8_t byte_offset_end = pixel_bit_end % 8;
@@ -86,8 +92,11 @@ void HOT BufferexIndexed8::set_buffer(int x, int y, Color color) {
   mask = (((uint8_t) 1 << this->pixel_storage_size_) - 1) >> (this->pixel_storage_size_ - byte_offset_end);
 
   index_byte_end = (index_byte_end & ~mask) | ((index >> (this->pixel_storage_size_ - byte_offset_end)) & mask);
-
-  this->buffer_[byte_location_end] = index_byte_end;
+  if (this->buffer_[byte_location_end] != index_byte_end) {
+    this->buffer_[byte_location_end] = index_byte_end;
+    result = true;
+  }
+  return false;
 }
 
 uint8_t HOT BufferexIndexed8::get_index_value_(int x, int y) { return this->get_index_value_((x + y * this->width_)); }

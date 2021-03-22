@@ -10,17 +10,17 @@ class BufferexIndexed8 : public display::BufferexBase {
   uint8_t *buffer_{nullptr};
 
   bool init_buffer(int width, int height) override;
-  void set_buffer(int x, int y, Color color) override;
+  bool HOT set_buffer(int x, int y, Color color) override;
 
-  void fill_buffer(Color color) override;
+  void HOT fill_buffer(Color color) override;
 
-  uint8_t get_pixel_value(uint32_t pos) override;
+  uint8_t HOT get_pixel_value(uint32_t pos) override;
 
-  uint16_t get_pixel_to_565(uint32_t pos) override;
-  uint32_t get_pixel_to_666(uint32_t pos) override;
+  uint16_t HOT get_pixel_to_565(uint32_t pos) override;
+  uint32_t HOT get_pixel_to_666(uint32_t pos) override;
 
-  size_t get_buffer_length() override;
-  size_t get_buffer_size() override;
+  size_t HOT get_buffer_length() override;
+  size_t HOT get_buffer_size() override;
 
   void set_color_off(Color color) { color_off_ = color; }
   void set_color_on(Color color) { color_on_ = color; }

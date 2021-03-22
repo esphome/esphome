@@ -33,7 +33,11 @@ size_t Bufferex666::get_buffer_size() { return this->get_buffer_length() * 4; }
 void HOT Bufferex666::set_buffer(int x, int y, Color color) {
   uint32_t pos = get_pixel_buffer_position_(x, y);
   const uint32_t color666 = ColorUtil::color_to_666(color, this->driver_right_bit_aligned_);
-  this->buffer_[pos] = color666;
+  if (this->buffer_[pos] != color565) {
+    this->buffer_[pos] = color666;
+    return true;
+  }
+  return false;
 }
 
 // 565
