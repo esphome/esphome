@@ -6,198 +6,137 @@
 namespace esphome {
 namespace api {
 
-template<> const char *proto_enum_to_string<enums::LegacyCoverState>(enums::LegacyCoverState value) {
+template<>
+const char *proto_enum_to_string<enums::LegacyCoverState>(enums::LegacyCoverState value) {
   switch (value) {
-    case enums::LEGACY_COVER_STATE_OPEN:
-      return "LEGACY_COVER_STATE_OPEN";
-    case enums::LEGACY_COVER_STATE_CLOSED:
-      return "LEGACY_COVER_STATE_CLOSED";
-    default:
-      return "UNKNOWN";
+    case enums::LEGACY_COVER_STATE_OPEN: return "LEGACY_COVER_STATE_OPEN";
+    case enums::LEGACY_COVER_STATE_CLOSED: return "LEGACY_COVER_STATE_CLOSED";
+    default: return "UNKNOWN";
   }
 }
-template<> const char *proto_enum_to_string<enums::CoverOperation>(enums::CoverOperation value) {
+template<>
+const char *proto_enum_to_string<enums::CoverOperation>(enums::CoverOperation value) {
   switch (value) {
-    case enums::COVER_OPERATION_IDLE:
-      return "COVER_OPERATION_IDLE";
-    case enums::COVER_OPERATION_IS_OPENING:
-      return "COVER_OPERATION_IS_OPENING";
-    case enums::COVER_OPERATION_IS_CLOSING:
-      return "COVER_OPERATION_IS_CLOSING";
-    default:
-      return "UNKNOWN";
+    case enums::COVER_OPERATION_IDLE: return "COVER_OPERATION_IDLE";
+    case enums::COVER_OPERATION_IS_OPENING: return "COVER_OPERATION_IS_OPENING";
+    case enums::COVER_OPERATION_IS_CLOSING: return "COVER_OPERATION_IS_CLOSING";
+    default: return "UNKNOWN";
   }
 }
-template<> const char *proto_enum_to_string<enums::LegacyCoverCommand>(enums::LegacyCoverCommand value) {
+template<>
+const char *proto_enum_to_string<enums::LegacyCoverCommand>(enums::LegacyCoverCommand value) {
   switch (value) {
-    case enums::LEGACY_COVER_COMMAND_OPEN:
-      return "LEGACY_COVER_COMMAND_OPEN";
-    case enums::LEGACY_COVER_COMMAND_CLOSE:
-      return "LEGACY_COVER_COMMAND_CLOSE";
-    case enums::LEGACY_COVER_COMMAND_STOP:
-      return "LEGACY_COVER_COMMAND_STOP";
-    default:
-      return "UNKNOWN";
+    case enums::LEGACY_COVER_COMMAND_OPEN: return "LEGACY_COVER_COMMAND_OPEN";
+    case enums::LEGACY_COVER_COMMAND_CLOSE: return "LEGACY_COVER_COMMAND_CLOSE";
+    case enums::LEGACY_COVER_COMMAND_STOP: return "LEGACY_COVER_COMMAND_STOP";
+    default: return "UNKNOWN";
   }
 }
-template<> const char *proto_enum_to_string<enums::FanSpeed>(enums::FanSpeed value) {
+template<>
+const char *proto_enum_to_string<enums::FanSpeed>(enums::FanSpeed value) {
   switch (value) {
-    case enums::FAN_SPEED_LOW:
-      return "FAN_SPEED_LOW";
-    case enums::FAN_SPEED_MEDIUM:
-      return "FAN_SPEED_MEDIUM";
-    case enums::FAN_SPEED_HIGH:
-      return "FAN_SPEED_HIGH";
-    default:
-      return "UNKNOWN";
+    case enums::FAN_SPEED_LOW: return "FAN_SPEED_LOW";
+    case enums::FAN_SPEED_MEDIUM: return "FAN_SPEED_MEDIUM";
+    case enums::FAN_SPEED_HIGH: return "FAN_SPEED_HIGH";
+    default: return "UNKNOWN";
   }
 }
-template<> const char *proto_enum_to_string<enums::FanDirection>(enums::FanDirection value) {
+template<>
+const char *proto_enum_to_string<enums::FanDirection>(enums::FanDirection value) {
   switch (value) {
-    case enums::FAN_DIRECTION_FORWARD:
-      return "FAN_DIRECTION_FORWARD";
-    case enums::FAN_DIRECTION_REVERSE:
-      return "FAN_DIRECTION_REVERSE";
-    default:
-      return "UNKNOWN";
+    case enums::FAN_DIRECTION_FORWARD: return "FAN_DIRECTION_FORWARD";
+    case enums::FAN_DIRECTION_REVERSE: return "FAN_DIRECTION_REVERSE";
+    default: return "UNKNOWN";
   }
 }
-template<> const char *proto_enum_to_string<enums::LogLevel>(enums::LogLevel value) {
+template<>
+const char *proto_enum_to_string<enums::LogLevel>(enums::LogLevel value) {
   switch (value) {
-    case enums::LOG_LEVEL_NONE:
-      return "LOG_LEVEL_NONE";
-    case enums::LOG_LEVEL_ERROR:
-      return "LOG_LEVEL_ERROR";
-    case enums::LOG_LEVEL_WARN:
-      return "LOG_LEVEL_WARN";
-    case enums::LOG_LEVEL_INFO:
-      return "LOG_LEVEL_INFO";
-    case enums::LOG_LEVEL_DEBUG:
-      return "LOG_LEVEL_DEBUG";
-    case enums::LOG_LEVEL_VERBOSE:
-      return "LOG_LEVEL_VERBOSE";
-    case enums::LOG_LEVEL_VERY_VERBOSE:
-      return "LOG_LEVEL_VERY_VERBOSE";
-    default:
-      return "UNKNOWN";
+    case enums::LOG_LEVEL_NONE: return "LOG_LEVEL_NONE";
+    case enums::LOG_LEVEL_ERROR: return "LOG_LEVEL_ERROR";
+    case enums::LOG_LEVEL_WARN: return "LOG_LEVEL_WARN";
+    case enums::LOG_LEVEL_INFO: return "LOG_LEVEL_INFO";
+    case enums::LOG_LEVEL_DEBUG: return "LOG_LEVEL_DEBUG";
+    case enums::LOG_LEVEL_VERBOSE: return "LOG_LEVEL_VERBOSE";
+    case enums::LOG_LEVEL_VERY_VERBOSE: return "LOG_LEVEL_VERY_VERBOSE";
+    default: return "UNKNOWN";
   }
 }
-template<> const char *proto_enum_to_string<enums::ServiceArgType>(enums::ServiceArgType value) {
+template<>
+const char *proto_enum_to_string<enums::ServiceArgType>(enums::ServiceArgType value) {
   switch (value) {
-    case enums::SERVICE_ARG_TYPE_BOOL:
-      return "SERVICE_ARG_TYPE_BOOL";
-    case enums::SERVICE_ARG_TYPE_INT:
-      return "SERVICE_ARG_TYPE_INT";
-    case enums::SERVICE_ARG_TYPE_FLOAT:
-      return "SERVICE_ARG_TYPE_FLOAT";
-    case enums::SERVICE_ARG_TYPE_STRING:
-      return "SERVICE_ARG_TYPE_STRING";
-    case enums::SERVICE_ARG_TYPE_BOOL_ARRAY:
-      return "SERVICE_ARG_TYPE_BOOL_ARRAY";
-    case enums::SERVICE_ARG_TYPE_INT_ARRAY:
-      return "SERVICE_ARG_TYPE_INT_ARRAY";
-    case enums::SERVICE_ARG_TYPE_FLOAT_ARRAY:
-      return "SERVICE_ARG_TYPE_FLOAT_ARRAY";
-    case enums::SERVICE_ARG_TYPE_STRING_ARRAY:
-      return "SERVICE_ARG_TYPE_STRING_ARRAY";
-    default:
-      return "UNKNOWN";
+    case enums::SERVICE_ARG_TYPE_BOOL: return "SERVICE_ARG_TYPE_BOOL";
+    case enums::SERVICE_ARG_TYPE_INT: return "SERVICE_ARG_TYPE_INT";
+    case enums::SERVICE_ARG_TYPE_FLOAT: return "SERVICE_ARG_TYPE_FLOAT";
+    case enums::SERVICE_ARG_TYPE_STRING: return "SERVICE_ARG_TYPE_STRING";
+    case enums::SERVICE_ARG_TYPE_BOOL_ARRAY: return "SERVICE_ARG_TYPE_BOOL_ARRAY";
+    case enums::SERVICE_ARG_TYPE_INT_ARRAY: return "SERVICE_ARG_TYPE_INT_ARRAY";
+    case enums::SERVICE_ARG_TYPE_FLOAT_ARRAY: return "SERVICE_ARG_TYPE_FLOAT_ARRAY";
+    case enums::SERVICE_ARG_TYPE_STRING_ARRAY: return "SERVICE_ARG_TYPE_STRING_ARRAY";
+    default: return "UNKNOWN";
   }
 }
-template<> const char *proto_enum_to_string<enums::ClimateMode>(enums::ClimateMode value) {
+template<>
+const char *proto_enum_to_string<enums::ClimateMode>(enums::ClimateMode value) {
   switch (value) {
-    case enums::CLIMATE_MODE_OFF:
-      return "CLIMATE_MODE_OFF";
-    case enums::CLIMATE_MODE_AUTO:
-      return "CLIMATE_MODE_AUTO";
-    case enums::CLIMATE_MODE_COOL:
-      return "CLIMATE_MODE_COOL";
-    case enums::CLIMATE_MODE_HEAT:
-      return "CLIMATE_MODE_HEAT";
-    case enums::CLIMATE_MODE_FAN_ONLY:
-      return "CLIMATE_MODE_FAN_ONLY";
-    case enums::CLIMATE_MODE_DRY:
-      return "CLIMATE_MODE_DRY";
-    case enums::CLIMATE_MODE_HEAT_COOL:
-      return "CLIMATE_MODE_HEAT_COOL";
-    default:
-      return "UNKNOWN";
+    case enums::CLIMATE_MODE_OFF: return "CLIMATE_MODE_OFF";
+    case enums::CLIMATE_MODE_HEAT_COOL: return "CLIMATE_MODE_HEAT_COOL";
+    case enums::CLIMATE_MODE_COOL: return "CLIMATE_MODE_COOL";
+    case enums::CLIMATE_MODE_HEAT: return "CLIMATE_MODE_HEAT";
+    case enums::CLIMATE_MODE_FAN_ONLY: return "CLIMATE_MODE_FAN_ONLY";
+    case enums::CLIMATE_MODE_DRY: return "CLIMATE_MODE_DRY";
+    case enums::CLIMATE_MODE_AUTO: return "CLIMATE_MODE_AUTO";
+    default: return "UNKNOWN";
   }
 }
-template<> const char *proto_enum_to_string<enums::ClimateFanMode>(enums::ClimateFanMode value) {
+template<>
+const char *proto_enum_to_string<enums::ClimateFanMode>(enums::ClimateFanMode value) {
   switch (value) {
-    case enums::CLIMATE_FAN_ON:
-      return "CLIMATE_FAN_ON";
-    case enums::CLIMATE_FAN_OFF:
-      return "CLIMATE_FAN_OFF";
-    case enums::CLIMATE_FAN_AUTO:
-      return "CLIMATE_FAN_AUTO";
-    case enums::CLIMATE_FAN_LOW:
-      return "CLIMATE_FAN_LOW";
-    case enums::CLIMATE_FAN_MEDIUM:
-      return "CLIMATE_FAN_MEDIUM";
-    case enums::CLIMATE_FAN_HIGH:
-      return "CLIMATE_FAN_HIGH";
-    case enums::CLIMATE_FAN_MIDDLE:
-      return "CLIMATE_FAN_MIDDLE";
-    case enums::CLIMATE_FAN_FOCUS:
-      return "CLIMATE_FAN_FOCUS";
-    case enums::CLIMATE_FAN_DIFFUSE:
-      return "CLIMATE_FAN_DIFFUSE";
-    default:
-      return "UNKNOWN";
+    case enums::CLIMATE_FAN_ON: return "CLIMATE_FAN_ON";
+    case enums::CLIMATE_FAN_OFF: return "CLIMATE_FAN_OFF";
+    case enums::CLIMATE_FAN_AUTO: return "CLIMATE_FAN_AUTO";
+    case enums::CLIMATE_FAN_LOW: return "CLIMATE_FAN_LOW";
+    case enums::CLIMATE_FAN_MEDIUM: return "CLIMATE_FAN_MEDIUM";
+    case enums::CLIMATE_FAN_HIGH: return "CLIMATE_FAN_HIGH";
+    case enums::CLIMATE_FAN_MIDDLE: return "CLIMATE_FAN_MIDDLE";
+    case enums::CLIMATE_FAN_FOCUS: return "CLIMATE_FAN_FOCUS";
+    case enums::CLIMATE_FAN_DIFFUSE: return "CLIMATE_FAN_DIFFUSE";
+    default: return "UNKNOWN";
   }
 }
-template<> const char *proto_enum_to_string<enums::ClimateSwingMode>(enums::ClimateSwingMode value) {
+template<>
+const char *proto_enum_to_string<enums::ClimateSwingMode>(enums::ClimateSwingMode value) {
   switch (value) {
-    case enums::CLIMATE_SWING_OFF:
-      return "CLIMATE_SWING_OFF";
-    case enums::CLIMATE_SWING_BOTH:
-      return "CLIMATE_SWING_BOTH";
-    case enums::CLIMATE_SWING_VERTICAL:
-      return "CLIMATE_SWING_VERTICAL";
-    case enums::CLIMATE_SWING_HORIZONTAL:
-      return "CLIMATE_SWING_HORIZONTAL";
-    default:
-      return "UNKNOWN";
+    case enums::CLIMATE_SWING_OFF: return "CLIMATE_SWING_OFF";
+    case enums::CLIMATE_SWING_BOTH: return "CLIMATE_SWING_BOTH";
+    case enums::CLIMATE_SWING_VERTICAL: return "CLIMATE_SWING_VERTICAL";
+    case enums::CLIMATE_SWING_HORIZONTAL: return "CLIMATE_SWING_HORIZONTAL";
+    default: return "UNKNOWN";
   }
 }
-template<> const char *proto_enum_to_string<enums::ClimateAction>(enums::ClimateAction value) {
+template<>
+const char *proto_enum_to_string<enums::ClimateAction>(enums::ClimateAction value) {
   switch (value) {
-    case enums::CLIMATE_ACTION_OFF:
-      return "CLIMATE_ACTION_OFF";
-    case enums::CLIMATE_ACTION_COOLING:
-      return "CLIMATE_ACTION_COOLING";
-    case enums::CLIMATE_ACTION_HEATING:
-      return "CLIMATE_ACTION_HEATING";
-    case enums::CLIMATE_ACTION_IDLE:
-      return "CLIMATE_ACTION_IDLE";
-    case enums::CLIMATE_ACTION_DRYING:
-      return "CLIMATE_ACTION_DRYING";
-    case enums::CLIMATE_ACTION_FAN:
-      return "CLIMATE_ACTION_FAN";
-    default:
-      return "UNKNOWN";
+    case enums::CLIMATE_ACTION_OFF: return "CLIMATE_ACTION_OFF";
+    case enums::CLIMATE_ACTION_COOLING: return "CLIMATE_ACTION_COOLING";
+    case enums::CLIMATE_ACTION_HEATING: return "CLIMATE_ACTION_HEATING";
+    case enums::CLIMATE_ACTION_IDLE: return "CLIMATE_ACTION_IDLE";
+    case enums::CLIMATE_ACTION_DRYING: return "CLIMATE_ACTION_DRYING";
+    case enums::CLIMATE_ACTION_FAN: return "CLIMATE_ACTION_FAN";
+    default: return "UNKNOWN";
   }
 }
-template<> const char *proto_enum_to_string<enums::ClimatePreset>(enums::ClimatePreset value) {
+template<>
+const char *proto_enum_to_string<enums::ClimatePreset>(enums::ClimatePreset value) {
   switch (value) {
-    case enums::CLIMATE_PRESET_ECO:
-      return "CLIMATE_PRESET_ECO";
-    case enums::CLIMATE_PRESET_AWAY:
-      return "CLIMATE_PRESET_AWAY";
-    case enums::CLIMATE_PRESET_BOOST:
-      return "CLIMATE_PRESET_BOOST";
-    case enums::CLIMATE_PRESET_COMFORT:
-      return "CLIMATE_PRESET_COMFORT";
-    case enums::CLIMATE_PRESET_HOME:
-      return "CLIMATE_PRESET_HOME";
-    case enums::CLIMATE_PRESET_SLEEP:
-      return "CLIMATE_PRESET_SLEEP";
-    case enums::CLIMATE_PRESET_ACTIVITY:
-      return "CLIMATE_PRESET_ACTIVITY";
-    default:
-      return "UNKNOWN";
+    case enums::CLIMATE_PRESET_ECO: return "CLIMATE_PRESET_ECO";
+    case enums::CLIMATE_PRESET_AWAY: return "CLIMATE_PRESET_AWAY";
+    case enums::CLIMATE_PRESET_BOOST: return "CLIMATE_PRESET_BOOST";
+    case enums::CLIMATE_PRESET_COMFORT: return "CLIMATE_PRESET_COMFORT";
+    case enums::CLIMATE_PRESET_HOME: return "CLIMATE_PRESET_HOME";
+    case enums::CLIMATE_PRESET_SLEEP: return "CLIMATE_PRESET_SLEEP";
+    case enums::CLIMATE_PRESET_ACTIVITY: return "CLIMATE_PRESET_ACTIVITY";
+    default: return "UNKNOWN";
   }
 }
 bool HelloRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
@@ -210,7 +149,9 @@ bool HelloRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) 
       return false;
   }
 }
-void HelloRequest::encode(ProtoWriteBuffer buffer) const { buffer.encode_string(1, this->client_info); }
+void HelloRequest::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_string(1, this->client_info);
+}
 void HelloRequest::dump_to(std::string &out) const {
   char buffer[64];
   out.append("HelloRequest {\n");
@@ -255,12 +196,12 @@ void HelloResponse::dump_to(std::string &out) const {
   sprintf(buffer, "%u", this->api_version_major);
   out.append(buffer);
   out.append("\n");
-
+  
   out.append("  api_version_minor: ");
   sprintf(buffer, "%u", this->api_version_minor);
   out.append(buffer);
   out.append("\n");
-
+  
   out.append("  server_info: ");
   out.append("'").append(this->server_info).append("'");
   out.append("\n");
@@ -276,7 +217,9 @@ bool ConnectRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value
       return false;
   }
 }
-void ConnectRequest::encode(ProtoWriteBuffer buffer) const { buffer.encode_string(1, this->password); }
+void ConnectRequest::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_string(1, this->password);
+}
 void ConnectRequest::dump_to(std::string &out) const {
   char buffer[64];
   out.append("ConnectRequest {\n");
@@ -295,7 +238,9 @@ bool ConnectResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
       return false;
   }
 }
-void ConnectResponse::encode(ProtoWriteBuffer buffer) const { buffer.encode_bool(1, this->invalid_password); }
+void ConnectResponse::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_bool(1, this->invalid_password);
+}
 void ConnectResponse::dump_to(std::string &out) const {
   char buffer[64];
   out.append("ConnectResponse {\n");
@@ -304,16 +249,36 @@ void ConnectResponse::dump_to(std::string &out) const {
   out.append("\n");
   out.append("}");
 }
-void DisconnectRequest::encode(ProtoWriteBuffer buffer) const {}
-void DisconnectRequest::dump_to(std::string &out) const { out.append("DisconnectRequest {}"); }
-void DisconnectResponse::encode(ProtoWriteBuffer buffer) const {}
-void DisconnectResponse::dump_to(std::string &out) const { out.append("DisconnectResponse {}"); }
-void PingRequest::encode(ProtoWriteBuffer buffer) const {}
-void PingRequest::dump_to(std::string &out) const { out.append("PingRequest {}"); }
-void PingResponse::encode(ProtoWriteBuffer buffer) const {}
-void PingResponse::dump_to(std::string &out) const { out.append("PingResponse {}"); }
-void DeviceInfoRequest::encode(ProtoWriteBuffer buffer) const {}
-void DeviceInfoRequest::dump_to(std::string &out) const { out.append("DeviceInfoRequest {}"); }
+void DisconnectRequest::encode(ProtoWriteBuffer buffer) const {
+
+}
+void DisconnectRequest::dump_to(std::string &out) const {
+  out.append("DisconnectRequest {}");
+}
+void DisconnectResponse::encode(ProtoWriteBuffer buffer) const {
+
+}
+void DisconnectResponse::dump_to(std::string &out) const {
+  out.append("DisconnectResponse {}");
+}
+void PingRequest::encode(ProtoWriteBuffer buffer) const {
+
+}
+void PingRequest::dump_to(std::string &out) const {
+  out.append("PingRequest {}");
+}
+void PingResponse::encode(ProtoWriteBuffer buffer) const {
+
+}
+void PingResponse::dump_to(std::string &out) const {
+  out.append("PingResponse {}");
+}
+void DeviceInfoRequest::encode(ProtoWriteBuffer buffer) const {
+
+}
+void DeviceInfoRequest::dump_to(std::string &out) const {
+  out.append("DeviceInfoRequest {}");
+}
 bool DeviceInfoResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {
     case 1: {
@@ -369,38 +334,50 @@ void DeviceInfoResponse::dump_to(std::string &out) const {
   out.append("  uses_password: ");
   out.append(YESNO(this->uses_password));
   out.append("\n");
-
+  
   out.append("  name: ");
   out.append("'").append(this->name).append("'");
   out.append("\n");
-
+  
   out.append("  mac_address: ");
   out.append("'").append(this->mac_address).append("'");
   out.append("\n");
-
+  
   out.append("  esphome_version: ");
   out.append("'").append(this->esphome_version).append("'");
   out.append("\n");
-
+  
   out.append("  compilation_time: ");
   out.append("'").append(this->compilation_time).append("'");
   out.append("\n");
-
+  
   out.append("  model: ");
   out.append("'").append(this->model).append("'");
   out.append("\n");
-
+  
   out.append("  has_deep_sleep: ");
   out.append(YESNO(this->has_deep_sleep));
   out.append("\n");
   out.append("}");
 }
-void ListEntitiesRequest::encode(ProtoWriteBuffer buffer) const {}
-void ListEntitiesRequest::dump_to(std::string &out) const { out.append("ListEntitiesRequest {}"); }
-void ListEntitiesDoneResponse::encode(ProtoWriteBuffer buffer) const {}
-void ListEntitiesDoneResponse::dump_to(std::string &out) const { out.append("ListEntitiesDoneResponse {}"); }
-void SubscribeStatesRequest::encode(ProtoWriteBuffer buffer) const {}
-void SubscribeStatesRequest::dump_to(std::string &out) const { out.append("SubscribeStatesRequest {}"); }
+void ListEntitiesRequest::encode(ProtoWriteBuffer buffer) const {
+
+}
+void ListEntitiesRequest::dump_to(std::string &out) const {
+  out.append("ListEntitiesRequest {}");
+}
+void ListEntitiesDoneResponse::encode(ProtoWriteBuffer buffer) const {
+
+}
+void ListEntitiesDoneResponse::dump_to(std::string &out) const {
+  out.append("ListEntitiesDoneResponse {}");
+}
+void SubscribeStatesRequest::encode(ProtoWriteBuffer buffer) const {
+
+}
+void SubscribeStatesRequest::dump_to(std::string &out) const {
+  out.append("SubscribeStatesRequest {}");
+}
 bool ListEntitiesBinarySensorResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {
     case 6: {
@@ -457,24 +434,24 @@ void ListEntitiesBinarySensorResponse::dump_to(std::string &out) const {
   out.append("  object_id: ");
   out.append("'").append(this->object_id).append("'");
   out.append("\n");
-
+  
   out.append("  key: ");
   sprintf(buffer, "%u", this->key);
   out.append(buffer);
   out.append("\n");
-
+  
   out.append("  name: ");
   out.append("'").append(this->name).append("'");
   out.append("\n");
-
+  
   out.append("  unique_id: ");
   out.append("'").append(this->unique_id).append("'");
   out.append("\n");
-
+  
   out.append("  device_class: ");
   out.append("'").append(this->device_class).append("'");
   out.append("\n");
-
+  
   out.append("  is_status_binary_sensor: ");
   out.append(YESNO(this->is_status_binary_sensor));
   out.append("\n");
@@ -516,11 +493,11 @@ void BinarySensorStateResponse::dump_to(std::string &out) const {
   sprintf(buffer, "%u", this->key);
   out.append(buffer);
   out.append("\n");
-
+  
   out.append("  state: ");
   out.append(YESNO(this->state));
   out.append("\n");
-
+  
   out.append("  missing_state: ");
   out.append(YESNO(this->missing_state));
   out.append("\n");
@@ -592,32 +569,32 @@ void ListEntitiesCoverResponse::dump_to(std::string &out) const {
   out.append("  object_id: ");
   out.append("'").append(this->object_id).append("'");
   out.append("\n");
-
+  
   out.append("  key: ");
   sprintf(buffer, "%u", this->key);
   out.append(buffer);
   out.append("\n");
-
+  
   out.append("  name: ");
   out.append("'").append(this->name).append("'");
   out.append("\n");
-
+  
   out.append("  unique_id: ");
   out.append("'").append(this->unique_id).append("'");
   out.append("\n");
-
+  
   out.append("  assumed_state: ");
   out.append(YESNO(this->assumed_state));
   out.append("\n");
-
+  
   out.append("  supports_position: ");
   out.append(YESNO(this->supports_position));
   out.append("\n");
-
+  
   out.append("  supports_tilt: ");
   out.append(YESNO(this->supports_tilt));
   out.append("\n");
-
+  
   out.append("  device_class: ");
   out.append("'").append(this->device_class).append("'");
   out.append("\n");
@@ -669,21 +646,21 @@ void CoverStateResponse::dump_to(std::string &out) const {
   sprintf(buffer, "%u", this->key);
   out.append(buffer);
   out.append("\n");
-
+  
   out.append("  legacy_state: ");
   out.append(proto_enum_to_string<enums::LegacyCoverState>(this->legacy_state));
   out.append("\n");
-
+  
   out.append("  position: ");
   sprintf(buffer, "%g", this->position);
   out.append(buffer);
   out.append("\n");
-
+  
   out.append("  tilt: ");
   sprintf(buffer, "%g", this->tilt);
   out.append(buffer);
   out.append("\n");
-
+  
   out.append("  current_operation: ");
   out.append(proto_enum_to_string<enums::CoverOperation>(this->current_operation));
   out.append("\n");
@@ -750,33 +727,33 @@ void CoverCommandRequest::dump_to(std::string &out) const {
   sprintf(buffer, "%u", this->key);
   out.append(buffer);
   out.append("\n");
-
+  
   out.append("  has_legacy_command: ");
   out.append(YESNO(this->has_legacy_command));
   out.append("\n");
-
+  
   out.append("  legacy_command: ");
   out.append(proto_enum_to_string<enums::LegacyCoverCommand>(this->legacy_command));
   out.append("\n");
-
+  
   out.append("  has_position: ");
   out.append(YESNO(this->has_position));
   out.append("\n");
-
+  
   out.append("  position: ");
   sprintf(buffer, "%g", this->position);
   out.append(buffer);
   out.append("\n");
-
+  
   out.append("  has_tilt: ");
   out.append(YESNO(this->has_tilt));
   out.append("\n");
-
+  
   out.append("  tilt: ");
   sprintf(buffer, "%g", this->tilt);
   out.append(buffer);
   out.append("\n");
-
+  
   out.append("  stop: ");
   out.append(YESNO(this->stop));
   out.append("\n");
@@ -848,32 +825,32 @@ void ListEntitiesFanResponse::dump_to(std::string &out) const {
   out.append("  object_id: ");
   out.append("'").append(this->object_id).append("'");
   out.append("\n");
-
+  
   out.append("  key: ");
   sprintf(buffer, "%u", this->key);
   out.append(buffer);
   out.append("\n");
-
+  
   out.append("  name: ");
   out.append("'").append(this->name).append("'");
   out.append("\n");
-
+  
   out.append("  unique_id: ");
   out.append("'").append(this->unique_id).append("'");
   out.append("\n");
-
+  
   out.append("  supports_oscillation: ");
   out.append(YESNO(this->supports_oscillation));
   out.append("\n");
-
+  
   out.append("  supports_speed: ");
   out.append(YESNO(this->supports_speed));
   out.append("\n");
-
+  
   out.append("  supports_direction: ");
   out.append(YESNO(this->supports_direction));
   out.append("\n");
-
+  
   out.append("  supported_speed_count: ");
   sprintf(buffer, "%d", this->supported_speed_count);
   out.append(buffer);
@@ -931,23 +908,23 @@ void FanStateResponse::dump_to(std::string &out) const {
   sprintf(buffer, "%u", this->key);
   out.append(buffer);
   out.append("\n");
-
+  
   out.append("  state: ");
   out.append(YESNO(this->state));
   out.append("\n");
-
+  
   out.append("  oscillating: ");
   out.append(YESNO(this->oscillating));
   out.append("\n");
-
+  
   out.append("  speed: ");
   out.append(proto_enum_to_string<enums::FanSpeed>(this->speed));
   out.append("\n");
-
+  
   out.append("  direction: ");
   out.append(proto_enum_to_string<enums::FanDirection>(this->direction));
   out.append("\n");
-
+  
   out.append("  speed_level: ");
   sprintf(buffer, "%d", this->speed_level);
   out.append(buffer);
@@ -1030,43 +1007,43 @@ void FanCommandRequest::dump_to(std::string &out) const {
   sprintf(buffer, "%u", this->key);
   out.append(buffer);
   out.append("\n");
-
+  
   out.append("  has_state: ");
   out.append(YESNO(this->has_state));
   out.append("\n");
-
+  
   out.append("  state: ");
   out.append(YESNO(this->state));
   out.append("\n");
-
+  
   out.append("  has_speed: ");
   out.append(YESNO(this->has_speed));
   out.append("\n");
-
+  
   out.append("  speed: ");
   out.append(proto_enum_to_string<enums::FanSpeed>(this->speed));
   out.append("\n");
-
+  
   out.append("  has_oscillating: ");
   out.append(YESNO(this->has_oscillating));
   out.append("\n");
-
+  
   out.append("  oscillating: ");
   out.append(YESNO(this->oscillating));
   out.append("\n");
-
+  
   out.append("  has_direction: ");
   out.append(YESNO(this->has_direction));
   out.append("\n");
-
+  
   out.append("  direction: ");
   out.append(proto_enum_to_string<enums::FanDirection>(this->direction));
   out.append("\n");
-
+  
   out.append("  has_speed_level: ");
   out.append(YESNO(this->has_speed_level));
   out.append("\n");
-
+  
   out.append("  speed_level: ");
   sprintf(buffer, "%d", this->speed_level);
   out.append(buffer);
@@ -1146,9 +1123,9 @@ void ListEntitiesLightResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_bool(8, this->supports_color_temperature);
   buffer.encode_float(9, this->min_mireds);
   buffer.encode_float(10, this->max_mireds);
-  for (auto &it : this->effects) {
-    buffer.encode_string(11, it, true);
-  }
+          for (auto &it : this->effects) {
+            buffer.encode_string(11, it, true);
+          }
 }
 void ListEntitiesLightResponse::dump_to(std::string &out) const {
   char buffer[64];
@@ -1156,46 +1133,46 @@ void ListEntitiesLightResponse::dump_to(std::string &out) const {
   out.append("  object_id: ");
   out.append("'").append(this->object_id).append("'");
   out.append("\n");
-
+  
   out.append("  key: ");
   sprintf(buffer, "%u", this->key);
   out.append(buffer);
   out.append("\n");
-
+  
   out.append("  name: ");
   out.append("'").append(this->name).append("'");
   out.append("\n");
-
+  
   out.append("  unique_id: ");
   out.append("'").append(this->unique_id).append("'");
   out.append("\n");
-
+  
   out.append("  supports_brightness: ");
   out.append(YESNO(this->supports_brightness));
   out.append("\n");
-
+  
   out.append("  supports_rgb: ");
   out.append(YESNO(this->supports_rgb));
   out.append("\n");
-
+  
   out.append("  supports_white_value: ");
   out.append(YESNO(this->supports_white_value));
   out.append("\n");
-
+  
   out.append("  supports_color_temperature: ");
   out.append(YESNO(this->supports_color_temperature));
   out.append("\n");
-
+  
   out.append("  min_mireds: ");
   sprintf(buffer, "%g", this->min_mireds);
   out.append(buffer);
   out.append("\n");
-
+  
   out.append("  max_mireds: ");
   sprintf(buffer, "%g", this->max_mireds);
   out.append(buffer);
   out.append("\n");
-
+  
   for (const auto &it : this->effects) {
     out.append("  effects: ");
     out.append("'").append(it).append("'");
@@ -1275,41 +1252,41 @@ void LightStateResponse::dump_to(std::string &out) const {
   sprintf(buffer, "%u", this->key);
   out.append(buffer);
   out.append("\n");
-
+  
   out.append("  state: ");
   out.append(YESNO(this->state));
   out.append("\n");
-
+  
   out.append("  brightness: ");
   sprintf(buffer, "%g", this->brightness);
   out.append(buffer);
   out.append("\n");
-
+  
   out.append("  red: ");
   sprintf(buffer, "%g", this->red);
   out.append(buffer);
   out.append("\n");
-
+  
   out.append("  green: ");
   sprintf(buffer, "%g", this->green);
   out.append(buffer);
   out.append("\n");
-
+  
   out.append("  blue: ");
   sprintf(buffer, "%g", this->blue);
   out.append(buffer);
   out.append("\n");
-
+  
   out.append("  white: ");
   sprintf(buffer, "%g", this->white);
   out.append(buffer);
   out.append("\n");
-
+  
   out.append("  color_temperature: ");
   sprintf(buffer, "%g", this->color_temperature);
   out.append(buffer);
   out.append("\n");
-
+  
   out.append("  effect: ");
   out.append("'").append(this->effect).append("'");
   out.append("\n");
@@ -1437,83 +1414,83 @@ void LightCommandRequest::dump_to(std::string &out) const {
   sprintf(buffer, "%u", this->key);
   out.append(buffer);
   out.append("\n");
-
+  
   out.append("  has_state: ");
   out.append(YESNO(this->has_state));
   out.append("\n");
-
+  
   out.append("  state: ");
   out.append(YESNO(this->state));
   out.append("\n");
-
+  
   out.append("  has_brightness: ");
   out.append(YESNO(this->has_brightness));
   out.append("\n");
-
+  
   out.append("  brightness: ");
   sprintf(buffer, "%g", this->brightness);
   out.append(buffer);
   out.append("\n");
-
+  
   out.append("  has_rgb: ");
   out.append(YESNO(this->has_rgb));
   out.append("\n");
-
+  
   out.append("  red: ");
   sprintf(buffer, "%g", this->red);
   out.append(buffer);
   out.append("\n");
-
+  
   out.append("  green: ");
   sprintf(buffer, "%g", this->green);
   out.append(buffer);
   out.append("\n");
-
+  
   out.append("  blue: ");
   sprintf(buffer, "%g", this->blue);
   out.append(buffer);
   out.append("\n");
-
+  
   out.append("  has_white: ");
   out.append(YESNO(this->has_white));
   out.append("\n");
-
+  
   out.append("  white: ");
   sprintf(buffer, "%g", this->white);
   out.append(buffer);
   out.append("\n");
-
+  
   out.append("  has_color_temperature: ");
   out.append(YESNO(this->has_color_temperature));
   out.append("\n");
-
+  
   out.append("  color_temperature: ");
   sprintf(buffer, "%g", this->color_temperature);
   out.append(buffer);
   out.append("\n");
-
+  
   out.append("  has_transition_length: ");
   out.append(YESNO(this->has_transition_length));
   out.append("\n");
-
+  
   out.append("  transition_length: ");
   sprintf(buffer, "%u", this->transition_length);
   out.append(buffer);
   out.append("\n");
-
+  
   out.append("  has_flash_length: ");
   out.append(YESNO(this->has_flash_length));
   out.append("\n");
-
+  
   out.append("  flash_length: ");
   sprintf(buffer, "%u", this->flash_length);
   out.append(buffer);
   out.append("\n");
-
+  
   out.append("  has_effect: ");
   out.append(YESNO(this->has_effect));
   out.append("\n");
-
+  
   out.append("  effect: ");
   out.append("'").append(this->effect).append("'");
   out.append("\n");
@@ -1590,37 +1567,37 @@ void ListEntitiesSensorResponse::dump_to(std::string &out) const {
   out.append("  object_id: ");
   out.append("'").append(this->object_id).append("'");
   out.append("\n");
-
+  
   out.append("  key: ");
   sprintf(buffer, "%u", this->key);
   out.append(buffer);
   out.append("\n");
-
+  
   out.append("  name: ");
   out.append("'").append(this->name).append("'");
   out.append("\n");
-
+  
   out.append("  unique_id: ");
   out.append("'").append(this->unique_id).append("'");
   out.append("\n");
-
+  
   out.append("  icon: ");
   out.append("'").append(this->icon).append("'");
   out.append("\n");
-
+  
   out.append("  unit_of_measurement: ");
   out.append("'").append(this->unit_of_measurement).append("'");
   out.append("\n");
-
+  
   out.append("  accuracy_decimals: ");
   sprintf(buffer, "%d", this->accuracy_decimals);
   out.append(buffer);
   out.append("\n");
-
+  
   out.append("  force_update: ");
   out.append(YESNO(this->force_update));
   out.append("\n");
-
+  
   out.append("  device_class: ");
   out.append("'").append(this->device_class).append("'");
   out.append("\n");
@@ -1662,12 +1639,12 @@ void SensorStateResponse::dump_to(std::string &out) const {
   sprintf(buffer, "%u", this->key);
   out.append(buffer);
   out.append("\n");
-
+  
   out.append("  state: ");
   sprintf(buffer, "%g", this->state);
   out.append(buffer);
   out.append("\n");
-
+  
   out.append("  missing_state: ");
   out.append(YESNO(this->missing_state));
   out.append("\n");
@@ -1729,24 +1706,24 @@ void ListEntitiesSwitchResponse::dump_to(std::string &out) const {
   out.append("  object_id: ");
   out.append("'").append(this->object_id).append("'");
   out.append("\n");
-
+  
   out.append("  key: ");
   sprintf(buffer, "%u", this->key);
   out.append(buffer);
   out.append("\n");
-
+  
   out.append("  name: ");
   out.append("'").append(this->name).append("'");
   out.append("\n");
-
+  
   out.append("  unique_id: ");
   out.append("'").append(this->unique_id).append("'");
   out.append("\n");
-
+  
   out.append("  icon: ");
   out.append("'").append(this->icon).append("'");
   out.append("\n");
-
+  
   out.append("  assumed_state: ");
   out.append(YESNO(this->assumed_state));
   out.append("\n");
@@ -1783,7 +1760,7 @@ void SwitchStateResponse::dump_to(std::string &out) const {
   sprintf(buffer, "%u", this->key);
   out.append(buffer);
   out.append("\n");
-
+  
   out.append("  state: ");
   out.append(YESNO(this->state));
   out.append("\n");
@@ -1820,7 +1797,7 @@ void SwitchCommandRequest::dump_to(std::string &out) const {
   sprintf(buffer, "%u", this->key);
   out.append(buffer);
   out.append("\n");
-
+  
   out.append("  state: ");
   out.append(YESNO(this->state));
   out.append("\n");
@@ -1871,20 +1848,20 @@ void ListEntitiesTextSensorResponse::dump_to(std::string &out) const {
   out.append("  object_id: ");
   out.append("'").append(this->object_id).append("'");
   out.append("\n");
-
+  
   out.append("  key: ");
   sprintf(buffer, "%u", this->key);
   out.append(buffer);
   out.append("\n");
-
+  
   out.append("  name: ");
   out.append("'").append(this->name).append("'");
   out.append("\n");
-
+  
   out.append("  unique_id: ");
   out.append("'").append(this->unique_id).append("'");
   out.append("\n");
-
+  
   out.append("  icon: ");
   out.append("'").append(this->icon).append("'");
   out.append("\n");
@@ -1932,11 +1909,11 @@ void TextSensorStateResponse::dump_to(std::string &out) const {
   sprintf(buffer, "%u", this->key);
   out.append(buffer);
   out.append("\n");
-
+  
   out.append("  state: ");
   out.append("'").append(this->state).append("'");
   out.append("\n");
-
+  
   out.append("  missing_state: ");
   out.append(YESNO(this->missing_state));
   out.append("\n");
@@ -1966,7 +1943,7 @@ void SubscribeLogsRequest::dump_to(std::string &out) const {
   out.append("  level: ");
   out.append(proto_enum_to_string<enums::LogLevel>(this->level));
   out.append("\n");
-
+  
   out.append("  dump_config: ");
   out.append(YESNO(this->dump_config));
   out.append("\n");
@@ -2012,21 +1989,23 @@ void SubscribeLogsResponse::dump_to(std::string &out) const {
   out.append("  level: ");
   out.append(proto_enum_to_string<enums::LogLevel>(this->level));
   out.append("\n");
-
+  
   out.append("  tag: ");
   out.append("'").append(this->tag).append("'");
   out.append("\n");
-
+  
   out.append("  message: ");
   out.append("'").append(this->message).append("'");
   out.append("\n");
-
+  
   out.append("  send_failed: ");
   out.append(YESNO(this->send_failed));
   out.append("\n");
   out.append("}");
 }
-void SubscribeHomeassistantServicesRequest::encode(ProtoWriteBuffer buffer) const {}
+void SubscribeHomeassistantServicesRequest::encode(ProtoWriteBuffer buffer) const {
+
+}
 void SubscribeHomeassistantServicesRequest::dump_to(std::string &out) const {
   out.append("SubscribeHomeassistantServicesRequest {}");
 }
@@ -2054,7 +2033,7 @@ void HomeassistantServiceMap::dump_to(std::string &out) const {
   out.append("  key: ");
   out.append("'").append(this->key).append("'");
   out.append("\n");
-
+  
   out.append("  value: ");
   out.append("'").append(this->value).append("'");
   out.append("\n");
@@ -2094,15 +2073,15 @@ bool HomeassistantServiceResponse::decode_length(uint32_t field_id, ProtoLengthD
 }
 void HomeassistantServiceResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(1, this->service);
-  for (auto &it : this->data) {
-    buffer.encode_message<HomeassistantServiceMap>(2, it, true);
-  }
-  for (auto &it : this->data_template) {
-    buffer.encode_message<HomeassistantServiceMap>(3, it, true);
-  }
-  for (auto &it : this->variables) {
-    buffer.encode_message<HomeassistantServiceMap>(4, it, true);
-  }
+          for (auto &it : this->data) {
+            buffer.encode_message<HomeassistantServiceMap>(2, it, true);
+          }
+          for (auto &it : this->data_template) {
+            buffer.encode_message<HomeassistantServiceMap>(3, it, true);
+          }
+          for (auto &it : this->variables) {
+            buffer.encode_message<HomeassistantServiceMap>(4, it, true);
+          }
   buffer.encode_bool(5, this->is_event);
 }
 void HomeassistantServiceResponse::dump_to(std::string &out) const {
@@ -2111,31 +2090,33 @@ void HomeassistantServiceResponse::dump_to(std::string &out) const {
   out.append("  service: ");
   out.append("'").append(this->service).append("'");
   out.append("\n");
-
+  
   for (const auto &it : this->data) {
     out.append("  data: ");
     it.dump_to(out);
     out.append("\n");
   }
-
+  
   for (const auto &it : this->data_template) {
     out.append("  data_template: ");
     it.dump_to(out);
     out.append("\n");
   }
-
+  
   for (const auto &it : this->variables) {
     out.append("  variables: ");
     it.dump_to(out);
     out.append("\n");
   }
-
+  
   out.append("  is_event: ");
   out.append(YESNO(this->is_event));
   out.append("\n");
   out.append("}");
 }
-void SubscribeHomeAssistantStatesRequest::encode(ProtoWriteBuffer buffer) const {}
+void SubscribeHomeAssistantStatesRequest::encode(ProtoWriteBuffer buffer) const {
+
+}
 void SubscribeHomeAssistantStatesRequest::dump_to(std::string &out) const {
   out.append("SubscribeHomeAssistantStatesRequest {}");
 }
@@ -2198,7 +2179,7 @@ void HomeAssistantStateResponse::dump_to(std::string &out) const {
   out.append("  entity_id: ");
   out.append("'").append(this->entity_id).append("'");
   out.append("\n");
-
+  
   out.append("  state: ");
   out.append("'").append(this->state).append("'");
   out.append("\n");
@@ -2208,8 +2189,12 @@ void HomeAssistantStateResponse::dump_to(std::string &out) const {
   out.append("\n");
   out.append("}");
 }
-void GetTimeRequest::encode(ProtoWriteBuffer buffer) const {}
-void GetTimeRequest::dump_to(std::string &out) const { out.append("GetTimeRequest {}"); }
+void GetTimeRequest::encode(ProtoWriteBuffer buffer) const {
+
+}
+void GetTimeRequest::dump_to(std::string &out) const {
+  out.append("GetTimeRequest {}");
+}
 bool GetTimeResponse::decode_32bit(uint32_t field_id, Proto32Bit value) {
   switch (field_id) {
     case 1: {
@@ -2220,7 +2205,9 @@ bool GetTimeResponse::decode_32bit(uint32_t field_id, Proto32Bit value) {
       return false;
   }
 }
-void GetTimeResponse::encode(ProtoWriteBuffer buffer) const { buffer.encode_fixed32(1, this->epoch_seconds); }
+void GetTimeResponse::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_fixed32(1, this->epoch_seconds);
+}
 void GetTimeResponse::dump_to(std::string &out) const {
   char buffer[64];
   out.append("GetTimeResponse {\n");
@@ -2260,7 +2247,7 @@ void ListEntitiesServicesArgument::dump_to(std::string &out) const {
   out.append("  name: ");
   out.append("'").append(this->name).append("'");
   out.append("\n");
-
+  
   out.append("  type: ");
   out.append(proto_enum_to_string<enums::ServiceArgType>(this->type));
   out.append("\n");
@@ -2293,9 +2280,9 @@ bool ListEntitiesServicesResponse::decode_32bit(uint32_t field_id, Proto32Bit va
 void ListEntitiesServicesResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(1, this->name);
   buffer.encode_fixed32(2, this->key);
-  for (auto &it : this->args) {
-    buffer.encode_message<ListEntitiesServicesArgument>(3, it, true);
-  }
+          for (auto &it : this->args) {
+            buffer.encode_message<ListEntitiesServicesArgument>(3, it, true);
+          }
 }
 void ListEntitiesServicesResponse::dump_to(std::string &out) const {
   char buffer[64];
@@ -2303,12 +2290,12 @@ void ListEntitiesServicesResponse::dump_to(std::string &out) const {
   out.append("  name: ");
   out.append("'").append(this->name).append("'");
   out.append("\n");
-
+  
   out.append("  key: ");
   sprintf(buffer, "%u", this->key);
   out.append(buffer);
   out.append("\n");
-
+  
   for (const auto &it : this->args) {
     out.append("  args: ");
     it.dump_to(out);
@@ -2376,18 +2363,18 @@ void ExecuteServiceArgument::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_float(3, this->float_);
   buffer.encode_string(4, this->string_);
   buffer.encode_sint32(5, this->int_);
-  for (auto it : this->bool_array) {
-    buffer.encode_bool(6, it, true);
-  }
-  for (auto &it : this->int_array) {
-    buffer.encode_sint32(7, it, true);
-  }
-  for (auto &it : this->float_array) {
-    buffer.encode_float(8, it, true);
-  }
-  for (auto &it : this->string_array) {
-    buffer.encode_string(9, it, true);
-  }
+          for (auto it : this->bool_array) {
+            buffer.encode_bool(6, it, true);
+          }
+          for (auto &it : this->int_array) {
+            buffer.encode_sint32(7, it, true);
+          }
+          for (auto &it : this->float_array) {
+            buffer.encode_float(8, it, true);
+          }
+          for (auto &it : this->string_array) {
+            buffer.encode_string(9, it, true);
+          }
 }
 void ExecuteServiceArgument::dump_to(std::string &out) const {
   char buffer[64];
@@ -2395,46 +2382,46 @@ void ExecuteServiceArgument::dump_to(std::string &out) const {
   out.append("  bool_: ");
   out.append(YESNO(this->bool_));
   out.append("\n");
-
+  
   out.append("  legacy_int: ");
   sprintf(buffer, "%d", this->legacy_int);
   out.append(buffer);
   out.append("\n");
-
+  
   out.append("  float_: ");
   sprintf(buffer, "%g", this->float_);
   out.append(buffer);
   out.append("\n");
-
+  
   out.append("  string_: ");
   out.append("'").append(this->string_).append("'");
   out.append("\n");
-
+  
   out.append("  int_: ");
   sprintf(buffer, "%d", this->int_);
   out.append(buffer);
   out.append("\n");
-
+  
   for (const auto it : this->bool_array) {
     out.append("  bool_array: ");
     out.append(YESNO(it));
     out.append("\n");
   }
-
+  
   for (const auto &it : this->int_array) {
     out.append("  int_array: ");
     sprintf(buffer, "%d", it);
     out.append(buffer);
     out.append("\n");
   }
-
+  
   for (const auto &it : this->float_array) {
     out.append("  float_array: ");
     sprintf(buffer, "%g", it);
     out.append(buffer);
     out.append("\n");
   }
-
+  
   for (const auto &it : this->string_array) {
     out.append("  string_array: ");
     out.append("'").append(it).append("'");
@@ -2464,9 +2451,9 @@ bool ExecuteServiceRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
 }
 void ExecuteServiceRequest::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_fixed32(1, this->key);
-  for (auto &it : this->args) {
-    buffer.encode_message<ExecuteServiceArgument>(2, it, true);
-  }
+          for (auto &it : this->args) {
+            buffer.encode_message<ExecuteServiceArgument>(2, it, true);
+          }
 }
 void ExecuteServiceRequest::dump_to(std::string &out) const {
   char buffer[64];
@@ -2475,7 +2462,7 @@ void ExecuteServiceRequest::dump_to(std::string &out) const {
   sprintf(buffer, "%u", this->key);
   out.append(buffer);
   out.append("\n");
-
+  
   for (const auto &it : this->args) {
     out.append("  args: ");
     it.dump_to(out);
@@ -2523,16 +2510,16 @@ void ListEntitiesCameraResponse::dump_to(std::string &out) const {
   out.append("  object_id: ");
   out.append("'").append(this->object_id).append("'");
   out.append("\n");
-
+  
   out.append("  key: ");
   sprintf(buffer, "%u", this->key);
   out.append(buffer);
   out.append("\n");
-
+  
   out.append("  name: ");
   out.append("'").append(this->name).append("'");
   out.append("\n");
-
+  
   out.append("  unique_id: ");
   out.append("'").append(this->unique_id).append("'");
   out.append("\n");
@@ -2580,11 +2567,11 @@ void CameraImageResponse::dump_to(std::string &out) const {
   sprintf(buffer, "%u", this->key);
   out.append(buffer);
   out.append("\n");
-
+  
   out.append("  data: ");
   out.append("'").append(this->data).append("'");
   out.append("\n");
-
+  
   out.append("  done: ");
   out.append(YESNO(this->done));
   out.append("\n");
@@ -2614,7 +2601,7 @@ void CameraImageRequest::dump_to(std::string &out) const {
   out.append("  single: ");
   out.append(YESNO(this->single));
   out.append("\n");
-
+  
   out.append("  stream: ");
   out.append(YESNO(this->stream));
   out.append("\n");
@@ -2713,29 +2700,29 @@ void ListEntitiesClimateResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(4, this->unique_id);
   buffer.encode_bool(5, this->supports_current_temperature);
   buffer.encode_bool(6, this->supports_two_point_target_temperature);
-  for (auto &it : this->supported_modes) {
-    buffer.encode_enum<enums::ClimateMode>(7, it, true);
-  }
+          for (auto &it : this->supported_modes) {
+            buffer.encode_enum<enums::ClimateMode>(7, it, true);
+          }
   buffer.encode_float(8, this->visual_min_temperature);
   buffer.encode_float(9, this->visual_max_temperature);
   buffer.encode_float(10, this->visual_temperature_step);
   buffer.encode_bool(11, this->supports_away);
   buffer.encode_bool(12, this->supports_action);
-  for (auto &it : this->supported_fan_modes) {
-    buffer.encode_enum<enums::ClimateFanMode>(13, it, true);
-  }
-  for (auto &it : this->supported_swing_modes) {
-    buffer.encode_enum<enums::ClimateSwingMode>(14, it, true);
-  }
-  for (auto &it : this->supported_custom_fan_modes) {
-    buffer.encode_string(15, it, true);
-  }
-  for (auto &it : this->supported_presets) {
-    buffer.encode_enum<enums::ClimatePreset>(16, it, true);
-  }
-  for (auto &it : this->supported_custom_presets) {
-    buffer.encode_string(17, it, true);
-  }
+          for (auto &it : this->supported_fan_modes) {
+            buffer.encode_enum<enums::ClimateFanMode>(13, it, true);
+          }
+          for (auto &it : this->supported_swing_modes) {
+            buffer.encode_enum<enums::ClimateSwingMode>(14, it, true);
+          }
+          for (auto &it : this->supported_custom_fan_modes) {
+            buffer.encode_string(15, it, true);
+          }
+          for (auto &it : this->supported_presets) {
+            buffer.encode_enum<enums::ClimatePreset>(16, it, true);
+          }
+          for (auto &it : this->supported_custom_presets) {
+            buffer.encode_string(17, it, true);
+          }
 }
 void ListEntitiesClimateResponse::dump_to(std::string &out) const {
   char buffer[64];
@@ -2743,81 +2730,81 @@ void ListEntitiesClimateResponse::dump_to(std::string &out) const {
   out.append("  object_id: ");
   out.append("'").append(this->object_id).append("'");
   out.append("\n");
-
+  
   out.append("  key: ");
   sprintf(buffer, "%u", this->key);
   out.append(buffer);
   out.append("\n");
-
+  
   out.append("  name: ");
   out.append("'").append(this->name).append("'");
   out.append("\n");
-
+  
   out.append("  unique_id: ");
   out.append("'").append(this->unique_id).append("'");
   out.append("\n");
-
+  
   out.append("  supports_current_temperature: ");
   out.append(YESNO(this->supports_current_temperature));
   out.append("\n");
-
+  
   out.append("  supports_two_point_target_temperature: ");
   out.append(YESNO(this->supports_two_point_target_temperature));
   out.append("\n");
-
+  
   for (const auto &it : this->supported_modes) {
     out.append("  supported_modes: ");
     out.append(proto_enum_to_string<enums::ClimateMode>(it));
     out.append("\n");
   }
-
+  
   out.append("  visual_min_temperature: ");
   sprintf(buffer, "%g", this->visual_min_temperature);
   out.append(buffer);
   out.append("\n");
-
+  
   out.append("  visual_max_temperature: ");
   sprintf(buffer, "%g", this->visual_max_temperature);
   out.append(buffer);
   out.append("\n");
-
+  
   out.append("  visual_temperature_step: ");
   sprintf(buffer, "%g", this->visual_temperature_step);
   out.append(buffer);
   out.append("\n");
-
+  
   out.append("  supports_away: ");
   out.append(YESNO(this->supports_away));
   out.append("\n");
-
+  
   out.append("  supports_action: ");
   out.append(YESNO(this->supports_action));
   out.append("\n");
-
+  
   for (const auto &it : this->supported_fan_modes) {
     out.append("  supported_fan_modes: ");
     out.append(proto_enum_to_string<enums::ClimateFanMode>(it));
     out.append("\n");
   }
-
+  
   for (const auto &it : this->supported_swing_modes) {
     out.append("  supported_swing_modes: ");
     out.append(proto_enum_to_string<enums::ClimateSwingMode>(it));
     out.append("\n");
   }
-
+  
   for (const auto &it : this->supported_custom_fan_modes) {
     out.append("  supported_custom_fan_modes: ");
     out.append("'").append(it).append("'");
     out.append("\n");
   }
-
+  
   for (const auto &it : this->supported_presets) {
     out.append("  supported_presets: ");
     out.append(proto_enum_to_string<enums::ClimatePreset>(it));
     out.append("\n");
   }
-
+  
   for (const auto &it : this->supported_custom_presets) {
     out.append("  supported_custom_presets: ");
     out.append("'").append(it).append("'");
@@ -2917,55 +2904,55 @@ void ClimateStateResponse::dump_to(std::string &out) const {
   sprintf(buffer, "%u", this->key);
   out.append(buffer);
   out.append("\n");
-
+  
   out.append("  mode: ");
   out.append(proto_enum_to_string<enums::ClimateMode>(this->mode));
   out.append("\n");
-
+  
   out.append("  current_temperature: ");
   sprintf(buffer, "%g", this->current_temperature);
   out.append(buffer);
   out.append("\n");
-
+  
   out.append("  target_temperature: ");
   sprintf(buffer, "%g", this->target_temperature);
   out.append(buffer);
   out.append("\n");
-
+  
   out.append("  target_temperature_low: ");
   sprintf(buffer, "%g", this->target_temperature_low);
   out.append(buffer);
   out.append("\n");
-
+  
   out.append("  target_temperature_high: ");
   sprintf(buffer, "%g", this->target_temperature_high);
   out.append(buffer);
   out.append("\n");
-
+  
   out.append("  away: ");
   out.append(YESNO(this->away));
   out.append("\n");
-
+  
   out.append("  action: ");
   out.append(proto_enum_to_string<enums::ClimateAction>(this->action));
   out.append("\n");
-
+  
   out.append("  fan_mode: ");
   out.append(proto_enum_to_string<enums::ClimateFanMode>(this->fan_mode));
   out.append("\n");
-
+  
   out.append("  swing_mode: ");
   out.append(proto_enum_to_string<enums::ClimateSwingMode>(this->swing_mode));
   out.append("\n");
-
+  
   out.append("  custom_fan_mode: ");
   out.append("'").append(this->custom_fan_mode).append("'");
   out.append("\n");
-
+  
   out.append("  preset: ");
   out.append(proto_enum_to_string<enums::ClimatePreset>(this->preset));
   out.append("\n");
-
+  
   out.append("  custom_preset: ");
   out.append("'").append(this->custom_preset).append("'");
   out.append("\n");
@@ -3103,86 +3090,86 @@ void ClimateCommandRequest::dump_to(std::string &out) const {
   sprintf(buffer, "%u", this->key);
   out.append(buffer);
   out.append("\n");
-
+  
   out.append("  has_mode: ");
   out.append(YESNO(this->has_mode));
   out.append("\n");
-
+  
   out.append("  mode: ");
   out.append(proto_enum_to_string<enums::ClimateMode>(this->mode));
   out.append("\n");
-
+  
   out.append("  has_target_temperature: ");
   out.append(YESNO(this->has_target_temperature));
   out.append("\n");
-
+  
   out.append("  target_temperature: ");
   sprintf(buffer, "%g", this->target_temperature);
   out.append(buffer);
   out.append("\n");
-
+  
   out.append("  has_target_temperature_low: ");
   out.append(YESNO(this->has_target_temperature_low));
   out.append("\n");
-
+  
   out.append("  target_temperature_low: ");
   sprintf(buffer, "%g", this->target_temperature_low);
   out.append(buffer);
   out.append("\n");
-
+  
   out.append("  has_target_temperature_high: ");
   out.append(YESNO(this->has_target_temperature_high));
   out.append("\n");
-
+  
   out.append("  target_temperature_high: ");
   sprintf(buffer, "%g", this->target_temperature_high);
   out.append(buffer);
   out.append("\n");
-
+  
   out.append("  has_away: ");
   out.append(YESNO(this->has_away));
   out.append("\n");
-
+  
   out.append("  away: ");
   out.append(YESNO(this->away));
   out.append("\n");
-
+  
   out.append("  has_fan_mode: ");
   out.append(YESNO(this->has_fan_mode));
   out.append("\n");
-
+  
   out.append("  fan_mode: ");
   out.append(proto_enum_to_string<enums::ClimateFanMode>(this->fan_mode));
   out.append("\n");
-
+  
   out.append("  has_swing_mode: ");
   out.append(YESNO(this->has_swing_mode));
   out.append("\n");
-
+  
   out.append("  swing_mode: ");
   out.append(proto_enum_to_string<enums::ClimateSwingMode>(this->swing_mode));
   out.append("\n");
-
+  
   out.append("  has_custom_fan_mode: ");
   out.append(YESNO(this->has_custom_fan_mode));
   out.append("\n");
-
+  
   out.append("  custom_fan_mode: ");
   out.append("'").append(this->custom_fan_mode).append("'");
   out.append("\n");
-
+  
   out.append("  has_preset: ");
   out.append(YESNO(this->has_preset));
   out.append("\n");
-
+  
   out.append("  preset: ");
   out.append(proto_enum_to_string<enums::ClimatePreset>(this->preset));
   out.append("\n");
-
+  
   out.append("  has_custom_preset: ");
   out.append(YESNO(this->has_custom_preset));
   out.append("\n");
-
+  
   out.append("  custom_preset: ");
   out.append("'").append(this->custom_preset).append("'");
   out.append("\n");

@@ -666,12 +666,12 @@ message CameraImageRequest {
 // ==================== CLIMATE ====================
 enum ClimateMode {
   CLIMATE_MODE_OFF = 0;
-  CLIMATE_MODE_AUTO = 1;
+  CLIMATE_MODE_HEAT_COOL = 1;
   CLIMATE_MODE_COOL = 2;
   CLIMATE_MODE_HEAT = 3;
   CLIMATE_MODE_FAN_ONLY = 4;
   CLIMATE_MODE_DRY = 5;
-  CLIMATE_MODE_HEAT_COOL = 6;
+  CLIMATE_MODE_AUTO = 6;
 }
 enum ClimateFanMode {
   CLIMATE_FAN_ON = 0;
