@@ -35,7 +35,7 @@ class HttpRequestComponent : public Component {
   void set_timeout(uint16_t timeout) { this->timeout_ = timeout; }
   void set_body(std::string body) { this->body_ = body; }
   void set_headers(std::list<Header> headers) { this->headers_ = headers; }
-  void send(std::vector<HttpRequestResponseTrigger *> response_triggers);
+  void send(const std::vector<HttpRequestResponseTrigger *> &response_triggers);
   void close();
   const char *get_string();
 
