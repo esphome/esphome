@@ -3,12 +3,13 @@
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/preferences.h"
+#include "esphome/core/log.h"
 #include "fan_traits.h"
 
 namespace esphome {
 namespace fan {
 
-/// Simple enum to represent the speed of a fan.
+/// Simple enum to represent the speed of a fan. - DEPRECATED - Will be deleted soon
 enum FanSpeed {
   FAN_SPEED_LOW = 0,     ///< The fan is running on low speed.
   FAN_SPEED_MEDIUM = 1,  ///< The fan is running on medium speed.
@@ -40,15 +41,11 @@ class FanStateCall {
     this->oscillating_ = oscillating;
     return *this;
   }
-  FanStateCall &set_speed(FanSpeed speed) {
+  FanStateCall &set_speed(int speed) {
     this->speed_ = speed;
     return *this;
   }
-  FanStateCall &set_speed(optional<FanSpeed> speed) {
-    this->speed_ = speed;
-    return *this;
-  }
-  FanStateCall &set_speed(const char *speed);
+  FanStateCall &set_speed(const char *legacy_speed);
   FanStateCall &set_direction(FanDirection direction) {
     this->direction_ = direction;
     return *this;
@@ -63,8 +60,8 @@ class FanStateCall {
  protected:
   FanState *const state_;
   optional<bool> binary_state_;
-  optional<bool> oscillating_{};
-  optional<FanSpeed> speed_{};
+  optional<bool> oscillating_;
+  optional<int> speed_;
   optional<FanDirection> direction_{};
 };
 
@@ -86,8 +83,8 @@ class FanState : public Nameable, public Component {
   bool state{false};
   /// The current oscillation state of the fan.
   bool oscillating{false};
-  /// The current fan speed.
-  FanSpeed speed{FAN_SPEED_HIGH};
+  /// The current fan speed level
+  int speed{};
   /// The current direction of the fan
   FanDirection direction{FAN_DIRECTION_FORWARD};
 

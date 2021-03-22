@@ -4,21 +4,25 @@ import esphome.codegen as cg
 from esphome.const import CONF_OUTPUT_ID, CONF_SWITCH_DATAPOINT
 from .. import tuya_ns, CONF_TUYA_ID, Tuya
 
-DEPENDENCIES = ['tuya']
+DEPENDENCIES = ["tuya"]
 
 CONF_SPEED_DATAPOINT = "speed_datapoint"
 CONF_OSCILLATION_DATAPOINT = "oscillation_datapoint"
 
-TuyaFan = tuya_ns.class_('TuyaFan', cg.Component)
+TuyaFan = tuya_ns.class_("TuyaFan", cg.Component)
 
-CONFIG_SCHEMA = cv.All(fan.FAN_SCHEMA.extend({
-    cv.GenerateID(CONF_OUTPUT_ID): cv.declare_id(TuyaFan),
-    cv.GenerateID(CONF_TUYA_ID): cv.use_id(Tuya),
-    cv.Optional(CONF_OSCILLATION_DATAPOINT): cv.uint8_t,
-    cv.Optional(CONF_SPEED_DATAPOINT): cv.uint8_t,
-    cv.Optional(CONF_SWITCH_DATAPOINT): cv.uint8_t,
-}).extend(cv.COMPONENT_SCHEMA), cv.has_at_least_one_key(
-    CONF_SPEED_DATAPOINT, CONF_SWITCH_DATAPOINT))
+CONFIG_SCHEMA = cv.All(
+    fan.FAN_SCHEMA.extend(
+        {
+            cv.GenerateID(CONF_OUTPUT_ID): cv.declare_id(TuyaFan),
+            cv.GenerateID(CONF_TUYA_ID): cv.use_id(Tuya),
+            cv.Optional(CONF_OSCILLATION_DATAPOINT): cv.uint8_t,
+            cv.Optional(CONF_SPEED_DATAPOINT): cv.uint8_t,
+            cv.Optional(CONF_SWITCH_DATAPOINT): cv.uint8_t,
+        }
+    ).extend(cv.COMPONENT_SCHEMA),
+    cv.has_at_least_one_key(CONF_SPEED_DATAPOINT, CONF_SWITCH_DATAPOINT),
+)
 
 
 def to_code(config):

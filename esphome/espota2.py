@@ -52,14 +52,15 @@ class ProgressBar:
             return
         self.last_progress = new_progress
         block = int(round(bar_length * progress))
-        text = "\rUploading: [{0}] {1}% {2}".format("=" * block + " " * (bar_length - block),
-                                                    new_progress, status)
+        text = "\rUploading: [{0}] {1}% {2}".format(
+            "=" * block + " " * (bar_length - block), new_progress, status
+        )
         sys.stderr.write(text)
         sys.stderr.flush()
 
     # pylint: disable=no-self-use
     def done(self):
-        sys.stderr.write('\n')
+        sys.stderr.write("\n")
         sys.stderr.flush()
 
 
@@ -78,7 +79,7 @@ def receive_exactly(sock, amount, msg, expect, decode=True):
     if decode:
         data = []
     else:
-        data = b''
+        data = b""
 
     try:
         data += recv_decode(sock, 1, decode=decode)
@@ -106,32 +107,48 @@ def check_error(data, expect):
     if dat == RESPONSE_ERROR_MAGIC:
         raise OTAError("Error: Invalid magic byte")
     if dat == RESPONSE_ERROR_UPDATE_PREPARE:
-        raise OTAError("Error: Couldn't prepare flash memory for update. Is the binary too big? "
-                       "Please try restarting the ESP.")
+        raise OTAError(
+            "Error: Couldn't prepare flash memory for update. Is the binary too big? "
+            "Please try restarting the ESP."
+        )
     if dat == RESPONSE_ERROR_AUTH_INVALID:
         raise OTAError("Error: Authentication invalid. Is the password correct?")
     if dat == RESPONSE_ERROR_WRITING_FLASH:
-        raise OTAError("Error: Wring OTA data to flash memory failed. See USB logs for more "
-                       "information.")
+        raise OTAError(
+            "Error: Wring OTA data to flash memory failed. See USB logs for more "
+            "information."
+        )
     if dat == RESPONSE_ERROR_UPDATE_END:
-        raise OTAError("Error: Finishing update failed. See the MQTT/USB logs for more "
-                       "information.")
+        raise OTAError(
+            "Error: Finishing update failed. See the MQTT/USB logs for more "
+            "information."
+        )
     if dat == RESPONSE_ERROR_INVALID_BOOTSTRAPPING:
-        raise OTAError("Error: Please press the reset button on the ESP. A manual reset is "
-                       "required on the first OTA-Update after flashing via USB.")
+        raise OTAError(
+            "Error: Please press the reset button on the ESP. A manual reset is "
+            "required on the first OTA-Update after flashing via USB."
+        )
     if dat == RESPONSE_ERROR_WRONG_CURRENT_FLASH_CONFIG:
-        raise OTAError("Error: ESP has been flashed with wrong flash size. Please choose the "
-                       "correct 'board' option (esp01_1m always works) and then flash over USB.")
+        raise OTAError(
+            "Error: ESP has been flashed with wrong flash size. Please choose the "
+            "correct 'board' option (esp01_1m always works) and then flash over USB."
+        )
     if dat == RESPONSE_ERROR_WRONG_NEW_FLASH_CONFIG:
-        raise OTAError("Error: ESP does not have the requested flash size (wrong board). Please "
-                       "choose the correct 'board' option (esp01_1m always works) and try "
-                       "uploading again.")
+        raise OTAError(
+            "Error: ESP does not have the requested flash size (wrong board). Please "
+            "choose the correct 'board' option (esp01_1m always works) and try "
+            "uploading again."
+        )
     if dat == RESPONSE_ERROR_ESP8266_NOT_ENOUGH_SPACE:
-        raise OTAError("Error: ESP does not have enough space to store OTA file. Please try "
-                       "flashing a minimal firmware (remove everything except ota)")
+        raise OTAError(
+            "Error: ESP does not have enough space to store OTA file. Please try "
+            "flashing a minimal firmware (remove everything except ota)"
+        )
     if dat == RESPONSE_ERROR_ESP32_NOT_ENOUGH_SPACE:
-        raise OTAError("Error: The OTA partition on the ESP is too small. ESPHome needs to resize "
-                       "this partition, please flash over USB.")
+        raise OTAError(
+            "Error: The OTA partition on the ESP is too small. ESPHome needs to resize "
+            "this partition, please flash over USB."
+        )
     if dat == RESPONSE_ERROR_UNKNOWN:
         raise OTAError("Unknown error from ESP")
     if not isinstance(expect, (list, tuple)):
@@ -147,7 +164,7 @@ def send_check(sock, data, msg):
         elif isinstance(data, int):
             data = bytes([data])
         elif isinstance(data, str):
-            data = data.encode('utf8')
+            data = data.encode("utf8")
 
         sock.sendall(data)
     except OSError as err:
@@ -157,42 +174,46 @@ def send_check(sock, data, msg):
 def perform_ota(sock, password, file_handle, filename):
     file_md5 = hashlib.md5(file_handle.read()).hexdigest()
     file_size = file_handle.tell()
-    _LOGGER.info('Uploading %s (%s bytes)', filename, file_size)
+    _LOGGER.info("Uploading %s (%s bytes)", filename, file_size)
     file_handle.seek(0)
     _LOGGER.debug("MD5 of binary is %s", file_md5)
 
     # Enable nodelay, we need it for phase 1
     sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-    send_check(sock, MAGIC_BYTES, 'magic bytes')
+    send_check(sock, MAGIC_BYTES, "magic bytes")
 
-    _, version = receive_exactly(sock, 2, 'version', RESPONSE_OK)
+    _, version = receive_exactly(sock, 2, "version", RESPONSE_OK)
     if version != OTA_VERSION_1_0:
         raise OTAError(f"Unsupported OTA version {version}")
 
     # Features
-    send_check(sock, 0x00, 'features')
-    receive_exactly(sock, 1, 'features', RESPONSE_HEADER_OK)
+    send_check(sock, 0x00, "features")
+    receive_exactly(sock, 1, "features", RESPONSE_HEADER_OK)
 
-    auth, = receive_exactly(sock, 1, 'auth', [RESPONSE_REQUEST_AUTH, RESPONSE_AUTH_OK])
+    (auth,) = receive_exactly(
+        sock, 1, "auth", [RESPONSE_REQUEST_AUTH, RESPONSE_AUTH_OK]
+    )
     if auth == RESPONSE_REQUEST_AUTH:
         if not password:
             raise OTAError("ESP requests password, but no password given!")
-        nonce = receive_exactly(sock, 32, 'authentication nonce', [], decode=False).decode()
+        nonce = receive_exactly(
+            sock, 32, "authentication nonce", [], decode=False
+        ).decode()
         _LOGGER.debug("Auth: Nonce is %s", nonce)
         cnonce = hashlib.md5(str(random.random()).encode()).hexdigest()
         _LOGGER.debug("Auth: CNonce is %s", cnonce)
 
-        send_check(sock, cnonce, 'auth cnonce')
+        send_check(sock, cnonce, "auth cnonce")
 
         result_md5 = hashlib.md5()
-        result_md5.update(password.encode('utf-8'))
+        result_md5.update(password.encode("utf-8"))
         result_md5.update(nonce.encode())
         result_md5.update(cnonce.encode())
         result = result_md5.hexdigest()
         _LOGGER.debug("Auth: Result is %s", result)
 
-        send_check(sock, result, 'auth result')
-        receive_exactly(sock, 1, 'auth result', RESPONSE_AUTH_OK)
+        send_check(sock, result, "auth result")
+        receive_exactly(sock, 1, "auth result", RESPONSE_AUTH_OK)
 
     file_size_encoded = [
         (file_size >> 24) & 0xFF,
@@ -200,11 +221,11 @@ def perform_ota(sock, password, file_handle, filename):
         (file_size >> 8) & 0xFF,
         (file_size >> 0) & 0xFF,
     ]
-    send_check(sock, file_size_encoded, 'binary size')
-    receive_exactly(sock, 1, 'binary size', RESPONSE_UPDATE_PREPARE_OK)
+    send_check(sock, file_size_encoded, "binary size")
+    receive_exactly(sock, 1, "binary size", RESPONSE_UPDATE_PREPARE_OK)
 
-    send_check(sock, file_md5, 'file checksum')
-    receive_exactly(sock, 1, 'file checksum', RESPONSE_BIN_MD5_OK)
+    send_check(sock, file_md5, "file checksum")
+    receive_exactly(sock, 1, "file checksum", RESPONSE_BIN_MD5_OK)
 
     # Disable nodelay for transfer
     sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 0)
@@ -225,7 +246,7 @@ def perform_ota(sock, password, file_handle, filename):
         try:
             sock.sendall(chunk)
         except OSError as err:
-            sys.stderr.write('\n')
+            sys.stderr.write("\n")
             raise OTAError(f"Error sending data: {err}") from err
 
         progress.update(offset / float(file_size))
@@ -236,9 +257,9 @@ def perform_ota(sock, password, file_handle, filename):
 
     _LOGGER.info("Waiting for result...")
 
-    receive_exactly(sock, 1, 'receive OK', RESPONSE_RECEIVE_OK)
-    receive_exactly(sock, 1, 'Update end', RESPONSE_UPDATE_END_OK)
-    send_check(sock, RESPONSE_OK, 'end acknowledgement')
+    receive_exactly(sock, 1, "receive OK", RESPONSE_RECEIVE_OK)
+    receive_exactly(sock, 1, "Update end", RESPONSE_UPDATE_END_OK)
+    send_check(sock, RESPONSE_OK, "end acknowledgement")
 
     _LOGGER.info("OTA successful")
 
@@ -255,10 +276,14 @@ def run_ota_impl_(remote_host, remote_port, password, filename):
         try:
             ip = resolve_ip_address(remote_host)
         except EsphomeError as err:
-            _LOGGER.error("Error resolving IP address of %s. Is it connected to WiFi?",
-                          remote_host)
-            _LOGGER.error("(If this error persists, please set a static IP address: "
-                          "https://esphome.io/components/wifi.html#manual-ips)")
+            _LOGGER.error(
+                "Error resolving IP address of %s. Is it connected to WiFi?",
+                remote_host,
+            )
+            _LOGGER.error(
+                "(If this error persists, please set a static IP address: "
+                "https://esphome.io/components/wifi.html#manual-ips)"
+            )
             raise OTAError(err) from err
         _LOGGER.info(" -> %s", ip)
 
@@ -271,7 +296,7 @@ def run_ota_impl_(remote_host, remote_port, password, filename):
         _LOGGER.error("Connecting to %s:%s failed: %s", remote_host, remote_port, err)
         return 1
 
-    file_handle = open(filename, 'rb')
+    file_handle = open(filename, "rb")
     try:
         perform_ota(sock, password, file_handle, filename)
     except OTAError as err:

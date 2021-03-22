@@ -4,16 +4,19 @@ from esphome.components import output
 from esphome.const import CONF_PIN, CONF_ID
 from .. import SX1509Component, sx1509_ns, CONF_SX1509_ID
 
-DEPENDENCIES = ['sx1509']
+DEPENDENCIES = ["sx1509"]
 
-SX1509FloatOutputChannel = sx1509_ns.class_('SX1509FloatOutputChannel',
-                                            output.FloatOutput, cg.Component)
+SX1509FloatOutputChannel = sx1509_ns.class_(
+    "SX1509FloatOutputChannel", output.FloatOutput, cg.Component
+)
 
-CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend({
-    cv.Required(CONF_ID): cv.declare_id(SX1509FloatOutputChannel),
-    cv.GenerateID(CONF_SX1509_ID): cv.use_id(SX1509Component),
-    cv.Required(CONF_PIN): cv.int_range(min=0, max=15),
-}).extend(cv.COMPONENT_SCHEMA)
+CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
+    {
+        cv.Required(CONF_ID): cv.declare_id(SX1509FloatOutputChannel),
+        cv.GenerateID(CONF_SX1509_ID): cv.use_id(SX1509Component),
+        cv.Required(CONF_PIN): cv.int_range(min=0, max=15),
+    }
+).extend(cv.COMPONENT_SCHEMA)
 
 
 def to_code(config):
