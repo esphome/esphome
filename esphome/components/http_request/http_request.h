@@ -36,6 +36,7 @@ class HttpRequestComponent : public Component {
   void set_body(std::string body) { this->body_ = body; }
   void set_headers(std::list<Header> headers) { this->headers_ = headers; }
   void send(const std::vector<HttpRequestResponseTrigger *> &response_triggers);
+  void send();
   void close();
   const String get_string();
 

@@ -74,6 +74,11 @@ void HttpRequestComponent::send(const std::vector<HttpRequestResponseTrigger *> 
   ESP_LOGD(TAG, "HTTP Request completed; URL: %s; Code: %d", this->url_.c_str(), http_code);
 }
 
+void HttpRequestComponent::send() {
+  std::vector<HttpRequestResponseTrigger *> response_triggers;
+  this->send(response_triggers);
+}
+
 #ifdef ARDUINO_ARCH_ESP8266
 WiFiClient *HttpRequestComponent::get_wifi_client_() {
   if (this->secure_) {
