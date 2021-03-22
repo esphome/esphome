@@ -12,7 +12,6 @@ class XPT2046OnStateTrigger : public Trigger<int, int, bool> {
   void process(int x, int y, bool touched);
 };
 
-
 class XPT2046Component : public PollingComponent,
                          public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
                                                spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_2MHZ> {
@@ -35,8 +34,8 @@ class XPT2046Component : public PollingComponent,
   void update() override;
 
  protected:
-  static int16_t best_two_avg_(int16_t x, int16_t y, int16_t z);
-  static int16_t normalize_(int16_t val, int16_t min_val, int16_t max_val);
+  static int16_t best_two_avg(int16_t x, int16_t y, int16_t z);
+  static int16_t normalize(int16_t val, int16_t min_val, int16_t max_val);
 
   int16_t read_adc_(uint8_t ctrl);
 
@@ -55,7 +54,7 @@ class XPT2046Component : public PollingComponent,
   uint16_t report_millis_;
   unsigned long last_pos_ms_{0};
 
-  XPT2046OnStateTrigger * on_state_trigger_{new XPT2046OnStateTrigger()};
+  XPT2046OnStateTrigger *on_state_trigger_{new XPT2046OnStateTrigger()};
 };
 
 }  // namespace xpt2046

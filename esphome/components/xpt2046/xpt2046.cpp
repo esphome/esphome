@@ -9,9 +9,7 @@ namespace xpt2046 {
 
 static const char *TAG = "xpt2046";
 
-void XPT2046Component::setup() {
-  spi_setup();
-}
+void XPT2046Component::setup() { spi_setup(); }
 
 void XPT2046Component::update() {
   int16_t data[6];
@@ -40,8 +38,8 @@ void XPT2046Component::update() {
   disable();
 
   if (touched) {
-    this->x_raw_ = best_two_avg_(data[0], data[2], data[4]);
-    this->y_raw_ = best_two_avg_(data[1], data[3], data[5]);
+    this->x_raw_ = best_two_avg(data[0], data[2], data[4]);
+    this->y_raw_ = best_two_avg(data[1], data[3], data[5]);
   } else {
     this->x_raw_ = this->y_raw_ = 0;
   }
@@ -51,8 +49,8 @@ void XPT2046Component::update() {
   if (touched) {
     // Normalize raw data according to calibration min and max
 
-    int16_t x_raw_norm = normalize_(this->x_raw_, this->x_raw_min_, this->x_raw_max_);
-    int16_t y_raw_norm = normalize_(this->y_raw_, this->y_raw_min_, this->y_raw_max_);
+    int16_t x_raw_norm = normalize(this->x_raw_, this->x_raw_min_, this->x_raw_max_);
+    int16_t y_raw_norm = normalize(this->y_raw_, this->y_raw_min_, this->y_raw_max_);
 
     int16_t x = this->swap_x_y_ ? y_raw_norm : x_raw_norm;
     int16_t y = this->swap_x_y_ ? x_raw_norm : y_raw_norm;
@@ -68,8 +66,7 @@ void XPT2046Component::update() {
     x = (int16_t)((int) x * this->x_dim_ / 0x7fff);
     y = (int16_t)((int) y * this->y_dim_ / 0x7fff);
 
-    if (!touched_out_ ||
-        (this->report_millis_ != 0 && (now - this->last_pos_ms_) >= this->report_millis_)) {
+    if (!touched_out_ || (this->report_millis_ != 0 && (now - this->last_pos_ms_) >= this->report_millis_)) {
       ESP_LOGD(TAG, "Raw [x, y] = [%d, %d], transformed = [%d, %d]", this->x_raw_, this->y_raw_, x, y);
 
       this->on_state_trigger_->process(x, y, true);
@@ -117,7 +114,7 @@ void XPT2046Component::dump_config() {
 
 float XPT2046Component::get_setup_priority() const { return setup_priority::DATA; }
 
-int16_t XPT2046Component::best_two_avg_(int16_t x, int16_t y, int16_t z) {
+int16_t XPT2046Component::best_two_avg(int16_t x, int16_t y, int16_t z) {
   int16_t da, db, dc;
   int16_t reta = 0;
 
@@ -136,7 +133,7 @@ int16_t XPT2046Component::best_two_avg_(int16_t x, int16_t y, int16_t z) {
   return reta;
 }
 
-int16_t XPT2046Component::normalize_(int16_t val, int16_t min_val, int16_t max_val) {
+int16_t XPT2046Component::normalize(int16_t val, int16_t min_val, int16_t max_val) {
   int16_t ret;
 
   if (val <= min_val) {
