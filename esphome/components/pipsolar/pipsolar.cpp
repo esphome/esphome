@@ -384,6 +384,12 @@ void Pipsolar::loop() {
 
   if (this->state_ == STATE_POLL_COMPLETE ) {
     if (this->check_incoming_crc()) {
+      if (this->read_pos_ > 3) {
+        if (this->read_buffer_[0] == '(' && this->read_buffer_[1] == 'N' && this->read_buffer_[2] == 'A' && this->read_buffer_[3] == 'K') {
+          this->state_ = STATE_IDLE;
+          return;
+        }
+      }
       //crc ok
       this->state_ = STATE_POLL_CHECKED;
       return;
