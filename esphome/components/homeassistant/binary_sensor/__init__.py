@@ -4,15 +4,17 @@ from esphome.components import binary_sensor
 from esphome.const import CONF_ENTITY_ID, CONF_ID
 from .. import homeassistant_ns
 
-DEPENDENCIES = ['api']
-HomeassistantBinarySensor = homeassistant_ns.class_('HomeassistantBinarySensor',
-                                                    binary_sensor.BinarySensor,
-                                                    cg.Component)
+DEPENDENCIES = ["api"]
+HomeassistantBinarySensor = homeassistant_ns.class_(
+    "HomeassistantBinarySensor", binary_sensor.BinarySensor, cg.Component
+)
 
-CONFIG_SCHEMA = binary_sensor.BINARY_SENSOR_SCHEMA.extend({
-    cv.GenerateID(): cv.declare_id(HomeassistantBinarySensor),
-    cv.Required(CONF_ENTITY_ID): cv.entity_id,
-}).extend(cv.COMPONENT_SCHEMA)
+CONFIG_SCHEMA = binary_sensor.BINARY_SENSOR_SCHEMA.extend(
+    {
+        cv.GenerateID(): cv.declare_id(HomeassistantBinarySensor),
+        cv.Required(CONF_ENTITY_ID): cv.entity_id,
+    }
+).extend(cv.COMPONENT_SCHEMA)
 
 
 def to_code(config):

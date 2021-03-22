@@ -5,12 +5,16 @@ from esphome.components import binary_sensor
 from esphome.const import CONF_ID, CONF_PIN
 from .. import gpio_ns
 
-GPIOBinarySensor = gpio_ns.class_('GPIOBinarySensor', binary_sensor.BinarySensor, cg.Component)
+GPIOBinarySensor = gpio_ns.class_(
+    "GPIOBinarySensor", binary_sensor.BinarySensor, cg.Component
+)
 
-CONFIG_SCHEMA = binary_sensor.BINARY_SENSOR_SCHEMA.extend({
-    cv.GenerateID(): cv.declare_id(GPIOBinarySensor),
-    cv.Required(CONF_PIN): pins.gpio_input_pin_schema
-}).extend(cv.COMPONENT_SCHEMA)
+CONFIG_SCHEMA = binary_sensor.BINARY_SENSOR_SCHEMA.extend(
+    {
+        cv.GenerateID(): cv.declare_id(GPIOBinarySensor),
+        cv.Required(CONF_PIN): pins.gpio_input_pin_schema,
+    }
+).extend(cv.COMPONENT_SCHEMA)
 
 
 def to_code(config):

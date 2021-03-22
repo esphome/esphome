@@ -10,24 +10,28 @@ from esphome.core import CORE, HexInt
 
 _LOGGER = logging.getLogger(__name__)
 
-DEPENDENCIES = ['display']
+DEPENDENCIES = ["display"]
 MULTI_CONF = True
 
-Animation_ = display.display_ns.class_('Animation')
+Animation_ = display.display_ns.class_("Animation")
 
-CONF_RAW_DATA_ID = 'raw_data_id'
+CONF_RAW_DATA_ID = "raw_data_id"
 
-ANIMATION_SCHEMA = cv.Schema({
-    cv.Required(CONF_ID): cv.declare_id(Animation_),
-    cv.Required(CONF_FILE): cv.file_,
-    cv.Optional(CONF_RESIZE): cv.dimensions,
-    cv.Optional(CONF_TYPE, default='BINARY'): cv.enum(espImage.IMAGE_TYPE, upper=True),
-    cv.GenerateID(CONF_RAW_DATA_ID): cv.declare_id(cg.uint8),
-})
+ANIMATION_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_ID): cv.declare_id(Animation_),
+        cv.Required(CONF_FILE): cv.file_,
+        cv.Optional(CONF_RESIZE): cv.dimensions,
+        cv.Optional(CONF_TYPE, default="BINARY"): cv.enum(
+            espImage.IMAGE_TYPE, upper=True
+        ),
+        cv.GenerateID(CONF_RAW_DATA_ID): cv.declare_id(cg.uint8),
+    }
+)
 
 CONFIG_SCHEMA = cv.All(font.validate_pillow_installed, ANIMATION_SCHEMA)
 
-CODEOWNERS = ['@syndlex']
+CODEOWNERS = ["@syndlex"]
 
 
 def to_code(config):
@@ -46,26 +50,28 @@ def to_code(config):
         width, height = image.size
     else:
         if width > 500 or height > 500:
-            _LOGGER.warning("The image you requested is very big. Please consider using"
-                            " the resize parameter.")
+            _LOGGER.warning(
+                "The image you requested is very big. Please consider using"
+                " the resize parameter."
+            )
 
-    if config[CONF_TYPE] == 'GRAYSCALE':
+    if config[CONF_TYPE] == "GRAYSCALE":
         data = [0 for _ in range(height * width * frames)]
         pos = 0
         for frameIndex in range(frames):
             image.seek(frameIndex)
-            frame = image.convert('L', dither=Image.NONE)
+            frame = image.convert("L", dither=Image.NONE)
             pixels = list(frame.getdata())
             for pix in pixels:
                 data[pos] = pix
                 pos += 1
 
-    elif config[CONF_TYPE] == 'RGB24':
+    elif config[CONF_TYPE] == "RGB24":
         data = [0 for _ in range(height * width * 3 * frames)]
         pos = 0
         for frameIndex in range(frames):
             image.seek(frameIndex)
-            frame = image.convert('RGB')
+            frame = image.convert("RGB")
             pixels = list(frame.getdata())
             for pix in pixels:
                 data[pos] = pix[0]
@@ -75,12 +81,12 @@ def to_code(config):
                 data[pos] = pix[2]
                 pos += 1
 
-    elif config[CONF_TYPE] == 'BINARY':
+    elif config[CONF_TYPE] == "BINARY":
         width8 = ((width + 7) // 8) * 8
         data = [0 for _ in range((height * width8 // 8) * frames)]
         for frameIndex in range(frames):
             image.seek(frameIndex)
-            frame = image.convert('1', dither=Image.NONE)
+            frame = image.convert("1", dither=Image.NONE)
             for y in range(height):
                 for x in range(width):
                     if frame.getpixel((x, y)):
@@ -90,5 +96,11 @@ def to_code(config):
 
     rhs = [HexInt(x) for x in data]
     prog_arr = cg.progmem_array(config[CONF_RAW_DATA_ID], rhs)
-    cg.new_Pvariable(config[CONF_ID], prog_arr, width, height, frames,
-                     espImage.IMAGE_TYPE[config[CONF_TYPE]])
+    cg.new_Pvariable(
+        config[CONF_ID],
+        prog_arr,
+        width,
+        height,
+        frames,
+        espImage.IMAGE_TYPE[config[CONF_TYPE]],
+    )
