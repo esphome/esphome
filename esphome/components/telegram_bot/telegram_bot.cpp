@@ -24,7 +24,11 @@ void TelegramBotComponent::setup() {
 
 void TelegramBotComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "Telegram Bot:");
-  ESP_LOGCONFIG(TAG, "  Token: %s", this->token_);
+  std::string token = this->token_;
+  if (token.length() > 35) {
+    token.replace(15, 20, "********************");
+  }
+  ESP_LOGCONFIG(TAG, "  Token: %s", token.c_str());
 }
 
 bool TelegramBotComponent::is_chat_allowed(std::string chat_id) {
@@ -34,7 +38,7 @@ bool TelegramBotComponent::is_chat_allowed(std::string chat_id) {
 
 void TelegramBotComponent::make_request_(const char *method, std::string body,
                                          const std::function<void(JsonObject &)> &callback) {
-  std::string url = "https://api.telegram.org/bot" + to_string(this->token_) + "/" + to_string(method);
+  std::string url = "https://api.telegram.org/bot" + this->token_ + "/" + to_string(method);
   this->request_->set_url(url);
   this->request_->set_body(body);
   this->request_->send();

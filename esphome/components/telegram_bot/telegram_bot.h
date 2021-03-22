@@ -34,7 +34,7 @@ class TelegramBotComponent : public Component {
   void setup() override;
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
-  void set_token(const char *token) { this->token_ = token; }
+  void set_token(std::string token) { this->token_ = token; }
   void add_allowed_chat_id(std::string chat_id) { this->allowed_chat_ids_.push_back(chat_id); }
   void get_updates(long offset, const std::function<void(JsonObject &)> &callback);
   bool is_chat_allowed(std::string chat_id);
@@ -43,7 +43,7 @@ class TelegramBotComponent : public Component {
   void answer_callback_query(std::string callback_query_id, std::string message);
 
  protected:
-  const char *token_;
+  std::string token_;
   std::list<std::string> allowed_chat_ids_{};
   http_request::HttpRequestComponent *request_;
   DynamicJsonBuffer json_buffer_;
