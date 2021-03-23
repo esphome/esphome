@@ -134,9 +134,8 @@ void TelegramBotMessageUpdater::update() {
           } else {
             ESP_LOGD(TAG, "Message from disallowed chat");
           }
-
-          this->schedule_update();
         }
+        this->schedule_update();
       }
     } else {
       ESP_LOGW(TAG, "Error parsing response, message skipped");
