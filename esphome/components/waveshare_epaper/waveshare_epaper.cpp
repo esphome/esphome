@@ -1035,7 +1035,7 @@ void WaveshareEPaperTypeF::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 }
 void HOT WaveshareEPaperTypeF::send_display_size_(uint16_t width, uint16_t height) {
-  this->command(0x61); // 0x61: Set Display Resolution
+  this->command(0x61);  // 0x61: Set Display Resolution
   this->start_data_();
   this->write_byte(width >> 8);
   this->write_byte(width & 0xFF);

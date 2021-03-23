@@ -311,7 +311,7 @@ class WaveshareEPaperTypeF : public WaveshareEPaper {
   uint8_t pixel_storage_size_ = 3;
 
   void draw_absolute_pixel_internal(int x, int y, Color color) override;  // NOLINT(readability-identifier-naming)
-  void draw_absolute_pixel_internal(int x, int y, uint8_t index);  // NOLINT(readability-identifier-naming)
+  void draw_absolute_pixel_internal(int x, int y, uint8_t index);         // NOLINT(readability-identifier-naming)
   uint8_t get_index_value_(uint32_t pos);
   void send_display_size_(uint16_t width, uint16_t height);  // NOLINT(readability-identifier-naming)
 
@@ -320,7 +320,7 @@ class WaveshareEPaperTypeF : public WaveshareEPaper {
   uint32_t get_buffer_length_() override;  // NOLINT(readability-identifier-naming)
 
   bool wait_until_idle_() override;  // NOLINT(readability-identifier-naming)
-  bool wait_until_busy_();  // NOLINT(readability-identifier-naming)
+  bool wait_until_busy_();           // NOLINT(readability-identifier-naming)
 
   WaveshareEPaperTypeFModel model_;
 };
