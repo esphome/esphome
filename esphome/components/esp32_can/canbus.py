@@ -13,7 +13,7 @@ ESP_PLATFORMS = [ESP_PLATFORM_ESP32]
 CONFIG_SCHEMA = canbus.CANBUS_SCHEMA.extend(
     {
         cv.GenerateID(): cv.declare_id(esp32_can),
-        cv.Required(CONF_RX_PIN): pins.gpio_output_pin_schema,
+        cv.Required(CONF_RX_PIN): pins.gpio_input_pin_schema,
         cv.Required(CONF_TX_PIN): pins.gpio_output_pin_schema,
     }
 )
