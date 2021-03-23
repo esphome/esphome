@@ -9,33 +9,61 @@ namespace xpt2046 {
 
 static const char *TAG = "xpt2046";
 
-void XPT2046Component::setup() { spi_setup(); }
+void XPT2046Component::setup() {
+  if (this->penirq_pin_ != nullptr) {
+    // The pin reports a touch with a falling edge. Unfortunately the pin goes also changes state
+    // while the channels are read and wiring it as an interrupt is not straightforward and would
+    // need careful masking. A GPIO poll is cheap so we'll just use that.
+    this->penirq_pin_->setup();  // INPUT
+  }
+  spi_setup();
+  read_adc_(0xD0);  // ADC powerdown, enable PENIRQ pin
+}
+
+void XPT2046Component::loop() {
+  if (this->penirq_pin_ != nullptr) {
+    // Force immediate update if a falling edge (= touched is seen) Ignore if still active
+    // (that would mean that wi missed the release because of a too long update interval)
+    bool val = this->penirq_pin_->digital_read();
+    if (!val && this->last_penirq_ && !this->touched_out_) {
+      ESP_LOGD(TAG, "Falling penirq edge, forcing update");
+      update();
+    }
+    this->last_penirq_ = val;
+  }
+}
 
 void XPT2046Component::update() {
   int16_t data[6];
-  bool touched;
+  bool touched = false;
   unsigned long now = millis();
 
-  enable();
+  this->z_raw_ = 0;
 
-  int16_t z1 = read_adc_(0xB1 /* Z1 */);
-  int16_t z2 = read_adc_(0xC1 /* Z2 */);
+  // In case the penirq pin is present only do the SPI transaction if it reports a touch (is low).
+  // The touch has to be also confirmed with checking the pressure over threshold
+  if (this->penirq_pin_ == nullptr || !this->penirq_pin_->digital_read()) {
+    enable();
 
-  this->z_raw_ = z1 + 4095 - z2;
+    int16_t z1 = read_adc_(0xB1 /* Z1 */);
+    int16_t z2 = read_adc_(0xC1 /* Z2 */);
 
-  touched = (this->z_raw_ >= this->threshold_);
-  if (touched) {
-    read_adc_(0x91 /* Y */);  // dummy Y measure, 1st is always noisy
-    data[0] = read_adc_(0xD1 /* X */);
-    data[1] = read_adc_(0x91 /* Y */);  // make 3 x-y measurements
-    data[2] = read_adc_(0xD1 /* X */);
-    data[3] = read_adc_(0x91 /* Y */);
-    data[4] = read_adc_(0xD1 /* X */);
+    this->z_raw_ = z1 + 4095 - z2;
+
+    touched = (this->z_raw_ >= this->threshold_);
+    if (touched) {
+      read_adc_(0x91 /* Y */);  // dummy Y measure, 1st is always noisy
+      data[0] = read_adc_(0xD1 /* X */);
+      data[1] = read_adc_(0x91 /* Y */);  // make 3 x-y measurements
+      data[2] = read_adc_(0xD1 /* X */);
+      data[3] = read_adc_(0x91 /* Y */);
+      data[4] = read_adc_(0xD1 /* X */);
+    }
+
+    data[5] = read_adc_(0x90 /* Y */);  // Last Y touch power down
+
+    disable();
   }
-
-  data[5] = read_adc_(0x90 /* Y */);  // Last Y touch power down
-
-  disable();
 
   if (touched) {
     this->x_raw_ = best_two_avg(data[0], data[2], data[4]);
