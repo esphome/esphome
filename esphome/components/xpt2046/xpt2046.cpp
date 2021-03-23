@@ -70,6 +70,8 @@ void XPT2046Component::update() {
       ESP_LOGD(TAG, "Raw [x, y] = [%d, %d], transformed = [%d, %d]", this->x_raw_, this->y_raw_, x, y);
 
       this->on_state_trigger_->process(x, y, true);
+      for (auto *button : this->buttons_)
+        button->touch(x, y);
 
       this->x_out_ = x;
       this->y_out_ = y;
@@ -78,7 +80,11 @@ void XPT2046Component::update() {
     }
   } else {
     if (this->touched_out_) {
+      ESP_LOGD(TAG, "Released [%d, %d]", this->x_out_, this->y_out_);
+
       this->on_state_trigger_->process(this->x_out_, this->y_out_, false);
+      for (auto *button : this->buttons_)
+        button->release();
 
       this->touched_out_ = false;
     }
@@ -158,6 +164,26 @@ int16_t XPT2046Component::read_adc_(uint8_t ctrl) {
 }
 
 void XPT2046OnStateTrigger::process(int x, int y, bool touched) { this->trigger(x, y, touched); }
+
+void XPT2046Button::touch(int16_t x, int16_t y)
+{
+  bool touched = (x >= this->x_min_ && x <= this->x_max_ && y >= this->y_min_ && y <= this->y_max_);
+
+  if (touched) {
+    this->publish_state(true);
+    this->state_ = true;
+  } else {
+    release();
+  }
+}
+
+void XPT2046Button::release()
+{
+  if (this->state_) {
+    this->publish_state(false);
+    this->state_ = false;
+  }
+}
 
 }  // namespace xpt2046
 }  // namespace esphome

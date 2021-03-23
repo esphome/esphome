@@ -5,7 +5,7 @@ from esphome.components import spi
 from esphome.const import CONF_ID, CONF_ON_STATE, CONF_THRESHOLD, CONF_TRIGGER_ID
 
 CODEOWNERS = ["@numo68"]
-AUTO_LOAD = ["spi"]
+AUTO_LOAD = ["spi", "binary_sensor"]
 MULTI_CONF = True
 
 CONF_REPORT_INTERVAL = "report_interval"
@@ -31,36 +31,22 @@ XPT2046OnStateTrigger = xpt2046_ns.class_(
 
 def validate_xpt2046(config):
     if (
-        cv.int_(config[CONF_CALIBRATION_X_MIN]) < 0
-        or cv.int_(config[CONF_CALIBRATION_X_MIN]) > 4095
-        or cv.int_(config[CONF_CALIBRATION_X_MAX]) < 0
-        or cv.int_(config[CONF_CALIBRATION_X_MAX]) > 4095
-        or (
-            abs(
-                cv.int_(config[CONF_CALIBRATION_X_MAX])
-                - cv.int_(config[CONF_CALIBRATION_X_MIN])
-            )
-            < 1000
+        abs(
+            cv.int_(config[CONF_CALIBRATION_X_MAX])
+            - cv.int_(config[CONF_CALIBRATION_X_MIN])
         )
+        < 1000
     ):
-        raise cv.Invalid(
-            "Calibration X values not in the 0-4095 range or difference < 1000"
-        )
+        raise cv.Invalid("Calibration X values difference < 1000")
 
     if (
-        cv.int_(config[CONF_CALIBRATION_Y_MIN]) < 0
-        or cv.int_(config[CONF_CALIBRATION_Y_MIN]) > 4095
-        or cv.int_(config[CONF_CALIBRATION_Y_MAX]) < 0
-        or cv.int_(config[CONF_CALIBRATION_Y_MAX]) > 4095
-        or abs(
+        abs(
             cv.int_(config[CONF_CALIBRATION_Y_MAX])
             - cv.int_(config[CONF_CALIBRATION_Y_MIN])
         )
         < 1000
     ):
-        raise cv.Invalid(
-            "Calibration Y values not in the 0-4095 range or difference < 1000"
-        )
+        raise cv.Invalid("Calibration Y values difference < 1000")
 
     if cv.int_(config[CONF_THRESHOLD]) < 0 or cv.int_(config[CONF_THRESHOLD]) > 4095:
         raise cv.Invalid("Threshold value not in the 0-4095 range or difference < 1000")
@@ -72,10 +58,18 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(XPT2046Component),
-            cv.Optional(CONF_CALIBRATION_X_MIN, default=0): cv.positive_int,
-            cv.Optional(CONF_CALIBRATION_X_MAX, default=4095): cv.positive_not_null_int,
-            cv.Optional(CONF_CALIBRATION_Y_MIN, default=0): cv.positive_int,
-            cv.Optional(CONF_CALIBRATION_Y_MAX, default=4095): cv.positive_not_null_int,
+            cv.Optional(CONF_CALIBRATION_X_MIN, default=0): cv.int_range(
+                min=0, max=4095
+            ),
+            cv.Optional(CONF_CALIBRATION_X_MAX, default=4095): cv.int_range(
+                min=0, max=4095
+            ),
+            cv.Optional(CONF_CALIBRATION_Y_MIN, default=0): cv.int_range(
+                min=0, max=4095
+            ),
+            cv.Optional(CONF_CALIBRATION_Y_MAX, default=4095): cv.int_range(
+                min=0, max=4095
+            ),
             cv.Optional(CONF_DIMENSION_X, default=100): cv.positive_not_null_int,
             cv.Optional(CONF_DIMENSION_Y, default=100): cv.positive_not_null_int,
             cv.Optional(CONF_THRESHOLD, default=400): cv.positive_not_null_int,

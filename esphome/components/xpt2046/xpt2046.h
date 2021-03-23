@@ -3,6 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/automation.h"
 #include "esphome/components/spi/spi.h"
+#include "esphome/components/binary_sensor/binary_sensor.h"
 
 namespace esphome {
 namespace xpt2046 {
@@ -10,6 +11,23 @@ namespace xpt2046 {
 class XPT2046OnStateTrigger : public Trigger<int, int, bool> {
  public:
   void process(int x, int y, bool touched);
+};
+
+class XPT2046Button : public binary_sensor::BinarySensor {
+ public:
+  void set_area(int16_t x_min, int16_t x_max, int16_t y_min, int16_t y_max) {
+    this->x_min_ = x_min;
+    this->x_max_ = x_max;
+    this->y_min_ = y_min;
+    this->y_max_ = y_max;
+  }
+
+  void touch(int16_t x, int16_t y);
+  void release();
+
+ protected:
+  int16_t x_min_, x_max_, y_min_, y_max_;
+  bool state_{false};
 };
 
 class XPT2046Component : public PollingComponent,
@@ -27,6 +45,7 @@ class XPT2046Component : public PollingComponent,
   void set_threshold(int16_t threshold) { this->threshold_ = threshold; }
 
   XPT2046OnStateTrigger *get_on_state_trigger() const { return this->on_state_trigger_; }
+  void register_button(XPT2046Button *button) { this->buttons_.push_back(button); }
 
   void setup() override;
   void dump_config() override;
@@ -55,6 +74,7 @@ class XPT2046Component : public PollingComponent,
   unsigned long last_pos_ms_{0};
 
   XPT2046OnStateTrigger *on_state_trigger_{new XPT2046OnStateTrigger()};
+  std::vector<XPT2046Button *> buttons_{};
 };
 
 }  // namespace xpt2046
