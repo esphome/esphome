@@ -72,11 +72,6 @@ class WaveshareEPaper : public PollingComponent,
   GPIOPin *dc_pin_;
   GPIOPin *busy_pin_{nullptr};
   virtual int idle_timeout_() { return 1000; }  // NOLINT(readability-identifier-naming)
-
-  virtual std::vector<Color> get_model_colors() {
-    std::vector<Color> colors = {Color(0, 0, 0), Color(1, 1, 1)};
-    return colors;
-  };
 };
 
 enum WaveshareEPaperTypeAModel {

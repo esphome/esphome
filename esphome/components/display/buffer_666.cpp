@@ -24,8 +24,7 @@ bool Bufferex666::init_buffer(int width, int height) {
 void Bufferex666::fill_buffer(Color color) {
   display::BufferexBase::fill_buffer(color);
 
-  auto color666 = ColorUtil::color_to_666(color, this->driver_right_bit_aligned_);
-  ESP_LOGD(TAG, "fill_buffer color: %d", color666);
+  auto color666 = ColorUtil::color_to_666(color, this->driver_right_bit_aligned_);  
   memset(this->buffer_, color666, this->get_buffer_size());
 }
 size_t Bufferex666::get_buffer_size() { return this->get_buffer_length() * 4; }

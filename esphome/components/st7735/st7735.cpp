@@ -9,17 +9,13 @@ namespace st7735 {
 // clang-format on
 static const char *TAG = "st7735";
 
-ST7735::ST7735(ST7735Model model, int width, int height, int colstart, int rowstart, boolean usebgr) {
+ST7735::ST7735(ST7735Model model, boolean usebgr) {
   this->model_ = model;
-  this->width_ = width;
-  this->height_ = height;
-  this->colstart_ = colstart;
-  this->rowstart_ = rowstart;
   this->usebgr_ = usebgr;
 }
 
 void ST7735::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up ST7735... %d %d", this->width_, this->height_);
+  ESP_LOGCONFIG(TAG, "Setting up ST7735...");
 
   this->spi_setup();
 
@@ -42,22 +38,37 @@ void ST7735::setup() {
 
   if (this->model_ == INITR_GREENTAB) {
     display_init_(RCMD2GREEN);
-    colstart_ == 0 ? colstart_ = 2 : colstart_;
-    rowstart_ == 0 ? rowstart_ = 1 : rowstart_;
+    if (this->get_col_start() == 0)
+      this->set_col_start(2);
+
+    if (this->get_row_start() == 0)
+      this->set_row_start(1);
+
   } else if ((this->model_ == INITR_144GREENTAB) || (this->model_ == INITR_HALLOWING)) {
-    height_ == 0 ? height_ = ST7735_TFTHEIGHT_128 : height_;
-    width_ == 0 ? width_ = ST7735_TFTWIDTH_128 : width_;
+    if (this->get_device_height() == 0)
+      this->set_height(ST7735_TFTHEIGHT_128);
+
+    if (this->get_device_width() == 0)
+      this->set_width(ST7735_TFTWIDTH_128);
+
     display_init_(RCMD2GREEN144);
-    colstart_ == 0 ? colstart_ = 2 : colstart_;
-    rowstart_ == 0 ? rowstart_ = 3 : rowstart_;
+    if (this->get_col_start() == 0)
+      this->set_col_start(2);
+
+    if (this->get_row_start() == 0)
+      this->set_row_start(3);
+
   } else if (this->model_ == INITR_MINI_160X80) {
-    height_ == 0 ? height_ = ST7735_TFTHEIGHT_160 : height_;
-    width_ == 0 ? width_ = ST7735_TFTWIDTH_80 : width_;
+    if (this->get_device_height() == 0)
+      this->set_height(ST7735_TFTHEIGHT_160);
+
+    if (this->get_device_width() == 0)
+      this->set_width(ST7735_TFTWIDTH_80);
+
     display_init_(RCMD2GREEN160X80);
-    colstart_ = 24;
-    rowstart_ = 0;  // For default rotation 0
+    this->set_col_start(24);
+    this->set_row_start(0);
   } else {
-    // colstart, rowstart left at default '0' values
     display_init_(RCMD2RED);
   }
   display_init_(RCMD3);
@@ -75,7 +86,7 @@ void ST7735::setup() {
 
   this->set_driver_right_bit_aligned(this->driver_right_bit_aligned_);
 
-  bool res = this->init_buffer(this->width_, this->height_);
+  bool res = this->init_buffer(this->get_device_width(), this->get_height());
   if (!res) {
     ESP_LOGE(TAG, "Could not allocate buffer space. Consider changing the buffer type or resolution!");
     this->mark_failed();
@@ -93,9 +104,8 @@ void ST7735::update() {
   this->buffer_base_->display_end();
 }
 
-int ST7735::get_height_internal() { return height_; }
-
-int ST7735::get_width_internal() { return width_; }
+int ST7735::get_width_internal() { return this->get_device_width(); }
+int ST7735::get_height_internal() { return this->get_device_height(); }
 
 void ST7735::init_reset_() {
   if (this->reset_pin_ != nullptr) {
@@ -152,6 +162,7 @@ void ST7735::dump_config() {
   LOG_PIN("  CS Pin: ", this->cs_);
   LOG_PIN("  DC Pin: ", this->dc_pin_);
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
+  ESP_LOGCONFIG(TAG, "  Is 18bit Color: %s", YESNO(this->is_18bit_()));
   LOG_UPDATE_INTERVAL(this);
 }
 
@@ -192,26 +203,38 @@ void HOT ST7735::senddata_(const uint8_t *data_bytes, uint8_t num_data_bytes) {
 void HOT ST7735::display_buffer_() {
 #ifdef USE_BUFFER_RGB565
   auto buff = static_cast<display::Bufferex565 *>(this->buffer_base_);
-  set_addr_window_(colstart_, rowstart_, this->width_, this->height_);
+  set_addr_window_(0, 0, this->get_width(), this->get_height());
   this->start_data_();
   this->write_array16(buff->buffer_, this->buffer_base_->get_buffer_length());
 #else
-  int w = this->buffer_base_->get_partial_update_x();
-  int h = this->buffer_base_->get_partial_update_y();
 
-  ESP_LOGD(TAG, "Asked to update %d/%d to %d/%d", this->buffer_base_->get_partial_update_x_low() + colstart_,
-           this->buffer_base_->get_partial_update_y_low() + rowstart_, w, h);
+#ifdef NO_PARTIAL
+  const uint32_t start_pos = 0;
+  const uint32_t w = this->get_width();
+  const uint32_t h = this->get_height();
+  set_addr_window_(0, 0, w, h);
+  ESP_LOGD(TAG, "Asked to update %d/%d to %d/%d", 0, 0, w, h);
 
-  const uint32_t start_pos = ((this->buffer_base_->get_partial_update_y_low() * this->width_) +
+#else
+  const int w = this->buffer_base_->get_partial_update_x();
+  const int h = this->buffer_base_->get_partial_update_y();
+
+  ESP_LOGD(TAG, "Asked to update %d/%d to %d/%d",
+           this->buffer_base_->get_partial_update_x_low() + this->get_col_start(),
+           this->buffer_base_->get_partial_update_y_low() + this->get_row_start(), w, h);
+
+  const uint32_t start_pos = ((this->buffer_base_->get_partial_update_y_low() * this->get_width()) +
                               this->buffer_base_->get_partial_update_x_low());
 
-  set_addr_window_(this->buffer_base_->get_partial_update_x_low() + colstart_,
-                   this->buffer_base_->get_partial_update_y_low() + rowstart_, w, h);
+  set_addr_window_(this->buffer_base_->get_partial_update_x_low() + this->get_col_start(),
+                   this->buffer_base_->get_partial_update_y_low() + this->get_row_start(), w, h);
 
+#endif
   this->start_data_();
+
   for (uint16_t row = 0; row < h; row++) {
     for (uint16_t col = 0; col < w; col++) {
-      uint32_t pos = start_pos + (row * width_) + col;
+      uint32_t pos = start_pos + (row * get_width_internal()) + col;
 
       uint32_t color_to_write = this->buffer_base_->get_pixel_to_666(pos);
 

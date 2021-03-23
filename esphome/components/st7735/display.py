@@ -19,10 +19,7 @@ CODEOWNERS = ["@SenexCrenshaw"]
 
 DEPENDENCIES = ["spi"]
 
-CONF_DEVICE_WIDTH = "device_width"
-CONF_DEVICE_HEIGHT = "device_height"
-CONF_ROW_START = "row_start"
-CONF_COL_START = "col_start"
+
 CONF_USE_BGR = "use_bgr"
 SPIST7735 = st7735_ns.class_(
     "ST7735", cg.PollingComponent, display.DisplayBuffer, spi.SPIDevice
@@ -52,10 +49,6 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(SPIST7735),
             cv.Required(CONF_DC_PIN): pins.gpio_output_pin_schema,
-            cv.Required(CONF_DEVICE_WIDTH): cv.int_,
-            cv.Required(CONF_DEVICE_HEIGHT): cv.int_,
-            cv.Required(CONF_COL_START): cv.int_,
-            cv.Required(CONF_ROW_START): cv.int_,
             cv.Optional(CONF_USE_BGR, default=False): cv.boolean,
         }
     )
@@ -84,10 +77,6 @@ def to_code(config):
     var = cg.new_Pvariable(
         config[CONF_ID],
         config[CONF_MODEL],
-        config[CONF_DEVICE_WIDTH],
-        config[CONF_DEVICE_HEIGHT],
-        config[CONF_COL_START],
-        config[CONF_ROW_START],
         config[CONF_USE_BGR],
     )
     yield setup_st7735(var, config)

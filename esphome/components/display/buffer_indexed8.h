@@ -25,6 +25,11 @@ class BufferexIndexed8 : public display::BufferexBase {
   void set_color_off(Color color) { color_off_ = color; }
   void set_color_on(Color color) { color_on_ = color; }
 
+  std::vector<Color> get_model_colors() override {
+    std::vector<Color> colors = {COLOR_BLACK, COLOR_WHITE};
+    return colors;
+  }
+
  protected:
   Color color_on_ = COLOR_WHITE;
   Color color_off_ = COLOR_BLACK;

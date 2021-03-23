@@ -2,6 +2,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
+#include "esphome/components/display/buffer_565.h"
 
 namespace esphome {
 namespace ili9341 {
@@ -9,7 +10,6 @@ namespace ili9341 {
 static const char *TAG = "ili9341";
 
 void ILI9341Display::setup_pins_() {
-  this->init_internal_(this->get_buffer_length_());
   this->dc_pin_->setup();  // OUTPUT
   this->dc_pin_->digital_write(false);
   if (this->reset_pin_ != nullptr) {
@@ -23,11 +23,12 @@ void ILI9341Display::setup_pins_() {
   this->spi_setup();
 
   this->reset_();
+  ESP_LOGD(TAG, "setup_pins_ done");
 }
 
 void ILI9341Display::dump_config() {
   LOG_DISPLAY("", "ili9341", this);
-  ESP_LOGCONFIG(TAG, "  Width: %d, Height: %d,  Rotation: %d", this->width_, this->height_, this->rotation_);
+  ESP_LOGCONFIG(TAG, "  Width: %d, Height: %d,  Rotation: %d", this->get_width(), this->get_height(), this->rotation_);
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
   LOG_PIN("  DC Pin: ", this->dc_pin_);
   LOG_PIN("  Busy Pin: ", this->busy_pin_);
@@ -36,6 +37,7 @@ void ILI9341Display::dump_config() {
 }
 
 float ILI9341Display::get_setup_priority() const { return setup_priority::PROCESSOR; }
+
 void ILI9341Display::command(uint8_t value) {
   this->start_command_();
   this->write_byte(value);
@@ -59,116 +61,84 @@ void ILI9341Display::data(uint8_t value) {
 
 void ILI9341Display::send_command(uint8_t command_byte, const uint8_t *data_bytes, uint8_t num_data_bytes) {
   this->command(command_byte);  // Send the command byte
-  this->start_data_();
-  this->write_array(data_bytes, num_data_bytes);
-  this->end_data_();
-}
 
-uint8_t ILI9341Display::read_command(uint8_t command_byte, uint8_t index) {
-  uint8_t data = 0x10 + index;
-  this->send_command(0xD9, &data, 1);  // Set Index Register
-  uint8_t result;
-  this->start_command_();
-  this->write_byte(command_byte);
   this->start_data_();
-  do {
-    result = this->read_byte();
-  } while (index--);
+  for (uint8_t i = 0; i < num_data_bytes; i++) {
+    this->write_byte(pgm_read_byte(data_bytes++));  // write byte - SPI library
+  }
   this->end_data_();
-  return result;
 }
 
 void ILI9341Display::update() {
   this->do_update_();
+#ifndef NO_PARTIAL
+  if (this->has_pages) {
+    this->has_pages = false;
+    this->buffer_base_->reset_partials();
+  }
+#endif
   this->display_();
+  this->buffer_base_->display_end();
 }
 
 void ILI9341Display::display_() {
-  // we will only update the changed window to the display
-  int w = this->x_high_ - this->x_low_ + 1;
-  int h = this->y_high_ - this->y_low_ + 1;
-
-  set_addr_window_(this->x_low_, this->y_low_, w, h);
+#ifdef USE_BUFFER_RGB565
+  auto buff = static_cast<display::Bufferex565 *>(this->buffer_base_);
+  set_addr_window_(0, 0, this->get_width(), this->get_height());
   this->start_data_();
-  uint32_t start_pos = ((this->y_low_ * this->width_) + x_low_);
+  this->write_array16(buff->buffer_, this->buffer_base_->get_buffer_length());
+#else
+
+#ifdef NO_PARTIAL
+  const uint32_t start_pos = 0;
+  const uint32_t w = this->get_width();
+  const uint32_t h = this->get_height();
+  set_addr_window_(0, 0, w, h);
+  ESP_LOGD(TAG, "Asked to update %d/%d to %d/%d", 0, 0, w, h);
+
+#else
+  const int w = this->buffer_base_->get_partial_update_x();
+  const int h = this->buffer_base_->get_partial_update_y();
+
+  ESP_LOGD(TAG, "Asked to update %d/%d to %d/%d",
+           this->buffer_base_->get_partial_update_x_low() + this->get_col_start(),
+           this->buffer_base_->get_partial_update_y_low() + this->get_row_start(), w, h);
+
+  const uint32_t start_pos = ((this->buffer_base_->get_partial_update_y_low() * this->get_width()) +
+                              this->buffer_base_->get_partial_update_x_low());
+
+  set_addr_window_(this->buffer_base_->get_partial_update_x_low() + this->get_col_start(),
+                   this->buffer_base_->get_partial_update_y_low() + this->get_row_start(), w, h);
+
+#endif
+  this->start_data_();
+
   for (uint16_t row = 0; row < h; row++) {
     for (uint16_t col = 0; col < w; col++) {
-      uint32_t pos = start_pos + (row * width_) + col;
+      uint32_t pos = start_pos + (row * get_width_internal()) + col;
 
-      uint16_t color = convert_to_16bit_color_(buffer_[pos]);
-      this->write_byte(color >> 8);
-      this->write_byte(color);
+      uint32_t color_to_write = this->buffer_base_->get_pixel_to_666(pos);
+
+      if (this->is_18bit_()) {
+        this->write_byte(color_to_write >> 14);
+        this->write_byte(color_to_write >> 6);
+        this->write_byte(color_to_write << 2);
+      } else {
+        this->write_byte16(color_to_write);
+      }
     }
   }
+#endif
+
   this->end_data_();
 
-  // invalidate watermarks
-  this->x_low_ = this->width_;
-  this->y_low_ = this->height_;
-  this->x_high_ = 0;
-  this->y_high_ = 0;
+  this->buffer_base_->pixel_count_ = 0;
 }
 
-uint16_t ILI9341Display::convert_to_16bit_color_(uint8_t color_8bit) {
-  int r = color_8bit >> 5;
-  int g = (color_8bit >> 2) & 0x07;
-  int b = color_8bit & 0x03;
-  uint16_t color = (r * 0x04) << 11;
-  color |= (g * 0x09) << 5;
-  color |= (b * 0x0A);
+bool HOT ILI9341Display::is_18bit_() { return this->get_buffer_type() != display::BufferType::BUFFER_TYPE_565; }
 
-  return color;
-}
-
-uint8_t ILI9341Display::convert_to_8bit_color_(uint16_t color_16bit) {
-  // convert 16bit color to 8 bit buffer
-  uint8_t r = color_16bit >> 11;
-  uint8_t g = (color_16bit >> 5) & 0x3F;
-  uint8_t b = color_16bit & 0x1F;
-
-  return ((b / 0x0A) | ((g / 0x09) << 2) | ((r / 0x04) << 5));
-}
-
-void ILI9341Display::fill(Color color) {
-  auto color565 = display::ColorUtil::color_to_565(color);
-  memset(this->buffer_, convert_to_8bit_color_(color565), this->get_buffer_length_());
-  this->x_low_ = 0;
-  this->y_low_ = 0;
-  this->x_high_ = this->get_width_internal() - 1;
-  this->y_high_ = this->get_height_internal() - 1;
-}
-
-void ILI9341Display::fill_internal_(Color color) {
-  this->set_addr_window_(0, 0, this->get_width_internal(), this->get_height_internal());
-  this->start_data_();
-
-  auto color565 = display::ColorUtil::color_to_565(color);
-  for (uint32_t i = 0; i < (this->get_width_internal()) * (this->get_height_internal()); i++) {
-    this->write_byte(color565 >> 8);
-    this->write_byte(color565);
-    buffer_[i] = 0;
-  }
-  this->end_data_();
-}
-
-void HOT ILI9341Display::draw_absolute_pixel_internal(int x, int y, Color color) {
-  if (x >= this->get_width_internal() || x < 0 || y >= this->get_height_internal() || y < 0)
-    return;
-
-  // low and high watermark may speed up drawing from buffer
-  this->x_low_ = (x < this->x_low_) ? x : this->x_low_;
-  this->y_low_ = (y < this->y_low_) ? y : this->y_low_;
-  this->x_high_ = (x > this->x_high_) ? x : this->x_high_;
-  this->y_high_ = (y > this->y_high_) ? y : this->y_high_;
-
-  uint32_t pos = (y * width_) + x;
-  auto color565 = display::ColorUtil::color_to_565(color);
-  buffer_[pos] = convert_to_8bit_color_(color565);
-}
-
-// should return the total size: return this->get_width_internal() * this->get_height_internal() * 2 // 16bit color
-// values per bit is huge
-uint32_t ILI9341Display::get_buffer_length_() { return this->get_width_internal() * this->get_height_internal(); }
+void ILI9341Display::display_clear() { this->fill(display::COLOR_OFF); }
+void ILI9341Display::fill(Color color) { this->fill_buffer(color); }
 
 void ILI9341Display::start_command_() {
   this->dc_pin_->digital_write(false);
@@ -216,24 +186,54 @@ void ILI9341Display::set_addr_window_(uint16_t x1, uint16_t y1, uint16_t w, uint
 
 void ILI9341Display::invert_display_(bool invert) { this->command(invert ? ILI9341_INVON : ILI9341_INVOFF); }
 
-int ILI9341Display::get_width_internal() { return this->width_; }
-int ILI9341Display::get_height_internal() { return this->height_; }
+int ILI9341Display::get_width_internal() { return this->get_device_width(); }
+int ILI9341Display::get_height_internal() { return this->get_device_height(); }
 
 //   M5Stack display
 void ILI9341M5Stack::initialize() {
   this->init_lcd_(INITCMD_M5STACK);
-  this->width_ = 320;
-  this->height_ = 240;
+  if (this->get_width_internal() == 0)
+    this->set_width(240);
+
+  if (this->get_height_internal() == 0)
+    this->set_height(320);
+
   this->invert_display_(true);
-  this->fill_internal_(COLOR_BLACK);
+  this->fill(COLOR_BLACK);
 }
 
 //   24_TFT display
 void ILI9341TFT24::initialize() {
-  this->init_lcd_(INITCMD_TFT);
-  this->width_ = 240;
-  this->height_ = 320;
-  this->fill_internal_(COLOR_BLACK);
+  if (this->is_18bit_()) {
+    this->driver_right_bit_aligned_ = false;
+    this->init_lcd_(INITCMD_TFT_18);
+  } else {
+    this->driver_right_bit_aligned_ = true;
+    this->init_lcd_(INITCMD_TFT);
+  }
+
+  if (this->get_width_internal() == 0)
+    this->set_width(240);
+
+  if (this->get_height_internal() == 0)
+    this->set_height(320);
+
+  if (!this->buffer_base_->colors_is_set)
+    this->buffer_base_->set_colors(this->get_model_colors());
+
+  if (!this->buffer_base_->index_size_is_set)
+    this->buffer_base_->set_index_size(this->buffer_base_->get_color_count());
+
+  this->set_driver_right_bit_aligned(this->driver_right_bit_aligned_);
+
+  bool res = this->init_buffer(this->get_width_internal(), this->get_height_internal());
+  if (!res) {
+    ESP_LOGE(TAG, "Could not allocate buffer space. Consider changing the buffer type or resolution!");
+    this->mark_failed();
+    return;
+  }
+
+  this->fill(COLOR_BLACK);
 }
 
 }  // namespace ili9341

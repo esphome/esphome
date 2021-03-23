@@ -21,7 +21,6 @@ void Bufferex332::fill_buffer(Color color) {
   display::BufferexBase::fill_buffer(color);
 
   auto color332 = ColorUtil::color_to_332(color);
-  ESP_LOGD(TAG, "fill_buffer color: %d", color332);
   memset(this->buffer_, color332, this->get_buffer_size());
 }
 

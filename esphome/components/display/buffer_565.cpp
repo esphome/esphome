@@ -21,7 +21,6 @@ void HOT Bufferex565::fill_buffer(Color color) {
   display::BufferexBase::fill_buffer(color);
 
   auto color565 = ColorUtil::color_to_565(color);
-  ESP_LOGD(TAG, "fill_buffer color: %d", color565);
   memset(this->buffer_, color565, this->get_buffer_size());
 }
 

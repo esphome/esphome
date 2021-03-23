@@ -314,6 +314,8 @@ void DisplayBuffer::printf(int x, int y, Font *font, const char *format, ...) {
 }
 void DisplayBuffer::set_writer(display_writer_t &&writer) { this->writer_ = writer; }
 void DisplayBuffer::set_pages(std::vector<DisplayPage *> pages) {
+  this->has_pages = true;
+
   for (auto *page : pages)
     page->set_parent(this);
 

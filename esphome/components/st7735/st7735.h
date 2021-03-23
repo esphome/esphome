@@ -23,7 +23,7 @@ class ST7735 : public PollingComponent,
                                      spi::DATA_RATE_8MHZ> {
   // TSCYCW = 66ns so 1/66ns = ~ 15MHZ
  public:
-  ST7735(ST7735Model model, int width, int height, int colstart, int rowstart, boolean usebgr);
+  ST7735(ST7735Model model, boolean usebgr);
   void dump_config() override;
   void setup() override;
   void update() override;
@@ -39,8 +39,10 @@ class ST7735 : public PollingComponent,
   bool driver_right_bit_aligned_ = false;
   // void draw_absolute_pixel_internal(int x, int y, Color color) override;
   void fill(Color color) override;
+
   int get_width_internal() override;
   int get_height_internal() override;
+
   void display_clear() override;
 
   void sendcommand_(uint8_t cmd, const uint8_t *data_bytes, uint8_t num_data_bytes);
@@ -59,8 +61,7 @@ class ST7735 : public PollingComponent,
   const char *model_str_();
 
   ST7735Model model_{ST7735_INITR_18BLACKTAB};
-  uint8_t colstart_ = 0, rowstart_ = 0;
-  int16_t width_ = 80, height_ = 80;  // Watch heap size
+  // int16_t width_ = 80, height_ = 80;  // Watch heap size
 
   GPIOPin *reset_pin_{nullptr};
   GPIOPin *dc_pin_{nullptr};

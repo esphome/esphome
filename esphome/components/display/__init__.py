@@ -10,6 +10,7 @@ from esphome.const import (
     CONF_ROTATION,
     CONF_TYPE,
     CONF_COLORS,
+    CONF_WIDTH,
 )
 from esphome.core import coroutine, coroutine_with_priority
 from esphome.components import color
@@ -22,6 +23,10 @@ CONF_INDEX_SIZE = "index_size"
 CONF_COLOR = "color"
 CONF_WAVESHARE_COLORS = "waveshare_colors"
 CONF_BUFFER_INDEX_SIZE = "buffer_index_size"
+CONF_DEVICE_WIDTH = "device_width"
+CONF_DEVICE_HEIGHT = "device_height"
+CONF_ROW_START = "row_start"
+CONF_COL_START = "col_start"
 
 IS_PLATFORM_COMPONENT = True
 
@@ -95,6 +100,10 @@ FULL_DISPLAY_SCHEMA = BASIC_DISPLAY_SCHEMA.extend(
     {
         cv.GenerateID(CONF_BUFFER_ID): cv.declare_id(buffer_base),
         cv.Optional(CONF_ROTATION): validate_rotation,
+        cv.Optional(CONF_DEVICE_WIDTH): cv.positive_int,
+        cv.Optional(CONF_DEVICE_HEIGHT): cv.positive_int,
+        cv.Optional(CONF_COL_START): cv.positive_int,
+        cv.Optional(CONF_ROW_START): cv.positive_int,
         cv.Optional(CONF_BUFFER): cv.All(BASIC_BUFFER_SCHEMA),
         cv.Optional(CONF_PAGES): cv.All(
             cv.ensure_list(
@@ -143,7 +152,9 @@ def setup_display_core_(var, config):
 @coroutine
 def register_display(var, config):
     yield setup_display_core_(var, config)
+
     if CONF_BUFFER_ID in config:
+        cg.add_define("USE_BUFFER")
         if CONF_BUFFER not in config:
             config[CONF_BUFFER_ID].type = buffer_565
             cg.add_define("USE_BUFFER_RGB565")
@@ -199,6 +210,18 @@ def register_display(var, config):
             index_size = config[CONF_BUFFER_INDEX_SIZE]
 
         cg.add(buffer.set_index_size(index_size))
+
+    if CONF_DEVICE_WIDTH in config:
+        cg.add(var.set_width(config[CONF_DEVICE_WIDTH]))
+
+    if CONF_DEVICE_HEIGHT in config:
+        cg.add(var.set_height(config[CONF_DEVICE_HEIGHT]))
+
+    if CONF_COL_START in config:
+        cg.add(var.set_col_start(config[CONF_COL_START]))
+
+    if CONF_ROW_START in config:
+        cg.add(var.set_row_start(config[CONF_ROW_START]))
 
 
 @automation.register_action(

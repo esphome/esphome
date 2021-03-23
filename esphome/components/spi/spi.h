@@ -246,7 +246,7 @@ class SPIDevice {
     return this->parent_->template write_byte<BIT_ORDER, CLOCK_POLARITY, CLOCK_PHASE>(data);
   }
 
-  void write_byte16(uint8_t data) {
+  void write_byte16(uint16_t data) {
     return this->parent_->template write_byte16<BIT_ORDER, CLOCK_POLARITY, CLOCK_PHASE>(data);
   }
 

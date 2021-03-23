@@ -84,7 +84,7 @@ class DisplayPage;
 
 using display_writer_t = std::function<void(DisplayBuffer &)>;
 
-#ifdef ARDUINO_ARCH_ESP32
+#if defined(ARDUINO_ARCH_ESP32) && defined(USE_BUFFER)
 #define LOG_DISPLAY(prefix, type, obj) \
   if (obj != nullptr) { \
     ESP_LOGCONFIG(TAG, prefix type); \
@@ -100,19 +100,28 @@ using display_writer_t = std::function<void(DisplayBuffer &)>;
     ESP_LOGCONFIG(TAG, "%s  Buffer Pixel Size: %hhu", prefix, this->get_pixel_storage_size()); \
   }
 
+#elif defined(USE_BUFFER)
+#define LOG_DISPLAY(prefix, type, obj) \
+  if (obj != nullptr) { \
+    ESP_LOGCONFIG(TAG, prefix type); \
+    ESP_LOGCONFIG(TAG, "%s  Rotations: %d °", prefix, obj->rotation_); \
+    ESP_LOGCONFIG(TAG, "%s  Dimensions: %dpx x %dpx", prefix, obj->get_width(), obj->get_height()); \
+    ESP_LOGCONFIG(TAG, "%s  Column Start: %d", prefix, this->col_start_); \
+    ESP_LOGCONFIG(TAG, "%s  Row Start: %d", prefix, this->row_start_); \
+    ESP_LOGCONFIG(TAG, "%s  Buffer: %s", prefix, this->get_buffer_type_string().c_str()); \
+    ESP_LOGCONFIG(TAG, "%s  Buffer Length: %zu", prefix, this->get_buffer_length()); \
+    ESP_LOGCONFIG(TAG, "%s  Buffer Size: %zu", prefix, this->get_buffer_size()); \
+    ESP_LOGCONFIG(TAG, "%s  Buffer Pixel Size: %hhu", prefix, this->get_pixel_storage_size()); \
+  }
+
 #else
 #define LOG_DISPLAY(prefix, type, obj) \
   if (obj != nullptr) { \
     ESP_LOGCONFIG(TAG, prefix type); \
     ESP_LOGCONFIG(TAG, "%s  Rotations: %d °", prefix, obj->rotation_); \
     ESP_LOGCONFIG(TAG, "%s  Dimensions: %dpx x %dpx", prefix, obj->get_width(), obj->get_height()); \
-    ESP_LOGCONFIG(TAG, "%s  Column Start: %d", prefix, this->colstart_); \
-    ESP_LOGCONFIG(TAG, "%s  Row Start: %d", prefix, this->rowstart_); \
-    ESP_LOGCONFIG(TAG, "%s  Buffer: %s", prefix, this->get_buffer_type_string().c_str()); \
-    ESP_LOGCONFIG(TAG, "%s  Buffer Length: %zu", prefix, this->get_buffer_length()); \
-    ESP_LOGCONFIG(TAG, "%s  Buffer Size: %zu", prefix, this->get_buffer_size()); \
-    ESP_LOGCONFIG(TAG, "%s  Buffer Pixel Size: %hhu", prefix, this->get_pixel_storage_size()); \
   }
+
 #endif
 
 class DisplayBuffer {
@@ -346,7 +355,24 @@ class DisplayBuffer {
     this->buffer_base_->set_driver_right_bit_aligned(driver_right_bit_aligned);
   }
 
+  virtual void set_width(uint16_t width) { this->buffer_base_->set_width(width); }
+  virtual void set_height(uint16_t height) { this->buffer_base_->set_height(height); }
+
+  uint16_t get_device_width() { return this->buffer_base_->get_device_width(); }
+  uint16_t get_device_height() { return this->buffer_base_->get_device_height(); }
+
+  virtual void set_col_start(uint16_t col_start) { this->col_start_ = col_start; }
+  virtual void set_row_start(uint16_t row_start) { this->row_start_ = row_start; }
+
+  uint16_t get_col_start() { return this->col_start_; }
+  uint16_t get_row_start() { return this->row_start_; }
+
+  std::vector<Color> get_model_colors() { return this->buffer_base_->get_model_colors(); }
+  bool has_pages = false;
+
  protected:
+  uint16_t col_start_ = 0, row_start_ = 0;
+
   void vprintf_(int x, int y, Font *font, Color color, TextAlign align, const char *format, va_list arg);
 
   virtual void HOT draw_absolute_pixel_internal(int x, int y, Color color) {

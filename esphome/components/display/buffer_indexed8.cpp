@@ -22,9 +22,12 @@ bool BufferexIndexed8::init_buffer(int width, int height) {
 uint8_t HOT BufferexIndexed8::get_index_from_color_(Color color) {
   for (int i = 0; i < this->colors_.size(); i++) {
     if (this->colors_[i].raw_32 == color.raw_32) {
+      // ESP_LOGD(TAG, "get_index_from_color_ color %d size %d return %d", color.raw_32, this->colors_.size(), i);
       return i;
     }
   }
+  // if (color.raw_32 != 0)
+  //   ESP_LOGD(TAG, "get_index_from_color_ NO MATCH color %d size %d", color.raw_32, this->colors_.size());
   return this->default_index_value_;
 }
 
@@ -40,14 +43,12 @@ uint8_t HOT BufferexIndexed8::get_value_from_color_index_(uint8_t index) {
 void HOT BufferexIndexed8::fill_buffer(Color color) {
   display::BufferexBase::fill_buffer(color);
   int count = 0;
-  ESP_LOGD(TAG, "fill_buffer %d %d/%d", color.g, this->width_, this->height_);
   for (uint16_t h = 0; h < this->height_; h++) {
     for (uint16_t w = 0; w < this->width_; w++) {
       if (this->set_buffer(w, h, color))
         ++count;
     }
   }
-  ESP_LOGD(TAG, "fill_buffer done, count %d", count);
 }
 
 bool HOT BufferexIndexed8::set_buffer(int x, int y, Color color) {
@@ -55,7 +56,7 @@ bool HOT BufferexIndexed8::set_buffer(int x, int y, Color color) {
 
   uint32_t pos = this->get_pixel_buffer_position_(x, y);
 
-  bool debug = false;
+  bool debug = true;
 
   uint8_t index = this->get_index_from_color_(color);
 
@@ -148,6 +149,8 @@ uint16_t HOT BufferexIndexed8::get_pixel_to_565(uint32_t pos) {
 
   if (value > this->index_size_)
     value = 0;
+
+  uint16_t color_565 = ColorUtil::color_to_565(this->colors_[value]);
 
   return ColorUtil::color_to_565(this->colors_[value]);
 }

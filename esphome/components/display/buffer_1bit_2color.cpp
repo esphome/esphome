@@ -17,8 +17,7 @@ bool Bufferex1bit2color::init_buffer(int width, int height) {
 }
 
 void Bufferex1bit2color::fill_buffer(Color color) {
-  display::BufferexBase::fill_buffer(color);
-  ESP_LOGD(TAG, "fill_buffer color: %d", ColorUtil::color_to_565(color));
+  display::BufferexBase::fill_buffer(color);  
   memset(this->buffer_, color.r + color.b + color.g == 0 ? 0 : 1, this->get_buffer_size());
 }
 
