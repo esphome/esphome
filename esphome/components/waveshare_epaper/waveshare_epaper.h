@@ -270,7 +270,6 @@ class WaveshareEPaper7P5InV2 : public WaveshareEPaper {
   int get_height_internal() override;
 };
 
-
 enum WaveshareEPaperTypeFModel {
   WAVESHARE_ACEP_5_65_IN = 0,
 };
@@ -282,7 +281,7 @@ static const Color COLOR_F_BLUE(0, 0, 255);
 static const Color COLOR_F_RED(255, 0, 0);
 static const Color COLOR_F_YELLOW(255, 255, 0);
 static const Color COLOR_F_ORANGE(255, 127, 0);
-static const Color COLOR_F_CLEAN(0x123456); // Anything that isn't one of the above will do.
+static const Color COLOR_F_CLEAN(0x123456);  // Anything that isn't one of the above will do.
 
 class WaveshareEPaperTypeF : public WaveshareEPaper {
  public:
@@ -294,7 +293,7 @@ class WaveshareEPaperTypeF : public WaveshareEPaper {
 
   void display() override;
 
-  virtual void fill(Color color) override;
+  void fill(Color color) override;
 
   void deep_sleep() override {
     if (this->reset_pin_ != nullptr) {
@@ -307,26 +306,24 @@ class WaveshareEPaperTypeF : public WaveshareEPaper {
   }
 
  protected:
-  virtual uint8_t color_(Color color);
-  
+  virtual uint8_t color_(Color color);  // NOLINT(readability-identifier-naming)
+
   uint8_t pixel_storage_size_ = 3;
-  
-  void draw_absolute_pixel_internal(int x, int y, Color color) override;
-  void draw_absolute_pixel_internal(int x, int y, uint8_t index);
+
+  void draw_absolute_pixel_internal(int x, int y, Color color) override;  // NOLINT(readability-identifier-naming)
+  void draw_absolute_pixel_internal(int x, int y, uint8_t index);  // NOLINT(readability-identifier-naming)
   uint8_t get_index_value_(uint32_t pos);
-  void send_display_size_(uint16_t width, uint16_t height);
+  void send_display_size_(uint16_t width, uint16_t height);  // NOLINT(readability-identifier-naming)
 
   int get_width_internal() override;
   int get_height_internal() override;
-  uint32_t get_buffer_length_() override;
-  
-  bool wait_until_idle_() override;
-  bool wait_until_busy_();
+  uint32_t get_buffer_length_() override;  // NOLINT(readability-identifier-naming)
+
+  bool wait_until_idle_() override;  // NOLINT(readability-identifier-naming)
+  bool wait_until_busy_();  // NOLINT(readability-identifier-naming)
 
   WaveshareEPaperTypeFModel model_;
 };
-
-
 
 }  // namespace waveshare_epaper
 }  // namespace esphome
