@@ -90,8 +90,8 @@ using display_writer_t = std::function<void(DisplayBuffer &)>;
     ESP_LOGCONFIG(TAG, prefix type); \
     ESP_LOGCONFIG(TAG, "%s  Rotations: %d °", prefix, obj->rotation_); \
     ESP_LOGCONFIG(TAG, "%s  Dimensions: %dpx x %dpx", prefix, obj->get_width(), obj->get_height()); \
-    ESP_LOGCONFIG(TAG, "%s  Column Start: %d", prefix, this->colstart_); \
-    ESP_LOGCONFIG(TAG, "%s  Row Start:: %d", prefix, this->rowstart_); \
+    ESP_LOGCONFIG(TAG, "%s  Column Start: %d", prefix, this->col_start_); \
+    ESP_LOGCONFIG(TAG, "%s  Row Start:: %d", prefix, this->row_start_); \
     ESP_LOGCONFIG(TAG, "%s  PSRAM Enabled: %s", prefix, TRUEFALSE(psramFound())); \
     ESP_LOGCONFIG(TAG, "%s  Buffer: %s", prefix, this->get_buffer_type_string().c_str()); \
     ESP_LOGCONFIG(TAG, "%s  Buffer Type: %d", prefix, this->get_buffer_type()); \
