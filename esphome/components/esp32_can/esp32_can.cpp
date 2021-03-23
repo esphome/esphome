@@ -47,18 +47,21 @@ bool ESP32Can::setup_internal() {
 
   if (!get_bitrate(this->bit_rate_, &t_config)) {
     // invalid bit rate
+    this->mark_failed();
     return false;
   }
 
   // Install CAN driver
   if (can_driver_install(&g_config, &t_config, &f_config) != ESP_OK) {
     // Failed to install driver
+    this->mark_failed();
     return false;
   }
 
   // Start CAN driver
   if (can_start() != ESP_OK) {
     // Failed to start driver
+    this->mark_failed();
     return false;
   }
   return true;
