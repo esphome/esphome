@@ -10,7 +10,6 @@ from esphome.const import (
     CONF_ROTATION,
     CONF_TYPE,
     CONF_COLORS,
-    CONF_WIDTH,
 )
 from esphome.core import coroutine, coroutine_with_priority
 from esphome.components import color
@@ -48,7 +47,6 @@ buffer_565 = display_ns.class_("Buffer565")
 buffer_666 = display_ns.class_("Buffer666")
 buffer_332 = display_ns.class_("Buffer332")
 buffer_indexed8 = display_ns.class_("BufferIndexed8")
-buffer_1bit_2color = display_ns.class_("Buffer1bit2color")
 
 BufferType = display_ns.enum("BufferType")
 
@@ -56,7 +54,6 @@ TYPES = {
     "RGB666": BufferType.RGB666,
     "RGB565": BufferType.RGB565,
     "RGB332": BufferType.RGB332,
-    "RGB1BIT": BufferType.RGB1BIT,
     "INDEXED8": BufferType.INDEXED8,
 }
 BUFFER_TYPES = cv.enum(TYPES, upper=True, space="_")
@@ -166,8 +163,6 @@ def register_display(var, config):
                 config[CONF_BUFFER_ID].type = buffer_565
             elif config[CONF_BUFFER][CONF_TYPE] == "RGB332":
                 config[CONF_BUFFER_ID].type = buffer_332
-            elif config[CONF_BUFFER][CONF_TYPE] == "RGB1BIT":
-                config[CONF_BUFFER_ID].type = buffer_1bit_2color
             elif config[CONF_BUFFER][CONF_TYPE] == "INDEXED8":
 
                 config[CONF_BUFFER_ID].type = buffer_indexed8
@@ -181,15 +176,6 @@ def register_display(var, config):
                 colors.append(WAVESHARE_COLORS_ENUM[color_conf[CONF_COLOR]])
 
             cg.add(buffer.set_colors(colors))
-
-        if CONF_BUFFER in config and config[CONF_BUFFER][CONF_TYPE] == "RGB1BIT":
-            if CONF_COLOR_ON in config[CONF_BUFFER]:
-                color_on = yield cg.get_variable(config[CONF_BUFFER][CONF_COLOR_ON])
-                cg.add(buffer.set_color_on(color_on))
-
-            if CONF_COLOR_OFF in config[CONF_BUFFER]:
-                color_off = yield cg.get_variable(config[CONF_BUFFER][CONF_COLOR_OFF])
-                cg.add(buffer.set_color_off(color_off))
 
         index_size = 1
 
@@ -212,10 +198,10 @@ def register_display(var, config):
         cg.add(buffer.set_index_size(index_size))
 
     if CONF_DEVICE_WIDTH in config:
-        cg.add(var.set_width(config[CONF_DEVICE_WIDTH]))
+        cg.add(var.set_device_width(config[CONF_DEVICE_WIDTH]))
 
     if CONF_DEVICE_HEIGHT in config:
-        cg.add(var.set_height(config[CONF_DEVICE_HEIGHT]))
+        cg.add(var.set_device_height(config[CONF_DEVICE_HEIGHT]))
 
     if CONF_COL_START in config:
         cg.add(var.set_col_start(config[CONF_COL_START]))

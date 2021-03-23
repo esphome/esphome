@@ -8,7 +8,7 @@ namespace display {
 //#define NO_PARTIAL
 
 #ifndef NO_PARTIAL
-struct partial_info {
+struct PartialInfo {
   uint16_t x_low = 0;
   uint16_t y_low = 0;
   uint16_t x_high = 0;
@@ -17,13 +17,12 @@ struct partial_info {
 #endif
 
 enum BufferType : uint8_t {
-  BUFFER_TYPE_1BIT = 0,
-  BUFFER_TYPE_332 = 1,
-  BUFFER_TYPE_565 = 2,
-  BUFFER_TYPE_666 = 3,
-  BUFFER_TYPE_INDEXED8 = 4,
+  BUFFER_TYPE_332 = 0,
+  BUFFER_TYPE_565 = 1,
+  BUFFER_TYPE_666 = 2,
+  BUFFER_TYPE_INDEXED8 = 3,
 };
-static const std::string BUFFER_TYPE_STRINGS[] = {"1BIT", "332", "565", "666", "INDEXED8"};
+static const std::string BUFFER_TYPE_STRINGS[] = {"332", "565", "666", "INDEXED8"};
 
 class BufferBase {
  public:
@@ -60,8 +59,8 @@ class BufferBase {
   virtual uint8_t get_pixel_storage_size() = 0;
   virtual void HOT fill_buffer(Color color){};
 
-  void set_width(uint16_t width) { this->width_ = width; }
-  void set_height(uint16_t height) { this->height_ = height; }
+  void set_device_width(uint16_t width) { this->width_ = width; }
+  void set_device_height(uint16_t height) { this->height_ = height; }
 
   uint16_t get_device_width() { return this->width_; }
   uint16_t get_device_height() { return this->height_; }
@@ -105,8 +104,8 @@ class BufferBase {
 #ifndef NO_PARTIAL
   void reset_partials();
 
-  partial_info current_info;
-  partial_info previous_info;
+  PartialInfo current_info;
+  PartialInfo previous_info;
   uint16_t HOT get_partial_update_x();
   uint16_t HOT get_partial_update_y();
 

@@ -193,10 +193,10 @@ int ILI9341Display::get_height_internal() { return this->get_device_height(); }
 void ILI9341M5Stack::initialize() {
   this->init_lcd_(INITCMD_M5STACK);
   if (this->get_width_internal() == 0)
-    this->set_width(240);
+    this->set_device_width(240);
 
   if (this->get_height_internal() == 0)
-    this->set_height(320);
+    this->set_device_height(320);
 
   this->invert_display_(true);
   this->fill(COLOR_BLACK);
@@ -213,10 +213,10 @@ void ILI9341TFT24::initialize() {
   }
 
   if (this->get_width_internal() == 0)
-    this->set_width(240);
+    this->set_device_width(240);
 
   if (this->get_height_internal() == 0)
-    this->set_height(320);
+    this->set_device_height(320);
 
   if (!this->buffer_base_->colors_is_set)
     this->buffer_base_->set_colors(this->get_model_colors());

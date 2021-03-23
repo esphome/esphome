@@ -355,8 +355,8 @@ class DisplayBuffer {
     this->buffer_base_->set_driver_right_bit_aligned(driver_right_bit_aligned);
   }
 
-  virtual void set_width(uint16_t width) { this->buffer_base_->set_width(width); }
-  virtual void set_height(uint16_t height) { this->buffer_base_->set_height(height); }
+  virtual void set_device_width(uint16_t width) { this->buffer_base_->set_device_width(width); }
+  virtual void set_device_height(uint16_t height) { this->buffer_base_->set_device_height(height); }
 
   uint16_t get_device_width() { return this->buffer_base_->get_device_width(); }
   uint16_t get_device_height() { return this->buffer_base_->get_device_height(); }

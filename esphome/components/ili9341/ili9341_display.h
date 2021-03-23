@@ -36,17 +36,17 @@ class ILI9341Display : public PollingComponent,
 
   void dump_config() override;
 
-  void set_width(uint16_t width) override {
+  void set_device_width(uint16_t width) override {
     if (width == 0 || width > 240)
       width = 240;
 
-    DisplayBuffer::set_width(width);
+    DisplayBuffer::set_device_width(width);
   }
-  void set_height(uint16_t height) override {
+  void set_device_height(uint16_t height) override {
     if (height == 0 || height > 320)
       height = 320;
 
-    DisplayBuffer::set_height(height);
+    DisplayBuffer::set_device_height(height);
   }
   void set_row_start(uint16_t row_start) override {
     if (row_start > 239)  // At least one row

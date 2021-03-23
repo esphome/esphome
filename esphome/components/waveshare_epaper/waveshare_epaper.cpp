@@ -85,7 +85,7 @@ static const uint8_t PARTIAL_UPDATE_LUT_TTGO_B1[LUT_SIZE_TTGO_B1] = {
 void WaveshareEPaper::setup_pins_() {
   ESP_LOGD(TAG, "Setup pins");
   if (!this->use_buffer())
-    this->init_internal_(this->get_buffer_length_());
+    this->init_internal_(this->get_buffer_length());
 
   this->dc_pin_->setup();  // OUTPUT
   this->dc_pin_->digital_write(false);
@@ -111,7 +111,7 @@ void WaveshareEPaper::data(uint8_t value) {
   this->write_byte(value);
   this->end_data_();
 }
-bool WaveshareEPaper::wait_until_idle_() {
+bool WaveshareEPaper::wait_until_idle() {
   if (this->busy_pin_ == nullptr) {
     return true;
   }
@@ -133,7 +133,7 @@ void WaveshareEPaper::update() {
 void WaveshareEPaper::fill(Color color) {
   // flip logic
   const uint8_t fill = color.is_on() ? 0x00 : 0xFF;
-  for (uint32_t i = 0; i < this->get_buffer_length_(); i++)
+  for (uint32_t i = 0; i < this->get_buffer_length(); i++)
     this->buffer_[i] = fill;
 }
 void HOT WaveshareEPaper::draw_absolute_pixel_internal(int x, int y, Color color) {
@@ -148,7 +148,7 @@ void HOT WaveshareEPaper::draw_absolute_pixel_internal(int x, int y, Color color
   else
     this->buffer_[pos] &= ~(0x80 >> subpos);
 }
-uint32_t WaveshareEPaper::get_buffer_length_() { return this->get_width_internal() * this->get_height_internal() / 8u; }
+uint32_t WaveshareEPaper::get_buffer_length() { return this->get_width_internal() * this->get_height_internal() / 8u; }
 void WaveshareEPaper::start_command_() {
   this->dc_pin_->digital_write(false);
   this->enable();
@@ -196,13 +196,13 @@ void WaveshareEPaperTypeA::initialize() {
     case TTGO_EPAPER_2_13_IN_B1:
       this->data(0x01);  // x increase, y decrease : as in demo code
       break;
-    case WAVESHARE_EPAPER_2_9_IN_V2:
-      this->data(0x03);  // from top left to bottom right
-      // RAM content option for Display Update
-      this->command(0x21);
-      this->data(0x00);
-      this->data(0x80);
-      break;
+    // case WAVESHARE_EPAPER_2_9_IN_V2:
+    //   this->data(0x03);  // from top left to bottom right
+    //   // RAM content option for Display Update
+    //   this->command(0x21);
+    //   this->data(0x00);
+    //   this->data(0x80);
+    //   break;
     default:
       this->data(0x03);  // from top left to bottom right
   }
@@ -236,7 +236,7 @@ void WaveshareEPaperTypeA::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 }
 void HOT WaveshareEPaperTypeA::display() {
-  if (!this->wait_until_idle_()) {
+  if (!this->wait_until_idle()) {
     this->status_set_warning();
     return;
   }
@@ -307,7 +307,7 @@ void HOT WaveshareEPaperTypeA::display() {
       this->data(0x00);
   }
 
-  if (!this->wait_until_idle_()) {
+  if (!this->wait_until_idle()) {
     this->status_set_warning();
     return;
   }
@@ -327,7 +327,7 @@ void HOT WaveshareEPaperTypeA::display() {
       break;
     }
     default:
-      this->write_array(this->buffer_, this->get_buffer_length_());
+      this->write_array(this->buffer_, this->get_buffer_length());
   }
   this->end_data_();
 
@@ -477,7 +477,7 @@ void WaveshareEPaper2P7In::initialize() {
 
   // command power on
   this->command(0x04);
-  this->wait_until_idle_();
+  this->wait_until_idle();
   delay(10);
 
   // Command panel setting
@@ -514,7 +514,7 @@ void WaveshareEPaper2P7In::initialize() {
     this->data(i);
 }
 void HOT WaveshareEPaper2P7In::display() {
-  uint32_t buf_len = this->get_buffer_length_();
+  uint32_t buf_len = this->get_buffer_length();
 
   // COMMAND DATA START TRANSMISSION 1
   this->command(0x10);
@@ -565,7 +565,7 @@ void WaveshareEPaper2P9InB::initialize() {
 
   // COMMAND POWER ON
   this->command(0x04);
-  this->wait_until_idle_();
+  this->wait_until_idle();
 
   // COMMAND PANEL SETTING
   this->command(0x00);
@@ -591,7 +591,7 @@ void HOT WaveshareEPaper2P9InB::display() {
   this->command(0x10);
   delay(2);
   this->start_data_();
-  this->write_array(this->buffer_, this->get_buffer_length_());
+  this->write_array(this->buffer_, this->get_buffer_length());
   this->end_data_();
   delay(2);
 
@@ -599,7 +599,7 @@ void HOT WaveshareEPaper2P9InB::display() {
   this->command(0x13);
   delay(2);
   this->start_data_();
-  for (int i = 0; i < this->get_buffer_length_(); i++)
+  for (int i = 0; i < this->get_buffer_length(); i++)
     this->write_byte(0x00);
   this->end_data_();
   delay(2);
@@ -607,7 +607,7 @@ void HOT WaveshareEPaper2P9InB::display() {
   // COMMAND DISPLAY REFRESH
   this->command(0x12);
   delay(2);
-  this->wait_until_idle_();
+  this->wait_until_idle();
 
   // COMMAND POWER OFF
   // NOTE: power off < deep sleep
@@ -671,7 +671,7 @@ void WaveshareEPaper4P2In::initialize() {
 
   // COMMAND POWER ON
   this->command(0x04);
-  this->wait_until_idle_();
+  this->wait_until_idle();
   delay(10);
   // COMMAND PANEL SETTING
   this->command(0x00);
@@ -723,14 +723,14 @@ void HOT WaveshareEPaper4P2In::display() {
   this->command(0x10);
   delay(2);
   this->start_data_();
-  this->write_array(this->buffer_, this->get_buffer_length_());
+  this->write_array(this->buffer_, this->get_buffer_length());
   this->end_data_();
   delay(2);
   // COMMAND DATA START TRANSMISSION 2
   this->command(0x13);
   delay(2);
   this->start_data_();
-  this->write_array(this->buffer_, this->get_buffer_length_());
+  this->write_array(this->buffer_, this->get_buffer_length());
   this->end_data_();
   // COMMAND DISPLAY REFRESH
   this->command(0x12);
@@ -765,7 +765,7 @@ void WaveshareEPaper5P8In::initialize() {
 
   // COMMAND POWER ON
   this->command(0x04);
-  this->wait_until_idle_();
+  this->wait_until_idle();
   delay(10);
 
   // COMMAND PLL CONTROL
@@ -803,7 +803,7 @@ void HOT WaveshareEPaper5P8In::display() {
   this->command(0x10);
 
   this->start_data_();
-  for (size_t i = 0; i < this->get_buffer_length_(); i++) {
+  for (size_t i = 0; i < this->get_buffer_length(); i++) {
     uint8_t temp1 = this->buffer_[i];
     for (uint8_t j = 0; j < 8; j++) {
       uint8_t temp2;
@@ -856,7 +856,7 @@ void WaveshareEPaper7P5In::initialize() {
   this->data(0x28);
   // COMMAND POWER ON
   this->command(0x04);
-  this->wait_until_idle_();
+  this->wait_until_idle();
   delay(10);
   // COMMAND PLL CONTROL
   this->command(0x30);
@@ -886,7 +886,7 @@ void HOT WaveshareEPaper7P5In::display() {
   // COMMAND DATA START TRANSMISSION 1
   this->command(0x10);
   this->start_data_();
-  for (size_t i = 0; i < this->get_buffer_length_(); i++) {
+  for (size_t i = 0; i < this->get_buffer_length(); i++) {
     uint8_t temp1 = this->buffer_[i];
     for (uint8_t j = 0; j < 8; j++) {
       uint8_t temp2;
@@ -930,7 +930,7 @@ void WaveshareEPaper7P5InV2::initialize() {
   this->command(0x04);
 
   delay(100);  // NOLINT
-  this->wait_until_idle_();
+  this->wait_until_idle();
   // COMMAND PANEL SETTING
   this->command(0x00);
   this->data(0x1F);
@@ -953,7 +953,7 @@ void WaveshareEPaper7P5InV2::initialize() {
   this->data(0x22);
 }
 void HOT WaveshareEPaper7P5InV2::display() {
-  uint32_t buf_len = this->get_buffer_length_();
+  uint32_t buf_len = this->get_buffer_length();
   // COMMAND DATA START TRANSMISSION NEW DATA
   this->command(0x13);
   delay(2);
@@ -964,7 +964,7 @@ void HOT WaveshareEPaper7P5InV2::display() {
   // COMMAND DISPLAY REFRESH
   this->command(0x12);
   delay(100);  // NOLINT
-  this->wait_until_idle_();
+  this->wait_until_idle();
 }
 
 int WaveshareEPaper7P5InV2::get_width_internal() { return 800; }
@@ -1026,7 +1026,7 @@ void WaveshareEPaperTypeF::initialize() {
   this->init_buffer(this->get_width_internal(), this->get_height_internal());
 
   this->buffer_base_->set_default_index_value(0x07);  // "clean"
-  this->buffer_base_->fill_buffer(Waveshare_Blue);
+  this->buffer_base_->fill_buffer(WAVESHARE_BLUE);
 }
 void WaveshareEPaperTypeF::dump_config() {
   LOG_DISPLAY("", "Waveshare Advanced Color E-Paper", this);
@@ -1071,7 +1071,7 @@ void HOT WaveshareEPaperTypeF::display() {
   this->command(0x12);  // 0x12: Refresh Display
   this->wait_until_busy_();
   this->command(0x02);  // 0x02: Turn power OFF
-  this->wait_until_idle_();
+  this->wait_until_idle();
   App.feed_wdt();
 
   delay(200);  // NOLINT
@@ -1083,14 +1083,15 @@ void HOT WaveshareEPaperTypeF::display() {
   // Send actual pixel buffer
   this->command(0x10);  // 0x10: Start data transmission (for display)
   this->start_data_();
+  uint8_t out = 0;
 
   for (uint32_t pos = 0; pos < total_pixels; pos += 2) {
-    uint8_t out = this->buffer_base_->get_pixel_value(pos) << 4;
-    // uint8_t out = this->get_index_value_(pos) << 4;
+#ifdef USE_BUFFER_INDEXED8
+    out = this->buffer_base_->get_pixel_value(pos) << 4;
     if (pos < total_pixels - 1) {
       out |= this->buffer_base_->get_pixel_value(pos + 1);
     }
-
+#endif
     this->write_byte(out);
     App.feed_wdt();
   }
@@ -1102,7 +1103,7 @@ void HOT WaveshareEPaperTypeF::display() {
   this->command(0x12);  // 0x12: Refresh Display
   this->wait_until_busy_();
   this->command(0x02);  // 0x02: Turn power OFF
-  this->wait_until_idle_();
+  this->wait_until_idle();
   App.feed_wdt();
 
   delay(200);  // NOLINT
@@ -1147,7 +1148,7 @@ int WaveshareEPaperTypeF::get_height_internal() {
   return 0;
 }
 
-bool WaveshareEPaperTypeF::wait_until_idle_() {
+bool WaveshareEPaperTypeF::wait_until_idle() {
   if (this->busy_pin_ == nullptr) {
     return true;
   }

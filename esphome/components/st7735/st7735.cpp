@@ -46,10 +46,10 @@ void ST7735::setup() {
 
   } else if ((this->model_ == INITR_144GREENTAB) || (this->model_ == INITR_HALLOWING)) {
     if (this->get_device_height() == 0)
-      this->set_height(ST7735_TFTHEIGHT_128);
+      this->set_device_height(ST7735_TFTHEIGHT_128);
 
     if (this->get_device_width() == 0)
-      this->set_width(ST7735_TFTWIDTH_128);
+      this->set_device_width(ST7735_TFTWIDTH_128);
 
     display_init_(RCMD2GREEN144);
     if (this->get_col_start() == 0)
@@ -60,10 +60,10 @@ void ST7735::setup() {
 
   } else if (this->model_ == INITR_MINI_160X80) {
     if (this->get_device_height() == 0)
-      this->set_height(ST7735_TFTHEIGHT_160);
+      this->set_device_height(ST7735_TFTHEIGHT_160);
 
     if (this->get_device_width() == 0)
-      this->set_width(ST7735_TFTWIDTH_80);
+      this->set_device_width(ST7735_TFTWIDTH_80);
 
     display_init_(RCMD2GREEN160X80);
     this->set_col_start(24);

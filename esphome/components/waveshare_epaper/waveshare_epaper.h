@@ -7,14 +7,14 @@
 namespace esphome {
 namespace waveshare_epaper {
 
-static const Color Waveshare_Black(0, 0, 0);
-static const Color Waveshare_White(255, 255, 255);
-static const Color Waveshare_Green(0, 255, 0);
-static const Color Waveshare_Blue(0, 0, 255);
-static const Color Waveshare_Red(255, 0, 0);
-static const Color Waveshare_Yellow(255, 255, 0);
-static const Color Waveshare_Orange(255, 127, 0);
-static const Color Waveshare_Blank(0x123456);  // Anything that isn't one of the above will do.
+static const Color WAVESHARE_BLACK(0, 0, 0);
+static const Color WAVESHARE_WHITE(255, 255, 255);
+static const Color WAVESHARE_GREEN(0, 255, 0);
+static const Color WAVESHARE_BLUE(0, 0, 255);
+static const Color WAVESHARE_RED(255, 0, 0);
+static const Color WAVESHARE_YELLOW(255, 255, 0);
+static const Color WAVESHARE_ORANGE(255, 127, 0);
+static const Color WAVESHARE_BLANK(0x123456);  // Anything that isn't one of the above will do.
 
 class WaveshareEPaper : public PollingComponent,
                         public display::DisplayBuffer,
@@ -44,11 +44,11 @@ class WaveshareEPaper : public PollingComponent,
 
   void on_safe_shutdown() override;
   virtual bool use_buffer() { return false; }
+  virtual bool wait_until_idle();
+  virtual uint32_t get_buffer_length();
 
  protected:
   void draw_absolute_pixel_internal(int x, int y, Color color) override;
-
-  virtual bool wait_until_idle_();
 
   void setup_pins_();
 
@@ -60,8 +60,6 @@ class WaveshareEPaper : public PollingComponent,
       delay(200);  // NOLINT
     }
   }
-
-  virtual uint32_t get_buffer_length_();
 
   void start_command_();
   void end_command_();
@@ -96,7 +94,7 @@ class WaveshareEPaperTypeA : public WaveshareEPaper {
   void deep_sleep() override {
     // COMMAND DEEP SLEEP MODE
     this->command(0x10);
-    this->wait_until_idle_();
+    this->wait_until_idle();
   }
 
   void set_full_update_every(uint32_t full_update_every);
@@ -192,7 +190,7 @@ class WaveshareEPaper4P2In : public WaveshareEPaper {
 
     // COMMAND POWER OFF
     this->command(0x02);
-    this->wait_until_idle_();
+    this->wait_until_idle();
     // COMMAND DEEP SLEEP
     this->command(0x07);
     this->data(0xA5);  // check byte
@@ -215,7 +213,7 @@ class WaveshareEPaper5P8In : public WaveshareEPaper {
   void deep_sleep() override {
     // COMMAND POWER OFF
     this->command(0x02);
-    this->wait_until_idle_();
+    this->wait_until_idle();
     // COMMAND DEEP SLEEP
     this->command(0x07);
     this->data(0xA5);  // check byte
@@ -238,7 +236,7 @@ class WaveshareEPaper7P5In : public WaveshareEPaper {
   void deep_sleep() override {
     // COMMAND POWER OFF
     this->command(0x02);
-    this->wait_until_idle_();
+    this->wait_until_idle();
     // COMMAND DEEP SLEEP
     this->command(0x07);
     this->data(0xA5);  // check byte
@@ -261,7 +259,7 @@ class WaveshareEPaper7P5InV2 : public WaveshareEPaper {
   void deep_sleep() override {
     // COMMAND POWER OFF
     this->command(0x02);
-    this->wait_until_idle_();
+    this->wait_until_idle();
     // COMMAND DEEP SLEEP
     this->command(0x07);
     this->data(0xA5);  // check byte
@@ -313,14 +311,14 @@ class WaveshareEPaperTypeF : public WaveshareEPaper {
   int get_width_internal() override;
   int get_height_internal() override;
 
-  bool wait_until_idle_() override;
+  bool wait_until_idle() override;
   bool wait_until_busy_();
 
   WaveshareEPaperTypeFModel model_;
 
-  std::vector<Color> get_model_colors() override {
-    std::vector<Color> colors = {Waveshare_Black, Waveshare_White,  Waveshare_Green,  Waveshare_Blue,
-                                 Waveshare_Red,   Waveshare_Yellow, Waveshare_Orange, Waveshare_Blank};
+  std::vector<Color> get_model_colors_() {
+    std::vector<Color> colors = {WAVESHARE_BLACK, WAVESHARE_WHITE,  WAVESHARE_GREEN,  WAVESHARE_BLUE,
+                                 WAVESHARE_RED,   WAVESHARE_YELLOW, WAVESHARE_ORANGE, WAVESHARE_BLANK};
     return colors;
   }
 };
