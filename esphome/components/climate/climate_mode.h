@@ -10,7 +10,7 @@ enum ClimateMode : uint8_t {
   /// The climate device is off (not in auto, heat or cool mode)
   CLIMATE_MODE_OFF = 0,
   /// The climate device is set to automatically change the heating/cooling cycle
-  CLIMATE_MODE_AUTO = 1,
+  CLIMATE_MODE_HEAT_COOL = 1,
   /// The climate device is manually set to cool mode (not in auto mode!)
   CLIMATE_MODE_COOL = 2,
   /// The climate device is manually set to heat mode (not in auto mode!)
@@ -20,7 +20,7 @@ enum ClimateMode : uint8_t {
   /// The climate device is manually set to dry mode
   CLIMATE_MODE_DRY = 5,
   /// The climate device is manually set to heat-cool mode
-  CLIMATE_MODE_HEAT_COOL = 6
+  CLIMATE_MODE_AUTO = 6
 };
 
 /// Enum for the current action of the climate device. Values match those of ClimateMode.
