@@ -276,12 +276,12 @@ enum WaveshareEPaperTypeFModel {
 };
 
 static const Color COLOR_F_BLACK(0, 0, 0);
-static const Color COLOR_F_WHITE(1, 1, 1);
-static const Color COLOR_F_GREEN(0, 1, 0);
-static const Color COLOR_F_BLUE(0, 0, 1);
-static const Color COLOR_F_RED(1, 0, 0);
-static const Color COLOR_F_YELLOW(1, 1, 0);
-static const Color COLOR_F_ORANGE(1, 0.5, 0);
+static const Color COLOR_F_WHITE(255, 255, 255);
+static const Color COLOR_F_GREEN(0, 255, 0);
+static const Color COLOR_F_BLUE(0, 0, 255);
+static const Color COLOR_F_RED(255, 0, 0);
+static const Color COLOR_F_YELLOW(255, 255, 0);
+static const Color COLOR_F_ORANGE(255, 127, 0);
 static const Color COLOR_F_CLEAN(0x123456); // Anything that isn't one of the above will do.
 
 class WaveshareEPaperTypeF : public WaveshareEPaper {
