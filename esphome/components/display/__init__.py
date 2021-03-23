@@ -43,12 +43,12 @@ DisplayPageShowPrevAction = display_ns.class_(
     "DisplayPageShowPrevAction", automation.Action
 )
 
-buffer_base = display_ns.class_("BufferexBase")
-buffer_565 = display_ns.class_("Bufferex565")
-buffer_666 = display_ns.class_("Bufferex666")
-buffer_332 = display_ns.class_("Bufferex332")
-buffer_indexed8 = display_ns.class_("BufferexIndexed8")
-buffer_1bit_2color = display_ns.class_("Bufferex1bit2color")
+buffer_base = display_ns.class_("BufferBase")
+buffer_565 = display_ns.class_("Buffer565")
+buffer_666 = display_ns.class_("Buffer666")
+buffer_332 = display_ns.class_("Buffer332")
+buffer_indexed8 = display_ns.class_("BufferIndexed8")
+buffer_1bit_2color = display_ns.class_("Buffer1bit2color")
 
 BufferType = display_ns.enum("BufferType")
 

@@ -4,7 +4,7 @@ namespace esphome {
 namespace display {
 static const char *TAG = "buffer_1bit_2color";
 
-bool Bufferex1bit2color::init_buffer(int width, int height) {
+bool Buffer1bit2color::init_buffer(int width, int height) {
   this->width_ = width;
   this->height_ = height;
 
@@ -16,14 +16,14 @@ bool Bufferex1bit2color::init_buffer(int width, int height) {
   return true;
 }
 
-void Bufferex1bit2color::fill_buffer(Color color) {
-  display::BufferexBase::fill_buffer(color);  
+void Buffer1bit2color::fill_buffer(Color color) {
+  display::BufferBase::fill_buffer(color);
   memset(this->buffer_, color.r + color.b + color.g == 0 ? 0 : 1, this->get_buffer_size());
 }
 
-uint32_t Bufferex1bit2color::get_pixel_buffer_position_internal_(int x, int y) { return (x + y * this->width_); }
+uint32_t Buffer1bit2color::get_pixel_buffer_position_internal_(int x, int y) { return (x + y * this->width_); }
 
-bool HOT Bufferex1bit2color::set_buffer(int x, int y, Color color) {
+bool HOT Buffer1bit2color::set_buffer(int x, int y, Color color) {
   const uint32_t byte_location = get_pixel_buffer_position_internal_(x, y) / 8;
   const uint8_t byte_offset = get_pixel_buffer_position_internal_(x, y) - (byte_location * 8);
 
@@ -36,7 +36,7 @@ bool HOT Bufferex1bit2color::set_buffer(int x, int y, Color color) {
   return false;
 }
 
-uint8_t Bufferex1bit2color::get_color_bit_(int x, int y) {
+uint8_t Buffer1bit2color::get_color_bit_(int x, int y) {
   const uint32_t byte_location = get_pixel_buffer_position_internal_(x, y) / 8;
   const uint8_t byte_offset = get_pixel_buffer_position_internal_(x, y) - (byte_location * 8);
 
@@ -45,7 +45,7 @@ uint8_t Bufferex1bit2color::get_color_bit_(int x, int y) {
   return color_bit;
 }
 
-uint8_t Bufferex1bit2color::get_color_bit_(uint32_t pos) {
+uint8_t Buffer1bit2color::get_color_bit_(uint32_t pos) {
   const uint32_t byte_location = pos / 8;
   const uint8_t byte_offset = pos - (byte_location * 8);
 
@@ -54,7 +54,7 @@ uint8_t Bufferex1bit2color::get_color_bit_(uint32_t pos) {
   return color_bit;
 }
 
-uint16_t Bufferex1bit2color::get_pixel_to_565(int x, int y) {
+uint16_t Buffer1bit2color::get_pixel_to_565(int x, int y) {
   uint8_t color_bit = this->get_color_bit_(x, y);
 
   if (color_bit == 0)
@@ -63,7 +63,7 @@ uint16_t Bufferex1bit2color::get_pixel_to_565(int x, int y) {
   return ColorUtil::color_to_565(this->color_on_);
 }
 
-uint16_t Bufferex1bit2color::get_pixel_to_565(uint32_t pos) {
+uint16_t Buffer1bit2color::get_pixel_to_565(uint32_t pos) {
   uint8_t color_bit = this->get_color_bit_(pos);
 
   if (color_bit == 0)
@@ -72,7 +72,7 @@ uint16_t Bufferex1bit2color::get_pixel_to_565(uint32_t pos) {
   return ColorUtil::color_to_565(this->color_on_);
 }
 
-uint32_t Bufferex1bit2color::get_pixel_to_666(int x, int y) {
+uint32_t Buffer1bit2color::get_pixel_to_666(int x, int y) {
   uint8_t color_bit = this->get_color_bit_(x, y);
 
   if (color_bit == 0)
@@ -81,7 +81,7 @@ uint32_t Bufferex1bit2color::get_pixel_to_666(int x, int y) {
   return ColorUtil::color_to_666(this->color_on_, this->driver_right_bit_aligned_);
 }
 
-uint32_t Bufferex1bit2color::get_pixel_to_666(uint32_t pos) {
+uint32_t Buffer1bit2color::get_pixel_to_666(uint32_t pos) {
   uint8_t color_bit = this->get_color_bit_(pos);
 
   if (color_bit == 0)
@@ -90,13 +90,13 @@ uint32_t Bufferex1bit2color::get_pixel_to_666(uint32_t pos) {
   return ColorUtil::color_to_666(this->color_on_, this->driver_right_bit_aligned_);
 }
 
-size_t Bufferex1bit2color::get_buffer_length() {
+size_t Buffer1bit2color::get_buffer_length() {
   auto screensize = size_t(this->width_) * size_t(this->height_);
   auto buffsize = (screensize % 8) ? screensize / 8 + 1 : screensize / 8;
   return buffsize;
 }
 
-size_t Bufferex1bit2color::get_buffer_size() { return this->get_buffer_length(); }
+size_t Buffer1bit2color::get_buffer_size() { return this->get_buffer_length(); }
 
 }  // namespace display
 }  // namespace esphome

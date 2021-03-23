@@ -4,12 +4,12 @@ namespace esphome {
 namespace display {
 static const char *TAG = "buffer_base";
 
-size_t BufferexBase::get_buffer_length() { return size_t(this->width_) * size_t(this->height_); }
+size_t BufferBase::get_buffer_length() { return size_t(this->width_) * size_t(this->height_); }
 
 #ifdef NO_PARTIAL
-void HOT BufferexBase::display_end() {}
+void HOT BufferBase::display_end() {}
 #else
-void HOT BufferexBase::display_end() {
+void HOT BufferBase::display_end() {
   // invalidate watermarks
   this->previous_info = this->current_info;
 
@@ -20,7 +20,7 @@ void HOT BufferexBase::display_end() {
   this->pixel_count_ = 0;
 }
 
-void HOT BufferexBase::reset_partials() {
+void HOT BufferBase::reset_partials() {
   this->current_info.x_low = 0;
   this->current_info.y_low = 0;
   this->current_info.x_high = this->width_ - 1;
@@ -28,34 +28,34 @@ void HOT BufferexBase::reset_partials() {
   this->previous_info = this->current_info;
 }
 
-uint16_t HOT BufferexBase::get_partial_update_x() {
+uint16_t HOT BufferBase::get_partial_update_x() {
   return this->get_partial_update_x_high() - this->get_partial_update_x_low() + 1;
 }
 
-uint16_t HOT BufferexBase::get_partial_update_y() {
+uint16_t HOT BufferBase::get_partial_update_y() {
   return this->get_partial_update_y_high() - this->get_partial_update_y_low() + 1;
 }
 
-uint16_t HOT BufferexBase::get_partial_update_x_low() {
+uint16_t HOT BufferBase::get_partial_update_x_low() {
   return this->current_info.x_low < this->previous_info.x_low ? this->current_info.x_low : this->previous_info.x_low;
 }
 
-uint16_t HOT BufferexBase::get_partial_update_x_high() {
+uint16_t HOT BufferBase::get_partial_update_x_high() {
   return this->current_info.x_high > this->previous_info.x_high ? this->current_info.x_high
                                                                 : this->previous_info.x_high;
 }
 
-uint16_t HOT BufferexBase::get_partial_update_y_low() {
+uint16_t HOT BufferBase::get_partial_update_y_low() {
   return this->current_info.y_low < this->previous_info.y_low ? this->current_info.y_low : this->previous_info.y_low;
 }
 
-uint16_t HOT BufferexBase::get_partial_update_y_high() {
+uint16_t HOT BufferBase::get_partial_update_y_high() {
   return this->current_info.y_high > this->previous_info.y_high ? this->current_info.y_high
                                                                 : this->previous_info.y_high;
 }
 #endif
 
-void HOT BufferexBase::set_pixel(int x, int y, Color color) {
+void HOT BufferBase::set_pixel(int x, int y, Color color) {
   if (x >= this->width_ || x < 0 || y >= this->height_ || y < 0) {
     ESP_LOGVV(TAG, "set_pixel out of bounds %d/%d %d/%d", x, this->width_, y, this->height_);
     return;

@@ -5,7 +5,7 @@ namespace esphome {
 namespace display {
 
 #ifdef USE_BUFFER_INDEXED8
-class BufferexIndexed8 : public display::BufferexBase {
+class BufferIndexed8 : public display::BufferBase {
  public:
   uint8_t *buffer_{nullptr};
 

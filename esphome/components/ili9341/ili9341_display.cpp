@@ -83,7 +83,7 @@ void ILI9341Display::update() {
 
 void ILI9341Display::display_() {
 #ifdef USE_BUFFER_RGB565
-  auto buff = static_cast<display::Bufferex565 *>(this->buffer_base_);
+  auto buff = static_cast<display::Buffer565 *>(this->buffer_base_);
   set_addr_window_(0, 0, this->get_width(), this->get_height());
   this->start_data_();
   this->write_array16(buff->buffer_, this->buffer_base_->get_buffer_length());

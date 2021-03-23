@@ -4,7 +4,7 @@
 namespace esphome {
 namespace display {
 #ifdef USE_BUFFER_RGB565
-class Bufferex565 : public display::BufferexBase {
+class Buffer565 : public display::BufferBase {
  public:
   uint16_t *buffer_{nullptr};
 
@@ -21,7 +21,7 @@ class Bufferex565 : public display::BufferexBase {
  protected:
   display::BufferType buffer_type_ = display::BufferType::BUFFER_TYPE_565;
   uint8_t pixel_storage_size_ = 16;
-};  // class Bufferex565
+};  // class Buffer565
 #endif
 }  // namespace display
 }  // namespace esphome

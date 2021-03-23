@@ -332,7 +332,7 @@ class DisplayBuffer {
   /// Internal method to set the display rotation with.
   void set_rotation(DisplayRotation rotation);
 
-  void HOT set_buffer_base(display::BufferexBase *buffer_base) { this->buffer_base_ = buffer_base; }
+  void HOT set_buffer_base(display::BufferBase *buffer_base) { this->buffer_base_ = buffer_base; }
 
   size_t get_buffer_length();
   void set_pixel(int x, int y, Color color);
@@ -390,7 +390,7 @@ class DisplayBuffer {
   void do_update_();
 
   uint8_t *buffer_{nullptr};
-  display::BufferexBase *buffer_base_ = nullptr;
+  display::BufferBase *buffer_base_ = nullptr;
 
   DisplayRotation rotation_{DISPLAY_ROTATION_0_DEGREES};
   optional<display_writer_t> writer_{};

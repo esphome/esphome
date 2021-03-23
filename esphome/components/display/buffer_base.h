@@ -5,7 +5,7 @@
 namespace esphome {
 namespace display {
 
-#define NO_PARTIAL
+//#define NO_PARTIAL
 
 #ifndef NO_PARTIAL
 struct partial_info {
@@ -25,7 +25,7 @@ enum BufferType : uint8_t {
 };
 static const std::string BUFFER_TYPE_STRINGS[] = {"1BIT", "332", "565", "666", "INDEXED8"};
 
-class BufferexBase {
+class BufferBase {
  public:
   virtual bool init_buffer(int width, int height) = 0;
 
@@ -127,6 +127,6 @@ class BufferexBase {
   uint8_t index_size_ = 1;
   bool is_buffer_set_ = false;
 
-};  // class BufferexBase
+};  // class BufferBase
 }  // namespace display
 }  // namespace esphome

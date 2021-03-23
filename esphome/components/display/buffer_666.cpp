@@ -5,7 +5,7 @@ namespace display {
 #ifdef USE_BUFFER_RGB666
 static const char *TAG = "buffer_666";
 
-bool Bufferex666::init_buffer(int width, int height) {
+bool Buffer666::init_buffer(int width, int height) {
   if (this->buffer_ != nullptr) {
     return true;
   }
@@ -21,15 +21,15 @@ bool Bufferex666::init_buffer(int width, int height) {
   return true;
 }
 
-void Bufferex666::fill_buffer(Color color) {
-  display::BufferexBase::fill_buffer(color);
+void Buffer666::fill_buffer(Color color) {
+  display::BufferBase::fill_buffer(color);
 
-  auto color666 = ColorUtil::color_to_666(color, this->driver_right_bit_aligned_);  
+  auto color666 = ColorUtil::color_to_666(color, this->driver_right_bit_aligned_);
   memset(this->buffer_, color666, this->get_buffer_size());
 }
-size_t Bufferex666::get_buffer_size() { return this->get_buffer_length() * 4; }
+size_t Buffer666::get_buffer_size() { return this->get_buffer_length() * 4; }
 
-void HOT Bufferex666::set_buffer(int x, int y, Color color) {
+void HOT Buffer666::set_buffer(int x, int y, Color color) {
   uint32_t pos = get_pixel_buffer_position_(x, y);
   const uint32_t color666 = ColorUtil::color_to_666(color, this->driver_right_bit_aligned_);
   if (this->buffer_[pos] != color565) {
@@ -40,13 +40,13 @@ void HOT Bufferex666::set_buffer(int x, int y, Color color) {
 }
 
 // 565
-uint16_t Bufferex666::get_pixel_to_565(uint32_t pos) {
+uint16_t Buffer666::get_pixel_to_565(uint32_t pos) {
   return ColorUtil::color_to_565(ColorUtil::to_color(this->buffer_[pos], ColorOrder::COLOR_ORDER_RGB,
                                                      ColorBitness::COLOR_BITNESS_666, this->driver_right_bit_aligned_));
 }
 
 // 666
-uint32_t Bufferex666::get_pixel_to_666(uint32_t pos) { return this->buffer_[pos]; }
+uint32_t Buffer666::get_pixel_to_666(uint32_t pos) { return this->buffer_[pos]; }
 #endif
 }  // namespace display
 }  // namespace esphome

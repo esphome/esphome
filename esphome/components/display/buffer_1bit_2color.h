@@ -4,7 +4,7 @@
 namespace esphome {
 namespace display {
 
-class Bufferex1bit2color : public display::BufferexBase {
+class Buffer1bit2color : public display::BufferBase {
  public:
   uint8_t *buffer_{nullptr};
 
@@ -34,6 +34,6 @@ class Bufferex1bit2color : public display::BufferexBase {
  protected:
   display::BufferType buffer_type_ = display::BufferType::BUFFER_TYPE_1BIT;
   uint8_t pixel_storage_size_ = 1;
-};  // class Bufferex332
+};  // class Buffer332
 }  // namespace display
 }  // namespace esphome
