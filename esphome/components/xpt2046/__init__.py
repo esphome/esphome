@@ -50,9 +50,6 @@ def validate_xpt2046(config):
     ):
         raise cv.Invalid("Calibration Y values difference < 1000")
 
-    if cv.int_(config[CONF_THRESHOLD]) < 0 or cv.int_(config[CONF_THRESHOLD]) > 4095:
-        raise cv.Invalid("Threshold value not in the 0-4095 range or difference < 1000")
-
     return config
 
 
@@ -75,7 +72,7 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_DIMENSION_X, default=100): cv.positive_not_null_int,
             cv.Optional(CONF_DIMENSION_Y, default=100): cv.positive_not_null_int,
-            cv.Optional(CONF_THRESHOLD, default=400): cv.positive_not_null_int,
+            cv.Optional(CONF_THRESHOLD, default=400): cv.int_range(min=0, max=4095),
             cv.Optional(
                 CONF_REPORT_INTERVAL, default="0s"
             ): cv.positive_time_period_milliseconds,
