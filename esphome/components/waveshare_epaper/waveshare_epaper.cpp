@@ -992,7 +992,6 @@ void WaveshareEPaper7P5InV2::dump_config() {
 
 
 void WaveshareEPaperTypeF::initialize() {
-  ESP_LOGD(TAG, "Init display");
   this->reset_();
   this->wait_until_busy_();
   this->command(0x00); // 0x00: Panel Settings
@@ -1023,10 +1022,6 @@ void WaveshareEPaperTypeF::initialize() {
   
   delay(100); // NOLINT
   App.feed_wdt();
-  
-  ESP_LOGD(TAG, "Init display complete");
-  
-  App.feed_wdt();
 }
 void WaveshareEPaperTypeF::dump_config() {
   LOG_DISPLAY("", "Waveshare Advanced Color E-Paper", this);
@@ -1051,7 +1046,6 @@ void HOT WaveshareEPaperTypeF::send_display_size_(uint16_t width, uint16_t heigh
 }
 void HOT WaveshareEPaperTypeF::display() {
   uint32_t total_pixels = this->get_width_internal() * this->get_height_internal();
-  ESP_LOGD(TAG, "Clean display");
   this->send_display_size_(this->get_width_internal(), this->get_height_internal());
   
   // "Clean" display (fill with 0x7) to avoid/prevent ghosting
@@ -1073,8 +1067,6 @@ void HOT WaveshareEPaperTypeF::display() {
   App.feed_wdt();
   
   delay(200); // NOLINT
-  
-  ESP_LOGD(TAG, "Output buffer to display");
   
   this->send_display_size_(this->get_width_internal(), this->get_height_internal());
   
@@ -1103,7 +1095,6 @@ void HOT WaveshareEPaperTypeF::display() {
   
   delay(200); // NOLINT
   App.feed_wdt();
-  ESP_LOGD(TAG, "Output complete");
 }
 void WaveshareEPaperTypeF::fill(Color color) {
   const uint8_t fill = this->color_(color);
