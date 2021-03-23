@@ -165,8 +165,7 @@ int16_t XPT2046Component::read_adc_(uint8_t ctrl) {
 
 void XPT2046OnStateTrigger::process(int x, int y, bool touched) { this->trigger(x, y, touched); }
 
-void XPT2046Button::touch(int16_t x, int16_t y)
-{
+void XPT2046Button::touch(int16_t x, int16_t y) {
   bool touched = (x >= this->x_min_ && x <= this->x_max_ && y >= this->y_min_ && y <= this->y_max_);
 
   if (touched) {
@@ -177,8 +176,7 @@ void XPT2046Button::touch(int16_t x, int16_t y)
   }
 }
 
-void XPT2046Button::release()
-{
+void XPT2046Button::release() {
   if (this->state_) {
     this->publish_state(false);
     this->state_ = false;
