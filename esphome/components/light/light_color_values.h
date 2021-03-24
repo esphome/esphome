@@ -94,9 +94,12 @@ class LightColorValues {
    * @return The linearly interpolated LightColorValues.
    */
   static LightColorValues lerp(const LightColorValues &start, const LightColorValues &end, float completion) {
+    // When turning off the light, make sure the brightness goes to zero.
+    auto end_brightness = end.get_state() == 0 ? 0 : end.get_brightness();
+
     LightColorValues v;
     v.set_state(esphome::lerp(completion, start.get_state(), end.get_state()));
-    v.set_brightness(esphome::lerp(completion, start.get_brightness(), end.get_brightness()));
+    v.set_brightness(esphome::lerp(completion, start.get_brightness(), end_brightness));
     v.set_red(esphome::lerp(completion, start.get_red(), end.get_red()));
     v.set_green(esphome::lerp(completion, start.get_green(), end.get_green()));
     v.set_blue(esphome::lerp(completion, start.get_blue(), end.get_blue()));
