@@ -40,6 +40,7 @@ void TelegramBotComponent::make_request_(const char *method, std::string body,
                                          const std::function<void(JsonObject &)> &callback) {
   std::string url = "https://api.telegram.org/bot" + this->token_ + "/" + to_string(method);
   this->request_->set_url(url);
+  this->request_->set_force_reuse(true);
   this->request_->set_body(body);
   this->request_->send();
 
@@ -47,6 +48,10 @@ void TelegramBotComponent::make_request_(const char *method, std::string body,
     String response = this->request_->get_string();
     if (response.length() == 0) {
       ESP_LOGD(TAG, "Got empty response for method %s", method);
+      callback(this->json_buffer_.createObject());
+    } else if (response.length() > 1024) {
+      ESP_LOGW(TAG, "Message too long, skipped");
+      callback(this->json_buffer_.createObject());
     } else {
       JsonObject &root = this->json_buffer_.parseObject(response);
       callback(root);
@@ -117,8 +122,13 @@ void TelegramBotComponent::answer_callback_query(std::string callback_query_id, 
 
 // TelegramBotMessageUpdater
 void TelegramBotMessageUpdater::update() {
-  this->parent_->get_updates(this->last_message_id_ + 1, [this](JsonObject &root) {
-    if (root.success()) {
+  long offset = this->last_message_id_ + 1;
+  if (offset == 0) {
+    this->last_message_id_ = -6;
+  }
+
+  this->parent_->get_updates(offset, [this](JsonObject &root) {
+    if (root.success() && root.size() > 0) {
       bool is_ok = root["ok"].as<bool>() && root.containsKey("result");
       int size = root["result"].size();
       ESP_LOGV(TAG, "Response size: %d", size);

@@ -16,7 +16,7 @@ void HttpRequestComponent::set_url(std::string url) {
   this->url_ = url;
   this->secure_ = url.compare(0, 6, "https:") == 0;
 
-  if (!this->last_url_.empty() && this->url_ != this->last_url_) {
+  if (!this->force_reuse_ && !this->last_url_.empty() && this->url_ != this->last_url_) {
     // Close connection if url has been changed
     this->client_.setReuse(false);
     this->client_.end();
@@ -102,22 +102,7 @@ void HttpRequestComponent::close() {
   this->client_.end();
 }
 
-const String HttpRequestComponent::get_string() {
-  String result = "";
-  char char_buff[128];
-  int len = this->client_.getSize();
-  WiFiClient *stream = this->client_.getStreamPtr();
-
-  while (this->client_.connected() && (len > 0 || len == -1)) {
-    int c = stream->readBytes(char_buff, std::min((size_t) len, sizeof(char_buff)));
-    result += char_buff;
-    if (len > 0) {
-      len -= c;
-    }
-  }
-
-  return result;
-}
+const String HttpRequestComponent::get_string() { return this->client_.getString(); }
 
 }  // namespace http_request
 }  // namespace esphome
