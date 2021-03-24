@@ -241,7 +241,7 @@ ESPBTUUID ESPBTUUID::as_128bit() const {
 }
 bool ESPBTUUID::contains(uint8_t data1, uint8_t data2) const {
   if (this->uuid_.len == ESP_UUID_LEN_16) {
-    return (this->uuid_.uuid.uuid16 >> 8) == data2 || (this->uuid_.uuid.uuid16 & 0xFF) == data1;
+    return (this->uuid_.uuid.uuid16 >> 8) == data2 && (this->uuid_.uuid.uuid16 & 0xFF) == data1;
   } else if (this->uuid_.len == ESP_UUID_LEN_32) {
     for (uint8_t i = 0; i < 3; i++) {
       bool a = ((this->uuid_.uuid.uuid32 >> i * 8) & 0xFF) == data1;
