@@ -25,15 +25,9 @@ void HOT BufferBase::display_end() {
 void HOT BufferBase::reset_partials() {
   this->current_info.x_low = 0;
   this->current_info.y_low = 0;
-  this->current_info.x_high = this->width_;
-  this->current_info.y_high = this->height_;
-
-  //  this->previous_info = this->current_info;
-
-  this->previous_info.x_low = this->width_;
-  this->previous_info.y_low = this->height_;
-  this->previous_info.x_high = 0;
-  this->previous_info.y_high = 0;
+  this->current_info.x_high = this->width_ - 2;
+  this->current_info.y_high = this->height_ - 2;
+  this->previous_info = this->current_info;
 
   this->pixel_count_ = 0;
 }
@@ -45,7 +39,7 @@ uint16_t HOT BufferBase::get_partial_update_x() {
     return this->width_;
   }
 
-  return this->get_partial_update_x_high() - this->get_partial_update_x_low();
+  return (this->get_partial_update_x_high() - this->get_partial_update_x_low()) + 2;
 }
 
 uint16_t HOT BufferBase::get_partial_update_y() {
@@ -53,7 +47,8 @@ uint16_t HOT BufferBase::get_partial_update_y() {
     return this->height_;
   }
   ESP_LOGD(TAG, "get_partial_update_y %d/%d", this->get_partial_update_y_high(), this->get_partial_update_y_low());
-  return this->get_partial_update_y_high() - this->get_partial_update_y_low();
+
+  return this->get_partial_update_y_high() - this->get_partial_update_y_low() + 2;
 }
 
 uint16_t HOT BufferBase::get_partial_update_x_low() {

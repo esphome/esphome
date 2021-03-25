@@ -68,17 +68,9 @@ void ILI9341Display::send_command(uint8_t command_byte, const uint8_t *data_byte
   }
   this->end_data_();
 }
-bool first_run = true;
 
 void ILI9341Display::update() {
-  ESP_LOGD(TAG, "update");
   this->do_update_();
-  // #ifndef NO_PARTIAL
-  //   if (first_run) {
-  //     first_run = false;
-  //     this->buffer_base_->reset_partials();
-  //   }
-  // #endif
   this->display_();
   this->buffer_base_->display_end();
 }
