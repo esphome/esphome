@@ -86,7 +86,7 @@ void ILI9341Display::display_() {
   auto buff = static_cast<display::Buffer565 *>(this->buffer_base_);
   set_addr_window_(0, 0, this->get_width(), this->get_height());
   this->start_data_();
-  this->write_array16(buff->buffer_, this->buffer_base_->get_buffer_length());
+  this->write_array16(buff->buffer_, this->buffer_base_->get_buffer_length());  // Ma
 #else
 
 #ifdef NO_PARTIAL
@@ -112,30 +112,51 @@ void ILI9341Display::display_() {
 
 #endif
   this->start_data_();
+  uint8_t transfer_index = 0;
 
   for (uint16_t row = 0; row < h; row++) {
     for (uint16_t col = 0; col < w; col++) {
       uint32_t pos = start_pos + (row * get_width_internal()) + col;
 
-      uint32_t color_to_write = this->buffer_base_->get_pixel_to_666(pos);
+      uint16_t color_to_write = this->buffer_base_->get_pixel_to_565(pos);
+      if (this->buffer_base_->transfer_buffer != nullptr) {
+        if (this->is_18bit_()) {
+          this->buffer_base_->transfer_buffer[transfer_index++] = (uint8_t)(color_to_write >> 14);
+          this->buffer_base_->transfer_buffer[transfer_index++] = (uint8_t)(color_to_write >> 6);
+          this->buffer_base_->transfer_buffer[transfer_index++] = (uint8_t)(color_to_write >> 2);
+        } else {
+          this->buffer_base_->transfer_buffer[transfer_index++] = (uint8_t)(color_to_write >> 8);
+          this->buffer_base_->transfer_buffer[transfer_index++] = (uint8_t) color_to_write;
+        }
 
-      if (this->is_18bit_()) {
-        this->write_byte(color_to_write >> 14);
-        this->write_byte(color_to_write >> 6);
-        this->write_byte(color_to_write << 2);
+        if (transfer_index == this->buffer_base_->transfer_buffer_size) {
+          this->write_array(this->buffer_base_->transfer_buffer, transfer_index);
+          transfer_index = 0;
+        }
+
       } else {
-        this->write_byte16(color_to_write);
+        if (this->is_18bit_()) {
+          this->write_byte(color_to_write >> 14);
+          this->write_byte(color_to_write >> 6);
+          this->write_byte(color_to_write << 2);
+        } else {
+          this->write_byte16(color_to_write);
+        }
       }
     }
+  }
+  if (transfer_index != 0) {
+    this->write_array(this->buffer_base_->transfer_buffer, transfer_index);
   }
 #endif
 
   this->end_data_();
-
-  this->buffer_base_->pixel_count_ = 0;
 }
 
-bool HOT ILI9341Display::is_18bit_() { return this->get_buffer_type() != display::BufferType::BUFFER_TYPE_565; }
+bool HOT ILI9341Display::is_18bit_() {
+  return false;
+  //  return this->get_buffer_type() != display::BufferType::BUFFER_TYPE_565;
+}
 
 void ILI9341Display::display_clear() { this->fill(display::COLOR_OFF); }
 void ILI9341Display::fill(Color color) { this->fill_buffer(color); }
@@ -233,6 +254,12 @@ void ILI9341TFT24::initialize() {
     return;
   }
 
+  if (this->is_18bit_() && this->buffer_base_->transfer_buffer_size % 3 != 0) {
+    uint8_t quotient = (this->buffer_base_->transfer_buffer_size / 3) + 1;
+    this->buffer_base_->transfer_buffer_size = quotient * 3;
+  }
+
+  this->buffer_base_->transfer_buffer = new_buffer<uint8_t>(this->buffer_base_->transfer_buffer_size);
   this->fill(COLOR_BLACK);
 }
 

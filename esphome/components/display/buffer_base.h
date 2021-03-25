@@ -100,6 +100,8 @@ class BufferBase {
 
   bool index_size_is_set = false;
   bool colors_is_set = false;
+  uint8_t transfer_buffer_size = 64;
+  uint8_t *transfer_buffer{nullptr};
 
 #ifndef NO_PARTIAL
   void reset_partials();
