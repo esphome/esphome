@@ -1,8 +1,8 @@
 #include "esp32_can.h"
 #include "esphome/core/log.h"
 
-#include "driver/gpio.h"
-#include "driver/can.h"
+#include <driver/gpio.h>
+#include <driver/can.h>
 
 // WORKAROUND, because CAN_IO_UNUSED is just defined as (-1) in this version
 // of the framework which does not work with -fpermissive
