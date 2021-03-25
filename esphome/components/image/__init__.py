@@ -113,7 +113,7 @@ def to_code(config):
             ):
                 continue
 
-            for color_conf in display_conf[display.CONF_BUFFER][CONF_COLORS]:
+            for color_conf in display_conf[display.CONF_BUFFER][display.CONF_COLORS]:
                 for core_color_conf in CORE.config["color"]:
                     if color_conf[CONF_COLOR] == core_color_conf[CONF_ID]:
                         palette_color = yield color.color_string_from_config(
