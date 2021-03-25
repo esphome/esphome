@@ -515,7 +515,7 @@ bool Image::get_pixel(int x, int y) const {
 uint8_t Image::get_pixel_byte(int x, int y) const {
   if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_)
     return 0;
-  const uint32_t pos = (x + y * this->width_) 1;
+  const uint32_t pos = (x + y * this->width_);
   return pgm_read_byte(this->data_start_ + pos);
 }
 Color Image::get_color_pixel(int x, int y) const {
