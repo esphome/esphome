@@ -49,7 +49,7 @@ void TelegramBotComponent::make_request_(const char *method, std::string body,
     if (response.length() == 0) {
       ESP_LOGD(TAG, "Got empty response for method %s", method);
       callback(this->json_buffer_.createObject());
-    } else if (response.length() > 1024) {
+    } else if (response.length() > 2048) {
       ESP_LOGW(TAG, "Message too long, skipped");
       callback(this->json_buffer_.createObject());
     } else {
