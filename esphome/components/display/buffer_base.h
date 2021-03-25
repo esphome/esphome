@@ -29,10 +29,9 @@ class BufferBase {
   virtual bool init_buffer(int width, int height) = 0;
 
   virtual bool set_buffer(int x, int y, Color color) = 0;
-  virtual bool set_buffer(int x, int y, uint8_t raw_value) = 0;
 
 #ifdef USE_BUFFER_INDEXED8
-  // value
+  virtual bool set_buffer(int x, int y, uint8_t raw_value) = 0;
   virtual uint8_t HOT get_pixel_value(int x, int y) {
     const uint32_t pos = get_pixel_buffer_position_(x, y);
     return this->get_pixel_value(pos);
