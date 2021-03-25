@@ -51,23 +51,7 @@ def color_string_from_config(config):
 
 
 def to_code(config):
-    r = 0
-    if CONF_RED in config:
-        r = int(config[CONF_RED] * 255)
-    elif CONF_RED_INT in config:
-        r = config[CONF_RED_INT]
-
-    g = 0
-    if CONF_GREEN in config:
-        g = int(config[CONF_GREEN] * 255)
-    elif CONF_GREEN_INT in config:
-        g = config[CONF_GREEN_INT]
-
-    b = 0
-    if CONF_BLUE in config:
-        b = int(config[CONF_BLUE] * 255)
-    elif CONF_BLUE_INT in config:
-        b = config[CONF_BLUE_INT]
+    color_return = yield color_string_from_config(config)
 
     w = 0
     if CONF_WHITE in config:
@@ -77,5 +61,11 @@ def to_code(config):
 
     cg.new_variable(
         config[CONF_ID],
-        cg.StructInitializer(ColorStruct, ("r", r), ("g", g), ("b", b), ("w", w)),
+        cg.StructInitializer(
+            ColorStruct,
+            ("r", color_return[0]),
+            ("g", color_return[1]),
+            ("b", color_return[2]),
+            ("w", w),
+        ),
     )

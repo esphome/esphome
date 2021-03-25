@@ -4,17 +4,12 @@ from esphome.components import display, font, color
 import esphome.config_validation as cv
 import esphome.codegen as cg
 from esphome.const import (
-    CONF_DIRECTION_OUTPUT,
     CONF_FILE,
     CONF_ID,
     CONF_TYPE,
     CONF_RESIZE,
     CONF_DITHER,
     CONF_COLORS,
-    CONF_BLUE,
-    CONF_GREEN,
-    CONF_RED,
-    CONF_WHITE,
 )
 from esphome.core import CORE, HexInt
 
@@ -125,11 +120,10 @@ def to_code(config):
                     palette.append(palette_color[2])
                     break
 
-        pimage = Image.new("P", image.size)
-
         while len(palette) < 768:
             palette.append(0)
 
+        pimage = Image.new("P", image.size)
         pimage.putpalette(palette)
 
         image = image.convert("RGB")
