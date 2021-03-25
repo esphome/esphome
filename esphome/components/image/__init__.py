@@ -41,6 +41,7 @@ IMAGE_SCHEMA = cv.Schema(
         cv.Optional(CONF_DITHER, default="NONE"): cv.one_of(
             "NONE", "FLOYDSTEINBERG", upper=True
         ),
+        cv.GenerateID(display.CONF_BUFFER_ID): cv.use_id(display.buffer_base),
         cv.Optional(CONF_COLORS): cv.ensure_list(
             {
                 cv.Required(CONF_COLOR): cv.use_id(color),
@@ -107,18 +108,27 @@ def to_code(config):
                     continue
                 pos = x + y * width8
                 data[pos // 8] |= 0x80 >> (pos % 8)
-    elif config[CONF_TYPE] == "INDEXED8" and CONF_COLORS in config:
+    elif config[CONF_TYPE] == "INDEXED8" and display.CONF_BUFFER_ID in config:
         palette = []
-        for color_conf in config[CONF_COLORS]:
-            for core_color_conf in CORE.config["color"]:
-                if color_conf[CONF_COLOR] == core_color_conf[CONF_ID]:
-                    palette_color = yield color.color_string_from_config(
-                        core_color_conf
-                    )
-                    palette.append(palette_color[0])
-                    palette.append(palette_color[1])
-                    palette.append(palette_color[2])
-                    break
+
+        for display_conf in CORE.config["display"]:
+            if (
+                display.CONF_BUFFER not in display_conf
+                or display_conf[display.CONF_BUFFER_ID]
+                != config[display.CONF_BUFFER_ID]
+            ):
+                continue
+
+            for color_conf in display_conf[display.CONF_BUFFER][CONF_COLORS]:
+                for core_color_conf in CORE.config["color"]:
+                    if color_conf[CONF_COLOR] == core_color_conf[CONF_ID]:
+                        palette_color = yield color.color_string_from_config(
+                            core_color_conf
+                        )
+                        palette.append(palette_color[0])
+                        palette.append(palette_color[1])
+                        palette.append(palette_color[2])
+                        break
 
         while len(palette) < 768:
             palette.append(0)
