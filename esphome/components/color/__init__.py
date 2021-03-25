@@ -47,17 +47,17 @@ def color_string_from_config(config):
     elif CONF_BLUE_INT in config:
         b = config[CONF_BLUE_INT]
 
-    return r, g, b
-
-
-def to_code(config):
-    color_return = yield color_string_from_config(config)
-
     w = 0
     if CONF_WHITE in config:
         w = int(config[CONF_WHITE] * 255)
     elif CONF_WHITE_INT in config:
         w = config[CONF_WHITE_INT]
+
+    return r, g, b, w
+
+
+def to_code(config):
+    color_return = yield color_string_from_config(config)
 
     cg.new_variable(
         config[CONF_ID],
@@ -66,6 +66,6 @@ def to_code(config):
             ("r", color_return[0]),
             ("g", color_return[1]),
             ("b", color_return[2]),
-            ("w", w),
+            ("w", color_return[3]),
         ),
     )
