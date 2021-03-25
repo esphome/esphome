@@ -17,7 +17,7 @@ CONF_CALIBRATION_Y_MAX = "calibration_y_max"
 CONF_DIMENSION_X = "dimension_x"
 CONF_DIMENSION_Y = "dimension_y"
 CONF_SWAP_X_Y = "swap_x_y"
-CONF_PENIRQ_PIN = "penirq_pin"
+CONF_IRQ_PIN = "irq_pin"
 
 xpt2046_ns = cg.esphome_ns.namespace("xpt2046")
 CONF_XPT2046_ID = "xpt2046_id"
@@ -57,7 +57,7 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(XPT2046Component),
-            cv.Optional(CONF_PENIRQ_PIN): pins.gpio_input_pin_schema,
+            cv.Optional(CONF_IRQ_PIN): pins.gpio_input_pin_schema,
             cv.Optional(CONF_CALIBRATION_X_MIN, default=0): cv.int_range(
                 min=0, max=4095
             ),
@@ -112,9 +112,9 @@ def to_code(config):
     if CONF_SWAP_X_Y in config:
         cg.add(var.set_swap_x_y(config[CONF_SWAP_X_Y]))
 
-    if CONF_PENIRQ_PIN in config:
-        pin = yield cg.gpio_pin_expression(config[CONF_PENIRQ_PIN])
-        cg.add(var.set_penirq_pin(pin))
+    if CONF_IRQ_PIN in config:
+        pin = yield cg.gpio_pin_expression(config[CONF_IRQ_PIN])
+        cg.add(var.set_irq_pin(pin))
 
     for conf in config.get(CONF_ON_STATE, []):
         yield automation.build_automation(

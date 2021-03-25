@@ -43,7 +43,7 @@ class XPT2046Component : public PollingComponent,
 
   void set_report_interval(uint16_t interval) { this->report_millis_ = interval; }
   void set_threshold(int16_t threshold) { this->threshold_ = threshold; }
-  void set_penirq_pin(GPIOPin *pin) { this->penirq_pin_ = pin; }
+  void set_irq_pin(GPIOPin *pin) { this->irq_pin_ = pin; }
   XPT2046OnStateTrigger *get_on_state_trigger() const { return this->on_state_trigger_; }
   void register_button(XPT2046Button *button) { this->buttons_.push_back(button); }
 
@@ -53,15 +53,15 @@ class XPT2046Component : public PollingComponent,
   void loop() override;
   void update() override;
 
+  int16_t x{0}, y{0};
+  bool touched{false};
+  int16_t x_raw{0}, y_raw{0}, z_raw{0};
+
  protected:
   static int16_t best_two_avg(int16_t x, int16_t y, int16_t z);
   static int16_t normalize(int16_t val, int16_t min_val, int16_t max_val);
 
   int16_t read_adc_(uint8_t ctrl);
-
-  int16_t x_raw_{0}, y_raw_{0}, z_raw_{0};
-  int16_t x_out_{0}, y_out_{0};
-  bool touched_out_{false};
 
   int16_t threshold_;
   int16_t x_raw_min_, x_raw_max_, y_raw_min_, y_raw_max_;
@@ -72,8 +72,8 @@ class XPT2046Component : public PollingComponent,
   uint16_t report_millis_;
   unsigned long last_pos_ms_{0};
 
-  GPIOPin *penirq_pin_{nullptr};
-  bool last_penirq_{true};
+  GPIOPin *irq_pin_{nullptr};
+  bool last_irq_{true};
 
   XPT2046OnStateTrigger *on_state_trigger_{new XPT2046OnStateTrigger()};
   std::vector<XPT2046Button *> buttons_{};
