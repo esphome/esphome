@@ -9,7 +9,6 @@ from esphome.const import (
     CONF_TYPE,
     CONF_RESIZE,
     CONF_DITHER,
-    CONF_COLORS,
 )
 from esphome.core import CORE, HexInt
 
@@ -42,11 +41,6 @@ IMAGE_SCHEMA = cv.Schema(
             "NONE", "FLOYDSTEINBERG", upper=True
         ),
         cv.GenerateID(display.CONF_BUFFER_ID): cv.use_id(display.buffer_base),
-        cv.Optional(CONF_COLORS): cv.ensure_list(
-            {
-                cv.Required(CONF_COLOR): cv.use_id(color),
-            }
-        ),
         cv.GenerateID(CONF_RAW_DATA_ID): cv.declare_id(cg.uint8),
     }
 )
