@@ -23,7 +23,6 @@ void ILI9341Display::setup_pins_() {
   this->spi_setup();
 
   this->reset_();
-  ESP_LOGD(TAG, "setup_pins_ done");
 }
 
 void ILI9341Display::dump_config() {
@@ -37,7 +36,6 @@ void ILI9341Display::dump_config() {
 }
 
 float ILI9341Display::get_setup_priority() const { return setup_priority::PROCESSOR; }
-
 void ILI9341Display::command(uint8_t value) {
   this->start_command_();
   this->write_byte(value);
