@@ -263,12 +263,11 @@ void DisplayBuffer::image(int x, int y, Image *image, Color color_on, Color colo
       }
       break;
     case IMAGE_TYPE_INDEXED8:
-      ESP_LOGD(TAG, "IMAGE_TYPE_INDEXED8");
-      break;
+      ESP_LOGD(TAG, "IMAGE_TYPE_INDEXED8 %d/%d", image->get_width(), image->get_height());
       for (int img_x = 0; img_x < image->get_width(); img_x++) {
         for (int img_y = 0; img_y < image->get_height(); img_y++) {
           uint8_t raw_value = image->get_pixel_byte(img_x, img_y);
-          ESP_LOGD(TAG, "IMAGE_TYPE_INDEXED8 draw_pixel_at %d", raw_value);
+          // ESP_LOGD(TAG, "IMAGE_TYPE_INDEXED8 draw_pixel_at %d", raw_value);
           this->draw_pixel_at(x + img_x, y + img_y, raw_value);
         }
       }
@@ -516,7 +515,7 @@ bool Image::get_pixel(int x, int y) const {
 uint8_t Image::get_pixel_byte(int x, int y) const {
   if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_)
     return 0;
-  const uint32_t pos = (x + y * this->width_) * 3;
+  const uint32_t pos = (x + y * this->width_) 1;
   return pgm_read_byte(this->data_start_ + pos);
 }
 Color Image::get_color_pixel(int x, int y) const {

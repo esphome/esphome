@@ -96,13 +96,13 @@ void HOT BufferBase::set_pixel(int x, int y, uint8_t raw_value) {
     ESP_LOGVV(TAG, "set_pixel out of bounds %d/%d %d/%d", x, this->width_, y, this->height_);
     return;
   }
-
+  // ESP_LOGD(TAG, "set_pixel raw_value %d/%d %d/%d %d", x, this->width_, y, this->height_, raw_value);
   bool result = this->set_buffer(x, y, raw_value);
 #ifndef NO_PARTIAL
   if (!result) {
     return;
   }
-
+  // ESP_LOGD(TAG, "set_pixel raw_value %d/%d %d/%d", x, this->width_, y, this->height_);
   this->current_info.x_low = (x < this->current_info.x_low) ? x : this->current_info.x_low;
   this->current_info.y_low = (y < this->current_info.y_low) ? y : this->current_info.y_low;
   this->current_info.x_high = (x > this->current_info.x_high) ? x : this->current_info.x_high;
