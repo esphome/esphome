@@ -6,7 +6,8 @@ from esphome.components import spi
 from esphome.const import CONF_ID, CONF_ON_STATE, CONF_THRESHOLD, CONF_TRIGGER_ID
 
 CODEOWNERS = ["@numo68"]
-AUTO_LOAD = ["spi", "binary_sensor"]
+AUTO_LOAD = ["binary_sensor"]
+DEPENDENCIES = ["spi"]
 MULTI_CONF = True
 
 CONF_REPORT_INTERVAL = "report_interval"
