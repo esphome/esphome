@@ -68,7 +68,7 @@ extern const Color COLOR_OFF;
 /// Turn the pixel ON.
 extern const Color COLOR_ON;
 
-enum ImageType { IMAGE_TYPE_BINARY = 0, IMAGE_TYPE_GRAYSCALE = 1, IMAGE_TYPE_RGB24 = 2 };
+enum ImageType { IMAGE_TYPE_BINARY = 0, IMAGE_TYPE_GRAYSCALE = 1, IMAGE_TYPE_RGB24 = 2, IMAGE_TYPE_INDEXED8 = 3 };
 
 enum DisplayRotation {
   DISPLAY_ROTATION_0_DEGREES = 0,
@@ -137,6 +137,7 @@ class DisplayBuffer {
   int get_height();
   /// Set a single pixel at the specified coordinates to the given color.
   void draw_pixel_at(int x, int y, Color color = COLOR_ON);
+  void draw_pixel_at(int x, int y, uint8_t raw_value);
 
   /// Draw a straight line from the point [x1,y1] to [x2,y2] with the given color.
   void line(int x1, int y1, int x2, int y2, Color color = COLOR_ON);
@@ -336,6 +337,7 @@ class DisplayBuffer {
 
   size_t get_buffer_length();
   void set_pixel(int x, int y, Color color);
+  void set_pixel(int x, int y, uint8_t raw_value);
   size_t get_buffer_size();
   void fill_buffer(Color color);
 
@@ -377,6 +379,10 @@ class DisplayBuffer {
 
   virtual void HOT draw_absolute_pixel_internal(int x, int y, Color color) {
     this->buffer_base_->set_pixel(x, y, color);
+  }
+
+  virtual void HOT draw_absolute_pixel_internal(int x, int y, uint8_t raw_value) {
+    this->buffer_base_->set_pixel(x, y, raw_value);
   }
 
   virtual int get_height_internal() = 0;
@@ -468,7 +474,9 @@ class Image {
  public:
   Image(const uint8_t *data_start, int width, int height, ImageType type);
   virtual bool get_pixel(int x, int y) const;
+
   virtual Color get_color_pixel(int x, int y) const;
+  virtual uint8_t get_pixel_byte(int x, int y) const;
   virtual Color get_grayscale_pixel(int x, int y) const;
   int get_width() const;
   int get_height() const;

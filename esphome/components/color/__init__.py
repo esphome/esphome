@@ -1,3 +1,4 @@
+from esphome.core import coroutine
 from esphome import config_validation as cv
 from esphome import codegen as cg
 from esphome.const import CONF_BLUE, CONF_GREEN, CONF_ID, CONF_RED, CONF_WHITE
@@ -24,6 +25,29 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Exclusive(CONF_WHITE_INT, "white"): cv.uint8_t,
     }
 ).extend(cv.COMPONENT_SCHEMA)
+
+
+@coroutine
+def color_string_from_config(config):
+    r = 0
+    if CONF_RED in config:
+        r = int(config[CONF_RED] * 255)
+    elif CONF_RED_INT in config:
+        r = config[CONF_RED_INT]
+
+    g = 0
+    if CONF_GREEN in config:
+        g = int(config[CONF_GREEN] * 255)
+    elif CONF_GREEN_INT in config:
+        g = config[CONF_GREEN_INT]
+
+    b = 0
+    if CONF_BLUE in config:
+        b = int(config[CONF_BLUE] * 255)
+    elif CONF_BLUE_INT in config:
+        b = config[CONF_BLUE_INT]
+
+    return r, g, b
 
 
 def to_code(config):

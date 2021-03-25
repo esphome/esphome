@@ -52,16 +52,18 @@ void HOT BufferIndexed8::fill_buffer(Color color) {
 }
 
 bool HOT BufferIndexed8::set_buffer(int x, int y, Color color) {
+  uint32_t pos = this->get_pixel_buffer_position_(x, y);
+  uint8_t index = this->get_index_from_color_(color);
+
+  return this->set_buffer(x, y, index);
+}
+
+bool HOT BufferIndexed8::set_buffer(int x, int y, uint8_t raw_value) {
   bool result = false;
 
   uint32_t pos = this->get_pixel_buffer_position_(x, y);
 
   bool debug = true;
-
-  uint8_t index = this->get_index_from_color_(color);
-
-  if (debug && y == 0 && (color.g != 0 || index != 0))
-    ESP_LOGD(TAG, "set_buffer raw %d %d %d", color.raw_32, index, pos);
 
   const uint32_t pixel_bit_start = pos * this->pixel_storage_size_;
   const uint32_t pixel_bit_end = pixel_bit_start + this->pixel_storage_size_;
@@ -74,7 +76,7 @@ bool HOT BufferIndexed8::set_buffer(int x, int y, Color color) {
   uint8_t index_byte_start = this->buffer_[byte_location_start];
   uint8_t mask = ((1 << this->pixel_storage_size_) - 1) << byte_offset_start;
 
-  index_byte_start = (index_byte_start & ~mask) | ((index << byte_offset_start) & mask);
+  index_byte_start = (index_byte_start & ~mask) | ((raw_value << byte_offset_start) & mask);
 
   // ESP_LOGD(TAG, "set_buffer byte_location_start %d", byte_location_start);
   if (this->buffer_[byte_location_start] != index_byte_start) {
@@ -92,7 +94,7 @@ bool HOT BufferIndexed8::set_buffer(int x, int y, Color color) {
   uint8_t index_byte_end = this->buffer_[byte_location_end];
   mask = (((uint8_t) 1 << this->pixel_storage_size_) - 1) >> (this->pixel_storage_size_ - byte_offset_end);
 
-  index_byte_end = (index_byte_end & ~mask) | ((index >> (this->pixel_storage_size_ - byte_offset_end)) & mask);
+  index_byte_end = (index_byte_end & ~mask) | ((raw_value >> (this->pixel_storage_size_ - byte_offset_end)) & mask);
   if (this->buffer_[byte_location_end] != index_byte_end) {
     this->buffer_[byte_location_end] = index_byte_end;
     result = true;

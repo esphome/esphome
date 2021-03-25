@@ -25,6 +25,9 @@ bool DisplayBuffer::init_buffer(int width, int height) {
 
   bool result = this->buffer_base_->init_buffer(width, height);
   this->buffer_base_->set_is_buffer_set(result);
+
+  this->buffer_base_->reset_partials();
+
   return result;
 }
 
@@ -72,6 +75,27 @@ void HOT DisplayBuffer::draw_pixel_at(int x, int y, Color color) {
       break;
   }
   this->draw_absolute_pixel_internal(x, y, color);
+  App.feed_wdt();
+}
+
+void HOT DisplayBuffer::draw_pixel_at(int x, int y, uint8_t raw_value) {
+  switch (this->rotation_) {
+    case DISPLAY_ROTATION_0_DEGREES:
+      break;
+    case DISPLAY_ROTATION_90_DEGREES:
+      std::swap(x, y);
+      x = this->get_width_internal() - x - 1;
+      break;
+    case DISPLAY_ROTATION_180_DEGREES:
+      x = this->get_width_internal() - x - 1;
+      y = this->get_height_internal() - y - 1;
+      break;
+    case DISPLAY_ROTATION_270_DEGREES:
+      std::swap(x, y);
+      y = this->get_height_internal() - y - 1;
+      break;
+  }
+  this->draw_absolute_pixel_internal(x, y, raw_value);
   App.feed_wdt();
 }
 void HOT DisplayBuffer::line(int x1, int y1, int x2, int y2, Color color) {
@@ -238,6 +262,17 @@ void DisplayBuffer::image(int x, int y, Image *image, Color color_on, Color colo
         }
       }
       break;
+    case IMAGE_TYPE_INDEXED8:
+      ESP_LOGD(TAG, "IMAGE_TYPE_INDEXED8");
+      break;
+      for (int img_x = 0; img_x < image->get_width(); img_x++) {
+        for (int img_y = 0; img_y < image->get_height(); img_y++) {
+          uint8_t raw_value = image->get_pixel_byte(img_x, img_y);
+          ESP_LOGD(TAG, "IMAGE_TYPE_INDEXED8 draw_pixel_at %d", raw_value);
+          this->draw_pixel_at(x + img_x, y + img_y, raw_value);
+        }
+      }
+      break;
   }
 }
 
@@ -330,6 +365,7 @@ void DisplayBuffer::set_pages(std::vector<DisplayPage *> pages) {
 // Buffer helpers
 size_t DisplayBuffer::get_buffer_length() { return this->buffer_base_->get_buffer_length(); }
 void HOT DisplayBuffer::set_pixel(int x, int y, Color color) { this->buffer_base_->set_pixel(x, y, color); }
+void HOT DisplayBuffer::set_pixel(int x, int y, uint8_t raw_value) { this->buffer_base_->set_pixel(x, y, raw_value); }
 size_t DisplayBuffer::get_buffer_size() { return this->buffer_base_->get_buffer_size(); }
 void HOT DisplayBuffer::fill_buffer(Color color) { this->buffer_base_->fill_buffer(color); }
 
@@ -476,6 +512,12 @@ bool Image::get_pixel(int x, int y) const {
   const uint32_t width_8 = ((this->width_ + 7u) / 8u) * 8u;
   const uint32_t pos = x + y * width_8;
   return pgm_read_byte(this->data_start_ + (pos / 8u)) & (0x80 >> (pos % 8u));
+}
+uint8_t Image::get_pixel_byte(int x, int y) const {
+  if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_)
+    return 0;
+  const uint32_t pos = (x + y * this->width_) * 3;
+  return pgm_read_byte(this->data_start_ + pos);
 }
 Color Image::get_color_pixel(int x, int y) const {
   if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_)

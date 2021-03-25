@@ -1,10 +1,21 @@
 import logging
-
 from esphome import core
-from esphome.components import display, font
+from esphome.components import display, font, color
 import esphome.config_validation as cv
 import esphome.codegen as cg
-from esphome.const import CONF_FILE, CONF_ID, CONF_TYPE, CONF_RESIZE, CONF_DITHER
+from esphome.const import (
+    CONF_DIRECTION_OUTPUT,
+    CONF_FILE,
+    CONF_ID,
+    CONF_TYPE,
+    CONF_RESIZE,
+    CONF_DITHER,
+    CONF_COLORS,
+    CONF_BLUE,
+    CONF_GREEN,
+    CONF_RED,
+    CONF_WHITE,
+)
 from esphome.core import CORE, HexInt
 
 _LOGGER = logging.getLogger(__name__)
@@ -12,11 +23,14 @@ _LOGGER = logging.getLogger(__name__)
 DEPENDENCIES = ["display"]
 MULTI_CONF = True
 
+CONF_COLOR = "color"
+
 ImageType = display.display_ns.enum("ImageType")
 IMAGE_TYPE = {
     "BINARY": ImageType.IMAGE_TYPE_BINARY,
     "GRAYSCALE": ImageType.IMAGE_TYPE_GRAYSCALE,
     "RGB24": ImageType.IMAGE_TYPE_RGB24,
+    "INDEXED8": ImageType.IMAGE_TYPE_INDEXED8,
 }
 
 Image_ = display.display_ns.class_("Image")
@@ -31,6 +45,11 @@ IMAGE_SCHEMA = cv.Schema(
         cv.Optional(CONF_TYPE, default="BINARY"): cv.enum(IMAGE_TYPE, upper=True),
         cv.Optional(CONF_DITHER, default="NONE"): cv.one_of(
             "NONE", "FLOYDSTEINBERG", upper=True
+        ),
+        cv.Optional(CONF_COLORS): cv.ensure_list(
+            {
+                cv.Required(CONF_COLOR): cv.use_id(color),
+            }
         ),
         cv.GenerateID(CONF_RAW_DATA_ID): cv.declare_id(cg.uint8),
     }
@@ -93,6 +112,34 @@ def to_code(config):
                     continue
                 pos = x + y * width8
                 data[pos // 8] |= 0x80 >> (pos % 8)
+    elif config[CONF_TYPE] == "INDEXED8" and CONF_COLORS in config:
+        palette = []
+        for color_conf in config[CONF_COLORS]:
+            for core_color_conf in CORE.config["color"]:
+                if color_conf[CONF_COLOR] == core_color_conf[CONF_ID]:
+                    palette_color = yield color.color_string_from_config(
+                        core_color_conf
+                    )
+                    palette.append(palette_color[0])
+                    palette.append(palette_color[1])
+                    palette.append(palette_color[2])
+                    break
+
+        pimage = Image.new("P", image.size)
+
+        while len(palette) < 768:
+            palette.append(0)
+
+        pimage.putpalette(palette)
+
+        image = image.convert("RGB")
+        imagep = image.quantize(palette=pimage)
+        pixels = list(imagep.getdata())
+        data = [0 for _ in range(height * width)]
+        pos = 0
+        for pix in pixels:
+            data[pos] = pix
+            pos += 1
 
     rhs = [HexInt(x) for x in data]
     prog_arr = cg.progmem_array(config[CONF_RAW_DATA_ID], rhs)

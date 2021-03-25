@@ -11,6 +11,7 @@ class BufferIndexed8 : public display::BufferBase {
 
   bool init_buffer(int width, int height) override;
   bool HOT set_buffer(int x, int y, Color color) override;
+  bool HOT set_buffer(int x, int y, uint8_t raw_value) override;
 
   void HOT fill_buffer(Color color) override;
 

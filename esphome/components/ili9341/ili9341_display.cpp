@@ -68,15 +68,17 @@ void ILI9341Display::send_command(uint8_t command_byte, const uint8_t *data_byte
   }
   this->end_data_();
 }
+bool first_run = true;
 
 void ILI9341Display::update() {
+  ESP_LOGD(TAG, "update");
   this->do_update_();
-#ifndef NO_PARTIAL
-  if (this->has_pages) {
-    this->has_pages = false;
-    this->buffer_base_->reset_partials();
-  }
-#endif
+  // #ifndef NO_PARTIAL
+  //   if (first_run) {
+  //     first_run = false;
+  //     this->buffer_base_->reset_partials();
+  //   }
+  // #endif
   this->display_();
   this->buffer_base_->display_end();
 }
@@ -97,8 +99,12 @@ void ILI9341Display::display_() {
   ESP_LOGD(TAG, "Asked to update %d/%d to %d/%d", 0, 0, w, h);
 
 #else
-  const int w = this->buffer_base_->get_partial_update_x();
-  const int h = this->buffer_base_->get_partial_update_y();
+  int w = this->buffer_base_->get_partial_update_x();
+  int h = this->buffer_base_->get_partial_update_y();
+
+  if (w == this->buffer_base_->get_partial_update_x_low() && h == this->buffer_base_->get_partial_update_y_low()) {
+    return;
+  }
 
   ESP_LOGD(TAG, "Asked to update %d/%d to %d/%d",
            this->buffer_base_->get_partial_update_x_low() + this->get_col_start(),
@@ -238,6 +244,8 @@ void ILI9341TFT24::initialize() {
 
   if (this->get_height_internal() == 0)
     this->set_device_height(320);
+
+  ESP_LOGD(TAG, "initialize %d/%d", this->get_width_internal(), this->get_height_internal());
 
   if (!this->buffer_base_->colors_is_set)
     this->buffer_base_->set_colors(this->get_model_colors());

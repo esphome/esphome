@@ -29,6 +29,7 @@ class BufferBase {
   virtual bool init_buffer(int width, int height) = 0;
 
   virtual bool set_buffer(int x, int y, Color color) = 0;
+  virtual bool set_buffer(int x, int y, uint8_t raw_value) = 0;
 
 #ifdef USE_BUFFER_INDEXED8
   // value
@@ -71,6 +72,7 @@ class BufferBase {
   void display_end();
 
   void HOT set_pixel(int x, int y, Color color);
+  void HOT set_pixel(int x, int y, uint8_t raw_value);
   void set_driver_right_bit_aligned(bool driver_right_bit_aligned) {
     this->driver_right_bit_aligned_ = driver_right_bit_aligned;
   }
