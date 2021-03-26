@@ -1,37 +1,92 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import sensor, esp32_ble_tracker
-from esphome.const import CONF_HUMIDITY, CONF_MAC_ADDRESS, CONF_TEMPERATURE, \
-    CONF_PRESSURE, CONF_ACCELERATION, CONF_ACCELERATION_X, CONF_ACCELERATION_Y, \
-    CONF_ACCELERATION_Z, CONF_BATTERY_VOLTAGE, CONF_TX_POWER, \
-    CONF_MEASUREMENT_SEQUENCE_NUMBER, CONF_MOVEMENT_COUNTER, UNIT_CELSIUS, \
-    ICON_THERMOMETER, UNIT_PERCENT, UNIT_VOLT, UNIT_HECTOPASCAL, UNIT_G, \
-    UNIT_DECIBEL_MILLIWATT, UNIT_EMPTY, ICON_WATER_PERCENT, ICON_BATTERY, \
-    ICON_GAUGE, ICON_ACCELERATION, ICON_ACCELERATION_X, ICON_ACCELERATION_Y, \
-    ICON_ACCELERATION_Z, ICON_SIGNAL, CONF_ID
+from esphome.const import (
+    CONF_HUMIDITY,
+    CONF_MAC_ADDRESS,
+    CONF_TEMPERATURE,
+    CONF_PRESSURE,
+    CONF_ACCELERATION,
+    CONF_ACCELERATION_X,
+    CONF_ACCELERATION_Y,
+    CONF_ACCELERATION_Z,
+    CONF_BATTERY_VOLTAGE,
+    CONF_TX_POWER,
+    CONF_MEASUREMENT_SEQUENCE_NUMBER,
+    CONF_MOVEMENT_COUNTER,
+    DEVICE_CLASS_EMPTY,
+    DEVICE_CLASS_HUMIDITY,
+    DEVICE_CLASS_PRESSURE,
+    DEVICE_CLASS_SIGNAL_STRENGTH,
+    DEVICE_CLASS_TEMPERATURE,
+    DEVICE_CLASS_VOLTAGE,
+    ICON_EMPTY,
+    UNIT_CELSIUS,
+    UNIT_PERCENT,
+    UNIT_VOLT,
+    UNIT_HECTOPASCAL,
+    UNIT_G,
+    UNIT_DECIBEL_MILLIWATT,
+    UNIT_EMPTY,
+    ICON_GAUGE,
+    ICON_ACCELERATION,
+    ICON_ACCELERATION_X,
+    ICON_ACCELERATION_Y,
+    ICON_ACCELERATION_Z,
+    CONF_ID,
+)
 
-DEPENDENCIES = ['esp32_ble_tracker']
-AUTO_LOAD = ['ruuvi_ble']
+DEPENDENCIES = ["esp32_ble_tracker"]
+AUTO_LOAD = ["ruuvi_ble"]
 
-ruuvitag_ns = cg.esphome_ns.namespace('ruuvitag')
+ruuvitag_ns = cg.esphome_ns.namespace("ruuvitag")
 RuuviTag = ruuvitag_ns.class_(
-    'RuuviTag', esp32_ble_tracker.ESPBTDeviceListener, cg.Component)
+    "RuuviTag", esp32_ble_tracker.ESPBTDeviceListener, cg.Component
+)
 
-CONFIG_SCHEMA = cv.Schema({
-    cv.GenerateID(): cv.declare_id(RuuviTag),
-    cv.Required(CONF_MAC_ADDRESS): cv.mac_address,
-    cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(UNIT_CELSIUS, ICON_THERMOMETER, 2),
-    cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(UNIT_PERCENT, ICON_WATER_PERCENT, 2),
-    cv.Optional(CONF_PRESSURE): sensor.sensor_schema(UNIT_HECTOPASCAL, ICON_GAUGE, 2),
-    cv.Optional(CONF_ACCELERATION): sensor.sensor_schema(UNIT_G, ICON_ACCELERATION, 3),
-    cv.Optional(CONF_ACCELERATION_X): sensor.sensor_schema(UNIT_G, ICON_ACCELERATION_X, 3),
-    cv.Optional(CONF_ACCELERATION_Y): sensor.sensor_schema(UNIT_G, ICON_ACCELERATION_Y, 3),
-    cv.Optional(CONF_ACCELERATION_Z): sensor.sensor_schema(UNIT_G, ICON_ACCELERATION_Z, 3),
-    cv.Optional(CONF_BATTERY_VOLTAGE): sensor.sensor_schema(UNIT_VOLT, ICON_BATTERY, 3),
-    cv.Optional(CONF_TX_POWER): sensor.sensor_schema(UNIT_DECIBEL_MILLIWATT, ICON_SIGNAL, 0),
-    cv.Optional(CONF_MOVEMENT_COUNTER): sensor.sensor_schema(UNIT_EMPTY, ICON_GAUGE, 0),
-    cv.Optional(CONF_MEASUREMENT_SEQUENCE_NUMBER): sensor.sensor_schema(UNIT_EMPTY, ICON_GAUGE, 0),
-}).extend(esp32_ble_tracker.ESP_BLE_DEVICE_SCHEMA).extend(cv.COMPONENT_SCHEMA)
+CONFIG_SCHEMA = (
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(RuuviTag),
+            cv.Required(CONF_MAC_ADDRESS): cv.mac_address,
+            cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
+                UNIT_CELSIUS, ICON_EMPTY, 2, DEVICE_CLASS_TEMPERATURE
+            ),
+            cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(
+                UNIT_PERCENT, ICON_EMPTY, 2, DEVICE_CLASS_HUMIDITY
+            ),
+            cv.Optional(CONF_PRESSURE): sensor.sensor_schema(
+                UNIT_HECTOPASCAL, ICON_EMPTY, 2, DEVICE_CLASS_PRESSURE
+            ),
+            cv.Optional(CONF_ACCELERATION): sensor.sensor_schema(
+                UNIT_G, ICON_ACCELERATION, 3, DEVICE_CLASS_EMPTY
+            ),
+            cv.Optional(CONF_ACCELERATION_X): sensor.sensor_schema(
+                UNIT_G, ICON_ACCELERATION_X, 3, DEVICE_CLASS_EMPTY
+            ),
+            cv.Optional(CONF_ACCELERATION_Y): sensor.sensor_schema(
+                UNIT_G, ICON_ACCELERATION_Y, 3, DEVICE_CLASS_EMPTY
+            ),
+            cv.Optional(CONF_ACCELERATION_Z): sensor.sensor_schema(
+                UNIT_G, ICON_ACCELERATION_Z, 3, DEVICE_CLASS_EMPTY
+            ),
+            cv.Optional(CONF_BATTERY_VOLTAGE): sensor.sensor_schema(
+                UNIT_VOLT, ICON_EMPTY, 3, DEVICE_CLASS_VOLTAGE
+            ),
+            cv.Optional(CONF_TX_POWER): sensor.sensor_schema(
+                UNIT_DECIBEL_MILLIWATT, ICON_EMPTY, 0, DEVICE_CLASS_SIGNAL_STRENGTH
+            ),
+            cv.Optional(CONF_MOVEMENT_COUNTER): sensor.sensor_schema(
+                UNIT_EMPTY, ICON_GAUGE, 0, DEVICE_CLASS_EMPTY
+            ),
+            cv.Optional(CONF_MEASUREMENT_SEQUENCE_NUMBER): sensor.sensor_schema(
+                UNIT_EMPTY, ICON_GAUGE, 0, DEVICE_CLASS_EMPTY
+            ),
+        }
+    )
+    .extend(esp32_ble_tracker.ESP_BLE_DEVICE_SCHEMA)
+    .extend(cv.COMPONENT_SCHEMA)
+)
 
 
 def to_code(config):
