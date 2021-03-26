@@ -1,7 +1,9 @@
 #include "esp32_can.h"
 #include "esphome/core/log.h"
 
+#ifdef ARDUINO_ARCH_ESP32
 #include <driver/can.h>
+#endif
 
 // WORKAROUND, because CAN_IO_UNUSED is just defined as (-1) in this version
 // of the framework which does not work with -fpermissive
