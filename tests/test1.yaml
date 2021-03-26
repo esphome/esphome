@@ -6,6 +6,7 @@ substitutions:
 
 esphome:
   name: test1
+  name_add_mac_suffix: true
   platform: ESP32
   board: nodemcu-32s
   on_boot:
@@ -48,6 +49,12 @@ esphome:
             Content-Type: application/json
           body: 'Some data'
           verify_ssl: false
+          on_response:
+            then:
+              - logger.log:
+                  format: 'Response status: %d'
+                  args:
+                    - status_code
   build_path: build/test1
 
 packages:
@@ -144,9 +151,13 @@ mqtt:
             - uart.write:
                 id: uart0
                 data: Hello World
-            - uart.write: [0x00, 0x20, 0x30]
-            - uart.write: !lambda |-
-                return {};
+            - uart.write:
+                id: uart0
+                data: [0x00, 0x20, 0x30]
+            - uart.write:
+                id: uart0
+                data: !lambda |-
+                  return {};
 
 i2c:
   sda: 21
@@ -469,7 +480,7 @@ sensor:
       name: 'HLW8012 Power'
       id: hlw8012_power
     energy:
-      name: "HLW8012 Energy"
+      name: 'HLW8012 Energy'
       id: hlw8012_energy
     update_interval: 15s
     current_resistor: 0.001 ohm
@@ -583,6 +594,7 @@ sensor:
     reference_resistance: '430 Ω'
     rtd_nominal_resistance: '100 Ω'
   - platform: mhz19
+    uart_id: uart0
     co2:
       name: 'MH-Z19 CO2 Value'
     temperature:
@@ -620,6 +632,13 @@ sensor:
       falling_edge: DECREMENT
     internal_filter: 13us
     update_interval: 15s
+  - platform: pulse_meter
+    name: 'Pulse Meter'
+    pin: GPIO12
+    internal_filter: 100ms
+    timeout: 2 min
+    total:
+      name: 'Pulse Meter Total'
   - platform: rotary_encoder
     name: 'Rotary Encoder'
     id: rotary_encoder1
@@ -647,26 +666,23 @@ sensor:
   - platform: pulse_width
     name: Pulse Width
     pin: GPIO12
-  - platform: senseair
-    co2:
-      name: 'SenseAir CO2 Value'
-    update_interval: 15s
   - platform: sm300d2
+    uart_id: uart0
     co2:
-      name: "SM300D2 CO2 Value"
+      name: 'SM300D2 CO2 Value'
     formaldehyde:
-      name: "SM300D2 Formaldehyde Value"    
+      name: 'SM300D2 Formaldehyde Value'
     tvoc:
-      name: "SM300D2 TVOC Value"
+      name: 'SM300D2 TVOC Value'
     pm_2_5:
-      name: "SM300D2 PM2.5 Value"
+      name: 'SM300D2 PM2.5 Value'
     pm_10_0:
-      name: "SM300D2 PM10 Value"
+      name: 'SM300D2 PM10 Value'
     temperature:
-      name: "SM300D2 Temperature Value"
+      name: 'SM300D2 Temperature Value'
     humidity:
-      name: "SM300D2 Humidity Value"   
-    update_interval: 60s    
+      name: 'SM300D2 Humidity Value'
+    update_interval: 60s
   - platform: sht3xd
     temperature:
       name: 'Living Room Temperature 8'
@@ -785,6 +801,7 @@ sensor:
             root["key"] = id(the_sensor).state;
             root["greeting"] = "Hello World";
   - platform: sds011
+    uart_id: uart0
     pm_2_5:
       name: 'SDS011 PM2.5'
     pm_10_0:
@@ -834,6 +851,7 @@ sensor:
       name: 'AQI'
       calculation_type: 'CAQI'
   - platform: teleinfo
+    uart_id: uart0
     tags:
       - tag_name: 'HCHC'
         sensor:
@@ -879,7 +897,7 @@ binary_sensor:
   - platform: gpio
     name: 'MCP23S08 Pin #1'
     pin:
-      mcp23s08: mcp23s08_hub
+      mcp23xxx: mcp23s08_hub
       # Use pin number 1
       number: 1
       # One of INPUT or INPUT_PULLUP
@@ -888,12 +906,22 @@ binary_sensor:
   - platform: gpio
     name: 'MCP23S17 Pin #1'
     pin:
-      mcp23s17: mcp23s17_hub
+      mcp23xxx: mcp23s17_hub
       # Use pin number 1
       number: 1
       # One of INPUT or INPUT_PULLUP
       mode: INPUT_PULLUP
       inverted: False
+  - platform: gpio
+    name: 'MCP23S17 Pin #1 with interrupt'
+    pin:
+      mcp23xxx: mcp23s17_hub
+      # Use pin number 1
+      number: 1
+      # One of INPUT or INPUT_PULLUP
+      mode: INPUT_PULLUP
+      inverted: False
+      interrupt: FALLING
   - platform: gpio
     pin: GPIO9
     name: 'Living Room Window'
@@ -997,6 +1025,7 @@ binary_sensor:
           id: gpio_19
           frequency: !lambda 'return 500.0;'
   - platform: pn532
+    pn532_id: pn532_bs
     uid: 74-10-37-94
     name: 'PN532 NFC Tag'
   - platform: rdm6300
@@ -1012,14 +1041,14 @@ binary_sensor:
   - platform: gpio
     name: 'MCP21 binary sensor'
     pin:
-      mcp23017: mcp23017_hub
+      mcp23xxx: mcp23017_hub
       number: 1
       mode: INPUT
       inverted: True
   - platform: gpio
     name: 'MCP22 binary sensor'
     pin:
-      mcp23008: mcp23008_hub
+      mcp23xxx: mcp23008_hub
       number: 7
       mode: INPUT_PULLUP
       inverted: False
@@ -1176,14 +1205,14 @@ output:
   - platform: gpio
     id: id22
     pin:
-      mcp23017: mcp23017_hub
+      mcp23xxx: mcp23017_hub
       number: 0
       mode: OUTPUT
       inverted: False
   - platform: gpio
     id: id23
     pin:
-      mcp23008: mcp23008_hub
+      mcp23xxx: mcp23008_hub
       number: 0
       mode: OUTPUT
       inverted: False
@@ -1454,12 +1483,29 @@ climate:
     name: Toshiba Climate
   - platform: hitachi_ac344
     name: Hitachi Climate
+  - platform: midea_ac
+    visual:
+      min_temperature: 18 °C
+      max_temperature: 25 °C
+      temperature_step: 0.1 °C
+    name: "Electrolux EACS"
+    beeper: true
+    outdoor_temperature:
+      name: "Temp"
+    power_usage:
+      name: "Power"
+    humidity_setpoint:
+      name: "Hum"
+
+midea_dongle:
+  uart_id: uart0
+  strength_icon: true
 
 switch:
   - platform: gpio
     name: 'MCP23S08 Pin #0'
     pin:
-      mcp23s08: mcp23s08_hub
+      mcp23xxx: mcp23s08_hub
       # Use pin number 0
       number: 0
       mode: OUTPUT
@@ -1467,7 +1513,7 @@ switch:
   - platform: gpio
     name: 'MCP23S17 Pin #0'
     pin:
-      mcp23s17: mcp23s17_hub
+      mcp23xxx: mcp23s17_hub
       # Use pin number 0
       number: 1
       mode: OUTPUT
@@ -1508,7 +1554,7 @@ switch:
     turn_on_action:
       remote_transmitter.transmit_samsung36:
         address: 0x0400
-        command: 0x000E00FF      
+        command: 0x000E00FF
   - platform: template
     name: Sony
     turn_on_action:
@@ -1643,12 +1689,15 @@ switch:
           id: my_switch
           state: !lambda 'return false;'
   - platform: uart
+    uart_id: uart0
     name: 'UART String Output'
     data: 'DataToSend'
   - platform: uart
+    uart_id: uart0
     name: 'UART Bytes Output'
     data: [0xDE, 0xAD, 0xBE, 0xEF]
   - platform: uart
+    uart_id: uart0
     name: 'UART Recurring Output'
     data: [0xDE, 0xAD, 0xBE, 0xEF]
     send_every: 1s
@@ -1685,13 +1734,10 @@ fan:
     direction_output: gpio_26
   - platform: speed
     output: pca_6
+    speed_count: 10
     name: 'Living Room Fan 2'
     oscillation_output: gpio_19
     direction_output: gpio_26
-    speed:
-      low: 0.45
-      medium: 0.75
-      high: 1.0
     oscillation_state_topic: oscillation/state/topic
     oscillation_command_topic: oscillation/command/topic
     speed_state_topic: speed/state/topic
@@ -1755,15 +1801,16 @@ display:
       it.print("1234");
   - platform: tm1637
     clk_pin:
-      mcp23017: mcp23017_hub
+      mcp23xxx: mcp23017_hub
       number: 1
     dio_pin:
-      mcp23017: mcp23017_hub
+      mcp23xxx: mcp23017_hub
       number: 2
     intensity: 3
     lambda: |-
       it.print("1234");
   - platform: nextion
+    uart_id: uart0
     lambda: |-
       it.set_component_value("gauge", 50);
       it.set_component_text("textview", "Hello World!");
@@ -1841,24 +1888,6 @@ display:
     reset_pin: GPIO23
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
-  - platform: waveshare_epaper
-    cs_pin: GPIO23
-    dc_pin: GPIO23
-    busy_pin: GPIO23
-    reset_pin: GPIO23
-    model: 2.90in
-    full_update_every: 30
-    lambda: |-
-      it.rectangle(0, 0, it.get_width(), it.get_height());
-  - platform: waveshare_epaper
-    cs_pin: GPIO23
-    dc_pin: GPIO23
-    busy_pin: GPIO23
-    reset_pin: GPIO23
-    model: 2.90inv2
-    full_update_every: 30
-    lambda: |-
-      it.rectangle(0, 0, it.get_width(), it.get_height());
   - platform: st7789v
     cs_pin: GPIO5
     dc_pin: GPIO16
@@ -1891,6 +1920,7 @@ status_led:
   pin: GPIO2
 
 pn532_spi:
+  id: pn532_bs
   cs_pin: GPIO23
   update_interval: 1s
   on_tag:
@@ -1903,6 +1933,7 @@ pn532_spi:
 pn532_i2c:
 
 rdm6300:
+  uart_id: uart0
 
 rc522_spi:
   cs_pin: GPIO23
@@ -1918,6 +1949,7 @@ rc522_i2c:
         ESP_LOGD("main", "Found tag %s", x.c_str());
 
 gps:
+  uart_id: uart0
 
 time:
   - platform: sntp

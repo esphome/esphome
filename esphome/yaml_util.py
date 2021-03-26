@@ -11,8 +11,14 @@ import yaml.constructor
 
 from esphome import core
 from esphome.config_helpers import read_config_file
-from esphome.core import EsphomeError, IPAddress, Lambda, MACAddress, TimePeriod, \
-    DocumentRange
+from esphome.core import (
+    EsphomeError,
+    IPAddress,
+    Lambda,
+    MACAddress,
+    TimePeriod,
+    DocumentRange,
+)
 from esphome.helpers import add_class_to_obj
 from esphome.util import OrderedDict, filter_yaml_files
 
@@ -21,7 +27,7 @@ _LOGGER = logging.getLogger(__name__)
 # Mostly copied from Home Assistant because that code works fine and
 # let's not reinvent the wheel here
 
-SECRET_YAML = 'secrets.yaml'
+SECRET_YAML = "secrets.yaml"
 _SECRET_CACHE = {}
 _SECRET_VALUES = {}
 
@@ -29,17 +35,17 @@ _SECRET_VALUES = {}
 class ESPHomeDataBase:
     @property
     def esp_range(self):
-        return getattr(self, '_esp_range', None)
+        return getattr(self, "_esp_range", None)
 
     @property
     def content_offset(self):
-        return getattr(self, '_content_offset', 0)
+        return getattr(self, "_content_offset", 0)
 
     def from_node(self, node):
         # pylint: disable=attribute-defined-outside-init
         self._esp_range = DocumentRange.from_marks(node.start_mark, node.end_mark)
         if isinstance(node, yaml.ScalarNode):
-            if node.style is not None and node.style in '|>':
+            if node.style is not None and node.style in "|>":
                 self._content_offset = 1
 
     def from_database(self, database):
@@ -125,13 +131,13 @@ class ESPHomeLoader(yaml.SafeLoader):  # pylint: disable=too-many-ancestors
 
         for key_node, value_node in node.value:
             # merge key is '<<'
-            is_merge_key = key_node.tag == 'tag:yaml.org,2002:merge'
+            is_merge_key = key_node.tag == "tag:yaml.org,2002:merge"
             # key has no explicit tag set
-            is_default_tag = key_node.tag == 'tag:yaml.org,2002:value'
+            is_default_tag = key_node.tag == "tag:yaml.org,2002:value"
 
             if is_default_tag:
                 # Default tag for mapping keys is string
-                key_node.tag = 'tag:yaml.org,2002:str'
+                key_node.tag = "tag:yaml.org,2002:str"
 
             if not is_merge_key:
                 # base case, this is a simple key-value pair
@@ -144,7 +150,8 @@ class ESPHomeLoader(yaml.SafeLoader):  # pylint: disable=too-many-ancestors
                 except TypeError:
                     # pylint: disable=raise-missing-from
                     raise yaml.constructor.ConstructorError(
-                        f'Invalid key "{key}" (not hashable)', key_node.start_mark)
+                        f'Invalid key "{key}" (not hashable)', key_node.start_mark
+                    )
 
                 key = make_data_base(str(key))
                 key.from_node(key_node)
@@ -152,8 +159,10 @@ class ESPHomeLoader(yaml.SafeLoader):  # pylint: disable=too-many-ancestors
                 # Check if it is a duplicate key
                 if key in seen_keys:
                     raise yaml.constructor.ConstructorError(
-                        f'Duplicate key "{key}"', key_node.start_mark,
-                        'NOTE: Previous declaration here:', seen_keys[key],
+                        f'Duplicate key "{key}"',
+                        key_node.start_mark,
+                        "NOTE: Previous declaration here:",
+                        seen_keys[key],
                     )
                 seen_keys[key] = key_node.start_mark
 
@@ -172,15 +181,22 @@ class ESPHomeLoader(yaml.SafeLoader):  # pylint: disable=too-many-ancestors
                 for item in value:
                     if not isinstance(item, dict):
                         raise yaml.constructor.ConstructorError(
-                            "While constructing a mapping", node.start_mark,
-                            "Expected a mapping for merging, but found {}".format(type(item)),
-                            value_node.start_mark)
+                            "While constructing a mapping",
+                            node.start_mark,
+                            "Expected a mapping for merging, but found {}".format(
+                                type(item)
+                            ),
+                            value_node.start_mark,
+                        )
                     merge_pairs.extend(item.items())
             else:
                 raise yaml.constructor.ConstructorError(
-                    "While constructing a mapping", node.start_mark,
+                    "While constructing a mapping",
+                    node.start_mark,
                     "Expected a mapping or list of mappings for merging, "
-                    "but found {}".format(type(value)), value_node.start_mark)
+                    "but found {}".format(type(value)),
+                    value_node.start_mark,
+                )
 
         if merge_pairs:
             # We found some merge keys along the way, merge them into base pairs
@@ -211,7 +227,7 @@ class ESPHomeLoader(yaml.SafeLoader):  # pylint: disable=too-many-ancestors
         args = node.value.split()
         # Check for a default value
         if len(args) > 1:
-            return os.getenv(args[0], ' '.join(args[1:]))
+            return os.getenv(args[0], " ".join(args[1:]))
         if args[0] in os.environ:
             return os.environ[args[0]]
         raise yaml.MarkedYAMLError(
@@ -242,12 +258,12 @@ class ESPHomeLoader(yaml.SafeLoader):  # pylint: disable=too-many-ancestors
 
     @_add_data_ref
     def construct_include_dir_list(self, node):
-        files = filter_yaml_files(_find_files(self._rel_path(node.value), '*.yaml'))
+        files = filter_yaml_files(_find_files(self._rel_path(node.value), "*.yaml"))
         return [_load_yaml_internal(f) for f in files]
 
     @_add_data_ref
     def construct_include_dir_merge_list(self, node):
-        files = filter_yaml_files(_find_files(self._rel_path(node.value), '*.yaml'))
+        files = filter_yaml_files(_find_files(self._rel_path(node.value), "*.yaml"))
         merged_list = []
         for fname in files:
             loaded_yaml = _load_yaml_internal(fname)
@@ -257,7 +273,7 @@ class ESPHomeLoader(yaml.SafeLoader):  # pylint: disable=too-many-ancestors
 
     @_add_data_ref
     def construct_include_dir_named(self, node):
-        files = filter_yaml_files(_find_files(self._rel_path(node.value), '*.yaml'))
+        files = filter_yaml_files(_find_files(self._rel_path(node.value), "*.yaml"))
         mapping = OrderedDict()
         for fname in files:
             filename = os.path.splitext(os.path.basename(fname))[0]
@@ -266,7 +282,7 @@ class ESPHomeLoader(yaml.SafeLoader):  # pylint: disable=too-many-ancestors
 
     @_add_data_ref
     def construct_include_dir_merge_named(self, node):
-        files = filter_yaml_files(_find_files(self._rel_path(node.value), '*.yaml'))
+        files = filter_yaml_files(_find_files(self._rel_path(node.value), "*.yaml"))
         mapping = OrderedDict()
         for fname in files:
             loaded_yaml = _load_yaml_internal(fname)
@@ -284,24 +300,36 @@ class ESPHomeLoader(yaml.SafeLoader):  # pylint: disable=too-many-ancestors
         return add_class_to_obj(obj, ESPForceValue)
 
 
-ESPHomeLoader.add_constructor('tag:yaml.org,2002:int', ESPHomeLoader.construct_yaml_int)
-ESPHomeLoader.add_constructor('tag:yaml.org,2002:float', ESPHomeLoader.construct_yaml_float)
-ESPHomeLoader.add_constructor('tag:yaml.org,2002:binary', ESPHomeLoader.construct_yaml_binary)
-ESPHomeLoader.add_constructor('tag:yaml.org,2002:omap', ESPHomeLoader.construct_yaml_omap)
-ESPHomeLoader.add_constructor('tag:yaml.org,2002:str', ESPHomeLoader.construct_yaml_str)
-ESPHomeLoader.add_constructor('tag:yaml.org,2002:seq', ESPHomeLoader.construct_yaml_seq)
-ESPHomeLoader.add_constructor('tag:yaml.org,2002:map', ESPHomeLoader.construct_yaml_map)
-ESPHomeLoader.add_constructor('!env_var', ESPHomeLoader.construct_env_var)
-ESPHomeLoader.add_constructor('!secret', ESPHomeLoader.construct_secret)
-ESPHomeLoader.add_constructor('!include', ESPHomeLoader.construct_include)
-ESPHomeLoader.add_constructor('!include_dir_list', ESPHomeLoader.construct_include_dir_list)
-ESPHomeLoader.add_constructor('!include_dir_merge_list',
-                              ESPHomeLoader.construct_include_dir_merge_list)
-ESPHomeLoader.add_constructor('!include_dir_named', ESPHomeLoader.construct_include_dir_named)
-ESPHomeLoader.add_constructor('!include_dir_merge_named',
-                              ESPHomeLoader.construct_include_dir_merge_named)
-ESPHomeLoader.add_constructor('!lambda', ESPHomeLoader.construct_lambda)
-ESPHomeLoader.add_constructor('!force', ESPHomeLoader.construct_force)
+ESPHomeLoader.add_constructor("tag:yaml.org,2002:int", ESPHomeLoader.construct_yaml_int)
+ESPHomeLoader.add_constructor(
+    "tag:yaml.org,2002:float", ESPHomeLoader.construct_yaml_float
+)
+ESPHomeLoader.add_constructor(
+    "tag:yaml.org,2002:binary", ESPHomeLoader.construct_yaml_binary
+)
+ESPHomeLoader.add_constructor(
+    "tag:yaml.org,2002:omap", ESPHomeLoader.construct_yaml_omap
+)
+ESPHomeLoader.add_constructor("tag:yaml.org,2002:str", ESPHomeLoader.construct_yaml_str)
+ESPHomeLoader.add_constructor("tag:yaml.org,2002:seq", ESPHomeLoader.construct_yaml_seq)
+ESPHomeLoader.add_constructor("tag:yaml.org,2002:map", ESPHomeLoader.construct_yaml_map)
+ESPHomeLoader.add_constructor("!env_var", ESPHomeLoader.construct_env_var)
+ESPHomeLoader.add_constructor("!secret", ESPHomeLoader.construct_secret)
+ESPHomeLoader.add_constructor("!include", ESPHomeLoader.construct_include)
+ESPHomeLoader.add_constructor(
+    "!include_dir_list", ESPHomeLoader.construct_include_dir_list
+)
+ESPHomeLoader.add_constructor(
+    "!include_dir_merge_list", ESPHomeLoader.construct_include_dir_merge_list
+)
+ESPHomeLoader.add_constructor(
+    "!include_dir_named", ESPHomeLoader.construct_include_dir_named
+)
+ESPHomeLoader.add_constructor(
+    "!include_dir_merge_named", ESPHomeLoader.construct_include_dir_merge_named
+)
+ESPHomeLoader.add_constructor("!lambda", ESPHomeLoader.construct_lambda)
+ESPHomeLoader.add_constructor("!force", ESPHomeLoader.construct_force)
 
 
 def load_yaml(fname):
@@ -324,13 +352,14 @@ def _load_yaml_internal(fname):
 
 def dump(dict_):
     """Dump YAML to a string and remove null."""
-    return yaml.dump(dict_, default_flow_style=False, allow_unicode=True,
-                     Dumper=ESPHomeDumper)
+    return yaml.dump(
+        dict_, default_flow_style=False, allow_unicode=True, Dumper=ESPHomeDumper
+    )
 
 
 def _is_file_valid(name):
     """Decide if a file is valid."""
-    return not name.startswith('.')
+    return not name.startswith(".")
 
 
 def _find_files(directory, pattern):
@@ -357,7 +386,7 @@ class ESPHomeDumper(yaml.SafeDumper):  # pylint: disable=too-many-ancestors
         if self.alias_key is not None:
             self.represented_objects[self.alias_key] = node
         best_style = True
-        if hasattr(mapping, 'items'):
+        if hasattr(mapping, "items"):
             mapping = list(mapping.items())
         for item_key, item_value in mapping:
             node_key = self.represent_data(item_key)
@@ -375,29 +404,31 @@ class ESPHomeDumper(yaml.SafeDumper):  # pylint: disable=too-many-ancestors
         return node
 
     def represent_secret(self, value):
-        return self.represent_scalar(tag='!secret', value=_SECRET_VALUES[str(value)])
+        return self.represent_scalar(tag="!secret", value=_SECRET_VALUES[str(value)])
 
     def represent_stringify(self, value):
         if is_secret(value):
             return self.represent_secret(value)
-        return self.represent_scalar(tag='tag:yaml.org,2002:str', value=str(value))
+        return self.represent_scalar(tag="tag:yaml.org,2002:str", value=str(value))
 
     # pylint: disable=arguments-differ
     def represent_bool(self, value):
-        return self.represent_scalar('tag:yaml.org,2002:bool', 'true' if value else 'false')
+        return self.represent_scalar(
+            "tag:yaml.org,2002:bool", "true" if value else "false"
+        )
 
     def represent_int(self, value):
         if is_secret(value):
             return self.represent_secret(value)
-        return self.represent_scalar(tag='tag:yaml.org,2002:int', value=str(value))
+        return self.represent_scalar(tag="tag:yaml.org,2002:int", value=str(value))
 
     def represent_float(self, value):
         if is_secret(value):
             return self.represent_secret(value)
         if math.isnan(value):
-            value = '.nan'
+            value = ".nan"
         elif math.isinf(value):
-            value = '.inf' if value > 0 else '-.inf'
+            value = ".inf" if value > 0 else "-.inf"
         else:
             value = str(repr(value)).lower()
             # Note that in some cases `repr(data)` represents a float number
@@ -407,14 +438,14 @@ class ESPHomeDumper(yaml.SafeDumper):  # pylint: disable=too-many-ancestors
             # Unfortunately, this is not a valid float representation according
             # to the definition of the `!!float` tag.  We fix this by adding
             # '.0' before the 'e' symbol.
-            if '.' not in value and 'e' in value:
-                value = value.replace('e', '.0e', 1)
-        return self.represent_scalar(tag='tag:yaml.org,2002:float', value=value)
+            if "." not in value and "e" in value:
+                value = value.replace("e", ".0e", 1)
+        return self.represent_scalar(tag="tag:yaml.org,2002:float", value=value)
 
     def represent_lambda(self, value):
         if is_secret(value.value):
             return self.represent_secret(value.value)
-        return self.represent_scalar(tag='!lambda', value=value.value, style='|')
+        return self.represent_scalar(tag="!lambda", value=value.value, style="|")
 
     def represent_id(self, value):
         if is_secret(value.id):
@@ -423,12 +454,11 @@ class ESPHomeDumper(yaml.SafeDumper):  # pylint: disable=too-many-ancestors
 
 
 ESPHomeDumper.add_multi_representer(
-    dict,
-    lambda dumper, value: dumper.represent_mapping('tag:yaml.org,2002:map', value)
+    dict, lambda dumper, value: dumper.represent_mapping("tag:yaml.org,2002:map", value)
 )
 ESPHomeDumper.add_multi_representer(
     list,
-    lambda dumper, value: dumper.represent_sequence('tag:yaml.org,2002:seq', value)
+    lambda dumper, value: dumper.represent_sequence("tag:yaml.org,2002:seq", value),
 )
 ESPHomeDumper.add_multi_representer(bool, ESPHomeDumper.represent_bool)
 ESPHomeDumper.add_multi_representer(str, ESPHomeDumper.represent_stringify)
