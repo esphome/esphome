@@ -8,8 +8,8 @@ namespace esp32_can {
 
 class ESP32Can : public canbus::Canbus {
  public:
-  void set_rx(GPIOPin *rx) { rx_ = rx; }
-  void set_tx(GPIOPin *tx) { tx_ = tx; }
+  void set_rx(int rx) { rx_ = rx; }
+  void set_tx(int tx) { tx_ = tx; }
   ESP32Can(){};
 
  protected:
@@ -17,8 +17,8 @@ class ESP32Can : public canbus::Canbus {
   canbus::Error send_message(struct canbus::CanFrame *frame) override;
   canbus::Error read_message(struct canbus::CanFrame *frame) override;
 
-  GPIOPin *rx_{nullptr};
-  GPIOPin *tx_{nullptr};
+  int rx_{-1};
+  int tx_{-1};
 };
 
 }  // namespace esp32_can

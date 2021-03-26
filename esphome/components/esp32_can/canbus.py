@@ -34,7 +34,5 @@ def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     yield canbus.register_canbus(var, config)
 
-    rx = yield cg.gpio_pin_expression({'number': config[CONF_RX_PIN], 'mode': 'INPUT', 'inverted': False})
-    cg.add(var.set_rx(rx))
-    tx = yield cg.gpio_pin_expression({'number': config[CONF_TX_PIN], 'mode': 'OUTPUT', 'inverted': False})
-    cg.add(var.set_tx(tx))
+    cg.add(var.set_rx(config[CONF_RX_PIN]))
+    cg.add(var.set_tx(config[CONF_TX_PIN]))
