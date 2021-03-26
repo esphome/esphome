@@ -95,7 +95,7 @@ void XPT2046Component::update() {
     x_val = (int16_t)((int) x_val * this->x_dim_ / 0x7fff);
     y_val = (int16_t)((int) y_val * this->y_dim_ / 0x7fff);
 
-    if (!this->touched || (this->report_millis_ != 0 && (now - this->last_pos_ms_) >= this->report_millis_)) {
+    if (!this->touched || (now - this->last_pos_ms_) >= this->report_millis_) {
       ESP_LOGD(TAG, "Raw [x, y] = [%d, %d], transformed = [%d, %d]", this->x_raw, this->y_raw, x_val, y_val);
 
       this->x = x_val;

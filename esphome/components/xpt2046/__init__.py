@@ -54,6 +54,12 @@ def validate_xpt2046(config):
     return config
 
 
+def report_interval(value):
+    if value == "never":
+        return 4294967295  # uint32_t max
+    return cv.positive_time_period_milliseconds(value)
+
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -74,9 +80,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_DIMENSION_X, default=100): cv.positive_not_null_int,
             cv.Optional(CONF_DIMENSION_Y, default=100): cv.positive_not_null_int,
             cv.Optional(CONF_THRESHOLD, default=400): cv.int_range(min=0, max=4095),
-            cv.Optional(
-                CONF_REPORT_INTERVAL, default="0s"
-            ): cv.positive_time_period_milliseconds,
+            cv.Optional(CONF_REPORT_INTERVAL, default="never"): report_interval,
             cv.Optional(CONF_SWAP_X_Y, default=False): cv.boolean,
             cv.Optional(CONF_ON_STATE): automation.validate_automation(
                 {

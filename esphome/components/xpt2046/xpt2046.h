@@ -41,7 +41,7 @@ class XPT2046Component : public PollingComponent,
   void set_calibration(int16_t x_min, int16_t x_max, int16_t y_min, int16_t y_max);
   void set_swap_x_y(bool val) { this->swap_x_y_ = val; }
 
-  void set_report_interval(uint16_t interval) { this->report_millis_ = interval; }
+  void set_report_interval(uint32_t interval) { this->report_millis_ = interval; }
   void set_threshold(int16_t threshold) { this->threshold_ = threshold; }
   void set_irq_pin(GPIOPin *pin) { this->irq_pin_ = pin; }
   XPT2046OnStateTrigger *get_on_state_trigger() const { return this->on_state_trigger_; }
@@ -69,7 +69,7 @@ class XPT2046Component : public PollingComponent,
   bool invert_x_, invert_y_;
   bool swap_x_y_;
 
-  uint16_t report_millis_;
+  uint32_t report_millis_;
   unsigned long last_pos_ms_{0};
 
   GPIOPin *irq_pin_{nullptr};
