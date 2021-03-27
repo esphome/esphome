@@ -35,7 +35,7 @@ class XPT2046Component : public PollingComponent,
                          public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
                                                spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_2MHZ> {
  public:
-  /// Set the logical touchscreen dimensions.
+  /// Set the logical touch screen dimensions.
   void set_dimensions(int16_t x, int16_t y) {
     this->x_dim_ = x;
     this->y_dim_ = y;
@@ -79,7 +79,7 @@ class XPT2046Component : public PollingComponent,
 
   /**@{*/
   /** Coordinates of the touch position.
-   * 
+   *
    * The values are set immediately before the on_state action with touched == true
    * is triggered. The action with touched == false sends the coordinates of the last
    * reported touch.
@@ -92,7 +92,7 @@ class XPT2046Component : public PollingComponent,
 
   /**@{*/
   /** Raw sensor values of the coordinates and the pressure.
-   * 
+   *
    * The values are set each time the update() method is called.
    */
   int16_t x_raw{0}, y_raw{0}, z_raw{0};
