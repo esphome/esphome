@@ -23,7 +23,7 @@ void XPT2046Component::setup() {
 void XPT2046Component::loop() {
   if (this->irq_pin_ != nullptr) {
     // Force immediate update if a falling edge (= touched is seen) Ignore if still active
-    // (that would mean that wi missed the release because of a too long update interval)
+    // (that would mean that we missed the release because of a too long update interval)
     bool val = this->irq_pin_->digital_read();
     if (!val && this->last_irq_ && !this->touched) {
       ESP_LOGD(TAG, "Falling penirq edge, forcing update");
