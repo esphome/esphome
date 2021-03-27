@@ -22,7 +22,8 @@ struct XiaomiParseResult {
     TYPE_MUE4094RT,
     TYPE_WX08ZM,
     TYPE_MJYD02YLA,
-    TYPE_MHOC401
+    TYPE_MHOC401,
+    TYPE_MCCGQ02HL
   } type;
   std::string name;
   optional<float> temperature;
@@ -37,6 +38,7 @@ struct XiaomiParseResult {
   optional<bool> is_active;
   optional<bool> has_motion;
   optional<bool> is_light;
+  optional<bool> is_open;
   bool has_data;        // 0x40
   bool has_capability;  // 0x20
   bool has_encryption;  // 0x08
