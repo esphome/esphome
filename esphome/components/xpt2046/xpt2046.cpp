@@ -132,6 +132,7 @@ void XPT2046Component::set_calibration(int16_t x_min, int16_t x_max, int16_t y_m
 void XPT2046Component::dump_config() {
   ESP_LOGCONFIG(TAG, "XPT2046:");
 
+  LOG_PIN("  IRQ Pin: ", this->irq_pin_);
   ESP_LOGCONFIG(TAG, "  X min: %d", this->x_raw_min_);
   ESP_LOGCONFIG(TAG, "  X max: %d", this->x_raw_max_);
   ESP_LOGCONFIG(TAG, "  Y min: %d", this->y_raw_min_);
