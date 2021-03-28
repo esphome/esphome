@@ -200,7 +200,7 @@ bool I2CDevice::read_bytes(uint8_t a_register, uint8_t *data, uint8_t len, uint3
   return this->parent_->read_bytes(this->address_, a_register, data, len, conversion);
 }
 bool I2CDevice::read_byte(uint8_t a_register, uint8_t *data, uint32_t conversion) {  // NOLINT
-#ifdef USE_I2C_MULTIPLEXER  
+#ifdef USE_I2C_MULTIPLEXER
   this->check_multiplexer_();
 #endif
   return this->parent_->read_byte(this->address_, a_register, data, conversion);
