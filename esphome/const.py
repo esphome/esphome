@@ -1,7 +1,7 @@
 """Constants used by esphome."""
 
 MAJOR_VERSION = 1
-MINOR_VERSION = 17
+MINOR_VERSION = 18
 PATCH_VERSION = "0-dev"
 __short_version__ = f"{MAJOR_VERSION}.{MINOR_VERSION}"
 __version__ = f"{__short_version__}.{PATCH_VERSION}"
@@ -16,30 +16,31 @@ ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789_-"
 # See also https://github.com/platformio/platform-espressif32/releases
 ARDUINO_VERSION_ESP32 = {
     "dev": "https://github.com/platformio/platform-espressif32.git",
-    "1.0.4": "espressif32@1.12.4",
-    "1.0.3": "espressif32@1.10.0",
-    "1.0.2": "espressif32@1.9.0",
-    "1.0.1": "espressif32@1.7.0",
-    "1.0.0": "espressif32@1.5.0",
+    "1.0.5": "platformio/espressif32@3.1.1",
+    "1.0.4": "platformio/espressif32@3.0.0",
+    "1.0.3": "platformio/espressif32@1.10.0",
+    "1.0.2": "platformio/espressif32@1.9.0",
+    "1.0.1": "platformio/espressif32@1.7.0",
+    "1.0.0": "platformio/espressif32@1.5.0",
 }
 # See also https://github.com/platformio/platform-espressif8266/releases
 ARDUINO_VERSION_ESP8266 = {
     "dev": "https://github.com/platformio/platform-espressif8266.git",
-    "2.7.4": "espressif8266@2.6.2",
-    "2.7.3": "espressif8266@2.6.1",
-    "2.7.2": "espressif8266@2.6.0",
-    "2.7.1": "espressif8266@2.5.3",
-    "2.7.0": "espressif8266@2.5.0",
-    "2.6.3": "espressif8266@2.4.0",
-    "2.6.2": "espressif8266@2.3.1",
-    "2.6.1": "espressif8266@2.3.0",
-    "2.5.2": "espressif8266@2.2.3",
-    "2.5.1": "espressif8266@2.1.1",
-    "2.5.0": "espressif8266@2.0.4",
-    "2.4.2": "espressif8266@1.8.0",
-    "2.4.1": "espressif8266@1.7.3",
-    "2.4.0": "espressif8266@1.6.0",
-    "2.3.0": "espressif8266@1.5.0",
+    "2.7.4": "platformio/espressif8266@2.6.2",
+    "2.7.3": "platformio/espressif8266@2.6.1",
+    "2.7.2": "platformio/espressif8266@2.6.0",
+    "2.7.1": "platformio/espressif8266@2.5.3",
+    "2.7.0": "platformio/espressif8266@2.5.0",
+    "2.6.3": "platformio/espressif8266@2.4.0",
+    "2.6.2": "platformio/espressif8266@2.3.1",
+    "2.6.1": "platformio/espressif8266@2.3.0",
+    "2.5.2": "platformio/espressif8266@2.2.3",
+    "2.5.1": "platformio/espressif8266@2.1.1",
+    "2.5.0": "platformio/espressif8266@2.0.4",
+    "2.4.2": "platformio/espressif8266@1.8.0",
+    "2.4.1": "platformio/espressif8266@1.7.3",
+    "2.4.0": "platformio/espressif8266@1.6.0",
+    "2.3.0": "platformio/espressif8266@1.5.0",
 }
 SOURCE_FILE_EXTENSIONS = {".cpp", ".hpp", ".h", ".c", ".tcc", ".ino"}
 HEADER_FILE_EXTENSIONS = {".h", ".hpp", ".tcc"}
@@ -53,6 +54,7 @@ CONF_ACCURACY = "accuracy"
 CONF_ACCURACY_DECIMALS = "accuracy_decimals"
 CONF_ACTION_ID = "action_id"
 CONF_ADDRESS = "address"
+CONF_ADDRESSABLE_LIGHT_ID = "addressable_light_id"
 CONF_ALPHA = "alpha"
 CONF_AND = "and"
 CONF_AP = "ap"
@@ -223,6 +225,7 @@ CONF_HEARTBEAT = "heartbeat"
 CONF_HEAT_ACTION = "heat_action"
 CONF_HEAT_MODE = "heat_mode"
 CONF_HEATER = "heater"
+CONF_HEIGHT = "height"
 CONF_HIDDEN = "hidden"
 CONF_HIDE_TIMESTAMP = "hide_timestamp"
 CONF_HIGH = "high"
@@ -388,6 +391,7 @@ CONF_PIN_B = "pin_b"
 CONF_PIN_C = "pin_c"
 CONF_PIN_D = "pin_d"
 CONF_PINS = "pins"
+CONF_PIXEL_MAPPER = "pixel_mapper"
 CONF_PLATFORM = "platform"
 CONF_PLATFORMIO_OPTIONS = "platformio_options"
 CONF_PM_1_0 = "pm_1_0"
@@ -483,6 +487,7 @@ CONF_SLEEP_WHEN_DONE = "sleep_when_done"
 CONF_SONY = "sony"
 CONF_SPEED = "speed"
 CONF_SPEED_COMMAND_TOPIC = "speed_command_topic"
+CONF_SPEED_COUNT = "speed_count"
 CONF_SPEED_STATE_TOPIC = "speed_state_topic"
 CONF_SPI_ID = "spi_id"
 CONF_SPIKE_REJECTION = "spike_rejection"
