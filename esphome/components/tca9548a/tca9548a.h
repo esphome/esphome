@@ -16,6 +16,7 @@ class TCA9548AComponent : public Component, public i2c::I2CMultiplexer {
 
  protected:
   bool scan_;
+  uint8_t current_channelno_;
 };
 }  // namespace tca9548a
 }  // namespace esphome

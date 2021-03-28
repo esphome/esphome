@@ -13,6 +13,8 @@ void TCA9548AComponent::setup() {
     ESP_LOGI(TAG, "TCA9548A failed");
     return;
   }
+  // out of range to make sure on first set_channel a new one will be set
+  this->current_channelno_ = 8;
   ESP_LOGCONFIG(TAG, "Channels currently open: %d", status);
 }
 void TCA9548AComponent::dump_config() {
@@ -28,8 +30,11 @@ void TCA9548AComponent::dump_config() {
 }
 
 bool TCA9548AComponent::set_channel(uint8_t channelno) {
-  uint8_t channelbyte = 1 << channelno;
-  this->write_byte(0x70, channelbyte);
+  if (this->current_channelno_ != channelno) {
+    this->current_channelno_ = channelno;
+    uint8_t channelbyte = 1 << channelno;
+    this->write_byte(0x70, channelbyte);
+  }
   return true;
 }
 
