@@ -49,6 +49,12 @@ esphome:
             Content-Type: application/json
           body: 'Some data'
           verify_ssl: false
+          on_response:
+            then:
+              - logger.log:
+                  format: 'Response status: %d'
+                  args:
+                    - status_code
   build_path: build/test1
 
 packages:
@@ -660,11 +666,6 @@ sensor:
   - platform: pulse_width
     name: Pulse Width
     pin: GPIO12
-  - platform: senseair
-    uart_id: uart0
-    co2:
-      name: 'SenseAir CO2 Value'
-    update_interval: 15s
   - platform: sm300d2
     uart_id: uart0
     co2:
@@ -1885,24 +1886,6 @@ display:
     cs_pin: GPIO23
     dc_pin: GPIO23
     reset_pin: GPIO23
-    lambda: |-
-      it.rectangle(0, 0, it.get_width(), it.get_height());
-  - platform: waveshare_epaper
-    cs_pin: GPIO23
-    dc_pin: GPIO23
-    busy_pin: GPIO23
-    reset_pin: GPIO23
-    model: 2.90in
-    full_update_every: 30
-    lambda: |-
-      it.rectangle(0, 0, it.get_width(), it.get_height());
-  - platform: waveshare_epaper
-    cs_pin: GPIO23
-    dc_pin: GPIO23
-    busy_pin: GPIO23
-    reset_pin: GPIO23
-    model: 2.90inv2
-    full_update_every: 30
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
   - platform: st7789v
