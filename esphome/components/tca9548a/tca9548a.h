@@ -12,7 +12,7 @@ class TCA9548AComponent : public Component, public i2c::I2CMultiplexer {
   void setup() override;
   void dump_config() override;
   void update();
-  bool set_channel(uint8_t channelno) override;
+  bool set_channel(uint8_t channelno);
 
  protected:
   bool scan_;
