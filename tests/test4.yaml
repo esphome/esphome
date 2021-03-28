@@ -110,6 +110,196 @@ binary_sensor:
     on_state:
       - lambda: 'ESP_LOGI("main", "key0: %s", (x ? "touch" : "release"));'
 
+  # First row: toggle, test colors and font selection, display on all pages
+  # All defaults
+  - platform: touch_gui
+    id: btn00
+    type: toggle
+    x_min: 0
+    y_min: 25
+    x_max: 79
+    y_max: 74
+    text: 'Btn 00'
+
+  # All defaults, activated
+  - platform: touch_gui
+    id: btn01
+    type: toggle
+    x_min: 80
+    y_min: 25
+    x_max: 159
+    y_max: 74
+    initial: True
+    text: 'Btn 01'
+
+  # All defaults, multiple pages, lambda for drawing
+  - platform: touch_gui
+    id: btn02
+    type: toggle
+    pages:
+      - page_1
+      - page_2
+    x_min: 160
+    y_min: 25
+    x_max: 249
+    y_max: 74
+    text: 'Btn 02'
+    lambda: |-
+      it.get_display()->circle(it.get_x_center(), it.get_y_center(), 20, it.get_border_color());
+      it.get_display()->filled_circle(it.get_x_center(), it.get_y_center(), 15, it.get_background_color_to_use());
+      it.get_display()->print(it.get_x_center(), it.get_y_center(), it.get_font(), it.get_foreground_color_to_use(),
+        display::TextAlign::CENTER, it.get_text());
+
+  # Second row: first page only, color and font overrides
+  - platform: touch_gui
+    id: btn10
+    type: toggle
+    pages: page_1
+    x_min: 0
+    y_min: 75
+    x_max: 79
+    y_max: 124
+    font: font2
+    colors:
+      background: color_green
+      active_background: color_blue
+      foreground: color_red
+      active_foreground: color_magenta
+      border: color_yellow
+    text: !lambda |-
+      return "Lbd 10";
+
+  - platform: touch_gui
+    id: btn11
+    type: toggle
+    pages: page_1
+    x_min: 80
+    y_min: 75
+    x_max: 159
+    y_max: 124
+    initial: true
+    font: font2
+    colors:
+      background: color_green
+      active_background: color_blue
+      foreground: color_red
+      active_foreground: color_magenta
+      border: color_yellow
+    text: 'Btn 11'
+  
+  # Third row: momentary
+  - platform: touch_gui
+    id: btn20
+    type: momentary
+    pages: page_1
+    x_min: 0
+    y_min: 125
+    x_max: 79
+    y_max: 174
+    text: 'Btn 20'
+    on_state:
+      then:
+        - lambda: 'ESP_LOGI("btn20", ": %s", (x ? "touch" : "release"));'
+
+  - platform: touch_gui
+    id: btn21
+    type: momentary
+    pages: page_1
+    x_min: 80
+    y_min: 125
+    x_max: 159
+    y_max: 174
+    touch_time: 1s
+    text: 'Btn 21'
+    on_state:
+      then:
+        - lambda: 'ESP_LOGI("btn21", ": %s", (x ? "touch" : "release"));'
+
+  # Fourth row: radio
+  - platform: touch_gui
+    id: btn30
+    type: radio
+    radio_group: 1
+    pages: page_1
+    x_min: 0
+    y_min: 175
+    x_max: 79
+    y_max: 224
+    text: 'Btn 30'
+
+  - platform: touch_gui
+    id: btn31
+    type: radio
+    radio_group: 1
+    pages: page_1
+    initial: True
+    x_min: 80
+    y_min: 175
+    x_max: 159
+    y_max: 224
+    text: 'Btn 31'
+
+  - platform: touch_gui
+    id: btn32
+    type: radio
+    radio_group: 1
+    pages: page_1
+    initial: True
+    x_min: 160
+    y_min: 175
+    x_max: 239
+    y_max: 224
+    text: 'Btn 32'
+
+  # Area through all the upper half
+  - platform: touch_gui
+    id: btnuphalf
+    type: area
+    pages: page_1
+    x_min: 0
+    y_min: 0
+    x_max: 239
+    y_max: 179
+    on_state:
+      then:
+        - lambda: 'ESP_LOGI("btnuphalf", ": %s", (x ? "touch" : "release"));'
+
+  # Different radios on the second page
+  - platform: touch_gui
+    id: btn240
+    type: radio
+    radio_group: 3
+    pages: page_2
+    x_min: 0
+    y_min: 225
+    x_max: 79
+    y_max: 274
+    text: 'Btn 240'
+
+  - platform: touch_gui
+    id: btn241
+    type: radio
+    radio_group: 3
+    pages: page_2
+    x_min: 80
+    y_min: 225
+    x_max: 159
+    y_max: 274
+    text: 'Btn 241'
+
+  - platform: touch_gui
+    id: btn242
+    touch_gui_id: my_gui
+    type: radio
+    radio_group: 3
+    pages: page_2
+    x_min: 160
+    y_min: 225
+    x_max: 239
+    y_max: 274
+    text: 'Btn 242'
+
+
 climate:
   - platform: tuya
     id: tuya_climate
@@ -182,6 +372,94 @@ display:
     full_update_every: 30
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
+  - platform: ili9341
+    id: my_ili9341
+    model: TFT 2.4
+    rotation: 180
+    cs_pin: 22
+    dc_pin: 21
+    led_pin: 5
+    pages:
+      - id: page_1
+        lambda: |-
+          it.fill(COLOR_OFF);
+          it.print(120, 0, id(font1), TextAlign::TOP_CENTER, "Page 1");
+          id(my_gui).draw();
+      - id: page_2
+        lambda: |-
+          it.fill(COLOR_OFF);
+          it.circle(120, 240, 10, COLOR_ON);
+          it.print(120, 0, id(font1), TextAlign::TOP_CENTER, "Page 2");
+          id(my_gui).draw();
+
+color:
+  - id: color_black
+    red: 0%
+    green: 0%
+    blue: 0%
+
+  - id: color_gray20
+    red: 20%
+    green: 20%
+    blue: 20%
+
+  # Getting a gray with the ILI driver is trial & error
+  - id: color_gray50
+    red: 52%
+    green: 60%
+    blue: 40%
+
+  - id: color_white
+    red: 100%
+    green: 100%
+    blue: 100%
+
+  - id: color_green
+    red: 0%
+    green: 100%
+    blue: 0%
+
+  - id: color_red
+    red: 100%
+    green: 0%
+    blue: 0%
+
+  - id: color_blue
+    red: 0%
+    green: 0%
+    blue: 100%
+
+  - id: color_yellow
+    red: 100%
+    green: 100%
+    blue: 0%
+
+  - id: color_magenta
+    red: 100%
+    green: 0%
+    blue: 100%
+
+font:
+  - file: "DejaVuSans.ttf"
+    id: font1
+    size: 16
+  - file: "DejaVuSans.ttf"
+    id: font2
+    size: 14
+
+touch_gui:
+  id: my_gui
+  display_id: my_ili9341
+  button_colors:
+    background: color_gray20
+    active_background: color_gray50
+    foreground: color_white
+    active_foreground: color_black
+    border: color_white
+  button_font: font1
+  on_update:
+    then:
+      - lambda: 'ESP_LOGI("touch_gui", "Visual state was updated");'
 
 external_components:
   - source: github://esphome/esphome@dev
@@ -214,3 +492,66 @@ xpt2046:
             id(touchscreen).y_raw,
             id(touchscreen).z_raw
             );
+interval:
+  - interval: 15s
+    then:
+      - display.page.show: page_1
+      - touch_gui.touch:
+          id: my_gui
+          x: 80
+          y: !lambda |-
+            return 80;
+          touched: True
+      - touch_gui.activate_button: btn30
+      - delay: 1s
+      - touch_gui.activate_button: btn31
+      - delay: 1s
+      - touch_gui.activate_button: btn32
+      - delay: 1s
+      # Toggles
+      - touch_gui.activate_button: btn00
+      - touch_gui.activate_button: btn01
+      - touch_gui.activate_button: btn02
+      - touch_gui.activate_button: btn10
+      - touch_gui.activate_button: btn11
+      # Momentary
+      - touch_gui.activate_button: btn20
+      - touch_gui.activate_button: btn21
+      # Area
+      - touch_gui.activate_button: btnuphalf
+      - delay: 2s
+      # Touch and release toggle 10, momentary 20 and radio 30
+      - touch_gui.touch:
+          x: 40
+          y: 100
+          touched: true
+      - touch_gui.touch:
+          x: 40
+          y: 150
+          touched: true
+      - touch_gui.touch:
+          x: 40
+          y: 250
+          touched: true
+      - delay: 100ms
+      - touch_gui.touch:
+          x: 40
+          y: 100
+          touched: False
+      - touch_gui.touch:
+          x: 40
+          y: 150
+          touched: False
+      - touch_gui.touch:
+          x: 40
+          y: 200
+          touched: False
+      - delay: 1.9s
+      # Switch radio to 31
+      - touch_gui.touch:
+          x: 120
+          y: 200
+          touched: true
+      - delay: 1s
+      # Next page
+      - display.page.show: page_2
