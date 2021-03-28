@@ -135,8 +135,9 @@ extern uint8_t next_i2c_bus_num_;
 #endif
 
 class I2CDevice;
+#ifdef USE_I2C_MULTIPLEXER
 class I2CMultiplexer;
-
+#endif
 class I2CRegister {
  public:
   I2CRegister(I2CDevice *parent, uint8_t a_register) : parent_(parent), register_(a_register) {}
@@ -293,7 +294,9 @@ class I2CDevice {
 #endif
   uint8_t address_{0x00};
   I2CComponent *parent_{nullptr};
+#ifdef USE_I2C_MULTIPLEXER  
   I2CMultiplexer *multiplexer_{nullptr};
+#endif
   uint8_t channel_;
 };
 
