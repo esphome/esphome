@@ -29,13 +29,12 @@ void TCA9548AComponent::dump_config() {
   }
 }
 
-bool TCA9548AComponent::set_channel(uint8_t channelno) {
+void TCA9548AComponent::set_channel(uint8_t channelno) {
   if (this->current_channelno_ != channelno) {
     this->current_channelno_ = channelno;
     uint8_t channelbyte = 1 << channelno;
     this->write_byte(0x70, channelbyte);
   }
-  return true;
 }
 
 }  // namespace tca9548a
