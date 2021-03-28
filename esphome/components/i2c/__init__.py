@@ -33,10 +33,12 @@ CONFIG_SCHEMA = cv.Schema(
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
-I2CMULTIPLEXER_SCHEMA = cv.Schema({
-    cv.Required(CONF_ID): cv.use_id(I2CMultiplexer),
-    cv.Required(CONF_CHANNEL): cv.uint8_t,
-})
+I2CMULTIPLEXER_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_ID): cv.use_id(I2CMultiplexer),
+        cv.Required(CONF_CHANNEL): cv.uint8_t,
+    }
+)
 
 
 @coroutine_with_priority(1.0)
@@ -83,4 +85,6 @@ def register_i2c_device(var, config):
     cg.add(var.set_i2c_address(config[CONF_ADDRESS]))
     if CONF_MULTIPLEXER in config:
         multiplexer = yield cg.get_variable(config[CONF_MULTIPLEXER][CONF_ID])
-        cg.add(var.set_i2c_multiplexer(multiplexer, config[CONF_MULTIPLEXER][CONF_CHANNEL]))
+        cg.add(
+            var.set_i2c_multiplexer(multiplexer, config[CONF_MULTIPLEXER][CONF_CHANNEL])
+        )
