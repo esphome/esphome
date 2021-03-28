@@ -1997,6 +1997,13 @@ tca9548a:
   - address: 0x70
     id: multiplex0
     scan: True
+  - address: 0x71
+    id: multiplex0
+    scan: True
+    multiplexer:
+      id: multiplex0
+      channel: 0
+    
 
 pcf8574:
   - id: 'pcf8574_hub'
