@@ -293,12 +293,10 @@ class I2CDevice {
   uint8_t channel_;
 #endif
 };
-#ifdef USE_I2C_MULTIPLEXER
 class I2CMultiplexer : public I2CDevice {
  public:
   I2CMultiplexer() = default;
   virtual void set_channel(uint8_t channelno);
 };
-#endif
 }  // namespace i2c
 }  // namespace esphome
