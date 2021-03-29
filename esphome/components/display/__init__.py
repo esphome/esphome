@@ -131,11 +131,12 @@ def display_page_show_previous_to_code(config, action_id, template_arg, args):
 @automation.register_condition(
     "display.is_displaying_page",
     DisplayIsDisplayingPageCondition,
-    cv.Schema(
+    cv.maybe_simple_value(
         {
-            cv.Required(CONF_ID): cv.use_id(DisplayBuffer),
+            cv.GenerateID(CONF_ID): cv.use_id(DisplayBuffer),
             cv.Required(CONF_PAGE_ID): cv.use_id(DisplayPage),
-        }
+        },
+        key=CONF_PAGE_ID,
     ),
 )
 def display_is_displaying_page_to_code(config, condition_id, template_arg, args):
