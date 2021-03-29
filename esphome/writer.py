@@ -69,9 +69,7 @@ upload_flags =
 """,
 )
 
-UPLOAD_SPEED_OVERRIDE = {
-    "esp210": 57600,
-}
+UPLOAD_SPEED_OVERRIDE = {"esp210": 57600}
 
 
 def get_flags(key):
@@ -207,11 +205,12 @@ def gather_lib_deps():
     return [x.as_lib_dep for x in CORE.libraries]
 
 
-def gather_build_flags():
-    build_flags = CORE.build_flags
+def gather_build_flags(overrides):
+    build_flags = list(CORE.build_flags)
+    build_flags += [overrides] if isinstance(overrides, str) else overrides
 
     # avoid changing build flags order
-    return list(sorted(list(build_flags)))
+    return list(sorted(build_flags))
 
 
 ESP32_LARGE_PARTITIONS_CSV = """\
@@ -225,8 +224,10 @@ spiffs,   data, spiffs,  0x391000, 0x00F000
 
 
 def get_ini_content():
+    overrides = CORE.config[CONF_ESPHOME].get(CONF_PLATFORMIO_OPTIONS, {})
+
     lib_deps = gather_lib_deps()
-    build_flags = gather_build_flags()
+    build_flags = gather_build_flags(overrides.pop("build_flags", []))
 
     data = {
         "platform": CORE.arduino_version,
@@ -272,7 +273,7 @@ def get_ini_content():
     # Ignore libraries that are not explicitly used, but may
     # be added by LDF
     # data['lib_ldf_mode'] = 'chain'
-    data.update(CORE.config[CONF_ESPHOME].get(CONF_PLATFORMIO_OPTIONS, {}))
+    data.update(overrides)
 
     content = f"[env:{CORE.name}]\n"
     content += format_ini(data)
