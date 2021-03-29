@@ -1569,4 +1569,4 @@ def url(value):
 
     if not parsed.scheme or not parsed.netloc:
         raise Invalid("Expected a URL scheme and host")
-    return parsed
+    return parsed.geturl()
