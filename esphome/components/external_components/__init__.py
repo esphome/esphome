@@ -3,6 +3,7 @@ import logging
 from pathlib import Path
 import subprocess
 import hashlib
+import datetime
 
 import esphome.config_validation as cv
 from esphome.const import (
@@ -113,8 +114,20 @@ def _process_single_config(config: dict):
             cmd += [conf[CONF_URL], str(repo_dir)]
             # TODO: Error handling
             subprocess.check_call(cmd)
+        else:
+            # Check refresh needed
+            file_timestamp = Path(repo_dir / ".git" / "FETCH_HEAD")
+            # On first clone, FETCH_HEAD does not exists
+            if not file_timestamp.exists():
+                file_timestamp = Path(repo_dir / ".git" / "HEAD")
+            age = datetime.datetime.now() - datetime.datetime.fromtimestamp(
+                file_timestamp.stat().st_mtime
+            )
+            if age.seconds > config[CONF_REFRESH].total_seconds:
+                _LOGGER.info("Executing git pull %s", key)
+                cmd = ["git", "pull"]
+                subprocess.check_call(cmd, cwd=repo_dir)
 
-        # TODO: refresh periodically
         dest_dir = repo_dir
     elif conf[CONF_TYPE] == TYPE_LOCAL:
         dest_dir = Path(conf[CONF_PATH])
