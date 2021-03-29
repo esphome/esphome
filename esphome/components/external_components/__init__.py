@@ -64,7 +64,7 @@ def validate_source_shorthand(value):
         CONF_URL: f"https://github.com/{m.group(1)}/{m.group(2)}.git",
     }
     if m.group(3):
-        conf[CONF_REF] = m.group()
+        conf[CONF_REF] = m.group(3)
     return SOURCE_SCHEMA(conf)
 
 
