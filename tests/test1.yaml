@@ -1760,6 +1760,13 @@ interval:
           btn_left_state = ((uint32_t) id(btn_left)->get_value()  +  63 * (uint32_t)btn_left_state) >> 6;
 
           id(btn_left)->set_threshold(btn_left_state * 0.9);
+      - if:
+          condition:
+            display.is_displaying_page:
+              id: display1
+              page_id: page1
+          then:
+            - logger.log: 'Seeing page 1'
 
 color:
   - id: kbx_red
