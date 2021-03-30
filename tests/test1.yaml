@@ -1133,15 +1133,6 @@ binary_sensor:
         ]
   - platform: as3935
     name: 'Storm Alert'
-  - platform: xpt2046
-    xpt2046_id: touchscreen
-    id: touch_key0
-    x_min: 80
-    x_max: 160
-    y_min: 106
-    y_max: 212
-    on_state:
-      - lambda: 'ESP_LOGI("main", "key0: %s", (x ? "touch" : "release"));'
 
 pca9685:
   frequency: 500
@@ -2162,29 +2153,3 @@ canbus:
                 lambda: 'return x[0] == 0x11;'
               then:
                 light.toggle: ${roomname}_lights
-
-xpt2046:
-  id: touchscreen
-  cs_pin: 17
-  irq_pin: 16
-  update_interval: 50ms
-  report_interval: 1s
-  threshold: 400
-  dimension_x: 240
-  dimension_y: 320
-  calibration_x_min: 3860
-  calibration_x_max: 280
-  calibration_y_min: 340
-  calibration_y_max: 3860
-  swap_x_y: False
-  on_state:
-    - lambda: |-
-        ESP_LOGI("main", "args x=%d, y=%d, touched=%s", x, y, (touched ? "touch" : "release"));
-        ESP_LOGI("main", "member x=%d, y=%d, touched=%d, x_raw=%d, y_raw=%d, z_raw=%d",
-            id(touchscreen).x,
-            id(touchscreen).y,
-            (int) id(touchscreen).touched,
-            id(touchscreen).x_raw,
-            id(touchscreen).y_raw,
-            id(touchscreen).z_raw
-            );
