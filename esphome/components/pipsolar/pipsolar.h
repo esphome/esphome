@@ -25,7 +25,7 @@ enum PollingCommand {
 struct polling_command {
   uint8_t *command;
   uint8_t length = 0;
-  byte errors;
+  uint8_t errors;
   PollingCommand identifier;
 };
 class PipsolarSwitch;
@@ -173,7 +173,7 @@ class Pipsolar : public uart::UARTDevice, public PollingComponent {
   void send_next_poll();
   void queue_command(const char *command, byte length);
   String command_queue_[COMMAND_QUEUE_LENGTH];
-  byte command_queue_position_ = 0;
+  uint8_t command_queue_position_ = 0;
   uint8_t read_buffer_[PIPSOLAR_READ_BUFFER_LENGTH];
   size_t read_pos_{0};
   bool update_running = 0;

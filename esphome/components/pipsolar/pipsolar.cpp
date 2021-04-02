@@ -458,14 +458,14 @@ uint8_t Pipsolar::check_incoming_crc() {
   uint16_t crc16;
   crc16 = calc_crc(read_buffer_,read_pos_ - 3);
   ESP_LOGD(TAG,"checking crc on incoming message");
-  if (highByte(crc16) == read_buffer_[read_pos_-3] && lowByte(crc16) == read_buffer_[read_pos_-2]) {  				
-		ESP_LOGD(TAG, "CRC OK");
-		read_buffer_[read_pos_-1]=0;
-		read_buffer_[read_pos_-2]=0;
-		read_buffer_[read_pos_-3]=0;
-		return 1;
+  if (highByte(crc16) == read_buffer_[read_pos_-3] && lowByte(crc16) == read_buffer_[read_pos_-2]) {          
+    ESP_LOGD(TAG, "CRC OK");
+    read_buffer_[read_pos_-1]=0;
+    read_buffer_[read_pos_-2]=0;
+    read_buffer_[read_pos_-3]=0;
+    return 1;
 
-	} 
+  } 
   ESP_LOGD(TAG, "CRC NOK expected: %X %X but got: %X %X",highByte(crc16),lowByte(crc16),read_buffer_[read_pos_-3],read_buffer_[read_pos_-2]);
 
   return 0;
@@ -473,7 +473,7 @@ uint8_t Pipsolar::check_incoming_crc() {
 
 //send next command used
 uint8_t Pipsolar::send_next_command() {
-   	uint16_t crc16;
+     uint16_t crc16;
     if (this->command_queue_[this->command_queue_position_].length() != 0) {
       const char* command = this->command_queue_[this->command_queue_position_].c_str();
       uint8_t byte_command[16];
@@ -497,7 +497,7 @@ uint8_t Pipsolar::send_next_command() {
 }
 
 void Pipsolar::send_next_poll() {
- 	uint16_t crc16;
+   uint16_t crc16;
   this->last_polling_command = (this->last_polling_command + 1) % 15;
   if (this->used_polling_commands_[this->last_polling_command].length == 0) {
     this->last_polling_command = 0;
@@ -522,10 +522,10 @@ void Pipsolar::send_next_poll() {
 }
 
 void Pipsolar::queue_command(const char *command, byte length) {
-  byte next_position = command_queue_position_;
-  for (byte i = 0; i < COMMAND_QUEUE_LENGTH; i++)
+  uint8_t next_position = command_queue_position_;
+  for (uint8_t i = 0; i < COMMAND_QUEUE_LENGTH; i++)
   {
-    byte testposition = (next_position + i) % COMMAND_QUEUE_LENGTH;
+    uint8_t testposition = (next_position + i) % COMMAND_QUEUE_LENGTH;
     if (command_queue_[testposition].length() == 0) {
       command_queue_[testposition] = String(command);
       ESP_LOGD(TAG,"Command queued successfully: %s with length %d at position %d",command,command_queue_[testposition].length(),testposition);
