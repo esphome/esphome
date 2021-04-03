@@ -25,7 +25,7 @@ enum PollingCommand {
 struct polling_command {
   uint8_t *command;
   uint8_t length = 0;
-  uint8_t errors;
+// for future use: Error Counting  uint8_t errors;
   PollingCommand identifier;
 };
 class PipsolarSwitch;
@@ -185,7 +185,6 @@ class Pipsolar : public uart::UARTDevice, public PollingComponent {
   PipsolarSwitch *pv_ok_condition_for_parallel_switch_;
   PipsolarSwitch *pv_power_balance_switch_;
 
-
   text_sensor::TextSensor *last_qpigs_;
   text_sensor::TextSensor *last_qpiri_;
   text_sensor::TextSensor *last_qmod_;
@@ -193,7 +192,6 @@ class Pipsolar : public uart::UARTDevice, public PollingComponent {
   text_sensor::TextSensor *last_qpiws_;
   text_sensor::TextSensor *last_qt_;
   text_sensor::TextSensor *last_qmn_;
-
 
 //QPIRI Sensors
   sensor::Sensor *grid_rating_voltage_;
@@ -221,6 +219,7 @@ class Pipsolar : public uart::UARTDevice, public PollingComponent {
   sensor::Sensor *battery_redischarge_voltage_;
   sensor::Sensor *pv_ok_condition_for_parallel_;
   sensor::Sensor *pv_power_balance_;
+
 //QPIGS Sensors
   sensor::Sensor *grid_voltage_;
   sensor::Sensor *grid_frequency_;
@@ -246,7 +245,6 @@ class Pipsolar : public uart::UARTDevice, public PollingComponent {
   binary_sensor::BinarySensor *charging_status_;
   binary_sensor::BinarySensor *scc_charging_status_;
   binary_sensor::BinarySensor *ac_charging_status_;
-
   sensor::Sensor *battery_voltage_offset_for_fans_on_; 
   sensor::Sensor *eeprom_version_;
   sensor::Sensor *pv_charging_power_;
@@ -311,8 +309,6 @@ class Pipsolar : public uart::UARTDevice, public PollingComponent {
   binary_sensor::BinarySensor *warning_high_ac_input_during_bus_soft_start_;
   binary_sensor::BinarySensor *warning_battery_equalization_;
 
-
-
 //QPIRI values
   float grid_rating_voltage;
   float grid_rating_current;
@@ -339,6 +335,7 @@ class Pipsolar : public uart::UARTDevice, public PollingComponent {
   float battery_redischarge_voltage;
   int pv_ok_condition_for_parallel;
   int pv_power_balance;
+
 //QPIGS values
   float grid_voltage;
   float grid_frequency;
@@ -364,7 +361,6 @@ class Pipsolar : public uart::UARTDevice, public PollingComponent {
   int charging_status;
   int scc_charging_status;
   int ac_charging_status;
-
   int battery_voltage_offset_for_fans_on; //.1 scale
   int eeprom_version;
   int pv_charging_power;
@@ -424,7 +420,6 @@ class Pipsolar : public uart::UARTDevice, public PollingComponent {
   bool warning_high_ac_input_during_bus_soft_start;
   bool warning_battery_equalization;
 
-  
   uint32_t command_start_millis_ = 0;
   uint8_t state_;
   enum State {

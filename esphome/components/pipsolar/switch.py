@@ -26,7 +26,6 @@ PIPSWITCH_SCHEMA = switch.SWITCH_SCHEMA.extend({
     cv.Optional(CONF_ICON, default=ICON_POWER): switch.icon
 }).extend(cv.COMPONENT_SCHEMA)
 
-
 CONFIG_SCHEMA = cv.Schema({
     cv.Required(CONF_PIPSOLAR_ID): cv.use_id(PipsolarComponent),
     cv.Optional(CONF_OUTPUT_SOURCE_PRIORITY_UTILITY): PIPSWITCH_SCHEMA,
@@ -37,7 +36,6 @@ CONFIG_SCHEMA = cv.Schema({
     cv.Optional(CONF_PV_POWER_BALANCE): PIPSWITCH_SCHEMA,
 
  })
-
 
 def to_code(config):
     paren = yield cg.get_variable(config[CONF_PIPSOLAR_ID])

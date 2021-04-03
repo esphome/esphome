@@ -8,7 +8,6 @@ from . import PipsolarComponent, pipsolar_ns
 
 DEPENDENCIES = ['uart']
 
-
 CONF_DEVICE_MODE = 'device_mode';
 CONF_LAST_QPIGS = 'last_qpigs';
 CONF_LAST_QPIRI = 'last_qpiri';
@@ -68,8 +67,6 @@ CONFIG_SCHEMA = cv.COMPONENT_SCHEMA.extend({
             }
         ),
     })
-
-
 
 def to_code(config):
     paren = yield cg.get_variable(config[CONF_PIPSOLAR_ID])

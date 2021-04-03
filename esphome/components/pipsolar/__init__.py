@@ -6,8 +6,8 @@ from esphome.components import uart
 
 DEPENDENCIES = ['uart']
 CODEOWNERS = ['@andreashergert1984']
-MULTI_CONF = True
 AUTO_LOAD = ["binary_sensor","text_sensor","sensor","switch","output"]
+MULTI_CONF = True
 
 pipsolar_ns = cg.esphome_ns.namespace('pipsolar')
 PipsolarComponent = pipsolar_ns.class_('Pipsolar', cg.Component)
@@ -15,8 +15,6 @@ PipsolarComponent = pipsolar_ns.class_('Pipsolar', cg.Component)
 Device = pipsolar_ns.enum("Device")
 
 SetOutputAction = pipsolar_ns.class_("SetOutputAction", automation.Action)
-
-
 
 CONFIG_SCHEMA = cv.All(cv.Schema({
     cv.GenerateID(): cv.declare_id(PipsolarComponent)

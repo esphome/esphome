@@ -105,8 +105,6 @@ void Pipsolar::loop() {
         if (this->pv_power_balance_) {this->pv_power_balance_->publish_state(this->pv_power_balance == 1);}
         // special for power balance switch
         if (this->pv_power_balance_switch_) {this->pv_power_balance_switch_->publish_state(this->pv_power_balance == 1);}
-
-
         this->state_ = STATE_IDLE;
         break;
       case POLLING_QPIGS:
@@ -203,7 +201,6 @@ void Pipsolar::loop() {
       case POLLING_QMN:
         this->state_ = STATE_IDLE;
         break;
-
     }
   }
 
@@ -278,7 +275,6 @@ void Pipsolar::loop() {
           &switch_on,
           &dustproof_installed
         );
-
         if (this->last_qpigs_) {this->last_qpigs_->publish_state(tmp);}
         this->state_ = STATE_POLL_DECODED;
         break;
@@ -375,7 +371,6 @@ void Pipsolar::loop() {
         if (this->last_qmn_) {this->last_qmn_->publish_state(tmp);}
         this->state_ = STATE_POLL_DECODED;
         break;
-
       default:
         this->state_ = STATE_IDLE;
         break;
@@ -443,8 +438,6 @@ void Pipsolar::loop() {
     }
 
   }
-
-
 }
 
 uint8_t Pipsolar::check_incoming_length(uint8_t length) {
@@ -467,7 +460,6 @@ uint8_t Pipsolar::check_incoming_crc() {
 
   } 
   ESP_LOGD(TAG, "CRC NOK expected: %X %X but got: %X %X",((uint8_t) ((crc16) >> 8)),((uint8_t) ((crc16) & 0xff)),read_buffer_[read_pos_-3],read_buffer_[read_pos_-2]);
-
   return 0;
 }
 
@@ -532,13 +524,11 @@ void Pipsolar::queue_command(const char *command, byte length) {
       return;
     }
   }
-
   ESP_LOGD(TAG,"Command queue full dropping command: %s",command);
 }
 
 void Pipsolar::switch_command(String command) {
   ESP_LOGD(TAG,"got command: %s",command.c_str());
-
   queue_command(command.c_str(),command.length());
 }
 void Pipsolar::dump_config() {
@@ -591,7 +581,6 @@ uint16_t Pipsolar::calc_crc(uint8_t *msg,int n)
   // Initial value. xmodem uses 0xFFFF but this example
   // requires an initial value of zero.
   uint16_t x = 0;
-
   while(n--) {
     x = crc_xmodem_update(x, (uint16_t)*msg++);
   }
@@ -603,7 +592,6 @@ uint16_t Pipsolar::calc_crc(uint8_t *msg,int n)
 uint16_t Pipsolar::crc_xmodem_update (uint16_t crc, uint8_t data)
 {
   int i;
-
   crc = crc ^ ((uint16_t)data << 8);
   for (i=0; i<8; i++) {
     if (crc & 0x8000)

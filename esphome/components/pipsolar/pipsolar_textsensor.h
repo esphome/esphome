@@ -11,12 +11,9 @@ class Pipsolar;
 class PipsolarTextSensor : public Component, public text_sensor::TextSensor {
  public:
   void set_parent(Pipsolar *parent) {this->parent_ = parent;};
-//  void set_command(String command) {this->command_ = command;};
   void dump_config() override;
 
  protected:
-//  void write_state(bool state) override;
-//  String command_;
   Pipsolar *parent_;
 };
 

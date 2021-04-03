@@ -64,8 +64,6 @@ CONF_BATTERY_VOLTAGE_OFFSET_FOR_FANS_ON = 'battery_voltage_offset_for_fans_on';
 CONF_EEPROM_VERSION = 'eeprom_version';
 CONF_PV_CHARGING_POWER = 'pv_charging_power';
 
-# CONF_DEVICE_MODE = 'device_mode';
-
 pipsolar_sensor_ns = cg.esphome_ns.namespace('pipsolarsensor')
 
 CONFIG_SCHEMA = cv.Schema({
