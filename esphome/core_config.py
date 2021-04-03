@@ -272,7 +272,6 @@ async def _esp8266_add_lwip_type():
 
 @coroutine_with_priority(30.0)
 async def _add_automations(config):
-    print("HERE")
     for conf in config.get(CONF_ON_BOOT, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], conf.get(CONF_PRIORITY))
         await cg.register_component(trigger, conf)
