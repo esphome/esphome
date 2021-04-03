@@ -1,27 +1,27 @@
-#include "AirthingsWavePlus.h"
+#include "airthings_wave_plus.h"
 
 namespace esphome {
 namespace airthings_wave_plus {
 
-void AirthingsWavePlus::clientConnected() {
-  ESP_LOGD(TAG, "AirthingsWavePlus::clientConnected");
+void AirthingsWavePlus::client_connected_() {
+  ESP_LOGD(TAG, "AirthingsWavePlus::client_connected_");
 
-  _connected = true;
-  _connecting = false;
-  _lastTime = millis();
+  connected_ = true;
+  connecting_ = false;
+  last_value_time_ = millis();
 
   // Schedule to avoid a deadlock
-  set_timeout(0, [this] { this->readSensors(); });
+  set_timeout(0, [this] { this->read_sensors_(); });
 }
 
-void AirthingsWavePlus::clientDisconnected() {
-  ESP_LOGD(TAG, "AirthingsWavePlus::clientDisconnected");
+void AirthingsWavePlus::client_disconnected_() {
+  ESP_LOGD(TAG, "AirthingsWavePlus::client_disconnected_");
 
-  _connected = false;
-  _connecting = false;
+  connected_ = false;
+  connecting_ = false;
 }
 
-void AirthingsWavePlus::readSensors() {
+void AirthingsWavePlus::read_sensors_() {
   auto serviceUUID = std::string("b42e1c08-ade7-11e4-89d3-123b93f75cba");
   auto sensorsDataCharacteristicUUID = std::string("b42e2a68-ade7-11e4-89d3-123b93f75cba");
 
@@ -77,27 +77,27 @@ void AirthingsWavePlus::readSensors() {
   client_->disconnect();
 }
 
-void AirthingsWavePlus::update() {
-  _updateCount++;
+void AirthingsWavePlus::update_() {
+  update_count_++;
 
   if (!client_->isConnected()) {
     auto currentTime = millis();
 
-    auto valueDelta = currentTime - _lastTime;
-    auto connectDelta = currentTime - _lastConnectTime;
+    auto valueDelta = currentTime - last_value_time_;
+    auto connectDelta = currentTime - last_connect_time_;
 
-    _connected = false;
+    connected_ = false;
 
-    if (_updateCount > 1 && !_connecting && valueDelta >= _refreshIntervalInSeconds * 1000 &&
-        connectDelta >= _connectionTimeoutInSeconds * 1000) {
+    if (update_count_ > 1 && !connecting_ && valueDelta >= refresh_interval_in_seconds_ * 1000 &&
+        connectDelta >= connection_timeout_in_seconds_ * 1000) {
       auto address = BLEAddress(address_);
       ESP_LOGD(TAG, "Connecting to %s", address.toString().c_str());
       client_->connect(address);
-      _connecting = true;
-      _lastConnectTime = currentTime;
-    } else if (_connecting && connectDelta >= _connectionTimeoutInSeconds * 1000) {
+      connecting_ = true;
+      last_connect_time_ = currentTime;
+    } else if (connecting_ && connectDelta >= connection_timeout_in_seconds_ * 1000) {
       ESP_LOGD(TAG, "Stop trying to connect");
-      _connecting = false;
+      connecting_ = false;
       client_->disconnect();
     } else {
       ESP_LOGD(TAG, "Not connected (valueDelta:%lds connectDelta:%lds)", valueDelta / 1000, connectDelta / 1000);
@@ -124,13 +124,13 @@ AirthingsWavePlus::AirthingsWavePlus() {
 
   client_ = BLEDevice::createClient();
   auto clientCallbacks =
-      new WavePlusClientCallbacks([this] { this->clientConnected(); }, [this] { this->clientDisconnected(); });
+      new WavePlusClientCallbacks([this] { this->client_connected_(); }, [this] { this->client_disconnected_(); });
   client_->setClientCallbacks(clientCallbacks);
 
-  set_interval("connect", 10000, [this] { this->update(); });
+  set_interval("connect", 10000, [this] { this->update_(); });
 }
 
-void AirthingsWavePlus::enumerateServices() {
+void AirthingsWavePlus::enumerate_services_() {
   //
   // May fail with corrupted heap
   //
@@ -141,21 +141,21 @@ void AirthingsWavePlus::enumerateServices() {
   }
 }
 
-AirthingsWavePlus::WavePlusClientCallbacks::WavePlusClientCallbacks(std::function<void()> &&onConnected,
-                                                                    std::function<void()> &&onDisconnected) {
-  onConnected_ = std::move(onConnected);
-  onDisconnected_ = std::move(onDisconnected);
+AirthingsWavePlus::WavePlusClientCallbacks::WavePlusClientCallbacks(std::function<void()> &&on_connected,
+                                                                    std::function<void()> &&on_disconnected) {
+  on_connected_ = std::move(on_connected);
+  on_disconnected_ = std::move(on_disconnected);
 }
 
-void AirthingsWavePlus::WavePlusClientCallbacks::onConnect(BLEClient *pClient) {
-  if (onConnected_ != nullptr) {
-    onConnected_();
+void AirthingsWavePlus::WavePlusClientCallbacks::onConnect(BLEClient *p_client) {
+  if (on_connected_ != nullptr) {
+    on_connected_();
   }
 }
 
-void AirthingsWavePlus::WavePlusClientCallbacks::onDisconnect(BLEClient *pClient) {
-  if (onDisconnected_ != nullptr) {
-    onDisconnected_();
+void AirthingsWavePlus::WavePlusClientCallbacks::onDisconnect(BLEClient *p_client) {
+  if (on_disconnected_ != nullptr) {
+    on_disconnected_();
   }
 }
 

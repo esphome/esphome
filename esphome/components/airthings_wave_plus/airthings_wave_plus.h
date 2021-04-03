@@ -32,20 +32,20 @@ class AirthingsWavePlus : public Component {
   void set_tvoc(sensor::Sensor *tvoc) { tvoc_sensor_ = tvoc; }
 
  protected:
-  int _connectionTimeoutInSeconds = 30;
-  int _refreshIntervalInSeconds = 300;
+  int connection_timeout_in_seconds_ = 30;
+  int refresh_interval_in_seconds_ = 300;
 
-  int _updateCount = 0;
-  bool _connected = false;
-  bool _connecting = false;
-  int _lastTime = _refreshIntervalInSeconds * -1000;
-  int _lastConnectTime = _connectionTimeoutInSeconds * -1000;
+  int update_count_ = 0;
+  bool connected_ = false;
+  bool connecting_ = false;
+  int last_value_time_ = refresh_interval_in_seconds_ * -1000;
+  int last_connect_time_ = connection_timeout_in_seconds_ * -1000;
 
-  void update();
-  void enumerateServices();
-  void clientConnected();
-  void clientDisconnected();
-  void readSensors();
+  void update_();
+  void enumerate_services_();
+  void client_connected_();
+  void client_disconnected_();
+  void read_sensors_();
 
   BLEClient *client_;
   std::string address_;
@@ -59,13 +59,13 @@ class AirthingsWavePlus : public Component {
 
   class WavePlusClientCallbacks : public BLEClientCallbacks {
    public:
-    WavePlusClientCallbacks(std::function<void()> &&onConnected, std::function<void()> &&onDisconnected);
-    void onConnect(BLEClient *pClient) override;
-    void onDisconnect(BLEClient *pClient) override;
+    WavePlusClientCallbacks(std::function<void()> &&on_connected, std::function<void()> &&on_disconnected);
+    void onConnect(BLEClient *p_client) override;
+    void onDisconnect(BLEClient *p_client) override;
 
    protected:
-    std::function<void()> onConnected_;
-    std::function<void()> onDisconnected_;
+    std::function<void()> on_connected_;
+    std::function<void()> on_disconnected_;
   };
 
   struct WavePlusReadings {

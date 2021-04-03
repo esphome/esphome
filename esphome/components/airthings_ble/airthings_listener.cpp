@@ -1,10 +1,10 @@
-#include "AirThingsListener.h"
+#include "airthings_listener.h"
 #include "esphome/core/log.h"
 
 #ifdef ARDUINO_ARCH_ESP32
 
 namespace esphome {
-namespace airthings_wave_plus {
+namespace airthings_ble {
 
 static const char *TAG = "airthings_ble";
 
@@ -24,7 +24,7 @@ bool AirthingsListener::parse_device(const esp32_ble_tracker::ESPBTDevice &devic
   return false;
 }
 
-}  // namespace airthings_wave_plus
+}  // namespace airthings_ble
 }  // namespace esphome
 
 #endif
