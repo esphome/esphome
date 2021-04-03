@@ -414,6 +414,7 @@ void Tuya::set_datapoint_value(uint8_t datapoint_id, uint32_t value) {
   }
   if (datapoint->value_uint == value) {
     ESP_LOGV(TAG, "Not sending unchanged value");
+    return;
   }
 
   std::vector<uint8_t> data;
@@ -441,6 +442,7 @@ void Tuya::set_datapoint_value(uint8_t datapoint_id, std::string value) {
   }
   if (datapoint->value_string == value) {
     ESP_LOGV(TAG, "Not sending unchanged value");
+    return;
   }
   std::vector<uint8_t> data;
   for (char const &c : value) {
