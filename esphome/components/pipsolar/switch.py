@@ -2,12 +2,12 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import uart, switch
 from esphome.const import CONF_HUMIDITY, CONF_ID, CONF_TEMPERATURE, CONF_INVERTED, CONF_ICON, ICON_POWER, \
-    DEVICE_CLASS_TEMPERATURE,DEVICE_CLASS_POWER, ICON_EMPTY, UNIT_CELSIUS, UNIT_PERCENT, UNIT_VOLT, UNIT_EMPTY
+    DEVICE_CLASS_TEMPERATURE,DEVICE_CLASS_POWER, ICON_EMPTY, UNIT_CELSIUS, UNIT_PERCENT, UNIT_VOLT, UNIT_EMPTY, \
+    CONF_PIPSOLAR_ID
 from . import PipsolarComponent, pipsolar_ns
 
 DEPENDENCIES = ['uart']
 
-CONF_PIPSOLAR_ID = 'pipsolar_id'
 CONF_GRID_VOLTAGE = 'grid_voltage'
 
 CONF_OUTPUT_SOURCE_PRIORITY_UTILITY = 'output_source_priority_utility'

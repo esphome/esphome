@@ -2,12 +2,10 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import uart, binary_sensor
 from esphome.const import CONF_HUMIDITY, CONF_ID, CONF_TEMPERATURE, \
-    DEVICE_CLASS_TEMPERATURE,DEVICE_CLASS_POWER, ICON_EMPTY, UNIT_AMPERE, UNIT_CELSIUS, UNIT_HERTZ, UNIT_PERCENT, UNIT_VOLT, UNIT_EMPTY, UNIT_VOLT_AMPS, UNIT_WATT
+    DEVICE_CLASS_TEMPERATURE,DEVICE_CLASS_POWER, ICON_EMPTY, UNIT_AMPERE, UNIT_CELSIUS, UNIT_HERTZ, UNIT_PERCENT, UNIT_VOLT, UNIT_EMPTY, UNIT_VOLT_AMPS, UNIT_WATT,CONF_PIPSOLAR_ID
 from . import PipsolarComponent, pipsolar_ns
 
 DEPENDENCIES = ['uart']
-
-CONF_PIPSOLAR_ID = 'pipsolar_id'
 
 CONF_ADD_SBU_PRIORITY_VERSION = 'add_sbu_priority_version';
 CONF_CONFIGURATION_STATUS = 'configuration_status';

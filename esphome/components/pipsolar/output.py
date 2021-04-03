@@ -1,13 +1,12 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import output
-from esphome.const import CONF_CHANNEL, CONF_ID
+from esphome.const import CONF_CHANNEL, CONF_ID, CONF_PIPSOLAR_ID
 from . import PipsolarComponent, pipsolar_ns
 
 DEPENDENCIES = ["pipsolar"]
 
 PipsolarOutput = pipsolar_ns.class_("PipsolarOutput", output.FloatOutput)
-CONF_PIPSOLAR_ID = 'pipsolar_id'
 CONF_POSSIBLE_VALUES = 'possible_values'
 
 BATTERY_RECHARGE_VOLTAGE_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend({
