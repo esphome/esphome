@@ -7,8 +7,6 @@ from . import PipsolarComponent, pipsolar_ns
 
 DEPENDENCIES = ['uart']
 
-CONF_GRID_VOLTAGE = 'grid_voltage'
-
 # QPIRI sensors
 CONF_GRID_RATING_VOLTAGE = 'grid_rating_voltage';
 CONF_GRID_RATING_CURRENT = 'grid_rating_current';
