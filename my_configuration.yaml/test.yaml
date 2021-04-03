@@ -1,0 +1,87 @@
+substitutions:
+  # Modify variables based on your settings
+  hostname: 'thingswave01'
+  domain: '.jaynet.internal'
+  wifissid: 'NCNET3'
+  wifipassword: 'thisisthesecureiotkey'
+  
+esphome:
+  name: $hostname
+  platform: ESP32
+  board: esp32dev
+
+wifi:
+  ssid: $wifissid
+  password: $wifipassword
+  domain: $domain
+  fast_connect: true
+  ap:
+    ssid: $hostname-AP
+    password: $hostname-esphome
+    
+web_server:
+  port: 80
+  
+# Sync time with Home Assistant.
+time:
+  - platform: homeassistant
+    id: homeassistant_time
+
+ota:
+
+logger:
+  level: DEBUG
+  # baud_rate: 0 # disable to avoid interference with the relays
+
+# Text sensors with general information.
+text_sensor:
+  # Expose ESPHome version as sensor.
+  - platform: version
+    name: $hostname ESPHome Version
+    
+  # Expose WiFi information as sensors.
+  - platform: wifi_info
+    ip_address:
+      name: $hostname IP
+    ssid:
+      name: $hostname SSID
+    bssid:
+      name: $hostname BSSID
+
+# Sensors with general information.
+sensor:
+  # Uptime sensor.
+  - platform: uptime
+    name: $hostname Uptime
+
+  # WiFi Signal sensor.
+  - platform: wifi_signal
+    name: $hostname WiFi Signal
+    update_interval: 30s
+    
+  - platform: airthings_wave_plus
+    mac_address: '04:ee:03:bb:b3:47'
+    #mac_address: '04:ee:03:00:00:00'
+    temperature:
+      name: "WavePlus Temperature"
+    radon:
+      name: "WavePlus Radon"
+    radon_long_term:
+      name: "WavePlus Radon Long Term"
+    pressure:
+      name: "WavePlus Pressure"
+    humidity:
+      name: "WavePlus Humitidy"
+    co2:
+      name: "WavePlus CO2"
+    tvoc:
+      name: "WavePlus VOC"
+  
+#esp32_ble_tracker:
+#airthings_ble:
+      
+binary_sensor:
+  - platform: status
+    name: "$hostname Status"
+
+api:
