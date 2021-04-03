@@ -28,7 +28,7 @@ from esphome.const import (
     CONF_HOUR,
     CONF_MINUTE,
 )
-from esphome.core import coroutine, coroutine_with_priority
+from esphome.core import coroutine_with_priority
 from esphome.automation import Condition
 
 _LOGGER = logging.getLogger(__name__)
@@ -380,8 +380,7 @@ TIME_SCHEMA = cv.Schema(
 ).extend(cv.polling_component_schema("15min"))
 
 
-@coroutine
-def setup_time_core_(time_var, config):
+async def setup_time_core_(time_var, config):
     cg.add(time_var.set_timezone(config[CONF_TIMEZONE]))
 
     for conf in config.get(CONF_ON_TIME, []):
@@ -400,23 +399,22 @@ def setup_time_core_(time_var, config):
         days_of_week = conf.get(CONF_DAYS_OF_WEEK, list(range(1, 8)))
         cg.add(trigger.add_days_of_week(days_of_week))
 
-        yield cg.register_component(trigger, conf)
-        yield automation.build_automation(trigger, [], conf)
+        await cg.register_component(trigger, conf)
+        await automation.build_automation(trigger, [], conf)
 
     for conf in config.get(CONF_ON_TIME_SYNC, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], time_var)
 
-        yield cg.register_component(trigger, conf)
-        yield automation.build_automation(trigger, [], conf)
+        await cg.register_component(trigger, conf)
+        await automation.build_automation(trigger, [], conf)
 
 
-@coroutine
-def register_time(time_var, config):
-    yield setup_time_core_(time_var, config)
+async def register_time(time_var, config):
+    await setup_time_core_(time_var, config)
 
 
 @coroutine_with_priority(100.0)
-def to_code(config):
+async def to_code(config):
     cg.add_define("USE_TIME")
     cg.add_global(time_ns.using)
 
@@ -430,6 +428,6 @@ def to_code(config):
         }
     ),
 )
-def time_has_time_to_code(config, condition_id, template_arg, args):
-    paren = yield cg.get_variable(config[CONF_ID])
-    yield cg.new_Pvariable(condition_id, template_arg, paren)
+async def time_has_time_to_code(config, condition_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(condition_id, template_arg, paren)

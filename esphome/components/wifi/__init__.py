@@ -274,7 +274,7 @@ def wifi_network(config, static_ip):
 
 
 @coroutine_with_priority(60.0)
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add(var.set_use_address(config[CONF_USE_ADDRESS]))
 
@@ -299,9 +299,9 @@ def to_code(config):
     cg.add_define("USE_WIFI")
 
     # Register at end for OTA safe mode
-    yield cg.register_component(var, config)
+    await cg.register_component(var, config)
 
 
 @automation.register_condition("wifi.connected", WiFiConnectedCondition, cv.Schema({}))
-def wifi_connected_to_code(config, condition_id, template_arg, args):
-    yield cg.new_Pvariable(condition_id, template_arg)
+async def wifi_connected_to_code(config, condition_id, template_arg, args):
+    return cg.new_Pvariable(condition_id, template_arg)

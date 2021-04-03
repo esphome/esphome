@@ -6,7 +6,7 @@ CODEOWNERS = ["@OttoWinter"]
 
 
 @coroutine_with_priority(200.0)
-def to_code(config):
+async def to_code(config):
     if CORE.is_esp32:
         # https://github.com/OttoWinter/AsyncTCP/blob/master/library.json
         cg.add_library("AsyncTCP-esphome", "1.1.1")

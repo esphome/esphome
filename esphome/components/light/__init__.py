@@ -17,7 +17,7 @@ from esphome.const import (
     CONF_ON_TURN_ON,
     CONF_TRIGGER_ID,
 )
-from esphome.core import coroutine, coroutine_with_priority
+from esphome.core import coroutine_with_priority
 from .automation import light_control_to_code  # noqa
 from .effects import (
     validate_effects,
@@ -102,8 +102,7 @@ ADDRESSABLE_LIGHT_SCHEMA = RGB_LIGHT_SCHEMA.extend(
 )
 
 
-@coroutine
-def setup_light_core_(light_var, output_var, config):
+async def setup_light_core_(light_var, output_var, config):
     cg.add(light_var.set_restore_mode(config[CONF_RESTORE_MODE]))
     if CONF_INTERNAL in config:
         cg.add(light_var.set_internal(config[CONF_INTERNAL]))
@@ -115,39 +114,38 @@ def setup_light_core_(light_var, output_var, config):
         )
     if CONF_GAMMA_CORRECT in config:
         cg.add(light_var.set_gamma_correct(config[CONF_GAMMA_CORRECT]))
-    effects = yield cg.build_registry_list(
+    effects = await cg.build_registry_list(
         EFFECTS_REGISTRY, config.get(CONF_EFFECTS, [])
     )
     cg.add(light_var.add_effects(effects))
 
     for conf in config.get(CONF_ON_TURN_ON, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], light_var)
-        yield auto.build_automation(trigger, [], conf)
+        await auto.build_automation(trigger, [], conf)
     for conf in config.get(CONF_ON_TURN_OFF, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], light_var)
-        yield auto.build_automation(trigger, [], conf)
+        await auto.build_automation(trigger, [], conf)
 
     if CONF_COLOR_CORRECT in config:
         cg.add(output_var.set_correction(*config[CONF_COLOR_CORRECT]))
 
     if CONF_POWER_SUPPLY in config:
-        var_ = yield cg.get_variable(config[CONF_POWER_SUPPLY])
+        var_ = await cg.get_variable(config[CONF_POWER_SUPPLY])
         cg.add(output_var.set_power_supply(var_))
 
     if CONF_MQTT_ID in config:
         mqtt_ = cg.new_Pvariable(config[CONF_MQTT_ID], light_var)
-        yield mqtt.register_mqtt_component(mqtt_, config)
+        await mqtt.register_mqtt_component(mqtt_, config)
 
 
-@coroutine
-def register_light(output_var, config):
+async def register_light(output_var, config):
     light_var = cg.new_Pvariable(config[CONF_ID], config[CONF_NAME], output_var)
     cg.add(cg.App.register_light(light_var))
-    yield cg.register_component(light_var, config)
-    yield setup_light_core_(light_var, output_var, config)
+    await cg.register_component(light_var, config)
+    await setup_light_core_(light_var, output_var, config)
 
 
 @coroutine_with_priority(100.0)
-def to_code(config):
+async def to_code(config):
     cg.add_define("USE_LIGHT")
     cg.add_global(light_ns.using)
