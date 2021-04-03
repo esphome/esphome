@@ -20,6 +20,9 @@ void Sim800LComponent::update() {
     if (this->registered_ && this->send_pending_) {
       this->send_cmd_("AT+CSCS=\"GSM\"");
       this->state_ = STATE_SENDINGSMS1;
+    } else if (this->registered_ && this->dial_pending_) {
+      this->send_cmd_("AT+CSCS=\"GSM\"");
+      this->state_ = STATE_DIALING1;
     } else {
       this->send_cmd_("AT");
       this->state_ = STATE_CHECK_AT;
@@ -212,6 +215,23 @@ void Sim800LComponent::parse_cmd_(std::string message) {
         this->expect_ack_ = true;
       }
       break;
+    case STATE_DIALING1:
+      this->send_cmd_("ATD" + this->recipient_ + ';');
+      this->state_ = STATE_DIALING2;
+      break;
+    case STATE_DIALING2:
+      if (message == "OK") {
+        // Dialing
+        ESP_LOGD(TAG, "Dialing: '%s'", this->recipient_.c_str());
+        this->state_ = STATE_INIT;
+        this->dial_pending_ = false;
+      } else {
+        this->registered_ = false;
+        this->state_ = STATE_INIT;
+        this->send_cmd_("AT+CMEE=2");
+        this->write(26);
+      }
+      break;
     default:
       ESP_LOGD(TAG, "Unhandled: %s - %d", message.c_str(), this->state_);
       break;
@@ -258,6 +278,12 @@ void Sim800LComponent::send_sms(std::string recipient, std::string message) {
 void Sim800LComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "SIM800L:");
   ESP_LOGCONFIG(TAG, "  RSSI: %d dB", this->rssi_);
+}
+void Sim800LComponent::dial(std::string recipient) {
+  ESP_LOGD(TAG, "Dialing %s", recipient.c_str());
+  this->recipient_ = recipient;
+  this->dial_pending_ = true;
+  this->update();
 }
 
 }  // namespace sim800l

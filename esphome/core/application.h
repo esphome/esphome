@@ -37,8 +37,12 @@ namespace esphome {
 
 class Application {
  public:
-  void pre_setup(const std::string &name, const char *compilation_time) {
-    this->name_ = name;
+  void pre_setup(const std::string &name, const char *compilation_time, bool name_add_mac_suffix) {
+    if (name_add_mac_suffix) {
+      this->name_ = name + "_" + get_mac_address().substr(6);
+    } else {
+      this->name_ = name;
+    }
     this->compilation_time_ = compilation_time;
     global_preferences.begin();
   }

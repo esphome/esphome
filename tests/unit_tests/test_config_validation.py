@@ -2,7 +2,7 @@ import pytest
 import string
 
 from hypothesis import given, example
-from hypothesis.strategies import one_of, text, integers, booleans, builds
+from hypothesis.strategies import one_of, text, integers, builds
 
 from esphome import config_validation
 from esphome.config_validation import Invalid
@@ -24,7 +24,7 @@ def test_alphanumeric__valid(value):
 @pytest.mark.parametrize("value", ("£23", "Foo!"))
 def test_alphanumeric__invalid(value):
     with pytest.raises(Invalid):
-        actual = config_validation.alphanumeric(value)
+        config_validation.alphanumeric(value)
 
 
 @given(value=text(alphabet=string.ascii_lowercase + string.digits + "_-"))
@@ -34,9 +34,7 @@ def test_valid_name__valid(value):
     assert actual == value
 
 
-@pytest.mark.parametrize("value", (
-    "foo bar", "FooBar", "foo::bar"
-))
+@pytest.mark.parametrize("value", ("foo bar", "FooBar", "foo::bar"))
 def test_valid_name__invalid(value):
     with pytest.raises(Invalid):
         config_validation.valid_name(value)
@@ -49,9 +47,7 @@ def test_string__valid(value):
     assert actual == str(value)
 
 
-@pytest.mark.parametrize("value", (
-    {}, [], True, False, None
-))
+@pytest.mark.parametrize("value", ({}, [], True, False, None))
 def test_string__invalid(value):
     with pytest.raises(Invalid):
         config_validation.string(value)
@@ -83,23 +79,17 @@ def test_icon__invalid():
         config_validation.icon("foo")
 
 
-@pytest.mark.parametrize("value", (
-    "True", "YES", "on", "enAblE", True
-))
+@pytest.mark.parametrize("value", ("True", "YES", "on", "enAblE", True))
 def test_boolean__valid_true(value):
     assert config_validation.boolean(value) is True
 
 
-@pytest.mark.parametrize("value", (
-    "False", "NO", "off", "disAblE", False
-))
+@pytest.mark.parametrize("value", ("False", "NO", "off", "disAblE", False))
 def test_boolean__valid_false(value):
     assert config_validation.boolean(value) is False
 
 
-@pytest.mark.parametrize("value", (
-    None, 1, 0, "foo"
-))
+@pytest.mark.parametrize("value", (None, 1, 0, "foo"))
 def test_boolean__invalid(value):
     with pytest.raises(Invalid, match="Expected boolean value"):
         config_validation.boolean(value)
