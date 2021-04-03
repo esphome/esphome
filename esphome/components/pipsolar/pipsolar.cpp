@@ -458,7 +458,6 @@ uint8_t Pipsolar::check_incoming_crc() {
   uint16_t crc16;
   crc16 = calc_crc(read_buffer_,read_pos_ - 3);
   ESP_LOGD(TAG,"checking crc on incoming message");
-//  if (highByte(crc16) == read_buffer_[read_pos_-3] && lowByte(crc16) == read_buffer_[read_pos_-2]) {          
   if (((uint8_t) ((crc16) >> 8)) == read_buffer_[read_pos_-3] && ((uint8_t) ((crc16) & 0xff)) == read_buffer_[read_pos_-2]) {          
     ESP_LOGD(TAG, "CRC OK");
     read_buffer_[read_pos_-1]=0;
