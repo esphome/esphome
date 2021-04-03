@@ -5,23 +5,24 @@ from esphome.const import CONF_ID, CONF_ICON
 from esphome.core import coroutine
 from . import BME680BSECComponent, CONF_BME680_BSEC_ID
 
-DEPENDENCIES = ['bme680_bsec']
+DEPENDENCIES = ["bme680_bsec"]
 
-CONF_IAQ_ACCURACY = 'iaq_accuracy'
-ICON_ACCURACY = 'mdi:checkbox-marked-circle-outline'
+CONF_IAQ_ACCURACY = "iaq_accuracy"
+ICON_ACCURACY = "mdi:checkbox-marked-circle-outline"
 
-TYPES = {
-    CONF_IAQ_ACCURACY: 'set_iaq_accuracy_text_sensor',
-}
+TYPES = {CONF_IAQ_ACCURACY: "set_iaq_accuracy_text_sensor"}
 
-CONFIG_SCHEMA = cv.Schema({
-    cv.GenerateID(CONF_BME680_BSEC_ID): cv.use_id(BME680BSECComponent),
-    cv.Optional(CONF_IAQ_ACCURACY):
-        text_sensor.TEXT_SENSOR_SCHEMA.extend({
-            cv.GenerateID(): cv.declare_id(text_sensor.TextSensor),
-            cv.Optional(CONF_ICON, default=ICON_ACCURACY): cv.icon,
-        }),
-})
+CONFIG_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(CONF_BME680_BSEC_ID): cv.use_id(BME680BSECComponent),
+        cv.Optional(CONF_IAQ_ACCURACY): text_sensor.TEXT_SENSOR_SCHEMA.extend(
+            {
+                cv.GenerateID(): cv.declare_id(text_sensor.TextSensor),
+                cv.Optional(CONF_ICON, default=ICON_ACCURACY): cv.icon,
+            }
+        ),
+    }
+)
 
 
 @coroutine
