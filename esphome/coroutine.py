@@ -58,6 +58,15 @@ def coroutine(func: Callable[..., Any]) -> Callable[..., Awaitable[Any]]:
     if getattr(func, "_esphome_coroutine", False):
         # If func is already a coroutine, do not re-wrap it (performance)
         return func
+    if inspect.isasyncgenfunction(func):
+        # Trade-off: In ESPHome, there's not really a use-case for async generators.
+        # and during the transition to new-style syntax it will happen that a `yield`
+        # is not replaced properly, so don't accept async generators.
+        raise ValueError(
+            f"Async generator functions are not allowed. "
+            f"Please check whether you've replaced all yields with awaits/returns. "
+            f"See {func} in {func.__module__}"
+        )
     if inspect.iscoroutinefunction(func):
         # A new-style async-def coroutine function, no conversion needed.
         return func
