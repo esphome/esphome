@@ -22,36 +22,36 @@ void AirthingsWavePlus::client_disconnected_() {
 }
 
 void AirthingsWavePlus::read_sensors_() {
-  auto serviceUUID = std::string("b42e1c08-ade7-11e4-89d3-123b93f75cba");
-  auto sensorsDataCharacteristicUUID = std::string("b42e2a68-ade7-11e4-89d3-123b93f75cba");
+  auto service_uuid = std::string("b42e1c08-ade7-11e4-89d3-123b93f75cba");
+  auto sensors_data_characteristic_uuid = std::string("b42e2a68-ade7-11e4-89d3-123b93f75cba");
 
   ESP_LOGD(TAG, "Getting service");
 
   // Obtain a reference to the service we are after in the remote BLE server.
-  auto pRemoteService = client_->getService(serviceUUID);
-  if (pRemoteService == nullptr) {
-    ESP_LOGE(TAG, "Failed to find service with UUID: %s", serviceUUID.c_str());
+  auto p_remote_service = client_->getService(service_uuid);
+  if (p_remote_service == nullptr) {
+    ESP_LOGE(TAG, "Failed to find service with UUID: %s", service_uuid.c_str());
     return;
   }
 
   ESP_LOGD(TAG, "Found service");
 
   // Obtain a reference to the characteristic in the service of the remote BLE server.
-  auto pSensorsDataCharacteristic = pRemoteService->getCharacteristic(sensorsDataCharacteristicUUID);
-  if (pSensorsDataCharacteristic == nullptr) {
-    ESP_LOGE(TAG, "Failed to find characteristic UUID: %s", sensorsDataCharacteristicUUID.c_str());
+  auto p_sensors_data_characteristic = p_remote_service->getCharacteristic(sensors_data_characteristic_uuid);
+  if (p_sensors_data_characteristic == nullptr) {
+    ESP_LOGE(TAG, "Failed to find characteristic UUID: %s", sensors_data_characteristic_uuid.c_str());
     return;
   }
 
   ESP_LOGD(TAG, "Found characteristic");
 
-  if (pSensorsDataCharacteristic->canRead()) {
-    auto stringValue = pSensorsDataCharacteristic->readValue();
-    auto value = (WavePlusReadings *) pSensorsDataCharacteristic->readRawData();
+  if (p_sensors_data_characteristic->canRead()) {
+    auto string_value = p_sensors_data_characteristic->readValue();
+    auto value = (WavePlusReadings *) p_sensors_data_characteristic->readRawData();
 
-    if (sizeof(WavePlusReadings) <= stringValue.length()) {
-      ESP_LOGD(TAG, "Values: %d (%d) (%p)", stringValue.length(), sizeof(WavePlusReadings),
-               pSensorsDataCharacteristic->readRawData());
+    if (sizeof(WavePlusReadings) <= string_value.length()) {
+      ESP_LOGD(TAG, "Values: %d (%d) (%p)", string_value.length(), sizeof(WavePlusReadings),
+               p_sensors_data_characteristic->readRawData());
       ESP_LOGD(TAG, "version = %d", value->version);
 
       if (value->version == 1) {
@@ -66,11 +66,11 @@ void AirthingsWavePlus::read_sensors_() {
         this->tvoc_sensor_->publish_state(value->voc);
       } else {
         ESP_LOGE(TAG, "Characteristic UUID %s invalid version (%d != 1, newer version or not a Wave Plus?)",
-                 sensorsDataCharacteristicUUID.c_str(), value->version);
+                 sensors_data_characteristic_uuid.c_str(), value->version);
       }
     } else {
       ESP_LOGE(TAG, "Characteristic UUID %s invalid data length (%d < %d), newer version or not a Wave Plus?)",
-               sensorsDataCharacteristicUUID.c_str(), sizeof(WavePlusReadings), stringValue.length());
+               sensors_data_characteristic_uuid.c_str(), sizeof(WavePlusReadings), string_value.length());
     }
   }
 
@@ -83,24 +83,24 @@ void AirthingsWavePlus::update_() {
   if (!client_->isConnected()) {
     auto currentTime = millis();
 
-    auto valueDelta = currentTime - last_value_time_;
-    auto connectDelta = currentTime - last_connect_time_;
+    auto value_delta = currentTime - last_value_time_;
+    auto connect_delta = currentTime - last_connect_time_;
 
     connected_ = false;
 
-    if (update_count_ > 1 && !connecting_ && valueDelta >= refresh_interval_in_seconds_ * 1000 &&
-        connectDelta >= connection_timeout_in_seconds_ * 1000) {
+    if (update_count_ > 1 && !connecting_ && value_delta >= refresh_interval_in_seconds_ * 1000 &&
+        connect_delta >= connection_timeout_in_seconds_ * 1000) {
       auto address = BLEAddress(address_);
       ESP_LOGD(TAG, "Connecting to %s", address.toString().c_str());
       client_->connect(address);
       connecting_ = true;
       last_connect_time_ = currentTime;
-    } else if (connecting_ && connectDelta >= connection_timeout_in_seconds_ * 1000) {
+    } else if (connecting_ && connect_delta >= connection_timeout_in_seconds_ * 1000) {
       ESP_LOGD(TAG, "Stop trying to connect");
       connecting_ = false;
       client_->disconnect();
     } else {
-      ESP_LOGD(TAG, "Not connected (valueDelta:%lds connectDelta:%lds)", valueDelta / 1000, connectDelta / 1000);
+      ESP_LOGD(TAG, "Not connected (value_delta:%lds connect_delta:%lds)", value_delta / 1000, connect_delta / 1000);
     }
   }
 }
@@ -123,9 +123,9 @@ AirthingsWavePlus::AirthingsWavePlus() {
   BLEDevice::init("");
 
   client_ = BLEDevice::createClient();
-  auto clientCallbacks =
+  auto client_callbacks =
       new WavePlusClientCallbacks([this] { this->client_connected_(); }, [this] { this->client_disconnected_(); });
-  client_->setClientCallbacks(clientCallbacks);
+  client_->setClientCallbacks(client_callbacks);
 
   set_interval("connect", 10000, [this] { this->update_(); });
 }
