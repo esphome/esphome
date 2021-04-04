@@ -66,6 +66,24 @@ def validate_temperature_multipliers(value):
         value[CONF_TEMPERATURE_MULTIPLIER] = 1.0
     return value
 
+def validate_active_state_values(value):
+    if CONF_ACTIVE_STATE_DATAPOINT not in value:
+        return value
+    if value[CONF_SUPPORTS_HEAT] and CONF_ACTIVE_STATE_HEATING_VALUE not in value:
+        raise cv.Invalid(
+            (
+                f"{CONF_ACTIVE_STATE_HEATING_VALUE} required if using "
+                f"{CONF_ACTIVE_STATE_DATAPOINT} and device supports heating"
+            )
+        )
+    if value[CONF_SUPPORTS_COOL] and CONF_ACTIVE_STATE_COOLING_VALUE not in value:
+        raise cv.Invalid(
+            (
+                f"{CONF_ACTIVE_STATE_COOLING_VALUE} required if using "
+                f"{CONF_ACTIVE_STATE_DATAPOINT} and device supports cooling"
+            )
+        )
+    return value
 
 CONFIG_SCHEMA = cv.All(
     climate.CLIMATE_SCHEMA.extend(
@@ -87,6 +105,7 @@ CONFIG_SCHEMA = cv.All(
     ).extend(cv.COMPONENT_SCHEMA),
     cv.has_at_least_one_key(CONF_TARGET_TEMPERATURE_DATAPOINT, CONF_SWITCH_DATAPOINT),
     validate_temperature_multipliers,
+    validate_active_state_values,
 )
 
 
