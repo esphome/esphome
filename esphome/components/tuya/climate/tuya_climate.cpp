@@ -104,9 +104,10 @@ void TuyaClimate::compute_state_() {
 
   climate::ClimateAction target_action = climate::CLIMATE_ACTION_IDLE;
   if (this->active_state_id_.has_value()) {
-    if (this->active_state_heating_value_.has_value() && this->active_state_ == this->active_state_heating_value_) {
+    if (this->supports_heat_ && this->active_state_heating_value_.has_value() &&
+        this->active_state_ == this->active_state_heating_value_) {
       target_action = climate::CLIMATE_ACTION_HEATING;
-    } else if (this->active_state_cooling_value_.has_value() &&
+    } else if (this->supports_cool_ && this->active_state_cooling_value_.has_value() &&
                this->active_state_ == this->active_state_cooling_value_) {
       target_action = climate::CLIMATE_ACTION_COOLING;
     }
@@ -114,9 +115,9 @@ void TuyaClimate::compute_state_() {
     // Fallback to active state calc based on temp and hysteresis
     const float temp_diff = this->target_temperature - this->current_temperature;
     if (std::abs(temp_diff) > this->hysteresis_) {
-      if (temp_diff > 0 && this->supports_heat_) {
+      if (this->supports_heat_ && temp_diff > 0) {
         target_action = climate::CLIMATE_ACTION_HEATING;
-      } else if (temp_diff < 0 && this->supports_cool_) {
+      } else if (this->supports_cool_ && temp_diff < 0) {
         target_action = climate::CLIMATE_ACTION_COOLING;
       }
     }
