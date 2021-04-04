@@ -1,3 +1,5 @@
+import re
+
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
@@ -22,7 +24,7 @@ CONF_ON_SUNSET = "on_sunset"
 
 # Default sun elevation is a bit below horizon because sunset
 # means time when the entire sun disk is below the horizon
-DEFAULT_ELEVATION = -0.883
+DEFAULT_ELEVATION = -0.83333
 
 ELEVATION_MAP = {
     "sunrise": 0.0,
@@ -45,12 +47,50 @@ def elevation(value):
     return cv.float_range(min=-180, max=180)(value)
 
 
+# Parses sexagesimal values like 22°57′7″S
+LAT_LON_REGEX = re.compile(
+    r'([+\-])?\s*([0-9]+)°\s*(?:([0-9]+)\s*[′\'])?\s*(?:([0-9]+)\s*[″"])?\s*([NESW])?'
+)
+
+
+def parse_latlon(value):
+    if isinstance(value, str) and value.endswith("°"):
+        # strip trailing degree character
+        value = value[:-1]
+    try:
+        return cv.float_(value)
+    except cv.Invalid:
+        pass
+
+    value = cv.string_strict(value)
+    m = LAT_LON_REGEX.match(value)
+
+    if m is None:
+        raise cv.Invalid("Invalid format for latitude/longitude")
+    sign = m.group(1)
+    deg = m.group(2)
+    minute = m.group(3)
+    second = m.group(4)
+    d = m.group(5)
+
+    val = float(deg) + float(minute or 0) / 60 + float(second or 0) / 3600
+    if sign == "-":
+        val *= -1
+    if d and d in "SW":
+        val *= -1
+    return val
+
+
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(Sun),
         cv.GenerateID(CONF_TIME_ID): cv.use_id(time.RealTimeClock),
-        cv.Required(CONF_LATITUDE): cv.float_range(min=-90, max=90),
-        cv.Required(CONF_LONGITUDE): cv.float_range(min=-180, max=180),
+        cv.Required(CONF_LATITUDE): cv.All(
+            parse_latlon, cv.float_range(min=-90, max=90)
+        ),
+        cv.Required(CONF_LONGITUDE): cv.All(
+            parse_latlon, cv.float_range(min=-180, max=180)
+        ),
         cv.Optional(CONF_ON_SUNRISE): automation.validate_automation(
             {
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(SunTrigger),
