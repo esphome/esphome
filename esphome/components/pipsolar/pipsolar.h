@@ -25,7 +25,7 @@ enum PollingCommand {
 struct polling_command {
   uint8_t *command;
   uint8_t length = 0;
-// for future use: Error Counting  uint8_t errors;
+  uint8_t errors;
   PollingCommand identifier;
 };
 class PipsolarSwitch;

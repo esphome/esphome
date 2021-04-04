@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import uart, sensor
-from esphome.const import CONF_HUMIDITY, CONF_ID, CONF_TEMPERATURE, \
+from esphome.const import CONF_HUMIDITY, CONF_ID, \
     DEVICE_CLASS_TEMPERATURE,DEVICE_CLASS_POWER, ICON_EMPTY, UNIT_AMPERE, UNIT_CELSIUS, UNIT_HERTZ, UNIT_PERCENT, UNIT_VOLT, UNIT_EMPTY, UNIT_VOLT_AMPS, UNIT_WATT,CONF_PIPSOLAR_ID
 from . import PipsolarComponent, pipsolar_ns
 
@@ -53,11 +53,6 @@ CONF_BATTERY_DISCHARGE_CURRENT = 'battery_discharge_current';
 CONF_ADD_SBU_PRIORITY_VERSION = 'add_sbu_priority_version';
 CONF_CONFIGURATION_STATUS = 'configuration_status';
 CONF_SCC_FIRMWARE_VERSION = 'scc_firmware_version';
-CONF_LOAD_STATUS = 'load_status';
-CONF_BATTERY_VOLTAGE_TO_STEADY_WHILE_CHARGING = 'battery_voltage_to_steady_while_charging';
-CONF_CHARGING_STATUS = 'charging_status';
-CONF_SCC_CHARGING_STATUS = 'scc_charging_status';
-CONF_AC_CHARGING_STATUS = 'ac_charging_status';
 CONF_BATTERY_VOLTAGE_OFFSET_FOR_FANS_ON = 'battery_voltage_offset_for_fans_on';
 CONF_EEPROM_VERSION = 'eeprom_version';
 CONF_PV_CHARGING_POWER = 'pv_charging_power';
@@ -67,10 +62,6 @@ pipsolar_sensor_ns = cg.esphome_ns.namespace('pipsolarsensor')
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(pipsolar_sensor_ns),
     cv.Required(CONF_PIPSOLAR_ID): cv.use_id(PipsolarComponent),
-    cv.Optional(CONF_TEMPERATURE):
-        sensor.sensor_schema(UNIT_CELSIUS, ICON_EMPTY, 1, DEVICE_CLASS_TEMPERATURE),
-    cv.Optional(CONF_GRID_VOLTAGE):
-        sensor.sensor_schema(UNIT_VOLT, ICON_EMPTY, 1, DEVICE_CLASS_POWER),
 # QPIRI sensors
     cv.Optional(CONF_GRID_RATING_VOLTAGE ):
         sensor.sensor_schema(UNIT_VOLT, ICON_EMPTY, 1, DEVICE_CLASS_POWER),

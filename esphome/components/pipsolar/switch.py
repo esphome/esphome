@@ -8,8 +8,6 @@ from . import PipsolarComponent, pipsolar_ns
 
 DEPENDENCIES = ['uart']
 
-CONF_GRID_VOLTAGE = 'grid_voltage'
-
 CONF_OUTPUT_SOURCE_PRIORITY_UTILITY = 'output_source_priority_utility'
 CONF_OUTPUT_SOURCE_PRIORITY_SOLAR = 'output_source_priority_solar'
 CONF_OUTPUT_SOURCE_PRIORITY_BATTERY = 'output_source_priority_battery'
