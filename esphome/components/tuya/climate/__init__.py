@@ -66,6 +66,7 @@ def validate_temperature_multipliers(value):
         value[CONF_TEMPERATURE_MULTIPLIER] = 1.0
     return value
 
+
 def validate_active_state_values(value):
     if CONF_ACTIVE_STATE_DATAPOINT not in value:
         return value
@@ -84,6 +85,7 @@ def validate_active_state_values(value):
             )
         )
     return value
+
 
 CONFIG_SCHEMA = cv.All(
     climate.CLIMATE_SCHEMA.extend(
