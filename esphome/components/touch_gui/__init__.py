@@ -5,6 +5,7 @@ from esphome.const import CONF_ID, CONF_TRIGGER_ID
 from esphome.components import binary_sensor, display, font
 from esphome.helpers import color
 
+CODEOWNERS = ["@numo68"]
 AUTO_LOAD = ["binary_sensor"]
 
 touch_gui_ns = cg.esphome_ns.namespace("touch_gui")
