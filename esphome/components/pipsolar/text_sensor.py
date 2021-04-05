@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import text_sensor
-from esphome.const import CONF_PIPSOLAR_ID
+from esphome.const import CONF_ID, CONF_PIPSOLAR_ID
 from . import PipsolarComponent, pipsolar_ns
 
 DEPENDENCIES = ['uart']
