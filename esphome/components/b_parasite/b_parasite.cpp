@@ -10,7 +10,10 @@ static const char* TAG = "b_parasite";
 
 void BParasite::dump_config() {
   ESP_LOGCONFIG(TAG, "BParasite");
+  LOG_SENSOR("  ", "Battery Voltage", this->battery_voltage_);
+  LOG_SENSOR("  ", "Temperature", this->temperature_);
   LOG_SENSOR("  ", "Humidity", this->humidity_);
+  LOG_SENSOR("  ", "Soil Moisture", this->soil_moisture_);
 }
 
 bool BParasite::parse_device(const esp32_ble_tracker::ESPBTDevice& device) {
@@ -21,21 +24,24 @@ bool BParasite::parse_device(const esp32_ble_tracker::ESPBTDevice& device) {
   ESP_LOGVV(TAG, "parse_device(): MAC address %s found.", device.address_str().c_str());
   const auto& service_datas = device.get_service_datas();
   if (service_datas.size() != 1) {
-    ESP_LOGD(TAG, "Unexpected service_datas size (%d)", service_datas.size());
+    ESP_LOGE(TAG, "Unexpected service_datas size (%d)", service_datas.size());
     return false;
   }
   const auto& service_data = service_datas[0];
 
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG
   ESP_LOGD(TAG, "Service data:");
   for (const uint8_t byte : service_data.data) {
     ESP_LOGD(TAG, "0x%02x", byte);
   }
+#endif
+
   const auto& data = service_data.data;
 
   // Counter for deduplicating messages.
   uint8_t counter = data[1] & 0x0f;
   if (last_processed_counter_ == counter) {
-    ESP_LOGD(TAG, "Skipping already processed message");
+    ESP_LOGVV(TAG, "Skipping already processed counter (%u)", counter);
     return false;
   }
 
@@ -54,11 +60,6 @@ bool BParasite::parse_device(const esp32_ble_tracker::ESPBTDevice& device) {
   // A 16-bit encoded value representing the relative soil moisture in [0 - 2^16].
   uint16_t soil_moisture = data[8] << 8 | data[9];
   double moisture_percent = static_cast<double>(soil_moisture) / (1 << 16);
-
-  ESP_LOGD(TAG, "Battery: %fV (%u)", battery_voltage, battery_millivolt);
-  ESP_LOGD(TAG, "Temp: %foC (%u)", temp_celcius, temp_millicelcius);
-  ESP_LOGD(TAG, "Humidity: %f%% (%u)", 100 * humidity_percent, humidity);
-  ESP_LOGD(TAG, "Moisture: %f%% (%u)", 100 * moisture_percent, soil_moisture);
 
   if (battery_voltage_ != nullptr) {
     battery_voltage_->publish_state(battery_voltage);
