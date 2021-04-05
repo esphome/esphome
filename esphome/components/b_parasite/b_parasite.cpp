@@ -9,7 +9,7 @@ namespace b_parasite {
 static const char* TAG = "b_parasite";
 
 void BParasite::dump_config() {
-  ESP_LOGCONFIG(TAG, "b-parasite");
+  ESP_LOGCONFIG(TAG, "b_parasite");
   LOG_SENSOR("  ", "Battery Voltage", this->battery_voltage_);
   LOG_SENSOR("  ", "Temperature", this->temperature_);
   LOG_SENSOR("  ", "Humidity", this->humidity_);
@@ -45,19 +45,19 @@ bool BParasite::parse_device(const esp32_ble_tracker::ESPBTDevice& device) {
     return false;
   }
 
-  // A 16-bit encoded millivolt value for the battery voltage.
+  // Battery voltage in millivolts.
   uint16_t battery_millivolt = data[2] << 8 | data[3];
   double battery_voltage = battery_millivolt / 1000.0;
 
-  // An unsigned 16-bit value representing the temperature in 1000 * Celcius.
+  // Temperature in 1000 * Celcius.
   uint16_t temp_millicelcius = data[4] << 8 | data[5];
   double temp_celcius = temp_millicelcius / 1000.0;
 
-  // An unsigned Relative humidity in the range [0, 2^16].
+  // Relative air humidity in the range [0, 2^16).
   uint16_t humidity = data[6] << 8 | data[7];
   double humidity_percent = static_cast<double>(humidity) / (1 << 16);
 
-  // A 16-bit encoded value representing the relative soil moisture in [0 - 2^16].
+  // Relative soil moisture in [0 - 2^16).
   uint16_t soil_moisture = data[8] << 8 | data[9];
   double moisture_percent = static_cast<double>(soil_moisture) / (1 << 16);
 
