@@ -14,7 +14,7 @@ from esphome.const import (
     UNIT_WATT,
     CONF_PIPSOLAR_ID,
     CONF_BUS_VOLTAGE,
-    CONF_BATTERY_VOLTAGE
+    CONF_BATTERY_VOLTAGE,
 )
 from . import PipsolarComponent
 
