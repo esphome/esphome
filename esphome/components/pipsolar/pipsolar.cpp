@@ -427,6 +427,7 @@ void Pipsolar::loop() {
     switch (this->used_polling_commands_[this->last_polling_command_].identifier) {
       case POLLING_QPIRI:
         ESP_LOGD(TAG, "Decode QPIRI");
+        // NOLINT
         sscanf(tmp, "(%f %f %f %f %f %d %d %f %f %f %f %f %d %d %d %d %d %d %d %d %d %d %f %d %d",
                &value_grid_rating_voltage_, &value_grid_rating_current_, &value_ac_output_rating_voltage_,
                &value_ac_output_rating_frequency_, &value_ac_output_rating_current_,
@@ -436,8 +437,7 @@ void Pipsolar::loop() {
                &value_current_max_ac_charging_current_, &value_current_max_charging_current_,
                &value_input_voltage_range_, &value_output_source_priority_, &value_charger_source_priority_,
                &value_parallel_max_num_, &value_machine_type_, &value_topology_, &value_output_mode_,
-               &value_battery_redischarge_voltage_, &value_pv_ok_condition_for_parallel_,
-               &value_pv_power_balance_);  // NOLINT
+               &value_battery_redischarge_voltage_, &value_pv_ok_condition_for_parallel_, &value_pv_power_balance_);
         if (this->last_qpiri_) {
           this->last_qpiri_->publish_state(tmp);
         }
@@ -445,6 +445,7 @@ void Pipsolar::loop() {
         break;
       case POLLING_QPIGS:
         ESP_LOGD(TAG, "Decode QPIGS");
+        // NOLINT
         sscanf(tmp, "(%f %f %f %f %d %d %d %d %f %d %d %d %d %f %f %d %1d%1d%1d%1d%1d%1d%1d%1d %d %d %d %1d%1d%1d",
                &value_grid_voltage_, &value_grid_frequency_, &value_ac_output_voltage_, &value_ac_output_frequency_,
                &value_ac_output_apparent_power_, &value_ac_output_active_power_, &value_output_load_percent_,
@@ -455,8 +456,7 @@ void Pipsolar::loop() {
                &value_scc_firmware_version_, &value_load_status_, &value_battery_voltage_to_steady_while_charging_,
                &value_charging_status_, &value_scc_charging_status_, &value_ac_charging_status_,
                &value_battery_voltage_offset_for_fans_on_, &value_eeprom_version_, &value_pv_charging_power_,
-               &value_charging_to_floating_mode_, &value_switch_on_,
-               &value_dustproof_installed_);  // NOLINT
+               &value_charging_to_floating_mode_, &value_switch_on_, &value_dustproof_installed_);
         if (this->last_qpigs_) {
           this->last_qpigs_->publish_state(tmp);
         }
@@ -852,41 +852,34 @@ void Pipsolar::switch_command(String command) {
 void Pipsolar::dump_config() {
   ESP_LOGCONFIG(TAG, "Pipsolar:");
   ESP_LOGCONFIG(TAG, "used commands:");
-  // for (uint8_t i = 0; i < 15; i++) {
-  //   if (this->used_polling_commands_[i].length != 0) {
-  //     ESP_LOGCONFIG(TAG, "%s", this->used_polling_commands_[i].command);
-  //   }
-  // }
-  for (auto & used_polling_command : this->used_polling_commands_) {
+  for (auto& used_polling_command : this->used_polling_commands_) {
     if (used_polling_command.length != 0) {
       ESP_LOGCONFIG(TAG, "%s", used_polling_command.command);
     }
   }
-
 }
 void Pipsolar::update() {}
 
 void Pipsolar::add_polling_command_(const char* command, ENUMPollingCommand polling_command) {
-  for (uint8_t c = 0; c < 15; c++) {
-    if (this->used_polling_commands_[c].length == strlen(command)) {
+  for (auto& used_polling_command : this->used_polling_commands_) {
+    if (used_polling_command.length == strlen(command)) {
       uint8_t len = strlen(command);
-      if (memcmp(this->used_polling_commands_[c].command, command, len) == 0) {
+      if (memcmp(used_polling_command.command, command, len) == 0) {
         return;
       }
     }
-
-    if (this->used_polling_commands_[c].length == 0) {
+    if (used_polling_command.length == 0) {
       size_t length = strlen(command) + 1;
       const char* beg = command;
       const char* end = command + length;
-      this->used_polling_commands_[c].command = new uint8_t[length];
+      used_polling_command.command = new uint8_t[length];
       size_t i = 0;
       for (; beg != end; ++beg, ++i) {
-        this->used_polling_commands_[c].command[i] = (uint8_t)(*beg);
+        used_polling_command.command[i] = (uint8_t)(*beg);
       }
-      this->used_polling_commands_[c].errors = 0;
-      this->used_polling_commands_[c].identifier = polling_command;
-      this->used_polling_commands_[c].length = length - 1;
+      used_polling_command.errors = 0;
+      used_polling_command.identifier = polling_command;
+      used_polling_command.length = length - 1;
       return;
     }
   }
