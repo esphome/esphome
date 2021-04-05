@@ -5,19 +5,22 @@ from esphome.const import CONF_COMPONENT_ID, CONF_PAGE_ID, CONF_ID
 from . import nextion_ns
 from .display import Nextion
 
-DEPENDENCIES = ['display']
+DEPENDENCIES = ["display"]
 
-CONF_NEXTION_ID = 'nextion_id'
+CONF_NEXTION_ID = "nextion_id"
 
-NextionTouchComponent = nextion_ns.class_('NextionTouchComponent', binary_sensor.BinarySensor)
+NextionTouchComponent = nextion_ns.class_(
+    "NextionTouchComponent", binary_sensor.BinarySensor
+)
 
-CONFIG_SCHEMA = binary_sensor.BINARY_SENSOR_SCHEMA.extend({
-    cv.GenerateID(): cv.declare_id(NextionTouchComponent),
-    cv.GenerateID(CONF_NEXTION_ID): cv.use_id(Nextion),
-
-    cv.Required(CONF_PAGE_ID): cv.uint8_t,
-    cv.Required(CONF_COMPONENT_ID): cv.uint8_t,
-})
+CONFIG_SCHEMA = binary_sensor.BINARY_SENSOR_SCHEMA.extend(
+    {
+        cv.GenerateID(): cv.declare_id(NextionTouchComponent),
+        cv.GenerateID(CONF_NEXTION_ID): cv.use_id(Nextion),
+        cv.Required(CONF_PAGE_ID): cv.uint8_t,
+        cv.Required(CONF_COMPONENT_ID): cv.uint8_t,
+    }
+)
 
 
 def to_code(config):

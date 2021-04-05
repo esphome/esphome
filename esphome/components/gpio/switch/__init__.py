@@ -5,25 +5,30 @@ from esphome.components import switch
 from esphome.const import CONF_ID, CONF_INTERLOCK, CONF_PIN, CONF_RESTORE_MODE
 from .. import gpio_ns
 
-GPIOSwitch = gpio_ns.class_('GPIOSwitch', switch.Switch, cg.Component)
-GPIOSwitchRestoreMode = gpio_ns.enum('GPIOSwitchRestoreMode')
+GPIOSwitch = gpio_ns.class_("GPIOSwitch", switch.Switch, cg.Component)
+GPIOSwitchRestoreMode = gpio_ns.enum("GPIOSwitchRestoreMode")
 
 RESTORE_MODES = {
-    'RESTORE_DEFAULT_OFF': GPIOSwitchRestoreMode.GPIO_SWITCH_RESTORE_DEFAULT_OFF,
-    'RESTORE_DEFAULT_ON': GPIOSwitchRestoreMode.GPIO_SWITCH_RESTORE_DEFAULT_ON,
-    'ALWAYS_OFF': GPIOSwitchRestoreMode.GPIO_SWITCH_ALWAYS_OFF,
-    'ALWAYS_ON': GPIOSwitchRestoreMode.GPIO_SWITCH_ALWAYS_ON,
+    "RESTORE_DEFAULT_OFF": GPIOSwitchRestoreMode.GPIO_SWITCH_RESTORE_DEFAULT_OFF,
+    "RESTORE_DEFAULT_ON": GPIOSwitchRestoreMode.GPIO_SWITCH_RESTORE_DEFAULT_ON,
+    "ALWAYS_OFF": GPIOSwitchRestoreMode.GPIO_SWITCH_ALWAYS_OFF,
+    "ALWAYS_ON": GPIOSwitchRestoreMode.GPIO_SWITCH_ALWAYS_ON,
 }
 
-CONF_INTERLOCK_WAIT_TIME = 'interlock_wait_time'
-CONFIG_SCHEMA = switch.SWITCH_SCHEMA.extend({
-    cv.GenerateID(): cv.declare_id(GPIOSwitch),
-    cv.Required(CONF_PIN): pins.gpio_output_pin_schema,
-    cv.Optional(CONF_RESTORE_MODE, default='RESTORE_DEFAULT_OFF'):
-        cv.enum(RESTORE_MODES, upper=True, space='_'),
-    cv.Optional(CONF_INTERLOCK): cv.ensure_list(cv.use_id(switch.Switch)),
-    cv.Optional(CONF_INTERLOCK_WAIT_TIME, default='0ms'): cv.positive_time_period_milliseconds,
-}).extend(cv.COMPONENT_SCHEMA)
+CONF_INTERLOCK_WAIT_TIME = "interlock_wait_time"
+CONFIG_SCHEMA = switch.SWITCH_SCHEMA.extend(
+    {
+        cv.GenerateID(): cv.declare_id(GPIOSwitch),
+        cv.Required(CONF_PIN): pins.gpio_output_pin_schema,
+        cv.Optional(CONF_RESTORE_MODE, default="RESTORE_DEFAULT_OFF"): cv.enum(
+            RESTORE_MODES, upper=True, space="_"
+        ),
+        cv.Optional(CONF_INTERLOCK): cv.ensure_list(cv.use_id(switch.Switch)),
+        cv.Optional(
+            CONF_INTERLOCK_WAIT_TIME, default="0ms"
+        ): cv.positive_time_period_milliseconds,
+    }
+).extend(cv.COMPONENT_SCHEMA)
 
 
 def to_code(config):
