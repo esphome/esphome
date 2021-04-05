@@ -10,7 +10,7 @@ namespace total_daily_energy {
 
 class TotalDailyEnergy : public sensor::Sensor, public Component {
  public:
-  void set_min_save_interval(uint32_t min_interval) {this->min_save_interval_ = min_interval;}
+  void set_min_save_interval(uint32_t min_interval) { this->min_save_interval_ = min_interval; }
   void set_time(time::RealTimeClock *time) { time_ = time; }
   void set_parent(Sensor *parent) { parent_ = parent; }
   void setup() override;

@@ -27,7 +27,7 @@ class IntegrationSensor : public sensor::Sensor, public Component {
   void setup() override;
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::DATA; }
-  void set_min_save_interval(uint32_t min_interval) {this->min_save_interval_ = min_interval;}
+  void set_min_save_interval(uint32_t min_interval) { this->min_save_interval_ = min_interval; }
   void set_sensor(Sensor *sensor) { sensor_ = sensor; }
   void set_time(IntegrationSensorTime time) { time_ = time; }
   void set_method(IntegrationMethod method) { method_ = method; }

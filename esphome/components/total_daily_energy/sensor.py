@@ -33,4 +33,4 @@ def to_code(config):
     time_ = yield cg.get_variable(config[CONF_TIME_ID])
     cg.add(var.set_time(time_))
     if CONF_MIN_SAVE_INTERVAL in config:
-       cg.add(var.set_min_save_interval(config[CONF_MIN_SAVE_INTERVAL]);
+        cg.add(var.set_min_save_interval(config[CONF_MIN_SAVE_INTERVAL]))
