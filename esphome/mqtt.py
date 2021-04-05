@@ -28,7 +28,8 @@ from esphome.util import safe_print
 _LOGGER = logging.getLogger(__name__)
 
 
-def initialize(config, subscriptions, on_message, username, password, client_id):
+def initialize(config, subscriptions, on_message, username, password, client_id,
+        ca_cert=None):
     def on_connect(client, userdata, flags, return_code):
         _LOGGER.info("Connected to MQTT broker!")
         for topic in subscriptions:
@@ -74,7 +75,7 @@ def initialize(config, subscriptions, on_message, username, password, client_id)
         else:
             tls_version = ssl.PROTOCOL_SSLv23
         client.tls_set(
-            ca_certs=None,
+            ca_certs=ca_cert,
             certfile=None,
             keyfile=None,
             cert_reqs=ssl.CERT_REQUIRED,
@@ -96,7 +97,8 @@ def initialize(config, subscriptions, on_message, username, password, client_id)
     return 0
 
 
-def show_logs(config, topic=None, username=None, password=None, client_id=None):
+def show_logs(config, topic=None, username=None, password=None, client_id=None,
+        ca_cert=None):
     if topic is not None:
         pass  # already have topic
     elif CONF_MQTT in config:
@@ -118,7 +120,8 @@ def show_logs(config, topic=None, username=None, password=None, client_id=None):
         message = time_ + payload
         safe_print(message)
 
-    return initialize(config, [topic], on_message, username, password, client_id)
+    return initialize(config, [topic], on_message, username, password,
+            client_id, ca_cert)
 
 
 def clear_topic(config, topic, username=None, password=None, client_id=None):

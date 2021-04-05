@@ -247,9 +247,16 @@ def show_logs(config, args, port):
         return run_logs(config, port)
     if get_port_type(port) == "MQTT" and "mqtt" in config:
         from esphome import mqtt
+        import os
+
+        ca_cert= args.ca_cert
+        if ca_cert is not None: 
+            if not os.path.isabs(args.ca_cert) : 
+                ca_cert = os.path.join(os.getcwd(), ca_cert)
 
         return mqtt.show_logs(
-            config, args.topic, args.username, args.password, args.client_id
+            config, args.topic, args.username, args.password, args.client_id,
+            ca_cert
         )
 
     raise EsphomeError("No remote or local logging method configured (api/mqtt/logger)")
@@ -545,6 +552,10 @@ def parse_args(argv):
         help="Manually specify a serial port to use"
         "For example /dev/cu.SLAB_USBtoUART.",
     )
+    parser_logs.add_argument(
+        "--ca-cert",
+        help="If using self signed certificate for MQTT"
+        "Pass, ca cert file path, like ../mqtt/certs/ca.crt")
 
     parser_run = subparsers.add_parser(
         "run",
