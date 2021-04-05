@@ -9,7 +9,7 @@ namespace b_parasite {
 static const char* TAG = "b_parasite";
 
 void BParasite::dump_config() {
-  ESP_LOGCONFIG(TAG, "BParasite");
+  ESP_LOGCONFIG(TAG, "b-parasite");
   LOG_SENSOR("  ", "Battery Voltage", this->battery_voltage_);
   LOG_SENSOR("  ", "Temperature", this->temperature_);
   LOG_SENSOR("  ", "Humidity", this->humidity_);
