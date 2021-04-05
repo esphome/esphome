@@ -67,7 +67,7 @@ void Pipsolar::loop() {
   }
 
   if (this->state_ == STATE_POLL_DECODED) {
-    switch (this->used_polling_commands_[this->last_polling_command].identifier) {
+    switch (this->used_polling_commands_[this->last_polling_command_].identifier) {
       case POLLING_QPIRI:
         if (this->grid_rating_voltage_) {
           this->grid_rating_voltage_->publish_state(value_grid_rating_voltage_);
@@ -424,7 +424,7 @@ void Pipsolar::loop() {
     String fc;
     char tmp[PIPSOLAR_READ_BUFFER_LENGTH];
     sprintf(tmp, "%s", this->read_buffer_);
-    switch (this->used_polling_commands_[this->last_polling_command].identifier) {
+    switch (this->used_polling_commands_[this->last_polling_command_].identifier) {
       case POLLING_QPIRI:
         ESP_LOGD(TAG, "Decode QPIRI");
         sscanf(tmp, "(%f %f %f %f %f %d %d %f %f %f %f %f %d %d %d %d %d %d %d %d %d %d %f %d %d",
@@ -745,7 +745,7 @@ void Pipsolar::loop() {
   if (this->state_ == STATE_POLL) {
     if (millis() - this->command_start_millis_ > this->COMMAND_TIMEOUT) {
       // command timeout
-      ESP_LOGD(TAG, "timeout command to poll: %s", this->used_polling_commands_[this->last_polling_command].command);
+      ESP_LOGD(TAG, "timeout command to poll: %s", this->used_polling_commands_[this->last_polling_command_].command);
       this->state_ = STATE_IDLE;
     } else {
     }
@@ -803,11 +803,11 @@ uint8_t Pipsolar::send_next_command_() {
 
 void Pipsolar::send_next_poll_() {
   uint16_t crc16;
-  this->last_polling_command = (this->last_polling_command + 1) % 15;
-  if (this->used_polling_commands_[this->last_polling_command].length == 0) {
-    this->last_polling_command = 0;
+  this->last_polling_command_ = (this->last_polling_command_ + 1) % 15;
+  if (this->used_polling_commands_[this->last_polling_command_].length == 0) {
+    this->last_polling_command_ = 0;
   }
-  if (this->used_polling_commands_[this->last_polling_command].length == 0) {
+  if (this->used_polling_commands_[this->last_polling_command_].length == 0) {
     // no command specified
     return;
   }
@@ -815,18 +815,18 @@ void Pipsolar::send_next_poll_() {
   this->command_start_millis_ = millis();
   this->empty_uart_buffer_();
   this->read_pos_ = 0;
-  crc16 = calc_crc_(this->used_polling_commands_[this->last_polling_command].command,
-                    this->used_polling_commands_[this->last_polling_command].length);
-  this->write_array(this->used_polling_commands_[this->last_polling_command].command,
-                    this->used_polling_commands_[this->last_polling_command].length);
+  crc16 = calc_crc_(this->used_polling_commands_[this->last_polling_command_].command,
+                    this->used_polling_commands_[this->last_polling_command_].length);
+  this->write_array(this->used_polling_commands_[this->last_polling_command_].command,
+                    this->used_polling_commands_[this->last_polling_command_].length);
   // checksum
   this->write(((uint8_t)((crc16) >> 8)));   // highbyte
   this->write(((uint8_t)((crc16) &0xff)));  // lowbyte
   // end Byte
   this->write(0x0D);
   ESP_LOGD(TAG, "Sending polling command : %s with length %d",
-           this->used_polling_commands_[this->last_polling_command].command,
-           this->used_polling_commands_[this->last_polling_command].length);
+           this->used_polling_commands_[this->last_polling_command_].command,
+           this->used_polling_commands_[this->last_polling_command_].length);
 }
 
 void Pipsolar::queue_command_(const char* command, byte length) {
@@ -858,7 +858,7 @@ void Pipsolar::dump_config() {
 }
 void Pipsolar::update() {}
 
-void Pipsolar::add_polling_command_(const char* command, ENUMPollingCommand pollingCommand) {
+void Pipsolar::add_polling_command_(const char* command, ENUMPollingCommand polling_command) {
   for (uint8_t c = 0; c < 15; c++) {
     if (this->used_polling_commands_[c].length == strlen(command)) {
       uint8_t len = strlen(command);
@@ -877,7 +877,7 @@ void Pipsolar::add_polling_command_(const char* command, ENUMPollingCommand poll
         this->used_polling_commands_[c].command[i] = (uint8_t)(*beg);
       }
       this->used_polling_commands_[c].errors = 0;
-      this->used_polling_commands_[c].identifier = pollingCommand;
+      this->used_polling_commands_[c].identifier = polling_command;
       this->used_polling_commands_[c].length = length - 1;
       return;
     }

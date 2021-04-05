@@ -16,6 +16,8 @@ from esphome.const import (
     UNIT_VOLT_AMPS,
     UNIT_WATT,
     CONF_PIPSOLAR_ID,
+    CONF_BUS_VOLTAGE,
+    CONF_BATTERY_VOLTAGE
 )
 from . import PipsolarComponent, pipsolar_ns
 
@@ -55,8 +57,6 @@ CONF_AC_OUTPUT_FREQUENCY = "ac_output_frequency"
 CONF_AC_OUTPUT_APPARENT_POWER = "ac_output_apparent_power"
 CONF_AC_OUTPUT_ACTIVE_POWER = "ac_output_active_power"
 CONF_OUTPUT_LOAD_PERCENT = "output_load_percent"
-CONF_BUS_VOLTAGE = "bus_voltage"
-CONF_BATTERY_VOLTAGE = "battery_voltage"
 CONF_BATTERY_CHARGING_CURRENT = "battery_charging_current"
 CONF_BATTERY_CAPACITY_PERCENT = "battery_capacity_percent"
 CONF_INVERTER_HEAT_SINK_TEMPERATURE = "inverter_heat_sink_temperature"
