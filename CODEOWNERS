@@ -18,6 +18,7 @@ esphome/components/animation/* @syndlex
 esphome/components/api/* @OttoWinter
 esphome/components/async_tcp/* @OttoWinter
 esphome/components/atc_mithermometer/* @ahpohl
+esphome/components/b_parasite/* @rbaron
 esphome/components/bang_bang/* @OttoWinter
 esphome/components/binary_sensor/* @esphome/core
 esphome/components/canbus/* @danielschramm @mvturnho
