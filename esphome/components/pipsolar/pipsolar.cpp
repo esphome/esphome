@@ -852,11 +852,17 @@ void Pipsolar::switch_command(String command) {
 void Pipsolar::dump_config() {
   ESP_LOGCONFIG(TAG, "Pipsolar:");
   ESP_LOGCONFIG(TAG, "used commands:");
-  for (uint8_t i = 0; i < 15; i++) {
-    if (this->used_polling_commands_[i].length != 0) {
-      ESP_LOGCONFIG(TAG, "%s", this->used_polling_commands_[i].command);
+  // for (uint8_t i = 0; i < 15; i++) {
+  //   if (this->used_polling_commands_[i].length != 0) {
+  //     ESP_LOGCONFIG(TAG, "%s", this->used_polling_commands_[i].command);
+  //   }
+  // }
+  for (auto & used_polling_command : this->used_polling_commands_) {
+    if (used_polling_command.length != 0) {
+      ESP_LOGCONFIG(TAG, "%s", used_polling_command.command);
     }
   }
+
 }
 void Pipsolar::update() {}
 
