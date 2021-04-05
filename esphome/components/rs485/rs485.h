@@ -20,10 +20,14 @@ class RS485 : public uart::UARTDevice, public Component {
 
   float get_setup_priority() const override;
 
+  void send(std::vector<uint8_t> &data);
+
  protected:
   void parse_rs485_frame_();
 
   std::vector<uint8_t> rx_buffer_;
+  std::queue<std::vector<uint8_t>> tx_buffer_;
+  bool ready_to_tx_ = true;
   uint32_t last_rs485_byte_{0};
   std::vector<RS485Device *> devices_;
 };
@@ -33,7 +37,7 @@ class RS485Device {
   void set_parent(RS485 *parent) { parent_ = parent; }
   virtual void on_rs485_data(const std::vector<uint8_t> &data) = 0;
 
-  size_t write(uint8_t data) { return this->parent_->write(data); }
+  void send(std::vector<uint8_t> &data) { this->parent_->send(data); }
 
  protected:
   friend RS485;
