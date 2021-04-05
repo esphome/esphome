@@ -49,7 +49,11 @@ def elevation(value):
 
 # Parses sexagesimal values like 22°57′7″S
 LAT_LON_REGEX = re.compile(
-    r'([+\-])?\s*([0-9]+)°\s*(?:([0-9]+)\s*[′\'])?\s*(?:([0-9]+)\s*[″"])?\s*([NESW])?'
+    r"([+\-])?\s*"
+    r"(?:([0-9]+)\s*°)?\s*"
+    r"(?:([0-9]+)\s*[′\'])?\s*"
+    r'(?:([0-9]+)\s*[″"])?\s*'
+    r"([NESW])?"
 )
 
 
@@ -73,7 +77,7 @@ def parse_latlon(value):
     second = m.group(4)
     d = m.group(5)
 
-    val = float(deg) + float(minute or 0) / 60 + float(second or 0) / 3600
+    val = float(deg or 0) + float(minute or 0) / 60 + float(second or 0) / 3600
     if sign == "-":
         val *= -1
     if d and d in "SW":
