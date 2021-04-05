@@ -34,6 +34,7 @@ class TouchGUIComponent : public PollingComponent {
   void set_button_active_foreground_color(const Color &col) { this->button_active_foreground_color_ = col; }
   void set_button_border_color(const Color &col) { this->button_border_color_ = col; }
   void set_button_font(display::Font *fnt) { this->button_font_ = fnt; }
+  void set_writer(button_writer_t &&writer) { this->writer_ = writer; }
   void add_on_update_callback(std::function<void()> &&callback);
 
   void register_button(TouchGUIButton *button) { this->buttons_.push_back(button); }
@@ -61,6 +62,8 @@ class TouchGUIComponent : public PollingComponent {
 
   display::Font *get_button_font() const { return this->button_font_; }
 
+  optional<button_writer_t> &get_writer() { return this->writer_; }
+
  protected:
   display::DisplayBuffer *display_;
   std::vector<TouchGUIButton *> buttons_;
@@ -71,6 +74,7 @@ class TouchGUIComponent : public PollingComponent {
   Color button_foreground_color_{display::COLOR_ON};
   Color button_active_foreground_color_{display::COLOR_OFF};
   Color button_border_color_{display::COLOR_ON};
+  optional<button_writer_t> writer_{};
   CallbackManager<void()> update_callback_{};
 };
 
@@ -152,7 +156,7 @@ class TouchGUIButton : public binary_sensor::BinarySensor, public Component {
   int get_x_center() const { return (this->x_min_ + this->x_max_) / 2; }
   /// Get the y center of the sensitive area.
   int get_y_center() const { return (this->y_min_ + this->y_max_) / 2; }
-  const char *get_text() { return this->text_.value().c_str(); }
+  std::string get_text() { return this->text_.value(); }
   bool get_initial() const { return this->initial_; }
 
   display::DisplayBuffer *get_display() { return parent_->get_display(); }
