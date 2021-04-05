@@ -499,7 +499,7 @@ class Pipsolar : public uart::UARTDevice, public PollingComponent {
     this->add_polling_command_("QPIRI", POLLING_QPIRI);
   }
 
-  void switch_command(String source);
+  void switch_command(String command);
   void setup() override;
   void loop() override;
   void dump_config() override;

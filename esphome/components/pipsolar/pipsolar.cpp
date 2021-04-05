@@ -58,7 +58,7 @@ void Pipsolar::loop() {
         this->state_ = STATE_IDLE;
       }
     } else {
-      ESP_LOGD(TAG, "response length for command %s not OK: with length %d",
+      ESP_LOGD(TAG, "response length for command %s not OK: with length %zu",
                this->command_queue_[this->command_queue_position_].c_str(), this->read_pos_);
       this->command_queue_[this->command_queue_position_] = String("");
       this->command_queue_position_ = (command_queue_position_ + 1) % COMMAND_QUEUE_LENGTH;
@@ -436,7 +436,7 @@ void Pipsolar::loop() {
                &value_current_max_ac_charging_current_, &value_current_max_charging_current_,
                &value_input_voltage_range_, &value_output_source_priority_, &value_charger_source_priority_,
                &value_parallel_max_num_, &value_machine_type_, &value_topology_, &value_output_mode_,
-               &value_battery_redischarge_voltage_, &value_pv_ok_condition_for_parallel_, &value_pv_power_balance_);
+               &value_battery_redischarge_voltage_, &value_pv_ok_condition_for_parallel_, &value_pv_power_balance_); // NOLINT(cert-err34-c)
         if (this->last_qpiri_) {
           this->last_qpiri_->publish_state(tmp);
         }
@@ -454,7 +454,7 @@ void Pipsolar::loop() {
                &value_scc_firmware_version_, &value_load_status_, &value_battery_voltage_to_steady_while_charging_,
                &value_charging_status_, &value_scc_charging_status_, &value_ac_charging_status_,
                &value_battery_voltage_offset_for_fans_on_, &value_eeprom_version_, &value_pv_charging_power_,
-               &value_charging_to_floating_mode_, &value_switch_on_, &value_dustproof_installed_);
+               &value_charging_to_floating_mode_, &value_switch_on_, &value_dustproof_installed_); // NOLINT(cert-err34-c)
         if (this->last_qpigs_) {
           this->last_qpigs_->publish_state(tmp);
         }
@@ -518,8 +518,8 @@ void Pipsolar::loop() {
         ESP_LOGD(TAG, "Decode QPIWS");
         // '(00000000000000000000000000000000'
         // iterate over all available flag (as not all models have all flags, but at least in the same order)
-        this->value_warnings_present_ = 0;
-        this->value_faults_present_ = 0;
+        this->value_warnings_present_ = false;
+        this->value_faults_present_ = true;
 
         for (int i = 1; i < strlen(tmp); i++) {
           enabled = tmp[i] == '1';
@@ -730,7 +730,7 @@ void Pipsolar::loop() {
     }  // available
   }
   if (this->state_ == STATE_COMMAND) {
-    if (millis() - this->command_start_millis_ > this->COMMAND_TIMEOUT) {
+    if (millis() - this->command_start_millis_ > esphome::pipsolar::Pipsolar::COMMAND_TIMEOUT) {
       // command timeout
       const char* command = this->command_queue_[this->command_queue_position_].c_str();
       this->command_start_millis_ = millis();
@@ -743,7 +743,7 @@ void Pipsolar::loop() {
     }
   }
   if (this->state_ == STATE_POLL) {
-    if (millis() - this->command_start_millis_ > this->COMMAND_TIMEOUT) {
+    if (millis() - this->command_start_millis_ > esphome::pipsolar::Pipsolar::COMMAND_TIMEOUT) {
       // command timeout
       ESP_LOGD(TAG, "timeout command to poll: %s", this->used_polling_commands_[this->last_polling_command_].command);
       this->state_ = STATE_IDLE;
