@@ -12,10 +12,10 @@
 namespace esphome {
 namespace display {
 
-  // defines for buffer splitting
-  #define DISPLAY_BUFFER_PARTS 4
-  #define DISPLAY_BUFFER_PART(x) ((int)(x/(this->get_buffer_length_()/DISPLAY_BUFFER_PARTS)))
-  #define DISPLAY_BUFFER_POS(x) (x%(this->get_buffer_length_()/DISPLAY_BUFFER_PARTS))
+// defines for buffer splitting
+static const uint8_t DISPLAY_BUFFER_PARTS = 4;
+#define DISPLAY_BUFFER_PART(x) ((int) (x / (this->get_buffer_length_() / DISPLAY_BUFFER_PARTS)))
+#define DISPLAY_BUFFER_POS(x) (x % (this->get_buffer_length_() / DISPLAY_BUFFER_PARTS))
 
 /** TextAlign is used to tell the display class how to position a piece of text. By default
  * the coordinates you enter for the print*() functions take the upper left corner of the text
@@ -315,7 +315,6 @@ class DisplayBuffer {
 
   void init_internal_(uint32_t buffer_length);
   void init_internal_multiple_(uint32_t buffer_length);
-
 
   void do_update_();
 

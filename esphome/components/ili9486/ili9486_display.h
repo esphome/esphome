@@ -9,9 +9,7 @@
 namespace esphome {
 namespace ili9486 {
 
-enum ILI9486Model {
-  TFT_35
-};
+enum ILI9486Model { TFT_35 };
 
 class ILI9486Display : public PollingComponent,
                        public display::DisplayBuffer,

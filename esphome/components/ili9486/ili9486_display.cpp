@@ -132,7 +132,8 @@ uint8_t ILI9486Display::convert_to_8bit_color_(uint16_t color_16bit) {
 void ILI9486Display::fill(Color color) {
   auto color565 = color.to_rgb_565();
   for (int i = 0; i < DISPLAY_BUFFER_PARTS; i++) {
-    memset(this->buffer_multiple_[i], convert_to_8bit_color_(color565), this->get_buffer_length_() / DISPLAY_BUFFER_PARTS);
+    memset(this->buffer_multiple_[i], convert_to_8bit_color_(color565),
+           this->get_buffer_length_() / DISPLAY_BUFFER_PARTS);
   }
   this->x_low_ = 0;
   this->y_low_ = 0;
