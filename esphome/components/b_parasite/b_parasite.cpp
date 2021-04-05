@@ -29,10 +29,10 @@ bool BParasite::parse_device(const esp32_ble_tracker::ESPBTDevice& device) {
   }
   const auto& service_data = service_datas[0];
 
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG
-  ESP_LOGD(TAG, "Service data:");
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
+  ESP_LOGVV(TAG, "Service data:");
   for (const uint8_t byte : service_data.data) {
-    ESP_LOGD(TAG, "0x%02x", byte);
+    ESP_LOGVV(TAG, "0x%02x", byte);
   }
 #endif
 
