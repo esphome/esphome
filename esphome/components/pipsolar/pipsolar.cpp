@@ -446,8 +446,8 @@ void Pipsolar::loop() {
         break;
       case POLLING_QPIGS:
         ESP_LOGD(TAG, "Decode QPIGS");
-        sscanf(
-            tmp,
+        sscanf(                                                                                              // NOLINT
+            tmp,                                                                                             // NOLINT
             "(%f %f %f %f %d %d %d %d %f %d %d %d %d %f %f %d %1d%1d%1d%1d%1d%1d%1d%1d %d %d %d %1d%1d%1d",  // NOLINT
             &value_grid_voltage_, &value_grid_frequency_, &value_ac_output_voltage_,                         // NOLINT
             &value_ac_output_frequency_,                                                                     // NOLINT
