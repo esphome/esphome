@@ -21,8 +21,8 @@ struct GeoLocation {
   num_t latitude;
   num_t longitude;
 
-  num_t latitude_rad() const { return radians(latitude); }
-  num_t longitude_rad() const { return radians(longitude); }
+  num_t latitude_rad() const;
+  num_t longitude_rad() const;
 };
 
 struct Moment {
@@ -36,16 +36,16 @@ struct EquatorialCoordinate {
   num_t right_ascension;
   num_t declination;
 
-  inline num_t right_ascension_rad() const { return radians(right_ascension); }
-  inline num_t declination_rad() const { return radians(declination); }
+  num_t right_ascension_rad() const;
+  num_t declination_rad() const;
 };
 
 struct HorizontalCoordinate {
   num_t elevation;
   num_t azimuth;
 
-  inline num_t elevation_rad() const { return radians(elevation); }
-  inline num_t azimuth_rad() const { return radians(azimuth); }
+  num_t elevation_rad() const;
+  num_t azimuth_rad() const;
 };
 
 }  // namespace internal

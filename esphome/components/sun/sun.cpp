@@ -29,6 +29,14 @@ inline num_t radians(num_t deg) { return deg * PI / 180; }
 inline num_t arcdeg(num_t deg, num_t minutes, num_t seconds) { return deg + minutes / 60 + seconds / 3600; }
 inline num_t sq(num_t x) { return x * x; }
 inline num_t cb(num_t x) { return x * x * x; }
+
+num_t GeoLocation::latitude_rad() const { return radians(latitude); }
+num_t GeoLocation::longitude_rad() const { return radians(longitude); }
+num_t EquatorialCoordinate::right_ascension_rad() const { return radians(right_ascension); }
+num_t EquatorialCoordinate::declination_rad() const { return radians(declination); }
+num_t HorizontalCoordinate::elevation_rad() const { return radians(elevation); }
+num_t HorizontalCoordinate::azimuth_rad() const { return radians(azimuth); }
+
 num_t julian_day(time::ESPTime moment) {
   // p. 59
   // UT -> JD, TT -> JDE

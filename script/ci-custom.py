@@ -405,6 +405,7 @@ ARDUINO_FORBIDDEN_RE = r"[^\w\d](" + r"|".join(ARDUINO_FORBIDDEN) + r")\(.*"
     include=cpp_include,
     exclude=[
         "esphome/components/mqtt/custom_mqtt_device.h",
+        "esphome/components/sun/sun.cpp",
         "esphome/core/esphal.*",
     ],
 )
