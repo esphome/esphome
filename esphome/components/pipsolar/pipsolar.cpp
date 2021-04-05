@@ -436,7 +436,8 @@ void Pipsolar::loop() {
                &value_current_max_ac_charging_current_, &value_current_max_charging_current_,
                &value_input_voltage_range_, &value_output_source_priority_, &value_charger_source_priority_,
                &value_parallel_max_num_, &value_machine_type_, &value_topology_, &value_output_mode_,
-               &value_battery_redischarge_voltage_, &value_pv_ok_condition_for_parallel_, &value_pv_power_balance_); // NOLINT(cert-err34-c)
+               &value_battery_redischarge_voltage_, &value_pv_ok_condition_for_parallel_,
+               &value_pv_power_balance_);  // NOLINT(cert-err34-c)
         if (this->last_qpiri_) {
           this->last_qpiri_->publish_state(tmp);
         }
@@ -454,7 +455,8 @@ void Pipsolar::loop() {
                &value_scc_firmware_version_, &value_load_status_, &value_battery_voltage_to_steady_while_charging_,
                &value_charging_status_, &value_scc_charging_status_, &value_ac_charging_status_,
                &value_battery_voltage_offset_for_fans_on_, &value_eeprom_version_, &value_pv_charging_power_,
-               &value_charging_to_floating_mode_, &value_switch_on_, &value_dustproof_installed_); // NOLINT(cert-err34-c)
+               &value_charging_to_floating_mode_, &value_switch_on_,
+               &value_dustproof_installed_);  // NOLINT(cert-err34-c)
         if (this->last_qpigs_) {
           this->last_qpigs_->publish_state(tmp);
         }
