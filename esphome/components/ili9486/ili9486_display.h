@@ -21,6 +21,7 @@ class ILI9486Display : public PollingComponent,
   void set_dc_pin(GPIOPin *dc_pin) { dc_pin_ = dc_pin; }
   float get_setup_priority() const override;
   void set_reset_pin(GPIOPin *reset) { this->reset_pin_ = reset; }
+  void set_led_pin(GPIOPin *led) { this->led_pin_ = led; }
   void set_model(ILI9486Model model) { this->model_ = model; }
 
   void command(uint8_t value);
@@ -70,6 +71,7 @@ class ILI9486Display : public PollingComponent,
   void end_data_();
 
   GPIOPin *reset_pin_{nullptr};
+  GPIOPin *led_pin_{nullptr};
   GPIOPin *dc_pin_;
   GPIOPin *busy_pin_{nullptr};
 };
