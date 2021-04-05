@@ -148,7 +148,7 @@ binary_sensor:
       it.get_display()->circle(it.get_x_center(), it.get_y_center(), 20, it.get_border_color());
       it.get_display()->filled_circle(it.get_x_center(), it.get_y_center(), 15, it.get_background_color_to_use());
       it.get_display()->print(it.get_x_center(), it.get_y_center(), it.get_font(), it.get_foreground_color_to_use(),
-        display::TextAlign::CENTER, it.get_text());
+        display::TextAlign::CENTER, it.get_text().c_str());
 
   # Second row: first page only, color and font overrides
   - platform: touch_gui

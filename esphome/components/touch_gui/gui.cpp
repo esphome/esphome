@@ -142,7 +142,9 @@ void TouchGUIButton::update() {
 void TouchGUIButton::draw() {
   if (this->writer_.has_value())
     (this->writer_.value())(*this);
-  else {
+  else if (this->parent_->get_writer().has_value()) {
+    (this->parent_->get_writer().value())(*this);
+  } else {
     if (this->type_ != TOUCH_GUI_BUTTON_TYPE_AREA) {
       get_display()->rectangle(this->x_min_, this->y_min_, this->x_max_ - this->x_min_ + 1,
                                this->y_max_ - this->y_min_ + 1, get_border_color());

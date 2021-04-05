@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import core, automation
-from esphome.const import CONF_ID, CONF_TRIGGER_ID
+from esphome.const import CONF_ID, CONF_TRIGGER_ID, CONF_LAMBDA
 from esphome.components import binary_sensor, display, font
 from esphome.helpers import color
 
@@ -52,6 +52,7 @@ CONFIG_SCHEMA = cv.Schema(
             }
         ),
         cv.Optional(CONF_BUTTON_FONT): cv.use_id(font),
+        cv.Optional(CONF_LAMBDA): cv.lambda_,
         cv.Optional(CONF_ON_UPDATE): automation.validate_automation(
             {
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(TouchGuiUpdateTrigger),
@@ -154,6 +155,13 @@ def to_code(config):
     if CONF_BUTTON_FONT in config:
         fnt = yield cg.get_variable(config[CONF_BUTTON_FONT])
         cg.add(var.set_button_font(fnt))
+    if CONF_LAMBDA in config:
+        lambda_ = yield cg.process_lambda(
+            config[CONF_LAMBDA],
+            [(TouchGuiButton.operator("ref"), "it")],
+            return_type=cg.void,
+        )
+        cg.add(var.set_writer(lambda_))
     for conf in config.get(CONF_ON_UPDATE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         yield automation.build_automation(trigger, [], conf)
