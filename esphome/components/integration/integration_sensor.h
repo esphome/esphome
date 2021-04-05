@@ -27,6 +27,7 @@ class IntegrationSensor : public sensor::Sensor, public Component {
   void setup() override;
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::DATA; }
+  void set_min_save_interval(uint32_t min_interval) {this->min_save_interval_ = min_interval;}
   void set_sensor(Sensor *sensor) { sensor_ = sensor; }
   void set_time(IntegrationSensorTime time) { time_ = time; }
   void set_method(IntegrationMethod method) { method_ = method; }
@@ -55,7 +56,12 @@ class IntegrationSensor : public sensor::Sensor, public Component {
     this->result_ = result;
     this->publish_state(result);
     float result_f = result;
-    this->rtc_.save(&result_f);
+    if (this->min_save_interval_) {
+      if (millis() - this->last_save_ > this->min_save_interval_) {
+        this->last_save_ = millis();
+        this->rtc_.save(&result_f);
+      }
+    }
   }
   std::string unit_of_measurement() override;
   std::string icon() override { return this->sensor_->get_icon(); }
@@ -67,6 +73,8 @@ class IntegrationSensor : public sensor::Sensor, public Component {
   bool restore_;
   ESPPreferenceObject rtc_;
 
+  uint32_t last_save_{0};
+  uint32_t min_save_interval_{0};
   uint32_t last_update_;
   double result_{0.0f};
   float last_value_{0.0f};

@@ -27,6 +27,8 @@ INTEGRATION_METHODS = {
 
 CONF_TIME_UNIT = "time_unit"
 CONF_INTEGRATION_METHOD = "integration_method"
+CONF_MIN_SAVE_INTERVAL = "min_save_interval"
+
 
 CONFIG_SCHEMA = sensor.SENSOR_SCHEMA.extend(
     {
@@ -37,6 +39,8 @@ CONFIG_SCHEMA = sensor.SENSOR_SCHEMA.extend(
             INTEGRATION_METHODS, lower=True
         ),
         cv.Optional(CONF_RESTORE, default=False): cv.boolean,
+        cv.Optional(CONF_MIN_SAVE_INTERVAL): cv.positive_time_period_milliseconds,
+
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -52,7 +56,8 @@ def to_code(config):
     cg.add(var.set_time(config[CONF_TIME_UNIT]))
     cg.add(var.set_method(config[CONF_INTEGRATION_METHOD]))
     cg.add(var.set_restore(config[CONF_RESTORE]))
-
+    if CONF_MIN_SAVE_INTERVAL in config:
+           cg.add(var.set_min_save_interval(config[CONF_MIN_SAVE_INTERVAL]);
 
 @automation.register_action(
     "sensor.integration.reset",
