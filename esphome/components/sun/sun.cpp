@@ -55,6 +55,7 @@ num_t julian_day(time::ESPTime moment) {
   return ((int) (365.25 * (y + 4716))) + ((int) (30.6001 * (m + 1))) + d + b - 1524.5;
 }
 num_t delta_t(time::ESPTime moment) {
+  // approximation for 2005-2050 from NASA (https://eclipse.gsfc.nasa.gov/SEhelp/deltatpoly2004.html)
   int t = moment.year - 2000;
   return 62.92 + t * (0.32217 + t * 0.005589);
 }
@@ -212,7 +213,7 @@ struct SunAtLocation {
   HorizontalCoordinate true_coordinate(Moment moment) const {
     auto eq = SunAtTime(moment.jde()).equatorial_coordinate();
     num_t gmst = greenwich_sidereal_time(moment);
-    // do not apply and nutation correction (not important for our target accuracy)
+    // do not apply any nutation correction (not important for our target accuracy)
     num_t nutation_corr = 0;
 
     num_t ra = eq.right_ascension;
@@ -265,7 +266,7 @@ struct SunAtLocation {
   }
 
   time::ESPTime local_event_(time::ESPTime date, int hour) const {
-    // date should be in UTC, and hour/minute/second fields 0
+    // input date should be in UTC, and hour/minute/second fields 0
     num_t added_d = hour / 24.0 - location.longitude / 360;
     num_t jd = julian_day(date) + added_d;
 
