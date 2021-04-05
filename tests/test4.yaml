@@ -66,8 +66,8 @@ sensor:
   - platform: tuya
     id: tuya_sensor
     sensor_datapoint: 1
-      - platform: pipsolar
-pipsolar_id: inverter0
+  - platform: pipsolar
+    pipsolar_id: inverter0
     grid_rating_voltage:
       id: inverter0_grid_rating_voltage
       name: inverter0_grid_rating_voltage
