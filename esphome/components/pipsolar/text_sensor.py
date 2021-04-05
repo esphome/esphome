@@ -1,31 +1,26 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.components import uart, text_sensor
-from esphome.const import CONF_HUMIDITY, CONF_ID, CONF_TEMPERATURE, \
-    DEVICE_CLASS_TEMPERATURE,DEVICE_CLASS_POWER, ICON_EMPTY, UNIT_AMPERE, \
-    UNIT_CELSIUS, UNIT_HERTZ, UNIT_PERCENT, UNIT_VOLT, UNIT_EMPTY, UNIT_VOLT_AMPS, UNIT_WATT, CONF_PIPSOLAR_ID
+from esphome.components import text_sensor
+from esphome.const import CONF_PIPSOLAR_ID
 from . import PipsolarComponent, pipsolar_ns
 
 DEPENDENCIES = ['uart']
 
-CONF_DEVICE_MODE = 'device_mode';
-CONF_LAST_QPIGS = 'last_qpigs';
-CONF_LAST_QPIRI = 'last_qpiri';
-CONF_LAST_QMOD = 'last_qmod';
-CONF_LAST_QFLAG = 'last_qflag';
-CONF_LAST_QPIWS = 'last_qpiws';
-CONF_LAST_QT = 'last_qt';
-CONF_LAST_QMN = 'last_qmn';
+CONF_DEVICE_MODE = 'device_mode'
+CONF_LAST_QPIGS = 'last_qpigs'
+CONF_LAST_QPIRI = 'last_qpiri'
+CONF_LAST_QMOD = 'last_qmod'
+CONF_LAST_QFLAG = 'last_qflag'
+CONF_LAST_QPIWS = 'last_qpiws'
+CONF_LAST_QT = 'last_qt'
+CONF_LAST_QMN = 'last_qmn'
 
-#pipsolar_text_sensor_ns = cg.esphome_ns.namespace('pipsolartextsensor')
 pipsolar_text_sensor_ns = pipsolar_ns.class_(
     "PipsolarTextSensor", text_sensor.TextSensor, cg.Component
 )
 
 CONFIG_SCHEMA = cv.COMPONENT_SCHEMA.extend({
-#    cv.GenerateID(): cv.declare_id(pipsolar_text_sensor_ns),
     cv.Required(CONF_PIPSOLAR_ID): cv.use_id(PipsolarComponent),
-#QMOD sensors
     cv.Optional(CONF_DEVICE_MODE ): text_sensor.TEXT_SENSOR_SCHEMA.extend(
             {
                 cv.GenerateID(): cv.declare_id(pipsolar_text_sensor_ns),
@@ -70,7 +65,6 @@ CONFIG_SCHEMA = cv.COMPONENT_SCHEMA.extend({
 
 def to_code(config):
     paren = yield cg.get_variable(config[CONF_PIPSOLAR_ID])
-#QMOD sensors
     if CONF_DEVICE_MODE in config:
       conf = config[CONF_DEVICE_MODE]
       var = cg.new_Pvariable(conf[CONF_ID])

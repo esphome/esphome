@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
-from esphome.const import CONF_ID, CONF_TRIGGER_ID, CONF_FILE, CONF_DEVICE, CONF_VALUE
+from esphome.const import CONF_ID, CONF_VALUE
 from esphome.components import uart
 
 DEPENDENCIES = ["uart"]

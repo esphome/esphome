@@ -1,9 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.components import uart, switch
-from esphome.const import CONF_HUMIDITY, CONF_ID, CONF_TEMPERATURE, CONF_INVERTED, CONF_ICON, ICON_POWER, \
-    DEVICE_CLASS_TEMPERATURE,DEVICE_CLASS_POWER, ICON_EMPTY, UNIT_CELSIUS, UNIT_PERCENT, UNIT_VOLT, UNIT_EMPTY, \
-    CONF_PIPSOLAR_ID
+from esphome.components import switch
+from esphome.const import CONF_ID, CONF_INVERTED, CONF_ICON, ICON_POWER, CONF_PIPSOLAR_ID
 from . import PipsolarComponent, pipsolar_ns
 
 DEPENDENCIES = ['uart']
@@ -11,8 +9,8 @@ DEPENDENCIES = ['uart']
 CONF_OUTPUT_SOURCE_PRIORITY_UTILITY = 'output_source_priority_utility'
 CONF_OUTPUT_SOURCE_PRIORITY_SOLAR = 'output_source_priority_solar'
 CONF_OUTPUT_SOURCE_PRIORITY_BATTERY = 'output_source_priority_battery'
-CONF_INPUT_VOLTAGE_RANGE = 'input_voltage_range' #00 for appliance, 01 for UPS
-CONF_PV_OK_CONDITION_FOR_PARALLEL = 'pv_ok_condition_for_parallel' 
+CONF_INPUT_VOLTAGE_RANGE = 'input_voltage_range'  #00 for appliance, 01 for UPS
+CONF_PV_OK_CONDITION_FOR_PARALLEL = 'pv_ok_condition_for_parallel'
 CONF_PV_POWER_BALANCE = 'pv_power_balance'
 
 PipsolarSwitch = pipsolar_ns.class_('PipsolarSwitch', switch.Switch, cg.Component)
@@ -32,8 +30,8 @@ CONFIG_SCHEMA = cv.Schema({
     cv.Optional(CONF_INPUT_VOLTAGE_RANGE): PIPSWITCH_SCHEMA,
     cv.Optional(CONF_PV_OK_CONDITION_FOR_PARALLEL): PIPSWITCH_SCHEMA,
     cv.Optional(CONF_PV_POWER_BALANCE): PIPSWITCH_SCHEMA,
-
  })
+
 
 def to_code(config):
     paren = yield cg.get_variable(config[CONF_PIPSOLAR_ID])
