@@ -230,7 +230,8 @@ void Pipsolar::loop() {
           this->load_status_->publish_state(value_load_status_);
         }
         if (this->battery_voltage_to_steady_while_charging_) {
-          this->battery_voltage_to_steady_while_charging_->publish_state(value_battery_voltage_to_steady_while_charging_);
+          this->battery_voltage_to_steady_while_charging_->publish_state(
+              value_battery_voltage_to_steady_while_charging_);
         }
         if (this->charging_status_) {
           this->charging_status_->publish_state(value_charging_status_);
@@ -426,13 +427,16 @@ void Pipsolar::loop() {
     switch (this->used_polling_commands_[this->last_polling_command].identifier) {
       case POLLING_QPIRI:
         ESP_LOGD(TAG, "Decode QPIRI");
-        sscanf(tmp, "(%f %f %f %f %f %d %d %f %f %f %f %f %d %d %d %d %d %d %d %d %d %d %f %d %d", &value_grid_rating_voltage_,
-               &value_grid_rating_current_, &value_ac_output_rating_voltage_, &value_ac_output_rating_frequency_, &value_ac_output_rating_current_,
-               &value_ac_output_rating_apparent_power_, &value_ac_output_rating_active_power_, &value_battery_rating_voltage_,
-               &value_battery_recharge_voltage_, &value_battery_under_voltage_, &value_battery_bulk_voltage_, &value_battery_float_voltage_,
-               &value_battery_type_, &value_current_max_ac_charging_current_, &value_current_max_charging_current_, &value_input_voltage_range_,
-               &value_output_source_priority_, &value_charger_source_priority_, &value_parallel_max_num_, &value_machine_type_, &value_topology_,
-               &value_output_mode_, &value_battery_redischarge_voltage_, &value_pv_ok_condition_for_parallel_, &value_pv_power_balance_);
+        sscanf(tmp, "(%f %f %f %f %f %d %d %f %f %f %f %f %d %d %d %d %d %d %d %d %d %d %f %d %d",
+               &value_grid_rating_voltage_, &value_grid_rating_current_, &value_ac_output_rating_voltage_,
+               &value_ac_output_rating_frequency_, &value_ac_output_rating_current_,
+               &value_ac_output_rating_apparent_power_, &value_ac_output_rating_active_power_,
+               &value_battery_rating_voltage_, &value_battery_recharge_voltage_, &value_battery_under_voltage_,
+               &value_battery_bulk_voltage_, &value_battery_float_voltage_, &value_battery_type_,
+               &value_current_max_ac_charging_current_, &value_current_max_charging_current_,
+               &value_input_voltage_range_, &value_output_source_priority_, &value_charger_source_priority_,
+               &value_parallel_max_num_, &value_machine_type_, &value_topology_, &value_output_mode_,
+               &value_battery_redischarge_voltage_, &value_pv_ok_condition_for_parallel_, &value_pv_power_balance_);
         if (this->last_qpiri_) {
           this->last_qpiri_->publish_state(tmp);
         }
@@ -441,13 +445,16 @@ void Pipsolar::loop() {
       case POLLING_QPIGS:
         ESP_LOGD(TAG, "Decode QPIGS");
         sscanf(tmp, "(%f %f %f %f %d %d %d %d %f %d %d %d %d %f %f %d %1d%1d%1d%1d%1d%1d%1d%1d %d %d %d %1d%1d%1d",
-               &value_grid_voltage_, &value_grid_frequency_, &value_ac_output_voltage_, &value_ac_output_frequency_, &value_ac_output_apparent_power_,
-               &value_ac_output_active_power_, &value_output_load_percent_, &value_bus_voltage_, &value_battery_voltage_, &value_battery_charging_current_,
-               &value_battery_capacity_percent_, &value_inverter_heat_sink_temperature_, &value_pv_input_current_for_battery_,
-               &value_pv_input_voltage_, &value_battery_voltage_scc_, &value_battery_discharge_current_, &value_add_sbu_priority_version_,
-               &value_configuration_status_, &value_scc_firmware_version_, &value_load_status_, &value_battery_voltage_to_steady_while_charging_,
-               &value_charging_status_, &value_scc_charging_status_, &value_ac_charging_status_, &value_battery_voltage_offset_for_fans_on_,
-               &value_eeprom_version_, &value_pv_charging_power_, &value_charging_to_floating_mode_, &value_switch_on_, &value_dustproof_installed_);
+               &value_grid_voltage_, &value_grid_frequency_, &value_ac_output_voltage_, &value_ac_output_frequency_,
+               &value_ac_output_apparent_power_, &value_ac_output_active_power_, &value_output_load_percent_,
+               &value_bus_voltage_, &value_battery_voltage_, &value_battery_charging_current_,
+               &value_battery_capacity_percent_, &value_inverter_heat_sink_temperature_,
+               &value_pv_input_current_for_battery_, &value_pv_input_voltage_, &value_battery_voltage_scc_,
+               &value_battery_discharge_current_, &value_add_sbu_priority_version_, &value_configuration_status_,
+               &value_scc_firmware_version_, &value_load_status_, &value_battery_voltage_to_steady_while_charging_,
+               &value_charging_status_, &value_scc_charging_status_, &value_ac_charging_status_,
+               &value_battery_voltage_offset_for_fans_on_, &value_eeprom_version_, &value_pv_charging_power_,
+               &value_charging_to_floating_mode_, &value_switch_on_, &value_dustproof_installed_);
         if (this->last_qpigs_) {
           this->last_qpigs_->publish_state(tmp);
         }
@@ -809,7 +816,7 @@ void Pipsolar::send_next_poll_() {
   this->empty_uart_buffer_();
   this->read_pos_ = 0;
   crc16 = calc_crc_(this->used_polling_commands_[this->last_polling_command].command,
-                   this->used_polling_commands_[this->last_polling_command].length);
+                    this->used_polling_commands_[this->last_polling_command].length);
   this->write_array(this->used_polling_commands_[this->last_polling_command].command,
                     this->used_polling_commands_[this->last_polling_command].length);
   // checksum
@@ -849,9 +856,7 @@ void Pipsolar::dump_config() {
     }
   }
 }
-void Pipsolar::update() {
-
-}
+void Pipsolar::update() {}
 
 void Pipsolar::add_polling_command_(const char* command, ENUMPollingCommand pollingCommand) {
   for (uint8_t c = 0; c < 15; c++) {
