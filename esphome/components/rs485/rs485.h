@@ -1,5 +1,6 @@
 #pragma once
 
+#include <queue>
 #include "esphome/core/component.h"
 #include "esphome/components/uart/uart.h"
 
@@ -43,7 +44,7 @@ class RS485Device {
   friend RS485;
 
   RS485 *parent_;
-  int *header_{nullptr};
+  std::vector<uint8_t *> header_;
 };
 
 }  // namespace rs485

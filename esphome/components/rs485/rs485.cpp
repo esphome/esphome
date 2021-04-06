@@ -9,7 +9,7 @@ static const char *TAG = "rs485";
 void RS485::loop() {
   const uint32_t now = millis();
   if (now - this->last_rs485_byte_ > 50) {
-    if (this->rx_buffer_.size() > 0) {
+    if (!this->rx_buffer_.empty()) {
       this->parse_rs485_frame_();
       this->rx_buffer_.clear();
     }
@@ -26,8 +26,7 @@ void RS485::loop() {
 
   if (this->ready_to_tx_) {
     if (!this->tx_buffer_.empty()) {
-      std::vector<uint8_t> frame = this->tx_buffer_.front();
-      this->write_array(frame, frame.size());
+      this->write_array(this->tx_buffer_.front());
       this->tx_buffer_.pop();
       this->ready_to_tx_ = false;
     }
@@ -37,13 +36,17 @@ void RS485::loop() {
 void RS485::parse_rs485_frame_() {
   ESP_LOGV(TAG, "Received frame");
   bool next_device = false;
+  size_t header_idx = 0;
   for (auto *device : this->devices_) {
     next_device = false;
-    for (size_t i = 0; i < device->header_.size(); i++) {
-      if (device->header_[i] == -1)
+    for (auto *i : device->header_) {
+      if (i == nullptr) {
+        header_idx++;
         continue;
-      if (device->header_[i] != this->rx_buffer_[i]) {
+      }
+      if (*i != this->rx_buffer_[header_idx]) {
         next_device = true;
+        header_idx = 0;
         break;
       }
     }
@@ -58,14 +61,14 @@ void RS485::parse_rs485_frame_() {
 
 void RS485::dump_config() {
   ESP_LOGCONFIG(TAG, "RS485:");
-  ESP_LOGCONFIG(TAG, "%u configured devices", this->devices_.size());
+  ESP_LOGCONFIG(TAG, "%zu configured devices", this->devices_.size());
 }
 float RS485::get_setup_priority() const {
   // After UART bus
   return setup_priority::BUS - 1.0f;
 }
 void RS485::send(std::vector<uint8_t> &data) {
-  this->tx_buffer_.push(data)
+  this->tx_buffer_.push(data);
 }
 
 }  // namespace rs485
