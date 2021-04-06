@@ -99,8 +99,14 @@ class ComponentMetaFinder(importlib.abc.MetaPathFinder):
     def __init__(
         self, components_path: Path, allowed_components: Optional[List[str]] = None
     ) -> None:
-        self._components_path = components_path
         self._allowed_components = allowed_components
+        self._finders = []
+        for hook in sys.path_hooks:
+            try:
+                finder = hook(str(components_path))
+            except ImportError:
+                continue
+            self._finders.append(finder)
 
     def find_spec(self, fullname: str, path: Optional[List[str]], target=None):
         if not fullname.startswith("esphome.components."):
@@ -116,11 +122,12 @@ class ComponentMetaFinder(importlib.abc.MetaPathFinder):
             and component not in self._allowed_components
         ):
             return None
-        init_path = self._components_path / component / "__init__.py"
-        if not init_path.is_file():
-            return None
 
-        return importlib.util.spec_from_file_location(fullname, init_path)
+        for finder in self._finders:
+            spec = finder.find_spec(fullname, target=target)
+            if spec is not None:
+                return spec
+        return None
 
 
 def clear_component_meta_finders():
