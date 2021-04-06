@@ -347,6 +347,26 @@ void MQTTClientComponent::subscribe_json(const std::string &topic, mqtt_json_cal
   this->subscriptions_.push_back(subscription);
 }
 
+void MQTTClientComponent::unsubscribe(const std::string &topic) {
+  uint16_t ret = this->mqtt_client_.unsubscribe(topic.c_str());
+  yield();
+  if (ret != 0) {
+    ESP_LOGV(TAG, "unsubscribe(topic='%s')", topic.c_str());
+  } else {
+    delay(5);
+    ESP_LOGV(TAG, "Unsubscribe failed for topic='%s'. Will retry later.", topic.c_str());
+    this->status_momentary_warning("unsubscribe", 1000);
+  }
+
+  auto it = subscriptions_.begin();
+  while (it != subscriptions_.end()) {
+	if (it->topic == topic)
+	  it = subscriptions_.erase(it);
+	else
+	  ++it;
+  }
+}
+
 // Publish
 bool MQTTClientComponent::publish(const std::string &topic, const std::string &payload, uint8_t qos, bool retain) {
   return this->publish(topic, payload.data(), payload.size(), qos, retain);
