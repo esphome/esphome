@@ -34,12 +34,10 @@ def validate_git_ref(value):
 
 
 GIT_SCHEMA = {
-    cv.Required(CONF_TYPE): TYPE_GIT,
     cv.Required(CONF_URL): cv.url,
     cv.Optional(CONF_REF): validate_git_ref,
 }
 LOCAL_SCHEMA = {
-    cv.Required(CONF_TYPE): TYPE_LOCAL,
     cv.Required(CONF_PATH): cv.directory,
 }
 
@@ -62,7 +60,7 @@ def validate_source_shorthand(value):
             "Source is not a file system path or in expected github://username/name[@branch-or-tag] format!"
         )
     conf = {
-        CONF_TYPE: "git",
+        CONF_TYPE: TYPE_GIT,
         CONF_URL: f"https://github.com/{m.group(1)}/{m.group(2)}.git",
     }
     if m.group(3):
@@ -78,7 +76,15 @@ def validate_refresh(value: str):
     return cv.positive_time_period_seconds(value)
 
 
-SOURCE_SCHEMA = cv.Any(validate_source_shorthand, GIT_SCHEMA, LOCAL_SCHEMA)
+SOURCE_SCHEMA = cv.Any(
+    validate_source_shorthand,
+    cv.typed_schema(
+        {
+            TYPE_GIT: cv.Schema(GIT_SCHEMA),
+            TYPE_LOCAL: cv.Schema(LOCAL_SCHEMA),
+        }
+    ),
+)
 
 
 CONFIG_SCHEMA = cv.ensure_list(
@@ -103,6 +109,15 @@ def _compute_destination_path(key: str) -> Path:
     return base_dir / h.hexdigest()[:8]
 
 
+def _handle_git_response(ret):
+    if ret.stderr:
+        err_str = ret.stderr.decode("utf-8")
+        lines = [x.strip() for x in err_str.splitlines()]
+        if lines[-1].startswith("fatal:"):
+            raise cv.Invalid(lines[-1][len("fatal: ") :])
+        raise cv.Invalid(err_str)
+
+
 def _process_single_config(config: dict):
     conf = config[CONF_SOURCE]
     if conf[CONF_TYPE] == TYPE_GIT:
@@ -113,8 +128,9 @@ def _process_single_config(config: dict):
             if CONF_REF in conf:
                 cmd += ["--branch", conf[CONF_REF]]
             cmd += [conf[CONF_URL], str(repo_dir)]
-            # TODO: Error handling
-            subprocess.check_call(cmd)
+            ret = subprocess.run(cmd, capture_output=True, check=False)
+            _handle_git_response(ret)
+
         else:
             # Check refresh needed
             file_timestamp = Path(repo_dir / ".git" / "FETCH_HEAD")
@@ -127,7 +143,10 @@ def _process_single_config(config: dict):
             if age.seconds > config[CONF_REFRESH].total_seconds:
                 _LOGGER.info("Executing git pull %s", key)
                 cmd = ["git", "pull"]
-                subprocess.check_call(cmd, cwd=repo_dir)
+                ret = subprocess.run(
+                    cmd, cwd=repo_dir, capture_output=True, check=False
+                )
+                _handle_git_response(ret)
 
         dest_dir = repo_dir
     elif conf[CONF_TYPE] == TYPE_LOCAL:
@@ -135,15 +154,18 @@ def _process_single_config(config: dict):
     else:
         raise NotImplementedError()
 
-    if (dest_dir / "esphome" / "components").is_dir():
+    try:
+        cv.directory(dest_dir / "esphome" / "components")
         components_dir = dest_dir / "esphome" / "components"
-    elif (dest_dir / "components").is_dir():
-        components_dir = dest_dir / "components"
-    else:
-        raise cv.Invalid(
-            "Could not find components folder for source. Please check the source contains a 'components' or 'esphome/components' folder",
-            [CONF_SOURCE],
-        )
+    except cv.Invalid as err:
+        try:
+            cv.directory(dest_dir / "components")
+            components_dir = dest_dir / "components"
+        except cv.Invalid:
+            raise cv.Invalid(
+                "Could not find components folder for source. Please check the source contains a 'components' or 'esphome/components' folder",
+                [CONF_SOURCE],
+            ) from err
 
     if config[CONF_COMPONENTS] == "all":
         num_components = len(list(components_dir.glob("*/__init__.py")))
@@ -151,18 +173,20 @@ def _process_single_config(config: dict):
             # Prevent accidentally including all components from an esphome fork/branch
             # In this case force the user to manually specify which components they want to include
             raise cv.Invalid(
-                "This source is an esphome fork or branch. Please manually specify the components you want to import using the 'components' key",
+                "This source is an ESPHome fork or branch. Please manually specify the components you want to import using the 'components' key",
                 [CONF_COMPONENTS],
             )
         allowed_components = None
     else:
         for i, name in enumerate(config[CONF_COMPONENTS]):
             expected = components_dir / name / "__init__.py"
-            if not expected.is_file():
+            try:
+                cv.file_(expected)
+            except cv.Invalid as err:
                 raise cv.Invalid(
                     f"Could not find __init__.py file for component {name}. Please check the component is defined by this source (search path: {expected})",
                     [CONF_COMPONENTS, i],
-                )
+                ) from err
         allowed_components = config[CONF_COMPONENTS]
 
     loader.install_meta_finder(components_dir, allowed_components=allowed_components)
