@@ -194,7 +194,7 @@ def wizard(path):
         except vol.Invalid:
             safe_print(
                 color(
-                    "red",
+                    Fore.RED,
                     f'Oh noes, "{name}" isn\'t a valid name. Names can only '
                     f"include numbers, lower-case letters, underscores and "
                     f"hyphens.",
@@ -307,7 +307,7 @@ def wizard(path):
         except vol.Invalid:
             safe_print(
                 color(
-                    "red",
+                    Fore.RED,
                     'Unfortunately, "{}" doesn\'t seem to be a valid SSID. '
                     "Please try again.".format(ssid),
                 )
