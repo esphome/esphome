@@ -20,6 +20,8 @@ CONF_CURRENT_TEMPERATURE_DATAPOINT = "current_temperature_datapoint"
 CONF_TEMPERATURE_MULTIPLIER = "temperature_multiplier"
 CONF_CURRENT_TEMPERATURE_MULTIPLIER = "current_temperature_multiplier"
 CONF_TARGET_TEMPERATURE_MULTIPLIER = "target_temperature_multiplier"
+CONF_AWAY_DATAPOINT = "away_datapoint"
+CONF_AWAY_TEMPERATURE = "away_temperature"
 
 TuyaClimate = tuya_ns.class_("TuyaClimate", climate.Climate, cg.Component)
 
@@ -96,6 +98,8 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_TEMPERATURE_MULTIPLIER): cv.positive_float,
             cv.Optional(CONF_CURRENT_TEMPERATURE_MULTIPLIER): cv.positive_float,
             cv.Optional(CONF_TARGET_TEMPERATURE_MULTIPLIER): cv.positive_float,
+            cv.Optional(CONF_AWAY_DATAPOINT): cv.uint8_t,
+            cv.Optional(CONF_AWAY_TEMPERATURE): cv.temperature,
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.has_at_least_one_key(CONF_TARGET_TEMPERATURE_DATAPOINT, CONF_SWITCH_DATAPOINT),
@@ -150,3 +154,7 @@ async def to_code(config):
                 config[CONF_TARGET_TEMPERATURE_MULTIPLIER]
             )
         )
+    if CONF_AWAY_DATAPOINT in config:
+        cg.add(var.set_away_id(config[CONF_AWAY_DATAPOINT]))
+    if CONF_AWAY_TEMPERATURE in config:
+        cg.add(var.set_away_temperature(config[CONF_AWAY_TEMPERATURE]))
