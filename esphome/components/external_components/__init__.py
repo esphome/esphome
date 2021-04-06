@@ -110,7 +110,7 @@ def _compute_destination_path(key: str) -> Path:
 
 
 def _handle_git_response(ret):
-    if ret.stderr:
+    if ret.returncode != 0 and ret.stderr:
         err_str = ret.stderr.decode("utf-8")
         lines = [x.strip() for x in err_str.splitlines()]
         if lines[-1].startswith("fatal:"):
