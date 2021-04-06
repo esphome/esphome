@@ -154,18 +154,15 @@ def _process_single_config(config: dict):
     else:
         raise NotImplementedError()
 
-    try:
-        cv.directory(dest_dir / "esphome" / "components")
+    if (dest_dir / "esphome" / "components").is_dir():
         components_dir = dest_dir / "esphome" / "components"
-    except cv.Invalid as err:
-        try:
-            cv.directory(dest_dir / "components")
-            components_dir = dest_dir / "components"
-        except cv.Invalid:
-            raise cv.Invalid(
-                "Could not find components folder for source. Please check the source contains a 'components' or 'esphome/components' folder",
-                [CONF_SOURCE],
-            ) from err
+    elif (dest_dir / "components").is_dir():
+        components_dir = dest_dir / "components"
+    else:
+        raise cv.Invalid(
+            "Could not find components folder for source. Please check the source contains a 'components' or 'esphome/components' folder",
+            [CONF_SOURCE],
+        )
 
     if config[CONF_COMPONENTS] == "all":
         num_components = len(list(components_dir.glob("*/__init__.py")))
@@ -180,13 +177,11 @@ def _process_single_config(config: dict):
     else:
         for i, name in enumerate(config[CONF_COMPONENTS]):
             expected = components_dir / name / "__init__.py"
-            try:
-                cv.file_(expected)
-            except cv.Invalid as err:
+            if not expected.is_file():
                 raise cv.Invalid(
                     f"Could not find __init__.py file for component {name}. Please check the component is defined by this source (search path: {expected})",
                     [CONF_COMPONENTS, i],
-                ) from err
+                )
         allowed_components = config[CONF_COMPONENTS]
 
     loader.install_meta_finder(components_dir, allowed_components=allowed_components)
