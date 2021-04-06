@@ -16,30 +16,27 @@ class Version:
     dev: bool = False
 
     def __str__(self):
-        return f'{self.major}.{self.minor}.{self.full_patch}'
+        return f"{self.major}.{self.minor}.{self.full_patch}"
 
     @property
     def full_patch(self):
-        res = f'{self.patch}'
+        res = f"{self.patch}"
         if self.beta > 0:
-            res += f'b{self.beta}'
+            res += f"b{self.beta}"
         if self.dev:
-            res += '-dev'
+            res += "-dev"
         return res
 
     @classmethod
     def parse(cls, value):
-        match = re.match(r'(\d+).(\d+).(\d+)(b\d+)?(-dev)?', value)
+        match = re.match(r"(\d+).(\d+).(\d+)(b\d+)?(-dev)?", value)
         assert match is not None
         major = int(match[1])
         minor = int(match[2])
         patch = int(match[3])
         beta = int(match[4][1:]) if match[4] else 0
         dev = bool(match[5])
-        return Version(
-            major=major, minor=minor, patch=patch,
-            beta=beta, dev=dev
-        )
+        return Version(major=major, minor=minor, patch=patch, beta=beta, dev=dev)
 
 
 def sub(path, pattern, repl, expected_count=1):
@@ -54,25 +51,21 @@ def sub(path, pattern, repl, expected_count=1):
 
 def write_version(version: Version):
     sub(
-        'esphome/const.py',
-        r"^MAJOR_VERSION = \d+$",
-        f"MAJOR_VERSION = {version.major}"
+        "esphome/const.py", r"^MAJOR_VERSION = \d+$", f"MAJOR_VERSION = {version.major}"
     )
     sub(
-        'esphome/const.py',
-        r"^MINOR_VERSION = \d+$",
-        f"MINOR_VERSION = {version.minor}"
+        "esphome/const.py", r"^MINOR_VERSION = \d+$", f"MINOR_VERSION = {version.minor}"
     )
     sub(
-        'esphome/const.py',
+        "esphome/const.py",
         r"^PATCH_VERSION = .*$",
-        f"PATCH_VERSION = '{version.full_patch}'"
+        f"PATCH_VERSION = '{version.full_patch}'",
     )
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('new_version', type=str)
+    parser.add_argument("new_version", type=str)
     args = parser.parse_args()
 
     version = Version.parse(args.new_version)

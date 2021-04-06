@@ -41,7 +41,7 @@ void MAX31855Sensor::read_data_() {
   this->read_array(data, 4);
   this->disable();
 
-  const uint32_t mem = data[0] << 24 | data[1] << 16 | data[2] << 8 | data[3] << 0;
+  const uint32_t mem = encode_uint32(data[0], data[1], data[2], data[3]);
 
   // Verify we got data
   if (mem != 0xFFFFFFFF) {
