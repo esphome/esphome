@@ -1,6 +1,6 @@
 substitutions:
-  devicename: esp_now_device2
-  upper_devicename: Device 2
+  devicename: esp_now_device1
+  upper_devicename: Device 1
   deviceplatform: ESP8266
   deviceboard: esp01_1m
   #deviceplatform: ESP32
@@ -14,7 +14,7 @@ substitutions:
   loglevel: debug
 
   passwordsuffix: now1_passwordsuffix
-  partner_1: device1
+  partner_1: device2
   partner_2: device3
   partner_3: device4
 
