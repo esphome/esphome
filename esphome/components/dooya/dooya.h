@@ -47,13 +47,12 @@ class Dooya : public cover::Cover, public Component, public rs485::RS485Device {
  protected:
   void control(const cover::CoverCall &call) override;
   void send_command_(const uint8_t *data, uint8_t len);
-  
+
   uint32_t update_interval_{500};
   uint32_t last_update_{0};
   uint8_t current_request_{GET_STATUS};
   uint8_t last_published_op_;
   float last_published_pos_;
-
 };
 
 }  // namespace dooya

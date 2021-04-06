@@ -54,7 +54,7 @@ void Dooya::control(const CoverCall &call) {
 void Dooya::setup() {
   ESP_LOGCONFIG(TAG, "Setting up Dooya...");
   if (this->header_.empty()) {
-    this->header_ = {(uint8_t *)&START_CODE, (uint8_t *)&DEF_ADDR, (uint8_t *)&DEF_ADDR};
+    this->header_ = {(uint8_t *) &START_CODE, (uint8_t *) &DEF_ADDR, (uint8_t *) &DEF_ADDR};
   }
 }
 
