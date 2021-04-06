@@ -200,6 +200,9 @@ optional<XiaomiParseResult> parse_xiaomi_header(const esp32_ble_tracker::Service
   } else if ((raw[2] == 0x87) && (raw[3] == 0x03)) {  // square body, e-ink display
     result.type = XiaomiParseResult::TYPE_MHOC401;
     result.name = "MHOC401";
+  } else if ((raw[2] == 0x83) && (raw[3] == 0x0A)) {  // Qingping-branded, motion & ambient light sensor
+    result.type = XiaomiParseResult::TYPE_CGPR1;
+    result.name = "CGPR1";
   } else {
     ESP_LOGVV(TAG, "parse_xiaomi_header(): unknown device, no magic bytes.");
     return {};
