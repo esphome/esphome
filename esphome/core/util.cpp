@@ -16,6 +16,10 @@
 #include "esphome/components/ethernet/ethernet_component.h"
 #endif
 
+#ifdef USE_MQTT
+#include "esphome/components/mqtt/mqtt_client.h"
+#endif
+
 #ifdef ARDUINO_ARCH_ESP32
 #include <ESPmDNS.h>
 #endif
@@ -37,6 +41,21 @@ bool network_is_connected() {
 #endif
 
   return false;
+}
+
+bool cloud_is_connected() {
+  bool connected = false;
+#ifdef USE_MQTT
+  if (mqtt::global_mqtt_client != nullptr) {
+    connected = mqtt::global_mqtt_client->is_connected();
+  }
+#endif
+#ifdef USE_API
+  if (api::global_api_server != nullptr) {
+    connected = connected && api::global_api_server->is_connected();
+  }
+#endif
+  return connected;
 }
 
 #ifdef ARDUINO_ARCH_ESP8266

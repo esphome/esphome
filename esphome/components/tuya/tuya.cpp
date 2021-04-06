@@ -3,13 +3,6 @@
 #include "esphome/core/util.h"
 #include "esphome/core/helpers.h"
 
-#ifdef USE_MQTT
-#include "esphome/components/mqtt/mqtt_client.h"
-#endif
-#ifdef USE_API
-#include "esphome/components/api/api_server.h"
-#endif
-
 namespace esphome {
 namespace tuya {
 
@@ -354,18 +347,7 @@ void Tuya::send_wifi_status_() {
 
     // Protocol version 3 also supports specifying when connected to "the cloud"
     if (this->protocol_version_ >= 0x03) {
-      bool cloud = false;
-#ifdef USE_MQTT
-      if (mqtt::global_mqtt_client != nullptr) {
-        cloud = mqtt::global_mqtt_client->is_connected();
-      }
-#endif
-#ifdef USE_API
-      if (api::global_api_server != nullptr) {
-        cloud = cloud && api::global_api_server->is_connected();
-      }
-#endif
-      if (cloud) {
+      if (cloud_is_connected()) {
         status = 0x04;
       }
     }
@@ -380,6 +362,7 @@ void Tuya::send_wifi_status_() {
   this->send_command_(TuyaCommand{.cmd = TuyaCommandType::WIFI_STATE, .payload = std::vector<uint8_t>{status}});
 }
 
+#ifdef USE_TIME
 void Tuya::send_local_time_() {
   std::vector<uint8_t> payload;
   auto time_id = *this->time_id_;
@@ -405,6 +388,7 @@ void Tuya::send_local_time_() {
   }
   this->send_command_(TuyaCommand{.cmd = TuyaCommandType::LOCAL_TIME_QUERY, .payload = payload});
 }
+#endif
 
 void Tuya::set_datapoint_value(uint8_t datapoint_id, uint32_t value) {
   ESP_LOGD(TAG, "Setting datapoint %u to %u", datapoint_id, value);
