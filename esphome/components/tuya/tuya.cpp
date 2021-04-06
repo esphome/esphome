@@ -31,7 +31,9 @@ void Tuya::dump_config() {
     return;
   }
   for (auto &info : this->datapoints_) {
-    if (info.type == TuyaDatapointType::BOOLEAN)
+    if (info.type == TuyaDatapointType::RAW)
+      ESP_LOGCONFIG(TAG, "  Datapoint %u: raw (value: %s)", info.id, hexencode(info.value_raw).c_str());
+    else if (info.type == TuyaDatapointType::BOOLEAN)
       ESP_LOGCONFIG(TAG, "  Datapoint %u: switch (value: %s)", info.id, ONOFF(info.value_bool));
     else if (info.type == TuyaDatapointType::INTEGER)
       ESP_LOGCONFIG(TAG, "  Datapoint %u: int value (value: %d)", info.id, info.value_int);
@@ -236,6 +238,9 @@ void Tuya::handle_datapoint_(const uint8_t *buffer, size_t len) {
   datapoint.len = data_len;
 
   switch (datapoint.type) {
+    case TuyaDatapointType::RAW:
+      datapoint.value_raw = std::vector<uint8_t>(data, data + data_len);
+      break;
     case TuyaDatapointType::BOOLEAN:
       if (data_len != 1) {
         ESP_LOGW(TAG, "Datapoint %u has bad boolean len %zu", datapoint.id, data_len);
