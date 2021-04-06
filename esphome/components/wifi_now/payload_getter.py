@@ -36,7 +36,7 @@ def build_payload_getter_list(config, templ, arg_type):
 @coroutine
 def templated_payload_getter_to_code(type, config, payload_id, template_arg, args):
     template_arg = cg.TemplateArguments(type, *[arg[0] for arg in args])
-    var = cg.new_Pvariable(payload_id, template_arg, args)
+    var = cg.new_Pvariable(payload_id, template_arg)
     template = yield cg.templatable(config[ehc.CONF_VALUE], args, type)
     cg.add(var.set_value(template))
     yield var
@@ -124,8 +124,8 @@ def binary_sensor_event_payload_getter_to_code(config, payload_id, template_arg,
 #         }), key=ehc.CONF_VALUE)
 #     )
 # @coroutine
-# def payload_payload_getter_to_code(config, payload_id, template_arg, args):
-#     var = cg.new_Pvariable(payload_id, template_arg, args)
+# def payload_payload_getter_to_code(config, payload_id, template_arg):
+#     var = cg.new_Pvariable(payload_id, template_arg)
 #     template = yield cg.templatable(config[ehc.CONF_VALUE], args, t.payload_t)
 #     cg.add(var.set_value(template))
 #     yield var
