@@ -4,17 +4,23 @@ from esphome.components import uart
 from esphome.const import CONF_ID
 from esphome.core import coroutine
 
-DEPENDENCIES = ['uart']
+DEPENDENCIES = ["uart"]
 
-rs485_ns = cg.esphome_ns.namespace('rs485')
-RS485 = rs485_ns.class_('RS485', cg.Component, uart.UARTDevice)
-RS485Device = rs485_ns.class_('RS485Device')
+rs485_ns = cg.esphome_ns.namespace("rs485")
+RS485 = rs485_ns.class_("RS485", cg.Component, uart.UARTDevice)
+RS485Device = rs485_ns.class_("RS485Device")
 MULTI_CONF = True
 
-CONF_RS485_ID = 'rs485_id'
-CONFIG_SCHEMA = cv.Schema({
-    cv.GenerateID(): cv.declare_id(RS485),
-}).extend(cv.COMPONENT_SCHEMA).extend(uart.UART_DEVICE_SCHEMA)
+CONF_RS485_ID = "rs485_id"
+CONFIG_SCHEMA = (
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(RS485),
+        }
+    )
+    .extend(cv.COMPONENT_SCHEMA)
+    .extend(uart.UART_DEVICE_SCHEMA)
+)
 
 
 def to_code(config):
@@ -25,9 +31,11 @@ def to_code(config):
     yield uart.register_uart_device(var, config)
 
 
-RS485_DEVICE_SCHEMA = cv.Schema({
-    cv.GenerateID(CONF_RS485_ID): cv.use_id(RS485),
-})
+RS485_DEVICE_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(CONF_RS485_ID): cv.use_id(RS485),
+    }
+)
 
 
 @coroutine
