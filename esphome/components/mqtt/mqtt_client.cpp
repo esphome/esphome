@@ -360,10 +360,10 @@ void MQTTClientComponent::unsubscribe(const std::string &topic) {
 
   auto it = subscriptions_.begin();
   while (it != subscriptions_.end()) {
-	if (it->topic == topic)
-	  it = subscriptions_.erase(it);
-	else
-	  ++it;
+    if (it->topic == topic)
+      it = subscriptions_.erase(it);
+    else
+      ++it;
   }
 }
 

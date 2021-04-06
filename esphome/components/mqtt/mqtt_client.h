@@ -161,10 +161,10 @@ class MQTTClientComponent : public Component {
 
   /** Unsubscribe from an MQTT topic.
    *
-   * @param topic The topic to unsubscribe from. Must match the topic in the original subscribe or subscribe_json call exactly.
+   * @param topic The topic to unsubscribe from.
+   * Must match the topic in the original subscribe or subscribe_json call exactly.
    */
   void unsubscribe(const std::string &topic);
-
 
   /** Publish a MQTTMessage
    *
