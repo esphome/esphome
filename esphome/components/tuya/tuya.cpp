@@ -347,7 +347,7 @@ void Tuya::send_wifi_status_() {
 
     // Protocol version 3 also supports specifying when connected to "the cloud"
     if (this->protocol_version_ >= 0x03) {
-      if (cloud_is_connected()) {
+      if (remote_is_connected()) {
         status = 0x04;
       }
     }

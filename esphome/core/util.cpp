@@ -43,19 +43,26 @@ bool network_is_connected() {
   return false;
 }
 
-bool cloud_is_connected() {
-  bool connected = false;
-#ifdef USE_MQTT
-  if (mqtt::global_mqtt_client != nullptr) {
-    connected = mqtt::global_mqtt_client->is_connected();
-  }
-#endif
+bool api_is_connected() {
 #ifdef USE_API
   if (api::global_api_server != nullptr) {
-    connected = connected && api::global_api_server->is_connected();
+    return api::global_api_server->is_connected();
   }
 #endif
-  return connected;
+  return false;
+}
+
+bool mqtt_is_connected() {
+#ifdef USE_MQTT
+  if (mqtt::global_mqtt_client != nullptr) {
+    return mqtt::global_mqtt_client->is_connected();
+  }
+#endif
+  return false;
+}
+
+bool remote_is_connected() {
+  return api_is_connected() || mqtt_is_connected();
 }
 
 #ifdef ARDUINO_ARCH_ESP8266
