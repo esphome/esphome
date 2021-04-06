@@ -1,18 +1,10 @@
 from esphome.core import HexInt
-
+from hashlib import md5
 
 def get_md5sum(text):
-    import subprocess
-    process = subprocess.Popen(
-        ['md5sum'],
-        stdin=subprocess.PIPE,
-        stdout=subprocess.PIPE,
-        universal_newlines=True
-        )
-    process.stdin.write(text)
-    process.stdin.close()
-    return bytes.fromhex(process.stdout.readline().split(" ")[0])
-
+    m = md5()
+    m.update(text.encode())
+    return m.digest()
 
 def get_md5sum_hexint(text, length=None):
     parts = get_md5sum(text)
