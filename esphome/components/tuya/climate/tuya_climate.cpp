@@ -31,6 +31,15 @@ void TuyaClimate::setup() {
       this->compute_state_();
       this->publish_state();
     });
+  } else {
+    if (this->heating_state_pin_ != nullptr) {
+      this->heating_state_pin_->setup();
+      this->heating_state_ = this->heating_state_pin_->digital_read();
+    }
+    if (this->cooling_state_pin_ != nullptr) {
+      this->cooling_state_pin_->setup();
+      this->cooling_state_ = this->cooling_state_pin_->digital_read();
+    }
   }
   if (this->target_temperature_id_.has_value()) {
     this->parent_->register_listener(*this->target_temperature_id_, [this](TuyaDatapoint datapoint) {
@@ -47,6 +56,34 @@ void TuyaClimate::setup() {
       this->compute_state_();
       this->publish_state();
     });
+  }
+}
+
+void TuyaClimate::loop() {
+  if (this->active_state_id_.has_value())
+    return;
+
+  bool state_changed = false;
+  if (this->heating_state_pin_ != nullptr) {
+    bool heating_state = this->heating_state_pin_->digital_read();
+    if (heating_state != this->heating_state_) {
+      ESP_LOGV(TAG, "Heating state pin changed to: %s", ONOFF(heating_state));
+      this->heating_state_ = heating_state;
+      state_changed = true;
+    }
+  }
+  if (this->cooling_state_pin_ != nullptr) {
+    bool cooling_state = this->cooling_state_pin_->digital_read();
+    if (cooling_state != this->cooling_state_) {
+      ESP_LOGV(TAG, "Cooling state pin changed to: %s", ONOFF(cooling_state));
+      this->cooling_state_ = cooling_state;
+      state_changed = true;
+    }
+  }
+
+  if (state_changed) {
+    this->compute_state_();
+    this->publish_state();
   }
 }
 
@@ -84,6 +121,10 @@ void TuyaClimate::dump_config() {
     ESP_LOGCONFIG(TAG, "  Target Temperature has datapoint ID %u", *this->target_temperature_id_);
   if (this->current_temperature_id_.has_value())
     ESP_LOGCONFIG(TAG, "  Current Temperature has datapoint ID %u", *this->current_temperature_id_);
+  if (this->heating_state_pin_ != nullptr)
+    LOG_PIN("  Heating State Pin: ", this->heating_state_pin_);
+  if (this->cooling_state_pin_ != nullptr)
+    LOG_PIN("  Cooling State Pin: ", this->cooling_state_pin_);
 }
 
 void TuyaClimate::compute_state_() {
@@ -100,11 +141,19 @@ void TuyaClimate::compute_state_() {
 
   climate::ClimateAction target_action = climate::CLIMATE_ACTION_IDLE;
   if (this->active_state_id_.has_value()) {
+    // Use state from MCU datapoint
     if (this->supports_heat_ && this->active_state_heating_value_.has_value() &&
         this->active_state_ == this->active_state_heating_value_) {
       target_action = climate::CLIMATE_ACTION_HEATING;
     } else if (this->supports_cool_ && this->active_state_cooling_value_.has_value() &&
                this->active_state_ == this->active_state_cooling_value_) {
+      target_action = climate::CLIMATE_ACTION_COOLING;
+    }
+  } else if (this->heating_state_pin_ != nullptr || this->cooling_state_pin_ != nullptr) {
+    // Use state from input pins
+    if (this->heating_state_) {
+      target_action = climate::CLIMATE_ACTION_HEATING;
+    } else if (this->cooling_state_) {
       target_action = climate::CLIMATE_ACTION_COOLING;
     }
   } else {

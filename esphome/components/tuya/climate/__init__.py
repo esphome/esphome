@@ -1,3 +1,4 @@
+from esphome import pins
 from esphome.components import climate
 import esphome.config_validation as cv
 import esphome.codegen as cg
@@ -20,6 +21,8 @@ CONF_CURRENT_TEMPERATURE_DATAPOINT = "current_temperature_datapoint"
 CONF_TEMPERATURE_MULTIPLIER = "temperature_multiplier"
 CONF_CURRENT_TEMPERATURE_MULTIPLIER = "current_temperature_multiplier"
 CONF_TARGET_TEMPERATURE_MULTIPLIER = "target_temperature_multiplier"
+CONF_HEATING_STATE_PIN = "heating_state_pin"
+CONF_COOLING_STATE_PIN = "cooling_state_pin"
 
 TuyaClimate = tuya_ns.class_("TuyaClimate", climate.Climate, cg.Component)
 
@@ -91,6 +94,8 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_ACTIVE_STATE_DATAPOINT): cv.uint8_t,
             cv.Optional(CONF_ACTIVE_STATE_HEATING_VALUE, default=1): cv.uint8_t,
             cv.Optional(CONF_ACTIVE_STATE_COOLING_VALUE): cv.uint8_t,
+            cv.Optional(CONF_HEATING_STATE_PIN): pins.gpio_input_pin_schema,
+            cv.Optional(CONF_COOLING_STATE_PIN): pins.gpio_input_pin_schema,
             cv.Optional(CONF_TARGET_TEMPERATURE_DATAPOINT): cv.uint8_t,
             cv.Optional(CONF_CURRENT_TEMPERATURE_DATAPOINT): cv.uint8_t,
             cv.Optional(CONF_TEMPERATURE_MULTIPLIER): cv.positive_float,
@@ -118,14 +123,29 @@ async def to_code(config):
         cg.add(var.set_switch_id(config[CONF_SWITCH_DATAPOINT]))
     if CONF_ACTIVE_STATE_DATAPOINT in config:
         cg.add(var.set_active_state_id(config[CONF_ACTIVE_STATE_DATAPOINT]))
-    if CONF_ACTIVE_STATE_HEATING_VALUE in config:
-        cg.add(
-            var.set_active_state_heating_value(config[CONF_ACTIVE_STATE_HEATING_VALUE])
-        )
-    if CONF_ACTIVE_STATE_COOLING_VALUE in config:
-        cg.add(
-            var.set_active_state_cooling_value(config[CONF_ACTIVE_STATE_COOLING_VALUE])
-        )
+        if CONF_ACTIVE_STATE_HEATING_VALUE in config:
+            cg.add(
+                var.set_active_state_heating_value(
+                    config[CONF_ACTIVE_STATE_HEATING_VALUE]
+                )
+            )
+        if CONF_ACTIVE_STATE_COOLING_VALUE in config:
+            cg.add(
+                var.set_active_state_cooling_value(
+                    config[CONF_ACTIVE_STATE_COOLING_VALUE]
+                )
+            )
+    else:
+        if CONF_HEATING_STATE_PIN in config:
+            heating_state_pin = yield cg.gpio_pin_expression(
+                config[CONF_HEATING_STATE_PIN]
+            )
+            cg.add(var.set_heating_state_pin(heating_state_pin))
+        if CONF_COOLING_STATE_PIN in config:
+            cooling_state_pin = yield cg.gpio_pin_expression(
+                config[CONF_COOLING_STATE_PIN]
+            )
+            cg.add(var.set_cooling_state_pin(cooling_state_pin))
     if CONF_TARGET_TEMPERATURE_DATAPOINT in config:
         cg.add(var.set_target_temperature_id(config[CONF_TARGET_TEMPERATURE_DATAPOINT]))
     if CONF_CURRENT_TEMPERATURE_DATAPOINT in config:
