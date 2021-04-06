@@ -759,6 +759,10 @@ cover:
       - output.set_level:
           id: out
           level: !lambda 'return pos;'
+  - platform: dooya
+    name: Dooya Cover
+    address: 0xFEFE
+    update_interval: 500ms
 
 output:
   - platform: esp8266_pwm

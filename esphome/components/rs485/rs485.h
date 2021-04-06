@@ -28,7 +28,7 @@ class RS485 : public uart::UARTDevice, public Component {
 
   std::vector<uint8_t> rx_buffer_;
   std::queue<std::vector<uint8_t>> tx_buffer_;
-  bool ready_to_tx_ = true;
+  bool ready_to_tx_{true};
   uint32_t last_rs485_byte_{0};
   std::vector<RS485Device *> devices_;
 };

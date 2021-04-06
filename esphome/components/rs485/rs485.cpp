@@ -49,6 +49,7 @@ void RS485::parse_rs485_frame_() {
         header_idx = 0;
         break;
       }
+      header_idx++;
     }
     if (next_device)
       continue;
@@ -67,9 +68,7 @@ float RS485::get_setup_priority() const {
   // After UART bus
   return setup_priority::BUS - 1.0f;
 }
-void RS485::send(std::vector<uint8_t> &data) {
-  this->tx_buffer_.push(data);
-}
+void RS485::send(std::vector<uint8_t> &data) { this->tx_buffer_.push(data); }
 
 }  // namespace rs485
 }  // namespace esphome

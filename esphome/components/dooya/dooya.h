@@ -8,6 +8,7 @@ namespace esphome {
 namespace dooya {
 
 static const uint8_t START_CODE = 0x55;
+static const uint8_t DEF_ADDR = 0xFE;
 
 enum Command : uint8_t {
   READ = 0x01,
@@ -39,14 +40,20 @@ class Dooya : public cover::Cover, public Component, public rs485::RS485Device {
     uint8_t address_l = (uint8_t)(address & 0xFF);
     this->header_ = {&start_code, &address_h, &address_l};
   }
+  void set_update_interval(uint32_t update_interval) { this->update_interval_ = update_interval; }
   void on_rs485_data(const std::vector<uint8_t> &data) override;
   cover::CoverTraits get_traits() override;
 
  protected:
   void control(const cover::CoverCall &call) override;
   void send_command_(const uint8_t *data, uint8_t len);
-  uint32_t last_status_check_ = 0;
-  uint8_t current_request_ = 0;
+  
+  uint32_t update_interval_{500};
+  uint32_t last_update_{0};
+  uint8_t current_request_{GET_STATUS};
+  uint8_t last_published_op_;
+  float last_published_pos_;
+
 };
 
 }  // namespace dooya
