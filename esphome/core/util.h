@@ -10,6 +10,9 @@ bool network_is_connected();
 /// Get the active network hostname
 std::string network_get_address();
 
+/// Return whether the node is connected to the "cloud" via MQTT or API
+bool cloud_is_connected();
+
 /// Manually set up the network stack (outside of the App.setup() loop, for example in OTA safe mode)
 #ifdef ARDUINO_ARCH_ESP8266
 void network_setup_mdns(IPAddress address, int interface);
