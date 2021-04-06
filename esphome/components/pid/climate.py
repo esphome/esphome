@@ -4,40 +4,51 @@ from esphome import automation
 from esphome.components import climate, sensor, output
 from esphome.const import CONF_ID, CONF_SENSOR
 
-pid_ns = cg.esphome_ns.namespace('pid')
-PIDClimate = pid_ns.class_('PIDClimate', climate.Climate, cg.Component)
-PIDAutotuneAction = pid_ns.class_('PIDAutotuneAction', automation.Action)
-PIDResetIntegralTermAction = pid_ns.class_('PIDResetIntegralTermAction', automation.Action)
-PIDSetControlParametersAction = pid_ns.class_('PIDSetControlParametersAction', automation.Action)
+pid_ns = cg.esphome_ns.namespace("pid")
+PIDClimate = pid_ns.class_("PIDClimate", climate.Climate, cg.Component)
+PIDAutotuneAction = pid_ns.class_("PIDAutotuneAction", automation.Action)
+PIDResetIntegralTermAction = pid_ns.class_(
+    "PIDResetIntegralTermAction", automation.Action
+)
+PIDSetControlParametersAction = pid_ns.class_(
+    "PIDSetControlParametersAction", automation.Action
+)
 
-CONF_DEFAULT_TARGET_TEMPERATURE = 'default_target_temperature'
+CONF_DEFAULT_TARGET_TEMPERATURE = "default_target_temperature"
 
-CONF_KP = 'kp'
-CONF_KI = 'ki'
-CONF_KD = 'kd'
-CONF_CONTROL_PARAMETERS = 'control_parameters'
-CONF_COOL_OUTPUT = 'cool_output'
-CONF_HEAT_OUTPUT = 'heat_output'
-CONF_NOISEBAND = 'noiseband'
-CONF_POSITIVE_OUTPUT = 'positive_output'
-CONF_NEGATIVE_OUTPUT = 'negative_output'
-CONF_MIN_INTEGRAL = 'min_integral'
-CONF_MAX_INTEGRAL = 'max_integral'
+CONF_KP = "kp"
+CONF_KI = "ki"
+CONF_KD = "kd"
+CONF_CONTROL_PARAMETERS = "control_parameters"
+CONF_COOL_OUTPUT = "cool_output"
+CONF_HEAT_OUTPUT = "heat_output"
+CONF_NOISEBAND = "noiseband"
+CONF_POSITIVE_OUTPUT = "positive_output"
+CONF_NEGATIVE_OUTPUT = "negative_output"
+CONF_MIN_INTEGRAL = "min_integral"
+CONF_MAX_INTEGRAL = "max_integral"
 
-CONFIG_SCHEMA = cv.All(climate.CLIMATE_SCHEMA.extend({
-    cv.GenerateID(): cv.declare_id(PIDClimate),
-    cv.Required(CONF_SENSOR): cv.use_id(sensor.Sensor),
-    cv.Required(CONF_DEFAULT_TARGET_TEMPERATURE): cv.temperature,
-    cv.Optional(CONF_COOL_OUTPUT): cv.use_id(output.FloatOutput),
-    cv.Optional(CONF_HEAT_OUTPUT): cv.use_id(output.FloatOutput),
-    cv.Required(CONF_CONTROL_PARAMETERS): cv.Schema({
-        cv.Required(CONF_KP): cv.float_,
-        cv.Optional(CONF_KI, default=0.0): cv.float_,
-        cv.Optional(CONF_KD, default=0.0): cv.float_,
-        cv.Optional(CONF_MIN_INTEGRAL, default=-1): cv.float_,
-        cv.Optional(CONF_MAX_INTEGRAL, default=1): cv.float_,
-    }),
-}), cv.has_at_least_one_key(CONF_COOL_OUTPUT, CONF_HEAT_OUTPUT))
+CONFIG_SCHEMA = cv.All(
+    climate.CLIMATE_SCHEMA.extend(
+        {
+            cv.GenerateID(): cv.declare_id(PIDClimate),
+            cv.Required(CONF_SENSOR): cv.use_id(sensor.Sensor),
+            cv.Required(CONF_DEFAULT_TARGET_TEMPERATURE): cv.temperature,
+            cv.Optional(CONF_COOL_OUTPUT): cv.use_id(output.FloatOutput),
+            cv.Optional(CONF_HEAT_OUTPUT): cv.use_id(output.FloatOutput),
+            cv.Required(CONF_CONTROL_PARAMETERS): cv.Schema(
+                {
+                    cv.Required(CONF_KP): cv.float_,
+                    cv.Optional(CONF_KI, default=0.0): cv.float_,
+                    cv.Optional(CONF_KD, default=0.0): cv.float_,
+                    cv.Optional(CONF_MIN_INTEGRAL, default=-1): cv.float_,
+                    cv.Optional(CONF_MAX_INTEGRAL, default=1): cv.float_,
+                }
+            ),
+        }
+    ),
+    cv.has_at_least_one_key(CONF_COOL_OUTPUT, CONF_HEAT_OUTPUT),
+)
 
 
 def to_code(config):
@@ -67,23 +78,35 @@ def to_code(config):
 
 
 @automation.register_action(
-    'climate.pid.reset_integral_term',
+    "climate.pid.reset_integral_term",
     PIDResetIntegralTermAction,
-    automation.maybe_simple_id({
-        cv.Required(CONF_ID): cv.use_id(PIDClimate),
-    })
+    automation.maybe_simple_id(
+        {
+            cv.Required(CONF_ID): cv.use_id(PIDClimate),
+        }
+    ),
 )
 def pid_reset_integral_term(config, action_id, template_arg, args):
     paren = yield cg.get_variable(config[CONF_ID])
     yield cg.new_Pvariable(action_id, template_arg, paren)
 
 
-@automation.register_action('climate.pid.autotune', PIDAutotuneAction, automation.maybe_simple_id({
-    cv.Required(CONF_ID): cv.use_id(PIDClimate),
-    cv.Optional(CONF_NOISEBAND, default=0.25): cv.float_,
-    cv.Optional(CONF_POSITIVE_OUTPUT, default=1.0): cv.possibly_negative_percentage,
-    cv.Optional(CONF_NEGATIVE_OUTPUT, default=-1.0): cv.possibly_negative_percentage,
-}))
+@automation.register_action(
+    "climate.pid.autotune",
+    PIDAutotuneAction,
+    automation.maybe_simple_id(
+        {
+            cv.Required(CONF_ID): cv.use_id(PIDClimate),
+            cv.Optional(CONF_NOISEBAND, default=0.25): cv.float_,
+            cv.Optional(
+                CONF_POSITIVE_OUTPUT, default=1.0
+            ): cv.possibly_negative_percentage,
+            cv.Optional(
+                CONF_NEGATIVE_OUTPUT, default=-1.0
+            ): cv.possibly_negative_percentage,
+        }
+    ),
+)
 def esp8266_set_frequency_to_code(config, action_id, template_arg, args):
     paren = yield cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
@@ -94,14 +117,16 @@ def esp8266_set_frequency_to_code(config, action_id, template_arg, args):
 
 
 @automation.register_action(
-    'climate.pid.set_control_parameters',
+    "climate.pid.set_control_parameters",
     PIDSetControlParametersAction,
-    automation.maybe_simple_id({
-        cv.Required(CONF_ID): cv.use_id(PIDClimate),
-        cv.Required(CONF_KP): cv.templatable(cv.float_),
-        cv.Optional(CONF_KI, default=0.0): cv.templatable(cv.float_),
-        cv.Optional(CONF_KD, default=0.0): cv.templatable(cv.float_),
-    })
+    automation.maybe_simple_id(
+        {
+            cv.Required(CONF_ID): cv.use_id(PIDClimate),
+            cv.Required(CONF_KP): cv.templatable(cv.float_),
+            cv.Optional(CONF_KI, default=0.0): cv.templatable(cv.float_),
+            cv.Optional(CONF_KD, default=0.0): cv.templatable(cv.float_),
+        }
+    ),
 )
 def set_control_parameters(config, action_id, template_arg, args):
     paren = yield cg.get_variable(config[CONF_ID])

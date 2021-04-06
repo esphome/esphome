@@ -197,10 +197,6 @@ uart:
     rx_pin: GPIO3
     baud_rate: 115200
 
-  - id: adalight_uart
-    rx_pin: GPIO3
-    baud_rate: 115200
-
 ota:
   safe_mode: True
   port: 3286
@@ -229,6 +225,8 @@ sensor:
     name: 'VL53L0x Distance'
     address: 0x29
     update_interval: 60s
+    enable_pin: GPIO13
+    timeout: 200us
   - platform: apds9960
     type: clear
     name: APDS9960 Clear
@@ -558,14 +556,14 @@ switch:
   - platform: gpio
     id: gpio_switch1
     pin:
-      mcp23017: mcp23017_hub
+      mcp23xxx: mcp23017_hub
       number: 0
       mode: OUTPUT
     interlock: &interlock [gpio_switch1, gpio_switch2, gpio_switch3]
   - platform: gpio
     id: gpio_switch2
     pin:
-      mcp23008: mcp23008_hub
+      mcp23xxx: mcp23008_hub
       number: 0
       mode: OUTPUT
     interlock: *interlock
@@ -816,7 +814,6 @@ light:
     effects:
       - wled:
       - adalight:
-          uart_id: adalight_uart
       - e131:
           universe: 1
   - platform: hbridge
@@ -845,6 +842,8 @@ sim800l:
         str = message;
     - sim800l.send_sms:
         message: 'hello you'
+        recipient: '+1234'
+    - sim800l.dial:
         recipient: '+1234'
 
 dfplayer:
@@ -890,6 +889,25 @@ rf_bridge:
         code: 'ABC123'
     - rf_bridge.send_raw:
         raw: 'AAA5070008001000ABC12355'
+    - http_request.get:
+        url: https://esphome.io
+        headers:
+          Content-Type: application/json
+        verify_ssl: false
+    - http_request.post:
+        url: https://esphome.io
+        verify_ssl: false
+        json:
+          key: !lambda |-
+            return id(version_sensor).state;
+          greeting: 'Hello World'
+    - http_request.send:
+        method: PUT
+        url: https://esphome.io
+        headers:
+          Content-Type: application/json
+        body: 'Some data'
+        verify_ssl: false
 
 display:
   - platform: max7219digit
@@ -901,3 +919,7 @@ display:
     id: my_matrix
     lambda: |-
       it.printdigit("hello");
+
+http_request:
+  useragent: esphome/device
+  timeout: 10s

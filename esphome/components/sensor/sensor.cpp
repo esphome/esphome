@@ -40,6 +40,13 @@ std::string Sensor::get_icon() {
     return *this->icon_;
   return this->icon();
 }
+void Sensor::set_device_class(const std::string &device_class) { this->device_class_ = device_class; }
+std::string Sensor::get_device_class() {
+  if (this->device_class_.has_value())
+    return *this->device_class_;
+  return this->device_class();
+}
+std::string Sensor::device_class() { return ""; }
 std::string Sensor::get_unit_of_measurement() {
   if (this->unit_of_measurement_.has_value())
     return *this->unit_of_measurement_;
