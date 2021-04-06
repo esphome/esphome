@@ -10,14 +10,19 @@ from .md5sum import get_md5sum_hexint
 from .peer import peer_to_code, PEER_SCHEMA
 from .receive_trigger import validate_receive_trigger, receive_trigger_to_code
 
-COMPONENT_SCHEMA = cv.All(cv.COMPONENT_SCHEMA.extend({
-    cv.GenerateID(): cv.declare_id(t.Component),
-    cv.Optional(ehc.CONF_CHANNEL): cv.All(cv.int_, cv.Range(min=1, max=14)),
-    cv.Optional(ehc.CONF_PASSWORD): cv.All(cv.string, cv.Length(min=2)),
-    cv.Optional(c.CONF_AESKEY): create_aes_key,
-    cv.Required(c.CONF_PEERS): cv.ensure_list(PEER_SCHEMA),
-    cv.Optional(c.CONF_ON_RECEIVE): validate_receive_trigger,
-}), cv.has_at_most_one_key(ehc.CONF_PASSWORD, c.CONF_AESKEY))
+COMPONENT_SCHEMA = cv.All(
+    cv.COMPONENT_SCHEMA.extend(
+        {
+            cv.GenerateID(): cv.declare_id(t.Component),
+            cv.Optional(ehc.CONF_CHANNEL): cv.All(cv.int_, cv.Range(min=1, max=14)),
+            cv.Optional(ehc.CONF_PASSWORD): cv.All(cv.string, cv.Length(min=2)),
+            cv.Optional(c.CONF_AESKEY): create_aes_key,
+            cv.Required(c.CONF_PEERS): cv.ensure_list(PEER_SCHEMA),
+            cv.Optional(c.CONF_ON_RECEIVE): validate_receive_trigger,
+        }
+    ),
+    cv.has_at_most_one_key(ehc.CONF_PASSWORD, c.CONF_AESKEY),
+)
 
 
 @coroutine_with_priority(1.0)

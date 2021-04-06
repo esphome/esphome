@@ -10,14 +10,16 @@ from .service_key import create_service_key
 from .md5sum import get_md5sum_hexint
 from .payload_getter import build_payload_getter_list, validate_payload_getter_list
 
-SEND_SCHEMA = cv.Schema({
-    cv.Optional(c.CONF_PEERID): cv.use_id(t.Peer),
-    cv.Optional(ehc.CONF_SERVICE): cv.All(cv.string, cv.Length(min=2)),
-    cv.Optional(c.CONF_SERVICEKEY): create_service_key,
-    cv.Optional(c.CONF_PAYLOADS): validate_payload_getter_list,
-    cv.Optional(c.CONF_ON_FAIL): automation.validate_action_list,
-    cv.Optional(c.CONF_ON_SUCCESS): automation.validate_action_list,
-    })
+SEND_SCHEMA = cv.Schema(
+    {
+        cv.Optional(c.CONF_PEERID): cv.use_id(t.Peer),
+        cv.Optional(ehc.CONF_SERVICE): cv.All(cv.string, cv.Length(min=2)),
+        cv.Optional(c.CONF_SERVICEKEY): create_service_key,
+        cv.Optional(c.CONF_PAYLOADS): validate_payload_getter_list,
+        cv.Optional(c.CONF_ON_FAIL): automation.validate_action_list,
+        cv.Optional(c.CONF_ON_SUCCESS): automation.validate_action_list,
+    }
+)
 
 
 @automation.register_action(c.ACTION_SEND, t.SendAction, SEND_SCHEMA)
@@ -34,17 +36,20 @@ def send_action_to_code(config, action_id, template_arg, args):
         cg.add(var.set_servicekey(*config[c.CONF_SERVICEKEY].to_hex_int()))
     if config.get(c.CONF_PAYLOADS):
         payload_getters = yield build_payload_getter_list(
-            config[c.CONF_PAYLOADS],
-            template_arg, args
-            )
+            config[c.CONF_PAYLOADS], template_arg, args
+        )
         cg.add(var.set_payload_getters(payload_getters))
-    ActionPtr = t.SendAction.template(template_arg).operator('ptr')
-    args = args + [(ActionPtr, 'sendaction')]
+    ActionPtr = t.SendAction.template(template_arg).operator("ptr")
+    args = args + [(ActionPtr, "sendaction")]
     template_arg = cg.TemplateArguments(*[arg[0] for arg in args])
     if c.CONF_ON_FAIL in config:
-        actions = yield automation.build_action_list(config[c.CONF_ON_FAIL], template_arg, args)
+        actions = yield automation.build_action_list(
+            config[c.CONF_ON_FAIL], template_arg, args
+        )
         cg.add(var.add_on_fail(actions))
     if c.CONF_ON_SUCCESS in config:
-        actions = yield automation.build_action_list(config[c.CONF_ON_SUCCESS], template_arg, args)
+        actions = yield automation.build_action_list(
+            config[c.CONF_ON_SUCCESS], template_arg, args
+        )
         cg.add(var.add_on_success(actions))
     yield var

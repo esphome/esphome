@@ -11,12 +11,12 @@ class ServiceKey:
         self.parts = parts
 
     def __str__(self):
-        return ':'.join(f'{part:02X}' for part in self.parts)
+        return ":".join(f"{part:02X}" for part in self.parts)
 
     @property
     def as_hex(self):
-        num = ''.join(f'{part:02X}' for part in self.parts)
-        return RawExpression(f'0x{num}ULL')
+        num = "".join(f"{part:02X}" for part in self.parts)
+        return RawExpression(f"0x{num}ULL")
 
     @property
     def as_hex_int(self):
@@ -25,7 +25,7 @@ class ServiceKey:
 
 def create_service_key(value):
     value = cv.string_strict(value)
-    parts = value.split(':')
+    parts = value.split(":")
     if len(parts) != 8:
         raise cv.Invalid("Service Key must consist of 8 : (colon) separated parts")
     parts_int = []
@@ -37,7 +37,7 @@ def create_service_key(value):
         except ValueError as error:
             raise cv.Invalid(
                 "Service Key parts must be hexadecimal values from 00 to FF"
-                ) from error
+            ) from error
     return ServiceKey(*parts_int)
 
 

@@ -15,8 +15,8 @@ CODEOWNERS = ["@motwok"]
 
 @coroutine
 def to_code(config):
-    cg.add_define('WIFI_BASIC_COOP')
-    cg.add_define('USE_WIFINOW')
+    cg.add_define("WIFI_BASIC_COOP")
+    cg.add_define("USE_WIFINOW")
     if CORE.is_esp8266:
-        cg.add_library('ESP8266WiFi', None)
+        cg.add_library("ESP8266WiFi", None)
     yield component.wifi_now_component_to_code(config)

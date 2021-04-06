@@ -14,12 +14,14 @@ def register_payload_setter(name, payloadtype_type, schema):
     return PAYLOAD_SETTER_REGISTRY.register(name, payloadtype_type, schema)
 
 
-validate_payload_setter_list = cv.validate_registry('payload', PAYLOAD_SETTER_REGISTRY)
+validate_payload_setter_list = cv.validate_registry("payload", PAYLOAD_SETTER_REGISTRY)
 
 
 @coroutine
 def build_payload_setter(full_config, template_arg, args):
-    registry_entry, config = cg.extract_registry_entry_config(PAYLOAD_SETTER_REGISTRY, full_config)
+    registry_entry, config = cg.extract_registry_entry_config(
+        PAYLOAD_SETTER_REGISTRY, full_config
+    )
     builder = registry_entry.coroutine_fun
     yield builder(config, config[ehc.CONF_ID], template_arg, args)
 
@@ -40,75 +42,118 @@ def templated_payload_setter_to_code(type, config, payload_id, template_arg, arg
     yield var
 
 
-@register_payload_setter(c.PAYLOAD_BOOL, t.TemplatePayloadSetter, cv.maybe_simple_value(
-    cv.Schema({
-        cv.GenerateID(): cv.declare_id(t.TemplatePayloadSetter),
-        }), key=ehc.CONF_ID)
-    )
+@register_payload_setter(
+    c.PAYLOAD_BOOL,
+    t.TemplatePayloadSetter,
+    cv.maybe_simple_value(
+        cv.Schema(
+            {
+                cv.GenerateID(): cv.declare_id(t.TemplatePayloadSetter),
+            }
+        ),
+        key=ehc.CONF_ID,
+    ),
+)
 @coroutine
 def bool_payload_setter_to_code(config, payload_id, template_arg, args):
-    yield templated_payload_setter_to_code(cg.bool_, config, payload_id, template_arg, args)
-
-
-@register_payload_setter(c.PAYLOAD_FLOAT, t.TemplatePayloadSetter, cv.maybe_simple_value(
-    cv.Schema({
-        cv.GenerateID(): cv.declare_id(t.TemplatePayloadSetter),
-        }), key=ehc.CONF_ID)
+    yield templated_payload_setter_to_code(
+        cg.bool_, config, payload_id, template_arg, args
     )
+
+
+@register_payload_setter(
+    c.PAYLOAD_FLOAT,
+    t.TemplatePayloadSetter,
+    cv.maybe_simple_value(
+        cv.Schema(
+            {
+                cv.GenerateID(): cv.declare_id(t.TemplatePayloadSetter),
+            }
+        ),
+        key=ehc.CONF_ID,
+    ),
+)
 @coroutine
 def float_payload_setter_to_code(config, payload_id, template_arg, args):
-    yield templated_payload_setter_to_code(cg.float_, config, payload_id, template_arg, args)
-
-
-@register_payload_setter(c.PAYLOAD_INT, t.TemplatePayloadSetter, cv.maybe_simple_value(
-    cv.Schema({
-        cv.GenerateID(): cv.declare_id(t.TemplatePayloadSetter),
-        }), key=ehc.CONF_ID)
+    yield templated_payload_setter_to_code(
+        cg.float_, config, payload_id, template_arg, args
     )
+
+
+@register_payload_setter(
+    c.PAYLOAD_INT,
+    t.TemplatePayloadSetter,
+    cv.maybe_simple_value(
+        cv.Schema(
+            {
+                cv.GenerateID(): cv.declare_id(t.TemplatePayloadSetter),
+            }
+        ),
+        key=ehc.CONF_ID,
+    ),
+)
 @coroutine
 def int_payload_setter_to_code(config, payload_id, template_arg, args):
-    yield templated_payload_setter_to_code(cg.int_, config, payload_id, template_arg, args)
-
-
-@register_payload_setter(c.PAYLOAD_STRING, t.TemplatePayloadSetter, cv.maybe_simple_value(
-    cv.Schema({
-        cv.GenerateID(): cv.declare_id(t.TemplatePayloadSetter),
-        }), key=ehc.CONF_ID)
+    yield templated_payload_setter_to_code(
+        cg.int_, config, payload_id, template_arg, args
     )
+
+
+@register_payload_setter(
+    c.PAYLOAD_STRING,
+    t.TemplatePayloadSetter,
+    cv.maybe_simple_value(
+        cv.Schema(
+            {
+                cv.GenerateID(): cv.declare_id(t.TemplatePayloadSetter),
+            }
+        ),
+        key=ehc.CONF_ID,
+    ),
+)
 @coroutine
 def string_payload_setter_to_code(config, payload_id, template_arg, args):
-    yield templated_payload_setter_to_code(cg.std_string, config, payload_id, template_arg, args)
-
-
-@register_payload_setter(c.PAYLOAD_VECTOR, t.TemplatePayloadSetter, cv.maybe_simple_value(
-    cv.Schema({
-        cv.GenerateID(): cv.declare_id(t.TemplatePayloadSetter),
-        }), key=ehc.CONF_ID)
+    yield templated_payload_setter_to_code(
+        cg.std_string, config, payload_id, template_arg, args
     )
+
+
+@register_payload_setter(
+    c.PAYLOAD_VECTOR,
+    t.TemplatePayloadSetter,
+    cv.maybe_simple_value(
+        cv.Schema(
+            {
+                cv.GenerateID(): cv.declare_id(t.TemplatePayloadSetter),
+            }
+        ),
+        key=ehc.CONF_ID,
+    ),
+)
 @coroutine
 def vector_payload_setter_to_code(config, payload_id, template_arg, args):
-    yield templated_payload_setter_to_code(t.payload_t, config, payload_id, template_arg, args)
+    yield templated_payload_setter_to_code(
+        t.payload_t, config, payload_id, template_arg, args
+    )
 
 
 @register_payload_setter(
     c.PAYLOAD_BINARY_SENSOR_EVENT,
     t.TemplatePayloadSetter,
     cv.maybe_simple_value(
-        cv.Schema({
-            cv.GenerateID(): cv.declare_id(t.TemplatePayloadSetter),
-            }),
-        key=ehc.CONF_ID
-        )
-    )
+        cv.Schema(
+            {
+                cv.GenerateID(): cv.declare_id(t.TemplatePayloadSetter),
+            }
+        ),
+        key=ehc.CONF_ID,
+    ),
+)
 @coroutine
 def binary_sensor_event_payload_setter_to_code(config, payload_id, template_arg, args):
     yield templated_payload_setter_to_code(
-        t.BinarySensorEvent,
-        config,
-        payload_id,
-        template_arg,
-        args
-        )
+        t.BinarySensorEvent, config, payload_id, template_arg, args
+    )
 
 
 # @register_payload_setter(c.PAYLOAD_PAYLOAD, t.PayloadPayloadSetter, cv.maybe_simple_value(

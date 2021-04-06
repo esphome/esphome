@@ -1,4 +1,3 @@
-
 from esphome import automation
 import esphome.codegen as cg
 import esphome.config_validation as cv
@@ -9,10 +8,12 @@ from esphome.components import binary_sensor
 from . import const as c
 from . import cpp_types as t
 
-INJECT_ACTION_SCHEMA = cv.Schema({
-    cv.Required(ehc.CONF_SENSOR_ID): cv.use_id(binary_sensor.BinarySensor),
-    cv.Required(c.CONF_PAYLOAD_ID): cv.use_id(t.TemplatePayloadSetter),
-    })
+INJECT_ACTION_SCHEMA = cv.Schema(
+    {
+        cv.Required(ehc.CONF_SENSOR_ID): cv.use_id(binary_sensor.BinarySensor),
+        cv.Required(c.CONF_PAYLOAD_ID): cv.use_id(t.TemplatePayloadSetter),
+    }
+)
 
 
 @automation.register_action(c.ACTION_INJECT, t.InjectAction, INJECT_ACTION_SCHEMA)
@@ -21,9 +22,8 @@ def inject_action_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     binary_sensors_config = CORE.config[ehc.CONF_BINARY_SENSOR]
     for binary_sensor_conf in filter(
-                lambda x: x[ehc.CONF_ID] == config[ehc.CONF_SENSOR_ID],
-                binary_sensors_config
-            ):
+        lambda x: x[ehc.CONF_ID] == config[ehc.CONF_SENSOR_ID], binary_sensors_config
+    ):
         for conf in binary_sensor_conf.get(ehc.CONF_ON_PRESS, []):
             trigger = yield cg.get_variable(conf[ehc.CONF_TRIGGER_ID])
             cg.add(var.set_event_trigger(t.BinarySensorEvent.PRESS, trigger))
@@ -39,7 +39,7 @@ def inject_action_to_code(config, action_id, template_arg, args):
         i = 1
         for conf in binary_sensor_conf.get(ehc.CONF_ON_MULTI_CLICK, []):
             trigger = yield cg.get_variable(conf[ehc.CONF_TRIGGER_ID])
-            event = t.BINARY_SENSOR_EVENTS['multi_click_{}'.format(i)]
+            event = t.BINARY_SENSOR_EVENTS["multi_click_{}".format(i)]
             cg.add(var.set_event_trigger(event, trigger))
             i += 1
             if i > 20:

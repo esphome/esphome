@@ -8,12 +8,17 @@ from . import cpp_types as t
 from .aes_key import create_aes_key
 from .md5sum import get_md5sum_hexint
 
-PEER_SCHEMA = cv.All(cv.Schema({
-    cv.GenerateID(): cv.declare_id(t.Peer),
-    cv.Required(ehc.CONF_BSSID): cv.mac_address,
-    cv.Optional(ehc.CONF_PASSWORD): cv.All(cv.string, cv.Length(min=2)),
-    cv.Optional(c.CONF_AESKEY): create_aes_key,
-}), cv.has_at_most_one_key(ehc.CONF_PASSWORD, c.CONF_AESKEY))
+PEER_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(t.Peer),
+            cv.Required(ehc.CONF_BSSID): cv.mac_address,
+            cv.Optional(ehc.CONF_PASSWORD): cv.All(cv.string, cv.Length(min=2)),
+            cv.Optional(c.CONF_AESKEY): create_aes_key,
+        }
+    ),
+    cv.has_at_most_one_key(ehc.CONF_PASSWORD, c.CONF_AESKEY),
+)
 
 
 @coroutine
