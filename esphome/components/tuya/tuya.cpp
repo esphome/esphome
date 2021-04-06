@@ -240,6 +240,7 @@ void Tuya::handle_datapoint_(const uint8_t *buffer, size_t len) {
   switch (datapoint.type) {
     case TuyaDatapointType::RAW:
       datapoint.value_raw = std::vector<uint8_t>(data, data + data_len);
+      ESP_LOGD(TAG, "Datapoint %u update to %s", datapoint.id, hexencode(datapoint.value_raw).c_str());
       break;
     case TuyaDatapointType::BOOLEAN:
       if (data_len != 1) {
@@ -247,6 +248,7 @@ void Tuya::handle_datapoint_(const uint8_t *buffer, size_t len) {
         return;
       }
       datapoint.value_bool = data[0];
+      ESP_LOGD(TAG, "Datapoint %u update to %s", datapoint.id, ONOFF(datapoint.value_bool));
       break;
     case TuyaDatapointType::INTEGER:
       if (data_len != 4) {
@@ -254,9 +256,11 @@ void Tuya::handle_datapoint_(const uint8_t *buffer, size_t len) {
         return;
       }
       datapoint.value_uint = encode_uint32(data[0], data[1], data[2], data[3]);
+      ESP_LOGD(TAG, "Datapoint %u update to %d", datapoint.id, datapoint.value_int);
       break;
     case TuyaDatapointType::STRING:
       datapoint.value_string = std::string(reinterpret_cast<const char *>(data), data_len);
+      ESP_LOGD(TAG, "Datapoint %u update to %s", datapoint.id, datapoint.value_string.c_str());
       break;
     case TuyaDatapointType::ENUM:
       if (data_len != 1) {
@@ -264,6 +268,7 @@ void Tuya::handle_datapoint_(const uint8_t *buffer, size_t len) {
         return;
       }
       datapoint.value_enum = data[0];
+      ESP_LOGD(TAG, "Datapoint %u update to %d", datapoint.id, datapoint.value_enum);
       break;
     case TuyaDatapointType::BITMASK:
       switch (data_len) {
@@ -280,12 +285,12 @@ void Tuya::handle_datapoint_(const uint8_t *buffer, size_t len) {
           ESP_LOGW(TAG, "Datapoint %u has bad bitmask len %zu", datapoint.id, data_len);
           return;
       }
+      ESP_LOGD(TAG, "Datapoint %u update to %#08X", datapoint.id, datapoint.value_bitmask);
       break;
     default:
-      ESP_LOGW(TAG, "Datapoint %u has unknown type 0x%02hhX", datapoint.id, datapoint.type);
+      ESP_LOGW(TAG, "Datapoint %u has unknown type %#02hhX", datapoint.id, datapoint.type);
       return;
   }
-  ESP_LOGD(TAG, "Datapoint %u update to %u", datapoint.id, datapoint.value_uint);
 
   // Update internal datapoints
   bool found = false;
