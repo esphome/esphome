@@ -54,11 +54,12 @@ def validate_source_shorthand(value):
     # Regex for GitHub repo name with optional branch/tag
     # Note: git allows other branch/tag names as well, but never seen them used before
     m = re.match(
-        r"([a-zA-Z0-9\-]+)/([a-zA-Z0-9\-\._]+)(?:@([a-zA-Z0-9\-_.\./]+))?", value
+        r"github://([a-zA-Z0-9\-]+)/([a-zA-Z0-9\-\._]+)(?:@([a-zA-Z0-9\-_.\./]+))?",
+        value,
     )
     if m is None:
         raise cv.Invalid(
-            "Source is not in expected username/name[@branch-or-tag] format!"
+            "Source is not a file system path or in expected github://username/name[@branch-or-tag] format!"
         )
     conf = {
         CONF_TYPE: "git",
