@@ -4,6 +4,8 @@ from esphome.components import uart
 from esphome.const import CONF_ID
 from esphome.core import coroutine
 
+CODEOWNERS = ["@loongyh"]
+
 DEPENDENCIES = ["uart"]
 
 rs485_ns = cg.esphome_ns.namespace("rs485")

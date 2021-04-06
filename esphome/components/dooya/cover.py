@@ -3,6 +3,8 @@ import esphome.config_validation as cv
 from esphome.components import cover, rs485
 from esphome.const import CONF_ADDRESS, CONF_ID, CONF_UPDATE_INTERVAL
 
+CODEOWNERS = ["@loongyh"]
+
 AUTO_LOAD = ["rs485"]
 
 dooya_ns = cg.esphome_ns.namespace("dooya")
