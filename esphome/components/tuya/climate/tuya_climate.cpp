@@ -52,8 +52,7 @@ void TuyaClimate::setup() {
 
 void TuyaClimate::control(const climate::ClimateCall &call) {
   if (call.get_mode().has_value()) {
-    ClimateMode mode = *call.get_mode();
-    const bool switch_state = mode != climate::CLIMATE_MODE_OFF;
+    const bool switch_state = *call.get_mode() != climate::CLIMATE_MODE_OFF;
     ESP_LOGV(TAG, "Setting switch: %s", ONOFF(switch_state));
     this->parent_->set_datapoint_value(*this->switch_id_, switch_state);
   }
