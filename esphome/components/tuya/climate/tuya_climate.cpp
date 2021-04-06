@@ -64,9 +64,6 @@ void TuyaClimate::control(const climate::ClimateCall &call) {
     this->parent_->set_datapoint_value(*this->target_temperature_id_,
                                        (int) (this->target_temperature / this->target_temperature_multiplier_));
   }
-
-  this->compute_state_();
-  this->publish_state();
 }
 
 climate::ClimateTraits TuyaClimate::traits() {
