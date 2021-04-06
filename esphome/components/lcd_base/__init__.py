@@ -4,8 +4,8 @@ from esphome.components import display
 from esphome.const import CONF_DIMENSIONS
 from esphome.core import coroutine
 
-lcd_base_ns = cg.esphome_ns.namespace('lcd_base')
-LCDDisplay = lcd_base_ns.class_('LCDDisplay', cg.PollingComponent)
+lcd_base_ns = cg.esphome_ns.namespace("lcd_base")
+LCDDisplay = lcd_base_ns.class_("LCDDisplay", cg.PollingComponent)
 
 
 def validate_lcd_dimensions(value):
@@ -17,9 +17,11 @@ def validate_lcd_dimensions(value):
     return value
 
 
-LCD_SCHEMA = display.BASIC_DISPLAY_SCHEMA.extend({
-    cv.Required(CONF_DIMENSIONS): validate_lcd_dimensions,
-}).extend(cv.polling_component_schema('1s'))
+LCD_SCHEMA = display.BASIC_DISPLAY_SCHEMA.extend(
+    {
+        cv.Required(CONF_DIMENSIONS): validate_lcd_dimensions,
+    }
+).extend(cv.polling_component_schema("1s"))
 
 
 @coroutine
