@@ -29,12 +29,10 @@ bool BParasite::parse_device(const esp32_ble_tracker::ESPBTDevice& device) {
   }
   const auto& service_data = service_datas[0];
 
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
   ESP_LOGVV(TAG, "Service data:");
   for (const uint8_t byte : service_data.data) {
     ESP_LOGVV(TAG, "0x%02x", byte);
   }
-#endif
 
   const auto& data = service_data.data;
 
@@ -47,19 +45,19 @@ bool BParasite::parse_device(const esp32_ble_tracker::ESPBTDevice& device) {
 
   // Battery voltage in millivolts.
   uint16_t battery_millivolt = data[2] << 8 | data[3];
-  double battery_voltage = battery_millivolt / 1000.0;
+  float battery_voltage = battery_millivolt / 1000.0f;
 
   // Temperature in 1000 * Celcius.
   uint16_t temp_millicelcius = data[4] << 8 | data[5];
-  double temp_celcius = temp_millicelcius / 1000.0;
+  float temp_celcius = temp_millicelcius / 1000.0f;
 
   // Relative air humidity in the range [0, 2^16).
   uint16_t humidity = data[6] << 8 | data[7];
-  double humidity_percent = static_cast<double>(humidity) / (1 << 16);
+  float humidity_percent = static_cast<float>(humidity) / (1 << 16);
 
   // Relative soil moisture in [0 - 2^16).
   uint16_t soil_moisture = data[8] << 8 | data[9];
-  double moisture_percent = static_cast<double>(soil_moisture) / (1 << 16);
+  float moisture_percent = static_cast<float>(soil_moisture) / (1 << 16);
 
   if (battery_voltage_ != nullptr) {
     battery_voltage_->publish_state(battery_voltage);
