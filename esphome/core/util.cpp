@@ -61,9 +61,7 @@ bool mqtt_is_connected() {
   return false;
 }
 
-bool remote_is_connected() {
-  return api_is_connected() || mqtt_is_connected();
-}
+bool remote_is_connected() { return api_is_connected() || mqtt_is_connected(); }
 
 #ifdef ARDUINO_ARCH_ESP8266
 bool mdns_setup;
