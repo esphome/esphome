@@ -5,40 +5,34 @@
 #include "esphome/components/rs485/rs485.h"
 
 namespace esphome {
-namespace dooya {
+namespace chenyang {
 
-static const uint8_t START_CODE = 0x55;
-static const uint8_t DEF_ADDR = 0xFE;
+static const uint8_t DEF_ADDR = 0xFF;
 
-enum Command : uint8_t {
-  READ = 0x01,
-  WRITE = 0x02,
-  CONTROL = 0x03,
+enum StartCode : uint8_t {
+  COMMAND = 0x01,
+  RESPONSE = 0x02,
+  STATUS = 0x03,
 };
 
 enum ReadType : uint8_t {
-  GET_POSITION = 0x02,
-  GET_STATUS = 0x05,
+  GET_STATUS = 0x0F,
 };
 
 enum ControlType : uint8_t {
-  OPEN = 0x01,
-  CLOSE = 0x02,
-  STOP = 0x03,
-  SET_POSITION = 0x04,
+  OPEN = 0x00,
+  CLOSE = 0x01,
+  STOP = 0x02,
+  SET_POSITION = 0x03,
 };
 
-class Dooya : public cover::Cover, public Component, public rs485::RS485Device {
+class Chenyang : public cover::Cover, public Component, public rs485::RS485Device {
  public:
   void setup() override;
   void loop() override;
   void dump_config() override;
 
-  void set_address(uint16_t address) {
-    uint8_t address_h = (uint8_t)(address >> 8);
-    uint8_t address_l = (uint8_t)(address & 0xFF);
-    this->header_ = {(uint8_t *) &START_CODE, &address_h, &address_l};
-  }
+  void set_address(uint8_t address) { this->header_ = {nullptr, &address}; }
   void set_update_interval(uint32_t update_interval) { this->update_interval_ = update_interval; }
   void on_rs485_data(const std::vector<uint8_t> &data) override;
   cover::CoverTraits get_traits() override;
@@ -47,12 +41,11 @@ class Dooya : public cover::Cover, public Component, public rs485::RS485Device {
   void control(const cover::CoverCall &call) override;
   void send_command_(const uint8_t *data, uint8_t len);
 
-  uint32_t update_interval_{500};
+  uint32_t update_interval_{1000};
   uint32_t last_update_{0};
-  uint8_t current_request_{GET_STATUS};
   uint8_t last_published_op_;
   float last_published_pos_;
 };
 
-}  // namespace dooya
+}  // namespace chenyang
 }  // namespace esphome
