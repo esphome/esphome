@@ -656,7 +656,7 @@ void Pipsolar::loop() {
             case 32:
               fc = tmp[i];
               fc += tmp[i + 1];
-              this->value_fault_code_ = atoi(fc.c_str());
+              this->value_fault_code_ = strtol(fc.c_str(), NULL, 10);
               break;
             case 34:
               this->value_warnung_low_pv_energy_ = enabled;
@@ -846,7 +846,7 @@ void Pipsolar::queue_command_(const char* command, byte length) {
     uint8_t testposition = (next_position + i) % COMMAND_QUEUE_LENGTH;
     if (command_queue_[testposition].length() == 0) {
       command_queue_[testposition] = command;
-      ESP_LOGD(TAG, "Command queued successfully: %s with length %d at position %d", command,
+      ESP_LOGD(TAG, "Command queued successfully: %s with length %lu at position %d", command,
                command_queue_[testposition].length(), testposition);
       return;
     }
