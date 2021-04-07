@@ -4,6 +4,7 @@ from esphome import automation, core
 from esphome.automation import Condition, maybe_simple_id
 from esphome.components import mqtt
 from esphome.const import (
+    CONF_DELAY,
     CONF_DEVICE_CLASS,
     CONF_FILTERS,
     CONF_ID,
@@ -120,6 +121,7 @@ DelayedOnOffFilter = binary_sensor_ns.class_("DelayedOnOffFilter", Filter, cg.Co
 DelayedOnFilter = binary_sensor_ns.class_("DelayedOnFilter", Filter, cg.Component)
 DelayedOffFilter = binary_sensor_ns.class_("DelayedOffFilter", Filter, cg.Component)
 InvertFilter = binary_sensor_ns.class_("InvertFilter", Filter)
+AutorepeatFilter = binary_sensor_ns.class_("AutorepeatFilter", Filter, cg.Component)
 LambdaFilter = binary_sensor_ns.class_("LambdaFilter", Filter)
 
 FILTER_REGISTRY = Registry()
@@ -154,6 +156,39 @@ def delayed_on_filter_to_code(config, filter_id):
 )
 def delayed_off_filter_to_code(config, filter_id):
     var = cg.new_Pvariable(filter_id, config)
+    yield cg.register_component(var, {})
+    yield var
+
+
+CONF_TIME_OFF = "time_off"
+CONF_TIME_ON = "time_on"
+
+
+@FILTER_REGISTRY.register(
+    "autorepeat",
+    AutorepeatFilter,
+    cv.All(
+        cv.ensure_list(
+            {
+                cv.Optional(
+                    CONF_DELAY, default="1s"
+                ): cv.positive_time_period_milliseconds,
+                cv.Optional(
+                    CONF_TIME_OFF, default="100ms"
+                ): cv.positive_time_period_milliseconds,
+                cv.Optional(
+                    CONF_TIME_ON, default="900ms"
+                ): cv.positive_time_period_milliseconds,
+            }
+        ),
+        cv.Length(min=1),
+    ),
+)
+def autorepeat_filter_to_code(config, filter_id):
+    timings = []
+    for conf in config:
+        timings.append((conf[CONF_DELAY], conf[CONF_TIME_OFF], conf[CONF_TIME_ON]))
+    var = cg.new_Pvariable(filter_id, timings)
     yield cg.register_component(var, {})
     yield var
 
