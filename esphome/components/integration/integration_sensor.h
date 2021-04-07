@@ -57,11 +57,12 @@ class IntegrationSensor : public sensor::Sensor, public Component {
     this->publish_state(result);
     float result_f = result;
     if (this->min_save_interval_) {
-      if (millis() - this->last_save_ > this->min_save_interval_) {
-        this->last_save_ = millis();
-        this->rtc_.save(&result_f);
+      if (millis() - this->last_save_ < this->min_save_interval_) {
+        return;
       }
+      this->last_save_ = millis();
     }
+    this->rtc_.save(&result_f);
   }
   std::string unit_of_measurement() override;
   std::string icon() override { return this->sensor_->get_icon(); }

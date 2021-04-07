@@ -38,14 +38,15 @@ void TotalDailyEnergy::loop() {
   }
 }
 void TotalDailyEnergy::publish_state_and_save(float state) {
+  this->total_energy_ = state;
+  this->publish_state(state);
   if (this->min_save_interval_) {
     if (millis() - this->last_save_ > this->min_save_interval_) {
       this->last_save_ = millis();
-      this->pref_.save(&state);
+      return;
     }
+    this->pref_.save(&state);
   }
-  this->total_energy_ = state;
-  this->publish_state(state);
 }
 void TotalDailyEnergy::process_new_state_(float state) {
   if (isnan(state))
