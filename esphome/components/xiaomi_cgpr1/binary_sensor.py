@@ -31,7 +31,7 @@ XiaomiCGPR1 = xiaomi_cgpr1_ns.class_(
 )
 
 CONFIG_SCHEMA = cv.All(
-   binary_sensor.BINARY_SENSOR_SCHEMA.extend(
+    binary_sensor.BINARY_SENSOR_SCHEMA.extend(
         {
             cv.GenerateID(): cv.declare_id(XiaomiCGPR1),
             cv.Required(CONF_BINDKEY): cv.bind_key,
