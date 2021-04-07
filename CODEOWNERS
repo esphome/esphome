@@ -23,6 +23,7 @@ esphome/components/binary_sensor/* @esphome/core
 esphome/components/bme680_bsec/* @trvrnrth
 esphome/components/canbus/* @danielschramm @mvturnho
 esphome/components/captive_portal/* @OttoWinter
+esphome/components/chenyang/* @loongyh
 esphome/components/climate/* @esphome/core
 esphome/components/climate_ir/* @glmnet
 esphome/components/coolix/* @glmnet

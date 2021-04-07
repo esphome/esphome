@@ -51,7 +51,7 @@ void Chenyang::loop() {
 
 void Chenyang::on_rs485_data(const std::vector<uint8_t> &data) {
   std::vector<uint8_t> frame(data.begin(), data.end() - 1);
-  uint8_t checksum;
+  uint8_t checksum = 0;
   for (auto i : frame) {
     checksum ^= i;
   }
