@@ -124,7 +124,8 @@ def show_logs(config, topic=None, username=None, password=None, client_id=None,
             client_id, ca_cert)
 
 
-def clear_topic(config, topic, username=None, password=None, client_id=None):
+def clear_topic(config, topic, username=None, password=None, client_id=None,
+        ca_cert=None):
     if topic is None:
         discovery_prefix = config[CONF_MQTT].get(CONF_DISCOVERY_PREFIX, "homeassistant")
         name = config[CONF_ESPHOME][CONF_NAME]
@@ -145,7 +146,8 @@ def clear_topic(config, topic, username=None, password=None, client_id=None):
             return
         client.publish(msg.topic, None, retain=True)
 
-    return initialize(config, [topic], on_message, username, password, client_id)
+    return initialize(config, [topic], on_message, username, password,
+            client_id, ca_cert)
 
 
 # From marvinroger/async-mqtt-client -> scripts/get-fingerprint/get-fingerprint.py
