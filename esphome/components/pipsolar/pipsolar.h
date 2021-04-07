@@ -499,7 +499,7 @@ class Pipsolar : public uart::UARTDevice, public PollingComponent {
     this->add_polling_command_("QPIRI", POLLING_QPIRI);
   }
 
-  void switch_command(String command);
+  void switch_command(std::string command);
   void setup() override;
   void loop() override;
   void dump_config() override;
@@ -519,7 +519,7 @@ class Pipsolar : public uart::UARTDevice, public PollingComponent {
   uint8_t send_next_command_();
   void send_next_poll_();
   void queue_command_(const char *command, byte length);
-  String command_queue_[COMMAND_QUEUE_LENGTH];
+  std::string command_queue_[COMMAND_QUEUE_LENGTH];
   uint8_t command_queue_position_ = 0;
   uint8_t read_buffer_[PIPSOLAR_READ_BUFFER_LENGTH];
   size_t read_pos_{0};

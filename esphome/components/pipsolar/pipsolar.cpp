@@ -47,26 +47,27 @@ void Pipsolar::loop() {
         } else {
           ESP_LOGD(TAG, "command not successful");
         }
-        this->command_queue_[this->command_queue_position_] = String("");
+        this->command_queue_[this->command_queue_position_] = std::string("");
         this->command_queue_position_ = (command_queue_position_ + 1) % COMMAND_QUEUE_LENGTH;
         this->state_ = STATE_IDLE;
 
       } else {
         // crc failed
-        this->command_queue_[this->command_queue_position_] = String("");
+        this->command_queue_[this->command_queue_position_] = std::string("");
         this->command_queue_position_ = (command_queue_position_ + 1) % COMMAND_QUEUE_LENGTH;
         this->state_ = STATE_IDLE;
       }
     } else {
       ESP_LOGD(TAG, "response length for command %s not OK: with length %zu",
                this->command_queue_[this->command_queue_position_].c_str(), this->read_pos_);
-      this->command_queue_[this->command_queue_position_] = String("");
+      this->command_queue_[this->command_queue_position_] = std::string("");
       this->command_queue_position_ = (command_queue_position_ + 1) % COMMAND_QUEUE_LENGTH;
       this->state_ = STATE_IDLE;
     }
   }
 
   if (this->state_ == STATE_POLL_DECODED) {
+    std::string mode;
     switch (this->used_polling_commands_[this->last_polling_command_].identifier) {
       case POLLING_QPIRI:
         if (this->grid_rating_voltage_) {
@@ -264,7 +265,8 @@ void Pipsolar::loop() {
         break;
       case POLLING_QMOD:
         if (this->device_mode_) {
-          this->device_mode_->publish_state(String(value_device_mode_).c_str());
+          mode = value_device_mode_;
+          this->device_mode_->publish_state(mode);
         }
         this->state_ = STATE_IDLE;
         break;
@@ -652,9 +654,9 @@ void Pipsolar::loop() {
               this->value_faults_present_ += enabled;
               break;
             case 32:
-              fc = String(tmp[i]);
-              fc.concat(tmp[i + 1]);
-              this->value_fault_code_ = fc.toInt();
+              fc = tmp[i];
+              fc += tmp[i + 1];
+              this->value_fault_code_ = atoi(fc.c_str());
               break;
             case 34:
               this->value_warnung_low_pv_energy_ = enabled;
@@ -742,7 +744,7 @@ void Pipsolar::loop() {
       const char* command = this->command_queue_[this->command_queue_position_].c_str();
       this->command_start_millis_ = millis();
       ESP_LOGD(TAG, "timeout command from queue: %s", command);
-      this->command_queue_[this->command_queue_position_] = String("");
+      this->command_queue_[this->command_queue_position_] = std::string("");
       this->command_queue_position_ = (command_queue_position_ + 1) % COMMAND_QUEUE_LENGTH;
       this->state_ = STATE_IDLE;
       return;
@@ -789,8 +791,10 @@ uint8_t Pipsolar::send_next_command_() {
   if (this->command_queue_[this->command_queue_position_].length() != 0) {
     const char* command = this->command_queue_[this->command_queue_position_].c_str();
     uint8_t byte_command[16];
-    this->command_queue_[this->command_queue_position_].getBytes(byte_command, 16);
     uint8_t length = this->command_queue_[this->command_queue_position_].length();
+    for (uint8_t i = 0; i < length; i++) {
+      byte_command[i] = (uint8_t) this->command_queue_[this->command_queue_position_].at(i);
+    }
     this->state_ = STATE_COMMAND;
     this->command_start_millis_ = millis();
     this->empty_uart_buffer_();
@@ -841,7 +845,7 @@ void Pipsolar::queue_command_(const char* command, byte length) {
   for (uint8_t i = 0; i < COMMAND_QUEUE_LENGTH; i++) {
     uint8_t testposition = (next_position + i) % COMMAND_QUEUE_LENGTH;
     if (command_queue_[testposition].length() == 0) {
-      command_queue_[testposition] = String(command);
+      command_queue_[testposition] = command;
       ESP_LOGD(TAG, "Command queued successfully: %s with length %d at position %d", command,
                command_queue_[testposition].length(), testposition);
       return;
@@ -850,7 +854,7 @@ void Pipsolar::queue_command_(const char* command, byte length) {
   ESP_LOGD(TAG, "Command queue full dropping command: %s", command);
 }
 
-void Pipsolar::switch_command(String command) {
+void Pipsolar::switch_command(std::string command) {
   ESP_LOGD(TAG, "got command: %s", command.c_str());
   queue_command_(command.c_str(), command.length());
 }
