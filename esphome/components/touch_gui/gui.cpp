@@ -52,6 +52,9 @@ void TouchGUIComponent::setup() {
 
 void TouchGUIComponent::update() {
   bool upd = false;
+
+  check_page_changed_();
+
   for (auto *b : this->buttons_) {
     b->update();
     upd |= b->should_update();
@@ -62,6 +65,8 @@ void TouchGUIComponent::update() {
 }
 
 void TouchGUIComponent::draw() {
+  check_page_changed_();
+
   for (auto *b : this->buttons_)
     if (b->is_visible())
       b->draw();
@@ -72,7 +77,8 @@ void TouchGUIComponent::touch(int x, int y, bool touched) {
     for (auto *b : this->buttons_)
       if (b->is_interacted(x, y))
         activate(b);
-  }
+  } else
+    release_();
 }
 
 void TouchGUIComponent::activate(TouchGUIButton *button) {
@@ -101,6 +107,28 @@ void TouchGUIComponent::activate(TouchGUIButton *button) {
       break;
     default:
       break;
+  }
+}
+
+void TouchGUIComponent::release_() {
+  for (auto *b : this->buttons_) {
+    switch (b->get_type()) {
+      case TOUCH_GUI_BUTTON_TYPE_MOMENTARY:
+      case TOUCH_GUI_BUTTON_TYPE_AREA:
+        if (b->state)
+          b->publish_state(false);
+        break;
+      default:
+        break;
+    }
+  }
+}
+
+void TouchGUIComponent::check_page_changed_() {
+  if (this->display_->get_active_page() != this->last_page_displayed_) {
+    // All activated momentary and area buttons are released
+    release_();
+    this->last_page_displayed_ = this->display_->get_active_page();
   }
 }
 

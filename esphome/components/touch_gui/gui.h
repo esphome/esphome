@@ -65,6 +65,9 @@ class TouchGUIComponent : public PollingComponent {
   optional<button_writer_t> &get_writer() { return this->writer_; }
 
  protected:
+  void release_();
+  void check_page_changed_();
+
   display::DisplayBuffer *display_;
   std::vector<TouchGUIButton *> buttons_;
   RadioGroupMap groups_;
@@ -76,6 +79,7 @@ class TouchGUIComponent : public PollingComponent {
   Color button_border_color_{display::COLOR_ON};
   optional<button_writer_t> writer_{};
   CallbackManager<void()> update_callback_{};
+  const display::DisplayPage *last_page_displayed_{nullptr};
 };
 
 /** Class representing an area on the screen sensitive to touch.
