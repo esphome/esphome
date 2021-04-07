@@ -421,7 +421,7 @@ void Pipsolar::loop() {
 
   if (this->state_ == STATE_POLL_CHECKED) {
     bool enabled = true;
-    String fc;
+    std::string fc;
     char tmp[PIPSOLAR_READ_BUFFER_LENGTH];
     sprintf(tmp, "%s", this->read_buffer_);
     switch (this->used_polling_commands_[this->last_polling_command_].identifier) {
