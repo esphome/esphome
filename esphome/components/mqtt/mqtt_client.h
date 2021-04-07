@@ -161,6 +161,8 @@ class MQTTClientComponent : public Component {
 
   /** Unsubscribe from an MQTT topic.
    *
+   * If multiple existing subscriptions to the same topic exist, all of them will be removed.
+   *
    * @param topic The topic to unsubscribe from.
    * Must match the topic in the original subscribe or subscribe_json call exactly.
    */
