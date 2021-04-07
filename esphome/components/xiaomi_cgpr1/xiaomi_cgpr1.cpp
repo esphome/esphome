@@ -77,4 +77,3 @@ void XiaomiCGPR1::set_bindkey(const std::string &bindkey) {
 }  // namespace esphome
 
 #endif
-
