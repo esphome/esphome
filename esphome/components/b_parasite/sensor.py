@@ -35,13 +35,13 @@ CONFIG_SCHEMA = (
                 UNIT_CELSIUS, ICON_EMPTY, 1, DEVICE_CLASS_TEMPERATURE
             ),
             cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(
-                UNIT_PERCENT, ICON_EMPTY, 3, DEVICE_CLASS_HUMIDITY
+                UNIT_PERCENT, ICON_EMPTY, 1, DEVICE_CLASS_HUMIDITY
             ),
             cv.Optional(CONF_BATTERY_VOLTAGE): sensor.sensor_schema(
                 UNIT_VOLT, ICON_EMPTY, 3, DEVICE_CLASS_VOLTAGE
             ),
             cv.Optional(CONF_MOISTURE): sensor.sensor_schema(
-                UNIT_PERCENT, ICON_EMPTY, 3, DEVICE_CLASS_HUMIDITY
+                UNIT_PERCENT, ICON_EMPTY, 1, DEVICE_CLASS_HUMIDITY
             ),
         }
     )
@@ -63,6 +63,6 @@ def to_code(config):
         (CONF_BATTERY_VOLTAGE, var.set_battery_voltage),
         (CONF_MOISTURE, var.set_soil_moisture),
     ]:
-        if CONF_TEMPERATURE in config:
+        if config_key in config:
             sens = yield sensor.new_sensor(config[config_key])
             cg.add(setter(sens))

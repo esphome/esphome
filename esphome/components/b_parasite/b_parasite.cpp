@@ -53,11 +53,11 @@ bool BParasite::parse_device(const esp32_ble_tracker::ESPBTDevice& device) {
 
   // Relative air humidity in the range [0, 2^16).
   uint16_t humidity = data[6] << 8 | data[7];
-  float humidity_percent = static_cast<float>(humidity) / (1 << 16);
+  float humidity_percent = (100.0f * humidity) / (1 << 16);
 
   // Relative soil moisture in [0 - 2^16).
   uint16_t soil_moisture = data[8] << 8 | data[9];
-  float moisture_percent = static_cast<float>(soil_moisture) / (1 << 16);
+  float moisture_percent = (100.0f * soil_moisture) / (1 << 16);
 
   if (battery_voltage_ != nullptr) {
     battery_voltage_->publish_state(battery_voltage);
