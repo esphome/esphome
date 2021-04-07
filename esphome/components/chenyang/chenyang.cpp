@@ -115,7 +115,7 @@ void Chenyang::send_command_(const uint8_t *data, uint8_t len) {
   for (size_t i = 0; i < len; i++) {
     frame.push_back(data[i]);
   }
-  uint8_t checksum;
+  uint8_t checksum = 0;
   for (auto i : frame) {
     checksum ^= i;
   }
