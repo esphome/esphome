@@ -265,7 +265,14 @@ const char *get_auth_mode_str(uint8_t mode) {
       return "UNKNOWN";
   }
 }
-std::string format_ip4_addr(const ip4_addr_t &ip) {
+
+#if ESP_IDF_VERSION_MAJOR >= 4
+using esphome_ip4_addr_t = esp_ip4_addr_t;
+#else
+using esphome_ip4_addr_t = ip4_addr_t;
+#endif
+
+std::string format_ip4_addr(const esphome_ip4_addr_t &ip) {
   char buf[20];
   sprintf(buf, "%u.%u.%u.%u", uint8_t(ip.addr >> 0), uint8_t(ip.addr >> 8), uint8_t(ip.addr >> 16),
           uint8_t(ip.addr >> 24));
@@ -446,19 +453,23 @@ void WiFiComponent::wifi_event_callback_(system_event_id_t event, system_event_i
     case SYSTEM_EVENT_AP_STACONNECTED: {
 #if ESP_IDF_VERSION_MAJOR >= 4
       auto it = info.wifi_sta_connected;
+      auto &mac = it.bssid;
 #else
       auto it = info.sta_connected;
+      auto &mac = it.mac;
 #endif
-      ESP_LOGV(TAG, "Event: AP client connected MAC=%s aid=%u", format_mac_addr(it.mac).c_str(), it.aid);
+      ESP_LOGV(TAG, "Event: AP client connected MAC=%s", format_mac_addr(mac).c_str());
       break;
     }
     case SYSTEM_EVENT_AP_STADISCONNECTED: {
 #if ESP_IDF_VERSION_MAJOR >= 4
       auto it = info.wifi_sta_disconnected;
+      auto &mac = it.bssid;
 #else
       auto it = info.sta_disconnected;
+      auto &mac = it.mac;
 #endif
-      ESP_LOGV(TAG, "Event: AP client disconnected MAC=%s aid=%u", format_mac_addr(it.mac).c_str(), it.aid);
+      ESP_LOGV(TAG, "Event: AP client disconnected MAC=%s", format_mac_addr(mac).c_str());
       break;
     }
     case SYSTEM_EVENT_AP_STAIPASSIGNED: {
