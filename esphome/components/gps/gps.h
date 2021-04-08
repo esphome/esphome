@@ -30,7 +30,7 @@ class GPS : public PollingComponent, public uart::UARTDevice {
   void set_course_sensor(sensor::Sensor *course_sensor) { course_sensor_ = course_sensor; }
   void set_altitude_sensor(sensor::Sensor *altitude_sensor) { altitude_sensor_ = altitude_sensor; }
   void set_satellites_sensor(sensor::Sensor *satellites_sensor) { satellites_sensor_ = satellites_sensor; }
-  
+
   void register_listener(GPSListener *listener) {
     listener->parent_ = this;
     this->listeners_.push_back(listener);
@@ -44,12 +44,12 @@ class GPS : public PollingComponent, public uart::UARTDevice {
 
  protected:
 
-  float latitude = -1;
-  float longitude = -1;
-  float speed = -1;
-  float course = -1;
-  float altitude = -1;
-  int satellites = -1;
+  float latitude_ = -1;
+  float longitude_ = -1;
+  float speed_ = -1;
+  float course_ = -1;
+  float altitude_ = -1;
+  int satellites_ = -1;
 
   sensor::Sensor *latitude_sensor_{nullptr};
   sensor::Sensor *longitude_sensor_{nullptr};

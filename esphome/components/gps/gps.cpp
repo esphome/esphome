@@ -11,23 +11,23 @@ TinyGPSPlus &GPSListener::get_tiny_gps() { return this->parent_->get_tiny_gps();
 void GPS::update() {
 
   if (this->latitude_sensor_ != nullptr)
-    this->latitude_sensor_->publish_state(this->latitude);
+    this->latitude_sensor_->publish_state(this->latitude_);
 
   if (this->longitude_sensor_ != nullptr)
-    this->longitude_sensor_->publish_state(this->longitude);
+    this->longitude_sensor_->publish_state(this->longitude_);
   
   if (this->speed_sensor_ != nullptr)
-    this->speed_sensor_->publish_state(this->speed);
+    this->speed_sensor_->publish_state(this->speed_);
 
   if (this->course_sensor_ != nullptr)
-    this->course_sensor_->publish_state(this->course);
+    this->course_sensor_->publish_state(this->course_);
 
   if (this->altitude_sensor_ != nullptr)
-    this->altitude_sensor_->publish_state(this->altitude);
+    this->altitude_sensor_->publish_state(this->altitude_);
 
   if (this->satellites_sensor_ != nullptr)
-    this->satellites_sensor_->publish_state(this->satellites);
-  
+    this->satellites_sensor_->publish_state(this->satellites_);
+
 }
 
 
@@ -38,34 +38,34 @@ void GPS::loop() {
     if (this->tiny_gps_.encode(this->read())) {
       if (tiny_gps_.location.isUpdated()) {
         
-        this->latitude = tiny_gps_.location.lat();
-        this->longitude = tiny_gps_.location.lng();
+        this->latitude_ = tiny_gps_.location.lat();
+        this->longitude_ = tiny_gps_.location.lng();
 
         ESP_LOGD(TAG, "Location:");
-        ESP_LOGD(TAG, "  Lat: %f", this->latitude);
-        ESP_LOGD(TAG, "  Lon: %f", this->longitude);
+        ESP_LOGD(TAG, "  Lat: %f", this->latitude_);
+        ESP_LOGD(TAG, "  Lon: %f", this->longitude_);
 
       }
 
       if (tiny_gps_.speed.isUpdated()) {
-        this->speed = tiny_gps_.speed.kmph();
+        this->speed_ = tiny_gps_.speed.kmph();
         ESP_LOGD(TAG, "Speed:");
-        ESP_LOGD(TAG, "  %f km/h", this->speed);
+        ESP_LOGD(TAG, "  %f km/h", this->speed_);
       }
       if (tiny_gps_.course.isUpdated()) {
-        this->course = tiny_gps_.course.deg();
+        this->course_ = tiny_gps_.course.deg();
         ESP_LOGD(TAG, "Course:");
-        ESP_LOGD(TAG, "  %f °", this->course);
+        ESP_LOGD(TAG, "  %f °", this->course_);
       }
       if (tiny_gps_.altitude.isUpdated()) {
-        this->altitude = tiny_gps_.altitude.meters();
+        this->altitude_ = tiny_gps_.altitude.meters();
         ESP_LOGD(TAG, "Altitude:");
-        ESP_LOGD(TAG, "  %f m", this->altitude);
+        ESP_LOGD(TAG, "  %f m", this->altitude_);
       }
       if (tiny_gps_.satellites.isUpdated()) {
-        this->satellites = tiny_gps_.satellites.value();
+        this->satellites_ = tiny_gps_.satellites.value();
         ESP_LOGD(TAG, "Satellites:");
-        ESP_LOGD(TAG, "  %d", this->satellites);
+        ESP_LOGD(TAG, "  %d", this->satellites_);
       }
 
       for (auto *listener : this->listeners_)
