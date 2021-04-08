@@ -57,17 +57,6 @@ def cpp_string_escape(string, encoding="utf-8"):
     return '"' + result + '"'
 
 
-def color(the_color, message=""):
-    from colorlog.escape_codes import escape_codes, parse_colors
-
-    if not message:
-        res = parse_colors(the_color)
-    else:
-        res = parse_colors(the_color) + message + escape_codes["reset"]
-
-    return res
-
-
 def run_system_command(*args):
     import subprocess
 
