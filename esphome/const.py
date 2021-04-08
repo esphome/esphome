@@ -16,6 +16,7 @@ ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789_-"
 # See also https://github.com/platformio/platform-espressif32/releases
 ARDUINO_VERSION_ESP32 = {
     "dev": "https://github.com/platformio/platform-espressif32.git",
+    "1.0.6": "platformio/espressif32@3.2.0",
     "1.0.5": "platformio/espressif32@3.1.1",
     "1.0.4": "platformio/espressif32@3.0.0",
     "1.0.3": "platformio/espressif32@1.10.0",
