@@ -1,4 +1,4 @@
-#ifdef USING_BSEC
+
 
 #pragma once
 
@@ -7,11 +7,15 @@
 #include "esphome/components/text_sensor/text_sensor.h"
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/core/preferences.h"
-#include <bsec.h>
 #include <map>
+
+#ifdef USING_BSEC
+#include <bsec.h>
+#endif
 
 namespace esphome {
 namespace bme680_bsec {
+#ifdef USING_BSEC
 
 enum IAQMode {
   IAQ_MODE_STATIC = 0,
@@ -99,8 +103,6 @@ class BME680BSECComponent : public Component, public i2c::I2CDevice {
   sensor::Sensor *co2_equivalent_sensor_;
   sensor::Sensor *breath_voc_equivalent_sensor_;
 };
-
+#endif
 }  // namespace bme680_bsec
 }  // namespace esphome
-
-#endif
