@@ -498,7 +498,7 @@ sensor:
     sensor: hlw8012_power
     name: 'Integration Sensor lazy'
     time_unit: s
-    min_save_interval: 60s    
+    min_save_interval: 60s
   - platform: hmc5883l
     address: 0x68
     field_strength_x:
