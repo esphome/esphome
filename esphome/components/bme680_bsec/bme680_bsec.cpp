@@ -1,4 +1,4 @@
-#ifdef USING_BSEC
+
 
 #include "bme680_bsec.h"
 #include "esphome/core/log.h"
@@ -7,7 +7,7 @@
 
 namespace esphome {
 namespace bme680_bsec {
-
+#ifdef USING_BSEC
 static const char *TAG = "bme680_bsec.sensor";
 
 static const std::string IAQ_ACCURACY_STATES[4] = {"Stabilizing", "Uncertain", "Calibrating", "Calibrated"};
@@ -391,8 +391,6 @@ void BME680BSECComponent::save_state_(uint8_t accuracy) {
 
   ESP_LOGI(TAG, "Saved state");
 }
-
+#endif
 }  // namespace bme680_bsec
 }  // namespace esphome
-
-#endif
