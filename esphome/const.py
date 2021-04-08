@@ -10,7 +10,8 @@ ESP_PLATFORM_ESP32 = "ESP32"
 ESP_PLATFORM_ESP8266 = "ESP8266"
 ESP_PLATFORMS = [ESP_PLATFORM_ESP32, ESP_PLATFORM_ESP8266]
 
-ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789_-"
+ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-_"
+
 # Lookup table from ESP32 arduino framework version to latest platformio
 # package with that version
 # See also https://github.com/platformio/platform-espressif32/releases
