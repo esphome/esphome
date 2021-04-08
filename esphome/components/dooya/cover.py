@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import cover, rs485
-from esphome.const import CONF_ADDRESS, CONF_ID, CONF_UPDATE_INTERVAL
+from esphome.const import CONF_ADDRESS, CONF_ID
 
 CODEOWNERS = ["@loongyh"]
 
