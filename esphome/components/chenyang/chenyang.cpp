@@ -41,12 +41,9 @@ void Chenyang::setup() {
     this->header_ = {nullptr, (uint8_t *) &DEF_ADDR};
 }
 
-void Chenyang::loop() {
-  if ((millis() - this->last_update_) > this->update_interval_) {
-    uint8_t data[2] = {GET_STATUS, 0x00};
-    this->send_command_(data, 2);
-    this->last_update_ = millis();
-  }
+void Chenyang::update() {
+  uint8_t data[2] = {GET_STATUS, 0x00};
+  this->send_command_(data, 2);
 }
 
 void Chenyang::on_rs485_data(const std::vector<uint8_t> &data) {

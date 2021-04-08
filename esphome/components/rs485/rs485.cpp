@@ -62,7 +62,7 @@ void RS485::parse_rs485_frame_() {
 
 void RS485::dump_config() {
   ESP_LOGCONFIG(TAG, "RS485:");
-  ESP_LOGCONFIG(TAG, "%zu configured devices", this->devices_.size());
+  ESP_LOGCONFIG(TAG, "%u configured devices", this->devices_.size());  // NOLINT
 }
 float RS485::get_setup_priority() const {
   // After UART bus

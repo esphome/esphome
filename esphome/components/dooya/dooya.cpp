@@ -58,12 +58,9 @@ void Dooya::setup() {
   }
 }
 
-void Dooya::loop() {
-  if ((millis() - this->last_update_) > this->update_interval_) {
-    uint8_t data[3] = {READ, this->current_request_, 0x01};
-    this->send_command_(data, 3);
-    this->last_update_ = millis();
-  }
+void Dooya::update() {
+  uint8_t data[3] = {READ, this->current_request_, 0x01};
+  this->send_command_(data, 3);
 }
 
 void Dooya::on_rs485_data(const std::vector<uint8_t> &data) {

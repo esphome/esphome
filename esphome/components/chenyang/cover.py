@@ -8,14 +8,14 @@ CODEOWNERS = ["@loongyh"]
 AUTO_LOAD = ["rs485"]
 
 chenyang_ns = cg.esphome_ns.namespace("chenyang")
-Chenyang = chenyang_ns.class_("Chenyang", cover.Cover, cg.Component, rs485.RS485Device)
+Chenyang = chenyang_ns.class_("Chenyang", cover.Cover, cg.PollingComponent, rs485.RS485Device)
 
 CONFIG_SCHEMA = (
     cover.COVER_SCHEMA.extend(
         {
             cv.GenerateID(): cv.declare_id(Chenyang),
             cv.Optional(CONF_ADDRESS): cv.hex_uint8_t,
-            cv.Optional(CONF_UPDATE_INTERVAL): cv.positive_time_period_milliseconds,
+            cv.Optional(CONF_UPDATE_INTERVAL, default="1s"): cv.positive_time_period_milliseconds,
         }
     )
     .extend(cv.COMPONENT_SCHEMA)

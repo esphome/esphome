@@ -8,14 +8,14 @@ CODEOWNERS = ["@loongyh"]
 AUTO_LOAD = ["rs485"]
 
 dooya_ns = cg.esphome_ns.namespace("dooya")
-Dooya = dooya_ns.class_("Dooya", cover.Cover, cg.Component, rs485.RS485Device)
+Dooya = dooya_ns.class_("Dooya", cover.Cover, cg.PollingComponent, rs485.RS485Device)
 
 CONFIG_SCHEMA = (
     cover.COVER_SCHEMA.extend(
         {
             cv.GenerateID(): cv.declare_id(Dooya),
             cv.Optional(CONF_ADDRESS): cv.hex_uint16_t,
-            cv.Optional(CONF_UPDATE_INTERVAL): cv.positive_time_period_milliseconds,
+            cv.Optional(CONF_UPDATE_INTERVAL, default="500ms"): cv.positive_time_period_milliseconds,
         }
     )
     .extend(cv.COMPONENT_SCHEMA)

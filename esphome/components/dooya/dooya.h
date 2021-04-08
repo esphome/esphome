@@ -28,10 +28,10 @@ enum ControlType : uint8_t {
   SET_POSITION = 0x04,
 };
 
-class Dooya : public cover::Cover, public Component, public rs485::RS485Device {
+class Dooya : public cover::Cover, public PollingComponent, public rs485::RS485Device {
  public:
   void setup() override;
-  void loop() override;
+  void update() override;
   void dump_config() override;
 
   void set_address(uint16_t address) {
@@ -39,7 +39,6 @@ class Dooya : public cover::Cover, public Component, public rs485::RS485Device {
     uint8_t address_l = (uint8_t)(address & 0xFF);
     this->header_ = {(uint8_t *) &START_CODE, &address_h, &address_l};
   }
-  void set_update_interval(uint32_t update_interval) { this->update_interval_ = update_interval; }
   void on_rs485_data(const std::vector<uint8_t> &data) override;
   cover::CoverTraits get_traits() override;
 
@@ -47,8 +46,6 @@ class Dooya : public cover::Cover, public Component, public rs485::RS485Device {
   void control(const cover::CoverCall &call) override;
   void send_command_(const uint8_t *data, uint8_t len);
 
-  uint32_t update_interval_{500};
-  uint32_t last_update_{0};
   uint8_t current_request_{GET_STATUS};
   uint8_t last_published_op_;
   float last_published_pos_;
