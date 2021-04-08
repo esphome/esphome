@@ -185,7 +185,7 @@ def sensor_schema(
     unit_of_measurement_: str,
     icon_: str,
     accuracy_decimals_: int,
-    device_class_: Optional[str] = None,
+    device_class_: Optional[str] = DEVICE_CLASS_EMPTY,
 ) -> cv.Schema:
     schema = SENSOR_SCHEMA
     if unit_of_measurement_ != UNIT_EMPTY:
@@ -206,7 +206,7 @@ def sensor_schema(
                 ): accuracy_decimals,
             }
         )
-    if device_class_ is not None:
+    if device_class_ != DEVICE_CLASS_EMPTY:
         schema = schema.extend(
             {cv.Optional(CONF_DEVICE_CLASS, default=device_class_): device_class}
         )
