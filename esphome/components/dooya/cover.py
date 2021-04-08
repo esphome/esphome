@@ -15,12 +15,9 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(Dooya),
             cv.Optional(CONF_ADDRESS): cv.hex_uint16_t,
-            cv.Optional(
-                CONF_UPDATE_INTERVAL, default="500ms"
-            ): cv.positive_time_period_milliseconds,
         }
     )
-    .extend(cv.COMPONENT_SCHEMA)
+    .extend(cv.polling_component_schema("500ms"))
     .extend(rs485.RS485_DEVICE_SCHEMA)
 )
 
@@ -34,7 +31,3 @@ def to_code(config):
     if CONF_ADDRESS in config:
         address = config[CONF_ADDRESS]
         cg.add(var.set_address(address))
-
-    if CONF_UPDATE_INTERVAL in config:
-        update_interval = config[CONF_UPDATE_INTERVAL]
-        cg.add(var.set_update_interval(update_interval))
