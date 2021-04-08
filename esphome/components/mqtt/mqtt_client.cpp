@@ -354,7 +354,7 @@ void MQTTClientComponent::unsubscribe(const std::string &topic) {
     ESP_LOGV(TAG, "unsubscribe(topic='%s')", topic.c_str());
   } else {
     delay(5);
-    ESP_LOGV(TAG, "Unsubscribe failed for topic='%s'. Will retry later.", topic.c_str());
+    ESP_LOGV(TAG, "Unsubscribe failed for topic='%s'.", topic.c_str());
     this->status_momentary_warning("unsubscribe", 1000);
   }
 
