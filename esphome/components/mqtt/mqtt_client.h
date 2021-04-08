@@ -259,6 +259,7 @@ class MQTTClientComponent : public Component {
   };
   std::string topic_prefix_{};
   MQTTMessage log_message_;
+  std::string payload_buffer_;
   int log_level_{ESPHOME_LOG_LEVEL};
 
   std::vector<MQTTSubscription> subscriptions_;
