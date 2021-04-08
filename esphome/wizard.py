@@ -196,11 +196,11 @@ def wizard(path):
                 color(
                     Fore.RED,
                     f'Oh noes, "{name}" isn\'t a valid name. Names can only '
-                    f"include numbers, lower-case letters, underscores and "
-                    f"hyphens.",
+                    f"include numbers, lower-case letters and hyphens. ",
                 )
             )
-            name = strip_accents(name).lower().replace(" ", "_")
+            name = strip_accents(name).lower().replace(" ", "-")
+            name = strip_accents(name).lower().replace("_", "-")
             name = "".join(c for c in name if c in ALLOWED_NAME_CHARS)
             safe_print(
                 'Shall I use "{}" as the name instead?'.format(color(Fore.CYAN, name))
