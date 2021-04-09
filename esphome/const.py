@@ -1,7 +1,7 @@
 """Constants used by esphome."""
 
 MAJOR_VERSION = 1
-MINOR_VERSION = 17
+MINOR_VERSION = 18
 PATCH_VERSION = "0-dev"
 __short_version__ = f"{MAJOR_VERSION}.{MINOR_VERSION}"
 __version__ = f"{__short_version__}.{PATCH_VERSION}"
@@ -10,12 +10,14 @@ ESP_PLATFORM_ESP32 = "ESP32"
 ESP_PLATFORM_ESP8266 = "ESP8266"
 ESP_PLATFORMS = [ESP_PLATFORM_ESP32, ESP_PLATFORM_ESP8266]
 
-ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789_-"
+ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-_"
+
 # Lookup table from ESP32 arduino framework version to latest platformio
 # package with that version
 # See also https://github.com/platformio/platform-espressif32/releases
 ARDUINO_VERSION_ESP32 = {
     "dev": "https://github.com/platformio/platform-espressif32.git",
+    "1.0.6": "platformio/espressif32@3.2.0",
     "1.0.5": "platformio/espressif32@3.1.1",
     "1.0.4": "platformio/espressif32@3.0.0",
     "1.0.3": "platformio/espressif32@1.10.0",

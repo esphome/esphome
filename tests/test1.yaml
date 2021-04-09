@@ -49,6 +49,12 @@ esphome:
             Content-Type: application/json
           body: 'Some data'
           verify_ssl: false
+          on_response:
+            then:
+              - logger.log:
+                  format: 'Response status: %d'
+                  args:
+                    - status_code
   build_path: build/test1
 
 packages:
@@ -228,10 +234,6 @@ as3935_spi:
 wled:
 
 adalight:
-
-mcp3008:
-  - id: 'mcp3008_hub'
-    cs_pin: GPIO12
 
 mcp23s08:
   - id: 'mcp23s08_hub'
@@ -660,11 +662,6 @@ sensor:
   - platform: pulse_width
     name: Pulse Width
     pin: GPIO12
-  - platform: senseair
-    uart_id: uart0
-    co2:
-      name: 'SenseAir CO2 Value'
-    update_interval: 15s
   - platform: sm300d2
     uart_id: uart0
     co2:
@@ -876,12 +873,6 @@ sensor:
     id: ph_ezo
     address: 99
     unit_of_measurement: 'pH'
-  - platform: mcp3008
-    update_interval: 5s
-    mcp3008_id: 'mcp3008_hub'
-    id: freezer_temp_source
-    reference_voltage: 3.19
-    number: 0
 
 esp32_touch:
   setup_mode: False
@@ -1487,14 +1478,14 @@ climate:
       min_temperature: 18 °C
       max_temperature: 25 °C
       temperature_step: 0.1 °C
-    name: "Electrolux EACS"
+    name: 'Electrolux EACS'
     beeper: true
     outdoor_temperature:
-      name: "Temp"
+      name: 'Temp'
     power_usage:
-      name: "Power"
+      name: 'Power'
     humidity_setpoint:
-      name: "Hum"
+      name: 'Hum'
 
 midea_dongle:
   uart_id: uart0
@@ -1759,6 +1750,13 @@ interval:
           btn_left_state = ((uint32_t) id(btn_left)->get_value()  +  63 * (uint32_t)btn_left_state) >> 6;
 
           id(btn_left)->set_threshold(btn_left_state * 0.9);
+      - if:
+          condition:
+            display.is_displaying_page:
+              id: display1
+              page_id: page1
+          then:
+            - logger.log: 'Seeing page 1'
 
 color:
   - id: kbx_red
@@ -1991,6 +1989,18 @@ cover:
     assumed_state: no
 
 debug:
+
+tca9548a:
+  - address: 0x70
+    id: multiplex0
+    scan: True
+  - address: 0x71
+    id: multiplex1
+    scan: True
+    multiplexer:
+      id: multiplex0
+      channel: 0
+    
 
 pcf8574:
   - id: 'pcf8574_hub'
