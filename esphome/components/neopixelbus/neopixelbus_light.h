@@ -68,7 +68,8 @@ class NeoPixelBusLightOutputBase : public light::AddressableLight {
   void add_leds(uint16_t count_pixels) { this->add_leds(new NeoPixelBus<T_COLOR_FEATURE, T_METHOD>(count_pixels)); }
   void add_leds(NeoPixelBus<T_COLOR_FEATURE, T_METHOD> *controller) {
     this->controller_ = controller;
-    this->controller_->Begin();
+    // controller gets initialised in setup() - avoid calling twice (crashes with RMT)
+    // this->controller_->Begin();
   }
 
   // ========== INTERNAL METHODS ==========

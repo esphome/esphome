@@ -1,7 +1,7 @@
 """Constants used by esphome."""
 
 MAJOR_VERSION = 1
-MINOR_VERSION = 17
+MINOR_VERSION = 18
 PATCH_VERSION = "0-dev"
 __short_version__ = f"{MAJOR_VERSION}.{MINOR_VERSION}"
 __version__ = f"{__short_version__}.{PATCH_VERSION}"
@@ -10,36 +10,39 @@ ESP_PLATFORM_ESP32 = "ESP32"
 ESP_PLATFORM_ESP8266 = "ESP8266"
 ESP_PLATFORMS = [ESP_PLATFORM_ESP32, ESP_PLATFORM_ESP8266]
 
-ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789_-"
+ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-_"
+
 # Lookup table from ESP32 arduino framework version to latest platformio
 # package with that version
 # See also https://github.com/platformio/platform-espressif32/releases
 ARDUINO_VERSION_ESP32 = {
     "dev": "https://github.com/platformio/platform-espressif32.git",
-    "1.0.4": "espressif32@1.12.4",
-    "1.0.3": "espressif32@1.10.0",
-    "1.0.2": "espressif32@1.9.0",
-    "1.0.1": "espressif32@1.7.0",
-    "1.0.0": "espressif32@1.5.0",
+    "1.0.6": "platformio/espressif32@3.2.0",
+    "1.0.5": "platformio/espressif32@3.1.1",
+    "1.0.4": "platformio/espressif32@3.0.0",
+    "1.0.3": "platformio/espressif32@1.10.0",
+    "1.0.2": "platformio/espressif32@1.9.0",
+    "1.0.1": "platformio/espressif32@1.7.0",
+    "1.0.0": "platformio/espressif32@1.5.0",
 }
 # See also https://github.com/platformio/platform-espressif8266/releases
 ARDUINO_VERSION_ESP8266 = {
     "dev": "https://github.com/platformio/platform-espressif8266.git",
-    "2.7.4": "espressif8266@2.6.2",
-    "2.7.3": "espressif8266@2.6.1",
-    "2.7.2": "espressif8266@2.6.0",
-    "2.7.1": "espressif8266@2.5.3",
-    "2.7.0": "espressif8266@2.5.0",
-    "2.6.3": "espressif8266@2.4.0",
-    "2.6.2": "espressif8266@2.3.1",
-    "2.6.1": "espressif8266@2.3.0",
-    "2.5.2": "espressif8266@2.2.3",
-    "2.5.1": "espressif8266@2.1.1",
-    "2.5.0": "espressif8266@2.0.4",
-    "2.4.2": "espressif8266@1.8.0",
-    "2.4.1": "espressif8266@1.7.3",
-    "2.4.0": "espressif8266@1.6.0",
-    "2.3.0": "espressif8266@1.5.0",
+    "2.7.4": "platformio/espressif8266@2.6.2",
+    "2.7.3": "platformio/espressif8266@2.6.1",
+    "2.7.2": "platformio/espressif8266@2.6.0",
+    "2.7.1": "platformio/espressif8266@2.5.3",
+    "2.7.0": "platformio/espressif8266@2.5.0",
+    "2.6.3": "platformio/espressif8266@2.4.0",
+    "2.6.2": "platformio/espressif8266@2.3.1",
+    "2.6.1": "platformio/espressif8266@2.3.0",
+    "2.5.2": "platformio/espressif8266@2.2.3",
+    "2.5.1": "platformio/espressif8266@2.1.1",
+    "2.5.0": "platformio/espressif8266@2.0.4",
+    "2.4.2": "platformio/espressif8266@1.8.0",
+    "2.4.1": "platformio/espressif8266@1.7.3",
+    "2.4.0": "platformio/espressif8266@1.6.0",
+    "2.3.0": "platformio/espressif8266@1.5.0",
 }
 SOURCE_FILE_EXTENSIONS = {".cpp", ".hpp", ".h", ".c", ".tcc", ".ino"}
 HEADER_FILE_EXTENSIONS = {".h", ".hpp", ".tcc"}
