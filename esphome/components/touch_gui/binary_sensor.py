@@ -1,6 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import binary_sensor, display, font
+from esphome.components.color import ColorStruct
 from esphome.const import (
     CONF_ID,
     CONF_TYPE,
@@ -8,7 +9,6 @@ from esphome.const import (
     CONF_COLORS,
     CONF_LAMBDA,
 )
-from esphome.helpers import color
 from . import (
     touch_gui_ns,
     TouchGUIComponent,
@@ -103,11 +103,11 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_COLORS): cv.Schema(
                 {
-                    cv.Optional(CONF_BACKGROUND): cv.use_id(color),
-                    cv.Optional(CONF_ACTIVE_BACKGROUND): cv.use_id(color),
-                    cv.Optional(CONF_FOREGROUND): cv.use_id(color),
-                    cv.Optional(CONF_ACTIVE_FOREGROUND): cv.use_id(color),
-                    cv.Optional(CONF_BORDER): cv.use_id(color),
+                    cv.Optional(CONF_BACKGROUND): cv.use_id(ColorStruct),
+                    cv.Optional(CONF_ACTIVE_BACKGROUND): cv.use_id(ColorStruct),
+                    cv.Optional(CONF_FOREGROUND): cv.use_id(ColorStruct),
+                    cv.Optional(CONF_ACTIVE_FOREGROUND): cv.use_id(ColorStruct),
+                    cv.Optional(CONF_BORDER): cv.use_id(ColorStruct),
                 }
             ),
             cv.Optional(CONF_FONT): cv.use_id(font),

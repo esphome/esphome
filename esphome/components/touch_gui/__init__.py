@@ -3,7 +3,7 @@ import esphome.config_validation as cv
 from esphome import core, automation
 from esphome.const import CONF_ID, CONF_TRIGGER_ID
 from esphome.components import binary_sensor, display, font
-from esphome.helpers import color
+from esphome.components.color import ColorStruct
 
 CODEOWNERS = ["@numo68"]
 AUTO_LOAD = ["binary_sensor"]
@@ -45,11 +45,11 @@ CONFIG_SCHEMA = cv.Schema(
         cv.GenerateID(CONF_DISPLAY_ID): cv.use_id(display.DisplayBuffer),
         cv.Optional(CONF_BUTTON_COLORS): cv.Schema(
             {
-                cv.Optional(CONF_BACKGROUND): cv.use_id(color),
-                cv.Optional(CONF_ACTIVE_BACKGROUND): cv.use_id(color),
-                cv.Optional(CONF_FOREGROUND): cv.use_id(color),
-                cv.Optional(CONF_ACTIVE_FOREGROUND): cv.use_id(color),
-                cv.Optional(CONF_BORDER): cv.use_id(color),
+                cv.Optional(CONF_BACKGROUND): cv.use_id(ColorStruct),
+                cv.Optional(CONF_ACTIVE_BACKGROUND): cv.use_id(ColorStruct),
+                cv.Optional(CONF_FOREGROUND): cv.use_id(ColorStruct),
+                cv.Optional(CONF_ACTIVE_FOREGROUND): cv.use_id(ColorStruct),
+                cv.Optional(CONF_BORDER): cv.use_id(ColorStruct),
             }
         ),
         cv.Optional(CONF_BUTTON_FONT): cv.use_id(font),
