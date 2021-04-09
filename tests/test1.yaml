@@ -235,10 +235,6 @@ wled:
 
 adalight:
 
-mcp3008:
-  - id: 'mcp3008_hub'
-    cs_pin: GPIO12
-
 mcp23s08:
   - id: 'mcp23s08_hub'
     cs_pin: GPIO12
@@ -877,12 +873,6 @@ sensor:
     id: ph_ezo
     address: 99
     unit_of_measurement: 'pH'
-  - platform: mcp3008
-    update_interval: 5s
-    mcp3008_id: 'mcp3008_hub'
-    id: freezer_temp_source
-    reference_voltage: 3.19
-    number: 0
 
 esp32_touch:
   setup_mode: False
@@ -1488,14 +1478,14 @@ climate:
       min_temperature: 18 °C
       max_temperature: 25 °C
       temperature_step: 0.1 °C
-    name: "Electrolux EACS"
+    name: 'Electrolux EACS'
     beeper: true
     outdoor_temperature:
-      name: "Temp"
+      name: 'Temp'
     power_usage:
-      name: "Power"
+      name: 'Power'
     humidity_setpoint:
-      name: "Hum"
+      name: 'Hum'
 
 midea_dongle:
   uart_id: uart0
