@@ -76,7 +76,6 @@ void EZOSensor::loop() {
       ESP_LOGE(TAG, "device returned an unknown response: %d", buf[0]);
       break;
   }
-  ezo_command *to_run = this->commands_.front();
 
   ESP_LOGD(TAG, "Received buffer \"%s\" for command type %s", buf, EzoCommandTypeStrings[to_run->command_type]);
   if (buf[0] == 1) {
@@ -92,7 +91,7 @@ void EZOSensor::loop() {
     }
   }
 
-  delete this->commands_.front();
+  delete to_run;
   this->commands_.pop_front();
 }
 
