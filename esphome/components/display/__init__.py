@@ -2,7 +2,14 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import core, automation
 from esphome.automation import maybe_simple_id
-from esphome.const import CONF_ID, CONF_LAMBDA, CONF_PAGES, CONF_PAGE_ID, CONF_ROTATION
+from esphome.const import (
+    CONF_AUTO_CLEAR,
+    CONF_ID,
+    CONF_LAMBDA,
+    CONF_PAGES,
+    CONF_PAGE_ID,
+    CONF_ROTATION,
+)
 from esphome.core import coroutine, coroutine_with_priority
 
 IS_PLATFORM_COMPONENT = True
@@ -41,6 +48,7 @@ def validate_rotation(value):
 BASIC_DISPLAY_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_LAMBDA): cv.lambda_,
+        cv.Optional(CONF_AUTO_CLEAR): cv.boolean,
     }
 )
 
@@ -64,6 +72,10 @@ FULL_DISPLAY_SCHEMA = BASIC_DISPLAY_SCHEMA.extend(
 def setup_display_core_(var, config):
     if CONF_ROTATION in config:
         cg.add(var.set_rotation(DISPLAY_ROTATIONS[config[CONF_ROTATION]]))
+
+    if CONF_AUTO_CLEAR in config:
+        cg.add(var.set_auto_clear(config[CONF_AUTO_CLEAR]))
+
     if CONF_PAGES in config:
         pages = []
         for conf in config[CONF_PAGES]:
