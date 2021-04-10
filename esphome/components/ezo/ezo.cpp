@@ -144,7 +144,9 @@ void EZOSensor::loop() {
           this->t_callback_.call(payload);
           break;
         }
-        default: { break; }
+        default: {
+          break;
+        }
       }
     }
   }
@@ -160,9 +162,11 @@ void EZOSensor::set_t(std::string value) {
 }
 
 // Calibration
+void EZOSensor::clear_calibration() { this->add_command("Cal,clear", EzoCommandType::EZO_CALIBRATION); }
+
 void EZOSensor::set_calibration(std::string point, std::string value) {
   std::string to_send = "Cal," + point + "," + value;
-  this->add_command(to_send, EzoCommandType::EZO_CALIBRATION);
+  this->add_command(to_send, EzoCommandType::EZO_CALIBRATION, 900);
 }
 
 // LED control
