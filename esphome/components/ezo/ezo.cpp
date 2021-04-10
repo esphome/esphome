@@ -101,6 +101,7 @@ void EZOSensor::loop() {
           break;
         }
         case EzoCommandType::EZO_DEVICE_INFORMATION: {
+          this->device_infomation_callback_.call(payload);
           break;
         }
         case EzoCommandType::EZO_SLOPE: {
