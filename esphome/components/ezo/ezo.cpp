@@ -15,8 +15,31 @@ void EZOSensor::dump_config() {
 }
 
 void EZOSensor::update() {
-  if (!this->commands_.empty()) {  // Maybe check if a read is in there already and if not insert in second position?
-    ESP_LOGE(TAG, "update overrun, still waiting for previous response");  // Not sure if we care to log
+  bool found = false;
+  if (!this->commands_.empty() && this->commands_.front()->command_type != EzoCommandType::EZO_READ &&
+      this->commands_.size() > 1) {  // Check if a read is in there already and if not insert in second position
+
+    for (auto &i : this->commands_) {
+      if (i->command_type == EzoCommandType::EZO_READ) {
+        found = true;
+        break;
+      }
+    }
+
+    if (!found) {
+      EzoCommand *ezo_command = new EzoCommand;
+      ezo_command->command = "R";
+      ezo_command->command_type = EzoCommandType::EZO_READ;
+      ezo_command->delay_ms = 900;
+
+      std::deque<EzoCommand *>::iterator it = this->commands_.begin();
+      ++it;
+      this->commands_.insert(it, ezo_command);
+
+    } else {
+      ESP_LOGE(TAG, "update overrun, still waiting for previous response");  // Not sure if we care to log this
+    }
+
     return;
   }
 
@@ -121,9 +144,7 @@ void EZOSensor::loop() {
           this->t_callback_.call(payload);
           break;
         }
-        default: {
-          break;
-        }
+        default: { break; }
       }
     }
   }
