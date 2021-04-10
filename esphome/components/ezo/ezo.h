@@ -15,6 +15,7 @@ class ezo_command {
  public:
   std::string command;
   uint32_t delay_ms = 300;
+  bool command_sent = false;
   EZO_COMMAND_TYPE command_type;
 };
 
