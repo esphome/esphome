@@ -49,7 +49,7 @@ class EZOSensor : public sensor::Sensor, public PollingComponent, public i2c::I2
   void get_state(int pos = 0) { this->add_command("R", EzoCommandType::EZO_READ, 900); }
 
   // I2C
-  void set_i2c() { this->add_command("I2c,100", EzoCommandType::EZO_I2C); }  // NOLINT
+  void set_i2c() { this->add_command("I2c,100", EzoCommandType::EZO_I2C); }  // NOLINT otherwise we get set_i2_c
 
   // Sleep
   void set_sleep() { this->add_command("Sleep", EzoCommandType::EZO_SLEEP); }
