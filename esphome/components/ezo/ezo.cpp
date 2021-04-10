@@ -54,7 +54,7 @@ void EZOSensor::loop() {
 
   if (!to_run->command_sent) {
     auto data = reinterpret_cast<const uint8_t *>(&to_run->command.c_str()[0]);
-    ESP_LOGD(TAG, "Sending command \"%s\"", data);
+    ESP_LOGVV(TAG, "Sending command \"%s\"", data);
 
     this->write_bytes_raw(data, to_run->command.length());
 
@@ -100,13 +100,13 @@ void EZOSensor::loop() {
       break;
   }
 
-  ESP_LOGD(TAG, "Received buffer \"%s\" for command type %s", buf, EzoCommandTypeStrings[to_run->command_type]);
+  ESP_LOGVV(TAG, "Received buffer \"%s\" for command type %s", buf, EzoCommandTypeStrings[to_run->command_type]);
 
-  for (int index = 0; index < 32; ++index) {
-    ESP_LOGD(TAG, "Received buffer index: %d char: \"%c\" %d", index, buf[index], buf[index]);
-  }
+  // for (int index = 0; index < 32; ++index) {
+  //   ESP_LOGD(TAG, "Received buffer index: %d char: \"%c\" %d", index, buf[index], buf[index]);
+  // }
 
-  if (buf[0] == 1 || (to_run->command_type == EzoCommandType::EZO_CALIBRATION)) {  // EZO_CALIBRATION returns 0-3
+  if (buf[0] == 1 || to_run->command_type == EzoCommandType::EZO_CALIBRATION) {  // EZO_CALIBRATION returns 0-3
     std::string payload = reinterpret_cast<char *>(&buf[1]);
     if (!payload.empty()) {
       switch (to_run->command_type) {
@@ -148,9 +148,7 @@ void EZOSensor::loop() {
           this->t_callback_.call(payload);
           break;
         }
-        default: {
-          break;
-        }
+        default: { break; }
       }
     }
   }

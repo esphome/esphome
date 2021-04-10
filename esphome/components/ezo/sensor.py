@@ -4,7 +4,7 @@ from esphome import automation
 from esphome.components import i2c, sensor
 from esphome.const import CONF_ID, CONF_TRIGGER_ID
 
-CODEOWNERS = ["@ssieb"]
+CODEOWNERS = ["@ssieb", "@senexcrenshaw"]
 
 DEPENDENCIES = ["i2c"]
 

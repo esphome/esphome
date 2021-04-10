@@ -41,7 +41,7 @@ esphome/components/esp32_ble/* @jesserockz
 esphome/components/esp32_ble_server/* @jesserockz
 esphome/components/esp32_improv/* @jesserockz
 esphome/components/exposure_notifications/* @OttoWinter
-esphome/components/ezo/* @ssieb
+esphome/components/ezo/* @senexcrenshaw @ssieb
 esphome/components/fastled_base/* @OttoWinter
 esphome/components/fingerprint_grow/* @OnFreund @loongyh
 esphome/components/globals/* @esphome/core
