@@ -38,11 +38,11 @@ class EZOSensor : public sensor::Sensor, public PollingComponent, public i2c::I2
   float get_setup_priority() const override { return setup_priority::DATA; };
 
   void add_command(std::string command, EzoCommandType command_type, uint16_t delay_ms = 300) {
-    EzoCommand *e_command = new EzoCommand;
-    e_command->command = command;
-    e_command->command_type = command_type;
-    e_command->delay_ms = delay_ms;
-    this->commands_.push_back(e_command);
+    EzoCommand *ezo_command = new EzoCommand;
+    ezo_command->command = command;
+    ezo_command->command_type = command_type;
+    ezo_command->delay_ms = delay_ms;
+    this->commands_.push_back(ezo_command);
   };
 
   // R
