@@ -47,6 +47,7 @@ class EZOSensor : public sensor::Sensor, public PollingComponent, public i2c::I2
 
   void set_tempcomp_value(float temp) { this->set_t(to_string(temp)); }
 
+  // R
   void get_state() { this->add_command("R", EzoCommandType::EZO_READ, 900); }
 
   // I2C
