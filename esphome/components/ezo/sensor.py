@@ -9,6 +9,9 @@ CODEOWNERS = ["@ssieb"]
 DEPENDENCIES = ["i2c"]
 
 CONF_ON_LED = "on_led"
+CONF_ON_DEVICE_INFORMATION = "on_device_information"
+CONF_ON_SLOPE = "on_slope"
+CONF_ON_CALIBRATION = "on_calibration"
 
 ezo_ns = cg.esphome_ns.namespace("ezo")
 
@@ -16,13 +19,39 @@ EZOSensor = ezo_ns.class_(
     "EZOSensor", sensor.Sensor, cg.PollingComponent, i2c.I2CDevice
 )
 
-LedTrigger = ezo_ns.class_("LedTrigger", automation.Trigger.template(cg.bool_))
+SlopeTrigger = ezo_ns.class_("SlopeTrigger", automation.Trigger.template(cg.std_string))
 
+CalibrationTrigger = ezo_ns.class_(
+    "CalibrationTrigger", automation.Trigger.template(cg.std_string)
+)
+
+DeviceInformationTrigger = ezo_ns.class_(
+    "DeviceInformationTrigger", automation.Trigger.template(cg.std_string)
+)
+
+LedTrigger = ezo_ns.class_("LedTrigger", automation.Trigger.template(cg.bool_))
 
 CONFIG_SCHEMA = (
     sensor.SENSOR_SCHEMA.extend(
         {
             cv.GenerateID(): cv.declare_id(EZOSensor),
+            cv.Optional(CONF_ON_CALIBRATION): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(CalibrationTrigger),
+                }
+            ),
+            cv.Optional(CONF_ON_SLOPE): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(SlopeTrigger),
+                }
+            ),
+            cv.Optional(CONF_ON_DEVICE_INFORMATION): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                        DeviceInformationTrigger
+                    ),
+                }
+            ),
             cv.Optional(CONF_ON_LED): automation.validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(LedTrigger),
@@ -44,3 +73,15 @@ async def to_code(config):
     for conf in config.get(CONF_ON_LED, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         yield automation.build_automation(trigger, [(bool, "x")], conf)
+
+    for conf in config.get(CONF_ON_DEVICE_INFORMATION, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        yield automation.build_automation(trigger, [(cg.std_string, "x")], conf)
+
+    for conf in config.get(CONF_ON_SLOPE, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        yield automation.build_automation(trigger, [(cg.std_string, "x")], conf)
+
+    for conf in config.get(CONF_ON_CALIBRATION, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        yield automation.build_automation(trigger, [(cg.std_string, "x")], conf)
