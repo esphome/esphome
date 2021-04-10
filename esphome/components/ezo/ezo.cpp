@@ -38,9 +38,9 @@ void EZOSensor::loop() {
     auto data = reinterpret_cast<const uint8_t *>(&to_run->command.c_str()[0]);
     ESP_LOGD(TAG, "Sending command \"%s\"", data);
 
-    for (uint8_t i = 0; i < to_run->command.length(); i++) {
-      ESP_LOGD(TAG, "Sending index: %d char: \"%c\" hex: 0x%02X", i, data[i], data[i]);
-    }
+    // for (uint8_t i = 0; i < to_run->command.length(); i++) {
+    //   ESP_LOGD(TAG, "Sending index: %d char: \"%c\" hex: 0x%02X", i, data[i], data[i]);
+    // }
 
     this->write_bytes_raw(data, to_run->command.length());
 
@@ -52,13 +52,19 @@ void EZOSensor::loop() {
   if (millis() - this->start_time_ < to_run->delay_ms)
     return;
 
+  if (to_run->command_type == EzoCommandType::EZO_SLEEP) {  // Dont read data
+    delete to_run;
+    this->commands_.pop_front();
+    return;
+  }
+
   uint8_t buf[20];
 
   buf[0] = 0;
 
   if (!this->read_bytes_raw(buf, 20)) {
     ESP_LOGE(TAG, "read error");
-    delete this->commands_.front();
+    delete to_run;
     this->commands_.pop_front();
     return;
   }
@@ -90,11 +96,26 @@ void EZOSensor::loop() {
       case EzoCommandType::EZO_LED: {
         break;
       }
+      case EzoCommandType::EZO_DEVICE_INFORMATION: {
+        break;
+      }
+      case EzoCommandType::EZO_SLOPE: {
+        break;
+      }
+      case EzoCommandType::EZO_CALIBRATION: {
+        break;
+      }
     }
   }
 
   delete to_run;
   this->commands_.pop_front();
+}
+
+// Calibration
+void EZOSensor::set_calibration(std::string point, std::string value) {
+  std::string to_send = "Cal," + point + "," + value;
+  this->add_command(to_send, EzoCommandType::EZO_CALIBRATION);
 }
 
 // LED control

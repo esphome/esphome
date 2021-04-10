@@ -8,8 +8,16 @@
 namespace esphome {
 namespace ezo {
 
-enum EzoCommandType : uint8_t { EZO_READ = 0, EZO_LED = 1 };
-static const char *EzoCommandTypeStrings[] = {"EZO_READ", "EZO_LED"};
+enum EzoCommandType : uint8_t {
+  EZO_READ = 0,
+  EZO_LED = 1,
+  EZO_DEVICE_INFORMATION = 2,
+  EZO_SLOPE = 3,
+  EZO_CALIBRATION,
+  EZO_SLEEP = 4
+};
+static const char *EzoCommandTypeStrings[] = {"EZO_READ",  "EZO_LED",         "EZO_DEVICE_INFORMATION",
+                                              "EZO_SLOPE", "EZO_CALIBRATION", "EZO_SLEEP"};
 
 class EzoCommand {
  public:
@@ -38,13 +46,40 @@ class EZOSensor : public sensor::Sensor, public PollingComponent, public i2c::I2
   void set_tempcomp_value(float temp);
   void get_state() { this->add_command("R", EzoCommandType::EZO_READ); }
 
+  // Sleep
+  void set_sleep() { this->add_command("Sleep", EzoCommandType::EZO_SLEEP); }
+
+  // Calibration
+  void get_calibration() { this->add_command("Cal,?", EzoCommandType::EZO_CALIBRATION); }
+  void set_calibration(std::string point, std::string value);
+  void add_calibration_callback(std::function<void(std::string)> &&callback) {
+    this->calibration_callback_.add(std::move(callback));
+  }
+
+  // Device Information
+  void get_device_information() { this->add_command("i", EzoCommandType::EZO_DEVICE_INFORMATION); }
+  void add_device_infomation_callback(std::function<void(std::string)> &&callback) {
+    this->device_infomation_callback_.add(std::move(callback));
+  }
+
+  // Slope
+  void get_slope() { this->add_command("Slope,?", EzoCommandType::EZO_SLOPE); }
+  void add_slope_callback(std::function<void(std::string)> &&callback) {
+    this->slope_callback_.add(std::move(callback));
+  }
+
   // LED
   void set_led_state(bool on);
   void get_led_state() { this->add_command("L,?", EzoCommandType::EZO_LED); }
   void add_led_state_callback(std::function<void(bool)> &&callback) { this->led_callback_.add(std::move(callback)); }
 
+  // / I2C / / T
  protected:
   std::deque<EzoCommand *> commands_;
+
+  CallbackManager<void(std::string)> device_infomation_callback_{};
+  CallbackManager<void(std::string)> calibration_callback_{};
+  CallbackManager<void(std::string)> slope_callback_{};
   CallbackManager<void(bool)> led_callback_{};
 
   unsigned long start_time_ = 0;
