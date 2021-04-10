@@ -106,7 +106,7 @@ void EZOSensor::loop() {
     ESP_LOGD(TAG, "Received buffer index: %d char: \"%c\" %d", i, buf[i], buf[i]);
   }
 
-  if (buf[0] == 1) {
+  if (buf[0] == 1 || (to_run->command_type == EzoCommandType::EZO_CALIBRATION)) {
     std::string payload = reinterpret_cast<char *>(&buf[1]);
     if (!payload.empty()) {
       switch (to_run->command_type) {
