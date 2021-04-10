@@ -29,7 +29,6 @@ void GPS::update() {
 }
 
 void GPS::loop() {
-  float lat, lng;
 
   while (this->available() && !this->has_time_) {
     if (this->tiny_gps_.encode(this->read())) {
