@@ -44,6 +44,13 @@ void EZOSensor::loop() {
 
     this->write_bytes_raw(data, to_run->command.length());
 
+    if (to_run->command_type == EzoCommandType::EZO_SLEEP ||
+        to_run->command_type == EzoCommandType::EZO_I2C) {  // Commands with no return data
+      delete to_run;
+      this->commands_.pop_front();
+      return;
+    }
+
     this->start_time_ = millis();
     to_run->command_sent = true;
     return;
@@ -51,12 +58,6 @@ void EZOSensor::loop() {
 
   if (millis() - this->start_time_ < to_run->delay_ms)
     return;
-
-  if (to_run->command_type == EzoCommandType::EZO_SLEEP) {  // Dont read data
-    delete to_run;
-    this->commands_.pop_front();
-    return;
-  }
 
   uint8_t buf[20];
 
@@ -105,11 +106,23 @@ void EZOSensor::loop() {
       case EzoCommandType::EZO_CALIBRATION: {
         break;
       }
+      case EzoCommandType::EZO_T: {
+        break;
+      }
+      default: {
+        break;
+      }
     }
   }
 
   delete to_run;
   this->commands_.pop_front();
+}
+
+// T
+void EZOSensor::set_t(std::string value) {
+  std::string to_send = "T," + value;
+  this->add_command(to_send, EzoCommandType::EZO_T);
 }
 
 // Calibration
