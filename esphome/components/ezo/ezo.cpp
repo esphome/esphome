@@ -94,7 +94,6 @@ void EZOSensor::loop() {
           } else {
             this->publish_state(*val);
           }
-
           break;
         }
         case EzoCommandType::EZO_LED: {
@@ -105,12 +104,15 @@ void EZOSensor::loop() {
           break;
         }
         case EzoCommandType::EZO_SLOPE: {
+          this->slope_callback_.call(payload);
           break;
         }
         case EzoCommandType::EZO_CALIBRATION: {
+          this->calibration_callback_.call(payload);
           break;
         }
         case EzoCommandType::EZO_T: {
+          this->t_callback_.call(payload);
           break;
         }
         default: {
