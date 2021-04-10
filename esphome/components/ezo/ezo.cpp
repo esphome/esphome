@@ -23,8 +23,15 @@ void EZOSensor::update() {
     ESP_LOGE(TAG, "update overrun, still waiting for previous response");
     return;
   }
-  uint8_t c = 'R';
-  this->write_bytes_raw(&c, 1);
+  if (!this->commands_.empty()) {
+    this->add_command("R", "", "");
+  }
+
+  ezo_command *to_run = this->commands_.front();
+
+  auto data = reinterpret_cast<const uint8_t *>(&to_run[0]);
+  this->write_bytes_raw(data, to_run->command.length());
+
   this->state_ |= EZO_STATE_WAIT;
   this->start_time_ = millis();
   this->wait_time_ = 900;
@@ -73,7 +80,7 @@ void EZOSensor::loop() {
   if (buf[0] != 1)
     return;
 
-  float val = strtof((char *) &buf[1], nullptr);
+  float val = atof((char *) &buf[1]);
   this->publish_state(val);
 }
 
