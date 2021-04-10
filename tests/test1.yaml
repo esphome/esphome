@@ -203,14 +203,14 @@ ota:
         ESP_LOGD("ota", "State %d", state);
   on_begin:
     then:
-      logger.log: "OTA begin"
+      logger.log: 'OTA begin'
   on_progress:
     then:
       lambda: >-
         ESP_LOGD("ota", "Got progress %f", x);
   on_end:
     then:
-      logger.log: "OTA end"
+      logger.log: 'OTA end'
   on_error:
     then:
       lambda: >-
@@ -910,9 +910,9 @@ sensor:
       name: 'AQI'
       calculation_type: 'CAQI'
   - platform: teleinfo
-    tag_name: "HCHC"
-    name: "hchc"
-    unit_of_measurement: "Wh"
+    tag_name: 'HCHC'
+    name: 'hchc'
+    unit_of_measurement: 'Wh'
     icon: mdi:flash
     teleinfo_id: myteleinfo
   - platform: mcp9808
@@ -925,11 +925,11 @@ sensor:
   - platform: cs5460a
     id: cs5460a1
     current:
-      name: "Socket current"
+      name: 'Socket current'
     voltage:
-      name: "Mains voltage"
+      name: 'Mains voltage'
     power:
-      name: "Socket power"
+      name: 'Socket power'
       on_value:
         then:
           cs5460a.restart: cs5460a1
@@ -2167,8 +2167,8 @@ text_sensor:
     name: 'ESPHome Version No Timestamp'
     hide_timestamp: True
   - platform: teleinfo
-    tag_name: "OPTARIF"
-    name: "optarif"
+    tag_name: 'OPTARIF'
+    name: 'optarif'
     teleinfo_id: myteleinfo
 
 sn74hc595:
