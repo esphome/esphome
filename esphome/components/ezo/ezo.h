@@ -14,10 +14,12 @@ enum EzoCommandType : uint8_t {
   EZO_DEVICE_INFORMATION = 2,
   EZO_SLOPE = 3,
   EZO_CALIBRATION,
-  EZO_SLEEP = 4
+  EZO_SLEEP = 4,
+  EZO_I2C = 5,
+  EZO_T = 6
 };
-static const char *EzoCommandTypeStrings[] = {"EZO_READ",  "EZO_LED",         "EZO_DEVICE_INFORMATION",
-                                              "EZO_SLOPE", "EZO_CALIBRATION", "EZO_SLEEP"};
+static const char *EzoCommandTypeStrings[] = {
+    "EZO_READ", "EZO_LED", "EZO_DEVICE_INFORMATION", "EZO_SLOPE", "EZO_CALIBRATION", "EZO_SLEEP", "EZO_I2C", "EZO_T"};
 
 class EzoCommand {
  public:
@@ -46,6 +48,9 @@ class EZOSensor : public sensor::Sensor, public PollingComponent, public i2c::I2
   void set_tempcomp_value(float temp);
   void get_state() { this->add_command("R", EzoCommandType::EZO_READ, 900); }
 
+  // I2C
+  void set_I2C() { this->add_command("I2c,100", EzoCommandType::EZO_I2C); }
+
   // Sleep
   void set_sleep() { this->add_command("Sleep", EzoCommandType::EZO_SLEEP); }
 
@@ -73,13 +78,18 @@ class EZOSensor : public sensor::Sensor, public PollingComponent, public i2c::I2
   void get_led_state() { this->add_command("L,?", EzoCommandType::EZO_LED); }
   void add_led_state_callback(std::function<void(bool)> &&callback) { this->led_callback_.add(std::move(callback)); }
 
-  // / I2C / / T
+  // T
+  void get_t() { this->add_command("T,?", EzoCommandType::EZO_T); }
+  void set_t(std::string value);
+  void add_t_callback(std::function<void(std::string)> &&callback) { this->t_callback_.add(std::move(callback)); }
+
  protected:
   std::deque<EzoCommand *> commands_;
 
   CallbackManager<void(std::string)> device_infomation_callback_{};
   CallbackManager<void(std::string)> calibration_callback_{};
   CallbackManager<void(std::string)> slope_callback_{};
+  CallbackManager<void(std::string)> t_callback_{};
   CallbackManager<void(bool)> led_callback_{};
 
   unsigned long start_time_ = 0;

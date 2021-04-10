@@ -12,6 +12,13 @@ class LedTrigger : public Trigger<bool> {
   }
 };
 
+class TTrigger : public Trigger<std::string> {
+ public:
+  explicit TTrigger(EZOSensor *ezo) {
+    ezo->add_calibration_callback([this](std::string value) { this->trigger(value); });
+  }
+};
+
 class CalibrationTrigger : public Trigger<std::string> {
  public:
   explicit CalibrationTrigger(EZOSensor *ezo) {
