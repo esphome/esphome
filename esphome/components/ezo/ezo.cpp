@@ -84,35 +84,37 @@ void EZOSensor::loop() {
 
   ESP_LOGD(TAG, "Received buffer \"%s\" for command type %s", buf, EzoCommandTypeStrings[to_run->command_type]);
   if (buf[0] == 1) {
-    switch (to_run->command_type) {
-      case EzoCommandType::EZO_READ: {
-        std::string payload = reinterpret_cast<char *>(&buf[1]);
-        auto val = parse_float(payload);
-        if (!val.has_value()) {
-          ESP_LOGW(TAG, "Can't convert '%s' to number!", payload.c_str());
-        } else {
-          this->publish_state(*val);
-        }
+    std::string payload = reinterpret_cast<char *>(&buf[1]);
+    if (!payload.empty()) {
+      switch (to_run->command_type) {
+        case EzoCommandType::EZO_READ: {
+          auto val = parse_float(payload);
+          if (!val.has_value()) {
+            ESP_LOGW(TAG, "Can't convert '%s' to number!", payload.c_str());
+          } else {
+            this->publish_state(*val);
+          }
 
-        break;
-      }
-      case EzoCommandType::EZO_LED: {
-        break;
-      }
-      case EzoCommandType::EZO_DEVICE_INFORMATION: {
-        break;
-      }
-      case EzoCommandType::EZO_SLOPE: {
-        break;
-      }
-      case EzoCommandType::EZO_CALIBRATION: {
-        break;
-      }
-      case EzoCommandType::EZO_T: {
-        break;
-      }
-      default: {
-        break;
+          break;
+        }
+        case EzoCommandType::EZO_LED: {
+          break;
+        }
+        case EzoCommandType::EZO_DEVICE_INFORMATION: {
+          break;
+        }
+        case EzoCommandType::EZO_SLOPE: {
+          break;
+        }
+        case EzoCommandType::EZO_CALIBRATION: {
+          break;
+        }
+        case EzoCommandType::EZO_T: {
+          break;
+        }
+        default: {
+          break;
+        }
       }
     }
   }
