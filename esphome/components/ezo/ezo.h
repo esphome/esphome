@@ -45,8 +45,6 @@ class EZOSensor : public sensor::Sensor, public PollingComponent, public i2c::I2
     this->commands_.push_back(e_command);
   };
 
-  void set_tempcomp_value(float temp) { this->set_t(to_string(temp)); }
-
   // R
   void get_state() { this->add_command("R", EzoCommandType::EZO_READ, 900); }
 
@@ -81,6 +79,7 @@ class EZOSensor : public sensor::Sensor, public PollingComponent, public i2c::I2
   void add_led_state_callback(std::function<void(bool)> &&callback) { this->led_callback_.add(std::move(callback)); }
 
   // T
+  void set_tempcomp_value(float temp) { this->set_t(to_string(temp)); }  // For backwards compatibility
   void get_t() { this->add_command("T,?", EzoCommandType::EZO_T); }
   void set_t(std::string value);
   void add_t_callback(std::function<void(std::string)> &&callback) { this->t_callback_.add(std::move(callback)); }
