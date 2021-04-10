@@ -24,20 +24,7 @@ void EZOSensor::update() {
     return;
   }
 
-  if (this->commands_.empty()) {  // Read if nothing to do
-    this->get_state();
-  }
-
-  ezo_command *to_run = this->commands_.front();
-
-  auto data = reinterpret_cast<const uint8_t *>(&to_run->command.c_str()[0]);
-  for (int i = 0; i < to_run->command.length(); i++) {
-    ESP_LOGD(TAG, "Sending command index: %d char: \"%c\" hex: 0x%02X", i, data[i], data[i]);
-  }
-
-  this->write_bytes_raw(data, to_run->command.length());
-
-  this->start_time_ = millis();
+  this->get_state();
 }
 
 void EZOSensor::loop() {
@@ -45,7 +32,22 @@ void EZOSensor::loop() {
     return;
   }
 
-  if (millis() - this->start_time_ < this->commands_.front()->delay_ms)
+  ezo_command *to_run = this->commands_.front();
+
+  if (!to_run->command_sent) {
+    auto data = reinterpret_cast<const uint8_t *>(&to_run->command.c_str()[0]);
+    for (int i = 0; i < to_run->command.length(); i++) {
+      ESP_LOGD(TAG, "Sending command index: %d char: \"%c\" hex: 0x%02X", i, data[i], data[i]);
+    }
+
+    this->write_bytes_raw(data, to_run->command.length());
+
+    this->start_time_ = millis();
+    to_run->command_sent = true;
+    return;
+  }
+
+  if (millis() - this->start_time_ < to_run->delay_ms)
     return;
 
   uint8_t buf[20];
