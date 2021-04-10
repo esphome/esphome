@@ -93,22 +93,28 @@ void EZOSensor::loop() {
           break;
         }
         case EzoCommandType::EZO_LED: {
-          this->led_callback_(payload.back == "1");
+          this->led_callback_.call(payload.back() == '1');
           break;
         }
         case EzoCommandType::EZO_DEVICE_INFORMATION: {
           int start_location = 0;
-          if (start_location = payload.find(",") != std::string::npos) {
+          if ((start_location = payload.find(",")) != std::string::npos) {
             this->device_infomation_callback_.call(payload.substr(start_location + 1));
           }
           break;
         }
         case EzoCommandType::EZO_SLOPE: {
-          this->slope_callback_.call(payload);
+          int start_location = 0;
+          if ((start_location = payload.find(",")) != std::string::npos) {
+            this->slope_callback_.call(payload.substr(start_location + 1));
+          }
           break;
         }
         case EzoCommandType::EZO_CALIBRATION: {
-          this->calibration_callback_.call(payload);
+          int start_location = 0;
+          if ((start_location = payload.find(",")) != std::string::npos) {
+            this->calibration_callback_.call(payload.substr(start_location + 1));
+          }
           break;
         }
         case EzoCommandType::EZO_T: {
