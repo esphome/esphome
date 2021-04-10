@@ -70,7 +70,7 @@ esphome/components/esp32_can/* @Sympatron
 esphome/components/esp32_improv/* @jesserockz
 esphome/components/esp8266/* @esphome/core
 esphome/components/exposure_notifications/* @OttoWinter
-esphome/components/ezo/* @ssieb
+esphome/components/ezo/* @senexcrenshaw @ssieb
 esphome/components/fastled_base/* @OttoWinter
 esphome/components/fingerprint_grow/* @OnFreund @loongyh
 esphome/components/globals/* @esphome/core
