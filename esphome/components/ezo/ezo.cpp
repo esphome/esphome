@@ -6,10 +6,6 @@ namespace ezo {
 
 static const char *const TAG = "ezo.sensor";
 
-static const uint16_t EZO_STATE_WAIT = 1;
-static const uint16_t EZO_STATE_SEND_TEMP = 2;
-static const uint16_t EZO_STATE_WAIT_TEMP = 4;
-
 void EZOSensor::dump_config() {
   LOG_SENSOR("", "EZO", this);
   LOG_I2C_DEVICE(this);
@@ -137,8 +133,6 @@ void EZOSensor::set_led_state(bool on) {
   to_send += on ? "1" : "0";
   this->add_command(to_send, EzoCommandType::EZO_LED);
 }
-
-void EZOSensor::set_tempcomp_value(float temp) {}
 
 }  // namespace ezo
 }  // namespace esphome
