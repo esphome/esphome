@@ -20,7 +20,7 @@ void EZOSensor::dump_config() {
 
 void EZOSensor::update() {
   if (!this->commands_.empty()) {
-    ESP_LOGE(TAG, "update overrun, still waiting for previous response");  // Not sure if we care
+    ESP_LOGE(TAG, "update overrun, still waiting for previous response");  // Not sure if we care to log
     return;
   }
 
@@ -38,7 +38,6 @@ void EZOSensor::update() {
   this->write_bytes_raw(data, to_run->command.length());
 
   this->start_time_ = millis();
-  // this->wait_time_ = to_run->delay_ms;
 }
 
 void EZOSensor::loop() {
@@ -98,10 +97,7 @@ void EZOSensor::loop() {
 // LED control
 void EZOSensor::set_led_state(bool on) { this->add_command("L," + on ? "1" : "0", EZO_COMMAND_TYPE::EZO_LED); }
 
-void EZOSensor::set_tempcomp_value(float temp) {
-  // this->tempcomp_ = temp;
-  // this->state_ |= EZO_STATE_SEND_TEMP;
-}
+void EZOSensor::set_tempcomp_value(float temp) {}
 
 }  // namespace ezo
 }  // namespace esphome
