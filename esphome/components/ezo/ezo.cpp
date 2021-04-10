@@ -86,8 +86,14 @@ void EZOSensor::loop() {
   if (buf[0] == 1) {
     switch (to_run->command_type) {
       case EzoCommandType::EZO_READ: {
-        float val = atof((char *) &buf[1]);
-        this->publish_state(val);
+        std::string payload = reinterpret_cast<char *>(&buf[1]);
+        auto val = parse_float(payload);
+        if (!val.has_value()) {
+          ESP_LOGW(TAG, "Can't convert '%s' to number!", payload.c_str());
+        } else {
+          this->publish_state(*val);
+        }
+
         break;
       }
       case EzoCommandType::EZO_LED: {
