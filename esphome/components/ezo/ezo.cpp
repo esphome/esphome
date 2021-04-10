@@ -34,10 +34,6 @@ void EZOSensor::loop() {
     auto data = reinterpret_cast<const uint8_t *>(&to_run->command.c_str()[0]);
     ESP_LOGD(TAG, "Sending command \"%s\"", data);
 
-    // for (uint8_t i = 0; i < to_run->command.length(); i++) {
-    //   ESP_LOGD(TAG, "Sending index: %d char: \"%c\" hex: 0x%02X", i, data[i], data[i]);
-    // }
-
     this->write_bytes_raw(data, to_run->command.length());
 
     if (to_run->command_type == EzoCommandType::EZO_SLEEP ||
@@ -97,10 +93,14 @@ void EZOSensor::loop() {
           break;
         }
         case EzoCommandType::EZO_LED: {
+          this->led_callback_(payload.back == "1");
           break;
         }
         case EzoCommandType::EZO_DEVICE_INFORMATION: {
-          this->device_infomation_callback_.call(payload);
+          int start_location = 0;
+          if (start_location = payload.find(",") != std::string::npos) {
+            this->device_infomation_callback_.call(payload.substr(start_location + 1));
+          }
           break;
         }
         case EzoCommandType::EZO_SLOPE: {
