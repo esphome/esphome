@@ -9,13 +9,12 @@ static const char *TAG = "gps";
 TinyGPSPlus &GPSListener::get_tiny_gps() { return this->parent_->get_tiny_gps(); }
 
 void GPS::update() {
-
   if (this->latitude_sensor_ != nullptr)
     this->latitude_sensor_->publish_state(this->latitude_);
 
   if (this->longitude_sensor_ != nullptr)
     this->longitude_sensor_->publish_state(this->longitude_);
-  
+
   if (this->speed_sensor_ != nullptr)
     this->speed_sensor_->publish_state(this->speed_);
 
@@ -27,9 +26,7 @@ void GPS::update() {
 
   if (this->satellites_sensor_ != nullptr)
     this->satellites_sensor_->publish_state(this->satellites_);
-
 }
-
 
 void GPS::loop() {
   float lat, lng;
@@ -37,14 +34,12 @@ void GPS::loop() {
   while (this->available() && !this->has_time_) {
     if (this->tiny_gps_.encode(this->read())) {
       if (tiny_gps_.location.isUpdated()) {
-        
         this->latitude_ = tiny_gps_.location.lat();
         this->longitude_ = tiny_gps_.location.lng();
 
         ESP_LOGD(TAG, "Location:");
         ESP_LOGD(TAG, "  Lat: %f", this->latitude_);
         ESP_LOGD(TAG, "  Lon: %f", this->longitude_);
-
       }
 
       if (tiny_gps_.speed.isUpdated()) {

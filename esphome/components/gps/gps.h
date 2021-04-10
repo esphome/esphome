@@ -23,7 +23,6 @@ class GPSListener {
 
 class GPS : public PollingComponent, public uart::UARTDevice {
  public:
-
   void set_latitude_sensor(sensor::Sensor *latitude_sensor) { latitude_sensor_ = latitude_sensor; }
   void set_longitude_sensor(sensor::Sensor *longitude_sensor) { longitude_sensor_ = longitude_sensor; }
   void set_speed_sensor(sensor::Sensor *speed_sensor) { speed_sensor_ = speed_sensor; }
@@ -36,14 +35,13 @@ class GPS : public PollingComponent, public uart::UARTDevice {
     this->listeners_.push_back(listener);
   }
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
-  
+
   void loop() override;
   void update() override;
-  
+
   TinyGPSPlus &get_tiny_gps() { return this->tiny_gps_; }
 
  protected:
-
   float latitude_ = -1;
   float longitude_ = -1;
   float speed_ = -1;
