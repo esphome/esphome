@@ -19,7 +19,7 @@ void EZOSensor::dump_config() {
 }
 
 void EZOSensor::update() {
-  if (!this->commands_.empty()) {
+  if (!this->commands_.empty()) {  // Maybe check if a read is in there already and if not insert in second position?
     ESP_LOGE(TAG, "update overrun, still waiting for previous response");  // Not sure if we care to log
     return;
   }
@@ -35,12 +35,17 @@ void EZOSensor::loop() {
   ezo_command *to_run = this->commands_.front();
 
   if (!to_run->command_sent) {
-    auto data = reinterpret_cast<const uint8_t *>(&to_run->command.c_str()[0]);
-    for (int i = 0; i < to_run->command.length(); i++) {
-      ESP_LOGD(TAG, "Sending command index: %d char: \"%c\" hex: 0x%02X", i, data[i], data[i]);
+    // auto data = reinterpret_cast<const uint8_t *>(&to_run->command.c_str());
+    ESP_LOGD(TAG, "Sending command \"%s\"", to_run->command.c_str());
+
+    for (uint8_t i = 0; i < to_run->command.length(); i++) {
+      uint8_t d = to_run->command[i];
+      ESP_LOGD(TAG, "Sending command index: %d char: \"%c\" hex: 0x%02X", i, to_run->command[i], to_run->command[i]);
+
+      this->write_bytes_raw(&d, 1);
     }
 
-    this->write_bytes_raw(data, to_run->command.length());
+    // this->write_bytes_raw(data, to_run->command.length());
 
     this->start_time_ = millis();
     to_run->command_sent = true;
