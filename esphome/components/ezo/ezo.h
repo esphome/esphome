@@ -47,9 +47,6 @@ class EZOSensor : public sensor::Sensor, public PollingComponent, public i2c::I2
   CallbackManager<void(bool)> led_callback_{};
 
   unsigned long start_time_ = 0;
-  // unsigned long wait_time_ = 0;
-  // uint16_t state_ = 0;
-  // float tempcomp_;
 };
 
 }  // namespace ezo
