@@ -1,6 +1,5 @@
 #include "ezo.h"
 #include "esphome/core/log.h"
-#include "esphome/core/hal.h"
 
 namespace esphome {
 namespace ezo {
@@ -24,19 +23,26 @@ void EZOSensor::update() {
     ESP_LOGE(TAG, "update overrun, still waiting for previous response");
     return;
   }
-  uint8_t c = 'R';
-  this->write(&c, 1);
+  if (!this->commands_.empty()) {
+    this->add_command("R", "", "");
+  }
+
+  ezo_command *to_run = this->commands_.front();
+
+  auto data = reinterpret_cast<const uint8_t *>(&to_run[0]);
+  this->write_bytes_raw(data, to_run->command.length());
+
   this->state_ |= EZO_STATE_WAIT;
   this->start_time_ = millis();
   this->wait_time_ = 900;
 }
 
 void EZOSensor::loop() {
-  uint8_t buf[21];
+  uint8_t buf[20];
   if (!(this->state_ & EZO_STATE_WAIT)) {
     if (this->state_ & EZO_STATE_SEND_TEMP) {
       int len = sprintf((char *) buf, "T,%0.3f", this->tempcomp_);
-      this->write(buf, len);
+      this->write_bytes_raw(buf, len);
       this->state_ = EZO_STATE_WAIT | EZO_STATE_WAIT_TEMP;
       this->start_time_ = millis();
       this->wait_time_ = 300;
@@ -74,13 +80,7 @@ void EZOSensor::loop() {
   if (buf[0] != 1)
     return;
 
-  // some sensors return multiple comma-separated values, terminate string after first one
-  for (size_t i = 1; i < sizeof(buf) - 1; i++) {
-    if (buf[i] == ',')
-      buf[i] = '\0';
-  }
-
-  float val = parse_number<float>((char *) &buf[1]).value_or(0);
+  float val = atof((char *) &buf[1]);
   this->publish_state(val);
 }
 
