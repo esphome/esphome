@@ -55,7 +55,7 @@ class EZOSensor : public sensor::Sensor, public PollingComponent, public i2c::I2
   void set_sleep() { this->add_command("Sleep", EzoCommandType::EZO_SLEEP); }
 
   // Calibration
-  void get_calibration() { this->add_command("Cal,?", EzoCommandType::EZO_CALIBRATION, 900); }
+  void get_calibration() { this->add_command("Cal,?", EzoCommandType::EZO_CALIBRATION); }
   void set_calibration(std::string point, std::string value);
   void clear_calibration();
   void add_calibration_callback(std::function<void(std::string)> &&callback) {
