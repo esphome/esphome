@@ -8,6 +8,7 @@
 namespace esphome {
 namespace ezo {
 
+<<<<<<< HEAD
 enum EzoCommandType : uint8_t {
   EZO_READ = 0,
   EZO_LED = 1,
@@ -29,6 +30,13 @@ class EzoCommand {
   uint16_t delay_ms = 0;
   bool command_sent = false;
   EzoCommandType command_type;
+=======
+class ezo_command {
+ public:
+  std::string command;
+  std::string arguments;
+  std::string return_message;
+>>>>>>> 28a81ece (Initial setup)
 };
 
 /// This class implements support for the EZO circuits in i2c mode
@@ -39,6 +47,7 @@ class EZOSensor : public sensor::Sensor, public PollingComponent, public i2c::I2
   void update() override;
   float get_setup_priority() const override { return setup_priority::DATA; };
 
+<<<<<<< HEAD
   void add_command(const std::string &command, EzoCommandType command_type, uint16_t delay_ms = 300) {
     EzoCommand *ezo_command = new EzoCommand;
     ezo_command->command = command;
@@ -104,6 +113,24 @@ class EZOSensor : public sensor::Sensor, public PollingComponent, public i2c::I2
   CallbackManager<void(bool)> led_callback_{};
 
   uint32_t start_time_ = 0;
+=======
+  void set_tempcomp_value(float temp);
+  void add_command(std::string command, std::string arguments, std::string return_message) {
+    ezo_command *e_command = new ezo_command;
+    e_command->command = command;
+    e_command->arguments = arguments;
+    e_command->return_message = return_message;
+    this->commands_.push_back(e_command);
+  };
+
+ protected:
+  std::deque<ezo_command *> commands_;
+
+  unsigned long start_time_ = 0;
+  unsigned long wait_time_ = 0;
+  uint16_t state_ = 0;
+  float tempcomp_;
+>>>>>>> 28a81ece (Initial setup)
 };
 
 }  // namespace ezo
