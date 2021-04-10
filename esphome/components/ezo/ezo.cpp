@@ -40,7 +40,7 @@ void EZOSensor::loop() {
 
     for (uint8_t i = 0; i < to_run->command.length(); i++) {
       uint8_t d = to_run->command[i];
-      ESP_LOGD(TAG, "Sending command index: %d char: \"%c\" hex: 0x%02X", i, to_run->command[i], to_run->command[i]);
+      ESP_LOGD(TAG, "Sending index: %d char: \"%c\" hex: 0x%02X", i, to_run->command[i], to_run->command[i]);
 
       this->write_bytes_raw(&d, 1);
     }
