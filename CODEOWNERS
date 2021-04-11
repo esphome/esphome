@@ -41,6 +41,7 @@ esphome/components/fastled_base/* @OttoWinter
 esphome/components/globals/* @esphome/core
 esphome/components/gm40/* @loongyh
 esphome/components/gpio/* @esphome/core
+esphome/components/gps/* @coogle
 esphome/components/homeassistant/* @OttoWinter
 esphome/components/i2c/* @esphome/core
 esphome/components/inkbird_ibsth1_mini/* @fkirill
