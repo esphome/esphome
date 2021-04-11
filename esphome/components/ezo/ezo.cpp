@@ -148,7 +148,9 @@ void EZOSensor::loop() {
           this->t_callback_.call(payload);
           break;
         }
-        default: { break; }
+        default: {
+          break;
+        }
       }
     }
   }
@@ -158,7 +160,7 @@ void EZOSensor::loop() {
 }
 
 // T
-void EZOSensor::set_t(std::string value) {
+void EZOSensor::set_t(const std::string &value) {
   std::string to_send = "T," + value;
   this->add_command(to_send, EzoCommandType::EZO_T);
 }
@@ -166,7 +168,7 @@ void EZOSensor::set_t(std::string value) {
 // Calibration
 void EZOSensor::clear_calibration() { this->add_command("Cal,clear", EzoCommandType::EZO_CALIBRATION); }
 
-void EZOSensor::set_calibration(std::string point, std::string value) {
+void EZOSensor::set_calibration(const std::string &point, const std::string &value) {
   std::string to_send = "Cal," + point + "," + value;
   this->add_command(to_send, EzoCommandType::EZO_CALIBRATION, 900);
 }
