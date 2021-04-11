@@ -315,7 +315,12 @@ void DisplayBuffer::set_pages(std::vector<DisplayPage *> pages) {
   pages[pages.size() - 1]->set_next(pages[0]);
   this->show_page(pages[0]);
 }
-void DisplayBuffer::show_page(DisplayPage *page) { this->page_ = page; }
+void DisplayBuffer::show_page(DisplayPage *page) {
+  this->previous_page_ = this->page_;
+  this->page_ = page;
+  if (this->previous_page_ != this->page_)
+    this->page_change_trigger_->trigger(this->previous_page_, this->page_);
+}
 void DisplayBuffer::show_next_page() { this->page_->show_next(); }
 void DisplayBuffer::show_prev_page() { this->page_->show_prev(); }
 void DisplayBuffer::do_update_() {

@@ -23,6 +23,8 @@ DisplayIsDisplayingPageCondition = display_ns.class_(
     "DisplayIsDisplayingPageCondition", automation.Condition
 )
 
+CONF_ON_PAGE_CHANGE = "on_page_change"
+
 DISPLAY_ROTATIONS = {
     0: display_ns.DISPLAY_ROTATION_0_DEGREES,
     90: display_ns.DISPLAY_ROTATION_90_DEGREES,
@@ -56,6 +58,7 @@ FULL_DISPLAY_SCHEMA = BASIC_DISPLAY_SCHEMA.extend(
             ),
             cv.Length(min=1),
         ),
+        cv.Optional(CONF_ON_PAGE_CHANGE): automation.validate_automation(single=True),
     }
 )
 
@@ -73,6 +76,12 @@ def setup_display_core_(var, config):
             page = cg.new_Pvariable(conf[CONF_ID], lambda_)
             pages.append(page)
         cg.add(var.set_pages(pages))
+    if CONF_ON_PAGE_CHANGE in config:
+        yield automation.build_automation(
+            var.get_page_change_trigger(),
+            [(DisplayPagePtr, "from"), (DisplayPagePtr, "to")],
+            config[CONF_ON_PAGE_CHANGE],
+        )
 
 
 @coroutine

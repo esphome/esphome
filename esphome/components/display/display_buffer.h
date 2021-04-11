@@ -298,6 +298,8 @@ class DisplayBuffer {
 
   const DisplayPage *get_active_page() const { return this->page_; }
 
+  Trigger<DisplayPage *, DisplayPage *> *get_page_change_trigger() const { return this->page_change_trigger_; }
+
   /// Internal method to set the display rotation with.
   void set_rotation(DisplayRotation rotation);
 
@@ -318,6 +320,8 @@ class DisplayBuffer {
   DisplayRotation rotation_{DISPLAY_ROTATION_0_DEGREES};
   optional<display_writer_t> writer_{};
   DisplayPage *page_{nullptr};
+  DisplayPage *previous_page_{nullptr};
+  Trigger<DisplayPage *, DisplayPage *> *page_change_trigger_{new Trigger<DisplayPage *, DisplayPage *>()};
 };
 
 class DisplayPage {
