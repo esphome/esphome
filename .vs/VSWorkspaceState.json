@@ -1,0 +1,10 @@
+{
+  "ExpandedNodes": [
+    "",
+    "\\esphome",
+    "\\esphome\\components",
+    "\\esphome\\components\\modbus_component"
+  ],
+  "SelectedNode": "\\esphome\\components\\modbus_component\\sensor.py",
+  "PreviewInSolutionExplorer": false
+}

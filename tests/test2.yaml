@@ -70,6 +70,10 @@ deep_sleep:
 as3935_i2c:
   irq_pin: GPIO12
 
+mcp3008:
+  - id: 'mcp3008_hub'
+    cs_pin: GPIO12
+
 sensor:
   - platform: homeassistant
     entity_id: sensor.hello_world
@@ -86,6 +90,28 @@ sensor:
   - platform: ble_rssi
     service_uuid: '11223344-5566-7788-99aa-bbccddeeff00'
     name: 'BLE Test Service 128'
+  - platform: b_parasite
+    mac_address: F0:CA:F0:CA:01:01
+    humidity:
+      name: 'b-parasite Air Humidity'
+    temperature:
+      name: 'b-parasite Air Temperature'
+    moisture:
+      name: 'b-parasite Soil Moisture'
+    battery_voltage:
+      name: 'b-parasite Battery Voltage'
+  - platform: senseair
+    id: senseair0
+    co2:
+      name: 'SenseAir CO2 Value'
+      on_value:
+        then:
+          - senseair.background_calibration: senseair0
+          - senseair.background_calibration_result: senseair0
+          - senseair.abc_get_period: senseair0
+          - senseair.abc_enable: senseair0
+          - senseair.abc_disable: senseair0
+    update_interval: 15s
   - platform: ruuvitag
     mac_address: FF:56:D3:2F:7D:E8
     humidity:
@@ -206,9 +232,9 @@ sensor:
   - platform: inkbird_ibsth1_mini
     mac_address: 38:81:D7:0A:9C:11
     temperature:
-        name: 'Inkbird IBS-TH1 Temperature'
+      name: 'Inkbird IBS-TH1 Temperature'
     humidity:
-        name: 'Inkbird IBS-TH1 Humidity'
+      name: 'Inkbird IBS-TH1 Humidity'
     battery_level:
         name: 'Inkbird IBS-TH1 Battery Level'
 
@@ -389,6 +415,17 @@ sensor:
         bitmask: 1
     update_interval: 30s      
 
+      name: 'Inkbird IBS-TH1 Battery Level'
+  - platform: sgp40
+    name: 'Workshop VOC'
+    update_interval: 5s
+    store_baseline: 'true'
+  - platform: mcp3008
+    update_interval: 5s
+    mcp3008_id: 'mcp3008_hub'
+    id: freezer_temp_source
+    reference_voltage: 3.19
+    number: 0
 time:
   - platform: homeassistant
     on_time:

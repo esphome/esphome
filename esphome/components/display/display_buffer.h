@@ -296,6 +296,8 @@ class DisplayBuffer {
 
   void set_pages(std::vector<DisplayPage *> pages);
 
+  const DisplayPage *get_active_page() const { return this->page_; }
+
   /// Internal method to set the display rotation with.
   void set_rotation(DisplayRotation rotation);
 
@@ -446,6 +448,18 @@ template<typename... Ts> class DisplayPageShowPrevAction : public Action<Ts...> 
   void play(Ts... x) override { this->buffer_->show_prev_page(); }
 
   DisplayBuffer *buffer_;
+};
+
+template<typename... Ts> class DisplayIsDisplayingPageCondition : public Condition<Ts...> {
+ public:
+  DisplayIsDisplayingPageCondition(DisplayBuffer *parent) : parent_(parent) {}
+
+  void set_page(DisplayPage *page) { this->page_ = page; }
+  bool check(Ts... x) override { return this->parent_->get_active_page() == this->page_; }
+
+ protected:
+  DisplayBuffer *parent_;
+  DisplayPage *page_;
 };
 
 }  // namespace display
