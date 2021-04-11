@@ -186,7 +186,7 @@ class TouchGUIButton : public binary_sensor::BinarySensor, public Component {
     return x;
   }
 
-  // Track the real touch state. Does not change for programmatic activation  
+  // Track the real touch state. Does not change for programmatic activation
   void set_touch_state(bool x) { this->touch_state_ = x; }
   bool is_touched() const { return this->touch_state_; }
 
