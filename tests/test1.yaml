@@ -6,6 +6,7 @@ substitutions:
 
 esphome:
   name: test1
+  name_add_mac_suffix: true
   platform: ESP32
   board: nodemcu-32s
   on_boot:
@@ -48,6 +49,12 @@ esphome:
             Content-Type: application/json
           body: 'Some data'
           verify_ssl: false
+          on_response:
+            then:
+              - logger.log:
+                  format: 'Response status: %d'
+                  args:
+                    - status_code
   build_path: build/test1
 
 packages:
@@ -227,10 +234,6 @@ as3935_spi:
 wled:
 
 adalight:
-
-mcp3008:
-  - id: 'mcp3008_hub'
-    cs_pin: GPIO12
 
 mcp23s08:
   - id: 'mcp23s08_hub'
@@ -625,6 +628,13 @@ sensor:
       falling_edge: DECREMENT
     internal_filter: 13us
     update_interval: 15s
+  - platform: pulse_meter
+    name: 'Pulse Meter'
+    pin: GPIO12
+    internal_filter: 100ms
+    timeout: 2 min
+    total:
+      name: 'Pulse Meter Total'
   - platform: rotary_encoder
     name: 'Rotary Encoder'
     id: rotary_encoder1
@@ -652,11 +662,6 @@ sensor:
   - platform: pulse_width
     name: Pulse Width
     pin: GPIO12
-  - platform: senseair
-    uart_id: uart0
-    co2:
-      name: 'SenseAir CO2 Value'
-    update_interval: 15s
   - platform: sm300d2
     uart_id: uart0
     co2:
@@ -868,12 +873,6 @@ sensor:
     id: ph_ezo
     address: 99
     unit_of_measurement: 'pH'
-  - platform: mcp3008
-    update_interval: 5s
-    mcp3008_id: 'mcp3008_hub'
-    id: freezer_temp_source
-    reference_voltage: 3.19
-    number: 0
 
 esp32_touch:
   setup_mode: False
@@ -1474,6 +1473,23 @@ climate:
     name: Toshiba Climate
   - platform: hitachi_ac344
     name: Hitachi Climate
+  - platform: midea_ac
+    visual:
+      min_temperature: 18 °C
+      max_temperature: 25 °C
+      temperature_step: 0.1 °C
+    name: 'Electrolux EACS'
+    beeper: true
+    outdoor_temperature:
+      name: 'Temp'
+    power_usage:
+      name: 'Power'
+    humidity_setpoint:
+      name: 'Hum'
+
+midea_dongle:
+  uart_id: uart0
+  strength_icon: true
 
 switch:
   - platform: gpio
@@ -1708,13 +1724,10 @@ fan:
     direction_output: gpio_26
   - platform: speed
     output: pca_6
+    speed_count: 10
     name: 'Living Room Fan 2'
     oscillation_output: gpio_19
     direction_output: gpio_26
-    speed:
-      low: 0.45
-      medium: 0.75
-      high: 1.0
     oscillation_state_topic: oscillation/state/topic
     oscillation_command_topic: oscillation/command/topic
     speed_state_topic: speed/state/topic
@@ -1737,6 +1750,13 @@ interval:
           btn_left_state = ((uint32_t) id(btn_left)->get_value()  +  63 * (uint32_t)btn_left_state) >> 6;
 
           id(btn_left)->set_threshold(btn_left_state * 0.9);
+      - if:
+          condition:
+            display.is_displaying_page:
+              id: display1
+              page_id: page1
+          then:
+            - logger.log: 'Seeing page 1'
 
 color:
   - id: kbx_red
@@ -1865,24 +1885,6 @@ display:
     reset_pin: GPIO23
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
-  - platform: waveshare_epaper
-    cs_pin: GPIO23
-    dc_pin: GPIO23
-    busy_pin: GPIO23
-    reset_pin: GPIO23
-    model: 2.90in
-    full_update_every: 30
-    lambda: |-
-      it.rectangle(0, 0, it.get_width(), it.get_height());
-  - platform: waveshare_epaper
-    cs_pin: GPIO23
-    dc_pin: GPIO23
-    busy_pin: GPIO23
-    reset_pin: GPIO23
-    model: 2.90inv2
-    full_update_every: 30
-    lambda: |-
-      it.rectangle(0, 0, it.get_width(), it.get_height());
   - platform: st7789v
     cs_pin: GPIO5
     dc_pin: GPIO16
@@ -1987,6 +1989,18 @@ cover:
     assumed_state: no
 
 debug:
+
+tca9548a:
+  - address: 0x70
+    id: multiplex0
+    scan: True
+  - address: 0x71
+    id: multiplex1
+    scan: True
+    multiplexer:
+      id: multiplex0
+      channel: 0
+    
 
 pcf8574:
   - id: 'pcf8574_hub'

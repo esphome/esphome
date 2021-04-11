@@ -42,6 +42,7 @@ std::string to_string(float val);
 std::string to_string(double val);
 std::string to_string(long double val);
 optional<float> parse_float(const std::string &str);
+optional<int> parse_int(const std::string &str);
 
 /// Sanitize the hostname by removing characters that are not in the allowlist and truncating it to 63 chars.
 std::string sanitize_hostname(const std::string &hostname);
@@ -317,4 +318,19 @@ template<typename T> class Parented {
 
 uint32_t fnv1_hash(const std::string &str);
 
+}  // namespace esphome
+
+template<typename T> T *new_buffer(size_t length) {
+  T *buffer;
+#ifdef ARDUINO_ARCH_ESP32
+  if (psramFound()) {
+    buffer = (T *) ps_malloc(length);
+  } else {
+    buffer = new T[length];
+  }
+#else
+  buffer = new T[length];
+#endif
+
+  return buffer;
 }  // namespace esphome

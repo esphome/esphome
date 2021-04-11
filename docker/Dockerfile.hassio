@@ -2,8 +2,10 @@ ARG BUILD_FROM
 FROM ${BUILD_FROM}
 
 # First install requirements to leverage caching when requirements don't change
-COPY requirements.txt /
-RUN pip3 install --no-cache-dir -r /requirements.txt
+COPY requirements.txt docker/platformio_install_deps.py platformio.ini /
+RUN \
+    pip3 install --no-cache-dir -r /requirements.txt \
+    && /platformio_install_deps.py /platformio.ini
 
 # Copy root filesystem
 COPY docker/rootfs/ /
