@@ -74,9 +74,17 @@ void TouchGUIComponent::draw() {
 
 void TouchGUIComponent::touch(int x, int y, bool touched) {
   if (touched) {
+    // Create a list of interacted buttons first and activate in the second step.
+    // Otherwise a touch changing a page could get immediately registered in the
+    // second page as well and an unintended button gets activated.
+    std::vector<TouchGUIButton *> interacted;
+
     for (auto *b : this->buttons_)
       if (b->is_interacted(x, y))
-        activate(b);
+        interacted.push_back(b);
+
+    for (auto *b : interacted)
+      activate(b);
   } else
     release_();
 }
