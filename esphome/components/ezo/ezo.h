@@ -37,7 +37,7 @@ class EZOSensor : public sensor::Sensor, public PollingComponent, public i2c::I2
   void update() override;
   float get_setup_priority() const override { return setup_priority::DATA; };
 
-  void add_command(std::string command, EzoCommandType command_type, uint16_t delay_ms = 300) {
+  void add_command(const std::string &command, EzoCommandType command_type, uint16_t delay_ms = 300) {
     EzoCommand *ezo_command = new EzoCommand;
     ezo_command->command = command;
     ezo_command->command_type = command_type;
@@ -56,7 +56,7 @@ class EZOSensor : public sensor::Sensor, public PollingComponent, public i2c::I2
 
   // Calibration
   void get_calibration() { this->add_command("Cal,?", EzoCommandType::EZO_CALIBRATION); }
-  void set_calibration(std::string point, std::string value);
+  void set_calibration(const std::string &point, const std::string &value);
   void clear_calibration();
   void add_calibration_callback(std::function<void(std::string)> &&callback) {
     this->calibration_callback_.add(std::move(callback));
@@ -82,7 +82,7 @@ class EZOSensor : public sensor::Sensor, public PollingComponent, public i2c::I2
   // T
   void set_tempcomp_value(float temp) { this->set_t(to_string(temp)); }  // For backwards compatibility
   void get_t() { this->add_command("T,?", EzoCommandType::EZO_T); }
-  void set_t(std::string value);
+  void set_t(const std::string &value);
   void add_t_callback(std::function<void(std::string)> &&callback) { this->t_callback_.add(std::move(callback)); }
 
  protected:
