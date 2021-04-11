@@ -83,8 +83,10 @@ void TouchGUIComponent::touch(int x, int y, bool touched) {
       if (b->is_interacted(x, y))
         interacted.push_back(b);
 
-    for (auto *b : interacted)
+    for (auto *b : interacted) {
       activate(b);
+      b->set_touch_state(true);
+    }
   } else
     release_();
 }
@@ -123,12 +125,15 @@ void TouchGUIComponent::release_() {
     switch (b->get_type()) {
       case TOUCH_GUI_BUTTON_TYPE_MOMENTARY:
       case TOUCH_GUI_BUTTON_TYPE_AREA:
-        if (b->state)
+        // A filter might have set our state to false but still needs to be informed
+        // when the touch is released
+        if (b->state || b->is_touched())
           b->publish_state(false);
         break;
       default:
         break;
     }
+    b->set_touch_state(false);
   }
 }
 

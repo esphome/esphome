@@ -186,11 +186,16 @@ class TouchGUIButton : public binary_sensor::BinarySensor, public Component {
     return x;
   }
 
+  // Track the real touch state. Does not change for programmatic activation  
+  void set_touch_state(bool x) { this->touch_state_ = x; }
+  bool is_touched() const { return this->touch_state_; }
+
  protected:
   TouchGUIComponent *parent_;
   TouchGUIButtonType type_;
   int radio_group_{0};
   uint16_t x_min_, x_max_, y_min_, y_max_;
+  bool touch_state_{false};
   uint32_t touch_time_;
   std::vector<const display::DisplayPage *> pages_;
   display::Font *font_{nullptr};
