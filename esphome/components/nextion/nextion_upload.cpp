@@ -249,7 +249,7 @@ void Nextion::upload_tft() {
 #ifdef ARDUINO_ARCH_ESP32
   uint32_t chunk_size = 8192;
   if (psramFound()) {
-    chunk_size = this->content_length_ + 4096;
+    chunk_size = this->content_length_;
   } else {
     if (ESP.getFreeHeap() > 40960) {  // 32K to keep on hand
       int chunk = int((ESP.getFreeHeap() - 32768) / 4096);

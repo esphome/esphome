@@ -752,7 +752,9 @@ void Nextion::set_nextion_sensor_state(NextionQueueType queue_type, const std::s
       }
       break;
     }
-    default: { ESP_LOGW(TAG, "set_nextion_sensor_state does not support a queue type %d", queue_type); }
+    default: {
+      ESP_LOGW(TAG, "set_nextion_sensor_state does not support a queue type %d", queue_type);
+    }
   }
 }
 
@@ -815,7 +817,7 @@ uint16_t Nextion::recv_ret_string_(std::string &response, uint32_t timeout, bool
 
   start = millis();
 
-  while (millis() - start <= timeout) {
+  while ((timeout == 0 && this->available()) || millis() - start <= timeout) {
     while (this->available()) {
       this->read_byte(&c);
       if (c == 0xFF)
