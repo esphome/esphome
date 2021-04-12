@@ -149,7 +149,7 @@ void EZOSensor::loop() {
           break;
         }
         case EzoCommandType::EZO_CUSTOM: {
-          this->t_callback_.call(payload);
+          this->custom_callback_.call(payload);
           break;
         }
         default: {
