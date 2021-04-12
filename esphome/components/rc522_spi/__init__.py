@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import spi, rc522
-from esphome.const import CONF_ID, CONF_MISO_PIN, CONF_MOSI_PIN
+from esphome.const import CONF_ID
 
 CODEOWNERS = ["@glmnet"]
 DEPENDENCIES = ["spi"]
@@ -25,9 +25,6 @@ def to_code(config):
     yield spi.register_spi_device(var, config)
 
 
-def validate_parent(property, config, component):
+def validate(config, item_config):
     # validate given SPI hub is suitable for rc522_spi, it needs both miso and mosi
-    if CONF_MISO_PIN not in config:
-        raise ValueError("requires spi declare MISO_PIN")
-    if CONF_MOSI_PIN not in config:
-        raise ValueError("requires spi declare MOSI_PIN")
+    spi.validate_device("rc522_spi", config, item_config, True, True)

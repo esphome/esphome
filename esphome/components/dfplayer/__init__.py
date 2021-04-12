@@ -78,6 +78,12 @@ def to_code(config):
         yield automation.build_automation(trigger, [], conf)
 
 
+def validate(config, item_config):
+    uart.validate_device(
+        "dfplayer", config, item_config, baud_rate=9600, require_rx=False
+    )
+
+
 @automation.register_action(
     "dfplayer.play_next",
     NextAction,

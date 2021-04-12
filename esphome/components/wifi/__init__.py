@@ -135,7 +135,7 @@ WIFI_NETWORK_STA = WIFI_NETWORK_BASE.extend(
 )
 
 
-def validate(config):
+def _validate(config):
     if CONF_PASSWORD in config and CONF_SSID not in config:
         raise cv.Invalid("Cannot have WiFi password without SSID!")
 
@@ -204,7 +204,7 @@ CONFIG_SCHEMA = cv.All(
             ),
         }
     ),
-    validate,
+    _validate,
 )
 
 
