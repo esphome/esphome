@@ -255,6 +255,10 @@ sensor:
     on_t:
       - lambda: |-
           ESP_LOGD("TEST","Triggered with %s", x.c_str());
+    on_custom:
+      - lambda: |-
+          ESP_LOGD("TEST","Triggered with %s", x.c_str());
+
 
 time:
   - platform: homeassistant

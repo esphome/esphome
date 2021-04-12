@@ -148,7 +148,13 @@ void EZOSensor::loop() {
           this->t_callback_.call(payload);
           break;
         }
-        default: { break; }
+        case EzoCommandType::EZO_CUSTOM: {
+          this->t_callback_.call(payload);
+          break;
+        }
+        default: {
+          break;
+        }
       }
     }
   }
@@ -177,6 +183,9 @@ void EZOSensor::set_led_state(bool on) {
   to_send += on ? "1" : "0";
   this->add_command(to_send, EzoCommandType::EZO_LED);
 }
+
+// Custom
+void EZOSensor::set_custom(const std::string &to_send) { this->add_command(to_send, EzoCommandType::EZO_CUSTOM); }
 
 }  // namespace ezo
 }  // namespace esphome
