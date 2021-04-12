@@ -299,7 +299,7 @@ class DisplayBuffer {
 
   const DisplayPage *get_active_page() const { return this->page_; }
 
-  void add_on_page_change_trigger(DisplayOnPageChangeTrigger *t) { on_page_change_triggers_.push_back(t); }
+  void add_on_page_change_trigger(DisplayOnPageChangeTrigger *t) { this->on_page_change_triggers_.push_back(t); }
 
   /// Internal method to set the display rotation with.
   void set_rotation(DisplayRotation rotation);
