@@ -87,7 +87,7 @@ class BME680BSECComponent : public Component, public i2c::I2CDevice {
 
  protected:
   void set_config_(const uint8_t *config);
-  void update_subscription_(float sample_rate);
+  void update_subscription_();
 
   void run_();
   void read_(bsec_bme_settings_t bme680_settings);

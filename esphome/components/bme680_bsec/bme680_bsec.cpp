@@ -43,14 +43,14 @@ void BME680BSECComponent::setup() {
 #include "config/generic_33v_300s_28d/bsec_iaq.txt"
     };
     this->set_config_(bsec_config);
-    this->update_subscription_(BSEC_SAMPLE_RATE_ULP);
   } else {
     const uint8_t bsec_config[] = {
 #include "config/generic_33v_3s_28d/bsec_iaq.txt"
     };
     this->set_config_(bsec_config);
-    this->update_subscription_(BSEC_SAMPLE_RATE_LP);
   }
+
+  this->update_subscription_();
 
   if (this->bsec_status_ != BSEC_OK) {
     this->mark_failed();
