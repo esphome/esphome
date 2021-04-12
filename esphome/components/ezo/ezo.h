@@ -88,7 +88,7 @@ class EZOSensor : public sensor::Sensor, public PollingComponent, public i2c::I2
   void add_t_callback(std::function<void(std::string)> &&callback) { this->t_callback_.add(std::move(callback)); }
 
   // Custom
-  void set_custom(const std::string &value);
+  void set_custom(const std::string &to_send);
   void add_custom_callback(std::function<void(std::string)> &&callback) {
     this->custom_callback_.add(std::move(callback));
   }
