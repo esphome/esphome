@@ -84,35 +84,30 @@ void BME680BSECComponent::update_subscription_() {
   }
 
   if (this->breath_voc_equivalent_sensor_) {
-    ESP_LOGD(TAG, "breath_voc_equivalent_sensor_ %f %f", sample_rate, breath_voc_equivalent_sensor_sample_rate_);
     virtual_sensors[num_virtual_sensors].sensor_id = BSEC_OUTPUT_BREATH_VOC_EQUIVALENT;
     virtual_sensors[num_virtual_sensors].sample_rate = breath_voc_equivalent_sensor_sample_rate_;
     num_virtual_sensors++;
   }
 
   if (this->pressure_sensor_) {
-    ESP_LOGD(TAG, "pressure_sensor_ %f %f", sample_rate, pressure_sensor_sample_rate_);
     virtual_sensors[num_virtual_sensors].sensor_id = BSEC_OUTPUT_RAW_PRESSURE;
     virtual_sensors[num_virtual_sensors].sample_rate = pressure_sensor_sample_rate_;
     num_virtual_sensors++;
   }
 
   if (this->gas_resistance_sensor_) {
-    ESP_LOGD(TAG, "gas_resistance_sensor_ %f %f", sample_rate, gas_resistance_sensor_sample_rate_);
     virtual_sensors[num_virtual_sensors].sensor_id = BSEC_OUTPUT_RAW_GAS;
     virtual_sensors[num_virtual_sensors].sample_rate = gas_resistance_sensor_sample_rate_;
     num_virtual_sensors++;
   }
 
   if (this->temperature_sensor_) {
-    ESP_LOGD(TAG, "temperature_sensor_ %f %f", sample_rate, temperature_sensor_sample_rate_);
     virtual_sensors[num_virtual_sensors].sensor_id = BSEC_OUTPUT_SENSOR_HEAT_COMPENSATED_TEMPERATURE;
     virtual_sensors[num_virtual_sensors].sample_rate = temperature_sensor_sample_rate_;
     num_virtual_sensors++;
   }
 
   if (this->humidity_sensor_) {
-    ESP_LOGD(TAG, "humidity_sensor_ %f %f", sample_rate, humidity_sensor_sample_rate_);
     virtual_sensors[num_virtual_sensors].sensor_id = BSEC_OUTPUT_SENSOR_HEAT_COMPENSATED_HUMIDITY;
     virtual_sensors[num_virtual_sensors].sample_rate = humidity_sensor_sample_rate_;
     num_virtual_sensors++;
