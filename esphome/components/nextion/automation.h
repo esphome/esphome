@@ -5,6 +5,13 @@
 namespace esphome {
 namespace nextion {
 
+class SetupTrigger : public Trigger<> {
+ public:
+  explicit SetupTrigger(Nextion *nextion) {
+    nextion->add_setup_state_callback([this]() { this->trigger(); });
+  }
+};
+
 class SleepTrigger : public Trigger<> {
  public:
   explicit SleepTrigger(Nextion *nextion) {

@@ -154,6 +154,10 @@ void Nextion::add_wake_state_callback(std::function<void()> &&callback) {
   this->wake_callback_.add(std::move(callback));
 }
 
+void Nextion::add_setup_state_callback(std::function<void()> &&callback) {
+  this->setup_callback_.add(std::move(callback));
+}
+
 void Nextion::update_all_components() {
   if ((!this->is_setup() && !this->ignore_is_setup_) || this->is_sleeping())
     return;
@@ -754,9 +758,7 @@ void Nextion::set_nextion_sensor_state(NextionQueueType queue_type, const std::s
       }
       break;
     }
-    default: {
-      ESP_LOGW(TAG, "set_nextion_sensor_state does not support a queue type %d", queue_type);
-    }
+    default: { ESP_LOGW(TAG, "set_nextion_sensor_state does not support a queue type %d", queue_type); }
   }
 }
 

@@ -673,15 +673,21 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
 
   /** Add a callback to be notified of sleep state changes.
    *
-   * @param callback The void(bool) callback.
+   * @param callback The void() callback.
    */
   void add_sleep_state_callback(std::function<void()> &&callback);
 
   /** Add a callback to be notified of wake state changes.
    *
-   * @param callback The void(bool) callback.
+   * @param callback The void() callback.
    */
   void add_wake_state_callback(std::function<void()> &&callback);
+
+  /** Add a callback to be notified when the nextion completes its initialize setup.
+   *
+   * @param callback The void() callback.
+   */
+  void add_setup_state_callback(std::function<void()> &&callback);
 
   void update_all_components();
 
@@ -814,6 +820,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   std::vector<NextionComponentBase *> sensortype_;
   std::vector<NextionComponentBase *> textsensortype_;
   std::vector<NextionComponentBase *> binarysensortype_;
+  CallbackManager<void()> setup_callback_{};
   CallbackManager<void()> sleep_callback_{};
   CallbackManager<void()> wake_callback_{};
 
