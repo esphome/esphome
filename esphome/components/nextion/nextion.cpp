@@ -91,6 +91,8 @@ bool Nextion::check_connect_() {
   this->set_backlight_brightness(this->brightness_);
   this->goto_page("0");
 
+  this->set_auto_wake_on_touch(this->auto_wake_on_touch_);
+
   if (this->touch_sleep_timeout_ != 0) {
     this->set_touch_sleep_timeout(this->touch_sleep_timeout_);
   }
