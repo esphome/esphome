@@ -10,7 +10,6 @@ AUTO_LOAD = ["sensor", "text_sensor"]
 CONF_BME680_BSEC_ID = "bme680_bsec_id"
 CONF_TEMPERATURE_OFFSET = "temperature_offset"
 CONF_IAQ_MODE = "iaq_mode"
-CONF_SAMPLE_RATE = "sample_rate"
 CONF_STATE_SAVE_INTERVAL = "state_save_interval"
 
 bme680_bsec_ns = cg.esphome_ns.namespace("bme680_bsec")
@@ -21,11 +20,6 @@ IAQ_MODE_OPTIONS = {
     "MOBILE": IAQMode.IAQ_MODE_MOBILE,
 }
 
-SampleRate = bme680_bsec_ns.enum("SampleRate")
-SAMPLE_RATE_OPTIONS = {
-    "LP": SampleRate.SAMPLE_RATE_LP,
-    "ULP": SampleRate.SAMPLE_RATE_ULP,
-}
 
 BME680BSECComponent = bme680_bsec_ns.class_(
     "BME680BSECComponent", cg.Component, i2c.I2CDevice
@@ -37,9 +31,6 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_TEMPERATURE_OFFSET, default=0): cv.temperature,
         cv.Optional(CONF_IAQ_MODE, default="STATIC"): cv.enum(
             IAQ_MODE_OPTIONS, upper=True
-        ),
-        cv.Optional(CONF_SAMPLE_RATE, default="LP"): cv.enum(
-            SAMPLE_RATE_OPTIONS, upper=True
         ),
         cv.Optional(
             CONF_STATE_SAVE_INTERVAL, default="6hours"
@@ -55,10 +46,9 @@ def to_code(config):
 
     cg.add(var.set_temperature_offset(config[CONF_TEMPERATURE_OFFSET]))
     cg.add(var.set_iaq_mode(config[CONF_IAQ_MODE]))
-    cg.add(var.set_sample_rate(config[CONF_SAMPLE_RATE]))
     cg.add(
         var.set_state_save_interval(config[CONF_STATE_SAVE_INTERVAL].total_milliseconds)
     )
 
-    cg.add_define("USING_BSEC")
+    cg.add_define("USE_BSEC")
     cg.add_library("BSEC Software Library", "1.6.1480")

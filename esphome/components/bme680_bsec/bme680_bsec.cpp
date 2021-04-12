@@ -7,7 +7,7 @@
 
 namespace esphome {
 namespace bme680_bsec {
-#ifdef USING_BSEC
+#ifdef USE_BSEC
 static const char *TAG = "bme680_bsec.sensor";
 
 static const std::string IAQ_ACCURACY_STATES[4] = {"Stabilizing", "Uncertain", "Calibrating", "Calibrated"};
@@ -38,7 +38,7 @@ void BME680BSECComponent::setup() {
     return;
   }
 
-  if (this->sample_rate_ == SAMPLE_RATE_ULP) {
+  if (this->iaq_sensor_sample_rate_ == SAMPLE_RATE_ULP) {
     const uint8_t bsec_config[] = {
 #include "config/generic_33v_300s_28d/bsec_iaq.txt"
     };
@@ -51,6 +51,7 @@ void BME680BSECComponent::setup() {
     this->set_config_(bsec_config);
     this->update_subscription_(BSEC_SAMPLE_RATE_LP);
   }
+
   if (this->bsec_status_ != BSEC_OK) {
     this->mark_failed();
     return;
@@ -71,43 +72,50 @@ void BME680BSECComponent::update_subscription_(float sample_rate) {
   if (this->iaq_sensor_) {
     virtual_sensors[num_virtual_sensors].sensor_id =
         this->iaq_mode_ == IAQ_MODE_STATIC ? BSEC_OUTPUT_STATIC_IAQ : BSEC_OUTPUT_IAQ;
-    virtual_sensors[num_virtual_sensors].sample_rate = sample_rate;
+
+    virtual_sensors[num_virtual_sensors].sample_rate = iaq_sensor_sample_rate_;
     num_virtual_sensors++;
   }
 
   if (this->co2_equivalent_sensor_) {
+    ESP_LOGD(TAG, "co2_equivalent_sensor_ %f %f", sample_rate, co2_equivalent_sensor_sample_rate_);
     virtual_sensors[num_virtual_sensors].sensor_id = BSEC_OUTPUT_CO2_EQUIVALENT;
-    virtual_sensors[num_virtual_sensors].sample_rate = sample_rate;
+    virtual_sensors[num_virtual_sensors].sample_rate = co2_equivalent_sensor_sample_rate_;
     num_virtual_sensors++;
   }
 
   if (this->breath_voc_equivalent_sensor_) {
+    ESP_LOGD(TAG, "breath_voc_equivalent_sensor_ %f %f", sample_rate, breath_voc_equivalent_sensor_sample_rate_);
     virtual_sensors[num_virtual_sensors].sensor_id = BSEC_OUTPUT_BREATH_VOC_EQUIVALENT;
-    virtual_sensors[num_virtual_sensors].sample_rate = sample_rate;
+    virtual_sensors[num_virtual_sensors].sample_rate = breath_voc_equivalent_sensor_sample_rate_;
     num_virtual_sensors++;
   }
 
   if (this->pressure_sensor_) {
+    ESP_LOGD(TAG, "pressure_sensor_ %f %f", sample_rate, pressure_sensor_sample_rate_);
     virtual_sensors[num_virtual_sensors].sensor_id = BSEC_OUTPUT_RAW_PRESSURE;
-    virtual_sensors[num_virtual_sensors].sample_rate = sample_rate;
+    virtual_sensors[num_virtual_sensors].sample_rate = pressure_sensor_sample_rate_;
     num_virtual_sensors++;
   }
 
   if (this->gas_resistance_sensor_) {
+    ESP_LOGD(TAG, "gas_resistance_sensor_ %f %f", sample_rate, gas_resistance_sensor_sample_rate_);
     virtual_sensors[num_virtual_sensors].sensor_id = BSEC_OUTPUT_RAW_GAS;
-    virtual_sensors[num_virtual_sensors].sample_rate = sample_rate;
+    virtual_sensors[num_virtual_sensors].sample_rate = gas_resistance_sensor_sample_rate_;
     num_virtual_sensors++;
   }
 
   if (this->temperature_sensor_) {
+    ESP_LOGD(TAG, "temperature_sensor_ %f %f", sample_rate, temperature_sensor_sample_rate_);
     virtual_sensors[num_virtual_sensors].sensor_id = BSEC_OUTPUT_SENSOR_HEAT_COMPENSATED_TEMPERATURE;
-    virtual_sensors[num_virtual_sensors].sample_rate = sample_rate;
+    virtual_sensors[num_virtual_sensors].sample_rate = temperature_sensor_sample_rate_;
     num_virtual_sensors++;
   }
 
   if (this->humidity_sensor_) {
+    ESP_LOGD(TAG, "humidity_sensor_ %f %f", sample_rate, humidity_sensor_sample_rate_);
     virtual_sensors[num_virtual_sensors].sensor_id = BSEC_OUTPUT_SENSOR_HEAT_COMPENSATED_HUMIDITY;
-    virtual_sensors[num_virtual_sensors].sample_rate = sample_rate;
+    virtual_sensors[num_virtual_sensors].sample_rate = humidity_sensor_sample_rate_;
     num_virtual_sensors++;
   }
 
@@ -134,18 +142,25 @@ void BME680BSECComponent::dump_config() {
 
   ESP_LOGCONFIG(TAG, "  Temperature Offset: %.2f", this->temperature_offset_);
   ESP_LOGCONFIG(TAG, "  IAQ Mode: %s", this->iaq_mode_ == IAQ_MODE_STATIC ? "Static" : "Mobile");
-  ESP_LOGCONFIG(TAG, "  Sample Rate: %s", this->sample_rate_ == SAMPLE_RATE_ULP ? "ULP" : "LP");
   ESP_LOGCONFIG(TAG, "  State Save Interval: %ims", this->state_save_interval_ms_);
 
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
+  ESP_LOGCONFIG(TAG, "    Sample Rate: %s", this->temperature_sensor_sample_rate_ == SAMPLE_RATE_ULP ? "ULP" : "LP");
   LOG_SENSOR("  ", "Pressure", this->pressure_sensor_);
+  ESP_LOGCONFIG(TAG, "    Sample Rate: %s", this->pressure_sensor_sample_rate_ == SAMPLE_RATE_ULP ? "ULP" : "LP");
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
+  ESP_LOGCONFIG(TAG, "    Sample Rate: %s", this->humidity_sensor_sample_rate_ == SAMPLE_RATE_ULP ? "ULP" : "LP");
   LOG_SENSOR("  ", "Gas Resistance", this->gas_resistance_sensor_);
+  ESP_LOGCONFIG(TAG, "    Sample Rate: %s", this->gas_resistance_sensor_sample_rate_ == SAMPLE_RATE_ULP ? "ULP" : "LP");
   LOG_SENSOR("  ", "IAQ", this->iaq_sensor_);
+  ESP_LOGCONFIG(TAG, "    Sample Rate: %s", this->iaq_sensor_sample_rate_ == SAMPLE_RATE_ULP ? "ULP" : "LP");
   LOG_SENSOR("  ", "Numeric IAQ Accuracy", this->iaq_accuracy_sensor_);
   LOG_TEXT_SENSOR("  ", "IAQ Accuracy", this->iaq_accuracy_text_sensor_);
   LOG_SENSOR("  ", "CO2 Equivalent", this->co2_equivalent_sensor_);
+  ESP_LOGCONFIG(TAG, "    Sample Rate: %s", this->co2_equivalent_sensor_sample_rate_ == SAMPLE_RATE_ULP ? "ULP" : "LP");
   LOG_SENSOR("  ", "Breath VOC Equivalent", this->breath_voc_equivalent_sensor_);
+  ESP_LOGCONFIG(TAG, "    Sample Rate: %s",
+                this->breath_voc_equivalent_sensor_sample_rate_ == SAMPLE_RATE_ULP ? "ULP" : "LP");
 }
 
 float BME680BSECComponent::get_setup_priority() const { return setup_priority::DATA; }
