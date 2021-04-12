@@ -234,28 +234,6 @@ sensor:
     id: freezer_temp_source
     reference_voltage: 3.19
     number: 0
-  - platform: bme680_bsec
-    temperature:
-      id: bme680_temp
-      sample_rate: LP
-    humidity:
-      id: bme680_humidity
-      sample_rate: LP
-    pressure:
-      id: bme680_pressure
-      sample_rate: LP
-    gas_resistance:
-      id: bme680_gas_resistance
-      sample_rate: ULP
-    iaq:
-      id: bme680_iaq
-      sample_rate: ULP
-    co2_equivalent:
-      id: bme680_co2_equivalent
-      sample_rate: ULP
-    breath_voc_equivalent:
-      id: bme680_breath_voc_equivalent
-      sample_rate: ULP
 
 time:
   - platform: homeassistant
@@ -380,9 +358,6 @@ text_sensor:
     id: ha_hello_world2
   - platform: ble_scanner
     name: Scanner
-  - platform: bme680_bsec
-    iaq_accuracy:
-      id: bme680_bsec_text
 
 script:
   - id: my_script

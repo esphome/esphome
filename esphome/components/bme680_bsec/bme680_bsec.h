@@ -35,39 +35,44 @@ class BME680BSECComponent : public Component, public i2c::I2CDevice {
 
   void set_state_save_interval(uint32_t interval) { this->state_save_interval_ms_ = interval; }
 
-  void set_temperature_sensor(sensor::Sensor *temperature_sensor, esphome::bme680_bsec::SampleRate sample_rate) {
+  void set_temperature_sensor(sensor::Sensor *temperature_sensor, SampleRate temperature_sensor_sample_rate) {
     temperature_sensor_ = temperature_sensor;
-    temperature_sensor_sample_rate_ = sample_rate == SAMPLE_RATE_ULP ? BSEC_SAMPLE_RATE_ULP : BSEC_SAMPLE_RATE_LP;
+    temperature_sensor_sample_rate_ =
+        temperature_sensor_sample_rate == SAMPLE_RATE_ULP ? BSEC_SAMPLE_RATE_ULP : BSEC_SAMPLE_RATE_LP;
   }
-  void set_pressure_sensor(sensor::Sensor *pressure_sensor, esphome::bme680_bsec::SampleRate sample_rate) {
+  void set_pressure_sensor(sensor::Sensor *pressure_sensor, SampleRate pressure_sensor_sample_rate) {
     pressure_sensor_ = pressure_sensor;
-    pressure_sensor_sample_rate_ = sample_rate == SAMPLE_RATE_ULP ? BSEC_SAMPLE_RATE_ULP : BSEC_SAMPLE_RATE_LP;
+    pressure_sensor_sample_rate_ =
+        pressure_sensor_sample_rate == SAMPLE_RATE_ULP ? BSEC_SAMPLE_RATE_ULP : BSEC_SAMPLE_RATE_LP;
   }
-  void set_humidity_sensor(sensor::Sensor *humidity_sensor, esphome::bme680_bsec::SampleRate sample_rate) {
+  void set_humidity_sensor(sensor::Sensor *humidity_sensor, SampleRate humidity_sensor_sample_rate) {
     humidity_sensor_ = humidity_sensor;
-    humidity_sensor_sample_rate_ = sample_rate == SAMPLE_RATE_ULP ? BSEC_SAMPLE_RATE_ULP : BSEC_SAMPLE_RATE_LP;
+    humidity_sensor_sample_rate_ =
+        humidity_sensor_sample_rate == SAMPLE_RATE_ULP ? BSEC_SAMPLE_RATE_ULP : BSEC_SAMPLE_RATE_LP;
   }
-  void set_gas_resistance_sensor(sensor::Sensor *gas_resistance_sensor, esphome::bme680_bsec::SampleRate sample_rate) {
+  void set_gas_resistance_sensor(sensor::Sensor *gas_resistance_sensor, SampleRate gas_resistance_sensor_sample_rate) {
     gas_resistance_sensor_ = gas_resistance_sensor;
-    gas_resistance_sensor_sample_rate_ = sample_rate == SAMPLE_RATE_ULP ? BSEC_SAMPLE_RATE_ULP : BSEC_SAMPLE_RATE_LP;
+    gas_resistance_sensor_sample_rate_ =
+        gas_resistance_sensor_sample_rate == SAMPLE_RATE_ULP ? BSEC_SAMPLE_RATE_ULP : BSEC_SAMPLE_RATE_LP;
   }
-  void set_iaq_sensor(sensor::Sensor *iaq_sensor, esphome::bme680_bsec::SampleRate sample_rate) {
+  void set_iaq_sensor(sensor::Sensor *iaq_sensor, SampleRate iaq_sensor_sample_rate) {
     iaq_sensor_ = iaq_sensor;
-    iaq_sensor_sample_rate_ = sample_rate == SAMPLE_RATE_ULP ? BSEC_SAMPLE_RATE_ULP : BSEC_SAMPLE_RATE_LP;
+    iaq_sensor_sample_rate_ = iaq_sensor_sample_rate == SAMPLE_RATE_ULP ? BSEC_SAMPLE_RATE_ULP : BSEC_SAMPLE_RATE_LP;
   }
   void set_iaq_accuracy_text_sensor(text_sensor::TextSensor *iaq_accuracy_text_sensor) {
     iaq_accuracy_text_sensor_ = iaq_accuracy_text_sensor;
   }
   void set_iaq_accuracy_sensor(sensor::Sensor *iaq_accuracy_sensor) { iaq_accuracy_sensor_ = iaq_accuracy_sensor; }
-  void set_co2_equivalent_sensor(sensor::Sensor *co2_equivalent_sensor, esphome::bme680_bsec::SampleRate sample_rate) {
+  void set_co2_equivalent_sensor(sensor::Sensor *co2_equivalent_sensor, SampleRate co2_equivalent_sensor_sample_rate) {
     co2_equivalent_sensor_ = co2_equivalent_sensor;
-    co2_equivalent_sensor_sample_rate_ = sample_rate == SAMPLE_RATE_ULP ? BSEC_SAMPLE_RATE_ULP : BSEC_SAMPLE_RATE_LP;
+    co2_equivalent_sensor_sample_rate_ =
+        co2_equivalent_sensor_sample_rate == SAMPLE_RATE_ULP ? BSEC_SAMPLE_RATE_ULP : BSEC_SAMPLE_RATE_LP;
   }
   void set_breath_voc_equivalent_sensor(sensor::Sensor *breath_voc_equivalent_sensor,
-                                        esphome::bme680_bsec::SampleRate sample_rate) {
+                                        SampleRate breath_voc_equivalent_sensor_sample_rate) {
     breath_voc_equivalent_sensor_ = breath_voc_equivalent_sensor;
     breath_voc_equivalent_sensor_sample_rate_ =
-        sample_rate == SAMPLE_RATE_ULP ? BSEC_SAMPLE_RATE_ULP : BSEC_SAMPLE_RATE_LP;
+        breath_voc_equivalent_sensor_sample_rate == SAMPLE_RATE_ULP ? BSEC_SAMPLE_RATE_ULP : BSEC_SAMPLE_RATE_LP;
   }
 
   static BME680BSECComponent *instance;
@@ -111,20 +116,20 @@ class BME680BSECComponent : public Component, public i2c::I2CDevice {
   IAQMode iaq_mode_{IAQ_MODE_STATIC};
 
   sensor::Sensor *temperature_sensor_;
-  float temperature_sensor_sample_rate_{SAMPLE_RATE_LP};
+  float temperature_sensor_sample_rate_;
   sensor::Sensor *pressure_sensor_;
-  float pressure_sensor_sample_rate_{SAMPLE_RATE_LP};
+  float pressure_sensor_sample_rate_;
   sensor::Sensor *humidity_sensor_;
-  float humidity_sensor_sample_rate_{SAMPLE_RATE_LP};
+  float humidity_sensor_sample_rate_;
   sensor::Sensor *gas_resistance_sensor_;
-  float gas_resistance_sensor_sample_rate_{SAMPLE_RATE_ULP};
+  float gas_resistance_sensor_sample_rate_;
   sensor::Sensor *iaq_sensor_;
-  float iaq_sensor_sample_rate_{SAMPLE_RATE_ULP};
+  float iaq_sensor_sample_rate_;
   text_sensor::TextSensor *iaq_accuracy_text_sensor_;
   sensor::Sensor *co2_equivalent_sensor_;
-  float co2_equivalent_sensor_sample_rate_{SAMPLE_RATE_ULP};
+  float co2_equivalent_sensor_sample_rate_;
   sensor::Sensor *breath_voc_equivalent_sensor_;
-  float breath_voc_equivalent_sensor_sample_rate_{SAMPLE_RATE_ULP};
+  float breath_voc_equivalent_sensor_sample_rate_;
   sensor::Sensor *iaq_accuracy_sensor_;
 };
 #endif
