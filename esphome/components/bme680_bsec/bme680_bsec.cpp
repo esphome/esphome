@@ -65,7 +65,7 @@ void BME680BSECComponent::set_config_(const uint8_t *config) {
   this->bsec_status_ = bsec_set_configuration(config, BSEC_MAX_PROPERTY_BLOB_SIZE, work_buffer, sizeof(work_buffer));
 }
 
-void BME680BSECComponent::update_subscription_(float sample_rate) {
+void BME680BSECComponent::update_subscription_() {
   bsec_sensor_configuration_t virtual_sensors[BSEC_NUMBER_OUTPUTS];
   int num_virtual_sensors = 0;
 
