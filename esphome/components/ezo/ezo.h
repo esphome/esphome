@@ -16,10 +16,12 @@ enum EzoCommandType : uint8_t {
   EZO_CALIBRATION,
   EZO_SLEEP = 4,
   EZO_I2C = 5,
-  EZO_T = 6
+  EZO_T = 6,
+  EZO_CUSTOM = 7
 };
-static const char *EzoCommandTypeStrings[] = {
-    "EZO_READ", "EZO_LED", "EZO_DEVICE_INFORMATION", "EZO_SLOPE", "EZO_CALIBRATION", "EZO_SLEEP", "EZO_I2C", "EZO_T"};
+static const char *EzoCommandTypeStrings[] = {"EZO_READ",  "EZO_LED",         "EZO_DEVICE_INFORMATION",
+                                              "EZO_SLOPE", "EZO_CALIBRATION", "EZO_SLEEP",
+                                              "EZO_I2C",   "EZO_T",           "EZO_CUSTOM"};
 
 class EzoCommand {
  public:
@@ -85,6 +87,12 @@ class EZOSensor : public sensor::Sensor, public PollingComponent, public i2c::I2
   void set_t(const std::string &value);
   void add_t_callback(std::function<void(std::string)> &&callback) { this->t_callback_.add(std::move(callback)); }
 
+  // Custom
+  void set_custom(const std::string &value);
+  void add_custom_callback(std::function<void(std::string)> &&callback) {
+    this->custom_callback_.add(std::move(callback));
+  }
+
  protected:
   std::deque<EzoCommand *> commands_;
 
@@ -92,6 +100,7 @@ class EZOSensor : public sensor::Sensor, public PollingComponent, public i2c::I2
   CallbackManager<void(std::string)> calibration_callback_{};
   CallbackManager<void(std::string)> slope_callback_{};
   CallbackManager<void(std::string)> t_callback_{};
+  CallbackManager<void(std::string)> custom_callback_{};
   CallbackManager<void(bool)> led_callback_{};
 
   unsigned long start_time_ = 0;
