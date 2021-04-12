@@ -81,6 +81,7 @@ class Font;
 class Image;
 class DisplayBuffer;
 class DisplayPage;
+class DisplayOnPageChangeTrigger;
 
 using display_writer_t = std::function<void(DisplayBuffer &)>;
 
@@ -298,7 +299,7 @@ class DisplayBuffer {
 
   const DisplayPage *get_active_page() const { return this->page_; }
 
-  Trigger<DisplayPage *, DisplayPage *> *get_page_change_trigger() const { return this->page_change_trigger_; }
+  void add_on_page_change_trigger(DisplayOnPageChangeTrigger *t) { on_page_change_triggers_.push_back(t); }
 
   /// Internal method to set the display rotation with.
   void set_rotation(DisplayRotation rotation);
@@ -321,7 +322,7 @@ class DisplayBuffer {
   optional<display_writer_t> writer_{};
   DisplayPage *page_{nullptr};
   DisplayPage *previous_page_{nullptr};
-  Trigger<DisplayPage *, DisplayPage *> *page_change_trigger_{new Trigger<DisplayPage *, DisplayPage *>()};
+  std::vector<DisplayOnPageChangeTrigger *> on_page_change_triggers_;
 };
 
 class DisplayPage {
@@ -464,6 +465,18 @@ template<typename... Ts> class DisplayIsDisplayingPageCondition : public Conditi
  protected:
   DisplayBuffer *parent_;
   DisplayPage *page_;
+};
+
+class DisplayOnPageChangeTrigger : public Trigger<DisplayPage *, DisplayPage *> {
+ public:
+  explicit DisplayOnPageChangeTrigger(DisplayBuffer *parent) { parent->add_on_page_change_trigger(this); }
+  void process(DisplayPage *from, DisplayPage *to);
+  void set_from(DisplayPage *p) { this->from_ = p; }
+  void set_to(DisplayPage *p) { this->to_ = p; }
+
+ protected:
+  DisplayPage *from_{nullptr};
+  DisplayPage *to_{nullptr};
 };
 
 }  // namespace display

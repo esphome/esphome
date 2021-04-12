@@ -2,7 +2,16 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import core, automation
 from esphome.automation import maybe_simple_id
-from esphome.const import CONF_ID, CONF_LAMBDA, CONF_PAGES, CONF_PAGE_ID, CONF_ROTATION
+from esphome.const import (
+    CONF_ID,
+    CONF_LAMBDA,
+    CONF_PAGES,
+    CONF_PAGE_ID,
+    CONF_ROTATION,
+    CONF_FROM,
+    CONF_TO,
+    CONF_TRIGGER_ID,
+)
 from esphome.core import coroutine, coroutine_with_priority
 
 IS_PLATFORM_COMPONENT = True
@@ -22,6 +31,7 @@ DisplayPageShowPrevAction = display_ns.class_(
 DisplayIsDisplayingPageCondition = display_ns.class_(
     "DisplayIsDisplayingPageCondition", automation.Condition
 )
+DisplayOnPageChangeTrigger = display_ns.class_("DisplayOnPageChangeTrigger")
 
 CONF_ON_PAGE_CHANGE = "on_page_change"
 
@@ -58,7 +68,15 @@ FULL_DISPLAY_SCHEMA = BASIC_DISPLAY_SCHEMA.extend(
             ),
             cv.Length(min=1),
         ),
-        cv.Optional(CONF_ON_PAGE_CHANGE): automation.validate_automation(single=True),
+        cv.Optional(CONF_ON_PAGE_CHANGE): automation.validate_automation(
+            {
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                    DisplayOnPageChangeTrigger
+                ),
+                cv.Optional(CONF_FROM): cv.use_id(DisplayPage),
+                cv.Optional(CONF_TO): cv.use_id(DisplayPage),
+            }
+        ),
     }
 )
 
@@ -76,11 +94,16 @@ def setup_display_core_(var, config):
             page = cg.new_Pvariable(conf[CONF_ID], lambda_)
             pages.append(page)
         cg.add(var.set_pages(pages))
-    if CONF_ON_PAGE_CHANGE in config:
+    for conf in config.get(CONF_ON_PAGE_CHANGE, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        if CONF_FROM in conf:
+            page = yield cg.get_variable(conf[CONF_FROM])
+            cg.add(trigger.set_from(page))
+        if CONF_TO in conf:
+            page = yield cg.get_variable(conf[CONF_TO])
+            cg.add(trigger.set_to(page))
         yield automation.build_automation(
-            var.get_page_change_trigger(),
-            [(DisplayPagePtr, "from"), (DisplayPagePtr, "to")],
-            config[CONF_ON_PAGE_CHANGE],
+            trigger, [(DisplayPagePtr, "from"), (DisplayPagePtr, "to")], conf
         )
 
 

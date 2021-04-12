@@ -1874,10 +1874,11 @@ display:
         lambda: |-
           // Nothing
     on_page_change:
+      from: page1
+      to: page2
       then:
         lambda: |-
-          if (from == id(page1) && to == id(page2))
-            ESP_LOGD("display", "1 -> 2");
+          ESP_LOGD("display", "1 -> 2");
   - platform: ssd1306_spi
     model: 'SSD1306 128x64'
     cs_pin: GPIO23
