@@ -133,12 +133,15 @@ class SPIComponent : public Component {
     }
 
     if (this->hw_spi_ != nullptr) {
+#ifdef ARDUINO_ARCH_ESP32
       if (msb) {
         // MSBFIRST Byte first
         data = (data >> 8) | (data << 8);
       }
-
       this->hw_spi_->write16(data);
+#else
+      this->hw_spi_->write16(data, mb);
+#endif
       return;
     }
 
