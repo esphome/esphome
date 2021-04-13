@@ -315,15 +315,6 @@ class Config(OrderedDict):
                 return {}
         return data
 
-    def get_component(self, path):
-        if (
-            len(path) > 1
-            and isinstance(path[1], int)
-            and "platform" in self[path[0]][path[1]]
-        ):
-            return get_platform(path[0], self[path[0]][path[1]].get("platform"))
-        return get_component(path[0])
-
     def get_deepest_path(self, path):
         # type: (ConfigPath) -> ConfigPath
         """Return the path that is the deepest reachable by following path."""
@@ -337,10 +328,11 @@ class Config(OrderedDict):
             part.append(item_index)
         return part
 
-    def get_config_by_id(self, item_id):
-        for id, path in self.declare_ids:
-            if id.id == str(item_id):
+    def get_config_by_id(self, id):
+        for declared_id, path in self.declare_ids:
+            if declared_id.id == str(id):
                 return self.get_nested_item(path[:-1])
+        return None
 
 
 def iter_ids(config, path=None):
