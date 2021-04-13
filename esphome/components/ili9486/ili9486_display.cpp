@@ -129,8 +129,17 @@ uint8_t ILI9486Display::convert_to_8bit_color_(uint16_t color_16bit) {
   return ((b / 0x0A) | ((g / 0x09) << 2) | ((r / 0x04) << 5));
 }
 
+uint8_t ILI9486Display::convert_color_to_8bit_color_(Color color) {
+  // convert 32bit color to 8 bit buffer
+  uint8_t r = color.r;
+  uint8_t g = color.g;
+  uint8_t b = color.b;
+
+  return ((b / 0x0A) | ((g / 0x09) << 2) | ((r / 0x04) << 5));
+}
+
 void ILI9486Display::fill(Color color) {
-  auto color565 = color.to_rgb_565();
+  uint8_t color565 = convert_color_to_8bit_color_(color);
   for (int i = 0; i < DISPLAY_BUFFER_PARTS; i++) {
     memset(this->buffer_multiple_[i], convert_to_8bit_color_(color565),
            this->get_buffer_length_() / DISPLAY_BUFFER_PARTS);
@@ -145,7 +154,7 @@ void ILI9486Display::fill_internal_(Color color) {
   this->set_addr_window_(0, 0, this->get_width_internal(), this->get_height_internal());
   this->start_data_();
 
-  auto color565 = color.to_rgb_565();
+  uint8_t color565 = convert_color_to_8bit_color_(color);
   for (uint32_t i = 0; i < (this->get_width_internal()) * (this->get_height_internal()); i++) {
     this->write_byte(color565 >> 8);
     this->write_byte(color565);
@@ -165,7 +174,7 @@ void HOT ILI9486Display::draw_absolute_pixel_internal(int x, int y, Color color)
   this->y_high_ = (y > this->y_high_) ? y : this->y_high_;
 
   uint32_t pos = (y * width_) + x;
-  auto color565 = color.to_rgb_565();
+  uint8_t color565 = convert_color_to_8bit_color_(color);
   buffer_multiple_[DISPLAY_BUFFER_PART(pos)][DISPLAY_BUFFER_POS(pos)] = convert_to_8bit_color_(color565);
 }
 

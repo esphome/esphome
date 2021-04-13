@@ -13,7 +13,7 @@ namespace esphome {
 namespace display {
 
 // defines for buffer splitting
-static const uint8_t DISPLAY_BUFFER_PARTS = 4;
+#define DISPLAY_BUFFER_PARTS 4
 #define DISPLAY_BUFFER_PART(x) ((int) (x / (this->get_buffer_length_() / DISPLAY_BUFFER_PARTS)))
 #define DISPLAY_BUFFER_POS(x) (x % (this->get_buffer_length_() / DISPLAY_BUFFER_PARTS))
 
