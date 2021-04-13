@@ -35,9 +35,9 @@ class ToshibaClimate : public climate_ir::ClimateIR {
   void transmit_state() override;
   bool on_receive(remote_base::RemoteReceiveData data) override;
 
-  void add_default_command_data(uint8_t* frame);
-  void add_motion_command_data(uint8_t* frame);
-  void transmit_frame(uint8_t* frame);
+  void add_default_command_data_(uint8_t* frame);
+  void add_motion_command_data_(uint8_t* frame);
+  void transmit_frame_(uint8_t* frame);
 
   climate::ClimateMode current_mode_{climate::CLIMATE_MODE_OFF};
   climate::ClimateFanMode current_fan_mode_{climate::CLIMATE_FAN_AUTO};

@@ -19,9 +19,6 @@ const uint8_t TOSHIBA_COMMAND_POWER = 0x09;
 const uint8_t TOSHIBA_COMMAND_COMFORT_SLEEP = 0x0b;
 const uint8_t TOSHIBA_COMMAND_MOTION = 0x21;
 
-const uint8_t TOSHIBA_MAX_FRAME_LENGTH = 14;
-const uint8_t TOSHIBA_FRAME_LENGTH_NO_DATA = 6;
-
 const uint8_t TOSHIBA_MODE_AUTO = 0x00;
 const uint8_t TOSHIBA_MODE_COOL = 0x01;
 const uint8_t TOSHIBA_MODE_DRY = 0x02;
@@ -52,32 +49,36 @@ const uint8_t TOSHIBA_MOTION_FIX = 0x00;
 const uint8_t TOSHIBA_MOTION_SWING = 0x01;
 const uint8_t TOSHIBA_MOTION_SWING_OFF = 0x02;
 
+const uint8_t TOSHIBA_FRAME_SECOND_CHECKSUM_START = 4;
+const uint8_t TOSHIBA_FRAME_MAX_LENGTH = 14;
+const uint8_t TOSHIBA_FRAME_LENGTH_NO_DATA = 6;
 
 static const char *TAG = "toshiba.climate";
 
 static void log_frame(const uint8_t* frame) {
-   std::string frame_as_hex_string;
-   uint8_t frame_length = TOSHIBA_FRAME_LENGTH_NO_DATA + frame[2];
-   static constexpr char hex[] = "0123456789ABCDEF";
+  uint8_t frame_length = TOSHIBA_FRAME_LENGTH_NO_DATA + frame[2];
+  std::string frame_as_hex_string;
+
+  static constexpr char HEX_NUMBERS[] = "0123456789ABCDEF";
 
    /* Two digits per character */
-   frame_as_hex_string.reserve(frame_length * 2);
+  frame_as_hex_string.reserve(frame_length * 2);
 
-   for (uint8_t idx=0; idx < frame_length; ++idx) {
-     frame_as_hex_string.push_back(hex[frame[idx] / 16]);
-     frame_as_hex_string.push_back(hex[frame[idx] % 16]);
-   }
+  for (uint8_t idx=0; idx < frame_length; ++idx) {
+    frame_as_hex_string.push_back(HEX_NUMBERS[frame[idx] / 16]);
+    frame_as_hex_string.push_back(HEX_NUMBERS[frame[idx] % 16]);
+  }
 
-   ESP_LOGD(TAG, "Frame toshiba: 0x%s", frame_as_hex_string.substr(0, frame_length * 2).c_str());
-   ESP_LOGD(TAG, "  header:      0x%s", frame_as_hex_string.substr(0, 4).c_str());
-   ESP_LOGD(TAG, "  data_size:   0x%s", frame_as_hex_string.substr(4, 2).c_str());
-   ESP_LOGD(TAG, "  1_checksum:  0x%s", frame_as_hex_string.substr(6, 2).c_str());
-   ESP_LOGD(TAG, "  command:     0x%s", frame_as_hex_string.substr(8, 2).c_str());
-   ESP_LOGD(TAG, "  data:        0x%s", frame_as_hex_string.substr(10, frame[2] * 2).c_str());
-   ESP_LOGD(TAG, "  2_checksum:  0x%s", frame_as_hex_string.substr(frame[2] * 2 + 10, 2).c_str());
+  ESP_LOGD(TAG, "Frame toshiba: 0x%s", frame_as_hex_string.substr(0, frame_length * 2).c_str());
+  ESP_LOGD(TAG, "  header:      0x%s", frame_as_hex_string.substr(0, 4).c_str());
+  ESP_LOGD(TAG, "  data_size:   0x%s", frame_as_hex_string.substr(4, 2).c_str());
+  ESP_LOGD(TAG, "  1_checksum:  0x%s", frame_as_hex_string.substr(6, 2).c_str());
+  ESP_LOGD(TAG, "  command:     0x%s", frame_as_hex_string.substr(8, 2).c_str());
+  ESP_LOGD(TAG, "  data:        0x%s", frame_as_hex_string.substr(10, frame[2] * 2).c_str());
+  ESP_LOGD(TAG, "  2_checksum:  0x%s", frame_as_hex_string.substr(frame[2] * 2 + 10, 2).c_str());
 }
 
-void ToshibaClimate::add_default_command_data(uint8_t* frame) {
+void ToshibaClimate::add_default_command_data_(uint8_t* frame) {
   /* Data Length */
   frame[2] = 0x03;
 
@@ -119,7 +120,7 @@ void ToshibaClimate::add_default_command_data(uint8_t* frame) {
   if (mode == TOSHIBA_MODE_FAN_ONLY) {
     temperature = 22;
   } else {
-    temperature = clamp(static_cast<uint8_t>(this->target_temperature), TOSHIBA_TEMP_MIN, TOSHIBA_TEMP_MAX);
+    temperature = clamp(this->target_temperature, TOSHIBA_TEMP_MIN, TOSHIBA_TEMP_MAX);
   }
   frame[5] = (temperature - TOSHIBA_TEMP_MIN) << 4;
 
@@ -157,7 +158,7 @@ void ToshibaClimate::add_default_command_data(uint8_t* frame) {
   frame[6] |= (fan_mode << 4);
 }
 
-void ToshibaClimate::add_motion_command_data(uint8_t* frame) {
+void ToshibaClimate::add_motion_command_data_(uint8_t* frame) {
   /* Data length */
   frame[2] = 0x01;
 
@@ -179,7 +180,7 @@ void ToshibaClimate::add_motion_command_data(uint8_t* frame) {
   frame[5] = swing_mode;
 }
 
-void ToshibaClimate::transmit_frame(uint8_t* frame) {
+void ToshibaClimate::transmit_frame_(uint8_t* frame) {
   uint8_t frame_length = TOSHIBA_FRAME_LENGTH_NO_DATA + frame[2];
   /* Header */
   frame[0] = 0xf2;
@@ -190,7 +191,7 @@ void ToshibaClimate::transmit_frame(uint8_t* frame) {
 
   /* Second checksum */
   frame[frame_length - 1] = 0;
-  for (uint8_t i = 4; i < frame_length - 1; i++) {
+  for (uint8_t i = TOSHIBA_FRAME_SECOND_CHECKSUM_START; i < frame_length - 1; i++) {
     frame[frame_length - 1] ^= frame[i];
   }
   log_frame(frame);
@@ -221,15 +222,15 @@ void ToshibaClimate::transmit_frame(uint8_t* frame) {
   transmit.perform();
 }
 
-void ToshibaClimate::transmit_frame() {
-  uint8_t frame[TOSHIBA_MAX_FRAME_LENGTH];
+void ToshibaClimate::transmit_state() {
+  uint8_t frame[TOSHIBA_FRAME_MAX_LENGTH];
 
   if (this->current_mode_ != this->mode ||
         this->current_fan_mode_ != this->fan_mode ||
         this->current_temperature_ != static_cast<uint8_t>(this->target_temperature)) {
-    memset(frame, 0, TOSHIBA_MAX_FRAME_LENGTH);
-    this->add_default_command_data(frame);
-    this->transmit_frame(frame);
+    memset(frame, 0, TOSHIBA_FRAME_MAX_LENGTH);
+    this->add_default_command_data_(frame);
+    this->transmit_frame_(frame);
 
     /* Toshiba swing mode is vertical when changing from off to any other state */
     if (this->current_mode_ == climate::CLIMATE_MODE_OFF) {
@@ -239,9 +240,9 @@ void ToshibaClimate::transmit_frame() {
   }
 
   if (this->current_swing_mode_ != this->swing_mode) {
-    memset(frame, 0, TOSHIBA_MAX_FRAME_LENGTH);
-    this->add_motion_command_data(frame);
-    this->transmit_frame(frame);
+    memset(frame, 0, TOSHIBA_FRAME_MAX_LENGTH);
+    this->add_motion_command_data_(frame);
+    this->transmit_frame_(frame);
   }
 
   this->current_fan_mode_ = this->fan_mode;
@@ -251,7 +252,7 @@ void ToshibaClimate::transmit_frame() {
 }
 
 bool ToshibaClimate::on_receive(remote_base::RemoteReceiveData data) {
-  uint8_t frame[TOSHIBA_MAX_FRAME_LENGTH] = {0};
+  uint8_t frame[TOSHIBA_FRAME_MAX_LENGTH] = {0};
   uint8_t frame_length = TOSHIBA_FRAME_LENGTH_NO_DATA;
 
   /* Validate header */
@@ -283,7 +284,7 @@ bool ToshibaClimate::on_receive(remote_base::RemoteReceiveData data) {
 
   /* Validate the second checksum before trusting any more of the frame */
   uint8_t checksum = 0;
-  for (uint8_t i = 4; i < frame_length - 1; i++) {
+  for (uint8_t i = TOSHIBA_FRAME_SECOND_CHECKSUM_START; i < frame_length - 1; i++) {
     checksum ^= frame[i];
   }
 
