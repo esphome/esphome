@@ -293,6 +293,7 @@ void Nextion::process_nextion_commands_() {
             if (this->nextion_queue_.empty()) {
               ESP_LOGD(TAG, "Nextion is setup");
               this->is_setup_ = true;
+              this->setup_callback_.call();
             }
           }
         }
@@ -758,7 +759,9 @@ void Nextion::set_nextion_sensor_state(NextionQueueType queue_type, const std::s
       }
       break;
     }
-    default: { ESP_LOGW(TAG, "set_nextion_sensor_state does not support a queue type %d", queue_type); }
+    default: {
+      ESP_LOGW(TAG, "set_nextion_sensor_state does not support a queue type %d", queue_type);
+    }
   }
 }
 
