@@ -133,7 +133,12 @@ class SPIComponent : public Component {
     }
 
     if (this->hw_spi_ != nullptr) {
-      this->hw_spi_->write16(data, msb);
+      if (msb) {
+        // MSBFIRST Byte first
+        data = (data >> 8) | (data << 8);
+      }
+
+      this->hw_spi_->write16(data);
       return;
     }
 
