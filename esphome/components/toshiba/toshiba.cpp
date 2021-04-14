@@ -1,10 +1,8 @@
 #include "toshiba.h"
 #include "esphome/core/log.h"
 
-
 namespace esphome {
 namespace toshiba {
-
 
 const uint16_t TOSHIBA_HEADER_MARK = 4380;
 const uint16_t TOSHIBA_HEADER_SPACE = 4370;
@@ -49,11 +47,10 @@ const uint8_t TOSHIBA_MOTION_FIX = 0x00;
 const uint8_t TOSHIBA_MOTION_SWING = 0x01;
 const uint8_t TOSHIBA_MOTION_SWING_OFF = 0x02;
 
-const uint8_t TOSHIBA_FRAME_SECOND_CHECKSUM_START = 4;
 const uint8_t TOSHIBA_FRAME_MAX_LENGTH = 14;
 const uint8_t TOSHIBA_FRAME_LENGTH_NO_DATA = 6;
 
-static const char *TAG = "toshiba.climate";
+static const char* TAG = "toshiba.climate";
 
 static void log_frame(const uint8_t* frame) {
   uint8_t frame_length = TOSHIBA_FRAME_LENGTH_NO_DATA + frame[2];
@@ -61,10 +58,10 @@ static void log_frame(const uint8_t* frame) {
 
   static constexpr char HEX_NUMBERS[] = "0123456789ABCDEF";
 
-   /* Two digits per character */
+  /* Two digits per character */
   frame_as_hex_string.reserve(frame_length * 2);
 
-  for (uint8_t idx=0; idx < frame_length; ++idx) {
+  for (uint8_t idx = 0; idx < frame_length; ++idx) {
     frame_as_hex_string.push_back(HEX_NUMBERS[frame[idx] / 16]);
     frame_as_hex_string.push_back(HEX_NUMBERS[frame[idx] % 16]);
   }
@@ -120,7 +117,7 @@ void ToshibaClimate::add_default_command_data_(uint8_t* frame) {
   if (mode == TOSHIBA_MODE_FAN_ONLY) {
     temperature = 22;
   } else {
-    temperature = clamp(this->target_temperature, TOSHIBA_TEMP_MIN, TOSHIBA_TEMP_MAX);
+    temperature = static_cast<uint8_t>(clamp(this->target_temperature, TOSHIBA_TEMP_MIN, TOSHIBA_TEMP_MAX));
   }
   frame[5] = (temperature - TOSHIBA_TEMP_MIN) << 4;
 
@@ -189,9 +186,9 @@ void ToshibaClimate::transmit_frame_(uint8_t* frame) {
   /* First checksum */
   frame[3] = frame[0] ^ frame[1] ^ frame[2];
 
-  /* Second checksum */
+  /* Second checksum starts at pos 4 to (N-1) */
   frame[frame_length - 1] = 0;
-  for (uint8_t i = TOSHIBA_FRAME_SECOND_CHECKSUM_START; i < frame_length - 1; i++) {
+  for (uint8_t i = 4; i < frame_length - 1; i++) {
     frame[frame_length - 1] ^= frame[i];
   }
   log_frame(frame);
@@ -225,9 +222,8 @@ void ToshibaClimate::transmit_frame_(uint8_t* frame) {
 void ToshibaClimate::transmit_state() {
   uint8_t frame[TOSHIBA_FRAME_MAX_LENGTH];
 
-  if (this->current_mode_ != this->mode ||
-        this->current_fan_mode_ != this->fan_mode ||
-        this->current_temperature_ != static_cast<uint8_t>(this->target_temperature)) {
+  if (this->current_mode_ != this->mode || this->current_fan_mode_ != this->fan_mode ||
+      this->current_temperature_ != static_cast<uint8_t>(this->target_temperature)) {
     memset(frame, 0, TOSHIBA_FRAME_MAX_LENGTH);
     this->add_default_command_data_(frame);
     this->transmit_frame_(frame);
@@ -282,9 +278,10 @@ bool ToshibaClimate::on_receive(remote_base::RemoteReceiveData data) {
     }
   }
 
-  /* Validate the second checksum before trusting any more of the frame */
+  /* Validate the second checksum before trusting any more of the frame --
+   * starts at pos 4 to (N-1) */
   uint8_t checksum = 0;
-  for (uint8_t i = TOSHIBA_FRAME_SECOND_CHECKSUM_START; i < frame_length - 1; i++) {
+  for (uint8_t i = 4; i < frame_length - 1; i++) {
     checksum ^= frame[i];
   }
 
