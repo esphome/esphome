@@ -25,13 +25,14 @@ const uint8_t TOSHIBA_MODE_HEAT = 0x03;
 const uint8_t TOSHIBA_MODE_FAN_ONLY = 0x04;
 const uint8_t TOSHIBA_MODE_OFF = 0x07;
 
+/* Fan mode values are left shifted by 4 */
 const uint8_t TOSHIBA_FAN_SPEED_AUTO = 0x00;
-const uint8_t TOSHIBA_FAN_SPEED_QUIET = 0x02;
-const uint8_t TOSHIBA_FAN_SPEED_1 = 0x04;
-const uint8_t TOSHIBA_FAN_SPEED_2 = 0x06;
-const uint8_t TOSHIBA_FAN_SPEED_3 = 0x08;
-const uint8_t TOSHIBA_FAN_SPEED_4 = 0x0a;
-const uint8_t TOSHIBA_FAN_SPEED_5 = 0x0c;
+const uint8_t TOSHIBA_FAN_SPEED_QUIET = 0x20;
+const uint8_t TOSHIBA_FAN_SPEED_1 = 0x40;
+const uint8_t TOSHIBA_FAN_SPEED_2 = 0x60;
+const uint8_t TOSHIBA_FAN_SPEED_3 = 0x80;
+const uint8_t TOSHIBA_FAN_SPEED_4 = 0xa0;
+const uint8_t TOSHIBA_FAN_SPEED_5 = 0xc0;
 
 const uint8_t TOSHIBA_POWER_HIGH = 0x01;
 /* ECO/Comfort Sleep */
@@ -152,7 +153,7 @@ void ToshibaClimate::add_default_command_data_(uint8_t* frame) {
     default:
       fan_mode = TOSHIBA_FAN_SPEED_AUTO;
   }
-  frame[6] |= (fan_mode << 4);
+  frame[6] |= fan_mode;
 }
 
 void ToshibaClimate::add_motion_command_data_(uint8_t* frame) {
@@ -334,7 +335,7 @@ bool ToshibaClimate::on_receive(remote_base::RemoteReceiveData data) {
     this->current_mode_ = this->mode;
 
     /* Get the fan mode */
-    switch ((frame[6] & 0xf0) >> 4) {
+    switch (frame[6] & 0xf0) {
       case TOSHIBA_FAN_SPEED_QUIET:
         this->fan_mode = climate::CLIMATE_FAN_FOCUS;
         break;
