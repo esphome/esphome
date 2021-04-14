@@ -19,16 +19,26 @@ void DisplayBuffer::init_internal_(uint32_t buffer_length) {
   }
   this->clear();
 }
+// functions for buffer splitting
 void DisplayBuffer::init_internal_multiple_(uint32_t buffer_length) {
-  for (int i = 0; i < DISPLAY_BUFFER_PARTS; i++) {
-    this->buffer_multiple_[i] = new uint8_t[buffer_length / DISPLAY_BUFFER_PARTS];
-    if (this->buffer_multiple_[i] == nullptr) {
+  this->buffer_size = buffer_length;
+  for (auto &i : this->buffer_multiple_) {
+    i = new uint8_t[buffer_length / display_buffer_parts];
+    if (i == nullptr) {
       ESP_LOGE(TAG, "Could not allocate buffer for display!");
       return;
     }
   }
   this->clear();
 }
+uint32_t DisplayBuffer::display_buffer_part(uint32_t x) {
+  return (uint32_t)(x / (this->buffer_size / display_buffer_parts));
+}
+uint32_t DisplayBuffer::display_buffer_pos(uint32_t x) {
+  return (uint32_t)(x % (this->buffer_size / display_buffer_parts));
+}
+// end functions for buffer splitting
+
 void DisplayBuffer::fill(Color color) { this->filled_rectangle(0, 0, this->get_width(), this->get_height(), color); }
 void DisplayBuffer::clear() { this->fill(COLOR_OFF); }
 int DisplayBuffer::get_width() {

@@ -51,6 +51,7 @@ class ILI9486Display : public PollingComponent,
   uint16_t convert_to_16bit_color_(uint8_t color_8bit);
   uint8_t convert_to_8bit_color_(uint16_t color_16bit);
   uint8_t convert_color_to_8bit_color_(Color color);
+  uint16_t convert_color_to_16bit_color_(Color color);
 
   ILI9486Model model_;
   int16_t width_{320};   ///< Display width as modified by current rotation
