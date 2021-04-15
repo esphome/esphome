@@ -35,7 +35,7 @@ CONF_IAQ_ACCURACY = "iaq_accuracy"
 CONF_CO2_EQUIVALENT = "co2_equivalent"
 CONF_BREATH_VOC_EQUIVALENT = "breath_voc_equivalent"
 CONF_SAMPLE_RATE = "sample_rate"
-CONFIG_IAQ_SAMPLE_RATE = "iaq_sample_rate"
+CONFIG_GAS_SAMPLE_RATE = "gas_sample_rate"
 UNIT_IAQ = "IAQ"
 ICON_ACCURACY = "mdi:checkbox-marked-circle-outline"
 ICON_TEST_TUBE = "mdi:test-tube"
@@ -60,7 +60,7 @@ TYPES = {
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_BME680_BSEC_ID): cv.use_id(BME680BSECComponent),
-        cv.Optional(CONFIG_IAQ_SAMPLE_RATE, default="ULP"): cv.enum(
+        cv.Optional(CONFIG_GAS_SAMPLE_RATE, default="ULP"): cv.enum(
             SAMPLE_RATE_OPTIONS, upper=True
         ),
         cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
@@ -118,7 +118,7 @@ def setup_conf(config, key, hub, funcName):
         if CONF_SAMPLE_RATE in conf:
             cg.add(func(var, conf[CONF_SAMPLE_RATE]))
         else:
-            cg.add(func(var, config[CONFIG_IAQ_SAMPLE_RATE]))
+            cg.add(func(var, config[CONFIG_GAS_SAMPLE_RATE]))
 
 
 def to_code(config):
