@@ -57,6 +57,8 @@ as3935_i2c:
 mcp3008:
   - id: 'mcp3008_hub'
     cs_pin: GPIO12
+  - id: 'mcp3008_hub_2'
+    cs_output_gpio: mcp0
 
 mcp23s08:
   - id: 'mcp23s08_hub'
