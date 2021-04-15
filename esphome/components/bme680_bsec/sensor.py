@@ -35,6 +35,7 @@ CONF_IAQ_ACCURACY = "iaq_accuracy"
 CONF_CO2_EQUIVALENT = "co2_equivalent"
 CONF_BREATH_VOC_EQUIVALENT = "breath_voc_equivalent"
 CONF_SAMPLE_RATE = "sample_rate"
+CONFIG_IAQ_SAMPLE_RATE = "iaq_sample_rate"
 UNIT_IAQ = "IAQ"
 ICON_ACCURACY = "mdi:checkbox-marked-circle-outline"
 ICON_TEST_TUBE = "mdi:test-tube"
@@ -59,6 +60,9 @@ TYPES = {
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_BME680_BSEC_ID): cv.use_id(BME680BSECComponent),
+        cv.Optional(CONFIG_IAQ_SAMPLE_RATE, default="ULP"): cv.enum(
+            SAMPLE_RATE_OPTIONS, upper=True
+        ),
         cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
             UNIT_CELSIUS, ICON_THERMOMETER, 1, DEVICE_CLASS_TEMPERATURE
         ).extend(
@@ -88,42 +92,18 @@ CONFIG_SCHEMA = cv.Schema(
         ),
         cv.Optional(CONF_GAS_RESISTANCE): sensor.sensor_schema(
             UNIT_OHM, ICON_GAS_CYLINDER, 0, DEVICE_CLASS_EMPTY
-        ).extend(
-            {
-                cv.Optional(CONF_SAMPLE_RATE, default="ULP"): cv.enum(
-                    SAMPLE_RATE_OPTIONS, upper=True
-                )
-            },
         ),
         cv.Optional(CONF_IAQ): sensor.sensor_schema(
             UNIT_IAQ, ICON_GAUGE, 0, DEVICE_CLASS_EMPTY
-        ).extend(
-            {
-                cv.Optional(CONF_SAMPLE_RATE, default="ULP"): cv.enum(
-                    SAMPLE_RATE_OPTIONS, upper=True
-                )
-            },
         ),
         cv.Optional(CONF_IAQ_ACCURACY): sensor.sensor_schema(
             UNIT_EMPTY, ICON_ACCURACY, 0, DEVICE_CLASS_EMPTY
         ),
         cv.Optional(CONF_CO2_EQUIVALENT): sensor.sensor_schema(
             UNIT_PARTS_PER_MILLION, ICON_TEST_TUBE, 1, DEVICE_CLASS_EMPTY
-        ).extend(
-            {
-                cv.Optional(CONF_SAMPLE_RATE, default="ULP"): cv.enum(
-                    SAMPLE_RATE_OPTIONS, upper=True
-                )
-            },
         ),
         cv.Optional(CONF_BREATH_VOC_EQUIVALENT): sensor.sensor_schema(
             UNIT_PARTS_PER_MILLION, ICON_TEST_TUBE, 1, DEVICE_CLASS_EMPTY
-        ).extend(
-            {
-                cv.Optional(CONF_SAMPLE_RATE, default="ULP"): cv.enum(
-                    SAMPLE_RATE_OPTIONS, upper=True
-                )
-            },
         ),
     }
 )
@@ -138,7 +118,7 @@ def setup_conf(config, key, hub, funcName):
         if CONF_SAMPLE_RATE in conf:
             cg.add(func(var, conf[CONF_SAMPLE_RATE]))
         else:
-            cg.add(func(var))
+            cg.add(func(var, config[CONFIG_IAQ_SAMPLE_RATE]))
 
 
 def to_code(config):

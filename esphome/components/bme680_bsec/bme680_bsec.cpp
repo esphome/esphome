@@ -38,7 +38,7 @@ void BME680BSECComponent::setup() {
     return;
   }
 
-  if (this->iaq_sensor_sample_rate_ == SAMPLE_RATE_ULP) {
+  if (this->iaq_sensor_sample_rate_ == BSEC_SAMPLE_RATE_ULP) {
     const uint8_t bsec_config[] = {
 #include "config/generic_33v_300s_28d/bsec_iaq.txt"
     };
