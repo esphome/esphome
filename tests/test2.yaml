@@ -58,6 +58,19 @@ mcp3008:
   - id: 'mcp3008_hub'
     cs_pin: GPIO12
 
+mcp23s08:
+  - id: 'mcp23s08_hub'
+    cs_pin: GPIO12
+    deviceaddress: 0
+
+output:
+  - platform: gpio
+    id: mcp0
+    pin:
+      mcp23xxx: mcp23s08_hub
+      number: 0
+      mode: OUTPUT
+
 sensor:
   - platform: homeassistant
     entity_id: sensor.hello_world
@@ -238,6 +251,16 @@ time:
         then:
           - logger.log: It's 16:00
 
+switch:
+  - platform: gpio
+    name: 'MCP23S08 Pin #0'
+    pin:
+      mcp23xxx: mcp23s08_hub
+      # Use pin number 0
+      number: 0
+      mode: OUTPUT
+      inverted: False
+
 esp32_touch:
   setup_mode: True
 
@@ -284,6 +307,16 @@ binary_sensor:
       name: 'WX08ZM Tablet Resource'
     battery_level:
       name: 'WX08ZM Battery Level'
+  - platform: gpio
+    name: 'MCP23S08 Pin #1'
+    pin:
+      mcp23xxx: mcp23s08_hub
+      # Use pin number 1
+      number: 1
+      # One of INPUT or INPUT_PULLUP
+      mode: INPUT_PULLUP
+      inverted: False
+
 
 esp32_ble_tracker:
   on_ble_advertise:

@@ -9,6 +9,7 @@
 #ifdef USE_GPIO_BINARY_OUT
 #include "esphome/components/gpio/output/gpio_binary_output.h"
 #endif
+
 namespace esphome {
 namespace spi {
 
@@ -230,9 +231,11 @@ class SPIComponent : public Component {
   GPIOPin *miso_{nullptr};
   GPIOPin *mosi_{nullptr};
   GPIOPin *active_cs_{nullptr};
-  esphome::gpio::GPIOBinaryOutput *active_cs_output_{nullptr};
   SPIClass *hw_spi_{nullptr};
   uint32_t wait_cycle_;
+#ifdef USE_GPIO_BINARY_OUT
+  esphome::gpio::GPIOBinaryOutput *active_cs_output_{nullptr};
+#endif
 };
 
 template<SPIBitOrder BIT_ORDER, SPIClockPolarity CLOCK_POLARITY, SPIClockPhase CLOCK_PHASE, SPIDataRate DATA_RATE>
@@ -243,7 +246,10 @@ class SPIDevice {
 
   void set_spi_parent(SPIComponent *parent) { parent_ = parent; }
   void set_cs_pin(GPIOPin *cs) { cs_ = cs; }
+
+#ifdef USE_GPIO_BINARY_OUT
   void set_cs_output_pin(esphome::gpio::GPIOBinaryOutput *cs_output) { this->cs_output_ = cs_output; }
+#endif
 
   void spi_setup() {
 #ifdef USE_GPIO_BINARY_OUT
@@ -315,7 +321,7 @@ class SPIDevice {
   SPIComponent *parent_{nullptr};
   GPIOPin *cs_{nullptr};
 #ifdef USE_GPIO_BINARY_OUT
-  gpio::GPIOBinaryOutput *cs_output_{nullptr};
+  esphome::gpio::GPIOBinaryOutput *cs_output_{nullptr};
 #endif
 };
 
