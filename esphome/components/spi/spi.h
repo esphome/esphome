@@ -1,9 +1,14 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/defines.h"
 #include "esphome/core/esphal.h"
+#include "esphome/core/log.h"
 #include <SPI.h>
 
+#ifdef USE_GPIO_BINARY_OUT
+#include "esphome/components/gpio/output/gpio_binary_output.h"
+#endif
 namespace esphome {
 namespace spi {
 
@@ -188,6 +193,25 @@ class SPIComponent : public Component {
     }
   }
 
+#ifdef USE_GPIO_BINARY_OUT
+  template<SPIBitOrder BIT_ORDER, SPIClockPolarity CLOCK_POLARITY, SPIClockPhase CLOCK_PHASE, uint32_t DATA_RATE>
+  void enable(gpio::GPIOBinaryOutput *cs) {
+    if (cs != nullptr) {
+      SPIComponent::debug_enable(cs->get_pin()->get_pin());
+      this->active_cs_output_ = cs;
+      this->active_cs_output_->turn_off();
+    }
+    if (this->hw_spi_ != nullptr) {
+      uint8_t data_mode = (uint8_t(CLOCK_POLARITY) << 1) | uint8_t(CLOCK_PHASE);
+      SPISettings settings(DATA_RATE, BIT_ORDER, data_mode);
+      this->hw_spi_->beginTransaction(settings);
+    } else {
+      this->clk_->digital_write(CLOCK_POLARITY);
+      this->wait_cycle_ = uint32_t(F_CPU) / DATA_RATE / 2ULL;
+    }
+  }
+#endif
+
   void disable();
 
   float get_setup_priority() const override;
@@ -206,6 +230,7 @@ class SPIComponent : public Component {
   GPIOPin *miso_{nullptr};
   GPIOPin *mosi_{nullptr};
   GPIOPin *active_cs_{nullptr};
+  esphome::gpio::GPIOBinaryOutput *active_cs_output_{nullptr};
   SPIClass *hw_spi_{nullptr};
   uint32_t wait_cycle_;
 };
@@ -218,15 +243,29 @@ class SPIDevice {
 
   void set_spi_parent(SPIComponent *parent) { parent_ = parent; }
   void set_cs_pin(GPIOPin *cs) { cs_ = cs; }
+  void set_cs_output_pin(esphome::gpio::GPIOBinaryOutput *cs_output) { this->cs_output_ = cs_output; }
 
   void spi_setup() {
-    if (this->cs_) {
+#ifdef USE_GPIO_BINARY_OUT
+    if (this->cs_output_ != nullptr) {
+      this->cs_output_->turn_on();
+    }
+#endif
+
+    if (this->cs_ != nullptr) {
       this->cs_->setup();
       this->cs_->digital_write(true);
     }
   }
 
-  void enable() { this->parent_->template enable<BIT_ORDER, CLOCK_POLARITY, CLOCK_PHASE, DATA_RATE>(this->cs_); }
+  void enable() {
+    if (this->cs_ != nullptr)
+      this->parent_->template enable<BIT_ORDER, CLOCK_POLARITY, CLOCK_PHASE, DATA_RATE>(this->cs_);
+#ifdef USE_GPIO_BINARY_OUT
+    else
+      this->parent_->template enable<BIT_ORDER, CLOCK_POLARITY, CLOCK_PHASE, DATA_RATE>(this->cs_output_);
+#endif
+  }
 
   void disable() { this->parent_->disable(); }
 
@@ -275,6 +314,9 @@ class SPIDevice {
  protected:
   SPIComponent *parent_{nullptr};
   GPIOPin *cs_{nullptr};
+#ifdef USE_GPIO_BINARY_OUT
+  gpio::GPIOBinaryOutput *cs_output_{nullptr};
+#endif
 };
 
 }  // namespace spi

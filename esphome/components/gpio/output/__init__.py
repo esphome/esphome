@@ -22,3 +22,4 @@ def to_code(config):
 
     pin = yield cg.gpio_pin_expression(config[CONF_PIN])
     cg.add(var.set_pin(pin))
+    cg.add_define("USE_GPIO_BINARY_OUT")

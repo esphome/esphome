@@ -12,11 +12,19 @@ void ICACHE_RAM_ATTR HOT SPIComponent::disable() {
   if (this->hw_spi_ != nullptr) {
     this->hw_spi_->endTransaction();
   }
-  if (this->active_cs_) {
+
+  if (this->active_cs_ != nullptr) {
     ESP_LOGVV(TAG, "Disabling SPI Chip on pin %u...", this->active_cs_->get_pin());
     this->active_cs_->digital_write(true);
     this->active_cs_ = nullptr;
   }
+#ifdef USE_GPIO_BINARY_OUT
+  else if (this->active_cs_output_ != nullptr) {
+    ESP_LOGVV(TAG, "Disabling SPI Chip on CSOUPUT pin %u...", this->active_cs_output_->get_pin()->get_pin());
+    this->active_cs_output_->turn_on();
+    this->active_cs_output_ = nullptr;
+  }
+#endif
 }
 void SPIComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up SPI bus...");

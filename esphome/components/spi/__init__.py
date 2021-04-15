@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
+from esphome.components import output
 from esphome import pins
 from esphome.const import (
     CONF_CLK_PIN,
@@ -16,6 +17,8 @@ spi_ns = cg.esphome_ns.namespace("spi")
 SPIComponent = spi_ns.class_("SPIComponent", cg.Component)
 SPIDevice = spi_ns.class_("SPIDevice")
 MULTI_CONF = True
+
+CONF_CS_OUTPUT_GPIO = "cs_output_gpio"
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
@@ -51,13 +54,37 @@ def spi_device_schema(cs_pin_required=True):
     :param cs_pin_required: If true, make the CS_PIN required in the config.
     :return: The SPI device schema, `extend` this in your config schema.
     """
+    # schema = cv.Schema(
+    #     {
+    #         cv.GenerateID(CONF_SPI_ID): cv.use_id(SPIComponent),
+    #         # cv.Exclusive(CONF_CS_PIN, "cs_pin"): pins.GPIO_FULL_OUTPUT_PIN_SCHEMA,
+    #     }
+    # )
+
+    # schema.schema[cv.Required(CONF_CS_PIN)] = pins.GPIO_FULL_OUTPUT_PIN_SCHEMA
+
+    # cs_pin_schema = schema.extend(
+    #     {
+    #         cv.Exclusive(CONF_CS_PIN, "cs_pin"): pins.GPIO_FULL_OUTPUT_PIN_SCHEMA,
+    #         cv.Exclusive(CONF_CS_OUTPUT, "cs_pin"): cv.use_id(output.BinaryOutput),
+    #     },
+    #     required=True,
+    # )
+
     schema = {
         cv.GenerateID(CONF_SPI_ID): cv.use_id(SPIComponent),
     }
     if cs_pin_required:
-        schema[cv.Required(CONF_CS_PIN)] = pins.gpio_output_pin_schema
+        schema[cv.Exclusive(CONF_CS_PIN, "cs_pin")] = pins.gpio_output_pin_schema
+        schema[cv.Exclusive(CONF_CS_OUTPUT_GPIO, "cs_pin")] = cv.use_id(
+            output.BinaryOutput
+        )
     else:
-        schema[cv.Optional(CONF_CS_PIN)] = pins.gpio_output_pin_schema
+        schema[cv.Exclusive(CONF_CS_PIN, "cs_pin")] = pins.gpio_output_pin_schema
+        schema[cv.Exclusive(CONF_CS_OUTPUT_GPIO, "cs_pin")] = cv.use_id(
+            output.BinaryOutput
+        )
+
     return cv.Schema(schema)
 
 
@@ -68,3 +95,6 @@ def register_spi_device(var, config):
     if CONF_CS_PIN in config:
         pin = yield cg.gpio_pin_expression(config[CONF_CS_PIN])
         cg.add(var.set_cs_pin(pin))
+    if CONF_CS_OUTPUT_GPIO in config:
+        pin = yield cg.get_variable(config[CONF_CS_OUTPUT_GPIO])
+        cg.add(var.set_cs_output_pin(pin))
