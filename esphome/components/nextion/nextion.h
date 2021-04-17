@@ -728,7 +728,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   void set_auto_wake_on_touch_internal(bool auto_wake_on_touch) { this->auto_wake_on_touch_ = auto_wake_on_touch; }
 
  protected:
-  std::deque<NextionComponentBase *> nextion_queue_;
+  std::deque<NextionQueue *> nextion_queue_;
   uint16_t recv_ret_string_(std::string &response, uint32_t timeout, bool recv_flag);
   void all_components_send_state_(bool force_update = false);
   long comok_sent_ = 0;
@@ -737,6 +737,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * Sends commands ignoring of the Nextion has been setup.
    */
   bool ignore_is_setup_ = false;
+  bool nextion_reports_is_setup_ = false;
   uint8_t nextion_event_;
   // bool nextion_has_event_ = false;
 
@@ -751,8 +752,10 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * Manually send a raw command to the display and don't wait for an acknowledgement packet.
    * @param command The command to write, for example "vis b0,0".
    */
-  bool send_command_(const char *command);
+  bool send_command_(const std::string &command);
   void add_no_result_to_queue_(const std::string &variable_name);
+  bool add_no_result_to_queue_with_ignore_sleep_printf_(const std::string &variable_name, const char *format, ...)
+      __attribute__((format(printf, 3, 4)));
   void add_no_result_to_queue_with_command_(const std::string &variable_name, const std::string &command);
 
   bool add_no_result_to_queue_with_printf_(const std::string &variable_name, const char *format, ...)
@@ -849,6 +852,10 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   std::string command_data_;
   bool is_connected_ = false;
   bool dump_ran_ = false;
+  uint32_t startup_override_ms_ = 8000;
+  uint32_t max_q_age_ms_ = 8000;
+  uint32_t started_ms_ = 0;
+  bool sent_setup_commands_ = false;
 };
 }  // namespace nextion
 }  // namespace esphome

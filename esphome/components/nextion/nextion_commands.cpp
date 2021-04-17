@@ -27,10 +27,11 @@ void Nextion::set_touch_sleep_timeout(uint16_t timeout) {
 }
 
 void Nextion::sleep(bool sleep) {
-  this->add_no_result_to_queue_with_set_internal_("sleep", "sleep", sleep ? 1 : 0, true);
-  this->is_sleeping_ = sleep;
-  if (!sleep) {
-    this->all_components_send_state_();
+  if (sleep) {  // Set sleep
+    this->is_sleeping_ = true;
+    this->add_no_result_to_queue_with_set_internal_("sleep", "sleep", 1, true);
+  } else {  // Turn off sleep. Wait for a sleep_wake return before setting sleep off
+    this->add_no_result_to_queue_with_set_internal_("sleep_wake", "sleep", 0, true);
   }
 }
 // End sleep safe commands

@@ -18,6 +18,13 @@ static const char *NextionQueueTypeStrings[] = {"NO_RESULT", "SENSOR",      "BIN
 
 class NextionComponentBase;
 
+class NextionQueue {
+ public:
+  virtual ~NextionQueue() = default;
+  NextionComponentBase *component;
+  uint32_t queue_time = 0;
+};
+
 class NextionComponentBase {
  public:
   virtual ~NextionComponentBase() = default;
