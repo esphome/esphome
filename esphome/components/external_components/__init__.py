@@ -148,21 +148,21 @@ def _process_single_config(config: dict):
                 )
                 _handle_git_response(ret)
 
-        dest_dir = repo_dir
+        if (repo_dir / "esphome" / "components").is_dir():
+            components_dir = repo_dir / "esphome" / "components"
+        elif (repo_dir / "components").is_dir():
+            components_dir = repo_dir / "components"
+        else:
+            raise cv.Invalid(
+                "Could not find components folder for source. Please check the source contains a 'components' or 'esphome/components' folder",
+                [CONF_SOURCE],
+            )
+
     elif conf[CONF_TYPE] == TYPE_LOCAL:
-        dest_dir = Path(conf[CONF_PATH])
+        components_dir = Path(conf[CONF_PATH])
     else:
         raise NotImplementedError()
 
-    if (dest_dir / "esphome" / "components").is_dir():
-        components_dir = dest_dir / "esphome" / "components"
-    elif (dest_dir / "components").is_dir():
-        components_dir = dest_dir / "components"
-    else:
-        raise cv.Invalid(
-            "Could not find components folder for source. Please check the source contains a 'components' or 'esphome/components' folder",
-            [CONF_SOURCE],
-        )
 
     if config[CONF_COMPONENTS] == "all":
         num_components = len(list(components_dir.glob("*/__init__.py")))
