@@ -159,10 +159,9 @@ def _process_single_config(config: dict):
             )
 
     elif conf[CONF_TYPE] == TYPE_LOCAL:
-        components_dir = Path(conf[CONF_PATH])
+        components_dir = Path(CORE.relative_config_path(conf[CONF_PATH]))
     else:
         raise NotImplementedError()
-
 
     if config[CONF_COMPONENTS] == "all":
         num_components = len(list(components_dir.glob("*/__init__.py")))
