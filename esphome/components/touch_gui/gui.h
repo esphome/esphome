@@ -18,6 +18,8 @@ enum TouchGUIButtonType {
 };
 
 class TouchGUIButton;
+class TouchGUIDrawable;
+
 using button_writer_t = std::function<void(TouchGUIButton &)>;
 using ButtonPtrSet = std::set<TouchGUIButton *>;
 using RadioGroupMap = std::map<int, ButtonPtrSet>;
@@ -37,7 +39,7 @@ class TouchGUIComponent : public PollingComponent {
   void set_writer(button_writer_t &&writer) { this->writer_ = writer; }
   void add_on_update_callback(std::function<void()> &&callback);
 
-  void register_button(TouchGUIButton *button) { this->buttons_.push_back(button); }
+  void register_drawable(TouchGUIDrawable *drawable) { this->drawables_.push_back(drawable); }
 
   void setup() override;
   /// Loops through the virtual buttons to let them process their stati
@@ -69,7 +71,7 @@ class TouchGUIComponent : public PollingComponent {
   void check_page_changed_();
 
   display::DisplayBuffer *display_;
-  std::vector<TouchGUIButton *> buttons_;
+  std::vector<TouchGUIDrawable *> drawables_;
   RadioGroupMap groups_;
   display::Font *button_font_{nullptr};
   Color button_background_color_{display::COLOR_OFF};
@@ -82,12 +84,47 @@ class TouchGUIComponent : public PollingComponent {
   const display::DisplayPage *last_page_displayed_{nullptr};
 };
 
+/** Class representing a drawable object.
+ *
+ */
+class TouchGUIDrawable {
+ public:
+  void set_parent(TouchGUIComponent *parent) { this->parent_ = parent; }
+  void set_pages(std::vector<const display::DisplayPage *> &&pages) { this->pages_ = pages; }
+  /// Higher Z order means towards the viewer (@todo not implemented yet, just a placeholder)
+  void set_z_order(uint8_t z) { this->z_order_ = z; }
+
+  /// Returns true if the button is visible on the currently displayed page.
+  bool is_visible() const;
+
+  /// Overload to draw the object on the parent screen
+  virtual void draw() = 0;
+
+  /// Returns true if the object can be downcasted to TouchGUIButton
+  virtual bool is_button() const { return false; }
+
+  /// Returns true if the visual state of the element changed and clears the flag.
+  bool should_update() {
+    bool x = this->update_requested_;
+    this->update_requested_ = false;
+    return x;
+  }
+
+  /// Handles the time-dependent actions. Periodically called from the parent component.
+  virtual void update_drawable() {}
+
+ protected:
+  TouchGUIComponent *parent_;
+  std::vector<const display::DisplayPage *> pages_;
+  bool update_requested_{false};
+  uint8_t z_order_;
+};
+
 /** Class representing an area on the screen sensitive to touch.
  *
  */
-class TouchGUIButton : public binary_sensor::BinarySensor, public Component {
+class TouchGUIButton : public binary_sensor::BinarySensor, public Component, public TouchGUIDrawable {
  public:
-  void set_parent(TouchGUIComponent *parent) { this->parent_ = parent; }
   void set_type(TouchGUIButtonType t) { this->type_ = t; }
   void set_area(uint16_t x_min, uint16_t x_max, uint16_t y_min, uint16_t y_max) {
     this->x_min_ = x_min;
@@ -95,7 +132,6 @@ class TouchGUIButton : public binary_sensor::BinarySensor, public Component {
     this->y_min_ = y_min;
     this->y_max_ = y_max;
   }
-  void set_pages(std::vector<const display::DisplayPage *> pages) { this->pages_ = pages; }
   void set_background_color(const Color &col) { this->background_color_ = col; }
   void set_active_background_color(const Color &col) { this->active_background_color_ = col; }
   void set_foreground_color(const Color &col) { this->foreground_color_ = col; }
@@ -170,34 +206,25 @@ class TouchGUIButton : public binary_sensor::BinarySensor, public Component {
   float get_setup_priority() const override { return setup_priority::PROCESSOR - 10.0; }
 
   /// Handles the time-dependent actions. Periodically called from the parent component.
-  void update();
-  void draw();
-  /// Returns true if the button is visible on the currently displayed page.
-  bool is_visible() const;
+  void update_drawable() override;
+  void draw() override;
   /// Returns true if the button is visible on the currently displayed page and the coordinates are inside its sensitive
   /// area/
   bool is_interacted(int x, int y) const {
     return x >= this->x_min_ && x <= this->x_max_ && y >= this->y_min_ && y <= this->y_max_ && is_visible();
   }
-  /// Returns true if the visual state of the element changed and clears the flag.
-  bool should_update() {
-    bool x = this->update_requested_;
-    this->update_requested_ = false;
-    return x;
-  }
+  bool is_button() const override { return true; }
 
   // Track the real touch state. Does not change for programmatic activation
   void set_touch_state(bool x) { this->touch_state_ = x; }
   bool is_touched() const { return this->touch_state_; }
 
  protected:
-  TouchGUIComponent *parent_;
   TouchGUIButtonType type_;
   int radio_group_{0};
   uint16_t x_min_, x_max_, y_min_, y_max_;
   bool touch_state_{false};
   uint32_t touch_time_;
-  std::vector<const display::DisplayPage *> pages_;
   display::Font *font_{nullptr};
   optional<Color> background_color_{};
   optional<Color> active_background_color_{};
@@ -208,7 +235,6 @@ class TouchGUIButton : public binary_sensor::BinarySensor, public Component {
   TemplatableStringValue<> text_;
   bool initial_{false};
   unsigned long activation_time_{0};
-  bool update_requested_{false};
 };
 
 template<typename... Ts> class TouchGUITouchAction : public Action<Ts...> {
