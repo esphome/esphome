@@ -1,7 +1,8 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import core, automation
-from esphome.const import CONF_ID, CONF_TRIGGER_ID
+from esphome.core import coroutine
+from esphome.const import CONF_ID, CONF_TRIGGER_ID, CONF_PAGES
 from esphome.components import binary_sensor, display, font
 from esphome.components.color import ColorStruct
 
@@ -10,9 +11,11 @@ AUTO_LOAD = ["binary_sensor"]
 
 touch_gui_ns = cg.esphome_ns.namespace("touch_gui")
 
+CONF_TOUCH_GUI_ID = "touch_gui_id"
 CONF_DISPLAY_ID = "display_id"
 CONF_X = "x"
 CONF_Y = "y"
+CONF_Z_ORDER = "z_order"
 CONF_TOUCHED = "touched"
 CONF_BUTTON_COLORS = "button_colors"
 CONF_BACKGROUND = "background"
@@ -61,6 +64,25 @@ CONFIG_SCHEMA = cv.Schema(
         ),
     }
 ).extend(cv.polling_component_schema("50ms"))
+
+
+DRAWABLE_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(CONF_TOUCH_GUI_ID): cv.use_id(TouchGUIComponent),
+        cv.Optional(CONF_PAGES): cv.All(
+            cv.ensure_list(
+                cv.maybe_simple_value(
+                    {
+                        cv.GenerateID(CONF_ID): cv.use_id(display.DisplayPage),
+                    },
+                    key=CONF_ID,
+                ),
+            ),
+            cv.Length(min=1),
+        ),
+        cv.Optional(CONF_Z_ORDER, default="50"): cv.uint8_t,
+    }
+)
 
 
 @automation.register_action(
@@ -129,6 +151,20 @@ def touch_gui_activate_button_to_code(config, action_id, template_arg, args):
         cg.add(var.set_button(btn))
 
     yield var
+
+
+@coroutine
+def register_drawable(var, config):
+    hub = yield cg.get_variable(config[CONF_TOUCH_GUI_ID])
+    cg.add(var.set_parent(hub))
+    if CONF_PAGES in config:
+        pages = []
+        for conf in config[CONF_PAGES]:
+            page = yield cg.get_variable(conf[CONF_ID])
+            pages.append(page)
+        cg.add(var.set_pages(pages))
+    cg.add(var.set_z_order(config[CONF_Z_ORDER]))
+    cg.add(hub.register_drawable(var))
 
 
 def to_code(config):

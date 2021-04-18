@@ -9,7 +9,7 @@ static const char *TAG = "touch_gui";
 
 void TouchGUIComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "Configured");
-  ESP_LOGCONFIG(TAG, "  Buttons: %zu", buttons_.size());
+  ESP_LOGCONFIG(TAG, "  Objects: %zu", drawables_.size());
   ESP_LOGCONFIG(TAG, "  Radio groups: %zu", groups_.size());
 }
 
@@ -23,13 +23,16 @@ void TouchGUIComponent::setup() {
   static const ButtonPtrSet EMPTY_SET;
 
   // Build a map of groups
-  for (auto *b : this->buttons_) {
-    if (b->get_type() == TOUCH_GUI_BUTTON_TYPE_RADIO) {
-      auto it = this->groups_.insert(std::pair<int, ButtonPtrSet>(b->get_radio_group(), EMPTY_SET)).first;
-      it->second.insert(b);
-      it = activated.insert(std::pair<int, ButtonPtrSet>(b->get_radio_group(), EMPTY_SET)).first;
-      if (b->get_initial())
+  for (auto *d : this->drawables_) {
+    if (d->is_button()) {
+      TouchGUIButton *b = static_cast<TouchGUIButton *>(d);
+      if (b->get_type() == TOUCH_GUI_BUTTON_TYPE_RADIO) {
+        auto it = this->groups_.insert(std::pair<int, ButtonPtrSet>(b->get_radio_group(), EMPTY_SET)).first;
         it->second.insert(b);
+        it = activated.insert(std::pair<int, ButtonPtrSet>(b->get_radio_group(), EMPTY_SET)).first;
+        if (b->get_initial())
+          it->second.insert(b);
+      }
     }
   }
 
@@ -53,11 +56,11 @@ void TouchGUIComponent::setup() {
 void TouchGUIComponent::update() {
   bool upd = false;
 
-  check_page_changed_();
+  this->check_page_changed_();
 
-  for (auto *b : this->buttons_) {
-    b->update();
-    upd |= b->should_update();
+  for (auto *d : this->drawables_) {
+    d->update_drawable();
+    upd |= d->should_update();
   }
 
   if (upd)
@@ -65,11 +68,11 @@ void TouchGUIComponent::update() {
 }
 
 void TouchGUIComponent::draw() {
-  check_page_changed_();
+  this->check_page_changed_();
 
-  for (auto *b : this->buttons_)
-    if (b->is_visible())
-      b->draw();
+  for (auto *d : this->drawables_)
+    if (d->is_visible())
+      d->draw();
 }
 
 void TouchGUIComponent::touch(int x, int y, bool touched) {
@@ -79,9 +82,13 @@ void TouchGUIComponent::touch(int x, int y, bool touched) {
     // second page as well and an unintended button gets activated.
     std::vector<TouchGUIButton *> interacted;
 
-    for (auto *b : this->buttons_)
-      if (b->is_interacted(x, y))
-        interacted.push_back(b);
+    for (auto *d : this->drawables_) {
+      if (d->is_button()) {
+        TouchGUIButton *b = static_cast<TouchGUIButton *>(d);
+        if (b->is_interacted(x, y))
+          interacted.push_back(b);
+      }
+    }
 
     for (auto *b : interacted) {
       activate(b);
@@ -121,19 +128,24 @@ void TouchGUIComponent::activate(TouchGUIButton *button) {
 }
 
 void TouchGUIComponent::release_() {
-  for (auto *b : this->buttons_) {
-    switch (b->get_type()) {
-      case TOUCH_GUI_BUTTON_TYPE_MOMENTARY:
-      case TOUCH_GUI_BUTTON_TYPE_AREA:
-        // A filter might have set our state to false but still needs to be informed
-        // when the touch is released
-        if (b->state || b->is_touched())
-          b->publish_state(false);
-        break;
-      default:
-        break;
+  for (auto *d : this->drawables_) {
+    if (d->is_button()) {
+      TouchGUIButton *b = static_cast<TouchGUIButton *>(d);
+
+      switch (b->get_type()) {
+        case TOUCH_GUI_BUTTON_TYPE_MOMENTARY:
+        case TOUCH_GUI_BUTTON_TYPE_AREA:
+          // A filter might have set our state to false but still needs to be informed
+          // when the touch is released
+          if (b->state || b->is_touched())
+            b->publish_state(false);
+          break;
+        default:
+          break;
+      }
+
+      b->set_touch_state(false);
     }
-    b->set_touch_state(false);
   }
 }
 
@@ -143,6 +155,13 @@ void TouchGUIComponent::check_page_changed_() {
     release_();
     this->last_page_displayed_ = this->display_->get_active_page();
   }
+}
+
+bool TouchGUIDrawable::is_visible() const {
+  // The button is visible if either the list of the pages is empty (meaning all)
+  // or the displayed page matches
+  return (pages_.empty() ||
+          std::find(pages_.begin(), pages_.end(), parent_->get_display()->get_active_page()) != pages_.end());
 }
 
 void TouchGUIButton::setup() {
@@ -165,7 +184,7 @@ void TouchGUIButton::setup() {
   add_on_state_callback([this](bool x) { this->update_requested_ = true; });
 }
 
-void TouchGUIButton::update() {
+void TouchGUIButton::update_drawable() {
   // If this is a momentary button, return it after its touch time expires
   switch (this->type_) {
     case TOUCH_GUI_BUTTON_TYPE_MOMENTARY:
@@ -196,13 +215,6 @@ void TouchGUIButton::draw() {
                              display::TextAlign::CENTER, this->text_.value().c_str());
     }
   }
-}
-
-bool TouchGUIButton::is_visible() const {
-  // The button is visible if either the list of the pages is empty (meaning all)
-  // or the displayed page matches
-  return (pages_.empty() ||
-          std::find(pages_.begin(), pages_.end(), parent_->get_display()->get_active_page()) != pages_.end());
 }
 
 }  // namespace touch_gui

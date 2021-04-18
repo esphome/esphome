@@ -119,6 +119,7 @@ binary_sensor:
     y_min: 25
     x_max: 79
     y_max: 74
+    z_order: 60
     text: 'Btn 00'
 
   # All defaults, activated

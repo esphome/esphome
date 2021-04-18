@@ -1,26 +1,25 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.components import binary_sensor, display, font
+from esphome.components import binary_sensor, font
 from esphome.components.color import ColorStruct
 from esphome.const import (
     CONF_ID,
     CONF_TYPE,
-    CONF_PAGES,
     CONF_COLORS,
     CONF_LAMBDA,
 )
 from . import (
     touch_gui_ns,
-    TouchGUIComponent,
     TouchGuiButton,
     CONF_BACKGROUND,
     CONF_ACTIVE_BACKGROUND,
     CONF_FOREGROUND,
     CONF_ACTIVE_FOREGROUND,
     CONF_BORDER,
+    DRAWABLE_SCHEMA,
+    register_drawable,
 )
 
-CONF_TOUCH_GUI_ID = "touch_gui_id"
 CONF_MOMENTARY = "momentary"
 CONF_TOGGLE = "toggle"
 CONF_RADIO = "radio"
@@ -79,7 +78,6 @@ CONFIG_SCHEMA = cv.All(
     binary_sensor.BINARY_SENSOR_SCHEMA.extend(
         {
             cv.GenerateID(): cv.declare_id(TouchGuiButton),
-            cv.GenerateID(CONF_TOUCH_GUI_ID): cv.use_id(TouchGUIComponent),
             cv.Required(CONF_TYPE): cv.enum(BUTTON_TYPES, lower=True),
             cv.Required(CONF_X_MIN): cv.positive_int,
             cv.Required(CONF_X_MAX): cv.positive_int,
@@ -90,17 +88,6 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(
                 CONF_TOUCH_TIME, default="100ms"
             ): cv.positive_time_period_milliseconds,
-            cv.Optional(CONF_PAGES): cv.All(
-                cv.ensure_list(
-                    cv.maybe_simple_value(
-                        {
-                            cv.GenerateID(CONF_ID): cv.use_id(display.DisplayPage),
-                        },
-                        key=CONF_ID,
-                    ),
-                ),
-                cv.Length(min=1),
-            ),
             cv.Optional(CONF_COLORS): cv.Schema(
                 {
                     cv.Optional(CONF_BACKGROUND): cv.use_id(ColorStruct),
@@ -114,7 +101,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_TEXT): cv.templatable(cv.string),
             cv.Optional(CONF_LAMBDA): cv.lambda_,
         }
-    ),
+    ).extend(DRAWABLE_SCHEMA),
     validate,
 )
 
@@ -133,14 +120,6 @@ def to_code(config):
             config[CONF_Y_MAX],
         )
     )
-    hub = yield cg.get_variable(config[CONF_TOUCH_GUI_ID])
-    cg.add(var.set_parent(hub))
-    if CONF_PAGES in config:
-        pages = []
-        for conf in config[CONF_PAGES]:
-            page = yield cg.get_variable(conf[CONF_ID])
-            pages.append(page)
-        cg.add(var.set_pages(pages))
     if CONF_COLORS in config:
         colors = config[CONF_COLORS]
         if CONF_BACKGROUND in colors:
@@ -178,4 +157,4 @@ def to_code(config):
         )
         cg.add(var.set_writer(lambda_))
 
-    cg.add(hub.register_button(var))
+    yield register_drawable(var, config)
