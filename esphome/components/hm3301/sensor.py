@@ -29,7 +29,7 @@ AQI_CALCULATION_TYPE = {
 }
 
 
-def validate(config):
+def _validate(config):
     if CONF_AQI in config and CONF_PM_2_5 not in config:
         raise cv.Invalid("AQI sensor requires PM 2.5")
     if CONF_AQI in config and CONF_PM_10_0 not in config:
@@ -72,7 +72,7 @@ CONFIG_SCHEMA = cv.All(
     )
     .extend(cv.polling_component_schema("60s"))
     .extend(i2c.i2c_device_schema(0x40)),
-    validate,
+    _validate,
 )
 
 
