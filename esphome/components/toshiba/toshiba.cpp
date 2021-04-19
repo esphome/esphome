@@ -56,10 +56,10 @@ const uint8_t TOSHIBA_FRAME_LENGTH_NO_DATA = 6;
 static const char* TAG = "toshiba.climate";
 
 static void log_frame(const uint8_t* frame) {
+  static constexpr char HEX_NUMBERS[] = "0123456789ABCDEF";
   uint8_t frame_length = TOSHIBA_FRAME_LENGTH_NO_DATA + frame[2];
   std::string frame_as_hex_string;
 
-  static constexpr char HEX_NUMBERS[] = "0123456789ABCDEF";
 
   /* Two digits per character */
   frame_as_hex_string.reserve(frame_length * 2);
