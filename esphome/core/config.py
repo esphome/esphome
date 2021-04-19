@@ -318,6 +318,7 @@ async def to_code(config):
     cg.add_build_flag("-Wno-unused-variable")
     cg.add_build_flag("-Wno-unused-but-set-variable")
     cg.add_build_flag("-Wno-sign-compare")
+    cg.add_build_flag("-Wstack-usage=512")
     if config.get(CONF_ESP8266_RESTORE_FROM_FLASH, False):
         cg.add_define("USE_ESP8266_PREFERENCES_FLASH")
 
