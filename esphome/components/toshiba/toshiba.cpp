@@ -45,8 +45,10 @@ const uint8_t TOSHIBA_POWER_SEL_75 = 0x04;
 const uint8_t TOSHIBA_POWER_SEL_50 = 0x08;
 
 const uint8_t TOSHIBA_MOTION_FIX = 0x00;
-const uint8_t TOSHIBA_MOTION_SWING = 0x01;
+const uint8_t TOSHIBA_MOTION_SWING_BOTH = 0x01;
 const uint8_t TOSHIBA_MOTION_SWING_OFF = 0x02;
+const uint8_t TOSHIBA_MOTION_SWING_VERTICAL = 0x03;
+const uint8_t TOSHIBA_MOTION_SWING_HORIZONTAL = 0x04;
 
 const uint8_t TOSHIBA_FRAME_MAX_LENGTH = 14;
 const uint8_t TOSHIBA_FRAME_LENGTH_NO_DATA = 6;
@@ -166,6 +168,14 @@ void ToshibaClimate::add_motion_command_data_(uint8_t* frame) {
   /* Swing mode */
   uint8_t swing_mode;
   switch (this->swing_mode) {
+    case climate::CLIMATE_SWING_BOTH:
+      swing_mode = TOSHIBA_MOTION_SWING_BOTH;
+      break;
+
+    case climate::CLIMATE_SWING_HORIZONTAL:
+      swing_mode = TOSHIBA_MOTION_SWING_HORIZONTAL;
+      break;
+
     case climate::CLIMATE_SWING_OFF:
       swing_mode = TOSHIBA_MOTION_SWING_OFF;
       break;
@@ -173,7 +183,7 @@ void ToshibaClimate::add_motion_command_data_(uint8_t* frame) {
     case climate::CLIMATE_SWING_VERTICAL:
     default:
       /* Note: Only vertical motion available for toshiba devices? */
-      swing_mode = TOSHIBA_MOTION_SWING;
+      swing_mode = TOSHIBA_MOTION_SWING_VERTICAL;
   }
   frame[5] = swing_mode;
 }
@@ -290,13 +300,22 @@ bool ToshibaClimate::on_receive(remote_base::RemoteReceiveData data) {
     return false;
   }
 
+  log_frame(frame);
+
   /* Command type */
   if (frame[4] == TOSHIBA_COMMAND_MOTION) {
     /* Get the swing mode  */
     switch (frame[5] & 0x0f) {
-      case TOSHIBA_MOTION_SWING:
-        /* Note: Only vertical motion available for toshiba devices? */
+      case TOSHIBA_MOTION_SWING_BOTH:
+        this->swing_mode = climate::CLIMATE_SWING_BOTH;
+        break;
+
+      case TOSHIBA_MOTION_SWING_VERTICAL:
         this->swing_mode = climate::CLIMATE_SWING_VERTICAL;
+        break;
+
+      case TOSHIBA_MOTION_SWING_HORIZONTAL:
+        this->swing_mode = climate::CLIMATE_SWING_HORIZONTAL;
         break;
 
       /* Set swing to off on TOSHIBA_MOTION_FIX */
@@ -370,7 +389,6 @@ bool ToshibaClimate::on_receive(remote_base::RemoteReceiveData data) {
     this->target_temperature = (frame[5] >> 4) + TOSHIBA_TEMP_MIN;
   }
 
-  log_frame(frame);
   this->publish_state();
 
   return true;
