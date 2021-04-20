@@ -411,10 +411,29 @@ class ProgmemAssignmentExpression(AssignmentExpression):
         return f"static const {self.type} {self.name}[] PROGMEM = {self.rhs}"
 
 
+class StaticConstAssignmentExpression(AssignmentExpression):
+    __slots__ = ()
+
+    def __init__(self, type_, name, rhs, obj):
+        super().__init__(type_, "", name, rhs, obj)
+
+    def __str__(self):
+        return f"static const {self.type} {self.name}[] = {self.rhs}"
+
+
 def progmem_array(id_, rhs) -> "MockObj":
     rhs = safe_exp(rhs)
     obj = MockObj(id_, ".")
     assignment = ProgmemAssignmentExpression(id_.type, id_, rhs, obj)
+    CORE.add(assignment)
+    CORE.register_variable(id_, obj)
+    return obj
+
+
+def static_const_array(id_, rhs) -> "MockObj":
+    rhs = safe_exp(rhs)
+    obj = MockObj(id_, ".")
+    assignment = StaticConstAssignmentExpression(id_.type, id_, rhs, obj)
     CORE.add(assignment)
     CORE.register_variable(id_, obj)
     return obj
