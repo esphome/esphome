@@ -282,6 +282,29 @@ void Nextion::loop() {
   }
 }
 
+bool Nextion::remove_from_q_(bool report_empty) {
+  if (this->nextion_queue_.empty()) {
+    if (report_empty)
+      ESP_LOGE(TAG, "Nextion queue is empty!");
+    return false;
+  }
+
+  NextionQueue *nb = this->nextion_queue_.front();
+  NextionComponentBase *component = nb->component;
+
+  ESP_LOGN(TAG, "Removing %s from the queue", component->get_variable_name().c_str());
+
+  if (component->get_queue_type() == NextionQueueType::NO_RESULT) {
+    if (component->get_variable_name() == "sleep_wake") {
+      this->is_sleeping_ = false;
+    }
+    delete component;
+  }
+  delete nb;
+  this->nextion_queue_.pop_front();
+  return true;
+}
+
 void Nextion::process_serial_() {
   uint8_t d;
 
@@ -319,88 +342,42 @@ void Nextion::process_nextion_commands_() {
     to_process_length -= 1;
     to_process = this->command_data_.substr(1, to_process_length);
     // ESP_LOGN(TAG, "nextion_event_ 0x%2X to_process size %s", this->nextion_event_, to_process.c_str());
+
     switch (this->nextion_event_) {
       case 0x00:  // instruction sent by user has failed
         ESP_LOGW(TAG, "Nextion reported invalid instruction!");
-        if (!this->nextion_queue_.empty()) {
-          NextionQueue *nb = this->nextion_queue_.front();
-          NextionComponentBase *component = nb->component;
+        this->remove_from_q_();
 
-          ESP_LOGN(TAG, "Removing %s from the queue", component->get_variable_name().c_str());
-
-          if (component->get_queue_type() == NextionQueueType::NO_RESULT) {
-            if (component->get_variable_name() == "sleep_wake") {
-              this->is_sleeping_ = false;
-            }
-            delete component;
-          }
-          delete nb;
-          this->nextion_queue_.pop_front();
-        }
         break;
       case 0x01:  // instruction sent by user was successful
 
         ESP_LOGVV(TAG, "instruction sent by user was successful");
         ESP_LOGN(TAG, "this->nextion_queue_.empty() %s", this->nextion_queue_.empty() ? "True" : "False");
 
-        if (!this->nextion_queue_.empty() &&
-            this->nextion_queue_.front()->component->get_queue_type() == NextionQueueType::NO_RESULT) {
-          NextionQueue *nb = this->nextion_queue_.front();
-          NextionComponentBase *component = nb->component;
-
-          ESP_LOGN(TAG, "Removing %s from the queue", component->get_variable_name().c_str());
-
-          if (component->get_queue_type() == NextionQueueType::NO_RESULT) {
-            if (component->get_variable_name() == "sleep_wake") {
-              this->is_sleeping_ = false;
-            }
-            delete component;
-          }
-          delete nb;
-          this->nextion_queue_.pop_front();
-
-          if (!this->is_setup_) {
-            if (this->nextion_queue_.empty()) {
-              ESP_LOGD(TAG, "Nextion is setup");
-              this->is_setup_ = true;
-              this->setup_callback_.call();
-            }
+        this->remove_from_q_();
+        if (!this->is_setup_) {
+          if (this->nextion_queue_.empty()) {
+            ESP_LOGD(TAG, "Nextion is setup");
+            this->is_setup_ = true;
+            this->setup_callback_.call();
           }
         }
 
         break;
       case 0x02:  // invalid Component ID or name was used
-
-        if (!this->nextion_queue_.empty()) {
-          NextionQueue *nb = this->nextion_queue_.front();
-          NextionComponentBase *component = nb->component;
-
-          ESP_LOGN(TAG, "Removing %s from the queue", component->get_variable_name().c_str());
-
-          ESP_LOGW(TAG, "Nextion reported component ID \"%s\" invalid!", component->get_variable_name().c_str());
-
-          if (component->get_queue_type() == NextionQueueType::NO_RESULT) {
-            if (component->get_variable_name() == "sleep_wake") {
-              this->is_sleeping_ = false;
-            }
-            delete component;
-          }
-          delete nb;
-          this->nextion_queue_.pop_front();
-
-        } else {
-          ESP_LOGE(TAG, "Nextion reported component ID invalid but queue is empty!");
-        }
-
+        this->remove_from_q_();
         break;
       case 0x03:  // invalid Page ID or name was used
         ESP_LOGW(TAG, "Nextion reported page ID invalid!");
+        this->remove_from_q_();
         break;
       case 0x04:  // invalid Picture ID was used
         ESP_LOGW(TAG, "Nextion reported picture ID invalid!");
+        this->remove_from_q_();
         break;
       case 0x05:  // invalid Font ID was used
         ESP_LOGW(TAG, "Nextion reported font ID invalid!");
+        this->remove_from_q_();
         break;
       case 0x06:  // File operation fails
         ESP_LOGW(TAG, "Nextion File operation fail!");
@@ -416,8 +393,8 @@ void Nextion::process_nextion_commands_() {
         if (!this->nextion_queue_.empty()) {
           int index = 0;
           int found = -1;
-          for (auto &i : this->nextion_queue_) {
-            NextionComponentBase *component = i->component;
+          for (auto &nb : this->nextion_queue_) {
+            NextionComponentBase *component = nb->component;
 
             if (component->get_queue_type() == NextionQueueType::WAVEFORM_SENSOR) {
               ESP_LOGW(TAG, "Nextion reported invalid Waveform ID %d or Channel # %d was used!",
@@ -427,6 +404,10 @@ void Nextion::process_nextion_commands_() {
                        component->get_component_id(), component->get_wave_channel_id());
 
               found = index;
+
+              delete component;
+              delete nb;
+
               break;
             }
             ++index;
@@ -442,65 +423,34 @@ void Nextion::process_nextion_commands_() {
         }
         break;
       case 0x1A:  // variable name invalid
-
-        if (!this->nextion_queue_.empty()) {
-          NextionQueue *nb = this->nextion_queue_.front();
-          NextionComponentBase *component = nb->component;
-
-          ESP_LOGN(TAG, "Removing %s from the queue", component->get_variable_name().c_str());
-
-          ESP_LOGW(TAG, "Nextion reported variable name \"%s\" invalid!", component->get_variable_name().c_str());
-
-          if (component->get_queue_type() == NextionQueueType::NO_RESULT) {
-            if (component->get_variable_name() == "sleep_wake") {
-              this->is_sleeping_ = false;
-            }
-            delete component;
-          }
-          delete nb;
-          this->nextion_queue_.pop_front();
-
-        } else {
-          ESP_LOGE(TAG, "Nextion reported variable name invalid but queue is empty!");
-        }
+        this->remove_from_q_();
 
         break;
       case 0x1B:  // variable operation invalid
         ESP_LOGW(TAG, "Nextion reported variable operation invalid!");
+        this->remove_from_q_();
         break;
       case 0x1C:  // failed to assign
         ESP_LOGW(TAG, "Nextion reported failed to assign variable!");
+        this->remove_from_q_();
         break;
       case 0x1D:  // operate EEPROM failed
         ESP_LOGW(TAG, "Nextion reported operating EEPROM failed!");
         break;
       case 0x1E:  // parameter quantity invalid
         ESP_LOGW(TAG, "Nextion reported parameter quantity invalid!");
+        this->remove_from_q_();
         break;
       case 0x1F:  // IO operation failed
         ESP_LOGW(TAG, "Nextion reported component I/O operation invalid!");
         break;
       case 0x20:  // undefined escape characters
         ESP_LOGW(TAG, "Nextion reported undefined escape characters!");
+        this->remove_from_q_();
         break;
       case 0x23:  // too long variable name
         ESP_LOGW(TAG, "Nextion reported too long variable name!");
-
-        if (!this->nextion_queue_.empty()) {
-          NextionQueue *nb = this->nextion_queue_.front();
-          NextionComponentBase *component = nb->component;
-
-          ESP_LOGN(TAG, "Removing %s from the queue", component->get_variable_name().c_str());
-
-          if (component->get_queue_type() == NextionQueueType::NO_RESULT) {
-            if (component->get_variable_name() == "sleep_wake") {
-              this->is_sleeping_ = false;
-            }
-            delete component;
-          }
-          delete nb;
-          this->nextion_queue_.pop_front();
-        }
+        this->remove_from_q_();
 
         break;
       case 0x24:  //  Serial Buffer overflow occurs
@@ -557,17 +507,14 @@ void Nextion::process_nextion_commands_() {
         NextionQueue *nb = this->nextion_queue_.front();
         NextionComponentBase *component = nb->component;
 
-        ESP_LOGN(TAG, "Received get_string response: \"%s\" for component id: %s, type: %s", to_process.c_str(),
-                 component->get_variable_name().c_str(), component->get_queue_type_string().c_str());
-
         if (component->get_queue_type() != NextionQueueType::TEXT_SENSOR) {
           ESP_LOGE(TAG, "ERROR: Received string return but next in queue \"%s\" is not a text sensor",
                    component->get_variable_name().c_str());
-          // this->reset_();
-          break;
+        } else {
+          ESP_LOGN(TAG, "Received get_string response: \"%s\" for component id: %s, type: %s", to_process.c_str(),
+                   component->get_variable_name().c_str(), component->get_queue_type_string().c_str());
+          component->set_state_from_string(to_process, true, false);
         }
-
-        component->set_state_from_string(to_process, true, false);
 
         delete nb;
         this->nextion_queue_.pop_front();
@@ -603,20 +550,19 @@ void Nextion::process_nextion_commands_() {
         NextionQueue *nb = this->nextion_queue_.front();
         NextionComponentBase *component = nb->component;
 
-        ESP_LOGN(TAG, "Received numeric return for variable %s, queue type %d:%s, value %d",
-                 component->get_variable_name().c_str(), component->get_queue_type(),
-                 component->get_queue_type_string().c_str(), value);
-
         if (component->get_queue_type() != NextionQueueType::SENSOR &&
             component->get_queue_type() != NextionQueueType::BINARY_SENSOR &&
             component->get_queue_type() != NextionQueueType::SWITCH) {
           ESP_LOGE(TAG, "ERROR: Received numeric return but next in queue \"%s\" is not a valid sensor type %d",
                    component->get_variable_name().c_str(), component->get_queue_type());
-          // this->reset_();
           break;
+        } else {
+          ESP_LOGN(TAG, "Received numeric return for variable %s, queue type %d:%s, value %d",
+                   component->get_variable_name().c_str(), component->get_queue_type(),
+                   component->get_queue_type_string().c_str(), value);
+          component->set_state_from_int(value, true, false);
         }
 
-        component->set_state_from_int(value, true, false);
         delete nb;
         this->nextion_queue_.pop_front();
 
@@ -625,16 +571,15 @@ void Nextion::process_nextion_commands_() {
 
       case 0x86: {  // device automatically enters into sleep mode
         ESP_LOGVV(TAG, "Received Nextion entering sleep automatically");
-        this->sleep_callback_.call();
         this->is_sleeping_ = true;
-        // this->reset_(false);  // Good time to clean things up. todo: maybe just clean up non-sleep ok commands
+        this->sleep_callback_.call();
         break;
       }
       case 0x87:  // device automatically wakes up
       {
         ESP_LOGVV(TAG, "Received Nextion leaves sleep automatically");
-        this->wake_callback_.call();
         this->is_sleeping_ = false;
+        this->wake_callback_.call();
         break;
       }
       case 0x88:  // system successful start up
@@ -668,11 +613,6 @@ void Nextion::process_nextion_commands_() {
         ++index;
 
         ESP_LOGN(TAG, "Got Switch variable_name=%s value=%d", variable_name.c_str(), to_process[0] != 0);
-
-        // NextionBinarySensorResponseQueue *nq = new NextionBinarySensorResponseQueue;
-        // nq->variable_name = variable_name;
-        // nq->state = to_process[index] != 0;
-        // this->binarysensorq_.push_back(nq);
 
         for (auto *switchtype : this->switchtype_) {
           switchtype->process_bool(variable_name, to_process[index] != 0);
@@ -792,8 +732,8 @@ void Nextion::process_nextion_commands_() {
 
         int index = 0;
         int found = -1;
-        for (auto &i : this->nextion_queue_) {
-          auto component = i->component;
+        for (auto &nb : this->nextion_queue_) {
+          auto component = nb->component;
           if (component->get_queue_type() == NextionQueueType::WAVEFORM_SENSOR) {
             size_t buffer_to_send = component->get_wave_buffer().size() < 255 ? component->get_wave_buffer().size()
                                                                               : 255;  // ADDT command can only send 255
@@ -804,12 +744,14 @@ void Nextion::process_nextion_commands_() {
                      component->get_component_id(), component->get_wave_channel_id(), buffer_to_send);
 
             if (component->get_wave_buffer().size() <= 255) {
-              component->get_wave_buffer().clear();  // faster than the below
+              component->get_wave_buffer().clear();
             } else {
               component->get_wave_buffer().erase(component->get_wave_buffer().begin(),
                                                  component->get_wave_buffer().begin() + buffer_to_send);
             }
             found = index;
+            delete component;
+            delete nb;
             break;
           }
           ++index;
@@ -852,6 +794,9 @@ void Nextion::process_nextion_commands_() {
                  component->get_variable_name().c_str());
 
         if (component->get_queue_type() == NextionQueueType::NO_RESULT) {
+          if (component->get_variable_name() == "sleep_wake") {
+            this->is_sleeping_ = false;
+          }
           delete component;
         }
 
@@ -867,7 +812,7 @@ void Nextion::process_nextion_commands_() {
   ESP_LOGN(TAG, "Loop End");
   App.feed_wdt();
   this->process_serial_();
-}
+}  // namespace nextion
 
 void Nextion::set_nextion_sensor_state(int queue_type, const std::string &name, float state) {
   this->set_nextion_sensor_state(static_cast<NextionQueueType>(queue_type), name, state);

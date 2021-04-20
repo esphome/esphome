@@ -732,6 +732,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   uint16_t recv_ret_string_(std::string &response, uint32_t timeout, bool recv_flag);
   void all_components_send_state_(bool force_update = false);
   long comok_sent_ = 0;
+  bool remove_from_q_(bool report_empty = true);
   /**
    * @brief
    * Sends commands ignoring of the Nextion has been setup.
