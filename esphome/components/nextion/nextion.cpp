@@ -555,7 +555,6 @@ void Nextion::process_nextion_commands_() {
             component->get_queue_type() != NextionQueueType::SWITCH) {
           ESP_LOGE(TAG, "ERROR: Received numeric return but next in queue \"%s\" is not a valid sensor type %d",
                    component->get_variable_name().c_str(), component->get_queue_type());
-          break;
         } else {
           ESP_LOGN(TAG, "Received numeric return for variable %s, queue type %d:%s, value %d",
                    component->get_variable_name().c_str(), component->get_queue_type(),
@@ -646,15 +645,12 @@ void Nextion::process_nextion_commands_() {
 
         ESP_LOGN(TAG, "Got sensor variable_name=%s value=%d", variable_name.c_str(), value);
 
-        // NextionSensorResponseQueue *nq = new NextionSensorResponseQueue;
-        // nq->variable_name = variable_name;
-        // nq->state = value;
-        // this->sensorq_.push_back(nq);
         for (auto *sensor : this->sensortype_) {
           sensor->process_sensor(variable_name, value);
         }
         break;
       }
+
       // Data from nextion is
       // 0x92 - Start
       // variable length of 0x70 return formatted data (bytes) that contain the variable name: prints "temp1",0
@@ -802,7 +798,7 @@ void Nextion::process_nextion_commands_() {
 
         delete this->nextion_queue_[i];
 
-        this->nextion_queue_.pop_front();
+        this->nextion_queue_.erase(this->nextion_queue_.begin() + i);
 
       } else {
         break;
@@ -849,7 +845,9 @@ void Nextion::set_nextion_sensor_state(NextionQueueType queue_type, const std::s
       }
       break;
     }
-    default: { ESP_LOGW(TAG, "set_nextion_sensor_state does not support a queue type %d", queue_type); }
+    default: {
+      ESP_LOGW(TAG, "set_nextion_sensor_state does not support a queue type %d", queue_type);
+    }
   }
 }
 
