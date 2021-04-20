@@ -491,7 +491,7 @@ class EsphomeCore:
         self.verbose = False
         # Regexps to search for stack usage reduction workaround
         self.stack_reduction_re = re.compile(
-            r"(= new display::Font)|(\([a-zA-Z_\d ]*\{[a-zA-Z_\d, {}]*\)\;)|(\[\=\]\()"
+            r"(\([a-zA-Z_\d ]*\{[a-zA-Z_\d, {}]*\)\;)|(\[\=\]\()"
         )
         self.stack_reduction_not_re = re.compile(r"^\s*[a-zA-Z_:\d]+ [a-zA-Z_:\d]+ =")
 
