@@ -13,13 +13,9 @@ UARTMulti = uart_multi_ns.class_("UARTMulti", uart.UARTDevice, cg.Component)
 UARTMultiDevice = uart_multi_ns.class_("UARTMultiDevice")
 MULTI_CONF = True
 
-CONF_UARTMULTI_ID = "uart_multi_id"
+CONF_UART_MULTI_ID = "uart_multi_id"
 CONFIG_SCHEMA = (
-    cv.Schema(
-        {
-            cv.GenerateID(): cv.declare_id(UARTMulti)
-        }
-    )
+    cv.Schema({cv.GenerateID(): cv.declare_id(UARTMulti)})
     .extend(cv.COMPONENT_SCHEMA)
     .extend(uart.UART_DEVICE_SCHEMA)
 )
@@ -36,13 +32,13 @@ def to_code(config):
 # A schema to use for all UARTMulti devices, all UARTMulti integrations must extend this!
 UART_MULTI_DEVICE_SCHEMA = cv.Schema(
     {
-        cv.GenerateID(CONF_UARTMULTI_ID): cv.use_id(UARTMulti),
+        cv.GenerateID(CONF_UART_MULTI_ID): cv.use_id(UARTMulti),
     }
 )
 
 
 @coroutine
 def register_uart_multi_device(var, config):
-    parent = yield cg.get_variable(config[CONF_UARTMULTI_ID])
+    parent = yield cg.get_variable(config[CONF_UART_MULTI_ID])
     cg.add(var.set_parent(parent))
     cg.add(parent.register_device(var))
