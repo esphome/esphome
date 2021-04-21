@@ -1353,10 +1353,10 @@ def typed_schema(schemas, **kwargs):
     def validator(value):
         if not isinstance(value, dict):
             raise Invalid("Value must be dict")
+        value = value.copy()
         schema_option = value.pop(key, default_schema_option)
         if schema_option is None:
             raise Invalid(key + " not specified!")
-        value = value.copy()
         key_v = key_validator(schema_option)
         value = schemas[key_v](value)
         value[key] = key_v
