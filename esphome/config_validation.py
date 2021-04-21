@@ -1347,7 +1347,7 @@ def extract_keys(schema):
 def typed_schema(schemas, **kwargs):
     """Create a schema that has a key to distinguish between schemas"""
     key = kwargs.pop("key", CONF_TYPE)
-    default_schema_option = kwargs.pop("default", None)
+    default_schema_option = kwargs.pop("default_type", None)
     key_validator = one_of(*schemas, **kwargs)
 
     def validator(value):
