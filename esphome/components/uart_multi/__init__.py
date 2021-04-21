@@ -8,16 +8,16 @@ CODEOWNERS = ["@loongyh"]
 
 DEPENDENCIES = ["uart"]
 
-rs485_ns = cg.esphome_ns.namespace("rs485")
-RS485 = rs485_ns.class_("RS485", cg.Component, uart.UARTDevice)
-RS485Device = rs485_ns.class_("RS485Device")
+uart_multi_ns = cg.esphome_ns.namespace("uart_multi")
+UARTMulti = uart_multi_ns.class_("UARTMulti", uart.UARTDevice, cg.Component)
+UARTMultiDevice = uart_multi_ns.class_("UARTMultiDevice")
 MULTI_CONF = True
 
-CONF_RS485_ID = "rs485_id"
+CONF_UARTMULTI_ID = "uart_multi_id"
 CONFIG_SCHEMA = (
     cv.Schema(
         {
-            cv.GenerateID(): cv.declare_id(RS485),
+            cv.GenerateID(): cv.declare_id(UARTMulti)
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
@@ -26,22 +26,23 @@ CONFIG_SCHEMA = (
 
 
 def to_code(config):
-    cg.add_global(rs485_ns.using)
+    cg.add_global(uart_multi_ns.using)
     var = cg.new_Pvariable(config[CONF_ID])
     yield cg.register_component(var, config)
 
     yield uart.register_uart_device(var, config)
 
 
-RS485_DEVICE_SCHEMA = cv.Schema(
+# A schema to use for all UARTMulti devices, all UARTMulti integrations must extend this!
+UART_MULTI_DEVICE_SCHEMA = cv.Schema(
     {
-        cv.GenerateID(CONF_RS485_ID): cv.use_id(RS485),
+        cv.GenerateID(CONF_UARTMULTI_ID): cv.use_id(UARTMulti),
     }
 )
 
 
 @coroutine
-def register_rs485_device(var, config):
-    parent = yield cg.get_variable(config[CONF_RS485_ID])
+def register_uart_multi_device(var, config):
+    parent = yield cg.get_variable(config[CONF_UARTMULTI_ID])
     cg.add(var.set_parent(parent))
     cg.add(parent.register_device(var))

@@ -51,89 +51,129 @@ void Dooya::control(const CoverCall &call) {
   }
 }
 
-void Dooya::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up Dooya...");
-  if (this->header_.empty()) {
-    this->header_ = {(uint8_t *) &START_CODE, (uint8_t *) &DEF_ADDR, (uint8_t *) &DEF_ADDR};
-  }
-}
-
 void Dooya::update() {
   uint8_t data[3] = {READ, this->current_request_, 0x01};
   this->send_command_(data, 3);
 }
 
-void Dooya::on_rs485_data(const std::vector<uint8_t> &data) {
-  std::vector<uint8_t> frame(data.begin(), data.end() - 2);
-  uint16_t crc = crc16(&frame[0], frame.size());
-  if (((crc & 0xFF) == data.end()[-2]) && ((crc >> 8) == data.end()[-1])) {
-    switch (data[3]) {
-      case CONTROL:
-        switch (data[4]) {
-          case STOP:
-            this->current_operation = COVER_OPERATION_IDLE;
-            break;
-          case OPEN:
-            this->current_operation = COVER_OPERATION_OPENING;
-            break;
-          case CLOSE:
-            this->current_operation = COVER_OPERATION_CLOSING;
-            break;
-          case SET_POSITION:
-            if (data[5] > (uint8_t)(this->position * 100))
-              this->current_operation = COVER_OPERATION_OPENING;
-            else
-              this->current_operation = COVER_OPERATION_CLOSING;
-            break;
-          default:
-            ESP_LOGE(TAG, "Invalid control operation received");
-            return;
+void Dooya::on_uart_multi_byte(uint8_t byte) {
+  size_t at = this->rx_buffer_.size();
+  switch (at) {
+    case 0:
+      if (byte == START_CODE)
+        this->rx_buffer_.push_back(byte);
+      break;
+    case 1:
+      if (byte == this->address_[0])
+        this->rx_buffer_.push_back(byte);
+      else
+        this->rx_buffer_.clear();
+      break;
+    case 2:
+      if (byte == this->address_[1])
+        this->rx_buffer_.push_back(byte);
+      else
+        this->rx_buffer_.clear();
+      break;
+    case 3:
+      if (byte == CONTROL || byte == READ)
+        this->rx_buffer_.push_back(byte);
+      else
+        this->rx_buffer_.clear();
+      break;
+    case 6:
+      this->rx_buffer_.push_back(byte);
+      if (this->rx_buffer_[3] == CONTROL)
+        if (this->rx_buffer_[4] != SET_POSITION) {
+          this->process_response_();
+          this->rx_buffer_.clear();
         }
-        break;
-      case READ:
-        switch (this->current_request_) {
-          case GET_POSITION:
-            this->position = clamp((float) data[5] / 100, 0.0f, 1.0f);
-            this->current_request_ = GET_STATUS;
-            break;
-          case GET_STATUS:
-            switch (data[5]) {
-              case 0:
-                this->current_operation = COVER_OPERATION_IDLE;
-                break;
-              case 1:
-                this->current_operation = COVER_OPERATION_OPENING;
-                break;
-              case 2:
-                this->current_operation = COVER_OPERATION_CLOSING;
-                break;
-              default:
-                ESP_LOGE(TAG, "Invalid status operation received");
-                return;
-            }
-            this->current_request_ = GET_POSITION;
-            break;
-          default:
-            ESP_LOGE(TAG, "Invalid read operation received");
-            return;
-        }
-        break;
-      default:
-        ESP_LOGE(TAG, "Invalid data type received");
-        return;
-    }
-    if (this->current_operation != this->last_published_op_ || this->position != this->last_published_pos_) {
-      this->publish_state(false);
-      this->last_published_op_ = this->current_operation;
-      this->last_published_pos_ = this->position;
-    }
-  } else {
-    ESP_LOGE(TAG, "Incoming data CRC check failed");
+      break;
+    case 7:
+      this->rx_buffer_.push_back(byte);
+      if (this->rx_buffer_[3] == CONTROL)
+        this->process_response_();
+      else
+        this->process_status_();
+      this->rx_buffer_.clear();
+      break;
+    default:
+      this->rx_buffer_.push_back(byte);
   }
 }
 
+void Dooya::process_response_() {
+  std::vector<uint8_t> frame(this->rx_buffer_.begin(), this->rx_buffer_.end() - 2);
+  uint16_t crc = crc16(&frame[0], frame.size());
+  if (((crc & 0xFF) == this->rx_buffer_.end()[-2]) && ((crc >> 8) == this->rx_buffer_.end()[-1])) {
+    switch (this->rx_buffer_[4]) {
+      case STOP:
+        this->current_operation = COVER_OPERATION_IDLE;
+        break;
+      case OPEN:
+        this->current_operation = COVER_OPERATION_OPENING;
+        break;
+      case CLOSE:
+        this->current_operation = COVER_OPERATION_CLOSING;
+        break;
+      case SET_POSITION:
+        if (this->rx_buffer_[5] > (uint8_t)(this->position * 100))
+          this->current_operation = COVER_OPERATION_OPENING;
+        else
+          this->current_operation = COVER_OPERATION_CLOSING;
+        break;
+      default:
+        ESP_LOGE(TAG, "Invalid control operation received");
+        return;
+    }
+    this->publish_state(false);
+  } else
+    ESP_LOGE(TAG, "Incoming data CRC check failed");
+}
+
+void Dooya::process_status_() {
+  std::vector<uint8_t> frame(this->rx_buffer_.begin(), this->rx_buffer_.end() - 2);
+  uint16_t crc = crc16(&frame[0], frame.size());
+  if (((crc & 0xFF) == this->rx_buffer_.end()[-2]) && ((crc >> 8) == this->rx_buffer_.end()[-1])) {
+    if (this->current_request_ == GET_POSITION) {
+      float pos = clamp((float) this->rx_buffer_[5] / 100, 0.0f, 1.0f);
+      if (this->position != pos) {
+        this->position = pos;
+        this->publish_state(false);
+      }
+      this->current_request_ = GET_STATUS;
+    } else {
+      switch (this->rx_buffer_[5]) {
+        case 0:
+          if (this->current_operation != COVER_OPERATION_IDLE) {
+            this->current_operation = COVER_OPERATION_IDLE;
+            this->publish_state(false);
+          }
+          break;
+        case 1:
+          if (this->current_operation != COVER_OPERATION_OPENING) {
+            this->current_operation = COVER_OPERATION_OPENING;
+            this->publish_state(false);
+          }
+          break;
+        case 2:
+          if (this->current_operation != COVER_OPERATION_CLOSING) {
+            this->current_operation = COVER_OPERATION_CLOSING;
+            this->publish_state(false);
+          }
+          break;
+        default:
+          ESP_LOGE(TAG, "Invalid status operation received");
+          return;
+      }
+      this->current_request_ = GET_POSITION;
+    }
+  } else
+    ESP_LOGE(TAG, "Incoming data CRC check failed");
+}
+
 void Dooya::send_command_(const uint8_t *data, uint8_t len) {
-  std::vector<uint8_t> frame = {START_CODE, *this->header_[1], *this->header_[2]};
+  std::vector<uint8_t> frame = {START_CODE, this->address_[0], this->address_[1]};
   for (size_t i = 0; i < len; i++) {
     frame.push_back(data[i]);
   }
@@ -146,7 +186,7 @@ void Dooya::send_command_(const uint8_t *data, uint8_t len) {
 
 void Dooya::dump_config() {
   ESP_LOGCONFIG(TAG, "Dooya:");
-  ESP_LOGCONFIG(TAG, "  Address: 0x%02X%02X", *this->header_[1], *this->header_[2]);
+  ESP_LOGCONFIG(TAG, "  Address: 0x%02X%02X", this->address_[0], this->address_[1]);
 }
 
 }  // namespace dooya

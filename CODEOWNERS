@@ -76,7 +76,6 @@ esphome/components/rc522_i2c/* @glmnet
 esphome/components/rc522_spi/* @glmnet
 esphome/components/restart/* @esphome/core
 esphome/components/rf_bridge/* @jesserockz
-esphome/components/rs485/* @loongyh
 esphome/components/rtttl/* @glmnet
 esphome/components/script/* @esphome/core
 esphome/components/sensor/* @esphome/core
@@ -111,6 +110,7 @@ esphome/components/tuya/climate/* @jesserockz
 esphome/components/tuya/sensor/* @jesserockz
 esphome/components/tuya/switch/* @jesserockz
 esphome/components/uart/* @esphome/core
+esphome/components/uart_multi/* @loongyh
 esphome/components/ultrasonic/* @OttoWinter
 esphome/components/version/* @esphome/core
 esphome/components/web_server_base/* @OttoWinter
