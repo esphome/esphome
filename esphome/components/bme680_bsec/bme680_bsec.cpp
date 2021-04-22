@@ -28,7 +28,6 @@ void BME680BSECComponent::setup() {
   this->bme680_.write = BME680BSECComponent::write_bytes_wrapper;
   this->bme680_.delay_ms = BME680BSECComponent::delay_ms;
   this->bme680_.amb_temp = 25;
-  this->bme680_.power_mode = BME680_FORCED_MODE;
 
   this->bme680_status_ = bme680_init(&this->bme680_);
   if (this->bme680_status_ != BME680_OK) {
@@ -188,28 +187,28 @@ void BME680BSECComponent::run_() {
   }
   this->next_call_ns_ = bme680_settings.next_call;
 
-  if (!bme680_settings.trigger_measurement) {
+  if (bme680_settings.trigger_measurement) {
+    this->bme680_.gas_sett.run_gas = bme680_settings.run_gas;
+    this->bme680_.tph_sett.os_hum = bme680_settings.humidity_oversampling;
+    this->bme680_.tph_sett.os_temp = bme680_settings.temperature_oversampling;
+    this->bme680_.tph_sett.os_pres = bme680_settings.pressure_oversampling;
+    this->bme680_.gas_sett.heatr_temp = bme680_settings.heater_temperature;
+    this->bme680_.gas_sett.heatr_dur = bme680_settings.heating_duration;
+    this->bme680_.power_mode = BME680_FORCED_MODE;
+    uint16_t desired_settings = BME680_OST_SEL | BME680_OSP_SEL | BME680_OSH_SEL | BME680_GAS_SENSOR_SEL;
+    this->bme680_status_ = bme680_set_sensor_settings(desired_settings, &this->bme680_);
+    if (this->bme680_status_ != BME680_OK) {
+      ESP_LOGW(TAG, "Failed to set sensor settings (BME680 Error Code %d)", this->bme680_status_);
+      return;
+    }
+
+    this->bme680_status_ = bme680_set_sensor_mode(&this->bme680_);
+    if (this->bme680_status_ != BME680_OK) {
+      ESP_LOGW(TAG, "Failed to set sensor mode (BME680 Error Code %d)", this->bme680_status_);
+      return;
+    }
+  } else {
     ESP_LOGV(TAG, "Measurement not required");
-    return;
-  }
-
-  this->bme680_.gas_sett.run_gas = bme680_settings.run_gas;
-  this->bme680_.tph_sett.os_hum = bme680_settings.humidity_oversampling;
-  this->bme680_.tph_sett.os_temp = bme680_settings.temperature_oversampling;
-  this->bme680_.tph_sett.os_pres = bme680_settings.pressure_oversampling;
-  this->bme680_.gas_sett.heatr_temp = bme680_settings.heater_temperature;
-  this->bme680_.gas_sett.heatr_dur = bme680_settings.heating_duration;
-  uint16_t desired_settings = BME680_OST_SEL | BME680_OSP_SEL | BME680_OSH_SEL | BME680_GAS_SENSOR_SEL;
-  this->bme680_status_ = bme680_set_sensor_settings(desired_settings, &this->bme680_);
-  if (this->bme680_status_ != BME680_OK) {
-    ESP_LOGW(TAG, "Failed to set sensor settings (BME680 Error Code %d)", this->bme680_status_);
-    return;
-  }
-
-  this->bme680_status_ = bme680_set_sensor_mode(&this->bme680_);
-  if (this->bme680_status_ != BME680_OK) {
-    ESP_LOGW(TAG, "Failed to set sensor mode (BME680 Error Code %d)", this->bme680_status_);
-    return;
   }
 
   uint16_t meas_dur = 0;
@@ -221,6 +220,21 @@ void BME680BSECComponent::run_() {
 
 void BME680BSECComponent::read_(int64_t trigger_time_ns, bsec_bme_settings_t bme680_settings) {
   ESP_LOGV(TAG, "Reading data");
+
+  if (bme680_settings.trigger_measurement) {
+    while (this->bme680_.power_mode != BME680_SLEEP_MODE) {
+      this->bme680_status_ = bme680_get_sensor_mode(&this->bme680_);
+      if (this->bme680_status_ != BME680_OK) {
+        ESP_LOGW(TAG, "Failed to get sensor mode (BME680 Error Code %d)", this->bme680_status_);
+      }
+    }
+  }
+
+  if (!bme680_settings.process_data) {
+    ESP_LOGV(TAG, "Data processing not required");
+    return;
+  }
+
   struct bme680_field_data data;
   this->bme680_status_ = bme680_get_sensor_data(&data, &this->bme680_);
 
