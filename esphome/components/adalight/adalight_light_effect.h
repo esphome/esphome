@@ -16,7 +16,7 @@ class AdalightLightEffect : public light::AddressableLightEffect, public uart::U
  public:
   void start() override;
   void stop() override;
-  void apply(light::AddressableLight &it, const light::ESPColor &current_color) override;
+  void apply(light::AddressableLight &it, const Color &current_color) override;
 
  protected:
   enum Frame {
