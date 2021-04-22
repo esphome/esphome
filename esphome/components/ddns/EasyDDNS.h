@@ -20,7 +20,7 @@ Written in 2017 by Ayush Sharma. Licensed under MIT.
   #include "HTTPClient.h"
 #endif
 namespace esphome {
-namespace ddns{
+namespace ddns {
 // Handler to notify user about new public IP
 typedef std::function<void(const char* old_ip, const char* new_ip)> DDNSUpdateHandler;
 
@@ -31,15 +31,15 @@ public:
   void update(unsigned long ddns_update_interval, bool use_local_ip = false);
 
   // Callback
-  void onUpdate(DDNSUpdateHandler handler) {
-    _ddnsUpdateFunc = handler;
+  void on_update(DDNSUpdateHandler handler) {
+    this->ddns_update_func_ = handler;
   }
 
 protected:
-  DDNSUpdateHandler _ddnsUpdateFunc = nullptr;
+  DDNSUpdateHandler ddns_update_func_ = nullptr;
 
-  unsigned long interval;
-  unsigned long previousMillis;
+  unsigned long interval_;
+  unsigned long previous_millis_;
 
   String new_ip_;
   String old_ip_;

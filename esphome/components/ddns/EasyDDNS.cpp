@@ -8,7 +8,7 @@
 #include "EasyDDNS.h"
 
 namespace esphome {
-namespace ddns{
+namespace ddns {
 void EasyDDNSClass::service(String ddns_service) {
   this->ddns_choice_ = ddns_service;
 }
@@ -21,25 +21,25 @@ void EasyDDNSClass::client(String ddns_domain, String ddns_username, String ddns
 
 void EasyDDNSClass::update(unsigned long ddns_update_interval, bool use_local_ip) {
 
-  interval = ddns_update_interval;
+  this->interval_ = ddns_update_interval;
 
-  unsigned long currentMillis = millis(); // Calculate Elapsed Time & Trigger
-  if (currentMillis - previousMillis >= interval) {
-    previousMillis = currentMillis;
+  unsigned long current_millis = millis(); // Calculate Elapsed Time & Trigger
+  if (current_millis - this->previous_millis_ >= this->interval_) {
+    this->previous_millis_ = current_millis;
 
     if (use_local_ip) {
-      IPAddress ipAddress = WiFi.localIP();
-      this->new_ip_ = String(ipAddress[0]) + String(".") +
-        String(ipAddress[1]) + String(".") +
-        String(ipAddress[2]) + String(".") +
-        String(ipAddress[3]);
+      IPAddress ip_address = WiFi.localIP();
+      this->new_ip_ = String(ip_address[0]) + String(".") +
+        String(ip_address[1]) + String(".") +
+        String(ip_address[2]) + String(".") +
+        String(ip_address[3]);
     } else {
       // ######## GET PUBLIC IP ######## //
       HTTPClient http;
       http.begin("http://ipv4bot.whatismyipaddress.com/");
-      int httpCode = http.GET();
-      if (httpCode > 0) {
-        if (httpCode == HTTP_CODE_OK) {
+      int http_code = http.GET();
+      if (http_code > 0) {
+        if (http_code == HTTP_CODE_OK) {
           this->new_ip_ = http.getString();
         }
       } else {
@@ -84,11 +84,11 @@ void EasyDDNSClass::update(unsigned long ddns_update_interval, bool use_local_ip
 
       HTTPClient http;
       http.begin(this->update_url_);
-      int httpCode = http.GET();
-      if (httpCode == 200) {
+      int http_code = http.GET();
+      if (http_code == 200) {
         // Send a callback notification
-        if(_ddnsUpdateFunc != nullptr){
-          _ddnsUpdateFunc(this->old_ip_.c_str(), this->new_ip_.c_str());
+        if(this->ddns_update_func_ != nullptr){
+          this->ddns_update_func_(this->old_ip_.c_str(), this->new_ip_.c_str());
         }
         // Replace Old IP with new one to detect further changes.
         this->old_ip_ = this->new_ip_;

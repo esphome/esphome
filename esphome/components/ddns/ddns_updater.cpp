@@ -3,7 +3,7 @@
 static const char *TAG = "DDNS";
 
 namespace esphome {
-namespace ddns{
+namespace ddns {
   void DDNSComponent::setup() {
     EasyDDNS.service(this->service_);
     if (this->use_token_)
@@ -11,7 +11,7 @@ namespace ddns{
     else
       EasyDDNS.client(this->domain_, this->username_, this->password_);
 
-    EasyDDNS.onUpdate([&](const char* oldIP, const char* newIP){
+    EasyDDNS.on_update([&](const char* oldIP, const char* newIP){
       ESP_LOGD(TAG, "DDNS - IP Change Detected: %s", newIP);
     });
   }
@@ -19,5 +19,5 @@ namespace ddns{
   void DDNSComponent::loop() {
     EasyDDNS.update(this->update_interval_, this->use_local_ip_);
   }
-};
-};
+}
+}

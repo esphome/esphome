@@ -1,10 +1,11 @@
 #pragma once
-#include "esphome.h"
+#include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 #include "EasyDDNS.h"
 
 
 namespace esphome {
-namespace ddns{
+namespace ddns {
 
   class DDNSComponent : public Component {
    public:
@@ -41,6 +42,6 @@ namespace ddns{
       bool use_local_ip_;
   };
 
-};
-};
+}
+}
 
