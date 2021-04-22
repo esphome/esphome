@@ -42,6 +42,6 @@ namespace ddns {
       bool use_local_ip_;
   };
 
-}
-}
+}  // namespace ddns
+}  // namespace esphome
 

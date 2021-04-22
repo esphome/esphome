@@ -99,5 +99,5 @@ void EasyDDNSClass::update(unsigned long ddns_update_interval, bool use_local_ip
 }
 
 EasyDDNSClass EasyDDNS;
-};
-};
+}  // namespace ddns
+}  // namespace esphome

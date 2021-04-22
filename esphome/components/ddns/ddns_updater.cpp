@@ -19,5 +19,5 @@ namespace ddns {
   void DDNSComponent::loop() {
     EasyDDNS.update(this->update_interval_, this->use_local_ip_);
   }
-}
-}
+}  // namespace ddns
+}  // namespace esphome

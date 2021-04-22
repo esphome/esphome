@@ -51,6 +51,6 @@ protected:
 };
 extern EasyDDNSClass EasyDDNS;
 
-};
-};
+}  // namespace ddns
+}  // namespace esphome
 #endif
