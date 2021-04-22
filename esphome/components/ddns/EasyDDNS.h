@@ -11,7 +11,7 @@ Written in 2017 by Ayush Sharma. Licensed under MIT.
 
 #include "Arduino.h"
 #include "stdlib_noniso.h"
-
+#include "esphome/core/log.h"
 #if defined(ESP8266)
   #include "ESP8266WiFi.h"
   #include "ESP8266HTTPClient.h"
@@ -22,7 +22,8 @@ Written in 2017 by Ayush Sharma. Licensed under MIT.
 namespace esphome {
 namespace ddns {
 // Handler to notify user about new public IP
-typedef std::function<void(const char* old_ip, const char* new_ip)> DDNSUpdateHandler;
+//typedef std::function<void(const char* old_ip, const char* new_ip)> DDNSUpdateHandler;
+using DDNSUpdateHandler = std::function<void(const char* old_ip, const char* new_ip)>;
 
 class EasyDDNSClass{
 public:

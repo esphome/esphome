@@ -11,8 +11,8 @@ namespace ddns {
     else
       EasyDDNS.client(this->domain_, this->username_, this->password_);
 
-    EasyDDNS.on_update([&](const char* oldIP, const char* newIP){
-      ESP_LOGD(TAG, "DDNS - IP Change Detected: %s", newIP);
+    EasyDDNS.on_update([&](const char* old_ip, const char* new_ip){
+      ESP_LOGD(TAG, "DDNS - IP Change Detected: %s", new_ip);
     });
   }
 
