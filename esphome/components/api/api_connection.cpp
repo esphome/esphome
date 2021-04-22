@@ -18,6 +18,8 @@ namespace api {
 
 static const char *TAG = "api.connection";
 
+static constexpr size_t TCP_BUFFER_RESERVE = 64;
+
 APIConnection::APIConnection(AsyncClient *client, APIServer *parent)
     : client_(client), parent_(parent), initial_state_iterator_(parent, this), list_entities_iterator_(parent, this) {
   this->client_->onError([](void *s, AsyncClient *c, int8_t error) { ((APIConnection *) s)->on_error_(error); }, this);
@@ -130,8 +132,9 @@ void APIConnection::loop() {
   if (this->image_reader_.available()) {
     uint32_t space = this->client_->space();
     // reserve 15 bytes for metadata, and at least 64 bytes of data
-    if (space >= 15 + 64) {
-      uint32_t to_send = std::min(space - 15, this->image_reader_.available());
+    // leave TCP_BUFFER_RESERVE always free for other more important messages
+    if (space >= 15 + 64 + TCP_BUFFER_RESERVE) {
+      uint32_t to_send = std::min(space - 15 - TCP_BUFFER_RESERVE, this->image_reader_.available());
       auto buffer = this->create_buffer();
       // fixed32 key = 1;
       buffer.encode_fixed32(1, esp32_camera::global_esp32_camera->get_object_id_hash());
