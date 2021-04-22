@@ -28,6 +28,12 @@ void APIServer::setup() {
       [](void *s, AsyncClient *client) {
         if (client == nullptr)
           return;
+#ifdef DISABLE_ASYNCTCP_ACK_TIMEOUTS
+        // The implementation of TCP ACK timeout checks can be buggy at times,
+        // incorrectly flagging client connections as broken. On some systems,
+        // disabling these checks improves the stability of API connections.
+        client->setAckTimeout(0);
+#endif
 
         // can't print here because in lwIP thread
         // ESP_LOGD(TAG, "New client connected from %s", client->remoteIP().toString().c_str());
