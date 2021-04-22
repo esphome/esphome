@@ -7,15 +7,16 @@
 
 #include "EasyDDNS.h"
 
-
+namespace esphome {
+namespace ddns{
 void EasyDDNSClass::service(String ddns_service) {
-  ddns_choice = ddns_service;
+  this->ddns_choice_ = ddns_service;
 }
 
 void EasyDDNSClass::client(String ddns_domain, String ddns_username, String ddns_password) {
-  ddns_d = ddns_domain;
-  ddns_u = ddns_username;
-  ddns_p = ddns_password;
+  this->ddns_d_ = ddns_domain;
+  this->ddns_u_ = ddns_username;
+  this->ddns_p_ = ddns_password;
 }
 
 void EasyDDNSClass::update(unsigned long ddns_update_interval, bool use_local_ip) {
@@ -28,7 +29,7 @@ void EasyDDNSClass::update(unsigned long ddns_update_interval, bool use_local_ip
 
     if (use_local_ip) {
       IPAddress ipAddress = WiFi.localIP();
-      new_ip = String(ipAddress[0]) + String(".") +
+      this->new_ip_ = String(ipAddress[0]) + String(".") +
         String(ipAddress[1]) + String(".") +
         String(ipAddress[2]) + String(".") +
         String(ipAddress[3]);
@@ -39,7 +40,7 @@ void EasyDDNSClass::update(unsigned long ddns_update_interval, bool use_local_ip
       int httpCode = http.GET();
       if (httpCode > 0) {
         if (httpCode == HTTP_CODE_OK) {
-          new_ip = http.getString();
+          this->new_ip_ = http.getString();
         }
       } else {
         http.end();
@@ -49,48 +50,48 @@ void EasyDDNSClass::update(unsigned long ddns_update_interval, bool use_local_ip
     }
 
     // ######## GENERATE UPDATE URL ######## //
-    if (ddns_choice == "duckdns") {
-      update_url = "http://www.duckdns.org/update?domains=" + ddns_d + "&token=" + ddns_u + "&ip=" + new_ip + "";
-    } else if (ddns_choice == "noip") {
-      update_url = "http://" + ddns_u + ":" + ddns_p + "@dynupdate.no-ip.com/nic/update?hostname=" + ddns_d + "&myip=" + new_ip + "";
-    } else if (ddns_choice == "dyndns") {
-      update_url = "http://" + ddns_u + ":" + ddns_p + "@members.dyndns.org/v3/update?hostname=" + ddns_d + "&myip=" + new_ip + "";
-    } else if (ddns_choice == "dynu") {
-      update_url = "http://api.dynu.com/nic/update?hostname=" + ddns_d + "&myip=" + new_ip + "&username=" + ddns_u + "&password=" + ddns_p + "";
-    } else if (ddns_choice == "enom") {
-      update_url = "http://dynamic.name-services.com/interface.asp?command=SetDnsHost&HostName=" + ddns_d + "&Zone=" + ddns_u + "&DomainPassword=" + ddns_p + "&Address=" + new_ip + "";
-    } else if (ddns_choice == "all-inkl") {
-      update_url = "http://" + ddns_u + ":" + ddns_p + "@dyndns.kasserver.com/?myip=" + new_ip;
-    } else if (ddns_choice == "selfhost.de") {
-      update_url = "http://" + ddns_u + ":" + ddns_p + "@carol.selfhost.de/nic/update?";
-    } else if (ddns_choice == "dyndns.it") {
-      update_url = "http://" + ddns_u + ":" + ddns_p + "@update.dyndns.it/nic/update?hostname=" + ddns_d;
-    } else if (ddns_choice == "strato") {
-      update_url = "http://" + ddns_u + ":" + ddns_p + "@dyndns.strato.com/nic/update?hostname=" + ddns_d + "&myip=" + new_ip + "";
-    } else if (ddns_choice == "freemyip") {
-      update_url = "http://freemyip.com/update?domain=" + ddns_d + "&token=" + ddns_u + "&myip=" + new_ip + "";
-    } else if (ddns_choice == "afraid.org") {
-      update_url = "http://sync.afraid.org/u/" + ddns_u + "/";
-    } else if (ddns_choice == "ovh") {
-      update_url = "http://" + ddns_u + ":" + ddns_p + "@www.ovh.com/nic/update?system=dyndns&hostname=" + ddns_d + "&myip=" + new_ip + "";
+    if (this->ddns_choice_ == "duckdns") {
+      this->update_url_ = "http://www.duckdns.org/update?domains=" + this->ddns_d_ + "&token=" + this->ddns_u_ + "&ip=" + this->new_ip_ + "";
+    } else if (this->ddns_choice_ == "noip") {
+      this->update_url_ = "http://" + this->ddns_u_ + ":" + this->ddns_p_ + "@dynupdate.no-ip.com/nic/update?hostname=" + this->ddns_d_ + "&myip=" + this->new_ip_ + "";
+    } else if (this->ddns_choice_ == "dyndns") {
+      this->update_url_ = "http://" + this->ddns_u_ + ":" + this->ddns_p_ + "@members.dyndns.org/v3/update?hostname=" + this->ddns_d_ + "&myip=" + this->new_ip_ + "";
+    } else if (this->ddns_choice_ == "dynu") {
+      this->update_url_ = "http://api.dynu.com/nic/update?hostname=" + this->ddns_d_ + "&myip=" + this->new_ip_ + "&username=" + this->ddns_u_ + "&password=" + this->ddns_p_ + "";
+    } else if (this->ddns_choice_ == "enom") {
+      this->update_url_ = "http://dynamic.name-services.com/interface.asp?command=SetDnsHost&HostName=" + this->ddns_d_ + "&Zone=" + this->ddns_u_ + "&DomainPassword=" + this->ddns_p_ + "&Address=" + this->new_ip_ + "";
+    } else if (this->ddns_choice_ == "all-inkl") {
+      this->update_url_ = "http://" + this->ddns_u_ + ":" + this->ddns_p_ + "@dyndns.kasserver.com/?myip=" + this->new_ip_;
+    } else if (this->ddns_choice_ == "selfhost.de") {
+      this->update_url_ = "http://" + this->ddns_u_ + ":" + this->ddns_p_ + "@carol.selfhost.de/nic/update?";
+    } else if (this->ddns_choice_ == "dyndns.it") {
+      this->update_url_ = "http://" + this->ddns_u_ + ":" + this->ddns_p_ + "@update.dyndns.it/nic/update?hostname=" + this->ddns_d_;
+    } else if (this->ddns_choice_ == "strato") {
+      this->update_url_ = "http://" + this->ddns_u_ + ":" + this->ddns_p_ + "@dyndns.strato.com/nic/update?hostname=" + this->ddns_d_ + "&myip=" + this->new_ip_ + "";
+    } else if (this->ddns_choice_ == "freemyip") {
+      this->update_url_ = "http://freemyip.com/update?domain=" + this->ddns_d_ + "&token=" + this->ddns_u_ + "&myip=" + this->new_ip_ + "";
+    } else if (this->ddns_choice_ == "afraid.org") {
+      this->update_url_ = "http://sync.afraid.org/u/" + this->ddns_u_ + "/";
+    } else if (this->ddns_choice_ == "ovh") {
+      this->update_url_ = "http://" + this->ddns_u_ + ":" + this->ddns_p_ + "@www.ovh.com/nic/update?system=dyndns&hostname=" + this->ddns_d_ + "&myip=" + this->new_ip_ + "";
     } else {
       ESP_LOGE("DDNS","## INPUT CORRECT DDNS SERVICE NAME ##");
       return;
     }
 
     // ######## CHECK & UPDATE ######### //
-    if (old_ip != new_ip) {
+    if (this->old_ip_ != this->new_ip_) {
 
       HTTPClient http;
-      http.begin(update_url);
+      http.begin(this->update_url_);
       int httpCode = http.GET();
       if (httpCode == 200) {
         // Send a callback notification
         if(_ddnsUpdateFunc != nullptr){
-          _ddnsUpdateFunc(old_ip.c_str(), new_ip.c_str());
+          _ddnsUpdateFunc(this->old_ip_.c_str(), this->new_ip_.c_str());
         }
         // Replace Old IP with new one to detect further changes.
-        old_ip = new_ip;
+        this->old_ip_ = this->new_ip_;
       }
       http.end();
     }
@@ -98,3 +99,5 @@ void EasyDDNSClass::update(unsigned long ddns_update_interval, bool use_local_ip
 }
 
 EasyDDNSClass EasyDDNS;
+};
+};

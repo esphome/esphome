@@ -1,3 +1,4 @@
+#pragma once
 /*
 EasyDDNS Library for ESP8266 or ESP32
 See the README file for more details.
@@ -18,7 +19,8 @@ Written in 2017 by Ayush Sharma. Licensed under MIT.
   #include "WiFi.h"
   #include "HTTPClient.h"
 #endif
-
+namespace esphome {
+namespace ddns{
 // Handler to notify user about new public IP
 typedef std::function<void(const char* old_ip, const char* new_ip)> DDNSUpdateHandler;
 
@@ -33,19 +35,22 @@ public:
     _ddnsUpdateFunc = handler;
   }
 
-private:
+protected:
   DDNSUpdateHandler _ddnsUpdateFunc = nullptr;
 
   unsigned long interval;
   unsigned long previousMillis;
 
-  String new_ip;
-  String old_ip;
-  String update_url;
-  String ddns_u;
-  String ddns_p;
-  String ddns_d;
-  String ddns_choice;
+  String new_ip_;
+  String old_ip_;
+  String update_url_;
+  String ddns_u_;
+  String ddns_p_;
+  String ddns_d_;
+  String ddns_choice_;
 };
 extern EasyDDNSClass EasyDDNS;
+
+};
+};
 #endif
