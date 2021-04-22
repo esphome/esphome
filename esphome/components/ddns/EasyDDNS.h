@@ -13,30 +13,28 @@ Written in 2017 by Ayush Sharma. Licensed under MIT.
 #include "stdlib_noniso.h"
 #include "esphome/core/log.h"
 #if defined(ESP8266)
-  #include "ESP8266WiFi.h"
-  #include "ESP8266HTTPClient.h"
+#include "ESP8266WiFi.h"
+#include "ESP8266HTTPClient.h"
 #elif defined(ESP32)
-  #include "WiFi.h"
-  #include "HTTPClient.h"
+#include "WiFi.h"
+#include "HTTPClient.h"
 #endif
 namespace esphome {
 namespace ddns {
 // Handler to notify user about new public IP
-//typedef std::function<void(const char* old_ip, const char* new_ip)> DDNSUpdateHandler;
+// typedef std::function<void(const char* old_ip, const char* new_ip)> DDNSUpdateHandler;
 using DDNSUpdateHandler = std::function<void(const char* old_ip, const char* new_ip)>;
 
-class EasyDDNSClass{
-public:
+class EasyDDNSClass {
+ public:
   void service(String ddns_service);
   void client(String ddns_domain, String ddns_username, String ddns_password = "");
   void update(unsigned long ddns_update_interval, bool use_local_ip = false);
 
   // Callback
-  void on_update(DDNSUpdateHandler handler) {
-    this->ddns_update_func_ = handler;
-  }
+  void on_update(DDNSUpdateHandler handler) { this->ddns_update_func_ = handler; }
 
-protected:
+ protected:
   DDNSUpdateHandler ddns_update_func_ = nullptr;
 
   unsigned long interval_;
