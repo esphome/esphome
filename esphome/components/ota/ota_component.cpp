@@ -405,19 +405,19 @@ void OTAComponent::on_safe_shutdown() {
 }
 
 void OTAComponent::add_on_begin_callback(std::function<void()> &&callback) {
-    this->begin_callback_.add(std::move(callback));
+  this->begin_callback_.add(std::move(callback));
 }
 
 void OTAComponent::add_on_end_callback(std::function<void()> &&callback) {
-    this->end_callback_.add(std::move(callback));
+  this->end_callback_.add(std::move(callback));
 }
 
 void OTAComponent::add_on_progress_callback(std::function<void(float)> &&callback) {
-    this->progress_callback_.add(std::move(callback));
+  this->progress_callback_.add(std::move(callback));
 }
 
 void OTAComponent::add_on_error_callback(std::function<void(int)> &&callback) {
-    this->error_callback_.add(std::move(callback));
+  this->error_callback_.add(std::move(callback));
 }
 
 }  // namespace ota
