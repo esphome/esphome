@@ -71,7 +71,7 @@ void ESP32BLETracker::loop_process_scan_result() {
   if (process_index == result_index) {
     xSemaphoreGive(this->scan_result_lock_);
     return;
-  } 
+  }
   
   // If not, then fetch the next result from the processing queue.
   auto next_result = this->scan_result_buffer_[process_index];

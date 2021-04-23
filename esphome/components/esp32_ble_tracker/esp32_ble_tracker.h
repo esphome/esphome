@@ -10,7 +10,7 @@
 #include <esp_gap_ble_api.h>
 #include <esp_bt_defs.h>
 
-#define SCAN_RESULT_BUFSZ 16
+static const uint8_t SCAN_RESULT_BUFSZ = 16;
 
 namespace esphome {
 namespace esp32_ble_tracker {
