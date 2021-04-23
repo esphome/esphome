@@ -71,6 +71,7 @@ void OTAComponent::handle_() {
 
   ESP_LOGD(TAG, "Starting OTA Update from %s...", this->client_.remoteIP().toString().c_str());
   this->status_set_warning();
+  this->begin_callback_.call();
 
   if (!this->wait_receive_(buf, 5)) {
     ESP_LOGW(TAG, "Reading magic bytes failed!");
@@ -241,6 +242,7 @@ void OTAComponent::handle_() {
       last_progress = now;
       float percentage = (total * 100.0f) / ota_size;
       ESP_LOGD(TAG, "OTA in progress: %0.1f%%", percentage);
+      this->progress_callback_.call(percentage);
       // slow down OTA update to avoid getting killed by task watchdog (task_wdt)
       delay(10);
     }
@@ -268,6 +270,7 @@ void OTAComponent::handle_() {
   delay(10);
   ESP_LOGI(TAG, "OTA update finished!");
   this->status_clear_warning();
+  this->end_callback_.call();
   delay(100);  // NOLINT
   App.safe_reboot();
 
@@ -296,6 +299,7 @@ error:
 #endif
 
   this->status_momentary_error("onerror", 5000);
+  this->error_callback_.call(static_cast<int>(error_code));
 
 #ifdef ARDUINO_ARCH_ESP8266
   global_preferences.prevent_write(false);
@@ -398,6 +402,22 @@ void OTAComponent::clean_rtc() { this->write_rtc_(0); }
 void OTAComponent::on_safe_shutdown() {
   if (this->has_safe_mode_)
     this->clean_rtc();
+}
+
+void OTAComponent::add_on_begin_callback(std::function<void()> &&callback) {
+    this->begin_callback_.add(std::move(callback));
+}
+
+void OTAComponent::add_on_end_callback(std::function<void()> &&callback) {
+    this->end_callback_.add(std::move(callback));
+}
+
+void OTAComponent::add_on_progress_callback(std::function<void(float)> &&callback) {
+    this->progress_callback_.add(std::move(callback));
+}
+
+void OTAComponent::add_on_error_callback(std::function<void(int)> &&callback) {
+    this->error_callback_.add(std::move(callback));
 }
 
 }  // namespace ota

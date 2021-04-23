@@ -2,6 +2,7 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/preferences.h"
+#include "esphome/core/helpers.h"
 #include <WiFiServer.h>
 #include <WiFiClient.h>
 
@@ -49,6 +50,11 @@ class OTAComponent : public Component {
 
   bool should_enter_safe_mode(uint8_t num_attempts, uint32_t enable_time);
 
+  void add_on_begin_callback(std::function<void()> &&callback);
+  void add_on_progress_callback(std::function<void(float)> &&callback);
+  void add_on_end_callback(std::function<void()> &&callback);
+  void add_on_error_callback(std::function<void(int)> &&callback);
+
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
   void setup() override;
@@ -82,6 +88,11 @@ class OTAComponent : public Component {
   uint32_t safe_mode_rtc_value_;
   uint8_t safe_mode_num_attempts_;
   ESPPreferenceObject rtc_;
+
+  CallbackManager<void()> begin_callback_{};
+  CallbackManager<void(float)> progress_callback_{};
+  CallbackManager<void()> end_callback_{};
+  CallbackManager<void(int)> error_callback_{};
 };
 
 }  // namespace ota
