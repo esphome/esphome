@@ -8,15 +8,12 @@
 #include "esphome/core/defines.h"
 
 #include "parser.h"
-#include "reader.h"
 #include "fields.h"
 
 namespace esphome {
 namespace dsmr_ {
 
-static const char* TAG = "dsmr";
-
-static constexpr uint32_t P1_MAXTELEGRAMLENGTH = 1500;
+static constexpr uint32_t MAX_TELEGRAM_LENGTH = 1500;
 static constexpr uint32_t POLL_TIMEOUT = 1000;
 
 using namespace dsmr::fields;
@@ -43,67 +40,13 @@ using namespace dsmr::fields;
 using MyData = dsmr::ParsedData<DSMR_TEXT_SENSOR_LIST(DSMR_DATA_SENSOR, COMMA)
                                     DSMR_BOTH DSMR_SENSOR_LIST(DSMR_DATA_SENSOR, COMMA)>;
 
-class Dsmr : public PollingComponent, public uart::UARTDevice {
+class Dsmr : public Component, public uart::UARTDevice {
  public:
   Dsmr(uart::UARTComponent* uart) : uart::UARTDevice(uart) {}
 
-  void update() override { poll_ = millis(); }
+  void loop() override;
 
-  void loop() override {
-    if (poll_ == 0)
-      return;
-
-    while (available()) {
-      const char c = read();
-
-      if (c == '/') {  // header: forward slash
-        ESP_LOGV(TAG, "Header found");
-        header_found_ = true;
-        footer_found_ = false;
-        telegram_len_ = 0;
-      }
-
-      if (!header_found_)
-        continue;
-      if (telegram_len_ >= P1_MAXTELEGRAMLENGTH) {  // Buffer overflow
-        header_found_ = false;
-        footer_found_ = false;
-        ESP_LOGE(TAG, "Error: Message larger than buffer");
-      }
-
-      telegram_[telegram_len_] = c;
-      telegram_len_++;
-      if (c == '!') {  // footer: exclamation mark
-        ESP_LOGV(TAG, "Footer found");
-        footer_found_ = true;
-      } else {
-        if (footer_found_ && c == 10) {  // last \n after footer
-          header_found_ = false;
-          // Parse message
-          MyData data;
-          ESP_LOGD(TAG, "Trying to parse");
-          ::dsmr::ParseResult<void> res =
-              ::dsmr::P1Parser::parse(&data, telegram_, telegram_len_,
-                                      false);  // Parse telegram accoring to data definition. Ignore unknown values.
-          if (res.err) {
-            // Parsing error, show it
-            auto err_str = res.fullError(telegram_, telegram_ + telegram_len_).c_str();
-            ESP_LOGE(TAG, "%s", res.err);
-          } else {
-            poll_ = 0;
-            this->status_clear_warning();
-            publish_sensors(data);
-            return;
-          }
-        }
-      }
-    }
-    if (millis() - poll_ > POLL_TIMEOUT) {
-      ESP_LOGE(TAG, "No data available. Is P1 port connected?");
-      poll_ = 0;
-      this->status_set_warning();
-    }
-  }
+  bool parse_telegram();
 
   void publish_sensors(MyData data) {
 #define DSMR_PUBLISH_SENSOR(s) \
@@ -117,17 +60,11 @@ class Dsmr : public PollingComponent, public uart::UARTDevice {
     DSMR_TEXT_SENSOR_LIST(DSMR_PUBLISH_TEXT_SENSOR, )
   };
 
-  void dump_config() override {
-    ESP_LOGCONFIG(TAG, "dsmr:");
+  void dump_config() override;
 
-#define DSMR_LOG_SENSOR(s) LOG_SENSOR("  ", #s, this->s_##s##_);
-    DSMR_SENSOR_LIST(DSMR_LOG_SENSOR, )
+  void set_decryption_key(const std::vector<uint8_t>& decryption_key) { this->decryption_key_ = decryption_key; }
 
-#define DSMR_LOG_TEXT_SENSOR(s) LOG_TEXT_SENSOR("  ", #s, this->s_##s##_);
-    DSMR_TEXT_SENSOR_LIST(DSMR_LOG_TEXT_SENSOR, )
-  }
-
-  // Sensor setters
+// Sensor setters
 #define DSMR_SET_SENSOR(s) \
   void set_##s(sensor::Sensor* sensor) { s_##s##_ = sensor; }
   DSMR_SENSOR_LIST(DSMR_SET_SENSOR, )
@@ -137,18 +74,25 @@ class Dsmr : public PollingComponent, public uart::UARTDevice {
   DSMR_TEXT_SENSOR_LIST(DSMR_SET_TEXT_SENSOR, )
 
  protected:
-  char telegram_[P1_MAXTELEGRAMLENGTH];
+  void receive_telegram();
+  void receive_encrypted();
+
+  // Telegram buffer
+  char telegram_[MAX_TELEGRAM_LENGTH];
   int telegram_len_{0};
+
+  // Serial parser
   bool header_found_{false};
   bool footer_found_{false};
-  uint32_t poll_{0};
 
-  // Sensor member pointers
+// Sensor member pointers
 #define DSMR_DECLARE_SENSOR(s) sensor::Sensor* s_##s##_{nullptr};
   DSMR_SENSOR_LIST(DSMR_DECLARE_SENSOR, )
 
 #define DSMR_DECLARE_TEXT_SENSOR(s) text_sensor::TextSensor* s_##s##_{nullptr};
   DSMR_TEXT_SENSOR_LIST(DSMR_DECLARE_TEXT_SENSOR, )
+
+  std::vector<uint8_t> decryption_key_{};
 };
 }  // namespace dsmr_
 }  // namespace esphome
