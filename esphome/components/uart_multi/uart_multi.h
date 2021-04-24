@@ -1,5 +1,6 @@
 #pragma once
 
+#include <queue>
 #include "esphome/core/component.h"
 #include "esphome/components/uart/uart.h"
 
@@ -22,8 +23,12 @@ class UARTMulti : public uart::UARTDevice, public Component {
 
   void send(const std::vector<uint8_t> &data);
 
+  bool ready_to_tx{true};
+
  protected:
   std::vector<UARTMultiDevice *> devices_;
+  std::queue<std::vector<uint8_t>> tx_buffer_;
+  uint32_t last_tx_{0};
 };
 
 class UARTMultiDevice {

@@ -44,8 +44,10 @@ void Chenyang::control(const CoverCall &call) {
 }
 
 void Chenyang::update() {
-  uint8_t data[2] = {GET_STATUS, 0x00};
-  this->send_command_(data, 2);
+  if (this->parent_->ready_to_tx) {
+    uint8_t data[2] = {GET_STATUS, 0x00};
+    this->send_command_(data, 2);
+  }
 }
 
 void Chenyang::on_uart_multi_byte(uint8_t byte) {
@@ -75,6 +77,8 @@ void Chenyang::on_uart_multi_byte(uint8_t byte) {
     case 12:
       if (byte != 0x78)
         this->rx_buffer_.clear();
+      else
+        this->rx_buffer_.push_back(byte);
       break;
     case 13:
       if (byte == calc_checksum(this->rx_buffer_))
@@ -89,6 +93,7 @@ void Chenyang::on_uart_multi_byte(uint8_t byte) {
 }
 
 void Chenyang::process_response_() {
+  this->parent_->ready_to_tx = true;
   switch (this->rx_buffer_[2]) {
     case OPEN:
       this->current_operation = COVER_OPERATION_OPENING;
@@ -113,6 +118,7 @@ void Chenyang::process_response_() {
 }
 
 void Chenyang::process_status_() {
+  this->parent_->ready_to_tx = true;
   bool publish_state = false;
   switch (this->rx_buffer_[2]) {
     case OPEN:
@@ -132,6 +138,12 @@ void Chenyang::process_status_() {
         this->current_operation = COVER_OPERATION_IDLE;
         publish_state = true;
       }
+      break;
+    case SET_POSITION:
+      if (this->target_position_ > this->position)
+        this->current_operation = COVER_OPERATION_OPENING;
+      else
+        this->current_operation = COVER_OPERATION_CLOSING;
       break;
     default:
       ESP_LOGE(TAG, "Invalid status operation received");

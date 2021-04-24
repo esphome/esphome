@@ -52,8 +52,10 @@ void Dooya::control(const CoverCall &call) {
 }
 
 void Dooya::update() {
-  uint8_t data[3] = {READ, this->current_request_, 0x01};
-  this->send_command_(data, 3);
+  if (this->parent_->ready_to_tx) {
+    uint8_t data[3] = {READ, this->current_request_, 0x01};
+    this->send_command_(data, 3);
+  }
 }
 
 void Dooya::on_uart_multi_byte(uint8_t byte) {
@@ -103,6 +105,7 @@ void Dooya::on_uart_multi_byte(uint8_t byte) {
 }
 
 void Dooya::process_response_() {
+  this->parent_->ready_to_tx = true;
   std::vector<uint8_t> frame(this->rx_buffer_.begin(), this->rx_buffer_.end() - 2);
   uint16_t crc = crc16(&frame[0], frame.size());
   if (((crc & 0xFF) == this->rx_buffer_.end()[-2]) && ((crc >> 8) == this->rx_buffer_.end()[-1])) {
@@ -132,6 +135,7 @@ void Dooya::process_response_() {
 }
 
 void Dooya::process_status_() {
+  this->parent_->ready_to_tx = true;
   std::vector<uint8_t> frame(this->rx_buffer_.begin(), this->rx_buffer_.end() - 2);
   uint16_t crc = crc16(&frame[0], frame.size());
   if (((crc & 0xFF) == this->rx_buffer_.end()[-2]) && ((crc >> 8) == this->rx_buffer_.end()[-1])) {

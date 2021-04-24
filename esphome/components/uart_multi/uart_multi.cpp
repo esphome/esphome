@@ -13,6 +13,16 @@ void UARTMulti::loop() {
     for (auto *device : this->devices_)
       device->on_uart_multi_byte(byte);
   }
+  if (millis() - this->last_tx_ > 1000) {
+    this->ready_to_tx = true;
+  }
+  if (this->ready_to_tx)
+    if (!this->tx_buffer_.empty()) {
+      this->write_array(this->tx_buffer_.front());
+      this->tx_buffer_.pop();
+      this->last_tx_ = millis();
+      this->ready_to_tx = false;
+    }
 }
 
 void UARTMulti::dump_config() {
@@ -23,7 +33,7 @@ float UARTMulti::get_setup_priority() const {
   // After UART bus
   return setup_priority::BUS - 1.0f;
 }
-void UARTMulti::send(const std::vector<uint8_t> &data) { this->write_array(data); }
+void UARTMulti::send(const std::vector<uint8_t> &data) { this->tx_buffer_.push(data); }
 
 }  // namespace uart_multi
 }  // namespace esphome
