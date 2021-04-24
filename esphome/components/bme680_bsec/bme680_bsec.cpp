@@ -188,10 +188,10 @@ void BME680BSECComponent::run_() {
   this->next_call_ns_ = bme680_settings.next_call;
 
   if (bme680_settings.trigger_measurement) {
-    this->bme680_.gas_sett.run_gas = bme680_settings.run_gas;
-    this->bme680_.tph_sett.os_hum = bme680_settings.humidity_oversampling;
     this->bme680_.tph_sett.os_temp = bme680_settings.temperature_oversampling;
     this->bme680_.tph_sett.os_pres = bme680_settings.pressure_oversampling;
+    this->bme680_.tph_sett.os_hum = bme680_settings.humidity_oversampling;
+    this->bme680_.gas_sett.run_gas = bme680_settings.run_gas;
     this->bme680_.gas_sett.heatr_temp = bme680_settings.heater_temperature;
     this->bme680_.gas_sett.heatr_dur = bme680_settings.heating_duration;
     this->bme680_.power_mode = BME680_FORCED_MODE;
