@@ -207,15 +207,16 @@ void BME680BSECComponent::run_() {
       ESP_LOGW(TAG, "Failed to set sensor mode (BME680 Error Code %d)", this->bme680_status_);
       return;
     }
+
+    uint16_t meas_dur = 0;
+    bme680_get_profile_dur(&meas_dur, &this->bme680_);
+    ESP_LOGV(TAG, "Queueing read in %ums", meas_dur);
+    this->set_timeout("read", meas_dur,
+                    [this, curr_time_ns, bme680_settings]() { this->read_(curr_time_ns, bme680_settings); });
   } else {
     ESP_LOGV(TAG, "Measurement not required");
+    this->read_(curr_time_ns, bme680_settings);
   }
-
-  uint16_t meas_dur = 0;
-  bme680_get_profile_dur(&meas_dur, &this->bme680_);
-  ESP_LOGV(TAG, "Queueing read in %ums", meas_dur);
-  this->set_timeout("read", meas_dur,
-                    [this, curr_time_ns, bme680_settings]() { this->read_(curr_time_ns, bme680_settings); });
 }
 
 void BME680BSECComponent::read_(int64_t trigger_time_ns, bsec_bme_settings_t bme680_settings) {
