@@ -9,6 +9,7 @@ esphome:
   name_add_mac_suffix: true
   platform: ESP32
   board: nodemcu-32s
+  enable_mdns: true
   on_boot:
     priority: 150.0
     then:

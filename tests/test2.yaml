@@ -3,6 +3,7 @@ esphome:
   platform: ESP32
   board: nodemcu-32s
   build_path: build/test2
+  enable_mdns: false
 
 substitutions:
   devicename: test2
