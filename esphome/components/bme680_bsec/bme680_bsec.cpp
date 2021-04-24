@@ -212,7 +212,7 @@ void BME680BSECComponent::run_() {
     bme680_get_profile_dur(&meas_dur, &this->bme680_);
     ESP_LOGV(TAG, "Queueing read in %ums", meas_dur);
     this->set_timeout("read", meas_dur,
-                    [this, curr_time_ns, bme680_settings]() { this->read_(curr_time_ns, bme680_settings); });
+                      [this, curr_time_ns, bme680_settings]() { this->read_(curr_time_ns, bme680_settings); });
   } else {
     ESP_LOGV(TAG, "Measurement not required");
     this->read_(curr_time_ns, bme680_settings);
