@@ -22,7 +22,6 @@ from esphome.const import (
     CONF_PLATFORMIO_OPTIONS,
     CONF_PRIORITY,
     CONF_TRIGGER_ID,
-    CONF_ENABLE_MDNS,
     CONF_ESP8266_RESTORE_FROM_FLASH,
     ARDUINO_VERSION_ESP8266,
     ARDUINO_VERSION_ESP32,
@@ -152,7 +151,6 @@ CONFIG_SCHEMA = cv.Schema(
                 cv.string_strict: cv.Any([cv.string], cv.string),
             }
         ),
-        cv.Optional(CONF_ENABLE_MDNS, default=True): cv.boolean,
         cv.SplitDefault(CONF_ESP8266_RESTORE_FROM_FLASH, esp8266=False): cv.All(
             cv.only_on_esp8266, cv.boolean
         ),
@@ -310,16 +308,6 @@ def to_code(config):
     cg.add_build_flag("-fno-exceptions")
 
     # Libraries
-    if CORE.is_esp8266:
-        cg.add_library("ESP8266WiFi", None)
-
-    if config.get(CONF_ENABLE_MDNS, True):
-        cg.add_define("USE_MDNS")
-        if CORE.is_esp32:
-            cg.add_library("ESPmDNS", None)
-        elif CORE.is_esp8266:
-            cg.add_library("ESP8266mDNS", None)
-
     for lib in config[CONF_LIBRARIES]:
         if "@" in lib:
             name, vers = lib.split("@", 1)

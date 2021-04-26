@@ -9,7 +9,6 @@ esphome:
   name_add_mac_suffix: true
   platform: ESP32
   board: nodemcu-32s
-  enable_mdns: true
   on_boot:
     priority: 150.0
     then:
@@ -70,6 +69,7 @@ wifi:
       password: ''
       channel: 14
       bssid: 'A1:63:95:47:D3:1D'
+  enable_mdns: true
   manual_ip:
     static_ip: 192.168.178.230
     gateway: 192.168.178.1

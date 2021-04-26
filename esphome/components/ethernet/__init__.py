@@ -9,6 +9,7 @@ from esphome.const import (
     CONF_TYPE,
     CONF_USE_ADDRESS,
     ESP_PLATFORM_ESP32,
+    CONF_ENABLE_MDNS,
     CONF_GATEWAY,
     CONF_SUBNET,
     CONF_DNS1,
@@ -80,6 +81,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_PHY_ADDR, default=0): cv.int_range(min=0, max=31),
             cv.Optional(CONF_POWER_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_MANUAL_IP): MANUAL_IP_SCHEMA,
+            cv.Optional(CONF_ENABLE_MDNS, default=True): cv.boolean,
             cv.Optional(CONF_DOMAIN, default=".local"): cv.domain_name,
             cv.Optional(CONF_USE_ADDRESS): cv.string_strict,
             cv.Optional("hostname"): cv.invalid(
@@ -122,3 +124,11 @@ def to_code(config):
         cg.add(var.set_manual_ip(manual_ip(config[CONF_MANUAL_IP])))
 
     cg.add_define("USE_ETHERNET")
+
+    # Include mDNS libraries, if enabled
+    if config.get(CONF_ENABLE_MDNS, True):
+        cg.add_define("USE_MDNS")
+        if CORE.is_esp32:
+            cg.add_library("ESPmDNS", None)
+        elif CORE.is_esp8266:
+            cg.add_library("ESP8266mDNS", None)

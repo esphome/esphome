@@ -3,7 +3,6 @@ esphome:
   platform: ESP32
   board: nodemcu-32s
   build_path: build/test2
-  enable_mdns: false
 
 substitutions:
   devicename: test2
@@ -15,6 +14,7 @@ ethernet:
   clk_mode: GPIO0_IN
   phy_addr: 0
   power_pin: GPIO25
+  enable_mdns: false
   manual_ip:
     static_ip: 192.168.178.56
     gateway: 192.168.178.1
