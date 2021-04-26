@@ -1,6 +1,6 @@
 pylint==2.7.2
 flake8==3.9.0
-black==20.8b1
+black==21.4b0
 pillow>4.0.0
 cryptography>=2.0.0,<4
 pexpect==4.8.0
