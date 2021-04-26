@@ -171,7 +171,7 @@ void WiFiComponent::setup_ap_config_() {
 
   this->ap_setup_ = this->wifi_start_ap_(this->ap_);
   ESP_LOGCONFIG(TAG, "  IP Address: %s", this->wifi_soft_ap_ip().toString().c_str());
-#if defined(ARDUINO_ARCH_ESP8266)  && defined(USE_MDNS)
+#if defined(ARDUINO_ARCH_ESP8266) && defined(USE_MDNS)
   network_setup_mdns(this->wifi_soft_ap_ip(), 1);
 #endif
 
