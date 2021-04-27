@@ -765,6 +765,10 @@ cover:
     name: Chenyang Cover
     address: 0xFF
     update_interval: 1s
+  - platform: gm40
+    name: GM40 Cover
+    address: 0x00
+    update_interval: 1s
 
 output:
   - platform: esp8266_pwm
