@@ -1,7 +1,7 @@
 """Constants used by esphome."""
 
 MAJOR_VERSION = 1
-MINOR_VERSION = 17
+MINOR_VERSION = 18
 PATCH_VERSION = "0-dev"
 __short_version__ = f"{MAJOR_VERSION}.{MINOR_VERSION}"
 __version__ = f"{__short_version__}.{PATCH_VERSION}"
@@ -10,12 +10,14 @@ ESP_PLATFORM_ESP32 = "ESP32"
 ESP_PLATFORM_ESP8266 = "ESP8266"
 ESP_PLATFORMS = [ESP_PLATFORM_ESP32, ESP_PLATFORM_ESP8266]
 
-ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789_-"
+ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-_"
+
 # Lookup table from ESP32 arduino framework version to latest platformio
 # package with that version
 # See also https://github.com/platformio/platform-espressif32/releases
 ARDUINO_VERSION_ESP32 = {
     "dev": "https://github.com/platformio/platform-espressif32.git",
+    "1.0.6": "platformio/espressif32@3.2.0",
     "1.0.5": "platformio/espressif32@3.1.1",
     "1.0.4": "platformio/espressif32@3.0.0",
     "1.0.3": "platformio/espressif32@1.10.0",
@@ -56,6 +58,7 @@ CONF_ACTION_ID = "action_id"
 CONF_ADDRESS = "address"
 CONF_ADDRESSABLE_LIGHT_ID = "addressable_light_id"
 CONF_ALPHA = "alpha"
+CONF_ALTITUDE = "altitude"
 CONF_AND = "and"
 CONF_AP = "ap"
 CONF_ARDUINO_VERSION = "arduino_version"
@@ -128,6 +131,7 @@ CONF_CONTRAST = "contrast"
 CONF_COOL_ACTION = "cool_action"
 CONF_COOL_MODE = "cool_mode"
 CONF_COUNT_MODE = "count_mode"
+CONF_COURSE = "course"
 CONF_CRON = "cron"
 CONF_CS_PIN = "cs_pin"
 CONF_CSS_INCLUDE = "css_include"
@@ -270,6 +274,7 @@ CONF_KEEP_ON_TIME = "keep_on_time"
 CONF_KEEPALIVE = "keepalive"
 CONF_KEY = "key"
 CONF_LAMBDA = "lambda"
+CONF_LATITUDE = "latitude"
 CONF_LENGTH = "length"
 CONF_LEVEL = "level"
 CONF_LG = "lg"
@@ -282,6 +287,7 @@ CONF_LOCAL = "local"
 CONF_LOG_TOPIC = "log_topic"
 CONF_LOGGER = "logger"
 CONF_LOGS = "logs"
+CONF_LONGITUDE = "longitude"
 CONF_LOW = "low"
 CONF_LOW_VOLTAGE_REFERENCE = "low_voltage_reference"
 CONF_MAC_ADDRESS = "mac_address"
@@ -458,6 +464,7 @@ CONF_RX_ONLY = "rx_only"
 CONF_RX_PIN = "rx_pin"
 CONF_SAFE_MODE = "safe_mode"
 CONF_SAMSUNG = "samsung"
+CONF_SATELLITES = "satellites"
 CONF_SCAN = "scan"
 CONF_SCL = "scl"
 CONF_SCL_PIN = "scl_pin"
