@@ -193,7 +193,8 @@ class LightColorValues {
   void as_rgbw(float *red, float *green, float *blue, float *white, float gamma = 0,
                bool color_interlock = false) const {
     this->as_rgb(red, green, blue, gamma, color_interlock);
-    *white = gamma_correct(this->state_ * this->brightness_ * this->white_, gamma);
+    *white = (color_interlock) ? gamma_correct(this->state_ * this->brightness_ * this->white_, gamma) : 
+                                 gamma_correct(this->state_ * this->white_, gamma);
   }
 
   /// Convert these light color values to an RGBWW representation with the given parameters.
@@ -204,7 +205,9 @@ class LightColorValues {
     const float color_temp = clamp(this->color_temperature_, color_temperature_cw, color_temperature_ww);
     const float ww_fraction = (color_temp - color_temperature_cw) / (color_temperature_ww - color_temperature_cw);
     const float cw_fraction = 1.0f - ww_fraction;
-    const float white_level = gamma_correct(this->state_ * this->brightness_ * this->white_, gamma);
+
+    const float white_level = (color_interlock) ? gamma_correct(this->state_ * this->brightness_ * this->white_, gamma) : 
+                                                  gamma_correct(this->state_ * this->white_, gamma);
     *cold_white = white_level * cw_fraction;
     *warm_white = white_level * ww_fraction;
     if (!constant_brightness) {

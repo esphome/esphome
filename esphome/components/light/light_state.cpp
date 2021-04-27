@@ -103,12 +103,14 @@ void LightState::setup() {
 
   auto call = this->make_call();
   LightStateRTCState recovered{};
+  // Attempt to load from preferences
+  bool recovery_successful = this->rtc_.load(&recovered);
   switch (this->restore_mode_) {
     case LIGHT_RESTORE_DEFAULT_OFF:
     case LIGHT_RESTORE_DEFAULT_ON:
       this->rtc_ = global_preferences.make_preference<LightStateRTCState>(this->get_object_id_hash());
-      // Attempt to load from preferences, else fall back to default values from struct
-      if (!this->rtc_.load(&recovered)) {
+      // Fall back to default values from struct, if recovery failed
+      if (!recovery_successful) {
         recovered.state = this->restore_mode_ == LIGHT_RESTORE_DEFAULT_ON;
       }
       break;
@@ -121,7 +123,12 @@ void LightState::setup() {
   }
 
   call.set_state(recovered.state);
-  call.set_brightness_if_supported(recovered.brightness);
+  // If no color interlock, only set brightness if it was saved
+  if (!get_traits().get_supports_color_interlock() && !recovery_successful) {
+    call.set_brightness_if_supported(0);
+  } else {
+    call.set_brightness_if_supported(recovered.brightness);
+  }
   call.set_red_if_supported(recovered.red);
   call.set_green_if_supported(recovered.green);
   call.set_blue_if_supported(recovered.blue);
@@ -397,59 +404,62 @@ LightColorValues LightCall::validate_() {
     this->color_temperature_.reset();
   }
 
-  // sets RGB to 100% if only White specified
-  if (this->white_.has_value()) {
-    if (traits.get_supports_color_interlock()) {
-      if (!this->red_.has_value() && !this->green_.has_value() && !this->blue_.has_value()) {
-        this->red_ = optional<float>(1.0f);
-        this->green_ = optional<float>(1.0f);
-        this->blue_ = optional<float>(1.0f);
-      }
-      // make white values binary aka 0.0f or 1.0f...this allows brightness to do its job
-      if (*this->white_ > 0.0f) {
-        this->white_ = optional<float>(1.0f);
-      } else {
-        this->white_ = optional<float>(0.0f);
-      }
-    }
-  }
-  // White to 0% if (exclusively) setting any RGB value that isn't 255,255,255
-  else if (this->red_.has_value() || this->green_.has_value() || this->blue_.has_value()) {
-    if (traits.get_supports_color_interlock()) {
-      if (*this->red_ == 1.0f && *this->green_ == 1.0f && *this->blue_ == 1.0f &&
-          traits.get_supports_rgb_white_value() && traits.get_supports_color_interlock()) {
-        this->white_ = optional<float>(1.0f);
-      } else if (!this->white_.has_value() || !traits.get_supports_rgb_white_value()) {
-        this->white_ = optional<float>(0.0f);
+  // Only apply these adjustments if color interlock enabled
+  if(traits.get_supports_color_interlock()) {
+    // sets RGB to 100% if only White specified
+    if (this->white_.has_value()) {
+      if (traits.get_supports_color_interlock()) {
+        if (!this->red_.has_value() && !this->green_.has_value() && !this->blue_.has_value()) {
+          this->red_ = optional<float>(1.0f);
+          this->green_ = optional<float>(1.0f);
+          this->blue_ = optional<float>(1.0f);
+        }
+        // make white values binary aka 0.0f or 1.0f...this allows brightness to do its job
+        if (*this->white_ > 0.0f) {
+          this->white_ = optional<float>(1.0f);
+        } else {
+          this->white_ = optional<float>(0.0f);
+        }
       }
     }
-  }
-  // if changing Kelvin alone, change to white light
-  else if (this->color_temperature_.has_value()) {
-    if (!traits.get_supports_color_interlock()) {
-      if (!this->red_.has_value() && !this->green_.has_value() && !this->blue_.has_value()) {
-        this->red_ = optional<float>(1.0f);
-        this->green_ = optional<float>(1.0f);
-        this->blue_ = optional<float>(1.0f);
+    // White to 0% if (exclusively) setting any RGB value that isn't 255,255,255
+    else if (this->red_.has_value() || this->green_.has_value() || this->blue_.has_value()) {
+      if (traits.get_supports_color_interlock()) {
+        if (*this->red_ == 1.0f && *this->green_ == 1.0f && *this->blue_ == 1.0f &&
+            traits.get_supports_rgb_white_value() && traits.get_supports_color_interlock()) {
+          this->white_ = optional<float>(1.0f);
+        } else if (!this->white_.has_value() || !traits.get_supports_rgb_white_value()) {
+          this->white_ = optional<float>(0.0f);
+        }
       }
     }
-    // if setting Kelvin from color (i.e. switching to white light), set White to 100%
-    auto cv = this->parent_->remote_values;
-    bool was_color = cv.get_red() != 1.0f || cv.get_blue() != 1.0f || cv.get_green() != 1.0f;
-    bool now_white = *this->red_ == 1.0f && *this->blue_ == 1.0f && *this->green_ == 1.0f;
-    if (traits.get_supports_color_interlock()) {
-      if (cv.get_white() < 1.0f) {
-        this->white_ = optional<float>(1.0f);
+    // if changing Kelvin alone, change to white light
+    else if (this->color_temperature_.has_value()) {
+      if (!traits.get_supports_color_interlock()) {
+        if (!this->red_.has_value() && !this->green_.has_value() && !this->blue_.has_value()) {
+          this->red_ = optional<float>(1.0f);
+          this->green_ = optional<float>(1.0f);
+          this->blue_ = optional<float>(1.0f);
+        }
       }
+      // if setting Kelvin from color (i.e. switching to white light), set White to 100%
+      auto cv = this->parent_->remote_values;
+      bool was_color = cv.get_red() != 1.0f || cv.get_blue() != 1.0f || cv.get_green() != 1.0f;
+      bool now_white = *this->red_ == 1.0f && *this->blue_ == 1.0f && *this->green_ == 1.0f;
+      if (traits.get_supports_color_interlock()) {
+        if (cv.get_white() < 1.0f) {
+          this->white_ = optional<float>(1.0f);
+        }
 
-      if (was_color && !this->red_.has_value() && !this->green_.has_value() && !this->blue_.has_value()) {
-        this->red_ = optional<float>(1.0f);
-        this->green_ = optional<float>(1.0f);
-        this->blue_ = optional<float>(1.0f);
-      }
-    } else {
-      if (!this->white_.has_value() && was_color && now_white) {
-        this->white_ = optional<float>(1.0f);
+        if (was_color && !this->red_.has_value() && !this->green_.has_value() && !this->blue_.has_value()) {
+          this->red_ = optional<float>(1.0f);
+          this->green_ = optional<float>(1.0f);
+          this->blue_ = optional<float>(1.0f);
+        }
+      } else {
+        if (!this->white_.has_value() && was_color && now_white) {
+          this->white_ = optional<float>(1.0f);
+        }
       }
     }
   }
