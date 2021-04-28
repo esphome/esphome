@@ -443,7 +443,10 @@ sensor:
   - platform: ezo
     id: ph_ezo
     address: 99
-    unit_of_measurement: 'pH'
+    unit_of_measurement: 'pH'  
+  - platform: tof10120
+    name: "Distance sensor"
+    update_interval: 5s
   - platform: fingerprint_grow
     fingerprint_count:
       name: "Fingerprint Count"
