@@ -1,7 +1,7 @@
 """Constants used by esphome."""
 
 MAJOR_VERSION = 1
-MINOR_VERSION = 17
+MINOR_VERSION = 18
 PATCH_VERSION = "0-dev"
 __short_version__ = f"{MAJOR_VERSION}.{MINOR_VERSION}"
 __version__ = f"{__short_version__}.{PATCH_VERSION}"
@@ -10,36 +10,39 @@ ESP_PLATFORM_ESP32 = "ESP32"
 ESP_PLATFORM_ESP8266 = "ESP8266"
 ESP_PLATFORMS = [ESP_PLATFORM_ESP32, ESP_PLATFORM_ESP8266]
 
-ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789_-"
+ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-_"
+
 # Lookup table from ESP32 arduino framework version to latest platformio
 # package with that version
 # See also https://github.com/platformio/platform-espressif32/releases
 ARDUINO_VERSION_ESP32 = {
     "dev": "https://github.com/platformio/platform-espressif32.git",
-    "1.0.4": "espressif32@1.12.4",
-    "1.0.3": "espressif32@1.10.0",
-    "1.0.2": "espressif32@1.9.0",
-    "1.0.1": "espressif32@1.7.0",
-    "1.0.0": "espressif32@1.5.0",
+    "1.0.6": "platformio/espressif32@3.2.0",
+    "1.0.5": "platformio/espressif32@3.1.1",
+    "1.0.4": "platformio/espressif32@3.0.0",
+    "1.0.3": "platformio/espressif32@1.10.0",
+    "1.0.2": "platformio/espressif32@1.9.0",
+    "1.0.1": "platformio/espressif32@1.7.0",
+    "1.0.0": "platformio/espressif32@1.5.0",
 }
 # See also https://github.com/platformio/platform-espressif8266/releases
 ARDUINO_VERSION_ESP8266 = {
     "dev": "https://github.com/platformio/platform-espressif8266.git",
-    "2.7.4": "espressif8266@2.6.2",
-    "2.7.3": "espressif8266@2.6.1",
-    "2.7.2": "espressif8266@2.6.0",
-    "2.7.1": "espressif8266@2.5.3",
-    "2.7.0": "espressif8266@2.5.0",
-    "2.6.3": "espressif8266@2.4.0",
-    "2.6.2": "espressif8266@2.3.1",
-    "2.6.1": "espressif8266@2.3.0",
-    "2.5.2": "espressif8266@2.2.3",
-    "2.5.1": "espressif8266@2.1.1",
-    "2.5.0": "espressif8266@2.0.4",
-    "2.4.2": "espressif8266@1.8.0",
-    "2.4.1": "espressif8266@1.7.3",
-    "2.4.0": "espressif8266@1.6.0",
-    "2.3.0": "espressif8266@1.5.0",
+    "2.7.4": "platformio/espressif8266@2.6.2",
+    "2.7.3": "platformio/espressif8266@2.6.1",
+    "2.7.2": "platformio/espressif8266@2.6.0",
+    "2.7.1": "platformio/espressif8266@2.5.3",
+    "2.7.0": "platformio/espressif8266@2.5.0",
+    "2.6.3": "platformio/espressif8266@2.4.0",
+    "2.6.2": "platformio/espressif8266@2.3.1",
+    "2.6.1": "platformio/espressif8266@2.3.0",
+    "2.5.2": "platformio/espressif8266@2.2.3",
+    "2.5.1": "platformio/espressif8266@2.1.1",
+    "2.5.0": "platformio/espressif8266@2.0.4",
+    "2.4.2": "platformio/espressif8266@1.8.0",
+    "2.4.1": "platformio/espressif8266@1.7.3",
+    "2.4.0": "platformio/espressif8266@1.6.0",
+    "2.3.0": "platformio/espressif8266@1.5.0",
 }
 SOURCE_FILE_EXTENSIONS = {".cpp", ".hpp", ".h", ".c", ".tcc", ".ino"}
 HEADER_FILE_EXTENSIONS = {".h", ".hpp", ".tcc"}
@@ -53,7 +56,9 @@ CONF_ACCURACY = "accuracy"
 CONF_ACCURACY_DECIMALS = "accuracy_decimals"
 CONF_ACTION_ID = "action_id"
 CONF_ADDRESS = "address"
+CONF_ADDRESSABLE_LIGHT_ID = "addressable_light_id"
 CONF_ALPHA = "alpha"
+CONF_ALTITUDE = "altitude"
 CONF_AND = "and"
 CONF_AP = "ap"
 CONF_ARDUINO_VERSION = "arduino_version"
@@ -129,6 +134,7 @@ CONF_COOL_ACTION = "cool_action"
 CONF_COOL_MODE = "cool_mode"
 CONF_COUNT = "count"
 CONF_COUNT_MODE = "count_mode"
+CONF_COURSE = "course"
 CONF_CRON = "cron"
 CONF_CS_PIN = "cs_pin"
 CONF_CSS_INCLUDE = "css_include"
@@ -212,6 +218,7 @@ CONF_FOR = "for"
 CONF_FORCE_UPDATE = "force_update"
 CONF_FORMALDEHYDE = "formaldehyde"
 CONF_FORMAT = "format"
+CONF_FORWARD_ACTIVE_ENERGY = "forward_active_energy"
 CONF_FREQUENCY = "frequency"
 CONF_FROM = "from"
 CONF_FULL_UPDATE_EVERY = "full_update_every"
@@ -228,6 +235,7 @@ CONF_HEARTBEAT = "heartbeat"
 CONF_HEAT_ACTION = "heat_action"
 CONF_HEAT_MODE = "heat_mode"
 CONF_HEATER = "heater"
+CONF_HEIGHT = "height"
 CONF_HIDDEN = "hidden"
 CONF_HIDE_TIMESTAMP = "hide_timestamp"
 CONF_HIGH = "high"
@@ -274,6 +282,7 @@ CONF_KEY = "key"
 CONF_LAMBDA = "lambda"
 CONF_LAST_CONFIDENCE = "last_confidence"
 CONF_LAST_FINGER_ID = "last_finger_id"
+CONF_LATITUDE = "latitude"
 CONF_LENGTH = "length"
 CONF_LEVEL = "level"
 CONF_LG = "lg"
@@ -286,6 +295,7 @@ CONF_LOCAL = "local"
 CONF_LOG_TOPIC = "log_topic"
 CONF_LOGGER = "logger"
 CONF_LOGS = "logs"
+CONF_LONGITUDE = "longitude"
 CONF_LOW = "low"
 CONF_LOW_VOLTAGE_REFERENCE = "low_voltage_reference"
 CONF_MAC_ADDRESS = "mac_address"
@@ -402,6 +412,7 @@ CONF_PIN_B = "pin_b"
 CONF_PIN_C = "pin_c"
 CONF_PIN_D = "pin_d"
 CONF_PINS = "pins"
+CONF_PIXEL_MAPPER = "pixel_mapper"
 CONF_PLATFORM = "platform"
 CONF_PLATFORMIO_OPTIONS = "platformio_options"
 CONF_PM_1_0 = "pm_1_0"
@@ -451,6 +462,7 @@ CONF_RESTORE_MODE = "restore_mode"
 CONF_RESTORE_STATE = "restore_state"
 CONF_RESTORE_VALUE = "restore_value"
 CONF_RETAIN = "retain"
+CONF_REVERSE_ACTIVE_ENERGY = "reverse_active_energy"
 CONF_RGB_ORDER = "rgb_order"
 CONF_RGBW = "rgbw"
 CONF_RISING_EDGE = "rising_edge"
@@ -466,6 +478,7 @@ CONF_RX_ONLY = "rx_only"
 CONF_RX_PIN = "rx_pin"
 CONF_SAFE_MODE = "safe_mode"
 CONF_SAMSUNG = "samsung"
+CONF_SATELLITES = "satellites"
 CONF_SCAN = "scan"
 CONF_SCL = "scl"
 CONF_SCL_PIN = "scl_pin"
@@ -499,6 +512,7 @@ CONF_SLEEP_WHEN_DONE = "sleep_when_done"
 CONF_SONY = "sony"
 CONF_SPEED = "speed"
 CONF_SPEED_COMMAND_TOPIC = "speed_command_topic"
+CONF_SPEED_COUNT = "speed_count"
 CONF_SPEED_STATE_TOPIC = "speed_state_topic"
 CONF_SPI_ID = "spi_id"
 CONF_SPIKE_REJECTION = "spike_rejection"

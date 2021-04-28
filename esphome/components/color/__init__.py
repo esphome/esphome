@@ -51,7 +51,7 @@ def to_code(config):
     elif CONF_WHITE_INT in config:
         w = config[CONF_WHITE_INT]
 
-    cg.variable(
+    cg.new_variable(
         config[CONF_ID],
         cg.StructInitializer(ColorStruct, ("r", r), ("g", g), ("b", b), ("w", w)),
     )
