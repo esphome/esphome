@@ -1,23 +1,35 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import sensor
-from esphome.const import UNIT_DEGREES, ICON_WEATHER_SUNSET, CONF_ID, CONF_TYPE
+from esphome.const import (
+    DEVICE_CLASS_EMPTY,
+    UNIT_DEGREES,
+    ICON_WEATHER_SUNSET,
+    CONF_ID,
+    CONF_TYPE,
+)
 from .. import sun_ns, CONF_SUN_ID, Sun
 
-DEPENDENCIES = ['sun']
+DEPENDENCIES = ["sun"]
 
-SunSensor = sun_ns.class_('SunSensor', sensor.Sensor, cg.PollingComponent)
-SensorType = sun_ns.enum('SensorType')
+SunSensor = sun_ns.class_("SunSensor", sensor.Sensor, cg.PollingComponent)
+SensorType = sun_ns.enum("SensorType")
 TYPES = {
-    'elevation': SensorType.SUN_SENSOR_ELEVATION,
-    'azimuth': SensorType.SUN_SENSOR_AZIMUTH,
+    "elevation": SensorType.SUN_SENSOR_ELEVATION,
+    "azimuth": SensorType.SUN_SENSOR_AZIMUTH,
 }
 
-CONFIG_SCHEMA = sensor.sensor_schema(UNIT_DEGREES, ICON_WEATHER_SUNSET, 1).extend({
-    cv.GenerateID(): cv.declare_id(SunSensor),
-    cv.GenerateID(CONF_SUN_ID): cv.use_id(Sun),
-    cv.Required(CONF_TYPE): cv.enum(TYPES, lower=True),
-}).extend(cv.polling_component_schema('60s'))
+CONFIG_SCHEMA = (
+    sensor.sensor_schema(UNIT_DEGREES, ICON_WEATHER_SUNSET, 1, DEVICE_CLASS_EMPTY)
+    .extend(
+        {
+            cv.GenerateID(): cv.declare_id(SunSensor),
+            cv.GenerateID(CONF_SUN_ID): cv.use_id(Sun),
+            cv.Required(CONF_TYPE): cv.enum(TYPES, lower=True),
+        }
+    )
+    .extend(cv.polling_component_schema("60s"))
+)
 
 
 def to_code(config):

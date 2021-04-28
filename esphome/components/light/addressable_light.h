@@ -2,6 +2,7 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
+#include "esphome/core/color.h"
 #include "light_output.h"
 #include "light_state.h"
 
@@ -12,151 +13,7 @@
 namespace esphome {
 namespace light {
 
-inline static uint8_t esp_scale8(uint8_t i, uint8_t scale) { return (uint16_t(i) * (1 + uint16_t(scale))) / 256; }
-
-struct ESPColor {
-  union {
-    struct {
-      union {
-        uint8_t r;
-        uint8_t red;
-      };
-      union {
-        uint8_t g;
-        uint8_t green;
-      };
-      union {
-        uint8_t b;
-        uint8_t blue;
-      };
-      union {
-        uint8_t w;
-        uint8_t white;
-      };
-    };
-    uint8_t raw[4];
-    uint32_t raw_32;
-  };
-  inline ESPColor() ALWAYS_INLINE : r(0), g(0), b(0), w(0) {}  // NOLINT
-  inline ESPColor(uint8_t red, uint8_t green, uint8_t blue, uint8_t white) ALWAYS_INLINE : r(red),
-                                                                                           g(green),
-                                                                                           b(blue),
-                                                                                           w(white) {}
-  inline ESPColor(uint8_t red, uint8_t green, uint8_t blue) ALWAYS_INLINE : r(red), g(green), b(blue), w(0) {}
-  inline ESPColor(uint32_t colorcode) ALWAYS_INLINE : r((colorcode >> 16) & 0xFF),
-                                                      g((colorcode >> 8) & 0xFF),
-                                                      b((colorcode >> 0) & 0xFF),
-                                                      w((colorcode >> 24) & 0xFF) {}
-  inline ESPColor(const ESPColor &rhs) ALWAYS_INLINE {
-    this->r = rhs.r;
-    this->g = rhs.g;
-    this->b = rhs.b;
-    this->w = rhs.w;
-  }
-  inline bool is_on() ALWAYS_INLINE { return this->raw_32 != 0; }
-  inline ESPColor &operator=(const ESPColor &rhs) ALWAYS_INLINE {
-    this->r = rhs.r;
-    this->g = rhs.g;
-    this->b = rhs.b;
-    this->w = rhs.w;
-    return *this;
-  }
-  inline ESPColor &operator=(uint32_t colorcode) ALWAYS_INLINE {
-    this->w = (colorcode >> 24) & 0xFF;
-    this->r = (colorcode >> 16) & 0xFF;
-    this->g = (colorcode >> 8) & 0xFF;
-    this->b = (colorcode >> 0) & 0xFF;
-    return *this;
-  }
-  inline uint8_t &operator[](uint8_t x) ALWAYS_INLINE { return this->raw[x]; }
-  inline ESPColor operator*(uint8_t scale) const ALWAYS_INLINE {
-    return ESPColor(esp_scale8(this->red, scale), esp_scale8(this->green, scale), esp_scale8(this->blue, scale),
-                    esp_scale8(this->white, scale));
-  }
-  inline ESPColor &operator*=(uint8_t scale) ALWAYS_INLINE {
-    this->red = esp_scale8(this->red, scale);
-    this->green = esp_scale8(this->green, scale);
-    this->blue = esp_scale8(this->blue, scale);
-    this->white = esp_scale8(this->white, scale);
-    return *this;
-  }
-  inline ESPColor operator*(const ESPColor &scale) const ALWAYS_INLINE {
-    return ESPColor(esp_scale8(this->red, scale.red), esp_scale8(this->green, scale.green),
-                    esp_scale8(this->blue, scale.blue), esp_scale8(this->white, scale.white));
-  }
-  inline ESPColor &operator*=(const ESPColor &scale) ALWAYS_INLINE {
-    this->red = esp_scale8(this->red, scale.red);
-    this->green = esp_scale8(this->green, scale.green);
-    this->blue = esp_scale8(this->blue, scale.blue);
-    this->white = esp_scale8(this->white, scale.white);
-    return *this;
-  }
-  inline ESPColor operator+(const ESPColor &add) const ALWAYS_INLINE {
-    ESPColor ret;
-    if (uint8_t(add.r + this->r) < this->r)
-      ret.r = 255;
-    else
-      ret.r = this->r + add.r;
-    if (uint8_t(add.g + this->g) < this->g)
-      ret.g = 255;
-    else
-      ret.g = this->g + add.g;
-    if (uint8_t(add.b + this->b) < this->b)
-      ret.b = 255;
-    else
-      ret.b = this->b + add.b;
-    if (uint8_t(add.w + this->w) < this->w)
-      ret.w = 255;
-    else
-      ret.w = this->w + add.w;
-    return ret;
-  }
-  inline ESPColor &operator+=(const ESPColor &add) ALWAYS_INLINE { return *this = (*this) + add; }
-  inline ESPColor operator+(uint8_t add) const ALWAYS_INLINE { return (*this) + ESPColor(add, add, add, add); }
-  inline ESPColor &operator+=(uint8_t add) ALWAYS_INLINE { return *this = (*this) + add; }
-  inline ESPColor operator-(const ESPColor &subtract) const ALWAYS_INLINE {
-    ESPColor ret;
-    if (subtract.r > this->r)
-      ret.r = 0;
-    else
-      ret.r = this->r - subtract.r;
-    if (subtract.g > this->g)
-      ret.g = 0;
-    else
-      ret.g = this->g - subtract.g;
-    if (subtract.b > this->b)
-      ret.b = 0;
-    else
-      ret.b = this->b - subtract.b;
-    if (subtract.w > this->w)
-      ret.w = 0;
-    else
-      ret.w = this->w - subtract.w;
-    return ret;
-  }
-  inline ESPColor &operator-=(const ESPColor &subtract) ALWAYS_INLINE { return *this = (*this) - subtract; }
-  inline ESPColor operator-(uint8_t subtract) const ALWAYS_INLINE {
-    return (*this) - ESPColor(subtract, subtract, subtract, subtract);
-  }
-  inline ESPColor &operator-=(uint8_t subtract) ALWAYS_INLINE { return *this = (*this) - subtract; }
-  static ESPColor random_color() {
-    uint32_t rand = random_uint32();
-    uint8_t w = rand >> 24;
-    uint8_t r = rand >> 16;
-    uint8_t g = rand >> 8;
-    uint8_t b = rand >> 0;
-    const uint16_t max_rgb = std::max(r, std::max(g, b));
-    return ESPColor(uint8_t((uint16_t(r) * 255U / max_rgb)), uint8_t((uint16_t(g) * 255U / max_rgb)),
-                    uint8_t((uint16_t(b) * 255U / max_rgb)), w);
-  }
-  ESPColor fade_to_white(uint8_t amnt) const { return ESPColor(255, 255, 255, 255) - (*this * amnt); }
-  ESPColor fade_to_black(uint8_t amnt) const { return *this * amnt; }
-  ESPColor lighten(uint8_t delta) const { return *this + delta; }
-  ESPColor darken(uint8_t delta) const { return *this - delta; }
-
-  static const ESPColor BLACK;
-  static const ESPColor WHITE;
-};
+using ESPColor = Color;
 
 struct ESPHSVColor {
   union {
@@ -181,19 +38,19 @@ struct ESPHSVColor {
   inline ESPHSVColor(uint8_t hue, uint8_t saturation, uint8_t value) ALWAYS_INLINE : hue(hue),
                                                                                      saturation(saturation),
                                                                                      value(value) {}
-  ESPColor to_rgb() const;
+  Color to_rgb() const;
 };
 
 class ESPColorCorrection {
  public:
   ESPColorCorrection() : max_brightness_(255, 255, 255, 255) {}
-  void set_max_brightness(const ESPColor &max_brightness) { this->max_brightness_ = max_brightness; }
+  void set_max_brightness(const Color &max_brightness) { this->max_brightness_ = max_brightness; }
   void set_local_brightness(uint8_t local_brightness) { this->local_brightness_ = local_brightness; }
   void calculate_gamma_table(float gamma);
-  inline ESPColor color_correct(ESPColor color) const ALWAYS_INLINE {
+  inline Color color_correct(Color color) const ALWAYS_INLINE {
     // corrected = (uncorrected * max_brightness * local_brightness) ^ gamma
-    return ESPColor(this->color_correct_red(color.red), this->color_correct_green(color.green),
-                    this->color_correct_blue(color.blue), this->color_correct_white(color.white));
+    return Color(this->color_correct_red(color.red), this->color_correct_green(color.green),
+                 this->color_correct_blue(color.blue), this->color_correct_white(color.white));
   }
   inline uint8_t color_correct_red(uint8_t red) const ALWAYS_INLINE {
     uint8_t res = esp_scale8(esp_scale8(red, this->max_brightness_.red), this->local_brightness_);
@@ -212,10 +69,10 @@ class ESPColorCorrection {
     uint8_t res = esp_scale8(white, this->max_brightness_.white);
     return this->gamma_table_[res];
   }
-  inline ESPColor color_uncorrect(ESPColor color) const ALWAYS_INLINE {
+  inline Color color_uncorrect(Color color) const ALWAYS_INLINE {
     // uncorrected = corrected^(1/gamma) / (max_brightness * local_brightness)
-    return ESPColor(this->color_uncorrect_red(color.red), this->color_uncorrect_green(color.green),
-                    this->color_uncorrect_blue(color.blue), this->color_uncorrect_white(color.white));
+    return Color(this->color_uncorrect_red(color.red), this->color_uncorrect_green(color.green),
+                 this->color_uncorrect_blue(color.blue), this->color_uncorrect_white(color.white));
   }
   inline uint8_t color_uncorrect_red(uint8_t red) const ALWAYS_INLINE {
     if (this->max_brightness_.red == 0 || this->local_brightness_ == 0)
@@ -249,13 +106,13 @@ class ESPColorCorrection {
  protected:
   uint8_t gamma_table_[256];
   uint8_t gamma_reverse_table_[256];
-  ESPColor max_brightness_;
+  Color max_brightness_;
   uint8_t local_brightness_{255};
 };
 
 class ESPColorSettable {
  public:
-  virtual void set(const ESPColor &color) = 0;
+  virtual void set(const Color &color) = 0;
   virtual void set_red(uint8_t red) = 0;
   virtual void set_green(uint8_t green) = 0;
   virtual void set_blue(uint8_t blue) = 0;
@@ -267,7 +124,7 @@ class ESPColorSettable {
   virtual void darken(uint8_t delta) = 0;
   void set(const ESPHSVColor &color) { this->set_hsv(color); }
   void set_hsv(const ESPHSVColor &color) {
-    ESPColor rgb = color.to_rgb();
+    Color rgb = color.to_rgb();
     this->set_rgb(rgb.r, rgb.g, rgb.b);
   }
   void set_rgb(uint8_t red, uint8_t green, uint8_t blue) {
@@ -291,7 +148,7 @@ class ESPColorView : public ESPColorSettable {
         white_(white),
         effect_data_(effect_data),
         color_correction_(color_correction) {}
-  ESPColorView &operator=(const ESPColor &rhs) {
+  ESPColorView &operator=(const Color &rhs) {
     this->set(rhs);
     return *this;
   }
@@ -299,7 +156,7 @@ class ESPColorView : public ESPColorSettable {
     this->set_hsv(rhs);
     return *this;
   }
-  void set(const ESPColor &color) override { this->set_rgbw(color.r, color.g, color.b, color.w); }
+  void set(const Color &color) override { this->set_rgbw(color.r, color.g, color.b, color.w); }
   void set_red(uint8_t red) override { *this->red_ = this->color_correction_->color_correct_red(red); }
   void set_green(uint8_t green) override { *this->green_ = this->color_correction_->color_correct_green(green); }
   void set_blue(uint8_t blue) override { *this->blue_ = this->color_correction_->color_correct_blue(blue); }
@@ -317,7 +174,7 @@ class ESPColorView : public ESPColorSettable {
   void fade_to_black(uint8_t amnt) override { this->set(this->get().fade_to_black(amnt)); }
   void lighten(uint8_t delta) override { this->set(this->get().lighten(delta)); }
   void darken(uint8_t delta) override { this->set(this->get().darken(delta)); }
-  ESPColor get() const { return ESPColor(this->get_red(), this->get_green(), this->get_blue(), this->get_white()); }
+  Color get() const { return Color(this->get_red(), this->get_green(), this->get_blue(), this->get_white()); }
   uint8_t get_red() const { return this->color_correction_->color_uncorrect_red(*this->red_); }
   uint8_t get_red_raw() const { return *this->red_; }
   uint8_t get_green() const { return this->color_correction_->color_uncorrect_green(*this->green_); }
@@ -370,8 +227,8 @@ class ESPRangeView : public ESPColorSettable {
   ESPRangeIterator begin();
   ESPRangeIterator end();
 
-  void set(const ESPColor &color) override;
-  ESPRangeView &operator=(const ESPColor &rhs) {
+  void set(const Color &color) override;
+  ESPRangeView &operator=(const Color &rhs) {
     this->set(rhs);
     return *this;
   }
@@ -454,8 +311,8 @@ class AddressableLight : public LightOutput, public Component {
   void set_effect_active(bool effect_active) { this->effect_active_ = effect_active; }
   void write_state(LightState *state) override;
   void set_correction(float red, float green, float blue, float white = 1.0f) {
-    this->correction_.set_max_brightness(ESPColor(uint8_t(roundf(red * 255.0f)), uint8_t(roundf(green * 255.0f)),
-                                                  uint8_t(roundf(blue * 255.0f)), uint8_t(roundf(white * 255.0f))));
+    this->correction_.set_max_brightness(Color(uint8_t(roundf(red * 255.0f)), uint8_t(roundf(green * 255.0f)),
+                                               uint8_t(roundf(blue * 255.0f)), uint8_t(roundf(white * 255.0f))));
   }
   void setup_state(LightState *state) override {
     this->correction_.calculate_gamma_table(state->get_gamma_correct());
