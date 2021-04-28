@@ -3,6 +3,7 @@ import esphome.config_validation as cv
 from esphome.components import i2c, sensor
 from esphome.const import CONF_ID, UNIT_METER, ICON_ARROW_EXPAND_VERTICAL
 
+CODEOWNERS = ["@wstrzalka"]
 DEPENDENCIES = ["i2c"]
 
 tof10120_ns = cg.esphome_ns.namespace("tof10120")
