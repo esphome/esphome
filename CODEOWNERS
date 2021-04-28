@@ -38,6 +38,7 @@ esphome/components/ds1307/* @badbadc0ffee
 esphome/components/exposure_notifications/* @OttoWinter
 esphome/components/ezo/* @ssieb
 esphome/components/fastled_base/* @OttoWinter
+esphome/components/fingerprint_grow/* @OnFreund @loongyh
 esphome/components/globals/* @esphome/core
 esphome/components/gm40/* @loongyh
 esphome/components/gpio/* @esphome/core
