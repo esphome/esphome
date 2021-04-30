@@ -167,6 +167,17 @@ enum LightRestoreMode {
   LIGHT_ALWAYS_ON,
 };
 
+struct LightStateRTCState {
+  bool state{false};
+  float brightness{1.0f};
+  float red{1.0f};
+  float green{1.0f};
+  float blue{1.0f};
+  float white{1.0f};
+  float color_temp{1.0f};
+  uint32_t effect{0};
+};
+
 /** This class represents the communication layer between the front-end MQTT layer and the
  * hardware output layer.
  */

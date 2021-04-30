@@ -82,17 +82,6 @@ void LightState::dump_json(JsonObject &root) {
 }
 #endif
 
-struct LightStateRTCState {
-  bool state{false};
-  float brightness{1.0f};
-  float red{1.0f};
-  float green{1.0f};
-  float blue{1.0f};
-  float white{1.0f};
-  float color_temp{1.0f};
-  uint32_t effect{0};
-};
-
 void LightState::setup() {
   ESP_LOGCONFIG(TAG, "Setting up light '%s'...", this->get_name().c_str());
 
