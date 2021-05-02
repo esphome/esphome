@@ -12,6 +12,7 @@ from esphome.const import (
 from esphome.core import coroutine
 from esphome import automation
 
+CODEOWNERS = ["@buxtronix"]
 DEPENDENCIES = ["esp32_ble_tracker"]
 
 ble_client_ns = cg.esphome_ns.namespace("ble_client")
