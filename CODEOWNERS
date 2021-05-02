@@ -21,6 +21,7 @@ esphome/components/atc_mithermometer/* @ahpohl
 esphome/components/b_parasite/* @rbaron
 esphome/components/bang_bang/* @OttoWinter
 esphome/components/binary_sensor/* @esphome/core
+esphome/components/ble_client/* @buxtronix
 esphome/components/bme680_bsec/* @trvrnrth
 esphome/components/canbus/* @danielschramm @mvturnho
 esphome/components/captive_portal/* @OttoWinter
