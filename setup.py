@@ -12,7 +12,7 @@ PROJECT_LICENSE = "MIT"
 PROJECT_AUTHOR = "ESPHome"
 PROJECT_COPYRIGHT = "2019, ESPHome"
 PROJECT_URL = "https://esphome.io/"
-PROJECT_EMAIL = "contact@esphome.io"
+PROJECT_EMAIL = "esphome@nabucasa.com"
 
 PROJECT_GITHUB_USERNAME = "esphome"
 PROJECT_GITHUB_REPOSITORY = "esphome"
