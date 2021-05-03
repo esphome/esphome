@@ -102,7 +102,7 @@ void BLEClient::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t es
   switch (event) {
     case ESP_GATTC_REG_EVT: {
       if (param->reg.status == ESP_GATT_OK) {
-        ESP_LOGI(TAG, "gattc registered app id %d", this->app_id);
+        ESP_LOGV(TAG, "gattc registered app id %d", this->app_id);
         this->gattc_if = esp_gattc_if;
       } else {
         ESP_LOGE(TAG, "gattc app registration failed id=%d code=%d", param->reg.app_id, param->reg.status);
@@ -110,7 +110,7 @@ void BLEClient::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t es
       break;
     }
     case ESP_GATTC_OPEN_EVT: {
-      ESP_LOGI(TAG, "[%s] ESP_GATTC_OPEN_EVT", this->address_str().c_str());
+      ESP_LOGV(TAG, "[%s] ESP_GATTC_OPEN_EVT", this->address_str().c_str());
       if (param->open.status != ESP_GATT_OK) {
         ESP_LOGW(TAG, "connect to %s failed, status=%d", this->address_str().c_str(), param->open.status);
         this->set_states(espbt::ClientState::Idle);
@@ -137,7 +137,7 @@ void BLEClient::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t es
       if (memcmp(param->disconnect.remote_bda, this->remote_bda, 6) != 0) {
         return;
       }
-      ESP_LOGI(TAG, "[%s] ESP_GATTC_DISCONNECT_EVT", this->address_str().c_str());
+      ESP_LOGV(TAG, "[%s] ESP_GATTC_DISCONNECT_EVT", this->address_str().c_str());
       for (auto &svc : this->services_)
         delete svc;
       this->services_.clear();
@@ -216,24 +216,36 @@ float BLEClient::parse_char_value(uint8_t *value, uint16_t length) {
       return (float) ((uint8_t) value[1]);
     case 0x5:  // uint12.
     case 0x6:  // uint16.
-      return (float) ((uint16_t)(value[1] << 8) + (uint16_t) value[2]);
+      if (length > 2) {
+        return (float) ((uint16_t)(value[1] << 8) + (uint16_t) value[2]);
+      }
     case 0x7:  // uint24.
-      return (float) ((uint32_t)(value[1] << 16) + (uint32_t)(value[2] << 8) + (uint32_t)(value[3]));
+      if (length > 3) {
+        return (float) ((uint32_t)(value[1] << 16) + (uint32_t)(value[2] << 8) + (uint32_t)(value[3]));
+      }
     case 0x8:  // uint32.
-      return (float) ((uint32_t)(value[1] << 24) + (uint32_t)(value[2] << 16) + (uint32_t)(value[3] << 8) +
-                      (uint32_t)(value[4]));
+      if (length > 4) {
+        return (float) ((uint32_t)(value[1] << 24) + (uint32_t)(value[2] << 16) + (uint32_t)(value[3] << 8) +
+                        (uint32_t)(value[4]));
+      }
     case 0xC:  // int8.
       return (float) ((int8_t) value[1]);
     case 0xD:  // int12.
     case 0xE:  // int16.
-      return (float) ((int16_t)(value[1] << 8) + (int16_t) value[2]);
+      if (length > 2) {
+        return (float) ((int16_t)(value[1] << 8) + (int16_t) value[2]);
+      }
     case 0xF:  // int24.
-      return (float) ((int32_t)(value[1] << 16) + (int32_t)(value[2] << 8) + (int32_t)(value[3]));
+      if (length > 3) {
+        return (float) ((int32_t)(value[1] << 16) + (int32_t)(value[2] << 8) + (int32_t)(value[3]));
+      }
     case 0x10:  // int32.
-      return (float) ((int32_t)(value[1] << 24) + (int32_t)(value[2] << 16) + (int32_t)(value[3] << 8) +
-                      (int32_t)(value[4]));
+      if (length > 4) {
+        return (float) ((int32_t)(value[1] << 24) + (int32_t)(value[2] << 16) + (int32_t)(value[3] << 8) +
+                        (int32_t)(value[4]));
+      }
   }
-  ESP_LOGW(TAG, "Cannot parse characteristic value of type 0x%x", value[0]);
+  ESP_LOGW(TAG, "Cannot parse characteristic value of type 0x%x length %d", value[0], length);
   return NAN;
 }
 
@@ -359,7 +371,7 @@ void BLECharacteristic::parse_descriptors() {
     desc->handle = result.handle;
     desc->characteristic = this;
     this->descriptors.push_back(desc);
-    ESP_LOGI(TAG, "   descriptor %s, handle 0x%x", desc->uuid.to_string().c_str(), desc->handle);
+    ESP_LOGV(TAG, "   descriptor %s, handle 0x%x", desc->uuid.to_string().c_str(), desc->handle);
     offset++;
   }
 }
