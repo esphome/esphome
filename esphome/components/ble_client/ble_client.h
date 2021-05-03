@@ -131,7 +131,7 @@ class BLEClient : public espbt::ESPBTClient, public Component {
   }
 
   std::vector<BLEClientNode *> nodes_;
-  std::vector<BLEService*> services_;
+  std::vector<BLEService *> services_;
 };
 
 }  // namespace ble_client
