@@ -102,7 +102,7 @@ void BLEClient::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t es
   switch (event) {
     case ESP_GATTC_REG_EVT: {
       if (param->reg.status == ESP_GATT_OK) {
-        ESP_LOGI(TAG, "gattc registered app id %d", this->app_id);
+        ESP_LOGV(TAG, "gattc registered app id %d", this->app_id);
         this->gattc_if = esp_gattc_if;
       } else {
         ESP_LOGE(TAG, "gattc app registration failed id=%d code=%d", param->reg.app_id, param->reg.status);
@@ -110,7 +110,7 @@ void BLEClient::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t es
       break;
     }
     case ESP_GATTC_OPEN_EVT: {
-      ESP_LOGI(TAG, "[%s] ESP_GATTC_OPEN_EVT", this->address_str().c_str());
+      ESP_LOGV(TAG, "[%s] ESP_GATTC_OPEN_EVT", this->address_str().c_str());
       if (param->open.status != ESP_GATT_OK) {
         ESP_LOGW(TAG, "connect to %s failed, status=%d", this->address_str().c_str(), param->open.status);
         this->set_states(espbt::ClientState::Idle);
@@ -137,7 +137,7 @@ void BLEClient::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t es
       if (memcmp(param->disconnect.remote_bda, this->remote_bda, 6) != 0) {
         return;
       }
-      ESP_LOGI(TAG, "[%s] ESP_GATTC_DISCONNECT_EVT", this->address_str().c_str());
+      ESP_LOGV(TAG, "[%s] ESP_GATTC_DISCONNECT_EVT", this->address_str().c_str());
       for (auto &svc : this->services_)
         delete svc;
       this->services_.clear();
@@ -359,7 +359,7 @@ void BLECharacteristic::parse_descriptors() {
     desc->handle = result.handle;
     desc->characteristic = this;
     this->descriptors.push_back(desc);
-    ESP_LOGI(TAG, "   descriptor %s, handle 0x%x", desc->uuid.to_string().c_str(), desc->handle);
+    ESP_LOGV(TAG, "   descriptor %s, handle 0x%x", desc->uuid.to_string().c_str(), desc->handle);
     offset++;
   }
 }

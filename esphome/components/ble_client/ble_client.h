@@ -12,10 +12,10 @@
 #include <esp_gattc_api.h>
 #include <esp_bt_defs.h>
 
-namespace espbt = esphome::esp32_ble_tracker;
-
 namespace esphome {
 namespace ble_client {
+
+namespace espbt = esphome::esp32_ble_tracker;
 
 class BLEClient;
 class BLEService;
@@ -131,7 +131,7 @@ class BLEClient : public espbt::ESPBTClient, public Component {
   }
 
   std::vector<BLEClientNode *> nodes_;
-  std::vector<BLEService *> services_;
+  std::vector<std::unique_tr<BLEService>> services_;
 };
 
 }  // namespace ble_client
