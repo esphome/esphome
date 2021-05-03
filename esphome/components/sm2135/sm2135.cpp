@@ -1,37 +1,35 @@
 #include "sm2135.h"
 #include "esphome/core/log.h"
 
-
 // Tnx to the work of https://github.com/arendst (Tasmota) for making the initial version of the driver
-
 
 namespace esphome {
 namespace sm2135 {
 
 static const char *TAG = "sm2135";
 
-static const uint8_t SM2135_ADDR_MC   =  0xC0;  // Max current register
-static const uint8_t SM2135_ADDR_CH   =  0xC1;  // RGB or CW channel select register
-static const uint8_t SM2135_ADDR_R    =  0xC2;  // Red color
-static const uint8_t SM2135_ADDR_G    =  0xC3;  // Green color
-static const uint8_t SM2135_ADDR_B    =  0xC4;  // Blue color
-static const uint8_t SM2135_ADDR_C    =  0xC5;  // Cold
-static const uint8_t SM2135_ADDR_W    =  0xC6;  // Warm
+static const uint8_t SM2135_ADDR_MC = 0xC0;  // Max current register
+static const uint8_t SM2135_ADDR_CH = 0xC1;  // RGB or CW channel select register
+static const uint8_t SM2135_ADDR_R = 0xC2;   // Red color
+static const uint8_t SM2135_ADDR_G = 0xC3;   // Green color
+static const uint8_t SM2135_ADDR_B = 0xC4;   // Blue color
+static const uint8_t SM2135_ADDR_C = 0xC5;   // Cold
+static const uint8_t SM2135_ADDR_W = 0xC6;   // Warm
 
-static const uint8_t SM2135_RGB       =  0x00;  // RGB channel
-static const uint8_t SM2135_CW        =  0x80;  // CW channel (Chip default)
+static const uint8_t SM2135_RGB = 0x00;  // RGB channel
+static const uint8_t SM2135_CW = 0x80;   // CW channel (Chip default)
 
-static const uint8_t SM2135_10MA      =  0x00;
-static const uint8_t SM2135_15MA      =  0x01;
-static const uint8_t SM2135_20MA      =  0x02;  // RGB max current (Chip default)
-static const uint8_t SM2135_25MA      =  0x03;
-static const uint8_t SM2135_30MA      =  0x04;  // CW max current (Chip default)
-static const uint8_t SM2135_35MA      =  0x05;
-static const uint8_t SM2135_40MA      =  0x06;
-static const uint8_t SM2135_45MA      =  0x07;  // Max value for RGB
-static const uint8_t SM2135_50MA      =  0x08;
-static const uint8_t SM2135_55MA      =  0x09;
-static const uint8_t SM2135_60MA      =  0x0A;
+static const uint8_t SM2135_10MA = 0x00;
+static const uint8_t SM2135_15MA = 0x01;
+static const uint8_t SM2135_20MA = 0x02;  // RGB max current (Chip default)
+static const uint8_t SM2135_25MA = 0x03;
+static const uint8_t SM2135_30MA = 0x04;  // CW max current (Chip default)
+static const uint8_t SM2135_35MA = 0x05;
+static const uint8_t SM2135_40MA = 0x06;
+static const uint8_t SM2135_45MA = 0x07;  // Max value for RGB
+static const uint8_t SM2135_50MA = 0x08;
+static const uint8_t SM2135_55MA = 0x09;
+static const uint8_t SM2135_60MA = 0x0A;
 
 static const uint8_t SM2135_CURRENT = (SM2135_20MA << 4) | SM2135_10MA;
 
