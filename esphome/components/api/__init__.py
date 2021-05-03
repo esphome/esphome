@@ -15,6 +15,7 @@ from esphome.const import (
     CONF_TRIGGER_ID,
     CONF_EVENT,
     CONF_TAG,
+    CONF_ACK_TIMEOUT_WORKAROUND,
 )
 from esphome.core import coroutine_with_priority
 
@@ -50,6 +51,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(
             CONF_REBOOT_TIMEOUT, default="15min"
         ): cv.positive_time_period_milliseconds,
+        cv.Optional(CONF_ACK_TIMEOUT_WORKAROUND, default=False): cv.boolean,
         cv.Optional(CONF_SERVICES): automation.validate_automation(
             {
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(UserServiceTrigger),
@@ -75,6 +77,9 @@ def to_code(config):
     cg.add(var.set_port(config[CONF_PORT]))
     cg.add(var.set_password(config[CONF_PASSWORD]))
     cg.add(var.set_reboot_timeout(config[CONF_REBOOT_TIMEOUT]))
+
+    if config[CONF_ACK_TIMEOUT_WORKAROUND]:
+        cg.add_define("DISABLE_ASYNCTCP_ACK_TIMEOUTS")
 
     for conf in config.get(CONF_SERVICES, []):
         template_args = []
