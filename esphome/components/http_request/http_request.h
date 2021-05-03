@@ -22,6 +22,8 @@ struct Header {
   const char *value;
 };
 
+class HttpRequestResponseTrigger;
+
 class HttpRequestComponent : public Component {
  public:
   void dump_config() override;
@@ -33,7 +35,7 @@ class HttpRequestComponent : public Component {
   void set_timeout(uint16_t timeout) { this->timeout_ = timeout; }
   void set_body(std::string body) { this->body_ = body; }
   void set_headers(std::list<Header> headers) { this->headers_ = headers; }
-  void send();
+  void send(const std::vector<HttpRequestResponseTrigger *> &response_triggers);
   void close();
   const char *get_string();
 
@@ -69,6 +71,8 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
 
   void set_json(std::function<void(Ts..., JsonObject &)> json_func) { this->json_func_ = json_func; }
 
+  void register_response_trigger(HttpRequestResponseTrigger *trigger) { this->response_triggers_.push_back(trigger); }
+
   void play(Ts... x) override {
     this->parent_->set_url(this->url_.value(x...));
     this->parent_->set_method(this->method_.value(x...));
@@ -100,7 +104,7 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
       }
       this->parent_->set_headers(headers);
     }
-    this->parent_->send();
+    this->parent_->send(this->response_triggers_);
     this->parent_->close();
   }
 
@@ -116,6 +120,12 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
   std::map<const char *, TemplatableValue<const char *, Ts...>> headers_{};
   std::map<const char *, TemplatableValue<std::string, Ts...>> json_{};
   std::function<void(Ts..., JsonObject &)> json_func_{nullptr};
+  std::vector<HttpRequestResponseTrigger *> response_triggers_;
+};
+
+class HttpRequestResponseTrigger : public Trigger<int> {
+ public:
+  void process(int status_code) { this->trigger(status_code); }
 };
 
 }  // namespace http_request

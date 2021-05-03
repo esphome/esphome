@@ -40,11 +40,11 @@ void WLEDLightEffect::stop() {
 
 void WLEDLightEffect::blank_all_leds_(light::AddressableLight &it) {
   for (int led = it.size(); led-- > 0;) {
-    it[led].set(light::ESPColor::BLACK);
+    it[led].set(COLOR_BLACK);
   }
 }
 
-void WLEDLightEffect::apply(light::AddressableLight &it, const light::ESPColor &current_color) {
+void WLEDLightEffect::apply(light::AddressableLight &it, const Color &current_color) {
   // Init UDP lazily
   if (!udp_) {
     udp_.reset(new WiFiUDP());
@@ -152,7 +152,7 @@ bool WLEDLightEffect::parse_warls_frame_(light::AddressableLight &it, const uint
     uint8_t b = payload[3];
 
     if (led < max_leds) {
-      it[led].set(light::ESPColor(r, g, b));
+      it[led].set(Color(r, g, b));
     }
   }
 
@@ -174,7 +174,7 @@ bool WLEDLightEffect::parse_drgb_frame_(light::AddressableLight &it, const uint8
     uint8_t b = payload[2];
 
     if (led < max_leds) {
-      it[led].set(light::ESPColor(r, g, b));
+      it[led].set(Color(r, g, b));
     }
   }
 
@@ -197,7 +197,7 @@ bool WLEDLightEffect::parse_drgbw_frame_(light::AddressableLight &it, const uint
     uint8_t w = payload[3];
 
     if (led < max_leds) {
-      it[led].set(light::ESPColor(r, g, b, w));
+      it[led].set(Color(r, g, b, w));
     }
   }
 
@@ -228,7 +228,7 @@ bool WLEDLightEffect::parse_dnrgb_frame_(light::AddressableLight &it, const uint
     uint8_t b = payload[2];
 
     if (led < max_leds) {
-      it[led].set(light::ESPColor(r, g, b));
+      it[led].set(Color(r, g, b));
     }
   }
 
