@@ -45,10 +45,13 @@ const uint8_t TOSHIBA_POWER_SEL_75 = 0x04;
 const uint8_t TOSHIBA_POWER_SEL_50 = 0x08;
 
 const uint8_t TOSHIBA_MOTION_FIX = 0x00;
-const uint8_t TOSHIBA_MOTION_SWING_BOTH = 0x01;
-const uint8_t TOSHIBA_MOTION_SWING_OFF = 0x02;
-const uint8_t TOSHIBA_MOTION_SWING_VERTICAL = 0x03;
-const uint8_t TOSHIBA_MOTION_SWING_HORIZONTAL = 0x04;
+/* Default value for the Model::MODEL_WH_TA17NE */
+uint8_t toshiba_motion_swing_vertical = 0x01;
+uint8_t toshiba_motion_swing_off = 0x02;
+/* Value 0xff is just a dummy value, actual value will be set in the setup() method */
+uint8_t toshiba_motion_swing_both = 0xff;
+/* Default value for the Model::MODEL_WH_TA01LE */
+uint8_t toshiba_motion_swing_horizontal = 0x05;
 
 const uint8_t TOSHIBA_FRAME_MAX_LENGTH = 14;
 const uint8_t TOSHIBA_FRAME_LENGTH_NO_DATA = 6;
@@ -59,7 +62,6 @@ static void log_frame(const uint8_t* frame) {
   static constexpr char HEX_NUMBERS[] = "0123456789ABCDEF";
   uint8_t frame_length = TOSHIBA_FRAME_LENGTH_NO_DATA + frame[2];
   std::string frame_as_hex_string;
-
 
   /* Two digits per character */
   frame_as_hex_string.reserve(frame_length * 2);
@@ -76,6 +78,19 @@ static void log_frame(const uint8_t* frame) {
   ESP_LOGD(TAG, "  command:     0x%s", frame_as_hex_string.substr(8, 2).c_str());
   ESP_LOGD(TAG, "  data:        0x%s", frame_as_hex_string.substr(10, frame[2] * 2).c_str());
   ESP_LOGD(TAG, "  2_checksum:  0x%s", frame_as_hex_string.substr(frame[2] * 2 + 10, 2).c_str());
+}
+
+void ToshibaClimate::setup() {
+  climate_ir::ClimateIR::setup();
+  if (this->model_ == Model::MODEL_WH_TA01LE) {
+    this->swing_modes_.insert(this->swing_modes_.begin() + 1, climate::CLIMATE_SWING_BOTH);
+    this->swing_modes_.insert(this->swing_modes_.end(), climate::CLIMATE_SWING_HORIZONTAL);
+    toshiba_motion_swing_both = 0x01;
+    toshiba_motion_swing_vertical = 0x08;
+  } else if (this->model_ == Model::MODEL_WH_H01EE) {
+    toshiba_motion_swing_vertical = 0x04;
+    toshiba_motion_swing_off = 0x04;
+  }
 }
 
 void ToshibaClimate::add_default_command_data_(uint8_t* frame) {
@@ -169,21 +184,20 @@ void ToshibaClimate::add_motion_command_data_(uint8_t* frame) {
   uint8_t swing_mode;
   switch (this->swing_mode) {
     case climate::CLIMATE_SWING_BOTH:
-      swing_mode = TOSHIBA_MOTION_SWING_BOTH;
+      swing_mode = toshiba_motion_swing_both;
       break;
 
     case climate::CLIMATE_SWING_HORIZONTAL:
-      swing_mode = TOSHIBA_MOTION_SWING_HORIZONTAL;
+      swing_mode = toshiba_motion_swing_horizontal;
       break;
 
     case climate::CLIMATE_SWING_OFF:
-      swing_mode = TOSHIBA_MOTION_SWING_OFF;
+      swing_mode = toshiba_motion_swing_off;
       break;
 
     case climate::CLIMATE_SWING_VERTICAL:
     default:
-      /* Note: Only vertical motion available for toshiba devices? */
-      swing_mode = TOSHIBA_MOTION_SWING_VERTICAL;
+      swing_mode = toshiba_motion_swing_vertical;
   }
   frame[5] = swing_mode;
 }
@@ -305,24 +319,15 @@ bool ToshibaClimate::on_receive(remote_base::RemoteReceiveData data) {
   /* Command type */
   if (frame[4] == TOSHIBA_COMMAND_MOTION) {
     /* Get the swing mode  */
-    switch (frame[5] & 0x0f) {
-      case TOSHIBA_MOTION_SWING_BOTH:
-        this->swing_mode = climate::CLIMATE_SWING_BOTH;
-        break;
-
-      case TOSHIBA_MOTION_SWING_VERTICAL:
-        this->swing_mode = climate::CLIMATE_SWING_VERTICAL;
-        break;
-
-      case TOSHIBA_MOTION_SWING_HORIZONTAL:
-        this->swing_mode = climate::CLIMATE_SWING_HORIZONTAL;
-        break;
-
-      /* Set swing to off on TOSHIBA_MOTION_FIX */
-      case TOSHIBA_MOTION_SWING_OFF:
-      default:
-        this->swing_mode = climate::CLIMATE_SWING_OFF;
-    }
+    uint8_t swing_mode = frame[5] & 0x0f;
+    if (swing_mode == toshiba_motion_swing_both)
+      this->swing_mode = climate::CLIMATE_SWING_BOTH;
+    else if (swing_mode == toshiba_motion_swing_vertical)
+      this->swing_mode = climate::CLIMATE_SWING_VERTICAL;
+    else if (swing_mode == toshiba_motion_swing_horizontal)
+      this->swing_mode = climate::CLIMATE_SWING_HORIZONTAL;
+    else
+      this->swing_mode = climate::CLIMATE_SWING_OFF;
     this->current_swing_mode_ = this->swing_mode;
   } else if (frame[4] == TOSHIBA_COMMAND_DEFAULT) {
     /* Get the mode. */

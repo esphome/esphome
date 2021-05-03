@@ -5,6 +5,13 @@
 namespace esphome {
 namespace toshiba {
 
+// Enum for the different Toshiba remotes
+enum Model {
+  MODEL_WH_TA17NE,
+  MODEL_WH_TA01LE,
+  MODEL_WH_H01EE,
+};
+
 const uint8_t TOSHIBA_TEMP_MIN = 17;
 const uint8_t TOSHIBA_TEMP_MAX = 30;
 
@@ -23,12 +30,13 @@ class ToshibaClimate : public climate_ir::ClimateIR {
                               },
                               std::vector<climate::ClimateSwingMode>{
                                   climate::CLIMATE_SWING_OFF,
-                                  climate::CLIMATE_SWING_BOTH,
                                   climate::CLIMATE_SWING_VERTICAL,
-                                  climate::CLIMATE_SWING_HORIZONTAL,
                               }) {}
 
+  void set_model(Model model) { this->model_ = model; }
+
  protected:
+  void setup() override;
   void transmit_state() override;
   bool on_receive(remote_base::RemoteReceiveData data) override;
 
@@ -40,6 +48,7 @@ class ToshibaClimate : public climate_ir::ClimateIR {
   climate::ClimateFanMode current_fan_mode_{climate::CLIMATE_FAN_AUTO};
   climate::ClimateSwingMode current_swing_mode_{climate::CLIMATE_SWING_VERTICAL};
   uint8_t current_temperature_ = 22;
+  Model model_;
 };
 
 } /* namespace toshiba */
