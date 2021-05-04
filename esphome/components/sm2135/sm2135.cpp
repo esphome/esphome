@@ -53,7 +53,7 @@ void SM2135::loop() {
     return;
 
   uint8_t data[6];
-  if (this->update_channel_ == 4 || this->update_channel_ == 5) {
+  if (this->update_channel_ == 3 || this->update_channel_ == 4) {
     // No color so must be Cold/Warm
     data[0] = SM2135_ADDR_MC;
     data[1] = SM2135_CURRENT;
