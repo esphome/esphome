@@ -216,24 +216,36 @@ float BLEClient::parse_char_value(uint8_t *value, uint16_t length) {
       return (float) ((uint8_t) value[1]);
     case 0x5:  // uint12.
     case 0x6:  // uint16.
-      return (float) ((uint16_t)(value[1] << 8) + (uint16_t) value[2]);
+      if (length > 2) {
+        return (float) ((uint16_t)(value[1] << 8) + (uint16_t) value[2]);
+      }
     case 0x7:  // uint24.
-      return (float) ((uint32_t)(value[1] << 16) + (uint32_t)(value[2] << 8) + (uint32_t)(value[3]));
+      if (length > 3) {
+        return (float) ((uint32_t)(value[1] << 16) + (uint32_t)(value[2] << 8) + (uint32_t)(value[3]));
+      }
     case 0x8:  // uint32.
-      return (float) ((uint32_t)(value[1] << 24) + (uint32_t)(value[2] << 16) + (uint32_t)(value[3] << 8) +
-                      (uint32_t)(value[4]));
+      if (length > 4) {
+        return (float) ((uint32_t)(value[1] << 24) + (uint32_t)(value[2] << 16) + (uint32_t)(value[3] << 8) +
+                        (uint32_t)(value[4]));
+      }
     case 0xC:  // int8.
       return (float) ((int8_t) value[1]);
     case 0xD:  // int12.
     case 0xE:  // int16.
-      return (float) ((int16_t)(value[1] << 8) + (int16_t) value[2]);
+      if (length > 2) {
+        return (float) ((int16_t)(value[1] << 8) + (int16_t) value[2]);
+      }
     case 0xF:  // int24.
-      return (float) ((int32_t)(value[1] << 16) + (int32_t)(value[2] << 8) + (int32_t)(value[3]));
+      if (length > 3) {
+        return (float) ((int32_t)(value[1] << 16) + (int32_t)(value[2] << 8) + (int32_t)(value[3]));
+      }
     case 0x10:  // int32.
-      return (float) ((int32_t)(value[1] << 24) + (int32_t)(value[2] << 16) + (int32_t)(value[3] << 8) +
-                      (int32_t)(value[4]));
+      if (length > 4) {
+        return (float) ((int32_t)(value[1] << 24) + (int32_t)(value[2] << 16) + (int32_t)(value[3] << 8) +
+                        (int32_t)(value[4]));
+      }
   }
-  ESP_LOGW(TAG, "Cannot parse characteristic value of type 0x%x", value[0]);
+  ESP_LOGW(TAG, "Cannot parse characteristic value of type 0x%x length %d", value[0], length);
   return NAN;
 }
 
