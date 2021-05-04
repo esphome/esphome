@@ -586,6 +586,10 @@ script:
     then:
       - lambda: 'ESP_LOGD("main", "Hello World!");'
 
+sm2135:
+  data_pin: GPIO12
+  clock_pin: GPIO14
+
 switch:
   - platform: template
     name: 'mpr121_toggle'
