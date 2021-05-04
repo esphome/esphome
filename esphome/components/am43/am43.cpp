@@ -42,7 +42,11 @@ void Am43::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_i
     case ESP_GATTC_SEARCH_CMPL_EVT: {
       auto chr = this->parent_->get_characteristic(AM43_SERVICE_UUID, AM43_CHAR_UUID);
       if (chr == nullptr) {
-        ESP_LOGW(TAG, "[%s] No control service found at device, not an AM43..?", this->parent_->address_str().c_str());
+        if (this->parent_->get_characteristic(AM43_TUYA_SERVICE_UUID, AM43_TUYA_CHARACTERISTIC_UUID) != nullptr {
+          ESP_LOGE(TAG, "[%s] Detected a Tuya AM43 which is not supported, sorry.", this->get_name().c_str());
+        } else {
+          ESP_LOGE(TAG, "[%s] No control service found at device, not an AM43..?", this->get_name().c_str());
+        }
         break;
       }
       this->char_handle_ = chr->handle;
