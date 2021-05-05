@@ -9,7 +9,7 @@ namespace display {
 static const char *TAG = "display";
 
 const Color COLOR_OFF(0, 0, 0, 0);
-const Color COLOR_ON(1, 1, 1, 1);
+const Color COLOR_ON(255, 255, 255, 255);
 
 void DisplayBuffer::init_internal_(uint32_t buffer_length) {
   this->buffer_ = new uint8_t[buffer_length];
@@ -473,6 +473,51 @@ int Image::get_height() const { return this->height_; }
 ImageType Image::get_type() const { return this->type_; }
 Image::Image(const uint8_t *data_start, int width, int height, ImageType type)
     : width_(width), height_(height), type_(type), data_start_(data_start) {}
+
+bool Animation::get_pixel(int x, int y) const {
+  if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_)
+    return false;
+  const uint32_t width_8 = ((this->width_ + 7u) / 8u) * 8u;
+  const uint32_t frame_index = this->height_ * width_8 * this->current_frame_;
+  if (frame_index >= this->width_ * this->height_ * this->animation_frame_count_)
+    return false;
+  const uint32_t pos = x + y * width_8 + frame_index;
+  return pgm_read_byte(this->data_start_ + (pos / 8u)) & (0x80 >> (pos % 8u));
+}
+Color Animation::get_color_pixel(int x, int y) const {
+  if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_)
+    return 0;
+  const uint32_t frame_index = this->width_ * this->height_ * this->current_frame_;
+  if (frame_index >= this->width_ * this->height_ * this->animation_frame_count_)
+    return 0;
+  const uint32_t pos = (x + y * this->width_ + frame_index) * 3;
+  const uint32_t color32 = (pgm_read_byte(this->data_start_ + pos + 2) << 0) |
+                           (pgm_read_byte(this->data_start_ + pos + 1) << 8) |
+                           (pgm_read_byte(this->data_start_ + pos + 0) << 16);
+  return Color(color32);
+}
+Color Animation::get_grayscale_pixel(int x, int y) const {
+  if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_)
+    return 0;
+  const uint32_t frame_index = this->width_ * this->height_ * this->current_frame_;
+  if (frame_index >= this->width_ * this->height_ * this->animation_frame_count_)
+    return 0;
+  const uint32_t pos = (x + y * this->width_ + frame_index);
+  const uint8_t gray = pgm_read_byte(this->data_start_ + pos);
+  return Color(gray | gray << 8 | gray << 16 | gray << 24);
+}
+Animation::Animation(const uint8_t *data_start, int width, int height, uint32_t animation_frame_count, ImageType type)
+    : Image(data_start, width, height, type), animation_frame_count_(animation_frame_count) {
+  current_frame_ = 0;
+}
+int Animation::get_animation_frame_count() const { return this->animation_frame_count_; }
+int Animation::get_current_frame() const { return this->current_frame_; }
+void Animation::next_frame() {
+  this->current_frame_++;
+  if (this->current_frame_ >= animation_frame_count_) {
+    this->current_frame_ = 0;
+  }
+}
 
 DisplayPage::DisplayPage(const display_writer_t &writer) : writer_(writer) {}
 void DisplayPage::show() { this->parent_->show_page(this); }

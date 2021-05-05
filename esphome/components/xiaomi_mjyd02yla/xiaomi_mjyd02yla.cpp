@@ -14,6 +14,7 @@ void XiaomiMJYD02YLA::dump_config() {
   LOG_BINARY_SENSOR("  ", "Light", this->is_light_);
   LOG_SENSOR("  ", "Idle Time", this->idle_time_);
   LOG_SENSOR("  ", "Battery Level", this->battery_level_);
+  LOG_SENSOR("  ", "Illuminance", this->illuminance_);
 }
 
 bool XiaomiMJYD02YLA::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
@@ -47,6 +48,8 @@ bool XiaomiMJYD02YLA::parse_device(const esp32_ble_tracker::ESPBTDevice &device)
       this->idle_time_->publish_state(*res->idle_time);
     if (res->battery_level.has_value() && this->battery_level_ != nullptr)
       this->battery_level_->publish_state(*res->battery_level);
+    if (res->illuminance.has_value() && this->illuminance_ != nullptr)
+      this->illuminance_->publish_state(*res->illuminance);
     if (res->is_light.has_value() && this->is_light_ != nullptr)
       this->is_light_->publish_state(*res->is_light);
     if (res->has_motion.has_value())

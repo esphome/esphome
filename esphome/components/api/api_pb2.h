@@ -74,7 +74,7 @@ enum ClimateSwingMode : uint32_t {
   CLIMATE_SWING_OFF = 0,
   CLIMATE_SWING_BOTH = 1,
   CLIMATE_SWING_VERTICAL = 2,
-  CLIMATE_SWINT_HORIZONTAL = 3,
+  CLIMATE_SWING_HORIZONTAL = 3,
 };
 enum ClimateAction : uint32_t {
   CLIMATE_ACTION_OFF = 0,
@@ -284,6 +284,7 @@ class ListEntitiesFanResponse : public ProtoMessage {
   bool supports_oscillation{false};  // NOLINT
   bool supports_speed{false};        // NOLINT
   bool supports_direction{false};    // NOLINT
+  int32_t supported_speed_count{0};  // NOLINT
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
 
@@ -299,6 +300,7 @@ class FanStateResponse : public ProtoMessage {
   bool oscillating{false};          // NOLINT
   enums::FanSpeed speed{};          // NOLINT
   enums::FanDirection direction{};  // NOLINT
+  int32_t speed_level{0};           // NOLINT
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
 
@@ -317,6 +319,8 @@ class FanCommandRequest : public ProtoMessage {
   bool oscillating{false};          // NOLINT
   bool has_direction{false};        // NOLINT
   enums::FanDirection direction{};  // NOLINT
+  bool has_speed_level{false};      // NOLINT
+  int32_t speed_level{0};           // NOLINT
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
 
@@ -403,6 +407,7 @@ class ListEntitiesSensorResponse : public ProtoMessage {
   std::string unit_of_measurement{};  // NOLINT
   int32_t accuracy_decimals{0};       // NOLINT
   bool force_update{false};           // NOLINT
+  std::string device_class{};         // NOLINT
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
 
