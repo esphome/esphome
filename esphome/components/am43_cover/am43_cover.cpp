@@ -67,7 +67,7 @@ void Am43Component::control(const CoverCall &call) {
 }
 
 void Am43Component::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
-                                                esp_ble_gattc_cb_param_t *param) {
+                                        esp_ble_gattc_cb_param_t *param) {
   switch (event) {
     case ESP_GATTC_DISCONNECT_EVT: {
       this->logged_in_ = false;
