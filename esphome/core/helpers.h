@@ -42,6 +42,7 @@ std::string to_string(float val);
 std::string to_string(double val);
 std::string to_string(long double val);
 optional<float> parse_float(const std::string &str);
+optional<int> parse_int(const std::string &str);
 
 /// Sanitize the hostname by removing characters that are not in the allowlist and truncating it to 63 chars.
 std::string sanitize_hostname(const std::string &hostname);
@@ -132,6 +133,8 @@ uint32_t reverse_bits_32(uint32_t x);
 uint16_t encode_uint16(uint8_t msb, uint8_t lsb);
 /// Decode a 16-bit unsigned integer into an array of two values: most significant byte, least significant byte.
 std::array<uint8_t, 2> decode_uint16(uint16_t value);
+/// Encode a 32-bit unsigned integer given four bytes in MSB -> LSB order
+uint32_t encode_uint32(uint8_t msb, uint8_t byte2, uint8_t byte3, uint8_t lsb);
 
 /***
  * An interrupt helper class.
@@ -315,4 +318,19 @@ template<typename T> class Parented {
 
 uint32_t fnv1_hash(const std::string &str);
 
+}  // namespace esphome
+
+template<typename T> T *new_buffer(size_t length) {
+  T *buffer;
+#ifdef ARDUINO_ARCH_ESP32
+  if (psramFound()) {
+    buffer = (T *) ps_malloc(length);
+  } else {
+    buffer = new T[length];
+  }
+#else
+  buffer = new T[length];
+#endif
+
+  return buffer;
 }  // namespace esphome

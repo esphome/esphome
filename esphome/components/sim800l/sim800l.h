@@ -29,7 +29,9 @@ enum State {
   STATE_RECEIVEDSMS,
   STATE_DELETEDSMS,
   STATE_DISABLE_ECHO,
-  STATE_PARSE_SMS_OK
+  STATE_PARSE_SMS_OK,
+  STATE_DIALING1,
+  STATE_DIALING2
 };
 
 class Sim800LComponent : public uart::UARTDevice, public PollingComponent {
@@ -42,6 +44,7 @@ class Sim800LComponent : public uart::UARTDevice, public PollingComponent {
     this->callback_.add(std::move(callback));
   }
   void send_sms(std::string recipient, std::string message);
+  void dial(std::string recipient);
 
  protected:
   void send_cmd_(std::string);
@@ -60,6 +63,7 @@ class Sim800LComponent : public uart::UARTDevice, public PollingComponent {
   std::string recipient_;
   std::string outgoing_message_;
   bool send_pending_;
+  bool dial_pending_;
 
   CallbackManager<void(std::string, std::string)> callback_;
 };
@@ -82,6 +86,20 @@ template<typename... Ts> class Sim800LSendSmsAction : public Action<Ts...> {
     auto recipient = this->recipient_.value(x...);
     auto message = this->message_.value(x...);
     this->parent_->send_sms(recipient, message);
+  }
+
+ protected:
+  Sim800LComponent *parent_;
+};
+
+template<typename... Ts> class Sim800LDialAction : public Action<Ts...> {
+ public:
+  Sim800LDialAction(Sim800LComponent *parent) : parent_(parent) {}
+  TEMPLATABLE_VALUE(std::string, recipient)
+
+  void play(Ts... x) {
+    auto recipient = this->recipient_.value(x...);
+    this->parent_->dial(recipient);
   }
 
  protected:

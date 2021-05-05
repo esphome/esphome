@@ -10,8 +10,14 @@ import re
 # pylint: disable=unused-import, wrong-import-order
 from typing import Any, Dict, List, Optional, Set, TYPE_CHECKING  # noqa
 
-from esphome.const import CONF_ARDUINO_VERSION, SOURCE_FILE_EXTENSIONS, \
-    CONF_COMMENT, CONF_ESPHOME, CONF_USE_ADDRESS, CONF_WIFI
+from esphome.const import (
+    CONF_ARDUINO_VERSION,
+    SOURCE_FILE_EXTENSIONS,
+    CONF_COMMENT,
+    CONF_ESPHOME,
+    CONF_USE_ADDRESS,
+    CONF_WIFI,
+)
 from esphome.helpers import ensure_unique_string, is_hassio
 from esphome.util import OrderedDict
 
@@ -42,7 +48,7 @@ class IPAddress:
         self.args = args
 
     def __str__(self):
-        return '.'.join(str(x) for x in self.args)
+        return ".".join(str(x) for x in self.args)
 
 
 class MACAddress:
@@ -52,14 +58,14 @@ class MACAddress:
         self.parts = parts
 
     def __str__(self):
-        return ':'.join(f'{part:02X}' for part in self.parts)
+        return ":".join(f"{part:02X}" for part in self.parts)
 
     @property
     def as_hex(self):
         from esphome.cpp_generator import RawExpression
 
-        num = ''.join(f'{part:02X}' for part in self.parts)
-        return RawExpression(f'0x{num}ULL')
+        num = "".join(f"{part:02X}" for part in self.parts)
+        return RawExpression(f"0x{num}ULL")
 
 
 def is_approximately_integer(value):
@@ -69,8 +75,15 @@ def is_approximately_integer(value):
 
 
 class TimePeriod:
-    def __init__(self, microseconds=None, milliseconds=None, seconds=None,
-                 minutes=None, hours=None, days=None):
+    def __init__(
+        self,
+        microseconds=None,
+        milliseconds=None,
+        seconds=None,
+        minutes=None,
+        hours=None,
+        days=None,
+    ):
         if days is not None:
             if not is_approximately_integer(days):
                 frac_days, days = math.modf(days)
@@ -121,33 +134,33 @@ class TimePeriod:
     def as_dict(self):
         out = OrderedDict()
         if self.microseconds is not None:
-            out['microseconds'] = self.microseconds
+            out["microseconds"] = self.microseconds
         if self.milliseconds is not None:
-            out['milliseconds'] = self.milliseconds
+            out["milliseconds"] = self.milliseconds
         if self.seconds is not None:
-            out['seconds'] = self.seconds
+            out["seconds"] = self.seconds
         if self.minutes is not None:
-            out['minutes'] = self.minutes
+            out["minutes"] = self.minutes
         if self.hours is not None:
-            out['hours'] = self.hours
+            out["hours"] = self.hours
         if self.days is not None:
-            out['days'] = self.days
+            out["days"] = self.days
         return out
 
     def __str__(self):
         if self.microseconds is not None:
-            return f'{self.total_microseconds}us'
+            return f"{self.total_microseconds}us"
         if self.milliseconds is not None:
-            return f'{self.total_milliseconds}ms'
+            return f"{self.total_milliseconds}ms"
         if self.seconds is not None:
-            return f'{self.total_seconds}s'
+            return f"{self.total_seconds}s"
         if self.minutes is not None:
-            return f'{self.total_minutes}min'
+            return f"{self.total_minutes}min"
         if self.hours is not None:
-            return f'{self.total_hours}h'
+            return f"{self.total_hours}h"
         if self.days is not None:
-            return f'{self.total_days}d'
-        return '0s'
+            return f"{self.total_days}d"
+        return "0s"
 
     def __repr__(self):
         return f"TimePeriod<{self.total_microseconds}>"
@@ -223,7 +236,7 @@ class TimePeriodMinutes(TimePeriod):
     pass
 
 
-LAMBDA_PROG = re.compile(r'id\(\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\)(\.?)')
+LAMBDA_PROG = re.compile(r"id\(\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\)(\.?)")
 
 
 class Lambda:
@@ -240,12 +253,13 @@ class Lambda:
     def comment_remover(self, text):
         def replacer(match):
             s = match.group(0)
-            if s.startswith('/'):
+            if s.startswith("/"):
                 return " "  # note: a space and not an empty string
             return s
+
         pattern = re.compile(
             r'//.*?$|/\*.*?\*/|\'(?:\\.|[^\\\'])*\'|"(?:\\.|[^\\"])*"',
-            re.DOTALL | re.MULTILINE
+            re.DOTALL | re.MULTILINE,
         )
         return re.sub(pattern, replacer, text)
 
@@ -258,7 +272,9 @@ class Lambda:
     @property
     def requires_ids(self):
         if self._requires_ids is None:
-            self._requires_ids = [ID(self.parts[i]) for i in range(1, len(self.parts), 3)]
+            self._requires_ids = [
+                ID(self.parts[i]) for i in range(1, len(self.parts), 3)
+            ]
         return self._requires_ids
 
     @property
@@ -275,7 +291,7 @@ class Lambda:
         return self.value
 
     def __repr__(self):
-        return f'Lambda<{self.value}>'
+        return f"Lambda<{self.value}>"
 
 
 class ID:
@@ -286,26 +302,28 @@ class ID:
         else:
             self.is_manual = is_manual
         self.is_declaration = is_declaration
-        self.type: Optional['MockObjClass'] = type
+        self.type: Optional["MockObjClass"] = type
 
     def resolve(self, registered_ids):
         from esphome.config_validation import RESERVED_IDS
 
         if self.id is None:
-            base = str(self.type).replace('::', '_').lower()
-            name = ''.join(c for c in base if c.isalnum() or c == '_')
+            base = str(self.type).replace("::", "_").lower()
+            name = "".join(c for c in base if c.isalnum() or c == "_")
             used = set(registered_ids) | set(RESERVED_IDS)
             self.id = ensure_unique_string(name, used)
         return self.id
 
     def __str__(self):
         if self.id is None:
-            return ''
+            return ""
         return self.id
 
     def __repr__(self):
-        return (f'ID<{self.id} declaration={self.is_declaration}, '
-                f'type={self.type}, manual={self.is_manual}>')
+        return (
+            f"ID<{self.id} declaration={self.is_declaration}, "
+            f"type={self.type}, manual={self.is_manual}>"
+        )
 
     def __eq__(self, other):
         if isinstance(other, ID):
@@ -316,8 +334,12 @@ class ID:
         return hash(self.id)
 
     def copy(self):
-        return ID(self.id, is_declaration=self.is_declaration, type=self.type,
-                  is_manual=self.is_manual)
+        return ID(
+            self.id,
+            is_declaration=self.is_declaration,
+            type=self.type,
+            is_manual=self.is_manual,
+        )
 
 
 class DocumentLocation:
@@ -328,14 +350,15 @@ class DocumentLocation:
 
     @classmethod
     def from_mark(cls, mark):
-        return cls(
-            mark.name,
-            mark.line,
-            mark.column
-        )
+        return cls(mark.name, mark.line, mark.column)
 
     def __str__(self):
-        return f'{self.document} {self.line}:{self.column}'
+        return f"{self.document} {self.line}:{self.column}"
+
+    @property
+    def as_line_directive(self):
+        document_path = str(self.document).replace("\\", "\\\\")
+        return f'#line {self.line + 1} "{document_path}"'
 
 
 class DocumentRange:
@@ -346,12 +369,11 @@ class DocumentRange:
     @classmethod
     def from_marks(cls, start_mark, end_mark):
         return cls(
-            DocumentLocation.from_mark(start_mark),
-            DocumentLocation.from_mark(end_mark)
+            DocumentLocation.from_mark(start_mark), DocumentLocation.from_mark(end_mark)
         )
 
     def __str__(self):
-        return f'[{self.start_mark} - {self.end_mark}]'
+        return f"[{self.start_mark} - {self.end_mark}]"
 
 
 class Define:
@@ -362,14 +384,14 @@ class Define:
     @property
     def as_build_flag(self):
         if self.value is None:
-            return f'-D{self.name}'
-        return f'-D{self.name}={self.value}'
+            return f"-D{self.name}"
+        return f"-D{self.name}={self.value}"
 
     @property
     def as_macro(self):
         if self.value is None:
-            return f'#define {self.name}'
-        return f'#define {self.name} {self.value}'
+            return f"#define {self.name}"
+        return f"#define {self.name} {self.value}"
 
     @property
     def as_tuple(self):
@@ -393,7 +415,7 @@ class Library:
     def as_lib_dep(self):
         if self.version is None:
             return self.name
-        return f'{self.name}@{self.version}'
+        return f"{self.name}@{self.version}"
 
     @property
     def as_tuple(self):
@@ -414,13 +436,13 @@ def coroutine(func):
 
 def coroutine_with_priority(priority):
     def decorator(func):
-        if getattr(func, '_esphome_coroutine', False):
+        if getattr(func, "_esphome_coroutine", False):
             # If func is already a coroutine, do not re-wrap it (performance)
             return func
 
         @functools.wraps(func)
         def _wrapper_generator(*args, **kwargs):
-            instance_id = kwargs.pop('__esphome_coroutine_instance__')
+            instance_id = kwargs.pop("__esphome_coroutine_instance__")
             if not inspect.isgeneratorfunction(func):
                 # If func is not a generator, return result immediately
                 yield func(*args, **kwargs)
@@ -450,8 +472,9 @@ def coroutine_with_priority(priority):
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
             import random
-            instance_id = random.randint(0, 2**32)
-            kwargs['__esphome_coroutine_instance__'] = instance_id
+
+            instance_id = random.randint(0, 2 ** 32)
+            kwargs["__esphome_coroutine_instance__"] = instance_id
             gen = _wrapper_generator(*args, **kwargs)
             # pylint: disable=protected-access
             CORE._add_active_coroutine(instance_id, gen)
@@ -461,6 +484,7 @@ def coroutine_with_priority(priority):
         wrapper._esphome_coroutine = True
         wrapper.priority = priority
         return wrapper
+
     return decorator
 
 
@@ -506,17 +530,17 @@ class EsphomeCore:
         # Task counter for pending tasks
         self.task_counter = 0
         # The variable cache, for each ID this holds a MockObj of the variable obj
-        self.variables: Dict[str, 'MockObj'] = {}
+        self.variables: Dict[str, "MockObj"] = {}
         # A list of statements that go in the main setup() block
-        self.main_statements: List['Statement'] = []
+        self.main_statements: List["Statement"] = []
         # A list of statements to insert in the global block (includes and global variables)
-        self.global_statements: List['Statement'] = []
+        self.global_statements: List["Statement"] = []
         # A set of platformio libraries to add to the project
         self.libraries: List[Library] = []
         # A set of build flags to set in the platformio project
         self.build_flags: Set[str] = set()
         # A set of defines to set for the compile process in esphome/core/defines.h
-        self.defines: Set['Define'] = set()
+        self.defines: Set["Define"] = set()
         # A dictionary of started coroutines, used to warn when a coroutine was not
         # awaited.
         self.active_coroutines: Dict[int, Any] = {}
@@ -553,11 +577,11 @@ class EsphomeCore:
         if self.config is None:
             raise ValueError("Config has not been loaded yet")
 
-        if 'wifi' in self.config:
+        if "wifi" in self.config:
             return self.config[CONF_WIFI][CONF_USE_ADDRESS]
 
-        if 'ethernet' in self.config:
-            return self.config['ethernet'][CONF_USE_ADDRESS]
+        if "ethernet" in self.config:
+            return self.config["ethernet"][CONF_USE_ADDRESS]
 
         return None
 
@@ -603,33 +627,33 @@ class EsphomeCore:
         return os.path.join(self.build_path, path_)
 
     def relative_src_path(self, *path):
-        return self.relative_build_path('src', *path)
+        return self.relative_build_path("src", *path)
 
     def relative_pioenvs_path(self, *path):
         if is_hassio():
-            return os.path.join('/data', self.name, '.pioenvs', *path)
-        return self.relative_build_path('.pioenvs', *path)
+            return os.path.join("/data", self.name, ".pioenvs", *path)
+        return self.relative_build_path(".pioenvs", *path)
 
     def relative_piolibdeps_path(self, *path):
         if is_hassio():
-            return os.path.join('/data', self.name, '.piolibdeps', *path)
-        return self.relative_build_path('.piolibdeps', *path)
+            return os.path.join("/data", self.name, ".piolibdeps", *path)
+        return self.relative_build_path(".piolibdeps", *path)
 
     @property
     def firmware_bin(self):
-        return self.relative_pioenvs_path(self.name, 'firmware.bin')
+        return self.relative_pioenvs_path(self.name, "firmware.bin")
 
     @property
     def is_esp8266(self):
         if self.esp_platform is None:
             raise ValueError("No platform specified")
-        return self.esp_platform == 'ESP8266'
+        return self.esp_platform == "ESP8266"
 
     @property
     def is_esp32(self):
         if self.esp_platform is None:
             raise ValueError("No platform specified")
-        return self.esp_platform == 'ESP32'
+        return self.esp_platform == "ESP32"
 
     def add_job(self, func, *args, **kwargs):
         coro = coroutine(func)
@@ -662,14 +686,17 @@ class EsphomeCore:
 
         # Print not-awaited coroutines
         for obj in self.active_coroutines.values():
-            _LOGGER.warning("Coroutine '%s' %s was never awaited with 'yield'.", obj.__name__, obj)
+            _LOGGER.warning(
+                "Coroutine '%s' %s was never awaited with 'yield'.", obj.__name__, obj
+            )
             _LOGGER.warning("Please file a bug report with your configuration.")
         if self.active_coroutines:
             raise EsphomeError()
         if self.component_ids:
-            comps = ', '.join(f"'{x}'" for x in self.component_ids)
-            _LOGGER.warning("Components %s were never registered. Please create a bug report",
-                            comps)
+            comps = ", ".join(f"'{x}'" for x in self.component_ids)
+            _LOGGER.warning(
+                "Components %s were never registered. Please create a bug report", comps
+            )
             _LOGGER.warning("with your configuration.")
             raise EsphomeError()
         self.active_coroutines.clear()
@@ -680,8 +707,10 @@ class EsphomeCore:
         if isinstance(expression, Expression):
             expression = statement(expression)
         if not isinstance(expression, Statement):
-            raise ValueError("Add '{}' must be expression or statement, not {}"
-                             "".format(expression, type(expression)))
+            raise ValueError(
+                "Add '{}' must be expression or statement, not {}"
+                "".format(expression, type(expression))
+            )
 
         self.main_statements.append(expression)
         _LOGGER.debug("Adding: %s", expression)
@@ -693,16 +722,20 @@ class EsphomeCore:
         if isinstance(expression, Expression):
             expression = statement(expression)
         if not isinstance(expression, Statement):
-            raise ValueError("Add '{}' must be expression or statement, not {}"
-                             "".format(expression, type(expression)))
+            raise ValueError(
+                "Add '{}' must be expression or statement, not {}"
+                "".format(expression, type(expression))
+            )
         self.global_statements.append(expression)
         _LOGGER.debug("Adding global: %s", expression)
         return expression
 
     def add_library(self, library):
         if not isinstance(library, Library):
-            raise ValueError("Library {} must be instance of Library, not {}"
-                             "".format(library, type(library)))
+            raise ValueError(
+                "Library {} must be instance of Library, not {}"
+                "".format(library, type(library))
+            )
         _LOGGER.debug("Adding library: %s", library)
         for other in self.libraries[:]:
             if other.name != library.name:
@@ -717,9 +750,11 @@ class EsphomeCore:
             if other.version == library.version:
                 break
 
-            raise ValueError("Version pinning failed! Libraries {} and {} "
-                             "requested with conflicting versions!"
-                             "".format(library, other))
+            raise ValueError(
+                "Version pinning failed! Libraries {} and {} "
+                "requested with conflicting versions!"
+                "".format(library, other)
+            )
         else:
             self.libraries.append(library)
         return library
@@ -735,8 +770,10 @@ class EsphomeCore:
         elif isinstance(define, Define):
             pass
         else:
-            raise ValueError("Define {} must be string or Define, not {}"
-                             "".format(define, type(define)))
+            raise ValueError(
+                "Define {} must be string or Define, not {}"
+                "".format(define, type(define))
+            )
         self.defines.add(define)
         _LOGGER.debug("Adding define: %s", define)
         return define
@@ -779,7 +816,7 @@ class EsphomeCore:
             text = str(statement(exp))
             text = text.rstrip()
             main_code.append(text)
-        return '\n'.join(main_code) + '\n\n'
+        return "\n".join(main_code) + "\n\n"
 
     @property
     def cpp_global_section(self):
@@ -790,7 +827,7 @@ class EsphomeCore:
             text = str(statement(exp))
             text = text.rstrip()
             global_code.append(text)
-        return '\n'.join(global_code) + '\n'
+        return "\n".join(global_code) + "\n"
 
 
 class AutoLoad(OrderedDict):
@@ -799,13 +836,14 @@ class AutoLoad(OrderedDict):
 
 class EnumValue:
     """Special type used by ESPHome to mark enum values for cv.enum."""
+
     @property
     def enum_value(self):
-        return getattr(self, '_enum_value', None)
+        return getattr(self, "_enum_value", None)
 
     @enum_value.setter
     def enum_value(self, value):
-        setattr(self, '_enum_value', value)
+        setattr(self, "_enum_value", value)
 
 
 CORE = EsphomeCore()
