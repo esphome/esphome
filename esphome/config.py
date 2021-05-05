@@ -19,13 +19,14 @@ from esphome.const import (
     CONF_SUBSTITUTIONS,
 )
 from esphome.core import CORE, EsphomeError  # noqa
-from esphome.helpers import color, indent
+from esphome.helpers import indent
 from esphome.util import safe_print, OrderedDict
 
 from typing import List, Optional, Tuple, Union  # noqa
 from esphome.core import ConfigType  # noqa
 from esphome.yaml_util import is_secret, ESPHomeDataBase, ESPForceValue
 from esphome.voluptuous_schema import ExtraKeysInvalid
+from esphome.log import color, Fore
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -48,7 +49,7 @@ class ComponentManifest:
         return getattr(self.module, "CONFIG_SCHEMA", None)
 
     @property
-    def is_multi_conf(self):
+    def multi_conf(self):
         return getattr(self.module, "MULTI_CONF", False)
 
     @property
@@ -193,7 +194,7 @@ _COMPONENT_CACHE["esphome"] = ComponentManifest(
 def iter_components(config):
     for domain, conf in config.items():
         component = get_component(domain)
-        if component.is_multi_conf:
+        if component.multi_conf:
             for conf_ in conf:
                 yield domain, component, conf_
         else:
@@ -650,9 +651,16 @@ def validate_config(config, command_line_substitutions):
             )
             continue
 
-        if comp.is_multi_conf:
+        if comp.multi_conf:
             if not isinstance(conf, list):
                 result[domain] = conf = [conf]
+            if not isinstance(comp.multi_conf, bool) and len(conf) > comp.multi_conf:
+                result.add_str_error(
+                    "Component {} supports a maximum of {} "
+                    "entries ({} found).".format(domain, comp.multi_conf, len(conf)),
+                    path,
+                )
+                continue
             for i, part_conf in enumerate(conf):
                 validate_queue.append((path + [i], part_conf, comp))
             continue
@@ -790,7 +798,7 @@ def line_info(config, path, highlight=True):
     if obj:
         mark = obj.start_mark
         source = "[source {}:{}]".format(mark.document, mark.line + 1)
-        return color("cyan", source)
+        return color(Fore.CYAN, source)
     return "None"
 
 
@@ -813,7 +821,9 @@ def dump_dict(config, path, at_root=True):
     if at_root:
         error = config.get_error_for_path(path)
         if error is not None:
-            ret += "\n" + color("bold_red", _format_vol_invalid(error, config)) + "\n"
+            ret += (
+                "\n" + color(Fore.BOLD_RED, _format_vol_invalid(error, config)) + "\n"
+            )
 
     if isinstance(conf, (list, tuple)):
         multiline = True
@@ -826,12 +836,14 @@ def dump_dict(config, path, at_root=True):
             error = config.get_error_for_path(path_)
             if error is not None:
                 ret += (
-                    "\n" + color("bold_red", _format_vol_invalid(error, config)) + "\n"
+                    "\n"
+                    + color(Fore.BOLD_RED, _format_vol_invalid(error, config))
+                    + "\n"
                 )
 
             sep = "- "
             if config.is_in_error_path(path_):
-                sep = color("red", sep)
+                sep = color(Fore.RED, sep)
             msg, _ = dump_dict(config, path_, at_root=False)
             msg = indent(msg)
             inf = line_info(config, path_, highlight=config.is_in_error_path(path_))
@@ -851,12 +863,14 @@ def dump_dict(config, path, at_root=True):
             error = config.get_error_for_path(path_)
             if error is not None:
                 ret += (
-                    "\n" + color("bold_red", _format_vol_invalid(error, config)) + "\n"
+                    "\n"
+                    + color(Fore.BOLD_RED, _format_vol_invalid(error, config))
+                    + "\n"
                 )
 
             st = f"{k}: "
             if config.is_in_error_path(path_):
-                st = color("red", st)
+                st = color(Fore.RED, st)
             msg, m = dump_dict(config, path_, at_root=False)
 
             inf = line_info(config, path_, highlight=config.is_in_error_path(path_))
@@ -878,7 +892,7 @@ def dump_dict(config, path, at_root=True):
         if len(conf) > 80:
             conf = "|-\n" + indent(conf)
         error = config.get_error_for_path(path)
-        col = "bold_red" if error else "white"
+        col = Fore.BOLD_RED if error else Fore.KEEP
         ret += color(col, str(conf))
     elif isinstance(conf, core.Lambda):
         if is_secret(conf):
@@ -886,13 +900,13 @@ def dump_dict(config, path, at_root=True):
 
         conf = "!lambda |-\n" + indent(str(conf.value))
         error = config.get_error_for_path(path)
-        col = "bold_red" if error else "white"
+        col = Fore.BOLD_RED if error else Fore.KEEP
         ret += color(col, conf)
     elif conf is None:
         pass
     else:
         error = config.get_error_for_path(path)
-        col = "bold_red" if error else "white"
+        col = Fore.BOLD_RED if error else Fore.KEEP
         ret += color(col, str(conf))
         multiline = "\n" in ret
 
@@ -934,13 +948,13 @@ def read_config(command_line_substitutions):
         if not CORE.verbose:
             res = strip_default_ids(res)
 
-        safe_print(color("bold_red", "Failed config"))
+        safe_print(color(Fore.BOLD_RED, "Failed config"))
         safe_print("")
         for path, domain in res.output_paths:
             if not res.is_in_error_path(path):
                 continue
 
-            errstr = color("bold_red", f"{domain}:")
+            errstr = color(Fore.BOLD_RED, f"{domain}:")
             errline = line_info(res, path)
             if errline:
                 errstr += " " + errline
