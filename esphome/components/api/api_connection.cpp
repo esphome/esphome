@@ -1,3 +1,4 @@
+#include <string>
 #include "api_connection.h"
 #include "esphome/core/log.h"
 #include "esphome/core/util.h"
@@ -31,12 +32,25 @@ APIConnection::APIConnection(AsyncClient *client, APIServer *parent)
   this->send_buffer_.reserve(64);
   this->recv_buffer_.reserve(32);
   this->client_info_ = this->client_->remoteIP().toString().c_str();
+  this->client_info_ += ":";
+  this->client_info_ += to_string(this->client_->remotePort()).c_str();
   this->last_traffic_ = millis();
 }
 APIConnection::~APIConnection() { delete this->client_; }
-void APIConnection::on_error_(int8_t error) { this->remove_ = true; }
-void APIConnection::on_disconnect_() { this->remove_ = true; }
-void APIConnection::on_timeout_(uint32_t time) { this->on_fatal_error(); }
+void APIConnection::on_error_(int8_t error) { 
+    ESP_LOGW(TAG, "Connection error %d (from lwIP) for %s", error, this->client_info_.c_str());
+    this->remove_ = true;
+}
+void APIConnection::on_disconnect_() {
+    if (! this->remove_) {
+      ESP_LOGI(TAG, "Client %s has disconnected", this->client_info_.c_str());
+    }
+    this->remove_ = true;
+}
+void APIConnection::on_timeout_(uint32_t time) {
+    ESP_LOGW(TAG, "Received client timeout (from AsyncTCP) for %s.", this->client_info_.c_str());
+    this->on_fatal_error();
+}
 void APIConnection::on_data_(uint8_t *buf, size_t len) {
   if (len == 0 || buf == nullptr)
     return;
@@ -101,6 +115,7 @@ void APIConnection::loop() {
   if (!network_is_connected()) {
     // when network is disconnected force disconnect immediately
     // don't wait for timeout
+    ESP_LOGW(TAG, "This device lost its network connection, disconnecting %s.", this->client_info_.c_str());
     this->on_fatal_error();
     return;
   }
@@ -597,6 +612,8 @@ bool APIConnection::send_log_message(int level, const char *tag, const char *lin
 
 HelloResponse APIConnection::hello(const HelloRequest &msg) {
   this->client_info_ = msg.client_info + " (" + this->client_->remoteIP().toString().c_str();
+  this->client_info_ += ":";
+  this->client_info_ += to_string(this->client_->remotePort()).c_str();
   this->client_info_ += ")";
   ESP_LOGV(TAG, "Hello from client: '%s'", this->client_info_.c_str());
 
@@ -661,6 +678,7 @@ void APIConnection::subscribe_home_assistant_states(const SubscribeHomeAssistant
     SubscribeHomeAssistantStateResponse resp;
     resp.entity_id = it.entity_id;
     if (!this->send_subscribe_home_assistant_state_response(resp)) {
+      ESP_LOGW(TAG, "Sending subscribe_home_assistant_states() response failed for %s.", this->client_info_.c_str());
       this->on_fatal_error();
       return;
     }
@@ -682,7 +700,7 @@ bool APIConnection::send_buffer(ProtoWriteBuffer buffer, uint32_t message_type) 
     if (needed_space > this->client_->space()) {
       // SubscribeLogsResponse
       if (message_type != 29) {
-        ESP_LOGV(TAG, "Cannot send message because of TCP buffer space");
+        ESP_LOGW(TAG, "Cannot send message because of lack of TCP buffer space");
       }
       delay(0);
       return false;
@@ -697,15 +715,15 @@ bool APIConnection::send_buffer(ProtoWriteBuffer buffer, uint32_t message_type) 
   return ret;
 }
 void APIConnection::on_unauthenticated_access() {
-  ESP_LOGD(TAG, "'%s' tried to access without authentication.", this->client_info_.c_str());
+  ESP_LOGW(TAG, "%s tried to access the API without authentication.", this->client_info_.c_str());
   this->on_fatal_error();
 }
 void APIConnection::on_no_setup_connection() {
-  ESP_LOGD(TAG, "'%s' tried to access without full connection.", this->client_info_.c_str());
+  ESP_LOGW(TAG, "%s tried to access the API without full connection.", this->client_info_.c_str());
   this->on_fatal_error();
 }
 void APIConnection::on_fatal_error() {
-  ESP_LOGV(TAG, "Error: Disconnecting %s", this->client_info_.c_str());
+  ESP_LOGW(TAG, "Error: Disconnecting %s", this->client_info_.c_str());
   this->client_->close();
   this->remove_ = true;
 }

@@ -155,6 +155,7 @@ class APIConnection : public APIServerConnection {
   esp32_camera::CameraImageReader image_reader_;
 #endif
 
+  bool log_connect_{true};
   bool state_subscription_{false};
   int log_subscription_{ESPHOME_LOG_LEVEL_NONE};
   uint32_t last_traffic_;
