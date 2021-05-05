@@ -1,6 +1,8 @@
 #include "am43.h"
 #include "esphome/core/log.h"
 
+#ifdef ARDUINO_ARCH_ESP32
+
 namespace esphome {
 namespace am43 {
 
@@ -109,3 +111,5 @@ void Am43::update() {
 
 }  // namespace am43
 }  // namespace esphome
+
+#endif
