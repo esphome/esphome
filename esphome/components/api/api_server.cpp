@@ -73,8 +73,9 @@ void APIServer::loop() {
 
   for (auto *client : this->clients_) {
     if (client->log_connect_) {
-        ESP_LOGI(TAG, "New client connected from %s:%u", client->client_->remoteIP().toString().c_str(), client->client_->remotePort());
-        client->log_connect_ = false;
+      ESP_LOGI(TAG, "New client connected from %s:%u", client->client_->remoteIP().toString().c_str(),
+               client->client_->remotePort());
+      client->log_connect_ = false;
     }
     client->loop();
   }

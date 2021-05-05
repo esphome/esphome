@@ -37,19 +37,19 @@ APIConnection::APIConnection(AsyncClient *client, APIServer *parent)
   this->last_traffic_ = millis();
 }
 APIConnection::~APIConnection() { delete this->client_; }
-void APIConnection::on_error_(int8_t error) { 
-    ESP_LOGW(TAG, "Connection error %d (from lwIP) for %s", error, this->client_info_.c_str());
-    this->remove_ = true;
+void APIConnection::on_error_(int8_t error) {
+  ESP_LOGW(TAG, "Connection error %d (from lwIP) for %s", error, this->client_info_.c_str());
+  this->remove_ = true;
 }
 void APIConnection::on_disconnect_() {
-    if (! this->remove_) {
-      ESP_LOGI(TAG, "Client %s has disconnected", this->client_info_.c_str());
-    }
-    this->remove_ = true;
+  if (!this->remove_) {
+    ESP_LOGI(TAG, "Client %s has disconnected", this->client_info_.c_str());
+  }
+  this->remove_ = true;
 }
 void APIConnection::on_timeout_(uint32_t time) {
-    ESP_LOGW(TAG, "Received client timeout (from AsyncTCP) for %s.", this->client_info_.c_str());
-    this->on_fatal_error();
+  ESP_LOGW(TAG, "Received client timeout (from AsyncTCP) for %s.", this->client_info_.c_str());
+  this->on_fatal_error();
 }
 void APIConnection::on_data_(uint8_t *buf, size_t len) {
   if (len == 0 || buf == nullptr)
