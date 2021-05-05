@@ -3,7 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/automation.h"
-#include "esphome/core/color.h"
+#include "display_color_utils.h"
 
 #ifdef USE_TIME
 #include "esphome/components/time/real_time_clock.h"
@@ -296,6 +296,8 @@ class DisplayBuffer {
 
   void set_pages(std::vector<DisplayPage *> pages);
 
+  const DisplayPage *get_active_page() const { return this->page_; }
+
   /// Internal method to set the display rotation with.
   void set_rotation(DisplayRotation rotation);
 
@@ -388,9 +390,9 @@ class Font {
 class Image {
  public:
   Image(const uint8_t *data_start, int width, int height, ImageType type);
-  bool get_pixel(int x, int y) const;
-  Color get_color_pixel(int x, int y) const;
-  Color get_grayscale_pixel(int x, int y) const;
+  virtual bool get_pixel(int x, int y) const;
+  virtual Color get_color_pixel(int x, int y) const;
+  virtual Color get_grayscale_pixel(int x, int y) const;
   int get_width() const;
   int get_height() const;
   ImageType get_type() const;
@@ -400,6 +402,22 @@ class Image {
   int height_;
   ImageType type_;
   const uint8_t *data_start_;
+};
+
+class Animation : public Image {
+ public:
+  Animation(const uint8_t *data_start, int width, int height, uint32_t animation_frame_count, ImageType type);
+  bool get_pixel(int x, int y) const override;
+  Color get_color_pixel(int x, int y) const override;
+  Color get_grayscale_pixel(int x, int y) const override;
+
+  int get_animation_frame_count() const;
+  int get_current_frame() const;
+  void next_frame();
+
+ protected:
+  int current_frame_;
+  int animation_frame_count_;
 };
 
 template<typename... Ts> class DisplayPageShowAction : public Action<Ts...> {
@@ -430,6 +448,18 @@ template<typename... Ts> class DisplayPageShowPrevAction : public Action<Ts...> 
   void play(Ts... x) override { this->buffer_->show_prev_page(); }
 
   DisplayBuffer *buffer_;
+};
+
+template<typename... Ts> class DisplayIsDisplayingPageCondition : public Condition<Ts...> {
+ public:
+  DisplayIsDisplayingPageCondition(DisplayBuffer *parent) : parent_(parent) {}
+
+  void set_page(DisplayPage *page) { this->page_ = page; }
+  bool check(Ts... x) override { return this->parent_->get_active_page() == this->page_; }
+
+ protected:
+  DisplayBuffer *parent_;
+  DisplayPage *page_;
 };
 
 }  // namespace display

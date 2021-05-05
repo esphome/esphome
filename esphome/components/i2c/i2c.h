@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Wire.h>
+#include "esphome/core/defines.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 
@@ -94,7 +95,7 @@ class I2CComponent : public Component {
   void raw_begin_transmission(uint8_t address);
 
   /// End a write transmission to an address, return true if successful.
-  bool raw_end_transmission(uint8_t address);
+  bool raw_end_transmission(uint8_t address, bool send_stop = true);
 
   /** Request data from an address with a number of (8-bit) bytes.
    *
@@ -135,7 +136,7 @@ extern uint8_t next_i2c_bus_num_;
 #endif
 
 class I2CDevice;
-
+class I2CMultiplexer;
 class I2CRegister {
  public:
   I2CRegister(I2CDevice *parent, uint8_t a_register) : parent_(parent), register_(a_register) {}
@@ -167,11 +168,25 @@ class I2CDevice {
 
   /// Manually set the i2c address of this device.
   void set_i2c_address(uint8_t address);
-
+#ifdef USE_I2C_MULTIPLEXER
+  /// Manually set the i2c multiplexer of this device.
+  void set_i2c_multiplexer(I2CMultiplexer *multiplexer, uint8_t channel);
+#endif
   /// Manually set the parent i2c bus for this device.
   void set_i2c_parent(I2CComponent *parent);
 
   I2CRegister reg(uint8_t a_register) { return {this, a_register}; }
+
+  /// Begin a write transmission.
+  void raw_begin_transmission() { this->parent_->raw_begin_transmission(this->address_); };
+
+  /// End a write transmission, return true if successful.
+  bool raw_end_transmission(bool send_stop = true) {
+    return this->parent_->raw_end_transmission(this->address_, send_stop);
+  };
+
+  /// Write len amount of bytes from data. begin_transmission_ must be called before this.
+  void raw_write(const uint8_t *data, uint8_t len) { this->parent_->raw_write(this->address_, data, len); };
 
   /** Read len amount of bytes from a register into data. Optionally with a conversion time after
    * writing the register value to the bus.
@@ -269,9 +284,19 @@ class I2CDevice {
   bool write_byte_16(uint8_t a_register, uint16_t data);
 
  protected:
+  // Checks for multiplexer set and set channel
+  void check_multiplexer_();
   uint8_t address_{0x00};
   I2CComponent *parent_{nullptr};
+#ifdef USE_I2C_MULTIPLEXER
+  I2CMultiplexer *multiplexer_{nullptr};
+  uint8_t channel_;
+#endif
 };
-
+class I2CMultiplexer : public I2CDevice {
+ public:
+  I2CMultiplexer() = default;
+  virtual void set_channel(uint8_t channelno);
+};
 }  // namespace i2c
 }  // namespace esphome

@@ -14,15 +14,6 @@ jobs:
     container: esphome/esphome-lint:latest
     steps:
       - uses: actions/checkout@v2
-      # Cache platformio intermediary files (like libraries etc)
-      # Note: platformio platform versions should be cached via the esphome-lint image
-      - name: Cache Platformio
-        uses: actions/cache@v1
-        with:
-          path: .pio
-          key: lint-cpp-pio-${{ hashFiles('platformio.ini') }}
-          restore-keys: |
-            lint-cpp-pio-
       # Set up the pio project so that the cpp checks know how files are compiled
       # (build flags, libraries etc)
       - name: Set up platformio environment
@@ -45,15 +36,6 @@ jobs:
         split: [1, 2, 3, 4]
     steps:
       - uses: actions/checkout@v2
-      # Cache platformio intermediary files (like libraries etc)
-      # Note: platformio platform versions should be cached via the esphome-lint image
-      - name: Cache Platformio
-        uses: actions/cache@v1
-        with:
-          path: .pio
-          key: lint-cpp-pio-${{ hashFiles('platformio.ini') }}
-          restore-keys: |
-            lint-cpp-pio-
       # Set up the pio project so that the cpp checks know how files are compiled
       # (build flags, libraries etc)
       - name: Set up platformio environment
@@ -209,10 +191,10 @@ jobs:
       - name: Set TAG
         run: |
           TAG="${GITHUB_REF#refs/tags/v}"
-          echo "::set-env name=TAG::${TAG}"
+          echo "TAG=${TAG}" >> $GITHUB_ENV
       - name: Set up env variables
         run: |
-          base_version="2.6.0"
+          base_version="3.0.0"
 
           if [[ "${{ matrix.build_type }}" == "hassio" ]]; then
             build_from="esphome/esphome-hassio-base-${{ matrix.arch }}:${base_version}"
@@ -231,15 +213,15 @@ jobs:
           fi
 
           # Set env variables so these values don't need to be calculated again
-          echo "::set-env name=BUILD_FROM::${build_from}"
-          echo "::set-env name=BUILD_TO::${build_to}"
-          echo "::set-env name=DOCKERFILE::${dockerfile}"
-          echo "::set-env name=CACHE_TAG::${cache_tag}"
+          echo "BUILD_FROM=${build_from}" >> $GITHUB_ENV
+          echo "BUILD_TO=${build_to}" >> $GITHUB_ENV
+          echo "DOCKERFILE=${dockerfile}" >> $GITHUB_ENV
+          echo "CACHE_TAG=${cache_tag}" >> $GITHUB_ENV
       - name: Pull for cache
         run: |
           docker pull "${BUILD_TO}:${CACHE_TAG}" || true
       - name: Register QEMU binfmt
-        run: docker run --rm --privileged multiarch/qemu-user-static:5.0.0-2 --reset -p yes
+        run: docker run --rm --privileged multiarch/qemu-user-static:5.2.0-2 --reset -p yes
       - run: |
           docker build \
             --build-arg "BUILD_FROM=${BUILD_FROM}" \
@@ -279,7 +261,7 @@ jobs:
     - name: Set TAG
       run: |
         TAG="${GITHUB_REF#refs/tags/v}"
-        echo "::set-env name=TAG::${TAG}"
+        echo "TAG=${TAG}" >> $GITHUB_ENV
     - name: Log in to docker hub
       env:
         DOCKER_USER: ${{ secrets.DOCKER_USER }}

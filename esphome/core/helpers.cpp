@@ -171,15 +171,17 @@ uint8_t crc8(uint8_t *data, uint8_t len) {
   }
   return crc;
 }
+
 void delay_microseconds_accurate(uint32_t usec) {
   if (usec == 0)
     return;
-
-  if (usec <= 16383UL) {
+  if (usec < 5000UL) {
     delayMicroseconds(usec);
-  } else {
-    delay(usec / 1000UL);
-    delayMicroseconds(usec % 1000UL);
+    return;
+  }
+  uint32_t start = micros();
+  while (micros() - start < usec) {
+    delay(0);
   }
 }
 
@@ -246,6 +248,13 @@ optional<float> parse_float(const std::string &str) {
     return {};
   return value;
 }
+optional<int> parse_int(const std::string &str) {
+  char *end;
+  int value = ::strtol(str.c_str(), &end, 10);
+  if (end == nullptr || end != str.end().base())
+    return {};
+  return value;
+}
 uint32_t fnv1_hash(const std::string &str) {
   uint32_t hash = 2166136261UL;
   for (char c : str) {
@@ -297,6 +306,10 @@ std::array<uint8_t, 2> decode_uint16(uint16_t value) {
   uint8_t msb = (value >> 8) & 0xFF;
   uint8_t lsb = (value >> 0) & 0xFF;
   return {msb, lsb};
+}
+
+uint32_t encode_uint32(uint8_t msb, uint8_t byte2, uint8_t byte3, uint8_t lsb) {
+  return (uint32_t(msb) << 24) | (uint32_t(byte2) << 16) | (uint32_t(byte3) << 8) | uint32_t(lsb);
 }
 
 std::string hexencode(const uint8_t *data, uint32_t len) {

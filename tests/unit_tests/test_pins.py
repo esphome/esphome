@@ -15,12 +15,12 @@ from esphome import pins
 
 
 MOCK_ESP8266_BOARD_ID = "_mock_esp8266"
-MOCK_ESP8266_PINS = {'X0': 16, 'X1': 5, 'X2': 4, 'LED': 2}
+MOCK_ESP8266_PINS = {"X0": 16, "X1": 5, "X2": 4, "LED": 2}
 MOCK_ESP8266_BOARD_ALIAS_ID = "_mock_esp8266_alias"
 MOCK_ESP8266_FLASH_SIZE = pins.FLASH_SIZE_2_MB
 
 MOCK_ESP32_BOARD_ID = "_mock_esp32"
-MOCK_ESP32_PINS = {'Y0': 12, 'Y1': 8, 'Y2': 3, 'LED': 9, "A0": 8}
+MOCK_ESP32_PINS = {"Y0": 12, "Y1": 8, "Y2": 3, "LED": 9, "A0": 8}
 MOCK_ESP32_BOARD_ALIAS_ID = "_mock_esp32_alias"
 
 UNKNOWN_PLATFORM = "STM32"
@@ -68,10 +68,13 @@ def core_esp32(core):
 
 
 class Test_lookup_pin:
-    @pytest.mark.parametrize("value, expected", (
+    @pytest.mark.parametrize(
+        "value, expected",
+        (
             ("X1", 5),
             ("MOSI", 13),
-    ))
+        ),
+    )
     def test_valid_esp8266_pin(self, core_esp8266, value, expected):
         actual = pins._lookup_pin(value)
 
@@ -84,11 +87,14 @@ class Test_lookup_pin:
 
         assert actual == 4
 
-    @pytest.mark.parametrize("value, expected", (
+    @pytest.mark.parametrize(
+        "value, expected",
+        (
             ("Y1", 8),
             ("A0", 8),
             ("MOSI", 23),
-    ))
+        ),
+    )
     def test_valid_esp32_pin(self, core_esp32, value, expected):
         actual = pins._lookup_pin(value)
 
@@ -102,7 +108,9 @@ class Test_lookup_pin:
         assert actual == 3
 
     def test_invalid_pin(self, core_esp8266):
-        with pytest.raises(Invalid, match="Cannot resolve pin name 'X42' for board _mock_esp8266."):
+        with pytest.raises(
+            Invalid, match="Cannot resolve pin name 'X42' for board _mock_esp8266."
+        ):
             pins._lookup_pin("X42")
 
     def test_unsupported_platform(self, core):
@@ -113,13 +121,16 @@ class Test_lookup_pin:
 
 
 class Test_translate_pin:
-    @pytest.mark.parametrize("value, expected", (
+    @pytest.mark.parametrize(
+        "value, expected",
+        (
             (2, 2),
             ("3", 3),
             ("GPIO4", 4),
             ("TX", 1),
             ("Y0", 12),
-    ))
+        ),
+    )
     def test_valid_values(self, core_esp32, value, expected):
         actual = pins._translate_pin(value)
 
@@ -137,7 +148,9 @@ class Test_validate_gpio_pin:
 
         assert actual == 22
 
-    @pytest.mark.parametrize("value, match", (
+    @pytest.mark.parametrize(
+        "value, match",
+        (
             (-1, "ESP32: Invalid pin number: -1"),
             (40, "ESP32: Invalid pin number: 40"),
             (6, "This pin cannot be used on ESP32s and"),
@@ -150,7 +163,8 @@ class Test_validate_gpio_pin:
             (29, "The pin GPIO29 is not usable on ESP32s"),
             (30, "The pin GPIO30 is not usable on ESP32s"),
             (31, "The pin GPIO31 is not usable on ESP32s"),
-    ))
+        ),
+    )
     def test_esp32_invalid_pin(self, core_esp32, value, match):
         with pytest.raises(Invalid, match=match):
             pins.validate_gpio_pin(value)
@@ -168,14 +182,17 @@ class Test_validate_gpio_pin:
 
         assert actual == 12
 
-    @pytest.mark.parametrize("value, match", (
+    @pytest.mark.parametrize(
+        "value, match",
+        (
             (-1, "ESP8266: Invalid pin number: -1"),
             (18, "ESP8266: Invalid pin number: 18"),
             (6, "This pin cannot be used on ESP8266s and"),
             (7, "This pin cannot be used on ESP8266s and"),
             (8, "This pin cannot be used on ESP8266s and"),
             (11, "This pin cannot be used on ESP8266s and"),
-    ))
+        ),
+    )
     def test_esp8266_invalid_pin(self, core_esp8266, value, match):
         with pytest.raises(Invalid, match=match):
             pins.validate_gpio_pin(value)
@@ -196,18 +213,19 @@ class Test_validate_gpio_pin:
 
 
 class Test_input_pin:
-    @pytest.mark.parametrize("value, expected", (
-            ("X0", 16),
-    ))
+    @pytest.mark.parametrize("value, expected", (("X0", 16),))
     def test_valid_esp8266_values(self, core_esp8266, value, expected):
         actual = pins.input_pin(value)
 
         assert actual == expected
 
-    @pytest.mark.parametrize("value, expected", (
+    @pytest.mark.parametrize(
+        "value, expected",
+        (
             ("Y0", 12),
             (17, 17),
-    ))
+        ),
+    )
     def test_valid_esp32_values(self, core_esp32, value, expected):
         actual = pins.input_pin(value)
 
@@ -226,18 +244,19 @@ class Test_input_pin:
 
 
 class Test_input_pullup_pin:
-    @pytest.mark.parametrize("value, expected", (
-            ("X0", 16),
-    ))
+    @pytest.mark.parametrize("value, expected", (("X0", 16),))
     def test_valid_esp8266_values(self, core_esp8266, value, expected):
         actual = pins.input_pullup_pin(value)
 
         assert actual == expected
 
-    @pytest.mark.parametrize("value, expected", (
+    @pytest.mark.parametrize(
+        "value, expected",
+        (
             ("Y0", 12),
             (17, 17),
-    ))
+        ),
+    )
     def test_valid_esp32_values(self, core_esp32, value, expected):
         actual = pins.input_pullup_pin(value)
 
@@ -256,18 +275,19 @@ class Test_input_pullup_pin:
 
 
 class Test_output_pin:
-    @pytest.mark.parametrize("value, expected", (
-            ("X0", 16),
-    ))
+    @pytest.mark.parametrize("value, expected", (("X0", 16),))
     def test_valid_esp8266_values(self, core_esp8266, value, expected):
         actual = pins.output_pin(value)
 
         assert actual == expected
 
-    @pytest.mark.parametrize("value, expected", (
+    @pytest.mark.parametrize(
+        "value, expected",
+        (
             ("Y0", 12),
             (17, 17),
-    ))
+        ),
+    )
     def test_valid_esp32_values(self, core_esp32, value, expected):
         actual = pins.output_pin(value)
 
@@ -291,18 +311,19 @@ class Test_output_pin:
 
 
 class Test_analog_pin:
-    @pytest.mark.parametrize("value, expected", (
-            (17, 17),
-    ))
+    @pytest.mark.parametrize("value, expected", ((17, 17),))
     def test_valid_esp8266_values(self, core_esp8266, value, expected):
         actual = pins.analog_pin(value)
 
         assert actual == expected
 
-    @pytest.mark.parametrize("value, expected", (
+    @pytest.mark.parametrize(
+        "value, expected",
+        (
             (32, 32),
             (39, 39),
-    ))
+        ),
+    )
     def test_valid_esp32_values(self, core_esp32, value, expected):
         actual = pins.analog_pin(value)
 

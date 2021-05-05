@@ -1,4 +1,5 @@
 #include "esphome/core/log.h"
+#include "esphome/components/fan/fan_helpers.h"
 #include "tuya_fan.h"
 
 namespace esphome {
@@ -7,18 +8,15 @@ namespace tuya {
 static const char *TAG = "tuya.fan";
 
 void TuyaFan::setup() {
-  auto traits = fan::FanTraits(this->oscillation_id_.has_value(), this->speed_id_.has_value(), false);
+  auto traits =
+      fan::FanTraits(this->oscillation_id_.has_value(), this->speed_id_.has_value(), false, this->speed_count_);
   this->fan_->set_traits(traits);
 
   if (this->speed_id_.has_value()) {
     this->parent_->register_listener(*this->speed_id_, [this](TuyaDatapoint datapoint) {
       auto call = this->fan_->make_call();
-      if (datapoint.value_enum == 0x0)
-        call.set_speed(fan::FAN_SPEED_LOW);
-      else if (datapoint.value_enum == 0x1)
-        call.set_speed(fan::FAN_SPEED_MEDIUM);
-      else if (datapoint.value_enum == 0x2)
-        call.set_speed(fan::FAN_SPEED_HIGH);
+      if (datapoint.value_enum < this->speed_count_)
+        call.set_speed(datapoint.value_enum + 1);
       else
         ESP_LOGCONFIG(TAG, "Speed has invalid value %d", datapoint.value_enum);
       ESP_LOGD(TAG, "MCU reported speed of: %d", datapoint.value_enum);
@@ -46,6 +44,7 @@ void TuyaFan::setup() {
 
 void TuyaFan::dump_config() {
   ESP_LOGCONFIG(TAG, "Tuya Fan:");
+  ESP_LOGCONFIG(TAG, "  Speed count %d", this->speed_count_);
   if (this->speed_id_.has_value())
     ESP_LOGCONFIG(TAG, "  Speed has datapoint ID %u", *this->speed_id_);
   if (this->switch_id_.has_value())
@@ -75,12 +74,7 @@ void TuyaFan::write_state() {
     TuyaDatapoint datapoint{};
     datapoint.id = *this->speed_id_;
     datapoint.type = TuyaDatapointType::ENUM;
-    if (this->fan_->speed == fan::FAN_SPEED_LOW)
-      datapoint.value_enum = 0;
-    if (this->fan_->speed == fan::FAN_SPEED_MEDIUM)
-      datapoint.value_enum = 1;
-    if (this->fan_->speed == fan::FAN_SPEED_HIGH)
-      datapoint.value_enum = 2;
+    datapoint.value_enum = this->fan_->speed - 1;
     ESP_LOGD(TAG, "Setting speed: %d", datapoint.value_enum);
     this->parent_->set_datapoint_value(datapoint);
   }

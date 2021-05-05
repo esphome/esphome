@@ -21,6 +21,13 @@ void TuyaLight::setup() {
       call.perform();
     });
   }
+  if (min_value_datapoint_id_.has_value()) {
+    TuyaDatapoint datapoint{};
+    datapoint.id = *this->min_value_datapoint_id_;
+    datapoint.type = TuyaDatapointType::INTEGER;
+    datapoint.value_int = this->min_value_;
+    parent_->set_datapoint_value(datapoint);
+  }
 }
 
 void TuyaLight::dump_config() {
