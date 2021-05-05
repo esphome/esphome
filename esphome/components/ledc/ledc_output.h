@@ -25,7 +25,7 @@ class LEDCOutput : public output::FloatOutput, public Component {
   void setup() override;
   void dump_config() override;
   /// HARDWARE setup priority
-  float get_setup_priority() const override { return setup_priority::HARDWARE; }
+  float get_setup_priority() const override { return setup_priority::HARDWARE + 10; }
 
   /// Override FloatOutput's write_state.
   void write_state(float state) override;
