@@ -8,6 +8,8 @@ from esphome.const import (
 )
 
 AUTO_LOAD = ["output"]
+CODEOWNERS = ["@BoukeHaarsma23"]
+
 sm2135_ns = cg.esphome_ns.namespace("sm2135")
 SM2135 = sm2135_ns.class_("SM2135", cg.Component)
 
