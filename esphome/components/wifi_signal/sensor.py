@@ -15,7 +15,9 @@ WiFiSignalSensor = wifi_signal_ns.class_(
 )
 
 CONFIG_SCHEMA = (
-    sensor.sensor_schema(UNIT_DECIBEL_MILLIWATT, ICON_EMPTY, 0, DEVICE_CLASS_SIGNAL_STRENGTH)
+    sensor.sensor_schema(
+        UNIT_DECIBEL_MILLIWATT, ICON_EMPTY, 0, DEVICE_CLASS_SIGNAL_STRENGTH
+    )
     .extend(
         {
             cv.GenerateID(): cv.declare_id(WiFiSignalSensor),
