@@ -20,12 +20,10 @@ void Am43::setup() {
   this->current_sensor_ = 0;
 }
 
-void Am43::loop() {
-}
+void Am43::loop() {}
 
-void Am43::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
-                                    esp_ble_gattc_cb_param_t *param) {
-  switch(event) {
+void Am43::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp_ble_gattc_cb_param_t *param) {
+  switch (event) {
     case ESP_GATTC_OPEN_EVT: {
       this->logged_in_ = false;
       break;
@@ -42,7 +40,7 @@ void Am43::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_i
     case ESP_GATTC_SEARCH_CMPL_EVT: {
       auto chr = this->parent_->get_characteristic(AM43_SERVICE_UUID, AM43_CHAR_UUID);
       if (chr == nullptr) {
-        if (this->parent_->get_characteristic(AM43_TUYA_SERVICE_UUID, AM43_TUYA_CHARACTERISTIC_UUID) != nullptr {
+        if (this->parent_->get_characteristic(AM43_TUYA_SERVICE_UUID, AM43_TUYA_CHARACTERISTIC_UUID) != nullptr) {
           ESP_LOGE(TAG, "[%s] Detected a Tuya AM43 which is not supported, sorry.", this->get_name().c_str());
         } else {
           ESP_LOGE(TAG, "[%s] No control service found at device, not an AM43..?", this->get_name().c_str());
@@ -58,7 +56,8 @@ void Am43::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_i
       break;
     }
     case ESP_GATTC_NOTIFY_EVT: {
-      if (param->notify.handle != this->char_handle_) break;
+      if (param->notify.handle != this->char_handle_)
+        break;
       this->decoder_->decode(param->notify.value, param->notify.value_len);
 
       if (this->battery_ != nullptr && this->decoder_->has_battery_level() &&
@@ -74,11 +73,12 @@ void Am43::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_i
       if (this->current_sensor_ > 0) {
         if (this->illuminance_ != nullptr) {
           auto packet = this->encoder_->get_light_level_request();
-          auto status = esp_ble_gattc_write_char(this->parent_->gattc_if, this->parent_->conn_id,
-                                                 this->char_handle_, packet->length, packet->data,
-                                                 ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE);
+          auto status = esp_ble_gattc_write_char(this->parent_->gattc_if, this->parent_->conn_id, this->char_handle_,
+                                                 packet->length, packet->data, ESP_GATT_WRITE_TYPE_NO_RSP,
+                                                 ESP_GATT_AUTH_REQ_NONE);
           if (status)
-            ESP_LOGW(TAG, "[%s] esp_ble_gattc_write_char failed, status=%d", this->parent_->address_str().c_str(), status);
+            ESP_LOGW(TAG, "[%s] esp_ble_gattc_write_char failed, status=%d", this->parent_->address_str().c_str(),
+                     status);
         }
         this->current_sensor_ = 0;
       }
@@ -97,9 +97,9 @@ void Am43::update() {
   if (this->current_sensor_ == 0) {
     if (this->battery_ != nullptr) {
       auto packet = this->encoder_->get_battery_level_request();
-      auto status = esp_ble_gattc_write_char(this->parent_->gattc_if, this->parent_->conn_id,
-                                             this->char_handle_, packet->length, packet->data,
-                                             ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE);
+      auto status =
+          esp_ble_gattc_write_char(this->parent_->gattc_if, this->parent_->conn_id, this->char_handle_, packet->length,
+                                   packet->data, ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE);
       if (status)
         ESP_LOGW(TAG, "[%s] esp_ble_gattc_write_char failed, status=%d", this->parent_->address_str().c_str(), status);
     }
@@ -107,5 +107,5 @@ void Am43::update() {
   }
 }
 
-}  // namespace am43_cover
+}  // namespace am43
 }  // namespace esphome

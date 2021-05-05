@@ -2023,6 +2023,10 @@ cover:
           id: template_cover
           state: CLOSED
     assumed_state: no
+  - platform: am43_cover
+    name: 'Test AM43'
+    id: am43_test
+    ble_client_id: ble_foo
 
 debug:
 

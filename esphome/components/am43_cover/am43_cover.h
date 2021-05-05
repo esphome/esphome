@@ -15,12 +15,12 @@ namespace am43_cover {
 
 namespace espbt = esphome::esp32_ble_tracker;
 
-#define AM43_SERVICE_UUID 0xFE50
-#define AM43_CHARACTERISTIC_UUID 0xFE51
+static const uint16_t AM43_SERVICE_UUID = 0xFE50;
+static const uint16_t AM43_CHARACTERISTIC_UUID = 0xFE51;
 
 // Tuya identifiers, only to detect and warn users as they are incompatible.
-#define AM43_TUYA_SERVICE_UUID 0x1910
-#define AM43_TUYA_CHARACTERISTIC_UUID 0x2b11
+static const uint16_t AM43_TUYA_SERVICE_UUID = 0x1910;
+static const uint16_t AM43_TUYA_CHARACTERISTIC_UUID = 0x2b11;
 
 class Am43Cover : public cover::Cover, public esphome::ble_client::BLEClientNode, public Component {
  public:
@@ -33,7 +33,7 @@ class Am43Cover : public cover::Cover, public esphome::ble_client::BLEClientNode
   cover::CoverTraits get_traits() override;
   void set_pin(uint16_t pin) { this->pin_ = pin; }
 
-  protected:
+ protected:
   void control(const cover::CoverCall &call) override;
   uint16_t char_handle_;
   uint16_t pin_;
@@ -48,4 +48,3 @@ class Am43Cover : public cover::Cover, public esphome::ble_client::BLEClientNode
 }  // namespace esphome
 
 #endif
-
