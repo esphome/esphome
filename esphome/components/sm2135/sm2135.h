@@ -13,7 +13,6 @@ class SM2135 : public Component {
 
   void set_data_pin(GPIOPin *data_pin) { data_pin_ = data_pin; }
   void set_clock_pin(GPIOPin *clock_pin) { clock_pin_ = clock_pin; }
-  void set_num_channels(uint8_t num_channels) { num_channels_ = num_channels; }
 
   void setup() override;
 
@@ -74,7 +73,6 @@ class SM2135 : public Component {
 
   GPIOPin *data_pin_;
   GPIOPin *clock_pin_;
-  uint8_t num_channels_;
   uint8_t update_channel_;
   std::vector<uint8_t> pwm_amounts_;
   bool update_{true};
