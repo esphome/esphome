@@ -8,19 +8,19 @@ static const char *TAG = "am43_cover";
 
 using namespace esphome::cover;
 
-void am43_cover::Am43Cover::dump_config() {
+void Am43Component::dump_config() {
   LOG_COVER("", "AM43 Cover", this);
   ESP_LOGCONFIG(TAG, "  Device Pin: %d", this->pin_);
 }
 
-void am43_cover::Am43Cover::setup() {
+void Am43Component::setup() {
   this->position = COVER_OPEN;
   this->encoder_ = new Am43Encoder();
   this->decoder_ = new Am43Decoder();
   this->logged_in_ = false;
 }
 
-void am43_cover::Am43Cover::loop() {
+void Am43Component::loop() {
   if (this->node_state == espbt::ClientState::Established && !this->logged_in_) {
     auto packet = this->encoder_->get_send_pin_request(this->pin_);
     auto status =
@@ -34,7 +34,7 @@ void am43_cover::Am43Cover::loop() {
   }
 }
 
-CoverTraits am43_cover::Am43Cover::get_traits() {
+CoverTraits Am43Component::get_traits() {
   auto traits = CoverTraits();
   traits.set_supports_position(true);
   traits.set_supports_tilt(false);
@@ -42,7 +42,7 @@ CoverTraits am43_cover::Am43Cover::get_traits() {
   return traits;
 }
 
-void am43_cover::Am43Cover::control(const CoverCall &call) {
+void Am43Component::control(const CoverCall &call) {
   if (this->node_state != espbt::ClientState::Established) {
     ESP_LOGW(TAG, "[%s] Cannot send cover control, not connected", this->get_name().c_str());
     return;
@@ -66,8 +66,8 @@ void am43_cover::Am43Cover::control(const CoverCall &call) {
   }
 }
 
-void am43_cover::Am43Cover::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
-                                    esp_ble_gattc_cb_param_t *param) {
+void Am43Component::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
+                                                esp_ble_gattc_cb_param_t *param) {
   switch (event) {
     case ESP_GATTC_DISCONNECT_EVT: {
       this->logged_in_ = false;

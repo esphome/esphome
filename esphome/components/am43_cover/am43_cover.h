@@ -22,7 +22,7 @@ static const uint16_t AM43_CHARACTERISTIC_UUID = 0xFE51;
 static const uint16_t AM43_TUYA_SERVICE_UUID = 0x1910;
 static const uint16_t AM43_TUYA_CHARACTERISTIC_UUID = 0x2b11;
 
-class Am43Cover : public cover::Cover, public esphome::ble_client::BLEClientNode, public Component {
+class Am43Component : public cover::Cover, public esphome::ble_client::BLEClientNode, public Component {
  public:
   void setup() override;
   void loop() override;
