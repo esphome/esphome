@@ -20,7 +20,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_OSCILLATION_DATAPOINT): cv.uint8_t,
             cv.Optional(CONF_SPEED_DATAPOINT): cv.uint8_t,
             cv.Optional(CONF_SWITCH_DATAPOINT): cv.uint8_t,
-          cv.Optional(CONF_DIRECTION_DATAPOINT): cv.uint8_t,
+            cv.Optional(CONF_DIRECTION_DATAPOINT): cv.uint8_t,
             cv.Optional(CONF_SPEED_COUNT, default=3): cv.int_range(min=1, max=256),
         }
     ).extend(cv.COMPONENT_SCHEMA),
