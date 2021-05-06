@@ -1520,6 +1520,9 @@ climate:
       name: 'Power'
     humidity_setpoint:
       name: 'Hum'
+  - platform: anova
+    name: Anova cooker
+    ble_client_id: ble_blah
 
 midea_dongle:
   uart_id: uart0
