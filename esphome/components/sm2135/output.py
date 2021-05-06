@@ -5,6 +5,7 @@ from esphome.const import CONF_CHANNEL, CONF_ID
 from . import SM2135
 
 DEPENDENCIES = ["sm2135"]
+CODEOWNERS = ["@BoukeHaarsma23"]
 
 Channel = SM2135.class_("Channel", output.FloatOutput)
 
