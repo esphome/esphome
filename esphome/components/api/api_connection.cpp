@@ -33,7 +33,7 @@ APIConnection::APIConnection(AsyncClient *client, APIServer *parent)
   this->recv_buffer_.reserve(32);
   this->client_info_ = this->client_->remoteIP().toString().c_str();
   this->client_info_ += ":";
-  this->client_info_ += to_string(this->client_->remotePort()).c_str();
+  this->client_info_ += to_string(this->client_->remotePort());
   this->last_traffic_ = millis();
 }
 APIConnection::~APIConnection() { delete this->client_; }
@@ -43,9 +43,9 @@ void APIConnection::on_error_(int8_t error) {
 }
 void APIConnection::on_disconnect_() {
   if (!this->remove_) {
+    this->remove_ = true;
     ESP_LOGI(TAG, "Client %s has disconnected", this->client_info_.c_str());
   }
-  this->remove_ = true;
 }
 void APIConnection::on_timeout_(uint32_t time) {
   ESP_LOGW(TAG, "Received client timeout (from AsyncTCP) for %s.", this->client_info_.c_str());
@@ -613,7 +613,7 @@ bool APIConnection::send_log_message(int level, const char *tag, const char *lin
 HelloResponse APIConnection::hello(const HelloRequest &msg) {
   this->client_info_ = msg.client_info + " (" + this->client_->remoteIP().toString().c_str();
   this->client_info_ += ":";
-  this->client_info_ += to_string(this->client_->remotePort()).c_str();
+  this->client_info_ += to_string(this->client_->remotePort());
   this->client_info_ += ")";
   ESP_LOGV(TAG, "Hello from client: '%s'", this->client_info_.c_str());
 
