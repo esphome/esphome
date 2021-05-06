@@ -22,7 +22,7 @@ void Anova::loop() {}
 void Anova::control(const ClimateCall &call) {
   if (call.get_mode().has_value()) {
     ClimateMode mode = *call.get_mode();
-    anova_packet *pkt;
+    AnovaPacket *pkt;
     switch (mode) {
       case climate::CLIMATE_MODE_OFF:
         pkt = this->codec_->get_stop_request();
@@ -92,7 +92,7 @@ void Anova::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_
       this->publish_state();
 
       if (this->current_request_ > 0) {
-        anova_packet *pkt = nullptr;
+        AnovaPacket *pkt = nullptr;
         switch (this->current_request_++) {
           case 1:
             pkt = this->codec_->get_read_target_temp_request();

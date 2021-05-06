@@ -15,8 +15,8 @@ namespace anova {
 
 namespace espbt = esphome::esp32_ble_tracker;
 
-#define ANOVA_SERVICE_UUID 0xFFE0
-#define ANOVA_CHARACTERISTIC_UUID 0xFFE1
+static const uint16_t ANOVA_SERVICE_UUID = 0xFFE0;
+static const uint16_t ANOVA_CHARACTERISTIC_UUID = 0xFFE1;
 
 class Anova : public climate::Climate, public esphome::ble_client::BLEClientNode, public PollingComponent {
  public:

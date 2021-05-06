@@ -3,74 +3,74 @@
 namespace esphome {
 namespace anova {
 
-anova_packet *AnovaCodec::clean_packet() {
+AnovaPacket *AnovaCodec::clean_packet_() {
   this->packet_.length = strlen((char *) this->packet_.data);
   this->packet_.data[this->packet_.length] = '\0';
-  ESP_LOGI("anova", "SendPkt: %s\n", this->packet_.data);
+  ESP_LOGV("anova", "SendPkt: %s\n", this->packet_.data);
   return &this->packet_;
 }
 
-anova_packet *AnovaCodec::get_read_device_status_request() {
-  this->current_query_ = ReadDeviceStatus;
-  sprintf((char *) this->packet_.data, "%s", READ_DEVICE_STATUS);
-  return this->clean_packet();
+AnovaPacket *AnovaCodec::get_read_device_status_request() {
+  this->current_query_ = READ_DEVICE_STATUS;
+  sprintf((char *) this->packet_.data, "%s", CMD_READ_DEVICE_STATUS);
+  return this->clean_packet_();
 }
 
-anova_packet *AnovaCodec::get_read_target_temp_request() {
-  this->current_query_ = ReadTargetTemperature;
-  sprintf((char *) this->packet_.data, "%s", READ_TARGET_TEMP);
-  return this->clean_packet();
+AnovaPacket *AnovaCodec::get_read_target_temp_request() {
+  this->current_query_ = READ_TARGET_TEMPERATURE;
+  sprintf((char *) this->packet_.data, "%s", CMD_READ_TARGET_TEMP);
+  return this->clean_packet_();
 }
 
-anova_packet *AnovaCodec::get_read_current_temp_request() {
-  this->current_query_ = ReadCurrentTemperature;
-  sprintf((char *) this->packet_.data, "%s", READ_CURRENT_TEMP);
-  return this->clean_packet();
+AnovaPacket *AnovaCodec::get_read_current_temp_request() {
+  this->current_query_ = READ_CURRENT_TEMPERATURE;
+  sprintf((char *) this->packet_.data, "%s", CMD_READ_CURRENT_TEMP);
+  return this->clean_packet_();
 }
 
-anova_packet *AnovaCodec::get_read_unit_request() {
-  this->current_query_ = ReadUnit;
-  sprintf((char *) this->packet_.data, "%s", READ_UNIT);
-  return this->clean_packet();
+AnovaPacket *AnovaCodec::get_read_unit_request() {
+  this->current_query_ = READ_UNIT;
+  sprintf((char *) this->packet_.data, "%s", CMD_READ_UNIT);
+  return this->clean_packet_();
 }
 
-anova_packet *AnovaCodec::get_read_data_request() {
-  this->current_query_ = ReadData;
-  sprintf((char *) this->packet_.data, "%s", READ_DATA);
-  return this->clean_packet();
+AnovaPacket *AnovaCodec::get_read_data_request() {
+  this->current_query_ = READ_DATA;
+  sprintf((char *) this->packet_.data, "%s", CMD_READ_DATA);
+  return this->clean_packet_();
 }
 
-anova_packet *AnovaCodec::get_set_target_temp_request(float temperature) {
-  this->current_query_ = SetTargetTemperature;
-  sprintf((char *) this->packet_.data, SET_TARGET_TEMP, temperature);
-  return this->clean_packet();
+AnovaPacket *AnovaCodec::get_set_target_temp_request(float temperature) {
+  this->current_query_ = SET_TARGET_TEMPERATURE;
+  sprintf((char *) this->packet_.data, CMD_SET_TARGET_TEMP, temperature);
+  return this->clean_packet_();
 }
 
-anova_packet *AnovaCodec::get_set_unit_request(char unit) {
-  this->current_query_ = SetUnit;
-  sprintf((char *) this->packet_.data, SET_TEMP_UNIT, unit);
-  return this->clean_packet();
+AnovaPacket *AnovaCodec::get_set_unit_request(char unit) {
+  this->current_query_ = SET_UNIT;
+  sprintf((char *) this->packet_.data, CMD_SET_TEMP_UNIT, unit);
+  return this->clean_packet_();
 }
 
-anova_packet *AnovaCodec::get_start_request() {
-  this->current_query_ = Start;
+AnovaPacket *AnovaCodec::get_start_request() {
+  this->current_query_ = START;
   sprintf((char *) this->packet_.data, CMD_START);
-  return this->clean_packet();
+  return this->clean_packet_();
 }
 
-anova_packet *AnovaCodec::get_stop_request() {
-  this->current_query_ = Stop;
+AnovaPacket *AnovaCodec::get_stop_request() {
+  this->current_query_ = STOP;
   sprintf((char *) this->packet_.data, CMD_STOP);
-  return this->clean_packet();
+  return this->clean_packet_();
 }
 
 void AnovaCodec::decode(const uint8_t *data, uint16_t length) {
   memset(this->buf_, 0, 32);
   strncpy(this->buf_, (char *) data, length);
-  ESP_LOGI("anova", "Received: %s\n", this->buf_);
+  ESP_LOGV("anova", "Received: %s\n", this->buf_);
   this->has_target_temp_ = this->has_current_temp_ = this->has_unit_ = this->has_running_ = false;
   switch (this->current_query_) {
-    case ReadDeviceStatus: {
+    case READ_DEVICE_STATUS: {
       if (!strncmp(this->buf_, "stopped", 7)) {
         this->has_running_ = true;
         this->running_ = false;
@@ -81,32 +81,32 @@ void AnovaCodec::decode(const uint8_t *data, uint16_t length) {
       }
       break;
     }
-    case Start: {
+    case START: {
       if (!strncmp(this->buf_, "start", 5)) {
         this->has_running_ = true;
         this->running_ = true;
       }
       break;
     }
-    case Stop: {
+    case STOP: {
       if (!strncmp(this->buf_, "stop", 4)) {
         this->has_running_ = true;
         this->running_ = false;
       }
       break;
     }
-    case ReadTargetTemperature: {
-      sscanf(this->buf_, "%f", &this->target_temp_);
+    case READ_TARGET_TEMPERATURE: {
+      this->target_temp_ = strtof(this->buf_, nullptr);
       this->has_target_temp_ = true;
       break;
     }
-    case SetTargetTemperature: {
-      sscanf(this->buf_, "%f", &this->target_temp_);
+    case SET_TARGET_TEMPERATURE: {
+      this->target_temp_ = strtof(this->buf_, nullptr);
       this->has_target_temp_ = true;
       break;
     }
-    case ReadCurrentTemperature: {
-      sscanf(this->buf_, "%f", &this->current_temp_);
+    case READ_CURRENT_TEMPERATURE: {
+      this->current_temp_ = strtof(this->buf_, nullptr);
       this->has_current_temp_ = true;
       break;
     }
