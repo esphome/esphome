@@ -45,7 +45,6 @@ void SM2135::dump_config() {
   ESP_LOGCONFIG(TAG, "SM2135:");
   LOG_PIN("  Data Pin: ", this->data_pin_);
   LOG_PIN("  Clock Pin: ", this->clock_pin_);
-  ESP_LOGCONFIG(TAG, "  Total number of channels: 5");
 }
 
 void SM2135::loop() {
