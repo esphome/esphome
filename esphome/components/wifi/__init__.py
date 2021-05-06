@@ -2,6 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
 from esphome.automation import Condition
+from esphome.components.network import add_mdns_library
 from esphome.const import (
     CONF_AP,
     CONF_BSSID,
@@ -300,13 +301,8 @@ def to_code(config):
 
     cg.add_define("USE_WIFI")
 
-    # Include mDNS libraries, if enabled
-    if config.get(CONF_ENABLE_MDNS, True):
-        cg.add_define("USE_MDNS")
-        if CORE.is_esp32:
-            cg.add_library("ESPmDNS", None)
-        elif CORE.is_esp8266:
-            cg.add_library("ESP8266mDNS", None)
+    if config[CONF_ENABLE_MDNS]:
+        add_mdns_library()
 
     # Register at end for OTA safe mode
     yield cg.register_component(var, config)

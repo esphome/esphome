@@ -1,6 +1,7 @@
 from esphome import pins
 import esphome.config_validation as cv
 import esphome.codegen as cg
+from esphome.components.network import add_mdns_library
 from esphome.const import (
     CONF_DOMAIN,
     CONF_ID,
@@ -125,10 +126,5 @@ def to_code(config):
 
     cg.add_define("USE_ETHERNET")
 
-    # Include mDNS libraries, if enabled
-    if config.get(CONF_ENABLE_MDNS, True):
-        cg.add_define("USE_MDNS")
-        if CORE.is_esp32:
-            cg.add_library("ESPmDNS", None)
-        elif CORE.is_esp8266:
-            cg.add_library("ESP8266mDNS", None)
+    if config[CONF_ENABLE_MDNS]:
+        add_mdns_library()
