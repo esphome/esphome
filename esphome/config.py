@@ -33,7 +33,7 @@ _LOGGER = logging.getLogger(__name__)
 def iter_components(config):
     for domain, conf in config.items():
         component = get_component(domain)
-        if component.is_multi_conf:
+        if component.multi_conf:
             for conf_ in conf:
                 yield domain, component, conf_
         else:
@@ -505,9 +505,16 @@ def validate_config(config, command_line_substitutions):
             )
             continue
 
-        if comp.is_multi_conf:
+        if comp.multi_conf:
             if not isinstance(conf, list):
                 result[domain] = conf = [conf]
+            if not isinstance(comp.multi_conf, bool) and len(conf) > comp.multi_conf:
+                result.add_str_error(
+                    "Component {} supports a maximum of {} "
+                    "entries ({} found).".format(domain, comp.multi_conf, len(conf)),
+                    path,
+                )
+                continue
             for i, part_conf in enumerate(conf):
                 validate_queue.append((path + [i], part_conf, comp))
             continue

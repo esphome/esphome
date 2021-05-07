@@ -503,13 +503,13 @@ class TestEsphomeCore:
     def test_address__wifi(self, target):
         target.config = {}
         target.config[const.CONF_WIFI] = {const.CONF_USE_ADDRESS: "1.2.3.4"}
-        target.config["ethernet"] = {const.CONF_USE_ADDRESS: "4.3.2.1"}
+        target.config[const.CONF_ETHERNET] = {const.CONF_USE_ADDRESS: "4.3.2.1"}
 
         assert target.address == "1.2.3.4"
 
     def test_address__ethernet(self, target):
         target.config = {}
-        target.config["ethernet"] = {const.CONF_USE_ADDRESS: "4.3.2.1"}
+        target.config[const.CONF_ETHERNET] = {const.CONF_USE_ADDRESS: "4.3.2.1"}
 
         assert target.address == "4.3.2.1"
 
