@@ -23,7 +23,7 @@ from esphome.helpers import ensure_unique_string, is_hassio
 from esphome.util import OrderedDict
 
 if TYPE_CHECKING:
-    from .cpp_generator import MockObj, MockObjClass, Statement
+    from ..cpp_generator import MockObj, MockObjClass, Statement
 
 _LOGGER = logging.getLogger(__name__)
 
