@@ -153,5 +153,29 @@ void Dsmr::dump_config() {
   DSMR_TEXT_SENSOR_LIST(DSMR_LOG_TEXT_SENSOR, )
 }
 
+void Dsmr::set_decryption_key(const std::string &decryption_key) {
+  if (decryption_key.length() == 0) {
+    ESP_LOGI(TAG, "Disabling decryption");
+    this->decryption_key_.clear();
+    return;
+  }
+
+  if (decryption_key.length() != 32) {
+    ESP_LOGE(TAG, "Error, decryption key must be 32 character long.");
+    return;
+  }
+  this->decryption_key_.clear();
+
+  ESP_LOGI(TAG, "Decryption key is set.");
+  // Verbose level prints decryption key
+  ESP_LOGV(TAG, "Using decryption key: %s", decryption_key.c_str());
+
+  char temp[3] = {0};
+  for (int i = 0; i < 16; i++) {
+    strncpy(temp, &(decryption_key.c_str()[i * 2]), 2);
+    decryption_key_.push_back(std::strtoul(temp, NULL, 16));
+  }
+}
+
 }  // namespace dsmr_
 }  // namespace esphome

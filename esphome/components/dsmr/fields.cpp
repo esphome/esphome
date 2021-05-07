@@ -213,9 +213,15 @@ constexpr ObisId gas_valve_position::id;
 constexpr char gas_valve_position::name_progmem[];
 constexpr const __FlashStringHelper *gas_valve_position::name;
 
+/* _NL */
 constexpr ObisId gas_delivered::id;
 constexpr char gas_delivered::name_progmem[];
 constexpr const __FlashStringHelper *gas_delivered::name;
+
+/* _BE */
+constexpr ObisId gas_delivered_be::id;
+constexpr char gas_delivered_be::name_progmem[];
+constexpr const __FlashStringHelper *gas_delivered_be::name;
 
 constexpr ObisId thermal_device_type::id;
 constexpr char thermal_device_type::name_progmem[];

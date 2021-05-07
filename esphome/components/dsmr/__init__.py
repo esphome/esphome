@@ -16,16 +16,28 @@ dsmr_ns = cg.esphome_ns.namespace("dsmr_")
 DSMR = dsmr_ns.class_("Dsmr", cg.Component, uart.UARTDevice)
 
 
-def validate_key(value):
-    if isinstance(value, list) and len(value) == 16:
-        return cv.Schema([cv.hex_uint8_t])(value)
-    raise cv.Invalid("key must be 16 bytes")
+def _validate_key(value):
+    value = cv.string_strict(value)
+    parts = [value[i : i + 2] for i in range(0, len(value), 2)]
+    if len(parts) != 16:
+        raise cv.Invalid("Decryption key must consist of 16 hexadecimal numbers")
+    parts_int = []
+    if any(len(part) != 2 for part in parts):
+        raise cv.Invalid("Decryption key must be format XX")
+    for part in parts:
+        try:
+            parts_int.append(int(part, 16))
+        except ValueError:
+            # pylint: disable=raise-missing-from
+            raise cv.Invalid("Decryption key must be hex values from 00 to FF")
+
+    return "".join(f"{part:02X}" for part in parts_int)
 
 
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(DSMR),
-        cv.Optional(CONF_DECRYPTION_KEY): validate_key,
+        cv.Optional(CONF_DECRYPTION_KEY): _validate_key,
     }
 ).extend(uart.UART_DEVICE_SCHEMA)
 

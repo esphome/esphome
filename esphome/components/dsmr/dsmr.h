@@ -62,7 +62,7 @@ class Dsmr : public Component, public uart::UARTDevice {
 
   void dump_config() override;
 
-  void set_decryption_key(const std::vector<uint8_t>& decryption_key) { this->decryption_key_ = decryption_key; }
+  void set_decryption_key(const std::string& decryption_key);
 
 // Sensor setters
 #define DSMR_SET_SENSOR(s) \
