@@ -109,7 +109,6 @@ class ComponentMetaFinder(importlib.abc.MetaPathFinder):
             self._finders.append(finder)
 
     def find_spec(self, fullname: str, path: Optional[List[str]], target=None):
-        _LOGGER.info("Finding spec: " + fullname + " " + str(path))
         if not fullname.startswith("esphome.components."):
             return None
         parts = fullname.split(".")
@@ -126,7 +125,6 @@ class ComponentMetaFinder(importlib.abc.MetaPathFinder):
 
         for finder in self._finders:
             spec = finder.find_spec(fullname, target=target)
-            _LOGGER.info("  finder  " + str(spec) + " " + str(target))
             if spec is not None:
                 return spec
         return None
