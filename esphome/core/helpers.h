@@ -319,3 +319,18 @@ template<typename T> class Parented {
 uint32_t fnv1_hash(const std::string &str);
 
 }  // namespace esphome
+
+template<typename T> T *new_buffer(size_t length) {
+  T *buffer;
+#ifdef ARDUINO_ARCH_ESP32
+  if (psramFound()) {
+    buffer = (T *) ps_malloc(length);
+  } else {
+    buffer = new T[length];
+  }
+#else
+  buffer = new T[length];
+#endif
+
+  return buffer;
+}  // namespace esphome
