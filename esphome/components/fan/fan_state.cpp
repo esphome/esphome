@@ -1,4 +1,5 @@
 #include "fan_state.h"
+#include "fan_helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
@@ -20,8 +21,9 @@ FanStateCall FanState::make_call() { return FanStateCall(this); }
 
 struct FanStateRTCState {
   bool state;
-  FanSpeed speed;
+  int speed;
   bool oscillating;
+  FanDirection direction;
 };
 
 void FanState::setup() {
@@ -34,6 +36,7 @@ void FanState::setup() {
   call.set_state(recovered.state);
   call.set_speed(recovered.speed);
   call.set_oscillating(recovered.oscillating);
+  call.set_direction(recovered.direction);
   call.perform();
 }
 float FanState::get_setup_priority() const { return setup_priority::HARDWARE - 1.0f; }
@@ -46,34 +49,32 @@ void FanStateCall::perform() const {
   if (this->oscillating_.has_value()) {
     this->state_->oscillating = *this->oscillating_;
   }
+  if (this->direction_.has_value()) {
+    this->state_->direction = *this->direction_;
+  }
   if (this->speed_.has_value()) {
-    switch (*this->speed_) {
-      case FAN_SPEED_LOW:
-      case FAN_SPEED_MEDIUM:
-      case FAN_SPEED_HIGH:
-        this->state_->speed = *this->speed_;
-        break;
-      default:
-        // protect from invalid input
-        break;
-    }
+    const int speed_count = this->state_->get_traits().supported_speed_count();
+    this->state_->speed = static_cast<int>(clamp(*this->speed_, 1, speed_count));
   }
 
   FanStateRTCState saved{};
   saved.state = this->state_->state;
   saved.speed = this->state_->speed;
   saved.oscillating = this->state_->oscillating;
+  saved.direction = this->state_->direction;
   this->state_->rtc_.save(&saved);
 
   this->state_->state_callback_.call();
 }
-FanStateCall &FanStateCall::set_speed(const char *speed) {
-  if (strcasecmp(speed, "low") == 0) {
-    this->set_speed(FAN_SPEED_LOW);
-  } else if (strcasecmp(speed, "medium") == 0) {
-    this->set_speed(FAN_SPEED_MEDIUM);
-  } else if (strcasecmp(speed, "high") == 0) {
-    this->set_speed(FAN_SPEED_HIGH);
+
+FanStateCall &FanStateCall::set_speed(const char *legacy_speed) {
+  const auto supported_speed_count = this->state_->get_traits().supported_speed_count();
+  if (strcasecmp(legacy_speed, "low") == 0) {
+    this->set_speed(fan::speed_enum_to_level(FAN_SPEED_LOW, supported_speed_count));
+  } else if (strcasecmp(legacy_speed, "medium") == 0) {
+    this->set_speed(fan::speed_enum_to_level(FAN_SPEED_MEDIUM, supported_speed_count));
+  } else if (strcasecmp(legacy_speed, "high") == 0) {
+    this->set_speed(fan::speed_enum_to_level(FAN_SPEED_HIGH, supported_speed_count));
   }
   return *this;
 }

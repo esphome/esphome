@@ -76,6 +76,66 @@ class MedianFilter : public Filter {
   size_t window_size_;
 };
 
+/** Simple min filter.
+ *
+ * Takes the min of the last <send_every> values and pushes it out every <send_every>.
+ */
+class MinFilter : public Filter {
+ public:
+  /** Construct a MinFilter.
+   *
+   * @param window_size The number of values that the min should be returned from.
+   * @param send_every After how many sensor values should a new one be pushed out.
+   * @param send_first_at After how many values to forward the very first value. Defaults to the first value
+   *   on startup being published on the first *raw* value, so with no filter applied. Must be less than or equal to
+   *   send_every.
+   */
+  explicit MinFilter(size_t window_size, size_t send_every, size_t send_first_at);
+
+  optional<float> new_value(float value) override;
+
+  void set_send_every(size_t send_every);
+  void set_window_size(size_t window_size);
+
+  uint32_t expected_interval(uint32_t input) override;
+
+ protected:
+  std::deque<float> queue_;
+  size_t send_every_;
+  size_t send_at_;
+  size_t window_size_;
+};
+
+/** Simple max filter.
+ *
+ * Takes the max of the last <send_every> values and pushes it out every <send_every>.
+ */
+class MaxFilter : public Filter {
+ public:
+  /** Construct a MaxFilter.
+   *
+   * @param window_size The number of values that the max should be returned from.
+   * @param send_every After how many sensor values should a new one be pushed out.
+   * @param send_first_at After how many values to forward the very first value. Defaults to the first value
+   *   on startup being published on the first *raw* value, so with no filter applied. Must be less than or equal to
+   *   send_every.
+   */
+  explicit MaxFilter(size_t window_size, size_t send_every, size_t send_first_at);
+
+  optional<float> new_value(float value) override;
+
+  void set_send_every(size_t send_every);
+  void set_window_size(size_t window_size);
+
+  uint32_t expected_interval(uint32_t input) override;
+
+ protected:
+  std::deque<float> queue_;
+  size_t send_every_;
+  size_t send_at_;
+  size_t window_size_;
+};
+
 /** Simple sliding window moving average filter.
  *
  * Essentially just takes takes the average of the last window_size values and pushes them out
@@ -102,7 +162,7 @@ class SlidingWindowMovingAverageFilter : public Filter {
 
  protected:
   float sum_{0.0};
-  std::queue<float> queue_;
+  std::deque<float> queue_;
   size_t send_every_;
   size_t send_at_;
   size_t window_size_;

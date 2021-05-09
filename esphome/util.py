@@ -1,3 +1,5 @@
+from typing import Union, List
+
 import collections
 import io
 import logging
@@ -5,6 +7,7 @@ import os
 import re
 import subprocess
 import sys
+from pathlib import Path
 
 from esphome import const
 
@@ -21,11 +24,13 @@ class RegistryEntry:
     @property
     def coroutine_fun(self):
         from esphome.core import coroutine
+
         return coroutine(self.fun)
 
     @property
     def schema(self):
         from esphome.config_validation import Schema
+
         return Schema(self.raw_schema)
 
 
@@ -57,7 +62,7 @@ def safe_print(message=""):
 
     if CORE.dashboard:
         try:
-            message = message.replace('\033', '\\033')
+            message = message.replace("\033", "\\033")
         except UnicodeEncodeError:
             pass
 
@@ -68,10 +73,10 @@ def safe_print(message=""):
         pass
 
     try:
-        print(message.encode('utf-8', 'backslashreplace'))
+        print(message.encode("utf-8", "backslashreplace"))
     except UnicodeEncodeError:
         try:
-            print(message.encode('ascii', 'backslashreplace'))
+            print(message.encode("ascii", "backslashreplace"))
         except UnicodeEncodeError:
             print("Cannot print line because of invalid locale!")
 
@@ -79,13 +84,13 @@ def safe_print(message=""):
 def shlex_quote(s):
     if not s:
         return "''"
-    if re.search(r'[^\w@%+=:,./-]', s) is None:
+    if re.search(r"[^\w@%+=:,./-]", s) is None:
         return s
 
     return "'" + s.replace("'", "'\"'\"'") + "'"
 
 
-ANSI_ESCAPE = re.compile(r'\033[@-_][0-?]*[ -/]*[@-~]')
+ANSI_ESCAPE = re.compile(r"\033[@-_][0-?]*[ -/]*[@-~]")
 
 
 class RedirectText:
@@ -94,9 +99,9 @@ class RedirectText:
         if filter_lines is None:
             self._filter_pattern = None
         else:
-            pattern = r'|'.join(r'(?:' + pattern + r')' for pattern in filter_lines)
+            pattern = r"|".join(r"(?:" + pattern + r")" for pattern in filter_lines)
             self._filter_pattern = re.compile(pattern)
-        self._line_buffer = ''
+        self._line_buffer = ""
 
     def __getattr__(self, item):
         return getattr(self._out, item)
@@ -109,7 +114,7 @@ class RedirectText:
             # work. The shell we create in the dashboard is not a tty, so python removes
             # all color codes from the resulting stream. We just convert them to something
             # we can easily recognize later here.
-            s = s.replace('\033', '\\033')
+            s = s.replace("\033", "\\033")
         self._out.write(s)
 
     def write(self, s):
@@ -125,13 +130,13 @@ class RedirectText:
             self._line_buffer += s
             lines = self._line_buffer.splitlines(True)
             for line in lines:
-                if '\n' not in line and '\r' not in line:
+                if "\n" not in line and "\r" not in line:
                     # Not a complete line, set line buffer
                     self._line_buffer = line
                     break
-                self._line_buffer = ''
+                self._line_buffer = ""
 
-                line_without_ansi = ANSI_ESCAPE.sub('', line)
+                line_without_ansi = ANSI_ESCAPE.sub("", line)
                 line_without_end = line_without_ansi.rstrip()
                 if self._filter_pattern.match(line_without_end) is not None:
                     # Filter pattern matched, ignore the line
@@ -151,22 +156,35 @@ class RedirectText:
         return True
 
 
-def run_external_command(func, *cmd, **kwargs):
+def run_external_command(
+    func, *cmd, capture_stdout: bool = False, filter_lines: str = None
+) -> Union[int, str]:
+    """
+    Run a function from an external package that acts like a main method.
+
+    Temporarily replaces stdin/stderr/stdout, sys.argv and sys.exit handler during the run.
+
+    :param func: Function to execute
+    :param cmd: Command to run as (eg first element of sys.argv)
+    :param capture_stdout: Capture text from stdout and return that.
+    :param filter_lines: Regular expression used to filter captured output.
+    :return: str if `capture_stdout` is set else int exit code.
+
+    """
+
     def mock_exit(return_code):
         raise SystemExit(return_code)
 
     orig_argv = sys.argv
     orig_exit = sys.exit  # mock sys.exit
-    full_cmd = ' '.join(shlex_quote(x) for x in cmd)
+    full_cmd = " ".join(shlex_quote(x) for x in cmd)
     _LOGGER.info("Running:  %s", full_cmd)
 
-    filter_lines = kwargs.get('filter_lines')
     orig_stdout = sys.stdout
     sys.stdout = RedirectText(sys.stdout, filter_lines=filter_lines)
     orig_stderr = sys.stderr
     sys.stderr = RedirectText(sys.stderr, filter_lines=filter_lines)
 
-    capture_stdout = kwargs.get('capture_stdout', False)
     if capture_stdout:
         cap_stdout = sys.stdout = io.StringIO()
 
@@ -195,11 +213,11 @@ def run_external_command(func, *cmd, **kwargs):
 
 
 def run_external_process(*cmd, **kwargs):
-    full_cmd = ' '.join(shlex_quote(x) for x in cmd)
+    full_cmd = " ".join(shlex_quote(x) for x in cmd)
     _LOGGER.info("Running:  %s", full_cmd)
-    filter_lines = kwargs.get('filter_lines')
+    filter_lines = kwargs.get("filter_lines")
 
-    capture_stdout = kwargs.get('capture_stdout', False)
+    capture_stdout = kwargs.get("capture_stdout", False)
     if capture_stdout:
         sub_stdout = io.BytesIO()
     else:
@@ -208,9 +226,7 @@ def run_external_process(*cmd, **kwargs):
     sub_stderr = RedirectText(sys.stderr, filter_lines=filter_lines)
 
     try:
-        return subprocess.call(cmd,
-                               stdout=sub_stdout,
-                               stderr=sub_stderr)
+        return subprocess.call(cmd, stdout=sub_stdout, stderr=sub_stderr)
     except Exception as err:  # pylint: disable=broad-except
         _LOGGER.error("Running command failed: %s", err)
         _LOGGER.error("Please try running %s locally.", full_cmd)
@@ -222,7 +238,7 @@ def run_external_process(*cmd, **kwargs):
 
 
 def is_dev_esphome_version():
-    return 'dev' in const.__version__
+    return "dev" in const.__version__
 
 
 # Custom OrderedDict with nicer repr method for debugging
@@ -238,7 +254,39 @@ def list_yaml_files(folder):
 
 
 def filter_yaml_files(files):
-    files = [f for f in files if os.path.splitext(f)[1] == '.yaml']
-    files = [f for f in files if os.path.basename(f) != 'secrets.yaml']
-    files = [f for f in files if not os.path.basename(f).startswith('.')]
+    files = [f for f in files if os.path.splitext(f)[1] == ".yaml"]
+    files = [f for f in files if os.path.basename(f) != "secrets.yaml"]
+    files = [f for f in files if not os.path.basename(f).startswith(".")]
     return files
+
+
+class SerialPort:
+    def __init__(self, path: str, description: str):
+        self.path = path
+        self.description = description
+
+
+# from https://github.com/pyserial/pyserial/blob/master/serial/tools/list_ports.py
+def get_serial_ports() -> List[SerialPort]:
+    from serial.tools.list_ports import comports
+
+    result = []
+    for port, desc, info in comports(include_links=True):
+        if not port:
+            continue
+        if "VID:PID" in info:
+            result.append(SerialPort(path=port, description=desc))
+    # Also add objects in /dev/serial/by-id/
+    # ref: https://github.com/esphome/issues/issues/1346
+
+    by_id_path = Path("/dev/serial/by-id")
+    if sys.platform.lower().startswith("linux") and by_id_path.exists():
+        from serial.tools.list_ports_linux import SysFS
+
+        for path in by_id_path.glob("*"):
+            device = SysFS(path)
+            if device.subsystem == "platform":
+                result.append(SerialPort(path=str(path), description=info[1]))
+
+    result.sort(key=lambda x: x.path)
+    return result

@@ -2,6 +2,7 @@
 #include "esphome/core/log.h"
 
 #ifdef ARDUINO_ARCH_ESP32
+#include <driver/rmt.h>
 
 namespace esphome {
 namespace remote_receiver {
@@ -10,11 +11,10 @@ static const char *TAG = "remote_receiver.esp32";
 
 void RemoteReceiverComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up Remote Receiver...");
+  this->pin_->setup();
   rmt_config_t rmt{};
-  rmt.channel = this->channel_;
+  this->config_rmt(rmt);
   rmt.gpio_num = gpio_num_t(this->pin_->get_pin());
-  rmt.clk_div = this->clock_divider_;
-  rmt.mem_block_num = 1;
   rmt.rmt_mode = RMT_MODE_RX;
   if (this->filter_us_ == 0) {
     rmt.rx_config.filter_en = false;
@@ -58,6 +58,7 @@ void RemoteReceiverComponent::dump_config() {
                   "invert the signal using 'inverted: True' in the pin schema!");
   }
   ESP_LOGCONFIG(TAG, "  Channel: %d", this->channel_);
+  ESP_LOGCONFIG(TAG, "  RMT memory blocks: %d", this->mem_block_num_);
   ESP_LOGCONFIG(TAG, "  Clock divider: %u", this->clock_divider_);
   ESP_LOGCONFIG(TAG, "  Tolerance: %u%%", this->tolerance_);
   ESP_LOGCONFIG(TAG, "  Filter out pulses shorter than: %u us", this->filter_us_);

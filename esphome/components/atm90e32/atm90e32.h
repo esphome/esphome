@@ -20,6 +20,12 @@ class ATM90E32Component : public PollingComponent,
   void set_current_sensor(int phase, sensor::Sensor *obj) { this->phase_[phase].current_sensor_ = obj; }
   void set_power_sensor(int phase, sensor::Sensor *obj) { this->phase_[phase].power_sensor_ = obj; }
   void set_reactive_power_sensor(int phase, sensor::Sensor *obj) { this->phase_[phase].reactive_power_sensor_ = obj; }
+  void set_forward_active_energy_sensor(int phase, sensor::Sensor *obj) {
+    this->phase_[phase].forward_active_energy_sensor_ = obj;
+  }
+  void set_reverse_active_energy_sensor(int phase, sensor::Sensor *obj) {
+    this->phase_[phase].reverse_active_energy_sensor_ = obj;
+  }
   void set_power_factor_sensor(int phase, sensor::Sensor *obj) { this->phase_[phase].power_factor_sensor_ = obj; }
   void set_volt_gain(int phase, uint16_t gain) { this->phase_[phase].volt_gain_ = gain; }
   void set_ct_gain(int phase, uint16_t gain) { this->phase_[phase].ct_gain_ = gain; }
@@ -29,6 +35,7 @@ class ATM90E32Component : public PollingComponent,
     chip_temperature_sensor_ = chip_temperature_sensor;
   }
   void set_line_freq(int freq) { line_freq_ = freq; }
+  void set_current_phases(int phases) { current_phases_ = phases; }
   void set_pga_gain(uint16_t gain) { pga_gain_ = gain; }
 
  protected:
@@ -51,22 +58,31 @@ class ATM90E32Component : public PollingComponent,
   float get_power_factor_a_();
   float get_power_factor_b_();
   float get_power_factor_c_();
+  float get_forward_active_energy_a_();
+  float get_forward_active_energy_b_();
+  float get_forward_active_energy_c_();
+  float get_reverse_active_energy_a_();
+  float get_reverse_active_energy_b_();
+  float get_reverse_active_energy_c_();
   float get_frequency_();
   float get_chip_temperature_();
 
   struct ATM90E32Phase {
-    uint16_t volt_gain_{41820};
-    uint16_t ct_gain_{25498};
+    uint16_t volt_gain_{7305};
+    uint16_t ct_gain_{27961};
     sensor::Sensor *voltage_sensor_{nullptr};
     sensor::Sensor *current_sensor_{nullptr};
     sensor::Sensor *power_sensor_{nullptr};
     sensor::Sensor *reactive_power_sensor_{nullptr};
     sensor::Sensor *power_factor_sensor_{nullptr};
+    sensor::Sensor *forward_active_energy_sensor_{nullptr};
+    sensor::Sensor *reverse_active_energy_sensor_{nullptr};
   } phase_[3];
   sensor::Sensor *freq_sensor_{nullptr};
   sensor::Sensor *chip_temperature_sensor_{nullptr};
   uint16_t pga_gain_{0x15};
   int line_freq_{60};
+  int current_phases_{3};
 };
 
 }  // namespace atm90e32

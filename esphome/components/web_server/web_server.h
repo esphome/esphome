@@ -144,6 +144,16 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   std::string text_sensor_json(text_sensor::TextSensor *obj, const std::string &value);
 #endif
 
+#ifdef USE_COVER
+  void on_cover_update(cover::Cover *obj) override;
+
+  /// Handle a cover request under '/cover/<id>/<open/close/stop/set>'.
+  void handle_cover_request(AsyncWebServerRequest *request, UrlMatch match);
+
+  /// Dump the cover state as a JSON string.
+  std::string cover_json(cover::Cover *obj);
+#endif
+
   /// Override the web handler's canHandle method.
   bool canHandle(AsyncWebServerRequest *request) override;
   /// Override the web handler's handleRequest method.

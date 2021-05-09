@@ -33,11 +33,13 @@ void EthernetComponent::setup() {
 
   this->start_connect_();
 
+#ifdef USE_MDNS
   network_setup_mdns();
+#endif
 }
 void EthernetComponent::loop() {
   const uint32_t now = millis();
-  if (!this->connected_ && !this->last_connected_ && now - this->last_connected_ > 15000) {
+  if (!this->connected_ && !this->last_connected_ && now - this->connect_begin_ > 15000) {
     ESP_LOGW(TAG, "Connecting via ethernet failed! Re-connecting...");
     this->start_connect_();
     return;

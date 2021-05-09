@@ -1,6 +1,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
 #include "esphome/core/version.h"
+#include "esphome/core/esphal.h"
 
 #ifdef USE_STATUS_LED
 #include "esphome/components/status_led/status_led.h"
@@ -58,6 +59,9 @@ void Application::setup() {
   ESP_LOGI(TAG, "setup() finished successfully!");
   this->schedule_dump_config();
   this->calculate_looping_components_();
+
+  // Dummy function to link some symbols into the binary.
+  force_link_symbols();
 }
 void Application::loop() {
   uint32_t new_app_state = 0;

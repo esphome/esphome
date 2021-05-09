@@ -50,7 +50,7 @@ bool parse_ruuvi_data_byte(const esp32_ble_tracker::adv_data_t &adv_data, RuuviP
       const float acceleration_y = (int16_t(data[8] << 8) + int16_t(data[9])) / 1000.0f;
       const float acceleration_z = (int16_t(data[10] << 8) + int16_t(data[11])) / 1000.0f;
 
-      const uint8_t power_info = (data[12] << 8) | data[13];
+      const uint16_t power_info = (uint16_t(data[12] << 8) | data[13]);
       const float battery_voltage = ((power_info >> 5) + 1600.0f) / 1000.0f;
       const float tx_power = ((power_info & 0x1F) * 2.0f) - 40.0f;
 

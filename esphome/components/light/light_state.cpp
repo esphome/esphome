@@ -145,6 +145,7 @@ void LightState::loop() {
   if (this->transformer_ != nullptr) {
     if (this->transformer_->is_finished()) {
       this->remote_values = this->current_values = this->transformer_->get_end_values();
+      this->target_state_reached_callback_.call();
       if (this->transformer_->publish_at_end())
         this->publish_state();
       this->transformer_ = nullptr;
@@ -336,6 +337,9 @@ void LightCall::perform() {
     this->parent_->set_immediately_(v, this->publish_);
   }
 
+  if (!this->has_transition_()) {
+    this->parent_->target_state_reached_callback_.call();
+  }
   if (this->publish_) {
     this->parent_->publish_state();
   }
@@ -391,6 +395,63 @@ LightColorValues LightCall::validate_() {
   if (this->color_temperature_.has_value() && !traits.get_supports_color_temperature()) {
     ESP_LOGW(TAG, "'%s' - This light does not support setting color temperature!", name);
     this->color_temperature_.reset();
+  }
+
+  // sets RGB to 100% if only White specified
+  if (this->white_.has_value()) {
+    if (traits.get_supports_color_interlock()) {
+      if (!this->red_.has_value() && !this->green_.has_value() && !this->blue_.has_value()) {
+        this->red_ = optional<float>(1.0f);
+        this->green_ = optional<float>(1.0f);
+        this->blue_ = optional<float>(1.0f);
+      }
+      // make white values binary aka 0.0f or 1.0f...this allows brightness to do its job
+      if (*this->white_ > 0.0f) {
+        this->white_ = optional<float>(1.0f);
+      } else {
+        this->white_ = optional<float>(0.0f);
+      }
+    }
+  }
+  // White to 0% if (exclusively) setting any RGB value that isn't 255,255,255
+  else if (this->red_.has_value() || this->green_.has_value() || this->blue_.has_value()) {
+    if (traits.get_supports_color_interlock()) {
+      if (*this->red_ == 1.0f && *this->green_ == 1.0f && *this->blue_ == 1.0f &&
+          traits.get_supports_rgb_white_value() && traits.get_supports_color_interlock()) {
+        this->white_ = optional<float>(1.0f);
+      } else if (!this->white_.has_value() || !traits.get_supports_rgb_white_value()) {
+        this->white_ = optional<float>(0.0f);
+      }
+    }
+  }
+  // if changing Kelvin alone, change to white light
+  else if (this->color_temperature_.has_value()) {
+    if (!traits.get_supports_color_interlock()) {
+      if (!this->red_.has_value() && !this->green_.has_value() && !this->blue_.has_value()) {
+        this->red_ = optional<float>(1.0f);
+        this->green_ = optional<float>(1.0f);
+        this->blue_ = optional<float>(1.0f);
+      }
+    }
+    // if setting Kelvin from color (i.e. switching to white light), set White to 100%
+    auto cv = this->parent_->remote_values;
+    bool was_color = cv.get_red() != 1.0f || cv.get_blue() != 1.0f || cv.get_green() != 1.0f;
+    bool now_white = *this->red_ == 1.0f && *this->blue_ == 1.0f && *this->green_ == 1.0f;
+    if (traits.get_supports_color_interlock()) {
+      if (cv.get_white() < 1.0f) {
+        this->white_ = optional<float>(1.0f);
+      }
+
+      if (was_color && !this->red_.has_value() && !this->green_.has_value() && !this->blue_.has_value()) {
+        this->red_ = optional<float>(1.0f);
+        this->green_ = optional<float>(1.0f);
+        this->blue_ = optional<float>(1.0f);
+      }
+    } else {
+      if (!this->white_.has_value() && was_color && now_white) {
+        this->white_ = optional<float>(1.0f);
+      }
+    }
   }
 
 #define VALIDATE_RANGE_(name_, upper_name) \
@@ -672,41 +733,35 @@ LightOutput *LightState::get_output() const { return this->output_; }
 void LightState::set_gamma_correct(float gamma_correct) { this->gamma_correct_ = gamma_correct; }
 void LightState::current_values_as_binary(bool *binary) { this->current_values.as_binary(binary); }
 void LightState::current_values_as_brightness(float *brightness) {
-  this->current_values.as_brightness(brightness);
-  *brightness = gamma_correct(*brightness, this->gamma_correct_);
+  this->current_values.as_brightness(brightness, this->gamma_correct_);
 }
-void LightState::current_values_as_rgb(float *red, float *green, float *blue) {
-  this->current_values.as_rgb(red, green, blue);
-  *red = gamma_correct(*red, this->gamma_correct_);
-  *green = gamma_correct(*green, this->gamma_correct_);
-  *blue = gamma_correct(*blue, this->gamma_correct_);
+void LightState::current_values_as_rgb(float *red, float *green, float *blue, bool color_interlock) {
+  auto traits = this->get_traits();
+  this->current_values.as_rgb(red, green, blue, this->gamma_correct_, traits.get_supports_color_interlock());
 }
-void LightState::current_values_as_rgbw(float *red, float *green, float *blue, float *white) {
-  this->current_values.as_rgbw(red, green, blue, white);
-  *red = gamma_correct(*red, this->gamma_correct_);
-  *green = gamma_correct(*green, this->gamma_correct_);
-  *blue = gamma_correct(*blue, this->gamma_correct_);
-  *white = gamma_correct(*white, this->gamma_correct_);
+void LightState::current_values_as_rgbw(float *red, float *green, float *blue, float *white, bool color_interlock) {
+  auto traits = this->get_traits();
+  this->current_values.as_rgbw(red, green, blue, white, this->gamma_correct_, traits.get_supports_color_interlock());
 }
-void LightState::current_values_as_rgbww(float *red, float *green, float *blue, float *cold_white, float *warm_white) {
+void LightState::current_values_as_rgbww(float *red, float *green, float *blue, float *cold_white, float *warm_white,
+                                         bool constant_brightness, bool color_interlock) {
   auto traits = this->get_traits();
   this->current_values.as_rgbww(traits.get_min_mireds(), traits.get_max_mireds(), red, green, blue, cold_white,
-                                warm_white);
-  *red = gamma_correct(*red, this->gamma_correct_);
-  *green = gamma_correct(*green, this->gamma_correct_);
-  *blue = gamma_correct(*blue, this->gamma_correct_);
-  *cold_white = gamma_correct(*cold_white, this->gamma_correct_);
-  *warm_white = gamma_correct(*warm_white, this->gamma_correct_);
+                                warm_white, this->gamma_correct_, constant_brightness,
+                                traits.get_supports_color_interlock());
 }
-void LightState::current_values_as_cwww(float *cold_white, float *warm_white) {
+void LightState::current_values_as_cwww(float *cold_white, float *warm_white, bool constant_brightness) {
   auto traits = this->get_traits();
-  this->current_values.as_cwww(traits.get_min_mireds(), traits.get_max_mireds(), cold_white, warm_white);
-  *cold_white = gamma_correct(*cold_white, this->gamma_correct_);
-  *warm_white = gamma_correct(*warm_white, this->gamma_correct_);
+  this->current_values.as_cwww(traits.get_min_mireds(), traits.get_max_mireds(), cold_white, warm_white,
+                               this->gamma_correct_, constant_brightness);
 }
 void LightState::add_new_remote_values_callback(std::function<void()> &&send_callback) {
   this->remote_values_callback_.add(std::move(send_callback));
 }
+void LightState::add_new_target_state_reached_callback(std::function<void()> &&send_callback) {
+  this->target_state_reached_callback_.add(std::move(send_callback));
+}
+
 LightEffect *LightState::get_active_effect_() {
   if (this->active_effect_index_ == 0)
     return nullptr;

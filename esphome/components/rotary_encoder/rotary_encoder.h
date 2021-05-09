@@ -1,5 +1,7 @@
 #pragma once
 
+#include <array>
+
 #include "esphome/core/component.h"
 #include "esphome/core/esphal.h"
 #include "esphome/core/automation.h"
@@ -26,6 +28,9 @@ struct RotaryEncoderSensorStore {
   int32_t max_value{INT32_MAX};
   int32_t last_read{0};
   uint8_t state{0};
+
+  std::array<int8_t, 8> rotation_events{};
+  bool rotation_events_overflow{false};
 
   static void gpio_intr(RotaryEncoderSensorStore *arg);
 };
@@ -62,22 +67,48 @@ class RotaryEncoderSensor : public sensor::Sensor, public Component {
 
   float get_setup_priority() const override;
 
+  void add_on_clockwise_callback(std::function<void()> callback) {
+    this->on_clockwise_callback_.add(std::move(callback));
+  }
+
+  void add_on_anticlockwise_callback(std::function<void()> callback) {
+    this->on_anticlockwise_callback_.add(std::move(callback));
+  }
+
  protected:
   GPIOPin *pin_a_;
   GPIOPin *pin_b_;
   GPIOPin *pin_i_{nullptr};  /// Index pin, if this is not nullptr, the counter will reset to 0 once this pin is HIGH.
 
   RotaryEncoderSensorStore store_{};
+
+  CallbackManager<void()> on_clockwise_callback_;
+  CallbackManager<void()> on_anticlockwise_callback_;
 };
 
 template<typename... Ts> class RotaryEncoderSetValueAction : public Action<Ts...> {
  public:
   RotaryEncoderSetValueAction(RotaryEncoderSensor *encoder) : encoder_(encoder) {}
   TEMPLATABLE_VALUE(int, value)
+
   void play(Ts... x) override { this->encoder_->set_value(this->value_.value(x...)); }
 
  protected:
   RotaryEncoderSensor *encoder_;
+};
+
+class RotaryEncoderClockwiseTrigger : public Trigger<> {
+ public:
+  explicit RotaryEncoderClockwiseTrigger(RotaryEncoderSensor *parent) {
+    parent->add_on_clockwise_callback([this]() { this->trigger(); });
+  }
+};
+
+class RotaryEncoderAnticlockwiseTrigger : public Trigger<> {
+ public:
+  explicit RotaryEncoderAnticlockwiseTrigger(RotaryEncoderSensor *parent) {
+    parent->add_on_anticlockwise_callback([this]() { this->trigger(); });
+  }
 };
 
 }  // namespace rotary_encoder

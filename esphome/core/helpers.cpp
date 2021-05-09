@@ -85,16 +85,16 @@ std::string to_lowercase_underscore(std::string s) {
   return s;
 }
 
-std::string sanitize_string_whitelist(const std::string &s, const std::string &whitelist) {
+std::string sanitize_string_allowlist(const std::string &s, const std::string &allowlist) {
   std::string out(s);
   out.erase(std::remove_if(out.begin(), out.end(),
-                           [&whitelist](const char &c) { return whitelist.find(c) == std::string::npos; }),
+                           [&allowlist](const char &c) { return allowlist.find(c) == std::string::npos; }),
             out.end());
   return out;
 }
 
 std::string sanitize_hostname(const std::string &hostname) {
-  std::string s = sanitize_string_whitelist(hostname, HOSTNAME_CHARACTER_WHITELIST);
+  std::string s = sanitize_string_allowlist(hostname, HOSTNAME_CHARACTER_ALLOWLIST);
   return truncate_string(s, 63);
 }
 
@@ -154,7 +154,7 @@ ParseOnOffState parse_on_off(const char *str, const char *on, const char *off) {
   return PARSE_NONE;
 }
 
-const char *HOSTNAME_CHARACTER_WHITELIST = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_";
+const char *HOSTNAME_CHARACTER_ALLOWLIST = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_";
 
 uint8_t crc8(uint8_t *data, uint8_t len) {
   uint8_t crc = 0;
@@ -171,15 +171,17 @@ uint8_t crc8(uint8_t *data, uint8_t len) {
   }
   return crc;
 }
+
 void delay_microseconds_accurate(uint32_t usec) {
   if (usec == 0)
     return;
-
-  if (usec <= 16383UL) {
+  if (usec < 5000UL) {
     delayMicroseconds(usec);
-  } else {
-    delay(usec / 16383UL);
-    delayMicroseconds(usec % 16383UL);
+    return;
+  }
+  uint32_t start = micros();
+  while (micros() - start < usec) {
+    delay(0);
   }
 }
 
@@ -246,6 +248,13 @@ optional<float> parse_float(const std::string &str) {
     return {};
   return value;
 }
+optional<int> parse_int(const std::string &str) {
+  char *end;
+  int value = ::strtol(str.c_str(), &end, 10);
+  if (end == nullptr || end != str.end().base())
+    return {};
+  return value;
+}
 uint32_t fnv1_hash(const std::string &str) {
   uint32_t hash = 2166136261UL;
   for (char c : str) {
@@ -297,6 +306,10 @@ std::array<uint8_t, 2> decode_uint16(uint16_t value) {
   uint8_t msb = (value >> 8) & 0xFF;
   uint8_t lsb = (value >> 0) & 0xFF;
   return {msb, lsb};
+}
+
+uint32_t encode_uint32(uint8_t msb, uint8_t byte2, uint8_t byte3, uint8_t lsb) {
+  return (uint32_t(msb) << 24) | (uint32_t(byte2) << 16) | (uint32_t(byte3) << 8) | uint32_t(lsb);
 }
 
 std::string hexencode(const uint8_t *data, uint32_t len) {

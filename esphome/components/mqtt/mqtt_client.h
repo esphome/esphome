@@ -159,6 +159,15 @@ class MQTTClientComponent : public Component {
    */
   void subscribe_json(const std::string &topic, mqtt_json_callback_t callback, uint8_t qos = 0);
 
+  /** Unsubscribe from an MQTT topic.
+   *
+   * If multiple existing subscriptions to the same topic exist, all of them will be removed.
+   *
+   * @param topic The topic to unsubscribe from.
+   * Must match the topic in the original subscribe or subscribe_json call exactly.
+   */
+  void unsubscribe(const std::string &topic);
+
   /** Publish a MQTTMessage
    *
    * @param message The message.
@@ -250,6 +259,7 @@ class MQTTClientComponent : public Component {
   };
   std::string topic_prefix_{};
   MQTTMessage log_message_;
+  std::string payload_buffer_;
   int log_level_{ESPHOME_LOG_LEVEL};
 
   std::vector<MQTTSubscription> subscriptions_;
@@ -316,6 +326,7 @@ template<typename... Ts> class MQTTPublishJsonAction : public Action<Ts...> {
   TEMPLATABLE_VALUE(bool, retain)
 
   void set_payload(std::function<void(Ts..., JsonObject &)> payload) { this->payload_ = payload; }
+
   void play(Ts... x) override {
     auto f = std::bind(&MQTTPublishJsonAction<Ts...>::encode_, this, x..., std::placeholders::_1);
     auto topic = this->topic_.value(x...);
