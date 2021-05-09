@@ -33,7 +33,9 @@ void EthernetComponent::setup() {
 
   this->start_connect_();
 
+#ifdef USE_MDNS
   network_setup_mdns();
+#endif
 }
 void EthernetComponent::loop() {
   const uint32_t now = millis();
