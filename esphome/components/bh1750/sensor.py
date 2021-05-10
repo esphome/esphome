@@ -7,6 +7,7 @@ from esphome.const import (
     DEVICE_CLASS_ILLUMINANCE,
     ICON_EMPTY,
     UNIT_LUX,
+    CONF_MEASUREMENT_DURATION,
 )
 
 DEPENDENCIES = ["i2c"]
@@ -23,7 +24,6 @@ BH1750Sensor = bh1750_ns.class_(
     "BH1750Sensor", sensor.Sensor, cg.PollingComponent, i2c.I2CDevice
 )
 
-CONF_MEASUREMENT_TIME = "measurement_time"
 CONFIG_SCHEMA = (
     sensor.sensor_schema(UNIT_LUX, ICON_EMPTY, 1, DEVICE_CLASS_ILLUMINANCE)
     .extend(
@@ -32,7 +32,7 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_RESOLUTION, default=0.5): cv.enum(
                 BH1750_RESOLUTIONS, float=True
             ),
-            cv.Optional(CONF_MEASUREMENT_TIME, default=69): cv.int_range(
+            cv.Optional(CONF_MEASUREMENT_DURATION, default=69): cv.int_range(
                 min=31, max=254
             ),
         }
@@ -49,4 +49,4 @@ def to_code(config):
     yield i2c.register_i2c_device(var, config)
 
     cg.add(var.set_resolution(config[CONF_RESOLUTION]))
-    cg.add(var.set_measurement_time(config[CONF_MEASUREMENT_TIME]))
+    cg.add(var.set_measurement_time(config[CONF_MEASUREMENT_DURATION]))
