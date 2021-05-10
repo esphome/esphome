@@ -2,29 +2,40 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins
 from esphome.components import stepper
-from esphome.const import CONF_ID, CONF_PIN_A, CONF_PIN_B, CONF_PIN_C, CONF_PIN_D, \
-    CONF_SLEEP_WHEN_DONE, CONF_STEP_MODE
+from esphome.const import (
+    CONF_ID,
+    CONF_PIN_A,
+    CONF_PIN_B,
+    CONF_PIN_C,
+    CONF_PIN_D,
+    CONF_SLEEP_WHEN_DONE,
+    CONF_STEP_MODE,
+)
 
-uln2003_ns = cg.esphome_ns.namespace('uln2003')
-ULN2003StepMode = uln2003_ns.enum('ULN2003StepMode')
+uln2003_ns = cg.esphome_ns.namespace("uln2003")
+ULN2003StepMode = uln2003_ns.enum("ULN2003StepMode")
 
 STEP_MODES = {
-    'FULL_STEP': ULN2003StepMode.ULN2003_STEP_MODE_FULL_STEP,
-    'HALF_STEP': ULN2003StepMode.ULN2003_STEP_MODE_HALF_STEP,
-    'WAVE_DRIVE': ULN2003StepMode.ULN2003_STEP_MODE_WAVE_DRIVE,
+    "FULL_STEP": ULN2003StepMode.ULN2003_STEP_MODE_FULL_STEP,
+    "HALF_STEP": ULN2003StepMode.ULN2003_STEP_MODE_HALF_STEP,
+    "WAVE_DRIVE": ULN2003StepMode.ULN2003_STEP_MODE_WAVE_DRIVE,
 }
 
-ULN2003 = uln2003_ns.class_('ULN2003', stepper.Stepper, cg.Component)
+ULN2003 = uln2003_ns.class_("ULN2003", stepper.Stepper, cg.Component)
 
-CONFIG_SCHEMA = stepper.STEPPER_SCHEMA.extend({
-    cv.Required(CONF_ID): cv.declare_id(ULN2003),
-    cv.Required(CONF_PIN_A): pins.gpio_output_pin_schema,
-    cv.Required(CONF_PIN_B): pins.gpio_output_pin_schema,
-    cv.Required(CONF_PIN_C): pins.gpio_output_pin_schema,
-    cv.Required(CONF_PIN_D): pins.gpio_output_pin_schema,
-    cv.Optional(CONF_SLEEP_WHEN_DONE, default=False): cv.boolean,
-    cv.Optional(CONF_STEP_MODE, default='FULL_STEP'): cv.enum(STEP_MODES, upper=True, space='_')
-}).extend(cv.COMPONENT_SCHEMA)
+CONFIG_SCHEMA = stepper.STEPPER_SCHEMA.extend(
+    {
+        cv.Required(CONF_ID): cv.declare_id(ULN2003),
+        cv.Required(CONF_PIN_A): pins.gpio_output_pin_schema,
+        cv.Required(CONF_PIN_B): pins.gpio_output_pin_schema,
+        cv.Required(CONF_PIN_C): pins.gpio_output_pin_schema,
+        cv.Required(CONF_PIN_D): pins.gpio_output_pin_schema,
+        cv.Optional(CONF_SLEEP_WHEN_DONE, default=False): cv.boolean,
+        cv.Optional(CONF_STEP_MODE, default="FULL_STEP"): cv.enum(
+            STEP_MODES, upper=True, space="_"
+        ),
+    }
+).extend(cv.COMPONENT_SCHEMA)
 
 
 def to_code(config):
