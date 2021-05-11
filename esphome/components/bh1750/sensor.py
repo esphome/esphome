@@ -37,7 +37,7 @@ CONFIG_SCHEMA = (
                 min=31, max=254
             ),
             cv.Optional(CONF_MEASUREMENT_TIME): cv.Invalid(
-                "The 'measurement_time' option has been removed in 1.19.0"
+                "The 'measurement_time' option has been replaced with 'measurement_duration' in 1.19.0"
             ),
         }
     )
