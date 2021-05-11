@@ -412,7 +412,7 @@ sensor:
     retain: False
     availability:
     state_topic: livingroom/custom_state_topic
-    measurement_time: 31
+    measurement_duration: 31
   - platform: bme280
     temperature:
       name: 'Outside Temperature'
