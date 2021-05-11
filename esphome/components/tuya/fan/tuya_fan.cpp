@@ -79,13 +79,9 @@ void TuyaFan::write_state() {
     this->parent_->set_datapoint_value(*this->oscillation_id_, this->fan_->oscillating);
   }
   if (this->direction_id_.has_value()) {
-    TuyaDatapoint datapoint{};
-    datapoint.id = *this->direction_id_;
-    datapoint.type = TuyaDatapointType::BOOLEAN;
+    ESP_LOGV(TAG, "Setting reverse direction: %s", ONOFF(enable));
     bool enable = this->fan_->direction == fan::FAN_DIRECTION_REVERSE;
-    datapoint.value_bool = enable;
-    this->parent_->set_datapoint_value(datapoint);
-    ESP_LOGD(TAG, "Setting reverse direction: %s", ONOFF(enable));
+    this->parent_->set_datapoint_value(*this->direction_id_, enable);
   }
   if (this->speed_id_.has_value()) {
     ESP_LOGV(TAG, "Setting speed: %d", this->fan_->speed);
