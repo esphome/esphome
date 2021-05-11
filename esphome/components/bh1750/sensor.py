@@ -36,7 +36,7 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_MEASUREMENT_DURATION, default=69): cv.int_range(
                 min=31, max=254
             ),
-            cv.Optional(CONF_MEASUREMENT_TIME): cv.Invalid(
+            cv.Optional(CONF_MEASUREMENT_TIME): cv.invalid(
                 "The 'measurement_time' option has been replaced with 'measurement_duration' in 1.18.0"
             ),
         }
