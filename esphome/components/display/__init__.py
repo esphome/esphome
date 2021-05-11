@@ -2,7 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import core, automation
 from esphome.automation import maybe_simple_id
-from esphome.const import CONF_ID, CONF_LAMBDA, CONF_PAGES, CONF_ROTATION
+from esphome.const import CONF_ID, CONF_LAMBDA, CONF_PAGES, CONF_PAGE_ID, CONF_ROTATION
 from esphome.core import coroutine_with_priority
 
 IS_PLATFORM_COMPONENT = True
@@ -18,6 +18,9 @@ DisplayPageShowNextAction = display_ns.class_(
 )
 DisplayPageShowPrevAction = display_ns.class_(
     "DisplayPageShowPrevAction", automation.Action
+)
+DisplayIsDisplayingPageCondition = display_ns.class_(
+    "DisplayIsDisplayingPageCondition", automation.Condition
 )
 
 DISPLAY_ROTATIONS = {
@@ -121,6 +124,26 @@ async def display_page_show_next_to_code(config, action_id, template_arg, args):
 async def display_page_show_previous_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, paren)
+
+
+@automation.register_condition(
+    "display.is_displaying_page",
+    DisplayIsDisplayingPageCondition,
+    cv.maybe_simple_value(
+        {
+            cv.GenerateID(CONF_ID): cv.use_id(DisplayBuffer),
+            cv.Required(CONF_PAGE_ID): cv.use_id(DisplayPage),
+        },
+        key=CONF_PAGE_ID,
+    ),
+)
+def display_is_displaying_page_to_code(config, condition_id, template_arg, args):
+    paren = yield cg.get_variable(config[CONF_ID])
+    page = yield cg.get_variable(config[CONF_PAGE_ID])
+    var = cg.new_Pvariable(condition_id, template_arg, paren)
+    cg.add(var.set_page(page))
+
+    yield var
 
 
 @coroutine_with_priority(100.0)

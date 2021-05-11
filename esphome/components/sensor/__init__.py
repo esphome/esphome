@@ -1,4 +1,5 @@
 import math
+from typing import Optional
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
@@ -180,8 +181,12 @@ SENSOR_SCHEMA = cv.MQTT_COMPONENT_SCHEMA.extend(
 )
 
 
-def sensor_schema(unit_of_measurement_, icon_, accuracy_decimals_, device_class_):
-    # type: (str, str, int, str) -> cv.Schema
+def sensor_schema(
+    unit_of_measurement_: str,
+    icon_: str,
+    accuracy_decimals_: int,
+    device_class_: Optional[str] = DEVICE_CLASS_EMPTY,
+) -> cv.Schema:
     schema = SENSOR_SCHEMA
     if unit_of_measurement_ != UNIT_EMPTY:
         schema = schema.extend(

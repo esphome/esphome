@@ -209,14 +209,12 @@ def validate_printf(value):
     cfmt = """\
     (                                  # start of capture group 1
     %                                  # literal "%"
-    (?:                                # first option
     (?:[-+0 #]{0,5})                   # optional flags
     (?:\d+|\*)?                        # width
     (?:\.(?:\d+|\*))?                  # precision
     (?:h|l|ll|w|I|I32|I64)?            # size
     [cCdiouxXeEfgGaAnpsSZ]             # type
-    ) |                                # OR
-    %%)                                # literal "%%"
+    ) 
     """  # noqa
     matches = re.findall(cfmt, value[CONF_FORMAT], flags=re.X)
     if len(matches) != len(value[CONF_ARGS]):

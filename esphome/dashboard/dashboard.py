@@ -515,45 +515,45 @@ class MDNSStatusThread(threading.Thread):
 
 class PingStatusThread(threading.Thread):
     def run(self):
-        pool = multiprocessing.Pool(processes=8)
-        while not STOP_EVENT.is_set():
-            # Only do pings if somebody has the dashboard open
+        with multiprocessing.Pool(processes=8) as pool:
+            while not STOP_EVENT.is_set():
+                # Only do pings if somebody has the dashboard open
 
-            def callback(ret):
-                PING_RESULT[ret[0]] = ret[1]
+                def callback(ret):
+                    PING_RESULT[ret[0]] = ret[1]
 
-            entries = _list_dashboard_entries()
-            queue = collections.deque()
-            for entry in entries:
-                if entry.address is None:
-                    PING_RESULT[entry.filename] = None
-                    continue
+                entries = _list_dashboard_entries()
+                queue = collections.deque()
+                for entry in entries:
+                    if entry.address is None:
+                        PING_RESULT[entry.filename] = None
+                        continue
 
-                result = pool.apply_async(
-                    _ping_func, (entry.filename, entry.address), callback=callback
-                )
-                queue.append(result)
+                    result = pool.apply_async(
+                        _ping_func, (entry.filename, entry.address), callback=callback
+                    )
+                    queue.append(result)
 
-            while queue:
-                item = queue[0]
-                if item.ready():
-                    queue.popleft()
-                    continue
+                while queue:
+                    item = queue[0]
+                    if item.ready():
+                        queue.popleft()
+                        continue
 
-                try:
-                    item.get(0.1)
-                except OSError:
-                    # ping not installed
-                    pass
-                except multiprocessing.TimeoutError:
-                    pass
+                    try:
+                        item.get(0.1)
+                    except OSError:
+                        # ping not installed
+                        pass
+                    except multiprocessing.TimeoutError:
+                        pass
 
-                if STOP_EVENT.is_set():
-                    pool.terminate()
-                    return
+                    if STOP_EVENT.is_set():
+                        pool.terminate()
+                        return
 
-            PING_REQUEST.wait()
-            PING_REQUEST.clear()
+                PING_REQUEST.wait()
+                PING_REQUEST.clear()
 
 
 class PingRequestHandler(BaseHandler):
