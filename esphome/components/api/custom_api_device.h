@@ -93,6 +93,7 @@ class CustomAPIDevice {
    * @tparam T The class type creating the service, automatically deduced from the function pointer.
    * @param callback The member function to call when the entity state changes.
    * @param entity_id The entity_id to track.
+   * @param attribute_id The entity state attribute to track.
    */
   template<typename T>
   void subscribe_homeassistant_state(void (T::*callback)(std::string), const std::string &entity_id,
