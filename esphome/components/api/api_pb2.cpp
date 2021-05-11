@@ -775,7 +775,7 @@ bool ListEntitiesFanResponse::decode_varint(uint32_t field_id, ProtoVarInt value
       return true;
     }
     case 8: {
-      this->supported_speed_levels = value.as_int32();
+      this->supported_speed_count = value.as_int32();
       return true;
     }
     default:
@@ -818,7 +818,7 @@ void ListEntitiesFanResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_bool(5, this->supports_oscillation);
   buffer.encode_bool(6, this->supports_speed);
   buffer.encode_bool(7, this->supports_direction);
-  buffer.encode_int32(8, this->supported_speed_levels);
+  buffer.encode_int32(8, this->supported_speed_count);
 }
 void ListEntitiesFanResponse::dump_to(std::string &out) const {
   char buffer[64];
@@ -852,8 +852,8 @@ void ListEntitiesFanResponse::dump_to(std::string &out) const {
   out.append(YESNO(this->supports_direction));
   out.append("\n");
 
-  out.append("  supported_speed_levels: ");
-  sprintf(buffer, "%d", this->supported_speed_levels);
+  out.append("  supported_speed_count: ");
+  sprintf(buffer, "%d", this->supported_speed_count);
   out.append(buffer);
   out.append("\n");
   out.append("}");

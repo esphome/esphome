@@ -277,14 +277,14 @@ class CoverCommandRequest : public ProtoMessage {
 };
 class ListEntitiesFanResponse : public ProtoMessage {
  public:
-  std::string object_id{};            // NOLINT
-  uint32_t key{0};                    // NOLINT
-  std::string name{};                 // NOLINT
-  std::string unique_id{};            // NOLINT
-  bool supports_oscillation{false};   // NOLINT
-  bool supports_speed{false};         // NOLINT
-  bool supports_direction{false};     // NOLINT
-  int32_t supported_speed_levels{0};  // NOLINT
+  std::string object_id{};           // NOLINT
+  uint32_t key{0};                   // NOLINT
+  std::string name{};                // NOLINT
+  std::string unique_id{};           // NOLINT
+  bool supports_oscillation{false};  // NOLINT
+  bool supports_speed{false};        // NOLINT
+  bool supports_direction{false};    // NOLINT
+  int32_t supported_speed_count{0};  // NOLINT
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
 

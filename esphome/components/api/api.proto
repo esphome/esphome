@@ -303,7 +303,7 @@ message ListEntitiesFanResponse {
   bool supports_oscillation = 5;
   bool supports_speed = 6;
   bool supports_direction = 7;
-  int32 supported_speed_levels = 8;
+  int32 supported_speed_count = 8;
 }
 enum FanSpeed {
   FAN_SPEED_LOW = 0;
