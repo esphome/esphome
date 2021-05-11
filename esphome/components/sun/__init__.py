@@ -4,7 +4,13 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
 from esphome.components import time
-from esphome.const import CONF_TIME_ID, CONF_ID, CONF_TRIGGER_ID
+from esphome.const import (
+    CONF_TIME_ID,
+    CONF_ID,
+    CONF_TRIGGER_ID,
+    CONF_LATITUDE,
+    CONF_LONGITUDE,
+)
 
 CODEOWNERS = ["@OttoWinter"]
 sun_ns = cg.esphome_ns.namespace("sun")
@@ -16,8 +22,6 @@ SunTrigger = sun_ns.class_(
 SunCondition = sun_ns.class_("SunCondition", automation.Condition)
 
 CONF_SUN_ID = "sun_id"
-CONF_LATITUDE = "latitude"
-CONF_LONGITUDE = "longitude"
 CONF_ELEVATION = "elevation"
 CONF_ON_SUNRISE = "on_sunrise"
 CONF_ON_SUNSET = "on_sunset"

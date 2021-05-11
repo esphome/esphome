@@ -1,204 +1,39 @@
 import collections
-import importlib
 import logging
 import re
-import os.path
 
 # pylint: disable=unused-import, wrong-import-order
-import sys
 from contextlib import contextmanager
 
 import voluptuous as vol
 
-from esphome import core, core_config, yaml_util
+from esphome import core, yaml_util, loader
+import esphome.core.config as core_config
 from esphome.const import (
     CONF_ESPHOME,
     CONF_PLATFORM,
-    ESP_PLATFORMS,
     CONF_PACKAGES,
     CONF_SUBSTITUTIONS,
+    CONF_EXTERNAL_COMPONENTS,
 )
-from esphome.core import CORE, EsphomeError  # noqa
+from esphome.core import CORE, EsphomeError
 from esphome.helpers import indent
 from esphome.util import safe_print, OrderedDict
 
-from typing import List, Optional, Tuple, Union  # noqa
-from esphome.core import ConfigType  # noqa
+from typing import List, Optional, Tuple, Union
+from esphome.core import ConfigType
+from esphome.loader import get_component, get_platform, ComponentManifest
 from esphome.yaml_util import is_secret, ESPHomeDataBase, ESPForceValue
 from esphome.voluptuous_schema import ExtraKeysInvalid
 from esphome.log import color, Fore
 
 _LOGGER = logging.getLogger(__name__)
 
-_COMPONENT_CACHE = {}
-
-
-class ComponentManifest:
-    def __init__(self, module, base_components_path, is_core=False, is_platform=False):
-        self.module = module
-        self._is_core = is_core
-        self.is_platform = is_platform
-        self.base_components_path = base_components_path
-
-    @property
-    def is_platform_component(self):
-        return getattr(self.module, "IS_PLATFORM_COMPONENT", False)
-
-    @property
-    def config_schema(self):
-        return getattr(self.module, "CONFIG_SCHEMA", None)
-
-    @property
-    def is_multi_conf(self):
-        return getattr(self.module, "MULTI_CONF", False)
-
-    @property
-    def to_code(self):
-        return getattr(self.module, "to_code", None)
-
-    @property
-    def validate(self):
-        return getattr(self.module, "validate", None)
-
-    @property
-    def esp_platforms(self):
-        return getattr(self.module, "ESP_PLATFORMS", ESP_PLATFORMS)
-
-    @property
-    def dependencies(self):
-        return getattr(self.module, "DEPENDENCIES", [])
-
-    @property
-    def conflicts_with(self):
-        return getattr(self.module, "CONFLICTS_WITH", [])
-
-    @property
-    def auto_load(self):
-        return getattr(self.module, "AUTO_LOAD", [])
-
-    @property
-    def codeowners(self) -> List[str]:
-        return getattr(self.module, "CODEOWNERS", [])
-
-    def _get_flags_set(self, name, config):
-        if not hasattr(self.module, name):
-            return set()
-        obj = getattr(self.module, name)
-        if callable(obj):
-            obj = obj(config)
-        if obj is None:
-            return set()
-        if not isinstance(obj, (list, tuple, set)):
-            obj = [obj]
-        return set(obj)
-
-    @property
-    def source_files(self):
-        if self._is_core:
-            core_p = os.path.abspath(os.path.join(os.path.dirname(__file__), "core"))
-            source_files = core.find_source_files(os.path.join(core_p, "dummy"))
-            ret = {}
-            for f in source_files:
-                ret[f"esphome/core/{f}"] = os.path.join(core_p, f)
-            return ret
-
-        source_files = core.find_source_files(self.module.__file__)
-        ret = {}
-        # Make paths absolute
-        directory = os.path.abspath(os.path.dirname(self.module.__file__))
-        for x in source_files:
-            full_file = os.path.join(directory, x)
-            rel = os.path.relpath(full_file, self.base_components_path)
-            # Always use / for C++ include names
-            rel = rel.replace(os.sep, "/")
-            target_file = f"esphome/components/{rel}"
-            ret[target_file] = full_file
-        return ret
-
-
-CORE_COMPONENTS_PATH = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), "components")
-)
-_UNDEF = object()
-CUSTOM_COMPONENTS_PATH = _UNDEF
-
-
-def _mount_config_dir():
-    global CUSTOM_COMPONENTS_PATH
-    if CUSTOM_COMPONENTS_PATH is not _UNDEF:
-        return
-    custom_path = os.path.abspath(os.path.join(CORE.config_dir, "custom_components"))
-    if not os.path.isdir(custom_path):
-        CUSTOM_COMPONENTS_PATH = None
-        return
-    if CORE.config_dir not in sys.path:
-        sys.path.insert(0, CORE.config_dir)
-    CUSTOM_COMPONENTS_PATH = custom_path
-
-
-def _lookup_module(domain, is_platform):
-    if domain in _COMPONENT_CACHE:
-        return _COMPONENT_CACHE[domain]
-
-    _mount_config_dir()
-    # First look for custom_components
-    try:
-        module = importlib.import_module(f"custom_components.{domain}")
-    except ImportError as e:
-        # ImportError when no such module
-        if "No module named" not in str(e):
-            _LOGGER.warning(
-                "Unable to import custom component %s:", domain, exc_info=True
-            )
-    except Exception:  # pylint: disable=broad-except
-        # Other error means component has an issue
-        _LOGGER.error("Unable to load custom component %s:", domain, exc_info=True)
-        return None
-    else:
-        # Found in custom components
-        manif = ComponentManifest(
-            module, CUSTOM_COMPONENTS_PATH, is_platform=is_platform
-        )
-        _COMPONENT_CACHE[domain] = manif
-        return manif
-
-    try:
-        module = importlib.import_module(f"esphome.components.{domain}")
-    except ImportError as e:
-        if "No module named" not in str(e):
-            _LOGGER.error("Unable to import component %s:", domain, exc_info=True)
-        return None
-    except Exception:  # pylint: disable=broad-except
-        _LOGGER.error("Unable to load component %s:", domain, exc_info=True)
-        return None
-    else:
-        manif = ComponentManifest(module, CORE_COMPONENTS_PATH, is_platform=is_platform)
-        _COMPONENT_CACHE[domain] = manif
-        return manif
-
-
-def get_component(domain):
-    assert "." not in domain
-    return _lookup_module(domain, False)
-
-
-def get_platform(domain, platform):
-    full = f"{platform}.{domain}"
-    return _lookup_module(full, True)
-
-
-_COMPONENT_CACHE["esphome"] = ComponentManifest(
-    core_config,
-    CORE_COMPONENTS_PATH,
-    is_core=True,
-    is_platform=False,
-)
-
 
 def iter_components(config):
     for domain, conf in config.items():
         component = get_component(domain)
-        if component.is_multi_conf:
+        if component.multi_conf:
             for conf_ in conf:
                 yield domain, component, conf_
         else:
@@ -465,6 +300,9 @@ def recursive_check_replaceme(value):
 def validate_config(config, command_line_substitutions):
     result = Config()
 
+    loader.clear_component_meta_finders()
+    loader.install_custom_components_meta_finder()
+
     # 0. Load packages
     if CONF_PACKAGES in config:
         from esphome.components.packages import do_packages_pass
@@ -497,6 +335,18 @@ def validate_config(config, command_line_substitutions):
         recursive_check_replaceme(config)
     except vol.Invalid as err:
         result.add_error(err)
+
+    # 1.2. Load external_components
+    if CONF_EXTERNAL_COMPONENTS in config:
+        from esphome.components.external_components import do_external_components_pass
+
+        result.add_output_path([CONF_EXTERNAL_COMPONENTS], CONF_EXTERNAL_COMPONENTS)
+        try:
+            do_external_components_pass(config)
+        except vol.Invalid as err:
+            result.update(config)
+            result.add_error(err)
+            return result
 
     if "esphomeyaml" in config:
         _LOGGER.warning(
@@ -663,9 +513,16 @@ def validate_config(config, command_line_substitutions):
             )
             continue
 
-        if comp.is_multi_conf:
+        if comp.multi_conf:
             if not isinstance(conf, list):
                 result[domain] = conf = [conf]
+            if not isinstance(comp.multi_conf, bool) and len(conf) > comp.multi_conf:
+                result.add_str_error(
+                    "Component {} supports a maximum of {} "
+                    "entries ({} found).".format(domain, comp.multi_conf, len(conf)),
+                    path,
+                )
+                continue
             for i, part_conf in enumerate(conf):
                 validate_queue.append((path + [i], part_conf, comp))
             continue
