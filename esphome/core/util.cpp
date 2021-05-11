@@ -20,11 +20,13 @@
 #include "esphome/components/mqtt/mqtt_client.h"
 #endif
 
+#ifdef USE_MDNS
 #ifdef ARDUINO_ARCH_ESP32
 #include <ESPmDNS.h>
 #endif
 #ifdef ARDUINO_ARCH_ESP8266
 #include <ESP8266mDNS.h>
+#endif
 #endif
 
 namespace esphome {
@@ -63,7 +65,7 @@ bool mqtt_is_connected() {
 
 bool remote_is_connected() { return api_is_connected() || mqtt_is_connected(); }
 
-#ifdef ARDUINO_ARCH_ESP8266
+#if defined(ARDUINO_ARCH_ESP8266) && defined(USE_MDNS)
 bool mdns_setup;
 #endif
 
@@ -71,6 +73,7 @@ bool mdns_setup;
 static const uint8_t WEBSERVER_PORT = 80;
 #endif
 
+#ifdef USE_MDNS
 #ifdef ARDUINO_ARCH_ESP8266
 void network_setup_mdns(IPAddress address, int interface) {
   // Latest arduino framework breaks mDNS for AP interface
@@ -104,8 +107,10 @@ void network_setup_mdns(IPAddress address, int interface) {
     MDNS.addService("prometheus-http", "tcp", WEBSERVER_PORT);
 #endif
   }
+#endif
+
   void network_tick_mdns() {
-#ifdef ARDUINO_ARCH_ESP8266
+#if defined(ARDUINO_ARCH_ESP8266) && defined(USE_MDNS)
     if (mdns_setup)
       MDNS.update();
 #endif

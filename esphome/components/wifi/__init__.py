@@ -2,6 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
 from esphome.automation import Condition
+from esphome.components.network import add_mdns_library
 from esphome.const import (
     CONF_AP,
     CONF_BSSID,
@@ -22,6 +23,7 @@ from esphome.const import (
     CONF_STATIC_IP,
     CONF_SUBNET,
     CONF_USE_ADDRESS,
+    CONF_ENABLE_MDNS,
     CONF_PRIORITY,
     CONF_IDENTITY,
     CONF_CERTIFICATE_AUTHORITY,
@@ -187,6 +189,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_MANUAL_IP): STA_MANUAL_IP_SCHEMA,
             cv.Optional(CONF_EAP): EAP_AUTH_SCHEMA,
             cv.Optional(CONF_AP): WIFI_NETWORK_AP,
+            cv.Optional(CONF_ENABLE_MDNS, default=True): cv.boolean,
             cv.Optional(CONF_DOMAIN, default=".local"): cv.domain_name,
             cv.Optional(
                 CONF_REBOOT_TIMEOUT, default="15min"
@@ -297,6 +300,9 @@ def to_code(config):
         cg.add_library("ESP8266WiFi", None)
 
     cg.add_define("USE_WIFI")
+
+    if config[CONF_ENABLE_MDNS]:
+        add_mdns_library()
 
     # Register at end for OTA safe mode
     yield cg.register_component(var, config)

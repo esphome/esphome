@@ -26,6 +26,7 @@ void network_setup_mdns(IPAddress address, int interface);
 #ifdef ARDUINO_ARCH_ESP32
 void network_setup_mdns();
 #endif
+
 void network_tick_mdns();
 
 }  // namespace esphome
