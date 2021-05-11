@@ -23,8 +23,6 @@ void HomeassistantTextSensor::dump_config() {
   ESP_LOGCONFIG(TAG, "  Entity ID: '%s'", this->entity_id_.c_str());
   if (this->attribute_.has_value()) {
     ESP_LOGCONFIG(TAG, "  Attribute: '%s'", this->attribute_.value().c_str());
-  } else {
-    ESP_LOGCONFIG(TAG, "  No Attribute");
   }
 }
 float HomeassistantTextSensor::get_setup_priority() const { return setup_priority::AFTER_CONNECTION; }
