@@ -24,6 +24,7 @@ BH1750Sensor = bh1750_ns.class_(
     "BH1750Sensor", sensor.Sensor, cg.PollingComponent, i2c.I2CDevice
 )
 
+CONF_MEASUREMENT_TIME = "measurement_time"
 CONFIG_SCHEMA = (
     sensor.sensor_schema(UNIT_LUX, ICON_EMPTY, 1, DEVICE_CLASS_ILLUMINANCE)
     .extend(
@@ -34,6 +35,9 @@ CONFIG_SCHEMA = (
             ),
             cv.Optional(CONF_MEASUREMENT_DURATION, default=69): cv.int_range(
                 min=31, max=254
+            ),
+            cv.Optional(CONF_MEASUREMENT_TIME): cv.Invalid(
+                "The 'measurement_time' option has been removed in 1.19.0"
             ),
         }
     )
@@ -49,4 +53,4 @@ def to_code(config):
     yield i2c.register_i2c_device(var, config)
 
     cg.add(var.set_resolution(config[CONF_RESOLUTION]))
-    cg.add(var.set_measurement_time(config[CONF_MEASUREMENT_DURATION]))
+    cg.add(var.set_measurement_duration(config[CONF_MEASUREMENT_DURATION]))
