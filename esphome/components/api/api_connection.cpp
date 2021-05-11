@@ -660,6 +660,7 @@ void APIConnection::subscribe_home_assistant_states(const SubscribeHomeAssistant
   for (auto &it : this->parent_->get_state_subs()) {
     SubscribeHomeAssistantStateResponse resp;
     resp.entity_id = it.entity_id;
+    resp.attribute = it.attribute.value();
     if (!this->send_subscribe_home_assistant_state_response(resp)) {
       this->on_fatal_error();
       return;

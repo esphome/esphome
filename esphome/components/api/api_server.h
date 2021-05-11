@@ -71,10 +71,11 @@ class APIServer : public Component, public Controller {
 
   struct HomeAssistantStateSubscription {
     std::string entity_id;
+    optional<std::string> attribute;
     std::function<void(std::string)> callback;
   };
 
-  void subscribe_home_assistant_state(std::string entity_id, std::function<void(std::string)> f);
+  void subscribe_home_assistant_state(std::string entity_id, optional<std::string> attribute, std::function<void(std::string)> f);
   const std::vector<HomeAssistantStateSubscription> &get_state_subs() const;
   const std::vector<UserServiceDescriptor *> &get_user_services() const { return this->user_services_; }
 

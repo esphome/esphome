@@ -63,6 +63,10 @@ sensor:
   - platform: homeassistant
     entity_id: sensor.hello_world
     id: ha_hello_world
+  - platform: homeassistant
+    entity_id: climate.living_room
+    attribute: temperature
+    id: ha_hello_world_temperature
   - platform: ble_rssi
     mac_address: AC:37:43:77:5F:4C
     name: 'BLE Google Home Mini RSSI value'
@@ -246,6 +250,10 @@ binary_sensor:
   - platform: homeassistant
     entity_id: binary_sensor.hello_world
     id: ha_hello_world_binary
+  - platform: homeassistant
+    entity_id: binary_sensor.hello
+    attribute: world
+    id: ha_hello_world_binary_attribute
   - platform: ble_presence
     mac_address: AC:37:43:77:5F:4C
     name: 'ESP32 BLE Tracker Google Home Mini'
@@ -353,6 +361,10 @@ text_sensor:
   - platform: homeassistant
     entity_id: sensor.hello_world2
     id: ha_hello_world2
+  - platform: homeassistant
+    entity_id: sensor.hello_world3
+    id: ha_hello_world3
+    attribute: some_attribute
   - platform: ble_scanner
     name: Scanner
 
