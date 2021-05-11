@@ -17,7 +17,8 @@ void HomeassistantSensor::setup() {
     }
 
     if (this->attribute_.has_value()) {
-      ESP_LOGD(TAG, "'%s::%s': Got attribute state %.2f", this->entity_id_.c_str(), this->attribute_.value().c_str(), *val);
+      ESP_LOGD(TAG, "'%s::%s': Got attribute state %.2f", this->entity_id_.c_str(), this->attribute_.value().c_str(),
+               *val);
     } else {
       ESP_LOGD(TAG, "'%s': Got state %.2f", this->entity_id_.c_str(), *val);
     }

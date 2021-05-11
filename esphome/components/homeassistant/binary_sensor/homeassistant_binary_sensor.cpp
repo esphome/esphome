@@ -19,7 +19,8 @@ void HomeassistantBinarySensor::setup() {
       case PARSE_OFF:
         bool new_state = val == PARSE_ON;
         if (this->attribute_.has_value()) {
-          ESP_LOGD(TAG, "'%s::%s': Got attribute state %s", this->entity_id_.c_str(), this->attribute_.value().c_str(), (new_state));
+          ESP_LOGD(TAG, "'%s::%s': Got attribute state %s", this->entity_id_.c_str(), this->attribute_.value().c_str(),
+                   (new_state));
         } else {
           ESP_LOGD(TAG, "'%s': Got state %s", this->entity_id_.c_str(), ONOFF(new_state));
         }
