@@ -149,7 +149,7 @@ void GM40::process_status_() {
   this->parent_->ready_to_tx = true;
   std::vector<uint8_t> frame(this->rx_buffer_.begin() + 3, this->rx_buffer_.end() - 1);
   if (calc_checksum(frame) == this->rx_buffer_.end()[-1]) {
-    float pos = clamp((float) this->rx_buffer_[11] / 100, 0.0f, 1.0f);
+    float pos = clamp((float) (100 - this->rx_buffer_[11]) / 100, 0.0f, 1.0f);
     if (this->position != pos) {
       this->position = pos;
       if (pos == this->target_position_)
