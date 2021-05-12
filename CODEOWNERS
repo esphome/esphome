@@ -63,6 +63,7 @@ esphome/components/mcp2515/* @danielschramm @mvturnho
 esphome/components/mcp9808/* @k7hpn
 esphome/components/midea_ac/* @dudanov
 esphome/components/midea_dongle/* @dudanov
+esphome/components/mitsubishi/* @RubyBailey
 esphome/components/network/* @esphome/core
 esphome/components/nfc/* @jesserockz
 esphome/components/ota/* @esphome/core
