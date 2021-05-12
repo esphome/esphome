@@ -3,7 +3,7 @@ PyYAML==5.4.1
 paho-mqtt==1.5.1
 colorama==0.4.4
 tornado==6.1
-protobuf==3.15.8
+protobuf==3.16.0
 tzlocal==2.1
 pytz==2021.1
 pyserial==3.5
