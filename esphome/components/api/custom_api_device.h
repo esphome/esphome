@@ -76,13 +76,13 @@ class CustomAPIDevice {
     global_api_server->register_user_service(service);
   }
 
-  /** Subscribe to the state of an entity from Home Assistant.
+  /** Subscribe to the state (or attritebute state) of an entity  from Home Assistant.
    *
    * Usage:
    *
    * ```cpp
    * void setup() override {
-   *   subscribe_homeassistant_state(&CustomNativeAPI::on_state_changed, "sensor.weather_forecast");
+   *   subscribe_homeassistant_state(&CustomNativeAPI::on_state_changed, "climate.kitchen", "current_temperature");
    * }
    *
    * void on_state_changed(std::string state) {
@@ -93,19 +93,19 @@ class CustomAPIDevice {
    * @tparam T The class type creating the service, automatically deduced from the function pointer.
    * @param callback The member function to call when the entity state changes.
    * @param entity_id The entity_id to track.
-   * @param attribute_id The entity state attribute to track.
+   * @param attribute The entity state attribute to track.
    */
   template<typename T>
   void subscribe_homeassistant_state(void (T::*callback)(std::string), const std::string &entity_id,
-                                     const optional<std::string> &attribute_id) {
+                                     const std::string &attribute = "") {
     auto f = std::bind(callback, (T *) this, std::placeholders::_1);
-    global_api_server->subscribe_home_assistant_state(entity_id, attribute_id, f);
+    global_api_server->subscribe_home_assistant_state(entity_id, optional<std::string>(attribute), f);
   }
 
-  /** Subscribe to the state of an entity from Home Assistant.
+  /** Subscribe to the state (or attribute state) of an entity from Home Assistant.
    *
    * Usage:
-   *
+   *å
    * ```cpp
    * void setup() override {
    *   subscribe_homeassistant_state(&CustomNativeAPI::on_state_changed, "sensor.weather_forecast");
@@ -119,11 +119,13 @@ class CustomAPIDevice {
    * @tparam T The class type creating the service, automatically deduced from the function pointer.
    * @param callback The member function to call when the entity state changes.
    * @param entity_id The entity_id to track.
+   * @param attribute The entity state attribute to track.
    */
   template<typename T>
-  void subscribe_homeassistant_state(void (T::*callback)(std::string, std::string), const std::string &entity_id) {
+  void subscribe_homeassistant_state(void (T::*callback)(std::string, std::string), const std::string &entity_id,
+                                     const std::string &attribute = "") {
     auto f = std::bind(callback, (T *) this, entity_id, std::placeholders::_1);
-    global_api_server->subscribe_home_assistant_state(entity_id, f);
+    global_api_server->subscribe_home_assistant_state(entity_id, optional<std::string>(attribute), f);
   }
 
   /** Call a Home Assistant service from ESPHome.
