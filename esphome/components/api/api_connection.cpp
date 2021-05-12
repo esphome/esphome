@@ -642,8 +642,9 @@ DeviceInfoResponse APIConnection::device_info(const DeviceInfoRequest &msg) {
 }
 void APIConnection::on_home_assistant_state_response(const HomeAssistantStateResponse &msg) {
   for (auto &it : this->parent_->get_state_subs())
-    if (it.entity_id == msg.entity_id and it.attribute.value().c_str() == msg.attribute)
+    if (it.entity_id == msg.entity_id and it.attribute.value() == msg.attribute) {
       it.callback(msg.state);
+    }
 }
 void APIConnection::execute_service(const ExecuteServiceRequest &msg) {
   bool found = false;
