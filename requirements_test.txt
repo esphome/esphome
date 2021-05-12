@@ -7,7 +7,7 @@ pexpect==4.8.0
 pre-commit
 
 # Unit tests
-pytest==6.2.3
+pytest==6.2.4
 pytest-cov==2.11.1
 pytest-mock==3.5.1
 asyncmock==0.4.2
