@@ -88,7 +88,7 @@ void DeepSleepComponent::begin_sleep(bool manual) {
 #endif
 
 #ifdef ARDUINO_ARCH_ESP8266
-  ESP.deepSleep((uint64)(*this->sleep_duration_/(system_rtc_clock_cali_proc()/27307.0)));
+  ESP.deepSleep((uint64)(*this->sleep_duration_ / (system_rtc_clock_cali_proc() / 27307.0)));
 #endif
 }
 float DeepSleepComponent::get_setup_priority() const { return setup_priority::LATE; }
