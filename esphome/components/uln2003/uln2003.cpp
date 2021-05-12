@@ -14,8 +14,8 @@ void ULN2003::setup() {
   this->loop();
 }
 void ULN2003::loop() {
-  bool at_target = this->has_reached_target();
-  if (at_target) {
+  int dir = this->should_step_();
+  if (dir == 0 && this->has_reached_target()) {
     this->high_freq_.stop();
 
     if (this->sleep_when_done_) {
@@ -28,8 +28,6 @@ void ULN2003::loop() {
     }
   } else {
     this->high_freq_.start();
-
-    int dir = this->should_step_();
     this->current_uln_pos_ += dir;
   }
 
@@ -70,14 +68,8 @@ void ULN2003::write_step_(int32_t step) {
     }
     case ULN2003_STEP_MODE_HALF_STEP: {
       // A, AB, B, BC, C, CD, D, DA
-      if (i == 0 || i == 2 || i == 7)
-        res |= 1 << 0;
-      if (i == 1 || i == 2 || i == 3)
-        res |= 1 << 1;
-      if (i == 3 || i == 4 || i == 5)
-        res |= 1 << 2;
-      if (i == 5 || i == 6 || i == 7)
-        res |= 1 << 3;
+      res |= 1 << (i >> 1);
+      res |= 1 << (((i + 1) >> 1) & 0x3);
       break;
     }
     case ULN2003_STEP_MODE_WAVE_DRIVE: {

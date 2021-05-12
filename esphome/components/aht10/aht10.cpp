@@ -60,6 +60,7 @@ void AHT10Component::update() {
     delay = AHT10_HUMIDITY_DELAY;
   for (int i = 0; i < AHT10_ATTEMPS; ++i) {
     ESP_LOGVV(TAG, "Attemps %u at %6ld", i, millis());
+    delay_microseconds_accurate(4);
     if (!this->read_bytes(0, data, 6, delay)) {
       ESP_LOGD(TAG, "Communication with AHT10 failed, waiting...");
     } else if ((data[0] & 0x80) == 0x80) {  // Bit[7] = 0b1, device is busy

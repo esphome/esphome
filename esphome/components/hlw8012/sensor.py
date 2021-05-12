@@ -2,39 +2,72 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins
 from esphome.components import sensor
-from esphome.const import CONF_CHANGE_MODE_EVERY, CONF_INITIAL_MODE, CONF_CURRENT, \
-    CONF_CURRENT_RESISTOR, CONF_ID, CONF_POWER, CONF_SEL_PIN, CONF_VOLTAGE, CONF_VOLTAGE_DIVIDER, \
-    ICON_FLASH, UNIT_VOLT, UNIT_AMPERE, UNIT_WATT
+from esphome.const import (
+    CONF_CHANGE_MODE_EVERY,
+    CONF_INITIAL_MODE,
+    CONF_CURRENT,
+    CONF_CURRENT_RESISTOR,
+    CONF_ID,
+    CONF_POWER,
+    CONF_ENERGY,
+    CONF_SEL_PIN,
+    CONF_VOLTAGE,
+    CONF_VOLTAGE_DIVIDER,
+    DEVICE_CLASS_CURRENT,
+    DEVICE_CLASS_ENERGY,
+    DEVICE_CLASS_POWER,
+    DEVICE_CLASS_VOLTAGE,
+    ICON_EMPTY,
+    UNIT_VOLT,
+    UNIT_AMPERE,
+    UNIT_WATT,
+    UNIT_WATT_HOURS,
+)
 
-AUTO_LOAD = ['pulse_counter']
+AUTO_LOAD = ["pulse_counter"]
 
-hlw8012_ns = cg.esphome_ns.namespace('hlw8012')
-HLW8012Component = hlw8012_ns.class_('HLW8012Component', cg.PollingComponent)
-HLW8012InitialMode = hlw8012_ns.enum('HLW8012InitialMode')
+hlw8012_ns = cg.esphome_ns.namespace("hlw8012")
+HLW8012Component = hlw8012_ns.class_("HLW8012Component", cg.PollingComponent)
+HLW8012InitialMode = hlw8012_ns.enum("HLW8012InitialMode")
 INITIAL_MODES = {
     CONF_CURRENT: HLW8012InitialMode.HLW8012_INITIAL_MODE_CURRENT,
     CONF_VOLTAGE: HLW8012InitialMode.HLW8012_INITIAL_MODE_VOLTAGE,
 }
 
-CONF_CF1_PIN = 'cf1_pin'
-CONF_CF_PIN = 'cf_pin'
-CONFIG_SCHEMA = cv.Schema({
-    cv.GenerateID(): cv.declare_id(HLW8012Component),
-    cv.Required(CONF_SEL_PIN): pins.gpio_output_pin_schema,
-    cv.Required(CONF_CF_PIN): cv.All(pins.internal_gpio_input_pullup_pin_schema,
-                                     pins.validate_has_interrupt),
-    cv.Required(CONF_CF1_PIN): cv.All(pins.internal_gpio_input_pullup_pin_schema,
-                                      pins.validate_has_interrupt),
-
-    cv.Optional(CONF_VOLTAGE): sensor.sensor_schema(UNIT_VOLT, ICON_FLASH, 1),
-    cv.Optional(CONF_CURRENT): sensor.sensor_schema(UNIT_AMPERE, ICON_FLASH, 2),
-    cv.Optional(CONF_POWER): sensor.sensor_schema(UNIT_WATT, ICON_FLASH, 1),
-
-    cv.Optional(CONF_CURRENT_RESISTOR, default=0.001): cv.resistance,
-    cv.Optional(CONF_VOLTAGE_DIVIDER, default=2351): cv.positive_float,
-    cv.Optional(CONF_CHANGE_MODE_EVERY, default=8): cv.All(cv.uint32_t, cv.Range(min=1)),
-    cv.Optional(CONF_INITIAL_MODE, default=CONF_VOLTAGE): cv.one_of(*INITIAL_MODES, lower=True),
-}).extend(cv.polling_component_schema('60s'))
+CONF_CF1_PIN = "cf1_pin"
+CONF_CF_PIN = "cf_pin"
+CONFIG_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.declare_id(HLW8012Component),
+        cv.Required(CONF_SEL_PIN): pins.gpio_output_pin_schema,
+        cv.Required(CONF_CF_PIN): cv.All(
+            pins.internal_gpio_input_pullup_pin_schema, pins.validate_has_interrupt
+        ),
+        cv.Required(CONF_CF1_PIN): cv.All(
+            pins.internal_gpio_input_pullup_pin_schema, pins.validate_has_interrupt
+        ),
+        cv.Optional(CONF_VOLTAGE): sensor.sensor_schema(
+            UNIT_VOLT, ICON_EMPTY, 1, DEVICE_CLASS_VOLTAGE
+        ),
+        cv.Optional(CONF_CURRENT): sensor.sensor_schema(
+            UNIT_AMPERE, ICON_EMPTY, 2, DEVICE_CLASS_CURRENT
+        ),
+        cv.Optional(CONF_POWER): sensor.sensor_schema(
+            UNIT_WATT, ICON_EMPTY, 1, DEVICE_CLASS_POWER
+        ),
+        cv.Optional(CONF_ENERGY): sensor.sensor_schema(
+            UNIT_WATT_HOURS, ICON_EMPTY, 1, DEVICE_CLASS_ENERGY
+        ),
+        cv.Optional(CONF_CURRENT_RESISTOR, default=0.001): cv.resistance,
+        cv.Optional(CONF_VOLTAGE_DIVIDER, default=2351): cv.positive_float,
+        cv.Optional(CONF_CHANGE_MODE_EVERY, default=8): cv.All(
+            cv.uint32_t, cv.Range(min=1)
+        ),
+        cv.Optional(CONF_INITIAL_MODE, default=CONF_VOLTAGE): cv.one_of(
+            *INITIAL_MODES, lower=True
+        ),
+    }
+).extend(cv.polling_component_schema("60s"))
 
 
 def to_code(config):
@@ -57,6 +90,9 @@ def to_code(config):
     if CONF_POWER in config:
         sens = yield sensor.new_sensor(config[CONF_POWER])
         cg.add(var.set_power_sensor(sens))
+    if CONF_ENERGY in config:
+        sens = yield sensor.new_sensor(config[CONF_ENERGY])
+        cg.add(var.set_energy_sensor(sens))
     cg.add(var.set_current_resistor(config[CONF_CURRENT_RESISTOR]))
     cg.add(var.set_voltage_divider(config[CONF_VOLTAGE_DIVIDER]))
     cg.add(var.set_change_mode_every(config[CONF_CHANGE_MODE_EVERY]))

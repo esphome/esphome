@@ -265,7 +265,14 @@ const char *get_auth_mode_str(uint8_t mode) {
       return "UNKNOWN";
   }
 }
-std::string format_ip4_addr(const ip4_addr_t &ip) {
+
+#if ESP_IDF_VERSION_MAJOR >= 4
+using esphome_ip4_addr_t = esp_ip4_addr_t;
+#else
+using esphome_ip4_addr_t = ip4_addr_t;
+#endif
+
+std::string format_ip4_addr(const esphome_ip4_addr_t &ip) {
   char buf[20];
   sprintf(buf, "%u.%u.%u.%u", uint8_t(ip.addr >> 0), uint8_t(ip.addr >> 8), uint8_t(ip.addr >> 16),
           uint8_t(ip.addr >> 24));
@@ -346,14 +353,22 @@ const char *get_disconnect_reason_str(uint8_t reason) {
       return "Unspecified";
   }
 }
+#if ESP_IDF_VERSION_MAJOR >= 4
+void WiFiComponent::wifi_event_callback_(arduino_event_id_t event, arduino_event_info_t info) {
+#else
 void WiFiComponent::wifi_event_callback_(system_event_id_t event, system_event_info_t info) {
+#endif
   switch (event) {
     case SYSTEM_EVENT_WIFI_READY: {
       ESP_LOGV(TAG, "Event: WiFi ready");
       break;
     }
     case SYSTEM_EVENT_SCAN_DONE: {
+#if ESP_IDF_VERSION_MAJOR >= 4
+      auto it = info.wifi_scan_done;
+#else
       auto it = info.scan_done;
+#endif
       ESP_LOGV(TAG, "Event: WiFi Scan Done status=%u number=%u scan_id=%u", it.status, it.number, it.scan_id);
       break;
     }
@@ -366,7 +381,11 @@ void WiFiComponent::wifi_event_callback_(system_event_id_t event, system_event_i
       break;
     }
     case SYSTEM_EVENT_STA_CONNECTED: {
+#if ESP_IDF_VERSION_MAJOR >= 4
+      auto it = info.wifi_sta_connected;
+#else
       auto it = info.connected;
+#endif
       char buf[33];
       memcpy(buf, it.ssid, it.ssid_len);
       buf[it.ssid_len] = '\0';
@@ -375,7 +394,11 @@ void WiFiComponent::wifi_event_callback_(system_event_id_t event, system_event_i
       break;
     }
     case SYSTEM_EVENT_STA_DISCONNECTED: {
+#if ESP_IDF_VERSION_MAJOR >= 4
+      auto it = info.wifi_sta_disconnected;
+#else
       auto it = info.disconnected;
+#endif
       char buf[33];
       memcpy(buf, it.ssid, it.ssid_len);
       buf[it.ssid_len] = '\0';
@@ -388,7 +411,11 @@ void WiFiComponent::wifi_event_callback_(system_event_id_t event, system_event_i
       break;
     }
     case SYSTEM_EVENT_STA_AUTHMODE_CHANGE: {
+#if ESP_IDF_VERSION_MAJOR >= 4
+      auto it = info.wifi_sta_authmode_change;
+#else
       auto it = info.auth_change;
+#endif
       ESP_LOGV(TAG, "Event: Authmode Change old=%s new=%s", get_auth_mode_str(it.old_mode),
                get_auth_mode_str(it.new_mode));
       // Mitigate CVE-2020-12638
@@ -424,13 +451,25 @@ void WiFiComponent::wifi_event_callback_(system_event_id_t event, system_event_i
       break;
     }
     case SYSTEM_EVENT_AP_STACONNECTED: {
+#if ESP_IDF_VERSION_MAJOR >= 4
+      auto it = info.wifi_sta_connected;
+      auto &mac = it.bssid;
+#else
       auto it = info.sta_connected;
-      ESP_LOGV(TAG, "Event: AP client connected MAC=%s aid=%u", format_mac_addr(it.mac).c_str(), it.aid);
+      auto &mac = it.mac;
+#endif
+      ESP_LOGV(TAG, "Event: AP client connected MAC=%s", format_mac_addr(mac).c_str());
       break;
     }
     case SYSTEM_EVENT_AP_STADISCONNECTED: {
+#if ESP_IDF_VERSION_MAJOR >= 4
+      auto it = info.wifi_sta_disconnected;
+      auto &mac = it.bssid;
+#else
       auto it = info.sta_disconnected;
-      ESP_LOGV(TAG, "Event: AP client disconnected MAC=%s aid=%u", format_mac_addr(it.mac).c_str(), it.aid);
+      auto &mac = it.mac;
+#endif
+      ESP_LOGV(TAG, "Event: AP client disconnected MAC=%s", format_mac_addr(mac).c_str());
       break;
     }
     case SYSTEM_EVENT_AP_STAIPASSIGNED: {
@@ -438,7 +477,11 @@ void WiFiComponent::wifi_event_callback_(system_event_id_t event, system_event_i
       break;
     }
     case SYSTEM_EVENT_AP_PROBEREQRECVED: {
+#if ESP_IDF_VERSION_MAJOR >= 4
+      auto it = info.wifi_ap_probereqrecved;
+#else
       auto it = info.ap_probereqrecved;
+#endif
       ESP_LOGVV(TAG, "Event: AP receive Probe Request MAC=%s RSSI=%d", format_mac_addr(it.mac).c_str(), it.rssi);
       break;
     }
@@ -446,8 +489,13 @@ void WiFiComponent::wifi_event_callback_(system_event_id_t event, system_event_i
       break;
   }
 
+#if ESP_IDF_VERSION_MAJOR >= 4
+  if (event == ARDUINO_EVENT_WIFI_STA_DISCONNECTED) {
+    uint8_t reason = info.wifi_sta_disconnected.reason;
+#else
   if (event == SYSTEM_EVENT_STA_DISCONNECTED) {
     uint8_t reason = info.disconnected.reason;
+#endif
     if (reason == WIFI_REASON_AUTH_EXPIRE || reason == WIFI_REASON_BEACON_TIMEOUT ||
         reason == WIFI_REASON_NO_AP_FOUND || reason == WIFI_REASON_ASSOC_FAIL ||
         reason == WIFI_REASON_HANDSHAKE_TIMEOUT) {
@@ -458,7 +506,11 @@ void WiFiComponent::wifi_event_callback_(system_event_id_t event, system_event_i
       this->error_from_callback_ = true;
     }
   }
+#if ESP_IDF_VERSION_MAJOR >= 4
+  if (event == ARDUINO_EVENT_WIFI_SCAN_DONE) {
+#else
   if (event == SYSTEM_EVENT_SCAN_DONE) {
+#endif
     this->wifi_scan_done_callback_();
   }
 }
