@@ -163,6 +163,10 @@ def delayed_off_filter_to_code(config, filter_id):
 CONF_TIME_OFF = "time_off"
 CONF_TIME_ON = "time_on"
 
+DEFAULT_DELAY = "1s"
+DEFAULT_TIME_OFF = "100ms"
+DEFAULT_TIME_ON = "900ms"
+
 
 @FILTER_REGISTRY.register(
     "autorepeat",
@@ -171,23 +175,31 @@ CONF_TIME_ON = "time_on"
         cv.ensure_list(
             {
                 cv.Optional(
-                    CONF_DELAY, default="1s"
+                    CONF_DELAY, default=DEFAULT_DELAY
                 ): cv.positive_time_period_milliseconds,
                 cv.Optional(
-                    CONF_TIME_OFF, default="100ms"
+                    CONF_TIME_OFF, default=DEFAULT_TIME_OFF
                 ): cv.positive_time_period_milliseconds,
                 cv.Optional(
-                    CONF_TIME_ON, default="900ms"
+                    CONF_TIME_ON, default=DEFAULT_TIME_ON
                 ): cv.positive_time_period_milliseconds,
             }
         ),
-        cv.Length(min=1),
     ),
 )
 def autorepeat_filter_to_code(config, filter_id):
     timings = []
-    for conf in config:
-        timings.append((conf[CONF_DELAY], conf[CONF_TIME_OFF], conf[CONF_TIME_ON]))
+    if len(config) > 0:
+        for conf in config:
+            timings.append((conf[CONF_DELAY], conf[CONF_TIME_OFF], conf[CONF_TIME_ON]))
+    else:
+        timings.append(
+            (
+                cv.time_period_str_unit(DEFAULT_DELAY).total_milliseconds,
+                cv.time_period_str_unit(DEFAULT_TIME_OFF).total_milliseconds,
+                cv.time_period_str_unit(DEFAULT_TIME_ON).total_milliseconds,
+            )
+        )
     var = cg.new_Pvariable(filter_id, timings)
     yield cg.register_component(var, {})
     yield var
