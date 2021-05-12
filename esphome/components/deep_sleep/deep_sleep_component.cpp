@@ -1,3 +1,7 @@
+#ifdef ARDUINO_ARCH_ESP8266
+#include <user_interface.h>
+#endif
+
 #include "deep_sleep_component.h"
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
@@ -84,7 +88,7 @@ void DeepSleepComponent::begin_sleep(bool manual) {
 #endif
 
 #ifdef ARDUINO_ARCH_ESP8266
-  ESP.deepSleep(*this->sleep_duration_);
+  ESP.deepSleep((uint64)(*this->sleep_duration_/(system_rtc_clock_cali_proc()/27307.0)));
 #endif
 }
 float DeepSleepComponent::get_setup_priority() const { return setup_priority::LATE; }
