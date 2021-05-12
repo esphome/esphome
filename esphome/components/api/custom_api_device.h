@@ -76,7 +76,7 @@ class CustomAPIDevice {
     global_api_server->register_user_service(service);
   }
 
-  /** Subscribe to the state (or attritebute state) of an entity  from Home Assistant.
+  /** Subscribe to the state (or attribute state) of an entity from Home Assistant.
    *
    * Usage:
    *
