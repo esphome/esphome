@@ -1,5 +1,5 @@
 pylint==2.8.2
-flake8==3.9.0
+flake8==3.9.2
 black==21.5b1
 pillow>4.0.0
 cryptography>=2.0.0,<4
