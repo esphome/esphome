@@ -4,6 +4,9 @@
 namespace esphome {
 namespace toshiba {
 
+const uint8_t TOSHIBA_FRAME_MAX_LENGTH = 14;
+const uint8_t TOSHIBA_FRAME_LENGTH_NO_DATA = 6;
+
 const uint16_t TOSHIBA_HEADER_MARK = 4380;
 const uint16_t TOSHIBA_HEADER_SPACE = 4370;
 const uint16_t TOSHIBA_GAP_SPACE = 5480;
@@ -45,16 +48,13 @@ const uint8_t TOSHIBA_POWER_SEL_75 = 0x04;
 const uint8_t TOSHIBA_POWER_SEL_50 = 0x08;
 
 const uint8_t TOSHIBA_MOTION_FIX = 0x00;
-/* Default value for the Model::MODEL_WH_TA17NE */
+/* Default value for the models supporting vertical mode only  */
 uint8_t toshiba_motion_swing_vertical = 0x01;
 uint8_t toshiba_motion_swing_off = 0x02;
 /* Value 0xff is just a dummy value, actual value will be set in the setup() method */
 uint8_t toshiba_motion_swing_both = 0xff;
 /* Default value for the Model::MODEL_WH_TA01LE */
 uint8_t toshiba_motion_swing_horizontal = 0x05;
-
-const uint8_t TOSHIBA_FRAME_MAX_LENGTH = 14;
-const uint8_t TOSHIBA_FRAME_LENGTH_NO_DATA = 6;
 
 static const char* TAG = "toshiba.climate";
 
@@ -87,9 +87,6 @@ void ToshibaClimate::setup() {
     this->swing_modes_.insert(this->swing_modes_.end(), climate::CLIMATE_SWING_HORIZONTAL);
     toshiba_motion_swing_both = 0x01;
     toshiba_motion_swing_vertical = 0x08;
-  } else if (this->model_ == Model::MODEL_WH_H01EE) {
-    toshiba_motion_swing_vertical = 0x04;
-    toshiba_motion_swing_off = 0x04;
   }
 }
 

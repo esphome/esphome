@@ -7,9 +7,8 @@ namespace toshiba {
 
 // Enum for the different Toshiba remotes
 enum Model {
-  MODEL_WH_TA17NE,
+  MODEL_GENERIC,
   MODEL_WH_TA01LE,
-  MODEL_WH_H01EE,
 };
 
 const uint8_t TOSHIBA_TEMP_MIN = 17;
