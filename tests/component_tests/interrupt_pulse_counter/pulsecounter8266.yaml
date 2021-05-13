@@ -1,0 +1,62 @@
+esphome:
+  name: pulsecounter8266
+  platform: ESP8266
+  board: nodemcuv2
+
+# wifi:
+#   ssid: !secret wifi_ssid
+#   password: !secret wifi_pw
+
+#   # Enable fallback hotspot (captive portal) in case wifi connection fails
+#   ap:
+#     ssid: "Pulsecounter8266"
+#     password: "RT5CbEbhrQ1s"
+
+# captive_portal:
+
+# # Enable logging
+# logger:
+
+# # Enable Home Assistant API
+# api:
+
+# ota:
+
+sensor:
+  - platform: interrupt_pulse_counter
+    pin: 1
+    name: "PC1"
+    # slow: True
+  # - platform: pulse_counter
+  #   pin: 2
+  #   name: "PC2"
+  #   slow: True
+  # - platform: pulse_counter
+  #   pin: 3
+  #   name: "PC3"
+  #   slow: True
+  # - platform: pulse_counter
+  #   pin: 4
+  #   name: "PC4"
+  #   slow: True
+  # - platform: pulse_counter
+  #   pin: 5
+  #   name: "PC5"
+  #   slow: True
+  # - platform: pulse_counter
+  #   pin: 10
+  #   name: "PC6"
+  #   slow: True
+  # - platform: pulse_counter
+  #   pin: 13
+  #   name: "PC7"
+  #   slow: True
+  # - platform: pulse_counter
+  #   pin: 12
+  #   name: "PC8"  
+  #   slow: True
+  # - platform: pulse_counter
+  #   pin: 9
+  #   name: "PC9"
+  #   slow: True
+
