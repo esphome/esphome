@@ -154,7 +154,8 @@ void GM40::process_status_() {
       publish_state = true;
     }
     if (this->current_operation != COVER_OPERATION_IDLE)
-      if ((pos >= clamp(this->target_position_ - 0.03, 0.0f, 1.0f)) && (pos <= clamp(this->target_position_ + 0.03, 0.0f, 1.0f))) {
+      if ((pos >= clamp(this->target_position_ - 0.03, 0.0f, 1.0f)) &&
+          (pos <= clamp(this->target_position_ + 0.03, 0.0f, 1.0f))) {
         this->current_operation = COVER_OPERATION_IDLE;
         publish_state = true;
       }
