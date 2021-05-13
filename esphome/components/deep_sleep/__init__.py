@@ -108,7 +108,9 @@ def to_code(config):
 DEEP_SLEEP_ENTER_SCHEMA = automation.maybe_simple_id(
     {
         cv.GenerateID(): cv.use_id(DeepSleepComponent),
-        cv.Optional(CONF_SLEEP_DURATION): cv.positive_time_period_milliseconds,
+        cv.Optional(CONF_SLEEP_DURATION): cv.templatable(
+            cv.positive_time_period_milliseconds
+        ),
     }
 )
 

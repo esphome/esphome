@@ -1556,3 +1556,17 @@ def polling_component_schema(default_update_interval):
             ): update_interval,
         }
     )
+
+
+def url(value):
+    import urllib.parse
+
+    value = string_strict(value)
+    try:
+        parsed = urllib.parse.urlparse(value)
+    except ValueError as e:
+        raise Invalid("Not a valid URL") from e
+
+    if not parsed.scheme or not parsed.netloc:
+        raise Invalid("Expected a URL scheme and host")
+    return parsed.geturl()
