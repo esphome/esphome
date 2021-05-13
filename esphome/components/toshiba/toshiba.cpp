@@ -82,7 +82,7 @@ static void log_frame(const uint8_t* frame) {
 
 void ToshibaClimate::setup() {
   climate_ir::ClimateIR::setup();
-  if (this->model_ == Model::MODEL_WH_TA01LE) {
+  if (this->model_ == Model::MODEL_2) {
     this->swing_modes_.insert(this->swing_modes_.begin() + 1, climate::CLIMATE_SWING_BOTH);
     this->swing_modes_.insert(this->swing_modes_.end(), climate::CLIMATE_SWING_HORIZONTAL);
     toshiba_motion_swing_both = 0x01;
