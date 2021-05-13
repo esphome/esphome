@@ -9,14 +9,12 @@ from esphome.const import (
     CONF_INTERNAL_FILTER,
     CONF_PIN,
     CONF_RISING_EDGE,
-    CONF_NUMBER,
     CONF_TOTAL,
     DEVICE_CLASS_EMPTY,
     ICON_PULSE,
     UNIT_PULSES_PER_MINUTE,
     UNIT_PULSES,
 )
-from esphome.core import CORE
 
 esp32_pulse_counter_ns = cg.esphome_ns.namespace("esp32_pulse_counter")
 PulseCounterCountMode = esp32_pulse_counter_ns.enum("PulseCounterCountMode")
@@ -44,7 +42,7 @@ def validate_internal_filter(value):
 
 def validate_pulse_counter_pin(value):
     value = pins.internal_gpio_input_pin_schema(value)
-    
+
     # Validate that not more as 8 pulsecounter peripherals are defined
     global NUMBER_OF_INTERRUPT_PULSECOUNTERS
     if NUMBER_OF_INTERRUPT_PULSECOUNTERS < 8:
