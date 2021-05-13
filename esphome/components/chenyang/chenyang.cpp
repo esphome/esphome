@@ -43,11 +43,9 @@ void Chenyang::control(const CoverCall &call) {
   }
 }
 
-void Chenyang::update() {
-  if (this->parent_->ready_to_tx) {
-    uint8_t data[2] = {GET_STATUS, 0x00};
-    this->send_command_(data, 2);
-  }
+void Chenyang::send_update() {
+  uint8_t data[2] = {GET_STATUS, 0x00};
+  this->send_command_(data, 2);
 }
 
 void Chenyang::on_uart_multi_byte(uint8_t byte) {

@@ -27,15 +27,15 @@ enum ControlType : uint8_t {
   SET_POSITION = 0x04,
 };
 
-class Dooya : public cover::Cover, public PollingComponent, public uart_multi::UARTMultiDevice {
+class Dooya : public cover::Cover, public Component, public uart_multi::UARTMultiDevice {
  public:
-  void update() override;
   void dump_config() override;
 
   void set_address(uint16_t address) {
     this->address_[0] = (uint8_t)(address >> 8);
     this->address_[1] = (uint8_t)(address & 0xFF);
   }
+  void send_update() override;
   void on_uart_multi_byte(uint8_t byte) override;
   cover::CoverTraits get_traits() override;
 

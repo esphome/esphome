@@ -36,18 +36,16 @@ void GM40::control(const CoverCall &call) {
         uint8_t data[5] = {CONTROL, 0x00, CLOSE, 0x00, 0x01};
         this->send_command_(data, 5);
       } else {
-        uint8_t data[5] = {CONTROL, 0x00, SET_POSITION, 0x00, (uint8_t)(this->target_position_ * 100)};
+        uint8_t data[5] = {CONTROL, 0x00, SET_POSITION, 0x00, (uint8_t)(100 - (this->target_position_ * 100))};
         this->send_command_(data, 5);
       }
     }
   }
 }
 
-void GM40::update() {
-  if (this->parent_->ready_to_tx) {
-    uint8_t data[5] = {READ, 0x00, SET_POSITION, 0x00, 0x01};
-    this->send_command_(data, 5);
-  }
+void GM40::send_update() {
+  uint8_t data[5] = {READ, 0x00, SET_POSITION, 0x00, 0x01};
+  this->send_command_(data, 5);
 }
 
 void GM40::on_uart_multi_byte(uint8_t byte) {

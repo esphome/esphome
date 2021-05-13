@@ -51,11 +51,9 @@ void Dooya::control(const CoverCall &call) {
   }
 }
 
-void Dooya::update() {
-  if (this->parent_->ready_to_tx) {
-    uint8_t data[3] = {READ, this->current_request_, 0x01};
-    this->send_command_(data, 3);
-  }
+void Dooya::send_update() {
+  uint8_t data[3] = {READ, this->current_request_, 0x01};
+  this->send_command_(data, 3);
 }
 
 void Dooya::on_uart_multi_byte(uint8_t byte) {

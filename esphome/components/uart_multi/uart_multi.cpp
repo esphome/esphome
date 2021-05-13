@@ -16,13 +16,16 @@ void UARTMulti::loop() {
   if (millis() - this->last_tx_ > 1000) {
     this->ready_to_tx = true;
   }
-  if (this->ready_to_tx)
+  if (this->ready_to_tx) {
+    this->devices_[this->update_token_].send_update();
+    this->update_token_++ % this->devices_.size();
     if (!this->tx_buffer_.empty()) {
       this->write_array(this->tx_buffer_.front());
       this->tx_buffer_.pop();
       this->last_tx_ = millis();
       this->ready_to_tx = false;
     }
+  }
 }
 
 void UARTMulti::dump_config() {

@@ -8,20 +8,14 @@ CODEOWNERS = ["@loongyh"]
 AUTO_LOAD = ["uart_multi"]
 
 dooya_ns = cg.esphome_ns.namespace("dooya")
-Dooya = dooya_ns.class_(
-    "Dooya", cover.Cover, cg.PollingComponent, uart_multi.UARTMultiDevice
-)
+Dooya = dooya_ns.class_("Dooya", cover.Cover, cg.Component, uart_multi.UARTMultiDevice)
 
-CONFIG_SCHEMA = (
-    cover.COVER_SCHEMA.extend(
-        {
-            cv.GenerateID(): cv.declare_id(Dooya),
-            cv.Optional(CONF_ADDRESS): cv.hex_uint16_t,
-        }
-    )
-    .extend(cv.polling_component_schema("500ms"))
-    .extend(uart_multi.UART_MULTI_DEVICE_SCHEMA)
-)
+CONFIG_SCHEMA = cover.COVER_SCHEMA.extend(
+    {
+        cv.GenerateID(): cv.declare_id(Dooya),
+        cv.Optional(CONF_ADDRESS): cv.hex_uint16_t,
+    }
+).extend(uart_multi.UART_MULTI_DEVICE_SCHEMA)
 
 
 def to_code(config):

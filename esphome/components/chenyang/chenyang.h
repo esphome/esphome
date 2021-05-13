@@ -24,12 +24,12 @@ enum ControlType : uint8_t {
   SET_POSITION = 0x03,
 };
 
-class Chenyang : public cover::Cover, public PollingComponent, public uart_multi::UARTMultiDevice {
+class Chenyang : public cover::Cover, public Component, public uart_multi::UARTMultiDevice {
  public:
-  void update() override;
   void dump_config() override;
 
   void set_address(uint8_t address) { this->address_ = address; }
+  void send_update() override;
   void on_uart_multi_byte(uint8_t byte) override;
   cover::CoverTraits get_traits() override;
 
