@@ -1,0 +1,17 @@
+esphome:
+  name: pulsecounter32
+  platform: ESP32
+  board: nodemcu-32s
+
+sensor:
+  - platform: esp32_pulse_counter
+    pin: 1
+    name: "PC1"
+  - platform: esp32_pulse_counter
+    pin: 2
+    name: "PC2"
+    internal_filter: 10us
+  - platform: esp32_pulse_counter
+    pin: 3
+    name: "PC3"
+    update_interval: 10s
