@@ -147,13 +147,18 @@ void GM40::process_status_() {
   this->parent_->ready_to_tx = true;
   std::vector<uint8_t> frame(this->rx_buffer_.begin() + 3, this->rx_buffer_.end() - 1);
   if (calc_checksum(frame) == this->rx_buffer_.end()[-1]) {
+    bool publish_state = false;
     float pos = clamp((float) (100 - this->rx_buffer_[11]) / 100, 0.0f, 1.0f);
     if (this->position != pos) {
       this->position = pos;
-      if ((pos >= clamp(this->target_position_ - 0.03, 0.0f, 1.0f)) && (pos <= clamp(this->target_position_ + 0.03, 0.0f, 1.0f)))
-        this->current_operation = COVER_OPERATION_IDLE;
-      this->publish_state(false);
+      publish_state = true;
     }
+    if ((pos >= clamp(this->target_position_ - 0.03, 0.0f, 1.0f)) && (pos <= clamp(this->target_position_ + 0.03, 0.0f, 1.0f))) {
+      this->current_operation = COVER_OPERATION_IDLE;
+      publish_state = true;
+    }
+    if (publish_state)
+      this->publish_state(false);
   } else
     ESP_LOGE(TAG, "Incoming data CRC check failed");
 }
