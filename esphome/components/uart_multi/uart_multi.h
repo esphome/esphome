@@ -10,11 +10,13 @@ namespace uart_multi {
 
 class UARTMultiDevice;
 
-class UARTMulti : public uart::UARTDevice, public Component {
+class UARTMulti : public uart::UARTDevice, public PollingComponent {
  public:
   UARTMulti() = default;
 
   void loop() override;
+
+  void update() override;
 
   void dump_config() override;
 

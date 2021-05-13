@@ -9,14 +9,14 @@ CODEOWNERS = ["@loongyh"]
 DEPENDENCIES = ["uart"]
 
 uart_multi_ns = cg.esphome_ns.namespace("uart_multi")
-UARTMulti = uart_multi_ns.class_("UARTMulti", uart.UARTDevice, cg.Component)
+UARTMulti = uart_multi_ns.class_("UARTMulti", uart.UARTDevice, cg.PollingComponent)
 UARTMultiDevice = uart_multi_ns.class_("UARTMultiDevice")
 MULTI_CONF = True
 
 CONF_UART_MULTI_ID = "uart_multi_id"
 CONFIG_SCHEMA = (
     cv.Schema({cv.GenerateID(): cv.declare_id(UARTMulti)})
-    .extend(cv.COMPONENT_SCHEMA)
+    .extend(cv.polling_component_schema("500ms"))
     .extend(uart.UART_DEVICE_SCHEMA)
 )
 
