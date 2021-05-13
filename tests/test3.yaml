@@ -802,15 +802,12 @@ cover:
   - platform: dooya
     name: Dooya Cover
     address: 0xFEFE
-    update_interval: 500ms
   - platform: chenyang
     name: Chenyang Cover
     address: 0xFF
-    update_interval: 1s
   - platform: gm40
     name: GM40 Cover
     address: 0x00
-    update_interval: 1s
 
 output:
   - platform: esp8266_pwm
