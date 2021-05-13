@@ -111,7 +111,7 @@ jobs:
         uses: actions/cache@v1
         with:
           path: ~/.platformio
-          key: test-home-platformio-${{ matrix.test }}-${{ hashFiles('esphome/core_config.py') }}
+          key: test-home-platformio-${{ matrix.test }}-${{ hashFiles('esphome/core/config.py') }}
           restore-keys: |
             test-home-platformio-${{ matrix.test }}-
       - name: Set up environment

@@ -27,6 +27,7 @@ from esphome.const import (
 from esphome.util import Registry
 from .types import (
     LambdaLightEffect,
+    PulseLightEffect,
     RandomLightEffect,
     StrobeLightEffect,
     StrobeLightEffectColor,
@@ -153,7 +154,27 @@ def automation_effect_to_code(config, effect_id):
     yield var
 
 
-@register_rgb_effect(
+@register_monochromatic_effect(
+    "pulse",
+    PulseLightEffect,
+    "Pulse",
+    {
+        cv.Optional(
+            CONF_TRANSITION_LENGTH, default="1s"
+        ): cv.positive_time_period_milliseconds,
+        cv.Optional(
+            CONF_UPDATE_INTERVAL, default="1s"
+        ): cv.positive_time_period_milliseconds,
+    },
+)
+def pulse_effect_to_code(config, effect_id):
+    effect = cg.new_Pvariable(effect_id, config[CONF_NAME])
+    cg.add(effect.set_transition_length(config[CONF_TRANSITION_LENGTH]))
+    cg.add(effect.set_update_interval(config[CONF_UPDATE_INTERVAL]))
+    yield effect
+
+
+@register_monochromatic_effect(
     "random",
     RandomLightEffect,
     "Random",

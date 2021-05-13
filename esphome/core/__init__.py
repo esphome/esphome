@@ -16,13 +16,14 @@ from esphome.const import (
     CONF_COMMENT,
     CONF_ESPHOME,
     CONF_USE_ADDRESS,
+    CONF_ETHERNET,
     CONF_WIFI,
 )
 from esphome.helpers import ensure_unique_string, is_hassio
 from esphome.util import OrderedDict
 
 if TYPE_CHECKING:
-    from .cpp_generator import MockObj, MockObjClass, Statement
+    from ..cpp_generator import MockObj, MockObjClass, Statement
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -580,8 +581,8 @@ class EsphomeCore:
         if "wifi" in self.config:
             return self.config[CONF_WIFI][CONF_USE_ADDRESS]
 
-        if "ethernet" in self.config:
-            return self.config["ethernet"][CONF_USE_ADDRESS]
+        if CONF_ETHERNET in self.config:
+            return self.config[CONF_ETHERNET][CONF_USE_ADDRESS]
 
         return None
 
