@@ -27,8 +27,10 @@ void UARTMulti::loop() {
 }
 
 void UARTMulti::update() {
-  this->devices_[this->update_token_]->send_update();
-  this->update_token_ = (this->update_token_ + 1) % this->devices_.size();
+  if (this->ready_to_tx) {
+    this->devices_[this->update_token_]->send_update();
+    this->update_token_ = (this->update_token_ + 1) % this->devices_.size();
+  }
 }
 
 void UARTMulti::dump_config() {
