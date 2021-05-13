@@ -1,0 +1,9 @@
+esphome:
+  name: pulsecounter8266
+  platform: ESP8266
+  board: nodemcuv2
+
+sensor:
+  - platform: interrupt_pulse_counter
+    pin: 1
+    name: "PC1"

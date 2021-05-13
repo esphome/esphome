@@ -18,8 +18,8 @@ from esphome.const import (
 )
 from esphome.core import CORE
 
-pulse_counter_ns = cg.esphome_ns.namespace("interrupt_pulse_counter")
-PulseCounterCountMode = pulse_counter_ns.enum("PulseCounterCountMode")
+interrupt_pulse_counter_ns = cg.esphome_ns.namespace("interrupt_pulse_counter")
+PulseCounterCountMode = interrupt_pulse_counter_ns.enum("PulseCounterCountMode")
 COUNT_MODES = {
     "DISABLE": PulseCounterCountMode.PULSE_COUNTER_DISABLE,
     "INCREMENT": PulseCounterCountMode.PULSE_COUNTER_INCREMENT,
@@ -28,7 +28,7 @@ COUNT_MODES = {
 
 COUNT_MODE_SCHEMA = cv.enum(COUNT_MODES, upper=True)
 
-PulseCounterSensor = pulse_counter_ns.class_(
+InterruptPulseCounterSensor = interrupt_pulse_counter_ns.class_(
     "InterruptPulseCounterSensor", sensor.Sensor, cg.PollingComponent
 )
 
@@ -62,7 +62,7 @@ CONFIG_SCHEMA = (
     sensor.sensor_schema(UNIT_PULSES_PER_MINUTE, ICON_PULSE, 2, DEVICE_CLASS_EMPTY)
     .extend(
         {
-            cv.GenerateID(): cv.declare_id(PulseCounterSensor),
+            cv.GenerateID(): cv.declare_id(InterruptPulseCounterSensor),
             cv.Required(CONF_PIN): validate_pulse_counter_pin,
             cv.Optional(
                 CONF_COUNT_MODE,
