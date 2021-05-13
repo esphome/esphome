@@ -150,7 +150,7 @@ void GM40::process_status_() {
     float pos = clamp((float) (100 - this->rx_buffer_[11]) / 100, 0.0f, 1.0f);
     if (this->position != pos) {
       this->position = pos;
-      if (pos == this->target_position_)
+      if ((pos >= clamp(this->target_position_ - 0.03, 0.0f, 1.0f)) && (pos <= clamp(this->target_position_ + 0.03, 0.0f, 1.0f)))
         this->current_operation = COVER_OPERATION_IDLE;
       this->publish_state(false);
     }
