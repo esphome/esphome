@@ -48,7 +48,23 @@ void ESP32BLETracker::setup() {
 }
 
 void ESP32BLETracker::loop() {
-  if (xSemaphoreTake(this->scan_end_lock_, 0L)) {
+  BLEEvent *ble_event = this->ble_events_.pop();
+  while (ble_event != nullptr) {
+    if (ble_event->type_)
+      this->real_gattc_event_handler(ble_event->event_.gattc.gattc_event, ble_event->event_.gattc.gattc_if,
+                                     &ble_event->event_.gattc.gattc_param);
+    else
+      this->real_gap_event_handler(ble_event->event_.gap.gap_event, &ble_event->event_.gap.gap_param);
+    delete ble_event;
+    ble_event = this->ble_events_.pop();
+  }
+
+  bool connecting = false;
+  for (auto *client : this->clients_) {
+    if (client->state() == ClientState::Connecting || client->state() == ClientState::Discovered)
+      connecting = true;
+  }
+  if (!connecting && xSemaphoreTake(this->scan_end_lock_, 0L)) {
     xSemaphoreGive(this->scan_end_lock_);
     global_esp32_ble_tracker->start_scan(false);
   }
@@ -68,6 +84,17 @@ void ESP32BLETracker::loop() {
       for (auto *listener : this->listeners_)
         if (listener->parse_device(device))
           found = true;
+
+      for (auto *client : this->clients_)
+        if (client->parse_device(device)) {
+          found = true;
+          if (client->state() == ClientState::Discovered) {
+            esp_ble_gap_stop_scanning();
+            if (xSemaphoreTake(this->scan_end_lock_, 10L / portTICK_PERIOD_MS)) {
+              xSemaphoreGive(this->scan_end_lock_);
+            }
+          }
+        }
 
       if (!found) {
         this->print_bt_device_info(device);
@@ -122,6 +149,11 @@ bool ESP32BLETracker::ble_setup() {
     ESP_LOGE(TAG, "esp_ble_gap_register_callback failed: %d", err);
     return false;
   }
+  err = esp_ble_gattc_register_callback(ESP32BLETracker::gattc_event_handler);
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "esp_ble_gattc_register_callback failed: %d", err);
+    return false;
+  }
 
   // Empty name
   esp_ble_gap_set_device_name("");
@@ -166,7 +198,17 @@ void ESP32BLETracker::start_scan(bool first) {
   });
 }
 
+void ESP32BLETracker::register_client(ESPBTClient *client) {
+  client->app_id = ++this->app_id_;
+  this->clients_.push_back(client);
+}
+
 void ESP32BLETracker::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) {
+  BLEEvent *gap_event = new BLEEvent(event, param);
+  global_esp32_ble_tracker->ble_events_.push(gap_event);
+}
+
+void ESP32BLETracker::real_gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) {
   switch (event) {
     case ESP_GAP_BLE_SCAN_RESULT_EVT:
       global_esp32_ble_tracker->gap_scan_result(param->scan_rst);
@@ -176,6 +218,9 @@ void ESP32BLETracker::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_ga
       break;
     case ESP_GAP_BLE_SCAN_START_COMPLETE_EVT:
       global_esp32_ble_tracker->gap_scan_start_complete(param->scan_start_cmpl);
+      break;
+    case ESP_GAP_BLE_SCAN_STOP_COMPLETE_EVT:
+      global_esp32_ble_tracker->gap_scan_stop_complete(param->scan_stop_cmpl);
       break;
     default:
       break;
@@ -190,6 +235,10 @@ void ESP32BLETracker::gap_scan_start_complete(const esp_ble_gap_cb_param_t::ble_
   this->scan_start_failed_ = param.status;
 }
 
+void ESP32BLETracker::gap_scan_stop_complete(const esp_ble_gap_cb_param_t::ble_scan_stop_cmpl_evt_param &param) {
+  xSemaphoreGive(this->scan_end_lock_);
+}
+
 void ESP32BLETracker::gap_scan_result(const esp_ble_gap_cb_param_t::ble_scan_result_evt_param &param) {
   if (param.search_evt == ESP_GAP_SEARCH_INQ_RES_EVT) {
     if (xSemaphoreTake(this->scan_result_lock_, 0L)) {
@@ -200,6 +249,19 @@ void ESP32BLETracker::gap_scan_result(const esp_ble_gap_cb_param_t::ble_scan_res
     }
   } else if (param.search_evt == ESP_GAP_SEARCH_INQ_CMPL_EVT) {
     xSemaphoreGive(this->scan_end_lock_);
+  }
+}
+
+void ESP32BLETracker::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
+                                          esp_ble_gattc_cb_param_t *param) {
+  BLEEvent *gattc_event = new BLEEvent(event, gattc_if, param);
+  global_esp32_ble_tracker->ble_events_.push(gattc_event);
+}
+
+void ESP32BLETracker::real_gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
+                                               esp_ble_gattc_cb_param_t *param) {
+  for (auto *client : global_esp32_ble_tracker->clients_) {
+    client->gattc_event_handler(event, gattc_if, param);
   }
 }
 
@@ -221,6 +283,15 @@ ESPBTUUID ESPBTUUID::from_raw(const uint8_t *data) {
   ret.uuid_.len = ESP_UUID_LEN_128;
   for (size_t i = 0; i < ESP_UUID_LEN_128; i++)
     ret.uuid_.uuid.uuid128[i] = data[i];
+  return ret;
+}
+ESPBTUUID ESPBTUUID::from_uuid(esp_bt_uuid_t uuid) {
+  ESPBTUUID ret;
+  ret.uuid_.len = uuid.len;
+  ret.uuid_.uuid.uuid16 = uuid.uuid.uuid16;
+  ret.uuid_.uuid.uuid32 = uuid.uuid.uuid32;
+  for (size_t i = 0; i < ESP_UUID_LEN_128; i++)
+    ret.uuid_.uuid.uuid128[i] = uuid.uuid.uuid128[i];
   return ret;
 }
 ESPBTUUID ESPBTUUID::as_128bit() const {
@@ -289,16 +360,21 @@ std::string ESPBTUUID::to_string() {
   char sbuf[64];
   switch (this->uuid_.len) {
     case ESP_UUID_LEN_16:
-      sprintf(sbuf, "%02X:%02X", this->uuid_.uuid.uuid16 >> 8, this->uuid_.uuid.uuid16 & 0xff);
+      sprintf(sbuf, "0x%02X%02X", this->uuid_.uuid.uuid16 >> 8, this->uuid_.uuid.uuid16 & 0xff);
       break;
     case ESP_UUID_LEN_32:
-      sprintf(sbuf, "%02X:%02X:%02X:%02X", this->uuid_.uuid.uuid32 >> 24, (this->uuid_.uuid.uuid32 >> 16 & 0xff),
+      sprintf(sbuf, "0x%02X%02X%02X%02X", this->uuid_.uuid.uuid32 >> 24, (this->uuid_.uuid.uuid32 >> 16 & 0xff),
               (this->uuid_.uuid.uuid32 >> 8 & 0xff), this->uuid_.uuid.uuid32 & 0xff);
       break;
     default:
     case ESP_UUID_LEN_128:
-      for (uint8_t i = 0; i < 16; i++)
-        sprintf(sbuf + i * 3, "%02X:", this->uuid_.uuid.uuid128[i]);
+      char *bpos = sbuf;
+      for (int8_t i = 15; i >= 0; i--) {
+        sprintf(bpos, "%02X", this->uuid_.uuid.uuid128[i]);
+        bpos += 2;
+        if (i == 3 || i == 5 || i == 7 || i == 9)
+          sprintf(bpos++, "-");
+      }
       sbuf[47] = '\0';
       break;
   }

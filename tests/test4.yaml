@@ -160,3 +160,9 @@ display:
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
 
+external_components:
+  - source: github://esphome/esphome@dev
+    refresh: 1d
+    components: ["bh1750"]
+  - source: ../esphome/components
+    components: ["sntp"]

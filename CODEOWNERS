@@ -21,6 +21,7 @@ esphome/components/atc_mithermometer/* @ahpohl
 esphome/components/b_parasite/* @rbaron
 esphome/components/bang_bang/* @OttoWinter
 esphome/components/binary_sensor/* @esphome/core
+esphome/components/ble_client/* @buxtronix
 esphome/components/bme680_bsec/* @trvrnrth
 esphome/components/canbus/* @danielschramm @mvturnho
 esphome/components/captive_portal/* @OttoWinter
@@ -62,6 +63,7 @@ esphome/components/mcp2515/* @danielschramm @mvturnho
 esphome/components/mcp9808/* @k7hpn
 esphome/components/midea_ac/* @dudanov
 esphome/components/midea_dongle/* @dudanov
+esphome/components/mitsubishi/* @RubyBailey
 esphome/components/network/* @esphome/core
 esphome/components/nfc/* @jesserockz
 esphome/components/ota/* @esphome/core
@@ -84,6 +86,7 @@ esphome/components/sgp40/* @SenexCrenshaw
 esphome/components/sht4x/* @sjtrny
 esphome/components/shutdown/* @esphome/core
 esphome/components/sim800l/* @glmnet
+esphome/components/sm2135/* @BoukeHaarsma23
 esphome/components/spi/* @esphome/core
 esphome/components/ssd1322_base/* @kbx81
 esphome/components/ssd1322_spi/* @kbx81

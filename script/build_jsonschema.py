@@ -62,7 +62,7 @@ def add_definition_array_or_single_object(ref):
 
 
 def add_core():
-    from esphome.core_config import CONFIG_SCHEMA
+    from esphome.core.config import CONFIG_SCHEMA
 
     base_props["esphome"] = get_jschema("esphome", CONFIG_SCHEMA.schema)
 
