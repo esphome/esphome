@@ -17,8 +17,8 @@ void UARTMulti::loop() {
     this->ready_to_tx = true;
   }
   if (this->ready_to_tx) {
-    this->devices_[this->update_token_].send_update();
-    this->update_token_++ % this->devices_.size();
+    this->devices_[this->update_token_]->send_update();
+    this->update_token_ = (this->update_token_ + 1) % this->devices_.size();
     if (!this->tx_buffer_.empty()) {
       this->write_array(this->tx_buffer_.front());
       this->tx_buffer_.pop();
