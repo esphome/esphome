@@ -135,7 +135,7 @@ void MideaAC::control(const climate::ClimateCall &call) {
     this->ctrl_request_ = true;
   }
   if (call.get_custom_fan_mode().has_value() &&
-      (!this->custom_fan_mode.has_value() || this->custom_fan_mode.value() == call.get_custom_fan_mode().value())) {
+      (!this->custom_fan_mode.has_value() || this->custom_fan_mode.value() != call.get_custom_fan_mode().value())) {
     this->fan_mode.reset();
     this->cmd_frame_.set_custom_fan_mode(call.get_custom_fan_mode().value());
     this->ctrl_request_ = true;
@@ -151,7 +151,7 @@ void MideaAC::control(const climate::ClimateCall &call) {
     this->ctrl_request_ = true;
   }
   if (call.get_custom_preset().has_value() && this->allow_custom_preset(call.get_custom_preset().value()) &&
-      (!this->custom_preset.has_value() || this->custom_preset.value() == call.get_custom_preset().value())) {
+      (!this->custom_preset.has_value() || this->custom_preset.value() != call.get_custom_preset().value())) {
     this->preset.reset();
     this->cmd_frame_.set_custom_preset(call.get_custom_preset().value());
     this->ctrl_request_ = true;

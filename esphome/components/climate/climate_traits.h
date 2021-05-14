@@ -67,7 +67,7 @@ class ClimateTraits {
   bool supports_fan_mode(ClimateFanMode fan_mode) const;
   bool get_supports_fan_modes() const;
   void set_supported_custom_fan_modes(std::vector<std::string> &supported_custom_fan_modes);
-  const std::vector<std::string> &get_supported_custom_fan_modes() const;
+  const std::vector<std::string> get_supported_custom_fan_modes() const;
   bool supports_custom_fan_mode(std::string &custom_fan_mode) const;
   bool supports_preset(ClimatePreset preset) const;
   void set_supports_preset_eco(bool supports_preset_eco);
@@ -79,7 +79,7 @@ class ClimateTraits {
   void set_supports_preset_activity(bool supports_preset_activity);
   bool get_supports_presets() const;
   void set_supported_custom_presets(std::vector<std::string> &supported_custom_presets);
-  const std::vector<std::string> &get_supported_custom_presets() const;
+  const std::vector<std::string> get_supported_custom_presets() const;
   bool supports_custom_preset(std::string &custom_preset) const;
   void set_supports_swing_mode_off(bool supports_swing_mode_off);
   void set_supports_swing_mode_both(bool supports_swing_mode_both);
