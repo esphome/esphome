@@ -20,4 +20,3 @@ def to_code(config):
     evse = yield cg.get_variable(config[CONF_SIMPLEEVSE_ID])
     var = cg.new_Pvariable(config[CONF_ID], evse)
     yield switch.register_switch(var, config)
-
