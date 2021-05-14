@@ -138,7 +138,7 @@ def add_module_schemas(name, module):
 
 
 def get_dirs():
-    from esphome.config import CORE_COMPONENTS_PATH
+    from esphome.loader import CORE_COMPONENTS_PATH
 
     dir_names = [
         d
@@ -150,7 +150,7 @@ def get_dirs():
 
 
 def get_logger_tags():
-    from esphome.config import CORE_COMPONENTS_PATH
+    from esphome.loader import CORE_COMPONENTS_PATH
     import glob
 
     pattern = re.compile(r'^static const char(\*\s|\s\*)TAG = "(\w.*)";', re.MULTILINE)
@@ -245,7 +245,7 @@ def add_components():
 
             elif c.config_schema is not None:
                 # adds root components which are not platforms, e.g. api: logger:
-                if c.is_multi_conf:
+                if c.multi_conf:
                     schema = get_jschema(domain, c.config_schema)
                     schema = add_definition_array_or_single_object(schema)
                 else:
