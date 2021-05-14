@@ -179,7 +179,7 @@ ClimateCall &ClimateCall::set_fan_mode(const std::string &fan_mode) {
   } else if (str_equals_case_insensitive(fan_mode, "DIFFUSE")) {
     this->set_fan_mode(CLIMATE_FAN_DIFFUSE);
   } else {
-    std::vector<std::string> custom_fan_modes = this->parent_->get_traits().get_supported_custom_fan_modes();
+    auto &custom_fan_modes = this->parent_->get_traits().get_supported_custom_fan_modes();
     if (std::find(custom_fan_modes.begin(), custom_fan_modes.end(), fan_mode) != custom_fan_modes.end()) {
       this->custom_fan_mode_ = fan_mode;
       this->fan_mode_.reset();
@@ -210,7 +210,7 @@ ClimateCall &ClimateCall::set_preset(const std::string &preset) {
   } else if (str_equals_case_insensitive(preset, "ACTIVITY")) {
     this->set_preset(CLIMATE_PRESET_ACTIVITY);
   } else {
-    std::vector<std::string> custom_presets = this->parent_->get_traits().get_supported_custom_presets();
+    auto &custom_presets = this->parent_->get_traits().get_supported_custom_presets();
     if (std::find(custom_presets.begin(), custom_presets.end(), preset) != custom_presets.end()) {
       this->custom_preset_ = preset;
       this->preset_.reset();
@@ -333,7 +333,7 @@ void Climate::save_state_() {
   }
   if (!traits.get_supported_custom_fan_modes().empty() && custom_fan_mode.has_value()) {
     state.uses_custom_fan_mode = true;
-    auto custom_fan_modes = traits.get_supported_custom_fan_modes();
+    auto &custom_fan_modes = traits.get_supported_custom_fan_modes();
     auto it = std::find(custom_fan_modes.begin(), custom_fan_modes.end(), this->custom_fan_mode.value());
     // only set custom fan mode if value exists, otherwise leave it as is
     if (it != custom_fan_modes.cend()) {
@@ -346,7 +346,7 @@ void Climate::save_state_() {
   }
   if (!traits.get_supported_custom_presets().empty() && custom_preset.has_value()) {
     state.uses_custom_preset = true;
-    auto custom_presets = traits.get_supported_custom_presets();
+    auto &custom_presets = traits.get_supported_custom_presets();
     auto it = std::find(custom_presets.begin(), custom_presets.end(), this->custom_preset.value());
     // only set custom preset if value exists, otherwise leave it as is
     if (it != custom_presets.cend()) {
