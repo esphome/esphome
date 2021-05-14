@@ -2,7 +2,12 @@ from esphome.components import climate, sensor
 import esphome.config_validation as cv
 import esphome.codegen as cg
 from esphome.const import (
+    CONF_CUSTOM_FAN_MODES,
+    CONF_CUSTOM_PRESETS,
     CONF_ID,
+    CONF_PRESET_BOOST,
+    CONF_PRESET_ECO,
+    CONF_PRESET_SLEEP,
     UNIT_CELSIUS,
     UNIT_PERCENT,
     UNIT_WATT,
@@ -17,16 +22,10 @@ from esphome.components.midea_dongle import CONF_MIDEA_DONGLE_ID, MideaDongle
 
 AUTO_LOAD = ["climate", "sensor", "midea_dongle"]
 CODEOWNERS = ["@dudanov"]
-
 CONF_BEEPER = "beeper"
-CONF_CUSTOM_FAN_MODES = "custom_fan_modes"
-CONF_CUSTOM_PRESETS = "custom_presets"
 CONF_SWING_HORIZONTAL = "swing_horizontal"
 CONF_SWING_BOTH = "swing_both"
 CONF_OUTDOOR_TEMPERATURE = "outdoor_temperature"
-CONF_PRESET_ECO = "preset_eco"
-CONF_PRESET_SLEEP = "preset_sleep"
-CONF_PRESET_BOOST = "preset_boost"
 CONF_POWER_USAGE = "power_usage"
 CONF_HUMIDITY_SETPOINT = "humidity_setpoint"
 midea_ac_ns = cg.esphome_ns.namespace("midea_ac")
