@@ -1012,6 +1012,10 @@ jQuery.validator.addMethod("nospaces", (value, element) => {
   return value.indexOf(' ') < 0;
 }, "Name cannot contain any spaces!");
 
+jQuery.validator.addMethod("nounderscores", (value, element) => {
+  return value.indexOf('_') < 0;
+}, "Name cannot contain underscores!");
+
 jQuery.validator.addMethod("lowercase", (value, element) => {
   return value === value.toLowerCase();
 }, "Name must be all lower case!");

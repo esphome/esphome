@@ -9,6 +9,9 @@
 #ifdef USE_HOMEASSISTANT_TIME
 #include "esphome/components/homeassistant/time/homeassistant_time.h"
 #endif
+#ifdef USE_FAN
+#include "esphome/components/fan/fan_helpers.h"
+#endif
 
 namespace esphome {
 namespace api {
@@ -246,8 +249,10 @@ bool APIConnection::send_fan_state(fan::FanState *fan) {
   resp.state = fan->state;
   if (traits.supports_oscillation())
     resp.oscillating = fan->oscillating;
-  if (traits.supports_speed())
-    resp.speed = static_cast<enums::FanSpeed>(fan->speed);
+  if (traits.supports_speed()) {
+    resp.speed_level = fan->speed;
+    resp.speed = static_cast<enums::FanSpeed>(fan::speed_level_to_enum(fan->speed, traits.supported_speed_count()));
+  }
   if (traits.supports_direction())
     resp.direction = static_cast<enums::FanDirection>(fan->direction);
   return this->send_fan_state_response(resp);
@@ -262,6 +267,7 @@ bool APIConnection::send_fan_info(fan::FanState *fan) {
   msg.supports_oscillation = traits.supports_oscillation();
   msg.supports_speed = traits.supports_speed();
   msg.supports_direction = traits.supports_direction();
+  msg.supported_speed_count = traits.supported_speed_count();
   return this->send_list_entities_fan_response(msg);
 }
 void APIConnection::fan_command(const FanCommandRequest &msg) {
@@ -269,13 +275,19 @@ void APIConnection::fan_command(const FanCommandRequest &msg) {
   if (fan == nullptr)
     return;
 
+  auto traits = fan->get_traits();
+
   auto call = fan->make_call();
   if (msg.has_state)
     call.set_state(msg.state);
   if (msg.has_oscillating)
     call.set_oscillating(msg.oscillating);
-  if (msg.has_speed)
-    call.set_speed(static_cast<fan::FanSpeed>(msg.speed));
+  if (msg.has_speed_level) {
+    // Prefer level
+    call.set_speed(msg.speed_level);
+  } else if (msg.has_speed) {
+    call.set_speed(fan::speed_enum_to_level(static_cast<fan::FanSpeed>(msg.speed), traits.supported_speed_count()));
+  }
   if (msg.has_direction)
     call.set_direction(static_cast<fan::FanDirection>(msg.direction));
   call.perform();
@@ -382,6 +394,7 @@ bool APIConnection::send_sensor_info(sensor::Sensor *sensor) {
   msg.unit_of_measurement = sensor->get_unit_of_measurement();
   msg.accuracy_decimals = sensor->get_accuracy_decimals();
   msg.force_update = sensor->get_force_update();
+  msg.device_class = sensor->get_device_class();
   return this->send_list_entities_sensor_response(msg);
 }
 #endif
@@ -589,7 +602,7 @@ HelloResponse APIConnection::hello(const HelloRequest &msg) {
 
   HelloResponse resp;
   resp.api_version_major = 1;
-  resp.api_version_minor = 3;
+  resp.api_version_minor = 4;
   resp.server_info = App.get_name() + " (esphome v" ESPHOME_VERSION ")";
   this->connection_state_ = ConnectionState::CONNECTED;
   return resp;
@@ -676,8 +689,10 @@ bool APIConnection::send_buffer(ProtoWriteBuffer buffer, uint32_t message_type) 
     }
   }
 
-  this->client_->add(reinterpret_cast<char *>(header.data()), header.size());
-  this->client_->add(reinterpret_cast<char *>(buffer.get_buffer()->data()), buffer.get_buffer()->size());
+  this->client_->add(reinterpret_cast<char *>(header.data()), header.size(),
+                     ASYNC_WRITE_FLAG_COPY | ASYNC_WRITE_FLAG_MORE);
+  this->client_->add(reinterpret_cast<char *>(buffer.get_buffer()->data()), buffer.get_buffer()->size(),
+                     ASYNC_WRITE_FLAG_COPY);
   bool ret = this->client_->send();
   return ret;
 }

@@ -177,6 +177,26 @@ api:
             kp: 1.0
             kd: 1.0
             ki: 1.0
+    - service: fingerprint_grow_enroll
+      variables:
+        finger_id: int
+        num_scans: int
+      then:
+        - fingerprint_grow.enroll:
+            finger_id: !lambda 'return finger_id;'
+            num_scans: !lambda 'return num_scans;'
+    - service: fingerprint_grow_cancel_enroll
+      then:
+        - fingerprint_grow.cancel_enroll:
+    - service: fingerprint_grow_delete
+      variables:
+        finger_id: int
+      then:
+        - fingerprint_grow.delete:
+            finger_id: !lambda 'return finger_id;'
+    - service: fingerprint_grow_delete_all
+      then:
+        - fingerprint_grow.delete_all:
 
 wifi:
   ssid: 'MySSID'
@@ -194,10 +214,6 @@ spi:
 
 uart:
   - tx_pin: GPIO1
-    rx_pin: GPIO3
-    baud_rate: 115200
-
-  - id: adalight_uart
     rx_pin: GPIO3
     baud_rate: 115200
 
@@ -229,6 +245,8 @@ sensor:
     name: 'VL53L0x Distance'
     address: 0x29
     update_interval: 60s
+    enable_pin: GPIO13
+    timeout: 200us
   - platform: apds9960
     type: clear
     name: APDS9960 Clear
@@ -426,6 +444,22 @@ sensor:
     id: ph_ezo
     address: 99
     unit_of_measurement: 'pH'
+  - platform: tof10120
+    name: "Distance sensor"
+    update_interval: 5s
+  - platform: fingerprint_grow
+    fingerprint_count:
+      name: "Fingerprint Count"
+    status:
+      name: "Fingerprint Status"
+    capacity:
+      name: "Fingerprint Capacity"
+    security_level:
+      name: "Fingerprint Security Level"
+    last_finger_id:
+      name: "Fingerprint Last Finger ID"
+    last_confidence:
+      name: "Fingerprint Last Confidence"
   - platform: sdm220m
     current:
       name: 'Current'
@@ -513,6 +547,8 @@ binary_sensor:
   - platform: ttp229_bsf
     channel: 1
     name: TTP229 BSF Test
+  - platform: fingerprint_grow
+    name: "Fingerprint Enrolling"
   - platform: custom
     lambda: |-
       auto s = new CustomBinarySensor();
@@ -575,6 +611,10 @@ script:
     then:
       - lambda: 'ESP_LOGD("main", "Hello World!");'
 
+sm2135:
+  data_pin: GPIO12
+  clock_pin: GPIO14
+
 switch:
   - platform: template
     name: 'mpr121_toggle'
@@ -583,14 +623,14 @@ switch:
   - platform: gpio
     id: gpio_switch1
     pin:
-      mcp23017: mcp23017_hub
+      mcp23xxx: mcp23017_hub
       number: 0
       mode: OUTPUT
     interlock: &interlock [gpio_switch1, gpio_switch2, gpio_switch3]
   - platform: gpio
     id: gpio_switch2
     pin:
-      mcp23008: mcp23008_hub
+      mcp23xxx: mcp23008_hub
       number: 0
       mode: OUTPUT
     interlock: *interlock
@@ -817,6 +857,21 @@ output:
     pin: GPIO5
     id: my_slow_pwm
     period: 15s
+  - platform: sm2135
+    id: sm2135_0
+    channel: 0
+  - platform: sm2135
+    id: sm2135_1
+    channel: 1
+  - platform: sm2135
+    id: sm2135_2
+    channel: 2
+  - platform: sm2135
+    id: sm2135_3
+    channel: 3
+  - platform: sm2135
+    id: sm2135_4
+    channel: 4
 
 mcp23017:
   id: mcp23017_hub
@@ -837,7 +892,6 @@ light:
     effects:
       - wled:
       - adalight:
-          uart_id: adalight_uart
       - e131:
           universe: 1
   - platform: hbridge
@@ -866,6 +920,8 @@ sim800l:
         str = message;
     - sim800l.send_sms:
         message: 'hello you'
+        recipient: '+1234'
+    - sim800l.dial:
         recipient: '+1234'
 
 dfplayer:
@@ -911,6 +967,25 @@ rf_bridge:
         code: 'ABC123'
     - rf_bridge.send_raw:
         raw: 'AAA5070008001000ABC12355'
+    - http_request.get:
+        url: https://esphome.io
+        headers:
+          Content-Type: application/json
+        verify_ssl: false
+    - http_request.post:
+        url: https://esphome.io
+        verify_ssl: false
+        json:
+          key: !lambda |-
+            return id(version_sensor).state;
+          greeting: 'Hello World'
+    - http_request.send:
+        method: PUT
+        url: https://esphome.io
+        headers:
+          Content-Type: application/json
+        body: 'Some data'
+        verify_ssl: false
 
 display:
   - platform: max7219digit
@@ -922,3 +997,37 @@ display:
     id: my_matrix
     lambda: |-
       it.printdigit("hello");
+
+http_request:
+  useragent: esphome/device
+  timeout: 10s
+
+fingerprint_grow:
+  sensing_pin: 4
+  password: 0x12FE37DC
+  new_password: 0xA65B9840
+  on_finger_scan_matched:
+    - homeassistant.event:
+        event: esphome.${devicename}_fingerprint_grow_finger_scan_matched
+        data:
+          finger_id: !lambda 'return finger_id;'
+          confidence: !lambda 'return confidence;'
+  on_finger_scan_unmatched:
+    - homeassistant.event:
+        event: esphome.${devicename}_fingerprint_grow_finger_scan_unmatched
+  on_enrollment_scan:
+    - homeassistant.event:
+        event: esphome.${devicename}_fingerprint_grow_enrollment_scan
+        data:
+          finger_id: !lambda 'return finger_id;'
+          scan_num: !lambda 'return scan_num;'
+  on_enrollment_done:
+    - homeassistant.event:
+        event: esphome.${devicename}_fingerprint_grow_node_enrollment_done
+        data:
+          finger_id: !lambda 'return finger_id;'
+  on_enrollment_failed:
+    - homeassistant.event:
+        event: esphome.${devicename}_fingerprint_grow_enrollment_failed
+        data:
+          finger_id: !lambda 'return finger_id;'
