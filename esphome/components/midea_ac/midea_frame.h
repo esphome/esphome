@@ -95,19 +95,19 @@ class PropertiesFrame : public midea_dongle::BaseFrame {
 
   /* ECO MODE */
   bool get_eco_mode() const { return this->pbuf_[19] & 0x10; }
-  void set_eco_mode(bool state) { this->set_bytemask_(19, 0x80, state); };
+  void set_eco_mode(bool state) { this->set_bytemask_(19, 0x80, state); }
 
   /* SLEEP MODE */
   bool get_sleep_mode() const { return this->pbuf_[20] & 0x01; }
-  void set_sleep_mode(bool state) { this->set_bytemask_(20, 0x01, state); };
+  void set_sleep_mode(bool state) { this->set_bytemask_(20, 0x01, state); }
 
   /* TURBO MODE */
   bool get_turbo_mode() const { return this->pbuf_[18] & 0x20; }
-  void set_turbo_mode(bool state) { this->set_bytemask_(18, 0x20, state); };
+  void set_turbo_mode(bool state) { this->set_bytemask_(18, 0x20, state); }
 
   /* FREEZE PROTECTION */
   bool get_freeze_protection_mode() const { return this->pbuf_[31] & 0x80; }
-  void set_freeze_protection_mode(bool state) { this->set_bytemask_(31, 0x80, state); };
+  void set_freeze_protection_mode(bool state) { this->set_bytemask_(31, 0x80, state); }
 
   /* PRESET */
   optional<climate::ClimatePreset> get_preset() const;
