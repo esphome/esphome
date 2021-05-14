@@ -61,11 +61,13 @@ void ClimateCall::validate_() {
     auto custom_fan_mode = *this->custom_fan_mode_;
     if (!traits.supports_custom_fan_mode(custom_fan_mode)) {
       ESP_LOGW(TAG, "  Fan Mode %s is not supported by this device!", custom_fan_mode.c_str());
+      this->custom_fan_mode_.reset();
     }
   } else if (this->fan_mode_.has_value()) {
     auto fan_mode = *this->fan_mode_;
     if (!traits.supports_fan_mode(fan_mode)) {
       ESP_LOGW(TAG, "  Fan Mode %s is not supported by this device!", climate_fan_mode_to_string(fan_mode));
+      this->fan_mode_.reset();
     }
   }
   if (this->custom_preset_.has_value()) {
