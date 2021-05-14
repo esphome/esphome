@@ -155,7 +155,6 @@ display:
       it.rectangle(3, 3, it.get_width()-6, it.get_height()-6, red);
     rotation: 0°
     update_interval: 16ms
-<<<<<<< HEAD
   - platform: waveshare_epaper
     cs_pin: GPIO23
     dc_pin: GPIO23
@@ -183,13 +182,17 @@ display:
     full_update_every: 30
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
+<<<<<<< HEAD
 
+=======
+>>>>>>> bc63a7ae... Add back test
 external_components:
   - source: github://esphome/esphome@dev
     refresh: 1d
     components: ["bh1750"]
   - source: ../esphome/components
     components: ["sntp"]
+<<<<<<< HEAD
 xpt2046:
   id: touchscreen
   cs_pin: 17
@@ -217,3 +220,5 @@ xpt2046:
             );
 =======
 >>>>>>> df716a42... Fix test
+=======
+>>>>>>> bc63a7ae... Add back test
