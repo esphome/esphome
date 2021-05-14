@@ -1,6 +1,6 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome import pins
+from esphome import automation, pins
 from esphome.components import sensor
 from esphome.const import (
     CONF_ID,
@@ -9,6 +9,7 @@ from esphome.const import (
     CONF_NUMBER,
     CONF_TIMEOUT,
     CONF_TOTAL,
+    CONF_VALUE,
     ICON_PULSE,
     UNIT_PULSES,
     UNIT_PULSES_PER_MINUTE,
@@ -23,6 +24,8 @@ pulse_meter_ns = cg.esphome_ns.namespace("pulse_meter")
 PulseMeterSensor = pulse_meter_ns.class_(
     "PulseMeterSensor", sensor.Sensor, cg.Component
 )
+
+SetTotalPulsesAction = pulse_meter_ns.class_("SetTotalPulsesAction", automation.Action)
 
 
 def validate_internal_filter(value):
@@ -73,3 +76,21 @@ def to_code(config):
     if CONF_TOTAL in config:
         sens = yield sensor.new_sensor(config[CONF_TOTAL])
         cg.add(var.set_total_sensor(sens))
+
+
+@automation.register_action(
+    "pulse_meter.set_total_pulses",
+    SetTotalPulsesAction,
+    cv.Schema(
+        {
+            cv.Required(CONF_ID): cv.use_id(PulseMeterSensor),
+            cv.Required(CONF_VALUE): cv.templatable(cv.uint32_t),
+        }
+    ),
+)
+def set_total_action_to_code(config, action_id, template_arg, args):
+    paren = yield cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, paren)
+    template_ = yield cg.templatable(config[CONF_VALUE], args, int)
+    cg.add(var.set_total_pulses(template_))
+    yield var
