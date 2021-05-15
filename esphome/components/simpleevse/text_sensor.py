@@ -2,31 +2,35 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import text_sensor, simpleevse
 from esphome.const import CONF_ID
-from . import simpleevse_ns
+from . import simpleevse_ns, CONF_SIMPLEEVSE_ID
 
-DEPENDENCIES = ['simpleevse']
-AUTO_LOAD = ['text_sensor']
+DEPENDENCIES = ["simpleevse"]
 
-CONF_SIMPLEEVSE_ID = 'simpleevse_id'
-CONF_VEHICLE_STATE = 'vehicle_state'
-CONF_EVSE_STATE = 'evse_state'
+CONF_VEHICLE_STATE = "vehicle_state"
+CONF_EVSE_STATE = "evse_state"
 
-SimpleEvseTextSensors =  simpleevse_ns.class_('SimpleEvseTextSensors')
+SimpleEvseTextSensors = simpleevse_ns.class_("SimpleEvseTextSensors")
 
 # Schema
-vehicle_state_schema = text_sensor.TEXT_SENSOR_SCHEMA.extend({
-    cv.GenerateID(): cv.declare_id(text_sensor.TextSensor),
-})
-evse_state_schema = text_sensor.TEXT_SENSOR_SCHEMA.extend({
-    cv.GenerateID(): cv.declare_id(text_sensor.TextSensor),
-})
+vehicle_state_schema = text_sensor.TEXT_SENSOR_SCHEMA.extend(
+    {
+        cv.GenerateID(): cv.declare_id(text_sensor.TextSensor),
+    }
+)
+evse_state_schema = text_sensor.TEXT_SENSOR_SCHEMA.extend(
+    {
+        cv.GenerateID(): cv.declare_id(text_sensor.TextSensor),
+    }
+)
 
-CONFIG_SCHEMA = cv.Schema({
-    cv.GenerateID(): cv.declare_id(SimpleEvseTextSensors),
-    cv.GenerateID(CONF_SIMPLEEVSE_ID): cv.use_id(simpleevse.SimpleEvseComponent),
-    cv.Optional(CONF_VEHICLE_STATE): vehicle_state_schema,
-    cv.Optional(CONF_EVSE_STATE): evse_state_schema,
-})
+CONFIG_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.declare_id(SimpleEvseTextSensors),
+        cv.GenerateID(CONF_SIMPLEEVSE_ID): cv.use_id(simpleevse.SimpleEvseComponent),
+        cv.Optional(CONF_VEHICLE_STATE): vehicle_state_schema,
+        cv.Optional(CONF_EVSE_STATE): evse_state_schema,
+    }
+)
 
 
 def to_code(config):

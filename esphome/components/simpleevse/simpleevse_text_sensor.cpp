@@ -4,10 +4,9 @@
 namespace esphome {
 namespace simpleevse {
 
-void SimpleEvseTextSensors::update(bool running, const std::array<uint16_t, COUNT_STATUS_REGISTER> &status_register)
-{
+void SimpleEvseTextSensors::update(bool running, const std::array<uint16_t, COUNT_STATUS_REGISTER> &status_register) {
   if (running) {
-    if (this->vehicle_state_sensor_){
+    if (this->vehicle_state_sensor_) {
       switch (status_register[REGISTER_VEHICLE_STATE]) {
         case VehicleState::VEHICLE_UNKNOWN:
           this->vehicle_state_sensor_->publish_state("unknown");
@@ -48,7 +47,7 @@ void SimpleEvseTextSensors::update(bool running, const std::array<uint16_t, COUN
         default:
           this->evse_state_sensor_->publish_state("?");
           ESP_LOGW(TAG, "Invalid state received: %d", status_register[REGISTER_EVSE_STATE]);
-          break;        
+          break;
       }
     }
   }
@@ -56,4 +55,3 @@ void SimpleEvseTextSensors::update(bool running, const std::array<uint16_t, COUN
 
 }  // namespace simpleevse
 }  // namespace esphome
-

@@ -2,27 +2,32 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import binary_sensor, simpleevse
 from esphome.const import CONF_ID, CONF_DEVICE_CLASS
-from . import simpleevse_ns
+from . import simpleevse_ns, CONF_SIMPLEEVSE_ID
 
-DEPENDENCIES = ['simpleevse']
-AUTO_LOAD = ['binary_sensor']
-
-CONF_SIMPLEEVSE_ID = 'simpleevse_id'
+DEPENDENCIES = ["simpleevse"]
+AUTO_LOAD = ["binary_sensor"]
 
 CONF_CONNECTED = "connected"
 
-SimpleEvseSensors =  simpleevse_ns.class_('SimpleEvseBinarySensors')
+SimpleEvseSensors = simpleevse_ns.class_("SimpleEvseBinarySensors")
 
 # Schema for sensors
-connected_schema = binary_sensor.BINARY_SENSOR_SCHEMA.extend({
-    cv.Optional(CONF_DEVICE_CLASS, default='connectivity'): binary_sensor.device_class,
-})
+connected_schema = binary_sensor.BINARY_SENSOR_SCHEMA.extend(
+    {
+        cv.Optional(
+            CONF_DEVICE_CLASS, default="connectivity"
+        ): binary_sensor.device_class,
+    }
+)
 
-CONFIG_SCHEMA = cv.Schema({
-    cv.GenerateID(): cv.declare_id(SimpleEvseSensors),
-    cv.GenerateID(CONF_SIMPLEEVSE_ID): cv.use_id(simpleevse.SimpleEvseComponent),
-    cv.Optional(CONF_CONNECTED): connected_schema,
-})
+CONFIG_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.declare_id(SimpleEvseSensors),
+        cv.GenerateID(CONF_SIMPLEEVSE_ID): cv.use_id(simpleevse.SimpleEvseComponent),
+        cv.Optional(CONF_CONNECTED): connected_schema,
+    }
+)
+
 
 def to_code(config):
     evse = yield cg.get_variable(config[CONF_SIMPLEEVSE_ID])

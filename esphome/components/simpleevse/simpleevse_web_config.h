@@ -9,13 +9,14 @@ namespace simpleevse {
 #ifdef USE_SIMPLEEVSE_WEB_CONFIG
 
 /** Http handler for the setup/config register of the SimpleEVSE.
- * 
+ *
  * This handler provides a web page with the config register of the SimpleEVSE and
  * allows also the value to change.
  */
 class SimpleEvseHttpHandler : public AsyncWebHandler, public Component {
  public:
-  SimpleEvseHttpHandler(web_server_base::WebServerBase *base, SimpleEvseComponent *parent) : base_(base), parent_(parent) {}
+  SimpleEvseHttpHandler(web_server_base::WebServerBase *base, SimpleEvseComponent *parent)
+      : base_(base), parent_(parent) {}
 
   bool canHandle(AsyncWebServerRequest *request) override {
     String url = request->url();
@@ -24,7 +25,7 @@ class SimpleEvseHttpHandler : public AsyncWebHandler, public Component {
 
   void handleRequest(AsyncWebServerRequest *req) override;
 
-  bool isRequestHandlerTrivial() override { return false; } // POST data
+  bool isRequestHandlerTrivial() override { return false; }  // POST data
 
   void setup() override {
     this->base_->init();
@@ -35,7 +36,8 @@ class SimpleEvseHttpHandler : public AsyncWebHandler, public Component {
     // After WiFi
     return setup_priority::WIFI - 1.0f;
   }
-protected:
+
+ protected:
   void handleIndex(AsyncWebServerRequest *req);
   void handleSetConfig(AsyncWebServerRequest *req);
 
@@ -46,7 +48,7 @@ protected:
   SimpleEvseComponent *const parent_;
 };
 
-#endif // USE_SIMPLEEVSE_WEB_CONFIG
+#endif  // USE_SIMPLEEVSE_WEB_CONFIG
 
 }  // namespace simpleevse
 }  // namespace esphome

@@ -4,16 +4,18 @@
 namespace esphome {
 namespace simpleevse {
 
-static uint16_t crc16(std::vector<uint8_t>::const_iterator start, std::vector<uint8_t>::const_iterator end) {
-  const uint16_t INITIAL{0xFFFF};
-  const uint16_t POLYNOM{0xA001};
+extern const char *TAG;
 
-  uint16_t crc = std::accumulate(start, end, INITIAL, [](uint16_t crc, uint8_t value){
+static uint16_t crc16(std::vector<uint8_t>::const_iterator start, std::vector<uint8_t>::const_iterator end) {
+  const uint16_t initial{0xFFFF};
+  const uint16_t polynom{0xA001};
+
+  uint16_t crc = std::accumulate(start, end, initial, [](uint16_t crc, uint8_t value) {
     crc ^= value;
     for (uint8_t i = 0; i < 8; i++) {
       if ((crc & 0x01) != 0) {
         crc >>= 1;
-        crc ^= POLYNOM;
+        crc ^= polynom;
       } else {
         crc >>= 1;
       }
@@ -50,11 +52,10 @@ std::vector<uint8_t> ModbusTransaction::encode_request() {
   return buffer;
 }
 
-
 bool ModbusTransaction::decode_response(const std::vector<uint8_t> &buffer) {
   size_t len = buffer.size();
   if (len < MIN_FRAME_LEN) {
-    ESP_LOGW(TAG, "Incomplete data received with length %d.", len);
+    ESP_LOGW(TAG, "Incomplete data received with length %zu.", len);
     return false;
   }
 
@@ -85,7 +86,7 @@ bool ModbusTransaction::decode_response(const std::vector<uint8_t> &buffer) {
     ESP_LOGE(TAG, "Exception response: 0x%02X.", buffer[2]);
     this->on_error(ModbusTransactionResult::EXCEPTION);
     return true;
-  } 
+  }
 
   if (reader.remaining_size() != this->response_size_) {
     ESP_LOGE(TAG, "Invalid response size. Expected %d, got %d.", reader.remaining_size(), this->response_size_);
@@ -143,9 +144,7 @@ void ModbusWriteHoldingRegistersTransaction::on_handle_data(BufferStreamReader &
   this->callback_(ModbusTransactionResult::SUCCESS);
 }
 
-void ModbusWriteHoldingRegistersTransaction::on_error(ModbusTransactionResult result) {
-  this->callback_(result);
-}
+void ModbusWriteHoldingRegistersTransaction::on_error(ModbusTransactionResult result) { this->callback_(result); }
 
 void ModbusDeviceComponent::loop() {
   const uint32_t now = micros();
@@ -160,7 +159,7 @@ void ModbusDeviceComponent::loop() {
   }
 
   // decode receive buffer after t1.5 silence
-  if (this->rx_buffer_.size() > 0) {
+  if (!this->rx_buffer_.empty()) {
     if ((now - this->last_modbus_byte_) > this->inter_char_timeout_) {
       if (this->active_transaction_ != nullptr) {
         if (this->active_transaction_->decode_response(this->rx_buffer_)) {
@@ -183,15 +182,12 @@ void ModbusDeviceComponent::loop() {
   // check for response timeout
   if (this->active_transaction_ != nullptr && this->active_transaction_->check_timeout()) {
     ESP_LOGE(TAG, "Timeout waiting for response.");
-    if (this->active_transaction_->should_retry())
-    {
+    if (this->active_transaction_->should_retry()) {
       // most errors result eventually in a timeout so actualy retry handles
       // more cases than just timeouts
       ESP_LOGI(TAG, "Retry request.");
-      this->send_request();
-    }
-    else
-    {
+      this->send_request_();
+    } else {
       this->active_transaction_->timeout();
       this->active_transaction_ = nullptr;
     }
@@ -203,7 +199,7 @@ void ModbusDeviceComponent::loop() {
   }
 }
 
-void ModbusDeviceComponent::execute(std::unique_ptr<ModbusTransaction> &&transaction) {
+void ModbusDeviceComponent::execute_(std::unique_ptr<ModbusTransaction> &&transaction) {
   if (this->active_transaction_ != nullptr) {
     ESP_LOGW(TAG, "Trying to execute a modbus transaction although one is already running.");
     transaction->cancel();
@@ -211,14 +207,14 @@ void ModbusDeviceComponent::execute(std::unique_ptr<ModbusTransaction> &&transac
   }
 
   this->active_transaction_ = std::move(transaction);
-  this->send_request();
+  this->send_request_();
 }
 
-void ModbusDeviceComponent::send_request() {
-  std::vector<uint8_t> buffer = std::move(this->active_transaction_->encode_request());
+void ModbusDeviceComponent::send_request_() {
+  std::vector<uint8_t> buffer = this->active_transaction_->encode_request();
   this->write_array(buffer);
   this->after_char_delay_ = true;
-  this->last_modbus_byte_ = micros();  
+  this->last_modbus_byte_ = micros();
 }
 
 }  // namespace simpleevse
