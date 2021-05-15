@@ -1978,10 +1978,15 @@ rc522_spi:
         ESP_LOGD("main", "Found tag %s", x.c_str());
 
 rc522_i2c:
-  update_interval: 1s
-  on_tag:
-    - lambda: |-
-        ESP_LOGD("main", "Found tag %s", x.c_str());
+  - update_interval: 1s
+    on_tag:
+      - lambda: |-
+          ESP_LOGD("main", "Found tag %s", x.c_str());
+
+  - update_interval: 1s
+    on_tag:
+      - lambda: |-
+          ESP_LOGD("main", "Found tag %s", x.c_str());
 
 gps:
   uart_id: uart0
