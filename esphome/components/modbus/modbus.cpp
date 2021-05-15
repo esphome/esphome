@@ -113,6 +113,7 @@ void Modbus::send(uint8_t address, uint8_t function, uint16_t start_address, uin
   frame[7] = crc >> 8;
 
   this->write_array(frame, 8);
+  this->flush();
 }
 
 }  // namespace modbus
