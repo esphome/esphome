@@ -13,8 +13,13 @@ namespace xiaomi_ble {
 static const char *TAG = "xiaomi_ble";
 
 bool parse_xiaomi_value(uint8_t value_type, const uint8_t *data, uint8_t value_length, XiaomiParseResult &result) {
+  // remote control key code, 3 bytes
+  if ((value_type == 0x01) && (value_length == 3)) {
+    result.keycode = data[0];
+    result.is_long_press = (data[2] == 2) ? true : false;
+  }
   // motion detection, 1 byte, 8-bit unsigned integer
-  if ((value_type == 0x03) && (value_length == 1)) {
+  else if ((value_type == 0x03) && (value_length == 1)) {
     result.has_motion = (data[0]) ? true : false;
   }
   // temperature, 2 bytes, 16-bit signed integer (LE), 0.1 °C
@@ -200,6 +205,9 @@ optional<XiaomiParseResult> parse_xiaomi_header(const esp32_ble_tracker::Service
   } else if ((raw[2] == 0x87) && (raw[3] == 0x03)) {  // square body, e-ink display
     result.type = XiaomiParseResult::TYPE_MHOC401;
     result.name = "MHOC401";
+  } else if ((raw[2] == 0x53) && (raw[3] == 0x01)) {  // Yeelight Remote Control YLYK01YL
+    result.type = XiaomiParseResult::TYPE_YLYK01YL;
+    result.name = "YLYK01YL";
   } else {
     ESP_LOGVV(TAG, "parse_xiaomi_header(): unknown device, no magic bytes.");
     return {};
