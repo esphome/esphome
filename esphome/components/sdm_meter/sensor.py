@@ -40,6 +40,7 @@ from esphome.const import (
 from esphome import pins
 
 AUTO_LOAD = ["modbus"]
+CODEOWNERS = ["@polyfaces", "@jesserockz"]
 
 sdm_meter_ns = cg.esphome_ns.namespace("sdm_meter")
 SDMMeter = sdm_meter_ns.class_("SDMMeter", cg.PollingComponent, modbus.ModbusDevice)
