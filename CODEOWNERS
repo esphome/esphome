@@ -144,6 +144,7 @@ esphome/components/sgp40/* @SenexCrenshaw
 esphome/components/sht4x/* @sjtrny
 esphome/components/shutdown/* @esphome/core
 esphome/components/sim800l/* @glmnet
+esphome/components/simpleevse7* @stegm
 esphome/components/sm2135/* @BoukeHaarsma23
 esphome/components/socket/* @esphome/core
 esphome/components/spi/* @esphome/core
