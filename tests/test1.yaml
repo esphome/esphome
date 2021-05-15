@@ -302,6 +302,18 @@ mcp23s17:
     cs_pin: GPIO12
     deviceaddress: 1
 
+simpleevse:
+  id: simpleevse0
+  uart_id: uart0
+  web_config: enable
+  update_interval: 1s
+  on_unplugged:
+    then:
+      - lambda: ESP_LOGD("simpleevse", "unplugged");
+  on_plugged:
+    then:
+      - lambda: ESP_LOGD("simpleevse", "plugged");
+
 sensor:
   - platform: ble_client
     ble_client_id: ble_foo
@@ -1065,6 +1077,16 @@ sensor:
     cs_pin:
       mcp23xxx: mcp23017_hub
       number: 14
+  - platform: simpleevse
+    simpleevse_id: simpleevse0
+    set_charge_current:
+      name: "SimpleEVSE set charge current"
+    actual_charge_current:
+      name: "SimpleEVSE actual charge current"
+    max_current_limit:
+      name: "SimpleEVSE max current limit"
+    firmware_revision:
+      name: "SimpleEVSE firmware revision"
 
 esp32_touch:
   setup_mode: False
@@ -1281,6 +1303,10 @@ binary_sensor:
         ]
   - platform: as3935
     name: 'Storm Alert'
+  - platform: simpleevse
+    simpleevse_id: simpleevse0
+    connected:
+      name: "SimpleEVSE connected"
 
 pca9685:
   frequency: 500
@@ -2476,6 +2502,12 @@ text_sensor:
     tag_name: "OPTARIF"
     name: "optarif"
     teleinfo_id: myteleinfo
+  - platform: simpleevse
+    simpleevse_id: simpleevse0
+    vehicle_state:
+      name: "SimpleEVSE vehicle state"
+    evse_state:
+      name: "SimpleEVSE evse state"
 
 sn74hc595:
   - id: 'sn74hc595_hub'
