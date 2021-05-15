@@ -54,5 +54,5 @@ class ESP32PulseCounterSensor : public sensor::Sensor, public PollingComponent {
 
 extern pcnt_unit_t next_pcnt_unit;
 
-}  // namespace pulse_counter
+}  // namespace esp32_pulse_counter
 }  // namespace esphome
