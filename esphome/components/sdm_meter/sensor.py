@@ -1,5 +1,4 @@
 from esphome.components.atm90e32.sensor import CONF_PHASE_A, CONF_PHASE_B, CONF_PHASE_C
-from esphome.cpp_helpers import gpio_pin_expression
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import sensor, modbus
@@ -9,7 +8,6 @@ from esphome.const import (
     CONF_CURRENT,
     CONF_EXPORT_ACTIVE_ENERGY,
     CONF_EXPORT_REACTIVE_ENERGY,
-    CONF_FLOW_CONTROL_PIN,
     CONF_FREQUENCY,
     CONF_ID,
     CONF_IMPORT_ACTIVE_ENERGY,
@@ -37,7 +35,6 @@ from esphome.const import (
     UNIT_WATT,
     UNIT_WATT_HOURS,
 )
-from esphome import pins
 
 AUTO_LOAD = ["modbus"]
 CODEOWNERS = ["@polyfaces", "@jesserockz"]
@@ -73,7 +70,6 @@ CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(SDMMeter),
-            cv.Optional(CONF_FLOW_CONTROL_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_PHASE_A): PHASE_SCHEMA,
             cv.Optional(CONF_PHASE_B): PHASE_SCHEMA,
             cv.Optional(CONF_PHASE_C): PHASE_SCHEMA,
@@ -103,10 +99,6 @@ def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     yield cg.register_component(var, config)
     yield modbus.register_modbus_device(var, config)
-
-    if CONF_FLOW_CONTROL_PIN in config:
-        pin = yield gpio_pin_expression(config[CONF_FLOW_CONTROL_PIN])
-        cg.add(var.set_flow_control_pin(pin))
 
     if CONF_FREQUENCY in config:
         sens = yield sensor.new_sensor(config[CONF_FREQUENCY])

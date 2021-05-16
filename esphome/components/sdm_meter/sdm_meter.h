@@ -51,19 +51,13 @@ class SDMMeter : public PollingComponent, public modbus::ModbusDevice {
     this->export_reactive_energy_sensor_ = export_reactive_energy_sensor;
   }
 
-  void setup() override;
-
   void update() override;
 
   void on_modbus_data(const std::vector<uint8_t> &data) override;
 
   void dump_config() override;
 
-  void set_flow_control_pin(GPIOPin *flow_control_pin) { this->flow_control_pin_ = flow_control_pin; }
-
  protected:
-  GPIOPin *flow_control_pin_{nullptr};
-
   struct SDMPhase {
     bool setup{false};
     sensor::Sensor *voltage_sensor_{nullptr};
