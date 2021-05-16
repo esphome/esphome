@@ -523,10 +523,10 @@ class RepeatedTypeInfo(TypeInfo):
 
     @property
     def encode_content(self):
-        return f"""\
-for (auto {'' if self._ti_is_bool else '&'}it : this->{self.field_name}) {{
-  buffer.{self._ti.encode_func}({self.number}, it, true);
-}}"""
+        o = f"for (auto {'' if self._ti_is_bool else '&'}it : this->{self.field_name}) {{\n"
+        o += f"  buffer.{self._ti.encode_func}({self.number}, it, true);\n"
+        o += f"}}"
+        return o
 
     @property
     def dump_content(self):
@@ -545,7 +545,6 @@ def build_enum_type(desc):
         out += f"  {v.name} = {v.number},\n"
     out += "};\n"
 
-    cpp = f"template<>"
     cpp = f"template<> const char *proto_enum_to_string<enums::{name}>(enums::{name} value) {{\n"
     cpp += f"  switch (value) {{\n"
     for v in desc.value:
