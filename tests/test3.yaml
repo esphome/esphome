@@ -586,6 +586,10 @@ script:
     then:
       - lambda: 'ESP_LOGD("main", "Hello World!");'
 
+sm2135:
+  data_pin: GPIO12
+  clock_pin: GPIO14
+
 switch:
   - platform: template
     name: 'mpr121_toggle'
@@ -828,6 +832,21 @@ output:
     pin: GPIO5
     id: my_slow_pwm
     period: 15s
+  - platform: sm2135
+    id: sm2135_0
+    channel: 0
+  - platform: sm2135
+    id: sm2135_1
+    channel: 1
+  - platform: sm2135
+    id: sm2135_2
+    channel: 2
+  - platform: sm2135
+    id: sm2135_3
+    channel: 3
+  - platform: sm2135
+    id: sm2135_4
+    channel: 4
 
 mcp23017:
   id: mcp23017_hub

@@ -86,6 +86,20 @@ binary_sensor:
   - platform: tuya
     id: tuya_binary_sensor
     sensor_datapoint: 1
+  - platform: template
+    id: ar1
+    lambda: 'return {};'
+    filters:
+      - autorepeat:
+        - delay: 2s
+          time_off: 100ms
+          time_on: 900ms
+        - delay: 4s
+          time_off: 100ms
+          time_on: 400ms
+    on_state:
+      then:
+        - lambda: 'ESP_LOGI("ar1:", "%d", x);'
 
 climate:
   - platform: tuya

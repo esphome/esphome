@@ -6,7 +6,7 @@ from esphome.const import CONF_ID
 CODEOWNERS = ["@glmnet"]
 DEPENDENCIES = ["i2c"]
 AUTO_LOAD = ["rc522"]
-
+MULTI_CONF = True
 
 rc522_i2c_ns = cg.esphome_ns.namespace("rc522_i2c")
 RC522I2C = rc522_i2c_ns.class_("RC522I2C", rc522.RC522, i2c.I2CDevice)

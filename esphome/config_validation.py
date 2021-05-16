@@ -46,7 +46,13 @@ from esphome.core import (
     TimePeriodMinutes,
 )
 from esphome.helpers import list_starts_with, add_class_to_obj
-from esphome.jsonschema import jschema_composite, jschema_registry, jschema_typed
+from esphome.jsonschema import (
+    jschema_composite,
+    jschema_extractor,
+    jschema_registry,
+    jschema_typed,
+)
+
 from esphome.voluptuous_schema import _Schema
 from esphome.yaml_util import make_data_base
 
@@ -1121,7 +1127,12 @@ def one_of(*values, **kwargs):
     if kwargs:
         raise ValueError
 
+    @jschema_extractor("one_of")
     def validator(value):
+        # pylint: disable=comparison-with-callable
+        if value == jschema_extractor:
+            return values
+
         if string_:
             value = string(value)
             value = value.replace(" ", space)
@@ -1161,7 +1172,12 @@ def enum(mapping, **kwargs):
     assert isinstance(mapping, dict)
     one_of_validator = one_of(*mapping, **kwargs)
 
+    @jschema_extractor("enum")
     def validator(value):
+        # pylint: disable=comparison-with-callable
+        if value == jschema_extractor:
+            return mapping
+
         value = one_of_validator(value)
         value = add_class_to_obj(value, core.EnumValue)
         value.enum_value = mapping[value]
