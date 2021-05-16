@@ -27,13 +27,13 @@ void ICACHE_RAM_ATTR InterruptPulseCounterStorage::gpio_intr(InterruptPulseCount
       break;
   }
 }
-bool InterruptPulseCounterStorage::pulse_counter_setup(GPIOPin *pin) {
+void InterruptPulseCounterStorage::pulse_counter_setup(GPIOPin *pin) {
   this->pin = pin;
   this->pin->setup();
   this->isr_pin = this->pin->to_isr();
   this->pin->attach_interrupt(InterruptPulseCounterStorage::gpio_intr, this, CHANGE);
-  return true;
 }
+
 pulse_counter_t InterruptPulseCounterStorage::read_raw_value() {
   pulse_counter_t counter = this->counter;
   pulse_counter_t ret = counter - this->last_value;
@@ -43,10 +43,8 @@ pulse_counter_t InterruptPulseCounterStorage::read_raw_value() {
 
 void InterruptPulseCounterSensor::setup() {
   ESP_LOGCONFIG(TAG, "Setting up interrupt pulse counter '%s'...", this->name_.c_str());
-  if (!this->storage_.pulse_counter_setup(this->pin_)) {
-    this->mark_failed();
-    return;
-  }
+
+  this->storage_.pulse_counter_setup(this->pin_);
 }
 
 void InterruptPulseCounterSensor::dump_config() {

@@ -16,7 +16,7 @@ enum PulseCounterCountMode {
 using pulse_counter_t = int32_t;
 
 struct InterruptPulseCounterStorage {
-  bool pulse_counter_setup(GPIOPin *pin);
+  void pulse_counter_setup(GPIOPin *pin);
   pulse_counter_t read_raw_value();
 
   static void gpio_intr(InterruptPulseCounterStorage *arg);
