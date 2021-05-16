@@ -3,54 +3,74 @@ import esphome.config_validation as cv
 from esphome import automation
 from esphome.automation import maybe_simple_id, Condition
 from esphome.components import mqtt
-from esphome.const import CONF_ID, CONF_INTERNAL, CONF_DEVICE_CLASS, CONF_STATE, \
-    CONF_POSITION, CONF_TILT, CONF_STOP, CONF_MQTT_ID, CONF_NAME
+from esphome.const import (
+    CONF_ID,
+    CONF_INTERNAL,
+    CONF_DEVICE_CLASS,
+    CONF_STATE,
+    CONF_POSITION,
+    CONF_TILT,
+    CONF_STOP,
+    CONF_MQTT_ID,
+    CONF_NAME,
+)
 from esphome.core import CORE, coroutine, coroutine_with_priority
 
 IS_PLATFORM_COMPONENT = True
 
-CODEOWNERS = ['@esphome/core']
+CODEOWNERS = ["@esphome/core"]
 DEVICE_CLASSES = [
-    '', 'awning', 'blind', 'curtain', 'damper', 'door', 'garage',
-    'gate', 'shade', 'shutter', 'window'
+    "",
+    "awning",
+    "blind",
+    "curtain",
+    "damper",
+    "door",
+    "garage",
+    "gate",
+    "shade",
+    "shutter",
+    "window",
 ]
 
-cover_ns = cg.esphome_ns.namespace('cover')
+cover_ns = cg.esphome_ns.namespace("cover")
 
-Cover = cover_ns.class_('Cover', cg.Nameable)
+Cover = cover_ns.class_("Cover", cg.Nameable)
 
 COVER_OPEN = cover_ns.COVER_OPEN
 COVER_CLOSED = cover_ns.COVER_CLOSED
 
 COVER_STATES = {
-    'OPEN': COVER_OPEN,
-    'CLOSED': COVER_CLOSED,
+    "OPEN": COVER_OPEN,
+    "CLOSED": COVER_CLOSED,
 }
 validate_cover_state = cv.enum(COVER_STATES, upper=True)
 
-CoverOperation = cover_ns.enum('CoverOperation')
+CoverOperation = cover_ns.enum("CoverOperation")
 COVER_OPERATIONS = {
-    'IDLE': CoverOperation.COVER_OPERATION_IDLE,
-    'OPENING': CoverOperation.COVER_OPERATION_OPENING,
-    'CLOSING': CoverOperation.COVER_OPERATION_CLOSING,
+    "IDLE": CoverOperation.COVER_OPERATION_IDLE,
+    "OPENING": CoverOperation.COVER_OPERATION_OPENING,
+    "CLOSING": CoverOperation.COVER_OPERATION_CLOSING,
 }
 validate_cover_operation = cv.enum(COVER_OPERATIONS, upper=True)
 
 # Actions
-OpenAction = cover_ns.class_('OpenAction', automation.Action)
-CloseAction = cover_ns.class_('CloseAction', automation.Action)
-StopAction = cover_ns.class_('StopAction', automation.Action)
-ControlAction = cover_ns.class_('ControlAction', automation.Action)
-CoverPublishAction = cover_ns.class_('CoverPublishAction', automation.Action)
-CoverIsOpenCondition = cover_ns.class_('CoverIsOpenCondition', Condition)
-CoverIsClosedCondition = cover_ns.class_('CoverIsClosedCondition', Condition)
+OpenAction = cover_ns.class_("OpenAction", automation.Action)
+CloseAction = cover_ns.class_("CloseAction", automation.Action)
+StopAction = cover_ns.class_("StopAction", automation.Action)
+ControlAction = cover_ns.class_("ControlAction", automation.Action)
+CoverPublishAction = cover_ns.class_("CoverPublishAction", automation.Action)
+CoverIsOpenCondition = cover_ns.class_("CoverIsOpenCondition", Condition)
+CoverIsClosedCondition = cover_ns.class_("CoverIsClosedCondition", Condition)
 
-COVER_SCHEMA = cv.MQTT_COMMAND_COMPONENT_SCHEMA.extend({
-    cv.GenerateID(): cv.declare_id(Cover),
-    cv.OnlyWith(CONF_MQTT_ID, 'mqtt'): cv.declare_id(mqtt.MQTTCoverComponent),
-    cv.Optional(CONF_DEVICE_CLASS): cv.one_of(*DEVICE_CLASSES, lower=True),
-    # TODO: MQTT topic options
-})
+COVER_SCHEMA = cv.MQTT_COMMAND_COMPONENT_SCHEMA.extend(
+    {
+        cv.GenerateID(): cv.declare_id(Cover),
+        cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTCoverComponent),
+        cv.Optional(CONF_DEVICE_CLASS): cv.one_of(*DEVICE_CLASSES, lower=True),
+        # TODO: MQTT topic options
+    }
+)
 
 
 @coroutine
@@ -74,39 +94,43 @@ def register_cover(var, config):
     yield setup_cover_core_(var, config)
 
 
-COVER_ACTION_SCHEMA = maybe_simple_id({
-    cv.Required(CONF_ID): cv.use_id(Cover),
-})
+COVER_ACTION_SCHEMA = maybe_simple_id(
+    {
+        cv.Required(CONF_ID): cv.use_id(Cover),
+    }
+)
 
 
-@automation.register_action('cover.open', OpenAction, COVER_ACTION_SCHEMA)
+@automation.register_action("cover.open", OpenAction, COVER_ACTION_SCHEMA)
 def cover_open_to_code(config, action_id, template_arg, args):
     paren = yield cg.get_variable(config[CONF_ID])
     yield cg.new_Pvariable(action_id, template_arg, paren)
 
 
-@automation.register_action('cover.close', CloseAction, COVER_ACTION_SCHEMA)
+@automation.register_action("cover.close", CloseAction, COVER_ACTION_SCHEMA)
 def cover_close_to_code(config, action_id, template_arg, args):
     paren = yield cg.get_variable(config[CONF_ID])
     yield cg.new_Pvariable(action_id, template_arg, paren)
 
 
-@automation.register_action('cover.stop', StopAction, COVER_ACTION_SCHEMA)
+@automation.register_action("cover.stop", StopAction, COVER_ACTION_SCHEMA)
 def cover_stop_to_code(config, action_id, template_arg, args):
     paren = yield cg.get_variable(config[CONF_ID])
     yield cg.new_Pvariable(action_id, template_arg, paren)
 
 
-COVER_CONTROL_ACTION_SCHEMA = cv.Schema({
-    cv.Required(CONF_ID): cv.use_id(Cover),
-    cv.Optional(CONF_STOP): cv.templatable(cv.boolean),
-    cv.Exclusive(CONF_STATE, 'pos'): cv.templatable(validate_cover_state),
-    cv.Exclusive(CONF_POSITION, 'pos'): cv.templatable(cv.percentage),
-    cv.Optional(CONF_TILT): cv.templatable(cv.percentage),
-})
+COVER_CONTROL_ACTION_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_ID): cv.use_id(Cover),
+        cv.Optional(CONF_STOP): cv.templatable(cv.boolean),
+        cv.Exclusive(CONF_STATE, "pos"): cv.templatable(validate_cover_state),
+        cv.Exclusive(CONF_POSITION, "pos"): cv.templatable(cv.percentage),
+        cv.Optional(CONF_TILT): cv.templatable(cv.percentage),
+    }
+)
 
 
-@automation.register_action('cover.control', ControlAction, COVER_CONTROL_ACTION_SCHEMA)
+@automation.register_action("cover.control", ControlAction, COVER_CONTROL_ACTION_SCHEMA)
 def cover_control_to_code(config, action_id, template_arg, args):
     paren = yield cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
@@ -127,5 +151,5 @@ def cover_control_to_code(config, action_id, template_arg, args):
 
 @coroutine_with_priority(100.0)
 def to_code(config):
-    cg.add_define('USE_COVER')
+    cg.add_define("USE_COVER")
     cg.add_global(cover_ns.using)

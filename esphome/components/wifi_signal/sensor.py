@@ -1,15 +1,30 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import sensor
-from esphome.const import CONF_ID, ICON_WIFI, UNIT_DECIBEL
+from esphome.const import (
+    CONF_ID,
+    DEVICE_CLASS_SIGNAL_STRENGTH,
+    ICON_EMPTY,
+    UNIT_DECIBEL_MILLIWATT,
+)
 
-DEPENDENCIES = ['wifi']
-wifi_signal_ns = cg.esphome_ns.namespace('wifi_signal')
-WiFiSignalSensor = wifi_signal_ns.class_('WiFiSignalSensor', sensor.Sensor, cg.PollingComponent)
+DEPENDENCIES = ["wifi"]
+wifi_signal_ns = cg.esphome_ns.namespace("wifi_signal")
+WiFiSignalSensor = wifi_signal_ns.class_(
+    "WiFiSignalSensor", sensor.Sensor, cg.PollingComponent
+)
 
-CONFIG_SCHEMA = sensor.sensor_schema(UNIT_DECIBEL, ICON_WIFI, 0).extend({
-    cv.GenerateID(): cv.declare_id(WiFiSignalSensor),
-}).extend(cv.polling_component_schema('60s'))
+CONFIG_SCHEMA = (
+    sensor.sensor_schema(
+        UNIT_DECIBEL_MILLIWATT, ICON_EMPTY, 0, DEVICE_CLASS_SIGNAL_STRENGTH
+    )
+    .extend(
+        {
+            cv.GenerateID(): cv.declare_id(WiFiSignalSensor),
+        }
+    )
+    .extend(cv.polling_component_schema("60s"))
+)
 
 
 def to_code(config):
