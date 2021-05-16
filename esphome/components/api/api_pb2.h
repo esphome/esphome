@@ -557,6 +557,7 @@ class SubscribeHomeAssistantStatesRequest : public ProtoMessage {
 class SubscribeHomeAssistantStateResponse : public ProtoMessage {
  public:
   std::string entity_id{};
+  std::string attribute{};
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
 
@@ -567,6 +568,7 @@ class HomeAssistantStateResponse : public ProtoMessage {
  public:
   std::string entity_id{};
   std::string state{};
+  std::string attribute{};
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
 
