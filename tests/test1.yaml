@@ -64,6 +64,7 @@ packages:
   pkg_test: !include test_packages/test_packages_package1.yaml
 
 wifi:
+  id: wifi_client
   networks:
     - ssid: 'MySSID'
       password: 'password1'
@@ -87,6 +88,7 @@ http_request:
   timeout: 10s
 
 mqtt:
+  id: mqtt_client
   broker: '192.168.178.84'
   port: 1883
   username: 'debug'
@@ -1946,6 +1948,20 @@ display:
     row_start: 0
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
+  - id: cfa632_display
+    platform: cfa632
+    cs_pin: GPIO5
+    brightness: 0.5
+    contrast: 0.5
+    scroll_enabled: false
+    wrap_enabled: false
+    cursor_type: hidden
+    lambda: |-
+      it.set_cursor_position(0, 13);
+      it.printf("W:%c", id(wifi_client)->is_connected() ? 'C' : 'D');
+      it.set_cursor_position(1, 13);
+      it.printf("M:%c", id(mqtt_client)->is_connected() ? 'C' : 'D');
+
 tm1651:
   id: tm1651_battery
   clk_pin: GPIO23
