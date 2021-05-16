@@ -225,8 +225,8 @@ void EthernetComponent::dump_connect_params_() {
   ESP_LOGCONFIG(TAG, "  Gateway: %s", IPAddress(ip.gw.addr).toString().c_str());
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(3, 3, 4)
-  const ip_addr_t * dns_ip1 = dns_getserver(0);
-  const ip_addr_t * dns_ip2 = dns_getserver(1);
+  const ip_addr_t *dns_ip1 = dns_getserver(0);
+  const ip_addr_t *dns_ip2 = dns_getserver(1);
 #else
   ip_addr_t tmp_ip1 = dns_getserver(0);
   const ip_addr_t *dns_ip1 = &tmp_ip1;
