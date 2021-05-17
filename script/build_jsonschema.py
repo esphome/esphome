@@ -629,7 +629,10 @@ def convert_schema(path, vschema, un_extend=True):
                 #     required.append(str(k))
                 try:
                     if str(k.default) != "...":
-                        prop["default"] = k.default()
+                        default_value = k.default()
+                        # Yaml validator fails if `"default": null` ends up in the json schema
+                        if default_value is not None:
+                            prop["default"] = default_value
                 except:
                     pass
     return output
