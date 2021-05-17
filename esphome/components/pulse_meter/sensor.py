@@ -10,6 +10,7 @@ from esphome.const import (
     CONF_TIMEOUT,
     CONF_TOTAL,
     CONF_VALUE,
+    CONF_DEJITTER,
     ICON_PULSE,
     UNIT_PULSES,
     UNIT_PULSES_PER_MINUTE,
@@ -56,6 +57,7 @@ CONFIG_SCHEMA = sensor.sensor_schema(
         cv.Required(CONF_PIN): validate_pulse_meter_pin,
         cv.Optional(CONF_INTERNAL_FILTER, default="13us"): validate_internal_filter,
         cv.Optional(CONF_TIMEOUT, default="5min"): validate_timeout,
+        cv.Optional(CONF_DEJITTER, default=True): cv.boolean,
         cv.Optional(CONF_TOTAL): sensor.sensor_schema(
             UNIT_PULSES, ICON_PULSE, 0, DEVICE_CLASS_EMPTY
         ),
@@ -72,6 +74,7 @@ def to_code(config):
     cg.add(var.set_pin(pin))
     cg.add(var.set_filter_us(config[CONF_INTERNAL_FILTER]))
     cg.add(var.set_timeout_us(config[CONF_TIMEOUT]))
+    cg.add(var.set_dejitter(config[CONF_DEJITTER]))
 
     if CONF_TOTAL in config:
         sens = yield sensor.new_sensor(config[CONF_TOTAL])
