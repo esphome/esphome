@@ -22,7 +22,7 @@ void PN532::setup() {
   }
 
   std::vector<uint8_t> version_data;
-  if (!this->read_response_(PN532_COMMAND_VERSION_DATA, version_data)) {
+  if (!this->read_response(PN532_COMMAND_VERSION_DATA, version_data)) {
     ESP_LOGE(TAG, "Error getting version");
     this->mark_failed();
     return;
@@ -42,7 +42,7 @@ void PN532::setup() {
   }
 
   std::vector<uint8_t> wakeup_result;
-  if (!this->read_response_(PN532_COMMAND_SAMCONFIGURATION, wakeup_result)) {
+  if (!this->read_response(PN532_COMMAND_SAMCONFIGURATION, wakeup_result)) {
     this->error_code_ = WAKEUP_FAILED;
     this->mark_failed();
     return;
@@ -62,7 +62,7 @@ void PN532::setup() {
   }
 
   std::vector<uint8_t> sam_result;
-  if (!this->read_response_(PN532_COMMAND_SAMCONFIGURATION, sam_result)) {
+  if (!this->read_response(PN532_COMMAND_SAMCONFIGURATION, sam_result)) {
     ESP_LOGV(TAG, "Invalid SAM result: (%u)", sam_result.size());  // NOLINT
     for (uint8_t dat : sam_result) {
       ESP_LOGV(TAG, " 0x%02X", dat);
@@ -97,7 +97,7 @@ void PN532::loop() {
     return;
 
   std::vector<uint8_t> read;
-  bool success = this->read_response_(PN532_COMMAND_INLISTPASSIVETARGET, read);
+  bool success = this->read_response(PN532_COMMAND_INLISTPASSIVETARGET, read);
 
   this->requested_read_ = false;
 
@@ -240,7 +240,7 @@ bool PN532::write_command_(const std::vector<uint8_t> &data) {
 }
 
 bool PN532::read_ack_() {
-  ESP_LOGVV(TAG, "Reading ACK...");
+  ESP_LOGV(TAG, "Reading ACK...");
 
   std::vector<uint8_t> data;
   if (!this->read_data(data, 6)) {
@@ -251,96 +251,18 @@ bool PN532::read_ack_() {
                   data[2] == 0x00 &&                     // start of packet
                   data[3] == 0xFF && data[4] == 0x00 &&  // ACK packet code
                   data[5] == 0xFF && data[6] == 0x00);   // postamble
-  ESP_LOGVV(TAG, "ACK valid: %s", YESNO(matches));
+  ESP_LOGV(TAG, "ACK valid: %s", YESNO(matches));
   return matches;
 }
 
-bool PN532::read_response_(uint8_t command, std::vector<uint8_t> &data) {
-  ESP_LOGV(TAG, "Reading response");
-  uint8_t len = this->read_response_length_();
-  if (len == 0) {
-    return false;
-  }
-
-  ESP_LOGV(TAG, "Reading response of length %d", len);
-  if (!this->read_data(data, 6 + len + 2)) {
-    ESP_LOGD(TAG, "No response data");
-    return false;
-  }
-
-  if (data[1] != 0x00 && data[2] != 0x00 && data[3] != 0xFF) {
-    // invalid packet
-    ESP_LOGV(TAG, "read data invalid preamble!");
-    return false;
-  }
-
-  bool valid_header = (static_cast<uint8_t>(data[4] + data[5]) == 0 &&  // LCS, len + lcs = 0
-                       data[6] == 0xD5 &&                               // TFI - frame from PN532 to system controller
-                       data[7] == command + 1);                         // Correct command response
-
-  if (!valid_header) {
-    ESP_LOGV(TAG, "read data invalid header!");
-    return false;
-  }
-
-  data.erase(data.begin(), data.begin() + 6);  // Remove headers
-
-  uint8_t checksum = 0;
-  for (int i = 0; i < len + 1; i++) {
-    uint8_t dat = data[i];
-    checksum += dat;
-  }
-  checksum = ~checksum + 1;
-
-  if (data[len + 1] != checksum) {
-    ESP_LOGV(TAG, "read data invalid checksum! %02X != %02X", data[len], checksum);
-    return false;
-  }
-
-  if (data[len + 2] != 0x00) {
-    ESP_LOGV(TAG, "read data invalid postamble!");
-    return false;
-  }
-
-  data.erase(data.begin(), data.begin() + 2);  // Remove TFI and command code
-  data.erase(data.end() - 2, data.end());      // Remove checksum and postamble
-
-  return true;
-}
-
-uint8_t PN532::read_response_length_() {
-  std::vector<uint8_t> data;
-  if (!this->read_data(data, 6)) {
-    return 0;
-  }
-
-  if (data[1] != 0x00 && data[2] != 0x00 && data[3] != 0xFF) {
-    // invalid packet
-    ESP_LOGV(TAG, "read data invalid preamble!");
-    return 0;
-  }
-
-  bool valid_header = (static_cast<uint8_t>(data[4] + data[5]) == 0 &&  // LCS, len + lcs = 0
-                       data[6] == 0xD5);                                // TFI - frame from PN532 to system controller
-
-  if (!valid_header) {
-    ESP_LOGV(TAG, "read data invalid header!");
-    return 0;
-  }
-
-  this->write_data({0x00, 0x00, 0xFF, 0xFF, 0x00, 0x00});  // NACK - Retransmit last message
-
-  // full length of message, including TFI
-  uint8_t full_len = data[4];
-  // length of data, excluding TFI
-  uint8_t len = full_len - 1;
-  if (full_len == 0)
-    len = 0;
-  return len;
+void PN532::send_nack_() {
+  ESP_LOGV(TAG, "Sending NACK for retransmit");
+  this->write_data({0x00, 0x00, 0xFF, 0xFF, 0x00, 0x00});
+  delay(10);
 }
 
 void PN532::turn_off_rf_() {
-  ESP_LOGVV(TAG, "Turning RF field OFF");
+  ESP_LOGV(TAG, "Turning RF field OFF");
   this->write_command_({
       PN532_COMMAND_RFCONFIGURATION,
       0x01,  // RF Field

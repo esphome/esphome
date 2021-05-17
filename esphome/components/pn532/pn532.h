@@ -47,12 +47,12 @@ class PN532 : public PollingComponent {
  protected:
   void turn_off_rf_();
   bool write_command_(const std::vector<uint8_t> &data);
-  bool read_response_(uint8_t command, std::vector<uint8_t> &data);
   bool read_ack_();
-  uint8_t read_response_length_();
+  void send_nack_();
 
   virtual bool write_data(const std::vector<uint8_t> &data) = 0;
   virtual bool read_data(std::vector<uint8_t> &data, uint8_t len) = 0;
+  virtual bool read_response(uint8_t command, std::vector<uint8_t> &data) = 0;
 
   nfc::NfcTag *read_tag_(std::vector<uint8_t> &uid);
 

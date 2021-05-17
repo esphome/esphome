@@ -30,7 +30,7 @@ struct ESPTime {
   uint8_t month;
   /// year
   uint16_t year;
-  /// daylight savings time flag
+  /// daylight saving time flag
   bool is_dst;
   union {
     ESPDEPRECATED(".time is deprecated, use .timestamp instead") time_t time;
@@ -127,11 +127,17 @@ class RealTimeClock : public PollingComponent {
 
   void call_setup() override;
 
+  void add_on_time_sync_callback(std::function<void()> callback) {
+    this->time_sync_callback_.add(std::move(callback));
+  };
+
  protected:
   /// Report a unix epoch as current time.
   void synchronize_epoch_(uint32_t epoch);
 
   std::string timezone_{};
+
+  CallbackManager<void()> time_sync_callback_;
 };
 
 template<typename... Ts> class TimeHasTimeCondition : public Condition<Ts...> {
