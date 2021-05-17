@@ -36,12 +36,12 @@ ClimateTraits = climate_ns.class_("ClimateTraits")
 ClimateMode = climate_ns.enum("ClimateMode")
 CLIMATE_MODES = {
     "OFF": ClimateMode.CLIMATE_MODE_OFF,
-    "AUTO": ClimateMode.CLIMATE_MODE_AUTO,
+    "HEAT_COOL": ClimateMode.CLIMATE_HEAT_COOL,
     "COOL": ClimateMode.CLIMATE_MODE_COOL,
     "HEAT": ClimateMode.CLIMATE_MODE_HEAT,
     "DRY": ClimateMode.CLIMATE_MODE_DRY,
     "FAN_ONLY": ClimateMode.CLIMATE_MODE_FAN_ONLY,
-    "HEAT_COOL": ClimateMode.CLIMATE_HEAT_COOL,
+    "AUTO": ClimateMode.CLIMATE_MODE_AUTO,
 }
 validate_climate_mode = cv.enum(CLIMATE_MODES, upper=True)
 
@@ -62,14 +62,13 @@ validate_climate_fan_mode = cv.enum(CLIMATE_FAN_MODES, upper=True)
 
 ClimatePreset = climate_ns.enum("ClimatePreset")
 CLIMATE_PRESETS = {
-    "NONE": ClimateFanMode.CLIMATE_PRESET_NONE,
-    "ECO": ClimateFanMode.CLIMATE_PRESET_ECO,
-    "AWAY": ClimateFanMode.CLIMATE_PRESET_AWAY,
-    "BOOST": ClimateFanMode.CLIMATE_PRESET_BOOST,
-    "COMFORT": ClimateFanMode.CLIMATE_PRESET_COMFORT,
-    "HOME": ClimateFanMode.CLIMATE_PRESET_HOME,
-    "SLEEP": ClimateFanMode.CLIMATE_PRESET_SLEEP,
-    "ACTIVITY": ClimateFanMode.CLIMATE_PRESET_ACTIVITY,
+    "ECO": ClimatePreset.CLIMATE_PRESET_ECO,
+    "AWAY": ClimatePreset.CLIMATE_PRESET_AWAY,
+    "BOOST": ClimatePreset.CLIMATE_PRESET_BOOST,
+    "COMFORT": ClimatePreset.CLIMATE_PRESET_COMFORT,
+    "HOME": ClimatePreset.CLIMATE_PRESET_HOME,
+    "SLEEP": ClimatePreset.CLIMATE_PRESET_SLEEP,
+    "ACTIVITY": ClimatePreset.CLIMATE_PRESET_ACTIVITY,
 }
 
 validate_climate_preset = cv.enum(CLIMATE_PRESETS, upper=True)
