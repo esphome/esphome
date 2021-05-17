@@ -308,12 +308,6 @@ async def to_code(config):
     cg.add_build_flag("-fno-exceptions")
 
     # Libraries
-    if CORE.is_esp32:
-        cg.add_library("ESPmDNS", None)
-    elif CORE.is_esp8266:
-        cg.add_library("ESP8266WiFi", None)
-        cg.add_library("ESP8266mDNS", None)
-
     for lib in config[CONF_LIBRARIES]:
         if "@" in lib:
             name, vers = lib.split("@", 1)

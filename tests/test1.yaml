@@ -9,6 +9,8 @@ esphome:
   name_add_mac_suffix: true
   platform: ESP32
   board: nodemcu-32s
+  platformio_options:
+    board_build.partitions: huge_app.csv
   on_boot:
     priority: 150.0
     then:
@@ -69,6 +71,7 @@ wifi:
       password: ''
       channel: 14
       bssid: 'A1:63:95:47:D3:1D'
+  enable_mdns: true
   manual_ip:
     static_ip: 192.168.178.230
     gateway: 192.168.178.1
@@ -235,10 +238,19 @@ wled:
 
 adalight:
 
-mcp3008:
-  - id: 'mcp3008_hub'
-    cs_pin: GPIO12
+esp32_ble_tracker:
 
+ble_client:
+  - mac_address: AA:BB:CC:DD:EE:FF
+    id: ble_foo
+  - mac_address: 11:22:33:44:55:66
+    id: ble_blah
+    on_connect:
+      then:
+        - switch.turn_on: ble1_status
+    on_disconnect:
+      then:
+        - switch.turn_on: ble1_status
 mcp23s08:
   - id: 'mcp23s08_hub'
     cs_pin: GPIO12
@@ -250,6 +262,18 @@ mcp23s17:
     deviceaddress: 1
 
 sensor:
+  - platform: ble_client
+    ble_client_id: ble_foo
+    name: 'Green iTag btn'
+    service_uuid: 'ffe0'
+    characteristic_uuid: 'ffe1'
+    descriptor_uuid: 'ffe2'
+    notify: true
+    update_interval: never
+    on_notify:
+      then:
+        - lambda: |-
+            ESP_LOGD("green_btn", "Button was pressed, val%f", x);
   - platform: adc
     pin: A0
     name: 'Living Room Brightness'
@@ -388,7 +412,7 @@ sensor:
     retain: False
     availability:
     state_topic: livingroom/custom_state_topic
-    measurement_time: 31
+    measurement_duration: 31
   - platform: bme280
     temperature:
       name: 'Outside Temperature'
@@ -634,9 +658,14 @@ sensor:
     update_interval: 15s
   - platform: pulse_meter
     name: 'Pulse Meter'
+    id: pulse_meter_sensor
     pin: GPIO12
     internal_filter: 100ms
     timeout: 2 min
+    on_value:
+      - pulse_meter.set_total_pulses:
+          id: pulse_meter_sensor
+          value: 12345
     total:
       name: 'Pulse Meter Total'
   - platform: rotary_encoder
@@ -745,6 +774,13 @@ sensor:
       id: 'workshop_PMC_10_0'
     address: 0x69
     update_interval: 10s
+  - platform: sht4x
+    temperature:
+      name: 'SHT4X Temperature'
+    humidity:
+      name: 'SHT4X Humidity'
+    address: 0x44
+    update_interval: 15s
   - platform: shtcx
     temperature:
       name: 'Living Room Temperature 10'
@@ -877,12 +913,6 @@ sensor:
     id: ph_ezo
     address: 99
     unit_of_measurement: 'pH'
-  - platform: mcp3008
-    update_interval: 5s
-    mcp3008_id: 'mcp3008_hub'
-    id: freezer_temp_source
-    reference_voltage: 3.19
-    number: 0
 
 esp32_touch:
   setup_mode: False
@@ -1488,14 +1518,14 @@ climate:
       min_temperature: 18 °C
       max_temperature: 25 °C
       temperature_step: 0.1 °C
-    name: "Electrolux EACS"
+    name: 'Electrolux EACS'
     beeper: true
     outdoor_temperature:
-      name: "Temp"
+      name: 'Temp'
     power_usage:
-      name: "Power"
+      name: 'Power'
     humidity_setpoint:
-      name: "Hum"
+      name: 'Hum'
 
 midea_dongle:
   uart_id: uart0
@@ -1725,6 +1755,8 @@ switch:
       # Use pin number 0
       number: 0
       inverted: False
+  - platform: template
+    id: ble1_status
 
 fan:
   - platform: binary
@@ -1760,6 +1792,13 @@ interval:
           btn_left_state = ((uint32_t) id(btn_left)->get_value()  +  63 * (uint32_t)btn_left_state) >> 6;
 
           id(btn_left)->set_threshold(btn_left_state * 0.9);
+      - if:
+          condition:
+            display.is_displaying_page:
+              id: display1
+              page_id: page1
+          then:
+            - logger.log: 'Seeing page 1'
 
 color:
   - id: kbx_red
@@ -1943,10 +1982,15 @@ rc522_spi:
         ESP_LOGD("main", "Found tag %s", x.c_str());
 
 rc522_i2c:
-  update_interval: 1s
-  on_tag:
-    - lambda: |-
-        ESP_LOGD("main", "Found tag %s", x.c_str());
+  - update_interval: 1s
+    on_tag:
+      - lambda: |-
+          ESP_LOGD("main", "Found tag %s", x.c_str());
+
+  - update_interval: 1s
+    on_tag:
+      - lambda: |-
+          ESP_LOGD("main", "Found tag %s", x.c_str());
 
 gps:
   uart_id: uart0
@@ -2003,7 +2047,6 @@ tca9548a:
     multiplexer:
       id: multiplex0
       channel: 0
-    
 
 pcf8574:
   - id: 'pcf8574_hub'
