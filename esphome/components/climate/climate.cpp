@@ -195,6 +195,7 @@ ClimateCall &ClimateCall::set_fan_mode(optional<std::string> fan_mode) {
   if (fan_mode.has_value()) {
     this->set_fan_mode(fan_mode.value());
   }
+  return *this;
 }
 ClimateCall &ClimateCall::set_preset(ClimatePreset preset) {
   this->preset_ = preset;
@@ -231,6 +232,7 @@ ClimateCall &ClimateCall::set_preset(optional<std::string> preset) {
   if (preset.has_value()) {
     this->set_preset(preset.value());
   }
+  return *this;
 }
 ClimateCall &ClimateCall::set_swing_mode(ClimateSwingMode swing_mode) {
   this->swing_mode_ = swing_mode;
