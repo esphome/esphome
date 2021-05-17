@@ -662,6 +662,7 @@ sensor:
     pin: GPIO12
     internal_filter: 100ms
     timeout: 2 min
+    dejitter: False
     on_value:
       - pulse_meter.set_total_pulses:
           id: pulse_meter_sensor
