@@ -64,7 +64,7 @@ def setup_pn532(var, config):
 
     for conf in config.get(CONF_ON_TAG, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
-        cg.add(var.register_trigger(trigger))
+        cg.add(var.register_ontag_trigger(trigger))
         yield automation.build_automation(
             trigger, [(cg.std_string, "x"), (nfc.NfcTag, "tag")], conf
         )
