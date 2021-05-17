@@ -1968,6 +1968,12 @@ pn532_spi:
     - mqtt.publish:
         topic: the/topic
         payload: !lambda 'return x;'
+  on_tag_removed:
+    - lambda: |-
+        ESP_LOGD("main", "Removed tag %s", x.c_str());
+    - mqtt.publish:
+        topic: the/topic
+        payload: !lambda 'return x;'
 
 pn532_i2c:
 
