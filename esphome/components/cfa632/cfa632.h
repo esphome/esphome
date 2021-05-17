@@ -28,8 +28,8 @@ class CFA632 : public Print,
   void set_cursor_type(CursorType);
 
   using Print::write;
-  virtual size_t write(uint8_t data);
-  virtual size_t write(const uint8_t *buffer, size_t size);
+  virtual size_t write(uint8_t data) override;
+  virtual size_t write(const uint8_t *buffer, size_t size) override;
 
  protected:
   std::function<void(CFA632 &)> writer_;

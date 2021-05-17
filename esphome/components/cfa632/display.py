@@ -3,7 +3,7 @@ import esphome.config_validation as cv
 from esphome.components import display, spi
 from esphome.const import CONF_BRIGHTNESS, CONF_CONTRAST, CONF_ID, CONF_LAMBDA
 
-CODEOWNERS = ["rremy"]
+CODEOWNERS = ["@rremy"]
 
 CONF_SCROLL_ENABLED = "scroll_enabled"
 CONF_WRAP_ENABLED = "wrap_enabled"

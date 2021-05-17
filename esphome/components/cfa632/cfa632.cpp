@@ -24,7 +24,7 @@ void CFA632::setup() {
 }
 
 void CFA632::dump_config() {
-  ESP_LOGCONFIG(TAG, "  Cursor type: %d, Wrap enabled: %u, Scroll enabled: %u, Brightness: %u", this->cursor_type_,
+  ESP_LOGCONFIG(TAG, "  Cursor type: %d, Wrap enabled: %s, Scroll enabled: %s, Brightness: %u", this->cursor_type_,
                 this->wrap_enabled_ ? "true" : "false", this->scroll_enabled_ ? "true" : "false",
                 uint8_t(this->brightness_ * 100));
   LOG_PIN("  CS Pin: ", this->cs_);
