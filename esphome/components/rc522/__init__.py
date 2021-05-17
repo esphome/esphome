@@ -7,7 +7,6 @@ from esphome.core import coroutine
 
 CODEOWNERS = ["@glmnet"]
 AUTO_LOAD = ["binary_sensor"]
-MULTI_CONF = True
 
 CONF_RC522_ID = "rc522_id"
 
