@@ -549,8 +549,7 @@ def add_define(name: str, value: SafeExpType = None):
         CORE.add_define(Define(name, safe_exp(value)))
 
 
-@coroutine
-def get_variable(id_: ID) -> Generator["MockObj", None, None]:
+async def get_variable(id_: ID) -> "MockObj":
     """
     Wait for the given ID to be defined in the code generation and
     return it as a MockObj.
@@ -560,12 +559,10 @@ def get_variable(id_: ID) -> Generator["MockObj", None, None]:
     :param id_: The ID to retrieve
     :return: The variable as a MockObj.
     """
-    var = yield CORE.get_variable(id_)
-    yield var
+    return await CORE.get_variable(id_)
 
 
-@coroutine
-def get_variable_with_full_id(id_: ID) -> Generator[Tuple[ID, "MockObj"], None, None]:
+async def get_variable_with_full_id(id_: ID) -> Tuple[ID, "MockObj"]:
     """
     Wait for the given ID to be defined in the code generation and
     return it as a MockObj.
@@ -575,8 +572,7 @@ def get_variable_with_full_id(id_: ID) -> Generator[Tuple[ID, "MockObj"], None, 
     :param id_: The ID to retrieve
     :return: The variable as a MockObj.
     """
-    full_id, var = yield CORE.get_variable_with_full_id(id_)
-    yield full_id, var
+    return await CORE.get_variable_with_full_id(id_)
 
 
 @coroutine
@@ -604,7 +600,7 @@ def process_lambda(
         return
     parts = value.parts[:]
     for i, id in enumerate(value.requires_ids):
-        full_id, var = yield CORE.get_variable_with_full_id(id)
+        full_id, var = yield get_variable_with_full_id(id)
         if (
             full_id is not None
             and isinstance(full_id.type, MockObjClass)
@@ -675,6 +671,9 @@ class MockObj(Expression):
         self.op = op
 
     def __getattr__(self, attr: str) -> "MockObj":
+        # prevent python dunder methods being replaced by mock objects
+        if attr.startswith("__"):
+            raise AttributeError()
         next_op = "."
         if attr.startswith("P") and self.op not in ["::", ""]:
             attr = attr[1:]

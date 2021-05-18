@@ -7,6 +7,7 @@ from esphome.const import (
     DEVICE_CLASS_ILLUMINANCE,
     ICON_EMPTY,
     UNIT_LUX,
+    CONF_MEASUREMENT_DURATION,
 )
 
 DEPENDENCIES = ["i2c"]
@@ -32,8 +33,11 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_RESOLUTION, default=0.5): cv.enum(
                 BH1750_RESOLUTIONS, float=True
             ),
-            cv.Optional(CONF_MEASUREMENT_TIME, default=69): cv.int_range(
+            cv.Optional(CONF_MEASUREMENT_DURATION, default=69): cv.int_range(
                 min=31, max=254
+            ),
+            cv.Optional(CONF_MEASUREMENT_TIME): cv.invalid(
+                "The 'measurement_time' option has been replaced with 'measurement_duration' in 1.18.0"
             ),
         }
     )
@@ -49,4 +53,4 @@ def to_code(config):
     yield i2c.register_i2c_device(var, config)
 
     cg.add(var.set_resolution(config[CONF_RESOLUTION]))
-    cg.add(var.set_measurement_time(config[CONF_MEASUREMENT_TIME]))
+    cg.add(var.set_measurement_duration(config[CONF_MEASUREMENT_DURATION]))

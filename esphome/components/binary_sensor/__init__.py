@@ -4,6 +4,7 @@ from esphome import automation, core
 from esphome.automation import Condition, maybe_simple_id
 from esphome.components import mqtt
 from esphome.const import (
+    CONF_DELAY,
     CONF_DEVICE_CLASS,
     CONF_FILTERS,
     CONF_ID,
@@ -120,6 +121,7 @@ DelayedOnOffFilter = binary_sensor_ns.class_("DelayedOnOffFilter", Filter, cg.Co
 DelayedOnFilter = binary_sensor_ns.class_("DelayedOnFilter", Filter, cg.Component)
 DelayedOffFilter = binary_sensor_ns.class_("DelayedOffFilter", Filter, cg.Component)
 InvertFilter = binary_sensor_ns.class_("InvertFilter", Filter)
+AutorepeatFilter = binary_sensor_ns.class_("AutorepeatFilter", Filter, cg.Component)
 LambdaFilter = binary_sensor_ns.class_("LambdaFilter", Filter)
 
 FILTER_REGISTRY = Registry()
@@ -154,6 +156,51 @@ def delayed_on_filter_to_code(config, filter_id):
 )
 def delayed_off_filter_to_code(config, filter_id):
     var = cg.new_Pvariable(filter_id, config)
+    yield cg.register_component(var, {})
+    yield var
+
+
+CONF_TIME_OFF = "time_off"
+CONF_TIME_ON = "time_on"
+
+DEFAULT_DELAY = "1s"
+DEFAULT_TIME_OFF = "100ms"
+DEFAULT_TIME_ON = "900ms"
+
+
+@FILTER_REGISTRY.register(
+    "autorepeat",
+    AutorepeatFilter,
+    cv.All(
+        cv.ensure_list(
+            {
+                cv.Optional(
+                    CONF_DELAY, default=DEFAULT_DELAY
+                ): cv.positive_time_period_milliseconds,
+                cv.Optional(
+                    CONF_TIME_OFF, default=DEFAULT_TIME_OFF
+                ): cv.positive_time_period_milliseconds,
+                cv.Optional(
+                    CONF_TIME_ON, default=DEFAULT_TIME_ON
+                ): cv.positive_time_period_milliseconds,
+            }
+        ),
+    ),
+)
+def autorepeat_filter_to_code(config, filter_id):
+    timings = []
+    if len(config) > 0:
+        for conf in config:
+            timings.append((conf[CONF_DELAY], conf[CONF_TIME_OFF], conf[CONF_TIME_ON]))
+    else:
+        timings.append(
+            (
+                cv.time_period_str_unit(DEFAULT_DELAY).total_milliseconds,
+                cv.time_period_str_unit(DEFAULT_TIME_OFF).total_milliseconds,
+                cv.time_period_str_unit(DEFAULT_TIME_ON).total_milliseconds,
+            )
+        )
+    var = cg.new_Pvariable(filter_id, timings)
     yield cg.register_component(var, {})
     yield var
 
