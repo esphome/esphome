@@ -5,6 +5,11 @@ namespace improv {
 ImprovCommand parse_improv_data(const uint8_t *data, uint8_t length) {
   Command command = (Command) data[0];
   uint8_t data_length = data[1];
+
+  if (data_length != length - 3) {
+    return {.command = UNKNOWN};
+  }
+
   uint8_t checksum = data[length - 1];
 
   uint8_t calculated_checksum = 0;
