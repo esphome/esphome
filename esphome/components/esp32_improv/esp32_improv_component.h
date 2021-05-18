@@ -33,12 +33,16 @@ class ESP32ImprovComponent : public Component, public BLECharacteristicCallbacks
   void set_activator(binary_sensor::BinarySensor *activator) { this->activator_ = activator; }
   void set_status_indicator(output::BinaryOutput *status_indicator) { this->status_indicator_ = status_indicator; }
   void set_identify_duration(uint32_t identify_duration) { this->identify_duration_ = identify_duration; }
+  void set_activated_duration(uint32_t activated_duration) { this->activated_duration_ = activated_duration; }
 
   void onWrite(BLECharacteristic *characteristic) override;
 
  protected:
   uint32_t identify_start_{0};
   uint32_t identify_duration_;
+  uint32_t activated_start_{0};
+  uint32_t activated_duration_;
+
   std::string incoming_data_;
   wifi::WiFiAP connecting_sta_;
 

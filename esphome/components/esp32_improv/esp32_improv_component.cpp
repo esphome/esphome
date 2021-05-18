@@ -39,6 +39,7 @@ void ESP32ImprovComponent::setup() {
 void ESP32ImprovComponent::loop() {
   if (this->incoming_data_.length() > 0)
     this->process_incoming_data_();
+  uint32_t now = millis();
 
   switch (this->state_) {
     case improv::STATE_NONE:
@@ -50,6 +51,7 @@ void ESP32ImprovComponent::loop() {
     case improv::STATE_STARTED: {
       if (this->activator_ == nullptr || this->activator_->state) {
         this->set_state_(improv::STATE_ACTIVATED);
+        this->activated_start_ = now;
       } else {
         if (this->status_indicator_ != nullptr) {
           if (!this->check_identify_())
@@ -59,9 +61,16 @@ void ESP32ImprovComponent::loop() {
       break;
     }
     case improv::STATE_ACTIVATED: {
+      if (this->activator_ != nullptr) {
+        if (now - this->activated_start_ > this->activated_duration_) {
+          ESP_LOGD(TAG, "Activation timeout");
+          this->set_state_(improv::STATE_STARTED);
+          return;
+        }
+      }
       if (this->status_indicator_ != nullptr) {
         if (!this->check_identify_()) {
-          if ((millis() % 1000) < 500) {
+          if ((now % 1000) < 500) {
             this->status_indicator_->turn_on();
           } else {
             this->status_indicator_->turn_off();
@@ -72,7 +81,7 @@ void ESP32ImprovComponent::loop() {
     }
     case improv::STATE_RECEIVED: {
       if (this->status_indicator_ != nullptr) {
-        if ((millis() % 200) < 100) {
+        if ((now % 200) < 100) {
           this->status_indicator_->turn_on();
         } else {
           this->status_indicator_->turn_off();
@@ -126,8 +135,6 @@ void ESP32ImprovComponent::set_state_(improv::State state) {
 
 void ESP32ImprovComponent::set_error_(improv::Error error) {
   ESP_LOGE(TAG, "Error: %d", error);
-  uint8_t data[1]{error};
-  this->error_->setValue(data, 1);
   if (this->error_->getData()[0] != error) {
     uint8_t data[1]{error};
     this->error_->setValue(data, 1);
@@ -147,12 +154,13 @@ void ESP32ImprovComponent::start() {
   ESP_LOGD(TAG, "Service started!");
 
   this->set_state_(improv::STATE_STARTED);
-  this->error_->setValue({0x00});
+  this->error_->setValue({improv::ERROR_NONE});
 }
 
 void ESP32ImprovComponent::end() {
   this->set_state_(improv::STATE_STOPPED);
   this->service_->stop();
+  esp32_ble_server::global_ble_server->teardown();
 }
 
 float ESP32ImprovComponent::get_setup_priority() const {
@@ -172,8 +180,9 @@ void ESP32ImprovComponent::process_incoming_data_() {
     improv::ImprovCommand command = improv::parse_improv_data(
         reinterpret_cast<const uint8_t *>(&(this->incoming_data_[0])), this->incoming_data_.length());
     switch (command.command) {
-      case 0x00:
+      case improv::BAD_CHECKSUM:
         ESP_LOGW(TAG, "Error decoding Improv payload");
+        this->set_error_(improv::ERROR_INVALID_RPC);
         this->incoming_data_ = "";
         break;
       case improv::WIFI_SETTINGS: {
@@ -203,6 +212,10 @@ void ESP32ImprovComponent::process_incoming_data_() {
         this->incoming_data_ = "";
         this->identify_start_ = millis();
         break;
+      default:
+        ESP_LOGW(TAG, "Unknown Improv payload");
+        this->set_error_(improv::ERROR_UNKNOWN_RPC);
+        this->incoming_data_ = "";
     }
   } else if (this->incoming_data_.length() - 2 > length) {
     ESP_LOGD(TAG, "[CHANGE TO V] Too much data came in, or malformed resetting buffer...");

@@ -13,20 +13,20 @@ ImprovCommand parse_improv_data(const uint8_t *data, uint8_t length) {
   }
 
   if (calculated_checksum != checksum) {
-    return {.command = UNKNOWN};
+    return {.command = BAD_CHECKSUM};
   }
 
   if (command == WIFI_SETTINGS) {
     uint8_t ssid_length = data[2];
     uint8_t ssid_start = 3;
-    uint8_t ssid_end = ssid_start + ssid_length - 1;
+    uint8_t ssid_end = ssid_start + ssid_length;
 
-    uint8_t pass_length = data[ssid_end + 1];
-    uint8_t pass_start = ssid_end + 2;
-    uint8_t pass_end = pass_start + pass_length - 1;
+    uint8_t pass_length = data[ssid_end];
+    uint8_t pass_start = ssid_end + 1;
+    uint8_t pass_end = pass_start + pass_length;
 
-    std::string ssid(*data + ssid_start, ssid_length);
-    std::string password(*data + pass_start, pass_length);
+    std::string ssid(data + ssid_start, data + ssid_end);
+    std::string password(data + pass_start, data + pass_end);
     return {.command = command, .ssid = ssid, .password = password};
   }
 
