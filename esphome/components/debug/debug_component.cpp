@@ -251,9 +251,13 @@ void DebugComponent::dump_config() {
 }
 
 void DebugComponent::loop() {
+	// calculate loop time - from last call to this one
   uint32_t now = millis();
-  uint32_t loop_time = now - this->loop_time_;
-  this->max_loop_time_ = max(this->max_loop_time_, loop_time);
+	// avoid errors on millis() loop-over 
+	if (now > this->loop_time_) {
+		uint32_t loop_time = now - this->loop_time_;
+		this->max_loop_time_ = max(this->max_loop_time_, loop_time);
+	}
   this->loop_time_ = now;
 
   uint32_t new_free_heap = ESP.getFreeHeap();
