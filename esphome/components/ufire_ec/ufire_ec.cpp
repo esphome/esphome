@@ -62,20 +62,10 @@ float UFireECComponent::measure_temperature_() { return this->read_data_(REGISTE
 
 float UFireECComponent::measure_ms_() { return this->read_data_(REGISTER_MS); }
 
-void UFireECComponent::set_solution_(float solution) {
+void UFireECComponent::set_solution_(float solution, float temperature) {
   uint8_t temp[4];
-  float current;
 
-  // evaluate sensor temperature
-  if (this->temperature_sensor_ != nullptr) {
-    current = this->temperature_sensor_->get_state();
-  } else if (this->temperature_sensor_external_ != nullptr) {
-    current = this->temperature_sensor_external_->get_state();
-  } else {
-    current = this->temperature_compensation_;
-  }
-
-  solution /= (1 - (PROBE_COEFFICIENT * (current - 25)));
+  solution /= (1 - (PROBE_COEFFICIENT * (temperature - 25)));
   memcpy(temp, &solution, sizeof(solution));
   this->write_bytes(REGISTER_SOLUTION, temp, 4);
   delay(10);
@@ -97,8 +87,8 @@ void UFireECComponent::set_temperature_(float temperature) {
   delay(10);
 }
 
-void UFireECComponent::calibrate_probe(float solution) {
-  this->set_solution_(solution);
+void UFireECComponent::calibrate_probe(float solution, float temperature) {
+  this->set_solution_(solution, temperature);
   this->write_byte(REGISTER_TASK, COMMAND_CALIBRATE_PROBE);
 }
 

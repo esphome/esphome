@@ -73,6 +73,7 @@ UFIRE_ISE_CALIBRATE_PROBE_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.use_id(UFireECComponent),
         cv.Required(CONF_SOLUTION): cv.templatable(float),
+        cv.Required(CONF_TEMPERATURE_SENSOR): cv.use_id(sensor.Sensor),
     }
 )
 
@@ -87,4 +88,6 @@ def ufire_ise_calibrate_probe_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg, paren)
     template_ = yield cg.templatable(config[CONF_SOLUTION], args, float)
     cg.add(var.set_solution(template_))
+    sens = yield cg.get_variable(config[CONF_TEMPERATURE_SENSOR])
+    cg.add(var.set_temperature_sensor(sens))
     yield var

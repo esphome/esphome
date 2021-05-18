@@ -36,12 +36,12 @@ class UFireECComponent : public PollingComponent, public i2c::I2CDevice {
   }
   void set_ec_sensor(sensor::Sensor *ec_sensor) { this->ec_sensor_ = ec_sensor; }
   void set_temperature_compensation(float compensation) { this->temperature_compensation_ = compensation; }
-  void calibrate_probe(float solution);
+  void calibrate_probe(float solution, float temperature);
 
  protected:
   float measure_temperature_();
   float measure_ms_();
-  void set_solution_(float solution);
+  void set_solution_(float solution, float temperature);
   void set_compensation_(float temperature);
   void set_temperature_(float temperature);
   float read_data_(uint8_t reg);
@@ -57,8 +57,14 @@ template<typename... Ts> class UFireISECalibrateProbeAction : public Action<Ts..
  public:
   UFireISECalibrateProbeAction(UFireECComponent *parent) : parent_(parent) {}
   TEMPLATABLE_VALUE(float, solution)
+  TEMPLATABLE_VALUE(float, temperature)
 
-  void play(Ts... x) override { this->parent_->calibrate_probe(this->solution_.value(x...)); }
+  void set_temperature_sensor(sensor::Sensor *temperature_sensor) {
+    this->set_temperature(temperature_sensor->get_state());
+  }
+  void play(Ts... x) override {
+    this->parent_->calibrate_probe(this->solution_.value(x...), this->temperature_.value(x...));
+  }
 
  protected:
   UFireECComponent *parent_;
