@@ -31,13 +31,17 @@ class ESP32BLEServer : public Component {
   void dump_config() override;
   float get_setup_priority() const override;
 
+  void teardown();
+
   BLEService *add_service(const char *uuid);
 
   void set_manufacturer(const std::string manufacturer) { this->manufacturer_ = manufacturer; }
+  void set_model(const std::string model) { this->model_ = model; }
 
  protected:
   BLEServer *server_;
   std::string manufacturer_;
+  optional<std::string> model_;
 };
 
 extern ESP32BLEServer *global_ble_server;

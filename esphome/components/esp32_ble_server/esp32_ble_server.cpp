@@ -25,14 +25,22 @@ void ESP32BLEServer::setup() {
   this->server_->setCallbacks(new ESP32BLEServerCallback());
 
   BLEService *device_information_service = this->server_->createService(DEVICE_INFORMATION_SERVICE_UUID);
+  if (this->model_.has_value()) {
+    BLECharacteristic *model =
+        device_information_service->createCharacteristic(MODEL_UUID, BLECharacteristic::PROPERTY_READ);
+    model->setValue(this->model_.value());
+  } else {
 #ifdef ARDUINO_BOARD
-  BLECharacteristic *model =
-      device_information_service->createCharacteristic(MODEL_UUID, BLECharacteristic::PROPERTY_READ);
-  model->setValue(ARDUINO_BOARD);
+    BLECharacteristic *model =
+        device_information_service->createCharacteristic(MODEL_UUID, BLECharacteristic::PROPERTY_READ);
+    model->setValue(ARDUINO_BOARD);
 #endif
+  }
+
   BLECharacteristic *version =
       device_information_service->createCharacteristic(VERSION_UUID, BLECharacteristic::PROPERTY_READ);
   version->setValue("ESPHome " ESPHOME_VERSION);
+
   BLECharacteristic *manufacturer =
       device_information_service->createCharacteristic(MANUFACTURER_UUID, BLECharacteristic::PROPERTY_READ);
   manufacturer->setValue(this->manufacturer_);
@@ -44,6 +52,8 @@ void ESP32BLEServer::setup() {
 
   BLEDevice::startAdvertising();
 }
+
+void ESP32BLEServer::teardown() { BLEDevice::deinit(true); }
 
 void ESP32BLEServer::loop() {}
 
