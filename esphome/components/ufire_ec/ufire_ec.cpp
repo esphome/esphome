@@ -31,34 +31,31 @@ void UFireECComponent::setup() {
 }
 
 void UFireECComponent::update() {
+  int wait = 0;
+
   if (this->temperature_sensor_ != nullptr) {
     this->write_byte(REGISTER_TASK, COMMAND_MEASURE_TEMP);
-    this->set_timeout("data_temperature", 750, [this]() { this->update_internal_temperature_(); });
+    wait += 750;
   } else if (this->temperature_sensor_external_ != nullptr) {
     float temperature = this->temperature_sensor_external_->get_state();
     this->set_temperature_(temperature);
-
-    this->write_byte(REGISTER_TASK, COMMAND_MEASURE_EC);
-    this->set_timeout("data_ec", 750, [this]() { this->update_internal_ec_(); });
-  } else if (this->ec_sensor_ != nullptr) {
-    this->write_byte(REGISTER_TASK, COMMAND_MEASURE_EC);
-    this->set_timeout("data_ec", 750, [this]() { this->update_internal_ec_(); });
   }
-}
 
-void UFireECComponent::update_internal_temperature_() {
-  float temperature = this->measure_temperature_();
-  this->temperature_sensor_->publish_state(temperature);
-  this->set_temperature_(temperature);
-
-  this->write_byte(REGISTER_TASK, COMMAND_MEASURE_EC);
-  this->set_timeout("data_ec", 750, [this]() { this->update_internal_ec_(); });
-}
-
-void UFireECComponent::update_internal_ec_() {
   if (this->ec_sensor_ != nullptr) {
-    this->ec_sensor_->publish_state(this->measure_ms_());
+    this->write_byte(REGISTER_TASK, COMMAND_MEASURE_EC);
+    wait += 750;
   }
+
+  if (wait > 0) {
+    this->set_timeout("data", wait, [this]() { this->update_internal_(); });
+  }
+}
+
+void UFireECComponent::update_internal_() {
+  if (this->temperature_sensor_ != nullptr)
+    this->temperature_sensor_->publish_state(this->measure_temperature_());
+  if (this->ec_sensor_ != nullptr)
+    this->ec_sensor_->publish_state(this->measure_ms_());
 }
 
 float UFireECComponent::measure_temperature_() { return this->read_data_(REGISTER_TEMP); }

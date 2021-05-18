@@ -45,8 +45,7 @@ class UFireECComponent : public PollingComponent, public i2c::I2CDevice {
   void set_compensation_(float temperature);
   void set_temperature_(float temperature);
   float read_data_(uint8_t reg);
-  void update_internal_ec_();
-  void update_internal_temperature_();
+  void update_internal_();
 
   sensor::Sensor *temperature_sensor_{nullptr};
   sensor::Sensor *temperature_sensor_external_{nullptr};
