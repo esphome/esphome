@@ -7,7 +7,7 @@
 #include "esphome/components/esp32_ble_server/esp32_ble_server.h"
 #include "esphome/components/output/binary_output.h"
 #include "esphome/components/wifi/wifi_component.h"
-#include "improv.h"
+#include "esphome/components/improv/improv.h"
 
 #ifdef ARDUINO_ARCH_ESP32
 

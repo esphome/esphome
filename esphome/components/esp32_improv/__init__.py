@@ -5,7 +5,7 @@ from esphome.const import CONF_ID, ESP_PLATFORM_ESP32
 from esphome.core import coroutine_with_priority
 
 
-AUTO_LOAD = ["binary_sensor", "output"]
+AUTO_LOAD = ["binary_sensor", "output", "improv"]
 CODEOWNERS = ["@jesserockz"]
 DEPENDENCIES = ["esp32_ble_server", "wifi"]
 ESP_PLATFORMS = [ESP_PLATFORM_ESP32]
