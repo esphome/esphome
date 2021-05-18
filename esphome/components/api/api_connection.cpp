@@ -642,8 +642,9 @@ DeviceInfoResponse APIConnection::device_info(const DeviceInfoRequest &msg) {
 }
 void APIConnection::on_home_assistant_state_response(const HomeAssistantStateResponse &msg) {
   for (auto &it : this->parent_->get_state_subs())
-    if (it.entity_id == msg.entity_id)
+    if (it.entity_id == msg.entity_id && it.attribute.value() == msg.attribute) {
       it.callback(msg.state);
+    }
 }
 void APIConnection::execute_service(const ExecuteServiceRequest &msg) {
   bool found = false;
@@ -660,6 +661,7 @@ void APIConnection::subscribe_home_assistant_states(const SubscribeHomeAssistant
   for (auto &it : this->parent_->get_state_subs()) {
     SubscribeHomeAssistantStateResponse resp;
     resp.entity_id = it.entity_id;
+    resp.attribute = it.attribute.value();
     if (!this->send_subscribe_home_assistant_state_response(resp)) {
       this->on_fatal_error();
       return;

@@ -16,7 +16,7 @@ class CustomComponentConstructor {
     }
   }
 
-  Component *get_component(int i) { return this->components_[i]; }
+  Component *get_component(int i) const { return this->components_[i]; }
 
  protected:
   std::vector<Component *> components_;

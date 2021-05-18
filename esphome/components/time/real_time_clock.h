@@ -30,7 +30,7 @@ struct ESPTime {
   uint8_t month;
   /// year
   uint16_t year;
-  /// daylight savings time flag
+  /// daylight saving time flag
   bool is_dst;
   union {
     ESPDEPRECATED(".time is deprecated, use .timestamp instead") time_t time;
