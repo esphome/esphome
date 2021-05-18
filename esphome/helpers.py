@@ -222,7 +222,7 @@ def write_file_if_changed(path: Union[Path, str], text: str):
         write_file(path, text)
 
 
-def copy_file_if_changed(src, dst):
+def copy_file_if_changed(src: os.PathLike, dst: os.PathLike) -> None:
     import shutil
 
     if file_compare(src, dst):
@@ -240,7 +240,7 @@ def list_starts_with(list_, sub):
     return len(sub) <= len(list_) and all(list_[i] == x for i, x in enumerate(sub))
 
 
-def file_compare(path1, path2):
+def file_compare(path1: os.PathLike, path2: os.PathLike) -> bool:
     """Return True if the files path1 and path2 have the same contents."""
     import stat
 

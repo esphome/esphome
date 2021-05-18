@@ -599,10 +599,10 @@ def run_esphome(argv):
         _LOGGER.error("Missing configuration parameter, see esphome --help.")
         return 1
 
-    if sys.version_info < (3, 6, 0):
+    if sys.version_info < (3, 7, 0):
         _LOGGER.error(
-            "You're running ESPHome with Python <3.6. ESPHome is no longer compatible "
-            "with this Python version. Please reinstall ESPHome with Python 3.6+"
+            "You're running ESPHome with Python <3.7. ESPHome is no longer compatible "
+            "with this Python version. Please reinstall ESPHome with Python 3.7+"
         )
         return 1
 
