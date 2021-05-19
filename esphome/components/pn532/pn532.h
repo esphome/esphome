@@ -30,7 +30,8 @@ class PN532 : public PollingComponent {
   void loop() override;
 
   void register_tag(PN532BinarySensor *tag) { this->binary_sensors_.push_back(tag); }
-  void register_trigger(PN532OnTagTrigger *trig) { this->triggers_.push_back(trig); }
+  void register_ontag_trigger(PN532OnTagTrigger *trig) { this->triggers_ontag_.push_back(trig); }
+  void register_ontagremoved_trigger(PN532OnTagTrigger *trig) { this->triggers_ontagremoved_.push_back(trig); }
 
   void add_on_finished_write_callback(std::function<void()> callback) {
     this->on_finished_write_callback_.add(std::move(callback));
@@ -46,12 +47,12 @@ class PN532 : public PollingComponent {
  protected:
   void turn_off_rf_();
   bool write_command_(const std::vector<uint8_t> &data);
-  bool read_response_(uint8_t command, std::vector<uint8_t> &data);
   bool read_ack_();
-  uint8_t read_response_length_();
+  void send_nack_();
 
   virtual bool write_data(const std::vector<uint8_t> &data) = 0;
   virtual bool read_data(std::vector<uint8_t> &data, uint8_t len) = 0;
+  virtual bool read_response(uint8_t command, std::vector<uint8_t> &data) = 0;
 
   nfc::NfcTag *read_tag_(std::vector<uint8_t> &uid);
 
@@ -78,7 +79,8 @@ class PN532 : public PollingComponent {
 
   bool requested_read_{false};
   std::vector<PN532BinarySensor *> binary_sensors_;
-  std::vector<PN532OnTagTrigger *> triggers_;
+  std::vector<PN532OnTagTrigger *> triggers_ontag_;
+  std::vector<PN532OnTagTrigger *> triggers_ontagremoved_;
   std::vector<uint8_t> current_uid_;
   nfc::NdefMessage *next_task_message_to_write_;
   enum NfcTask {

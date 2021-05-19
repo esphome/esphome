@@ -1,28 +1,34 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import sensor
-from esphome.const import CONF_SENSOR, UNIT_OHM, ICON_FLASH, CONF_ID
+from esphome.const import CONF_SENSOR, DEVICE_CLASS_EMPTY, UNIT_OHM, ICON_FLASH, CONF_ID
 
-resistance_ns = cg.esphome_ns.namespace('resistance')
-ResistanceSensor = resistance_ns.class_('ResistanceSensor', cg.Component, sensor.Sensor)
+resistance_ns = cg.esphome_ns.namespace("resistance")
+ResistanceSensor = resistance_ns.class_("ResistanceSensor", cg.Component, sensor.Sensor)
 
-CONF_REFERENCE_VOLTAGE = 'reference_voltage'
-CONF_CONFIGURATION = 'configuration'
-CONF_RESISTOR = 'resistor'
+CONF_REFERENCE_VOLTAGE = "reference_voltage"
+CONF_CONFIGURATION = "configuration"
+CONF_RESISTOR = "resistor"
 
-ResistanceConfiguration = resistance_ns.enum('ResistanceConfiguration')
+ResistanceConfiguration = resistance_ns.enum("ResistanceConfiguration")
 CONFIGURATIONS = {
-    'DOWNSTREAM': ResistanceConfiguration.DOWNSTREAM,
-    'UPSTREAM': ResistanceConfiguration.UPSTREAM,
+    "DOWNSTREAM": ResistanceConfiguration.DOWNSTREAM,
+    "UPSTREAM": ResistanceConfiguration.UPSTREAM,
 }
 
-CONFIG_SCHEMA = sensor.sensor_schema(UNIT_OHM, ICON_FLASH, 1).extend({
-    cv.GenerateID(): cv.declare_id(ResistanceSensor),
-    cv.Required(CONF_SENSOR): cv.use_id(sensor.Sensor),
-    cv.Required(CONF_CONFIGURATION): cv.enum(CONFIGURATIONS, upper=True),
-    cv.Required(CONF_RESISTOR): cv.resistance,
-    cv.Optional(CONF_REFERENCE_VOLTAGE, default='3.3V'): cv.voltage,
-}).extend(cv.COMPONENT_SCHEMA)
+CONFIG_SCHEMA = (
+    sensor.sensor_schema(UNIT_OHM, ICON_FLASH, 1, DEVICE_CLASS_EMPTY)
+    .extend(
+        {
+            cv.GenerateID(): cv.declare_id(ResistanceSensor),
+            cv.Required(CONF_SENSOR): cv.use_id(sensor.Sensor),
+            cv.Required(CONF_CONFIGURATION): cv.enum(CONFIGURATIONS, upper=True),
+            cv.Required(CONF_RESISTOR): cv.resistance,
+            cv.Optional(CONF_REFERENCE_VOLTAGE, default="3.3V"): cv.voltage,
+        }
+    )
+    .extend(cv.COMPONENT_SCHEMA)
+)
 
 
 def to_code(config):

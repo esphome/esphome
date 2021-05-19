@@ -1,185 +1,39 @@
 import collections
-import importlib
 import logging
 import re
-import os.path
 
 # pylint: disable=unused-import, wrong-import-order
-import sys
 from contextlib import contextmanager
 
 import voluptuous as vol
 
-from esphome import core, core_config, yaml_util
-from esphome.const import CONF_ESPHOME, CONF_PLATFORM, ESP_PLATFORMS, CONF_PACKAGES, \
-    CONF_SUBSTITUTIONS
-from esphome.core import CORE, EsphomeError  # noqa
-from esphome.helpers import color, indent
+from esphome import core, yaml_util, loader
+import esphome.core.config as core_config
+from esphome.const import (
+    CONF_ESPHOME,
+    CONF_PLATFORM,
+    CONF_PACKAGES,
+    CONF_SUBSTITUTIONS,
+    CONF_EXTERNAL_COMPONENTS,
+)
+from esphome.core import CORE, EsphomeError
+from esphome.helpers import indent
 from esphome.util import safe_print, OrderedDict
 
-from typing import List, Optional, Tuple, Union  # noqa
-from esphome.core import ConfigType  # noqa
+from typing import List, Optional, Tuple, Union
+from esphome.core import ConfigType
+from esphome.loader import get_component, get_platform, ComponentManifest
 from esphome.yaml_util import is_secret, ESPHomeDataBase, ESPForceValue
 from esphome.voluptuous_schema import ExtraKeysInvalid
+from esphome.log import color, Fore
 
 _LOGGER = logging.getLogger(__name__)
-
-_COMPONENT_CACHE = {}
-
-
-class ComponentManifest:
-    def __init__(self, module, base_components_path, is_core=False, is_platform=False):
-        self.module = module
-        self._is_core = is_core
-        self.is_platform = is_platform
-        self.base_components_path = base_components_path
-
-    @property
-    def is_platform_component(self):
-        return getattr(self.module, 'IS_PLATFORM_COMPONENT', False)
-
-    @property
-    def config_schema(self):
-        return getattr(self.module, 'CONFIG_SCHEMA', None)
-
-    @property
-    def is_multi_conf(self):
-        return getattr(self.module, 'MULTI_CONF', False)
-
-    @property
-    def to_code(self):
-        return getattr(self.module, 'to_code', None)
-
-    @property
-    def esp_platforms(self):
-        return getattr(self.module, 'ESP_PLATFORMS', ESP_PLATFORMS)
-
-    @property
-    def dependencies(self):
-        return getattr(self.module, 'DEPENDENCIES', [])
-
-    @property
-    def conflicts_with(self):
-        return getattr(self.module, 'CONFLICTS_WITH', [])
-
-    @property
-    def auto_load(self):
-        return getattr(self.module, 'AUTO_LOAD', [])
-
-    @property
-    def codeowners(self) -> List[str]:
-        return getattr(self.module, 'CODEOWNERS', [])
-
-    def _get_flags_set(self, name, config):
-        if not hasattr(self.module, name):
-            return set()
-        obj = getattr(self.module, name)
-        if callable(obj):
-            obj = obj(config)
-        if obj is None:
-            return set()
-        if not isinstance(obj, (list, tuple, set)):
-            obj = [obj]
-        return set(obj)
-
-    @property
-    def source_files(self):
-        if self._is_core:
-            core_p = os.path.abspath(os.path.join(os.path.dirname(__file__), 'core'))
-            source_files = core.find_source_files(os.path.join(core_p, 'dummy'))
-            ret = {}
-            for f in source_files:
-                ret[f'esphome/core/{f}'] = os.path.join(core_p, f)
-            return ret
-
-        source_files = core.find_source_files(self.module.__file__)
-        ret = {}
-        # Make paths absolute
-        directory = os.path.abspath(os.path.dirname(self.module.__file__))
-        for x in source_files:
-            full_file = os.path.join(directory, x)
-            rel = os.path.relpath(full_file, self.base_components_path)
-            # Always use / for C++ include names
-            rel = rel.replace(os.sep, '/')
-            target_file = f'esphome/components/{rel}'
-            ret[target_file] = full_file
-        return ret
-
-
-CORE_COMPONENTS_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), 'components'))
-_UNDEF = object()
-CUSTOM_COMPONENTS_PATH = _UNDEF
-
-
-def _mount_config_dir():
-    global CUSTOM_COMPONENTS_PATH
-    if CUSTOM_COMPONENTS_PATH is not _UNDEF:
-        return
-    custom_path = os.path.abspath(os.path.join(CORE.config_dir, 'custom_components'))
-    if not os.path.isdir(custom_path):
-        CUSTOM_COMPONENTS_PATH = None
-        return
-    if CORE.config_dir not in sys.path:
-        sys.path.insert(0, CORE.config_dir)
-    CUSTOM_COMPONENTS_PATH = custom_path
-
-
-def _lookup_module(domain, is_platform):
-    if domain in _COMPONENT_CACHE:
-        return _COMPONENT_CACHE[domain]
-
-    _mount_config_dir()
-    # First look for custom_components
-    try:
-        module = importlib.import_module(f'custom_components.{domain}')
-    except ImportError as e:
-        # ImportError when no such module
-        if 'No module named' not in str(e):
-            _LOGGER.warning("Unable to import custom component %s:", domain, exc_info=True)
-    except Exception:  # pylint: disable=broad-except
-        # Other error means component has an issue
-        _LOGGER.error("Unable to load custom component %s:", domain, exc_info=True)
-        return None
-    else:
-        # Found in custom components
-        manif = ComponentManifest(module, CUSTOM_COMPONENTS_PATH, is_platform=is_platform)
-        _COMPONENT_CACHE[domain] = manif
-        return manif
-
-    try:
-        module = importlib.import_module(f'esphome.components.{domain}')
-    except ImportError as e:
-        if 'No module named' not in str(e):
-            _LOGGER.error("Unable to import component %s:", domain, exc_info=True)
-        return None
-    except Exception:  # pylint: disable=broad-except
-        _LOGGER.error("Unable to load component %s:", domain, exc_info=True)
-        return None
-    else:
-        manif = ComponentManifest(module, CORE_COMPONENTS_PATH, is_platform=is_platform)
-        _COMPONENT_CACHE[domain] = manif
-        return manif
-
-
-def get_component(domain):
-    assert '.' not in domain
-    return _lookup_module(domain, False)
-
-
-def get_platform(domain, platform):
-    full = f'{platform}.{domain}'
-    return _lookup_module(full, True)
-
-
-_COMPONENT_CACHE['esphome'] = ComponentManifest(
-    core_config, CORE_COMPONENTS_PATH, is_core=True, is_platform=False,
-)
 
 
 def iter_components(config):
     for domain, conf in config.items():
         component = get_component(domain)
-        if component.is_multi_conf:
+        if component.multi_conf:
             for conf_ in conf:
                 yield domain, component, conf_
         else:
@@ -197,7 +51,7 @@ ConfigPath = List[Union[str, int]]
 def _path_begins_with(path, other):  # type: (ConfigPath, ConfigPath) -> bool
     if len(path) < len(other):
         return False
-    return path[:len(other)] == other
+    return path[: len(other)] == other
 
 
 class Config(OrderedDict):
@@ -265,11 +119,22 @@ class Config(OrderedDict):
         doc_range = None
         for item_index in path:
             try:
+                if item_index in data:
+                    doc_range = [x for x in data.keys() if x == item_index][0].esp_range
                 data = data[item_index]
-            except (KeyError, IndexError, TypeError):
+            except (KeyError, IndexError, TypeError, AttributeError):
                 return doc_range
+            if isinstance(data, core.ID):
+                data = data.id
             if isinstance(data, ESPHomeDataBase) and data.esp_range is not None:
                 doc_range = data.esp_range
+            elif isinstance(data, dict):
+                platform_item = data.get("platform")
+                if (
+                    isinstance(platform_item, ESPHomeDataBase)
+                    and platform_item.esp_range is not None
+                ):
+                    doc_range = platform_item.esp_range
 
         return doc_range
 
@@ -324,7 +189,7 @@ def do_id_pass(result):  # type: (Config) -> None
                 # Look for duplicate definitions
                 match = next((v for v in declare_ids if v[0].id == id.id), None)
                 if match is not None:
-                    opath = '->'.join(str(v) for v in match[1])
+                    opath = "->".join(str(v) for v in match[1])
                     result.add_str_error(f"ID {id.id} redefined! Check {opath}", path)
                     continue
             declare_ids.append((id, path))
@@ -341,35 +206,67 @@ def do_id_pass(result):  # type: (Config) -> None
         if id.id is not None:
             # manually declared
             match = next((v[0] for v in declare_ids if v[0].id == id.id), None)
-            if match is None:
+            if match is None or not match.is_manual:
                 # No declared ID with this name
                 import difflib
-                error = ("Couldn't find ID '{}'. Please check you have defined "
-                         "an ID with that name in your configuration.".format(id.id))
+
+                error = (
+                    "Couldn't find ID '{}'. Please check you have defined "
+                    "an ID with that name in your configuration.".format(id.id)
+                )
                 # Find candidates
-                matches = difflib.get_close_matches(id.id, [v[0].id for v in declare_ids])
+                matches = difflib.get_close_matches(
+                    id.id, [v[0].id for v in declare_ids if v[0].is_manual]
+                )
                 if matches:
-                    matches_s = ', '.join(f'"{x}"' for x in matches)
+                    matches_s = ", ".join(f'"{x}"' for x in matches)
                     error += f" These IDs look similar: {matches_s}."
                 result.add_str_error(error, path)
                 continue
-            if not isinstance(match.type, MockObjClass) or not isinstance(id.type, MockObjClass):
+            if not isinstance(match.type, MockObjClass) or not isinstance(
+                id.type, MockObjClass
+            ):
                 continue
             if not match.type.inherits_from(id.type):
-                result.add_str_error("ID '{}' of type {} doesn't inherit from {}. Please "
-                                     "double check your ID is pointing to the correct value"
-                                     "".format(id.id, match.type, id.type), path)
+                result.add_str_error(
+                    "ID '{}' of type {} doesn't inherit from {}. Please "
+                    "double check your ID is pointing to the correct value"
+                    "".format(id.id, match.type, id.type),
+                    path,
+                )
 
         if id.id is None and id.type is not None:
+            matches = []
             for v in declare_ids:
                 if v[0] is None or not isinstance(v[0].type, MockObjClass):
                     continue
                 inherits = v[0].type.inherits_from(id.type)
                 if inherits:
-                    id.id = v[0].id
-                    break
-            else:
-                result.add_str_error(f"Couldn't resolve ID for type '{id.type}'", path)
+                    matches.append(v[0])
+
+            if len(matches) == 0:
+                result.add_str_error(
+                    f"Couldn't find any component that can be used for '{id.type}'. Are you missing a hub declaration?",
+                    path,
+                )
+            elif len(matches) == 1:
+                id.id = matches[0].id
+            elif len(matches) > 1:
+                if str(id.type) == "time::RealTimeClock":
+                    id.id = matches[0].id
+                else:
+                    manual_declared_count = sum(1 for m in matches if m.is_manual)
+                    if manual_declared_count > 0:
+                        ids = ", ".join([f"'{m.id}'" for m in matches if m.is_manual])
+                        result.add_str_error(
+                            f"Too many candidates found for '{path[-1]}' type '{id.type}' {'Some are' if manual_declared_count > 1 else 'One is'} {ids}",
+                            path,
+                        )
+                    else:
+                        result.add_str_error(
+                            f"Too many candidates found for '{path[-1]}' type '{id.type}' You must assign an explicit ID to the parent component you want to use.",
+                            path,
+                        )
 
 
 def recursive_check_replaceme(value):
@@ -381,21 +278,27 @@ def recursive_check_replaceme(value):
         return cv.Schema({cv.valid: recursive_check_replaceme})(value)
     if isinstance(value, ESPForceValue):
         pass
-    if isinstance(value, str) and value == 'REPLACEME':
-        raise cv.Invalid("Found 'REPLACEME' in configuration, this is most likely an error. "
-                         "Please make sure you have replaced all fields from the sample "
-                         "configuration.\n"
-                         "If you want to use the literal REPLACEME string, "
-                         "please use \"!force REPLACEME\"")
+    if isinstance(value, str) and value == "REPLACEME":
+        raise cv.Invalid(
+            "Found 'REPLACEME' in configuration, this is most likely an error. "
+            "Please make sure you have replaced all fields from the sample "
+            "configuration.\n"
+            "If you want to use the literal REPLACEME string, "
+            'please use "!force REPLACEME"'
+        )
     return value
 
 
 def validate_config(config, command_line_substitutions):
     result = Config()
 
+    loader.clear_component_meta_finders()
+    loader.install_custom_components_meta_finder()
+
     # 0. Load packages
     if CONF_PACKAGES in config:
         from esphome.components.packages import do_packages_pass
+
         result.add_output_path([CONF_PACKAGES], CONF_PACKAGES)
         try:
             config = do_packages_pass(config)
@@ -407,7 +310,11 @@ def validate_config(config, command_line_substitutions):
     # 1. Load substitutions
     if CONF_SUBSTITUTIONS in config:
         from esphome.components import substitutions
-        result[CONF_SUBSTITUTIONS] = {**config[CONF_SUBSTITUTIONS], **command_line_substitutions}
+
+        result[CONF_SUBSTITUTIONS] = {
+            **config[CONF_SUBSTITUTIONS],
+            **command_line_substitutions,
+        }
         result.add_output_path([CONF_SUBSTITUTIONS], CONF_SUBSTITUTIONS)
         try:
             substitutions.do_substitution_pass(config, command_line_substitutions)
@@ -421,14 +328,31 @@ def validate_config(config, command_line_substitutions):
     except vol.Invalid as err:
         result.add_error(err)
 
-    if 'esphomeyaml' in config:
-        _LOGGER.warning("The esphomeyaml section has been renamed to esphome in 1.11.0. "
-                        "Please replace 'esphomeyaml:' in your configuration with 'esphome:'.")
-        config[CONF_ESPHOME] = config.pop('esphomeyaml')
+    # 1.2. Load external_components
+    if CONF_EXTERNAL_COMPONENTS in config:
+        from esphome.components.external_components import do_external_components_pass
+
+        result.add_output_path([CONF_EXTERNAL_COMPONENTS], CONF_EXTERNAL_COMPONENTS)
+        try:
+            do_external_components_pass(config)
+        except vol.Invalid as err:
+            result.update(config)
+            result.add_error(err)
+            return result
+
+    if "esphomeyaml" in config:
+        _LOGGER.warning(
+            "The esphomeyaml section has been renamed to esphome in 1.11.0. "
+            "Please replace 'esphomeyaml:' in your configuration with 'esphome:'."
+        )
+        config[CONF_ESPHOME] = config.pop("esphomeyaml")
 
     if CONF_ESPHOME not in config:
-        result.add_str_error("'esphome' section missing from configuration. Please make sure "
-                             "your configuration has an 'esphome:' line in it.", [])
+        result.add_str_error(
+            "'esphome' section missing from configuration. Please make sure "
+            "your configuration has an 'esphome:' line in it.",
+            [],
+        )
         return result
 
     # 2. Load partial core config
@@ -450,7 +374,9 @@ def validate_config(config, command_line_substitutions):
         load_queue.append((domain, conf))
 
     # List of items to enter next stage
-    check_queue = []  # type: List[Tuple[ConfigPath, str, ConfigType, ComponentManifest]]
+    check_queue = (
+        []
+    )  # type: List[Tuple[ConfigPath, str, ConfigType, ComponentManifest]]
 
     # This step handles:
     # - Adding output path
@@ -459,8 +385,7 @@ def validate_config(config, command_line_substitutions):
 
     while load_queue:
         domain, conf = load_queue.popleft()
-        domain = str(domain)
-        if domain.startswith('.'):
+        if domain.startswith("."):
             # Ignore top-level keys starting with a dot
             continue
         result.add_output_path([domain], domain)
@@ -496,19 +421,19 @@ def validate_config(config, command_line_substitutions):
         for i, p_config in enumerate(conf):
             path = [domain, i]
             # Construct temporary unknown output path
-            p_domain = f'{domain}.unknown'
+            p_domain = f"{domain}.unknown"
             result.add_output_path(path, p_domain)
             result[domain][i] = p_config
             if not isinstance(p_config, dict):
                 result.add_str_error("Platform schemas must be key-value pairs.", path)
                 continue
-            p_name = p_config.get('platform')
+            p_name = p_config.get("platform")
             if p_name is None:
                 result.add_str_error("No platform specified! See 'platform' key.", path)
                 continue
             # Remove temp output path and construct new one
             result.remove_output_path(path, p_domain)
-            p_domain = f'{domain}.{p_name}'
+            p_domain = f"{domain}.{p_name}"
             result.add_output_path(path, p_domain)
             # Try Load platform
             platform = get_platform(domain, p_name)
@@ -541,8 +466,10 @@ def validate_config(config, command_line_substitutions):
         success = True
         for dependency in comp.dependencies:
             if dependency not in config:
-                result.add_str_error("Component {} requires component {}"
-                                     "".format(domain, dependency), path)
+                result.add_str_error(
+                    "Component {} requires component {}" "".format(domain, dependency),
+                    path,
+                )
                 success = False
         if not success:
             continue
@@ -550,27 +477,44 @@ def validate_config(config, command_line_substitutions):
         success = True
         for conflict in comp.conflicts_with:
             if conflict in config:
-                result.add_str_error("Component {} cannot be used together with component {}"
-                                     "".format(domain, conflict), path)
+                result.add_str_error(
+                    "Component {} cannot be used together with component {}"
+                    "".format(domain, conflict),
+                    path,
+                )
                 success = False
         if not success:
             continue
 
         if CORE.esp_platform not in comp.esp_platforms:
-            result.add_str_error("Component {} doesn't support {}.".format(domain,
-                                                                           CORE.esp_platform),
-                                 path)
+            result.add_str_error(
+                "Component {} doesn't support {}.".format(domain, CORE.esp_platform),
+                path,
+            )
             continue
 
-        if not comp.is_platform_component and comp.config_schema is None and \
-                not isinstance(conf, core.AutoLoad):
-            result.add_str_error("Component {} cannot be loaded via YAML "
-                                 "(no CONFIG_SCHEMA).".format(domain), path)
+        if (
+            not comp.is_platform_component
+            and comp.config_schema is None
+            and not isinstance(conf, core.AutoLoad)
+        ):
+            result.add_str_error(
+                "Component {} cannot be loaded via YAML "
+                "(no CONFIG_SCHEMA).".format(domain),
+                path,
+            )
             continue
 
-        if comp.is_multi_conf:
+        if comp.multi_conf:
             if not isinstance(conf, list):
                 result[domain] = conf = [conf]
+            if not isinstance(comp.multi_conf, bool) and len(conf) > comp.multi_conf:
+                result.add_str_error(
+                    "Component {} supports a maximum of {} "
+                    "entries ({} found).".format(domain, comp.multi_conf, len(conf)),
+                    path,
+                )
+                continue
             for i, part_conf in enumerate(conf):
                 validate_queue.append((path + [i], part_conf, comp))
             continue
@@ -585,13 +529,13 @@ def validate_config(config, command_line_substitutions):
             if comp.is_platform:
                 # Remove 'platform' key for validation
                 input_conf = OrderedDict(conf)
-                platform_val = input_conf.pop('platform')
+                platform_val = input_conf.pop("platform")
                 validated = comp.config_schema(input_conf)
                 # Ensure result is OrderedDict so we can call move_to_end
                 if not isinstance(validated, OrderedDict):
                     validated = OrderedDict(validated)
-                validated['platform'] = platform_val
-                validated.move_to_end('platform', last=False)
+                validated["platform"] = platform_val
+                validated.move_to_end("platform", last=False)
                 result.set_by_path(path, validated)
             else:
                 validated = comp.config_schema(conf)
@@ -616,18 +560,20 @@ def _nested_getitem(data, path):
 
 def humanize_error(config, validation_error):
     validation_error = str(validation_error)
-    m = re.match(r'^(.*?)\s*(?:for dictionary value )?@ data\[.*$', validation_error, re.DOTALL)
+    m = re.match(
+        r"^(.*?)\s*(?:for dictionary value )?@ data\[.*$", validation_error, re.DOTALL
+    )
     if m is not None:
         validation_error = m.group(1)
     validation_error = validation_error.strip()
-    if not validation_error.endswith('.'):
-        validation_error += '.'
+    if not validation_error.endswith("."):
+        validation_error += "."
     return validation_error
 
 
 def _get_parent_name(path, config):
     if not path:
-        return '<root>'
+        return "<root>"
     for domain_path, domain in config.output_paths:
         if _path_begins_with(path, domain_path):
             if len(path) > len(domain_path):
@@ -639,20 +585,22 @@ def _get_parent_name(path, config):
 
 def _format_vol_invalid(ex, config):
     # type: (vol.Invalid, Config) -> str
-    message = ''
+    message = ""
 
     paren = _get_parent_name(ex.path[:-1], config)
 
     if isinstance(ex, ExtraKeysInvalid):
         if ex.candidates:
-            message += '[{}] is an invalid option for [{}]. Did you mean {}?'.format(
-                ex.path[-1], paren, ', '.join(f'[{x}]' for x in ex.candidates))
+            message += "[{}] is an invalid option for [{}]. Did you mean {}?".format(
+                ex.path[-1], paren, ", ".join(f"[{x}]" for x in ex.candidates)
+            )
         else:
-            message += '[{}] is an invalid option for [{}]. Please check the indentation.'.format(
-                ex.path[-1], paren)
-    elif 'extra keys not allowed' in str(ex):
-        message += '[{}] is an invalid option for [{}].'.format(ex.path[-1], paren)
-    elif 'required key not provided' in str(ex):
+            message += "[{}] is an invalid option for [{}]. Please check the indentation.".format(
+                ex.path[-1], paren
+            )
+    elif "extra keys not allowed" in str(ex):
+        message += "[{}] is an invalid option for [{}].".format(ex.path[-1], paren)
+    elif "required key not provided" in str(ex):
         message += "'{}' is a required option for [{}].".format(ex.path[-1], paren)
     else:
         message += humanize_error(config, ex)
@@ -696,15 +644,16 @@ def load_config(command_line_substitutions):
         raise EsphomeError(f"Error while parsing config: {err}") from err
 
 
-def line_info(obj, highlight=True):
+def line_info(config, path, highlight=True):
     """Display line config source."""
     if not highlight:
         return None
-    if isinstance(obj, ESPHomeDataBase) and obj.esp_range is not None:
-        mark = obj.esp_range.start_mark
+    obj = config.get_deepest_document_range_for_path(path)
+    if obj:
+        mark = obj.start_mark
         source = "[source {}:{}]".format(mark.document, mark.line + 1)
-        return color('cyan', source)
-    return None
+        return color(Fore.CYAN, source)
+    return "None"
 
 
 def _print_on_next_line(obj):
@@ -720,90 +669,100 @@ def _print_on_next_line(obj):
 def dump_dict(config, path, at_root=True):
     # type: (Config, ConfigPath, bool) -> Tuple[str, bool]
     conf = config.get_nested_item(path)
-    ret = ''
+    ret = ""
     multiline = False
 
     if at_root:
         error = config.get_error_for_path(path)
         if error is not None:
-            ret += '\n' + color('bold_red', _format_vol_invalid(error, config)) + '\n'
+            ret += (
+                "\n" + color(Fore.BOLD_RED, _format_vol_invalid(error, config)) + "\n"
+            )
 
     if isinstance(conf, (list, tuple)):
         multiline = True
         if not conf:
-            ret += '[]'
+            ret += "[]"
             multiline = False
 
         for i in range(len(conf)):
             path_ = path + [i]
             error = config.get_error_for_path(path_)
             if error is not None:
-                ret += '\n' + color('bold_red', _format_vol_invalid(error, config)) + '\n'
+                ret += (
+                    "\n"
+                    + color(Fore.BOLD_RED, _format_vol_invalid(error, config))
+                    + "\n"
+                )
 
-            sep = '- '
+            sep = "- "
             if config.is_in_error_path(path_):
-                sep = color('red', sep)
+                sep = color(Fore.RED, sep)
             msg, _ = dump_dict(config, path_, at_root=False)
             msg = indent(msg)
-            inf = line_info(config.get_nested_item(path_), highlight=config.is_in_error_path(path_))
+            inf = line_info(config, path_, highlight=config.is_in_error_path(path_))
             if inf is not None:
-                msg = inf + '\n' + msg
+                msg = inf + "\n" + msg
             elif msg:
                 msg = msg[2:]
-            ret += sep + msg + '\n'
+            ret += sep + msg + "\n"
     elif isinstance(conf, dict):
         multiline = True
         if not conf:
-            ret += '{}'
+            ret += "{}"
             multiline = False
 
         for k in conf.keys():
             path_ = path + [k]
             error = config.get_error_for_path(path_)
             if error is not None:
-                ret += '\n' + color('bold_red', _format_vol_invalid(error, config)) + '\n'
+                ret += (
+                    "\n"
+                    + color(Fore.BOLD_RED, _format_vol_invalid(error, config))
+                    + "\n"
+                )
 
-            st = f'{k}: '
+            st = f"{k}: "
             if config.is_in_error_path(path_):
-                st = color('red', st)
+                st = color(Fore.RED, st)
             msg, m = dump_dict(config, path_, at_root=False)
 
-            inf = line_info(config.get_nested_item(path_), highlight=config.is_in_error_path(path_))
+            inf = line_info(config, path_, highlight=config.is_in_error_path(path_))
             if m:
-                msg = '\n' + indent(msg)
+                msg = "\n" + indent(msg)
 
             if inf is not None:
                 if m:
-                    msg = ' ' + inf + msg
+                    msg = " " + inf + msg
                 else:
-                    msg = msg + ' ' + inf
-            ret += st + msg + '\n'
+                    msg = msg + " " + inf
+            ret += st + msg + "\n"
     elif isinstance(conf, str):
         if is_secret(conf):
-            conf = '!secret {}'.format(is_secret(conf))
+            conf = "!secret {}".format(is_secret(conf))
         if not conf:
             conf += "''"
 
         if len(conf) > 80:
-            conf = '|-\n' + indent(conf)
+            conf = "|-\n" + indent(conf)
         error = config.get_error_for_path(path)
-        col = 'bold_red' if error else 'white'
+        col = Fore.BOLD_RED if error else Fore.KEEP
         ret += color(col, str(conf))
     elif isinstance(conf, core.Lambda):
         if is_secret(conf):
-            conf = '!secret {}'.format(is_secret(conf))
+            conf = "!secret {}".format(is_secret(conf))
 
-        conf = '!lambda |-\n' + indent(str(conf.value))
+        conf = "!lambda |-\n" + indent(str(conf.value))
         error = config.get_error_for_path(path)
-        col = 'bold_red' if error else 'white'
+        col = Fore.BOLD_RED if error else Fore.KEEP
         ret += color(col, conf)
     elif conf is None:
         pass
     else:
         error = config.get_error_for_path(path)
-        col = 'bold_red' if error else 'white'
+        col = Fore.BOLD_RED if error else Fore.KEEP
         ret += color(col, str(conf))
-        multiline = '\n' in ret
+        multiline = "\n" in ret
 
     return ret, multiline
 
@@ -813,7 +772,9 @@ def strip_default_ids(config):
         to_remove = []
         for i, x in enumerate(config):
             x = config[i] = strip_default_ids(x)
-            if (isinstance(x, core.ID) and not x.is_manual) or isinstance(x, core.AutoLoad):
+            if (isinstance(x, core.ID) and not x.is_manual) or isinstance(
+                x, core.AutoLoad
+            ):
                 to_remove.append(x)
         for x in to_remove:
             config.remove(x)
@@ -821,7 +782,9 @@ def strip_default_ids(config):
         to_remove = []
         for k, v in config.items():
             v = config[k] = strip_default_ids(v)
-            if (isinstance(v, core.ID) and not v.is_manual) or isinstance(v, core.AutoLoad):
+            if (isinstance(v, core.ID) and not v.is_manual) or isinstance(
+                v, core.AutoLoad
+            ):
                 to_remove.append(k)
         for k in to_remove:
             config.pop(k)
@@ -839,14 +802,17 @@ def read_config(command_line_substitutions):
         if not CORE.verbose:
             res = strip_default_ids(res)
 
-        safe_print(color('bold_red', "Failed config"))
-        safe_print('')
+        safe_print(color(Fore.BOLD_RED, "Failed config"))
+        safe_print("")
         for path, domain in res.output_paths:
             if not res.is_in_error_path(path):
                 continue
 
-            safe_print(color('bold_red', f'{domain}:') + ' ' +
-                       (line_info(res.get_nested_item(path)) or ''))
+            errstr = color(Fore.BOLD_RED, f"{domain}:")
+            errline = line_info(res, path)
+            if errline:
+                errstr += " " + errline
+            safe_print(errstr)
             safe_print(indent(dump_dict(res, path)[0]))
         return None
     return OrderedDict(res)

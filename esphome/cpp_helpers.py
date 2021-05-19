@@ -1,5 +1,12 @@
-from esphome.const import CONF_INVERTED, CONF_MODE, CONF_NUMBER, CONF_SETUP_PRIORITY, \
-    CONF_UPDATE_INTERVAL, CONF_TYPE_ID
+from esphome.const import (
+    CONF_INVERTED,
+    CONF_MODE,
+    CONF_NUMBER,
+    CONF_SETUP_PRIORITY,
+    CONF_UPDATE_INTERVAL,
+    CONF_TYPE_ID,
+)
+
 # pylint: disable=unused-import
 from esphome.core import coroutine, ID, CORE, ConfigType
 from esphome.cpp_generator import RawExpression, add, get_variable
@@ -16,6 +23,7 @@ def gpio_pin_expression(conf):
     if conf is None:
         return
     from esphome import pins
+
     for key, (func, _) in pins.PIN_SCHEMA_REGISTRY.items():
         if key in conf:
             yield coroutine(func)(conf)
@@ -38,9 +46,11 @@ def register_component(var, config):
     """
     id_ = str(var.base)
     if id_ not in CORE.component_ids:
-        raise ValueError("Component ID {} was not declared to inherit from Component, "
-                         "or was registered twice. Please create a bug report with your "
-                         "configuration.".format(id_))
+        raise ValueError(
+            "Component ID {} was not declared to inherit from Component, "
+            "or was registered twice. Please create a bug report with your "
+            "configuration.".format(id_)
+        )
     CORE.component_ids.remove(id_)
     if CONF_SETUP_PRIORITY in config:
         add(var.set_setup_priority(config[CONF_SETUP_PRIORITY]))

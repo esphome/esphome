@@ -25,6 +25,7 @@ class SDS011Component : public Component, public uart::UARTDevice {
   void set_update_interval(uint32_t val) { /* ignore */
   }
   void set_update_interval_min(uint8_t update_interval_min);
+  void set_working_state(bool working_state);
 
  protected:
   void sds011_write_command_(const uint8_t *command);

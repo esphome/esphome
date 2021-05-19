@@ -38,7 +38,7 @@ void SPIComponent::setup() {
 #ifdef ARDUINO_ARCH_ESP8266
   if (clk_pin == 6 && miso_pin == 7 && mosi_pin == 8) {
     // pass
-  } else if (clk_pin == 14 && miso_pin == 12 && mosi_pin == 13) {
+  } else if (clk_pin == 14 && (!has_miso || miso_pin == 12) && (!has_mosi || mosi_pin == 13)) {
     // pass
   } else {
     use_hw_spi = false;
