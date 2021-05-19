@@ -8,12 +8,13 @@ from esphome.const import (
     CONF_HUMIDITY,
     CONF_TEMPERATURE,
     CONF_ID,
+    DEVICE_CLASS_BATTERY,
+    DEVICE_CLASS_HUMIDITY,
+    DEVICE_CLASS_TEMPERATURE,
+    ICON_EMPTY,
     UNIT_CELSIUS,
     UNIT_PERCENT,
     UNIT_VOLT,
-    ICON_BATTERY,
-    ICON_THERMOMETER,
-    ICON_WATER_PERCENT,
 )
 
 CODEOWNERS = ["@pasiz"]
@@ -31,16 +32,16 @@ CONFIG_SCHEMA = (
             cv.GenerateID(): cv.declare_id(PVVXMiThermometer),
             cv.Required(CONF_MAC_ADDRESS): cv.mac_address,
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-                UNIT_CELSIUS, ICON_THERMOMETER, 2
+                UNIT_CELSIUS, ICON_EMPTY, 2, DEVICE_CLASS_TEMPERATURE
             ),
             cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(
-                UNIT_PERCENT, ICON_WATER_PERCENT, 2
+                UNIT_PERCENT, ICON_EMPTY, 2, DEVICE_CLASS_HUMIDITY
             ),
             cv.Optional(CONF_BATTERY_LEVEL): sensor.sensor_schema(
-                UNIT_PERCENT, ICON_BATTERY, 0
+                UNIT_PERCENT, ICON_EMPTY, 0, DEVICE_CLASS_BATTERY
             ),
             cv.Optional(CONF_BATTERY_VOLTAGE): sensor.sensor_schema(
-                UNIT_VOLT, ICON_BATTERY, 3
+                UNIT_VOLT, ICON_EMPTY, 3, DEVICE_CLASS_BATTERY
             ),
         }
     )
