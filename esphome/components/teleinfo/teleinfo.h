@@ -12,7 +12,7 @@ namespace teleinfo {
  */
 static const uint8_t MAX_TAG_SIZE = 64;
 static const uint16_t MAX_VAL_SIZE = 256;
-static const uint16_t MAX_BUF_SIZE = 1024;
+static const uint16_t MAX_BUF_SIZE = 2048;
 
 struct TeleinfoSensorElement {
   const char *tag;
