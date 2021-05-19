@@ -5,13 +5,14 @@ from esphome.components import output
 from esphome.const import CONF_ID, CONF_PIN
 from .. import gpio_ns
 
-GPIOBinaryOutput = gpio_ns.class_('GPIOBinaryOutput', output.BinaryOutput,
-                                  cg.Component)
+GPIOBinaryOutput = gpio_ns.class_("GPIOBinaryOutput", output.BinaryOutput, cg.Component)
 
-CONFIG_SCHEMA = output.BINARY_OUTPUT_SCHEMA.extend({
-    cv.Required(CONF_ID): cv.declare_id(GPIOBinaryOutput),
-    cv.Required(CONF_PIN): pins.gpio_output_pin_schema,
-}).extend(cv.COMPONENT_SCHEMA)
+CONFIG_SCHEMA = output.BINARY_OUTPUT_SCHEMA.extend(
+    {
+        cv.Required(CONF_ID): cv.declare_id(GPIOBinaryOutput),
+        cv.Required(CONF_PIN): pins.gpio_output_pin_schema,
+    }
+).extend(cv.COMPONENT_SCHEMA)
 
 
 def to_code(config):
