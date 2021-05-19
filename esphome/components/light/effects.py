@@ -4,7 +4,7 @@ from esphome import automation
 from esphome.const import CONF_NAME, CONF_LAMBDA, CONF_UPDATE_INTERVAL, CONF_TRANSITION_LENGTH, \
     CONF_COLORS, CONF_STATE, CONF_DURATION, CONF_BRIGHTNESS, CONF_RED, CONF_GREEN, CONF_BLUE, \
     CONF_WHITE, CONF_ALPHA, CONF_INTENSITY, CONF_SPEED, CONF_WIDTH, CONF_NUM_LEDS, CONF_RANDOM, \
-    CONF_SEQUENCE, CONF_REVERSE
+    CONF_SEQUENCE, CONF_REVERSED
 from esphome.util import Registry
 from .types import LambdaLightEffect, RandomLightEffect, StrobeLightEffect, \
     StrobeLightEffectColor, LightColorValues, AddressableLightRef, AddressableLambdaLightEffect, \
