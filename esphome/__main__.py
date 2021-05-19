@@ -475,6 +475,7 @@ def parse_args(argv):
 
     subparsers = parser.add_subparsers(help="Commands", dest="command")
     subparsers.required = True
+
     subparsers.add_parser("config", help="Validate the configuration and spit it out.")
 
     parser_compile = subparsers.add_parser(
@@ -487,16 +488,15 @@ def parse_args(argv):
     )
 
     parser_upload = subparsers.add_parser(
-        "upload", help="Validate the configuration " "and upload the latest binary."
+        "upload", help="Validate the configuration and upload the latest binary."
     )
     parser_upload.add_argument(
         "--upload-port",
-        help="Manually specify the upload port to use. "
-        "For example /dev/cu.SLAB_USBtoUART.",
+        help="Manually specify the upload port to use. For example /dev/cu.SLAB_USBtoUART.",
     )
 
     parser_logs = subparsers.add_parser(
-        "logs", help="Validate the configuration " "and show all MQTT logs."
+        "logs", help="Validate the configuration and show all MQTT logs."
     )
     parser_logs.add_argument("--topic", help="Manually set the topic to subscribe to.")
     parser_logs.add_argument("--username", help="Manually set the username.")
@@ -504,19 +504,16 @@ def parse_args(argv):
     parser_logs.add_argument("--client-id", help="Manually set the client id.")
     parser_logs.add_argument(
         "--serial-port",
-        help="Manually specify a serial port to use"
-        "For example /dev/cu.SLAB_USBtoUART.",
+        help="Manually specify a serial port to useFor example /dev/cu.SLAB_USBtoUART.",
     )
 
     parser_run = subparsers.add_parser(
         "run",
-        help="Validate the configuration, create a binary, "
-        "upload it, and start MQTT logs.",
+        help="Validate the configuration, create a binary, upload it, and start MQTT logs.",
     )
     parser_run.add_argument(
         "--upload-port",
-        help="Manually specify the upload port/ip to use. "
-        "For example /dev/cu.SLAB_USBtoUART.",
+        help="Manually specify the upload port/ip to use. For example /dev/cu.SLAB_USBtoUART.",
     )
     parser_run.add_argument(
         "--no-logs", help="Disable starting MQTT logs.", action="store_true"
@@ -533,7 +530,7 @@ def parse_args(argv):
     parser_run.add_argument("--client-id", help="Manually set the client id for logs.")
 
     parser_clean = subparsers.add_parser(
-        "clean-mqtt", help="Helper to clear an MQTT topic from " "retain messages."
+        "clean-mqtt", help="Helper to clear an MQTT topic from retain messages."
     )
     parser_clean.add_argument("--topic", help="Manually set the topic to subscribe to.")
     parser_clean.add_argument("--username", help="Manually set the username.")
@@ -542,8 +539,7 @@ def parse_args(argv):
 
     subparsers.add_parser(
         "wizard",
-        help="A helpful setup wizard that will guide "
-        "you through setting up esphome.",
+        help="A helpful setup wizard that will guide you through setting up esphome.",
     )
 
     subparsers.add_parser(
@@ -554,37 +550,39 @@ def parse_args(argv):
 
     subparsers.add_parser("clean", help="Delete all temporary build files.")
 
-    dashboard = subparsers.add_parser(
+    parser_dashboard = subparsers.add_parser(
         "dashboard", help="Create a simple web server for a dashboard."
     )
-    dashboard.add_argument(
+    parser_dashboard.add_argument(
         "--port",
         help="The HTTP port to open connections on. Defaults to 6052.",
         type=int,
         default=6052,
     )
-    dashboard.add_argument(
+    parser_dashboard.add_argument(
         "--username",
-        help="The optional username to require " "for authentication.",
+        help="The optional username to require for authentication.",
         type=str,
         default="",
     )
-    dashboard.add_argument(
+    parser_dashboard.add_argument(
         "--password",
-        help="The optional password to require " "for authentication.",
+        help="The optional password to require for authentication.",
         type=str,
         default="",
     )
-    dashboard.add_argument(
+    parser_dashboard.add_argument(
         "--open-ui", help="Open the dashboard UI in a browser.", action="store_true"
     )
-    dashboard.add_argument("--hassio", help=argparse.SUPPRESS, action="store_true")
-    dashboard.add_argument(
+    parser_dashboard.add_argument(
+        "--hassio", help=argparse.SUPPRESS, action="store_true"
+    )
+    parser_dashboard.add_argument(
         "--socket", help="Make the dashboard serve under a unix socket", type=str
     )
 
-    vscode = subparsers.add_parser("vscode", help=argparse.SUPPRESS)
-    vscode.add_argument("--ace", action="store_true")
+    parser_vscode = subparsers.add_parser("vscode", help=argparse.SUPPRESS)
+    parser_vscode.add_argument("--ace", action="store_true")
 
     subparsers.add_parser("update-all", help=argparse.SUPPRESS)
 
