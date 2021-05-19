@@ -11,14 +11,48 @@ from string import ascii_letters, digits
 import voluptuous as vol
 
 from esphome import core
-from esphome.const import ALLOWED_NAME_CHARS, CONF_AVAILABILITY, CONF_COMMAND_TOPIC, \
-    CONF_DISCOVERY, CONF_ID, CONF_INTERNAL, CONF_NAME, CONF_PAYLOAD_AVAILABLE, \
-    CONF_PAYLOAD_NOT_AVAILABLE, CONF_RETAIN, CONF_SETUP_PRIORITY, CONF_STATE_TOPIC, CONF_TOPIC, \
-    CONF_HOUR, CONF_MINUTE, CONF_SECOND, CONF_VALUE, CONF_UPDATE_INTERVAL, CONF_TYPE_ID, \
-    CONF_TYPE, CONF_PACKAGES
-from esphome.core import CORE, HexInt, IPAddress, Lambda, TimePeriod, TimePeriodMicroseconds, \
-    TimePeriodMilliseconds, TimePeriodSeconds, TimePeriodMinutes
+from esphome.const import (
+    ALLOWED_NAME_CHARS,
+    CONF_AVAILABILITY,
+    CONF_COMMAND_TOPIC,
+    CONF_DISCOVERY,
+    CONF_ID,
+    CONF_INTERNAL,
+    CONF_NAME,
+    CONF_PAYLOAD_AVAILABLE,
+    CONF_PAYLOAD_NOT_AVAILABLE,
+    CONF_RETAIN,
+    CONF_SETUP_PRIORITY,
+    CONF_STATE_TOPIC,
+    CONF_TOPIC,
+    CONF_HOUR,
+    CONF_MINUTE,
+    CONF_SECOND,
+    CONF_VALUE,
+    CONF_UPDATE_INTERVAL,
+    CONF_TYPE_ID,
+    CONF_TYPE,
+    CONF_PACKAGES,
+)
+from esphome.core import (
+    CORE,
+    HexInt,
+    IPAddress,
+    Lambda,
+    TimePeriod,
+    TimePeriodMicroseconds,
+    TimePeriodMilliseconds,
+    TimePeriodSeconds,
+    TimePeriodMinutes,
+)
 from esphome.helpers import list_starts_with, add_class_to_obj
+from esphome.jsonschema import (
+    jschema_composite,
+    jschema_extractor,
+    jschema_registry,
+    jschema_typed,
+)
+
 from esphome.voluptuous_schema import _Schema
 from esphome.yaml_util import make_data_base
 
@@ -44,21 +78,115 @@ RequiredFieldInvalid = vol.RequiredFieldInvalid
 
 RESERVED_IDS = [
     # C++ keywords http://en.cppreference.com/w/cpp/keyword
-    'alignas', 'alignof', 'and', 'and_eq', 'asm', 'auto', 'bitand', 'bitor', 'bool', 'break',
-    'case', 'catch', 'char', 'char16_t', 'char32_t', 'class', 'compl', 'concept', 'const',
-    'constexpr', 'const_cast', 'continue', 'decltype', 'default', 'delete', 'do', 'double',
-    'dynamic_cast', 'else', 'enum', 'explicit', 'export', 'export', 'extern', 'false', 'float',
-    'for', 'friend', 'goto', 'if', 'inline', 'int', 'long', 'mutable', 'namespace', 'new',
-    'noexcept', 'not', 'not_eq', 'nullptr', 'operator', 'or', 'or_eq', 'private', 'protected',
-    'public', 'register', 'reinterpret_cast', 'requires', 'return', 'short', 'signed', 'sizeof',
-    'static', 'static_assert', 'static_cast', 'struct', 'switch', 'template', 'this',
-    'thread_local', 'throw', 'true', 'try', 'typedef', 'typeid', 'typename', 'union', 'unsigned',
-    'using', 'virtual', 'void', 'volatile', 'wchar_t', 'while', 'xor', 'xor_eq',
-
-    'App', 'pinMode', 'delay', 'delayMicroseconds', 'digitalRead', 'digitalWrite', 'INPUT',
-    'OUTPUT',
-    'uint8_t', 'uint16_t', 'uint32_t', 'uint64_t', 'int8_t', 'int16_t', 'int32_t', 'int64_t',
-    'close', 'pause', 'sleep', 'open', 'setup', 'loop',
+    "alignas",
+    "alignof",
+    "and",
+    "and_eq",
+    "asm",
+    "auto",
+    "bitand",
+    "bitor",
+    "bool",
+    "break",
+    "case",
+    "catch",
+    "char",
+    "char16_t",
+    "char32_t",
+    "class",
+    "compl",
+    "concept",
+    "const",
+    "constexpr",
+    "const_cast",
+    "continue",
+    "decltype",
+    "default",
+    "delete",
+    "do",
+    "double",
+    "dynamic_cast",
+    "else",
+    "enum",
+    "explicit",
+    "export",
+    "export",
+    "extern",
+    "false",
+    "float",
+    "for",
+    "friend",
+    "goto",
+    "if",
+    "inline",
+    "int",
+    "long",
+    "mutable",
+    "namespace",
+    "new",
+    "noexcept",
+    "not",
+    "not_eq",
+    "nullptr",
+    "operator",
+    "or",
+    "or_eq",
+    "private",
+    "protected",
+    "public",
+    "register",
+    "reinterpret_cast",
+    "requires",
+    "return",
+    "short",
+    "signed",
+    "sizeof",
+    "static",
+    "static_assert",
+    "static_cast",
+    "struct",
+    "switch",
+    "template",
+    "this",
+    "thread_local",
+    "throw",
+    "true",
+    "try",
+    "typedef",
+    "typeid",
+    "typename",
+    "union",
+    "unsigned",
+    "using",
+    "virtual",
+    "void",
+    "volatile",
+    "wchar_t",
+    "while",
+    "xor",
+    "xor_eq",
+    "App",
+    "pinMode",
+    "delay",
+    "delayMicroseconds",
+    "digitalRead",
+    "digitalWrite",
+    "INPUT",
+    "OUTPUT",
+    "uint8_t",
+    "uint16_t",
+    "uint32_t",
+    "uint64_t",
+    "int8_t",
+    "int16_t",
+    "int32_t",
+    "int64_t",
+    "close",
+    "pause",
+    "sleep",
+    "open",
+    "setup",
+    "loop",
 ]
 
 
@@ -112,8 +240,10 @@ def valid_name(value):
     value = string_strict(value)
     for c in value:
         if c not in ALLOWED_NAME_CHARS:
-            raise Invalid(f"'{c}' is an invalid character for names. Valid characters are: "
-                          f"{ALLOWED_NAME_CHARS} (lowercase, no spaces)")
+            raise Invalid(
+                f"'{c}' is an invalid character for names. Valid characters are: "
+                f"{ALLOWED_NAME_CHARS} (lowercase, no spaces)"
+            )
     return value
 
 
@@ -127,7 +257,9 @@ def string(value):
     if isinstance(value, (dict, list)):
         raise Invalid("string value cannot be dictionary or list.")
     if isinstance(value, bool):
-        raise Invalid("Auto-converted this value to boolean, please wrap the value in quotes.")
+        raise Invalid(
+            "Auto-converted this value to boolean, please wrap the value in quotes."
+        )
     if isinstance(value, str):
         return value
     if value is not None:
@@ -141,8 +273,10 @@ def string_strict(value):
     check_not_templatable(value)
     if isinstance(value, str):
         return value
-    raise Invalid("Must be string, got {}. did you forget putting quotes "
-                  "around the value?".format(type(value)))
+    raise Invalid(
+        "Must be string, got {}. did you forget putting quotes "
+        "around the value?".format(type(value))
+    )
 
 
 def icon(value):
@@ -150,7 +284,7 @@ def icon(value):
     value = string_strict(value)
     if not value:
         return value
-    if value.startswith('mdi:'):
+    if value.startswith("mdi:"):
         return value
     raise Invalid('Icons should start with prefix "mdi:"')
 
@@ -169,14 +303,17 @@ def boolean(value):
         return value
     if isinstance(value, str):
         value = value.lower()
-        if value in ('true', 'yes', 'on', 'enable'):
+        if value in ("true", "yes", "on", "enable"):
             return True
-        if value in ('false', 'no', 'off', 'disable'):
+        if value in ("false", "no", "off", "disable"):
             return False
-    raise Invalid("Expected boolean value, but cannot convert {} to a boolean. "
-                  "Please use 'true' or 'false'".format(value))
+    raise Invalid(
+        "Expected boolean value, but cannot convert {} to a boolean. "
+        "Please use 'true' or 'false'".format(value)
+    )
 
 
+@jschema_composite
 def ensure_list(*validators):
     """Validate this configuration option to be a list.
 
@@ -217,11 +354,13 @@ def int_(value):
     if isinstance(value, float):
         if int(value) == value:
             return int(value)
-        raise Invalid("This option only accepts integers with no fractional part. Please remove "
-                      "the fractional part from {}".format(value))
+        raise Invalid(
+            "This option only accepts integers with no fractional part. Please remove "
+            "the fractional part from {}".format(value)
+        )
     value = string_strict(value).lower()
     base = 10
-    if value.startswith('0x'):
+    if value.startswith("0x"):
         base = 16
     try:
         return int(value, base)
@@ -236,13 +375,18 @@ def int_range(min=None, max=None, min_included=True, max_included=True):
         assert isinstance(min, int)
     if max is not None:
         assert isinstance(max, int)
-    return All(int_, Range(min=min, max=max, min_included=min_included, max_included=max_included))
+    return All(
+        int_,
+        Range(min=min, max=max, min_included=min_included, max_included=max_included),
+    )
 
 
 def hex_int_range(min=None, max=None, min_included=True, max_included=True):
     """Validate that the config option is an integer in the given range."""
-    return All(hex_int,
-               Range(min=min, max=max, min_included=min_included, max_included=max_included))
+    return All(
+        hex_int,
+        Range(min=min, max=max, min_included=min_included, max_included=max_included),
+    )
 
 
 def float_range(min=None, max=None, min_included=True, max_included=True):
@@ -251,8 +395,10 @@ def float_range(min=None, max=None, min_included=True, max_included=True):
         assert isinstance(min, (int, float))
     if max is not None:
         assert isinstance(max, (int, float))
-    return All(float_, Range(min=min, max=max, min_included=min_included,
-                             max_included=max_included))
+    return All(
+        float_,
+        Range(min=min, max=max, min_included=min_included, max_included=max_included),
+    )
 
 
 port = int_range(min=1, max=65535)
@@ -271,29 +417,40 @@ def validate_id_name(value):
         raise Invalid("ID must not be empty")
     if value[0].isdigit():
         raise Invalid("First character in ID cannot be a digit.")
-    if '-' in value:
-        raise Invalid("Dashes are not supported in IDs, please use underscores instead.")
-    valid_chars = ascii_letters + digits + '_'
+    if "-" in value:
+        raise Invalid(
+            "Dashes are not supported in IDs, please use underscores instead."
+        )
+    valid_chars = ascii_letters + digits + "_"
     for char in value:
         if char not in valid_chars:
-            raise Invalid("IDs must only consist of upper/lowercase characters, the underscore"
-                          "character and numbers. The character '{}' cannot be used"
-                          "".format(char))
+            raise Invalid(
+                "IDs must only consist of upper/lowercase characters, the underscore"
+                "character and numbers. The character '{}' cannot be used"
+                "".format(char)
+            )
     if value in RESERVED_IDS:
         raise Invalid(f"ID '{value}' is reserved internally and cannot be used")
     if value in CORE.loaded_integrations:
-        raise Invalid("ID '{}' conflicts with the name of an esphome integration, please use "
-                      "another ID name.".format(value))
+        raise Invalid(
+            "ID '{}' conflicts with the name of an esphome integration, please use "
+            "another ID name.".format(value)
+        )
     return value
 
 
 def use_id(type):
     """Declare that this configuration option should point to an ID with the given type."""
+
     def validator(value):
         check_not_templatable(value)
         if value is None:
             return core.ID(None, is_declaration=False, type=type)
-        if isinstance(value, core.ID) and value.is_declaration is False and value.type is type:
+        if (
+            isinstance(value, core.ID)
+            and value.is_declaration is False
+            and value.type is type
+        ):
             return value
 
         return core.ID(validate_id_name(value), is_declaration=False, type=type)
@@ -307,6 +464,7 @@ def declare_id(type):
 
     If two IDs with the same name exist, a validation error is thrown.
     """
+
     def validator(value):
         check_not_templatable(value)
         if value is None:
@@ -349,8 +507,8 @@ def only_on(platforms):
     return validator_
 
 
-only_on_esp32 = only_on('ESP32')
-only_on_esp8266 = only_on('ESP8266')
+only_on_esp32 = only_on("ESP32")
+only_on_esp8266 = only_on("ESP8266")
 
 
 # Adapted from:
@@ -361,10 +519,10 @@ def has_at_least_one_key(*keys):
     def validate(obj):
         """Test keys exist in dict."""
         if not isinstance(obj, dict):
-            raise Invalid('expected dictionary')
+            raise Invalid("expected dictionary")
 
         if not any(k in keys for k in obj):
-            raise Invalid('Must contain at least one of {}.'.format(', '.join(keys)))
+            raise Invalid("Must contain at least one of {}.".format(", ".join(keys)))
         return obj
 
     return validate
@@ -372,15 +530,16 @@ def has_at_least_one_key(*keys):
 
 def has_exactly_one_key(*keys):
     """Validate that exactly one of the given keys exist in the config."""
+
     def validate(obj):
         if not isinstance(obj, dict):
-            raise Invalid('expected dictionary')
+            raise Invalid("expected dictionary")
 
         number = sum(k in keys for k in obj)
         if number > 1:
-            raise Invalid("Cannot specify more than one of {}.".format(', '.join(keys)))
+            raise Invalid("Cannot specify more than one of {}.".format(", ".join(keys)))
         if number < 1:
-            raise Invalid('Must contain exactly one of {}.'.format(', '.join(keys)))
+            raise Invalid("Must contain exactly one of {}.".format(", ".join(keys)))
         return obj
 
     return validate
@@ -388,43 +547,50 @@ def has_exactly_one_key(*keys):
 
 def has_at_most_one_key(*keys):
     """Validate that at most one of the given keys exist in the config."""
+
     def validate(obj):
         if not isinstance(obj, dict):
-            raise Invalid('expected dictionary')
+            raise Invalid("expected dictionary")
 
         number = sum(k in keys for k in obj)
         if number > 1:
-            raise Invalid("Cannot specify more than one of {}.".format(', '.join(keys)))
+            raise Invalid("Cannot specify more than one of {}.".format(", ".join(keys)))
         return obj
 
     return validate
 
 
-TIME_PERIOD_ERROR = "Time period {} should be format number + unit, for example 5ms, 5s, 5min, 5h"
+TIME_PERIOD_ERROR = (
+    "Time period {} should be format number + unit, for example 5ms, 5s, 5min, 5h"
+)
 
 time_period_dict = All(
-    Schema({
-        Optional('days'): float_,
-        Optional('hours'): float_,
-        Optional('minutes'): float_,
-        Optional('seconds'): float_,
-        Optional('milliseconds'): float_,
-        Optional('microseconds'): float_,
-    }),
-    has_at_least_one_key('days', 'hours', 'minutes', 'seconds', 'milliseconds', 'microseconds'),
-    lambda value: TimePeriod(**value)
+    Schema(
+        {
+            Optional("days"): float_,
+            Optional("hours"): float_,
+            Optional("minutes"): float_,
+            Optional("seconds"): float_,
+            Optional("milliseconds"): float_,
+            Optional("microseconds"): float_,
+        }
+    ),
+    has_at_least_one_key(
+        "days", "hours", "minutes", "seconds", "milliseconds", "microseconds"
+    ),
+    lambda value: TimePeriod(**value),
 )
 
 
 def time_period_str_colon(value):
     """Validate and transform time offset with format HH:MM[:SS]."""
     if isinstance(value, int):
-        raise Invalid('Make sure you wrap time values in quotes')
+        raise Invalid("Make sure you wrap time values in quotes")
     if not isinstance(value, str):
         raise Invalid(TIME_PERIOD_ERROR.format(value))
 
     try:
-        parsed = [int(x) for x in value.split(':')]
+        parsed = [int(x) for x in value.split(":")]
     except ValueError:
         # pylint: disable=raise-missing-from
         raise Invalid(TIME_PERIOD_ERROR.format(value))
@@ -445,34 +611,35 @@ def time_period_str_unit(value):
     check_not_templatable(value)
 
     if isinstance(value, int):
-        raise Invalid("Don't know what '{0}' means as it has no time *unit*! Did you mean "
-                      "'{0}s'?".format(value))
+        raise Invalid(
+            "Don't know what '{0}' means as it has no time *unit*! Did you mean "
+            "'{0}s'?".format(value)
+        )
     if isinstance(value, TimePeriod):
         value = str(value)
     if not isinstance(value, str):
         raise Invalid("Expected string for time period with unit.")
 
     unit_to_kwarg = {
-        'us': 'microseconds',
-        'microseconds': 'microseconds',
-        'ms': 'milliseconds',
-        'milliseconds': 'milliseconds',
-        's': 'seconds',
-        'sec': 'seconds',
-        'seconds': 'seconds',
-        'min': 'minutes',
-        'minutes': 'minutes',
-        'h': 'hours',
-        'hours': 'hours',
-        'd': 'days',
-        'days': 'days',
+        "us": "microseconds",
+        "microseconds": "microseconds",
+        "ms": "milliseconds",
+        "milliseconds": "milliseconds",
+        "s": "seconds",
+        "sec": "seconds",
+        "seconds": "seconds",
+        "min": "minutes",
+        "minutes": "minutes",
+        "h": "hours",
+        "hours": "hours",
+        "d": "days",
+        "days": "days",
     }
 
     match = re.match(r"^([-+]?[0-9]*\.?[0-9]*)\s*(\w*)$", value)
 
     if match is None:
-        raise Invalid("Expected time period with unit, "
-                      "got {}".format(value))
+        raise Invalid("Expected time period with unit, " "got {}".format(value))
     kwarg = unit_to_kwarg[one_of(*unit_to_kwarg)(match.group(2))]
 
     return TimePeriod(**{kwarg: float(match.group(1))})
@@ -507,29 +674,34 @@ def time_period_in_minutes_(value):
 
 
 def update_interval(value):
-    if value == 'never':
+    if value == "never":
         return 4294967295  # uint32_t max
     return positive_time_period_milliseconds(value)
 
 
 time_period = Any(time_period_str_unit, time_period_str_colon, time_period_dict)
 positive_time_period = All(time_period, Range(min=TimePeriod()))
-positive_time_period_milliseconds = All(positive_time_period, time_period_in_milliseconds_)
+positive_time_period_milliseconds = All(
+    positive_time_period, time_period_in_milliseconds_
+)
 positive_time_period_seconds = All(positive_time_period, time_period_in_seconds_)
 positive_time_period_minutes = All(positive_time_period, time_period_in_minutes_)
 time_period_microseconds = All(time_period, time_period_in_microseconds_)
-positive_time_period_microseconds = All(positive_time_period, time_period_in_microseconds_)
-positive_not_null_time_period = All(time_period,
-                                    Range(min=TimePeriod(), min_included=False))
+positive_time_period_microseconds = All(
+    positive_time_period, time_period_in_microseconds_
+)
+positive_not_null_time_period = All(
+    time_period, Range(min=TimePeriod(), min_included=False)
+)
 
 
 def time_of_day(value):
     value = string(value)
     try:
-        date = datetime.strptime(value, '%H:%M:%S')
+        date = datetime.strptime(value, "%H:%M:%S")
     except ValueError as err:
         try:
-            date = datetime.strptime(value, '%H:%M:%S %p')
+            date = datetime.strptime(value, "%H:%M:%S %p")
         except ValueError:
             # pylint: disable=raise-missing-from
             raise Invalid(f"Invalid time of day: {err}")
@@ -543,7 +715,7 @@ def time_of_day(value):
 
 def mac_address(value):
     value = string_strict(value)
-    parts = value.split(':')
+    parts = value.split(":")
     if len(parts) != 6:
         raise Invalid("MAC Address must consist of 6 : (colon) separated parts")
     parts_int = []
@@ -561,7 +733,7 @@ def mac_address(value):
 
 def bind_key(value):
     value = string_strict(value)
-    parts = [value[i:i+2] for i in range(0, len(value), 2)]
+    parts = [value[i : i + 2] for i in range(0, len(value), 2)]
     if len(parts) != 16:
         raise Invalid("Bind key must consist of 16 hexadecimal numbers")
     parts_int = []
@@ -574,7 +746,7 @@ def bind_key(value):
             # pylint: disable=raise-missing-from
             raise Invalid("Bind key must be hex values from 00 to FF")
 
-    return ''.join(f'{part:02X}' for part in parts_int)
+    return "".join(f"{part:02X}" for part in parts_int)
 
 
 def uuid(value):
@@ -582,14 +754,30 @@ def uuid(value):
 
 
 METRIC_SUFFIXES = {
-    'E': 1e18, 'P': 1e15, 'T': 1e12, 'G': 1e9, 'M': 1e6, 'k': 1e3, 'da': 10, 'd': 1e-1,
-    'c': 1e-2, 'm': 0.001, 'µ': 1e-6, 'u': 1e-6, 'n': 1e-9, 'p': 1e-12, 'f': 1e-15, 'a': 1e-18,
-    '': 1
+    "E": 1e18,
+    "P": 1e15,
+    "T": 1e12,
+    "G": 1e9,
+    "M": 1e6,
+    "k": 1e3,
+    "da": 10,
+    "d": 1e-1,
+    "c": 1e-2,
+    "m": 0.001,
+    "µ": 1e-6,
+    "u": 1e-6,
+    "n": 1e-9,
+    "p": 1e-12,
+    "f": 1e-15,
+    "a": 1e-18,
+    "": 1,
 }
 
 
 def float_with_unit(quantity, regex_suffix, optional_unit=False):
-    pattern = re.compile(r"^([-+]?[0-9]*\.?[0-9]*)\s*(\w*?)" + regex_suffix + r"$", re.UNICODE)
+    pattern = re.compile(
+        r"^([-+]?[0-9]*\.?[0-9]*)\s*(\w*?)" + regex_suffix + r"$", re.UNICODE
+    )
 
     def validator(value):
         if optional_unit:
@@ -647,8 +835,8 @@ def temperature(value):
     raise orig_err  # noqa
 
 
-_color_temperature_mireds = float_with_unit('Color Temperature', r'(mireds|Mireds)')
-_color_temperature_kelvin = float_with_unit('Color Temperature', r'(K|Kelvin)')
+_color_temperature_mireds = float_with_unit("Color Temperature", r"(mireds|Mireds)")
+_color_temperature_kelvin = float_with_unit("Color Temperature", r"(K|Kelvin)")
 
 
 def color_temperature(value):
@@ -673,8 +861,10 @@ def validate_bytes(value):
         raise Invalid("Invalid metric suffix {}".format(match.group(2)))
     multiplier = METRIC_SUFFIXES[match.group(2)]
     if multiplier < 1:
-        raise Invalid("Only suffixes with positive exponents are supported. "
-                      "Got {}".format(match.group(2)))
+        raise Invalid(
+            "Only suffixes with positive exponents are supported. "
+            "Got {}".format(match.group(2))
+        )
     return int(mantissa * multiplier)
 
 
@@ -683,7 +873,7 @@ def hostname(value):
     if len(value) > 63:
         raise Invalid("Hostnames can only be 63 characters long")
     for c in value:
-        if not (c.isalnum() or c in '_-'):
+        if not (c.isalnum() or c in "_-"):
             raise Invalid("Hostname can only have alphanumeric characters and _ or -")
     return value
 
@@ -702,13 +892,15 @@ def domain_name(value):
     value = string_strict(value)
     if not value:
         return value
-    if not value.startswith('.'):
+    if not value.startswith("."):
         raise Invalid("Domain name must start with .")
-    if value.startswith('..'):
+    if value.startswith(".."):
         raise Invalid("Domain name must start with single .")
     for c in value:
-        if not (c.isalnum() or c in '._-'):
-            raise Invalid("Domain name can only have alphanumeric characters and _ or -")
+        if not (c.isalnum() or c in "._-"):
+            raise Invalid(
+                "Domain name can only have alphanumeric characters and _ or -"
+            )
     return value
 
 
@@ -725,15 +917,13 @@ def ipv4(value):
     if isinstance(value, list):
         parts = value
     elif isinstance(value, str):
-        parts = value.split('.')
+        parts = value.split(".")
     elif isinstance(value, IPAddress):
         return value
     else:
-        raise Invalid("IPv4 address must consist of either string or "
-                      "integer list")
+        raise Invalid("IPv4 address must consist of either string or " "integer list")
     if len(parts) != 4:
-        raise Invalid("IPv4 address must consist of four point-separated "
-                      "integers")
+        raise Invalid("IPv4 address must consist of four point-separated " "integers")
     parts_ = list(map(int, parts))
     if not all(0 <= x < 256 for x in parts_):
         raise Invalid("IPv4 address parts must be in range from 0 to 255")
@@ -746,38 +936,43 @@ def _valid_topic(value):
         raise Invalid("Can't use dictionary with topic")
     value = string(value)
     try:
-        raw_value = value.encode('utf-8')
+        raw_value = value.encode("utf-8")
     except UnicodeError as err:
         raise Invalid("MQTT topic name/filter must be valid UTF-8 string.") from err
     if not raw_value:
         raise Invalid("MQTT topic name/filter must not be empty.")
     if len(raw_value) > 65535:
-        raise Invalid("MQTT topic name/filter must not be longer than "
-                      "65535 encoded bytes.")
-    if '\0' in value:
-        raise Invalid("MQTT topic name/filter must not contain null "
-                      "character.")
+        raise Invalid(
+            "MQTT topic name/filter must not be longer than " "65535 encoded bytes."
+        )
+    if "\0" in value:
+        raise Invalid("MQTT topic name/filter must not contain null " "character.")
     return value
 
 
 def subscribe_topic(value):
     """Validate that we can subscribe using this MQTT topic."""
     value = _valid_topic(value)
-    for i in (i for i, c in enumerate(value) if c == '+'):
-        if (i > 0 and value[i - 1] != '/') or \
-                (i < len(value) - 1 and value[i + 1] != '/'):
-            raise Invalid("Single-level wildcard must occupy an entire "
-                          "level of the filter")
+    for i in (i for i, c in enumerate(value) if c == "+"):
+        if (i > 0 and value[i - 1] != "/") or (
+            i < len(value) - 1 and value[i + 1] != "/"
+        ):
+            raise Invalid(
+                "Single-level wildcard must occupy an entire " "level of the filter"
+            )
 
-    index = value.find('#')
+    index = value.find("#")
     if index != -1:
         if index != len(value) - 1:
             # If there are multiple wildcards, this will also trigger
-            raise Invalid("Multi-level wildcard must be the last "
-                          "character in the topic filter.")
-        if len(value) > 1 and value[index - 1] != '/':
-            raise Invalid("Multi-level wildcard must be after a topic "
-                          "level separator.")
+            raise Invalid(
+                "Multi-level wildcard must be the last "
+                "character in the topic filter."
+            )
+        if len(value) > 1 and value[index - 1] != "/":
+            raise Invalid(
+                "Multi-level wildcard must be after a topic " "level separator."
+            )
 
     return value
 
@@ -785,14 +980,14 @@ def subscribe_topic(value):
 def publish_topic(value):
     """Validate that we can publish using this MQTT topic."""
     value = _valid_topic(value)
-    if '+' in value or '#' in value:
+    if "+" in value or "#" in value:
         raise Invalid("Wildcards can not be used in topic names")
     return value
 
 
 def mqtt_payload(value):
     if value is None:
-        return ''
+        return ""
     return string(value)
 
 
@@ -839,7 +1034,7 @@ def possibly_negative_percentage(value):
     has_percent_sign = False
     if isinstance(value, str):
         try:
-            if value.endswith('%'):
+            if value.endswith("%"):
                 has_percent_sign = False
                 value = float(value[:-1].rstrip()) / 100.0
             else:
@@ -861,7 +1056,7 @@ def possibly_negative_percentage(value):
 
 
 def percentage_int(value):
-    if isinstance(value, str) and value.endswith('%'):
+    if isinstance(value, str) and value.endswith("%"):
         value = int(value[:-1].rstrip())
     return value
 
@@ -870,6 +1065,7 @@ def invalid(message):
     """Mark this value as invalid. Each time *any* value is passed here it will result in a
     validation error with the given message.
     """
+
     def validator(value):
         raise Invalid(message)
 
@@ -921,20 +1117,25 @@ def one_of(*values, **kwargs):
       - *float* (``bool``, default=False): Whether to convert the incoming values to floats.
       - *space* (``str``, default=' '): What to convert spaces in the input string to.
     """
-    options = ', '.join(f"'{x}'" for x in values)
-    lower = kwargs.pop('lower', False)
-    upper = kwargs.pop('upper', False)
-    string_ = kwargs.pop('string', False) or lower or upper
-    to_int = kwargs.pop('int', False)
-    to_float = kwargs.pop('float', False)
-    space = kwargs.pop('space', ' ')
+    options = ", ".join(f"'{x}'" for x in values)
+    lower = kwargs.pop("lower", False)
+    upper = kwargs.pop("upper", False)
+    string_ = kwargs.pop("string", False) or lower or upper
+    to_int = kwargs.pop("int", False)
+    to_float = kwargs.pop("float", False)
+    space = kwargs.pop("space", " ")
     if kwargs:
         raise ValueError
 
+    @jschema_extractor("one_of")
     def validator(value):
+        # pylint: disable=comparison-with-callable
+        if value == jschema_extractor:
+            return values
+
         if string_:
             value = string(value)
-            value = value.replace(' ', space)
+            value = value.replace(" ", space)
         if to_int:
             value = int_(value)
         if to_float:
@@ -945,12 +1146,15 @@ def one_of(*values, **kwargs):
             value = Upper(value)
         if value not in values:
             import difflib
+
             options_ = [str(x) for x in values]
             option = str(value)
             matches = difflib.get_close_matches(option, options_)
             if matches:
-                raise Invalid("Unknown value '{}', did you mean {}?"
-                              "".format(value, ", ".join(f"'{x}'" for x in matches)))
+                raise Invalid(
+                    "Unknown value '{}', did you mean {}?"
+                    "".format(value, ", ".join(f"'{x}'" for x in matches))
+                )
             raise Invalid(f"Unknown value '{value}', valid options are {options}.")
         return value
 
@@ -968,7 +1172,12 @@ def enum(mapping, **kwargs):
     assert isinstance(mapping, dict)
     one_of_validator = one_of(*mapping, **kwargs)
 
+    @jschema_extractor("enum")
     def validator(value):
+        # pylint: disable=comparison-with-callable
+        if value == jschema_extractor:
+            return mapping
+
         value = one_of_validator(value)
         value = add_class_to_obj(value, core.EnumValue)
         value.enum_value = mapping[value]
@@ -977,7 +1186,7 @@ def enum(mapping, **kwargs):
     return validator
 
 
-LAMBDA_ENTITY_ID_PROG = re.compile(r'id\(\s*([a-zA-Z0-9_]+\.[.a-zA-Z0-9_]+)\s*\)')
+LAMBDA_ENTITY_ID_PROG = re.compile(r"id\(\s*([a-zA-Z0-9_]+\.[.a-zA-Z0-9_]+)\s*\)")
 
 
 def lambda_(value):
@@ -986,12 +1195,15 @@ def lambda_(value):
         value = make_data_base(Lambda(string_strict(value)), value)
     entity_id_parts = re.split(LAMBDA_ENTITY_ID_PROG, value.value)
     if len(entity_id_parts) != 1:
-        entity_ids = ' '.join("'{}'".format(entity_id_parts[i])
-                              for i in range(1, len(entity_id_parts), 2))
-        raise Invalid("Lambda contains reference to entity-id-style ID {}. "
-                      "The id() wrapper only works for ESPHome-internal types. For importing "
-                      "states from Home Assistant use the 'homeassistant' sensor platforms."
-                      "".format(entity_ids))
+        entity_ids = " ".join(
+            "'{}'".format(entity_id_parts[i]) for i in range(1, len(entity_id_parts), 2)
+        )
+        raise Invalid(
+            "Lambda contains reference to entity-id-style ID {}. "
+            "The id() wrapper only works for ESPHome-internal types. For importing "
+            "states from Home Assistant use the 'homeassistant' sensor platforms."
+            "".format(entity_ids)
+        )
     return value
 
 
@@ -1001,18 +1213,22 @@ def returning_lambda(value):
     Additionally, make sure the lambda returns something.
     """
     value = lambda_(value)
-    if 'return' not in value.value:
-        raise Invalid("Lambda doesn't contain a 'return' statement, but the lambda "
-                      "is expected to return a value. \n"
-                      "Please make sure the lambda contains at least one "
-                      "return statement.")
+    if "return" not in value.value:
+        raise Invalid(
+            "Lambda doesn't contain a 'return' statement, but the lambda "
+            "is expected to return a value. \n"
+            "Please make sure the lambda contains at least one "
+            "return statement."
+        )
     return value
 
 
 def dimensions(value):
     if isinstance(value, list):
         if len(value) != 2:
-            raise Invalid("Dimensions must have a length of two, not {}".format(len(value)))
+            raise Invalid(
+                "Dimensions must have a length of two, not {}".format(len(value))
+            )
         try:
             width, height = int(value[0]), int(value[1])
         except ValueError:
@@ -1024,65 +1240,91 @@ def dimensions(value):
     value = string(value)
     match = re.match(r"\s*([0-9]+)\s*[xX]\s*([0-9]+)\s*", value)
     if not match:
-        raise Invalid("Invalid value '{}' for dimensions. Only WIDTHxHEIGHT is allowed.")
+        raise Invalid(
+            "Invalid value '{}' for dimensions. Only WIDTHxHEIGHT is allowed."
+        )
     return dimensions([match.group(1), match.group(2)])
 
 
 def directory(value):
     import json
+
     value = string(value)
     path = CORE.relative_config_path(value)
 
-    if CORE.vscode and (not CORE.ace or
-                        os.path.abspath(path) == os.path.abspath(CORE.config_path)):
-        print(json.dumps({
-            'type': 'check_directory_exists',
-            'path': path,
-        }))
+    if CORE.vscode and (
+        not CORE.ace or os.path.abspath(path) == os.path.abspath(CORE.config_path)
+    ):
+        print(
+            json.dumps(
+                {
+                    "type": "check_directory_exists",
+                    "path": path,
+                }
+            )
+        )
         data = json.loads(input())
-        assert data['type'] == 'directory_exists_response'
-        if data['content']:
+        assert data["type"] == "directory_exists_response"
+        if data["content"]:
             return value
-        raise Invalid("Could not find directory '{}'. Please make sure it exists (full path: {})."
-                      "".format(path, os.path.abspath(path)))
+        raise Invalid(
+            "Could not find directory '{}'. Please make sure it exists (full path: {})."
+            "".format(path, os.path.abspath(path))
+        )
 
     if not os.path.exists(path):
-        raise Invalid("Could not find directory '{}'. Please make sure it exists (full path: {})."
-                      "".format(path, os.path.abspath(path)))
+        raise Invalid(
+            "Could not find directory '{}'. Please make sure it exists (full path: {})."
+            "".format(path, os.path.abspath(path))
+        )
     if not os.path.isdir(path):
-        raise Invalid("Path '{}' is not a directory (full path: {})."
-                      "".format(path, os.path.abspath(path)))
+        raise Invalid(
+            "Path '{}' is not a directory (full path: {})."
+            "".format(path, os.path.abspath(path))
+        )
     return value
 
 
 def file_(value):
     import json
+
     value = string(value)
     path = CORE.relative_config_path(value)
 
-    if CORE.vscode and (not CORE.ace or
-                        os.path.abspath(path) == os.path.abspath(CORE.config_path)):
-        print(json.dumps({
-            'type': 'check_file_exists',
-            'path': path,
-        }))
+    if CORE.vscode and (
+        not CORE.ace or os.path.abspath(path) == os.path.abspath(CORE.config_path)
+    ):
+        print(
+            json.dumps(
+                {
+                    "type": "check_file_exists",
+                    "path": path,
+                }
+            )
+        )
         data = json.loads(input())
-        assert data['type'] == 'file_exists_response'
-        if data['content']:
+        assert data["type"] == "file_exists_response"
+        if data["content"]:
             return value
-        raise Invalid("Could not find file '{}'. Please make sure it exists (full path: {})."
-                      "".format(path, os.path.abspath(path)))
+        raise Invalid(
+            "Could not find file '{}'. Please make sure it exists (full path: {})."
+            "".format(path, os.path.abspath(path))
+        )
 
     if not os.path.exists(path):
-        raise Invalid("Could not find file '{}'. Please make sure it exists (full path: {})."
-                      "".format(path, os.path.abspath(path)))
+        raise Invalid(
+            "Could not find file '{}'. Please make sure it exists (full path: {})."
+            "".format(path, os.path.abspath(path))
+        )
     if not os.path.isfile(path):
-        raise Invalid("Path '{}' is not a file (full path: {})."
-                      "".format(path, os.path.abspath(path)))
+        raise Invalid(
+            "Path '{}' is not a file (full path: {})."
+            "".format(path, os.path.abspath(path))
+        )
     return value
 
 
-ENTITY_ID_CHARACTERS = 'abcdefghijklmnopqrstuvwxyz0123456789_'
+ENTITY_ID_CHARACTERS = "abcdefghijklmnopqrstuvwxyz0123456789_"
 
 
 def entity_id(value):
@@ -1091,9 +1333,9 @@ def entity_id(value):
     Should only be used for 'homeassistant' platforms.
     """
     value = string_strict(value).lower()
-    if value.count('.') != 1:
+    if value.count(".") != 1:
         raise Invalid("Entity ID must have exactly one dot in it")
-    for x in value.split('.'):
+    for x in value.split("."):
         for c in x:
             if c not in ENTITY_ID_CHARACTERS:
                 raise Invalid(f"Invalid character for entity ID: {c}")
@@ -1117,9 +1359,10 @@ def extract_keys(schema):
     return keys
 
 
+@jschema_typed
 def typed_schema(schemas, **kwargs):
     """Create a schema that has a key to distinguish between schemas"""
-    key = kwargs.pop('key', CONF_TYPE)
+    key = kwargs.pop("key", CONF_TYPE)
     key_validator = one_of(*schemas, **kwargs)
 
     def validator(value):
@@ -1176,10 +1419,11 @@ class OnlyWith(Optional):
     @property
     def default(self):
         # pylint: disable=unsupported-membership-test
-        if (self._component in CORE.raw_config or
-                (CONF_PACKAGES in CORE.raw_config and
-                 self._component in
-                 {list(x.keys())[0] for x in CORE.raw_config[CONF_PACKAGES].values()})):
+        if self._component in CORE.raw_config or (
+            CONF_PACKAGES in CORE.raw_config
+            and self._component
+            in {list(x.keys())[0] for x in CORE.raw_config[CONF_PACKAGES].values()}
+        ):
             return self._default
         return vol.UNDEFINED
 
@@ -1209,17 +1453,23 @@ def ensure_schema(schema):
 
 
 def validate_registry_entry(name, registry):
-    base_schema = ensure_schema(registry.base_schema).extend({
-        Optional(CONF_TYPE_ID): valid,
-    }, extra=ALLOW_EXTRA)
+    base_schema = ensure_schema(registry.base_schema).extend(
+        {
+            Optional(CONF_TYPE_ID): valid,
+        },
+        extra=ALLOW_EXTRA,
+    )
     ignore_keys = extract_keys(base_schema)
 
+    @jschema_registry(registry)
     def validator(value):
         if isinstance(value, str):
             value = {value: {}}
         if not isinstance(value, dict):
-            raise Invalid("{} must consist of key-value mapping! Got {}"
-                          "".format(name.title(), value))
+            raise Invalid(
+                "{} must consist of key-value mapping! Got {}"
+                "".format(name.title(), value)
+            )
         key = next((x for x in value if x not in ignore_keys), None)
         if key is None:
             raise Invalid(f"Key missing from {name}! Got {value}")
@@ -1227,9 +1477,11 @@ def validate_registry_entry(name, registry):
             raise Invalid(f"Unable to find {name} with the name '{key}'", [key])
         key2 = next((x for x in value if x != key and x not in ignore_keys), None)
         if key2 is not None:
-            raise Invalid("Cannot have two {0}s in one item. Key '{1}' overrides '{2}'! "
-                          "Did you forget to indent the block inside the {0}?"
-                          "".format(name, key, key2))
+            raise Invalid(
+                "Cannot have two {0}s in one item. Key '{1}' overrides '{2}'! "
+                "Did you forget to indent the block inside the {0}?"
+                "".format(name, key, key2)
+            )
 
         if value[key] is None:
             value[key] = {}
@@ -1242,9 +1494,9 @@ def validate_registry_entry(name, registry):
             value[key] = registry_entry.schema(value[key])
 
         if registry_entry.type_id is not None:
-            my_base_schema = base_schema.extend({
-                GenerateID(CONF_TYPE_ID): declare_id(registry_entry.type_id)
-            })
+            my_base_schema = base_schema.extend(
+                {GenerateID(CONF_TYPE_ID): declare_id(registry_entry.type_id)}
+            )
             value = my_base_schema(value)
 
         return value
@@ -1256,8 +1508,9 @@ def validate_registry(name, registry):
     return ensure_list(validate_registry_entry(name, registry))
 
 
+@jschema_composite
 def maybe_simple_value(*validators, **kwargs):
-    key = kwargs.pop('key', CONF_VALUE)
+    key = kwargs.pop("key", CONF_VALUE)
     validator = All(*validators)
 
     def validate(value):
@@ -1268,30 +1521,35 @@ def maybe_simple_value(*validators, **kwargs):
     return validate
 
 
-MQTT_COMPONENT_AVAILABILITY_SCHEMA = Schema({
-    Required(CONF_TOPIC): subscribe_topic,
-    Optional(CONF_PAYLOAD_AVAILABLE, default='online'): mqtt_payload,
-    Optional(CONF_PAYLOAD_NOT_AVAILABLE, default='offline'): mqtt_payload,
-})
+MQTT_COMPONENT_AVAILABILITY_SCHEMA = Schema(
+    {
+        Required(CONF_TOPIC): subscribe_topic,
+        Optional(CONF_PAYLOAD_AVAILABLE, default="online"): mqtt_payload,
+        Optional(CONF_PAYLOAD_NOT_AVAILABLE, default="offline"): mqtt_payload,
+    }
+)
 
-MQTT_COMPONENT_SCHEMA = Schema({
-    Optional(CONF_NAME): string,
-    Optional(CONF_RETAIN): All(requires_component('mqtt'), boolean),
-    Optional(CONF_DISCOVERY): All(requires_component('mqtt'), boolean),
-    Optional(CONF_STATE_TOPIC): All(requires_component('mqtt'), publish_topic),
-    Optional(CONF_AVAILABILITY): All(requires_component('mqtt'),
-                                     Any(None, MQTT_COMPONENT_AVAILABILITY_SCHEMA)),
-    Optional(CONF_INTERNAL): boolean,
-})
+MQTT_COMPONENT_SCHEMA = Schema(
+    {
+        Optional(CONF_NAME): string,
+        Optional(CONF_RETAIN): All(requires_component("mqtt"), boolean),
+        Optional(CONF_DISCOVERY): All(requires_component("mqtt"), boolean),
+        Optional(CONF_STATE_TOPIC): All(requires_component("mqtt"), publish_topic),
+        Optional(CONF_AVAILABILITY): All(
+            requires_component("mqtt"), Any(None, MQTT_COMPONENT_AVAILABILITY_SCHEMA)
+        ),
+        Optional(CONF_INTERNAL): boolean,
+    }
+)
 MQTT_COMPONENT_SCHEMA.add_extra(_nameable_validator)
 
-MQTT_COMMAND_COMPONENT_SCHEMA = MQTT_COMPONENT_SCHEMA.extend({
-    Optional(CONF_COMMAND_TOPIC): All(requires_component('mqtt'), subscribe_topic),
-})
+MQTT_COMMAND_COMPONENT_SCHEMA = MQTT_COMPONENT_SCHEMA.extend(
+    {
+        Optional(CONF_COMMAND_TOPIC): All(requires_component("mqtt"), subscribe_topic),
+    }
+)
 
-COMPONENT_SCHEMA = Schema({
-    Optional(CONF_SETUP_PRIORITY): float_
-})
+COMPONENT_SCHEMA = Schema({Optional(CONF_SETUP_PRIORITY): float_})
 
 
 def polling_component_schema(default_update_interval):
@@ -1301,10 +1559,30 @@ def polling_component_schema(default_update_interval):
     :param default_update_interval: The default update interval to set for the integration.
     """
     if default_update_interval is None:
-        return COMPONENT_SCHEMA.extend({
-            Required(CONF_UPDATE_INTERVAL): default_update_interval,
-        })
+        return COMPONENT_SCHEMA.extend(
+            {
+                Required(CONF_UPDATE_INTERVAL): default_update_interval,
+            }
+        )
     assert isinstance(default_update_interval, str)
-    return COMPONENT_SCHEMA.extend({
-        Optional(CONF_UPDATE_INTERVAL, default=default_update_interval): update_interval,
-    })
+    return COMPONENT_SCHEMA.extend(
+        {
+            Optional(
+                CONF_UPDATE_INTERVAL, default=default_update_interval
+            ): update_interval,
+        }
+    )
+
+
+def url(value):
+    import urllib.parse
+
+    value = string_strict(value)
+    try:
+        parsed = urllib.parse.urlparse(value)
+    except ValueError as e:
+        raise Invalid("Not a valid URL") from e
+
+    if not parsed.scheme or not parsed.netloc:
+        raise Invalid("Expected a URL scheme and host")
+    return parsed.geturl()

@@ -1,10 +1,16 @@
 substitutions:
   devicename: test1
+  sensorname: my
+  textname: template
+  roomname: living_room
 
 esphome:
   name: test1
+  name_add_mac_suffix: true
   platform: ESP32
   board: nodemcu-32s
+  platformio_options:
+    board_build.partitions: huge_app.csv
   on_boot:
     priority: 150.0
     then:
@@ -36,7 +42,7 @@ esphome:
           verify_ssl: false
           json:
             key: !lambda |-
-              return id(template_text).state;
+              return id(${textname}_text).state;
             greeting: 'Hello World'
       - http_request.send:
           method: PUT
@@ -45,6 +51,12 @@ esphome:
             Content-Type: application/json
           body: 'Some data'
           verify_ssl: false
+          on_response:
+            then:
+              - logger.log:
+                  format: 'Response status: %d'
+                  args:
+                    - status_code
   build_path: build/test1
 
 packages:
@@ -59,6 +71,7 @@ wifi:
       password: ''
       channel: 14
       bssid: 'A1:63:95:47:D3:1D'
+  enable_mdns: true
   manual_ip:
     static_ip: 192.168.178.230
     gateway: 192.168.178.1
@@ -121,7 +134,7 @@ mqtt:
                 int data = x["my_data"];
                 ESP_LOGD("main", "The data is: %d", data);
             - light.turn_on:
-                id: living_room_lights
+                id: ${roomname}_lights
                 brightness: !lambda |-
                   float brightness = 1.0;
                   if (x.containsKey("brightness"))
@@ -133,17 +146,21 @@ mqtt:
                     effect = x["effect"];
                   return effect;
             - light.control:
-                id: living_room_lights
-                brightness: !lambda 'return id(living_room_lights).current_values.get_brightness() + 0.5;'
+                id: ${roomname}_lights
+                brightness: !lambda 'return id(${roomname}_lights).current_values.get_brightness() + 0.5;'
             - light.dim_relative:
-                id: living_room_lights
+                id: ${roomname}_lights
                 relative_brightness: 5%
             - uart.write:
                 id: uart0
                 data: Hello World
-            - uart.write: [0x00, 0x20, 0x30]
-            - uart.write: !lambda |-
-                return {};
+            - uart.write:
+                id: uart0
+                data: [0x00, 0x20, 0x30]
+            - uart.write:
+                id: uart0
+                data: !lambda |-
+                  return {};
 
 i2c:
   sda: 21
@@ -166,6 +183,7 @@ uart:
     data_bits: 8
     stop_bits: 1
     rx_buffer_size: 512
+    invert: false
 
   - id: adalight_uart
     tx_pin: GPIO25
@@ -220,10 +238,19 @@ wled:
 
 adalight:
 
-mcp3008:
-  - id: 'mcp3008_hub'
-    cs_pin: GPIO12
+esp32_ble_tracker:
 
+ble_client:
+  - mac_address: AA:BB:CC:DD:EE:FF
+    id: ble_foo
+  - mac_address: 11:22:33:44:55:66
+    id: ble_blah
+    on_connect:
+      then:
+        - switch.turn_on: ble1_status
+    on_disconnect:
+      then:
+        - switch.turn_on: ble1_status
 mcp23s08:
   - id: 'mcp23s08_hub'
     cs_pin: GPIO12
@@ -234,7 +261,20 @@ mcp23s17:
     cs_pin: GPIO12
     deviceaddress: 1
 
+
 sensor:
+  - platform: ble_client
+    ble_client_id: ble_foo
+    name: 'Green iTag btn'
+    service_uuid: 'ffe0'
+    characteristic_uuid: 'ffe1'
+    descriptor_uuid: 'ffe2'
+    notify: true
+    update_interval: never
+    on_notify:
+      then:
+        - lambda: |-
+            ESP_LOGD("green_btn", "Button was pressed, val%f", x);
   - platform: adc
     pin: A0
     name: 'Living Room Brightness'
@@ -259,6 +299,14 @@ sensor:
           window_size: 5
           send_every: 5
           send_first_at: 3
+      - min:
+          window_size: 5
+          send_every: 5
+          send_first_at: 3
+      - max:
+          window_size: 5
+          send_every: 5
+          send_first_at: 3
       - sliding_window_moving_average:
           window_size: 15
           send_every: 15
@@ -278,9 +326,9 @@ sensor:
       then:
         - lambda: |-
             ESP_LOGD("main", "Got value %f", x);
-            id(my_sensor).publish_state(42.0);
-            ESP_LOGI("main", "Value of my sensor: %f", id(my_sensor).state);
-            ESP_LOGI("main", "Raw Value of my sensor: %f", id(my_sensor).state);
+            id(${sensorname}_sensor).publish_state(42.0);
+            ESP_LOGI("main", "Value of my sensor: %f", id(${sensorname}_sensor).state);
+            ESP_LOGI("main", "Raw Value of my sensor: %f", id(${sensorname}_sensor).state);
     on_value_range:
       above: 5
       below: 10
@@ -307,7 +355,7 @@ sensor:
   - platform: ads1115
     multiplexer: 'A0_A1'
     gain: 1.024
-    id: my_sensor
+    id: ${sensorname}_sensor
     filters:
     state_topic: hi/me
     retain: false
@@ -365,7 +413,7 @@ sensor:
     retain: False
     availability:
     state_topic: livingroom/custom_state_topic
-    measurement_time: 31
+    measurement_duration: 31
   - platform: bme280
     temperature:
       name: 'Outside Temperature'
@@ -456,6 +504,9 @@ sensor:
     power:
       name: 'HLW8012 Power'
       id: hlw8012_power
+    energy:
+      name: 'HLW8012 Energy'
+      id: hlw8012_energy
     update_interval: 15s
     current_resistor: 0.001 ohm
     voltage_divider: 2351
@@ -568,6 +619,7 @@ sensor:
     reference_resistance: '430 Ω'
     rtd_nominal_resistance: '100 Ω'
   - platform: mhz19
+    uart_id: uart0
     co2:
       name: 'MH-Z19 CO2 Value'
     temperature:
@@ -605,6 +657,18 @@ sensor:
       falling_edge: DECREMENT
     internal_filter: 13us
     update_interval: 15s
+  - platform: pulse_meter
+    name: 'Pulse Meter'
+    id: pulse_meter_sensor
+    pin: GPIO12
+    internal_filter: 100ms
+    timeout: 2 min
+    on_value:
+      - pulse_meter.set_total_pulses:
+          id: pulse_meter_sensor
+          value: 12345
+    total:
+      name: 'Pulse Meter Total'
   - platform: rotary_encoder
     name: 'Rotary Encoder'
     id: rotary_encoder1
@@ -632,10 +696,23 @@ sensor:
   - platform: pulse_width
     name: Pulse Width
     pin: GPIO12
-  - platform: senseair
+  - platform: sm300d2
+    uart_id: uart0
     co2:
-      name: 'SenseAir CO2 Value'
-    update_interval: 15s
+      name: 'SM300D2 CO2 Value'
+    formaldehyde:
+      name: 'SM300D2 Formaldehyde Value'
+    tvoc:
+      name: 'SM300D2 TVOC Value'
+    pm_2_5:
+      name: 'SM300D2 PM2.5 Value'
+    pm_10_0:
+      name: 'SM300D2 PM10 Value'
+    temperature:
+      name: 'SM300D2 Temperature Value'
+    humidity:
+      name: 'SM300D2 Humidity Value'
+    update_interval: 60s
   - platform: sht3xd
     temperature:
       name: 'Living Room Temperature 8'
@@ -698,6 +775,13 @@ sensor:
       id: 'workshop_PMC_10_0'
     address: 0x69
     update_interval: 10s
+  - platform: sht4x
+    temperature:
+      name: 'SHT4X Temperature'
+    humidity:
+      name: 'SHT4X Humidity'
+    address: 0x44
+    update_interval: 15s
   - platform: shtcx
     temperature:
       name: 'Living Room Temperature 10'
@@ -754,6 +838,7 @@ sensor:
             root["key"] = id(the_sensor).state;
             root["greeting"] = "Hello World";
   - platform: sds011
+    uart_id: uart0
     pm_2_5:
       name: 'SDS011 PM2.5'
     pm_10_0:
@@ -803,6 +888,7 @@ sensor:
       name: 'AQI'
       calculation_type: 'CAQI'
   - platform: teleinfo
+    uart_id: uart0
     tags:
       - tag_name: 'HCHC'
         sensor:
@@ -828,12 +914,6 @@ sensor:
     id: ph_ezo
     address: 99
     unit_of_measurement: 'pH'
-  - platform: mcp3008
-    update_interval: 5s
-    mcp3008_id: 'mcp3008_hub'
-    id: freezer_temp_source
-    reference_voltage: 3.19
-    number: 0
 
 esp32_touch:
   setup_mode: False
@@ -848,7 +928,7 @@ binary_sensor:
   - platform: gpio
     name: 'MCP23S08 Pin #1'
     pin:
-      mcp23s08: mcp23s08_hub
+      mcp23xxx: mcp23s08_hub
       # Use pin number 1
       number: 1
       # One of INPUT or INPUT_PULLUP
@@ -857,12 +937,22 @@ binary_sensor:
   - platform: gpio
     name: 'MCP23S17 Pin #1'
     pin:
-      mcp23s17: mcp23s17_hub
+      mcp23xxx: mcp23s17_hub
       # Use pin number 1
       number: 1
       # One of INPUT or INPUT_PULLUP
       mode: INPUT_PULLUP
       inverted: False
+  - platform: gpio
+    name: 'MCP23S17 Pin #1 with interrupt'
+    pin:
+      mcp23xxx: mcp23s17_hub
+      # Use pin number 1
+      number: 1
+      # One of INPUT or INPUT_PULLUP
+      mode: INPUT_PULLUP
+      inverted: False
+      interrupt: FALLING
   - platform: gpio
     pin: GPIO9
     name: 'Living Room Window'
@@ -943,12 +1033,12 @@ binary_sensor:
     name: 'Garage Door Open'
     id: garage_door
     lambda: |-
-      if (isnan(id(my_sensor).state)) {
+      if (isnan(id(${sensorname}_sensor).state)) {
         // isnan checks if the ultrasonic sensor echo
         // has timed out, resulting in a NaN (not a number) state
         // in that case, return {} to indicate that we don't know.
         return {};
-      } else if (id(my_sensor).state > 30) {
+      } else if (id(${sensorname}_sensor).state > 30) {
         // Garage Door is open.
         return true;
       } else {
@@ -966,6 +1056,7 @@ binary_sensor:
           id: gpio_19
           frequency: !lambda 'return 500.0;'
   - platform: pn532
+    pn532_id: pn532_bs
     uid: 74-10-37-94
     name: 'PN532 NFC Tag'
   - platform: rdm6300
@@ -981,14 +1072,14 @@ binary_sensor:
   - platform: gpio
     name: 'MCP21 binary sensor'
     pin:
-      mcp23017: mcp23017_hub
+      mcp23xxx: mcp23017_hub
       number: 1
       mode: INPUT
       inverted: True
   - platform: gpio
     name: 'MCP22 binary sensor'
     pin:
-      mcp23008: mcp23008_hub
+      mcp23xxx: mcp23008_hub
       number: 7
       mode: INPUT_PULLUP
       inverted: False
@@ -1145,14 +1236,14 @@ output:
   - platform: gpio
     id: id22
     pin:
-      mcp23017: mcp23017_hub
+      mcp23xxx: mcp23017_hub
       number: 0
       mode: OUTPUT
       inverted: False
   - platform: gpio
     id: id23
     pin:
-      mcp23008: mcp23008_hub
+      mcp23xxx: mcp23008_hub
       number: 0
       mode: OUTPUT
       inverted: False
@@ -1241,7 +1332,7 @@ light:
               state = 0;
   - platform: rgb
     name: 'Living Room Lights'
-    id: living_room_lights
+    id: ${roomname}_lights
     red: pca_0
     green: pca_1
     blue: pca_2
@@ -1397,14 +1488,14 @@ climate:
     name: TCL112 Climate With Sensor
     supports_heat: True
     supports_cool: True
-    sensor: my_sensor
+    sensor: ${sensorname}_sensor
   - platform: tcl112
     name: TCL112 Climate
   - platform: coolix
     name: Coolix Climate With Sensor
     supports_heat: True
     supports_cool: True
-    sensor: my_sensor
+    sensor: ${sensorname}_sensor
   - platform: coolix
     name: Coolix Climate
   - platform: fujitsu_general
@@ -1423,12 +1514,29 @@ climate:
     name: Toshiba Climate
   - platform: hitachi_ac344
     name: Hitachi Climate
+  - platform: midea_ac
+    visual:
+      min_temperature: 18 °C
+      max_temperature: 25 °C
+      temperature_step: 0.1 °C
+    name: 'Electrolux EACS'
+    beeper: true
+    outdoor_temperature:
+      name: 'Temp'
+    power_usage:
+      name: 'Power'
+    humidity_setpoint:
+      name: 'Hum'
+
+midea_dongle:
+  uart_id: uart0
+  strength_icon: true
 
 switch:
   - platform: gpio
     name: 'MCP23S08 Pin #0'
     pin:
-      mcp23s08: mcp23s08_hub
+      mcp23xxx: mcp23s08_hub
       # Use pin number 0
       number: 0
       mode: OUTPUT
@@ -1436,7 +1544,7 @@ switch:
   - platform: gpio
     name: 'MCP23S17 Pin #0'
     pin:
-      mcp23s17: mcp23s17_hub
+      mcp23xxx: mcp23s17_hub
       # Use pin number 0
       number: 1
       mode: OUTPUT
@@ -1472,6 +1580,12 @@ switch:
     turn_on_action:
       remote_transmitter.transmit_samsung:
         data: 0xABCDEF
+  - platform: template
+    name: Samsung36
+    turn_on_action:
+      remote_transmitter.transmit_samsung36:
+        address: 0x0400
+        command: 0x000E00FF
   - platform: template
     name: Sony
     turn_on_action:
@@ -1606,11 +1720,18 @@ switch:
           id: my_switch
           state: !lambda 'return false;'
   - platform: uart
+    uart_id: uart0
     name: 'UART String Output'
     data: 'DataToSend'
   - platform: uart
+    uart_id: uart0
     name: 'UART Bytes Output'
     data: [0xDE, 0xAD, 0xBE, 0xEF]
+  - platform: uart
+    uart_id: uart0
+    name: 'UART Recurring Output'
+    data: [0xDE, 0xAD, 0xBE, 0xEF]
+    send_every: 1s
   - platform: template
     assumed_state: yes
     name: Stepper Switch
@@ -1635,6 +1756,8 @@ switch:
       # Use pin number 0
       number: 0
       inverted: False
+  - platform: template
+    id: ble1_status
 
 fan:
   - platform: binary
@@ -1644,13 +1767,10 @@ fan:
     direction_output: gpio_26
   - platform: speed
     output: pca_6
+    speed_count: 10
     name: 'Living Room Fan 2'
     oscillation_output: gpio_19
     direction_output: gpio_26
-    speed:
-      low: 0.45
-      medium: 0.75
-      high: 1.0
     oscillation_state_topic: oscillation/state/topic
     oscillation_command_topic: oscillation/command/topic
     speed_state_topic: speed/state/topic
@@ -1673,11 +1793,18 @@ interval:
           btn_left_state = ((uint32_t) id(btn_left)->get_value()  +  63 * (uint32_t)btn_left_state) >> 6;
 
           id(btn_left)->set_threshold(btn_left_state * 0.9);
+      - if:
+          condition:
+            display.is_displaying_page:
+              id: display1
+              page_id: page1
+          then:
+            - logger.log: 'Seeing page 1'
 
 color:
   - id: kbx_red
     red: 100%
-    green: 1%
+    green_int: 123
     blue: 2%
   - id: kbx_blue
     red: 0%
@@ -1714,15 +1841,16 @@ display:
       it.print("1234");
   - platform: tm1637
     clk_pin:
-      mcp23017: mcp23017_hub
+      mcp23xxx: mcp23017_hub
       number: 1
     dio_pin:
-      mcp23017: mcp23017_hub
+      mcp23xxx: mcp23017_hub
       number: 2
     intensity: 3
     lambda: |-
       it.print("1234");
   - platform: nextion
+    uart_id: uart0
     lambda: |-
       it.set_component_value("gauge", 50);
       it.set_component_text("textview", "Hello World!");
@@ -1800,15 +1928,6 @@ display:
     reset_pin: GPIO23
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
-  - platform: waveshare_epaper
-    cs_pin: GPIO23
-    dc_pin: GPIO23
-    busy_pin: GPIO23
-    reset_pin: GPIO23
-    model: 2.90in
-    full_update_every: 30
-    lambda: |-
-      it.rectangle(0, 0, it.get_width(), it.get_height());
   - platform: st7789v
     cs_pin: GPIO5
     dc_pin: GPIO16
@@ -1822,10 +1941,10 @@ display:
     dc_pin: GPIO16
     reset_pin: GPIO23
     rotation: 0
-    devicewidth: 128
-    deviceheight: 160
-    colstart: 0
-    rowstart: 0
+    device_width: 128
+    device_height: 160
+    col_start: 0
+    row_start: 0
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
 tm1651:
@@ -1841,6 +1960,7 @@ status_led:
   pin: GPIO2
 
 pn532_spi:
+  id: pn532_bs
   cs_pin: GPIO23
   update_interval: 1s
   on_tag:
@@ -1849,10 +1969,17 @@ pn532_spi:
     - mqtt.publish:
         topic: the/topic
         payload: !lambda 'return x;'
+  on_tag_removed:
+    - lambda: |-
+        ESP_LOGD("main", "Removed tag %s", x.c_str());
+    - mqtt.publish:
+        topic: the/topic
+        payload: !lambda 'return x;'
 
 pn532_i2c:
 
 rdm6300:
+  uart_id: uart0
 
 rc522_spi:
   cs_pin: GPIO23
@@ -1862,12 +1989,18 @@ rc522_spi:
         ESP_LOGD("main", "Found tag %s", x.c_str());
 
 rc522_i2c:
-  update_interval: 1s
-  on_tag:
-    - lambda: |-
-        ESP_LOGD("main", "Found tag %s", x.c_str());
+  - update_interval: 1s
+    on_tag:
+      - lambda: |-
+          ESP_LOGD("main", "Found tag %s", x.c_str());
+
+  - update_interval: 1s
+    on_tag:
+      - lambda: |-
+          ESP_LOGD("main", "Found tag %s", x.c_str());
 
 gps:
+  uart_id: uart0
 
 time:
   - platform: sntp
@@ -1911,6 +2044,17 @@ cover:
 
 debug:
 
+tca9548a:
+  - address: 0x70
+    id: multiplex0
+    scan: True
+  - address: 0x71
+    id: multiplex1
+    scan: True
+    multiplexer:
+      id: multiplex0
+      channel: 0
+
 pcf8574:
   - id: 'pcf8574_hub'
     address: 0x21
@@ -1918,10 +2062,12 @@ pcf8574:
 
 mcp23017:
   - id: 'mcp23017_hub'
+    open_drain_interrupt: 'true'
 
 mcp23008:
   - id: 'mcp23008_hub'
     address: 0x22
+    open_drain_interrupt: 'true'
 
 mcp23016:
   - id: 'mcp23016_hub'
@@ -1962,10 +2108,10 @@ text_sensor:
     qos: 2
     on_value:
       - text_sensor.template.publish:
-          id: template_text
+          id: ${textname}_text
           state: Hello World
       - text_sensor.template.publish:
-          id: template_text
+          id: ${textname}_text
           state: |-
             return "Hello World2";
       - globals.set:
@@ -1976,7 +2122,7 @@ text_sensor:
           data: [0x10, 0x20, 0x30]
   - platform: template
     name: Template Text Sensor
-    id: template_text
+    id: ${textname}_text
   - platform: wifi_info
     ip_address:
       name: 'IP Address'
@@ -2018,4 +2164,4 @@ canbus:
               condition:
                 lambda: 'return x[0] == 0x11;'
               then:
-                light.toggle: living_room_lights
+                light.toggle: ${roomname}_lights

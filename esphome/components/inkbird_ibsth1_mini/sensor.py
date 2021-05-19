@@ -1,23 +1,47 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import sensor, esp32_ble_tracker
-from esphome.const import CONF_BATTERY_LEVEL, CONF_HUMIDITY, CONF_MAC_ADDRESS, CONF_TEMPERATURE, \
-    UNIT_CELSIUS, ICON_THERMOMETER, UNIT_PERCENT, ICON_WATER_PERCENT, ICON_BATTERY, CONF_ID
+from esphome.const import (
+    CONF_BATTERY_LEVEL,
+    CONF_HUMIDITY,
+    CONF_MAC_ADDRESS,
+    CONF_TEMPERATURE,
+    DEVICE_CLASS_BATTERY,
+    DEVICE_CLASS_HUMIDITY,
+    DEVICE_CLASS_TEMPERATURE,
+    ICON_EMPTY,
+    UNIT_CELSIUS,
+    UNIT_PERCENT,
+    CONF_ID,
+)
 
-CODEOWNERS = ['@fkirill']
-DEPENDENCIES = ['esp32_ble_tracker']
+CODEOWNERS = ["@fkirill"]
+DEPENDENCIES = ["esp32_ble_tracker"]
 
-inkbird_ibsth1_mini_ns = cg.esphome_ns.namespace('inkbird_ibsth1_mini')
+inkbird_ibsth1_mini_ns = cg.esphome_ns.namespace("inkbird_ibsth1_mini")
 InkbirdUBSTH1_MINI = inkbird_ibsth1_mini_ns.class_(
-    'InkbirdIBSTH1_MINI', esp32_ble_tracker.ESPBTDeviceListener, cg.Component)
+    "InkbirdIBSTH1_MINI", esp32_ble_tracker.ESPBTDeviceListener, cg.Component
+)
 
-CONFIG_SCHEMA = cv.Schema({
-    cv.GenerateID(): cv.declare_id(InkbirdUBSTH1_MINI),
-    cv.Required(CONF_MAC_ADDRESS): cv.mac_address,
-    cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(UNIT_CELSIUS, ICON_THERMOMETER, 1),
-    cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(UNIT_PERCENT, ICON_WATER_PERCENT, 1),
-    cv.Optional(CONF_BATTERY_LEVEL): sensor.sensor_schema(UNIT_PERCENT, ICON_BATTERY, 0),
-}).extend(esp32_ble_tracker.ESP_BLE_DEVICE_SCHEMA).extend(cv.COMPONENT_SCHEMA)
+CONFIG_SCHEMA = (
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(InkbirdUBSTH1_MINI),
+            cv.Required(CONF_MAC_ADDRESS): cv.mac_address,
+            cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
+                UNIT_CELSIUS, ICON_EMPTY, 1, DEVICE_CLASS_TEMPERATURE
+            ),
+            cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(
+                UNIT_PERCENT, ICON_EMPTY, 1, DEVICE_CLASS_HUMIDITY
+            ),
+            cv.Optional(CONF_BATTERY_LEVEL): sensor.sensor_schema(
+                UNIT_PERCENT, ICON_EMPTY, 0, DEVICE_CLASS_BATTERY
+            ),
+        }
+    )
+    .extend(esp32_ble_tracker.ESP_BLE_DEVICE_SCHEMA)
+    .extend(cv.COMPONENT_SCHEMA)
+)
 
 
 def to_code(config):

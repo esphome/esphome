@@ -14,6 +14,7 @@ ethernet:
   clk_mode: GPIO0_IN
   phy_addr: 0
   power_pin: GPIO25
+  enable_mdns: false
   manual_ip:
     static_ip: 192.168.178.56
     gateway: 192.168.178.1
@@ -45,13 +46,27 @@ ota:
 logger:
   level: DEBUG
 
+deep_sleep:
+  run_duration: 20s
+  sleep_duration: 50s
+  wakeup_pin: GPIO39
+  wakeup_pin_mode: INVERT_WAKEUP
+
 as3935_i2c:
   irq_pin: GPIO12
+
+mcp3008:
+  - id: 'mcp3008_hub'
+    cs_pin: GPIO12
 
 sensor:
   - platform: homeassistant
     entity_id: sensor.hello_world
     id: ha_hello_world
+  - platform: homeassistant
+    entity_id: climate.living_room
+    attribute: temperature
+    id: ha_hello_world_temperature
   - platform: ble_rssi
     mac_address: AC:37:43:77:5F:4C
     name: 'BLE Google Home Mini RSSI value'
@@ -64,6 +79,28 @@ sensor:
   - platform: ble_rssi
     service_uuid: '11223344-5566-7788-99aa-bbccddeeff00'
     name: 'BLE Test Service 128'
+  - platform: b_parasite
+    mac_address: F0:CA:F0:CA:01:01
+    humidity:
+      name: 'b-parasite Air Humidity'
+    temperature:
+      name: 'b-parasite Air Temperature'
+    moisture:
+      name: 'b-parasite Soil Moisture'
+    battery_voltage:
+      name: 'b-parasite Battery Voltage'
+  - platform: senseair
+    id: senseair0
+    co2:
+      name: 'SenseAir CO2 Value'
+      on_value:
+        then:
+          - senseair.background_calibration: senseair0
+          - senseair.background_calibration_result: senseair0
+          - senseair.abc_get_period: senseair0
+          - senseair.abc_enable: senseair0
+          - senseair.abc_disable: senseair0
+    update_interval: 15s
   - platform: ruuvitag
     mac_address: FF:56:D3:2F:7D:E8
     humidity:
@@ -184,12 +221,21 @@ sensor:
   - platform: inkbird_ibsth1_mini
     mac_address: 38:81:D7:0A:9C:11
     temperature:
-        name: 'Inkbird IBS-TH1 Temperature'
+      name: 'Inkbird IBS-TH1 Temperature'
     humidity:
-        name: 'Inkbird IBS-TH1 Humidity'
+      name: 'Inkbird IBS-TH1 Humidity'
     battery_level:
-        name: 'Inkbird IBS-TH1 Battery Level'
-
+      name: 'Inkbird IBS-TH1 Battery Level'
+  - platform: sgp40
+    name: 'Workshop VOC'
+    update_interval: 5s
+    store_baseline: 'true'
+  - platform: mcp3008
+    update_interval: 5s
+    mcp3008_id: 'mcp3008_hub'
+    id: freezer_temp_source
+    reference_voltage: 3.19
+    number: 0
 time:
   - platform: homeassistant
     on_time:
@@ -204,6 +250,10 @@ binary_sensor:
   - platform: homeassistant
     entity_id: binary_sensor.hello_world
     id: ha_hello_world_binary
+  - platform: homeassistant
+    entity_id: binary_sensor.hello
+    attribute: world
+    id: ha_hello_world_binary_attribute
   - platform: ble_presence
     mac_address: AC:37:43:77:5F:4C
     name: 'ESP32 BLE Tracker Google Home Mini'
@@ -302,6 +352,10 @@ text_sensor:
       - homeassistant.tag_scanned:
           tag: 1234-abcd
       - homeassistant.tag_scanned: 1234-abcd
+      - deep_sleep.enter:
+          sleep_duration: 30min
+      - deep_sleep.enter:
+          sleep_duration: !lambda "return 30 * 60 * 1000;"
   - platform: template
     name: 'Template Text Sensor'
     lambda: |-
@@ -309,6 +363,10 @@ text_sensor:
   - platform: homeassistant
     entity_id: sensor.hello_world2
     id: ha_hello_world2
+  - platform: homeassistant
+    entity_id: sensor.hello_world3
+    id: ha_hello_world3
+    attribute: some_attribute
   - platform: ble_scanner
     name: Scanner
 
