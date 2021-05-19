@@ -455,10 +455,10 @@ POST_CONFIG_ACTIONS = {
 def parse_args(argv):
     parser = argparse.ArgumentParser(description=f"ESPHome v{const.__version__}")
     parser.add_argument(
-        "-v", "--verbose", help="Enable verbose esphome logs.", action="store_true"
+        "-v", "--verbose", help="Enable verbose ESPHome logs.", action="store_true"
     )
     parser.add_argument(
-        "-q", "--quiet", help="Disable all esphome logs.", action="store_true"
+        "-q", "--quiet", help="Disable all ESPHome logs.", action="store_true"
     )
     parser.add_argument("--dashboard", help=argparse.SUPPRESS, action="store_true")
     parser.add_argument(
@@ -473,7 +473,9 @@ def parse_args(argv):
         "configuration", help="Your YAML configuration file.", nargs="*"
     )
 
-    subparsers = parser.add_subparsers(help="Commands", dest="command")
+    subparsers = parser.add_subparsers(
+        help="Command to run:", dest="command", metavar="command"
+    )
     subparsers.required = True
 
     subparsers.add_parser("config", help="Validate the configuration and spit it out.")
@@ -492,61 +494,61 @@ def parse_args(argv):
     )
     parser_upload.add_argument(
         "--upload-port",
-        help="Manually specify the upload port to use. For example /dev/cu.SLAB_USBtoUART.",
+        help="Manually specify the upload port/address to use, for example /dev/ttyUSB0.",
     )
 
     parser_logs = subparsers.add_parser(
-        "logs", help="Validate the configuration and show all MQTT logs."
+        "logs", help="Validate the configuration and show all logs."
     )
-    parser_logs.add_argument("--topic", help="Manually set the topic to subscribe to.")
-    parser_logs.add_argument("--username", help="Manually set the username.")
-    parser_logs.add_argument("--password", help="Manually set the password.")
-    parser_logs.add_argument("--client-id", help="Manually set the client id.")
+    parser_logs.add_argument(
+        "--topic", help="Manually set the MQTT topic to subscribe to."
+    )
+    parser_logs.add_argument("--username", help="Manually set the MQTT username.")
+    parser_logs.add_argument("--password", help="Manually set the MQTT password.")
+    parser_logs.add_argument("--client-id", help="Manually set the MQTT client id.")
     parser_logs.add_argument(
         "--serial-port",
-        help="Manually specify a serial port to useFor example /dev/cu.SLAB_USBtoUART.",
+        help="Manually specify the serial port/address to use, for example /dev/ttyUSB0.",
     )
 
     parser_run = subparsers.add_parser(
         "run",
-        help="Validate the configuration, create a binary, upload it, and start MQTT logs.",
+        help="Validate the configuration, create a binary, upload it, and start logs.",
     )
     parser_run.add_argument(
         "--upload-port",
-        help="Manually specify the upload port/ip to use. For example /dev/cu.SLAB_USBtoUART.",
+        help="Manually specify the upload port/address to use, for example /dev/ttyUSB0.",
     )
     parser_run.add_argument(
-        "--no-logs", help="Disable starting MQTT logs.", action="store_true"
+        "--no-logs", help="Disable starting logs.", action="store_true"
     )
     parser_run.add_argument(
-        "--topic", help="Manually set the topic to subscribe to for logs."
+        "--topic", help="Manually set the MQTT topic to subscribe to."
     )
-    parser_run.add_argument(
-        "--username", help="Manually set the MQTT username for logs."
-    )
-    parser_run.add_argument(
-        "--password", help="Manually set the MQTT password for logs."
-    )
-    parser_run.add_argument("--client-id", help="Manually set the client id for logs.")
+    parser_run.add_argument("--username", help="Manually set the MQTT username.")
+    parser_run.add_argument("--password", help="Manually set the MQTT password.")
+    parser_run.add_argument("--client-id", help="Manually set the MQTT client id.")
 
     parser_clean = subparsers.add_parser(
-        "clean-mqtt", help="Helper to clear an MQTT topic from retain messages."
+        "clean-mqtt", help="Helper to clear retained messages from an MQTT topic."
     )
-    parser_clean.add_argument("--topic", help="Manually set the topic to subscribe to.")
-    parser_clean.add_argument("--username", help="Manually set the username.")
-    parser_clean.add_argument("--password", help="Manually set the password.")
-    parser_clean.add_argument("--client-id", help="Manually set the client id.")
+    parser_clean.add_argument(
+        "--topic", help="Manually set the MQTT topic to subscribe to."
+    )
+    parser_clean.add_argument("--username", help="Manually set the MQTT username.")
+    parser_clean.add_argument("--password", help="Manually set the MQTT password.")
+    parser_clean.add_argument("--client-id", help="Manually set the MQTT client id.")
 
     subparsers.add_parser(
         "wizard",
-        help="A helpful setup wizard that will guide you through setting up esphome.",
+        help="A helpful setup wizard that will guide you through setting up ESPHome.",
     )
 
     subparsers.add_parser(
         "mqtt-fingerprint", help="Get the SSL fingerprint from a MQTT broker."
     )
 
-    subparsers.add_parser("version", help="Print the esphome version and exit.")
+    subparsers.add_parser("version", help="Print the ESPHome version and exit.")
 
     subparsers.add_parser("clean", help="Delete all temporary build files.")
 
@@ -581,10 +583,10 @@ def parse_args(argv):
         "--socket", help="Make the dashboard serve under a unix socket", type=str
     )
 
-    parser_vscode = subparsers.add_parser("vscode", help=argparse.SUPPRESS)
+    parser_vscode = subparsers.add_parser("vscode")
     parser_vscode.add_argument("--ace", action="store_true")
 
-    subparsers.add_parser("update-all", help=argparse.SUPPRESS)
+    subparsers.add_parser("update-all")
 
     return parser.parse_args(argv[1:])
 
