@@ -7,8 +7,8 @@ namespace cfa632 {
 
 static const char *TAG = "cfa632";
 
-void CFA632::init() {
-  this->clear();
+void CFA632::init_() {
+  this->clear_();
   this->set_cursor_type(this->cursor_type_);
   this->set_wrap_enabled(this->wrap_enabled_);
   this->set_scroll_enabled(this->scroll_enabled_);
@@ -20,7 +20,7 @@ void CFA632::setup() {
   ESP_LOGCONFIG(TAG, "Setting up cfa632 display...");
   this->spi_setup();
   delay(500);  // NOLINT
-  this->init();
+  this->init_();
 }
 
 void CFA632::dump_config() {
@@ -36,11 +36,11 @@ float CFA632::get_setup_priority() const { return setup_priority::PROCESSOR; }
 void CFA632::update() {
   if (this->writer_) {
     this->set_cursor_position(0, 0);
-    this->call_writer();
+    this->call_writer_();
   }
 }
 
-void CFA632::clear() { write(12); }
+void CFA632::clear_() { write(12); }
 
 void CFA632::set_cursor_position(uint8_t row, uint8_t col) {
   this->write(17);

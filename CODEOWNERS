@@ -25,7 +25,7 @@ esphome/components/ble_client/* @buxtronix
 esphome/components/bme680_bsec/* @trvrnrth
 esphome/components/canbus/* @danielschramm @mvturnho
 esphome/components/captive_portal/* @OttoWinter
-esphome/components/cda632_spi/* @rremy
+esphome/components/cfa632/* @rremy
 esphome/components/climate/* @esphome/core
 esphome/components/climate_ir/* @glmnet
 esphome/components/coolix/* @glmnet
