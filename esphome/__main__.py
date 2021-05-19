@@ -268,7 +268,7 @@ def clean_mqtt(config, args):
 def command_wizard(args):
     from esphome import wizard
 
-    return wizard.wizard(args.configuration[0])
+    return wizard.wizard(args.configuration)
 
 
 def command_config(args, config):
@@ -284,7 +284,7 @@ def command_vscode(args):
 
     logging.disable(logging.INFO)
     logging.disable(logging.WARNING)
-    CORE.config_path = args.configuration[0]
+    CORE.config_path = args.configuration
     vscode.read_config(args)
 
 
@@ -394,7 +394,7 @@ def command_update_all(args):
     import click
 
     success = {}
-    files = list_yaml_files(args.configuration[0])
+    files = list_yaml_files(args.configuration)
     twidth = 60
 
     def print_bar(middle_text):
@@ -408,7 +408,7 @@ def command_update_all(args):
         print("-" * twidth)
         print()
         rc = run_external_process(
-            "esphome", "--dashboard", f, "run", "--no-logs", "--device", "OTA"
+            "esphome", "--dashboard", "run", f, "--no-logs", "--device", "OTA"
         )
         if rc == 0:
             print_bar("[{}] {}".format(color(Fore.BOLD_GREEN, "SUCCESS"), f))
@@ -469,9 +469,6 @@ def parse_args(argv):
         help="Add a substitution",
         metavar=("key", "value"),
     )
-    parser.add_argument(
-        "configuration", help="Your YAML configuration file.", nargs="*"
-    )
 
     mqtt_options = argparse.ArgumentParser(add_help=False)
     mqtt_options.add_argument("--topic", help="Manually set the MQTT topic.")
@@ -484,10 +481,18 @@ def parse_args(argv):
     )
     subparsers.required = True
 
-    subparsers.add_parser("config", help="Validate the configuration and spit it out.")
+    parser_config = subparsers.add_parser(
+        "config", help="Validate the configuration and spit it out."
+    )
+    parser_config.add_argument(
+        "configuration", help="Your YAML configuration file(s).", nargs="+"
+    )
 
     parser_compile = subparsers.add_parser(
         "compile", help="Read the configuration and compile a program."
+    )
+    parser_compile.add_argument(
+        "configuration", help="Your YAML configuration file(s).", nargs="+"
     )
     parser_compile.add_argument(
         "--only-generate",
@@ -497,6 +502,9 @@ def parse_args(argv):
 
     parser_upload = subparsers.add_parser(
         "upload", help="Validate the configuration and upload the latest binary."
+    )
+    parser_upload.add_argument(
+        "configuration", help="Your YAML configuration file(s).", nargs="+"
     )
     parser_upload.add_argument(
         "--device",
@@ -509,6 +517,9 @@ def parse_args(argv):
         parents=[mqtt_options],
     )
     parser_logs.add_argument(
+        "configuration", help="Your YAML configuration file.", nargs=1
+    )
+    parser_logs.add_argument(
         "--device",
         help="Manually specify the serial port/address to use, for example /dev/ttyUSB0.",
     )
@@ -517,6 +528,9 @@ def parse_args(argv):
         "run",
         help="Validate the configuration, create a binary, upload it, and start logs.",
         parents=[mqtt_options],
+    )
+    parser_run.add_argument(
+        "configuration", help="Your YAML configuration file(s).", nargs="+"
     )
     parser_run.add_argument(
         "--device",
@@ -531,22 +545,41 @@ def parse_args(argv):
         help="Helper to clear retained messages from an MQTT topic.",
         parents=[mqtt_options],
     )
+    parser_clean.add_argument(
+        "configuration", help="Your YAML configuration file(s).", nargs="+"
+    )
 
-    subparsers.add_parser(
+    parser_wizard = subparsers.add_parser(
         "wizard",
         help="A helpful setup wizard that will guide you through setting up ESPHome.",
     )
+    parser_wizard.add_argument(
+        "configuration",
+        help="Your YAML configuration file.",
+    )
 
-    subparsers.add_parser(
+    parser_fingerprint = subparsers.add_parser(
         "mqtt-fingerprint", help="Get the SSL fingerprint from a MQTT broker."
+    )
+    parser_fingerprint.add_argument(
+        "configuration", help="Your YAML configuration file(s).", nargs="+"
     )
 
     subparsers.add_parser("version", help="Print the ESPHome version and exit.")
 
-    subparsers.add_parser("clean", help="Delete all temporary build files.")
+    parser_clean = subparsers.add_parser(
+        "clean", help="Delete all temporary build files."
+    )
+    parser_clean.add_argument(
+        "configuration", help="Your YAML configuration file(s).", nargs="+"
+    )
 
     parser_dashboard = subparsers.add_parser(
         "dashboard", help="Create a simple web server for a dashboard."
+    )
+    parser_dashboard.add_argument(
+        "configuration",
+        help="Your YAML configuration file directory.",
     )
     parser_dashboard.add_argument(
         "--port",
@@ -577,9 +610,15 @@ def parse_args(argv):
     )
 
     parser_vscode = subparsers.add_parser("vscode")
+    parser_vscode.add_argument(
+        "configuration", help="Your YAML configuration file.", nargs=1
+    )
     parser_vscode.add_argument("--ace", action="store_true")
 
-    subparsers.add_parser("update-all")
+    parser_update = subparsers.add_parser("update-all")
+    parser_update.add_argument(
+        "configuration", help="Your YAML configuration file directory.", nargs=1
+    )
 
     return parser.parse_args(argv[1:])
 
@@ -589,9 +628,6 @@ def run_esphome(argv):
     CORE.dashboard = args.dashboard
 
     setup_log(args.verbose, args.quiet)
-    if args.command != "version" and not args.configuration:
-        _LOGGER.error("Missing configuration parameter, see esphome --help.")
-        return 1
 
     if sys.version_info < (3, 7, 0):
         _LOGGER.error(
