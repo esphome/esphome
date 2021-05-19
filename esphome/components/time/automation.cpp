@@ -22,7 +22,11 @@ void CronTrigger::loop() {
     return;
 
   if (this->last_check_.has_value()) {
-    if (*this->last_check_ >= time) {
+    if (*this->last_check_ > time && this->last_check_->timestamp - time.timestamp > 900) {
+      // We went back in time (a lot), probably caused by time synchronization
+      ESP_LOGW(TAG, "Time has jumped back!");
+    }
+    else if (*this->last_check_ >= time) {
       // already handled this one
       return;
     }
