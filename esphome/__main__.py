@@ -304,7 +304,7 @@ def command_compile(args, config):
 
 def command_upload(args, config):
     port = choose_upload_log_host(
-        default=args.upload_port,
+        default=args.device,
         check_default=None,
         show_ota=True,
         show_mqtt=False,
@@ -319,7 +319,7 @@ def command_upload(args, config):
 
 def command_logs(args, config):
     port = choose_upload_log_host(
-        default=args.serial_port,
+        default=args.device,
         check_default=None,
         show_ota=False,
         show_mqtt=True,
@@ -337,7 +337,7 @@ def command_run(args, config):
         return exit_code
     _LOGGER.info("Successfully compiled program.")
     port = choose_upload_log_host(
-        default=args.upload_port,
+        default=args.device,
         check_default=None,
         show_ota=True,
         show_mqtt=False,
@@ -350,7 +350,7 @@ def command_run(args, config):
     if args.no_logs:
         return 0
     port = choose_upload_log_host(
-        default=args.upload_port,
+        default=args.device,
         check_default=port,
         show_ota=False,
         show_mqtt=True,
@@ -408,7 +408,7 @@ def command_update_all(args):
         print("-" * twidth)
         print()
         rc = run_external_process(
-            "esphome", "--dashboard", f, "run", "--no-logs", "--upload-port", "OTA"
+            "esphome", "--dashboard", f, "run", "--no-logs", "--device", "OTA"
         )
         if rc == 0:
             print_bar("[{}] {}".format(color(Fore.BOLD_GREEN, "SUCCESS"), f))
@@ -499,8 +499,8 @@ def parse_args(argv):
         "upload", help="Validate the configuration and upload the latest binary."
     )
     parser_upload.add_argument(
-        "--upload-port",
-        help="Manually specify the upload port/address to use, for example /dev/ttyUSB0.",
+        "--device",
+        help="Manually specify the serial port/address to use, for example /dev/ttyUSB0.",
     )
 
     parser_logs = subparsers.add_parser(
@@ -509,7 +509,7 @@ def parse_args(argv):
         parents=[mqtt_options],
     )
     parser_logs.add_argument(
-        "--serial-port",
+        "--device",
         help="Manually specify the serial port/address to use, for example /dev/ttyUSB0.",
     )
 
@@ -519,8 +519,8 @@ def parse_args(argv):
         parents=[mqtt_options],
     )
     parser_run.add_argument(
-        "--upload-port",
-        help="Manually specify the upload port/address to use, for example /dev/ttyUSB0.",
+        "--device",
+        help="Manually specify the serial port/address to use, for example /dev/ttyUSB0.",
     )
     parser_run.add_argument(
         "--no-logs", help="Disable starting logs.", action="store_true"

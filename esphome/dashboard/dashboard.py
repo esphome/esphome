@@ -276,7 +276,7 @@ class EsphomeLogsHandler(EsphomeCommandWebSocket):
             "--dashboard",
             config_file,
             "logs",
-            "--serial-port",
+            "--device",
             json_message["port"],
         ]
 
@@ -289,7 +289,7 @@ class EsphomeUploadHandler(EsphomeCommandWebSocket):
             "--dashboard",
             config_file,
             "run",
-            "--upload-port",
+            "--device",
             json_message["port"],
         ]
 
