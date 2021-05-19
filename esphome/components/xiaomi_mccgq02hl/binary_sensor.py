@@ -12,7 +12,7 @@ from esphome.const import (
     UNIT_PERCENT,
     ICON_BATTERY,
     DEVICE_CLASS_BATTERY,
-    DEVICE_CLASS_LIGHT
+    DEVICE_CLASS_LIGHT,
 )
 
 DEPENDENCIES = ["esp32_ble_tracker"]
@@ -34,9 +34,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_BINDKEY): cv.bind_key,
             cv.Optional(CONF_HAS_LIGHT): binary_sensor.BINARY_SENSOR_SCHEMA.extend(
                 {
-                    cv.Optional(
-                        DEVICE_CLASS_LIGHT
-                    ): binary_sensor.device_class,
+                    cv.Optional(DEVICE_CLASS_LIGHT): binary_sensor.device_class,
                 }
             ),
             cv.Optional(CONF_OPEN): binary_sensor.BINARY_SENSOR_SCHEMA.extend(
