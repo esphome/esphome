@@ -289,6 +289,9 @@ void Tuya::handle_datapoint_(const uint8_t *buffer, size_t len) {
         return;
       datapoint.value_bitmask = (uint16_t(data[0]) << 8) | (uint16_t(data[1]) << 0);
       break;
+    case TuyaDatapointType::RAW:
+      datapoint.value_string = hexencode(data, data_len);
+      break;
     default:
       ESP_LOGW(TAG, "Datapoint %u has unknown type %#02hhX", datapoint.id, static_cast<uint8_t>(datapoint.type));
       return;
