@@ -290,7 +290,7 @@ void Tuya::handle_datapoint_(const uint8_t *buffer, size_t len) {
       datapoint.value_bitmask = (uint16_t(data[0]) << 8) | (uint16_t(data[1]) << 0);
       break;
     case TuyaDatapointType::RAW:
-      datapoint.value_string = hexencode(data, data_len);
+      datapoint.value_string = rawencode(data, data_len);
       break;
     default:
       ESP_LOGW(TAG, "Datapoint %u has unknown type %#02hhX", datapoint.id, static_cast<uint8_t>(datapoint.type));
@@ -316,8 +316,8 @@ void Tuya::handle_datapoint_(const uint8_t *buffer, size_t len) {
 }
 
 void Tuya::send_raw_command_(TuyaCommand command) {
-  uint8_t len_hi = (uint8_t)(command.payload.size() >> 8);
-  uint8_t len_lo = (uint8_t)(command.payload.size() & 0xFF);
+  uint8_t len_hi = (uint8_t) (command.payload.size() >> 8);
+  uint8_t len_lo = (uint8_t) (command.payload.size() & 0xFF);
   uint8_t version = 0;
 
   this->last_command_timestamp_ = millis();
