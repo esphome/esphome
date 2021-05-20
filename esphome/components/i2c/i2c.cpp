@@ -199,13 +199,13 @@ void I2CDevice::raw_begin_transmission() { // NOLINT
 #endif
   this->parent_->raw_begin_transmission(this->address_);
 }
-bool I2CDevice::raw_end_transmission(bool send_stop = true) { // NOLINT
+bool I2CDevice::raw_end_transmission(bool send_stop) { // NOLINT
 #ifdef USE_I2C_MULTIPLEXER
   this->check_multiplexer_();
 #endif
   return this->parent_->raw_end_transmission(this->address_, send_stop);
 }
-void raw_write(const uint8_t *data, uint8_t len) { // NOLINT
+void I2CDevice::raw_write(const uint8_t *data, uint8_t len) { // NOLINT
 #ifdef USE_I2C_MULTIPLEXER
   this->check_multiplexer_();
 #endif

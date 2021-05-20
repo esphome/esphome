@@ -24,7 +24,7 @@ namespace i2c {
  * I2CComponents, each with different SDA and SCL pins and use `set_parent` on all I2CDevices that use
  * the non-first I2C bus.
  */
-celass I2CComponent : public Component {
+class I2CComponent : public Component {
  public:
   I2CComponent();
   void set_sda_pin(uint8_t sda_pin) { sda_pin_ = sda_pin; }
