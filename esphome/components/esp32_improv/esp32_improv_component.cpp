@@ -120,10 +120,10 @@ bool ESP32ImprovComponent::check_identify_() {
 }
 
 void ESP32ImprovComponent::set_state_(improv::State state) {
-  ESP_LOGD(TAG, "Setting state: %d", state);
+  ESP_LOGV(TAG, "Setting state: %d", state);
   this->state_ = state;
   if (this->status_->getData()[0] != state) {
-    ESP_LOGD(TAG, "States: %d -> %d", this->status_->getData()[0], state);
+    ESP_LOGV(TAG, "States: %d -> %d", this->status_->getData()[0], state);
     uint8_t data[1]{state};
     this->status_->setValue(data, 1);
     if (state != improv::STATE_STOPPED)
@@ -132,7 +132,8 @@ void ESP32ImprovComponent::set_state_(improv::State state) {
 }
 
 void ESP32ImprovComponent::set_error_(improv::Error error) {
-  ESP_LOGE(TAG, "Error: %d", error);
+  if (error != improv::ERROR_NONE)
+    ESP_LOGE(TAG, "Error: %d", error);
   if (this->error_->getData()[0] != error) {
     uint8_t data[1]{error};
     this->error_->setValue(data, 1);
@@ -166,7 +167,11 @@ float ESP32ImprovComponent::get_setup_priority() const {
   return setup_priority::HARDWARE - 10.0f;
 }
 
-void ESP32ImprovComponent::dump_config() { ESP_LOGCONFIG(TAG, "ESP32 Improv:"); }
+void ESP32ImprovComponent::dump_config() {
+  ESP_LOGCONFIG(TAG, "ESP32 Improv:");
+  LOG_BINARY_SENSOR("  ", "Activator", this->activator_);
+  ESP_LOGCONFIG(TAG, "  Status Indicator: '%s'", YESNO(this->status_indicator_ != nullptr));
+}
 
 void ESP32ImprovComponent::process_incoming_data_() {
   uint8_t length = this->incoming_data_[1];
@@ -225,7 +230,7 @@ void ESP32ImprovComponent::process_incoming_data_() {
 }
 
 void ESP32ImprovComponent::on_wifi_connect_timeout_() {
-  this->set_error_(improv::ERROR_BAD_CREDENTIALS);
+  this->set_error_(improv::ERROR_UNABLE_TO_CONNECT);
   this->set_state_(improv::STATE_AWAITING_ACTIVATION);
   ESP_LOGW(TAG, "Timed out trying to connect to given WiFi network");
   wifi::global_wifi_component->clear_sta();
