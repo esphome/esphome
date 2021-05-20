@@ -27,10 +27,20 @@ void ESP32ImprovComponent::setup() {
   BLEDescriptor *rpc_descriptor = new BLE2902();
   this->rpc_->addDescriptor(rpc_descriptor);
 
-  this->rpc_response_ = this->service_->createCharacteristic(
-      improv::RESPONSE_UUID, BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_NOTIFY);
-  BLEDescriptor *rpc_response_descriptor = new BLE2902();
-  this->rpc_response_->addDescriptor(rpc_response_descriptor);
+  // this->rpc_response_ = this->service_->createCharacteristic(
+  //     improv::RESPONSE_UUID, BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_NOTIFY);
+  // BLEDescriptor *rpc_response_descriptor = new BLE2902();
+  // this->rpc_response_->addDescriptor(rpc_response_descriptor);
+
+  this->capabilities_ =
+      this->service_->createCharacteristic(improv::CAPABILITIES_UUID, BLECharacteristic::PROPERTY_READ);
+  BLEDescriptor *capabilities_descriptor = new BLE2902();
+  this->capabilities_->addDescriptor(capabilities_descriptor);
+  uint8_t capabilities = 0x00;
+  if (this->status_indicator_ != nullptr)
+    capabilities |= improv::CAPABILITY_IDENTIFY;
+  uint8_t data[1]{capabilities};
+  this->capabilities_->setValue(data, 1);
 
   global_improv_component = this;
   this->set_state_(improv::STATE_STOPPED);

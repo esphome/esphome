@@ -10,6 +10,7 @@ static const char *STATUS_UUID = "00467768-6228-2272-4663-277478268001";
 static const char *ERROR_UUID = "00467768-6228-2272-4663-277478268002";
 static const char *RPC_UUID = "00467768-6228-2272-4663-277478268003";
 static const char *RESPONSE_UUID = "00467768-6228-2272-4663-277478268004";
+static const char *CAPABILITIES_UUID = "00467768-6228-2272-4663-277478268005";
 
 enum Error : uint8_t {
   ERROR_NONE = 0x00,
@@ -34,6 +35,8 @@ enum Command : uint8_t {
   IDENTIFY = 0x02,
   BAD_CHECKSUM = 0xFF,
 };
+
+static const uint8_t CAPABILITY_IDENTIFY = 0x01;
 
 struct ImprovCommand {
   Command command;

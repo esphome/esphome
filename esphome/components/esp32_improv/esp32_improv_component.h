@@ -51,6 +51,7 @@ class ESP32ImprovComponent : public Component, public BLECharacteristicCallbacks
   BLECharacteristic *error_;
   BLECharacteristic *rpc_;
   BLECharacteristic *rpc_response_;
+  BLECharacteristic *capabilities_;
 
   binary_sensor::BinarySensor *activator_{nullptr};
   output::BinaryOutput *status_indicator_{nullptr};
