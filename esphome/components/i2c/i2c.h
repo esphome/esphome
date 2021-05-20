@@ -24,7 +24,7 @@ namespace i2c {
  * I2CComponents, each with different SDA and SCL pins and use `set_parent` on all I2CDevices that use
  * the non-first I2C bus.
  */
-class I2CComponent : public Component {
+celass I2CComponent : public Component {
  public:
   I2CComponent();
   void set_sda_pin(uint8_t sda_pin) { sda_pin_ = sda_pin; }
@@ -178,15 +178,13 @@ class I2CDevice {
   I2CRegister reg(uint8_t a_register) { return {this, a_register}; }
 
   /// Begin a write transmission.
-  void raw_begin_transmission() { this->parent_->raw_begin_transmission(this->address_); };
+  void raw_begin_transmission();
 
   /// End a write transmission, return true if successful.
-  bool raw_end_transmission(bool send_stop = true) {
-    return this->parent_->raw_end_transmission(this->address_, send_stop);
-  };
+  bool raw_end_transmission(bool send_stop = true);
 
   /// Write len amount of bytes from data. begin_transmission_ must be called before this.
-  void raw_write(const uint8_t *data, uint8_t len) { this->parent_->raw_write(this->address_, data, len); };
+  void raw_write(const uint8_t *data, uint8_t len);
 
   /** Read len amount of bytes from a register into data. Optionally with a conversion time after
    * writing the register value to the bus.
@@ -198,7 +196,7 @@ class I2CDevice {
    * @return If the operation was successful.
    */
   bool read_bytes(uint8_t a_register, uint8_t *data, uint8_t len, uint32_t conversion = 0);
-  bool read_bytes_raw(uint8_t *data, uint8_t len) { return this->parent_->read_bytes_raw(this->address_, data, len); }
+  bool read_bytes_raw(uint8_t *data, uint8_t len);
 
   template<size_t N> optional<std::array<uint8_t, N>> read_bytes(uint8_t a_register) {
     std::array<uint8_t, N> res;
@@ -246,9 +244,7 @@ class I2CDevice {
    * @return If the operation was successful.
    */
   bool write_bytes(uint8_t a_register, const uint8_t *data, uint8_t len);
-  bool write_bytes_raw(const uint8_t *data, uint8_t len) {
-    return this->parent_->write_bytes_raw(this->address_, data, len);
-  }
+  bool write_bytes_raw(const uint8_t *data, uint8_t len);
 
   /** Write a vector of data to a register.
    *

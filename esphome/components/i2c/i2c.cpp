@@ -193,11 +193,35 @@ void I2CDevice::check_multiplexer_() {
 }
 #endif
 
+void I2CDevice::raw_begin_transmission() { // NOLINT
+#ifdef USE_I2C_MULTIPLEXER
+  this->check_multiplexer_();
+#endif
+  this->parent_->raw_begin_transmission(this->address_);
+}
+bool I2CDevice::raw_end_transmission(bool send_stop = true) { // NOLINT
+#ifdef USE_I2C_MULTIPLEXER
+  this->check_multiplexer_();
+#endif
+  return this->parent_->raw_end_transmission(this->address_, send_stop);
+}
+void raw_write(const uint8_t *data, uint8_t len) { // NOLINT
+#ifdef USE_I2C_MULTIPLEXER
+  this->check_multiplexer_();
+#endif
+  this->parent_->raw_write(this->address_, data, len);
+}
 bool I2CDevice::read_bytes(uint8_t a_register, uint8_t *data, uint8_t len, uint32_t conversion) {  // NOLINT
 #ifdef USE_I2C_MULTIPLEXER
   this->check_multiplexer_();
 #endif
   return this->parent_->read_bytes(this->address_, a_register, data, len, conversion);
+}
+bool I2CDevice::read_bytes_raw(uint8_t *data, uint8_t len) { // NOLINT
+#ifdef USE_I2C_MULTIPLEXER
+  this->check_multiplexer_();
+#endif
+  return this->parent_->read_bytes_raw(this->address_, data, len);    
 }
 bool I2CDevice::read_byte(uint8_t a_register, uint8_t *data, uint32_t conversion) {  // NOLINT
 #ifdef USE_I2C_MULTIPLEXER
@@ -210,6 +234,12 @@ bool I2CDevice::write_bytes(uint8_t a_register, const uint8_t *data, uint8_t len
   this->check_multiplexer_();
 #endif
   return this->parent_->write_bytes(this->address_, a_register, data, len);
+}
+bool I2CDevice::write_bytes_raw(const uint8_t *data, uint8_t len) { // NOLINT
+#ifdef USE_I2C_MULTIPLEXER
+  this->check_multiplexer_();
+#endif
+  return this->parent_->write_bytes_raw(this->address_, data, len);
 }
 bool I2CDevice::write_byte(uint8_t a_register, uint8_t data) {  // NOLINT
 #ifdef USE_I2C_MULTIPLEXER
