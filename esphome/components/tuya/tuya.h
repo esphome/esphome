@@ -124,5 +124,8 @@ class Tuya : public Component, public uart::UARTDevice {
   uint8_t wifi_status_ = -1;
 };
 
+std::string rawencode(const uint8_t *data, size_t size);
+std::vector<uint8_t> rawdecode(const std::string &str);
+
 }  // namespace tuya
 }  // namespace esphome

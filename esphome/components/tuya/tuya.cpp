@@ -44,7 +44,9 @@ void Tuya::dump_config() {
     else if (info.type == TuyaDatapointType::ENUM)
       ESP_LOGCONFIG(TAG, "  Datapoint %u: enum (value: %d)", info.id, info.value_enum);
     else if (info.type == TuyaDatapointType::BITMASK)
-      ESP_LOGCONFIG(TAG, "  Datapoint %u: bitmask (value: %x)", info.id, info.value_bitmask);
+      ESP_LOGCONFIG(TAG, "  Datapoint %d: bitmask (value: %x)", info.id, info.value_bitmask);
+    else if (info.type == TuyaDatapointType::RAW)
+      ESP_LOGCONFIG(TAG, "  Datapoint %d: raw value (value: %s)", info.id, info.value_string.c_str());
     else
       ESP_LOGCONFIG(TAG, "  Datapoint %u: unknown", info.id);
   }
@@ -550,6 +552,41 @@ void Tuya::register_listener(uint8_t datapoint_id, const std::function<void(Tuya
   for (auto &datapoint : this->datapoints_)
     if (datapoint.id == datapoint_id)
       func(datapoint);
+}
+
+std::string rawencode(const uint8_t *data, size_t size) {
+  constexpr char hexdata[] = "0123456789ABCDEF";
+  std::string s;
+  for (size_t i = 0; i < size; i++) {
+    s.push_back(hexdata[data[i] >> 4]);
+    s.push_back(hexdata[data[i] & 0x0F]);
+  }
+  return s;
+}
+
+static uint8_t hexval(char c) {
+  if ('0' <= c && c <= '9') {
+    return c - '0';
+  }
+  if ('A' <= c && c <= 'F') {
+    return c - 'A' + 10;
+  }
+  if ('a' <= c && c <= 'f') {
+    return c - 'a' + 10;
+  }
+  return 0;  // error
+}
+
+std::vector<uint8_t> rawdecode(const std::string &str) {
+  std::vector<uint8_t> res;
+  for (auto p = str.begin(); p != str.end(); p++) {
+    uint8_t b = hexval(*p);
+    if (++p == str.end()) {
+      break;
+    }
+    res.push_back((b << 4) + hexval(*p));
+  }
+  return res;
 }
 
 }  // namespace tuya

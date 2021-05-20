@@ -1,0 +1,30 @@
+#include "esphome/core/log.h"
+#include "tuya_text_sensor.h"
+
+namespace esphome {
+namespace tuya {
+
+static const char *TAG = "tuya.text_sensor";
+
+void TuyaTextSensor::setup() {
+  this->parent_->register_listener(this->sensor_id_, [this](TuyaDatapoint datapoint) {
+    switch (datapoint.type) {
+      case TuyaDatapointType::STRING:
+      case TuyaDatapointType::RAW:
+        this->publish_state(datapoint.value_string);
+        ESP_LOGD(TAG, "MCU reported text sensor is: %s", datapoint.value_string.c_str());
+        break;
+      default:
+        ESP_LOGW(TAG, "Unsupported data type for tuya text sensor: %d", datapoint.type);
+        break;
+    }
+  });
+}
+
+void TuyaTextSensor::dump_config() {
+  ESP_LOGCONFIG(TAG, "Tuya Text Sensor:");
+  ESP_LOGCONFIG(TAG, "  Text Sensor has datapoint ID %u", this->sensor_id_);
+}
+
+}  // namespace tuya
+}  // namespace esphome
