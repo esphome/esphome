@@ -55,7 +55,7 @@ class ESP32ImprovComponent : public Component, public BLECharacteristicCallbacks
   binary_sensor::BinarySensor *activator_{nullptr};
   output::BinaryOutput *status_indicator_{nullptr};
 
-  improv::State state_{improv::STATE_NONE};
+  improv::State state_{improv::STATE_STOPPED};
   improv::Error error_state_{improv::ERROR_NONE};
 
   void set_state_(improv::State state);
