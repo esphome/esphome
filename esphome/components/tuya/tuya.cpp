@@ -285,21 +285,9 @@ void Tuya::handle_datapoint_(const uint8_t *buffer, size_t len) {
       ESP_LOGD(TAG, "Datapoint %u update to %d", datapoint.id, datapoint.value_enum);
       break;
     case TuyaDatapointType::BITMASK:
-      switch (data_len) {
-        case 1:
-          datapoint.value_bitmask = encode_uint32(0, 0, 0, data[0]);
-          break;
-        case 2:
-          datapoint.value_bitmask = encode_uint32(0, 0, data[0], data[1]);
-          break;
-        case 4:
-          datapoint.value_bitmask = encode_uint32(data[0], data[1], data[2], data[3]);
-          break;
-        default:
-          ESP_LOGW(TAG, "Datapoint %u has bad bitmask len %zu", datapoint.id, data_len);
-          return;
-      }
-      ESP_LOGD(TAG, "Datapoint %u update to %#08X", datapoint.id, datapoint.value_bitmask);
+      if (data_len != 2)
+        return;
+      datapoint.value_bitmask = (uint16_t(data[0]) << 8) | (uint16_t(data[1]) << 0);
       break;
     default:
       ESP_LOGW(TAG, "Datapoint %u has unknown type %#02hhX", datapoint.id, static_cast<uint8_t>(datapoint.type));
