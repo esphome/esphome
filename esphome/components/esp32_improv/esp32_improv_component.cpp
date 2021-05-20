@@ -175,6 +175,7 @@ void ESP32ImprovComponent::process_incoming_data_() {
       TAG, "Processing bytes - %s",
       hexencode(reinterpret_cast<const uint8_t *>(&(this->incoming_data_[0])), this->incoming_data_.length()).c_str());
   if (this->incoming_data_.length() - 3 == length) {
+    this->set_error_(improv::ERROR_NONE);
     improv::ImprovCommand command = improv::parse_improv_data(
         reinterpret_cast<const uint8_t *>(&(this->incoming_data_[0])), this->incoming_data_.length());
     switch (command.command) {
@@ -216,10 +217,10 @@ void ESP32ImprovComponent::process_incoming_data_() {
         this->incoming_data_ = "";
     }
   } else if (this->incoming_data_.length() - 2 > length) {
-    ESP_LOGD(TAG, "[CHANGE TO V] Too much data came in, or malformed resetting buffer...");
+    ESP_LOGV(TAG, "Too much data came in, or malformed resetting buffer...");
     this->incoming_data_ = "";
   } else {
-    ESP_LOGD(TAG, "[CHANGE TO V] Waiting for split data packets...");
+    ESP_LOGV(TAG, "Waiting for split data packets...");
   }
 }
 
