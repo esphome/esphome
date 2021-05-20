@@ -42,13 +42,11 @@ void ESP32ImprovComponent::loop() {
   uint32_t now = millis();
 
   switch (this->state_) {
-    case improv::STATE_NONE:
-      break;
     case improv::STATE_STOPPED:
       if (this->status_indicator_ != nullptr)
         this->status_indicator_->turn_off();
       break;
-    case improv::STATE_STARTED: {
+    case improv::STATE_AWAITING_ACTIVATION: {
       if (this->activator_ == nullptr || this->activator_->state) {
         this->set_state_(improv::STATE_ACTIVATED);
         this->activated_start_ = now;
@@ -64,7 +62,7 @@ void ESP32ImprovComponent::loop() {
       if (this->activator_ != nullptr) {
         if (now - this->activated_start_ > this->activated_duration_) {
           ESP_LOGD(TAG, "Activation timeout");
-          this->set_state_(improv::STATE_STARTED);
+          this->set_state_(improv::STATE_AWAITING_ACTIVATION);
           return;
         }
       }
@@ -79,7 +77,7 @@ void ESP32ImprovComponent::loop() {
       }
       break;
     }
-    case improv::STATE_RECEIVED: {
+    case improv::STATE_PROVISIONING: {
       if (this->status_indicator_ != nullptr) {
         if ((now % 200) < 100) {
           this->status_indicator_->turn_on();
@@ -92,11 +90,11 @@ void ESP32ImprovComponent::loop() {
                                                    this->connecting_sta_.get_password());
         this->connecting_sta_ = {};
         this->cancel_timeout("wifi-connect-timeout");
-        this->set_state_(improv::STATE_SAVED);
+        this->set_state_(improv::STATE_PROVISIONED);
       }
       break;
     }
-    case improv::STATE_SAVED: {
+    case improv::STATE_PROVISIONED: {
       this->incoming_data_ = "";
       if (this->status_indicator_ != nullptr)
         this->status_indicator_->turn_on();
@@ -153,7 +151,7 @@ void ESP32ImprovComponent::start() {
   BLEDevice::startAdvertising();
   ESP_LOGD(TAG, "Service started!");
 
-  this->set_state_(improv::STATE_STARTED);
+  this->set_state_(improv::STATE_AWAITING_ACTIVATION);
   this->error_->setValue({improv::ERROR_NONE});
 }
 
@@ -199,7 +197,7 @@ void ESP32ImprovComponent::process_incoming_data_() {
 
         wifi::global_wifi_component->set_sta(sta);
         wifi::global_wifi_component->start_scanning();
-        this->set_state_(improv::STATE_RECEIVED);
+        this->set_state_(improv::STATE_PROVISIONING);
         ESP_LOGD(TAG, "Received Improv wifi settings ssid=%s, password=" LOG_SECRET("%s"), command.ssid.c_str(),
                  command.password.c_str());
 
@@ -227,7 +225,7 @@ void ESP32ImprovComponent::process_incoming_data_() {
 
 void ESP32ImprovComponent::on_wifi_connect_timeout_() {
   this->set_error_(improv::ERROR_BAD_CREDENTIALS);
-  this->set_state_(improv::STATE_STARTED);
+  this->set_state_(improv::STATE_AWAITING_ACTIVATION);
   ESP_LOGW(TAG, "Timed out trying to connect to given WiFi network");
   wifi::global_wifi_component->clear_sta();
 }
