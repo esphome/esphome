@@ -43,6 +43,8 @@ CoverCall &CoverCall::set_command(const char *command) {
     this->set_command_close();
   } else if (strcasecmp(command, "STOP") == 0) {
     this->set_command_stop();
+  } else if (strcasecmp(command, "TOGGLE") == 0) {
+    this->set_command_toggle();
   } else {
     ESP_LOGW(TAG, "'%s' - Unrecognized command %s", this->parent_->get_name().c_str(), command);
   }
@@ -59,6 +61,18 @@ CoverCall &CoverCall::set_command_close() {
 CoverCall &CoverCall::set_command_stop() {
   this->stop_ = true;
   return *this;
+}
+CoverCall &CoverCall::set_command_toggle() {
+  if (this->parent_->current_operation == CoverOperation::COVER_OPERATION_IDLE) {
+    if (this->parent_->is_fully_closed() || this->parent_->last_operation == CoverOperation::COVER_OPERATION_CLOSING) {
+      this->parent_->last_operation = CoverOperation::COVER_OPERATION_OPENING;
+      return set_command_open();
+    } else {
+      this->parent_->last_operation = CoverOperation::COVER_OPERATION_CLOSING;
+      return set_command_close();
+    }
+  }
+  return set_command_stop();
 }
 CoverCall &CoverCall::set_position(float position) {
   this->position_ = position;
@@ -142,6 +156,11 @@ void Cover::close() {
 void Cover::stop() {
   auto call = this->make_call();
   call.set_command_stop();
+  call.perform();
+}
+void Cover::toggle() {
+  auto call = this->make_call();
+  call.set_command_toggle();
   call.perform();
 }
 void Cover::add_on_state_callback(std::function<void()> &&f) { this->state_callback_.add(std::move(f)); }

@@ -29,7 +29,7 @@ class CoverCall {
  public:
   CoverCall(Cover *parent);
 
-  /// Set the command as a string, "STOP", "OPEN", "CLOSE".
+  /// Set the command as a string, "STOP", "OPEN", "CLOSE", "TOGGLE".
   CoverCall &set_command(const char *command);
   /// Set the command to open the cover.
   CoverCall &set_command_open();
@@ -37,6 +37,8 @@ class CoverCall {
   CoverCall &set_command_close();
   /// Set the command to stop the cover.
   CoverCall &set_command_stop();
+  /// Set the command to toggle the cover.
+  CoverCall &set_command_toggle();
   /// Set the call to a certain target position.
   CoverCall &set_position(float position);
   /// Set the call to a certain target tilt.
@@ -110,6 +112,8 @@ class Cover : public Nameable {
 
   /// The current operation of the cover (idle, opening, closing).
   CoverOperation current_operation{COVER_OPERATION_IDLE};
+  /// The last operation of the cover (opening, closing), needed for toggle action.
+  CoverOperation last_operation{COVER_OPERATION_OPENING};
   /** The position of the cover from 0.0 (fully closed) to 1.0 (fully open).
    *
    * For binary covers this is always equals to 0.0 or 1.0 (see also COVER_OPEN and
@@ -139,6 +143,11 @@ class Cover : public Nameable {
    */
   ESPDEPRECATED("stop() is deprecated, use make_call().set_command_stop() instead.", "2021.9")
   void stop();
+  /** Toggle the cover.
+   *
+   * This is a legacy method and may be removed later, please use `.make_call()` instead.
+   */
+  void toggle();
 
   void add_on_state_callback(std::function<void()> &&f);
 

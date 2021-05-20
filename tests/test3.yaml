@@ -724,6 +724,12 @@ binary_sensor:
     id: r0_sensor
     name: 'R0 Sensor'
     component_name: page0.r0
+  - platform: template
+    id: 'cover_toggle'
+    on_press:
+      then:
+        - cover.toggle: time_based_cover
+
 globals:
   - id: my_global_string
     type: std::string
@@ -1013,6 +1019,7 @@ cover:
     max_duration: 10min
   - platform: time_based
     name: Time Based Cover
+    id: time_based_cover
     stop_action:
       - switch.turn_on: gpio_switch1
     open_action:

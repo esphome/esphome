@@ -37,6 +37,16 @@ template<typename... Ts> class StopAction : public Action<Ts...> {
   Cover *cover_;
 };
 
+template<typename... Ts> class ToggleAction : public Action<Ts...> {
+ public:
+  explicit ToggleAction(Cover *cover) : cover_(cover) {}
+
+  void play(Ts... x) override { this->cover_->toggle(); }
+
+ protected:
+  Cover *cover_;
+};
+
 template<typename... Ts> class ControlAction : public Action<Ts...> {
  public:
   explicit ControlAction(Cover *cover) : cover_(cover) {}
