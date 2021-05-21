@@ -632,6 +632,8 @@ def convert_schema(path, vschema, un_extend=True):
                         default_value = k.default()
                         # Yaml validator fails if `"default": null` ends up in the json schema
                         if default_value is not None:
+                            if prop["type"] == "string":
+                                default_value = str(default_value)
                             prop["default"] = default_value
                 except:
                     pass
