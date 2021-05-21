@@ -58,14 +58,6 @@ class LightState : public Nameable, public Component {
    */
   LightColorValues current_values;
 
-  /// Deprecated method to access current_values.
-  ESPDEPRECATED("get_current_values() is deprecated, please use .current_values instead.")
-  LightColorValues get_current_values();
-
-  /// Deprecated method to access remote_values.
-  ESPDEPRECATED("get_remote_values() is deprecated, please use .remote_values instead.")
-  LightColorValues get_remote_values();
-
   /** The remote color values reported to the frontend.
    *
    * These are different from the "current" values: For example transitions will
@@ -76,6 +68,14 @@ class LightState : public Nameable, public Component {
    */
   LightColorValues remote_values;
 
+  /// Deprecated method to access current_values.
+  ESPDEPRECATED("get_current_values() is deprecated, please use .current_values instead.")
+  LightColorValues get_current_values();
+
+  /// Deprecated method to access remote_values.
+  ESPDEPRECATED("get_remote_values() is deprecated, please use .remote_values instead.")
+  LightColorValues get_remote_values();
+
   /// Publish the currently active state to the frontend.
   void publish_state();
 
@@ -85,28 +85,21 @@ class LightState : public Nameable, public Component {
   /// Return the name of the current effect, or if no effect is active "None".
   std::string get_effect_name();
 
-  /** This lets front-end components subscribe to light change events.
-   *
-   * This is different from add_new_current_values_callback in that it only sends events for start
-   * and end values. For example, with transitions it will only send a single callback whereas
-   * the callback passed in add_new_current_values_callback will be called every loop() cycle when
-   * a transition is active
-   *
-   * Note the callback should get the output values through get_remote_values().
+  /**
+   * This lets front-end components subscribe to light change events. This callback is called once
+   * when the remote color values are changed.
    *
    * @param send_callback The callback.
    */
   void add_new_remote_values_callback(std::function<void()> &&send_callback);
 
   /**
-   * The callback is called once the state of current_values and remote_values are equal
+   * The callback is called once the state of current_values and remote_values are equal (when the
+   * transition is finished).
    *
    * @param send_callback
    */
   void add_new_target_state_reached_callback(std::function<void()> &&send_callback);
-
-  /// Return whether the light has any effects that meet the trait requirements.
-  bool supports_effects();
 
 #ifdef USE_JSON
   /// Dump the state of this light as JSON.
@@ -119,10 +112,17 @@ class LightState : public Nameable, public Component {
   /// Set the gamma correction factor
   void set_gamma_correct(float gamma_correct);
   float get_gamma_correct() const { return this->gamma_correct_; }
-  void set_restore_mode(LightRestoreMode restore_mode) { restore_mode_ = restore_mode; }
 
+  /// Set the restore mode of this light
+  void set_restore_mode(LightRestoreMode restore_mode);
+
+  /// Return whether the light has any effects that meet the trait requirements.
+  bool supports_effects();
+
+  /// Get all effects for this light state.
   const std::vector<LightEffect *> &get_effects() const;
 
+  /// Add effects for this light state.
   void add_effects(const std::vector<LightEffect *> &effects);
 
   void current_values_as_binary(bool *binary);
@@ -147,6 +147,8 @@ class LightState : public Nameable, public Component {
 
   /// Internal method to start an effect with the given index
   void start_effect_(uint32_t effect_index);
+  /// Internal method to get the currently active effect
+  LightEffect *get_active_effect_();
   /// Internal method to stop the current effect (if one is active).
   void stop_effect_();
   /// Internal method to start a transition to the target color with the given length.
@@ -161,21 +163,21 @@ class LightState : public Nameable, public Component {
   /// Internal method to start a transformer.
   void set_transformer_(std::unique_ptr<LightTransformer> transformer);
 
-  LightEffect *get_active_effect_();
-
   /// Internal method to save the current remote_values to the preferences
   void save_remote_values_();
 
-  /// Object used to store the persisted values of the light.
-  ESPPreferenceObject rtc_;
-  /// Restore mode of the light.
-  LightRestoreMode restore_mode_;
-  /// Default transition length for all transitions in ms.
-  uint32_t default_transition_length_{};
+  /// Store the output to allow effects to have more access.
+  LightOutput *output_;
   /// Value for storing the index of the currently active effect. 0 if no effect is active
   uint32_t active_effect_index_{};
   /// The currently active transformer for this light (transition/flash).
   std::unique_ptr<LightTransformer> transformer_{nullptr};
+  /// Whether the light value should be written in the next cycle.
+  bool next_write_{true};
+
+  /// Object used to store the persisted values of the light.
+  ESPPreferenceObject rtc_;
+
   /** Callback to call when new values for the frontend are available.
    *
    * "Remote values" are light color values that are reported to the frontend and have a lower
@@ -190,11 +192,12 @@ class LightState : public Nameable, public Component {
    */
   CallbackManager<void()> target_state_reached_callback_{};
 
-  LightOutput *output_;  ///< Store the output to allow effects to have more access.
-  /// Whether the light value should be written in the next cycle.
-  bool next_write_{true};
+  /// Default transition length for all transitions in ms.
+  uint32_t default_transition_length_{};
   /// Gamma correction factor for the light.
   float gamma_correct_{};
+  /// Restore mode of the light.
+  LightRestoreMode restore_mode_;
   /// List of effects for this light.
   std::vector<LightEffect *> effects_;
 };
