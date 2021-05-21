@@ -3,6 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/color.h"
+#include "esp_hsv_color.h"
 #include "light_output.h"
 #include "light_state.h"
 
@@ -14,32 +15,6 @@ namespace esphome {
 namespace light {
 
 using ESPColor = Color;
-
-struct ESPHSVColor {
-  union {
-    struct {
-      union {
-        uint8_t hue;
-        uint8_t h;
-      };
-      union {
-        uint8_t saturation;
-        uint8_t s;
-      };
-      union {
-        uint8_t value;
-        uint8_t v;
-      };
-    };
-    uint8_t raw[3];
-  };
-  inline ESPHSVColor() ALWAYS_INLINE : h(0), s(0), v(0) {  // NOLINT
-  }
-  inline ESPHSVColor(uint8_t hue, uint8_t saturation, uint8_t value) ALWAYS_INLINE : hue(hue),
-                                                                                     saturation(saturation),
-                                                                                     value(value) {}
-  Color to_rgb() const;
-};
 
 class ESPColorCorrection {
  public:
