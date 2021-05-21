@@ -28,7 +28,7 @@ class ESP32ImprovComponent : public Component, public BLECharacteristicCallbacks
   float get_setup_priority() const override;
   void start();
   void end();
-  bool is_active() const { return this->state_ == improv::STATE_ACTIVATED; }
+  bool is_active() const { return this->state_ == improv::STATE_AUTHORIZED; }
 
   void set_activator(binary_sensor::BinarySensor *activator) { this->activator_ = activator; }
   void set_status_indicator(output::BinaryOutput *status_indicator) { this->status_indicator_ = status_indicator; }
