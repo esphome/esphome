@@ -73,7 +73,10 @@ void ESP32BLEServer::dump_config() { ESP_LOGCONFIG(TAG, "ESP32 BLE Server:"); }
 
 void ESP32BLEServerCallback::onConnect(BLEServer *pServer) { ESP_LOGD(TAG, "BLE Client connected"); }
 
-void ESP32BLEServerCallback::onDisconnect(BLEServer *pServer) { ESP_LOGD(TAG, "BLE Client disconnected"); }
+void ESP32BLEServerCallback::onDisconnect(BLEServer *pServer) {
+  ESP_LOGD(TAG, "BLE Client disconnected");
+  BLEDevice::startAdvertising();
+}
 
 ESP32BLEServer *global_ble_server = nullptr;
 
