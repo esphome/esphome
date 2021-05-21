@@ -16,6 +16,8 @@
 //
 // Modified by Otto Winter on 18.05.18
 
+#include <algorithm>
+
 namespace esphome {
 
 // type for nullopt
