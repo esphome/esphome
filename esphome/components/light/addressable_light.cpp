@@ -187,23 +187,5 @@ void AddressableLight::write_state(LightState *state) {
   this->schedule_show();
 }
 
-void ESPColorCorrection::calculate_gamma_table(float gamma) {
-  for (uint16_t i = 0; i < 256; i++) {
-    // corrected = val ^ gamma
-    auto corrected = static_cast<uint8_t>(roundf(255.0f * gamma_correct(i / 255.0f, gamma)));
-    this->gamma_table_[i] = corrected;
-  }
-  if (gamma == 0.0f) {
-    for (uint16_t i = 0; i < 256; i++)
-      this->gamma_reverse_table_[i] = i;
-    return;
-  }
-  for (uint16_t i = 0; i < 256; i++) {
-    // val = corrected ^ (1/gamma)
-    auto uncorrected = static_cast<uint8_t>(roundf(255.0f * powf(i / 255.0f, 1.0f / gamma)));
-    this->gamma_reverse_table_[i] = uncorrected;
-  }
-}
-
 }  // namespace light
 }  // namespace esphome
