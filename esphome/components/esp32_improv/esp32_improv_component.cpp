@@ -56,9 +56,9 @@ void ESP32ImprovComponent::loop() {
       if (this->status_indicator_ != nullptr)
         this->status_indicator_->turn_off();
       break;
-    case improv::STATE_AWAITING_ACTIVATION: {
+    case improv::STATE_AWAITING_AUTHORIZATION: {
       if (this->activator_ == nullptr || this->activator_->state) {
-        this->set_state_(improv::STATE_ACTIVATED);
+        this->set_state_(improv::STATE_AUTHORIZED);
         this->activated_start_ = now;
       } else {
         if (this->status_indicator_ != nullptr) {
@@ -68,11 +68,11 @@ void ESP32ImprovComponent::loop() {
       }
       break;
     }
-    case improv::STATE_ACTIVATED: {
+    case improv::STATE_AUTHORIZED: {
       if (this->activator_ != nullptr) {
         if (now - this->activated_start_ > this->activated_duration_) {
           ESP_LOGD(TAG, "Activation timeout");
-          this->set_state_(improv::STATE_AWAITING_ACTIVATION);
+          this->set_state_(improv::STATE_AWAITING_AUTHORIZATION);
           return;
         }
       }
@@ -162,7 +162,7 @@ void ESP32ImprovComponent::start() {
   BLEDevice::startAdvertising();
   ESP_LOGD(TAG, "Service started!");
 
-  this->set_state_(improv::STATE_AWAITING_ACTIVATION);
+  this->set_state_(improv::STATE_AWAITING_AUTHORIZATION);
   this->error_->setValue({improv::ERROR_NONE});
 }
 
@@ -200,9 +200,9 @@ void ESP32ImprovComponent::process_incoming_data_() {
         this->incoming_data_ = "";
         break;
       case improv::WIFI_SETTINGS: {
-        if (this->state_ != improv::STATE_ACTIVATED) {
+        if (this->state_ != improv::STATE_AUTHORIZED) {
           ESP_LOGW(TAG, "Settings received, but not activated");
-          this->set_error_(improv::ERROR_NOT_ACTIVATED);
+          this->set_error_(improv::ERROR_NOT_AUTHORIZED);
           this->incoming_data_ = "";
           return;
         }
@@ -241,7 +241,7 @@ void ESP32ImprovComponent::process_incoming_data_() {
 
 void ESP32ImprovComponent::on_wifi_connect_timeout_() {
   this->set_error_(improv::ERROR_UNABLE_TO_CONNECT);
-  this->set_state_(improv::STATE_ACTIVATED);
+  this->set_state_(improv::STATE_AUTHORIZED);
   if (this->activator_ != nullptr)
     this->activated_start_ = millis();
   ESP_LOGW(TAG, "Timed out trying to connect to given WiFi network");
