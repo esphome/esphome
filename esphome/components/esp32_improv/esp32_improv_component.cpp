@@ -241,7 +241,9 @@ void ESP32ImprovComponent::process_incoming_data_() {
 
 void ESP32ImprovComponent::on_wifi_connect_timeout_() {
   this->set_error_(improv::ERROR_UNABLE_TO_CONNECT);
-  this->set_state_(improv::STATE_AWAITING_ACTIVATION);
+  this->set_state_(improv::STATE_ACTIVATED);
+  if (this->activator_ != nullptr)
+    this->activated_start_ = millis();
   ESP_LOGW(TAG, "Timed out trying to connect to given WiFi network");
   wifi::global_wifi_component->clear_sta();
 }
