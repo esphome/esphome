@@ -63,16 +63,8 @@ CoverCall &CoverCall::set_command_stop() {
   return *this;
 }
 CoverCall &CoverCall::set_command_toggle() {
-  if (this->parent_->current_operation == CoverOperation::COVER_OPERATION_IDLE) {
-    if (this->parent_->is_fully_closed() || this->parent_->last_operation == CoverOperation::COVER_OPERATION_CLOSING) {
-      this->parent_->last_operation = CoverOperation::COVER_OPERATION_OPENING;
-      return set_command_open();
-    } else {
-      this->parent_->last_operation = CoverOperation::COVER_OPERATION_CLOSING;
-      return set_command_close();
-    }
-  }
-  return set_command_stop();
+  this->toggle_ = true;
+  return *this;
 }
 CoverCall &CoverCall::set_position(float position) {
   this->position_ = position;
@@ -85,6 +77,21 @@ CoverCall &CoverCall::set_tilt(float tilt) {
 void CoverCall::perform() {
   ESP_LOGD(TAG, "'%s' - Setting", this->parent_->get_name().c_str());
   auto traits = this->parent_->get_traits();
+  if (this->toggle_) {
+    ESP_LOGD(TAG, "  Command: TOGGLE");
+    if (this->parent_->current_operation == CoverOperation::COVER_OPERATION_IDLE) {
+      if (this->parent_->is_fully_closed() || this->parent_->last_operation == CoverOperation::COVER_OPERATION_CLOSING) {
+        this->parent_->last_operation = CoverOperation::COVER_OPERATION_OPENING;
+        this->position_ = COVER_OPEN;
+      } else {
+        this->parent_->last_operation = CoverOperation::COVER_OPERATION_CLOSING;
+        this->position_ = COVER_CLOSED;
+      }
+    } else {
+      this->stop_ = true;
+    }
+    this->toggle_ = false;
+  }
   this->validate_();
   if (this->stop_) {
     ESP_LOGD(TAG, "  Command: STOP");

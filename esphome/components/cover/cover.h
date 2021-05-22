@@ -58,6 +58,7 @@ class CoverCall {
 
   Cover *parent_;
   bool stop_{false};
+  bool toggle_{false};
   optional<float> position_{};
   optional<float> tilt_{};
 };
