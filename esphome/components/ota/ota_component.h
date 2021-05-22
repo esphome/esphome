@@ -33,6 +33,13 @@ enum OTAResponseTypes {
   OTA_RESPONSE_ERROR_UNKNOWN = 255,
 };
 
+enum class OTAState {
+    Started,
+    InProgress,
+    Completed,
+    Error
+};
+
 /// OTAComponent provides a simple way to integrate Over-the-Air updates into your app using ArduinoOTA.
 class OTAComponent : public Component {
  public:
@@ -50,10 +57,7 @@ class OTAComponent : public Component {
 
   bool should_enter_safe_mode(uint8_t num_attempts, uint32_t enable_time);
 
-  void add_on_begin_callback(std::function<void()> &&callback);
-  void add_on_progress_callback(std::function<void(float)> &&callback);
-  void add_on_end_callback(std::function<void()> &&callback);
-  void add_on_error_callback(std::function<void(int)> &&callback);
+  void add_on_state_callback(std::function<void(OTAState, float, uint8_t)> &&callback);
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
@@ -89,10 +93,7 @@ class OTAComponent : public Component {
   uint8_t safe_mode_num_attempts_;
   ESPPreferenceObject rtc_;
 
-  CallbackManager<void()> begin_callback_{};
-  CallbackManager<void(float)> progress_callback_{};
-  CallbackManager<void()> end_callback_{};
-  CallbackManager<void(int)> error_callback_{};
+  CallbackManager<void(OTAState, float, uint8_t)> state_callback_{};
 };
 
 }  // namespace ota
