@@ -183,6 +183,23 @@ display:
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
 
+esp32_camera:
+  name: ESP-32 Camera
+  data_pins: [GPIO17, GPIO35, GPIO34, GPIO5, GPIO39, GPIO18, GPIO36, GPIO19]
+  vsync_pin: GPIO22
+  href_pin: GPIO26
+  pixel_clock_pin: GPIO21
+  external_clock:
+    pin: GPIO27
+    frequency: 20MHz
+  i2c_pins:
+    sda: GPIO25
+    scl: GPIO23
+  reset_pin: GPIO15
+  power_down_pin: GPIO1
+  resolution: 640x480
+  jpeg_quality: 10
+
 external_components:
   - source: github://esphome/esphome@dev
     refresh: 1d
