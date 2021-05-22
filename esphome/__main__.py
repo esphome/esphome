@@ -487,9 +487,7 @@ def parse_args(argv):
     #
     # Disable argparse's built-in help option and add it manually to prevent this
     # parser from printing the help messagefor the old format when invoked with -h.
-    compat_parser = argparse.ArgumentParser(
-        parents=[options_parser], add_help=False, exit_on_error=False
-    )
+    compat_parser = argparse.ArgumentParser(parents=[options_parser], add_help=False)
     compat_parser.add_argument("-h", "--help")
     compat_parser.add_argument("configuration", nargs="*")
     compat_parser.add_argument(
@@ -508,6 +506,12 @@ def parse_args(argv):
             "dashboard",
         ],
     )
+
+    # on Python 3.9+ we can simply set exit_on_error=False in the constructor
+    def _raise(x):
+        raise argparse.ArgumentError(None, x)
+
+    compat_parser.error = _raise
 
     try:
         result, unparsed = compat_parser.parse_known_args(argv[1:])
