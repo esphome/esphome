@@ -473,6 +473,12 @@ def parse_args(argv):
         "configuration", help="Your YAML configuration file.", nargs="*"
     )
 
+    mqtt_options = argparse.ArgumentParser(add_help=False)
+    mqtt_options.add_argument("--topic", help="Manually set the MQTT topic.")
+    mqtt_options.add_argument("--username", help="Manually set the MQTT username.")
+    mqtt_options.add_argument("--password", help="Manually set the MQTT password.")
+    mqtt_options.add_argument("--client-id", help="Manually set the MQTT client id.")
+
     subparsers = parser.add_subparsers(
         help="Command to run:", dest="command", metavar="command"
     )
@@ -498,14 +504,10 @@ def parse_args(argv):
     )
 
     parser_logs = subparsers.add_parser(
-        "logs", help="Validate the configuration and show all logs."
+        "logs",
+        help="Validate the configuration and show all logs.",
+        parents=[mqtt_options],
     )
-    parser_logs.add_argument(
-        "--topic", help="Manually set the MQTT topic to subscribe to."
-    )
-    parser_logs.add_argument("--username", help="Manually set the MQTT username.")
-    parser_logs.add_argument("--password", help="Manually set the MQTT password.")
-    parser_logs.add_argument("--client-id", help="Manually set the MQTT client id.")
     parser_logs.add_argument(
         "--serial-port",
         help="Manually specify the serial port/address to use, for example /dev/ttyUSB0.",
@@ -514,6 +516,7 @@ def parse_args(argv):
     parser_run = subparsers.add_parser(
         "run",
         help="Validate the configuration, create a binary, upload it, and start logs.",
+        parents=[mqtt_options],
     )
     parser_run.add_argument(
         "--upload-port",
@@ -522,22 +525,12 @@ def parse_args(argv):
     parser_run.add_argument(
         "--no-logs", help="Disable starting logs.", action="store_true"
     )
-    parser_run.add_argument(
-        "--topic", help="Manually set the MQTT topic to subscribe to."
-    )
-    parser_run.add_argument("--username", help="Manually set the MQTT username.")
-    parser_run.add_argument("--password", help="Manually set the MQTT password.")
-    parser_run.add_argument("--client-id", help="Manually set the MQTT client id.")
 
     parser_clean = subparsers.add_parser(
-        "clean-mqtt", help="Helper to clear retained messages from an MQTT topic."
+        "clean-mqtt",
+        help="Helper to clear retained messages from an MQTT topic.",
+        parents=[mqtt_options],
     )
-    parser_clean.add_argument(
-        "--topic", help="Manually set the MQTT topic to subscribe to."
-    )
-    parser_clean.add_argument("--username", help="Manually set the MQTT username.")
-    parser_clean.add_argument("--password", help="Manually set the MQTT password.")
-    parser_clean.add_argument("--client-id", help="Manually set the MQTT client id.")
 
     subparsers.add_parser(
         "wizard",
