@@ -453,15 +453,17 @@ POST_CONFIG_ACTIONS = {
 
 
 def parse_args(argv):
-    parser = argparse.ArgumentParser(description=f"ESPHome v{const.__version__}")
-    parser.add_argument(
+    options_parser = argparse.ArgumentParser(add_help=False)
+    options_parser.add_argument(
         "-v", "--verbose", help="Enable verbose ESPHome logs.", action="store_true"
     )
-    parser.add_argument(
+    options_parser.add_argument(
         "-q", "--quiet", help="Disable all ESPHome logs.", action="store_true"
     )
-    parser.add_argument("--dashboard", help=argparse.SUPPRESS, action="store_true")
-    parser.add_argument(
+    options_parser.add_argument(
+        "--dashboard", help=argparse.SUPPRESS, action="store_true"
+    )
+    options_parser.add_argument(
         "-s",
         "--substitution",
         nargs=2,
@@ -469,6 +471,58 @@ def parse_args(argv):
         help="Add a substitution",
         metavar=("key", "value"),
     )
+
+    # Keep backward compatibility with the old command line format of
+    # esphome <config> <command>.
+    #
+    # Unfortunately this can't be done by adding another configuration argument to the
+    # main config parser, as argparse is greedy when parsing arguments, so in regular
+    # usage it'll eat the command as the configuration argument and error out out
+    # because it can't parse the configuration as a command.
+    #
+    # Instead, construct an ad-hoc parser for the old format that doesn't actually
+    # process the arguments, but parses them enough to let us figure out if the old
+    # format is used. In that case, swap the command and configuration in the arguments
+    # and continue on with the normal parser (after raising a deprecation warning).
+    #
+    # Disable argparse's built-in help option and add it manually to prevent this
+    # parser from printing the help messagefor the old format when invoked with -h.
+    compat_parser = argparse.ArgumentParser(
+        parents=[options_parser], add_help=False, exit_on_error=False
+    )
+    compat_parser.add_argument("-h", "--help")
+    compat_parser.add_argument("configuration", nargs="*")
+    compat_parser.add_argument(
+        "command",
+        choices=[
+            "config",
+            "compile",
+            "upload",
+            "logs",
+            "run",
+            "clean-mqtt",
+            "wizard",
+            "mqtt-fingerprint",
+            "version",
+            "clean",
+            "dashboard",
+        ],
+    )
+
+    try:
+        result, unparsed = compat_parser.parse_known_args(argv[1:])
+        last_option = len(argv) - len(unparsed) - 1 - len(result.configuration)
+        argv = argv[0:last_option] + [result.command] + result.configuration + unparsed
+        deprecated_argv_suggestion = argv
+    except argparse.ArgumentError:
+        # This is not an old-style command line, so we don't have to do anything.
+        deprecated_argv_suggestion = None
+
+    # And continue on with regular parsing
+    parser = argparse.ArgumentParser(
+        description=f"ESPHome v{const.__version__}", parents=[options_parser]
+    )
+    parser.set_defaults(deprecated_argv_suggestion=deprecated_argv_suggestion)
 
     mqtt_options = argparse.ArgumentParser(add_help=False)
     mqtt_options.add_argument("--topic", help="Manually set the MQTT topic.")
@@ -628,6 +682,13 @@ def run_esphome(argv):
     CORE.dashboard = args.dashboard
 
     setup_log(args.verbose, args.quiet)
+    if args.deprecated_argv_suggestion is not None:
+        _LOGGER.warning(
+            "Calling ESPHome with the configuration before the command is deprecated "
+            "and will be removed in the future. "
+        )
+        _LOGGER.warning("Please instead use:")
+        _LOGGER.warning("   esphome %s", " ".join(args.deprecated_argv_suggestion[1:]))
 
     if sys.version_info < (3, 7, 0):
         _LOGGER.error(
