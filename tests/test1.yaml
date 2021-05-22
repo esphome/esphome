@@ -261,6 +261,7 @@ mcp23s17:
     cs_pin: GPIO12
     deviceaddress: 1
 
+
 sensor:
   - platform: ble_client
     ble_client_id: ble_foo
