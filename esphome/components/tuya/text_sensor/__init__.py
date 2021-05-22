@@ -9,9 +9,7 @@ CODEOWNERS = ["@dentra"]
 
 CONF_SENSOR_DATAPOINT = "sensor_datapoint"
 
-TuyaTextSensor = tuya_ns.class_(
-    "TuyaTextSensor", text_sensor.TextSensor, cg.Component
-)
+TuyaTextSensor = tuya_ns.class_("TuyaTextSensor", text_sensor.TextSensor, cg.Component)
 
 CONFIG_SCHEMA = text_sensor.TEXT_SENSOR_SCHEMA.extend(
     {
