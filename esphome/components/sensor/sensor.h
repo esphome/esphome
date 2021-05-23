@@ -13,6 +13,9 @@ namespace sensor {
     if (!obj->get_device_class().empty()) { \
       ESP_LOGCONFIG(TAG, "%s  Device Class: '%s'", prefix, obj->get_device_class().c_str()); \
     } \
+    if (!obj->get_state_class().empty()) { \
+      ESP_LOGCONFIG(TAG, "%s  State Class: '%s'", prefix, obj->get_state_class().c_str()); \
+    } \
     ESP_LOGCONFIG(TAG, "%s  Unit of Measurement: '%s'", prefix, obj->get_unit_of_measurement().c_str()); \
     ESP_LOGCONFIG(TAG, "%s  Accuracy Decimals: %d", prefix, obj->get_accuracy_decimals()); \
     if (!obj->get_icon().empty()) { \
@@ -131,6 +134,12 @@ class Sensor : public Nameable {
   /// Get the device class for this sensor, using the manual override if specified.
   std::string get_device_class();
 
+  /// Manually set the Home Assistant state class (see sensor::state_class)
+  void set_state_class(const std::string &state_class);
+
+  /// Get the state class for this sensor, using the manual override if specified.
+  std::string get_state_class();
+
   /** This member variable stores the current raw state of the sensor. Unlike .state,
    * this will be updated immediately when publish_state is called.
    */
@@ -146,6 +155,14 @@ class Sensor : public Nameable {
    * @return The device class of this sensor, for example "temperature".
    */
   virtual std::string device_class();
+
+  /** Override this to set the Home Assistant state class for this sensor.
+   *
+   * Return "" to disable this feature.
+   *
+   * @return The state class of this sensor, for example "measurement".
+   */
+  virtual std::string state_class();
 
   /** A unique ID for this sensor, empty for no unique id. See unique ID requirements:
    * https://developers.home-assistant.io/docs/en/entity_registry_index.html#unique-id-requirements
@@ -192,6 +209,7 @@ class Sensor : public Nameable {
   virtual int8_t accuracy_decimals();  // NOLINT
 
   optional<std::string> device_class_{};  ///< Stores the override of the device class
+  optional<std::string> state_class_{};  ///< Stores the override of the state class
 
   uint32_t hash_base() override;
 
