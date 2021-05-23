@@ -408,6 +408,7 @@ class ListEntitiesSensorResponse : public ProtoMessage {
   int32_t accuracy_decimals{0};
   bool force_update{false};
   std::string device_class{};
+  std::string state_class{};
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
 
