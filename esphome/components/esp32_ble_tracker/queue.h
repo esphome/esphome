@@ -73,6 +73,7 @@ class BLEEvent {
         this->event_.gattc.gattc_param.notify.value = this->event_.gattc.data;
         break;
       case ESP_GATTC_READ_CHAR_EVT:
+      case ESP_GATTC_READ_DESCR_EVT:
         memcpy(this->event_.gattc.data, p->read.value, p->read.value_len);
         this->event_.gattc.gattc_param.read.value = this->event_.gattc.data;
         break;
