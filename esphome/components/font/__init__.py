@@ -72,7 +72,7 @@ def validate_truetype_file(value):
 
 
 DEFAULT_GLYPHS = (
-    ' !"%()+,-.:0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz°'
+    ' !"%()+,-.:/0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz°'
 )
 CONF_RAW_DATA_ID = "raw_data_id"
 
