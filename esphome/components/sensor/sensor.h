@@ -209,7 +209,7 @@ class Sensor : public Nameable {
   virtual int8_t accuracy_decimals();  // NOLINT
 
   optional<std::string> device_class_{};  ///< Stores the override of the device class
-  optional<std::string> state_class_{};  ///< Stores the override of the state class
+  optional<std::string> state_class_{};   ///< Stores the override of the state class
 
   uint32_t hash_base() override;
 
