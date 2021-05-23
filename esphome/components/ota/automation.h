@@ -41,7 +41,6 @@ class OTAEndTrigger : public Trigger<> {
   }
 };
 
-
 class OTAErrorTrigger : public Trigger<int> {
  public:
   explicit OTAErrorTrigger(OTAComponent *parent) {
