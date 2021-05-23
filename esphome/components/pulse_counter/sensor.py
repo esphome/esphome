@@ -13,6 +13,7 @@ from esphome.const import (
     CONF_TOTAL,
     DEVICE_CLASS_EMPTY,
     ICON_PULSE,
+    STATE_CLASS_EMPTY,
     UNIT_PULSES_PER_MINUTE,
     UNIT_PULSES,
 )
@@ -64,7 +65,9 @@ def validate_count_mode(value):
 
 
 CONFIG_SCHEMA = (
-    sensor.sensor_schema(UNIT_PULSES_PER_MINUTE, ICON_PULSE, 2, DEVICE_CLASS_EMPTY)
+    sensor.sensor_schema(
+        UNIT_PULSES_PER_MINUTE, ICON_PULSE, 2, DEVICE_CLASS_EMPTY, STATE_CLASS_EMPTY
+    )
     .extend(
         {
             cv.GenerateID(): cv.declare_id(PulseCounterSensor),
