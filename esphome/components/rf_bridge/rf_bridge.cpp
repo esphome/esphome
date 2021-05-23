@@ -201,6 +201,14 @@ void RFBridgeComponent::stop_advanced_sniffing() {
   this->flush();
 }
 
+void RFBridgeComponent::start_bucket_sniffing() {
+  ESP_LOGD(TAG, "Raw Bucket Sniffing on");
+  this->write(RF_CODE_START);
+  this->write(RF_CODE_RFIN_BUCKET);
+  this->write(RF_CODE_STOP);
+  this->flush();
+}
+
 void RFBridgeComponent::send_raw(std::string raw_code) {
   ESP_LOGD(TAG, "Sending Raw Code: %s", raw_code.c_str());
 

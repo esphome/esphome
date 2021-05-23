@@ -49,6 +49,11 @@ RFBridgeStopAdvancedSniffingAction = rf_bridge_ns.class_(
     "RFBridgeStopAdvancedSniffingAction", automation.Action
 )
 
+RFBridgeStartBucketSniffingAction = rf_bridge_ns.class_(
+    "RFBridgeStartBucketSniffingAction", automation.Action
+)
+
+
 RFBridgeSendRawAction = rf_bridge_ns.class_("RFBridgeSendRawAction", automation.Action)
 
 CONF_ON_CODE_RECEIVED = "on_code_received"
@@ -150,6 +155,17 @@ def rf_bridge_start_advanced_sniffing_to_code(config, action_id, template_args, 
     RFBRIDGE_ID_SCHEMA,
 )
 def rf_bridge_stop_advanced_sniffing_to_code(config, action_id, template_args, args):
+    paren = yield cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_args, paren)
+    yield var
+
+
+@automation.register_action(
+    "rf_bridge.start_bucket_sniffing",
+    RFBridgeStartBucketSniffingAction,
+    RFBRIDGE_ID_SCHEMA,
+)
+def rf_bridge_start_bucket_sniffing_to_code(config, action_id, template_args, args):
     paren = yield cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_args, paren)
     yield var

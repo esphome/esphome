@@ -24,6 +24,7 @@ static const uint8_t RF_CODE_LEARN_KO_NEW = 0xAA;
 static const uint8_t RF_CODE_LEARN_OK_NEW = 0xAB;
 static const uint8_t RF_CODE_RFOUT_BUCKET = 0xB0;
 static const uint8_t RF_CODE_RFIN_BUCKET = 0xB1;
+static const uint8_t RF_CODE_BEEP = 0xC0;
 static const uint8_t RF_CODE_STOP = 0x55;
 static const uint8_t RF_DEBOUNCE = 200;
 
@@ -55,6 +56,7 @@ class RFBridgeComponent : public uart::UARTDevice, public Component {
   void learn();
   void start_advanced_sniffing();
   void stop_advanced_sniffing();
+  void start_bucket_sniffing();
   void send_raw(std::string code);
 
  protected:
@@ -149,6 +151,16 @@ template<typename... Ts> class RFBridgeStopAdvancedSniffingAction : public Actio
   RFBridgeStopAdvancedSniffingAction(RFBridgeComponent *parent) : parent_(parent) {}
 
   void play(Ts... x) { this->parent_->stop_advanced_sniffing(); }
+
+ protected:
+  RFBridgeComponent *parent_;
+};
+
+template<typename... Ts> class RFBridgeStartBucketSniffingAction : public Action<Ts...> {
+ public:
+  RFBridgeStartBucketSniffingAction(RFBridgeComponent *parent) : parent_(parent) {}
+
+  void play(Ts... x) { this->parent_->start_bucket_sniffing(); }
 
  protected:
   RFBridgeComponent *parent_;
