@@ -52,7 +52,9 @@ class OTAComponent : public Component {
 
   bool should_enter_safe_mode(uint8_t num_attempts, uint32_t enable_time);
 
+#ifdef USE_OTA_STATE_CALLBACK
   void add_on_state_callback(std::function<void(OTAState, float, uint8_t)> &&callback);
+#endif
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
@@ -88,7 +90,9 @@ class OTAComponent : public Component {
   uint8_t safe_mode_num_attempts_;
   ESPPreferenceObject rtc_;
 
+#ifdef USE_OTA_STATE_CALLBACK
   CallbackManager<void(OTAState, float, uint8_t)> state_callback_{};
+#endif
 };
 
 }  // namespace ota
