@@ -9,7 +9,7 @@ from esphome.const import (
     CONF_SPI_ID,
     CONF_CS_PIN,
 )
-from esphome.core import coroutine, coroutine_with_priority
+from esphome.core import coroutine_with_priority
 
 CODEOWNERS = ["@esphome/core"]
 spi_ns = cg.esphome_ns.namespace("spi")
@@ -31,18 +31,18 @@ CONFIG_SCHEMA = cv.All(
 
 
 @coroutine_with_priority(1.0)
-def to_code(config):
+async def to_code(config):
     cg.add_global(spi_ns.using)
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
+    await cg.register_component(var, config)
 
-    clk = yield cg.gpio_pin_expression(config[CONF_CLK_PIN])
+    clk = await cg.gpio_pin_expression(config[CONF_CLK_PIN])
     cg.add(var.set_clk(clk))
     if CONF_MISO_PIN in config:
-        miso = yield cg.gpio_pin_expression(config[CONF_MISO_PIN])
+        miso = await cg.gpio_pin_expression(config[CONF_MISO_PIN])
         cg.add(var.set_miso(miso))
     if CONF_MOSI_PIN in config:
-        mosi = yield cg.gpio_pin_expression(config[CONF_MOSI_PIN])
+        mosi = await cg.gpio_pin_expression(config[CONF_MOSI_PIN])
         cg.add(var.set_mosi(mosi))
 
 
@@ -61,10 +61,9 @@ def spi_device_schema(cs_pin_required=True):
     return cv.Schema(schema)
 
 
-@coroutine
-def register_spi_device(var, config):
-    parent = yield cg.get_variable(config[CONF_SPI_ID])
+async def register_spi_device(var, config):
+    parent = await cg.get_variable(config[CONF_SPI_ID])
     cg.add(var.set_spi_parent(parent))
     if CONF_CS_PIN in config:
-        pin = yield cg.gpio_pin_expression(config[CONF_CS_PIN])
+        pin = await cg.gpio_pin_expression(config[CONF_CS_PIN])
         cg.add(var.set_cs_pin(pin))
