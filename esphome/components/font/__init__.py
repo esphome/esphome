@@ -89,7 +89,7 @@ FONT_SCHEMA = cv.Schema(
 CONFIG_SCHEMA = cv.All(validate_pillow_installed, FONT_SCHEMA)
 
 
-def to_code(config):
+async def to_code(config):
     from PIL import ImageFont
 
     path = CORE.relative_config_path(config[CONF_FILE])

@@ -37,10 +37,10 @@ CONFIG_SCHEMA = light.ADDRESSABLE_LIGHT_SCHEMA.extend(
 )
 
 
-def to_code(config):
+async def to_code(config):
     segments = []
     for conf in config[CONF_SEGMENTS]:
-        var = yield cg.get_variable(conf[CONF_ID])
+        var = await cg.get_variable(conf[CONF_ID])
         segments.append(
             AddressableSegment(
                 var, conf[CONF_FROM], conf[CONF_TO] - conf[CONF_FROM] + 1
@@ -48,5 +48,5 @@ def to_code(config):
         )
 
     var = cg.new_Pvariable(config[CONF_OUTPUT_ID], segments)
-    yield cg.register_component(var, config)
-    yield light.register_light(var, config)
+    await cg.register_component(var, config)
+    await light.register_light(var, config)

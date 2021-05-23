@@ -27,15 +27,15 @@ CONFIG_SCHEMA = cv.Schema(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-def to_code(config):
-    hub = yield cg.get_variable(config[CONF_AS3935_ID])
+async def to_code(config):
+    hub = await cg.get_variable(config[CONF_AS3935_ID])
 
     if CONF_DISTANCE in config:
         conf = config[CONF_DISTANCE]
-        distance_sensor = yield sensor.new_sensor(conf)
+        distance_sensor = await sensor.new_sensor(conf)
         cg.add(hub.set_distance_sensor(distance_sensor))
 
     if CONF_LIGHTNING_ENERGY in config:
         conf = config[CONF_LIGHTNING_ENERGY]
-        lightning_energy_sensor = yield sensor.new_sensor(conf)
+        lightning_energy_sensor = await sensor.new_sensor(conf)
         cg.add(hub.set_energy_sensor(lightning_energy_sensor))

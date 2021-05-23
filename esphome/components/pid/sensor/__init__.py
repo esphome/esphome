@@ -40,11 +40,11 @@ CONFIG_SCHEMA = (
 )
 
 
-def to_code(config):
-    parent = yield cg.get_variable(config[CONF_CLIMATE_ID])
+async def to_code(config):
+    parent = await cg.get_variable(config[CONF_CLIMATE_ID])
     var = cg.new_Pvariable(config[CONF_ID])
-    yield sensor.register_sensor(var, config)
-    yield cg.register_component(var, config)
+    await sensor.register_sensor(var, config)
+    await cg.register_component(var, config)
 
     cg.add(var.set_parent(parent))
     cg.add(var.set_type(config[CONF_TYPE]))

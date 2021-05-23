@@ -28,10 +28,10 @@ CONFIG_SCHEMA = sensor.sensor_schema(
 )
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
-    yield sensor.register_sensor(var, config)
+    await cg.register_component(var, config)
+    await sensor.register_sensor(var, config)
 
     cg.add(var.set_entity_id(config[CONF_ENTITY_ID]))
     if CONF_ATTRIBUTE in config:

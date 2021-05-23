@@ -61,7 +61,7 @@ CONFIG_SCHEMA = automation.validate_automation(
 )
 
 
-def to_code(config):
+async def to_code(config):
     # Register all variables first, so that scripts can use other scripts
     triggers = []
     for conf in config:
@@ -73,12 +73,12 @@ def to_code(config):
             cg.add(trigger.set_max_runs(conf[CONF_MAX_RUNS]))
 
         if conf[CONF_MODE] == CONF_QUEUED:
-            yield cg.register_component(trigger, conf)
+            await cg.register_component(trigger, conf)
 
         triggers.append((trigger, conf))
 
     for trigger, conf in triggers:
-        yield automation.build_automation(trigger, [], conf)
+        await automation.build_automation(trigger, [], conf)
 
 
 @automation.register_action(
