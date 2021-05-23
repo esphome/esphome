@@ -96,12 +96,12 @@ async def setup_display_core_(var, config):
     for conf in config.get(CONF_ON_PAGE_CHANGE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         if CONF_FROM in conf:
-            page = yield cg.get_variable(conf[CONF_FROM])
+            page = await cg.get_variable(conf[CONF_FROM])
             cg.add(trigger.set_from(page))
         if CONF_TO in conf:
-            page = yield cg.get_variable(conf[CONF_TO])
+            page = await cg.get_variable(conf[CONF_TO])
             cg.add(trigger.set_to(page))
-        yield automation.build_automation(
+        await automation.build_automation(
             trigger, [(DisplayPagePtr, "from"), (DisplayPagePtr, "to")], conf
         )
 
