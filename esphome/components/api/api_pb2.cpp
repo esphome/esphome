@@ -2123,18 +2123,27 @@ bool SubscribeHomeAssistantStateResponse::decode_length(uint32_t field_id, Proto
       this->entity_id = value.as_string();
       return true;
     }
+    case 2: {
+      this->attribute = value.as_string();
+      return true;
+    }
     default:
       return false;
   }
 }
 void SubscribeHomeAssistantStateResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(1, this->entity_id);
+  buffer.encode_string(2, this->attribute);
 }
 void SubscribeHomeAssistantStateResponse::dump_to(std::string &out) const {
   char buffer[64];
   out.append("SubscribeHomeAssistantStateResponse {\n");
   out.append("  entity_id: ");
   out.append("'").append(this->entity_id).append("'");
+  out.append("\n");
+
+  out.append("  attribute: ");
+  out.append("'").append(this->attribute).append("'");
   out.append("\n");
   out.append("}");
 }
@@ -2148,6 +2157,10 @@ bool HomeAssistantStateResponse::decode_length(uint32_t field_id, ProtoLengthDel
       this->state = value.as_string();
       return true;
     }
+    case 3: {
+      this->attribute = value.as_string();
+      return true;
+    }
     default:
       return false;
   }
@@ -2155,6 +2168,7 @@ bool HomeAssistantStateResponse::decode_length(uint32_t field_id, ProtoLengthDel
 void HomeAssistantStateResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(1, this->entity_id);
   buffer.encode_string(2, this->state);
+  buffer.encode_string(3, this->attribute);
 }
 void HomeAssistantStateResponse::dump_to(std::string &out) const {
   char buffer[64];
@@ -2165,6 +2179,10 @@ void HomeAssistantStateResponse::dump_to(std::string &out) const {
 
   out.append("  state: ");
   out.append("'").append(this->state).append("'");
+  out.append("\n");
+
+  out.append("  attribute: ");
+  out.append("'").append(this->attribute).append("'");
   out.append("\n");
   out.append("}");
 }

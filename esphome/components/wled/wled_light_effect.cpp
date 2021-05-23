@@ -92,8 +92,14 @@ bool WLEDLightEffect::parse_frame_(light::AddressableLight &it, const uint8_t *p
 
   switch (protocol) {
     case WLED_NOTIFIER:
-      if (!parse_notifier_frame_(it, payload, size))
-        return false;
+      // Hyperion Port
+      if (port_ == 19446) {
+        if (!parse_drgb_frame_(it, payload, size))
+          return false;
+      } else {
+        if (!parse_notifier_frame_(it, payload, size))
+          return false;
+      }
       break;
 
     case WARLS:

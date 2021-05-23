@@ -8,8 +8,11 @@ from esphome.const import (
     CONF_POWER,
     CONF_POWER_FACTOR,
     CONF_FREQUENCY,
+    CONF_FORWARD_ACTIVE_ENERGY,
+    CONF_REVERSE_ACTIVE_ENERGY,
     DEVICE_CLASS_CURRENT,
     DEVICE_CLASS_EMPTY,
+    DEVICE_CLASS_ENERGY,
     DEVICE_CLASS_POWER,
     DEVICE_CLASS_POWER_FACTOR,
     DEVICE_CLASS_TEMPERATURE,
@@ -24,6 +27,7 @@ from esphome.const import (
     UNIT_EMPTY,
     UNIT_CELSIUS,
     UNIT_VOLT_AMPS_REACTIVE,
+    UNIT_WATT_HOURS,
 )
 
 CONF_PHASE_A = "phase_a"
@@ -72,6 +76,12 @@ ATM90E32_PHASE_SCHEMA = cv.Schema(
         ),
         cv.Optional(CONF_POWER_FACTOR): sensor.sensor_schema(
             UNIT_EMPTY, ICON_EMPTY, 2, DEVICE_CLASS_POWER_FACTOR
+        ),
+        cv.Optional(CONF_FORWARD_ACTIVE_ENERGY): sensor.sensor_schema(
+            UNIT_WATT_HOURS, ICON_EMPTY, 2, DEVICE_CLASS_ENERGY
+        ),
+        cv.Optional(CONF_REVERSE_ACTIVE_ENERGY): sensor.sensor_schema(
+            UNIT_WATT_HOURS, ICON_EMPTY, 2, DEVICE_CLASS_ENERGY
         ),
         cv.Optional(CONF_GAIN_VOLTAGE, default=7305): cv.uint16_t,
         cv.Optional(CONF_GAIN_CT, default=27961): cv.uint16_t,
@@ -129,6 +139,12 @@ def to_code(config):
         if CONF_POWER_FACTOR in conf:
             sens = yield sensor.new_sensor(conf[CONF_POWER_FACTOR])
             cg.add(var.set_power_factor_sensor(i, sens))
+        if CONF_FORWARD_ACTIVE_ENERGY in conf:
+            sens = yield sensor.new_sensor(conf[CONF_FORWARD_ACTIVE_ENERGY])
+            cg.add(var.set_forward_active_energy_sensor(i, sens))
+        if CONF_REVERSE_ACTIVE_ENERGY in conf:
+            sens = yield sensor.new_sensor(conf[CONF_REVERSE_ACTIVE_ENERGY])
+            cg.add(var.set_reverse_active_energy_sensor(i, sens))
     if CONF_FREQUENCY in config:
         sens = yield sensor.new_sensor(config[CONF_FREQUENCY])
         cg.add(var.set_freq_sensor(sens))
