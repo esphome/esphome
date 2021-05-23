@@ -261,6 +261,7 @@ mcp23s17:
     cs_pin: GPIO12
     deviceaddress: 1
 
+
 sensor:
   - platform: ble_client
     ble_client_id: ble_foo
@@ -1974,6 +1975,12 @@ pn532_spi:
     - mqtt.publish:
         topic: the/topic
         payload: !lambda 'return x;'
+  on_tag_removed:
+    - lambda: |-
+        ESP_LOGD("main", "Removed tag %s", x.c_str());
+    - mqtt.publish:
+        topic: the/topic
+        payload: !lambda 'return x;'
 
 pn532_i2c:
 
@@ -1988,10 +1995,15 @@ rc522_spi:
         ESP_LOGD("main", "Found tag %s", x.c_str());
 
 rc522_i2c:
-  update_interval: 1s
-  on_tag:
-    - lambda: |-
-        ESP_LOGD("main", "Found tag %s", x.c_str());
+  - update_interval: 1s
+    on_tag:
+      - lambda: |-
+          ESP_LOGD("main", "Found tag %s", x.c_str());
+
+  - update_interval: 1s
+    on_tag:
+      - lambda: |-
+          ESP_LOGD("main", "Found tag %s", x.c_str());
 
 gps:
   uart_id: uart0

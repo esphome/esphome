@@ -12,7 +12,7 @@ from esphome.const import (
     CONF_TO,
     CONF_TRIGGER_ID,
 )
-from esphome.core import coroutine, coroutine_with_priority
+from esphome.core import coroutine_with_priority
 
 IS_PLATFORM_COMPONENT = True
 
@@ -81,14 +81,13 @@ FULL_DISPLAY_SCHEMA = BASIC_DISPLAY_SCHEMA.extend(
 )
 
 
-@coroutine
-def setup_display_core_(var, config):
+async def setup_display_core_(var, config):
     if CONF_ROTATION in config:
         cg.add(var.set_rotation(DISPLAY_ROTATIONS[config[CONF_ROTATION]]))
     if CONF_PAGES in config:
         pages = []
         for conf in config[CONF_PAGES]:
-            lambda_ = yield cg.process_lambda(
+            lambda_ = await cg.process_lambda(
                 conf[CONF_LAMBDA], [(DisplayBufferRef, "it")], return_type=cg.void
             )
             page = cg.new_Pvariable(conf[CONF_ID], lambda_)
@@ -107,9 +106,8 @@ def setup_display_core_(var, config):
         )
 
 
-@coroutine
-def register_display(var, config):
-    yield setup_display_core_(var, config)
+async def register_display(var, config):
+    await setup_display_core_(var, config)
 
 
 @automation.register_action(
@@ -121,15 +119,15 @@ def register_display(var, config):
         }
     ),
 )
-def display_page_show_to_code(config, action_id, template_arg, args):
+async def display_page_show_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     if isinstance(config[CONF_ID], core.Lambda):
-        template_ = yield cg.templatable(config[CONF_ID], args, DisplayPagePtr)
+        template_ = await cg.templatable(config[CONF_ID], args, DisplayPagePtr)
         cg.add(var.set_page(template_))
     else:
-        paren = yield cg.get_variable(config[CONF_ID])
+        paren = await cg.get_variable(config[CONF_ID])
         cg.add(var.set_page(paren))
-    yield var
+    return var
 
 
 @automation.register_action(
@@ -141,9 +139,9 @@ def display_page_show_to_code(config, action_id, template_arg, args):
         }
     ),
 )
-def display_page_show_next_to_code(config, action_id, template_arg, args):
-    paren = yield cg.get_variable(config[CONF_ID])
-    yield cg.new_Pvariable(action_id, template_arg, paren)
+async def display_page_show_next_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(action_id, template_arg, paren)
 
 
 @automation.register_action(
@@ -155,9 +153,9 @@ def display_page_show_next_to_code(config, action_id, template_arg, args):
         }
     ),
 )
-def display_page_show_previous_to_code(config, action_id, template_arg, args):
-    paren = yield cg.get_variable(config[CONF_ID])
-    yield cg.new_Pvariable(action_id, template_arg, paren)
+async def display_page_show_previous_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(action_id, template_arg, paren)
 
 
 @automation.register_condition(
@@ -181,5 +179,5 @@ def display_is_displaying_page_to_code(config, condition_id, template_arg, args)
 
 
 @coroutine_with_priority(100.0)
-def to_code(config):
+async def to_code(config):
     cg.add_global(display_ns.using)

@@ -343,10 +343,18 @@ class DisplayPage {
   DisplayPage *next_{nullptr};
 };
 
+struct GlyphData {
+  const char *a_char;
+  const uint8_t *data;
+  int offset_x;
+  int offset_y;
+  int width;
+  int height;
+};
+
 class Glyph {
  public:
-  Glyph(const char *a_char, const uint8_t *data_start, uint32_t offset, int offset_x, int offset_y, int width,
-        int height);
+  Glyph(const GlyphData *data) : glyph_data_(data) {}
 
   bool get_pixel(int x, int y) const;
 
@@ -362,12 +370,7 @@ class Glyph {
   friend Font;
   friend DisplayBuffer;
 
-  const char *char_;
-  const uint8_t *data_;
-  int offset_x_;
-  int offset_y_;
-  int width_;
-  int height_;
+  const GlyphData *glyph_data_;
 };
 
 class Font {
@@ -378,7 +381,7 @@ class Font {
    * @param baseline The y-offset from the top of the text to the baseline.
    * @param bottom The y-offset from the top of the text to the bottom (i.e. height).
    */
-  Font(std::vector<Glyph> &&glyphs, int baseline, int bottom);
+  Font(const GlyphData *data, int data_nr, int baseline, int bottom);
 
   int match_next_glyph(const char *str, int *match_length);
 
