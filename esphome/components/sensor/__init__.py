@@ -223,7 +223,7 @@ def sensor_schema(
         )
     if state_class_ != STATE_CLASS_EMPTY:
         schema = schema.extend(
-            {{cv.Optional(CONF_STATE_CLASS, default=state_class_): state_class}}
+            {cv.Optional(CONF_STATE_CLASS, default=state_class_): state_class}
         )
     return schema
 
