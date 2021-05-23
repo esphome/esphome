@@ -468,6 +468,8 @@ def setup_sensor_core_(var, config):
         cg.add(var.set_internal(config[CONF_INTERNAL]))
     if CONF_DEVICE_CLASS in config:
         cg.add(var.set_device_class(config[CONF_DEVICE_CLASS]))
+    if CONF_STATE_CLASS in config:
+        cg.add(var.set_state_class(config[CONF_STATE_CLASS]))
     if CONF_UNIT_OF_MEASUREMENT in config:
         cg.add(var.set_unit_of_measurement(config[CONF_UNIT_OF_MEASUREMENT]))
     if CONF_ICON in config:
