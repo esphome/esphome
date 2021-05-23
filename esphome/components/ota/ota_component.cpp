@@ -71,7 +71,7 @@ void OTAComponent::handle_() {
 
   ESP_LOGD(TAG, "Starting OTA Update from %s...", this->client_.remoteIP().toString().c_str());
   this->status_set_warning();
-  this->state_callback_.call(OTAState::Started, 0.0f, 0);
+  this->state_callback_.call(OTAState::STARTED, 0.0f, 0);
 
   if (!this->wait_receive_(buf, 5)) {
     ESP_LOGW(TAG, "Reading magic bytes failed!");
@@ -242,7 +242,7 @@ void OTAComponent::handle_() {
       last_progress = now;
       float percentage = (total * 100.0f) / ota_size;
       ESP_LOGD(TAG, "OTA in progress: %0.1f%%", percentage);
-      this->state_callback_.call(OTAState::InProgress, percentage, 0);
+      this->state_callback_.call(OTAState::IN_PROGRESS, percentage, 0);
       // slow down OTA update to avoid getting killed by task watchdog (task_wdt)
       delay(10);
     }
@@ -270,7 +270,7 @@ void OTAComponent::handle_() {
   delay(10);
   ESP_LOGI(TAG, "OTA update finished!");
   this->status_clear_warning();
-  this->state_callback_.call(OTAState::Completed, 100.0f, 0);
+  this->state_callback_.call(OTAState::COMPLETED, 100.0f, 0);
   delay(100);  // NOLINT
   App.safe_reboot();
 
@@ -299,7 +299,7 @@ error:
 #endif
 
   this->status_momentary_error("onerror", 5000);
-  this->state_callback_.call(OTAState::Error, 0.0f, static_cast<uint8_t>(error_code));
+  this->state_callback_.call(OTAState::ERROR, 0.0f, static_cast<uint8_t>(error_code));
 
 #ifdef ARDUINO_ARCH_ESP8266
   global_preferences.prevent_write(false);
