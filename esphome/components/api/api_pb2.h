@@ -32,6 +32,10 @@ enum FanDirection : uint32_t {
   FAN_DIRECTION_FORWARD = 0,
   FAN_DIRECTION_REVERSE = 1,
 };
+enum SensorStateClass : uint32_t {
+  STATE_CLASS_NONE = 0,
+  STATE_CLASS_MEASUREMENT = 1,
+};
 enum LogLevel : uint32_t {
   LOG_LEVEL_NONE = 0,
   LOG_LEVEL_ERROR = 1,
@@ -408,7 +412,7 @@ class ListEntitiesSensorResponse : public ProtoMessage {
   int32_t accuracy_decimals{0};
   bool force_update{false};
   std::string device_class{};
-  std::string state_class{};
+  enums::SensorStateClass state_class{};
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
 

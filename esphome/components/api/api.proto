@@ -409,6 +409,11 @@ message LightCommandRequest {
 }
 
 // ==================== SENSOR ====================
+enum SensorStateClass {
+  STATE_CLASS_NONE = 0;
+  STATE_CLASS_MEASUREMENT = 1;
+}
+
 message ListEntitiesSensorResponse {
   option (id) = 16;
   option (source) = SOURCE_SERVER;
@@ -424,7 +429,7 @@ message ListEntitiesSensorResponse {
   int32 accuracy_decimals = 7;
   bool force_update = 8;
   string device_class = 9;
-  string state_class = 10;
+  SensorStateClass state_class = 10;
 }
 message SensorStateResponse {
   option (id) = 25;
