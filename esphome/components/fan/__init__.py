@@ -94,10 +94,10 @@ async def setup_fan_core_(var, config):
 
     for conf in config.get(CONF_ON_TURN_ON, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        yield automation.build_automation(trigger, [], conf)
+        await automation.build_automation(trigger, [], conf)
     for conf in config.get(CONF_ON_TURN_OFF, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        yield automation.build_automation(trigger, [], conf)
+        await automation.build_automation(trigger, [], conf)
 
 
 async def register_fan(var, config):
