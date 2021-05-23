@@ -315,7 +315,14 @@ void DisplayBuffer::set_pages(std::vector<DisplayPage *> pages) {
   pages[pages.size() - 1]->set_next(pages[0]);
   this->show_page(pages[0]);
 }
-void DisplayBuffer::show_page(DisplayPage *page) { this->page_ = page; }
+void DisplayBuffer::show_page(DisplayPage *page) {
+  this->previous_page_ = this->page_;
+  this->page_ = page;
+  if (this->previous_page_ != this->page_) {
+    for (auto *t : on_page_change_triggers_)
+      t->process(this->previous_page_, this->page_);
+  }
+}
 void DisplayBuffer::show_next_page() { this->page_->show_next(); }
 void DisplayBuffer::show_prev_page() { this->page_->show_prev(); }
 void DisplayBuffer::do_update_() {
@@ -325,6 +332,10 @@ void DisplayBuffer::do_update_() {
   } else if (this->writer_.has_value()) {
     (*this->writer_)(*this);
   }
+}
+void DisplayOnPageChangeTrigger::process(DisplayPage *from, DisplayPage *to) {
+  if ((this->from_ == nullptr || this->from_ == from) && (this->to_ == nullptr || this->to_ == to))
+    this->trigger(from, to);
 }
 #ifdef USE_TIME
 void DisplayBuffer::strftime(int x, int y, Font *font, Color color, TextAlign align, const char *format,
