@@ -14,6 +14,9 @@ from esphome.const import (
     CONF_SPEED_COMMAND_TOPIC,
     CONF_SPEED_STATE_TOPIC,
     CONF_NAME,
+    CONF_ON_TURN_OFF,
+    CONF_ON_TURN_ON,
+    CONF_TRIGGER_ID,
 )
 from esphome.core import CORE, coroutine_with_priority
 
@@ -27,6 +30,9 @@ MakeFan = cg.Application.struct("MakeFan")
 TurnOnAction = fan_ns.class_("TurnOnAction", automation.Action)
 TurnOffAction = fan_ns.class_("TurnOffAction", automation.Action)
 ToggleAction = fan_ns.class_("ToggleAction", automation.Action)
+
+FanTurnOnTrigger = fan_ns.class_("FanTurnOnTrigger", automation.Trigger.template())
+FanTurnOffTrigger = fan_ns.class_("FanTurnOffTrigger", automation.Trigger.template())
 
 FAN_SCHEMA = cv.MQTT_COMMAND_COMPONENT_SCHEMA.extend(
     {
@@ -43,6 +49,16 @@ FAN_SCHEMA = cv.MQTT_COMMAND_COMPONENT_SCHEMA.extend(
         ),
         cv.Optional(CONF_SPEED_COMMAND_TOPIC): cv.All(
             cv.requires_component("mqtt"), cv.subscribe_topic
+        ),
+        cv.Optional(CONF_ON_TURN_ON): automation.validate_automation(
+            {
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(FanTurnOnTrigger),
+            }
+        ),
+        cv.Optional(CONF_ON_TURN_OFF): automation.validate_automation(
+            {
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(FanTurnOffTrigger),
+            }
         ),
     }
 )
@@ -75,6 +91,13 @@ async def setup_fan_core_(var, config):
             cg.add(
                 mqtt_.set_custom_speed_command_topic(config[CONF_SPEED_COMMAND_TOPIC])
             )
+
+    for conf in config.get(CONF_ON_TURN_ON, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        yield automation.build_automation(trigger, [], conf)
+    for conf in config.get(CONF_ON_TURN_OFF, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        yield automation.build_automation(trigger, [], conf)
 
 
 async def register_fan(var, config):
