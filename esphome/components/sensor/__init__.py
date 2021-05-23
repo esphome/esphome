@@ -22,6 +22,7 @@ from esphome.const import (
     CONF_ON_VALUE_RANGE,
     CONF_SEND_EVERY,
     CONF_SEND_FIRST_AT,
+    CONF_STATE_CLASS,
     CONF_TO,
     CONF_TRIGGER_ID,
     CONF_UNIT_OF_MEASUREMENT,
@@ -44,6 +45,8 @@ from esphome.const import (
     DEVICE_CLASS_PRESSURE,
     DEVICE_CLASS_TIMESTAMP,
     DEVICE_CLASS_VOLTAGE,
+    STATE_CLASS_EMPTY,
+    STATE_CLASS_MEASUREMENT,
 )
 from esphome.core import CORE, coroutine, coroutine_with_priority
 from esphome.util import Registry
@@ -63,6 +66,11 @@ DEVICE_CLASSES = [
     DEVICE_CLASS_PRESSURE,
     DEVICE_CLASS_TIMESTAMP,
     DEVICE_CLASS_VOLTAGE,
+]
+
+STATE_CLASSES = [
+    STATE_CLASS_EMPTY,
+    STATE_CLASS_MEASUREMENT,
 ]
 
 IS_PLATFORM_COMPONENT = True
@@ -144,6 +152,7 @@ unit_of_measurement = cv.string_strict
 accuracy_decimals = cv.int_
 icon = cv.icon
 device_class = cv.one_of(*DEVICE_CLASSES, lower=True, space="_")
+state_class = cv.one_of(*STATE_CLASSES, lower=True, space="_")
 
 SENSOR_SCHEMA = cv.MQTT_COMPONENT_SCHEMA.extend(
     {
@@ -153,6 +162,7 @@ SENSOR_SCHEMA = cv.MQTT_COMPONENT_SCHEMA.extend(
         cv.Optional(CONF_ICON): icon,
         cv.Optional(CONF_ACCURACY_DECIMALS): accuracy_decimals,
         cv.Optional(CONF_DEVICE_CLASS): device_class,
+        cv.Optional(CONF_STATE_CLASS): state_class,
         cv.Optional(CONF_FORCE_UPDATE, default=False): cv.boolean,
         cv.Optional(CONF_EXPIRE_AFTER): cv.All(
             cv.requires_component("mqtt"),
@@ -186,6 +196,7 @@ def sensor_schema(
     icon_: str,
     accuracy_decimals_: int,
     device_class_: Optional[str] = DEVICE_CLASS_EMPTY,
+    state_class_: Optional[str] = STATE_CLASS_MEASUREMENT,
 ) -> cv.Schema:
     schema = SENSOR_SCHEMA
     if unit_of_measurement_ != UNIT_EMPTY:
@@ -209,6 +220,10 @@ def sensor_schema(
     if device_class_ != DEVICE_CLASS_EMPTY:
         schema = schema.extend(
             {cv.Optional(CONF_DEVICE_CLASS, default=device_class_): device_class}
+        )
+    if state_class_ != STATE_CLASS_EMPTY:
+        schema = schema.extend(
+            {{cv.Optional(CONF_STATE_CLASS, default=state_class_): state_class}}
         )
     return schema
 
