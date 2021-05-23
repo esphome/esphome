@@ -58,6 +58,7 @@ class RFBridgeComponent : public uart::UARTDevice, public Component {
   void stop_advanced_sniffing();
   void start_bucket_sniffing();
   void send_raw(std::string code);
+  void beep(uint16_t ms);
 
  protected:
   void ack_();
@@ -172,6 +173,17 @@ template<typename... Ts> class RFBridgeSendRawAction : public Action<Ts...> {
   TEMPLATABLE_VALUE(std::string, raw)
 
   void play(Ts... x) { this->parent_->send_raw(this->raw_.value(x...)); }
+
+ protected:
+  RFBridgeComponent *parent_;
+};
+
+template<typename... Ts> class RFBridgeBeepAction : public Action<Ts...> {
+ public:
+  RFBridgeBeepAction(RFBridgeComponent *parent) : parent_(parent) {}
+  TEMPLATABLE_VALUE(uint16_t, duration)
+
+  void play(Ts... x) { this->parent_->beep(this->duration_.value(x...)); }
 
  protected:
   RFBridgeComponent *parent_;

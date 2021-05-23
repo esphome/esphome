@@ -216,5 +216,16 @@ void RFBridgeComponent::send_raw(std::string raw_code) {
   this->flush();
 }
 
+void RFBridgeComponent::beep(uint16_t ms) {
+  ESP_LOGD(TAG, "Beeping for %hu ms", ms);
+
+  this->write(RF_CODE_START);
+  this->write(RF_CODE_BEEP);
+  this->write((ms >> 8) & 0xFF);
+  this->write(ms & 0xFF);
+  this->write(RF_CODE_STOP);
+  this->flush();
+}
+
 }  // namespace rf_bridge
 }  // namespace esphome

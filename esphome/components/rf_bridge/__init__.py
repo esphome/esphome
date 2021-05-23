@@ -12,6 +12,7 @@ from esphome.const import (
     CONF_RAW,
     CONF_SYNC,
     CONF_TRIGGER_ID,
+    CONF_DURATION,
 )
 
 DEPENDENCIES = ["uart"]
@@ -53,6 +54,7 @@ RFBridgeStartBucketSniffingAction = rf_bridge_ns.class_(
     "RFBridgeStartBucketSniffingAction", automation.Action
 )
 
+RFBridgeBeepAction = rf_bridge_ns.class_("RFBridgeBeepAction", automation.Action)
 
 RFBridgeSendRawAction = rf_bridge_ns.class_("RFBridgeSendRawAction", automation.Action)
 
@@ -214,4 +216,21 @@ def rf_bridge_send_raw_to_code(config, action_id, template_args, args):
     var = cg.new_Pvariable(action_id, template_args, paren)
     template_ = yield cg.templatable(config[CONF_RAW], args, cg.std_string)
     cg.add(var.set_raw(template_))
+    yield var
+
+
+RFBRIDGE_BEEP_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.use_id(RFBridgeComponent),
+        cv.Required(CONF_DURATION): cv.templatable(cv.uint16_t),
+    }
+)
+
+
+@automation.register_action("rf_bridge.beep", RFBridgeBeepAction, RFBRIDGE_BEEP_SCHEMA)
+def rf_bridge_beep_to_code(config, action_id, template_args, args):
+    paren = yield cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_args, paren)
+    template_ = yield cg.templatable(config[CONF_DURATION], args, cg.uint16)
+    cg.add(var.set_duration(template_))
     yield var
