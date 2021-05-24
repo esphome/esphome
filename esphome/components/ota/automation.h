@@ -1,4 +1,6 @@
 #pragma once
+
+#include "esphome/core/defines.h"
 #ifdef USE_OTA_STATE_CALLBACK
 
 #include "esphome/core/component.h"
