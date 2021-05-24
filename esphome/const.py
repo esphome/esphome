@@ -746,6 +746,8 @@ DEVICE_CLASS_EMPTY = ""
 DEVICE_CLASS_BATTERY = "battery"
 DEVICE_CLASS_POWER = "power"
 # device classes of sensor component
+DEVICE_CLASS_CARBON_MONOXIDE = "carbon_monoxide"
+DEVICE_CLASS_CARBON_DIOXIDE = "carbon_dioxide"
 DEVICE_CLASS_CURRENT = "current"
 DEVICE_CLASS_ENERGY = "energy"
 DEVICE_CLASS_HUMIDITY = "humidity"
