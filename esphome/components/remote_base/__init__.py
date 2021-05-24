@@ -63,7 +63,6 @@ def templatize(value):
     return cv.Schema(ret)
 
 
-@coroutine
 async def register_listener(var, config):
     receiver = await cg.get_variable(config[CONF_RECEIVER_ID])
     cg.add(receiver.register_listener(var))
