@@ -115,28 +115,28 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    time_ = yield cg.get_variable(config[CONF_TIME_ID])
+    time_ = await cg.get_variable(config[CONF_TIME_ID])
     cg.add(var.set_time(time_))
     cg.add(var.set_latitude(config[CONF_LATITUDE]))
     cg.add(var.set_longitude(config[CONF_LONGITUDE]))
 
     for conf in config.get(CONF_ON_SUNRISE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
-        yield cg.register_component(trigger, conf)
-        yield cg.register_parented(trigger, var)
+        await cg.register_component(trigger, conf)
+        await cg.register_parented(trigger, var)
         cg.add(trigger.set_sunrise(True))
         cg.add(trigger.set_elevation(conf[CONF_ELEVATION]))
-        yield automation.build_automation(trigger, [], conf)
+        await automation.build_automation(trigger, [], conf)
 
     for conf in config.get(CONF_ON_SUNSET, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
-        yield cg.register_component(trigger, conf)
-        yield cg.register_parented(trigger, var)
+        await cg.register_component(trigger, conf)
+        await cg.register_parented(trigger, var)
         cg.add(trigger.set_sunrise(False))
         cg.add(trigger.set_elevation(conf[CONF_ELEVATION]))
-        yield automation.build_automation(trigger, [], conf)
+        await automation.build_automation(trigger, [], conf)
 
 
 @automation.register_condition(

@@ -18,6 +18,12 @@ void GPIOSwitch::setup() {
     case GPIO_SWITCH_RESTORE_DEFAULT_ON:
       initial_state = this->get_initial_state().value_or(true);
       break;
+    case GPIO_SWITCH_RESTORE_INVERTED_DEFAULT_OFF:
+      initial_state = !this->get_initial_state().value_or(true);
+      break;
+    case GPIO_SWITCH_RESTORE_INVERTED_DEFAULT_ON:
+      initial_state = !this->get_initial_state().value_or(false);
+      break;
     case GPIO_SWITCH_ALWAYS_OFF:
       initial_state = false;
       break;
@@ -48,6 +54,12 @@ void GPIOSwitch::dump_config() {
       break;
     case GPIO_SWITCH_RESTORE_DEFAULT_ON:
       restore_mode = "Restore (Defaults to ON)";
+      break;
+    case GPIO_SWITCH_RESTORE_INVERTED_DEFAULT_ON:
+      restore_mode = "Restore inverted (Defaults to ON)";
+      break;
+    case GPIO_SWITCH_RESTORE_INVERTED_DEFAULT_OFF:
+      restore_mode = "Restore inverted (Defaults to OFF)";
       break;
     case GPIO_SWITCH_ALWAYS_OFF:
       restore_mode = "Always OFF";

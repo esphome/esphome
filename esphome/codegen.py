@@ -19,6 +19,7 @@ from esphome.cpp_generator import (  # noqa
     Statement,
     LineComment,
     progmem_array,
+    static_const_array,
     statement,
     variable,
     new_variable,

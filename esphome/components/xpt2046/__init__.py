@@ -97,10 +97,10 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
-    yield spi.register_spi_device(var, config)
+    await cg.register_component(var, config)
+    await spi.register_spi_device(var, config)
 
     cg.add(var.set_threshold(config[CONF_THRESHOLD]))
     cg.add(var.set_report_interval(config[CONF_REPORT_INTERVAL]))
@@ -118,11 +118,11 @@ def to_code(config):
         cg.add(var.set_swap_x_y(config[CONF_SWAP_X_Y]))
 
     if CONF_IRQ_PIN in config:
-        pin = yield cg.gpio_pin_expression(config[CONF_IRQ_PIN])
+        pin = await cg.gpio_pin_expression(config[CONF_IRQ_PIN])
         cg.add(var.set_irq_pin(pin))
 
     for conf in config.get(CONF_ON_STATE, []):
-        yield automation.build_automation(
+        await automation.build_automation(
             var.get_on_state_trigger(),
             [(cg.int_, "x"), (cg.int_, "y"), (cg.bool_, "touched")],
             conf,

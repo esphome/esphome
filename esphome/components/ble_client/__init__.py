@@ -74,14 +74,14 @@ def register_ble_node(var, config):
     cg.add(parent.register_ble_node(var))
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
-    yield esp32_ble_tracker.register_client(var, config)
+    await cg.register_component(var, config)
+    await esp32_ble_tracker.register_client(var, config)
     cg.add(var.set_address(config[CONF_MAC_ADDRESS].as_hex))
     for conf in config.get(CONF_ON_CONNECT, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        yield automation.build_automation(trigger, [], conf)
+        await automation.build_automation(trigger, [], conf)
     for conf in config.get(CONF_ON_DISCONNECT, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        yield automation.build_automation(trigger, [], conf)
+        await automation.build_automation(trigger, [], conf)
