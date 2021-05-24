@@ -52,39 +52,39 @@ CONFIG_SCHEMA = cover.COVER_SCHEMA.extend(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
-    yield cover.register_cover(var, config)
+    await cg.register_component(var, config)
+    await cover.register_cover(var, config)
     if CONF_LAMBDA in config:
-        template_ = yield cg.process_lambda(
+        template_ = await cg.process_lambda(
             config[CONF_LAMBDA], [], return_type=cg.optional.template(float)
         )
         cg.add(var.set_state_lambda(template_))
     if CONF_OPEN_ACTION in config:
-        yield automation.build_automation(
+        await automation.build_automation(
             var.get_open_trigger(), [], config[CONF_OPEN_ACTION]
         )
     if CONF_CLOSE_ACTION in config:
-        yield automation.build_automation(
+        await automation.build_automation(
             var.get_close_trigger(), [], config[CONF_CLOSE_ACTION]
         )
     if CONF_STOP_ACTION in config:
-        yield automation.build_automation(
+        await automation.build_automation(
             var.get_stop_trigger(), [], config[CONF_STOP_ACTION]
         )
     if CONF_TILT_ACTION in config:
-        yield automation.build_automation(
+        await automation.build_automation(
             var.get_tilt_trigger(), [(float, "tilt")], config[CONF_TILT_ACTION]
         )
         cg.add(var.set_has_tilt(True))
     if CONF_TILT_LAMBDA in config:
-        tilt_template_ = yield cg.process_lambda(
+        tilt_template_ = await cg.process_lambda(
             config[CONF_TILT_LAMBDA], [], return_type=cg.optional.template(float)
         )
         cg.add(var.set_tilt_lambda(tilt_template_))
     if CONF_POSITION_ACTION in config:
-        yield automation.build_automation(
+        await automation.build_automation(
             var.get_position_trigger(), [(float, "pos")], config[CONF_POSITION_ACTION]
         )
         cg.add(var.set_has_position(True))

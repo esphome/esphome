@@ -51,19 +51,19 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
-    yield climate.register_climate(var, config)
+    await cg.register_component(var, config)
+    await climate.register_climate(var, config)
 
-    sens = yield cg.get_variable(config[CONF_SENSOR])
+    sens = await cg.get_variable(config[CONF_SENSOR])
     cg.add(var.set_sensor(sens))
 
     if CONF_COOL_OUTPUT in config:
-        out = yield cg.get_variable(config[CONF_COOL_OUTPUT])
+        out = await cg.get_variable(config[CONF_COOL_OUTPUT])
         cg.add(var.set_cool_output(out))
     if CONF_HEAT_OUTPUT in config:
-        out = yield cg.get_variable(config[CONF_HEAT_OUTPUT])
+        out = await cg.get_variable(config[CONF_HEAT_OUTPUT])
         cg.add(var.set_heat_output(out))
     params = config[CONF_CONTROL_PARAMETERS]
     cg.add(var.set_kp(params[CONF_KP]))

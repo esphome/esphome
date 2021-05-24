@@ -107,11 +107,11 @@ CONFIG_SCHEMA = (
 )
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add(var.set_timeout(config[CONF_TIMEOUT]))
     cg.add(var.set_useragent(config[CONF_USERAGENT]))
-    yield cg.register_component(var, config)
+    await cg.register_component(var, config)
 
 
 HTTP_REQUEST_ACTION_SCHEMA = cv.Schema(

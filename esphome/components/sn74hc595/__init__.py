@@ -33,17 +33,17 @@ CONFIG_SCHEMA = cv.Schema(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
-    data_pin = yield cg.gpio_pin_expression(config[CONF_DATA_PIN])
+    await cg.register_component(var, config)
+    data_pin = await cg.gpio_pin_expression(config[CONF_DATA_PIN])
     cg.add(var.set_data_pin(data_pin))
-    clock_pin = yield cg.gpio_pin_expression(config[CONF_CLOCK_PIN])
+    clock_pin = await cg.gpio_pin_expression(config[CONF_CLOCK_PIN])
     cg.add(var.set_clock_pin(clock_pin))
-    latch_pin = yield cg.gpio_pin_expression(config[CONF_LATCH_PIN])
+    latch_pin = await cg.gpio_pin_expression(config[CONF_LATCH_PIN])
     cg.add(var.set_latch_pin(latch_pin))
     if CONF_OE_PIN in config:
-        oe_pin = yield cg.gpio_pin_expression(config[CONF_OE_PIN])
+        oe_pin = await cg.gpio_pin_expression(config[CONF_OE_PIN])
         cg.add(var.set_oe_pin(oe_pin))
     cg.add(var.set_sr_count(config[CONF_SR_COUNT]))
 

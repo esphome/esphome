@@ -18,13 +18,13 @@ CONFIG_SCHEMA = text_sensor.TEXT_SENSOR_SCHEMA.extend(
 ).extend(cv.polling_component_schema("60s"))
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
-    yield text_sensor.register_text_sensor(var, config)
+    await cg.register_component(var, config)
+    await text_sensor.register_text_sensor(var, config)
 
     if CONF_LAMBDA in config:
-        template_ = yield cg.process_lambda(
+        template_ = await cg.process_lambda(
             config[CONF_LAMBDA], [], return_type=cg.optional.template(cg.std_string)
         )
         cg.add(var.set_template(template_))

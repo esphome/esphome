@@ -33,19 +33,19 @@ CONFIG_SCHEMA = cv.Schema(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
+    await cg.register_component(var, config)
 
     if CONF_WIND_SPEED in config:
         conf = config[CONF_WIND_SPEED]
-        sens = yield sensor.new_sensor(conf)
+        sens = await sensor.new_sensor(conf)
         cg.add(var.set_wind_speed_sensor(sens))
 
     if CONF_WIND_DIRECTION_DEGREES in config:
         conf = config[CONF_WIND_DIRECTION_DEGREES]
-        sens = yield sensor.new_sensor(conf)
+        sens = await sensor.new_sensor(conf)
         cg.add(var.set_wind_direction_degrees_sensor(sens))
 
-    pin = yield cg.gpio_pin_expression(config[CONF_PIN])
+    pin = await cg.gpio_pin_expression(config[CONF_PIN])
     cg.add(var.set_pin(pin))

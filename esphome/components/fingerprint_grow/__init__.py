@@ -132,45 +132,45 @@ CONFIG_SCHEMA = (
 )
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
+    await cg.register_component(var, config)
     if CONF_PASSWORD in config:
         password = config[CONF_PASSWORD]
         cg.add(var.set_password(password))
-    yield uart.register_uart_device(var, config)
+    await uart.register_uart_device(var, config)
 
     if CONF_NEW_PASSWORD in config:
         new_password = config[CONF_NEW_PASSWORD]
         cg.add(var.set_new_password(new_password))
 
     if CONF_SENSING_PIN in config:
-        sensing_pin = yield cg.gpio_pin_expression(config[CONF_SENSING_PIN])
+        sensing_pin = await cg.gpio_pin_expression(config[CONF_SENSING_PIN])
         cg.add(var.set_sensing_pin(sensing_pin))
 
     for conf in config.get(CONF_ON_FINGER_SCAN_MATCHED, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        yield automation.build_automation(
+        await automation.build_automation(
             trigger, [(cg.uint16, "finger_id"), (cg.uint16, "confidence")], conf
         )
 
     for conf in config.get(CONF_ON_FINGER_SCAN_UNMATCHED, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        yield automation.build_automation(trigger, [], conf)
+        await automation.build_automation(trigger, [], conf)
 
     for conf in config.get(CONF_ON_ENROLLMENT_SCAN, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        yield automation.build_automation(
+        await automation.build_automation(
             trigger, [(cg.uint8, "scan_num"), (cg.uint16, "finger_id")], conf
         )
 
     for conf in config.get(CONF_ON_ENROLLMENT_DONE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        yield automation.build_automation(trigger, [(cg.uint16, "finger_id")], conf)
+        await automation.build_automation(trigger, [(cg.uint16, "finger_id")], conf)
 
     for conf in config.get(CONF_ON_ENROLLMENT_FAILED, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        yield automation.build_automation(trigger, [(cg.uint16, "finger_id")], conf)
+        await automation.build_automation(trigger, [(cg.uint16, "finger_id")], conf)
 
 
 @automation.register_action(

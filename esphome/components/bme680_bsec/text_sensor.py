@@ -34,7 +34,7 @@ def setup_conf(config, key, hub):
         cg.add(getattr(hub, f"set_{key}_text_sensor")(sens))
 
 
-def to_code(config):
-    hub = yield cg.get_variable(config[CONF_BME680_BSEC_ID])
+async def to_code(config):
+    hub = await cg.get_variable(config[CONF_BME680_BSEC_ID])
     for key in TYPES:
-        yield setup_conf(config, key, hub)
+        await setup_conf(config, key, hub)

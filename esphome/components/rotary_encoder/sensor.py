@@ -91,17 +91,17 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
-    yield sensor.register_sensor(var, config)
-    pin_a = yield cg.gpio_pin_expression(config[CONF_PIN_A])
+    await cg.register_component(var, config)
+    await sensor.register_sensor(var, config)
+    pin_a = await cg.gpio_pin_expression(config[CONF_PIN_A])
     cg.add(var.set_pin_a(pin_a))
-    pin_b = yield cg.gpio_pin_expression(config[CONF_PIN_B])
+    pin_b = await cg.gpio_pin_expression(config[CONF_PIN_B])
     cg.add(var.set_pin_b(pin_b))
 
     if CONF_PIN_RESET in config:
-        pin_i = yield cg.gpio_pin_expression(config[CONF_PIN_RESET])
+        pin_i = await cg.gpio_pin_expression(config[CONF_PIN_RESET])
         cg.add(var.set_reset_pin(pin_i))
     cg.add(var.set_resolution(config[CONF_RESOLUTION]))
     if CONF_MIN_VALUE in config:
@@ -111,10 +111,10 @@ def to_code(config):
 
     for conf in config.get(CONF_ON_CLOCKWISE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        yield automation.build_automation(trigger, [], conf)
+        await automation.build_automation(trigger, [], conf)
     for conf in config.get(CONF_ON_ANTICLOCKWISE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        yield automation.build_automation(trigger, [], conf)
+        await automation.build_automation(trigger, [], conf)
 
 
 @automation.register_action(

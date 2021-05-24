@@ -46,8 +46,8 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
-def to_code(config):
-    hub = yield cg.get_variable(config[CONF_FINGERPRINT_GROW_ID])
+async def to_code(config):
+    hub = await cg.get_variable(config[CONF_FINGERPRINT_GROW_ID])
 
     for key in [
         CONF_FINGERPRINT_COUNT,
@@ -60,5 +60,5 @@ def to_code(config):
         if key not in config:
             continue
         conf = config[key]
-        sens = yield sensor.new_sensor(conf)
+        sens = await sensor.new_sensor(conf)
         cg.add(getattr(hub, f"set_{key}_sensor")(sens))
