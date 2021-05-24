@@ -17,7 +17,7 @@ from esphome.util import Registry, RegistryEntry
 async def gpio_pin_expression(conf):
     """Generate an expression for the given pin option.
 
-    This is a coroutine, you must await it with a 'yield' expression!
+    This is a coroutine, you must await it with a 'await' expression!
     """
     if conf is None:
         return
@@ -36,7 +36,7 @@ async def gpio_pin_expression(conf):
 async def register_component(var, config):
     """Register the given obj as a component.
 
-    This is a coroutine, you must await it with a 'yield' expression!
+    This is a coroutine, you must await it with a 'await' expression!
 
     :param var: The variable representing the component.
     :param config: The configuration for the component.

@@ -29,10 +29,10 @@ CONFIG_SCHEMA = time.TIME_SCHEMA.extend(
         }
     ),
 )
-def ds1307_write_time_to_code(config, action_id, template_arg, args):
+async def ds1307_write_time_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
-    yield cg.register_parented(var, config[CONF_ID])
-    yield var
+    await cg.register_parented(var, config[CONF_ID])
+    return var
 
 
 @automation.register_action(
@@ -44,10 +44,10 @@ def ds1307_write_time_to_code(config, action_id, template_arg, args):
         }
     ),
 )
-def ds1307_read_time_to_code(config, action_id, template_arg, args):
+async def ds1307_read_time_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
-    yield cg.register_parented(var, config[CONF_ID])
-    yield var
+    await cg.register_parented(var, config[CONF_ID])
+    return var
 
 
 async def to_code(config):

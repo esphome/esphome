@@ -185,16 +185,16 @@ async def to_code(config):
         key=CONF_FINGER_ID,
     ),
 )
-def fingerprint_grow_enroll_to_code(config, action_id, template_arg, args):
+async def fingerprint_grow_enroll_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
-    yield cg.register_parented(var, config[CONF_ID])
+    await cg.register_parented(var, config[CONF_ID])
 
-    template_ = yield cg.templatable(config[CONF_FINGER_ID], args, cg.uint16)
+    template_ = await cg.templatable(config[CONF_FINGER_ID], args, cg.uint16)
     cg.add(var.set_finger_id(template_))
     if CONF_NUM_SCANS in config:
-        template_ = yield cg.templatable(config[CONF_NUM_SCANS], args, cg.uint8)
+        template_ = await cg.templatable(config[CONF_NUM_SCANS], args, cg.uint8)
         cg.add(var.set_num_scans(template_))
-    yield var
+    return var
 
 
 @automation.register_action(
@@ -206,10 +206,10 @@ def fingerprint_grow_enroll_to_code(config, action_id, template_arg, args):
         }
     ),
 )
-def fingerprint_grow_cancel_enroll_to_code(config, action_id, template_arg, args):
+async def fingerprint_grow_cancel_enroll_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
-    yield cg.register_parented(var, config[CONF_ID])
-    yield var
+    await cg.register_parented(var, config[CONF_ID])
+    return var
 
 
 @automation.register_action(
@@ -223,13 +223,13 @@ def fingerprint_grow_cancel_enroll_to_code(config, action_id, template_arg, args
         key=CONF_FINGER_ID,
     ),
 )
-def fingerprint_grow_delete_to_code(config, action_id, template_arg, args):
+async def fingerprint_grow_delete_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
-    yield cg.register_parented(var, config[CONF_ID])
+    await cg.register_parented(var, config[CONF_ID])
 
-    template_ = yield cg.templatable(config[CONF_FINGER_ID], args, cg.uint16)
+    template_ = await cg.templatable(config[CONF_FINGER_ID], args, cg.uint16)
     cg.add(var.set_finger_id(template_))
-    yield var
+    return var
 
 
 @automation.register_action(
@@ -241,10 +241,10 @@ def fingerprint_grow_delete_to_code(config, action_id, template_arg, args):
         }
     ),
 )
-def fingerprint_grow_delete_all_to_code(config, action_id, template_arg, args):
+async def fingerprint_grow_delete_all_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
-    yield cg.register_parented(var, config[CONF_ID])
-    yield var
+    await cg.register_parented(var, config[CONF_ID])
+    return var
 
 
 FINGERPRINT_GROW_LED_CONTROL_ACTION_SCHEMA = cv.maybe_simple_value(
@@ -261,13 +261,13 @@ FINGERPRINT_GROW_LED_CONTROL_ACTION_SCHEMA = cv.maybe_simple_value(
     LEDControlAction,
     FINGERPRINT_GROW_LED_CONTROL_ACTION_SCHEMA,
 )
-def fingerprint_grow_led_control_to_code(config, action_id, template_arg, args):
+async def fingerprint_grow_led_control_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
-    yield cg.register_parented(var, config[CONF_ID])
+    await cg.register_parented(var, config[CONF_ID])
 
-    template_ = yield cg.templatable(config[CONF_STATE], args, cg.bool_)
+    template_ = await cg.templatable(config[CONF_STATE], args, cg.bool_)
     cg.add(var.set_state(template_))
-    yield var
+    return var
 
 
 @automation.register_action(
@@ -283,11 +283,13 @@ def fingerprint_grow_led_control_to_code(config, action_id, template_arg, args):
         }
     ),
 )
-def fingerprint_grow_aura_led_control_to_code(config, action_id, template_arg, args):
+async def fingerprint_grow_aura_led_control_to_code(
+    config, action_id, template_arg, args
+):
     var = cg.new_Pvariable(action_id, template_arg)
-    yield cg.register_parented(var, config[CONF_ID])
+    await cg.register_parented(var, config[CONF_ID])
 
     for key in [CONF_STATE, CONF_SPEED, CONF_COLOR, CONF_COUNT]:
-        template_ = yield cg.templatable(config[key], args, cg.uint8)
+        template_ = await cg.templatable(config[key], args, cg.uint8)
         cg.add(getattr(var, f"set_{key}")(template_))
-    yield var
+    return var
