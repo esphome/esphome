@@ -43,14 +43,6 @@ void SCD30Component::setup() {
   ESP_LOGD(TAG, "SCD30 Firmware v%0d.%02d", (uint16_t(raw_firmware_version[0]) >> 8),
            uint16_t(raw_firmware_version[0] & 0xFF));
 
-  /// Sensor initialization
-  if (!this->write_command_(SCD30_CMD_START_CONTINUOUS_MEASUREMENTS, this->ambient_pressure_compensation_)) {
-    ESP_LOGE(TAG, "Sensor SCD30 error starting continuous measurements.");
-    this->error_code_ = MEASUREMENT_INIT_FAILED;
-    this->mark_failed();
-    return;
-  }
-
   if (this->temperature_offset_ != 0) {
     if (!this->write_command_(SCD30_CMD_TEMPERATURE_OFFSET, (uint16_t)(temperature_offset_ * 100.0))) {
       ESP_LOGE(TAG, "Sensor SCD30 error setting temperature offset.");
@@ -71,6 +63,14 @@ void SCD30Component::setup() {
 
   if (!this->write_command_(SCD30_CMD_AUTOMATIC_SELF_CALIBRATION, enable_asc_ ? 1 : 0)) {
     ESP_LOGE(TAG, "Sensor SCD30 error setting automatic self calibration.");
+    this->error_code_ = MEASUREMENT_INIT_FAILED;
+    this->mark_failed();
+    return;
+  }
+
+  /// Sensor initialization
+  if (!this->write_command_(SCD30_CMD_START_CONTINUOUS_MEASUREMENTS, this->ambient_pressure_compensation_)) {
+    ESP_LOGE(TAG, "Sensor SCD30 error starting continuous measurements.");
     this->error_code_ = MEASUREMENT_INIT_FAILED;
     this->mark_failed();
     return;
