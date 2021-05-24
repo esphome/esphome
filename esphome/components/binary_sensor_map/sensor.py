@@ -48,14 +48,14 @@ CONFIG_SCHEMA = cv.typed_schema(
 )
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
-    yield sensor.register_sensor(var, config)
+    await cg.register_component(var, config)
+    await sensor.register_sensor(var, config)
 
     constant = SENSOR_MAP_TYPES[config[CONF_TYPE]]
     cg.add(var.set_sensor_type(constant))
 
     for ch in config[CONF_CHANNELS]:
-        input_var = yield cg.get_variable(ch[CONF_BINARY_SENSOR])
+        input_var = await cg.get_variable(ch[CONF_BINARY_SENSOR])
         cg.add(var.add_channel(input_var, ch[CONF_VALUE]))

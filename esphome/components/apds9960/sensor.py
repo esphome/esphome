@@ -24,8 +24,8 @@ CONFIG_SCHEMA = sensor.sensor_schema(
 )
 
 
-def to_code(config):
-    hub = yield cg.get_variable(config[CONF_APDS9960_ID])
-    var = yield sensor.new_sensor(config)
+async def to_code(config):
+    hub = await cg.get_variable(config[CONF_APDS9960_ID])
+    var = await sensor.new_sensor(config)
     func = getattr(hub, TYPES[config[CONF_TYPE]])
     cg.add(func(var))

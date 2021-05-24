@@ -50,9 +50,9 @@ def ds1307_read_time_to_code(config, action_id, template_arg, args):
     yield var
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
 
-    yield cg.register_component(var, config)
-    yield i2c.register_i2c_device(var, config)
-    yield time.register_time(var, config)
+    await cg.register_component(var, config)
+    await i2c.register_i2c_device(var, config)
+    await time.register_time(var, config)

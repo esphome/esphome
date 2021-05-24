@@ -20,8 +20,8 @@ CONFIG_SCHEMA = cv.Schema(
 ).extend(cv.polling_component_schema("60s"))
 
 
-def to_code(config):
-    pin = yield cg.gpio_pin_expression(config[CONF_PIN])
+async def to_code(config):
+    pin = await cg.gpio_pin_expression(config[CONF_PIN])
     one_wire = cg.new_Pvariable(config[CONF_ONE_WIRE_ID], pin)
     var = cg.new_Pvariable(config[CONF_ID], one_wire)
-    yield cg.register_component(var, config)
+    await cg.register_component(var, config)

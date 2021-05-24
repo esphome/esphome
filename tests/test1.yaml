@@ -261,6 +261,7 @@ mcp23s17:
     cs_pin: GPIO12
     deviceaddress: 1
 
+
 sensor:
   - platform: ble_client
     ble_client_id: ble_foo
@@ -1873,6 +1874,12 @@ display:
       - id: page2
         lambda: |-
           // Nothing
+    on_page_change:
+      from: page1
+      to: page2
+      then:
+        lambda: |-
+          ESP_LOGD("display", "1 -> 2");
   - platform: ssd1306_spi
     model: 'SSD1306 128x64'
     cs_pin: GPIO23

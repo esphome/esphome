@@ -58,11 +58,11 @@ CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-def to_code(config):
-    gpio = yield cg.gpio_pin_expression(config[CONF_PIN])
+async def to_code(config):
+    gpio = await cg.gpio_pin_expression(config[CONF_PIN])
     var = cg.new_Pvariable(config[CONF_ID], gpio)
-    yield cg.register_component(var, config)
-    yield output.register_output(var, config)
+    await cg.register_component(var, config)
+    await output.register_output(var, config)
     if CONF_CHANNEL in config:
         cg.add(var.set_channel(config[CONF_CHANNEL]))
     cg.add(var.set_frequency(config[CONF_FREQUENCY]))
