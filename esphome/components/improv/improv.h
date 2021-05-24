@@ -2,14 +2,15 @@
 
 #include <stdint.h>
 #include <string>
+#include <vector>
 
 namespace improv {
 
 static const char *SERVICE_UUID = "00467768-6228-2272-4663-277478268000";
 static const char *STATUS_UUID = "00467768-6228-2272-4663-277478268001";
 static const char *ERROR_UUID = "00467768-6228-2272-4663-277478268002";
-static const char *RPC_UUID = "00467768-6228-2272-4663-277478268003";
-static const char *RESPONSE_UUID = "00467768-6228-2272-4663-277478268004";
+static const char *RPC_COMMAND_UUID = "00467768-6228-2272-4663-277478268003";
+static const char *RPC_RESULT_UUID = "00467768-6228-2272-4663-277478268004";
 static const char *CAPABILITIES_UUID = "00467768-6228-2272-4663-277478268005";
 
 enum Error : uint8_t {
@@ -44,6 +45,9 @@ struct ImprovCommand {
   std::string password;
 };
 
-ImprovCommand parse_improv_data(const uint8_t *data, uint8_t length);
+ImprovCommand parse_improv_data(std::vector<uint8_t> &data);
+ImprovCommand parse_improv_data(const uint8_t *data, size_t length);
+
+std::vector<uint8_t> build_rpc_response(Command command, std::vector<std::string> datum);
 
 }  // namespace improv

@@ -61,6 +61,7 @@ class ESP32ImprovComponent : public Component, public BLECharacteristicCallbacks
 
   void set_state_(improv::State state);
   void set_error_(improv::Error error);
+  void send_response(std::string response);
   void process_incoming_data_();
   void on_wifi_connect_timeout_();
   bool check_identify_();
