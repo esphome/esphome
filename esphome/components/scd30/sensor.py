@@ -28,10 +28,6 @@ CONF_AMBIENT_PRESSURE_COMPENSATION = "ambient_pressure_compensation"
 CONF_TEMPERATURE_OFFSET = "temperature_offset"
 
 
-def remove_altitude_suffix(value):
-    return re.sub(r"\s*(?:m(?:\s+a\.s\.l)?)|(?:MAM?SL)$", "", value)
-
-
 CONFIG_SCHEMA = (
     cv.Schema(
         {
@@ -47,7 +43,7 @@ CONFIG_SCHEMA = (
             ),
             cv.Optional(CONF_AUTOMATIC_SELF_CALIBRATION, default=True): cv.boolean,
             cv.Optional(CONF_ALTITUDE_COMPENSATION): cv.All(
-                remove_altitude_suffix,
+                cv.float_with_unit("altitude", "(m|m a.s.l.|m MAMSL|m MAML)"),
                 cv.int_range(min=0, max=0xFFFF, max_included=False),
             ),
             cv.Optional(CONF_AMBIENT_PRESSURE_COMPENSATION, default=0): cv.pressure,
