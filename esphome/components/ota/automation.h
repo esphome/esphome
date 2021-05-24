@@ -55,4 +55,4 @@ class OTAErrorTrigger : public Trigger<int> {
 }  // namespace ota
 }  // namespace esphome
 
-#endif // USE_OTA_STATE_CALLBACK
+#endif  // USE_OTA_STATE_CALLBACK
