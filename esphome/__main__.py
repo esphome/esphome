@@ -18,8 +18,8 @@ from esphome.const import (
     CONF_ESPHOME,
     CONF_PLATFORMIO_OPTIONS,
 )
-from esphome.core import CORE, EsphomeError, coroutine, coroutine_with_priority
-from esphome.helpers import color, indent
+from esphome.core import CORE, EsphomeError, coroutine
+from esphome.helpers import indent
 from esphome.util import (
     run_external_command,
     run_external_process,
@@ -27,6 +27,7 @@ from esphome.util import (
     list_yaml_files,
     get_serial_ports,
 )
+from esphome.log import color, setup_log, Fore
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -57,7 +58,7 @@ def choose_prompt(options):
                 raise ValueError
             break
         except ValueError:
-            safe_print(color("red", f"Invalid option: '{opt}'"))
+            safe_print(color(Fore.RED, f"Invalid option: '{opt}'"))
     return options[opt - 1][1]
 
 
@@ -126,15 +127,16 @@ def wrap_to_code(name, comp):
     coro = coroutine(comp.to_code)
 
     @functools.wraps(comp.to_code)
-    @coroutine_with_priority(coro.priority)
-    def wrapped(conf):
+    async def wrapped(conf):
         cg.add(cg.LineComment(f"{name}:"))
         if comp.config_schema is not None:
             conf_str = yaml_util.dump(conf)
             conf_str = conf_str.replace("//", "")
             cg.add(cg.LineComment(indent(conf_str)))
-        yield coro(conf)
+        await coro(conf)
 
+    if hasattr(coro, "priority"):
+        wrapped.priority = coro.priority
     return wrapped
 
 
@@ -261,46 +263,6 @@ def clean_mqtt(config, args):
     return mqtt.clear_topic(
         config, args.topic, args.username, args.password, args.client_id
     )
-
-
-def setup_log(debug=False, quiet=False):
-    if debug:
-        log_level = logging.DEBUG
-        CORE.verbose = True
-    elif quiet:
-        log_level = logging.CRITICAL
-    else:
-        log_level = logging.INFO
-    logging.basicConfig(level=log_level)
-    fmt = "%(levelname)s %(message)s"
-    colorfmt = f"%(log_color)s{fmt}%(reset)s"
-    datefmt = "%H:%M:%S"
-
-    logging.getLogger("urllib3").setLevel(logging.WARNING)
-
-    try:
-        import colorama
-
-        colorama.init(strip=True)
-
-        from colorlog import ColoredFormatter
-
-        logging.getLogger().handlers[0].setFormatter(
-            ColoredFormatter(
-                colorfmt,
-                datefmt=datefmt,
-                reset=True,
-                log_colors={
-                    "DEBUG": "cyan",
-                    "INFO": "green",
-                    "WARNING": "yellow",
-                    "ERROR": "red",
-                    "CRITICAL": "red",
-                },
-            )
-        )
-    except ImportError:
-        pass
 
 
 def command_wizard(args):
@@ -442,30 +404,30 @@ def command_update_all(args):
         click.echo(f"{half_line}{middle_text}{half_line}")
 
     for f in files:
-        print("Updating {}".format(color("cyan", f)))
+        print("Updating {}".format(color(Fore.CYAN, f)))
         print("-" * twidth)
         print()
         rc = run_external_process(
             "esphome", "--dashboard", f, "run", "--no-logs", "--upload-port", "OTA"
         )
         if rc == 0:
-            print_bar("[{}] {}".format(color("bold_green", "SUCCESS"), f))
+            print_bar("[{}] {}".format(color(Fore.BOLD_GREEN, "SUCCESS"), f))
             success[f] = True
         else:
-            print_bar("[{}] {}".format(color("bold_red", "ERROR"), f))
+            print_bar("[{}] {}".format(color(Fore.BOLD_RED, "ERROR"), f))
             success[f] = False
 
         print()
         print()
         print()
 
-    print_bar("[{}]".format(color("bold_white", "SUMMARY")))
+    print_bar("[{}]".format(color(Fore.BOLD_WHITE, "SUMMARY")))
     failed = 0
     for f in files:
         if success[f]:
-            print("  - {}: {}".format(f, color("green", "SUCCESS")))
+            print("  - {}: {}".format(f, color(Fore.GREEN, "SUCCESS")))
         else:
-            print("  - {}: {}".format(f, color("bold_red", "FAILED")))
+            print("  - {}: {}".format(f, color(Fore.BOLD_RED, "FAILED")))
             failed += 1
     return failed
 
@@ -638,10 +600,10 @@ def run_esphome(argv):
         _LOGGER.error("Missing configuration parameter, see esphome --help.")
         return 1
 
-    if sys.version_info < (3, 6, 0):
+    if sys.version_info < (3, 7, 0):
         _LOGGER.error(
-            "You're running ESPHome with Python <3.6. ESPHome is no longer compatible "
-            "with this Python version. Please reinstall ESPHome with Python 3.6+"
+            "You're running ESPHome with Python <3.7. ESPHome is no longer compatible "
+            "with this Python version. Please reinstall ESPHome with Python 3.7+"
         )
         return 1
 
@@ -649,7 +611,7 @@ def run_esphome(argv):
         try:
             return PRE_CONFIG_ACTIONS[args.command](args)
         except EsphomeError as e:
-            _LOGGER.error(e)
+            _LOGGER.error(e, exc_info=args.verbose)
             return 1
 
     for conf_path in args.configuration:
@@ -667,7 +629,7 @@ def run_esphome(argv):
         try:
             rc = POST_CONFIG_ACTIONS[args.command](args, config)
         except EsphomeError as e:
-            _LOGGER.error(e)
+            _LOGGER.error(e, exc_info=args.verbose)
             return 1
         if rc != 0:
             return rc

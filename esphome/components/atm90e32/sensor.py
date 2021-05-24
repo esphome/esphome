@@ -8,8 +8,11 @@ from esphome.const import (
     CONF_POWER,
     CONF_POWER_FACTOR,
     CONF_FREQUENCY,
+    CONF_FORWARD_ACTIVE_ENERGY,
+    CONF_REVERSE_ACTIVE_ENERGY,
     DEVICE_CLASS_CURRENT,
     DEVICE_CLASS_EMPTY,
+    DEVICE_CLASS_ENERGY,
     DEVICE_CLASS_POWER,
     DEVICE_CLASS_POWER_FACTOR,
     DEVICE_CLASS_TEMPERATURE,
@@ -24,6 +27,7 @@ from esphome.const import (
     UNIT_EMPTY,
     UNIT_CELSIUS,
     UNIT_VOLT_AMPS_REACTIVE,
+    UNIT_WATT_HOURS,
 )
 
 CONF_PHASE_A = "phase_a"
@@ -73,6 +77,12 @@ ATM90E32_PHASE_SCHEMA = cv.Schema(
         cv.Optional(CONF_POWER_FACTOR): sensor.sensor_schema(
             UNIT_EMPTY, ICON_EMPTY, 2, DEVICE_CLASS_POWER_FACTOR
         ),
+        cv.Optional(CONF_FORWARD_ACTIVE_ENERGY): sensor.sensor_schema(
+            UNIT_WATT_HOURS, ICON_EMPTY, 2, DEVICE_CLASS_ENERGY
+        ),
+        cv.Optional(CONF_REVERSE_ACTIVE_ENERGY): sensor.sensor_schema(
+            UNIT_WATT_HOURS, ICON_EMPTY, 2, DEVICE_CLASS_ENERGY
+        ),
         cv.Optional(CONF_GAIN_VOLTAGE, default=7305): cv.uint16_t,
         cv.Optional(CONF_GAIN_CT, default=27961): cv.uint16_t,
     }
@@ -103,10 +113,10 @@ CONFIG_SCHEMA = (
 )
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
-    yield spi.register_spi_device(var, config)
+    await cg.register_component(var, config)
+    await spi.register_spi_device(var, config)
 
     for i, phase in enumerate([CONF_PHASE_A, CONF_PHASE_B, CONF_PHASE_C]):
         if phase not in config:
@@ -115,25 +125,31 @@ def to_code(config):
         cg.add(var.set_volt_gain(i, conf[CONF_GAIN_VOLTAGE]))
         cg.add(var.set_ct_gain(i, conf[CONF_GAIN_CT]))
         if CONF_VOLTAGE in conf:
-            sens = yield sensor.new_sensor(conf[CONF_VOLTAGE])
+            sens = await sensor.new_sensor(conf[CONF_VOLTAGE])
             cg.add(var.set_voltage_sensor(i, sens))
         if CONF_CURRENT in conf:
-            sens = yield sensor.new_sensor(conf[CONF_CURRENT])
+            sens = await sensor.new_sensor(conf[CONF_CURRENT])
             cg.add(var.set_current_sensor(i, sens))
         if CONF_POWER in conf:
-            sens = yield sensor.new_sensor(conf[CONF_POWER])
+            sens = await sensor.new_sensor(conf[CONF_POWER])
             cg.add(var.set_power_sensor(i, sens))
         if CONF_REACTIVE_POWER in conf:
-            sens = yield sensor.new_sensor(conf[CONF_REACTIVE_POWER])
+            sens = await sensor.new_sensor(conf[CONF_REACTIVE_POWER])
             cg.add(var.set_reactive_power_sensor(i, sens))
         if CONF_POWER_FACTOR in conf:
-            sens = yield sensor.new_sensor(conf[CONF_POWER_FACTOR])
+            sens = await sensor.new_sensor(conf[CONF_POWER_FACTOR])
             cg.add(var.set_power_factor_sensor(i, sens))
+        if CONF_FORWARD_ACTIVE_ENERGY in conf:
+            sens = await sensor.new_sensor(conf[CONF_FORWARD_ACTIVE_ENERGY])
+            cg.add(var.set_forward_active_energy_sensor(i, sens))
+        if CONF_REVERSE_ACTIVE_ENERGY in conf:
+            sens = await sensor.new_sensor(conf[CONF_REVERSE_ACTIVE_ENERGY])
+            cg.add(var.set_reverse_active_energy_sensor(i, sens))
     if CONF_FREQUENCY in config:
-        sens = yield sensor.new_sensor(config[CONF_FREQUENCY])
+        sens = await sensor.new_sensor(config[CONF_FREQUENCY])
         cg.add(var.set_freq_sensor(sens))
     if CONF_CHIP_TEMPERATURE in config:
-        sens = yield sensor.new_sensor(config[CONF_CHIP_TEMPERATURE])
+        sens = await sensor.new_sensor(config[CONF_CHIP_TEMPERATURE])
         cg.add(var.set_chip_temperature_sensor(sens))
     cg.add(var.set_line_freq(config[CONF_LINE_FREQUENCY]))
     cg.add(var.set_current_phases(config[CONF_CURRENT_PHASES]))

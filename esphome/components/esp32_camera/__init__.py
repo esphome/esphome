@@ -124,9 +124,9 @@ SETTERS = {
 }
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID], config[CONF_NAME])
-    yield cg.register_component(var, config)
+    await cg.register_component(var, config)
 
     for key, setter in SETTERS.items():
         if key in config:

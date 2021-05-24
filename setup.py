@@ -12,7 +12,7 @@ PROJECT_LICENSE = "MIT"
 PROJECT_AUTHOR = "ESPHome"
 PROJECT_COPYRIGHT = "2019, ESPHome"
 PROJECT_URL = "https://esphome.io/"
-PROJECT_EMAIL = "contact@esphome.io"
+PROJECT_EMAIL = "esphome@nabucasa.com"
 
 PROJECT_GITHUB_USERNAME = "esphome"
 PROJECT_GITHUB_REPOSITORY = "esphome"
@@ -74,7 +74,7 @@ setup(
     zip_safe=False,
     platforms="any",
     test_suite="tests",
-    python_requires=">=3.6,<4.0",
+    python_requires=">=3.7,<4.0",
     install_requires=REQUIRES,
     keywords=["home", "automation"],
     entry_points={"console_scripts": ["esphome = esphome.__main__:main"]},

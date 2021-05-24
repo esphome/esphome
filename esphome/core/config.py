@@ -45,6 +45,8 @@ LoopTrigger = cg.esphome_ns.class_(
 
 VERSION_REGEX = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+(?:[ab]\d+)?$")
 
+CONF_NAME_ADD_MAC_SUFFIX = "name_add_mac_suffix"
+
 
 def validate_board(value):
     if CORE.is_esp8266:
@@ -67,6 +69,13 @@ validate_platform = cv.one_of(*ESP_PLATFORMS, upper=True)
 
 PLATFORMIO_ESP8266_LUT = {
     **ARDUINO_VERSION_ESP8266,
+    # Keep this in mind when updating the recommended version:
+    #  * New framework historically have had some regressions, especially for WiFi, BLE and the
+    #    bootloader system. The new version needs to be thoroughly validated before changing the
+    #    recommended version as otherwise a bunch of devices could be bricked
+    #  * The docker images need to be updated to ship the new recommended version, in order not
+    #    to DDoS platformio servers.
+    #    Update this file: https://github.com/esphome/esphome-docker-base/blob/master/platformio.ini
     "RECOMMENDED": ARDUINO_VERSION_ESP8266["2.7.4"],
     "LATEST": "espressif8266",
     "DEV": ARDUINO_VERSION_ESP8266["dev"],
@@ -74,7 +83,8 @@ PLATFORMIO_ESP8266_LUT = {
 
 PLATFORMIO_ESP32_LUT = {
     **ARDUINO_VERSION_ESP32,
-    "RECOMMENDED": ARDUINO_VERSION_ESP32["1.0.4"],
+    # See PLATFORMIO_ESP8266_LUT for considerations when changing the recommended version
+    "RECOMMENDED": ARDUINO_VERSION_ESP32["1.0.6"],
     "LATEST": "espressif32",
     "DEV": ARDUINO_VERSION_ESP32["dev"],
 }
@@ -195,6 +205,7 @@ CONFIG_SCHEMA = cv.Schema(
         ),
         cv.Optional(CONF_INCLUDES, default=[]): cv.ensure_list(valid_include),
         cv.Optional(CONF_LIBRARIES, default=[]): cv.ensure_list(cv.string_strict),
+        cv.Optional(CONF_NAME_ADD_MAC_SUFFIX, default=False): cv.boolean,
         cv.Optional("esphome_core_version"): cv.invalid(
             "The esphome_core_version option has been "
             "removed in 1.13 - the esphome core source "
@@ -252,7 +263,7 @@ def include_file(path, basename):
 
 
 @coroutine_with_priority(-1000.0)
-def add_includes(includes):
+async def add_includes(includes):
     # Add includes at the very end, so that the included files can access global variables
     for include in includes:
         path = CORE.relative_config_path(include)
@@ -268,7 +279,7 @@ def add_includes(includes):
 
 
 @coroutine_with_priority(-1000.0)
-def _esp8266_add_lwip_type():
+async def _esp8266_add_lwip_type():
     # If any component has already set this, do not change it
     if any(
         flag.startswith("-DPIO_FRAMEWORK_ARDUINO_LWIP2_") for flag in CORE.build_flags
@@ -290,28 +301,32 @@ def _esp8266_add_lwip_type():
 
 
 @coroutine_with_priority(30.0)
-def _add_automations(config):
+async def _add_automations(config):
     for conf in config.get(CONF_ON_BOOT, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], conf.get(CONF_PRIORITY))
-        yield cg.register_component(trigger, conf)
-        yield automation.build_automation(trigger, [], conf)
+        await cg.register_component(trigger, conf)
+        await automation.build_automation(trigger, [], conf)
 
     for conf in config.get(CONF_ON_SHUTDOWN, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
-        yield cg.register_component(trigger, conf)
-        yield automation.build_automation(trigger, [], conf)
+        await cg.register_component(trigger, conf)
+        await automation.build_automation(trigger, [], conf)
 
     for conf in config.get(CONF_ON_LOOP, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
-        yield cg.register_component(trigger, conf)
-        yield automation.build_automation(trigger, [], conf)
+        await cg.register_component(trigger, conf)
+        await automation.build_automation(trigger, [], conf)
 
 
 @coroutine_with_priority(100.0)
-def to_code(config):
+async def to_code(config):
     cg.add_global(cg.global_ns.namespace("esphome").using)
     cg.add(
-        cg.App.pre_setup(config[CONF_NAME], cg.RawExpression('__DATE__ ", " __TIME__'))
+        cg.App.pre_setup(
+            config[CONF_NAME],
+            cg.RawExpression('__DATE__ ", " __TIME__'),
+            config[CONF_NAME_ADD_MAC_SUFFIX],
+        )
     )
 
     CORE.add_job(_add_automations, config)
@@ -323,12 +338,6 @@ def to_code(config):
     cg.add_build_flag("-fno-exceptions")
 
     # Libraries
-    if CORE.is_esp32:
-        cg.add_library("ESPmDNS", None)
-    elif CORE.is_esp8266:
-        cg.add_library("ESP8266WiFi", None)
-        cg.add_library("ESP8266mDNS", None)
-
     for lib in config[CONF_LIBRARIES]:
         if "@" in lib:
             name, vers = lib.split("@", 1)

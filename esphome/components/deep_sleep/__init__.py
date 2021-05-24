@@ -78,14 +78,14 @@ CONFIG_SCHEMA = cv.Schema(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
+    await cg.register_component(var, config)
 
     if CONF_SLEEP_DURATION in config:
         cg.add(var.set_sleep_duration(config[CONF_SLEEP_DURATION]))
     if CONF_WAKEUP_PIN in config:
-        pin = yield cg.gpio_pin_expression(config[CONF_WAKEUP_PIN])
+        pin = await cg.gpio_pin_expression(config[CONF_WAKEUP_PIN])
         cg.add(var.set_wakeup_pin(pin))
     if CONF_WAKEUP_PIN_MODE in config:
         cg.add(var.set_wakeup_pin_mode(config[CONF_WAKEUP_PIN_MODE]))
@@ -108,7 +108,9 @@ def to_code(config):
 DEEP_SLEEP_ENTER_SCHEMA = automation.maybe_simple_id(
     {
         cv.GenerateID(): cv.use_id(DeepSleepComponent),
-        cv.Optional(CONF_SLEEP_DURATION): cv.positive_time_period_milliseconds,
+        cv.Optional(CONF_SLEEP_DURATION): cv.templatable(
+            cv.positive_time_period_milliseconds
+        ),
     }
 )
 

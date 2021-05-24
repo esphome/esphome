@@ -63,24 +63,24 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
-    yield esp32_ble_tracker.register_ble_device(var, config)
-    yield binary_sensor.register_binary_sensor(var, config)
+    await cg.register_component(var, config)
+    await esp32_ble_tracker.register_ble_device(var, config)
+    await binary_sensor.register_binary_sensor(var, config)
 
     cg.add(var.set_address(config[CONF_MAC_ADDRESS].as_hex))
     cg.add(var.set_bindkey(config[CONF_BINDKEY]))
 
     if CONF_IDLE_TIME in config:
-        sens = yield sensor.new_sensor(config[CONF_IDLE_TIME])
+        sens = await sensor.new_sensor(config[CONF_IDLE_TIME])
         cg.add(var.set_idle_time(sens))
     if CONF_BATTERY_LEVEL in config:
-        sens = yield sensor.new_sensor(config[CONF_BATTERY_LEVEL])
+        sens = await sensor.new_sensor(config[CONF_BATTERY_LEVEL])
         cg.add(var.set_battery_level(sens))
     if CONF_ILLUMINANCE in config:
-        sens = yield sensor.new_sensor(config[CONF_ILLUMINANCE])
+        sens = await sensor.new_sensor(config[CONF_ILLUMINANCE])
         cg.add(var.set_illuminance(sens))
     if CONF_LIGHT in config:
-        sens = yield binary_sensor.new_binary_sensor(config[CONF_LIGHT])
+        sens = await binary_sensor.new_binary_sensor(config[CONF_LIGHT])
         cg.add(var.set_light(sens))

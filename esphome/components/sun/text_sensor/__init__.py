@@ -46,12 +46,12 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
-    yield text_sensor.register_text_sensor(var, config)
+    await cg.register_component(var, config)
+    await text_sensor.register_text_sensor(var, config)
 
-    paren = yield cg.get_variable(config[CONF_SUN_ID])
+    paren = await cg.get_variable(config[CONF_SUN_ID])
     cg.add(var.set_parent(paren))
     cg.add(var.set_sunrise(SUN_TYPES[config[CONF_TYPE]]))
     cg.add(var.set_elevation(config[CONF_ELEVATION]))

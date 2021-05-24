@@ -51,27 +51,27 @@ CONFIG_SCHEMA = cv.Schema(
 ).extend(cv.polling_component_schema("60s"))
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
+    await cg.register_component(var, config)
 
     if CONF_DEVICE in config:
         sens = cg.new_Pvariable(config[CONF_DEVICE][CONF_ID])
-        yield text_sensor.register_text_sensor(sens, config[CONF_DEVICE])
+        await text_sensor.register_text_sensor(sens, config[CONF_DEVICE])
         cg.add(var.set_device_info_sensor(sens))
 
     if CONF_FREE in config:
-        sens = yield sensor.new_sensor(config[CONF_FREE])
+        sens = await sensor.new_sensor(config[CONF_FREE])
         cg.add(var.set_free_sensor(sens))
 
     if CONF_FRAGMENTATION in config:
-        sens = yield sensor.new_sensor(config[CONF_FRAGMENTATION])
+        sens = await sensor.new_sensor(config[CONF_FRAGMENTATION])
         cg.add(var.set_fragmentation_sensor(sens))
 
     if CONF_BLOCK in config:
-        sens = yield sensor.new_sensor(config[CONF_BLOCK])
+        sens = await sensor.new_sensor(config[CONF_BLOCK])
         cg.add(var.set_block_sensor(sens))
 
     if CONF_LOOP_TIME in config:
-        sens = yield sensor.new_sensor(config[CONF_LOOP_TIME])
+        sens = await sensor.new_sensor(config[CONF_LOOP_TIME])
         cg.add(var.set_loop_time_sensor(sens))

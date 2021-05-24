@@ -38,7 +38,7 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
-def to_code(config):
+async def to_code(config):
     pass
 
 

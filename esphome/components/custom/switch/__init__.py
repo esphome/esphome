@@ -21,8 +21,8 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
-def to_code(config):
-    template_ = yield cg.process_lambda(
+async def to_code(config):
+    template_ = await cg.process_lambda(
         config[CONF_LAMBDA], [], return_type=cg.std_vector.template(switch.SwitchPtr)
     )
 
@@ -30,4 +30,4 @@ def to_code(config):
     var = cg.variable(config[CONF_ID], rhs)
     for i, conf in enumerate(config[CONF_SWITCHES]):
         switch_ = cg.Pvariable(conf[CONF_ID], var.get_switch(i))
-        yield switch.register_switch(switch_, conf)
+        await switch.register_switch(switch_, conf)
