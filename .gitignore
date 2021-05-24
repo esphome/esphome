@@ -83,6 +83,7 @@ venv.bak/
 .pio
 .vscode/
 !.vscode/tasks.json
+!.vscode/c_cpp_properties.json
 CMakeListsPrivate.txt
 CMakeLists.txt
 
