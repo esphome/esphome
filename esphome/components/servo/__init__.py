@@ -39,11 +39,11 @@ CONFIG_SCHEMA = cv.Schema(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
+    await cg.register_component(var, config)
 
-    out = yield cg.get_variable(config[CONF_OUTPUT])
+    out = await cg.get_variable(config[CONF_OUTPUT])
     cg.add(var.set_output(out))
     cg.add(var.set_min_level(config[CONF_MIN_LEVEL]))
     cg.add(var.set_idle_level(config[CONF_IDLE_LEVEL]))

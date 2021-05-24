@@ -21,7 +21,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield ssd1306_base.setup_ssd1036(var, config)
-    yield i2c.register_i2c_device(var, config)
+    await ssd1306_base.setup_ssd1036(var, config)
+    await i2c.register_i2c_device(var, config)

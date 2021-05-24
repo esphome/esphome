@@ -59,8 +59,8 @@ def setup_conf(config, key):
         yield text_sensor.register_text_sensor(var, conf)
 
 
-def to_code(config):
-    yield setup_conf(config, CONF_IP_ADDRESS)
-    yield setup_conf(config, CONF_SSID)
-    yield setup_conf(config, CONF_BSSID)
-    yield setup_conf(config, CONF_MAC_ADDRESS)
+async def to_code(config):
+    await setup_conf(config, CONF_IP_ADDRESS)
+    await setup_conf(config, CONF_SSID)
+    await setup_conf(config, CONF_BSSID)
+    await setup_conf(config, CONF_MAC_ADDRESS)

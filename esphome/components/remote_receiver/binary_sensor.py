@@ -7,7 +7,7 @@ DEPENDENCIES = ["remote_receiver"]
 CONFIG_SCHEMA = remote_base.validate_binary_sensor
 
 
-def to_code(config):
-    var = yield remote_base.build_binary_sensor(config)
+async def to_code(config):
+    var = await remote_base.build_binary_sensor(config)
     cg.add(var.set_name(config[CONF_NAME]))
-    yield binary_sensor.register_binary_sensor(var, config)
+    await binary_sensor.register_binary_sensor(var, config)

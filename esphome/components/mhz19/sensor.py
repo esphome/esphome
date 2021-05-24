@@ -45,17 +45,17 @@ CONFIG_SCHEMA = (
 )
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
-    yield uart.register_uart_device(var, config)
+    await cg.register_component(var, config)
+    await uart.register_uart_device(var, config)
 
     if CONF_CO2 in config:
-        sens = yield sensor.new_sensor(config[CONF_CO2])
+        sens = await sensor.new_sensor(config[CONF_CO2])
         cg.add(var.set_co2_sensor(sens))
 
     if CONF_TEMPERATURE in config:
-        sens = yield sensor.new_sensor(config[CONF_TEMPERATURE])
+        sens = await sensor.new_sensor(config[CONF_TEMPERATURE])
         cg.add(var.set_temperature_sensor(sens))
 
     if CONF_AUTOMATIC_BASELINE_CALIBRATION in config:

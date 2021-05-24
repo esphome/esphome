@@ -82,7 +82,7 @@ def setup_st7735(var, config):
         cg.add(var.set_writer(lambda_))
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(
         config[CONF_ID],
         config[CONF_MODEL],
@@ -93,8 +93,8 @@ def to_code(config):
         config[CONF_EIGHT_BIT_COLOR],
         config[CONF_USE_BGR],
     )
-    yield setup_st7735(var, config)
-    yield spi.register_spi_device(var, config)
+    await setup_st7735(var, config)
+    await spi.register_spi_device(var, config)
 
-    dc = yield cg.gpio_pin_expression(config[CONF_DC_PIN])
+    dc = await cg.gpio_pin_expression(config[CONF_DC_PIN])
     cg.add(var.set_dc_pin(dc))

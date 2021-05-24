@@ -181,7 +181,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def to_code(config):
+async def to_code(config):
     has_white = "W" in config[CONF_TYPE]
     template = cg.TemplateArguments(getattr(cg.global_ns, format_method(config)))
     if has_white:
@@ -190,8 +190,8 @@ def to_code(config):
         out_type = NeoPixelRGBLightOutput.template(template)
     rhs = out_type.new()
     var = cg.Pvariable(config[CONF_OUTPUT_ID], rhs, out_type)
-    yield light.register_light(var, config)
-    yield cg.register_component(var, config)
+    await light.register_light(var, config)
+    await cg.register_component(var, config)
 
     if CONF_PIN in config:
         cg.add(var.add_leds(config[CONF_NUM_LEDS], config[CONF_PIN]))
