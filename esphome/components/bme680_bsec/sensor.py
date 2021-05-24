@@ -21,7 +21,6 @@ from esphome.const import (
     ICON_THERMOMETER,
     ICON_WATER_PERCENT,
 )
-from esphome.core import coroutine
 from . import (
     BME680BSECComponent,
     CONF_BME680_BSEC_ID,
@@ -87,11 +86,10 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
-@coroutine
-def setup_conf(config, key, hub):
+async def setup_conf(config, key, hub):
     if key in config:
         conf = config[key]
-        sens = yield sensor.new_sensor(conf)
+        sens = await sensor.new_sensor(conf)
         cg.add(getattr(hub, f"set_{key}_sensor")(sens))
         if CONF_SAMPLE_RATE in conf:
             cg.add(getattr(hub, f"set_{key}_sample_rate")(conf[CONF_SAMPLE_RATE]))

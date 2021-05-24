@@ -87,10 +87,10 @@ async def to_code(config):
         }
     ),
 )
-def dfplayer_next_to_code(config, action_id, template_arg, args):
+async def dfplayer_next_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
-    yield cg.register_parented(var, config[CONF_ID])
-    yield var
+    await cg.register_parented(var, config[CONF_ID])
+    return var
 
 
 @automation.register_action(
@@ -102,10 +102,10 @@ def dfplayer_next_to_code(config, action_id, template_arg, args):
         }
     ),
 )
-def dfplayer_previous_to_code(config, action_id, template_arg, args):
+async def dfplayer_previous_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
-    yield cg.register_parented(var, config[CONF_ID])
-    yield var
+    await cg.register_parented(var, config[CONF_ID])
+    return var
 
 
 @automation.register_action(
@@ -120,15 +120,15 @@ def dfplayer_previous_to_code(config, action_id, template_arg, args):
         key=CONF_FILE,
     ),
 )
-def dfplayer_play_to_code(config, action_id, template_arg, args):
+async def dfplayer_play_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
-    yield cg.register_parented(var, config[CONF_ID])
-    template_ = yield cg.templatable(config[CONF_FILE], args, float)
+    await cg.register_parented(var, config[CONF_ID])
+    template_ = await cg.templatable(config[CONF_FILE], args, float)
     cg.add(var.set_file(template_))
     if CONF_LOOP in config:
-        template_ = yield cg.templatable(config[CONF_LOOP], args, float)
+        template_ = await cg.templatable(config[CONF_LOOP], args, float)
         cg.add(var.set_loop(template_))
-    yield var
+    return var
 
 
 @automation.register_action(
@@ -143,18 +143,18 @@ def dfplayer_play_to_code(config, action_id, template_arg, args):
         }
     ),
 )
-def dfplayer_play_folder_to_code(config, action_id, template_arg, args):
+async def dfplayer_play_folder_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
-    yield cg.register_parented(var, config[CONF_ID])
-    template_ = yield cg.templatable(config[CONF_FOLDER], args, float)
+    await cg.register_parented(var, config[CONF_ID])
+    template_ = await cg.templatable(config[CONF_FOLDER], args, float)
     cg.add(var.set_folder(template_))
     if CONF_FILE in config:
-        template_ = yield cg.templatable(config[CONF_FILE], args, float)
+        template_ = await cg.templatable(config[CONF_FILE], args, float)
         cg.add(var.set_file(template_))
     if CONF_LOOP in config:
-        template_ = yield cg.templatable(config[CONF_LOOP], args, float)
+        template_ = await cg.templatable(config[CONF_LOOP], args, float)
         cg.add(var.set_loop(template_))
-    yield var
+    return var
 
 
 @automation.register_action(
@@ -168,12 +168,12 @@ def dfplayer_play_folder_to_code(config, action_id, template_arg, args):
         key=CONF_DEVICE,
     ),
 )
-def dfplayer_set_device_to_code(config, action_id, template_arg, args):
+async def dfplayer_set_device_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
-    yield cg.register_parented(var, config[CONF_ID])
-    template_ = yield cg.templatable(config[CONF_DEVICE], args, Device)
+    await cg.register_parented(var, config[CONF_ID])
+    template_ = await cg.templatable(config[CONF_DEVICE], args, Device)
     cg.add(var.set_device(template_))
-    yield var
+    return var
 
 
 @automation.register_action(
@@ -187,12 +187,12 @@ def dfplayer_set_device_to_code(config, action_id, template_arg, args):
         key=CONF_VOLUME,
     ),
 )
-def dfplayer_set_volume_to_code(config, action_id, template_arg, args):
+async def dfplayer_set_volume_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
-    yield cg.register_parented(var, config[CONF_ID])
-    template_ = yield cg.templatable(config[CONF_VOLUME], args, float)
+    await cg.register_parented(var, config[CONF_ID])
+    template_ = await cg.templatable(config[CONF_VOLUME], args, float)
     cg.add(var.set_volume(template_))
-    yield var
+    return var
 
 
 @automation.register_action(
@@ -206,12 +206,12 @@ def dfplayer_set_volume_to_code(config, action_id, template_arg, args):
         key=CONF_EQ_PRESET,
     ),
 )
-def dfplayer_set_eq_to_code(config, action_id, template_arg, args):
+async def dfplayer_set_eq_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
-    yield cg.register_parented(var, config[CONF_ID])
-    template_ = yield cg.templatable(config[CONF_EQ_PRESET], args, EqPreset)
+    await cg.register_parented(var, config[CONF_ID])
+    template_ = await cg.templatable(config[CONF_EQ_PRESET], args, EqPreset)
     cg.add(var.set_eq(template_))
-    yield var
+    return var
 
 
 @automation.register_action(
@@ -223,10 +223,10 @@ def dfplayer_set_eq_to_code(config, action_id, template_arg, args):
         }
     ),
 )
-def dfplayer_sleep_to_code(config, action_id, template_arg, args):
+async def dfplayer_sleep_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
-    yield cg.register_parented(var, config[CONF_ID])
-    yield var
+    await cg.register_parented(var, config[CONF_ID])
+    return var
 
 
 @automation.register_action(
@@ -238,10 +238,10 @@ def dfplayer_sleep_to_code(config, action_id, template_arg, args):
         }
     ),
 )
-def dfplayer_reset_to_code(config, action_id, template_arg, args):
+async def dfplayer_reset_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
-    yield cg.register_parented(var, config[CONF_ID])
-    yield var
+    await cg.register_parented(var, config[CONF_ID])
+    return var
 
 
 @automation.register_action(
@@ -253,10 +253,10 @@ def dfplayer_reset_to_code(config, action_id, template_arg, args):
         }
     ),
 )
-def dfplayer_start_to_code(config, action_id, template_arg, args):
+async def dfplayer_start_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
-    yield cg.register_parented(var, config[CONF_ID])
-    yield var
+    await cg.register_parented(var, config[CONF_ID])
+    return var
 
 
 @automation.register_action(
@@ -268,10 +268,10 @@ def dfplayer_start_to_code(config, action_id, template_arg, args):
         }
     ),
 )
-def dfplayer_pause_to_code(config, action_id, template_arg, args):
+async def dfplayer_pause_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
-    yield cg.register_parented(var, config[CONF_ID])
-    yield var
+    await cg.register_parented(var, config[CONF_ID])
+    return var
 
 
 @automation.register_action(
@@ -283,10 +283,10 @@ def dfplayer_pause_to_code(config, action_id, template_arg, args):
         }
     ),
 )
-def dfplayer_stop_to_code(config, action_id, template_arg, args):
+async def dfplayer_stop_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
-    yield cg.register_parented(var, config[CONF_ID])
-    yield var
+    await cg.register_parented(var, config[CONF_ID])
+    return var
 
 
 @automation.register_action(
@@ -298,10 +298,10 @@ def dfplayer_stop_to_code(config, action_id, template_arg, args):
         }
     ),
 )
-def dfplayer_random_to_code(config, action_id, template_arg, args):
+async def dfplayer_random_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
-    yield cg.register_parented(var, config[CONF_ID])
-    yield var
+    await cg.register_parented(var, config[CONF_ID])
+    return var
 
 
 @automation.register_condition(
@@ -313,7 +313,7 @@ def dfplayer_random_to_code(config, action_id, template_arg, args):
         }
     ),
 )
-def dfplyaer_is_playing_to_code(config, condition_id, template_arg, args):
+async def dfplyaer_is_playing_to_code(config, condition_id, template_arg, args):
     var = cg.new_Pvariable(condition_id, template_arg)
-    yield cg.register_parented(var, config[CONF_ID])
-    yield var
+    await cg.register_parented(var, config[CONF_ID])
+    return var

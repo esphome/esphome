@@ -2,7 +2,6 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import uart
 from esphome.const import CONF_ID, CONF_ADDRESS
-from esphome.core import coroutine
 
 DEPENDENCIES = ["uart"]
 
@@ -42,9 +41,8 @@ def modbus_device_schema(default_address):
     return cv.Schema(schema)
 
 
-@coroutine
-def register_modbus_device(var, config):
-    parent = yield cg.get_variable(config[CONF_MODBUS_ID])
+async def register_modbus_device(var, config):
+    parent = await cg.get_variable(config[CONF_MODBUS_ID])
     cg.add(var.set_parent(parent))
     cg.add(var.set_address(config[CONF_ADDRESS]))
     cg.add(parent.register_device(var))

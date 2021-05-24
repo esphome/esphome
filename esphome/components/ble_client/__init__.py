@@ -9,7 +9,6 @@ from esphome.const import (
     CONF_ON_DISCONNECT,
     CONF_TRIGGER_ID,
 )
-from esphome.core import coroutine
 from esphome import automation
 
 CODEOWNERS = ["@buxtronix"]
@@ -68,9 +67,8 @@ BLE_CLIENT_SCHEMA = cv.Schema(
 )
 
 
-@coroutine
-def register_ble_node(var, config):
-    parent = yield cg.get_variable(config[CONF_BLE_CLIENT_ID])
+async def register_ble_node(var, config):
+    parent = await cg.get_variable(config[CONF_BLE_CLIENT_ID])
     cg.add(parent.register_ble_node(var))
 
 
