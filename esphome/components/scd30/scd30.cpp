@@ -60,8 +60,8 @@ void SCD30Component::setup() {
   // disappear/shorter. Hence work around with delays for ESP32.
   //
   // By experimentation a delay of 20ms as already sufficient. Let's go
-  // safe and use 50ms delays.
-  delay(50);
+  // safe and use 30ms delays.
+  delay(30);
 #endif
 
   // The start measurement command disables the altitude compensation, if any, so we only set it if it's turned on
@@ -74,7 +74,7 @@ void SCD30Component::setup() {
     }
   }
 #ifdef ARDUINO_ARCH_ESP32
-  delay(50);
+  delay(30);
 #endif
 
   if (!this->write_command_(SCD30_CMD_AUTOMATIC_SELF_CALIBRATION, enable_asc_ ? 1 : 0)) {
@@ -84,7 +84,7 @@ void SCD30Component::setup() {
     return;
   }
 #ifdef ARDUINO_ARCH_ESP32
-  delay(50);
+  delay(30);
 #endif
 
   /// Sensor initialization
