@@ -14,7 +14,7 @@ from esphome.const import (
     CONF_URL,
 )
 from esphome.core import CORE, Lambda
-from esphome.core_config import PLATFORMIO_ESP8266_LUT
+from esphome.core.config import PLATFORMIO_ESP8266_LUT
 
 DEPENDENCIES = ["network"]
 AUTO_LOAD = ["json"]
@@ -107,11 +107,11 @@ CONFIG_SCHEMA = (
 )
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add(var.set_timeout(config[CONF_TIMEOUT]))
     cg.add(var.set_useragent(config[CONF_USERAGENT]))
-    yield cg.register_component(var, config)
+    await cg.register_component(var, config)
 
 
 HTTP_REQUEST_ACTION_SCHEMA = cv.Schema(

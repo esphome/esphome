@@ -48,6 +48,8 @@ void PulseMeterSensor::loop() {
   }
 }
 
+void PulseMeterSensor::set_total_pulses(uint32_t pulses) { this->total_pulses_ = pulses; }
+
 void PulseMeterSensor::dump_config() {
   LOG_SENSOR("", "Pulse Meter", this);
   LOG_PIN("  Pin: ", this->pin_);

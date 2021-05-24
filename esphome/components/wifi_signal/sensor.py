@@ -5,7 +5,7 @@ from esphome.const import (
     CONF_ID,
     DEVICE_CLASS_SIGNAL_STRENGTH,
     ICON_EMPTY,
-    UNIT_DECIBEL,
+    UNIT_DECIBEL_MILLIWATT,
 )
 
 DEPENDENCIES = ["wifi"]
@@ -15,7 +15,9 @@ WiFiSignalSensor = wifi_signal_ns.class_(
 )
 
 CONFIG_SCHEMA = (
-    sensor.sensor_schema(UNIT_DECIBEL, ICON_EMPTY, 0, DEVICE_CLASS_SIGNAL_STRENGTH)
+    sensor.sensor_schema(
+        UNIT_DECIBEL_MILLIWATT, ICON_EMPTY, 0, DEVICE_CLASS_SIGNAL_STRENGTH
+    )
     .extend(
         {
             cv.GenerateID(): cv.declare_id(WiFiSignalSensor),
@@ -25,7 +27,7 @@ CONFIG_SCHEMA = (
 )
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
-    yield sensor.register_sensor(var, config)
+    await cg.register_component(var, config)
+    await sensor.register_sensor(var, config)

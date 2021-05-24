@@ -49,21 +49,21 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
-    yield climate.register_climate(var, config)
-    paren = yield cg.get_variable(config[CONF_MIDEA_DONGLE_ID])
+    await cg.register_component(var, config)
+    await climate.register_climate(var, config)
+    paren = await cg.get_variable(config[CONF_MIDEA_DONGLE_ID])
     cg.add(var.set_midea_dongle_parent(paren))
     cg.add(var.set_beeper_feedback(config[CONF_BEEPER]))
     cg.add(var.set_swing_horizontal(config[CONF_SWING_HORIZONTAL]))
     cg.add(var.set_swing_both(config[CONF_SWING_BOTH]))
     if CONF_OUTDOOR_TEMPERATURE in config:
-        sens = yield sensor.new_sensor(config[CONF_OUTDOOR_TEMPERATURE])
+        sens = await sensor.new_sensor(config[CONF_OUTDOOR_TEMPERATURE])
         cg.add(var.set_outdoor_temperature_sensor(sens))
     if CONF_POWER_USAGE in config:
-        sens = yield sensor.new_sensor(config[CONF_POWER_USAGE])
+        sens = await sensor.new_sensor(config[CONF_POWER_USAGE])
         cg.add(var.set_power_sensor(sens))
     if CONF_HUMIDITY_SETPOINT in config:
-        sens = yield sensor.new_sensor(config[CONF_HUMIDITY_SETPOINT])
+        sens = await sensor.new_sensor(config[CONF_HUMIDITY_SETPOINT])
         cg.add(var.set_humidity_setpoint_sensor(sens))

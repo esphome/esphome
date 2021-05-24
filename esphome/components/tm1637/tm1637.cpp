@@ -253,7 +253,7 @@ uint8_t TM1637Display::print(uint8_t start_pos, const char* str) {
         pos--;
       this->buffer_[pos] |= 0b10000000;
     } else {
-      if (pos >= 4) {
+      if (pos >= 6) {
         ESP_LOGE(TAG, "String is too long for the display!");
         break;
       }

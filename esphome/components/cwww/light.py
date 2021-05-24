@@ -26,14 +26,14 @@ CONFIG_SCHEMA = light.RGB_LIGHT_SCHEMA.extend(
 )
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_OUTPUT_ID])
-    yield light.register_light(var, config)
-    cwhite = yield cg.get_variable(config[CONF_COLD_WHITE])
+    await light.register_light(var, config)
+    cwhite = await cg.get_variable(config[CONF_COLD_WHITE])
     cg.add(var.set_cold_white(cwhite))
     cg.add(var.set_cold_white_temperature(config[CONF_COLD_WHITE_COLOR_TEMPERATURE]))
 
-    wwhite = yield cg.get_variable(config[CONF_WARM_WHITE])
+    wwhite = await cg.get_variable(config[CONF_WARM_WHITE])
     cg.add(var.set_warm_white(wwhite))
     cg.add(var.set_warm_white_temperature(config[CONF_WARM_WHITE_COLOR_TEMPERATURE]))
     cg.add(var.set_constant_brightness(config[CONF_CONSTANT_BRIGHTNESS]))
