@@ -40,15 +40,15 @@ from .types import (
         }
     ),
 )
-def light_toggle_to_code(config, action_id, template_arg, args):
-    paren = yield cg.get_variable(config[CONF_ID])
+async def light_toggle_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
     if CONF_TRANSITION_LENGTH in config:
-        template_ = yield cg.templatable(
+        template_ = await cg.templatable(
             config[CONF_TRANSITION_LENGTH], args, cg.uint32
         )
         cg.add(var.set_transition_length(template_))
-    yield var
+    return var
 
 
 LIGHT_CONTROL_ACTION_SCHEMA = cv.Schema(
@@ -97,42 +97,42 @@ LIGHT_TURN_ON_ACTION_SCHEMA = automation.maybe_simple_id(
 @automation.register_action(
     "light.control", LightControlAction, LIGHT_CONTROL_ACTION_SCHEMA
 )
-def light_control_to_code(config, action_id, template_arg, args):
-    paren = yield cg.get_variable(config[CONF_ID])
+async def light_control_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
     if CONF_STATE in config:
-        template_ = yield cg.templatable(config[CONF_STATE], args, bool)
+        template_ = await cg.templatable(config[CONF_STATE], args, bool)
         cg.add(var.set_state(template_))
     if CONF_TRANSITION_LENGTH in config:
-        template_ = yield cg.templatable(
+        template_ = await cg.templatable(
             config[CONF_TRANSITION_LENGTH], args, cg.uint32
         )
         cg.add(var.set_transition_length(template_))
     if CONF_FLASH_LENGTH in config:
-        template_ = yield cg.templatable(config[CONF_FLASH_LENGTH], args, cg.uint32)
+        template_ = await cg.templatable(config[CONF_FLASH_LENGTH], args, cg.uint32)
         cg.add(var.set_flash_length(template_))
     if CONF_BRIGHTNESS in config:
-        template_ = yield cg.templatable(config[CONF_BRIGHTNESS], args, float)
+        template_ = await cg.templatable(config[CONF_BRIGHTNESS], args, float)
         cg.add(var.set_brightness(template_))
     if CONF_RED in config:
-        template_ = yield cg.templatable(config[CONF_RED], args, float)
+        template_ = await cg.templatable(config[CONF_RED], args, float)
         cg.add(var.set_red(template_))
     if CONF_GREEN in config:
-        template_ = yield cg.templatable(config[CONF_GREEN], args, float)
+        template_ = await cg.templatable(config[CONF_GREEN], args, float)
         cg.add(var.set_green(template_))
     if CONF_BLUE in config:
-        template_ = yield cg.templatable(config[CONF_BLUE], args, float)
+        template_ = await cg.templatable(config[CONF_BLUE], args, float)
         cg.add(var.set_blue(template_))
     if CONF_WHITE in config:
-        template_ = yield cg.templatable(config[CONF_WHITE], args, float)
+        template_ = await cg.templatable(config[CONF_WHITE], args, float)
         cg.add(var.set_white(template_))
     if CONF_COLOR_TEMPERATURE in config:
-        template_ = yield cg.templatable(config[CONF_COLOR_TEMPERATURE], args, float)
+        template_ = await cg.templatable(config[CONF_COLOR_TEMPERATURE], args, float)
         cg.add(var.set_color_temperature(template_))
     if CONF_EFFECT in config:
-        template_ = yield cg.templatable(config[CONF_EFFECT], args, cg.std_string)
+        template_ = await cg.templatable(config[CONF_EFFECT], args, cg.std_string)
         cg.add(var.set_effect(template_))
-    yield var
+    return var
 
 
 CONF_RELATIVE_BRIGHTNESS = "relative_brightness"
@@ -152,15 +152,15 @@ LIGHT_DIM_RELATIVE_ACTION_SCHEMA = cv.Schema(
 @automation.register_action(
     "light.dim_relative", DimRelativeAction, LIGHT_DIM_RELATIVE_ACTION_SCHEMA
 )
-def light_dim_relative_to_code(config, action_id, template_arg, args):
-    paren = yield cg.get_variable(config[CONF_ID])
+async def light_dim_relative_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
-    templ = yield cg.templatable(config[CONF_RELATIVE_BRIGHTNESS], args, float)
+    templ = await cg.templatable(config[CONF_RELATIVE_BRIGHTNESS], args, float)
     cg.add(var.set_relative_brightness(templ))
     if CONF_TRANSITION_LENGTH in config:
-        templ = yield cg.templatable(config[CONF_TRANSITION_LENGTH], args, cg.uint32)
+        templ = await cg.templatable(config[CONF_TRANSITION_LENGTH], args, cg.uint32)
         cg.add(var.set_transition_length(templ))
-    yield var
+    return var
 
 
 LIGHT_ADDRESSABLE_SET_ACTION_SCHEMA = cv.Schema(
@@ -179,40 +179,40 @@ LIGHT_ADDRESSABLE_SET_ACTION_SCHEMA = cv.Schema(
 @automation.register_action(
     "light.addressable_set", AddressableSet, LIGHT_ADDRESSABLE_SET_ACTION_SCHEMA
 )
-def light_addressable_set_to_code(config, action_id, template_arg, args):
-    paren = yield cg.get_variable(config[CONF_ID])
+async def light_addressable_set_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
     if CONF_RANGE_FROM in config:
-        templ = yield cg.templatable(config[CONF_RANGE_FROM], args, cg.int32)
+        templ = await cg.templatable(config[CONF_RANGE_FROM], args, cg.int32)
         cg.add(var.set_range_from(templ))
     if CONF_RANGE_TO in config:
-        templ = yield cg.templatable(config[CONF_RANGE_TO], args, cg.int32)
+        templ = await cg.templatable(config[CONF_RANGE_TO], args, cg.int32)
         cg.add(var.set_range_to(templ))
 
     def rgbw_to_exp(x):
         return int(round(x * 255))
 
     if CONF_RED in config:
-        templ = yield cg.templatable(
+        templ = await cg.templatable(
             config[CONF_RED], args, cg.uint8, to_exp=rgbw_to_exp
         )
         cg.add(var.set_red(templ))
     if CONF_GREEN in config:
-        templ = yield cg.templatable(
+        templ = await cg.templatable(
             config[CONF_GREEN], args, cg.uint8, to_exp=rgbw_to_exp
         )
         cg.add(var.set_green(templ))
     if CONF_BLUE in config:
-        templ = yield cg.templatable(
+        templ = await cg.templatable(
             config[CONF_BLUE], args, cg.uint8, to_exp=rgbw_to_exp
         )
         cg.add(var.set_blue(templ))
     if CONF_WHITE in config:
-        templ = yield cg.templatable(
+        templ = await cg.templatable(
             config[CONF_WHITE], args, cg.uint8, to_exp=rgbw_to_exp
         )
         cg.add(var.set_white(templ))
-    yield var
+    return var
 
 
 @automation.register_condition(
@@ -233,6 +233,6 @@ def light_addressable_set_to_code(config, action_id, template_arg, args):
         }
     ),
 )
-def light_is_on_off_to_code(config, condition_id, template_arg, args):
-    paren = yield cg.get_variable(config[CONF_ID])
-    yield cg.new_Pvariable(condition_id, template_arg, paren)
+async def light_is_on_off_to_code(config, condition_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(condition_id, template_arg, paren)

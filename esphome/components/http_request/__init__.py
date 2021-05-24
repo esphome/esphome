@@ -171,28 +171,28 @@ HTTP_REQUEST_SEND_ACTION_SCHEMA = HTTP_REQUEST_ACTION_SCHEMA.extend(
 @automation.register_action(
     "http_request.send", HttpRequestSendAction, HTTP_REQUEST_SEND_ACTION_SCHEMA
 )
-def http_request_action_to_code(config, action_id, template_arg, args):
-    paren = yield cg.get_variable(config[CONF_ID])
+async def http_request_action_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
 
-    template_ = yield cg.templatable(config[CONF_URL], args, cg.std_string)
+    template_ = await cg.templatable(config[CONF_URL], args, cg.std_string)
     cg.add(var.set_url(template_))
     cg.add(var.set_method(config[CONF_METHOD]))
     if CONF_BODY in config:
-        template_ = yield cg.templatable(config[CONF_BODY], args, cg.std_string)
+        template_ = await cg.templatable(config[CONF_BODY], args, cg.std_string)
         cg.add(var.set_body(template_))
     if CONF_JSON in config:
         json_ = config[CONF_JSON]
         if isinstance(json_, Lambda):
             args_ = args + [(cg.JsonObjectRef, "root")]
-            lambda_ = yield cg.process_lambda(json_, args_, return_type=cg.void)
+            lambda_ = await cg.process_lambda(json_, args_, return_type=cg.void)
             cg.add(var.set_json(lambda_))
         else:
             for key in json_:
-                template_ = yield cg.templatable(json_[key], args, cg.std_string)
+                template_ = await cg.templatable(json_[key], args, cg.std_string)
                 cg.add(var.add_json(key, template_))
     for key in config.get(CONF_HEADERS, []):
-        template_ = yield cg.templatable(
+        template_ = await cg.templatable(
             config[CONF_HEADERS][key], args, cg.const_char_ptr
         )
         cg.add(var.add_header(key, template_))
@@ -200,6 +200,6 @@ def http_request_action_to_code(config, action_id, template_arg, args):
     for conf in config.get(CONF_ON_RESPONSE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
         cg.add(var.register_response_trigger(trigger))
-        yield automation.build_automation(trigger, [(int, "status_code")], conf)
+        await automation.build_automation(trigger, [(int, "status_code")], conf)
 
-    yield var
+    return var

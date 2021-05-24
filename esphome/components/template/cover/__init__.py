@@ -111,21 +111,21 @@ async def to_code(config):
         }
     ),
 )
-def cover_template_publish_to_code(config, action_id, template_arg, args):
-    paren = yield cg.get_variable(config[CONF_ID])
+async def cover_template_publish_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
     if CONF_STATE in config:
-        template_ = yield cg.templatable(config[CONF_STATE], args, float)
+        template_ = await cg.templatable(config[CONF_STATE], args, float)
         cg.add(var.set_position(template_))
     if CONF_POSITION in config:
-        template_ = yield cg.templatable(config[CONF_POSITION], args, float)
+        template_ = await cg.templatable(config[CONF_POSITION], args, float)
         cg.add(var.set_position(template_))
     if CONF_TILT in config:
-        template_ = yield cg.templatable(config[CONF_TILT], args, float)
+        template_ = await cg.templatable(config[CONF_TILT], args, float)
         cg.add(var.set_tilt(template_))
     if CONF_CURRENT_OPERATION in config:
-        template_ = yield cg.templatable(
+        template_ = await cg.templatable(
             config[CONF_CURRENT_OPERATION], args, cover.CoverOperation
         )
         cg.add(var.set_current_operation(template_))
-    yield var
+    return var
