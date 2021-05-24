@@ -62,7 +62,7 @@ void SCD30Component::setup() {
   // The start measurement command disables the altitude compensation, if any, so we only set it if it's turned on
   if (this->altitude_compensation_ != 0xFFFF) {
     if (!this->write_command_(SCD30_CMD_ALTITUDE_COMPENSATION, altitude_compensation_)) {
-      ESP_LOGE(TAG, "Sensor SCD30 error starting continuous measurements.");
+      ESP_LOGE(TAG, "Sensor SCD30 error setting altitude compensation.");
       this->error_code_ = MEASUREMENT_INIT_FAILED;
       this->mark_failed();
       return;
