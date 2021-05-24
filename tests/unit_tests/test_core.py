@@ -490,11 +490,15 @@ class TestEsphomeCore:
 
     def test_reset(self, target):
         """Call reset on target and compare to new instance"""
-        other = core.EsphomeCore()
+        other = core.EsphomeCore().__dict__
 
         target.reset()
+        t = target.__dict__
+        # ignore event loop
+        del other["event_loop"]
+        del t["event_loop"]
 
-        assert target.__dict__ == other.__dict__
+        assert t == other
 
     def test_address__none(self, target):
         target.config = {}
@@ -503,13 +507,13 @@ class TestEsphomeCore:
     def test_address__wifi(self, target):
         target.config = {}
         target.config[const.CONF_WIFI] = {const.CONF_USE_ADDRESS: "1.2.3.4"}
-        target.config["ethernet"] = {const.CONF_USE_ADDRESS: "4.3.2.1"}
+        target.config[const.CONF_ETHERNET] = {const.CONF_USE_ADDRESS: "4.3.2.1"}
 
         assert target.address == "1.2.3.4"
 
     def test_address__ethernet(self, target):
         target.config = {}
-        target.config["ethernet"] = {const.CONF_USE_ADDRESS: "4.3.2.1"}
+        target.config[const.CONF_ETHERNET] = {const.CONF_USE_ADDRESS: "4.3.2.1"}
 
         assert target.address == "4.3.2.1"
 

@@ -10,10 +10,11 @@ from esphome.const import (
     CONF_METHOD,
     CONF_ARDUINO_VERSION,
     ARDUINO_VERSION_ESP8266,
+    CONF_TRIGGER_ID,
     CONF_URL,
 )
 from esphome.core import CORE, Lambda
-from esphome.core_config import PLATFORMIO_ESP8266_LUT
+from esphome.core.config import PLATFORMIO_ESP8266_LUT
 
 DEPENDENCIES = ["network"]
 AUTO_LOAD = ["json"]
@@ -23,12 +24,16 @@ HttpRequestComponent = http_request_ns.class_("HttpRequestComponent", cg.Compone
 HttpRequestSendAction = http_request_ns.class_(
     "HttpRequestSendAction", automation.Action
 )
+HttpRequestResponseTrigger = http_request_ns.class_(
+    "HttpRequestResponseTrigger", automation.Trigger
+)
 
 CONF_HEADERS = "headers"
 CONF_USERAGENT = "useragent"
 CONF_BODY = "body"
 CONF_JSON = "json"
 CONF_VERIFY_SSL = "verify_ssl"
+CONF_ON_RESPONSE = "on_response"
 
 
 def validate_framework(config):
@@ -102,11 +107,11 @@ CONFIG_SCHEMA = (
 )
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add(var.set_timeout(config[CONF_TIMEOUT]))
     cg.add(var.set_useragent(config[CONF_USERAGENT]))
-    yield cg.register_component(var, config)
+    await cg.register_component(var, config)
 
 
 HTTP_REQUEST_ACTION_SCHEMA = cv.Schema(
@@ -117,6 +122,9 @@ HTTP_REQUEST_ACTION_SCHEMA = cv.Schema(
             cv.Schema({cv.string: cv.templatable(cv.string)})
         ),
         cv.Optional(CONF_VERIFY_SSL, default=True): cv.boolean,
+        cv.Optional(CONF_ON_RESPONSE): automation.validate_automation(
+            {cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(HttpRequestResponseTrigger)}
+        ),
     }
 ).add_extra(validate_secure_url)
 HTTP_REQUEST_GET_ACTION_SCHEMA = automation.maybe_conf(
@@ -188,5 +196,10 @@ def http_request_action_to_code(config, action_id, template_arg, args):
             config[CONF_HEADERS][key], args, cg.const_char_ptr
         )
         cg.add(var.add_header(key, template_))
+
+    for conf in config.get(CONF_ON_RESPONSE, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
+        cg.add(var.register_response_trigger(trigger))
+        yield automation.build_automation(trigger, [(int, "status_code")], conf)
 
     yield var

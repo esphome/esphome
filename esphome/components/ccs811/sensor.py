@@ -43,22 +43,22 @@ CONFIG_SCHEMA = (
 )
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
-    yield i2c.register_i2c_device(var, config)
+    await cg.register_component(var, config)
+    await i2c.register_i2c_device(var, config)
 
-    sens = yield sensor.new_sensor(config[CONF_ECO2])
+    sens = await sensor.new_sensor(config[CONF_ECO2])
     cg.add(var.set_co2(sens))
-    sens = yield sensor.new_sensor(config[CONF_TVOC])
+    sens = await sensor.new_sensor(config[CONF_TVOC])
     cg.add(var.set_tvoc(sens))
 
     if CONF_BASELINE in config:
         cg.add(var.set_baseline(config[CONF_BASELINE]))
 
     if CONF_TEMPERATURE in config:
-        sens = yield cg.get_variable(config[CONF_TEMPERATURE])
+        sens = await cg.get_variable(config[CONF_TEMPERATURE])
         cg.add(var.set_temperature(sens))
     if CONF_HUMIDITY in config:
-        sens = yield cg.get_variable(config[CONF_HUMIDITY])
+        sens = await cg.get_variable(config[CONF_HUMIDITY])
         cg.add(var.set_humidity(sens))

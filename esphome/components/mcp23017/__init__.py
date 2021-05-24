@@ -23,6 +23,6 @@ CONFIG_SCHEMA = (
 )
 
 
-def to_code(config):
-    var = yield mcp23xxx_base.register_mcp23xxx(config)
-    yield i2c.register_i2c_device(var, config)
+async def to_code(config):
+    var = await mcp23xxx_base.register_mcp23xxx(config)
+    await i2c.register_i2c_device(var, config)

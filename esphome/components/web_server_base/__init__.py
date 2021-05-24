@@ -19,9 +19,9 @@ CONFIG_SCHEMA = cv.Schema(
 
 
 @coroutine_with_priority(65.0)
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
+    await cg.register_component(var, config)
 
     if CORE.is_esp32:
         cg.add_library("FS", None)

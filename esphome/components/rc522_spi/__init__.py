@@ -6,6 +6,7 @@ from esphome.const import CONF_ID
 CODEOWNERS = ["@glmnet"]
 DEPENDENCIES = ["spi"]
 AUTO_LOAD = ["rc522"]
+MULTI_CONF = True
 
 rc522_spi_ns = cg.esphome_ns.namespace("rc522_spi")
 RC522Spi = rc522_spi_ns.class_("RC522Spi", rc522.RC522, spi.SPIDevice)
@@ -19,7 +20,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield rc522.setup_rc522(var, config)
-    yield spi.register_spi_device(var, config)
+    await rc522.setup_rc522(var, config)
+    await spi.register_spi_device(var, config)

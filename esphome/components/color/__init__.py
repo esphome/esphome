@@ -26,7 +26,7 @@ CONFIG_SCHEMA = cv.Schema(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-def to_code(config):
+async def to_code(config):
     r = 0
     if CONF_RED in config:
         r = int(config[CONF_RED] * 255)
@@ -51,7 +51,7 @@ def to_code(config):
     elif CONF_WHITE_INT in config:
         w = config[CONF_WHITE_INT]
 
-    cg.variable(
+    cg.new_variable(
         config[CONF_ID],
         cg.StructInitializer(ColorStruct, ("r", r), ("g", g), ("b", b), ("w", w)),
     )

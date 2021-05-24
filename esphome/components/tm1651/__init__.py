@@ -40,13 +40,13 @@ validate_level = cv.All(cv.int_range(min=0, max=7))
 validate_brightness = cv.enum(TM1651_BRIGHTNESS_OPTIONS, int=True)
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
+    await cg.register_component(var, config)
 
-    clk_pin = yield cg.gpio_pin_expression(config[CONF_CLK_PIN])
+    clk_pin = await cg.gpio_pin_expression(config[CONF_CLK_PIN])
     cg.add(var.set_clk_pin(clk_pin))
-    dio_pin = yield cg.gpio_pin_expression(config[CONF_DIO_PIN])
+    dio_pin = await cg.gpio_pin_expression(config[CONF_DIO_PIN])
     cg.add(var.set_dio_pin(dio_pin))
 
     # https://platformio.org/lib/show/6865/TM1651

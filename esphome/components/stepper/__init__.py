@@ -146,5 +146,5 @@ def stepper_set_speed_to_code(config, action_id, template_arg, args):
 
 
 @coroutine_with_priority(100.0)
-def to_code(config):
+async def to_code(config):
     cg.add_global(stepper_ns.using)

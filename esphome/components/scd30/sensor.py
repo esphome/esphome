@@ -59,10 +59,10 @@ CONFIG_SCHEMA = (
 )
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
-    yield i2c.register_i2c_device(var, config)
+    await cg.register_component(var, config)
+    await i2c.register_i2c_device(var, config)
 
     cg.add(var.set_automatic_self_calibration(config[CONF_AUTOMATIC_SELF_CALIBRATION]))
     if CONF_ALTITUDE_COMPENSATION in config:
@@ -79,13 +79,13 @@ def to_code(config):
         cg.add(var.set_temperature_offset(config[CONF_TEMPERATURE_OFFSET]))
 
     if CONF_CO2 in config:
-        sens = yield sensor.new_sensor(config[CONF_CO2])
+        sens = await sensor.new_sensor(config[CONF_CO2])
         cg.add(var.set_co2_sensor(sens))
 
     if CONF_HUMIDITY in config:
-        sens = yield sensor.new_sensor(config[CONF_HUMIDITY])
+        sens = await sensor.new_sensor(config[CONF_HUMIDITY])
         cg.add(var.set_humidity_sensor(sens))
 
     if CONF_TEMPERATURE in config:
-        sens = yield sensor.new_sensor(config[CONF_TEMPERATURE])
+        sens = await sensor.new_sensor(config[CONF_TEMPERATURE])
         cg.add(var.set_temperature_sensor(sens))
