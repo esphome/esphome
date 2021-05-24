@@ -139,4 +139,4 @@ async def deep_sleep_enter_to_code(config, action_id, template_arg, args):
 )
 async def deep_sleep_prevent_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
-    return await cg.new_Pvariable(action_id, template_arg, paren)
+    return cg.new_Pvariable(action_id, template_arg, paren)

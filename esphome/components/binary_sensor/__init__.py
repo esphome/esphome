@@ -130,7 +130,7 @@ validate_filters = cv.validate_registry("filter", FILTER_REGISTRY)
 
 @FILTER_REGISTRY.register("invert", InvertFilter, {})
 async def invert_filter_to_code(config, filter_id):
-    return await cg.new_Pvariable(filter_id)
+    return cg.new_Pvariable(filter_id)
 
 
 @FILTER_REGISTRY.register(
@@ -210,7 +210,7 @@ async def lambda_filter_to_code(config, filter_id):
     lambda_ = await cg.process_lambda(
         config, [(bool, "x")], return_type=cg.optional.template(bool)
     )
-    return await cg.new_Pvariable(filter_id, lambda_)
+    return cg.new_Pvariable(filter_id, lambda_)
 
 
 MULTI_CLICK_TIMING_SCHEMA = cv.Schema(
@@ -468,7 +468,7 @@ BINARY_SENSOR_CONDITION_SCHEMA = maybe_simple_id(
 )
 async def binary_sensor_is_on_to_code(config, condition_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
-    return await cg.new_Pvariable(condition_id, template_arg, paren, True)
+    return cg.new_Pvariable(condition_id, template_arg, paren, True)
 
 
 @automation.register_condition(
@@ -476,7 +476,7 @@ async def binary_sensor_is_on_to_code(config, condition_id, template_arg, args):
 )
 async def binary_sensor_is_off_to_code(config, condition_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
-    return await cg.new_Pvariable(condition_id, template_arg, paren, False)
+    return cg.new_Pvariable(condition_id, template_arg, paren, False)
 
 
 @coroutine_with_priority(100.0)

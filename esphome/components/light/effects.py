@@ -149,7 +149,7 @@ async def lambda_effect_to_code(config, effect_id):
     },
 )
 async def automation_effect_to_code(config, effect_id):
-    var = await cg.new_Pvariable(effect_id, config[CONF_NAME])
+    var = cg.new_Pvariable(effect_id, config[CONF_NAME])
     await automation.build_automation(var.get_trig(), [], config[CONF_SEQUENCE])
     return var
 
