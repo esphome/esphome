@@ -60,5 +60,5 @@ async def to_code(config):
         var.set_state_save_interval(config[CONF_STATE_SAVE_INTERVAL].total_milliseconds)
     )
 
-    cg.add_define("USING_BSEC")
+    cg.add_define("USE_BSEC")
     cg.add_library("BSEC Software Library", "1.6.1480")

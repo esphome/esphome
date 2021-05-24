@@ -10,7 +10,7 @@ DEPENDENCIES = ["bme680_bsec"]
 CONF_IAQ_ACCURACY = "iaq_accuracy"
 ICON_ACCURACY = "mdi:checkbox-marked-circle-outline"
 
-TYPES = {CONF_IAQ_ACCURACY: "set_iaq_accuracy_text_sensor"}
+TYPES = [CONF_IAQ_ACCURACY]
 
 CONFIG_SCHEMA = cv.Schema(
     {
@@ -26,16 +26,15 @@ CONFIG_SCHEMA = cv.Schema(
 
 
 @coroutine
-def setup_conf(config, key, hub, funcName):
+def setup_conf(config, key, hub):
     if key in config:
         conf = config[key]
-        var = cg.new_Pvariable(conf[CONF_ID])
-        yield text_sensor.register_text_sensor(var, conf)
-        func = getattr(hub, funcName)
-        cg.add(func(var))
+        sens = cg.new_Pvariable(conf[CONF_ID])
+        yield text_sensor.register_text_sensor(sens, conf)
+        cg.add(getattr(hub, f"set_{key}_text_sensor")(sens))
 
 
 async def to_code(config):
     hub = await cg.get_variable(config[CONF_BME680_BSEC_ID])
-    for key, funcName in TYPES.items():
-        await setup_conf(config, key, hub, funcName)
+    for key in TYPES:
+        await setup_conf(config, key, hub)

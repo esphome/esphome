@@ -1,7 +1,14 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import light
-from esphome.const import CONF_FROM, CONF_ID, CONF_SEGMENTS, CONF_TO, CONF_OUTPUT_ID
+from esphome.const import (
+    CONF_FROM,
+    CONF_ID,
+    CONF_SEGMENTS,
+    CONF_TO,
+    CONF_OUTPUT_ID,
+    CONF_REVERSED,
+)
 
 partitions_ns = cg.esphome_ns.namespace("partition")
 AddressableSegment = partitions_ns.class_("AddressableSegment")
@@ -28,6 +35,7 @@ CONFIG_SCHEMA = light.ADDRESSABLE_LIGHT_SCHEMA.extend(
                     cv.Required(CONF_ID): cv.use_id(light.AddressableLightState),
                     cv.Required(CONF_FROM): cv.positive_int,
                     cv.Required(CONF_TO): cv.positive_int,
+                    cv.Optional(CONF_REVERSED, default=False): cv.boolean,
                 },
                 validate_from_to,
             ),
@@ -43,7 +51,10 @@ async def to_code(config):
         var = await cg.get_variable(conf[CONF_ID])
         segments.append(
             AddressableSegment(
-                var, conf[CONF_FROM], conf[CONF_TO] - conf[CONF_FROM] + 1
+                var,
+                conf[CONF_FROM],
+                conf[CONF_TO] - conf[CONF_FROM] + 1,
+                conf[CONF_REVERSED],
             )
         )
 
