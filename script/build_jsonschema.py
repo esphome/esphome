@@ -295,6 +295,9 @@ def get_automation_schema(name, vschema):
     #   * an object with automation's schema and a then key
     #        with again a single action or an array of actions
 
+    if len(extra_jschema[JSC_PROPERTIES]) == 0:
+        return get_ref(SIMPLE_AUTOMATION)
+
     extra_jschema[JSC_PROPERTIES]["then"] = add_definition_array_or_single_object(
         get_ref(JSC_ACTION)
     )
@@ -370,11 +373,13 @@ def get_entry(parent_key, vschema):
         # everything else just accept string and let ESPHome validate
         try:
             from esphome.core import ID
-            from esphome.automation import Trigger
+            from esphome.automation import Trigger, Automation
 
             v = vschema(None)
             if isinstance(v, ID):
-                if v.type.inherits_from(Trigger):
+                if v.type.base != "script::Script" and (
+                    v.type.inherits_from(Trigger) or v.type == Automation
+                ):
                     return None
                 entry = {"type": "string", "id_type": v.type.base}
             elif isinstance(v, str):
@@ -497,9 +502,11 @@ def convert_schema(path, vschema, un_extend=True):
     output = {}
 
     if str(vschema) in ejs.hidden_schemas:
-        # this can get another think twist. When adding this I've already figured out
-        # interval and script in other way
-        if not ejs.hidden_schemas[str(vschema)] == "automation":
+        if ejs.hidden_schemas[str(vschema)] == "automation":
+            vschema = vschema(ejs.jschema_extractor)
+            jschema = get_jschema(path, vschema, True)
+            return add_definition_array_or_single_object(jschema)
+        else:
             vschema = vschema(ejs.jschema_extractor)
 
     if un_extend:
