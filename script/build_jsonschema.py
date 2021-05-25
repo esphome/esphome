@@ -370,9 +370,12 @@ def get_entry(parent_key, vschema):
         # everything else just accept string and let ESPHome validate
         try:
             from esphome.core import ID
+            from esphome.automation import Trigger
 
             v = vschema(None)
             if isinstance(v, ID):
+                if v.type.inherits_from(Trigger):
+                    return None
                 entry = {"type": "string", "id_type": v.type.base}
             elif isinstance(v, str):
                 entry = {"type": "string"}
@@ -496,7 +499,7 @@ def convert_schema(path, vschema, un_extend=True):
     if str(vschema) in ejs.hidden_schemas:
         # this can get another think twist. When adding this I've already figured out
         # interval and script in other way
-        if path not in ["interval", "script"]:
+        if not ejs.hidden_schemas[str(vschema)] == "automation":
             vschema = vschema(ejs.jschema_extractor)
 
     if un_extend:
