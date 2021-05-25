@@ -19,6 +19,7 @@ CODEOWNERS = ["@pvizeli"]
 CONF_SOLUTION = "solution"
 CONF_TEMPERATURE_SENSOR = "temperature_sensor"
 CONF_TEMPERATURE_COMPENSATION = "temperature_compensation"
+CONF_TEMPERATURE_COEFFICIENT = "temperature_coefficient"
 
 ufire_ec_ns = cg.esphome_ns.namespace("ufire_ec")
 UFireECComponent = ufire_ec_ns.class_(
@@ -26,9 +27,10 @@ UFireECComponent = ufire_ec_ns.class_(
 )
 
 # Actions
-UFireISECalibrateProbeAction = ufire_ec_ns.class_(
-    "UFireISECalibrateProbeAction", automation.Action
+UFireECCalibrateProbeAction = ufire_ec_ns.class_(
+    "UFireECCalibrateProbeAction", automation.Action
 )
+UFireECResetAction = ufire_ec_ns.class_("UFireECResetAction", automation.Action)
 
 CONFIG_SCHEMA = (
     cv.Schema(
@@ -42,6 +44,9 @@ CONFIG_SCHEMA = (
             ),
             cv.Optional(CONF_TEMPERATURE_SENSOR): cv.use_id(sensor.Sensor),
             cv.Optional(CONF_TEMPERATURE_COMPENSATION, default=25.0): cv.temperature,
+            cv.Optional(CONF_TEMPERATURE_COEFFICIENT, default=0.019): cv.float_range(
+                min=0.01, max=0.04
+            ),
         }
     )
     .extend(cv.polling_component_schema("60s"))
@@ -53,6 +58,7 @@ def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     yield cg.register_component(var, config)
     cg.add(var.set_temperature_compensation(config[CONF_TEMPERATURE_COMPENSATION]))
+    cg.add(var.set_temperature_coefficient(config[CONF_TEMPERATURE_COEFFICIENT]))
 
     if CONF_TEMPERATURE in config:
         sens = yield sensor.new_sensor(config[CONF_TEMPERATURE])
@@ -69,7 +75,7 @@ def to_code(config):
     yield i2c.register_i2c_device(var, config)
 
 
-UFIRE_ISE_CALIBRATE_PROBE_SCHEMA = cv.Schema(
+UFIRE_EC_CALIBRATE_PROBE_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.use_id(UFireECComponent),
         cv.Required(CONF_SOLUTION): cv.templatable(float),
@@ -80,14 +86,32 @@ UFIRE_ISE_CALIBRATE_PROBE_SCHEMA = cv.Schema(
 
 @automation.register_action(
     "ufire_ec.calibrate_probe",
-    UFireISECalibrateProbeAction,
-    UFIRE_ISE_CALIBRATE_PROBE_SCHEMA,
+    UFireECCalibrateProbeAction,
+    UFIRE_EC_CALIBRATE_PROBE_SCHEMA,
 )
-def ufire_ise_calibrate_probe_to_code(config, action_id, template_arg, args):
+def ufire_ec_calibrate_probe_to_code(config, action_id, template_arg, args):
     paren = yield cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
     solution_ = yield cg.templatable(config[CONF_SOLUTION], args, float)
     temperature_ = yield cg.templatable(config[CONF_TEMPERATURE], args, float)
     cg.add(var.set_solution(solution_))
     cg.add(var.set_temperature(temperature_))
+    yield var
+
+
+UFIRE_EC_RESET_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.use_id(UFireECComponent),
+    }
+)
+
+
+@automation.register_action(
+    "ufire_ec.reset",
+    UFireECResetAction,
+    UFIRE_EC_RESET_SCHEMA,
+)
+def ufire_ec_reset_to_code(config, action_id, template_arg, args):
+    paren = yield cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, paren)
     yield var

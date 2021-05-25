@@ -28,6 +28,7 @@ void UFireECComponent::setup() {
 
   // Update temperature compensation
   this->set_compensation_(this->temperature_compensation_);
+  this->set_coefficient_(this->temperature_coefficient_);
 }
 
 void UFireECComponent::update() {
@@ -62,34 +63,22 @@ float UFireECComponent::measure_temperature_() { return this->read_data_(REGISTE
 float UFireECComponent::measure_ms_() { return this->read_data_(REGISTER_MS); }
 
 void UFireECComponent::set_solution_(float solution, float temperature) {
-  uint8_t temp[4];
-
   solution /= (1 - (PROBE_COEFFICIENT * (temperature - 25)));
-  memcpy(temp, &solution, sizeof(solution));
-  this->write_bytes(REGISTER_SOLUTION, temp, 4);
-  delay(10);
+  this->write_data_(REGISTER_SOLUTION, solution);
 }
 
-void UFireECComponent::set_compensation_(float temperature) {
-  uint8_t temp[4];
+void UFireECComponent::set_compensation_(float temperature) { this->write_data_(REGISTER_COMPENSATION, temperature); }
 
-  memcpy(temp, &temperature, sizeof(temperature));
-  this->write_bytes(REGISTER_COMPENSATION, temp, 4);
-  delay(10);
-}
+void UFireECComponent::set_coefficient_(float coefficient) { this->write_data_(REGISTER_COEFFICENT, coefficient); }
 
-void UFireECComponent::set_temperature_(float temperature) {
-  uint8_t temp[4];
-
-  memcpy(temp, &temperature, sizeof(temperature));
-  this->write_bytes(REGISTER_TEMP, temp, 4);
-  delay(10);
-}
+void UFireECComponent::set_temperature_(float temperature) { this->write_data_(REGISTER_TEMP, temperature); }
 
 void UFireECComponent::calibrate_probe(float solution, float temperature) {
   this->set_solution_(solution, temperature);
   this->write_byte(REGISTER_TASK, COMMAND_CALIBRATE_PROBE);
 }
+
+void UFireECComponent::reset_board() { this->write_data_(REGISTER_CALIBRATE_OFFSET, NAN); }
 
 float UFireECComponent::read_data_(uint8_t reg) {
   float f;
@@ -104,6 +93,14 @@ float UFireECComponent::read_data_(uint8_t reg) {
   memcpy(&f, temp, sizeof(f));
 
   return f;
+}
+
+void UFireECComponent::write_data_(uint8_t reg, float data) {
+  uint8_t temp[4];
+
+  memcpy(temp, &data, sizeof(data));
+  this->write_bytes(reg, temp, 4);
+  delay(10);
 }
 
 void UFireECComponent::dump_config() {}
