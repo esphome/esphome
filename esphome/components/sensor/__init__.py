@@ -48,7 +48,6 @@ from esphome.const import (
     DEVICE_CLASS_TIMESTAMP,
     DEVICE_CLASS_VOLTAGE,
     STATE_CLASS_NONE,
-    STATE_CLASS_MEASUREMENT,
 )
 from esphome.core import CORE, coroutine_with_priority
 from esphome.util import Registry
@@ -202,7 +201,7 @@ def sensor_schema(
     icon_: str,
     accuracy_decimals_: int,
     device_class_: Optional[str] = DEVICE_CLASS_EMPTY,
-    state_class_: Optional[str] = STATE_CLASS_MEASUREMENT,
+    state_class_: Optional[str] = STATE_CLASS_NONE,
 ) -> cv.Schema:
     schema = SENSOR_SCHEMA
     if unit_of_measurement_ != UNIT_EMPTY:
