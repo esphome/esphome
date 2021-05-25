@@ -96,12 +96,8 @@ float UFireISEComponent::measure_ph_(float temperature) {
 }
 
 void UFireISEComponent::set_solution_(float solution) {
-  uint8_t temp[4];
-
   solution = (7 - solution) * PROBE_MV_TO_PH;
-  memcpy(temp, &solution, sizeof(solution));
-  this->write_bytes(REGISTER_SOLUTION, temp, 4);
-  delay(10);
+  this->write_data_(REGISTER_SOLUTION, solution);
 }
 
 void UFireISEComponent::calibrate_probe_low(float solution) {
@@ -112,6 +108,13 @@ void UFireISEComponent::calibrate_probe_low(float solution) {
 void UFireISEComponent::calibrate_probe_high(float solution) {
   this->set_solution_(solution);
   this->write_byte(REGISTER_TASK, COMMAND_CALIBRATE_HIGH);
+}
+
+void UFireISEComponent::reset_board() {
+  this->write_data_(REGISTER_REFHIGH, NAN);
+  this->write_data_(REGISTER_REFLOW, NAN);
+  this->write_data_(REGISTER_READHIGH, NAN);
+  this->write_data_(REGISTER_READLOW, NAN);
 }
 
 float UFireISEComponent::read_data_(uint8_t reg) {
@@ -127,6 +130,14 @@ float UFireISEComponent::read_data_(uint8_t reg) {
   memcpy(&f, temp, sizeof(f));
 
   return f;
+}
+
+void UFireISEComponent::write_data_(uint8_t reg, float data) {
+  uint8_t temp[4];
+
+  memcpy(temp, &data, sizeof(data));
+  this->write_bytes(reg, temp, 4);
+  delay(10);
 }
 
 void UFireISEComponent::dump_config() {}

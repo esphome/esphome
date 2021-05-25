@@ -16,6 +16,10 @@ static const uint8_t CONFIG_TEMP_COMPENSATION = 0x02;
 static const uint8_t REGISTER_VERSION = 0;
 static const uint8_t REGISTER_MV = 1;
 static const uint8_t REGISTER_TEMP = 5;
+static const uint8_t REGISTER_REFHIGH = 13;
+static const uint8_t REGISTER_REFLOW = 17;
+static const uint8_t REGISTER_READHIGH = 21;
+static const uint8_t REGISTER_READLOW = 25;
 static const uint8_t REGISTER_SOLUTION = 29;
 static const uint8_t REGISTER_CONFIG = 38;
 static const uint8_t REGISTER_TASK = 39;
@@ -38,6 +42,7 @@ class UFireISEComponent : public PollingComponent, public i2c::I2CDevice {
   void set_ph_sensor(sensor::Sensor *ph_sensor) { this->ph_sensor_ = ph_sensor; }
   void calibrate_probe_low(float solution);
   void calibrate_probe_high(float solution);
+  void reset_board();
 
  protected:
   float measure_temperature_();
@@ -45,6 +50,7 @@ class UFireISEComponent : public PollingComponent, public i2c::I2CDevice {
   float measure_ph_(float temperature);
   void set_solution_(float solution);
   float read_data_(uint8_t reg);
+  void write_data_(uint8_t reg, float data);
   void update_internal_();
 
   sensor::Sensor *temperature_sensor_{nullptr};
@@ -69,6 +75,16 @@ template<typename... Ts> class UFireISECalibrateProbeHighAction : public Action<
   TEMPLATABLE_VALUE(float, solution)
 
   void play(Ts... x) override { this->parent_->calibrate_probe_high(this->solution_.value(x...)); }
+
+ protected:
+  UFireISEComponent *parent_;
+};
+
+template<typename... Ts> class UFireISEResetAction : public Action<Ts...> {
+ public:
+  UFireISEResetAction(UFireISEComponent *parent) : parent_(parent) {}
+
+  void play(Ts... x) override { this->parent_->reset_board(); }
 
  protected:
   UFireISEComponent *parent_;

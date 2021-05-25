@@ -31,6 +31,7 @@ UFireISECalibrateProbeLowAction = ufire_ise_ns.class_(
 UFireISECalibrateProbeHighAction = ufire_ise_ns.class_(
     "UFireISECalibrateProbeHighAction", automation.Action
 )
+UFireISEResetAction = ufire_ise_ns.class_("UFireISEResetAction", automation.Action)
 
 CONFIG_SCHEMA = (
     cv.Schema(
@@ -100,4 +101,18 @@ def ufire_ise_calibrate_probe_high_to_code(config, action_id, template_arg, args
     var = cg.new_Pvariable(action_id, template_arg, paren)
     template_ = yield cg.templatable(config[CONF_SOLUTION], args, float)
     cg.add(var.set_solution(template_))
+    yield var
+
+
+UFIRE_ISE_RESET_SCHEMA = cv.Schema({cv.GenerateID(): cv.use_id(UFireISEComponent)})
+
+
+@automation.register_action(
+    "ufire_ise.reset",
+    UFireISEResetAction,
+    UFIRE_ISE_RESET_SCHEMA,
+)
+def ufire_ise_reset_to_code(config, action_id, template_arg, args):
+    paren = yield cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, paren)
     yield var
