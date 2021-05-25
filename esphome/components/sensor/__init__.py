@@ -22,6 +22,7 @@ from esphome.const import (
     CONF_ON_VALUE_RANGE,
     CONF_SEND_EVERY,
     CONF_SEND_FIRST_AT,
+    CONF_STATE_CLASS,
     CONF_TO,
     CONF_TRIGGER_ID,
     CONF_UNIT_OF_MEASUREMENT,
@@ -46,6 +47,8 @@ from esphome.const import (
     DEVICE_CLASS_PRESSURE,
     DEVICE_CLASS_TIMESTAMP,
     DEVICE_CLASS_VOLTAGE,
+    STATE_CLASS_NONE,
+    STATE_CLASS_MEASUREMENT,
 )
 from esphome.core import CORE, coroutine_with_priority
 from esphome.util import Registry
@@ -68,6 +71,14 @@ DEVICE_CLASSES = [
     DEVICE_CLASS_PRESSURE,
     DEVICE_CLASS_VOLTAGE,
 ]
+
+sensor_ns = cg.esphome_ns.namespace("sensor")
+StateClasses = sensor_ns.enum("StateClass")
+STATE_CLASSES = {
+    "": StateClasses.STATE_CLASS_NONE,
+    "measurement": StateClasses.STATE_CLASS_MEASUREMENT,
+}
+validate_state_class = cv.enum(STATE_CLASSES, lower=True, space="_")
 
 IS_PLATFORM_COMPONENT = True
 
@@ -157,6 +168,7 @@ SENSOR_SCHEMA = cv.MQTT_COMPONENT_SCHEMA.extend(
         cv.Optional(CONF_ICON): icon,
         cv.Optional(CONF_ACCURACY_DECIMALS): accuracy_decimals,
         cv.Optional(CONF_DEVICE_CLASS): device_class,
+        cv.Optional(CONF_STATE_CLASS): validate_state_class,
         cv.Optional(CONF_FORCE_UPDATE, default=False): cv.boolean,
         cv.Optional(CONF_EXPIRE_AFTER): cv.All(
             cv.requires_component("mqtt"),
@@ -190,6 +202,7 @@ def sensor_schema(
     icon_: str,
     accuracy_decimals_: int,
     device_class_: Optional[str] = DEVICE_CLASS_EMPTY,
+    state_class_: Optional[str] = STATE_CLASS_MEASUREMENT,
 ) -> cv.Schema:
     schema = SENSOR_SCHEMA
     if unit_of_measurement_ != UNIT_EMPTY:
@@ -213,6 +226,10 @@ def sensor_schema(
     if device_class_ != DEVICE_CLASS_EMPTY:
         schema = schema.extend(
             {cv.Optional(CONF_DEVICE_CLASS, default=device_class_): device_class}
+        )
+    if state_class_ != STATE_CLASS_NONE:
+        schema = schema.extend(
+            {cv.Optional(CONF_STATE_CLASS, default=state_class_): validate_state_class}
         )
     return schema
 
@@ -455,6 +472,8 @@ async def setup_sensor_core_(var, config):
         cg.add(var.set_internal(config[CONF_INTERNAL]))
     if CONF_DEVICE_CLASS in config:
         cg.add(var.set_device_class(config[CONF_DEVICE_CLASS]))
+    if CONF_STATE_CLASS in config:
+        cg.add(var.set_state_class(config[CONF_STATE_CLASS]))
     if CONF_UNIT_OF_MEASUREMENT in config:
         cg.add(var.set_unit_of_measurement(config[CONF_UNIT_OF_MEASUREMENT]))
     if CONF_ICON in config:

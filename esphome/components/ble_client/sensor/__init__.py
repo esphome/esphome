@@ -5,6 +5,7 @@ from esphome.const import (
     DEVICE_CLASS_EMPTY,
     CONF_ID,
     CONF_LAMBDA,
+    STATE_CLASS_NONE,
     UNIT_EMPTY,
     ICON_EMPTY,
     CONF_TRIGGER_ID,
@@ -32,7 +33,9 @@ BLESensorNotifyTrigger = ble_client_ns.class_(
 )
 
 CONFIG_SCHEMA = cv.All(
-    sensor.sensor_schema(UNIT_EMPTY, ICON_EMPTY, 0, DEVICE_CLASS_EMPTY)
+    sensor.sensor_schema(
+        UNIT_EMPTY, ICON_EMPTY, 0, DEVICE_CLASS_EMPTY, STATE_CLASS_NONE
+    )
     .extend(
         {
             cv.GenerateID(): cv.declare_id(BLESensor),

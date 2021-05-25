@@ -62,6 +62,16 @@ template<> const char *proto_enum_to_string<enums::FanDirection>(enums::FanDirec
       return "UNKNOWN";
   }
 }
+template<> const char *proto_enum_to_string<enums::SensorStateClass>(enums::SensorStateClass value) {
+  switch (value) {
+    case enums::STATE_CLASS_NONE:
+      return "STATE_CLASS_NONE";
+    case enums::STATE_CLASS_MEASUREMENT:
+      return "STATE_CLASS_MEASUREMENT";
+    default:
+      return "UNKNOWN";
+  }
+}
 template<> const char *proto_enum_to_string<enums::LogLevel>(enums::LogLevel value) {
   switch (value) {
     case enums::LOG_LEVEL_NONE:
@@ -1507,6 +1517,10 @@ bool ListEntitiesSensorResponse::decode_varint(uint32_t field_id, ProtoVarInt va
       this->force_update = value.as_bool();
       return true;
     }
+    case 10: {
+      this->state_class = value.as_enum<enums::SensorStateClass>();
+      return true;
+    }
     default:
       return false;
   }
@@ -1561,6 +1575,7 @@ void ListEntitiesSensorResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_int32(7, this->accuracy_decimals);
   buffer.encode_bool(8, this->force_update);
   buffer.encode_string(9, this->device_class);
+  buffer.encode_enum<enums::SensorStateClass>(10, this->state_class);
 }
 void ListEntitiesSensorResponse::dump_to(std::string &out) const {
   char buffer[64];
@@ -1601,6 +1616,10 @@ void ListEntitiesSensorResponse::dump_to(std::string &out) const {
 
   out.append("  device_class: ");
   out.append("'").append(this->device_class).append("'");
+  out.append("\n");
+
+  out.append("  state_class: ");
+  out.append(proto_enum_to_string<enums::SensorStateClass>(this->state_class));
   out.append("\n");
   out.append("}");
 }
