@@ -83,6 +83,6 @@ CALIBRATION_ACTION_SCHEMA = maybe_simple_id(
 @automation.register_action(
     "senseair.abc_get_period", SenseAirABCGetPeriodAction, CALIBRATION_ACTION_SCHEMA
 )
-def senseair_action_to_code(config, action_id, template_arg, args):
-    paren = yield cg.get_variable(config[CONF_ID])
-    yield cg.new_Pvariable(action_id, template_arg, paren)
+async def senseair_action_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(action_id, template_arg, paren)

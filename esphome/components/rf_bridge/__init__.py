@@ -116,28 +116,28 @@ RFBRIDGE_SEND_CODE_SCHEMA = cv.Schema(
 @automation.register_action(
     "rf_bridge.send_code", RFBridgeSendCodeAction, RFBRIDGE_SEND_CODE_SCHEMA
 )
-def rf_bridge_send_code_to_code(config, action_id, template_args, args):
-    paren = yield cg.get_variable(config[CONF_ID])
+async def rf_bridge_send_code_to_code(config, action_id, template_args, args):
+    paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_args, paren)
-    template_ = yield cg.templatable(config[CONF_SYNC], args, cg.uint16)
+    template_ = await cg.templatable(config[CONF_SYNC], args, cg.uint16)
     cg.add(var.set_sync(template_))
-    template_ = yield cg.templatable(config[CONF_LOW], args, cg.uint16)
+    template_ = await cg.templatable(config[CONF_LOW], args, cg.uint16)
     cg.add(var.set_low(template_))
-    template_ = yield cg.templatable(config[CONF_HIGH], args, cg.uint16)
+    template_ = await cg.templatable(config[CONF_HIGH], args, cg.uint16)
     cg.add(var.set_high(template_))
-    template_ = yield cg.templatable(config[CONF_CODE], args, cg.uint32)
+    template_ = await cg.templatable(config[CONF_CODE], args, cg.uint32)
     cg.add(var.set_code(template_))
-    yield var
+    return var
 
 
 RFBRIDGE_ID_SCHEMA = cv.Schema({cv.GenerateID(): cv.use_id(RFBridgeComponent)})
 
 
 @automation.register_action("rf_bridge.learn", RFBridgeLearnAction, RFBRIDGE_ID_SCHEMA)
-def rf_bridge_learnx_to_code(config, action_id, template_args, args):
-    paren = yield cg.get_variable(config[CONF_ID])
+async def rf_bridge_learnx_to_code(config, action_id, template_args, args):
+    paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_args, paren)
-    yield var
+    return var
 
 
 @automation.register_action(
@@ -145,10 +145,12 @@ def rf_bridge_learnx_to_code(config, action_id, template_args, args):
     RFBridgeStartAdvancedSniffingAction,
     RFBRIDGE_ID_SCHEMA,
 )
-def rf_bridge_start_advanced_sniffing_to_code(config, action_id, template_args, args):
-    paren = yield cg.get_variable(config[CONF_ID])
+async def rf_bridge_start_advanced_sniffing_to_code(
+    config, action_id, template_args, args
+):
+    paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_args, paren)
-    yield var
+    return var
 
 
 @automation.register_action(
@@ -156,10 +158,12 @@ def rf_bridge_start_advanced_sniffing_to_code(config, action_id, template_args, 
     RFBridgeStopAdvancedSniffingAction,
     RFBRIDGE_ID_SCHEMA,
 )
-def rf_bridge_stop_advanced_sniffing_to_code(config, action_id, template_args, args):
-    paren = yield cg.get_variable(config[CONF_ID])
+async def rf_bridge_stop_advanced_sniffing_to_code(
+    config, action_id, template_args, args
+):
+    paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_args, paren)
-    yield var
+    return var
 
 
 @automation.register_action(
@@ -167,10 +171,10 @@ def rf_bridge_stop_advanced_sniffing_to_code(config, action_id, template_args, a
     RFBridgeStartBucketSniffingAction,
     RFBRIDGE_ID_SCHEMA,
 )
-def rf_bridge_start_bucket_sniffing_to_code(config, action_id, template_args, args):
-    paren = yield cg.get_variable(config[CONF_ID])
+async def rf_bridge_start_bucket_sniffing_to_code(config, action_id, template_args, args):
+    paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_args, paren)
-    yield var
+    return var
 
 
 RFBRIDGE_SEND_ADVANCED_CODE_SCHEMA = cv.Schema(
@@ -188,16 +192,16 @@ RFBRIDGE_SEND_ADVANCED_CODE_SCHEMA = cv.Schema(
     RFBridgeSendAdvancedCodeAction,
     RFBRIDGE_SEND_ADVANCED_CODE_SCHEMA,
 )
-def rf_bridge_send_advanced_code_to_code(config, action_id, template_args, args):
-    paren = yield cg.get_variable(config[CONF_ID])
+async def rf_bridge_send_advanced_code_to_code(config, action_id, template_args, args):
+    paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_args, paren)
-    template_ = yield cg.templatable(config[CONF_LENGTH], args, cg.uint16)
+    template_ = await cg.templatable(config[CONF_LENGTH], args, cg.uint16)
     cg.add(var.set_length(template_))
-    template_ = yield cg.templatable(config[CONF_PROTOCOL], args, cg.uint16)
+    template_ = await cg.templatable(config[CONF_PROTOCOL], args, cg.uint16)
     cg.add(var.set_protocol(template_))
-    template_ = yield cg.templatable(config[CONF_CODE], args, cg.std_string)
+    template_ = await cg.templatable(config[CONF_CODE], args, cg.std_string)
     cg.add(var.set_code(template_))
-    yield var
+    return var
 
 
 RFBRIDGE_SEND_RAW_SCHEMA = cv.Schema(
@@ -211,12 +215,12 @@ RFBRIDGE_SEND_RAW_SCHEMA = cv.Schema(
 @automation.register_action(
     "rf_bridge.send_raw", RFBridgeSendRawAction, RFBRIDGE_SEND_RAW_SCHEMA
 )
-def rf_bridge_send_raw_to_code(config, action_id, template_args, args):
-    paren = yield cg.get_variable(config[CONF_ID])
+async def rf_bridge_send_raw_to_code(config, action_id, template_args, args):
+    paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_args, paren)
-    template_ = yield cg.templatable(config[CONF_RAW], args, cg.std_string)
+    template_ = await cg.templatable(config[CONF_RAW], args, cg.std_string)
     cg.add(var.set_raw(template_))
-    yield var
+    return var
 
 
 RFBRIDGE_BEEP_SCHEMA = cv.Schema(
@@ -228,9 +232,9 @@ RFBRIDGE_BEEP_SCHEMA = cv.Schema(
 
 
 @automation.register_action("rf_bridge.beep", RFBridgeBeepAction, RFBRIDGE_BEEP_SCHEMA)
-def rf_bridge_beep_to_code(config, action_id, template_args, args):
-    paren = yield cg.get_variable(config[CONF_ID])
+async def rf_bridge_beep_to_code(config, action_id, template_args, args):
+    paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_args, paren)
-    template_ = yield cg.templatable(config[CONF_DURATION], args, cg.uint16)
+    template_ = await cg.templatable(config[CONF_DURATION], args, cg.uint16)
     cg.add(var.set_duration(template_))
-    yield var
+    return var

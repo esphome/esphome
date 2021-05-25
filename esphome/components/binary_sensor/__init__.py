@@ -129,35 +129,35 @@ validate_filters = cv.validate_registry("filter", FILTER_REGISTRY)
 
 
 @FILTER_REGISTRY.register("invert", InvertFilter, {})
-def invert_filter_to_code(config, filter_id):
-    yield cg.new_Pvariable(filter_id)
+async def invert_filter_to_code(config, filter_id):
+    return cg.new_Pvariable(filter_id)
 
 
 @FILTER_REGISTRY.register(
     "delayed_on_off", DelayedOnOffFilter, cv.positive_time_period_milliseconds
 )
-def delayed_on_off_filter_to_code(config, filter_id):
+async def delayed_on_off_filter_to_code(config, filter_id):
     var = cg.new_Pvariable(filter_id, config)
-    yield cg.register_component(var, {})
-    yield var
+    await cg.register_component(var, {})
+    return var
 
 
 @FILTER_REGISTRY.register(
     "delayed_on", DelayedOnFilter, cv.positive_time_period_milliseconds
 )
-def delayed_on_filter_to_code(config, filter_id):
+async def delayed_on_filter_to_code(config, filter_id):
     var = cg.new_Pvariable(filter_id, config)
-    yield cg.register_component(var, {})
-    yield var
+    await cg.register_component(var, {})
+    return var
 
 
 @FILTER_REGISTRY.register(
     "delayed_off", DelayedOffFilter, cv.positive_time_period_milliseconds
 )
-def delayed_off_filter_to_code(config, filter_id):
+async def delayed_off_filter_to_code(config, filter_id):
     var = cg.new_Pvariable(filter_id, config)
-    yield cg.register_component(var, {})
-    yield var
+    await cg.register_component(var, {})
+    return var
 
 
 CONF_TIME_OFF = "time_off"
@@ -187,7 +187,7 @@ DEFAULT_TIME_ON = "900ms"
         ),
     ),
 )
-def autorepeat_filter_to_code(config, filter_id):
+async def autorepeat_filter_to_code(config, filter_id):
     timings = []
     if len(config) > 0:
         for conf in config:
@@ -201,16 +201,16 @@ def autorepeat_filter_to_code(config, filter_id):
             )
         )
     var = cg.new_Pvariable(filter_id, timings)
-    yield cg.register_component(var, {})
-    yield var
+    await cg.register_component(var, {})
+    return var
 
 
 @FILTER_REGISTRY.register("lambda", LambdaFilter, cv.returning_lambda)
-def lambda_filter_to_code(config, filter_id):
-    lambda_ = yield cg.process_lambda(
+async def lambda_filter_to_code(config, filter_id):
+    lambda_ = await cg.process_lambda(
         config, [(bool, "x")], return_type=cg.optional.template(bool)
     )
-    yield cg.new_Pvariable(filter_id, lambda_)
+    return cg.new_Pvariable(filter_id, lambda_)
 
 
 MULTI_CLICK_TIMING_SCHEMA = cv.Schema(
@@ -466,17 +466,17 @@ BINARY_SENSOR_CONDITION_SCHEMA = maybe_simple_id(
 @automation.register_condition(
     "binary_sensor.is_on", BinarySensorCondition, BINARY_SENSOR_CONDITION_SCHEMA
 )
-def binary_sensor_is_on_to_code(config, condition_id, template_arg, args):
-    paren = yield cg.get_variable(config[CONF_ID])
-    yield cg.new_Pvariable(condition_id, template_arg, paren, True)
+async def binary_sensor_is_on_to_code(config, condition_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(condition_id, template_arg, paren, True)
 
 
 @automation.register_condition(
     "binary_sensor.is_off", BinarySensorCondition, BINARY_SENSOR_CONDITION_SCHEMA
 )
-def binary_sensor_is_off_to_code(config, condition_id, template_arg, args):
-    paren = yield cg.get_variable(config[CONF_ID])
-    yield cg.new_Pvariable(condition_id, template_arg, paren, False)
+async def binary_sensor_is_off_to_code(config, condition_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(condition_id, template_arg, paren, False)
 
 
 @coroutine_with_priority(100.0)

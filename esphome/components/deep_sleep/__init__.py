@@ -125,18 +125,18 @@ DEEP_SLEEP_PREVENT_SCHEMA = automation.maybe_simple_id(
 @automation.register_action(
     "deep_sleep.enter", EnterDeepSleepAction, DEEP_SLEEP_ENTER_SCHEMA
 )
-def deep_sleep_enter_to_code(config, action_id, template_arg, args):
-    paren = yield cg.get_variable(config[CONF_ID])
+async def deep_sleep_enter_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
     if CONF_SLEEP_DURATION in config:
-        template_ = yield cg.templatable(config[CONF_SLEEP_DURATION], args, cg.int32)
+        template_ = await cg.templatable(config[CONF_SLEEP_DURATION], args, cg.int32)
         cg.add(var.set_sleep_duration(template_))
-    yield var
+    return var
 
 
 @automation.register_action(
     "deep_sleep.prevent", PreventDeepSleepAction, DEEP_SLEEP_PREVENT_SCHEMA
 )
-def deep_sleep_prevent_to_code(config, action_id, template_arg, args):
-    paren = yield cg.get_variable(config[CONF_ID])
-    yield cg.new_Pvariable(action_id, template_arg, paren)
+async def deep_sleep_prevent_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(action_id, template_arg, paren)
