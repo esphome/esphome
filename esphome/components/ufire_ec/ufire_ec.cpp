@@ -37,8 +37,7 @@ void UFireECComponent::update() {
     this->write_byte(REGISTER_TASK, COMMAND_MEASURE_TEMP);
     wait += 750;
   } else if (this->temperature_sensor_external_ != nullptr) {
-    float temperature = this->temperature_sensor_external_->get_state();
-    this->set_temperature_(temperature);
+    this->set_temperature_(this->temperature_sensor_external_->state);
   }
 
   if (this->ec_sensor_ != nullptr) {

@@ -59,9 +59,6 @@ template<typename... Ts> class UFireISECalibrateProbeAction : public Action<Ts..
   TEMPLATABLE_VALUE(float, solution)
   TEMPLATABLE_VALUE(float, temperature)
 
-  void set_temperature_sensor(sensor::Sensor *temperature_sensor) {
-    this->set_temperature(temperature_sensor->get_state());
-  }
   void play(Ts... x) override {
     this->parent_->calibrate_probe(this->solution_.value(x...), this->temperature_.value(x...));
   }
