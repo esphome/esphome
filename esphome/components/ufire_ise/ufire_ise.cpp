@@ -54,7 +54,7 @@ void UFireISEComponent::update_internal_() {
   }
   // Get temperature from external only for adjustments
   else if (this->temperature_sensor_external_ != nullptr) {
-    temperature = this->temperature_sensor_external_->get_state();
+    temperature = this->temperature_sensor_external_->state;
   }
 
   if (this->ph_sensor_ != nullptr) {
