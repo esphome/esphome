@@ -174,13 +174,13 @@ async def climate_control_to_code(config, action_id, template_arg, args):
         template_ = await cg.templatable(config[CONF_FAN_MODE], args, ClimateFanMode)
         cg.add(var.set_fan_mode(template_))
     if CONF_CUSTOM_FAN_MODE in config:
-        template_ = yield cg.templatable(config[CONF_CUSTOM_FAN_MODE], args, str)
+        template_ = await cg.templatable(config[CONF_CUSTOM_FAN_MODE], args, str)
         cg.add(var.set_custom_fan_mode(template_))
     if CONF_PRESET in config:
-        template_ = yield cg.templatable(config[CONF_PRESET], args, ClimatePreset)
+        template_ = await cg.templatable(config[CONF_PRESET], args, ClimatePreset)
         cg.add(var.set_preset(template_))
     if CONF_CUSTOM_PRESET in config:
-        template_ = yield cg.templatable(config[CONF_CUSTOM_PRESET], args, str)
+        template_ = await cg.templatable(config[CONF_CUSTOM_PRESET], args, str)
         cg.add(var.set_custom_preset(template_))
     if CONF_SWING_MODE in config:
         template_ = await cg.templatable(
