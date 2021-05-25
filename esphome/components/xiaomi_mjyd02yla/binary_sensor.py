@@ -12,6 +12,8 @@ from esphome.const import (
     DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_ILLUMINANCE,
     ICON_EMPTY,
+    STATE_CLASS_MEASUREMENT,
+    STATE_CLASS_NONE,
     UNIT_PERCENT,
     CONF_IDLE_TIME,
     CONF_ILLUMINANCE,
@@ -41,13 +43,21 @@ CONFIG_SCHEMA = cv.All(
                 CONF_DEVICE_CLASS, default="motion"
             ): binary_sensor.device_class,
             cv.Optional(CONF_IDLE_TIME): sensor.sensor_schema(
-                UNIT_MINUTE, ICON_TIMELAPSE, 0, DEVICE_CLASS_EMPTY
+                UNIT_MINUTE, ICON_TIMELAPSE, 0, DEVICE_CLASS_EMPTY, STATE_CLASS_NONE
             ),
             cv.Optional(CONF_BATTERY_LEVEL): sensor.sensor_schema(
-                UNIT_PERCENT, ICON_EMPTY, 0, DEVICE_CLASS_BATTERY
+                UNIT_PERCENT,
+                ICON_EMPTY,
+                0,
+                DEVICE_CLASS_BATTERY,
+                STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_ILLUMINANCE): sensor.sensor_schema(
-                UNIT_LUX, ICON_EMPTY, 0, DEVICE_CLASS_ILLUMINANCE
+                UNIT_LUX,
+                ICON_EMPTY,
+                0,
+                DEVICE_CLASS_ILLUMINANCE,
+                STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_LIGHT): binary_sensor.BINARY_SENSOR_SCHEMA.extend(
                 {

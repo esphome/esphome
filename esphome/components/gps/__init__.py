@@ -10,6 +10,7 @@ from esphome.const import (
     CONF_COURSE,
     CONF_ALTITUDE,
     CONF_SATELLITES,
+    STATE_CLASS_MEASUREMENT,
     STATE_CLASS_NONE,
     UNIT_DEGREES,
     UNIT_KILOMETER_PER_HOUR,
@@ -54,7 +55,7 @@ CONFIG_SCHEMA = (
                 UNIT_METER, ICON_EMPTY, 1, DEVICE_CLASS_EMPTY, STATE_CLASS_NONE
             ),
             cv.Optional(CONF_SATELLITES): sensor.sensor_schema(
-                UNIT_EMPTY, ICON_EMPTY, 0, DEVICE_CLASS_EMPTY
+                UNIT_EMPTY, ICON_EMPTY, 0, DEVICE_CLASS_EMPTY, STATE_CLASS_MEASUREMENT
             ),
         }
     )

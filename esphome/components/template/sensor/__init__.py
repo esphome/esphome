@@ -19,7 +19,11 @@ TemplateSensor = template_ns.class_(
 
 CONFIG_SCHEMA = (
     sensor.sensor_schema(
-        UNIT_EMPTY, ICON_EMPTY, 1, DEVICE_CLASS_EMPTY, STATE_CLASS_NONE
+        UNIT_EMPTY,
+        ICON_EMPTY,
+        1,
+        DEVICE_CLASS_EMPTY,
+        STATE_CLASS_NONE,
     )
     .extend(
         {

@@ -10,6 +10,7 @@ from esphome.const import (
     DEVICE_CLASS_HUMIDITY,
     DEVICE_CLASS_TEMPERATURE,
     ICON_EMPTY,
+    STATE_CLASS_MEASUREMENT,
     UNIT_PARTS_PER_MILLION,
     ICON_MOLECULE_CO2,
     UNIT_CELSIUS,
@@ -32,13 +33,25 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(SCD30Component),
             cv.Optional(CONF_CO2): sensor.sensor_schema(
-                UNIT_PARTS_PER_MILLION, ICON_MOLECULE_CO2, 0, DEVICE_CLASS_EMPTY
+                UNIT_PARTS_PER_MILLION,
+                ICON_MOLECULE_CO2,
+                0,
+                DEVICE_CLASS_EMPTY,
+                STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-                UNIT_CELSIUS, ICON_EMPTY, 1, DEVICE_CLASS_TEMPERATURE
+                UNIT_CELSIUS,
+                ICON_EMPTY,
+                1,
+                DEVICE_CLASS_TEMPERATURE,
+                STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(
-                UNIT_PERCENT, ICON_EMPTY, 1, DEVICE_CLASS_HUMIDITY
+                UNIT_PERCENT,
+                ICON_EMPTY,
+                1,
+                DEVICE_CLASS_HUMIDITY,
+                STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_AUTOMATIC_SELF_CALIBRATION, default=True): cv.boolean,
             cv.Optional(CONF_ALTITUDE_COMPENSATION): cv.All(
