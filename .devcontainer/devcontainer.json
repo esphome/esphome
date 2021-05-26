@@ -2,7 +2,9 @@
   "name": "ESPHome Dev",
   "context": "..",
   "dockerFile": "../docker/Dockerfile.dev",
-  "postCreateCommand": "mkdir -p config && pip3 install -e .",
+  "postCreateCommand": [
+    ".devcontainer/post-create"
+  ],
   "runArgs": [
     "--privileged",
     "-e",
@@ -17,12 +19,8 @@
     "redhat.vscode-yaml",
     // cpp
     "ms-vscode.cpptools",
-    "jeff-hykin.better-cpp-syntax",
     // editorconfig
     "editorconfig.editorconfig",
-    // comments and braces
-    "aaron-bond.better-comments",
-    "coenraads.bracket-pair-colorizer-2",
   ],
   "settings": {
     "python.languageServer": "Pylance",
@@ -50,6 +48,9 @@
         "when": "$(basename).py"
       },
       "**/__pycache__": true
+    },
+    "files.associations": {
+      "**/.vscode/*.json": "jsonc"
     },
     "C_Cpp.clang_format_path": "/usr/bin/clang-format-7",
   }
