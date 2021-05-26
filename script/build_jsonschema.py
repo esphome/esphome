@@ -672,6 +672,7 @@ def add_pin_registry():
         internal = definitions[schema_name]
         definitions[schema_name]["additionalItems"] = False
         definitions[f"PIN.{mode}_INTERNAL"] = internal
+        internal[JSC_PROPERTIES]["number"] = {"type": ["number", "string"]}
         schemas = [get_ref(f"PIN.{mode}_INTERNAL")]
         schemas[0]["required"] = ["number"]
         # accept string and object, for internal shorthand pin IO:
