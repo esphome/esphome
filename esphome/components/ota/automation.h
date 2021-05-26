@@ -10,6 +10,28 @@
 namespace esphome {
 namespace ota {
 
+class OTAStateChangeTrigger : public Trigger<std::string> {
+ public:
+  explicit OTAStateChangeTrigger(OTAComponent *parent) {
+    parent->add_on_state_callback([this, parent](OTAState state, float progress, uint8_t error) {
+      if (!parent->is_failed()) {
+        switch (state) {
+          case OTAState::STARTED:
+            return trigger("STARTED");
+          case OTAState::IN_PROGRESS:
+            return trigger("IN_PROGRESS");
+          case OTAState::ERROR:
+            return trigger("ERROR");
+          case OTAState::COMPLETED:
+            return trigger("COMPLETED");
+          default:
+            return "UNKNOWN"
+        }
+      }
+    });
+  }
+};
+
 class OTAStartTrigger : public Trigger<> {
  public:
   explicit OTAStartTrigger(OTAComponent *parent) {

@@ -15,10 +15,12 @@ from esphome.core import CORE, coroutine_with_priority
 CODEOWNERS = ["@esphome/core"]
 DEPENDENCIES = ["network"]
 
+CONF_ON_STATE_CHANGE = "on_state_change"
 CONF_ON_BEGIN = "on_begin"
 CONF_ON_PROGRESS = "on_progress"
 CONF_ON_END = "on_end"
 CONF_ON_ERROR = "on_error"
+CONF_ON_STATE_CHANGE_TRIGGER_ID = "on_state_change_trigger_id"
 CONF_ON_BEGIN_TRIGGER_ID = "on_begin_trigger_id"
 CONF_ON_PROGRESS_TRIGGER_ID = "on_progress_trigger_id"
 CONF_ON_END_TRIGGER_ID = "on_end_trigger_id"
@@ -26,6 +28,9 @@ CONF_ON_ERROR_TRIGGER_ID = "on_error_trigger_id"
 
 ota_ns = cg.esphome_ns.namespace("ota")
 OTAComponent = ota_ns.class_("OTAComponent", cg.Component)
+OTAStateChangeTrigger = ota_ns.class_(
+    "OTAStateChangeTrigger", automation.Trigger.template()
+)
 OTAStartTrigger = ota_ns.class_("OTAStartTrigger", automation.Trigger.template())
 OTAProgressTrigger = ota_ns.class_("OTAProgressTrigger", automation.Trigger.template())
 OTAEndTrigger = ota_ns.class_("OTAEndTrigger", automation.Trigger.template())
@@ -41,6 +46,13 @@ CONFIG_SCHEMA = cv.Schema(
             CONF_REBOOT_TIMEOUT, default="5min"
         ): cv.positive_time_period_milliseconds,
         cv.Optional(CONF_NUM_ATTEMPTS, default="10"): cv.positive_not_null_int,
+        cv.Optional(CONF_ON_STATE_CHANGE): automation.validate_automation(
+            {
+                cv.GenerateID(CONF_ON_STATE_CHANGE_TRIGGER_ID): cv.declare_id(
+                    OTAStateChangeTrigger
+                ),
+            }
+        ),
         cv.Optional(CONF_ON_BEGIN): automation.validate_automation(
             {
                 cv.GenerateID(CONF_ON_BEGIN_TRIGGER_ID): cv.declare_id(OTAStartTrigger),
@@ -87,6 +99,10 @@ async def to_code(config):
         cg.add_library("Hash", None)
 
     use_state_callback = False
+    for conf in config.get(CONF_ON_STATE_CHANGE, []):
+        trigger = cg.new_Pvariable(conf[CONF_ON_STATE_CHANGE_TRIGGER_ID], var)
+        await automation.build_automation(trigger, [(cg.std_string, "state")], conf)
+        use_state_callback = True
     for conf in config.get(CONF_ON_BEGIN, []):
         trigger = cg.new_Pvariable(conf[CONF_ON_BEGIN_TRIGGER_ID], var)
         await automation.build_automation(trigger, [], conf)
