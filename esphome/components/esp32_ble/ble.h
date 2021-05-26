@@ -14,6 +14,12 @@
 namespace esphome {
 namespace esp32_ble {
 
+typedef struct {
+  void *peer_device;
+  bool connected;
+  uint16_t mtu;
+} conn_status_t;
+
 class ESP32BLE : public Component {
  public:
   void setup() override;

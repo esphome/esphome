@@ -1,0 +1,66 @@
+#include "ble_descriptor.h"
+#include "ble_characteristic.h"
+#include "ble_service.h"
+
+#include "esphome/core/log.h"
+
+#ifdef ARDUINO_ARCH_ESP32
+
+namespace esphome {
+namespace esp32_ble {
+
+static const char *TAG = "esp32_ble.descriptor";
+
+BLEDescriptor::BLEDescriptor(ESPBTUUID uuid, uint16_t max_len) {
+  this->uuid_ = uuid;
+  this->value_.attr_len = 0;
+  this->value_.attr_max_len = max_len;
+  this->value_.attr_value = (uint8_t *) malloc(max_len);
+}
+
+BLEDescriptor::~BLEDescriptor() { free(this->value_.attr_value); }
+
+bool BLEDescriptor::do_create(BLECharacteristic *characteristic) {
+  this->characteristic_ = characteristic;
+  esp_attr_control_t control;
+  control.auto_rsp = ESP_GATT_AUTO_RSP;
+
+  esp_bt_uuid_t uuid = this->uuid_.get_uuid();
+  esp_err_t err = esp_ble_gatts_add_char_descr(this->characteristic_->get_service()->get_handle(), &uuid,
+                                               this->permissions_, &this->value_, &control);
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "esp_ble_gatts_add_char_descr failed: %d", err);
+    return false;
+  }
+
+  return true;
+}
+
+void BLEDescriptor::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if,
+                                        esp_ble_gatts_cb_param_t *param) {
+  switch (event) {
+    case ESP_GATTS_ADD_CHAR_DESCR_EVT: {
+      if (this->characteristic_ != nullptr && this->uuid_ == ESPBTUUID::from_uuid(param->add_char_descr.descr_uuid) &&
+          this->characteristic_->get_service()->get_handle() == param->add_char_descr.service_handle &&
+          this->characteristic_ == this->characteristic_->get_service()->get_last_created_characteristic()) {
+        this->handle_ = param->add_char_descr.attr_handle;
+        this->created_ = true;
+      }
+      break;
+    }
+    case ESP_GATTS_WRITE_EVT: {
+      if (this->handle_ == param->write.handle) {
+        this->value_.attr_len = param->write.len;
+        memcpy(this->value_.attr_value, param->write.value, param->write.len);
+      }
+      break;
+    }
+    default:
+      break;
+  }
+}
+
+}  // namespace esp32_ble
+}  // namespace esphome
+
+#endif

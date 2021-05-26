@@ -14,7 +14,7 @@
 namespace esphome {
 namespace esp32_ble {
 
-static const char *TAG = "esp32_ble_server";
+static const char *TAG = "esp32_ble";
 
 void ESP32BLE::setup() {
   global_ble = this;

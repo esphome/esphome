@@ -23,29 +23,34 @@ class BLEService {
   ~BLEService();
   BLECharacteristic *get_characteristic(ESPBTUUID uuid);
   BLECharacteristic *get_characteristic(uint16_t uuid);
+
   BLECharacteristic *create_characteristic(const char *uuid, esp_gatt_char_prop_t properties);
   BLECharacteristic *create_characteristic(const uint8_t *uuid, esp_gatt_char_prop_t properties);
+  BLECharacteristic *create_characteristic(uint16_t uuid, esp_gatt_char_prop_t properties);
   BLECharacteristic *create_characteristic(ESPBTUUID uuid, esp_gatt_char_prop_t properties);
 
   ESPBTUUID get_uuid() { return this->uuid_; }
   BLECharacteristic *get_last_created_characteristic() { return this->last_created_characteristic_; }
   uint16_t get_handle() { return this->handle_; }
 
+  BLEServer *get_server() { return this->server_; }
+
   bool do_create(BLEServer *server);
   void gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if, esp_ble_gatts_cb_param_t *param);
 
   bool pre_start();
   void start();
+  void stop();
 
   bool is_created() { return this->created_; }
   bool is_started() { return this->started_; }
   bool can_start();
-  bool is_errored() { return this->errored_; }
 
  protected:
   bool created_{false};
   bool started_{false};
   bool errored_{false};
+
   std::vector<BLECharacteristic *> characteristics_;
   BLECharacteristic *last_created_characteristic_{nullptr};
   BLEServer *server_;

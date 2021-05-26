@@ -1,6 +1,9 @@
 #pragma once
 
+#include <vector>
+
 #include "ble_uuid.h"
+#include "ble_descriptor.h"
 
 #ifdef ARDUINO_ARCH_ESP32
 
@@ -17,11 +20,20 @@ class BLEService;
 
 class BLECharacteristic {
  public:
-  BLECharacteristic(const ESPBTUUID uuid, esp_gatt_char_prop_t properties) : uuid_(uuid), properties_(properties) {
+  BLECharacteristic(const ESPBTUUID uuid, uint32_t properties) : uuid_(uuid) {
     this->set_value_lock_ = xSemaphoreCreateMutex();
+    this->properties_ = (esp_gatt_char_prop_t) 0;
+
+    this->set_broadcast_property((properties & PROPERTY_BROADCAST) != 0);
+    this->set_indicate_property((properties & PROPERTY_INDICATE) != 0);
+    this->set_notify_property((properties & PROPERTY_NOTIFY) != 0);
+    this->set_read_property((properties & PROPERTY_READ) != 0);
+    this->set_write_property((properties & PROPERTY_WRITE) != 0);
+    this->set_write_no_response_property((properties & PROPERTY_WRITE_NR) != 0);
   }
 
   void set_value(uint8_t *data, size_t length);
+  void set_value(std::vector<uint8_t> value);
   void set_value(std::string value);
   void set_value(uint8_t &data);
   void set_value(uint16_t &data);
@@ -30,11 +42,32 @@ class BLECharacteristic {
   void set_value(float &data);
   void set_value(double &data);
 
+  void set_broadcast_property(bool value);
+  void set_indicate_property(bool value);
+  void set_notify_property(bool value);
+  void set_read_property(bool value);
+  void set_write_property(bool value);
+  void set_write_no_response_property(bool value);
+
+  void notify(bool notification = true);
+
   bool do_create(BLEService *service);
   void gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if, esp_ble_gatts_cb_param_t *param);
 
+  void on_write(const std::function<void(std::vector<uint8_t> &)> &func) { this->on_write_ = func; }
+
+  void add_descriptor(BLEDescriptor *descriptor);
+
+  BLEService *get_service() { return this->service_; }
   ESPBTUUID get_uuid() { return this->uuid_; }
-  bool is_created() { return this->created_; }
+  std::vector<uint8_t> &get_value() { return this->value_; }
+
+  bool is_created() {
+    bool descriptors_created = true;
+    for (auto *descriptor : this->descriptors_)
+      descriptors_created |= descriptor->is_created();
+    return this->created_ && descriptors_created;
+  }
 
   static const uint32_t PROPERTY_READ = 1 << 0;
   static const uint32_t PROPERTY_WRITE = 1 << 1;
@@ -45,12 +78,19 @@ class BLECharacteristic {
 
  protected:
   bool created_{false};
+  bool write_event_{false};
   BLEService *service_;
   ESPBTUUID uuid_;
   esp_gatt_char_prop_t properties_;
-  uint16_t handle_;
-  std::string value_;
+  uint16_t handle_{0xFFFF};
+
+  uint16_t value_read_offset_{0};
+  std::vector<uint8_t> value_;
   SemaphoreHandle_t set_value_lock_;
+
+  std::vector<BLEDescriptor *> descriptors_;
+
+  std::function<void(std::vector<uint8_t> &)> on_write_;
 
   esp_gatt_perm_t permissions_ = ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE;
 };

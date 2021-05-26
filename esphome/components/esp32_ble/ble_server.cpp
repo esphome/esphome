@@ -17,10 +17,10 @@ namespace esp32_ble {
 
 static const char *TAG = "esp32_ble.server";
 
-static const char *DEVICE_INFORMATION_SERVICE_UUID = "180A";
-static const char *MODEL_UUID = "2A24";
-static const char *VERSION_UUID = "2A26";
-static const char *MANUFACTURER_UUID = "2A29";
+static const uint16_t DEVICE_INFORMATION_SERVICE_UUID = 0x180A;
+static const uint16_t MODEL_UUID = 0x2A24;
+static const uint16_t VERSION_UUID = 0x2A26;
+static const uint16_t MANUFACTURER_UUID = 0x2A29;
 
 void BLEServer::setup() {
   if (this->is_failed()) {
@@ -122,22 +122,35 @@ bool BLEServer::create_device_characteristics_() {
       this->device_information_service->create_characteristic(MANUFACTURER_UUID, BLECharacteristic::PROPERTY_READ);
   manufacturer->set_value(this->manufacturer_);
 
-  /*
-BLEAdvertising *advertising = BLEDevice::getAdvertising();
-advertising->setScanResponse(true);
-advertising->setMinPreferred(0x06);
+  BLECharacteristic *testing =
+      this->device_information_service->create_characteristic(0x1234, BLECharacteristic::PROPERTY_WRITE);
 
-BLEDevice::startAdvertising();
- */
+  testing->on_write(
+      [this](std::vector<uint8_t> &data) { ESP_LOGD(TAG, "Received write data: %s", hexencode(data).c_str()); });
+
+  this->advertising_ = new BLEAdvertising();
+  this->advertising_->set_scan_response(true);
+  this->advertising_->set_min_preferred_interval(0x06);
+  this->advertising_->start();
 
   return true;
 }
 
-BLEService *BLEServer::create_service(const uint8_t *uuid) { return this->create_service(ESPBTUUID::from_raw(uuid)); }
-BLEService *BLEServer::create_service(const char *uuid) { return this->create_service(ESPBTUUID::from_raw(uuid)); }
-BLEService *BLEServer::create_service(ESPBTUUID uuid, uint16_t num_handles, uint8_t inst_id) {
+BLEService *BLEServer::create_service(const uint8_t *uuid, bool advertise) {
+  return this->create_service(ESPBTUUID::from_raw(uuid), advertise);
+}
+BLEService *BLEServer::create_service(const char *uuid, bool advertise) {
+  return this->create_service(ESPBTUUID::from_raw(uuid), advertise);
+}
+BLEService *BLEServer::create_service(uint16_t uuid, bool advertise) {
+  return this->create_service(ESPBTUUID::from_uint16(uuid), advertise);
+}
+BLEService *BLEServer::create_service(ESPBTUUID uuid, bool advertise, uint16_t num_handles, uint8_t inst_id) {
   BLEService *service = new BLEService(uuid, num_handles, inst_id);
   this->services_.push_back(service);
+  if (advertise) {
+    this->advertising_->add_service_uuid(uuid);
+  }
   service->do_create(this);
   return service;
 }
@@ -147,11 +160,15 @@ void BLEServer::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t ga
   switch (event) {
     case ESP_GATTS_CONNECT_EVT: {
       ESP_LOGD(TAG, "BLE Client connected");
+      this->add_client_(param->connect.conn_id, (void *) this);
+      this->connected_clients_++;
       break;
     }
     case ESP_GATTS_DISCONNECT_EVT: {
       ESP_LOGD(TAG, "BLE Client disconnected");
-      // Start advertising again?
+      if (this->remove_client_(param->disconnect.conn_id))
+        this->connected_clients_--;
+      this->advertising_->start();
       break;
     }
     case ESP_GATTS_REG_EVT: {

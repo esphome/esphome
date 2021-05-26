@@ -31,6 +31,9 @@ BLECharacteristic *BLEService::create_characteristic(const uint8_t *uuid, esp_ga
 BLECharacteristic *BLEService::create_characteristic(const char *uuid, esp_gatt_char_prop_t properties) {
   return create_characteristic(ESPBTUUID::from_raw(uuid), properties);
 }
+BLECharacteristic *BLEService::create_characteristic(uint16_t uuid, esp_gatt_char_prop_t properties) {
+  return create_characteristic(ESPBTUUID::from_uint16(uuid), properties);
+}
 BLECharacteristic *BLEService::create_characteristic(ESPBTUUID uuid, esp_gatt_char_prop_t properties) {
   BLECharacteristic *characteristic = new BLECharacteristic(uuid, properties);
   this->characteristics_.push_back(characteristic);
@@ -66,9 +69,6 @@ bool BLEService::can_start() {
   bool can = true;
   for (auto *characteristic : this->characteristics_) {
     can &= characteristic->is_created();
-    if (!can) {
-      ESP_LOGW(TAG, "Characteristic not created: %s", characteristic->get_uuid().to_string().c_str());
-    }
   }
   return can;
 }
@@ -78,6 +78,13 @@ void BLEService::start() {
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "esp_ble_gatts_start_service failed: %d", err);
     this->errored_ = true;
+  }
+}
+
+void BLEService::stop() {
+  esp_err_t err = esp_ble_gatts_stop_service(this->handle_);
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "esp_ble_gatts_stop_service failed: %d", err);
   }
 }
 
@@ -95,6 +102,12 @@ void BLEService::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t g
     case ESP_GATTS_START_EVT: {
       if (param->start.service_handle == this->handle_) {
         this->started_ = true;
+      }
+      break;
+    }
+    case ESP_GATTS_STOP_EVT: {
+      if (param->start.service_handle == this->handle_) {
+        this->started_ = false;
       }
       break;
     }
