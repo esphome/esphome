@@ -25,7 +25,11 @@ JSC_DESCRIPTION = "description"
 JSC_ONEOF = "oneOf"
 JSC_PROPERTIES = "properties"
 JSC_REF = "$ref"
-JSC_REQUIRED = "required"
+
+# this should be required, but YAML Language server completion does not work properly if required are specified.
+# still needed for other features / checks
+JSC_REQUIRED = "required_"
+
 SIMPLE_AUTOMATION = "simple_automation"
 
 schema_names = {}
