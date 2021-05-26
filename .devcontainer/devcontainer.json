@@ -3,7 +3,7 @@
   "context": "..",
   "dockerFile": "../docker/Dockerfile.dev",
   "postCreateCommand": [
-    ".devcontainer/post-create"
+    "script/devcontainer-post-create"
   ],
   "runArgs": [
     "--privileged",
