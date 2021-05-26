@@ -25,6 +25,7 @@ JSC_DESCRIPTION = "description"
 JSC_ONEOF = "oneOf"
 JSC_PROPERTIES = "properties"
 JSC_REF = "$ref"
+JSC_REQUIRED = "required"
 SIMPLE_AUTOMATION = "simple_automation"
 
 schema_names = {}
@@ -301,6 +302,11 @@ def get_automation_schema(name, vschema):
     extra_jschema[JSC_PROPERTIES]["then"] = add_definition_array_or_single_object(
         get_ref(JSC_ACTION)
     )
+    # if there is a required element in extra_jschema then this automation does not support
+    # directly a list of actions
+    if JSC_REQUIRED in extra_jschema:
+        return create_ref(name, extra_vschema, extra_jschema)
+
     jschema = add_definition_array_or_single_object(get_ref(JSC_ACTION))
     jschema[JSC_ANYOF].append(extra_jschema)
 
@@ -583,6 +589,7 @@ def convert_schema(path, vschema, un_extend=True):
         return output
 
     props = output[JSC_PROPERTIES] = {}
+    required = []
 
     output["type"] = ["object", "null"]
     if DUMP_COMMENTS:
@@ -625,8 +632,8 @@ def convert_schema(path, vschema, un_extend=True):
             if prop:  # Deprecated (cv.Invalid) properties not added
                 props[str(k)] = prop
                 # TODO: see required, sometimes completions doesn't show up because of this...
-                # if isinstance(k, cv.Required):
-                #     required.append(str(k))
+                if isinstance(k, cv.Required):
+                    required.append(str(k))
                 try:
                     if str(k.default) != "...":
                         default_value = k.default()
@@ -637,6 +644,9 @@ def convert_schema(path, vschema, un_extend=True):
                             prop["default"] = default_value
                 except:
                     pass
+
+    if len(required) > 0:
+        output[JSC_REQUIRED] = required
     return output
 
 
