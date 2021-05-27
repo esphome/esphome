@@ -25,8 +25,12 @@ output:
     pin: GPIO2
     id: built_in_led
 
-esp32_ble_server:
+esp32_ble:
+  server:
+    manufacturer: "ESPHome"
+    model: "Test5"
 
 esp32_improv:
-  activator: io0_button
+  authorizer: io0_button
+  authorized_duration: 1min
   status_indicator: built_in_led
