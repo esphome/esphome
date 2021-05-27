@@ -23,7 +23,7 @@ ESP32ImprovComponent = esp32_improv_ns.class_(
 
 
 def validate_none_(value):
-    if value == "none" or value == "None":
+    if value in ("none", "None"):
         return None
     if cv.boolean(value) is False:
         return None
