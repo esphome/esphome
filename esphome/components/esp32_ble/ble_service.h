@@ -18,14 +18,14 @@ class BLEServer;
 
 class BLEService {
  public:
-  BLEService(ESPBTUUID uuid, uint16_t num_handles, uint8_t inst_id)
-      : uuid_(uuid), num_handles_(num_handles), inst_id_(inst_id){};
+  BLEService(ESPBTUUID uuid, uint16_t num_handles, uint8_t inst_id);
   ~BLEService();
   BLECharacteristic *get_characteristic(ESPBTUUID uuid);
   BLECharacteristic *get_characteristic(uint16_t uuid);
 
   BLECharacteristic *create_characteristic(const char *uuid, esp_gatt_char_prop_t properties);
   BLECharacteristic *create_characteristic(const uint8_t *uuid, esp_gatt_char_prop_t properties);
+  BLECharacteristic *create_characteristic(const std::string uuid, esp_gatt_char_prop_t properties);
   BLECharacteristic *create_characteristic(uint16_t uuid, esp_gatt_char_prop_t properties);
   BLECharacteristic *create_characteristic(ESPBTUUID uuid, esp_gatt_char_prop_t properties);
 
@@ -38,17 +38,10 @@ class BLEService {
   bool do_create(BLEServer *server);
   void gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if, esp_ble_gatts_cb_param_t *param);
 
-  bool pre_start();
   void start();
   void stop();
 
-  bool is_created() { return this->created_; }
-  bool is_started() { return this->started_; }
-  bool can_start();
-
  protected:
-  bool created_{false};
-  bool started_{false};
   bool errored_{false};
 
   std::vector<BLECharacteristic *> characteristics_;
@@ -58,6 +51,10 @@ class BLEService {
   uint16_t num_handles_;
   uint16_t handle_{0xFFFF};
   uint8_t inst_id_;
+
+  SemaphoreHandle_t create_lock_;
+  SemaphoreHandle_t start_lock_;
+  SemaphoreHandle_t stop_lock_;
 };
 
 }  // namespace esp32_ble

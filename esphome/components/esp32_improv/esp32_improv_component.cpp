@@ -1,6 +1,7 @@
 #include "esp32_improv_component.h"
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
+#include "esphome/components/esp32_ble/ble_2902.h"
 
 #ifdef ARDUINO_ARCH_ESP32
 
@@ -9,45 +10,50 @@ namespace esp32_improv {
 
 static const char *TAG = "esp32_improv.component";
 
-void ESP32ImprovComponent::setup() {
-  this->service_ = esp32_ble_server::global_ble_server->add_service(improv::SERVICE_UUID);
+ESP32ImprovComponent::ESP32ImprovComponent() { global_improv_component = this; }
 
-  this->status_ = this->service_->createCharacteristic(
-      improv::STATUS_UUID, BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_NOTIFY);
-  BLEDescriptor *status_descriptor = new BLE2902();
-  this->status_->addDescriptor(status_descriptor);
+void ESP32ImprovComponent::setup_service() {
+  this->service_ = esp32_ble::global_ble_server->create_service(improv::SERVICE_UUID, true);
 
-  this->error_ = this->service_->createCharacteristic(
-      improv::ERROR_UUID, BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_NOTIFY);
-  BLEDescriptor *error_descriptor = new BLE2902();
-  this->error_->addDescriptor(error_descriptor);
+  this->status_ = this->service_->create_characteristic(
+      improv::STATUS_UUID, esp32_ble::BLECharacteristic::PROPERTY_READ | esp32_ble::BLECharacteristic::PROPERTY_NOTIFY);
+  esp32_ble::BLEDescriptor *status_descriptor = new esp32_ble::BLE2902();
+  this->status_->add_descriptor(status_descriptor);
 
-  this->rpc_ = this->service_->createCharacteristic(improv::RPC_COMMAND_UUID, BLECharacteristic::PROPERTY_WRITE);
-  this->rpc_->setCallbacks(this);
-  BLEDescriptor *rpc_descriptor = new BLE2902();
-  this->rpc_->addDescriptor(rpc_descriptor);
+  this->error_ = this->service_->create_characteristic(
+      improv::ERROR_UUID, esp32_ble::BLECharacteristic::PROPERTY_READ | esp32_ble::BLECharacteristic::PROPERTY_NOTIFY);
+  esp32_ble::BLEDescriptor *error_descriptor = new esp32_ble::BLE2902();
+  this->error_->add_descriptor(error_descriptor);
 
-  this->rpc_response_ = this->service_->createCharacteristic(
-      improv::RPC_RESULT_UUID, BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_NOTIFY);
-  BLEDescriptor *rpc_response_descriptor = new BLE2902();
-  this->rpc_response_->addDescriptor(rpc_response_descriptor);
+  this->rpc_ =
+      this->service_->create_characteristic(improv::RPC_COMMAND_UUID, esp32_ble::BLECharacteristic::PROPERTY_WRITE);
+  this->rpc_->on_write([this](std::vector<uint8_t> &data) {
+    if (data.size() > 0) {
+      this->incoming_data_.insert(this->incoming_data_.end(), data.begin(), data.end());
+    }
+  });
+  esp32_ble::BLEDescriptor *rpc_descriptor = new esp32_ble::BLE2902();
+  this->rpc_->add_descriptor(rpc_descriptor);
+
+  this->rpc_response_ =
+      this->service_->create_characteristic(improv::RPC_RESULT_UUID, esp32_ble::BLECharacteristic::PROPERTY_READ |
+                                                                         esp32_ble::BLECharacteristic::PROPERTY_NOTIFY);
+  esp32_ble::BLEDescriptor *rpc_response_descriptor = new esp32_ble::BLE2902();
+  this->rpc_response_->add_descriptor(rpc_response_descriptor);
 
   this->capabilities_ =
-      this->service_->createCharacteristic(improv::CAPABILITIES_UUID, BLECharacteristic::PROPERTY_READ);
-  BLEDescriptor *capabilities_descriptor = new BLE2902();
-  this->capabilities_->addDescriptor(capabilities_descriptor);
+      this->service_->create_characteristic(improv::CAPABILITIES_UUID, esp32_ble::BLECharacteristic::PROPERTY_READ);
+  esp32_ble::BLEDescriptor *capabilities_descriptor = new esp32_ble::BLE2902();
+  this->capabilities_->add_descriptor(capabilities_descriptor);
   uint8_t capabilities = 0x00;
   if (this->status_indicator_ != nullptr)
     capabilities |= improv::CAPABILITY_IDENTIFY;
-  uint8_t data[1]{capabilities};
-  this->capabilities_->setValue(data, 1);
-
-  global_improv_component = this;
-  this->set_state_(improv::STATE_STOPPED);
+  this->capabilities_->set_value(capabilities);
+  this->setup_complete_ = true;
 }
 
 void ESP32ImprovComponent::loop() {
-  if (this->incoming_data_.length() > 0)
+  if (this->incoming_data_.size() > 0)
     this->process_incoming_data_();
   uint32_t now = millis();
 
@@ -55,11 +61,23 @@ void ESP32ImprovComponent::loop() {
     case improv::STATE_STOPPED:
       if (this->status_indicator_ != nullptr)
         this->status_indicator_->turn_off();
+
+      if (this->should_start_ && this->setup_complete_) {
+        ESP_LOGD(TAG, "Starting Improv service...");
+
+        this->service_->start();
+        this->service_->get_server()->get_advertising()->start();
+
+        this->set_state_(improv::STATE_AWAITING_AUTHORIZATION);
+        this->set_error_(improv::ERROR_NONE);
+        this->should_start_ = false;
+        ESP_LOGD(TAG, "Service started!");
+      }
       break;
     case improv::STATE_AWAITING_AUTHORIZATION: {
-      if (this->activator_ == nullptr || this->activator_->state) {
+      if (this->authorizer_ == nullptr || this->authorizer_->state) {
         this->set_state_(improv::STATE_AUTHORIZED);
-        this->activated_start_ = now;
+        this->authorized_start_ = now;
       } else {
         if (this->status_indicator_ != nullptr) {
           if (!this->check_identify_())
@@ -69,9 +87,9 @@ void ESP32ImprovComponent::loop() {
       break;
     }
     case improv::STATE_AUTHORIZED: {
-      if (this->activator_ != nullptr) {
-        if (now - this->activated_start_ > this->activated_duration_) {
-          ESP_LOGD(TAG, "Activation timeout");
+      if (this->authorizer_ != nullptr) {
+        if (now - this->authorized_start_ > this->authorized_duration_) {
+          ESP_LOGD(TAG, "Authorization timeout");
           this->set_state_(improv::STATE_AWAITING_AUTHORIZATION);
           return;
         }
@@ -102,14 +120,14 @@ void ESP32ImprovComponent::loop() {
         this->cancel_timeout("wifi-connect-timeout");
         this->set_state_(improv::STATE_PROVISIONED);
 
-        std::string url = "https://my.home-assistant.io/redirect/config_flow_start/?domain=esphome";
+        std::string url = "https://my.home-assistant.io/redirect/config_flow_start?domain=esphome";
         std::vector<uint8_t> data = improv::build_rpc_response(improv::WIFI_SETTINGS, {url});
-        this->send_response(std::string(data.begin(), data.end()));
+        this->send_response(data);
       }
       break;
     }
     case improv::STATE_PROVISIONED: {
-      this->incoming_data_ = "";
+      this->incoming_data_.clear();
       if (this->status_indicator_ != nullptr)
         this->status_indicator_->turn_on();
       break;
@@ -136,10 +154,9 @@ bool ESP32ImprovComponent::check_identify_() {
 void ESP32ImprovComponent::set_state_(improv::State state) {
   ESP_LOGV(TAG, "Setting state: %d", state);
   this->state_ = state;
-  if (this->status_->getData()[0] != state) {
-    ESP_LOGV(TAG, "States: %d -> %d", this->status_->getData()[0], state);
+  if (this->status_->get_value().size() == 0 || this->status_->get_value()[0] != state) {
     uint8_t data[1]{state};
-    this->status_->setValue(data, 1);
+    this->status_->set_value(data, 1);
     if (state != improv::STATE_STOPPED)
       this->status_->notify();
   }
@@ -148,16 +165,16 @@ void ESP32ImprovComponent::set_state_(improv::State state) {
 void ESP32ImprovComponent::set_error_(improv::Error error) {
   if (error != improv::ERROR_NONE)
     ESP_LOGE(TAG, "Error: %d", error);
-  if (this->error_->getData()[0] != error) {
+  if (this->error_->get_value().size() == 0 || this->error_->get_value()[0] != error) {
     uint8_t data[1]{error};
-    this->error_->setValue(data, 1);
+    this->error_->set_value(data, 1);
     if (this->state_ != improv::STATE_STOPPED)
       this->error_->notify();
   }
 }
 
-void ESP32ImprovComponent::send_response(const std::string response) {
-  this->rpc_response_->setValue(response);
+void ESP32ImprovComponent::send_response(std::vector<uint8_t> &response) {
+  this->rpc_response_->set_value(response);
   if (this->state_ != improv::STATE_STOPPED)
     this->rpc_response_->notify();
 }
@@ -166,54 +183,44 @@ void ESP32ImprovComponent::start() {
   if (this->state_ != improv::STATE_STOPPED)
     return;
 
-  ESP_LOGD(TAG, "Starting Improv service...");
-
-  this->service_->start();
-  BLEDevice::startAdvertising();
-  ESP_LOGD(TAG, "Service started!");
-
-  this->set_state_(improv::STATE_AWAITING_AUTHORIZATION);
-  this->error_->setValue({improv::ERROR_NONE});
+  ESP_LOGD(TAG, "Setting Improv to start");
+  this->should_start_ = true;
 }
 
 void ESP32ImprovComponent::end() {
   this->set_state_(improv::STATE_STOPPED);
   this->service_->stop();
-  esp32_ble_server::global_ble_server->teardown();
 }
 
 float ESP32ImprovComponent::get_setup_priority() const {
   // Before WiFi
-  return setup_priority::HARDWARE - 10.0f;
+  return setup_priority::AFTER_BLUETOOTH;
 }
 
 void ESP32ImprovComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "ESP32 Improv:");
-  LOG_BINARY_SENSOR("  ", "Activator", this->activator_);
+  LOG_BINARY_SENSOR("  ", "Authorizer", this->authorizer_);
   ESP_LOGCONFIG(TAG, "  Status Indicator: '%s'", YESNO(this->status_indicator_ != nullptr));
 }
 
 void ESP32ImprovComponent::process_incoming_data_() {
   uint8_t length = this->incoming_data_[1];
 
-  ESP_LOGD(
-      TAG, "Processing bytes - %s",
-      hexencode(reinterpret_cast<const uint8_t *>(&(this->incoming_data_[0])), this->incoming_data_.length()).c_str());
-  if (this->incoming_data_.length() - 3 == length) {
+  ESP_LOGD(TAG, "Processing bytes - %s", hexencode(this->incoming_data_).c_str());
+  if (this->incoming_data_.size() - 3 == length) {
     this->set_error_(improv::ERROR_NONE);
-    std::vector<uint8_t> data(this->incoming_data_.begin(), this->incoming_data_.end());
-    improv::ImprovCommand command = improv::parse_improv_data(data);
+    improv::ImprovCommand command = improv::parse_improv_data(this->incoming_data_);
     switch (command.command) {
       case improv::BAD_CHECKSUM:
         ESP_LOGW(TAG, "Error decoding Improv payload");
         this->set_error_(improv::ERROR_INVALID_RPC);
-        this->incoming_data_ = "";
+        this->incoming_data_.clear();
         break;
       case improv::WIFI_SETTINGS: {
         if (this->state_ != improv::STATE_AUTHORIZED) {
-          ESP_LOGW(TAG, "Settings received, but not activated");
+          ESP_LOGW(TAG, "Settings received, but not authorized");
           this->set_error_(improv::ERROR_NOT_AUTHORIZED);
-          this->incoming_data_ = "";
+          this->incoming_data_.clear();
           return;
         }
         wifi::WiFiAP sta{};
@@ -229,21 +236,21 @@ void ESP32ImprovComponent::process_incoming_data_() {
 
         auto f = std::bind(&ESP32ImprovComponent::on_wifi_connect_timeout_, this);
         this->set_timeout("wifi-connect-timeout", 30000, f);
-        this->incoming_data_ = "";
+        this->incoming_data_.clear();
         break;
       }
       case improv::IDENTIFY:
-        this->incoming_data_ = "";
+        this->incoming_data_.clear();
         this->identify_start_ = millis();
         break;
       default:
         ESP_LOGW(TAG, "Unknown Improv payload");
         this->set_error_(improv::ERROR_UNKNOWN_RPC);
-        this->incoming_data_ = "";
+        this->incoming_data_.clear();
     }
-  } else if (this->incoming_data_.length() - 2 > length) {
+  } else if (this->incoming_data_.size() - 2 > length) {
     ESP_LOGV(TAG, "Too much data came in, or malformed resetting buffer...");
-    this->incoming_data_ = "";
+    this->incoming_data_.clear();
   } else {
     ESP_LOGV(TAG, "Waiting for split data packets...");
   }
@@ -252,17 +259,10 @@ void ESP32ImprovComponent::process_incoming_data_() {
 void ESP32ImprovComponent::on_wifi_connect_timeout_() {
   this->set_error_(improv::ERROR_UNABLE_TO_CONNECT);
   this->set_state_(improv::STATE_AUTHORIZED);
-  if (this->activator_ != nullptr)
-    this->activated_start_ = millis();
+  if (this->authorizer_ != nullptr)
+    this->authorized_start_ = millis();
   ESP_LOGW(TAG, "Timed out trying to connect to given WiFi network");
   wifi::global_wifi_component->clear_sta();
-}
-
-void ESP32ImprovComponent::onWrite(BLECharacteristic *characteristic) {
-  std::string value = characteristic->getValue();
-  if (value.length() > 0) {
-    this->incoming_data_ += value;
-  }
 }
 
 ESP32ImprovComponent *global_improv_component = nullptr;

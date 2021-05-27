@@ -11,6 +11,22 @@ namespace esp32_ble {
 
 static const char *TAG = "esp32_ble.characteristic";
 
+BLECharacteristic::BLECharacteristic(const ESPBTUUID uuid, uint32_t properties) : uuid_(uuid) {
+  this->set_value_lock_ = xSemaphoreCreateBinary();
+  this->create_lock_ = xSemaphoreCreateBinary();
+
+  xSemaphoreGive(this->set_value_lock_);
+  xSemaphoreGive(this->create_lock_);
+  this->properties_ = (esp_gatt_char_prop_t) 0;
+
+  this->set_broadcast_property((properties & PROPERTY_BROADCAST) != 0);
+  this->set_indicate_property((properties & PROPERTY_INDICATE) != 0);
+  this->set_notify_property((properties & PROPERTY_NOTIFY) != 0);
+  this->set_read_property((properties & PROPERTY_READ) != 0);
+  this->set_write_property((properties & PROPERTY_WRITE) != 0);
+  this->set_write_no_response_property((properties & PROPERTY_WRITE_NR) != 0);
+}
+
 void BLECharacteristic::set_value(std::vector<uint8_t> value) {
   xSemaphoreTake(this->set_value_lock_, 0L);
   this->value_ = value;
@@ -84,7 +100,8 @@ bool BLECharacteristic::do_create(BLEService *service) {
   esp_attr_control_t control;
   control.auto_rsp = ESP_GATT_RSP_BY_APP;
 
-  ESP_LOGD(TAG, "Creating characteristic");
+  xSemaphoreTake(this->create_lock_, SEMAPHORE_MAX_DELAY);
+  ESP_LOGV(TAG, "Creating characteristic - %s", this->uuid_.to_string().c_str());
 
   esp_bt_uuid_t uuid = this->uuid_.get_uuid();
   esp_err_t err = esp_ble_gatts_add_char(service->get_handle(), &uuid, static_cast<esp_gatt_perm_t>(this->permissions_),
@@ -94,6 +111,8 @@ bool BLECharacteristic::do_create(BLEService *service) {
     ESP_LOGE(TAG, "esp_ble_gatts_add_char failed: %d", err);
     return false;
   }
+
+  xSemaphoreWait(this->create_lock_, SEMAPHORE_MAX_DELAY);
 
   for (auto *descriptor : this->descriptors_) {
     descriptor->do_create(this);
@@ -144,7 +163,7 @@ void BLECharacteristic::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt
     case ESP_GATTS_ADD_CHAR_EVT: {
       if (this->uuid_ == ESPBTUUID::from_uuid(param->add_char.char_uuid)) {
         this->handle_ = param->add_char.attr_handle;
-        this->created_ = true;
+        xSemaphoreGive(this->create_lock_);
       }
       break;
     }
@@ -245,7 +264,9 @@ void BLECharacteristic::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt
       break;
   }
 
-  // Pass event to descriptors
+  for (auto *descriptor : this->descriptors_) {
+    descriptor->gatts_event_handler(event, gatts_if, param);
+  }
 }
 
 }  // namespace esp32_ble

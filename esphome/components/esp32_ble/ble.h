@@ -26,9 +26,12 @@ class ESP32BLE : public Component {
   void loop() override;
   void dump_config() override;
   float get_setup_priority() const override;
+  void mark_failed() override;
 
   bool has_server() { return this->server_ != nullptr; }
   bool has_client() { return false; }
+
+  bool is_ready() { return this->ready_; }
 
   void set_server(BLEServer *server) { this->server_ = server; }
 
@@ -41,7 +44,10 @@ class ESP32BLE : public Component {
   void real_gattc_event_handler_(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp_ble_gattc_cb_param_t *param);
   void real_gap_event_handler_(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param);
 
+  static void ble_core_task_(void *params);
   static bool ble_setup_();
+
+  bool ready_{false};
 
   BLEServer *server_{nullptr};
   Queue<BLEEvent> ble_events_;

@@ -1,4 +1,5 @@
 #include "ble_server.h"
+#include "ble.h"
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 #include "esphome/core/version.h"
@@ -24,80 +25,56 @@ static const uint16_t MANUFACTURER_UUID = 0x2A29;
 
 void BLEServer::setup() {
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "BLE Server was marked faile by ESP32BLE");
+    ESP_LOGE(TAG, "BLE Server was marked failed by ESP32BLE");
     return;
   }
+
   global_ble_server = this;
+  this->register_lock_ = xSemaphoreCreateBinary();
+  xSemaphoreGive(this->register_lock_);
+  this->advertising_ = new BLEAdvertising();
+  ;
+}
+
+void BLEServer::setup_server_() {
+  xSemaphoreTake(this->register_lock_, SEMAPHORE_MAX_DELAY);
+  esp_err_t err = esp_ble_gatts_app_register(0);
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "esp_ble_gatts_app_register failed: %d", err);
+    this->mark_failed();
+    return;
+  }
+  xSemaphoreWait(this->register_lock_, SEMAPHORE_MAX_DELAY);
+
+  this->device_information_service = this->create_service(DEVICE_INFORMATION_SERVICE_UUID);
+
+  this->create_device_characteristics_();
+
+  this->device_information_service->start();
 }
 
 void BLEServer::loop() {
-  uint8_t last_state = this->state_;
   switch (this->state_) {
-    case UNINITIALIZED: {
-      esp_err_t err = esp_ble_gatts_app_register(0);
-      if (err != ESP_OK) {
-        ESP_LOGE(TAG, "esp_ble_gatts_app_register failed: %d", err);
-        this->mark_failed();
-        return;
-      }
-      this->state_ = AWAITING_REGISTRATION;
-      break;
-    }
-    case AWAITING_REGISTRATION: {
-      break;
-    }
-    case REGISTERED: {
-      ESP_LOGD(TAG, "App registered");
-      this->device_information_service = this->create_service(DEVICE_INFORMATION_SERVICE_UUID);
-      this->state_ = AWAITING_SERVICE_CREATION;
-      break;
-    }
-    case AWAITING_SERVICE_CREATION: {
-      bool created = true;
-      for (auto *service : this->services_) {
-        created &= service->is_created();
-      }
-      if (created) {
-        ESP_LOGD(TAG, "All %d services created", this->services_.size());
-        this->create_device_characteristics_();
-        for (auto *service : this->services_) {
-          service->pre_start();
-        }
-        this->state_ = AWAITING_SERVICE_PRE_START;
+    case SETUP: {
+      if (global_ble->is_ready()) {
+        ESP_LOGD(TAG, "Setting up BLE Server...");
+        this->setup_server_();
+        ESP_LOGD(TAG, "BLE Server set up complete...");
+        this->state_ = SETTING_UP_SERVICE_COMPONENTS;
       }
       break;
     }
-    case AWAITING_SERVICE_PRE_START: {
-      bool can_start = true;
-      for (auto *service : this->services_) {
-        can_start &= service->can_start();
-        if (!can_start) {
-          ESP_LOGW(TAG, "Cannot start service yet - %s", service->get_uuid().to_string().c_str());
-        }
+    case SETTING_UP_SERVICE_COMPONENTS: {
+      ESP_LOGD(TAG, "Setting up service components...");
+      for (auto *component : this->service_components_) {
+        component->setup_service();
       }
-      if (can_start) {
-        ESP_LOGD(TAG, "All services can start");
-        for (auto *service : this->services_) {
-          service->start();
-        }
-        this->state_ = AWAITING_SERVICE_START;
-      }
+      ESP_LOGD(TAG, "Service components set up done");
+      this->state_ = RUNNING;
+    }
+    case RUNNING: {
       break;
     }
-    case AWAITING_SERVICE_START: {
-      bool started = true;
-      for (auto *service : this->services_) {
-        started &= service->is_started();
-      }
-      if (started) {
-        ESP_LOGD(TAG, "All services started");
-        this->state_ = RUNNING;
-      }
-      break;
-    }
-  }
-  if (last_state != this->state_) {
-    ESP_LOGD(TAG, "State %d -> %d", last_state, this->state_);
   }
 }
 
@@ -122,13 +99,6 @@ bool BLEServer::create_device_characteristics_() {
       this->device_information_service->create_characteristic(MANUFACTURER_UUID, BLECharacteristic::PROPERTY_READ);
   manufacturer->set_value(this->manufacturer_);
 
-  BLECharacteristic *testing =
-      this->device_information_service->create_characteristic(0x1234, BLECharacteristic::PROPERTY_WRITE);
-
-  testing->on_write(
-      [this](std::vector<uint8_t> &data) { ESP_LOGD(TAG, "Received write data: %s", hexencode(data).c_str()); });
-
-  this->advertising_ = new BLEAdvertising();
   this->advertising_->set_scan_response(true);
   this->advertising_->set_min_preferred_interval(0x06);
   this->advertising_->start();
@@ -145,7 +115,11 @@ BLEService *BLEServer::create_service(const char *uuid, bool advertise) {
 BLEService *BLEServer::create_service(uint16_t uuid, bool advertise) {
   return this->create_service(ESPBTUUID::from_uint16(uuid), advertise);
 }
+BLEService *BLEServer::create_service(const std::string uuid, bool advertise) {
+  return this->create_service(ESPBTUUID::from_raw(uuid), advertise);
+}
 BLEService *BLEServer::create_service(ESPBTUUID uuid, bool advertise, uint16_t num_handles, uint8_t inst_id) {
+  ESP_LOGV(TAG, "Creating service - %s", uuid.to_string().c_str());
   BLEService *service = new BLEService(uuid, num_handles, inst_id);
   this->services_.push_back(service);
   if (advertise) {
@@ -173,7 +147,8 @@ void BLEServer::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t ga
     }
     case ESP_GATTS_REG_EVT: {
       this->gatts_if_ = gatts_if;
-      this->state_ = REGISTERED;
+      xSemaphoreGive(this->register_lock_);
+      // this->state_ = REGISTERED;
       break;
     }
     default:
@@ -184,18 +159,6 @@ void BLEServer::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t ga
     service->gatts_event_handler(event, gatts_if, param);
   }
 }
-
-/*void BLEServer::teardown() { BLEDevice::deinit(true); }
-
-BLEService *BLEServer::add_service(const char *uuid) {
-  ESP_LOGD(TAG, "Adding new BLE service");
-  BLEService *service = this->server_->createService(uuid);
-
-  BLEAdvertising *advertising = BLEDevice::getAdvertising();
-  advertising->addServiceUUID(uuid);
-
-  return service;
-}*/
 
 float BLEServer::get_setup_priority() const { return setup_priority::BLUETOOTH - 10; }
 

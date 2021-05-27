@@ -20,17 +20,7 @@ class BLEService;
 
 class BLECharacteristic {
  public:
-  BLECharacteristic(const ESPBTUUID uuid, uint32_t properties) : uuid_(uuid) {
-    this->set_value_lock_ = xSemaphoreCreateMutex();
-    this->properties_ = (esp_gatt_char_prop_t) 0;
-
-    this->set_broadcast_property((properties & PROPERTY_BROADCAST) != 0);
-    this->set_indicate_property((properties & PROPERTY_INDICATE) != 0);
-    this->set_notify_property((properties & PROPERTY_NOTIFY) != 0);
-    this->set_read_property((properties & PROPERTY_READ) != 0);
-    this->set_write_property((properties & PROPERTY_WRITE) != 0);
-    this->set_write_no_response_property((properties & PROPERTY_WRITE_NR) != 0);
-  }
+  BLECharacteristic(const ESPBTUUID uuid, uint32_t properties);
 
   void set_value(uint8_t *data, size_t length);
   void set_value(std::vector<uint8_t> value);
@@ -62,13 +52,6 @@ class BLECharacteristic {
   ESPBTUUID get_uuid() { return this->uuid_; }
   std::vector<uint8_t> &get_value() { return this->value_; }
 
-  bool is_created() {
-    bool descriptors_created = true;
-    for (auto *descriptor : this->descriptors_)
-      descriptors_created |= descriptor->is_created();
-    return this->created_ && descriptors_created;
-  }
-
   static const uint32_t PROPERTY_READ = 1 << 0;
   static const uint32_t PROPERTY_WRITE = 1 << 1;
   static const uint32_t PROPERTY_NOTIFY = 1 << 2;
@@ -77,7 +60,6 @@ class BLECharacteristic {
   static const uint32_t PROPERTY_WRITE_NR = 1 << 5;
 
  protected:
-  bool created_{false};
   bool write_event_{false};
   BLEService *service_;
   ESPBTUUID uuid_;
@@ -87,6 +69,7 @@ class BLECharacteristic {
   uint16_t value_read_offset_{0};
   std::vector<uint8_t> value_;
   SemaphoreHandle_t set_value_lock_;
+  SemaphoreHandle_t create_lock_;
 
   std::vector<BLEDescriptor *> descriptors_;
 

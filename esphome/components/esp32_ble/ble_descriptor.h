@@ -20,13 +20,11 @@ class BLEDescriptor {
 
   void gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if, esp_ble_gatts_cb_param_t *param);
 
-  bool is_created() { return this->created_; }
-
  protected:
-  bool created_{false};
   BLECharacteristic *characteristic_{nullptr};
   ESPBTUUID uuid_;
   uint16_t handle_{0xFFFF};
+  SemaphoreHandle_t create_lock_;
 
   esp_attr_value_t value_;
 

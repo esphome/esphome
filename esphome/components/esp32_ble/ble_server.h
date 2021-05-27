@@ -19,6 +19,11 @@
 namespace esphome {
 namespace esp32_ble {
 
+class BLEServiceComponent {
+ public:
+  virtual void setup_service();
+};
+
 class BLEServer : public Component {
  public:
   void setup() override;
@@ -34,6 +39,7 @@ class BLEServer : public Component {
   BLEService *create_service(const uint8_t *uuid, bool advertise = false);
   BLEService *create_service(const char *uuid, bool advertise = false);
   BLEService *create_service(uint16_t uuid, bool advertise = false);
+  BLEService *create_service(const std::string uuid, bool advertise = false);
   BLEService *create_service(ESPBTUUID uuid, bool advertise = false, uint16_t num_handles = 15, uint8_t inst_id = 0);
 
   esp_gatt_if_t get_gatts_if() { return this->gatts_if_; }
@@ -43,8 +49,11 @@ class BLEServer : public Component {
 
   void gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if, esp_ble_gatts_cb_param_t *param);
 
+  void register_service_component(BLEServiceComponent *component) { this->service_components_.push_back(component); }
+
  protected:
   bool create_device_characteristics_();
+  void setup_server_();
 
   void add_client_(uint16_t conn_id, void *client) {
     this->clients_.insert(std::pair<uint16_t, void *>(conn_id, client));
@@ -62,13 +71,13 @@ class BLEServer : public Component {
   std::vector<BLEService *> services_;
   BLEService *device_information_service;
 
+  std::vector<BLEServiceComponent *> service_components_;
+
+  SemaphoreHandle_t register_lock_;
+
   enum : uint8_t {
-    UNINITIALIZED = 0x00,
-    AWAITING_REGISTRATION,
-    REGISTERED,
-    AWAITING_SERVICE_CREATION,
-    AWAITING_SERVICE_PRE_START,
-    AWAITING_SERVICE_START,
+    SETUP = 0x00,
+    SETTING_UP_SERVICE_COMPONENTS,
     RUNNING,
   } state_;
 };

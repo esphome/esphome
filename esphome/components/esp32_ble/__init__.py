@@ -12,6 +12,8 @@ esp32_ble_ns = cg.esphome_ns.namespace("esp32_ble")
 ESP32BLE = esp32_ble_ns.class_("ESP32BLE", cg.Component)
 BLEServer = esp32_ble_ns.class_("BLEServer", cg.Component)
 
+BLEServiceComponent = esp32_ble_ns.class_("BLEServiceComponent")
+
 
 CONFIG_SCHEMA = cv.Schema(
     {

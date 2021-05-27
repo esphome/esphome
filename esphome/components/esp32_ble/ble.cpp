@@ -20,13 +20,36 @@ void ESP32BLE::setup() {
   global_ble = this;
   ESP_LOGCONFIG(TAG, "Setting up BLE...");
 
-  if (!ESP32BLE::ble_setup_()) {
-    this->mark_failed();
-    if (this->server_ != nullptr)
-      this->server_->mark_failed();
+  xTaskCreatePinnedToCore(ESP32BLE::ble_core_task_,
+                          "ble_task",  // name
+                          10000,       // stack size
+                          nullptr,     // input params
+                          1,           // priority
+                          nullptr,     // handle, not needed
+                          0            // core
+  );
+}
+
+void ESP32BLE::mark_failed() {
+  Component::mark_failed();
+  if (this->server_ != nullptr) {
+    this->server_->mark_failed();
+  }
+}
+
+void ESP32BLE::ble_core_task_(void *params) {
+  if (!ble_setup_()) {
+    ESP_LOGE(TAG, "BLE could not be set up");
+    global_ble->mark_failed();
+    return;
   }
 
-  ESP_LOGCONFIG(TAG, "BLE is setup");
+  global_ble->ready_ = true;
+  ESP_LOGD(TAG, "BLE Setup complete");
+
+  while (true) {
+    delay(1000);
+  }
 }
 
 bool ESP32BLE::ble_setup_() {
@@ -114,11 +137,11 @@ void ESP32BLE::loop() {
 }
 
 void ESP32BLE::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) {
-  BLEEvent *gap_event = new BLEEvent(event, param);
-  global_ble->ble_events_.push(gap_event);
+  global_ble->real_gap_event_handler_(event, param);
 }
 
 void ESP32BLE::real_gap_event_handler_(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) {
+  ESP_LOGV(TAG, "(BLE) gap_event_handler - %d", event);
   switch (event) {
     default:
       break;
@@ -127,13 +150,12 @@ void ESP32BLE::real_gap_event_handler_(esp_gap_ble_cb_event_t event, esp_ble_gap
 
 void ESP32BLE::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if,
                                    esp_ble_gatts_cb_param_t *param) {
-  BLEEvent *gatts_event = new BLEEvent(event, gatts_if, param);
-  global_ble->ble_events_.push(gatts_event);
+  global_ble->real_gatts_event_handler_(event, gatts_if, param);
 }
 
 void ESP32BLE::real_gatts_event_handler_(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if,
                                          esp_ble_gatts_cb_param_t *param) {
-  ESP_LOGD(TAG, "(BLE) gatts_event [esp_gatt_if: %d] - %d", gatts_if, event);
+  ESP_LOGV(TAG, "(BLE) gatts_event [esp_gatt_if: %d] - %d", gatts_if, event);
   this->server_->gatts_event_handler(event, gatts_if, param);
 }
 
