@@ -12,7 +12,7 @@ from esphome.const import (
     CONF_NAME,
     CONF_STATE,
 )
-from esphome.core import CORE, coroutine, coroutine_with_priority
+from esphome.core import CORE, coroutine_with_priority
 
 IS_PLATFORM_COMPONENT = True
 
@@ -46,8 +46,7 @@ TEXT_SENSOR_SCHEMA = cv.MQTT_COMPONENT_SCHEMA.extend(
 )
 
 
-@coroutine
-def setup_text_sensor_core_(var, config):
+async def setup_text_sensor_core_(var, config):
     cg.add(var.set_name(config[CONF_NAME]))
     if CONF_INTERNAL in config:
         cg.add(var.set_internal(config[CONF_INTERNAL]))
@@ -56,23 +55,22 @@ def setup_text_sensor_core_(var, config):
 
     for conf in config.get(CONF_ON_VALUE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        yield automation.build_automation(trigger, [(cg.std_string, "x")], conf)
+        await automation.build_automation(trigger, [(cg.std_string, "x")], conf)
 
     if CONF_MQTT_ID in config:
         mqtt_ = cg.new_Pvariable(config[CONF_MQTT_ID], var)
-        yield mqtt.register_mqtt_component(mqtt_, config)
+        await mqtt.register_mqtt_component(mqtt_, config)
 
 
-@coroutine
-def register_text_sensor(var, config):
+async def register_text_sensor(var, config):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
     cg.add(cg.App.register_text_sensor(var))
-    yield setup_text_sensor_core_(var, config)
+    await setup_text_sensor_core_(var, config)
 
 
 @coroutine_with_priority(100.0)
-def to_code(config):
+async def to_code(config):
     cg.add_define("USE_TEXT_SENSOR")
     cg.add_global(text_sensor_ns.using)
 
@@ -87,9 +85,9 @@ def to_code(config):
         }
     ),
 )
-def text_sensor_state_to_code(config, condition_id, template_arg, args):
-    paren = yield cg.get_variable(config[CONF_ID])
+async def text_sensor_state_to_code(config, condition_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(condition_id, template_arg, paren)
-    templ = yield cg.templatable(config[CONF_STATE], args, cg.std_string)
+    templ = await cg.templatable(config[CONF_STATE], args, cg.std_string)
     cg.add(var.set_state(templ))
-    yield var
+    return var

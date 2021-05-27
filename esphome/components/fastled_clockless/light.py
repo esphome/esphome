@@ -51,8 +51,8 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def to_code(config):
-    var = yield fastled_base.new_fastled_light(config)
+async def to_code(config):
+    var = await fastled_base.new_fastled_light(config)
 
     rgb_order = None
     if CONF_RGB_ORDER in config:

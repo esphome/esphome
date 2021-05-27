@@ -58,33 +58,33 @@ CONFIG_SCHEMA = (
 )
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
-    yield uart.register_uart_device(var, config)
+    await cg.register_component(var, config)
+    await uart.register_uart_device(var, config)
 
     if CONF_LATITUDE in config:
-        sens = yield sensor.new_sensor(config[CONF_LATITUDE])
+        sens = await sensor.new_sensor(config[CONF_LATITUDE])
         cg.add(var.set_latitude_sensor(sens))
 
     if CONF_LONGITUDE in config:
-        sens = yield sensor.new_sensor(config[CONF_LONGITUDE])
+        sens = await sensor.new_sensor(config[CONF_LONGITUDE])
         cg.add(var.set_longitude_sensor(sens))
 
     if CONF_SPEED in config:
-        sens = yield sensor.new_sensor(config[CONF_SPEED])
+        sens = await sensor.new_sensor(config[CONF_SPEED])
         cg.add(var.set_speed_sensor(sens))
 
     if CONF_COURSE in config:
-        sens = yield sensor.new_sensor(config[CONF_COURSE])
+        sens = await sensor.new_sensor(config[CONF_COURSE])
         cg.add(var.set_course_sensor(sens))
 
     if CONF_ALTITUDE in config:
-        sens = yield sensor.new_sensor(config[CONF_ALTITUDE])
+        sens = await sensor.new_sensor(config[CONF_ALTITUDE])
         cg.add(var.set_altitude_sensor(sens))
 
     if CONF_SATELLITES in config:
-        sens = yield sensor.new_sensor(config[CONF_SATELLITES])
+        sens = await sensor.new_sensor(config[CONF_SATELLITES])
         cg.add(var.set_satellites_sensor(sens))
 
     # https://platformio.org/lib/show/1655/TinyGPSPlus

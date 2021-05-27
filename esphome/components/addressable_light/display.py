@@ -38,18 +38,18 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    wrapped_light = yield cg.get_variable(config[CONF_ADDRESSABLE_LIGHT_ID])
+    wrapped_light = await cg.get_variable(config[CONF_ADDRESSABLE_LIGHT_ID])
     cg.add(var.set_width(config[CONF_WIDTH]))
     cg.add(var.set_height(config[CONF_HEIGHT]))
     cg.add(var.set_light(wrapped_light))
 
-    yield cg.register_component(var, config)
-    yield display.register_display(var, config)
+    await cg.register_component(var, config)
+    await display.register_display(var, config)
 
     if CONF_PIXEL_MAPPER in config:
-        pixel_mapper_template_ = yield cg.process_lambda(
+        pixel_mapper_template_ = await cg.process_lambda(
             config[CONF_PIXEL_MAPPER],
             [(int, "x"), (int, "y")],
             return_type=cg.int_,
@@ -57,7 +57,7 @@ def to_code(config):
         cg.add(var.set_pixel_mapper(pixel_mapper_template_))
 
     if CONF_LAMBDA in config:
-        lambda_ = yield cg.process_lambda(
+        lambda_ = await cg.process_lambda(
             config[CONF_LAMBDA], [(display.DisplayBufferRef, "it")], return_type=cg.void
         )
         cg.add(var.set_writer(lambda_))

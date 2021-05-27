@@ -20,7 +20,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield as3935.setup_as3935(var, config)
-    yield spi.register_spi_device(var, config)
+    await as3935.setup_as3935(var, config)
+    await spi.register_spi_device(var, config)

@@ -14,7 +14,7 @@ CONFIG_SCHEMA = binary_sensor.BINARY_SENSOR_SCHEMA.extend(
 )
 
 
-def to_code(config):
-    hub = yield cg.get_variable(config[CONF_FINGERPRINT_GROW_ID])
-    var = yield binary_sensor.new_binary_sensor(config)
+async def to_code(config):
+    hub = await cg.get_variable(config[CONF_FINGERPRINT_GROW_ID])
+    var = await binary_sensor.new_binary_sensor(config)
     cg.add(hub.set_enrolling_binary_sensor(var))

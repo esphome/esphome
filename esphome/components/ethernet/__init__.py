@@ -106,9 +106,9 @@ def manual_ip(config):
 
 
 @coroutine_with_priority(60.0)
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
+    await cg.register_component(var, config)
 
     cg.add(var.set_phy_addr(config[CONF_PHY_ADDR]))
     cg.add(var.set_mdc_pin(config[CONF_MDC_PIN]))
@@ -118,7 +118,7 @@ def to_code(config):
     cg.add(var.set_use_address(config[CONF_USE_ADDRESS]))
 
     if CONF_POWER_PIN in config:
-        pin = yield cg.gpio_pin_expression(config[CONF_POWER_PIN])
+        pin = await cg.gpio_pin_expression(config[CONF_POWER_PIN])
         cg.add(var.set_power_pin(pin))
 
     if CONF_MANUAL_IP in config:

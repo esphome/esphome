@@ -76,25 +76,25 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
-    yield i2c.register_i2c_device(var, config)
+    await cg.register_component(var, config)
+    await i2c.register_i2c_device(var, config)
 
     if CONF_PM_1_0 in config:
-        sens = yield sensor.new_sensor(config[CONF_PM_1_0])
+        sens = await sensor.new_sensor(config[CONF_PM_1_0])
         cg.add(var.set_pm_1_0_sensor(sens))
 
     if CONF_PM_2_5 in config:
-        sens = yield sensor.new_sensor(config[CONF_PM_2_5])
+        sens = await sensor.new_sensor(config[CONF_PM_2_5])
         cg.add(var.set_pm_2_5_sensor(sens))
 
     if CONF_PM_10_0 in config:
-        sens = yield sensor.new_sensor(config[CONF_PM_10_0])
+        sens = await sensor.new_sensor(config[CONF_PM_10_0])
         cg.add(var.set_pm_10_0_sensor(sens))
 
     if CONF_AQI in config:
-        sens = yield sensor.new_sensor(config[CONF_AQI])
+        sens = await sensor.new_sensor(config[CONF_AQI])
         cg.add(var.set_aqi_sensor(sens))
         cg.add(var.set_aqi_calculation_type(config[CONF_AQI][CONF_CALCULATION_TYPE]))
 

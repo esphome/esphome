@@ -136,7 +136,11 @@ void Logger::pre_setup() {
         break;
 #ifdef ARDUINO_ARCH_ESP32
       case UART_SELECTION_UART2:
+#if !CONFIG_IDF_TARGET_ESP32S2 && !CONFIG_IDF_TARGET_ESP32C3
+        // FIXME: Validate in config that UART2 can't be set for ESP32-S2 (only has
+        // UART0-UART1)
         this->hw_serial_ = &Serial2;
+#endif
         break;
 #endif
     }
