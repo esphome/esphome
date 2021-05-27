@@ -42,7 +42,7 @@ CONFIG_SCHEMA = cv.Schema(
             CONF_IDENTIFY_DURATION, default="10s"
         ): cv.positive_time_period_milliseconds,
         cv.Optional(
-            CONF_AUTHORIZED_DURATION, default="3min"
+            CONF_AUTHORIZED_DURATION, default="1min"
         ): cv.positive_time_period_milliseconds,
     }
 ).extend(cv.COMPONENT_SCHEMA)
