@@ -25,7 +25,7 @@ class OTAStateChangeTrigger : public Trigger<std::string> {
           case OTAState::COMPLETED:
             return trigger("COMPLETED");
           default:
-            return "UNKNOWN"
+            return trigger("UNKNOWN");
         }
       }
     });
