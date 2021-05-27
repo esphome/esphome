@@ -21,11 +21,22 @@ ESP32ImprovComponent = esp32_improv_ns.class_(
     "ESP32ImprovComponent", cg.Component, esp32_ble.BLEServiceComponent
 )
 
+
+def validate_none_(value):
+    if value == "none" or value == "None":
+        return None
+    if cv.boolean(value) is False:
+        return None
+    raise cv.Invalid("Must be none")
+
+
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(ESP32ImprovComponent),
         cv.GenerateID(CONF_BLE_SERVER_ID): cv.use_id(esp32_ble.BLEServer),
-        cv.Optional(CONF_AUTHORIZER): cv.use_id(binary_sensor.BinarySensor),
+        cv.Required(CONF_AUTHORIZER): cv.Any(
+            validate_none_, cv.use_id(binary_sensor.BinarySensor)
+        ),
         cv.Optional(CONF_STATUS_INDICATOR): cv.use_id(output.BinaryOutput),
         cv.Optional(
             CONF_IDENTIFY_DURATION, default="10s"
@@ -49,7 +60,7 @@ async def to_code(config):
     cg.add(var.set_identify_duration(config[CONF_IDENTIFY_DURATION]))
     cg.add(var.set_authorized_duration(config[CONF_AUTHORIZED_DURATION]))
 
-    if CONF_AUTHORIZER in config:
+    if CONF_AUTHORIZER in config and config[CONF_AUTHORIZER] is not None:
         activator = await cg.get_variable(config[CONF_AUTHORIZER])
         cg.add(var.set_authorizer(activator))
 
