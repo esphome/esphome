@@ -183,15 +183,15 @@ async def to_code(config):
     cg.add(var.set_type(config[CONF_TYPE]))
 
     if CONF_PM_1_0_STD in config:
-        sens = yield sensor.new_sensor(config[CONF_PM_1_0_STD])
+        sens = await sensor.new_sensor(config[CONF_PM_1_0_STD])
         cg.add(var.set_pm_1_0_std_sensor(sens))
 
     if CONF_PM_2_5_STD in config:
-        sens = yield sensor.new_sensor(config[CONF_PM_2_5_STD])
+        sens = await sensor.new_sensor(config[CONF_PM_2_5_STD])
         cg.add(var.set_pm_2_5_std_sensor(sens))
 
     if CONF_PM_10_0_STD in config:
-        sens = yield sensor.new_sensor(config[CONF_PM_10_0_STD])
+        sens = await sensor.new_sensor(config[CONF_PM_10_0_STD])
         cg.add(var.set_pm_10_0_std_sensor(sens))
 
     if CONF_PM_1_0 in config:
@@ -206,28 +206,28 @@ async def to_code(config):
         sens = await sensor.new_sensor(config[CONF_PM_10_0])
         cg.add(var.set_pm_10_0_sensor(sens))
 
-    if CONF_PM_0_3um in config:
-        sens = yield sensor.new_sensor(config[CONF_PM_0_3UM])
+    if CONF_PM_0_3UM in config:
+        sens = await sensor.new_sensor(config[CONF_PM_0_3UM])
         cg.add(var.set_pm_particles_03um_sensor(sens))
 
-    if CONF_PM_0_5um in config:
-        sens = yield sensor.new_sensor(config[CONF_PM_0_5UM])
+    if CONF_PM_0_5UM in config:
+        sens = await sensor.new_sensor(config[CONF_PM_0_5UM])
         cg.add(var.set_pm_particles_05um_sensor(sens))
 
-    if CONF_PM_1_0um in config:
-        sens = yield sensor.new_sensor(config[CONF_PM_1_0UM])
+    if CONF_PM_1_0UM in config:
+        sens = await sensor.new_sensor(config[CONF_PM_1_0UM])
         cg.add(var.set_pm_particles_10um_sensor(sens))
 
-    if CONF_PM_2_5um in config:
-        sens = yield sensor.new_sensor(config[CONF_PM_2_5UM])
+    if CONF_PM_2_5UM in config:
+        sens = await sensor.new_sensor(config[CONF_PM_2_5UM])
         cg.add(var.set_pm_particles_25um_sensor(sens))
 
-    if CONF_PM_5_0um in config:
-        sens = yield sensor.new_sensor(config[CONF_PM_5_0UM])
+    if CONF_PM_5_0UM in config:
+        sens = await sensor.new_sensor(config[CONF_PM_5_0UM])
         cg.add(var.set_pm_particles_50um_sensor(sens))
 
-    if CONF_PM_10_0um in config:
-        sens = yield sensor.new_sensor(config[CONF_PM_10_0UM])
+    if CONF_PM_10_0UM in config:
+        sens = await sensor.new_sensor(config[CONF_PM_10_0UM])
         cg.add(var.set_pm_particles_100um_sensor(sens))
 
     if CONF_TEMPERATURE in config:

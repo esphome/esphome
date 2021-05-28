@@ -132,6 +132,22 @@ optional<bool> PMSX003Component::check_byte_() {
 
 void PMSX003Component::parse_data_() {
   switch (this->type_) {
+    case PMSX003_TYPE_5003ST: {
+      uint16_t formaldehyde = this->get_16_bit_uint_(28);
+      float temperature = this->get_16_bit_uint_(30) / 10.0f;
+      float humidity = this->get_16_bit_uint_(32) / 10.0f;
+
+      ESP_LOGD(TAG, "Got Temperature: %.1f°C, Humidity: %.1f%% Formaldehyde: %u µg/m^3", temperature, humidity,
+               formaldehyde);
+
+      if (this->temperature_sensor_ != nullptr)
+        this->temperature_sensor_->publish_state(temperature);
+      if (this->humidity_sensor_ != nullptr)
+        this->humidity_sensor_->publish_state(humidity);
+      if (this->formaldehyde_sensor_ != nullptr)
+        this->formaldehyde_sensor_->publish_state(formaldehyde);
+      // The rest of the PMS5003ST matches the PMS5003, continue on
+    }
     case PMSX003_TYPE_X003: {
       uint16_t pm_1_0_std_concentration = this->get_16_bit_uint_(4);
       uint16_t pm_2_5_std_concentration = this->get_16_bit_uint_(6);
@@ -178,7 +194,6 @@ void PMSX003Component::parse_data_() {
         this->pm_particles_50um_sensor_->publish_state(pm_particles_50um);
       if (this->pm_particles_100um_sensor_ != nullptr)
         this->pm_particles_100um_sensor_->publish_state(pm_particles_100um);
-
       break;
     }
     case PMSX003_TYPE_5003T: {
@@ -193,29 +208,6 @@ void PMSX003Component::parse_data_() {
         this->temperature_sensor_->publish_state(temperature);
       if (this->humidity_sensor_ != nullptr)
         this->humidity_sensor_->publish_state(humidity);
-      break;
-    }
-    case PMSX003_TYPE_5003ST: {
-      uint16_t pm_1_0_concentration = this->get_16_bit_uint_(10);
-      uint16_t pm_2_5_concentration = this->get_16_bit_uint_(12);
-      uint16_t pm_10_0_concentration = this->get_16_bit_uint_(14);
-      uint16_t formaldehyde = this->get_16_bit_uint_(28);
-      float temperature = this->get_16_bit_uint_(30) / 10.0f;
-      float humidity = this->get_16_bit_uint_(32) / 10.0f;
-      ESP_LOGD(TAG, "Got PM2.5 Concentration: %u µg/m^3, Temperature: %.1f°C, Humidity: %.1f%% Formaldehyde: %u µg/m^3",
-               pm_2_5_concentration, temperature, humidity, formaldehyde);
-      if (this->pm_1_0_sensor_ != nullptr)
-        this->pm_1_0_sensor_->publish_state(pm_1_0_concentration);
-      if (this->pm_2_5_sensor_ != nullptr)
-        this->pm_2_5_sensor_->publish_state(pm_2_5_concentration);
-      if (this->pm_10_0_sensor_ != nullptr)
-        this->pm_10_0_sensor_->publish_state(pm_10_0_concentration);
-      if (this->temperature_sensor_ != nullptr)
-        this->temperature_sensor_->publish_state(temperature);
-      if (this->humidity_sensor_ != nullptr)
-        this->humidity_sensor_->publish_state(humidity);
-      if (this->formaldehyde_sensor_ != nullptr)
-        this->formaldehyde_sensor_->publish_state(formaldehyde);
       break;
     }
   }
