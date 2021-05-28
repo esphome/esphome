@@ -33,7 +33,6 @@ void BLEServer::setup() {
   this->register_lock_ = xSemaphoreCreateBinary();
   xSemaphoreGive(this->register_lock_);
   this->advertising_ = new BLEAdvertising();
-  ;
 }
 
 void BLEServer::setup_server_() {

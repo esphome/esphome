@@ -42,6 +42,16 @@ bool BLEDescriptor::do_create(BLECharacteristic *characteristic) {
   return true;
 }
 
+void BLEDescriptor::set_value(const std::string value) { this->set_value((uint8_t *) value.data(), value.length()); }
+void BLEDescriptor::set_value(uint8_t *data, size_t length) {
+  if (length > this->value_.attr_max_len) {
+    ESP_LOGE(TAG, "Size %d too large, must be no bigger than %d", length, this->value_.attr_max_len);
+    return;
+  }
+  this->value_.attr_len = length;
+  memcpy(this->value_.attr_value, data, length);
+}
+
 void BLEDescriptor::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if,
                                         esp_ble_gatts_cb_param_t *param) {
   switch (event) {

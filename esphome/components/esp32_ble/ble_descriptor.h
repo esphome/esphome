@@ -18,6 +18,9 @@ class BLEDescriptor {
   virtual ~BLEDescriptor();
   bool do_create(BLECharacteristic *characteristic);
 
+  void set_value(const std::string value);
+  void set_value(uint8_t *data, size_t length);
+
   void gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if, esp_ble_gatts_cb_param_t *param);
 
  protected:

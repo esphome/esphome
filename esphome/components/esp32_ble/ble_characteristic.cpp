@@ -161,9 +161,11 @@ void BLECharacteristic::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt
                                             esp_ble_gatts_cb_param_t *param) {
   switch (event) {
     case ESP_GATTS_ADD_CHAR_EVT: {
-      if (this->uuid_ == ESPBTUUID::from_uuid(param->add_char.char_uuid)) {
-        this->handle_ = param->add_char.attr_handle;
-        xSemaphoreGive(this->create_lock_);
+      if (this->service_ != nullptr && this->service_->get_handle() == param->add_char.service_handle) {
+        if (this->uuid_ == ESPBTUUID::from_uuid(param->add_char.char_uuid)) {
+          this->handle_ = param->add_char.attr_handle;
+          xSemaphoreGive(this->create_lock_);
+        }
       }
       break;
     }
