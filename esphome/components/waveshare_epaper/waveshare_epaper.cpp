@@ -1043,33 +1043,29 @@ void WaveshareEPaper7P5InBC::initialize() {
 }
 
 void HOT WaveshareEPaper7P5InBC::display() {
-  /* Similar to the 7P5In display, except we send the "power on" command here rather than
-  during initialization */
   // COMMAND DATA START TRANSMISSION 1
   this->command(0x10);
   this->start_data_();
+
   for (size_t i = 0; i < this->get_buffer_length_(); i++) {
-    uint8_t temp1 = this->buffer_[i];
-    for (uint8_t j = 0; j < 8; j++) {
-      uint8_t temp2;
-      if (temp1 & 0x80)
-        temp2 = 0x03;
-      else
-        temp2 = 0x00;
-      temp2 <<= 4;
-      temp1 <<= 1;
-      j++;
-      if (temp1 & 0x80)
-        temp2 |= 0x03;
-      else
-        temp2 |= 0x00;
-      temp1 <<= 1;
-      this->write_byte(temp2);
+    // A source pixel 
+    uint8_t eight_pixels = this->buffer_[i];
+
+    for(uint8_t j = 0; j < 8; j += 2) {
+      /* For bichromatic displays, each byte represents two pixels. Each nibble encodes a pixel: 0=white, 3=black,
+      4=color. Therefore, e.g. 0x44 = two adjacent color pixels, 0x33 is two adjacent black pixels, etc. If you want
+      to draw using the color pixels, change '0x30' with '0x40' and '0x03' with '0x04' below. */
+      uint8_t left_nibble = (eight_pixels & 0x80) ? 0x30: 0x00;
+      eight_pixels <<= 1;
+      uint8_t right_nibble = (eight_pixels & 0x80) ? 0x03: 0x00;
+      eight_pixels <<= 1;
+      this->write_byte(left_nibble | right_nibble);
     }
     App.feed_wdt();
   }
   this->end_data_();
 
+  // Unlike the 7P5In display, we send the "power on" command here rather than during initialization
   // COMMAND POWER ON
   this->command(0x04);
 
