@@ -34,11 +34,23 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional("energy_returned_tariff2"): sensor.sensor_schema(
             "kWh", ICON_EMPTY, 3, DEVICE_CLASS_ENERGY
         ),
+        cv.Optional("total_imported_energy"): sensor.sensor_schema(
+            "kvarh", ICON_EMPTY, 3, DEVICE_CLASS_ENERGY
+        ),
+        cv.Optional("total_exported_energy"): sensor.sensor_schema(
+            "kvarh", ICON_EMPTY, 3, DEVICE_CLASS_ENERGY
+        ),
         cv.Optional("power_delivered"): sensor.sensor_schema(
             UNIT_WATT, ICON_EMPTY, 3, DEVICE_CLASS_POWER
         ),
         cv.Optional("power_returned"): sensor.sensor_schema(
             UNIT_WATT, ICON_EMPTY, 3, DEVICE_CLASS_POWER
+        ),
+        cv.Optional("reactive_power_delivered"): sensor.sensor_schema(
+            "kvar", ICON_EMPTY, 3, DEVICE_CLASS_ENERGY
+        ),
+        cv.Optional("reactive_power_returned"): sensor.sensor_schema(
+            "kvar", ICON_EMPTY, 3, DEVICE_CLASS_ENERGY
         ),
         cv.Optional("electricity_threshold"): sensor.sensor_schema(
             UNIT_EMPTY, ICON_EMPTY, 3, DEVICE_CLASS_EMPTY
@@ -95,6 +107,24 @@ CONFIG_SCHEMA = cv.Schema(
             UNIT_WATT, ICON_EMPTY, 3, DEVICE_CLASS_POWER
         ),
         cv.Optional("power_returned_l3"): sensor.sensor_schema(
+            UNIT_WATT, ICON_EMPTY, 3, DEVICE_CLASS_POWER
+        ),
+        cv.Optional("reactive_power_delivered_l1"): sensor.sensor_schema(
+            UNIT_WATT, ICON_EMPTY, 3, DEVICE_CLASS_POWER
+        ),
+        cv.Optional("reactive_power_delivered_l2"): sensor.sensor_schema(
+            UNIT_WATT, ICON_EMPTY, 3, DEVICE_CLASS_POWER
+        ),
+        cv.Optional("reactive_power_delivered_l3"): sensor.sensor_schema(
+            UNIT_WATT, ICON_EMPTY, 3, DEVICE_CLASS_POWER
+        ),
+        cv.Optional("reactive_power_returned_l1"): sensor.sensor_schema(
+            UNIT_WATT, ICON_EMPTY, 3, DEVICE_CLASS_POWER
+        ),
+        cv.Optional("reactive_power_returned_l2"): sensor.sensor_schema(
+            UNIT_WATT, ICON_EMPTY, 3, DEVICE_CLASS_POWER
+        ),
+        cv.Optional("reactive_power_returned_l3"): sensor.sensor_schema(
             UNIT_WATT, ICON_EMPTY, 3, DEVICE_CLASS_POWER
         ),
         cv.Optional("voltage_l1"): sensor.sensor_schema(

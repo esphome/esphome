@@ -133,8 +133,8 @@ bool Dsmr::parse_telegram() {
                               false);  // Parse telegram according to data definition. Ignore unknown values.
   if (res.err) {
     // Parsing error, show it
-    auto err_str = res.fullError(telegram_, telegram_ + telegram_len_).c_str();
-    ESP_LOGE(TAG, "%s", res.err);
+    auto err_str = res.fullError(telegram_, telegram_ + telegram_len_);
+    ESP_LOGE(TAG, "%s", err_str.c_str());
     return false;
   } else {
     this->status_clear_warning();
