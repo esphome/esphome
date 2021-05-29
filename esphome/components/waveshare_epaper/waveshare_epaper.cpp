@@ -1048,7 +1048,7 @@ void HOT WaveshareEPaper7P5InBC::display() {
   this->start_data_();
 
   for (size_t i = 0; i < this->get_buffer_length_(); i++) {
-    // A source pixel 
+    // A line of eight source pixels (each a bit in this byte)
     uint8_t eight_pixels = this->buffer_[i];
 
     for(uint8_t j = 0; j < 8; j += 2) {
