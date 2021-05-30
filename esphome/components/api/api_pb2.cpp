@@ -774,6 +774,10 @@ bool ListEntitiesFanResponse::decode_varint(uint32_t field_id, ProtoVarInt value
       this->supports_direction = value.as_bool();
       return true;
     }
+    case 8: {
+      this->supported_speed_count = value.as_int32();
+      return true;
+    }
     default:
       return false;
   }
@@ -814,6 +818,7 @@ void ListEntitiesFanResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_bool(5, this->supports_oscillation);
   buffer.encode_bool(6, this->supports_speed);
   buffer.encode_bool(7, this->supports_direction);
+  buffer.encode_int32(8, this->supported_speed_count);
 }
 void ListEntitiesFanResponse::dump_to(std::string &out) const {
   char buffer[64];
@@ -846,6 +851,11 @@ void ListEntitiesFanResponse::dump_to(std::string &out) const {
   out.append("  supports_direction: ");
   out.append(YESNO(this->supports_direction));
   out.append("\n");
+
+  out.append("  supported_speed_count: ");
+  sprintf(buffer, "%d", this->supported_speed_count);
+  out.append(buffer);
+  out.append("\n");
   out.append("}");
 }
 bool FanStateResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
@@ -864,6 +874,10 @@ bool FanStateResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
     }
     case 5: {
       this->direction = value.as_enum<enums::FanDirection>();
+      return true;
+    }
+    case 6: {
+      this->speed_level = value.as_int32();
       return true;
     }
     default:
@@ -886,6 +900,7 @@ void FanStateResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_bool(3, this->oscillating);
   buffer.encode_enum<enums::FanSpeed>(4, this->speed);
   buffer.encode_enum<enums::FanDirection>(5, this->direction);
+  buffer.encode_int32(6, this->speed_level);
 }
 void FanStateResponse::dump_to(std::string &out) const {
   char buffer[64];
@@ -909,6 +924,11 @@ void FanStateResponse::dump_to(std::string &out) const {
 
   out.append("  direction: ");
   out.append(proto_enum_to_string<enums::FanDirection>(this->direction));
+  out.append("\n");
+
+  out.append("  speed_level: ");
+  sprintf(buffer, "%d", this->speed_level);
+  out.append(buffer);
   out.append("\n");
   out.append("}");
 }
@@ -946,6 +966,14 @@ bool FanCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
       this->direction = value.as_enum<enums::FanDirection>();
       return true;
     }
+    case 10: {
+      this->has_speed_level = value.as_bool();
+      return true;
+    }
+    case 11: {
+      this->speed_level = value.as_int32();
+      return true;
+    }
     default:
       return false;
   }
@@ -970,6 +998,8 @@ void FanCommandRequest::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_bool(7, this->oscillating);
   buffer.encode_bool(8, this->has_direction);
   buffer.encode_enum<enums::FanDirection>(9, this->direction);
+  buffer.encode_bool(10, this->has_speed_level);
+  buffer.encode_int32(11, this->speed_level);
 }
 void FanCommandRequest::dump_to(std::string &out) const {
   char buffer[64];
@@ -1009,6 +1039,15 @@ void FanCommandRequest::dump_to(std::string &out) const {
 
   out.append("  direction: ");
   out.append(proto_enum_to_string<enums::FanDirection>(this->direction));
+  out.append("\n");
+
+  out.append("  has_speed_level: ");
+  out.append(YESNO(this->has_speed_level));
+  out.append("\n");
+
+  out.append("  speed_level: ");
+  sprintf(buffer, "%d", this->speed_level);
+  out.append(buffer);
   out.append("\n");
   out.append("}");
 }
@@ -2084,18 +2123,27 @@ bool SubscribeHomeAssistantStateResponse::decode_length(uint32_t field_id, Proto
       this->entity_id = value.as_string();
       return true;
     }
+    case 2: {
+      this->attribute = value.as_string();
+      return true;
+    }
     default:
       return false;
   }
 }
 void SubscribeHomeAssistantStateResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(1, this->entity_id);
+  buffer.encode_string(2, this->attribute);
 }
 void SubscribeHomeAssistantStateResponse::dump_to(std::string &out) const {
   char buffer[64];
   out.append("SubscribeHomeAssistantStateResponse {\n");
   out.append("  entity_id: ");
   out.append("'").append(this->entity_id).append("'");
+  out.append("\n");
+
+  out.append("  attribute: ");
+  out.append("'").append(this->attribute).append("'");
   out.append("\n");
   out.append("}");
 }
@@ -2109,6 +2157,10 @@ bool HomeAssistantStateResponse::decode_length(uint32_t field_id, ProtoLengthDel
       this->state = value.as_string();
       return true;
     }
+    case 3: {
+      this->attribute = value.as_string();
+      return true;
+    }
     default:
       return false;
   }
@@ -2116,6 +2168,7 @@ bool HomeAssistantStateResponse::decode_length(uint32_t field_id, ProtoLengthDel
 void HomeAssistantStateResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(1, this->entity_id);
   buffer.encode_string(2, this->state);
+  buffer.encode_string(3, this->attribute);
 }
 void HomeAssistantStateResponse::dump_to(std::string &out) const {
   char buffer[64];
@@ -2126,6 +2179,10 @@ void HomeAssistantStateResponse::dump_to(std::string &out) const {
 
   out.append("  state: ");
   out.append("'").append(this->state).append("'");
+  out.append("\n");
+
+  out.append("  attribute: ");
+  out.append("'").append(this->attribute).append("'");
   out.append("\n");
   out.append("}");
 }

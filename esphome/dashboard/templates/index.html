@@ -359,12 +359,12 @@
                 <p>
                   Names must be all <strong>lowercase</strong> and <strong>must not contain any spaces</strong>!
                   Characters that are allowed are: <code class="inlinecode">a-z</code>,
-                  <code class="inlinecode">0-9</code>, <code class="inlinecode">_</code> and <code class="inlinecode">-</code>.
+                  <code class="inlinecode">0-9</code> and <code class="inlinecode">-</code>.
                 </p>
 
                 <div class="input-field col s12">
                   <input id="node_name" class="validate" type="text" name="name" data-rule-nospaces="true"
-                    data-rule-lowercase="true" required>
+                    data-rule-lowercase="true" data-rule-nounderscores="true" required>
                   <label for="node_name">Node Name</label>
                 </div>
 
@@ -649,7 +649,7 @@
   <footer class="page-footer grey darken-4">
     <div class="container">
       <div class="left">
-        Copyright © 2019-2020 ESPHome | Made with <a href="https://materializecss.com/" target="_blank">Materialize</a>
+        Copyright © 2019-2021 ESPHome | Made with <a href="https://materializecss.com/" target="_blank">Materialize</a>
       </div>
       <div class="right">
         <a href="{{ docs_link }}" target="_blank" rel="noreferrer">v{{ version }}

@@ -3,20 +3,28 @@ import esphome.config_validation as cv
 from esphome.components import i2c, sensor
 from esphome.const import CONF_ID, DEVICE_CLASS_TEMPERATURE, ICON_EMPTY, UNIT_CELSIUS
 
-DEPENDENCIES = ['i2c']
+DEPENDENCIES = ["i2c"]
 
-sts3x_ns = cg.esphome_ns.namespace('sts3x')
+sts3x_ns = cg.esphome_ns.namespace("sts3x")
 
-STS3XComponent = sts3x_ns.class_('STS3XComponent', sensor.Sensor,
-                                 cg.PollingComponent, i2c.I2CDevice)
+STS3XComponent = sts3x_ns.class_(
+    "STS3XComponent", sensor.Sensor, cg.PollingComponent, i2c.I2CDevice
+)
 
-CONFIG_SCHEMA = sensor.sensor_schema(UNIT_CELSIUS, ICON_EMPTY, 1, DEVICE_CLASS_TEMPERATURE).extend({
-    cv.GenerateID(): cv.declare_id(STS3XComponent),
-}).extend(cv.polling_component_schema('60s')).extend(i2c.i2c_device_schema(0x4A))
+CONFIG_SCHEMA = (
+    sensor.sensor_schema(UNIT_CELSIUS, ICON_EMPTY, 1, DEVICE_CLASS_TEMPERATURE)
+    .extend(
+        {
+            cv.GenerateID(): cv.declare_id(STS3XComponent),
+        }
+    )
+    .extend(cv.polling_component_schema("60s"))
+    .extend(i2c.i2c_device_schema(0x4A))
+)
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
-    yield sensor.register_sensor(var, config)
-    yield i2c.register_i2c_device(var, config)
+    await cg.register_component(var, config)
+    await sensor.register_sensor(var, config)
+    await i2c.register_i2c_device(var, config)

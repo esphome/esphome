@@ -208,9 +208,11 @@ void APIServer::send_homeassistant_service_call(const HomeassistantServiceRespon
   }
 }
 APIServer::APIServer() { global_api_server = this; }
-void APIServer::subscribe_home_assistant_state(std::string entity_id, std::function<void(std::string)> f) {
+void APIServer::subscribe_home_assistant_state(std::string entity_id, optional<std::string> attribute,
+                                               std::function<void(std::string)> f) {
   this->state_subs_.push_back(HomeAssistantStateSubscription{
       .entity_id = std::move(entity_id),
+      .attribute = std::move(attribute),
       .callback = std::move(f),
   });
 }
