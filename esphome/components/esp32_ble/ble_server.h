@@ -27,7 +27,6 @@ class BLEServiceComponent {
 class BLEServer : public Component {
  public:
   void setup() override;
-  void loop() override;
   void dump_config() override;
   float get_setup_priority() const override;
 
@@ -73,12 +72,6 @@ class BLEServer : public Component {
   std::vector<BLEServiceComponent *> service_components_;
 
   SemaphoreHandle_t register_lock_;
-
-  enum : uint8_t {
-    SETUP = 0x00,
-    SETTING_UP_SERVICE_COMPONENTS,
-    RUNNING,
-  } state_;
 };
 
 extern BLEServer *global_ble_server;

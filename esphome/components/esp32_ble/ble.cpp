@@ -37,6 +37,8 @@ void ESP32BLE::mark_failed() {
   }
 }
 
+bool ESP32BLE::can_proceed() { return this->ready_; }
+
 void ESP32BLE::ble_core_task_(void *params) {
   if (!ble_setup_()) {
     ESP_LOGE(TAG, "BLE could not be set up");

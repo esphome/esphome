@@ -27,6 +27,7 @@ class ESP32BLE : public Component {
   void dump_config() override;
   float get_setup_priority() const override;
   void mark_failed() override;
+  bool can_proceed() override;
 
   bool has_server() { return this->server_ != nullptr; }
   bool has_client() { return false; }

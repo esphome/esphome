@@ -29,10 +29,20 @@ void BLEServer::setup() {
     return;
   }
 
+  ESP_LOGD(TAG, "Setting up BLE Server...");
+
   global_ble_server = this;
   this->register_lock_ = xSemaphoreCreateBinary();
   xSemaphoreGive(this->register_lock_);
   this->advertising_ = new BLEAdvertising();
+
+  this->setup_server_();
+
+  for (auto *component : this->service_components_) {
+    component->setup_service();
+  }
+
+  ESP_LOGD(TAG, "BLE Server set up complete...");
 }
 
 void BLEServer::setup_server_() {
@@ -54,31 +64,6 @@ void BLEServer::setup_server_() {
   this->advertising_->start();
 
   this->device_information_service->start();
-}
-
-void BLEServer::loop() {
-  switch (this->state_) {
-    case SETUP: {
-      if (global_ble->is_ready()) {
-        ESP_LOGD(TAG, "Setting up BLE Server...");
-        this->setup_server_();
-        ESP_LOGD(TAG, "BLE Server set up complete...");
-        this->state_ = SETTING_UP_SERVICE_COMPONENTS;
-      }
-      break;
-    }
-    case SETTING_UP_SERVICE_COMPONENTS: {
-      ESP_LOGD(TAG, "Setting up service components...");
-      for (auto *component : this->service_components_) {
-        component->setup_service();
-      }
-      ESP_LOGD(TAG, "Service components set up done");
-      this->state_ = RUNNING;
-    }
-    case RUNNING: {
-      break;
-    }
-  }
 }
 
 bool BLEServer::create_device_characteristics_() {
@@ -144,7 +129,6 @@ void BLEServer::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t ga
     case ESP_GATTS_REG_EVT: {
       this->gatts_if_ = gatts_if;
       xSemaphoreGive(this->register_lock_);
-      // this->state_ = REGISTERED;
       break;
     }
     default:
