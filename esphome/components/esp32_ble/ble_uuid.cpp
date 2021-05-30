@@ -25,13 +25,6 @@ ESPBTUUID ESPBTUUID::from_raw(const uint8_t *data) {
     ret.uuid_.uuid.uuid128[i] = data[i];
   return ret;
 }
-ESPBTUUID ESPBTUUID::from_raw(const char *data) {
-  ESPBTUUID ret;
-  ret.uuid_.len = ESP_UUID_LEN_128;
-  for (size_t i = 0; i < ESP_UUID_LEN_128; i++)
-    ret.uuid_.uuid.uuid128[i] = data[i];
-  return ret;
-}
 ESPBTUUID ESPBTUUID::from_raw(const std::string data) {
   ESPBTUUID ret;
   if (data.length() == 4) {
@@ -85,7 +78,7 @@ ESPBTUUID ESPBTUUID::from_raw(const std::string data) {
       i += 2;
     }
   } else {
-    ESP_LOGE(TAG, "ERROR: UUID value not 2, 4, 16 or 36 bytes");
+    ESP_LOGE(TAG, "ERROR: UUID value not 2, 4, 16 or 36 bytes - %s", data.c_str());
   }
   return ret;
 }

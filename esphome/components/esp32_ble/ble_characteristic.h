@@ -31,6 +31,7 @@ class BLECharacteristic {
   void set_value(int &data);
   void set_value(float &data);
   void set_value(double &data);
+  void set_value(bool &data);
 
   void set_broadcast_property(bool value);
   void set_indicate_property(bool value);

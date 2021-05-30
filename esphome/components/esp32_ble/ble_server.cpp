@@ -49,6 +49,10 @@ void BLEServer::setup_server_() {
 
   this->create_device_characteristics_();
 
+  this->advertising_->set_scan_response(true);
+  this->advertising_->set_min_preferred_interval(0x06);
+  this->advertising_->start();
+
   this->device_information_service->start();
 }
 
@@ -98,17 +102,10 @@ bool BLEServer::create_device_characteristics_() {
       this->device_information_service->create_characteristic(MANUFACTURER_UUID, BLECharacteristic::PROPERTY_READ);
   manufacturer->set_value(this->manufacturer_);
 
-  this->advertising_->set_scan_response(true);
-  this->advertising_->set_min_preferred_interval(0x06);
-  this->advertising_->start();
-
   return true;
 }
 
 BLEService *BLEServer::create_service(const uint8_t *uuid, bool advertise) {
-  return this->create_service(ESPBTUUID::from_raw(uuid), advertise);
-}
-BLEService *BLEServer::create_service(const char *uuid, bool advertise) {
   return this->create_service(ESPBTUUID::from_raw(uuid), advertise);
 }
 BLEService *BLEServer::create_service(uint16_t uuid, bool advertise) {

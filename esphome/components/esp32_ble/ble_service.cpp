@@ -35,13 +35,6 @@ BLECharacteristic *BLEService::get_characteristic(ESPBTUUID uuid) {
 BLECharacteristic *BLEService::get_characteristic(uint16_t uuid) {
   return this->get_characteristic(ESPBTUUID::from_uint16(uuid));
 }
-
-BLECharacteristic *BLEService::create_characteristic(const uint8_t *uuid, esp_gatt_char_prop_t properties) {
-  return create_characteristic(ESPBTUUID::from_raw(uuid), properties);
-}
-BLECharacteristic *BLEService::create_characteristic(const char *uuid, esp_gatt_char_prop_t properties) {
-  return create_characteristic(ESPBTUUID::from_raw(uuid), properties);
-}
 BLECharacteristic *BLEService::create_characteristic(uint16_t uuid, esp_gatt_char_prop_t properties) {
   return create_characteristic(ESPBTUUID::from_uint16(uuid), properties);
 }

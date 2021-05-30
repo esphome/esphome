@@ -37,7 +37,6 @@ class BLEServer : public Component {
   void set_model(const std::string model) { this->model_ = model; }
 
   BLEService *create_service(const uint8_t *uuid, bool advertise = false);
-  BLEService *create_service(const char *uuid, bool advertise = false);
   BLEService *create_service(uint16_t uuid, bool advertise = false);
   BLEService *create_service(const std::string uuid, bool advertise = false);
   BLEService *create_service(ESPBTUUID uuid, bool advertise = false, uint16_t num_handles = 15, uint8_t inst_id = 0);
