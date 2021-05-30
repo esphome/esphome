@@ -71,8 +71,13 @@ bool BLEService::do_create_characteristics_() {
 }
 
 void BLEService::start() {
+  if (this->running_state_ == RUNNING)
+    return;
+
   if (this->do_create_characteristics_())
     return;
+
+  ESP_LOGD(TAG, "Starting BLE service %s", this->uuid_.to_string().c_str());
 
   esp_err_t err = esp_ble_gatts_start_service(this->handle_);
   if (err != ESP_OK) {
@@ -111,12 +116,14 @@ void BLEService::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t g
       if (this->uuid_ == ESPBTUUID::from_uuid(param->create.service_id.id.uuid) &&
           this->inst_id_ == param->create.service_id.id.inst_id) {
         this->handle_ = param->create.service_handle;
+        ESP_LOGI(TAG, "Service %s created", this->uuid_.to_string().c_str());
         this->init_state_ = CREATED;
       }
       break;
     }
     case ESP_GATTS_START_EVT: {
       if (param->start.service_handle == this->handle_) {
+        ESP_LOGI(TAG, "Service %s started", this->uuid_.to_string().c_str());
         this->running_state_ = RUNNING;
       }
       break;
