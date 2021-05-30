@@ -18,10 +18,10 @@ CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield output.register_output(var, config)
+    await output.register_output(var, config)
 
-    parent = yield cg.get_variable(config[CONF_SM16716_ID])
+    parent = await cg.get_variable(config[CONF_SM16716_ID])
     cg.add(var.set_parent(parent))
     cg.add(var.set_channel(config[CONF_CHANNEL]))

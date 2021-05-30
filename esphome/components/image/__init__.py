@@ -39,7 +39,7 @@ IMAGE_SCHEMA = cv.Schema(
 CONFIG_SCHEMA = cv.All(font.validate_pillow_installed, IMAGE_SCHEMA)
 
 
-def to_code(config):
+async def to_code(config):
     from PIL import Image
 
     path = CORE.relative_config_path(config[CONF_FILE])

@@ -354,7 +354,7 @@ def safe_exp(obj: SafeExpType) -> Expression:
     if inspect.isgenerator(obj):
         raise ValueError(
             "Object {} is a coroutine. Did you forget to await the expression with "
-            "'yield'?".format(obj)
+            "'await'?".format(obj)
         )
     raise ValueError("Object is not an expression", obj)
 
@@ -411,10 +411,29 @@ class ProgmemAssignmentExpression(AssignmentExpression):
         return f"static const {self.type} {self.name}[] PROGMEM = {self.rhs}"
 
 
+class StaticConstAssignmentExpression(AssignmentExpression):
+    __slots__ = ()
+
+    def __init__(self, type_, name, rhs, obj):
+        super().__init__(type_, "", name, rhs, obj)
+
+    def __str__(self):
+        return f"static const {self.type} {self.name}[] = {self.rhs}"
+
+
 def progmem_array(id_, rhs) -> "MockObj":
     rhs = safe_exp(rhs)
     obj = MockObj(id_, ".")
     assignment = ProgmemAssignmentExpression(id_.type, id_, rhs, obj)
+    CORE.add(assignment)
+    CORE.register_variable(id_, obj)
+    return obj
+
+
+def static_const_array(id_, rhs) -> "MockObj":
+    rhs = safe_exp(rhs)
+    obj = MockObj(id_, ".")
+    assignment = StaticConstAssignmentExpression(id_.type, id_, rhs, obj)
     CORE.add(assignment)
     CORE.register_variable(id_, obj)
     return obj
@@ -554,7 +573,7 @@ async def get_variable(id_: ID) -> "MockObj":
     Wait for the given ID to be defined in the code generation and
     return it as a MockObj.
 
-    This is a coroutine, you need to await it with a 'yield' expression!
+    This is a coroutine, you need to await it with a 'await' expression!
 
     :param id_: The ID to retrieve
     :return: The variable as a MockObj.
@@ -567,7 +586,7 @@ async def get_variable_with_full_id(id_: ID) -> Tuple[ID, "MockObj"]:
     Wait for the given ID to be defined in the code generation and
     return it as a MockObj.
 
-    This is a coroutine, you need to await it with a 'yield' expression!
+    This is a coroutine, you need to await it with a 'await' expression!
 
     :param id_: The ID to retrieve
     :return: The variable as a MockObj.
@@ -575,8 +594,7 @@ async def get_variable_with_full_id(id_: ID) -> Tuple[ID, "MockObj"]:
     return await CORE.get_variable_with_full_id(id_)
 
 
-@coroutine
-def process_lambda(
+async def process_lambda(
     value: Lambda,
     parameters: List[Tuple[SafeExpType, str]],
     capture: str = "=",
@@ -585,7 +603,7 @@ def process_lambda(
     """Process the given lambda value into a LambdaExpression.
 
     This is a coroutine because lambdas can depend on other IDs,
-    you need to await it with 'yield'!
+    you need to await it with 'await'!
 
     :param value: The lambda to process.
     :param parameters: The parameters to pass to the Lambda, list of tuples
@@ -596,11 +614,10 @@ def process_lambda(
     from esphome.components.globals import GlobalsComponent
 
     if value is None:
-        yield
         return
     parts = value.parts[:]
     for i, id in enumerate(value.requires_ids):
-        full_id, var = yield get_variable_with_full_id(id)
+        full_id, var = await get_variable_with_full_id(id)
         if (
             full_id is not None
             and isinstance(full_id.type, MockObjClass)
@@ -620,7 +637,7 @@ def process_lambda(
         location.line += value.content_offset
     else:
         location = None
-    yield LambdaExpression(parts, parameters, capture, return_type, location)
+    return LambdaExpression(parts, parameters, capture, return_type, location)
 
 
 def is_template(value):
@@ -628,8 +645,7 @@ def is_template(value):
     return isinstance(value, Lambda)
 
 
-@coroutine
-def templatable(
+async def templatable(
     value: Any,
     args: List[Tuple[SafeExpType, str]],
     output_type: Optional[SafeExpType],
@@ -647,15 +663,12 @@ def templatable(
     :return: The potentially templated value.
     """
     if is_template(value):
-        lambda_ = yield process_lambda(value, args, return_type=output_type)
-        yield lambda_
-    else:
-        if to_exp is None:
-            yield value
-        elif isinstance(to_exp, dict):
-            yield to_exp[value]
-        else:
-            yield to_exp(value)
+        return await process_lambda(value, args, return_type=output_type)
+    if to_exp is None:
+        return value
+    if isinstance(to_exp, dict):
+        return to_exp[value]
+    return to_exp(value)
 
 
 class MockObj(Expression):
