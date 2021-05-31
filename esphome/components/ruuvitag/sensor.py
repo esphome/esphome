@@ -89,43 +89,43 @@ CONFIG_SCHEMA = (
 )
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
-    yield esp32_ble_tracker.register_ble_device(var, config)
+    await cg.register_component(var, config)
+    await esp32_ble_tracker.register_ble_device(var, config)
 
     cg.add(var.set_address(config[CONF_MAC_ADDRESS].as_hex))
 
     if CONF_TEMPERATURE in config:
-        sens = yield sensor.new_sensor(config[CONF_TEMPERATURE])
+        sens = await sensor.new_sensor(config[CONF_TEMPERATURE])
         cg.add(var.set_temperature(sens))
     if CONF_HUMIDITY in config:
-        sens = yield sensor.new_sensor(config[CONF_HUMIDITY])
+        sens = await sensor.new_sensor(config[CONF_HUMIDITY])
         cg.add(var.set_humidity(sens))
     if CONF_PRESSURE in config:
-        sens = yield sensor.new_sensor(config[CONF_PRESSURE])
+        sens = await sensor.new_sensor(config[CONF_PRESSURE])
         cg.add(var.set_pressure(sens))
     if CONF_ACCELERATION in config:
-        sens = yield sensor.new_sensor(config[CONF_ACCELERATION])
+        sens = await sensor.new_sensor(config[CONF_ACCELERATION])
         cg.add(var.set_acceleration(sens))
     if CONF_ACCELERATION_X in config:
-        sens = yield sensor.new_sensor(config[CONF_ACCELERATION_X])
+        sens = await sensor.new_sensor(config[CONF_ACCELERATION_X])
         cg.add(var.set_acceleration_x(sens))
     if CONF_ACCELERATION_Y in config:
-        sens = yield sensor.new_sensor(config[CONF_ACCELERATION_Y])
+        sens = await sensor.new_sensor(config[CONF_ACCELERATION_Y])
         cg.add(var.set_acceleration_y(sens))
     if CONF_ACCELERATION_Z in config:
-        sens = yield sensor.new_sensor(config[CONF_ACCELERATION_Z])
+        sens = await sensor.new_sensor(config[CONF_ACCELERATION_Z])
         cg.add(var.set_acceleration_z(sens))
     if CONF_BATTERY_VOLTAGE in config:
-        sens = yield sensor.new_sensor(config[CONF_BATTERY_VOLTAGE])
+        sens = await sensor.new_sensor(config[CONF_BATTERY_VOLTAGE])
         cg.add(var.set_battery_voltage(sens))
     if CONF_TX_POWER in config:
-        sens = yield sensor.new_sensor(config[CONF_TX_POWER])
+        sens = await sensor.new_sensor(config[CONF_TX_POWER])
         cg.add(var.set_tx_power(sens))
     if CONF_MOVEMENT_COUNTER in config:
-        sens = yield sensor.new_sensor(config[CONF_MOVEMENT_COUNTER])
+        sens = await sensor.new_sensor(config[CONF_MOVEMENT_COUNTER])
         cg.add(var.set_movement_counter(sens))
     if CONF_MEASUREMENT_SEQUENCE_NUMBER in config:
-        sens = yield sensor.new_sensor(config[CONF_MEASUREMENT_SEQUENCE_NUMBER])
+        sens = await sensor.new_sensor(config[CONF_MEASUREMENT_SEQUENCE_NUMBER])
         cg.add(var.set_measurement_sequence_number(sens))

@@ -52,10 +52,10 @@ CONFIG_SCHEMA = (
 )
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
-    yield i2c.register_i2c_device(var, config)
+    await cg.register_component(var, config)
+    await i2c.register_i2c_device(var, config)
 
     if CONF_IRQ_PIN in config:
         cg.add(var.set_irq_pin(config[CONF_IRQ_PIN]))
@@ -70,5 +70,5 @@ def to_code(config):
         if key not in config:
             continue
         conf = config[key]
-        sens = yield sensor.new_sensor(conf)
+        sens = await sensor.new_sensor(conf)
         cg.add(getattr(var, f"set_{key}_sensor")(sens))

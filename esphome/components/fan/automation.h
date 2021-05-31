@@ -46,5 +46,41 @@ template<typename... Ts> class ToggleAction : public Action<Ts...> {
   FanState *state_;
 };
 
+class FanTurnOnTrigger : public Trigger<> {
+ public:
+  FanTurnOnTrigger(FanState *state) {
+    state->add_on_state_callback([this, state]() {
+      auto is_on = state->state;
+      auto should_trigger = is_on && !this->last_on_;
+      this->last_on_ = is_on;
+      if (should_trigger) {
+        this->trigger();
+      }
+    });
+    this->last_on_ = state->state;
+  }
+
+ protected:
+  bool last_on_;
+};
+
+class FanTurnOffTrigger : public Trigger<> {
+ public:
+  FanTurnOffTrigger(FanState *state) {
+    state->add_on_state_callback([this, state]() {
+      auto is_on = state->state;
+      auto should_trigger = !is_on && this->last_on_;
+      this->last_on_ = is_on;
+      if (should_trigger) {
+        this->trigger();
+      }
+    });
+    this->last_on_ = state->state;
+  }
+
+ protected:
+  bool last_on_;
+};
+
 }  // namespace fan
 }  // namespace esphome

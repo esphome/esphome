@@ -14,10 +14,10 @@ CONFIG_SCHEMA = switch.SWITCH_SCHEMA.extend(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
-    yield switch.register_switch(var, config)
+    await cg.register_component(var, config)
+    await switch.register_switch(var, config)
 
-    output_ = yield cg.get_variable(config[CONF_OUTPUT])
+    output_ = await cg.get_variable(config[CONF_OUTPUT])
     cg.add(var.set_output(output_))

@@ -70,11 +70,11 @@ def determine_config_register(polling_period):
     return 0x0000
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
-    yield i2c.register_i2c_device(var, config)
-    yield sensor.register_sensor(var, config)
+    await cg.register_component(var, config)
+    await i2c.register_i2c_device(var, config)
+    await sensor.register_sensor(var, config)
 
     update_period = config[CONF_UPDATE_INTERVAL].total_seconds
     cg.add(var.set_config(determine_config_register(update_period)))

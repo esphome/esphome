@@ -39,12 +39,12 @@ CONFIG_SCHEMA = (
 )
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID], config[CONF_HISTORICAL_MODE])
-    yield cg.register_component(var, config)
-    yield uart.register_uart_device(var, config)
+    await cg.register_component(var, config)
+    await uart.register_uart_device(var, config)
 
     if CONF_TAGS in config:
         for tag in config[CONF_TAGS]:
-            sens = yield sensor.new_sensor(tag[CONF_SENSOR])
+            sens = await sensor.new_sensor(tag[CONF_SENSOR])
             cg.add(var.register_teleinfo_sensor(tag[CONF_TAG_NAME], sens))

@@ -42,7 +42,7 @@ CONFIG_SCHEMA = cv.typed_schema(
 )
 
 
-def to_code(config):
+async def to_code(config):
     type = config[CONF_TYPE]
     if type == "binary":
         ret_type = output.BinaryOutputPtr
@@ -50,7 +50,7 @@ def to_code(config):
     else:
         ret_type = output.FloatOutputPtr
         klass = CustomFloatOutputConstructor
-    template_ = yield cg.process_lambda(
+    template_ = await cg.process_lambda(
         config[CONF_LAMBDA], [], return_type=cg.std_vector.template(ret_type)
     )
 
@@ -58,4 +58,4 @@ def to_code(config):
     custom = cg.variable(config[CONF_ID], rhs)
     for i, conf in enumerate(config[CONF_OUTPUTS]):
         out = cg.Pvariable(conf[CONF_ID], custom.get_output(i))
-        yield output.register_output(out, conf)
+        await output.register_output(out, conf)
