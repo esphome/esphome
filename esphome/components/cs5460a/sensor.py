@@ -96,10 +96,10 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
-    yield spi.register_spi_device(var, config)
+    await cg.register_component(var, config)
+    await spi.register_spi_device(var, config)
 
     cg.add(var.set_samples(config[CONF_SAMPLES]))
     cg.add(var.set_phase_offset(config[CONF_PHASE_OFFSET]))
@@ -110,15 +110,15 @@ def to_code(config):
 
     if CONF_VOLTAGE in config:
         conf = config[CONF_VOLTAGE]
-        sens = yield sensor.new_sensor(conf)
+        sens = await sensor.new_sensor(conf)
         cg.add(var.set_voltage_sensor(sens))
     if CONF_CURRENT in config:
         conf = config[CONF_CURRENT]
-        sens = yield sensor.new_sensor(conf)
+        sens = await sensor.new_sensor(conf)
         cg.add(var.set_current_sensor(sens))
     if CONF_POWER in config:
         conf = config[CONF_POWER]
-        sens = yield sensor.new_sensor(conf)
+        sens = await sensor.new_sensor(conf)
         cg.add(var.set_power_sensor(sens))
 
 
@@ -131,6 +131,6 @@ def to_code(config):
         }
     ),
 )
-def restart_action_to_code(config, action_id, template_arg, args):
-    paren = yield cg.get_variable(config[CONF_ID])
-    yield cg.new_Pvariable(action_id, template_arg, paren)
+async def restart_action_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(action_id, template_arg, paren)
