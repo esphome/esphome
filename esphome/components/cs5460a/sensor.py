@@ -123,7 +123,7 @@ async def to_code(config):
 
 
 @automation.register_action(
-    "sensor.cs5460a.restart",
+    "cs5460a.restart",
     CS5460ARestartAction,
     maybe_simple_id(
         {

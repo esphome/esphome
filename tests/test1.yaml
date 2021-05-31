@@ -924,7 +924,7 @@ sensor:
       name: "Socket power"
       on_value:
         then:
-          sensor.cs5460a.restart: cs5460a1
+          cs5460a.restart: cs5460a1
     samples: 1600
     pga_gain: 10X
     current_gain: 0.01
