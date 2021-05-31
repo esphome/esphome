@@ -100,7 +100,6 @@ bool Modbus::parse_modbus_byte_(uint8_t byte) {
 void Modbus::dump_config() {
   ESP_LOGCONFIG(TAG, "Modbus:");
   LOG_PIN("  Flow Control Pin: ", this->flow_control_pin_);
-  this->check_uart_settings(9600, 2);
 }
 float Modbus::get_setup_priority() const {
   // After UART bus
