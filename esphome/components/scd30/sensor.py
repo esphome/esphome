@@ -42,7 +42,7 @@ CONFIG_SCHEMA = (
             ),
             cv.Optional(CONF_AUTOMATIC_SELF_CALIBRATION, default=True): cv.boolean,
             cv.Optional(CONF_ALTITUDE_COMPENSATION): cv.All(
-                cv.float_with_unit("altitude", "(m|m a.s.l.|m MAMSL|m MASL)"),
+                cv.float_with_unit("altitude", "(m|m a.s.l.|MAMSL|MASL)"),
                 cv.int_range(min=0, max=0xFFFF, max_included=False),
             ),
             cv.Optional(CONF_AMBIENT_PRESSURE_COMPENSATION, default=0): cv.pressure,
