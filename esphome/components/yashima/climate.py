@@ -24,16 +24,16 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
-    yield climate.register_climate(var, config)
+    await cg.register_component(var, config)
+    await climate.register_climate(var, config)
 
     cg.add(var.set_supports_cool(config[CONF_SUPPORTS_COOL]))
     cg.add(var.set_supports_heat(config[CONF_SUPPORTS_HEAT]))
     if CONF_SENSOR in config:
-        sens = yield cg.get_variable(config[CONF_SENSOR])
+        sens = await cg.get_variable(config[CONF_SENSOR])
         cg.add(var.set_sensor(sens))
 
-    transmitter = yield cg.get_variable(config[CONF_TRANSMITTER_ID])
+    transmitter = await cg.get_variable(config[CONF_TRANSMITTER_ID])
     cg.add(var.set_transmitter(transmitter))

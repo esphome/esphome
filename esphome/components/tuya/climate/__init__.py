@@ -77,12 +77,12 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
-    yield climate.register_climate(var, config)
+    await cg.register_component(var, config)
+    await climate.register_climate(var, config)
 
-    paren = yield cg.get_variable(config[CONF_TUYA_ID])
+    paren = await cg.get_variable(config[CONF_TUYA_ID])
     cg.add(var.set_tuya_parent(paren))
 
     if CONF_SWITCH_DATAPOINT in config:

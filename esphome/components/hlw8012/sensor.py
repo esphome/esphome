@@ -70,28 +70,28 @@ CONFIG_SCHEMA = cv.Schema(
 ).extend(cv.polling_component_schema("60s"))
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
+    await cg.register_component(var, config)
 
-    sel = yield cg.gpio_pin_expression(config[CONF_SEL_PIN])
+    sel = await cg.gpio_pin_expression(config[CONF_SEL_PIN])
     cg.add(var.set_sel_pin(sel))
-    cf = yield cg.gpio_pin_expression(config[CONF_CF_PIN])
+    cf = await cg.gpio_pin_expression(config[CONF_CF_PIN])
     cg.add(var.set_cf_pin(cf))
-    cf1 = yield cg.gpio_pin_expression(config[CONF_CF1_PIN])
+    cf1 = await cg.gpio_pin_expression(config[CONF_CF1_PIN])
     cg.add(var.set_cf1_pin(cf1))
 
     if CONF_VOLTAGE in config:
-        sens = yield sensor.new_sensor(config[CONF_VOLTAGE])
+        sens = await sensor.new_sensor(config[CONF_VOLTAGE])
         cg.add(var.set_voltage_sensor(sens))
     if CONF_CURRENT in config:
-        sens = yield sensor.new_sensor(config[CONF_CURRENT])
+        sens = await sensor.new_sensor(config[CONF_CURRENT])
         cg.add(var.set_current_sensor(sens))
     if CONF_POWER in config:
-        sens = yield sensor.new_sensor(config[CONF_POWER])
+        sens = await sensor.new_sensor(config[CONF_POWER])
         cg.add(var.set_power_sensor(sens))
     if CONF_ENERGY in config:
-        sens = yield sensor.new_sensor(config[CONF_ENERGY])
+        sens = await sensor.new_sensor(config[CONF_ENERGY])
         cg.add(var.set_energy_sensor(sens))
     cg.add(var.set_current_resistor(config[CONF_CURRENT_RESISTOR]))
     cg.add(var.set_voltage_divider(config[CONF_VOLTAGE_DIVIDER]))
