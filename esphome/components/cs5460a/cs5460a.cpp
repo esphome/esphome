@@ -104,10 +104,12 @@ void CS5460AComponent::hw_init_() {
 void CS5460AComponent::restart_() {
   int cnt;
 
+  this->enable();
   /* Stop running conversion, wake up if needed */
   this->write_byte(CMD_POWER_UP);
   /* Start continuous conversion */
   this->write_byte(CMD_START_CONT);
+  this->disable();
 
   this->started_();
 }
