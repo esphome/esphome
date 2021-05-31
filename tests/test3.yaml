@@ -469,6 +469,62 @@ sensor:
       name: "Fingerprint Last Finger ID"
     last_confidence:
       name: "Fingerprint Last Confidence"
+  - platform: sdm_meter
+    phase_a:
+      current:
+        name: 'Phase A Current'
+      voltage:
+        name: 'Phase A Voltage'
+      active_power:
+        name: 'Phase A Power'
+      power_factor:
+        name: 'Phase A Power Factor'
+      apparent_power:
+        name: 'Phase A Apparent Power'
+      reactive_power:
+        name: 'Phase A Reactive Power'
+      phase_angle:
+        name: 'Phase A Phase Angle'
+    phase_b:
+      current:
+        name: 'Phase B Current'
+      voltage:
+        name: 'Phase B Voltage'
+      active_power:
+        name: 'Phase B Power'
+      power_factor:
+        name: 'Phase B Power Factor'
+      apparent_power:
+        name: 'Phase B Apparent Power'
+      reactive_power:
+        name: 'Phase B Reactive Power'
+      phase_angle:
+        name: 'Phase B Phase Angle'
+    phase_c:
+      current:
+        name: 'Phase C Current'
+      voltage:
+        name: 'Phase C Voltage'
+      active_power:
+        name: 'Phase C Power'
+      power_factor:
+        name: 'Phase C Power Factor'
+      apparent_power:
+        name: 'Phase C Apparent Power'
+      reactive_power:
+        name: 'Phase C Reactive Power'
+      phase_angle:
+        name: 'Phase C Phase Angle'
+    frequency:
+      name: 'Frequency'
+    import_active_energy:
+      name: 'Import Active Energy'
+    export_active_energy:
+      name: 'Export Active Energy'
+    import_reactive_energy:
+      name: 'Import Reactive Energy'
+    export_reactive_energy:
+      name: 'Export Reactive Energy'
 
 time:
   - platform: homeassistant
