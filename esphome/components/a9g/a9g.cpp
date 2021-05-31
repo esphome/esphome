@@ -68,7 +68,7 @@ A9GCoordinate* A9G::parse_location_response(uint8_t *response) {
 
     coordinates = (A9GCoordinate *)malloc(sizeof(A9GCoordinate));
     coordinates->latitude = -100;
-    coordinates->longitude = -100;
+    coordinates->longitude = -200;
 
     if (strlen((const char *)response) < 17)
     {
@@ -136,7 +136,7 @@ void A9G::update() {
 
     coordinates = this->parse_location_response(&readBuffer[0]);
     
-    if ((coordinates->latitude != -100) && (coordinates->longitude != -100)) {
+    if ((coordinates->latitude != -100) && (coordinates->longitude != -200)) {
         this->latitude_ = coordinates->latitude;
         this->longitude_ = coordinates->longitude;
 
