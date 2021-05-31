@@ -38,7 +38,7 @@ class BLESensor : public sensor::Sensor, public PollingComponent, public BLEClie
 
  protected:
   uint32_t hash_base() override;
-  float parse_data(esp_ble_gattc_cb_param_t *param);
+  float parse_data(uint8_t *value, uint16_t value_len);
   optional<data_to_value_t> data_to_value_func_{};
   bool notify_;
   espbt::ESPBTUUID service_uuid_;
