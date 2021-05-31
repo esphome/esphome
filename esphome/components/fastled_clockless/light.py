@@ -34,7 +34,7 @@ CHIPSETS = [
 ]
 
 
-def validate(value):
+def _validate(value):
     if value[CONF_CHIPSET] == "NEOPIXEL" and CONF_RGB_ORDER in value:
         raise cv.Invalid("NEOPIXEL doesn't support RGB order")
     return value
@@ -47,7 +47,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_PIN): pins.output_pin,
         }
     ),
-    validate,
+    _validate,
 )
 
 

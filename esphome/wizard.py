@@ -295,7 +295,7 @@ def wizard(path):
     safe_print(
         "First, what's the "
         + color(Fore.GREEN, "SSID")
-        + f" (the name) of the WiFi network {name} I should connect to?"
+        + f" (the name) of the WiFi network {name} should connect to?"
     )
     sleep(1.5)
     safe_print('For example "{}".'.format(color(Fore.BOLD_WHITE, "Abraham Linksys")))

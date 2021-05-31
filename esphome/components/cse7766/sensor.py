@@ -59,3 +59,9 @@ async def to_code(config):
         conf = config[CONF_POWER]
         sens = await sensor.new_sensor(conf)
         cg.add(var.set_power_sensor(sens))
+
+
+def validate(config, item_config):
+    uart.validate_device(
+        "cse7766", config, item_config, baud_rate=4800, require_tx=False
+    )

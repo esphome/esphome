@@ -15,7 +15,7 @@ CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(DallasComponent),
         cv.GenerateID(CONF_ONE_WIRE_ID): cv.declare_id(ESPOneWire),
-        cv.Required(CONF_PIN): pins.gpio_input_pin_schema,
+        cv.Required(CONF_PIN): pins.internal_gpio_output_pin_schema,
     }
 ).extend(cv.polling_component_schema("60s"))
 

@@ -55,9 +55,6 @@ void ESP32Camera::dump_config() {
     case FRAMESIZE_QQVGA:
       ESP_LOGCONFIG(TAG, "  Resolution: 160x120 (QQVGA)");
       break;
-    case FRAMESIZE_QQVGA2:
-      ESP_LOGCONFIG(TAG, "  Resolution: 128x160 (QQVGA2)");
-      break;
     case FRAMESIZE_QCIF:
       ESP_LOGCONFIG(TAG, "  Resolution: 176x155 (QCIF)");
       break;
@@ -208,9 +205,6 @@ void ESP32Camera::set_frame_size(ESP32CameraFrameSize size) {
   switch (size) {
     case ESP32_CAMERA_SIZE_160X120:
       this->config_.frame_size = FRAMESIZE_QQVGA;
-      break;
-    case ESP32_CAMERA_SIZE_128X160:
-      this->config_.frame_size = FRAMESIZE_QQVGA2;
       break;
     case ESP32_CAMERA_SIZE_176X144:
       this->config_.frame_size = FRAMESIZE_QCIF;
