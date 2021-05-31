@@ -171,7 +171,9 @@ async def rf_bridge_stop_advanced_sniffing_to_code(
     RFBridgeStartBucketSniffingAction,
     RFBRIDGE_ID_SCHEMA,
 )
-async def rf_bridge_start_bucket_sniffing_to_code(config, action_id, template_args, args):
+async def rf_bridge_start_bucket_sniffing_to_code(
+    config, action_id, template_args, args
+):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_args, paren)
     return var
