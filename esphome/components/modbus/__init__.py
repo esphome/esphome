@@ -33,7 +33,7 @@ async def to_code(config):
     await uart.register_uart_device(var, config)
 
     if CONF_FLOW_CONTROL_PIN in config:
-        pin = yield gpio_pin_expression(config[CONF_FLOW_CONTROL_PIN])
+        pin = await gpio_pin_expression(config[CONF_FLOW_CONTROL_PIN])
         cg.add(var.set_flow_control_pin(pin))
 
 
