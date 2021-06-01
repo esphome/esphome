@@ -45,8 +45,8 @@ class TuyaClimate : public climate::Climate, public Component {
   void switch_to_action_(climate::ClimateAction action);
 
   Tuya *parent_;
-  bool supports_heat_{true};
-  bool supports_cool_{false};
+  bool supports_heat_;
+  bool supports_cool_;
   optional<uint8_t> switch_id_{};
   optional<uint8_t> active_state_id_{};
   optional<uint8_t> active_state_heating_value_{};
