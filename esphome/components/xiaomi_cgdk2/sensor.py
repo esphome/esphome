@@ -6,11 +6,12 @@ from esphome.const import (
     CONF_HUMIDITY,
     CONF_MAC_ADDRESS,
     CONF_TEMPERATURE,
+    DEVICE_CLASS_BATTERY,
+    DEVICE_CLASS_HUMIDITY,
+    DEVICE_CLASS_TEMPERATURE,
+    ICON_EMPTY,
     UNIT_CELSIUS,
-    ICON_THERMOMETER,
     UNIT_PERCENT,
-    ICON_WATER_PERCENT,
-    ICON_BATTERY,
     CONF_ID,
     CONF_BINDKEY,
 )
@@ -30,13 +31,13 @@ CONFIG_SCHEMA = (
             cv.Required(CONF_BINDKEY): cv.bind_key,
             cv.Required(CONF_MAC_ADDRESS): cv.mac_address,
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-                UNIT_CELSIUS, ICON_THERMOMETER, 1
+                UNIT_CELSIUS, ICON_EMPTY, 1, DEVICE_CLASS_TEMPERATURE
             ),
             cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(
-                UNIT_PERCENT, ICON_WATER_PERCENT, 1
+                UNIT_PERCENT, ICON_EMPTY, 1, DEVICE_CLASS_HUMIDITY
             ),
             cv.Optional(CONF_BATTERY_LEVEL): sensor.sensor_schema(
-                UNIT_PERCENT, ICON_BATTERY, 0
+                UNIT_PERCENT, ICON_EMPTY, 0, DEVICE_CLASS_BATTERY
             ),
         }
     )
