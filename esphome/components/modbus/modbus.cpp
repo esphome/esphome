@@ -6,6 +6,11 @@ namespace modbus {
 
 static const char *TAG = "modbus";
 
+void Modbus::setup() {
+  if (this->flow_control_pin_ != nullptr) {
+    this->flow_control_pin_->setup();
+  }
+}
 void Modbus::loop() {
   const uint32_t now = millis();
   if (now - this->last_modbus_byte_ > 50) {
@@ -94,6 +99,7 @@ bool Modbus::parse_modbus_byte_(uint8_t byte) {
 
 void Modbus::dump_config() {
   ESP_LOGCONFIG(TAG, "Modbus:");
+  LOG_PIN("  Flow Control Pin: ", this->flow_control_pin_);
   this->check_uart_settings(9600, 2);
 }
 float Modbus::get_setup_priority() const {
@@ -112,7 +118,14 @@ void Modbus::send(uint8_t address, uint8_t function, uint16_t start_address, uin
   frame[6] = crc >> 0;
   frame[7] = crc >> 8;
 
+  if (this->flow_control_pin_ != nullptr)
+    this->flow_control_pin_->digital_write(true);
+
   this->write_array(frame, 8);
+  this->flush();
+
+  if (this->flow_control_pin_ != nullptr)
+    this->flow_control_pin_->digital_write(false);
 }
 
 }  // namespace modbus

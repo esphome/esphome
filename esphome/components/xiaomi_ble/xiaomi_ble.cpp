@@ -70,8 +70,7 @@ bool parse_xiaomi_value(uint8_t value_type, const uint8_t *data, uint8_t value_l
   }
   // idle time since last motion, 4 byte, 32-bit unsigned integer, 1 min
   else if ((value_type == 0x17) && (value_length == 4)) {
-    const uint32_t idle_time =
-        uint32_t(data[0]) | (uint32_t(data[1]) << 8) | (uint32_t(data[2]) << 16) | (uint32_t(data[2]) << 24);
+    const uint32_t idle_time = encode_uint32(data[3], data[2], data[1], data[0]);
     result.idle_time = idle_time / 60.0f;
     result.has_motion = (idle_time) ? false : true;
   } else {
@@ -104,7 +103,7 @@ bool parse_xiaomi_message(const std::vector<uint8_t> &message, XiaomiParseResult
     return false;
   }
 
-  while (payload_length > 0) {
+  while (payload_length > 3) {
     if (payload[payload_offset + 1] != 0x10) {
       ESP_LOGVV(TAG, "parse_xiaomi_message(): fixed byte not found, stop parsing residual data.");
       break;
@@ -172,7 +171,10 @@ optional<XiaomiParseResult> parse_xiaomi_header(const esp32_ble_tracker::Service
     result.type = XiaomiParseResult::TYPE_MUE4094RT;
     result.name = "MUE4094RT";
     result.raw_offset -= 6;
-  } else if ((raw[2] == 0x47) && (raw[3] == 0x03)) {  // round body, e-ink display
+  } else if ((raw[2] == 0x47) && (raw[3] == 0x03)) {  // ClearGrass-branded, round body, e-ink display
+    result.type = XiaomiParseResult::TYPE_CGG1;
+    result.name = "CGG1";
+  } else if ((raw[2] == 0x48) && (raw[3] == 0x0B)) {  // Qingping-branded, round body, e-ink display — with bindkeys
     result.type = XiaomiParseResult::TYPE_CGG1;
     result.name = "CGG1";
   } else if ((raw[2] == 0xbc) && (raw[3] == 0x03)) {  // VegTrug Grow Care Garden
@@ -198,6 +200,9 @@ optional<XiaomiParseResult> parse_xiaomi_header(const esp32_ble_tracker::Service
     result.name = "MJYD02YLA";
     if (raw.size() == 19)
       result.raw_offset -= 6;
+  } else if ((raw[2] == 0x87) && (raw[3] == 0x03)) {  // square body, e-ink display
+    result.type = XiaomiParseResult::TYPE_MHOC401;
+    result.name = "MHOC401";
   } else {
     ESP_LOGVV(TAG, "parse_xiaomi_header(): unknown device, no magic bytes.");
     return {};

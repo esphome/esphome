@@ -77,6 +77,68 @@ optional<float> MedianFilter::new_value(float value) {
 
 uint32_t MedianFilter::expected_interval(uint32_t input) { return input * this->send_every_; }
 
+// MinFilter
+MinFilter::MinFilter(size_t window_size, size_t send_every, size_t send_first_at)
+    : send_every_(send_every), send_at_(send_every - send_first_at), window_size_(window_size) {}
+void MinFilter::set_send_every(size_t send_every) { this->send_every_ = send_every; }
+void MinFilter::set_window_size(size_t window_size) { this->window_size_ = window_size; }
+optional<float> MinFilter::new_value(float value) {
+  if (!isnan(value)) {
+    while (this->queue_.size() >= this->window_size_) {
+      this->queue_.pop_front();
+    }
+    this->queue_.push_back(value);
+    ESP_LOGVV(TAG, "MinFilter(%p)::new_value(%f)", this, value);
+  }
+
+  if (++this->send_at_ >= this->send_every_) {
+    this->send_at_ = 0;
+
+    float min = 0.0f;
+    if (!this->queue_.empty()) {
+      std::deque<float>::iterator it = std::min_element(queue_.begin(), queue_.end());
+      min = *it;
+    }
+
+    ESP_LOGVV(TAG, "MinFilter(%p)::new_value(%f) SENDING", this, min);
+    return min;
+  }
+  return {};
+}
+
+uint32_t MinFilter::expected_interval(uint32_t input) { return input * this->send_every_; }
+
+// MaxFilter
+MaxFilter::MaxFilter(size_t window_size, size_t send_every, size_t send_first_at)
+    : send_every_(send_every), send_at_(send_every - send_first_at), window_size_(window_size) {}
+void MaxFilter::set_send_every(size_t send_every) { this->send_every_ = send_every; }
+void MaxFilter::set_window_size(size_t window_size) { this->window_size_ = window_size; }
+optional<float> MaxFilter::new_value(float value) {
+  if (!isnan(value)) {
+    while (this->queue_.size() >= this->window_size_) {
+      this->queue_.pop_front();
+    }
+    this->queue_.push_back(value);
+    ESP_LOGVV(TAG, "MaxFilter(%p)::new_value(%f)", this, value);
+  }
+
+  if (++this->send_at_ >= this->send_every_) {
+    this->send_at_ = 0;
+
+    float max = 0.0f;
+    if (!this->queue_.empty()) {
+      std::deque<float>::iterator it = std::max_element(queue_.begin(), queue_.end());
+      max = *it;
+    }
+
+    ESP_LOGVV(TAG, "MaxFilter(%p)::new_value(%f) SENDING", this, max);
+    return max;
+  }
+  return {};
+}
+
+uint32_t MaxFilter::expected_interval(uint32_t input) { return input * this->send_every_; }
+
 // SlidingWindowMovingAverageFilter
 SlidingWindowMovingAverageFilter::SlidingWindowMovingAverageFilter(size_t window_size, size_t send_every,
                                                                    size_t send_first_at)
@@ -86,10 +148,10 @@ void SlidingWindowMovingAverageFilter::set_window_size(size_t window_size) { thi
 optional<float> SlidingWindowMovingAverageFilter::new_value(float value) {
   if (!isnan(value)) {
     if (this->queue_.size() == this->window_size_) {
-      this->sum_ -= this->queue_.front();
-      this->queue_.pop();
+      this->sum_ -= this->queue_[0];
+      this->queue_.pop_front();
     }
-    this->queue_.push(value);
+    this->queue_.push_back(value);
     this->sum_ += value;
   }
   float average;
@@ -99,8 +161,16 @@ optional<float> SlidingWindowMovingAverageFilter::new_value(float value) {
     average = this->sum_ / this->queue_.size();
   ESP_LOGVV(TAG, "SlidingWindowMovingAverageFilter(%p)::new_value(%f) -> %f", this, value, average);
 
-  if (++this->send_at_ >= this->send_every_) {
-    this->send_at_ = 0;
+  if (++this->send_at_ % this->send_every_ == 0) {
+    if (this->send_at_ >= 10000) {
+      // Recalculate to prevent floating point error accumulating
+      this->sum_ = 0;
+      for (auto v : this->queue_)
+        this->sum_ += v;
+      average = this->sum_ / this->queue_.size();
+      this->send_at_ = 0;
+    }
+
     ESP_LOGVV(TAG, "SlidingWindowMovingAverageFilter(%p)::new_value(%f) SENDING", this, value);
     return average;
   }

@@ -15,7 +15,7 @@ RealTimeClock::RealTimeClock() = default;
 void RealTimeClock::call_setup() {
   setenv("TZ", this->timezone_.c_str(), 1);
   tzset();
-  this->setup();
+  PollingComponent::call_setup();
 }
 void RealTimeClock::synchronize_epoch_(uint32_t epoch) {
   struct timeval timev {
@@ -38,6 +38,8 @@ void RealTimeClock::synchronize_epoch_(uint32_t epoch) {
   char buf[128];
   time.strftime(buf, sizeof(buf), "%c");
   ESP_LOGD(TAG, "Synchronized time: %s", buf);
+
+  this->time_sync_callback_.call();
 }
 
 size_t ESPTime::strftime(char *buffer, size_t buffer_len, const char *format) {
