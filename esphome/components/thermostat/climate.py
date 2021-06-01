@@ -222,17 +222,17 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
-    yield climate.register_climate(var, config)
+    await cg.register_component(var, config)
+    await climate.register_climate(var, config)
 
     auto_mode_available = CONF_HEAT_ACTION in config and CONF_COOL_ACTION in config
     two_points_available = CONF_HEAT_ACTION in config and (
         CONF_COOL_ACTION in config or CONF_FAN_ONLY_ACTION in config
     )
 
-    sens = yield cg.get_variable(config[CONF_SENSOR])
+    sens = await cg.get_variable(config[CONF_SENSOR])
     cg.add(var.set_sensor(sens))
     cg.add(var.set_hysteresis(config[CONF_HYSTERESIS]))
 
@@ -254,7 +254,7 @@ def to_code(config):
         )
     cg.add(var.set_normal_config(normal_config))
 
-    yield automation.build_automation(
+    await automation.build_automation(
         var.get_idle_action_trigger(), [], config[CONF_IDLE_ACTION]
     )
 
@@ -264,117 +264,117 @@ def to_code(config):
         cg.add(var.set_supports_auto(False))
 
     if CONF_COOL_ACTION in config:
-        yield automation.build_automation(
+        await automation.build_automation(
             var.get_cool_action_trigger(), [], config[CONF_COOL_ACTION]
         )
         cg.add(var.set_supports_cool(True))
     if CONF_DRY_ACTION in config:
-        yield automation.build_automation(
+        await automation.build_automation(
             var.get_dry_action_trigger(), [], config[CONF_DRY_ACTION]
         )
         cg.add(var.set_supports_dry(True))
     if CONF_FAN_ONLY_ACTION in config:
-        yield automation.build_automation(
+        await automation.build_automation(
             var.get_fan_only_action_trigger(), [], config[CONF_FAN_ONLY_ACTION]
         )
         cg.add(var.set_supports_fan_only(True))
     if CONF_HEAT_ACTION in config:
-        yield automation.build_automation(
+        await automation.build_automation(
             var.get_heat_action_trigger(), [], config[CONF_HEAT_ACTION]
         )
         cg.add(var.set_supports_heat(True))
     if CONF_AUTO_MODE in config:
-        yield automation.build_automation(
+        await automation.build_automation(
             var.get_auto_mode_trigger(), [], config[CONF_AUTO_MODE]
         )
     if CONF_COOL_MODE in config:
-        yield automation.build_automation(
+        await automation.build_automation(
             var.get_cool_mode_trigger(), [], config[CONF_COOL_MODE]
         )
         cg.add(var.set_supports_cool(True))
     if CONF_DRY_MODE in config:
-        yield automation.build_automation(
+        await automation.build_automation(
             var.get_dry_mode_trigger(), [], config[CONF_DRY_MODE]
         )
         cg.add(var.set_supports_dry(True))
     if CONF_FAN_ONLY_MODE in config:
-        yield automation.build_automation(
+        await automation.build_automation(
             var.get_fan_only_mode_trigger(), [], config[CONF_FAN_ONLY_MODE]
         )
         cg.add(var.set_supports_fan_only(True))
     if CONF_HEAT_MODE in config:
-        yield automation.build_automation(
+        await automation.build_automation(
             var.get_heat_mode_trigger(), [], config[CONF_HEAT_MODE]
         )
         cg.add(var.set_supports_heat(True))
     if CONF_OFF_MODE in config:
-        yield automation.build_automation(
+        await automation.build_automation(
             var.get_off_mode_trigger(), [], config[CONF_OFF_MODE]
         )
     if CONF_FAN_MODE_ON_ACTION in config:
-        yield automation.build_automation(
+        await automation.build_automation(
             var.get_fan_mode_on_trigger(), [], config[CONF_FAN_MODE_ON_ACTION]
         )
         cg.add(var.set_supports_fan_mode_on(True))
     if CONF_FAN_MODE_OFF_ACTION in config:
-        yield automation.build_automation(
+        await automation.build_automation(
             var.get_fan_mode_off_trigger(), [], config[CONF_FAN_MODE_OFF_ACTION]
         )
         cg.add(var.set_supports_fan_mode_off(True))
     if CONF_FAN_MODE_AUTO_ACTION in config:
-        yield automation.build_automation(
+        await automation.build_automation(
             var.get_fan_mode_auto_trigger(), [], config[CONF_FAN_MODE_AUTO_ACTION]
         )
         cg.add(var.set_supports_fan_mode_auto(True))
     if CONF_FAN_MODE_LOW_ACTION in config:
-        yield automation.build_automation(
+        await automation.build_automation(
             var.get_fan_mode_low_trigger(), [], config[CONF_FAN_MODE_LOW_ACTION]
         )
         cg.add(var.set_supports_fan_mode_low(True))
     if CONF_FAN_MODE_MEDIUM_ACTION in config:
-        yield automation.build_automation(
+        await automation.build_automation(
             var.get_fan_mode_medium_trigger(), [], config[CONF_FAN_MODE_MEDIUM_ACTION]
         )
         cg.add(var.set_supports_fan_mode_medium(True))
     if CONF_FAN_MODE_HIGH_ACTION in config:
-        yield automation.build_automation(
+        await automation.build_automation(
             var.get_fan_mode_high_trigger(), [], config[CONF_FAN_MODE_HIGH_ACTION]
         )
         cg.add(var.set_supports_fan_mode_high(True))
     if CONF_FAN_MODE_MIDDLE_ACTION in config:
-        yield automation.build_automation(
+        await automation.build_automation(
             var.get_fan_mode_middle_trigger(), [], config[CONF_FAN_MODE_MIDDLE_ACTION]
         )
         cg.add(var.set_supports_fan_mode_middle(True))
     if CONF_FAN_MODE_FOCUS_ACTION in config:
-        yield automation.build_automation(
+        await automation.build_automation(
             var.get_fan_mode_focus_trigger(), [], config[CONF_FAN_MODE_FOCUS_ACTION]
         )
         cg.add(var.set_supports_fan_mode_focus(True))
     if CONF_FAN_MODE_DIFFUSE_ACTION in config:
-        yield automation.build_automation(
+        await automation.build_automation(
             var.get_fan_mode_diffuse_trigger(), [], config[CONF_FAN_MODE_DIFFUSE_ACTION]
         )
         cg.add(var.set_supports_fan_mode_diffuse(True))
     if CONF_SWING_BOTH_ACTION in config:
-        yield automation.build_automation(
+        await automation.build_automation(
             var.get_swing_mode_both_trigger(), [], config[CONF_SWING_BOTH_ACTION]
         )
         cg.add(var.set_supports_swing_mode_both(True))
     if CONF_SWING_HORIZONTAL_ACTION in config:
-        yield automation.build_automation(
+        await automation.build_automation(
             var.get_swing_mode_horizontal_trigger(),
             [],
             config[CONF_SWING_HORIZONTAL_ACTION],
         )
         cg.add(var.set_supports_swing_mode_horizontal(True))
     if CONF_SWING_OFF_ACTION in config:
-        yield automation.build_automation(
+        await automation.build_automation(
             var.get_swing_mode_off_trigger(), [], config[CONF_SWING_OFF_ACTION]
         )
         cg.add(var.set_supports_swing_mode_off(True))
     if CONF_SWING_VERTICAL_ACTION in config:
-        yield automation.build_automation(
+        await automation.build_automation(
             var.get_swing_mode_vertical_trigger(),
             [],
             config[CONF_SWING_VERTICAL_ACTION],

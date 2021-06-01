@@ -247,10 +247,10 @@ ble_client:
     id: ble_blah
     on_connect:
       then:
-       - switch.turn_on: ble1_status
+        - switch.turn_on: ble1_status
     on_disconnect:
       then:
-       - switch.turn_on: ble1_status
+        - switch.turn_on: ble1_status
 mcp23s08:
   - id: 'mcp23s08_hub'
     cs_pin: GPIO12
@@ -261,10 +261,11 @@ mcp23s17:
     cs_pin: GPIO12
     deviceaddress: 1
 
+
 sensor:
   - platform: ble_client
     ble_client_id: ble_foo
-    name: "Green iTag btn"
+    name: 'Green iTag btn'
     service_uuid: 'ffe0'
     characteristic_uuid: 'ffe1'
     descriptor_uuid: 'ffe2'
@@ -658,9 +659,14 @@ sensor:
     update_interval: 15s
   - platform: pulse_meter
     name: 'Pulse Meter'
+    id: pulse_meter_sensor
     pin: GPIO12
     internal_filter: 100ms
     timeout: 2 min
+    on_value:
+      - pulse_meter.set_total_pulses:
+          id: pulse_meter_sensor
+          value: 12345
     total:
       name: 'Pulse Meter Total'
   - platform: rotary_encoder
@@ -908,6 +914,28 @@ sensor:
     id: ph_ezo
     address: 99
     unit_of_measurement: 'pH'
+  - platform: cs5460a
+    id: cs5460a1
+    current:
+      name: "Socket current"
+    voltage:
+      name: "Mains voltage"
+    power:
+      name: "Socket power"
+      on_value:
+        then:
+          cs5460a.restart: cs5460a1
+    samples: 1600
+    pga_gain: 10X
+    current_gain: 0.01
+    voltage_gain: 0.000573
+    current_hpf: on
+    voltage_hpf: on
+    phase_offset: 20
+    pulse_energy: 0.01 kWh
+    cs_pin:
+      mcp23xxx: mcp23017_hub
+      number: 14
 
 esp32_touch:
   setup_mode: False
@@ -1868,6 +1896,12 @@ display:
       - id: page2
         lambda: |-
           // Nothing
+    on_page_change:
+      from: page1
+      to: page2
+      then:
+        lambda: |-
+          ESP_LOGD("display", "1 -> 2");
   - platform: ssd1306_spi
     model: 'SSD1306 128x64'
     cs_pin: GPIO23
@@ -1969,6 +2003,12 @@ pn532_spi:
     - mqtt.publish:
         topic: the/topic
         payload: !lambda 'return x;'
+  on_tag_removed:
+    - lambda: |-
+        ESP_LOGD("main", "Removed tag %s", x.c_str());
+    - mqtt.publish:
+        topic: the/topic
+        payload: !lambda 'return x;'
 
 pn532_i2c:
 
@@ -1983,10 +2023,15 @@ rc522_spi:
         ESP_LOGD("main", "Found tag %s", x.c_str());
 
 rc522_i2c:
-  update_interval: 1s
-  on_tag:
-    - lambda: |-
-        ESP_LOGD("main", "Found tag %s", x.c_str());
+  - update_interval: 1s
+    on_tag:
+      - lambda: |-
+          ESP_LOGD("main", "Found tag %s", x.c_str());
+
+  - update_interval: 1s
+    on_tag:
+      - lambda: |-
+          ESP_LOGD("main", "Found tag %s", x.c_str());
 
 gps:
   uart_id: uart0
@@ -2043,7 +2088,6 @@ tca9548a:
     multiplexer:
       id: multiplex0
       channel: 0
-    
 
 pcf8574:
   - id: 'pcf8574_hub'

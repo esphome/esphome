@@ -54,27 +54,27 @@ CONFIG_SCHEMA = (
 )
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
-    yield i2c.register_i2c_device(var, config)
+    await cg.register_component(var, config)
+    await i2c.register_i2c_device(var, config)
 
     cg.add(var.set_shunt_resistance_ohm(config[CONF_SHUNT_RESISTANCE]))
 
     cg.add(var.set_max_current_a(config[CONF_MAX_CURRENT]))
 
     if CONF_BUS_VOLTAGE in config:
-        sens = yield sensor.new_sensor(config[CONF_BUS_VOLTAGE])
+        sens = await sensor.new_sensor(config[CONF_BUS_VOLTAGE])
         cg.add(var.set_bus_voltage_sensor(sens))
 
     if CONF_SHUNT_VOLTAGE in config:
-        sens = yield sensor.new_sensor(config[CONF_SHUNT_VOLTAGE])
+        sens = await sensor.new_sensor(config[CONF_SHUNT_VOLTAGE])
         cg.add(var.set_shunt_voltage_sensor(sens))
 
     if CONF_CURRENT in config:
-        sens = yield sensor.new_sensor(config[CONF_CURRENT])
+        sens = await sensor.new_sensor(config[CONF_CURRENT])
         cg.add(var.set_current_sensor(sens))
 
     if CONF_POWER in config:
-        sens = yield sensor.new_sensor(config[CONF_POWER])
+        sens = await sensor.new_sensor(config[CONF_POWER])
         cg.add(var.set_power_sensor(sens))

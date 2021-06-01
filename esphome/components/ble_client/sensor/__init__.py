@@ -50,7 +50,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     if len(config[CONF_SERVICE_UUID]) == len(esp32_ble_tracker.bt_uuid16_format):
         cg.add(
@@ -105,11 +105,11 @@ def to_code(config):
             uuid128 = esp32_ble_tracker.as_hex_array(config[CONF_DESCRIPTOR_UUID])
             cg.add(var.set_descr_uuid128(uuid128))
 
-    yield cg.register_component(var, config)
-    yield ble_client.register_ble_node(var, config)
+    await cg.register_component(var, config)
+    await ble_client.register_ble_node(var, config)
     cg.add(var.set_enable_notify(config[CONF_NOTIFY]))
-    yield sensor.register_sensor(var, config)
+    await sensor.register_sensor(var, config)
     for conf in config.get(CONF_ON_NOTIFY, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        yield ble_client.register_ble_node(trigger, config)
-        yield automation.build_automation(trigger, [(float, "x")], conf)
+        await ble_client.register_ble_node(trigger, config)
+        await automation.build_automation(trigger, [(float, "x")], conf)
