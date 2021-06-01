@@ -66,38 +66,32 @@ CONFIG_SCHEMA = (
             ),
             cv.Optional(CONF_ON_BUTTON_ON): automation.validate_automation(
                 {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                        OnButtonOnTrigger),
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(OnButtonOnTrigger),
                 }
             ),
             cv.Optional(CONF_ON_BUTTON_OFF): automation.validate_automation(
                 {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                        OnButtonOffTrigger),
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(OnButtonOffTrigger),
                 }
             ),
             cv.Optional(CONF_ON_BUTTON_SUN): automation.validate_automation(
                 {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                        OnButtonSunTrigger),
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(OnButtonSunTrigger),
                 }
             ),
             cv.Optional(CONF_ON_BUTTON_M): automation.validate_automation(
                 {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                        OnButtonMTrigger),
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(OnButtonMTrigger),
                 }
             ),
             cv.Optional(CONF_ON_BUTTON_PLUS): automation.validate_automation(
                 {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                        OnButtonPlusTrigger),
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(OnButtonPlusTrigger),
                 }
             ),
             cv.Optional(CONF_ON_BUTTON_MINUS): automation.validate_automation(
                 {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                        OnButtonMinusTrigger),
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(OnButtonMinusTrigger),
                 }
             ),
         }

@@ -40,7 +40,7 @@ bool XiaomiYLYK01YL::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
       continue;
     }
     if (res->keycode.has_value()) {
-      if(this->keycode_ != nullptr)
+      if (this->keycode_ != nullptr)
         this->keycode_->publish_state(*res->keycode);
 
       this->receive_callback_.call(*res->keycode);
