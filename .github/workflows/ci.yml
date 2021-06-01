@@ -18,15 +18,6 @@ jobs:
     container: esphome/esphome-lint:latest
     steps:
       - uses: actions/checkout@v2
-      # Cache platformio intermediary files (like libraries etc)
-      # Note: platformio platform versions should be cached via the esphome-lint image
-      - name: Cache Platformio
-        uses: actions/cache@v1
-        with:
-          path: .pio
-          key: lint-cpp-pio-${{ hashFiles('platformio.ini') }}
-          restore-keys: |
-            lint-cpp-pio-
       # Set up the pio project so that the cpp checks know how files are compiled
       # (build flags, libraries etc)
       - name: Set up platformio environment
@@ -49,15 +40,6 @@ jobs:
         split: [1, 2, 3, 4]
     steps:
       - uses: actions/checkout@v2
-      # Cache platformio intermediary files (like libraries etc)
-      # Note: platformio platform versions should be cached via the esphome-lint image
-      - name: Cache Platformio
-        uses: actions/cache@v1
-        with:
-          path: .pio
-          key: lint-cpp-pio-${{ hashFiles('platformio.ini') }}
-          restore-keys: |
-            lint-cpp-pio-
       # Set up the pio project so that the cpp checks know how files are compiled
       # (build flags, libraries etc)
       - name: Set up platformio environment
@@ -133,7 +115,7 @@ jobs:
         uses: actions/cache@v1
         with:
           path: ~/.platformio
-          key: test-home-platformio-${{ matrix.test }}-${{ hashFiles('esphome/core_config.py') }}
+          key: test-home-platformio-${{ matrix.test }}-${{ hashFiles('esphome/core/config.py') }}
           restore-keys: |
             test-home-platformio-${{ matrix.test }}-
       - name: Set up environment

@@ -1,0 +1,11 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "run",
+            "type": "shell",
+            "command": "python3 -m esphome config dashboard",
+            "problemMatcher": []
+        }
+    ]
+}

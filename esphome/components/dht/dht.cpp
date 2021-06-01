@@ -32,19 +32,19 @@ void DHT::dump_config() {
 
 void DHT::update() {
   float temperature, humidity;
-  bool error;
+  bool success;
   if (this->model_ == DHT_MODEL_AUTO_DETECT) {
     this->model_ = DHT_MODEL_DHT22;
-    error = this->read_sensor_(&temperature, &humidity, false);
-    if (error) {
+    success = this->read_sensor_(&temperature, &humidity, false);
+    if (!success) {
       this->model_ = DHT_MODEL_DHT11;
       return;
     }
   } else {
-    error = this->read_sensor_(&temperature, &humidity, true);
+    success = this->read_sensor_(&temperature, &humidity, true);
   }
 
-  if (error) {
+  if (success) {
     ESP_LOGD(TAG, "Got Temperature=%.1f°C Humidity=%.1f%%", temperature, humidity);
 
     if (this->temperature_sensor_ != nullptr)

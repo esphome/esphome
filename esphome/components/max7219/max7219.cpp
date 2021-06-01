@@ -41,7 +41,7 @@ const uint8_t MAX7219_ASCII_TO_RAW[95] PROGMEM = {
     0b01011111,            // '6', ord 0x36
     0b01110000,            // '7', ord 0x37
     0b01111111,            // '8', ord 0x38
-    0b01110011,            // '9', ord 0x39
+    0b01111011,            // '9', ord 0x39
     0b01001000,            // ':', ord 0x3A
     0b01011000,            // ';', ord 0x3B
     MAX7219_UNKNOWN_CHAR,  // '<', ord 0x3C
@@ -142,9 +142,11 @@ void MAX7219Component::dump_config() {
 void MAX7219Component::display() {
   for (uint8_t i = 0; i < 8; i++) {
     this->enable();
-    for (uint8_t j = 0; j < this->num_chips_; j++) {
-      this->send_byte_(8 - i, this->buffer_[j * 8 + i]);
-    }
+    for (uint8_t j = 0; j < this->num_chips_; j++)
+      if (reverse_)
+        this->send_byte_(8 - i, buffer_[(num_chips_ - j - 1) * 8 + i]);
+      else
+        this->send_byte_(8 - i, buffer_[j * 8 + i]);
     this->disable();
   }
 }

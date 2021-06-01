@@ -9,6 +9,7 @@ static const char *TAG = "climate.climate_ir_lg";
 const uint32_t COMMAND_ON = 0x00000;
 const uint32_t COMMAND_ON_AI = 0x03000;
 const uint32_t COMMAND_COOL = 0x08000;
+const uint32_t COMMAND_HEAT = 0x0C000;
 const uint32_t COMMAND_OFF = 0xC0000;
 const uint32_t COMMAND_SWING = 0x10000;
 // On, 25C, Mode: Auto, Fan: Auto, Zone Follow: Off, Sensor Temp: Ignore.
@@ -27,13 +28,6 @@ const uint32_t FAN_MAX = 0x40;
 const uint8_t TEMP_RANGE = TEMP_MAX - TEMP_MIN + 1;
 const uint32_t TEMP_MASK = 0XF00;
 const uint32_t TEMP_SHIFT = 8;
-
-// Constants
-static const uint32_t HEADER_HIGH_US = 8000;
-static const uint32_t HEADER_LOW_US = 4000;
-static const uint32_t BIT_HIGH_US = 600;
-static const uint32_t BIT_ONE_LOW_US = 1600;
-static const uint32_t BIT_ZERO_LOW_US = 550;
 
 const uint16_t BITS = 28;
 
@@ -55,6 +49,9 @@ void LgIrClimate::transmit_state() {
         case climate::CLIMATE_MODE_COOL:
           remote_state |= COMMAND_COOL;
           break;
+        case climate::CLIMATE_MODE_HEAT:
+          remote_state |= COMMAND_HEAT;
+          break;
         case climate::CLIMATE_MODE_AUTO:
           remote_state |= COMMAND_AUTO;
           break;
@@ -73,7 +70,8 @@ void LgIrClimate::transmit_state() {
 
     if (this->mode == climate::CLIMATE_MODE_OFF) {
       remote_state |= FAN_AUTO;
-    } else if (this->mode == climate::CLIMATE_MODE_COOL || this->mode == climate::CLIMATE_MODE_DRY) {
+    } else if (this->mode == climate::CLIMATE_MODE_COOL || this->mode == climate::CLIMATE_MODE_DRY ||
+               this->mode == climate::CLIMATE_MODE_HEAT) {
       switch (this->fan_mode) {
         case climate::CLIMATE_FAN_HIGH:
           remote_state |= FAN_MAX;
@@ -95,7 +93,7 @@ void LgIrClimate::transmit_state() {
       this->fan_mode = climate::CLIMATE_FAN_AUTO;
       // remote_state |= FAN_MODE_AUTO_DRY;
     }
-    if (this->mode == climate::CLIMATE_MODE_COOL) {
+    if (this->mode == climate::CLIMATE_MODE_COOL || this->mode == climate::CLIMATE_MODE_HEAT) {
       auto temp = (uint8_t) roundf(clamp(this->target_temperature, TEMP_MIN, TEMP_MAX));
       remote_state |= ((temp - 15) << TEMP_SHIFT);
     }
@@ -108,13 +106,13 @@ bool LgIrClimate::on_receive(remote_base::RemoteReceiveData data) {
   uint8_t nbits = 0;
   uint32_t remote_state = 0;
 
-  if (!data.expect_item(HEADER_HIGH_US, HEADER_LOW_US))
+  if (!data.expect_item(this->header_high_, this->header_low_))
     return false;
 
   for (nbits = 0; nbits < 32; nbits++) {
-    if (data.expect_item(BIT_HIGH_US, BIT_ONE_LOW_US)) {
+    if (data.expect_item(this->bit_high_, this->bit_one_low_)) {
       remote_state = (remote_state << 1) | 1;
-    } else if (data.expect_item(BIT_HIGH_US, BIT_ZERO_LOW_US)) {
+    } else if (data.expect_item(this->bit_high_, this->bit_zero_low_)) {
       remote_state = (remote_state << 1) | 0;
     } else if (nbits == BITS) {
       break;
@@ -141,29 +139,32 @@ bool LgIrClimate::on_receive(remote_base::RemoteReceiveData data) {
   } else {
     if ((remote_state & COMMAND_MASK) == COMMAND_AUTO)
       this->mode = climate::CLIMATE_MODE_AUTO;
-    else if ((remote_state & COMMAND_MASK) == COMMAND_DRY_FAN) {
+    else if ((remote_state & COMMAND_MASK) == COMMAND_DRY_FAN)
       this->mode = climate::CLIMATE_MODE_DRY;
+    else if ((remote_state & COMMAND_MASK) == COMMAND_HEAT) {
+      this->mode = climate::CLIMATE_MODE_HEAT;
     } else {
       this->mode = climate::CLIMATE_MODE_COOL;
     }
-  }
 
-  // Temperature
-  if (this->mode == climate::CLIMATE_MODE_COOL)
-    this->target_temperature = ((remote_state & TEMP_MASK) >> TEMP_SHIFT) + 15;
+    // Temperature
+    if (this->mode == climate::CLIMATE_MODE_COOL || this->mode == climate::CLIMATE_MODE_HEAT)
+      this->target_temperature = ((remote_state & TEMP_MASK) >> TEMP_SHIFT) + 15;
 
-  // Fan Speed
-  if (this->mode == climate::CLIMATE_MODE_AUTO) {
-    this->fan_mode = climate::CLIMATE_FAN_AUTO;
-  } else if (this->mode == climate::CLIMATE_MODE_COOL || this->mode == climate::CLIMATE_MODE_DRY) {
-    if ((remote_state & FAN_MASK) == FAN_AUTO)
+    // Fan Speed
+    if (this->mode == climate::CLIMATE_MODE_AUTO) {
       this->fan_mode = climate::CLIMATE_FAN_AUTO;
-    else if ((remote_state & FAN_MASK) == FAN_MIN)
-      this->fan_mode = climate::CLIMATE_FAN_LOW;
-    else if ((remote_state & FAN_MASK) == FAN_MED)
-      this->fan_mode = climate::CLIMATE_FAN_MEDIUM;
-    else if ((remote_state & FAN_MASK) == FAN_MAX)
-      this->fan_mode = climate::CLIMATE_FAN_HIGH;
+    } else if (this->mode == climate::CLIMATE_MODE_COOL || this->mode == climate::CLIMATE_MODE_HEAT ||
+               this->mode == climate::CLIMATE_MODE_DRY) {
+      if ((remote_state & FAN_MASK) == FAN_AUTO)
+        this->fan_mode = climate::CLIMATE_FAN_AUTO;
+      else if ((remote_state & FAN_MASK) == FAN_MIN)
+        this->fan_mode = climate::CLIMATE_FAN_LOW;
+      else if ((remote_state & FAN_MASK) == FAN_MED)
+        this->fan_mode = climate::CLIMATE_FAN_MEDIUM;
+      else if ((remote_state & FAN_MASK) == FAN_MAX)
+        this->fan_mode = climate::CLIMATE_FAN_HIGH;
+    }
   }
   this->publish_state();
 
@@ -179,15 +180,16 @@ void LgIrClimate::transmit_(uint32_t value) {
   data->set_carrier_frequency(38000);
   data->reserve(2 + BITS * 2u);
 
-  data->item(HEADER_HIGH_US, HEADER_LOW_US);
+  data->item(this->header_high_, this->header_low_);
 
   for (uint32_t mask = 1UL << (BITS - 1); mask != 0; mask >>= 1) {
-    if (value & mask)
-      data->item(BIT_HIGH_US, BIT_ONE_LOW_US);
-    else
-      data->item(BIT_HIGH_US, BIT_ZERO_LOW_US);
+    if (value & mask) {
+      data->item(this->bit_high_, this->bit_one_low_);
+    } else {
+      data->item(this->bit_high_, this->bit_zero_low_);
+    }
   }
-  data->mark(BIT_HIGH_US);
+  data->mark(this->bit_high_);
   transmit.perform();
 }
 void LgIrClimate::calc_checksum_(uint32_t &value) {

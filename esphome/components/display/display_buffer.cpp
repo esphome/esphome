@@ -9,7 +9,7 @@ namespace display {
 static const char *TAG = "display";
 
 const Color COLOR_OFF(0, 0, 0, 0);
-const Color COLOR_ON(1, 1, 1, 1);
+const Color COLOR_ON(255, 255, 255, 255);
 
 void DisplayBuffer::init_internal_(uint32_t buffer_length) {
   this->buffer_ = new uint8_t[buffer_length];
@@ -170,7 +170,7 @@ void DisplayBuffer::print(int x, int y, Font *font, Color color, TextAlign align
       // Unknown char, skip
       ESP_LOGW(TAG, "Encountered character without representation in font: '%c'", text[i]);
       if (!font->get_glyphs().empty()) {
-        uint8_t glyph_width = font->get_glyphs()[0].width_;
+        uint8_t glyph_width = font->get_glyphs()[0].glyph_data_->width;
         for (int glyph_x = 0; glyph_x < glyph_width; glyph_x++)
           for (int glyph_y = 0; glyph_y < height; glyph_y++)
             this->draw_pixel_at(glyph_x + x_at, glyph_y + y_start, color);
@@ -193,7 +193,7 @@ void DisplayBuffer::print(int x, int y, Font *font, Color color, TextAlign align
       }
     }
 
-    x_at += glyph.width_ + glyph.offset_x_;
+    x_at += glyph.glyph_data_->width + glyph.glyph_data_->offset_x;
 
     i += match_length;
   }
@@ -315,7 +315,14 @@ void DisplayBuffer::set_pages(std::vector<DisplayPage *> pages) {
   pages[pages.size() - 1]->set_next(pages[0]);
   this->show_page(pages[0]);
 }
-void DisplayBuffer::show_page(DisplayPage *page) { this->page_ = page; }
+void DisplayBuffer::show_page(DisplayPage *page) {
+  this->previous_page_ = this->page_;
+  this->page_ = page;
+  if (this->previous_page_ != this->page_) {
+    for (auto *t : on_page_change_triggers_)
+      t->process(this->previous_page_, this->page_);
+  }
+}
 void DisplayBuffer::show_next_page() { this->page_->show_next(); }
 void DisplayBuffer::show_prev_page() { this->page_->show_prev(); }
 void DisplayBuffer::do_update_() {
@@ -325,6 +332,10 @@ void DisplayBuffer::do_update_() {
   } else if (this->writer_.has_value()) {
     (*this->writer_)(*this);
   }
+}
+void DisplayOnPageChangeTrigger::process(DisplayPage *from, DisplayPage *to) {
+  if ((this->from_ == nullptr || this->from_ == from) && (this->to_ == nullptr || this->to_ == to))
+    this->trigger(from, to);
 }
 #ifdef USE_TIME
 void DisplayBuffer::strftime(int x, int y, Font *font, Color color, TextAlign align, const char *format,
@@ -345,35 +356,27 @@ void DisplayBuffer::strftime(int x, int y, Font *font, const char *format, time:
 }
 #endif
 
-Glyph::Glyph(const char *a_char, const uint8_t *data_start, uint32_t offset, int offset_x, int offset_y, int width,
-             int height)
-    : char_(a_char),
-      data_(data_start + offset),
-      offset_x_(offset_x),
-      offset_y_(offset_y),
-      width_(width),
-      height_(height) {}
 bool Glyph::get_pixel(int x, int y) const {
-  const int x_data = x - this->offset_x_;
-  const int y_data = y - this->offset_y_;
-  if (x_data < 0 || x_data >= this->width_ || y_data < 0 || y_data >= this->height_)
+  const int x_data = x - this->glyph_data_->offset_x;
+  const int y_data = y - this->glyph_data_->offset_y;
+  if (x_data < 0 || x_data >= this->glyph_data_->width || y_data < 0 || y_data >= this->glyph_data_->height)
     return false;
-  const uint32_t width_8 = ((this->width_ + 7u) / 8u) * 8u;
+  const uint32_t width_8 = ((this->glyph_data_->width + 7u) / 8u) * 8u;
   const uint32_t pos = x_data + y_data * width_8;
-  return pgm_read_byte(this->data_ + (pos / 8u)) & (0x80 >> (pos % 8u));
+  return pgm_read_byte(this->glyph_data_->data + (pos / 8u)) & (0x80 >> (pos % 8u));
 }
-const char *Glyph::get_char() const { return this->char_; }
+const char *Glyph::get_char() const { return this->glyph_data_->a_char; }
 bool Glyph::compare_to(const char *str) const {
   // 1 -> this->char_
   // 2 -> str
   for (uint32_t i = 0;; i++) {
-    if (this->char_[i] == '\0')
+    if (this->glyph_data_->a_char[i] == '\0')
       return true;
     if (str[i] == '\0')
       return false;
-    if (this->char_[i] > str[i])
+    if (this->glyph_data_->a_char[i] > str[i])
       return false;
-    if (this->char_[i] < str[i])
+    if (this->glyph_data_->a_char[i] < str[i])
       return true;
   }
   // this should not happen
@@ -381,19 +384,19 @@ bool Glyph::compare_to(const char *str) const {
 }
 int Glyph::match_length(const char *str) const {
   for (uint32_t i = 0;; i++) {
-    if (this->char_[i] == '\0')
+    if (this->glyph_data_->a_char[i] == '\0')
       return i;
-    if (str[i] != this->char_[i])
+    if (str[i] != this->glyph_data_->a_char[i])
       return 0;
   }
   // this should not happen
   return 0;
 }
 void Glyph::scan_area(int *x1, int *y1, int *width, int *height) const {
-  *x1 = this->offset_x_;
-  *y1 = this->offset_y_;
-  *width = this->width_;
-  *height = this->height_;
+  *x1 = this->glyph_data_->offset_x;
+  *y1 = this->glyph_data_->offset_y;
+  *width = this->glyph_data_->width;
+  *height = this->glyph_data_->height;
 }
 int Font::match_next_glyph(const char *str, int *match_length) {
   int lo = 0;
@@ -423,17 +426,17 @@ void Font::measure(const char *str, int *width, int *x_offset, int *baseline, in
     if (glyph_n < 0) {
       // Unknown char, skip
       if (!this->get_glyphs().empty())
-        x += this->get_glyphs()[0].width_;
+        x += this->get_glyphs()[0].glyph_data_->width;
       i++;
       continue;
     }
 
     const Glyph &glyph = this->glyphs_[glyph_n];
     if (!has_char)
-      min_x = glyph.offset_x_;
+      min_x = glyph.glyph_data_->offset_x;
     else
-      min_x = std::min(min_x, x + glyph.offset_x_);
-    x += glyph.width_ + glyph.offset_x_;
+      min_x = std::min(min_x, x + glyph.glyph_data_->offset_x);
+    x += glyph.glyph_data_->width + glyph.glyph_data_->offset_x;
 
     i += match_length;
     has_char = true;
@@ -442,8 +445,10 @@ void Font::measure(const char *str, int *width, int *x_offset, int *baseline, in
   *width = x - min_x;
 }
 const std::vector<Glyph> &Font::get_glyphs() const { return this->glyphs_; }
-Font::Font(std::vector<Glyph> &&glyphs, int baseline, int bottom)
-    : glyphs_(std::move(glyphs)), baseline_(baseline), bottom_(bottom) {}
+Font::Font(const GlyphData *data, int data_nr, int baseline, int bottom) : baseline_(baseline), bottom_(bottom) {
+  for (int i = 0; i < data_nr; ++i)
+    glyphs_.emplace_back(data + i);
+}
 
 bool Image::get_pixel(int x, int y) const {
   if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_)
@@ -473,6 +478,51 @@ int Image::get_height() const { return this->height_; }
 ImageType Image::get_type() const { return this->type_; }
 Image::Image(const uint8_t *data_start, int width, int height, ImageType type)
     : width_(width), height_(height), type_(type), data_start_(data_start) {}
+
+bool Animation::get_pixel(int x, int y) const {
+  if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_)
+    return false;
+  const uint32_t width_8 = ((this->width_ + 7u) / 8u) * 8u;
+  const uint32_t frame_index = this->height_ * width_8 * this->current_frame_;
+  if (frame_index >= this->width_ * this->height_ * this->animation_frame_count_)
+    return false;
+  const uint32_t pos = x + y * width_8 + frame_index;
+  return pgm_read_byte(this->data_start_ + (pos / 8u)) & (0x80 >> (pos % 8u));
+}
+Color Animation::get_color_pixel(int x, int y) const {
+  if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_)
+    return 0;
+  const uint32_t frame_index = this->width_ * this->height_ * this->current_frame_;
+  if (frame_index >= this->width_ * this->height_ * this->animation_frame_count_)
+    return 0;
+  const uint32_t pos = (x + y * this->width_ + frame_index) * 3;
+  const uint32_t color32 = (pgm_read_byte(this->data_start_ + pos + 2) << 0) |
+                           (pgm_read_byte(this->data_start_ + pos + 1) << 8) |
+                           (pgm_read_byte(this->data_start_ + pos + 0) << 16);
+  return Color(color32);
+}
+Color Animation::get_grayscale_pixel(int x, int y) const {
+  if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_)
+    return 0;
+  const uint32_t frame_index = this->width_ * this->height_ * this->current_frame_;
+  if (frame_index >= this->width_ * this->height_ * this->animation_frame_count_)
+    return 0;
+  const uint32_t pos = (x + y * this->width_ + frame_index);
+  const uint8_t gray = pgm_read_byte(this->data_start_ + pos);
+  return Color(gray | gray << 8 | gray << 16 | gray << 24);
+}
+Animation::Animation(const uint8_t *data_start, int width, int height, uint32_t animation_frame_count, ImageType type)
+    : Image(data_start, width, height, type), animation_frame_count_(animation_frame_count) {
+  current_frame_ = 0;
+}
+int Animation::get_animation_frame_count() const { return this->animation_frame_count_; }
+int Animation::get_current_frame() const { return this->current_frame_; }
+void Animation::next_frame() {
+  this->current_frame_++;
+  if (this->current_frame_ >= animation_frame_count_) {
+    this->current_frame_ = 0;
+  }
+}
 
 DisplayPage::DisplayPage(const display_writer_t &writer) : writer_(writer) {}
 void DisplayPage::show() { this->parent_->show_page(this); }
