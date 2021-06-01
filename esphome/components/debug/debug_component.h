@@ -26,10 +26,6 @@ class DebugComponent : public PollingComponent {
  protected:
   uint32_t free_heap_{};
 
-  uint32_t min_free_heap_{UINT32_MAX};
-  uint32_t min_heap_fragmentation_{0};
-  uint32_t min_heap_block_{UINT32_MAX};
-
   uint32_t loop_time_{0};
   uint32_t max_loop_time_{0};
 

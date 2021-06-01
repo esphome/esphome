@@ -259,7 +259,9 @@ void DebugComponent::loop() {
 		this->max_loop_time_ = max(this->max_loop_time_, loop_time);
 	}
   this->loop_time_ = now;
+}
 
+void DebugComponent::update() {
   uint32_t new_free_heap = ESP.getFreeHeap();
   if (new_free_heap < this->free_heap_ / 2) {
     this->free_heap_ = new_free_heap;
@@ -267,30 +269,19 @@ void DebugComponent::loop() {
     this->status_momentary_warning("heap", 1000);
   }
 
-  this->min_free_heap_ = min(this->min_free_heap_, (uint32_t) ESP.getFreeHeap());
-// CLANG_TIDY uses an old arduino framework which doesn't support the heap state functions
-#if defined(ARDUINO_ARCH_ESP8266) & !defined(CLANG_TIDY)
-  // NOTE: Requires arduino_version 2.5.2 or above
-  this->min_heap_fragmentation_ = max(this->min_heap_fragmentation_, (uint32_t) ESP.getHeapFragmentation());
-  this->min_heap_block_ = min(this->min_heap_block_, (uint32_t) ESP.getMaxFreeBlockSize());
-#endif
-}
-
-void DebugComponent::update() {
   if (this->free_sensor_ != nullptr) {
-    this->free_sensor_->publish_state(this->min_free_heap_);
-    this->min_free_heap_ = UINT32_MAX;
+    this->free_sensor_->publish_state(new_free_heap);
   }
 
-#ifdef ARDUINO_ARCH_ESP8266
+// CLANG_TIDY uses an old arduino framework which doesn't support the heap state functions
+#if defined(ARDUINO_ARCH_ESP8266) & !defined(CLANG_TIDY)
+// NOTE: Requires arduino_version 2.5.2 or above
   if (this->fragmentation_sensor_ != nullptr) {
-    this->fragmentation_sensor_->publish_state(this->min_heap_fragmentation_);
-    this->min_heap_fragmentation_ = 0;
+    this->fragmentation_sensor_->publish_state(ESP.getHeapFragmentation());
   }
 
   if (this->block_sensor_ != nullptr) {
-    this->block_sensor_->publish_state(this->min_heap_block_);
-    this->min_heap_block_ = UINT32_MAX;
+    this->block_sensor_->publish_state(ESP.getMaxFreeBlockSize());
   }
 #endif
 
