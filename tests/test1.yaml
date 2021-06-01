@@ -271,6 +271,9 @@ sensor:
     descriptor_uuid: 'ffe2'
     notify: true
     update_interval: never
+    lambda: |-
+      ESP_LOGD("main", "Length of data is %i", x.size());
+      return x[0];
     on_notify:
       then:
         - lambda: |-
