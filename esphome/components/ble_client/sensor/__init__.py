@@ -39,7 +39,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_SERVICE_UUID): esp32_ble_tracker.bt_uuid,
             cv.Required(CONF_CHARACTERISTIC_UUID): esp32_ble_tracker.bt_uuid,
             cv.Optional(CONF_DESCRIPTOR_UUID): esp32_ble_tracker.bt_uuid,
-            cv.Optional(CONF_LAMBDA): cv.lambda_,
+            cv.Optional(CONF_LAMBDA): cv.returning_lambda,
             cv.Optional(CONF_NOTIFY, default=False): cv.boolean,
             cv.Optional(CONF_ON_NOTIFY): automation.validate_automation(
                 {
