@@ -71,14 +71,11 @@ void TuyaLight::write_state(light::LightState *state) {
   }
 
   if (this->color_temperature_id_.has_value()) {
-    TuyaDatapoint datapoint{};
-    datapoint.id = *this->color_temperature_id_;
-    datapoint.type = TuyaDatapointType::INTEGER;
-    datapoint.value_int =
+    uint32_t color_temp_int =
         static_cast<uint32_t>(this->color_temperature_max_value_ *
                               (state->current_values.get_color_temperature() - this->cold_white_temperature_) /
                               (this->warm_white_temperature_ - this->cold_white_temperature_));
-    parent_->set_datapoint_value(datapoint);
+    parent_->set_datapoint_value(*this->color_temperature_id_, color_temp_int);
   }
 
   auto brightness_int = static_cast<uint32_t>(brightness * this->max_value_);
