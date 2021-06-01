@@ -46,7 +46,7 @@ const uint8_t TM1637_ASCII_TO_RAW[] PROGMEM = {
     0b01011111,           // '6', ord 0x36
     0b01110000,           // '7', ord 0x37
     0b01111111,           // '8', ord 0x38
-    0b01110011,           // '9', ord 0x39
+    0b01111011,           // '9', ord 0x39
     0b01001000,           // ':', ord 0x3A
     0b01011000,           // ';', ord 0x3B
     TM1637_UNKNOWN_CHAR,  // '<', ord 0x3C
@@ -253,7 +253,7 @@ uint8_t TM1637Display::print(uint8_t start_pos, const char* str) {
         pos--;
       this->buffer_[pos] |= 0b10000000;
     } else {
-      if (pos >= 4) {
+      if (pos >= 6) {
         ESP_LOGE(TAG, "String is too long for the display!");
         break;
       }

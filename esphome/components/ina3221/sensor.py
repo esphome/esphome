@@ -62,10 +62,10 @@ CONFIG_SCHEMA = (
 )
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
-    yield i2c.register_i2c_device(var, config)
+    await cg.register_component(var, config)
+    await i2c.register_i2c_device(var, config)
 
     for i, channel in enumerate([CONF_CHANNEL_1, CONF_CHANNEL_2, CONF_CHANNEL_3]):
         if channel not in config:
@@ -74,14 +74,14 @@ def to_code(config):
         if CONF_SHUNT_RESISTANCE in conf:
             cg.add(var.set_shunt_resistance(i, conf[CONF_SHUNT_RESISTANCE]))
         if CONF_BUS_VOLTAGE in conf:
-            sens = yield sensor.new_sensor(conf[CONF_BUS_VOLTAGE])
+            sens = await sensor.new_sensor(conf[CONF_BUS_VOLTAGE])
             cg.add(var.set_bus_voltage_sensor(i, sens))
         if CONF_SHUNT_VOLTAGE in conf:
-            sens = yield sensor.new_sensor(conf[CONF_SHUNT_VOLTAGE])
+            sens = await sensor.new_sensor(conf[CONF_SHUNT_VOLTAGE])
             cg.add(var.set_shunt_voltage_sensor(i, sens))
         if CONF_CURRENT in conf:
-            sens = yield sensor.new_sensor(conf[CONF_CURRENT])
+            sens = await sensor.new_sensor(conf[CONF_CURRENT])
             cg.add(var.set_current_sensor(i, sens))
         if CONF_POWER in conf:
-            sens = yield sensor.new_sensor(conf[CONF_POWER])
+            sens = await sensor.new_sensor(conf[CONF_POWER])
             cg.add(var.set_power_sensor(i, sens))

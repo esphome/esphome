@@ -40,10 +40,10 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_OUTPUT_ID])
-    yield cg.register_component(var, config)
-    yield light.register_light(var, config)
+    await cg.register_component(var, config)
+    await light.register_light(var, config)
 
     if CONF_DIMMER_DATAPOINT in config:
         cg.add(var.set_dimmer_id(config[CONF_DIMMER_DATAPOINT]))
@@ -55,5 +55,5 @@ def to_code(config):
         cg.add(var.set_min_value(config[CONF_MIN_VALUE]))
     if CONF_MAX_VALUE in config:
         cg.add(var.set_max_value(config[CONF_MAX_VALUE]))
-    paren = yield cg.get_variable(config[CONF_TUYA_ID])
+    paren = await cg.get_variable(config[CONF_TUYA_ID])
     cg.add(var.set_tuya_parent(paren))

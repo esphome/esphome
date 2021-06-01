@@ -9,9 +9,9 @@ static const char *TAG = "mcp4725";
 void MCP4725::setup() {
   ESP_LOGCONFIG(TAG, "Setting up MCP4725 (0x%02X)...", this->address_);
 
-  this->parent_->raw_begin_transmission(this->address_);
+  this->raw_begin_transmission();
 
-  if (!this->parent_->raw_end_transmission(this->address_)) {
+  if (!this->raw_end_transmission()) {
     this->error_code_ = COMMUNICATION_FAILED;
     this->mark_failed();
 
