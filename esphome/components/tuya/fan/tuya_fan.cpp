@@ -15,16 +15,11 @@ void TuyaFan::setup() {
   if (this->speed_id_.has_value()) {
     this->parent_->register_listener(*this->speed_id_, [this](TuyaDatapoint datapoint) {
       ESP_LOGV(TAG, "MCU reported speed of: %d", datapoint.value_enum);
-      if (datapoint.value_enum > 0x02) {
-        ESP_LOGE(TAG, "Speed has invalid value %d", datapoint.value_enum);
-        return;
-      }
       auto call = this->fan_->make_call();
       if (datapoint.value_enum < this->speed_count_)
         call.set_speed(datapoint.value_enum + 1);
       else
         ESP_LOGCONFIG(TAG, "Speed has invalid value %d", datapoint.value_enum);
-      ESP_LOGD(TAG, "MCU reported speed of: %d", datapoint.value_enum);
       call.perform();
     });
   }
