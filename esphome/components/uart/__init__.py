@@ -11,7 +11,7 @@ from esphome.const import (
     CONF_RX_BUFFER_SIZE,
     CONF_INVERT,
 )
-from esphome.core import CORE, coroutine
+from esphome.core import CORE
 
 CODEOWNERS = ["@esphome/core"]
 uart_ns = cg.esphome_ns.namespace("uart")
@@ -73,10 +73,10 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def to_code(config):
+async def to_code(config):
     cg.add_global(uart_ns.using)
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
+    await cg.register_component(var, config)
 
     cg.add(var.set_baud_rate(config[CONF_BAUD_RATE]))
 
@@ -92,6 +92,42 @@ def to_code(config):
     cg.add(var.set_parity(config[CONF_PARITY]))
 
 
+def validate_device(
+    name, config, item_config, baud_rate=None, require_tx=True, require_rx=True
+):
+    if not hasattr(config, "uart_devices"):
+        config.uart_devices = {}
+    devices = config.uart_devices
+
+    uart_config = config.get_config_by_id(item_config[CONF_UART_ID])
+
+    uart_id = uart_config[CONF_ID]
+    device = devices.setdefault(uart_id, {})
+
+    if require_tx:
+        if CONF_TX_PIN not in uart_config:
+            raise ValueError(f"Component {name} requires parent uart to declare tx_pin")
+        if CONF_TX_PIN in device:
+            raise ValueError(
+                f"Component {name} cannot use the same uart.{CONF_TX_PIN} as component {device[CONF_TX_PIN]} is already using it"
+            )
+        device[CONF_TX_PIN] = name
+
+    if require_rx:
+        if CONF_RX_PIN not in uart_config:
+            raise ValueError(f"Component {name} requires parent uart to declare rx_pin")
+        if CONF_RX_PIN in device:
+            raise ValueError(
+                f"Component {name} cannot use the same uart.{CONF_RX_PIN} as component {device[CONF_RX_PIN]} is already using it"
+            )
+        device[CONF_RX_PIN] = name
+
+    if baud_rate and uart_config[CONF_BAUD_RATE] != baud_rate:
+        raise ValueError(
+            f"Component {name} requires parent uart baud rate be {baud_rate}"
+        )
+
+
 # A schema to use for all UART devices, all UART integrations must extend this!
 UART_DEVICE_SCHEMA = cv.Schema(
     {
@@ -100,13 +136,12 @@ UART_DEVICE_SCHEMA = cv.Schema(
 )
 
 
-@coroutine
-def register_uart_device(var, config):
+async def register_uart_device(var, config):
     """Register a UART device, setting up all the internal values.
 
     This is a coroutine, you need to await it with a 'yield' expression!
     """
-    parent = yield cg.get_variable(config[CONF_UART_ID])
+    parent = await cg.get_variable(config[CONF_UART_ID])
     cg.add(var.set_uart_parent(parent))
 
 
@@ -121,16 +156,16 @@ def register_uart_device(var, config):
         key=CONF_DATA,
     ),
 )
-def uart_write_to_code(config, action_id, template_arg, args):
+async def uart_write_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
-    yield cg.register_parented(var, config[CONF_ID])
+    await cg.register_parented(var, config[CONF_ID])
     data = config[CONF_DATA]
     if isinstance(data, bytes):
         data = list(data)
 
     if cg.is_template(data):
-        templ = yield cg.templatable(data, args, cg.std_vector.template(cg.uint8))
+        templ = await cg.templatable(data, args, cg.std_vector.template(cg.uint8))
         cg.add(var.set_data_template(templ))
     else:
         cg.add(var.set_data_static(data))
-    yield var
+    return var

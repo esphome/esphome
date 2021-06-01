@@ -58,16 +58,16 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
+    await cg.register_component(var, config)
     cg.add(var.set_signal_rate_limit(config[CONF_SIGNAL_RATE_LIMIT]))
     cg.add(var.set_long_range(config[CONF_LONG_RANGE]))
     cg.add(var.set_timeout_us(config[CONF_TIMEOUT]))
 
     if CONF_ENABLE_PIN in config:
-        enable = yield cg.gpio_pin_expression(config[CONF_ENABLE_PIN])
+        enable = await cg.gpio_pin_expression(config[CONF_ENABLE_PIN])
         cg.add(var.set_enable_pin(enable))
 
-    yield sensor.register_sensor(var, config)
-    yield i2c.register_i2c_device(var, config)
+    await sensor.register_sensor(var, config)
+    await i2c.register_i2c_device(var, config)

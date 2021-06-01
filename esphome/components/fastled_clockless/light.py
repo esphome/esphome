@@ -34,7 +34,7 @@ CHIPSETS = [
 ]
 
 
-def validate(value):
+def _validate(value):
     if value[CONF_CHIPSET] == "NEOPIXEL" and CONF_RGB_ORDER in value:
         raise cv.Invalid("NEOPIXEL doesn't support RGB order")
     return value
@@ -47,12 +47,12 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_PIN): pins.output_pin,
         }
     ),
-    validate,
+    _validate,
 )
 
 
-def to_code(config):
-    var = yield fastled_base.new_fastled_light(config)
+async def to_code(config):
+    var = await fastled_base.new_fastled_light(config)
 
     rgb_order = None
     if CONF_RGB_ORDER in config:

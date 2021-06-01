@@ -16,8 +16,8 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
-def to_code(config):
-    template_ = yield cg.process_lambda(
+async def to_code(config):
+    template_ = await cg.process_lambda(
         config[CONF_LAMBDA],
         [],
         return_type=cg.std_vector.template(light.LightOutput.operator("ptr")),
@@ -27,4 +27,4 @@ def to_code(config):
     custom = cg.variable(config[CONF_ID], rhs)
     for i, conf in enumerate(config[CONF_LIGHTS]):
         rhs = custom.Pget_light(i)
-        yield light.register_light(rhs, conf)
+        await light.register_light(rhs, conf)

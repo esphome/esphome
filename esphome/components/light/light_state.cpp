@@ -106,10 +106,20 @@ void LightState::setup() {
   switch (this->restore_mode_) {
     case LIGHT_RESTORE_DEFAULT_OFF:
     case LIGHT_RESTORE_DEFAULT_ON:
+    case LIGHT_RESTORE_INVERTED_DEFAULT_OFF:
+    case LIGHT_RESTORE_INVERTED_DEFAULT_ON:
       this->rtc_ = global_preferences.make_preference<LightStateRTCState>(this->get_object_id_hash());
-      // Attempt to load from preferences, else fall back to default values from struct
+      // Attempt to load from preferences, else fall back to default values
       if (!this->rtc_.load(&recovered)) {
-        recovered.state = this->restore_mode_ == LIGHT_RESTORE_DEFAULT_ON;
+        recovered.state = false;
+        if (this->restore_mode_ == LIGHT_RESTORE_DEFAULT_ON ||
+            this->restore_mode_ == LIGHT_RESTORE_INVERTED_DEFAULT_ON) {
+          recovered.state = true;
+        }
+      } else if (this->restore_mode_ == LIGHT_RESTORE_INVERTED_DEFAULT_OFF ||
+                 this->restore_mode_ == LIGHT_RESTORE_INVERTED_DEFAULT_ON) {
+        // Inverted restore state
+        recovered.state = !recovered.state;
       }
       break;
     case LIGHT_ALWAYS_OFF:

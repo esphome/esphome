@@ -14,8 +14,11 @@ from esphome.const import (
     CONF_SPEED_COMMAND_TOPIC,
     CONF_SPEED_STATE_TOPIC,
     CONF_NAME,
+    CONF_ON_TURN_OFF,
+    CONF_ON_TURN_ON,
+    CONF_TRIGGER_ID,
 )
-from esphome.core import CORE, coroutine, coroutine_with_priority
+from esphome.core import CORE, coroutine_with_priority
 
 IS_PLATFORM_COMPONENT = True
 
@@ -27,6 +30,9 @@ MakeFan = cg.Application.struct("MakeFan")
 TurnOnAction = fan_ns.class_("TurnOnAction", automation.Action)
 TurnOffAction = fan_ns.class_("TurnOffAction", automation.Action)
 ToggleAction = fan_ns.class_("ToggleAction", automation.Action)
+
+FanTurnOnTrigger = fan_ns.class_("FanTurnOnTrigger", automation.Trigger.template())
+FanTurnOffTrigger = fan_ns.class_("FanTurnOffTrigger", automation.Trigger.template())
 
 FAN_SCHEMA = cv.MQTT_COMMAND_COMPONENT_SCHEMA.extend(
     {
@@ -44,19 +50,28 @@ FAN_SCHEMA = cv.MQTT_COMMAND_COMPONENT_SCHEMA.extend(
         cv.Optional(CONF_SPEED_COMMAND_TOPIC): cv.All(
             cv.requires_component("mqtt"), cv.subscribe_topic
         ),
+        cv.Optional(CONF_ON_TURN_ON): automation.validate_automation(
+            {
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(FanTurnOnTrigger),
+            }
+        ),
+        cv.Optional(CONF_ON_TURN_OFF): automation.validate_automation(
+            {
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(FanTurnOffTrigger),
+            }
+        ),
     }
 )
 
 
-@coroutine
-def setup_fan_core_(var, config):
+async def setup_fan_core_(var, config):
     cg.add(var.set_name(config[CONF_NAME]))
     if CONF_INTERNAL in config:
         cg.add(var.set_internal(config[CONF_INTERNAL]))
 
     if CONF_MQTT_ID in config:
         mqtt_ = cg.new_Pvariable(config[CONF_MQTT_ID], var)
-        yield mqtt.register_mqtt_component(mqtt_, config)
+        await mqtt.register_mqtt_component(mqtt_, config)
 
         if CONF_OSCILLATION_STATE_TOPIC in config:
             cg.add(
@@ -77,21 +92,26 @@ def setup_fan_core_(var, config):
                 mqtt_.set_custom_speed_command_topic(config[CONF_SPEED_COMMAND_TOPIC])
             )
 
+    for conf in config.get(CONF_ON_TURN_ON, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(trigger, [], conf)
+    for conf in config.get(CONF_ON_TURN_OFF, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(trigger, [], conf)
 
-@coroutine
-def register_fan(var, config):
+
+async def register_fan(var, config):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
     cg.add(cg.App.register_fan(var))
-    yield cg.register_component(var, config)
-    yield setup_fan_core_(var, config)
+    await cg.register_component(var, config)
+    await setup_fan_core_(var, config)
 
 
-@coroutine
-def create_fan_state(config):
+async def create_fan_state(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield register_fan(var, config)
-    yield var
+    await register_fan(var, config)
+    return var
 
 
 FAN_ACTION_SCHEMA = maybe_simple_id(
@@ -102,15 +122,15 @@ FAN_ACTION_SCHEMA = maybe_simple_id(
 
 
 @automation.register_action("fan.toggle", ToggleAction, FAN_ACTION_SCHEMA)
-def fan_toggle_to_code(config, action_id, template_arg, args):
-    paren = yield cg.get_variable(config[CONF_ID])
-    yield cg.new_Pvariable(action_id, template_arg, paren)
+async def fan_toggle_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(action_id, template_arg, paren)
 
 
 @automation.register_action("fan.turn_off", TurnOffAction, FAN_ACTION_SCHEMA)
-def fan_turn_off_to_code(config, action_id, template_arg, args):
-    paren = yield cg.get_variable(config[CONF_ID])
-    yield cg.new_Pvariable(action_id, template_arg, paren)
+async def fan_turn_off_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(action_id, template_arg, paren)
 
 
 @automation.register_action(
@@ -124,19 +144,19 @@ def fan_turn_off_to_code(config, action_id, template_arg, args):
         }
     ),
 )
-def fan_turn_on_to_code(config, action_id, template_arg, args):
-    paren = yield cg.get_variable(config[CONF_ID])
+async def fan_turn_on_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
     if CONF_OSCILLATING in config:
-        template_ = yield cg.templatable(config[CONF_OSCILLATING], args, bool)
+        template_ = await cg.templatable(config[CONF_OSCILLATING], args, bool)
         cg.add(var.set_oscillating(template_))
     if CONF_SPEED in config:
-        template_ = yield cg.templatable(config[CONF_SPEED], args, int)
+        template_ = await cg.templatable(config[CONF_SPEED], args, int)
         cg.add(var.set_speed(template_))
-    yield var
+    return var
 
 
 @coroutine_with_priority(100.0)
-def to_code(config):
+async def to_code(config):
     cg.add_define("USE_FAN")
     cg.add_global(fan_ns.using)
