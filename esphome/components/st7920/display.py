@@ -4,20 +4,28 @@ from esphome import pins
 from esphome.components import display, spi
 from esphome.const import CONF_ID, CONF_LAMBDA, CONF_RS_PIN, CONF_WIDTH, CONF_HEIGHT
 
-AUTO_LOAD = ['display']
-DEPENDENCIES = ['spi']
-CODEOWNERS = ['@marsjan155']
+AUTO_LOAD = ["display"]
+CODEOWNERS = ["@marsjan155"]
+DEPENDENCIES = ["spi"]
 
-st7920_ns = cg.esphome_ns.namespace('st7920')
-ST7920 = st7920_ns.class_('ST7920', cg.PollingComponent, display.DisplayBuffer, spi.SPIDevice)
-ST7920Ref = ST7920.operator('ref')
+st7920_ns = cg.esphome_ns.namespace("st7920")
+ST7920 = st7920_ns.class_(
+    "ST7920", cg.PollingComponent, display.DisplayBuffer, spi.SPIDevice
+)
+ST7920Ref = ST7920.operator("ref")
 
-CONFIG_SCHEMA = display.FULL_DISPLAY_SCHEMA.extend({
-    cv.GenerateID(): cv.declare_id(ST7920),
-    cv.Required(CONF_RS_PIN): pins.gpio_output_pin_schema,
-    cv.Required(CONF_WIDTH): cv.int_,
-    cv.Required(CONF_HEIGHT): cv.int_,
-}).extend(cv.polling_component_schema('60s')).extend(spi.spi_device_schema(cs_pin_required=False))
+CONFIG_SCHEMA = (
+    display.FULL_DISPLAY_SCHEMA.extend(
+        {
+            cv.GenerateID(): cv.declare_id(ST7920),
+            cv.Required(CONF_RS_PIN): pins.gpio_output_pin_schema,
+            cv.Required(CONF_WIDTH): cv.int_,
+            cv.Required(CONF_HEIGHT): cv.int_,
+        }
+    )
+    .extend(cv.polling_component_schema("60s"))
+    .extend(spi.spi_device_schema(cs_pin_required=False))
+)
 
 
 def to_code(config):
@@ -27,7 +35,8 @@ def to_code(config):
 
     if CONF_LAMBDA in config:
         lambda_ = yield cg.process_lambda(
-            config[CONF_LAMBDA], [(ST7920Ref, 'it')], return_type=cg.void)
+            config[CONF_LAMBDA], [(ST7920Ref, "it")], return_type=cg.void
+        )
         cg.add(var.set_writer(lambda_))
     rs = yield cg.gpio_pin_expression(config[CONF_RS_PIN])
     cg.add(var.set_rs_pin(rs))
