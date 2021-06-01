@@ -30,12 +30,12 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_DIMMER_DATAPOINT): cv.uint8_t,
             cv.Optional(CONF_MIN_VALUE_DATAPOINT): cv.uint8_t,
             cv.Optional(CONF_SWITCH_DATAPOINT): cv.uint8_t,
-            cv.Optional(CONF_COLOR_TEMPERATURE_DATAPOINT): cv.uint8_t,
+            cv.Inclusive(CONF_COLOR_TEMPERATURE_DATAPOINT, "color_temperature"): cv.uint8_t,
             cv.Optional(CONF_MIN_VALUE): cv.int_,
             cv.Optional(CONF_MAX_VALUE): cv.int_,
             cv.Optional(CONF_COLOR_TEMPERATURE_MAX_VALUE): cv.int_,
-            cv.Optional(CONF_COLD_WHITE_COLOR_TEMPERATURE): cv.color_temperature,
-            cv.Optional(CONF_WARM_WHITE_COLOR_TEMPERATURE): cv.color_temperature,
+            cv.Inclusive(CONF_COLD_WHITE_COLOR_TEMPERATURE, "color_temperature"): cv.color_temperature,
+            cv.Inclusive(CONF_WARM_WHITE_COLOR_TEMPERATURE, "color_temperature"): cv.color_temperature,
             # Change the default gamma_correct and default transition length settings.
             # The Tuya MCU handles transitions and gamma correction on its own.
             cv.Optional(CONF_GAMMA_CORRECT, default=1.0): cv.positive_float,
