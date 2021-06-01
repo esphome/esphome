@@ -28,19 +28,19 @@ CONFIG_SCHEMA = (
 )
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
-    yield spi.register_spi_device(var, config)
+    await cg.register_component(var, config)
+    await spi.register_spi_device(var, config)
 
     if CONF_LAMBDA in config:
-        lambda_ = yield cg.process_lambda(
+        lambda_ = await cg.process_lambda(
             config[CONF_LAMBDA], [(ST7920Ref, "it")], return_type=cg.void
         )
         cg.add(var.set_writer(lambda_))
-    rs = yield cg.gpio_pin_expression(config[CONF_RS_PIN])
+    rs = await cg.gpio_pin_expression(config[CONF_RS_PIN])
     cg.add(var.set_rs_pin(rs))
     cg.add(var.set_width(config[CONF_WIDTH]))
     cg.add(var.set_height(config[CONF_HEIGHT]))
 
-    yield display.register_display(var, config)
+    await display.register_display(var, config)
