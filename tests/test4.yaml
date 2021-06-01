@@ -133,6 +133,17 @@ light:
     rgb_order: GRB
     default_transition_length: 0s
     color_correct: [50%, 50%, 50%]
+  - platform: tuya
+    id: tuya_light
+    switch_datapoint: 1
+    dimmer_datapoint: 2
+    min_value_datapoint: 3
+    color_temperature_datapoint: 4
+    min_value: 1
+    max_value: 100
+    cold_white_color_temperature: 153 mireds
+    warm_white_color_temperature: 500 mireds
+    gamma_correct: 1
 
 display:
   - platform: addressable_light
