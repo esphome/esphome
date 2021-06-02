@@ -96,9 +96,9 @@ class Tuya : public Component, public uart::UARTDevice {
   void send_empty_command_(TuyaCommandType command);
   void send_datapoint_command_(uint8_t datapoint_id, TuyaDatapointType datapoint_type, std::vector<uint8_t> data);
   void send_wifi_status_();
-  void send_local_time_();
 
 #ifdef USE_TIME
+  void send_local_time_();
   optional<time::RealTimeClock *> time_id_{};
 #endif
   TuyaInitState init_state_ = TuyaInitState::INIT_HEARTBEAT;
