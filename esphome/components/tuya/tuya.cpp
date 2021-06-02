@@ -160,7 +160,6 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
           this->send_empty_command_(TuyaCommandType::DATAPOINT_QUERY);
         } else {
           this->init_state_ = TuyaInitState::INIT_WIFI;
-          this->send_wifi_status_();
           this->set_interval("wifi", 1000, [this] { this->send_wifi_status_(); });
         }
       }
