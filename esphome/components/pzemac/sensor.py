@@ -18,6 +18,7 @@ from esphome.const import (
     ICON_EMPTY,
     ICON_CURRENT_AC,
     STATE_CLASS_MEASUREMENT,
+    STATE_CLASS_NONE,
     UNIT_HERTZ,
     UNIT_VOLT,
     UNIT_AMPERE,
@@ -53,7 +54,7 @@ CONFIG_SCHEMA = (
                 ICON_EMPTY,
                 0,
                 DEVICE_CLASS_ENERGY,
-                STATE_CLASS_MEASUREMENT,
+                STATE_CLASS_NONE,
             ),
             cv.Optional(CONF_FREQUENCY): sensor.sensor_schema(
                 UNIT_HERTZ,

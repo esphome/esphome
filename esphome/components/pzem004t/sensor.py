@@ -13,6 +13,7 @@ from esphome.const import (
     DEVICE_CLASS_VOLTAGE,
     ICON_EMPTY,
     STATE_CLASS_MEASUREMENT,
+    STATE_CLASS_NONE,
     UNIT_VOLT,
     UNIT_AMPERE,
     UNIT_WATT,
@@ -46,7 +47,7 @@ CONFIG_SCHEMA = (
                 ICON_EMPTY,
                 0,
                 DEVICE_CLASS_ENERGY,
-                STATE_CLASS_MEASUREMENT,
+                STATE_CLASS_NONE,
             ),
         }
     )

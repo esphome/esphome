@@ -19,6 +19,7 @@ from esphome.const import (
     DEVICE_CLASS_VOLTAGE,
     ICON_EMPTY,
     STATE_CLASS_MEASUREMENT,
+    STATE_CLASS_NONE,
     UNIT_VOLT,
     UNIT_AMPERE,
     UNIT_WATT,
@@ -57,7 +58,7 @@ CONFIG_SCHEMA = cv.Schema(
             UNIT_WATT, ICON_EMPTY, 1, DEVICE_CLASS_POWER, STATE_CLASS_MEASUREMENT
         ),
         cv.Optional(CONF_ENERGY): sensor.sensor_schema(
-            UNIT_WATT_HOURS, ICON_EMPTY, 1, DEVICE_CLASS_ENERGY, STATE_CLASS_MEASUREMENT
+            UNIT_WATT_HOURS, ICON_EMPTY, 1, DEVICE_CLASS_ENERGY, STATE_CLASS_NONE
         ),
         cv.Optional(CONF_CURRENT_RESISTOR, default=0.001): cv.resistance,
         cv.Optional(CONF_VOLTAGE_DIVIDER, default=2351): cv.positive_float,
