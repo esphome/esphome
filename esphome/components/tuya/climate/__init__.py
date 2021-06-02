@@ -137,12 +137,12 @@ async def to_code(config):
             )
     else:
         if CONF_HEATING_STATE_PIN in config:
-            heating_state_pin = yield cg.gpio_pin_expression(
+            heating_state_pin = await cg.gpio_pin_expression(
                 config[CONF_HEATING_STATE_PIN]
             )
             cg.add(var.set_heating_state_pin(heating_state_pin))
         if CONF_COOLING_STATE_PIN in config:
-            cooling_state_pin = yield cg.gpio_pin_expression(
+            cooling_state_pin = await cg.gpio_pin_expression(
                 config[CONF_COOLING_STATE_PIN]
             )
             cg.add(var.set_cooling_state_pin(cooling_state_pin))
