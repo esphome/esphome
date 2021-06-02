@@ -30,6 +30,7 @@ esphome/components/climate/* @esphome/core
 esphome/components/climate_ir/* @glmnet
 esphome/components/coolix/* @glmnet
 esphome/components/cover/* @esphome/core
+esphome/components/cs5460a/* @balrog-kun
 esphome/components/ct_clamp/* @jesserockz
 esphome/components/debug/* @OttoWinter
 esphome/components/dfplayer/* @glmnet
@@ -82,6 +83,7 @@ esphome/components/restart/* @esphome/core
 esphome/components/rf_bridge/* @jesserockz
 esphome/components/rtttl/* @glmnet
 esphome/components/script/* @esphome/core
+esphome/components/sdm_meter/* @jesserockz @polyfaces
 esphome/components/sensor/* @esphome/core
 esphome/components/sgp40/* @SenexCrenshaw
 esphome/components/sht4x/* @sjtrny
@@ -124,3 +126,4 @@ esphome/components/web_server_base/* @OttoWinter
 esphome/components/whirlpool/* @glmnet
 esphome/components/xiaomi_lywsd03mmc/* @ahpohl
 esphome/components/xiaomi_mhoc401/* @vevsvevs
+esphome/components/xpt2046/* @numo68

@@ -4,6 +4,7 @@ from esphome.components import sensor, ble_client, esp32_ble_tracker
 from esphome.const import (
     DEVICE_CLASS_EMPTY,
     CONF_ID,
+    CONF_LAMBDA,
     UNIT_EMPTY,
     ICON_EMPTY,
     CONF_TRIGGER_ID,
@@ -20,6 +21,9 @@ CONF_DESCRIPTOR_UUID = "descriptor_uuid"
 CONF_NOTIFY = "notify"
 CONF_ON_NOTIFY = "on_notify"
 
+adv_data_t = cg.std_vector.template(cg.uint8)
+adv_data_t_const_ref = adv_data_t.operator("ref").operator("const")
+
 BLESensor = ble_client_ns.class_(
     "BLESensor", sensor.Sensor, cg.PollingComponent, ble_client.BLEClientNode
 )
@@ -35,6 +39,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_SERVICE_UUID): esp32_ble_tracker.bt_uuid,
             cv.Required(CONF_CHARACTERISTIC_UUID): esp32_ble_tracker.bt_uuid,
             cv.Optional(CONF_DESCRIPTOR_UUID): esp32_ble_tracker.bt_uuid,
+            cv.Optional(CONF_LAMBDA): cv.returning_lambda,
             cv.Optional(CONF_NOTIFY, default=False): cv.boolean,
             cv.Optional(CONF_ON_NOTIFY): automation.validate_automation(
                 {
@@ -50,7 +55,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     if len(config[CONF_SERVICE_UUID]) == len(esp32_ble_tracker.bt_uuid16_format):
         cg.add(
@@ -105,11 +110,17 @@ def to_code(config):
             uuid128 = esp32_ble_tracker.as_hex_array(config[CONF_DESCRIPTOR_UUID])
             cg.add(var.set_descr_uuid128(uuid128))
 
-    yield cg.register_component(var, config)
-    yield ble_client.register_ble_node(var, config)
+    if CONF_LAMBDA in config:
+        lambda_ = await cg.process_lambda(
+            config[CONF_LAMBDA], [(adv_data_t_const_ref, "x")], return_type=cg.float_
+        )
+        cg.add(var.set_data_to_value(lambda_))
+
+    await cg.register_component(var, config)
+    await ble_client.register_ble_node(var, config)
     cg.add(var.set_enable_notify(config[CONF_NOTIFY]))
-    yield sensor.register_sensor(var, config)
+    await sensor.register_sensor(var, config)
     for conf in config.get(CONF_ON_NOTIFY, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        yield ble_client.register_ble_node(trigger, config)
-        yield automation.build_automation(trigger, [(float, "x")], conf)
+        await ble_client.register_ble_node(trigger, config)
+        await automation.build_automation(trigger, [(float, "x")], conf)

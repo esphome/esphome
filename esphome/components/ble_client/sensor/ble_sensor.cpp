@@ -84,7 +84,7 @@ void BLESensor::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t ga
       }
       if (param->read.handle == this->handle) {
         this->status_clear_warning();
-        this->publish_state((float) param->read.value[0]);
+        this->publish_state(this->parse_data(param->read.value, param->read.value_len));
       }
       break;
     }
@@ -93,7 +93,7 @@ void BLESensor::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t ga
         break;
       ESP_LOGV(TAG, "[%s] ESP_GATTC_NOTIFY_EVT: handle=0x%x, value=0x%x", this->get_name().c_str(),
                param->notify.handle, param->notify.value[0]);
-      this->publish_state((float) param->notify.value[0]);
+      this->publish_state(this->parse_data(param->notify.value, param->notify.value_len));
       break;
     }
     case ESP_GATTC_REG_FOR_NOTIFY_EVT: {
@@ -102,6 +102,15 @@ void BLESensor::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t ga
     }
     default:
       break;
+  }
+}
+
+float BLESensor::parse_data(uint8_t *value, uint16_t value_len) {
+  if (this->data_to_value_func_.has_value()) {
+    std::vector<uint8_t> data(value, value + value_len);
+    return (*this->data_to_value_func_)(data);
+  } else {
+    return value[0];
   }
 }
 

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+from esphome.cpp_generator import MockObj
 import json
 import argparse
 import os
@@ -54,7 +55,7 @@ def is_ref(jschema):
 
 
 def unref(jschema):
-    return definitions[jschema[JSC_REF][len("#/definitions/") :]]
+    return definitions.get(jschema[JSC_REF][len("#/definitions/") :])
 
 
 def add_definition_array_or_single_object(ref):
@@ -104,8 +105,11 @@ def add_registry(registry_name, registry):
     for name in registry.keys():
         schema = get_jschema(str(name), registry[name].schema, create_return_ref=False)
         if not schema:
-            schema = {"type": "string"}
+            schema = {"type": "null"}
         o_schema = {"type": "object", JSC_PROPERTIES: {name: schema}}
+        o_schema = create_ref(
+            registry_name + "-" + name, str(registry[name].schema) + "x", o_schema
+        )
         validators.append(o_schema)
     definitions[registry_name] = {JSC_ANYOF: validators}
 
@@ -134,7 +138,7 @@ def add_module_schemas(name, module):
 
 
 def get_dirs():
-    from esphome.config import CORE_COMPONENTS_PATH
+    from esphome.loader import CORE_COMPONENTS_PATH
 
     dir_names = [
         d
@@ -146,7 +150,7 @@ def get_dirs():
 
 
 def get_logger_tags():
-    from esphome.config import CORE_COMPONENTS_PATH
+    from esphome.loader import CORE_COMPONENTS_PATH
     import glob
 
     pattern = re.compile(r'^static const char(\*\s|\s\*)TAG = "(\w.*)";', re.MULTILINE)
@@ -241,7 +245,7 @@ def add_components():
 
             elif c.config_schema is not None:
                 # adds root components which are not platforms, e.g. api: logger:
-                if c.is_multi_conf:
+                if c.multi_conf:
                     schema = get_jschema(domain, c.config_schema)
                     schema = add_definition_array_or_single_object(schema)
                 else:
@@ -322,7 +326,6 @@ def get_entry(parent_key, vschema):
     elif str(vschema) in ejs.list_schemas:
         ref = get_jschema(parent_key, ejs.list_schemas[str(vschema)][0])
         entry = {JSC_ANYOF: [ref, {"type": "array", "items": ref}]}
-
     elif str(vschema) in ejs.typed_schemas:
         schema_types = [{"type": "object", "properties": {"type": {"type": "string"}}}]
         entry = {"allOf": schema_types}
@@ -342,6 +345,22 @@ def get_entry(parent_key, vschema):
             entry = get_automation_schema(parent_key, inner_vschema)
         elif type == "maybe":
             entry = get_jschema(parent_key, inner_vschema)
+        elif type == "one_of":
+            entry = {"enum": list(inner_vschema)}
+        elif type == "enum":
+            entry = {"enum": list(inner_vschema.keys())}
+        elif type == "effects":
+            # Like list schema but subset from list.
+            subset_list = inner_vschema[0]
+            # get_jschema('strobex', registry['strobe'].schema)
+            registry_schemas = []
+            for name in subset_list:
+                registry_schemas.append(get_ref("light.EFFECTS_REGISTRY-" + name))
+
+            entry = {
+                JSC_ANYOF: [{"type": "array", "items": {JSC_ANYOF: registry_schemas}}]
+            }
+
         else:
             raise ValueError("Unknown extracted schema type")
     elif str(vschema).startswith("<function invalid."):
@@ -374,7 +393,10 @@ def default_schema():
 
 def is_default_schema(jschema):
     if is_ref(jschema):
-        return is_default_schema(unref(jschema))
+        jschema = unref(jschema)
+        if not jschema:
+            return False
+        return is_default_schema(jschema)
     return "type" in jschema and jschema["type"] == default_schema()["type"]
 
 
@@ -512,6 +534,10 @@ def convert_schema(path, vschema, un_extend=True):
 
     # When schema contains all, all also has a schema which points
     # back to the containing schema
+
+    if isinstance(vschema, MockObj):
+        return output
+
     while hasattr(vschema, "schema") and not hasattr(vschema, "validators"):
         vschema = vschema.schema
 
@@ -531,7 +557,6 @@ def convert_schema(path, vschema, un_extend=True):
                         output = val_schema
                     else:
                         output = {**output, **val_schema}
-
         return output
 
     if not vschema:
@@ -679,6 +704,7 @@ def dump_schema():
         pins.output_pin,
         pins.input_pin,
         pins.input_pullup_pin,
+        cv.float_with_unit,
         cv.subscribe_topic,
         cv.publish_topic,
         cv.mqtt_payload,
@@ -698,9 +724,13 @@ def dump_schema():
 
     for v in [pins.gpio_input_pin_schema, pins.gpio_input_pullup_pin_schema]:
         schema_registry[v] = get_ref("PIN.GPIO_FULL_INPUT_PIN_SCHEMA")
+    for v in [pins.internal_gpio_input_pin_schema, pins.input_pin]:
+        schema_registry[v] = get_ref("PIN.INPUT_INTERNAL")
 
     for v in [pins.gpio_output_pin_schema, pins.internal_gpio_output_pin_schema]:
         schema_registry[v] = get_ref("PIN.GPIO_FULL_OUTPUT_PIN_SCHEMA")
+    for v in [pins.internal_gpio_output_pin_schema, pins.output_pin]:
+        schema_registry[v] = get_ref("PIN.OUTPUT_INTERNAL")
 
     add_module_schemas("CONFIG", cv)
     get_jschema("POLLING_COMPONENT", cv.polling_component_schema("60s"))
