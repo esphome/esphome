@@ -13,17 +13,27 @@ class ESPRangeIterator;
 
 class ESPRangeView : public ESPColorSettable {
  public:
-  ESPRangeView(AddressableLight *parent, int32_t begin, int32_t an_end) : parent_(parent), begin_(begin), end_(an_end) {
-    if (this->end_ < this->begin_) {
-      this->end_ = this->begin_;
-    }
-  }
+  ESPRangeView(AddressableLight *parent, int32_t begin, int32_t end)
+      : parent_(parent), begin_(begin), end_(end < begin ? begin : end) {}
 
+  int32_t size() const { return this->end_ - this->begin_; }
   ESPColorView operator[](int32_t index) const;
   ESPRangeIterator begin();
   ESPRangeIterator end();
 
   void set(const Color &color) override;
+  void set(const ESPHSVColor &color) { this->set(color.to_rgb()); }
+  void set_red(uint8_t red) override;
+  void set_green(uint8_t green) override;
+  void set_blue(uint8_t blue) override;
+  void set_white(uint8_t white) override;
+  void set_effect_data(uint8_t effect_data) override;
+
+  void fade_to_white(uint8_t amnt) override;
+  void fade_to_black(uint8_t amnt) override;
+  void lighten(uint8_t delta) override;
+  void darken(uint8_t delta) override;
+
   ESPRangeView &operator=(const Color &rhs) {
     this->set(rhs);
     return *this;
@@ -37,16 +47,6 @@ class ESPRangeView : public ESPColorSettable {
     return *this;
   }
   ESPRangeView &operator=(const ESPRangeView &rhs);
-  void set_red(uint8_t red) override;
-  void set_green(uint8_t green) override;
-  void set_blue(uint8_t blue) override;
-  void set_white(uint8_t white) override;
-  void set_effect_data(uint8_t effect_data) override;
-  void fade_to_white(uint8_t amnt) override;
-  void fade_to_black(uint8_t amnt) override;
-  void lighten(uint8_t delta) override;
-  void darken(uint8_t delta) override;
-  int32_t size() const { return this->end_ - this->begin_; }
 
  protected:
   friend ESPRangeIterator;
