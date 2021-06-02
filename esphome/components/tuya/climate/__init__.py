@@ -16,13 +16,13 @@ CODEOWNERS = ["@jesserockz"]
 CONF_ACTIVE_STATE_DATAPOINT = "active_state_datapoint"
 CONF_ACTIVE_STATE_HEATING_VALUE = "active_state_heating_value"
 CONF_ACTIVE_STATE_COOLING_VALUE = "active_state_cooling_value"
+CONF_HEATING_STATE_PIN = "heating_state_pin"
+CONF_COOLING_STATE_PIN = "cooling_state_pin"
 CONF_TARGET_TEMPERATURE_DATAPOINT = "target_temperature_datapoint"
 CONF_CURRENT_TEMPERATURE_DATAPOINT = "current_temperature_datapoint"
 CONF_TEMPERATURE_MULTIPLIER = "temperature_multiplier"
 CONF_CURRENT_TEMPERATURE_MULTIPLIER = "current_temperature_multiplier"
 CONF_TARGET_TEMPERATURE_MULTIPLIER = "target_temperature_multiplier"
-CONF_HEATING_STATE_PIN = "heating_state_pin"
-CONF_COOLING_STATE_PIN = "cooling_state_pin"
 
 TuyaClimate = tuya_ns.class_("TuyaClimate", climate.Climate, cg.Component)
 
