@@ -205,18 +205,18 @@ async def dfplayer_set_volume_to_code(config, action_id, template_arg, args):
 
 @automation.register_action('dfplayer.volume_up', VolumeUpAction, cv.Schema({
 }))
-def dfplayer_volume_up_to_code(config, action_id, template_arg, args):
+async def dfplayer_volume_up_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
-    yield cg.register_parented(var, config[CONF_ID])
-    yield var
+    await cg.register_parented(var, config[CONF_ID])
+    return var
 
 @automation.register_action('dfplayer.volume_down', VolumeDownAction, cv.Schema({
     cv.GenerateID(): cv.use_id(DFPlayer),
 }))
-def dfplayer_volume_down_to_code(config, action_id, template_arg, args):
+async def dfplayer_volume_down_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
-    yield cg.register_parented(var, config[CONF_ID])
-    yield var
+    await cg.register_parented(var, config[CONF_ID])
+    return var
 
 
 @automation.register_action(
