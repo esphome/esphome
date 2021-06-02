@@ -10,7 +10,6 @@ static const char *TAG = "tuya";
 static const int COMMAND_DELAY = 50;
 
 void Tuya::setup() {
-  this->send_empty_command_(TuyaCommandType::HEARTBEAT);
   this->set_interval("heartbeat", 10000, [this] { this->send_empty_command_(TuyaCommandType::HEARTBEAT); });
 }
 
@@ -303,8 +302,8 @@ void Tuya::handle_datapoint_(const uint8_t *buffer, size_t len) {
 }
 
 void Tuya::send_raw_command_(TuyaCommand command) {
-  uint8_t len_hi = (uint8_t)(command.payload.size() >> 8);
-  uint8_t len_lo = (uint8_t)(command.payload.size() & 0xFF);
+  uint8_t len_hi = (uint8_t) (command.payload.size() >> 8);
+  uint8_t len_lo = (uint8_t) (command.payload.size() & 0xFF);
   uint8_t version = 0;
 
   this->last_command_timestamp_ = millis();
