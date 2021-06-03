@@ -81,7 +81,7 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_PHASE_B): PHASE_SCHEMA,
             cv.Optional(CONF_PHASE_C): PHASE_SCHEMA,
             cv.Optional(CONF_FREQUENCY): sensor.sensor_schema(
-                UNIT_HERTZ, ICON_CURRENT_AC, 3, DEVICE_CLASS_EMPTY, STATE_CLASS_NONE
+                UNIT_HERTZ, ICON_CURRENT_AC, 3, DEVICE_CLASS_EMPTY, STATE_CLASS_MEASUREMENT
             ),
             cv.Optional(CONF_IMPORT_ACTIVE_ENERGY): sensor.sensor_schema(
                 UNIT_WATT_HOURS, ICON_EMPTY, 2, DEVICE_CLASS_ENERGY, STATE_CLASS_NONE
