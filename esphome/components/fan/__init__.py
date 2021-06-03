@@ -60,14 +60,10 @@ FAN_SCHEMA = cv.NAMEABLE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).extend(
             cv.requires_component("mqtt"), cv.subscribe_topic
         ),
         cv.Optional(CONF_ON_TURN_ON): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(FanTurnOnTrigger),
-            }
+            {cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(FanTurnOnTrigger),}
         ),
         cv.Optional(CONF_ON_TURN_OFF): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(FanTurnOffTrigger),
-            }
+            {cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(FanTurnOffTrigger),}
         ),
     }
 )
@@ -96,9 +92,17 @@ async def setup_fan_core_(var, config):
                 )
             )
         if CONF_SPEED_LEVEL_STATE_TOPIC in config:
-            cg.add(mqtt_.set_custom_speed_level_state_topic(config[CONF_SPEED_LEVEL_STATE_TOPIC]))
+            cg.add(
+                mqtt_.set_custom_speed_level_state_topic(
+                    config[CONF_SPEED_LEVEL_STATE_TOPIC]
+                )
+            )
         if CONF_SPEED_LEVEL_COMMAND_TOPIC in config:
-            cg.add(mqtt_.set_custom_speed_level_command_topic(config[CONF_SPEED_LEVEL_COMMAND_TOPIC]))
+            cg.add(
+                mqtt_.set_custom_speed_level_command_topic(
+                    config[CONF_SPEED_LEVEL_COMMAND_TOPIC]
+                )
+            )
         if CONF_SPEED_STATE_TOPIC in config:
             cg.add(mqtt_.set_custom_speed_state_topic(config[CONF_SPEED_STATE_TOPIC]))
         if CONF_SPEED_COMMAND_TOPIC in config:
@@ -128,11 +132,7 @@ async def create_fan_state(config):
     return var
 
 
-FAN_ACTION_SCHEMA = maybe_simple_id(
-    {
-        cv.Required(CONF_ID): cv.use_id(FanState),
-    }
-)
+FAN_ACTION_SCHEMA = maybe_simple_id({cv.Required(CONF_ID): cv.use_id(FanState),})
 
 
 @automation.register_action("fan.toggle", ToggleAction, FAN_ACTION_SCHEMA)
