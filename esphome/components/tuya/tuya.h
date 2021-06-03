@@ -32,6 +32,7 @@ struct TuyaDatapoint {
     uint32_t value_bitmask;
   };
   std::string value_string;
+  std::vector<uint8_t> value_raw;
 };
 
 struct TuyaDatapointListener {
