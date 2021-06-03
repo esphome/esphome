@@ -23,9 +23,20 @@ class LCDDisplay : public PollingComponent {
   float get_setup_priority() const override;
   void update() override;
   void display();
-  //// Clear LCD display
+  // Clear LCD display
   void clear();
+  // Load degree char to given location 
+  void loadDeg(uint8_t location); // location = char number (0-7)
+  // Load smiley char to given location 
+  void loadSmil(uint8_t location); // location = char number (0-7)
+  // Load bell char to given location 
+  void loadBel(uint8_t location); // location = char number (0-7)
+  // Load custom char to given location 
+  void createChar(uint8_t, uint8_t[]);
+  void createChar(uint8_t location, const uint8_t *charmap);
 
+  /// Print the given char at the specified column and row. (need for loadable chars, print cannot char 0x0)
+  void printc(uint8_t column, uint8_t row, uint8_t str);
   /// Print the given text at the specified column and row.
   void print(uint8_t column, uint8_t row, const char *str);
   /// Print the given string at the specified column and row.
