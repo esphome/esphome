@@ -3,6 +3,7 @@ import esphome.config_validation as cv
 import esphome.codegen as cg
 from esphome.const import (
     CONF_ID,
+    STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
     UNIT_PERCENT,
     UNIT_WATT,
@@ -36,13 +37,21 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_SWING_HORIZONTAL, default=False): cv.boolean,
             cv.Optional(CONF_SWING_BOTH, default=False): cv.boolean,
             cv.Optional(CONF_OUTDOOR_TEMPERATURE): sensor.sensor_schema(
-                UNIT_CELSIUS, ICON_THERMOMETER, 0, DEVICE_CLASS_TEMPERATURE
+                UNIT_CELSIUS,
+                ICON_THERMOMETER,
+                0,
+                DEVICE_CLASS_TEMPERATURE,
+                STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_POWER_USAGE): sensor.sensor_schema(
-                UNIT_WATT, ICON_POWER, 0, DEVICE_CLASS_POWER
+                UNIT_WATT, ICON_POWER, 0, DEVICE_CLASS_POWER, STATE_CLASS_MEASUREMENT
             ),
             cv.Optional(CONF_HUMIDITY_SETPOINT): sensor.sensor_schema(
-                UNIT_PERCENT, ICON_WATER_PERCENT, 0, DEVICE_CLASS_HUMIDITY
+                UNIT_PERCENT,
+                ICON_WATER_PERCENT,
+                0,
+                DEVICE_CLASS_HUMIDITY,
+                STATE_CLASS_MEASUREMENT,
             ),
         }
     ).extend(cv.COMPONENT_SCHEMA)

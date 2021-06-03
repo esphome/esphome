@@ -6,6 +6,7 @@ from esphome.const import (
     CONF_UPDATE_INTERVAL,
     DEVICE_CLASS_TEMPERATURE,
     ICON_EMPTY,
+    STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
 )
 
@@ -17,7 +18,9 @@ TMP117Component = tmp117_ns.class_(
 )
 
 CONFIG_SCHEMA = cv.All(
-    sensor.sensor_schema(UNIT_CELSIUS, ICON_EMPTY, 1, DEVICE_CLASS_TEMPERATURE)
+    sensor.sensor_schema(
+        UNIT_CELSIUS, ICON_EMPTY, 1, DEVICE_CLASS_TEMPERATURE, STATE_CLASS_MEASUREMENT
+    )
     .extend(
         {
             cv.GenerateID(): cv.declare_id(TMP117Component),

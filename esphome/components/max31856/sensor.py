@@ -6,6 +6,7 @@ from esphome.const import (
     CONF_MAINS_FILTER,
     DEVICE_CLASS_TEMPERATURE,
     ICON_EMPTY,
+    STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
 )
 
@@ -21,7 +22,13 @@ FILTER = {
 }
 
 CONFIG_SCHEMA = (
-    sensor.sensor_schema(UNIT_CELSIUS, ICON_EMPTY, 1, DEVICE_CLASS_TEMPERATURE)
+    sensor.sensor_schema(
+        UNIT_CELSIUS,
+        ICON_EMPTY,
+        1,
+        DEVICE_CLASS_TEMPERATURE,
+        STATE_CLASS_MEASUREMENT,
+    )
     .extend(
         {
             cv.GenerateID(): cv.declare_id(MAX31856Sensor),

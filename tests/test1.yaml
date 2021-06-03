@@ -261,7 +261,6 @@ mcp23s17:
     cs_pin: GPIO12
     deviceaddress: 1
 
-
 sensor:
   - platform: ble_client
     ble_client_id: ble_foo
@@ -794,6 +793,7 @@ sensor:
     update_interval: 15s
   - platform: template
     name: 'Template Sensor'
+    state_class: measurement
     id: template_sensor
     lambda: |-
       if (id(ultrasonic_sensor1).state > 1) {

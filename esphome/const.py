@@ -538,6 +538,7 @@ CONF_SPIKE_REJECTION = "spike_rejection"
 CONF_SSID = "ssid"
 CONF_SSL_FINGERPRINTS = "ssl_fingerprints"
 CONF_STATE = "state"
+CONF_STATE_CLASS = "state_class"
 CONF_STATE_TOPIC = "state_topic"
 CONF_STATIC_IP = "static_ip"
 CONF_STATUS = "status"
@@ -768,3 +769,9 @@ DEVICE_CLASS_POWER_FACTOR = "power_factor"
 DEVICE_CLASS_PRESSURE = "pressure"
 DEVICE_CLASS_TIMESTAMP = "timestamp"
 DEVICE_CLASS_VOLTAGE = "voltage"
+
+# state classes
+STATE_CLASS_NONE = ""
+
+# The state represents a measurement in present time
+STATE_CLASS_MEASUREMENT = "measurement"

@@ -10,6 +10,8 @@ from esphome.const import (
     CONF_COURSE,
     CONF_ALTITUDE,
     CONF_SATELLITES,
+    STATE_CLASS_MEASUREMENT,
+    STATE_CLASS_NONE,
     UNIT_DEGREES,
     UNIT_KILOMETER_PER_HOUR,
     UNIT_METER,
@@ -34,22 +36,26 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(GPS),
             cv.Optional(CONF_LATITUDE): sensor.sensor_schema(
-                UNIT_DEGREES, ICON_EMPTY, 6, DEVICE_CLASS_EMPTY
+                UNIT_DEGREES, ICON_EMPTY, 6, DEVICE_CLASS_EMPTY, STATE_CLASS_NONE
             ),
             cv.Optional(CONF_LONGITUDE): sensor.sensor_schema(
-                UNIT_DEGREES, ICON_EMPTY, 6, DEVICE_CLASS_EMPTY
+                UNIT_DEGREES, ICON_EMPTY, 6, DEVICE_CLASS_EMPTY, STATE_CLASS_NONE
             ),
             cv.Optional(CONF_SPEED): sensor.sensor_schema(
-                UNIT_KILOMETER_PER_HOUR, ICON_EMPTY, 6, DEVICE_CLASS_EMPTY
+                UNIT_KILOMETER_PER_HOUR,
+                ICON_EMPTY,
+                6,
+                DEVICE_CLASS_EMPTY,
+                STATE_CLASS_NONE,
             ),
             cv.Optional(CONF_COURSE): sensor.sensor_schema(
-                UNIT_DEGREES, ICON_EMPTY, 2, DEVICE_CLASS_EMPTY
+                UNIT_DEGREES, ICON_EMPTY, 2, DEVICE_CLASS_EMPTY, STATE_CLASS_NONE
             ),
             cv.Optional(CONF_ALTITUDE): sensor.sensor_schema(
-                UNIT_METER, ICON_EMPTY, 1, DEVICE_CLASS_EMPTY
+                UNIT_METER, ICON_EMPTY, 1, DEVICE_CLASS_EMPTY, STATE_CLASS_NONE
             ),
             cv.Optional(CONF_SATELLITES): sensor.sensor_schema(
-                UNIT_EMPTY, ICON_EMPTY, 0, DEVICE_CLASS_EMPTY
+                UNIT_EMPTY, ICON_EMPTY, 0, DEVICE_CLASS_EMPTY, STATE_CLASS_MEASUREMENT
             ),
         }
     )
