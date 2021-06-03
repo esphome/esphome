@@ -30,9 +30,7 @@ class TuyaClimate : public climate::Climate, public Component {
     this->target_temperature_multiplier_ = temperature_multiplier;
   }
   void set_away_id(uint8_t away_id) { this->away_id_ = away_id; }
-  void set_away_temperature(float away_temperature) {
-    this->away_temperature_ = away_temperature;
-  }
+  void set_away_temperature(float away_temperature) { this->away_temperature_ = away_temperature; }
 
   void set_tuya_parent(Tuya *parent) { this->parent_ = parent; }
 
