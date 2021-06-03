@@ -16,6 +16,8 @@ class MQTTFanComponent : public mqtt::MQTTComponent {
 
   MQTT_COMPONENT_CUSTOM_TOPIC(oscillation, command)
   MQTT_COMPONENT_CUSTOM_TOPIC(oscillation, state)
+  MQTT_COMPONENT_CUSTOM_TOPIC(speed_level, command)
+  MQTT_COMPONENT_CUSTOM_TOPIC(speed_level, state)
   MQTT_COMPONENT_CUSTOM_TOPIC(speed, command)
   MQTT_COMPONENT_CUSTOM_TOPIC(speed, state)
 
@@ -25,6 +27,8 @@ class MQTTFanComponent : public mqtt::MQTTComponent {
   // (In most use cases you won't need these)
   /// Setup the fan subscriptions and discovery.
   void setup() override;
+  void dump_config() override;
+
   /// Send the full current state to MQTT.
   bool send_initial_state() override;
   bool publish_state();
