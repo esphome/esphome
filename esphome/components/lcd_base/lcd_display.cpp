@@ -28,6 +28,16 @@ static const uint8_t LCD_DISPLAY_FUNCTION_8_BIT_MODE = 0x10;
 static const uint8_t LCD_DISPLAY_FUNCTION_2_LINE = 0x08;
 static const uint8_t LCD_DISPLAY_FUNCTION_5X10_DOTS = 0x04;
 
+// predefined symbols
+static const uint8_t speaker[8]= {B00001,B00011,B01101,B01101,B01101,B00011,B00001,B00000};
+static const uint8_t key[8]    = {B01110,B10001,B01110,B00100,B00100,B01100,B01100,B00000};
+static const byte bat_empty[8] = {B00100,B11111,B10001,B10001,B10001,B10001,B11111,B00000};
+static const byte bat_25[8]    = {B00100,B11111,B10001,B10001,B10001,B11111,B11111,B00000};
+static const byte bat_50[8]    = {B00100,B11111,B10001,B10001,B11111,B11111,B11111,B00000};
+static const byte bat_75[8]    = {B00100,B11111,B10001,B11111,B11111,B11111,B11111,B00000};
+static const byte bat_full[8]  = {B00100,B11111,B11111,B11111,B11111,B11111,B11111,B00000};
+static const uint8_t degree[8] = {B01100,B10010,B10010,B01100,B00000,B00000,B00000,B00000};
+
 void LCDDisplay::setup() {
   this->buffer_ = new uint8_t[this->rows_ * this->columns_];
   for (uint8_t i = 0; i < this->rows_ * this->columns_; i++)
@@ -77,7 +87,23 @@ void LCDDisplay::setup() {
 
   this->command_(LCD_DISPLAY_COMMAND_RETURN_HOME);
   delay(2);  // 1.52ms
+
+    // sets CGRAM address to 0 (home)
+  this->command_(LCD_DISPLAY_COMMAND_SET_CGRAM_ADDR);
+    // load 8 predefined symbols: speaker, key, battery 5 types, degree icon
+	for (int i=0; i<8; i++) {this->send(speaker[i], true);}
+	for (int i=0; i<8; i++) {this->send(key[i], true);}
+	for (int i=0; i<8; i++) {this->send(bat_empty[i], true);}
+	for (int i=0; i<8; i++) {this->send(bat_25[i], true);}
+	for (int i=0; i<8; i++) {this->send(bat_50[i], true);}
+	for (int i=0; i<8; i++) {this->send(bat_75[i], true);}
+	for (int i=0; i<8; i++) {this->send(bat_full[i], true);}
+	for (int i=0; i<8; i++) {this->send(degree[i], true);}
 }
+
+
+
+
 
 float LCDDisplay::get_setup_priority() const { return setup_priority::PROCESSOR; }
 void HOT LCDDisplay::display() {
@@ -104,11 +130,17 @@ void HOT LCDDisplay::display() {
   }
 }
 void LCDDisplay::update() {
-  this->clear();
+  for (uint8_t i = 0; i < this->rows_ * this->columns_; i++)
+    this->buffer_[i] = ' ';
+
   this->call_writer();
   this->display();
 }
 void LCDDisplay::command_(uint8_t value) { this->send(value, false); }
+void LCDDisplay::printc(uint8_t column, uint8_t row, uint8_t str) {
+  uint8_t pos = column + row * this->columns_;
+  this->buffer_[pos] = str;
+}
 void LCDDisplay::print(uint8_t column, uint8_t row, const char *str) {
   uint8_t pos = column + row * this->columns_;
   for (; *str != '\0'; str++) {
@@ -147,9 +179,70 @@ void LCDDisplay::printf(const char *format, ...) {
     this->print(0, 0, buffer);
 }
 void LCDDisplay::clear() {
-  for (uint8_t i = 0; i < this->rows_ * this->columns_; i++)
-    this->buffer_[i] = ' ';
+  // clear display, also sets DDRAM address to 0 (home)
+  this->command_(LCD_DISPLAY_COMMAND_CLEAR_DISPLAY);
+  delay(2);
 }
+
+// Load degree char to given location 
+void LCDDisplay::loadDeg(uint8_t location) {
+static const uint8_t degree[8] = { B01100, B10010, B10010, B01100, B00000, B00000, B00000, B00000 };
+  location &= 0x7; // we only have 8 locations 0-7
+  // sets CGRAM address to 0 (home)
+  this->command_(LCD_DISPLAY_COMMAND_SET_CGRAM_ADDR | (location << 3));
+  delay(2);
+	for (int i=0; i<8; i++) {
+	    	this->send(degree[i], true);
+	}
+}
+
+// Load smiley char to given location 
+void LCDDisplay::loadSmil(uint8_t location) {
+static const uint8_t smiley[8] = { B00010, B00001, B11001, B00001, B11001, B00001, B00010, B00000 };
+  location &= 0x7; // we only have 8 locations 0-7
+  // sets CGRAM address to 0 (home)
+  this->command_(LCD_DISPLAY_COMMAND_SET_CGRAM_ADDR | (location << 3));
+  delay(2);
+	for (int i=0; i<8; i++) {
+	    	this->send(smiley[i], true);
+	}
+}
+
+// Load bell char to given location 
+void LCDDisplay::loadBel(uint8_t location) {
+  static const uint8_t bell[8] = {0x4,0xe,0xe,0xe,0x1f,0x0,0x4};
+  location &= 0x7; // we only have 8 locations 0-7
+  // sets CGRAM address to 0 (home)
+  this->command_(LCD_DISPLAY_COMMAND_SET_CGRAM_ADDR | (location << 3));
+  delay(2);
+	for (int i=0; i<8; i++) {
+	    	this->send(bell[i], true);
+	}
+}
+
+// Load custom char to given location 
+void LCDDisplay::createChar(uint8_t location, uint8_t charmap[]) {
+  location &= 0x7; // we only have 8 locations 0-7
+  this->command_(LCD_DISPLAY_COMMAND_SET_CGRAM_ADDR | (location << 3));
+	for (int i=0; i<8; i++) {
+		this->send(charmap[i], true);
+	}
+}
+
+
+void LCDDisplay::createChar(uint8_t location, const uint8_t *charmap) {
+  location &= 0x7; // we only have 8 locations 0-7
+  // Set CGRAM address to 0 (home)
+  this->command_(LCD_DISPLAY_COMMAND_SET_CGRAM_ADDR | (location << 3));
+	for (int i=0; i<8; i++) {
+	    	this->send(pgm_read_byte_near(charmap++), true);
+	}
+}
+
+
+
+
+
 #ifdef USE_TIME
 void LCDDisplay::strftime(uint8_t column, uint8_t row, const char *format, time::ESPTime time) {
   char buffer[64];
