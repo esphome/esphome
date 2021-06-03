@@ -60,10 +60,14 @@ FAN_SCHEMA = cv.NAMEABLE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).extend(
             cv.requires_component("mqtt"), cv.subscribe_topic
         ),
         cv.Optional(CONF_ON_TURN_ON): automation.validate_automation(
-            {cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(FanTurnOnTrigger),}
+            {
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(FanTurnOnTrigger),
+            }
         ),
         cv.Optional(CONF_ON_TURN_OFF): automation.validate_automation(
-            {cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(FanTurnOffTrigger),}
+            {
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(FanTurnOffTrigger),
+            }
         ),
     }
 )
@@ -132,7 +136,11 @@ async def create_fan_state(config):
     return var
 
 
-FAN_ACTION_SCHEMA = maybe_simple_id({cv.Required(CONF_ID): cv.use_id(FanState),})
+FAN_ACTION_SCHEMA = maybe_simple_id(
+    {
+        cv.Required(CONF_ID): cv.use_id(FanState),
+    }
+)
 
 
 @automation.register_action("fan.toggle", ToggleAction, FAN_ACTION_SCHEMA)

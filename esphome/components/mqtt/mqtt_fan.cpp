@@ -65,22 +65,23 @@ void MQTTFanComponent::setup() {
   }
 
   if (this->state_->get_traits().supports_speed()) {
-    this->subscribe(this->get_speed_level_command_topic(), [this](const std::string &topic, const std::string &payload) {
-      optional<int> speed_level_opt = parse_int(payload);
-      if (speed_level_opt.has_value()) {
-        const int speed_level = speed_level_opt.value();
-        if (speed_level >= 0 && speed_level <= this->state_->get_traits().supported_speed_count()) {
-          ESP_LOGD(TAG, "New speed level %d", speed_level);
-          this->state_->make_call().set_speed(speed_level).perform();
-        } else {
-          ESP_LOGW(TAG, "Invalid speed level %d", speed_level);
-          this->status_momentary_warning("speed", 5000);
-        }
-      } else {
-        ESP_LOGW(TAG, "Invalid speed level %s (int expected)", payload.c_str());
-        this->status_momentary_warning("speed", 5000);
-      }
-    });
+    this->subscribe(this->get_speed_level_command_topic(),
+                    [this](const std::string &topic, const std::string &payload) {
+                      optional<int> speed_level_opt = parse_int(payload);
+                      if (speed_level_opt.has_value()) {
+                        const int speed_level = speed_level_opt.value();
+                        if (speed_level >= 0 && speed_level <= this->state_->get_traits().supported_speed_count()) {
+                          ESP_LOGD(TAG, "New speed level %d", speed_level);
+                          this->state_->make_call().set_speed(speed_level).perform();
+                        } else {
+                          ESP_LOGW(TAG, "Invalid speed level %d", speed_level);
+                          this->status_momentary_warning("speed", 5000);
+                        }
+                      } else {
+                        ESP_LOGW(TAG, "Invalid speed level %s (int expected)", payload.c_str());
+                        this->status_momentary_warning("speed", 5000);
+                      }
+                    });
   }
 
   if (this->state_->get_traits().supports_speed()) {
