@@ -13,6 +13,10 @@ struct SendDiscoveryConfig {
 };
 
 #define LOG_MQTT_COMPONENT(state_topic, command_topic) \
+  if (is_internal()) { \
+    ESP_LOGCONFIG(TAG, "  Base component is internal, not exposed via MQTT"); \
+    return; \
+  } \
   if (state_topic) { \
     ESP_LOGCONFIG(TAG, "  State Topic: '%s'", this->get_state_topic_().c_str()); \
   } \
