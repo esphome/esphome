@@ -5,6 +5,7 @@ from esphome.const import (
     CONF_MAC_ADDRESS,
     CONF_ID,
     CONF_WEIGHT,
+    STATE_CLASS_MEASUREMENT,
     UNIT_KILOGRAM,
     ICON_SCALE_BATHROOM,
     DEVICE_CLASS_EMPTY,
@@ -23,7 +24,11 @@ CONFIG_SCHEMA = (
             cv.GenerateID(): cv.declare_id(XiaomiMiscale),
             cv.Required(CONF_MAC_ADDRESS): cv.mac_address,
             cv.Optional(CONF_WEIGHT): sensor.sensor_schema(
-                UNIT_KILOGRAM, ICON_SCALE_BATHROOM, 2, DEVICE_CLASS_EMPTY
+                UNIT_KILOGRAM,
+                ICON_SCALE_BATHROOM,
+                2,
+                DEVICE_CLASS_EMPTY,
+                STATE_CLASS_MEASUREMENT,
             ),
         }
     )

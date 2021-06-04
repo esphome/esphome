@@ -141,6 +141,14 @@ api:
       then:
         - dfplayer.random
 
+    - service: dfplayer_volume_up
+      then:
+        - dfplayer.volume_up
+
+    - service: dfplayer_volume_down
+      then:
+        - dfplayer.volume_down
+
     - service: battery_level_percent
       variables:
         level_percent: int

@@ -8,6 +8,7 @@ from esphome.const import (
     CONF_RX_ONLY,
     CONF_UPDATE_INTERVAL,
     DEVICE_CLASS_EMPTY,
+    STATE_CLASS_MEASUREMENT,
     UNIT_MICROGRAMS_PER_CUBIC_METER,
     ICON_CHEMICAL_WEAPON,
 )
@@ -42,12 +43,14 @@ CONFIG_SCHEMA = cv.All(
                 ICON_CHEMICAL_WEAPON,
                 1,
                 DEVICE_CLASS_EMPTY,
+                STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_PM_10_0): sensor.sensor_schema(
                 UNIT_MICROGRAMS_PER_CUBIC_METER,
                 ICON_CHEMICAL_WEAPON,
                 1,
                 DEVICE_CLASS_EMPTY,
+                STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_RX_ONLY, default=False): cv.boolean,
             cv.Optional(CONF_UPDATE_INTERVAL): cv.positive_time_period_minutes,

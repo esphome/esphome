@@ -9,6 +9,7 @@ from esphome.const import (
     DEVICE_CLASS_TEMPERATURE,
     ICON_EMPTY,
     ICON_WATER_PERCENT,
+    STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
     UNIT_PERCENT,
     CONF_ID,
@@ -36,19 +37,39 @@ CONFIG_SCHEMA = (
             cv.GenerateID(): cv.declare_id(XiaomiHHCCJCY01),
             cv.Required(CONF_MAC_ADDRESS): cv.mac_address,
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-                UNIT_CELSIUS, ICON_EMPTY, 1, DEVICE_CLASS_TEMPERATURE
+                UNIT_CELSIUS,
+                ICON_EMPTY,
+                1,
+                DEVICE_CLASS_TEMPERATURE,
+                STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_MOISTURE): sensor.sensor_schema(
-                UNIT_PERCENT, ICON_WATER_PERCENT, 0, DEVICE_CLASS_EMPTY
+                UNIT_PERCENT,
+                ICON_WATER_PERCENT,
+                0,
+                DEVICE_CLASS_EMPTY,
+                STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_ILLUMINANCE): sensor.sensor_schema(
-                UNIT_LUX, ICON_EMPTY, 0, DEVICE_CLASS_ILLUMINANCE
+                UNIT_LUX,
+                ICON_EMPTY,
+                0,
+                DEVICE_CLASS_ILLUMINANCE,
+                STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_CONDUCTIVITY): sensor.sensor_schema(
-                UNIT_MICROSIEMENS_PER_CENTIMETER, ICON_FLOWER, 0, DEVICE_CLASS_EMPTY
+                UNIT_MICROSIEMENS_PER_CENTIMETER,
+                ICON_FLOWER,
+                0,
+                DEVICE_CLASS_EMPTY,
+                STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_BATTERY_LEVEL): sensor.sensor_schema(
-                UNIT_PERCENT, ICON_EMPTY, 0, DEVICE_CLASS_BATTERY
+                UNIT_PERCENT,
+                ICON_EMPTY,
+                0,
+                DEVICE_CLASS_BATTERY,
+                STATE_CLASS_MEASUREMENT,
             ),
         }
     )

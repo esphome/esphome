@@ -16,6 +16,10 @@
 #include "esphome/components/ethernet/ethernet_component.h"
 #endif
 
+#ifdef USE_MQTT
+#include "esphome/components/mqtt/mqtt_client.h"
+#endif
+
 #ifdef USE_MDNS
 #ifdef ARDUINO_ARCH_ESP32
 #include <ESPmDNS.h>
@@ -40,6 +44,26 @@ bool network_is_connected() {
 
   return false;
 }
+
+bool api_is_connected() {
+#ifdef USE_API
+  if (api::global_api_server != nullptr) {
+    return api::global_api_server->is_connected();
+  }
+#endif
+  return false;
+}
+
+bool mqtt_is_connected() {
+#ifdef USE_MQTT
+  if (mqtt::global_mqtt_client != nullptr) {
+    return mqtt::global_mqtt_client->is_connected();
+  }
+#endif
+  return false;
+}
+
+bool remote_is_connected() { return api_is_connected() || mqtt_is_connected(); }
 
 #if defined(ARDUINO_ARCH_ESP8266) && defined(USE_MDNS)
 bool mdns_setup;

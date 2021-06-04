@@ -8,6 +8,7 @@ from esphome.const import (
     CONF_RESOLUTION,
     DEVICE_CLASS_TEMPERATURE,
     ICON_EMPTY,
+    STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
     CONF_ID,
 )
@@ -16,7 +17,9 @@ from . import DallasComponent, dallas_ns
 DallasTemperatureSensor = dallas_ns.class_("DallasTemperatureSensor", sensor.Sensor)
 
 CONFIG_SCHEMA = cv.All(
-    sensor.sensor_schema(UNIT_CELSIUS, ICON_EMPTY, 1, DEVICE_CLASS_TEMPERATURE).extend(
+    sensor.sensor_schema(
+        UNIT_CELSIUS, ICON_EMPTY, 1, DEVICE_CLASS_TEMPERATURE, STATE_CLASS_MEASUREMENT
+    ).extend(
         {
             cv.GenerateID(): cv.declare_id(DallasTemperatureSensor),
             cv.GenerateID(CONF_DALLAS_ID): cv.use_id(DallasComponent),

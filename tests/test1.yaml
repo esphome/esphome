@@ -261,7 +261,6 @@ mcp23s17:
     cs_pin: GPIO12
     deviceaddress: 1
 
-
 sensor:
   - platform: ble_client
     ble_client_id: ble_foo
@@ -271,6 +270,9 @@ sensor:
     descriptor_uuid: 'ffe2'
     notify: true
     update_interval: never
+    lambda: |-
+      ESP_LOGD("main", "Length of data is %i", x.size());
+      return x[0];
     on_notify:
       then:
         - lambda: |-
@@ -791,6 +793,7 @@ sensor:
     update_interval: 15s
   - platform: template
     name: 'Template Sensor'
+    state_class: measurement
     id: template_sensor
     lambda: |-
       if (id(ultrasonic_sensor1).state > 1) {
@@ -888,25 +891,11 @@ sensor:
       name: 'AQI'
       calculation_type: 'CAQI'
   - platform: teleinfo
-    uart_id: uart0
-    tags:
-      - tag_name: 'HCHC'
-        sensor:
-          name: 'hchc'
-          unit_of_measurement: 'Wh'
-          icon: mdi:flash
-      - tag_name: 'HCHP'
-        sensor:
-          name: 'hchp'
-          unit_of_measurement: 'Wh'
-          icon: mdi:flash
-      - tag_name: 'PAPP'
-        sensor:
-          name: 'papp'
-          unit_of_measurement: 'VA'
-          icon: mdi:flash
-    update_interval: 60s
-    historical_mode: true
+    tag_name: "HCHC"
+    name: "hchc"
+    unit_of_measurement: "Wh"
+    icon: mdi:flash
+    teleinfo_id: myteleinfo
   - platform: mcp9808
     name: 'MCP9808 Temperature'
     update_interval: 15s
@@ -1958,6 +1947,7 @@ display:
     row_start: 0
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
+
 tm1651:
   id: tm1651_battery
   clk_pin: GPIO23
@@ -2146,6 +2136,10 @@ text_sensor:
   - platform: version
     name: 'ESPHome Version No Timestamp'
     hide_timestamp: True
+  - platform: teleinfo
+    tag_name: "OPTARIF"
+    name: "optarif"
+    teleinfo_id: myteleinfo
 
 sn74hc595:
   - id: 'sn74hc595_hub'
@@ -2176,3 +2170,9 @@ canbus:
                 lambda: 'return x[0] == 0x11;'
               then:
                 light.toggle: ${roomname}_lights
+
+teleinfo:
+  id: myteleinfo
+  uart_id: uart0
+  update_interval: 60s
+  historical_mode: true
