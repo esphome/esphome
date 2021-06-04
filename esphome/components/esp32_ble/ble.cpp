@@ -50,7 +50,7 @@ void ESP32BLE::ble_core_task_(void *params) {
   ESP_LOGD(TAG, "BLE Setup complete");
 
   while (true) {
-    delay(1000);  // NOLINT
+    vTaskDelay(1000 / portTICK_PERIOD_MS);
   }
 }
 
