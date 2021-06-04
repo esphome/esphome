@@ -658,6 +658,17 @@ script:
   - id: my_script
     then:
       - lambda: 'ESP_LOGD("main", "Hello World!");'
+  - id: climate_custom
+    then:
+      - climate.control:
+          id: midea_ac_unit
+          custom_preset: FREEZE_PROTECTION
+          custom_fan_mode: SILENT
+  - id: climate_preset
+    then:
+      - climate.control:
+          id: midea_ac_unit
+          preset: SLEEP
 
 sm2135:
   data_pin: GPIO12
@@ -819,6 +830,32 @@ climate:
       kp: 0.0
       ki: 0.0
       kd: 0.0
+  - platform: midea_ac
+    id: midea_ac_unit
+    visual:
+      min_temperature: 18 °C
+      max_temperature: 25 °C
+      temperature_step: 0.1 °C
+    name: "Electrolux EACS"
+    beeper: true
+    custom_fan_modes:
+      - SILENT
+      - TURBO
+    preset_eco: true
+    preset_sleep: true
+    preset_boost: true
+    custom_presets:
+      - FREEZE_PROTECTION
+    outdoor_temperature:
+      name: "Temp"
+    power_usage:
+      name: "Power"
+    humidity_setpoint:
+      name: "Hum"
+
+midea_dongle:
+  uart_id: uart1
+  strength_icon: true
 
 cover:
   - platform: endstop
