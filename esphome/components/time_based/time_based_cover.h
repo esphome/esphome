@@ -22,6 +22,9 @@ class TimeBasedCover : public cover::Cover, public Component {
   cover::CoverTraits get_traits() override;
   void set_has_built_in_endstop(bool value) { this->has_built_in_endstop_ = value; }
   void set_assumed_state(bool value) { this->assumed_state_ = value; }
+  void set_use_feedback(bool value) { this->use_feedback_ = value; }
+
+  void feedback(cover::CoverOperation op);
 
  protected:
   void control(const cover::CoverCall &call) override;
@@ -45,6 +48,9 @@ class TimeBasedCover : public cover::Cover, public Component {
   float target_position_{0};
   bool has_built_in_endstop_{false};
   bool assumed_state_{false};
+  bool use_feedback_{false};
+
+  cover::CoverOperation current_operation_feedback{cover::CoverOperation::COVER_OPERATION_IDLE};
 };
 
 }  // namespace time_based

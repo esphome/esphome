@@ -16,6 +16,7 @@ time_based_ns = cg.esphome_ns.namespace("time_based")
 TimeBasedCover = time_based_ns.class_("TimeBasedCover", cover.Cover, cg.Component)
 
 CONF_HAS_BUILT_IN_ENDSTOP = "has_built_in_endstop"
+CONF_USE_FEEDBACK = "use_feedback"
 
 CONFIG_SCHEMA = cover.COVER_SCHEMA.extend(
     {
@@ -27,6 +28,7 @@ CONFIG_SCHEMA = cover.COVER_SCHEMA.extend(
         cv.Required(CONF_CLOSE_DURATION): cv.positive_time_period_milliseconds,
         cv.Optional(CONF_HAS_BUILT_IN_ENDSTOP, default=False): cv.boolean,
         cv.Optional(CONF_ASSUMED_STATE, default=True): cv.boolean,
+        cv.Optional(CONF_USE_FEEDBACK, default=False): cv.boolean,
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -52,3 +54,4 @@ async def to_code(config):
 
     cg.add(var.set_has_built_in_endstop(config[CONF_HAS_BUILT_IN_ENDSTOP]))
     cg.add(var.set_assumed_state(config[CONF_ASSUMED_STATE]))
+    cg.add(var.set_use_feedback(config[CONF_USE_FEEDBACK]))

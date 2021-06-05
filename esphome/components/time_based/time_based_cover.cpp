@@ -22,7 +22,11 @@ void TimeBasedCover::setup() {
   }
 }
 void TimeBasedCover::loop() {
-  if (this->current_operation == COVER_OPERATION_IDLE)
+  auto current_operation = this->use_feedback_
+    ? this->current_operation_feedback
+    : this->current_operation;
+
+  if (current_operation == COVER_OPERATION_IDLE)
     return;
 
   const uint32_t now = millis();
@@ -124,12 +128,16 @@ void TimeBasedCover::start_direction_(CoverOperation dir) {
   this->last_recompute_time_ = now;
 }
 void TimeBasedCover::recompute_position_() {
-  if (this->current_operation == COVER_OPERATION_IDLE)
+  auto current_operation = this->use_feedback_
+    ? this->current_operation_feedback
+    : this->current_operation;
+
+  if (current_operation == COVER_OPERATION_IDLE)
     return;
 
   float dir;
   float action_dur;
-  switch (this->current_operation) {
+  switch (current_operation) {
     case COVER_OPERATION_OPENING:
       dir = 1.0f;
       action_dur = this->open_duration_;
@@ -146,6 +154,13 @@ void TimeBasedCover::recompute_position_() {
   this->position += dir * (now - this->last_recompute_time_) / action_dur;
   this->position = clamp(this->position, 0.0f, 1.0f);
 
+  this->last_recompute_time_ = now;
+}
+void TimeBasedCover::feedback(cover::CoverOperation op) {
+  this->current_operation_feedback = op;
+
+  const uint32_t now = millis();
+  this->start_dir_time_ = now;
   this->last_recompute_time_ = now;
 }
 
