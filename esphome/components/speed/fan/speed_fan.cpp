@@ -57,7 +57,8 @@ void SpeedFan::loop() {
   }
 }
 
-// We need a higher priority than the FanState component to make sure that the traits are set when that component sets itself up.
+// We need a higher priority than the FanState component to make sure that the traits are set 
+// when that component sets itself up.
 float SpeedFan::get_setup_priority() const { return fan::FAN_STATE_SETUP_PRIORITY + 1.0f; }
 
 }  // namespace speed

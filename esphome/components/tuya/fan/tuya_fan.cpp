@@ -84,7 +84,8 @@ void TuyaFan::write_state() {
   }
 }
 
-// We need a higher priority than the FanState component to make sure that the traits are set when that component sets itself up.
+// We need a higher priority than the FanState component to make sure that the traits are set 
+// when that component sets itself up.
 float TuyaFan::get_setup_priority() const { return fan::FAN_STATE_SETUP_PRIORITY + 1.0f; }
 
 }  // namespace tuya
