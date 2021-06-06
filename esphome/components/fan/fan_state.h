@@ -65,6 +65,8 @@ class FanStateCall {
   optional<FanDirection> direction_{};
 };
 
+static const float FAN_STATE_SETUP_PRIORITY = setup_priority::HARDWARE - 1.0f;
+
 class FanState : public Nameable, public Component {
  public:
   FanState() = default;

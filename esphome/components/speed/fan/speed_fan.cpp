@@ -56,7 +56,9 @@ void SpeedFan::loop() {
     ESP_LOGD(TAG, "Setting reverse direction: %s", ONOFF(enable));
   }
 }
-float SpeedFan::get_setup_priority() const { return setup_priority::DATA; }
+
+// We need a higher priority than the FanState component to make sure that the traits are set when that component sets itself up.
+float SpeedFan::get_setup_priority() const { return fan::FAN_STATE_SETUP_PRIORITY + 1.0f; }
 
 }  // namespace speed
 }  // namespace esphome
