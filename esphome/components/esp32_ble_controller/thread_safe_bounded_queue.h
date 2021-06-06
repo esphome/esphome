@@ -36,9 +36,6 @@ private:
 template <typename T>
 ThreadSafeBoundedQueue<T>::ThreadSafeBoundedQueue(unsigned int size) {
   queue = xQueueCreate( size, sizeof( void* ) );
-  if (queue == NULL) {
-    ESP_LOGE("thread_safe_bounded_queue", "Could not create RTOS queue");
-  }
 }
 
 template <typename T>

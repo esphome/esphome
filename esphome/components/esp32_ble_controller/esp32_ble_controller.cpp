@@ -401,13 +401,13 @@ void ESP32BLEController::configure_ble_security() {
   esp_ble_gap_set_security_param(ESP_BLE_SM_ONLY_ACCEPT_SPECIFIED_SEC_AUTH, &auth_option, sizeof(uint8_t));
 }
 
-#define PASS_KEY_LENGTH 6
-#define STRINGIFY(x) #x
-#define TOSTRING(x) STRINGIFY(x)
+const uint8_t PASS_KEY_LENGTH = 6;
 
 void ESP32BLEController::onPassKeyNotify(uint32_t pass_key) {
+  char pass_key_format[5];
   char pass_key_digits[PASS_KEY_LENGTH + 1];
-  snprintf(pass_key_digits, PASS_KEY_LENGTH + 1, "%0" TOSTRING(PASS_KEY_LENGTH) "d", pass_key);
+  snprintf(pass_key_format, 5, "%%0%dd", PASS_KEY_LENGTH); // yields "%06d"
+  snprintf(pass_key_digits, PASS_KEY_LENGTH + 1, pass_key_format, pass_key);
   string pass_key_str(pass_key_digits);
 
   auto& callbacks = on_show_pass_key_callbacks;

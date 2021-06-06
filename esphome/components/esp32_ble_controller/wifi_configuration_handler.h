@@ -9,8 +9,8 @@
 namespace esphome {
 namespace esp32_ble_controller {
 
-#define WIFI_SSID_LEN 33
-#define WIFI_PASSWORD_LEN 65
+static const uint8_t WIFI_SSID_LEN = 33;
+static const uint8_t WIFI_PASSWORD_LEN = 65;
 
 struct WifiConfiguration {
   char ssid[WIFI_SSID_LEN];
