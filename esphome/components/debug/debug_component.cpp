@@ -252,13 +252,12 @@ void DebugComponent::dump_config() {
 
 void DebugComponent::loop() {
 	// calculate loop time - from last call to this one
-  uint32_t now = millis();
-	// avoid errors on millis() loop-over 
-	if (now > this->loop_time_) {
-		uint32_t loop_time = now - this->loop_time_;
+  if (this->loop_time_sensor_ != nullptr) {
+		uint32_t now = millis();
+		uint32_t loop_time = now - this->last_loop_timetag_;
 		this->max_loop_time_ = max(this->max_loop_time_, loop_time);
+		this->last_loop_timetag_ = now;
 	}
-  this->loop_time_ = now;
 }
 
 void DebugComponent::update() {

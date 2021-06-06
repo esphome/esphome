@@ -26,7 +26,7 @@ class DebugComponent : public PollingComponent {
  protected:
   uint32_t free_heap_{};
 
-  uint32_t loop_time_{0};
+  uint32_t last_loop_timetag_{0};
   uint32_t max_loop_time_{0};
 
   text_sensor::TextSensor *device_info_{nullptr};
