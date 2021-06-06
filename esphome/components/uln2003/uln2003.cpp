@@ -15,7 +15,7 @@ void ULN2003::setup() {
 }
 void ULN2003::loop() {
   int dir = this->should_step_();
-  if (dir == 0 && this->has_reached_target()) {
+  if (this->max_speed_ == 0.0f || (dir == 0 && this->has_reached_target())) {
     this->high_freq_.stop();
 
     if (this->sleep_when_done_) {

@@ -59,8 +59,8 @@ def validate_speed(value):
         # pylint: disable=raise-missing-from
         raise cv.Invalid(f"Expected speed as floating point number, got {value}")
 
-    if value <= 0:
-        raise cv.Invalid("Speed must be larger than 0 steps/s!")
+    if value < 0:
+        raise cv.Invalid("Speed must be larger than or equal to 0 steps/s!")
 
     return value
 

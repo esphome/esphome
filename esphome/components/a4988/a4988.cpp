@@ -26,23 +26,23 @@ void A4988::dump_config() {
   LOG_STEPPER(this);
 }
 void A4988::loop() {
-  bool at_target = this->has_reached_target();
+  bool should_stop = this->max_speed_ == 0.0f || this->has_reached_target();
   if (this->sleep_pin_ != nullptr) {
-    bool sleep_rising_edge = !sleep_pin_state_ & !at_target;
-    this->sleep_pin_->digital_write(!at_target);
-    this->sleep_pin_state_ = !at_target;
+    bool sleep_rising_edge = !sleep_pin_state_ & !should_stop;
+    this->sleep_pin_->digital_write(!should_stop);
+    this->sleep_pin_state_ = !should_stop;
     if (sleep_rising_edge) {
       delayMicroseconds(1000);
     }
   }
-  if (at_target) {
+  if (should_stop) {
     this->high_freq_.stop();
   } else {
     this->high_freq_.start();
   }
 
   int32_t dir = this->should_step_();
-  if (dir == 0)
+  if (dir == 0 || this->max_speed_ == 0.0f)
     return;
 
   this->dir_pin_->digital_write(dir == 1);
