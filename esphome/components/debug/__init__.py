@@ -13,8 +13,8 @@ from esphome.const import (
     ICON_TIMER,
     UNIT_COUNTS,
     UNIT_BYTES,
+    DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_MEMORY,
-    DEVICE_CLASS_ESPHOME,
 )
 import esphome.core_config as cc
 
@@ -45,7 +45,7 @@ CONFIG_SCHEMA = cv.Schema(
             sensor.sensor_schema(UNIT_BYTES, ICON_COUNTER, 1, DEVICE_CLASS_MEMORY),
         ),
         cv.Optional(CONF_LOOP_TIME): sensor.sensor_schema(
-            UNIT_MILISECOND, ICON_TIMER, 1, DEVICE_CLASS_ESPHOME
+            UNIT_MILISECOND, ICON_TIMER, 1, DEVICE_CLASS_EMPTY
         ),
     }
 ).extend(cv.polling_component_schema("60s"))

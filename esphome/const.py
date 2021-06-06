@@ -755,7 +755,6 @@ DEVICE_CLASS_POWER = "power"
 # device classes of sensor component
 DEVICE_CLASS_CURRENT = "current"
 DEVICE_CLASS_ENERGY = "energy"
-DEVICE_CLASS_ESPHOME = "esphome"
 DEVICE_CLASS_HUMIDITY = "humidity"
 DEVICE_CLASS_ILLUMINANCE = "illuminance"
 DEVICE_CLASS_MEMORY = "memory"
