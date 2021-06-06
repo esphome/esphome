@@ -65,8 +65,6 @@ class FanStateCall {
   optional<FanDirection> direction_{};
 };
 
-static const float FAN_STATE_SETUP_PRIORITY = setup_priority::HARDWARE - 1.0f;
-
 class FanState : public Nameable, public Component {
  public:
   FanState() = default;
@@ -96,6 +94,7 @@ class FanState : public Nameable, public Component {
   FanStateCall make_call();
 
   void setup() override;
+  static float get_global_setup_priority();
   float get_setup_priority() const override;
 
  protected:
