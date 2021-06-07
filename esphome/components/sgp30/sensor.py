@@ -54,17 +54,17 @@ CONFIG_SCHEMA = (
 )
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
-    yield i2c.register_i2c_device(var, config)
+    await cg.register_component(var, config)
+    await i2c.register_i2c_device(var, config)
 
     if CONF_ECO2 in config:
-        sens = yield sensor.new_sensor(config[CONF_ECO2])
+        sens = await sensor.new_sensor(config[CONF_ECO2])
         cg.add(var.set_eco2_sensor(sens))
 
     if CONF_TVOC in config:
-        sens = yield sensor.new_sensor(config[CONF_TVOC])
+        sens = await sensor.new_sensor(config[CONF_TVOC])
         cg.add(var.set_tvoc_sensor(sens))
 
     if CONF_BASELINE in config:
@@ -74,7 +74,7 @@ def to_code(config):
 
     if CONF_COMPENSATION in config:
         compensation_config = config[CONF_COMPENSATION]
-        sens = yield cg.get_variable(compensation_config[CONF_HUMIDITY_SOURCE])
+        sens = await cg.get_variable(compensation_config[CONF_HUMIDITY_SOURCE])
         cg.add(var.set_humidity_sensor(sens))
-        sens = yield cg.get_variable(compensation_config[CONF_TEMPERATURE_SOURCE])
+        sens = await cg.get_variable(compensation_config[CONF_TEMPERATURE_SOURCE])
         cg.add(var.set_temperature_sensor(sens))

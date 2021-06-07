@@ -12,6 +12,8 @@ class Modbus : public uart::UARTDevice, public Component {
  public:
   Modbus() = default;
 
+  void setup() override;
+
   void loop() override;
 
   void dump_config() override;
@@ -22,7 +24,11 @@ class Modbus : public uart::UARTDevice, public Component {
 
   void send(uint8_t address, uint8_t function, uint16_t start_address, uint16_t register_count);
 
+  void set_flow_control_pin(GPIOPin *flow_control_pin) { this->flow_control_pin_ = flow_control_pin; }
+
  protected:
+  GPIOPin *flow_control_pin_{nullptr};
+
   bool parse_modbus_byte_(uint8_t byte);
 
   std::vector<uint8_t> rx_buffer_;

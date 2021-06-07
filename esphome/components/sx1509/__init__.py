@@ -47,10 +47,10 @@ CONFIG_SCHEMA = (
 )
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
-    yield i2c.register_i2c_device(var, config)
+    await cg.register_component(var, config)
+    await i2c.register_i2c_device(var, config)
     if CONF_KEYPAD in config:
         keypad = config[CONF_KEYPAD]
         cg.add(var.set_rows_cols(keypad[CONF_KEY_ROWS], keypad[CONF_KEY_COLUMNS]))
@@ -90,8 +90,8 @@ SX1509_INPUT_PIN_SCHEMA = cv.Schema(
 @pins.PIN_SCHEMA_REGISTRY.register(
     CONF_SX1509, (SX1509_OUTPUT_PIN_SCHEMA, SX1509_INPUT_PIN_SCHEMA)
 )
-def sx1509_pin_to_code(config):
-    parent = yield cg.get_variable(config[CONF_SX1509])
-    yield SX1509GPIOPin.new(
+async def sx1509_pin_to_code(config):
+    parent = await cg.get_variable(config[CONF_SX1509])
+    return SX1509GPIOPin.new(
         parent, config[CONF_NUMBER], config[CONF_MODE], config[CONF_INVERTED]
     )

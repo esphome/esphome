@@ -11,7 +11,6 @@ from esphome.const import (
     CONF_DIV_RATIO,
     CONF_CAPACITANCE,
 )
-from esphome.core import coroutine
 
 AUTO_LOAD = ["sensor", "binary_sensor"]
 MULTI_CONF = True
@@ -40,11 +39,10 @@ AS3935_SCHEMA = cv.Schema(
 )
 
 
-@coroutine
-def setup_as3935(var, config):
-    yield cg.register_component(var, config)
+async def setup_as3935(var, config):
+    await cg.register_component(var, config)
 
-    irq_pin = yield cg.gpio_pin_expression(config[CONF_IRQ_PIN])
+    irq_pin = await cg.gpio_pin_expression(config[CONF_IRQ_PIN])
     cg.add(var.set_irq_pin(irq_pin))
     cg.add(var.set_indoor(config[CONF_INDOOR]))
     cg.add(var.set_noise_level(config[CONF_NOISE_LEVEL]))

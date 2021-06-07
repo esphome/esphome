@@ -94,12 +94,12 @@ CONFIG_SCHEMA = (
 )
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
-    yield sensor.register_sensor(var, config)
+    await cg.register_component(var, config)
+    await sensor.register_sensor(var, config)
 
-    pin = yield cg.gpio_pin_expression(config[CONF_PIN])
+    pin = await cg.gpio_pin_expression(config[CONF_PIN])
     cg.add(var.set_pin(pin))
     count = config[CONF_COUNT_MODE]
     cg.add(var.set_rising_edge_mode(count[CONF_RISING_EDGE]))
@@ -107,5 +107,5 @@ def to_code(config):
     cg.add(var.set_filter_us(config[CONF_INTERNAL_FILTER]))
 
     if CONF_TOTAL in config:
-        sens = yield sensor.new_sensor(config[CONF_TOTAL])
+        sens = await sensor.new_sensor(config[CONF_TOTAL])
         cg.add(var.set_total_sensor(sens))

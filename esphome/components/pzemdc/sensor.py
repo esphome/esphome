@@ -40,20 +40,20 @@ CONFIG_SCHEMA = (
 )
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
-    yield modbus.register_modbus_device(var, config)
+    await cg.register_component(var, config)
+    await modbus.register_modbus_device(var, config)
 
     if CONF_VOLTAGE in config:
         conf = config[CONF_VOLTAGE]
-        sens = yield sensor.new_sensor(conf)
+        sens = await sensor.new_sensor(conf)
         cg.add(var.set_voltage_sensor(sens))
     if CONF_CURRENT in config:
         conf = config[CONF_CURRENT]
-        sens = yield sensor.new_sensor(conf)
+        sens = await sensor.new_sensor(conf)
         cg.add(var.set_current_sensor(sens))
     if CONF_POWER in config:
         conf = config[CONF_POWER]
-        sens = yield sensor.new_sensor(conf)
+        sens = await sensor.new_sensor(conf)
         cg.add(var.set_power_sensor(sens))

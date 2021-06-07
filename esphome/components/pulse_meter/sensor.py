@@ -63,18 +63,18 @@ CONFIG_SCHEMA = sensor.sensor_schema(
 )
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
-    yield sensor.register_sensor(var, config)
+    await cg.register_component(var, config)
+    await sensor.register_sensor(var, config)
 
-    pin = yield cg.gpio_pin_expression(config[CONF_PIN])
+    pin = await cg.gpio_pin_expression(config[CONF_PIN])
     cg.add(var.set_pin(pin))
     cg.add(var.set_filter_us(config[CONF_INTERNAL_FILTER]))
     cg.add(var.set_timeout_us(config[CONF_TIMEOUT]))
 
     if CONF_TOTAL in config:
-        sens = yield sensor.new_sensor(config[CONF_TOTAL])
+        sens = await sensor.new_sensor(config[CONF_TOTAL])
         cg.add(var.set_total_sensor(sens))
 
 
@@ -88,9 +88,9 @@ def to_code(config):
         }
     ),
 )
-def set_total_action_to_code(config, action_id, template_arg, args):
-    paren = yield cg.get_variable(config[CONF_ID])
+async def set_total_action_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = yield cg.templatable(config[CONF_VALUE], args, int)
+    template_ = await cg.templatable(config[CONF_VALUE], args, int)
     cg.add(var.set_total_pulses(template_))
-    yield var
+    return var

@@ -81,6 +81,10 @@ class ComponentManifest:
         return getattr(self.module, "CODEOWNERS", [])
 
     @property
+    def validate(self):
+        return getattr(self.module, "validate", None)
+
+    @property
     def source_files(self) -> Dict[Path, SourceFile]:
         ret = {}
         for resource in importlib.resources.contents(self.package):
