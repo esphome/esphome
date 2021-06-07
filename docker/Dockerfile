@@ -27,4 +27,4 @@ WORKDIR /config
 # in every docker command twice
 ENTRYPOINT ["esphome"]
 # When no arguments given, start the dashboard in the workdir
-CMD ["/config", "dashboard"]
+CMD ["dashboard", "/config"]
