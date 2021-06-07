@@ -337,6 +337,17 @@ light:
     rgb_order: GRB
     default_transition_length: 0s
     color_correct: [50%, 50%, 50%]
+  - platform: tuya
+    id: tuya_light
+    switch_datapoint: 1
+    dimmer_datapoint: 2
+    min_value_datapoint: 3
+    color_temperature_datapoint: 4
+    min_value: 1
+    max_value: 100
+    cold_white_color_temperature: 153 mireds
+    warm_white_color_temperature: 500 mireds
+    gamma_correct: 1
 
 display:
   - platform: addressable_light
@@ -359,6 +370,7 @@ display:
       it.rectangle(3, 3, it.get_width()-6, it.get_height()-6, red);
     rotation: 0°
     update_interval: 16ms
+    
   - platform: waveshare_epaper
     cs_pin: GPIO23
     dc_pin: GPIO23
@@ -411,6 +423,23 @@ output:
     pipsolar_id: inverter0
     battery_recharge_voltage:
       id: inverter0_battery_recharge_voltage_out
+esp32_camera:
+  name: ESP-32 Camera
+  data_pins: [GPIO17, GPIO35, GPIO34, GPIO5, GPIO39, GPIO18, GPIO36, GPIO19]
+  vsync_pin: GPIO22
+  href_pin: GPIO26
+  pixel_clock_pin: GPIO21
+  external_clock:
+    pin: GPIO27
+    frequency: 20MHz
+  i2c_pins:
+    sda: GPIO25
+    scl: GPIO23
+  reset_pin: GPIO15
+  power_down_pin: GPIO1
+  resolution: 640x480
+  jpeg_quality: 10
+
 external_components:
   - source: github://esphome/esphome@dev
     refresh: 1d

@@ -1363,15 +1363,17 @@ def extract_keys(schema):
 def typed_schema(schemas, **kwargs):
     """Create a schema that has a key to distinguish between schemas"""
     key = kwargs.pop("key", CONF_TYPE)
+    default_schema_option = kwargs.pop("default_type", None)
     key_validator = one_of(*schemas, **kwargs)
 
     def validator(value):
         if not isinstance(value, dict):
             raise Invalid("Value must be dict")
-        if key not in value:
-            raise Invalid("type not specified!")
         value = value.copy()
-        key_v = key_validator(value.pop(key))
+        schema_option = value.pop(key, default_schema_option)
+        if schema_option is None:
+            raise Invalid(key + " not specified!")
+        key_v = key_validator(schema_option)
         value = schemas[key_v](value)
         value[key] = key_v
         return value
