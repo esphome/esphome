@@ -121,7 +121,7 @@ jobs:
         run: |
           echo "::add-matcher::.github/workflows/matchers/gcc.json"
           echo "::add-matcher::.github/workflows/matchers/python.json"
-      - run: esphome tests/${{ matrix.test }}.yaml compile
+      - run: esphome compile tests/${{ matrix.test }}.yaml
 
   pytest:
     runs-on: ubuntu-latest
