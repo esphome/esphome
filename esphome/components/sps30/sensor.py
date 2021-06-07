@@ -14,6 +14,7 @@ from esphome.const import (
     CONF_PMC_10_0,
     CONF_PM_SIZE,
     DEVICE_CLASS_EMPTY,
+    STATE_CLASS_MEASUREMENT,
     UNIT_MICROGRAMS_PER_CUBIC_METER,
     UNIT_COUNTS_PER_CUBIC_METER,
     UNIT_MICROMETER,
@@ -36,42 +37,70 @@ CONFIG_SCHEMA = (
                 ICON_CHEMICAL_WEAPON,
                 2,
                 DEVICE_CLASS_EMPTY,
+                STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_PM_2_5): sensor.sensor_schema(
                 UNIT_MICROGRAMS_PER_CUBIC_METER,
                 ICON_CHEMICAL_WEAPON,
                 2,
                 DEVICE_CLASS_EMPTY,
+                STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_PM_4_0): sensor.sensor_schema(
                 UNIT_MICROGRAMS_PER_CUBIC_METER,
                 ICON_CHEMICAL_WEAPON,
                 2,
                 DEVICE_CLASS_EMPTY,
+                STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_PM_10_0): sensor.sensor_schema(
                 UNIT_MICROGRAMS_PER_CUBIC_METER,
                 ICON_CHEMICAL_WEAPON,
                 2,
                 DEVICE_CLASS_EMPTY,
+                STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_PMC_0_5): sensor.sensor_schema(
-                UNIT_COUNTS_PER_CUBIC_METER, ICON_COUNTER, 2, DEVICE_CLASS_EMPTY
+                UNIT_COUNTS_PER_CUBIC_METER,
+                ICON_COUNTER,
+                2,
+                DEVICE_CLASS_EMPTY,
+                STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_PMC_1_0): sensor.sensor_schema(
-                UNIT_COUNTS_PER_CUBIC_METER, ICON_COUNTER, 2, DEVICE_CLASS_EMPTY
+                UNIT_COUNTS_PER_CUBIC_METER,
+                ICON_COUNTER,
+                2,
+                DEVICE_CLASS_EMPTY,
+                STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_PMC_2_5): sensor.sensor_schema(
-                UNIT_COUNTS_PER_CUBIC_METER, ICON_COUNTER, 2, DEVICE_CLASS_EMPTY
+                UNIT_COUNTS_PER_CUBIC_METER,
+                ICON_COUNTER,
+                2,
+                DEVICE_CLASS_EMPTY,
+                STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_PMC_4_0): sensor.sensor_schema(
-                UNIT_COUNTS_PER_CUBIC_METER, ICON_COUNTER, 2, DEVICE_CLASS_EMPTY
+                UNIT_COUNTS_PER_CUBIC_METER,
+                ICON_COUNTER,
+                2,
+                DEVICE_CLASS_EMPTY,
+                STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_PMC_10_0): sensor.sensor_schema(
-                UNIT_COUNTS_PER_CUBIC_METER, ICON_COUNTER, 2, DEVICE_CLASS_EMPTY
+                UNIT_COUNTS_PER_CUBIC_METER,
+                ICON_COUNTER,
+                2,
+                DEVICE_CLASS_EMPTY,
+                STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_PM_SIZE): sensor.sensor_schema(
-                UNIT_MICROMETER, ICON_RULER, 0, DEVICE_CLASS_EMPTY
+                UNIT_MICROMETER,
+                ICON_RULER,
+                0,
+                DEVICE_CLASS_EMPTY,
+                STATE_CLASS_MEASUREMENT,
             ),
         }
     )

@@ -5,6 +5,7 @@ from esphome.const import (
     CONF_ID,
     CONF_TEMPERATURE,
     CONF_HUMIDITY,
+    STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
     UNIT_PERCENT,
     ICON_THERMOMETER,
@@ -50,10 +51,18 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(SHT4XComponent),
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-                UNIT_CELSIUS, ICON_THERMOMETER, 2, DEVICE_CLASS_TEMPERATURE
+                UNIT_CELSIUS,
+                ICON_THERMOMETER,
+                2,
+                DEVICE_CLASS_TEMPERATURE,
+                STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(
-                UNIT_PERCENT, ICON_WATER_PERCENT, 2, DEVICE_CLASS_HUMIDITY
+                UNIT_PERCENT,
+                ICON_WATER_PERCENT,
+                2,
+                DEVICE_CLASS_HUMIDITY,
+                STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_PRECISION, default="High"): cv.enum(PRECISION_OPTIONS),
             cv.Optional(CONF_HEATER_POWER, default="High"): cv.enum(

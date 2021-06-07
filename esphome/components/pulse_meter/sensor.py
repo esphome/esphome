@@ -11,6 +11,8 @@ from esphome.const import (
     CONF_TOTAL,
     CONF_VALUE,
     ICON_PULSE,
+    STATE_CLASS_MEASUREMENT,
+    STATE_CLASS_NONE,
     UNIT_PULSES,
     UNIT_PULSES_PER_MINUTE,
     DEVICE_CLASS_EMPTY,
@@ -49,7 +51,7 @@ def validate_pulse_meter_pin(value):
 
 
 CONFIG_SCHEMA = sensor.sensor_schema(
-    UNIT_PULSES_PER_MINUTE, ICON_PULSE, 2, DEVICE_CLASS_EMPTY
+    UNIT_PULSES_PER_MINUTE, ICON_PULSE, 2, DEVICE_CLASS_EMPTY, STATE_CLASS_MEASUREMENT
 ).extend(
     {
         cv.GenerateID(): cv.declare_id(PulseMeterSensor),
@@ -57,7 +59,7 @@ CONFIG_SCHEMA = sensor.sensor_schema(
         cv.Optional(CONF_INTERNAL_FILTER, default="13us"): validate_internal_filter,
         cv.Optional(CONF_TIMEOUT, default="5min"): validate_timeout,
         cv.Optional(CONF_TOTAL): sensor.sensor_schema(
-            UNIT_PULSES, ICON_PULSE, 0, DEVICE_CLASS_EMPTY
+            UNIT_PULSES, ICON_PULSE, 0, DEVICE_CLASS_EMPTY, STATE_CLASS_NONE
         ),
     }
 )

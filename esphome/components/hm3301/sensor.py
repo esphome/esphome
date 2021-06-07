@@ -7,6 +7,7 @@ from esphome.const import (
     CONF_PM_10_0,
     CONF_PM_1_0,
     DEVICE_CLASS_EMPTY,
+    STATE_CLASS_MEASUREMENT,
     UNIT_MICROGRAMS_PER_CUBIC_METER,
     ICON_CHEMICAL_WEAPON,
 )
@@ -46,21 +47,28 @@ CONFIG_SCHEMA = cv.All(
                 ICON_CHEMICAL_WEAPON,
                 0,
                 DEVICE_CLASS_EMPTY,
+                STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_PM_2_5): sensor.sensor_schema(
                 UNIT_MICROGRAMS_PER_CUBIC_METER,
                 ICON_CHEMICAL_WEAPON,
                 0,
                 DEVICE_CLASS_EMPTY,
+                STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_PM_10_0): sensor.sensor_schema(
                 UNIT_MICROGRAMS_PER_CUBIC_METER,
                 ICON_CHEMICAL_WEAPON,
                 0,
                 DEVICE_CLASS_EMPTY,
+                STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_AQI): sensor.sensor_schema(
-                UNIT_INDEX, ICON_CHEMICAL_WEAPON, 0, DEVICE_CLASS_EMPTY
+                UNIT_INDEX,
+                ICON_CHEMICAL_WEAPON,
+                0,
+                DEVICE_CLASS_EMPTY,
+                STATE_CLASS_MEASUREMENT,
             ).extend(
                 {
                     cv.Required(CONF_CALCULATION_TYPE): cv.enum(

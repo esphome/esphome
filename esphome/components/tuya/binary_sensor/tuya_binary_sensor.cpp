@@ -8,8 +8,8 @@ static const char *TAG = "tuya.binary_sensor";
 
 void TuyaBinarySensor::setup() {
   this->parent_->register_listener(this->sensor_id_, [this](TuyaDatapoint datapoint) {
+    ESP_LOGV(TAG, "MCU reported binary sensor %u is: %s", datapoint.id, ONOFF(datapoint.value_bool));
     this->publish_state(datapoint.value_bool);
-    ESP_LOGD(TAG, "MCU reported binary sensor is: %s", ONOFF(datapoint.value_bool));
   });
 }
 

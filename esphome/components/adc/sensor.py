@@ -8,6 +8,7 @@ from esphome.const import (
     CONF_PIN,
     DEVICE_CLASS_VOLTAGE,
     ICON_EMPTY,
+    STATE_CLASS_MEASUREMENT,
     UNIT_VOLT,
 )
 
@@ -35,7 +36,9 @@ ADCSensor = adc_ns.class_(
 )
 
 CONFIG_SCHEMA = (
-    sensor.sensor_schema(UNIT_VOLT, ICON_EMPTY, 2, DEVICE_CLASS_VOLTAGE)
+    sensor.sensor_schema(
+        UNIT_VOLT, ICON_EMPTY, 2, DEVICE_CLASS_VOLTAGE, STATE_CLASS_MEASUREMENT
+    )
     .extend(
         {
             cv.GenerateID(): cv.declare_id(ADCSensor),

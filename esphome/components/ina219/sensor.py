@@ -14,6 +14,7 @@ from esphome.const import (
     DEVICE_CLASS_POWER,
     DEVICE_CLASS_VOLTAGE,
     ICON_EMPTY,
+    STATE_CLASS_MEASUREMENT,
     UNIT_VOLT,
     UNIT_AMPERE,
     UNIT_WATT,
@@ -31,16 +32,20 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(INA219Component),
             cv.Optional(CONF_BUS_VOLTAGE): sensor.sensor_schema(
-                UNIT_VOLT, ICON_EMPTY, 2, DEVICE_CLASS_VOLTAGE
+                UNIT_VOLT, ICON_EMPTY, 2, DEVICE_CLASS_VOLTAGE, STATE_CLASS_MEASUREMENT
             ),
             cv.Optional(CONF_SHUNT_VOLTAGE): sensor.sensor_schema(
-                UNIT_VOLT, ICON_EMPTY, 2, DEVICE_CLASS_VOLTAGE
+                UNIT_VOLT, ICON_EMPTY, 2, DEVICE_CLASS_VOLTAGE, STATE_CLASS_MEASUREMENT
             ),
             cv.Optional(CONF_CURRENT): sensor.sensor_schema(
-                UNIT_AMPERE, ICON_EMPTY, 3, DEVICE_CLASS_CURRENT
+                UNIT_AMPERE,
+                ICON_EMPTY,
+                3,
+                DEVICE_CLASS_CURRENT,
+                STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_POWER): sensor.sensor_schema(
-                UNIT_WATT, ICON_EMPTY, 2, DEVICE_CLASS_POWER
+                UNIT_WATT, ICON_EMPTY, 2, DEVICE_CLASS_POWER, STATE_CLASS_MEASUREMENT
             ),
             cv.Optional(CONF_SHUNT_RESISTANCE, default=0.1): cv.All(
                 cv.resistance, cv.Range(min=0.0, max=32.0)

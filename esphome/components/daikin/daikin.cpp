@@ -94,7 +94,7 @@ uint8_t DaikinClimate::operation_mode_() {
 
 uint16_t DaikinClimate::fan_speed_() {
   uint16_t fan_speed;
-  switch (this->fan_mode) {
+  switch (this->fan_mode.value()) {
     case climate::CLIMATE_FAN_LOW:
       fan_speed = DAIKIN_FAN_1 << 8;
       break;

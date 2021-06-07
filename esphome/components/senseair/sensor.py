@@ -8,6 +8,7 @@ from esphome.const import (
     CONF_ID,
     DEVICE_CLASS_EMPTY,
     ICON_MOLECULE_CO2,
+    STATE_CLASS_MEASUREMENT,
     UNIT_PARTS_PER_MILLION,
 )
 
@@ -38,7 +39,11 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(SenseAirComponent),
             cv.Required(CONF_CO2): sensor.sensor_schema(
-                UNIT_PARTS_PER_MILLION, ICON_MOLECULE_CO2, 0, DEVICE_CLASS_EMPTY
+                UNIT_PARTS_PER_MILLION,
+                ICON_MOLECULE_CO2,
+                0,
+                DEVICE_CLASS_EMPTY,
+                STATE_CLASS_MEASUREMENT,
             ),
         }
     )

@@ -5,6 +5,7 @@ from esphome.const import (
     CONF_ID,
     DEVICE_CLASS_EMPTY,
     ICON_RADIATOR,
+    STATE_CLASS_MEASUREMENT,
     UNIT_PARTS_PER_MILLION,
     UNIT_PARTS_PER_BILLION,
     CONF_TEMPERATURE,
@@ -28,10 +29,18 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(CCS811Component),
             cv.Required(CONF_ECO2): sensor.sensor_schema(
-                UNIT_PARTS_PER_MILLION, ICON_MOLECULE_CO2, 0, DEVICE_CLASS_EMPTY
+                UNIT_PARTS_PER_MILLION,
+                ICON_MOLECULE_CO2,
+                0,
+                DEVICE_CLASS_EMPTY,
+                STATE_CLASS_MEASUREMENT,
             ),
             cv.Required(CONF_TVOC): sensor.sensor_schema(
-                UNIT_PARTS_PER_BILLION, ICON_RADIATOR, 0, DEVICE_CLASS_EMPTY
+                UNIT_PARTS_PER_BILLION,
+                ICON_RADIATOR,
+                0,
+                DEVICE_CLASS_EMPTY,
+                STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_BASELINE): cv.hex_uint16_t,
             cv.Optional(CONF_TEMPERATURE): cv.use_id(sensor.Sensor),

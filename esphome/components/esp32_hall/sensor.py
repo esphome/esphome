@@ -5,6 +5,7 @@ from esphome.const import (
     CONF_ID,
     DEVICE_CLASS_EMPTY,
     ESP_PLATFORM_ESP32,
+    STATE_CLASS_MEASUREMENT,
     UNIT_MICROTESLA,
     ICON_MAGNET,
 )
@@ -17,7 +18,9 @@ ESP32HallSensor = esp32_hall_ns.class_(
 )
 
 CONFIG_SCHEMA = (
-    sensor.sensor_schema(UNIT_MICROTESLA, ICON_MAGNET, 1, DEVICE_CLASS_EMPTY)
+    sensor.sensor_schema(
+        UNIT_MICROTESLA, ICON_MAGNET, 1, DEVICE_CLASS_EMPTY, STATE_CLASS_MEASUREMENT
+    )
     .extend(
         {
             cv.GenerateID(): cv.declare_id(ESP32HallSensor),
