@@ -8,8 +8,6 @@
 namespace esphome {
 namespace ufire_ec {
 
-static const float PROBE_COEFFICIENT = 0.019;
-
 static const uint8_t CONFIG_TEMP_COMPENSATION = 0x02;
 
 static const uint8_t REGISTER_VERSION = 0;

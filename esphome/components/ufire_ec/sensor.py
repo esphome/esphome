@@ -36,13 +36,15 @@ CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(UFireECComponent),
-            cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
+            cv.Exclusive(CONF_TEMPERATURE, "temperature"): sensor.sensor_schema(
                 UNIT_CELSIUS, ICON_EMPTY, 1, DEVICE_CLASS_TEMPERATURE
             ),
             cv.Optional(CONF_EC): sensor.sensor_schema(
                 UNIT_MILLISIEMENS_PER_CENTIMETER, ICON_EMPTY, 1, DEVICE_CLASS_EMPTY
             ),
-            cv.Optional(CONF_TEMPERATURE_SENSOR): cv.use_id(sensor.Sensor),
+            cv.Exclusive(CONF_TEMPERATURE_SENSOR, "temperature"): cv.use_id(
+                sensor.Sensor
+            ),
             cv.Optional(CONF_TEMPERATURE_COMPENSATION, default=25.0): cv.temperature,
             cv.Optional(CONF_TEMPERATURE_COEFFICIENT, default=0.019): cv.float_range(
                 min=0.01, max=0.04

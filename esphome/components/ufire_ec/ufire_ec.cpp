@@ -63,7 +63,7 @@ float UFireECComponent::measure_temperature_() { return this->read_data_(REGISTE
 float UFireECComponent::measure_ms_() { return this->read_data_(REGISTER_MS); }
 
 void UFireECComponent::set_solution_(float solution, float temperature) {
-  solution /= (1 - (PROBE_COEFFICIENT * (temperature - 25)));
+  solution /= (1 - (this->temperature_coefficient_ * (temperature - 25)));
   this->write_data_(REGISTER_SOLUTION, solution);
 }
 
