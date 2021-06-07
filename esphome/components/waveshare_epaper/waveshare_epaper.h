@@ -72,6 +72,7 @@ enum WaveshareEPaperTypeAModel {
   TTGO_EPAPER_2_13_IN,
   TTGO_EPAPER_2_13_IN_B73,
   TTGO_EPAPER_2_13_IN_B1,
+  TTGO_EPAPER_2_13_IN_B74,
 };
 
 class WaveshareEPaperTypeA : public WaveshareEPaper {
