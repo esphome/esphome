@@ -37,13 +37,15 @@ CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(UFireISEComponent),
-            cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
+            cv.Exclusive(CONF_TEMPERATURE, "temperature"): sensor.sensor_schema(
                 UNIT_CELSIUS, ICON_EMPTY, 1, DEVICE_CLASS_TEMPERATURE
             ),
             cv.Optional(CONF_PH): sensor.sensor_schema(
                 UNIT_PH, ICON_EMPTY, 1, DEVICE_CLASS_EMPTY
             ),
-            cv.Optional(CONF_TEMPERATURE_SENSOR): cv.use_id(sensor.Sensor),
+            cv.Exclusive(CONF_TEMPERATURE_SENSOR, "temperature"): cv.use_id(
+                sensor.Sensor
+            ),
         }
     )
     .extend(cv.polling_component_schema("60s"))
