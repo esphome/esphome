@@ -265,6 +265,8 @@ void ESP32ImprovComponent::on_wifi_connect_timeout_() {
   wifi::global_wifi_component->clear_sta();
 }
 
+void ESP32ImprovComponent::on_client_disconnect() { this->set_error_(improv::ERROR_NONE); };
+
 ESP32ImprovComponent *global_improv_component = nullptr;
 
 }  // namespace esp32_improv

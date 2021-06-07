@@ -21,6 +21,7 @@ class ESP32ImprovComponent : public Component, public esp32_ble::BLEServiceCompo
   void dump_config() override;
   void loop() override;
   void setup_service() override;
+  void on_client_disconnect() override;
 
   float get_setup_priority() const override;
   void start();

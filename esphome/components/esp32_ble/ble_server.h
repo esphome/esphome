@@ -22,6 +22,8 @@ namespace esp32_ble {
 class BLEServiceComponent {
  public:
   virtual void setup_service();
+  virtual void on_client_connect(){};
+  virtual void on_client_disconnect(){};
 };
 
 class BLEServer : public Component {
