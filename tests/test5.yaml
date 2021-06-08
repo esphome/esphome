@@ -4,7 +4,7 @@ esphome:
   board: nodemcu-32s
   build_path: build/test5
   project:
-    name: ESPHome Test5 Project
+    name: esphome.test5_project
     version: "1.0.0"
 
 wifi:
