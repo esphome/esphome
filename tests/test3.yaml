@@ -534,6 +534,9 @@ sensor:
       name: 'Import Reactive Energy'
     export_reactive_energy:
       name: 'Export Reactive Energy'
+  - platform: dsmr
+    energy_delivered_tariff1:
+      name: dsmr_energy_delivered_tariff1
 
   - platform: nextion
     id: testnumber
@@ -675,6 +678,11 @@ text_sensor:
     id: text0
     update_interval: 4s
     component_name: text0
+  - platform: dsmr
+    identification:
+      name: "dsmr_identification"
+    p1_version:
+      name: "dsmr_p1_version"
 
 script:
   - id: my_script
@@ -1156,4 +1164,8 @@ fingerprint_grow:
         event: esphome.${device_name}_fingerprint_grow_enrollment_failed
         data:
           finger_id: !lambda 'return finger_id;'
+  uart_id: uart6
+
+dsmr:
+  decryption_key: 00112233445566778899aabbccddeeff
   uart_id: uart6
