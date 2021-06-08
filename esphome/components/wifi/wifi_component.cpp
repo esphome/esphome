@@ -220,8 +220,8 @@ void WiFiComponent::set_sta(const WiFiAP &ap) {
 void WiFiComponent::clear_sta() { this->sta_.clear(); }
 void WiFiComponent::save_wifi_sta(const std::string &ssid, const std::string &password) {
   SavedWifiSettings save{};
-  strcpy(save.ssid, ssid.c_str());
-  strcpy(save.password, password.c_str());
+  strncpy(save.ssid, ssid.c_str(), sizeof(save.ssid));
+  strncpy(save.password, password.c_str(), sizeof(save.password));
   this->pref_.save(&save);
 
   WiFiAP sta{};

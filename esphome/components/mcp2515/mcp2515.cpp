@@ -600,9 +600,9 @@ canbus::Error MCP2515::set_bitrate_(canbus::CanSpeed can_speed, CanClock can_clo
   }
 
   if (set) {
-    set_register_(MCP_CNF1, cfg1);
-    set_register_(MCP_CNF2, cfg2);
-    set_register_(MCP_CNF3, cfg3);
+    set_register_(MCP_CNF1, cfg1);  // NOLINT
+    set_register_(MCP_CNF2, cfg2);  // NOLINT
+    set_register_(MCP_CNF3, cfg3);  // NOLINT
     return canbus::ERROR_OK;
   } else {
     return canbus::ERROR_FAIL;

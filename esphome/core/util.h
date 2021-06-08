@@ -7,7 +7,7 @@ namespace esphome {
 
 /// Macro for IDF version comparision
 #ifndef ESP_IDF_VERSION_VAL
-#define ESP_IDF_VERSION_VAL(major, minor, patch) ((major << 16) | (minor << 8) | (patch))
+#define ESP_IDF_VERSION_VAL(major, minor, patch) (((major) << 16) | ((minor) << 8) | (patch))
 #endif
 
 /// Return whether the node is connected to the network (through wifi, eth, ...)

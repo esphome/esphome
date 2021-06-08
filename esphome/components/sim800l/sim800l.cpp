@@ -1,6 +1,6 @@
 #include "sim800l.h"
 #include "esphome/core/log.h"
-#include <string.h>
+#include <cstring>
 
 namespace esphome {
 namespace sim800l {
