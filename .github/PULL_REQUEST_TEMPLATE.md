@@ -1,6 +1,6 @@
 # What does this implement/fix? 
 
-Quick description 
+Quick description and explanation of changes
 
 ## Types of changes
 
@@ -33,11 +33,6 @@ Quick description
 # Example config.yaml
 
 ```
-
-# Explain your changes
-
-Describe your changes here to communicate to the maintainers **why we should accept this pull request**.
-Very important to fill if no issue linked
 
 ## Checklist:
   - [ ] The code change is tested and works locally.
