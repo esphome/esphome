@@ -28,7 +28,7 @@ bool BLEDescriptor::do_create(BLECharacteristic *characteristic) {
   esp_attr_control_t control;
   control.auto_rsp = ESP_GATT_AUTO_RSP;
 
-  xSemaphoreTake(this->create_lock_, SEMAPHORE_MAX_DELAY);
+  xSemaphoreTake(this->create_lock_, portMAX_DELAY);
   ESP_LOGV(TAG, "Creating descriptor - %s", this->uuid_.to_string().c_str());
   esp_bt_uuid_t uuid = this->uuid_.get_uuid();
   esp_err_t err = esp_ble_gatts_add_char_descr(this->characteristic_->get_service()->get_handle(), &uuid,
@@ -37,13 +37,13 @@ bool BLEDescriptor::do_create(BLECharacteristic *characteristic) {
     ESP_LOGE(TAG, "esp_ble_gatts_add_char_descr failed: %d", err);
     return false;
   }
-  xSemaphoreWait(this->create_lock_, SEMAPHORE_MAX_DELAY);
+  xSemaphoreWait(this->create_lock_, portMAX_DELAY);
 
   return true;
 }
 
-void BLEDescriptor::set_value(const std::string value) { this->set_value((uint8_t *) value.data(), value.length()); }
-void BLEDescriptor::set_value(uint8_t *data, size_t length) {
+void BLEDescriptor::set_value(const std::string &value) { this->set_value((uint8_t *) value.data(), value.length()); }
+void BLEDescriptor::set_value(const uint8_t *data, size_t length) {
   if (length > this->value_.attr_max_len) {
     ESP_LOGE(TAG, "Size %d too large, must be no bigger than %d", length, this->value_.attr_max_len);
     return;

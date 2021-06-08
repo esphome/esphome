@@ -34,17 +34,17 @@ class BLEServer : public Component {
 
   void teardown();
 
-  void set_manufacturer(const std::string manufacturer) { this->manufacturer_ = manufacturer; }
-  void set_model(const std::string model) { this->model_ = model; }
+  void set_manufacturer(const std::string &manufacturer) { this->manufacturer_ = manufacturer; }
+  void set_model(const std::string &model) { this->model_ = model; }
 
   BLEService *create_service(const uint8_t *uuid, bool advertise = false);
   BLEService *create_service(uint16_t uuid, bool advertise = false);
-  BLEService *create_service(const std::string uuid, bool advertise = false);
+  BLEService *create_service(const std::string &uuid, bool advertise = false);
   BLEService *create_service(ESPBTUUID uuid, bool advertise = false, uint16_t num_handles = 15, uint8_t inst_id = 0);
 
   esp_gatt_if_t get_gatts_if() { return this->gatts_if_; }
   uint32_t get_connected_client_count() { return this->connected_clients_; }
-  std::map<uint16_t, void *> get_clients() { return this->clients_; }
+  const std::map<uint16_t, void *> &get_clients() { return this->clients_; }
   BLEAdvertising *get_advertising() { return this->advertising_; }
 
   void gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if, esp_ble_gatts_cb_param_t *param);
