@@ -1,4 +1,4 @@
-FROM esphome/esphome-base-amd64:3.2.0
+FROM esphome/esphome-base-amd64:3.3.0
 
 COPY . .
 
