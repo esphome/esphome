@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     # cpp lint job runs with esphome-lint docker image so that clang-format-*
     # doesn't have to be installed
-    container: esphome/esphome-lint:1.0
+    container: esphome/esphome-lint:1.1
     steps:
       - uses: actions/checkout@v2
       # Set up the pio project so that the cpp checks know how files are compiled
@@ -28,7 +28,7 @@ jobs:
     runs-on: ubuntu-latest
     # cpp lint job runs with esphome-lint docker image so that clang-format-*
     # doesn't have to be installed
-    container: esphome/esphome-lint:1.0
+    container: esphome/esphome-lint:1.1
     # Split clang-tidy check into 4 jobs. Each one will check 1/4th of the .cpp files
     strategy:
       fail-fast: false
@@ -195,7 +195,7 @@ jobs:
           echo "TAG=${TAG}" >> $GITHUB_ENV
       - name: Set up env variables
         run: |
-          base_version="3.1.0"
+          base_version="3.4.0"
 
           if [[ "${{ matrix.build_type }}" == "hassio" ]]; then
             build_from="esphome/esphome-hassio-base-${{ matrix.arch }}:${base_version}"
