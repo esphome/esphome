@@ -46,14 +46,14 @@ void BLEServer::setup() {
 }
 
 void BLEServer::setup_server_() {
-  xSemaphoreTake(this->register_lock_, SEMAPHORE_MAX_DELAY);
+  xSemaphoreTake(this->register_lock_, portMAX_DELAY);
   esp_err_t err = esp_ble_gatts_app_register(0);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "esp_ble_gatts_app_register failed: %d", err);
     this->mark_failed();
     return;
   }
-  xSemaphoreWait(this->register_lock_, SEMAPHORE_MAX_DELAY);
+  xSemaphoreWait(this->register_lock_, portMAX_DELAY);
 
   this->device_information_service = this->create_service(DEVICE_INFORMATION_SERVICE_UUID);
 
@@ -96,7 +96,7 @@ BLEService *BLEServer::create_service(const uint8_t *uuid, bool advertise) {
 BLEService *BLEServer::create_service(uint16_t uuid, bool advertise) {
   return this->create_service(ESPBTUUID::from_uint16(uuid), advertise);
 }
-BLEService *BLEServer::create_service(const std::string uuid, bool advertise) {
+BLEService *BLEServer::create_service(const std::string &uuid, bool advertise) {
   return this->create_service(ESPBTUUID::from_raw(uuid), advertise);
 }
 BLEService *BLEServer::create_service(ESPBTUUID uuid, bool advertise, uint16_t num_handles, uint8_t inst_id) {

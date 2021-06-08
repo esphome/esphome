@@ -22,9 +22,9 @@ class BLECharacteristic {
  public:
   BLECharacteristic(const ESPBTUUID uuid, uint32_t properties);
 
-  void set_value(uint8_t *data, size_t length);
+  void set_value(const uint8_t *data, size_t length);
   void set_value(std::vector<uint8_t> value);
-  void set_value(std::string value);
+  void set_value(const std::string &value);
   void set_value(uint8_t &data);
   void set_value(uint16_t &data);
   void set_value(uint32_t &data);
@@ -45,7 +45,7 @@ class BLECharacteristic {
   bool do_create(BLEService *service);
   void gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if, esp_ble_gatts_cb_param_t *param);
 
-  void on_write(const std::function<void(std::vector<uint8_t> &)> &func) { this->on_write_ = func; }
+  void on_write(const std::function<void(const std::vector<uint8_t> &)> &func) { this->on_write_ = func; }
 
   void add_descriptor(BLEDescriptor *descriptor);
 
@@ -74,7 +74,7 @@ class BLECharacteristic {
 
   std::vector<BLEDescriptor *> descriptors_;
 
-  std::function<void(std::vector<uint8_t> &)> on_write_;
+  std::function<void(const std::vector<uint8_t> &)> on_write_;
 
   esp_gatt_perm_t permissions_ = ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE;
 };
