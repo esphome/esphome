@@ -1,10 +1,10 @@
-ARG BUILD_FROM=esphome/esphome-base-amd64:3.1.0
+ARG BUILD_FROM=esphome/esphome-base-amd64:3.3.0
 FROM ${BUILD_FROM}
 
 # First install requirements to leverage caching when requirements don't change
-COPY requirements.txt docker/platformio_install_deps.py platformio.ini /
+COPY requirements.txt requirements_optional.txt docker/platformio_install_deps.py platformio.ini /
 RUN \
-    pip3 install --no-cache-dir -r /requirements.txt \
+    pip3 install --no-cache-dir -r /requirements.txt -r /requirements_optional.txt \
     && /platformio_install_deps.py /platformio.ini
 
 # Then copy esphome and install
