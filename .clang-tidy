@@ -20,7 +20,6 @@ Checks: >-
   -cert-oop57-cpp,
   -cert-str34-c,
   -clang-analyzer-core.CallAndMessage,
-  -clang-analyzer-deadcode.DeadStores,
   -clang-analyzer-optin.*,
   -clang-analyzer-osx.*,
   -clang-analyzer-security.*,
