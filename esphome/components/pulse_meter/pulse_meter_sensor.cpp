@@ -23,7 +23,6 @@ void PulseMeterSensor::loop() {
   const uint32_t time_since_valid_edge_us = now - this->last_valid_edge_us_;
   if ((this->last_valid_edge_us_ != 0) && (time_since_valid_edge_us > this->timeout_us_)) {
     ESP_LOGD(TAG, "No pulse detected for %us, assuming 0 pulses/min", time_since_valid_edge_us / 1000000);
-    this->last_detected_edge_us_ = 0;
     this->last_valid_edge_us_ = 0;
     this->pulse_width_us_ = 0;
   }
@@ -70,15 +69,13 @@ void ICACHE_RAM_ATTR PulseMeterSensor::gpio_intr(PulseMeterSensor *sensor) {
 
   // Check to see if we should filter this edge out
   if ((now - sensor->last_detected_edge_us_) >= sensor->filter_us_) {
-    // Ignore the first detected pulse (we need at least two pulses to measure the width)
-    if (sensor->last_detected_edge_us_ != 0) {
-      // Don't measure the first valid pulse (we need at least two pulses to measure the width)
-      if (sensor->last_valid_edge_us_ != 0) {
-        sensor->pulse_width_us_ = (now - sensor->last_valid_edge_us_);
-      }
-      sensor->last_valid_edge_us_ = now;
+    // Don't measure the first valid pulse (we need at least two pulses to measure the width)
+    if (sensor->last_valid_edge_us_ != 0) {
+      sensor->pulse_width_us_ = (now - sensor->last_valid_edge_us_);
     }
+
     sensor->total_pulses_++;
+    sensor->last_valid_edge_us_ = now;
   }
 
   sensor->last_detected_edge_us_ = now;
