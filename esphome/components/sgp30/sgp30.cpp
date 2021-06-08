@@ -16,11 +16,11 @@ static const uint16_t SGP30_CMD_SET_IAQ_BASELINE = 0x201E;
 
 // Sensor baseline should first be relied on after 1H of operation,
 // if the sensor starts with a baseline value provided
-const long IAQ_BASELINE_WARM_UP_SECONDS_WITH_BASELINE_PROVIDED = 3600;
+const uint32_t IAQ_BASELINE_WARM_UP_SECONDS_WITH_BASELINE_PROVIDED = 3600;
 
 // Sensor baseline could first be relied on after 12H of operation,
 // if the sensor starts without any prior baseline value provided
-const long IAQ_BASELINE_WARM_UP_SECONDS_WITHOUT_BASELINE = 43200;
+const uint32_t IAQ_BASELINE_WARM_UP_SECONDS_WITHOUT_BASELINE = 43200;
 
 void SGP30Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up SGP30...");

@@ -113,7 +113,7 @@ uint8_t MCP2515::get_status_() {
 canbus::Error MCP2515::set_mode_(const CanctrlReqopMode mode) {
   modify_register_(MCP_CANCTRL, CANCTRL_REQOP, mode);
 
-  unsigned long end_time = millis() + 10;
+  uint32_t end_time = millis() + 10;
   bool mode_match = false;
   while (millis() < end_time) {
     uint8_t new_mode = read_register_(MCP_CANSTAT);

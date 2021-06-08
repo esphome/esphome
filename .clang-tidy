@@ -46,7 +46,6 @@ Checks: >-
   -google-readability-braces-around-statements,
   -google-readability-casting,
   -google-readability-todo,
-  -google-runtime-int,
   -google-runtime-references,
   -hicpp-*,
   -llvm-else-after-return,

@@ -52,7 +52,7 @@ void MideaDongle::update() {
       wifi_strength = this->notify_.get_signal_strength();
     } else {
       this->rssi_timer_ = 60;
-      const long dbm = WiFi.RSSI();
+      const int32_t dbm = WiFi.RSSI();
       if (dbm > -63)
         wifi_strength = 4;
       else if (dbm > -75)

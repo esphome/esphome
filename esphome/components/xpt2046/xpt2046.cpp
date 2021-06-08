@@ -36,7 +36,7 @@ void XPT2046Component::loop() {
 void XPT2046Component::update() {
   int16_t data[6];
   bool touch = false;
-  unsigned long now = millis();
+  uint32_t now = millis();
 
   this->z_raw = 0;
 
