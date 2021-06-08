@@ -23,7 +23,6 @@ Checks: >-
   -clang-analyzer-optin.*,
   -clang-analyzer-osx.*,
   -clang-analyzer-security.*,
-  -clang-diagnostic-fortify-source,
   -clang-diagnostic-shadow-field,
   -cppcoreguidelines-avoid-c-arrays,
   -cppcoreguidelines-avoid-goto,
