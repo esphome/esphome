@@ -133,7 +133,7 @@ class MQTTComponent : public Component {
 
  protected:
   /// Performs the actual dump of the configuration (only called for non-internal components).
-  virtual void dump_config_() { Component::dump_config(); }
+  virtual void do_dump_config() { Component::dump_config(); }
 
   /// Helper method to get the discovery topic for this component.
   std::string get_discovery_topic_(const MQTTDiscoveryInfo &discovery_info) const;

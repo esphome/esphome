@@ -20,7 +20,7 @@ void MQTTSensorComponent::setup() {
   this->sensor_->add_on_state_callback([this](float state) { this->publish_state(state); });
 }
 
-void MQTTSensorComponent::dump_config_() {
+void MQTTSensorComponent::do_dump_config() {
   ESP_LOGCONFIG(TAG, "MQTT Sensor '%s':", this->sensor_->get_name().c_str());
   if (this->get_expire_after() > 0) {
     ESP_LOGCONFIG(TAG, "  Expire After: %us", this->get_expire_after() / 1000);

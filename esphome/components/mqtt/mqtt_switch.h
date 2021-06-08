@@ -26,7 +26,7 @@ class MQTTSwitchComponent : public mqtt::MQTTComponent {
   bool publish_state(bool state);
 
  protected:
-  void dump_config_() override;
+  void do_dump_config() override;
 
   std::string friendly_name() const override;
 

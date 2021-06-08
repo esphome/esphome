@@ -21,7 +21,7 @@ void MQTTTextSensor::setup() {
   this->sensor_->add_on_state_callback([this](const std::string &state) { this->publish_state(state); });
 }
 
-void MQTTTextSensor::dump_config_() {
+void MQTTTextSensor::do_dump_config() {
   ESP_LOGCONFIG(TAG, "MQTT Text Sensor '%s':", this->sensor_->get_name().c_str());
   LOG_MQTT_COMPONENT(true, false);
 }

@@ -28,7 +28,7 @@ class MQTTCoverComponent : public mqtt::MQTTComponent {
   bool publish_state();
 
  protected:
-  void dump_config_() override;
+  void do_dump_config() override;
 
   std::string component_type() const override;
   std::string friendly_name() const override;

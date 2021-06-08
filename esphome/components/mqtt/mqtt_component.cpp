@@ -175,7 +175,7 @@ void MQTTComponent::dump_config() {
     return;
   }
 
-  this->dump_config_();
+  this->do_dump_config();
 }
 
 void MQTTComponent::call_loop() {
