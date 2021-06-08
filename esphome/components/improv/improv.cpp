@@ -2,7 +2,9 @@
 
 namespace improv {
 
-ImprovCommand parse_improv_data(std::vector<uint8_t> &data) { return parse_improv_data(data.data(), data.size()); }
+ImprovCommand parse_improv_data(const std::vector<uint8_t> &data) {
+  return parse_improv_data(data.data(), data.size());
+}
 
 ImprovCommand parse_improv_data(const uint8_t *data, size_t length) {
   Command command = (Command) data[0];
@@ -42,7 +44,28 @@ ImprovCommand parse_improv_data(const uint8_t *data, size_t length) {
   };
 }
 
-std::vector<uint8_t> build_rpc_response(Command command, std::vector<std::string> datum) {
+std::vector<uint8_t> build_rpc_response(Command command, const std::vector<std::string> &datum) {
+  std::vector<uint8_t> out;
+  uint32_t length = 0;
+  out.push_back(command);
+  for (auto str : datum) {
+    uint8_t len = str.length();
+    length += len;
+    out.push_back(len);
+    out.insert(out.end(), str.begin(), str.end());
+  }
+  out.insert(out.begin() + 1, length);
+
+  uint32_t calculated_checksum = 0;
+
+  for (uint8_t byte : out) {
+    calculated_checksum += byte;
+  }
+  out.push_back(calculated_checksum);
+  return out;
+}
+
+std::vector<uint8_t> build_rpc_response(Command command, const std::vector<String> &datum) {
   std::vector<uint8_t> out;
   uint32_t length = 0;
   out.push_back(command);
