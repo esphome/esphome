@@ -7,7 +7,6 @@ from esphome.const import (
     UNIT_VOLT,
     UNIT_WATT,
     UNIT_AMPERE,
-    UNIT_WATT_HOURS,
     DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_POWER,
     DEVICE_CLASS_ENERGY,
@@ -22,10 +21,16 @@ AUTO_LOAD = ["dsmr"]
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_DSMR_ID): cv.use_id(DSMR),
+        cv.Optional("energy_delivered_lux"): sensor.sensor_schema(
+            "kWh", ICON_EMPTY, 3, DEVICE_CLASS_ENERGY
+        ),
         cv.Optional("energy_delivered_tariff1"): sensor.sensor_schema(
             "kWh", ICON_EMPTY, 3, DEVICE_CLASS_ENERGY
         ),
         cv.Optional("energy_delivered_tariff2"): sensor.sensor_schema(
+            "kWh", ICON_EMPTY, 3, DEVICE_CLASS_ENERGY
+        ),
+        cv.Optional("energy_returned_lux"): sensor.sensor_schema(
             "kWh", ICON_EMPTY, 3, DEVICE_CLASS_ENERGY
         ),
         cv.Optional("energy_returned_tariff1"): sensor.sensor_schema(

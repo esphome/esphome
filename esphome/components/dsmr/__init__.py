@@ -6,6 +6,8 @@ from esphome.const import (
     CONF_UART_ID,
 )
 
+CODEOWNERS = ["@glmnet", "@zuidwijk"]
+
 DEPENDENCIES = ["uart"]
 AUTO_LOAD = ["sensor", "text_sensor"]
 
