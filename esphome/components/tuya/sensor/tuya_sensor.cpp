@@ -7,7 +7,7 @@ namespace tuya {
 static const char *TAG = "tuya.sensor";
 
 void TuyaSensor::setup() {
-  this->parent_->register_listener(this->sensor_id_, [this](TuyaDatapoint datapoint) {
+  this->parent_->register_listener(this->sensor_id_, [this](const TuyaDatapoint& datapoint) {
     if (datapoint.type == TuyaDatapointType::BOOLEAN) {
       ESP_LOGV(TAG, "MCU reported sensor %u is: %s", datapoint.id, ONOFF(datapoint.value_bool));
       this->publish_state(datapoint.value_bool);

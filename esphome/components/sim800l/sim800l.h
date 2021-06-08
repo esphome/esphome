@@ -1,5 +1,7 @@
 #pragma once
 
+#include <utility>
+
 #include "esphome/core/component.h"
 #include "esphome/components/uart/uart.h"
 #include "esphome/core/automation.h"
@@ -43,11 +45,11 @@ class Sim800LComponent : public uart::UARTDevice, public PollingComponent {
   void add_on_sms_received_callback(std::function<void(std::string, std::string)> callback) {
     this->callback_.add(std::move(callback));
   }
-  void send_sms(std::string recipient, std::string message);
-  void dial(std::string recipient);
+  void send_sms(const std::string& recipient, const std::string& message);
+  void dial(const std::string& recipient);
 
  protected:
-  void send_cmd_(std::string);
+  void send_cmd_(const std::string&);
   void parse_cmd_(std::string);
 
   std::string sender_;
@@ -72,7 +74,7 @@ class Sim800LReceivedMessageTrigger : public Trigger<std::string, std::string> {
  public:
   explicit Sim800LReceivedMessageTrigger(Sim800LComponent *parent) {
     parent->add_on_sms_received_callback(
-        [this](std::string message, std::string sender) { this->trigger(message, sender); });
+        [this](std::string message, std::string sender) { this->trigger(std::move(message), std::move(sender)); });
   }
 };
 

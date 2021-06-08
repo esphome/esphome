@@ -242,7 +242,7 @@ void WebServer::handle_js_request(AsyncWebServerRequest *request) {
 void WebServer::on_sensor_update(sensor::Sensor *obj, float state) {
   this->events_.send(this->sensor_json(obj, state).c_str(), "state");
 }
-void WebServer::handle_sensor_request(AsyncWebServerRequest *request, UrlMatch match) {
+void WebServer::handle_sensor_request(AsyncWebServerRequest *request, const UrlMatch& match) {
   for (sensor::Sensor *obj : App.get_sensors()) {
     if (obj->is_internal())
       continue;
@@ -270,7 +270,7 @@ std::string WebServer::sensor_json(sensor::Sensor *obj, float value) {
 void WebServer::on_text_sensor_update(text_sensor::TextSensor *obj, std::string state) {
   this->events_.send(this->text_sensor_json(obj, state).c_str(), "state");
 }
-void WebServer::handle_text_sensor_request(AsyncWebServerRequest *request, UrlMatch match) {
+void WebServer::handle_text_sensor_request(AsyncWebServerRequest *request, const UrlMatch& match) {
   for (text_sensor::TextSensor *obj : App.get_text_sensors()) {
     if (obj->is_internal())
       continue;
@@ -302,7 +302,7 @@ std::string WebServer::switch_json(switch_::Switch *obj, bool value) {
     root["value"] = value;
   });
 }
-void WebServer::handle_switch_request(AsyncWebServerRequest *request, UrlMatch match) {
+void WebServer::handle_switch_request(AsyncWebServerRequest *request, const UrlMatch& match) {
   for (switch_::Switch *obj : App.get_switches()) {
     if (obj->is_internal())
       continue;
@@ -343,7 +343,7 @@ std::string WebServer::binary_sensor_json(binary_sensor::BinarySensor *obj, bool
     root["value"] = value;
   });
 }
-void WebServer::handle_binary_sensor_request(AsyncWebServerRequest *request, UrlMatch match) {
+void WebServer::handle_binary_sensor_request(AsyncWebServerRequest *request, const UrlMatch& match) {
   for (binary_sensor::BinarySensor *obj : App.get_binary_sensors()) {
     if (obj->is_internal())
       continue;
@@ -387,7 +387,7 @@ std::string WebServer::fan_json(fan::FanState *obj) {
       root["oscillation"] = obj->oscillating;
   });
 }
-void WebServer::handle_fan_request(AsyncWebServerRequest *request, UrlMatch match) {
+void WebServer::handle_fan_request(AsyncWebServerRequest *request, const UrlMatch& match) {
   for (fan::FanState *obj : App.get_fans()) {
     if (obj->is_internal())
       continue;
@@ -453,7 +453,7 @@ void WebServer::on_light_update(light::LightState *obj) {
     return;
   this->events_.send(this->light_json(obj).c_str(), "state");
 }
-void WebServer::handle_light_request(AsyncWebServerRequest *request, UrlMatch match) {
+void WebServer::handle_light_request(AsyncWebServerRequest *request, const UrlMatch& match) {
   for (light::LightState *obj : App.get_lights()) {
     if (obj->is_internal())
       continue;
@@ -528,7 +528,7 @@ void WebServer::on_cover_update(cover::Cover *obj) {
     return;
   this->events_.send(this->cover_json(obj).c_str(), "state");
 }
-void WebServer::handle_cover_request(AsyncWebServerRequest *request, UrlMatch match) {
+void WebServer::handle_cover_request(AsyncWebServerRequest *request, const UrlMatch& match) {
   for (cover::Cover *obj : App.get_covers()) {
     if (obj->is_internal())
       continue;

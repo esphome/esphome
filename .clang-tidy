@@ -64,7 +64,6 @@ Checks: >-
   -modernize-use-trailing-return-type,
   -mpi-*,
   -objc-*,
-  -performance-unnecessary-value-param,
   -readability-braces-around-statements,
   -readability-const-return-type,
   -readability-convert-member-functions-to-static,

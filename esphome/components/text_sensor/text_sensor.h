@@ -22,7 +22,7 @@ class TextSensor : public Nameable {
   explicit TextSensor();
   explicit TextSensor(const std::string &name);
 
-  void publish_state(std::string state);
+  void publish_state(const std::string& state);
 
   void set_icon(const std::string &icon);
 

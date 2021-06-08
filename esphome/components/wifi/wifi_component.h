@@ -251,7 +251,7 @@ class WiFiComponent : public Component {
   bool wifi_sta_ip_config_(optional<ManualIP> manual_ip);
   IPAddress wifi_sta_ip_();
   bool wifi_apply_hostname_();
-  bool wifi_sta_connect_(WiFiAP ap);
+  bool wifi_sta_connect_(const WiFiAP& ap);
   void wifi_pre_setup_();
   wl_status_t wifi_sta_status_();
   bool wifi_scan_start_();

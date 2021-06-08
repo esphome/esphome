@@ -626,7 +626,7 @@ void WiFiAP::set_password(const std::string &password) { this->password_ = passw
 void WiFiAP::set_eap(optional<EAPAuth> eap_auth) { this->eap_ = eap_auth; }
 #endif
 void WiFiAP::set_channel(optional<uint8_t> channel) { this->channel_ = channel; }
-void WiFiAP::set_manual_ip(optional<ManualIP> manual_ip) { this->manual_ip_ = manual_ip; }
+void WiFiAP::set_manual_ip(optional<ManualIP> manual_ip) { this->manual_ip_ = std::move(manual_ip); }
 void WiFiAP::set_hidden(bool hidden) { this->hidden_ = hidden; }
 const std::string &WiFiAP::get_ssid() const { return this->ssid_; }
 const optional<bssid_t> &WiFiAP::get_bssid() const { return this->bssid_; }

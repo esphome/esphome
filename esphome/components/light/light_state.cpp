@@ -173,7 +173,7 @@ void LightState::loop() {
 }
 LightTraits LightState::get_traits() { return this->output_->get_traits(); }
 const std::vector<LightEffect *> &LightState::get_effects() const { return this->effects_; }
-void LightState::add_effects(const std::vector<LightEffect *> effects) {
+void LightState::add_effects(const std::vector<LightEffect *>& effects) {
   this->effects_.reserve(this->effects_.size() + effects.size());
   for (auto *effect : effects) {
     this->effects_.push_back(effect);

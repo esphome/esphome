@@ -33,7 +33,7 @@ class RemoteTransmitData {
 
   const std::vector<int32_t> &get_data() const { return this->data_; }
 
-  void set_data(std::vector<int32_t> data) {
+  void set_data(const std::vector<int32_t>& data) {
     this->data_.clear();
     this->data_.reserve(data.size());
     for (auto dat : data)

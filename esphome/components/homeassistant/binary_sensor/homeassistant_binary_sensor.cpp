@@ -8,7 +8,7 @@ namespace homeassistant {
 static const char *TAG = "homeassistant.binary_sensor";
 
 void HomeassistantBinarySensor::setup() {
-  api::global_api_server->subscribe_home_assistant_state(this->entity_id_, this->attribute_, [this](std::string state) {
+  api::global_api_server->subscribe_home_assistant_state(this->entity_id_, this->attribute_, [this](const std::string& state) {
     auto val = parse_on_off(state.c_str());
     switch (val) {
       case PARSE_NONE:

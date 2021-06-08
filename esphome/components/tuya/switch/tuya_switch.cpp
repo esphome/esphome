@@ -7,7 +7,7 @@ namespace tuya {
 static const char *TAG = "tuya.switch";
 
 void TuyaSwitch::setup() {
-  this->parent_->register_listener(this->switch_id_, [this](TuyaDatapoint datapoint) {
+  this->parent_->register_listener(this->switch_id_, [this](const TuyaDatapoint& datapoint) {
     ESP_LOGV(TAG, "MCU reported switch %u is: %s", this->switch_id_, ONOFF(datapoint.value_bool));
     this->publish_state(datapoint.value_bool);
   });

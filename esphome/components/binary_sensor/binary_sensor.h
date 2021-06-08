@@ -60,7 +60,7 @@ class BinarySensor : public Nameable {
   std::string get_device_class();
 
   void add_filter(Filter *filter);
-  void add_filters(std::vector<Filter *> filters);
+  void add_filters(const std::vector<Filter *>& filters);
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
