@@ -1,7 +1,13 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import i2c, sensor
-from esphome.const import CONF_ID, DEVICE_CLASS_EMPTY, ICON_RADIATOR, UNIT_EMPTY
+from esphome.const import (
+    CONF_ID,
+    DEVICE_CLASS_EMPTY,
+    ICON_RADIATOR,
+    STATE_CLASS_MEASUREMENT,
+    UNIT_EMPTY,
+)
 
 DEPENDENCIES = ["i2c"]
 
@@ -19,7 +25,9 @@ CONF_STORE_BASELINE = "store_baseline"
 CONF_VOC_BASELINE = "voc_baseline"
 
 CONFIG_SCHEMA = (
-    sensor.sensor_schema(UNIT_EMPTY, ICON_RADIATOR, 0, DEVICE_CLASS_EMPTY)
+    sensor.sensor_schema(
+        UNIT_EMPTY, ICON_RADIATOR, 0, DEVICE_CLASS_EMPTY, STATE_CLASS_MEASUREMENT
+    )
     .extend(
         {
             cv.GenerateID(): cv.declare_id(SGP40Component),
@@ -38,17 +46,17 @@ CONFIG_SCHEMA = (
 )
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
-    yield i2c.register_i2c_device(var, config)
-    yield sensor.register_sensor(var, config)
+    await cg.register_component(var, config)
+    await i2c.register_i2c_device(var, config)
+    await sensor.register_sensor(var, config)
 
     if CONF_COMPENSATION in config:
         compensation_config = config[CONF_COMPENSATION]
-        sens = yield cg.get_variable(compensation_config[CONF_HUMIDITY_SOURCE])
+        sens = await cg.get_variable(compensation_config[CONF_HUMIDITY_SOURCE])
         cg.add(var.set_humidity_sensor(sens))
-        sens = yield cg.get_variable(compensation_config[CONF_TEMPERATURE_SOURCE])
+        sens = await cg.get_variable(compensation_config[CONF_TEMPERATURE_SOURCE])
         cg.add(var.set_temperature_sensor(sens))
 
     cg.add(var.set_store_baseline(config[CONF_STORE_BASELINE]))

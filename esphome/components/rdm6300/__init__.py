@@ -29,12 +29,12 @@ CONFIG_SCHEMA = (
 )
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
-    yield uart.register_uart_device(var, config)
+    await cg.register_component(var, config)
+    await uart.register_uart_device(var, config)
 
     for conf in config.get(CONF_ON_TAG, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
         cg.add(var.register_trigger(trigger))
-        yield automation.build_automation(trigger, [(cg.uint32, "x")], conf)
+        await automation.build_automation(trigger, [(cg.uint32, "x")], conf)

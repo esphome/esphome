@@ -32,18 +32,18 @@ CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
+    await cg.register_component(var, config)
 
     # override default min power to 10%
     if CONF_MIN_POWER not in config:
         config[CONF_MIN_POWER] = 0.1
-    yield output.register_output(var, config)
+    await output.register_output(var, config)
 
-    pin = yield cg.gpio_pin_expression(config[CONF_GATE_PIN])
+    pin = await cg.gpio_pin_expression(config[CONF_GATE_PIN])
     cg.add(var.set_gate_pin(pin))
-    pin = yield cg.gpio_pin_expression(config[CONF_ZERO_CROSS_PIN])
+    pin = await cg.gpio_pin_expression(config[CONF_ZERO_CROSS_PIN])
     cg.add(var.set_zero_cross_pin(pin))
     cg.add(var.set_init_with_half_cycle(config[CONF_INIT_WITH_HALF_CYCLE]))
     cg.add(var.set_method(config[CONF_METHOD]))

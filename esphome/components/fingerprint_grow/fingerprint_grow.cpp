@@ -75,6 +75,7 @@ void FingerprintGrowComponent::enroll_fingerprint(uint16_t finger_id, uint8_t nu
 void FingerprintGrowComponent::finish_enrollment(uint8_t result) {
   if (result == OK) {
     this->enrollment_done_callback_.call(this->enrollment_slot_);
+    this->get_fingerprint_count_();
   } else {
     this->enrollment_failed_callback_.call(this->enrollment_slot_);
   }

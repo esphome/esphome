@@ -15,7 +15,6 @@ from esphome.const import (
     CONF_ON_BLE_SERVICE_DATA_ADVERTISE,
     CONF_ON_BLE_MANUFACTURER_DATA_ADVERTISE,
 )
-from esphome.core import coroutine
 
 ESP_PLATFORMS = [ESP_PLATFORM_ESP32]
 AUTO_LOAD = ["xiaomi_ble", "ruuvi_ble"]
@@ -177,9 +176,9 @@ ESP_BLE_DEVICE_SCHEMA = cv.Schema(
 )
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
+    await cg.register_component(var, config)
     params = config[CONF_SCAN_PARAMETERS]
     cg.add(var.set_scan_duration(params[CONF_DURATION]))
     cg.add(var.set_scan_interval(int(params[CONF_INTERVAL].total_milliseconds / 0.625)))
@@ -189,7 +188,7 @@ def to_code(config):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         if CONF_MAC_ADDRESS in conf:
             cg.add(trigger.set_address(conf[CONF_MAC_ADDRESS].as_hex))
-        yield automation.build_automation(trigger, [(ESPBTDeviceConstRef, "x")], conf)
+        await automation.build_automation(trigger, [(ESPBTDeviceConstRef, "x")], conf)
     for conf in config.get(CONF_ON_BLE_SERVICE_DATA_ADVERTISE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         if len(conf[CONF_SERVICE_UUID]) == len(bt_uuid16_format):
@@ -201,7 +200,7 @@ def to_code(config):
             cg.add(trigger.set_service_uuid128(uuid128))
         if CONF_MAC_ADDRESS in conf:
             cg.add(trigger.set_address(conf[CONF_MAC_ADDRESS].as_hex))
-        yield automation.build_automation(trigger, [(adv_data_t_const_ref, "x")], conf)
+        await automation.build_automation(trigger, [(adv_data_t_const_ref, "x")], conf)
     for conf in config.get(CONF_ON_BLE_MANUFACTURER_DATA_ADVERTISE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         if len(conf[CONF_MANUFACTURER_ID]) == len(bt_uuid16_format):
@@ -213,18 +212,16 @@ def to_code(config):
             cg.add(trigger.set_manufacturer_uuid128(uuid128))
         if CONF_MAC_ADDRESS in conf:
             cg.add(trigger.set_address(conf[CONF_MAC_ADDRESS].as_hex))
-        yield automation.build_automation(trigger, [(adv_data_t_const_ref, "x")], conf)
+        await automation.build_automation(trigger, [(adv_data_t_const_ref, "x")], conf)
 
 
-@coroutine
-def register_ble_device(var, config):
-    paren = yield cg.get_variable(config[CONF_ESP32_BLE_ID])
+async def register_ble_device(var, config):
+    paren = await cg.get_variable(config[CONF_ESP32_BLE_ID])
     cg.add(paren.register_listener(var))
-    yield var
+    return var
 
 
-@coroutine
-def register_client(var, config):
-    paren = yield cg.get_variable(config[CONF_ESP32_BLE_ID])
+async def register_client(var, config):
+    paren = await cg.get_variable(config[CONF_ESP32_BLE_ID])
     cg.add(paren.register_client(var))
-    yield var
+    return var

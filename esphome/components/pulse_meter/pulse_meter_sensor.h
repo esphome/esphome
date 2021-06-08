@@ -15,6 +15,8 @@ class PulseMeterSensor : public sensor::Sensor, public Component {
   void set_timeout_us(uint32_t timeout) { this->timeout_us_ = timeout; }
   void set_total_sensor(sensor::Sensor *sensor) { this->total_sensor_ = sensor; }
 
+  void set_total_pulses(uint32_t pulses);
+
   void setup() override;
   void loop() override;
   float get_setup_priority() const override { return setup_priority::DATA; }

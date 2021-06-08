@@ -220,7 +220,8 @@ void SGP40Component::update() {
 
   uint32_t voc_index = this->measure_voc_index_();
 
-  if (this->samples_read_++ < this->samples_to_stabalize_) {
+  if (this->samples_read_ < this->samples_to_stabalize_) {
+    this->samples_read_++;
     ESP_LOGD(TAG, "Sensor has not collected enough samples yet. (%d/%d) VOC index is: %u", this->samples_read_,
              this->samples_to_stabalize_, voc_index);
     return;

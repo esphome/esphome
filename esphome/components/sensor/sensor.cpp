@@ -6,6 +6,16 @@ namespace sensor {
 
 static const char *TAG = "sensor";
 
+const char *state_class_to_string(StateClass state_class) {
+  switch (state_class) {
+    case STATE_CLASS_MEASUREMENT:
+      return "measurement";
+    case STATE_CLASS_NONE:
+    default:
+      return "";
+  }
+}
+
 void Sensor::publish_state(float state) {
   this->raw_state = state;
   this->raw_callback_.call(state);
@@ -47,6 +57,14 @@ std::string Sensor::get_device_class() {
   return this->device_class();
 }
 std::string Sensor::device_class() { return ""; }
+void Sensor::set_state_class(StateClass state_class) { this->state_class = state_class; }
+void Sensor::set_state_class(const std::string &state_class) {
+  if (str_equals_case_insensitive(state_class, "measurement")) {
+    this->state_class = STATE_CLASS_MEASUREMENT;
+  } else {
+    ESP_LOGW(TAG, "'%s' - Unrecognized state class %s", this->get_name().c_str(), state_class.c_str());
+  }
+}
 std::string Sensor::get_unit_of_measurement() {
   if (this->unit_of_measurement_.has_value())
     return *this->unit_of_measurement_;
