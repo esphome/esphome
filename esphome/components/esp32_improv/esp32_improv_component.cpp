@@ -123,13 +123,17 @@ void ESP32ImprovComponent::loop() {
         std::string url = "https://my.home-assistant.io/redirect/config_flow_start?domain=esphome";
         std::vector<uint8_t> data = improv::build_rpc_response(improv::WIFI_SETTINGS, {url});
         this->send_response(data);
+        this->set_timeout("end-service", 1000, [this] {
+          this->service_->stop();
+          this->set_state_(improv::STATE_STOPPED);
+        });
       }
       break;
     }
     case improv::STATE_PROVISIONED: {
       this->incoming_data_.clear();
       if (this->status_indicator_ != nullptr)
-        this->status_indicator_->turn_on();
+        this->status_indicator_->turn_off();
       break;
     }
   }
@@ -188,8 +192,10 @@ void ESP32ImprovComponent::start() {
 }
 
 void ESP32ImprovComponent::end() {
-  this->set_state_(improv::STATE_STOPPED);
-  this->service_->stop();
+  this->set_timeout("end-service", 1000, [this] {
+    this->service_->stop();
+    this->set_state_(improv::STATE_STOPPED);
+  });
 }
 
 float ESP32ImprovComponent::get_setup_priority() const {
