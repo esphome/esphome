@@ -1,4 +1,4 @@
-ARG BUILD_FROM=esphome/esphome-base-amd64:3.0.0
+ARG BUILD_FROM=esphome/esphome-base-amd64:3.1.0
 FROM ${BUILD_FROM}
 
 # First install requirements to leverage caching when requirements don't change
@@ -27,4 +27,4 @@ WORKDIR /config
 # in every docker command twice
 ENTRYPOINT ["esphome"]
 # When no arguments given, start the dashboard in the workdir
-CMD ["/config", "dashboard"]
+CMD ["dashboard", "/config"]

@@ -8,6 +8,7 @@ from esphome.const import (
     CONF_TRIGGER_PIN,
     CONF_TIMEOUT,
     DEVICE_CLASS_EMPTY,
+    STATE_CLASS_MEASUREMENT,
     UNIT_METER,
     ICON_ARROW_EXPAND_VERTICAL,
 )
@@ -20,7 +21,13 @@ UltrasonicSensorComponent = ultrasonic_ns.class_(
 )
 
 CONFIG_SCHEMA = (
-    sensor.sensor_schema(UNIT_METER, ICON_ARROW_EXPAND_VERTICAL, 2, DEVICE_CLASS_EMPTY)
+    sensor.sensor_schema(
+        UNIT_METER,
+        ICON_ARROW_EXPAND_VERTICAL,
+        2,
+        DEVICE_CLASS_EMPTY,
+        STATE_CLASS_MEASUREMENT,
+    )
     .extend(
         {
             cv.GenerateID(): cv.declare_id(UltrasonicSensorComponent),
@@ -43,14 +50,14 @@ CONFIG_SCHEMA = (
 )
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
-    yield sensor.register_sensor(var, config)
+    await cg.register_component(var, config)
+    await sensor.register_sensor(var, config)
 
-    trigger = yield cg.gpio_pin_expression(config[CONF_TRIGGER_PIN])
+    trigger = await cg.gpio_pin_expression(config[CONF_TRIGGER_PIN])
     cg.add(var.set_trigger_pin(trigger))
-    echo = yield cg.gpio_pin_expression(config[CONF_ECHO_PIN])
+    echo = await cg.gpio_pin_expression(config[CONF_ECHO_PIN])
     cg.add(var.set_echo_pin(echo))
 
     cg.add(var.set_timeout_us(config[CONF_TIMEOUT] / (0.000343 / 2)))

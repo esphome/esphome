@@ -164,11 +164,13 @@ void HitachiClimate::transmit_state() {
     case climate::CLIMATE_MODE_OFF:
       set_power_(false);
       break;
+    default:
+      ESP_LOGW(TAG, "Unsupported mode: %s", climate_mode_to_string(this->mode));
   }
 
   set_temp_(static_cast<uint8_t>(this->target_temperature));
 
-  switch (this->fan_mode) {
+  switch (this->fan_mode.value()) {
     case climate::CLIMATE_FAN_LOW:
       set_fan_(HITACHI_AC344_FAN_LOW);
       break;

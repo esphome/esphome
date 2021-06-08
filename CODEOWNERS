@@ -31,11 +31,14 @@ esphome/components/climate/* @esphome/core
 esphome/components/climate_ir/* @glmnet
 esphome/components/coolix/* @glmnet
 esphome/components/cover/* @esphome/core
+esphome/components/cs5460a/* @balrog-kun
 esphome/components/ct_clamp/* @jesserockz
 esphome/components/debug/* @OttoWinter
 esphome/components/dfplayer/* @glmnet
 esphome/components/dht/* @OttoWinter
 esphome/components/ds1307/* @badbadc0ffee
+esphome/components/esp32_ble/* @jesserockz
+esphome/components/esp32_improv/* @jesserockz
 esphome/components/exposure_notifications/* @OttoWinter
 esphome/components/ezo/* @ssieb
 esphome/components/fastled_base/* @OttoWinter
@@ -45,6 +48,7 @@ esphome/components/gpio/* @esphome/core
 esphome/components/gps/* @coogle
 esphome/components/homeassistant/* @OttoWinter
 esphome/components/i2c/* @esphome/core
+esphome/components/improv/* @jesserockz
 esphome/components/inkbird_ibsth1_mini/* @fkirill
 esphome/components/inkplate6/* @jesserockz
 esphome/components/integration/* @OttoWinter
@@ -65,6 +69,7 @@ esphome/components/mcp2515/* @danielschramm @mvturnho
 esphome/components/mcp9808/* @k7hpn
 esphome/components/midea_ac/* @dudanov
 esphome/components/midea_dongle/* @dudanov
+esphome/components/mitsubishi/* @RubyBailey
 esphome/components/network/* @esphome/core
 esphome/components/nfc/* @jesserockz
 esphome/components/ota/* @esphome/core
@@ -82,11 +87,13 @@ esphome/components/restart/* @esphome/core
 esphome/components/rf_bridge/* @jesserockz
 esphome/components/rtttl/* @glmnet
 esphome/components/script/* @esphome/core
+esphome/components/sdm_meter/* @jesserockz @polyfaces
 esphome/components/sensor/* @esphome/core
 esphome/components/sgp40/* @SenexCrenshaw
 esphome/components/sht4x/* @sjtrny
 esphome/components/shutdown/* @esphome/core
 esphome/components/sim800l/* @glmnet
+esphome/components/sm2135/* @BoukeHaarsma23
 esphome/components/spi/* @esphome/core
 esphome/components/ssd1322_base/* @kbx81
 esphome/components/ssd1322_spi/* @kbx81
@@ -123,3 +130,4 @@ esphome/components/web_server_base/* @OttoWinter
 esphome/components/whirlpool/* @glmnet
 esphome/components/xiaomi_lywsd03mmc/* @ahpohl
 esphome/components/xiaomi_mhoc401/* @vevsvevs
+esphome/components/xpt2046/* @numo68
