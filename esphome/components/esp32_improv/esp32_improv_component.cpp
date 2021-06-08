@@ -27,7 +27,7 @@ void ESP32ImprovComponent::setup_service() {
 
   this->rpc_ =
       this->service_->create_characteristic(improv::RPC_COMMAND_UUID, esp32_ble::BLECharacteristic::PROPERTY_WRITE);
-  this->rpc_->on_write([this](std::vector<uint8_t> &data) {
+  this->rpc_->on_write([this](const std::vector<uint8_t> &data) {
     if (data.size() > 0) {
       this->incoming_data_.insert(this->incoming_data_.end(), data.begin(), data.end());
     }
