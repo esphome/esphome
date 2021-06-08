@@ -1,4 +1,4 @@
-FROM esphome/esphome-lint-base:3.1.0
+FROM esphome/esphome-lint-base:3.2.0
 
 COPY requirements.txt requirements_test.txt docker/platformio_install_deps.py  platformio.ini /
 RUN \
