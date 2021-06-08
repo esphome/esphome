@@ -8,6 +8,8 @@ from esphome.const import (
     CONF_RANGE,
     DEVICE_CLASS_EMPTY,
     ICON_MAGNET,
+    STATE_CLASS_MEASUREMENT,
+    STATE_CLASS_NONE,
     UNIT_MICROTESLA,
     UNIT_DEGREES,
     ICON_SCREEN_ROTATION,
@@ -78,10 +80,10 @@ def validate_enum(enum_values, units=None, int=True):
 
 
 field_strength_schema = sensor.sensor_schema(
-    UNIT_MICROTESLA, ICON_MAGNET, 1, DEVICE_CLASS_EMPTY
+    UNIT_MICROTESLA, ICON_MAGNET, 1, DEVICE_CLASS_EMPTY, STATE_CLASS_MEASUREMENT
 )
 heading_schema = sensor.sensor_schema(
-    UNIT_DEGREES, ICON_SCREEN_ROTATION, 1, DEVICE_CLASS_EMPTY
+    UNIT_DEGREES, ICON_SCREEN_ROTATION, 1, DEVICE_CLASS_EMPTY, STATE_CLASS_NONE
 )
 
 CONFIG_SCHEMA = (

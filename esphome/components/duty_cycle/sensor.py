@@ -6,6 +6,7 @@ from esphome.const import (
     CONF_ID,
     CONF_PIN,
     DEVICE_CLASS_EMPTY,
+    STATE_CLASS_MEASUREMENT,
     UNIT_PERCENT,
     ICON_PERCENT,
 )
@@ -16,7 +17,9 @@ DutyCycleSensor = duty_cycle_ns.class_(
 )
 
 CONFIG_SCHEMA = (
-    sensor.sensor_schema(UNIT_PERCENT, ICON_PERCENT, 1, DEVICE_CLASS_EMPTY)
+    sensor.sensor_schema(
+        UNIT_PERCENT, ICON_PERCENT, 1, DEVICE_CLASS_EMPTY, STATE_CLASS_MEASUREMENT
+    )
     .extend(
         {
             cv.GenerateID(): cv.declare_id(DutyCycleSensor),

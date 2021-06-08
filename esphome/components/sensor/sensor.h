@@ -13,6 +13,7 @@ namespace sensor {
     if (!obj->get_device_class().empty()) { \
       ESP_LOGCONFIG(TAG, "%s  Device Class: '%s'", prefix, obj->get_device_class().c_str()); \
     } \
+    ESP_LOGCONFIG(TAG, "%s  State Class: '%s'", prefix, state_class_to_string(obj->state_class)); \
     ESP_LOGCONFIG(TAG, "%s  Unit of Measurement: '%s'", prefix, obj->get_unit_of_measurement().c_str()); \
     ESP_LOGCONFIG(TAG, "%s  Accuracy Decimals: %d", prefix, obj->get_accuracy_decimals()); \
     if (!obj->get_icon().empty()) { \
@@ -25,6 +26,16 @@ namespace sensor {
       ESP_LOGV(TAG, "%s  Force Update: YES", prefix); \
     } \
   }
+
+/**
+ * Sensor state classes
+ */
+enum StateClass : uint8_t {
+  STATE_CLASS_NONE = 0,
+  STATE_CLASS_MEASUREMENT = 1,
+};
+
+const char *state_class_to_string(StateClass state_class);
 
 /** Base-class for all sensors.
  *
@@ -138,6 +149,13 @@ class Sensor : public Nameable {
 
   /// Return whether this sensor has gotten a full state (that passed through all filters) yet.
   bool has_state() const;
+
+  // The state class of this sensor state
+  StateClass state_class{STATE_CLASS_NONE};
+
+  /// Manually set the Home Assistant state class (see sensor::state_class)
+  void set_state_class(StateClass state_class);
+  void set_state_class(const std::string &state_class);
 
   /** Override this to set the Home Assistant device class for this sensor.
    *

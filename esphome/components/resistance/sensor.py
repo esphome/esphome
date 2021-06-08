@@ -1,7 +1,14 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import sensor
-from esphome.const import CONF_SENSOR, DEVICE_CLASS_EMPTY, UNIT_OHM, ICON_FLASH, CONF_ID
+from esphome.const import (
+    CONF_SENSOR,
+    DEVICE_CLASS_EMPTY,
+    STATE_CLASS_MEASUREMENT,
+    UNIT_OHM,
+    ICON_FLASH,
+    CONF_ID,
+)
 
 resistance_ns = cg.esphome_ns.namespace("resistance")
 ResistanceSensor = resistance_ns.class_("ResistanceSensor", cg.Component, sensor.Sensor)
@@ -17,7 +24,9 @@ CONFIGURATIONS = {
 }
 
 CONFIG_SCHEMA = (
-    sensor.sensor_schema(UNIT_OHM, ICON_FLASH, 1, DEVICE_CLASS_EMPTY)
+    sensor.sensor_schema(
+        UNIT_OHM, ICON_FLASH, 1, DEVICE_CLASS_EMPTY, STATE_CLASS_MEASUREMENT
+    )
     .extend(
         {
             cv.GenerateID(): cv.declare_id(ResistanceSensor),

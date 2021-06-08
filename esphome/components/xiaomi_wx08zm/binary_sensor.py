@@ -8,6 +8,7 @@ from esphome.const import (
     DEVICE_CLASS_BATTERY,
     DEVICE_CLASS_EMPTY,
     ICON_EMPTY,
+    STATE_CLASS_MEASUREMENT,
     UNIT_PERCENT,
     ICON_BUG,
     CONF_ID,
@@ -31,10 +32,14 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(): cv.declare_id(XiaomiWX08ZM),
             cv.Required(CONF_MAC_ADDRESS): cv.mac_address,
             cv.Optional(CONF_TABLET): sensor.sensor_schema(
-                UNIT_PERCENT, ICON_BUG, 0, DEVICE_CLASS_EMPTY
+                UNIT_PERCENT, ICON_BUG, 0, DEVICE_CLASS_EMPTY, STATE_CLASS_MEASUREMENT
             ),
             cv.Optional(CONF_BATTERY_LEVEL): sensor.sensor_schema(
-                UNIT_PERCENT, ICON_EMPTY, 0, DEVICE_CLASS_BATTERY
+                UNIT_PERCENT,
+                ICON_EMPTY,
+                0,
+                DEVICE_CLASS_BATTERY,
+                STATE_CLASS_MEASUREMENT,
             ),
         }
     )

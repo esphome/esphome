@@ -252,9 +252,9 @@ bool ESPPreferenceObject::load_internal_() {
 
   char key[32];
   sprintf(key, "%u", this->offset_);
-  uint32_t len = (this->length_words_ + 1) * 4;
+  size_t len = (this->length_words_ + 1) * 4;
 
-  uint32_t actual_len;
+  size_t actual_len;
   esp_err_t err = nvs_get_blob(global_preferences.nvs_handle_, key, nullptr, &actual_len);
   if (err) {
     ESP_LOGV(TAG, "nvs_get_blob('%s'): %s - the key might not be set yet", key, esp_err_to_name(err));

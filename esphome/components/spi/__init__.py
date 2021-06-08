@@ -67,3 +67,11 @@ async def register_spi_device(var, config):
     if CONF_CS_PIN in config:
         pin = await cg.gpio_pin_expression(config[CONF_CS_PIN])
         cg.add(var.set_cs_pin(pin))
+
+
+def validate_device(name, config, item_config, require_mosi, require_miso):
+    spi_config = config.get_config_by_id(item_config[CONF_SPI_ID])
+    if require_mosi and CONF_MISO_PIN not in spi_config:
+        raise ValueError(f"Component {name} requires parent spi to declare miso_pin")
+    if require_miso and CONF_MOSI_PIN not in spi_config:
+        raise ValueError(f"Component {name} requires parent spi to declare mosi_pin")

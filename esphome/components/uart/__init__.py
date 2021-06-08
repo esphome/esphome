@@ -92,6 +92,42 @@ async def to_code(config):
     cg.add(var.set_parity(config[CONF_PARITY]))
 
 
+def validate_device(
+    name, config, item_config, baud_rate=None, require_tx=True, require_rx=True
+):
+    if not hasattr(config, "uart_devices"):
+        config.uart_devices = {}
+    devices = config.uart_devices
+
+    uart_config = config.get_config_by_id(item_config[CONF_UART_ID])
+
+    uart_id = uart_config[CONF_ID]
+    device = devices.setdefault(uart_id, {})
+
+    if require_tx:
+        if CONF_TX_PIN not in uart_config:
+            raise ValueError(f"Component {name} requires parent uart to declare tx_pin")
+        if CONF_TX_PIN in device:
+            raise ValueError(
+                f"Component {name} cannot use the same uart.{CONF_TX_PIN} as component {device[CONF_TX_PIN]} is already using it"
+            )
+        device[CONF_TX_PIN] = name
+
+    if require_rx:
+        if CONF_RX_PIN not in uart_config:
+            raise ValueError(f"Component {name} requires parent uart to declare rx_pin")
+        if CONF_RX_PIN in device:
+            raise ValueError(
+                f"Component {name} cannot use the same uart.{CONF_RX_PIN} as component {device[CONF_RX_PIN]} is already using it"
+            )
+        device[CONF_RX_PIN] = name
+
+    if baud_rate and uart_config[CONF_BAUD_RATE] != baud_rate:
+        raise ValueError(
+            f"Component {name} requires parent uart baud rate be {baud_rate}"
+        )
+
+
 # A schema to use for all UART devices, all UART integrations must extend this!
 UART_DEVICE_SCHEMA = cv.Schema(
     {

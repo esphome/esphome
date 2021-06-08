@@ -1,0 +1,36 @@
+esphome:
+  name: test5
+  platform: ESP32
+  board: nodemcu-32s
+  build_path: build/test5
+
+wifi:
+  networks:
+    - ssid: 'MySSID'
+      password: 'password1'
+
+api:
+
+ota:
+
+logger:
+
+binary_sensor:
+  - platform: gpio
+    pin: GPIO0
+    id: io0_button
+
+output:
+  - platform: gpio
+    pin: GPIO2
+    id: built_in_led
+
+esp32_ble:
+  server:
+    manufacturer: "ESPHome"
+    model: "Test5"
+
+esp32_improv:
+  authorizer: io0_button
+  authorized_duration: 1min
+  status_indicator: built_in_led
