@@ -68,18 +68,17 @@ void ICACHE_RAM_ATTR PulseMeterSensor::gpio_intr(PulseMeterSensor *sensor) {
     return;
   }
 
-  // Ignore the first detected pulse (we need at least two pulses to measure the width)
-  if (sensor->last_detected_edge_us_ != 0) {
-    // Check to see if we should filter this edge out
-    if ((now - sensor->last_detected_edge_us_) >= sensor->filter_us_) {
+  // Check to see if we should filter this edge out
+  if ((now - sensor->last_detected_edge_us_) >= sensor->filter_us_) {
+    // Ignore the first detected pulse (we need at least two pulses to measure the width)
+    if (sensor->last_detected_edge_us_ != 0) {
       // Don't measure the first valid pulse (we need at least two pulses to measure the width)
       if (sensor->last_valid_edge_us_ != 0) {
         sensor->pulse_width_us_ = (now - sensor->last_valid_edge_us_);
       }
-
-      sensor->total_pulses_++;
       sensor->last_valid_edge_us_ = now;
     }
+    sensor->total_pulses_++;
   }
 
   sensor->last_detected_edge_us_ = now;
