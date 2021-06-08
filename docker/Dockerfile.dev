@@ -1,9 +1,1 @@
 FROM esphome/esphome-lint:latest
-
-RUN export DEBIAN_FRONTEND=noninteractive \
- && apt-get update \
- && apt-get install -y --no-install-recommends \
-     python3-wheel net-tools \
-     clang-tidy-7 nano \
- && apt-get clean \
- && rm -rf /var/lib/apt/lists/*
