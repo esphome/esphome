@@ -331,3 +331,5 @@ async def to_code(config):
 
     if config[CONF_INCLUDES]:
         CORE.add_job(add_includes, config[CONF_INCLUDES])
+
+    cg.add_define("ESPHOME_BOARD", CORE.board)

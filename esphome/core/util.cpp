@@ -100,7 +100,7 @@ void network_setup_mdns(IPAddress address, int interface) {
 #ifdef ARDUINO_ARCH_ESP32
       MDNS.addServiceTxt("esphomelib", "tcp", "platform", "ESP32");
 #endif
-      MDNS.addServiceTxt("esphomelib", "tcp", "board", ARDUINO_VARIANT);
+      MDNS.addServiceTxt("esphomelib", "tcp", "board", ESPHOME_BOARD);
     } else {
 #endif
       // Publish "http" service if not using native API nor the webserver component
