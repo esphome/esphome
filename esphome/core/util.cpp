@@ -94,6 +94,11 @@ void network_setup_mdns(IPAddress address, int interface) {
       MDNS.addServiceTxt("esphomelib", "tcp", "version", ESPHOME_VERSION);
       MDNS.addServiceTxt("esphomelib", "tcp", "address", network_get_address().c_str());
       MDNS.addServiceTxt("esphomelib", "tcp", "mac", get_mac_address().c_str());
+
+#ifdef ESPHOME_PROJECT_NAME
+      MDNS.addServiceTxt("esphomelib", "tcp", "project_name", ESPHOME_PROJECT_NAME);
+      MDNS.addServiceTxt("esphomelib", "tcp", "project_version", ESPHOME_PROJECT_VERSION);
+#endif
     } else {
 #endif
       // Publish "http" service if not using native API nor the webserver component
