@@ -7,9 +7,9 @@ namespace mqtt_subscribe {
 static const char *TAG = "mqtt_subscribe.text_sensor";
 
 void MQTTSubscribeTextSensor::setup() {
-  this->parent_->subscribe(this->topic_,
-                           [this](const std::string &topic, std::string payload) { this->publish_state(payload); },
-                           this->qos_);
+  this->parent_->subscribe(
+      this->topic_, [this](const std::string &topic, std::string payload) { this->publish_state(payload); },
+      this->qos_);
 }
 float MQTTSubscribeTextSensor::get_setup_priority() const { return setup_priority::AFTER_CONNECTION; }
 void MQTTSubscribeTextSensor::set_qos(uint8_t qos) { this->qos_ = qos; }
