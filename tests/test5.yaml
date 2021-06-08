@@ -3,6 +3,9 @@ esphome:
   platform: ESP32
   board: nodemcu-32s
   build_path: build/test5
+  project:
+    name: ESPHome Test5 Project
+    version: "1.0.0"
 
 wifi:
   networks:
