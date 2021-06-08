@@ -13,10 +13,6 @@ struct SendDiscoveryConfig {
 };
 
 #define LOG_MQTT_COMPONENT(state_topic, command_topic) \
-  if (is_internal()) { \
-    ESP_LOGCONFIG(TAG, "  Base component is internal, not exposed via MQTT"); \
-    return; \
-  } \
   if (state_topic) { \
     ESP_LOGCONFIG(TAG, "  State Topic: '%s'", this->get_state_topic_().c_str()); \
   } \
@@ -61,6 +57,8 @@ class MQTTComponent : public Component {
 
   /// Override setup_ so that we can call send_discovery() when needed.
   void call_setup() override;
+
+  void dump_config() override;
 
   void call_loop() override;
 
@@ -134,6 +132,9 @@ class MQTTComponent : public Component {
   void subscribe_json(const std::string &topic, const mqtt_json_callback_t &callback, uint8_t qos = 0);
 
  protected:
+  /// Performs the actual dump of the configuration (only called for non-internal components).
+  virtual void dump_config_() { Component::dump_config(); }
+
   /// Helper method to get the discovery topic for this component.
   std::string get_discovery_topic_(const MQTTDiscoveryInfo &discovery_info) const;
 

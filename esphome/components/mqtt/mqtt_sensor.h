@@ -33,8 +33,6 @@ class MQTTSensorComponent : public mqtt::MQTTComponent {
   /// Override setup.
   void setup() override;
 
-  void dump_config() override;
-
   /// Get the expire_after in milliseconds used for Home Assistant discovery, first checks override.
   uint32_t get_expire_after() const;
 
@@ -43,6 +41,8 @@ class MQTTSensorComponent : public mqtt::MQTTComponent {
   bool is_internal() override;
 
  protected:
+  void dump_config_() override;
+
   /// Override for MQTTComponent, returns "sensor".
   std::string component_type() const override;
 

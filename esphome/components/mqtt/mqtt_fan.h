@@ -27,7 +27,6 @@ class MQTTFanComponent : public mqtt::MQTTComponent {
   // (In most use cases you won't need these)
   /// Setup the fan subscriptions and discovery.
   void setup() override;
-  void dump_config() override;
 
   /// Send the full current state to MQTT.
   bool send_initial_state() override;
@@ -40,6 +39,8 @@ class MQTTFanComponent : public mqtt::MQTTComponent {
   bool is_internal() override;
 
  protected:
+  void dump_config_() override;
+
   std::string friendly_name() const override;
 
   fan::FanState *state_;

@@ -20,8 +20,6 @@ class MQTTBinarySensorComponent : public mqtt::MQTTComponent {
 
   void setup() override;
 
-  void dump_config() override;
-
   void send_discovery(JsonObject &root, mqtt::SendDiscoveryConfig &config) override;
 
   void set_is_status(bool status);
@@ -31,6 +29,8 @@ class MQTTBinarySensorComponent : public mqtt::MQTTComponent {
   bool is_internal() override;
 
  protected:
+  void dump_config_() override;
+
   std::string friendly_name() const override;
   std::string component_type() const override;
 

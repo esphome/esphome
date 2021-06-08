@@ -169,6 +169,15 @@ void MQTTComponent::call_setup() {
   }
 }
 
+void MQTTComponent::dump_config() {
+  if (this->is_internal()) {
+    ESP_LOGCONFIG(TAG, "Component %s is internal, not exposed via MQTT", friendly_name().c_str());
+    return;
+  }
+
+  this->dump_config_();
+}
+
 void MQTTComponent::call_loop() {
   if (this->is_internal())
     return;
