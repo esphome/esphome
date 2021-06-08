@@ -17,6 +17,7 @@ Checks: >-
   -cert-dcl51-cpp,
   -cert-err58-cpp,
   -cert-oop54-cpp,
+  -cert-oop57-cpp,
   -cert-str34-c,
   -clang-analyzer-core.CallAndMessage,
   -clang-analyzer-deadcode.DeadStores,
