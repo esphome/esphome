@@ -115,7 +115,7 @@ class WiFiAP {
 
 class WiFiScanResult {
  public:
-  WiFiScanResult(const bssid_t &bssid, const std::string &ssid, uint8_t channel, int8_t rssi, bool with_auth,
+  WiFiScanResult(const bssid_t &bssid, std::string ssid, uint8_t channel, int8_t rssi, bool with_auth,
                  bool is_hidden);
 
   bool matches(const WiFiAP &config);

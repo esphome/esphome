@@ -42,7 +42,7 @@ template<typename T> class optional {  // NOLINT
 
   optional(nullopt_t) {}
 
-  optional(T const &arg) : has_value_(true), value_(arg) {}
+  optional(T const &arg) : has_value_(true), value_(arg) {}  // NOLINT
 
   template<class U> optional(optional<U> const &other) : has_value_(other.has_value()), value_(other.value()) {}
 

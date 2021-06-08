@@ -57,7 +57,6 @@ Checks: >-
   -misc-no-recursion,
   -misc-unused-parameters,
   -modernize-avoid-c-arrays,
-  -modernize-pass-by-value,
   -modernize-return-braced-init-list,
   -modernize-use-auto,
   -modernize-use-default-member-init,

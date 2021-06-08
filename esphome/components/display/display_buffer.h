@@ -327,7 +327,7 @@ class DisplayBuffer {
 
 class DisplayPage {
  public:
-  DisplayPage(const display_writer_t &writer);
+  DisplayPage(display_writer_t writer);
   void show();
   void show_next();
   void show_prev();
