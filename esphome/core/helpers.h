@@ -27,8 +27,6 @@
 
 namespace esphome {
 
-static const uint32_t SEMAPHORE_MAX_DELAY = 4294967295UL;
-
 /// The characters that are allowed in a hostname.
 extern const char *HOSTNAME_CHARACTER_ALLOWLIST;
 

@@ -32,10 +32,10 @@ void BLECharacteristic::set_value(std::vector<uint8_t> value) {
   this->value_ = value;
   xSemaphoreGive(this->set_value_lock_);
 }
-void BLECharacteristic::set_value(std::string value) {
+void BLECharacteristic::set_value(const std::string &value) {
   this->set_value(std::vector<uint8_t>(value.begin(), value.end()));
 }
-void BLECharacteristic::set_value(uint8_t *data, size_t length) {
+void BLECharacteristic::set_value(const uint8_t *data, size_t length) {
   this->set_value(std::vector<uint8_t>(data, data + length));
 }
 void BLECharacteristic::set_value(uint8_t &data) {
@@ -105,7 +105,7 @@ bool BLECharacteristic::do_create(BLEService *service) {
   esp_attr_control_t control;
   control.auto_rsp = ESP_GATT_RSP_BY_APP;
 
-  xSemaphoreTake(this->create_lock_, SEMAPHORE_MAX_DELAY);
+  xSemaphoreTake(this->create_lock_, portMAX_DELAY);
   ESP_LOGV(TAG, "Creating characteristic - %s", this->uuid_.to_string().c_str());
 
   esp_bt_uuid_t uuid = this->uuid_.get_uuid();
@@ -117,7 +117,7 @@ bool BLECharacteristic::do_create(BLEService *service) {
     return false;
   }
 
-  xSemaphoreWait(this->create_lock_, SEMAPHORE_MAX_DELAY);
+  xSemaphoreWait(this->create_lock_, portMAX_DELAY);
 
   for (auto *descriptor : this->descriptors_) {
     descriptor->do_create(this);

@@ -23,7 +23,7 @@ class BLEService {
   BLECharacteristic *get_characteristic(ESPBTUUID uuid);
   BLECharacteristic *get_characteristic(uint16_t uuid);
 
-  BLECharacteristic *create_characteristic(const std::string uuid, esp_gatt_char_prop_t properties);
+  BLECharacteristic *create_characteristic(const std::string &uuid, esp_gatt_char_prop_t properties);
   BLECharacteristic *create_characteristic(uint16_t uuid, esp_gatt_char_prop_t properties);
   BLECharacteristic *create_characteristic(ESPBTUUID uuid, esp_gatt_char_prop_t properties);
 

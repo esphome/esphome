@@ -2,6 +2,7 @@
 
 #include <stdint.h>
 #include <string>
+#include "WString.h"
 #include <vector>
 
 namespace improv {
@@ -45,9 +46,10 @@ struct ImprovCommand {
   std::string password;
 };
 
-ImprovCommand parse_improv_data(std::vector<uint8_t> &data);
+ImprovCommand parse_improv_data(const std::vector<uint8_t> &data);
 ImprovCommand parse_improv_data(const uint8_t *data, size_t length);
 
-std::vector<uint8_t> build_rpc_response(Command command, std::vector<std::string> datum);
+std::vector<uint8_t> build_rpc_response(Command command, const std::vector<std::string> &datum);
+std::vector<uint8_t> build_rpc_response(Command command, const std::vector<String> &datum);
 
 }  // namespace improv

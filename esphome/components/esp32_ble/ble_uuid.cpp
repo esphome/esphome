@@ -25,7 +25,7 @@ ESPBTUUID ESPBTUUID::from_raw(const uint8_t *data) {
     ret.uuid_.uuid.uuid128[i] = data[i];
   return ret;
 }
-ESPBTUUID ESPBTUUID::from_raw(const std::string data) {
+ESPBTUUID ESPBTUUID::from_raw(const std::string &data) {
   ESPBTUUID ret;
   if (data.length() == 4) {
     ret.uuid_.len = ESP_UUID_LEN_16;
