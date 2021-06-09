@@ -135,7 +135,7 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
 #endif
 
 #ifdef USE_TEXT_SENSOR
-  void on_text_sensor_update(text_sensor::TextSensor *obj, std::string state) override;
+  void on_text_sensor_update(text_sensor::TextSensor *obj, const std::string &state) override;
 
   /// Handle a text sensor request under '/text_sensor/<id>'.
   void handle_text_sensor_request(AsyncWebServerRequest *request, const UrlMatch &match);

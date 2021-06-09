@@ -124,8 +124,8 @@ void MQTTComponent::subscribe(const std::string &topic, mqtt_callback_t callback
   global_mqtt_client->subscribe(topic, std::move(callback), qos);
 }
 
-void MQTTComponent::subscribe_json(const std::string &topic, mqtt_json_callback_t callback, uint8_t qos) {
-  global_mqtt_client->subscribe_json(topic, std::move(callback), qos);
+void MQTTComponent::subscribe_json(const std::string &topic, const mqtt_json_callback_t &callback, uint8_t qos) {
+  global_mqtt_client->subscribe_json(topic, callback, qos);
 }
 
 MQTTComponent::MQTTComponent() = default;

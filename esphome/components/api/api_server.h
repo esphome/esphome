@@ -56,7 +56,7 @@ class APIServer : public Component, public Controller {
   void on_switch_update(switch_::Switch *obj, bool state) override;
 #endif
 #ifdef USE_TEXT_SENSOR
-  void on_text_sensor_update(text_sensor::TextSensor *obj, std::string state) override;
+  void on_text_sensor_update(text_sensor::TextSensor *obj, const std::string &state) override;
 #endif
 #ifdef USE_CLIMATE
   void on_climate_update(climate::Climate *obj) override;

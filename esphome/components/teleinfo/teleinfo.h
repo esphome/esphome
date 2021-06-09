@@ -16,7 +16,7 @@ static const uint16_t MAX_BUF_SIZE = 1024;
 class TeleInfoListener {
  public:
   std::string tag;
-  virtual void publish_val(std::string val){};
+  virtual void publish_val(const std::string &val){};
 };
 class TeleInfo : public PollingComponent, public uart::UARTDevice {
  public:

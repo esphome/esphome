@@ -267,7 +267,7 @@ std::string WebServer::sensor_json(sensor::Sensor *obj, float value) {
 #endif
 
 #ifdef USE_TEXT_SENSOR
-void WebServer::on_text_sensor_update(text_sensor::TextSensor *obj, std::string state) {
+void WebServer::on_text_sensor_update(text_sensor::TextSensor *obj, const std::string &state) {
   this->events_.send(this->text_sensor_json(obj, state).c_str(), "state");
 }
 void WebServer::handle_text_sensor_request(AsyncWebServerRequest *request, const UrlMatch &match) {
