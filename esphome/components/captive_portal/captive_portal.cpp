@@ -64,32 +64,11 @@ void CaptivePortal::handle_wifisave(AsyncWebServerRequest *request) {
   ESP_LOGI(TAG, "Captive Portal Requested WiFi Settings Change:");
   ESP_LOGI(TAG, "  SSID='%s'", ssid.c_str());
   ESP_LOGI(TAG, "  Password=" LOG_SECRET("'%s'"), psk.c_str());
-  this->override_sta_(ssid, psk);
+  wifi::global_wifi_component->save_wifi_sta(ssid, psk);
   request->redirect("/?save=true");
 }
-void CaptivePortal::override_sta_(const std::string &ssid, const std::string &password) {
-  CaptivePortalSettings save{};
-  strcpy(save.ssid, ssid.c_str());
-  strcpy(save.password, password.c_str());
-  this->pref_.save(&save);
 
-  wifi::WiFiAP sta{};
-  sta.set_ssid(ssid);
-  sta.set_password(password);
-  wifi::global_wifi_component->set_sta(sta);
-}
-
-void CaptivePortal::setup() {
-  // Hash with compilation time
-  // This ensures the AP override is not applied for OTA
-  uint32_t hash = fnv1_hash(App.get_compilation_time());
-  this->pref_ = global_preferences.make_preference<CaptivePortalSettings>(hash, true);
-
-  CaptivePortalSettings save{};
-  if (this->pref_.load(&save)) {
-    this->override_sta_(save.ssid, save.password);
-  }
-}
+void CaptivePortal::setup() {}
 void CaptivePortal::start() {
   this->base_->init();
   if (!this->initialized_) {

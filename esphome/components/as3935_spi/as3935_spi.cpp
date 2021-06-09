@@ -33,7 +33,7 @@ void SPIAS3935Component::write_register(uint8_t reg, uint8_t mask, uint8_t bits,
 uint8_t SPIAS3935Component::read_register(uint8_t reg) {
   uint8_t value = 0;
   this->enable();
-  this->write_byte(reg |= SPI_READ_M);
+  this->write_byte(reg | SPI_READ_M);
   value = this->read_byte();
   // According to datsheet, the chip select must be written HIGH, LOW, HIGH
   // to correctly end the READ command.

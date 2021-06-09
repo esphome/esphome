@@ -62,7 +62,7 @@ class DashboardSettings:
             self.using_password = bool(password)
         if self.using_password:
             self.password_hash = password_hash(password)
-        self.config_dir = args.configuration[0]
+        self.config_dir = args.configuration
 
     @property
     def relative_url(self):
@@ -274,9 +274,9 @@ class EsphomeLogsHandler(EsphomeCommandWebSocket):
         return [
             "esphome",
             "--dashboard",
-            config_file,
             "logs",
-            "--serial-port",
+            config_file,
+            "--device",
             json_message["port"],
         ]
 
@@ -287,9 +287,9 @@ class EsphomeUploadHandler(EsphomeCommandWebSocket):
         return [
             "esphome",
             "--dashboard",
-            config_file,
             "run",
-            "--upload-port",
+            config_file,
+            "--device",
             json_message["port"],
         ]
 
@@ -297,40 +297,40 @@ class EsphomeUploadHandler(EsphomeCommandWebSocket):
 class EsphomeCompileHandler(EsphomeCommandWebSocket):
     def build_command(self, json_message):
         config_file = settings.rel_path(json_message["configuration"])
-        return ["esphome", "--dashboard", config_file, "compile"]
+        return ["esphome", "--dashboard", "compile", config_file]
 
 
 class EsphomeValidateHandler(EsphomeCommandWebSocket):
     def build_command(self, json_message):
         config_file = settings.rel_path(json_message["configuration"])
-        return ["esphome", "--dashboard", config_file, "config"]
+        return ["esphome", "--dashboard", "config", config_file]
 
 
 class EsphomeCleanMqttHandler(EsphomeCommandWebSocket):
     def build_command(self, json_message):
         config_file = settings.rel_path(json_message["configuration"])
-        return ["esphome", "--dashboard", config_file, "clean-mqtt"]
+        return ["esphome", "--dashboard", "clean-mqtt", config_file]
 
 
 class EsphomeCleanHandler(EsphomeCommandWebSocket):
     def build_command(self, json_message):
         config_file = settings.rel_path(json_message["configuration"])
-        return ["esphome", "--dashboard", config_file, "clean"]
+        return ["esphome", "--dashboard", "clean", config_file]
 
 
 class EsphomeVscodeHandler(EsphomeCommandWebSocket):
     def build_command(self, json_message):
-        return ["esphome", "--dashboard", "-q", "dummy", "vscode"]
+        return ["esphome", "--dashboard", "-q", "vscode", "dummy"]
 
 
 class EsphomeAceEditorHandler(EsphomeCommandWebSocket):
     def build_command(self, json_message):
-        return ["esphome", "--dashboard", "-q", settings.config_dir, "vscode", "--ace"]
+        return ["esphome", "--dashboard", "-q", "vscode", settings.config_dir, "--ace"]
 
 
 class EsphomeUpdateAllHandler(EsphomeCommandWebSocket):
     def build_command(self, json_message):
-        return ["esphome", "--dashboard", settings.config_dir, "update-all"]
+        return ["esphome", "--dashboard", "update-all", settings.config_dir]
 
 
 class SerialPortRequestHandler(BaseHandler):
