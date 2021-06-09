@@ -4,7 +4,7 @@
 namespace esphome {
 namespace tuya {
 
-static const char *TAG = "tuya.sensor";
+static const char* TAG = "tuya.sensor";
 
 void TuyaSensor::setup() {
   this->parent_->register_listener(this->sensor_id_, [this](const TuyaDatapoint& datapoint) {

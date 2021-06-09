@@ -4,7 +4,7 @@
 namespace esphome {
 namespace tuya {
 
-static const char *TAG = "tuya.light";
+static const char* TAG = "tuya.light";
 
 void TuyaLight::setup() {
   if (this->color_temperature_id_.has_value()) {
@@ -54,9 +54,9 @@ light::LightTraits TuyaLight::get_traits() {
   return traits;
 }
 
-void TuyaLight::setup_state(light::LightState *state) { state_ = state; }
+void TuyaLight::setup_state(light::LightState* state) { state_ = state; }
 
-void TuyaLight::write_state(light::LightState *state) {
+void TuyaLight::write_state(light::LightState* state) {
   float brightness;
   state->current_values_as_brightness(&brightness);
 

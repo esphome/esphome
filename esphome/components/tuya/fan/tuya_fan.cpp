@@ -5,7 +5,7 @@
 namespace esphome {
 namespace tuya {
 
-static const char *TAG = "tuya.fan";
+static const char* TAG = "tuya.fan";
 
 void TuyaFan::setup() {
   auto traits = fan::FanTraits(this->oscillation_id_.has_value(), this->speed_id_.has_value(),

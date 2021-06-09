@@ -442,10 +442,10 @@ static void voc_algorithm_mean_variance_estimator_calculate_gamma(VocAlgorithmPa
       params, F16(1.), F16(VOC_ALGORITHM_INIT_DURATION_VARIANCE), F16(VOC_ALGORITHM_INIT_TRANSITION_VARIANCE));
   sigmoid_gamma_variance =
       voc_algorithm_mean_variance_estimator_sigmoid_process(params, params->m_Mean_Variance_Estimator_Uptime_Gamma);
-  gamma_variance = (params->m_Mean_Variance_Estimator_Gamma +
-                    (fix16_mul((params->m_Mean_Variance_Estimator_Gamma_Initial_Variance -
-                                params->m_Mean_Variance_Estimator_Gamma),
-                               (sigmoid_gamma_variance - sigmoid_gamma_mean))));
+  gamma_variance =
+      (params->m_Mean_Variance_Estimator_Gamma +
+       (fix16_mul((params->m_Mean_Variance_Estimator_Gamma_Initial_Variance - params->m_Mean_Variance_Estimator_Gamma),
+                  (sigmoid_gamma_variance - sigmoid_gamma_mean))));
   gating_threshold_variance =
       (F16(VOC_ALGORITHM_GATING_THRESHOLD) +
        (fix16_mul(F16((VOC_ALGORITHM_GATING_THRESHOLD_INITIAL - VOC_ALGORITHM_GATING_THRESHOLD)),
@@ -509,8 +509,8 @@ static void voc_algorithm_mean_variance_estimator_process(VocAlgorithmParams* pa
                     (fix16_mul((fix16_div((fix16_mul(params->m_Mean_Variance_Estimator_Gamma_Variance, delta_sgp)),
                                           additional_scaling)),
                                delta_sgp))))));
-    params->m_Mean_Variance_Estimator_Mean = (params->m_Mean_Variance_Estimator_Mean +
-                                                (fix16_mul(params->m_Mean_Variance_Estimator_Gamma_Mean, delta_sgp)));
+    params->m_Mean_Variance_Estimator_Mean =
+        (params->m_Mean_Variance_Estimator_Mean + (fix16_mul(params->m_Mean_Variance_Estimator_Gamma_Mean, delta_sgp)));
   }
 }
 
@@ -528,8 +528,7 @@ static void voc_algorithm_mean_variance_estimator_sigmoid_set_parameters(VocAlgo
 static fix16_t voc_algorithm_mean_variance_estimator_sigmoid_process(VocAlgorithmParams* params, fix16_t sample) {
   fix16_t x;
 
-  x = (fix16_mul(params->m_Mean_Variance_Estimator_Sigmoid_K,
-                 (sample - params->m_Mean_Variance_Estimator_Sigmoid_X0)));
+  x = (fix16_mul(params->m_Mean_Variance_Estimator_Sigmoid_K, (sample - params->m_Mean_Variance_Estimator_Sigmoid_X0)));
   if ((x < F16(-50.))) {
     return params->m_Mean_Variance_Estimator_Sigmoid_L;
   } else if ((x > F16(50.))) {

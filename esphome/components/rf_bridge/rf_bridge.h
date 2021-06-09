@@ -54,19 +54,19 @@ class RFBridgeComponent : public uart::UARTDevice, public Component {
     this->advanced_data_callback_.add(std::move(callback));
   }
   void send_code(RFBridgeData data);
-  void send_advanced_code(const RFBridgeAdvancedData& data);
+  void send_advanced_code(const RFBridgeAdvancedData &data);
   void learn();
   void start_advanced_sniffing();
   void stop_advanced_sniffing();
   void start_bucket_sniffing();
-  void send_raw(const std::string& code);
+  void send_raw(const std::string &code);
   void beep(uint16_t ms);
 
  protected:
   void ack_();
   void decode_();
   bool parse_bridge_byte_(uint8_t byte);
-  void write_byte_str_(const std::string& codes);
+  void write_byte_str_(const std::string &codes);
 
   std::vector<uint8_t> rx_buffer_;
   uint32_t last_bridge_byte_{0};
@@ -85,7 +85,8 @@ class RFBridgeReceivedCodeTrigger : public Trigger<RFBridgeData> {
 class RFBridgeReceivedAdvancedCodeTrigger : public Trigger<RFBridgeAdvancedData> {
  public:
   explicit RFBridgeReceivedAdvancedCodeTrigger(RFBridgeComponent *parent) {
-    parent->add_on_advanced_code_received_callback([this](RFBridgeAdvancedData data) { this->trigger(std::move(data)); });
+    parent->add_on_advanced_code_received_callback(
+        [this](RFBridgeAdvancedData data) { this->trigger(std::move(data)); });
   }
 };
 

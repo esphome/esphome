@@ -157,7 +157,7 @@ class MQTTClientComponent : public Component {
    * received.
    * @param qos The QoS of this subscription.
    */
-  void subscribe_json(const std::string &topic, const mqtt_json_callback_t& callback, uint8_t qos = 0);
+  void subscribe_json(const std::string &topic, const mqtt_json_callback_t &callback, uint8_t qos = 0);
 
   /** Unsubscribe from an MQTT topic.
    *

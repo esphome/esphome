@@ -31,7 +31,9 @@ class MideaAC : public midea_dongle::MideaAppliance, public climate::Climate, pu
   void set_custom_fan_modes(std::vector<std::string> custom_fan_modes) {
     this->traits_custom_fan_modes_ = std::move(custom_fan_modes);
   }
-  void set_custom_presets(std::vector<std::string> custom_presets) { this->traits_custom_presets_ = std::move(custom_presets); }
+  void set_custom_presets(std::vector<std::string> custom_presets) {
+    this->traits_custom_presets_ = std::move(custom_presets);
+  }
   bool allow_custom_preset(const std::string &custom_preset) const;
 
  protected:

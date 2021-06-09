@@ -37,10 +37,10 @@ std::string get_mac_address_pretty();
 
 std::string to_string(const std::string &val);
 std::string to_string(int val);
-std::string to_string(long val);  // NOLINT
-std::string to_string(long long val);  // NOLINT
-std::string to_string(unsigned val);  // NOLINT
-std::string to_string(unsigned long val);  // NOLINT
+std::string to_string(long val);                // NOLINT
+std::string to_string(long long val);           // NOLINT
+std::string to_string(unsigned val);            // NOLINT
+std::string to_string(unsigned long val);       // NOLINT
 std::string to_string(unsigned long long val);  // NOLINT
 std::string to_string(float val);
 std::string to_string(double val);

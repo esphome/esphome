@@ -4,7 +4,7 @@
 namespace esphome {
 namespace tuya {
 
-static const char *TAG = "tuya.climate";
+static const char* TAG = "tuya.climate";
 
 void TuyaClimate::setup() {
   if (this->switch_id_.has_value()) {
@@ -50,7 +50,7 @@ void TuyaClimate::setup() {
   }
 }
 
-void TuyaClimate::control(const climate::ClimateCall &call) {
+void TuyaClimate::control(const climate::ClimateCall& call) {
   if (call.get_mode().has_value()) {
     const bool switch_state = *call.get_mode() != climate::CLIMATE_MODE_OFF;
     ESP_LOGV(TAG, "Setting switch: %s", ONOFF(switch_state));

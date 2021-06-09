@@ -148,7 +148,7 @@ void TeleInfo::loop() {
       break;
   }
 }
-void TeleInfo::publish_value_(const std::string& tag, const std::string& val) {
+void TeleInfo::publish_value_(const std::string &tag, const std::string &val) {
   for (auto element : teleinfo_listeners_) {
     if (tag != element->tag)
       continue;

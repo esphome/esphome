@@ -12,7 +12,7 @@ void HttpRequestComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "  User-Agent: %s", this->useragent_);
 }
 
-void HttpRequestComponent::set_url(const std::string& url) {
+void HttpRequestComponent::set_url(const std::string &url) {
   this->url_ = url;
   this->secure_ = url.compare(0, 6, "https:") == 0;
 

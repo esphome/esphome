@@ -61,7 +61,7 @@ void BinarySensor::add_filter(Filter *filter) {
     last_filter->next_ = filter;
   }
 }
-void BinarySensor::add_filters(const std::vector<Filter *>& filters) {
+void BinarySensor::add_filters(const std::vector<Filter *> &filters) {
   for (Filter *filter : filters) {
     this->add_filter(filter);
   }

@@ -269,7 +269,7 @@ class LightState : public Nameable, public Component {
 
   const std::vector<LightEffect *> &get_effects() const;
 
-  void add_effects(const std::vector<LightEffect *>& effects);
+  void add_effects(const std::vector<LightEffect *> &effects);
 
   void current_values_as_binary(bool *binary);
 

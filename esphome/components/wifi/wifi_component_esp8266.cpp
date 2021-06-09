@@ -200,7 +200,7 @@ bool WiFiComponent::wifi_apply_hostname_() {
   return ret;
 }
 
-bool WiFiComponent::wifi_sta_connect_(const WiFiAP& ap) {
+bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
   // enable STA
   if (!this->wifi_mode_(true, {}))
     return false;

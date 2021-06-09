@@ -45,11 +45,11 @@ class Sim800LComponent : public uart::UARTDevice, public PollingComponent {
   void add_on_sms_received_callback(std::function<void(std::string, std::string)> callback) {
     this->callback_.add(std::move(callback));
   }
-  void send_sms(const std::string& recipient, const std::string& message);
-  void dial(const std::string& recipient);
+  void send_sms(const std::string &recipient, const std::string &message);
+  void dial(const std::string &recipient);
 
  protected:
-  void send_cmd_(const std::string&);
+  void send_cmd_(const std::string &);
   void parse_cmd_(std::string);
 
   std::string sender_;
