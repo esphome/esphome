@@ -7,64 +7,51 @@
 
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
-#include "circular_buffer.h"
 
 namespace esphome {
 namespace multi_button {
+	
+enum class MultiButtonState {
+	RELEASED = 0,
+	MAYBE_PRESSED = 1,
+	PRESSED = 2,
+	MAYBE_RELEASED = 3,
+	PRESS_HOLD = 4,
+	MAYBE_NOT_PRESS_HOLD = 5
+};
 
 class MultiButton : public sensor::Sensor, public Component {
 public:
-    void setup() override;
-    void loop() override;
-    void dump_config() override;
-    float get_setup_priority() const override { return setup_priority::HARDWARE; }
+  float get_setup_priority() const override { return setup_priority::HARDWARE; }
+  void setup() override;
+  void dump_config() override;
+  void loop() override;
 
-    void set_pin(GPIOPin *pin) { this->pin_ = pin; }
-    void set_debounce(const int millis) { this->debounce_millis_ = millis; }
+  void set_pin(GPIOPin *pin) { this->pin_ = pin; }
+  void set_debounce(const int millis) { this->debounce_millis_ = millis; }
 	void set_timeout(const int millis) { this->timeout_millis_ = millis; }
-    void set_press_hold_threshold(const int millis) { this->press_hold_threshold_millis_ = millis; }
-    void set_press_hold_update_rate(const float frequency) { this->press_hold_update_interval_millis_ = (int)(1000.0f / frequency); }
+  void set_press_hold_threshold(const int millis) { this->press_hold_threshold_millis_ = millis; }
+  void set_press_hold_update_rate(const float frequency) { this->press_hold_update_interval_millis_ = (int)(1000.0f / frequency); }
     
 protected:
 
-	class GpioEvent {
-	public:
-		unsigned long time;
-		bool level;
-	};
-	
-	enum class MultiButtonState {
-		RELEASED = 0,
-		MAYBE_PRESSED = 1,
-		PRESSED = 2,
-		MAYBE_RELEASED = 3,
-		PRESS_HOLD = 4,
-		MAYBE_NOT_PRESS_HOLD = 5
-	};
-
-	//std::string name_;
-    GPIOPin *pin_;
+  GPIOPin *pin_;
 	// The time in [ms] a button state needs to be stable to be recognized and not ignored as bouncing
 	int debounce_millis_;
 	// The timeout in [ms] before an event is recognized and published. A double press must have a smaller pause than this between two presses
 	int timeout_millis_;
-    // The threshold in [ms] where a normal press becomes a press&hold
+  // The threshold in [ms] where a normal press becomes a press&hold
 	int press_hold_threshold_millis_;
-    // The interval in [ms] at which updates are being published during a press&hold
+  // The interval in [ms] at which updates are being published during a press&hold
 	int press_hold_update_interval_millis_;
-	
-	MultiButtonState state_;
-	//MultiButtonState state_debug_;
-	//bool level_debug_;
-	
-	cbuf_handle_t event_queue_;
+
+	MultiButtonState state_;	
 	unsigned long startTime_;
 	bool level_;
 	int press_count_;
-    int hold_count_;
-	bool reset_;
+  int hold_count_;
+  bool reset_;
 	
-    static void gpio_interrupt_handler_(MultiButton *sensor);
 	void tick_(unsigned long time, bool level);
 };
 
