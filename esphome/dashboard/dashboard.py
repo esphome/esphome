@@ -9,6 +9,7 @@ import json
 import logging
 import multiprocessing
 import os
+import secrets
 import shutil
 import subprocess
 import threading
@@ -358,11 +359,13 @@ class WizardRequestHandler(BaseHandler):
         from esphome import wizard
 
         kwargs = {
-            k: "".join(x.decode() for x in v) for k, v in self.request.arguments.items()
+            k: "".join(x.decode() for x in v) for k, v in self.request.arguments.items() if k in ("name", "platform", "board", "ssid", "psk", "password")
         }
+        kwargs['ota_password'] = secrets.token_hex(16)
         destination = settings.rel_path(kwargs["name"] + ".yaml")
         wizard.wizard_write(path=destination, **kwargs)
-        self.redirect("./?begin=True")
+        self.set_status(200)
+        self.finish()
 
 
 class DownloadBinaryRequestHandler(BaseHandler):
@@ -567,6 +570,22 @@ def is_allowed(configuration):
     return os.path.sep not in configuration
 
 
+class InfoRequestHandler(BaseHandler):
+    @authenticated
+    @bind_config
+    def get(self, configuration=None):
+        yaml_path = settings.rel_path(configuration)
+        all_yaml_files = settings.list_yaml_files()
+
+        if yaml_path not in all_yaml_files:
+            self.set_status(404)
+            return
+
+        self.set_header('content-type', 'application/json')
+        self.write(DashboardEntry(yaml_path).storage.to_json())
+
+
+
 class EditRequestHandler(BaseHandler):
     @authenticated
     @bind_config
@@ -695,6 +714,9 @@ _STATIC_FILE_HASHES = {}
 
 
 def get_static_file_url(name):
+    if get_bool_env('ESPHOME_FRONTEND_DEV'):
+        return f"http://localhost:8500/esphome_frontend/static/{name}"
+
     static_path = os.path.join(os.path.dirname(__file__), "static")
     if name in _STATIC_FILE_HASHES:
         hash_ = _STATIC_FILE_HASHES[name]
@@ -758,6 +780,7 @@ def make_app(debug=False):
             (rel + "vscode", EsphomeVscodeHandler),
             (rel + "ace", EsphomeAceEditorHandler),
             (rel + "update-all", EsphomeUpdateAllHandler),
+            (rel + "info", InfoRequestHandler),
             (rel + "edit", EditRequestHandler),
             (rel + "download.bin", DownloadBinaryRequestHandler),
             (rel + "serial-ports", SerialPortRequestHandler),
