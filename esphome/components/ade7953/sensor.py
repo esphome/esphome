@@ -9,6 +9,7 @@ from esphome.const import (
     DEVICE_CLASS_POWER,
     DEVICE_CLASS_VOLTAGE,
     ICON_EMPTY,
+    STATE_CLASS_MEASUREMENT,
     UNIT_VOLT,
     UNIT_AMPERE,
     UNIT_WATT,
@@ -31,19 +32,27 @@ CONFIG_SCHEMA = (
             cv.GenerateID(): cv.declare_id(ADE7953),
             cv.Optional(CONF_IRQ_PIN): pins.input_pin,
             cv.Optional(CONF_VOLTAGE): sensor.sensor_schema(
-                UNIT_VOLT, ICON_EMPTY, 1, DEVICE_CLASS_VOLTAGE
+                UNIT_VOLT, ICON_EMPTY, 1, DEVICE_CLASS_VOLTAGE, STATE_CLASS_MEASUREMENT
             ),
             cv.Optional(CONF_CURRENT_A): sensor.sensor_schema(
-                UNIT_AMPERE, ICON_EMPTY, 2, DEVICE_CLASS_CURRENT
+                UNIT_AMPERE,
+                ICON_EMPTY,
+                2,
+                DEVICE_CLASS_CURRENT,
+                STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_CURRENT_B): sensor.sensor_schema(
-                UNIT_AMPERE, ICON_EMPTY, 2, DEVICE_CLASS_CURRENT
+                UNIT_AMPERE,
+                ICON_EMPTY,
+                2,
+                DEVICE_CLASS_CURRENT,
+                STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_ACTIVE_POWER_A): sensor.sensor_schema(
-                UNIT_WATT, ICON_EMPTY, 1, DEVICE_CLASS_POWER
+                UNIT_WATT, ICON_EMPTY, 1, DEVICE_CLASS_POWER, STATE_CLASS_MEASUREMENT
             ),
             cv.Optional(CONF_ACTIVE_POWER_B): sensor.sensor_schema(
-                UNIT_WATT, ICON_EMPTY, 1, DEVICE_CLASS_POWER
+                UNIT_WATT, ICON_EMPTY, 1, DEVICE_CLASS_POWER, STATE_CLASS_MEASUREMENT
             ),
         }
     )
@@ -52,10 +61,10 @@ CONFIG_SCHEMA = (
 )
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
-    yield i2c.register_i2c_device(var, config)
+    await cg.register_component(var, config)
+    await i2c.register_i2c_device(var, config)
 
     if CONF_IRQ_PIN in config:
         cg.add(var.set_irq_pin(config[CONF_IRQ_PIN]))
@@ -70,5 +79,5 @@ def to_code(config):
         if key not in config:
             continue
         conf = config[key]
-        sens = yield sensor.new_sensor(conf)
+        sens = await sensor.new_sensor(conf)
         cg.add(getattr(var, f"set_{key}_sensor")(sens))

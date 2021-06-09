@@ -72,7 +72,7 @@ void LgIrClimate::transmit_state() {
       remote_state |= FAN_AUTO;
     } else if (this->mode == climate::CLIMATE_MODE_COOL || this->mode == climate::CLIMATE_MODE_DRY ||
                this->mode == climate::CLIMATE_MODE_HEAT) {
-      switch (this->fan_mode) {
+      switch (this->fan_mode.value()) {
         case climate::CLIMATE_FAN_HIGH:
           remote_state |= FAN_MAX;
           break;

@@ -67,7 +67,7 @@ bool RFBridgeComponent::parse_bridge_byte_(uint8_t byte) {
 
       data.length = raw[2];
       data.protocol = raw[3];
-      char next_byte[2];
+      char next_byte[3];
       for (uint8_t i = 0; i < data.length - 1; i++) {
         sprintf(next_byte, "%02X", raw[4 + i]);
         data.code += next_byte;
@@ -85,7 +85,7 @@ bool RFBridgeComponent::parse_bridge_byte_(uint8_t byte) {
 
       uint8_t buckets = raw[2] << 1;
       std::string str;
-      char next_byte[2];
+      char next_byte[3];
 
       for (uint32_t i = 0; i <= at; i++) {
         sprintf(next_byte, "%02X", raw[i]);
@@ -201,10 +201,29 @@ void RFBridgeComponent::stop_advanced_sniffing() {
   this->flush();
 }
 
+void RFBridgeComponent::start_bucket_sniffing() {
+  ESP_LOGD(TAG, "Raw Bucket Sniffing on");
+  this->write(RF_CODE_START);
+  this->write(RF_CODE_RFIN_BUCKET);
+  this->write(RF_CODE_STOP);
+  this->flush();
+}
+
 void RFBridgeComponent::send_raw(std::string raw_code) {
   ESP_LOGD(TAG, "Sending Raw Code: %s", raw_code.c_str());
 
   this->write_byte_str_(raw_code);
+  this->flush();
+}
+
+void RFBridgeComponent::beep(uint16_t ms) {
+  ESP_LOGD(TAG, "Beeping for %hu ms", ms);
+
+  this->write(RF_CODE_START);
+  this->write(RF_CODE_BEEP);
+  this->write((ms >> 8) & 0xFF);
+  this->write(ms & 0xFF);
+  this->write(RF_CODE_STOP);
   this->flush();
 }
 

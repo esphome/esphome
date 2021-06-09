@@ -62,7 +62,7 @@ class DashboardSettings:
             self.using_password = bool(password)
         if self.using_password:
             self.password_hash = password_hash(password)
-        self.config_dir = args.configuration[0]
+        self.config_dir = args.configuration
 
     @property
     def relative_url(self):
@@ -274,9 +274,9 @@ class EsphomeLogsHandler(EsphomeCommandWebSocket):
         return [
             "esphome",
             "--dashboard",
-            config_file,
             "logs",
-            "--serial-port",
+            config_file,
+            "--device",
             json_message["port"],
         ]
 
@@ -287,9 +287,9 @@ class EsphomeUploadHandler(EsphomeCommandWebSocket):
         return [
             "esphome",
             "--dashboard",
-            config_file,
             "run",
-            "--upload-port",
+            config_file,
+            "--device",
             json_message["port"],
         ]
 
@@ -297,40 +297,40 @@ class EsphomeUploadHandler(EsphomeCommandWebSocket):
 class EsphomeCompileHandler(EsphomeCommandWebSocket):
     def build_command(self, json_message):
         config_file = settings.rel_path(json_message["configuration"])
-        return ["esphome", "--dashboard", config_file, "compile"]
+        return ["esphome", "--dashboard", "compile", config_file]
 
 
 class EsphomeValidateHandler(EsphomeCommandWebSocket):
     def build_command(self, json_message):
         config_file = settings.rel_path(json_message["configuration"])
-        return ["esphome", "--dashboard", config_file, "config"]
+        return ["esphome", "--dashboard", "config", config_file]
 
 
 class EsphomeCleanMqttHandler(EsphomeCommandWebSocket):
     def build_command(self, json_message):
         config_file = settings.rel_path(json_message["configuration"])
-        return ["esphome", "--dashboard", config_file, "clean-mqtt"]
+        return ["esphome", "--dashboard", "clean-mqtt", config_file]
 
 
 class EsphomeCleanHandler(EsphomeCommandWebSocket):
     def build_command(self, json_message):
         config_file = settings.rel_path(json_message["configuration"])
-        return ["esphome", "--dashboard", config_file, "clean"]
+        return ["esphome", "--dashboard", "clean", config_file]
 
 
 class EsphomeVscodeHandler(EsphomeCommandWebSocket):
     def build_command(self, json_message):
-        return ["esphome", "--dashboard", "-q", "dummy", "vscode"]
+        return ["esphome", "--dashboard", "-q", "vscode", "dummy"]
 
 
 class EsphomeAceEditorHandler(EsphomeCommandWebSocket):
     def build_command(self, json_message):
-        return ["esphome", "--dashboard", "-q", settings.config_dir, "vscode", "--ace"]
+        return ["esphome", "--dashboard", "-q", "vscode", settings.config_dir, "--ace"]
 
 
 class EsphomeUpdateAllHandler(EsphomeCommandWebSocket):
     def build_command(self, json_message):
-        return ["esphome", "--dashboard", settings.config_dir, "update-all"]
+        return ["esphome", "--dashboard", "update-all", settings.config_dir]
 
 
 class SerialPortRequestHandler(BaseHandler):
@@ -515,45 +515,45 @@ class MDNSStatusThread(threading.Thread):
 
 class PingStatusThread(threading.Thread):
     def run(self):
-        pool = multiprocessing.Pool(processes=8)
-        while not STOP_EVENT.is_set():
-            # Only do pings if somebody has the dashboard open
+        with multiprocessing.Pool(processes=8) as pool:
+            while not STOP_EVENT.is_set():
+                # Only do pings if somebody has the dashboard open
 
-            def callback(ret):
-                PING_RESULT[ret[0]] = ret[1]
+                def callback(ret):
+                    PING_RESULT[ret[0]] = ret[1]
 
-            entries = _list_dashboard_entries()
-            queue = collections.deque()
-            for entry in entries:
-                if entry.address is None:
-                    PING_RESULT[entry.filename] = None
-                    continue
+                entries = _list_dashboard_entries()
+                queue = collections.deque()
+                for entry in entries:
+                    if entry.address is None:
+                        PING_RESULT[entry.filename] = None
+                        continue
 
-                result = pool.apply_async(
-                    _ping_func, (entry.filename, entry.address), callback=callback
-                )
-                queue.append(result)
+                    result = pool.apply_async(
+                        _ping_func, (entry.filename, entry.address), callback=callback
+                    )
+                    queue.append(result)
 
-            while queue:
-                item = queue[0]
-                if item.ready():
-                    queue.popleft()
-                    continue
+                while queue:
+                    item = queue[0]
+                    if item.ready():
+                        queue.popleft()
+                        continue
 
-                try:
-                    item.get(0.1)
-                except OSError:
-                    # ping not installed
-                    pass
-                except multiprocessing.TimeoutError:
-                    pass
+                    try:
+                        item.get(0.1)
+                    except OSError:
+                        # ping not installed
+                        pass
+                    except multiprocessing.TimeoutError:
+                        pass
 
-                if STOP_EVENT.is_set():
-                    pool.terminate()
-                    return
+                    if STOP_EVENT.is_set():
+                        pool.terminate()
+                        return
 
-            PING_REQUEST.wait()
-            PING_REQUEST.clear()
+                PING_REQUEST.wait()
+                PING_REQUEST.clear()
 
 
 class PingRequestHandler(BaseHandler):

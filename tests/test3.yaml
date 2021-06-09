@@ -1,6 +1,6 @@
 esphome:
-  name: $devicename
-  comment: $devicecomment
+  name: $device_name
+  comment: $device_comment
   platform: ESP8266
   board: d1_mini
   build_path: build/test3
@@ -13,8 +13,8 @@ esphome:
     - custom.h
 
 substitutions:
-  devicename: test3
-  devicecomment: test3 device
+  device_name: test3
+  device_comment: test3 device
   min_sub: '0.03'
   max_sub: '12.0%'
 
@@ -141,6 +141,14 @@ api:
       then:
         - dfplayer.random
 
+    - service: dfplayer_volume_up
+      then:
+        - dfplayer.volume_up
+
+    - service: dfplayer_volume_down
+      then:
+        - dfplayer.volume_down
+
     - service: battery_level_percent
       variables:
         level_percent: int
@@ -213,9 +221,33 @@ spi:
   miso_pin: GPIO14
 
 uart:
-  - tx_pin: GPIO1
+  - id: uart1
+    tx_pin: GPIO1
     rx_pin: GPIO3
     baud_rate: 115200
+  - id: uart2
+    tx_pin: GPIO4
+    rx_pin: GPIO5
+    baud_rate: 9600
+  - id: uart3
+    tx_pin: GPIO4
+    rx_pin: GPIO5
+    baud_rate: 4800
+  - id: uart4
+    tx_pin: GPIO4
+    rx_pin: GPIO5
+    baud_rate: 9600
+  - id: uart5
+    tx_pin: GPIO4
+    rx_pin: GPIO5
+    baud_rate: 9600
+  - id: uart6
+    tx_pin: GPIO4
+    rx_pin: GPIO5
+    baud_rate: 9600
+
+modbus:
+  uart_id: uart1
 
 ota:
   safe_mode: True
@@ -369,6 +401,7 @@ sensor:
     active_power_b:
       name: ADE7953 Active Power B
   - platform: pzem004t
+    uart_id: uart3
     voltage:
       name: 'PZEM00T Voltage'
     current:
@@ -408,6 +441,7 @@ sensor:
       name: 'AQI'
       calculation_type: 'AQI'
   - platform: pmsx003
+    uart_id: uart2
     type: PMSX003
     pm_1_0:
       name: 'PM 1.0 Concentration'
@@ -415,25 +449,8 @@ sensor:
       name: 'PM 2.5 Concentration'
     pm_10_0:
       name: 'PM 10.0 Concentration'
-  - platform: pmsx003
-    type: PMS5003T
-    pm_2_5:
-      name: 'PM 2.5 Concentration'
-    temperature:
-      name: 'PMS Temperature'
-    humidity:
-      name: 'PMS Humidity'
-  - platform: pmsx003
-    type: PMS5003ST
-    pm_2_5:
-      name: 'PM 2.5 Concentration'
-    temperature:
-      name: 'PMS Temperature'
-    humidity:
-      name: 'PMS Humidity'
-    formaldehyde:
-      name: 'PMS Formaldehyde Concentration'
   - platform: cse7766
+    uart_id: uart3
     voltage:
       name: 'CSE7766 Voltage'
     current:
@@ -443,7 +460,7 @@ sensor:
   - platform: ezo
     id: ph_ezo
     address: 99
-    unit_of_measurement: 'pH'  
+    unit_of_measurement: 'pH'
   - platform: tof10120
     name: "Distance sensor"
     update_interval: 5s
@@ -460,6 +477,62 @@ sensor:
       name: "Fingerprint Last Finger ID"
     last_confidence:
       name: "Fingerprint Last Confidence"
+  - platform: sdm_meter
+    phase_a:
+      current:
+        name: 'Phase A Current'
+      voltage:
+        name: 'Phase A Voltage'
+      active_power:
+        name: 'Phase A Power'
+      power_factor:
+        name: 'Phase A Power Factor'
+      apparent_power:
+        name: 'Phase A Apparent Power'
+      reactive_power:
+        name: 'Phase A Reactive Power'
+      phase_angle:
+        name: 'Phase A Phase Angle'
+    phase_b:
+      current:
+        name: 'Phase B Current'
+      voltage:
+        name: 'Phase B Voltage'
+      active_power:
+        name: 'Phase B Power'
+      power_factor:
+        name: 'Phase B Power Factor'
+      apparent_power:
+        name: 'Phase B Apparent Power'
+      reactive_power:
+        name: 'Phase B Reactive Power'
+      phase_angle:
+        name: 'Phase B Phase Angle'
+    phase_c:
+      current:
+        name: 'Phase C Current'
+      voltage:
+        name: 'Phase C Voltage'
+      active_power:
+        name: 'Phase C Power'
+      power_factor:
+        name: 'Phase C Power Factor'
+      apparent_power:
+        name: 'Phase C Apparent Power'
+      reactive_power:
+        name: 'Phase C Reactive Power'
+      phase_angle:
+        name: 'Phase C Phase Angle'
+    frequency:
+      name: 'Frequency'
+    import_active_energy:
+      name: 'Import Active Energy'
+    export_active_energy:
+      name: 'Export Active Energy'
+    import_reactive_energy:
+      name: 'Import Reactive Energy'
+    export_reactive_energy:
+      name: 'Export Reactive Energy'
 
 time:
   - platform: homeassistant
@@ -585,6 +658,17 @@ script:
   - id: my_script
     then:
       - lambda: 'ESP_LOGD("main", "Hello World!");'
+  - id: climate_custom
+    then:
+      - climate.control:
+          id: midea_ac_unit
+          custom_preset: FREEZE_PROTECTION
+          custom_fan_mode: SILENT
+  - id: climate_preset
+    then:
+      - climate.control:
+          id: midea_ac_unit
+          preset: SLEEP
 
 sm2135:
   data_pin: GPIO12
@@ -746,6 +830,32 @@ climate:
       kp: 0.0
       ki: 0.0
       kd: 0.0
+  - platform: midea_ac
+    id: midea_ac_unit
+    visual:
+      min_temperature: 18 °C
+      max_temperature: 25 °C
+      temperature_step: 0.1 °C
+    name: "Electrolux EACS"
+    beeper: true
+    custom_fan_modes:
+      - SILENT
+      - TURBO
+    preset_eco: true
+    preset_sleep: true
+    preset_boost: true
+    custom_presets:
+      - FREEZE_PROTECTION
+    outdoor_temperature:
+      name: "Temp"
+    power_usage:
+      name: "Power"
+    humidity_setpoint:
+      name: "Hum"
+
+midea_dongle:
+  uart_id: uart1
+  strength_icon: true
 
 cover:
   - platform: endstop
@@ -867,6 +977,7 @@ light:
     effects:
       - wled:
       - adalight:
+          uart_id: uart3
       - e131:
           universe: 1
   - platform: hbridge
@@ -888,6 +999,7 @@ ttp229_bsf:
   scl_pin: D1
 
 sim800l:
+  uart_id: uart4
   on_sms_received:
     - lambda: |-
         std::string str;
@@ -900,6 +1012,7 @@ sim800l:
         recipient: '+1234'
 
 dfplayer:
+  uart_id: uart5
   on_finished_playback:
     then:
       if:
@@ -913,6 +1026,7 @@ tm1651:
   dio_pin: D5
 
 rf_bridge:
+  uart_id: uart5
   on_code_received:
     - lambda: |-
         uint32_t test;
@@ -1006,3 +1120,4 @@ fingerprint_grow:
         event: esphome.${devicename}_fingerprint_grow_enrollment_failed
         data:
           finger_id: !lambda 'return finger_id;'
+  uart_id: uart6
