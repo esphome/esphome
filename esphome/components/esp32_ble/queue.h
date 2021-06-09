@@ -68,9 +68,18 @@ class BLEEvent {
     this->event_.gattc.gattc_if = i;
     memcpy(&this->event_.gattc.gattc_param, p, sizeof(esp_ble_gattc_cb_param_t));
     // Need to also make a copy of notify event data.
-    if (e == ESP_GATTC_NOTIFY_EVT) {
-      memcpy(this->event_.gattc.notify_data, p->notify.value, p->notify.value_len);
-      this->event_.gattc.gattc_param.notify.value = this->event_.gattc.notify_data;
+    switch (e) {
+      case ESP_GATTC_NOTIFY_EVT:
+        memcpy(this->event_.gattc.data, p->notify.value, p->notify.value_len);
+        this->event_.gattc.gattc_param.notify.value = this->event_.gattc.data;
+        break;
+      case ESP_GATTC_READ_CHAR_EVT:
+      case ESP_GATTC_READ_DESCR_EVT:
+        memcpy(this->event_.gattc.data, p->read.value, p->read.value_len);
+        this->event_.gattc.gattc_param.read.value = this->event_.gattc.data;
+        break;
+      default:
+        break;
     }
     this->type_ = GATTC;
   };
@@ -92,7 +101,7 @@ class BLEEvent {
       esp_gattc_cb_event_t gattc_event;
       esp_gatt_if_t gattc_if;
       esp_ble_gattc_cb_param_t gattc_param;
-      uint8_t notify_data[64];
+      uint8_t data[64];
     } gattc;
 
     struct gatts_event {
