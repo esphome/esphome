@@ -28,8 +28,7 @@
  * Field parsing functions
  */
 
-#ifndef DSMR_INCLUDE_FIELDS_H
-#define DSMR_INCLUDE_FIELDS_H
+#pragma once
 
 #include "util.h"
 #include "parser.h"
@@ -383,5 +382,3 @@ DEFINE_FIELD(slave_delivered, TimestampedFixedValue, ObisId(0, SLAVE_MBUS_ID, 24
 }  // namespace fields
 
 }  // namespace dsmr
-
-#endif  // DSMR_INCLUDE_FIELDS_H

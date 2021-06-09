@@ -28,8 +28,7 @@
  * Message parsing core
  */
 
-#ifndef DSMR_INCLUDE_PARSER_H
-#define DSMR_INCLUDE_PARSER_H
+#pragma once
 
 #include "crc16.h"
 #include "util.h"
@@ -413,5 +412,3 @@ struct P1Parser {
 };
 
 }  // namespace dsmr
-
-#endif  // DSMR_INCLUDE_PARSER_H

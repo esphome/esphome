@@ -28,8 +28,7 @@
  * Various utility functions
  */
 
-#ifndef DSMR_INCLUDE_UTIL_H
-#define DSMR_INCLUDE_UTIL_H
+#pragma once
 
 #ifdef ARDUINO_ARCH_ESP8266
 #define DSMR_PROGMEM
@@ -44,14 +43,13 @@ namespace dsmr {
 /**
  * Small utility to get the length of an array at compiletime.
  */
-template<typename T, unsigned int sz>
-inline unsigned int lengthof(const T (&)[sz]) { return sz; }
+template<typename T, unsigned int sz> inline unsigned int lengthof(const T (&)[sz]) { return sz; }
 
 // Hack until https://github.com/arduino/Arduino/pull/1936 is merged.
 // This appends the given number of bytes from the given C string to the
 // given Arduino string, without requiring a trailing NUL.
 // Requires that there _is_ room for nul-termination
-static void concat_hack(String& s, const char *append, size_t n) {
+static void concat_hack(String& s, const char* append, size_t n) {
   // Add null termination. Inefficient, but it works...
   char buf[n + 1];
   memcpy(buf, append, n);
@@ -91,12 +89,12 @@ static void concat_hack(String& s, const char *append, size_t n) {
 
 // Superclass for ParseResult so we can specialize for void without
 // having to duplicate all content
-template <typename P, typename T>
-struct _ParseResult {
+template<typename P, typename T> struct _ParseResult {
   T result;
 
   P& succeed(T& result) {
-    this->result = result; return *static_cast<P*>(this);
+    this->result = result;
+    return *static_cast<P*>(this);
   }
   P& succeed(T&& result) {
     this->result = result;
@@ -105,31 +103,27 @@ struct _ParseResult {
 };
 
 // partial specialization for void result
-template <typename P>
-struct _ParseResult<P, void> {
-};
+template<typename P> struct _ParseResult<P, void> {};
 
 // Actual ParseResult class
-template <typename T>
-struct ParseResult : public _ParseResult<ParseResult<T>, T> {
-  const char *next = NULL;
-  const __FlashStringHelper *err = NULL;
-  const char *ctx = NULL;
+template<typename T> struct ParseResult : public _ParseResult<ParseResult<T>, T> {
+  const char* next = NULL;
+  const __FlashStringHelper* err = NULL;
+  const char* ctx = NULL;
 
-  ParseResult& fail(const __FlashStringHelper *err, const char* ctx = NULL) {
+  ParseResult& fail(const __FlashStringHelper* err, const char* ctx = NULL) {
     this->err = err;
     this->ctx = ctx;
     return *this;
   }
-  ParseResult& until(const char *next) {
+  ParseResult& until(const char* next) {
     this->next = next;
     return *this;
   }
   ParseResult() = default;
   ParseResult(const ParseResult& other) = default;
 
-  template <typename T2>
-  ParseResult(const ParseResult<T2>& other): next(other.next), err(other.err), ctx(other.ctx) { }
+  template<typename T2> ParseResult(const ParseResult<T2>& other) : next(other.next), err(other.err), ctx(other.ctx) {}
 
   /**
    * Returns the error, including context in a fancy multi-line format.
@@ -141,10 +135,12 @@ struct ParseResult : public _ParseResult<ParseResult<T>, T> {
     String res;
     if (this->ctx && start && end) {
       // Find the entire line surrounding the context
-      const char *line_end = this->ctx;
-      while(line_end < end && line_end[0] != '\r' && line_end[0] != '\n') ++line_end;
-      const char *line_start = this->ctx;
-      while(line_start > start && line_start[-1] != '\r' && line_start[-1] != '\n') --line_start;
+      const char* line_end = this->ctx;
+      while (line_end < end && line_end[0] != '\r' && line_end[0] != '\n')
+        ++line_end;
+      const char* line_start = this->ctx;
+      while (line_start > start && line_start[-1] != '\r' && line_start[-1] != '\n')
+        --line_start;
 
       // We can now predict the context string length, so let String allocate
       // memory in advance
@@ -173,14 +169,10 @@ struct ObisId {
   uint8_t v[6];
 
   constexpr ObisId(uint8_t a, uint8_t b = 255, uint8_t c = 255, uint8_t d = 255, uint8_t e = 255, uint8_t f = 255)
-    : v{a, b, c, d, e, f} { };
-  constexpr ObisId() : v() {} // Zeroes
+      : v{a, b, c, d, e, f} {};
+  constexpr ObisId() : v() {}  // Zeroes
 
-  bool operator==(const ObisId &other) const {
-    return memcmp(&v, &other.v, sizeof(v)) == 0;
-  }
+  bool operator==(const ObisId& other) const { return memcmp(&v, &other.v, sizeof(v)) == 0; }
 };
 
-} // namespace dsmr
-
-#endif // DSMR_INCLUDE_UTIL_H
+}  // namespace dsmr
