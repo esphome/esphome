@@ -119,27 +119,28 @@ bool ESP32BLE::ble_setup_() {
   return true;
 }
 
-// void ESP32BLE::loop() {
-//   BLEEvent *ble_event = this->ble_events_.pop();
-//   while (ble_event != nullptr) {
-//     switch (ble_event->type_) {
-//       case ble_event->GATTS:
-//         this->real_gatts_event_handler_(ble_event->event_.gatts.gatts_event, ble_event->event_.gatts.gatts_if,
-//                                         &ble_event->event_.gatts.gatts_param);
-//         break;
-//       case ble_event->GAP:
-//         this->real_gap_event_handler_(ble_event->event_.gap.gap_event, &ble_event->event_.gap.gap_param);
-//         break;
-//       default:
-//         break;
-//     }
-//     delete ble_event;
-//     ble_event = this->ble_events_.pop();
-//   }
-// }
+void ESP32BLE::loop() {
+  BLEEvent *ble_event = this->ble_events_.pop();
+  while (ble_event != nullptr) {
+    switch (ble_event->type_) {
+      case ble_event->GATTS:
+        this->real_gatts_event_handler_(ble_event->event_.gatts.gatts_event, ble_event->event_.gatts.gatts_if,
+                                        &ble_event->event_.gatts.gatts_param);
+        break;
+      case ble_event->GAP:
+        this->real_gap_event_handler_(ble_event->event_.gap.gap_event, &ble_event->event_.gap.gap_param);
+        break;
+      default:
+        break;
+    }
+    delete ble_event;
+    ble_event = this->ble_events_.pop();
+  }
+}
 
 void ESP32BLE::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) {
-  global_ble->real_gap_event_handler_(event, param);
+  BLEEvent *new_event = new BLEEvent(event, param);
+  global_ble->ble_events_.push(new_event);
 }
 
 void ESP32BLE::real_gap_event_handler_(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) {
@@ -152,7 +153,8 @@ void ESP32BLE::real_gap_event_handler_(esp_gap_ble_cb_event_t event, esp_ble_gap
 
 void ESP32BLE::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if,
                                    esp_ble_gatts_cb_param_t *param) {
-  global_ble->real_gatts_event_handler_(event, gatts_if, param);
+  BLEEvent *new_event = new BLEEvent(event, gatts_if, param);
+  global_ble->ble_events_.push(new_event);
 }
 
 void ESP32BLE::real_gatts_event_handler_(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if,

@@ -18,7 +18,7 @@ namespace esp32_ble {
 
 static const char *TAG = "esp32_ble.server";
 
-static const uint16_t DEVICE_INFORMATION_SERVICE_UUID = 0x180A;
+static const uint16_t device_information_service__UUID = 0x180A;
 static const uint16_t MODEL_UUID = 0x2A24;
 static const uint16_t VERSION_UUID = 0x2A26;
 static const uint16_t MANUFACTURER_UUID = 0x2A29;
@@ -32,59 +32,77 @@ void BLEServer::setup() {
   ESP_LOGD(TAG, "Setting up BLE Server...");
 
   global_ble_server = this;
-  this->register_lock_ = xSemaphoreCreateBinary();
-  xSemaphoreGive(this->register_lock_);
+
   this->advertising_ = new BLEAdvertising();
-
-  this->setup_server_();
-
-  for (auto *component : this->service_components_) {
-    component->setup_service();
-  }
-
-  ESP_LOGD(TAG, "BLE Server set up complete...");
 }
 
-void BLEServer::setup_server_() {
-  xSemaphoreTake(this->register_lock_, portMAX_DELAY);
-  esp_err_t err = esp_ble_gatts_app_register(0);
-  if (err != ESP_OK) {
-    ESP_LOGE(TAG, "esp_ble_gatts_app_register failed: %d", err);
-    this->mark_failed();
-    return;
+void BLEServer::loop() {
+  switch (this->state_) {
+    case RUNNING:
+      return;
+
+    case INIT: {
+      esp_err_t err = esp_ble_gatts_app_register(0);
+      if (err != ESP_OK) {
+        ESP_LOGE(TAG, "esp_ble_gatts_app_register failed: %d", err);
+        this->mark_failed();
+        return;
+      }
+      this->state_ = REGISTERING;
+      break;
+    }
+    case REGISTERING: {
+      if (this->registered_) {
+        this->device_information_service_ = this->create_service(device_information_service__UUID);
+
+        this->create_device_characteristics_();
+
+        this->advertising_->set_scan_response(true);
+        this->advertising_->set_min_preferred_interval(0x06);
+        this->advertising_->start();
+
+        this->state_ = STARTING_SERVICE;
+      }
+      break;
+    }
+    case STARTING_SERVICE: {
+      if (this->device_information_service_->is_running()) {
+        for (auto *component : this->service_components_) {
+          component->setup_service();
+        }
+        this->state_ = SETTING_UP_COMPONENT_SERVICES;
+      } else if (!this->device_information_service_->is_starting()) {
+        this->device_information_service_->start();
+      }
+      break;
+    }
+    case SETTING_UP_COMPONENT_SERVICES: {
+      this->state_ = RUNNING;
+      this->can_proceed_ = true;
+      break;
+    }
   }
-  xSemaphoreWait(this->register_lock_, portMAX_DELAY);
-
-  this->device_information_service = this->create_service(DEVICE_INFORMATION_SERVICE_UUID);
-
-  this->create_device_characteristics_();
-
-  this->advertising_->set_scan_response(true);
-  this->advertising_->set_min_preferred_interval(0x06);
-  this->advertising_->start();
-
-  this->device_information_service->start();
 }
 
 bool BLEServer::create_device_characteristics_() {
   if (this->model_.has_value()) {
     BLECharacteristic *model =
-        this->device_information_service->create_characteristic(MODEL_UUID, BLECharacteristic::PROPERTY_READ);
+        this->device_information_service_->create_characteristic(MODEL_UUID, BLECharacteristic::PROPERTY_READ);
     model->set_value(this->model_.value());
   } else {
 #ifdef ARDUINO_BOARD
     BLECharacteristic *model =
-        this->device_information_service->create_characteristic(MODEL_UUID, BLECharacteristic::PROPERTY_READ);
+        this->device_information_service_->create_characteristic(MODEL_UUID, BLECharacteristic::PROPERTY_READ);
     model->set_value(ARDUINO_BOARD);
 #endif
   }
 
   BLECharacteristic *version =
-      this->device_information_service->create_characteristic(VERSION_UUID, BLECharacteristic::PROPERTY_READ);
+      this->device_information_service_->create_characteristic(VERSION_UUID, BLECharacteristic::PROPERTY_READ);
   version->set_value("ESPHome " ESPHOME_VERSION);
 
   BLECharacteristic *manufacturer =
-      this->device_information_service->create_characteristic(MANUFACTURER_UUID, BLECharacteristic::PROPERTY_READ);
+      this->device_information_service_->create_characteristic(MANUFACTURER_UUID, BLECharacteristic::PROPERTY_READ);
   manufacturer->set_value(this->manufacturer_);
 
   return true;
@@ -134,7 +152,7 @@ void BLEServer::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t ga
     }
     case ESP_GATTS_REG_EVT: {
       this->gatts_if_ = gatts_if;
-      xSemaphoreGive(this->register_lock_);
+      this->registered_ = true;
       break;
     }
     default:

@@ -23,7 +23,7 @@ typedef struct {
 class ESP32BLE : public Component {
  public:
   void setup() override;
-  // void loop() override;
+  void loop() override;
   void dump_config() override;
   float get_setup_priority() const override;
   void mark_failed() override;
