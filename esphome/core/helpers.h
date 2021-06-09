@@ -27,8 +27,6 @@
 
 namespace esphome {
 
-static const uint32_t SEMAPHORE_MAX_DELAY = 4294967295UL;
-
 /// The characters that are allowed in a hostname.
 extern const char *HOSTNAME_CHARACTER_ALLOWLIST;
 
@@ -95,7 +93,7 @@ float clamp(float val, float min, float max);
 float lerp(float completion, float start, float end);
 
 /// std::make_unique
-template<typename T, typename... Args> std::unique_ptr<T> make_unique(Args &&... args) {
+template<typename T, typename... Args> std::unique_ptr<T> make_unique(Args &&...args) {
   return std::unique_ptr<T>(new T(std::forward<Args>(args)...));
 }
 

@@ -101,6 +101,10 @@ void network_setup_mdns(IPAddress address, int interface) {
       MDNS.addServiceTxt("esphomelib", "tcp", "platform", "ESP32");
 #endif
       MDNS.addServiceTxt("esphomelib", "tcp", "board", ESPHOME_BOARD);
+#ifdef ESPHOME_PROJECT_NAME
+      MDNS.addServiceTxt("esphomelib", "tcp", "project_name", ESPHOME_PROJECT_NAME);
+      MDNS.addServiceTxt("esphomelib", "tcp", "project_version", ESPHOME_PROJECT_VERSION);
+#endif
     } else {
 #endif
       // Publish "http" service if not using native API nor the webserver component

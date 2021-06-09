@@ -19,6 +19,7 @@
 #define USE_JSON
 #ifdef ARDUINO_ARCH_ESP32
 #define USE_ESP32_CAMERA
+#define USE_IMPROV
 #endif
 #define USE_TIME
 #define USE_DEEP_SLEEP

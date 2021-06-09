@@ -67,7 +67,7 @@ bool RFBridgeComponent::parse_bridge_byte_(uint8_t byte) {
 
       data.length = raw[2];
       data.protocol = raw[3];
-      char next_byte[2];
+      char next_byte[3];
       for (uint8_t i = 0; i < data.length - 1; i++) {
         sprintf(next_byte, "%02X", raw[4 + i]);
         data.code += next_byte;
@@ -85,7 +85,7 @@ bool RFBridgeComponent::parse_bridge_byte_(uint8_t byte) {
 
       uint8_t buckets = raw[2] << 1;
       std::string str;
-      char next_byte[2];
+      char next_byte[3];
 
       for (uint32_t i = 0; i <= at; i++) {
         sprintf(next_byte, "%02X", raw[i]);
