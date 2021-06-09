@@ -53,7 +53,7 @@ template<class T> class Queue {
   SemaphoreHandle_t m;
 };
 
-// Received GAP and GATTC events are only queued, and get processed in the main loop().
+// Received GAP, GATTC and GATTS events are only queued, and get processed in the main loop().
 // This class stores each event in a single type.
 class BLEEvent {
  public:
@@ -88,6 +88,15 @@ class BLEEvent {
     this->event_.gatts.gatts_event = e;
     this->event_.gatts.gatts_if = i;
     memcpy(&this->event_.gatts.gatts_param, p, sizeof(esp_ble_gatts_cb_param_t));
+    // Need to also make a copy of write data.
+    switch (e) {
+      case ESP_GATTS_WRITE_EVT:
+        memcpy(this->event_.gatts.data, p->write.value, p->write.len);
+        this->event_.gatts.gatts_param.write.value = this->event_.gatts.data;
+        break;
+      default:
+        break;
+    }
     this->type_ = GATTS;
   };
 
@@ -108,6 +117,7 @@ class BLEEvent {
       esp_gatts_cb_event_t gatts_event;
       esp_gatt_if_t gatts_if;
       esp_ble_gatts_cb_param_t gatts_param;
+      uint8_t data[64];
     } gatts;
   } event_;
   enum ble_event_t : uint8_t {
