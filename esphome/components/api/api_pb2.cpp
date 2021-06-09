@@ -360,6 +360,14 @@ bool DeviceInfoResponse::decode_length(uint32_t field_id, ProtoLengthDelimited v
       this->model = value.as_string();
       return true;
     }
+    case 8: {
+      this->project_name = value.as_string();
+      return true;
+    }
+    case 9: {
+      this->project_version = value.as_string();
+      return true;
+    }
     default:
       return false;
   }
@@ -372,6 +380,8 @@ void DeviceInfoResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(5, this->compilation_time);
   buffer.encode_string(6, this->model);
   buffer.encode_bool(7, this->has_deep_sleep);
+  buffer.encode_string(8, this->project_name);
+  buffer.encode_string(9, this->project_version);
 }
 void DeviceInfoResponse::dump_to(std::string &out) const {
   char buffer[64];
@@ -402,6 +412,14 @@ void DeviceInfoResponse::dump_to(std::string &out) const {
 
   out.append("  has_deep_sleep: ");
   out.append(YESNO(this->has_deep_sleep));
+  out.append("\n");
+
+  out.append("  project_name: ");
+  out.append("'").append(this->project_name).append("'");
+  out.append("\n");
+
+  out.append("  project_version: ");
+  out.append("'").append(this->project_version).append("'");
   out.append("\n");
   out.append("}");
 }

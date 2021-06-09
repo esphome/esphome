@@ -176,6 +176,10 @@ message DeviceInfoResponse {
   string model = 6;
 
   bool has_deep_sleep = 7;
+
+  // The esphome project details if set
+  string project_name = 8;
+  string project_version = 9;
 }
 
 message ListEntitiesRequest {
