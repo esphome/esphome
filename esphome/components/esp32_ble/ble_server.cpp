@@ -79,6 +79,7 @@ void BLEServer::loop() {
     case SETTING_UP_COMPONENT_SERVICES: {
       this->state_ = RUNNING;
       this->can_proceed_ = true;
+      ESP_LOGD(TAG, "BLE server setup successfully");
       break;
     }
   }

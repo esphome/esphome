@@ -20,37 +20,19 @@ void ESP32BLE::setup() {
   global_ble = this;
   ESP_LOGCONFIG(TAG, "Setting up BLE...");
 
-  xTaskCreatePinnedToCore(ESP32BLE::ble_core_task_,
-                          "ble_task",  // name
-                          10000,       // stack size
-                          nullptr,     // input params
-                          1,           // priority
-                          nullptr,     // handle, not needed
-                          0            // core
-  );
+  if (!ble_setup_()) {
+    ESP_LOGE(TAG, "BLE could not be set up");
+    this->mark_failed();
+    return;
+  }
+
+  ESP_LOGD(TAG, "BLE setup complete");
 }
 
 void ESP32BLE::mark_failed() {
   Component::mark_failed();
   if (this->server_ != nullptr) {
     this->server_->mark_failed();
-  }
-}
-
-bool ESP32BLE::can_proceed() { return this->ready_; }
-
-void ESP32BLE::ble_core_task_(void *params) {
-  if (!ble_setup_()) {
-    ESP_LOGE(TAG, "BLE could not be set up");
-    global_ble->mark_failed();
-    return;
-  }
-
-  global_ble->ready_ = true;
-  ESP_LOGD(TAG, "BLE Setup complete");
-
-  while (true) {
-    vTaskDelay(1000 / portTICK_PERIOD_MS);
   }
 }
 
@@ -84,7 +66,7 @@ bool ESP32BLE::ble_setup_() {
     return false;
   }
 
-  if (global_ble->has_server()) {
+  if (this->has_server()) {
     err = esp_ble_gatts_register_callback(ESP32BLE::gatts_event_handler);
     if (err != ESP_OK) {
       ESP_LOGE(TAG, "esp_ble_gatts_register_callback failed: %d", err);
@@ -92,7 +74,7 @@ bool ESP32BLE::ble_setup_() {
     }
   }
 
-  if (global_ble->has_client()) {
+  if (this->has_client()) {
     err = esp_ble_gattc_register_callback(ESP32BLE::gattc_event_handler);
     if (err != ESP_OK) {
       ESP_LOGE(TAG, "esp_ble_gattc_register_callback failed: %d", err);
