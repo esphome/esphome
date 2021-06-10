@@ -6,7 +6,7 @@
 namespace esphome {
 namespace max31865 {
 
-static const char* TAG = "max31865";
+static const char *TAG = "max31865";
 
 void MAX31865Sensor::update() {
   // Check new faults since last measurement
@@ -176,7 +176,7 @@ const uint16_t MAX31865Sensor::read_register_16_(uint8_t reg) {
   return value;
 }
 
-float MAX31865Sensor::calc_temperature_(const float& rtd_ratio) {
+float MAX31865Sensor::calc_temperature_(const float &rtd_ratio) {
   // Based loosely on Adafruit's library: https://github.com/adafruit/Adafruit_MAX31865
   // Mainly based on formulas provided by Analog:
   // http://www.analog.com/media/en/technical-documentation/application-notes/AN709_0.pdf
