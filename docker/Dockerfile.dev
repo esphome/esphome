@@ -1,1 +1,1 @@
-FROM esphome/esphome-lint:latest
+FROM esphome/esphome-lint:1.1
