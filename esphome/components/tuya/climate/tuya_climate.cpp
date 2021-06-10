@@ -4,11 +4,11 @@
 namespace esphome {
 namespace tuya {
 
-static const char* TAG = "tuya.climate";
+static const char *TAG = "tuya.climate";
 
 void TuyaClimate::setup() {
   if (this->switch_id_.has_value()) {
-    this->parent_->register_listener(*this->switch_id_, [this](const TuyaDatapoint& datapoint) {
+    this->parent_->register_listener(*this->switch_id_, [this](const TuyaDatapoint &datapoint) {
       ESP_LOGV(TAG, "MCU reported switch is: %s", ONOFF(datapoint.value_bool));
       this->mode = climate::CLIMATE_MODE_OFF;
       if (datapoint.value_bool) {
@@ -25,7 +25,7 @@ void TuyaClimate::setup() {
     });
   }
   if (this->active_state_id_.has_value()) {
-    this->parent_->register_listener(*this->active_state_id_, [this](const TuyaDatapoint& datapoint) {
+    this->parent_->register_listener(*this->active_state_id_, [this](const TuyaDatapoint &datapoint) {
       ESP_LOGV(TAG, "MCU reported active state is: %u", datapoint.value_enum);
       this->active_state_ = datapoint.value_enum;
       this->compute_state_();
@@ -33,7 +33,7 @@ void TuyaClimate::setup() {
     });
   }
   if (this->target_temperature_id_.has_value()) {
-    this->parent_->register_listener(*this->target_temperature_id_, [this](const TuyaDatapoint& datapoint) {
+    this->parent_->register_listener(*this->target_temperature_id_, [this](const TuyaDatapoint &datapoint) {
       this->target_temperature = datapoint.value_int * this->target_temperature_multiplier_;
       ESP_LOGV(TAG, "MCU reported target temperature is: %.1f", this->target_temperature);
       this->compute_state_();
@@ -41,7 +41,7 @@ void TuyaClimate::setup() {
     });
   }
   if (this->current_temperature_id_.has_value()) {
-    this->parent_->register_listener(*this->current_temperature_id_, [this](const TuyaDatapoint& datapoint) {
+    this->parent_->register_listener(*this->current_temperature_id_, [this](const TuyaDatapoint &datapoint) {
       this->current_temperature = datapoint.value_int * this->current_temperature_multiplier_;
       ESP_LOGV(TAG, "MCU reported current temperature is: %.1f", this->current_temperature);
       this->compute_state_();
@@ -50,7 +50,7 @@ void TuyaClimate::setup() {
   }
 }
 
-void TuyaClimate::control(const climate::ClimateCall& call) {
+void TuyaClimate::control(const climate::ClimateCall &call) {
   if (call.get_mode().has_value()) {
     const bool switch_state = *call.get_mode() != climate::CLIMATE_MODE_OFF;
     ESP_LOGV(TAG, "Setting switch: %s", ONOFF(switch_state));

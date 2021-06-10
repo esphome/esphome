@@ -5,7 +5,7 @@
 namespace esphome {
 namespace rf_bridge {
 
-static const char* TAG = "rf_bridge";
+static const char *TAG = "rf_bridge";
 
 void RFBridgeComponent::ack_() {
   ESP_LOGV(TAG, "Sending ACK");
@@ -18,7 +18,7 @@ void RFBridgeComponent::ack_() {
 bool RFBridgeComponent::parse_bridge_byte_(uint8_t byte) {
   size_t at = this->rx_buffer_.size();
   this->rx_buffer_.push_back(byte);
-  const uint8_t* raw = &this->rx_buffer_[0];
+  const uint8_t *raw = &this->rx_buffer_[0];
 
   ESP_LOGVV(TAG, "Processing byte: 0x%02X", byte);
 
@@ -114,7 +114,7 @@ bool RFBridgeComponent::parse_bridge_byte_(uint8_t byte) {
   return false;
 }
 
-void RFBridgeComponent::write_byte_str_(const std::string& codes) {
+void RFBridgeComponent::write_byte_str_(const std::string &codes) {
   uint8_t code;
   int size = codes.length();
   for (int i = 0; i < size; i += 2) {
@@ -160,7 +160,7 @@ void RFBridgeComponent::send_code(RFBridgeData data) {
   this->flush();
 }
 
-void RFBridgeComponent::send_advanced_code(const RFBridgeAdvancedData& data) {
+void RFBridgeComponent::send_advanced_code(const RFBridgeAdvancedData &data) {
   ESP_LOGD(TAG, "Sending advanced code: length=0x%02X protocol=0x%02X code=0x%s", data.length, data.protocol,
            data.code.c_str());
   this->write(RF_CODE_START);
@@ -209,7 +209,7 @@ void RFBridgeComponent::start_bucket_sniffing() {
   this->flush();
 }
 
-void RFBridgeComponent::send_raw(const std::string& raw_code) {
+void RFBridgeComponent::send_raw(const std::string &raw_code) {
   ESP_LOGD(TAG, "Sending Raw Code: %s", raw_code.c_str());
 
   this->write_byte_str_(raw_code);
