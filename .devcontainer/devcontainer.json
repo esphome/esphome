@@ -52,6 +52,6 @@
     "files.associations": {
       "**/.vscode/*.json": "jsonc"
     },
-    "C_Cpp.clang_format_path": "/usr/bin/clang-format-7",
+    "C_Cpp.clang_format_path": "/usr/bin/clang-format-11",
   }
 }
