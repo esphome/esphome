@@ -11,15 +11,6 @@
 namespace esphome {
 namespace multi_button {
 
-enum class MultiButtonState {
-  RELEASED = 0,
-  MAYBE_PRESSED = 1,
-  PRESSED = 2,
-  MAYBE_RELEASED = 3,
-  PRESS_HOLD = 4,
-  MAYBE_NOT_PRESS_HOLD = 5
-};
-
 class MultiButton : public sensor::Sensor, public Component {
  public:
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
@@ -36,6 +27,15 @@ class MultiButton : public sensor::Sensor, public Component {
   }
 
  protected:
+  enum class MultiButtonState {
+    RELEASED = 0,
+    MAYBE_PRESSED = 1,
+    PRESSED = 2,
+    MAYBE_RELEASED = 3,
+    PRESS_HOLD = 4,
+    MAYBE_NOT_PRESS_HOLD = 5
+  };
+
   GPIOPin *pin_;
   // The time in [ms] a button state needs to be stable to be recognized and not ignored as bouncing
   int debounce_millis_;
