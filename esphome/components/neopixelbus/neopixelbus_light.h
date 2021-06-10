@@ -78,7 +78,7 @@ class NeoPixelBusLightOutputBase : public light::AddressableLight {
       (*this)[i] = Color(0, 0, 0, 0);
     }
 
-    this->effect_data_ = new uint8_t[this->size()];
+    this->effect_data_ = new uint8_t[this->size()];  // NOLINT
     this->controller_->Begin();
   }
 

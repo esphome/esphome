@@ -49,7 +49,7 @@ class CustomAPIDevice {
   template<typename T, typename... Ts>
   void register_service(void (T::*callback)(Ts...), const std::string &name,
                         const std::array<std::string, sizeof...(Ts)> &arg_names) {
-    auto *service = new CustomAPIDeviceService<T, Ts...>(name, arg_names, (T *) this, callback);
+    auto *service = new CustomAPIDeviceService<T, Ts...>(name, arg_names, (T *) this, callback);  // NOLINT
     global_api_server->register_user_service(service);
   }
 
@@ -72,7 +72,7 @@ class CustomAPIDevice {
    * @param name The name of the arguments for the service, must match the arguments of the function.
    */
   template<typename T> void register_service(void (T::*callback)(), const std::string &name) {
-    auto *service = new CustomAPIDeviceService<T>(name, {}, (T *) this, callback);
+    auto *service = new CustomAPIDeviceService<T>(name, {}, (T *) this, callback);  // NOLINT
     global_api_server->register_user_service(service);
   }
 
