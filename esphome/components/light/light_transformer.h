@@ -52,7 +52,6 @@ class LightTransitionTransformer : public LightTransformer {
     // When turning light on from off state, use colors from new.
     if (!this->start_values_.is_on() && this->target_values_.is_on()) {
       this->start_values_ = LightColorValues(target_values);
-      this->start_values_.set_brightness(0.0f);
     }
 
     // When changing color mode, go through off state, as color modes are orthogonal and there can't be two active.

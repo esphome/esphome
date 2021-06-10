@@ -89,9 +89,11 @@ class LightColorValues {
    */
   static LightColorValues lerp(const LightColorValues &start, const LightColorValues &end, float completion) {
     LightColorValues v;
+    float brightness = esphome::lerp(completion, start.get_state() ? start.get_brightness() : 0.0f,
+                                     end.get_state() ? end.get_brightness() : 0.0f);
     v.set_color_mode(end.color_mode_);
-    v.set_state(esphome::lerp(completion, start.get_state(), end.get_state()));
-    v.set_brightness(esphome::lerp(completion, start.get_brightness(), end.get_brightness()));
+    v.set_state(brightness > 0.0f);
+    v.set_brightness(brightness);
     v.set_color_brightness(esphome::lerp(completion, start.get_color_brightness(), end.get_color_brightness()));
     v.set_red(esphome::lerp(completion, start.get_red(), end.get_red()));
     v.set_green(esphome::lerp(completion, start.get_green(), end.get_green()));
