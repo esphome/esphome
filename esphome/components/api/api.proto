@@ -378,6 +378,7 @@ message LightStateResponse {
   fixed32 key = 1;
   bool state = 2;
   float brightness = 3;
+  float color_brightness = 10;
   float red = 4;
   float green = 5;
   float blue = 6;
@@ -396,6 +397,8 @@ message LightCommandRequest {
   bool state = 3;
   bool has_brightness = 4;
   float brightness = 5;
+  bool has_color_brightness = 20;
+  float color_brightness = 21;
   bool has_rgb = 6;
   float red = 7;
   float green = 8;
