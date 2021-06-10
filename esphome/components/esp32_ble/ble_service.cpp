@@ -10,15 +10,7 @@ namespace esp32_ble {
 static const char *TAG = "esp32_ble.service";
 
 BLEService::BLEService(ESPBTUUID uuid, uint16_t num_handles, uint8_t inst_id)
-    : uuid_(uuid), num_handles_(num_handles), inst_id_(inst_id) {
-  this->create_lock_ = xSemaphoreCreateBinary();
-  this->start_lock_ = xSemaphoreCreateBinary();
-  this->stop_lock_ = xSemaphoreCreateBinary();
-
-  xSemaphoreGive(this->create_lock_);
-  xSemaphoreGive(this->start_lock_);
-  xSemaphoreGive(this->stop_lock_);
-}
+    : uuid_(uuid), num_handles_(num_handles), inst_id_(inst_id) {}
 
 BLEService::~BLEService() {
   for (auto &chr : this->characteristics_)
@@ -47,10 +39,9 @@ BLECharacteristic *BLEService::create_characteristic(ESPBTUUID uuid, esp_gatt_ch
   return characteristic;
 }
 
-bool BLEService::do_create(BLEServer *server) {
+void BLEService::do_create(BLEServer *server) {
   this->server_ = server;
 
-  xSemaphoreTake(this->create_lock_, portMAX_DELAY);
   esp_gatt_srvc_id_t srvc_id;
   srvc_id.is_primary = true;
   srvc_id.id.inst_id = this->inst_id_;
@@ -59,36 +50,58 @@ bool BLEService::do_create(BLEServer *server) {
   esp_err_t err = esp_ble_gatts_create_service(server->get_gatts_if(), &srvc_id, this->num_handles_);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "esp_ble_gatts_create_service failed: %d", err);
-    return false;
+    this->init_state_ = FAILED;
+    return;
   }
-  xSemaphoreWait(this->create_lock_, portMAX_DELAY);
+  this->init_state_ = CREATING;
+}
 
+bool BLEService::do_create_characteristics_() {
+  if (this->created_characteristic_count_ >= this->characteristics_.size() &&
+      (this->last_created_characteristic_ == nullptr || this->last_created_characteristic_->is_created()))
+    return false;  // Signifies there are no characteristics, or they are all finished being created.
+
+  if (this->last_created_characteristic_ != nullptr && !this->last_created_characteristic_->is_created())
+    return true;  // Signifies that the previous characteristic is still being created.
+
+  auto *characteristic = this->characteristics_[this->created_characteristic_count_++];
+  this->last_created_characteristic_ = characteristic;
+  characteristic->do_create(this);
   return true;
 }
 
 void BLEService::start() {
-  for (auto *characteristic : this->characteristics_) {
-    this->last_created_characteristic_ = characteristic;
-    characteristic->do_create(this);
-  }
+  if (this->do_create_characteristics_())
+    return;
 
-  xSemaphoreTake(this->start_lock_, portMAX_DELAY);
   esp_err_t err = esp_ble_gatts_start_service(this->handle_);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "esp_ble_gatts_start_service failed: %d", err);
     return;
   }
-  xSemaphoreWait(this->start_lock_, portMAX_DELAY);
+  this->running_state_ = STARTING;
 }
 
 void BLEService::stop() {
-  xSemaphoreTake(this->stop_lock_, portMAX_DELAY);
   esp_err_t err = esp_ble_gatts_stop_service(this->handle_);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "esp_ble_gatts_stop_service failed: %d", err);
     return;
   }
-  xSemaphoreWait(this->stop_lock_, portMAX_DELAY);
+  this->running_state_ = STOPPING;
+}
+
+bool BLEService::is_created() { return this->init_state_ == CREATED; }
+bool BLEService::is_failed() {
+  if (this->init_state_ == FAILED)
+    return true;
+  bool failed = false;
+  for (auto *characteristic : this->characteristics_)
+    failed |= characteristic->is_failed();
+
+  if (failed)
+    this->init_state_ = FAILED;
+  return this->init_state_ == FAILED;
 }
 
 void BLEService::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if,
@@ -98,19 +111,19 @@ void BLEService::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t g
       if (this->uuid_ == ESPBTUUID::from_uuid(param->create.service_id.id.uuid) &&
           this->inst_id_ == param->create.service_id.id.inst_id) {
         this->handle_ = param->create.service_handle;
-        xSemaphoreGive(this->create_lock_);
+        this->init_state_ = CREATED;
       }
       break;
     }
     case ESP_GATTS_START_EVT: {
       if (param->start.service_handle == this->handle_) {
-        xSemaphoreGive(this->start_lock_);
+        this->running_state_ = RUNNING;
       }
       break;
     }
     case ESP_GATTS_STOP_EVT: {
       if (param->start.service_handle == this->handle_) {
-        xSemaphoreGive(this->stop_lock_);
+        this->running_state_ = STOPPED;
       }
       break;
     }
