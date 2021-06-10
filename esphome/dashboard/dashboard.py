@@ -45,6 +45,8 @@ from esphome.zeroconf import DashboardStatus, Zeroconf
 
 _LOGGER = logging.getLogger(__name__)
 
+ENV_DEV = "ESPHOME_DASHBOARD_DEV"
+
 
 class DashboardSettings:
     def __init__(self):
@@ -716,12 +718,12 @@ _STATIC_FILE_HASHES = {}
 
 
 def get_base_frontend_path():
-    if "ESPHOME_DASHBOARD_DEV" not in os.environ:
+    if ENV_DEV not in os.environ:
         import esphome_dashboard
 
         return esphome_dashboard.where()
 
-    static_path = os.environ["ESPHOME_DASHBOARD_DEV"]
+    static_path = os.environ[ENV_DEV]
     if not static_path.endswith("/"):
         static_path += "/"
 
@@ -748,7 +750,7 @@ def get_static_file_url(name):
     return f"./static/{name}?hash={hash_}"
 
 
-def make_app(debug=False):
+def make_app(debug=get_bool_env(ENV_DEV)):
     def log_function(handler):
         if handler.get_status() < 400:
             log_method = access_log.info
