@@ -25,6 +25,8 @@ void AddressableLight::call_setup() {
 }
 
 Color esp_color_from_light_color_values(LightColorValues val) {
+  if (!val.get_state())
+    return Color(0, 0, 0, 0);
   auto r = to_uint8_scale(val.get_color_brightness() * val.get_red());
   auto g = to_uint8_scale(val.get_color_brightness() * val.get_green());
   auto b = to_uint8_scale(val.get_color_brightness() * val.get_blue());
@@ -34,7 +36,7 @@ Color esp_color_from_light_color_values(LightColorValues val) {
 
 void AddressableLight::write_state(LightState *state) {
   auto val = state->current_values;
-  auto max_brightness = to_uint8_scale(val.get_brightness() * val.get_state());
+  auto max_brightness = to_uint8_scale(val.get_brightness());
   this->correction_.set_local_brightness(max_brightness);
 
   this->last_transition_progress_ = 0.0f;
@@ -65,10 +67,10 @@ void AddressableLight::write_state(LightState *state) {
 
     auto end_values = state->transformer_->get_end_values();
     Color target_color = esp_color_from_light_color_values(end_values);
+    target_color *= to_uint8_scale(end_values.get_brightness());
 
     // our transition will handle brightness, disable brightness in correction.
     this->correction_.set_local_brightness(255);
-    target_color *= to_uint8_scale(end_values.get_brightness() * end_values.get_state());
 
     float denom = (1.0f - new_smoothed);
     float alpha = denom == 0.0f ? 0.0f : (new_smoothed - prev_smoothed) / denom;

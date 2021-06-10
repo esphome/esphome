@@ -23,7 +23,7 @@ inline static uint8_t to_uint8_scale(float x) { return static_cast<uint8_t>(roun
  * - color_mode: The currently active color mode.
  *
  * For ON_OFF capability:
- * - state: Whether the light should be on/off. Represented as a float for transitions.
+ * - state: Whether the light should be on/off.
  *
  * For BRIGHTNESS capability:
  * - brightness: The master brightness of the light, should be applied to all channels.
@@ -51,7 +51,7 @@ class LightColorValues {
   /// Construct the LightColorValues with all attributes enabled, but state set to off.
   LightColorValues()
       : color_mode_(ColorMode::UNKNOWN),
-        state_(0.0f),
+        state_(false),
         brightness_(1.0f),
         color_brightness_(1.0f),
         red_(1.0f),
@@ -140,17 +140,17 @@ class LightColorValues {
   // are always used or necessary. Methods will be deprecated later.
 
   /// Convert these light color values to a binary representation and write them to binary.
-  void as_binary(bool *binary) const { *binary = this->state_ == 1.0f; }
+  void as_binary(bool *binary) const { *binary = this->state_; }
 
   /// Convert these light color values to a brightness-only representation and write them to brightness.
   void as_brightness(float *brightness, float gamma = 0) const {
-    *brightness = gamma_correct(this->state_ * this->brightness_, gamma);
+    *brightness = this->state_ ? gamma_correct(this->state_, gamma) : 0.0f;
   }
 
   /// Convert these light color values to an RGB representation and write them to red, green, blue.
   void as_rgb(float *red, float *green, float *blue, float gamma = 0, bool color_interlock = false) const {
     if (this->color_mode_ & ColorCapability::RGB) {
-      float brightness = this->state_ * this->brightness_ * this->color_brightness_;
+      float brightness = this->state_ ? this->brightness_ * this->color_brightness_ : 0.0f;
       *red = gamma_correct(brightness * this->red_, gamma);
       *green = gamma_correct(brightness * this->green_, gamma);
       *blue = gamma_correct(brightness * this->blue_, gamma);
@@ -164,7 +164,7 @@ class LightColorValues {
                bool color_interlock = false) const {
     this->as_rgb(red, green, blue, gamma);
     if (this->color_mode_ & ColorCapability::WHITE) {
-      *white = gamma_correct(this->state_ * this->brightness_ * this->white_, gamma);
+      *white = this->state_ ? gamma_correct(this->brightness_ * this->white_, gamma) : 0.0f;
     } else {
       *white = 0;
     }
@@ -184,7 +184,7 @@ class LightColorValues {
     if (this->color_mode_ & ColorMode::COLD_WARM_WHITE) {
       const float cw_level = gamma_correct(this->cold_white_, gamma);
       const float ww_level = gamma_correct(this->warm_white_, gamma);
-      const float white_level = gamma_correct(this->state_ * this->brightness_, gamma);
+      const float white_level = this->state_ ? gamma_correct(this->brightness_, gamma) : 0.0f;
       *cold_white = white_level * cw_level;
       *warm_white = white_level * ww_level;
       if (constant_brightness && (cw_level > 0 || ww_level > 0)) {
@@ -212,13 +212,11 @@ class LightColorValues {
   void set_color_mode(ColorMode color_mode) { this->color_mode_ = color_mode; }
 
   /// Get the state of these light color values. In range from 0.0 (off) to 1.0 (on)
-  float get_state() const { return this->state_; }
+  bool get_state() const { return this->state_; }
   /// Get the binary true/false state of these light color values.
-  bool is_on() const { return this->get_state() != 0.0f; }
-  /// Set the state of these light color values. In range from 0.0 (off) to 1.0 (on)
-  void set_state(float state) { this->state_ = clamp(state, 0.0f, 1.0f); }
+  bool is_on() const { return this->state_; }
   /// Set the state of these light color values as a binary true/false.
-  void set_state(bool state) { this->state_ = state ? 1.0f : 0.0f; }
+  void set_state(bool state) { this->state_ = state; }
 
   /// Get the brightness property of these light color values. In range 0.0 to 1.0
   float get_brightness() const { return this->brightness_; }
@@ -267,7 +265,7 @@ class LightColorValues {
 
  protected:
   ColorMode color_mode_;
-  float state_;  ///< ON / OFF, float for transition
+  bool state_;  ///< ON / OFF
   float brightness_;
   float color_brightness_;
   float red_;

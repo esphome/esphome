@@ -48,7 +48,7 @@ void LightJSONSchema::dump_json(LightState &state, JsonObject &root) {
   }
 
   if (values.get_color_mode() & ColorCapability::ON_OFF)
-    root["state"] = (values.get_state() != 0.0f) ? "ON" : "OFF";
+    root["state"] = values.get_state() ? "ON" : "OFF";
   if (values.get_color_mode() & ColorCapability::BRIGHTNESS)
     root["brightness"] = uint8_t(values.get_brightness() * 255);
 
