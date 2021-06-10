@@ -4,7 +4,7 @@
 namespace esphome {
 namespace rtttl {
 
-static const char* TAG = "rtttl";
+static const char *TAG = "rtttl";
 
 static const uint32_t DOUBLE_NOTE_GAP_MS = 10;
 
