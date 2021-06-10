@@ -39,14 +39,14 @@ class ESPPreferenceObject {
 
 #ifdef ARDUINO_ARCH_ESP8266
 #ifdef USE_ESP8266_PREFERENCES_FLASH
-static bool DEFAULT_IN_FLASH = true;
+static const bool DEFAULT_IN_FLASH = true;
 #else
-static bool DEFAULT_IN_FLASH = false;
+static const bool DEFAULT_IN_FLASH = false;
 #endif
 #endif
 
 #ifdef ARDUINO_ARCH_ESP32
-static bool DEFAULT_IN_FLASH = true;
+static const bool DEFAULT_IN_FLASH = true;
 #endif
 
 class ESPPreferences {
