@@ -4,7 +4,7 @@
 namespace esphome {
 namespace light {
 
-static const char *TAG = "light.addressable";
+static const char *const TAG = "light.addressable";
 
 Color ESPHSVColor::to_rgb() const {
   // based on FastLED's hsv rainbow to rgb

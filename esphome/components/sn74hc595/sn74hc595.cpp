@@ -4,7 +4,7 @@
 namespace esphome {
 namespace sn74hc595 {
 
-static const char *TAG = "sn74hc595";
+static const char *const TAG = "sn74hc595";
 
 void SN74HC595Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up SN74HC595...");

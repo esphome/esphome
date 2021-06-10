@@ -4,7 +4,7 @@
 namespace esphome {
 namespace tuya {
 
-static const char *TAG = "tuya.climate";
+static const char *const TAG = "tuya.climate";
 
 void TuyaClimate::setup() {
   if (this->switch_id_.has_value()) {

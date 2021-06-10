@@ -6,7 +6,7 @@
 namespace esphome {
 namespace waveshare_epaper {
 
-static const char *TAG = "waveshare_epaper";
+static const char *const TAG = "waveshare_epaper";
 
 static const uint8_t LUT_SIZE_WAVESHARE = 30;
 

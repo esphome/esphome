@@ -8,7 +8,7 @@ ADC_MODE(ADC_VCC)
 namespace esphome {
 namespace adc {
 
-static const char *TAG = "adc";
+static const char *const TAG = "adc";
 
 #ifdef ARDUINO_ARCH_ESP32
 void ADCSensor::set_attenuation(adc_attenuation_t attenuation) { this->attenuation_ = attenuation; }

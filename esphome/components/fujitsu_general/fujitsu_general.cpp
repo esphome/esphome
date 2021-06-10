@@ -9,7 +9,7 @@ namespace fujitsu_general {
   ((message)[(nibble) / 2] |= ((value) &0b00001111) << (((nibble) % 2) ? 0 : 4))
 #define GET_NIBBLE(message, nibble) (((message)[(nibble) / 2] >> (((nibble) % 2) ? 0 : 4)) & 0b00001111)
 
-static const char *TAG = "fujitsu_general.climate";
+static const char *const TAG = "fujitsu_general.climate";
 
 // Common header
 const uint8_t FUJITSU_GENERAL_COMMON_LENGTH = 6;

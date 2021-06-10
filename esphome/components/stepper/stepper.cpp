@@ -4,7 +4,7 @@
 namespace esphome {
 namespace stepper {
 
-static const char *TAG = "stepper";
+static const char *const TAG = "stepper";
 
 void Stepper::calculate_speed_(uint32_t now) {
   // delta t since last calculation in seconds

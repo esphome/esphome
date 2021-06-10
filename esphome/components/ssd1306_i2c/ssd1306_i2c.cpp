@@ -4,7 +4,7 @@
 namespace esphome {
 namespace ssd1306_i2c {
 
-static const char *TAG = "ssd1306_i2c";
+static const char *const TAG = "ssd1306_i2c";
 
 void I2CSSD1306::setup() {
   ESP_LOGCONFIG(TAG, "Setting up I2C SSD1306...");

@@ -18,7 +18,6 @@ Checks: >-
   -cppcoreguidelines-avoid-c-arrays,
   -cppcoreguidelines-avoid-goto,
   -cppcoreguidelines-avoid-magic-numbers,
-  -cppcoreguidelines-avoid-non-const-global-variables,
   -cppcoreguidelines-init-variables,
   -cppcoreguidelines-macro-usage,
   -cppcoreguidelines-narrowing-conversions,

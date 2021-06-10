@@ -5,7 +5,7 @@
 namespace esphome {
 namespace sensor {
 
-static const char *TAG = "sensor.filter";
+static const char *const TAG = "sensor.filter";
 
 // Filter
 uint32_t Filter::expected_interval(uint32_t input) { return input; }

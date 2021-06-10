@@ -4,7 +4,7 @@
 namespace esphome {
 namespace qmc5883l {
 
-static const char *TAG = "qmc5883l";
+static const char *const TAG = "qmc5883l";
 static const uint8_t QMC5883L_ADDRESS = 0x0D;
 
 static const uint8_t QMC5883L_REGISTER_DATA_X_LSB = 0x00;
