@@ -86,7 +86,7 @@ class WaveshareEPaperTypeA : public WaveshareEPaper {
   void display() override;
 
   void deep_sleep() override {
-    if (this->model_ == WAVESHARE_EPAPER_2_9_IN_V2 || this->model_ ==WAVESHARE_EPAPER_1_54_IN_V2) {
+    if (this->model_ == WAVESHARE_EPAPER_2_9_IN_V2 || this->model_ == WAVESHARE_EPAPER_1_54_IN_V2) {
       // COMMAND DEEP SLEEP MODE
       this->command(0x10);
       this->data(0x01);
