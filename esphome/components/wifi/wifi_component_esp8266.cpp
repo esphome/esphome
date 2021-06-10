@@ -10,6 +10,10 @@
 #include <wpa2_enterprise.h>
 #endif
 
+#ifdef WIFI_IS_OFF_AT_BOOT // Identifies ESP8266 Arduino 3.0.0
+#define ARDUINO_ESP8266_RELEASE_3
+#endif
+
 extern "C" {
 #include "lwip/err.h"
 #include "lwip/dns.h"
@@ -18,7 +22,14 @@ extern "C" {
 #if LWIP_IPV6
 #include "lwip/netif.h"  // struct netif
 #endif
+#ifdef ARDUINO_ESP8266_RELEASE_3
+#include "LwipDhcpServer.h"
+#define wifi_softap_set_dhcps_lease(lease) dhcpSoftAP.set_dhcps_lease(lease)
+#define wifi_softap_set_dhcps_lease_time(time) dhcpSoftAP.set_dhcps_lease_time(time)
+#define wifi_softap_set_dhcps_offer_option(offer, mode) dhcpSoftAP.set_dhcps_offer_option(offer, mode)
+#endif
 }
+
 
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -648,6 +659,10 @@ bool WiFiComponent::wifi_ap_ip_config_(optional<ManualIP> manual_ip) {
     ESP_LOGV(TAG, "Setting SoftAP info failed!");
     return false;
   }
+
+#ifdef ARDUINO_ESP8266_RELEASE_3
+  dhcpSoftAP.begin(&info);
+#endif
 
   struct dhcps_lease lease {};
   IPAddress start_address = info.ip.addr;
