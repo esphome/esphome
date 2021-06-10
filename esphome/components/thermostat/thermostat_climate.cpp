@@ -33,7 +33,7 @@ float ThermostatClimate::hysteresis() { return this->hysteresis_; }
 void ThermostatClimate::refresh() {
   this->switch_to_mode_(this->mode);
   this->switch_to_action_(compute_action_());
-  this->switch_to_fan_mode_(this->fan_mode);
+  this->switch_to_fan_mode_(this->fan_mode.value());
   this->switch_to_swing_mode_(this->swing_mode);
   this->publish_state();
 }

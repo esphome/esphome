@@ -1,0 +1,42 @@
+name: Build and publish lint docker image
+
+# Only run when docker paths change
+on:
+  push:
+    branches: [dev]
+    paths:
+      - 'docker/Dockerfile.lint'
+      - 'requirements.txt'
+      - 'requirements_optional.txt'
+      - 'requirements_test.txt'
+      - 'platformio.ini'
+      - '.github/workflows/docker-lint-build.yml'
+
+jobs:
+  publish-docker-lint-iage:
+    name: Build docker containers
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set TAG
+        run: |
+          echo "TAG=1.1" >> $GITHUB_ENV
+      - name: Pull for cache
+        run: |
+          docker pull "esphome/esphome-lint:latest" || true
+      - name: Build
+        run: |
+          docker build \
+            --cache-from "esphome/esphome-lint:latest" \
+            --file "docker/Dockerfile.lint" \
+            --tag "esphome/esphome-lint:latest" \
+            --tag "esphome/esphome-lint:${TAG}" \
+            .
+      - name: Log in to docker hub
+        env:
+          DOCKER_USER: ${{ secrets.DOCKER_USER }}
+          DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+        run: docker login -u "${DOCKER_USER}" -p "${DOCKER_PASSWORD}"
+      - run: |
+          docker push "esphome/esphome-lint:${TAG}"
+          docker push "esphome/esphome-lint:latest"

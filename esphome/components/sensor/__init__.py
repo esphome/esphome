@@ -1,4 +1,5 @@
 import math
+from typing import Optional
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
@@ -21,6 +22,7 @@ from esphome.const import (
     CONF_ON_VALUE_RANGE,
     CONF_SEND_EVERY,
     CONF_SEND_FIRST_AT,
+    CONF_STATE_CLASS,
     CONF_TO,
     CONF_TRIGGER_ID,
     CONF_UNIT_OF_MEASUREMENT,
@@ -32,6 +34,8 @@ from esphome.const import (
     ICON_EMPTY,
     DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_BATTERY,
+    DEVICE_CLASS_CARBON_MONOXIDE,
+    DEVICE_CLASS_CARBON_DIOXIDE,
     DEVICE_CLASS_CURRENT,
     DEVICE_CLASS_ENERGY,
     DEVICE_CLASS_HUMIDITY,
@@ -43,26 +47,37 @@ from esphome.const import (
     DEVICE_CLASS_PRESSURE,
     DEVICE_CLASS_TIMESTAMP,
     DEVICE_CLASS_VOLTAGE,
+    STATE_CLASS_NONE,
 )
-from esphome.core import CORE, coroutine, coroutine_with_priority
+from esphome.core import CORE, coroutine_with_priority
 from esphome.util import Registry
 
 CODEOWNERS = ["@esphome/core"]
 DEVICE_CLASSES = [
     DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_BATTERY,
+    DEVICE_CLASS_CARBON_MONOXIDE,
+    DEVICE_CLASS_CARBON_DIOXIDE,
     DEVICE_CLASS_CURRENT,
     DEVICE_CLASS_ENERGY,
     DEVICE_CLASS_HUMIDITY,
     DEVICE_CLASS_ILLUMINANCE,
     DEVICE_CLASS_SIGNAL_STRENGTH,
     DEVICE_CLASS_TEMPERATURE,
+    DEVICE_CLASS_TIMESTAMP,
     DEVICE_CLASS_POWER,
     DEVICE_CLASS_POWER_FACTOR,
     DEVICE_CLASS_PRESSURE,
-    DEVICE_CLASS_TIMESTAMP,
     DEVICE_CLASS_VOLTAGE,
 ]
+
+sensor_ns = cg.esphome_ns.namespace("sensor")
+StateClasses = sensor_ns.enum("StateClass")
+STATE_CLASSES = {
+    "": StateClasses.STATE_CLASS_NONE,
+    "measurement": StateClasses.STATE_CLASS_MEASUREMENT,
+}
+validate_state_class = cv.enum(STATE_CLASSES, lower=True, space="_")
 
 IS_PLATFORM_COMPONENT = True
 
@@ -152,6 +167,7 @@ SENSOR_SCHEMA = cv.MQTT_COMPONENT_SCHEMA.extend(
         cv.Optional(CONF_ICON): icon,
         cv.Optional(CONF_ACCURACY_DECIMALS): accuracy_decimals,
         cv.Optional(CONF_DEVICE_CLASS): device_class,
+        cv.Optional(CONF_STATE_CLASS): validate_state_class,
         cv.Optional(CONF_FORCE_UPDATE, default=False): cv.boolean,
         cv.Optional(CONF_EXPIRE_AFTER): cv.All(
             cv.requires_component("mqtt"),
@@ -180,8 +196,13 @@ SENSOR_SCHEMA = cv.MQTT_COMPONENT_SCHEMA.extend(
 )
 
 
-def sensor_schema(unit_of_measurement_, icon_, accuracy_decimals_, device_class_):
-    # type: (str, str, int, str) -> cv.Schema
+def sensor_schema(
+    unit_of_measurement_: str,
+    icon_: str,
+    accuracy_decimals_: int,
+    device_class_: Optional[str] = DEVICE_CLASS_EMPTY,
+    state_class_: Optional[str] = STATE_CLASS_NONE,
+) -> cv.Schema:
     schema = SENSOR_SCHEMA
     if unit_of_measurement_ != UNIT_EMPTY:
         schema = schema.extend(
@@ -205,22 +226,26 @@ def sensor_schema(unit_of_measurement_, icon_, accuracy_decimals_, device_class_
         schema = schema.extend(
             {cv.Optional(CONF_DEVICE_CLASS, default=device_class_): device_class}
         )
+    if state_class_ != STATE_CLASS_NONE:
+        schema = schema.extend(
+            {cv.Optional(CONF_STATE_CLASS, default=state_class_): validate_state_class}
+        )
     return schema
 
 
 @FILTER_REGISTRY.register("offset", OffsetFilter, cv.float_)
-def offset_filter_to_code(config, filter_id):
-    yield cg.new_Pvariable(filter_id, config)
+async def offset_filter_to_code(config, filter_id):
+    return cg.new_Pvariable(filter_id, config)
 
 
 @FILTER_REGISTRY.register("multiply", MultiplyFilter, cv.float_)
-def multiply_filter_to_code(config, filter_id):
-    yield cg.new_Pvariable(filter_id, config)
+async def multiply_filter_to_code(config, filter_id):
+    return cg.new_Pvariable(filter_id, config)
 
 
 @FILTER_REGISTRY.register("filter_out", FilterOutValueFilter, cv.float_)
-def filter_out_filter_to_code(config, filter_id):
-    yield cg.new_Pvariable(filter_id, config)
+async def filter_out_filter_to_code(config, filter_id):
+    return cg.new_Pvariable(filter_id, config)
 
 
 MEDIAN_SCHEMA = cv.All(
@@ -236,8 +261,8 @@ MEDIAN_SCHEMA = cv.All(
 
 
 @FILTER_REGISTRY.register("median", MedianFilter, MEDIAN_SCHEMA)
-def median_filter_to_code(config, filter_id):
-    yield cg.new_Pvariable(
+async def median_filter_to_code(config, filter_id):
+    return cg.new_Pvariable(
         filter_id,
         config[CONF_WINDOW_SIZE],
         config[CONF_SEND_EVERY],
@@ -258,8 +283,8 @@ MIN_SCHEMA = cv.All(
 
 
 @FILTER_REGISTRY.register("min", MinFilter, MIN_SCHEMA)
-def min_filter_to_code(config, filter_id):
-    yield cg.new_Pvariable(
+async def min_filter_to_code(config, filter_id):
+    return cg.new_Pvariable(
         filter_id,
         config[CONF_WINDOW_SIZE],
         config[CONF_SEND_EVERY],
@@ -280,8 +305,8 @@ MAX_SCHEMA = cv.All(
 
 
 @FILTER_REGISTRY.register("max", MaxFilter, MAX_SCHEMA)
-def max_filter_to_code(config, filter_id):
-    yield cg.new_Pvariable(
+async def max_filter_to_code(config, filter_id):
+    return cg.new_Pvariable(
         filter_id,
         config[CONF_WINDOW_SIZE],
         config[CONF_SEND_EVERY],
@@ -306,8 +331,8 @@ SLIDING_AVERAGE_SCHEMA = cv.All(
     SlidingWindowMovingAverageFilter,
     SLIDING_AVERAGE_SCHEMA,
 )
-def sliding_window_moving_average_filter_to_code(config, filter_id):
-    yield cg.new_Pvariable(
+async def sliding_window_moving_average_filter_to_code(config, filter_id):
+    return cg.new_Pvariable(
         filter_id,
         config[CONF_WINDOW_SIZE],
         config[CONF_SEND_EVERY],
@@ -325,52 +350,52 @@ def sliding_window_moving_average_filter_to_code(config, filter_id):
         }
     ),
 )
-def exponential_moving_average_filter_to_code(config, filter_id):
-    yield cg.new_Pvariable(filter_id, config[CONF_ALPHA], config[CONF_SEND_EVERY])
+async def exponential_moving_average_filter_to_code(config, filter_id):
+    return cg.new_Pvariable(filter_id, config[CONF_ALPHA], config[CONF_SEND_EVERY])
 
 
 @FILTER_REGISTRY.register("lambda", LambdaFilter, cv.returning_lambda)
-def lambda_filter_to_code(config, filter_id):
-    lambda_ = yield cg.process_lambda(
+async def lambda_filter_to_code(config, filter_id):
+    lambda_ = await cg.process_lambda(
         config, [(float, "x")], return_type=cg.optional.template(float)
     )
-    yield cg.new_Pvariable(filter_id, lambda_)
+    return cg.new_Pvariable(filter_id, lambda_)
 
 
 @FILTER_REGISTRY.register("delta", DeltaFilter, cv.float_)
-def delta_filter_to_code(config, filter_id):
-    yield cg.new_Pvariable(filter_id, config)
+async def delta_filter_to_code(config, filter_id):
+    return cg.new_Pvariable(filter_id, config)
 
 
 @FILTER_REGISTRY.register("or", OrFilter, validate_filters)
-def or_filter_to_code(config, filter_id):
-    filters = yield build_filters(config)
-    yield cg.new_Pvariable(filter_id, filters)
+async def or_filter_to_code(config, filter_id):
+    filters = await build_filters(config)
+    return cg.new_Pvariable(filter_id, filters)
 
 
 @FILTER_REGISTRY.register(
     "throttle", ThrottleFilter, cv.positive_time_period_milliseconds
 )
-def throttle_filter_to_code(config, filter_id):
-    yield cg.new_Pvariable(filter_id, config)
+async def throttle_filter_to_code(config, filter_id):
+    return cg.new_Pvariable(filter_id, config)
 
 
 @FILTER_REGISTRY.register(
     "heartbeat", HeartbeatFilter, cv.positive_time_period_milliseconds
 )
-def heartbeat_filter_to_code(config, filter_id):
+async def heartbeat_filter_to_code(config, filter_id):
     var = cg.new_Pvariable(filter_id, config)
-    yield cg.register_component(var, {})
-    yield var
+    await cg.register_component(var, {})
+    return var
 
 
 @FILTER_REGISTRY.register(
     "debounce", DebounceFilter, cv.positive_time_period_milliseconds
 )
-def debounce_filter_to_code(config, filter_id):
+async def debounce_filter_to_code(config, filter_id):
     var = cg.new_Pvariable(filter_id, config)
-    yield cg.register_component(var, {})
-    yield var
+    await cg.register_component(var, {})
+    return var
 
 
 def validate_not_all_from_same(config):
@@ -389,11 +414,11 @@ def validate_not_all_from_same(config):
         cv.ensure_list(validate_datapoint), cv.Length(min=2), validate_not_all_from_same
     ),
 )
-def calibrate_linear_filter_to_code(config, filter_id):
+async def calibrate_linear_filter_to_code(config, filter_id):
     x = [conf[CONF_FROM] for conf in config]
     y = [conf[CONF_TO] for conf in config]
     k, b = fit_linear(x, y)
-    yield cg.new_Pvariable(filter_id, k, b)
+    return cg.new_Pvariable(filter_id, k, b)
 
 
 CONF_DATAPOINTS = "datapoints"
@@ -425,7 +450,7 @@ def validate_calibrate_polynomial(config):
         validate_calibrate_polynomial,
     ),
 )
-def calibrate_polynomial_filter_to_code(config, filter_id):
+async def calibrate_polynomial_filter_to_code(config, filter_id):
     x = [conf[CONF_FROM] for conf in config[CONF_DATAPOINTS]]
     y = [conf[CONF_TO] for conf in config[CONF_DATAPOINTS]]
     degree = config[CONF_DEGREE]
@@ -433,21 +458,21 @@ def calibrate_polynomial_filter_to_code(config, filter_id):
     # Column vector
     b = [[v] for v in y]
     res = [v[0] for v in _lstsq(a, b)]
-    yield cg.new_Pvariable(filter_id, res)
+    return cg.new_Pvariable(filter_id, res)
 
 
-@coroutine
-def build_filters(config):
-    yield cg.build_registry_list(FILTER_REGISTRY, config)
+async def build_filters(config):
+    return await cg.build_registry_list(FILTER_REGISTRY, config)
 
 
-@coroutine
-def setup_sensor_core_(var, config):
+async def setup_sensor_core_(var, config):
     cg.add(var.set_name(config[CONF_NAME]))
     if CONF_INTERNAL in config:
         cg.add(var.set_internal(config[CONF_INTERNAL]))
     if CONF_DEVICE_CLASS in config:
         cg.add(var.set_device_class(config[CONF_DEVICE_CLASS]))
+    if CONF_STATE_CLASS in config:
+        cg.add(var.set_state_class(config[CONF_STATE_CLASS]))
     if CONF_UNIT_OF_MEASUREMENT in config:
         cg.add(var.set_unit_of_measurement(config[CONF_UNIT_OF_MEASUREMENT]))
     if CONF_ICON in config:
@@ -456,29 +481,29 @@ def setup_sensor_core_(var, config):
         cg.add(var.set_accuracy_decimals(config[CONF_ACCURACY_DECIMALS]))
     cg.add(var.set_force_update(config[CONF_FORCE_UPDATE]))
     if config.get(CONF_FILTERS):  # must exist and not be empty
-        filters = yield build_filters(config[CONF_FILTERS])
+        filters = await build_filters(config[CONF_FILTERS])
         cg.add(var.set_filters(filters))
 
     for conf in config.get(CONF_ON_VALUE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        yield automation.build_automation(trigger, [(float, "x")], conf)
+        await automation.build_automation(trigger, [(float, "x")], conf)
     for conf in config.get(CONF_ON_RAW_VALUE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        yield automation.build_automation(trigger, [(float, "x")], conf)
+        await automation.build_automation(trigger, [(float, "x")], conf)
     for conf in config.get(CONF_ON_VALUE_RANGE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        yield cg.register_component(trigger, conf)
+        await cg.register_component(trigger, conf)
         if CONF_ABOVE in conf:
-            template_ = yield cg.templatable(conf[CONF_ABOVE], [(float, "x")], float)
+            template_ = await cg.templatable(conf[CONF_ABOVE], [(float, "x")], float)
             cg.add(trigger.set_min(template_))
         if CONF_BELOW in conf:
-            template_ = yield cg.templatable(conf[CONF_BELOW], [(float, "x")], float)
+            template_ = await cg.templatable(conf[CONF_BELOW], [(float, "x")], float)
             cg.add(trigger.set_max(template_))
-        yield automation.build_automation(trigger, [(float, "x")], conf)
+        await automation.build_automation(trigger, [(float, "x")], conf)
 
     if CONF_MQTT_ID in config:
         mqtt_ = cg.new_Pvariable(config[CONF_MQTT_ID], var)
-        yield mqtt.register_mqtt_component(mqtt_, config)
+        await mqtt.register_mqtt_component(mqtt_, config)
 
         if CONF_EXPIRE_AFTER in config:
             if config[CONF_EXPIRE_AFTER] is None:
@@ -487,19 +512,17 @@ def setup_sensor_core_(var, config):
                 cg.add(mqtt_.set_expire_after(config[CONF_EXPIRE_AFTER]))
 
 
-@coroutine
-def register_sensor(var, config):
+async def register_sensor(var, config):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
     cg.add(cg.App.register_sensor(var))
-    yield setup_sensor_core_(var, config)
+    await setup_sensor_core_(var, config)
 
 
-@coroutine
-def new_sensor(config):
+async def new_sensor(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield register_sensor(var, config)
-    yield var
+    await register_sensor(var, config)
+    return var
 
 
 SENSOR_IN_RANGE_CONDITION_SCHEMA = cv.All(
@@ -515,8 +538,8 @@ SENSOR_IN_RANGE_CONDITION_SCHEMA = cv.All(
 @automation.register_condition(
     "sensor.in_range", SensorInRangeCondition, SENSOR_IN_RANGE_CONDITION_SCHEMA
 )
-def sensor_in_range_to_code(config, condition_id, template_arg, args):
-    paren = yield cg.get_variable(config[CONF_ID])
+async def sensor_in_range_to_code(config, condition_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(condition_id, template_arg, paren)
 
     if CONF_ABOVE in config:
@@ -524,7 +547,7 @@ def sensor_in_range_to_code(config, condition_id, template_arg, args):
     if CONF_BELOW in config:
         cg.add(var.set_max(config[CONF_BELOW]))
 
-    yield var
+    return var
 
 
 def _mean(xs):
@@ -613,6 +636,6 @@ def _lstsq(a, b):
 
 
 @coroutine_with_priority(40.0)
-def to_code(config):
+async def to_code(config):
     cg.add_define("USE_SENSOR")
     cg.add_global(sensor_ns.using)

@@ -24,6 +24,7 @@ static const uint8_t RF_CODE_LEARN_KO_NEW = 0xAA;
 static const uint8_t RF_CODE_LEARN_OK_NEW = 0xAB;
 static const uint8_t RF_CODE_RFOUT_BUCKET = 0xB0;
 static const uint8_t RF_CODE_RFIN_BUCKET = 0xB1;
+static const uint8_t RF_CODE_BEEP = 0xC0;
 static const uint8_t RF_CODE_STOP = 0x55;
 static const uint8_t RF_DEBOUNCE = 200;
 
@@ -55,7 +56,9 @@ class RFBridgeComponent : public uart::UARTDevice, public Component {
   void learn();
   void start_advanced_sniffing();
   void stop_advanced_sniffing();
+  void start_bucket_sniffing();
   void send_raw(std::string code);
+  void beep(uint16_t ms);
 
  protected:
   void ack_();
@@ -154,12 +157,33 @@ template<typename... Ts> class RFBridgeStopAdvancedSniffingAction : public Actio
   RFBridgeComponent *parent_;
 };
 
+template<typename... Ts> class RFBridgeStartBucketSniffingAction : public Action<Ts...> {
+ public:
+  RFBridgeStartBucketSniffingAction(RFBridgeComponent *parent) : parent_(parent) {}
+
+  void play(Ts... x) { this->parent_->start_bucket_sniffing(); }
+
+ protected:
+  RFBridgeComponent *parent_;
+};
+
 template<typename... Ts> class RFBridgeSendRawAction : public Action<Ts...> {
  public:
   RFBridgeSendRawAction(RFBridgeComponent *parent) : parent_(parent) {}
   TEMPLATABLE_VALUE(std::string, raw)
 
   void play(Ts... x) { this->parent_->send_raw(this->raw_.value(x...)); }
+
+ protected:
+  RFBridgeComponent *parent_;
+};
+
+template<typename... Ts> class RFBridgeBeepAction : public Action<Ts...> {
+ public:
+  RFBridgeBeepAction(RFBridgeComponent *parent) : parent_(parent) {}
+  TEMPLATABLE_VALUE(uint16_t, duration)
+
+  void play(Ts... x) { this->parent_->beep(this->duration_.value(x...)); }
 
  protected:
   RFBridgeComponent *parent_;

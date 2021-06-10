@@ -32,12 +32,12 @@ CONFIG_SCHEMA = cv.Schema(
 
 
 @coroutine_with_priority(50.0)
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add(var.set_port(config[CONF_PORT]))
     cg.add(var.set_auth_password(config[CONF_PASSWORD]))
 
-    yield cg.register_component(var, config)
+    await cg.register_component(var, config)
 
     if config[CONF_SAFE_MODE]:
         condition = var.should_enter_safe_mode(

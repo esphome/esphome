@@ -8,6 +8,7 @@ from esphome.const import (
     DEVICE_CLASS_PRESSURE,
     DEVICE_CLASS_TEMPERATURE,
     ICON_EMPTY,
+    STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
     ICON_GAUGE,
     UNIT_HECTOPASCAL,
@@ -25,10 +26,18 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(MS5611Component),
             cv.Required(CONF_TEMPERATURE): sensor.sensor_schema(
-                UNIT_CELSIUS, ICON_EMPTY, 1, DEVICE_CLASS_TEMPERATURE
+                UNIT_CELSIUS,
+                ICON_EMPTY,
+                1,
+                DEVICE_CLASS_TEMPERATURE,
+                STATE_CLASS_MEASUREMENT,
             ),
             cv.Required(CONF_PRESSURE): sensor.sensor_schema(
-                UNIT_HECTOPASCAL, ICON_GAUGE, 1, DEVICE_CLASS_PRESSURE
+                UNIT_HECTOPASCAL,
+                ICON_GAUGE,
+                1,
+                DEVICE_CLASS_PRESSURE,
+                STATE_CLASS_MEASUREMENT,
             ),
         }
     )
@@ -37,15 +46,15 @@ CONFIG_SCHEMA = (
 )
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
-    yield i2c.register_i2c_device(var, config)
+    await cg.register_component(var, config)
+    await i2c.register_i2c_device(var, config)
 
     if CONF_TEMPERATURE in config:
-        sens = yield sensor.new_sensor(config[CONF_TEMPERATURE])
+        sens = await sensor.new_sensor(config[CONF_TEMPERATURE])
         cg.add(var.set_temperature_sensor(sens))
 
     if CONF_PRESSURE in config:
-        sens = yield sensor.new_sensor(config[CONF_PRESSURE])
+        sens = await sensor.new_sensor(config[CONF_PRESSURE])
         cg.add(var.set_pressure_sensor(sens))

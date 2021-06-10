@@ -20,7 +20,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield as3935.setup_as3935(var, config)
-    yield i2c.register_i2c_device(var, config)
+    await as3935.setup_as3935(var, config)
+    await i2c.register_i2c_device(var, config)

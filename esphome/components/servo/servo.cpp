@@ -52,6 +52,8 @@ void Servo::loop() {
 
 void Servo::write(float value) {
   value = clamp(value, -1.0f, 1.0f);
+  if (this->target_value_ == value)
+    this->internal_write(value);
   this->target_value_ = value;
   this->source_value_ = this->current_value_;
   this->state_ = STATE_ATTACHED;

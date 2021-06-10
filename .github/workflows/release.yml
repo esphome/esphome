@@ -11,18 +11,9 @@ jobs:
     runs-on: ubuntu-latest
     # cpp lint job runs with esphome-lint docker image so that clang-format-*
     # doesn't have to be installed
-    container: esphome/esphome-lint:latest
+    container: esphome/esphome-lint:1.1
     steps:
       - uses: actions/checkout@v2
-      # Cache platformio intermediary files (like libraries etc)
-      # Note: platformio platform versions should be cached via the esphome-lint image
-      - name: Cache Platformio
-        uses: actions/cache@v1
-        with:
-          path: .pio
-          key: lint-cpp-pio-${{ hashFiles('platformio.ini') }}
-          restore-keys: |
-            lint-cpp-pio-
       # Set up the pio project so that the cpp checks know how files are compiled
       # (build flags, libraries etc)
       - name: Set up platformio environment
@@ -37,7 +28,7 @@ jobs:
     runs-on: ubuntu-latest
     # cpp lint job runs with esphome-lint docker image so that clang-format-*
     # doesn't have to be installed
-    container: esphome/esphome-lint:latest
+    container: esphome/esphome-lint:1.1
     # Split clang-tidy check into 4 jobs. Each one will check 1/4th of the .cpp files
     strategy:
       fail-fast: false
@@ -45,15 +36,6 @@ jobs:
         split: [1, 2, 3, 4]
     steps:
       - uses: actions/checkout@v2
-      # Cache platformio intermediary files (like libraries etc)
-      # Note: platformio platform versions should be cached via the esphome-lint image
-      - name: Cache Platformio
-        uses: actions/cache@v1
-        with:
-          path: .pio
-          key: lint-cpp-pio-${{ hashFiles('platformio.ini') }}
-          restore-keys: |
-            lint-cpp-pio-
       # Set up the pio project so that the cpp checks know how files are compiled
       # (build flags, libraries etc)
       - name: Set up platformio environment
@@ -111,6 +93,7 @@ jobs:
           - test2
           - test3
           - test4
+          - test5
     steps:
       - uses: actions/checkout@v2
       - name: Set up Python
@@ -129,7 +112,7 @@ jobs:
         uses: actions/cache@v1
         with:
           path: ~/.platformio
-          key: test-home-platformio-${{ matrix.test }}-${{ hashFiles('esphome/core_config.py') }}
+          key: test-home-platformio-${{ matrix.test }}-${{ hashFiles('esphome/core/config.py') }}
           restore-keys: |
             test-home-platformio-${{ matrix.test }}-
       - name: Set up environment
@@ -139,7 +122,7 @@ jobs:
         run: |
           echo "::add-matcher::.github/workflows/matchers/gcc.json"
           echo "::add-matcher::.github/workflows/matchers/python.json"
-      - run: esphome tests/${{ matrix.test }}.yaml compile
+      - run: esphome compile tests/${{ matrix.test }}.yaml
 
   pytest:
     runs-on: ubuntu-latest
@@ -212,7 +195,7 @@ jobs:
           echo "TAG=${TAG}" >> $GITHUB_ENV
       - name: Set up env variables
         run: |
-          base_version="2.6.0"
+          base_version="3.4.0"
 
           if [[ "${{ matrix.build_type }}" == "hassio" ]]; then
             build_from="esphome/esphome-hassio-base-${{ matrix.arch }}:${base_version}"
@@ -239,7 +222,7 @@ jobs:
         run: |
           docker pull "${BUILD_TO}:${CACHE_TAG}" || true
       - name: Register QEMU binfmt
-        run: docker run --rm --privileged multiarch/qemu-user-static:5.0.0-2 --reset -p yes
+        run: docker run --rm --privileged multiarch/qemu-user-static:5.2.0-2 --reset -p yes
       - run: |
           docker build \
             --build-arg "BUILD_FROM=${BUILD_FROM}" \

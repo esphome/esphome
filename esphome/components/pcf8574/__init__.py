@@ -31,10 +31,10 @@ CONFIG_SCHEMA = (
 )
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
-    yield i2c.register_i2c_device(var, config)
+    await cg.register_component(var, config)
+    await i2c.register_i2c_device(var, config)
     cg.add(var.set_pcf8575(config[CONF_PCF8575]))
 
 
@@ -69,8 +69,8 @@ PCF8574_INPUT_PIN_SCHEMA = cv.Schema(
 @pins.PIN_SCHEMA_REGISTRY.register(
     "pcf8574", (PCF8574_OUTPUT_PIN_SCHEMA, PCF8574_INPUT_PIN_SCHEMA)
 )
-def pcf8574_pin_to_code(config):
-    parent = yield cg.get_variable(config[CONF_PCF8574])
-    yield PCF8574GPIOPin.new(
+async def pcf8574_pin_to_code(config):
+    parent = await cg.get_variable(config[CONF_PCF8574])
+    return PCF8574GPIOPin.new(
         parent, config[CONF_NUMBER], config[CONF_MODE], config[CONF_INVERTED]
     )
