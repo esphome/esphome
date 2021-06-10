@@ -252,6 +252,6 @@ class Application {
 };
 
 /// Global storage of Application pointer - only one Application can exist.
-extern Application App;
+extern Application App;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 }  // namespace esphome

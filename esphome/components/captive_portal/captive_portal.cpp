@@ -147,7 +147,7 @@ float CaptivePortal::get_setup_priority() const {
 }
 void CaptivePortal::dump_config() { ESP_LOGCONFIG(TAG, "Captive Portal:"); }
 
-CaptivePortal *global_captive_portal = nullptr;
+CaptivePortal *global_captive_portal = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 }  // namespace captive_portal
 }  // namespace esphome

@@ -161,6 +161,6 @@ void Application::calculate_looping_components_() {
   }
 }
 
-Application App;
+Application App;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 }  // namespace esphome

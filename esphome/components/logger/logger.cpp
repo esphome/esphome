@@ -196,7 +196,7 @@ void Logger::dump_config() {
 }
 void Logger::write_footer_() { this->write_to_buffer_(ESPHOME_LOG_RESET_COLOR, strlen(ESPHOME_LOG_RESET_COLOR)); }
 
-Logger *global_logger = nullptr;
+Logger *global_logger = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 }  // namespace logger
 }  // namespace esphome

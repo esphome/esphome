@@ -66,7 +66,7 @@ bool mqtt_is_connected() {
 bool remote_is_connected() { return api_is_connected() || mqtt_is_connected(); }
 
 #if defined(ARDUINO_ARCH_ESP8266) && defined(USE_MDNS)
-bool mdns_setup;
+static bool mdns_setup;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 #endif
 
 #ifndef WEBSERVER_PORT

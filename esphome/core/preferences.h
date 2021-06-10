@@ -83,7 +83,7 @@ class ESPPreferences {
 #endif
 };
 
-extern ESPPreferences global_preferences;
+extern ESPPreferences global_preferences;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 template<typename T> ESPPreferenceObject ESPPreferences::make_preference(uint32_t type, bool in_flash) {
   return this->make_preference((sizeof(T) + 3) / 4, type, in_flash);
