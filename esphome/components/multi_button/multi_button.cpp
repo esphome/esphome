@@ -9,7 +9,7 @@ static const char *TAG = "multi_button";
 void MultiButton::setup() {
   // init protected members
   this->state_ = MultiButtonState::RELEASED;
-  this->startTime_ = millis();
+  this->start_time_ = millis();
   this->level_ = false;
   this->press_count_ = 0;
   this->hold_count_ = 0;
@@ -32,7 +32,7 @@ void MultiButton::dump_config() {
 void MultiButton::loop() { tick_(millis(), this->pin_->digital_read()); }
 
 void MultiButton::tick_(unsigned long time, bool level) {
-  unsigned long time_since_start = time - this->startTime_;
+  unsigned long time_since_start = time - this->start_time_;
 
   switch (state_) {
     case MultiButtonState::RELEASED:
@@ -40,14 +40,14 @@ void MultiButton::tick_(unsigned long time, bool level) {
       if (level) {
         // The button is now pressed (not yet debounced)
         this->state_ = MultiButtonState::MAYBE_PRESSED;
-        this->startTime_ = time;
+        this->start_time_ = time;
       } else if (this->press_count_ && time_since_start > this->timeout_millis_) {
         // There is a press count to be published and the timeout for another press is expired
         publish_state(this->press_count_);
         // Reset counter
         this->press_count_ = 0;
         // Later reset public sensor state
-        this->startTime_ = time;
+        this->start_time_ = time;
         this->reset_ = true;
       } else if (this->reset_ && time_since_start > 500) {
         // Reset sensor state in order to prevent accidental events based on old state
@@ -72,7 +72,7 @@ void MultiButton::tick_(unsigned long time, bool level) {
       if (!level) {
         // The button is now released (not yet debounced)
         this->state_ = MultiButtonState::MAYBE_RELEASED;
-        this->startTime_ = time;
+        this->start_time_ = time;
       } else if (time_since_start > this->press_hold_threshold_millis_) {
         // The button is still being pressed and it's long enough to be a press&hold
         this->state_ = MultiButtonState::PRESS_HOLD;
@@ -96,7 +96,7 @@ void MultiButton::tick_(unsigned long time, bool level) {
       if (!level) {
         // The button is released (not yet debounced)
         this->state_ = MultiButtonState::MAYBE_NOT_PRESS_HOLD;
-        this->startTime_ = time;
+        this->start_time_ = time;
       } else if (time_since_start > this->press_hold_update_interval_millis_) {
         // The button is still being pressed and it's time to publish an update
         this->hold_count_++;
@@ -104,7 +104,7 @@ void MultiButton::tick_(unsigned long time, bool level) {
           this->hold_count_ = 1;
         }
         publish_state(((this->press_count_ + 1) * 10000) + this->hold_count_);
-        this->startTime_ = time;
+        this->start_time_ = time;
       }
       break;
 

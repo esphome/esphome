@@ -48,7 +48,7 @@ class MultiButton : public sensor::Sensor, public Component {
   int press_hold_update_interval_millis_;
 
   MultiButtonState state_;
-  unsigned long startTime_;
+  unsigned long start_time_;
   bool level_;
   int press_count_;
   int hold_count_;
