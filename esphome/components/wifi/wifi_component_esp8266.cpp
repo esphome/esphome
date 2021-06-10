@@ -10,7 +10,7 @@
 #include <wpa2_enterprise.h>
 #endif
 
-#ifdef WIFI_IS_OFF_AT_BOOT // Identifies ESP8266 Arduino 3.0.0
+#ifdef WIFI_IS_OFF_AT_BOOT  // Identifies ESP8266 Arduino 3.0.0
 #define ARDUINO_ESP8266_RELEASE_3
 #endif
 
@@ -29,7 +29,6 @@ extern "C" {
 #define wifi_softap_set_dhcps_offer_option(offer, mode) dhcpSoftAP.set_dhcps_offer_option(offer, mode)
 #endif
 }
-
 
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
