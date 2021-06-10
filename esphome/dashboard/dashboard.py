@@ -27,7 +27,6 @@ import tornado.web
 import tornado.websocket
 
 from esphome import const, util
-import esphome
 from esphome.helpers import mkdir_p, get_bool_env, run_system_command
 from esphome.storage_json import (
     EsphomeStorageJSON,
@@ -719,10 +718,11 @@ _STATIC_FILE_HASHES = {}
 def get_base_frontend_path():
     if "ESPHOME_DASHBOARD_DEV" not in os.environ:
         import esphome_dashboard
+
         return esphome_dashboard.where()
 
     static_path = os.environ["ESPHOME_DASHBOARD_DEV"]
-    if not static_path.endswith('/'):
+    if not static_path.endswith("/"):
         static_path += "/"
 
     # This path can be relative, so resolve against the root or else templates don't work
