@@ -16,7 +16,7 @@
 namespace esphome {
 namespace esp32_ble {
 
-static const char *TAG = "esp32_ble.server";
+static const char *const TAG = "esp32_ble.server";
 
 static const uint16_t device_information_service__UUID = 0x180A;
 static const uint16_t MODEL_UUID = 0x2A24;

@@ -6,7 +6,7 @@ namespace template_ {
 
 using namespace esphome::cover;
 
-static const char *TAG = "template.cover";
+static const char *const TAG = "template.cover";
 
 TemplateCover::TemplateCover()
     : open_trigger_(new Trigger<>()),

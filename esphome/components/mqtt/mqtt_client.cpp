@@ -15,7 +15,7 @@
 namespace esphome {
 namespace mqtt {
 
-static const char *TAG = "mqtt";
+static const char *const TAG = "mqtt";
 
 MQTTClientComponent::MQTTClientComponent() {
   global_mqtt_client = this;

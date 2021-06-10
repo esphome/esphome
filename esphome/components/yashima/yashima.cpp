@@ -4,7 +4,7 @@
 namespace esphome {
 namespace yashima {
 
-static const char *TAG = "yashima.climate";
+static const char *const TAG = "yashima.climate";
 
 const uint16_t YASHIMA_STATE_LENGTH = 9;
 const uint16_t YASHIMA_BITS = YASHIMA_STATE_LENGTH * 8;

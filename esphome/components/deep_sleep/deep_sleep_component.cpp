@@ -5,7 +5,7 @@
 namespace esphome {
 namespace deep_sleep {
 
-static const char *TAG = "deep_sleep";
+static const char *const TAG = "deep_sleep";
 
 bool global_has_deep_sleep = false;
 

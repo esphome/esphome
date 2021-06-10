@@ -15,7 +15,7 @@ static const uint8_t MCP9808_AMBIENT_CLEAR_FLAGS = 0x1F;
 static const uint8_t MCP9808_AMBIENT_CLEAR_SIGN = 0x0F;
 static const uint8_t MCP9808_AMBIENT_TEMP_NEGATIVE = 0x10;
 
-static const char *TAG = "mcp9808";
+static const char *const TAG = "mcp9808";
 
 void MCP9808Sensor::setup() {
   ESP_LOGCONFIG(TAG, "Setting up %s...", this->name_.c_str());

@@ -4,7 +4,7 @@
 namespace esphome {
 namespace output {
 
-static const char *TAG = "output.automation";
+static const char *const TAG = "output.automation";
 
 }  // namespace output
 }  // namespace esphome

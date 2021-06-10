@@ -9,7 +9,7 @@
 
 namespace esphome {
 
-static const char *TAG = "app";
+static const char *const TAG = "app";
 
 void Application::register_component_(Component *comp) {
   if (comp == nullptr) {

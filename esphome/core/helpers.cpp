@@ -13,7 +13,7 @@
 
 namespace esphome {
 
-static const char *TAG = "helpers";
+static const char *const TAG = "helpers";
 
 std::string get_mac_address() {
   char tmp[20];

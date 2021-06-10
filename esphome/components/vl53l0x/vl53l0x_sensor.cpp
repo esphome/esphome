@@ -13,7 +13,7 @@
 namespace esphome {
 namespace vl53l0x {
 
-static const char *TAG = "vl53l0x";
+static const char *const TAG = "vl53l0x";
 std::list<VL53L0XSensor *> VL53L0XSensor::vl53_sensors;
 bool VL53L0XSensor::enable_pin_setup_complete = false;
 

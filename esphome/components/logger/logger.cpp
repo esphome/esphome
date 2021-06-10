@@ -8,7 +8,7 @@
 namespace esphome {
 namespace logger {
 
-static const char *TAG = "logger";
+static const char *const TAG = "logger";
 
 static const char *LOG_LEVEL_COLORS[] = {
     "",                                            // NONE

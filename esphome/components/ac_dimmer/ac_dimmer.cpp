@@ -9,7 +9,7 @@
 namespace esphome {
 namespace ac_dimmer {
 
-static const char *TAG = "ac_dimmer";
+static const char *const TAG = "ac_dimmer";
 
 // Global array to store dimmer objects
 static AcDimmerDataStore *all_dimmers[32];

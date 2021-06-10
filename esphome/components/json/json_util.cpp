@@ -4,7 +4,7 @@
 namespace esphome {
 namespace json {
 
-static const char *TAG = "json";
+static const char *const TAG = "json";
 
 static char *global_json_build_buffer = nullptr;
 static size_t global_json_build_buffer_size = 0;

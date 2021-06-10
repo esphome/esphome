@@ -4,7 +4,7 @@
 namespace esphome {
 namespace ade7953 {
 
-static const char *TAG = "ade7953";
+static const char *const TAG = "ade7953";
 
 void ADE7953::dump_config() {
   ESP_LOGCONFIG(TAG, "ADE7953:");

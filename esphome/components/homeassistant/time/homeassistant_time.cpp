@@ -4,7 +4,7 @@
 namespace esphome {
 namespace homeassistant {
 
-static const char *TAG = "homeassistant.time";
+static const char *const TAG = "homeassistant.time";
 
 void HomeassistantTime::dump_config() {
   ESP_LOGCONFIG(TAG, "Home Assistant Time:");

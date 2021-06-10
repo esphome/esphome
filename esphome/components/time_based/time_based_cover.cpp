@@ -4,7 +4,7 @@
 namespace esphome {
 namespace time_based {
 
-static const char *TAG = "time_based.cover";
+static const char *const TAG = "time_based.cover";
 
 using namespace esphome::cover;
 

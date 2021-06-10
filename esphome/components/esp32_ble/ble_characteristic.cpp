@@ -9,7 +9,7 @@
 namespace esphome {
 namespace esp32_ble {
 
-static const char *TAG = "esp32_ble.characteristic";
+static const char *const TAG = "esp32_ble.characteristic";
 
 BLECharacteristic::BLECharacteristic(const ESPBTUUID uuid, uint32_t properties) : uuid_(uuid) {
   this->set_value_lock_ = xSemaphoreCreateBinary();

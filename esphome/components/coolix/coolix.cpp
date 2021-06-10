@@ -4,7 +4,7 @@
 namespace esphome {
 namespace coolix {
 
-static const char *TAG = "coolix.climate";
+static const char *const TAG = "coolix.climate";
 
 const uint32_t COOLIX_OFF = 0xB27BE0;
 const uint32_t COOLIX_SWING = 0xB26BE0;

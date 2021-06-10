@@ -4,7 +4,7 @@
 namespace esphome {
 namespace pulse_counter {
 
-static const char *TAG = "pulse_counter";
+static const char *const TAG = "pulse_counter";
 
 const char *EDGE_MODE_TO_STRING[] = {"DISABLE", "INCREMENT", "DECREMENT"};
 

@@ -5,7 +5,7 @@
 namespace esphome {
 namespace tx20 {
 
-static const char *TAG = "tx20";
+static const char *const TAG = "tx20";
 static const uint8_t MAX_BUFFER_SIZE = 41;
 static const uint16_t TX20_MAX_TIME = MAX_BUFFER_SIZE * 1200 + 5000;
 static const uint16_t TX20_BIT_TIME = 1200;

@@ -4,7 +4,7 @@
 namespace esphome {
 namespace servo {
 
-static const char *TAG = "servo";
+static const char *const TAG = "servo";
 
 uint32_t global_servo_id = 1911044085ULL;
 

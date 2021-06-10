@@ -5,7 +5,7 @@
 namespace esphome {
 namespace midea_dongle {
 
-static const char *TAG = "midea_dongle";
+static const char *const TAG = "midea_dongle";
 
 void MideaDongle::loop() {
   while (this->available()) {

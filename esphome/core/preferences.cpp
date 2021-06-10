@@ -15,7 +15,7 @@ extern "C" {
 
 namespace esphome {
 
-static const char *TAG = "preferences";
+static const char *const TAG = "preferences";
 
 ESPPreferenceObject::ESPPreferenceObject() : offset_(0), length_words_(0), type_(0), data_(nullptr) {}
 ESPPreferenceObject::ESPPreferenceObject(size_t offset, size_t length, uint32_t type)

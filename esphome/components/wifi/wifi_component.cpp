@@ -29,7 +29,7 @@
 namespace esphome {
 namespace wifi {
 
-static const char *TAG = "wifi";
+static const char *const TAG = "wifi";
 
 float WiFiComponent::get_setup_priority() const { return setup_priority::WIFI; }
 

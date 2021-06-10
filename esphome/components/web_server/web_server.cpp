@@ -19,7 +19,7 @@
 namespace esphome {
 namespace web_server {
 
-static const char *TAG = "web_server";
+static const char *const TAG = "web_server";
 
 void write_row(AsyncResponseStream *stream, Nameable *obj, const std::string &klass, const std::string &action) {
   if (obj->is_internal())

@@ -9,7 +9,7 @@
 namespace esphome {
 namespace ble_client {
 
-static const char *TAG = "ble_sensor";
+static const char *const TAG = "ble_sensor";
 
 uint32_t BLESensor::hash_base() { return 343459825UL; }
 

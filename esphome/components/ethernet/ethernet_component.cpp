@@ -21,7 +21,7 @@ extern void tcpipInit();
 namespace esphome {
 namespace ethernet {
 
-static const char *TAG = "ethernet";
+static const char *const TAG = "ethernet";
 
 EthernetComponent *global_eth_component;
 

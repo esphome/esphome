@@ -8,7 +8,7 @@
 
 namespace esphome {
 
-static const char *TAG = "component";
+static const char *const TAG = "component";
 
 namespace setup_priority {
 

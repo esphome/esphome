@@ -6,7 +6,7 @@
 namespace esphome {
 namespace b_parasite {
 
-static const char *TAG = "b_parasite";
+static const char *const TAG = "b_parasite";
 
 void BParasite::dump_config() {
   ESP_LOGCONFIG(TAG, "b_parasite");

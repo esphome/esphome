@@ -7,7 +7,7 @@
 namespace esphome {
 namespace esp32_ble {
 
-static const char *TAG = "esp32_ble.service";
+static const char *const TAG = "esp32_ble.service";
 
 BLEService::BLEService(ESPBTUUID uuid, uint16_t num_handles, uint8_t inst_id)
     : uuid_(uuid), num_handles_(num_handles), inst_id_(inst_id) {}

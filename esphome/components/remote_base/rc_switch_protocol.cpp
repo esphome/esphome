@@ -4,7 +4,7 @@
 namespace esphome {
 namespace remote_base {
 
-static const char *TAG = "remote.rc_switch";
+static const char *const TAG = "remote.rc_switch";
 
 RCSwitchBase rc_switch_protocols[9] = {RCSwitchBase(0, 0, 0, 0, 0, 0, false),
                                        RCSwitchBase(350, 10850, 350, 1050, 1050, 350, false),

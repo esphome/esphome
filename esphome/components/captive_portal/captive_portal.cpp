@@ -6,7 +6,7 @@
 namespace esphome {
 namespace captive_portal {
 
-static const char *TAG = "captive_portal";
+static const char *const TAG = "captive_portal";
 
 void CaptivePortal::handle_index(AsyncWebServerRequest *request) {
   AsyncResponseStream *stream = request->beginResponseStream("text/html");

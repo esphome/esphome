@@ -15,7 +15,7 @@
 namespace esphome {
 namespace api {
 
-static const char *TAG = "api";
+static const char *const TAG = "api";
 
 // APIServer
 void APIServer::setup() {

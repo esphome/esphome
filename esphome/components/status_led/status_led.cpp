@@ -5,7 +5,7 @@
 namespace esphome {
 namespace status_led {
 
-static const char *TAG = "status_led";
+static const char *const TAG = "status_led";
 
 StatusLED *global_status_led = nullptr;
 
