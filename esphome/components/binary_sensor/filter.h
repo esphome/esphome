@@ -79,7 +79,7 @@ struct AutorepeatFilterTiming {
 
 class AutorepeatFilter : public Filter, public Component {
  public:
-  explicit AutorepeatFilter(const std::vector<AutorepeatFilterTiming> &timings);
+  explicit AutorepeatFilter(std::vector<AutorepeatFilterTiming> timings);
 
   optional<bool> new_value(bool value, bool is_initial) override;
 
@@ -95,7 +95,7 @@ class AutorepeatFilter : public Filter, public Component {
 
 class LambdaFilter : public Filter {
  public:
-  explicit LambdaFilter(const std::function<optional<bool>(bool)> &f);
+  explicit LambdaFilter(std::function<optional<bool>(bool)> f);
 
   optional<bool> new_value(bool value, bool is_initial) override;
 

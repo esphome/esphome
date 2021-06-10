@@ -21,8 +21,8 @@ void ADE7953::dump_config() {
 }
 
 #define ADE_PUBLISH_(name, factor) \
-  if (name && this->name##_sensor_) { \
-    float value = *name / factor; \
+  if ((name) && this->name##_sensor_) { \
+    float value = *(name) / (factor); \
     this->name##_sensor_->publish_state(value); \
   }
 #define ADE_PUBLISH(name, factor) ADE_PUBLISH_(name, factor)

@@ -5,8 +5,9 @@ namespace fujitsu_general {
 
 // bytes' bits are reversed for fujitsu, so nibbles are ordered 1, 0, 3, 2, 5, 4, etc...
 
-#define SET_NIBBLE(message, nibble, value) (message[nibble / 2] |= (value & 0b00001111) << ((nibble % 2) ? 0 : 4))
-#define GET_NIBBLE(message, nibble) ((message[nibble / 2] >> ((nibble % 2) ? 0 : 4)) & 0b00001111)
+#define SET_NIBBLE(message, nibble, value) \
+  ((message)[(nibble) / 2] |= ((value) &0b00001111) << (((nibble) % 2) ? 0 : 4))
+#define GET_NIBBLE(message, nibble) (((message)[(nibble) / 2] >> (((nibble) % 2) ? 0 : 4)) & 0b00001111)
 
 static const char *TAG = "fujitsu_general.climate";
 

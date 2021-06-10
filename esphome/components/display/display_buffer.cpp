@@ -1,7 +1,9 @@
 #include "display_buffer.h"
+
+#include "esphome/core/application.h"
 #include "esphome/core/color.h"
 #include "esphome/core/log.h"
-#include "esphome/core/application.h"
+#include <utility>
 
 namespace esphome {
 namespace display {
@@ -524,7 +526,7 @@ void Animation::next_frame() {
   }
 }
 
-DisplayPage::DisplayPage(const display_writer_t &writer) : writer_(writer) {}
+DisplayPage::DisplayPage(display_writer_t writer) : writer_(std::move(writer)) {}
 void DisplayPage::show() { this->parent_->show_page(this); }
 void DisplayPage::show_next() { this->next_->show(); }
 void DisplayPage::show_prev() { this->prev_->show(); }

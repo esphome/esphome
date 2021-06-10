@@ -201,27 +201,27 @@ std::string to_string(int val) {
   sprintf(buf, "%d", val);
   return buf;
 }
-std::string to_string(long val) {
+std::string to_string(long val) {  // NOLINT
   char buf[64];
   sprintf(buf, "%ld", val);
   return buf;
 }
-std::string to_string(long long val) {
+std::string to_string(long long val) {  // NOLINT
   char buf[64];
   sprintf(buf, "%lld", val);
   return buf;
 }
-std::string to_string(unsigned val) {
+std::string to_string(unsigned val) {  // NOLINT
   char buf[64];
   sprintf(buf, "%u", val);
   return buf;
 }
-std::string to_string(unsigned long val) {
+std::string to_string(unsigned long val) {  // NOLINT
   char buf[64];
   sprintf(buf, "%lu", val);
   return buf;
 }
-std::string to_string(unsigned long long val) {
+std::string to_string(unsigned long long val) {  // NOLINT
   char buf[64];
   sprintf(buf, "%llu", val);
   return buf;

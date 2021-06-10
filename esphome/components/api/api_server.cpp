@@ -180,7 +180,7 @@ void APIServer::on_switch_update(switch_::Switch *obj, bool state) {
 #endif
 
 #ifdef USE_TEXT_SENSOR
-void APIServer::on_text_sensor_update(text_sensor::TextSensor *obj, std::string state) {
+void APIServer::on_text_sensor_update(text_sensor::TextSensor *obj, const std::string &state) {
   if (obj->is_internal())
     return;
   for (auto *c : this->clients_)

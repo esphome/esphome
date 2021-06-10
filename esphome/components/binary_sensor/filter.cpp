@@ -1,5 +1,7 @@
 #include "filter.h"
+
 #include "binary_sensor.h"
+#include <utility>
 
 namespace esphome {
 
@@ -64,7 +66,7 @@ float DelayedOffFilter::get_setup_priority() const { return setup_priority::HARD
 
 optional<bool> InvertFilter::new_value(bool value, bool is_initial) { return !value; }
 
-AutorepeatFilter::AutorepeatFilter(const std::vector<AutorepeatFilterTiming> &timings) : timings_(timings) {}
+AutorepeatFilter::AutorepeatFilter(std::vector<AutorepeatFilterTiming> timings) : timings_(std::move(timings)) {}
 
 optional<bool> AutorepeatFilter::new_value(bool value, bool is_initial) {
   if (value) {
@@ -108,7 +110,7 @@ void AutorepeatFilter::next_value_(bool val) {
 
 float AutorepeatFilter::get_setup_priority() const { return setup_priority::HARDWARE; }
 
-LambdaFilter::LambdaFilter(const std::function<optional<bool>(bool)> &f) : f_(f) {}
+LambdaFilter::LambdaFilter(std::function<optional<bool>(bool)> f) : f_(std::move(f)) {}
 
 optional<bool> LambdaFilter::new_value(bool value, bool is_initial) { return this->f_(value); }
 

@@ -1,5 +1,7 @@
 #include "mqtt_subscribe_text_sensor.h"
+
 #include "esphome/core/log.h"
+#include <utility>
 
 namespace esphome {
 namespace mqtt_subscribe {
@@ -8,7 +10,7 @@ static const char *TAG = "mqtt_subscribe.text_sensor";
 
 void MQTTSubscribeTextSensor::setup() {
   this->parent_->subscribe(
-      this->topic_, [this](const std::string &topic, std::string payload) { this->publish_state(payload); },
+      this->topic_, [this](const std::string &topic, const std::string &payload) { this->publish_state(payload); },
       this->qos_);
 }
 float MQTTSubscribeTextSensor::get_setup_priority() const { return setup_priority::AFTER_CONNECTION; }

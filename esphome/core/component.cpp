@@ -1,8 +1,10 @@
 #include "esphome/core/component.h"
-#include "esphome/core/helpers.h"
-#include "esphome/core/esphal.h"
-#include "esphome/core/log.h"
+
 #include "esphome/core/application.h"
+#include "esphome/core/esphal.h"
+#include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
+#include <utility>
 
 namespace esphome {
 
@@ -173,7 +175,7 @@ void Nameable::set_name(const std::string &name) {
   this->name_ = name;
   this->calc_object_id_();
 }
-Nameable::Nameable(const std::string &name) : name_(name) { this->calc_object_id_(); }
+Nameable::Nameable(std::string name) : name_(std::move(name)) { this->calc_object_id_(); }
 
 const std::string &Nameable::get_object_id() { return this->object_id_; }
 bool Nameable::is_internal() const { return this->internal_; }

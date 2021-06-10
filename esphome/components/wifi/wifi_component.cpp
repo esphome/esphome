@@ -220,8 +220,8 @@ void WiFiComponent::set_sta(const WiFiAP &ap) {
 void WiFiComponent::clear_sta() { this->sta_.clear(); }
 void WiFiComponent::save_wifi_sta(const std::string &ssid, const std::string &password) {
   SavedWifiSettings save{};
-  strcpy(save.ssid, ssid.c_str());
-  strcpy(save.password, password.c_str());
+  strncpy(save.ssid, ssid.c_str(), sizeof(save.ssid));
+  strncpy(save.password, password.c_str(), sizeof(save.password));
   this->pref_.save(&save);
 
   WiFiAP sta{};
@@ -626,7 +626,7 @@ void WiFiAP::set_password(const std::string &password) { this->password_ = passw
 void WiFiAP::set_eap(optional<EAPAuth> eap_auth) { this->eap_ = eap_auth; }
 #endif
 void WiFiAP::set_channel(optional<uint8_t> channel) { this->channel_ = channel; }
-void WiFiAP::set_manual_ip(optional<ManualIP> manual_ip) { this->manual_ip_ = manual_ip; }
+void WiFiAP::set_manual_ip(optional<ManualIP> manual_ip) { this->manual_ip_ = std::move(manual_ip); }
 void WiFiAP::set_hidden(bool hidden) { this->hidden_ = hidden; }
 const std::string &WiFiAP::get_ssid() const { return this->ssid_; }
 const optional<bssid_t> &WiFiAP::get_bssid() const { return this->bssid_; }
@@ -638,9 +638,14 @@ const optional<uint8_t> &WiFiAP::get_channel() const { return this->channel_; }
 const optional<ManualIP> &WiFiAP::get_manual_ip() const { return this->manual_ip_; }
 bool WiFiAP::get_hidden() const { return this->hidden_; }
 
-WiFiScanResult::WiFiScanResult(const bssid_t &bssid, const std::string &ssid, uint8_t channel, int8_t rssi,
-                               bool with_auth, bool is_hidden)
-    : bssid_(bssid), ssid_(ssid), channel_(channel), rssi_(rssi), with_auth_(with_auth), is_hidden_(is_hidden) {}
+WiFiScanResult::WiFiScanResult(const bssid_t &bssid, std::string ssid, uint8_t channel, int8_t rssi, bool with_auth,
+                               bool is_hidden)
+    : bssid_(bssid),
+      ssid_(std::move(ssid)),
+      channel_(channel),
+      rssi_(rssi),
+      with_auth_(with_auth),
+      is_hidden_(is_hidden) {}
 bool WiFiScanResult::matches(const WiFiAP &config) {
   if (config.get_hidden()) {
     // User configured a hidden network, only match actually hidden networks
