@@ -24,13 +24,17 @@ class BLEServiceComponent {
   virtual void setup_service();
   virtual void on_client_connect(){};
   virtual void on_client_disconnect(){};
+  virtual void start();
+  virtual void stop();
 };
 
 class BLEServer : public Component {
  public:
   void setup() override;
+  void loop() override;
   void dump_config() override;
   float get_setup_priority() const override;
+  bool can_proceed() override { return this->can_proceed_; }
 
   void teardown();
 
@@ -53,27 +57,35 @@ class BLEServer : public Component {
 
  protected:
   bool create_device_characteristics_();
-  void setup_server_();
 
   void add_client_(uint16_t conn_id, void *client) {
     this->clients_.insert(std::pair<uint16_t, void *>(conn_id, client));
   }
   bool remove_client_(uint16_t conn_id) { return this->clients_.erase(conn_id) > 0; }
 
+  bool can_proceed_{false};
+
   std::string manufacturer_;
   optional<std::string> model_;
   esp_gatt_if_t gatts_if_{0};
+  bool registered_{false};
   BLEAdvertising *advertising_;
 
   uint32_t connected_clients_{0};
   std::map<uint16_t, void *> clients_;
 
   std::vector<BLEService *> services_;
-  BLEService *device_information_service;
+  BLEService *device_information_service_;
 
   std::vector<BLEServiceComponent *> service_components_;
 
-  SemaphoreHandle_t register_lock_;
+  enum State : uint8_t {
+    INIT = 0x00,
+    REGISTERING,
+    STARTING_SERVICE,
+    SETTING_UP_COMPONENT_SERVICES,
+    RUNNING,
+  } state_{INIT};
 };
 
 extern BLEServer *global_ble_server;

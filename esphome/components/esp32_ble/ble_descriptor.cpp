@@ -16,30 +16,25 @@ BLEDescriptor::BLEDescriptor(ESPBTUUID uuid, uint16_t max_len) {
   this->value_.attr_len = 0;
   this->value_.attr_max_len = max_len;
   this->value_.attr_value = (uint8_t *) malloc(max_len);
-
-  this->create_lock_ = xSemaphoreCreateBinary();
-  xSemaphoreGive(this->create_lock_);
 }
 
 BLEDescriptor::~BLEDescriptor() { free(this->value_.attr_value); }
 
-bool BLEDescriptor::do_create(BLECharacteristic *characteristic) {
+void BLEDescriptor::do_create(BLECharacteristic *characteristic) {
   this->characteristic_ = characteristic;
   esp_attr_control_t control;
   control.auto_rsp = ESP_GATT_AUTO_RSP;
 
-  xSemaphoreTake(this->create_lock_, portMAX_DELAY);
   ESP_LOGV(TAG, "Creating descriptor - %s", this->uuid_.to_string().c_str());
   esp_bt_uuid_t uuid = this->uuid_.get_uuid();
   esp_err_t err = esp_ble_gatts_add_char_descr(this->characteristic_->get_service()->get_handle(), &uuid,
                                                this->permissions_, &this->value_, &control);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "esp_ble_gatts_add_char_descr failed: %d", err);
-    return false;
+    this->state_ = FAILED;
+    return;
   }
-  xSemaphoreWait(this->create_lock_, portMAX_DELAY);
-
-  return true;
+  this->state_ = CREATING;
 }
 
 void BLEDescriptor::set_value(const std::string &value) { this->set_value((uint8_t *) value.data(), value.length()); }
@@ -60,7 +55,7 @@ void BLEDescriptor::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_
           this->characteristic_->get_service()->get_handle() == param->add_char_descr.service_handle &&
           this->characteristic_ == this->characteristic_->get_service()->get_last_created_characteristic()) {
         this->handle_ = param->add_char_descr.attr_handle;
-        xSemaphoreGive(this->create_lock_);
+        this->state_ = CREATED;
       }
       break;
     }
