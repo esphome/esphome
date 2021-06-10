@@ -14,7 +14,9 @@ ESP32ImprovComponent::ESP32ImprovComponent() { global_improv_component = this; }
 
 void ESP32ImprovComponent::setup_service() {
   this->service_ = esp32_ble::global_ble_server->create_service(improv::SERVICE_UUID, true);
+}
 
+void ESP32ImprovComponent::setup_characteristics() {
   this->status_ = this->service_->create_characteristic(
       improv::STATUS_UUID, esp32_ble::BLECharacteristic::PROPERTY_READ | esp32_ble::BLECharacteristic::PROPERTY_NOTIFY);
   esp32_ble::BLEDescriptor *status_descriptor = new esp32_ble::BLE2902();
@@ -62,16 +64,21 @@ void ESP32ImprovComponent::loop() {
       if (this->status_indicator_ != nullptr)
         this->status_indicator_->turn_off();
 
+      if (this->service_->is_created() && !this->setup_complete_) {
+        this->setup_characteristics();
+      }
+
       if (this->should_start_ && this->setup_complete_) {
-        ESP_LOGD(TAG, "Starting Improv service...");
+        if (this->service_->is_running()) {
+          this->service_->get_server()->get_advertising()->start();
 
-        this->service_->start();
-        this->service_->get_server()->get_advertising()->start();
-
-        this->set_state_(improv::STATE_AWAITING_AUTHORIZATION);
-        this->set_error_(improv::ERROR_NONE);
-        this->should_start_ = false;
-        ESP_LOGD(TAG, "Service started!");
+          this->set_state_(improv::STATE_AWAITING_AUTHORIZATION);
+          this->set_error_(improv::ERROR_NONE);
+          this->should_start_ = false;
+          ESP_LOGD(TAG, "Service started!");
+        } else {
+          this->service_->start();
+        }
       }
       break;
     case improv::STATE_AWAITING_AUTHORIZATION: {
@@ -191,7 +198,7 @@ void ESP32ImprovComponent::start() {
   this->should_start_ = true;
 }
 
-void ESP32ImprovComponent::end() {
+void ESP32ImprovComponent::stop() {
   this->set_timeout("end-service", 1000, [this] {
     this->service_->stop();
     this->set_state_(improv::STATE_STOPPED);

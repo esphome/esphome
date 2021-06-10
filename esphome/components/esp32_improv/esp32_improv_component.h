@@ -21,11 +21,12 @@ class ESP32ImprovComponent : public Component, public esp32_ble::BLEServiceCompo
   void dump_config() override;
   void loop() override;
   void setup_service() override;
+  void setup_characteristics();
   void on_client_disconnect() override;
 
   float get_setup_priority() const override;
-  void start();
-  void end();
+  void start() override;
+  void stop() override;
   bool is_active() const { return this->state_ != improv::STATE_STOPPED; }
 
   void set_authorizer(binary_sensor::BinarySensor *authorizer) { this->authorizer_ = authorizer; }

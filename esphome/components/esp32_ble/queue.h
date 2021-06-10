@@ -53,7 +53,7 @@ template<class T> class Queue {
   SemaphoreHandle_t m;
 };
 
-// Received GAP and GATTC events are only queued, and get processed in the main loop().
+// Received GAP, GATTC and GATTS events are only queued, and get processed in the main loop().
 // This class stores each event in a single type.
 class BLEEvent {
  public:
@@ -68,9 +68,18 @@ class BLEEvent {
     this->event_.gattc.gattc_if = i;
     memcpy(&this->event_.gattc.gattc_param, p, sizeof(esp_ble_gattc_cb_param_t));
     // Need to also make a copy of notify event data.
-    if (e == ESP_GATTC_NOTIFY_EVT) {
-      memcpy(this->event_.gattc.notify_data, p->notify.value, p->notify.value_len);
-      this->event_.gattc.gattc_param.notify.value = this->event_.gattc.notify_data;
+    switch (e) {
+      case ESP_GATTC_NOTIFY_EVT:
+        memcpy(this->event_.gattc.data, p->notify.value, p->notify.value_len);
+        this->event_.gattc.gattc_param.notify.value = this->event_.gattc.data;
+        break;
+      case ESP_GATTC_READ_CHAR_EVT:
+      case ESP_GATTC_READ_DESCR_EVT:
+        memcpy(this->event_.gattc.data, p->read.value, p->read.value_len);
+        this->event_.gattc.gattc_param.read.value = this->event_.gattc.data;
+        break;
+      default:
+        break;
     }
     this->type_ = GATTC;
   };
@@ -79,6 +88,15 @@ class BLEEvent {
     this->event_.gatts.gatts_event = e;
     this->event_.gatts.gatts_if = i;
     memcpy(&this->event_.gatts.gatts_param, p, sizeof(esp_ble_gatts_cb_param_t));
+    // Need to also make a copy of write data.
+    switch (e) {
+      case ESP_GATTS_WRITE_EVT:
+        memcpy(this->event_.gatts.data, p->write.value, p->write.len);
+        this->event_.gatts.gatts_param.write.value = this->event_.gatts.data;
+        break;
+      default:
+        break;
+    }
     this->type_ = GATTS;
   };
 
@@ -92,13 +110,14 @@ class BLEEvent {
       esp_gattc_cb_event_t gattc_event;
       esp_gatt_if_t gattc_if;
       esp_ble_gattc_cb_param_t gattc_param;
-      uint8_t notify_data[64];
+      uint8_t data[64];
     } gattc;
 
     struct gatts_event {
       esp_gatts_cb_event_t gatts_event;
       esp_gatt_if_t gatts_if;
       esp_ble_gatts_cb_param_t gatts_param;
+      uint8_t data[64];
     } gatts;
   } event_;
   enum ble_event_t : uint8_t {
