@@ -31,8 +31,7 @@ class RGBWWLightOutput : public light::LightOutput {
   }
   void write_state(light::LightState *state) override {
     float red, green, blue, cwhite, wwhite;
-    state->current_values_as_rgbww(&red, &green, &blue, &cwhite, &wwhite, this->constant_brightness_,
-                                   this->color_interlock_);
+    state->current_values_as_rgbww(&red, &green, &blue, &cwhite, &wwhite, this->constant_brightness_);
     this->red_->set_level(red);
     this->green_->set_level(green);
     this->blue_->set_level(blue);
