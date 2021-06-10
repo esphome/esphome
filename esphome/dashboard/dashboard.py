@@ -112,10 +112,16 @@ def template_args():
         docs_link = "https://next.esphome.io/"
     else:
         docs_link = "https://www.esphome.io/"
+
+    if get_bool_env("ESPHOME_FRONTEND_DEV"):
+        get_static = get_static_file_url_dev
+    else:
+        get_static = get_static_file_url
+
     return {
         "version": version,
         "docs_link": docs_link,
-        "get_static_file_url": get_static_file_url,
+        "get_static_file_url": get_static,
         "relative_url": settings.relative_url,
         "streamer_mode": get_bool_env("ESPHOME_STREAMER_MODE"),
         "config_dir": settings.config_dir,
@@ -359,9 +365,11 @@ class WizardRequestHandler(BaseHandler):
         from esphome import wizard
 
         kwargs = {
-            k: "".join(x.decode() for x in v) for k, v in self.request.arguments.items() if k in ("name", "platform", "board", "ssid", "psk", "password")
+            k: "".join(x.decode() for x in v)
+            for k, v in self.request.arguments.items()
+            if k in ("name", "platform", "board", "ssid", "psk", "password")
         }
-        kwargs['ota_password'] = secrets.token_hex(16)
+        kwargs["ota_password"] = secrets.token_hex(16)
         destination = settings.rel_path(kwargs["name"] + ".yaml")
         wizard.wizard_write(path=destination, **kwargs)
         self.set_status(200)
@@ -581,9 +589,8 @@ class InfoRequestHandler(BaseHandler):
             self.set_status(404)
             return
 
-        self.set_header('content-type', 'application/json')
+        self.set_header("content-type", "application/json")
         self.write(DashboardEntry(yaml_path).storage.to_json())
-
 
 
 class EditRequestHandler(BaseHandler):
@@ -713,10 +720,11 @@ class LogoutHandler(BaseHandler):
 _STATIC_FILE_HASHES = {}
 
 
-def get_static_file_url(name):
-    if get_bool_env('ESPHOME_FRONTEND_DEV'):
-        return f"http://localhost:8500/esphome_frontend/static/{name}"
+def get_static_file_url_dev(name):
+    return f"http://localhost:8500/esphome_frontend/static/{name}"
 
+
+def get_static_file_url(name):
     static_path = os.path.join(os.path.dirname(__file__), "static")
     if name in _STATIC_FILE_HASHES:
         hash_ = _STATIC_FILE_HASHES[name]

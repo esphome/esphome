@@ -74,22 +74,24 @@ def wizard_file(**kwargs):
 
     # Configure API
     if "password" in kwargs:
-        config += '  password: "{0}"\n'.format(kwargs['password'])
+        config += '  password: "{0}"\n'.format(kwargs["password"])
 
     # Configure OTA
     config += "\nota:\n"
     if "ota_password" in kwargs:
-        config += '  password: "{0}"'.format(kwargs['ota_password'])
+        config += '  password: "{0}"'.format(kwargs["ota_password"])
     elif "password" in kwargs:
-        config += '  password: "{0}"'.format(kwargs['password'])
+        config += '  password: "{0}"'.format(kwargs["password"])
 
     # Configuring wifi
-    config += '\n\nwifi:\n'
+    config += "\n\nwifi:\n"
 
-    if 'ssid' in kwargs:
+    if "ssid" in kwargs:
         config += """  ssid: "{ssid}"
   password: "{psk}"
-""".format(**kwargs)
+""".format(
+            **kwargs
+        )
     else:
         config += """  # ssid: "My SSID"
   # password: "mypassword"
@@ -104,7 +106,9 @@ def wizard_file(**kwargs):
     password: "{fallback_psk}"
 
 captive_portal:
-""".format(**kwargs)
+""".format(
+        **kwargs
+    )
 
     return config
 
@@ -113,7 +117,7 @@ def wizard_write(path, **kwargs):
     name = kwargs["name"]
     board = kwargs["board"]
 
-    for key in ('ssid', 'psk', 'password', 'ota_password'):
+    for key in ("ssid", "psk", "password", "ota_password"):
         if key in kwargs:
             kwargs[key] = sanitize_double_quotes(kwargs[key])
 
