@@ -6,15 +6,15 @@ namespace remote_base {
 
 static const char *const TAG = "remote.rc_switch";
 
-RCSwitchBase rc_switch_protocols[9] = {RCSwitchBase(0, 0, 0, 0, 0, 0, false),
-                                       RCSwitchBase(350, 10850, 350, 1050, 1050, 350, false),
-                                       RCSwitchBase(650, 6500, 650, 1300, 1300, 650, false),
-                                       RCSwitchBase(3000, 7100, 400, 1100, 900, 600, false),
-                                       RCSwitchBase(380, 2280, 380, 1140, 1140, 380, false),
-                                       RCSwitchBase(3000, 7000, 500, 1000, 1000, 500, false),
-                                       RCSwitchBase(10350, 450, 450, 900, 900, 450, true),
-                                       RCSwitchBase(300, 9300, 150, 900, 900, 150, false),
-                                       RCSwitchBase(250, 2500, 250, 1250, 250, 250, false)};
+const RCSwitchBase RC_SWITCH_PROTOCOLS[9] = {RCSwitchBase(0, 0, 0, 0, 0, 0, false),
+                                             RCSwitchBase(350, 10850, 350, 1050, 1050, 350, false),
+                                             RCSwitchBase(650, 6500, 650, 1300, 1300, 650, false),
+                                             RCSwitchBase(3000, 7100, 400, 1100, 900, 600, false),
+                                             RCSwitchBase(380, 2280, 380, 1140, 1140, 380, false),
+                                             RCSwitchBase(3000, 7000, 500, 1000, 1000, 500, false),
+                                             RCSwitchBase(10350, 450, 450, 900, 900, 450, true),
+                                             RCSwitchBase(300, 9300, 150, 900, 900, 150, false),
+                                             RCSwitchBase(250, 2500, 250, 1250, 250, 250, false)};
 
 RCSwitchBase::RCSwitchBase(uint32_t sync_high, uint32_t sync_low, uint32_t zero_high, uint32_t zero_low,
                            uint32_t one_high, uint32_t one_low, bool inverted)
@@ -132,7 +132,7 @@ optional<RCSwitchData> RCSwitchBase::decode(RemoteReceiveData &src) const {
   uint8_t out_nbits;
   for (uint8_t i = 1; i <= 8; i++) {
     src.reset();
-    RCSwitchBase *protocol = &rc_switch_protocols[i];
+    const RCSwitchBase *protocol = &RC_SWITCH_PROTOCOLS[i];
     if (protocol->decode(src, &out.code, &out_nbits) && out_nbits >= 3) {
       out.protocol = i;
       return out;
@@ -246,7 +246,7 @@ bool RCSwitchDumper::dump(RemoteReceiveData src) {
     src.reset();
     uint64_t out_data;
     uint8_t out_nbits;
-    RCSwitchBase *protocol = &rc_switch_protocols[i];
+    const RCSwitchBase *protocol = &RC_SWITCH_PROTOCOLS[i];
     if (protocol->decode(src, &out_data, &out_nbits) && out_nbits >= 3) {
       char buffer[65];
       for (uint8_t j = 0; j < out_nbits; j++)
