@@ -43,6 +43,10 @@ LightCall &LightCall::parse_color_json(JsonObject &root) {
     }
   }
 
+  if (root.containsKey("color_brightness")) {
+    this->set_color_brightness(float(root["color_brightness"]) / 255.0f);
+  }
+
   if (root.containsKey("white_value")) {
     this->set_white(float(root["white_value"]) / 255.0f);
   }
@@ -182,6 +186,12 @@ LightColorValues LightCall::validate_() {
     this->transition_length_.reset();
   }
 
+  // Color brightness exists check
+  if (this->color_brightness_.has_value() && !traits.get_supports_rgb()) {
+    ESP_LOGW(TAG, "'%s' - This light does not support setting RGB brightness!", name);
+    this->color_brightness_.reset();
+  }
+
   // RGB exists check
   if (this->red_.has_value() || this->green_.has_value() || this->blue_.has_value()) {
     if (!traits.get_supports_rgb()) {
@@ -206,25 +216,28 @@ LightColorValues LightCall::validate_() {
 
   // Handle interaction between RGB and white for color interlock
   if (traits.get_supports_color_interlock()) {
-    // If white channel is specified, set RGB to white color
+    // If white channel is specified, set color brightness to zero if it is enabled
     if (this->white_.has_value()) {
-      if (!this->red_.has_value() && !this->green_.has_value() && !this->blue_.has_value()) {
-        this->red_ = optional<float>(1.0f);
-        this->green_ = optional<float>(1.0f);
-        this->blue_ = optional<float>(1.0f);
-      }
-      // make white values binary aka 0.0f or 1.0f... this allows brightness to do its job
       if (*this->white_ > 0.0f) {
-        this->white_ = optional<float>(1.0f);
+        if (this->color_brightness_.has_value() && *this->color_brightness_ > 0.0f) {
+          ESP_LOGW(TAG, "'%s' - Cannot set color brightness and white value simultaneously with interlock!", name);
+        }
+
+        this->color_brightness_ = optional<float>(0.0f);
+      }
+    }
+    // If only a color channel is specified, use white channel if it's white, otherwise disable white channel
+    else if (this->red_.has_value() || this->green_.has_value() || this->blue_.has_value()) {
+      if (*this->red_ == 1.0f && *this->green_ == 1.0f && *this->blue_ == 1.0f) {
+        this->white_ = optional<float>(this->color_brightness_.has_value() ? *this->color_brightness_ : 1.0f);
+        this->color_brightness_ = optional<float>(0.0f);
       } else {
         this->white_ = optional<float>(0.0f);
       }
     }
-    // If only a color channel is specified, set white channel to 100% for white, otherwise 0%
-    else if (this->red_.has_value() || this->green_.has_value() || this->blue_.has_value()) {
-      if (*this->red_ == 1.0f && *this->green_ == 1.0f && *this->blue_ == 1.0f) {
-        this->white_ = optional<float>(1.0f);
-      } else {
+    // If only color brightness is set to non-zero, disable white channel
+    else if (this->color_brightness_.has_value()) {
+      if (*this->color_brightness_ > 0.0f) {
         this->white_ = optional<float>(0.0f);
       }
     }
@@ -233,6 +246,10 @@ LightColorValues LightCall::validate_() {
   // If only a color temperature is specified, change to white light
   if (this->color_temperature_.has_value() && !this->white_.has_value() && !this->red_.has_value() &&
       !this->green_.has_value() && !this->blue_.has_value()) {
+    // Disable color LEDs explicitly if not already set
+    if (traits.get_supports_rgb() && !this->color_brightness_.has_value())
+      this->color_brightness_ = optional<float>(0.0f);
+
     this->red_ = optional<float>(1.0f);
     this->green_ = optional<float>(1.0f);
     this->blue_ = optional<float>(1.0f);
@@ -257,6 +274,7 @@ LightColorValues LightCall::validate_() {
 
   // Range checks
   VALIDATE_RANGE(brightness, "Brightness")
+  VALIDATE_RANGE(color_brightness, "Color brightness")
   VALIDATE_RANGE(red, "Red")
   VALIDATE_RANGE(green, "Green")
   VALIDATE_RANGE(blue, "Blue")
@@ -268,6 +286,8 @@ LightColorValues LightCall::validate_() {
   if (this->brightness_.has_value())
     v.set_brightness(*this->brightness_);
 
+  if (this->color_brightness_.has_value())
+    v.set_color_brightness(*this->color_brightness_);
   if (this->red_.has_value())
     v.set_red(*this->red_);
   if (this->green_.has_value())
@@ -372,6 +392,7 @@ LightCall &LightCall::set_effect(const std::string &effect) {
 LightCall &LightCall::from_light_color_values(const LightColorValues &values) {
   this->set_state(values.is_on());
   this->set_brightness_if_supported(values.get_brightness());
+  this->set_color_brightness_if_supported(values.get_color_brightness());
   this->set_red_if_supported(values.get_red());
   this->set_green_if_supported(values.get_green());
   this->set_blue_if_supported(values.get_blue());
@@ -386,6 +407,11 @@ LightCall &LightCall::set_transition_length_if_supported(uint32_t transition_len
 }
 LightCall &LightCall::set_brightness_if_supported(float brightness) {
   if (this->parent_->get_traits().get_supports_brightness())
+    this->set_brightness(brightness);
+  return *this;
+}
+LightCall &LightCall::set_color_brightness_if_supported(float brightness) {
+  if (this->parent_->get_traits().get_supports_rgb_white_value())
     this->set_brightness(brightness);
   return *this;
 }
@@ -444,6 +470,14 @@ LightCall &LightCall::set_brightness(optional<float> brightness) {
 }
 LightCall &LightCall::set_brightness(float brightness) {
   this->brightness_ = brightness;
+  return *this;
+}
+LightCall &LightCall::set_color_brightness(optional<float> brightness) {
+  this->color_brightness_ = brightness;
+  return *this;
+}
+LightCall &LightCall::set_color_brightness(float brightness) {
+  this->color_brightness_ = brightness;
   return *this;
 }
 LightCall &LightCall::set_red(optional<float> red) {
