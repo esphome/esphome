@@ -20,37 +20,19 @@ void ESP32BLE::setup() {
   global_ble = this;
   ESP_LOGCONFIG(TAG, "Setting up BLE...");
 
-  xTaskCreatePinnedToCore(ESP32BLE::ble_core_task_,
-                          "ble_task",  // name
-                          10000,       // stack size
-                          nullptr,     // input params
-                          1,           // priority
-                          nullptr,     // handle, not needed
-                          0            // core
-  );
+  if (!ble_setup_()) {
+    ESP_LOGE(TAG, "BLE could not be set up");
+    this->mark_failed();
+    return;
+  }
+
+  ESP_LOGD(TAG, "BLE setup complete");
 }
 
 void ESP32BLE::mark_failed() {
   Component::mark_failed();
   if (this->server_ != nullptr) {
     this->server_->mark_failed();
-  }
-}
-
-bool ESP32BLE::can_proceed() { return this->ready_; }
-
-void ESP32BLE::ble_core_task_(void *params) {
-  if (!ble_setup_()) {
-    ESP_LOGE(TAG, "BLE could not be set up");
-    global_ble->mark_failed();
-    return;
-  }
-
-  global_ble->ready_ = true;
-  ESP_LOGD(TAG, "BLE Setup complete");
-
-  while (true) {
-    vTaskDelay(1000 / portTICK_PERIOD_MS);
   }
 }
 
@@ -84,7 +66,7 @@ bool ESP32BLE::ble_setup_() {
     return false;
   }
 
-  if (global_ble->has_server()) {
+  if (this->has_server()) {
     err = esp_ble_gatts_register_callback(ESP32BLE::gatts_event_handler);
     if (err != ESP_OK) {
       ESP_LOGE(TAG, "esp_ble_gatts_register_callback failed: %d", err);
@@ -92,7 +74,7 @@ bool ESP32BLE::ble_setup_() {
     }
   }
 
-  if (global_ble->has_client()) {
+  if (this->has_client()) {
     err = esp_ble_gattc_register_callback(ESP32BLE::gattc_event_handler);
     if (err != ESP_OK) {
       ESP_LOGE(TAG, "esp_ble_gattc_register_callback failed: %d", err);
@@ -119,27 +101,28 @@ bool ESP32BLE::ble_setup_() {
   return true;
 }
 
-// void ESP32BLE::loop() {
-//   BLEEvent *ble_event = this->ble_events_.pop();
-//   while (ble_event != nullptr) {
-//     switch (ble_event->type_) {
-//       case ble_event->GATTS:
-//         this->real_gatts_event_handler_(ble_event->event_.gatts.gatts_event, ble_event->event_.gatts.gatts_if,
-//                                         &ble_event->event_.gatts.gatts_param);
-//         break;
-//       case ble_event->GAP:
-//         this->real_gap_event_handler_(ble_event->event_.gap.gap_event, &ble_event->event_.gap.gap_param);
-//         break;
-//       default:
-//         break;
-//     }
-//     delete ble_event;
-//     ble_event = this->ble_events_.pop();
-//   }
-// }
+void ESP32BLE::loop() {
+  BLEEvent *ble_event = this->ble_events_.pop();
+  while (ble_event != nullptr) {
+    switch (ble_event->type_) {
+      case ble_event->GATTS:
+        this->real_gatts_event_handler_(ble_event->event_.gatts.gatts_event, ble_event->event_.gatts.gatts_if,
+                                        &ble_event->event_.gatts.gatts_param);
+        break;
+      case ble_event->GAP:
+        this->real_gap_event_handler_(ble_event->event_.gap.gap_event, &ble_event->event_.gap.gap_param);
+        break;
+      default:
+        break;
+    }
+    delete ble_event;
+    ble_event = this->ble_events_.pop();
+  }
+}
 
 void ESP32BLE::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) {
-  global_ble->real_gap_event_handler_(event, param);
+  BLEEvent *new_event = new BLEEvent(event, param);
+  global_ble->ble_events_.push(new_event);
 }
 
 void ESP32BLE::real_gap_event_handler_(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) {
@@ -152,7 +135,8 @@ void ESP32BLE::real_gap_event_handler_(esp_gap_ble_cb_event_t event, esp_ble_gap
 
 void ESP32BLE::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if,
                                    esp_ble_gatts_cb_param_t *param) {
-  global_ble->real_gatts_event_handler_(event, gatts_if, param);
+  BLEEvent *new_event = new BLEEvent(event, gatts_if, param);
+  global_ble->ble_events_.push(new_event);
 }
 
 void ESP32BLE::real_gatts_event_handler_(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if,

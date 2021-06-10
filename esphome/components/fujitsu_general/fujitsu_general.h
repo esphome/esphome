@@ -66,13 +66,13 @@ class FujitsuGeneralClimate : public climate_ir::ClimateIR {
   bool on_receive(remote_base::RemoteReceiveData data) override;
 
   /// Transmit message as IR pulses
-  void transmit_(uint8_t const* message, uint8_t length);
+  void transmit_(uint8_t const *message, uint8_t length);
 
   /// Calculate checksum for a state message
-  uint8_t checksum_state_(uint8_t const* message);
+  uint8_t checksum_state_(uint8_t const *message);
 
   /// Calculate cecksum for a util message
-  uint8_t checksum_util_(uint8_t const* message);
+  uint8_t checksum_util_(uint8_t const *message);
 
   // true if currently on - fujitsus transmit an on flag on when the remote moves from off to on
   bool power_{false};

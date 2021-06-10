@@ -508,7 +508,7 @@ void WiFiComponent::check_connecting_finished() {
     }
 #ifdef USE_IMPROV
     if (this->is_esp32_improv_active_()) {
-      esp32_improv::global_improv_component->end();
+      esp32_improv::global_improv_component->stop();
     }
 #endif
 

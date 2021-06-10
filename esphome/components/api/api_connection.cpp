@@ -665,6 +665,10 @@ DeviceInfoResponse APIConnection::device_info(const DeviceInfoRequest &msg) {
 #ifdef USE_DEEP_SLEEP
   resp.has_deep_sleep = deep_sleep::global_has_deep_sleep;
 #endif
+#ifdef ESPHOME_PROJECT_NAME
+  resp.project_name = ESPHOME_PROJECT_NAME;
+  resp.project_version = ESPHOME_PROJECT_VERSION;
+#endif
   return resp;
 }
 void APIConnection::on_home_assistant_state_response(const HomeAssistantStateResponse &msg) {

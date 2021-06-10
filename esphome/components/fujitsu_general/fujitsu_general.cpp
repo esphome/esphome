@@ -9,7 +9,7 @@ namespace fujitsu_general {
   ((message)[(nibble) / 2] |= ((value) &0b00001111) << (((nibble) % 2) ? 0 : 4))
 #define GET_NIBBLE(message, nibble) (((message)[(nibble) / 2] >> (((nibble) % 2) ? 0 : 4)) & 0b00001111)
 
-static const char* TAG = "fujitsu_general.climate";
+static const char *TAG = "fujitsu_general.climate";
 
 // Common header
 const uint8_t FUJITSU_GENERAL_COMMON_LENGTH = 6;
@@ -203,7 +203,7 @@ void FujitsuGeneralClimate::transmit_off_() {
   this->power_ = false;
 }
 
-void FujitsuGeneralClimate::transmit_(uint8_t const* message, uint8_t length) {
+void FujitsuGeneralClimate::transmit_(uint8_t const *message, uint8_t length) {
   ESP_LOGV(TAG, "Transmit message length %d", length);
 
   auto transmit = this->transmitter_->transmit();
@@ -232,7 +232,7 @@ void FujitsuGeneralClimate::transmit_(uint8_t const* message, uint8_t length) {
   transmit.perform();
 }
 
-uint8_t FujitsuGeneralClimate::checksum_state_(uint8_t const* message) {
+uint8_t FujitsuGeneralClimate::checksum_state_(uint8_t const *message) {
   uint8_t checksum = 0;
   for (uint8_t i = 7; i < FUJITSU_GENERAL_STATE_MESSAGE_LENGTH - 1; ++i) {
     checksum += message[i];
@@ -240,7 +240,7 @@ uint8_t FujitsuGeneralClimate::checksum_state_(uint8_t const* message) {
   return 256 - checksum;
 }
 
-uint8_t FujitsuGeneralClimate::checksum_util_(uint8_t const* message) { return 255 - message[5]; }
+uint8_t FujitsuGeneralClimate::checksum_util_(uint8_t const *message) { return 255 - message[5]; }
 
 bool FujitsuGeneralClimate::on_receive(remote_base::RemoteReceiveData data) {
   ESP_LOGV(TAG, "Received IR message");

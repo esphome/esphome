@@ -1,7 +1,7 @@
 """Constants used by esphome."""
 
 MAJOR_VERSION = 1
-MINOR_VERSION = 19
+MINOR_VERSION = 20
 PATCH_VERSION = "0-dev"
 __short_version__ = f"{MAJOR_VERSION}.{MINOR_VERSION}"
 __version__ = f"{__short_version__}.{PATCH_VERSION}"
@@ -459,6 +459,7 @@ CONF_PRESET_ECO = "preset_eco"
 CONF_PRESET_SLEEP = "preset_sleep"
 CONF_PRESSURE = "pressure"
 CONF_PRIORITY = "priority"
+CONF_PROJECT = "project"
 CONF_PROTOCOL = "protocol"
 CONF_PULL_MODE = "pull_mode"
 CONF_PULSE_LENGTH = "pulse_length"
@@ -616,6 +617,7 @@ CONF_UUID = "uuid"
 CONF_VALUE = "value"
 CONF_VARIABLES = "variables"
 CONF_VARIANT = "variant"
+CONF_VERSION = "version"
 CONF_VISUAL = "visual"
 CONF_VOLTAGE = "voltage"
 CONF_VOLTAGE_ATTENUATION = "voltage_attenuation"

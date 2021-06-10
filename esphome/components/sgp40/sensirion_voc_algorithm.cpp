@@ -224,7 +224,7 @@ static fix16_t fix16_exp(fix16_t in_value) {
   static const uint8_t NUM_EXP_VALUES = 4;
   static const fix16_t EXP_POS_VALUES[4] = {F16(2.7182818), F16(1.1331485), F16(1.0157477), F16(1.0019550)};
   static const fix16_t EXP_NEG_VALUES[4] = {F16(0.3678794), F16(0.8824969), F16(0.9844964), F16(0.9980488)};
-  const fix16_t* exp_values;
+  const fix16_t *exp_values;
 
   fix16_t res, arg;
   uint16_t i;
@@ -253,35 +253,35 @@ static fix16_t fix16_exp(fix16_t in_value) {
   return res;
 }
 
-static void voc_algorithm_init_instances(VocAlgorithmParams* params);
-static void voc_algorithm_mean_variance_estimator_init(VocAlgorithmParams* params);
-static void voc_algorithm_mean_variance_estimator_init_instances(VocAlgorithmParams* params);
-static void voc_algorithm_mean_variance_estimator_set_parameters(VocAlgorithmParams* params, fix16_t std_initial,
+static void voc_algorithm_init_instances(VocAlgorithmParams *params);
+static void voc_algorithm_mean_variance_estimator_init(VocAlgorithmParams *params);
+static void voc_algorithm_mean_variance_estimator_init_instances(VocAlgorithmParams *params);
+static void voc_algorithm_mean_variance_estimator_set_parameters(VocAlgorithmParams *params, fix16_t std_initial,
                                                                  fix16_t tau_mean_variance_hours,
                                                                  fix16_t gating_max_duration_minutes);
-static void voc_algorithm_mean_variance_estimator_set_states(VocAlgorithmParams* params, fix16_t mean, fix16_t std,
+static void voc_algorithm_mean_variance_estimator_set_states(VocAlgorithmParams *params, fix16_t mean, fix16_t std,
                                                              fix16_t uptime_gamma);
-static fix16_t voc_algorithm_mean_variance_estimator_get_std(VocAlgorithmParams* params);
-static fix16_t voc_algorithm_mean_variance_estimator_get_mean(VocAlgorithmParams* params);
-static void voc_algorithm_mean_variance_estimator_calculate_gamma(VocAlgorithmParams* params,
+static fix16_t voc_algorithm_mean_variance_estimator_get_std(VocAlgorithmParams *params);
+static fix16_t voc_algorithm_mean_variance_estimator_get_mean(VocAlgorithmParams *params);
+static void voc_algorithm_mean_variance_estimator_calculate_gamma(VocAlgorithmParams *params,
                                                                   fix16_t voc_index_from_prior);
-static void voc_algorithm_mean_variance_estimator_process(VocAlgorithmParams* params, fix16_t sraw,
+static void voc_algorithm_mean_variance_estimator_process(VocAlgorithmParams *params, fix16_t sraw,
                                                           fix16_t voc_index_from_prior);
-static void voc_algorithm_mean_variance_estimator_sigmoid_init(VocAlgorithmParams* params);
-static void voc_algorithm_mean_variance_estimator_sigmoid_set_parameters(VocAlgorithmParams* params, fix16_t l,
+static void voc_algorithm_mean_variance_estimator_sigmoid_init(VocAlgorithmParams *params);
+static void voc_algorithm_mean_variance_estimator_sigmoid_set_parameters(VocAlgorithmParams *params, fix16_t l,
                                                                          fix16_t x0, fix16_t k);
-static fix16_t voc_algorithm_mean_variance_estimator_sigmoid_process(VocAlgorithmParams* params, fix16_t sample);
-static void voc_algorithm_mox_model_init(VocAlgorithmParams* params);
-static void voc_algorithm_mox_model_set_parameters(VocAlgorithmParams* params, fix16_t sraw_std, fix16_t sraw_mean);
-static fix16_t voc_algorithm_mox_model_process(VocAlgorithmParams* params, fix16_t sraw);
-static void voc_algorithm_sigmoid_scaled_init(VocAlgorithmParams* params);
-static void voc_algorithm_sigmoid_scaled_set_parameters(VocAlgorithmParams* params, fix16_t offset);
-static fix16_t voc_algorithm_sigmoid_scaled_process(VocAlgorithmParams* params, fix16_t sample);
-static void voc_algorithm_adaptive_lowpass_init(VocAlgorithmParams* params);
-static void voc_algorithm_adaptive_lowpass_set_parameters(VocAlgorithmParams* params);
-static fix16_t voc_algorithm_adaptive_lowpass_process(VocAlgorithmParams* params, fix16_t sample);
+static fix16_t voc_algorithm_mean_variance_estimator_sigmoid_process(VocAlgorithmParams *params, fix16_t sample);
+static void voc_algorithm_mox_model_init(VocAlgorithmParams *params);
+static void voc_algorithm_mox_model_set_parameters(VocAlgorithmParams *params, fix16_t sraw_std, fix16_t sraw_mean);
+static fix16_t voc_algorithm_mox_model_process(VocAlgorithmParams *params, fix16_t sraw);
+static void voc_algorithm_sigmoid_scaled_init(VocAlgorithmParams *params);
+static void voc_algorithm_sigmoid_scaled_set_parameters(VocAlgorithmParams *params, fix16_t offset);
+static fix16_t voc_algorithm_sigmoid_scaled_process(VocAlgorithmParams *params, fix16_t sample);
+static void voc_algorithm_adaptive_lowpass_init(VocAlgorithmParams *params);
+static void voc_algorithm_adaptive_lowpass_set_parameters(VocAlgorithmParams *params);
+static fix16_t voc_algorithm_adaptive_lowpass_process(VocAlgorithmParams *params, fix16_t sample);
 
-void voc_algorithm_init(VocAlgorithmParams* params) {
+void voc_algorithm_init(VocAlgorithmParams *params) {
   params->mVoc_Index_Offset = F16(VOC_ALGORITHM_VOC_INDEX_OFFSET_DEFAULT);
   params->mTau_Mean_Variance_Hours = F16(VOC_ALGORITHM_TAU_MEAN_VARIANCE_HOURS);
   params->mGating_Max_Duration_Minutes = F16(VOC_ALGORITHM_GATING_MAX_DURATION_MINUTES);
@@ -292,7 +292,7 @@ void voc_algorithm_init(VocAlgorithmParams* params) {
   voc_algorithm_init_instances(params);
 }
 
-static void voc_algorithm_init_instances(VocAlgorithmParams* params) {
+static void voc_algorithm_init_instances(VocAlgorithmParams *params) {
   voc_algorithm_mean_variance_estimator_init(params);
   voc_algorithm_mean_variance_estimator_set_parameters(
       params, params->mSraw_Std_Initial, params->mTau_Mean_Variance_Hours, params->mGating_Max_Duration_Minutes);
@@ -305,17 +305,17 @@ static void voc_algorithm_init_instances(VocAlgorithmParams* params) {
   voc_algorithm_adaptive_lowpass_set_parameters(params);
 }
 
-void voc_algorithm_get_states(VocAlgorithmParams* params, int32_t* state0, int32_t* state1) {
+void voc_algorithm_get_states(VocAlgorithmParams *params, int32_t *state0, int32_t *state1) {
   *state0 = voc_algorithm_mean_variance_estimator_get_mean(params);
   *state1 = voc_algorithm_mean_variance_estimator_get_std(params);
 }
 
-void voc_algorithm_set_states(VocAlgorithmParams* params, int32_t state0, int32_t state1) {
+void voc_algorithm_set_states(VocAlgorithmParams *params, int32_t state0, int32_t state1) {
   voc_algorithm_mean_variance_estimator_set_states(params, state0, state1, F16(VOC_ALGORITHM_PERSISTENCE_UPTIME_GAMMA));
   params->mSraw = state0;
 }
 
-void voc_algorithm_set_tuning_parameters(VocAlgorithmParams* params, int32_t voc_index_offset,
+void voc_algorithm_set_tuning_parameters(VocAlgorithmParams *params, int32_t voc_index_offset,
                                          int32_t learning_time_hours, int32_t gating_max_duration_minutes,
                                          int32_t std_initial) {
   params->mVoc_Index_Offset = (fix16_from_int(voc_index_offset));
@@ -325,7 +325,7 @@ void voc_algorithm_set_tuning_parameters(VocAlgorithmParams* params, int32_t voc
   voc_algorithm_init_instances(params);
 }
 
-void voc_algorithm_process(VocAlgorithmParams* params, int32_t sraw, int32_t* voc_index) {
+void voc_algorithm_process(VocAlgorithmParams *params, int32_t sraw, int32_t *voc_index) {
   if ((params->mUptime <= F16(VOC_ALGORITHM_INITIAL_BLACKOUT))) {
     params->mUptime = (params->mUptime + F16(VOC_ALGORITHM_SAMPLING_INTERVAL));
   } else {
@@ -352,16 +352,16 @@ void voc_algorithm_process(VocAlgorithmParams* params, int32_t sraw, int32_t* vo
   *voc_index = (fix16_cast_to_int((params->mVoc_Index + F16(0.5))));
 }
 
-static void voc_algorithm_mean_variance_estimator_init(VocAlgorithmParams* params) {
+static void voc_algorithm_mean_variance_estimator_init(VocAlgorithmParams *params) {
   voc_algorithm_mean_variance_estimator_set_parameters(params, F16(0.), F16(0.), F16(0.));
   voc_algorithm_mean_variance_estimator_init_instances(params);
 }
 
-static void voc_algorithm_mean_variance_estimator_init_instances(VocAlgorithmParams* params) {
+static void voc_algorithm_mean_variance_estimator_init_instances(VocAlgorithmParams *params) {
   voc_algorithm_mean_variance_estimator_sigmoid_init(params);
 }
 
-static void voc_algorithm_mean_variance_estimator_set_parameters(VocAlgorithmParams* params, fix16_t std_initial,
+static void voc_algorithm_mean_variance_estimator_set_parameters(VocAlgorithmParams *params, fix16_t std_initial,
                                                                  fix16_t tau_mean_variance_hours,
                                                                  fix16_t gating_max_duration_minutes) {
   params->m_Mean_Variance_Estimator_Gating_Max_Duration_Minutes = gating_max_duration_minutes;
@@ -385,7 +385,7 @@ static void voc_algorithm_mean_variance_estimator_set_parameters(VocAlgorithmPar
   params->m_Mean_Variance_Estimator_Gating_Duration_Minutes = F16(0.);
 }
 
-static void voc_algorithm_mean_variance_estimator_set_states(VocAlgorithmParams* params, fix16_t mean, fix16_t std,
+static void voc_algorithm_mean_variance_estimator_set_states(VocAlgorithmParams *params, fix16_t mean, fix16_t std,
                                                              fix16_t uptime_gamma) {
   params->m_Mean_Variance_Estimator_Mean = mean;
   params->m_Mean_Variance_Estimator_Std = std;
@@ -393,15 +393,15 @@ static void voc_algorithm_mean_variance_estimator_set_states(VocAlgorithmParams*
   params->m_Mean_Variance_Estimator_Initialized = true;
 }
 
-static fix16_t voc_algorithm_mean_variance_estimator_get_std(VocAlgorithmParams* params) {
+static fix16_t voc_algorithm_mean_variance_estimator_get_std(VocAlgorithmParams *params) {
   return params->m_Mean_Variance_Estimator_Std;
 }
 
-static fix16_t voc_algorithm_mean_variance_estimator_get_mean(VocAlgorithmParams* params) {
+static fix16_t voc_algorithm_mean_variance_estimator_get_mean(VocAlgorithmParams *params) {
   return (params->m_Mean_Variance_Estimator_Mean + params->m_Mean_Variance_Estimator_Sraw_Offset);
 }
 
-static void voc_algorithm_mean_variance_estimator_calculate_gamma(VocAlgorithmParams* params,
+static void voc_algorithm_mean_variance_estimator_calculate_gamma(VocAlgorithmParams *params,
                                                                   fix16_t voc_index_from_prior) {
   fix16_t uptime_limit;
   fix16_t sigmoid_gamma_mean;
@@ -469,7 +469,7 @@ static void voc_algorithm_mean_variance_estimator_calculate_gamma(VocAlgorithmPa
   }
 }
 
-static void voc_algorithm_mean_variance_estimator_process(VocAlgorithmParams* params, fix16_t sraw,
+static void voc_algorithm_mean_variance_estimator_process(VocAlgorithmParams *params, fix16_t sraw,
                                                           fix16_t voc_index_from_prior) {
   fix16_t delta_sgp;
   fix16_t c;
@@ -514,18 +514,18 @@ static void voc_algorithm_mean_variance_estimator_process(VocAlgorithmParams* pa
   }
 }
 
-static void voc_algorithm_mean_variance_estimator_sigmoid_init(VocAlgorithmParams* params) {
+static void voc_algorithm_mean_variance_estimator_sigmoid_init(VocAlgorithmParams *params) {
   voc_algorithm_mean_variance_estimator_sigmoid_set_parameters(params, F16(0.), F16(0.), F16(0.));
 }
 
-static void voc_algorithm_mean_variance_estimator_sigmoid_set_parameters(VocAlgorithmParams* params, fix16_t l,
+static void voc_algorithm_mean_variance_estimator_sigmoid_set_parameters(VocAlgorithmParams *params, fix16_t l,
                                                                          fix16_t x0, fix16_t k) {
   params->m_Mean_Variance_Estimator_Sigmoid_L = l;
   params->m_Mean_Variance_Estimator_Sigmoid_K = k;
   params->m_Mean_Variance_Estimator_Sigmoid_X0 = x0;
 }
 
-static fix16_t voc_algorithm_mean_variance_estimator_sigmoid_process(VocAlgorithmParams* params, fix16_t sample) {
+static fix16_t voc_algorithm_mean_variance_estimator_sigmoid_process(VocAlgorithmParams *params, fix16_t sample) {
   fix16_t x;
 
   x = (fix16_mul(params->m_Mean_Variance_Estimator_Sigmoid_K, (sample - params->m_Mean_Variance_Estimator_Sigmoid_X0)));
@@ -538,30 +538,30 @@ static fix16_t voc_algorithm_mean_variance_estimator_sigmoid_process(VocAlgorith
   }
 }
 
-static void voc_algorithm_mox_model_init(VocAlgorithmParams* params) {
+static void voc_algorithm_mox_model_init(VocAlgorithmParams *params) {
   voc_algorithm_mox_model_set_parameters(params, F16(1.), F16(0.));
 }
 
-static void voc_algorithm_mox_model_set_parameters(VocAlgorithmParams* params, fix16_t sraw_std, fix16_t sraw_mean) {
+static void voc_algorithm_mox_model_set_parameters(VocAlgorithmParams *params, fix16_t sraw_std, fix16_t sraw_mean) {
   params->m_Mox_Model_Sraw_Std = sraw_std;
   params->m_Mox_Model_Sraw_Mean = sraw_mean;
 }
 
-static fix16_t voc_algorithm_mox_model_process(VocAlgorithmParams* params, fix16_t sraw) {
+static fix16_t voc_algorithm_mox_model_process(VocAlgorithmParams *params, fix16_t sraw) {
   return (fix16_mul((fix16_div((sraw - params->m_Mox_Model_Sraw_Mean),
                                (-(params->m_Mox_Model_Sraw_Std + F16(VOC_ALGORITHM_SRAW_STD_BONUS))))),
                     F16(VOC_ALGORITHM_VOC_INDEX_GAIN)));
 }
 
-static void voc_algorithm_sigmoid_scaled_init(VocAlgorithmParams* params) {
+static void voc_algorithm_sigmoid_scaled_init(VocAlgorithmParams *params) {
   voc_algorithm_sigmoid_scaled_set_parameters(params, F16(0.));
 }
 
-static void voc_algorithm_sigmoid_scaled_set_parameters(VocAlgorithmParams* params, fix16_t offset) {
+static void voc_algorithm_sigmoid_scaled_set_parameters(VocAlgorithmParams *params, fix16_t offset) {
   params->m_Sigmoid_Scaled_Offset = offset;
 }
 
-static fix16_t voc_algorithm_sigmoid_scaled_process(VocAlgorithmParams* params, fix16_t sample) {
+static fix16_t voc_algorithm_sigmoid_scaled_process(VocAlgorithmParams *params, fix16_t sample) {
   fix16_t x;
   fix16_t shift;
 
@@ -582,11 +582,11 @@ static fix16_t voc_algorithm_sigmoid_scaled_process(VocAlgorithmParams* params, 
   }
 }
 
-static void voc_algorithm_adaptive_lowpass_init(VocAlgorithmParams* params) {
+static void voc_algorithm_adaptive_lowpass_init(VocAlgorithmParams *params) {
   voc_algorithm_adaptive_lowpass_set_parameters(params);
 }
 
-static void voc_algorithm_adaptive_lowpass_set_parameters(VocAlgorithmParams* params) {
+static void voc_algorithm_adaptive_lowpass_set_parameters(VocAlgorithmParams *params) {
   params->m_Adaptive_Lowpass_A1 =
       F16((VOC_ALGORITHM_SAMPLING_INTERVAL / (VOC_ALGORITHM_LP_TAU_FAST + VOC_ALGORITHM_SAMPLING_INTERVAL)));
   params->m_Adaptive_Lowpass_A2 =
@@ -594,7 +594,7 @@ static void voc_algorithm_adaptive_lowpass_set_parameters(VocAlgorithmParams* pa
   params->m_Adaptive_Lowpass_Initialized = false;
 }
 
-static fix16_t voc_algorithm_adaptive_lowpass_process(VocAlgorithmParams* params, fix16_t sample) {
+static fix16_t voc_algorithm_adaptive_lowpass_process(VocAlgorithmParams *params, fix16_t sample) {
   fix16_t abs_delta;
   fix16_t f1;
   fix16_t tau_a;

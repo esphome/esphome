@@ -33,26 +33,44 @@ class BLEService {
 
   BLEServer *get_server() { return this->server_; }
 
-  bool do_create(BLEServer *server);
+  void do_create(BLEServer *server);
   void gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if, esp_ble_gatts_cb_param_t *param);
 
   void start();
   void stop();
 
- protected:
-  bool errored_{false};
+  bool is_created();
+  bool is_failed();
 
+  bool is_running() { return this->running_state_ == RUNNING; }
+  bool is_starting() { return this->running_state_ == STARTING; }
+
+ protected:
   std::vector<BLECharacteristic *> characteristics_;
   BLECharacteristic *last_created_characteristic_{nullptr};
+  uint32_t created_characteristic_count_{0};
   BLEServer *server_;
   ESPBTUUID uuid_;
   uint16_t num_handles_;
   uint16_t handle_{0xFFFF};
   uint8_t inst_id_;
 
-  SemaphoreHandle_t create_lock_;
-  SemaphoreHandle_t start_lock_;
-  SemaphoreHandle_t stop_lock_;
+  bool do_create_characteristics_();
+
+  enum InitState : uint8_t {
+    FAILED = 0x00,
+    INIT,
+    CREATING,
+    CREATING_DEPENDENTS,
+    CREATED,
+  } init_state_{INIT};
+
+  enum RunningState : uint8_t {
+    STARTING,
+    RUNNING,
+    STOPPING,
+    STOPPED,
+  } running_state_{STOPPED};
 };
 
 }  // namespace esp32_ble
