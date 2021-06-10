@@ -568,6 +568,7 @@ class PingRequestHandler(BaseHandler):
     @authenticated
     def get(self):
         PING_REQUEST.set()
+        self.set_header("content-type", "application/json")
         self.write(json.dumps(PING_RESULT))
 
 
@@ -740,6 +741,10 @@ def get_static_path(*args):
 
 
 def get_static_file_url(name):
+    # Module imports can't deduplicate if stuff added to url
+    if name == "js/esphome/index.js":
+        return f"./static/{name}"
+
     if name in _STATIC_FILE_HASHES:
         hash_ = _STATIC_FILE_HASHES[name]
     else:
