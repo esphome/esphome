@@ -27,6 +27,7 @@ import tornado.web
 import tornado.websocket
 
 from esphome import const, util
+import esphome
 from esphome.helpers import mkdir_p, get_bool_env, run_system_command
 from esphome.storage_json import (
     EsphomeStorageJSON,
@@ -113,15 +114,10 @@ def template_args():
     else:
         docs_link = "https://www.esphome.io/"
 
-    if get_bool_env("ESPHOME_FRONTEND_DEV"):
-        get_static = get_static_file_url_dev
-    else:
-        get_static = get_static_file_url
-
     return {
         "version": version,
         "docs_link": docs_link,
-        "get_static_file_url": get_static,
+        "get_static_file_url": get_static_file_url,
         "relative_url": settings.relative_url,
         "streamer_mode": get_bool_env("ESPHOME_STREAMER_MODE"),
         "config_dir": settings.config_dir,
@@ -484,7 +480,7 @@ class MainRequestHandler(BaseHandler):
         entries = _list_dashboard_entries()
 
         self.render(
-            "templates/index.html",
+            get_template_path("index"),
             entries=entries,
             begin=begin,
             **template_args(),
@@ -659,7 +655,7 @@ class LoginHandler(BaseHandler):
 
     def render_login_page(self, error=None):
         self.render(
-            "templates/login.html",
+            get_template_path("login"),
             error=error,
             hassio=settings.using_hassio_auth,
             has_username=bool(settings.username),
@@ -720,16 +716,32 @@ class LogoutHandler(BaseHandler):
 _STATIC_FILE_HASHES = {}
 
 
-def get_static_file_url_dev(name):
-    return f"http://localhost:8500/esphome_frontend/static/{name}"
+def get_base_frontend_path():
+    if "ESPHOME_DASHBOARD_DEV" not in os.environ:
+        import esphome_dashboard
+        return esphome_dashboard.where()
+
+    static_path = os.environ["ESPHOME_DASHBOARD_DEV"]
+    if not static_path.endswith('/'):
+        static_path += "/"
+
+    # This path can be relative, so resolve against the root or else templates don't work
+    return os.path.abspath(os.path.join(os.getcwd(), static_path, "esphome_dashboard"))
+
+
+def get_template_path(template_name):
+    return os.path.join(get_base_frontend_path(), f"{template_name}.template.html")
+
+
+def get_static_path(*args):
+    return os.path.join(get_base_frontend_path(), "static", *args)
 
 
 def get_static_file_url(name):
-    static_path = os.path.join(os.path.dirname(__file__), "static")
     if name in _STATIC_FILE_HASHES:
         hash_ = _STATIC_FILE_HASHES[name]
     else:
-        path = os.path.join(static_path, name)
+        path = get_static_path(name)
         with open(path, "rb") as f_handle:
             hash_ = hashlib.md5(f_handle.read()).hexdigest()[:8]
         _STATIC_FILE_HASHES[name] = hash_
@@ -766,7 +778,6 @@ def make_app(debug=False):
                     "Cache-Control", "no-store, no-cache, must-revalidate, max-age=0"
                 )
 
-    static_path = os.path.join(os.path.dirname(__file__), "static")
     app_settings = {
         "debug": debug,
         "cookie_secret": settings.cookie_secret,
@@ -796,7 +807,7 @@ def make_app(debug=False):
             (rel + "delete", DeleteRequestHandler),
             (rel + "undo-delete", UndoDeleteRequestHandler),
             (rel + "wizard.html", WizardRequestHandler),
-            (rel + r"static/(.*)", StaticFileHandler, {"path": static_path}),
+            (rel + r"static/(.*)", StaticFileHandler, {"path": get_static_path()}),
         ],
         **app_settings,
     )
