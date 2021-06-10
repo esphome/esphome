@@ -9,7 +9,7 @@ static const char *TAG = "mqtt_subscribe.sensor";
 void MQTTSubscribeSensor::setup() {
   mqtt::global_mqtt_client->subscribe(
       this->topic_,
-      [this](const std::string &topic, std::string payload) {
+      [this](const std::string &topic, const std::string &payload) {
         auto val = parse_float(payload);
         if (!val.has_value()) {
           ESP_LOGW(TAG, "Can't convert '%s' to number!", payload.c_str());

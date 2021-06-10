@@ -8,30 +8,31 @@ namespace homeassistant {
 static const char *TAG = "homeassistant.binary_sensor";
 
 void HomeassistantBinarySensor::setup() {
-  api::global_api_server->subscribe_home_assistant_state(this->entity_id_, this->attribute_, [this](std::string state) {
-    auto val = parse_on_off(state.c_str());
-    switch (val) {
-      case PARSE_NONE:
-      case PARSE_TOGGLE:
-        ESP_LOGW(TAG, "Can't convert '%s' to binary state!", state.c_str());
-        break;
-      case PARSE_ON:
-      case PARSE_OFF:
-        bool new_state = val == PARSE_ON;
-        if (this->attribute_.has_value()) {
-          ESP_LOGD(TAG, "'%s::%s': Got attribute state %s", this->entity_id_.c_str(), this->attribute_.value().c_str(),
-                   ONOFF(new_state));
-        } else {
-          ESP_LOGD(TAG, "'%s': Got state %s", this->entity_id_.c_str(), ONOFF(new_state));
+  api::global_api_server->subscribe_home_assistant_state(
+      this->entity_id_, this->attribute_, [this](const std::string &state) {
+        auto val = parse_on_off(state.c_str());
+        switch (val) {
+          case PARSE_NONE:
+          case PARSE_TOGGLE:
+            ESP_LOGW(TAG, "Can't convert '%s' to binary state!", state.c_str());
+            break;
+          case PARSE_ON:
+          case PARSE_OFF:
+            bool new_state = val == PARSE_ON;
+            if (this->attribute_.has_value()) {
+              ESP_LOGD(TAG, "'%s::%s': Got attribute state %s", this->entity_id_.c_str(),
+                       this->attribute_.value().c_str(), ONOFF(new_state));
+            } else {
+              ESP_LOGD(TAG, "'%s': Got state %s", this->entity_id_.c_str(), ONOFF(new_state));
+            }
+            if (this->initial_)
+              this->publish_initial_state(new_state);
+            else
+              this->publish_state(new_state);
+            break;
         }
-        if (this->initial_)
-          this->publish_initial_state(new_state);
-        else
-          this->publish_state(new_state);
-        break;
-    }
-    this->initial_ = false;
-  });
+        this->initial_ = false;
+      });
 }
 void HomeassistantBinarySensor::dump_config() {
   LOG_BINARY_SENSOR("", "Homeassistant Binary Sensor", this);

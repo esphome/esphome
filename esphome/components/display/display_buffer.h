@@ -86,10 +86,10 @@ class DisplayOnPageChangeTrigger;
 using display_writer_t = std::function<void(DisplayBuffer &)>;
 
 #define LOG_DISPLAY(prefix, type, obj) \
-  if (obj != nullptr) { \
+  if ((obj) != nullptr) { \
     ESP_LOGCONFIG(TAG, prefix type); \
-    ESP_LOGCONFIG(TAG, "%s  Rotations: %d °", prefix, obj->rotation_); \
-    ESP_LOGCONFIG(TAG, "%s  Dimensions: %dpx x %dpx", prefix, obj->get_width(), obj->get_height()); \
+    ESP_LOGCONFIG(TAG, "%s  Rotations: %d °", prefix, (obj)->rotation_); \
+    ESP_LOGCONFIG(TAG, "%s  Dimensions: %dpx x %dpx", prefix, (obj)->get_width(), (obj)->get_height()); \
   }
 
 class DisplayBuffer {
@@ -327,7 +327,7 @@ class DisplayBuffer {
 
 class DisplayPage {
  public:
-  DisplayPage(const display_writer_t &writer);
+  DisplayPage(display_writer_t writer);
   void show();
   void show_next();
   void show_prev();

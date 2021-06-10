@@ -51,7 +51,7 @@ union E131RawPacket {
 
 // We need to have at least one `1` value
 // Get the offset of `property_values[1]`
-const long E131_MIN_PACKET_SIZE = reinterpret_cast<long>(&((E131RawPacket *) nullptr)->property_values[1]);
+const size_t E131_MIN_PACKET_SIZE = reinterpret_cast<size_t>(&((E131RawPacket *) nullptr)->property_values[1]);
 
 bool E131Component::join_igmp_groups_() {
   if (listen_method_ != E131_MULTICAST)

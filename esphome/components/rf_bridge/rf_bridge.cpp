@@ -114,7 +114,7 @@ bool RFBridgeComponent::parse_bridge_byte_(uint8_t byte) {
   return false;
 }
 
-void RFBridgeComponent::write_byte_str_(std::string codes) {
+void RFBridgeComponent::write_byte_str_(const std::string &codes) {
   uint8_t code;
   int size = codes.length();
   for (int i = 0; i < size; i += 2) {
@@ -160,7 +160,7 @@ void RFBridgeComponent::send_code(RFBridgeData data) {
   this->flush();
 }
 
-void RFBridgeComponent::send_advanced_code(RFBridgeAdvancedData data) {
+void RFBridgeComponent::send_advanced_code(const RFBridgeAdvancedData &data) {
   ESP_LOGD(TAG, "Sending advanced code: length=0x%02X protocol=0x%02X code=0x%s", data.length, data.protocol,
            data.code.c_str());
   this->write(RF_CODE_START);
@@ -209,7 +209,7 @@ void RFBridgeComponent::start_bucket_sniffing() {
   this->flush();
 }
 
-void RFBridgeComponent::send_raw(std::string raw_code) {
+void RFBridgeComponent::send_raw(const std::string &raw_code) {
   ESP_LOGD(TAG, "Sending Raw Code: %s", raw_code.c_str());
 
   this->write_byte_str_(raw_code);

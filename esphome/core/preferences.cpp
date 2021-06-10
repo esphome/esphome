@@ -88,7 +88,7 @@ static inline bool esp_rtc_user_mem_write(uint32_t index, uint32_t value) {
   return true;
 }
 
-extern "C" uint32_t _SPIFFS_end;
+extern "C" uint32_t _SPIFFS_end;  // NOLINT
 
 static const uint32_t get_esp8266_flash_sector() {
   union {
