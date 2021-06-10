@@ -309,6 +309,9 @@ class LightState : public Nameable, public Component {
 
   LightEffect *get_active_effect_();
 
+  /// Internal method to save the current remote_values to the preferences
+  void save_remote_values_();
+
   /// Object used to store the persisted values of the light.
   ESPPreferenceObject rtc_;
   /// Restore mode of the light.

@@ -353,18 +353,8 @@ void LightCall::perform() {
   if (this->publish_) {
     this->parent_->publish_state();
   }
-
   if (this->save_) {
-    LightStateRTCState saved;
-    saved.state = v.is_on();
-    saved.brightness = v.get_brightness();
-    saved.red = v.get_red();
-    saved.green = v.get_green();
-    saved.blue = v.get_blue();
-    saved.white = v.get_white();
-    saved.color_temp = v.get_color_temperature();
-    saved.effect = this->parent_->active_effect_index_;
-    this->parent_->rtc_.save(&saved);
+    this->parent_->save_remote_values_();
   }
 }
 
@@ -760,6 +750,18 @@ LightEffect *LightState::get_active_effect_() {
     return nullptr;
   else
     return this->effects_[this->active_effect_index_ - 1];
+}
+void LightState::save_remote_values_() {
+  LightStateRTCState saved;
+  saved.state = this->remote_values.is_on();
+  saved.brightness = this->remote_values.get_brightness();
+  saved.red = this->remote_values.get_red();
+  saved.green = this->remote_values.get_green();
+  saved.blue = this->remote_values.get_blue();
+  saved.white = this->remote_values.get_white();
+  saved.color_temp = this->remote_values.get_color_temperature();
+  saved.effect = this->active_effect_index_;
+  this->rtc_.save(&saved);
 }
 
 }  // namespace light
