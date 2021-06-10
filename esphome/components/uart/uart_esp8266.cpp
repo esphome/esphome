@@ -63,7 +63,7 @@ void UARTComponent::setup() {
     this->hw_serial_->begin(this->baud_rate_, config);
     this->hw_serial_->setRxBufferSize(this->rx_buffer_size_);
   } else {
-    this->sw_serial_ = new ESP8266SoftwareSerial();
+    this->sw_serial_ = new ESP8266SoftwareSerial();  // NOLINT
     int8_t tx = this->tx_pin_.has_value() ? *this->tx_pin_ : -1;
     int8_t rx = this->rx_pin_.has_value() ? *this->rx_pin_ : -1;
     this->sw_serial_->setup(tx, rx, this->baud_rate_, this->stop_bits_, this->data_bits_, this->parity_,
@@ -205,7 +205,7 @@ void ESP8266SoftwareSerial::setup(int8_t tx_pin, int8_t rx_pin, uint32_t baud_ra
     pin.setup();
     this->gpio_rx_pin_ = &pin;
     this->rx_pin_ = pin.to_isr();
-    this->rx_buffer_ = new uint8_t[this->rx_buffer_size_];
+    this->rx_buffer_ = new uint8_t[this->rx_buffer_size_];  // NOLINT
     pin.attach_interrupt(ESP8266SoftwareSerial::gpio_intr, this, FALLING);
   }
 }

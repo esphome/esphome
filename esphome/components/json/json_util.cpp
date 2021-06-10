@@ -6,21 +6,7 @@ namespace json {
 
 static const char *TAG = "json";
 
-static char *global_json_build_buffer = nullptr;
-static size_t global_json_build_buffer_size = 0;
-
-void reserve_global_json_build_buffer(size_t required_size) {
-  if (global_json_build_buffer_size == 0 || global_json_build_buffer_size < required_size) {
-    delete[] global_json_build_buffer;
-    global_json_build_buffer_size = std::max(required_size, global_json_build_buffer_size * 2);
-
-    size_t remainder = global_json_build_buffer_size % 16U;
-    if (remainder != 0)
-      global_json_build_buffer_size += 16 - remainder;
-
-    global_json_build_buffer = new char[global_json_build_buffer_size];
-  }
-}
+static std::vector<char> global_json_build_buffer;
 
 const char *build_json(const json_build_t &f, size_t *length) {
   global_json_buffer.clear();
@@ -35,16 +21,16 @@ const char *build_json(const json_build_t &f, size_t *length) {
   // Discovery   | 372              | 356         |
   // Discovery   | 336              | 311         |
   // Discovery   | 408              | 393         |
-  reserve_global_json_build_buffer(global_json_buffer.size());
-  size_t bytes_written = root.printTo(global_json_build_buffer, global_json_build_buffer_size);
+  global_json_build_buffer.reserve(global_json_buffer.size() + 1);
+  size_t bytes_written = root.printTo(global_json_build_buffer.data(), global_json_build_buffer.capacity());
 
-  if (bytes_written >= global_json_build_buffer_size - 1) {
-    reserve_global_json_build_buffer(root.measureLength() + 1);
-    bytes_written = root.printTo(global_json_build_buffer, global_json_build_buffer_size);
+  if (bytes_written >= global_json_build_buffer.capacity() - 1) {
+    global_json_build_buffer.reserve(root.measureLength() + 1);
+    bytes_written = root.printTo(global_json_build_buffer.data(), global_json_build_buffer.capacity());
   }
 
   *length = bytes_written;
-  return global_json_build_buffer;
+  return global_json_build_buffer.data();
 }
 void parse_json(const std::string &data, const json_parse_t &f) {
   global_json_buffer.clear();
@@ -113,7 +99,7 @@ void VectorJsonBuffer::reserve(size_t size) {  // NOLINT
     target_capacity *= 2;
 
   char *old_buffer = this->buffer_;
-  this->buffer_ = new char[target_capacity];
+  this->buffer_ = new char[target_capacity];  // NOLINT
   if (old_buffer != nullptr && this->capacity_ != 0) {
     this->free_blocks_.push_back(old_buffer);
     memcpy(this->buffer_, old_buffer, this->capacity_);

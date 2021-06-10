@@ -20,7 +20,7 @@ static const char *TAG = "ota";
 uint8_t OTA_VERSION_1_0 = 1;
 
 void OTAComponent::setup() {
-  this->server_ = new WiFiServer(this->port_);
+  this->server_ = make_unique<WiFiServer>(this->port_);
   this->server_->begin();
 
   this->dump_config();

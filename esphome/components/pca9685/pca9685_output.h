@@ -20,14 +20,15 @@ extern const uint8_t PCA9685_MODE_OUTNE_LOW;
 
 class PCA9685Output;
 
-class PCA9685Channel : public output::FloatOutput {
+class PCA9685Channel : public output::FloatOutput, public Parented<PCA9685Output> {
  public:
-  PCA9685Channel(PCA9685Output *parent, uint8_t channel) : parent_(parent), channel_(channel) {}
+  void set_channel(uint8_t channel) { channel_ = channel; }
 
  protected:
+  friend class PCA9685Output;
+
   void write_state(float state) override;
 
-  PCA9685Output *parent_;
   uint8_t channel_;
 };
 
@@ -37,7 +38,7 @@ class PCA9685Output : public Component, public i2c::I2CDevice {
   PCA9685Output(float frequency, uint8_t mode = PCA9685_MODE_OUTPUT_ONACK | PCA9685_MODE_OUTPUT_TOTEM_POLE)
       : frequency_(frequency), mode_(mode) {}
 
-  PCA9685Channel *create_channel(uint8_t channel);
+  void register_channel(PCA9685Channel *channel);
 
   void setup() override;
   void dump_config() override;

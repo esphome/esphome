@@ -26,7 +26,7 @@ E131Component::~E131Component() {
 }
 
 void E131Component::setup() {
-  udp_.reset(new WiFiUDP());
+  udp_ = make_unique<WiFiUDP>();
 
   if (!udp_->begin(PORT)) {
     ESP_LOGE(TAG, "Cannot bind E131 to %d.", PORT);

@@ -1,5 +1,6 @@
 #include "wled_light_effect.h"
 #include "esphome/core/log.h"
+#include "esphome/core/helpers.h"
 
 #ifdef ARDUINO_ARCH_ESP32
 #include <WiFi.h>
@@ -47,7 +48,7 @@ void WLEDLightEffect::blank_all_leds_(light::AddressableLight &it) {
 void WLEDLightEffect::apply(light::AddressableLight &it, const Color &current_color) {
   // Init UDP lazily
   if (!udp_) {
-    udp_.reset(new WiFiUDP());
+    udp_ = make_unique<WiFiUDP>();
 
     if (!udp_->begin(port_)) {
       ESP_LOGW(TAG, "Cannot bind WLEDLightEffect to %d.", port_);

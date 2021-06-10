@@ -75,10 +75,10 @@ void HttpRequestComponent::send(const std::vector<HttpRequestResponseTrigger *> 
 }
 
 #ifdef ARDUINO_ARCH_ESP8266
-WiFiClient *HttpRequestComponent::get_wifi_client_() {
+std::shared_ptr<WiFiClient> HttpRequestComponent::get_wifi_client_() {
   if (this->secure_) {
     if (this->wifi_client_secure_ == nullptr) {
-      this->wifi_client_secure_ = new BearSSL::WiFiClientSecure();
+      this->wifi_client_secure_ = std::make_shared<BearSSL::WiFiClientSecure>();
       this->wifi_client_secure_->setInsecure();
       this->wifi_client_secure_->setBufferSizes(512, 512);
     }
@@ -86,7 +86,7 @@ WiFiClient *HttpRequestComponent::get_wifi_client_() {
   }
 
   if (this->wifi_client_ == nullptr) {
-    this->wifi_client_ = new WiFiClient();
+    this->wifi_client_ = std::make_shared<WiFiClient>();
   }
   return this->wifi_client_;
 }

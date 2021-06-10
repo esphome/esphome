@@ -20,6 +20,7 @@ CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
 
 async def to_code(config):
     paren = await cg.get_variable(config[CONF_TLC59208F_ID])
-    rhs = paren.create_channel(config[CONF_CHANNEL])
-    var = cg.Pvariable(config[CONF_ID], rhs)
+    var = cg.new_Pvariable(config[CONF_ID])
+    cg.add(var.set_channel(config[CONF_CHANNEL]))
+    cg.add(paren.register_channel(var))
     await output.register_output(var, config)

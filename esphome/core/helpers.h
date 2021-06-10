@@ -331,7 +331,7 @@ template<typename T> T *new_buffer(size_t length) {
     buffer = new T[length];
   }
 #else
-  buffer = new T[length];
+  buffer = new T[length];  // NOLINT
 #endif
 
   return buffer;

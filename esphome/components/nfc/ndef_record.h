@@ -85,9 +85,9 @@ class NdefRecord {
   std::vector<uint8_t> encode(bool first, bool last);
   uint8_t get_tnf_byte(bool first, bool last);
 
-  const std::string &get_type() { return this->type_; };
-  const std::string &get_id() { return this->id_; };
-  const std::string &get_payload() { return this->payload_; };
+  const std::string &get_type() const { return this->type_; };
+  const std::string &get_id() const { return this->id_; };
+  const std::string &get_payload() const { return this->payload_; };
 
  protected:
   uint8_t tnf_;

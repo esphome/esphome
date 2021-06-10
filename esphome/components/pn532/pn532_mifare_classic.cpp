@@ -6,7 +6,7 @@ namespace pn532 {
 
 static const char *TAG = "pn532.mifare_classic";
 
-nfc::NfcTag *PN532::read_mifare_classic_tag_(std::vector<uint8_t> &uid) {
+std::unique_ptr<nfc::NfcTag> PN532::read_mifare_classic_tag_(std::vector<uint8_t> &uid) {
   uint8_t current_block = 4;
   uint8_t message_start_index = 0;
   uint32_t message_length = 0;
@@ -15,15 +15,15 @@ nfc::NfcTag *PN532::read_mifare_classic_tag_(std::vector<uint8_t> &uid) {
     std::vector<uint8_t> data;
     if (this->read_mifare_classic_block_(current_block, data)) {
       if (!nfc::decode_mifare_classic_tlv(data, message_length, message_start_index)) {
-        return new nfc::NfcTag(uid, nfc::ERROR);
+        return make_unique<nfc::NfcTag>(uid, nfc::ERROR);
       }
     } else {
       ESP_LOGE(TAG, "Failed to read block %d", current_block);
-      return new nfc::NfcTag(uid, nfc::MIFARE_CLASSIC);
+      return make_unique<nfc::NfcTag>(uid, nfc::MIFARE_CLASSIC);
     }
   } else {
     ESP_LOGV(TAG, "Tag is not NDEF formatted");
-    return new nfc::NfcTag(uid, nfc::MIFARE_CLASSIC);
+    return make_unique<nfc::NfcTag>(uid, nfc::MIFARE_CLASSIC);
   }
 
   uint32_t index = 0;
@@ -51,7 +51,7 @@ nfc::NfcTag *PN532::read_mifare_classic_tag_(std::vector<uint8_t> &uid) {
     }
   }
   buffer.erase(buffer.begin(), buffer.begin() + message_start_index);
-  return new nfc::NfcTag(uid, nfc::MIFARE_CLASSIC, buffer);
+  return make_unique<nfc::NfcTag>(uid, nfc::MIFARE_CLASSIC, buffer);
 }
 
 bool PN532::read_mifare_classic_block_(uint8_t block_num, std::vector<uint8_t> &data) {

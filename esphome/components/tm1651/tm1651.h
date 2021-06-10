@@ -1,5 +1,7 @@
 #pragma once
 
+#include <memory>
+
 #include "esphome/core/component.h"
 #include "esphome/core/esphal.h"
 #include "esphome/core/automation.h"
@@ -25,7 +27,7 @@ class TM1651Display : public Component {
   void turn_off();
 
  protected:
-  TM1651 *battery_display_;
+  std::unique_ptr<TM1651> battery_display_;
   GPIOPin *clk_pin_;
   GPIOPin *dio_pin_;
   bool is_on_ = true;

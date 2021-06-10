@@ -17,7 +17,7 @@ NdefMessage::NdefMessage(std::vector<uint8_t> &data) {
 
     ESP_LOGVV(TAG, "me=%s, sr=%s, il=%s, tnf=%d", YESNO(me), YESNO(sr), YESNO(il), tnf);
 
-    auto record = new NdefRecord();
+    auto record = make_unique<NdefRecord>();
     record->set_tnf(tnf);
 
     uint8_t type_length = data[index++];
@@ -62,20 +62,20 @@ NdefMessage::NdefMessage(std::vector<uint8_t> &data) {
     record->set_payload(payload_str);
     index += payload_length;
 
-    this->add_record(record);
     ESP_LOGV(TAG, "Adding record type %s = %s", record->get_type().c_str(), record->get_payload().c_str());
+    this->add_record(std::move(record));
 
     if (me)
       break;
   }
 }
 
-bool NdefMessage::add_record(NdefRecord *record) {
+bool NdefMessage::add_record(std::unique_ptr<NdefRecord> record) {
   if (this->records_.size() >= MAX_NDEF_RECORDS) {
     ESP_LOGE(TAG, "Too many records. Max: %d", MAX_NDEF_RECORDS);
     return false;
   }
-  this->records_.push_back(record);
+  this->records_.emplace_back(std::move(record));
   return true;
 }
 
@@ -83,13 +83,11 @@ bool NdefMessage::add_text_record(const std::string &text) { return this->add_te
 
 bool NdefMessage::add_text_record(const std::string &text, const std::string &encoding) {
   std::string payload = to_string(text.length()) + encoding + text;
-  auto r = new NdefRecord(TNF_WELL_KNOWN, "T", payload);
-  return this->add_record(r);
+  return this->add_record(make_unique<NdefRecord>(TNF_WELL_KNOWN, "T", payload));
 }
 
 bool NdefMessage::add_uri_record(const std::string &uri) {
-  auto r = new NdefRecord(TNF_WELL_KNOWN, "U", uri);
-  return this->add_record(r);
+  return this->add_record(make_unique<NdefRecord>(TNF_WELL_KNOWN, "U", uri));
 }
 
 std::vector<uint8_t> NdefMessage::encode() {

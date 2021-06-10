@@ -34,10 +34,15 @@ CONFIG_SCHEMA = cv.All(
 
 async def to_code(config):
     hub = await cg.get_variable(config[CONF_DALLAS_ID])
+    var = cg.new_Pvariable(config[CONF_ID])
+
     if CONF_ADDRESS in config:
-        address = config[CONF_ADDRESS]
-        rhs = hub.Pget_sensor_by_address(address, config.get(CONF_RESOLUTION))
+        cg.add(var.set_address(config[CONF_ADDRESS]))
     else:
-        rhs = hub.Pget_sensor_by_index(config[CONF_INDEX], config.get(CONF_RESOLUTION))
-    var = cg.Pvariable(config[CONF_ID], rhs)
+        cg.add(var.set_index(config[CONF_INDEX]))
+
+    if CONF_RESOLUTION in config:
+        cg.add(var.set_resolution(config[CONF_RESOLUTION]))
+
+    cg.add(hub.register_sensor(var))
     await sensor.register_sensor(var, config)

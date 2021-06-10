@@ -119,7 +119,7 @@ void HOT Logger::log_message_(int level, const char *tag, int offset) {
 Logger::Logger(uint32_t baud_rate, size_t tx_buffer_size, UARTSelection uart)
     : baud_rate_(baud_rate), tx_buffer_size_(tx_buffer_size), uart_(uart) {
   // add 1 to buffer size for null terminator
-  this->tx_buffer_ = new char[this->tx_buffer_size_ + 1];
+  this->tx_buffer_ = new char[this->tx_buffer_size_ + 1];  // NOLINT
 }
 
 void Logger::pre_setup() {

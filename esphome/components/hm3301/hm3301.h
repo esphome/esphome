@@ -27,7 +27,7 @@ class HM3301Component : public PollingComponent, public i2c::I2CDevice {
   void update() override;
 
  protected:
-  HM330X *hm3301_;
+  std::unique_ptr<HM330X> hm3301_;
 
   HM330XErrorCode error_code_{NO_ERROR};
 

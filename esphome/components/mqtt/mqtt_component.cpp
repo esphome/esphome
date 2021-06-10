@@ -141,8 +141,7 @@ void MQTTComponent::set_custom_command_topic(const std::string &custom_command_t
 
 void MQTTComponent::set_availability(std::string topic, std::string payload_available,
                                      std::string payload_not_available) {
-  delete this->availability_;
-  this->availability_ = new Availability();
+  this->availability_ = make_unique<Availability>();
   this->availability_->topic = std::move(topic);
   this->availability_->payload_available = std::move(payload_available);
   this->availability_->payload_not_available = std::move(payload_not_available);

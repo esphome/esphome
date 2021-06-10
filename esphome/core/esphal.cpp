@@ -245,10 +245,11 @@ void GPIOPin::attach_interrupt_(void (*func)(void *), void *arg, int mode) const
     }
   }
 #ifdef ARDUINO_ARCH_ESP8266
-  ArgStructure *as = new ArgStructure;
+  ArgStructure *as = new ArgStructure;  // NOLINT
   as->interruptInfo = nullptr;
 
   as->functionInfo = new ESPHomeInterruptFuncInfo{
+      // NOLINT
       .func = func,
       .arg = arg,
   };
@@ -264,7 +265,7 @@ void GPIOPin::attach_interrupt_(void (*func)(void *), void *arg, int mode) const
 }
 
 ISRInternalGPIOPin *GPIOPin::to_isr() const {
-  return new ISRInternalGPIOPin(this->pin_,
+  return new ISRInternalGPIOPin(this->pin_,  // NOLINT
 #ifdef ARDUINO_ARCH_ESP32
                                 this->gpio_clear_, this->gpio_set_,
 #endif

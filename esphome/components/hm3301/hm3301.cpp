@@ -12,7 +12,7 @@ static const uint8_t PM_10_0_VALUE_INDEX = 7;
 
 void HM3301Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up HM3301...");
-  hm3301_ = new HM330X();
+  hm3301_ = make_unique<HM330X>();
   error_code_ = hm3301_->init();
   if (error_code_ != NO_ERROR) {
     this->mark_failed();

@@ -123,21 +123,6 @@ std::string uint32_to_string(uint32_t num) {
   snprintf(buffer, sizeof(buffer), "%04X%04X", address16[1], address16[0]);
   return std::string(buffer);
 }
-static char *global_json_build_buffer = nullptr;
-static size_t global_json_build_buffer_size = 0;
-
-void reserve_global_json_build_buffer(size_t required_size) {
-  if (global_json_build_buffer_size == 0 || global_json_build_buffer_size < required_size) {
-    delete[] global_json_build_buffer;
-    global_json_build_buffer_size = std::max(required_size, global_json_build_buffer_size * 2);
-
-    size_t remainder = global_json_build_buffer_size % 16U;
-    if (remainder != 0)
-      global_json_build_buffer_size += 16 - remainder;
-
-    global_json_build_buffer = new char[global_json_build_buffer_size];
-  }
-}
 
 ParseOnOffState parse_on_off(const char *str, const char *on, const char *off) {
   if (on == nullptr && strcasecmp(str, "on") == 0)

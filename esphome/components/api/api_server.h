@@ -85,7 +85,7 @@ class APIServer : public Component, public Controller {
   uint16_t port_{6053};
   uint32_t reboot_timeout_{300000};
   uint32_t last_connected_{0};
-  std::vector<APIConnection *> clients_;
+  std::vector<std::unique_ptr<APIConnection>> clients_;
   std::string password_;
   std::vector<HomeAssistantStateSubscription> state_subs_;
   std::vector<UserServiceDescriptor *> user_services_;

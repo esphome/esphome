@@ -104,7 +104,7 @@ void PN532::loop() {
   if (!success) {
     // Something failed
     if (!this->current_uid_.empty()) {
-      auto tag = new nfc::NfcTag(this->current_uid_);
+      auto tag = make_unique<nfc::NfcTag>(this->current_uid_);
       for (auto *trigger : this->triggers_ontagremoved_)
         trigger->process(tag);
     }
@@ -117,7 +117,7 @@ void PN532::loop() {
   if (num_targets != 1) {
     // no tags found or too many
     if (!this->current_uid_.empty()) {
-      auto tag = new nfc::NfcTag(this->current_uid_);
+      auto tag = make_unique<nfc::NfcTag>(this->current_uid_);
       for (auto *trigger : this->triggers_ontagremoved_)
         trigger->process(tag);
     }
@@ -158,10 +158,10 @@ void PN532::loop() {
     if (report) {
       ESP_LOGD(TAG, "Found new tag '%s'", nfc::format_uid(nfcid).c_str());
       if (tag->has_ndef_message()) {
-        auto message = tag->get_ndef_message();
-        auto records = message->get_records();
+        const auto &message = tag->get_ndef_message();
+        const auto &records = message->get_records();
         ESP_LOGD(TAG, "  NDEF formatted records:");
-        for (auto &record : records) {
+        for (const auto &record : records) {
           ESP_LOGD(TAG, "    %s - %s", record->get_type().c_str(), record->get_payload().c_str());
         }
       }
@@ -270,7 +270,7 @@ void PN532::turn_off_rf_() {
   });
 }
 
-nfc::NfcTag *PN532::read_tag_(std::vector<uint8_t> &uid) {
+std::unique_ptr<nfc::NfcTag> PN532::read_tag_(std::vector<uint8_t> &uid) {
   uint8_t type = nfc::guess_tag_type(uid.size());
 
   if (type == nfc::TAG_TYPE_MIFARE_CLASSIC) {
@@ -281,9 +281,9 @@ nfc::NfcTag *PN532::read_tag_(std::vector<uint8_t> &uid) {
     return this->read_mifare_ultralight_tag_(uid);
   } else if (type == nfc::TAG_TYPE_UNKNOWN) {
     ESP_LOGV(TAG, "Cannot determine tag type");
-    return new nfc::NfcTag(uid);
+    return make_unique<nfc::NfcTag>(uid);
   } else {
-    return new nfc::NfcTag(uid);
+    return make_unique<nfc::NfcTag>(uid);
   }
 }
 
@@ -373,7 +373,9 @@ bool PN532BinarySensor::process(std::vector<uint8_t> &data) {
   this->found_ = true;
   return true;
 }
-void PN532OnTagTrigger::process(nfc::NfcTag *tag) { this->trigger(nfc::format_uid(tag->get_uid()), *tag); }
+void PN532OnTagTrigger::process(const std::unique_ptr<nfc::NfcTag> &tag) {
+  this->trigger(nfc::format_uid(tag->get_uid()), *tag);
+}
 
 }  // namespace pn532
 }  // namespace esphome
