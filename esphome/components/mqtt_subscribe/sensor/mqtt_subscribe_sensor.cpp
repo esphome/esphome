@@ -4,7 +4,7 @@
 namespace esphome {
 namespace mqtt_subscribe {
 
-static const char *TAG = "mqtt_subscribe.sensor";
+static const char *const TAG = "mqtt_subscribe.sensor";
 
 void MQTTSubscribeSensor::setup() {
   mqtt::global_mqtt_client->subscribe(

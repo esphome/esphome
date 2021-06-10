@@ -29,7 +29,7 @@ extern "C" {
 namespace esphome {
 namespace wifi {
 
-static const char *TAG = "wifi_esp8266";
+static const char *const TAG = "wifi_esp8266";
 
 bool WiFiComponent::wifi_mode_(optional<bool> sta, optional<bool> ap) {
   uint8_t current_mode = wifi_get_opmode();

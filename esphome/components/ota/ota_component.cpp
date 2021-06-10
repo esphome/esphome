@@ -15,9 +15,9 @@
 namespace esphome {
 namespace ota {
 
-static const char *TAG = "ota";
+static const char *const TAG = "ota";
 
-uint8_t OTA_VERSION_1_0 = 1;
+static const uint8_t OTA_VERSION_1_0 = 1;
 
 void OTAComponent::setup() {
   this->server_ = new WiFiServer(this->port_);

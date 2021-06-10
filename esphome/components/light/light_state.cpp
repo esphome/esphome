@@ -5,7 +5,7 @@
 namespace esphome {
 namespace light {
 
-static const char *TAG = "light";
+static const char *const TAG = "light";
 
 void LightState::start_transition_(const LightColorValues &target, uint32_t length) {
   this->transformer_ = make_unique<LightTransitionTransformer>(millis(), length, this->current_values, target);

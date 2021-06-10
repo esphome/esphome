@@ -299,7 +299,7 @@ class WiFiComponent : public Component {
   bool has_saved_wifi_settings_{false};
 };
 
-extern WiFiComponent *global_wifi_component;
+extern WiFiComponent *global_wifi_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 template<typename... Ts> class WiFiConnectedCondition : public Condition<Ts...> {
  public:

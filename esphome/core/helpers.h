@@ -28,7 +28,7 @@
 namespace esphome {
 
 /// The characters that are allowed in a hostname.
-extern const char *HOSTNAME_CHARACTER_ALLOWLIST;
+extern const char *const HOSTNAME_CHARACTER_ALLOWLIST;
 
 /// Gets the MAC address as a string, this can be used as way to identify this ESP.
 std::string get_mac_address();

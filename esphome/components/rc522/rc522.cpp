@@ -9,7 +9,7 @@ namespace rc522 {
 
 static const uint8_t WAIT_I_RQ = 0x30;  // RxIRq and IdleIRq
 
-static const char *TAG = "rc522";
+static const char *const TAG = "rc522";
 
 static const uint8_t RESET_COUNT = 5;
 

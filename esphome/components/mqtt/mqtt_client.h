@@ -275,7 +275,7 @@ class MQTTClientComponent : public Component {
   optional<AsyncMqttClientDisconnectReason> disconnect_reason_{};
 };
 
-extern MQTTClientComponent *global_mqtt_client;
+extern MQTTClientComponent *global_mqtt_client;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 class MQTTMessageTrigger : public Trigger<std::string>, public Component {
  public:

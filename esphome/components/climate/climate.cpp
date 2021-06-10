@@ -3,7 +3,7 @@
 namespace esphome {
 namespace climate {
 
-static const char *TAG = "climate";
+static const char *const TAG = "climate";
 
 void ClimateCall::perform() {
   ESP_LOGD(TAG, "'%s' - Setting", this->parent_->get_name().c_str());

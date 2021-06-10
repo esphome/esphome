@@ -9,7 +9,7 @@
 namespace esphome {
 namespace esp32_ble {
 
-static const char *TAG = "esp32_ble.descriptor";
+static const char *const TAG = "esp32_ble.descriptor";
 
 BLEDescriptor::BLEDescriptor(ESPBTUUID uuid, uint16_t max_len) {
   this->uuid_ = uuid;

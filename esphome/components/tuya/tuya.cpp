@@ -6,7 +6,7 @@
 namespace esphome {
 namespace tuya {
 
-static const char *TAG = "tuya";
+static const char *const TAG = "tuya";
 static const int COMMAND_DELAY = 50;
 
 void Tuya::setup() {

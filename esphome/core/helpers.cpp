@@ -13,7 +13,7 @@
 
 namespace esphome {
 
-static const char *TAG = "helpers";
+static const char *const TAG = "helpers";
 
 std::string get_mac_address() {
   char tmp[20];
@@ -55,7 +55,7 @@ double random_double() { return random_uint32() / double(UINT32_MAX); }
 
 float random_float() { return float(random_double()); }
 
-static uint32_t fast_random_seed = 0;
+static uint32_t fast_random_seed = 0;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 void fast_random_set_seed(uint32_t seed) { fast_random_seed = seed; }
 uint32_t fast_random_32() {
@@ -123,8 +123,8 @@ std::string uint32_to_string(uint32_t num) {
   snprintf(buffer, sizeof(buffer), "%04X%04X", address16[1], address16[0]);
   return std::string(buffer);
 }
-static char *global_json_build_buffer = nullptr;
-static size_t global_json_build_buffer_size = 0;
+static char *global_json_build_buffer = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static size_t global_json_build_buffer_size = 0;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 void reserve_global_json_build_buffer(size_t required_size) {
   if (global_json_build_buffer_size == 0 || global_json_build_buffer_size < required_size) {
@@ -154,7 +154,7 @@ ParseOnOffState parse_on_off(const char *str, const char *on, const char *off) {
   return PARSE_NONE;
 }
 
-const char *HOSTNAME_CHARACTER_ALLOWLIST = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_";
+const char *const HOSTNAME_CHARACTER_ALLOWLIST = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_";
 
 uint8_t crc8(uint8_t *data, uint8_t len) {
   uint8_t crc = 0;
@@ -271,7 +271,7 @@ template<uint32_t> uint32_t reverse_bits(uint32_t x) {
   return uint32_t(reverse_bits_16(x & 0xFFFF) << 16) | uint32_t(reverse_bits_16(x >> 16));
 }
 
-static int high_freq_num_requests = 0;
+static int high_freq_num_requests = 0;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 void HighFrequencyLoopRequester::start() {
   if (this->started_)

@@ -5,7 +5,7 @@ namespace esphome {
 
 namespace binary_sensor {
 
-static const char *TAG = "binary_sensor";
+static const char *const TAG = "binary_sensor";
 
 void BinarySensor::add_on_state_callback(std::function<void(bool)> &&callback) {
   this->state_callback_.add(std::move(callback));

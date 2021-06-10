@@ -29,7 +29,7 @@
 namespace esphome {
 namespace wifi {
 
-static const char *TAG = "wifi";
+static const char *const TAG = "wifi";
 
 float WiFiComponent::get_setup_priority() const { return setup_priority::WIFI; }
 
@@ -692,7 +692,7 @@ int8_t WiFiScanResult::get_rssi() const { return this->rssi_; }
 bool WiFiScanResult::get_with_auth() const { return this->with_auth_; }
 bool WiFiScanResult::get_is_hidden() const { return this->is_hidden_; }
 
-WiFiComponent *global_wifi_component;
+WiFiComponent *global_wifi_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 }  // namespace wifi
 }  // namespace esphome

@@ -6,7 +6,7 @@
 namespace esphome {
 namespace sm2135 {
 
-static const char *TAG = "sm2135";
+static const char *const TAG = "sm2135";
 
 static const uint8_t SM2135_ADDR_MC = 0xC0;  // Max current register
 static const uint8_t SM2135_ADDR_CH = 0xC1;  // RGB or CW channel select register

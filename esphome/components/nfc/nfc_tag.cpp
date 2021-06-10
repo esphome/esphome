@@ -3,7 +3,7 @@
 namespace esphome {
 namespace nfc {
 
-static const char *TAG = "nfc.tag";
+static const char *const TAG = "nfc.tag";
 
 }  // namespace nfc
 }  // namespace esphome

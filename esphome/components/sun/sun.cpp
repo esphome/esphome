@@ -16,7 +16,7 @@ namespace sun {
 
 using namespace esphome::sun::internal;
 
-static const char *TAG = "sun";
+static const char *const TAG = "sun";
 
 #undef PI
 #undef degrees

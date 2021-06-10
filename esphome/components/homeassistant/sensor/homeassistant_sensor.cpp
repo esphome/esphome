@@ -5,7 +5,7 @@
 namespace esphome {
 namespace homeassistant {
 
-static const char *TAG = "homeassistant.sensor";
+static const char *const TAG = "homeassistant.sensor";
 
 void HomeassistantSensor::setup() {
   api::global_api_server->subscribe_home_assistant_state(

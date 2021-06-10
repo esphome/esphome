@@ -8,7 +8,7 @@
 namespace esphome {
 namespace dht12 {
 
-static const char *TAG = "dht12";
+static const char *const TAG = "dht12";
 
 void DHT12Component::update() {
   uint8_t data[5];

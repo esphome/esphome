@@ -698,7 +698,7 @@ RC_SWITCH_TRANSMITTER = cv.Schema(
     }
 )
 
-rc_switch_protocols = ns.rc_switch_protocols
+rc_switch_protocols = ns.RC_SWITCH_PROTOCOLS
 RCSwitchData = ns.struct("RCSwitchData")
 RCSwitchBase = ns.class_("RCSwitchBase")
 RCSwitchTrigger = ns.class_("RCSwitchTrigger", RemoteReceiverTrigger)
