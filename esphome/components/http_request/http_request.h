@@ -30,7 +30,7 @@ class HttpRequestComponent : public Component {
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
 
-  void set_url(const std::string &url);
+  void set_url(std::string url);
   void set_method(const char *method) { this->method_ = method; }
   void set_useragent(const char *useragent) { this->useragent_ = useragent; }
   void set_timeout(uint16_t timeout) { this->timeout_ = timeout; }
