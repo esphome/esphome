@@ -1,4 +1,3 @@
-from voluptuous.util import Lower
 from esphome.components import time
 from esphome import automation
 import esphome.codegen as cg

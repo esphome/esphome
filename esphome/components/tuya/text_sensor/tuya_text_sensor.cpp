@@ -4,10 +4,10 @@
 namespace esphome {
 namespace tuya {
 
-static const char *TAG = "tuya.text_sensor";
+static const char *const TAG = "tuya.text_sensor";
 
 void TuyaTextSensor::setup() {
-  this->parent_->register_listener(this->sensor_id_, [this](TuyaDatapoint datapoint) {
+  this->parent_->register_listener(this->sensor_id_, [this](const TuyaDatapoint &datapoint) {
     switch (datapoint.type) {
       case TuyaDatapointType::STRING:
         ESP_LOGD(TAG, "MCU reported text sensor %u is: %s", datapoint.id, datapoint.value_string.c_str());
