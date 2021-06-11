@@ -29,9 +29,10 @@ output:
     id: built_in_led
 
 esp32_ble:
-  server:
-    manufacturer: "ESPHome"
-    model: "Test5"
+
+esp32_ble_server:
+  manufacturer: "ESPHome"
+  model: "Test5"
 
 esp32_improv:
   authorizer: io0_button
