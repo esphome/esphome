@@ -1,5 +1,7 @@
 #pragma once
 
+#include "ble_advertising.h"
+
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
@@ -40,6 +42,8 @@ class ESP32BLE : public Component {
   }
   bool has_client() { return false; }
 
+  BLEAdvertising *get_advertising() { return this->advertising_; }
+
 #ifdef USE_ESP32_BLE_SERVER
   void set_server(esp32_ble_server::BLEServer *server) { this->server_ = server; }
 #endif
@@ -58,6 +62,7 @@ class ESP32BLE : public Component {
   esp32_ble_server::BLEServer *server_{nullptr};
 #endif
   Queue<BLEEvent> ble_events_;
+  BLEAdvertising *advertising_;
 };
 
 extern ESP32BLE *global_ble;

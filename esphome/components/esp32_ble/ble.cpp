@@ -27,6 +27,12 @@ void ESP32BLE::setup() {
     return;
   }
 
+  this->advertising_ = new BLEAdvertising();
+
+  this->advertising_->set_scan_response(true);
+  this->advertising_->set_min_preferred_interval(0x06);
+  this->advertising_->start();
+
   ESP_LOGD(TAG, "BLE setup complete");
 }
 

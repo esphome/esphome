@@ -52,7 +52,6 @@ class BLEServer : public Component {
   esp_gatt_if_t get_gatts_if() { return this->gatts_if_; }
   uint32_t get_connected_client_count() { return this->connected_clients_; }
   const std::map<uint16_t, void *> &get_clients() { return this->clients_; }
-  BLEAdvertising *get_advertising() { return this->advertising_; }
 
   void gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if, esp_ble_gatts_cb_param_t *param);
 
@@ -72,7 +71,6 @@ class BLEServer : public Component {
   optional<std::string> model_;
   esp_gatt_if_t gatts_if_{0};
   bool registered_{false};
-  BLEAdvertising *advertising_;
 
   uint32_t connected_clients_{0};
   std::map<uint16_t, void *> clients_;

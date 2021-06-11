@@ -1,5 +1,6 @@
 #include "ble_server.h"
 
+#include "esphome/components/esp32_ble/ble.h"
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 #include "esphome/core/version.h"
@@ -32,8 +33,6 @@ void BLEServer::setup() {
   ESP_LOGD(TAG, "Setting up BLE Server...");
 
   global_ble_server = this;
-
-  this->advertising_ = new BLEAdvertising();
 }
 
 void BLEServer::loop() {
@@ -56,10 +55,6 @@ void BLEServer::loop() {
         this->device_information_service_ = this->create_service(DEVICE_INFORMATION_SERVICE_UUID);
 
         this->create_device_characteristics_();
-
-        this->advertising_->set_scan_response(true);
-        this->advertising_->set_min_preferred_interval(0x06);
-        this->advertising_->start();
 
         this->state_ = STARTING_SERVICE;
       }
@@ -123,7 +118,7 @@ BLEService *BLEServer::create_service(ESPBTUUID uuid, bool advertise, uint16_t n
   BLEService *service = new BLEService(uuid, num_handles, inst_id);
   this->services_.push_back(service);
   if (advertise) {
-    this->advertising_->add_service_uuid(uuid);
+    esp32_ble::global_ble->get_advertising()->add_service_uuid(uuid);
   }
   service->do_create(this);
   return service;
@@ -145,7 +140,7 @@ void BLEServer::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t ga
       ESP_LOGD(TAG, "BLE Client disconnected");
       if (this->remove_client_(param->disconnect.conn_id))
         this->connected_clients_--;
-      this->advertising_->start();
+      esp32_ble::global_ble->get_advertising()->start();
       for (auto *component : this->service_components_) {
         component->on_client_disconnect();
       }
