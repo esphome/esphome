@@ -10,17 +10,17 @@ void TuyaTextSensor::setup() {
   this->parent_->register_listener(this->sensor_id_, [this](TuyaDatapoint datapoint) {
     switch (datapoint.type) {
       case TuyaDatapointType::STRING:
-        ESP_LOGD(TAG, "MCU reported text sensor is: %s", datapoint.value_string.c_str());
+        ESP_LOGD(TAG, "MCU reported text sensor %u is: %s", datapoint.id, datapoint.value_string.c_str());
         this->publish_state(datapoint.value_string);
         break;
       case TuyaDatapointType::RAW: {
         std::string data = rawencode(datapoint.value_raw.data(), datapoint.value_raw.size());
-        ESP_LOGD(TAG, "MCU reported text sensor is: %s", data.c_str());
+        ESP_LOGD(TAG, "MCU reported text sensor %u is: %s", datapoint.id, data.c_str());
         this->publish_state(data);
         break;
       }
       default:
-        ESP_LOGW(TAG, "Unsupported data type for tuya text sensor: %hhu", datapoint.type);
+        ESP_LOGW(TAG, "Unsupported data type for tuya text sensor %u: %#02hhX", datapoint.id, datapoint.type);
         break;
     }
   });
