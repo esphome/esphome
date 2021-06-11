@@ -1,5 +1,6 @@
 #include "ble_server.h"
-#include "ble.h"
+
+#include "esphome/components/esp32_ble/ble.h"
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 #include "esphome/core/version.h"
@@ -14,11 +15,11 @@
 #include <esp_gap_ble_api.h>
 
 namespace esphome {
-namespace esp32_ble {
+namespace esp32_ble_server {
 
-static const char *TAG = "esp32_ble.server";
+static const char *const TAG = "esp32_ble_server";
 
-static const uint16_t device_information_service__UUID = 0x180A;
+static const uint16_t DEVICE_INFORMATION_SERVICE_UUID = 0x180A;
 static const uint16_t MODEL_UUID = 0x2A24;
 static const uint16_t VERSION_UUID = 0x2A26;
 static const uint16_t MANUFACTURER_UUID = 0x2A29;
@@ -32,8 +33,6 @@ void BLEServer::setup() {
   ESP_LOGD(TAG, "Setting up BLE Server...");
 
   global_ble_server = this;
-
-  this->advertising_ = new BLEAdvertising();
 }
 
 void BLEServer::loop() {
@@ -53,33 +52,25 @@ void BLEServer::loop() {
     }
     case REGISTERING: {
       if (this->registered_) {
-        this->device_information_service_ = this->create_service(device_information_service__UUID);
+        this->device_information_service_ = this->create_service(DEVICE_INFORMATION_SERVICE_UUID);
 
         this->create_device_characteristics_();
-
-        this->advertising_->set_scan_response(true);
-        this->advertising_->set_min_preferred_interval(0x06);
-        this->advertising_->start();
 
         this->state_ = STARTING_SERVICE;
       }
       break;
     }
     case STARTING_SERVICE: {
+      if (!this->device_information_service_->is_created()) {
+        break;
+      }
       if (this->device_information_service_->is_running()) {
-        for (auto *component : this->service_components_) {
-          component->setup_service();
-        }
-        this->state_ = SETTING_UP_COMPONENT_SERVICES;
+        this->state_ = RUNNING;
+        this->can_proceed_ = true;
+        ESP_LOGD(TAG, "BLE server setup successfully");
       } else if (!this->device_information_service_->is_starting()) {
         this->device_information_service_->start();
       }
-      break;
-    }
-    case SETTING_UP_COMPONENT_SERVICES: {
-      this->state_ = RUNNING;
-      this->can_proceed_ = true;
-      ESP_LOGD(TAG, "BLE server setup successfully");
       break;
     }
   }
@@ -123,7 +114,7 @@ BLEService *BLEServer::create_service(ESPBTUUID uuid, bool advertise, uint16_t n
   BLEService *service = new BLEService(uuid, num_handles, inst_id);
   this->services_.push_back(service);
   if (advertise) {
-    this->advertising_->add_service_uuid(uuid);
+    esp32_ble::global_ble->get_advertising()->add_service_uuid(uuid);
   }
   service->do_create(this);
   return service;
@@ -145,7 +136,7 @@ void BLEServer::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t ga
       ESP_LOGD(TAG, "BLE Client disconnected");
       if (this->remove_client_(param->disconnect.conn_id))
         this->connected_clients_--;
-      this->advertising_->start();
+      esp32_ble::global_ble->get_advertising()->start();
       for (auto *component : this->service_components_) {
         component->on_client_disconnect();
       }
@@ -171,7 +162,7 @@ void BLEServer::dump_config() { ESP_LOGCONFIG(TAG, "ESP32 BLE Server:"); }
 
 BLEServer *global_ble_server = nullptr;
 
-}  // namespace esp32_ble
+}  // namespace esp32_ble_server
 }  // namespace esphome
 
 #endif

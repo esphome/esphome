@@ -79,7 +79,8 @@ void WiFiComponent::setup() {
   }
 #ifdef USE_IMPROV
   if (esp32_improv::global_improv_component != nullptr)
-    esp32_improv::global_improv_component->start();
+    if (this->wifi_mode_(true, {}))
+      esp32_improv::global_improv_component->start();
 #endif
   this->wifi_apply_hostname_();
 #if defined(ARDUINO_ARCH_ESP32) && defined(USE_MDNS)
@@ -143,11 +144,11 @@ void WiFiComponent::loop() {
     }
 
 #ifdef USE_IMPROV
-    if (esp32_improv::global_improv_component != nullptr) {
-      if (!this->is_connected()) {
-        esp32_improv::global_improv_component->start();
-      }
-    }
+    if (esp32_improv::global_improv_component != nullptr)
+      if (!this->is_connected())
+        if (this->wifi_mode_(true, {}))
+          esp32_improv::global_improv_component->start();
+
 #endif
 
     if (!this->has_ap() && this->reboot_timeout_ != 0) {

@@ -1,7 +1,7 @@
 #pragma once
 
-#include "ble_uuid.h"
 #include "ble_characteristic.h"
+#include "esphome/components/esp32_ble/ble_uuid.h"
 
 #ifdef ARDUINO_ARCH_ESP32
 
@@ -12,9 +12,11 @@
 #include <esp_bt_defs.h>
 
 namespace esphome {
-namespace esp32_ble {
+namespace esp32_ble_server {
 
 class BLEServer;
+
+using namespace esp32_ble;
 
 class BLEService {
  public:
@@ -73,7 +75,7 @@ class BLEService {
   } running_state_{STOPPED};
 };
 
-}  // namespace esp32_ble
+}  // namespace esp32_ble_server
 }  // namespace esphome
 
 #endif

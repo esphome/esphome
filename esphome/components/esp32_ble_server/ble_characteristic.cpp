@@ -7,9 +7,9 @@
 #ifdef ARDUINO_ARCH_ESP32
 
 namespace esphome {
-namespace esp32_ble {
+namespace esp32_ble_server {
 
-static const char *TAG = "esp32_ble.characteristic";
+static const char *const TAG = "esp32_ble_server.characteristic";
 
 BLECharacteristic::BLECharacteristic(const ESPBTUUID uuid, uint32_t properties) : uuid_(uuid) {
   this->set_value_lock_ = xSemaphoreCreateBinary();
@@ -300,7 +300,7 @@ void BLECharacteristic::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt
   }
 }
 
-}  // namespace esp32_ble
+}  // namespace esp32_ble_server
 }  // namespace esphome
 
 #endif
