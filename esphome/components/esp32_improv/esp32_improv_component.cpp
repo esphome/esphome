@@ -1,5 +1,6 @@
 #include "esp32_improv_component.h"
 
+#include "esphome/components/esp32_ble/ble.h"
 #include "esphome/components/esp32_ble_server/ble_2902.h"
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
@@ -69,7 +70,7 @@ void ESP32ImprovComponent::loop() {
 
       if (this->should_start_ && this->setup_complete_) {
         if (this->service_->is_running()) {
-          this->service_->get_server()->get_advertising()->start();
+          esp32_ble::global_ble->get_advertising()->start();
 
           this->set_state_(improv::STATE_AWAITING_AUTHORIZATION);
           this->set_error_(improv::ERROR_NONE);
