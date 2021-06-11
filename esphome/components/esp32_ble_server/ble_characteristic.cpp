@@ -7,9 +7,9 @@
 #ifdef ARDUINO_ARCH_ESP32
 
 namespace esphome {
-namespace esp32_ble {
+namespace esp32_ble_server {
 
-static const char *TAG = "esp32_ble.characteristic";
+static const char *const TAG = "esp32_ble_server.characteristic";
 
 BLECharacteristic::BLECharacteristic(const ESPBTUUID uuid, uint32_t properties) : uuid_(uuid) {
   this->set_value_lock_ = xSemaphoreCreateBinary();
@@ -148,39 +148,39 @@ bool BLECharacteristic::is_failed() {
 
 void BLECharacteristic::set_broadcast_property(bool value) {
   if (value)
-    this->properties_ = (esp_gatt_char_prop_t)(this->properties_ | ESP_GATT_CHAR_PROP_BIT_BROADCAST);
+    this->properties_ = (esp_gatt_char_prop_t) (this->properties_ | ESP_GATT_CHAR_PROP_BIT_BROADCAST);
   else
-    this->properties_ = (esp_gatt_char_prop_t)(this->properties_ & ~ESP_GATT_CHAR_PROP_BIT_BROADCAST);
+    this->properties_ = (esp_gatt_char_prop_t) (this->properties_ & ~ESP_GATT_CHAR_PROP_BIT_BROADCAST);
 }
 void BLECharacteristic::set_indicate_property(bool value) {
   if (value)
-    this->properties_ = (esp_gatt_char_prop_t)(this->properties_ | ESP_GATT_CHAR_PROP_BIT_INDICATE);
+    this->properties_ = (esp_gatt_char_prop_t) (this->properties_ | ESP_GATT_CHAR_PROP_BIT_INDICATE);
   else
-    this->properties_ = (esp_gatt_char_prop_t)(this->properties_ & ~ESP_GATT_CHAR_PROP_BIT_INDICATE);
+    this->properties_ = (esp_gatt_char_prop_t) (this->properties_ & ~ESP_GATT_CHAR_PROP_BIT_INDICATE);
 }
 void BLECharacteristic::set_notify_property(bool value) {
   if (value)
-    this->properties_ = (esp_gatt_char_prop_t)(this->properties_ | ESP_GATT_CHAR_PROP_BIT_NOTIFY);
+    this->properties_ = (esp_gatt_char_prop_t) (this->properties_ | ESP_GATT_CHAR_PROP_BIT_NOTIFY);
   else
-    this->properties_ = (esp_gatt_char_prop_t)(this->properties_ & ~ESP_GATT_CHAR_PROP_BIT_NOTIFY);
+    this->properties_ = (esp_gatt_char_prop_t) (this->properties_ & ~ESP_GATT_CHAR_PROP_BIT_NOTIFY);
 }
 void BLECharacteristic::set_read_property(bool value) {
   if (value)
-    this->properties_ = (esp_gatt_char_prop_t)(this->properties_ | ESP_GATT_CHAR_PROP_BIT_READ);
+    this->properties_ = (esp_gatt_char_prop_t) (this->properties_ | ESP_GATT_CHAR_PROP_BIT_READ);
   else
-    this->properties_ = (esp_gatt_char_prop_t)(this->properties_ & ~ESP_GATT_CHAR_PROP_BIT_READ);
+    this->properties_ = (esp_gatt_char_prop_t) (this->properties_ & ~ESP_GATT_CHAR_PROP_BIT_READ);
 }
 void BLECharacteristic::set_write_property(bool value) {
   if (value)
-    this->properties_ = (esp_gatt_char_prop_t)(this->properties_ | ESP_GATT_CHAR_PROP_BIT_WRITE);
+    this->properties_ = (esp_gatt_char_prop_t) (this->properties_ | ESP_GATT_CHAR_PROP_BIT_WRITE);
   else
-    this->properties_ = (esp_gatt_char_prop_t)(this->properties_ & ~ESP_GATT_CHAR_PROP_BIT_WRITE);
+    this->properties_ = (esp_gatt_char_prop_t) (this->properties_ & ~ESP_GATT_CHAR_PROP_BIT_WRITE);
 }
 void BLECharacteristic::set_write_no_response_property(bool value) {
   if (value)
-    this->properties_ = (esp_gatt_char_prop_t)(this->properties_ | ESP_GATT_CHAR_PROP_BIT_WRITE_NR);
+    this->properties_ = (esp_gatt_char_prop_t) (this->properties_ | ESP_GATT_CHAR_PROP_BIT_WRITE_NR);
   else
-    this->properties_ = (esp_gatt_char_prop_t)(this->properties_ & ~ESP_GATT_CHAR_PROP_BIT_WRITE_NR);
+    this->properties_ = (esp_gatt_char_prop_t) (this->properties_ & ~ESP_GATT_CHAR_PROP_BIT_WRITE_NR);
 }
 
 void BLECharacteristic::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if,
@@ -300,7 +300,7 @@ void BLECharacteristic::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt
   }
 }
 
-}  // namespace esp32_ble
+}  // namespace esp32_ble_server
 }  // namespace esphome
 
 #endif

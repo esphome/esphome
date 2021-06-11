@@ -1,26 +1,28 @@
 #pragma once
 
+#include "esphome/components/binary_sensor/binary_sensor.h"
+#include "esphome/components/esp32_ble_server/ble_server.h"
+#include "esphome/components/esp32_ble_server/ble_characteristic.h"
+#include "esphome/components/improv/improv.h"
+#include "esphome/components/output/binary_output.h"
+#include "esphome/components/wifi/wifi_component.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/preferences.h"
-#include "esphome/components/binary_sensor/binary_sensor.h"
-#include "esphome/components/esp32_ble/ble_server.h"
-#include "esphome/components/esp32_ble/ble_characteristic.h"
-#include "esphome/components/output/binary_output.h"
-#include "esphome/components/wifi/wifi_component.h"
-#include "esphome/components/improv/improv.h"
 
 #ifdef ARDUINO_ARCH_ESP32
 
 namespace esphome {
 namespace esp32_improv {
 
-class ESP32ImprovComponent : public Component, public esp32_ble::BLEServiceComponent {
+using namespace esp32_ble_server;
+
+class ESP32ImprovComponent : public Component, public BLEServiceComponent {
  public:
   ESP32ImprovComponent();
   void dump_config() override;
   void loop() override;
-  void setup_service() override;
+  void setup() override;
   void setup_characteristics();
   void on_client_disconnect() override;
 
@@ -46,12 +48,12 @@ class ESP32ImprovComponent : public Component, public esp32_ble::BLEServiceCompo
   std::vector<uint8_t> incoming_data_;
   wifi::WiFiAP connecting_sta_;
 
-  esp32_ble::BLEService *service_;
-  esp32_ble::BLECharacteristic *status_;
-  esp32_ble::BLECharacteristic *error_;
-  esp32_ble::BLECharacteristic *rpc_;
-  esp32_ble::BLECharacteristic *rpc_response_;
-  esp32_ble::BLECharacteristic *capabilities_;
+  BLEService *service_;
+  BLECharacteristic *status_;
+  BLECharacteristic *error_;
+  BLECharacteristic *rpc_;
+  BLECharacteristic *rpc_response_;
+  BLECharacteristic *capabilities_;
 
   binary_sensor::BinarySensor *authorizer_{nullptr};
   output::BinaryOutput *status_indicator_{nullptr};

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "ble_uuid.h"
+#include "esphome/components/esp32_ble/ble_uuid.h"
 
 #ifdef ARDUINO_ARCH_ESP32
 
@@ -8,7 +8,9 @@
 #include <esp_gatts_api.h>
 
 namespace esphome {
-namespace esp32_ble {
+namespace esp32_ble_server {
+
+using namespace esp32_ble;
 
 class BLECharacteristic;
 
@@ -43,7 +45,7 @@ class BLEDescriptor {
   } state_{INIT};
 };
 
-}  // namespace esp32_ble
+}  // namespace esp32_ble_server
 }  // namespace esphome
 
 #endif

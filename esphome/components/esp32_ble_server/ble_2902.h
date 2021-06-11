@@ -5,14 +5,14 @@
 #ifdef ARDUINO_ARCH_ESP32
 
 namespace esphome {
-namespace esp32_ble {
+namespace esp32_ble_server {
 
 class BLE2902 : public BLEDescriptor {
  public:
   BLE2902();
 };
 
-}  // namespace esp32_ble
+}  // namespace esp32_ble_server
 }  // namespace esphome
 
 #endif
