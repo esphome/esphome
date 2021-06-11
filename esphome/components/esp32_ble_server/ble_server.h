@@ -1,15 +1,16 @@
 #pragma once
 
+#include "ble_service.h"
+#include "ble_characteristic.h"
+
+#include "esphome/components/esp32_ble/ble_advertising.h"
+#include "esphome/components/esp32_ble/ble_uuid.h"
+#include "esphome/components/esp32_ble/queue.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/preferences.h"
-#include "ble_service.h"
-#include "ble_characteristic.h"
-#include "ble_uuid.h"
-#include "ble_advertising.h"
-#include <map>
 
-#include "queue.h"
+#include <map>
 
 #ifdef ARDUINO_ARCH_ESP32
 
@@ -17,7 +18,9 @@
 #include <esp_gatts_api.h>
 
 namespace esphome {
-namespace esp32_ble {
+namespace esp32_ble_server {
+
+using namespace esp32_ble;
 
 class BLEServiceComponent {
  public:
@@ -90,7 +93,7 @@ class BLEServer : public Component {
 
 extern BLEServer *global_ble_server;
 
-}  // namespace esp32_ble
+}  // namespace esp32_ble_server
 }  // namespace esphome
 
 #endif

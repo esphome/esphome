@@ -1,5 +1,5 @@
 #include "ble_server.h"
-#include "ble.h"
+
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 #include "esphome/core/version.h"
@@ -14,11 +14,11 @@
 #include <esp_gap_ble_api.h>
 
 namespace esphome {
-namespace esp32_ble {
+namespace esp32_ble_server {
 
-static const char *const TAG = "esp32_ble.server";
+static const char *const TAG = "esp32_ble_server";
 
-static const uint16_t device_information_service__UUID = 0x180A;
+static const uint16_t DEVICE_INFORMATION_SERVICE_UUID = 0x180A;
 static const uint16_t MODEL_UUID = 0x2A24;
 static const uint16_t VERSION_UUID = 0x2A26;
 static const uint16_t MANUFACTURER_UUID = 0x2A29;
@@ -53,7 +53,7 @@ void BLEServer::loop() {
     }
     case REGISTERING: {
       if (this->registered_) {
-        this->device_information_service_ = this->create_service(device_information_service__UUID);
+        this->device_information_service_ = this->create_service(DEVICE_INFORMATION_SERVICE_UUID);
 
         this->create_device_characteristics_();
 
@@ -171,7 +171,7 @@ void BLEServer::dump_config() { ESP_LOGCONFIG(TAG, "ESP32 BLE Server:"); }
 
 BLEServer *global_ble_server = nullptr;
 
-}  // namespace esp32_ble
+}  // namespace esp32_ble_server
 }  // namespace esphome
 
 #endif

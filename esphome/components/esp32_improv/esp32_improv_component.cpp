@@ -1,7 +1,8 @@
 #include "esp32_improv_component.h"
-#include "esphome/core/log.h"
+
+#include "esphome/components/esp32_ble_server/ble_2902.h"
 #include "esphome/core/application.h"
-#include "esphome/components/esp32_ble/ble_2902.h"
+#include "esphome/core/log.h"
 
 #ifdef ARDUINO_ARCH_ESP32
 
@@ -13,39 +14,37 @@ static const char *const TAG = "esp32_improv.component";
 ESP32ImprovComponent::ESP32ImprovComponent() { global_improv_component = this; }
 
 void ESP32ImprovComponent::setup_service() {
-  this->service_ = esp32_ble::global_ble_server->create_service(improv::SERVICE_UUID, true);
+  this->service_ = global_ble_server->create_service(improv::SERVICE_UUID, true);
 }
 
 void ESP32ImprovComponent::setup_characteristics() {
   this->status_ = this->service_->create_characteristic(
-      improv::STATUS_UUID, esp32_ble::BLECharacteristic::PROPERTY_READ | esp32_ble::BLECharacteristic::PROPERTY_NOTIFY);
-  esp32_ble::BLEDescriptor *status_descriptor = new esp32_ble::BLE2902();
+      improv::STATUS_UUID, BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_NOTIFY);
+  BLEDescriptor *status_descriptor = new BLE2902();
   this->status_->add_descriptor(status_descriptor);
 
   this->error_ = this->service_->create_characteristic(
-      improv::ERROR_UUID, esp32_ble::BLECharacteristic::PROPERTY_READ | esp32_ble::BLECharacteristic::PROPERTY_NOTIFY);
-  esp32_ble::BLEDescriptor *error_descriptor = new esp32_ble::BLE2902();
+      improv::ERROR_UUID, BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_NOTIFY);
+  BLEDescriptor *error_descriptor = new BLE2902();
   this->error_->add_descriptor(error_descriptor);
 
-  this->rpc_ =
-      this->service_->create_characteristic(improv::RPC_COMMAND_UUID, esp32_ble::BLECharacteristic::PROPERTY_WRITE);
+  this->rpc_ = this->service_->create_characteristic(improv::RPC_COMMAND_UUID, BLECharacteristic::PROPERTY_WRITE);
   this->rpc_->on_write([this](const std::vector<uint8_t> &data) {
     if (data.size() > 0) {
       this->incoming_data_.insert(this->incoming_data_.end(), data.begin(), data.end());
     }
   });
-  esp32_ble::BLEDescriptor *rpc_descriptor = new esp32_ble::BLE2902();
+  BLEDescriptor *rpc_descriptor = new BLE2902();
   this->rpc_->add_descriptor(rpc_descriptor);
 
-  this->rpc_response_ =
-      this->service_->create_characteristic(improv::RPC_RESULT_UUID, esp32_ble::BLECharacteristic::PROPERTY_READ |
-                                                                         esp32_ble::BLECharacteristic::PROPERTY_NOTIFY);
-  esp32_ble::BLEDescriptor *rpc_response_descriptor = new esp32_ble::BLE2902();
+  this->rpc_response_ = this->service_->create_characteristic(
+      improv::RPC_RESULT_UUID, BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_NOTIFY);
+  BLEDescriptor *rpc_response_descriptor = new BLE2902();
   this->rpc_response_->add_descriptor(rpc_response_descriptor);
 
   this->capabilities_ =
-      this->service_->create_characteristic(improv::CAPABILITIES_UUID, esp32_ble::BLECharacteristic::PROPERTY_READ);
-  esp32_ble::BLEDescriptor *capabilities_descriptor = new esp32_ble::BLE2902();
+      this->service_->create_characteristic(improv::CAPABILITIES_UUID, BLECharacteristic::PROPERTY_READ);
+  BLEDescriptor *capabilities_descriptor = new BLE2902();
   this->capabilities_->add_descriptor(capabilities_descriptor);
   uint8_t capabilities = 0x00;
   if (this->status_indicator_ != nullptr)
