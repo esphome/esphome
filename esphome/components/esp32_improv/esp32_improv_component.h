@@ -22,7 +22,7 @@ class ESP32ImprovComponent : public Component, public BLEServiceComponent {
   ESP32ImprovComponent();
   void dump_config() override;
   void loop() override;
-  void setup_service() override;
+  void setup() override;
   void setup_characteristics();
   void on_client_disconnect() override;
 

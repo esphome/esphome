@@ -14,8 +14,9 @@ static const char *const TAG = "esp32_improv.component";
 
 ESP32ImprovComponent::ESP32ImprovComponent() { global_improv_component = this; }
 
-void ESP32ImprovComponent::setup_service() {
+void ESP32ImprovComponent::setup() {
   this->service_ = global_ble_server->create_service(improv::SERVICE_UUID, true);
+  this->setup_characteristics();
 }
 
 void ESP32ImprovComponent::setup_characteristics() {
@@ -64,11 +65,7 @@ void ESP32ImprovComponent::loop() {
       if (this->status_indicator_ != nullptr)
         this->status_indicator_->turn_off();
 
-      if (this->service_->is_created() && !this->setup_complete_) {
-        this->setup_characteristics();
-      }
-
-      if (this->should_start_ && this->setup_complete_) {
+      if (this->service_->is_created() && this->should_start_ && this->setup_complete_) {
         if (this->service_->is_running()) {
           esp32_ble::global_ble->get_advertising()->start();
 
@@ -205,10 +202,7 @@ void ESP32ImprovComponent::stop() {
   });
 }
 
-float ESP32ImprovComponent::get_setup_priority() const {
-  // Before WiFi
-  return setup_priority::AFTER_BLUETOOTH;
-}
+float ESP32ImprovComponent::get_setup_priority() const { return setup_priority::AFTER_BLUETOOTH; }
 
 void ESP32ImprovComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "ESP32 Improv:");

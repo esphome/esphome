@@ -24,7 +24,6 @@ using namespace esp32_ble;
 
 class BLEServiceComponent {
  public:
-  virtual void setup_service();
   virtual void on_client_connect(){};
   virtual void on_client_disconnect(){};
   virtual void start();
@@ -84,7 +83,6 @@ class BLEServer : public Component {
     INIT = 0x00,
     REGISTERING,
     STARTING_SERVICE,
-    SETTING_UP_COMPONENT_SERVICES,
     RUNNING,
   } state_{INIT};
 };
