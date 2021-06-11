@@ -353,6 +353,7 @@ class SerialPortRequestHandler(BaseHandler):
             data.append({"port": port.path, "desc": desc})
         data.append({"port": "OTA", "desc": "Over-The-Air"})
         data.sort(key=lambda x: x["port"], reverse=True)
+        self.set_header("content-type", "application/json")
         self.write(json.dumps(data))
 
 
