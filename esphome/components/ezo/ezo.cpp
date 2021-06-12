@@ -50,7 +50,7 @@ void EZOSensor::loop() {
       this->start_time_ = millis();
       this->wait_time_ = 300;
     }
-    if (this->state_ & EZO_STATE_SEND_PROBE_TYPE ) {
+    if (this->state_ & EZO_STATE_SEND_PROBE_TYPE) {
       int len = sprintf((char *) buf, "K,%0.3f", this->probe_type_);
       this->write_bytes_raw(buf, len);
       this->state_ = EZO_STATE_WAIT | EZO_STATE_WAIT_PROBE_TYPE;
@@ -70,7 +70,7 @@ void EZOSensor::loop() {
       this->write_bytes_raw(buf, len);
       this->state_ = EZO_STATE_WAIT | EZO_STATE_WAIT_CALIBRATION;
       this->start_time_ = millis();
-      this->wait_time_ = 300;   
+      this->wait_time_ = 300;
     }
     return;
   }
@@ -130,7 +130,6 @@ void EZOSensor::set_calibration_point(int point, float value) {
   this->calibration_type_ = point;
   this->state_ |= EZO_STATE_SEND_CALIBRATION;
 }
-
 
 }  // namespace ezo
 }  // namespace esphome
