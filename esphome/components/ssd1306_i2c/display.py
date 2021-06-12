@@ -23,5 +23,5 @@ CONFIG_SCHEMA = cv.All(
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    await ssd1306_base.setup_ssd1036(var, config)
+    await ssd1306_base.setup_ssd1306(var, config)
     await i2c.register_i2c_device(var, config)

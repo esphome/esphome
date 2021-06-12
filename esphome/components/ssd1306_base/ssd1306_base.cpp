@@ -10,12 +10,13 @@ static const char *const TAG = "ssd1306";
 static const uint8_t BLACK = 0;
 static const uint8_t WHITE = 1;
 static const uint8_t SSD1306_MAX_CONTRAST = 255;
+static const uint8_t SSD1305_MAX_BRIGHTNESS = 255;
 
 static const uint8_t SSD1306_COMMAND_DISPLAY_OFF = 0xAE;
 static const uint8_t SSD1306_COMMAND_DISPLAY_ON = 0xAF;
 static const uint8_t SSD1306_COMMAND_SET_DISPLAY_CLOCK_DIV = 0xD5;
 static const uint8_t SSD1306_COMMAND_SET_MULTIPLEX = 0xA8;
-static const uint8_t SSD1306_COMMAND_SET_DISPLAY_OFFSET = 0xD3;
+static const uint8_t SSD1306_COMMAND_SET_DISPLAY_OFFSET_Y = 0xD3;
 static const uint8_t SSD1306_COMMAND_SET_START_LINE = 0x40;
 static const uint8_t SSD1306_COMMAND_CHARGE_PUMP = 0x8D;
 static const uint8_t SSD1306_COMMAND_MEMORY_MODE = 0x20;
@@ -30,32 +31,56 @@ static const uint8_t SSD1306_COMMAND_DISPLAY_ALL_ON_RESUME = 0xA4;
 static const uint8_t SSD1306_COMMAND_DEACTIVATE_SCROLL = 0x2E;
 static const uint8_t SSD1306_COMMAND_COLUMN_ADDRESS = 0x21;
 static const uint8_t SSD1306_COMMAND_PAGE_ADDRESS = 0x22;
+static const uint8_t SSD1306_COMMAND_NORMAL_DISPLAY = 0xA6;
+static const uint8_t SSD1306_COMMAND_INVERSE_DISPLAY = 0xA7;
 
-static const uint8_t SSD1306_NORMAL_DISPLAY = 0xA6;
+static const uint8_t SSD1305_COMMAND_SET_BRIGHTNESS = 0x82;
+static const uint8_t SSD1305_COMMAND_SET_AREA_COLOR = 0xD8;
+
 
 void SSD1306::setup() {
   this->init_internal_(this->get_buffer_length_());
 
+  // Turn off display during initialization
   this->command(SSD1306_COMMAND_DISPLAY_OFF);
+
+  // Set oscillator frequency to 4'b1000 with no clock division
   this->command(SSD1306_COMMAND_SET_DISPLAY_CLOCK_DIV);
   this->command(0x80);  // suggested ratio
 
+  // Enable low power display mode for SSD1305
+  if (this->is_ssd1305_()) {
+    this->command(SSD1305_COMMAND_SET_AREA_COLOR);
+    this->command(0x05);
+  }
+
+  // Set mux ratio to (Y pixels - 1)
   this->command(SSD1306_COMMAND_SET_MULTIPLEX);
   this->command(this->get_height_internal() - 1);
 
-  this->command(SSD1306_COMMAND_SET_DISPLAY_OFFSET);
-  this->command(0x00);                                   // no offset
+  // Set Y offset
+  this->command(SSD1306_COMMAND_SET_DISPLAY_OFFSET_Y);
+  this->command(0x00 + this->offset_y_);                                   // no offset
   this->command(SSD1306_COMMAND_SET_START_LINE | 0x00);  // start at line 0
-  this->command(SSD1306_COMMAND_CHARGE_PUMP);
-  if (this->external_vcc_)
-    this->command(0x10);
-  else
-    this->command(0x14);
 
+  // SSD1305 does not have charge pump
+  if (!this->is_ssd1305_()) {
+    this->command(SSD1306_COMMAND_CHARGE_PUMP);
+    if (this->external_vcc_)
+      this->command(0x10);
+    else
+      this->command(0x14);
+  }
+
+  // Set addressing mode to horizontal
   this->command(SSD1306_COMMAND_MEMORY_MODE);
   this->command(0x00);
-  this->command(SSD1306_COMMAND_SEGRE_MAP | 0x01);
-  this->command(SSD1306_COMMAND_COM_SCAN_DEC);
+
+  // X flip
+  this->command(SSD1306_COMMAND_SEGRE_MAP | this->flip_x_);
+  
+  // Y flip
+  this->command(SSD1306_COMMAND_COM_SCAN_INC | (this->flip_y_ << 3));
 
   this->command(SSD1306_COMMAND_SET_COM_PINS);
   switch (this->model_) {
@@ -69,10 +94,13 @@ void SSD1306::setup() {
     case SH1106_MODEL_128_64:
     case SSD1306_MODEL_64_48:
     case SH1106_MODEL_64_48:
+    case SSD1305_MODEL_128_32:
+    case SSD1305_MODEL_128_64:
       this->command(0x12);
       break;
   }
 
+  // Pre-charge period
   this->command(SSD1306_COMMAND_SET_PRE_CHARGE);
   if (this->external_vcc_)
     this->command(0x22);
@@ -82,12 +110,20 @@ void SSD1306::setup() {
   this->command(SSD1306_COMMAND_SET_VCOM_DETECT);
   this->command(0x00);
 
+  // Display output follow RAM
   this->command(SSD1306_COMMAND_DISPLAY_ALL_ON_RESUME);
-  this->command(SSD1306_NORMAL_DISPLAY);
 
+  // Inverse display mode
+  this->command(SSD1306_COMMAND_NORMAL_DISPLAY | this->invert_);
+
+  // Disable scrolling mode
   this->command(SSD1306_COMMAND_DEACTIVATE_SCROLL);
 
-  set_brightness(this->brightness_);
+  // Contrast and brighrness
+  // SSD1306 does not have brightness setting
+  set_contrast(this->contrast_);
+  if (!this->is_ssd1305_())
+    set_brightness(this->brightness_);
 
   this->fill(BLACK);  // clear display - ensures we do not see garbage at power-on
   this->display();    // ...write buffer, which actually clears the display's memory
@@ -107,8 +143,8 @@ void SSD1306::display() {
       this->command(0x20 + this->get_width_internal() - 1);
       break;
     default:
-      this->command(0);  // Page start address, 0
-      this->command(this->get_width_internal() - 1);
+      this->command(0 + this->offset_x_);  // Page start address, 0
+      this->command(this->get_width_internal() + this->offset_x_ - 1);
       break;
   }
 
@@ -124,16 +160,26 @@ bool SSD1306::is_sh1106_() const {
   return this->model_ == SH1106_MODEL_96_16 || this->model_ == SH1106_MODEL_128_32 ||
          this->model_ == SH1106_MODEL_128_64;
 }
+bool SSD1306::is_ssd1305_() const {
+  return this->model_ == SSD1305_MODEL_128_64 || this->model_ == SSD1305_MODEL_128_64;
+}
 void SSD1306::update() {
   this->do_update_();
   this->display();
+}
+void SSD1306::set_contrast(float contrast) {
+  // validation
+  this->contrast_ = clamp(contrast, 0, 1);
+  // now write the new brightness level to the display
+  this->command(SSD1306_COMMAND_SET_CONTRAST);
+  this->command(int(SSD1306_MAX_CONTRAST * (this->contrast_)));
 }
 void SSD1306::set_brightness(float brightness) {
   // validation
   this->brightness_ = clamp(brightness, 0, 1);
   // now write the new brightness level to the display
-  this->command(SSD1306_COMMAND_SET_CONTRAST);
-  this->command(int(SSD1306_MAX_CONTRAST * (this->brightness_)));
+  this->command(SSD1305_COMMAND_SET_BRIGHTNESS);
+  this->command(int(SSD1305_MAX_BRIGHTNESS * (this->brightness_)));
 }
 bool SSD1306::is_on() { return this->is_on_; }
 void SSD1306::turn_on() {
@@ -148,9 +194,11 @@ int SSD1306::get_height_internal() {
   switch (this->model_) {
     case SSD1306_MODEL_128_32:
     case SH1106_MODEL_128_32:
+    case SSD1305_MODEL_128_32:
       return 32;
     case SSD1306_MODEL_128_64:
     case SH1106_MODEL_128_64:
+    case SSD1305_MODEL_128_64:
       return 64;
     case SSD1306_MODEL_96_16:
     case SH1106_MODEL_96_16:
@@ -168,6 +216,8 @@ int SSD1306::get_width_internal() {
     case SH1106_MODEL_128_32:
     case SSD1306_MODEL_128_64:
     case SH1106_MODEL_128_64:
+    case SSD1305_MODEL_128_32:
+    case SSD1305_MODEL_128_64:
       return 128;
     case SSD1306_MODEL_96_16:
     case SH1106_MODEL_96_16:
@@ -229,6 +279,10 @@ const char *SSD1306::model_str_() {
       return "SH1106 96x16";
     case SH1106_MODEL_64_48:
       return "SH1106 64x48";
+    case SSD1305_MODEL_128_32:
+      return "SSD1305 128x32";
+    case SSD1305_MODEL_128_64:
+      return "SSD1305 128x32";
     default:
       return "Unknown";
   }
