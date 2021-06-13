@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
+import logging
 from esphome import pins
 from esphome.components import display
 from esphome.const import (
@@ -12,6 +13,8 @@ from esphome.const import (
     CONF_CONTRAST,
     CONF_INVERT,
 )
+
+_LOGGER = logging.getLogger(__name__)
 
 ssd1306_base_ns = cg.esphome_ns.namespace("ssd1306_base")
 SSD1306 = ssd1306_base_ns.class_("SSD1306", cg.PollingComponent, display.DisplayBuffer)
@@ -37,11 +40,22 @@ MODELS = {
 
 SSD1306_MODEL = cv.enum(MODELS, upper=True, space="_")
 
+def _validate(value):
+    model = value[CONF_MODEL]
+    if model != "SSD1305_128X32" and model != "SSD1305_128X64":
+        if value[CONF_BRIGHTNESS] != 1.0:
+            _LOGGER.warning(
+                "SSD1306/SH1106 does not have brightness register, "
+                "please use \"contrast\" option instead.",
+            )
+    return value
+
 SSD1306_SCHEMA = display.FULL_DISPLAY_SCHEMA.extend(
     {
         cv.Required(CONF_MODEL): SSD1306_MODEL,
         cv.Optional(CONF_RESET_PIN): pins.gpio_output_pin_schema,
         cv.Optional(CONF_BRIGHTNESS, default=1.0): cv.percentage,
+        cv.Optional(CONF_CONTRAST, default=1.0): cv.percentage,
         cv.Optional(CONF_EXTERNAL_VCC): cv.boolean,
         cv.Optional(CONF_FLIP_X, default=True): cv.boolean,
         cv.Optional(CONF_FLIP_Y, default=True): cv.boolean,

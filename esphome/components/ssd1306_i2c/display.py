@@ -18,6 +18,7 @@ CONFIG_SCHEMA = cv.All(
     .extend(cv.COMPONENT_SCHEMA)
     .extend(i2c.i2c_device_schema(0x3C)),
     cv.has_at_most_one_key(CONF_PAGES, CONF_LAMBDA),
+    ssd1306_base._validate,
 )
 
 

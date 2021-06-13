@@ -176,6 +176,8 @@ void SSD1306::set_contrast(float contrast) {
 }
 void SSD1306::set_brightness(float brightness) {
   // validation
+  if (!this->is_ssd1305_())
+    return;
   this->brightness_ = clamp(brightness, 0, 1);
   // now write the new brightness level to the display
   this->command(SSD1305_COMMAND_SET_BRIGHTNESS);
