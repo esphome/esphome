@@ -41,30 +41,33 @@ static const uint8_t SSD1305_COMMAND_SET_AREA_COLOR = 0xD8;
 void SSD1306::setup() {
   this->init_internal_(this->get_buffer_length_());
 
-  // Turn off display during initialization
+  // Turn off display during initialization (0xAE)
   this->command(SSD1306_COMMAND_DISPLAY_OFF);
 
-  // Set oscillator frequency to 4'b1000 with no clock division
+  // Set oscillator frequency to 4'b1000 with no clock division (0xD5)
   this->command(SSD1306_COMMAND_SET_DISPLAY_CLOCK_DIV);
-  this->command(0x80);  // suggested ratio
+  // Oscillator frequency <= 4'b1000, no clock division
+  this->command(0x80);
 
-  // Enable low power display mode for SSD1305
+  // Enable low power display mode for SSD1305 (0xD8)
   if (this->is_ssd1305_()) {
     this->command(SSD1305_COMMAND_SET_AREA_COLOR);
     this->command(0x05);
   }
 
-  // Set mux ratio to (Y pixels - 1)
+  // Set mux ratio to [Y pixels - 1] (0xA8)
   this->command(SSD1306_COMMAND_SET_MULTIPLEX);
   this->command(this->get_height_internal() - 1);
 
-  // Set Y offset
+  // Set Y offset (0xD3)
   this->command(SSD1306_COMMAND_SET_DISPLAY_OFFSET_Y);
-  this->command(0x00 + this->offset_y_);                                   // no offset
-  this->command(SSD1306_COMMAND_SET_START_LINE | 0x00);  // start at line 0
+  this->command(0x00 + this->offset_y_);
+  // Set start line at line 0 (0x40)
+  this->command(SSD1306_COMMAND_SET_START_LINE | 0x00);
 
   // SSD1305 does not have charge pump
   if (!this->is_ssd1305_()) {
+    // Enable charge pump (0x8D)
     this->command(SSD1306_COMMAND_CHARGE_PUMP);
     if (this->external_vcc_)
       this->command(0x10);
@@ -72,16 +75,17 @@ void SSD1306::setup() {
       this->command(0x14);
   }
 
-  // Set addressing mode to horizontal
+  // Set addressing mode to horizontal (0x20)
   this->command(SSD1306_COMMAND_MEMORY_MODE);
   this->command(0x00);
 
-  // X flip
+  // X flip mode (0xA0, 0xA1)
   this->command(SSD1306_COMMAND_SEGRE_MAP | this->flip_x_);
   
-  // Y flip
+  // Y flip mode (0xC0, 0xC8)
   this->command(SSD1306_COMMAND_COM_SCAN_INC | (this->flip_y_ << 3));
 
+  // Set pin configuration (0xDA)
   this->command(SSD1306_COMMAND_SET_COM_PINS);
   switch (this->model_) {
     case SSD1306_MODEL_128_32:
@@ -100,23 +104,24 @@ void SSD1306::setup() {
       break;
   }
 
-  // Pre-charge period
+  // Pre-charge period (0xD9)
   this->command(SSD1306_COMMAND_SET_PRE_CHARGE);
   if (this->external_vcc_)
     this->command(0x22);
   else
     this->command(0xF1);
 
+  // Set V_COM (0xDB)
   this->command(SSD1306_COMMAND_SET_VCOM_DETECT);
   this->command(0x00);
 
-  // Display output follow RAM
+  // Display output follow RAM (0xA4)
   this->command(SSD1306_COMMAND_DISPLAY_ALL_ON_RESUME);
 
-  // Inverse display mode
+  // Inverse display mode (0xA6, 0xA7)
   this->command(SSD1306_COMMAND_NORMAL_DISPLAY | this->invert_);
 
-  // Disable scrolling mode
+  // Disable scrolling mode (0x2E)
   this->command(SSD1306_COMMAND_DEACTIVATE_SCROLL);
 
   // Contrast and brighrness
@@ -139,8 +144,8 @@ void SSD1306::display() {
   this->command(SSD1306_COMMAND_COLUMN_ADDRESS);
   switch (this->model_) {
     case SSD1306_MODEL_64_48:
-      this->command(0x20);
-      this->command(0x20 + this->get_width_internal() - 1);
+      this->command(0x20 + this->offset_x_);
+      this->command(0x20 + this->offset_x_ + this->get_width_internal() - 1);
       break;
     default:
       this->command(0 + this->offset_x_);  // Page start address, 0
@@ -170,7 +175,7 @@ void SSD1306::update() {
 void SSD1306::set_contrast(float contrast) {
   // validation
   this->contrast_ = clamp(contrast, 0, 1);
-  // now write the new brightness level to the display
+  // now write the new contrast level to the display (0x81)
   this->command(SSD1306_COMMAND_SET_CONTRAST);
   this->command(int(SSD1306_MAX_CONTRAST * (this->contrast_)));
 }
@@ -179,7 +184,7 @@ void SSD1306::set_brightness(float brightness) {
   if (!this->is_ssd1305_())
     return;
   this->brightness_ = clamp(brightness, 0, 1);
-  // now write the new brightness level to the display
+  // now write the new brightness level to the display (0x82)
   this->command(SSD1305_COMMAND_SET_BRIGHTNESS);
   this->command(int(SSD1305_MAX_BRIGHTNESS * (this->brightness_)));
 }
