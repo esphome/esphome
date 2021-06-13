@@ -455,10 +455,24 @@ sensor:
     active_power_b:
       name: ADE7953 Active Power B
       id: ade7953_active_power_b
+  - platform: bl0940
+    uart_id: uart3
+    voltage:
+      name: 'BL0940 Voltage'
+    current:
+      name: 'BL0940 Current'
+    power:
+      name: 'BL0940 Power'
+    energy:
+      name: 'BL0940 Energy'
+    temperature:
+      name: 'BL0940 Internal temperature'
+    target_temperature:
+      name: 'BL0940 External temperature'
   - platform: pzem004t
     uart_id: uart3
     voltage:
-      name: 'PZEM00T Voltage'
+      name: 'PZEM004T Voltage'
     current:
       name: 'PZEM004T Current'
     power:
