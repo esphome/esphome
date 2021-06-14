@@ -4,7 +4,7 @@
 namespace esphome {
 namespace scd30 {
 
-static const char *TAG = "scd30";
+static const char *const TAG = "scd30";
 
 static const uint16_t SCD30_CMD_GET_FIRMWARE_VERSION = 0xd100;
 static const uint16_t SCD30_CMD_START_CONTINUOUS_MEASUREMENTS = 0x0010;
@@ -43,14 +43,6 @@ void SCD30Component::setup() {
   ESP_LOGD(TAG, "SCD30 Firmware v%0d.%02d", (uint16_t(raw_firmware_version[0]) >> 8),
            uint16_t(raw_firmware_version[0] & 0xFF));
 
-  /// Sensor initialization
-  if (!this->write_command_(SCD30_CMD_START_CONTINUOUS_MEASUREMENTS, this->ambient_pressure_compensation_)) {
-    ESP_LOGE(TAG, "Sensor SCD30 error starting continuous measurements.");
-    this->error_code_ = MEASUREMENT_INIT_FAILED;
-    this->mark_failed();
-    return;
-  }
-
   if (this->temperature_offset_ != 0) {
     if (!this->write_command_(SCD30_CMD_TEMPERATURE_OFFSET, (uint16_t)(temperature_offset_ * 100.0))) {
       ESP_LOGE(TAG, "Sensor SCD30 error setting temperature offset.");
@@ -59,18 +51,45 @@ void SCD30Component::setup() {
       return;
     }
   }
+#ifdef ARDUINO_ARCH_ESP32
+  // According ESP32 clock stretching is typically 30ms and up to 150ms "due to
+  // internal calibration processes". The I2C peripheral only supports 13ms (at
+  // least when running at 80MHz).
+  // In practise it seems that clock stretching occures during this calibration
+  // calls. It also seems that delays in between calls makes them
+  // disappear/shorter. Hence work around with delays for ESP32.
+  //
+  // By experimentation a delay of 20ms as already sufficient. Let's go
+  // safe and use 30ms delays.
+  delay(30);
+#endif
+
   // The start measurement command disables the altitude compensation, if any, so we only set it if it's turned on
   if (this->altitude_compensation_ != 0xFFFF) {
     if (!this->write_command_(SCD30_CMD_ALTITUDE_COMPENSATION, altitude_compensation_)) {
-      ESP_LOGE(TAG, "Sensor SCD30 error starting continuous measurements.");
+      ESP_LOGE(TAG, "Sensor SCD30 error setting altitude compensation.");
       this->error_code_ = MEASUREMENT_INIT_FAILED;
       this->mark_failed();
       return;
     }
   }
+#ifdef ARDUINO_ARCH_ESP32
+  delay(30);
+#endif
 
   if (!this->write_command_(SCD30_CMD_AUTOMATIC_SELF_CALIBRATION, enable_asc_ ? 1 : 0)) {
     ESP_LOGE(TAG, "Sensor SCD30 error setting automatic self calibration.");
+    this->error_code_ = MEASUREMENT_INIT_FAILED;
+    this->mark_failed();
+    return;
+  }
+#ifdef ARDUINO_ARCH_ESP32
+  delay(30);
+#endif
+
+  /// Sensor initialization
+  if (!this->write_command_(SCD30_CMD_START_CONTINUOUS_MEASUREMENTS, this->ambient_pressure_compensation_)) {
+    ESP_LOGE(TAG, "Sensor SCD30 error starting continuous measurements.");
     this->error_code_ = MEASUREMENT_INIT_FAILED;
     this->mark_failed();
     return;

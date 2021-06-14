@@ -8,6 +8,8 @@ from esphome.const import (
     CONF_RANGE,
     DEVICE_CLASS_EMPTY,
     ICON_MAGNET,
+    STATE_CLASS_MEASUREMENT,
+    STATE_CLASS_NONE,
     UNIT_MICROTESLA,
     UNIT_DEGREES,
     ICON_SCREEN_ROTATION,
@@ -78,10 +80,10 @@ def validate_enum(enum_values, units=None, int=True):
 
 
 field_strength_schema = sensor.sensor_schema(
-    UNIT_MICROTESLA, ICON_MAGNET, 1, DEVICE_CLASS_EMPTY
+    UNIT_MICROTESLA, ICON_MAGNET, 1, DEVICE_CLASS_EMPTY, STATE_CLASS_MEASUREMENT
 )
 heading_schema = sensor.sensor_schema(
-    UNIT_DEGREES, ICON_SCREEN_ROTATION, 1, DEVICE_CLASS_EMPTY
+    UNIT_DEGREES, ICON_SCREEN_ROTATION, 1, DEVICE_CLASS_EMPTY, STATE_CLASS_NONE
 )
 
 CONFIG_SCHEMA = (
@@ -115,23 +117,23 @@ def auto_data_rate(config):
     return HMC5883LDatarates[75]
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
-    yield i2c.register_i2c_device(var, config)
+    await cg.register_component(var, config)
+    await i2c.register_i2c_device(var, config)
 
     cg.add(var.set_oversampling(config[CONF_OVERSAMPLING]))
     cg.add(var.set_datarate(auto_data_rate(config)))
     cg.add(var.set_range(config[CONF_RANGE]))
     if CONF_FIELD_STRENGTH_X in config:
-        sens = yield sensor.new_sensor(config[CONF_FIELD_STRENGTH_X])
+        sens = await sensor.new_sensor(config[CONF_FIELD_STRENGTH_X])
         cg.add(var.set_x_sensor(sens))
     if CONF_FIELD_STRENGTH_Y in config:
-        sens = yield sensor.new_sensor(config[CONF_FIELD_STRENGTH_Y])
+        sens = await sensor.new_sensor(config[CONF_FIELD_STRENGTH_Y])
         cg.add(var.set_y_sensor(sens))
     if CONF_FIELD_STRENGTH_Z in config:
-        sens = yield sensor.new_sensor(config[CONF_FIELD_STRENGTH_Z])
+        sens = await sensor.new_sensor(config[CONF_FIELD_STRENGTH_Z])
         cg.add(var.set_z_sensor(sens))
     if CONF_HEADING in config:
-        sens = yield sensor.new_sensor(config[CONF_HEADING])
+        sens = await sensor.new_sensor(config[CONF_HEADING])
         cg.add(var.set_heading_sensor(sens))

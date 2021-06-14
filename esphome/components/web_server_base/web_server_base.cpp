@@ -13,7 +13,7 @@
 namespace esphome {
 namespace web_server_base {
 
-static const char *TAG = "web_server_base";
+static const char *const TAG = "web_server_base";
 
 void report_ota_error() {
   StreamString ss;

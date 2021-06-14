@@ -5,7 +5,7 @@
 namespace esphome {
 namespace sgp30 {
 
-static const char *TAG = "sgp30";
+static const char *const TAG = "sgp30";
 
 static const uint16_t SGP30_CMD_GET_SERIAL_ID = 0x3682;
 static const uint16_t SGP30_CMD_GET_FEATURESET = 0x202f;
@@ -17,11 +17,11 @@ static const uint16_t SGP30_CMD_SET_IAQ_BASELINE = 0x201E;
 
 // Sensor baseline should first be relied on after 1H of operation,
 // if the sensor starts with a baseline value provided
-const long IAQ_BASELINE_WARM_UP_SECONDS_WITH_BASELINE_PROVIDED = 3600;
+const uint32_t IAQ_BASELINE_WARM_UP_SECONDS_WITH_BASELINE_PROVIDED = 3600;
 
 // Sensor baseline could first be relied on after 12H of operation,
 // if the sensor starts without any prior baseline value provided
-const long IAQ_BASELINE_WARM_UP_SECONDS_WITHOUT_BASELINE = 43200;
+const uint32_t IAQ_BASELINE_WARM_UP_SECONDS_WITHOUT_BASELINE = 43200;
 
 // Shortest time interval of 1H for storing baseline values.
 // Prevents wear of the flash because of too many write operations
@@ -253,7 +253,7 @@ void SGP30Component::dump_config() {
     } else {
       ESP_LOGCONFIG(TAG, "  Baseline: No baseline configured");
     }
-    ESP_LOGCONFIG(TAG, "  Warm up time: %lds", this->required_warm_up_time_);
+    ESP_LOGCONFIG(TAG, "  Warm up time: %us", this->required_warm_up_time_);
   }
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "eCO2 sensor", this->eco2_sensor_);

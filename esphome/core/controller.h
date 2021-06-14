@@ -50,7 +50,7 @@ class Controller {
   virtual void on_cover_update(cover::Cover *obj){};
 #endif
 #ifdef USE_TEXT_SENSOR
-  virtual void on_text_sensor_update(text_sensor::TextSensor *obj, std::string state){};
+  virtual void on_text_sensor_update(text_sensor::TextSensor *obj, const std::string &state){};
 #endif
 #ifdef USE_CLIMATE
   virtual void on_climate_update(climate::Climate *obj){};

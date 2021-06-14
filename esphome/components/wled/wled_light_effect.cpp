@@ -19,7 +19,7 @@ enum Protocol { WLED_NOTIFIER = 0, WARLS = 1, DRGB = 2, DRGBW = 3, DNRGB = 4 };
 
 const int DEFAULT_BLANK_TIME = 1000;
 
-static const char *TAG = "wled_light_effect";
+static const char *const TAG = "wled_light_effect";
 
 WLEDLightEffect::WLEDLightEffect(const std::string &name) : AddressableLightEffect(name) {}
 
@@ -92,8 +92,14 @@ bool WLEDLightEffect::parse_frame_(light::AddressableLight &it, const uint8_t *p
 
   switch (protocol) {
     case WLED_NOTIFIER:
-      if (!parse_notifier_frame_(it, payload, size))
-        return false;
+      // Hyperion Port
+      if (port_ == 19446) {
+        if (!parse_drgb_frame_(it, payload, size))
+          return false;
+      } else {
+        if (!parse_notifier_frame_(it, payload, size))
+          return false;
+      }
       break;
 
     case WARLS:

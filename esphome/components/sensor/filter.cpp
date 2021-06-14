@@ -5,7 +5,7 @@
 namespace esphome {
 namespace sensor {
 
-static const char *TAG = "sensor.filter";
+static const char *const TAG = "sensor.filter";
 
 // Filter
 uint32_t Filter::expected_interval(uint32_t input) { return input; }
@@ -148,10 +148,10 @@ void SlidingWindowMovingAverageFilter::set_window_size(size_t window_size) { thi
 optional<float> SlidingWindowMovingAverageFilter::new_value(float value) {
   if (!isnan(value)) {
     if (this->queue_.size() == this->window_size_) {
-      this->sum_ -= this->queue_.front();
-      this->queue_.pop();
+      this->sum_ -= this->queue_[0];
+      this->queue_.pop_front();
     }
-    this->queue_.push(value);
+    this->queue_.push_back(value);
     this->sum_ += value;
   }
   float average;
@@ -161,8 +161,16 @@ optional<float> SlidingWindowMovingAverageFilter::new_value(float value) {
     average = this->sum_ / this->queue_.size();
   ESP_LOGVV(TAG, "SlidingWindowMovingAverageFilter(%p)::new_value(%f) -> %f", this, value, average);
 
-  if (++this->send_at_ >= this->send_every_) {
-    this->send_at_ = 0;
+  if (++this->send_at_ % this->send_every_ == 0) {
+    if (this->send_at_ >= 10000) {
+      // Recalculate to prevent floating point error accumulating
+      this->sum_ = 0;
+      for (auto v : this->queue_)
+        this->sum_ += v;
+      average = this->sum_ / this->queue_.size();
+      this->send_at_ = 0;
+    }
+
     ESP_LOGVV(TAG, "SlidingWindowMovingAverageFilter(%p)::new_value(%f) SENDING", this, value);
     return average;
   }

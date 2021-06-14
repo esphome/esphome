@@ -4,7 +4,7 @@
 namespace esphome {
 namespace binary {
 
-static const char *TAG = "binary.fan";
+static const char *const TAG = "binary.fan";
 
 void binary::BinaryFan::dump_config() {
   ESP_LOGCONFIG(TAG, "Fan '%s':", this->fan_->get_name().c_str());

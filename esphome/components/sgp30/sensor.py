@@ -8,6 +8,7 @@ from esphome.const import (
     CONF_ECO2,
     CONF_TVOC,
     ICON_RADIATOR,
+    STATE_CLASS_MEASUREMENT,
     UNIT_PARTS_PER_MILLION,
     UNIT_PARTS_PER_BILLION,
     UNIT_EMPTY,
@@ -32,10 +33,18 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(SGP30Component),
             cv.Required(CONF_ECO2): sensor.sensor_schema(
-                UNIT_PARTS_PER_MILLION, ICON_MOLECULE_CO2, 0, DEVICE_CLASS_EMPTY
+                UNIT_PARTS_PER_MILLION,
+                ICON_MOLECULE_CO2,
+                0,
+                DEVICE_CLASS_EMPTY,
+                STATE_CLASS_MEASUREMENT,
             ),
             cv.Required(CONF_TVOC): sensor.sensor_schema(
-                UNIT_PARTS_PER_BILLION, ICON_RADIATOR, 0, DEVICE_CLASS_EMPTY
+                UNIT_PARTS_PER_BILLION,
+                ICON_RADIATOR,
+                0,
+                DEVICE_CLASS_EMPTY,
+                STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_ECO2_BASELINE): sensor.sensor_schema(
                 UNIT_EMPTY, ICON_MOLECULE_CO2, 0, DEVICE_CLASS_EMPTY
@@ -63,17 +72,17 @@ CONFIG_SCHEMA = (
 )
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
-    yield i2c.register_i2c_device(var, config)
+    await cg.register_component(var, config)
+    await i2c.register_i2c_device(var, config)
 
     if CONF_ECO2 in config:
-        sens = yield sensor.new_sensor(config[CONF_ECO2])
+        sens = await sensor.new_sensor(config[CONF_ECO2])
         cg.add(var.set_eco2_sensor(sens))
 
     if CONF_TVOC in config:
-        sens = yield sensor.new_sensor(config[CONF_TVOC])
+        sens = await sensor.new_sensor(config[CONF_TVOC])
         cg.add(var.set_tvoc_sensor(sens))
 
     if CONF_ECO2_BASELINE in config:
@@ -94,7 +103,7 @@ def to_code(config):
 
     if CONF_COMPENSATION in config:
         compensation_config = config[CONF_COMPENSATION]
-        sens = yield cg.get_variable(compensation_config[CONF_HUMIDITY_SOURCE])
+        sens = await cg.get_variable(compensation_config[CONF_HUMIDITY_SOURCE])
         cg.add(var.set_humidity_sensor(sens))
-        sens = yield cg.get_variable(compensation_config[CONF_TEMPERATURE_SOURCE])
+        sens = await cg.get_variable(compensation_config[CONF_TEMPERATURE_SOURCE])
         cg.add(var.set_temperature_sensor(sens))

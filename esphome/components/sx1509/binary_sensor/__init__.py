@@ -21,10 +21,10 @@ CONFIG_SCHEMA = binary_sensor.BINARY_SENSOR_SCHEMA.extend(
 )
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield binary_sensor.register_binary_sensor(var, config)
-    hub = yield cg.get_variable(config[CONF_SX1509_ID])
+    await binary_sensor.register_binary_sensor(var, config)
+    hub = await cg.get_variable(config[CONF_SX1509_ID])
     cg.add(var.set_row_col(config[CONF_ROW], config[CONF_COL]))
 
     cg.add(hub.register_keypad_binary_sensor(var))

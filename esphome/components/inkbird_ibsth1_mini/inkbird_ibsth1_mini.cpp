@@ -6,7 +6,7 @@
 namespace esphome {
 namespace inkbird_ibsth1_mini {
 
-static const char *TAG = "inkbird_ibsth1_mini";
+static const char *const TAG = "inkbird_ibsth1_mini";
 
 void InkbirdIBSTH1_MINI::dump_config() {
   ESP_LOGCONFIG(TAG, "Inkbird IBS TH1 MINI");

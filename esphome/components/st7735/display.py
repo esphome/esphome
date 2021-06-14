@@ -3,7 +3,6 @@ import esphome.config_validation as cv
 from esphome import pins
 from esphome.components import spi
 from esphome.components import display
-from esphome.core import coroutine
 from esphome.const import (
     CONF_DC_PIN,
     CONF_ID,
@@ -67,22 +66,21 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-@coroutine
-def setup_st7735(var, config):
-    yield cg.register_component(var, config)
-    yield display.register_display(var, config)
+async def setup_st7735(var, config):
+    await cg.register_component(var, config)
+    await display.register_display(var, config)
 
     if CONF_RESET_PIN in config:
-        reset = yield cg.gpio_pin_expression(config[CONF_RESET_PIN])
+        reset = await cg.gpio_pin_expression(config[CONF_RESET_PIN])
         cg.add(var.set_reset_pin(reset))
     if CONF_LAMBDA in config:
-        lambda_ = yield cg.process_lambda(
+        lambda_ = await cg.process_lambda(
             config[CONF_LAMBDA], [(display.DisplayBufferRef, "it")], return_type=cg.void
         )
         cg.add(var.set_writer(lambda_))
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(
         config[CONF_ID],
         config[CONF_MODEL],
@@ -93,8 +91,8 @@ def to_code(config):
         config[CONF_EIGHT_BIT_COLOR],
         config[CONF_USE_BGR],
     )
-    yield setup_st7735(var, config)
-    yield spi.register_spi_device(var, config)
+    await setup_st7735(var, config)
+    await spi.register_spi_device(var, config)
 
-    dc = yield cg.gpio_pin_expression(config[CONF_DC_PIN])
+    dc = await cg.gpio_pin_expression(config[CONF_DC_PIN])
     cg.add(var.set_dc_pin(dc))

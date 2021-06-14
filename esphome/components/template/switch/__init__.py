@@ -29,22 +29,22 @@ CONFIG_SCHEMA = switch.SWITCH_SCHEMA.extend(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
-    yield switch.register_switch(var, config)
+    await cg.register_component(var, config)
+    await switch.register_switch(var, config)
 
     if CONF_LAMBDA in config:
-        template_ = yield cg.process_lambda(
+        template_ = await cg.process_lambda(
             config[CONF_LAMBDA], [], return_type=cg.optional.template(bool)
         )
         cg.add(var.set_state_lambda(template_))
     if CONF_TURN_OFF_ACTION in config:
-        yield automation.build_automation(
+        await automation.build_automation(
             var.get_turn_off_trigger(), [], config[CONF_TURN_OFF_ACTION]
         )
     if CONF_TURN_ON_ACTION in config:
-        yield automation.build_automation(
+        await automation.build_automation(
             var.get_turn_on_trigger(), [], config[CONF_TURN_ON_ACTION]
         )
     cg.add(var.set_optimistic(config[CONF_OPTIMISTIC]))
@@ -62,9 +62,9 @@ def to_code(config):
         }
     ),
 )
-def switch_template_publish_to_code(config, action_id, template_arg, args):
-    paren = yield cg.get_variable(config[CONF_ID])
+async def switch_template_publish_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = yield cg.templatable(config[CONF_STATE], args, bool)
+    template_ = await cg.templatable(config[CONF_STATE], args, bool)
     cg.add(var.set_state(template_))
-    yield var
+    return var

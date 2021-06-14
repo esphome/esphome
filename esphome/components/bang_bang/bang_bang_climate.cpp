@@ -4,7 +4,7 @@
 namespace esphome {
 namespace bang_bang {
 
-static const char *TAG = "bang_bang.climate";
+static const char *const TAG = "bang_bang.climate";
 
 void BangBangClimate::setup() {
   this->sensor_->add_on_state_callback([this](float state) {

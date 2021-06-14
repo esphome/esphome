@@ -5,10 +5,11 @@ namespace fujitsu_general {
 
 // bytes' bits are reversed for fujitsu, so nibbles are ordered 1, 0, 3, 2, 5, 4, etc...
 
-#define SET_NIBBLE(message, nibble, value) (message[nibble / 2] |= (value & 0b00001111) << ((nibble % 2) ? 0 : 4))
-#define GET_NIBBLE(message, nibble) ((message[nibble / 2] >> ((nibble % 2) ? 0 : 4)) & 0b00001111)
+#define SET_NIBBLE(message, nibble, value) \
+  ((message)[(nibble) / 2] |= ((value) &0b00001111) << (((nibble) % 2) ? 0 : 4))
+#define GET_NIBBLE(message, nibble) (((message)[(nibble) / 2] >> (((nibble) % 2) ? 0 : 4)) & 0b00001111)
 
-static const char* TAG = "fujitsu_general.climate";
+static const char *const TAG = "fujitsu_general.climate";
 
 // Common header
 const uint8_t FUJITSU_GENERAL_COMMON_LENGTH = 6;
@@ -41,32 +42,32 @@ const uint8_t FUJITSU_GENERAL_TEMPERATURE_NIBBLE = 16;
 
 // Power on
 const uint8_t FUJITSU_GENERAL_POWER_ON_NIBBLE = 17;
-const uint8_t FUJITSU_GENERAL_POWER_ON = 0x01;
 const uint8_t FUJITSU_GENERAL_POWER_OFF = 0x00;
+const uint8_t FUJITSU_GENERAL_POWER_ON = 0x01;
 
 // Mode
 const uint8_t FUJITSU_GENERAL_MODE_NIBBLE = 19;
 const uint8_t FUJITSU_GENERAL_MODE_AUTO = 0x00;
-const uint8_t FUJITSU_GENERAL_MODE_HEAT = 0x04;
 const uint8_t FUJITSU_GENERAL_MODE_COOL = 0x01;
 const uint8_t FUJITSU_GENERAL_MODE_DRY = 0x02;
 const uint8_t FUJITSU_GENERAL_MODE_FAN = 0x03;
+const uint8_t FUJITSU_GENERAL_MODE_HEAT = 0x04;
 // const uint8_t FUJITSU_GENERAL_MODE_10C = 0x0B;
 
 // Swing
-const uint8_t FUJITSU_GENERAL_FAN_NIBBLE = 20;
+const uint8_t FUJITSU_GENERAL_SWING_NIBBLE = 20;
+const uint8_t FUJITSU_GENERAL_SWING_NONE = 0x00;
+const uint8_t FUJITSU_GENERAL_SWING_VERTICAL = 0x01;
+const uint8_t FUJITSU_GENERAL_SWING_HORIZONTAL = 0x02;
+const uint8_t FUJITSU_GENERAL_SWING_BOTH = 0x03;
+
+// Fan
+const uint8_t FUJITSU_GENERAL_FAN_NIBBLE = 21;
 const uint8_t FUJITSU_GENERAL_FAN_AUTO = 0x00;
 const uint8_t FUJITSU_GENERAL_FAN_HIGH = 0x01;
 const uint8_t FUJITSU_GENERAL_FAN_MEDIUM = 0x02;
 const uint8_t FUJITSU_GENERAL_FAN_LOW = 0x03;
 const uint8_t FUJITSU_GENERAL_FAN_SILENT = 0x04;
-
-// Fan speed
-const uint8_t FUJITSU_GENERAL_SWING_NIBBLE = 21;
-const uint8_t FUJITSU_GENERAL_SWING_NONE = 0x00;
-const uint8_t FUJITSU_GENERAL_SWING_VERTICAL = 0x01;
-const uint8_t FUJITSU_GENERAL_SWING_HORIZONTAL = 0x02;
-const uint8_t FUJITSU_GENERAL_SWING_BOTH = 0x03;
 
 // TODO Outdoor Unit Low Noise
 // const uint8_t FUJITSU_GENERAL_OUTDOOR_UNIT_LOW_NOISE_BYTE14 = 0xA0;
@@ -140,7 +141,7 @@ void FujitsuGeneralClimate::transmit_state() {
   }
 
   // Set fan
-  switch (this->fan_mode) {
+  switch (this->fan_mode.value()) {
     case climate::CLIMATE_FAN_HIGH:
       SET_NIBBLE(remote_state, FUJITSU_GENERAL_FAN_NIBBLE, FUJITSU_GENERAL_FAN_HIGH);
       break;
@@ -202,7 +203,7 @@ void FujitsuGeneralClimate::transmit_off_() {
   this->power_ = false;
 }
 
-void FujitsuGeneralClimate::transmit_(uint8_t const* message, uint8_t length) {
+void FujitsuGeneralClimate::transmit_(uint8_t const *message, uint8_t length) {
   ESP_LOGV(TAG, "Transmit message length %d", length);
 
   auto transmit = this->transmitter_->transmit();
@@ -231,7 +232,7 @@ void FujitsuGeneralClimate::transmit_(uint8_t const* message, uint8_t length) {
   transmit.perform();
 }
 
-uint8_t FujitsuGeneralClimate::checksum_state_(uint8_t const* message) {
+uint8_t FujitsuGeneralClimate::checksum_state_(uint8_t const *message) {
   uint8_t checksum = 0;
   for (uint8_t i = 7; i < FUJITSU_GENERAL_STATE_MESSAGE_LENGTH - 1; ++i) {
     checksum += message[i];
@@ -239,7 +240,7 @@ uint8_t FujitsuGeneralClimate::checksum_state_(uint8_t const* message) {
   return 256 - checksum;
 }
 
-uint8_t FujitsuGeneralClimate::checksum_util_(uint8_t const* message) { return 255 - message[5]; }
+uint8_t FujitsuGeneralClimate::checksum_util_(uint8_t const *message) { return 255 - message[5]; }
 
 bool FujitsuGeneralClimate::on_receive(remote_base::RemoteReceiveData data) {
   ESP_LOGV(TAG, "Received IR message");
