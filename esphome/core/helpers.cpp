@@ -105,7 +105,7 @@ std::string truncate_string(const std::string &s, size_t length) {
 }
 
 std::string value_accuracy_to_string(float value, int8_t accuracy_decimals) {
-  auto multiplier = float(pow(10.0f, accuracy_decimals));
+  auto multiplier = float(powf(10.0f, accuracy_decimals));
   float value_rounded = roundf(value * multiplier) / multiplier;
   char tmp[32];  // should be enough, but we should maybe improve this at some point.
   dtostrf(value_rounded, 0, uint8_t(std::max(0, int(accuracy_decimals))), tmp);
