@@ -1,0 +1,18 @@
+#!/bin/bash
+
+set -e
+# set -x
+
+mkdir -p config
+pip3 install -e .
+
+cpp_json=.vscode/c_cpp_properties.json
+if [ ! -f $cpp_json ]; then
+    echo "Initializing PlatformIO..."
+    pio init --ide vscode --silent
+    sed -i "/\\/workspaces\/esphome\/include/d" $cpp_json
+else
+    echo "Cpp environment already configured. To reconfigure it you could run one the following commands:"
+    echo "  pio init --ide vscode -e livingroom8266"
+    echo "  pio init --ide vscode -e livingroom32"
+fi
