@@ -5,7 +5,7 @@
 namespace esphome {
 namespace light {
 
-static const char *TAG = "light";
+static const char *const TAG = "light";
 
 #ifdef USE_JSON
 LightCall &LightCall::parse_color_json(JsonObject &root) {
