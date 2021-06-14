@@ -157,7 +157,7 @@ def _validate(config):
         config[CONF_NETWORKS] = cv.ensure_list(WIFI_NETWORK_STA)(network)
 
     if (CONF_NETWORKS not in config) and (CONF_AP not in config):
-        config[CONF_NETWORKS] = cv.ensure_list(WIFI_NETWORK_STA)([])
+        config[CONF_NETWORKS] = []
 
     if config.get(CONF_FAST_CONNECT, False):
         networks = config.get(CONF_NETWORKS, [])
