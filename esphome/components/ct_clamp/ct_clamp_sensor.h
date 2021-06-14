@@ -35,17 +35,19 @@ class CTClampSensor : public sensor::Sensor, public PollingComponent {
    *
    * Diagram: https://learn.openenergymonitor.org/electricity-monitoring/ct-sensors/interface-with-arduino
    *
-   * This is automatically calculated with an exponential moving average/digital low pass filter.
-   *
-   * 0.5 is a good initial approximation to start with for most ESP8266 setups.
+   * The current clamp only measures AC, so any DC component is an unwanted artifact from the
+   * sampling circuit. The AC component is essentially the same as the calculating the Standard-Deviation,
+   * which can be done by cumulating 3 values per sample:
+   *   1) Number of samples
+   *   2) Sum of samples
+   *   3) Sum of sample squared
+   * https://en.wikipedia.org/wiki/Root_mean_square
    */
-  float offset_ = 0.5f;
 
   float sample_sum_ = 0.0f;
+  float sample_squared_sum_ = 0.0f;
   uint32_t num_samples_ = 0;
   bool is_sampling_ = false;
-  /// Calibrate offset value once at boot
-  bool is_calibrating_offset_ = false;
 };
 
 }  // namespace ct_clamp

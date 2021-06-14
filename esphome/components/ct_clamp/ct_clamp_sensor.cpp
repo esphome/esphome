@@ -8,17 +8,7 @@ namespace ct_clamp {
 
 static const char *const TAG = "ct_clamp";
 
-void CTClampSensor::setup() {
-  this->is_calibrating_offset_ = true;
-  this->high_freq_.start();
-  this->set_timeout("calibrate_offset", this->sample_duration_, [this]() {
-    this->high_freq_.stop();
-    this->is_calibrating_offset_ = false;
-    if (this->num_samples_ != 0) {
-      this->offset_ = this->sample_sum_ / this->num_samples_;
-    }
-  });
-}
+void CTClampSensor::setup() {}
 
 void CTClampSensor::dump_config() {
   LOG_SENSOR("", "CT Clamp Sensor", this);
@@ -27,9 +17,6 @@ void CTClampSensor::dump_config() {
 }
 
 void CTClampSensor::update() {
-  if (this->is_calibrating_offset_)
-    return;
-
   // Update only starts the sampling phase, in loop() the actual sampling is happening.
 
   // Request a high loop() execution interval during sampling phase.
@@ -46,20 +33,22 @@ void CTClampSensor::update() {
       return;
     }
 
-    float raw = this->sample_sum_ / this->num_samples_;
-    float irms = std::sqrt(raw);
-    ESP_LOGD(TAG, "'%s' - Raw Value: %.2fA", this->name_.c_str(), irms);
-    this->publish_state(irms);
+    float dc = this->sample_sum_ / this->num_samples_;
+    float var = (this->sample_squared_sum_ / this->num_samples_) - dc * dc;
+    float ac = std::sqrt(var);
+    ESP_LOGD(TAG, "'%s' - Raw AC Value: %.3fA", this->name_.c_str(), ac);
+    this->publish_state(ac);
   });
 
   // Set sampling values
   this->is_sampling_ = true;
   this->num_samples_ = 0;
   this->sample_sum_ = 0.0f;
+  this->sample_squared_sum_ = 0.0f;
 }
 
 void CTClampSensor::loop() {
-  if (!this->is_sampling_ && !this->is_calibrating_offset_)
+  if (!this->is_sampling_)
     return;
 
   // Perform a single sample
@@ -67,22 +56,8 @@ void CTClampSensor::loop() {
   if (isnan(value))
     return;
 
-  if (this->is_calibrating_offset_) {
-    this->sample_sum_ += value;
-    this->num_samples_++;
-    return;
-  }
-
-  // Adjust DC offset via low pass filter (exponential moving average)
-  const float alpha = 0.001f;
-  this->offset_ = this->offset_ * (1 - alpha) + value * alpha;
-
-  // Filtered value centered around the mid-point (0V)
-  float filtered = value - this->offset_;
-
-  // IRMS is sqrt(∑v_i²)
-  float sq = filtered * filtered;
-  this->sample_sum_ += sq;
+  this->sample_sum_ += value;
+  this->sample_squared_sum_ += value * value;
   this->num_samples_++;
 }
 
