@@ -12,7 +12,7 @@ namespace sgp30 {
 struct SGP30Baselines {
   uint16_t eco2;
   uint16_t tvoc;
-} PACKED;  // NOLINT
+} PACKED;
 
 /// This class implements support for the Sensirion SGP30 i2c GAS (VOC and CO2eq) sensors.
 class SGP30Component : public PollingComponent, public i2c::I2CDevice {
@@ -42,8 +42,8 @@ class SGP30Component : public PollingComponent, public i2c::I2CDevice {
   uint8_t sht_crc_(uint8_t data1, uint8_t data2);
   uint64_t serial_number_;
   uint16_t featureset_;
-  long required_warm_up_time_;
-  long seconds_since_last_store_;
+  uint32_t required_warm_up_time_;
+  uint32_t seconds_since_last_store_;
   SGP30Baselines baselines_storage_;
   ESPPreferenceObject pref_;
 

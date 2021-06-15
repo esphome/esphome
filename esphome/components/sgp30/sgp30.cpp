@@ -25,10 +25,10 @@ const uint32_t IAQ_BASELINE_WARM_UP_SECONDS_WITHOUT_BASELINE = 43200;
 
 // Shortest time interval of 1H for storing baseline values.
 // Prevents wear of the flash because of too many write operations
-const long SHORTEST_BASELINE_STORE_INTERVAL = 3600;
+const uint32_t SHORTEST_BASELINE_STORE_INTERVAL = 3600;
 
 // Store anyway if the baseline difference exceeds the max storage diff value
-const long MAXIMUM_STORAGE_DIFF = 50;
+const uint32_t MAXIMUM_STORAGE_DIFF = 50;
 
 void SGP30Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up SGP30...");
