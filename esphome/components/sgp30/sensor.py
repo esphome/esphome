@@ -86,11 +86,11 @@ async def to_code(config):
         cg.add(var.set_tvoc_sensor(sens))
 
     if CONF_ECO2_BASELINE in config:
-        sens = yield sensor.new_sensor(config[CONF_ECO2_BASELINE])
+        sens = await sensor.new_sensor(config[CONF_ECO2_BASELINE])
         cg.add(var.set_eco2_baseline_sensor(sens))
 
     if CONF_TVOC_BASELINE in config:
-        sens = yield sensor.new_sensor(config[CONF_TVOC_BASELINE])
+        sens = await sensor.new_sensor(config[CONF_TVOC_BASELINE])
         cg.add(var.set_tvoc_baseline_sensor(sens))
 
     if CONF_STORE_BASELINE in config:
