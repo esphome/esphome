@@ -25,7 +25,6 @@ class CTClampSensor : public sensor::Sensor, public PollingComponent {
  protected:
   /// High Frequency loop() requester used during sampling phase.
   HighFrequencyLoopRequester high_freq_;
-
   /// Duration in ms of the sampling phase.
   uint32_t sample_duration_;
   /// The sampling source to read values from.
@@ -47,6 +46,7 @@ class CTClampSensor : public sensor::Sensor, public PollingComponent {
   float sample_sum_ = 0.0f;
   float sample_squared_sum_ = 0.0f;
   uint32_t num_samples_ = 0;
+  bool update_requested_ = false;
   bool is_sampling_ = false;
 };
 

@@ -7,6 +7,7 @@ namespace esphome {
 namespace ct_clamp {
 
 static const char *const TAG = "ct_clamp";
+static bool mutex = false;
 
 void CTClampSensor::setup() {}
 
@@ -17,7 +18,11 @@ void CTClampSensor::dump_config() {
 }
 
 void CTClampSensor::update() {
-  // Update only starts the sampling phase, in loop() the actual sampling is happening.
+  // Latch that an update is requested and attempts to preform update if no other clamp is being sampled.
+  this->update_requested_ = true;
+  if (mutex) return;
+  mutex = true;
+  this->update_requested_ = false;
 
   // Request a high loop() execution interval during sampling phase.
   this->high_freq_.start();
@@ -38,6 +43,7 @@ void CTClampSensor::update() {
     float ac = std::sqrt(var);
     ESP_LOGD(TAG, "'%s' - Raw AC Value: %.3fA (from %d samples)", this->name_.c_str(), ac, this->num_samples_);
     this->publish_state(ac);
+    mutex = false;
   });
 
   // Set sampling values
@@ -48,6 +54,10 @@ void CTClampSensor::update() {
 }
 
 void CTClampSensor::loop() {
+  if (this->update_requested_) {
+    this->update();
+  };
+
   if (!this->is_sampling_)
     return;
 
