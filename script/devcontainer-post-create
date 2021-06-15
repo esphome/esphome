@@ -4,7 +4,7 @@ set -e
 # set -x
 
 mkdir -p config
-pip3 install -e .
+script/setup
 
 cpp_json=.vscode/c_cpp_properties.json
 if [ ! -f $cpp_json ]; then
