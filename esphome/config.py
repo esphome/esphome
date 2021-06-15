@@ -298,8 +298,6 @@ def do_id_pass(result):  # type: (Config) -> None
 
 
 def recursive_check_replaceme(value):
-    import esphome.config_validation as cv
-
     if isinstance(value, list):
         return cv.Schema([recursive_check_replaceme])(value)
     if isinstance(value, dict):
