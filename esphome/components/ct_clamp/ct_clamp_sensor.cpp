@@ -36,7 +36,7 @@ void CTClampSensor::update() {
     float dc = this->sample_sum_ / this->num_samples_;
     float var = (this->sample_squared_sum_ / this->num_samples_) - dc * dc;
     float ac = std::sqrt(var);
-    ESP_LOGD(TAG, "'%s' - Raw AC Value: %.3fA", this->name_.c_str(), ac);
+    ESP_LOGD(TAG, "'%s' - Raw AC Value: %.3fA (from %d samples)", this->name_.c_str(), ac, this->num_samples_);
     this->publish_state(ac);
   });
 
