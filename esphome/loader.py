@@ -12,6 +12,7 @@ from pathlib import Path
 from esphome.const import ESP_PLATFORMS, SOURCE_FILE_EXTENSIONS
 import esphome.core.config
 from esphome.core import CORE
+from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -81,8 +82,13 @@ class ComponentManifest:
         return getattr(self.module, "CODEOWNERS", [])
 
     @property
-    def validate(self):
-        return getattr(self.module, "validate", None)
+    def post_validate_schema(self) -> Optional[Callable[[ConfigType], None]]:
+        """Components can declare a `POST_VALIDATE_SCHEMA` cv.Schema that gets called
+        after the main validation. In that function checks across components can be made.
+
+        Note that the function can't mutate the configuration - no changes are saved
+        """
+        return getattr(self.module, "POST_VALIDATE_SCHEMA", None)
 
     @property
     def source_files(self) -> Dict[Path, SourceFile]:

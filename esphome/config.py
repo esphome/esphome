@@ -21,11 +21,13 @@ from esphome.helpers import indent
 from esphome.util import safe_print, OrderedDict
 
 from typing import List, Optional, Tuple, Union
-from esphome.core import ConfigType
 from esphome.loader import get_component, get_platform, ComponentManifest
 from esphome.yaml_util import is_secret, ESPHomeDataBase, ESPForceValue
 from esphome.voluptuous_schema import ExtraKeysInvalid
 from esphome.log import color, Fore
+import esphome.post_validate as pv
+import esphome.config_validation as cv
+from esphome.types import ConfigType, ConfigPathType, ConfigFragmentType
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -54,7 +56,7 @@ def _path_begins_with(path, other):  # type: (ConfigPath, ConfigPath) -> bool
     return path[: len(other)] == other
 
 
-class Config(OrderedDict):
+class Config(OrderedDict, pv.PostValidateConfig):
     def __init__(self):
         super().__init__()
         # A list of voluptuous errors
@@ -65,6 +67,7 @@ class Config(OrderedDict):
         self.output_paths = []  # type: List[Tuple[ConfigPath, str]]
         # A list of components ids with the config path
         self.declare_ids = []  # type: List[Tuple[core.ID, ConfigPath]]
+        self._data = {}
 
     def add_error(self, error):
         # type: (vol.Invalid) -> None
@@ -72,6 +75,12 @@ class Config(OrderedDict):
             for err in error.errors:
                 self.add_error(err)
             return
+        if cv.ROOT_CONFIG_PATH in error.path:
+            # Root value means that the path before the root should be ignored
+            last_root = max(
+                i for i, v in enumerate(error.path) if v is cv.ROOT_CONFIG_PATH
+            )
+            error.path = error.path[last_root + 1 :]
         self.errors.append(error)
 
     @contextmanager
@@ -140,13 +149,16 @@ class Config(OrderedDict):
 
         return doc_range
 
-    def get_nested_item(self, path):
-        # type: (ConfigPath) -> ConfigType
+    def get_nested_item(
+        self, path: ConfigPathType, raise_error: bool = False
+    ) -> ConfigFragmentType:
         data = self
         for item_index in path:
             try:
                 data = data[item_index]
             except (KeyError, IndexError, TypeError):
+                if raise_error:
+                    raise
                 return {}
         return data
 
@@ -163,11 +175,20 @@ class Config(OrderedDict):
             part.append(item_index)
         return part
 
-    def get_config_by_id(self, id):
+    def get_path_for_id(self, id: core.ID):
+        """Return the config fragment where the given ID is declared."""
         for declared_id, path in self.declare_ids:
             if declared_id.id == str(id):
-                return self.get_nested_item(path[:-1])
-        return None
+                return path
+        raise KeyError(f"ID {id} not found in configuration")
+
+    def get_config_for_path(self, path: ConfigPathType) -> ConfigFragmentType:
+        return self.get_nested_item(path, raise_error=True)
+
+    @property
+    def data(self):
+        """Return temporary data used by post validation functions."""
+        return self._data
 
 
 def iter_ids(config, path=None):
@@ -189,23 +210,22 @@ def do_id_pass(result):  # type: (Config) -> None
     from esphome.cpp_generator import MockObjClass
     from esphome.cpp_types import Component
 
-    declare_ids = result.declare_ids  # type: List[Tuple[core.ID, ConfigPath]]
     searching_ids = []  # type: List[Tuple[core.ID, ConfigPath]]
     for id, path in iter_ids(result):
         if id.is_declaration:
             if id.id is not None:
                 # Look for duplicate definitions
-                match = next((v for v in declare_ids if v[0].id == id.id), None)
+                match = next((v for v in result.declare_ids if v[0].id == id.id), None)
                 if match is not None:
                     opath = "->".join(str(v) for v in match[1])
                     result.add_str_error(f"ID {id.id} redefined! Check {opath}", path)
                     continue
-            declare_ids.append((id, path))
+            result.declare_ids.append((id, path))
         else:
             searching_ids.append((id, path))
     # Resolve default ids after manual IDs
-    for id, _ in declare_ids:
-        id.resolve([v[0].id for v in declare_ids])
+    for id, _ in result.declare_ids:
+        id.resolve([v[0].id for v in result.declare_ids])
         if isinstance(id.type, MockObjClass) and id.type.inherits_from(Component):
             CORE.component_ids.add(id.id)
 
@@ -213,7 +233,7 @@ def do_id_pass(result):  # type: (Config) -> None
     for id, path in searching_ids:
         if id.id is not None:
             # manually declared
-            match = next((v[0] for v in declare_ids if v[0].id == id.id), None)
+            match = next((v[0] for v in result.declare_ids if v[0].id == id.id), None)
             if match is None or not match.is_manual:
                 # No declared ID with this name
                 import difflib
@@ -224,7 +244,7 @@ def do_id_pass(result):  # type: (Config) -> None
                 )
                 # Find candidates
                 matches = difflib.get_close_matches(
-                    id.id, [v[0].id for v in declare_ids if v[0].is_manual]
+                    id.id, [v[0].id for v in result.declare_ids if v[0].is_manual]
                 )
                 if matches:
                     matches_s = ", ".join(f'"{x}"' for x in matches)
@@ -245,7 +265,7 @@ def do_id_pass(result):  # type: (Config) -> None
 
         if id.id is None and id.type is not None:
             matches = []
-            for v in declare_ids:
+            for v in result.declare_ids:
                 if v[0] is None or not isinstance(v[0].type, MockObjClass):
                     continue
                 inherits = v[0].type.inherits_from(id.type)
@@ -558,14 +578,16 @@ def validate_config(config, command_line_substitutions):
     # 7. Final validation
     if not result.errors:
         # Inter - components validation
-        for path, conf, comp in validate_queue:
-            if comp.config_schema is None:
+        token = pv.full_config.set(result)
+
+        for path, _, comp in validate_queue:
+            if comp.post_validate_schema is None:
                 continue
-            if callable(comp.validate):
-                try:
-                    comp.validate(result, result.get_nested_item(path))
-                except ValueError as err:
-                    result.add_str_error(err, path)
+            with result.catch_error(path):
+                conf = result.get_nested_item(path)
+                comp.post_validate_schema(conf)
+
+        pv.full_config.reset(token)
 
     return result
 
@@ -621,8 +643,12 @@ def _format_vol_invalid(ex, config):
             )
     elif "extra keys not allowed" in str(ex):
         message += "[{}] is an invalid option for [{}].".format(ex.path[-1], paren)
-    elif "required key not provided" in str(ex):
-        message += "'{}' is a required option for [{}].".format(ex.path[-1], paren)
+    elif isinstance(ex, vol.RequiredFieldInvalid):
+        if ex.msg == "required key not provided":
+            message += "'{}' is a required option for [{}].".format(ex.path[-1], paren)
+        else:
+            # Required has set a custom error message
+            message += ex.msg
     else:
         message += humanize_error(config, ex)
 

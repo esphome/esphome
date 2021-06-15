@@ -68,6 +68,9 @@ CONFIG_SCHEMA = cv.All(
         }
     ).extend(uart.UART_DEVICE_SCHEMA)
 )
+POST_VALIDATE_SCHEMA = uart.post_validate_device_schema(
+    "dfplayer", baud_rate=9600, require_tx=True
+)
 
 
 async def to_code(config):
@@ -78,12 +81,6 @@ async def to_code(config):
     for conf in config.get(CONF_ON_FINISHED_PLAYBACK, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [], conf)
-
-
-def validate(config, item_config):
-    uart.validate_device(
-        "dfplayer", config, item_config, baud_rate=9600, require_rx=False
-    )
 
 
 @automation.register_action(

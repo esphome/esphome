@@ -1,5 +1,8 @@
+from typing import Optional
+
 import esphome.codegen as cg
 import esphome.config_validation as cv
+import esphome.post_validate as pv
 from esphome import pins, automation
 from esphome.const import (
     CONF_BAUD_RATE,
@@ -92,48 +95,70 @@ async def to_code(config):
     cg.add(var.set_parity(config[CONF_PARITY]))
 
 
-def validate_device(
-    name, config, item_config, baud_rate=None, require_tx=True, require_rx=True
-):
-    if not hasattr(config, "uart_devices"):
-        config.uart_devices = {}
-    devices = config.uart_devices
-
-    uart_config = config.get_config_by_id(item_config[CONF_UART_ID])
-
-    uart_id = uart_config[CONF_ID]
-    device = devices.setdefault(uart_id, {})
-
-    if require_tx:
-        if CONF_TX_PIN not in uart_config:
-            raise ValueError(f"Component {name} requires parent uart to declare tx_pin")
-        if CONF_TX_PIN in device:
-            raise ValueError(
-                f"Component {name} cannot use the same uart.{CONF_TX_PIN} as component {device[CONF_TX_PIN]} is already using it"
-            )
-        device[CONF_TX_PIN] = name
-
-    if require_rx:
-        if CONF_RX_PIN not in uart_config:
-            raise ValueError(f"Component {name} requires parent uart to declare rx_pin")
-        if CONF_RX_PIN in device:
-            raise ValueError(
-                f"Component {name} cannot use the same uart.{CONF_RX_PIN} as component {device[CONF_RX_PIN]} is already using it"
-            )
-        device[CONF_RX_PIN] = name
-
-    if baud_rate and uart_config[CONF_BAUD_RATE] != baud_rate:
-        raise ValueError(
-            f"Component {name} requires parent uart baud rate be {baud_rate}"
-        )
-
-
 # A schema to use for all UART devices, all UART integrations must extend this!
 UART_DEVICE_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_UART_ID): cv.use_id(UARTComponent),
     }
 )
+
+KEY_UART_DEVICES = "uart_devices"
+
+
+def post_validate_device_schema(
+    name: str,
+    *,
+    baud_rate: Optional[int] = None,
+    require_tx: bool = False,
+    require_rx: bool = False,
+):
+    def validate_baud_rate(value):
+        if value != baud_rate:
+            raise cv.Invalid(
+                f"Component {name} required baud rate {baud_rate} for the uart bus"
+            )
+        return value
+
+    def validate_pin(opt, device):
+        def validator(value):
+            if opt in device:
+                raise cv.Invalid(
+                    f"The uart {opt} is used both by {name} and {device[opt]}, "
+                    f"but can only be used by one. Please create a new uart bus for {name}."
+                )
+            device[opt] = name
+            return value
+
+        return validator
+
+    def validate_hub(hub_config):
+        hub_schema = {}
+        uart_id = hub_config[CONF_ID]
+        devices = pv.full_config.get().data.setdefault(KEY_UART_DEVICES, {})
+        device = devices.setdefault(uart_id, {})
+
+        if require_tx:
+            hub_schema[
+                cv.Required(
+                    CONF_TX_PIN,
+                    msg=f"Component {name} requires this uart bus to declare a tx_pin",
+                )
+            ] = validate_pin(CONF_TX_PIN, device)
+        if require_rx:
+            hub_schema[
+                cv.Required(
+                    CONF_RX_PIN,
+                    msg=f"Component {name} requires this uart bus to declare a rx_pin",
+                )
+            ] = validate_pin(CONF_RX_PIN, device)
+        if baud_rate is not None:
+            hub_schema[cv.Required(CONF_BAUD_RATE)] = validate_baud_rate
+        return cv.Schema(hub_schema, extra=cv.ALLOW_EXTRA)(hub_config)
+
+    return cv.Schema(
+        {cv.Required(CONF_UART_ID): pv.id_declaration_match_schema(validate_hub)},
+        extra=cv.ALLOW_EXTRA,
+    )
 
 
 async def register_uart_device(var, config):
