@@ -11,4 +11,4 @@ ifaddr==0.1.7
 platformio==5.1.1
 esptool==2.8
 click==7.1.2
-esphome-dashboard==20210614.0
+esphome-dashboard==20210614.1
