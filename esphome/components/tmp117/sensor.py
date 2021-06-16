@@ -6,6 +6,7 @@ from esphome.const import (
     CONF_UPDATE_INTERVAL,
     DEVICE_CLASS_TEMPERATURE,
     ICON_EMPTY,
+    STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
 )
 
@@ -17,7 +18,9 @@ TMP117Component = tmp117_ns.class_(
 )
 
 CONFIG_SCHEMA = cv.All(
-    sensor.sensor_schema(UNIT_CELSIUS, ICON_EMPTY, 1, DEVICE_CLASS_TEMPERATURE)
+    sensor.sensor_schema(
+        UNIT_CELSIUS, ICON_EMPTY, 1, DEVICE_CLASS_TEMPERATURE, STATE_CLASS_MEASUREMENT
+    )
     .extend(
         {
             cv.GenerateID(): cv.declare_id(TMP117Component),
@@ -70,11 +73,11 @@ def determine_config_register(polling_period):
     return 0x0000
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
-    yield i2c.register_i2c_device(var, config)
-    yield sensor.register_sensor(var, config)
+    await cg.register_component(var, config)
+    await i2c.register_i2c_device(var, config)
+    await sensor.register_sensor(var, config)
 
     update_period = config[CONF_UPDATE_INTERVAL].total_seconds
     cg.add(var.set_config(determine_config_register(update_period)))

@@ -25,13 +25,13 @@ CONFIG_SCHEMA = cv.Schema(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
+    await cg.register_component(var, config)
 
-    data = yield cg.gpio_pin_expression(config[CONF_DATA_PIN])
+    data = await cg.gpio_pin_expression(config[CONF_DATA_PIN])
     cg.add(var.set_data_pin(data))
-    clock = yield cg.gpio_pin_expression(config[CONF_CLOCK_PIN])
+    clock = await cg.gpio_pin_expression(config[CONF_CLOCK_PIN])
     cg.add(var.set_clock_pin(clock))
 
     cg.add(var.set_num_channels(config[CONF_NUM_CHANNELS]))

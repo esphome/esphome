@@ -22,6 +22,10 @@
 #include "esphome/components/captive_portal/captive_portal.h"
 #endif
 
+#ifdef USE_IMPROV
+#include "esphome/components/esp32_improv/esp32_improv_component.h"
+#endif
+
 namespace esphome {
 namespace wifi {
 
@@ -33,6 +37,19 @@ void WiFiComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up WiFi...");
   this->last_connected_ = millis();
   this->wifi_pre_setup_();
+
+  uint32_t hash = fnv1_hash(App.get_compilation_time());
+  this->pref_ = global_preferences.make_preference<wifi::SavedWifiSettings>(hash, true);
+
+  SavedWifiSettings save{};
+  if (this->pref_.load(&save)) {
+    ESP_LOGD(TAG, "Loaded saved wifi settings: %s", save.ssid);
+
+    WiFiAP sta{};
+    sta.set_ssid(save.ssid);
+    sta.set_password(save.password);
+    this->set_sta(sta);
+  }
 
   if (this->has_sta()) {
     this->wifi_sta_pre_setup_();
@@ -60,7 +77,11 @@ void WiFiComponent::setup() {
       captive_portal::global_captive_portal->start();
 #endif
   }
-
+#ifdef USE_IMPROV
+  if (esp32_improv::global_improv_component != nullptr)
+    if (this->wifi_mode_(true, {}))
+      esp32_improv::global_improv_component->start();
+#endif
   this->wifi_apply_hostname_();
 #if defined(ARDUINO_ARCH_ESP32) && defined(USE_MDNS)
   network_setup_mdns();
@@ -121,6 +142,14 @@ void WiFiComponent::loop() {
 #endif
       }
     }
+
+#ifdef USE_IMPROV
+    if (esp32_improv::global_improv_component != nullptr)
+      if (!this->is_connected())
+        if (this->wifi_mode_(true, {}))
+          esp32_improv::global_improv_component->start();
+
+#endif
 
     if (!this->has_ap() && this->reboot_timeout_ != 0) {
       if (now - this->last_connected_ > this->reboot_timeout_) {
@@ -186,8 +215,20 @@ float WiFiComponent::get_loop_priority() const {
 void WiFiComponent::set_ap(const WiFiAP &ap) { this->ap_ = ap; }
 void WiFiComponent::add_sta(const WiFiAP &ap) { this->sta_.push_back(ap); }
 void WiFiComponent::set_sta(const WiFiAP &ap) {
-  this->sta_.clear();
+  this->clear_sta();
   this->add_sta(ap);
+}
+void WiFiComponent::clear_sta() { this->sta_.clear(); }
+void WiFiComponent::save_wifi_sta(const std::string &ssid, const std::string &password) {
+  SavedWifiSettings save{};
+  strcpy(save.ssid, ssid.c_str());
+  strcpy(save.password, password.c_str());
+  this->pref_.save(&save);
+
+  WiFiAP sta{};
+  sta.set_ssid(ssid);
+  sta.set_password(password);
+  this->set_sta(sta);
 }
 
 void WiFiComponent::start_connecting(const WiFiAP &ap, bool two) {
@@ -466,6 +507,12 @@ void WiFiComponent::check_connecting_finished() {
       ESP_LOGD(TAG, "Disabling AP...");
       this->wifi_mode_({}, false);
     }
+#ifdef USE_IMPROV
+    if (this->is_esp32_improv_active_()) {
+      esp32_improv::global_improv_component->stop();
+    }
+#endif
+
 #if defined(ARDUINO_ARCH_ESP8266) && defined(USE_MDNS)
     network_setup_mdns(this->wifi_sta_ip_(), 0);
 #endif
@@ -517,7 +564,8 @@ void WiFiComponent::retry_connect() {
   }
 
   delay(10);
-  if (!this->is_captive_portal_active_() && (this->num_retried_ > 5 || this->error_from_callback_)) {
+  if (!this->is_captive_portal_active_() && !this->is_esp32_improv_active_() &&
+      (this->num_retried_ > 5 || this->error_from_callback_)) {
     // If retry failed for more than 5 times, let's restart STA
     ESP_LOGW(TAG, "Restarting WiFi adapter...");
     this->wifi_mode_(false, {});
@@ -559,6 +607,13 @@ std::string WiFiComponent::format_mac_addr(const uint8_t *mac) {
 bool WiFiComponent::is_captive_portal_active_() {
 #ifdef USE_CAPTIVE_PORTAL
   return captive_portal::global_captive_portal != nullptr && captive_portal::global_captive_portal->is_active();
+#else
+  return false;
+#endif
+}
+bool WiFiComponent::is_esp32_improv_active_() {
+#ifdef USE_IMPROV
+  return esp32_improv::global_improv_component != nullptr && esp32_improv::global_improv_component->is_active();
 #else
   return false;
 #endif

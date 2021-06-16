@@ -176,6 +176,10 @@ message DeviceInfoResponse {
   string model = 6;
 
   bool has_deep_sleep = 7;
+
+  // The esphome project details if set
+  string project_name = 8;
+  string project_version = 9;
 }
 
 message ListEntitiesRequest {
@@ -409,6 +413,11 @@ message LightCommandRequest {
 }
 
 // ==================== SENSOR ====================
+enum SensorStateClass {
+  STATE_CLASS_NONE = 0;
+  STATE_CLASS_MEASUREMENT = 1;
+}
+
 message ListEntitiesSensorResponse {
   option (id) = 16;
   option (source) = SOURCE_SERVER;
@@ -424,6 +433,7 @@ message ListEntitiesSensorResponse {
   int32 accuracy_decimals = 7;
   bool force_update = 8;
   string device_class = 9;
+  SensorStateClass state_class = 10;
 }
 message SensorStateResponse {
   option (id) = 25;
@@ -561,6 +571,7 @@ message SubscribeHomeAssistantStateResponse {
   option (id) = 39;
   option (source) = SOURCE_SERVER;
   string entity_id = 1;
+  string attribute = 2;
 }
 
 message HomeAssistantStateResponse {
@@ -570,6 +581,7 @@ message HomeAssistantStateResponse {
 
   string entity_id = 1;
   string state = 2;
+  string attribute = 3;
 }
 
 // ==================== IMPORT TIME ====================
@@ -664,11 +676,12 @@ message CameraImageRequest {
 // ==================== CLIMATE ====================
 enum ClimateMode {
   CLIMATE_MODE_OFF = 0;
-  CLIMATE_MODE_AUTO = 1;
+  CLIMATE_MODE_HEAT_COOL = 1;
   CLIMATE_MODE_COOL = 2;
   CLIMATE_MODE_HEAT = 3;
   CLIMATE_MODE_FAN_ONLY = 4;
   CLIMATE_MODE_DRY = 5;
+  CLIMATE_MODE_AUTO = 6;
 }
 enum ClimateFanMode {
   CLIMATE_FAN_ON = 0;
@@ -696,6 +709,15 @@ enum ClimateAction {
   CLIMATE_ACTION_DRYING = 5;
   CLIMATE_ACTION_FAN = 6;
 }
+enum ClimatePreset {
+  CLIMATE_PRESET_ECO = 0;
+  CLIMATE_PRESET_AWAY = 1;
+  CLIMATE_PRESET_BOOST = 2;
+  CLIMATE_PRESET_COMFORT = 3;
+  CLIMATE_PRESET_HOME = 4;
+  CLIMATE_PRESET_SLEEP = 5;
+  CLIMATE_PRESET_ACTIVITY = 6;
+}
 message ListEntitiesClimateResponse {
   option (id) = 46;
   option (source) = SOURCE_SERVER;
@@ -716,6 +738,9 @@ message ListEntitiesClimateResponse {
   bool supports_action = 12;
   repeated ClimateFanMode supported_fan_modes = 13;
   repeated ClimateSwingMode supported_swing_modes = 14;
+  repeated string supported_custom_fan_modes = 15;
+  repeated ClimatePreset supported_presets = 16;
+  repeated string supported_custom_presets = 17;
 }
 message ClimateStateResponse {
   option (id) = 47;
@@ -733,6 +758,9 @@ message ClimateStateResponse {
   ClimateAction action = 8;
   ClimateFanMode fan_mode = 9;
   ClimateSwingMode swing_mode = 10;
+  string custom_fan_mode = 11;
+  ClimatePreset preset = 12;
+  string custom_preset = 13;
 }
 message ClimateCommandRequest {
   option (id) = 48;
@@ -755,4 +783,10 @@ message ClimateCommandRequest {
   ClimateFanMode fan_mode = 13;
   bool has_swing_mode = 14;
   ClimateSwingMode swing_mode = 15;
+  bool has_custom_fan_mode = 16;
+  string custom_fan_mode = 17;
+  bool has_preset = 18;
+  ClimatePreset preset = 19;
+  bool has_custom_preset = 20;
+  string custom_preset = 21;
 }

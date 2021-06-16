@@ -180,6 +180,8 @@ DFPLAYER_SIMPLE_ACTION(StartAction, start)
 DFPLAYER_SIMPLE_ACTION(PauseAction, pause)
 DFPLAYER_SIMPLE_ACTION(StopAction, stop)
 DFPLAYER_SIMPLE_ACTION(RandomAction, random)
+DFPLAYER_SIMPLE_ACTION(VolumeUpAction, volume_up)
+DFPLAYER_SIMPLE_ACTION(VolumeDownAction, volume_down)
 
 template<typename... Ts> class DFPlayerIsPlayingCondition : public Condition<Ts...>, public Parented<DFPlayer> {
  public:

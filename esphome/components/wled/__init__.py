@@ -18,8 +18,8 @@ CONFIG_SCHEMA = cv.Schema({})
         cv.Optional(CONF_PORT, default=21324): cv.port,
     },
 )
-def wled_light_effect_to_code(config, effect_id):
+async def wled_light_effect_to_code(config, effect_id):
     effect = cg.new_Pvariable(effect_id, config[CONF_NAME])
     cg.add(effect.set_port(config[CONF_PORT]))
 
-    yield effect
+    return effect

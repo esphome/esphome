@@ -21,6 +21,10 @@
 #define ALWAYS_INLINE __attribute__((always_inline))
 #define PACKED __attribute__((packed))
 
+#define xSemaphoreWait(semaphore, wait_time) \
+  xSemaphoreTake(semaphore, wait_time); \
+  xSemaphoreGive(semaphore);
+
 namespace esphome {
 
 /// The characters that are allowed in a hostname.
@@ -89,7 +93,7 @@ float clamp(float val, float min, float max);
 float lerp(float completion, float start, float end);
 
 /// std::make_unique
-template<typename T, typename... Args> std::unique_ptr<T> make_unique(Args &&... args) {
+template<typename T, typename... Args> std::unique_ptr<T> make_unique(Args &&...args) {
   return std::unique_ptr<T>(new T(std::forward<Args>(args)...));
 }
 
@@ -318,8 +322,6 @@ template<typename T> class Parented {
 
 uint32_t fnv1_hash(const std::string &str);
 
-}  // namespace esphome
-
 template<typename T> T *new_buffer(size_t length) {
   T *buffer;
 #ifdef ARDUINO_ARCH_ESP32
@@ -333,4 +335,6 @@ template<typename T> T *new_buffer(size_t length) {
 #endif
 
   return buffer;
+}
+
 }  // namespace esphome
