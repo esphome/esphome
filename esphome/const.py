@@ -2,7 +2,7 @@
 
 MAJOR_VERSION = 1
 MINOR_VERSION = 19
-PATCH_VERSION = "0b5"
+PATCH_VERSION = "0b6"
 __short_version__ = f"{MAJOR_VERSION}.{MINOR_VERSION}"
 __version__ = f"{__short_version__}.{PATCH_VERSION}"
 
