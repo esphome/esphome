@@ -394,7 +394,7 @@ def command_update_all(args):
     import click
 
     success = {}
-    files = list_yaml_files(args.configuration)
+    files = list_yaml_files(args.configuration[0])
     twidth = 60
 
     def print_bar(middle_text):
@@ -408,7 +408,7 @@ def command_update_all(args):
         print("-" * twidth)
         print()
         rc = run_external_process(
-            "esphome", "--dashboard", "run", f, "--no-logs", "--device", "OTA"
+            "esphome", "--dashboard", "run", "--no-logs", "--device", "OTA", f
         )
         if rc == 0:
             print_bar("[{}] {}".format(color(Fore.BOLD_GREEN, "SUCCESS"), f))
