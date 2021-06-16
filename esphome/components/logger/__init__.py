@@ -206,7 +206,7 @@ def maybe_simple_message(schema):
 def validate_printf(value):
     # https://stackoverflow.com/questions/30011379/how-can-i-parse-a-c-format-string-in-python
     # pylint: disable=anomalous-backslash-in-string
-    cfmt = r"""\
+    cfmt = r"""
     (                                  # start of capture group 1
     %                                  # literal "%"
     (?:                                # first option
