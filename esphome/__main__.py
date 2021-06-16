@@ -284,7 +284,6 @@ def command_vscode(args):
 
     logging.disable(logging.INFO)
     logging.disable(logging.WARNING)
-    CORE.config_path = args.configuration
     vscode.read_config(args)
 
 
@@ -669,9 +668,7 @@ def parse_args(argv):
     )
 
     parser_vscode = subparsers.add_parser("vscode")
-    parser_vscode.add_argument(
-        "configuration", help="Your YAML configuration file.", nargs=1
-    )
+    parser_vscode.add_argument("configuration", help="Your YAML configuration file.")
     parser_vscode.add_argument("--ace", action="store_true")
 
     parser_update = subparsers.add_parser("update-all")
