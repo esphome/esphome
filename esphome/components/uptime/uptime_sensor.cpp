@@ -5,7 +5,7 @@
 namespace esphome {
 namespace uptime {
 
-static const char *TAG = "uptime.sensor";
+static const char *const TAG = "uptime.sensor";
 
 void UptimeSensor::update() {
   const uint32_t ms = millis();

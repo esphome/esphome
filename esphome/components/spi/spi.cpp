@@ -6,7 +6,7 @@
 namespace esphome {
 namespace spi {
 
-static const char *TAG = "spi";
+static const char *const TAG = "spi";
 
 void ICACHE_RAM_ATTR HOT SPIComponent::disable() {
   if (this->hw_spi_ != nullptr) {

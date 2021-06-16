@@ -4,7 +4,7 @@
 namespace esphome {
 namespace climate_ir_lg {
 
-static const char *TAG = "climate.climate_ir_lg";
+static const char *const TAG = "climate.climate_ir_lg";
 
 const uint32_t COMMAND_ON = 0x00000;
 const uint32_t COMMAND_ON_AI = 0x03000;
@@ -72,7 +72,7 @@ void LgIrClimate::transmit_state() {
       remote_state |= FAN_AUTO;
     } else if (this->mode == climate::CLIMATE_MODE_COOL || this->mode == climate::CLIMATE_MODE_DRY ||
                this->mode == climate::CLIMATE_MODE_HEAT) {
-      switch (this->fan_mode) {
+      switch (this->fan_mode.value()) {
         case climate::CLIMATE_FAN_HIGH:
           remote_state |= FAN_MAX;
           break;

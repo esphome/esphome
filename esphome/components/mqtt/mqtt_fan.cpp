@@ -7,7 +7,7 @@
 namespace esphome {
 namespace mqtt {
 
-static const char *TAG = "mqtt.fan";
+static const char *const TAG = "mqtt.fan";
 
 using namespace esphome::fan;
 

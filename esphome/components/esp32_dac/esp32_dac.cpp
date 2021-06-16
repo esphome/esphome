@@ -9,7 +9,7 @@
 namespace esphome {
 namespace esp32_dac {
 
-static const char *TAG = "esp32_dac";
+static const char *const TAG = "esp32_dac";
 
 void ESP32DAC::setup() {
   ESP_LOGCONFIG(TAG, "Setting up ESP32 DAC Output...");

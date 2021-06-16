@@ -19,10 +19,10 @@ CONFIG_SCHEMA = cv.Schema(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-def to_code(config):
-    paren = yield cg.get_variable(config[CONF_WEB_SERVER_BASE_ID])
+async def to_code(config):
+    paren = await cg.get_variable(config[CONF_WEB_SERVER_BASE_ID])
 
     cg.add_define("USE_PROMETHEUS")
 
     var = cg.new_Pvariable(config[CONF_ID], paren)
-    yield cg.register_component(var, config)
+    await cg.register_component(var, config)

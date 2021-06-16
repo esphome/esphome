@@ -10,6 +10,10 @@
 #include <wpa2_enterprise.h>
 #endif
 
+#ifdef WIFI_IS_OFF_AT_BOOT  // Identifies ESP8266 Arduino 3.0.0
+#define ARDUINO_ESP8266_RELEASE_3
+#endif
+
 extern "C" {
 #include "lwip/err.h"
 #include "lwip/dns.h"
@@ -17,6 +21,12 @@ extern "C" {
 #include "lwip/init.h"  // LWIP_VERSION_
 #if LWIP_IPV6
 #include "lwip/netif.h"  // struct netif
+#endif
+#ifdef ARDUINO_ESP8266_RELEASE_3
+#include "LwipDhcpServer.h"
+#define wifi_softap_set_dhcps_lease(lease) dhcpSoftAP.set_dhcps_lease(lease)
+#define wifi_softap_set_dhcps_lease_time(time) dhcpSoftAP.set_dhcps_lease_time(time)
+#define wifi_softap_set_dhcps_offer_option(offer, mode) dhcpSoftAP.set_dhcps_offer_option(offer, mode)
 #endif
 }
 
@@ -29,7 +39,7 @@ extern "C" {
 namespace esphome {
 namespace wifi {
 
-static const char *TAG = "wifi_esp8266";
+static const char *const TAG = "wifi_esp8266";
 
 bool WiFiComponent::wifi_mode_(optional<bool> sta, optional<bool> ap) {
   uint8_t current_mode = wifi_get_opmode();
@@ -200,7 +210,7 @@ bool WiFiComponent::wifi_apply_hostname_() {
   return ret;
 }
 
-bool WiFiComponent::wifi_sta_connect_(WiFiAP ap) {
+bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
   // enable STA
   if (!this->wifi_mode_(true, {}))
     return false;
@@ -209,8 +219,8 @@ bool WiFiComponent::wifi_sta_connect_(WiFiAP ap) {
 
   struct station_config conf {};
   memset(&conf, 0, sizeof(conf));
-  strcpy(reinterpret_cast<char *>(conf.ssid), ap.get_ssid().c_str());
-  strcpy(reinterpret_cast<char *>(conf.password), ap.get_password().c_str());
+  strncpy(reinterpret_cast<char *>(conf.ssid), ap.get_ssid().c_str(), sizeof(conf.ssid));
+  strncpy(reinterpret_cast<char *>(conf.password), ap.get_password().c_str(), sizeof(conf.password));
 
   if (ap.get_bssid().has_value()) {
     conf.bssid_set = 1;
@@ -649,6 +659,10 @@ bool WiFiComponent::wifi_ap_ip_config_(optional<ManualIP> manual_ip) {
     return false;
   }
 
+#ifdef ARDUINO_ESP8266_RELEASE_3
+  dhcpSoftAP.begin(&info);
+#endif
+
   struct dhcps_lease lease {};
   IPAddress start_address = info.ip.addr;
   start_address[3] += 99;
@@ -688,7 +702,7 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
     return false;
 
   struct softap_config conf {};
-  strcpy(reinterpret_cast<char *>(conf.ssid), ap.get_ssid().c_str());
+  strncpy(reinterpret_cast<char *>(conf.ssid), ap.get_ssid().c_str(), sizeof(conf.ssid));
   conf.ssid_len = static_cast<uint8>(ap.get_ssid().size());
   conf.channel = ap.get_channel().value_or(1);
   conf.ssid_hidden = ap.get_hidden();
@@ -700,7 +714,7 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
     *conf.password = 0;
   } else {
     conf.authmode = AUTH_WPA2_PSK;
-    strcpy(reinterpret_cast<char *>(conf.password), ap.get_password().c_str());
+    strncpy(reinterpret_cast<char *>(conf.password), ap.get_password().c_str(), sizeof(conf.password));
   }
 
   ETS_UART_INTR_DISABLE();

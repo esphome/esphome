@@ -40,13 +40,13 @@ validate_level = cv.All(cv.int_range(min=0, max=7))
 validate_brightness = cv.enum(TM1651_BRIGHTNESS_OPTIONS, int=True)
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
+    await cg.register_component(var, config)
 
-    clk_pin = yield cg.gpio_pin_expression(config[CONF_CLK_PIN])
+    clk_pin = await cg.gpio_pin_expression(config[CONF_CLK_PIN])
     cg.add(var.set_clk_pin(clk_pin))
-    dio_pin = yield cg.gpio_pin_expression(config[CONF_DIO_PIN])
+    dio_pin = await cg.gpio_pin_expression(config[CONF_DIO_PIN])
     cg.add(var.set_dio_pin(dio_pin))
 
     # https://platformio.org/lib/show/6865/TM1651
@@ -61,19 +61,19 @@ BINARY_OUTPUT_ACTION_SCHEMA = maybe_simple_id(
 
 
 @automation.register_action("tm1651.turn_on", TurnOnAction, BINARY_OUTPUT_ACTION_SCHEMA)
-def output_turn_on_to_code(config, action_id, template_arg, args):
+async def output_turn_on_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
-    yield cg.register_parented(var, config[CONF_ID])
-    yield var
+    await cg.register_parented(var, config[CONF_ID])
+    return var
 
 
 @automation.register_action(
     "tm1651.turn_off", TurnOffAction, BINARY_OUTPUT_ACTION_SCHEMA
 )
-def output_turn_off_to_code(config, action_id, template_arg, args):
+async def output_turn_off_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
-    yield cg.register_parented(var, config[CONF_ID])
-    yield var
+    await cg.register_parented(var, config[CONF_ID])
+    return var
 
 
 @automation.register_action(
@@ -87,12 +87,12 @@ def output_turn_off_to_code(config, action_id, template_arg, args):
         key=CONF_LEVEL_PERCENT,
     ),
 )
-def tm1651_set_level_percent_to_code(config, action_id, template_arg, args):
+async def tm1651_set_level_percent_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
-    yield cg.register_parented(var, config[CONF_ID])
-    template_ = yield cg.templatable(config[CONF_LEVEL_PERCENT], args, cg.uint8)
+    await cg.register_parented(var, config[CONF_ID])
+    template_ = await cg.templatable(config[CONF_LEVEL_PERCENT], args, cg.uint8)
     cg.add(var.set_level_percent(template_))
-    yield var
+    return var
 
 
 @automation.register_action(
@@ -106,12 +106,12 @@ def tm1651_set_level_percent_to_code(config, action_id, template_arg, args):
         key=CONF_LEVEL,
     ),
 )
-def tm1651_set_level_to_code(config, action_id, template_arg, args):
+async def tm1651_set_level_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
-    yield cg.register_parented(var, config[CONF_ID])
-    template_ = yield cg.templatable(config[CONF_LEVEL], args, cg.uint8)
+    await cg.register_parented(var, config[CONF_ID])
+    template_ = await cg.templatable(config[CONF_LEVEL], args, cg.uint8)
     cg.add(var.set_level(template_))
-    yield var
+    return var
 
 
 @automation.register_action(
@@ -125,9 +125,9 @@ def tm1651_set_level_to_code(config, action_id, template_arg, args):
         key=CONF_BRIGHTNESS,
     ),
 )
-def tm1651_set_brightness_to_code(config, action_id, template_arg, args):
+async def tm1651_set_brightness_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
-    yield cg.register_parented(var, config[CONF_ID])
-    template_ = yield cg.templatable(config[CONF_BRIGHTNESS], args, cg.uint8)
+    await cg.register_parented(var, config[CONF_ID])
+    template_ = await cg.templatable(config[CONF_BRIGHTNESS], args, cg.uint8)
     cg.add(var.set_brightness(template_))
-    yield var
+    return var

@@ -6,7 +6,7 @@
 namespace esphome {
 namespace mqtt {
 
-static const char *TAG = "mqtt.climate";
+static const char *const TAG = "mqtt.climate";
 
 using namespace esphome::climate;
 
@@ -35,6 +35,8 @@ void MQTTClimateComponent::send_discovery(JsonObject &root, mqtt::SendDiscoveryC
     modes.add("fan_only");
   if (traits.supports_mode(CLIMATE_MODE_DRY))
     modes.add("dry");
+  if (traits.supports_mode(CLIMATE_MODE_HEAT_COOL))
+    modes.add("heat_cool");
 
   if (traits.get_supports_two_point_target_temperature()) {
     // temperature_low_command_topic
@@ -231,6 +233,9 @@ bool MQTTClimateComponent::publish_state_() {
     case CLIMATE_MODE_DRY:
       mode_s = "dry";
       break;
+    case CLIMATE_MODE_HEAT_COOL:
+      mode_s = "heat_cool";
+      break;
   }
   bool success = true;
   if (!this->publish(this->get_mode_state_topic(), mode_s))
@@ -287,7 +292,7 @@ bool MQTTClimateComponent::publish_state_() {
 
   if (traits.get_supports_fan_modes()) {
     const char *payload = "";
-    switch (this->device_->fan_mode) {
+    switch (this->device_->fan_mode.value()) {
       case CLIMATE_FAN_ON:
         payload = "on";
         break;

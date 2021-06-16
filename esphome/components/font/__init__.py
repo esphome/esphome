@@ -12,6 +12,7 @@ MULTI_CONF = True
 
 Font = display.display_ns.class_("Font")
 Glyph = display.display_ns.class_("Glyph")
+GlyphData = display.display_ns.struct("GlyphData")
 
 
 def validate_glyphs(value):
@@ -75,6 +76,7 @@ DEFAULT_GLYPHS = (
     ' !"%()+,-.:/0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz°'
 )
 CONF_RAW_DATA_ID = "raw_data_id"
+CONF_RAW_GLYPH_ID = "raw_glyph_id"
 
 FONT_SCHEMA = cv.Schema(
     {
@@ -83,13 +85,14 @@ FONT_SCHEMA = cv.Schema(
         cv.Optional(CONF_GLYPHS, default=DEFAULT_GLYPHS): validate_glyphs,
         cv.Optional(CONF_SIZE, default=20): cv.int_range(min=1),
         cv.GenerateID(CONF_RAW_DATA_ID): cv.declare_id(cg.uint8),
+        cv.GenerateID(CONF_RAW_GLYPH_ID): cv.declare_id(GlyphData),
     }
 )
 
 CONFIG_SCHEMA = cv.All(validate_pillow_installed, FONT_SCHEMA)
 
 
-def to_code(config):
+async def to_code(config):
     from PIL import ImageFont
 
     path = CORE.relative_config_path(config[CONF_FILE])
@@ -120,8 +123,25 @@ def to_code(config):
     rhs = [HexInt(x) for x in data]
     prog_arr = cg.progmem_array(config[CONF_RAW_DATA_ID], rhs)
 
-    glyphs = []
+    glyph_initializer = []
     for glyph in config[CONF_GLYPHS]:
-        glyphs.append(Glyph(glyph, prog_arr, *glyph_args[glyph]))
+        glyph_initializer.append(
+            cg.StructInitializer(
+                GlyphData,
+                ("a_char", glyph),
+                (
+                    "data",
+                    cg.RawExpression(str(prog_arr) + " + " + str(glyph_args[glyph][0])),
+                ),
+                ("offset_x", glyph_args[glyph][1]),
+                ("offset_y", glyph_args[glyph][2]),
+                ("width", glyph_args[glyph][3]),
+                ("height", glyph_args[glyph][4]),
+            )
+        )
 
-    cg.new_Pvariable(config[CONF_ID], glyphs, ascent, ascent + descent)
+    glyphs = cg.static_const_array(config[CONF_RAW_GLYPH_ID], glyph_initializer)
+
+    cg.new_Pvariable(
+        config[CONF_ID], glyphs, len(glyph_initializer), ascent, ascent + descent
+    )

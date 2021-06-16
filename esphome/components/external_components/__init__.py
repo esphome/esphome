@@ -98,7 +98,7 @@ CONFIG_SCHEMA = cv.ensure_list(
 )
 
 
-def to_code(config):
+async def to_code(config):
     pass
 
 

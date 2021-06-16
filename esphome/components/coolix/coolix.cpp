@@ -4,7 +4,7 @@
 namespace esphome {
 namespace coolix {
 
-static const char *TAG = "coolix.climate";
+static const char *const TAG = "coolix.climate";
 
 const uint32_t COOLIX_OFF = 0xB27BE0;
 const uint32_t COOLIX_SWING = 0xB26BE0;
@@ -93,7 +93,7 @@ void CoolixClimate::transmit_state() {
         this->fan_mode = climate::CLIMATE_FAN_AUTO;
         remote_state |= COOLIX_FAN_MODE_AUTO_DRY;
       } else {
-        switch (this->fan_mode) {
+        switch (this->fan_mode.value()) {
           case climate::CLIMATE_FAN_HIGH:
             remote_state |= COOLIX_FAN_MAX;
             break;

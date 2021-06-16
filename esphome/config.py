@@ -63,6 +63,8 @@ class Config(OrderedDict):
         # The values will be the paths to all "domain", for example (['logger'], 'logger')
         # or (['sensor', 'ultrasonic'], 'sensor.ultrasonic')
         self.output_paths = []  # type: List[Tuple[ConfigPath, str]]
+        # A list of components ids with the config path
+        self.declare_ids = []  # type: List[Tuple[core.ID, ConfigPath]]
 
     def add_error(self, error):
         # type: (vol.Invalid) -> None
@@ -161,6 +163,12 @@ class Config(OrderedDict):
             part.append(item_index)
         return part
 
+    def get_config_by_id(self, id):
+        for declared_id, path in self.declare_ids:
+            if declared_id.id == str(id):
+                return self.get_nested_item(path[:-1])
+        return None
+
 
 def iter_ids(config, path=None):
     path = path or []
@@ -181,7 +189,7 @@ def do_id_pass(result):  # type: (Config) -> None
     from esphome.cpp_generator import MockObjClass
     from esphome.cpp_types import Component
 
-    declare_ids = []  # type: List[Tuple[core.ID, ConfigPath]]
+    declare_ids = result.declare_ids  # type: List[Tuple[core.ID, ConfigPath]]
     searching_ids = []  # type: List[Tuple[core.ID, ConfigPath]]
     for id, path in iter_ids(result):
         if id.is_declaration:
@@ -546,6 +554,19 @@ def validate_config(config, command_line_substitutions):
         # Only parse IDs if no validation error. Otherwise
         # user gets confusing messages
         do_id_pass(result)
+
+    # 7. Final validation
+    if not result.errors:
+        # Inter - components validation
+        for path, conf, comp in validate_queue:
+            if comp.config_schema is None:
+                continue
+            if callable(comp.validate):
+                try:
+                    comp.validate(result, result.get_nested_item(path))
+                except ValueError as err:
+                    result.add_str_error(err, path)
+
     return result
 
 

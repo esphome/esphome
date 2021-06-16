@@ -35,10 +35,10 @@ CONFIG_SCHEMA = canbus.CANBUS_SCHEMA.extend(
 ).extend(spi.spi_device_schema(True))
 
 
-def to_code(config):
+async def to_code(config):
     rhs = mcp2515.new()
     var = cg.Pvariable(config[CONF_ID], rhs)
-    yield canbus.register_canbus(var, config)
+    await canbus.register_canbus(var, config)
     if CONF_CLOCK in config:
         canclock = CAN_CLOCK[config[CONF_CLOCK]]
         cg.add(var.set_mcp_clock(canclock))
@@ -46,4 +46,4 @@ def to_code(config):
         mode = MCP_MODE[config[CONF_MODE]]
         cg.add(var.set_mcp_mode(mode))
 
-    yield spi.register_spi_device(var, config)
+    await spi.register_spi_device(var, config)

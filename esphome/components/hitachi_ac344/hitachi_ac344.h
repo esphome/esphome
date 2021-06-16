@@ -73,7 +73,7 @@ const uint8_t HITACHI_AC344_MILDEWPROOF_OFFSET = 2;  // Mask 0b00000x00
 const uint16_t HITACHI_AC344_STATE_LENGTH = 43;
 const uint16_t HITACHI_AC344_BITS = HITACHI_AC344_STATE_LENGTH * 8;
 
-#define GETBIT8(a, b) (a & ((uint8_t) 1 << b))
+#define GETBIT8(a, b) ((a) & ((uint8_t) 1 << (b)))
 #define GETBITS8(data, offset, size) (((data) & (((uint8_t) UINT8_MAX >> (8 - (size))) << (offset))) >> (offset))
 
 class HitachiClimate : public climate_ir::ClimateIR {

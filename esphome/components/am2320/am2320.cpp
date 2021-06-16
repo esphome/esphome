@@ -9,7 +9,7 @@
 namespace esphome {
 namespace am2320 {
 
-static const char *TAG = "am2320";
+static const char *const TAG = "am2320";
 
 // ---=== Calc CRC16 ===---
 uint16_t crc_16(uint8_t *ptr, uint8_t length) {
