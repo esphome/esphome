@@ -247,17 +247,24 @@ class OrderedDict(collections.OrderedDict):
         return dict(self).__repr__()
 
 
-def list_yaml_files(folder):
-    files = filter_yaml_files([os.path.join(folder, p) for p in os.listdir(folder)])
+def list_yaml_files(folders):
+    files = filter_yaml_files(
+        [os.path.join(folder, p) for folder in folders for p in os.listdir(folder)]
+    )
     files.sort()
     return files
 
 
 def filter_yaml_files(files):
-    files = [f for f in files if os.path.splitext(f)[1] == ".yaml"]
-    files = [f for f in files if os.path.basename(f) != "secrets.yaml"]
-    files = [f for f in files if not os.path.basename(f).startswith(".")]
-    return files
+    return [
+        f
+        for f in files
+        if (
+            os.path.splitext(f)[1] == ".yaml"
+            and os.path.basename(f) != "secrets.yaml"
+            and not os.path.basename(f).startswith(".")
+        )
+    ]
 
 
 class SerialPort:

@@ -394,7 +394,7 @@ def command_update_all(args):
     import click
 
     success = {}
-    files = list_yaml_files(args.configuration[0])
+    files = list_yaml_files(args.configuration)
     twidth = 60
 
     def print_bar(middle_text):
@@ -676,7 +676,7 @@ def parse_args(argv):
 
     parser_update = subparsers.add_parser("update-all")
     parser_update.add_argument(
-        "configuration", help="Your YAML configuration file directory.", nargs=1
+        "configuration", help="Your YAML configuration file directories.", nargs="+"
     )
 
     return parser.parse_args(argv[1:])
