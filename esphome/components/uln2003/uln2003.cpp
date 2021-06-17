@@ -4,7 +4,7 @@
 namespace esphome {
 namespace uln2003 {
 
-static const char *TAG = "uln2003.stepper";
+static const char *const TAG = "uln2003.stepper";
 
 void ULN2003::setup() {
   this->pin_a_->setup();

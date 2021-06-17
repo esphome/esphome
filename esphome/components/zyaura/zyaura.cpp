@@ -4,7 +4,7 @@
 namespace esphome {
 namespace zyaura {
 
-static const char *TAG = "zyaura";
+static const char *const TAG = "zyaura";
 
 bool ICACHE_RAM_ATTR ZaDataProcessor::decode(uint32_t ms, bool data) {
   // check if a new message has started, based on time since previous bit

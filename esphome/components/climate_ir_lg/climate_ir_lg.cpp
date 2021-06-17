@@ -4,7 +4,7 @@
 namespace esphome {
 namespace climate_ir_lg {
 
-static const char *TAG = "climate.climate_ir_lg";
+static const char *const TAG = "climate.climate_ir_lg";
 
 const uint32_t COMMAND_ON = 0x00000;
 const uint32_t COMMAND_ON_AI = 0x03000;

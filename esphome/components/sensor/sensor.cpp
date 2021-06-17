@@ -4,7 +4,7 @@
 namespace esphome {
 namespace sensor {
 
-static const char *TAG = "sensor";
+static const char *const TAG = "sensor";
 
 const char *state_class_to_string(StateClass state_class) {
   switch (state_class) {

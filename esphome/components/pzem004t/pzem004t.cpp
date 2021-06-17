@@ -4,7 +4,7 @@
 namespace esphome {
 namespace pzem004t {
 
-static const char *TAG = "pzem004t";
+static const char *const TAG = "pzem004t";
 
 void PZEM004T::loop() {
   const uint32_t now = millis();

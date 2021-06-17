@@ -91,7 +91,7 @@ class APIServer : public Component, public Controller {
   std::vector<UserServiceDescriptor *> user_services_;
 };
 
-extern APIServer *global_api_server;
+extern APIServer *global_api_server;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 template<typename... Ts> class APIConnectedCondition : public Condition<Ts...> {
  public:

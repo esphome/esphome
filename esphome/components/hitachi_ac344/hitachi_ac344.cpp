@@ -3,7 +3,7 @@
 namespace esphome {
 namespace hitachi_ac344 {
 
-static const char *TAG = "climate.hitachi_ac344";
+static const char *const TAG = "climate.hitachi_ac344";
 
 void set_bits(uint8_t *const dst, const uint8_t offset, const uint8_t nbits, const uint8_t data) {
   if (offset >= 8 || !nbits)

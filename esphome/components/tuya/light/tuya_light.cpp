@@ -4,7 +4,7 @@
 namespace esphome {
 namespace tuya {
 
-static const char *TAG = "tuya.light";
+static const char *const TAG = "tuya.light";
 
 void TuyaLight::setup() {
   if (this->color_temperature_id_.has_value()) {

@@ -32,6 +32,10 @@ BLEAdvertising::BLEAdvertising() {
 }
 
 void BLEAdvertising::add_service_uuid(ESPBTUUID uuid) { this->advertising_uuids_.push_back(uuid); }
+void BLEAdvertising::remove_service_uuid(ESPBTUUID uuid) {
+  this->advertising_uuids_.erase(std::remove(this->advertising_uuids_.begin(), this->advertising_uuids_.end(), uuid),
+                                 this->advertising_uuids_.end());
+}
 
 void BLEAdvertising::start() {
   int num_services = this->advertising_uuids_.size();

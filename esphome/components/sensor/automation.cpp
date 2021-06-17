@@ -4,7 +4,7 @@
 namespace esphome {
 namespace sensor {
 
-static const char *TAG = "sensor.automation";
+static const char *const TAG = "sensor.automation";
 
 }  // namespace sensor
 }  // namespace esphome

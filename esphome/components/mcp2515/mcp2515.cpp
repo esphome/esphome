@@ -4,7 +4,7 @@
 namespace esphome {
 namespace mcp2515 {
 
-static const char *TAG = "mcp2515";
+static const char *const TAG = "mcp2515";
 
 const struct MCP2515::TxBnRegs MCP2515::TXB[N_TXBUFFERS] = {{MCP_TXB0CTRL, MCP_TXB0SIDH, MCP_TXB0DATA},
                                                             {MCP_TXB1CTRL, MCP_TXB1SIDH, MCP_TXB1DATA},

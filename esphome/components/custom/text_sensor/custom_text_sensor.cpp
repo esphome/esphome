@@ -4,7 +4,7 @@
 namespace esphome {
 namespace custom {
 
-static const char *TAG = "custom.text_sensor";
+static const char *const TAG = "custom.text_sensor";
 
 void CustomTextSensorConstructor::dump_config() {
   for (auto *child : this->text_sensors_) {

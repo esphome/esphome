@@ -1,4 +1,5 @@
 #include "ble.h"
+
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
 
@@ -14,7 +15,7 @@
 namespace esphome {
 namespace esp32_ble {
 
-static const char *TAG = "esp32_ble";
+static const char *const TAG = "esp32_ble";
 
 void ESP32BLE::setup() {
   global_ble = this;
@@ -26,14 +27,22 @@ void ESP32BLE::setup() {
     return;
   }
 
+  this->advertising_ = new BLEAdvertising();
+
+  this->advertising_->set_scan_response(true);
+  this->advertising_->set_min_preferred_interval(0x06);
+  this->advertising_->start();
+
   ESP_LOGD(TAG, "BLE setup complete");
 }
 
 void ESP32BLE::mark_failed() {
   Component::mark_failed();
+#ifdef USE_ESP32_BLE_SERVER
   if (this->server_ != nullptr) {
     this->server_->mark_failed();
   }
+#endif
 }
 
 bool ESP32BLE::ble_setup_() {
@@ -82,7 +91,16 @@ bool ESP32BLE::ble_setup_() {
     }
   }
 
-  err = esp_ble_gap_set_device_name(App.get_name().c_str());
+  std::string name = App.get_name();
+  if (name.length() > 20) {
+    if (App.is_name_add_mac_suffix_enabled()) {
+      name.erase(name.begin() + 13, name.end() - 7);  // Remove characters between 13 and the mac address
+    } else {
+      name = name.substr(0, 20);
+    }
+  }
+
+  err = esp_ble_gap_set_device_name(name.c_str());
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "esp_ble_gap_set_device_name failed: %d", err);
     return false;
@@ -142,7 +160,9 @@ void ESP32BLE::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gat
 void ESP32BLE::real_gatts_event_handler_(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if,
                                          esp_ble_gatts_cb_param_t *param) {
   ESP_LOGV(TAG, "(BLE) gatts_event [esp_gatt_if: %d] - %d", gatts_if, event);
+#ifdef USE_ESP32_BLE_SERVER
   this->server_->gatts_event_handler(event, gatts_if, param);
+#endif
 }
 
 void ESP32BLE::real_gattc_event_handler_(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,

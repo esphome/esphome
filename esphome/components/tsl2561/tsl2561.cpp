@@ -4,7 +4,7 @@
 namespace esphome {
 namespace tsl2561 {
 
-static const char *TAG = "tsl2561";
+static const char *const TAG = "tsl2561";
 
 static const uint8_t TSL2561_COMMAND_BIT = 0x80;
 static const uint8_t TSL2561_WORD_BIT = 0x20;

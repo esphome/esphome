@@ -3,7 +3,7 @@
 namespace esphome {
 namespace midea_ac {
 
-static const char *TAG = "midea_ac";
+static const char *const TAG = "midea_ac";
 const std::string MIDEA_SILENT_FAN_MODE = "silent";
 const std::string MIDEA_TURBO_FAN_MODE = "turbo";
 const std::string MIDEA_FREEZE_PROTECTION_PRESET = "freeze protection";

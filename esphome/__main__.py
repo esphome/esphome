@@ -394,7 +394,7 @@ def command_update_all(args):
     import click
 
     success = {}
-    files = list_yaml_files(args.configuration)
+    files = list_yaml_files(args.configuration[0])
     twidth = 60
 
     def print_bar(middle_text):
@@ -408,7 +408,7 @@ def command_update_all(args):
         print("-" * twidth)
         print()
         rc = run_external_process(
-            "esphome", "--dashboard", "run", f, "--no-logs", "--device", "OTA"
+            "esphome", "--dashboard", "run", "--no-logs", "--device", "OTA", f
         )
         if rc == 0:
             print_bar("[{}] {}".format(color(Fore.BOLD_GREEN, "SUCCESS"), f))
@@ -504,6 +504,7 @@ def parse_args(argv):
             "version",
             "clean",
             "dashboard",
+            "vscode",
         ],
     )
 
@@ -686,7 +687,7 @@ def run_esphome(argv):
     CORE.dashboard = args.dashboard
 
     setup_log(args.verbose, args.quiet)
-    if args.deprecated_argv_suggestion is not None:
+    if args.deprecated_argv_suggestion is not None and args.command != "vscode":
         _LOGGER.warning(
             "Calling ESPHome with the configuration before the command is deprecated "
             "and will be removed in the future. "

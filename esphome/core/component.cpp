@@ -8,7 +8,7 @@
 
 namespace esphome {
 
-static const char *TAG = "component";
+static const char *const TAG = "component";
 
 namespace setup_priority {
 
@@ -36,7 +36,7 @@ const uint32_t STATUS_LED_OK = 0x0000;
 const uint32_t STATUS_LED_WARNING = 0x0100;
 const uint32_t STATUS_LED_ERROR = 0x0200;
 
-uint32_t global_state = 0;
+uint32_t global_state = 0;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 float Component::get_loop_priority() const { return 0.0f; }
 

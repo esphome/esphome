@@ -4,7 +4,7 @@
 namespace esphome {
 namespace text_sensor {
 
-static const char *TAG = "text_sensor";
+static const char *const TAG = "text_sensor";
 
 TextSensor::TextSensor() : TextSensor("") {}
 TextSensor::TextSensor(const std::string &name) : Nameable(name) {}

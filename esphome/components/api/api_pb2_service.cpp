@@ -6,7 +6,7 @@
 namespace esphome {
 namespace api {
 
-static const char *TAG = "api.service";
+static const char *const TAG = "api.service";
 
 bool APIServerConnectionBase::send_hello_response(const HelloResponse &msg) {
   ESP_LOGVV(TAG, "send_hello_response: %s", msg.dump().c_str());

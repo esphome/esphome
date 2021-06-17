@@ -5,7 +5,7 @@
 namespace esphome {
 namespace rotary_encoder {
 
-static const char *TAG = "rotary_encoder";
+static const char *const TAG = "rotary_encoder";
 
 // based on https://github.com/jkDesignDE/MechInputs/blob/master/QEIx4.cpp
 static const uint8_t STATE_LUT_MASK = 0x1C;  // clears upper counter increment/decrement bits and pin states

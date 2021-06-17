@@ -4,7 +4,7 @@
 namespace esphome {
 namespace daikin {
 
-static const char *TAG = "daikin.climate";
+static const char *const TAG = "daikin.climate";
 
 void DaikinClimate::transmit_state() {
   uint8_t remote_state[35] = {0x11, 0xDA, 0x27, 0x00, 0xC5, 0x00, 0x00, 0xD7, 0x11, 0xDA, 0x27, 0x00,

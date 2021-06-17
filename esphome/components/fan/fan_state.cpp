@@ -5,7 +5,7 @@
 namespace esphome {
 namespace fan {
 
-static const char *TAG = "fan";
+static const char *const TAG = "fan";
 
 const FanTraits &FanState::get_traits() const { return this->traits_; }
 void FanState::set_traits(const FanTraits &traits) { this->traits_ = traits; }

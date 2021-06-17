@@ -16,7 +16,7 @@
 namespace esphome {
 namespace api {
 
-static const char *TAG = "api.connection";
+static const char *const TAG = "api.connection";
 
 APIConnection::APIConnection(AsyncClient *client, APIServer *parent)
     : client_(client), parent_(parent), initial_state_iterator_(parent, this), list_entities_iterator_(parent, this) {
