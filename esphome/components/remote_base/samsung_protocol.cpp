@@ -43,9 +43,9 @@ optional<SamsungData> SamsungProtocol::decode(RemoteReceiveData src) {
     } else if (src.expect_item(BIT_HIGH_US, BIT_ZERO_LOW_US)) {
       out.data = (out.data << 1) | 0;
     } else if (out.nbits >= 31) {
-        if (!src.expect_mark(FOOTER_HIGH_US))
-          return {};
-        return out;
+      if (!src.expect_mark(FOOTER_HIGH_US))
+        return {};
+      return out;
     } else {
       return {};
     }
