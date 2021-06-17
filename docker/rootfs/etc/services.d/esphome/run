@@ -23,4 +23,8 @@ if bashio::config.has_value 'relative_url'; then
 fi
 
 bashio::log.info "Starting ESPHome dashboard..."
-exec esphome dashboard /config/esphome --socket /var/run/esphome.sock --hassio
+if basio::config.has_value 'esphome_version'; then
+    exec esphome /config/esphome dashboard --socket /var/run/esphome.sock --hassio
+else
+    exec esphome dashboard /config/esphome --socket /var/run/esphome.sock --hassio
+fi
