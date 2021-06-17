@@ -56,7 +56,7 @@ def validate_parent_output_config(value):
 
     if platform not in PWM_GOOD:
         _LOGGER.warning(
-            "Component rtttl is not known to work with the selecteValueErrort type. "
+            "Component rtttl is not known to work with the selected output type. "
             "Make sure this output supports custom frequency output method."
         )
 
