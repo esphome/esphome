@@ -12,7 +12,7 @@ void set_bits(uint8_t *const dst, const uint8_t offset, const uint8_t nbits, con
   uint8_t mask = UINT8_MAX >> (8 - ((nbits > 8) ? 8 : nbits));
   // Calculate the mask & clear the space for the data.
   // Clear the destination bits.
-  *dst &= ~(uint8_t) (mask << offset);
+  *dst &= ~(uint8_t)(mask << offset);
   // Merge in the data.
   *dst |= ((data & mask) << offset);
 }
