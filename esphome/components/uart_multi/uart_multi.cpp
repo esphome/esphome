@@ -4,7 +4,7 @@
 namespace esphome {
 namespace uart_multi {
 
-static const char *TAG = "uart_multi";
+static const char *const TAG = "uart_multi";
 
 void UARTMulti::loop() {
   uint8_t byte;

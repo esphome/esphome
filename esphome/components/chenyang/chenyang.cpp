@@ -4,7 +4,7 @@
 namespace esphome {
 namespace chenyang {
 
-static const char *TAG = "chenyang.cover";
+static const char *const TAG = "chenyang.cover";
 
 using namespace esphome::cover;
 

@@ -4,7 +4,7 @@
 namespace esphome {
 namespace dooya {
 
-static const char *TAG = "dooya.cover";
+static const char *const TAG = "dooya.cover";
 
 using namespace esphome::cover;
 

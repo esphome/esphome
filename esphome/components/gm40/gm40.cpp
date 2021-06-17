@@ -4,7 +4,7 @@
 namespace esphome {
 namespace gm40 {
 
-static const char *TAG = "gm40.cover";
+static const char *const TAG = "gm40.cover";
 
 using namespace esphome::cover;
 

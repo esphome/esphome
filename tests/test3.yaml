@@ -246,6 +246,9 @@ uart:
     rx_pin: GPIO5
     baud_rate: 9600
 
+uart_multi:
+  uart_id: uart6
+
 modbus:
   uart_id: uart1
 
