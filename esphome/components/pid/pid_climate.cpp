@@ -39,7 +39,7 @@ void PIDClimate::control(const climate::ClimateCall &call) {
 climate::ClimateTraits PIDClimate::traits() {
   auto traits = climate::ClimateTraits();
   traits.set_supports_current_temperature(true);
-  traits.set_supports_auto_mode(true);
+  traits.set_supports_heat_cool_mode(true);
   traits.set_supports_two_point_target_temperature(false);
   traits.set_supports_cool_mode(this->supports_cool_());
   traits.set_supports_heat_mode(this->supports_heat_());

@@ -29,6 +29,7 @@ class ThermostatClimate : public climate::Climate, public Component {
   void set_hysteresis(float hysteresis);
   void set_sensor(sensor::Sensor *sensor);
   void set_supports_auto(bool supports_auto);
+  void set_supports_heat_cool(bool supports_heat_cool);
   void set_supports_cool(bool supports_cool);
   void set_supports_dry(bool supports_dry);
   void set_supports_fan_only(bool supports_fan_only);
@@ -113,6 +114,7 @@ class ThermostatClimate : public climate::Climate, public Component {
   /// A false value for any given attribute means that the controller has no such action
   /// (for example a thermostat, where only heating and not-heating is possible).
   bool supports_auto_{false};
+  bool supports_heat_cool_{false};
   bool supports_cool_{false};
   bool supports_dry_{false};
   bool supports_fan_only_{false};
