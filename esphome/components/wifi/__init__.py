@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
+import esphome.final_validate as fv
 from esphome import automation
 from esphome.automation import Condition
 from esphome.components.network import add_mdns_library
@@ -137,16 +138,17 @@ WIFI_NETWORK_STA = WIFI_NETWORK_BASE.extend(
 )
 
 
-def validate(config, item_config):
-    if (
-        (CONF_NETWORKS in item_config)
-        and (item_config[CONF_NETWORKS] == [])
-        and (CONF_AP not in item_config)
-    ):
-        if "esp32_improv" not in config:
-            raise ValueError(
-                "Please specify at least an SSID or an Access Point to create."
-            )
+def final_validate(config):
+    has_sta = bool(config.get(CONF_NETWORKS, True))
+    has_ap = CONF_AP in config
+    has_improv = "esp32_improv" in fv.full_config.get()
+    if (not has_sta) and (not has_ap) and (not has_improv):
+        raise cv.Invalid(
+            "Please specify at least an SSID or an Access Point to create."
+        )
+
+
+FINAL_VALIDATE_SCHEMA = cv.Schema(final_validate)
 
 
 def _validate(config):
