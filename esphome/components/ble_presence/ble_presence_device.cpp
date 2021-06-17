@@ -6,7 +6,7 @@
 namespace esphome {
 namespace ble_presence {
 
-static const char *TAG = "ble_presence";
+static const char *const TAG = "ble_presence";
 
 void BLEPresenceDevice::dump_config() { LOG_BINARY_SENSOR("", "BLE Presence", this); }
 

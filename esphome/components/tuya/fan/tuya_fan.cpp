@@ -5,7 +5,7 @@
 namespace esphome {
 namespace tuya {
 
-static const char *TAG = "tuya.fan";
+static const char *const TAG = "tuya.fan";
 
 void TuyaFan::setup() {
   auto traits = fan::FanTraits(this->oscillation_id_.has_value(), this->speed_id_.has_value(),
@@ -13,7 +13,7 @@ void TuyaFan::setup() {
   this->fan_->set_traits(traits);
 
   if (this->speed_id_.has_value()) {
-    this->parent_->register_listener(*this->speed_id_, [this](TuyaDatapoint datapoint) {
+    this->parent_->register_listener(*this->speed_id_, [this](const TuyaDatapoint &datapoint) {
       ESP_LOGV(TAG, "MCU reported speed of: %d", datapoint.value_enum);
       auto call = this->fan_->make_call();
       if (datapoint.value_enum < this->speed_count_)
@@ -24,7 +24,7 @@ void TuyaFan::setup() {
     });
   }
   if (this->switch_id_.has_value()) {
-    this->parent_->register_listener(*this->switch_id_, [this](TuyaDatapoint datapoint) {
+    this->parent_->register_listener(*this->switch_id_, [this](const TuyaDatapoint &datapoint) {
       ESP_LOGV(TAG, "MCU reported switch is: %s", ONOFF(datapoint.value_bool));
       auto call = this->fan_->make_call();
       call.set_state(datapoint.value_bool);
@@ -32,7 +32,7 @@ void TuyaFan::setup() {
     });
   }
   if (this->oscillation_id_.has_value()) {
-    this->parent_->register_listener(*this->oscillation_id_, [this](TuyaDatapoint datapoint) {
+    this->parent_->register_listener(*this->oscillation_id_, [this](const TuyaDatapoint &datapoint) {
       ESP_LOGV(TAG, "MCU reported oscillation is: %s", ONOFF(datapoint.value_bool));
       auto call = this->fan_->make_call();
       call.set_oscillating(datapoint.value_bool);
@@ -40,7 +40,7 @@ void TuyaFan::setup() {
     });
   }
   if (this->direction_id_.has_value()) {
-    this->parent_->register_listener(*this->direction_id_, [this](TuyaDatapoint datapoint) {
+    this->parent_->register_listener(*this->direction_id_, [this](const TuyaDatapoint &datapoint) {
       auto call = this->fan_->make_call();
       call.set_direction(datapoint.value_bool ? fan::FAN_DIRECTION_REVERSE : fan::FAN_DIRECTION_FORWARD);
       call.perform();

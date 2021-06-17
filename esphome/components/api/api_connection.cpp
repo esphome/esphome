@@ -16,7 +16,7 @@
 namespace esphome {
 namespace api {
 
-static const char *TAG = "api.connection";
+static const char *const TAG = "api.connection";
 
 APIConnection::APIConnection(AsyncClient *client, APIServer *parent)
     : client_(client), parent_(parent), initial_state_iterator_(parent, this), list_entities_iterator_(parent, this) {
@@ -664,6 +664,10 @@ DeviceInfoResponse APIConnection::device_info(const DeviceInfoRequest &msg) {
 #endif
 #ifdef USE_DEEP_SLEEP
   resp.has_deep_sleep = deep_sleep::global_has_deep_sleep;
+#endif
+#ifdef ESPHOME_PROJECT_NAME
+  resp.project_name = ESPHOME_PROJECT_NAME;
+  resp.project_version = ESPHOME_PROJECT_VERSION;
 #endif
   return resp;
 }

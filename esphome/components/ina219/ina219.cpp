@@ -4,7 +4,7 @@
 namespace esphome {
 namespace ina219 {
 
-static const char *TAG = "ina219";
+static const char *const TAG = "ina219";
 
 // | A0   | A1   | Address |
 // | GND  | GND  | 0x40    |

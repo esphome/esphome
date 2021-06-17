@@ -4,7 +4,7 @@
 namespace esphome {
 namespace uart {
 
-static const char *TAG = "uart.switch";
+static const char *const TAG = "uart.switch";
 
 void UARTSwitch::loop() {
   if (this->state && this->send_every_) {

@@ -19,13 +19,12 @@ CONFIG_SCHEMA = cv.All(
     ).extend(spi.spi_device_schema(cs_pin_required=True))
 )
 
+FINAL_VALIDATE_SCHEMA = spi.final_validate_device_schema(
+    "rc522_spi", require_miso=True, require_mosi=True
+)
+
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await rc522.setup_rc522(var, config)
     await spi.register_spi_device(var, config)
-
-
-def validate(config, item_config):
-    # validate given SPI hub is suitable for rc522_spi, it needs both miso and mosi
-    spi.validate_device("rc522_spi", config, item_config, True, True)

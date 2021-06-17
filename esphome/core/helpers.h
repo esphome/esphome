@@ -27,10 +27,8 @@
 
 namespace esphome {
 
-static const uint32_t SEMAPHORE_MAX_DELAY = 4294967295UL;
-
 /// The characters that are allowed in a hostname.
-extern const char *HOSTNAME_CHARACTER_ALLOWLIST;
+extern const char *const HOSTNAME_CHARACTER_ALLOWLIST;
 
 /// Gets the MAC address as a string, this can be used as way to identify this ESP.
 std::string get_mac_address();
@@ -39,11 +37,11 @@ std::string get_mac_address_pretty();
 
 std::string to_string(const std::string &val);
 std::string to_string(int val);
-std::string to_string(long val);
-std::string to_string(long long val);
-std::string to_string(unsigned val);
-std::string to_string(unsigned long val);
-std::string to_string(unsigned long long val);
+std::string to_string(long val);                // NOLINT
+std::string to_string(long long val);           // NOLINT
+std::string to_string(unsigned val);            // NOLINT
+std::string to_string(unsigned long val);       // NOLINT
+std::string to_string(unsigned long long val);  // NOLINT
 std::string to_string(float val);
 std::string to_string(double val);
 std::string to_string(long double val);
@@ -95,7 +93,7 @@ float clamp(float val, float min, float max);
 float lerp(float completion, float start, float end);
 
 /// std::make_unique
-template<typename T, typename... Args> std::unique_ptr<T> make_unique(Args &&... args) {
+template<typename T, typename... Args> std::unique_ptr<T> make_unique(Args &&...args) {
   return std::unique_ptr<T>(new T(std::forward<Args>(args)...));
 }
 

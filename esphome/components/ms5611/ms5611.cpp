@@ -4,7 +4,7 @@
 namespace esphome {
 namespace ms5611 {
 
-static const char *TAG = "ms5611";
+static const char *const TAG = "ms5611";
 
 static const uint8_t MS5611_ADDRESS = 0x77;
 static const uint8_t MS5611_CMD_ADC_READ = 0x00;

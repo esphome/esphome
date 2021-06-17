@@ -36,7 +36,7 @@ const uint8_t TOSHIBA_POWER_ECO = 0x03;
 const uint8_t TOSHIBA_MOTION_SWING = 0x04;
 const uint8_t TOSHIBA_MOTION_FIX = 0x00;
 
-static const char *TAG = "toshiba.climate";
+static const char *const TAG = "toshiba.climate";
 
 void ToshibaClimate::transmit_state() {
   uint8_t message[16] = {0};

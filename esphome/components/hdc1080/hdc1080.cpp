@@ -4,7 +4,7 @@
 namespace esphome {
 namespace hdc1080 {
 
-static const char *TAG = "hdc1080";
+static const char *const TAG = "hdc1080";
 
 static const uint8_t HDC1080_ADDRESS = 0x40;  // 0b1000000 from datasheet
 static const uint8_t HDC1080_CMD_CONFIGURATION = 0x02;

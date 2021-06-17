@@ -4,7 +4,7 @@
 namespace esphome {
 namespace thermostat {
 
-static const char *TAG = "thermostat.climate";
+static const char *const TAG = "thermostat.climate";
 
 void ThermostatClimate::setup() {
   this->sensor_->add_on_state_callback([this](float state) {

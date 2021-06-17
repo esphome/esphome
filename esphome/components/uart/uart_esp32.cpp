@@ -7,7 +7,7 @@
 
 namespace esphome {
 namespace uart {
-static const char *TAG = "uart_esp32";
+static const char *const TAG = "uart_esp32";
 uint8_t next_uart_num = 1;
 
 static const uint32_t UART_PARITY_EVEN = 0 << 0;

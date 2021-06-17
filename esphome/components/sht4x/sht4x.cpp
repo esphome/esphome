@@ -4,7 +4,7 @@
 namespace esphome {
 namespace sht4x {
 
-static const char *TAG = "sht4x";
+static const char *const TAG = "sht4x";
 
 static const uint8_t MEASURECOMMANDS[] = {0xFD, 0xF6, 0xE0};
 

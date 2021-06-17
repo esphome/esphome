@@ -8,21 +8,21 @@ namespace esphome {
 namespace sensor {
 
 #define LOG_SENSOR(prefix, type, obj) \
-  if (obj != nullptr) { \
-    ESP_LOGCONFIG(TAG, "%s%s '%s'", prefix, type, obj->get_name().c_str()); \
-    if (!obj->get_device_class().empty()) { \
-      ESP_LOGCONFIG(TAG, "%s  Device Class: '%s'", prefix, obj->get_device_class().c_str()); \
+  if ((obj) != nullptr) { \
+    ESP_LOGCONFIG(TAG, "%s%s '%s'", prefix, type, (obj)->get_name().c_str()); \
+    if (!(obj)->get_device_class().empty()) { \
+      ESP_LOGCONFIG(TAG, "%s  Device Class: '%s'", prefix, (obj)->get_device_class().c_str()); \
     } \
-    ESP_LOGCONFIG(TAG, "%s  State Class: '%s'", prefix, state_class_to_string(obj->state_class)); \
-    ESP_LOGCONFIG(TAG, "%s  Unit of Measurement: '%s'", prefix, obj->get_unit_of_measurement().c_str()); \
-    ESP_LOGCONFIG(TAG, "%s  Accuracy Decimals: %d", prefix, obj->get_accuracy_decimals()); \
-    if (!obj->get_icon().empty()) { \
-      ESP_LOGCONFIG(TAG, "%s  Icon: '%s'", prefix, obj->get_icon().c_str()); \
+    ESP_LOGCONFIG(TAG, "%s  State Class: '%s'", prefix, state_class_to_string((obj)->state_class)); \
+    ESP_LOGCONFIG(TAG, "%s  Unit of Measurement: '%s'", prefix, (obj)->get_unit_of_measurement().c_str()); \
+    ESP_LOGCONFIG(TAG, "%s  Accuracy Decimals: %d", prefix, (obj)->get_accuracy_decimals()); \
+    if (!(obj)->get_icon().empty()) { \
+      ESP_LOGCONFIG(TAG, "%s  Icon: '%s'", prefix, (obj)->get_icon().c_str()); \
     } \
-    if (!obj->unique_id().empty()) { \
-      ESP_LOGV(TAG, "%s  Unique ID: '%s'", prefix, obj->unique_id().c_str()); \
+    if (!(obj)->unique_id().empty()) { \
+      ESP_LOGV(TAG, "%s  Unique ID: '%s'", prefix, (obj)->unique_id().c_str()); \
     } \
-    if (obj->get_force_update()) { \
+    if ((obj)->get_force_update()) { \
       ESP_LOGV(TAG, "%s  Force Update: YES", prefix); \
     } \
   }

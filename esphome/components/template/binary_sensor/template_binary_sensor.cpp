@@ -4,7 +4,7 @@
 namespace esphome {
 namespace template_ {
 
-static const char *TAG = "template.binary_sensor";
+static const char *const TAG = "template.binary_sensor";
 
 void TemplateBinarySensor::loop() {
   if (!this->f_.has_value())

@@ -1,8 +1,9 @@
 #pragma once
 
-#include <queue>
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
+#include <queue>
+#include <utility>
 
 namespace esphome {
 namespace sensor {
@@ -335,7 +336,7 @@ class CalibrateLinearFilter : public Filter {
 
 class CalibratePolynomialFilter : public Filter {
  public:
-  CalibratePolynomialFilter(const std::vector<float> &coefficients) : coefficients_(coefficients) {}
+  CalibratePolynomialFilter(std::vector<float> coefficients) : coefficients_(std::move(coefficients)) {}
   optional<float> new_value(float value) override;
 
  protected:
