@@ -12,7 +12,7 @@ void set_bits(uint8_t *const dst, const uint8_t offset, const uint8_t nbits, con
   uint8_t mask = UINT8_MAX >> (8 - ((nbits > 8) ? 8 : nbits));
   // Calculate the mask & clear the space for the data.
   // Clear the destination bits.
-  *dst &= ~(uint8_t)(mask << offset);
+  *dst &= ~(uint8_t) (mask << offset);
   // Merge in the data.
   *dst |= ((data & mask) << offset);
 }
@@ -155,7 +155,7 @@ void HitachiClimate::transmit_state() {
     case climate::CLIMATE_MODE_HEAT:
       set_mode_(HITACHI_AC344_MODE_HEAT);
       break;
-    case climate::CLIMATE_MODE_AUTO:
+    case climate::CLIMATE_MODE_HEAT_COOL:
       set_mode_(HITACHI_AC344_MODE_AUTO);
       break;
     case climate::CLIMATE_MODE_FAN_ONLY:
@@ -251,7 +251,7 @@ bool HitachiClimate::parse_mode_(const uint8_t remote_state[]) {
         this->mode = climate::CLIMATE_MODE_HEAT;
         break;
       case HITACHI_AC344_MODE_AUTO:
-        this->mode = climate::CLIMATE_MODE_AUTO;
+        this->mode = climate::CLIMATE_MODE_HEAT_COOL;
         break;
       case HITACHI_AC344_MODE_FAN:
         this->mode = climate::CLIMATE_MODE_FAN_ONLY;

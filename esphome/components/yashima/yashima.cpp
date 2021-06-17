@@ -139,7 +139,7 @@ void YashimaClimate::transmit_state_() {
 
   // Set mode
   switch (this->mode) {
-    case climate::CLIMATE_MODE_AUTO:
+    case climate::CLIMATE_MODE_HEAT_COOL:
       remote_state[0] |= YASHIMA_MODE_AUTO_BYTE0;
       remote_state[5] |= YASHIMA_MODE_AUTO_BYTE5;
       break;

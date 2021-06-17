@@ -21,7 +21,7 @@ void ThermostatClimate::setup() {
     restore->to_call(this).perform();
   } else {
     // restore from defaults, change_away handles temps for us
-    this->mode = climate::CLIMATE_MODE_AUTO;
+    this->mode = climate::CLIMATE_MODE_HEAT_COOL;
     this->change_away_(false);
   }
   // refresh the climate action based on the restored settings
@@ -131,6 +131,7 @@ climate::ClimateAction ThermostatClimate::compute_action_() {
         target_action = climate::CLIMATE_ACTION_OFF;
         break;
       case climate::CLIMATE_MODE_AUTO:
+      case climate::CLIMATE_MODE_HEAT_COOL:
       case climate::CLIMATE_MODE_COOL:
       case climate::CLIMATE_MODE_HEAT:
         if (this->supports_cool_) {
@@ -321,7 +322,7 @@ void ThermostatClimate::switch_to_mode_(climate::ClimateMode mode) {
     case climate::CLIMATE_MODE_OFF:
       trig = this->off_mode_trigger_;
       break;
-    case climate::CLIMATE_MODE_AUTO:
+    case climate::CLIMATE_MODE_HEAT_COOL:
       // trig = this->auto_mode_trigger_;
       break;
     case climate::CLIMATE_MODE_COOL:
@@ -339,7 +340,7 @@ void ThermostatClimate::switch_to_mode_(climate::ClimateMode mode) {
     default:
       // we cannot report an invalid mode back to HA (even if it asked for one)
       //  and must assume some valid value
-      mode = climate::CLIMATE_MODE_AUTO;
+      mode = climate::CLIMATE_MODE_HEAT_COOL;
       // trig = this->auto_mode_trigger_;
   }
   assert(trig != nullptr);

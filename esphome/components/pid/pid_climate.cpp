@@ -20,7 +20,7 @@ void PIDClimate::setup() {
     restore->to_call(this).perform();
   } else {
     // restore from defaults, change_away handles those for us
-    this->mode = climate::CLIMATE_MODE_AUTO;
+    this->mode = climate::CLIMATE_MODE_HEAT_COOL;
     this->target_temperature = this->default_target_temperature_;
   }
 }
@@ -31,7 +31,7 @@ void PIDClimate::control(const climate::ClimateCall &call) {
     this->target_temperature = *call.get_target_temperature();
 
   // If switching to non-auto mode, set output immediately
-  if (this->mode != climate::CLIMATE_MODE_AUTO)
+  if (this->mode != climate::CLIMATE_MODE_HEAT_COOL)
     this->handle_non_auto_mode_();
 
   this->publish_state();
@@ -121,14 +121,14 @@ void PIDClimate::update_pid_() {
         // keep autotuner instance so that subsequent dump_configs will print the long result message.
       } else {
         value = res.output;
-        if (mode != climate::CLIMATE_MODE_AUTO) {
+        if (mode != climate::CLIMATE_MODE_HEAT_COOL) {
           ESP_LOGW(TAG, "For PID autotuner you need to set AUTO (also called heat/cool) mode!");
         }
       }
     }
   }
 
-  if (this->mode != climate::CLIMATE_MODE_AUTO) {
+  if (this->mode != climate::CLIMATE_MODE_HEAT_COOL) {
     this->handle_non_auto_mode_();
   } else {
     this->write_output_(value);
