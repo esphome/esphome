@@ -50,6 +50,8 @@ template<typename... Ts> class LightControlAction : public Action<Ts...> {
     call.set_effect(this->effect_.optional_value(x...));
     call.set_flash_length(this->flash_length_.optional_value(x...));
     call.set_transition_length(this->transition_length_.optional_value(x...));
+    if (this->flash_length_.has_value() && this->flash_length_.optional_value(x...) > 0)
+      call.set_publish(false);
     call.perform();
   }
 
