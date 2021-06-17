@@ -5,7 +5,7 @@
 namespace esphome {
 namespace sx1509 {
 
-static const char *TAG = "sx1509_gpio_pin";
+static const char *const TAG = "sx1509_gpio_pin";
 
 void SX1509GPIOPin::setup() {
   ESP_LOGD(TAG, "setup pin %d", this->pin_);

@@ -49,17 +49,6 @@ BASE_CONFIG = """esphome:
   platform: {platform}
   board: {board}
 
-wifi:
-  ssid: "{ssid}"
-  password: "{psk}"
-
-  # Enable fallback hotspot (captive portal) in case wifi connection fails
-  ap:
-    ssid: "{fallback_name}"
-    password: "{fallback_psk}"
-
-captive_portal:
-
 # Enable logging
 logger:
 
@@ -83,12 +72,43 @@ def wizard_file(**kwargs):
 
     config = BASE_CONFIG.format(**kwargs)
 
-    if kwargs["password"]:
-        config += '  password: "{0}"\n\nota:\n  password: "{0}"\n'.format(
-            kwargs["password"]
+    # Configure API
+    if "password" in kwargs:
+        config += '  password: "{0}"\n'.format(kwargs["password"])
+
+    # Configure OTA
+    config += "\nota:\n"
+    if "ota_password" in kwargs:
+        config += '  password: "{0}"'.format(kwargs["ota_password"])
+    elif "password" in kwargs:
+        config += '  password: "{0}"'.format(kwargs["password"])
+
+    # Configuring wifi
+    config += "\n\nwifi:\n"
+
+    if "ssid" in kwargs:
+        config += """  ssid: "{ssid}"
+  password: "{psk}"
+""".format(
+            **kwargs
         )
     else:
-        config += "\nota:\n"
+        config += """  # ssid: "My SSID"
+  # password: "mypassword"
+
+  networks:
+"""
+
+    config += """
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "{fallback_name}"
+    password: "{fallback_psk}"
+
+captive_portal:
+""".format(
+        **kwargs
+    )
 
     return config
 
@@ -97,9 +117,9 @@ def wizard_write(path, **kwargs):
     name = kwargs["name"]
     board = kwargs["board"]
 
-    kwargs["ssid"] = sanitize_double_quotes(kwargs["ssid"])
-    kwargs["psk"] = sanitize_double_quotes(kwargs["psk"])
-    kwargs["password"] = sanitize_double_quotes(kwargs["password"])
+    for key in ("ssid", "psk", "password", "ota_password"):
+        if key in kwargs:
+            kwargs[key] = sanitize_double_quotes(kwargs[key])
 
     if "platform" not in kwargs:
         kwargs["platform"] = "ESP8266" if board in ESP8266_BOARD_PINS else "ESP32"
@@ -295,7 +315,7 @@ def wizard(path):
     safe_print(
         "First, what's the "
         + color(Fore.GREEN, "SSID")
-        + f" (the name) of the WiFi network {name} I should connect to?"
+        + f" (the name) of the WiFi network {name} should connect to?"
     )
     sleep(1.5)
     safe_print('For example "{}".'.format(color(Fore.BOLD_WHITE, "Abraham Linksys")))

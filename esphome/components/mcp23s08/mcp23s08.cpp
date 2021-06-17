@@ -4,7 +4,7 @@
 namespace esphome {
 namespace mcp23s08 {
 
-static const char *TAG = "mcp23s08";
+static const char *const TAG = "mcp23s08";
 
 void MCP23S08::set_device_address(uint8_t device_addr) {
   if (device_addr != 0) {

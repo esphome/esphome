@@ -4,7 +4,7 @@
 namespace esphome {
 namespace daikin {
 
-static const char *TAG = "daikin.climate";
+static const char *const TAG = "daikin.climate";
 
 void DaikinClimate::transmit_state() {
   uint8_t remote_state[35] = {0x11, 0xDA, 0x27, 0x00, 0xC5, 0x00, 0x00, 0xD7, 0x11, 0xDA, 0x27, 0x00,
@@ -94,7 +94,7 @@ uint8_t DaikinClimate::operation_mode_() {
 
 uint16_t DaikinClimate::fan_speed_() {
   uint16_t fan_speed;
-  switch (this->fan_mode) {
+  switch (this->fan_mode.value()) {
     case climate::CLIMATE_FAN_LOW:
       fan_speed = DAIKIN_FAN_1 << 8;
       break;

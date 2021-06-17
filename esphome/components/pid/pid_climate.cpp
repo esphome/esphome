@@ -4,7 +4,7 @@
 namespace esphome {
 namespace pid {
 
-static const char *TAG = "pid.climate";
+static const char *const TAG = "pid.climate";
 
 void PIDClimate::setup() {
   this->sensor_->add_on_state_callback([this](float state) {

@@ -4,7 +4,7 @@
 namespace esphome {
 namespace climate_ir {
 
-static const char *TAG = "climate_ir";
+static const char *const TAG = "climate_ir";
 
 climate::ClimateTraits ClimateIR::traits() {
   auto traits = climate::ClimateTraits();

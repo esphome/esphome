@@ -14,11 +14,10 @@ from esphome.cpp_types import App, GPIOPin
 from esphome.util import Registry, RegistryEntry
 
 
-@coroutine
-def gpio_pin_expression(conf):
+async def gpio_pin_expression(conf):
     """Generate an expression for the given pin option.
 
-    This is a coroutine, you must await it with a 'yield' expression!
+    This is a coroutine, you must await it with a 'await' expression!
     """
     if conf is None:
         return
@@ -26,20 +25,18 @@ def gpio_pin_expression(conf):
 
     for key, (func, _) in pins.PIN_SCHEMA_REGISTRY.items():
         if key in conf:
-            yield coroutine(func)(conf)
-            return
+            return await coroutine(func)(conf)
 
     number = conf[CONF_NUMBER]
     mode = conf[CONF_MODE]
     inverted = conf.get(CONF_INVERTED)
-    yield GPIOPin.new(number, RawExpression(mode), inverted)
+    return GPIOPin.new(number, RawExpression(mode), inverted)
 
 
-@coroutine
-def register_component(var, config):
+async def register_component(var, config):
     """Register the given obj as a component.
 
-    This is a coroutine, you must await it with a 'yield' expression!
+    This is a coroutine, you must await it with a 'await' expression!
 
     :param var: The variable representing the component.
     :param config: The configuration for the component.
@@ -57,13 +54,12 @@ def register_component(var, config):
     if CONF_UPDATE_INTERVAL in config:
         add(var.set_update_interval(config[CONF_UPDATE_INTERVAL]))
     add(App.register_component(var))
-    yield var
+    return var
 
 
-@coroutine
-def register_parented(var, value):
+async def register_parented(var, value):
     if isinstance(value, ID):
-        paren = yield get_variable(value)
+        paren = await get_variable(value)
     else:
         paren = value
     add(var.set_parent(paren))
@@ -75,18 +71,16 @@ def extract_registry_entry_config(registry, full_config):
     return registry[key], config
 
 
-@coroutine
-def build_registry_entry(registry, full_config):
+async def build_registry_entry(registry, full_config):
     registry_entry, config = extract_registry_entry_config(registry, full_config)
     type_id = full_config[CONF_TYPE_ID]
     builder = registry_entry.coroutine_fun
-    yield builder(config, type_id)
+    return await builder(config, type_id)
 
 
-@coroutine
-def build_registry_list(registry, config):
+async def build_registry_list(registry, config):
     actions = []
     for conf in config:
-        action = yield build_registry_entry(registry, conf)
+        action = await build_registry_entry(registry, conf)
         actions.append(action)
-    yield actions
+    return actions

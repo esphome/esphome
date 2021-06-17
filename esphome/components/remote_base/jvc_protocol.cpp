@@ -4,7 +4,7 @@
 namespace esphome {
 namespace remote_base {
 
-static const char *TAG = "remote.jvc";
+static const char *const TAG = "remote.jvc";
 
 static const uint8_t NBITS = 16;
 static const uint32_t HEADER_HIGH_US = 8400;

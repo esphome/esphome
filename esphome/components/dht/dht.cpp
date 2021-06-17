@@ -5,7 +5,7 @@
 namespace esphome {
 namespace dht {
 
-static const char *TAG = "dht";
+static const char *const TAG = "dht";
 
 void DHT::setup() {
   ESP_LOGCONFIG(TAG, "Setting up DHT...");

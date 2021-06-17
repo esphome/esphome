@@ -3,7 +3,7 @@
 namespace esphome {
 namespace nfc {
 
-static const char* TAG = "nfc.ndef_record";
+static const char *const TAG = "nfc.ndef_record";
 
 uint32_t NdefRecord::get_encoded_size() {
   uint32_t size = 2;

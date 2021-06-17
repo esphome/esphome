@@ -4,7 +4,7 @@
 namespace esphome {
 namespace tcl112 {
 
-static const char *TAG = "tcl112.climate";
+static const char *const TAG = "tcl112.climate";
 
 const uint16_t TCL112_STATE_LENGTH = 14;
 const uint16_t TCL112_BITS = TCL112_STATE_LENGTH * 8;
@@ -88,7 +88,7 @@ void Tcl112Climate::transmit_state() {
 
   // Set fan
   uint8_t selected_fan;
-  switch (this->fan_mode) {
+  switch (this->fan_mode.value()) {
     case climate::CLIMATE_FAN_HIGH:
       selected_fan = TCL112_FAN_HIGH;
       break;

@@ -33,7 +33,7 @@ class SGP30Component : public PollingComponent, public i2c::I2CDevice {
   uint8_t sht_crc_(uint8_t data1, uint8_t data2);
   uint64_t serial_number_;
   uint16_t featureset_;
-  long required_warm_up_time_;
+  uint32_t required_warm_up_time_;
 
   enum ErrorCode {
     COMMUNICATION_FAILED,

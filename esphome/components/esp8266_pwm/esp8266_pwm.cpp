@@ -11,7 +11,7 @@
 namespace esphome {
 namespace esp8266_pwm {
 
-static const char *TAG = "esp8266_pwm";
+static const char *const TAG = "esp8266_pwm";
 
 void ESP8266PWM::setup() {
   ESP_LOGCONFIG(TAG, "Setting up ESP8266 PWM Output...");

@@ -4,7 +4,7 @@
 namespace esphome {
 namespace my9231 {
 
-static const char *TAG = "my9231.output";
+static const char *const TAG = "my9231.output";
 
 // One-shot select (frame cycle repeat mode / frame cycle One-shot mode)
 static const uint8_t MY9231_CMD_ONE_SHOT_DISABLE = 0x0 << 6;
