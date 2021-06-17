@@ -8,6 +8,8 @@ bool ClimateTraits::supports_mode(ClimateMode mode) const {
   switch (mode) {
     case CLIMATE_MODE_OFF:
       return true;
+    case CLIMATE_MODE_HEAT_COOL:
+      return this->supports_heat_cool_mode_;
     case CLIMATE_MODE_AUTO:
       return this->supports_auto_mode_;
     case CLIMATE_MODE_COOL:
@@ -31,6 +33,9 @@ void ClimateTraits::set_supports_two_point_target_temperature(bool supports_two_
   supports_two_point_target_temperature_ = supports_two_point_target_temperature;
 }
 void ClimateTraits::set_supports_auto_mode(bool supports_auto_mode) { supports_auto_mode_ = supports_auto_mode; }
+void ClimateTraits::set_supports_heat_cool_mode(bool supports_heat_cool_mode) {
+  supports_heat_cool_mode_ = supports_heat_cool_mode;
+}
 void ClimateTraits::set_supports_cool_mode(bool supports_cool_mode) { supports_cool_mode_ = supports_cool_mode; }
 void ClimateTraits::set_supports_heat_mode(bool supports_heat_mode) { supports_heat_mode_ = supports_heat_mode; }
 void ClimateTraits::set_supports_fan_only_mode(bool supports_fan_only_mode) {

@@ -44,7 +44,7 @@ climate::ClimateMode PropertiesFrame::get_mode() const {
     return climate::CLIMATE_MODE_OFF;
   switch (this->pbuf_[12] >> 5) {
     case MIDEA_MODE_AUTO:
-      return climate::CLIMATE_MODE_AUTO;
+      return climate::CLIMATE_MODE_HEAT_COOL;
     case MIDEA_MODE_COOL:
       return climate::CLIMATE_MODE_COOL;
     case MIDEA_MODE_DRY:
@@ -61,7 +61,7 @@ climate::ClimateMode PropertiesFrame::get_mode() const {
 void PropertiesFrame::set_mode(climate::ClimateMode mode) {
   uint8_t m;
   switch (mode) {
-    case climate::CLIMATE_MODE_AUTO:
+    case climate::CLIMATE_MODE_HEAT_COOL:
       m = MIDEA_MODE_AUTO;
       break;
     case climate::CLIMATE_MODE_COOL:

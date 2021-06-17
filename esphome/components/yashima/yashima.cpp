@@ -82,7 +82,7 @@ const uint32_t YASHIMA_CARRIER_FREQUENCY = 38000;
 climate::ClimateTraits YashimaClimate::traits() {
   auto traits = climate::ClimateTraits();
   traits.set_supports_current_temperature(this->sensor_ != nullptr);
-  traits.set_supports_auto_mode(true);
+  traits.set_supports_heat_cool_mode(true);
   traits.set_supports_cool_mode(this->supports_cool_);
   traits.set_supports_heat_mode(this->supports_heat_);
   traits.set_supports_two_point_target_temperature(false);
@@ -139,7 +139,7 @@ void YashimaClimate::transmit_state_() {
 
   // Set mode
   switch (this->mode) {
-    case climate::CLIMATE_MODE_AUTO:
+    case climate::CLIMATE_MODE_HEAT_COOL:
       remote_state[0] |= YASHIMA_MODE_AUTO_BYTE0;
       remote_state[5] |= YASHIMA_MODE_AUTO_BYTE5;
       break;

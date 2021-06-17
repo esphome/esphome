@@ -77,7 +77,7 @@ uint8_t DaikinClimate::operation_mode_() {
     case climate::CLIMATE_MODE_HEAT:
       operating_mode |= DAIKIN_MODE_HEAT;
       break;
-    case climate::CLIMATE_MODE_AUTO:
+    case climate::CLIMATE_MODE_HEAT_COOL:
       operating_mode |= DAIKIN_MODE_AUTO;
       break;
     case climate::CLIMATE_MODE_FAN_ONLY:
@@ -131,7 +131,7 @@ uint8_t DaikinClimate::temperature_() {
   switch (this->mode) {
     case climate::CLIMATE_MODE_FAN_ONLY:
       return 0x32;
-    case climate::CLIMATE_MODE_AUTO:
+    case climate::CLIMATE_MODE_HEAT_COOL:
     case climate::CLIMATE_MODE_DRY:
       return 0xc0;
     default:
@@ -160,7 +160,7 @@ bool DaikinClimate::parse_state_frame_(const uint8_t frame[]) {
         this->mode = climate::CLIMATE_MODE_HEAT;
         break;
       case DAIKIN_MODE_AUTO:
-        this->mode = climate::CLIMATE_MODE_AUTO;
+        this->mode = climate::CLIMATE_MODE_HEAT_COOL;
         break;
       case DAIKIN_MODE_FAN:
         this->mode = climate::CLIMATE_MODE_FAN_ONLY;
