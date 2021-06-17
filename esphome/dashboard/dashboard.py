@@ -748,7 +748,8 @@ def get_static_file_url(name):
     # Module imports can't deduplicate if stuff added to url
     if name == "js/esphome/index.js":
         import esphome_dashboard
-        return base.replace('index.js', esphome_dashboard.entrypoint())
+
+        return base.replace("index.js", esphome_dashboard.entrypoint())
 
     path = get_static_path(name)
     with open(path, "rb") as f_handle:
