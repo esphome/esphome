@@ -4,7 +4,7 @@
 namespace esphome {
 namespace sun {
 
-static const char *TAG = "sun.sensor";
+static const char *const TAG = "sun.sensor";
 
 void SunSensor::dump_config() { LOG_SENSOR("", "Sun Sensor", this); }
 

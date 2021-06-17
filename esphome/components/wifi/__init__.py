@@ -137,7 +137,19 @@ WIFI_NETWORK_STA = WIFI_NETWORK_BASE.extend(
 )
 
 
-def validate(config):
+def validate(config, item_config):
+    if (
+        (CONF_NETWORKS in item_config)
+        and (item_config[CONF_NETWORKS] == [])
+        and (CONF_AP not in item_config)
+    ):
+        if "esp32_improv" not in config:
+            raise ValueError(
+                "Please specify at least an SSID or an Access Point to create."
+            )
+
+
+def _validate(config):
     if CONF_PASSWORD in config and CONF_SSID not in config:
         raise cv.Invalid("Cannot have WiFi password without SSID!")
 
@@ -157,9 +169,8 @@ def validate(config):
         config[CONF_NETWORKS] = cv.ensure_list(WIFI_NETWORK_STA)(network)
 
     if (CONF_NETWORKS not in config) and (CONF_AP not in config):
-        raise cv.Invalid(
-            "Please specify at least an SSID or an Access Point " "to create."
-        )
+        config = config.copy()
+        config[CONF_NETWORKS] = []
 
     if config.get(CONF_FAST_CONNECT, False):
         networks = config.get(CONF_NETWORKS, [])
@@ -207,7 +218,7 @@ CONFIG_SCHEMA = cv.All(
             ),
         }
     ),
-    validate,
+    _validate,
 )
 
 

@@ -4,7 +4,7 @@
 namespace esphome {
 namespace hlw8012 {
 
-static const char *TAG = "hlw8012";
+static const char *const TAG = "hlw8012";
 
 static const uint32_t HLW8012_CLOCK_FREQUENCY = 3579000;
 static const float HLW8012_REFERENCE_VOLTAGE = 2.43f;

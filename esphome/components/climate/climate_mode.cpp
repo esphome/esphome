@@ -17,6 +17,8 @@ const char *climate_mode_to_string(ClimateMode mode) {
       return "FAN_ONLY";
     case CLIMATE_MODE_DRY:
       return "DRY";
+    case CLIMATE_MODE_HEAT_COOL:
+      return "HEAT_COOL";
     default:
       return "UNKNOWN";
   }
@@ -75,6 +77,27 @@ const char *climate_swing_mode_to_string(ClimateSwingMode swing_mode) {
       return "VERTICAL";
     case climate::CLIMATE_SWING_HORIZONTAL:
       return "HORIZONTAL";
+    default:
+      return "UNKNOWN";
+  }
+}
+
+const char *climate_preset_to_string(ClimatePreset preset) {
+  switch (preset) {
+    case climate::CLIMATE_PRESET_ECO:
+      return "ECO";
+    case climate::CLIMATE_PRESET_AWAY:
+      return "AWAY";
+    case climate::CLIMATE_PRESET_BOOST:
+      return "BOOST";
+    case climate::CLIMATE_PRESET_COMFORT:
+      return "COMFORT";
+    case climate::CLIMATE_PRESET_HOME:
+      return "HOME";
+    case climate::CLIMATE_PRESET_SLEEP:
+      return "SLEEP";
+    case climate::CLIMATE_PRESET_ACTIVITY:
+      return "ACTIVITY";
     default:
       return "UNKNOWN";
   }

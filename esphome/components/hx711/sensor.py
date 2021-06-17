@@ -8,6 +8,7 @@ from esphome.const import (
     CONF_ID,
     DEVICE_CLASS_EMPTY,
     ICON_SCALE,
+    STATE_CLASS_MEASUREMENT,
     UNIT_EMPTY,
 )
 
@@ -24,7 +25,9 @@ GAINS = {
 }
 
 CONFIG_SCHEMA = (
-    sensor.sensor_schema(UNIT_EMPTY, ICON_SCALE, 0, DEVICE_CLASS_EMPTY)
+    sensor.sensor_schema(
+        UNIT_EMPTY, ICON_SCALE, 0, DEVICE_CLASS_EMPTY, STATE_CLASS_MEASUREMENT
+    )
     .extend(
         {
             cv.GenerateID(): cv.declare_id(HX711Sensor),

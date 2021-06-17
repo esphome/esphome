@@ -4,7 +4,7 @@
 namespace esphome {
 namespace tca9548a {
 
-static const char *TAG = "tca9548a";
+static const char *const TAG = "tca9548a";
 
 void TCA9548AComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up TCA9548A...");

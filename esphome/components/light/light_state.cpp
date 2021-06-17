@@ -5,82 +5,15 @@
 namespace esphome {
 namespace light {
 
-static const char *TAG = "light";
-
-void LightState::start_transition_(const LightColorValues &target, uint32_t length) {
-  this->transformer_ = make_unique<LightTransitionTransformer>(millis(), length, this->current_values, target);
-  this->remote_values = this->transformer_->get_remote_values();
-}
-
-void LightState::start_flash_(const LightColorValues &target, uint32_t length) {
-  LightColorValues end_colors = this->current_values;
-  // If starting a flash if one is already happening, set end values to end values of current flash
-  // Hacky but works
-  if (this->transformer_ != nullptr)
-    end_colors = this->transformer_->get_end_values();
-  this->transformer_ = make_unique<LightFlashTransformer>(millis(), length, end_colors, target);
-  this->remote_values = this->transformer_->get_remote_values();
-}
+static const char *const TAG = "light";
 
 LightState::LightState(const std::string &name, LightOutput *output) : Nameable(name), output_(output) {}
 
-void LightState::set_immediately_(const LightColorValues &target, bool set_remote_values) {
-  this->transformer_ = nullptr;
-  this->current_values = target;
-  if (set_remote_values) {
-    this->remote_values = target;
-  }
-  this->next_write_ = true;
-}
-
-LightColorValues LightState::get_current_values() { return this->current_values; }
-
-void LightState::publish_state() {
-  this->remote_values_callback_.call();
-  this->next_write_ = true;
-}
-
-LightColorValues LightState::get_remote_values() { return this->remote_values; }
-
-std::string LightState::get_effect_name() {
-  if (this->active_effect_index_ > 0)
-    return this->effects_[this->active_effect_index_ - 1]->get_name();
-  else
-    return "None";
-}
-
-void LightState::start_effect_(uint32_t effect_index) {
-  this->stop_effect_();
-  if (effect_index == 0)
-    return;
-
-  this->active_effect_index_ = effect_index;
-  auto *effect = this->get_active_effect_();
-  effect->start_internal();
-}
-
-bool LightState::supports_effects() { return !this->effects_.empty(); }
-void LightState::set_transformer_(std::unique_ptr<LightTransformer> transformer) {
-  this->transformer_ = std::move(transformer);
-}
-void LightState::stop_effect_() {
-  auto *effect = this->get_active_effect_();
-  if (effect != nullptr) {
-    effect->stop();
-  }
-  this->active_effect_index_ = 0;
-}
-
-void LightState::set_default_transition_length(uint32_t default_transition_length) {
-  this->default_transition_length_ = default_transition_length;
-}
-#ifdef USE_JSON
-void LightState::dump_json(JsonObject &root) {
-  if (this->supports_effects())
-    root["effect"] = this->get_effect_name();
-  this->remote_values.dump_json(root, this->output_->get_traits());
-}
-#endif
+LightTraits LightState::get_traits() { return this->output_->get_traits(); }
+LightCall LightState::turn_on() { return this->make_call().set_state(true); }
+LightCall LightState::turn_off() { return this->make_call().set_state(false); }
+LightCall LightState::toggle() { return this->make_call().set_state(!this->remote_values.is_on()); }
+LightCall LightState::make_call() { return LightCall(this); }
 
 struct LightStateRTCState {
   bool state{false};
@@ -144,6 +77,17 @@ void LightState::setup() {
   }
   call.perform();
 }
+void LightState::dump_config() {
+  ESP_LOGCONFIG(TAG, "Light '%s'", this->get_name().c_str());
+  if (this->get_traits().get_supports_brightness()) {
+    ESP_LOGCONFIG(TAG, "  Default Transition Length: %.1fs", this->default_transition_length_ / 1e3f);
+    ESP_LOGCONFIG(TAG, "  Gamma Correct: %.2f", this->gamma_correct_);
+  }
+  if (this->get_traits().get_supports_color_temperature()) {
+    ESP_LOGCONFIG(TAG, "  Min Mireds: %.1f", this->get_traits().get_min_mireds());
+    ESP_LOGCONFIG(TAG, "  Max Mireds: %.1f", this->get_traits().get_max_mireds());
+  }
+}
 void LightState::loop() {
   // Apply effect (if any)
   auto *effect = this->get_active_effect_();
@@ -171,576 +115,55 @@ void LightState::loop() {
     this->next_write_ = false;
   }
 }
-LightTraits LightState::get_traits() { return this->output_->get_traits(); }
+
+float LightState::get_setup_priority() const { return setup_priority::HARDWARE - 1.0f; }
+uint32_t LightState::hash_base() { return 1114400283; }
+
+LightColorValues LightState::get_current_values() { return this->current_values; }
+LightColorValues LightState::get_remote_values() { return this->remote_values; }
+
+void LightState::publish_state() {
+  this->remote_values_callback_.call();
+  this->next_write_ = true;
+}
+
+LightOutput *LightState::get_output() const { return this->output_; }
+std::string LightState::get_effect_name() {
+  if (this->active_effect_index_ > 0)
+    return this->effects_[this->active_effect_index_ - 1]->get_name();
+  else
+    return "None";
+}
+
+void LightState::add_new_remote_values_callback(std::function<void()> &&send_callback) {
+  this->remote_values_callback_.add(std::move(send_callback));
+}
+void LightState::add_new_target_state_reached_callback(std::function<void()> &&send_callback) {
+  this->target_state_reached_callback_.add(std::move(send_callback));
+}
+
+#ifdef USE_JSON
+void LightState::dump_json(JsonObject &root) {
+  if (this->supports_effects())
+    root["effect"] = this->get_effect_name();
+  this->remote_values.dump_json(root, this->output_->get_traits());
+}
+#endif
+
+void LightState::set_default_transition_length(uint32_t default_transition_length) {
+  this->default_transition_length_ = default_transition_length;
+}
+void LightState::set_gamma_correct(float gamma_correct) { this->gamma_correct_ = gamma_correct; }
+void LightState::set_restore_mode(LightRestoreMode restore_mode) { this->restore_mode_ = restore_mode; }
+bool LightState::supports_effects() { return !this->effects_.empty(); }
 const std::vector<LightEffect *> &LightState::get_effects() const { return this->effects_; }
-void LightState::add_effects(const std::vector<LightEffect *> effects) {
+void LightState::add_effects(const std::vector<LightEffect *> &effects) {
   this->effects_.reserve(this->effects_.size() + effects.size());
   for (auto *effect : effects) {
     this->effects_.push_back(effect);
   }
 }
-LightCall LightState::turn_on() { return this->make_call().set_state(true); }
-LightCall LightState::turn_off() { return this->make_call().set_state(false); }
-LightCall LightState::toggle() { return this->make_call().set_state(!this->remote_values.is_on()); }
-LightCall LightState::make_call() { return LightCall(this); }
-uint32_t LightState::hash_base() { return 1114400283; }
-void LightState::dump_config() {
-  ESP_LOGCONFIG(TAG, "Light '%s'", this->get_name().c_str());
-  if (this->get_traits().get_supports_brightness()) {
-    ESP_LOGCONFIG(TAG, "  Default Transition Length: %.1fs", this->default_transition_length_ / 1e3f);
-    ESP_LOGCONFIG(TAG, "  Gamma Correct: %.2f", this->gamma_correct_);
-  }
-  if (this->get_traits().get_supports_color_temperature()) {
-    ESP_LOGCONFIG(TAG, "  Min Mireds: %.1f", this->get_traits().get_min_mireds());
-    ESP_LOGCONFIG(TAG, "  Max Mireds: %.1f", this->get_traits().get_max_mireds());
-  }
-}
-#ifdef USE_MQTT_LIGHT
-MQTTJSONLightComponent *LightState::get_mqtt() const { return this->mqtt_; }
-void LightState::set_mqtt(MQTTJSONLightComponent *mqtt) { this->mqtt_ = mqtt; }
-#endif
 
-#ifdef USE_JSON
-LightCall &LightCall::parse_color_json(JsonObject &root) {
-  if (root.containsKey("state")) {
-    auto val = parse_on_off(root["state"]);
-    switch (val) {
-      case PARSE_ON:
-        this->set_state(true);
-        break;
-      case PARSE_OFF:
-        this->set_state(false);
-        break;
-      case PARSE_TOGGLE:
-        this->set_state(!this->parent_->remote_values.is_on());
-        break;
-      case PARSE_NONE:
-        break;
-    }
-  }
-
-  if (root.containsKey("brightness")) {
-    this->set_brightness(float(root["brightness"]) / 255.0f);
-  }
-
-  if (root.containsKey("color")) {
-    JsonObject &color = root["color"];
-    if (color.containsKey("r")) {
-      this->set_red(float(color["r"]) / 255.0f);
-    }
-    if (color.containsKey("g")) {
-      this->set_green(float(color["g"]) / 255.0f);
-    }
-    if (color.containsKey("b")) {
-      this->set_blue(float(color["b"]) / 255.0f);
-    }
-  }
-
-  if (root.containsKey("white_value")) {
-    this->set_white(float(root["white_value"]) / 255.0f);
-  }
-
-  if (root.containsKey("color_temp")) {
-    this->set_color_temperature(float(root["color_temp"]));
-  }
-
-  return *this;
-}
-LightCall &LightCall::parse_json(JsonObject &root) {
-  this->parse_color_json(root);
-
-  if (root.containsKey("flash")) {
-    auto length = uint32_t(float(root["flash"]) * 1000);
-    this->set_flash_length(length);
-  }
-
-  if (root.containsKey("transition")) {
-    auto length = uint32_t(float(root["transition"]) * 1000);
-    this->set_transition_length(length);
-  }
-
-  if (root.containsKey("effect")) {
-    const char *effect = root["effect"];
-    this->set_effect(effect);
-  }
-
-  return *this;
-}
-#endif
-
-void LightCall::perform() {
-  // use remote values for fallback
-  const char *name = this->parent_->get_name().c_str();
-  if (this->publish_) {
-    ESP_LOGD(TAG, "'%s' Setting:", name);
-  }
-
-  LightColorValues v = this->validate_();
-
-  if (this->publish_) {
-    // Only print state when it's being changed
-    bool current_state = this->parent_->remote_values.is_on();
-    if (this->state_.value_or(current_state) != current_state) {
-      ESP_LOGD(TAG, "  State: %s", ONOFF(v.is_on()));
-    }
-
-    if (this->brightness_.has_value()) {
-      ESP_LOGD(TAG, "  Brightness: %.0f%%", v.get_brightness() * 100.0f);
-    }
-
-    if (this->color_temperature_.has_value()) {
-      ESP_LOGD(TAG, "  Color Temperature: %.1f mireds", v.get_color_temperature());
-    }
-
-    if (this->red_.has_value() || this->green_.has_value() || this->blue_.has_value()) {
-      ESP_LOGD(TAG, "  Red=%.0f%%, Green=%.0f%%, Blue=%.0f%%", v.get_red() * 100.0f, v.get_green() * 100.0f,
-               v.get_blue() * 100.0f);
-    }
-    if (this->white_.has_value()) {
-      ESP_LOGD(TAG, "  White Value: %.0f%%", v.get_white() * 100.0f);
-    }
-  }
-
-  if (this->has_flash_()) {
-    // FLASH
-    if (this->publish_) {
-      ESP_LOGD(TAG, "  Flash Length: %.1fs", *this->flash_length_ / 1e3f);
-    }
-
-    this->parent_->start_flash_(v, *this->flash_length_);
-  } else if (this->has_transition_()) {
-    // TRANSITION
-    if (this->publish_) {
-      ESP_LOGD(TAG, "  Transition Length: %.1fs", *this->transition_length_ / 1e3f);
-    }
-
-    // Special case: Transition and effect can be set when turning off
-    if (this->has_effect_()) {
-      if (this->publish_) {
-        ESP_LOGD(TAG, "  Effect: 'None'");
-      }
-      this->parent_->stop_effect_();
-    }
-
-    this->parent_->start_transition_(v, *this->transition_length_);
-
-  } else if (this->has_effect_()) {
-    // EFFECT
-    auto effect = this->effect_;
-    const char *effect_s;
-    if (effect == 0)
-      effect_s = "None";
-    else
-      effect_s = this->parent_->effects_[*this->effect_ - 1]->get_name().c_str();
-
-    if (this->publish_) {
-      ESP_LOGD(TAG, "  Effect: '%s'", effect_s);
-    }
-
-    this->parent_->start_effect_(*this->effect_);
-
-    // Also set light color values when starting an effect
-    // For example to turn off the light
-    this->parent_->set_immediately_(v, true);
-  } else {
-    // INSTANT CHANGE
-    this->parent_->set_immediately_(v, this->publish_);
-  }
-
-  if (!this->has_transition_()) {
-    this->parent_->target_state_reached_callback_.call();
-  }
-  if (this->publish_) {
-    this->parent_->publish_state();
-  }
-
-  if (this->save_) {
-    LightStateRTCState saved;
-    saved.state = v.is_on();
-    saved.brightness = v.get_brightness();
-    saved.red = v.get_red();
-    saved.green = v.get_green();
-    saved.blue = v.get_blue();
-    saved.white = v.get_white();
-    saved.color_temp = v.get_color_temperature();
-    saved.effect = this->parent_->active_effect_index_;
-    this->parent_->rtc_.save(&saved);
-  }
-}
-
-LightColorValues LightCall::validate_() {
-  // use remote values for fallback
-  auto *name = this->parent_->get_name().c_str();
-  auto traits = this->parent_->get_traits();
-
-  // Brightness exists check
-  if (this->brightness_.has_value() && !traits.get_supports_brightness()) {
-    ESP_LOGW(TAG, "'%s' - This light does not support setting brightness!", name);
-    this->brightness_.reset();
-  }
-
-  // Transition length possible check
-  if (this->transition_length_.has_value() && *this->transition_length_ != 0 && !traits.get_supports_brightness()) {
-    ESP_LOGW(TAG, "'%s' - This light does not support transitions!", name);
-    this->transition_length_.reset();
-  }
-
-  // RGB exists check
-  if (this->red_.has_value() || this->green_.has_value() || this->blue_.has_value()) {
-    if (!traits.get_supports_rgb()) {
-      ESP_LOGW(TAG, "'%s' - This light does not support setting RGB color!", name);
-      this->red_.reset();
-      this->green_.reset();
-      this->blue_.reset();
-    }
-  }
-
-  // White value exists check
-  if (this->white_.has_value() && !traits.get_supports_rgb_white_value()) {
-    ESP_LOGW(TAG, "'%s' - This light does not support setting white value!", name);
-    this->white_.reset();
-  }
-
-  // Color temperature exists check
-  if (this->color_temperature_.has_value() && !traits.get_supports_color_temperature()) {
-    ESP_LOGW(TAG, "'%s' - This light does not support setting color temperature!", name);
-    this->color_temperature_.reset();
-  }
-
-  // sets RGB to 100% if only White specified
-  if (this->white_.has_value()) {
-    if (traits.get_supports_color_interlock()) {
-      if (!this->red_.has_value() && !this->green_.has_value() && !this->blue_.has_value()) {
-        this->red_ = optional<float>(1.0f);
-        this->green_ = optional<float>(1.0f);
-        this->blue_ = optional<float>(1.0f);
-      }
-      // make white values binary aka 0.0f or 1.0f...this allows brightness to do its job
-      if (*this->white_ > 0.0f) {
-        this->white_ = optional<float>(1.0f);
-      } else {
-        this->white_ = optional<float>(0.0f);
-      }
-    }
-  }
-  // White to 0% if (exclusively) setting any RGB value that isn't 255,255,255
-  else if (this->red_.has_value() || this->green_.has_value() || this->blue_.has_value()) {
-    if (traits.get_supports_color_interlock()) {
-      if (*this->red_ == 1.0f && *this->green_ == 1.0f && *this->blue_ == 1.0f &&
-          traits.get_supports_rgb_white_value() && traits.get_supports_color_interlock()) {
-        this->white_ = optional<float>(1.0f);
-      } else if (!this->white_.has_value() || !traits.get_supports_rgb_white_value()) {
-        this->white_ = optional<float>(0.0f);
-      }
-    }
-  }
-  // if changing Kelvin alone, change to white light
-  else if (this->color_temperature_.has_value()) {
-    if (!traits.get_supports_color_interlock()) {
-      if (!this->red_.has_value() && !this->green_.has_value() && !this->blue_.has_value()) {
-        this->red_ = optional<float>(1.0f);
-        this->green_ = optional<float>(1.0f);
-        this->blue_ = optional<float>(1.0f);
-      }
-    }
-    // if setting Kelvin from color (i.e. switching to white light), set White to 100%
-    auto cv = this->parent_->remote_values;
-    bool was_color = cv.get_red() != 1.0f || cv.get_blue() != 1.0f || cv.get_green() != 1.0f;
-    bool now_white = *this->red_ == 1.0f && *this->blue_ == 1.0f && *this->green_ == 1.0f;
-    if (traits.get_supports_color_interlock()) {
-      if (cv.get_white() < 1.0f) {
-        this->white_ = optional<float>(1.0f);
-      }
-
-      if (was_color && !this->red_.has_value() && !this->green_.has_value() && !this->blue_.has_value()) {
-        this->red_ = optional<float>(1.0f);
-        this->green_ = optional<float>(1.0f);
-        this->blue_ = optional<float>(1.0f);
-      }
-    } else {
-      if (!this->white_.has_value() && was_color && now_white) {
-        this->white_ = optional<float>(1.0f);
-      }
-    }
-  }
-
-#define VALIDATE_RANGE_(name_, upper_name) \
-  if (name_##_.has_value()) { \
-    auto val = *name_##_; \
-    if (val < 0.0f || val > 1.0f) { \
-      ESP_LOGW(TAG, "'%s' - %s value %.2f is out of range [0.0 - 1.0]!", name, upper_name, val); \
-      name_##_ = clamp(val, 0.0f, 1.0f); \
-    } \
-  }
-#define VALIDATE_RANGE(name, upper_name) VALIDATE_RANGE_(name, upper_name)
-
-  // Range checks
-  VALIDATE_RANGE(brightness, "Brightness")
-  VALIDATE_RANGE(red, "Red")
-  VALIDATE_RANGE(green, "Green")
-  VALIDATE_RANGE(blue, "Blue")
-  VALIDATE_RANGE(white, "White")
-
-  auto v = this->parent_->remote_values;
-  if (this->state_.has_value())
-    v.set_state(*this->state_);
-  if (this->brightness_.has_value())
-    v.set_brightness(*this->brightness_);
-
-  if (this->red_.has_value())
-    v.set_red(*this->red_);
-  if (this->green_.has_value())
-    v.set_green(*this->green_);
-  if (this->blue_.has_value())
-    v.set_blue(*this->blue_);
-  if (this->white_.has_value())
-    v.set_white(*this->white_);
-
-  if (this->color_temperature_.has_value())
-    v.set_color_temperature(*this->color_temperature_);
-
-  v.normalize_color(traits);
-
-  // Flash length check
-  if (this->has_flash_() && *this->flash_length_ == 0) {
-    ESP_LOGW(TAG, "'%s' - Flash length must be greater than zero!", name);
-    this->flash_length_.reset();
-  }
-
-  // validate transition length/flash length/effect not used at the same time
-  bool supports_transition = traits.get_supports_brightness();
-
-  // If effect is already active, remove effect start
-  if (this->has_effect_() && *this->effect_ == this->parent_->active_effect_index_) {
-    this->effect_.reset();
-  }
-
-  // validate effect index
-  if (this->has_effect_() && *this->effect_ > this->parent_->effects_.size()) {
-    ESP_LOGW(TAG, "'%s' Invalid effect index %u", name, *this->effect_);
-    this->effect_.reset();
-  }
-
-  if (this->has_effect_() && (this->has_transition_() || this->has_flash_())) {
-    ESP_LOGW(TAG, "'%s' - Effect cannot be used together with transition/flash!", name);
-    this->transition_length_.reset();
-    this->flash_length_.reset();
-  }
-
-  if (this->has_flash_() && this->has_transition_()) {
-    ESP_LOGW(TAG, "'%s' - Flash cannot be used together with transition!", name);
-    this->transition_length_.reset();
-  }
-
-  if (!this->has_transition_() && !this->has_flash_() && (!this->has_effect_() || *this->effect_ == 0) &&
-      supports_transition) {
-    // nothing specified and light supports transitions, set default transition length
-    this->transition_length_ = this->parent_->default_transition_length_;
-  }
-
-  if (this->transition_length_.value_or(0) == 0) {
-    // 0 transition is interpreted as no transition (instant change)
-    this->transition_length_.reset();
-  }
-
-  if (this->has_transition_() && !supports_transition) {
-    ESP_LOGW(TAG, "'%s' - Light does not support transitions!", name);
-    this->transition_length_.reset();
-  }
-
-  // If not a flash and turning the light off, then disable the light
-  // Do not use light color values directly, so that effects can set 0% brightness
-  // Reason: When user turns off the light in frontend, the effect should also stop
-  if (!this->has_flash_() && !this->state_.value_or(v.is_on())) {
-    if (this->has_effect_()) {
-      ESP_LOGW(TAG, "'%s' - Cannot start an effect when turning off!", name);
-      this->effect_.reset();
-    } else if (this->parent_->active_effect_index_ != 0) {
-      // Auto turn off effect
-      this->effect_ = 0;
-    }
-  }
-
-  // Disable saving for flashes
-  if (this->has_flash_())
-    this->save_ = false;
-
-  return v;
-}
-LightCall &LightCall::set_effect(const std::string &effect) {
-  if (strcasecmp(effect.c_str(), "none") == 0) {
-    this->set_effect(0);
-    return *this;
-  }
-
-  bool found = false;
-  for (uint32_t i = 0; i < this->parent_->effects_.size(); i++) {
-    LightEffect *e = this->parent_->effects_[i];
-
-    if (strcasecmp(effect.c_str(), e->get_name().c_str()) == 0) {
-      this->set_effect(i + 1);
-      found = true;
-      break;
-    }
-  }
-  if (!found) {
-    ESP_LOGW(TAG, "'%s' - No such effect '%s'", this->parent_->get_name().c_str(), effect.c_str());
-  }
-  return *this;
-}
-LightCall &LightCall::from_light_color_values(const LightColorValues &values) {
-  this->set_state(values.is_on());
-  this->set_brightness_if_supported(values.get_brightness());
-  this->set_red_if_supported(values.get_red());
-  this->set_green_if_supported(values.get_green());
-  this->set_blue_if_supported(values.get_blue());
-  this->set_white_if_supported(values.get_white());
-  this->set_color_temperature_if_supported(values.get_color_temperature());
-  return *this;
-}
-LightCall &LightCall::set_transition_length_if_supported(uint32_t transition_length) {
-  if (this->parent_->get_traits().get_supports_brightness())
-    this->set_transition_length(transition_length);
-  return *this;
-}
-LightCall &LightCall::set_brightness_if_supported(float brightness) {
-  if (this->parent_->get_traits().get_supports_brightness())
-    this->set_brightness(brightness);
-  return *this;
-}
-LightCall &LightCall::set_red_if_supported(float red) {
-  if (this->parent_->get_traits().get_supports_rgb())
-    this->set_red(red);
-  return *this;
-}
-LightCall &LightCall::set_green_if_supported(float green) {
-  if (this->parent_->get_traits().get_supports_rgb())
-    this->set_green(green);
-  return *this;
-}
-LightCall &LightCall::set_blue_if_supported(float blue) {
-  if (this->parent_->get_traits().get_supports_rgb())
-    this->set_blue(blue);
-  return *this;
-}
-LightCall &LightCall::set_white_if_supported(float white) {
-  if (this->parent_->get_traits().get_supports_rgb_white_value())
-    this->set_white(white);
-  return *this;
-}
-LightCall &LightCall::set_color_temperature_if_supported(float color_temperature) {
-  if (this->parent_->get_traits().get_supports_color_temperature())
-    this->set_color_temperature(color_temperature);
-  return *this;
-}
-LightCall &LightCall::set_state(optional<bool> state) {
-  this->state_ = state;
-  return *this;
-}
-LightCall &LightCall::set_state(bool state) {
-  this->state_ = state;
-  return *this;
-}
-LightCall &LightCall::set_transition_length(optional<uint32_t> transition_length) {
-  this->transition_length_ = transition_length;
-  return *this;
-}
-LightCall &LightCall::set_transition_length(uint32_t transition_length) {
-  this->transition_length_ = transition_length;
-  return *this;
-}
-LightCall &LightCall::set_flash_length(optional<uint32_t> flash_length) {
-  this->flash_length_ = flash_length;
-  return *this;
-}
-LightCall &LightCall::set_flash_length(uint32_t flash_length) {
-  this->flash_length_ = flash_length;
-  return *this;
-}
-LightCall &LightCall::set_brightness(optional<float> brightness) {
-  this->brightness_ = brightness;
-  return *this;
-}
-LightCall &LightCall::set_brightness(float brightness) {
-  this->brightness_ = brightness;
-  return *this;
-}
-LightCall &LightCall::set_red(optional<float> red) {
-  this->red_ = red;
-  return *this;
-}
-LightCall &LightCall::set_red(float red) {
-  this->red_ = red;
-  return *this;
-}
-LightCall &LightCall::set_green(optional<float> green) {
-  this->green_ = green;
-  return *this;
-}
-LightCall &LightCall::set_green(float green) {
-  this->green_ = green;
-  return *this;
-}
-LightCall &LightCall::set_blue(optional<float> blue) {
-  this->blue_ = blue;
-  return *this;
-}
-LightCall &LightCall::set_blue(float blue) {
-  this->blue_ = blue;
-  return *this;
-}
-LightCall &LightCall::set_white(optional<float> white) {
-  this->white_ = white;
-  return *this;
-}
-LightCall &LightCall::set_white(float white) {
-  this->white_ = white;
-  return *this;
-}
-LightCall &LightCall::set_color_temperature(optional<float> color_temperature) {
-  this->color_temperature_ = color_temperature;
-  return *this;
-}
-LightCall &LightCall::set_color_temperature(float color_temperature) {
-  this->color_temperature_ = color_temperature;
-  return *this;
-}
-LightCall &LightCall::set_effect(optional<std::string> effect) {
-  if (effect.has_value())
-    this->set_effect(*effect);
-  return *this;
-}
-LightCall &LightCall::set_effect(uint32_t effect_number) {
-  this->effect_ = effect_number;
-  return *this;
-}
-LightCall &LightCall::set_effect(optional<uint32_t> effect_number) {
-  this->effect_ = effect_number;
-  return *this;
-}
-LightCall &LightCall::set_publish(bool publish) {
-  this->publish_ = publish;
-  return *this;
-}
-LightCall &LightCall::set_save(bool save) {
-  this->save_ = save;
-  return *this;
-}
-LightCall &LightCall::set_rgb(float red, float green, float blue) {
-  this->set_red(red);
-  this->set_green(green);
-  this->set_blue(blue);
-  return *this;
-}
-LightCall &LightCall::set_rgbw(float red, float green, float blue, float white) {
-  this->set_rgb(red, green, blue);
-  this->set_white(white);
-  return *this;
-}
-
-float LightState::get_setup_priority() const { return setup_priority::HARDWARE - 1.0f; }
-LightOutput *LightState::get_output() const { return this->output_; }
-void LightState::set_gamma_correct(float gamma_correct) { this->gamma_correct_ = gamma_correct; }
 void LightState::current_values_as_binary(bool *binary) { this->current_values.as_binary(binary); }
 void LightState::current_values_as_brightness(float *brightness) {
   this->current_values.as_brightness(brightness, this->gamma_correct_);
@@ -765,18 +188,69 @@ void LightState::current_values_as_cwww(float *cold_white, float *warm_white, bo
   this->current_values.as_cwww(traits.get_min_mireds(), traits.get_max_mireds(), cold_white, warm_white,
                                this->gamma_correct_, constant_brightness);
 }
-void LightState::add_new_remote_values_callback(std::function<void()> &&send_callback) {
-  this->remote_values_callback_.add(std::move(send_callback));
-}
-void LightState::add_new_target_state_reached_callback(std::function<void()> &&send_callback) {
-  this->target_state_reached_callback_.add(std::move(send_callback));
-}
 
+void LightState::start_effect_(uint32_t effect_index) {
+  this->stop_effect_();
+  if (effect_index == 0)
+    return;
+
+  this->active_effect_index_ = effect_index;
+  auto *effect = this->get_active_effect_();
+  effect->start_internal();
+}
 LightEffect *LightState::get_active_effect_() {
   if (this->active_effect_index_ == 0)
     return nullptr;
   else
     return this->effects_[this->active_effect_index_ - 1];
+}
+void LightState::stop_effect_() {
+  auto *effect = this->get_active_effect_();
+  if (effect != nullptr) {
+    effect->stop();
+  }
+  this->active_effect_index_ = 0;
+}
+
+void LightState::start_transition_(const LightColorValues &target, uint32_t length) {
+  this->transformer_ = make_unique<LightTransitionTransformer>(millis(), length, this->current_values, target);
+  this->remote_values = this->transformer_->get_remote_values();
+}
+
+void LightState::start_flash_(const LightColorValues &target, uint32_t length) {
+  LightColorValues end_colors = this->current_values;
+  // If starting a flash if one is already happening, set end values to end values of current flash
+  // Hacky but works
+  if (this->transformer_ != nullptr)
+    end_colors = this->transformer_->get_end_values();
+  this->transformer_ = make_unique<LightFlashTransformer>(millis(), length, end_colors, target);
+  this->remote_values = this->transformer_->get_remote_values();
+}
+
+void LightState::set_immediately_(const LightColorValues &target, bool set_remote_values) {
+  this->transformer_ = nullptr;
+  this->current_values = target;
+  if (set_remote_values) {
+    this->remote_values = target;
+  }
+  this->next_write_ = true;
+}
+
+void LightState::set_transformer_(std::unique_ptr<LightTransformer> transformer) {
+  this->transformer_ = std::move(transformer);
+}
+
+void LightState::save_remote_values_() {
+  LightStateRTCState saved;
+  saved.state = this->remote_values.is_on();
+  saved.brightness = this->remote_values.get_brightness();
+  saved.red = this->remote_values.get_red();
+  saved.green = this->remote_values.get_green();
+  saved.blue = this->remote_values.get_blue();
+  saved.white = this->remote_values.get_white();
+  saved.color_temp = this->remote_values.get_color_temperature();
+  saved.effect = this->active_effect_index_;
+  this->rtc_.save(&saved);
 }
 
 }  // namespace light

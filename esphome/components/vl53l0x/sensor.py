@@ -4,6 +4,7 @@ from esphome.components import i2c, sensor
 from esphome.const import (
     CONF_ID,
     DEVICE_CLASS_EMPTY,
+    STATE_CLASS_MEASUREMENT,
     UNIT_METER,
     ICON_ARROW_EXPAND_VERTICAL,
     CONF_ADDRESS,
@@ -40,7 +41,13 @@ def check_timeout(value):
 
 
 CONFIG_SCHEMA = cv.All(
-    sensor.sensor_schema(UNIT_METER, ICON_ARROW_EXPAND_VERTICAL, 2, DEVICE_CLASS_EMPTY)
+    sensor.sensor_schema(
+        UNIT_METER,
+        ICON_ARROW_EXPAND_VERTICAL,
+        2,
+        DEVICE_CLASS_EMPTY,
+        STATE_CLASS_MEASUREMENT,
+    )
     .extend(
         {
             cv.GenerateID(): cv.declare_id(VL53L0XSensor),

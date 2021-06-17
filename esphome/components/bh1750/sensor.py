@@ -6,6 +6,7 @@ from esphome.const import (
     CONF_RESOLUTION,
     DEVICE_CLASS_ILLUMINANCE,
     ICON_EMPTY,
+    STATE_CLASS_MEASUREMENT,
     UNIT_LUX,
     CONF_MEASUREMENT_DURATION,
 )
@@ -26,7 +27,9 @@ BH1750Sensor = bh1750_ns.class_(
 
 CONF_MEASUREMENT_TIME = "measurement_time"
 CONFIG_SCHEMA = (
-    sensor.sensor_schema(UNIT_LUX, ICON_EMPTY, 1, DEVICE_CLASS_ILLUMINANCE)
+    sensor.sensor_schema(
+        UNIT_LUX, ICON_EMPTY, 1, DEVICE_CLASS_ILLUMINANCE, STATE_CLASS_MEASUREMENT
+    )
     .extend(
         {
             cv.GenerateID(): cv.declare_id(BH1750Sensor),

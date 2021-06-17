@@ -21,6 +21,8 @@ from esphome.const import (
     DEVICE_CLASS_TEMPERATURE,
     DEVICE_CLASS_VOLTAGE,
     ICON_EMPTY,
+    STATE_CLASS_MEASUREMENT,
+    STATE_CLASS_NONE,
     UNIT_CELSIUS,
     UNIT_PERCENT,
     UNIT_VOLT,
@@ -50,37 +52,69 @@ CONFIG_SCHEMA = (
             cv.GenerateID(): cv.declare_id(RuuviTag),
             cv.Required(CONF_MAC_ADDRESS): cv.mac_address,
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-                UNIT_CELSIUS, ICON_EMPTY, 2, DEVICE_CLASS_TEMPERATURE
+                UNIT_CELSIUS,
+                ICON_EMPTY,
+                2,
+                DEVICE_CLASS_TEMPERATURE,
+                STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(
-                UNIT_PERCENT, ICON_EMPTY, 2, DEVICE_CLASS_HUMIDITY
+                UNIT_PERCENT,
+                ICON_EMPTY,
+                2,
+                DEVICE_CLASS_HUMIDITY,
+                STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_PRESSURE): sensor.sensor_schema(
-                UNIT_HECTOPASCAL, ICON_EMPTY, 2, DEVICE_CLASS_PRESSURE
+                UNIT_HECTOPASCAL,
+                ICON_EMPTY,
+                2,
+                DEVICE_CLASS_PRESSURE,
+                STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_ACCELERATION): sensor.sensor_schema(
-                UNIT_G, ICON_ACCELERATION, 3, DEVICE_CLASS_EMPTY
+                UNIT_G,
+                ICON_ACCELERATION,
+                3,
+                DEVICE_CLASS_EMPTY,
+                STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_ACCELERATION_X): sensor.sensor_schema(
-                UNIT_G, ICON_ACCELERATION_X, 3, DEVICE_CLASS_EMPTY
+                UNIT_G,
+                ICON_ACCELERATION_X,
+                3,
+                DEVICE_CLASS_EMPTY,
+                STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_ACCELERATION_Y): sensor.sensor_schema(
-                UNIT_G, ICON_ACCELERATION_Y, 3, DEVICE_CLASS_EMPTY
+                UNIT_G,
+                ICON_ACCELERATION_Y,
+                3,
+                DEVICE_CLASS_EMPTY,
+                STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_ACCELERATION_Z): sensor.sensor_schema(
-                UNIT_G, ICON_ACCELERATION_Z, 3, DEVICE_CLASS_EMPTY
+                UNIT_G,
+                ICON_ACCELERATION_Z,
+                3,
+                DEVICE_CLASS_EMPTY,
+                STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_BATTERY_VOLTAGE): sensor.sensor_schema(
-                UNIT_VOLT, ICON_EMPTY, 3, DEVICE_CLASS_VOLTAGE
+                UNIT_VOLT, ICON_EMPTY, 3, DEVICE_CLASS_VOLTAGE, STATE_CLASS_MEASUREMENT
             ),
             cv.Optional(CONF_TX_POWER): sensor.sensor_schema(
-                UNIT_DECIBEL_MILLIWATT, ICON_EMPTY, 0, DEVICE_CLASS_SIGNAL_STRENGTH
+                UNIT_DECIBEL_MILLIWATT,
+                ICON_EMPTY,
+                0,
+                DEVICE_CLASS_SIGNAL_STRENGTH,
+                STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_MOVEMENT_COUNTER): sensor.sensor_schema(
-                UNIT_EMPTY, ICON_GAUGE, 0, DEVICE_CLASS_EMPTY
+                UNIT_EMPTY, ICON_GAUGE, 0, DEVICE_CLASS_EMPTY, STATE_CLASS_NONE
             ),
             cv.Optional(CONF_MEASUREMENT_SEQUENCE_NUMBER): sensor.sensor_schema(
-                UNIT_EMPTY, ICON_GAUGE, 0, DEVICE_CLASS_EMPTY
+                UNIT_EMPTY, ICON_GAUGE, 0, DEVICE_CLASS_EMPTY, STATE_CLASS_NONE
             ),
         }
     )

@@ -4,7 +4,7 @@
 namespace esphome {
 namespace teleinfo {
 
-static const char *TAG = "teleinfo";
+static const char *const TAG = "teleinfo";
 
 /* Helpers */
 static int get_field(char *dest, char *buf_start, char *buf_end, int sep) {
@@ -148,17 +148,15 @@ void TeleInfo::loop() {
       break;
   }
 }
-void TeleInfo::publish_value_(std::string tag, std::string val) {
-  /* It will return 0 if tag is not a float. */
-  auto newval = parse_float(val);
-  for (auto element : teleinfo_sensors_)
-    if (tag == element->tag)
-      element->sensor->publish_state(*newval);
+void TeleInfo::publish_value_(const std::string &tag, const std::string &val) {
+  for (auto element : teleinfo_listeners_) {
+    if (tag != element->tag)
+      continue;
+    element->publish_val(val);
+  }
 }
 void TeleInfo::dump_config() {
   ESP_LOGCONFIG(TAG, "TeleInfo:");
-  for (auto element : teleinfo_sensors_)
-    LOG_SENSOR("  ", element->tag, element->sensor);
   this->check_uart_settings(baud_rate_, 1, uart::UART_CONFIG_PARITY_EVEN, 7);
 }
 TeleInfo::TeleInfo(bool historical_mode) {
@@ -175,10 +173,7 @@ TeleInfo::TeleInfo(bool historical_mode) {
     baud_rate_ = 9600;
   }
 }
-void TeleInfo::register_teleinfo_sensor(const char *tag, sensor::Sensor *sensor) {
-  const TeleinfoSensorElement *teleinfo_sensor = new TeleinfoSensorElement{tag, sensor};
-  teleinfo_sensors_.push_back(teleinfo_sensor);
-}
+void TeleInfo::register_teleinfo_listener(TeleInfoListener *listener) { teleinfo_listeners_.push_back(listener); }
 
 }  // namespace teleinfo
 }  // namespace esphome

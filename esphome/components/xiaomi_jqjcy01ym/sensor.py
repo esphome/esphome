@@ -11,6 +11,7 @@ from esphome.const import (
     DEVICE_CLASS_HUMIDITY,
     DEVICE_CLASS_TEMPERATURE,
     ICON_EMPTY,
+    STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
     UNIT_PERCENT,
     CONF_HUMIDITY,
@@ -33,19 +34,32 @@ CONFIG_SCHEMA = (
             cv.GenerateID(): cv.declare_id(XiaomiJQJCY01YM),
             cv.Required(CONF_MAC_ADDRESS): cv.mac_address,
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-                UNIT_CELSIUS, ICON_EMPTY, 1, DEVICE_CLASS_TEMPERATURE
+                UNIT_CELSIUS,
+                ICON_EMPTY,
+                1,
+                DEVICE_CLASS_TEMPERATURE,
+                STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(
-                UNIT_PERCENT, ICON_EMPTY, 0, DEVICE_CLASS_HUMIDITY
+                UNIT_PERCENT,
+                ICON_EMPTY,
+                0,
+                DEVICE_CLASS_HUMIDITY,
+                STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_FORMALDEHYDE): sensor.sensor_schema(
                 UNIT_MILLIGRAMS_PER_CUBIC_METER,
                 ICON_FLASK_OUTLINE,
                 2,
                 DEVICE_CLASS_EMPTY,
+                STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_BATTERY_LEVEL): sensor.sensor_schema(
-                UNIT_PERCENT, ICON_EMPTY, 0, DEVICE_CLASS_BATTERY
+                UNIT_PERCENT,
+                ICON_EMPTY,
+                0,
+                DEVICE_CLASS_BATTERY,
+                STATE_CLASS_MEASUREMENT,
             ),
         }
     )

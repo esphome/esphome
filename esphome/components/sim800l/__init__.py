@@ -54,6 +54,10 @@ async def to_code(config):
         )
 
 
+def validate(config, item_config):
+    uart.validate_device("sim800l", config, item_config, baud_rate=9600)
+
+
 SIM800L_SEND_SMS_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.use_id(Sim800LComponent),

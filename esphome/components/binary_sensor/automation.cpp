@@ -4,7 +4,7 @@
 namespace esphome {
 namespace binary_sensor {
 
-static const char *TAG = "binary_sensor.automation";
+static const char *const TAG = "binary_sensor.automation";
 
 void binary_sensor::MultiClickTrigger::on_state_(bool state) {
   // Handle duplicate events

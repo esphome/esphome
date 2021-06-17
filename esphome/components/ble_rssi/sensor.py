@@ -6,6 +6,7 @@ from esphome.const import (
     CONF_MAC_ADDRESS,
     CONF_ID,
     DEVICE_CLASS_SIGNAL_STRENGTH,
+    STATE_CLASS_MEASUREMENT,
     UNIT_DECIBEL,
     ICON_EMPTY,
 )
@@ -18,7 +19,13 @@ BLERSSISensor = ble_rssi_ns.class_(
 )
 
 CONFIG_SCHEMA = cv.All(
-    sensor.sensor_schema(UNIT_DECIBEL, ICON_EMPTY, 0, DEVICE_CLASS_SIGNAL_STRENGTH)
+    sensor.sensor_schema(
+        UNIT_DECIBEL,
+        ICON_EMPTY,
+        0,
+        DEVICE_CLASS_SIGNAL_STRENGTH,
+        STATE_CLASS_MEASUREMENT,
+    )
     .extend(
         {
             cv.GenerateID(): cv.declare_id(BLERSSISensor),

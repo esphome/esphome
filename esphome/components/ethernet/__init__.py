@@ -59,7 +59,7 @@ IPAddress = cg.global_ns.class_("IPAddress")
 ManualIP = ethernet_ns.struct("ManualIP")
 
 
-def validate(config):
+def _validate(config):
     if CONF_USE_ADDRESS not in config:
         if CONF_MANUAL_IP in config:
             use_address = str(config[CONF_MANUAL_IP][CONF_STATIC_IP])
@@ -90,7 +90,7 @@ CONFIG_SCHEMA = cv.All(
             ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
-    validate,
+    _validate,
 )
 
 

@@ -23,14 +23,16 @@ enum class TuyaDatapointType : uint8_t {
 struct TuyaDatapoint {
   uint8_t id;
   TuyaDatapointType type;
+  size_t len;
   union {
     bool value_bool;
     int value_int;
     uint32_t value_uint;
     uint8_t value_enum;
-    uint16_t value_bitmask;
+    uint32_t value_bitmask;
   };
   std::string value_string;
+  std::vector<uint8_t> value_raw;
 };
 
 struct TuyaDatapointListener {
@@ -73,7 +75,8 @@ class Tuya : public Component, public uart::UARTDevice {
   void loop() override;
   void dump_config() override;
   void register_listener(uint8_t datapoint_id, const std::function<void(TuyaDatapoint)> &func);
-  void set_datapoint_value(TuyaDatapoint datapoint);
+  void set_datapoint_value(uint8_t datapoint_id, uint32_t value);
+  void set_datapoint_value(uint8_t datapoint_id, const std::string &value);
 #ifdef USE_TIME
   void set_time_id(time::RealTimeClock *time_id) { this->time_id_ = time_id; }
 #endif
@@ -84,18 +87,23 @@ class Tuya : public Component, public uart::UARTDevice {
  protected:
   void handle_char_(uint8_t c);
   void handle_datapoint_(const uint8_t *buffer, size_t len);
+  optional<TuyaDatapoint> get_datapoint_(uint8_t datapoint_id);
   bool validate_message_();
 
   void handle_command_(uint8_t command, uint8_t version, const uint8_t *buffer, size_t len);
   void send_raw_command_(TuyaCommand command);
   void process_command_queue_();
-  void send_command_(TuyaCommand command);
+  void send_command_(const TuyaCommand &command);
   void send_empty_command_(TuyaCommandType command);
+  void send_datapoint_command_(uint8_t datapoint_id, TuyaDatapointType datapoint_type, std::vector<uint8_t> data);
+  void send_wifi_status_();
 
 #ifdef USE_TIME
+  void send_local_time_();
   optional<time::RealTimeClock *> time_id_{};
 #endif
   TuyaInitState init_state_ = TuyaInitState::INIT_HEARTBEAT;
+  uint8_t protocol_version_ = -1;
   int gpio_status_ = -1;
   int gpio_reset_ = -1;
   uint32_t last_command_timestamp_ = 0;
@@ -105,6 +113,7 @@ class Tuya : public Component, public uart::UARTDevice {
   std::vector<uint8_t> rx_message_;
   std::vector<uint8_t> ignore_mcu_update_on_datapoints_{};
   std::vector<TuyaCommand> command_queue_;
+  uint8_t wifi_status_ = -1;
 };
 
 }  // namespace tuya

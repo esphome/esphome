@@ -3,6 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/preferences.h"
+#include "esphome/core/log.h"
 #include "climate_mode.h"
 #include "climate_traits.h"
 
@@ -10,8 +11,8 @@ namespace esphome {
 namespace climate {
 
 #define LOG_CLIMATE(prefix, type, obj) \
-  if (obj != nullptr) { \
-    ESP_LOGCONFIG(TAG, "%s%s '%s'", prefix, type, obj->get_name().c_str()); \
+  if ((obj) != nullptr) { \
+    ESP_LOGCONFIG(TAG, "%s%s '%s'", prefix, type, (obj)->get_name().c_str()); \
   }
 
 class Climate;
@@ -70,12 +71,22 @@ class ClimateCall {
   ClimateCall &set_fan_mode(optional<ClimateFanMode> fan_mode);
   /// Set the fan mode of the climate device based on a string.
   ClimateCall &set_fan_mode(const std::string &fan_mode);
+  /// Set the fan mode of the climate device based on a string.
+  ClimateCall &set_fan_mode(optional<std::string> fan_mode);
   /// Set the swing mode of the climate device.
   ClimateCall &set_swing_mode(ClimateSwingMode swing_mode);
   /// Set the swing mode of the climate device.
   ClimateCall &set_swing_mode(optional<ClimateSwingMode> swing_mode);
   /// Set the swing mode of the climate device based on a string.
   ClimateCall &set_swing_mode(const std::string &swing_mode);
+  /// Set the preset of the climate device.
+  ClimateCall &set_preset(ClimatePreset preset);
+  /// Set the preset of the climate device.
+  ClimateCall &set_preset(optional<ClimatePreset> preset);
+  /// Set the preset of the climate device based on a string.
+  ClimateCall &set_preset(const std::string &preset);
+  /// Set the preset of the climate device based on a string.
+  ClimateCall &set_preset(optional<std::string> preset);
 
   void perform();
 
@@ -86,6 +97,9 @@ class ClimateCall {
   const optional<bool> &get_away() const;
   const optional<ClimateFanMode> &get_fan_mode() const;
   const optional<ClimateSwingMode> &get_swing_mode() const;
+  const optional<std::string> &get_custom_fan_mode() const;
+  const optional<ClimatePreset> &get_preset() const;
+  const optional<std::string> &get_custom_preset() const;
 
  protected:
   void validate_();
@@ -98,13 +112,25 @@ class ClimateCall {
   optional<bool> away_;
   optional<ClimateFanMode> fan_mode_;
   optional<ClimateSwingMode> swing_mode_;
+  optional<std::string> custom_fan_mode_;
+  optional<ClimatePreset> preset_;
+  optional<std::string> custom_preset_;
 };
 
 /// Struct used to save the state of the climate device in restore memory.
 struct ClimateDeviceRestoreState {
   ClimateMode mode;
   bool away;
-  ClimateFanMode fan_mode;
+  bool uses_custom_fan_mode{false};
+  union {
+    ClimateFanMode fan_mode;
+    uint8_t custom_fan_mode;
+  };
+  bool uses_custom_preset{false};
+  union {
+    ClimatePreset preset;
+    uint8_t custom_preset;
+  };
   ClimateSwingMode swing_mode;
   union {
     float target_temperature;
@@ -168,10 +194,19 @@ class Climate : public Nameable {
   bool away{false};
 
   /// The active fan mode of the climate device.
-  ClimateFanMode fan_mode;
+  optional<ClimateFanMode> fan_mode;
 
   /// The active swing mode of the climate device.
   ClimateSwingMode swing_mode;
+
+  /// The active custom fan mode of the climate device.
+  optional<std::string> custom_fan_mode;
+
+  /// The active preset of the climate device.
+  optional<ClimatePreset> preset;
+
+  /// The active custom preset mode of the climate device.
+  optional<std::string> custom_preset;
 
   /** Add a callback for the climate device state, each time the state of the climate device is updated
    * (using publish_state), this callback will be called.

@@ -7,6 +7,7 @@ from esphome.const import (
     CONF_PM_10_0,
     CONF_PM_1_0,
     DEVICE_CLASS_EMPTY,
+    STATE_CLASS_MEASUREMENT,
     UNIT_MICROGRAMS_PER_CUBIC_METER,
     ICON_CHEMICAL_WEAPON,
 )
@@ -29,7 +30,7 @@ AQI_CALCULATION_TYPE = {
 }
 
 
-def validate(config):
+def _validate(config):
     if CONF_AQI in config and CONF_PM_2_5 not in config:
         raise cv.Invalid("AQI sensor requires PM 2.5")
     if CONF_AQI in config and CONF_PM_10_0 not in config:
@@ -46,21 +47,28 @@ CONFIG_SCHEMA = cv.All(
                 ICON_CHEMICAL_WEAPON,
                 0,
                 DEVICE_CLASS_EMPTY,
+                STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_PM_2_5): sensor.sensor_schema(
                 UNIT_MICROGRAMS_PER_CUBIC_METER,
                 ICON_CHEMICAL_WEAPON,
                 0,
                 DEVICE_CLASS_EMPTY,
+                STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_PM_10_0): sensor.sensor_schema(
                 UNIT_MICROGRAMS_PER_CUBIC_METER,
                 ICON_CHEMICAL_WEAPON,
                 0,
                 DEVICE_CLASS_EMPTY,
+                STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_AQI): sensor.sensor_schema(
-                UNIT_INDEX, ICON_CHEMICAL_WEAPON, 0, DEVICE_CLASS_EMPTY
+                UNIT_INDEX,
+                ICON_CHEMICAL_WEAPON,
+                0,
+                DEVICE_CLASS_EMPTY,
+                STATE_CLASS_MEASUREMENT,
             ).extend(
                 {
                     cv.Required(CONF_CALCULATION_TYPE): cv.enum(
@@ -72,7 +80,7 @@ CONFIG_SCHEMA = cv.All(
     )
     .extend(cv.polling_component_schema("60s"))
     .extend(i2c.i2c_device_schema(0x40)),
-    validate,
+    _validate,
 )
 
 

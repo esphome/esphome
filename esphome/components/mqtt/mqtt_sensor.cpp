@@ -10,7 +10,7 @@
 namespace esphome {
 namespace mqtt {
 
-static const char *TAG = "mqtt.sensor";
+static const char *const TAG = "mqtt.sensor";
 
 using namespace esphome::sensor;
 

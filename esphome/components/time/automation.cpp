@@ -4,7 +4,7 @@
 namespace esphome {
 namespace time {
 
-static const char *TAG = "automation";
+static const char *const TAG = "automation";
 
 void CronTrigger::add_second(uint8_t second) { this->seconds_[second] = true; }
 void CronTrigger::add_minute(uint8_t minute) { this->minutes_[minute] = true; }
