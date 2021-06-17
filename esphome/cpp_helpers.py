@@ -8,7 +8,8 @@ from esphome.const import (
 )
 
 # pylint: disable=unused-import
-from esphome.core import coroutine, ID, CORE, ConfigType
+from esphome.core import coroutine, ID, CORE
+from esphome.types import ConfigType
 from esphome.cpp_generator import RawExpression, add, get_variable
 from esphome.cpp_types import App, GPIOPin
 from esphome.util import Registry, RegistryEntry
