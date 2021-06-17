@@ -63,6 +63,14 @@ sensor:
   - platform: tuya
     id: tuya_sensor
     sensor_datapoint: 1
+  - platform: ufire_ec
+    id: ufire_ec_board
+    temperature:
+      name: Ufire Temperature
+    ec:
+      name: Ufire EC
+    temperature_compensation: 20.0
+    temperature_coefficient: 0.019
 #
 # platform sensor.apds9960 requires component apds9960
 #
@@ -88,15 +96,15 @@ binary_sensor:
     sensor_datapoint: 1
   - platform: template
     id: ar1
-    lambda: 'return {};'
+    lambda: "return {};"
     filters:
       - autorepeat:
-        - delay: 2s
-          time_off: 100ms
-          time_on: 900ms
-        - delay: 4s
-          time_off: 100ms
-          time_on: 400ms
+          - delay: 2s
+            time_off: 100ms
+            time_on: 900ms
+          - delay: 4s
+            time_off: 100ms
+            time_on: 400ms
     on_state:
       then:
         - lambda: 'ESP_LOGI("ar1:", "%d", x);'
