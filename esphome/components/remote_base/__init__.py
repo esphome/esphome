@@ -868,7 +868,6 @@ SAMSUNG_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_DATA): cv.hex_uint64_t,
         cv.Optional(CONF_NBITS, default=32): cv.int_range(32, 64),
-        # cv.Optional(CONF_NBITS, default=32): cv.one_of(28, 32, int=True),
     }
 )
 
