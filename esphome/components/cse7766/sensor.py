@@ -45,7 +45,7 @@ CONFIG_SCHEMA = (
     .extend(cv.polling_component_schema("60s"))
     .extend(uart.UART_DEVICE_SCHEMA)
 )
-POST_VALIDATE_SCHEMA = uart.post_validate_device_schema(
+FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
     "cse7766", baud_rate=4800, require_rx=True
 )
 

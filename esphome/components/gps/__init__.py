@@ -62,7 +62,7 @@ CONFIG_SCHEMA = (
     .extend(cv.polling_component_schema("20s"))
     .extend(uart.UART_DEVICE_SCHEMA)
 )
-POST_VALIDATE_SCHEMA = uart.post_validate_device_schema("gps", require_rx=True)
+FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema("gps", require_rx=True)
 
 
 async def to_code(config):

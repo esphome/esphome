@@ -2,7 +2,7 @@ from typing import Optional
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
-import esphome.post_validate as pv
+import esphome.final_validate as fv
 from esphome import pins, automation
 from esphome.const import (
     CONF_BAUD_RATE,
@@ -105,7 +105,7 @@ UART_DEVICE_SCHEMA = cv.Schema(
 KEY_UART_DEVICES = "uart_devices"
 
 
-def post_validate_device_schema(
+def final_validate_device_schema(
     name: str,
     *,
     baud_rate: Optional[int] = None,
@@ -134,7 +134,7 @@ def post_validate_device_schema(
     def validate_hub(hub_config):
         hub_schema = {}
         uart_id = hub_config[CONF_ID]
-        devices = pv.full_config.get().data.setdefault(KEY_UART_DEVICES, {})
+        devices = fv.full_config.get().data.setdefault(KEY_UART_DEVICES, {})
         device = devices.setdefault(uart_id, {})
 
         if require_tx:
@@ -156,7 +156,7 @@ def post_validate_device_schema(
         return cv.Schema(hub_schema, extra=cv.ALLOW_EXTRA)(hub_config)
 
     return cv.Schema(
-        {cv.Required(CONF_UART_ID): pv.id_declaration_match_schema(validate_hub)},
+        {cv.Required(CONF_UART_ID): fv.id_declaration_match_schema(validate_hub)},
         extra=cv.ALLOW_EXTRA,
     )
 

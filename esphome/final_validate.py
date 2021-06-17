@@ -6,7 +6,7 @@ from esphome.types import ConfigFragmentType, ID, ConfigPathType
 import esphome.config_validation as cv
 
 
-class PostValidateConfig(ABC):
+class FinalValidateConfig(ABC):
     @abstractproperty
     def data(self) -> Dict[str, Any]:
         """A dictionary that can be used by post validation functions to store
@@ -30,16 +30,16 @@ class PostValidateConfig(ABC):
         """
 
 
-PostValidateConfig.register(dict)
+FinalValidateConfig.register(dict)
 
-# Context variable tracking the full config for some post validation functions.
-full_config: contextvars.ContextVar[PostValidateConfig] = contextvars.ContextVar(
+# Context variable tracking the full config for some final validation functions.
+full_config: contextvars.ContextVar[FinalValidateConfig] = contextvars.ContextVar(
     "full_config"
 )
 
 
 def id_declaration_match_schema(schema):
-    """A post-validation schema function that applies a schema to the outer config fragment of an
+    """A final-validation schema function that applies a schema to the outer config fragment of an
     ID declaration.
 
     This validator must be applied to ID values.

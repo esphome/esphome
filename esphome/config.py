@@ -25,7 +25,7 @@ from esphome.loader import get_component, get_platform, ComponentManifest
 from esphome.yaml_util import is_secret, ESPHomeDataBase, ESPForceValue
 from esphome.voluptuous_schema import ExtraKeysInvalid
 from esphome.log import color, Fore
-import esphome.post_validate as pv
+import esphome.final_validate as fv
 import esphome.config_validation as cv
 from esphome.types import ConfigType, ConfigPathType, ConfigFragmentType
 
@@ -56,7 +56,7 @@ def _path_begins_with(path, other):  # type: (ConfigPath, ConfigPath) -> bool
     return path[: len(other)] == other
 
 
-class Config(OrderedDict, pv.PostValidateConfig):
+class Config(OrderedDict, fv.FinalValidateConfig):
     def __init__(self):
         super().__init__()
         # A list of voluptuous errors
@@ -187,7 +187,7 @@ class Config(OrderedDict, pv.PostValidateConfig):
 
     @property
     def data(self):
-        """Return temporary data used by post validation functions."""
+        """Return temporary data used by final validation functions."""
         return self._data
 
 
@@ -576,16 +576,16 @@ def validate_config(config, command_line_substitutions):
     # 7. Final validation
     if not result.errors:
         # Inter - components validation
-        token = pv.full_config.set(result)
+        token = fv.full_config.set(result)
 
         for path, _, comp in validate_queue:
-            if comp.post_validate_schema is None:
+            if comp.final_validate_schema is None:
                 continue
+            conf = result.get_nested_item(path)
             with result.catch_error(path):
-                conf = result.get_nested_item(path)
-                comp.post_validate_schema(conf)
+                comp.final_validate_schema(conf)
 
-        pv.full_config.reset(token)
+        fv.full_config.reset(token)
 
     return result
 

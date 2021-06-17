@@ -82,13 +82,13 @@ class ComponentManifest:
         return getattr(self.module, "CODEOWNERS", [])
 
     @property
-    def post_validate_schema(self) -> Optional[Callable[[ConfigType], None]]:
-        """Components can declare a `POST_VALIDATE_SCHEMA` cv.Schema that gets called
+    def final_validate_schema(self) -> Optional[Callable[[ConfigType], None]]:
+        """Components can declare a `FINAL_VALIDATE_SCHEMA` cv.Schema that gets called
         after the main validation. In that function checks across components can be made.
 
         Note that the function can't mutate the configuration - no changes are saved
         """
-        return getattr(self.module, "POST_VALIDATE_SCHEMA", None)
+        return getattr(self.module, "FINAL_VALIDATE_SCHEMA", None)
 
     @property
     def source_files(self) -> Dict[Path, SourceFile]:

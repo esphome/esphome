@@ -19,7 +19,7 @@ CONFIG_SCHEMA = cv.All(
     ).extend(spi.spi_device_schema(cs_pin_required=True))
 )
 
-POST_VALIDATE_SCHEMA = spi.post_validate_device_schema(
+FINAL_VALIDATE_SCHEMA = spi.final_validate_device_schema(
     "rc522_spi", require_miso=True, require_mosi=True
 )
 

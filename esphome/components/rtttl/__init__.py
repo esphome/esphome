@@ -1,7 +1,7 @@
 import logging
 import esphome.codegen as cg
 import esphome.config_validation as cv
-import esphome.post_validate as pv
+import esphome.final_validate as fv
 from esphome import automation
 from esphome.components.output import FloatOutput
 from esphome.const import CONF_ID, CONF_OUTPUT, CONF_PLATFORM, CONF_TRIGGER_ID
@@ -61,9 +61,9 @@ def validate_parent_output_config(value):
         )
 
 
-POST_VALIDATE_SCHEMA = cv.Schema(
+FINAL_VALIDATE_SCHEMA = cv.Schema(
     {
-        cv.Required(CONF_OUTPUT): pv.id_declaration_match_schema(
+        cv.Required(CONF_OUTPUT): fv.id_declaration_match_schema(
             validate_parent_output_config
         )
     },
