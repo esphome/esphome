@@ -48,7 +48,7 @@ void WhirlpoolClimate::transmit_state() {
     this->powered_on_assumed = powered_on;
   }
   switch (this->mode) {
-    case climate::CLIMATE_MODE_AUTO:
+    case climate::CLIMATE_MODE_HEAT_COOL:
       // set fan auto
       // set temp auto temp
       // set sleep false
@@ -239,7 +239,7 @@ bool WhirlpoolClimate::on_receive(remote_base::RemoteReceiveData data) {
         this->mode = climate::CLIMATE_MODE_FAN_ONLY;
         break;
       case WHIRLPOOL_AUTO:
-        this->mode = climate::CLIMATE_MODE_AUTO;
+        this->mode = climate::CLIMATE_MODE_HEAT_COOL;
         break;
     }
   }
