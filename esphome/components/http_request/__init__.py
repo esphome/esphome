@@ -2,6 +2,7 @@ import urllib.parse as urlparse
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
+import esphome.final_validate as fv
 from esphome import automation
 from esphome.const import (
     CONF_ID,
@@ -14,7 +15,6 @@ from esphome.const import (
     CONF_URL,
 )
 from esphome.core import CORE, Lambda
-from esphome.core.config import PLATFORMIO_ESP8266_LUT
 
 DEPENDENCIES = ["network"]
 AUTO_LOAD = ["json"]
@@ -34,29 +34,6 @@ CONF_BODY = "body"
 CONF_JSON = "json"
 CONF_VERIFY_SSL = "verify_ssl"
 CONF_ON_RESPONSE = "on_response"
-
-
-def validate_framework(config):
-    if CORE.is_esp32:
-        return config
-
-    version = "RECOMMENDED"
-    if CONF_ARDUINO_VERSION in CORE.raw_config[CONF_ESPHOME]:
-        version = CORE.raw_config[CONF_ESPHOME][CONF_ARDUINO_VERSION]
-
-    if version in ["LATEST", "DEV"]:
-        return config
-
-    framework = (
-        PLATFORMIO_ESP8266_LUT[version]
-        if version in PLATFORMIO_ESP8266_LUT
-        else version
-    )
-    if framework < ARDUINO_VERSION_ESP8266["2.5.1"]:
-        raise cv.Invalid(
-            "This component is not supported on arduino framework version below 2.5.1"
-        )
-    return config
 
 
 def validate_url(value):
@@ -92,19 +69,36 @@ def validate_secure_url(config):
     return config
 
 
-CONFIG_SCHEMA = (
-    cv.Schema(
-        {
-            cv.GenerateID(): cv.declare_id(HttpRequestComponent),
-            cv.Optional(CONF_USERAGENT, "ESPHome"): cv.string,
-            cv.Optional(
-                CONF_TIMEOUT, default="5s"
-            ): cv.positive_time_period_milliseconds,
-        }
-    )
-    .add_extra(validate_framework)
-    .extend(cv.COMPONENT_SCHEMA)
-)
+CONFIG_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.declare_id(HttpRequestComponent),
+        cv.Optional(CONF_USERAGENT, "ESPHome"): cv.string,
+        cv.Optional(CONF_TIMEOUT, default="5s"): cv.positive_time_period_milliseconds,
+    }
+).extend(cv.COMPONENT_SCHEMA)
+
+
+def validate_framework(config):
+    if CORE.is_esp32:
+        return
+
+    # only for ESP8266
+    path = [CONF_ESPHOME, CONF_ARDUINO_VERSION]
+    version: str = fv.full_config.get().get_config_for_path(path)
+
+    reverse_map = {v: k for k, v in ARDUINO_VERSION_ESP8266.items()}
+    framework_version = reverse_map.get(version)
+    if framework_version is None or framework_version == "dev":
+        return
+
+    if framework_version < "2.5.1":
+        raise cv.Invalid(
+            "This component is not supported on arduino framework version below 2.5.1",
+            path=[cv.ROOT_CONFIG_PATH] + path,
+        )
+
+
+FINAL_VALIDATE_SCHEMA = cv.Schema(validate_framework)
 
 
 async def to_code(config):
