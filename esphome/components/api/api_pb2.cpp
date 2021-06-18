@@ -192,16 +192,18 @@ template<> const char *proto_enum_to_string<enums::ClimateAction>(enums::Climate
 }
 template<> const char *proto_enum_to_string<enums::ClimatePreset>(enums::ClimatePreset value) {
   switch (value) {
-    case enums::CLIMATE_PRESET_ECO:
-      return "CLIMATE_PRESET_ECO";
+    case enums::CLIMATE_PRESET_NONE:
+      return "CLIMATE_PRESET_NONE";
+    case enums::CLIMATE_PRESET_HOME:
+      return "CLIMATE_PRESET_HOME";
     case enums::CLIMATE_PRESET_AWAY:
       return "CLIMATE_PRESET_AWAY";
     case enums::CLIMATE_PRESET_BOOST:
       return "CLIMATE_PRESET_BOOST";
     case enums::CLIMATE_PRESET_COMFORT:
       return "CLIMATE_PRESET_COMFORT";
-    case enums::CLIMATE_PRESET_HOME:
-      return "CLIMATE_PRESET_HOME";
+    case enums::CLIMATE_PRESET_ECO:
+      return "CLIMATE_PRESET_ECO";
     case enums::CLIMATE_PRESET_SLEEP:
       return "CLIMATE_PRESET_SLEEP";
     case enums::CLIMATE_PRESET_ACTIVITY:
@@ -2672,7 +2674,7 @@ bool ListEntitiesClimateResponse::decode_varint(uint32_t field_id, ProtoVarInt v
       return true;
     }
     case 11: {
-      this->supports_away = value.as_bool();
+      this->legacy_supports_away = value.as_bool();
       return true;
     }
     case 12: {
@@ -2756,7 +2758,7 @@ void ListEntitiesClimateResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_float(8, this->visual_min_temperature);
   buffer.encode_float(9, this->visual_max_temperature);
   buffer.encode_float(10, this->visual_temperature_step);
-  buffer.encode_bool(11, this->supports_away);
+  buffer.encode_bool(11, this->legacy_supports_away);
   buffer.encode_bool(12, this->supports_action);
   for (auto &it : this->supported_fan_modes) {
     buffer.encode_enum<enums::ClimateFanMode>(13, it, true);
@@ -2823,8 +2825,8 @@ void ListEntitiesClimateResponse::dump_to(std::string &out) const {
   out.append(buffer);
   out.append("\n");
 
-  out.append("  supports_away: ");
-  out.append(YESNO(this->supports_away));
+  out.append("  legacy_supports_away: ");
+  out.append(YESNO(this->legacy_supports_away));
   out.append("\n");
 
   out.append("  supports_action: ");
@@ -2869,7 +2871,7 @@ bool ClimateStateResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
       return true;
     }
     case 7: {
-      this->away = value.as_bool();
+      this->legacy_away = value.as_bool();
       return true;
     }
     case 8: {
@@ -2939,7 +2941,7 @@ void ClimateStateResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_float(4, this->target_temperature);
   buffer.encode_float(5, this->target_temperature_low);
   buffer.encode_float(6, this->target_temperature_high);
-  buffer.encode_bool(7, this->away);
+  buffer.encode_bool(7, this->legacy_away);
   buffer.encode_enum<enums::ClimateAction>(8, this->action);
   buffer.encode_enum<enums::ClimateFanMode>(9, this->fan_mode);
   buffer.encode_enum<enums::ClimateSwingMode>(10, this->swing_mode);
@@ -2979,8 +2981,8 @@ void ClimateStateResponse::dump_to(std::string &out) const {
   out.append(buffer);
   out.append("\n");
 
-  out.append("  away: ");
-  out.append(YESNO(this->away));
+  out.append("  legacy_away: ");
+  out.append(YESNO(this->legacy_away));
   out.append("\n");
 
   out.append("  action: ");
@@ -3031,11 +3033,11 @@ bool ClimateCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) 
       return true;
     }
     case 10: {
-      this->has_away = value.as_bool();
+      this->has_legacy_away = value.as_bool();
       return true;
     }
     case 11: {
-      this->away = value.as_bool();
+      this->legacy_away = value.as_bool();
       return true;
     }
     case 12: {
@@ -3120,8 +3122,8 @@ void ClimateCommandRequest::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_float(7, this->target_temperature_low);
   buffer.encode_bool(8, this->has_target_temperature_high);
   buffer.encode_float(9, this->target_temperature_high);
-  buffer.encode_bool(10, this->has_away);
-  buffer.encode_bool(11, this->away);
+  buffer.encode_bool(10, this->has_legacy_away);
+  buffer.encode_bool(11, this->legacy_away);
   buffer.encode_bool(12, this->has_fan_mode);
   buffer.encode_enum<enums::ClimateFanMode>(13, this->fan_mode);
   buffer.encode_bool(14, this->has_swing_mode);
@@ -3176,12 +3178,12 @@ void ClimateCommandRequest::dump_to(std::string &out) const {
   out.append(buffer);
   out.append("\n");
 
-  out.append("  has_away: ");
-  out.append(YESNO(this->has_away));
+  out.append("  has_legacy_away: ");
+  out.append(YESNO(this->has_legacy_away));
   out.append("\n");
 
-  out.append("  away: ");
-  out.append(YESNO(this->away));
+  out.append("  legacy_away: ");
+  out.append(YESNO(this->legacy_away));
   out.append("\n");
 
   out.append("  has_fan_mode: ");

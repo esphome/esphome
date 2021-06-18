@@ -43,9 +43,6 @@ void ClimateCall::perform() {
   if (this->target_temperature_high_.has_value()) {
     ESP_LOGD(TAG, "  Target Temperature High: %.2f", *this->target_temperature_high_);
   }
-  if (this->away_.has_value()) {
-    ESP_LOGD(TAG, "  Away Mode: %s", ONOFF(*this->away_));
-  }
   this->parent_->control(*this);
 }
 void ClimateCall::validate_() {
@@ -59,7 +56,7 @@ void ClimateCall::validate_() {
   }
   if (this->custom_fan_mode_.has_value()) {
     auto custom_fan_mode = *this->custom_fan_mode_;
-    if (!traits.supports_custom_fan_mode(custom_fan_mode)) {
+    if (!traits.supports_custom_preset(custom_fan_mode)) {
       ESP_LOGW(TAG, "  Fan Mode %s is not supported by this device!", custom_fan_mode.c_str());
       this->custom_fan_mode_.reset();
     }
@@ -125,12 +122,6 @@ void ClimateCall::validate_() {
       this->target_temperature_high_.reset();
     }
   }
-  if (this->away_.has_value()) {
-    if (!traits.get_supports_away()) {
-      ESP_LOGW(TAG, "  Cannot set away mode for this device!");
-      this->away_.reset();
-    }
-  }
 }
 ClimateCall &ClimateCall::set_mode(ClimateMode mode) {
   this->mode_ = mode;
@@ -182,7 +173,7 @@ ClimateCall &ClimateCall::set_fan_mode(const std::string &fan_mode) {
     this->set_fan_mode(CLIMATE_FAN_DIFFUSE);
   } else {
     auto custom_fan_modes = this->parent_->get_traits().get_supported_custom_fan_modes();
-    if (std::find(custom_fan_modes.begin(), custom_fan_modes.end(), fan_mode) != custom_fan_modes.end()) {
+    if (custom_fan_modes.find(fan_mode) != custom_fan_modes.end()) {
       this->custom_fan_mode_ = fan_mode;
       this->fan_mode_.reset();
     } else {
@@ -219,7 +210,7 @@ ClimateCall &ClimateCall::set_preset(const std::string &preset) {
     this->set_preset(CLIMATE_PRESET_ACTIVITY);
   } else {
     auto custom_presets = this->parent_->get_traits().get_supported_custom_presets();
-    if (std::find(custom_presets.begin(), custom_presets.end(), preset) != custom_presets.end()) {
+    if (custom_presets.find(preset) != custom_presets.end()) {
       this->custom_preset_ = preset;
       this->preset_.reset();
     } else {
@@ -269,18 +260,23 @@ const optional<ClimateMode> &ClimateCall::get_mode() const { return this->mode_;
 const optional<float> &ClimateCall::get_target_temperature() const { return this->target_temperature_; }
 const optional<float> &ClimateCall::get_target_temperature_low() const { return this->target_temperature_low_; }
 const optional<float> &ClimateCall::get_target_temperature_high() const { return this->target_temperature_high_; }
-const optional<bool> &ClimateCall::get_away() const { return this->away_; }
+optional<bool> ClimateCall::get_away() const {
+  if (!this->preset_.has_value())
+    return {};
+  return *this->preset_ == ClimatePreset::CLIMATE_PRESET_AWAY;
+}
 const optional<ClimateFanMode> &ClimateCall::get_fan_mode() const { return this->fan_mode_; }
 const optional<std::string> &ClimateCall::get_custom_fan_mode() const { return this->custom_fan_mode_; }
 const optional<ClimatePreset> &ClimateCall::get_preset() const { return this->preset_; }
 const optional<std::string> &ClimateCall::get_custom_preset() const { return this->custom_preset_; }
 const optional<ClimateSwingMode> &ClimateCall::get_swing_mode() const { return this->swing_mode_; }
 ClimateCall &ClimateCall::set_away(bool away) {
-  this->away_ = away;
+  this->preset_ = away ? CLIMATE_PRESET_AWAY : CLIMATE_PRESET_HOME;
   return *this;
 }
 ClimateCall &ClimateCall::set_away(optional<bool> away) {
-  this->away_ = away;
+  if (away.has_value())
+    this->preset_ = *away ? CLIMATE_PRESET_AWAY : CLIMATE_PRESET_HOME;
   return *this;
 }
 ClimateCall &ClimateCall::set_target_temperature_high(optional<float> target_temperature_high) {
@@ -338,9 +334,6 @@ void Climate::save_state_() {
   } else {
     state.target_temperature = this->target_temperature;
   }
-  if (traits.get_supports_away()) {
-    state.away = this->away;
-  }
   if (traits.get_supports_fan_modes() && fan_mode.has_value()) {
     state.uses_custom_fan_mode = false;
     state.fan_mode = this->fan_mode.value();
@@ -348,7 +341,7 @@ void Climate::save_state_() {
   if (!traits.get_supported_custom_fan_modes().empty() && custom_fan_mode.has_value()) {
     state.uses_custom_fan_mode = true;
     auto &custom_fan_modes = traits.get_supported_custom_fan_modes();
-    auto it = std::find(custom_fan_modes.begin(), custom_fan_modes.end(), this->custom_fan_mode.value());
+    auto it = custom_fan_modes.find(this->custom_fan_mode.value());
     // only set custom fan mode if value exists, otherwise leave it as is
     if (it != custom_fan_modes.cend()) {
       state.custom_fan_mode = std::distance(custom_fan_modes.begin(), it);
@@ -360,8 +353,8 @@ void Climate::save_state_() {
   }
   if (!traits.get_supported_custom_presets().empty() && custom_preset.has_value()) {
     state.uses_custom_preset = true;
-    auto custom_presets = traits.get_supported_custom_presets();
-    auto it = std::find(custom_presets.begin(), custom_presets.end(), this->custom_preset.value());
+    const auto &custom_presets = traits.get_supported_custom_presets();
+    auto it = custom_presets.find(this->custom_preset.value());
     // only set custom preset if value exists, otherwise leave it as is
     if (it != custom_presets.cend()) {
       state.custom_preset = std::distance(custom_presets.begin(), it);
@@ -404,9 +397,6 @@ void Climate::publish_state() {
              this->target_temperature_high);
   } else {
     ESP_LOGD(TAG, "  Target Temperature: %.2f°C", this->target_temperature);
-  }
-  if (traits.get_supports_away()) {
-    ESP_LOGD(TAG, "  Away: %s", ONOFF(this->away));
   }
 
   // Send state to frontend
@@ -453,9 +443,6 @@ ClimateCall ClimateDeviceRestoreState::to_call(Climate *climate) {
   } else {
     call.set_target_temperature(this->target_temperature);
   }
-  if (traits.get_supports_away()) {
-    call.set_away(this->away);
-  }
   if (traits.get_supports_fan_modes() || !traits.get_supported_custom_fan_modes().empty()) {
     call.set_fan_mode(this->fan_mode);
   }
@@ -476,23 +463,23 @@ void ClimateDeviceRestoreState::apply(Climate *climate) {
   } else {
     climate->target_temperature = this->target_temperature;
   }
-  if (traits.get_supports_away()) {
-    climate->away = this->away;
-  }
   if (traits.get_supports_fan_modes() && !this->uses_custom_fan_mode) {
     climate->fan_mode = this->fan_mode;
   }
   if (!traits.get_supported_custom_fan_modes().empty() && this->uses_custom_fan_mode) {
-    climate->custom_fan_mode = traits.get_supported_custom_fan_modes()[this->custom_fan_mode];
+    // std::set has consistent order (lexicographic for strings), so this is ok
+    const auto &modes = traits.get_supported_custom_fan_modes();
+    std::vector<std::string> modes_vec{modes.begin(), modes.end()};
+    climate->custom_fan_mode = modes_vec[this->custom_fan_mode];
   }
   if (traits.get_supports_presets() && !this->uses_custom_preset) {
     climate->preset = this->preset;
   }
-  if (!traits.get_supported_custom_presets().empty() && this->uses_custom_preset) {
-    climate->custom_preset = traits.get_supported_custom_presets()[this->custom_preset];
-  }
   if (!traits.get_supported_custom_presets().empty() && uses_custom_preset) {
-    climate->custom_preset = traits.get_supported_custom_presets()[this->preset];
+    // std::set has consistent order (lexicographic for strings), so this is ok
+    const auto &presets = traits.get_supported_custom_presets();
+    std::vector<std::string> presets_vec{presets.begin(), presets.end()};
+    climate->custom_preset = presets_vec[this->custom_preset];
   }
   if (traits.get_supports_swing_modes()) {
     climate->swing_mode = this->swing_mode;

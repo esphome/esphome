@@ -63,7 +63,9 @@ class ClimateCall {
    * For climate devices with two point target temperature control
    */
   ClimateCall &set_target_temperature_high(optional<float> target_temperature_high);
+  ESPDEPRECATED("set_away() is deprecated, please use .set_preset(CLIMATE_PRESET_AWAY) instead")
   ClimateCall &set_away(bool away);
+  ESPDEPRECATED("set_away() is deprecated, please use .set_preset(CLIMATE_PRESET_AWAY) instead")
   ClimateCall &set_away(optional<bool> away);
   /// Set the fan mode of the climate device.
   ClimateCall &set_fan_mode(ClimateFanMode fan_mode);
@@ -94,7 +96,8 @@ class ClimateCall {
   const optional<float> &get_target_temperature() const;
   const optional<float> &get_target_temperature_low() const;
   const optional<float> &get_target_temperature_high() const;
-  const optional<bool> &get_away() const;
+  ESPDEPRECATED("get_away() is deprecated, please use .get_preset() instead")
+  optional<bool> get_away() const;
   const optional<ClimateFanMode> &get_fan_mode() const;
   const optional<ClimateSwingMode> &get_swing_mode() const;
   const optional<std::string> &get_custom_fan_mode() const;
@@ -109,7 +112,6 @@ class ClimateCall {
   optional<float> target_temperature_;
   optional<float> target_temperature_low_;
   optional<float> target_temperature_high_;
-  optional<bool> away_;
   optional<ClimateFanMode> fan_mode_;
   optional<ClimateSwingMode> swing_mode_;
   optional<std::string> custom_fan_mode_;
@@ -120,7 +122,6 @@ class ClimateCall {
 /// Struct used to save the state of the climate device in restore memory.
 struct ClimateDeviceRestoreState {
   ClimateMode mode;
-  bool away;
   bool uses_custom_fan_mode{false};
   union {
     ClimateFanMode fan_mode;
@@ -191,6 +192,7 @@ class Climate : public Nameable {
    * Away allows climate devices to have two different target temperature configs:
    * one for normal mode and one for away mode.
    */
+  ESPDEPRECATED("away is deprecated, use preset instead")
   bool away{false};
 
   /// The active fan mode of the climate device.

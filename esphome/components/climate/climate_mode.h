@@ -39,7 +39,6 @@ enum ClimateAction : uint8_t {
   CLIMATE_ACTION_FAN = 6,
 };
 
-/// Enum for all modes a climate fan can be in
 enum ClimateFanMode : uint8_t {
   /// The fan mode is set to On
   CLIMATE_FAN_ON = 0,
@@ -75,20 +74,21 @@ enum ClimateSwingMode : uint8_t {
 
 /// Enum for all modes a climate swing can be in
 enum ClimatePreset : uint8_t {
-  /// Preset is set to ECO
-  CLIMATE_PRESET_ECO = 0,
-  /// Preset is set to AWAY
-  CLIMATE_PRESET_AWAY = 1,
-  /// Preset is set to BOOST
-  CLIMATE_PRESET_BOOST = 2,
-  /// Preset is set to COMFORT
-  CLIMATE_PRESET_COMFORT = 3,
+  CLIMATE_PRESET_NONE = 0,
   /// Preset is set to HOME
-  CLIMATE_PRESET_HOME = 4,
+  CLIMATE_PRESET_HOME = 1,
+  /// Preset is set to AWAY
+  CLIMATE_PRESET_AWAY = 2,
+  /// Preset is set to BOOST
+  CLIMATE_PRESET_BOOST = 3,
+  /// Preset is set to COMFORT
+  CLIMATE_PRESET_COMFORT = 4,
+  /// Preset is set to ECO
+  CLIMATE_PRESET_ECO = 5,
   /// Preset is set to SLEEP
-  CLIMATE_PRESET_SLEEP = 5,
+  CLIMATE_PRESET_SLEEP = 6,
   /// Preset is set to ACTIVITY
-  CLIMATE_PRESET_ACTIVITY = 6,
+  CLIMATE_PRESET_ACTIVITY = 7,
 };
 
 /// Convert the given ClimateMode to a human-readable string.
