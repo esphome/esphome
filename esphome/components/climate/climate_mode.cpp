@@ -86,6 +86,8 @@ const char *climate_preset_to_string(ClimatePreset preset) {
   switch (preset) {
     case climate::CLIMATE_PRESET_NONE:
       return "NONE";
+    case climate::CLIMATE_PRESET_HOME:
+      return "HOME";
     case climate::CLIMATE_PRESET_ECO:
       return "ECO";
     case climate::CLIMATE_PRESET_AWAY:

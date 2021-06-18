@@ -44,14 +44,17 @@ climate::ClimateTraits BangBangClimate::traits() {
   traits.set_supported_modes({
       climate::CLIMATE_MODE_OFF,
       climate::CLIMATE_MODE_HEAT_COOL,
-      climate::CLIMATE_MODE_COOL,
-      climate::CLIMATE_MODE_HEAT,
   });
+  if (supports_cool_)
+    traits.add_supported_mode(climate::CLIMATE_MODE_COOL);
+  if (supports_heat_)
+    traits.add_supported_mode(climate::CLIMATE_MODE_HEAT);
   traits.set_supports_two_point_target_temperature(true);
-  traits.set_supported_presets({
-      climate::CLIMATE_PRESET_HOME,
-      climate::CLIMATE_PRESET_AWAY,
-  });
+  if (supports_away_)
+    traits.set_supported_presets({
+        climate::CLIMATE_PRESET_HOME,
+        climate::CLIMATE_PRESET_AWAY,
+    });
   traits.set_supports_action(true);
   return traits;
 }
