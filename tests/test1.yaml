@@ -1860,7 +1860,7 @@ display:
     reset_pin: GPIO23
     address: 0x3C
     id: display1
-    brightness: 60%
+    contrast: 60%
     pages:
       - id: page1
         lambda: |-
