@@ -13,7 +13,7 @@ void TuyaClimate::setup() {
       this->mode = climate::CLIMATE_MODE_OFF;
       if (datapoint.value_bool) {
         if (this->supports_heat_ && this->supports_cool_) {
-          this->mode = climate::CLIMATE_MODE_AUTO;
+          this->mode = climate::CLIMATE_MODE_HEAT_COOL;
         } else if (this->supports_heat_) {
           this->mode = climate::CLIMATE_MODE_HEAT;
         } else if (this->supports_cool_) {

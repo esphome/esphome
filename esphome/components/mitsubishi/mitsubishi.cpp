@@ -33,7 +33,7 @@ void MitsubishiClimate::transmit_state() {
     case climate::CLIMATE_MODE_HEAT:
       remote_state[6] = MITSUBISHI_HEAT;
       break;
-    case climate::CLIMATE_MODE_AUTO:
+    case climate::CLIMATE_MODE_HEAT_COOL:
       remote_state[6] = MITSUBISHI_AUTO;
       break;
     case climate::CLIMATE_MODE_OFF:

@@ -167,7 +167,7 @@ climate::ClimateTraits MideaAC::traits() {
   traits.set_visual_min_temperature(17);
   traits.set_visual_max_temperature(30);
   traits.set_visual_temperature_step(0.5);
-  traits.set_supports_auto_mode(true);
+  traits.set_supports_heat_cool_mode(true);
   traits.set_supports_cool_mode(true);
   traits.set_supports_dry_mode(true);
   traits.set_supports_heat_mode(true);

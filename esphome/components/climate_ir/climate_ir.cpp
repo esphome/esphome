@@ -9,7 +9,7 @@ static const char *TAG = "climate_ir";
 climate::ClimateTraits ClimateIR::traits() {
   auto traits = climate::ClimateTraits();
   traits.set_supports_current_temperature(this->sensor_ != nullptr);
-  traits.set_supports_auto_mode(true);
+  traits.set_supports_heat_cool_mode(true);
   traits.set_supports_cool_mode(this->supports_cool_);
   traits.set_supports_heat_mode(this->supports_heat_);
   traits.set_supports_dry_mode(this->supports_dry_);
