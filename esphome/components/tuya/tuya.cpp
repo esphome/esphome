@@ -333,7 +333,7 @@ void Tuya::send_raw_command_(TuyaCommand command) {
 void Tuya::process_command_queue_() {
   uint32_t delay = millis() - this->last_command_timestamp_;
   // Left check of delay since last command in case theres ever a command sent by calling send_raw_command_ directly
-  if (delay > COMMAND_DELAY && !command_queue_.empty()) {
+  if (delay > COMMAND_DELAY && !this->command_queue_.empty() && this->rx_message_.empty()) {
     this->send_raw_command_(command_queue_.front());
     this->command_queue_.erase(command_queue_.begin());
   }
