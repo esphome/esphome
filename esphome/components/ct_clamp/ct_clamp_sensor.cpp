@@ -7,7 +7,7 @@ namespace esphome {
 namespace ct_clamp {
 
 static const char *const TAG = "ct_clamp";
-static bool mutex = false;
+bool CTClampSensor::mutex = false;
 
 void CTClampSensor::setup() {}
 
@@ -20,8 +20,8 @@ void CTClampSensor::dump_config() {
 void CTClampSensor::update() {
   // Latch that an update is requested and attempts to preform update if no other clamp is being sampled.
   this->update_requested_ = true;
-  if (mutex) return;
-  mutex = true;
+  if (CTClampSensor::mutex) return;
+  CTClampSensor::mutex = true;
   this->update_requested_ = false;
 
   // Request a high loop() execution interval during sampling phase.
@@ -46,7 +46,7 @@ void CTClampSensor::update() {
     }
     ESP_LOGD(TAG, "'%s' - Raw AC Value: %.3fA (from %d samples)", this->name_.c_str(), ac, this->num_samples_);
     this->publish_state(ac);
-    mutex = false;
+    CTClampSensor::mutex = false;
   });
 
   // Set sampling values
