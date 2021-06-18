@@ -185,15 +185,20 @@ climate::ClimateTraits MideaAC::traits() {
   traits.set_supported_swing_modes({
       climate::CLIMATE_SWING_OFF,
       climate::CLIMATE_SWING_VERTICAL,
-      climate::CLIMATE_SWING_HORIZONTAL,
-      climate::CLIMATE_SWING_BOTH,
   });
+  if (traits_swing_horizontal_)
+    traits.add_supported_swing_mode(climate::CLIMATE_SWING_HORIZONTAL);
+  if (traits_swing_both_)
+    traits.add_supported_swing_mode(climate::CLIMATE_SWING_BOTH);
   traits.set_supported_presets({
       climate::CLIMATE_PRESET_HOME,
-      climate::CLIMATE_PRESET_ECO,
-      climate::CLIMATE_PRESET_SLEEP,
-      climate::CLIMATE_PRESET_BOOST,
   });
+  if (traits_preset_eco_)
+    traits.add_supported_preset(climate::CLIMATE_PRESET_ECO);
+  if (traits_preset_sleep_)
+    traits.add_supported_preset(climate::CLIMATE_PRESET_SLEEP);
+  if (traits_preset_boost_)
+    traits.add_supported_preset(climate::CLIMATE_PRESET_BOOST);
   traits.set_supported_custom_presets(this->traits_custom_presets_);
   traits.set_supports_current_temperature(true);
   return traits;
