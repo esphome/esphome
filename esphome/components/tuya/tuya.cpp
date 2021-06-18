@@ -232,7 +232,7 @@ void Tuya::handle_datapoint_(const uint8_t *buffer, size_t len) {
   const uint8_t *data = buffer + 4;
   size_t data_len = len - 4;
   if (data_size != data_len) {
-    ESP_LOGW(TAG, "Datapoint %u is not expected size", datapoint.id);
+    ESP_LOGW(TAG, "Datapoint %u is not expected size (%zu != %zu)", datapoint.id, data_size, data_len);
     return;
   }
   datapoint.len = data_len;
