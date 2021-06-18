@@ -1,13 +1,12 @@
+import logging
 import esphome.codegen as cg
 import esphome.config_validation as cv
-import logging
 from esphome import pins
 from esphome.components import display
 from esphome.const import (
     CONF_EXTERNAL_VCC,
     CONF_LAMBDA,
     CONF_MODEL,
-    CONF_OFFSET,
     CONF_RESET_PIN,
     CONF_BRIGHTNESS,
     CONF_CONTRAST,
@@ -40,15 +39,17 @@ MODELS = {
 
 SSD1306_MODEL = cv.enum(MODELS, upper=True, space="_")
 
+
 def _validate(value):
     model = value[CONF_MODEL]
-    if model != "SSD1305_128X32" and model != "SSD1305_128X64":
+    if model not in ("SSD1305_128X32", "SSD1305_128X64"):
         if value[CONF_BRIGHTNESS] != 1.0:
             _LOGGER.warning(
                 "SSD1306/SH1106 does not have brightness register, "
-                "please use \"contrast\" option instead.",
+                'please use "contrast" option instead.',
             )
     return value
+
 
 SSD1306_SCHEMA = display.FULL_DISPLAY_SCHEMA.extend(
     {

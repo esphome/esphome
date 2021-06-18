@@ -1,6 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import ssd1306_base, i2c
+from esphome.components.ssd1306_base import _validate
 from esphome.const import CONF_ID, CONF_LAMBDA, CONF_PAGES
 
 AUTO_LOAD = ["ssd1306_base"]
@@ -18,7 +19,7 @@ CONFIG_SCHEMA = cv.All(
     .extend(cv.COMPONENT_SCHEMA)
     .extend(i2c.i2c_device_schema(0x3C)),
     cv.has_at_most_one_key(CONF_PAGES, CONF_LAMBDA),
-    ssd1306_base._validate,
+    _validate,
 )
 
 

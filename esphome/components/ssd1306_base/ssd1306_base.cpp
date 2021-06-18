@@ -37,7 +37,6 @@ static const uint8_t SSD1306_COMMAND_INVERSE_DISPLAY = 0xA7;
 static const uint8_t SSD1305_COMMAND_SET_BRIGHTNESS = 0x82;
 static const uint8_t SSD1305_COMMAND_SET_AREA_COLOR = 0xD8;
 
-
 void SSD1306::setup() {
   this->init_internal_(this->get_buffer_length_());
 
@@ -81,7 +80,7 @@ void SSD1306::setup() {
 
   // X flip mode (0xA0, 0xA1)
   this->command(SSD1306_COMMAND_SEGRE_MAP | this->flip_x_);
-  
+
   // Y flip mode (0xC0, 0xC8)
   this->command(SSD1306_COMMAND_COM_SCAN_INC | (this->flip_y_ << 3));
 

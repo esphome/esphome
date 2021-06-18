@@ -71,7 +71,7 @@ class SSD1306 : public PollingComponent, public display::DisplayBuffer {
   bool flip_y_{true};
   uint8_t offset_x_{0};
   uint8_t offset_y_{0};
-  bool invert_{0};
+  bool invert_{false};
 };
 
 }  // namespace ssd1306_base
