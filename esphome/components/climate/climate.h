@@ -160,7 +160,7 @@ struct ClimateDeviceRestoreState {
  *
  * The entire state of the climate device is encoded in public properties of the base class (current_temperature,
  * mode etc). These are read-only for the user and rw for integrations. The reason these are public
- * is for simple access to them from lambdas `if (id(my_climate).mode == climate::CLIMATE_MODE_AUTO) ...`
+ * is for simple access to them from lambdas `if (id(my_climate).mode == climate::CLIMATE_MODE_HEAT_COOL) ...`
  */
 class Climate : public Nameable {
  public:

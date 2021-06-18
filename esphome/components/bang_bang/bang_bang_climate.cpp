@@ -21,7 +21,7 @@ void BangBangClimate::setup() {
     restore->to_call(this).perform();
   } else {
     // restore from defaults, change_away handles those for us
-    this->mode = climate::CLIMATE_MODE_AUTO;
+    this->mode = climate::CLIMATE_MODE_HEAT_COOL;
     this->change_away_(false);
   }
 }
@@ -59,7 +59,7 @@ climate::ClimateTraits BangBangClimate::traits() {
   return traits;
 }
 void BangBangClimate::compute_state_() {
-  if (this->mode != climate::CLIMATE_MODE_AUTO) {
+  if (this->mode != climate::CLIMATE_MODE_HEAT_COOL) {
     // in non-auto mode, switch directly to appropriate action
     //  - HEAT mode -> HEATING action
     //  - COOL mode -> COOLING action

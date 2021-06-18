@@ -21,7 +21,7 @@ void ThermostatClimate::setup() {
     restore->to_call(this).perform();
   } else {
     // restore from defaults, change_away handles temps for us
-    this->mode = climate::CLIMATE_MODE_AUTO;
+    this->mode = climate::CLIMATE_MODE_HEAT_COOL;
     this->change_away_(false);
   }
   // refresh the climate action based on the restored settings
@@ -154,7 +154,7 @@ climate::ClimateAction ThermostatClimate::compute_action_() {
       case climate::CLIMATE_MODE_OFF:
         target_action = climate::CLIMATE_ACTION_OFF;
         break;
-      case climate::CLIMATE_MODE_AUTO:
+      case climate::CLIMATE_MODE_HEAT_COOL:
       case climate::CLIMATE_MODE_COOL:
       case climate::CLIMATE_MODE_HEAT:
         if (this->supports_cool_) {
@@ -345,7 +345,7 @@ void ThermostatClimate::switch_to_mode_(climate::ClimateMode mode) {
     case climate::CLIMATE_MODE_OFF:
       trig = this->off_mode_trigger_;
       break;
-    case climate::CLIMATE_MODE_AUTO:
+    case climate::CLIMATE_MODE_HEAT_COOL:
       // trig = this->auto_mode_trigger_;
       break;
     case climate::CLIMATE_MODE_COOL:
@@ -363,7 +363,7 @@ void ThermostatClimate::switch_to_mode_(climate::ClimateMode mode) {
     default:
       // we cannot report an invalid mode back to HA (even if it asked for one)
       //  and must assume some valid value
-      mode = climate::CLIMATE_MODE_AUTO;
+      mode = climate::CLIMATE_MODE_HEAT_COOL;
       // trig = this->auto_mode_trigger_;
   }
   assert(trig != nullptr);
@@ -458,6 +458,9 @@ ThermostatClimate::ThermostatClimate()
       swing_mode_vertical_trigger_(new Trigger<>()) {}
 void ThermostatClimate::set_hysteresis(float hysteresis) { this->hysteresis_ = hysteresis; }
 void ThermostatClimate::set_sensor(sensor::Sensor *sensor) { this->sensor_ = sensor; }
+void ThermostatClimate::set_supports_heat_cool(bool supports_heat_cool) {
+  this->supports_heat_cool_ = supports_heat_cool;
+}
 void ThermostatClimate::set_supports_auto(bool supports_auto) { this->supports_auto_ = supports_auto; }
 void ThermostatClimate::set_supports_cool(bool supports_cool) { this->supports_cool_ = supports_cool; }
 void ThermostatClimate::set_supports_dry(bool supports_dry) { this->supports_dry_ = supports_dry; }
@@ -545,6 +548,7 @@ void ThermostatClimate::dump_config() {
   }
   ESP_LOGCONFIG(TAG, "  Hysteresis: %.1f°C", this->hysteresis_);
   ESP_LOGCONFIG(TAG, "  Supports AUTO: %s", YESNO(this->supports_auto_));
+  ESP_LOGCONFIG(TAG, "  Supports HEAT/COOL: %s", YESNO(this->supports_heat_cool_));
   ESP_LOGCONFIG(TAG, "  Supports COOL: %s", YESNO(this->supports_cool_));
   ESP_LOGCONFIG(TAG, "  Supports DRY: %s", YESNO(this->supports_dry_));
   ESP_LOGCONFIG(TAG, "  Supports FAN_ONLY: %s", YESNO(this->supports_fan_only_));
