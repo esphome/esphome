@@ -7,9 +7,8 @@ from esphome.const import (
     CONF_LAMBDA,
     CONF_BRIGHTNESS,
     CONF_TRIGGER_ID,
-    CONF_WIFI,
 )
-from esphome.core import CORE
+
 from . import Nextion, nextion_ns, nextion_ref
 from .base_component import (
     CONF_ON_SLEEP,
