@@ -70,7 +70,7 @@ async def to_code(config):
         cg.add(var.set_brightness(config[CONF_BRIGHTNESS]))
     if CONF_LAMBDA in config:
         lambda_ = await cg.process_lambda(
-            config[CONF_LAMBDA], [(NextionRef, "it")], return_type=cg.void
+            config[CONF_LAMBDA], [(nextion_ref, "it")], return_type=cg.void
         )
         cg.add(var.set_writer(lambda_))
 
@@ -91,12 +91,12 @@ async def to_code(config):
 
     for conf in config.get(CONF_ON_SETUP, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        yield automation.build_automation(trigger, [], conf)
+        await automation.build_automation(trigger, [], conf)
 
     for conf in config.get(CONF_ON_SLEEP, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        yield automation.build_automation(trigger, [], conf)
+        await automation.build_automation(trigger, [], conf)
 
     for conf in config.get(CONF_ON_WAKE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        yield automation.build_automation(trigger, [], conf)
+        await automation.build_automation(trigger, [], conf)

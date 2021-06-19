@@ -1113,7 +1113,8 @@ display:
     lambda: |-
       it.printdigit("hello");
   - platform: nextion
-    tft_url: 'http://nextionfw.thebakkers.com/default35.tft'
+    uart_id: uart1
+    tft_url: 'http://esphome.io/default35.tft'
     update_interval: 5s
     on_sleep:
       then:
