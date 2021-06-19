@@ -51,20 +51,20 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def to_code(config):
+async def to_code(config):
     if CONF_WAVE_CHANNEL_ID in config and CONF_COMPONENT_ID not in config:
         raise cv.Invalid(
             "{CONF_COMPONENT_ID} is required when {CONF_WAVE_CHANNEL_ID} is set"
         )
 
-    hub = yield cg.get_variable(config[CONF_NEXTION_ID])
+    hub = await cg.get_variable(config[CONF_NEXTION_ID])
     var = cg.new_Pvariable(config[CONF_ID], hub)
-    yield cg.register_component(var, config)
-    yield sensor.register_sensor(var, config)
+    await cg.register_component(var, config)
+    await sensor.register_sensor(var, config)
 
     cg.add(hub.register_sensor_component(var))
 
-    yield setup_component_core_(var, config, ".val")
+    await setup_component_core_(var, config, ".val")
 
     if CONF_PRECISION in config:
         cg.add(var.set_precision(config[CONF_PRECISION]))

@@ -641,15 +641,15 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   void loop() override;
   void set_writer(const nextion_writer_t &writer);
 
-  // This function has been depreciated
+  // This function has been deprecated
   void set_wait_for_ack(bool wait_for_ack);
 
-  // /**
-  //  * Manually send a raw formatted command to the display.
-  //  * @param format The printf-style command format, like "vis %s,0"
-  //  * @param ... The format arguments
-  //  * @return Whether the send was successful.
-  //  */
+  /**
+   * Manually send a raw formatted command to the display.
+   * @param format The printf-style command format, like "vis %s,0"
+   * @param ... The format arguments
+   * @return Whether the send was successful.
+   */
   bool send_command_printf(const char *format, ...) __attribute__((format(printf, 2, 3)));
 
 #ifdef USE_TFT_UPLOAD
@@ -740,7 +740,6 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   bool ignore_is_setup_ = false;
   bool nextion_reports_is_setup_ = false;
   uint8_t nextion_event_;
-  // bool nextion_has_event_ = false;
 
   void process_nextion_commands_();
   void process_serial_();
@@ -790,16 +789,6 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   int upload_by_chunks_(HTTPClient *http, int range_start);
 
   bool upload_with_range_(uint32_t range_start, uint32_t range_end);
-
-  // /**
-  //  * start update tft file to nextion.
-  //  *
-  //  * @param Stream &myFile
-  //  * @param int contentLength Total size of the file
-  //  * @param uint32_t chunk_size
-  //  * @return next chunk location or 0 for success
-  //  */
-  // uint32_t upload_send_stream_(Stream &my_file, int range);
 
   /**
    * start update tft file to nextion.

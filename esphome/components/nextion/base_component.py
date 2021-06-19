@@ -93,7 +93,7 @@ CONFIG_SWITCH_COMPONENT_SCHEMA = CONFIG_SENSOR_COMPONENT_SCHEMA.extend(
 
 
 @coroutine
-def setup_component_core_(var, config, arg):
+async def setup_component_core_(var, config, arg):
 
     if CONF_VARIABLE_NAME in config:
         cg.add(var.set_variable_name(config[CONF_VARIABLE_NAME]))
@@ -106,19 +106,19 @@ def setup_component_core_(var, config, arg):
         )
 
     if CONF_BACKGROUND_COLOR in config:
-        color_component = yield cg.get_variable(config[CONF_BACKGROUND_COLOR])
+        color_component = await cg.get_variable(config[CONF_BACKGROUND_COLOR])
         cg.add(var.set_background_color(color_component))
 
     if CONF_BACKGROUND_PRESSED_COLOR in config:
-        color_component = yield cg.get_variable(config[CONF_BACKGROUND_PRESSED_COLOR])
+        color_component = await cg.get_variable(config[CONF_BACKGROUND_PRESSED_COLOR])
         cg.add(var.set_background_pressed_color(color_component))
 
     if CONF_FOREGROUND_COLOR in config:
-        color_component = yield cg.get_variable(config[CONF_FOREGROUND_COLOR])
+        color_component = await cg.get_variable(config[CONF_FOREGROUND_COLOR])
         cg.add(var.set_foreground_color(color_component))
 
     if CONF_FOREGROUND_PRESSED_COLOR in config:
-        color_component = yield cg.get_variable(config[CONF_FOREGROUND_PRESSED_COLOR])
+        color_component = await cg.get_variable(config[CONF_FOREGROUND_PRESSED_COLOR])
         cg.add(var.set_foreground_pressed_color(color_component))
 
     if CONF_FONT_ID in config:

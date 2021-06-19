@@ -38,11 +38,11 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def to_code(config):
-    hub = yield cg.get_variable(config[CONF_NEXTION_ID])
+async def to_code(config):
+    hub = await cg.get_variable(config[CONF_NEXTION_ID])
     var = cg.new_Pvariable(config[CONF_ID], hub)
-    yield binary_sensor.register_binary_sensor(var, config)
-    yield cg.register_component(var, config)
+    await binary_sensor.register_binary_sensor(var, config)
+    await cg.register_component(var, config)
 
     if config.keys() >= {CONF_PAGE_ID, CONF_COMPONENT_ID}:
         cg.add(hub.register_touch_component(var))
@@ -50,5 +50,5 @@ def to_code(config):
         cg.add(var.set_page_id(config[CONF_PAGE_ID]))
 
     if CONF_COMPONENT_NAME in config or CONF_VARIABLE_NAME in config:
-        yield setup_component_core_(var, config, ".val")
+        await setup_component_core_(var, config, ".val")
         cg.add(hub.register_binarysensor_component(var))

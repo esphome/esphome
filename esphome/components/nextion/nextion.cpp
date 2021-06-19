@@ -99,21 +99,6 @@ bool Nextion::check_connect_() {
     ESP_LOGE(TAG, "Nextion returned bad connect value \"%s\"", response.c_str());
   }
 
-  // this->send_command_("bkcmd=3");  // Always, returns 0x00 to 0x23 result of serial command.
-
-  // this->set_backlight_brightness(this->brightness_);
-  // this->goto_page("0");
-
-  // this->set_auto_wake_on_touch(this->auto_wake_on_touch_);
-
-  // if (this->touch_sleep_timeout_ != 0) {
-  //   this->set_touch_sleep_timeout(this->touch_sleep_timeout_);
-  // }
-
-  // if (this->wake_up_page_ != -1) {
-  //   this->set_wake_up_page(this->wake_up_page_);
-  // }
-
   this->ignore_is_setup_ = false;
   this->dump_config();
   return true;
@@ -209,19 +194,6 @@ bool Nextion::send_command_printf(const char *format, ...) {
   }
   return false;
 }
-
-// bool Nextion::send_command_(const char *command) {
-//   if (!this->ignore_is_setup_ && !this->is_setup()) {
-//     return false;
-//   }
-
-//   ESP_LOGN(TAG, "send_command %s", command);
-
-//   this->write_str(command);
-//   const uint8_t to_send[3] = {0xFF, 0xFF, 0xFF};
-//   this->write_array(to_send, sizeof(to_send));
-//   return true;
-// }
 
 #ifdef NEXTION_PROTOCOL_LOG
 void Nextion::print_queue_members_() {
@@ -323,9 +295,6 @@ void Nextion::process_nextion_commands_() {
   std::string to_process;
 
   ESP_LOGN(TAG, "this->command_data_ %s length %d", this->command_data_.c_str(), this->command_data_.length());
-  // for (int i = 0; i < this->command_data_.length(); i++) {
-  //   ESP_LOGN(TAG, "data: %d 0x%2X \"%c\"", i, this->command_data_[i], this->command_data_[i]);
-  // }
 #ifdef NEXTION_PROTOCOL_LOG
   this->print_queue_members_();
 #endif
@@ -341,7 +310,6 @@ void Nextion::process_nextion_commands_() {
 
     to_process_length -= 1;
     to_process = this->command_data_.substr(1, to_process_length);
-    // ESP_LOGN(TAG, "nextion_event_ 0x%2X to_process size %s", this->nextion_event_, to_process.c_str());
 
     switch (this->nextion_event_) {
       case 0x00:  // instruction sent by user has failed
@@ -710,10 +678,6 @@ void Nextion::process_nextion_commands_() {
 
         ESP_LOGN(TAG, "Got Binary Sensor variable_name=%s value=%d", variable_name.c_str(), to_process[index] != 0);
 
-        // NextionBinarySensorResponseQueue *nq = new NextionBinarySensorResponseQueue;
-        // nq->variable_name = variable_name;
-        // nq->state = to_process[index] != 0;
-        // this->binarysensorq_.push_back(nq);
         for (auto *binarysensortype : this->binarysensortype_) {
           binarysensortype->process_bool(&variable_name[0], to_process[index] != 0);
         }
@@ -1049,6 +1013,7 @@ void Nextion::add_no_result_to_queue_with_set_internal_(const std::string &varia
   this->add_no_result_to_queue_with_ignore_sleep_printf_(variable_name, "%s=%d", variable_name_to_send.c_str(),
                                                          state_value);
 }
+
 /**
  * @brief
  *
@@ -1057,7 +1022,6 @@ void Nextion::add_no_result_to_queue_with_set_internal_(const std::string &varia
  * @param state_value Sting value to set
  * @param is_sleep_safe The command is safe to send when the Nextion is sleeping
  */
-
 void Nextion::add_no_result_to_queue_with_set(NextionComponentBase *component, const std::string &state_value) {
   this->add_no_result_to_queue_with_set(component->get_variable_name(), component->get_variable_name_to_send(),
                                         state_value);
@@ -1090,8 +1054,6 @@ void Nextion::add_to_get_queue(NextionComponentBase *component) {
   ESP_LOGN(TAG, "Add to queue type: %s component %s", component->get_queue_type_string().c_str(),
            component->get_variable_name().c_str());
 
-  // char command[64];
-  // sprintf(command, "get %s", nextion_queue->component->get_variable_name_to_send().c_str());
   std::string command = "get " + component->get_variable_name_to_send();
 
   if (this->send_command_(command)) {
@@ -1119,9 +1081,6 @@ void Nextion::add_addt_command_to_queue(NextionComponentBase *component) {
   size_t buffer_to_send = component->get_wave_buffer_size() < 255 ? component->get_wave_buffer_size()
                                                                   : 255;  // ADDT command can only send 255
 
-  // char command[64];
-  // sprintf(command, "addt %d,%u,%zu", nextion_queue->component->get_component_id(),
-  //         nextion_queue->component->get_wave_channel_id(), buffer_to_send);
   std::string command = "addt " + to_string(component->get_component_id()) + "," +
                         to_string(component->get_wave_channel_id()) + "," + to_string(buffer_to_send);
   if (this->send_command_(command)) {

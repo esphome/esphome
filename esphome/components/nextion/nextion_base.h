@@ -5,8 +5,6 @@
 namespace esphome {
 namespace nextion {
 
-//#define NEXTION_PROTOCOL_LOG  // For testing purposes
-
 #ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
 #define NEXTION_PROTOCOL_LOG
 #endif

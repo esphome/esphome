@@ -28,12 +28,12 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def to_code(config):
-    hub = yield cg.get_variable(config[CONF_NEXTION_ID])
+async def to_code(config):
+    hub = await cg.get_variable(config[CONF_NEXTION_ID])
     var = cg.new_Pvariable(config[CONF_ID], hub)
-    yield cg.register_component(var, config)
-    yield switch.register_switch(var, config)
+    await cg.register_component(var, config)
+    await switch.register_switch(var, config)
 
     cg.add(hub.register_switch_component(var))
 
-    yield setup_component_core_(var, config, ".val")
+    await setup_component_core_(var, config, ".val")

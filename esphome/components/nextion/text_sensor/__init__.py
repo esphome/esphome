@@ -27,12 +27,12 @@ CONFIG_SCHEMA = (
 )
 
 
-def to_code(config):
-    hub = yield cg.get_variable(config[CONF_NEXTION_ID])
+async def to_code(config):
+    hub = await cg.get_variable(config[CONF_NEXTION_ID])
     var = cg.new_Pvariable(config[CONF_ID], hub)
-    yield cg.register_component(var, config)
-    yield text_sensor.register_text_sensor(var, config)
+    await cg.register_component(var, config)
+    await text_sensor.register_text_sensor(var, config)
 
     cg.add(hub.register_textsensor_component(var))
 
-    yield setup_component_core_(var, config, ".txt")
+    await setup_component_core_(var, config, ".txt")
