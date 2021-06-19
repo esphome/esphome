@@ -32,7 +32,7 @@ class NextionBinarySensor : public NextionComponent,
   NextionQueueType get_queue_type() override { return NextionQueueType::BINARY_SENSOR; }
   void set_state_from_string(const std::string &state_value, bool publish, bool send_to_nextion) override {}
   void set_state_from_int(int state_value, bool publish, bool send_to_nextion) override {
-    this->set_state(state_value == 0 ? false : true, publish, send_to_nextion);
+    this->set_state(state_value != 0, publish, send_to_nextion);
   }
 
  protected:

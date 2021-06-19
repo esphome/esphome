@@ -4,7 +4,7 @@
 
 namespace esphome {
 namespace nextion {
-static const char *TAG = "nextion_textsensor";
+static const char *const TAG = "nextion_textsensor";
 
 void NextionTextSensor::process_text(const std::string &variable_name, const std::string &text_value) {
   if (!this->nextion_->is_setup())

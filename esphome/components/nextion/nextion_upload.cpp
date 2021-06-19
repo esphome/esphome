@@ -6,7 +6,7 @@
 
 namespace esphome {
 namespace nextion {
-static const char *TAG = "nextion_upload";
+static const char *const TAG = "nextion_upload";
 
 #if defined(USE_TFT_UPLOAD) && (defined(USE_ETHERNET) || defined(USE_WIFI))
 

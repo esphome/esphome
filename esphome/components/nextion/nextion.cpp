@@ -869,7 +869,7 @@ uint16_t Nextion::recv_ret_string_(std::string &response, uint32_t timeout, bool
   uint16_t ret = 0;
   uint8_t c = 0;
   uint8_t nr_of_ff_bytes = 0;
-  long start;
+  uint64_t start;
   bool exit_flag = false;
   bool ff_flag = false;
 

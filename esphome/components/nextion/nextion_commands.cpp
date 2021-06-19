@@ -4,7 +4,7 @@
 
 namespace esphome {
 namespace nextion {
-static const char *TAG = "nextion";
+static const char *const TAG = "nextion";
 
 // Sleep safe commands
 void Nextion::soft_reset() { this->send_command_("rest"); }

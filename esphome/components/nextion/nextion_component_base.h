@@ -1,4 +1,5 @@
 #pragma once
+#include <utility>
 #include "esphome/core/defines.h"
 
 namespace esphome {
@@ -13,8 +14,8 @@ enum NextionQueueType {
   WAVEFORM_SENSOR = 5,
 };
 
-static const char *NextionQueueTypeStrings[] = {"NO_RESULT", "SENSOR",      "BINARY_SENSOR",
-                                                "SWITCH",    "TEXT_SENSOR", "WAVEFORM_SENSOR"};
+static const char *const NEXTION_QUEUE_TYPE_STRINGS[] = {"NO_RESULT", "SENSOR",      "BINARY_SENSOR",
+                                                         "SWITCH",    "TEXT_SENSOR", "WAVEFORM_SENSOR"};
 
 class NextionComponentBase;
 
@@ -29,10 +30,10 @@ class NextionComponentBase {
  public:
   virtual ~NextionComponentBase() = default;
 
-  void set_variable_name(std::string variable_name, std::string variable_name_to_send = "") {
+  void set_variable_name(const std::string &variable_name, const std::string &variable_name_to_send = "") {
     variable_name_ = variable_name;
     if (variable_name_to_send.empty()) {
-      variable_name_to_send_ = variable_name_;
+      variable_name_to_send_ = variable_name;
     } else {
       variable_name_to_send_ = variable_name_to_send;
     }
@@ -71,7 +72,7 @@ class NextionComponentBase {
   std::string get_variable_name() { return this->variable_name_; }
   std::string get_variable_name_to_send() { return this->variable_name_to_send_; }
   virtual NextionQueueType get_queue_type() { return NextionQueueType::NO_RESULT; }
-  virtual std::string get_queue_type_string() { return NextionQueueTypeStrings[this->get_queue_type()]; }
+  virtual std::string get_queue_type_string() { return NEXTION_QUEUE_TYPE_STRINGS[this->get_queue_type()]; }
   virtual void set_state_from_int(int state_value, bool publish, bool send_to_nextion){};
   virtual void set_state_from_string(const std::string &state_value, bool publish, bool send_to_nextion){};
   virtual void send_state_to_nextion(){};
