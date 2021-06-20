@@ -5,10 +5,11 @@ namespace fujitsu_general {
 
 // bytes' bits are reversed for fujitsu, so nibbles are ordered 1, 0, 3, 2, 5, 4, etc...
 
-#define SET_NIBBLE(message, nibble, value) (message[nibble / 2] |= (value & 0b00001111) << ((nibble % 2) ? 0 : 4))
-#define GET_NIBBLE(message, nibble) ((message[nibble / 2] >> ((nibble % 2) ? 0 : 4)) & 0b00001111)
+#define SET_NIBBLE(message, nibble, value) \
+  ((message)[(nibble) / 2] |= ((value) &0b00001111) << (((nibble) % 2) ? 0 : 4))
+#define GET_NIBBLE(message, nibble) (((message)[(nibble) / 2] >> (((nibble) % 2) ? 0 : 4)) & 0b00001111)
 
-static const char* TAG = "fujitsu_general.climate";
+static const char *const TAG = "fujitsu_general.climate";
 
 // Common header
 const uint8_t FUJITSU_GENERAL_COMMON_LENGTH = 6;
@@ -132,7 +133,7 @@ void FujitsuGeneralClimate::transmit_state() {
     case climate::CLIMATE_MODE_FAN_ONLY:
       SET_NIBBLE(remote_state, FUJITSU_GENERAL_MODE_NIBBLE, FUJITSU_GENERAL_MODE_FAN);
       break;
-    case climate::CLIMATE_MODE_AUTO:
+    case climate::CLIMATE_MODE_HEAT_COOL:
     default:
       SET_NIBBLE(remote_state, FUJITSU_GENERAL_MODE_NIBBLE, FUJITSU_GENERAL_MODE_AUTO);
       break;
@@ -140,7 +141,7 @@ void FujitsuGeneralClimate::transmit_state() {
   }
 
   // Set fan
-  switch (this->fan_mode) {
+  switch (this->fan_mode.value()) {
     case climate::CLIMATE_FAN_HIGH:
       SET_NIBBLE(remote_state, FUJITSU_GENERAL_FAN_NIBBLE, FUJITSU_GENERAL_FAN_HIGH);
       break;
@@ -202,7 +203,7 @@ void FujitsuGeneralClimate::transmit_off_() {
   this->power_ = false;
 }
 
-void FujitsuGeneralClimate::transmit_(uint8_t const* message, uint8_t length) {
+void FujitsuGeneralClimate::transmit_(uint8_t const *message, uint8_t length) {
   ESP_LOGV(TAG, "Transmit message length %d", length);
 
   auto transmit = this->transmitter_->transmit();
@@ -231,7 +232,7 @@ void FujitsuGeneralClimate::transmit_(uint8_t const* message, uint8_t length) {
   transmit.perform();
 }
 
-uint8_t FujitsuGeneralClimate::checksum_state_(uint8_t const* message) {
+uint8_t FujitsuGeneralClimate::checksum_state_(uint8_t const *message) {
   uint8_t checksum = 0;
   for (uint8_t i = 7; i < FUJITSU_GENERAL_STATE_MESSAGE_LENGTH - 1; ++i) {
     checksum += message[i];
@@ -239,7 +240,7 @@ uint8_t FujitsuGeneralClimate::checksum_state_(uint8_t const* message) {
   return 256 - checksum;
 }
 
-uint8_t FujitsuGeneralClimate::checksum_util_(uint8_t const* message) { return 255 - message[5]; }
+uint8_t FujitsuGeneralClimate::checksum_util_(uint8_t const *message) { return 255 - message[5]; }
 
 bool FujitsuGeneralClimate::on_receive(remote_base::RemoteReceiveData data) {
   ESP_LOGV(TAG, "Received IR message");
@@ -343,7 +344,7 @@ bool FujitsuGeneralClimate::on_receive(remote_base::RemoteReceiveData data) {
       case FUJITSU_GENERAL_MODE_AUTO:
       default:
         // TODO: CLIMATE_MODE_10C is missing from esphome
-        this->mode = climate::CLIMATE_MODE_AUTO;
+        this->mode = climate::CLIMATE_MODE_HEAT_COOL;
         break;
     }
 

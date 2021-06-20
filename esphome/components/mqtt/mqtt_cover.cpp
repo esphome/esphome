@@ -6,7 +6,7 @@
 namespace esphome {
 namespace mqtt {
 
-static const char *TAG = "mqtt.cover";
+static const char *const TAG = "mqtt.cover";
 
 using namespace esphome::cover;
 

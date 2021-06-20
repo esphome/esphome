@@ -8,7 +8,7 @@
 namespace esphome {
 namespace inkplate6 {
 
-static const char *TAG = "inkplate";
+static const char *const TAG = "inkplate";
 
 void Inkplate6::setup() {
   this->initialize_();

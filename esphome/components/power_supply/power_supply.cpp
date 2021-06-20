@@ -4,7 +4,7 @@
 namespace esphome {
 namespace power_supply {
 
-static const char *TAG = "power_supply";
+static const char *const TAG = "power_supply";
 
 void PowerSupply::setup() {
   ESP_LOGCONFIG(TAG, "Setting up Power Supply...");

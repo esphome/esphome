@@ -10,7 +10,7 @@ enum ClimateMode : uint8_t {
   /// The climate device is off (not in auto, heat or cool mode)
   CLIMATE_MODE_OFF = 0,
   /// The climate device is set to automatically change the heating/cooling cycle
-  CLIMATE_MODE_AUTO = 1,
+  CLIMATE_MODE_HEAT_COOL = 1,
   /// The climate device is manually set to cool mode (not in auto mode!)
   CLIMATE_MODE_COOL = 2,
   /// The climate device is manually set to heat mode (not in auto mode!)
@@ -19,6 +19,8 @@ enum ClimateMode : uint8_t {
   CLIMATE_MODE_FAN_ONLY = 4,
   /// The climate device is manually set to dry mode
   CLIMATE_MODE_DRY = 5,
+  /// The climate device is manually set to heat-cool mode
+  CLIMATE_MODE_AUTO = 6
 };
 
 /// Enum for the current action of the climate device. Values match those of ClimateMode.
@@ -61,7 +63,7 @@ enum ClimateFanMode : uint8_t {
 
 /// Enum for all modes a climate swing can be in
 enum ClimateSwingMode : uint8_t {
-  /// The sing mode is set to Off
+  /// The swing mode is set to Off
   CLIMATE_SWING_OFF = 0,
   /// The fan mode is set to Both
   CLIMATE_SWING_BOTH = 1,
@@ -69,6 +71,24 @@ enum ClimateSwingMode : uint8_t {
   CLIMATE_SWING_VERTICAL = 2,
   /// The fan mode is set to Horizontal
   CLIMATE_SWING_HORIZONTAL = 3,
+};
+
+/// Enum for all modes a climate swing can be in
+enum ClimatePreset : uint8_t {
+  /// Preset is set to ECO
+  CLIMATE_PRESET_ECO = 0,
+  /// Preset is set to AWAY
+  CLIMATE_PRESET_AWAY = 1,
+  /// Preset is set to BOOST
+  CLIMATE_PRESET_BOOST = 2,
+  /// Preset is set to COMFORT
+  CLIMATE_PRESET_COMFORT = 3,
+  /// Preset is set to HOME
+  CLIMATE_PRESET_HOME = 4,
+  /// Preset is set to SLEEP
+  CLIMATE_PRESET_SLEEP = 5,
+  /// Preset is set to ACTIVITY
+  CLIMATE_PRESET_ACTIVITY = 6,
 };
 
 /// Convert the given ClimateMode to a human-readable string.
@@ -82,6 +102,9 @@ const char *climate_fan_mode_to_string(ClimateFanMode mode);
 
 /// Convert the given ClimateSwingMode to a human-readable string.
 const char *climate_swing_mode_to_string(ClimateSwingMode mode);
+
+/// Convert the given ClimateSwingMode to a human-readable string.
+const char *climate_preset_to_string(ClimatePreset preset);
 
 }  // namespace climate
 }  // namespace esphome

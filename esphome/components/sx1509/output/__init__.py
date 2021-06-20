@@ -19,10 +19,10 @@ CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-def to_code(config):
-    parent = yield cg.get_variable(config[CONF_SX1509_ID])
+async def to_code(config):
+    parent = await cg.get_variable(config[CONF_SX1509_ID])
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
-    yield output.register_output(var, config)
+    await cg.register_component(var, config)
+    await output.register_output(var, config)
     cg.add(var.set_pin(config[CONF_PIN]))
     cg.add(var.set_parent(parent))

@@ -5,7 +5,7 @@
 namespace esphome {
 namespace integration {
 
-static const char *TAG = "integration";
+static const char *const TAG = "integration";
 
 void IntegrationSensor::setup() {
   if (this->restore_) {

@@ -4,11 +4,14 @@ from esphome import automation
 from esphome.components import mqtt
 from esphome.const import (
     CONF_AWAY,
+    CONF_CUSTOM_FAN_MODE,
+    CONF_CUSTOM_PRESET,
     CONF_ID,
     CONF_INTERNAL,
     CONF_MAX_TEMPERATURE,
     CONF_MIN_TEMPERATURE,
     CONF_MODE,
+    CONF_PRESET,
     CONF_TARGET_TEMPERATURE,
     CONF_TARGET_TEMPERATURE_HIGH,
     CONF_TARGET_TEMPERATURE_LOW,
@@ -19,7 +22,7 @@ from esphome.const import (
     CONF_FAN_MODE,
     CONF_SWING_MODE,
 )
-from esphome.core import CORE, coroutine, coroutine_with_priority
+from esphome.core import CORE, coroutine_with_priority
 
 IS_PLATFORM_COMPONENT = True
 
@@ -33,11 +36,12 @@ ClimateTraits = climate_ns.class_("ClimateTraits")
 ClimateMode = climate_ns.enum("ClimateMode")
 CLIMATE_MODES = {
     "OFF": ClimateMode.CLIMATE_MODE_OFF,
-    "AUTO": ClimateMode.CLIMATE_MODE_AUTO,
+    "HEAT_COOL": ClimateMode.CLIMATE_HEAT_COOL,
     "COOL": ClimateMode.CLIMATE_MODE_COOL,
     "HEAT": ClimateMode.CLIMATE_MODE_HEAT,
     "DRY": ClimateMode.CLIMATE_MODE_DRY,
     "FAN_ONLY": ClimateMode.CLIMATE_MODE_FAN_ONLY,
+    "AUTO": ClimateMode.CLIMATE_MODE_AUTO,
 }
 validate_climate_mode = cv.enum(CLIMATE_MODES, upper=True)
 
@@ -55,6 +59,19 @@ CLIMATE_FAN_MODES = {
 }
 
 validate_climate_fan_mode = cv.enum(CLIMATE_FAN_MODES, upper=True)
+
+ClimatePreset = climate_ns.enum("ClimatePreset")
+CLIMATE_PRESETS = {
+    "ECO": ClimatePreset.CLIMATE_PRESET_ECO,
+    "AWAY": ClimatePreset.CLIMATE_PRESET_AWAY,
+    "BOOST": ClimatePreset.CLIMATE_PRESET_BOOST,
+    "COMFORT": ClimatePreset.CLIMATE_PRESET_COMFORT,
+    "HOME": ClimatePreset.CLIMATE_PRESET_HOME,
+    "SLEEP": ClimatePreset.CLIMATE_PRESET_SLEEP,
+    "ACTIVITY": ClimatePreset.CLIMATE_PRESET_ACTIVITY,
+}
+
+validate_climate_preset = cv.enum(CLIMATE_PRESETS, upper=True)
 
 ClimateSwingMode = climate_ns.enum("ClimateSwingMode")
 CLIMATE_SWING_MODES = {
@@ -85,8 +102,7 @@ CLIMATE_SCHEMA = cv.MQTT_COMMAND_COMPONENT_SCHEMA.extend(
 )
 
 
-@coroutine
-def setup_climate_core_(var, config):
+async def setup_climate_core_(var, config):
     cg.add(var.set_name(config[CONF_NAME]))
     if CONF_INTERNAL in config:
         cg.add(var.set_internal(config[CONF_INTERNAL]))
@@ -100,15 +116,14 @@ def setup_climate_core_(var, config):
 
     if CONF_MQTT_ID in config:
         mqtt_ = cg.new_Pvariable(config[CONF_MQTT_ID], var)
-        yield mqtt.register_mqtt_component(mqtt_, config)
+        await mqtt.register_mqtt_component(mqtt_, config)
 
 
-@coroutine
-def register_climate(var, config):
+async def register_climate(var, config):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
     cg.add(cg.App.register_climate(var))
-    yield setup_climate_core_(var, config)
+    await setup_climate_core_(var, config)
 
 
 CLIMATE_CONTROL_ACTION_SCHEMA = cv.Schema(
@@ -119,7 +134,12 @@ CLIMATE_CONTROL_ACTION_SCHEMA = cv.Schema(
         cv.Optional(CONF_TARGET_TEMPERATURE_LOW): cv.templatable(cv.temperature),
         cv.Optional(CONF_TARGET_TEMPERATURE_HIGH): cv.templatable(cv.temperature),
         cv.Optional(CONF_AWAY): cv.templatable(cv.boolean),
-        cv.Optional(CONF_FAN_MODE): cv.templatable(validate_climate_fan_mode),
+        cv.Exclusive(CONF_FAN_MODE, "fan_mode"): cv.templatable(
+            validate_climate_fan_mode
+        ),
+        cv.Exclusive(CONF_CUSTOM_FAN_MODE, "fan_mode"): cv.string_strict,
+        cv.Exclusive(CONF_PRESET, "preset"): cv.templatable(validate_climate_preset),
+        cv.Exclusive(CONF_CUSTOM_PRESET, "preset"): cv.string_strict,
         cv.Optional(CONF_SWING_MODE): cv.templatable(validate_climate_swing_mode),
     }
 )
@@ -128,40 +148,49 @@ CLIMATE_CONTROL_ACTION_SCHEMA = cv.Schema(
 @automation.register_action(
     "climate.control", ControlAction, CLIMATE_CONTROL_ACTION_SCHEMA
 )
-def climate_control_to_code(config, action_id, template_arg, args):
-    paren = yield cg.get_variable(config[CONF_ID])
+async def climate_control_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
     if CONF_MODE in config:
-        template_ = yield cg.templatable(config[CONF_MODE], args, ClimateMode)
+        template_ = await cg.templatable(config[CONF_MODE], args, ClimateMode)
         cg.add(var.set_mode(template_))
     if CONF_TARGET_TEMPERATURE in config:
-        template_ = yield cg.templatable(config[CONF_TARGET_TEMPERATURE], args, float)
+        template_ = await cg.templatable(config[CONF_TARGET_TEMPERATURE], args, float)
         cg.add(var.set_target_temperature(template_))
     if CONF_TARGET_TEMPERATURE_LOW in config:
-        template_ = yield cg.templatable(
+        template_ = await cg.templatable(
             config[CONF_TARGET_TEMPERATURE_LOW], args, float
         )
         cg.add(var.set_target_temperature_low(template_))
     if CONF_TARGET_TEMPERATURE_HIGH in config:
-        template_ = yield cg.templatable(
+        template_ = await cg.templatable(
             config[CONF_TARGET_TEMPERATURE_HIGH], args, float
         )
         cg.add(var.set_target_temperature_high(template_))
     if CONF_AWAY in config:
-        template_ = yield cg.templatable(config[CONF_AWAY], args, bool)
+        template_ = await cg.templatable(config[CONF_AWAY], args, bool)
         cg.add(var.set_away(template_))
     if CONF_FAN_MODE in config:
-        template_ = yield cg.templatable(config[CONF_FAN_MODE], args, ClimateFanMode)
+        template_ = await cg.templatable(config[CONF_FAN_MODE], args, ClimateFanMode)
         cg.add(var.set_fan_mode(template_))
+    if CONF_CUSTOM_FAN_MODE in config:
+        template_ = await cg.templatable(config[CONF_CUSTOM_FAN_MODE], args, str)
+        cg.add(var.set_custom_fan_mode(template_))
+    if CONF_PRESET in config:
+        template_ = await cg.templatable(config[CONF_PRESET], args, ClimatePreset)
+        cg.add(var.set_preset(template_))
+    if CONF_CUSTOM_PRESET in config:
+        template_ = await cg.templatable(config[CONF_CUSTOM_PRESET], args, str)
+        cg.add(var.set_custom_preset(template_))
     if CONF_SWING_MODE in config:
-        template_ = yield cg.templatable(
+        template_ = await cg.templatable(
             config[CONF_SWING_MODE], args, ClimateSwingMode
         )
         cg.add(var.set_swing_mode(template_))
-    yield var
+    return var
 
 
 @coroutine_with_priority(100.0)
-def to_code(config):
+async def to_code(config):
     cg.add_define("USE_CLIMATE")
     cg.add_global(climate_ns.using)

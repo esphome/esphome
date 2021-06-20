@@ -5,7 +5,7 @@
 namespace esphome {
 namespace ssd1306_base {
 
-static const char *TAG = "ssd1306";
+static const char *const TAG = "ssd1306";
 
 static const uint8_t BLACK = 0;
 static const uint8_t WHITE = 1;

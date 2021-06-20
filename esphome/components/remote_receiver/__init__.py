@@ -47,16 +47,16 @@ CONFIG_SCHEMA = remote_base.validate_triggers(
 )
 
 
-def to_code(config):
-    pin = yield cg.gpio_pin_expression(config[CONF_PIN])
+async def to_code(config):
+    pin = await cg.gpio_pin_expression(config[CONF_PIN])
     if CORE.is_esp32:
         var = cg.new_Pvariable(config[CONF_ID], pin, config[CONF_MEMORY_BLOCKS])
     else:
         var = cg.new_Pvariable(config[CONF_ID], pin)
 
-    yield remote_base.build_dumpers(config[CONF_DUMP])
-    yield remote_base.build_triggers(config)
-    yield cg.register_component(var, config)
+    await remote_base.build_dumpers(config[CONF_DUMP])
+    await remote_base.build_triggers(config)
+    await cg.register_component(var, config)
 
     cg.add(var.set_tolerance(config[CONF_TOLERANCE]))
     cg.add(var.set_buffer_size(config[CONF_BUFFER_SIZE]))

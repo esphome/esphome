@@ -8,6 +8,7 @@ from esphome.const import (
     DEVICE_CLASS_TEMPERATURE,
     ICON_BRIEFCASE_DOWNLOAD,
     ICON_EMPTY,
+    STATE_CLASS_MEASUREMENT,
     UNIT_METER_PER_SECOND_SQUARED,
     ICON_SCREEN_ROTATION,
     UNIT_DEGREE_PER_SECOND,
@@ -29,13 +30,21 @@ MPU6050Component = mpu6050_ns.class_(
 )
 
 accel_schema = sensor.sensor_schema(
-    UNIT_METER_PER_SECOND_SQUARED, ICON_BRIEFCASE_DOWNLOAD, 2, DEVICE_CLASS_EMPTY
+    UNIT_METER_PER_SECOND_SQUARED,
+    ICON_BRIEFCASE_DOWNLOAD,
+    2,
+    DEVICE_CLASS_EMPTY,
+    STATE_CLASS_MEASUREMENT,
 )
 gyro_schema = sensor.sensor_schema(
-    UNIT_DEGREE_PER_SECOND, ICON_SCREEN_ROTATION, 2, DEVICE_CLASS_EMPTY
+    UNIT_DEGREE_PER_SECOND,
+    ICON_SCREEN_ROTATION,
+    2,
+    DEVICE_CLASS_EMPTY,
+    STATE_CLASS_MEASUREMENT,
 )
 temperature_schema = sensor.sensor_schema(
-    UNIT_CELSIUS, ICON_EMPTY, 1, DEVICE_CLASS_TEMPERATURE
+    UNIT_CELSIUS, ICON_EMPTY, 1, DEVICE_CLASS_TEMPERATURE, STATE_CLASS_MEASUREMENT
 )
 
 CONFIG_SCHEMA = (
@@ -56,21 +65,21 @@ CONFIG_SCHEMA = (
 )
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
-    yield i2c.register_i2c_device(var, config)
+    await cg.register_component(var, config)
+    await i2c.register_i2c_device(var, config)
 
     for d in ["x", "y", "z"]:
         accel_key = f"accel_{d}"
         if accel_key in config:
-            sens = yield sensor.new_sensor(config[accel_key])
+            sens = await sensor.new_sensor(config[accel_key])
             cg.add(getattr(var, f"set_accel_{d}_sensor")(sens))
         accel_key = f"gyro_{d}"
         if accel_key in config:
-            sens = yield sensor.new_sensor(config[accel_key])
+            sens = await sensor.new_sensor(config[accel_key])
             cg.add(getattr(var, f"set_gyro_{d}_sensor")(sens))
 
     if CONF_TEMPERATURE in config:
-        sens = yield sensor.new_sensor(config[CONF_TEMPERATURE])
+        sens = await sensor.new_sensor(config[CONF_TEMPERATURE])
         cg.add(var.set_temperature_sensor(sens))

@@ -39,11 +39,11 @@ CONFIG_SCHEMA = cv.Schema(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
+    await cg.register_component(var, config)
 
-    out = yield cg.get_variable(config[CONF_OUTPUT])
+    out = await cg.get_variable(config[CONF_OUTPUT])
     cg.add(var.set_output(out))
     cg.add(var.set_min_level(config[CONF_MIN_LEVEL]))
     cg.add(var.set_idle_level(config[CONF_IDLE_LEVEL]))
@@ -63,12 +63,12 @@ def to_code(config):
         }
     ),
 )
-def servo_write_to_code(config, action_id, template_arg, args):
-    paren = yield cg.get_variable(config[CONF_ID])
+async def servo_write_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = yield cg.templatable(config[CONF_LEVEL], args, float)
+    template_ = await cg.templatable(config[CONF_LEVEL], args, float)
     cg.add(var.set_value(template_))
-    yield var
+    return var
 
 
 @automation.register_action(
@@ -80,6 +80,6 @@ def servo_write_to_code(config, action_id, template_arg, args):
         }
     ),
 )
-def servo_detach_to_code(config, action_id, template_arg, args):
-    paren = yield cg.get_variable(config[CONF_ID])
-    yield cg.new_Pvariable(action_id, template_arg, paren)
+async def servo_detach_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(action_id, template_arg, paren)
