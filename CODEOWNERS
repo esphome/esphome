@@ -15,7 +15,6 @@ esphome/components/ac_dimmer/* @glmnet
 esphome/components/adc/* @esphome/core
 esphome/components/addressable_light/* @justfalter
 esphome/components/am43/* @buxtronix
-esphome/components/am43_cover/* @buxtronix
 esphome/components/animation/* @syndlex
 esphome/components/api/* @OttoWinter
 esphome/components/async_tcp/* @OttoWinter
