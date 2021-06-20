@@ -5,7 +5,7 @@ namespace am43 {
 
 const uint8_t START_PACKET[5] = {0x00, 0xff, 0x00, 0x00, 0x9a};
 
-std::string pkt_to_hex(const uint8_t* data, uint16_t len) {
+std::string pkt_to_hex(const uint8_t *data, uint16_t len) {
   char buf[64];
   memset(buf, 0, 64);
   for (int i = 0; i < len; i++)
@@ -14,44 +14,44 @@ std::string pkt_to_hex(const uint8_t* data, uint16_t len) {
   return ret;
 }
 
-Am43Packet* Am43Encoder::get_battery_level_request() {
+Am43Packet *Am43Encoder::get_battery_level_request() {
   uint8_t data = 0x1;
   return this->encode_(0xA2, &data, 1);
 }
 
-Am43Packet* Am43Encoder::get_light_level_request() {
+Am43Packet *Am43Encoder::get_light_level_request() {
   uint8_t data = 0x1;
   return this->encode_(0xAA, &data, 1);
 }
 
-Am43Packet* Am43Encoder::get_position_request() {
+Am43Packet *Am43Encoder::get_position_request() {
   uint8_t data = 0x1;
   return this->encode_(CMD_GET_POSITION, &data, 1);
 }
 
-Am43Packet* Am43Encoder::get_send_pin_request(uint16_t pin) {
+Am43Packet *Am43Encoder::get_send_pin_request(uint16_t pin) {
   uint8_t data[2];
   data[0] = (pin & 0xFF00) >> 8;
   data[1] = pin & 0xFF;
   return this->encode_(CMD_SEND_PIN, data, 2);
 }
 
-Am43Packet* Am43Encoder::get_open_request() {
+Am43Packet *Am43Encoder::get_open_request() {
   uint8_t data = 0xDD;
   return this->encode_(CMD_SET_STATE, &data, 1);
 }
 
-Am43Packet* Am43Encoder::get_close_request() {
+Am43Packet *Am43Encoder::get_close_request() {
   uint8_t data = 0xEE;
   return this->encode_(CMD_SET_STATE, &data, 1);
 }
 
-Am43Packet* Am43Encoder::get_stop_request() {
+Am43Packet *Am43Encoder::get_stop_request() {
   uint8_t data = 0xCC;
   return this->encode_(CMD_SET_STATE, &data, 1);
 }
 
-Am43Packet* Am43Encoder::get_set_position_request(uint8_t position) {
+Am43Packet *Am43Encoder::get_set_position_request(uint8_t position) {
   return this->encode_(CMD_SET_POSITION, &position, 1);
 }
 
@@ -64,7 +64,7 @@ void Am43Encoder::checksum_() {
   this->packet_.length++;
 }
 
-Am43Packet* Am43Encoder::encode_(uint8_t command, uint8_t* data, uint8_t length) {
+Am43Packet *Am43Encoder::encode_(uint8_t command, uint8_t *data, uint8_t length) {
   memcpy(this->packet_.data, START_PACKET, 5);
   this->packet_.data[5] = command;
   this->packet_.data[6] = length;
@@ -75,7 +75,7 @@ Am43Packet* Am43Encoder::encode_(uint8_t command, uint8_t* data, uint8_t length)
   return &this->packet_;
 }
 
-void Am43Decoder::decode(const uint8_t* data, uint16_t length) {
+void Am43Decoder::decode(const uint8_t *data, uint16_t length) {
   this->has_battery_level_ = false;
   this->has_light_level_ = false;
   this->has_set_position_response_ = false;

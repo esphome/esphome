@@ -31,18 +31,18 @@ static const uint8_t RESPONSE_NACK = 0xA5;
 
 class Am43Encoder {
  public:
-  Am43Packet* get_battery_level_request();
-  Am43Packet* get_light_level_request();
-  Am43Packet* get_position_request();
-  Am43Packet* get_send_pin_request(uint16_t pin);
-  Am43Packet* get_open_request();
-  Am43Packet* get_close_request();
-  Am43Packet* get_stop_request();
-  Am43Packet* get_set_position_request(uint8_t position);
+  Am43Packet *get_battery_level_request();
+  Am43Packet *get_light_level_request();
+  Am43Packet *get_position_request();
+  Am43Packet *get_send_pin_request(uint16_t pin);
+  Am43Packet *get_open_request();
+  Am43Packet *get_close_request();
+  Am43Packet *get_stop_request();
+  Am43Packet *get_set_position_request(uint8_t position);
 
  protected:
   void checksum_();
-  Am43Packet* encode_(uint8_t command, uint8_t* data, uint8_t length);
+  Am43Packet *encode_(uint8_t command, uint8_t *data, uint8_t length);
   Am43Packet packet_;
 };
 
