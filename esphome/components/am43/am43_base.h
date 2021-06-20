@@ -48,7 +48,7 @@ class Am43Encoder {
 
 class Am43Decoder {
  public:
-  void decode(const uint8_t* data, uint16_t length);
+  void decode(const uint8_t *data, uint16_t length);
   bool has_battery_level() { return this->has_battery_level_; }
   bool has_light_level() { return this->has_light_level_; }
   bool has_set_position_response() { return this->has_set_position_response_; }
