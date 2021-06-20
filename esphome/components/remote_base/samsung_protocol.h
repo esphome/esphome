@@ -7,9 +7,10 @@ namespace esphome {
 namespace remote_base {
 
 struct SamsungData {
-  uint32_t data;
+  uint64_t data;
+  uint8_t nbits;
 
-  bool operator==(const SamsungData &rhs) const { return data == rhs.data; }
+  bool operator==(const SamsungData &rhs) const { return data == rhs.data && nbits == rhs.nbits; }
 };
 
 class SamsungProtocol : public RemoteProtocol<SamsungData> {
@@ -23,11 +24,13 @@ DECLARE_REMOTE_PROTOCOL(Samsung)
 
 template<typename... Ts> class SamsungAction : public RemoteTransmitterActionBase<Ts...> {
  public:
-  TEMPLATABLE_VALUE(uint32_t, data)
+  TEMPLATABLE_VALUE(uint64_t, data)
+  TEMPLATABLE_VALUE(uint8_t, nbits)
 
   void encode(RemoteTransmitData *dst, Ts... x) override {
     SamsungData data{};
     data.data = this->data_.value(x...);
+    data.nbits = this->nbits_.value(x...);
     SamsungProtocol().encode(dst, data);
   }
 };

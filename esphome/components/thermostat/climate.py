@@ -227,7 +227,7 @@ async def to_code(config):
     await cg.register_component(var, config)
     await climate.register_climate(var, config)
 
-    auto_mode_available = CONF_HEAT_ACTION in config and CONF_COOL_ACTION in config
+    heat_cool_mode_available = CONF_HEAT_ACTION in config and CONF_COOL_ACTION in config
     two_points_available = CONF_HEAT_ACTION in config and (
         CONF_COOL_ACTION in config or CONF_FAN_ONLY_ACTION in config
     )
@@ -258,10 +258,10 @@ async def to_code(config):
         var.get_idle_action_trigger(), [], config[CONF_IDLE_ACTION]
     )
 
-    if auto_mode_available is True:
-        cg.add(var.set_supports_auto(True))
+    if heat_cool_mode_available is True:
+        cg.add(var.set_supports_heat_cool(True))
     else:
-        cg.add(var.set_supports_auto(False))
+        cg.add(var.set_supports_heat_cool(False))
 
     if CONF_COOL_ACTION in config:
         await automation.build_automation(

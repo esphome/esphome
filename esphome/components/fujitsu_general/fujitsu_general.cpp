@@ -133,7 +133,7 @@ void FujitsuGeneralClimate::transmit_state() {
     case climate::CLIMATE_MODE_FAN_ONLY:
       SET_NIBBLE(remote_state, FUJITSU_GENERAL_MODE_NIBBLE, FUJITSU_GENERAL_MODE_FAN);
       break;
-    case climate::CLIMATE_MODE_AUTO:
+    case climate::CLIMATE_MODE_HEAT_COOL:
     default:
       SET_NIBBLE(remote_state, FUJITSU_GENERAL_MODE_NIBBLE, FUJITSU_GENERAL_MODE_AUTO);
       break;
@@ -344,7 +344,7 @@ bool FujitsuGeneralClimate::on_receive(remote_base::RemoteReceiveData data) {
       case FUJITSU_GENERAL_MODE_AUTO:
       default:
         // TODO: CLIMATE_MODE_10C is missing from esphome
-        this->mode = climate::CLIMATE_MODE_AUTO;
+        this->mode = climate::CLIMATE_MODE_HEAT_COOL;
         break;
     }
 
