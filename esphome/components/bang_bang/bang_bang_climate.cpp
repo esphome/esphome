@@ -4,7 +4,7 @@
 namespace esphome {
 namespace bang_bang {
 
-static const char *TAG = "bang_bang.climate";
+static const char *const TAG = "bang_bang.climate";
 
 void BangBangClimate::setup() {
   this->sensor_->add_on_state_callback([this](float state) {
@@ -21,7 +21,7 @@ void BangBangClimate::setup() {
     restore->to_call(this).perform();
   } else {
     // restore from defaults, change_away handles those for us
-    this->mode = climate::CLIMATE_MODE_AUTO;
+    this->mode = climate::CLIMATE_MODE_HEAT_COOL;
     this->change_away_(false);
   }
 }
@@ -41,7 +41,7 @@ void BangBangClimate::control(const climate::ClimateCall &call) {
 climate::ClimateTraits BangBangClimate::traits() {
   auto traits = climate::ClimateTraits();
   traits.set_supports_current_temperature(true);
-  traits.set_supports_auto_mode(true);
+  traits.set_supports_heat_cool_mode(true);
   traits.set_supports_cool_mode(this->supports_cool_);
   traits.set_supports_heat_mode(this->supports_heat_);
   traits.set_supports_two_point_target_temperature(true);
@@ -50,7 +50,7 @@ climate::ClimateTraits BangBangClimate::traits() {
   return traits;
 }
 void BangBangClimate::compute_state_() {
-  if (this->mode != climate::CLIMATE_MODE_AUTO) {
+  if (this->mode != climate::CLIMATE_MODE_HEAT_COOL) {
     // in non-auto mode, switch directly to appropriate action
     //  - HEAT mode -> HEATING action
     //  - COOL mode -> COOLING action

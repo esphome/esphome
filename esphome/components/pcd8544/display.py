@@ -36,22 +36,22 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
 
-    yield cg.register_component(var, config)
-    yield display.register_display(var, config)
-    yield spi.register_spi_device(var, config)
+    await cg.register_component(var, config)
+    await display.register_display(var, config)
+    await spi.register_spi_device(var, config)
 
-    dc = yield cg.gpio_pin_expression(config[CONF_DC_PIN])
+    dc = await cg.gpio_pin_expression(config[CONF_DC_PIN])
     cg.add(var.set_dc_pin(dc))
-    reset = yield cg.gpio_pin_expression(config[CONF_RESET_PIN])
+    reset = await cg.gpio_pin_expression(config[CONF_RESET_PIN])
     cg.add(var.set_reset_pin(reset))
 
     cg.add(var.set_contrast(config[CONF_CONTRAST]))
 
     if CONF_LAMBDA in config:
-        lambda_ = yield cg.process_lambda(
+        lambda_ = await cg.process_lambda(
             config[CONF_LAMBDA], [(display.DisplayBufferRef, "it")], return_type=cg.void
         )
         cg.add(var.set_writer(lambda_))

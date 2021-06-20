@@ -34,14 +34,14 @@ CONFIG_SCHEMA = cv.typed_schema(
 )
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     if config[CONF_TYPE] == CONF_BINARY:
-        yield automation.build_automation(
+        await automation.build_automation(
             var.get_trigger(), [(bool, "state")], config[CONF_WRITE_ACTION]
         )
     else:
-        yield automation.build_automation(
+        await automation.build_automation(
             var.get_trigger(), [(float, "state")], config[CONF_WRITE_ACTION]
         )
-    yield output.register_output(var, config)
+    await output.register_output(var, config)

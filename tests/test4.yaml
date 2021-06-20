@@ -100,6 +100,15 @@ binary_sensor:
     on_state:
       then:
         - lambda: 'ESP_LOGI("ar1:", "%d", x);'
+  - platform: xpt2046
+    xpt2046_id: touchscreen
+    id: touch_key0
+    x_min: 80
+    x_max: 160
+    y_min: 106
+    y_max: 212
+    on_state:
+      - lambda: 'ESP_LOGI("main", "key0: %s", (x ? "touch" : "release"));'
 
 climate:
   - platform: tuya
@@ -124,6 +133,17 @@ light:
     rgb_order: GRB
     default_transition_length: 0s
     color_correct: [50%, 50%, 50%]
+  - platform: tuya
+    id: tuya_light
+    switch_datapoint: 1
+    dimmer_datapoint: 2
+    min_value_datapoint: 3
+    color_temperature_datapoint: 4
+    min_value: 1
+    max_value: 100
+    cold_white_color_temperature: 153 mireds
+    warm_white_color_temperature: 500 mireds
+    gamma_correct: 1
 
 display:
   - platform: addressable_light
@@ -146,6 +166,7 @@ display:
       it.rectangle(3, 3, it.get_width()-6, it.get_height()-6, red);
     rotation: 0°
     update_interval: 16ms
+    
   - platform: waveshare_epaper
     cs_pin: GPIO23
     dc_pin: GPIO23
@@ -174,9 +195,51 @@ display:
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
 
+esp32_camera:
+  name: ESP-32 Camera
+  data_pins: [GPIO17, GPIO35, GPIO34, GPIO5, GPIO39, GPIO18, GPIO36, GPIO19]
+  vsync_pin: GPIO22
+  href_pin: GPIO26
+  pixel_clock_pin: GPIO21
+  external_clock:
+    pin: GPIO27
+    frequency: 20MHz
+  i2c_pins:
+    sda: GPIO25
+    scl: GPIO23
+  reset_pin: GPIO15
+  power_down_pin: GPIO1
+  resolution: 640x480
+  jpeg_quality: 10
+
 external_components:
   - source: github://esphome/esphome@dev
     refresh: 1d
     components: ["bh1750"]
   - source: ../esphome/components
     components: ["sntp"]
+xpt2046:
+  id: touchscreen
+  cs_pin: 17
+  irq_pin: 16
+  update_interval: 50ms
+  report_interval: 1s
+  threshold: 400
+  dimension_x: 240
+  dimension_y: 320
+  calibration_x_min: 3860
+  calibration_x_max: 280
+  calibration_y_min: 340
+  calibration_y_max: 3860
+  swap_x_y: False
+  on_state:
+    - lambda: |-
+        ESP_LOGI("main", "args x=%d, y=%d, touched=%s", x, y, (touched ? "touch" : "release"));
+        ESP_LOGI("main", "member x=%d, y=%d, touched=%d, x_raw=%d, y_raw=%d, z_raw=%d",
+            id(touchscreen).x,
+            id(touchscreen).y,
+            (int) id(touchscreen).touched,
+            id(touchscreen).x_raw,
+            id(touchscreen).y_raw,
+            id(touchscreen).z_raw
+            );

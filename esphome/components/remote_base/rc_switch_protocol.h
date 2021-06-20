@@ -60,7 +60,7 @@ class RCSwitchBase {
   bool inverted_{};
 };
 
-extern RCSwitchBase rc_switch_protocols[9];
+extern const RCSwitchBase RC_SWITCH_PROTOCOLS[9];
 
 uint64_t decode_binary_string(const std::string &data);
 

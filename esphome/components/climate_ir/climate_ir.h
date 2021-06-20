@@ -1,5 +1,7 @@
 #pragma once
 
+#include <utility>
+
 #include "esphome/components/climate/climate.h"
 #include "esphome/components/remote_base/remote_base.h"
 #include "esphome/components/remote_transmitter/remote_transmitter.h"
@@ -27,8 +29,8 @@ class ClimateIR : public climate::Climate, public Component, public remote_base:
     this->temperature_step_ = temperature_step;
     this->supports_dry_ = supports_dry;
     this->supports_fan_only_ = supports_fan_only;
-    this->fan_modes_ = fan_modes;
-    this->swing_modes_ = swing_modes;
+    this->fan_modes_ = std::move(fan_modes);
+    this->swing_modes_ = std::move(swing_modes);
   }
 
   void setup() override;

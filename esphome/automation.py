@@ -10,7 +10,6 @@ from esphome.const import (
     CONF_TYPE_ID,
     CONF_TIME,
 )
-from esphome.core import coroutine
 from esphome.jsonschema import jschema_extractor
 from esphome.util import Registry
 
@@ -142,27 +141,27 @@ NotCondition = cg.esphome_ns.class_("NotCondition", Condition)
 
 
 @register_condition("and", AndCondition, validate_condition_list)
-def and_condition_to_code(config, condition_id, template_arg, args):
-    conditions = yield build_condition_list(config, template_arg, args)
-    yield cg.new_Pvariable(condition_id, template_arg, conditions)
+async def and_condition_to_code(config, condition_id, template_arg, args):
+    conditions = await build_condition_list(config, template_arg, args)
+    return cg.new_Pvariable(condition_id, template_arg, conditions)
 
 
 @register_condition("or", OrCondition, validate_condition_list)
-def or_condition_to_code(config, condition_id, template_arg, args):
-    conditions = yield build_condition_list(config, template_arg, args)
-    yield cg.new_Pvariable(condition_id, template_arg, conditions)
+async def or_condition_to_code(config, condition_id, template_arg, args):
+    conditions = await build_condition_list(config, template_arg, args)
+    return cg.new_Pvariable(condition_id, template_arg, conditions)
 
 
 @register_condition("not", NotCondition, validate_potentially_and_condition)
-def not_condition_to_code(config, condition_id, template_arg, args):
-    condition = yield build_condition(config, template_arg, args)
-    yield cg.new_Pvariable(condition_id, template_arg, condition)
+async def not_condition_to_code(config, condition_id, template_arg, args):
+    condition = await build_condition(config, template_arg, args)
+    return cg.new_Pvariable(condition_id, template_arg, condition)
 
 
-@register_condition("lambda", LambdaCondition, cv.lambda_)
-def lambda_condition_to_code(config, condition_id, template_arg, args):
-    lambda_ = yield cg.process_lambda(config, args, return_type=bool)
-    yield cg.new_Pvariable(condition_id, template_arg, lambda_)
+@register_condition("lambda", LambdaCondition, cv.returning_lambda)
+async def lambda_condition_to_code(config, condition_id, template_arg, args):
+    lambda_ = await cg.process_lambda(config, args, return_type=bool)
+    return cg.new_Pvariable(condition_id, template_arg, lambda_)
 
 
 @register_condition(
@@ -177,26 +176,26 @@ def lambda_condition_to_code(config, condition_id, template_arg, args):
         }
     ).extend(cv.COMPONENT_SCHEMA),
 )
-def for_condition_to_code(config, condition_id, template_arg, args):
-    condition = yield build_condition(
+async def for_condition_to_code(config, condition_id, template_arg, args):
+    condition = await build_condition(
         config[CONF_CONDITION], cg.TemplateArguments(), []
     )
     var = cg.new_Pvariable(condition_id, template_arg, condition)
-    yield cg.register_component(var, config)
-    templ = yield cg.templatable(config[CONF_TIME], args, cg.uint32)
+    await cg.register_component(var, config)
+    templ = await cg.templatable(config[CONF_TIME], args, cg.uint32)
     cg.add(var.set_time(templ))
-    yield var
+    return var
 
 
 @register_action(
     "delay", DelayAction, cv.templatable(cv.positive_time_period_milliseconds)
 )
-def delay_action_to_code(config, action_id, template_arg, args):
+async def delay_action_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
-    yield cg.register_component(var, {})
-    template_ = yield cg.templatable(config, args, cg.uint32)
+    await cg.register_component(var, {})
+    template_ = await cg.templatable(config, args, cg.uint32)
     cg.add(var.set_delay(template_))
-    yield var
+    return var
 
 
 @register_action(
@@ -211,16 +210,16 @@ def delay_action_to_code(config, action_id, template_arg, args):
         cv.has_at_least_one_key(CONF_THEN, CONF_ELSE),
     ),
 )
-def if_action_to_code(config, action_id, template_arg, args):
-    conditions = yield build_condition(config[CONF_CONDITION], template_arg, args)
+async def if_action_to_code(config, action_id, template_arg, args):
+    conditions = await build_condition(config[CONF_CONDITION], template_arg, args)
     var = cg.new_Pvariable(action_id, template_arg, conditions)
     if CONF_THEN in config:
-        actions = yield build_action_list(config[CONF_THEN], template_arg, args)
+        actions = await build_action_list(config[CONF_THEN], template_arg, args)
         cg.add(var.add_then(actions))
     if CONF_ELSE in config:
-        actions = yield build_action_list(config[CONF_ELSE], template_arg, args)
+        actions = await build_action_list(config[CONF_ELSE], template_arg, args)
         cg.add(var.add_else(actions))
-    yield var
+    return var
 
 
 @register_action(
@@ -233,12 +232,12 @@ def if_action_to_code(config, action_id, template_arg, args):
         }
     ),
 )
-def while_action_to_code(config, action_id, template_arg, args):
-    conditions = yield build_condition(config[CONF_CONDITION], template_arg, args)
+async def while_action_to_code(config, action_id, template_arg, args):
+    conditions = await build_condition(config[CONF_CONDITION], template_arg, args)
     var = cg.new_Pvariable(action_id, template_arg, conditions)
-    actions = yield build_action_list(config[CONF_THEN], template_arg, args)
+    actions = await build_action_list(config[CONF_THEN], template_arg, args)
     cg.add(var.add_then(actions))
-    yield var
+    return var
 
 
 def validate_wait_until(value):
@@ -253,17 +252,17 @@ def validate_wait_until(value):
 
 
 @register_action("wait_until", WaitUntilAction, validate_wait_until)
-def wait_until_action_to_code(config, action_id, template_arg, args):
-    conditions = yield build_condition(config[CONF_CONDITION], template_arg, args)
+async def wait_until_action_to_code(config, action_id, template_arg, args):
+    conditions = await build_condition(config[CONF_CONDITION], template_arg, args)
     var = cg.new_Pvariable(action_id, template_arg, conditions)
-    yield cg.register_component(var, {})
-    yield var
+    await cg.register_component(var, {})
+    return var
 
 
 @register_action("lambda", LambdaAction, cv.lambda_)
-def lambda_action_to_code(config, action_id, template_arg, args):
-    lambda_ = yield cg.process_lambda(config, args, return_type=cg.void)
-    yield cg.new_Pvariable(action_id, template_arg, lambda_)
+async def lambda_action_to_code(config, action_id, template_arg, args):
+    lambda_ = await cg.process_lambda(config, args, return_type=cg.void)
+    return cg.new_Pvariable(action_id, template_arg, lambda_)
 
 
 @register_action(
@@ -275,54 +274,51 @@ def lambda_action_to_code(config, action_id, template_arg, args):
         }
     ),
 )
-def component_update_action_to_code(config, action_id, template_arg, args):
-    comp = yield cg.get_variable(config[CONF_ID])
-    yield cg.new_Pvariable(action_id, template_arg, comp)
+async def component_update_action_to_code(config, action_id, template_arg, args):
+    comp = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(action_id, template_arg, comp)
 
 
-@coroutine
-def build_action(full_config, template_arg, args):
+async def build_action(full_config, template_arg, args):
     registry_entry, config = cg.extract_registry_entry_config(
         ACTION_REGISTRY, full_config
     )
     action_id = full_config[CONF_TYPE_ID]
     builder = registry_entry.coroutine_fun
-    yield builder(config, action_id, template_arg, args)
+    ret = await builder(config, action_id, template_arg, args)
+    return ret
 
 
-@coroutine
-def build_action_list(config, templ, arg_type):
+async def build_action_list(config, templ, arg_type):
     actions = []
     for conf in config:
-        action = yield build_action(conf, templ, arg_type)
+        action = await build_action(conf, templ, arg_type)
         actions.append(action)
-    yield actions
+    return actions
 
 
-@coroutine
-def build_condition(full_config, template_arg, args):
+async def build_condition(full_config, template_arg, args):
     registry_entry, config = cg.extract_registry_entry_config(
         CONDITION_REGISTRY, full_config
     )
     action_id = full_config[CONF_TYPE_ID]
     builder = registry_entry.coroutine_fun
-    yield builder(config, action_id, template_arg, args)
+    ret = await builder(config, action_id, template_arg, args)
+    return ret
 
 
-@coroutine
-def build_condition_list(config, templ, args):
+async def build_condition_list(config, templ, args):
     conditions = []
     for conf in config:
-        condition = yield build_condition(conf, templ, args)
+        condition = await build_condition(conf, templ, args)
         conditions.append(condition)
-    yield conditions
+    return conditions
 
 
-@coroutine
-def build_automation(trigger, args, config):
+async def build_automation(trigger, args, config):
     arg_types = [arg[0] for arg in args]
     templ = cg.TemplateArguments(*arg_types)
     obj = cg.new_Pvariable(config[CONF_AUTOMATION_ID], templ, trigger)
-    actions = yield build_action_list(config[CONF_THEN], templ, args)
+    actions = await build_action_list(config[CONF_THEN], templ, args)
     cg.add(obj.add_actions(actions))
-    yield obj
+    return obj

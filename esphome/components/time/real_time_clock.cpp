@@ -4,12 +4,12 @@
 #ifdef ARDUINO_ARCH_ESP8266
 #include "sys/time.h"
 #endif
-#include "errno.h"
+#include <cerrno>
 
 namespace esphome {
 namespace time {
 
-static const char *TAG = "time";
+static const char *const TAG = "time";
 
 RealTimeClock::RealTimeClock() = default;
 void RealTimeClock::call_setup() {

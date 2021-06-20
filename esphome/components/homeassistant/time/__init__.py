@@ -15,8 +15,8 @@ CONFIG_SCHEMA = time_.TIME_SCHEMA.extend(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield time_.register_time(var, config)
-    yield cg.register_component(var, config)
+    await time_.register_time(var, config)
+    await cg.register_component(var, config)
     cg.add_define("USE_HOMEASSISTANT_TIME")
