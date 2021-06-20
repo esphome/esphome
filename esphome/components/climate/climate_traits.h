@@ -46,6 +46,7 @@ class ClimateTraits {
   bool get_supports_two_point_target_temperature() const;
   void set_supports_two_point_target_temperature(bool supports_two_point_target_temperature);
   void set_supports_auto_mode(bool supports_auto_mode);
+  void set_supports_heat_cool_mode(bool supports_heat_cool_mode);
   void set_supports_cool_mode(bool supports_cool_mode);
   void set_supports_heat_mode(bool supports_heat_mode);
   void set_supports_fan_only_mode(bool supports_fan_only_mode);
@@ -100,6 +101,7 @@ class ClimateTraits {
   bool supports_current_temperature_{false};
   bool supports_two_point_target_temperature_{false};
   bool supports_auto_mode_{false};
+  bool supports_heat_cool_mode_{false};
   bool supports_cool_mode_{false};
   bool supports_heat_mode_{false};
   bool supports_fan_only_mode_{false};
