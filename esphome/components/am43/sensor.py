@@ -12,8 +12,6 @@ from esphome.const import (
 
 CODEOWNERS = ["@buxtronix"]
 
-AUTO_LOAD = ["am43_cover"]
-
 am43_ns = cg.esphome_ns.namespace("am43")
 Am43 = am43_ns.class_("Am43", ble_client.BLEClientNode, cg.PollingComponent)
 

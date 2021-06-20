@@ -15,8 +15,8 @@ void Am43::dump_config() {
 }
 
 void Am43::setup() {
-  this->encoder_ = new am43_cover::Am43Encoder();
-  this->decoder_ = new am43_cover::Am43Decoder();
+  this->encoder_ = new Am43Encoder();
+  this->decoder_ = new Am43Decoder();
   this->logged_in_ = false;
   this->last_battery_update_ = 0;
   this->current_sensor_ = 0;
@@ -40,7 +40,7 @@ void Am43::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_i
       break;
     }
     case ESP_GATTC_SEARCH_CMPL_EVT: {
-      auto chr = this->parent_->get_characteristic(AM43_SERVICE_UUID, AM43_CHAR_UUID);
+      auto chr = this->parent_->get_characteristic(AM43_SERVICE_UUID, AM43_CHARACTERISTIC_UUID);
       if (chr == nullptr) {
         if (this->parent_->get_characteristic(AM43_TUYA_SERVICE_UUID, AM43_TUYA_CHARACTERISTIC_UUID) != nullptr) {
           ESP_LOGE(TAG, "[%s] Detected a Tuya AM43 which is not supported, sorry.",

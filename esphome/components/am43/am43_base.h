@@ -6,6 +6,13 @@
 namespace esphome {
 namespace am43 {
 
+static const uint16_t AM43_SERVICE_UUID = 0xFE50;
+static const uint16_t AM43_CHARACTERISTIC_UUID = 0xFE51;
+//
+// Tuya identifiers, only to detect and warn users as they are incompatible.
+static const uint16_t AM43_TUYA_SERVICE_UUID = 0x1910;
+static const uint16_t AM43_TUYA_CHARACTERISTIC_UUID = 0x2b11;
+
 struct Am43Packet {
   uint8_t length;
   uint8_t data[24];

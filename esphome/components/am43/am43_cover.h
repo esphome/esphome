@@ -15,13 +15,6 @@ namespace am43 {
 
 namespace espbt = esphome::esp32_ble_tracker;
 
-static const uint16_t AM43_SERVICE_UUID = 0xFE50;
-static const uint16_t AM43_CHARACTERISTIC_UUID = 0xFE51;
-
-// Tuya identifiers, only to detect and warn users as they are incompatible.
-static const uint16_t AM43_TUYA_SERVICE_UUID = 0x1910;
-static const uint16_t AM43_TUYA_CHARACTERISTIC_UUID = 0x2b11;
-
 class Am43Component : public cover::Cover, public esphome::ble_client::BLEClientNode, public Component {
  public:
   void setup() override;
