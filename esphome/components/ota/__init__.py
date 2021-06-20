@@ -27,6 +27,7 @@ CONF_ON_END_TRIGGER_ID = "on_end_trigger_id"
 CONF_ON_ERROR_TRIGGER_ID = "on_error_trigger_id"
 
 ota_ns = cg.esphome_ns.namespace("ota")
+OTAState = ota_ns.enum("OTAState")
 OTAComponent = ota_ns.class_("OTAComponent", cg.Component)
 OTAStateChangeTrigger = ota_ns.class_(
     "OTAStateChangeTrigger", automation.Trigger.template()
@@ -101,7 +102,7 @@ async def to_code(config):
     use_state_callback = False
     for conf in config.get(CONF_ON_STATE_CHANGE, []):
         trigger = cg.new_Pvariable(conf[CONF_ON_STATE_CHANGE_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [(cg.std_string, "state")], conf)
+        await automation.build_automation(trigger, [(OTAState, "state")], conf)
         use_state_callback = True
     for conf in config.get(CONF_ON_BEGIN, []):
         trigger = cg.new_Pvariable(conf[CONF_ON_BEGIN_TRIGGER_ID], var)

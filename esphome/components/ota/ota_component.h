@@ -33,7 +33,7 @@ enum OTAResponseTypes {
   OTA_RESPONSE_ERROR_UNKNOWN = 255,
 };
 
-enum class OTAState { STARTED, IN_PROGRESS, COMPLETED, ERROR };
+enum OTAState { OTA_COMPLETED = 0, OTA_STARTED, OTA_IN_PROGRESS, OTA_ERROR };
 
 /// OTAComponent provides a simple way to integrate Over-the-Air updates into your app using ArduinoOTA.
 class OTAComponent : public Component {
