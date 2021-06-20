@@ -587,7 +587,7 @@ void WiFiComponent::retry_connect() {
 }
 
 bool WiFiComponent::can_proceed() {
-  if (this->has_ap() && !this->has_sta()) {
+  if (!this->has_sta()) {
     return true;
   }
   return this->is_connected();
