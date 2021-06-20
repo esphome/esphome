@@ -1,7 +1,7 @@
 #include "am43_base.h"
 
 namespace esphome {
-namespace am43_cover {
+namespace am43 {
 
 const uint8_t START_PACKET[5] = {0x00, 0xff, 0x00, 0x00, 0x9a};
 
@@ -127,5 +127,5 @@ void Am43Decoder::decode(const uint8_t* data, uint16_t length) {
   }
 };
 
-}  // namespace am43_cover
+}  // namespace am43
 }  // namespace esphome

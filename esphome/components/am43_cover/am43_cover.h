@@ -11,7 +11,7 @@
 #include <esp_gattc_api.h>
 
 namespace esphome {
-namespace am43_cover {
+namespace am43 {
 
 namespace espbt = esphome::esp32_ble_tracker;
 
@@ -44,7 +44,7 @@ class Am43Component : public cover::Cover, public esphome::ble_client::BLEClient
   float position_;
 };
 
-}  // namespace am43_cover
+}  // namespace am43
 }  // namespace esphome
 
 #endif

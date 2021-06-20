@@ -4,7 +4,7 @@
 #ifdef ARDUINO_ARCH_ESP32
 
 namespace esphome {
-namespace am43_cover {
+namespace am43 {
 
 static const char *TAG = "am43_cover";
 
@@ -137,7 +137,7 @@ void Am43Component::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
   }
 }
 
-}  // namespace am43_cover
+}  // namespace am43
 }  // namespace esphome
 
 #endif

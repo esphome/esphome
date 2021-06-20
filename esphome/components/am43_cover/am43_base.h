@@ -4,7 +4,7 @@
 #include "esphome/core/helpers.h"
 
 namespace esphome {
-namespace am43_cover {
+namespace am43 {
 
 struct Am43Packet {
   uint8_t length;
@@ -67,5 +67,5 @@ class Am43Decoder {
   bool has_pin_response_;
 };
 
-}  // namespace am43_cover
+}  // namespace am43
 }  // namespace esphome

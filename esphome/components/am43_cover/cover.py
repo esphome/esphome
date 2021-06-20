@@ -6,8 +6,8 @@ from esphome.const import CONF_ID, CONF_PIN
 CODEOWNERS = ["@buxtronix"]
 DEPENDENCIES = ["ble_client"]
 
-am43_cover_ns = cg.esphome_ns.namespace("am43_cover")
-Am43Component = am43_cover_ns.class_(
+am43_ns = cg.esphome_ns.namespace("am43")
+Am43Component = am43_ns.class_(
     "Am43Component", cover.Cover, ble_client.BLEClientNode, cg.Component
 )
 
