@@ -57,6 +57,8 @@ class ClimateTraits {
   ESPDEPRECATED("This method is deprecated, use set_supported_modes() instead")
   void set_supports_heat_mode(bool supports_heat_mode) { set_mode_support_(CLIMATE_MODE_HEAT, supports_heat_mode); }
   ESPDEPRECATED("This method is deprecated, use set_supported_modes() instead")
+  void set_supports_heat_cool_mode(bool supported) { set_mode_support_(CLIMATE_MODE_HEAT_COOL, supported); }
+  ESPDEPRECATED("This method is deprecated, use set_supported_modes() instead")
   void set_supports_fan_only_mode(bool supports_fan_only_mode) {
     set_mode_support_(CLIMATE_MODE_FAN_ONLY, supports_fan_only_mode);
   }
