@@ -140,7 +140,7 @@ class SPIComponent : public Component {
       }
       this->hw_spi_->write16(data);
 #else
-      this->hw_spi_->write16(data, mb);
+      this->hw_spi_->write16(data, msb);
 #endif
       return;
     }
