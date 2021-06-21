@@ -75,16 +75,16 @@ enum ClimateSwingMode : uint8_t {
 
 /// Enum for all modes a climate swing can be in
 enum ClimatePreset : uint8_t {
-  /// Preset is set to ECO
-  CLIMATE_PRESET_ECO = 0,
-  /// Preset is set to AWAY
-  CLIMATE_PRESET_AWAY = 1,
-  /// Preset is set to BOOST
-  CLIMATE_PRESET_BOOST = 2,
-  /// Preset is set to COMFORT
-  CLIMATE_PRESET_COMFORT = 3,
   /// Preset is set to HOME
-  CLIMATE_PRESET_HOME = 4,
+  CLIMATE_PRESET_HOME = 0,
+  /// Preset is set to ECO
+  CLIMATE_PRESET_ECO = 1,
+  /// Preset is set to AWAY
+  CLIMATE_PRESET_AWAY = 2,
+  /// Preset is set to BOOST
+  CLIMATE_PRESET_BOOST = 3,
+  /// Preset is set to COMFORT
+  CLIMATE_PRESET_COMFORT = 4,
   /// Preset is set to SLEEP
   CLIMATE_PRESET_SLEEP = 5,
   /// Preset is set to ACTIVITY
