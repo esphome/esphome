@@ -20,7 +20,9 @@ void CTClampSensor::dump_config() {
 void CTClampSensor::update() {
   // Latch that an update is requested and attempts to preform update if no other clamp is being sampled.
   this->update_requested_ = true;
-  if (CTClampSensor::mutex) return;
+  if (CTClampSensor::mutex) {
+    return;
+  }
   CTClampSensor::mutex = true;
   this->update_requested_ = false;
 
