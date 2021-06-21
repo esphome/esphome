@@ -32,8 +32,8 @@ void BangBangClimate::control(const climate::ClimateCall &call) {
     this->target_temperature_low = *call.get_target_temperature_low();
   if (call.get_target_temperature_high().has_value())
     this->target_temperature_high = *call.get_target_temperature_high();
-  if (call.get_away().has_value())
-    this->change_away_(*call.get_away());
+  if (call.get_preset().has_value())
+    this->change_away_(*call.get_preset() == climate::CLIMATE_PRESET_AWAY);
 
   this->compute_state_();
   this->publish_state();
@@ -41,11 +41,20 @@ void BangBangClimate::control(const climate::ClimateCall &call) {
 climate::ClimateTraits BangBangClimate::traits() {
   auto traits = climate::ClimateTraits();
   traits.set_supports_current_temperature(true);
-  traits.set_supports_heat_cool_mode(true);
-  traits.set_supports_cool_mode(this->supports_cool_);
-  traits.set_supports_heat_mode(this->supports_heat_);
+  traits.set_supported_modes({
+      climate::CLIMATE_MODE_OFF,
+      climate::CLIMATE_MODE_HEAT_COOL,
+  });
+  if (supports_cool_)
+    traits.add_supported_mode(climate::CLIMATE_MODE_COOL);
+  if (supports_heat_)
+    traits.add_supported_mode(climate::CLIMATE_MODE_HEAT);
   traits.set_supports_two_point_target_temperature(true);
-  traits.set_supports_away(this->supports_away_);
+  if (supports_away_)
+    traits.set_supported_presets({
+        climate::CLIMATE_PRESET_HOME,
+        climate::CLIMATE_PRESET_AWAY,
+    });
   traits.set_supports_action(true);
   return traits;
 }
@@ -140,7 +149,7 @@ void BangBangClimate::change_away_(bool away) {
     this->target_temperature_low = this->away_config_.default_temperature_low;
     this->target_temperature_high = this->away_config_.default_temperature_high;
   }
-  this->away = away;
+  this->preset = away ? climate::CLIMATE_PRESET_AWAY : climate::CLIMATE_PRESET_HOME;
 }
 void BangBangClimate::set_normal_config(const BangBangClimateTargetTempConfig &normal_config) {
   this->normal_config_ = normal_config;

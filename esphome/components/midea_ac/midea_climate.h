@@ -28,10 +28,10 @@ class MideaAC : public midea_dongle::MideaAppliance, public climate::Climate, pu
   void set_preset_sleep(bool state) { this->traits_preset_sleep_ = state; }
   void set_preset_boost(bool state) { this->traits_preset_boost_ = state; }
   bool allow_preset(climate::ClimatePreset preset) const;
-  void set_custom_fan_modes(std::vector<std::string> custom_fan_modes) {
+  void set_custom_fan_modes(std::set<std::string> custom_fan_modes) {
     this->traits_custom_fan_modes_ = std::move(custom_fan_modes);
   }
-  void set_custom_presets(std::vector<std::string> custom_presets) {
+  void set_custom_presets(std::set<std::string> custom_presets) {
     this->traits_custom_presets_ = std::move(custom_presets);
   }
   bool allow_custom_preset(const std::string &custom_preset) const;
@@ -57,8 +57,8 @@ class MideaAC : public midea_dongle::MideaAppliance, public climate::Climate, pu
   bool traits_preset_eco_{false};
   bool traits_preset_sleep_{false};
   bool traits_preset_boost_{false};
-  std::vector<std::string> traits_custom_fan_modes_{{}};
-  std::vector<std::string> traits_custom_presets_{{}};
+  std::set<std::string> traits_custom_fan_modes_{{}};
+  std::set<std::string> traits_custom_presets_{{}};
 };
 
 }  // namespace midea_ac

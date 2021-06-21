@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """Python 3 script to automatically generate C++ classes for ESPHome's native API.
 
 It's pretty crappy spaghetti code, but it works.
