@@ -80,6 +80,8 @@ climate::ClimateTraits ThermostatClimate::traits() {
   auto traits = climate::ClimateTraits();
   traits.set_supports_current_temperature(true);
   if (supports_auto_)
+    traits.add_supported_mode(climate::CLIMATE_MODE_AUTO);
+  if (supports_heat_cool_)
     traits.add_supported_mode(climate::CLIMATE_MODE_HEAT_COOL);
   if (supports_cool_)
     traits.add_supported_mode(climate::CLIMATE_MODE_COOL);
