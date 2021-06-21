@@ -9,6 +9,7 @@ from esphome.const import (
     CONF_PORT,
     CONF_REBOOT_TIMEOUT,
     CONF_SAFE_MODE,
+    CONF_TRIGGER_ID,
 )
 from esphome.core import CORE, coroutine_with_priority
 
@@ -20,11 +21,6 @@ CONF_ON_BEGIN = "on_begin"
 CONF_ON_PROGRESS = "on_progress"
 CONF_ON_END = "on_end"
 CONF_ON_ERROR = "on_error"
-CONF_ON_STATE_CHANGE_TRIGGER_ID = "on_state_change_trigger_id"
-CONF_ON_BEGIN_TRIGGER_ID = "on_begin_trigger_id"
-CONF_ON_PROGRESS_TRIGGER_ID = "on_progress_trigger_id"
-CONF_ON_END_TRIGGER_ID = "on_end_trigger_id"
-CONF_ON_ERROR_TRIGGER_ID = "on_error_trigger_id"
 
 ota_ns = cg.esphome_ns.namespace("ota")
 OTAState = ota_ns.enum("OTAState")
@@ -49,31 +45,27 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_NUM_ATTEMPTS, default="10"): cv.positive_not_null_int,
         cv.Optional(CONF_ON_STATE_CHANGE): automation.validate_automation(
             {
-                cv.GenerateID(CONF_ON_STATE_CHANGE_TRIGGER_ID): cv.declare_id(
-                    OTAStateChangeTrigger
-                ),
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(OTAStateChangeTrigger),
             }
         ),
         cv.Optional(CONF_ON_BEGIN): automation.validate_automation(
             {
-                cv.GenerateID(CONF_ON_BEGIN_TRIGGER_ID): cv.declare_id(OTAStartTrigger),
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(OTAStartTrigger),
             }
         ),
         cv.Optional(CONF_ON_ERROR): automation.validate_automation(
             {
-                cv.GenerateID(CONF_ON_ERROR_TRIGGER_ID): cv.declare_id(OTAErrorTrigger),
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(OTAErrorTrigger),
             }
         ),
         cv.Optional(CONF_ON_PROGRESS): automation.validate_automation(
             {
-                cv.GenerateID(CONF_ON_PROGRESS_TRIGGER_ID): cv.declare_id(
-                    OTAProgressTrigger
-                ),
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(OTAProgressTrigger),
             }
         ),
         cv.Optional(CONF_ON_END): automation.validate_automation(
             {
-                cv.GenerateID(CONF_ON_END_TRIGGER_ID): cv.declare_id(OTAEndTrigger),
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(OTAEndTrigger),
             }
         ),
     }
@@ -101,23 +93,23 @@ async def to_code(config):
 
     use_state_callback = False
     for conf in config.get(CONF_ON_STATE_CHANGE, []):
-        trigger = cg.new_Pvariable(conf[CONF_ON_STATE_CHANGE_TRIGGER_ID], var)
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [(OTAState, "state")], conf)
         use_state_callback = True
     for conf in config.get(CONF_ON_BEGIN, []):
-        trigger = cg.new_Pvariable(conf[CONF_ON_BEGIN_TRIGGER_ID], var)
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [], conf)
         use_state_callback = True
     for conf in config.get(CONF_ON_PROGRESS, []):
-        trigger = cg.new_Pvariable(conf[CONF_ON_PROGRESS_TRIGGER_ID], var)
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [(float, "x")], conf)
         use_state_callback = True
     for conf in config.get(CONF_ON_END, []):
-        trigger = cg.new_Pvariable(conf[CONF_ON_END_TRIGGER_ID], var)
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [], conf)
         use_state_callback = True
     for conf in config.get(CONF_ON_ERROR, []):
-        trigger = cg.new_Pvariable(conf[CONF_ON_ERROR_TRIGGER_ID], var)
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [(int, "x")], conf)
         use_state_callback = True
     if use_state_callback:
