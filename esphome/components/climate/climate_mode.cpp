@@ -84,8 +84,6 @@ const char *climate_swing_mode_to_string(ClimateSwingMode swing_mode) {
 
 const char *climate_preset_to_string(ClimatePreset preset) {
   switch (preset) {
-    case climate::CLIMATE_PRESET_NONE:
-      return "NONE";
     case climate::CLIMATE_PRESET_HOME:
       return "HOME";
     case climate::CLIMATE_PRESET_ECO:
