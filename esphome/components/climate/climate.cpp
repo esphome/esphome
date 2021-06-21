@@ -172,8 +172,7 @@ ClimateCall &ClimateCall::set_fan_mode(const std::string &fan_mode) {
   } else if (str_equals_case_insensitive(fan_mode, "DIFFUSE")) {
     this->set_fan_mode(CLIMATE_FAN_DIFFUSE);
   } else {
-    auto custom_fan_modes = this->parent_->get_traits().get_supported_custom_fan_modes();
-    if (custom_fan_modes.find(fan_mode) != custom_fan_modes.end()) {
+    if (this->parent_->get_traits().supports_custom_fan_mode(fan_mode)) {
       this->custom_fan_mode_ = fan_mode;
       this->fan_mode_.reset();
     } else {
@@ -209,8 +208,7 @@ ClimateCall &ClimateCall::set_preset(const std::string &preset) {
   } else if (str_equals_case_insensitive(preset, "ACTIVITY")) {
     this->set_preset(CLIMATE_PRESET_ACTIVITY);
   } else {
-    auto custom_presets = this->parent_->get_traits().get_supported_custom_presets();
-    if (custom_presets.find(preset) != custom_presets.end()) {
+    if (this->parent_->get_traits().supports_custom_preset(preset)) {
       this->custom_preset_ = preset;
       this->preset_.reset();
     } else {
