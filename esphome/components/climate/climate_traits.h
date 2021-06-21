@@ -96,6 +96,9 @@ class ClimateTraits {
     supported_custom_fan_modes_ = std::move(supported_custom_fan_modes);
   }
   const std::set<std::string> &get_supported_custom_fan_modes() const { return supported_custom_fan_modes_; }
+  bool supports_custom_fan_mode(const std::string &custom_fan_mode) const {
+    return supported_custom_fan_modes_.count(custom_fan_mode);
+  }
 
   void set_supported_presets(std::set<ClimatePreset> presets) { supported_presets_ = std::move(presets); }
   void add_supported_preset(ClimatePreset preset) { supported_presets_.insert(preset); }
