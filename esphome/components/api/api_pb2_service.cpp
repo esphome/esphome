@@ -139,7 +139,8 @@ bool APIServerConnectionBase::send_homeassistant_service_response(const Homeassi
   ESP_LOGVV(TAG, "send_homeassistant_service_response: %s", msg.dump().c_str());
   return this->send_message_<HomeassistantServiceResponse>(msg, 35);
 }
-bool APIServerConnectionBase::send_subscribe_home_assistant_state_response(const SubscribeHomeAssistantStateResponse &msg) {
+bool APIServerConnectionBase::send_subscribe_home_assistant_state_response(
+    const SubscribeHomeAssistantStateResponse &msg) {
   ESP_LOGVV(TAG, "send_subscribe_home_assistant_state_response: %s", msg.dump().c_str());
   return this->send_message_<SubscribeHomeAssistantStateResponse>(msg, 39);
 }
@@ -424,7 +425,8 @@ void APIServerConnection::on_subscribe_logs_request(const SubscribeLogsRequest &
   }
   this->subscribe_logs(msg);
 }
-void APIServerConnection::on_subscribe_homeassistant_services_request(const SubscribeHomeassistantServicesRequest &msg) {
+void APIServerConnection::on_subscribe_homeassistant_services_request(
+    const SubscribeHomeassistantServicesRequest &msg) {
   if (!this->is_connection_setup()) {
     this->on_no_setup_connection();
     return;
