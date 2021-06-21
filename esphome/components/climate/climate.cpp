@@ -353,7 +353,7 @@ void Climate::save_state_() {
     state.uses_custom_preset = true;
     const auto &supported = traits.get_supported_custom_presets();
     std::vector<std::string> vec{supported.begin(), supported.end()};
-    auto it = std::find(vec.begin(), vec.end(), custom_fan_mode);
+    auto it = std::find(vec.begin(), vec.end(), custom_preset);
     // only set custom preset if value exists, otherwise leave it as is
     if (it != vec.cend()) {
       state.custom_preset = std::distance(vec.begin(), it);
