@@ -67,6 +67,9 @@ bool InkbirdIBSTH1_MINI::parse_device(const esp32_ble_tracker::ESPBTDevice &devi
   // when data[2] == 0 temperature is from internal sensor (IBS-TH1 or IBS-TH1 Mini)
   // when data[2] == 1 temperature is from external sensor (IBS-TH1 only)
 
+  auto temperature = nullptr;
+  auto ext_temperature = nullptr;
+
   if (mnfData.data[2] == 0) {
     auto temperature = mnfData.uuid.get_uuid().uuid.uuid16 / 100.0f;
   } else if (mnfData.data[2] == 1) {
