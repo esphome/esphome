@@ -11,6 +11,7 @@ static const char *const TAG = "inkbird_ibsth1_mini";
 void InkbirdIBSTH1_MINI::dump_config() {
   ESP_LOGCONFIG(TAG, "Inkbird IBS TH1 MINI");
   LOG_SENSOR("  ", "Temperature", this->temperature_);
+  LOG_SENSOR("  ", "External Temperature", this->ext_temperature_);
   LOG_SENSOR("  ", "Humidity", this->humidity_);
   LOG_SENSOR("  ", "Battery Level", this->battery_level_);
 }
@@ -54,7 +55,7 @@ bool InkbirdIBSTH1_MINI::parse_device(const esp32_ble_tracker::ESPBTDevice &devi
     ESP_LOGVV(TAG, "parse_device(): manufacturer data element length is expected to be of length 7");
     return false;
   }
-  if ((mnfData.data[2] != 0) || (mnfData.data[6] != 8)) {
+  if (mnfData.data[6] != 8) {
     ESP_LOGVV(TAG, "parse_device(): unexpected data");
     return false;
   }
@@ -63,12 +64,26 @@ bool InkbirdIBSTH1_MINI::parse_device(const esp32_ble_tracker::ESPBTDevice &devi
   // data[5] is a battery level
   // data[0] and data[1] is humidity * 100 (in pct)
   // uuid is a temperature * 100 (in Celcius)
+  // when data[2] == 0 temperature is from internal sensor (IBS-TH1 or IBS-TH1 Mini)
+  // when data[2] == 1 temperature is from external sensor (IBS-TH1 only)
+
+  if (mnfData.data[2] == 0) {
+    auto temperature = mnfData.uuid.get_uuid().uuid.uuid16 / 100.0f;
+  } else if (mnfData.data[2] == 1) {
+    auto ext_temperature = mnfData.uuid.get_uuid().uuid.uuid16 / 100.0f;
+  } else {
+    ESP_LOGVV(TAG, "parse_device(): unknown sensor type");
+    return false;
+  }
+
   auto battery_level = mnfData.data[5];
-  auto temperature = mnfData.uuid.get_uuid().uuid.uuid16 / 100.0f;
   auto humidity = ((mnfData.data[1] << 8) + mnfData.data[0]) / 100.0f;
 
   if (this->temperature_ != nullptr) {
     this->temperature_->publish_state(temperature);
+  }
+  if (this->ext_temperature_ != nullptr) {
+    this->ext_temperature_->publish_state(ext_temperature);
   }
   if (this->humidity_ != nullptr) {
     this->humidity_->publish_state(humidity);
