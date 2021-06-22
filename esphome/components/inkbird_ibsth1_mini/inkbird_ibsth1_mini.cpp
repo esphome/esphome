@@ -79,6 +79,9 @@ bool InkbirdIBSTH1_MINI::parse_device(const esp32_ble_tracker::ESPBTDevice &devi
     return false;
   }
 
+  auto ext_temperature = mnfData.uuid.get_uuid().uuid.uuid16 / 100.0f;
+  auto temperature = mnfData.uuid.get_uuid().uuid.uuid16 / 100.0f;
+
   auto battery_level = mnfData.data[5];
   auto humidity = ((mnfData.data[1] << 8) + mnfData.data[0]) / 100.0f;
 
