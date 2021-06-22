@@ -19,7 +19,7 @@ from esphome.const import (
 CODEOWNERS = ["@fkirill"]
 DEPENDENCIES = ["esp32_ble_tracker"]
 
-CONF_EXT_TEMPERATURE = ["external_temperature"]
+CONF_EXT_TEMPERATURE = "external_temperature"
 
 inkbird_ibsth1_mini_ns = cg.esphome_ns.namespace("inkbird_ibsth1_mini")
 InkbirdUBSTH1_MINI = inkbird_ibsth1_mini_ns.class_(
