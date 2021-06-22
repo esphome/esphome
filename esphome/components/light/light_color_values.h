@@ -13,17 +13,24 @@ namespace light {
 
 /** This class represents the color state for a light object.
  *
- * All values in this class are represented using floats in the range from 0.0 (off) to 1.0 (on).
- * Not all values have to be populated though, for example a simple monochromatic light only needs
- * to access the state and brightness attributes.
+ * All values in this class (except color temperature) are represented using floats in the range
+ * from 0.0 (off) to 1.0 (on). Please note that all values are automatically clamped to this range.
  *
- * Please note all float values are automatically clamped.
+ * This class has the following properties:
+ * - state: Whether the light should be on/off. Represented as a float for transitions. Used for
+ *   all lights.
+ * - brightness: The master brightness of the light, applied to all channels. Used for all lights
+ *   with brightness control.
+ * - color_brightness: The brightness of the color channels of the light. Used for RGB, RGBW and
+ *   RGBWW lights.
+ * - red, green, blue: The RGB values of the current color. They are normalized, so at least one of
+ *   them is always 1.0.
+ * - white: The brightness of the white channel of the light. Used for RGBW and RGBWW lights.
+ * - color_temperature: The color temperature of the white channel in mireds. Used for RGBWW and
+ *   CWWW lights.
  *
- * state - Whether the light should be on/off. Represented as a float for transitions.
- * brightness - The brightness of the light.
- * red, green, blue - RGB values.
- * white - The white value for RGBW lights.
- * color_temperature - Temperature of the white value, range from 0.0 (cold) to 1.0 (warm)
+ * For lights with a color interlock (RGB lights and white light cannot be on at the same time), a
+ * valid state has always either color_brightness or white (or both) set to zero.
  */
 class LightColorValues {
  public:
