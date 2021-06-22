@@ -204,9 +204,10 @@ LightColorValues LightCall::validate_() {
     this->color_temperature_.reset();
   }
 
-  // If white channel is specified, set RGB to white color (when interlock is enabled)
-  if (this->white_.has_value()) {
-    if (traits.get_supports_color_interlock()) {
+  // Handle interaction between RGB and white for color interlock
+  if (traits.get_supports_color_interlock()) {
+    // If white channel is specified, set RGB to white color
+    if (this->white_.has_value()) {
       if (!this->red_.has_value() && !this->green_.has_value() && !this->blue_.has_value()) {
         this->red_ = optional<float>(1.0f);
         this->green_ = optional<float>(1.0f);
@@ -219,10 +220,8 @@ LightColorValues LightCall::validate_() {
         this->white_ = optional<float>(0.0f);
       }
     }
-  }
-  // If only a color channel is specified, set white channel to 100% for white, otherwise 0% (when interlock is enabled)
-  else if (this->red_.has_value() || this->green_.has_value() || this->blue_.has_value()) {
-    if (traits.get_supports_color_interlock()) {
+    // If only a color channel is specified, set white channel to 100% for white, otherwise 0%
+    else if (this->red_.has_value() || this->green_.has_value() || this->blue_.has_value()) {
       if (*this->red_ == 1.0f && *this->green_ == 1.0f && *this->blue_ == 1.0f) {
         this->white_ = optional<float>(1.0f);
       } else {
@@ -230,8 +229,10 @@ LightColorValues LightCall::validate_() {
       }
     }
   }
+
   // If only a color temperature is specified, change to white light
-  else if (this->color_temperature_.has_value()) {
+  if (this->color_temperature_.has_value() && !this->white_.has_value() && !this->red_.has_value() &&
+      !this->green_.has_value() && !this->blue_.has_value()) {
     this->red_ = optional<float>(1.0f);
     this->green_ = optional<float>(1.0f);
     this->blue_ = optional<float>(1.0f);
