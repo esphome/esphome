@@ -32,7 +32,7 @@
     "editor.formatOnSave": true,
     "editor.formatOnType": true,
     "files.trimTrailingWhitespace": true,
-    "terminal.integrated.defaultProfile.linux": "/bin/bash",
+    "terminal.integrated.defaultProfile.linux": "bash",
     "yaml.customTags": [
       "!secret scalar",
       "!lambda scalar",
