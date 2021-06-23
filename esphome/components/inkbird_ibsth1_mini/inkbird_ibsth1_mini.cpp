@@ -70,25 +70,28 @@ bool InkbirdIBSTH1_MINI::parse_device(const esp32_ble_tracker::ESPBTDevice &devi
   // auto temperature = 100.0f;
   // auto ext_temperature = 100.0f;
 
+  auto measured_temperature = mnfData.uuid.get_uuid().uuid.uuid16 / 100.0f;
+
   if (mnfData.data[2] == 0) {
-    auto temperature = mnfData.uuid.get_uuid().uuid.uuid16 / 100.0f;
+    auto temperature = this->measured_temperature;
   } else if (mnfData.data[2] == 1) {
-    auto ext_temperature = mnfData.uuid.get_uuid().uuid.uuid16 / 100.0f;
+    auto ext_temperature = this->measured_temperature;
   } else {
     ESP_LOGVV(TAG, "parse_device(): unknown sensor type");
     return false;
   }
 
-  auto ext_temperature = mnfData.uuid.get_uuid().uuid.uuid16 / 100.0f;
-  auto temperature = mnfData.uuid.get_uuid().uuid.uuid16 / 100.0f;
+  // auto ext_temperature = mnfData.uuid.get_uuid().uuid.uuid16 / 100.0f;
+  // auto temperature = mnfData.uuid.get_uuid().uuid.uuid16 / 100.0f;
 
   auto battery_level = mnfData.data[5];
   auto humidity = ((mnfData.data[1] << 8) + mnfData.data[0]) / 100.0f;
 
-  if (this->temperature_ != nullptr) {
+  // if (this->temperature_ != nullptr) {
+  if (this->temperature.has_value() && this->temperature_ != nullptr) {
     this->temperature_->publish_state(temperature);
   }
-  if (this->ext_temperature_ != nullptr) {
+  if (this->ext_temperature.has_value() && this->ext_temperature_ != nullptr) {
     this->ext_temperature_->publish_state(ext_temperature);
   }
   if (this->humidity_ != nullptr) {
