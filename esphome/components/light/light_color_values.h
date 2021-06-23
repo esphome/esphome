@@ -125,13 +125,6 @@ class LightColorValues {
         this->set_blue(this->get_blue() / max_value);
       }
     }
-
-    if (this->color_mode_ & ColorCapability::BRIGHTNESS && this->get_brightness() == 0.0f) {
-      // 0% brightness means off
-      this->set_state(false);
-      // reset brightness to 100%
-      this->set_brightness(1.0f);
-    }
   }
 
   // Note that method signature of as_* methods is kept as-is for compatibility reasons, so not all parameters

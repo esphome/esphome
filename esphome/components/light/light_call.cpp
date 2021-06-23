@@ -220,6 +220,12 @@ LightColorValues LightCall::validate_() {
   VALIDATE_RANGE(cold_white, "Cold white")
   VALIDATE_RANGE(warm_white, "Warm white")
 
+  // Turn off when brightness is set to zero, and reset brightness (so that it has nonzero brightness when turned on).
+  if (this->brightness_.has_value() && *this->brightness_ == 0.0f) {
+    this->state_ = optional<float>(false);
+    this->brightness_ = optional<float>(1.0f);
+  }
+
   // Set color brightness to 100% if currently zero and a color is set.
   if (this->red_.has_value() || this->green_.has_value() || this->blue_.has_value()) {
     if (!this->color_brightness_.has_value() && this->parent_->remote_values.get_color_brightness() == 0.0f)
