@@ -181,11 +181,8 @@ class LightColorValues {
   }
 
   /// Convert these light color values to an RGB representation and write them to red, green, blue.
-  void as_rgb(float *red, float *green, float *blue, float gamma = 0, bool color_interlock = false) const {
+  void as_rgb(float *red, float *green, float *blue, float gamma = 0) const {
     float brightness = this->state_ * this->brightness_ * this->color_brightness_;
-    if (color_interlock && this->white_ > 0.0f) {
-      brightness = 0;
-    }
     *red = gamma_correct(brightness * this->red_, gamma);
     *green = gamma_correct(brightness * this->green_, gamma);
     *blue = gamma_correct(brightness * this->blue_, gamma);
@@ -194,7 +191,11 @@ class LightColorValues {
   /// Convert these light color values to an RGBW representation and write them to red, green, blue, white.
   void as_rgbw(float *red, float *green, float *blue, float *white, float gamma = 0,
                bool color_interlock = false) const {
-    this->as_rgb(red, green, blue, gamma, color_interlock);
+    if (!color_interlock || this->white_ == 0.0f) {
+      this->as_rgb(red, green, blue, gamma);
+    } else {
+      *red = *green = *blue = 0;
+    }
     *white = gamma_correct(this->state_ * this->brightness_ * this->white_, gamma);
   }
 
@@ -202,7 +203,11 @@ class LightColorValues {
   void as_rgbww(float color_temperature_cw, float color_temperature_ww, float *red, float *green, float *blue,
                 float *cold_white, float *warm_white, float gamma = 0, bool constant_brightness = false,
                 bool color_interlock = false) const {
-    this->as_rgb(red, green, blue, gamma, color_interlock);
+    if (!color_interlock || this->white_ == 0.0f) {
+      this->as_rgb(red, green, blue, gamma);
+    } else {
+      *red = *green = *blue = 0;
+    }
     const float color_temp = clamp(this->color_temperature_, color_temperature_cw, color_temperature_ww);
     const float ww_fraction = (color_temp - color_temperature_cw) / (color_temperature_ww - color_temperature_cw);
     const float cw_fraction = 1.0f - ww_fraction;
