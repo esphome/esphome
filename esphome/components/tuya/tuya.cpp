@@ -288,7 +288,7 @@ void Tuya::handle_datapoint_(const uint8_t *buffer, size_t len) {
       ESP_LOGD(TAG, "Datapoint %u update to %#08X", datapoint.id, datapoint.value_bitmask);
       break;
     default:
-      ESP_LOGW(TAG, "Datapoint %u has unknown type %#02hhX", datapoint.id, datapoint.type);
+      ESP_LOGW(TAG, "Datapoint %u has unknown type %#02hhX", datapoint.id, static_cast<int>(datapoint.type));
       return;
   }
 
