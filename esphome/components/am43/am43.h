@@ -18,7 +18,6 @@ namespace espbt = esphome::esp32_ble_tracker;
 class Am43 : public esphome::ble_client::BLEClientNode, public PollingComponent {
  public:
   void setup() override;
-  void loop() override;
   void update() override;
   void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
                            esp_ble_gattc_cb_param_t *param) override;
