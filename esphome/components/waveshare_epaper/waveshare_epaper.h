@@ -271,5 +271,33 @@ class WaveshareEPaper7P5InV2 : public WaveshareEPaper {
   int get_height_internal() override;
 };
 
+class WaveshareEPaper2P13InDKE : public WaveshareEPaper {
+ public:
+  void initialize() override;
+
+  void display() override;
+
+  void dump_config() override;
+
+  void deep_sleep() override {
+    // COMMAND POWER DOWN
+    this->command(0x10);
+    this->data(0x01);
+    // cannot wait until idle here, the device no longer responds
+  }
+
+  void set_full_update_every(uint32_t full_update_every);
+
+ protected:
+  int get_width_internal() override;
+
+  int get_height_internal() override;
+
+  int idle_timeout_() override;
+
+  uint32_t full_update_every_{30};
+  uint32_t at_update_{0};
+};
+
 }  // namespace waveshare_epaper
 }  // namespace esphome
