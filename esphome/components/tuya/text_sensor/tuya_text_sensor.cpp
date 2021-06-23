@@ -14,7 +14,7 @@ void TuyaTextSensor::setup() {
         this->publish_state(datapoint.value_string);
         break;
       case TuyaDatapointType::RAW: {
-        std::string data = rawencode(datapoint.value_raw.data(), datapoint.value_raw.size());
+        std::string data = hexencode(datapoint.value_raw);
         ESP_LOGD(TAG, "MCU reported text sensor %u is: %s", datapoint.id, data.c_str());
         this->publish_state(data);
         break;
