@@ -75,7 +75,9 @@ Am43Packet *Am43Encoder::encode_(uint8_t command, uint8_t *data, uint8_t length)
   return &this->packet_;
 }
 
-#define VERIFY_MIN_LENGTH(x) if (length < x) return;
+#define VERIFY_MIN_LENGTH(x) \
+  if (length < (x)) \
+    return;
 
 void Am43Decoder::decode(const uint8_t *data, uint16_t length) {
   this->has_battery_level_ = false;
