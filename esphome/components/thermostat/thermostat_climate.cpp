@@ -4,7 +4,7 @@
 namespace esphome {
 namespace thermostat {
 
-static const char *TAG = "thermostat.climate";
+static const char *const TAG = "thermostat.climate";
 
 void ThermostatClimate::setup() {
   this->sensor_->add_on_state_callback([this](float state) {
@@ -21,7 +21,7 @@ void ThermostatClimate::setup() {
     restore->to_call(this).perform();
   } else {
     // restore from defaults, change_away handles temps for us
-    this->mode = climate::CLIMATE_MODE_AUTO;
+    this->mode = climate::CLIMATE_MODE_HEAT_COOL;
     this->change_away_(false);
   }
   // refresh the climate action based on the restored settings
@@ -50,12 +50,13 @@ void ThermostatClimate::control(const climate::ClimateCall &call) {
     this->target_temperature_low = *call.get_target_temperature_low();
   if (call.get_target_temperature_high().has_value())
     this->target_temperature_high = *call.get_target_temperature_high();
-  if (call.get_away().has_value()) {
+  if (call.get_preset().has_value()) {
     // setup_complete_ blocks modifying/resetting the temps immediately after boot
     if (this->setup_complete_) {
-      this->change_away_(*call.get_away());
+      this->change_away_(*call.get_preset() == climate::CLIMATE_PRESET_AWAY);
     } else {
-      this->away = *call.get_away();
+      this->preset = *call.get_preset();
+      ;
     }
   }
   // set point validation
@@ -78,26 +79,51 @@ void ThermostatClimate::control(const climate::ClimateCall &call) {
 climate::ClimateTraits ThermostatClimate::traits() {
   auto traits = climate::ClimateTraits();
   traits.set_supports_current_temperature(true);
-  traits.set_supports_auto_mode(this->supports_auto_);
-  traits.set_supports_cool_mode(this->supports_cool_);
-  traits.set_supports_dry_mode(this->supports_dry_);
-  traits.set_supports_fan_only_mode(this->supports_fan_only_);
-  traits.set_supports_heat_mode(this->supports_heat_);
-  traits.set_supports_fan_mode_on(this->supports_fan_mode_on_);
-  traits.set_supports_fan_mode_off(this->supports_fan_mode_off_);
-  traits.set_supports_fan_mode_auto(this->supports_fan_mode_auto_);
-  traits.set_supports_fan_mode_low(this->supports_fan_mode_low_);
-  traits.set_supports_fan_mode_medium(this->supports_fan_mode_medium_);
-  traits.set_supports_fan_mode_high(this->supports_fan_mode_high_);
-  traits.set_supports_fan_mode_middle(this->supports_fan_mode_middle_);
-  traits.set_supports_fan_mode_focus(this->supports_fan_mode_focus_);
-  traits.set_supports_fan_mode_diffuse(this->supports_fan_mode_diffuse_);
-  traits.set_supports_swing_mode_both(this->supports_swing_mode_both_);
-  traits.set_supports_swing_mode_horizontal(this->supports_swing_mode_horizontal_);
-  traits.set_supports_swing_mode_off(this->supports_swing_mode_off_);
-  traits.set_supports_swing_mode_vertical(this->supports_swing_mode_vertical_);
+  if (supports_auto_)
+    traits.add_supported_mode(climate::CLIMATE_MODE_AUTO);
+  if (supports_heat_cool_)
+    traits.add_supported_mode(climate::CLIMATE_MODE_HEAT_COOL);
+  if (supports_cool_)
+    traits.add_supported_mode(climate::CLIMATE_MODE_COOL);
+  if (supports_dry_)
+    traits.add_supported_mode(climate::CLIMATE_MODE_DRY);
+  if (supports_fan_only_)
+    traits.add_supported_mode(climate::CLIMATE_MODE_FAN_ONLY);
+  if (supports_heat_)
+    traits.add_supported_mode(climate::CLIMATE_MODE_HEAT);
+
+  if (supports_fan_mode_on_)
+    traits.add_supported_fan_mode(climate::CLIMATE_FAN_ON);
+  if (supports_fan_mode_off_)
+    traits.add_supported_fan_mode(climate::CLIMATE_FAN_OFF);
+  if (supports_fan_mode_auto_)
+    traits.add_supported_fan_mode(climate::CLIMATE_FAN_AUTO);
+  if (supports_fan_mode_low_)
+    traits.add_supported_fan_mode(climate::CLIMATE_FAN_LOW);
+  if (supports_fan_mode_medium_)
+    traits.add_supported_fan_mode(climate::CLIMATE_FAN_MEDIUM);
+  if (supports_fan_mode_high_)
+    traits.add_supported_fan_mode(climate::CLIMATE_FAN_HIGH);
+  if (supports_fan_mode_middle_)
+    traits.add_supported_fan_mode(climate::CLIMATE_FAN_MIDDLE);
+  if (supports_fan_mode_focus_)
+    traits.add_supported_fan_mode(climate::CLIMATE_FAN_FOCUS);
+  if (supports_fan_mode_diffuse_)
+    traits.add_supported_fan_mode(climate::CLIMATE_FAN_DIFFUSE);
+
+  if (supports_swing_mode_both_)
+    traits.add_supported_swing_mode(climate::CLIMATE_SWING_BOTH);
+  if (supports_swing_mode_horizontal_)
+    traits.add_supported_swing_mode(climate::CLIMATE_SWING_HORIZONTAL);
+  if (supports_swing_mode_off_)
+    traits.add_supported_swing_mode(climate::CLIMATE_SWING_OFF);
+  if (supports_swing_mode_vertical_)
+    traits.add_supported_swing_mode(climate::CLIMATE_SWING_VERTICAL);
+
+  if (supports_away_)
+    traits.set_supported_presets({climate::CLIMATE_PRESET_HOME, climate::CLIMATE_PRESET_AWAY});
+
   traits.set_supports_two_point_target_temperature(this->supports_two_points_);
-  traits.set_supports_away(this->supports_away_);
   traits.set_supports_action(true);
   return traits;
 }
@@ -130,7 +156,7 @@ climate::ClimateAction ThermostatClimate::compute_action_() {
       case climate::CLIMATE_MODE_OFF:
         target_action = climate::CLIMATE_ACTION_OFF;
         break;
-      case climate::CLIMATE_MODE_AUTO:
+      case climate::CLIMATE_MODE_HEAT_COOL:
       case climate::CLIMATE_MODE_COOL:
       case climate::CLIMATE_MODE_HEAT:
         if (this->supports_cool_) {
@@ -321,7 +347,7 @@ void ThermostatClimate::switch_to_mode_(climate::ClimateMode mode) {
     case climate::CLIMATE_MODE_OFF:
       trig = this->off_mode_trigger_;
       break;
-    case climate::CLIMATE_MODE_AUTO:
+    case climate::CLIMATE_MODE_HEAT_COOL:
       // trig = this->auto_mode_trigger_;
       break;
     case climate::CLIMATE_MODE_COOL:
@@ -339,7 +365,7 @@ void ThermostatClimate::switch_to_mode_(climate::ClimateMode mode) {
     default:
       // we cannot report an invalid mode back to HA (even if it asked for one)
       //  and must assume some valid value
-      mode = climate::CLIMATE_MODE_AUTO;
+      mode = climate::CLIMATE_MODE_HEAT_COOL;
       // trig = this->auto_mode_trigger_;
   }
   assert(trig != nullptr);
@@ -398,7 +424,7 @@ void ThermostatClimate::change_away_(bool away) {
     } else
       this->target_temperature = this->away_config_.default_temperature;
   }
-  this->away = away;
+  this->preset = away ? climate::CLIMATE_PRESET_AWAY : climate::CLIMATE_PRESET_HOME;
 }
 void ThermostatClimate::set_normal_config(const ThermostatClimateTargetTempConfig &normal_config) {
   this->normal_config_ = normal_config;
@@ -434,6 +460,9 @@ ThermostatClimate::ThermostatClimate()
       swing_mode_vertical_trigger_(new Trigger<>()) {}
 void ThermostatClimate::set_hysteresis(float hysteresis) { this->hysteresis_ = hysteresis; }
 void ThermostatClimate::set_sensor(sensor::Sensor *sensor) { this->sensor_ = sensor; }
+void ThermostatClimate::set_supports_heat_cool(bool supports_heat_cool) {
+  this->supports_heat_cool_ = supports_heat_cool;
+}
 void ThermostatClimate::set_supports_auto(bool supports_auto) { this->supports_auto_ = supports_auto; }
 void ThermostatClimate::set_supports_cool(bool supports_cool) { this->supports_cool_ = supports_cool; }
 void ThermostatClimate::set_supports_dry(bool supports_dry) { this->supports_dry_ = supports_dry; }
@@ -521,6 +550,7 @@ void ThermostatClimate::dump_config() {
   }
   ESP_LOGCONFIG(TAG, "  Hysteresis: %.1f°C", this->hysteresis_);
   ESP_LOGCONFIG(TAG, "  Supports AUTO: %s", YESNO(this->supports_auto_));
+  ESP_LOGCONFIG(TAG, "  Supports HEAT/COOL: %s", YESNO(this->supports_heat_cool_));
   ESP_LOGCONFIG(TAG, "  Supports COOL: %s", YESNO(this->supports_cool_));
   ESP_LOGCONFIG(TAG, "  Supports DRY: %s", YESNO(this->supports_dry_));
   ESP_LOGCONFIG(TAG, "  Supports FAN_ONLY: %s", YESNO(this->supports_fan_only_));

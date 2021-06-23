@@ -5,7 +5,7 @@
 namespace esphome {
 namespace ssd1327_spi {
 
-static const char *TAG = "ssd1327_spi";
+static const char *const TAG = "ssd1327_spi";
 
 void SPISSD1327::setup() {
   ESP_LOGCONFIG(TAG, "Setting up SPI SSD1327...");

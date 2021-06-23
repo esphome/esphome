@@ -5,7 +5,7 @@
 namespace esphome {
 namespace tm1637 {
 
-const char *TAG = "display.tm1637";
+static const char *const TAG = "display.tm1637";
 const uint8_t TM1637_I2C_COMM1 = 0x40;
 const uint8_t TM1637_I2C_COMM2 = 0xC0;
 const uint8_t TM1637_I2C_COMM3 = 0x80;

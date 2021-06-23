@@ -1,16 +1,21 @@
 #pragma once
 
+#include "ble_advertising.h"
+
 #include "esphome/core/component.h"
+#include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
-#include "ble_server.h"
 #include "queue.h"
+
+#ifdef USE_ESP32_BLE_SERVER
+#include "esphome/components/esp32_ble_server/ble_server.h"
+#endif
 
 #ifdef ARDUINO_ARCH_ESP32
 
 #include <esp_gap_ble_api.h>
 #include <esp_gatts_api.h>
 #include <esp_gattc_api.h>
-
 namespace esphome {
 namespace esp32_ble {
 
@@ -28,11 +33,20 @@ class ESP32BLE : public Component {
   float get_setup_priority() const override;
   void mark_failed() override;
 
-  bool has_server() { return this->server_ != nullptr; }
+  bool has_server() {
+#ifdef USE_ESP32_BLE_SERVER
+    return this->server_ != nullptr;
+#else
+    return false;
+#endif
+  }
   bool has_client() { return false; }
 
-  void set_server(BLEServer *server) { this->server_ = server; }
+  BLEAdvertising *get_advertising() { return this->advertising_; }
 
+#ifdef USE_ESP32_BLE_SERVER
+  void set_server(esp32_ble_server::BLEServer *server) { this->server_ = server; }
+#endif
  protected:
   static void gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if, esp_ble_gatts_cb_param_t *param);
   static void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp_ble_gattc_cb_param_t *param);
@@ -44,8 +58,11 @@ class ESP32BLE : public Component {
 
   bool ble_setup_();
 
-  BLEServer *server_{nullptr};
+#ifdef USE_ESP32_BLE_SERVER
+  esp32_ble_server::BLEServer *server_{nullptr};
+#endif
   Queue<BLEEvent> ble_events_;
+  BLEAdvertising *advertising_;
 };
 
 extern ESP32BLE *global_ble;

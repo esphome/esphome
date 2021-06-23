@@ -6,7 +6,7 @@
 namespace esphome {
 namespace tuya {
 
-static const char *TAG = "tuya";
+static const char *const TAG = "tuya";
 static const int COMMAND_DELAY = 50;
 
 void Tuya::setup() {
@@ -232,7 +232,7 @@ void Tuya::handle_datapoint_(const uint8_t *buffer, size_t len) {
   const uint8_t *data = buffer + 4;
   size_t data_len = len - 4;
   if (data_size != data_len) {
-    ESP_LOGW(TAG, "Datapoint %u is not expected size", datapoint.id);
+    ESP_LOGW(TAG, "Datapoint %u is not expected size (%zu != %zu)", datapoint.id, data_size, data_len);
     return;
   }
   datapoint.len = data_len;
@@ -333,7 +333,7 @@ void Tuya::send_raw_command_(TuyaCommand command) {
 void Tuya::process_command_queue_() {
   uint32_t delay = millis() - this->last_command_timestamp_;
   // Left check of delay since last command in case theres ever a command sent by calling send_raw_command_ directly
-  if (delay > COMMAND_DELAY && !command_queue_.empty()) {
+  if (delay > COMMAND_DELAY && !this->command_queue_.empty() && this->rx_message_.empty()) {
     this->send_raw_command_(command_queue_.front());
     this->command_queue_.erase(command_queue_.begin());
   }

@@ -8,7 +8,7 @@
 namespace esphome {
 namespace display {
 
-static const char *TAG = "display";
+static const char *const TAG = "display";
 
 const Color COLOR_OFF(0, 0, 0, 0);
 const Color COLOR_ON(255, 255, 255, 255);

@@ -1,12 +1,13 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.components import binary_sensor, output, esp32_ble
+from esphome.components import binary_sensor, output, esp32_ble_server
 from esphome.const import CONF_ID, ESP_PLATFORM_ESP32
 
 
-AUTO_LOAD = ["binary_sensor", "output", "improv"]
+AUTO_LOAD = ["binary_sensor", "output", "improv", "esp32_ble_server"]
 CODEOWNERS = ["@jesserockz"]
-DEPENDENCIES = ["esp32_ble", "wifi"]
+CONFLICTS_WITH = ["esp32_ble_tracker", "esp32_ble_beacon"]
+DEPENDENCIES = ["wifi"]
 ESP_PLATFORMS = [ESP_PLATFORM_ESP32]
 
 CONF_AUTHORIZED_DURATION = "authorized_duration"
@@ -18,7 +19,7 @@ CONF_WIFI_TIMEOUT = "wifi_timeout"
 
 esp32_improv_ns = cg.esphome_ns.namespace("esp32_improv")
 ESP32ImprovComponent = esp32_improv_ns.class_(
-    "ESP32ImprovComponent", cg.Component, esp32_ble.BLEServiceComponent
+    "ESP32ImprovComponent", cg.Component, esp32_ble_server.BLEServiceComponent
 )
 
 
@@ -33,7 +34,7 @@ def validate_none_(value):
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(ESP32ImprovComponent),
-        cv.GenerateID(CONF_BLE_SERVER_ID): cv.use_id(esp32_ble.BLEServer),
+        cv.GenerateID(CONF_BLE_SERVER_ID): cv.use_id(esp32_ble_server.BLEServer),
         cv.Required(CONF_AUTHORIZER): cv.Any(
             validate_none_, cv.use_id(binary_sensor.BinarySensor)
         ),

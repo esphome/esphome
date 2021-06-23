@@ -15,7 +15,7 @@ extern "C" {
 
 namespace esphome {
 
-static const char *TAG = "preferences";
+static const char *const TAG = "preferences";
 
 ESPPreferenceObject::ESPPreferenceObject(size_t offset, size_t length, uint32_t type)
     : offset_(offset), length_words_(length), type_(type), data_(length + 1) {}
@@ -68,7 +68,7 @@ static inline bool esp_rtc_user_mem_read(uint32_t index, uint32_t *dest) {
   return true;
 }
 
-static bool esp8266_flash_dirty = false;
+static bool esp8266_flash_dirty = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 static inline bool esp_rtc_user_mem_write(uint32_t index, uint32_t value) {
   if (index >= ESP_RTC_USER_MEM_SIZE_WORDS) {
@@ -298,6 +298,6 @@ uint32_t ESPPreferenceObject::calculate_crc_() const {
 }
 bool ESPPreferenceObject::is_initialized() const { return !this->data_.empty(); }
 
-ESPPreferences global_preferences;
+ESPPreferences global_preferences;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 }  // namespace esphome

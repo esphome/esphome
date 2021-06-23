@@ -15,7 +15,7 @@
 namespace esphome {
 namespace mqtt {
 
-static const char *TAG = "mqtt";
+static const char *const TAG = "mqtt";
 
 MQTTClientComponent::MQTTClientComponent() {
   global_mqtt_client = this;
@@ -560,7 +560,7 @@ void MQTTClientComponent::add_ssl_fingerprint(const std::array<uint8_t, SHA1_SIZ
 }
 #endif
 
-MQTTClientComponent *global_mqtt_client = nullptr;
+MQTTClientComponent *global_mqtt_client = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 // MQTTMessageTrigger
 MQTTMessageTrigger::MQTTMessageTrigger(std::string topic) : topic_(std::move(topic)) {}

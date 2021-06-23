@@ -13,7 +13,7 @@
 
 namespace esphome {
 
-static const char *TAG = "helpers";
+static const char *const TAG = "helpers";
 
 std::string get_mac_address() {
   char tmp[20];
@@ -55,7 +55,7 @@ double random_double() { return random_uint32() / double(UINT32_MAX); }
 
 float random_float() { return float(random_double()); }
 
-static uint32_t fast_random_seed = 0;
+static uint32_t fast_random_seed = 0;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 void fast_random_set_seed(uint32_t seed) { fast_random_seed = seed; }
 uint32_t fast_random_32() {
@@ -105,7 +105,7 @@ std::string truncate_string(const std::string &s, size_t length) {
 }
 
 std::string value_accuracy_to_string(float value, int8_t accuracy_decimals) {
-  auto multiplier = float(pow10(accuracy_decimals));
+  auto multiplier = float(powf(10.0f, accuracy_decimals));
   float value_rounded = roundf(value * multiplier) / multiplier;
   char tmp[32];  // should be enough, but we should maybe improve this at some point.
   dtostrf(value_rounded, 0, uint8_t(std::max(0, int(accuracy_decimals))), tmp);
@@ -139,7 +139,7 @@ ParseOnOffState parse_on_off(const char *str, const char *on, const char *off) {
   return PARSE_NONE;
 }
 
-const char *HOSTNAME_CHARACTER_ALLOWLIST = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_";
+const char *const HOSTNAME_CHARACTER_ALLOWLIST = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_";
 
 uint8_t crc8(uint8_t *data, uint8_t len) {
   uint8_t crc = 0;
@@ -256,7 +256,7 @@ template<uint32_t> uint32_t reverse_bits(uint32_t x) {
   return uint32_t(reverse_bits_16(x & 0xFFFF) << 16) | uint32_t(reverse_bits_16(x >> 16));
 }
 
-static int high_freq_num_requests = 0;
+static int high_freq_num_requests = 0;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 void HighFrequencyLoopRequester::start() {
   if (this->started_)

@@ -394,7 +394,7 @@ def command_update_all(args):
     import click
 
     success = {}
-    files = list_yaml_files(args.configuration)
+    files = list_yaml_files(args.configuration[0])
     twidth = 60
 
     def print_bar(middle_text):
@@ -408,7 +408,7 @@ def command_update_all(args):
         print("-" * twidth)
         print()
         rc = run_external_process(
-            "esphome", "--dashboard", "run", f, "--no-logs", "--device", "OTA"
+            "esphome", "--dashboard", "run", "--no-logs", "--device", "OTA", f
         )
         if rc == 0:
             print_bar("[{}] {}".format(color(Fore.BOLD_GREEN, "SUCCESS"), f))
@@ -504,6 +504,7 @@ def parse_args(argv):
             "version",
             "clean",
             "dashboard",
+            "vscode",
         ],
     )
 
@@ -513,14 +514,26 @@ def parse_args(argv):
 
     compat_parser.error = _raise
 
-    try:
-        result, unparsed = compat_parser.parse_known_args(argv[1:])
-        last_option = len(argv) - len(unparsed) - 1 - len(result.configuration)
-        argv = argv[0:last_option] + [result.command] + result.configuration + unparsed
-        deprecated_argv_suggestion = argv
-    except argparse.ArgumentError:
-        # This is not an old-style command line, so we don't have to do anything.
-        deprecated_argv_suggestion = None
+    deprecated_argv_suggestion = None
+
+    if ["dashboard", "config"] == argv[1:3]:
+        # this is most likely meant in new-style arg format. do not try compat parsing
+        pass
+    else:
+        try:
+            result, unparsed = compat_parser.parse_known_args(argv[1:])
+            last_option = len(argv) - len(unparsed) - 1 - len(result.configuration)
+            unparsed = [
+                "--device" if arg in ("--upload-port", "--serial-port") else arg
+                for arg in unparsed
+            ]
+            argv = (
+                argv[0:last_option] + [result.command] + result.configuration + unparsed
+            )
+            deprecated_argv_suggestion = argv
+        except argparse.ArgumentError:
+            # This is not an old-style command line, so we don't have to do anything.
+            pass
 
     # And continue on with regular parsing
     parser = argparse.ArgumentParser(
@@ -686,7 +699,7 @@ def run_esphome(argv):
     CORE.dashboard = args.dashboard
 
     setup_log(args.verbose, args.quiet)
-    if args.deprecated_argv_suggestion is not None:
+    if args.deprecated_argv_suggestion is not None and args.command != "vscode":
         _LOGGER.warning(
             "Calling ESPHome with the configuration before the command is deprecated "
             "and will be removed in the future. "

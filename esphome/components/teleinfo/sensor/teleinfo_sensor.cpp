@@ -3,7 +3,7 @@
 namespace esphome {
 namespace teleinfo {
 
-static const char *TAG = "teleinfo_sensor";
+static const char *const TAG = "teleinfo_sensor";
 TeleInfoSensor::TeleInfoSensor(const char *tag) { this->tag = std::string(tag); }
 void TeleInfoSensor::publish_val(const std::string &val) {
   auto newval = parse_float(val);

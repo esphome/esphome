@@ -4,7 +4,7 @@
 namespace esphome {
 namespace json {
 
-static const char *TAG = "json";
+static const char *const TAG = "json";
 
 static std::vector<char> global_json_build_buffer;
 
@@ -109,7 +109,7 @@ void VectorJsonBuffer::reserve(size_t size) {  // NOLINT
 
 size_t VectorJsonBuffer::size() const { return this->size_; }
 
-VectorJsonBuffer global_json_buffer;
+VectorJsonBuffer global_json_buffer;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 }  // namespace json
 }  // namespace esphome

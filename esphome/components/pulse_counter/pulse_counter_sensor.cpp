@@ -4,9 +4,9 @@
 namespace esphome {
 namespace pulse_counter {
 
-static const char *TAG = "pulse_counter";
+static const char *const TAG = "pulse_counter";
 
-const char *EDGE_MODE_TO_STRING[] = {"DISABLE", "INCREMENT", "DECREMENT"};
+const char *const EDGE_MODE_TO_STRING[] = {"DISABLE", "INCREMENT", "DECREMENT"};
 
 #ifdef ARDUINO_ARCH_ESP8266
 void ICACHE_RAM_ATTR PulseCounterStorage::gpio_intr(PulseCounterStorage *arg) {

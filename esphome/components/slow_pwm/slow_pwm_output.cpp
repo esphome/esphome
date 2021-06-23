@@ -4,7 +4,7 @@
 namespace esphome {
 namespace slow_pwm {
 
-static const char *TAG = "output.slow_pwm";
+static const char *const TAG = "output.slow_pwm";
 
 void SlowPWMOutput::setup() {
   this->pin_->setup();

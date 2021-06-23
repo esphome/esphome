@@ -58,7 +58,7 @@ class VectorJsonBuffer : public ArduinoJson::Internals::JsonBufferBase<VectorJso
   std::vector<char *> free_blocks_;
 };
 
-extern VectorJsonBuffer global_json_buffer;
+extern VectorJsonBuffer global_json_buffer;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 }  // namespace json
 }  // namespace esphome

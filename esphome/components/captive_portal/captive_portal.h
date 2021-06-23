@@ -69,7 +69,7 @@ class CaptivePortal : public AsyncWebHandler, public Component {
   std::unique_ptr<DNSServer> dns_server_{nullptr};
 };
 
-extern CaptivePortal *global_captive_portal;
+extern CaptivePortal *global_captive_portal;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 }  // namespace captive_portal
 }  // namespace esphome

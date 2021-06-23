@@ -4,7 +4,7 @@
 namespace esphome {
 namespace fastled_base {
 
-static const char *TAG = "fastled";
+static const char *const TAG = "fastled";
 
 void FastLEDLightOutput::setup() {
   ESP_LOGCONFIG(TAG, "Setting up FastLED light...");

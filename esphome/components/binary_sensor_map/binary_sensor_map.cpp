@@ -4,7 +4,7 @@
 namespace esphome {
 namespace binary_sensor_map {
 
-static const char *TAG = "binary_sensor_map";
+static const char *const TAG = "binary_sensor_map";
 
 void BinarySensorMap::dump_config() { LOG_SENSOR("  ", "binary_sensor_map", this); }
 

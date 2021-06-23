@@ -4,7 +4,7 @@
 namespace esphome {
 namespace pn532 {
 
-static const char *TAG = "pn532.mifare_ultralight";
+static const char *const TAG = "pn532.mifare_ultralight";
 
 std::unique_ptr<nfc::NfcTag> PN532::read_mifare_ultralight_tag_(std::vector<uint8_t> &uid) {
   if (!this->is_mifare_ultralight_formatted_()) {

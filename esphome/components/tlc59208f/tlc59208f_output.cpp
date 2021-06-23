@@ -5,7 +5,7 @@
 namespace esphome {
 namespace tlc59208f {
 
-static const char *TAG = "tlc59208f";
+static const char *const TAG = "tlc59208f";
 
 // * marks register defaults
 // 0*: Register auto increment disabled, 1: Register auto increment enabled

@@ -3,14 +3,14 @@
 namespace esphome {
 namespace midea_ac {
 
-static const char *TAG = "midea_ac";
+static const char *const TAG = "midea_ac";
 const std::string MIDEA_SILENT_FAN_MODE = "silent";
 const std::string MIDEA_TURBO_FAN_MODE = "turbo";
 const std::string MIDEA_FREEZE_PROTECTION_PRESET = "freeze protection";
 
-const uint8_t QueryFrame::INIT[] = {0xAA, 0x22, 0xAC, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0x03, 0x41, 0x00,
-                                    0x00, 0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                                    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x84, 0x68};
+const uint8_t QueryFrame::INIT[] = {0xAA, 0x21, 0xAC, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0x41, 0x81,
+                                    0x00, 0xFF, 0x03, 0xFF, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0x00, 0x37, 0x31};
 
 const uint8_t PowerQueryFrame::INIT[] = {0xAA, 0x22, 0xAC, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0x03, 0x41, 0x21,
                                          0x01, 0x44, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -44,7 +44,7 @@ climate::ClimateMode PropertiesFrame::get_mode() const {
     return climate::CLIMATE_MODE_OFF;
   switch (this->pbuf_[12] >> 5) {
     case MIDEA_MODE_AUTO:
-      return climate::CLIMATE_MODE_AUTO;
+      return climate::CLIMATE_MODE_HEAT_COOL;
     case MIDEA_MODE_COOL:
       return climate::CLIMATE_MODE_COOL;
     case MIDEA_MODE_DRY:
@@ -61,7 +61,7 @@ climate::ClimateMode PropertiesFrame::get_mode() const {
 void PropertiesFrame::set_mode(climate::ClimateMode mode) {
   uint8_t m;
   switch (mode) {
-    case climate::CLIMATE_MODE_AUTO:
+    case climate::CLIMATE_MODE_HEAT_COOL:
       m = MIDEA_MODE_AUTO;
       break;
     case climate::CLIMATE_MODE_COOL:

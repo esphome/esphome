@@ -7,7 +7,7 @@
 namespace esphome {
 namespace xpt2046 {
 
-static const char *TAG = "xpt2046";
+static const char *const TAG = "xpt2046";
 
 void XPT2046Component::setup() {
   if (this->irq_pin_ != nullptr) {

@@ -4,7 +4,7 @@
 namespace esphome {
 namespace mcp23016 {
 
-static const char *TAG = "mcp23016";
+static const char *const TAG = "mcp23016";
 
 void MCP23016::setup() {
   ESP_LOGCONFIG(TAG, "Setting up MCP23016...");

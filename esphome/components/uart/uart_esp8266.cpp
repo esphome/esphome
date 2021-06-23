@@ -8,7 +8,7 @@
 namespace esphome {
 namespace uart {
 
-static const char *TAG = "uart_esp8266";
+static const char *const TAG = "uart_esp8266";
 uint32_t UARTComponent::get_config() {
   uint32_t config = 0;
 

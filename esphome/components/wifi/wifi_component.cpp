@@ -29,7 +29,7 @@
 namespace esphome {
 namespace wifi {
 
-static const char *TAG = "wifi";
+static const char *const TAG = "wifi";
 
 float WiFiComponent::get_setup_priority() const { return setup_priority::WIFI; }
 
@@ -79,7 +79,8 @@ void WiFiComponent::setup() {
   }
 #ifdef USE_IMPROV
   if (esp32_improv::global_improv_component != nullptr)
-    esp32_improv::global_improv_component->start();
+    if (this->wifi_mode_(true, {}))
+      esp32_improv::global_improv_component->start();
 #endif
   this->wifi_apply_hostname_();
 #if defined(ARDUINO_ARCH_ESP32) && defined(USE_MDNS)
@@ -143,11 +144,11 @@ void WiFiComponent::loop() {
     }
 
 #ifdef USE_IMPROV
-    if (esp32_improv::global_improv_component != nullptr) {
-      if (!this->is_connected()) {
-        esp32_improv::global_improv_component->start();
-      }
-    }
+    if (esp32_improv::global_improv_component != nullptr)
+      if (!this->is_connected())
+        if (this->wifi_mode_(true, {}))
+          esp32_improv::global_improv_component->start();
+
 #endif
 
     if (!this->has_ap() && this->reboot_timeout_ != 0) {
@@ -586,7 +587,7 @@ void WiFiComponent::retry_connect() {
 }
 
 bool WiFiComponent::can_proceed() {
-  if (this->has_ap() && !this->has_sta()) {
+  if (!this->has_sta()) {
     return true;
   }
   return this->is_connected();
@@ -692,7 +693,7 @@ int8_t WiFiScanResult::get_rssi() const { return this->rssi_; }
 bool WiFiScanResult::get_with_auth() const { return this->with_auth_; }
 bool WiFiScanResult::get_is_hidden() const { return this->is_hidden_; }
 
-WiFiComponent *global_wifi_component;
+WiFiComponent *global_wifi_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 }  // namespace wifi
 }  // namespace esphome

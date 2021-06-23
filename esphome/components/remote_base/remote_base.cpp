@@ -4,7 +4,7 @@
 namespace esphome {
 namespace remote_base {
 
-static const char *TAG = "remote_base";
+static const char *const TAG = "remote_base";
 
 #ifdef ARDUINO_ARCH_ESP32
 RemoteRMTChannel::RemoteRMTChannel(uint8_t mem_block_num) : mem_block_num_(mem_block_num) {

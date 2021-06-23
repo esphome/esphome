@@ -6,7 +6,7 @@
 namespace esphome {
 namespace mqtt {
 
-static const char *TAG = "mqtt.climate";
+static const char *const TAG = "mqtt.climate";
 
 using namespace esphome::climate;
 
@@ -61,7 +61,7 @@ void MQTTClimateComponent::send_discovery(JsonObject &root, mqtt::SendDiscoveryC
   // temp_step
   root["temp_step"] = traits.get_visual_temperature_step();
 
-  if (traits.get_supports_away()) {
+  if (traits.supports_preset(CLIMATE_PRESET_AWAY)) {
     // away_mode_command_topic
     root["away_mode_cmd_t"] = this->get_away_command_topic();
     // away_mode_state_topic
@@ -164,19 +164,19 @@ void MQTTClimateComponent::setup() {
                     });
   }
 
-  if (traits.get_supports_away()) {
+  if (traits.supports_preset(CLIMATE_PRESET_AWAY)) {
     this->subscribe(this->get_away_command_topic(), [this](const std::string &topic, const std::string &payload) {
       auto onoff = parse_on_off(payload.c_str());
       auto call = this->device_->make_call();
       switch (onoff) {
         case PARSE_ON:
-          call.set_away(true);
+          call.set_preset(CLIMATE_PRESET_AWAY);
           break;
         case PARSE_OFF:
-          call.set_away(false);
+          call.set_preset(CLIMATE_PRESET_HOME);
           break;
         case PARSE_TOGGLE:
-          call.set_away(!this->device_->away);
+          call.set_preset(this->device_->preset == CLIMATE_PRESET_AWAY ? CLIMATE_PRESET_HOME : CLIMATE_PRESET_AWAY);
           break;
         case PARSE_NONE:
         default:
@@ -259,8 +259,8 @@ bool MQTTClimateComponent::publish_state_() {
       success = false;
   }
 
-  if (traits.get_supports_away()) {
-    std::string payload = ONOFF(this->device_->away);
+  if (traits.supports_preset(CLIMATE_PRESET_AWAY)) {
+    std::string payload = ONOFF(this->device_->preset == CLIMATE_PRESET_AWAY);
     if (!this->publish(this->get_away_state_topic(), payload))
       success = false;
   }

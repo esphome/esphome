@@ -4,7 +4,7 @@
 namespace esphome {
 namespace sps30 {
 
-static const char *TAG = "sps30";
+static const char *const TAG = "sps30";
 
 static const uint16_t SPS30_CMD_GET_ARTICLE_CODE = 0xD025;
 static const uint16_t SPS30_CMD_GET_SERIAL_NUMBER = 0xD033;

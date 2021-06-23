@@ -9,7 +9,7 @@
 namespace esphome {
 namespace time {
 
-static const char *TAG = "time";
+static const char *const TAG = "time";
 
 RealTimeClock::RealTimeClock() = default;
 void RealTimeClock::call_setup() {
