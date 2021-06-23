@@ -75,6 +75,8 @@ Am43Packet *Am43Encoder::encode_(uint8_t command, uint8_t *data, uint8_t length)
   return &this->packet_;
 }
 
+#define VERIFY_MIN_LENGTH(x) if (length < x) return;
+
 void Am43Decoder::decode(const uint8_t *data, uint16_t length) {
   this->has_battery_level_ = false;
   this->has_light_level_ = false;
@@ -88,36 +90,43 @@ void Am43Decoder::decode(const uint8_t *data, uint16_t length) {
     return;
   switch (data[1]) {
     case CMD_GET_BATTERY_LEVEL: {
+      VERIFY_MIN_LENGTH(8);
       this->battery_level_ = data[7];
       this->has_battery_level_ = true;
       break;
     }
     case CMD_GET_LIGHT_LEVEL: {
+      VERIFY_MIN_LENGTH(5);
       this->light_level_ = 100 * ((float) data[4] / 9);
       this->has_light_level_ = true;
       break;
     }
     case CMD_GET_POSITION: {
+      VERIFY_MIN_LENGTH(6);
       this->position_ = data[5];
       this->has_position_ = true;
       break;
     }
     case CMD_NOTIFY_POSITION: {
+      VERIFY_MIN_LENGTH(5);
       this->position_ = data[4];
       this->has_position_ = true;
       break;
     }
     case CMD_SEND_PIN: {
+      VERIFY_MIN_LENGTH(4);
       this->pin_ok_ = data[3] == RESPONSE_ACK;
       this->has_pin_response_ = true;
       break;
     }
     case CMD_SET_POSITION: {
+      VERIFY_MIN_LENGTH(4);
       this->set_position_ok_ = data[3] == RESPONSE_ACK;
       this->has_set_position_response_ = true;
       break;
     }
     case CMD_SET_STATE: {
+      VERIFY_MIN_LENGTH(4);
       this->set_state_ok_ = data[3] == RESPONSE_ACK;
       this->has_set_state_response_ = true;
       break;

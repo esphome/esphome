@@ -4,7 +4,7 @@
 #include "esphome/components/ble_client/ble_client.h"
 #include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
 #include "esphome/components/cover/cover.h"
-#include "am43_base.h"
+#include "esphome/components/am43/am43_base.h"
 
 #ifdef ARDUINO_ARCH_ESP32
 
