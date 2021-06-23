@@ -170,13 +170,6 @@ class LightColorValues {
         this->set_blue(this->get_blue() / max_value);
       }
     }
-
-    if (traits.get_supports_brightness() && this->get_brightness() == 0.0f) {
-      // 0% brightness means off
-      this->set_state(false);
-      // reset brightness to 100%
-      this->set_brightness(1.0f);
-    }
   }
 
   /// Convert these light color values to a binary representation and write them to binary.

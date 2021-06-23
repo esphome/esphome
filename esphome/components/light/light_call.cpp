@@ -180,6 +180,12 @@ LightColorValues LightCall::validate_() {
     this->brightness_.reset();
   }
 
+  // Turn off when brightness is set to zero, and reset brightness (so that it has nonzero brightness when turned on).
+  if (this->brightness_.has_value() && *this->brightness_ == 0.0f) {
+    this->state_ = optional<bool>(false);
+    this->brightness_ = optional<float>(1.0f);
+  }
+
   // Transition length possible check
   if (this->transition_length_.has_value() && *this->transition_length_ != 0 && !traits.get_supports_brightness()) {
     ESP_LOGW(TAG, "'%s' - This light does not support transitions!", name);
