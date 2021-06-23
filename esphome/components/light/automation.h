@@ -151,8 +151,9 @@ template<typename... Ts> class AddressableSet : public Action<Ts...> {
     auto *out = (AddressableLight *) this->parent_->get_output();
     int32_t range_from = this->range_from_.value_or(x..., 0);
     int32_t range_to = this->range_to_.value_or(x..., out->size() - 1) + 1;
-    uint8_t color_brightness =
-        this->color_brightness_.value_or(x..., this->parent_->remote_values.get_color_brightness());
+    uint8_t remote_color_brightness =
+        static_cast<uint8_t>(roundf(this->parent_->remote_values.get_color_brightness() * 255.0f));
+    uint8_t color_brightness = this->color_brightness_.value_or(x..., remote_color_brightness);
     auto range = out->range(range_from, range_to);
     if (this->red_.has_value())
       range.set_red(esp_scale8(this->red_.value(x...), color_brightness));
