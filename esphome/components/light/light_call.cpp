@@ -216,30 +216,32 @@ LightColorValues LightCall::validate_() {
 
   // Handle interaction between RGB and white for color interlock
   if (traits.get_supports_color_interlock()) {
-    // If white channel is specified, set color brightness to zero if it is enabled
-    if (this->white_.has_value()) {
-      if (*this->white_ > 0.0f) {
-        if (this->color_brightness_.has_value() && *this->color_brightness_ > 0.0f) {
-          ESP_LOGW(TAG, "'%s' - Cannot set color brightness and white value simultaneously with interlock!", name);
-        }
+    // Find out which channel (white or color) the user wanted to enable
+    bool output_white = this->white_.has_value() && *this->white_ > 0.0f;
+    bool output_color = (this->color_brightness_.has_value() && *this->color_brightness_ > 0.0f) ||
+                        this->red_.has_value() || this->green_.has_value() || this->blue_.has_value();
 
-        this->color_brightness_ = optional<float>(0.0f);
-      }
+    // Interpret setting the color to white as setting the white channel.
+    if (output_color && *this->red_ == 1.0f && *this->green_ == 1.0f && *this->blue_ == 1.0f) {
+      output_white = true;
+      output_color = false;
+
+      if (!this->white_.has_value())
+        this->white_ = optional<float>(this->color_brightness_.value_or(1.0f));
     }
-    // If only a color channel is specified, use white channel if it's white, otherwise disable white channel
-    else if (this->red_.has_value() || this->green_.has_value() || this->blue_.has_value()) {
-      if (*this->red_ == 1.0f && *this->green_ == 1.0f && *this->blue_ == 1.0f) {
-        this->white_ = optional<float>(this->color_brightness_.has_value() ? *this->color_brightness_ : 1.0f);
-        this->color_brightness_ = optional<float>(0.0f);
-      } else {
-        this->white_ = optional<float>(0.0f);
-      }
-    }
-    // If only color brightness is set to non-zero, disable white channel
-    else if (this->color_brightness_.has_value()) {
-      if (*this->color_brightness_ > 0.0f) {
-        this->white_ = optional<float>(0.0f);
-      }
+
+    // Ensure either the white value or the color brightness is always zero.
+    if (output_white && output_color) {
+      ESP_LOGW(TAG, "'%s' - Cannot enable color and white channel simultaneously with interlock!", name);
+      // For compatibility with historic behaviour, prefer white channel in this case.
+      this->color_brightness_ = optional<float>(0.0f);
+    } else if (output_white) {
+      this->color_brightness_ = optional<float>(0.0f);
+    } else if (output_color) {
+      this->white_ = optional<float>(0.0f);
+      // For compatibility with older clients that don't know color brightness, enable it if its currently zero.
+      if (!this->color_brightness_.has_value() && this->parent_->remote_values.get_color_brightness() == 0.0f)
+        this->color_brightness_ = optional<float>(1.0f);
     }
   }
 
