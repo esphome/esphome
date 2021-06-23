@@ -214,6 +214,13 @@ LightColorValues LightCall::validate_() {
     this->color_temperature_.reset();
   }
 
+  // Set color brightness to 100% if currently zero and a color is set. This is both for compatibility with older clients
+  // that don't know about color brightness, and it's intuitive UX anyway: if I set a color, it should show up.
+  if (this->red_.has_value() || this->green_.has_value() || this->blue_.has_value()) {
+    if (!this->color_brightness_.has_value() && this->parent_->remote_values.get_color_brightness() == 0.0f)
+      this->color_brightness_ = optional<float>(1.0f);
+  }
+
   // Handle interaction between RGB and white for color interlock
   if (traits.get_supports_color_interlock()) {
     // Find out which channel (white or color) the user wanted to enable
@@ -239,9 +246,6 @@ LightColorValues LightCall::validate_() {
       this->color_brightness_ = optional<float>(0.0f);
     } else if (output_color) {
       this->white_ = optional<float>(0.0f);
-      // For compatibility with older clients that don't know color brightness, enable it if its currently zero.
-      if (!this->color_brightness_.has_value() && this->parent_->remote_values.get_color_brightness() == 0.0f)
-        this->color_brightness_ = optional<float>(1.0f);
     }
   }
 
