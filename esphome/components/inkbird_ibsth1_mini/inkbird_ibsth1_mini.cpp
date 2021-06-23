@@ -73,9 +73,9 @@ bool InkbirdIBSTH1_MINI::parse_device(const esp32_ble_tracker::ESPBTDevice &devi
   auto measured_temperature = mnfData.uuid.get_uuid().uuid.uuid16 / 100.0f;
 
   if (mnfData.data[2] == 0) {
-    this->temperature = this->measured_temperature;
+    temperature = this->measured_temperature;
   } else if (mnfData.data[2] == 1) {
-    this->ext_temperature = this->measured_temperature;
+    ext_temperature = this->measured_temperature;
   } else {
     ESP_LOGVV(TAG, "parse_device(): unknown sensor type");
     return false;
