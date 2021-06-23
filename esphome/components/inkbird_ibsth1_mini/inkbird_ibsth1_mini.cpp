@@ -67,11 +67,14 @@ bool InkbirdIBSTH1_MINI::parse_device(const esp32_ble_tracker::ESPBTDevice &devi
   // when data[2] == 0 temperature is from internal sensor (IBS-TH1 or IBS-TH1 Mini)
   // when data[2] == 1 temperature is from external sensor (IBS-TH1 only)
 
+  // Create empty variables to pass automatic checks
   auto temperature = NAN;
   auto ext_temperature = NAN;
 
+  // Read bluetooth data into variable
   auto measured_temperature = mnfData.uuid.get_uuid().uuid.uuid16 / 100.0f;
 
+  // Set temperature or ext_temperature based on which sensor is in use
   if (mnfData.data[2] == 0) {
     temperature = measured_temperature;
   } else if (mnfData.data[2] == 1) {
@@ -84,7 +87,7 @@ bool InkbirdIBSTH1_MINI::parse_device(const esp32_ble_tracker::ESPBTDevice &devi
   auto battery_level = mnfData.data[5];
   auto humidity = ((mnfData.data[1] << 8) + mnfData.data[0]) / 100.0f;
 
-  // if (this->temperature_ != nullptr) {
+  // Send temperature only if the value is set
   if ( ! isnan(temperature) && this->temperature_ != nullptr) {
     this->temperature_->publish_state(temperature);
   }
