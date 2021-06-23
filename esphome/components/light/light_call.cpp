@@ -53,6 +53,9 @@ void LightCall::perform() {
       ESP_LOGD(TAG, "  Brightness: %.0f%%", v.get_brightness() * 100.0f);
     }
 
+    if (this->color_brightness_.has_value()) {
+      ESP_LOGD(TAG, "  Color brightness: %.0f%%", v.get_color_brightness() * 100.0f);
+    }
     if (this->red_.has_value() || this->green_.has_value() || this->blue_.has_value()) {
       ESP_LOGD(TAG, "  Red: %.0f%%, Green: %.0f%%, Blue: %.0f%%", v.get_red() * 100.0f, v.get_green() * 100.0f,
                v.get_blue() * 100.0f);
