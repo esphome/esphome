@@ -13,6 +13,7 @@ from esphome.const import (
     DEVICE_CLASS_HUMIDITY,
     DEVICE_CLASS_TEMPERATURE,
     ICON_EMPTY,
+    STATE_CLASS_MEASUREMENT,
     UNIT_PARTS_PER_MILLION,
     UNIT_CELSIUS,
     UNIT_PERCENT,
@@ -33,13 +34,21 @@ CONFIG_SCHEMA = cv.Schema(
             pins.internal_gpio_input_pin_schema, pins.validate_has_interrupt
         ),
         cv.Optional(CONF_CO2): sensor.sensor_schema(
-            UNIT_PARTS_PER_MILLION, ICON_MOLECULE_CO2, 0, DEVICE_CLASS_EMPTY
+            UNIT_PARTS_PER_MILLION,
+            ICON_MOLECULE_CO2,
+            0,
+            DEVICE_CLASS_EMPTY,
+            STATE_CLASS_MEASUREMENT,
         ),
         cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-            UNIT_CELSIUS, ICON_EMPTY, 1, DEVICE_CLASS_TEMPERATURE
+            UNIT_CELSIUS,
+            ICON_EMPTY,
+            1,
+            DEVICE_CLASS_TEMPERATURE,
+            STATE_CLASS_MEASUREMENT,
         ),
         cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(
-            UNIT_PERCENT, ICON_EMPTY, 1, DEVICE_CLASS_HUMIDITY
+            UNIT_PERCENT, ICON_EMPTY, 1, DEVICE_CLASS_HUMIDITY, STATE_CLASS_MEASUREMENT
         ),
     }
 ).extend(cv.polling_component_schema("60s"))

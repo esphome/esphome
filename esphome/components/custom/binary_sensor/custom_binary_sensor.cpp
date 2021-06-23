@@ -4,7 +4,7 @@
 namespace esphome {
 namespace custom {
 
-static const char *TAG = "custom.binary_sensor";
+static const char *const TAG = "custom.binary_sensor";
 
 void CustomBinarySensorConstructor::dump_config() {
   for (auto *child : this->binary_sensors_) {

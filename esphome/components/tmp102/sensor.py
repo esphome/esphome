@@ -10,7 +10,13 @@ https://www.sparkfun.com/datasheets/Sensors/Temperature/tmp102.pdf
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import i2c, sensor
-from esphome.const import CONF_ID, DEVICE_CLASS_TEMPERATURE, ICON_EMPTY, UNIT_CELSIUS
+from esphome.const import (
+    CONF_ID,
+    DEVICE_CLASS_TEMPERATURE,
+    ICON_EMPTY,
+    STATE_CLASS_MEASUREMENT,
+    UNIT_CELSIUS,
+)
 
 CODEOWNERS = ["@timsavage"]
 DEPENDENCIES = ["i2c"]
@@ -21,7 +27,9 @@ TMP102Component = tmp102_ns.class_(
 )
 
 CONFIG_SCHEMA = (
-    sensor.sensor_schema(UNIT_CELSIUS, ICON_EMPTY, 1, DEVICE_CLASS_TEMPERATURE)
+    sensor.sensor_schema(
+        UNIT_CELSIUS, ICON_EMPTY, 1, DEVICE_CLASS_TEMPERATURE, STATE_CLASS_MEASUREMENT
+    )
     .extend(
         {
             cv.GenerateID(): cv.declare_id(TMP102Component),

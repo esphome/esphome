@@ -40,6 +40,9 @@ CONFIG_SCHEMA = cv.All(
     .extend(cv.polling_component_schema("5s"))
     .extend(uart.UART_DEVICE_SCHEMA)
 )
+FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
+    "sim800l", baud_rate=9600, require_tx=True, require_rx=True
+)
 
 
 async def to_code(config):
@@ -66,14 +69,14 @@ SIM800L_SEND_SMS_SCHEMA = cv.Schema(
 @automation.register_action(
     "sim800l.send_sms", Sim800LSendSmsAction, SIM800L_SEND_SMS_SCHEMA
 )
-def sim800l_send_sms_to_code(config, action_id, template_arg, args):
-    paren = yield cg.get_variable(config[CONF_ID])
+async def sim800l_send_sms_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = yield cg.templatable(config[CONF_RECIPIENT], args, cg.std_string)
+    template_ = await cg.templatable(config[CONF_RECIPIENT], args, cg.std_string)
     cg.add(var.set_recipient(template_))
-    template_ = yield cg.templatable(config[CONF_MESSAGE], args, cg.std_string)
+    template_ = await cg.templatable(config[CONF_MESSAGE], args, cg.std_string)
     cg.add(var.set_message(template_))
-    yield var
+    return var
 
 
 SIM800L_DIAL_SCHEMA = cv.Schema(
@@ -85,9 +88,9 @@ SIM800L_DIAL_SCHEMA = cv.Schema(
 
 
 @automation.register_action("sim800l.dial", Sim800LDialAction, SIM800L_DIAL_SCHEMA)
-def sim800l_dial_to_code(config, action_id, template_arg, args):
-    paren = yield cg.get_variable(config[CONF_ID])
+async def sim800l_dial_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = yield cg.templatable(config[CONF_RECIPIENT], args, cg.std_string)
+    template_ = await cg.templatable(config[CONF_RECIPIENT], args, cg.std_string)
     cg.add(var.set_recipient(template_))
-    yield var
+    return var

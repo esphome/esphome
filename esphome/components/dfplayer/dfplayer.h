@@ -103,7 +103,10 @@ class DFPlayer : public uart::UARTDevice, public Component {
 };
 
 #define DFPLAYER_SIMPLE_ACTION(ACTION_CLASS, ACTION_METHOD) \
-  template<typename... Ts> class ACTION_CLASS : public Action<Ts...>, public Parented<DFPlayer> { \
+  template<typename... Ts> \
+  class ACTION_CLASS : /* NOLINT */ \
+                       public Action<Ts...>, \
+                       public Parented<DFPlayer> { \
     void play(Ts... x) override { this->parent_->ACTION_METHOD(); } \
   };
 
@@ -180,6 +183,8 @@ DFPLAYER_SIMPLE_ACTION(StartAction, start)
 DFPLAYER_SIMPLE_ACTION(PauseAction, pause)
 DFPLAYER_SIMPLE_ACTION(StopAction, stop)
 DFPLAYER_SIMPLE_ACTION(RandomAction, random)
+DFPLAYER_SIMPLE_ACTION(VolumeUpAction, volume_up)
+DFPLAYER_SIMPLE_ACTION(VolumeDownAction, volume_down)
 
 template<typename... Ts> class DFPlayerIsPlayingCondition : public Condition<Ts...>, public Parented<DFPlayer> {
  public:

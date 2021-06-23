@@ -9,6 +9,11 @@
 #include <eth_phy/phy_tlk110.h>
 #include <lwip/dns.h>
 
+/// Macro for IDF version comparision
+#ifndef ESP_IDF_VERSION_VAL
+#define ESP_IDF_VERSION_VAL(major, minor, patch) (((major) << 16) | ((minor) << 8) | (patch))
+#endif
+
 // Defined in WiFiGeneric.cpp, sets global initialized flag, starts network event task queue and calls
 // tcpip_adapter_init()
 extern void tcpipInit();
@@ -16,7 +21,7 @@ extern void tcpipInit();
 namespace esphome {
 namespace ethernet {
 
-static const char *TAG = "ethernet";
+static const char *const TAG = "ethernet";
 
 EthernetComponent *global_eth_component;
 

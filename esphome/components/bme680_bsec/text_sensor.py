@@ -2,7 +2,6 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import text_sensor
 from esphome.const import CONF_ID, CONF_ICON
-from esphome.core import coroutine
 from . import BME680BSECComponent, CONF_BME680_BSEC_ID
 
 DEPENDENCIES = ["bme680_bsec"]
@@ -25,12 +24,11 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
-@coroutine
-def setup_conf(config, key, hub):
+async def setup_conf(config, key, hub):
     if key in config:
         conf = config[key]
         sens = cg.new_Pvariable(conf[CONF_ID])
-        yield text_sensor.register_text_sensor(sens, conf)
+        await text_sensor.register_text_sensor(sens, conf)
         cg.add(getattr(hub, f"set_{key}_text_sensor")(sens))
 
 

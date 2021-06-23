@@ -10,6 +10,7 @@ from esphome.const import (
     DEVICE_CLASS_HUMIDITY,
     DEVICE_CLASS_PRESSURE,
     DEVICE_CLASS_TEMPERATURE,
+    STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
     UNIT_EMPTY,
     UNIT_HECTOPASCAL,
@@ -21,7 +22,6 @@ from esphome.const import (
     ICON_THERMOMETER,
     ICON_WATER_PERCENT,
 )
-from esphome.core import coroutine
 from . import (
     BME680BSECComponent,
     CONF_BME680_BSEC_ID,
@@ -54,44 +54,63 @@ CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_BME680_BSEC_ID): cv.use_id(BME680BSECComponent),
         cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-            UNIT_CELSIUS, ICON_THERMOMETER, 1, DEVICE_CLASS_TEMPERATURE
+            UNIT_CELSIUS,
+            ICON_THERMOMETER,
+            1,
+            DEVICE_CLASS_TEMPERATURE,
+            STATE_CLASS_MEASUREMENT,
         ).extend(
             {cv.Optional(CONF_SAMPLE_RATE): cv.enum(SAMPLE_RATE_OPTIONS, upper=True)}
         ),
         cv.Optional(CONF_PRESSURE): sensor.sensor_schema(
-            UNIT_HECTOPASCAL, ICON_GAUGE, 1, DEVICE_CLASS_PRESSURE
+            UNIT_HECTOPASCAL,
+            ICON_GAUGE,
+            1,
+            DEVICE_CLASS_PRESSURE,
+            STATE_CLASS_MEASUREMENT,
         ).extend(
             {cv.Optional(CONF_SAMPLE_RATE): cv.enum(SAMPLE_RATE_OPTIONS, upper=True)}
         ),
         cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(
-            UNIT_PERCENT, ICON_WATER_PERCENT, 1, DEVICE_CLASS_HUMIDITY
+            UNIT_PERCENT,
+            ICON_WATER_PERCENT,
+            1,
+            DEVICE_CLASS_HUMIDITY,
+            STATE_CLASS_MEASUREMENT,
         ).extend(
             {cv.Optional(CONF_SAMPLE_RATE): cv.enum(SAMPLE_RATE_OPTIONS, upper=True)}
         ),
         cv.Optional(CONF_GAS_RESISTANCE): sensor.sensor_schema(
-            UNIT_OHM, ICON_GAS_CYLINDER, 0, DEVICE_CLASS_EMPTY
+            UNIT_OHM, ICON_GAS_CYLINDER, 0, DEVICE_CLASS_EMPTY, STATE_CLASS_MEASUREMENT
         ),
         cv.Optional(CONF_IAQ): sensor.sensor_schema(
-            UNIT_IAQ, ICON_GAUGE, 0, DEVICE_CLASS_EMPTY
+            UNIT_IAQ, ICON_GAUGE, 0, DEVICE_CLASS_EMPTY, STATE_CLASS_MEASUREMENT
         ),
         cv.Optional(CONF_IAQ_ACCURACY): sensor.sensor_schema(
-            UNIT_EMPTY, ICON_ACCURACY, 0, DEVICE_CLASS_EMPTY
+            UNIT_EMPTY, ICON_ACCURACY, 0, DEVICE_CLASS_EMPTY, STATE_CLASS_MEASUREMENT
         ),
         cv.Optional(CONF_CO2_EQUIVALENT): sensor.sensor_schema(
-            UNIT_PARTS_PER_MILLION, ICON_TEST_TUBE, 1, DEVICE_CLASS_EMPTY
+            UNIT_PARTS_PER_MILLION,
+            ICON_TEST_TUBE,
+            1,
+            DEVICE_CLASS_EMPTY,
+            STATE_CLASS_MEASUREMENT,
         ),
         cv.Optional(CONF_BREATH_VOC_EQUIVALENT): sensor.sensor_schema(
-            UNIT_PARTS_PER_MILLION, ICON_TEST_TUBE, 1, DEVICE_CLASS_EMPTY
+            UNIT_PARTS_PER_MILLION,
+            ICON_TEST_TUBE,
+            1,
+            DEVICE_CLASS_EMPTY,
+            STATE_CLASS_MEASUREMENT,
         ),
     }
 )
 
 
-@coroutine
-def setup_conf(config, key, hub):
+async def setup_conf(config, key, hub):
     if key in config:
         conf = config[key]
-        sens = yield sensor.new_sensor(conf)
+        sens = await sensor.new_sensor(conf)
         cg.add(getattr(hub, f"set_{key}_sensor")(sens))
         if CONF_SAMPLE_RATE in conf:
             cg.add(getattr(hub, f"set_{key}_sample_rate")(conf[CONF_SAMPLE_RATE]))

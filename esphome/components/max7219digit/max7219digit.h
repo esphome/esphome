@@ -114,7 +114,7 @@ class MAX7219Component : public PollingComponent,
   uint8_t orientation_;
   uint8_t bckgrnd_ = 0x0;
   std::vector<std::vector<uint8_t>> max_displaybuffer_;
-  unsigned long last_scroll_ = 0;
+  uint32_t last_scroll_ = 0;
   uint16_t stepsleft_;
   size_t get_buffer_length_();
   optional<max7219_writer_t> writer_local_{};

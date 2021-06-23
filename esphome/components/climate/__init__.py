@@ -4,11 +4,14 @@ from esphome import automation
 from esphome.components import mqtt
 from esphome.const import (
     CONF_AWAY,
+    CONF_CUSTOM_FAN_MODE,
+    CONF_CUSTOM_PRESET,
     CONF_ID,
     CONF_INTERNAL,
     CONF_MAX_TEMPERATURE,
     CONF_MIN_TEMPERATURE,
     CONF_MODE,
+    CONF_PRESET,
     CONF_TARGET_TEMPERATURE,
     CONF_TARGET_TEMPERATURE_HIGH,
     CONF_TARGET_TEMPERATURE_LOW,
@@ -33,11 +36,12 @@ ClimateTraits = climate_ns.class_("ClimateTraits")
 ClimateMode = climate_ns.enum("ClimateMode")
 CLIMATE_MODES = {
     "OFF": ClimateMode.CLIMATE_MODE_OFF,
-    "AUTO": ClimateMode.CLIMATE_MODE_AUTO,
+    "HEAT_COOL": ClimateMode.CLIMATE_MODE_HEAT_COOL,
     "COOL": ClimateMode.CLIMATE_MODE_COOL,
     "HEAT": ClimateMode.CLIMATE_MODE_HEAT,
     "DRY": ClimateMode.CLIMATE_MODE_DRY,
     "FAN_ONLY": ClimateMode.CLIMATE_MODE_FAN_ONLY,
+    "AUTO": ClimateMode.CLIMATE_MODE_AUTO,
 }
 validate_climate_mode = cv.enum(CLIMATE_MODES, upper=True)
 
@@ -55,6 +59,19 @@ CLIMATE_FAN_MODES = {
 }
 
 validate_climate_fan_mode = cv.enum(CLIMATE_FAN_MODES, upper=True)
+
+ClimatePreset = climate_ns.enum("ClimatePreset")
+CLIMATE_PRESETS = {
+    "ECO": ClimatePreset.CLIMATE_PRESET_ECO,
+    "AWAY": ClimatePreset.CLIMATE_PRESET_AWAY,
+    "BOOST": ClimatePreset.CLIMATE_PRESET_BOOST,
+    "COMFORT": ClimatePreset.CLIMATE_PRESET_COMFORT,
+    "HOME": ClimatePreset.CLIMATE_PRESET_HOME,
+    "SLEEP": ClimatePreset.CLIMATE_PRESET_SLEEP,
+    "ACTIVITY": ClimatePreset.CLIMATE_PRESET_ACTIVITY,
+}
+
+validate_climate_preset = cv.enum(CLIMATE_PRESETS, upper=True)
 
 ClimateSwingMode = climate_ns.enum("ClimateSwingMode")
 CLIMATE_SWING_MODES = {
@@ -117,7 +134,12 @@ CLIMATE_CONTROL_ACTION_SCHEMA = cv.Schema(
         cv.Optional(CONF_TARGET_TEMPERATURE_LOW): cv.templatable(cv.temperature),
         cv.Optional(CONF_TARGET_TEMPERATURE_HIGH): cv.templatable(cv.temperature),
         cv.Optional(CONF_AWAY): cv.templatable(cv.boolean),
-        cv.Optional(CONF_FAN_MODE): cv.templatable(validate_climate_fan_mode),
+        cv.Exclusive(CONF_FAN_MODE, "fan_mode"): cv.templatable(
+            validate_climate_fan_mode
+        ),
+        cv.Exclusive(CONF_CUSTOM_FAN_MODE, "fan_mode"): cv.string_strict,
+        cv.Exclusive(CONF_PRESET, "preset"): cv.templatable(validate_climate_preset),
+        cv.Exclusive(CONF_CUSTOM_PRESET, "preset"): cv.string_strict,
         cv.Optional(CONF_SWING_MODE): cv.templatable(validate_climate_swing_mode),
     }
 )
@@ -151,6 +173,15 @@ async def climate_control_to_code(config, action_id, template_arg, args):
     if CONF_FAN_MODE in config:
         template_ = await cg.templatable(config[CONF_FAN_MODE], args, ClimateFanMode)
         cg.add(var.set_fan_mode(template_))
+    if CONF_CUSTOM_FAN_MODE in config:
+        template_ = await cg.templatable(config[CONF_CUSTOM_FAN_MODE], args, str)
+        cg.add(var.set_custom_fan_mode(template_))
+    if CONF_PRESET in config:
+        template_ = await cg.templatable(config[CONF_PRESET], args, ClimatePreset)
+        cg.add(var.set_preset(template_))
+    if CONF_CUSTOM_PRESET in config:
+        template_ = await cg.templatable(config[CONF_CUSTOM_PRESET], args, str)
+        cg.add(var.set_custom_preset(template_))
     if CONF_SWING_MODE in config:
         template_ = await cg.templatable(
             config[CONF_SWING_MODE], args, ClimateSwingMode

@@ -2,7 +2,7 @@ import logging
 import math
 import os
 import re
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, Tuple
+from typing import TYPE_CHECKING, Dict, List, Optional, Set, Tuple
 
 from esphome.const import (
     CONF_ARDUINO_VERSION,
@@ -23,6 +23,7 @@ from esphome.util import OrderedDict
 
 if TYPE_CHECKING:
     from ..cpp_generator import MockObj, MockObjClass, Statement
+    from ..types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -462,9 +463,9 @@ class EsphomeCore:
         # The board that's used (for example nodemcuv2)
         self.board: Optional[str] = None
         # The full raw configuration
-        self.raw_config: Optional[ConfigType] = None
+        self.raw_config: Optional["ConfigType"] = None
         # The validated configuration, this is None until the config has been validated
-        self.config: Optional[ConfigType] = None
+        self.config: Optional["ConfigType"] = None
         # The pending tasks in the task queue (mostly for C++ generation)
         # This is a priority queue (with heapq)
         # Each item is a tuple of form: (-priority, unique number, task)
@@ -752,6 +753,3 @@ class EnumValue:
 
 
 CORE = EsphomeCore()
-
-ConfigType = Dict[str, Any]
-CoreType = EsphomeCore

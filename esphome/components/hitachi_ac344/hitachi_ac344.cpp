@@ -3,7 +3,7 @@
 namespace esphome {
 namespace hitachi_ac344 {
 
-static const char *TAG = "climate.hitachi_ac344";
+static const char *const TAG = "climate.hitachi_ac344";
 
 void set_bits(uint8_t *const dst, const uint8_t offset, const uint8_t nbits, const uint8_t data) {
   if (offset >= 8 || !nbits)
@@ -155,7 +155,7 @@ void HitachiClimate::transmit_state() {
     case climate::CLIMATE_MODE_HEAT:
       set_mode_(HITACHI_AC344_MODE_HEAT);
       break;
-    case climate::CLIMATE_MODE_AUTO:
+    case climate::CLIMATE_MODE_HEAT_COOL:
       set_mode_(HITACHI_AC344_MODE_AUTO);
       break;
     case climate::CLIMATE_MODE_FAN_ONLY:
@@ -164,11 +164,13 @@ void HitachiClimate::transmit_state() {
     case climate::CLIMATE_MODE_OFF:
       set_power_(false);
       break;
+    default:
+      ESP_LOGW(TAG, "Unsupported mode: %s", climate_mode_to_string(this->mode));
   }
 
   set_temp_(static_cast<uint8_t>(this->target_temperature));
 
-  switch (this->fan_mode) {
+  switch (this->fan_mode.value()) {
     case climate::CLIMATE_FAN_LOW:
       set_fan_(HITACHI_AC344_FAN_LOW);
       break;
@@ -249,7 +251,7 @@ bool HitachiClimate::parse_mode_(const uint8_t remote_state[]) {
         this->mode = climate::CLIMATE_MODE_HEAT;
         break;
       case HITACHI_AC344_MODE_AUTO:
-        this->mode = climate::CLIMATE_MODE_AUTO;
+        this->mode = climate::CLIMATE_MODE_HEAT_COOL;
         break;
       case HITACHI_AC344_MODE_FAN:
         this->mode = climate::CLIMATE_MODE_FAN_ONLY;

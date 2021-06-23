@@ -1,5 +1,7 @@
 #pragma once
 
+#include <utility>
+
 #include "light_effect.h"
 #include "esphome/core/automation.h"
 
@@ -85,8 +87,8 @@ class RandomLightEffect : public LightEffect {
 
 class LambdaLightEffect : public LightEffect {
  public:
-  LambdaLightEffect(const std::string &name, const std::function<void()> &f, uint32_t update_interval)
-      : LightEffect(name), f_(f), update_interval_(update_interval) {}
+  LambdaLightEffect(const std::string &name, std::function<void()> f, uint32_t update_interval)
+      : LightEffect(name), f_(std::move(f)), update_interval_(update_interval) {}
 
   void apply() override {
     const uint32_t now = millis();

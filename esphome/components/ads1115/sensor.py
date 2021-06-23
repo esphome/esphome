@@ -6,6 +6,7 @@ from esphome.const import (
     CONF_MULTIPLEXER,
     DEVICE_CLASS_VOLTAGE,
     ICON_EMPTY,
+    STATE_CLASS_MEASUREMENT,
     UNIT_VOLT,
     CONF_ID,
 )
@@ -51,7 +52,9 @@ ADS1115Sensor = ads1115_ns.class_(
 
 CONF_ADS1115_ID = "ads1115_id"
 CONFIG_SCHEMA = (
-    sensor.sensor_schema(UNIT_VOLT, ICON_EMPTY, 3, DEVICE_CLASS_VOLTAGE)
+    sensor.sensor_schema(
+        UNIT_VOLT, ICON_EMPTY, 3, DEVICE_CLASS_VOLTAGE, STATE_CLASS_MEASUREMENT
+    )
     .extend(
         {
             cv.GenerateID(): cv.declare_id(ADS1115Sensor),

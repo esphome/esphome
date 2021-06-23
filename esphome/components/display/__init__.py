@@ -169,13 +169,13 @@ async def display_page_show_previous_to_code(config, action_id, template_arg, ar
         key=CONF_PAGE_ID,
     ),
 )
-def display_is_displaying_page_to_code(config, condition_id, template_arg, args):
-    paren = yield cg.get_variable(config[CONF_ID])
-    page = yield cg.get_variable(config[CONF_PAGE_ID])
+async def display_is_displaying_page_to_code(config, condition_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    page = await cg.get_variable(config[CONF_PAGE_ID])
     var = cg.new_Pvariable(condition_id, template_arg, paren)
     cg.add(var.set_page(page))
 
-    yield var
+    return var
 
 
 @coroutine_with_priority(100.0)
