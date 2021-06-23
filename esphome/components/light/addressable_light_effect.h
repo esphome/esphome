@@ -337,7 +337,7 @@ class AddressableFlickerEffect : public AddressableLightEffect {
     }
   }
   void set_update_interval(uint32_t update_interval) { this->update_interval_ = update_interval; }
-  void set_intensity(float intensity) { this->intensity_ = static_cast<uint8_t>(roundf(intensity * 255.0f)); }
+  void set_intensity(float intensity) { this->intensity_ = to_uint8_scale(intensity); }
 
  protected:
   uint32_t update_interval_{16};

@@ -25,16 +25,16 @@ void AddressableLight::call_setup() {
 }
 
 Color esp_color_from_light_color_values(LightColorValues val) {
-  auto r = static_cast<uint8_t>(roundf(val.get_color_brightness() * val.get_red() * 255.0f));
-  auto g = static_cast<uint8_t>(roundf(val.get_color_brightness() * val.get_green() * 255.0f));
-  auto b = static_cast<uint8_t>(roundf(val.get_color_brightness() * val.get_blue() * 255.0f));
-  auto w = static_cast<uint8_t>(roundf(val.get_white() * 255.0f));
+  auto r = to_uint8_scale(val.get_color_brightness() * val.get_red());
+  auto g = to_uint8_scale(val.get_color_brightness() * val.get_green());
+  auto b = to_uint8_scale(val.get_color_brightness() * val.get_blue());
+  auto w = to_uint8_scale(val.get_white());
   return Color(r, g, b, w);
 }
 
 void AddressableLight::write_state(LightState *state) {
   auto val = state->current_values;
-  auto max_brightness = static_cast<uint8_t>(roundf(val.get_brightness() * val.get_state() * 255.0f));
+  auto max_brightness = to_uint8_scale(val.get_brightness() * val.get_state());
   this->correction_.set_local_brightness(max_brightness);
 
   this->last_transition_progress_ = 0.0f;
@@ -69,7 +69,7 @@ void AddressableLight::write_state(LightState *state) {
     // our transition will handle brightness, disable brightness in correction.
     this->correction_.set_local_brightness(255);
     uint8_t orig_w = target_color.w;
-    target_color *= static_cast<uint8_t>(roundf(end_values.get_brightness() * end_values.get_state() * 255.0f));
+    target_color *= to_uint8_scale(end_values.get_brightness() * end_values.get_state());
     // w is not scaled by brightness
     target_color.w = orig_w;
 
