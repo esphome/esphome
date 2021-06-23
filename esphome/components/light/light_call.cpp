@@ -214,8 +214,8 @@ LightColorValues LightCall::validate_() {
     this->color_temperature_.reset();
   }
 
-  // Set color brightness to 100% if currently zero and a color is set. This is both for compatibility with older clients
-  // that don't know about color brightness, and it's intuitive UX anyway: if I set a color, it should show up.
+  // Set color brightness to 100% if currently zero and a color is set. This is both for compatibility with older
+  // clients that don't know about color brightness, and it's intuitive UX anyway: if I set a color, it should show up.
   if (this->red_.has_value() || this->green_.has_value() || this->blue_.has_value()) {
     if (!this->color_brightness_.has_value() && this->parent_->remote_values.get_color_brightness() == 0.0f)
       this->color_brightness_ = optional<float>(1.0f);
