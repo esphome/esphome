@@ -81,9 +81,6 @@ bool InkbirdIBSTH1_MINI::parse_device(const esp32_ble_tracker::ESPBTDevice &devi
     return false;
   }
 
-  // auto ext_temperature = mnfData.uuid.get_uuid().uuid.uuid16 / 100.0f;
-  // auto temperature = mnfData.uuid.get_uuid().uuid.uuid16 / 100.0f;
-
   auto battery_level = mnfData.data[5];
   auto humidity = ((mnfData.data[1] << 8) + mnfData.data[0]) / 100.0f;
 
@@ -91,7 +88,7 @@ bool InkbirdIBSTH1_MINI::parse_device(const esp32_ble_tracker::ESPBTDevice &devi
   if ( ! isnan(temperature) && this->temperature_ != nullptr) {
     this->temperature_->publish_state(temperature);
   }
-  if (this->ext_temperature_ != nullptr) {
+  if ( ! isnan(ext_temperature) && this->ext_temperature_ != nullptr) {
     this->ext_temperature_->publish_state(ext_temperature);
   }
   if (this->humidity_ != nullptr) {
