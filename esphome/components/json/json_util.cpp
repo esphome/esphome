@@ -6,7 +6,7 @@ namespace json {
 
 static const char *const TAG = "json";
 
-static std::vector<char> global_json_build_buffer;
+static std::vector<char> global_json_build_buffer;  // NOLINT
 
 const char *build_json(const json_build_t &f, size_t *length) {
   global_json_buffer.clear();
