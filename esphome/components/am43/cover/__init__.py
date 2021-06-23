@@ -5,6 +5,7 @@ from esphome.const import CONF_ID, CONF_PIN
 
 CODEOWNERS = ["@buxtronix"]
 DEPENDENCIES = ["ble_client"]
+AUTO_LOAD = ["am43"]
 
 am43_ns = cg.esphome_ns.namespace("am43")
 Am43Component = am43_ns.class_(
