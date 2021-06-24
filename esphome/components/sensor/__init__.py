@@ -28,6 +28,7 @@ from esphome.const import (
     CONF_UNIT_OF_MEASUREMENT,
     CONF_WINDOW_SIZE,
     CONF_NAME,
+    CONF_OBJECT_ID,
     CONF_MQTT_ID,
     CONF_FORCE_UPDATE,
     UNIT_EMPTY,
@@ -467,6 +468,8 @@ async def build_filters(config):
 
 async def setup_sensor_core_(var, config):
     cg.add(var.set_name(config[CONF_NAME]))
+    if CONF_OBJECT_ID in config:
+        cg.add(var.set_object_id(config[CONF_OBJECT_ID]))
     if CONF_INTERNAL in config:
         cg.add(var.set_internal(config[CONF_INTERNAL]))
     if CONF_DEVICE_CLASS in config:

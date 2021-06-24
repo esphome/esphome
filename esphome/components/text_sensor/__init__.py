@@ -10,6 +10,7 @@ from esphome.const import (
     CONF_TRIGGER_ID,
     CONF_MQTT_ID,
     CONF_NAME,
+    CONF_OBJECT_ID,
     CONF_STATE,
 )
 from esphome.core import CORE, coroutine_with_priority
@@ -48,6 +49,8 @@ TEXT_SENSOR_SCHEMA = cv.MQTT_COMPONENT_SCHEMA.extend(
 
 async def setup_text_sensor_core_(var, config):
     cg.add(var.set_name(config[CONF_NAME]))
+    if CONF_OBJECT_ID in config:
+        cg.add(var.set_object_id(config[CONF_OBJECT_ID]))
     if CONF_INTERNAL in config:
         cg.add(var.set_internal(config[CONF_INTERNAL]))
     if CONF_ICON in config:

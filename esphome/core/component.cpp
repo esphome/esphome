@@ -176,15 +176,25 @@ void Nameable::set_name(const std::string &name) {
   this->calc_object_id_();
 }
 Nameable::Nameable(std::string name) : name_(std::move(name)) { this->calc_object_id_(); }
+void Nameable::set_name(const std::string &name) { this->name_ = name; }
+Nameable::Nameable(const std::string &name) : name_(name) { }
 
-const std::string &Nameable::get_object_id() { return this->object_id_; }
+const std::string &Nameable::get_object_id() {
+  if (this->object_id_.empty())
+    this->set_object_id(this->name_);
+  return this->object_id_;
+}
 bool Nameable::is_internal() const { return this->internal_; }
 void Nameable::set_internal(bool internal) { this->internal_ = internal; }
-void Nameable::calc_object_id_() {
-  this->object_id_ = sanitize_string_allowlist(to_lowercase_underscore(this->name_), HOSTNAME_CHARACTER_ALLOWLIST);
+void Nameable::set_object_id(const std::string &id) {
+  this->object_id_ = sanitize_string_allowlist(to_lowercase_underscore(id), HOSTNAME_CHARACTER_ALLOWLIST);
   // FNV-1 hash
   this->object_id_hash_ = fnv1_hash(this->object_id_);
 }
-uint32_t Nameable::get_object_id_hash() { return this->object_id_hash_; }
+uint32_t Nameable::get_object_id_hash() { 
+  if (this->object_id_.empty())
+    this->set_object_id(this->name_);
+  return this->object_id_hash_;
+}
 
 }  // namespace esphome

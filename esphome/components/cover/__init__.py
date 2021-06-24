@@ -13,6 +13,7 @@ from esphome.const import (
     CONF_STOP,
     CONF_MQTT_ID,
     CONF_NAME,
+    CONF_OBJECT_ID,
 )
 from esphome.core import CORE, coroutine_with_priority
 
@@ -75,6 +76,8 @@ COVER_SCHEMA = cv.MQTT_COMMAND_COMPONENT_SCHEMA.extend(
 
 async def setup_cover_core_(var, config):
     cg.add(var.set_name(config[CONF_NAME]))
+    if CONF_OBJECT_ID in config:
+        cg.add(var.set_object_id(config[CONF_OBJECT_ID]))
     if CONF_INTERNAL in config:
         cg.add(var.set_internal(config[CONF_INTERNAL]))
     if CONF_DEVICE_CLASS in config:

@@ -20,6 +20,7 @@ from esphome.const import (
     CONF_MQTT_ID,
     CONF_NAME,
     CONF_FAN_MODE,
+    CONF_OBJECT_ID,
     CONF_SWING_MODE,
 )
 from esphome.core import CORE, coroutine_with_priority
@@ -104,6 +105,8 @@ CLIMATE_SCHEMA = cv.MQTT_COMMAND_COMPONENT_SCHEMA.extend(
 
 async def setup_climate_core_(var, config):
     cg.add(var.set_name(config[CONF_NAME]))
+    if CONF_OBJECT_ID in config:
+        cg.add(var.set_object_id(config[CONF_OBJECT_ID]))
     if CONF_INTERNAL in config:
         cg.add(var.set_internal(config[CONF_INTERNAL]))
     visual = config[CONF_VISUAL]

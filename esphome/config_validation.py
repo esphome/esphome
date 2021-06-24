@@ -19,6 +19,7 @@ from esphome.const import (
     CONF_ID,
     CONF_INTERNAL,
     CONF_NAME,
+    CONF_OBJECT_ID,
     CONF_PAYLOAD_AVAILABLE,
     CONF_PAYLOAD_NOT_AVAILABLE,
     CONF_RETAIN,
@@ -1450,7 +1451,6 @@ def _nameable_validator(config):
             raise Invalid("At least one of 'id:' or 'name:' is required!")
         config[CONF_NAME] = id.id
         config[CONF_INTERNAL] = True
-        return config
     return config
 
 
@@ -1540,6 +1540,7 @@ MQTT_COMPONENT_AVAILABILITY_SCHEMA = Schema(
 MQTT_COMPONENT_SCHEMA = Schema(
     {
         Optional(CONF_NAME): string,
+        Optional(CONF_OBJECT_ID): string,
         Optional(CONF_RETAIN): All(requires_component("mqtt"), boolean),
         Optional(CONF_DISCOVERY): All(requires_component("mqtt"), boolean),
         Optional(CONF_STATE_TOPIC): All(requires_component("mqtt"), publish_topic),
