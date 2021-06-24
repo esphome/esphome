@@ -51,6 +51,7 @@ class AddressableLight : public LightOutput, public Component {
       amnt = this->size();
     this->range(amnt, this->size()) = this->range(0, -amnt);
   }
+  // Indicates whether an effect that directly updates the output buffer is active to prevent overwriting
   bool is_effect_active() const { return this->effect_active_; }
   void set_effect_active(bool effect_active) { this->effect_active_ = effect_active; }
   std::unique_ptr<LightTransformer> create_default_transition() override;
