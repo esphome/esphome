@@ -710,13 +710,14 @@ enum ClimateAction {
   CLIMATE_ACTION_FAN = 6;
 }
 enum ClimatePreset {
-  CLIMATE_PRESET_ECO = 0;
-  CLIMATE_PRESET_AWAY = 1;
-  CLIMATE_PRESET_BOOST = 2;
-  CLIMATE_PRESET_COMFORT = 3;
-  CLIMATE_PRESET_HOME = 4;
-  CLIMATE_PRESET_SLEEP = 5;
-  CLIMATE_PRESET_ACTIVITY = 6;
+  CLIMATE_PRESET_NONE = 0;
+  CLIMATE_PRESET_HOME = 1;
+  CLIMATE_PRESET_AWAY = 2;
+  CLIMATE_PRESET_BOOST = 3;
+  CLIMATE_PRESET_COMFORT = 4;
+  CLIMATE_PRESET_ECO = 5;
+  CLIMATE_PRESET_SLEEP = 6;
+  CLIMATE_PRESET_ACTIVITY = 7;
 }
 message ListEntitiesClimateResponse {
   option (id) = 46;
@@ -734,7 +735,9 @@ message ListEntitiesClimateResponse {
   float visual_min_temperature = 8;
   float visual_max_temperature = 9;
   float visual_temperature_step = 10;
-  bool supports_away = 11;
+  // for older peer versions - in new system this
+  // is if CLIMATE_PRESET_AWAY exists is supported_presets
+  bool legacy_supports_away = 11;
   bool supports_action = 12;
   repeated ClimateFanMode supported_fan_modes = 13;
   repeated ClimateSwingMode supported_swing_modes = 14;
@@ -754,7 +757,8 @@ message ClimateStateResponse {
   float target_temperature = 4;
   float target_temperature_low = 5;
   float target_temperature_high = 6;
-  bool away = 7;
+  // For older peers, equal to preset == CLIMATE_PRESET_AWAY
+  bool legacy_away = 7;
   ClimateAction action = 8;
   ClimateFanMode fan_mode = 9;
   ClimateSwingMode swing_mode = 10;
@@ -777,8 +781,9 @@ message ClimateCommandRequest {
   float target_temperature_low = 7;
   bool has_target_temperature_high = 8;
   float target_temperature_high = 9;
-  bool has_away = 10;
-  bool away = 11;
+  // legacy, for older peers, newer ones should use CLIMATE_PRESET_AWAY in preset
+  bool has_legacy_away = 10;
+  bool legacy_away = 11;
   bool has_fan_mode = 12;
   ClimateFanMode fan_mode = 13;
   bool has_swing_mode = 14;

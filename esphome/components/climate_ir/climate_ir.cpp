@@ -9,63 +9,22 @@ static const char *TAG = "climate_ir";
 climate::ClimateTraits ClimateIR::traits() {
   auto traits = climate::ClimateTraits();
   traits.set_supports_current_temperature(this->sensor_ != nullptr);
-  traits.set_supports_heat_cool_mode(true);
-  traits.set_supports_cool_mode(this->supports_cool_);
-  traits.set_supports_heat_mode(this->supports_heat_);
-  traits.set_supports_dry_mode(this->supports_dry_);
-  traits.set_supports_fan_only_mode(this->supports_fan_only_);
+  traits.set_supported_modes({climate::CLIMATE_MODE_OFF, climate::CLIMATE_MODE_HEAT_COOL});
+  if (supports_cool_)
+    traits.add_supported_mode(climate::CLIMATE_MODE_COOL);
+  if (supports_heat_)
+    traits.add_supported_mode(climate::CLIMATE_MODE_HEAT);
+  if (supports_dry_)
+    traits.add_supported_mode(climate::CLIMATE_MODE_DRY);
+  if (supports_fan_only_)
+    traits.add_supported_mode(climate::CLIMATE_MODE_FAN_ONLY);
+
   traits.set_supports_two_point_target_temperature(false);
-  traits.set_supports_away(false);
   traits.set_visual_min_temperature(this->minimum_temperature_);
   traits.set_visual_max_temperature(this->maximum_temperature_);
   traits.set_visual_temperature_step(this->temperature_step_);
-  for (auto fan_mode : this->fan_modes_) {
-    switch (fan_mode) {
-      case climate::CLIMATE_FAN_AUTO:
-        traits.set_supports_fan_mode_auto(true);
-        break;
-      case climate::CLIMATE_FAN_DIFFUSE:
-        traits.set_supports_fan_mode_diffuse(true);
-        break;
-      case climate::CLIMATE_FAN_FOCUS:
-        traits.set_supports_fan_mode_focus(true);
-        break;
-      case climate::CLIMATE_FAN_HIGH:
-        traits.set_supports_fan_mode_high(true);
-        break;
-      case climate::CLIMATE_FAN_LOW:
-        traits.set_supports_fan_mode_low(true);
-        break;
-      case climate::CLIMATE_FAN_MEDIUM:
-        traits.set_supports_fan_mode_medium(true);
-        break;
-      case climate::CLIMATE_FAN_MIDDLE:
-        traits.set_supports_fan_mode_middle(true);
-        break;
-      case climate::CLIMATE_FAN_OFF:
-        traits.set_supports_fan_mode_off(true);
-        break;
-      case climate::CLIMATE_FAN_ON:
-        traits.set_supports_fan_mode_on(true);
-        break;
-    }
-  }
-  for (auto swing_mode : this->swing_modes_) {
-    switch (swing_mode) {
-      case climate::CLIMATE_SWING_OFF:
-        traits.set_supports_swing_mode_off(true);
-        break;
-      case climate::CLIMATE_SWING_BOTH:
-        traits.set_supports_swing_mode_both(true);
-        break;
-      case climate::CLIMATE_SWING_VERTICAL:
-        traits.set_supports_swing_mode_vertical(true);
-        break;
-      case climate::CLIMATE_SWING_HORIZONTAL:
-        traits.set_supports_swing_mode_horizontal(true);
-        break;
-    }
-  }
+  traits.set_supported_fan_modes(fan_modes_);
+  traits.set_supported_swing_modes(swing_modes_);
   return traits;
 }
 

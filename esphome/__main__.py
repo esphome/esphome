@@ -514,14 +514,26 @@ def parse_args(argv):
 
     compat_parser.error = _raise
 
-    try:
-        result, unparsed = compat_parser.parse_known_args(argv[1:])
-        last_option = len(argv) - len(unparsed) - 1 - len(result.configuration)
-        argv = argv[0:last_option] + [result.command] + result.configuration + unparsed
-        deprecated_argv_suggestion = argv
-    except argparse.ArgumentError:
-        # This is not an old-style command line, so we don't have to do anything.
-        deprecated_argv_suggestion = None
+    deprecated_argv_suggestion = None
+
+    if ["dashboard", "config"] == argv[1:3]:
+        # this is most likely meant in new-style arg format. do not try compat parsing
+        pass
+    else:
+        try:
+            result, unparsed = compat_parser.parse_known_args(argv[1:])
+            last_option = len(argv) - len(unparsed) - 1 - len(result.configuration)
+            unparsed = [
+                "--device" if arg in ("--upload-port", "--serial-port") else arg
+                for arg in unparsed
+            ]
+            argv = (
+                argv[0:last_option] + [result.command] + result.configuration + unparsed
+            )
+            deprecated_argv_suggestion = argv
+        except argparse.ArgumentError:
+            # This is not an old-style command line, so we don't have to do anything.
+            pass
 
     # And continue on with regular parsing
     parser = argparse.ArgumentParser(
