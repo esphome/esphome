@@ -12,6 +12,8 @@ class MideaData {
   MideaData(const uint8_t *data);
   MideaData(const MideaData &rhs) = default;
   MideaData(const std::vector<uint8_t> &data);
+  MideaData(const std::initializer_list<uint8_t> data);
+
   uint8_t *data() { return data_; }
   const uint8_t *data() const { return data_; }
   uint8_t size() const { return sizeof(data_); }

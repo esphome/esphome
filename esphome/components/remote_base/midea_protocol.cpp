@@ -16,6 +16,11 @@ MideaData::MideaData(const std::vector<uint8_t> &data) {
   finalize();
 }
 
+MideaData::MideaData(const std::initializer_list<uint8_t> data) {
+  memcpy(this->data(), data.begin(), std::min<size_t>(data.size(), OFFSET_CS));
+  finalize();
+}
+
 // Reverse bits in byte
 static uint8_t s_reverse(uint8_t data) {
   static const uint8_t PROGMEM table[] = {
