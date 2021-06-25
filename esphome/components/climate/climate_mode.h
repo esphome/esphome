@@ -72,6 +72,44 @@ enum ClimateSwingMode : uint8_t {
   CLIMATE_SWING_HORIZONTAL = 3,
 };
 
+/// Enum for all vertical tilts a climate swing can be in
+/// "AUTO", "1", "2", "3", "4", "5", "SWING"
+enum ClimateTilt : uint8_t {
+  /// The vertical tilt is set to AUTO
+  CLIMATE_TILT_AUTO = 0,
+  /// The vertical tilt is set to angle 1 
+  CLIMATE_TILT_1 = 1,
+  /// The vertical tilt is set to angle 2
+  CLIMATE_TILT_2 = 2,
+  /// The vertical tilt is set to angle 3
+  CLIMATE_TILT_3 = 3,
+  /// The vertical tilt is set to angle 4
+  CLIMATE_TILT_4 = 4,
+  /// The vertical tilt is set to angle 5
+  CLIMATE_TILT_5 = 5,
+  /// The vertical tilt is set to SWING
+  CLIMATE_TILT_SWING = 6,
+};
+
+/// Enum for all horizontal pan a climate swing can be in
+/// "AUTO", "1", "2", "3", "4", "5", "SWING"
+enum ClimatePan : uint8_t {
+  /// The horizontal direction is set to AUTO
+  CLIMATE_PAN_AUTO = 0,
+  /// The horizontal direction is set to angle 1 
+  CLIMATE_PAN_1 = 1,
+  /// The horizontal direction is set to angle 2
+  CLIMATE_PAN_2 = 2,
+  /// The horizontal direction is set to angle 3
+  CLIMATE_PAN_3 = 3,
+  /// The horizontal direction is set to angle 4
+  CLIMATE_PAN_4 = 4,
+  /// The horizontal direction is set to angle 5
+  CLIMATE_PAN_5 = 5,
+  /// The horizontal direction is set to SWING
+  CLIMATE_PAN_SWING = 6,
+};
+
 /// Enum for all modes a climate swing can be in
 enum ClimatePreset : uint8_t {
   /// No preset is active
@@ -104,7 +142,13 @@ const char *climate_fan_mode_to_string(ClimateFanMode mode);
 /// Convert the given ClimateSwingMode to a human-readable string.
 const char *climate_swing_mode_to_string(ClimateSwingMode mode);
 
-/// Convert the given ClimateSwingMode to a human-readable string.
+/// Convert the given ClimateVerticalTilt to a human-readable string.
+const char *climate_tilt_mode_to_string(ClimateTilt tilt);
+
+/// Convert the given ClimateHorizontalDirection to a human-readable string.
+const char *climate_pan_mode_to_string(ClimatePan pan);
+
+/// Convert the given ClimatePreset to a human-readable string.
 const char *climate_preset_to_string(ClimatePreset preset);
 
 }  // namespace climate

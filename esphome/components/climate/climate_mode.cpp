@@ -82,6 +82,49 @@ const char *climate_swing_mode_to_string(ClimateSwingMode swing_mode) {
   }
 }
 
+
+const char *climate_tilt_to_string(ClimateTilt tilt) {
+  switch (tilt){
+    case climate::CLIMATE_TILT_AUTO:
+      return "AUTO";
+    case climate::CLIMATE_TILT_1:
+      return "1";
+    case climate::CLIMATE_TILT_2:
+      return "2";
+    case climate::CLIMATE_TILT_3:
+      return "3";
+    case climate::CLIMATE_TILT_4:
+      return "4";
+    case climate::CLIMATE_TILT_5:
+      return "5";
+    case climate::CLIMATE_TILT_SWING:
+      return "SWING";
+    default:
+      return "SWING";    
+  }
+}
+
+const char *climate_pan_to_string(ClimatePan pan){
+  switch (pan){
+    case climate::CLIMATE_PAN_AUTO:
+      return "AUTO";
+    case climate::CLIMATE_PAN_1:
+      return "1";
+    case climate::CLIMATE_PAN_2:
+      return "2";
+    case climate::CLIMATE_PAN_3:
+      return "3";
+    case climate::CLIMATE_PAN_4:
+      return "4";
+    case climate::CLIMATE_PAN_5:
+      return "5";
+    case climate::CLIMATE_PAN_SWING:
+      return "SWING";
+    default:
+      return "SWING";    
+  }
+}
+
 const char *climate_preset_to_string(ClimatePreset preset) {
   switch (preset) {
     case climate::CLIMATE_PRESET_NONE:

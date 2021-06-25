@@ -20,6 +20,8 @@ template<typename... Ts> class ControlAction : public Action<Ts...> {
   TEMPLATABLE_VALUE(ClimatePreset, preset)
   TEMPLATABLE_VALUE(std::string, custom_preset)
   TEMPLATABLE_VALUE(ClimateSwingMode, swing_mode)
+  TEMPLATABLE_VALUE(ClimateTilt, tilt_mode)
+  TEMPLATABLE_VALUE(ClimatePan, pan_mode)
 
   void play(Ts... x) override {
     auto call = this->climate_->make_call();
@@ -35,6 +37,8 @@ template<typename... Ts> class ControlAction : public Action<Ts...> {
     call.set_preset(this->preset_.optional_value(x...));
     call.set_preset(this->custom_preset_.optional_value(x...));
     call.set_swing_mode(this->swing_mode_.optional_value(x...));
+    call.set_tilt_mode(this->tilt_mode_.optional_value(x...));
+    call.set_pan_mode(this->pan_mode_.optional_value(x...));
     call.perform();
   }
 

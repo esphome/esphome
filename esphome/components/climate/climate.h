@@ -81,6 +81,22 @@ class ClimateCall {
   ClimateCall &set_swing_mode(optional<ClimateSwingMode> swing_mode);
   /// Set the swing mode of the climate device based on a string.
   ClimateCall &set_swing_mode(const std::string &swing_mode);
+
+  /// Set the vertical tilt mode of the climate device.
+  ClimateCall &set_tilt_mode(ClimateTilt tilt_mode);
+  /// Set the vertical tilt mode of the climate device.
+  ClimateCall &set_tilt_mode(optional<ClimateTilt> tilt_mode);
+  /// Set the vertical tilt mode of the climate device based on a string.
+  ClimateCall &set_tilt_mode(const std::string &tilt_mode);
+
+  /// Set the horizontal pan mode of the climate device.
+  ClimateCall &set_pan_mode(ClimatePan pan_mode);
+  /// Set the horizontal pan mode of the climate device.
+  ClimateCall &set_pan_mode(optional<ClimatePan> pan_mode);
+  /// Set the horizontal pan mode of the climate device based on a string.
+  ClimateCall &set_pan_mode(const std::string &pan_mode);
+
+
   /// Set the preset of the climate device.
   ClimateCall &set_preset(ClimatePreset preset);
   /// Set the preset of the climate device.
@@ -100,6 +116,8 @@ class ClimateCall {
   optional<bool> get_away() const;
   const optional<ClimateFanMode> &get_fan_mode() const;
   const optional<ClimateSwingMode> &get_swing_mode() const;
+  const optional<ClimateTilt> &get_tilt_mode() const;
+  const optional<ClimatePan> &get_pan_mode() const;
   const optional<std::string> &get_custom_fan_mode() const;
   const optional<ClimatePreset> &get_preset() const;
   const optional<std::string> &get_custom_preset() const;
@@ -114,6 +132,8 @@ class ClimateCall {
   optional<float> target_temperature_high_;
   optional<ClimateFanMode> fan_mode_;
   optional<ClimateSwingMode> swing_mode_;
+  optional<ClimateTilt> tilt_mode_;
+  optional<ClimatePan> pan_mode_;
   optional<std::string> custom_fan_mode_;
   optional<ClimatePreset> preset_;
   optional<std::string> custom_preset_;
@@ -140,7 +160,8 @@ struct ClimateDeviceRestoreState {
       float target_temperature_high;
     };
   };
-
+  ClimateTilt tilt_mode;
+  ClimatePan pan_mode;
   /// Convert this struct to a climate call that can be performed.
   ClimateCall to_call(Climate *climate);
   /// Apply these settings to the climate device.
@@ -197,6 +218,12 @@ class Climate : public Nameable {
 
   /// The active fan mode of the climate device.
   optional<ClimateFanMode> fan_mode;
+
+  /// The active Vertical tilt of the climate device.
+  optional<ClimateTilt> tilt_mode;
+
+  /// The active Horizontal pan of the climate device.
+  optional<ClimatePan> pan_mode;
 
   /// The active swing mode of the climate device.
   ClimateSwingMode swing_mode;

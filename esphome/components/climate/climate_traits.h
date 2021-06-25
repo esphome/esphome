@@ -31,6 +31,10 @@ namespace climate {
  *    - on, off, auto, high, medium, low, middle, focus, diffuse
  *  - supports swing modes - optionally, if it has a swing which can be configured in different ways:
  *    - off, both, vertical, horizontal
+ *  - supports vertical tilt in swing mode VERTICAL - optionally, if it has a swing which can be configured in different ways:
+ *    - AUTO, 1, 2, 3, 4, 5, SWING
+ *  - supports horizontal pan in swing mode HORIZONTAL - optionally, if it has a swing which can be configured in different ways:
+ *    - AUTO, 1, 2, 3, 4, 5, SWING
  *
  * This class also contains static data for the climate device display:
  *  - visual min/max temperature - tells the frontend what range of temperatures the climate device
@@ -127,19 +131,30 @@ class ClimateTraits {
 
   void set_supported_swing_modes(std::set<ClimateSwingMode> modes) { supported_swing_modes_ = std::move(modes); }
   void add_supported_swing_mode(ClimateSwingMode mode) { supported_swing_modes_.insert(mode); }
-  ESPDEPRECATED("This method is deprecated, use set_supported_fan_modes() instead")
+  ESPDEPRECATED("This method is deprecated, use set_supported_swing_modes() instead")
   void set_supports_swing_mode_off(bool supported) { set_swing_mode_support_(CLIMATE_SWING_OFF, supported); }
-  ESPDEPRECATED("This method is deprecated, use set_supported_fan_modes() instead")
+  ESPDEPRECATED("This method is deprecated, use set_supported_swing_modes() instead")
   void set_supports_swing_mode_both(bool supported) { set_swing_mode_support_(CLIMATE_SWING_BOTH, supported); }
-  ESPDEPRECATED("This method is deprecated, use set_supported_fan_modes() instead")
+  ESPDEPRECATED("This method is deprecated, use set_supported_swing_modes() instead")
   void set_supports_swing_mode_vertical(bool supported) { set_swing_mode_support_(CLIMATE_SWING_VERTICAL, supported); }
-  ESPDEPRECATED("This method is deprecated, use set_supported_fan_modes() instead")
+  ESPDEPRECATED("This method is deprecated, use set_supported_swing_modes() instead")
   void set_supports_swing_mode_horizontal(bool supported) {
     set_swing_mode_support_(CLIMATE_SWING_HORIZONTAL, supported);
   }
   bool supports_swing_mode(ClimateSwingMode swing_mode) const { return supported_swing_modes_.count(swing_mode); }
   bool get_supports_swing_modes() const { return !supported_swing_modes_.empty(); }
   const std::set<ClimateSwingMode> get_supported_swing_modes() { return supported_swing_modes_; }
+
+  void set_supported_tilt_modes(std::set<ClimateTilt> tiltModes) { supported_tilt_modes_ = std::move(tiltModes); }
+  void add_supported_tilt_mode(ClimateTilt tiltMode) { supported_tilt_modes_.insert(tiltMode); }
+  bool supports_tilt_mode(ClimateTilt tilt_mode) const { return supported_tilt_modes_.count(tilt_mode); }
+  bool get_supports_tilt_modes() const { return !supported_tilt_modes_.empty(); }
+
+  void set_supported_pan_modes(std::set<ClimatePan> panModes) { supported_pan_modes_ = std::move(panModes); }
+  void add_supported_pan_mode(ClimatePan panMode) { supported_pan_modes_.insert(panMode); }
+  bool supports_pan_mode(ClimatePan pan_mode) const { return supported_pan_modes_.count(pan_mode); }
+  bool get_supports_pan_modes() const { return !supported_pan_modes_.empty(); }
+
 
   float get_visual_min_temperature() const { return visual_min_temperature_; }
   void set_visual_min_temperature(float visual_min_temperature) { visual_min_temperature_ = visual_min_temperature; }
@@ -172,12 +187,32 @@ class ClimateTraits {
     }
   }
 
+  void set_tilt_mode_support_(climate::ClimateTilt mode, bool supported) {
+    if (supported) {
+      supported_tilt_modes_.insert(mode);
+    } else {
+      supported_tilt_modes_.erase(mode);
+    }
+  }
+
+  void set_pan_mode_support_(climate::ClimatePan mode, bool supported) {
+    if (supported) {
+      supported_pan_modes_.insert(mode);
+    } else {
+      supported_pan_modes_.erase(mode);
+    }
+  }
+
   bool supports_current_temperature_{false};
   bool supports_two_point_target_temperature_{false};
   std::set<climate::ClimateMode> supported_modes_ = {climate::CLIMATE_MODE_OFF};
   bool supports_action_{false};
   std::set<climate::ClimateFanMode> supported_fan_modes_;
   std::set<climate::ClimateSwingMode> supported_swing_modes_;
+  bool supports_tilt_mode_{false};
+  bool supports_pan_mode_{false};
+  std::set<climate::ClimateTilt> supported_tilt_modes_;
+  std::set<climate::ClimatePan> supported_pan_modes_;
   std::set<climate::ClimatePreset> supported_presets_;
   std::set<std::string> supported_custom_fan_modes_;
   std::set<std::string> supported_custom_presets_;

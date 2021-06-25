@@ -34,6 +34,14 @@ void ClimateCall::perform() {
     const char *swing_mode_s = climate_swing_mode_to_string(*this->swing_mode_);
     ESP_LOGD(TAG, "  Swing: %s", swing_mode_s);
   }
+  if (this->tilt_mode_.has_value()) {
+    const char *tilt_mode_s = climate_tilt_mode_to_string(*this->tilt_mode_);
+    ESP_LOGD(TAG, "  Vertical tilt: %s", tilt_mode_s);
+  }
+  if (this->pan_mode_.has_value()) {
+    const char *pan_mode_s = climate_pan_mode_to_string(*this->pan_mode_);
+    ESP_LOGD(TAG, "  Horizontal pan: %s", pan_mode_s);
+  }
   if (this->target_temperature_.has_value()) {
     ESP_LOGD(TAG, "  Target Temperature: %.2f", *this->target_temperature_);
   }
@@ -85,6 +93,20 @@ void ClimateCall::validate_() {
     if (!traits.supports_swing_mode(swing_mode)) {
       ESP_LOGW(TAG, "  Swing Mode %s is not supported by this device!", climate_swing_mode_to_string(swing_mode));
       this->swing_mode_.reset();
+    }
+  }
+  if (this->tilt_mode_.has_value()) {
+    auto tilt_mode = *this->tilt_mode_;
+    if (!traits.supports_tilt_mode(tilt_mode)) {
+      ESP_LOGW(TAG, "  Vetical tilt Mode %s is not supported by this device!", climate_tilt_mode_to_string(tilt_mode));
+      this->tilt_mode_.reset();
+    }
+  }
+  if (this->pan_mode_.has_value()) {
+    auto pan_mode = *this->pan_mode_;
+    if (!traits.supports_pan_mode(pan_mode)) {
+      ESP_LOGW(TAG, "  Horizontal pan Mode %s is not supported by this device!", climate_pan_mode_to_string(pan_mode));
+      this->pan_mode_.reset();
     }
   }
   if (this->target_temperature_.has_value()) {
@@ -227,6 +249,7 @@ ClimateCall &ClimateCall::set_swing_mode(ClimateSwingMode swing_mode) {
   this->swing_mode_ = swing_mode;
   return *this;
 }
+
 ClimateCall &ClimateCall::set_swing_mode(const std::string &swing_mode) {
   if (str_equals_case_insensitive(swing_mode, "OFF")) {
     this->set_swing_mode(CLIMATE_SWING_OFF);
@@ -238,6 +261,58 @@ ClimateCall &ClimateCall::set_swing_mode(const std::string &swing_mode) {
     this->set_swing_mode(CLIMATE_SWING_HORIZONTAL);
   } else {
     ESP_LOGW(TAG, "'%s' - Unrecognized swing mode %s", this->parent_->get_name().c_str(), swing_mode.c_str());
+  }
+  return *this;
+}
+
+ClimateCall &ClimateCall::set_tilt_mode(ClimateTilt tilt_mode) {
+  this->tilt_mode_ = tilt_mode;
+  return *this;
+}
+
+ClimateCall &ClimateCall::set_tilt_mode(const std::string &tilt_mode) {
+  if (str_equals_case_insensitive(tilt_mode, "AUTO")) {
+    this->set_tilt_mode(CLIMATE_TILT_AUTO);
+  } else if (str_equals_case_insensitive(tilt_mode, "1")) {
+    this->set_tilt_mode(CLIMATE_TILT_1);
+  } else if (str_equals_case_insensitive(tilt_mode, "2")) {
+    this->set_tilt_mode(CLIMATE_TILT_2);
+  } else if (str_equals_case_insensitive(tilt_mode, "3")) {
+    this->set_tilt_mode(CLIMATE_TILT_3);
+  } else if (str_equals_case_insensitive(tilt_mode, "4")) {
+    this->set_tilt_mode(CLIMATE_TILT_4);
+  } else if (str_equals_case_insensitive(tilt_mode, "5")) {
+    this->set_tilt_mode(CLIMATE_TILT_5);        
+  } else if (str_equals_case_insensitive(tilt_mode, "SWING")) {
+    this->set_tilt_mode(CLIMATE_TILT_SWING);    
+  } else {
+    ESP_LOGW(TAG, "'%s' - Unrecognized vertical tilt mode %s", this->parent_->get_name().c_str(), tilt_mode.c_str());
+  }
+  return *this;
+}
+
+ClimateCall &ClimateCall::set_pan_mode(ClimatePan pan_mode) {
+  this->pan_mode_ = pan_mode;
+  return *this;
+}
+
+ClimateCall &ClimateCall::set_pan_mode(const std::string &pan_mode) {
+  if (str_equals_case_insensitive(pan_mode, "AUTO")) {
+    this->set_pan_mode(CLIMATE_PAN_AUTO);
+  } else if (str_equals_case_insensitive(pan_mode, "1")) {
+    this->set_pan_mode(CLIMATE_PAN_1);
+  } else if (str_equals_case_insensitive(pan_mode, "2")) {
+    this->set_pan_mode(CLIMATE_PAN_2);
+  } else if (str_equals_case_insensitive(pan_mode, "3")) {
+    this->set_pan_mode(CLIMATE_PAN_3);
+  } else if (str_equals_case_insensitive(pan_mode, "4")) {
+    this->set_pan_mode(CLIMATE_PAN_4);
+  } else if (str_equals_case_insensitive(pan_mode, "5")) {
+    this->set_pan_mode(CLIMATE_PAN_5);        
+  } else if (str_equals_case_insensitive(pan_mode, "SWING")) {
+    this->set_pan_mode(CLIMATE_PAN_SWING);    
+  } else {
+    ESP_LOGW(TAG, "'%s' - Unrecognized Horizontal pan mode %s", this->parent_->get_name().c_str(), pan_mode.c_str());
   }
   return *this;
 }
@@ -268,6 +343,8 @@ const optional<std::string> &ClimateCall::get_custom_fan_mode() const { return t
 const optional<ClimatePreset> &ClimateCall::get_preset() const { return this->preset_; }
 const optional<std::string> &ClimateCall::get_custom_preset() const { return this->custom_preset_; }
 const optional<ClimateSwingMode> &ClimateCall::get_swing_mode() const { return this->swing_mode_; }
+const optional<ClimateTilt> &ClimateCall::get_tilt_mode() const { return this->tilt_mode_; }
+const optional<ClimatePan> &ClimateCall::get_pan_mode() const { return this->pan_mode_; }
 ClimateCall &ClimateCall::set_away(bool away) {
   this->preset_ = away ? CLIMATE_PRESET_AWAY : CLIMATE_PRESET_HOME;
   return *this;
@@ -305,6 +382,14 @@ ClimateCall &ClimateCall::set_preset(optional<ClimatePreset> preset) {
 }
 ClimateCall &ClimateCall::set_swing_mode(optional<ClimateSwingMode> swing_mode) {
   this->swing_mode_ = swing_mode;
+  return *this;
+}
+ClimateCall &ClimateCall::set_tilt_mode(optional<ClimateTilt> tilt_mode) {
+  this->tilt_mode_ = tilt_mode;
+  return *this;
+}
+ClimateCall &ClimateCall::set_pan_mode(optional<ClimatePan> pan_mode) {
+  this->pan_mode_ = pan_mode;
   return *this;
 }
 
@@ -362,7 +447,12 @@ void Climate::save_state_() {
   if (traits.get_supports_swing_modes()) {
     state.swing_mode = this->swing_mode;
   }
-
+  if (traits.get_supports_tilt_modes() && tilt_mode.has_value()) {
+    state.tilt_mode = this->tilt_mode.value();
+  }
+  if (traits.get_supports_pan_modes() && pan_mode.has_value()) {
+    state.pan_mode = this->pan_mode.value();
+  }
   this->rtc_.save(&state);
 }
 void Climate::publish_state() {
@@ -387,6 +477,12 @@ void Climate::publish_state() {
   }
   if (traits.get_supports_swing_modes()) {
     ESP_LOGD(TAG, "  Swing Mode: %s", climate_swing_mode_to_string(this->swing_mode));
+  }
+  if (traits.get_supports_tilt_modes()) {
+    ESP_LOGD(TAG, "  Vertical tilt Mode: %s", climate_tilt_mode_to_string(this->tilt_mode.value()));
+  }
+  if (traits.get_supports_pan_modes()) {
+    ESP_LOGD(TAG, "  Horizontal pan Mode: %s", climate_pan_mode_to_string(this->pan_mode.value()));
   }
   if (traits.get_supports_current_temperature()) {
     ESP_LOGD(TAG, "  Current Temperature: %.2f°C", this->current_temperature);
@@ -451,6 +547,13 @@ ClimateCall ClimateDeviceRestoreState::to_call(Climate *climate) {
   if (traits.get_supports_swing_modes()) {
     call.set_swing_mode(this->swing_mode);
   }
+  if (traits.get_supports_tilt_modes()) {
+    call.set_tilt_mode(this->tilt_mode);
+  }
+  if (traits.get_supports_pan_modes()) {
+    call.set_pan_mode(this->pan_mode);
+  }
+
   return call;
 }
 void ClimateDeviceRestoreState::apply(Climate *climate) {
@@ -487,6 +590,13 @@ void ClimateDeviceRestoreState::apply(Climate *climate) {
   if (traits.get_supports_swing_modes()) {
     climate->swing_mode = this->swing_mode;
   }
+  if (traits.get_supports_tilt_modes()) {
+    climate->tilt_mode = this->tilt_mode;
+  }
+  if (traits.get_supports_pan_modes()) {
+    climate->pan_mode = this->pan_mode;
+  }
+
   climate->publish_state();
 }
 
