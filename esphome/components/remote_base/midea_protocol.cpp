@@ -16,7 +16,7 @@ MideaData::MideaData(const std::vector<uint8_t> &data) {
   finalize();
 }
 
-MideaData::MideaData(const std::initializer_list<uint8_t> data) {
+MideaData::MideaData(std::initializer_list<uint8_t> data) {
   memcpy(this->data(), data.begin(), std::min<size_t>(data.size(), OFFSET_CS));
   finalize();
 }
