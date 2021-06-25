@@ -42,8 +42,8 @@ class MideaAC : public midea_dongle::MideaAppliance, public climate::Climate, pu
   /// Return the traits of this controller.
   climate::ClimateTraits traits() override;
 
-  const QueryFrame query_frame_;
-  const PowerQueryFrame power_frame_;
+  QueryFrame query_frame_;
+  PowerQueryFrame power_frame_;
   CommandFrame cmd_frame_;
   midea_dongle::MideaDongle *parent_{nullptr};
   sensor::Sensor *outdoor_sensor_{nullptr};

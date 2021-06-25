@@ -27,6 +27,7 @@ from esphome.const import (
     CONF_CARRIER_FREQUENCY,
     CONF_RC_CODE_1,
     CONF_RC_CODE_2,
+    CONF_TEMPERATURE,
 )
 from esphome.core import coroutine
 from esphome.jsonschema import jschema_extractor
@@ -995,3 +996,77 @@ async def panasonic_action(var, config, args):
     cg.add(var.set_address(template_))
     template_ = await cg.templatable(config[CONF_COMMAND], args, cg.uint32)
     cg.add(var.set_command(template_))
+
+
+# Midea
+MideaData, MideaBinarySensor, MideaTrigger, MideaAction, MideaDumper = declare_protocol(
+    "Midea"
+)
+MideaRawAction = ns.class_("MideaRawAction", RemoteTransmitterActionBase)
+MideaFollowMeAction = ns.class_("MideaFollowMeAction", RemoteTransmitterActionBase)
+CONF_CODE_STORAGE_ID = "code_storage_id"
+MIDEA_RAW_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_CODE): cv.All(
+            [cv.Any(cv.hex_uint8_t, cv.uint8_t)],
+            cv.Length(min=5, max=5),
+        ),
+        cv.GenerateID(CONF_CODE_STORAGE_ID): cv.declare_id(cg.uint8),
+    }
+)
+
+
+@register_binary_sensor("midea", MideaBinarySensor, MIDEA_RAW_SCHEMA)
+def midea_binary_sensor(var, config):
+    code_ = config[CONF_CODE]
+    arr = cg.progmem_array(config[CONF_CODE_STORAGE_ID], code_)
+    cg.add(var.set_data(arr))
+    cg.add(var.set_len(len(code_)))
+
+
+@register_trigger("midea", MideaTrigger, cg.std_vector.template(cg.int32))
+def midea_trigger(var, config):
+    pass
+
+
+@register_dumper("midea", MideaDumper)
+def midea_dumper(var, config):
+    pass
+
+
+@register_action(
+    "midea_raw",
+    MideaRawAction,
+    MIDEA_RAW_SCHEMA,
+)
+async def midea_raw_action(var, config, args):
+    code_ = config[CONF_CODE]
+    if cg.is_template(code_):
+        template_ = await cg.templatable(code_, args, cg.std_vector.template(cg.uint8))
+        cg.add(var.set_template(template_))
+    else:
+        arr = cg.progmem_array(config[CONF_CODE_STORAGE_ID], config[CONF_CODE])
+        cg.add(var.set_data(arr))
+
+
+MIDEA_FOLLOW_ME_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_TEMPERATURE): cv.All(
+            cv.int_range(0, 37),
+        ),
+    }
+)
+
+
+@register_action(
+    "midea_follow_me",
+    MideaFollowMeAction,
+    MIDEA_FOLLOW_ME_SCHEMA,
+)
+async def midea_follow_me_action(var, config, args):
+    temp_ = config[CONF_TEMPERATURE]
+    if cg.is_template(temp_):
+        template_ = await cg.templatable(temp_, args, cg.uint8)
+        cg.add(var.set_template(template_))
+    else:
+        cg.add(var.set_temp(temp_))
