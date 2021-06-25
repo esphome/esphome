@@ -1075,7 +1075,7 @@ async def midea_follow_me_action(var, config, args):
 @register_action(
     "midea_toggle_light",
     MideaToggleLightAction,
-    None,
+    cv.Schema({}),
 )
 async def midea_toggle_light_action(var, config, args):
     pass
