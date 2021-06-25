@@ -1004,6 +1004,7 @@ MideaData, MideaBinarySensor, MideaTrigger, MideaAction, MideaDumper = declare_p
 )
 MideaRawAction = ns.class_("MideaRawAction", RemoteTransmitterActionBase)
 MideaFollowMeAction = ns.class_("MideaFollowMeAction", RemoteTransmitterActionBase)
+MideaToggleLightAction = ns.class_("MideaToggleLightAction", RemoteTransmitterActionBase)
 CONF_CODE_STORAGE_ID = "code_storage_id"
 MIDEA_RAW_SCHEMA = cv.Schema(
     {
@@ -1070,3 +1071,11 @@ async def midea_follow_me_action(var, config, args):
         cg.add(var.set_template(template_))
     else:
         cg.add(var.set_temp(temp_))
+
+@register_action(
+    "midea_toggle_light",
+    MideaToggleLightAction,
+    None,
+)
+async def midea_toggle_light_action(var, config, args):
+    pass

@@ -41,8 +41,7 @@ class MideaFollowMe : public MideaData {
  public:
   MideaFollowMe() : MideaData() { this->set_type(MideaTypeFollowMe); }
   MideaFollowMe(const MideaData &data) : MideaData(data) {}
-  MideaFollowMe(uint8_t temp) {
-    this->set_type(MideaTypeFollowMe);
+  MideaFollowMe(uint8_t temp) : MideaData() {
     this->set_temp(temp);
     this->finalize();
   }
@@ -120,6 +119,15 @@ template<typename... Ts> class MideaFollowMeAction : public RemoteTransmitterAct
  protected:
   std::function<uint8_t(Ts...)> code_func_{};
   MideaFollowMe data_;
+};
+
+template<typename... Ts> class MideaToggleLightAction : public RemoteTransmitterActionBase<Ts...> {
+ public:
+  void encode(RemoteTransmitData *dst, Ts... x) override {
+    MideaProtocol().encode(dst, data_);
+  }
+ protected:
+  MideaData data_{0xA2, 0x08, 0xFF, 0xFF, 0xFF};
 };
 
 }  // namespace remote_base
