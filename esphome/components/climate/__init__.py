@@ -21,6 +21,8 @@ from esphome.const import (
     CONF_NAME,
     CONF_FAN_MODE,
     CONF_SWING_MODE,
+    CONF_TILT_MODE,
+    CONF_PAN_MODE
 )
 from esphome.core import CORE, coroutine_with_priority
 
@@ -83,6 +85,32 @@ CLIMATE_SWING_MODES = {
 
 validate_climate_swing_mode = cv.enum(CLIMATE_SWING_MODES, upper=True)
 
+ClimateTilt = climate_ns.enum("ClimateTilt")
+CLIMATE_TILT_MODES = {
+    "AUTO": ClimateTilt.CLIMATE_TILT_AUTO,
+    "1": ClimateTilt.CLIMATE_TILT_1,
+    "2": ClimateTilt.CLIMATE_TILT_2,
+    "3": ClimateTilt.CLIMATE_TILT_3,
+    "4": ClimateTilt.CLIMATE_TILT_4,    
+    "5": ClimateTilt.CLIMATE_TILT_5,
+    "SWING": ClimateTilt.CLIMATE_TILT_SWING,
+}
+
+validate_climate_tilt_mode = cv.enum(CLIMATE_TILT_MODES, upper=True)
+
+ClimatePan = climate_ns.enum("ClimatePan")
+CLIMATE_PAN_MODES = {
+    "AUTO": ClimatePan.CLIMATE_PAN_AUTO,
+    "1": ClimatePan.CLIMATE_PAN_1,
+    "2": ClimatePan.CLIMATE_PAN_2,
+    "3": ClimatePan.CLIMATE_PAN_3,
+    "4": ClimatePan.CLIMATE_PAN_4,    
+    "5": ClimatePan.CLIMATE_PAN_5,
+    "SWING": ClimatePan.CLIMATE_PAN_SWING,
+}
+validate_climate_pan_mode = cv.enum(CLIMATE_PAN_MODES, upper=True)
+
+
 # Actions
 ControlAction = climate_ns.class_("ControlAction", automation.Action)
 
@@ -141,6 +169,8 @@ CLIMATE_CONTROL_ACTION_SCHEMA = cv.Schema(
         cv.Exclusive(CONF_PRESET, "preset"): cv.templatable(validate_climate_preset),
         cv.Exclusive(CONF_CUSTOM_PRESET, "preset"): cv.string_strict,
         cv.Optional(CONF_SWING_MODE): cv.templatable(validate_climate_swing_mode),
+        cv.Optional(CONF_TILT_MODE): cv.templatable(validate_climate_tilt_mode),
+        cv.Optional(CONF_PAN_MODE): cv.templatable(validate_climate_pan_mode),
     }
 )
 
@@ -187,6 +217,16 @@ async def climate_control_to_code(config, action_id, template_arg, args):
             config[CONF_SWING_MODE], args, ClimateSwingMode
         )
         cg.add(var.set_swing_mode(template_))
+    if CONF_TILT_MODE in config:
+        template_ = await cg.templatable(
+            config[CONF_TILT_MODE], args, ClimateTilt
+        )
+        cg.add(var.set_tilt_mode(template_))
+    if CONF_PAN_MODE in config:
+        template_ = await cg.templatable(
+            config[CONF_PAN_MODE], args, ClimatePan
+        )
+        cg.add(var.set_pan_mode(template_))        
     return var
 
 
