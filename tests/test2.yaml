@@ -257,7 +257,7 @@ sensor:
     pressure:
       name: "Wave Plus Pressure"
     humidity:
-      name: "Wave Plus Humitidy"
+      name: "Wave Plus Humidity"
     co2:
       name: "Wave Plus CO2"
     tvoc:
