@@ -91,7 +91,7 @@ CLIMATE_TILT_MODES = {
     "1": ClimateTilt.CLIMATE_TILT_1,
     "2": ClimateTilt.CLIMATE_TILT_2,
     "3": ClimateTilt.CLIMATE_TILT_3,
-    "4": ClimateTilt.CLIMATE_TILT_4,    
+    "4": ClimateTilt.CLIMATE_TILT_4,
     "5": ClimateTilt.CLIMATE_TILT_5,
     "SWING": ClimateTilt.CLIMATE_TILT_SWING,
 }
@@ -104,7 +104,7 @@ CLIMATE_PAN_MODES = {
     "1": ClimatePan.CLIMATE_PAN_1,
     "2": ClimatePan.CLIMATE_PAN_2,
     "3": ClimatePan.CLIMATE_PAN_3,
-    "4": ClimatePan.CLIMATE_PAN_4,    
+    "4": ClimatePan.CLIMATE_PAN_4,
     "5": ClimatePan.CLIMATE_PAN_5,
     "SWING": ClimatePan.CLIMATE_PAN_SWING,
 }
@@ -226,7 +226,7 @@ async def climate_control_to_code(config, action_id, template_arg, args):
         template_ = await cg.templatable(
             config[CONF_PAN_MODE], args, ClimatePan
         )
-        cg.add(var.set_pan_mode(template_))        
+        cg.add(var.set_pan_mode(template_))
     return var
 
 
