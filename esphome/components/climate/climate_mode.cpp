@@ -82,9 +82,8 @@ const char *climate_swing_mode_to_string(ClimateSwingMode swing_mode) {
   }
 }
 
-
 const char *climate_tilt_to_string(ClimateTilt tilt) {
-  switch (tilt){
+  switch (tilt) {
     case climate::CLIMATE_TILT_AUTO:
       return "AUTO";
     case climate::CLIMATE_TILT_1:
@@ -100,12 +99,12 @@ const char *climate_tilt_to_string(ClimateTilt tilt) {
     case climate::CLIMATE_TILT_SWING:
       return "SWING";
     default:
-      return "SWING";    
+      return "SWING";
   }
 }
 
 const char *climate_pan_to_string(ClimatePan pan){
-  switch (pan){
+  switch (pan) {
     case climate::CLIMATE_PAN_AUTO:
       return "AUTO";
     case climate::CLIMATE_PAN_1:
@@ -121,7 +120,7 @@ const char *climate_pan_to_string(ClimatePan pan){
     case climate::CLIMATE_PAN_SWING:
       return "SWING";
     default:
-      return "SWING";    
+      return "SWING";
   }
 }
 

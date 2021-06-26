@@ -96,7 +96,6 @@ class ClimateCall {
   /// Set the horizontal pan mode of the climate device based on a string.
   ClimateCall &set_pan_mode(const std::string &pan_mode);
 
-
   /// Set the preset of the climate device.
   ClimateCall &set_preset(ClimatePreset preset);
   /// Set the preset of the climate device.

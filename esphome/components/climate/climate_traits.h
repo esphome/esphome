@@ -31,9 +31,11 @@ namespace climate {
  *    - on, off, auto, high, medium, low, middle, focus, diffuse
  *  - supports swing modes - optionally, if it has a swing which can be configured in different ways:
  *    - off, both, vertical, horizontal
- *  - supports vertical tilt in swing mode VERTICAL - optionally, if it has a swing which can be configured in different ways:
+ *  - supports vertical tilt in swing mode VERTICAL - optionally, if it has a swing which can be configured in different
+ * ways:
  *    - AUTO, 1, 2, 3, 4, 5, SWING
- *  - supports horizontal pan in swing mode HORIZONTAL - optionally, if it has a swing which can be configured in different ways:
+ *  - supports horizontal pan in swing mode HORIZONTAL - optionally, if it has a swing which can be configured in
+ * different ways:
  *    - AUTO, 1, 2, 3, 4, 5, SWING
  *
  * This class also contains static data for the climate device display:

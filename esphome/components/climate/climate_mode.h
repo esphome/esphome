@@ -77,7 +77,7 @@ enum ClimateSwingMode : uint8_t {
 enum ClimateTilt : uint8_t {
   /// The vertical tilt is set to AUTO
   CLIMATE_TILT_AUTO = 0,
-  /// The vertical tilt is set to angle 1 
+  /// The vertical tilt is set to angle 1
   CLIMATE_TILT_1 = 1,
   /// The vertical tilt is set to angle 2
   CLIMATE_TILT_2 = 2,
@@ -96,7 +96,7 @@ enum ClimateTilt : uint8_t {
 enum ClimatePan : uint8_t {
   /// The horizontal direction is set to AUTO
   CLIMATE_PAN_AUTO = 0,
-  /// The horizontal direction is set to angle 1 
+  /// The horizontal direction is set to angle 1
   CLIMATE_PAN_1 = 1,
   /// The horizontal direction is set to angle 2
   CLIMATE_PAN_2 = 2,

@@ -282,9 +282,9 @@ ClimateCall &ClimateCall::set_tilt_mode(const std::string &tilt_mode) {
   } else if (str_equals_case_insensitive(tilt_mode, "4")) {
     this->set_tilt_mode(CLIMATE_TILT_4);
   } else if (str_equals_case_insensitive(tilt_mode, "5")) {
-    this->set_tilt_mode(CLIMATE_TILT_5);        
+    this->set_tilt_mode(CLIMATE_TILT_5);
   } else if (str_equals_case_insensitive(tilt_mode, "SWING")) {
-    this->set_tilt_mode(CLIMATE_TILT_SWING);    
+    this->set_tilt_mode(CLIMATE_TILT_SWING);
   } else {
     ESP_LOGW(TAG, "'%s' - Unrecognized vertical tilt mode %s", this->parent_->get_name().c_str(), tilt_mode.c_str());
   }
@@ -308,9 +308,9 @@ ClimateCall &ClimateCall::set_pan_mode(const std::string &pan_mode) {
   } else if (str_equals_case_insensitive(pan_mode, "4")) {
     this->set_pan_mode(CLIMATE_PAN_4);
   } else if (str_equals_case_insensitive(pan_mode, "5")) {
-    this->set_pan_mode(CLIMATE_PAN_5);        
+    this->set_pan_mode(CLIMATE_PAN_5);
   } else if (str_equals_case_insensitive(pan_mode, "SWING")) {
-    this->set_pan_mode(CLIMATE_PAN_SWING);    
+    this->set_pan_mode(CLIMATE_PAN_SWING);
   } else {
     ESP_LOGW(TAG, "'%s' - Unrecognized Horizontal pan mode %s", this->parent_->get_name().c_str(), pan_mode.c_str());
   }
