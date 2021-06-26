@@ -226,7 +226,7 @@ async def climate_control_to_code(config, action_id, template_arg, args):
         template_ = await cg.templatable(
             config[CONF_PAN_MODE], args, ClimatePan
         )
-        cg.add(var.set_pan_mode(template_))        
+        cg.add(var.set_pan_mode(template_))
     return var
 
 
