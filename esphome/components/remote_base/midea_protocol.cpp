@@ -75,7 +75,7 @@ void MideaProtocol::data(RemoteTransmitData *dst, const MideaData &src, bool com
 void MideaProtocol::encode(RemoteTransmitData *dst, const MideaData &data) {
   ESP_LOGD(TAG, "Encode: raw_data: %s", data.raw_data().c_str());
   dst->set_carrier_frequency(38000);
-  dst->reserve(2 + 48 * 2 + 2 + 48 * 2 + 2);
+  dst->reserve(2 + 48 * 2 + 2 + 2 + 48 * 2 + 2);
   this->header(dst);
   this->data(dst, data);
   this->footer(dst);
