@@ -63,13 +63,13 @@ class MideaProtocol : public RemoteProtocol<MideaData> {
   optional<MideaData> decode(RemoteReceiveData src) override;
   void dump(const MideaData &data) override;
  protected:
-  static const int32_t TICK_US = 80;
-  static const int32_t HEADER_HIGH_US = 56 * TICK_US;
-  static const int32_t HEADER_LOW_US = 56 * TICK_US;
-  static const int32_t BIT_HIGH_US = 7 * TICK_US;
-  static const int32_t BIT_ONE_LOW_US = 21 * TICK_US;
-  static const int32_t BIT_ZERO_LOW_US = 7 * TICK_US;
-  static const int32_t MIN_GAP_US = 70 * TICK_US;
+  static const int32_t TICK_US = 560;
+  static const int32_t HEADER_HIGH_US = 8 * TICK_US;
+  static const int32_t HEADER_LOW_US = 8 * TICK_US;
+  static const int32_t BIT_HIGH_US = 1 * TICK_US;
+  static const int32_t BIT_ONE_LOW_US = 3 * TICK_US;
+  static const int32_t BIT_ZERO_LOW_US = 1 * TICK_US;
+  static const int32_t MIN_GAP_US = 10 * TICK_US;
   static void one(RemoteTransmitData *dst) { dst->item(BIT_HIGH_US, BIT_ONE_LOW_US); }
   static void zero(RemoteTransmitData *dst) { dst->item(BIT_HIGH_US, BIT_ZERO_LOW_US); }
   static void header(RemoteTransmitData *dst) { dst->item(HEADER_HIGH_US, HEADER_LOW_US); }
