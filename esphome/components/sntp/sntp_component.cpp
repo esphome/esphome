@@ -11,7 +11,7 @@
 namespace esphome {
 namespace sntp {
 
-static const char *TAG = "sntp";
+static const char *const TAG = "sntp";
 
 void SNTPComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up SNTP...");

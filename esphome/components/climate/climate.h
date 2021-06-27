@@ -3,6 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/preferences.h"
+#include "esphome/core/log.h"
 #include "climate_mode.h"
 #include "climate_traits.h"
 
@@ -10,8 +11,8 @@ namespace esphome {
 namespace climate {
 
 #define LOG_CLIMATE(prefix, type, obj) \
-  if (obj != nullptr) { \
-    ESP_LOGCONFIG(TAG, "%s%s '%s'", prefix, type, obj->get_name().c_str()); \
+  if ((obj) != nullptr) { \
+    ESP_LOGCONFIG(TAG, "%s%s '%s'", prefix, type, (obj)->get_name().c_str()); \
   }
 
 class Climate;
@@ -62,7 +63,9 @@ class ClimateCall {
    * For climate devices with two point target temperature control
    */
   ClimateCall &set_target_temperature_high(optional<float> target_temperature_high);
+  ESPDEPRECATED("set_away() is deprecated, please use .set_preset(CLIMATE_PRESET_AWAY) instead")
   ClimateCall &set_away(bool away);
+  ESPDEPRECATED("set_away() is deprecated, please use .set_preset(CLIMATE_PRESET_AWAY) instead")
   ClimateCall &set_away(optional<bool> away);
   /// Set the fan mode of the climate device.
   ClimateCall &set_fan_mode(ClimateFanMode fan_mode);
@@ -70,12 +73,22 @@ class ClimateCall {
   ClimateCall &set_fan_mode(optional<ClimateFanMode> fan_mode);
   /// Set the fan mode of the climate device based on a string.
   ClimateCall &set_fan_mode(const std::string &fan_mode);
+  /// Set the fan mode of the climate device based on a string.
+  ClimateCall &set_fan_mode(optional<std::string> fan_mode);
   /// Set the swing mode of the climate device.
   ClimateCall &set_swing_mode(ClimateSwingMode swing_mode);
   /// Set the swing mode of the climate device.
   ClimateCall &set_swing_mode(optional<ClimateSwingMode> swing_mode);
   /// Set the swing mode of the climate device based on a string.
   ClimateCall &set_swing_mode(const std::string &swing_mode);
+  /// Set the preset of the climate device.
+  ClimateCall &set_preset(ClimatePreset preset);
+  /// Set the preset of the climate device.
+  ClimateCall &set_preset(optional<ClimatePreset> preset);
+  /// Set the preset of the climate device based on a string.
+  ClimateCall &set_preset(const std::string &preset);
+  /// Set the preset of the climate device based on a string.
+  ClimateCall &set_preset(optional<std::string> preset);
 
   void perform();
 
@@ -83,9 +96,13 @@ class ClimateCall {
   const optional<float> &get_target_temperature() const;
   const optional<float> &get_target_temperature_low() const;
   const optional<float> &get_target_temperature_high() const;
-  const optional<bool> &get_away() const;
+  ESPDEPRECATED("get_away() is deprecated, please use .get_preset() instead")
+  optional<bool> get_away() const;
   const optional<ClimateFanMode> &get_fan_mode() const;
   const optional<ClimateSwingMode> &get_swing_mode() const;
+  const optional<std::string> &get_custom_fan_mode() const;
+  const optional<ClimatePreset> &get_preset() const;
+  const optional<std::string> &get_custom_preset() const;
 
  protected:
   void validate_();
@@ -95,16 +112,26 @@ class ClimateCall {
   optional<float> target_temperature_;
   optional<float> target_temperature_low_;
   optional<float> target_temperature_high_;
-  optional<bool> away_;
   optional<ClimateFanMode> fan_mode_;
   optional<ClimateSwingMode> swing_mode_;
+  optional<std::string> custom_fan_mode_;
+  optional<ClimatePreset> preset_;
+  optional<std::string> custom_preset_;
 };
 
 /// Struct used to save the state of the climate device in restore memory.
 struct ClimateDeviceRestoreState {
   ClimateMode mode;
-  bool away;
-  ClimateFanMode fan_mode;
+  bool uses_custom_fan_mode{false};
+  union {
+    ClimateFanMode fan_mode;
+    uint8_t custom_fan_mode;
+  };
+  bool uses_custom_preset{false};
+  union {
+    ClimatePreset preset;
+    uint8_t custom_preset;
+  };
   ClimateSwingMode swing_mode;
   union {
     float target_temperature;
@@ -133,7 +160,7 @@ struct ClimateDeviceRestoreState {
  *
  * The entire state of the climate device is encoded in public properties of the base class (current_temperature,
  * mode etc). These are read-only for the user and rw for integrations. The reason these are public
- * is for simple access to them from lambdas `if (id(my_climate).mode == climate::CLIMATE_MODE_AUTO) ...`
+ * is for simple access to them from lambdas `if (id(my_climate).mode == climate::CLIMATE_MODE_HEAT_COOL) ...`
  */
 class Climate : public Nameable {
  public:
@@ -165,13 +192,23 @@ class Climate : public Nameable {
    * Away allows climate devices to have two different target temperature configs:
    * one for normal mode and one for away mode.
    */
+  ESPDEPRECATED("away is deprecated, use preset instead")
   bool away{false};
 
   /// The active fan mode of the climate device.
-  ClimateFanMode fan_mode;
+  optional<ClimateFanMode> fan_mode;
 
   /// The active swing mode of the climate device.
   ClimateSwingMode swing_mode;
+
+  /// The active custom fan mode of the climate device.
+  optional<std::string> custom_fan_mode;
+
+  /// The active preset of the climate device.
+  optional<ClimatePreset> preset;
+
+  /// The active custom preset mode of the climate device.
+  optional<std::string> custom_preset;
 
   /** Add a callback for the climate device state, each time the state of the climate device is updated
    * (using publish_state), this callback will be called.

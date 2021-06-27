@@ -4,7 +4,7 @@
 namespace esphome {
 namespace ccs811 {
 
-static const char *TAG = "ccs811";
+static const char *const TAG = "ccs811";
 
 // based on
 //  - https://cdn.sparkfun.com/datasheets/BreakoutBoards/CCS811_Programming_Guide.pdf

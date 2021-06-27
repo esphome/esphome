@@ -1,10 +1,11 @@
 #pragma once
 
+#include "esphome/components/json/json_util.h"
+#include "esphome/core/automation.h"
+#include "esphome/core/component.h"
 #include <list>
 #include <map>
-#include "esphome/core/component.h"
-#include "esphome/core/automation.h"
-#include "esphome/components/json/json_util.h"
+#include <utility>
 
 #ifdef ARDUINO_ARCH_ESP32
 #include <HTTPClient.h>
@@ -33,8 +34,8 @@ class HttpRequestComponent : public Component {
   void set_method(const char *method) { this->method_ = method; }
   void set_useragent(const char *useragent) { this->useragent_ = useragent; }
   void set_timeout(uint16_t timeout) { this->timeout_ = timeout; }
-  void set_body(std::string body) { this->body_ = body; }
-  void set_headers(std::list<Header> headers) { this->headers_ = headers; }
+  void set_body(std::string body) { this->body_ = std::move(body); }
+  void set_headers(std::list<Header> headers) { this->headers_ = std::move(headers); }
   void send(const std::vector<HttpRequestResponseTrigger *> &response_triggers);
   void close();
   const char *get_string();

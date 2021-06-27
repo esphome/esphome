@@ -11,6 +11,7 @@ from esphome.const import (
     DEVICE_CLASS_ILLUMINANCE,
     ICON_EMPTY,
     ICON_LIGHTBULB,
+    STATE_CLASS_MEASUREMENT,
     UNIT_PERCENT,
     ICON_THERMOMETER,
     UNIT_KELVIN,
@@ -48,13 +49,13 @@ TCS34725_GAINS = {
 }
 
 color_channel_schema = sensor.sensor_schema(
-    UNIT_PERCENT, ICON_LIGHTBULB, 1, DEVICE_CLASS_EMPTY
+    UNIT_PERCENT, ICON_LIGHTBULB, 1, DEVICE_CLASS_EMPTY, STATE_CLASS_MEASUREMENT
 )
 color_temperature_schema = sensor.sensor_schema(
-    UNIT_KELVIN, ICON_THERMOMETER, 1, DEVICE_CLASS_EMPTY
+    UNIT_KELVIN, ICON_THERMOMETER, 1, DEVICE_CLASS_EMPTY, STATE_CLASS_MEASUREMENT
 )
 illuminance_schema = sensor.sensor_schema(
-    UNIT_LUX, ICON_EMPTY, 1, DEVICE_CLASS_ILLUMINANCE
+    UNIT_LUX, ICON_EMPTY, 1, DEVICE_CLASS_ILLUMINANCE, STATE_CLASS_MEASUREMENT
 )
 
 CONFIG_SCHEMA = (
@@ -78,29 +79,29 @@ CONFIG_SCHEMA = (
 )
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
-    yield i2c.register_i2c_device(var, config)
+    await cg.register_component(var, config)
+    await i2c.register_i2c_device(var, config)
 
     cg.add(var.set_integration_time(config[CONF_INTEGRATION_TIME]))
     cg.add(var.set_gain(config[CONF_GAIN]))
 
     if CONF_RED_CHANNEL in config:
-        sens = yield sensor.new_sensor(config[CONF_RED_CHANNEL])
+        sens = await sensor.new_sensor(config[CONF_RED_CHANNEL])
         cg.add(var.set_red_sensor(sens))
     if CONF_GREEN_CHANNEL in config:
-        sens = yield sensor.new_sensor(config[CONF_GREEN_CHANNEL])
+        sens = await sensor.new_sensor(config[CONF_GREEN_CHANNEL])
         cg.add(var.set_green_sensor(sens))
     if CONF_BLUE_CHANNEL in config:
-        sens = yield sensor.new_sensor(config[CONF_BLUE_CHANNEL])
+        sens = await sensor.new_sensor(config[CONF_BLUE_CHANNEL])
         cg.add(var.set_blue_sensor(sens))
     if CONF_CLEAR_CHANNEL in config:
-        sens = yield sensor.new_sensor(config[CONF_CLEAR_CHANNEL])
+        sens = await sensor.new_sensor(config[CONF_CLEAR_CHANNEL])
         cg.add(var.set_clear_sensor(sens))
     if CONF_ILLUMINANCE in config:
-        sens = yield sensor.new_sensor(config[CONF_ILLUMINANCE])
+        sens = await sensor.new_sensor(config[CONF_ILLUMINANCE])
         cg.add(var.set_illuminance_sensor(sens))
     if CONF_COLOR_TEMPERATURE in config:
-        sens = yield sensor.new_sensor(config[CONF_COLOR_TEMPERATURE])
+        sens = await sensor.new_sensor(config[CONF_COLOR_TEMPERATURE])
         cg.add(var.set_color_temperature_sensor(sens))

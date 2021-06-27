@@ -32,6 +32,10 @@ enum FanDirection : uint32_t {
   FAN_DIRECTION_FORWARD = 0,
   FAN_DIRECTION_REVERSE = 1,
 };
+enum SensorStateClass : uint32_t {
+  STATE_CLASS_NONE = 0,
+  STATE_CLASS_MEASUREMENT = 1,
+};
 enum LogLevel : uint32_t {
   LOG_LEVEL_NONE = 0,
   LOG_LEVEL_ERROR = 1,
@@ -53,11 +57,12 @@ enum ServiceArgType : uint32_t {
 };
 enum ClimateMode : uint32_t {
   CLIMATE_MODE_OFF = 0,
-  CLIMATE_MODE_AUTO = 1,
+  CLIMATE_MODE_HEAT_COOL = 1,
   CLIMATE_MODE_COOL = 2,
   CLIMATE_MODE_HEAT = 3,
   CLIMATE_MODE_FAN_ONLY = 4,
   CLIMATE_MODE_DRY = 5,
+  CLIMATE_MODE_AUTO = 6,
 };
 enum ClimateFanMode : uint32_t {
   CLIMATE_FAN_ON = 0,
@@ -83,6 +88,16 @@ enum ClimateAction : uint32_t {
   CLIMATE_ACTION_IDLE = 4,
   CLIMATE_ACTION_DRYING = 5,
   CLIMATE_ACTION_FAN = 6,
+};
+enum ClimatePreset : uint32_t {
+  CLIMATE_PRESET_NONE = 0,
+  CLIMATE_PRESET_HOME = 1,
+  CLIMATE_PRESET_AWAY = 2,
+  CLIMATE_PRESET_BOOST = 3,
+  CLIMATE_PRESET_COMFORT = 4,
+  CLIMATE_PRESET_ECO = 5,
+  CLIMATE_PRESET_SLEEP = 6,
+  CLIMATE_PRESET_ACTIVITY = 7,
 };
 
 }  // namespace enums
@@ -170,6 +185,8 @@ class DeviceInfoResponse : public ProtoMessage {
   std::string compilation_time{};
   std::string model{};
   bool has_deep_sleep{false};
+  std::string project_name{};
+  std::string project_version{};
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
 
@@ -408,6 +425,7 @@ class ListEntitiesSensorResponse : public ProtoMessage {
   int32_t accuracy_decimals{0};
   bool force_update{false};
   std::string device_class{};
+  enums::SensorStateClass state_class{};
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
 
@@ -692,10 +710,13 @@ class ListEntitiesClimateResponse : public ProtoMessage {
   float visual_min_temperature{0.0f};
   float visual_max_temperature{0.0f};
   float visual_temperature_step{0.0f};
-  bool supports_away{false};
+  bool legacy_supports_away{false};
   bool supports_action{false};
   std::vector<enums::ClimateFanMode> supported_fan_modes{};
   std::vector<enums::ClimateSwingMode> supported_swing_modes{};
+  std::vector<std::string> supported_custom_fan_modes{};
+  std::vector<enums::ClimatePreset> supported_presets{};
+  std::vector<std::string> supported_custom_presets{};
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
 
@@ -712,15 +733,19 @@ class ClimateStateResponse : public ProtoMessage {
   float target_temperature{0.0f};
   float target_temperature_low{0.0f};
   float target_temperature_high{0.0f};
-  bool away{false};
+  bool legacy_away{false};
   enums::ClimateAction action{};
   enums::ClimateFanMode fan_mode{};
   enums::ClimateSwingMode swing_mode{};
+  std::string custom_fan_mode{};
+  enums::ClimatePreset preset{};
+  std::string custom_preset{};
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
 
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
 class ClimateCommandRequest : public ProtoMessage {
@@ -734,17 +759,24 @@ class ClimateCommandRequest : public ProtoMessage {
   float target_temperature_low{0.0f};
   bool has_target_temperature_high{false};
   float target_temperature_high{0.0f};
-  bool has_away{false};
-  bool away{false};
+  bool has_legacy_away{false};
+  bool legacy_away{false};
   bool has_fan_mode{false};
   enums::ClimateFanMode fan_mode{};
   bool has_swing_mode{false};
   enums::ClimateSwingMode swing_mode{};
+  bool has_custom_fan_mode{false};
+  std::string custom_fan_mode{};
+  bool has_preset{false};
+  enums::ClimatePreset preset{};
+  bool has_custom_preset{false};
+  std::string custom_preset{};
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
 
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
 

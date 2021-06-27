@@ -15,6 +15,7 @@ from esphome.const import (
     DEVICE_CLASS_TEMPERATURE,
     ICON_CHEMICAL_WEAPON,
     ICON_EMPTY,
+    STATE_CLASS_MEASUREMENT,
     UNIT_MICROGRAMS_PER_CUBIC_METER,
     UNIT_CELSIUS,
     UNIT_PERCENT,
@@ -66,30 +67,42 @@ CONFIG_SCHEMA = (
                 ICON_CHEMICAL_WEAPON,
                 0,
                 DEVICE_CLASS_EMPTY,
+                STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_PM_2_5): sensor.sensor_schema(
                 UNIT_MICROGRAMS_PER_CUBIC_METER,
                 ICON_CHEMICAL_WEAPON,
                 0,
                 DEVICE_CLASS_EMPTY,
+                STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_PM_10_0): sensor.sensor_schema(
                 UNIT_MICROGRAMS_PER_CUBIC_METER,
                 ICON_CHEMICAL_WEAPON,
                 0,
                 DEVICE_CLASS_EMPTY,
+                STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-                UNIT_CELSIUS, ICON_EMPTY, 1, DEVICE_CLASS_TEMPERATURE
+                UNIT_CELSIUS,
+                ICON_EMPTY,
+                1,
+                DEVICE_CLASS_TEMPERATURE,
+                STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(
-                UNIT_PERCENT, ICON_EMPTY, 1, DEVICE_CLASS_HUMIDITY
+                UNIT_PERCENT,
+                ICON_EMPTY,
+                1,
+                DEVICE_CLASS_HUMIDITY,
+                STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_FORMALDEHYDE): sensor.sensor_schema(
                 UNIT_MICROGRAMS_PER_CUBIC_METER,
                 ICON_CHEMICAL_WEAPON,
                 0,
                 DEVICE_CLASS_EMPTY,
+                STATE_CLASS_MEASUREMENT,
             ),
         }
     )
@@ -98,33 +111,33 @@ CONFIG_SCHEMA = (
 )
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
-    yield uart.register_uart_device(var, config)
+    await cg.register_component(var, config)
+    await uart.register_uart_device(var, config)
 
     cg.add(var.set_type(config[CONF_TYPE]))
 
     if CONF_PM_1_0 in config:
-        sens = yield sensor.new_sensor(config[CONF_PM_1_0])
+        sens = await sensor.new_sensor(config[CONF_PM_1_0])
         cg.add(var.set_pm_1_0_sensor(sens))
 
     if CONF_PM_2_5 in config:
-        sens = yield sensor.new_sensor(config[CONF_PM_2_5])
+        sens = await sensor.new_sensor(config[CONF_PM_2_5])
         cg.add(var.set_pm_2_5_sensor(sens))
 
     if CONF_PM_10_0 in config:
-        sens = yield sensor.new_sensor(config[CONF_PM_10_0])
+        sens = await sensor.new_sensor(config[CONF_PM_10_0])
         cg.add(var.set_pm_10_0_sensor(sens))
 
     if CONF_TEMPERATURE in config:
-        sens = yield sensor.new_sensor(config[CONF_TEMPERATURE])
+        sens = await sensor.new_sensor(config[CONF_TEMPERATURE])
         cg.add(var.set_temperature_sensor(sens))
 
     if CONF_HUMIDITY in config:
-        sens = yield sensor.new_sensor(config[CONF_HUMIDITY])
+        sens = await sensor.new_sensor(config[CONF_HUMIDITY])
         cg.add(var.set_humidity_sensor(sens))
 
     if CONF_FORMALDEHYDE in config:
-        sens = yield sensor.new_sensor(config[CONF_FORMALDEHYDE])
+        sens = await sensor.new_sensor(config[CONF_FORMALDEHYDE])
         cg.add(var.set_formaldehyde_sensor(sens))

@@ -18,7 +18,7 @@
 namespace esphome {
 namespace aht10 {
 
-static const char *TAG = "aht10";
+static const char *const TAG = "aht10";
 static const uint8_t AHT10_CALIBRATE_CMD[] = {0xE1};
 static const uint8_t AHT10_MEASURE_CMD[] = {0xAC, 0x33, 0x00};
 static const uint8_t AHT10_DEFAULT_DELAY = 5;    // ms, for calibration and temperature measurement

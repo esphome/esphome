@@ -4,7 +4,7 @@
 namespace esphome {
 namespace daikin {
 
-static const char *TAG = "daikin.climate";
+static const char *const TAG = "daikin.climate";
 
 void DaikinClimate::transmit_state() {
   uint8_t remote_state[35] = {0x11, 0xDA, 0x27, 0x00, 0xC5, 0x00, 0x00, 0xD7, 0x11, 0xDA, 0x27, 0x00,
@@ -77,7 +77,7 @@ uint8_t DaikinClimate::operation_mode_() {
     case climate::CLIMATE_MODE_HEAT:
       operating_mode |= DAIKIN_MODE_HEAT;
       break;
-    case climate::CLIMATE_MODE_AUTO:
+    case climate::CLIMATE_MODE_HEAT_COOL:
       operating_mode |= DAIKIN_MODE_AUTO;
       break;
     case climate::CLIMATE_MODE_FAN_ONLY:
@@ -94,7 +94,7 @@ uint8_t DaikinClimate::operation_mode_() {
 
 uint16_t DaikinClimate::fan_speed_() {
   uint16_t fan_speed;
-  switch (this->fan_mode) {
+  switch (this->fan_mode.value()) {
     case climate::CLIMATE_FAN_LOW:
       fan_speed = DAIKIN_FAN_1 << 8;
       break;
@@ -131,7 +131,7 @@ uint8_t DaikinClimate::temperature_() {
   switch (this->mode) {
     case climate::CLIMATE_MODE_FAN_ONLY:
       return 0x32;
-    case climate::CLIMATE_MODE_AUTO:
+    case climate::CLIMATE_MODE_HEAT_COOL:
     case climate::CLIMATE_MODE_DRY:
       return 0xc0;
     default:
@@ -160,7 +160,7 @@ bool DaikinClimate::parse_state_frame_(const uint8_t frame[]) {
         this->mode = climate::CLIMATE_MODE_HEAT;
         break;
       case DAIKIN_MODE_AUTO:
-        this->mode = climate::CLIMATE_MODE_AUTO;
+        this->mode = climate::CLIMATE_MODE_HEAT_COOL;
         break;
       case DAIKIN_MODE_FAN:
         this->mode = climate::CLIMATE_MODE_FAN_ONLY;

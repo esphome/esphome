@@ -13,9 +13,10 @@
 namespace esphome {
 namespace vl53l0x {
 
-static const char *TAG = "vl53l0x";
-std::list<VL53L0XSensor *> VL53L0XSensor::vl53_sensors;
-bool VL53L0XSensor::enable_pin_setup_complete = false;
+static const char *const TAG = "vl53l0x";
+
+std::list<VL53L0XSensor *> VL53L0XSensor::vl53_sensors;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+bool VL53L0XSensor::enable_pin_setup_complete = false;   // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 VL53L0XSensor::VL53L0XSensor() { VL53L0XSensor::vl53_sensors.push_back(this); }
 
