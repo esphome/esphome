@@ -85,24 +85,36 @@ void AirthingsWavePlus::read_sensors_() {
   client_->disconnect();
 }
 
+boolean AirthingsWavePlus::isValidRadonValue_(short radon) {
+  return 0 <= radon && radon <= 16383;
+}
+
+boolean AirthingsWavePlus::isValidVocValue_(short voc) {
+  return 0 <= voc && voc <= 16383;
+}
+
+boolean AirthingsWavePlus::isValidCo2Value_(short co2) {
+  return 0 <= co2 && co2 <= 16383;
+}
+
 void AirthingsWavePlus::update_() {
   update_count_++;
 
   if (!client_->isConnected()) {
-    auto currentTime = millis();
+    auto current_time = millis();
 
-    auto value_delta = currentTime - last_value_time_;
-    auto connect_delta = currentTime - last_connect_time_;
+    auto value_delta = current_time - last_value_time_;
+    auto connect_delta = current_time - last_connect_time_;
 
     connected_ = false;
 
-    if (update_count_ > 1 && !connecting_ && value_delta >= refresh_interval_in_seconds_ * 1000 &&
+    if (update_count_ > 1 && !connecting_ && value_delta >= update_interval_in_seconds_ * 1000 &&
         connect_delta >= connection_timeout_in_seconds_ * 1000) {
       auto address = BLEAddress(address_);
       ESP_LOGD(TAG, "Connecting to %s", address.toString().c_str());
       client_->connect(address);
       connecting_ = true;
-      last_connect_time_ = currentTime;
+      last_connect_time_ = current_time;
     } else if (connecting_ && connect_delta >= connection_timeout_in_seconds_ * 1000) {
       ESP_LOGD(TAG, "Stop trying to connect");
       connecting_ = false;
@@ -113,8 +125,13 @@ void AirthingsWavePlus::update_() {
   }
 }
 
+void AirthingsWavePlus::set_update_interval(uint32_t update_interval) {
+  update_interval_in_seconds_ = update_interval / 1000;
+  last_value_time_ = -update_interval;
+}
+
 void AirthingsWavePlus::dump_config() {
-  ESP_LOGCONFIG(TAG, "AirThings Wave Plus");
+  ESP_LOGCONFIG(TAG, "Update Interval: %u seconds", this->update_interval_in_seconds_);
 
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
   LOG_SENSOR("  ", "Radon", this->radon_sensor_);

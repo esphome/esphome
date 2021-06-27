@@ -22,6 +22,7 @@ class AirthingsWavePlus : public Component {
 
   void dump_config() override;
   void set_address(std::string address) { address_ = address; }
+  void set_update_interval(uint32_t update_interval);
 
   void set_temperature(sensor::Sensor *temperature) { temperature_sensor_ = temperature; }
   void set_radon(sensor::Sensor *radon) { radon_sensor_ = radon; }
@@ -32,14 +33,14 @@ class AirthingsWavePlus : public Component {
   void set_tvoc(sensor::Sensor *tvoc) { tvoc_sensor_ = tvoc; }
 
  protected:
-  int connection_timeout_in_seconds_ = 30;
-  int refresh_interval_in_seconds_ = 300;
+  uint32_t connection_timeout_in_seconds_ = 30;
+  uint32_t update_interval_in_seconds_ = 300;
 
-  int update_count_ = 0;
+  uint32_t update_count_ = 0;
   bool connected_ = false;
   bool connecting_ = false;
-  int last_value_time_ = refresh_interval_in_seconds_ * -1000;
-  int last_connect_time_ = connection_timeout_in_seconds_ * -1000;
+  int32_t last_value_time_;
+  int32_t last_connect_time_ = connection_timeout_in_seconds_ * -1000;
 
   void update_();
   void enumerate_services_();
