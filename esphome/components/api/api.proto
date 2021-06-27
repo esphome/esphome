@@ -38,6 +38,7 @@ service APIConnection {
   rpc switch_command (SwitchCommandRequest) returns (void) {}
   rpc camera_image (CameraImageRequest) returns (void) {}
   rpc climate_command (ClimateCommandRequest) returns (void) {}
+  rpc number_command (NumberCommandRequest) returns (void) {}
 }
 
 
@@ -794,4 +795,39 @@ message ClimateCommandRequest {
   ClimatePreset preset = 19;
   bool has_custom_preset = 20;
   string custom_preset = 21;
+}
+
+// ==================== NUMBER ====================
+message ListEntitiesNumberResponse {
+  option (id) = 49;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_NUMBER";
+
+  string object_id = 1;
+  fixed32 key = 2;
+  string name = 3;
+  string unique_id = 4;
+
+  string icon = 5;
+  float min_value = 6;
+  float max_value = 7;
+  float step = 8;
+}
+message NumberStateResponse {
+  option (id) = 50;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_NUMBER";
+  option (no_delay) = true;
+
+  fixed32 key = 1;
+  float state = 2;
+}
+message NumberCommandRequest {
+  option (id) = 51;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_NUMBER";
+  option (no_delay) = true;
+
+  fixed32 key = 1;
+  float state = 2;
 }

@@ -779,6 +779,43 @@ class ClimateCommandRequest : public ProtoMessage {
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
+class ListEntitiesNumberResponse : public ProtoMessage {
+ public:
+  std::string object_id{};
+  uint32_t key{0};
+  std::string name{};
+  std::string unique_id{};
+  std::string icon{};
+  float min_value{0.0f};
+  float max_value{0.0f};
+  float step{0.0f};
+  void encode(ProtoWriteBuffer buffer) const override;
+  void dump_to(std::string &out) const override;
+
+ protected:
+  bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
+};
+class NumberStateResponse : public ProtoMessage {
+ public:
+  uint32_t key{0};
+  float state{0.0f};
+  void encode(ProtoWriteBuffer buffer) const override;
+  void dump_to(std::string &out) const override;
+
+ protected:
+  bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
+};
+class NumberCommandRequest : public ProtoMessage {
+ public:
+  uint32_t key{0};
+  float state{0.0f};
+  void encode(ProtoWriteBuffer buffer) const override;
+  void dump_to(std::string &out) const override;
+
+ protected:
+  bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
+};
 
 }  // namespace api
 }  // namespace esphome
