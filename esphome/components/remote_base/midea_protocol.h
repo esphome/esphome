@@ -129,7 +129,7 @@ template<typename... Ts> class MideaToggleLightAction : public RemoteTransmitter
     MideaProtocol().encode(dst, data_);
   }
  protected:
-  MideaData data_{0xA2, 0x08, 0xFF, 0xFF, 0xFF};
+  MideaData data_ = {0xB5, 0xF5, 0xA5, 0xFF, 0xFF};
 };
 
 }  // namespace remote_base

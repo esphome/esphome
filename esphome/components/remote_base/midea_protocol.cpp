@@ -17,7 +17,7 @@ MideaData::MideaData(const std::vector<uint8_t> &data) {
 }
 
 MideaData::MideaData(std::initializer_list<uint8_t> data) {
-  memcpy(this->data(), data.begin(), std::min<size_t>(data.size(), OFFSET_CS));
+  std::copy(data.begin(), data.end(), this->data());
   finalize();
 }
 
@@ -73,11 +73,13 @@ void MideaProtocol::data(RemoteTransmitData *dst, const MideaData &src, bool com
 }
 
 void MideaProtocol::encode(RemoteTransmitData *dst, const MideaData &data) {
+  ESP_LOGD(TAG, "Encode: raw_data: %s", data.raw_data().c_str());
   dst->set_carrier_frequency(38000);
   dst->reserve(2 + 48 * 2 + 2 + 48 * 2 + 2);
   this->header(dst);
   this->data(dst, data);
   this->footer(dst);
+  this->header(dst);
   this->data(dst, data, true);
   this->footer(dst);
 }
