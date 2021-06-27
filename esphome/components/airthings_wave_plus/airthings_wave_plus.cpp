@@ -58,12 +58,20 @@ void AirthingsWavePlus::read_sensors_() {
         ESP_LOGD(TAG, "ambient light = %d", value->ambientLight);
 
         this->humidity_sensor_->publish_state(value->humidity / 2.0f);
-        this->radon_sensor_->publish_state(value->radon);
-        this->radon_long_term_sensor_->publish_state(value->radon_lt);
+        if (isValidRadonValue_(value->radon)) {
+          this->radon_sensor_->publish_state(value->radon);
+        }
+        if (isValidRadonValue_(value->radon_lt)) {
+          this->radon_long_term_sensor_->publish_state(value->radon_lt);
+        }
         this->temperature_sensor_->publish_state(value->temperature / 100.0f);
         this->pressure_sensor_->publish_state(value->pressure / 50.0f);
-        this->co2_sensor_->publish_state(value->co2);
-        this->tvoc_sensor_->publish_state(value->voc);
+        if (isValidCo2Value_(value->co2)) {
+          this->co2_sensor_->publish_state(value->co2);
+        }
+        if (isValidVocValue_(value->voc)) {
+          this->tvoc_sensor_->publish_state(value->voc);
+        }
       } else {
         ESP_LOGE(TAG, "Characteristic UUID %s invalid version (%d != 1, newer version or not a Wave Plus?)",
                  sensors_data_characteristic_uuid.c_str(), value->version);

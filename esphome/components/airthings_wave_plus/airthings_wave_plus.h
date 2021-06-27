@@ -46,6 +46,9 @@ class AirthingsWavePlus : public Component {
   void client_connected_();
   void client_disconnected_();
   void read_sensors_();
+  boolean isValidRadonValue_(short radon);
+  boolean isValidVocValue_(short voc);
+  boolean isValidCo2Value_(short co2);
 
   BLEClient *client_;
   std::string address_;
