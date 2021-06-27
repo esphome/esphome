@@ -63,7 +63,7 @@ bool MideaData::check_compliment(const MideaData &rhs) const {
 void MideaProtocol::data(RemoteTransmitData *dst, const MideaData &src, bool compliment) {
   for (const uint8_t *it = src.data(); it != src.data() + src.size(); ++it) {
     const uint8_t data = compliment ? ~(*it) : *it;
-    for (uint8_t mask = 1; mask; mask <<= 1) {
+    for (uint8_t mask = 128; mask; mask >>= 1) {
       if (data & mask)
         one(dst);
       else
@@ -114,7 +114,7 @@ bool MideaProtocol::expect_footer(RemoteReceiveData &src) {
 
 bool MideaProtocol::expect_data(RemoteReceiveData &src, MideaData &out) {
   for (uint8_t *dst = out.data(); dst != out.data() + out.size(); ++dst) {
-    for (uint8_t mask = 1; mask; mask <<= 1) {
+    for (uint8_t mask = 128; mask; mask >>= 1) {
       if (expect_one(src))
         *dst |= mask;
       else if (!expect_zero(src))
