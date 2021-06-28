@@ -550,6 +550,42 @@ void APIConnection::climate_command(const ClimateCommandRequest &msg) {
 }
 #endif
 
+#ifdef USE_NUMBER
+bool APIConnection::send_number_state(number::Number *number, float state) {
+  if (!this->state_subscription_)
+    return false;
+
+  NumberStateResponse resp{};
+  resp.key = number->get_object_id_hash();
+  resp.state = state;
+  resp.missing_state = !number->has_state();
+  return this->send_number_state_response(resp);
+}
+bool APIConnection::send_number_info(number::Number *number) {
+  ListEntitiesNumberResponse msg;
+  msg.key = number->get_object_id_hash();
+  msg.object_id = number->get_object_id();
+  msg.name = number->get_name();
+  msg.unique_id = number->unique_id();
+  if (msg.unique_id.empty())
+    msg.unique_id = get_default_unique_id("number", number);
+  msg.icon = number->get_icon();
+
+  msg.min_value = number->min_value();
+  msg.max_value = number->max_value();
+  msg.step = number->step();
+
+  return this->send_list_entities_number_response(msg);
+}
+void APIConnection::number_command(const NumberCommandRequest &msg) {
+  number::Number *number = App.get_number_by_key(msg.key);
+  if (number == nullptr)
+    return;
+
+  number->publish_state(msg.state);
+}
+#endif
+
 #ifdef USE_ESP32_CAMERA
 void APIConnection::send_camera_state(std::shared_ptr<esp32_camera::CameraImage> image) {
   if (!this->state_subscription_)
