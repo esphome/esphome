@@ -147,16 +147,15 @@ class ClimateTraits {
   bool get_supports_swing_modes() const { return !supported_swing_modes_.empty(); }
   const std::set<ClimateSwingMode> get_supported_swing_modes() { return supported_swing_modes_; }
 
-  void set_supported_tilt_modes(std::set<ClimateTilt> tiltModes) { supported_tilt_modes_ = std::move(tiltModes); }
-  void add_supported_tilt_mode(ClimateTilt tiltMode) { supported_tilt_modes_.insert(tiltMode); }
+  void set_supported_tilt_modes(std::set<ClimateTilt> tilt_modes) { supported_tilt_modes_ = std::move(tilt_modes); }
+  void add_supported_tilt_mode(ClimateTilt tilt_mode) { supported_tilt_modes_.insert(tilt_mode); }
   bool supports_tilt_mode(ClimateTilt tilt_mode) const { return supported_tilt_modes_.count(tilt_mode); }
   bool get_supports_tilt_modes() const { return !supported_tilt_modes_.empty(); }
 
-  void set_supported_pan_modes(std::set<ClimatePan> panModes) { supported_pan_modes_ = std::move(panModes); }
-  void add_supported_pan_mode(ClimatePan panMode) { supported_pan_modes_.insert(panMode); }
+  void set_supported_pan_modes(std::set<ClimatePan> pan_modes) { supported_pan_modes_ = std::move(pan_modes); }
+  void add_supported_pan_mode(ClimatePan pan_mode) { supported_pan_modes_.insert(pan_mode); }
   bool supports_pan_mode(ClimatePan pan_mode) const { return supported_pan_modes_.count(pan_mode); }
   bool get_supports_pan_modes() const { return !supported_pan_modes_.empty(); }
-
 
   float get_visual_min_temperature() const { return visual_min_temperature_; }
   void set_visual_min_temperature(float visual_min_temperature) { visual_min_temperature_ = visual_min_temperature; }
