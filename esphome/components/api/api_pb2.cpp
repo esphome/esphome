@@ -3321,6 +3321,16 @@ void ListEntitiesNumberResponse::dump_to(std::string &out) const {
   out.append("\n");
   out.append("}");
 }
+bool NumberStateResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 3: {
+      this->missing_state = value.as_bool();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
 bool NumberStateResponse::decode_32bit(uint32_t field_id, Proto32Bit value) {
   switch (field_id) {
     case 1: {
@@ -3338,6 +3348,7 @@ bool NumberStateResponse::decode_32bit(uint32_t field_id, Proto32Bit value) {
 void NumberStateResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_fixed32(1, this->key);
   buffer.encode_float(2, this->state);
+  buffer.encode_bool(3, this->missing_state);
 }
 void NumberStateResponse::dump_to(std::string &out) const {
   char buffer[64];
@@ -3350,6 +3361,10 @@ void NumberStateResponse::dump_to(std::string &out) const {
   out.append("  state: ");
   sprintf(buffer, "%g", this->state);
   out.append(buffer);
+  out.append("\n");
+
+  out.append("  missing_state: ");
+  out.append(YESNO(this->missing_state));
   out.append("\n");
   out.append("}");
 }

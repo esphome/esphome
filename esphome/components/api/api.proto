@@ -821,6 +821,9 @@ message NumberStateResponse {
 
   fixed32 key = 1;
   float state = 2;
+  // If the number does not have a valid state yet.
+  // Equivalent to `!obj->has_state()` - inverse logic to make state packets smaller
+  bool missing_state = 3;
 }
 message NumberCommandRequest {
   option (id) = 51;

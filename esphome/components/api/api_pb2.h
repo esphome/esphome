@@ -800,11 +800,13 @@ class NumberStateResponse : public ProtoMessage {
  public:
   uint32_t key{0};
   float state{0.0f};
+  bool missing_state{false};
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
 
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
 class NumberCommandRequest : public ProtoMessage {
  public:
