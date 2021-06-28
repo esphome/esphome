@@ -103,7 +103,7 @@ const char *climate_tilt_to_string(ClimateTilt tilt) {
   }
 }
 
-const char *climate_pan_to_string(ClimatePan pan){
+const char *climate_pan_to_string(ClimatePan pan) {
   switch (pan) {
     case climate::CLIMATE_PAN_AUTO:
       return "AUTO";
