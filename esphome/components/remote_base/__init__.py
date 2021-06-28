@@ -1004,8 +1004,9 @@ MideaData, MideaBinarySensor, MideaTrigger, MideaAction, MideaDumper = declare_p
 )
 MideaRawAction = ns.class_("MideaRawAction", RemoteTransmitterActionBase)
 MideaFollowMeAction = ns.class_("MideaFollowMeAction", RemoteTransmitterActionBase)
-MideaToggleLightAction = ns.class_("MideaToggleLightAction", RemoteTransmitterActionBase)
-CONF_CODE_STORAGE_ID = "code_storage_id"
+MideaToggleLightAction = ns.class_(
+    "MideaToggleLightAction", RemoteTransmitterActionBase
+)
 MIDEA_RAW_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_CODE): cv.All(
@@ -1050,10 +1051,17 @@ async def midea_raw_action(var, config, args):
         cg.add(var.set_data(arr))
 
 
+# Midea FollowMe action
+CONF_BEEPER = "beeper"
+MIDEA_FOLLOW_ME_MIN = 0
+MIDEA_FOLLOW_ME_MAX = 37
 MIDEA_FOLLOW_ME_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_TEMPERATURE): cv.All(
-            cv.int_range(0, 37),
+            cv.int_range(MIDEA_FOLLOW_ME_MIN, MIDEA_FOLLOW_ME_MAX),
+        ),
+        cv.Optional(CONF_BEEPER, default=False): cv.All(
+            cv.boolean,
         ),
     }
 )
@@ -1065,6 +1073,7 @@ MIDEA_FOLLOW_ME_SCHEMA = cv.Schema(
     MIDEA_FOLLOW_ME_SCHEMA,
 )
 async def midea_follow_me_action(var, config, args):
+    cg.add(var.set_beeper(config[CONF_BEEPER]))
     temp_ = config[CONF_TEMPERATURE]
     if cg.is_template(temp_):
         template_ = await cg.templatable(temp_, args, cg.uint8)
@@ -1072,6 +1081,8 @@ async def midea_follow_me_action(var, config, args):
     else:
         cg.add(var.set_temp(temp_))
 
+
+# Midea ToggleLight action
 @register_action(
     "midea_toggle_light",
     MideaToggleLightAction,

@@ -6,21 +6,6 @@ namespace remote_base {
 
 static const char *const TAG = "remote.midea";
 
-MideaData::MideaData(const uint8_t *data) {
-  memcpy(this->data(), data, OFFSET_CS);
-  finalize();
-}
-
-MideaData::MideaData(const std::vector<uint8_t> &data) {
-  memcpy(this->data(), data.data(), std::min<size_t>(data.size(), OFFSET_CS));
-  finalize();
-}
-
-MideaData::MideaData(std::initializer_list<uint8_t> data) {
-  std::copy(data.begin(), data.end(), this->data());
-  finalize();
-}
-
 // Reverse bits in byte
 static uint8_t s_reverse(uint8_t data) {
   static const uint8_t PROGMEM table[] = {
@@ -58,6 +43,16 @@ bool MideaData::check_compliment(const MideaData &rhs) const {
       return false;
   }
   return true;
+}
+
+void MideaCommand::set_on_timer(uint16_t minutes) {
+  uint8_t halfhours = std::min<uint16_t>(24 * 60, minutes) / 30;
+  this->data_[4] = halfhours ? ((halfhours - 1) * 2 + 1) : 0xFF;
+}
+
+void MideaCommand::set_off_timer(uint16_t minutes) {
+  uint8_t halfhours = std::min<uint16_t>(24 * 60, minutes) / 30;
+  this->set_value_(3, 0b111111, 1, halfhours ? (halfhours - 1) : 0b111111);
 }
 
 void MideaProtocol::data(RemoteTransmitData *dst, const MideaData &src, bool compliment) {
