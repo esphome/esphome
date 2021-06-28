@@ -38,3 +38,15 @@ esp32_improv:
   authorizer: io0_button
   authorized_duration: 1min
   status_indicator: built_in_led
+
+number:
+  - platform: template
+    name: My template number
+    id: template_number_id
+    on_value:
+      - logger.log:
+          format: "Number set to %f"
+          args: ["x"]
+    max_value: 100
+    min_value: 0
+    step: 5
