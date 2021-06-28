@@ -19,7 +19,11 @@ template<typename... Ts> class NumberPublishAction : public Action<Ts...> {
   NumberPublishAction(Number *number) : number_(number) {}
   TEMPLATABLE_VALUE(float, state)
 
-  void play(Ts... x) override { this->number_->publish_state(this->state_.value(x...)); }
+  void play(Ts... x) override {
+    auto call = this->number_->make_call();
+    call.set_value(this->state_.value(x...));
+    call.perform();
+  }
 
  protected:
   Number *number_;

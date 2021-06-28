@@ -566,9 +566,7 @@ bool APIConnection::send_number_info(number::Number *number) {
   msg.key = number->get_object_id_hash();
   msg.object_id = number->get_object_id();
   msg.name = number->get_name();
-  msg.unique_id = number->unique_id();
-  if (msg.unique_id.empty())
-    msg.unique_id = get_default_unique_id("number", number);
+  msg.unique_id = get_default_unique_id("number", number);
   msg.icon = number->get_icon();
 
   msg.min_value = number->min_value();
@@ -582,7 +580,9 @@ void APIConnection::number_command(const NumberCommandRequest &msg) {
   if (number == nullptr)
     return;
 
-  number->publish_state(msg.state);
+  auto call = number->make_call();
+  call.set_value(msg.state);
+  call.perform();
 }
 #endif
 

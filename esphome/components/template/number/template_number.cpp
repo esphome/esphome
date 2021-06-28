@@ -12,8 +12,15 @@ void TemplateNumber::update() {
 
   auto val = (*this->f_)();
   if (val.has_value()) {
-    this->publish_state(*val);
+    auto call = this->make_call();
+    call.set_value(*val);
+    call.perform();
   }
+}
+
+void TemplateNumber::set(const float value) {
+  // Does nothing specific for template number.
+  this->publish_state(value);
 }
 float TemplateNumber::get_setup_priority() const { return setup_priority::HARDWARE; }
 void TemplateNumber::set_template(std::function<optional<float>()> &&f) { this->f_ = f; }

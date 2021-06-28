@@ -12,10 +12,22 @@ namespace number {
     if (!(obj)->get_icon().empty()) { \
       ESP_LOGCONFIG(TAG, "%s  Icon: '%s'", prefix, (obj)->get_icon().c_str()); \
     } \
-    if (!(obj)->unique_id().empty()) { \
-      ESP_LOGV(TAG, "%s  Unique ID: '%s'", prefix, (obj)->unique_id().c_str()); \
-    } \
   }
+
+class Number;
+
+class NumberCall {
+ public:
+  explicit NumberCall(Number *parent) : parent_(parent) {}
+  NumberCall &set_value(float value);
+  void perform();
+
+  const optional<float> &get_value() const;
+
+ protected:
+  Number *const parent_;
+  optional<float> value_;
+};
 
 /** Base-class for all numbers.
  *
@@ -31,6 +43,8 @@ class Number : public Nameable {
    * @param icon The icon, for example "mdi:flash". "" to disable.
    */
   void set_icon(const std::string &icon);
+  /// Get the Home Assistant Icon. Uses the manual override if specified or the default value instead.
+  std::string get_icon();
 
   /// Getter-syntax for .state.
   float get_state() const;
@@ -38,21 +52,18 @@ class Number : public Nameable {
   /// Get the accuracy in decimals. Based on the step value.
   int8_t get_accuracy_decimals();
 
-  /// Get the Home Assistant Icon. Uses the manual override if specified or the default value instead.
-  std::string get_icon();
-
-  /** Publish a new state to the front-end.
-   *
-   * @param state The state as a floating point number.
+  /** Publish the current state to the front-end.
    */
   void publish_state(float state);
 
+  NumberCall make_call();
+
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
-  /// Add a callback that will be called every time a filtered value arrives.
+  /// Add a callback that will be called every time the state changes.
   void add_on_state_callback(std::function<void(float)> &&callback);
 
-  /** This member variable stores the last state that has passed through all filters.
+  /** This member variable stores the last state.
    *
    * On startup, when no state is available yet, this is NAN (not-a-number) and the validity
    * can be checked using has_state().
@@ -61,15 +72,16 @@ class Number : public Nameable {
    */
   float state;
 
-  /// Return whether this number has gotten a full state (that passed through all filters) yet.
+  /// Return whether this number has gotten a full state yet.
   bool has_state() const;
 
-  /** A unique ID for this number, empty for no unique id. See unique ID requirements:
-   * https://developers.home-assistant.io/docs/en/entity_registry_index.html#unique-id-requirements
+  /** Set the value of the number, this is a virtual method that each number integration must implement.
    *
-   * @return The unique id as a string.
+   * This method is called by the NumberCall.
+   *
+   * @param value The value as validated by the NumberCall.
    */
-  virtual std::string unique_id();
+  virtual void set(const float value) = 0;
 
   /// Return with which interval the number is polled. Return 0 for non-polling mode.
   virtual uint32_t update_interval();
@@ -83,30 +95,15 @@ class Number : public Nameable {
   float step() const { return this->step_; }
 
  protected:
-  /** Override this to set the Home Assistant icon for this number.
-   *
-   * Return "" to disable this feature.
-   *
-   * @return The icon of this number, for example "mdi:battery".
-   */
-  virtual std::string icon();  // NOLINT
-
   uint32_t hash_base() override;
 
-  CallbackManager<void(float)> callback_;  ///< Storage for filtered state callbacks.
+  CallbackManager<void(float)> state_callback_;
   /// Override the icon advertised to Home Assistant, otherwise number's icon will be used.
   optional<std::string> icon_;
   bool has_state_{false};
   float step_{1.0};
   float min_value_{0};
   float max_value_{100};
-};
-
-class PollingNumberComponent : public PollingComponent, public Number {
- public:
-  explicit PollingNumberComponent(const std::string &name, uint32_t update_interval);
-
-  uint32_t update_interval() override;
 };
 
 }  // namespace number

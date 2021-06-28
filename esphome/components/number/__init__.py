@@ -74,8 +74,8 @@ async def setup_number_core_(var, config):
     cg.add(var.set_name(config[CONF_NAME]))
     if CONF_INTERNAL in config:
         cg.add(var.set_internal(config[CONF_INTERNAL]))
-    if CONF_ICON in config:
-        cg.add(var.set_icon(config[CONF_ICON]))
+
+    cg.add(var.set_icon(config[CONF_ICON]))
 
     for conf in config.get(CONF_ON_VALUE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)

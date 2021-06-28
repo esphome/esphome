@@ -24,7 +24,9 @@ void MQTTNumberComponent::setup() {
       this->publish_state(NAN);
       return;
     }
-    this->number_->publish_state(*val);
+    auto call = this->number_->make_call();
+    call.set_value(*val);
+    call.perform();
   });
   this->number_->add_on_state_callback([this](float state) { this->publish_state(state); });
 }
@@ -52,10 +54,9 @@ bool MQTTNumberComponent::send_initial_state() {
 }
 bool MQTTNumberComponent::is_internal() { return this->number_->is_internal(); }
 bool MQTTNumberComponent::publish_state(float value) {
-  int8_t accuracy = 0;  // TODO
+  int8_t accuracy = this->number_->get_accuracy_decimals();
   return this->publish(this->get_state_topic_(), value_accuracy_to_string(value, accuracy));
 }
-std::string MQTTNumberComponent::unique_id() { return this->number_->unique_id(); }
 
 }  // namespace mqtt
 }  // namespace esphome
