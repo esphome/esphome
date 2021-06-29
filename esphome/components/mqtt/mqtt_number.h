@@ -14,10 +14,7 @@ class MQTTNumberComponent : public mqtt::MQTTComponent {
  public:
   /** Construct this MQTTNumberComponent instance with the provided friendly_name and number
    *
-   * Note the number is never stored and is only used for initializing some values of this class.
-   * If number is nullptr, then automatic initialization of these fields is disabled.
-   *
-   * @param number The number, this can be null to disable automatic setup.
+   * @param number The number.
    */
   explicit MQTTNumberComponent(number::Number *number);
 
