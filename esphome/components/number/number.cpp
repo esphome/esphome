@@ -13,13 +13,15 @@ void NumberCall::perform() {
     uint8_t accuracy = this->parent_->get_accuracy_decimals();
     float min_value = this->parent_->min_value();
     if (value < min_value) {
-      ESP_LOGW(TAG, "  Value %s must not be less than minimum %s", value_accuracy_to_string(value, accuracy).c_str(), value_accuracy_to_string(min_value, accuracy).c_str());
+      ESP_LOGW(TAG, "  Value %s must not be less than minimum %s", value_accuracy_to_string(value, accuracy).c_str(),
+               value_accuracy_to_string(min_value, accuracy).c_str());
       this->value_.reset();
       return;
     }
     float max_value = this->parent_->max_value();
     if (value > max_value) {
-      ESP_LOGW(TAG, "  Value %s must not be larger than maximum %s", value_accuracy_to_string(value, accuracy).c_str(), value_accuracy_to_string(max_value, accuracy).c_str());
+      ESP_LOGW(TAG, "  Value %s must not be larger than maximum %s", value_accuracy_to_string(value, accuracy).c_str(),
+               value_accuracy_to_string(max_value, accuracy).c_str());
       this->value_.reset();
       return;
     }
@@ -48,11 +50,11 @@ uint32_t Number::update_interval() { return 0; }
 Number::Number(const std::string &name) : Nameable(name), state(NAN) {}
 Number::Number() : Number("") {}
 
-void Number::add_on_state_callback(std::function<void(float)> &&callback) { this->state_callback_.add(std::move(callback)); }
-void Number::set_icon(const std::string &icon) { this->icon_ = icon; }
-std::string Number::get_icon() {
-  return *this->icon_;
+void Number::add_on_state_callback(std::function<void(float)> &&callback) {
+  this->state_callback_.add(std::move(callback));
 }
+void Number::set_icon(const std::string &icon) { this->icon_ = icon; }
+std::string Number::get_icon() { return *this->icon_; }
 int8_t Number::get_accuracy_decimals() {
   // use printf %g to find number of digits based on step
   char buf[32];
