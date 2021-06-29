@@ -1,13 +1,11 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome import automation
 from esphome.components import number
 from esphome.const import (
     CONF_ID,
     CONF_LAMBDA,
     CONF_MAX_VALUE,
     CONF_MIN_VALUE,
-    CONF_STATE,
     CONF_STEP,
 )
 from .. import template_ns
@@ -58,21 +56,3 @@ async def to_code(config):
         cg.add(var.set_max_value(config[CONF_MAX_VALUE]))
     if CONF_STEP in config:
         cg.add(var.set_step(config[CONF_STEP]))
-
-
-@automation.register_action(
-    "number.template.publish",
-    number.NumberPublishAction,
-    cv.Schema(
-        {
-            cv.Required(CONF_ID): cv.use_id(number.Number),
-            cv.Required(CONF_STATE): cv.templatable(cv.float_),
-        }
-    ),
-)
-async def number_template_publish_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_STATE], args, float)
-    cg.add(var.set_state(template_))
-    return var

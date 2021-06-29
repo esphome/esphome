@@ -14,14 +14,14 @@ class NumberStateTrigger : public Trigger<float> {
   }
 };
 
-template<typename... Ts> class NumberPublishAction : public Action<Ts...> {
+template<typename... Ts> class NumberSetAction : public Action<Ts...> {
  public:
-  NumberPublishAction(Number *number) : number_(number) {}
-  TEMPLATABLE_VALUE(float, state)
+  NumberSetAction(Number *number) : number_(number) {}
+  TEMPLATABLE_VALUE(float, value)
 
   void play(Ts... x) override {
     auto call = this->number_->make_call();
-    call.set_value(this->state_.value(x...));
+    call.set_value(this->value_.value(x...));
     call.perform();
   }
 

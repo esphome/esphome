@@ -13,6 +13,7 @@ from esphome.const import (
     CONF_TRIGGER_ID,
     CONF_NAME,
     CONF_MQTT_ID,
+    CONF_VALUE,
     ICON_EMPTY,
 )
 from esphome.core import CORE, coroutine_with_priority
@@ -33,7 +34,7 @@ ValueRangeTrigger = number_ns.class_(
 )
 
 # Actions
-NumberPublishAction = number_ns.class_("NumberPublishAction", automation.Action)
+NumberSetAction = number_ns.class_("NumberSetAction", automation.Action)
 
 # Conditions
 NumberInRangeCondition = number_ns.class_(
@@ -133,3 +134,21 @@ async def number_in_range_to_code(config, condition_id, template_arg, args):
 async def to_code(config):
     cg.add_define("USE_NUMBER")
     cg.add_global(number_ns.using)
+
+
+@automation.register_action(
+    "number.set",
+    NumberSetAction,
+    cv.Schema(
+        {
+            cv.Required(CONF_ID): cv.use_id(Number),
+            cv.Required(CONF_VALUE): cv.templatable(cv.float_),
+        }
+    ),
+)
+async def number_set_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, paren)
+    template_ = await cg.templatable(config[CONF_VALUE], args, float)
+    cg.add(var.set_value(template_))
+    return var
