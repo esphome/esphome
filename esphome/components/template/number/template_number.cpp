@@ -18,7 +18,7 @@ void TemplateNumber::update() {
   }
 }
 
-void TemplateNumber::set(const float value) {
+void TemplateNumber::set(float value) {
   // Does nothing specific for template number.
   this->publish_state(value);
 }

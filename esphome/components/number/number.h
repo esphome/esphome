@@ -81,7 +81,7 @@ class Number : public Nameable {
    *
    * @param value The value as validated by the NumberCall.
    */
-  virtual void set(const float value) = 0;
+  virtual void set(float value) = 0;
 
   /// Return with which interval the number is polled. Return 0 for non-polling mode.
   virtual uint32_t update_interval();
