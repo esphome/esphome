@@ -5,7 +5,6 @@ from esphome.components import mqtt
 from esphome.const import (
     CONF_ABOVE,
     CONF_BELOW,
-    CONF_EXPIRE_AFTER,
     CONF_ICON,
     CONF_ID,
     CONF_INTERNAL,
@@ -49,10 +48,6 @@ NUMBER_SCHEMA = cv.MQTT_COMPONENT_SCHEMA.extend(
         cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTNumberComponent),
         cv.GenerateID(): cv.declare_id(Number),
         cv.Optional(CONF_ICON, default=ICON_EMPTY): icon,
-        cv.Optional(CONF_EXPIRE_AFTER): cv.All(
-            cv.requires_component("mqtt"),
-            cv.Any(None, cv.positive_time_period_milliseconds),
-        ),
         cv.Optional(CONF_ON_VALUE): automation.validate_automation(
             {
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(NumberStateTrigger),
@@ -94,12 +89,6 @@ async def setup_number_core_(var, config):
     if CONF_MQTT_ID in config:
         mqtt_ = cg.new_Pvariable(config[CONF_MQTT_ID], var)
         await mqtt.register_mqtt_component(mqtt_, config)
-
-        if CONF_EXPIRE_AFTER in config:
-            if config[CONF_EXPIRE_AFTER] is None:
-                cg.add(mqtt_.disable_expire_after())
-            else:
-                cg.add(mqtt_.set_expire_after(config[CONF_EXPIRE_AFTER]))
 
 
 async def register_number(var, config):
