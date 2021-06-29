@@ -53,7 +53,7 @@ class MideaData {
 class MideaFollowMe : public MideaData {
  public:
   // Default constructor (temp: 30C, beeper: off)
-  MideaFollowMe() : MideaData({ MideaTypeFollowMe, 0x82, 0x6F, 0x7F, 0x1F }) {}
+  MideaFollowMe() : MideaData({ MideaTypeFollowMe, 0x82, 0x08, 0x7F, 0x1F }) {}
   // Copy from Base
   MideaFollowMe(const MideaData &data) : MideaData(data) {}
   // Direct from temperature and beeper values
@@ -77,7 +77,7 @@ class MideaFollowMe : public MideaData {
 class MideaCommand : public MideaData {
  public:
   // Default constructor: power: on, mode: auto, fan: auto, temp: 25C, all timers: off
-  MideaCommand() : MideaData({ MideaTypeCommand, 0x82, 0x6F, 0xFF, 0xFF }) {}
+  MideaCommand() : MideaData({ MideaTypeCommand, 0x82, 0x08, 0xFF, 0xFF }) {}
   // Copy from Base
   MideaCommand(const MideaData &data) : MideaData(data) {}
   // Midea modes enum
