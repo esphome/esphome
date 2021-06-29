@@ -10,8 +10,6 @@ class TemplateNumber : public number::Number, public PollingComponent {
  public:
   void set_template(std::function<optional<float>()> &&f);
 
-  void set(float value) override;
-
   void update() override;
 
   void dump_config() override;
@@ -19,6 +17,7 @@ class TemplateNumber : public number::Number, public PollingComponent {
   float get_setup_priority() const override;
 
  protected:
+  void set(float value) override;
   optional<std::function<optional<float>()>> f_;
 };
 

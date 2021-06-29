@@ -75,14 +75,6 @@ class Number : public Nameable {
   /// Return whether this number has gotten a full state yet.
   bool has_state() const;
 
-  /** Set the value of the number, this is a virtual method that each number integration must implement.
-   *
-   * This method is called by the NumberCall.
-   *
-   * @param value The value as validated by the NumberCall.
-   */
-  virtual void set(float value) = 0;
-
   /// Return with which interval the number is polled. Return 0 for non-polling mode.
   virtual uint32_t update_interval();
 
@@ -95,6 +87,16 @@ class Number : public Nameable {
   float step() const { return this->step_; }
 
  protected:
+  friend class NumberCall;
+
+  /** Set the value of the number, this is a virtual method that each number integration must implement.
+   *
+   * This method is called by the NumberCall.
+   *
+   * @param value The value as validated by the NumberCall.
+   */
+  virtual void set(float value) = 0;
+
   uint32_t hash_base() override;
 
   CallbackManager<void(float)> state_callback_;
