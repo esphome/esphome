@@ -19,7 +19,7 @@ void NumberCall::perform() {
     }
     float max_value = this->parent_->max_value();
     if (value > max_value) {
-      ESP_LOGW(TAG, "  Value %s must not be larger than maximum %s", value_accuracy_to_string(value, accuracy).c_str(), value_accuracy_to_string(min_value, accuracy).c_str());
+      ESP_LOGW(TAG, "  Value %s must not be larger than maximum %s", value_accuracy_to_string(value, accuracy).c_str(), value_accuracy_to_string(max_value, accuracy).c_str());
       this->value_.reset();
       return;
     }
