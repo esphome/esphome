@@ -82,9 +82,9 @@ class Number : public Nameable {
   void set_max_value(float max_value) { this->max_value_ = max_value; }
   void set_step(float step) { this->step_ = step; }
 
-  float min_value() const { return this->min_value_; }
-  float max_value() const { return this->max_value_; }
-  float step() const { return this->step_; }
+  float get_min_value() const { return this->min_value_; }
+  float get_max_value() const { return this->max_value_; }
+  float get_step() const { return this->step_; }
 
  protected:
   friend class NumberCall;

@@ -11,14 +11,14 @@ void NumberCall::perform() {
   if (this->value_.has_value()) {
     auto value = *this->value_;
     uint8_t accuracy = this->parent_->get_accuracy_decimals();
-    float min_value = this->parent_->min_value();
+    float min_value = this->parent_->get_min_value();
     if (value < min_value) {
       ESP_LOGW(TAG, "  Value %s must not be less than minimum %s", value_accuracy_to_string(value, accuracy).c_str(),
                value_accuracy_to_string(min_value, accuracy).c_str());
       this->value_.reset();
       return;
     }
-    float max_value = this->parent_->max_value();
+    float max_value = this->parent_->get_max_value();
     if (value > max_value) {
       ESP_LOGW(TAG, "  Value %s must not be larger than maximum %s", value_accuracy_to_string(value, accuracy).c_str(),
                value_accuracy_to_string(max_value, accuracy).c_str());

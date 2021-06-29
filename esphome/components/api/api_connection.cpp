@@ -569,9 +569,9 @@ bool APIConnection::send_number_info(number::Number *number) {
   msg.unique_id = get_default_unique_id("number", number);
   msg.icon = number->get_icon();
 
-  msg.min_value = number->min_value();
-  msg.max_value = number->max_value();
-  msg.step = number->step();
+  msg.min_value = number->get_min_value();
+  msg.max_value = number->get_max_value();
+  msg.step = number->get_step();
 
   return this->send_list_entities_number_response(msg);
 }
