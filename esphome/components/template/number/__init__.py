@@ -58,7 +58,7 @@ async def to_code(config):
         cg.add(var.set_template(template_))
     if CONF_SET_ACTION in config:
         await automation.build_automation(
-            var.get_set_trigger(), [float], config[CONF_SET_ACTION]
+            var.get_set_trigger(), [(float, "x")], config[CONF_SET_ACTION]
         )
 
     cg.add(var.set_optimistic(config[CONF_OPTIMISTIC]))
