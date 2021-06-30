@@ -1004,8 +1004,8 @@ MideaData, MideaBinarySensor, MideaTrigger, MideaAction, MideaDumper = declare_p
 )
 MideaRawAction = ns.class_("MideaRawAction", RemoteTransmitterActionBase)
 MideaFollowMeAction = ns.class_("MideaFollowMeAction", RemoteTransmitterActionBase)
-MideaToggleLightAction = ns.class_(
-    "MideaToggleLightAction", RemoteTransmitterActionBase
+MideaDisplayToggleAction = ns.class_(
+    "MideaDisplayToggleAction", RemoteTransmitterActionBase
 )
 MideaSwingStepAction = ns.class_("MideaSwingStepAction", RemoteTransmitterActionBase)
 MIDEA_RAW_SCHEMA = cv.Schema(
@@ -1085,11 +1085,11 @@ async def midea_follow_me_action(var, config, args):
 
 # Midea ToggleLight action
 @register_action(
-    "midea_toggle_light",
-    MideaToggleLightAction,
+    "midea_display_toggle",
+    MideaDisplayToggleAction,
     cv.Schema({}),
 )
-async def midea_toggle_light_action(var, config, args):
+async def midea_display_toggle_action(var, config, args):
     pass
 
 

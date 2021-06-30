@@ -1653,6 +1653,19 @@ switch:
       remote_transmitter.transmit_raw:
         code: [1000, -1000]
   - platform: template
+    name: MIDEA_RAW
+    turn_on_action:
+      remote_transmitter.transmit_midea_raw:
+        code: [0xA2, 0x08, 0xFF, 0xFF, 0xFF]
+  - platform: template
+    name: MIDEA_DISPLAY_TOGGLE
+    turn_on_action:
+      remote_transmitter.transmit_midea_display_toggle:
+  - platform: template
+    name: MIDEA_SWING_STEP
+    turn_on_action:
+      remote_transmitter.transmit_midea_swing_step:
+  - platform: template
     name: Living Room Lights
     id: livingroom_lights
     optimistic: True

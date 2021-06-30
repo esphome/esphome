@@ -178,9 +178,9 @@ template<typename... Ts> class MideaFollowMeAction : public RemoteTransmitterAct
   MideaFollowMe data_;
 };
 
-template<typename... Ts> class MideaToggleLightAction : public RemoteTransmitterActionBase<Ts...> {
+template<typename... Ts> class MideaDisplayToggleAction : public RemoteTransmitterActionBase<Ts...> {
  public:
-  MideaToggleLightAction() { this->data_.finalize(); }
+  MideaDisplayToggleAction() { this->data_.finalize(); }
   void encode(RemoteTransmitData *dst, Ts... x) override {
     MideaProtocol().encode(dst, this->data_);
   }
