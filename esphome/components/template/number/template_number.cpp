@@ -28,6 +28,7 @@ float TemplateNumber::get_setup_priority() const { return setup_priority::HARDWA
 void TemplateNumber::set_template(std::function<optional<float>()> &&f) { this->f_ = f; }
 void TemplateNumber::dump_config() {
   LOG_NUMBER("", "Template Number", this);
+  ESP_LOGCONFIG(TAG, "  Optimistic: %s", YESNO(this->optimistic_));
   LOG_UPDATE_INTERVAL(this);
 }
 
