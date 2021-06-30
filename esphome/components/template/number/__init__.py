@@ -1,3 +1,4 @@
+from esphome import automation
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import number
@@ -6,6 +7,7 @@ from esphome.const import (
     CONF_LAMBDA,
     CONF_MAX_VALUE,
     CONF_MIN_VALUE,
+    CONF_OPTIMISTIC,
     CONF_STEP,
 )
 from .. import template_ns
@@ -13,6 +15,8 @@ from .. import template_ns
 TemplateNumber = template_ns.class_(
     "TemplateNumber", number.Number, cg.PollingComponent
 )
+
+CONF_SET_ACTION = "set_action"
 
 
 def validate_min_max(config):
@@ -27,6 +31,8 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(TemplateNumber),
             cv.Optional(CONF_LAMBDA): cv.returning_lambda,
+            cv.Optional(CONF_OPTIMISTIC, default=False): cv.boolean,
+            cv.Optional(CONF_SET_ACTION): automation.validate_automation(single=True),
             cv.Inclusive(
                 CONF_MAX_VALUE, group_of_inclusion="min_max"
             ): cv.positive_float,
@@ -50,6 +56,12 @@ async def to_code(config):
             config[CONF_LAMBDA], [], return_type=cg.optional.template(float)
         )
         cg.add(var.set_template(template_))
+    if CONF_SET_ACTION in config:
+        await automation.build_automation(
+            var.get_set_trigger(), [float], config[CONF_SET_ACTION]
+        )
+
+    cg.add(var.set_optimistic(config[CONF_OPTIMISTIC]))
 
     if CONF_MIN_VALUE in config:
         cg.add(var.set_min_value(config[CONF_MIN_VALUE]))

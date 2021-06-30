@@ -43,9 +43,14 @@ number:
   - platform: template
     name: My template number
     id: template_number_id
+    optimistic: true
     on_value:
       - logger.log:
-          format: "Number set to %f"
+          format: "Number changed to %f"
+          args: ["x"]
+    on_set:
+      - logger.log:
+          format: "Template Number set to %f"
           args: ["x"]
     max_value: 100
     min_value: 0
