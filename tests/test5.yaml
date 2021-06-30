@@ -48,7 +48,7 @@ number:
       - logger.log:
           format: "Number changed to %f"
           args: ["x"]
-    on_set:
+    set_action:
       - logger.log:
           format: "Template Number set to %f"
           args: ["x"]
