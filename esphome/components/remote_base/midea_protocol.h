@@ -28,16 +28,15 @@ class MideaData {
   void finalize() { this->data_[OFFSET_CS] = this->calc_cs_(); }
   bool check_compliment(const MideaData &rhs) const;
   String raw_data() const;
-  bool operator==(const MideaData &rhs) const {
-    return !memcmp(this->data_, rhs.data_, sizeof(this->data_));
-  }
+  bool operator==(const MideaData &rhs) const { return !memcmp(this->data_, rhs.data_, sizeof(this->data_)); }
   enum MideaDataType : uint8_t {
-    MideaTypeCommand = 0xA1,
-    MideaTypeSpecial = 0xA2,
-    MideaTypeFollowMe = 0xA4,
+    MIDEA_TYPE_COMMAND = 0xA1,
+    MIDEA_TYPE_SPECIAL = 0xA2,
+    MIDEA_TYPE_FOLLOW_ME = 0xA4,
   };
   MideaDataType type() const { return static_cast<MideaDataType>(this->data_[0]); }
-  template <typename T> T to() const { return T(*this); }
+  template<typename T> T to() const { return T(*this); }
+
  protected:
   void set_value_(uint8_t offset, uint8_t val_mask, uint8_t shift, uint8_t val) {
     data_[offset] &= ~(val_mask << shift);
@@ -53,7 +52,7 @@ class MideaData {
 class MideaFollowMe : public MideaData {
  public:
   // Default constructor (temp: 30C, beeper: off)
-  MideaFollowMe() : MideaData({ MideaTypeFollowMe, 0x82, 0x48, 0x7F, 0x1F }) {}
+  MideaFollowMe() : MideaData({MIDEA_TYPE_FOLLOW_ME, 0x82, 0x48, 0x7F, 0x1F}) {}
   // Copy from Base
   MideaFollowMe(const MideaData &data) : MideaData(data) {}
   // Direct from temperature and beeper values
@@ -77,23 +76,23 @@ class MideaFollowMe : public MideaData {
 class MideaCommand : public MideaData {
  public:
   // Default constructor: power: on, mode: auto, fan: auto, temp: 25C, all timers: off
-  MideaCommand() : MideaData({ MideaTypeCommand, 0x82, 0x48, 0xFF, 0xFF }) {}
+  MideaCommand() : MideaData({MIDEA_TYPE_COMMAND, 0x82, 0x48, 0xFF, 0xFF}) {}
   // Copy from Base
   MideaCommand(const MideaData &data) : MideaData(data) {}
   // Midea modes enum
   enum MideaMode : uint8_t {
-    MideaModeCool,
-    MideaModeDry,
-    MideaModeAuto,
-    MideaModeHeat,
-    MideaModeFan,
+    MIDEA_MODE_COOL,
+    MIDEA_MODE_DRY,
+    MIDEA_MODE_AUTO,
+    MIDEA_MODE_HEAT,
+    MIDEA_MODE_FAN,
   };
   // Midea fan enum
   enum MideaFan : uint8_t {
-    MideaFanAuto,
-    MideaFanLow,
-    MideaFanMedium,
-    MideaFanHigh,
+    MIDEA_FAN_AUTO,
+    MIDEA_FAN_LOW,
+    MIDEA_FAN_MEDIUM,
+    MIDEA_FAN_HIGH,
   };
   // Set temperature setpoint
   void set_temp(uint8_t val) { this->data_[2] = std::min(MAX_TEMP, std::max(MIN_TEMP, val)) - MIN_TEMP; }
@@ -109,6 +108,7 @@ class MideaCommand : public MideaData {
   void set_on_timer(uint16_t minutes);
   // Set OFF timer (0: disable)
   void set_off_timer(uint16_t minutes);
+
  protected:
   static const uint8_t MIN_TEMP = 17;
   static const uint8_t MAX_TEMP = 30;
@@ -119,6 +119,7 @@ class MideaProtocol : public RemoteProtocol<MideaData> {
   void encode(RemoteTransmitData *dst, const MideaData &data) override;
   optional<MideaData> decode(RemoteReceiveData src) override;
   void dump(const MideaData &data) override;
+
  protected:
   static const int32_t TICK_US = 560;
   static const int32_t HEADER_HIGH_US = 8 * TICK_US;
@@ -155,6 +156,7 @@ template<typename... Ts> class MideaRawAction : public RemoteTransmitterActionBa
     }
     MideaProtocol().encode(dst, this->data_);
   }
+
  protected:
   std::function<std::vector<uint8_t>(Ts...)> code_func_{};
   MideaData data_;
@@ -173,6 +175,7 @@ template<typename... Ts> class MideaFollowMeAction : public RemoteTransmitterAct
       set_temp(this->code_func_(x...));
     MideaProtocol().encode(dst, this->data_);
   }
+
  protected:
   std::function<uint8_t(Ts...)> code_func_{};
   MideaFollowMe data_;
@@ -181,21 +184,19 @@ template<typename... Ts> class MideaFollowMeAction : public RemoteTransmitterAct
 template<typename... Ts> class MideaDisplayToggleAction : public RemoteTransmitterActionBase<Ts...> {
  public:
   MideaDisplayToggleAction() { this->data_.finalize(); }
-  void encode(RemoteTransmitData *dst, Ts... x) override {
-    MideaProtocol().encode(dst, this->data_);
-  }
+  void encode(RemoteTransmitData *dst, Ts... x) override { MideaProtocol().encode(dst, this->data_); }
+
  protected:
-  MideaData data_ = { MideaData::MideaTypeSpecial, 0x08, 0xFF, 0xFF, 0xFF };
+  MideaData data_ = {MideaData::MIDEA_TYPE_SPECIAL, 0x08, 0xFF, 0xFF, 0xFF};
 };
 
 template<typename... Ts> class MideaSwingStepAction : public RemoteTransmitterActionBase<Ts...> {
  public:
   MideaSwingStepAction() { this->data_.finalize(); }
-  void encode(RemoteTransmitData *dst, Ts... x) override {
-    MideaProtocol().encode(dst, this->data_);
-  }
+  void encode(RemoteTransmitData *dst, Ts... x) override { MideaProtocol().encode(dst, this->data_); }
+
  protected:
-  MideaData data_ = { MideaData::MideaTypeSpecial, 0x01, 0xFF, 0xFF, 0xFF };
+  MideaData data_ = {MideaData::MIDEA_TYPE_SPECIAL, 0x01, 0xFF, 0xFF, 0xFF};
 };
 
 }  // namespace remote_base

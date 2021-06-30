@@ -8,11 +8,11 @@ static const char *const TAG = "remote.midea";
 
 // Reverse bits in byte
 static uint8_t s_reverse(uint8_t data) {
-  static const uint8_t PROGMEM table[] = {
+  static const uint8_t PROGMEM TABLE[] = {
       0b0000, 0b1000, 0b0100, 0b1100, 0b0010, 0b1010, 0b0110, 0b1110,
       0b0001, 0b1001, 0b0101, 0b1101, 0b0011, 0b1011, 0b0111, 0b1111,
   };
-  return pgm_read_byte(table + data % 16) * 16 + pgm_read_byte(table + data / 16);
+  return pgm_read_byte(TABLE + data % 16) * 16 + pgm_read_byte(TABLE + data / 16);
 }
 
 uint8_t MideaData::calc_cs_() const {
@@ -70,12 +70,12 @@ void MideaProtocol::data(RemoteTransmitData *dst, const MideaData &src, bool com
 void MideaProtocol::encode(RemoteTransmitData *dst, const MideaData &data) {
   dst->set_carrier_frequency(38000);
   dst->reserve(2 + 48 * 2 + 2 + 2 + 48 * 2 + 2);
-  this->header(dst);
-  this->data(dst, data);
-  this->footer(dst);
-  this->header(dst);
-  this->data(dst, data, true);
-  this->footer(dst);
+  MideaProtocol::header(dst);
+  MideaProtocol::data(dst, data);
+  MideaProtocol::footer(dst);
+  MideaProtocol::header(dst);
+  MideaProtocol::data(dst, data, true);
+  MideaProtocol::footer(dst);
 }
 
 bool MideaProtocol::expect_one(RemoteReceiveData &src) {
@@ -109,9 +109,9 @@ bool MideaProtocol::expect_footer(RemoteReceiveData &src) {
 bool MideaProtocol::expect_data(RemoteReceiveData &src, MideaData &out) {
   for (uint8_t *dst = out.data(); dst != out.data() + out.size(); ++dst) {
     for (uint8_t mask = 128; mask; mask >>= 1) {
-      if (expect_one(src))
+      if (MideaProtocol::expect_one(src))
         *dst |= mask;
-      else if (!expect_zero(src))
+      else if (!MideaProtocol::expect_zero(src))
         return false;
     }
   }
@@ -120,15 +120,14 @@ bool MideaProtocol::expect_data(RemoteReceiveData &src, MideaData &out) {
 
 optional<MideaData> MideaProtocol::decode(RemoteReceiveData src) {
   MideaData out, inv;
-  if (this->expect_header(src) && this->expect_data(src, out) &&
-      this->expect_footer(src) && out.is_valid() &&
-      this->expect_data(src, inv) && out.check_compliment(inv))
-      return out;
+  if (MideaProtocol::expect_header(src) && MideaProtocol::expect_data(src, out) && MideaProtocol::expect_footer(src) &&
+      out.is_valid() && MideaProtocol::expect_data(src, inv) && out.check_compliment(inv))
+    return out;
   return {};
 }
 
 void MideaProtocol::dump(const MideaData &data) {
-  if (data.type() == MideaData::MideaTypeFollowMe) {
+  if (data.type() == MideaData::MIDEA_TYPE_FOLLOW_ME) {
     MideaFollowMe fm = data.to<MideaFollowMe>();
     ESP_LOGD(TAG, "Received Midea FollowMe: temp: %d, raw_data: %s", fm.temp(), fm.raw_data().c_str());
   } else {
