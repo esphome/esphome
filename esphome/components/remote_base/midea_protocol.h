@@ -188,5 +188,15 @@ template<typename... Ts> class MideaToggleLightAction : public RemoteTransmitter
   MideaData data_ = { MideaData::MideaTypeSpecial, 0x08, 0xFF, 0xFF, 0xFF };
 };
 
+template<typename... Ts> class MideaSwingStepAction : public RemoteTransmitterActionBase<Ts...> {
+ public:
+  MideaSwingStepAction() { this->data_.finalize(); }
+  void encode(RemoteTransmitData *dst, Ts... x) override {
+    MideaProtocol().encode(dst, this->data_);
+  }
+ protected:
+  MideaData data_ = { MideaData::MideaTypeSpecial, 0x01, 0xFF, 0xFF, 0xFF };
+};
+
 }  // namespace remote_base
 }  // namespace esphome

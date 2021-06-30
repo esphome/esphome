@@ -1007,6 +1007,7 @@ MideaFollowMeAction = ns.class_("MideaFollowMeAction", RemoteTransmitterActionBa
 MideaToggleLightAction = ns.class_(
     "MideaToggleLightAction", RemoteTransmitterActionBase
 )
+MideaSwingStepAction = ns.class_("MideaSwingStepAction", RemoteTransmitterActionBase)
 MIDEA_RAW_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_CODE): cv.All(
@@ -1089,4 +1090,14 @@ async def midea_follow_me_action(var, config, args):
     cv.Schema({}),
 )
 async def midea_toggle_light_action(var, config, args):
+    pass
+
+
+# Midea Swing Step action
+@register_action(
+    "midea_swing_step",
+    MideaSwingStepAction,
+    cv.Schema({}),
+)
+async def midea_swing_step_action(var, config, args):
     pass
