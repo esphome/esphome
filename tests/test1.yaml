@@ -1666,6 +1666,11 @@ switch:
     turn_on_action:
       remote_transmitter.transmit_midea_swing_step:
   - platform: template
+    name: MIDEA_FOLLOW_ME
+    turn_on_action:
+      remote_transmitter.transmit_midea_follow_me:
+        temperature: 25
+  - platform: template
     name: Living Room Lights
     id: livingroom_lights
     optimistic: True
