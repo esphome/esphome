@@ -7,7 +7,7 @@ namespace esphome {
 namespace ct_clamp {
 
 static const char *const TAG = "ct_clamp";
-bool CTClampSensor::mutex = false;
+bool CTClampSensor::mutex = false; // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 void CTClampSensor::setup() {}
 
