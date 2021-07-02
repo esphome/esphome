@@ -3,7 +3,7 @@ name: CI for docker images
 # Only run when docker paths change
 on:
   push:
-    branches: [dev, beta, master]
+    branches: [dev, beta, release]
     paths:
       - 'docker/**'
       - '.github/workflows/**'
