@@ -77,7 +77,7 @@ PLATFORMIO_ESP8266_LUT = {
     #    recommended version as otherwise a bunch of devices could be bricked
     #  * The docker images need to be updated to ship the new recommended version, in order not
     #    to DDoS platformio servers.
-    #    Update this file: https://github.com/esphome/esphome-docker-base/blob/master/platformio.ini
+    #    Update this file: https://github.com/esphome/esphome-docker-base/blob/main/platformio.ini
     "RECOMMENDED": ARDUINO_VERSION_ESP8266["2.7.4"],
     "LATEST": "espressif8266",
     "DEV": ARDUINO_VERSION_ESP8266["dev"],
