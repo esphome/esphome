@@ -1,7 +1,7 @@
 #pragma once
 
-#include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace anova {
@@ -37,19 +37,19 @@ struct AnovaPacket {
 
 class AnovaCodec {
  public:
-  AnovaPacket* get_read_device_status_request();
-  AnovaPacket* get_read_target_temp_request();
-  AnovaPacket* get_read_current_temp_request();
-  AnovaPacket* get_read_data_request();
-  AnovaPacket* get_read_unit_request();
+  AnovaPacket *get_read_device_status_request();
+  AnovaPacket *get_read_target_temp_request();
+  AnovaPacket *get_read_current_temp_request();
+  AnovaPacket *get_read_data_request();
+  AnovaPacket *get_read_unit_request();
 
-  AnovaPacket* get_set_target_temp_request(float temperature);
-  AnovaPacket* get_set_unit_request(char unit);
+  AnovaPacket *get_set_target_temp_request(float temperature);
+  AnovaPacket *get_set_unit_request(char unit);
 
-  AnovaPacket* get_start_request();
-  AnovaPacket* get_stop_request();
+  AnovaPacket *get_start_request();
+  AnovaPacket *get_stop_request();
 
-  void decode(const uint8_t* data, uint16_t length);
+  void decode(const uint8_t *data, uint16_t length);
   bool has_target_temp() { return this->has_target_temp_; }
   bool has_current_temp() { return this->has_current_temp_; }
   bool has_unit() { return this->has_unit_; }
@@ -63,7 +63,7 @@ class AnovaCodec {
   };
 
  protected:
-  AnovaPacket* clean_packet_();
+  AnovaPacket *clean_packet_();
   AnovaPacket packet_;
 
   bool has_target_temp_;
