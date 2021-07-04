@@ -119,9 +119,6 @@ void LightState::loop() {
 float LightState::get_setup_priority() const { return setup_priority::HARDWARE - 1.0f; }
 uint32_t LightState::hash_base() { return 1114400283; }
 
-LightColorValues LightState::get_current_values() { return this->current_values; }
-LightColorValues LightState::get_remote_values() { return this->remote_values; }
-
 void LightState::publish_state() {
   this->remote_values_callback_.call();
   this->next_write_ = true;

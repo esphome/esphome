@@ -201,11 +201,6 @@ CONFIG_SCHEMA = cv.Schema(
                 cv.Required(CONF_VERSION): cv.string_strict,
             }
         ),
-        cv.Optional("esphome_core_version"): cv.invalid(
-            "The esphome_core_version option has been "
-            "removed in 1.13 - the esphome core source "
-            "files are now bundled with ESPHome."
-        ),
     }
 )
 
