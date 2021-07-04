@@ -4,7 +4,7 @@
 namespace esphome {
 namespace mitsubishi {
 
-static const char *TAG = "mitsubishi.climate";
+static const char *const TAG = "mitsubishi.climate";
 
 const uint32_t MITSUBISHI_OFF = 0x00;
 
@@ -23,8 +23,8 @@ const uint16_t MITSUBISHI_HEADER_SPACE = 1700;
 const uint16_t MITSUBISHI_MIN_GAP = 17500;
 
 void MitsubishiClimate::transmit_state() {
-  uint32_t remote_state[18] = {0x23, 0xCB, 0x26, 0x01, 0x00, 0x20, 0x48, 0x00, 0x30,
-                               0x58, 0x61, 0x00, 0x00, 0x00, 0x10, 0x40, 0x00, 0x00};
+  uint32_t remote_state[18] = {0x23, 0xCB, 0x26, 0x01, 0x00, 0x20, 0x08, 0x00, 0x30,
+                               0x58, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 
   switch (this->mode) {
     case climate::CLIMATE_MODE_COOL:
@@ -33,7 +33,7 @@ void MitsubishiClimate::transmit_state() {
     case climate::CLIMATE_MODE_HEAT:
       remote_state[6] = MITSUBISHI_HEAT;
       break;
-    case climate::CLIMATE_MODE_AUTO:
+    case climate::CLIMATE_MODE_HEAT_COOL:
       remote_state[6] = MITSUBISHI_AUTO;
       break;
     case climate::CLIMATE_MODE_OFF:

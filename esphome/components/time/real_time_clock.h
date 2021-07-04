@@ -1,11 +1,11 @@
 #pragma once
 
+#include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
-#include "esphome/core/automation.h"
-#include <stdlib.h>
-#include <time.h>
 #include <bitset>
+#include <cstdlib>
+#include <ctime>
 
 namespace esphome {
 namespace time {

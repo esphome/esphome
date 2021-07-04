@@ -7,7 +7,7 @@
 namespace esphome {
 namespace tmp117 {
 
-static const char *TAG = "tmp117";
+static const char *const TAG = "tmp117";
 
 void TMP117Component::update() {
   int16_t data;

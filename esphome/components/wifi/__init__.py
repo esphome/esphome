@@ -1,7 +1,9 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
+import esphome.final_validate as fv
 from esphome import automation
 from esphome.automation import Condition
+from esphome.components.network import add_mdns_library
 from esphome.const import (
     CONF_AP,
     CONF_BSSID,
@@ -22,6 +24,7 @@ from esphome.const import (
     CONF_STATIC_IP,
     CONF_SUBNET,
     CONF_USE_ADDRESS,
+    CONF_ENABLE_MDNS,
     CONF_PRIORITY,
     CONF_IDENTITY,
     CONF_CERTIFICATE_AUTHORITY,
@@ -135,7 +138,54 @@ WIFI_NETWORK_STA = WIFI_NETWORK_BASE.extend(
 )
 
 
-def validate(config):
+def final_validate(config):
+    has_sta = bool(config.get(CONF_NETWORKS, True))
+    has_ap = CONF_AP in config
+    has_improv = "esp32_improv" in fv.full_config.get()
+    if (not has_sta) and (not has_ap) and (not has_improv):
+        raise cv.Invalid(
+            "Please specify at least an SSID or an Access Point to create."
+        )
+
+
+def final_validate_power_esp32_ble(value):
+    if not CORE.is_esp32:
+        return
+    if value != "NONE":
+        # WiFi should be in modem sleep (!=NONE) with BLE coexistence
+        # https://docs.espressif.com/projects/esp-idf/en/v3.3.5/api-guides/wifi.html#station-sleep
+        return
+    framework_version = fv.get_arduino_framework_version()
+    if framework_version not in (None, "dev") and framework_version < "1.0.5":
+        # Only frameworks 1.0.5+ impacted
+        return
+    full = fv.full_config.get()
+    for conflicting in [
+        "esp32_ble",
+        "esp32_ble_beacon",
+        "esp32_ble_server",
+        "esp32_ble_tracker",
+    ]:
+        if conflicting in full:
+            raise cv.Invalid(
+                f"power_save_mode NONE is incompatible with {conflicting}. "
+                f"Please remove the power save mode. See also "
+                f"https://github.com/esphome/issues/issues/2141#issuecomment-865688582"
+            )
+
+
+FINAL_VALIDATE_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.Optional(CONF_POWER_SAVE_MODE): final_validate_power_esp32_ble,
+        },
+        extra=cv.ALLOW_EXTRA,
+    ),
+    final_validate,
+)
+
+
+def _validate(config):
     if CONF_PASSWORD in config and CONF_SSID not in config:
         raise cv.Invalid("Cannot have WiFi password without SSID!")
 
@@ -155,9 +205,8 @@ def validate(config):
         config[CONF_NETWORKS] = cv.ensure_list(WIFI_NETWORK_STA)(network)
 
     if (CONF_NETWORKS not in config) and (CONF_AP not in config):
-        raise cv.Invalid(
-            "Please specify at least an SSID or an Access Point " "to create."
-        )
+        config = config.copy()
+        config[CONF_NETWORKS] = []
 
     if config.get(CONF_FAST_CONNECT, False):
         networks = config.get(CONF_NETWORKS, [])
@@ -187,6 +236,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_MANUAL_IP): STA_MANUAL_IP_SCHEMA,
             cv.Optional(CONF_EAP): EAP_AUTH_SCHEMA,
             cv.Optional(CONF_AP): WIFI_NETWORK_AP,
+            cv.Optional(CONF_ENABLE_MDNS, default=True): cv.boolean,
             cv.Optional(CONF_DOMAIN, default=".local"): cv.domain_name,
             cv.Optional(
                 CONF_REBOOT_TIMEOUT, default="15min"
@@ -204,7 +254,7 @@ CONFIG_SCHEMA = cv.All(
             ),
         }
     ),
-    validate,
+    _validate,
 )
 
 
@@ -274,7 +324,7 @@ def wifi_network(config, static_ip):
 
 
 @coroutine_with_priority(60.0)
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add(var.set_use_address(config[CONF_USE_ADDRESS]))
 
@@ -298,10 +348,13 @@ def to_code(config):
 
     cg.add_define("USE_WIFI")
 
+    if config[CONF_ENABLE_MDNS]:
+        add_mdns_library()
+
     # Register at end for OTA safe mode
-    yield cg.register_component(var, config)
+    await cg.register_component(var, config)
 
 
 @automation.register_condition("wifi.connected", WiFiConnectedCondition, cv.Schema({}))
-def wifi_connected_to_code(config, condition_id, template_arg, args):
-    yield cg.new_Pvariable(condition_id, template_arg)
+async def wifi_connected_to_code(config, condition_id, template_arg, args):
+    return cg.new_Pvariable(condition_id, template_arg)

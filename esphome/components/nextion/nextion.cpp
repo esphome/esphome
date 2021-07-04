@@ -4,7 +4,7 @@
 namespace esphome {
 namespace nextion {
 
-static const char *TAG = "nextion";
+static const char *const TAG = "nextion";
 
 void Nextion::setup() {
   this->send_command_no_ack("");

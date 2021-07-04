@@ -6,7 +6,7 @@
 namespace esphome {
 namespace esp32_camera {
 
-static const char *TAG = "esp32_camera";
+static const char *const TAG = "esp32_camera";
 
 void ESP32Camera::setup() {
   global_esp32_camera = this;
@@ -54,9 +54,6 @@ void ESP32Camera::dump_config() {
   switch (this->config_.frame_size) {
     case FRAMESIZE_QQVGA:
       ESP_LOGCONFIG(TAG, "  Resolution: 160x120 (QQVGA)");
-      break;
-    case FRAMESIZE_QQVGA2:
-      ESP_LOGCONFIG(TAG, "  Resolution: 128x160 (QQVGA2)");
       break;
     case FRAMESIZE_QCIF:
       ESP_LOGCONFIG(TAG, "  Resolution: 176x155 (QCIF)");
@@ -208,9 +205,6 @@ void ESP32Camera::set_frame_size(ESP32CameraFrameSize size) {
   switch (size) {
     case ESP32_CAMERA_SIZE_160X120:
       this->config_.frame_size = FRAMESIZE_QQVGA;
-      break;
-    case ESP32_CAMERA_SIZE_128X160:
-      this->config_.frame_size = FRAMESIZE_QQVGA2;
       break;
     case ESP32_CAMERA_SIZE_176X144:
       this->config_.frame_size = FRAMESIZE_QCIF;

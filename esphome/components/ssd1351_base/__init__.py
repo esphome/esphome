@@ -3,7 +3,6 @@ import esphome.config_validation as cv
 from esphome import pins
 from esphome.components import display
 from esphome.const import CONF_BRIGHTNESS, CONF_LAMBDA, CONF_MODEL, CONF_RESET_PIN
-from esphome.core import coroutine
 
 CODEOWNERS = ["@kbx81"]
 
@@ -27,19 +26,18 @@ SSD1351_SCHEMA = display.FULL_DISPLAY_SCHEMA.extend(
 ).extend(cv.polling_component_schema("1s"))
 
 
-@coroutine
-def setup_ssd1351(var, config):
-    yield cg.register_component(var, config)
-    yield display.register_display(var, config)
+async def setup_ssd1351(var, config):
+    await cg.register_component(var, config)
+    await display.register_display(var, config)
 
     cg.add(var.set_model(config[CONF_MODEL]))
     if CONF_RESET_PIN in config:
-        reset = yield cg.gpio_pin_expression(config[CONF_RESET_PIN])
+        reset = await cg.gpio_pin_expression(config[CONF_RESET_PIN])
         cg.add(var.set_reset_pin(reset))
     if CONF_BRIGHTNESS in config:
         cg.add(var.init_brightness(config[CONF_BRIGHTNESS]))
     if CONF_LAMBDA in config:
-        lambda_ = yield cg.process_lambda(
+        lambda_ = await cg.process_lambda(
             config[CONF_LAMBDA], [(display.DisplayBufferRef, "it")], return_type=cg.void
         )
         cg.add(var.set_writer(lambda_))

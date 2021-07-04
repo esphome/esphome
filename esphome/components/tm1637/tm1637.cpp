@@ -5,7 +5,7 @@
 namespace esphome {
 namespace tm1637 {
 
-const char* TAG = "display.tm1637";
+static const char *const TAG = "display.tm1637";
 const uint8_t TM1637_I2C_COMM1 = 0x40;
 const uint8_t TM1637_I2C_COMM2 = 0xC0;
 const uint8_t TM1637_I2C_COMM3 = 0x80;
@@ -46,7 +46,7 @@ const uint8_t TM1637_ASCII_TO_RAW[] PROGMEM = {
     0b01011111,           // '6', ord 0x36
     0b01110000,           // '7', ord 0x37
     0b01111111,           // '8', ord 0x38
-    0b01110011,           // '9', ord 0x39
+    0b01111011,           // '9', ord 0x39
     0b01001000,           // ':', ord 0x3A
     0b01011000,           // ';', ord 0x3B
     TM1637_UNKNOWN_CHAR,  // '<', ord 0x3C
@@ -136,7 +136,7 @@ void TM1637Display::dump_config() {
 }
 
 void TM1637Display::update() {
-  for (uint8_t& i : this->buffer_)
+  for (uint8_t &i : this->buffer_)
     i = 0;
   if (this->writer_.has_value())
     (*this->writer_)(*this);
@@ -227,7 +227,7 @@ bool TM1637Display::send_byte_(uint8_t b) {
   return ack;
 }
 
-uint8_t TM1637Display::print(uint8_t start_pos, const char* str) {
+uint8_t TM1637Display::print(uint8_t start_pos, const char *str) {
   ESP_LOGV(TAG, "Print at %d: %s", start_pos, str);
   uint8_t pos = start_pos;
   for (; *str != '\0'; str++) {
@@ -253,7 +253,7 @@ uint8_t TM1637Display::print(uint8_t start_pos, const char* str) {
         pos--;
       this->buffer_[pos] |= 0b10000000;
     } else {
-      if (pos >= 4) {
+      if (pos >= 6) {
         ESP_LOGE(TAG, "String is too long for the display!");
         break;
       }
@@ -263,8 +263,8 @@ uint8_t TM1637Display::print(uint8_t start_pos, const char* str) {
   }
   return pos - start_pos;
 }
-uint8_t TM1637Display::print(const char* str) { return this->print(0, str); }
-uint8_t TM1637Display::printf(uint8_t pos, const char* format, ...) {
+uint8_t TM1637Display::print(const char *str) { return this->print(0, str); }
+uint8_t TM1637Display::printf(uint8_t pos, const char *format, ...) {
   va_list arg;
   va_start(arg, format);
   char buffer[64];
@@ -274,7 +274,7 @@ uint8_t TM1637Display::printf(uint8_t pos, const char* format, ...) {
     return this->print(pos, buffer);
   return 0;
 }
-uint8_t TM1637Display::printf(const char* format, ...) {
+uint8_t TM1637Display::printf(const char *format, ...) {
   va_list arg;
   va_start(arg, format);
   char buffer[64];
@@ -286,14 +286,14 @@ uint8_t TM1637Display::printf(const char* format, ...) {
 }
 
 #ifdef USE_TIME
-uint8_t TM1637Display::strftime(uint8_t pos, const char* format, time::ESPTime time) {
+uint8_t TM1637Display::strftime(uint8_t pos, const char *format, time::ESPTime time) {
   char buffer[64];
   size_t ret = time.strftime(buffer, sizeof(buffer), format);
   if (ret > 0)
     return this->print(pos, buffer);
   return 0;
 }
-uint8_t TM1637Display::strftime(const char* format, time::ESPTime time) { return this->strftime(0, format, time); }
+uint8_t TM1637Display::strftime(const char *format, time::ESPTime time) { return this->strftime(0, format, time); }
 #endif
 
 }  // namespace tm1637

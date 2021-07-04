@@ -1,6 +1,7 @@
 from esphome import pins
 import esphome.config_validation as cv
 import esphome.codegen as cg
+from esphome.components.network import add_mdns_library
 from esphome.const import (
     CONF_DOMAIN,
     CONF_ID,
@@ -9,6 +10,7 @@ from esphome.const import (
     CONF_TYPE,
     CONF_USE_ADDRESS,
     ESP_PLATFORM_ESP32,
+    CONF_ENABLE_MDNS,
     CONF_GATEWAY,
     CONF_SUBNET,
     CONF_DNS1,
@@ -57,7 +59,7 @@ IPAddress = cg.global_ns.class_("IPAddress")
 ManualIP = ethernet_ns.struct("ManualIP")
 
 
-def validate(config):
+def _validate(config):
     if CONF_USE_ADDRESS not in config:
         if CONF_MANUAL_IP in config:
             use_address = str(config[CONF_MANUAL_IP][CONF_STATIC_IP])
@@ -80,6 +82,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_PHY_ADDR, default=0): cv.int_range(min=0, max=31),
             cv.Optional(CONF_POWER_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_MANUAL_IP): MANUAL_IP_SCHEMA,
+            cv.Optional(CONF_ENABLE_MDNS, default=True): cv.boolean,
             cv.Optional(CONF_DOMAIN, default=".local"): cv.domain_name,
             cv.Optional(CONF_USE_ADDRESS): cv.string_strict,
             cv.Optional("hostname"): cv.invalid(
@@ -87,7 +90,7 @@ CONFIG_SCHEMA = cv.All(
             ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
-    validate,
+    _validate,
 )
 
 
@@ -103,9 +106,9 @@ def manual_ip(config):
 
 
 @coroutine_with_priority(60.0)
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
+    await cg.register_component(var, config)
 
     cg.add(var.set_phy_addr(config[CONF_PHY_ADDR]))
     cg.add(var.set_mdc_pin(config[CONF_MDC_PIN]))
@@ -115,10 +118,13 @@ def to_code(config):
     cg.add(var.set_use_address(config[CONF_USE_ADDRESS]))
 
     if CONF_POWER_PIN in config:
-        pin = yield cg.gpio_pin_expression(config[CONF_POWER_PIN])
+        pin = await cg.gpio_pin_expression(config[CONF_POWER_PIN])
         cg.add(var.set_power_pin(pin))
 
     if CONF_MANUAL_IP in config:
         cg.add(var.set_manual_ip(manual_ip(config[CONF_MANUAL_IP])))
 
     cg.add_define("USE_ETHERNET")
+
+    if config[CONF_ENABLE_MDNS]:
+        add_mdns_library()

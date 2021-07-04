@@ -18,7 +18,7 @@
 namespace esphome {
 namespace aht10 {
 
-static const char *TAG = "aht10";
+static const char *const TAG = "aht10";
 static const uint8_t AHT10_CALIBRATE_CMD[] = {0xE1};
 static const uint8_t AHT10_MEASURE_CMD[] = {0xAC, 0x33, 0x00};
 static const uint8_t AHT10_DEFAULT_DELAY = 5;    // ms, for calibration and temperature measurement
@@ -60,6 +60,7 @@ void AHT10Component::update() {
     delay = AHT10_HUMIDITY_DELAY;
   for (int i = 0; i < AHT10_ATTEMPS; ++i) {
     ESP_LOGVV(TAG, "Attemps %u at %6ld", i, millis());
+    delay_microseconds_accurate(4);
     if (!this->read_bytes(0, data, 6, delay)) {
       ESP_LOGD(TAG, "Communication with AHT10 failed, waiting...");
     } else if ((data[0] & 0x80) == 0x80) {  // Bit[7] = 0b1, device is busy

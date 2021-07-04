@@ -4,7 +4,7 @@
 namespace esphome {
 namespace remote_base {
 
-static const char *TAG = "remote.sony";
+static const char *const TAG = "remote.sony";
 
 static const uint32_t HEADER_HIGH_US = 2400;
 static const uint32_t HEADER_LOW_US = 600;

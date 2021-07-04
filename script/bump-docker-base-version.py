@@ -29,11 +29,6 @@ def write_version(version: str):
         f"ARG BUILD_FROM=esphome/esphome-base-amd64:{version}",
     )
     sub(
-        "docker/Dockerfile.dev",
-        r"FROM esphome/esphome-base-amd64:.*",
-        f"FROM esphome/esphome-base-amd64:{version}",
-    )
-    sub(
         "docker/Dockerfile.lint",
         r"FROM esphome/esphome-lint-base:.*",
         f"FROM esphome/esphome-lint-base:{version}",

@@ -10,7 +10,7 @@
 namespace esphome {
 namespace xiaomi_ble {
 
-static const char *TAG = "xiaomi_ble";
+static const char *const TAG = "xiaomi_ble";
 
 bool parse_xiaomi_value(uint8_t value_type, const uint8_t *data, uint8_t value_length, XiaomiParseResult &result) {
   // motion detection, 1 byte, 8-bit unsigned integer
@@ -189,6 +189,9 @@ optional<XiaomiParseResult> parse_xiaomi_header(const esp32_ble_tracker::Service
   } else if ((raw[2] == 0x76) && (raw[3] == 0x05)) {  // Cleargrass (Qingping) alarm clock, segment LCD
     result.type = XiaomiParseResult::TYPE_CGD1;
     result.name = "CGD1";
+  } else if ((raw[2] == 0x6F) && (raw[3] == 0x06)) {  // Cleargrass (Qingping) Temp & RH Lite
+    result.type = XiaomiParseResult::TYPE_CGDK2;
+    result.name = "CGDK2";
   } else if ((raw[2] == 0x5b) && (raw[3] == 0x05)) {  // small square body, segment LCD, encrypted
     result.type = XiaomiParseResult::TYPE_LYWSD03MMC;
     result.name = "LYWSD03MMC";

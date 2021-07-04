@@ -5,7 +5,7 @@
 namespace esphome {
 namespace speed {
 
-static const char *TAG = "speed.fan";
+static const char *const TAG = "speed.fan";
 
 void SpeedFan::dump_config() {
   ESP_LOGCONFIG(TAG, "Fan '%s':", this->fan_->get_name().c_str());

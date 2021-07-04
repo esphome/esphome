@@ -16,7 +16,7 @@
 namespace esphome {
 namespace api {
 
-static const char *TAG = "api.connection";
+static const char *const TAG = "api.connection";
 
 APIConnection::APIConnection(AsyncClient *client, APIServer *parent)
     : client_(client), parent_(parent), initial_state_iterator_(parent, this), list_entities_iterator_(parent, this) {
@@ -395,6 +395,8 @@ bool APIConnection::send_sensor_info(sensor::Sensor *sensor) {
   msg.accuracy_decimals = sensor->get_accuracy_decimals();
   msg.force_update = sensor->get_force_update();
   msg.device_class = sensor->get_device_class();
+  msg.state_class = static_cast<enums::SensorStateClass>(sensor->state_class);
+
   return this->send_list_entities_sensor_response(msg);
 }
 #endif
@@ -473,10 +475,16 @@ bool APIConnection::send_climate_state(climate::Climate *climate) {
   } else {
     resp.target_temperature = climate->target_temperature;
   }
-  if (traits.get_supports_away())
-    resp.away = climate->away;
-  if (traits.get_supports_fan_modes())
-    resp.fan_mode = static_cast<enums::ClimateFanMode>(climate->fan_mode);
+  if (traits.get_supports_fan_modes() && climate->fan_mode.has_value())
+    resp.fan_mode = static_cast<enums::ClimateFanMode>(climate->fan_mode.value());
+  if (!traits.get_supported_custom_fan_modes().empty() && climate->custom_fan_mode.has_value())
+    resp.custom_fan_mode = climate->custom_fan_mode.value();
+  if (traits.get_supports_presets() && climate->preset.has_value()) {
+    resp.preset = static_cast<enums::ClimatePreset>(climate->preset.value());
+    resp.legacy_away = resp.preset == enums::CLIMATE_PRESET_AWAY;
+  }
+  if (!traits.get_supported_custom_presets().empty() && climate->custom_preset.has_value())
+    resp.custom_preset = climate->custom_preset.value();
   if (traits.get_supports_swing_modes())
     resp.swing_mode = static_cast<enums::ClimateSwingMode>(climate->swing_mode);
   return this->send_climate_state_response(resp);
@@ -490,27 +498,26 @@ bool APIConnection::send_climate_info(climate::Climate *climate) {
   msg.unique_id = get_default_unique_id("climate", climate);
   msg.supports_current_temperature = traits.get_supports_current_temperature();
   msg.supports_two_point_target_temperature = traits.get_supports_two_point_target_temperature();
-  for (auto mode : {climate::CLIMATE_MODE_AUTO, climate::CLIMATE_MODE_OFF, climate::CLIMATE_MODE_COOL,
-                    climate::CLIMATE_MODE_HEAT, climate::CLIMATE_MODE_DRY, climate::CLIMATE_MODE_FAN_ONLY}) {
-    if (traits.supports_mode(mode))
-      msg.supported_modes.push_back(static_cast<enums::ClimateMode>(mode));
-  }
+
+  for (auto mode : traits.get_supported_modes())
+    msg.supported_modes.push_back(static_cast<enums::ClimateMode>(mode));
+
   msg.visual_min_temperature = traits.get_visual_min_temperature();
   msg.visual_max_temperature = traits.get_visual_max_temperature();
   msg.visual_temperature_step = traits.get_visual_temperature_step();
-  msg.supports_away = traits.get_supports_away();
+  msg.legacy_supports_away = traits.supports_preset(climate::CLIMATE_PRESET_AWAY);
   msg.supports_action = traits.get_supports_action();
-  for (auto fan_mode : {climate::CLIMATE_FAN_ON, climate::CLIMATE_FAN_OFF, climate::CLIMATE_FAN_AUTO,
-                        climate::CLIMATE_FAN_LOW, climate::CLIMATE_FAN_MEDIUM, climate::CLIMATE_FAN_HIGH,
-                        climate::CLIMATE_FAN_MIDDLE, climate::CLIMATE_FAN_FOCUS, climate::CLIMATE_FAN_DIFFUSE}) {
-    if (traits.supports_fan_mode(fan_mode))
-      msg.supported_fan_modes.push_back(static_cast<enums::ClimateFanMode>(fan_mode));
-  }
-  for (auto swing_mode : {climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_BOTH, climate::CLIMATE_SWING_VERTICAL,
-                          climate::CLIMATE_SWING_HORIZONTAL}) {
-    if (traits.supports_swing_mode(swing_mode))
-      msg.supported_swing_modes.push_back(static_cast<enums::ClimateSwingMode>(swing_mode));
-  }
+
+  for (auto fan_mode : traits.get_supported_fan_modes())
+    msg.supported_fan_modes.push_back(static_cast<enums::ClimateFanMode>(fan_mode));
+  for (auto const &custom_fan_mode : traits.get_supported_custom_fan_modes())
+    msg.supported_custom_fan_modes.push_back(custom_fan_mode);
+  for (auto preset : traits.get_supported_presets())
+    msg.supported_presets.push_back(static_cast<enums::ClimatePreset>(preset));
+  for (auto const &custom_preset : traits.get_supported_custom_presets())
+    msg.supported_custom_presets.push_back(custom_preset);
+  for (auto swing_mode : traits.get_supported_swing_modes())
+    msg.supported_swing_modes.push_back(static_cast<enums::ClimateSwingMode>(swing_mode));
   return this->send_list_entities_climate_response(msg);
 }
 void APIConnection::climate_command(const ClimateCommandRequest &msg) {
@@ -527,10 +534,16 @@ void APIConnection::climate_command(const ClimateCommandRequest &msg) {
     call.set_target_temperature_low(msg.target_temperature_low);
   if (msg.has_target_temperature_high)
     call.set_target_temperature_high(msg.target_temperature_high);
-  if (msg.has_away)
-    call.set_away(msg.away);
+  if (msg.has_legacy_away)
+    call.set_preset(msg.legacy_away ? climate::CLIMATE_PRESET_AWAY : climate::CLIMATE_PRESET_HOME);
   if (msg.has_fan_mode)
     call.set_fan_mode(static_cast<climate::ClimateFanMode>(msg.fan_mode));
+  if (msg.has_custom_fan_mode)
+    call.set_fan_mode(msg.custom_fan_mode);
+  if (msg.has_preset)
+    call.set_preset(static_cast<climate::ClimatePreset>(msg.preset));
+  if (msg.has_custom_preset)
+    call.set_preset(msg.custom_preset);
   if (msg.has_swing_mode)
     call.set_swing_mode(static_cast<climate::ClimateSwingMode>(msg.swing_mode));
   call.perform();
@@ -602,7 +615,7 @@ HelloResponse APIConnection::hello(const HelloRequest &msg) {
 
   HelloResponse resp;
   resp.api_version_major = 1;
-  resp.api_version_minor = 4;
+  resp.api_version_minor = 5;
   resp.server_info = App.get_name() + " (esphome v" ESPHOME_VERSION ")";
   this->connection_state_ = ConnectionState::CONNECTED;
   return resp;
@@ -638,12 +651,17 @@ DeviceInfoResponse APIConnection::device_info(const DeviceInfoRequest &msg) {
 #ifdef USE_DEEP_SLEEP
   resp.has_deep_sleep = deep_sleep::global_has_deep_sleep;
 #endif
+#ifdef ESPHOME_PROJECT_NAME
+  resp.project_name = ESPHOME_PROJECT_NAME;
+  resp.project_version = ESPHOME_PROJECT_VERSION;
+#endif
   return resp;
 }
 void APIConnection::on_home_assistant_state_response(const HomeAssistantStateResponse &msg) {
   for (auto &it : this->parent_->get_state_subs())
-    if (it.entity_id == msg.entity_id)
+    if (it.entity_id == msg.entity_id && it.attribute.value() == msg.attribute) {
       it.callback(msg.state);
+    }
 }
 void APIConnection::execute_service(const ExecuteServiceRequest &msg) {
   bool found = false;
@@ -660,6 +678,7 @@ void APIConnection::subscribe_home_assistant_states(const SubscribeHomeAssistant
   for (auto &it : this->parent_->get_state_subs()) {
     SubscribeHomeAssistantStateResponse resp;
     resp.entity_id = it.entity_id;
+    resp.attribute = it.attribute.value();
     if (!this->send_subscribe_home_assistant_state_response(resp)) {
       this->on_fatal_error();
       return;

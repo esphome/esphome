@@ -3,9 +3,14 @@
 namespace esphome {
 namespace midea_ac {
 
-const uint8_t QueryFrame::INIT[] = {0xAA, 0x22, 0xAC, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0x03, 0x41, 0x00,
-                                    0x00, 0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                                    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x84, 0x68};
+static const char *const TAG = "midea_ac";
+const std::string MIDEA_SILENT_FAN_MODE = "silent";
+const std::string MIDEA_TURBO_FAN_MODE = "turbo";
+const std::string MIDEA_FREEZE_PROTECTION_PRESET = "freeze protection";
+
+const uint8_t QueryFrame::INIT[] = {0xAA, 0x21, 0xAC, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0x41, 0x81,
+                                    0x00, 0xFF, 0x03, 0xFF, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0x00, 0x37, 0x31};
 
 const uint8_t PowerQueryFrame::INIT[] = {0xAA, 0x22, 0xAC, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0x03, 0x41, 0x21,
                                          0x01, 0x44, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -39,7 +44,7 @@ climate::ClimateMode PropertiesFrame::get_mode() const {
     return climate::CLIMATE_MODE_OFF;
   switch (this->pbuf_[12] >> 5) {
     case MIDEA_MODE_AUTO:
-      return climate::CLIMATE_MODE_AUTO;
+      return climate::CLIMATE_MODE_HEAT_COOL;
     case MIDEA_MODE_COOL:
       return climate::CLIMATE_MODE_COOL;
     case MIDEA_MODE_DRY:
@@ -56,7 +61,7 @@ climate::ClimateMode PropertiesFrame::get_mode() const {
 void PropertiesFrame::set_mode(climate::ClimateMode mode) {
   uint8_t m;
   switch (mode) {
-    case climate::CLIMATE_MODE_AUTO:
+    case climate::CLIMATE_MODE_HEAT_COOL:
       m = MIDEA_MODE_AUTO;
       break;
     case climate::CLIMATE_MODE_COOL:
@@ -78,6 +83,54 @@ void PropertiesFrame::set_mode(climate::ClimateMode mode) {
   this->set_power_(true);
   this->pbuf_[12] &= ~0xE0;
   this->pbuf_[12] |= m << 5;
+}
+
+optional<climate::ClimatePreset> PropertiesFrame::get_preset() const {
+  if (this->get_eco_mode()) {
+    return climate::CLIMATE_PRESET_ECO;
+  } else if (this->get_sleep_mode()) {
+    return climate::CLIMATE_PRESET_SLEEP;
+  } else if (this->get_turbo_mode()) {
+    return climate::CLIMATE_PRESET_BOOST;
+  } else {
+    return climate::CLIMATE_PRESET_HOME;
+  }
+}
+
+void PropertiesFrame::set_preset(climate::ClimatePreset preset) {
+  switch (preset) {
+    case climate::CLIMATE_PRESET_ECO:
+      this->set_eco_mode(true);
+      break;
+    case climate::CLIMATE_PRESET_SLEEP:
+      this->set_sleep_mode(true);
+      break;
+    case climate::CLIMATE_PRESET_BOOST:
+      this->set_turbo_mode(true);
+      break;
+    default:
+      break;
+  }
+}
+
+bool PropertiesFrame::is_custom_preset() const { return this->get_freeze_protection_mode(); }
+
+const std::string &PropertiesFrame::get_custom_preset() const { return midea_ac::MIDEA_FREEZE_PROTECTION_PRESET; };
+
+void PropertiesFrame::set_custom_preset(const std::string &preset) {
+  if (preset == MIDEA_FREEZE_PROTECTION_PRESET) {
+    this->set_freeze_protection_mode(true);
+  }
+}
+
+bool PropertiesFrame::is_custom_fan_mode() const {
+  switch (this->pbuf_[13]) {
+    case MIDEA_FAN_SILENT:
+    case MIDEA_FAN_TURBO:
+      return true;
+    default:
+      return false;
+  }
 }
 
 climate::ClimateFanMode PropertiesFrame::get_fan_mode() const {
@@ -108,6 +161,25 @@ void PropertiesFrame::set_fan_mode(climate::ClimateFanMode mode) {
     default:
       m = MIDEA_FAN_AUTO;
       break;
+  }
+  this->pbuf_[13] = m;
+}
+
+const std::string &PropertiesFrame::get_custom_fan_mode() const {
+  switch (this->pbuf_[13]) {
+    case MIDEA_FAN_SILENT:
+      return MIDEA_SILENT_FAN_MODE;
+    default:
+      return MIDEA_TURBO_FAN_MODE;
+  }
+}
+
+void PropertiesFrame::set_custom_fan_mode(const std::string &mode) {
+  uint8_t m;
+  if (mode == MIDEA_SILENT_FAN_MODE) {
+    m = MIDEA_FAN_SILENT;
+  } else {
+    m = MIDEA_FAN_TURBO;
   }
   this->pbuf_[13] = m;
 }

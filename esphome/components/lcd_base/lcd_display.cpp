@@ -5,7 +5,7 @@
 namespace esphome {
 namespace lcd_base {
 
-static const char *TAG = "lcd";
+static const char *const TAG = "lcd";
 
 // First set bit determines command, bits after that are the data.
 static const uint8_t LCD_DISPLAY_COMMAND_CLEAR_DISPLAY = 0x01;
