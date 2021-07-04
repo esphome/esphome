@@ -71,7 +71,7 @@ CONFIG_SCHEMA = cv.Schema(
         ),
         cv.Optional(CONF_CURRENT_RESISTOR, default=0.001): cv.resistance,
         cv.Optional(CONF_VOLTAGE_DIVIDER, default=2351): cv.positive_float,
-        cv.Optional(CONF_MODEL, default="HLW8012"): cv.one_of(*MODELS, upper=True),
+        cv.Optional(CONF_MODEL, default="HLW8012"): cv.enum(MODELS, upper=True),
         cv.Optional(CONF_CHANGE_MODE_EVERY, default=8): cv.All(
             cv.uint32_t, cv.Range(min=1)
         ),
@@ -109,4 +109,4 @@ async def to_code(config):
     cg.add(var.set_voltage_divider(config[CONF_VOLTAGE_DIVIDER]))
     cg.add(var.set_change_mode_every(config[CONF_CHANGE_MODE_EVERY]))
     cg.add(var.set_initial_mode(INITIAL_MODES[config[CONF_INITIAL_MODE]]))
-    cg.add(var.set_sensor_model(MODELS[config[CONF_MODEL]]))
+    cg.add(var.set_sensor_model(config[CONF_MODEL]))
