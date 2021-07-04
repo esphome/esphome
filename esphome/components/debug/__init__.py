@@ -16,7 +16,7 @@ from esphome.const import (
     DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_MEMORY,
 )
-import esphome.core_config as cc
+import esphome.core.config as cc
 
 CODEOWNERS = ["@OttoWinter"]
 DEPENDENCIES = ["logger"]
