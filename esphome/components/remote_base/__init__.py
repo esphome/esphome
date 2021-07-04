@@ -176,7 +176,9 @@ validate_binary_sensor = cv.validate_registry_entry(
 TRIGGER_REGISTRY = SimpleRegistry()
 DUMPER_REGISTRY = Registry(
     {
-        cv.GenerateID(CONF_RECEIVER_ID): cv.use_id(RemoteReceiverBase),
+        cv.Optional(CONF_RECEIVER_ID): cv.invalid(
+            "This has been removed in ESPHome 1.20.0 and the dumper attaches directly to the parent receiver."
+        ),
     }
 )
 
@@ -228,8 +230,6 @@ async def build_dumpers(config):
     dumpers = []
     for conf in config:
         dumper = await cg.build_registry_entry(DUMPER_REGISTRY, conf)
-        receiver = await cg.get_variable(conf[CONF_RECEIVER_ID])
-        cg.add(receiver.register_dumper(dumper))
         dumpers.append(dumper)
     return dumpers
 
