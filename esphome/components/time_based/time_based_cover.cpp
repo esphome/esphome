@@ -115,13 +115,13 @@ void TimeBasedCover::start_direction_(CoverOperation dir) {
 
   this->current_operation = dir;
 
-  this->stop_prev_trigger_();
-  trig->trigger();
-  this->prev_command_trigger_ = trig;
-
   const uint32_t now = millis();
   this->start_dir_time_ = now;
   this->last_recompute_time_ = now;
+
+  this->stop_prev_trigger_();
+  trig->trigger();
+  this->prev_command_trigger_ = trig;
 }
 void TimeBasedCover::recompute_position_() {
   if (this->current_operation == COVER_OPERATION_IDLE)
