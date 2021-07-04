@@ -1526,6 +1526,26 @@ climate:
     name: Toshiba Climate
   - platform: hitachi_ac344
     name: Hitachi Climate
+  - platform: midea_ac
+    visual:
+      min_temperature: 18 °C
+      max_temperature: 25 °C
+      temperature_step: 0.1 °C
+    name: 'Electrolux EACS'
+    beeper: true
+    outdoor_temperature:
+      name: 'Temp'
+    power_usage:
+      name: 'Power'
+    humidity_setpoint:
+      name: 'Hum'
+  - platform: anova
+    name: Anova cooker
+    ble_client_id: ble_blah
+
+midea_dongle:
+  uart_id: uart0
+  strength_icon: true
 
 switch:
   - platform: gpio
