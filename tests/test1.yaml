@@ -514,6 +514,7 @@ sensor:
     voltage_divider: 2351
     change_mode_every: 16
     initial_mode: VOLTAGE
+    model: hlw8012
   - platform: total_daily_energy
     power_id: hlw8012_power
     name: 'HLW8012 Total Daily Energy'
