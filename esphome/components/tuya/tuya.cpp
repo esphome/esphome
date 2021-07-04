@@ -432,6 +432,7 @@ void Tuya::set_datapoint_value(uint8_t datapoint_id, const std::string &value) {
   optional<TuyaDatapoint> datapoint = this->get_datapoint_(datapoint_id);
   if (!datapoint.has_value()) {
     ESP_LOGE(TAG, "Attempt to set unknown datapoint %u", datapoint_id);
+    return;
   }
   if (datapoint->value_string == value) {
     ESP_LOGV(TAG, "Not sending unchanged value");
