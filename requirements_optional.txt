@@ -1,0 +1,2 @@
+pillow>4.0.0
+cryptography>=2.0.0,<4

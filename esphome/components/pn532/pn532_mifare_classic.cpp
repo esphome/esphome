@@ -4,7 +4,7 @@
 namespace esphome {
 namespace pn532 {
 
-static const char *TAG = "pn532.mifare_classic";
+static const char *const TAG = "pn532.mifare_classic";
 
 nfc::NfcTag *PN532::read_mifare_classic_tag_(std::vector<uint8_t> &uid) {
   uint8_t current_block = 4;

@@ -73,17 +73,16 @@ const uint8_t HITACHI_AC344_MILDEWPROOF_OFFSET = 2;  // Mask 0b00000x00
 const uint16_t HITACHI_AC344_STATE_LENGTH = 43;
 const uint16_t HITACHI_AC344_BITS = HITACHI_AC344_STATE_LENGTH * 8;
 
-#define GETBIT8(a, b) (a & ((uint8_t) 1 << b))
+#define GETBIT8(a, b) ((a) & ((uint8_t) 1 << (b)))
 #define GETBITS8(data, offset, size) (((data) & (((uint8_t) UINT8_MAX >> (8 - (size))) << (offset))) >> (offset))
 
 class HitachiClimate : public climate_ir::ClimateIR {
  public:
   HitachiClimate()
-      : climate_ir::ClimateIR(
-            HITACHI_AC344_TEMP_MIN, HITACHI_AC344_TEMP_MAX, 1.0F, true, true,
-            std::vector<climate::ClimateFanMode>{climate::CLIMATE_FAN_AUTO, climate::CLIMATE_FAN_LOW,
-                                                 climate::CLIMATE_FAN_MEDIUM, climate::CLIMATE_FAN_HIGH},
-            std::vector<climate::ClimateSwingMode>{climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_HORIZONTAL}) {}
+      : climate_ir::ClimateIR(HITACHI_AC344_TEMP_MIN, HITACHI_AC344_TEMP_MAX, 1.0F, true, true,
+                              {climate::CLIMATE_FAN_AUTO, climate::CLIMATE_FAN_LOW, climate::CLIMATE_FAN_MEDIUM,
+                               climate::CLIMATE_FAN_HIGH},
+                              {climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_HORIZONTAL}) {}
 
  protected:
   uint8_t remote_state_[HITACHI_AC344_STATE_LENGTH]{0x01, 0x10, 0x00, 0x40, 0x00, 0xFF, 0x00, 0xCC, 0x00, 0x00, 0x00,

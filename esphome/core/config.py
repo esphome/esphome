@@ -21,10 +21,12 @@ from esphome.const import (
     CONF_PLATFORM,
     CONF_PLATFORMIO_OPTIONS,
     CONF_PRIORITY,
+    CONF_PROJECT,
     CONF_TRIGGER_ID,
     CONF_ESP8266_RESTORE_FROM_FLASH,
     ARDUINO_VERSION_ESP8266,
     ARDUINO_VERSION_ESP32,
+    CONF_VERSION,
     ESP_PLATFORMS,
 )
 from esphome.core import CORE, coroutine_with_priority
@@ -69,6 +71,13 @@ validate_platform = cv.one_of(*ESP_PLATFORMS, upper=True)
 
 PLATFORMIO_ESP8266_LUT = {
     **ARDUINO_VERSION_ESP8266,
+    # Keep this in mind when updating the recommended version:
+    #  * New framework historically have had some regressions, especially for WiFi, BLE and the
+    #    bootloader system. The new version needs to be thoroughly validated before changing the
+    #    recommended version as otherwise a bunch of devices could be bricked
+    #  * The docker images need to be updated to ship the new recommended version, in order not
+    #    to DDoS platformio servers.
+    #    Update this file: https://github.com/esphome/esphome-docker-base/blob/main/platformio.ini
     "RECOMMENDED": ARDUINO_VERSION_ESP8266["2.7.4"],
     "LATEST": "espressif8266",
     "DEV": ARDUINO_VERSION_ESP8266["dev"],
@@ -76,6 +85,7 @@ PLATFORMIO_ESP8266_LUT = {
 
 PLATFORMIO_ESP32_LUT = {
     **ARDUINO_VERSION_ESP32,
+    # See PLATFORMIO_ESP8266_LUT for considerations when changing the recommended version
     "RECOMMENDED": ARDUINO_VERSION_ESP32["1.0.6"],
     "LATEST": "espressif32",
     "DEV": ARDUINO_VERSION_ESP32["dev"],
@@ -136,6 +146,15 @@ def valid_include(value):
     return value
 
 
+def valid_project_name(value: str):
+    if value.count(".") != 1:
+        raise cv.Invalid("project name needs to have a namespace")
+
+    value = value.replace(" ", "_")
+
+    return value
+
+
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_NAME): cv.valid_name,
@@ -176,6 +195,12 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_INCLUDES, default=[]): cv.ensure_list(valid_include),
         cv.Optional(CONF_LIBRARIES, default=[]): cv.ensure_list(cv.string_strict),
         cv.Optional(CONF_NAME_ADD_MAC_SUFFIX, default=False): cv.boolean,
+        cv.Optional(CONF_PROJECT): cv.Schema(
+            {
+                cv.Required(CONF_NAME): cv.All(cv.string_strict, valid_project_name),
+                cv.Required(CONF_VERSION): cv.string_strict,
+            }
+        ),
         cv.Optional("esphome_core_version"): cv.invalid(
             "The esphome_core_version option has been "
             "removed in 1.13 - the esphome core source "
@@ -323,3 +348,8 @@ async def to_code(config):
 
     if config[CONF_INCLUDES]:
         CORE.add_job(add_includes, config[CONF_INCLUDES])
+
+    cg.add_define("ESPHOME_BOARD", CORE.board)
+    if CONF_PROJECT in config:
+        cg.add_define("ESPHOME_PROJECT_NAME", config[CONF_PROJECT][CONF_NAME])
+        cg.add_define("ESPHOME_PROJECT_VERSION", config[CONF_PROJECT][CONF_VERSION])

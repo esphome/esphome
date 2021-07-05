@@ -9,7 +9,7 @@
 namespace esphome {
 namespace pn532_i2c {
 
-static const char *TAG = "pn532_i2c";
+static const char *const TAG = "pn532_i2c";
 
 bool PN532I2C::write_data(const std::vector<uint8_t> &data) { return this->write_bytes_raw(data.data(), data.size()); }
 

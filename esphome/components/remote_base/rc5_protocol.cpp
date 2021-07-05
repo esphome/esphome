@@ -4,7 +4,7 @@
 namespace esphome {
 namespace remote_base {
 
-static const char *TAG = "remote.rc5";
+static const char *const TAG = "remote.rc5";
 
 static const uint32_t BIT_TIME_US = 889;
 static const uint8_t NBITS = 14;

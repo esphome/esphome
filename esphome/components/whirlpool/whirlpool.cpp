@@ -4,7 +4,7 @@
 namespace esphome {
 namespace whirlpool {
 
-static const char *TAG = "whirlpool.climate";
+static const char *const TAG = "whirlpool.climate";
 
 const uint16_t WHIRLPOOL_HEADER_MARK = 9000;
 const uint16_t WHIRLPOOL_HEADER_SPACE = 4494;
@@ -48,7 +48,7 @@ void WhirlpoolClimate::transmit_state() {
     this->powered_on_assumed = powered_on;
   }
   switch (this->mode) {
-    case climate::CLIMATE_MODE_AUTO:
+    case climate::CLIMATE_MODE_HEAT_COOL:
       // set fan auto
       // set temp auto temp
       // set sleep false
@@ -81,7 +81,7 @@ void WhirlpoolClimate::transmit_state() {
   remote_state[3] |= (uint8_t)(temp - this->temperature_min_()) << 4;
 
   // Fan speed
-  switch (this->fan_mode) {
+  switch (this->fan_mode.value()) {
     case climate::CLIMATE_FAN_HIGH:
       remote_state[2] |= WHIRLPOOL_FAN_HIGH;
       break;
@@ -239,7 +239,7 @@ bool WhirlpoolClimate::on_receive(remote_base::RemoteReceiveData data) {
         this->mode = climate::CLIMATE_MODE_FAN_ONLY;
         break;
       case WHIRLPOOL_AUTO:
-        this->mode = climate::CLIMATE_MODE_AUTO;
+        this->mode = climate::CLIMATE_MODE_HEAT_COOL;
         break;
     }
   }

@@ -20,7 +20,7 @@ class StatusLED : public Component {
   GPIOPin *pin_;
 };
 
-extern StatusLED *global_status_led;
+extern StatusLED *global_status_led;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 }  // namespace status_led
 }  // namespace esphome

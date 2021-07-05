@@ -80,7 +80,7 @@ wifi:
     dns2: 1.2.2.1
   domain: .local
   reboot_timeout: 120s
-  power_save_mode: none
+  power_save_mode: light
 
 http_request:
   useragent: esphome/device
@@ -261,7 +261,6 @@ mcp23s17:
     cs_pin: GPIO12
     deviceaddress: 1
 
-
 sensor:
   - platform: ble_client
     ble_client_id: ble_foo
@@ -271,6 +270,9 @@ sensor:
     descriptor_uuid: 'ffe2'
     notify: true
     update_interval: never
+    lambda: |-
+      ESP_LOGD("main", "Length of data is %i", x.size());
+      return x[0];
     on_notify:
       then:
         - lambda: |-
@@ -512,6 +514,7 @@ sensor:
     voltage_divider: 2351
     change_mode_every: 16
     initial_mode: VOLTAGE
+    model: hlw8012
   - platform: total_daily_energy
     power_id: hlw8012_power
     name: 'HLW8012 Total Daily Energy'
@@ -791,6 +794,7 @@ sensor:
     update_interval: 15s
   - platform: template
     name: 'Template Sensor'
+    state_class: measurement
     id: template_sensor
     lambda: |-
       if (id(ultrasonic_sensor1).state > 1) {
@@ -888,25 +892,11 @@ sensor:
       name: 'AQI'
       calculation_type: 'CAQI'
   - platform: teleinfo
-    uart_id: uart0
-    tags:
-      - tag_name: 'HCHC'
-        sensor:
-          name: 'hchc'
-          unit_of_measurement: 'Wh'
-          icon: mdi:flash
-      - tag_name: 'HCHP'
-        sensor:
-          name: 'hchp'
-          unit_of_measurement: 'Wh'
-          icon: mdi:flash
-      - tag_name: 'PAPP'
-        sensor:
-          name: 'papp'
-          unit_of_measurement: 'VA'
-          icon: mdi:flash
-    update_interval: 60s
-    historical_mode: true
+    tag_name: "HCHC"
+    name: "hchc"
+    unit_of_measurement: "Wh"
+    icon: mdi:flash
+    teleinfo_id: myteleinfo
   - platform: mcp9808
     name: 'MCP9808 Temperature'
     update_interval: 15s
@@ -914,6 +904,28 @@ sensor:
     id: ph_ezo
     address: 99
     unit_of_measurement: 'pH'
+  - platform: cs5460a
+    id: cs5460a1
+    current:
+      name: "Socket current"
+    voltage:
+      name: "Mains voltage"
+    power:
+      name: "Socket power"
+      on_value:
+        then:
+          cs5460a.restart: cs5460a1
+    samples: 1600
+    pga_gain: 10X
+    current_gain: 0.01
+    voltage_gain: 0.000573
+    current_hpf: on
+    voltage_hpf: on
+    phase_offset: 20
+    pulse_energy: 0.01 kWh
+    cs_pin:
+      mcp23xxx: mcp23017_hub
+      number: 14
 
 esp32_touch:
   setup_mode: False
@@ -1527,6 +1539,9 @@ climate:
       name: 'Power'
     humidity_setpoint:
       name: 'Hum'
+  - platform: anova
+    name: Anova cooker
+    ble_client_id: ble_blah
 
 midea_dongle:
   uart_id: uart0
@@ -1874,6 +1889,12 @@ display:
       - id: page2
         lambda: |-
           // Nothing
+    on_page_change:
+      from: page1
+      to: page2
+      then:
+        lambda: |-
+          ESP_LOGD("display", "1 -> 2");
   - platform: ssd1306_spi
     model: 'SSD1306 128x64'
     cs_pin: GPIO23
@@ -1947,6 +1968,7 @@ display:
     row_start: 0
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
+
 tm1651:
   id: tm1651_battery
   clk_pin: GPIO23
@@ -2135,6 +2157,10 @@ text_sensor:
   - platform: version
     name: 'ESPHome Version No Timestamp'
     hide_timestamp: True
+  - platform: teleinfo
+    tag_name: "OPTARIF"
+    name: "optarif"
+    teleinfo_id: myteleinfo
 
 sn74hc595:
   - id: 'sn74hc595_hub'
@@ -2165,3 +2191,9 @@ canbus:
                 lambda: 'return x[0] == 0x11;'
               then:
                 light.toggle: ${roomname}_lights
+
+teleinfo:
+  id: myteleinfo
+  uart_id: uart0
+  update_interval: 60s
+  historical_mode: true

@@ -6,7 +6,7 @@
 namespace esphome {
 namespace max7219digit {
 
-static const char *TAG = "max7219DIGIT";
+static const char *const TAG = "max7219DIGIT";
 
 static const uint8_t MAX7219_REGISTER_NOOP = 0x00;
 static const uint8_t MAX7219_REGISTER_DECODE_MODE = 0x09;
@@ -55,7 +55,7 @@ void MAX7219Component::dump_config() {
 }
 
 void MAX7219Component::loop() {
-  unsigned long now = millis();
+  uint32_t now = millis();
 
   // check if the buffer has shrunk past the current position since last update
   if ((this->max_displaybuffer_.size() >= this->old_buffer_size_ + 3) ||

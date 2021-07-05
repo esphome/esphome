@@ -9,15 +9,15 @@
 namespace esphome {
 namespace ac_dimmer {
 
-static const char *TAG = "ac_dimmer";
+static const char *const TAG = "ac_dimmer";
 
 // Global array to store dimmer objects
-static AcDimmerDataStore *all_dimmers[32];
+static AcDimmerDataStore *all_dimmers[32];  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 /// Time in microseconds the gate should be held high
 /// 10µs should be long enough for most triacs
 /// For reference: BT136 datasheet says 2µs nominal (page 7)
-static uint32_t GATE_ENABLE_TIME = 10;
+static const uint32_t GATE_ENABLE_TIME = 10;
 
 /// Function called from timer interrupt
 /// Input is current time in microseconds (micros())
