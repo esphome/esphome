@@ -28,7 +28,8 @@ class MideaData {
   void finalize() { this->data_[OFFSET_CS] = this->calc_cs_(); }
   bool check_compliment(const MideaData &rhs) const;
   String raw_data() const;
-  bool operator==(const MideaData &rhs) const { return !memcmp(this->data_, rhs.data_, sizeof(this->data_)); }
+  // compare only 40-bits
+  bool operator==(const MideaData &rhs) const { return !memcmp(this->data_, rhs.data_, OFFSET_CS); }
   enum MideaDataType : uint8_t {
     MIDEA_TYPE_COMMAND = 0xA1,
     MIDEA_TYPE_SPECIAL = 0xA2,
@@ -140,7 +141,20 @@ class MideaProtocol : public RemoteProtocol<MideaData> {
   static bool expect_data(RemoteReceiveData &src, MideaData &out);
 };
 
-DECLARE_REMOTE_PROTOCOL(Midea)
+class MideaBinarySensor : public RemoteReceiverBinarySensorBase {
+ public:
+  bool matches(RemoteReceiveData src) override {
+    auto data = MideaProtocol().decode(src);
+    return data.has_value() && data.value() == this->data_;
+  }
+  void set_code(const uint8_t *code) { this->data_ = code; }
+
+ protected:
+  MideaData data_;
+};
+
+using MideaTrigger = RemoteReceiverTrigger<MideaProtocol, MideaData>;
+using MideaDumper = RemoteReceiverDumper<MideaProtocol, MideaData>;
 
 template<typename... Ts> class MideaRawAction : public RemoteTransmitterActionBase<Ts...> {
   TEMPLATABLE_VALUE(const uint8_t *, code)

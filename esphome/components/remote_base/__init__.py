@@ -1021,13 +1021,11 @@ MIDEA_RAW_SCHEMA = cv.Schema(
 
 @register_binary_sensor("midea", MideaBinarySensor, MIDEA_RAW_SCHEMA)
 def midea_binary_sensor(var, config):
-    code_ = config[CONF_CODE]
-    arr = cg.progmem_array(config[CONF_CODE_STORAGE_ID], code_)
-    cg.add(var.set_data(arr))
-    cg.add(var.set_len(len(code_)))
+    arr_ = cg.progmem_array(config[CONF_CODE_STORAGE_ID], config[CONF_CODE])
+    cg.add(var.set_code(arr_))
 
 
-@register_trigger("midea", MideaTrigger, cg.std_vector.template(cg.int32))
+@register_trigger("midea", MideaTrigger, MideaData)
 def midea_trigger(var, config):
     pass
 
