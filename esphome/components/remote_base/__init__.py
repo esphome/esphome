@@ -1043,13 +1043,8 @@ def midea_dumper(var, config):
     MIDEA_RAW_SCHEMA,
 )
 async def midea_raw_action(var, config, args):
-    code_ = config[CONF_CODE]
-    if cg.is_template(code_):
-        template_ = await cg.templatable(code_, args, cg.std_vector.template(cg.uint8))
-        cg.add(var.set_template(template_))
-    else:
-        arr = cg.progmem_array(config[CONF_CODE_STORAGE_ID], config[CONF_CODE])
-        cg.add(var.set_data(arr))
+    arr_ = cg.progmem_array(config[CONF_CODE_STORAGE_ID], config[CONF_CODE])
+    cg.add(var.set_code(arr_))
 
 
 # Midea FollowMe action
@@ -1058,12 +1053,10 @@ MIDEA_FOLLOW_ME_MIN = 0
 MIDEA_FOLLOW_ME_MAX = 37
 MIDEA_FOLLOW_ME_SCHEMA = cv.Schema(
     {
-        cv.Required(CONF_TEMPERATURE): cv.All(
+        cv.Required(CONF_TEMPERATURE): cv.templatable(
             cv.int_range(MIDEA_FOLLOW_ME_MIN, MIDEA_FOLLOW_ME_MAX),
         ),
-        cv.Optional(CONF_BEEPER, default=False): cv.All(
-            cv.boolean,
-        ),
+        cv.Optional(CONF_BEEPER, default=False): cv.templatable(cv.boolean),
     }
 )
 
@@ -1074,13 +1067,10 @@ MIDEA_FOLLOW_ME_SCHEMA = cv.Schema(
     MIDEA_FOLLOW_ME_SCHEMA,
 )
 async def midea_follow_me_action(var, config, args):
-    cg.add(var.set_beeper(config[CONF_BEEPER]))
-    temp_ = config[CONF_TEMPERATURE]
-    if cg.is_template(temp_):
-        template_ = await cg.templatable(temp_, args, cg.uint8)
-        cg.add(var.set_template(template_))
-    else:
-        cg.add(var.set_temp(temp_))
+    template_ = await cg.templatable(config[CONF_BEEPER], args, cg.uint8)
+    cg.add(var.set_beeper(template_))
+    template_ = await cg.templatable(config[CONF_TEMPERATURE], args, cg.uint8)
+    cg.add(var.set_temperature(template_))
 
 
 # Midea ToggleLight action

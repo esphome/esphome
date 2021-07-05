@@ -143,42 +143,24 @@ class MideaProtocol : public RemoteProtocol<MideaData> {
 DECLARE_REMOTE_PROTOCOL(Midea)
 
 template<typename... Ts> class MideaRawAction : public RemoteTransmitterActionBase<Ts...> {
- public:
-  void set_data(const uint8_t *data) {
-    this->data_ = data;
-    this->data_.finalize();
-  }
-  void set_template(std::function<std::vector<uint8_t>(Ts...)> func) { this->code_func_ = func; }
+  TEMPLATABLE_VALUE(const uint8_t *, code)
   void encode(RemoteTransmitData *dst, Ts... x) override {
-    if (this->code_func_ != nullptr) {
-      this->data_ = this->code_func_(x...);
-      this->data_.finalize();
-    }
-    MideaProtocol().encode(dst, this->data_);
+    MideaData data = this->code_.value(x...);
+    data.finalize();
+    MideaProtocol().encode(dst, data);
   }
-
- protected:
-  std::function<std::vector<uint8_t>(Ts...)> code_func_{};
-  MideaData data_;
 };
 
 template<typename... Ts> class MideaFollowMeAction : public RemoteTransmitterActionBase<Ts...> {
- public:
-  void set_template(std::function<uint8_t(Ts...)> func) { this->code_func_ = func; }
-  void set_beeper(bool value) { this->data_.set_beeper(value); }
-  void set_temp(uint8_t temp) {
-    data_.set_temp(temp);
-    data_.finalize();
-  }
+  TEMPLATABLE_VALUE(uint8_t, temperature)
+  TEMPLATABLE_VALUE(bool, beeper)
   void encode(RemoteTransmitData *dst, Ts... x) override {
-    if (this->code_func_ != nullptr)
-      set_temp(this->code_func_(x...));
-    MideaProtocol().encode(dst, this->data_);
+    MideaFollowMe data;
+    data.set_temp(this->temperature_.value(x...));
+    data.set_beeper(this->beeper_.value(x...));
+    data.finalize();
+    MideaProtocol().encode(dst, data);
   }
-
- protected:
-  std::function<uint8_t(Ts...)> code_func_{};
-  MideaFollowMe data_;
 };
 
 template<typename... Ts> class MideaDisplayToggleAction : public RemoteTransmitterActionBase<Ts...> {
