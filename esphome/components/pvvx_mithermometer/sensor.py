@@ -11,6 +11,7 @@ from esphome.const import (
     DEVICE_CLASS_BATTERY,
     DEVICE_CLASS_HUMIDITY,
     DEVICE_CLASS_TEMPERATURE,
+    DEVICE_CLASS_VOLTAGE,
     ICON_EMPTY,
     UNIT_CELSIUS,
     UNIT_PERCENT,
@@ -41,7 +42,7 @@ CONFIG_SCHEMA = (
                 UNIT_PERCENT, ICON_EMPTY, 0, DEVICE_CLASS_BATTERY
             ),
             cv.Optional(CONF_BATTERY_VOLTAGE): sensor.sensor_schema(
-                UNIT_VOLT, ICON_EMPTY, 3, DEVICE_CLASS_BATTERY
+                UNIT_VOLT, ICON_EMPTY, 3, DEVICE_CLASS_VOLTAGE
             ),
         }
     )
