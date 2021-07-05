@@ -352,6 +352,71 @@ async def jvc_action(var, config, args):
     cg.add(var.set_data(template_))
 
 
+# Keeloq
+CONF_ENCRYPTED = "encrypted"
+CONF_SERIAL = "serial"
+CONF_BUTTON = "button"
+CONF_LOW = "low"
+CONF_REPEAT = "repeat"
+CONF_MANUFACTURER_KEY = "manufacturer_key"
+(
+    KeeloqData,
+    KeeloqBinarySensor,
+    KeeloqTrigger,
+    KeeloqAction,
+    KeeloqDumper,
+) = declare_protocol("Keeloq")
+KEELOQ_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_ENCRYPTED, default=0): cv.hex_uint32_t,
+        cv.Required(CONF_SERIAL): cv.hex_uint32_t,
+        cv.Required(CONF_BUTTON): cv.hex_uint8_t,
+        cv.Optional(CONF_LOW, default=False): cv.boolean,
+        cv.Optional(CONF_REPEAT, default=False): cv.boolean,
+    }
+)
+
+
+@register_binary_sensor("keeloq", KeeloqBinarySensor, KEELOQ_SCHEMA)
+def keeloq_binary_sensor(var, config):
+    cg.add(
+        var.set_data(
+            cg.StructInitializer(
+                KeeloqData,
+                ("encrypted", config[CONF_ENCRYPTED]),
+                ("serial", config[CONF_SERIAL]),
+                ("button", config[CONF_BUTTON]),
+                ("low", config[CONF_LOW]),
+                ("repeat", config[CONF_REPEAT]),
+            )
+        )
+    )
+
+
+@register_trigger("keeloq", KeeloqTrigger, KeeloqData)
+def keeloq_trigger(var, config):
+    pass
+
+
+@register_dumper("keeloq", KeeloqDumper)
+def keeloq_dumper(var, config):
+    pass
+
+
+@register_action("keeloq", KeeloqAction, KEELOQ_SCHEMA)
+async def keeloq_action(var, config, args):
+    template_ = await cg.templatable(config[CONF_ENCRYPTED], args, cg.uint32)
+    cg.add(var.set_encrypted(template_))
+    template_ = await cg.templatable(config[CONF_SERIAL], args, cg.uint32)
+    cg.add(var.set_serial(template_))
+    template_ = await cg.templatable(config[CONF_BUTTON], args, cg.uint8)
+    cg.add(var.set_button(template_))
+    template_ = await cg.templatable(config[CONF_LOW], args, cg.bool)
+    cg.add(var.set_low(template_))
+    template_ = await cg.templatable(config[CONF_REPEAT], args, cg.uint8)
+    cg.add(var.set_repeat(template_))
+
+
 # LG
 LGData, LGBinarySensor, LGTrigger, LGAction, LGDumper = declare_protocol("LG")
 LG_SCHEMA = cv.Schema(
