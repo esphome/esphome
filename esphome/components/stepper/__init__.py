@@ -140,7 +140,7 @@ async def stepper_report_position_to_code(config, action_id, template_arg, args)
 async def stepper_set_speed_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_SPEED], args, cg.int32)
+    template_ = await cg.templatable(config[CONF_SPEED], args, cg.float_)
     cg.add(var.set_speed(template_))
     return var
 
@@ -158,7 +158,7 @@ async def stepper_set_speed_to_code(config, action_id, template_arg, args):
 async def stepper_set_acceleration_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_ACCELERATION], args, cg.int32)
+    template_ = await cg.templatable(config[CONF_ACCELERATION], args, cg.float_)
     cg.add(var.set_acceleration(template_))
     return var
 
@@ -176,7 +176,7 @@ async def stepper_set_acceleration_to_code(config, action_id, template_arg, args
 async def stepper_set_deceleration_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_DECELERATION], args, cg.int32)
+    template_ = await cg.templatable(config[CONF_DECELERATION], args, cg.float_)
     cg.add(var.set_deceleration(template_))
     return var
 
