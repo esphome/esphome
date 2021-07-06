@@ -16,14 +16,22 @@ void HAVELLSSolar::on_modbus_data(const std::vector<uint8_t> &data) {
     return;
   }
 
+  /* Usage: returns the float value of 1 register read by modbus
+            Arg1: Register address * number of bytes per register
+            Arg2: Multiplier for final register value
+  */
   auto havells_solar_get_2_registers = [&](size_t i,float unit) -> float {
     uint32_t temp = encode_uint32(data[i], data[i + 1], data[i + 2], data[i + 3]);
     return temp * unit;
   };
 
+  /* Usage: returns the float value of 2 registers read by modbus
+            Arg1: Register address * number of bytes per register
+            Arg2: Multiplier for final register value
+  */
   auto havells_solar_get_1_register = [&](size_t i,float unit) -> float {
     uint16_t temp = encode_uint16(data[i], data[i + 1]);
-	  return temp * unit ;
+    return temp * unit ;
   };
 
 
@@ -35,10 +43,6 @@ void HAVELLSSolar::on_modbus_data(const std::vector<uint8_t> &data) {
     float voltage = havells_solar_get_1_register(HAVELLS_PHASE_1_VOLTAGE * 2 + (i * 4),ONE_DEC_UNIT);
     float current = havells_solar_get_1_register(HAVELLS_PHASE_1_CURRENT * 2 + (i * 4),TWO_DEC_UNIT);
 
-//    ESP_LOGD(
-//        TAG,
-//        "HAVELLSSolar Phase %c: V=%.3f V, I=%.3f A ",
-//        i + 'A', voltage, current);
     if (phase.voltage_sensor_ != nullptr)
       phase.voltage_sensor_->publish_state(voltage);
     if (phase.current_sensor_ != nullptr)
@@ -54,10 +58,6 @@ void HAVELLSSolar::on_modbus_data(const std::vector<uint8_t> &data) {
     float current = havells_solar_get_1_register(HAVELLS_PV_1_CURRENT * 2 + (i * 4),TWO_DEC_UNIT);
     float active_power = havells_solar_get_1_register(HAVELLS_PV_1_POWER * 2 + (i * 2),MULTIPLY_TEN_UNIT);
 
-//    ESP_LOGD(
-//        TAG,
-//        "HAVELLSSolar PV %c: V=%.3f V, I=%.3f A ,W=%.3f W",
-//        i + 'A', voltage, current, active_power);
     if (pv.voltage_sensor_ != nullptr)
       pv.voltage_sensor_->publish_state(voltage);
     if (pv.current_sensor_ != nullptr)
@@ -86,18 +86,6 @@ void HAVELLSSolar::on_modbus_data(const std::vector<uint8_t> &data) {
   float dci_of_s = havells_solar_get_1_register(HAVELLS_DCI_OF_S * 2,NO_DEC_UNIT);
   float dci_of_t = havells_solar_get_1_register(HAVELLS_DCI_OF_T * 2,NO_DEC_UNIT);
 
-//  ESP_LOGD(TAG, "HAVELLSSolar: F=%.3f Hz, Active P=%.3f W, Reactive P=%.3f VAR, TodayGeneration E=%.3f kWH",
-//           frequency, active_power, reactive_power,today_production);
-//  ESP_LOGD(TAG, "HAVELLSSolar: Total Generation E=%.3f kWh, Total Generation Time H=%.3f hrs, Today Generation Time H=%.3f hrs,",
-//           total_energy_production,total_generation_time,today_generation_time);
-//  ESP_LOGD(TAG, "HAVELLSSolar: Inverter Module Temp C=%.3f Degree, Inverter Inner Temp C=%.3f Degree,",
-//           inverter_module_temp,inverter_inner_temp);
-//  ESP_LOGD(TAG, "HAVELLSSolar: Inverter Bus Voltage V=%.3f V, PV1 Voltage Sampled By Slave CPU V=%.3f V, PV2 Voltage Sampled By Slave CPU V=%.3f V,",
-//           inverter_bus_voltage,pv1_volt_sampled_by_slave_cpu,pv2_volt_sampled_by_slave_cpu);
-//  ESP_LOGD(TAG, "HAVELLSSolar: Insulation Of PV1+ To Ground OHM=%.3f KΩ, Insulation Of PV2+ To Ground OHM=%.3f KΩ,Insulation Of PV- To Ground OHM=%.3f KΩ,",
-//           insulation_pv1_p_to_ground,insulation_pv2_p_to_ground,insulation_pv_n_to_ground);
-//  ESP_LOGD(TAG, "HAVELLSSolar: GFCI Value mA=%.3f mA, DCI Of R mA=%.3f mA, DCI Of S mA=%.3f mA, DCI Of T mA=%.3f mA,",
-//           gfci_value,dci_of_r,dci_of_s,dci_of_t);
   
   if (this->frequency_sensor_ != nullptr)
     this->frequency_sensor_->publish_state(frequency);
@@ -155,7 +143,7 @@ void HAVELLSSolar::dump_config() {
     auto pv = this->pvs_[i];
     if (!pv.setup)
       continue;
-    ESP_LOGCONFIG(TAG, "  PV %c", i + 'A');
+    ESP_LOGCONFIG(TAG, "  PV %d", i + 1);
     LOG_SENSOR("    ", "Voltage", pv.voltage_sensor_);
     LOG_SENSOR("    ", "Current", pv.current_sensor_);
     LOG_SENSOR("    ", "Active Power", pv.active_power_sensor_);

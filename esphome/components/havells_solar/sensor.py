@@ -1,4 +1,3 @@
-from esphome.components.atm90e32.sensor import CONF_PHASE_A, CONF_PHASE_B, CONF_PHASE_C
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import sensor, modbus
@@ -36,6 +35,9 @@ from esphome.const import (
     UNIT_MINUTE,
 )
 
+CONF_PHASE_A                            = "phase_a"
+CONF_PHASE_B                            = "phase_b"
+CONF_PHASE_C                            = "phase_c"
 CONF_ENERGY_PRODUCTION_DAY              = "energy_production_day"
 CONF_TOTAL_ENERGY_PRODUCTION            = "total_energy_production"
 CONF_TOTAL_GENERAION_TIME               = "total_generation_time"
