@@ -23,7 +23,7 @@ void HAVELLSSolar::on_modbus_data(const std::vector<uint8_t> &data) {
 
   auto havells_solar_get_1_register = [&](size_t i,float unit) -> float {
     uint16_t temp = encode_uint16(data[i], data[i + 1]);
-	return temp * unit ;
+	  return temp * unit ;
   };
 
 
