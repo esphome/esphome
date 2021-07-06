@@ -35,33 +35,33 @@ from esphome.const import (
     UNIT_MINUTE,
 )
 
-CONF_PHASE_A                            = "phase_a"
-CONF_PHASE_B                            = "phase_b"
-CONF_PHASE_C                            = "phase_c"
-CONF_ENERGY_PRODUCTION_DAY              = "energy_production_day"
-CONF_TOTAL_ENERGY_PRODUCTION            = "total_energy_production"
-CONF_TOTAL_GENERAION_TIME               = "total_generation_time"
-CONF_TODAY_GENERAION_TIME               = "today_generation_time"
-CONF_PV1                                = "pv_1"
-CONF_PV2                                = "pv_2"
-UNIT_KILOWATT_HOURS                     = "kWh"
-UNIT_HOURS                              = "h"
-UNIT_KOHM                               = "kΩ"
-UNIT_MILLIAMPERE                        = "mA"
+CONF_PHASE_A = "phase_a"
+CONF_PHASE_B = "phase_b"
+CONF_PHASE_C = "phase_c"
+CONF_ENERGY_PRODUCTION_DAY = "energy_production_day"
+CONF_TOTAL_ENERGY_PRODUCTION = "total_energy_production"
+CONF_TOTAL_GENERATION_TIME = "total_generation_time"
+CONF_TODAY_GENERATION_TIME = "today_generation_time"
+CONF_PV1 = "pv1"
+CONF_PV2 = "pv2"
+UNIT_KILOWATT_HOURS = "kWh"
+UNIT_HOURS = "h"
+UNIT_KOHM = "kΩ"
+UNIT_MILLIAMPERE = "mA"
 
 
-CONF_INVERTER_MODULE_TEMP               = "inverter_module_temp"            
-CONF_INVERTER_INNER_TEMP                = "inverter_inner_temp"             
-CONF_INVERTER_BUS_VOLTAGE               = "inverter_bus_voltage"            
-CONF_PV1_VOLTAGE_SAMPLED_BY_SLAVE_CPU   = "pv1_volt_sampled_by_slave_cpu"
-CONF_PV2_VOLTAGE_SAMPLED_BY_SLAVE_CPU   = "pv2_volt_sampled_by_slave_cpu"                    
-CONF_INSULATION_OF_PV1_P_TO_GROUND      = "insulation_pv1_p_to_ground"   
-CONF_INSULATION_OF_PV2_P_TO_GROUND      = "insulation_pv2_p_to_ground"   
-CONF_INSULATION_OF_PV_N_TO_GROUND       = "insulation_pv_n_to_ground"    
-CONF_GFCI_VALUE                         = "gfci_value"                      
-CONF_DCI_OF_R                           = "dci_of_r"                        
-CONF_DCI_OF_S                           = "dci_of_s"                        
-CONF_DCI_OF_T                           = "dci_of_t"                        
+CONF_INVERTER_MODULE_TEMP = "inverter_module_temp" 
+CONF_INVERTER_INNER_TEMP = "inverter_inner_temp" 
+CONF_INVERTER_BUS_VOLTAGE = "inverter_bus_voltage" 
+CONF_PV1_VOLTAGE_SAMPLED_BY_SLAVE_CPU = "pv1_voltage_sampled_by_slave_cpu"
+CONF_PV2_VOLTAGE_SAMPLED_BY_SLAVE_CPU = "pv2_voltage_sampled_by_slave_cpu" 
+CONF_INSULATION_OF_PV1_P_TO_GROUND = "insulation_of_pv1_p_to_ground" 
+CONF_INSULATION_OF_PV2_P_TO_GROUND = "insulation_of_pv2_p_to_ground" 
+CONF_INSULATION_OF_PV_N_TO_GROUND = "insulation_of_pv_n_to_ground" 
+CONF_GFCI_VALUE = "gfci_value" 
+CONF_DCI_OF_R = "dci_of_r" 
+CONF_DCI_OF_S = "dci_of_s" 
+CONF_DCI_OF_T = "dci_of_t"                      
 
 
 AUTO_LOAD = ["modbus"]
@@ -137,14 +137,14 @@ CONFIG_SCHEMA = (
                 DEVICE_CLASS_ENERGY,
                 STATE_CLASS_MEASUREMENT,
             ),
-            cv.Optional(CONF_TOTAL_GENERAION_TIME): sensor.sensor_schema(
+            cv.Optional(CONF_TOTAL_GENERATION_TIME): sensor.sensor_schema(
                 UNIT_HOURS,
                 ICON_EMPTY,
                 0,
                 DEVICE_CLASS_EMPTY,
                 STATE_CLASS_MEASUREMENT,
             ),
-            cv.Optional(CONF_TODAY_GENERAION_TIME): sensor.sensor_schema(
+            cv.Optional(CONF_TODAY_GENERATION_TIME): sensor.sensor_schema(
                 UNIT_MINUTE,
                 ICON_EMPTY,
                 0,
@@ -208,28 +208,28 @@ CONFIG_SCHEMA = (
                 STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_GFCI_VALUE): sensor.sensor_schema(
-                UNIT_MILIAMPERE,
+                UNIT_MILLIAMPERE,
                 ICON_EMPTY,
                 0,
                 DEVICE_CLASS_EMPTY,
                 STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_DCI_OF_R): sensor.sensor_schema(
-                UNIT_MILIAMPERE,
+                UNIT_MILLIAMPERE,
                 ICON_EMPTY,
                 0,
                 DEVICE_CLASS_EMPTY,
                 STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_DCI_OF_S): sensor.sensor_schema(
-                UNIT_MILIAMPERE,
+                UNIT_MILLIAMPERE,
                 ICON_EMPTY,
                 0,
                 DEVICE_CLASS_EMPTY,
                 STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_DCI_OF_T): sensor.sensor_schema(
-                UNIT_MILIAMPERE,
+                UNIT_MILLIAMPERE,
                 ICON_EMPTY,
                 0,
                 DEVICE_CLASS_EMPTY,
@@ -267,12 +267,12 @@ async def to_code(config):
         sens = await sensor.new_sensor(config[CONF_TOTAL_ENERGY_PRODUCTION])
         cg.add(var.set_total_energy_production_sensor(sens))
 
-    if CONF_TOTAL_GENERAION_TIME in config:
-        sens = await sensor.new_sensor(config[CONF_TOTAL_GENERAION_TIME])
+    if CONF_TOTAL_GENERATION_TIME in config:
+        sens = await sensor.new_sensor(config[CONF_TOTAL_GENERATION_TIME])
         cg.add(var.set_total_generation_time_sensor(sens))
 
-    if CONF_TODAY_GENERAION_TIME in config:
-        sens = await sensor.new_sensor(config[CONF_TODAY_GENERAION_TIME])
+    if CONF_TODAY_GENERATION_TIME in config:
+        sens = await sensor.new_sensor(config[CONF_TODAY_GENERATION_TIME])
         cg.add(var.set_today_generation_time_sensor(sens))
 
     if CONF_INVERTER_MODULE_TEMP in config:
