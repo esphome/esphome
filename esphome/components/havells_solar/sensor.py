@@ -43,9 +43,9 @@ CONF_TODAY_GENERAION_TIME               = "today_generation_time"
 CONF_PV1                                = "pv_1"
 CONF_PV2                                = "pv_2"
 UNIT_KILOWATT_HOURS                     = "kWh"
-UNIT_HOURS                              = "hrs"
-UNIT_KOHM                               = "KΩ"
-UNIT_MILIAMPERE                         = "mA"
+UNIT_HOURS                              = "h"
+UNIT_KOHM                               = "kΩ"
+UNIT_MILLIAMPERE                        = "mA"
 
 
 CONF_INVERTER_MODULE_TEMP               = "inverter_module_temp"            
