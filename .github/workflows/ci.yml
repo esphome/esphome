@@ -6,7 +6,7 @@ on:
   push:
     # On dev branch release-dev already performs CI checks
     # On other branches the `pull_request` trigger will be used
-    branches: [beta, master]
+    branches: [beta, release]
 
   pull_request:
 

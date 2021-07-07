@@ -4,7 +4,7 @@ import hypothesis.strategies._internal.core as st
 from hypothesis.strategies._internal.strategies import SearchStrategy
 
 
-@st.defines_strategy_with_reusable_values
+@st.defines_strategy(force_reusable_values=True)
 def mac_addr_strings():
     # type: () -> SearchStrategy[Text]
     """A strategy for MAC address strings.

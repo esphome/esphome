@@ -192,6 +192,8 @@ template<> const char *proto_enum_to_string<enums::ClimateAction>(enums::Climate
 }
 template<> const char *proto_enum_to_string<enums::ClimatePreset>(enums::ClimatePreset value) {
   switch (value) {
+    case enums::CLIMATE_PRESET_NONE:
+      return "CLIMATE_PRESET_NONE";
     case enums::CLIMATE_PRESET_HOME:
       return "CLIMATE_PRESET_HOME";
     case enums::CLIMATE_PRESET_AWAY:

@@ -77,5 +77,35 @@ template<typename... Ts> class SetSpeedAction : public Action<Ts...> {
   Stepper *parent_;
 };
 
+template<typename... Ts> class SetAccelerationAction : public Action<Ts...> {
+ public:
+  explicit SetAccelerationAction(Stepper *parent) : parent_(parent) {}
+
+  TEMPLATABLE_VALUE(float, acceleration);
+
+  void play(Ts... x) override {
+    float acceleration = this->acceleration_.value(x...);
+    this->parent_->set_acceleration(acceleration);
+  }
+
+ protected:
+  Stepper *parent_;
+};
+
+template<typename... Ts> class SetDecelerationAction : public Action<Ts...> {
+ public:
+  explicit SetDecelerationAction(Stepper *parent) : parent_(parent) {}
+
+  TEMPLATABLE_VALUE(float, deceleration);
+
+  void play(Ts... x) override {
+    float deceleration = this->deceleration_.value(x...);
+    this->parent_->set_deceleration(deceleration);
+  }
+
+ protected:
+  Stepper *parent_;
+};
+
 }  // namespace stepper
 }  // namespace esphome
