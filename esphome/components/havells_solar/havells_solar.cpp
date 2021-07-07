@@ -56,6 +56,10 @@ void HAVELLSSolar::on_modbus_data(const std::vector<uint8_t> &data) {
     float voltage = havells_solar_get_1_register(HAVELLS_PV_1_VOLTAGE * 2 + (i * 4), ONE_DEC_UNIT);
     float current = havells_solar_get_1_register(HAVELLS_PV_1_CURRENT * 2 + (i * 4), TWO_DEC_UNIT);
     float active_power = havells_solar_get_1_register(HAVELLS_PV_1_POWER * 2 + (i * 2), MULTIPLY_TEN_UNIT);
+    float voltage_sampled_by_secondary_cpu =
+      havells_solar_get_1_register(HAVELLS_PV1_VOLTAGE_SAMPLED_BY_SECONDARY_CPU * 2 + (i * 2), ONE_DEC_UNIT);
+    float insulation_of_p_to_ground =
+      havells_solar_get_1_register(HAVELLS_PV1_INSULATION_OF_P_TO_GROUND * 2 + (i * 2), NO_DEC_UNIT);
 
     if (pv.voltage_sensor_ != nullptr)
       pv.voltage_sensor_->publish_state(voltage);
@@ -63,6 +67,10 @@ void HAVELLSSolar::on_modbus_data(const std::vector<uint8_t> &data) {
       pv.current_sensor_->publish_state(current);
     if (pv.active_power_sensor_ != nullptr)
       pv.active_power_sensor_->publish_state(active_power);
+    if (pv.voltage_sampled_by_secondary_cpu_sensor_ != nullptr)
+      pv.voltage_sampled_by_secondary_cpu_sensor_->publish_state(voltage_sampled_by_secondary_cpu);
+    if (pv.insulation_of_p_to_ground_sensor_ != nullptr)
+      pv.insulation_of_p_to_ground_sensor_->publish_state(insulation_of_p_to_ground);
   }
 
   float frequency = havells_solar_get_1_register(HAVELLS_GRID_FREQUENCY * 2, TWO_DEC_UNIT);
@@ -75,21 +83,12 @@ void HAVELLSSolar::on_modbus_data(const std::vector<uint8_t> &data) {
   float inverter_module_temp = havells_solar_get_1_register(HAVELLS_INVERTER_MODULE_TEMP * 2, NO_DEC_UNIT);
   float inverter_inner_temp = havells_solar_get_1_register(HAVELLS_INVERTER_INNER_TEMP * 2, NO_DEC_UNIT);
   float inverter_bus_voltage = havells_solar_get_1_register(HAVELLS_INVERTER_BUS_VOLTAGE * 2, NO_DEC_UNIT);
-  float pv1_volt_sampled_by_slave_cpu =
-      havells_solar_get_1_register(HAVELLS_PV1_VOLTAGE_SAMPLED_BY_SLAVE_CPU * 2, NO_DEC_UNIT);
-  float pv2_volt_sampled_by_slave_cpu =
-      havells_solar_get_1_register(HAVELLS_PV2_VOLTAGE_SAMPLED_BY_SLAVE_CPU * 2, NO_DEC_UNIT);
-  float insulation_pv1_p_to_ground =
-      havells_solar_get_1_register(HAVELLS_INSULATION_OF_PV1_P_TO_GROUND * 2, NO_DEC_UNIT);
-  float insulation_pv2_p_to_ground =
-      havells_solar_get_1_register(HAVELLS_INSULATION_OF_PV2_P_TO_GROUND * 2, NO_DEC_UNIT);
   float insulation_pv_n_to_ground = havells_solar_get_1_register(HAVELLS_INSULATION_OF_PV_N_TO_GROUND * 2, NO_DEC_UNIT);
   float gfci_value = havells_solar_get_1_register(HAVELLS_GFCI_VALUE * 2, NO_DEC_UNIT);
   float dci_of_r = havells_solar_get_1_register(HAVELLS_DCI_OF_R * 2, NO_DEC_UNIT);
   float dci_of_s = havells_solar_get_1_register(HAVELLS_DCI_OF_S * 2, NO_DEC_UNIT);
   float dci_of_t = havells_solar_get_1_register(HAVELLS_DCI_OF_T * 2, NO_DEC_UNIT);
 
-  
   if (this->frequency_sensor_ != nullptr)
     this->frequency_sensor_->publish_state(frequency);
   if (this->active_power_sensor_ != nullptr)
@@ -110,14 +109,6 @@ void HAVELLSSolar::on_modbus_data(const std::vector<uint8_t> &data) {
     this->inverter_inner_temp_sensor_->publish_state(inverter_inner_temp);
   if (this->inverter_bus_voltage_sensor_ != nullptr)
     this->inverter_bus_voltage_sensor_->publish_state(inverter_bus_voltage);
-  if (this->pv1_volt_sampled_by_slave_cpu_sensor_ != nullptr)
-    this->pv1_volt_sampled_by_slave_cpu_sensor_->publish_state(pv1_volt_sampled_by_slave_cpu);
-  if (this->pv2_volt_sampled_by_slave_cpu_sensor_ != nullptr)
-    this->pv2_volt_sampled_by_slave_cpu_sensor_->publish_state(pv2_volt_sampled_by_slave_cpu);
-  if (this->insulation_pv1_p_to_ground_sensor_ != nullptr)
-    this->insulation_pv1_p_to_ground_sensor_->publish_state(insulation_pv1_p_to_ground);
-  if (this->insulation_pv2_p_to_ground_sensor_ != nullptr)
-    this->insulation_pv2_p_to_ground_sensor_->publish_state(insulation_pv2_p_to_ground);
   if (this->insulation_pv_n_to_ground_sensor_ != nullptr)
     this->insulation_pv_n_to_ground_sensor_->publish_state(insulation_pv_n_to_ground);
   if (this->gfci_value_sensor_ != nullptr)
@@ -150,6 +141,8 @@ void HAVELLSSolar::dump_config() {
     LOG_SENSOR("    ", "Voltage", pv.voltage_sensor_);
     LOG_SENSOR("    ", "Current", pv.current_sensor_);
     LOG_SENSOR("    ", "Active Power", pv.active_power_sensor_);
+    LOG_SENSOR("    ", "Voltage Sampled By Slave CPU", pv.voltage_sampled_by_secondary_cpu_sensor_);
+    LOG_SENSOR("    ", "Insulation Of PV+ To Ground", pv.insulation_of_p_to_ground_sensor_);
   }
   LOG_SENSOR("  ", "Frequency", this->frequency_sensor_);
   LOG_SENSOR("    ", "Active Power", this->active_power_sensor_);
@@ -161,10 +154,6 @@ void HAVELLSSolar::dump_config() {
   LOG_SENSOR("    ", "Inverter Module Temp", this->inverter_module_temp_sensor_);
   LOG_SENSOR("    ", "Inverter Inner Temp", this->inverter_inner_temp_sensor_);
   LOG_SENSOR("    ", "Inverter Bus Voltage", this->inverter_bus_voltage_sensor_);
-  LOG_SENSOR("    ", "PV1 Voltage Sampled By Slave CPU", this->pv1_volt_sampled_by_slave_cpu_sensor_);
-  LOG_SENSOR("    ", "PV2 Voltage Sampled By Slave CPU", this->pv2_volt_sampled_by_slave_cpu_sensor_);
-  LOG_SENSOR("    ", "Insulation Of PV1+ To Ground", this->insulation_pv1_p_to_ground_sensor_);
-  LOG_SENSOR("    ", "Insulation Of PV2+ To Ground", this->insulation_pv2_p_to_ground_sensor_);
   LOG_SENSOR("    ", "Insulation Of PV- To Ground", this->insulation_pv_n_to_ground_sensor_);
   LOG_SENSOR("    ", "GFCI Value", this->gfci_value_sensor_);
   LOG_SENSOR("    ", "DCI Of R", this->dci_of_r_sensor_);

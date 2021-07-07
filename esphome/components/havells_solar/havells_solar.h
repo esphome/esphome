@@ -29,6 +29,14 @@ class HAVELLSSolar : public PollingComponent, public modbus::ModbusDevice {
     this->pvs_[pv].setup = true;
     this->pvs_[pv].active_power_sensor_ = active_power_sensor;
   }
+  void set_voltage_sampled_by_secondary_cpu_sensor_pv(uint8_t pv, sensor::Sensor *voltage_sampled_by_secondary_cpu_sensor) {
+    this->pvs_[pv].setup = true;
+    this->pvs_[pv].voltage_sampled_by_secondary_cpu_sensor_ = voltage_sampled_by_secondary_cpu_sensor;
+  }
+  void set_insulation_of_p_to_ground_sensor_pv(uint8_t pv, sensor::Sensor *insulation_of_p_to_ground_sensor) {
+    this->pvs_[pv].setup = true;
+    this->pvs_[pv].insulation_of_p_to_ground_sensor_ = insulation_of_p_to_ground_sensor;
+  }
   void set_frequency_sensor(sensor::Sensor *frequency_sensor) { this->frequency_sensor_ = frequency_sensor; }
   void set_active_power_sensor(sensor::Sensor *active_power_sensor) {
     this->active_power_sensor_ = active_power_sensor;
@@ -40,7 +48,7 @@ class HAVELLSSolar : public PollingComponent, public modbus::ModbusDevice {
     this->today_production_sensor_ = today_production_sensor;
   }
   void set_total_energy_production_sensor(sensor::Sensor *total_energy_production_sensor) {
-    this->total_energy_production_sensor_ = total_energy_production_sensor; 
+    this->total_energy_production_sensor_ = total_energy_production_sensor;
   }
   void set_total_generation_time_sensor(sensor::Sensor *total_generation_time_sensor) {
     this->total_generation_time_sensor_ = total_generation_time_sensor;
@@ -56,18 +64,6 @@ class HAVELLSSolar : public PollingComponent, public modbus::ModbusDevice {
   }
   void set_inverter_bus_voltage_sensor(sensor::Sensor *inverter_bus_voltage_sensor) {
     this->inverter_bus_voltage_sensor_ = inverter_bus_voltage_sensor;
-  }
-  void set_pv1_volt_sampled_by_slave_cpu_sensor(sensor::Sensor *pv1_volt_sampled_by_slave_cpu_sensor) {
-    this->pv1_volt_sampled_by_slave_cpu_sensor_ = pv1_volt_sampled_by_slave_cpu_sensor;
-  }
-  void set_pv2_volt_sampled_by_slave_cpu_sensor(sensor::Sensor *pv2_volt_sampled_by_slave_cpu_sensor) {
-    this->pv2_volt_sampled_by_slave_cpu_sensor_ = pv2_volt_sampled_by_slave_cpu_sensor;
-  }
-  void set_insulation_pv1_p_to_ground_sensor(sensor::Sensor *insulation_pv1_p_to_ground_sensor) {
-    this->insulation_pv1_p_to_ground_sensor_ = insulation_pv1_p_to_ground_sensor;
-  }
-  void set_insulation_pv2_p_to_ground_sensor(sensor::Sensor *insulation_pv2_p_to_ground_sensor) {
-    this->insulation_pv2_p_to_ground_sensor_ = insulation_pv2_p_to_ground_sensor;
   }
   void set_insulation_pv_n_to_ground_sensor(sensor::Sensor *insulation_pv_n_to_ground_sensor) {
     this->insulation_pv_n_to_ground_sensor_ = insulation_pv_n_to_ground_sensor;
@@ -94,6 +90,8 @@ class HAVELLSSolar : public PollingComponent, public modbus::ModbusDevice {
     sensor::Sensor *voltage_sensor_{nullptr};
     sensor::Sensor *current_sensor_{nullptr};
     sensor::Sensor *active_power_sensor_{nullptr};
+    sensor::Sensor *voltage_sampled_by_secondary_cpu_sensor_{nullptr};
+    sensor::Sensor *insulation_of_p_to_ground_sensor_{nullptr};
   } pvs_[2];
   sensor::Sensor *frequency_sensor_{nullptr};
   sensor::Sensor *active_power_sensor_{nullptr};
@@ -105,10 +103,6 @@ class HAVELLSSolar : public PollingComponent, public modbus::ModbusDevice {
   sensor::Sensor *inverter_module_temp_sensor_{nullptr};
   sensor::Sensor *inverter_inner_temp_sensor_{nullptr};
   sensor::Sensor *inverter_bus_voltage_sensor_{nullptr};
-  sensor::Sensor *pv1_volt_sampled_by_slave_cpu_sensor_{nullptr};
-  sensor::Sensor *pv2_volt_sampled_by_slave_cpu_sensor_{nullptr};
-  sensor::Sensor *insulation_pv1_p_to_ground_sensor_{nullptr};
-  sensor::Sensor *insulation_pv2_p_to_ground_sensor_{nullptr};
   sensor::Sensor *insulation_pv_n_to_ground_sensor_{nullptr};
   sensor::Sensor *gfci_value_sensor_{nullptr};
   sensor::Sensor *dci_of_r_sensor_{nullptr};
