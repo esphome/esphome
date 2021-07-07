@@ -88,10 +88,10 @@ bool InkbirdIBSTH1_MINI::parse_device(const esp32_ble_tracker::ESPBTDevice &devi
   auto humidity = ((mnfData.data[1] << 8) + mnfData.data[0]) / 100.0f;
 
   // Send temperature only if the value is set
-  if ( ! isnan(temperature) && this->temperature_ != nullptr) {
+  if (!isnan(temperature) && this->temperature_ != nullptr) {
     this->temperature_->publish_state(temperature);
   }
-  if ( ! isnan(ext_temperature) && this->ext_temperature_ != nullptr) {
+  if (!isnan(ext_temperature) && this->ext_temperature_ != nullptr) {
     this->ext_temperature_->publish_state(ext_temperature);
   }
   if (this->humidity_ != nullptr) {
