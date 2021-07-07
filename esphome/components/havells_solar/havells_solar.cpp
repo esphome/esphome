@@ -10,9 +10,9 @@ static const char *const TAG = "havells_solar";
 static const uint8_t MODBUS_CMD_READ_IN_REGISTERS = 0x03;
 static const uint8_t MODBUS_REGISTER_COUNT = 48;  // 48 x 16-bit registers
 
-void HAVELLSSolar::on_modbus_data(const std::vector<uint8_t> &data) {
+void HavellsSolar::on_modbus_data(const std::vector<uint8_t> &data) {
   if (data.size() < MODBUS_REGISTER_COUNT * 2) {
-    ESP_LOGW(TAG, "Invalid size for HAVELLSSolar!");
+    ESP_LOGW(TAG, "Invalid size for HavellsSolar!");
     return;
   }
 
@@ -121,8 +121,8 @@ void HAVELLSSolar::on_modbus_data(const std::vector<uint8_t> &data) {
     this->dci_of_t_sensor_->publish_state(dci_of_t);
 }
 
-void HAVELLSSolar::update() { this->send(MODBUS_CMD_READ_IN_REGISTERS, 0, MODBUS_REGISTER_COUNT); }
-void HAVELLSSolar::dump_config() {
+void HavellsSolar::update() { this->send(MODBUS_CMD_READ_IN_REGISTERS, 0, MODBUS_REGISTER_COUNT); }
+void HavellsSolar::dump_config() {
   ESP_LOGCONFIG(TAG, "HAVELLS Solar:");
   ESP_LOGCONFIG(TAG, "  Address: 0x%02X", this->address_);
   for (uint8_t i = 0; i < 3; i++) {
@@ -141,7 +141,7 @@ void HAVELLSSolar::dump_config() {
     LOG_SENSOR("    ", "Voltage", pv.voltage_sensor_);
     LOG_SENSOR("    ", "Current", pv.current_sensor_);
     LOG_SENSOR("    ", "Active Power", pv.active_power_sensor_);
-    LOG_SENSOR("    ", "Voltage Sampled By Secondary CPU", pv.voltage_sampled_by_secondary_cpu_sensor_);
+    LOG_SENSOR("    ", "Voltage Sampled By Slave CPU", pv.voltage_sampled_by_secondary_cpu_sensor_);
     LOG_SENSOR("    ", "Insulation Of PV+ To Ground", pv.insulation_of_p_to_ground_sensor_);
   }
   LOG_SENSOR("  ", "Frequency", this->frequency_sensor_);

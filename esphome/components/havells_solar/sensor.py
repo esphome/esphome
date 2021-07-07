@@ -66,7 +66,7 @@ AUTO_LOAD = ["modbus"]
 CODEOWNERS = ["@sourabhjaiswal"]
 
 havells_solar_ns = cg.esphome_ns.namespace("havells_solar")
-HAVELLSSolar = havells_solar_ns.class_("HAVELLSSolar", cg.PollingComponent, modbus.ModbusDevice)
+HavellsSolar = havells_solar_ns.class_("HavellsSolar", cg.PollingComponent, modbus.ModbusDevice)
 
 PHASE_SENSORS = {
     CONF_VOLTAGE: sensor.sensor_schema(UNIT_VOLT, ICON_EMPTY, 2, DEVICE_CLASS_VOLTAGE),
@@ -100,7 +100,7 @@ PV_SCHEMA = cv.Schema(
 CONFIG_SCHEMA = (
     cv.Schema(
         {
-            cv.GenerateID(): cv.declare_id(HAVELLSSolar),
+            cv.GenerateID(): cv.declare_id(HavellsSolar),
             cv.Optional(CONF_PHASE_A): PHASE_SCHEMA,
             cv.Optional(CONF_PHASE_B): PHASE_SCHEMA,
             cv.Optional(CONF_PHASE_C): PHASE_SCHEMA,
