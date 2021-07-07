@@ -7,7 +7,7 @@
 namespace esphome {
 namespace havells_solar {
 
-class HAVELLSSolar : public PollingComponent, public modbus::ModbusDevice {
+class HavellsSolar : public PollingComponent, public modbus::ModbusDevice {
  public:
   void set_voltage_sensor(uint8_t phase, sensor::Sensor *voltage_sensor) {
     this->phases_[phase].setup = true;
