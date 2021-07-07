@@ -91,7 +91,7 @@ class ClimateTraits {
   ESPDEPRECATED("This method is deprecated, use set_supported_fan_modes() instead")
   void set_supports_fan_mode_diffuse(bool supported) { set_fan_mode_support_(CLIMATE_FAN_DIFFUSE, supported); }
   bool supports_fan_mode(ClimateFanMode fan_mode) const { return supported_fan_modes_.count(fan_mode); }
-  bool get_supports_fan_modes() const { return !supported_fan_modes_.empty(); }
+  bool get_supports_fan_modes() const { return !supported_fan_modes_.empty() || !supported_custom_fan_modes_.empty(); }
   const std::set<ClimateFanMode> get_supported_fan_modes() const { return supported_fan_modes_; }
 
   void set_supported_custom_fan_modes(std::set<std::string> supported_custom_fan_modes) {
