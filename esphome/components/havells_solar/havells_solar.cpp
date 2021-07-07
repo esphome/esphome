@@ -141,7 +141,7 @@ void HavellsSolar::dump_config() {
     LOG_SENSOR("    ", "Voltage", pv.voltage_sensor_);
     LOG_SENSOR("    ", "Current", pv.current_sensor_);
     LOG_SENSOR("    ", "Active Power", pv.active_power_sensor_);
-    LOG_SENSOR("    ", "Voltage Sampled By Slave CPU", pv.voltage_sampled_by_secondary_cpu_sensor_);
+    LOG_SENSOR("    ", "Voltage Sampled By Secondary CPU", pv.voltage_sampled_by_secondary_cpu_sensor_);
     LOG_SENSOR("    ", "Insulation Of PV+ To Ground", pv.insulation_of_p_to_ground_sensor_);
   }
   LOG_SENSOR("  ", "Frequency", this->frequency_sensor_);
