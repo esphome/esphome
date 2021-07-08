@@ -570,11 +570,11 @@ bool APIConnection::send_number_info(number::Number *number) {
   msg.object_id = number->get_object_id();
   msg.name = number->get_name();
   msg.unique_id = get_default_unique_id("number", number);
-  msg.icon = number->get_icon();
+  msg.icon = number->traits.get_icon();
 
-  msg.min_value = number->get_min_value();
-  msg.max_value = number->get_max_value();
-  msg.step = number->get_step();
+  msg.min_value = number->traits.get_min_value();
+  msg.max_value = number->traits.get_max_value();
+  msg.step = number->traits.get_step();
 
   return this->send_list_entities_number_response(msg);
 }

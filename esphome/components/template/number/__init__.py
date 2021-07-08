@@ -44,7 +44,13 @@ CONFIG_SCHEMA = cv.All(
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
-    await number.register_number(var, config)
+    await number.register_number(
+        var,
+        config,
+        min_value=config[CONF_MIN_VALUE],
+        max_value=config[CONF_MAX_VALUE],
+        step=config[CONF_STEP],
+    )
 
     if CONF_LAMBDA in config:
         template_ = await cg.process_lambda(
@@ -57,7 +63,3 @@ async def to_code(config):
         )
 
     cg.add(var.set_optimistic(config[CONF_OPTIMISTIC]))
-
-    cg.add(var.set_min_value(config[CONF_MIN_VALUE]))
-    cg.add(var.set_max_value(config[CONF_MAX_VALUE]))
-    cg.add(var.set_step(config[CONF_STEP]))

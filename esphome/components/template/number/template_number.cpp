@@ -6,8 +6,6 @@ namespace template_ {
 
 static const char *const TAG = "template.number";
 
-TemplateNumber::TemplateNumber() : set_trigger_(new Trigger<float>()) {}
-
 void TemplateNumber::update() {
   if (!this->f_.has_value())
     return;
@@ -18,22 +16,17 @@ void TemplateNumber::update() {
   }
 }
 
-void TemplateNumber::set(float value) {
+void TemplateNumber::control(float value) {
   this->set_trigger_->trigger(value);
 
   if (this->optimistic_)
     this->publish_state(value);
 }
-float TemplateNumber::get_setup_priority() const { return setup_priority::HARDWARE; }
-void TemplateNumber::set_template(std::function<optional<float>()> &&f) { this->f_ = f; }
 void TemplateNumber::dump_config() {
   LOG_NUMBER("", "Template Number", this);
   ESP_LOGCONFIG(TAG, "  Optimistic: %s", YESNO(this->optimistic_));
   LOG_UPDATE_INTERVAL(this);
 }
-
-void TemplateNumber::set_optimistic(bool optimistic) { this->optimistic_ = optimistic; }
-Trigger<float> *TemplateNumber::get_set_trigger() const { return this->set_trigger_; };
 
 }  // namespace template_
 }  // namespace esphome

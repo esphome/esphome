@@ -614,8 +614,9 @@ void WebServer::handle_number_request(AsyncWebServerRequest *request, const UrlM
 std::string WebServer::number_json(number::Number *obj, float value) {
   return json::build_json([obj, value](JsonObject &root) {
     root["id"] = "number-" + obj->get_object_id();
-    std::string state = value_accuracy_to_string(value, obj->get_accuracy_decimals());
-    root["state"] = state;
+    char buffer[64];
+    snprintf(buffer, sizeof(buffer), "%f", value);
+    root["state"] = buffer;
     root["value"] = value;
   });
 }

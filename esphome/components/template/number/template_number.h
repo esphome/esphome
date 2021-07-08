@@ -9,20 +9,19 @@ namespace template_ {
 
 class TemplateNumber : public number::Number, public PollingComponent {
  public:
-  TemplateNumber();
-  void set_template(std::function<optional<float>()> &&f);
+  void set_template(std::function<optional<float>()> &&f) { this->f_ = f; }
 
   void update() override;
   void dump_config() override;
-  float get_setup_priority() const override;
+  float get_setup_priority() const override { return setup_priority::HARDWARE; }
 
-  Trigger<float> *get_set_trigger() const;
-  void set_optimistic(bool optimistic);
+  Trigger<float> *get_set_trigger() const { return set_trigger_; }
+  void set_optimistic(bool optimistic) { optimistic_ = optimistic; }
 
  protected:
-  void set(float value) override;
+  void control(float value) override;
   bool optimistic_{false};
-  Trigger<float> *set_trigger_;
+  Trigger<float> *set_trigger_ = new Trigger<float>();
   optional<std::function<optional<float>()>> f_;
 };
 
