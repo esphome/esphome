@@ -188,7 +188,15 @@ void WiFiComponent::setup_ap_config_() {
     return;
 
   if (this->ap_.get_ssid().empty()) {
-    this->ap_.set_ssid(App.get_name());
+    std::string name = App.get_name();
+    if (name.length() > 32) {
+      if (App.is_name_add_mac_suffix_enabled()) {
+        name.erase(name.begin() + 25, name.end() - 7);  // Remove characters between 25 and the mac address
+      } else {
+        name = name.substr(0, 32);
+      }
+    }
+    this->ap_.set_ssid(name);
   }
 
   ESP_LOGCONFIG(TAG, "Setting up AP...");
