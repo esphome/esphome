@@ -41,8 +41,6 @@ std::string MQTTNumberComponent::friendly_name() const { return this->number_->g
 void MQTTNumberComponent::send_discovery(JsonObject &root, mqtt::SendDiscoveryConfig &config) {
   if (!this->number_->get_icon().empty())
     root["icon"] = this->number_->get_icon();
-
-  config.command_topic = false;
 }
 bool MQTTNumberComponent::send_initial_state() {
   if (this->number_->has_state()) {
