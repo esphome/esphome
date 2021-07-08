@@ -29,12 +29,12 @@ CONFIG_SCHEMA = cv.All(
     number.NUMBER_SCHEMA.extend(
         {
             cv.GenerateID(): cv.declare_id(TemplateNumber),
-            cv.Optional(CONF_LAMBDA): cv.returning_lambda,
-            cv.Optional(CONF_OPTIMISTIC, default=False): cv.boolean,
-            cv.Optional(CONF_SET_ACTION): automation.validate_automation(single=True),
             cv.Required(CONF_MAX_VALUE): cv.float_,
             cv.Required(CONF_MIN_VALUE): cv.float_,
             cv.Required(CONF_STEP): cv.positive_float,
+            cv.Optional(CONF_LAMBDA): cv.returning_lambda,
+            cv.Optional(CONF_OPTIMISTIC, default=False): cv.boolean,
+            cv.Optional(CONF_SET_ACTION): automation.validate_automation(single=True),
         }
     ).extend(cv.polling_component_schema("60s")),
     validate_min_max,
