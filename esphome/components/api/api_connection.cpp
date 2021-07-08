@@ -308,6 +308,7 @@ bool APIConnection::send_light_state(light::LightState *light) {
   if (traits.get_supports_brightness())
     resp.brightness = values.get_brightness();
   if (traits.get_supports_rgb()) {
+    resp.color_brightness = values.get_color_brightness();
     resp.red = values.get_red();
     resp.green = values.get_green();
     resp.blue = values.get_blue();
@@ -352,6 +353,8 @@ void APIConnection::light_command(const LightCommandRequest &msg) {
     call.set_state(msg.state);
   if (msg.has_brightness)
     call.set_brightness(msg.brightness);
+  if (msg.has_color_brightness)
+    call.set_color_brightness(msg.color_brightness);
   if (msg.has_rgb) {
     call.set_red(msg.red);
     call.set_green(msg.green);
