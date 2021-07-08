@@ -6,33 +6,24 @@ from esphome.const import (
     CONF_CURRENT,
     CONF_FREQUENCY,
     CONF_ID,
-    CONF_POWER_FACTOR,
     CONF_REACTIVE_POWER,
     CONF_VOLTAGE,
-    CONF_ENERGY,
     DEVICE_CLASS_CURRENT,
     DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_ENERGY,
     DEVICE_CLASS_POWER,
-    DEVICE_CLASS_POWER_FACTOR,
     DEVICE_CLASS_VOLTAGE,
-    DEVICE_CLASS_TEMPERATURE,
     ICON_CURRENT_AC,
     ICON_EMPTY,
-    ICON_FLASH,
     STATE_CLASS_MEASUREMENT,
     STATE_CLASS_NONE,
     UNIT_AMPERE,
     UNIT_DEGREES,
-    UNIT_EMPTY,
     UNIT_HERTZ,
-    UNIT_VOLT,
-    UNIT_VOLT_AMPS,
-    UNIT_VOLT_AMPS_REACTIVE,
-    UNIT_VOLT_AMPS_REACTIVE_HOURS,
-    UNIT_WATT,
-    UNIT_WATT_HOURS,
     UNIT_MINUTE,
+    UNIT_VOLT,
+    UNIT_VOLT_AMPS_REACTIVE,
+    UNIT_WATT,
 )
 
 CONF_PHASE_A = "phase_a"
@@ -226,11 +217,11 @@ async def to_code(config):
     if CONF_FREQUENCY in config:
         sens = await sensor.new_sensor(config[CONF_FREQUENCY])
         cg.add(var.set_frequency_sensor(sens))
-       
+
     if CONF_ACTIVE_POWER in config:
         sens = await sensor.new_sensor(config[CONF_ACTIVE_POWER])
         cg.add(var.set_active_power_sensor(sens))
-       
+
     if CONF_REACTIVE_POWER in config:
         sens = await sensor.new_sensor(config[CONF_REACTIVE_POWER])
         cg.add(var.set_reactive_power_sensor(sens))
@@ -292,7 +283,7 @@ async def to_code(config):
             if sensor_type in phase_config:
                 sens = await sensor.new_sensor(phase_config[sensor_type])
                 cg.add(getattr(var, f"set_{sensor_type}_sensor")(i, sens))
-               
+
     for i, pv in enumerate([CONF_PV1, CONF_PV2]):
         if pv not in config:
             continue

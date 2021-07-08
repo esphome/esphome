@@ -29,7 +29,8 @@ class HavellsSolar : public PollingComponent, public modbus::ModbusDevice {
     this->pvs_[pv].setup = true;
     this->pvs_[pv].active_power_sensor_ = active_power_sensor;
   }
-  void set_voltage_sampled_by_secondary_cpu_sensor_pv(uint8_t pv, sensor::Sensor *voltage_sampled_by_secondary_cpu_sensor) {
+  void set_voltage_sampled_by_secondary_cpu_sensor_pv(uint8_t pv,
+                                                      sensor::Sensor *voltage_sampled_by_secondary_cpu_sensor) {
     this->pvs_[pv].setup = true;
     this->pvs_[pv].voltage_sampled_by_secondary_cpu_sensor_ = voltage_sampled_by_secondary_cpu_sensor;
   }

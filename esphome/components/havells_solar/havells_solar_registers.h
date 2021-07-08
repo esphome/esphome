@@ -45,5 +45,5 @@ static const uint16_t HAVELLS_GFCI_VALUE = 0x002A;
 static const uint16_t HAVELLS_DCI_OF_R = 0x002B;
 static const uint16_t HAVELLS_DCI_OF_S = 0x002C;
 static const uint16_t HAVELLS_DCI_OF_T = 0x002D;
-} // namespace havells_solar
-} // namespace esphome
+}  // namespace havells_solar
+}  // namespace esphome

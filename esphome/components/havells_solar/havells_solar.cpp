@@ -57,9 +57,9 @@ void HavellsSolar::on_modbus_data(const std::vector<uint8_t> &data) {
     float current = havells_solar_get_1_register(HAVELLS_PV_1_CURRENT * 2 + (i * 4), TWO_DEC_UNIT);
     float active_power = havells_solar_get_1_register(HAVELLS_PV_1_POWER * 2 + (i * 2), MULTIPLY_TEN_UNIT);
     float voltage_sampled_by_secondary_cpu =
-      havells_solar_get_1_register(HAVELLS_PV1_VOLTAGE_SAMPLED_BY_SECONDARY_CPU * 2 + (i * 2), ONE_DEC_UNIT);
+        havells_solar_get_1_register(HAVELLS_PV1_VOLTAGE_SAMPLED_BY_SECONDARY_CPU * 2 + (i * 2), ONE_DEC_UNIT);
     float insulation_of_p_to_ground =
-      havells_solar_get_1_register(HAVELLS_PV1_INSULATION_OF_P_TO_GROUND * 2 + (i * 2), NO_DEC_UNIT);
+        havells_solar_get_1_register(HAVELLS_PV1_INSULATION_OF_P_TO_GROUND * 2 + (i * 2), NO_DEC_UNIT);
 
     if (pv.voltage_sensor_ != nullptr)
       pv.voltage_sensor_->publish_state(voltage);
