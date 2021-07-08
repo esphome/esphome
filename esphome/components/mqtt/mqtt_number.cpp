@@ -20,8 +20,7 @@ void MQTTNumberComponent::setup() {
   this->subscribe(this->get_command_topic_(), [this](const std::string &topic, const std::string &state) {
     auto val = parse_float(state);
     if (!val.has_value()) {
-      ESP_LOGW(TAG, "Can't convert '%s' to number!", state.c_str());
-      this->publish_state(NAN);
+      ESP_LOGE(TAG, "Can't convert '%s' to number!", state.c_str());
       return;
     }
     auto call = this->number_->make_call();
