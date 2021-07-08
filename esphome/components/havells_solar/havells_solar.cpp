@@ -145,20 +145,20 @@ void HavellsSolar::dump_config() {
     LOG_SENSOR("    ", "Insulation Of PV+ To Ground", pv.insulation_of_p_to_ground_sensor_);
   }
   LOG_SENSOR("  ", "Frequency", this->frequency_sensor_);
-  LOG_SENSOR("    ", "Active Power", this->active_power_sensor_);
-  LOG_SENSOR("    ", "Reactive Power", this->reactive_power_sensor_);
-  LOG_SENSOR("    ", "Today Generation", this->today_production_sensor_);
-  LOG_SENSOR("    ", "Total Generation", this->total_energy_production_sensor_);
-  LOG_SENSOR("    ", "Total Generation Time", this->total_generation_time_sensor_);
-  LOG_SENSOR("    ", "Today Generation Time", this->today_generation_time_sensor_);
-  LOG_SENSOR("    ", "Inverter Module Temp", this->inverter_module_temp_sensor_);
-  LOG_SENSOR("    ", "Inverter Inner Temp", this->inverter_inner_temp_sensor_);
-  LOG_SENSOR("    ", "Inverter Bus Voltage", this->inverter_bus_voltage_sensor_);
-  LOG_SENSOR("    ", "Insulation Of PV- To Ground", this->insulation_pv_n_to_ground_sensor_);
-  LOG_SENSOR("    ", "GFCI Value", this->gfci_value_sensor_);
-  LOG_SENSOR("    ", "DCI Of R", this->dci_of_r_sensor_);
-  LOG_SENSOR("    ", "DCI Of S", this->dci_of_s_sensor_);
-  LOG_SENSOR("    ", "DCI Of T", this->dci_of_t_sensor_);
+  LOG_SENSOR("  ", "Active Power", this->active_power_sensor_);
+  LOG_SENSOR("  ", "Reactive Power", this->reactive_power_sensor_);
+  LOG_SENSOR("  ", "Today Generation", this->today_production_sensor_);
+  LOG_SENSOR("  ", "Total Generation", this->total_energy_production_sensor_);
+  LOG_SENSOR("  ", "Total Generation Time", this->total_generation_time_sensor_);
+  LOG_SENSOR("  ", "Today Generation Time", this->today_generation_time_sensor_);
+  LOG_SENSOR("  ", "Inverter Module Temp", this->inverter_module_temp_sensor_);
+  LOG_SENSOR("  ", "Inverter Inner Temp", this->inverter_inner_temp_sensor_);
+  LOG_SENSOR("  ", "Inverter Bus Voltage", this->inverter_bus_voltage_sensor_);
+  LOG_SENSOR("  ", "Insulation Of PV- To Ground", this->insulation_pv_n_to_ground_sensor_);
+  LOG_SENSOR("  ", "GFCI Value", this->gfci_value_sensor_);
+  LOG_SENSOR("  ", "DCI Of R", this->dci_of_r_sensor_);
+  LOG_SENSOR("  ", "DCI Of S", this->dci_of_s_sensor_);
+  LOG_SENSOR("  ", "DCI Of T", this->dci_of_t_sensor_);
 }
 
 }  // namespace havells_solar
