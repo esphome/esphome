@@ -866,8 +866,13 @@ climate:
     humidity_setpoint:
       name: "Hum"
 
+remote_transmitter:
+  pin: GPIO13
+  carrier_duty_percent: 100%
+
 midea_dongle:
   uart_id: uart1
+  transmitter_id:
   strength_icon: true
 
 cover:
