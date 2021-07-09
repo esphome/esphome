@@ -116,9 +116,7 @@ optional<MideaData> MideaProtocol::decode(RemoteReceiveData src) {
   return {};
 }
 
-void MideaProtocol::dump(const MideaData &data) {
-  ESP_LOGD(TAG, "Received Midea: %s", data.raw_data().c_str());
-}
+void MideaProtocol::dump(const MideaData &data) { ESP_LOGD(TAG, "Received Midea: %s", data.raw_data().c_str()); }
 
 }  // namespace remote_base
 }  // namespace esphome

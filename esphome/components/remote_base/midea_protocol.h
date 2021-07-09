@@ -50,7 +50,6 @@ class MideaData {
   uint8_t calc_cs_() const;
 };
 
-
 class MideaProtocol : public RemoteProtocol<MideaData> {
  public:
   void encode(RemoteTransmitData *dst, const MideaData &data) override;

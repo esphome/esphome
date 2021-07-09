@@ -110,16 +110,12 @@ template<typename... Ts> class FollowMeAction : public MideaActionBase<Ts...> {
 
 template<typename... Ts> class SwingStepAction : public MideaActionBase<Ts...> {
  public:
-  void play(Ts... x) override {
-    this->transmit_ir({MideaData::MIDEA_TYPE_SPECIAL, 0x01, 0xFF, 0xFF, 0xFF});
-  }
+  void play(Ts... x) override { this->transmit_ir({MideaData::MIDEA_TYPE_SPECIAL, 0x01, 0xFF, 0xFF, 0xFF}); }
 };
 
 template<typename... Ts> class DisplayToggleAction : public MideaActionBase<Ts...> {
  public:
-  void play(Ts... x) override {
-    this->transmit_ir({MideaData::MIDEA_TYPE_SPECIAL, 0x08, 0xFF, 0xFF, 0xFF});
-  }
+  void play(Ts... x) override { this->transmit_ir({MideaData::MIDEA_TYPE_SPECIAL, 0x08, 0xFF, 0xFF, 0xFF}); }
 };
 
 }  // namespace midea_ac
