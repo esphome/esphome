@@ -8,7 +8,7 @@ namespace selec_meter {
 static const char *const TAG = "selec_meter";
 
 static const uint8_t MODBUS_CMD_READ_IN_REGISTERS = 0x04;
-static const uint8_t MODBUS_REGISTER_COUNT = 34;  // 74 x 16-bit registers
+static const uint8_t MODBUS_REGISTER_COUNT = 34;  // 34 x 16-bit registers
 
 void SelecMeter::on_modbus_data(const std::vector<uint8_t> &data) {
   if (data.size() < MODBUS_REGISTER_COUNT * 2) {
@@ -18,7 +18,7 @@ void SelecMeter::on_modbus_data(const std::vector<uint8_t> &data) {
 
   auto selec_meter_get_float = [&](size_t i, float unit) -> float {
     uint32_t temp = encode_uint32(data[i + 2], data[i + 3], data[i], data[i + 1]);
-    
+
     float f;
     memcpy(&f, &temp, sizeof(f));
     return (f * unit);
