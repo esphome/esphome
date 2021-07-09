@@ -16,8 +16,8 @@ class MideaData {
   MideaData(const std::vector<uint8_t> &data) {
     memcpy(this->data_, data.data(), std::min<size_t>(data.size(), sizeof(this->data_)));
   }
-  // Make 40-bit copy from array
-  MideaData(const uint8_t *data) { memcpy(this->data(), data, OFFSET_CS); }
+  // Make 40-bit copy from PROGMEM array
+  MideaData(const uint8_t *data) { memcpy_P(this->data_, data, OFFSET_CS); }
   // Default copy constructor
   MideaData(const MideaData &) = default;
 

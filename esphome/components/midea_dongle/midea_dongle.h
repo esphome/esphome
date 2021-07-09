@@ -32,7 +32,7 @@ class MideaDongle : public PollingComponent, public uart::UARTDevice {
   void loop() override;
   void set_appliance(MideaAppliance *app) { this->appliance_ = app; }
   void set_transmitter(remote_transmitter::RemoteTransmitterComponent *transmitter) { this->transmitter_ = transmitter; }
-  void transmit_ir_data(remote_base::MideaData &data);
+  void transmit_ir(remote_base::MideaData &data);
   void use_strength_icon(bool state) { this->rssi_timer_ = state; }
   void write_frame(const Frame &frame);
 

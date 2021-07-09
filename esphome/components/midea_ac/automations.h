@@ -34,6 +34,7 @@ class MideaFollowMe : public MideaData {
   static const uint8_t MAX_TEMP = 37;
 };
 
+#if 0
 class MideaCommand : public MideaData {
  public:
   // Default constructor: power: on, mode: auto, fan: auto, temp: 25C, all timers: off
@@ -66,43 +67,59 @@ class MideaCommand : public MideaData {
   // Set power
   void set_power(bool val) { set_value_(1, 0b1, 7, val); }
   // Set ON timer (0: disable)
-  void set_on_timer(uint16_t minutes);
+  void set_on_timer(uint16_t minutes) {
+    uint8_t halfhours = std::min<uint16_t>(24 * 60, minutes) / 30;
+    this->data_[4] = halfhours ? ((halfhours - 1) * 2 + 1) : 0xFF;
+  }
   // Set OFF timer (0: disable)
-  void set_off_timer(uint16_t minutes);
+  void set_off_timer(uint16_t minutes) {
+    uint8_t halfhours = std::min<uint16_t>(24 * 60, minutes) / 30;
+    this->set_value_(3, 0b111111, 1, halfhours ? (halfhours - 1) : 0b111111);
+  }
 
  protected:
   static const uint8_t MIN_TEMP = 17;
   static const uint8_t MAX_TEMP = 30;
 };
+#endif
 
-template<typename... Ts> class FollowMeAction : public remote_base::RemoteTransmitterActionBase<Ts...> {
+template<typename... Ts> class MideaActionBase : public Action<Ts...> {
+ public:
+  void set_parent(MideaAC *parent) { this->parent_ = parent; }
+  void transmit_ir(MideaData &data) { this->parent_->transmit_ir(data); }
+  void transmit_ir(std::initializer_list<uint8_t> data) {
+    MideaData code = data;
+    this->parent_->transmit_ir(code);
+  }
+
+ protected:
+  MideaAC *parent_;
+};
+
+template<typename... Ts> class FollowMeAction : public MideaActionBase<Ts...> {
   TEMPLATABLE_VALUE(uint8_t, temperature)
   TEMPLATABLE_VALUE(bool, beeper)
-  void encode(RemoteTransmitData *dst, Ts... x) override {
+
+  void play(Ts... x) override {
     MideaFollowMe data;
     data.set_temp(this->temperature_.value(x...));
     data.set_beeper(this->beeper_.value(x...));
-    data.finalize();
-    MideaProtocol().encode(dst, data);
+    this->transmit_ir(data);
   }
 };
 
-template<typename... Ts> class MideaDisplayToggleAction : public RemoteTransmitterActionBase<Ts...> {
+template<typename... Ts> class SwingStepAction : public MideaActionBase<Ts...> {
  public:
-  MideaDisplayToggleAction() { this->data_.finalize(); }
-  void encode(RemoteTransmitData *dst, Ts... x) override { MideaProtocol().encode(dst, this->data_); }
-
- protected:
-  MideaData data_ = {MideaData::MIDEA_TYPE_SPECIAL, 0x08, 0xFF, 0xFF, 0xFF};
+  void play(Ts... x) override {
+    this->transmit_ir({MideaData::MIDEA_TYPE_SPECIAL, 0x01, 0xFF, 0xFF, 0xFF});
+  }
 };
 
-template<typename... Ts> class MideaSwingStepAction : public RemoteTransmitterActionBase<Ts...> {
+template<typename... Ts> class DisplayToggleAction : public MideaActionBase<Ts...> {
  public:
-  MideaSwingStepAction() { this->data_.finalize(); }
-  void encode(RemoteTransmitData *dst, Ts... x) override { MideaProtocol().encode(dst, this->data_); }
-
- protected:
-  MideaData data_ = {MideaData::MIDEA_TYPE_SPECIAL, 0x01, 0xFF, 0xFF, 0xFF};
+  void play(Ts... x) override {
+    this->transmit_ir({MideaData::MIDEA_TYPE_SPECIAL, 0x08, 0xFF, 0xFF, 0xFF});
+  }
 };
 
 }  // namespace midea_ac
