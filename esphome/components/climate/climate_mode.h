@@ -13,7 +13,7 @@ enum ClimateMode : uint8_t {
   CLIMATE_MODE_HEAT_COOL = 1,
   /// The climate device is set to cool to reach the a target temperature
   CLIMATE_MODE_COOL = 2,
-  /// The climate device is set to cool to reach the a target temperature
+  /// The climate device is set to heat to reach the a target temperature
   CLIMATE_MODE_HEAT = 3,
   /// The climate device only has the fan enabled, no heating or cooling is taking place
   CLIMATE_MODE_FAN_ONLY = 4,
