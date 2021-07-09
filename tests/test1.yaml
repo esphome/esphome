@@ -1655,21 +1655,8 @@ switch:
   - platform: template
     name: MIDEA_RAW
     turn_on_action:
-      remote_transmitter.transmit_midea_raw:
+      remote_transmitter.transmit_midea:
         code: [0xA2, 0x08, 0xFF, 0xFF, 0xFF]
-  - platform: template
-    name: MIDEA_DISPLAY_TOGGLE
-    turn_on_action:
-      remote_transmitter.transmit_midea_display_toggle:
-  - platform: template
-    name: MIDEA_SWING_STEP
-    turn_on_action:
-      remote_transmitter.transmit_midea_swing_step:
-  - platform: template
-    name: MIDEA_FOLLOW_ME
-    turn_on_action:
-      remote_transmitter.transmit_midea_follow_me:
-        temperature: 25
   - platform: template
     name: Living Room Lights
     id: livingroom_lights

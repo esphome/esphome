@@ -704,6 +704,19 @@ switch:
     switches:
       - id: custom_switch
         name: Custom Switch
+  - platform: template
+    name: MIDEA_DISPLAY_TOGGLE
+    turn_on_action:
+      midea_ac.display_toggle:
+  - platform: template
+    name: MIDEA_SWING_STEP
+    turn_on_action:
+      midea_ac.swing_step:
+  - platform: template
+    name: MIDEA_FOLLOW_ME
+    turn_on_action:
+      midea_ac.follow_me:
+        temperature: 25
 
 custom_component:
   lambda: |-
