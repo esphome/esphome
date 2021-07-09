@@ -126,7 +126,7 @@ void SSD1306::setup() {
   // Contrast and brighrness
   // SSD1306 does not have brightness setting
   set_contrast(this->contrast_);
-  if (!this->is_ssd1305_())
+  if (this->is_ssd1305_())
     set_brightness(this->brightness_);
 
   this->fill(BLACK);  // clear display - ensures we do not see garbage at power-on
