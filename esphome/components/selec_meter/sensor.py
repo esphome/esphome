@@ -1,4 +1,3 @@
-from esphome.components.atm90e32.sensor import CONF_PHASE_A, CONF_PHASE_B, CONF_PHASE_C
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import sensor, modbus
@@ -12,7 +11,6 @@ from esphome.const import (
     CONF_ID,
     CONF_IMPORT_ACTIVE_ENERGY,
     CONF_IMPORT_REACTIVE_ENERGY,
-    CONF_PHASE_ANGLE,
     CONF_POWER_FACTOR,
     CONF_REACTIVE_POWER,
     CONF_VOLTAGE,
@@ -24,19 +22,15 @@ from esphome.const import (
     DEVICE_CLASS_VOLTAGE,
     ICON_CURRENT_AC,
     ICON_EMPTY,
-    ICON_FLASH,
     STATE_CLASS_MEASUREMENT,
     STATE_CLASS_NONE,
     UNIT_AMPERE,
-    UNIT_DEGREES,
     UNIT_EMPTY,
     UNIT_HERTZ,
     UNIT_VOLT,
     UNIT_VOLT_AMPS,
     UNIT_VOLT_AMPS_REACTIVE,
-    UNIT_VOLT_AMPS_REACTIVE_HOURS,
     UNIT_WATT,
-    UNIT_WATT_HOURS,
 )
 
 AUTO_LOAD = ["modbus"]
@@ -54,20 +48,34 @@ UNIT_KILOVOLT_AMPS_HOURS = "kVAh"
 UNIT_KILOVOLT_AMPS_REACTIVE_HOURS = "kVARh"
 
 selec_meter_ns = cg.esphome_ns.namespace("selec_meter")
-SelecMeter = selec_meter_ns.class_("SelecMeter", cg.PollingComponent, modbus.ModbusDevice)
+SelecMeter = selec_meter_ns.class_(
+    "SelecMeter", cg.PollingComponent, modbus.ModbusDevice
+)
 
 CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(SelecMeter),
             cv.Optional(CONF_TOTAL_ACTIVE_ENERGY): sensor.sensor_schema(
-                UNIT_KILOWATT_HOURS, ICON_EMPTY, 2, DEVICE_CLASS_ENERGY, STATE_CLASS_NONE
+                UNIT_KILOWATT_HOURS,
+                ICON_EMPTY,
+                2,
+                DEVICE_CLASS_ENERGY,
+                STATE_CLASS_NONE,
             ),
             cv.Optional(CONF_IMPORT_ACTIVE_ENERGY): sensor.sensor_schema(
-                UNIT_KILOWATT_HOURS, ICON_EMPTY, 2, DEVICE_CLASS_ENERGY, STATE_CLASS_NONE
+                UNIT_KILOWATT_HOURS,
+                ICON_EMPTY,
+                2,
+                DEVICE_CLASS_ENERGY,
+                STATE_CLASS_NONE,
             ),
             cv.Optional(CONF_EXPORT_ACTIVE_ENERGY): sensor.sensor_schema(
-                UNIT_KILOWATT_HOURS, ICON_EMPTY, 2, DEVICE_CLASS_ENERGY, STATE_CLASS_NONE
+                UNIT_KILOWATT_HOURS,
+                ICON_EMPTY,
+                2,
+                DEVICE_CLASS_ENERGY,
+                STATE_CLASS_NONE,
             ),
             cv.Optional(CONF_TOTAL_REACTIVE_ENERGY): sensor.sensor_schema(
                 UNIT_KILOVOLT_AMPS_REACTIVE_HOURS,
@@ -98,11 +106,7 @@ CONFIG_SCHEMA = (
                 STATE_CLASS_NONE,
             ),
             cv.Optional(CONF_ACTIVE_POWER): sensor.sensor_schema(
-                UNIT_WATT,
-                ICON_EMPTY,
-                3,
-                DEVICE_CLASS_POWER,
-                STATE_CLASS_MEASUREMENT
+                UNIT_WATT, ICON_EMPTY, 3, DEVICE_CLASS_POWER, STATE_CLASS_MEASUREMENT
             ),
             cv.Optional(CONF_REACTIVE_POWER): sensor.sensor_schema(
                 UNIT_VOLT_AMPS_REACTIVE,
@@ -116,27 +120,24 @@ CONFIG_SCHEMA = (
                 ICON_EMPTY,
                 3,
                 DEVICE_CLASS_POWER,
-                STATE_CLASS_MEASUREMENT
+                STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_VOLTAGE): sensor.sensor_schema(
-                UNIT_VOLT,
-                ICON_EMPTY,
-                2,
-                DEVICE_CLASS_VOLTAGE
+                UNIT_VOLT, ICON_EMPTY, 2, DEVICE_CLASS_VOLTAGE
             ),
             cv.Optional(CONF_CURRENT): sensor.sensor_schema(
                 UNIT_AMPERE,
                 ICON_EMPTY,
                 3,
                 DEVICE_CLASS_CURRENT,
-                STATE_CLASS_MEASUREMENT
+                STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_POWER_FACTOR): sensor.sensor_schema(
                 UNIT_EMPTY,
                 ICON_EMPTY,
                 3,
                 DEVICE_CLASS_POWER_FACTOR,
-                STATE_CLASS_MEASUREMENT
+                STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_FREQUENCY): sensor.sensor_schema(
                 UNIT_HERTZ,
@@ -146,11 +147,7 @@ CONFIG_SCHEMA = (
                 STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_MAXIMUM_DEMAND_ACTIVE_POWER): sensor.sensor_schema(
-                UNIT_WATT,
-                ICON_EMPTY,
-                3,
-                DEVICE_CLASS_POWER,
-                STATE_CLASS_MEASUREMENT
+                UNIT_WATT, ICON_EMPTY, 3, DEVICE_CLASS_POWER, STATE_CLASS_MEASUREMENT
             ),
             cv.Optional(CONF_MAXIMUM_DEMAND_REACTIVE_POWER): sensor.sensor_schema(
                 UNIT_VOLT_AMPS_REACTIVE,
@@ -164,7 +161,7 @@ CONFIG_SCHEMA = (
                 ICON_EMPTY,
                 3,
                 DEVICE_CLASS_POWER,
-                STATE_CLASS_MEASUREMENT
+                STATE_CLASS_MEASUREMENT,
             ),
         }
     )

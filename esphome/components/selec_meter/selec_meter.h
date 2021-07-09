@@ -39,12 +39,8 @@ class SelecMeter : public PollingComponent, public modbus::ModbusDevice {
   void set_apparent_power_sensor(sensor::Sensor *apparent_power_sensor) {
     this->apparent_power_sensor_ = apparent_power_sensor;
   }
-  void set_voltage_sensor(sensor::Sensor *voltage_sensor) {
-    this->voltage_sensor_ = voltage_sensor;
-  }
-  void set_current_sensor(sensor::Sensor *current_sensor) {
-    this->current_sensor_ = current_sensor;
-  }
+  void set_voltage_sensor(sensor::Sensor *voltage_sensor) { this->voltage_sensor_ = voltage_sensor; }
+  void set_current_sensor(sensor::Sensor *current_sensor) { this->current_sensor_ = current_sensor; }
   void set_power_factor_sensor(sensor::Sensor *power_factor_sensor) {
     this->power_factor_sensor_ = power_factor_sensor;
   }

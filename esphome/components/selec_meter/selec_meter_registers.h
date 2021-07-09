@@ -28,6 +28,5 @@ static const uint16_t SELEC_MAXIMUM_DEMAND_ACTIVE_POWER = 0x001C;
 static const uint16_t SELEC_MAXIMUM_DEMAND_REACTIVE_POWER = 0x001E;
 static const uint16_t SELEC_MAXIMUM_DEMAND_APPARENT_POWER = 0x0020;
 
-
 }  // namespace selec_meter
 }  // namespace esphome

@@ -17,30 +17,33 @@ void SelecMeter::on_modbus_data(const std::vector<uint8_t> &data) {
   }
 
   auto selec_meter_get_float = [&](size_t i, float unit) -> float {
-    uint32_t temp = encode_uint32(data[i+2], data[i + 3], data[i], data[i+1]);
+    uint32_t temp = encode_uint32(data[i + 2], data[i + 3], data[i], data[i + 1]);
     
     float f;
     memcpy(&f, &temp, sizeof(f));
     return (f * unit);
   };
 
-  float total_active_energy = selec_meter_get_float(SELEC_TOTAL_ACTIVE_ENERGY * 2,NO_DEC_UNIT);
-  float import_active_energy = selec_meter_get_float(SELEC_IMPORT_ACTIVE_ENERGY * 2,NO_DEC_UNIT);
-  float export_active_energy = selec_meter_get_float(SELEC_EXPORT_ACTIVE_ENERGY * 2,NO_DEC_UNIT);
-  float total_reactive_energy = selec_meter_get_float(SELEC_TOTAL_REACTIVE_ENERGY * 2,NO_DEC_UNIT);
-  float import_reactive_energy = selec_meter_get_float(SELEC_IMPORT_REACTIVE_ENERGY * 2,NO_DEC_UNIT);
-  float export_reactive_energy = selec_meter_get_float(SELEC_EXPORT_REACTIVE_ENERGY * 2,NO_DEC_UNIT);
-  float apparent_energy = selec_meter_get_float(SELEC_APPARENT_ENERGY * 2,NO_DEC_UNIT);
+  float total_active_energy = selec_meter_get_float(SELEC_TOTAL_ACTIVE_ENERGY * 2, NO_DEC_UNIT);
+  float import_active_energy = selec_meter_get_float(SELEC_IMPORT_ACTIVE_ENERGY * 2, NO_DEC_UNIT);
+  float export_active_energy = selec_meter_get_float(SELEC_EXPORT_ACTIVE_ENERGY * 2, NO_DEC_UNIT);
+  float total_reactive_energy = selec_meter_get_float(SELEC_TOTAL_REACTIVE_ENERGY * 2, NO_DEC_UNIT);
+  float import_reactive_energy = selec_meter_get_float(SELEC_IMPORT_REACTIVE_ENERGY * 2, NO_DEC_UNIT);
+  float export_reactive_energy = selec_meter_get_float(SELEC_EXPORT_REACTIVE_ENERGY * 2, NO_DEC_UNIT);
+  float apparent_energy = selec_meter_get_float(SELEC_APPARENT_ENERGY * 2, NO_DEC_UNIT);
   float active_power = selec_meter_get_float(SELEC_ACTIVE_POWER * 2, MULTIPLY_THOUSAND_UNIT);
-  float reactive_power = selec_meter_get_float(SELEC_REACTIVE_POWER * 2,MULTIPLY_THOUSAND_UNIT);
-  float apparent_power = selec_meter_get_float(SELEC_APPARENT_POWER * 2,MULTIPLY_THOUSAND_UNIT);
+  float reactive_power = selec_meter_get_float(SELEC_REACTIVE_POWER * 2, MULTIPLY_THOUSAND_UNIT);
+  float apparent_power = selec_meter_get_float(SELEC_APPARENT_POWER * 2, MULTIPLY_THOUSAND_UNIT);
   float voltage = selec_meter_get_float(SELEC_VOLTAGE * 2, NO_DEC_UNIT);
   float current = selec_meter_get_float(SELEC_CURRENT * 2, NO_DEC_UNIT);
-  float power_factor = selec_meter_get_float(SELEC_POWER_FACTOR * 2 ,NO_DEC_UNIT);
-  float frequency = selec_meter_get_float(SELEC_FREQUENCY * 2 ,NO_DEC_UNIT);
-  float maximum_demand_active_power = selec_meter_get_float(SELEC_MAXIMUM_DEMAND_ACTIVE_POWER * 2, MULTIPLY_THOUSAND_UNIT);
-  float maximum_demand_reactive_power = selec_meter_get_float(SELEC_MAXIMUM_DEMAND_REACTIVE_POWER * 2,MULTIPLY_THOUSAND_UNIT);
-  float maximum_demand_apparent_power = selec_meter_get_float(SELEC_MAXIMUM_DEMAND_APPARENT_POWER * 2,MULTIPLY_THOUSAND_UNIT);
+  float power_factor = selec_meter_get_float(SELEC_POWER_FACTOR * 2, NO_DEC_UNIT);
+  float frequency = selec_meter_get_float(SELEC_FREQUENCY * 2, NO_DEC_UNIT);
+  float maximum_demand_active_power =
+      selec_meter_get_float(SELEC_MAXIMUM_DEMAND_ACTIVE_POWER * 2, MULTIPLY_THOUSAND_UNIT);
+  float maximum_demand_reactive_power =
+      selec_meter_get_float(SELEC_MAXIMUM_DEMAND_REACTIVE_POWER * 2, MULTIPLY_THOUSAND_UNIT);
+  float maximum_demand_apparent_power =
+      selec_meter_get_float(SELEC_MAXIMUM_DEMAND_APPARENT_POWER * 2, MULTIPLY_THOUSAND_UNIT);
 
   if (this->total_active_energy_sensor_ != nullptr)
     this->total_active_energy_sensor_->publish_state(total_active_energy);
@@ -76,7 +79,6 @@ void SelecMeter::on_modbus_data(const std::vector<uint8_t> &data) {
     this->maximum_demand_reactive_power_sensor_->publish_state(maximum_demand_reactive_power);
   if (this->maximum_demand_apparent_power_sensor_ != nullptr)
     this->maximum_demand_apparent_power_sensor_->publish_state(maximum_demand_apparent_power);
-
 }
 
 void SelecMeter::update() { this->send(MODBUS_CMD_READ_IN_REGISTERS, 0, MODBUS_REGISTER_COUNT); }
