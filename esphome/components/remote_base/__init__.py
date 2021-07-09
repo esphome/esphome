@@ -27,7 +27,6 @@ from esphome.const import (
     CONF_CARRIER_FREQUENCY,
     CONF_RC_CODE_1,
     CONF_RC_CODE_2,
-    CONF_TEMPERATURE,
 )
 from esphome.core import coroutine
 from esphome.jsonschema import jschema_extractor
@@ -1002,13 +1001,8 @@ async def panasonic_action(var, config, args):
 MideaData, MideaBinarySensor, MideaTrigger, MideaAction, MideaDumper = declare_protocol(
     "Midea"
 )
-MideaRawAction = ns.class_("MideaRawAction", RemoteTransmitterActionBase)
-MideaFollowMeAction = ns.class_("MideaFollowMeAction", RemoteTransmitterActionBase)
-MideaDisplayToggleAction = ns.class_(
-    "MideaDisplayToggleAction", RemoteTransmitterActionBase
-)
-MideaSwingStepAction = ns.class_("MideaSwingStepAction", RemoteTransmitterActionBase)
-MIDEA_RAW_SCHEMA = cv.Schema(
+MideaAction = ns.class_("MideaAction", RemoteTransmitterActionBase)
+MIDEA_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_CODE): cv.All(
             [cv.Any(cv.hex_uint8_t, cv.uint8_t)],
@@ -1019,7 +1013,7 @@ MIDEA_RAW_SCHEMA = cv.Schema(
 )
 
 
-@register_binary_sensor("midea", MideaBinarySensor, MIDEA_RAW_SCHEMA)
+@register_binary_sensor("midea", MideaBinarySensor, MIDEA_SCHEMA)
 def midea_binary_sensor(var, config):
     arr_ = cg.progmem_array(config[CONF_CODE_STORAGE_ID], config[CONF_CODE])
     cg.add(var.set_code(arr_))
@@ -1036,56 +1030,10 @@ def midea_dumper(var, config):
 
 
 @register_action(
-    "midea_raw",
-    MideaRawAction,
-    MIDEA_RAW_SCHEMA,
+    "midea",
+    MideaAction,
+    MIDEA_SCHEMA,
 )
-async def midea_raw_action(var, config, args):
+async def midea_action(var, config, args):
     arr_ = cg.progmem_array(config[CONF_CODE_STORAGE_ID], config[CONF_CODE])
     cg.add(var.set_code(arr_))
-
-
-# Midea FollowMe action
-CONF_BEEPER = "beeper"
-MIDEA_FOLLOW_ME_MIN = 0
-MIDEA_FOLLOW_ME_MAX = 37
-MIDEA_FOLLOW_ME_SCHEMA = cv.Schema(
-    {
-        cv.Required(CONF_TEMPERATURE): cv.templatable(
-            cv.int_range(MIDEA_FOLLOW_ME_MIN, MIDEA_FOLLOW_ME_MAX),
-        ),
-        cv.Optional(CONF_BEEPER, default=False): cv.templatable(cv.boolean),
-    }
-)
-
-
-@register_action(
-    "midea_follow_me",
-    MideaFollowMeAction,
-    MIDEA_FOLLOW_ME_SCHEMA,
-)
-async def midea_follow_me_action(var, config, args):
-    template_ = await cg.templatable(config[CONF_BEEPER], args, cg.uint8)
-    cg.add(var.set_beeper(template_))
-    template_ = await cg.templatable(config[CONF_TEMPERATURE], args, cg.uint8)
-    cg.add(var.set_temperature(template_))
-
-
-# Midea ToggleLight action
-@register_action(
-    "midea_display_toggle",
-    MideaDisplayToggleAction,
-    cv.Schema({}),
-)
-async def midea_display_toggle_action(var, config, args):
-    pass
-
-
-# Midea Swing Step action
-@register_action(
-    "midea_swing_step",
-    MideaSwingStepAction,
-    cv.Schema({}),
-)
-async def midea_swing_step_action(var, config, args):
-    pass

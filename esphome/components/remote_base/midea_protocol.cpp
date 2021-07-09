@@ -45,16 +45,6 @@ bool MideaData::check_compliment(const MideaData &rhs) const {
   return true;
 }
 
-void MideaCommand::set_on_timer(uint16_t minutes) {
-  uint8_t halfhours = std::min<uint16_t>(24 * 60, minutes) / 30;
-  this->data_[4] = halfhours ? ((halfhours - 1) * 2 + 1) : 0xFF;
-}
-
-void MideaCommand::set_off_timer(uint16_t minutes) {
-  uint8_t halfhours = std::min<uint16_t>(24 * 60, minutes) / 30;
-  this->set_value_(3, 0b111111, 1, halfhours ? (halfhours - 1) : 0b111111);
-}
-
 void MideaProtocol::data(RemoteTransmitData *dst, const MideaData &src, bool compliment) {
   for (const uint8_t *it = src.data(); it != src.data() + src.size(); ++it) {
     const uint8_t data = compliment ? ~(*it) : *it;
@@ -127,12 +117,7 @@ optional<MideaData> MideaProtocol::decode(RemoteReceiveData src) {
 }
 
 void MideaProtocol::dump(const MideaData &data) {
-  if (data.type() == MideaData::MIDEA_TYPE_FOLLOW_ME) {
-    MideaFollowMe fm = data.to<MideaFollowMe>();
-    ESP_LOGD(TAG, "Received Midea FollowMe: temp: %d, raw_data: %s", fm.temp(), fm.raw_data().c_str());
-  } else {
-    ESP_LOGD(TAG, "Received Midea: %s", data.raw_data().c_str());
-  }
+  ESP_LOGD(TAG, "Received Midea: %s", data.raw_data().c_str());
 }
 
 }  // namespace remote_base

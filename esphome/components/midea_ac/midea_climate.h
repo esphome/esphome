@@ -6,6 +6,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/midea_dongle/midea_dongle.h"
 #include "esphome/components/climate/climate.h"
+#include "esphome/components/remote_transmitter/remote_transmitter.h"
 #include "midea_frame.h"
 
 namespace esphome {

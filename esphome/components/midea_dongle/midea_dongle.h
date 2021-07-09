@@ -2,6 +2,8 @@
 #include "esphome/core/component.h"
 #include "esphome/components/wifi/wifi_component.h"
 #include "esphome/components/uart/uart.h"
+#include "esphome/components/remote_base/midea_protocol.h"
+#include "esphome/components/remote_transmitter/remote_transmitter.h"
 #include "midea_frame.h"
 
 namespace esphome {
@@ -29,11 +31,14 @@ class MideaDongle : public PollingComponent, public uart::UARTDevice {
   void update() override;
   void loop() override;
   void set_appliance(MideaAppliance *app) { this->appliance_ = app; }
+  void set_transmitter(remote_transmitter::RemoteTransmitterComponent *transmitter) { this->transmitter_ = transmitter; }
+  void transmit_ir_data(remote_base::MideaData &data);
   void use_strength_icon(bool state) { this->rssi_timer_ = state; }
   void write_frame(const Frame &frame);
 
  protected:
   MideaAppliance *appliance_{nullptr};
+  remote_transmitter::RemoteTransmitterComponent *transmitter_{nullptr};
   NotifyFrame notify_;
   unsigned notify_timer_{1};
   // Buffer

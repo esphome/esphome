@@ -94,5 +94,15 @@ void MideaDongle::write_frame(const Frame &frame) {
   ESP_LOGD(TAG, "TX: %s", frame.to_string().c_str());
 }
 
+void MideaDongle::transmit_ir(remote_base::MideaData &data) {
+  if (this->transmitter_ == nullptr)
+    return;
+  data.finalize();
+  ESP_LOGD(TAG, "Sending Midea IR data: %s", data.raw_data().c_str());
+  auto transmit = this->transmitter_->transmit();
+  remote_base::MideaProtocol().encode(transmit.get_data(), data);
+  transmit.perform();
+}
+
 }  // namespace midea_dongle
 }  // namespace esphome
