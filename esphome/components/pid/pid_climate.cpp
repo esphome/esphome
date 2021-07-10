@@ -95,7 +95,6 @@ void PIDClimate::write_output_(float value) {
 }
 void PIDClimate::handle_non_auto_mode_() {
   // in non-auto mode, switch directly to appropriate action
-  //  - HEAT mode / COOL mode -> Output at ±100%
   //  - OFF mode -> Output at 0%
   if (this->mode == climate::CLIMATE_MODE_OFF) {
     this->write_output_(0.0);
