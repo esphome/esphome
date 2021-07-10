@@ -2,7 +2,6 @@ from string import ascii_letters, digits
 import esphome.config_validation as cv
 import esphome.codegen as cg
 from esphome.components import color
-from esphome.core import coroutine
 
 from . import CONF_NEXTION_ID
 from . import Nextion
@@ -92,7 +91,6 @@ CONFIG_SWITCH_COMPONENT_SCHEMA = CONFIG_SENSOR_COMPONENT_SCHEMA.extend(
 )
 
 
-@coroutine
 async def setup_component_core_(var, config, arg):
 
     if CONF_VARIABLE_NAME in config:

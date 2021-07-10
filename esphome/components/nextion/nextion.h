@@ -841,7 +841,6 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
 
   std::string command_data_;
   bool is_connected_ = false;
-  bool dump_ran_ = false;
   uint32_t startup_override_ms_ = 8000;
   uint32_t max_q_age_ms_ = 8000;
   uint32_t started_ms_ = 0;

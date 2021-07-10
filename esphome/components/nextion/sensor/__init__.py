@@ -28,13 +28,30 @@ CODEOWNERS = ["@senexcrenshaw"]
 
 NextionSensor = nextion_ns.class_("NextionSensor", sensor.Sensor, cg.PollingComponent)
 
+
+def CheckWaveID(value):
+    value = cv.int_(value)
+    if value < 0 or value > 3:
+        raise cv.Invalid(f"Valid range for {CONF_WAVE_CHANNEL_ID} is 0-3")
+    return value
+
+
+def _validate(config):
+    if CONF_WAVE_CHANNEL_ID in config and CONF_COMPONENT_ID not in config:
+        raise cv.Invalid(
+            f"{CONF_COMPONENT_ID} is required when {CONF_WAVE_CHANNEL_ID} is set"
+        )
+
+    return config
+
+
 CONFIG_SCHEMA = cv.All(
     sensor.sensor_schema(UNIT_EMPTY, ICON_EMPTY, 2, DEVICE_CLASS_EMPTY)
     .extend(
         {
             cv.GenerateID(): cv.declare_id(NextionSensor),
             cv.Optional(CONF_PRECISION, default=0): cv.int_range(min=0, max=8),
-            cv.Optional(CONF_WAVE_CHANNEL_ID): cv.int_range(min=0, max=3),
+            cv.Optional(CONF_WAVE_CHANNEL_ID): CheckWaveID,
             cv.Optional(CONF_COMPONENT_ID): cv.uint8_t,
             cv.Optional(CONF_WAVE_MAX_LENGTH, default=255): cv.int_range(
                 min=1, max=1024
@@ -48,14 +65,11 @@ CONFIG_SCHEMA = cv.All(
     .extend(CONFIG_SENSOR_COMPONENT_SCHEMA)
     .extend(cv.polling_component_schema("never")),
     cv.has_exactly_one_key(CONF_COMPONENT_ID, CONF_COMPONENT_NAME, CONF_VARIABLE_NAME),
+    _validate,
 )
 
 
 async def to_code(config):
-    if CONF_WAVE_CHANNEL_ID in config and CONF_COMPONENT_ID not in config:
-        raise cv.Invalid(
-            "{CONF_COMPONENT_ID} is required when {CONF_WAVE_CHANNEL_ID} is set"
-        )
 
     hub = await cg.get_variable(config[CONF_NEXTION_ID])
     var = cg.new_Pvariable(config[CONF_ID], hub)

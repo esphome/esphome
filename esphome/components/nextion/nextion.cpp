@@ -114,10 +114,6 @@ void Nextion::reset_(bool reset_nextion) {
 }
 
 void Nextion::dump_config() {
-  if (!this->get_is_connected_() || this->dump_ran_)
-    return;
-  this->dump_ran_ = true;
-
   ESP_LOGCONFIG(TAG, "Nextion:");
   ESP_LOGCONFIG(TAG, "  Device Model:     %s", this->device_model_.c_str());
   ESP_LOGCONFIG(TAG, "  Firmware Version: %s", this->firmware_version_.c_str());
@@ -732,7 +728,7 @@ void Nextion::process_nextion_commands_() {
 
     // ESP_LOGN(TAG, "nextion_event_ deleting from 0 to %d", to_process_length + COMMAND_DELIMITER.length() + 1);
     this->command_data_.erase(0, to_process_length + COMMAND_DELIMITER.length() + 1);
-    App.feed_wdt();
+    // App.feed_wdt(); Remove before master merge
     this->process_serial_();
   }
 
@@ -770,7 +766,7 @@ void Nextion::process_nextion_commands_() {
     }
   }
   ESP_LOGN(TAG, "Loop End");
-  App.feed_wdt();
+  // App.feed_wdt(); Remove before master merge
   this->process_serial_();
 }  // namespace nextion
 
