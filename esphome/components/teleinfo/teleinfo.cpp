@@ -145,7 +145,7 @@ void TeleInfo::loop() {
         /* Advance buf_finger to end of group */
         buf_finger += field_len + 1 + 1 + 1;
 
-	if (!crc_error)
+        if (!crc_error)
           publish_value_(std::string(tag_), std::string(val_));
       }
       state_ = OFF;
