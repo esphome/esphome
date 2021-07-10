@@ -57,49 +57,6 @@ class LightColorValues {
     this->set_color_temperature(color_temperature);
   }
 
-  LightColorValues(bool state, float brightness, float color_brightness, float red, float green, float blue,
-                   float white, float color_temperature = 1.0f)
-      : LightColorValues(state ? 1.0f : 0.0f, brightness, color_brightness, red, green, blue, white,
-                         color_temperature) {}
-
-  /// Create light color values from a binary true/false state.
-  static LightColorValues from_binary(bool state) { return {state, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f}; }
-
-  /// Create light color values from a monochromatic brightness state.
-  static LightColorValues from_monochromatic(float brightness) {
-    if (brightness == 0.0f)
-      return {0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f};
-    else
-      return {1.0f, brightness, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f};
-  }
-
-  /// Create light color values from an RGB state.
-  static LightColorValues from_rgb(float r, float g, float b) {
-    float brightness = std::max(r, std::max(g, b));
-    if (brightness == 0.0f) {
-      return {0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f};
-    } else {
-      return {1.0f, brightness, 1.0f, r / brightness, g / brightness, b / brightness, 1.0f};
-    }
-  }
-
-  /// Create light color values from an RGBW state.
-  static LightColorValues from_rgbw(float r, float g, float b, float w) {
-    float color_brightness = std::max(r, std::max(g, b));
-    float master_brightness = std::max(color_brightness, w);
-    if (master_brightness == 0.0f) {
-      return {0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f};
-    } else {
-      return {1.0f,
-              master_brightness,
-              color_brightness / master_brightness,
-              r / color_brightness,
-              g / color_brightness,
-              b / color_brightness,
-              w / master_brightness};
-    }
-  }
-
   /** Linearly interpolate between the values in start to the values in end.
    *
    * This function linearly interpolates the color value by just interpolating every attribute
