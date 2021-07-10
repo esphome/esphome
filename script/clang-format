@@ -15,23 +15,26 @@ sys.path.append(os.path.dirname(__file__))
 from helpers import get_output, git_ls_files, filter_changed
 
 
-def run_format(args, queue, lock):
-    """Takes filenames out of queue and runs clang-tidy on them."""
+def run_format(args, queue, lock, failed_files):
+    """Takes filenames out of queue and runs clang-format on them."""
     while True:
         path = queue.get()
         invocation = ['clang-format-11']
         if args.inplace:
             invocation.append('-i')
+        else:
+            invocation.extend(['-n', '-Werror'])
         invocation.append(path)
 
-        proc = subprocess.Popen(invocation, stdout=subprocess.PIPE,
-                                stderr=subprocess.PIPE)
-        output, err = proc.communicate()
-        with lock:
-            if proc.returncode != 0:
-                print(' '.join(invocation))
-                print(output.decode('utf-8'))
-                print(err.decode('utf-8'))
+        proc = subprocess.run(invocation, capture_output=True, encoding='utf-8')
+        if proc.returncode != 0:
+            with lock:
+                print()
+                print("\033[0;32m************* File \033[1;32m{}\033[0m".format(path))
+                print(proc.stdout)
+                print(proc.stderr)
+                print()
+                failed_files.append(path)
         queue.task_done()
 
 
@@ -84,13 +87,13 @@ def main():
 
     files.sort()
 
-    return_code = 0
+    failed_files = []
     try:
         task_queue = queue.Queue(args.jobs)
         lock = threading.Lock()
         for _ in range(args.jobs):
             t = threading.Thread(target=run_format,
-                                 args=(args, task_queue, lock))
+                                 args=(args, task_queue, lock, failed_files))
             t.daemon = True
             t.start()
 
@@ -108,7 +111,7 @@ def main():
         print('Ctrl-C detected, goodbye.')
         os.kill(0, 9)
 
-    sys.exit(return_code)
+    sys.exit(len(failed_files))
 
 
 if __name__ == '__main__':
