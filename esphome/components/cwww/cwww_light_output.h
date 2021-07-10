@@ -17,6 +17,7 @@ class CWWWLightOutput : public light::LightOutput {
   light::LightTraits get_traits() override {
     auto traits = light::LightTraits();
     traits.set_supports_brightness(true);
+    traits.set_supported_color_modes({light::ColorMode::COLD_WARM_WHITE});
     traits.set_supports_rgb(false);
     traits.set_supports_rgb_white_value(false);
     traits.set_supports_color_temperature(true);

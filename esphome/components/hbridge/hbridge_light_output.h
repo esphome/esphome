@@ -19,6 +19,7 @@ class HBridgeLightOutput : public PollingComponent, public light::LightOutput {
   light::LightTraits get_traits() override {
     auto traits = light::LightTraits();
     traits.set_supports_brightness(true);  // Dimming
+    traits.set_supported_color_modes({light::ColorMode::WHITE});
     traits.set_supports_rgb(false);
     traits.set_supports_rgb_white_value(true);  // hbridge color
     traits.set_supports_color_temperature(false);

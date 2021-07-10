@@ -1,5 +1,8 @@
 #pragma once
 
+#include "color_mode.h"
+#include <set>
+
 namespace esphome {
 namespace light {
 
@@ -10,6 +13,21 @@ class LightTraits {
 
   bool get_supports_brightness() const { return this->supports_brightness_; }
   void set_supports_brightness(bool supports_brightness) { this->supports_brightness_ = supports_brightness; }
+
+  std::set<ColorMode> get_supported_color_modes() const { return this->supported_color_modes_; }
+  void set_supported_color_modes(std::set<ColorMode> supported_color_modes) {
+    this->supported_color_modes_ = std::move(supported_color_modes);
+  }
+
+  bool supports_color_mode(ColorMode color_mode) const { return this->supported_color_modes_.count(color_mode); }
+  bool supports_color_channel(ColorChannel color_channel) const {
+    for (auto mode : this->supported_color_modes_) {
+      if (*mode & *color_channel)
+        return true;
+    }
+    return false;
+  }
+
   bool get_supports_rgb() const { return this->supports_rgb_; }
   void set_supports_rgb(bool supports_rgb) { this->supports_rgb_ = supports_rgb; }
   bool get_supports_rgb_white_value() const { return this->supports_rgb_white_value_; }
@@ -31,6 +49,7 @@ class LightTraits {
 
  protected:
   bool supports_brightness_{false};
+  std::set<ColorMode> supported_color_modes_{};
   bool supports_rgb_{false};
   bool supports_rgb_white_value_{false};
   bool supports_color_temperature_{false};
