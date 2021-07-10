@@ -90,6 +90,7 @@ void TeleInfo::loop() {
       char *grp_end;
       char *buf_end;
       int field_len;
+      bool crc_error;
 
       buf_finger = buf_;
       buf_end = buf_ + buf_index_;
@@ -119,8 +120,10 @@ void TeleInfo::loop() {
           break;
         }
 
+        crc_error = false;
+
         if (!check_crc_(buf_finger, grp_end))
-          break;
+          crc_error = true;
 
         /* Get tag */
         field_len = get_field(tag_, buf_finger, grp_end, separator_);
@@ -142,7 +145,8 @@ void TeleInfo::loop() {
         /* Advance buf_finger to end of group */
         buf_finger += field_len + 1 + 1 + 1;
 
-        publish_value_(std::string(tag_), std::string(val_));
+	if (!crc_error)
+          publish_value_(std::string(tag_), std::string(val_));
       }
       state_ = OFF;
       break;
