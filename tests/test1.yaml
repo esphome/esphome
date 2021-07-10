@@ -1542,6 +1542,8 @@ climate:
   - platform: anova
     name: Anova cooker
     ble_client_id: ble_blah
+  - platform: panasonic
+    name: Panasonic Climate
 
 midea_dongle:
   uart_id: uart0

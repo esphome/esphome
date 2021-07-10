@@ -75,6 +75,7 @@ esphome/components/network/* @esphome/core
 esphome/components/nfc/* @jesserockz
 esphome/components/ota/* @esphome/core
 esphome/components/output/* @esphome/core
+esphome/components/panasonic/* @WeekendWarrior1
 esphome/components/pid/* @OttoWinter
 esphome/components/pn532/* @OttoWinter @jesserockz
 esphome/components/pn532_i2c/* @OttoWinter @jesserockz
