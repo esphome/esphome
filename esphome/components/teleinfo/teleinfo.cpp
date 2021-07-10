@@ -90,7 +90,6 @@ void TeleInfo::loop() {
       char *grp_end;
       char *buf_end;
       int field_len;
-      bool crc_error;
 
       buf_finger = buf_;
       buf_end = buf_ + buf_index_;
@@ -120,33 +119,29 @@ void TeleInfo::loop() {
           break;
         }
 
-        crc_error = false;
+        if (!check_crc_(buf_finger, grp_end)) {
+          /* Get tag */
+          field_len = get_field(tag_, buf_finger, grp_end, separator_);
+          if (!field_len || field_len >= MAX_TAG_SIZE) {
+            ESP_LOGE(TAG, "Invalid tag.");
+            break;
+          }
 
-        if (!check_crc_(buf_finger, grp_end))
-          crc_error = true;
+          /* Advance buf_finger to after the tag and the separator. */
+          buf_finger += field_len + 1;
 
-        /* Get tag */
-        field_len = get_field(tag_, buf_finger, grp_end, separator_);
-        if (!field_len || field_len >= MAX_TAG_SIZE) {
-          ESP_LOGE(TAG, "Invalid tag.");
-          break;
-        }
+          /* Get value (after next separator) */
+          field_len = get_field(val_, buf_finger, grp_end, separator_);
+          if (!field_len || field_len >= MAX_VAL_SIZE) {
+            ESP_LOGE(TAG, "Invalid Value");
+            break;
+          }
 
-        /* Advance buf_finger to after the tag and the separator. */
-        buf_finger += field_len + 1;
+          /* Advance buf_finger to end of group */
+          buf_finger += field_len + 1 + 1 + 1;
 
-        /* Get value (after next separator) */
-        field_len = get_field(val_, buf_finger, grp_end, separator_);
-        if (!field_len || field_len >= MAX_VAL_SIZE) {
-          ESP_LOGE(TAG, "Invalid Value");
-          break;
-        }
-
-        /* Advance buf_finger to end of group */
-        buf_finger += field_len + 1 + 1 + 1;
-
-        if (!crc_error)
           publish_value_(std::string(tag_), std::string(val_));
+	}
       }
       state_ = OFF;
       break;
