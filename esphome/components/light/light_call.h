@@ -106,6 +106,18 @@ class LightCall {
   LightCall &set_color_temperature(float color_temperature);
   /// Set the color_temperature property if the light supports color temperature.
   LightCall &set_color_temperature_if_supported(float color_temperature);
+  /// Set the cold white value of the light from 0.0 to 1.0.
+  LightCall &set_cold_white(optional<float> cold_white);
+  /// Set the cold white value of the light from 0.0 to 1.0.
+  LightCall &set_cold_white(float cold_white);
+  /// Set the cold white property if the light supports cold white output.
+  LightCall &set_cold_white_if_supported(float cold_white);
+  /// Set the warm white value of the light from 0.0 to 1.0.
+  LightCall &set_warm_white(optional<float> warm_white);
+  /// Set the warm white value of the light from 0.0 to 1.0.
+  LightCall &set_warm_white(float warm_white);
+  /// Set the warm white property if the light supports cold white output.
+  LightCall &set_warm_white_if_supported(float warm_white);
   /// Set the effect of the light by its name.
   LightCall &set_effect(optional<std::string> effect);
   /// Set the effect of the light by its name.
@@ -163,6 +175,8 @@ class LightCall {
   optional<float> blue_;
   optional<float> white_;
   optional<float> color_temperature_;
+  optional<float> cold_white_;
+  optional<float> warm_white_;
   optional<uint32_t> effect_;
   bool publish_{true};
   bool save_{true};

@@ -65,6 +65,11 @@ void LightCall::perform() {
     if (this->color_temperature_.has_value()) {
       ESP_LOGD(TAG, "  Color Temperature: %.1f mireds", v.get_color_temperature());
     }
+
+    if (this->cold_white_.has_value() || this->warm_white_.has_value()) {
+      ESP_LOGD(TAG, "  Cold white: %.0f%%, warm white: %.0f%%", v.get_cold_white() * 100.0f,
+               v.get_warm_white() * 100.0f);
+    }
   }
 
   if (this->has_flash_()) {
@@ -179,6 +184,15 @@ LightColorValues LightCall::validate_() {
     this->color_temperature_.reset();
   }
 
+  // Cold/warm white value exists check
+  if (this->cold_white_.has_value() || this->warm_white_.has_value()) {
+    if (!(*color_mode & *ColorChannel::COLD_WARM_WHITE)) {
+      ESP_LOGW(TAG, "'%s' - This color mode does not support setting cold/warm white value!", name);
+      this->cold_white_.reset();
+      this->warm_white_.reset();
+    }
+  }
+
 #define VALIDATE_RANGE_(name_, upper_name) \
   if (name_##_.has_value()) { \
     auto val = *name_##_; \
@@ -196,6 +210,8 @@ LightColorValues LightCall::validate_() {
   VALIDATE_RANGE(green, "Green")
   VALIDATE_RANGE(blue, "Blue")
   VALIDATE_RANGE(white, "White")
+  VALIDATE_RANGE(cold_white, "Cold white")
+  VALIDATE_RANGE(warm_white, "Warm white")
 
   // Set color brightness to 100% if currently zero and a color is set.
   if (this->red_.has_value() || this->green_.has_value() || this->blue_.has_value()) {
@@ -220,9 +236,12 @@ LightColorValues LightCall::validate_() {
     v.set_blue(*this->blue_);
   if (this->white_.has_value())
     v.set_white(*this->white_);
-
   if (this->color_temperature_.has_value())
     v.set_color_temperature(*this->color_temperature_);
+  if (this->cold_white_.has_value())
+    v.set_cold_white(*this->cold_white_);
+  if (this->warm_white_.has_value())
+    v.set_warm_white(*this->warm_white_);
 
   v.normalize_color(traits);
 
@@ -323,6 +342,8 @@ LightCall &LightCall::from_light_color_values(const LightColorValues &values) {
   this->set_blue_if_supported(values.get_blue());
   this->set_white_if_supported(values.get_white());
   this->set_color_temperature_if_supported(values.get_color_temperature());
+  this->set_cold_white_if_supported(values.get_cold_white());
+  this->set_warm_white_if_supported(values.get_warm_white());
   return *this;
 }
 LightCall &LightCall::set_transition_length_if_supported(uint32_t transition_length) {
@@ -368,6 +389,16 @@ LightCall &LightCall::set_white_if_supported(float white) {
 LightCall &LightCall::set_color_temperature_if_supported(float color_temperature) {
   if (this->parent_->get_traits().get_supports_color_temperature())
     this->set_color_temperature(color_temperature);
+  return *this;
+}
+LightCall &LightCall::set_cold_white_if_supported(float cold_white) {
+  if (true)  // TODO
+    this->set_cold_white(cold_white);
+  return *this;
+}
+LightCall &LightCall::set_warm_white_if_supported(float warm_white) {
+  if (true)  // TODO
+    this->set_warm_white(warm_white);
   return *this;
 }
 LightCall &LightCall::set_state(optional<bool> state) {
@@ -456,6 +487,22 @@ LightCall &LightCall::set_color_temperature(optional<float> color_temperature) {
 }
 LightCall &LightCall::set_color_temperature(float color_temperature) {
   this->color_temperature_ = color_temperature;
+  return *this;
+}
+LightCall &LightCall::set_cold_white(optional<float> cold_white) {
+  this->cold_white_ = cold_white;
+  return *this;
+}
+LightCall &LightCall::set_cold_white(float cold_white) {
+  this->cold_white_ = cold_white;
+  return *this;
+}
+LightCall &LightCall::set_warm_white(optional<float> warm_white) {
+  this->warm_white_ = warm_white;
+  return *this;
+}
+LightCall &LightCall::set_warm_white(float warm_white) {
+  this->warm_white_ = warm_white;
   return *this;
 }
 LightCall &LightCall::set_effect(optional<std::string> effect) {
