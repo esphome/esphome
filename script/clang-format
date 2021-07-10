@@ -12,11 +12,7 @@ import threading
 import click
 
 sys.path.append(os.path.dirname(__file__))
-from helpers import basepath, get_output, git_ls_files, filter_changed
-
-root_path = os.path.abspath(os.path.normpath(os.path.join(__file__, '..', '..')))
-basepath = os.path.join(root_path, 'esphome')
-rel_basepath = os.path.relpath(basepath, os.getcwd())
+from helpers import get_output, git_ls_files, filter_changed
 
 
 def run_format(args, queue, lock):
@@ -54,8 +50,6 @@ def main():
                         help='files to be processed (regex on path)')
     parser.add_argument('-i', '--inplace', action='store_true',
                         help='apply fix-its')
-    parser.add_argument('-q', '--quiet', action='store_false',
-                        help='Run clang-tidy in quiet mode')
     parser.add_argument('-c', '--changed', action='store_true',
                         help='Only run on changed files')
     args = parser.parse_args()
