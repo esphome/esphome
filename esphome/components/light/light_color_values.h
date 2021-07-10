@@ -45,10 +45,11 @@ class LightColorValues {
         white_(1.0f),
         color_temperature_{1.0f} {}
 
-  LightColorValues(float state, float brightness, float color_brightness, float red, float green, float blue,
-                   float white, float color_temperature = 1.0f) {
+  LightColorValues(float state, float brightness, ColorMode color_mode, float color_brightness, float red, float green,
+                   float blue, float white, float color_temperature = 1.0f) {
     this->set_state(state);
     this->set_brightness(brightness);
+    this->set_color_mode(color_mode);
     this->set_color_brightness(color_brightness);
     this->set_red(red);
     this->set_green(green);
@@ -71,6 +72,7 @@ class LightColorValues {
     LightColorValues v;
     v.set_state(esphome::lerp(completion, start.get_state(), end.get_state()));
     v.set_brightness(esphome::lerp(completion, start.get_brightness(), end.get_brightness()));
+    v.set_color_mode(end.color_mode_);  // FIXME interpolation between different color modes is tricky
     v.set_color_brightness(esphome::lerp(completion, start.get_color_brightness(), end.get_color_brightness()));
     v.set_red(esphome::lerp(completion, start.get_red(), end.get_red()));
     v.set_green(esphome::lerp(completion, start.get_green(), end.get_green()));
@@ -173,9 +175,9 @@ class LightColorValues {
 
   /// Compare this LightColorValues to rhs, return true if and only if all attributes match.
   bool operator==(const LightColorValues &rhs) const {
-    return state_ == rhs.state_ && brightness_ == rhs.brightness_ && color_brightness_ == rhs.color_brightness_ &&
-           red_ == rhs.red_ && green_ == rhs.green_ && blue_ == rhs.blue_ && white_ == rhs.white_ &&
-           color_temperature_ == rhs.color_temperature_;
+    return state_ == rhs.state_ && brightness_ == rhs.brightness_ && color_mode_ == rhs.color_mode_ &&
+           color_brightness_ == rhs.color_brightness_ && red_ == rhs.red_ && green_ == rhs.green_ &&
+           blue_ == rhs.blue_ && white_ == rhs.white_ && color_temperature_ == rhs.color_temperature_;
   }
   bool operator!=(const LightColorValues &rhs) const { return !(rhs == *this); }
 
@@ -192,6 +194,11 @@ class LightColorValues {
   float get_brightness() const { return this->brightness_; }
   /// Set the brightness property of these light color values. In range 0.0 to 1.0
   void set_brightness(float brightness) { this->brightness_ = clamp(brightness, 0.0f, 1.0f); }
+
+  /// Get the color mode of these light color values.
+  ColorMode get_color_mode() const { return this->color_mode_; }
+  /// Set the color mode of these light color values.
+  void set_color_mode(ColorMode color_mode) { this->color_mode_ = color_mode; }
 
   /// Get the color brightness property of these light color values. In range 0.0 to 1.0
   float get_color_brightness() const { return this->color_brightness_; }
@@ -228,6 +235,7 @@ class LightColorValues {
  protected:
   float state_;  ///< ON / OFF, float for transition
   float brightness_;
+  ColorMode color_mode_;
   float color_brightness_;
   float red_;
   float green_;
