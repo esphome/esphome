@@ -112,13 +112,6 @@ class SPIComponent : public Component {
     this->transfer_<BIT_ORDER, CLOCK_POLARITY, CLOCK_PHASE, false, true>(data);
   }
 
-  uint16_t reverse16(uint16_t x) {
-    x = (((x & 0xaaaa) >> 1) | ((x & 0x5555) << 1));
-    x = (((x & 0xcccc) >> 2) | ((x & 0x3333) << 2));
-    x = (((x & 0xf0f0) >> 4) | ((x & 0x0f0f) << 4));
-    x = (((x & 0xff00) >> 8) | ((x & 0x00ff) << 8));
-    return x;
-  }
 
   template<SPIBitOrder BIT_ORDER, SPIClockPolarity CLOCK_POLARITY, SPIClockPhase CLOCK_PHASE>
   void write_byte16(uint16_t data) {
@@ -253,6 +246,14 @@ class SPIComponent : public Component {
   float get_setup_priority() const override;
 
  protected:
+  uint16_t reverse16(uint16_t x) {
+    x = (((x & 0xaaaa) >> 1) | ((x & 0x5555) << 1));
+    x = (((x & 0xcccc) >> 2) | ((x & 0x3333) << 2));
+    x = (((x & 0xf0f0) >> 4) | ((x & 0x0f0f) << 4));
+    x = (((x & 0xff00) >> 8) | ((x & 0x00ff) << 8));
+    return x;
+  }
+
   inline void cycle_clock_(bool value);
 
   static void debug_enable(uint8_t pin);
