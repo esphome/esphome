@@ -1,14 +1,14 @@
-voluptuous>=0.11.5,<0.12
-PyYAML>=5.1,<6
-paho-mqtt>=1.4,<2
-colorlog>=4.0.2
-tornado>=5.1.1,<6
-typing>=3.6.6;python_version<"3.5"
-protobuf>=3.7,<3.8
-tzlocal>=1.5.1
-pytz>=2019.1
-pyserial>=3.4,<4
-ifaddr>=0.1.6,<1
-platformio>=3.6.5 ; python_version<"3"
-https://github.com/platformio/platformio-core/archive/develop.zip ; python_version>"3"
-esptool>=2.6,<3
+voluptuous==0.12.1
+PyYAML==5.4.1
+paho-mqtt==1.5.1
+colorama==0.4.4
+tornado==6.1
+protobuf==3.17.3
+tzlocal==2.1
+pytz==2021.1
+pyserial==3.5
+ifaddr==0.1.7
+platformio==5.1.1
+esptool==2.8
+click==7.1.2
+esphome-dashboard==20210623.0

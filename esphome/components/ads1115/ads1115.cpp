@@ -4,7 +4,7 @@
 namespace esphome {
 namespace ads1115 {
 
-static const char *TAG = "ads1115";
+static const char *const TAG = "ads1115";
 static const uint8_t ADS1115_REGISTER_CONVERSION = 0x00;
 static const uint8_t ADS1115_REGISTER_CONFIG = 0x01;
 

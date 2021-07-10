@@ -4,7 +4,7 @@
 namespace esphome {
 namespace sht3xd {
 
-static const char *TAG = "sht3xd";
+static const char *const TAG = "sht3xd";
 
 static const uint16_t SHT3XD_COMMAND_READ_SERIAL_NUMBER = 0x3780;
 static const uint16_t SHT3XD_COMMAND_READ_STATUS = 0xF32D;
@@ -43,8 +43,14 @@ void SHT3XDComponent::dump_config() {
 }
 float SHT3XDComponent::get_setup_priority() const { return setup_priority::DATA; }
 void SHT3XDComponent::update() {
-  if (!this->write_command_(SHT3XD_COMMAND_POLLING_H))
+  if (this->status_has_warning()) {
+    ESP_LOGD(TAG, "Retrying to reconnect the sensor.");
+    this->write_command_(SHT3XD_COMMAND_SOFT_RESET);
+  }
+  if (!this->write_command_(SHT3XD_COMMAND_POLLING_H)) {
+    this->status_set_warning();
     return;
+  }
 
   this->set_timeout(50, [this]() {
     uint16_t raw_data[2];

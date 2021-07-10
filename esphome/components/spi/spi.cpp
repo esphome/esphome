@@ -6,15 +6,17 @@
 namespace esphome {
 namespace spi {
 
-static const char *TAG = "spi";
+static const char *const TAG = "spi";
 
 void ICACHE_RAM_ATTR HOT SPIComponent::disable() {
   if (this->hw_spi_ != nullptr) {
     this->hw_spi_->endTransaction();
   }
-  ESP_LOGVV(TAG, "Disabling SPI Chip on pin %u...", this->active_cs_->get_pin());
-  this->active_cs_->digital_write(true);
-  this->active_cs_ = nullptr;
+  if (this->active_cs_) {
+    ESP_LOGVV(TAG, "Disabling SPI Chip on pin %u...", this->active_cs_->get_pin());
+    this->active_cs_->digital_write(true);
+    this->active_cs_ = nullptr;
+  }
 }
 void SPIComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up SPI bus...");
@@ -36,7 +38,7 @@ void SPIComponent::setup() {
 #ifdef ARDUINO_ARCH_ESP8266
   if (clk_pin == 6 && miso_pin == 7 && mosi_pin == 8) {
     // pass
-  } else if (clk_pin == 14 && miso_pin == 12 && mosi_pin == 13) {
+  } else if (clk_pin == 14 && (!has_miso || miso_pin == 12) && (!has_mosi || mosi_pin == 13)) {
     // pass
   } else {
     use_hw_spi = false;

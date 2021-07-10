@@ -9,10 +9,10 @@ namespace esphome {
 namespace binary_sensor {
 
 #define LOG_BINARY_SENSOR(prefix, type, obj) \
-  if (obj != nullptr) { \
-    ESP_LOGCONFIG(TAG, prefix type " '%s'", obj->get_name().c_str()); \
-    if (!obj->get_device_class().empty()) { \
-      ESP_LOGCONFIG(TAG, prefix "  Device Class: '%s'", obj->get_device_class().c_str()); \
+  if ((obj) != nullptr) { \
+    ESP_LOGCONFIG(TAG, "%s%s '%s'", prefix, type, (obj)->get_name().c_str()); \
+    if (!(obj)->get_device_class().empty()) { \
+      ESP_LOGCONFIG(TAG, "%s  Device Class: '%s'", prefix, (obj)->get_device_class().c_str()); \
     } \
   }
 
@@ -60,14 +60,14 @@ class BinarySensor : public Nameable {
   std::string get_device_class();
 
   void add_filter(Filter *filter);
-  void add_filters(std::vector<Filter *> filters);
+  void add_filters(const std::vector<Filter *> &filters);
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
   void send_state_internal(bool state, bool is_initial);
 
   /// Return whether this binary sensor has outputted a state.
-  bool has_state() const;
+  virtual bool has_state() const;
 
   virtual bool is_status_binary_sensor() const;
 
@@ -84,6 +84,11 @@ class BinarySensor : public Nameable {
   Filter *filter_list_{nullptr};
   bool has_state_{false};
   Deduplicator<bool> publish_dedup_;
+};
+
+class BinarySensorInitiallyOff : public BinarySensor {
+ public:
+  bool has_state() const override { return true; }
 };
 
 }  // namespace binary_sensor

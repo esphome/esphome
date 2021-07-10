@@ -55,7 +55,9 @@ void esp_log_vprintf_(int level, const char *tag, int line, const char *format, 
 #ifdef USE_STORE_LOG_STR_IN_FLASH
 void esp_log_vprintf_(int level, const char *tag, int line, const __FlashStringHelper *format, va_list args);
 #endif
+#ifdef ARDUINO_ARCH_ESP32
 int esp_idf_log_vprintf_(const char *format, va_list args);  // NOLINT
+#endif
 
 #ifdef USE_STORE_LOG_STR_IN_FLASH
 #define ESPHOME_LOG_FORMAT(format) F(format)
@@ -158,5 +160,6 @@ int esp_idf_log_vprintf_(const char *format, va_list args);  // NOLINT
       ((byte) &0x08 ? '1' : '0'), ((byte) &0x04 ? '1' : '0'), ((byte) &0x02 ? '1' : '0'), ((byte) &0x01 ? '1' : '0')
 #define YESNO(b) ((b) ? "YES" : "NO")
 #define ONOFF(b) ((b) ? "ON" : "OFF")
+#define TRUEFALSE(b) ((b) ? "TRUE" : "FALSE")
 
 }  // namespace esphome

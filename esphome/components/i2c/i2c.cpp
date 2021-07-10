@@ -6,7 +6,7 @@
 namespace esphome {
 namespace i2c {
 
-static const char *TAG = "i2c";
+static const char *const TAG = "i2c";
 
 I2CComponent::I2CComponent() {
 #ifdef ARDUINO_ARCH_ESP32
@@ -32,7 +32,7 @@ void I2CComponent::dump_config() {
   if (this->scan_) {
     ESP_LOGI(TAG, "Scanning i2c bus for active devices...");
     uint8_t found = 0;
-    for (uint8_t address = 8; address < 120; address++) {
+    for (uint8_t address = 1; address < 120; address++) {
       this->wire_->beginTransmission(address);
       uint8_t error = this->wire_->endTransmission();
 
@@ -56,8 +56,8 @@ void I2CComponent::raw_begin_transmission(uint8_t address) {
   ESP_LOGVV(TAG, "Beginning Transmission to 0x%02X:", address);
   this->wire_->beginTransmission(address);
 }
-bool I2CComponent::raw_end_transmission(uint8_t address) {
-  uint8_t status = this->wire_->endTransmission();
+bool I2CComponent::raw_end_transmission(uint8_t address, bool send_stop) {
+  uint8_t status = this->wire_->endTransmission(send_stop);
   ESP_LOGVV(TAG, "    Transmission ended. Status code: 0x%02X", status);
 
   switch (status) {
@@ -135,6 +135,9 @@ bool I2CComponent::read_bytes(uint8_t address, uint8_t a_register, uint8_t *data
     delay(conversion);
   return this->raw_receive(address, data, len);
 }
+bool I2CComponent::read_bytes_raw(uint8_t address, uint8_t *data, uint8_t len) {
+  return this->raw_receive(address, data, len);
+}
 bool I2CComponent::read_bytes_16(uint8_t address, uint8_t a_register, uint16_t *data, uint8_t len,
                                  uint32_t conversion) {
   if (!this->write_bytes(address, a_register, nullptr, 0))
@@ -156,6 +159,11 @@ bool I2CComponent::write_bytes(uint8_t address, uint8_t a_register, const uint8_
   this->raw_write(address, data, len);
   return this->raw_end_transmission(address);
 }
+bool I2CComponent::write_bytes_raw(uint8_t address, const uint8_t *data, uint8_t len) {
+  this->raw_begin_transmission(address);
+  this->raw_write(address, data, len);
+  return this->raw_end_transmission(address);
+}
 bool I2CComponent::write_bytes_16(uint8_t address, uint8_t a_register, const uint16_t *data, uint8_t len) {
   this->raw_begin_transmission(address);
   this->raw_write(address, &a_register, 1);
@@ -170,28 +178,97 @@ bool I2CComponent::write_byte_16(uint8_t address, uint8_t a_register, uint16_t d
 }
 
 void I2CDevice::set_i2c_address(uint8_t address) { this->address_ = address; }
+#ifdef USE_I2C_MULTIPLEXER
+void I2CDevice::set_i2c_multiplexer(I2CMultiplexer *multiplexer, uint8_t channel) {
+  ESP_LOGVV(TAG, "    Setting Multiplexer %p for channel %d", multiplexer, channel);
+  this->multiplexer_ = multiplexer;
+  this->channel_ = channel;
+}
+
+void I2CDevice::check_multiplexer_() {
+  if (this->multiplexer_ != nullptr) {
+    ESP_LOGVV(TAG, "Multiplexer setting channel to %d", this->channel_);
+    this->multiplexer_->set_channel(this->channel_);
+  }
+}
+#endif
+
+void I2CDevice::raw_begin_transmission() {  // NOLINT
+#ifdef USE_I2C_MULTIPLEXER
+  this->check_multiplexer_();
+#endif
+  this->parent_->raw_begin_transmission(this->address_);
+}
+bool I2CDevice::raw_end_transmission(bool send_stop) {  // NOLINT
+#ifdef USE_I2C_MULTIPLEXER
+  this->check_multiplexer_();
+#endif
+  return this->parent_->raw_end_transmission(this->address_, send_stop);
+}
+void I2CDevice::raw_write(const uint8_t *data, uint8_t len) {  // NOLINT
+#ifdef USE_I2C_MULTIPLEXER
+  this->check_multiplexer_();
+#endif
+  this->parent_->raw_write(this->address_, data, len);
+}
 bool I2CDevice::read_bytes(uint8_t a_register, uint8_t *data, uint8_t len, uint32_t conversion) {  // NOLINT
+#ifdef USE_I2C_MULTIPLEXER
+  this->check_multiplexer_();
+#endif
   return this->parent_->read_bytes(this->address_, a_register, data, len, conversion);
 }
+bool I2CDevice::read_bytes_raw(uint8_t *data, uint8_t len) {  // NOLINT
+#ifdef USE_I2C_MULTIPLEXER
+  this->check_multiplexer_();
+#endif
+  return this->parent_->read_bytes_raw(this->address_, data, len);
+}
 bool I2CDevice::read_byte(uint8_t a_register, uint8_t *data, uint32_t conversion) {  // NOLINT
+#ifdef USE_I2C_MULTIPLEXER
+  this->check_multiplexer_();
+#endif
   return this->parent_->read_byte(this->address_, a_register, data, conversion);
 }
 bool I2CDevice::write_bytes(uint8_t a_register, const uint8_t *data, uint8_t len) {  // NOLINT
+#ifdef USE_I2C_MULTIPLEXER
+  this->check_multiplexer_();
+#endif
   return this->parent_->write_bytes(this->address_, a_register, data, len);
 }
+bool I2CDevice::write_bytes_raw(const uint8_t *data, uint8_t len) {  // NOLINT
+#ifdef USE_I2C_MULTIPLEXER
+  this->check_multiplexer_();
+#endif
+  return this->parent_->write_bytes_raw(this->address_, data, len);
+}
 bool I2CDevice::write_byte(uint8_t a_register, uint8_t data) {  // NOLINT
+#ifdef USE_I2C_MULTIPLEXER
+  this->check_multiplexer_();
+#endif
   return this->parent_->write_byte(this->address_, a_register, data);
 }
 bool I2CDevice::read_bytes_16(uint8_t a_register, uint16_t *data, uint8_t len, uint32_t conversion) {  // NOLINT
+#ifdef USE_I2C_MULTIPLEXER
+  this->check_multiplexer_();
+#endif
   return this->parent_->read_bytes_16(this->address_, a_register, data, len, conversion);
 }
 bool I2CDevice::read_byte_16(uint8_t a_register, uint16_t *data, uint32_t conversion) {  // NOLINT
+#ifdef USE_I2C_MULTIPLEXER
+  this->check_multiplexer_();
+#endif
   return this->parent_->read_byte_16(this->address_, a_register, data, conversion);
 }
 bool I2CDevice::write_bytes_16(uint8_t a_register, const uint16_t *data, uint8_t len) {  // NOLINT
+#ifdef USE_I2C_MULTIPLEXER
+  this->check_multiplexer_();
+#endif
   return this->parent_->write_bytes_16(this->address_, a_register, data, len);
 }
 bool I2CDevice::write_byte_16(uint8_t a_register, uint16_t data) {  // NOLINT
+#ifdef USE_I2C_MULTIPLEXER
+  this->check_multiplexer_();
+#endif
   return this->parent_->write_byte_16(this->address_, a_register, data);
 }
 void I2CDevice::set_i2c_parent(I2CComponent *parent) { this->parent_ = parent; }
@@ -199,6 +276,31 @@ void I2CDevice::set_i2c_parent(I2CComponent *parent) { this->parent_ = parent; }
 #ifdef ARDUINO_ARCH_ESP32
 uint8_t next_i2c_bus_num_ = 0;
 #endif
+
+I2CRegister &I2CRegister::operator=(uint8_t value) {
+  this->parent_->write_byte(this->register_, value);
+  return *this;
+}
+
+I2CRegister &I2CRegister::operator&=(uint8_t value) {
+  this->parent_->write_byte(this->register_, this->get() & value);
+  return *this;
+}
+
+I2CRegister &I2CRegister::operator|=(uint8_t value) {
+  this->parent_->write_byte(this->register_, this->get() | value);
+  return *this;
+}
+
+uint8_t I2CRegister::get() {
+  uint8_t value = 0x00;
+  this->parent_->read_byte(this->register_, &value);
+  return value;
+}
+I2CRegister &I2CRegister::operator=(const std::vector<uint8_t> &value) {
+  this->parent_->write_bytes(this->register_, value);
+  return *this;
+}
 
 }  // namespace i2c
 }  // namespace esphome

@@ -4,7 +4,7 @@
 namespace esphome {
 namespace ccs811 {
 
-static const char *TAG = "ccs811";
+static const char *const TAG = "ccs811";
 
 // based on
 //  - https://cdn.sparkfun.com/datasheets/BreakoutBoards/CCS811_Programming_Guide.pdf
@@ -102,10 +102,14 @@ void CCS811Component::send_env_data_() {
   // temperature has a 25° offset to allow negative temperatures
   temperature += 25;
 
-  // only 0.5 fractions are supported (application note)
-  auto hum_value = static_cast<uint8_t>(roundf(humidity * 2));
-  auto temp_value = static_cast<uint8_t>(roundf(temperature * 2));
-  this->write_bytes(0x05, {hum_value, 0x00, temp_value, 0x00});
+  // At page 18 of:
+  // https://cdn.sparkfun.com/datasheets/BreakoutBoards/CCS811_Programming_Guide.pdf
+  // Reference code:
+  // https://github.com/adafruit/Adafruit_CCS811/blob/0990f5c620354d8bc087c4706bec091d8e6e5dfd/Adafruit_CCS811.cpp#L135-L142
+  uint16_t hum_conv = static_cast<uint16_t>(lroundf(humidity * 512.0f + 0.5f));
+  uint16_t temp_conv = static_cast<uint16_t>(lroundf(temperature * 512.0f + 0.5f));
+  this->write_bytes(0x05, {(uint8_t)((hum_conv >> 8) & 0xff), (uint8_t)((hum_conv & 0xff)),
+                           (uint8_t)((temp_conv >> 8) & 0xff), (uint8_t)((temp_conv & 0xff))});
 }
 void CCS811Component::dump_config() {
   ESP_LOGCONFIG(TAG, "CCS811");

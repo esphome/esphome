@@ -4,23 +4,19 @@
 namespace esphome {
 namespace homeassistant {
 
-static const char *TAG = "homeassistant.time";
+static const char *const TAG = "homeassistant.time";
 
 void HomeassistantTime::dump_config() {
   ESP_LOGCONFIG(TAG, "Home Assistant Time:");
   ESP_LOGCONFIG(TAG, "  Timezone: '%s'", this->timezone_.c_str());
 }
+
 float HomeassistantTime::get_setup_priority() const { return setup_priority::DATA; }
-void HomeassistantTime::setup() {
-  global_homeassistant_time = this;
 
-  this->set_interval(15 * 60 * 1000, []() {
-    // re-request time every 15 minutes
-    api::global_api_server->request_time();
-  });
-}
+void HomeassistantTime::setup() { global_homeassistant_time = this; }
 
-HomeassistantTime *global_homeassistant_time = nullptr;
+void HomeassistantTime::update() { api::global_api_server->request_time(); }
 
+HomeassistantTime *global_homeassistant_time = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 }  // namespace homeassistant
 }  // namespace esphome

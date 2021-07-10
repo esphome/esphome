@@ -4,7 +4,7 @@
 namespace esphome {
 namespace partition {
 
-static const char *TAG = "partition.light";
+static const char *const TAG = "partition.light";
 
 }  // namespace partition
 }  // namespace esphome

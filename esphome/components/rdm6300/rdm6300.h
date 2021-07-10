@@ -28,7 +28,7 @@ class RDM6300Component : public Component, public uart::UARTDevice {
   uint32_t last_id_{0};
 };
 
-class RDM6300BinarySensor : public binary_sensor::BinarySensor {
+class RDM6300BinarySensor : public binary_sensor::BinarySensorInitiallyOff {
  public:
   void set_id(uint32_t id) { id_ = id; }
 

@@ -1,6 +1,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
 #include "esphome/core/version.h"
+#include "esphome/core/esphal.h"
 
 #ifdef USE_STATUS_LED
 #include "esphome/components/status_led/status_led.h"
@@ -8,7 +9,7 @@
 
 namespace esphome {
 
-static const char *TAG = "app";
+static const char *const TAG = "app";
 
 void Application::register_component_(Component *comp) {
   if (comp == nullptr) {
@@ -57,13 +58,17 @@ void Application::setup() {
 
   ESP_LOGI(TAG, "setup() finished successfully!");
   this->schedule_dump_config();
+  this->calculate_looping_components_();
+
+  // Dummy function to link some symbols into the binary.
+  force_link_symbols();
 }
 void Application::loop() {
   uint32_t new_app_state = 0;
   const uint32_t start = millis();
 
   this->scheduler.call();
-  for (Component *component : this->components_) {
+  for (Component *component : this->looping_components_) {
     component->call();
     new_app_state |= component->get_component_state();
     this->app_state_ |= new_app_state;
@@ -73,9 +78,8 @@ void Application::loop() {
 
   const uint32_t end = millis();
   if (end - start > 200) {
-    ESP_LOGV(TAG, "A component took a long time in a loop() cycle (%.1f s).", (end - start) / 1e3f);
+    ESP_LOGV(TAG, "A component took a long time in a loop() cycle (%.2f s).", (end - start) / 1e3f);
     ESP_LOGV(TAG, "Components should block for at most 20-30ms in loop().");
-    ESP_LOGV(TAG, "This will become a warning soon.");
   }
 
   const uint32_t now = millis();
@@ -98,7 +102,10 @@ void Application::loop() {
 
   if (this->dump_config_at_ >= 0 && this->dump_config_at_ < this->components_.size()) {
     if (this->dump_config_at_ == 0) {
-      ESP_LOGI(TAG, "esphome version " ESPHOME_VERSION " compiled on %s", this->compilation_time_.c_str());
+      ESP_LOGI(TAG, "ESPHome version " ESPHOME_VERSION " compiled on %s", this->compilation_time_.c_str());
+#ifdef ESPHOME_PROJECT_NAME
+      ESP_LOGI(TAG, "Project " ESPHOME_PROJECT_NAME " version " ESPHOME_PROJECT_VERSION);
+#endif
     }
 
     this->components_[this->dump_config_at_]->dump_config();
@@ -147,6 +154,13 @@ void Application::safe_reboot() {
   }
 }
 
-Application App;
+void Application::calculate_looping_components_() {
+  for (auto *obj : this->components_) {
+    if (obj->has_overridden_loop())
+      this->looping_components_.push_back(obj);
+  }
+}
+
+Application App;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 }  // namespace esphome

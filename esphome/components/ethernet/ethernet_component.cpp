@@ -9,6 +9,11 @@
 #include <eth_phy/phy_tlk110.h>
 #include <lwip/dns.h>
 
+/// Macro for IDF version comparision
+#ifndef ESP_IDF_VERSION_VAL
+#define ESP_IDF_VERSION_VAL(major, minor, patch) (((major) << 16) | ((minor) << 8) | (patch))
+#endif
+
 // Defined in WiFiGeneric.cpp, sets global initialized flag, starts network event task queue and calls
 // tcpip_adapter_init()
 extern void tcpipInit();
@@ -16,7 +21,7 @@ extern void tcpipInit();
 namespace esphome {
 namespace ethernet {
 
-static const char *TAG = "ethernet";
+static const char *const TAG = "ethernet";
 
 EthernetComponent *global_eth_component;
 
@@ -33,11 +38,13 @@ void EthernetComponent::setup() {
 
   this->start_connect_();
 
+#ifdef USE_MDNS
   network_setup_mdns();
+#endif
 }
 void EthernetComponent::loop() {
   const uint32_t now = millis();
-  if (!this->connected_ && !this->last_connected_ && now - this->last_connected_ > 15000) {
+  if (!this->connected_ && !this->last_connected_ && now - this->connect_begin_ > 15000) {
     ESP_LOGW(TAG, "Connecting via ethernet failed! Re-connecting...");
     this->start_connect_();
     return;
@@ -222,10 +229,17 @@ void EthernetComponent::dump_connect_params_() {
   ESP_LOGCONFIG(TAG, "  Subnet: %s", IPAddress(ip.netmask.addr).toString().c_str());
   ESP_LOGCONFIG(TAG, "  Gateway: %s", IPAddress(ip.gw.addr).toString().c_str());
 
-  ip_addr_t dns_ip = dns_getserver(0);
-  ESP_LOGCONFIG(TAG, "  DNS1: %s", IPAddress(dns_ip.u_addr.ip4.addr).toString().c_str());
-  dns_ip = dns_getserver(1);
-  ESP_LOGCONFIG(TAG, "  DNS2: %s", IPAddress(dns_ip.u_addr.ip4.addr).toString().c_str());
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(3, 3, 4)
+  const ip_addr_t *dns_ip1 = dns_getserver(0);
+  const ip_addr_t *dns_ip2 = dns_getserver(1);
+#else
+  ip_addr_t tmp_ip1 = dns_getserver(0);
+  const ip_addr_t *dns_ip1 = &tmp_ip1;
+  ip_addr_t tmp_ip2 = dns_getserver(1);
+  const ip_addr_t *dns_ip2 = &tmp_ip2;
+#endif
+  ESP_LOGCONFIG(TAG, "  DNS1: %s", IPAddress(dns_ip1->u_addr.ip4.addr).toString().c_str());
+  ESP_LOGCONFIG(TAG, "  DNS2: %s", IPAddress(dns_ip2->u_addr.ip4.addr).toString().c_str());
   uint8_t mac[6];
   esp_eth_get_mac(mac);
   ESP_LOGCONFIG(TAG, "  MAC Address: %02X:%02X:%02X:%02X:%02X:%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);

@@ -6,7 +6,7 @@ namespace template_ {
 
 using namespace esphome::cover;
 
-static const char *TAG = "template.cover";
+static const char *const TAG = "template.cover";
 
 TemplateCover::TemplateCover()
     : open_trigger_(new Trigger<>()),
@@ -86,9 +86,9 @@ void TemplateCover::control(const CoverCall &call) {
     } else if (pos == COVER_CLOSED) {
       this->close_trigger_->trigger();
       this->prev_command_trigger_ = this->close_trigger_;
+    } else {
+      this->position_trigger_->trigger(pos);
     }
-
-    this->position_trigger_->trigger(pos);
 
     if (this->optimistic_) {
       this->position = pos;
@@ -120,7 +120,7 @@ void TemplateCover::set_has_position(bool has_position) { this->has_position_ = 
 void TemplateCover::set_has_tilt(bool has_tilt) { this->has_tilt_ = has_tilt; }
 void TemplateCover::stop_prev_trigger_() {
   if (this->prev_command_trigger_ != nullptr) {
-    this->prev_command_trigger_->stop();
+    this->prev_command_trigger_->stop_action();
     this->prev_command_trigger_ = nullptr;
   }
 }

@@ -4,7 +4,7 @@
 namespace esphome {
 namespace gpio {
 
-static const char *TAG = "gpio.binary_sensor";
+static const char *const TAG = "gpio.binary_sensor";
 
 void GPIOBinarySensor::setup() {
   this->pin_->setup();

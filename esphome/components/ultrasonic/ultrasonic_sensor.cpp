@@ -4,7 +4,7 @@
 namespace esphome {
 namespace ultrasonic {
 
-static const char *TAG = "ultrasonic.sensor";
+static const char *const TAG = "ultrasonic.sensor";
 
 void UltrasonicSensorComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up Ultrasonic Sensor...");
@@ -17,7 +17,8 @@ void UltrasonicSensorComponent::update() {
   delayMicroseconds(this->pulse_time_us_);
   this->trigger_pin_->digital_write(false);
 
-  uint32_t time = pulseIn(this->echo_pin_->get_pin(), uint8_t(!this->echo_pin_->is_inverted()), this->timeout_us_);
+  uint32_t time = pulseIn(  // NOLINT
+      this->echo_pin_->get_pin(), uint8_t(!this->echo_pin_->is_inverted()), this->timeout_us_);
 
   ESP_LOGV(TAG, "Echo took %uµs", time);
 

@@ -1,0 +1,245 @@
+esphome:
+  name: $devicename
+  platform: ESP32
+  board: nodemcu-32s
+  build_path: build/test4
+
+substitutions:
+  devicename: test-4
+
+ethernet:
+  type: LAN8720
+  mdc_pin: GPIO23
+  mdio_pin: GPIO25
+  clk_mode: GPIO0_IN
+  phy_addr: 0
+  power_pin: GPIO25
+  manual_ip:
+    static_ip: 192.168.178.56
+    gateway: 192.168.178.1
+    subnet: 255.255.255.0
+  domain: .local
+
+api:
+
+i2c:
+  sda: 21
+  scl: 22
+  scan: False
+
+spi:
+  clk_pin: GPIO21
+  mosi_pin: GPIO22
+  miso_pin: GPIO23
+
+uart:
+  tx_pin: GPIO22
+  rx_pin: GPIO23
+  baud_rate: 115200
+
+ota:
+  safe_mode: True
+  port: 3286
+
+logger:
+  level: DEBUG
+
+web_server:
+  auth:
+    username: admin
+    password: admin
+
+time:
+  - platform: sntp
+    id: sntp_time
+
+tuya:
+  time_id: sntp_time
+
+sensor:
+  - platform: homeassistant
+    entity_id: sensor.hello_world
+    id: ha_hello_world
+  - platform: tuya
+    id: tuya_sensor
+    sensor_datapoint: 1
+#
+# platform sensor.apds9960 requires component apds9960
+#
+#  - platform: apds9960
+#    type: proximity
+#    name: APDS9960 Proximity
+#  - platform: apds9960
+#    type: clear
+#    name: APDS9960 Clear
+#  - platform: apds9960
+#    type: red
+#    name: APDS9960 Red
+#  - platform: apds9960
+#    type: green
+#    name: APDS9960 Green
+#  - platform: apds9960
+#    type: blue
+#    name: APDS9960 Blue
+
+binary_sensor:
+  - platform: tuya
+    id: tuya_binary_sensor
+    sensor_datapoint: 1
+  - platform: template
+    id: ar1
+    lambda: 'return {};'
+    filters:
+      - autorepeat:
+        - delay: 2s
+          time_off: 100ms
+          time_on: 900ms
+        - delay: 4s
+          time_off: 100ms
+          time_on: 400ms
+    on_state:
+      then:
+        - lambda: 'ESP_LOGI("ar1:", "%d", x);'
+  - platform: xpt2046
+    xpt2046_id: touchscreen
+    id: touch_key0
+    x_min: 80
+    x_max: 160
+    y_min: 106
+    y_max: 212
+    on_state:
+      - lambda: 'ESP_LOGI("main", "key0: %s", (x ? "touch" : "release"));'
+
+climate:
+  - platform: tuya
+    id: tuya_climate
+    switch_datapoint: 1
+    target_temperature_datapoint: 3
+    current_temperature_multiplier: 0.5
+    target_temperature_multiplier: 0.5
+
+switch:
+  - platform: tuya
+    id: tuya_switch
+    switch_datapoint: 1
+
+light:
+  - platform: fastled_clockless
+    id: led_matrix_32x8
+    name: "led_matrix_32x8"
+    chipset: WS2812B
+    pin: GPIO15
+    num_leds: 256
+    rgb_order: GRB
+    default_transition_length: 0s
+    color_correct: [50%, 50%, 50%]
+  - platform: tuya
+    id: tuya_light
+    switch_datapoint: 1
+    dimmer_datapoint: 2
+    min_value_datapoint: 3
+    color_temperature_datapoint: 4
+    min_value: 1
+    max_value: 100
+    cold_white_color_temperature: 153 mireds
+    warm_white_color_temperature: 500 mireds
+    gamma_correct: 1
+
+display:
+  - platform: addressable_light
+    id: led_matrix_32x8_display
+    addressable_light_id: led_matrix_32x8
+    width: 32
+    height: 8
+    pixel_mapper: |-
+      if (x % 2 == 0) {
+        return (x * 8) + y;
+      }
+      return (x * 8) + (7 - y);
+    lambda: |-
+      Color red = Color(0xFF0000);
+      Color green = Color(0x00FF00);
+      Color blue = Color(0x0000FF);
+      it.rectangle(0, 0, it.get_width(), it.get_height(), red);
+      it.rectangle(1, 1, it.get_width()-2, it.get_height()-2, green);
+      it.rectangle(2, 2, it.get_width()-4, it.get_height()-4, blue);
+      it.rectangle(3, 3, it.get_width()-6, it.get_height()-6, red);
+    rotation: 0°
+    update_interval: 16ms
+    
+  - platform: waveshare_epaper
+    cs_pin: GPIO23
+    dc_pin: GPIO23
+    busy_pin: GPIO23
+    reset_pin: GPIO23
+    model: 2.13in-ttgo-b1
+    full_update_every: 30
+    lambda: |-
+      it.rectangle(0, 0, it.get_width(), it.get_height());
+  - platform: waveshare_epaper
+    cs_pin: GPIO23
+    dc_pin: GPIO23
+    busy_pin: GPIO23
+    reset_pin: GPIO23
+    model: 2.90in
+    full_update_every: 30
+    lambda: |-
+      it.rectangle(0, 0, it.get_width(), it.get_height());
+  - platform: waveshare_epaper
+    cs_pin: GPIO23
+    dc_pin: GPIO23
+    busy_pin: GPIO23
+    reset_pin: GPIO23
+    model: 2.90inv2
+    full_update_every: 30
+    lambda: |-
+      it.rectangle(0, 0, it.get_width(), it.get_height());
+
+esp32_camera:
+  name: ESP-32 Camera
+  data_pins: [GPIO17, GPIO35, GPIO34, GPIO5, GPIO39, GPIO18, GPIO36, GPIO19]
+  vsync_pin: GPIO22
+  href_pin: GPIO26
+  pixel_clock_pin: GPIO21
+  external_clock:
+    pin: GPIO27
+    frequency: 20MHz
+  i2c_pins:
+    sda: GPIO25
+    scl: GPIO23
+  reset_pin: GPIO15
+  power_down_pin: GPIO1
+  resolution: 640x480
+  jpeg_quality: 10
+
+external_components:
+  - source: github://esphome/esphome@dev
+    refresh: 1d
+    components: ["bh1750"]
+  - source: ../esphome/components
+    components: ["sntp"]
+xpt2046:
+  id: touchscreen
+  cs_pin: 17
+  irq_pin: 16
+  update_interval: 50ms
+  report_interval: 1s
+  threshold: 400
+  dimension_x: 240
+  dimension_y: 320
+  calibration_x_min: 3860
+  calibration_x_max: 280
+  calibration_y_min: 340
+  calibration_y_max: 3860
+  swap_x_y: False
+  on_state:
+    - lambda: |-
+        ESP_LOGI("main", "args x=%d, y=%d, touched=%s", x, y, (touched ? "touch" : "release"));
+        ESP_LOGI("main", "member x=%d, y=%d, touched=%d, x_raw=%d, y_raw=%d, z_raw=%d",
+            id(touchscreen).x,
+            id(touchscreen).y,
+            (int) id(touchscreen).touched,
+            id(touchscreen).x_raw,
+            id(touchscreen).y_raw,
+            id(touchscreen).z_raw
+            );

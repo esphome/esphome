@@ -5,16 +5,17 @@
 namespace esphome {
 namespace max7219 {
 
-static const char *TAG = "max7219";
+static const char *const TAG = "max7219";
 
 static const uint8_t MAX7219_REGISTER_NOOP = 0x00;
 static const uint8_t MAX7219_REGISTER_DECODE_MODE = 0x09;
 static const uint8_t MAX7219_REGISTER_INTENSITY = 0x0A;
 static const uint8_t MAX7219_REGISTER_SCAN_LIMIT = 0x0B;
 static const uint8_t MAX7219_REGISTER_SHUTDOWN = 0x0C;
+static const uint8_t MAX7219_REGISTER_TEST = 0x0F;
 static const uint8_t MAX7219_UNKNOWN_CHAR = 0b11111111;
 
-const uint8_t MAX7219_ASCII_TO_RAW[94] PROGMEM = {
+const uint8_t MAX7219_ASCII_TO_RAW[95] PROGMEM = {
     0b00000000,            // ' ', ord 0x20
     0b10110000,            // '!', ord 0x21
     0b00100010,            // '"', ord 0x22
@@ -40,11 +41,11 @@ const uint8_t MAX7219_ASCII_TO_RAW[94] PROGMEM = {
     0b01011111,            // '6', ord 0x36
     0b01110000,            // '7', ord 0x37
     0b01111111,            // '8', ord 0x38
-    0b01110011,            // '9', ord 0x39
+    0b01111011,            // '9', ord 0x39
     0b01001000,            // ':', ord 0x3A
     0b01011000,            // ';', ord 0x3B
     MAX7219_UNKNOWN_CHAR,  // '<', ord 0x3C
-    MAX7219_UNKNOWN_CHAR,  // '=', ord 0x3D
+    0b00001001,            // '=', ord 0x3D
     MAX7219_UNKNOWN_CHAR,  // '>', ord 0x3E
     0b01100101,            // '?', ord 0x3F
     0b01101111,            // '@', ord 0x40
@@ -109,6 +110,7 @@ const uint8_t MAX7219_ASCII_TO_RAW[94] PROGMEM = {
     0b00110001,            // '{', ord 0x7B
     0b00000110,            // '|', ord 0x7C
     0b00000111,            // '}', ord 0x7D
+    0b01100011,            // '~', ord 0x7E (degree symbol)
 };
 
 float MAX7219Component::get_setup_priority() const { return setup_priority::PROCESSOR; }
@@ -126,6 +128,7 @@ void MAX7219Component::setup() {
   this->send_to_all_(MAX7219_REGISTER_INTENSITY, this->intensity_);
   this->display();
   // power up
+  this->send_to_all_(MAX7219_REGISTER_TEST, 0);
   this->send_to_all_(MAX7219_REGISTER_SHUTDOWN, 1);
 }
 void MAX7219Component::dump_config() {
@@ -139,9 +142,11 @@ void MAX7219Component::dump_config() {
 void MAX7219Component::display() {
   for (uint8_t i = 0; i < 8; i++) {
     this->enable();
-    for (uint8_t j = 0; j < this->num_chips_; j++) {
-      this->send_byte_(8 - i, this->buffer_[j * 8 + i]);
-    }
+    for (uint8_t j = 0; j < this->num_chips_; j++)
+      if (reverse_)
+        this->send_byte_(8 - i, buffer_[(num_chips_ - j - 1) * 8 + i]);
+      else
+        this->send_byte_(8 - i, buffer_[j * 8 + i]);
     this->disable();
   }
 }
@@ -166,7 +171,7 @@ uint8_t MAX7219Component::print(uint8_t start_pos, const char *str) {
   uint8_t pos = start_pos;
   for (; *str != '\0'; str++) {
     uint8_t data = MAX7219_UNKNOWN_CHAR;
-    if (*str >= ' ' && *str <= '}')
+    if (*str >= ' ' && *str <= '~')
       data = pgm_read_byte(&MAX7219_ASCII_TO_RAW[*str - ' ']);
 
     if (data == MAX7219_UNKNOWN_CHAR) {
@@ -209,7 +214,10 @@ uint8_t MAX7219Component::printf(const char *format, ...) {
   return 0;
 }
 void MAX7219Component::set_writer(max7219_writer_t &&writer) { this->writer_ = writer; }
-void MAX7219Component::set_intensity(uint8_t intensity) { this->intensity_ = intensity; }
+void MAX7219Component::set_intensity(uint8_t intensity) {
+  this->intensity_ = intensity;
+  this->send_to_all_(MAX7219_REGISTER_INTENSITY, this->intensity_);
+}
 void MAX7219Component::set_num_chips(uint8_t num_chips) { this->num_chips_ = num_chips; }
 
 #ifdef USE_TIME

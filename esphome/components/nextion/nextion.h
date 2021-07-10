@@ -365,6 +365,7 @@ class Nextion : public PollingComponent, public uart::UARTDevice {
   // (In most use cases you won't need these)
   void register_touch_component(NextionTouchComponent *obj) { this->touch_.push_back(obj); }
   void setup() override;
+  void set_brightness(float brightness) { this->brightness_ = brightness; }
   float get_setup_priority() const override;
   void update() override;
   void loop() override;
@@ -392,9 +393,10 @@ class Nextion : public PollingComponent, public uart::UARTDevice {
   std::vector<NextionTouchComponent *> touch_;
   optional<nextion_writer_t> writer_;
   bool wait_for_ack_{true};
+  float brightness_{1.0};
 };
 
-class NextionTouchComponent : public binary_sensor::BinarySensor {
+class NextionTouchComponent : public binary_sensor::BinarySensorInitiallyOff {
  public:
   void set_page_id(uint8_t page_id) { page_id_ = page_id; }
   void set_component_id(uint8_t component_id) { component_id_ = component_id; }

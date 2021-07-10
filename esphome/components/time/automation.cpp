@@ -4,7 +4,7 @@
 namespace esphome {
 namespace time {
 
-static const char *TAG = "automation";
+static const char *const TAG = "automation";
 
 void CronTrigger::add_second(uint8_t second) { this->seconds_[second] = true; }
 void CronTrigger::add_minute(uint8_t minute) { this->minutes_[minute] = true; }
@@ -74,6 +74,10 @@ void CronTrigger::add_days_of_week(const std::vector<uint8_t> &days_of_week) {
     this->add_day_of_week(it);
 }
 float CronTrigger::get_setup_priority() const { return setup_priority::HARDWARE; }
+
+SyncTrigger::SyncTrigger(RealTimeClock *rtc) : rtc_(rtc) {
+  rtc->add_on_time_sync_callback([this]() { this->trigger(); });
+}
 
 }  // namespace time
 }  // namespace esphome

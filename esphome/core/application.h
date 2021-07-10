@@ -37,8 +37,13 @@ namespace esphome {
 
 class Application {
  public:
-  void pre_setup(const std::string &name, const char *compilation_time) {
-    this->name_ = name;
+  void pre_setup(const std::string &name, const char *compilation_time, bool name_add_mac_suffix) {
+    this->name_add_mac_suffix_ = name_add_mac_suffix;
+    if (name_add_mac_suffix) {
+      this->name_ = name + "-" + get_mac_address().substr(6);
+    } else {
+      this->name_ = name;
+    }
     this->compilation_time_ = compilation_time;
     global_preferences.begin();
   }
@@ -92,6 +97,8 @@ class Application {
 
   /// Get the name of this Application set by set_name().
   const std::string &get_name() const { return this->name_; }
+
+  bool is_name_add_mac_suffix_enabled() const { return this->name_add_mac_suffix_; }
 
   const std::string &get_compilation_time() const { return this->compilation_time_; }
 
@@ -209,7 +216,10 @@ class Application {
 
   void register_component_(Component *comp);
 
+  void calculate_looping_components_();
+
   std::vector<Component *> components_{};
+  std::vector<Component *> looping_components_{};
 
 #ifdef USE_BINARY_SENSOR
   std::vector<binary_sensor::BinarySensor *> binary_sensors_{};
@@ -238,6 +248,7 @@ class Application {
 
   std::string name_;
   std::string compilation_time_;
+  bool name_add_mac_suffix_;
   uint32_t last_loop_{0};
   uint32_t loop_interval_{16};
   int dump_config_at_{-1};
@@ -245,6 +256,6 @@ class Application {
 };
 
 /// Global storage of Application pointer - only one Application can exist.
-extern Application App;
+extern Application App;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 }  // namespace esphome

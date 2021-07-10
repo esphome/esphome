@@ -5,7 +5,7 @@
 namespace esphome {
 namespace uptime {
 
-static const char *TAG = "uptime.sensor";
+static const char *const TAG = "uptime.sensor";
 
 void UptimeSensor::update() {
   const uint32_t ms = millis();
@@ -27,6 +27,7 @@ void UptimeSensor::update() {
 }
 std::string UptimeSensor::unique_id() { return get_mac_address() + "-uptime"; }
 float UptimeSensor::get_setup_priority() const { return setup_priority::HARDWARE; }
+void UptimeSensor::dump_config() { LOG_SENSOR("", "Uptime Sensor", this); }
 
 }  // namespace uptime
 }  // namespace esphome

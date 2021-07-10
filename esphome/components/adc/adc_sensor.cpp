@@ -8,7 +8,7 @@ ADC_MODE(ADC_VCC)
 namespace esphome {
 namespace adc {
 
-static const char *TAG = "adc";
+static const char *const TAG = "adc";
 
 #ifdef ARDUINO_ARCH_ESP32
 void ADCSensor::set_attenuation(adc_attenuation_t attenuation) { this->attenuation_ = attenuation; }
@@ -16,7 +16,9 @@ void ADCSensor::set_attenuation(adc_attenuation_t attenuation) { this->attenuati
 
 void ADCSensor::setup() {
   ESP_LOGCONFIG(TAG, "Setting up ADC '%s'...", this->get_name().c_str());
+#ifndef USE_ADC_SENSOR_VCC
   GPIOPin(this->pin_, INPUT).setup();
+#endif
 
 #ifdef ARDUINO_ARCH_ESP32
   analogSetPinAttenuation(this->pin_, this->attenuation_);
@@ -58,7 +60,7 @@ void ADCSensor::update() {
 }
 float ADCSensor::sample() {
 #ifdef ARDUINO_ARCH_ESP32
-  float value_v = analogRead(this->pin_) / 4095.0f;
+  float value_v = analogRead(this->pin_) / 4095.0f;  // NOLINT
   switch (this->attenuation_) {
     case ADC_0db:
       value_v *= 1.1;
@@ -80,7 +82,7 @@ float ADCSensor::sample() {
 #ifdef USE_ADC_SENSOR_VCC
   return ESP.getVcc() / 1024.0f;
 #else
-  return analogRead(this->pin_) / 1024.0f;
+  return analogRead(this->pin_) / 1024.0f;  // NOLINT
 #endif
 #endif
 }

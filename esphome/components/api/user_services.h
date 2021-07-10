@@ -1,5 +1,7 @@
 #pragma once
 
+#include <utility>
+
 #include "esphome/core/component.h"
 #include "esphome/core/automation.h"
 #include "api_pb2.h"
@@ -16,12 +18,12 @@ class UserServiceDescriptor {
 
 template<typename T> T get_execute_arg_value(const ExecuteServiceArgument &arg);
 
-template<typename T> EnumServiceArgType to_service_arg_type();
+template<typename T> enums::ServiceArgType to_service_arg_type();
 
 template<typename... Ts> class UserServiceBase : public UserServiceDescriptor {
  public:
-  UserServiceBase(const std::string &name, const std::array<std::string, sizeof...(Ts)> &arg_names)
-      : name_(name), arg_names_(arg_names) {
+  UserServiceBase(std::string name, const std::array<std::string, sizeof...(Ts)> &arg_names)
+      : name_(std::move(name)), arg_names_(arg_names) {
     this->key_ = fnv1_hash(this->name_);
   }
 
@@ -29,7 +31,7 @@ template<typename... Ts> class UserServiceBase : public UserServiceDescriptor {
     ListEntitiesServicesResponse msg;
     msg.name = this->name_;
     msg.key = this->key_;
-    std::array<EnumServiceArgType, sizeof...(Ts)> arg_types = {to_service_arg_type<Ts>()...};
+    std::array<enums::ServiceArgType, sizeof...(Ts)> arg_types = {to_service_arg_type<Ts>()...};
     for (int i = 0; i < sizeof...(Ts); i++) {
       ListEntitiesServicesArgument arg;
       arg.type = arg_types[i];

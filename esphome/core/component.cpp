@@ -1,12 +1,14 @@
 #include "esphome/core/component.h"
-#include "esphome/core/helpers.h"
-#include "esphome/core/esphal.h"
-#include "esphome/core/log.h"
+
 #include "esphome/core/application.h"
+#include "esphome/core/esphal.h"
+#include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
+#include <utility>
 
 namespace esphome {
 
-static const char *TAG = "component";
+static const char *const TAG = "component";
 
 namespace setup_priority {
 
@@ -15,6 +17,8 @@ const float IO = 900.0f;
 const float HARDWARE = 800.0f;
 const float DATA = 600.0f;
 const float PROCESSOR = 400.0;
+const float BLUETOOTH = 350.0f;
+const float AFTER_BLUETOOTH = 300.0f;
 const float WIFI = 250.0f;
 const float AFTER_WIFI = 200.0f;
 const float AFTER_CONNECTION = 100.0f;
@@ -32,7 +36,7 @@ const uint32_t STATUS_LED_OK = 0x0000;
 const uint32_t STATUS_LED_WARNING = 0x0100;
 const uint32_t STATUS_LED_ERROR = 0x0200;
 
-uint32_t global_state = 0;
+uint32_t global_state = 0;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 float Component::get_loop_priority() const { return 0.0f; }
 
@@ -107,7 +111,7 @@ void Component::set_timeout(uint32_t timeout, std::function<void()> &&f) {  // N
   App.scheduler.set_timeout(this, "", timeout, std::move(f));
 }
 void Component::set_interval(uint32_t interval, std::function<void()> &&f) {  // NOLINT
-  App.scheduler.set_timeout(this, "", interval, std::move(f));
+  App.scheduler.set_interval(this, "", interval, std::move(f));
 }
 bool Component::is_failed() { return (this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_FAILED; }
 bool Component::can_proceed() { return true; }
@@ -139,6 +143,20 @@ float Component::get_actual_setup_priority() const {
 }
 void Component::set_setup_priority(float priority) { this->setup_priority_override_ = priority; }
 
+bool Component::has_overridden_loop() const {
+#ifdef CLANG_TIDY
+  bool loop_overridden = true;
+  bool call_loop_overridden = true;
+#else
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpmf-conversions"
+  bool loop_overridden = (void *) (this->*(&Component::loop)) != (void *) (&Component::loop);
+  bool call_loop_overridden = (void *) (this->*(&Component::call_loop)) != (void *) (&Component::call_loop);
+#pragma GCC diagnostic pop
+#endif
+  return loop_overridden || call_loop_overridden;
+}
+
 PollingComponent::PollingComponent(uint32_t update_interval) : Component(), update_interval_(update_interval) {}
 
 void PollingComponent::call_setup() {
@@ -157,13 +175,13 @@ void Nameable::set_name(const std::string &name) {
   this->name_ = name;
   this->calc_object_id_();
 }
-Nameable::Nameable(const std::string &name) : name_(name) { this->calc_object_id_(); }
+Nameable::Nameable(std::string name) : name_(std::move(name)) { this->calc_object_id_(); }
 
 const std::string &Nameable::get_object_id() { return this->object_id_; }
 bool Nameable::is_internal() const { return this->internal_; }
 void Nameable::set_internal(bool internal) { this->internal_ = internal; }
 void Nameable::calc_object_id_() {
-  this->object_id_ = sanitize_string_whitelist(to_lowercase_underscore(this->name_), HOSTNAME_CHARACTER_WHITELIST);
+  this->object_id_ = sanitize_string_allowlist(to_lowercase_underscore(this->name_), HOSTNAME_CHARACTER_ALLOWLIST);
   // FNV-1 hash
   this->object_id_hash_ = fnv1_hash(this->object_id_);
 }

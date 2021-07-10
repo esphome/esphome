@@ -6,8 +6,29 @@
 
 #include <utility>
 #include <algorithm>
+#ifdef ESPHOME_WIFI_WPA2_EAP
+#include <wpa2_enterprise.h>
+#endif
+
+#ifdef WIFI_IS_OFF_AT_BOOT  // Identifies ESP8266 Arduino 3.0.0
+#define ARDUINO_ESP8266_RELEASE_3
+#endif
+
+extern "C" {
 #include "lwip/err.h"
 #include "lwip/dns.h"
+#include "lwip/dhcp.h"
+#include "lwip/init.h"  // LWIP_VERSION_
+#if LWIP_IPV6
+#include "lwip/netif.h"  // struct netif
+#endif
+#ifdef ARDUINO_ESP8266_RELEASE_3
+#include "LwipDhcpServer.h"
+#define wifi_softap_set_dhcps_lease(lease) dhcpSoftAP.set_dhcps_lease(lease)
+#define wifi_softap_set_dhcps_lease_time(time) dhcpSoftAP.set_dhcps_lease_time(time)
+#define wifi_softap_set_dhcps_offer_option(offer, mode) dhcpSoftAP.set_dhcps_offer_option(offer, mode)
+#endif
+}
 
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -18,7 +39,7 @@
 namespace esphome {
 namespace wifi {
 
-static const char *TAG = "wifi_esp8266";
+static const char *const TAG = "wifi_esp8266";
 
 bool WiFiComponent::wifi_mode_(optional<bool> sta, optional<bool> ap) {
   uint8_t current_mode = wifi_get_opmode();
@@ -74,6 +95,19 @@ bool WiFiComponent::wifi_apply_power_save_() {
   }
   return wifi_set_sleep_type(power_save);
 }
+
+#if LWIP_VERSION_MAJOR != 1
+/*
+  lwip v2 needs to be notified of IP changes, see also
+  https://github.com/d-a-v/Arduino/blob/0e7d21e17144cfc5f53c016191daca8723e89ee8/libraries/ESP8266WiFi/src/ESP8266WiFiSTA.cpp#L251
+ */
+#undef netif_set_addr  // need to call lwIP-v1.4 netif_set_addr()
+extern "C" {
+struct netif *eagle_lwip_getif(int netif_index);
+void netif_set_addr(struct netif *netif, const ip4_addr_t *ip, const ip4_addr_t *netmask, const ip4_addr_t *gw);
+};
+#endif
+
 bool WiFiComponent::wifi_sta_ip_config_(optional<ManualIP> manual_ip) {
   // enable STA
   if (!this->wifi_mode_(true, {}))
@@ -93,6 +127,13 @@ bool WiFiComponent::wifi_sta_ip_config_(optional<ManualIP> manual_ip) {
   }
 
   bool ret = true;
+
+#if LWIP_VERSION_MAJOR != 1
+  // get current->previous IP address
+  // (check below)
+  ip_info previp{};
+  wifi_get_ip_info(STATION_IF, &previp);
+#endif
 
   struct ip_info info {};
   info.ip.addr = static_cast<uint32_t>(manual_ip->static_ip);
@@ -122,6 +163,14 @@ bool WiFiComponent::wifi_sta_ip_config_(optional<ManualIP> manual_ip) {
     dns_setserver(1, &dns);
   }
 
+#if LWIP_VERSION_MAJOR != 1
+  // trigger address change by calling lwIP-v1.4 api
+  // only when ip is already set by other mean (generally dhcp)
+  if (previp.ip.addr != 0 && previp.ip.addr != info.ip.addr) {
+    netif_set_addr(eagle_lwip_getif(STATION_IF), reinterpret_cast<const ip4_addr_t *>(&info.ip),
+                   reinterpret_cast<const ip4_addr_t *>(&info.netmask), reinterpret_cast<const ip4_addr_t *>(&info.gw));
+  }
+#endif
   return ret;
 }
 
@@ -133,14 +182,35 @@ IPAddress WiFiComponent::wifi_sta_ip_() {
   return {ip.ip.addr};
 }
 bool WiFiComponent::wifi_apply_hostname_() {
-  bool ret = wifi_station_set_hostname(const_cast<char *>(App.get_name().c_str()));
+  const std::string &hostname = App.get_name();
+  bool ret = wifi_station_set_hostname(const_cast<char *>(hostname.c_str()));
   if (!ret) {
     ESP_LOGV(TAG, "Setting WiFi Hostname failed!");
   }
+
+  // inform dhcp server of hostname change using dhcp_renew()
+  for (netif *intf = netif_list; intf; intf = intf->next) {
+    // unconditionally update all known interfaces
+#if LWIP_VERSION_MAJOR == 1
+    intf->hostname = (char *) wifi_station_get_hostname();
+#else
+    intf->hostname = wifi_station_get_hostname();
+#endif
+    if (netif_dhcp_data(intf) != nullptr) {
+      // renew already started DHCP leases
+      err_t lwipret = dhcp_renew(intf);
+      if (lwipret != ERR_OK) {
+        ESP_LOGW(TAG, "wifi_apply_hostname_(%s): lwIP error %d on interface %c%c (index %d)", intf->hostname,
+                 (int) lwipret, intf->name[0], intf->name[1], intf->num);
+        ret = false;
+      }
+    }
+  }
+
   return ret;
 }
 
-bool WiFiComponent::wifi_sta_connect_(WiFiAP ap) {
+bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
   // enable STA
   if (!this->wifi_mode_(true, {}))
     return false;
@@ -149,8 +219,8 @@ bool WiFiComponent::wifi_sta_connect_(WiFiAP ap) {
 
   struct station_config conf {};
   memset(&conf, 0, sizeof(conf));
-  strcpy(reinterpret_cast<char *>(conf.ssid), ap.get_ssid().c_str());
-  strcpy(reinterpret_cast<char *>(conf.password), ap.get_password().c_str());
+  strncpy(reinterpret_cast<char *>(conf.ssid), ap.get_ssid().c_str(), sizeof(conf.ssid));
+  strncpy(reinterpret_cast<char *>(conf.password), ap.get_password().c_str(), sizeof(conf.password));
 
   if (ap.get_bssid().has_value()) {
     conf.bssid_set = 1;
@@ -163,6 +233,7 @@ bool WiFiComponent::wifi_sta_connect_(WiFiAP ap) {
   if (ap.get_password().empty()) {
     conf.threshold.authmode = AUTH_OPEN;
   } else {
+    // Only allow auth modes with at least WPA
     conf.threshold.authmode = AUTH_WPA_PSK;
   }
   conf.threshold.rssi = -127;
@@ -180,6 +251,52 @@ bool WiFiComponent::wifi_sta_connect_(WiFiAP ap) {
   if (!this->wifi_sta_ip_config_(ap.get_manual_ip())) {
     return false;
   }
+
+  // setup enterprise authentication if required
+#ifdef ESPHOME_WIFI_WPA2_EAP
+  if (ap.get_eap().has_value()) {
+    // note: all certificates and keys have to be null terminated. Lengths are appended by +1 to include \0.
+    EAPAuth eap = ap.get_eap().value();
+    ret = wifi_station_set_enterprise_identity((uint8_t *) eap.identity.c_str(), eap.identity.length());
+    if (ret) {
+      ESP_LOGV(TAG, "esp_wifi_sta_wpa2_ent_set_identity failed! %d", ret);
+    }
+    int ca_cert_len = strlen(eap.ca_cert);
+    int client_cert_len = strlen(eap.client_cert);
+    int client_key_len = strlen(eap.client_key);
+    if (ca_cert_len) {
+      ret = wifi_station_set_enterprise_ca_cert((uint8_t *) eap.ca_cert, ca_cert_len + 1);
+      if (ret) {
+        ESP_LOGV(TAG, "esp_wifi_sta_wpa2_ent_set_ca_cert failed! %d", ret);
+      }
+    }
+    // workout what type of EAP this is
+    // validation is not required as the config tool has already validated it
+    if (client_cert_len && client_key_len) {
+      // if we have certs, this must be EAP-TLS
+      ret = wifi_station_set_enterprise_cert_key((uint8_t *) eap.client_cert, client_cert_len + 1,
+                                                 (uint8_t *) eap.client_key, client_key_len + 1,
+                                                 (uint8_t *) eap.password.c_str(), strlen(eap.password.c_str()));
+      if (ret) {
+        ESP_LOGV(TAG, "esp_wifi_sta_wpa2_ent_set_cert_key failed! %d", ret);
+      }
+    } else {
+      // in the absence of certs, assume this is username/password based
+      ret = wifi_station_set_enterprise_username((uint8_t *) eap.username.c_str(), eap.username.length());
+      if (ret) {
+        ESP_LOGV(TAG, "esp_wifi_sta_wpa2_ent_set_username failed! %d", ret);
+      }
+      ret = wifi_station_set_enterprise_password((uint8_t *) eap.password.c_str(), eap.password.length());
+      if (ret) {
+        ESP_LOGV(TAG, "esp_wifi_sta_wpa2_ent_set_password failed! %d", ret);
+      }
+    }
+    ret = wifi_station_set_wpa2_enterprise_auth(true);
+    if (ret) {
+      ESP_LOGV(TAG, "esp_wifi_sta_wpa2_ent_enable failed! %d", ret);
+    }
+  }
+#endif  // ESPHOME_WIFI_WPA2_EAP
 
   this->wifi_apply_hostname_();
 
@@ -330,14 +447,27 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
       char buf[33];
       memcpy(buf, it.ssid, it.ssid_len);
       buf[it.ssid_len] = '\0';
-      ESP_LOGW(TAG, "Event: Disconnected ssid='%s' bssid=%s reason='%s'", buf, format_mac_addr(it.bssid).c_str(),
-               get_disconnect_reason_str(it.reason));
+      if (it.reason == REASON_NO_AP_FOUND) {
+        ESP_LOGW(TAG, "Event: Disconnected ssid='%s' reason='Probe Request Unsuccessful'", buf);
+      } else {
+        ESP_LOGW(TAG, "Event: Disconnected ssid='%s' bssid=" LOG_SECRET("%s") " reason='%s'", buf,
+                 format_mac_addr(it.bssid).c_str(), get_disconnect_reason_str(it.reason));
+      }
       break;
     }
     case EVENT_STAMODE_AUTHMODE_CHANGE: {
       auto it = event->event_info.auth_change;
       ESP_LOGV(TAG, "Event: Changed AuthMode old=%s new=%s", get_auth_mode_str(it.old_mode),
                get_auth_mode_str(it.new_mode));
+      // Mitigate CVE-2020-12638
+      // https://lbsfilm.at/blog/wpa2-authenticationmode-downgrade-in-espressif-microprocessors
+      if (it.old_mode != AUTH_OPEN && it.new_mode == AUTH_OPEN) {
+        ESP_LOGW(TAG, "Potential Authmode downgrade detected, disconnecting...");
+        // we can't call retry_connect() from this context, so disconnect immediately
+        // and notify main thread with error_from_callback_
+        wifi_station_disconnect();
+        global_wifi_component->error_from_callback_ = true;
+      }
       break;
     }
     case EVENT_STAMODE_GOT_IP: {
@@ -390,27 +520,14 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
   WiFiMockClass::_event_callback(event);
 }
 
+bool WiFiComponent::wifi_apply_output_power_(float output_power) {
+  uint8_t val = static_cast<uint8_t>(output_power * 4);
+  system_phy_set_max_tpw(val);
+  return true;
+}
 bool WiFiComponent::wifi_sta_pre_setup_() {
   if (!this->wifi_mode_(true, {}))
     return false;
-
-  // Clear saved STA config
-  station_config default_config{};
-  wifi_station_get_config_default(&default_config);
-  bool is_zero = default_config.ssid[0] == '\0' && default_config.password[0] == '\0' && default_config.bssid[0] == 0 &&
-                 default_config.bssid_set == 0;
-  if (!is_zero) {
-    ESP_LOGV(TAG, "Clearing default wifi STA config");
-
-    memset(&default_config, 0, sizeof(default_config));
-    ETS_UART_INTR_DISABLE();
-    bool ret = wifi_station_set_config(&default_config);
-    ETS_UART_INTR_ENABLE();
-
-    if (!ret) {
-      ESP_LOGW(TAG, "Clearing default wif STA config failed!");
-    }
-  }
 
   bool ret1, ret2;
   ETS_UART_INTR_DISABLE();
@@ -428,19 +545,6 @@ bool WiFiComponent::wifi_sta_pre_setup_() {
 
 void WiFiComponent::wifi_pre_setup_() {
   wifi_set_event_handler_cb(&WiFiComponent::wifi_event_callback);
-  // Make sure the default opmode is OFF
-  uint8_t default_opmode = wifi_get_opmode_default();
-  if (default_opmode != 0) {
-    ESP_LOGV(TAG, "Setting default WiFi Mode to 0 (was %u)", default_opmode);
-
-    ETS_UART_INTR_DISABLE();
-    bool ret = wifi_set_opmode(0);
-    ETS_UART_INTR_ENABLE();
-
-    if (!ret) {
-      ESP_LOGW(TAG, "Setting default WiFi mode failed!");
-    }
-  }
 
   // Make sure WiFi is in clean state before anything starts
   this->wifi_mode_(false, false);
@@ -496,11 +600,14 @@ bool WiFiComponent::wifi_scan_start_() {
   return ret;
 }
 bool WiFiComponent::wifi_disconnect_() {
+  bool ret = true;
+  // Only call disconnect if interface is up
+  if (wifi_get_opmode() & WIFI_STA)
+    ret = wifi_station_disconnect();
   station_config conf{};
   memset(&conf, 0, sizeof(conf));
   ETS_UART_INTR_DISABLE();
-  wifi_station_set_config(&conf);
-  bool ret = wifi_station_disconnect();
+  wifi_station_set_config_current(&conf);
   ETS_UART_INTR_ENABLE();
   return ret;
 }
@@ -552,6 +659,10 @@ bool WiFiComponent::wifi_ap_ip_config_(optional<ManualIP> manual_ip) {
     return false;
   }
 
+#ifdef ARDUINO_ESP8266_RELEASE_3
+  dhcpSoftAP.begin(&info);
+#endif
+
   struct dhcps_lease lease {};
   IPAddress start_address = info.ip.addr;
   start_address[3] += 99;
@@ -591,10 +702,10 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
     return false;
 
   struct softap_config conf {};
-  strcpy(reinterpret_cast<char *>(conf.ssid), ap.get_ssid().c_str());
+  strncpy(reinterpret_cast<char *>(conf.ssid), ap.get_ssid().c_str(), sizeof(conf.ssid));
   conf.ssid_len = static_cast<uint8>(ap.get_ssid().size());
   conf.channel = ap.get_channel().value_or(1);
-  conf.ssid_hidden = 0;
+  conf.ssid_hidden = ap.get_hidden();
   conf.max_connection = 5;
   conf.beacon_interval = 100;
 
@@ -603,7 +714,7 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
     *conf.password = 0;
   } else {
     conf.authmode = AUTH_WPA2_PSK;
-    strcpy(reinterpret_cast<char *>(conf.password), ap.get_password().c_str());
+    strncpy(reinterpret_cast<char *>(conf.password), ap.get_password().c_str(), sizeof(conf.password));
   }
 
   ETS_UART_INTR_DISABLE();

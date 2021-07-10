@@ -6,6 +6,9 @@
 
 #include <utility>
 #include <algorithm>
+#ifdef ESPHOME_WIFI_WPA2_EAP
+#include <esp_wpa2.h>
+#endif
 #include "lwip/err.h"
 #include "lwip/dns.h"
 
@@ -18,7 +21,7 @@
 namespace esphome {
 namespace wifi {
 
-static const char *TAG = "wifi_esp32";
+static const char *const TAG = "wifi_esp32";
 
 bool WiFiComponent::wifi_mode_(optional<bool> sta, optional<bool> ap) {
   uint8_t current_mode = WiFi.getMode();
@@ -52,6 +55,10 @@ bool WiFiComponent::wifi_mode_(optional<bool> sta, optional<bool> ap) {
   }
 
   return ret;
+}
+bool WiFiComponent::wifi_apply_output_power_(float output_power) {
+  int8_t val = static_cast<int8_t>(output_power * 4);
+  return esp_wifi_set_max_tx_power(val) == ESP_OK;
 }
 bool WiFiComponent::wifi_sta_pre_setup_() {
   if (!this->wifi_mode_(true, {}))
@@ -142,7 +149,7 @@ bool WiFiComponent::wifi_apply_hostname_() {
   }
   return true;
 }
-bool WiFiComponent::wifi_sta_connect_(WiFiAP ap) {
+bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
   // enable STA
   if (!this->wifi_mode_(true, {}))
     return false;
@@ -162,10 +169,16 @@ bool WiFiComponent::wifi_sta_connect_(WiFiAP ap) {
     conf.sta.channel = *ap.get_channel();
   }
 
-  esp_err_t err = esp_wifi_disconnect();
-  if (err != ESP_OK) {
-    ESP_LOGV(TAG, "esp_wifi_disconnect failed! %d", err);
-    return false;
+  wifi_config_t current_conf;
+  esp_err_t err;
+  esp_wifi_get_config(WIFI_IF_STA, &current_conf);
+
+  if (memcmp(&current_conf, &conf, sizeof(wifi_config_t)) != 0) {
+    err = esp_wifi_disconnect();
+    if (err != ESP_OK) {
+      ESP_LOGV(TAG, "esp_wifi_disconnect failed! %d", err);
+      return false;
+    }
   }
 
   err = esp_wifi_set_config(WIFI_IF_STA, &conf);
@@ -176,6 +189,53 @@ bool WiFiComponent::wifi_sta_connect_(WiFiAP ap) {
   if (!this->wifi_sta_ip_config_(ap.get_manual_ip())) {
     return false;
   }
+
+  // setup enterprise authentication if required
+#ifdef ESPHOME_WIFI_WPA2_EAP
+  if (ap.get_eap().has_value()) {
+    // note: all certificates and keys have to be null terminated. Lengths are appended by +1 to include \0.
+    EAPAuth eap = ap.get_eap().value();
+    err = esp_wifi_sta_wpa2_ent_set_identity((uint8_t *) eap.identity.c_str(), eap.identity.length());
+    if (err != ESP_OK) {
+      ESP_LOGV(TAG, "esp_wifi_sta_wpa2_ent_set_identity failed! %d", err);
+    }
+    int ca_cert_len = strlen(eap.ca_cert);
+    int client_cert_len = strlen(eap.client_cert);
+    int client_key_len = strlen(eap.client_key);
+    if (ca_cert_len) {
+      err = esp_wifi_sta_wpa2_ent_set_ca_cert((uint8_t *) eap.ca_cert, ca_cert_len + 1);
+      if (err != ESP_OK) {
+        ESP_LOGV(TAG, "esp_wifi_sta_wpa2_ent_set_ca_cert failed! %d", err);
+      }
+    }
+    // workout what type of EAP this is
+    // validation is not required as the config tool has already validated it
+    if (client_cert_len && client_key_len) {
+      // if we have certs, this must be EAP-TLS
+      err = esp_wifi_sta_wpa2_ent_set_cert_key((uint8_t *) eap.client_cert, client_cert_len + 1,
+                                               (uint8_t *) eap.client_key, client_key_len + 1,
+                                               (uint8_t *) eap.password.c_str(), strlen(eap.password.c_str()));
+      if (err != ESP_OK) {
+        ESP_LOGV(TAG, "esp_wifi_sta_wpa2_ent_set_cert_key failed! %d", err);
+      }
+    } else {
+      // in the absence of certs, assume this is username/password based
+      err = esp_wifi_sta_wpa2_ent_set_username((uint8_t *) eap.username.c_str(), eap.username.length());
+      if (err != ESP_OK) {
+        ESP_LOGV(TAG, "esp_wifi_sta_wpa2_ent_set_username failed! %d", err);
+      }
+      err = esp_wifi_sta_wpa2_ent_set_password((uint8_t *) eap.password.c_str(), eap.password.length());
+      if (err != ESP_OK) {
+        ESP_LOGV(TAG, "esp_wifi_sta_wpa2_ent_set_password failed! %d", err);
+      }
+    }
+    esp_wpa2_config_t wpa2_config = WPA2_CONFIG_INIT_DEFAULT();
+    err = esp_wifi_sta_wpa2_ent_enable(&wpa2_config);
+    if (err != ESP_OK) {
+      ESP_LOGV(TAG, "esp_wifi_sta_wpa2_ent_enable failed! %d", err);
+    }
+  }
+#endif  // ESPHOME_WIFI_WPA2_EAP
 
   this->wifi_apply_hostname_();
 
@@ -205,7 +265,14 @@ const char *get_auth_mode_str(uint8_t mode) {
       return "UNKNOWN";
   }
 }
-std::string format_ip4_addr(const ip4_addr_t &ip) {
+
+#if ESP_IDF_VERSION_MAJOR >= 4
+using esphome_ip4_addr_t = esp_ip4_addr_t;
+#else
+using esphome_ip4_addr_t = ip4_addr_t;
+#endif
+
+std::string format_ip4_addr(const esphome_ip4_addr_t &ip) {
   char buf[20];
   sprintf(buf, "%u.%u.%u.%u", uint8_t(ip.addr >> 0), uint8_t(ip.addr >> 8), uint8_t(ip.addr >> 16),
           uint8_t(ip.addr >> 24));
@@ -286,14 +353,22 @@ const char *get_disconnect_reason_str(uint8_t reason) {
       return "Unspecified";
   }
 }
+#if ESP_IDF_VERSION_MAJOR >= 4
+void WiFiComponent::wifi_event_callback_(arduino_event_id_t event, arduino_event_info_t info) {
+#else
 void WiFiComponent::wifi_event_callback_(system_event_id_t event, system_event_info_t info) {
+#endif
   switch (event) {
     case SYSTEM_EVENT_WIFI_READY: {
       ESP_LOGV(TAG, "Event: WiFi ready");
       break;
     }
     case SYSTEM_EVENT_SCAN_DONE: {
+#if ESP_IDF_VERSION_MAJOR >= 4
+      auto it = info.wifi_scan_done;
+#else
       auto it = info.scan_done;
+#endif
       ESP_LOGV(TAG, "Event: WiFi Scan Done status=%u number=%u scan_id=%u", it.status, it.number, it.scan_id);
       break;
     }
@@ -306,7 +381,11 @@ void WiFiComponent::wifi_event_callback_(system_event_id_t event, system_event_i
       break;
     }
     case SYSTEM_EVENT_STA_CONNECTED: {
+#if ESP_IDF_VERSION_MAJOR >= 4
+      auto it = info.wifi_sta_connected;
+#else
       auto it = info.connected;
+#endif
       char buf[33];
       memcpy(buf, it.ssid, it.ssid_len);
       buf[it.ssid_len] = '\0';
@@ -315,18 +394,42 @@ void WiFiComponent::wifi_event_callback_(system_event_id_t event, system_event_i
       break;
     }
     case SYSTEM_EVENT_STA_DISCONNECTED: {
+#if ESP_IDF_VERSION_MAJOR >= 4
+      auto it = info.wifi_sta_disconnected;
+#else
       auto it = info.disconnected;
+#endif
       char buf[33];
       memcpy(buf, it.ssid, it.ssid_len);
       buf[it.ssid_len] = '\0';
-      ESP_LOGW(TAG, "Event: Disconnected ssid='%s' bssid=" LOG_SECRET("%s") " reason=%s", buf,
-               format_mac_addr(it.bssid).c_str(), get_disconnect_reason_str(it.reason));
+      if (it.reason == WIFI_REASON_NO_AP_FOUND) {
+        ESP_LOGW(TAG, "Event: Disconnected ssid='%s' reason='Probe Request Unsuccessful'", buf);
+      } else {
+        ESP_LOGW(TAG, "Event: Disconnected ssid='%s' bssid=" LOG_SECRET("%s") " reason='%s'", buf,
+                 format_mac_addr(it.bssid).c_str(), get_disconnect_reason_str(it.reason));
+      }
       break;
     }
     case SYSTEM_EVENT_STA_AUTHMODE_CHANGE: {
+#if ESP_IDF_VERSION_MAJOR >= 4
+      auto it = info.wifi_sta_authmode_change;
+#else
       auto it = info.auth_change;
+#endif
       ESP_LOGV(TAG, "Event: Authmode Change old=%s new=%s", get_auth_mode_str(it.old_mode),
                get_auth_mode_str(it.new_mode));
+      // Mitigate CVE-2020-12638
+      // https://lbsfilm.at/blog/wpa2-authenticationmode-downgrade-in-espressif-microprocessors
+      if (it.old_mode != WIFI_AUTH_OPEN && it.new_mode == WIFI_AUTH_OPEN) {
+        ESP_LOGW(TAG, "Potential Authmode downgrade detected, disconnecting...");
+        // we can't call retry_connect() from this context, so disconnect immediately
+        // and notify main thread with error_from_callback_
+        err_t err = esp_wifi_disconnect();
+        if (err != ESP_OK) {
+          ESP_LOGW(TAG, "Disconnect failed: %s", esp_err_to_name(err));
+        }
+        this->error_from_callback_ = true;
+      }
       break;
     }
     case SYSTEM_EVENT_STA_GOT_IP: {
@@ -348,13 +451,25 @@ void WiFiComponent::wifi_event_callback_(system_event_id_t event, system_event_i
       break;
     }
     case SYSTEM_EVENT_AP_STACONNECTED: {
+#if ESP_IDF_VERSION_MAJOR >= 4
+      auto it = info.wifi_sta_connected;
+      auto &mac = it.bssid;
+#else
       auto it = info.sta_connected;
-      ESP_LOGV(TAG, "Event: AP client connected MAC=%s aid=%u", format_mac_addr(it.mac).c_str(), it.aid);
+      auto &mac = it.mac;
+#endif
+      ESP_LOGV(TAG, "Event: AP client connected MAC=%s", format_mac_addr(mac).c_str());
       break;
     }
     case SYSTEM_EVENT_AP_STADISCONNECTED: {
+#if ESP_IDF_VERSION_MAJOR >= 4
+      auto it = info.wifi_sta_disconnected;
+      auto &mac = it.bssid;
+#else
       auto it = info.sta_disconnected;
-      ESP_LOGV(TAG, "Event: AP client disconnected MAC=%s aid=%u", format_mac_addr(it.mac).c_str(), it.aid);
+      auto &mac = it.mac;
+#endif
+      ESP_LOGV(TAG, "Event: AP client disconnected MAC=%s", format_mac_addr(mac).c_str());
       break;
     }
     case SYSTEM_EVENT_AP_STAIPASSIGNED: {
@@ -362,7 +477,11 @@ void WiFiComponent::wifi_event_callback_(system_event_id_t event, system_event_i
       break;
     }
     case SYSTEM_EVENT_AP_PROBEREQRECVED: {
+#if ESP_IDF_VERSION_MAJOR >= 4
+      auto it = info.wifi_ap_probereqrecved;
+#else
       auto it = info.ap_probereqrecved;
+#endif
       ESP_LOGVV(TAG, "Event: AP receive Probe Request MAC=%s RSSI=%d", format_mac_addr(it.mac).c_str(), it.rssi);
       break;
     }
@@ -370,8 +489,13 @@ void WiFiComponent::wifi_event_callback_(system_event_id_t event, system_event_i
       break;
   }
 
+#if ESP_IDF_VERSION_MAJOR >= 4
+  if (event == ARDUINO_EVENT_WIFI_STA_DISCONNECTED) {
+    uint8_t reason = info.wifi_sta_disconnected.reason;
+#else
   if (event == SYSTEM_EVENT_STA_DISCONNECTED) {
     uint8_t reason = info.disconnected.reason;
+#endif
     if (reason == WIFI_REASON_AUTH_EXPIRE || reason == WIFI_REASON_BEACON_TIMEOUT ||
         reason == WIFI_REASON_NO_AP_FOUND || reason == WIFI_REASON_ASSOC_FAIL ||
         reason == WIFI_REASON_HANDSHAKE_TIMEOUT) {
@@ -382,7 +506,11 @@ void WiFiComponent::wifi_event_callback_(system_event_id_t event, system_event_i
       this->error_from_callback_ = true;
     }
   }
+#if ESP_IDF_VERSION_MAJOR >= 4
+  if (event == ARDUINO_EVENT_WIFI_SCAN_DONE) {
+#else
   if (event == SYSTEM_EVENT_SCAN_DONE) {
+#endif
     this->wifi_scan_done_callback_();
   }
 }

@@ -1,43 +1,38 @@
 #pragma once
 
-#include "esphome/core/component.h"
-#include "esphome/core/automation.h"
-#include "esphome/components/climate/climate.h"
-#include "esphome/components/remote_base/remote_base.h"
-#include "esphome/components/remote_transmitter/remote_transmitter.h"
-#include "esphome/components/sensor/sensor.h"
+#include "esphome/components/climate_ir/climate_ir.h"
 
 namespace esphome {
 namespace coolix {
 
-using namespace remote_base;
+// Temperature
+const uint8_t COOLIX_TEMP_MIN = 17;  // Celsius
+const uint8_t COOLIX_TEMP_MAX = 30;  // Celsius
 
-class CoolixClimate : public climate::Climate, public Component, public RemoteReceiverListener {
+class CoolixClimate : public climate_ir::ClimateIR {
  public:
-  void setup() override;
-  void set_transmitter(remote_transmitter::RemoteTransmitterComponent *transmitter) {
-    this->transmitter_ = transmitter;
+  CoolixClimate()
+      : climate_ir::ClimateIR(COOLIX_TEMP_MIN, COOLIX_TEMP_MAX, 1.0f, true, true,
+                              {climate::CLIMATE_FAN_AUTO, climate::CLIMATE_FAN_LOW, climate::CLIMATE_FAN_MEDIUM,
+                               climate::CLIMATE_FAN_HIGH},
+                              {climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_VERTICAL}) {}
+
+  /// Override control to change settings of the climate device.
+  void control(const climate::ClimateCall &call) override {
+    send_swing_cmd_ = call.get_swing_mode().has_value();
+    // swing resets after unit powered off
+    if (call.get_mode().has_value() && *call.get_mode() == climate::CLIMATE_MODE_OFF)
+      this->swing_mode = climate::CLIMATE_SWING_OFF;
+    climate_ir::ClimateIR::control(call);
   }
-  void set_supports_cool(bool supports_cool) { this->supports_cool_ = supports_cool; }
-  void set_supports_heat(bool supports_heat) { this->supports_heat_ = supports_heat; }
-  void set_sensor(sensor::Sensor *sensor) { this->sensor_ = sensor; }
 
  protected:
-  /// Override control to change settings of the climate device.
-  void control(const climate::ClimateCall &call) override;
-  /// Return the traits of this controller.
-  climate::ClimateTraits traits() override;
-
   /// Transmit via IR the state of this climate controller.
-  void transmit_state_();
+  void transmit_state() override;
+  /// Handle received IR Buffer
+  bool on_receive(remote_base::RemoteReceiveData data) override;
 
-  bool on_receive(RemoteReceiveData data) override;
-
-  bool supports_cool_;
-  bool supports_heat_;
-
-  remote_transmitter::RemoteTransmitterComponent *transmitter_;
-  sensor::Sensor *sensor_{nullptr};
+  bool send_swing_cmd_{false};
 };
 
 }  // namespace coolix

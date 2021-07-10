@@ -5,7 +5,7 @@
 namespace esphome {
 namespace shutdown {
 
-static const char *TAG = "shutdown.switch";
+static const char *const TAG = "shutdown.switch";
 
 void ShutdownSwitch::dump_config() { LOG_SWITCH("", "Shutdown Switch", this); }
 void ShutdownSwitch::write_state(bool state) {
@@ -14,7 +14,7 @@ void ShutdownSwitch::write_state(bool state) {
 
   if (state) {
     ESP_LOGI(TAG, "Shutting down...");
-    delay(100);  // Let MQTT settle a bit
+    delay(100);  // NOLINT
 
     App.run_safe_shutdown_hooks();
 #ifdef ARDUINO_ARCH_ESP8266

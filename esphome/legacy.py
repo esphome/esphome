@@ -1,11 +1,10 @@
-from __future__ import print_function
 import sys
 
 
 def main():
     print("The esphomeyaml command has been renamed to esphome.")
     print("")
-    print("$ esphome {}".format(' '.join(sys.argv[1:])))
+    print("$ esphome {}".format(" ".join(sys.argv[1:])))
     return 1
 
 

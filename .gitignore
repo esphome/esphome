@@ -10,6 +10,9 @@ __pycache__/
 *.sublime-project
 *.sublime-workspace
 
+# Intellij Idea
+.idea
+
 # Hide some OS X stuff
 .DS_Store
 .AppleDouble
@@ -48,8 +51,10 @@ htmlcov/
 .coverage
 .coverage.*
 .cache
+.esphome
 nosetests.xml
 coverage.xml
+cov.xml
 *.cover
 .hypothesis/
 .pytest_cache/
@@ -76,7 +81,8 @@ venv.bak/
 .pioenvs
 .piolibdeps
 .pio
-.vscode
+.vscode/
+!.vscode/tasks.json
 CMakeListsPrivate.txt
 CMakeLists.txt
 
@@ -94,6 +100,8 @@ CMakeLists.txt
 
 # CMake
 cmake-build-debug/
+cmake-build-livingroom8266/
+cmake-build-livingroom32/
 cmake-build-release/
 
 CMakeCache.txt
@@ -114,3 +122,4 @@ config/
 tests/build/
 tests/.esphome/
 /.temp-clang-tidy.cpp
+.pio/

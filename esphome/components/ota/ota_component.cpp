@@ -15,9 +15,9 @@
 namespace esphome {
 namespace ota {
 
-static const char *TAG = "ota";
+static const char *const TAG = "ota";
 
-uint8_t OTA_VERSION_1_0 = 1;
+static const uint8_t OTA_VERSION_1_0 = 1;
 
 void OTAComponent::setup() {
   this->server_ = new WiFiServer(this->port_);
@@ -241,6 +241,8 @@ void OTAComponent::handle_() {
       last_progress = now;
       float percentage = (total * 100.0f) / ota_size;
       ESP_LOGD(TAG, "OTA in progress: %0.1f%%", percentage);
+      // slow down OTA update to avoid getting killed by task watchdog (task_wdt)
+      delay(10);
     }
   }
 
@@ -266,7 +268,7 @@ void OTAComponent::handle_() {
   delay(10);
   ESP_LOGI(TAG, "OTA update finished!");
   this->status_clear_warning();
-  delay(100);
+  delay(100);  // NOLINT
   App.safe_reboot();
 
 error:
@@ -353,7 +355,7 @@ void OTAComponent::set_auth_password(const std::string &password) { this->passwo
 float OTAComponent::get_setup_priority() const { return setup_priority::AFTER_WIFI; }
 uint16_t OTAComponent::get_port() const { return this->port_; }
 void OTAComponent::set_port(uint16_t port) { this->port_ = port; }
-void OTAComponent::start_safe_mode(uint8_t num_attempts, uint32_t enable_time) {
+bool OTAComponent::should_enter_safe_mode(uint8_t num_attempts, uint32_t enable_time) {
   this->has_safe_mode_ = true;
   this->safe_mode_start_time_ = millis();
   this->safe_mode_enable_time_ = enable_time;
@@ -378,12 +380,11 @@ void OTAComponent::start_safe_mode(uint8_t num_attempts, uint32_t enable_time) {
 
     ESP_LOGI(TAG, "Waiting for OTA attempt.");
 
-    while (true) {
-      App.loop();
-    }
+    return true;
   } else {
     // increment counter
     this->write_rtc_(this->safe_mode_rtc_value_ + 1);
+    return false;
   }
 }
 void OTAComponent::write_rtc_(uint32_t val) { this->rtc_.save(&val); }

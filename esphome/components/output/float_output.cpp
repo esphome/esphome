@@ -5,7 +5,7 @@
 namespace esphome {
 namespace output {
 
-static const char *TAG = "output.float";
+static const char *const TAG = "output.float";
 
 void FloatOutput::set_max_power(float max_power) {
   this->max_power_ = clamp(max_power, this->min_power_, 1.0f);  // Clamp to MIN>=MAX>=1.0
@@ -29,10 +29,9 @@ void FloatOutput::set_level(float state) {
     this->power_.unrequest();
   }
 #endif
-
-  float adjusted_value = (state * (this->max_power_ - this->min_power_)) + this->min_power_;
   if (this->is_inverted())
-    adjusted_value = 1.0f - adjusted_value;
+    state = 1.0f - state;
+  float adjusted_value = (state * (this->max_power_ - this->min_power_)) + this->min_power_;
   this->write_state(adjusted_value);
 }
 

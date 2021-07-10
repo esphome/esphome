@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 import sys
 import os.path
 
@@ -12,5 +12,5 @@ def main():
     print("Done.")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

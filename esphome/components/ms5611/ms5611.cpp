@@ -4,7 +4,7 @@
 namespace esphome {
 namespace ms5611 {
 
-static const char *TAG = "ms5611";
+static const char *const TAG = "ms5611";
 
 static const uint8_t MS5611_ADDRESS = 0x77;
 static const uint8_t MS5611_CMD_ADC_READ = 0x00;
@@ -19,7 +19,7 @@ void MS5611Component::setup() {
     this->mark_failed();
     return;
   }
-  delay(100);
+  delay(100);  // NOLINT
   for (uint8_t offset = 0; offset < 6; offset++) {
     if (!this->read_byte_16(MS5611_CMD_READ_PROM + (offset * 2), &this->prom_[offset])) {
       this->mark_failed();

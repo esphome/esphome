@@ -4,7 +4,7 @@
 namespace esphome {
 namespace sds011 {
 
-static const char *TAG = "sds011";
+static const char *const TAG = "sds011";
 
 static const uint8_t SDS011_MSG_REQUEST_LENGTH = 19;
 static const uint8_t SDS011_MSG_RESPONSE_LENGTH = 10;
@@ -50,12 +50,28 @@ void SDS011Component::setup() {
   this->sds011_write_command_(command_data);
 }
 
+void SDS011Component::set_working_state(bool working_state) {
+  if (this->rx_mode_only_) {
+    // In RX-only mode we do not setup the sensor, it is assumed to be setup
+    // already
+    return;
+  }
+  uint8_t command_data[SDS011_DATA_REQUEST_LENGTH] = {0};
+  command_data[0] = SDS011_COMMAND_SLEEP;
+  command_data[1] = SDS011_SET_MODE;
+  command_data[2] = working_state ? SDS011_MODE_WORK : SDS011_MODE_SLEEP;
+  command_data[13] = 0xff;
+  command_data[14] = 0xff;
+  this->sds011_write_command_(command_data);
+}
+
 void SDS011Component::dump_config() {
   ESP_LOGCONFIG(TAG, "SDS011:");
   ESP_LOGCONFIG(TAG, "  Update Interval: %u min", this->update_interval_min_);
   ESP_LOGCONFIG(TAG, "  RX-only mode: %s", ONOFF(this->rx_mode_only_));
   LOG_SENSOR("  ", "PM2.5", this->pm_2_5_sensor_);
   LOG_SENSOR("  ", "PM10.0", this->pm_10_0_sensor_);
+  this->check_uart_settings(9600);
 }
 
 void SDS011Component::loop() {
@@ -94,7 +110,6 @@ float SDS011Component::get_setup_priority() const { return setup_priority::DATA;
 void SDS011Component::set_rx_mode_only(bool rx_mode_only) { this->rx_mode_only_ = rx_mode_only; }
 
 void SDS011Component::sds011_write_command_(const uint8_t *command_data) {
-  this->flush();
   this->write_byte(SDS011_MSG_HEAD);
   this->write_byte(SDS011_COMMAND_ID_REQUEST);
   this->write_array(command_data, SDS011_DATA_REQUEST_LENGTH);

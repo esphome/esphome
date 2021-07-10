@@ -8,9 +8,9 @@
 namespace esphome {
 namespace logger {
 
-static const char *TAG = "logger";
+static const char *const TAG = "logger";
 
-static const char *LOG_LEVEL_COLORS[] = {
+static const char *const LOG_LEVEL_COLORS[] = {
     "",                                            // NONE
     ESPHOME_LOG_BOLD(ESPHOME_LOG_COLOR_RED),       // ERROR
     ESPHOME_LOG_COLOR(ESPHOME_LOG_COLOR_YELLOW),   // WARNING
@@ -20,7 +20,7 @@ static const char *LOG_LEVEL_COLORS[] = {
     ESPHOME_LOG_COLOR(ESPHOME_LOG_COLOR_GRAY),     // VERBOSE
     ESPHOME_LOG_COLOR(ESPHOME_LOG_COLOR_WHITE),    // VERY_VERBOSE
 };
-static const char *LOG_LEVEL_LETTERS[] = {
+static const char *const LOG_LEVEL_LETTERS[] = {
     "",    // NONE
     "E",   // ERROR
     "W",   // WARNING
@@ -103,7 +103,17 @@ void HOT Logger::log_message_(int level, const char *tag, int offset) {
   const char *msg = this->tx_buffer_ + offset;
   if (this->baud_rate_ > 0)
     this->hw_serial_->println(msg);
+#ifdef ARDUINO_ARCH_ESP32
+  // Suppress network-logging if memory constrained, but still log to serial
+  // ports. In some configurations (eg BLE enabled) there may be some transient
+  // memory exhaustion, and trying to log when OOM can lead to a crash. Skipping
+  // here usually allows the stack to recover instead.
+  // See issue #1234 for analysis.
+  if (xPortGetFreeHeapSize() > 2048)
+    this->log_callback_.call(level, tag, msg);
+#else
   this->log_callback_.call(level, tag, msg);
+#endif
 }
 
 Logger::Logger(uint32_t baud_rate, size_t tx_buffer_size, UARTSelection uart)
@@ -126,7 +136,11 @@ void Logger::pre_setup() {
         break;
 #ifdef ARDUINO_ARCH_ESP32
       case UART_SELECTION_UART2:
+#if !CONFIG_IDF_TARGET_ESP32S2 && !CONFIG_IDF_TARGET_ESP32C3
+        // FIXME: Validate in config that UART2 can't be set for ESP32-S2 (only has
+        // UART0-UART1)
         this->hw_serial_ = &Serial2;
+#endif
         break;
 #endif
     }
@@ -164,12 +178,12 @@ void Logger::add_on_log_callback(std::function<void(int, const char *, const cha
   this->log_callback_.add(std::move(callback));
 }
 float Logger::get_setup_priority() const { return setup_priority::HARDWARE - 1.0f; }
-const char *LOG_LEVELS[] = {"NONE", "ERROR", "WARN", "INFO", "CONFIG", "DEBUG", "VERBOSE", "VERY_VERBOSE"};
+const char *const LOG_LEVELS[] = {"NONE", "ERROR", "WARN", "INFO", "CONFIG", "DEBUG", "VERBOSE", "VERY_VERBOSE"};
 #ifdef ARDUINO_ARCH_ESP32
-const char *UART_SELECTIONS[] = {"UART0", "UART1", "UART2"};
+const char *const UART_SELECTIONS[] = {"UART0", "UART1", "UART2"};
 #endif
 #ifdef ARDUINO_ARCH_ESP8266
-const char *UART_SELECTIONS[] = {"UART0", "UART1", "UART0_SWAP"};
+const char *const UART_SELECTIONS[] = {"UART0", "UART1", "UART0_SWAP"};
 #endif
 void Logger::dump_config() {
   ESP_LOGCONFIG(TAG, "Logger:");
@@ -182,7 +196,7 @@ void Logger::dump_config() {
 }
 void Logger::write_footer_() { this->write_to_buffer_(ESPHOME_LOG_RESET_COLOR, strlen(ESPHOME_LOG_RESET_COLOR)); }
 
-Logger *global_logger = nullptr;
+Logger *global_logger = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 }  // namespace logger
 }  // namespace esphome

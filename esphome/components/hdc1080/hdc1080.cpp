@@ -4,7 +4,7 @@
 namespace esphome {
 namespace hdc1080 {
 
-static const char *TAG = "hdc1080";
+static const char *const TAG = "hdc1080";
 
 static const uint8_t HDC1080_ADDRESS = 0x40;  // 0b1000000 from datasheet
 static const uint8_t HDC1080_CMD_CONFIGURATION = 0x02;
@@ -19,7 +19,7 @@ void HDC1080Component::setup() {
       0b00000000   // reserved
   };
 
-  if (this->write_bytes(HDC1080_CMD_CONFIGURATION, data, 2)) {
+  if (!this->write_bytes(HDC1080_CMD_CONFIGURATION, data, 2)) {
     this->mark_failed();
     return;
   }
@@ -36,7 +36,7 @@ void HDC1080Component::dump_config() {
 }
 void HDC1080Component::update() {
   uint16_t raw_temp;
-  if (!this->read_byte_16(HDC1080_CMD_TEMPERATURE, &raw_temp, 9)) {
+  if (!this->read_byte_16(HDC1080_CMD_TEMPERATURE, &raw_temp, 20)) {
     this->status_set_warning();
     return;
   }
@@ -44,7 +44,7 @@ void HDC1080Component::update() {
   this->temperature_->publish_state(temp);
 
   uint16_t raw_humidity;
-  if (!this->read_byte_16(HDC1080_CMD_HUMIDITY, &raw_humidity, 9)) {
+  if (!this->read_byte_16(HDC1080_CMD_HUMIDITY, &raw_humidity, 20)) {
     this->status_set_warning();
     return;
   }

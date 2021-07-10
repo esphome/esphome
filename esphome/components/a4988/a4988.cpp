@@ -4,13 +4,14 @@
 namespace esphome {
 namespace a4988 {
 
-static const char *TAG = "a4988.stepper";
+static const char *const TAG = "a4988.stepper";
 
 void A4988::setup() {
   ESP_LOGCONFIG(TAG, "Setting up A4988...");
   if (this->sleep_pin_ != nullptr) {
     this->sleep_pin_->setup();
     this->sleep_pin_->digital_write(false);
+    this->sleep_pin_state_ = false;
   }
   this->step_pin_->setup();
   this->step_pin_->digital_write(false);
@@ -27,7 +28,12 @@ void A4988::dump_config() {
 void A4988::loop() {
   bool at_target = this->has_reached_target();
   if (this->sleep_pin_ != nullptr) {
+    bool sleep_rising_edge = !sleep_pin_state_ & !at_target;
     this->sleep_pin_->digital_write(!at_target);
+    this->sleep_pin_state_ = !at_target;
+    if (sleep_rising_edge) {
+      delayMicroseconds(1000);
+    }
   }
   if (at_target) {
     this->high_freq_.stop();

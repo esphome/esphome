@@ -46,6 +46,7 @@ service APIConnection {
 // The Home Assistant protocol is structured as a simple
 // TCP socket with short binary messages encoded in the protocol buffers format
 // First, a message in this protocol has a specific format:
+//  * A zero byte.
 //  * VarInt denoting the size of the message object. (type is not part of this)
 //  * VarInt denoting the type of message.
 //  * The message object encoded as a ProtoBuf message
@@ -175,6 +176,10 @@ message DeviceInfoResponse {
   string model = 6;
 
   bool has_deep_sleep = 7;
+
+  // The esphome project details if set
+  string project_name = 8;
+  string project_version = 9;
 }
 
 message ListEntitiesRequest {
@@ -216,6 +221,9 @@ message BinarySensorStateResponse {
 
   fixed32 key = 1;
   bool state = 2;
+  // If the binary sensor does not have a valid state yet.
+  // Equivalent to `!obj->has_state()` - inverse logic to make state packets smaller
+  bool missing_state = 3;
 }
 
 // ==================== COVER ====================
@@ -298,11 +306,17 @@ message ListEntitiesFanResponse {
 
   bool supports_oscillation = 5;
   bool supports_speed = 6;
+  bool supports_direction = 7;
+  int32 supported_speed_count = 8;
 }
 enum FanSpeed {
   FAN_SPEED_LOW = 0;
   FAN_SPEED_MEDIUM = 1;
   FAN_SPEED_HIGH = 2;
+}
+enum FanDirection {
+  FAN_DIRECTION_FORWARD = 0;
+  FAN_DIRECTION_REVERSE = 1;
 }
 message FanStateResponse {
   option (id) = 23;
@@ -313,7 +327,9 @@ message FanStateResponse {
   fixed32 key = 1;
   bool state = 2;
   bool oscillating = 3;
-  FanSpeed speed = 4;
+  FanSpeed speed = 4 [deprecated = true];
+  FanDirection direction = 5;
+  int32 speed_level = 6;
 }
 message FanCommandRequest {
   option (id) = 31;
@@ -324,10 +340,14 @@ message FanCommandRequest {
   fixed32 key = 1;
   bool has_state = 2;
   bool state = 3;
-  bool has_speed = 4;
-  FanSpeed speed = 5;
+  bool has_speed = 4 [deprecated = true];
+  FanSpeed speed = 5 [deprecated = true];
   bool has_oscillating = 6;
   bool oscillating = 7;
+  bool has_direction = 8;
+  FanDirection direction = 9;
+  bool has_speed_level = 10;
+  int32 speed_level = 11;
 }
 
 // ==================== LIGHT ====================
@@ -358,6 +378,7 @@ message LightStateResponse {
   fixed32 key = 1;
   bool state = 2;
   float brightness = 3;
+  float color_brightness = 10;
   float red = 4;
   float green = 5;
   float blue = 6;
@@ -376,6 +397,8 @@ message LightCommandRequest {
   bool state = 3;
   bool has_brightness = 4;
   float brightness = 5;
+  bool has_color_brightness = 20;
+  float color_brightness = 21;
   bool has_rgb = 6;
   float red = 7;
   float green = 8;
@@ -393,6 +416,11 @@ message LightCommandRequest {
 }
 
 // ==================== SENSOR ====================
+enum SensorStateClass {
+  STATE_CLASS_NONE = 0;
+  STATE_CLASS_MEASUREMENT = 1;
+}
+
 message ListEntitiesSensorResponse {
   option (id) = 16;
   option (source) = SOURCE_SERVER;
@@ -406,6 +434,9 @@ message ListEntitiesSensorResponse {
   string icon = 5;
   string unit_of_measurement = 6;
   int32 accuracy_decimals = 7;
+  bool force_update = 8;
+  string device_class = 9;
+  SensorStateClass state_class = 10;
 }
 message SensorStateResponse {
   option (id) = 25;
@@ -415,6 +446,9 @@ message SensorStateResponse {
 
   fixed32 key = 1;
   float state = 2;
+  // If the sensor does not have a valid state yet.
+  // Equivalent to `!obj->has_state()` - inverse logic to make state packets smaller
+  bool missing_state = 3;
 }
 
 // ==================== SWITCH ====================
@@ -471,6 +505,9 @@ message TextSensorStateResponse {
 
   fixed32 key = 1;
   string state = 2;
+  // If the text sensor does not have a valid state yet.
+  // Equivalent to `!obj->has_state()` - inverse logic to make state packets smaller
+  bool missing_state = 3;
 }
 
 // ==================== SUBSCRIBE LOGS ====================
@@ -537,6 +574,7 @@ message SubscribeHomeAssistantStateResponse {
   option (id) = 39;
   option (source) = SOURCE_SERVER;
   string entity_id = 1;
+  string attribute = 2;
 }
 
 message HomeAssistantStateResponse {
@@ -546,6 +584,7 @@ message HomeAssistantStateResponse {
 
   string entity_id = 1;
   string state = 2;
+  string attribute = 3;
 }
 
 // ==================== IMPORT TIME ====================
@@ -640,9 +679,48 @@ message CameraImageRequest {
 // ==================== CLIMATE ====================
 enum ClimateMode {
   CLIMATE_MODE_OFF = 0;
-  CLIMATE_MODE_AUTO = 1;
+  CLIMATE_MODE_HEAT_COOL = 1;
   CLIMATE_MODE_COOL = 2;
   CLIMATE_MODE_HEAT = 3;
+  CLIMATE_MODE_FAN_ONLY = 4;
+  CLIMATE_MODE_DRY = 5;
+  CLIMATE_MODE_AUTO = 6;
+}
+enum ClimateFanMode {
+  CLIMATE_FAN_ON = 0;
+  CLIMATE_FAN_OFF = 1;
+  CLIMATE_FAN_AUTO = 2;
+  CLIMATE_FAN_LOW = 3;
+  CLIMATE_FAN_MEDIUM = 4;
+  CLIMATE_FAN_HIGH = 5;
+  CLIMATE_FAN_MIDDLE = 6;
+  CLIMATE_FAN_FOCUS = 7;
+  CLIMATE_FAN_DIFFUSE = 8;
+}
+enum ClimateSwingMode {
+  CLIMATE_SWING_OFF = 0;
+  CLIMATE_SWING_BOTH = 1;
+  CLIMATE_SWING_VERTICAL = 2;
+  CLIMATE_SWING_HORIZONTAL = 3;
+}
+enum ClimateAction {
+  CLIMATE_ACTION_OFF = 0;
+  // values same as mode for readability
+  CLIMATE_ACTION_COOLING = 2;
+  CLIMATE_ACTION_HEATING = 3;
+  CLIMATE_ACTION_IDLE = 4;
+  CLIMATE_ACTION_DRYING = 5;
+  CLIMATE_ACTION_FAN = 6;
+}
+enum ClimatePreset {
+  CLIMATE_PRESET_NONE = 0;
+  CLIMATE_PRESET_HOME = 1;
+  CLIMATE_PRESET_AWAY = 2;
+  CLIMATE_PRESET_BOOST = 3;
+  CLIMATE_PRESET_COMFORT = 4;
+  CLIMATE_PRESET_ECO = 5;
+  CLIMATE_PRESET_SLEEP = 6;
+  CLIMATE_PRESET_ACTIVITY = 7;
 }
 message ListEntitiesClimateResponse {
   option (id) = 46;
@@ -660,7 +738,15 @@ message ListEntitiesClimateResponse {
   float visual_min_temperature = 8;
   float visual_max_temperature = 9;
   float visual_temperature_step = 10;
-  bool supports_away = 11;
+  // for older peer versions - in new system this
+  // is if CLIMATE_PRESET_AWAY exists is supported_presets
+  bool legacy_supports_away = 11;
+  bool supports_action = 12;
+  repeated ClimateFanMode supported_fan_modes = 13;
+  repeated ClimateSwingMode supported_swing_modes = 14;
+  repeated string supported_custom_fan_modes = 15;
+  repeated ClimatePreset supported_presets = 16;
+  repeated string supported_custom_presets = 17;
 }
 message ClimateStateResponse {
   option (id) = 47;
@@ -674,7 +760,14 @@ message ClimateStateResponse {
   float target_temperature = 4;
   float target_temperature_low = 5;
   float target_temperature_high = 6;
-  bool away = 7;
+  // For older peers, equal to preset == CLIMATE_PRESET_AWAY
+  bool legacy_away = 7;
+  ClimateAction action = 8;
+  ClimateFanMode fan_mode = 9;
+  ClimateSwingMode swing_mode = 10;
+  string custom_fan_mode = 11;
+  ClimatePreset preset = 12;
+  string custom_preset = 13;
 }
 message ClimateCommandRequest {
   option (id) = 48;
@@ -691,6 +784,17 @@ message ClimateCommandRequest {
   float target_temperature_low = 7;
   bool has_target_temperature_high = 8;
   float target_temperature_high = 9;
-  bool has_away = 10;
-  bool away = 11;
+  // legacy, for older peers, newer ones should use CLIMATE_PRESET_AWAY in preset
+  bool has_legacy_away = 10;
+  bool legacy_away = 11;
+  bool has_fan_mode = 12;
+  ClimateFanMode fan_mode = 13;
+  bool has_swing_mode = 14;
+  ClimateSwingMode swing_mode = 15;
+  bool has_custom_fan_mode = 16;
+  string custom_fan_mode = 17;
+  bool has_preset = 18;
+  ClimatePreset preset = 19;
+  bool has_custom_preset = 20;
+  string custom_preset = 21;
 }

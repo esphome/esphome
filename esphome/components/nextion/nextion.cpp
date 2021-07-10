@@ -4,11 +4,12 @@
 namespace esphome {
 namespace nextion {
 
-static const char *TAG = "nextion";
+static const char *const TAG = "nextion";
 
 void Nextion::setup() {
   this->send_command_no_ack("");
   this->send_command_printf("bkcmd=3");
+  this->set_backlight_brightness(static_cast<uint8_t>(brightness_ * 100));
   this->goto_page("0");
 }
 float Nextion::get_setup_priority() const { return setup_priority::PROCESSOR; }

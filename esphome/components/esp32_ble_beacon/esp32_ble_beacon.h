@@ -34,6 +34,7 @@ class ESP32BLEBeacon : public Component {
   explicit ESP32BLEBeacon(const std::array<uint8_t, 16> &uuid) : uuid_(uuid) {}
 
   void setup() override;
+  void dump_config() override;
   float get_setup_priority() const override;
 
   void set_major(uint16_t major) { this->major_ = major; }

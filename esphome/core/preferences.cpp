@@ -15,7 +15,7 @@ extern "C" {
 
 namespace esphome {
 
-static const char *TAG = "preferences";
+static const char *const TAG = "preferences";
 
 ESPPreferenceObject::ESPPreferenceObject() : offset_(0), length_words_(0), type_(0), data_(nullptr) {}
 ESPPreferenceObject::ESPPreferenceObject(size_t offset, size_t length, uint32_t type)
@@ -54,15 +54,15 @@ bool ESPPreferenceObject::save_() {
 
 #ifdef ARDUINO_ARCH_ESP8266
 
-#define ESP_RTC_USER_MEM_START 0x60001200
+static const uint32_t ESP_RTC_USER_MEM_START = 0x60001200;
 #define ESP_RTC_USER_MEM ((uint32_t *) ESP_RTC_USER_MEM_START)
-#define ESP_RTC_USER_MEM_SIZE_WORDS 128
-#define ESP_RTC_USER_MEM_SIZE_BYTES ESP_RTC_USER_MEM_SIZE_WORDS * 4
+static const uint32_t ESP_RTC_USER_MEM_SIZE_WORDS = 128;
+static const uint32_t ESP_RTC_USER_MEM_SIZE_BYTES = ESP_RTC_USER_MEM_SIZE_WORDS * 4;
 
 #ifdef USE_ESP8266_PREFERENCES_FLASH
-#define ESP8266_FLASH_STORAGE_SIZE 128
+static const uint32_t ESP8266_FLASH_STORAGE_SIZE = 128;
 #else
-#define ESP8266_FLASH_STORAGE_SIZE 64
+static const uint32_t ESP8266_FLASH_STORAGE_SIZE = 64;
 #endif
 
 static inline bool esp_rtc_user_mem_read(uint32_t index, uint32_t *dest) {
@@ -73,7 +73,7 @@ static inline bool esp_rtc_user_mem_read(uint32_t index, uint32_t *dest) {
   return true;
 }
 
-static bool esp8266_flash_dirty = false;
+static bool esp8266_flash_dirty = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 static inline bool esp_rtc_user_mem_write(uint32_t index, uint32_t value) {
   if (index >= ESP_RTC_USER_MEM_SIZE_WORDS) {
@@ -88,7 +88,7 @@ static inline bool esp_rtc_user_mem_write(uint32_t index, uint32_t value) {
   return true;
 }
 
-extern "C" uint32_t _SPIFFS_end;
+extern "C" uint32_t _SPIFFS_end;  // NOLINT
 
 static const uint32_t get_esp8266_flash_sector() {
   union {
@@ -105,16 +105,18 @@ void ESPPreferences::save_esp8266_flash_() {
     return;
 
   ESP_LOGVV(TAG, "Saving preferences to flash...");
-  disable_interrupts();
-  auto erase_res = spi_flash_erase_sector(get_esp8266_flash_sector());
+  SpiFlashOpResult erase_res, write_res = SPI_FLASH_RESULT_OK;
+  {
+    InterruptLock lock;
+    erase_res = spi_flash_erase_sector(get_esp8266_flash_sector());
+    if (erase_res == SPI_FLASH_RESULT_OK) {
+      write_res = spi_flash_write(get_esp8266_flash_address(), this->flash_storage_, ESP8266_FLASH_STORAGE_SIZE * 4);
+    }
+  }
   if (erase_res != SPI_FLASH_RESULT_OK) {
-    enable_interrupts();
     ESP_LOGV(TAG, "Erase ESP8266 flash failed!");
     return;
   }
-
-  auto write_res = spi_flash_write(get_esp8266_flash_address(), this->flash_storage_, ESP8266_FLASH_STORAGE_SIZE * 4);
-  enable_interrupts();
   if (write_res != SPI_FLASH_RESULT_OK) {
     ESP_LOGV(TAG, "Write ESP8266 flash failed!");
     return;
@@ -173,9 +175,11 @@ ESPPreferences::ESPPreferences()
 void ESPPreferences::begin() {
   this->flash_storage_ = new uint32_t[ESP8266_FLASH_STORAGE_SIZE];
   ESP_LOGVV(TAG, "Loading preferences from flash...");
-  disable_interrupts();
-  spi_flash_read(get_esp8266_flash_address(), this->flash_storage_, ESP8266_FLASH_STORAGE_SIZE * 4);
-  enable_interrupts();
+
+  {
+    InterruptLock lock;
+    spi_flash_read(get_esp8266_flash_address(), this->flash_storage_, ESP8266_FLASH_STORAGE_SIZE * 4);
+  }
 }
 
 ESPPreferenceObject ESPPreferences::make_preference(size_t length, uint32_t type, bool in_flash) {
@@ -248,9 +252,9 @@ bool ESPPreferenceObject::load_internal_() {
 
   char key[32];
   sprintf(key, "%u", this->offset_);
-  uint32_t len = (this->length_words_ + 1) * 4;
+  size_t len = (this->length_words_ + 1) * 4;
 
-  uint32_t actual_len;
+  size_t actual_len;
   esp_err_t err = nvs_get_blob(global_preferences.nvs_handle_, key, nullptr, &actual_len);
   if (err) {
     ESP_LOGV(TAG, "nvs_get_blob('%s'): %s - the key might not be set yet", key, esp_err_to_name(err));
@@ -299,6 +303,6 @@ uint32_t ESPPreferenceObject::calculate_crc_() const {
 }
 bool ESPPreferenceObject::is_initialized() const { return this->data_ != nullptr; }
 
-ESPPreferences global_preferences;
+ESPPreferences global_preferences;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 }  // namespace esphome

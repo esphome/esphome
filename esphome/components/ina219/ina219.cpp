@@ -4,7 +4,7 @@
 namespace esphome {
 namespace ina219 {
 
-static const char *TAG = "ina219";
+static const char *const TAG = "ina219";
 
 // | A0   | A1   | Address |
 // | GND  | GND  | 0x40    |
@@ -120,7 +120,7 @@ void INA219Component::setup() {
   }
 
   this->calibration_lsb_ = lsb;
-  auto calibration = uint32_t(0.04096f / (0.0001 * lsb * this->shunt_resistance_ohm_));
+  auto calibration = uint32_t(0.04096f / (0.000001 * lsb * this->shunt_resistance_ohm_));
   ESP_LOGV(TAG, "    Using LSB=%u calibration=%u", lsb, calibration);
   if (!this->write_byte_16(INA219_REGISTER_CALIBRATION, calibration)) {
     this->mark_failed();
@@ -134,7 +134,6 @@ void INA219Component::dump_config() {
 
   if (this->is_failed()) {
     ESP_LOGE(TAG, "Communication with INA219 failed!");
-    this->mark_failed();
     return;
   }
   LOG_UPDATE_INTERVAL(this);

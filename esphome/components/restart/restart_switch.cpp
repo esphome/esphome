@@ -5,7 +5,7 @@
 namespace esphome {
 namespace restart {
 
-static const char *TAG = "restart";
+static const char *const TAG = "restart";
 
 void RestartSwitch::write_state(bool state) {
   // Acknowledge
@@ -13,8 +13,8 @@ void RestartSwitch::write_state(bool state) {
 
   if (state) {
     ESP_LOGI(TAG, "Restarting device...");
-    // then execute
-    delay(100);  // Let MQTT settle a bit
+    // Let MQTT settle a bit
+    delay(100);  // NOLINT
     App.safe_reboot();
   }
 }

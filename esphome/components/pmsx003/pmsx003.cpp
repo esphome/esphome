@@ -4,7 +4,7 @@
 namespace esphome {
 namespace pmsx003 {
 
-static const char *TAG = "pmsx003";
+static const char *const TAG = "pmsx003";
 
 void PMSX003Component::set_pm_1_0_sensor(sensor::Sensor *pm_1_0_sensor) { pm_1_0_sensor_ = pm_1_0_sensor; }
 void PMSX003Component::set_pm_2_5_sensor(sensor::Sensor *pm_2_5_sensor) { pm_2_5_sensor_ = pm_2_5_sensor; }
@@ -169,6 +169,7 @@ void PMSX003Component::dump_config() {
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
   LOG_SENSOR("  ", "Formaldehyde", this->formaldehyde_sensor_);
+  this->check_uart_settings(9600);
 }
 
 }  // namespace pmsx003

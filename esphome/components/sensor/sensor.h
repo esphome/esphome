@@ -8,17 +8,34 @@ namespace esphome {
 namespace sensor {
 
 #define LOG_SENSOR(prefix, type, obj) \
-  if (obj != nullptr) { \
-    ESP_LOGCONFIG(TAG, prefix type " '%s'", obj->get_name().c_str()); \
-    ESP_LOGCONFIG(TAG, prefix "  Unit of Measurement: '%s'", obj->get_unit_of_measurement().c_str()); \
-    ESP_LOGCONFIG(TAG, prefix "  Accuracy Decimals: %d", obj->get_accuracy_decimals()); \
-    if (!obj->get_icon().empty()) { \
-      ESP_LOGCONFIG(TAG, prefix "  Icon: '%s'", obj->get_icon().c_str()); \
+  if ((obj) != nullptr) { \
+    ESP_LOGCONFIG(TAG, "%s%s '%s'", prefix, type, (obj)->get_name().c_str()); \
+    if (!(obj)->get_device_class().empty()) { \
+      ESP_LOGCONFIG(TAG, "%s  Device Class: '%s'", prefix, (obj)->get_device_class().c_str()); \
     } \
-    if (!obj->unique_id().empty()) { \
-      ESP_LOGV(TAG, prefix "  Unique ID: '%s'", obj->unique_id().c_str()); \
+    ESP_LOGCONFIG(TAG, "%s  State Class: '%s'", prefix, state_class_to_string((obj)->state_class)); \
+    ESP_LOGCONFIG(TAG, "%s  Unit of Measurement: '%s'", prefix, (obj)->get_unit_of_measurement().c_str()); \
+    ESP_LOGCONFIG(TAG, "%s  Accuracy Decimals: %d", prefix, (obj)->get_accuracy_decimals()); \
+    if (!(obj)->get_icon().empty()) { \
+      ESP_LOGCONFIG(TAG, "%s  Icon: '%s'", prefix, (obj)->get_icon().c_str()); \
+    } \
+    if (!(obj)->unique_id().empty()) { \
+      ESP_LOGV(TAG, "%s  Unique ID: '%s'", prefix, (obj)->unique_id().c_str()); \
+    } \
+    if ((obj)->get_force_update()) { \
+      ESP_LOGV(TAG, "%s  Force Update: YES", prefix); \
     } \
   }
+
+/**
+ * Sensor state classes
+ */
+enum StateClass : uint8_t {
+  STATE_CLASS_NONE = 0,
+  STATE_CLASS_MEASUREMENT = 1,
+};
+
+const char *state_class_to_string(StateClass state_class);
 
 /** Base-class for all sensors.
  *
@@ -119,6 +136,12 @@ class Sensor : public Nameable {
    */
   float state;
 
+  /// Manually set the Home Assistant device class (see sensor::device_class)
+  void set_device_class(const std::string &device_class);
+
+  /// Get the device class for this sensor, using the manual override if specified.
+  std::string get_device_class();
+
   /** This member variable stores the current raw state of the sensor. Unlike .state,
    * this will be updated immediately when publish_state is called.
    */
@@ -126,6 +149,21 @@ class Sensor : public Nameable {
 
   /// Return whether this sensor has gotten a full state (that passed through all filters) yet.
   bool has_state() const;
+
+  // The state class of this sensor state
+  StateClass state_class{STATE_CLASS_NONE};
+
+  /// Manually set the Home Assistant state class (see sensor::state_class)
+  void set_state_class(StateClass state_class);
+  void set_state_class(const std::string &state_class);
+
+  /** Override this to set the Home Assistant device class for this sensor.
+   *
+   * Return "" to disable this feature.
+   *
+   * @return The device class of this sensor, for example "temperature".
+   */
+  virtual std::string device_class();
 
   /** A unique ID for this sensor, empty for no unique id. See unique ID requirements:
    * https://developers.home-assistant.io/docs/en/entity_registry_index.html#unique-id-requirements
@@ -141,6 +179,15 @@ class Sensor : public Nameable {
   uint32_t calculate_expected_filter_update_interval();
 
   void internal_send_state_to_frontend(float state);
+
+  bool get_force_update() const { return force_update_; }
+  /** Set this sensor's force_update mode.
+   *
+   * If the sensor is in force_update mode, the frontend is required to save all
+   * state changes to the database when they are published, even if the state is the
+   * same as before.
+   */
+  void set_force_update(bool force_update) { force_update_ = force_update; }
 
  protected:
   /** Override this to set the Home Assistant unit of measurement for this sensor.
@@ -162,6 +209,8 @@ class Sensor : public Nameable {
   /// Return the accuracy in decimals for this sensor.
   virtual int8_t accuracy_decimals();  // NOLINT
 
+  optional<std::string> device_class_{};  ///< Stores the override of the device class
+
   uint32_t hash_base() override;
 
   CallbackManager<void(float)> raw_callback_;  ///< Storage for raw state callbacks.
@@ -174,6 +223,7 @@ class Sensor : public Nameable {
   optional<int8_t> accuracy_decimals_;
   Filter *filter_list_{nullptr};  ///< Store all active filters.
   bool has_state_{false};
+  bool force_update_{false};
 };
 
 class PollingSensorComponent : public PollingComponent, public Sensor {

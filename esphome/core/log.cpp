@@ -46,15 +46,17 @@ void HOT esp_log_vprintf_(int level, const char *tag, int line, const __FlashStr
 }
 #endif
 
+#ifdef ARDUINO_ARCH_ESP32
 int HOT esp_idf_log_vprintf_(const char *format, va_list args) {  // NOLINT
 #ifdef USE_LOGGER
   auto *log = logger::global_logger;
   if (log == nullptr)
     return 0;
 
-  log->log_vprintf_(ESPHOME_LOG_LEVEL, "", 0, format, args);
+  log->log_vprintf_(ESPHOME_LOG_LEVEL, "esp-idf", 0, format, args);
 #endif
   return 0;
 }
+#endif
 
 }  // namespace esphome

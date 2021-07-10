@@ -4,7 +4,7 @@
 namespace esphome {
 namespace template_ {
 
-static const char *TAG = "template.switch";
+static const char *const TAG = "template.switch";
 
 TemplateSwitch::TemplateSwitch() : turn_on_trigger_(new Trigger<>()), turn_off_trigger_(new Trigger<>()) {}
 
@@ -19,7 +19,7 @@ void TemplateSwitch::loop() {
 }
 void TemplateSwitch::write_state(bool state) {
   if (this->prev_trigger_ != nullptr) {
-    this->prev_trigger_->stop();
+    this->prev_trigger_->stop_action();
   }
 
   if (state) {

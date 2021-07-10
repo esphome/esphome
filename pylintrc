@@ -3,6 +3,7 @@ reports=no
 ignore=api_pb2.py
 
 disable=
+  format,
   missing-docstring,
   fixme,
   unused-argument,
@@ -24,9 +25,7 @@ disable=
   useless-object-inheritance,
   stop-iteration-return,
   no-self-use,
-
-
-additional-builtins=
-  unicode,
-  long,
-  raw_input
+  import-outside-toplevel,
+  # Broken
+  unsupported-membership-test,
+  unsubscriptable-object,

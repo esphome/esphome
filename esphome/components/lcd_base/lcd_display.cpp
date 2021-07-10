@@ -5,7 +5,7 @@
 namespace esphome {
 namespace lcd_base {
 
-static const char *TAG = "lcd";
+static const char *const TAG = "lcd";
 
 // First set bit determines command, bits after that are the data.
 static const uint8_t LCD_DISPLAY_COMMAND_CLEAR_DISPLAY = 0x01;
@@ -104,9 +104,7 @@ void HOT LCDDisplay::display() {
   }
 }
 void LCDDisplay::update() {
-  for (uint8_t i = 0; i < this->rows_ * this->columns_; i++)
-    this->buffer_[i] = ' ';
-
+  this->clear();
   this->call_writer();
   this->display();
 }
@@ -147,6 +145,10 @@ void LCDDisplay::printf(const char *format, ...) {
   va_end(arg);
   if (ret > 0)
     this->print(0, 0, buffer);
+}
+void LCDDisplay::clear() {
+  for (uint8_t i = 0; i < this->rows_ * this->columns_; i++)
+    this->buffer_[i] = ' ';
 }
 #ifdef USE_TIME
 void LCDDisplay::strftime(uint8_t column, uint8_t row, const char *format, time::ESPTime time) {

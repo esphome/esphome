@@ -21,10 +21,14 @@
 #define ALWAYS_INLINE __attribute__((always_inline))
 #define PACKED __attribute__((packed))
 
+#define xSemaphoreWait(semaphore, wait_time) \
+  xSemaphoreTake(semaphore, wait_time); \
+  xSemaphoreGive(semaphore);
+
 namespace esphome {
 
 /// The characters that are allowed in a hostname.
-extern const char *HOSTNAME_CHARACTER_WHITELIST;
+extern const char *const HOSTNAME_CHARACTER_ALLOWLIST;
 
 /// Gets the MAC address as a string, this can be used as way to identify this ESP.
 std::string get_mac_address();
@@ -33,17 +37,18 @@ std::string get_mac_address_pretty();
 
 std::string to_string(const std::string &val);
 std::string to_string(int val);
-std::string to_string(long val);
-std::string to_string(long long val);
-std::string to_string(unsigned val);
-std::string to_string(unsigned long val);
-std::string to_string(unsigned long long val);
+std::string to_string(long val);                // NOLINT
+std::string to_string(long long val);           // NOLINT
+std::string to_string(unsigned val);            // NOLINT
+std::string to_string(unsigned long val);       // NOLINT
+std::string to_string(unsigned long long val);  // NOLINT
 std::string to_string(float val);
 std::string to_string(double val);
 std::string to_string(long double val);
 optional<float> parse_float(const std::string &str);
+optional<int> parse_int(const std::string &str);
 
-/// Sanitize the hostname by removing characters that are not in the whitelist and truncating it to 63 chars.
+/// Sanitize the hostname by removing characters that are not in the allowlist and truncating it to 63 chars.
 std::string sanitize_hostname(const std::string &hostname);
 
 /// Truncate a string to a specific length
@@ -88,7 +93,7 @@ float clamp(float val, float min, float max);
 float lerp(float completion, float start, float end);
 
 /// std::make_unique
-template<typename T, typename... Args> std::unique_ptr<T> make_unique(Args &&... args) {
+template<typename T, typename... Args> std::unique_ptr<T> make_unique(Args &&...args) {
   return std::unique_ptr<T>(new T(std::forward<Args>(args)...));
 }
 
@@ -121,8 +126,8 @@ std::string uint64_to_string(uint64_t num);
 /// Convert a uint32_t to a hex string
 std::string uint32_to_string(uint32_t num);
 
-/// Sanitizes the input string with the whitelist.
-std::string sanitize_string_whitelist(const std::string &s, const std::string &whitelist);
+/// Sanitizes the input string with the allowlist.
+std::string sanitize_string_allowlist(const std::string &s, const std::string &allowlist);
 
 uint8_t reverse_bits_8(uint8_t x);
 uint16_t reverse_bits_16(uint16_t x);
@@ -132,17 +137,41 @@ uint32_t reverse_bits_32(uint32_t x);
 uint16_t encode_uint16(uint8_t msb, uint8_t lsb);
 /// Decode a 16-bit unsigned integer into an array of two values: most significant byte, least significant byte.
 std::array<uint8_t, 2> decode_uint16(uint16_t value);
+/// Encode a 32-bit unsigned integer given four bytes in MSB -> LSB order
+uint32_t encode_uint32(uint8_t msb, uint8_t byte2, uint8_t byte3, uint8_t lsb);
 
-/** Cross-platform method to disable interrupts.
+/***
+ * An interrupt helper class.
  *
- * Useful when you need to do some timing-dependent communication.
+ * This behaves like std::lock_guard. As long as the value is visible in the current stack, all interrupts
+ * (including flash reads) will be disabled.
  *
- * @see Do not forget to call `enable_interrupts()` again or otherwise things will go very wrong.
+ * Please note all functions called when the interrupt lock must be marked ICACHE_RAM_ATTR (loading code into
+ * instruction cache is done via interrupts; disabling interrupts prevents data not already in cache from being
+ * pulled from flash).
+ *
+ * Example:
+ *
+ * ```cpp
+ * // interrupts are enabled
+ * {
+ *   InterruptLock lock;
+ *   // do something
+ *   // interrupts are disabled
+ * }
+ * // interrupts are enabled
+ * ```
  */
-void disable_interrupts();
+class InterruptLock {
+ public:
+  InterruptLock();
+  ~InterruptLock();
 
-/// Cross-platform method to enable interrupts after they have been disabled.
-void enable_interrupts();
+ protected:
+#ifdef ARDUINO_ARCH_ESP8266
+  uint32_t xt_state_;
+#endif
+};
 
 /// Calculate a crc8 of data with the provided data length.
 uint8_t crc8(uint8_t *data, uint8_t len);
@@ -155,6 +184,10 @@ enum ParseOnOffState {
 };
 
 ParseOnOffState parse_on_off(const char *str, const char *on = nullptr, const char *off = nullptr);
+
+// Encode raw data to a human-readable string (for debugging)
+std::string hexencode(const uint8_t *data, uint32_t len);
+template<typename T> std::string hexencode(const T &data) { return hexencode(data.data(), data.size()); }
 
 // https://stackoverflow.com/questions/7858817/unpacking-a-tuple-to-call-a-matching-function-pointer/7858971#7858971
 template<int...> struct seq {};                                       // NOLINT
@@ -288,5 +321,20 @@ template<typename T> class Parented {
 };
 
 uint32_t fnv1_hash(const std::string &str);
+
+template<typename T> T *new_buffer(size_t length) {
+  T *buffer;
+#ifdef ARDUINO_ARCH_ESP32
+  if (psramFound()) {
+    buffer = (T *) ps_malloc(length);
+  } else {
+    buffer = new T[length];
+  }
+#else
+  buffer = new T[length];
+#endif
+
+  return buffer;
+}
 
 }  // namespace esphome

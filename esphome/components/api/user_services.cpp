@@ -25,14 +25,18 @@ template<> std::vector<std::string> get_execute_arg_value<std::vector<std::strin
   return arg.string_array;
 }
 
-template<> EnumServiceArgType to_service_arg_type<bool>() { return SERVICE_ARG_TYPE_BOOL; }
-template<> EnumServiceArgType to_service_arg_type<int>() { return SERVICE_ARG_TYPE_INT; }
-template<> EnumServiceArgType to_service_arg_type<float>() { return SERVICE_ARG_TYPE_FLOAT; }
-template<> EnumServiceArgType to_service_arg_type<std::string>() { return SERVICE_ARG_TYPE_STRING; }
-template<> EnumServiceArgType to_service_arg_type<std::vector<bool>>() { return SERVICE_ARG_TYPE_BOOL_ARRAY; }
-template<> EnumServiceArgType to_service_arg_type<std::vector<int>>() { return SERVICE_ARG_TYPE_INT_ARRAY; }
-template<> EnumServiceArgType to_service_arg_type<std::vector<float>>() { return SERVICE_ARG_TYPE_FLOAT_ARRAY; }
-template<> EnumServiceArgType to_service_arg_type<std::vector<std::string>>() { return SERVICE_ARG_TYPE_STRING_ARRAY; }
+template<> enums::ServiceArgType to_service_arg_type<bool>() { return enums::SERVICE_ARG_TYPE_BOOL; }
+template<> enums::ServiceArgType to_service_arg_type<int>() { return enums::SERVICE_ARG_TYPE_INT; }
+template<> enums::ServiceArgType to_service_arg_type<float>() { return enums::SERVICE_ARG_TYPE_FLOAT; }
+template<> enums::ServiceArgType to_service_arg_type<std::string>() { return enums::SERVICE_ARG_TYPE_STRING; }
+template<> enums::ServiceArgType to_service_arg_type<std::vector<bool>>() { return enums::SERVICE_ARG_TYPE_BOOL_ARRAY; }
+template<> enums::ServiceArgType to_service_arg_type<std::vector<int>>() { return enums::SERVICE_ARG_TYPE_INT_ARRAY; }
+template<> enums::ServiceArgType to_service_arg_type<std::vector<float>>() {
+  return enums::SERVICE_ARG_TYPE_FLOAT_ARRAY;
+}
+template<> enums::ServiceArgType to_service_arg_type<std::vector<std::string>>() {
+  return enums::SERVICE_ARG_TYPE_STRING_ARRAY;
+}
 
 }  // namespace api
 }  // namespace esphome

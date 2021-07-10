@@ -5,7 +5,7 @@
 namespace esphome {
 namespace api {
 
-static const char *TAG = "api.proto";
+static const char *const TAG = "api.proto";
 
 void ProtoMessage::decode(const uint8_t *buffer, size_t length) {
   uint32_t i = 0;
@@ -62,8 +62,7 @@ void ProtoMessage::decode(const uint8_t *buffer, size_t length) {
           error = true;
           break;
         }
-        uint32_t val = (uint32_t(buffer[i]) << 0) | (uint32_t(buffer[i + 1]) << 8) | (uint32_t(buffer[i + 2]) << 16) |
-                       (uint32_t(buffer[i + 3]) << 24);
+        uint32_t val = encode_uint32(buffer[i + 3], buffer[i + 2], buffer[i + 1], buffer[i]);
         if (!this->decode_32bit(field_id, Proto32Bit(val))) {
           ESP_LOGV(TAG, "Cannot decode 32-bit field %u with value %u!", field_id, val);
         }

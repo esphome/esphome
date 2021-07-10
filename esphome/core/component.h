@@ -26,6 +26,8 @@ extern const float DATA;
 extern const float HARDWARE_LATE;
 /// For components that use data from sensors like displays
 extern const float PROCESSOR;
+extern const float BLUETOOTH;
+extern const float AFTER_BLUETOOTH;
 extern const float WIFI;
 /// For components that should be initialized after WiFi is connected.
 extern const float AFTER_WIFI;
@@ -125,6 +127,8 @@ class Component {
   void status_momentary_warning(const std::string &name, uint32_t length = 5000);
 
   void status_momentary_error(const std::string &name, uint32_t length = 5000);
+
+  bool has_overridden_loop() const;
 
  protected:
   virtual void call_loop();
@@ -242,7 +246,7 @@ class PollingComponent : public Component {
 class Nameable {
  public:
   Nameable() : Nameable("") {}
-  explicit Nameable(const std::string &name);
+  explicit Nameable(std::string name);
   const std::string &get_name() const;
   void set_name(const std::string &name);
   /// Get the sanitized name of this nameable as an ID. Caching it internally.

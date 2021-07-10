@@ -4,7 +4,7 @@
 namespace esphome {
 namespace bme280 {
 
-static const char *TAG = "bme280.sensor";
+static const char *const TAG = "bme280.sensor";
 
 static const uint8_t BME280_REGISTER_DIG_T1 = 0x88;
 static const uint8_t BME280_REGISTER_DIG_T2 = 0x8A;
@@ -146,7 +146,7 @@ void BME280Component::dump_config() {
       ESP_LOGE(TAG, "Communication with BME280 failed!");
       break;
     case WRONG_CHIP_ID:
-      ESP_LOGE(TAG, "BMP280 has wrong chip ID! Is it a BMP280?");
+      ESP_LOGE(TAG, "BME280 has wrong chip ID! Is it a BME280?");
       break;
     case NONE:
     default:
@@ -172,13 +172,13 @@ void BME280Component::update() {
   uint8_t meas_register = 0;
   meas_register |= (this->temperature_oversampling_ & 0b111) << 5;
   meas_register |= (this->pressure_oversampling_ & 0b111) << 2;
-  meas_register |= 0b01;  // Forced mode
+  meas_register |= BME280_MODE_FORCED;
   if (!this->write_byte(BME280_REGISTER_CONTROL, meas_register)) {
     this->status_set_warning();
     return;
   }
 
-  float meas_time = 1;
+  float meas_time = 1.5;
   meas_time += 2.3f * oversampling_to_time(this->temperature_oversampling_);
   meas_time += 2.3f * oversampling_to_time(this->pressure_oversampling_) + 0.575f;
   meas_time += 2.3f * oversampling_to_time(this->humidity_oversampling_) + 0.575f;

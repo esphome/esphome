@@ -44,7 +44,7 @@ void Controller::setup_controller() {
 #ifdef USE_TEXT_SENSOR
   for (auto *obj : App.get_text_sensors()) {
     if (!obj->is_internal())
-      obj->add_on_state_callback([this, obj](std::string state) { this->on_text_sensor_update(obj, state); });
+      obj->add_on_state_callback([this, obj](const std::string &state) { this->on_text_sensor_update(obj, state); });
   }
 #endif
 #ifdef USE_CLIMATE
