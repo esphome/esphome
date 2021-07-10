@@ -39,22 +39,20 @@ def run_format(args, queue, lock, failed_files):
 
 
 def progress_bar_show(value):
-    if value is None:
-        return ''
-    return value
+    return value if value is not None else ''
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-j', '--jobs', type=int,
                         default=multiprocessing.cpu_count(),
-                        help='number of tidy instances to be run in parallel.')
+                        help='number of format instances to be run in parallel.')
     parser.add_argument('files', nargs='*', default=[],
                         help='files to be processed (regex on path)')
     parser.add_argument('-i', '--inplace', action='store_true',
-                        help='apply fix-its')
+                        help='reformat files in-place')
     parser.add_argument('-c', '--changed', action='store_true',
-                        help='Only run on changed files')
+                        help='only run on changed files')
     args = parser.parse_args()
 
     try:
@@ -64,7 +62,7 @@ def main():
         Oops. It looks like clang-format is not installed. 
         
         Please check you can run "clang-format-11 -version" in your terminal and install
-        clang-format (v7) if necessary.
+        clang-format (v11) if necessary.
         
         Note you can also upload your code as a pull request on GitHub and see the CI check
         output to apply clang-format.
@@ -72,15 +70,13 @@ def main():
         return 1
 
     files = []
-    for path in git_ls_files():
-        filetypes = ('.cpp', '.h', '.tcc')
-        ext = os.path.splitext(path)[1]
-        if ext in filetypes:
-            path = os.path.relpath(path, os.getcwd())
-            files.append(path)
-    # Match against re
-    file_name_re = re.compile('|'.join(args.files))
-    files = [p for p in files if file_name_re.search(p)]
+    for path in git_ls_files(['*.cpp', '*.h', '*.tcc']):
+        files.append(os.path.relpath(path, os.getcwd()))
+
+    if args.files:
+        # Match against files specified on command-line
+        file_name_re = re.compile('|'.join(args.files))
+        files = [p for p in files if file_name_re.search(p)]
 
     if args.changed:
         files = filter_changed(files)
