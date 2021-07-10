@@ -119,7 +119,7 @@ void TeleInfo::loop() {
           break;
         }
 
-        if (!check_crc_(buf_finger, grp_end)) {
+        if (check_crc_(buf_finger, grp_end)) {
           /* Get tag */
           field_len = get_field(tag_, buf_finger, grp_end, separator_);
           if (!field_len || field_len >= MAX_TAG_SIZE) {
