@@ -44,6 +44,14 @@ class LightCall {
   LightCall &set_brightness(float brightness);
   /// Set the brightness property if the light supports brightness.
   LightCall &set_brightness_if_supported(float brightness);
+
+  /// Set the color mode of the light.
+  LightCall &set_color_mode(optional<ColorMode> color_mode);
+  /// Set the color mode of the light.
+  LightCall &set_color_mode(ColorMode color_mode);
+  /// Set the color mode of the light, if this mode is supported.
+  LightCall &set_color_mode_if_supported(ColorMode color_mode);
+
   /// Set the color brightness of the light from 0.0 (no color) to 1.0 (fully on)
   LightCall &set_color_brightness(optional<float> brightness);
   /// Set the color brightness of the light from 0.0 (no color) to 1.0 (fully on)
@@ -147,6 +155,7 @@ class LightCall {
   optional<bool> state_;
   optional<uint32_t> transition_length_;
   optional<uint32_t> flash_length_;
+  optional<ColorMode> color_mode_;
   optional<float> brightness_;
   optional<float> color_brightness_;
   optional<float> red_;
