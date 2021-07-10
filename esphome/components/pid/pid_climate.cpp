@@ -20,7 +20,6 @@ void PIDClimate::setup() {
     restore->to_call(this).perform();
   } else {
     // restore from defaults, change_away handles those for us
-    // restore from defaults, change_away handles those for us
     if (supports_heat_() && supports_cool_())
       this->mode = climate::CLIMATE_MODE_HEAT_COOL;
     else if (supports_cool_())
