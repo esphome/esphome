@@ -13,24 +13,33 @@ namespace light {
 
 /** This class represents the color state for a light object.
  *
- * All values in this class (except color temperature) are represented using floats in the range
- * from 0.0 (off) to 1.0 (on). Please note that all values are automatically clamped to this range.
+ * The representation of the color state is dependent on the active color mode. A color mode consists of multiple
+ * color channels, and each color channel has its own representation in this class. The fields available are as follows:
  *
- * This class has the following properties:
- * - state: Whether the light should be on/off. Represented as a float for transitions. Used for
- *   all lights.
- * - brightness: The master brightness of the light, applied to all channels. Used for all lights
- *   with brightness control.
- * - color_brightness: The brightness of the color channels of the light. Used for RGB, RGBW and
- *   RGBWW lights.
- * - red, green, blue: The RGB values of the current color. They are normalized, so at least one of
- *   them is always 1.0.
- * - white: The brightness of the white channel of the light. Used for RGBW and RGBWW lights.
- * - color_temperature: The color temperature of the white channel in mireds. Used for RGBWW and
- *   CWWW lights.
+ * Light state:
+ * - state: Whether the light should be on/off. Represented as a float for transitions.
+ * - color_mode: The currently active color mode.
  *
- * For lights with a color interlock (RGB lights and white light cannot be on at the same time), a
- * valid state has always either color_brightness or white (or both) set to zero.
+ * For all color channels:
+ * - brightness: The master brightness of the light, should be applied to all channels.
+ *
+ * For RGB color channel:
+ * - color_brightness: The brightness of the color channels of the light.
+ * - red, green, blue: The RGB values of the current color. They are normalized, so at least one of them is always 1.0.
+ *
+ * For WHITE color channel:
+ * - white: The brightness of the white channel of the light.
+ *
+ * For COLOR_TEMPERATURE color channel:
+ * - color_temperature: The color temperature of the white channel in mireds. Note that it is not clamped to the valid
+ *   range as set in the traits, so the output needs to do this.
+ *
+ * For COLD_WARM_WHITE color channel:
+ * - cold_white, warm_white: The brightness of the cald and warm white channels of the light.
+ *
+ * All values (except color temperature) are represented using floats in the range 0.0 (off) to 1.0 (on), and are
+ * automatically clamped to this range. Properties not used in the current color mode can still have (invalid) values
+ * and must not be accessed by the light output.
  */
 class LightColorValues {
  public:
