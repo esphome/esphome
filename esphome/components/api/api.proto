@@ -352,6 +352,16 @@ message FanCommandRequest {
 }
 
 // ==================== LIGHT ====================
+enum ColorMode {
+  COLOR_MODE_UNKNOWN = 0;
+  COLOR_MODE_WHITE = 1;
+  COLOR_MODE_COLOR_TEMPERATURE = 3;
+  COLOR_MODE_COLD_WARM_WHITE = 4;
+  COLOR_MODE_RGB = 8;
+  COLOR_MODE_RGB_WHITE = 9;
+  COLOR_MODE_RGB_COLOR_TEMPERATURE = 11;
+  COLOR_MODE_RGB_COLD_WARM_WHITE = 12;
+}
 message ListEntitiesLightResponse {
   option (id) = 15;
   option (source) = SOURCE_SERVER;
@@ -363,6 +373,8 @@ message ListEntitiesLightResponse {
   string unique_id = 4;
 
   bool supports_brightness = 5;
+  repeated ColorMode supported_color_modes = 12;
+  // next 3 supports_* are for legacy clients, newer clients should use color modes
   bool supports_rgb = 6;
   bool supports_white_value = 7;
   bool supports_color_temperature = 8;
@@ -379,12 +391,15 @@ message LightStateResponse {
   fixed32 key = 1;
   bool state = 2;
   float brightness = 3;
+  ColorMode color_mode = 11;
   float color_brightness = 10;
   float red = 4;
   float green = 5;
   float blue = 6;
   float white = 7;
   float color_temperature = 8;
+  float cold_white = 12;
+  float warm_white = 13;
   string effect = 9;
 }
 message LightCommandRequest {
@@ -398,6 +413,8 @@ message LightCommandRequest {
   bool state = 3;
   bool has_brightness = 4;
   float brightness = 5;
+  bool has_color_mode = 22;
+  ColorMode color_mode = 23;
   bool has_color_brightness = 20;
   float color_brightness = 21;
   bool has_rgb = 6;
@@ -408,6 +425,10 @@ message LightCommandRequest {
   float white = 11;
   bool has_color_temperature = 12;
   float color_temperature = 13;
+  bool has_cold_white = 24;
+  float cold_white = 25;
+  bool has_warm_white = 26;
+  float warm_white = 27;
   bool has_transition_length = 14;
   uint32 transition_length = 15;
   bool has_flash_length = 16;

@@ -32,6 +32,16 @@ enum FanDirection : uint32_t {
   FAN_DIRECTION_FORWARD = 0,
   FAN_DIRECTION_REVERSE = 1,
 };
+enum ColorMode : uint32_t {
+  COLOR_MODE_UNKNOWN = 0,
+  COLOR_MODE_WHITE = 1,
+  COLOR_MODE_COLOR_TEMPERATURE = 3,
+  COLOR_MODE_COLD_WARM_WHITE = 4,
+  COLOR_MODE_RGB = 8,
+  COLOR_MODE_RGB_WHITE = 9,
+  COLOR_MODE_RGB_COLOR_TEMPERATURE = 11,
+  COLOR_MODE_RGB_COLD_WARM_WHITE = 12,
+};
 enum SensorStateClass : uint32_t {
   STATE_CLASS_NONE = 0,
   STATE_CLASS_MEASUREMENT = 1,
@@ -357,6 +367,7 @@ class ListEntitiesLightResponse : public ProtoMessage {
   std::string name{};
   std::string unique_id{};
   bool supports_brightness{false};
+  std::vector<enums::ColorMode> supported_color_modes{};
   bool supports_rgb{false};
   bool supports_white_value{false};
   bool supports_color_temperature{false};
@@ -376,12 +387,15 @@ class LightStateResponse : public ProtoMessage {
   uint32_t key{0};
   bool state{false};
   float brightness{0.0f};
+  enums::ColorMode color_mode{};
   float color_brightness{0.0f};
   float red{0.0f};
   float green{0.0f};
   float blue{0.0f};
   float white{0.0f};
   float color_temperature{0.0f};
+  float cold_white{0.0f};
+  float warm_white{0.0f};
   std::string effect{};
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
@@ -398,6 +412,8 @@ class LightCommandRequest : public ProtoMessage {
   bool state{false};
   bool has_brightness{false};
   float brightness{0.0f};
+  bool has_color_mode{false};
+  enums::ColorMode color_mode{};
   bool has_color_brightness{false};
   float color_brightness{0.0f};
   bool has_rgb{false};
@@ -408,6 +424,10 @@ class LightCommandRequest : public ProtoMessage {
   float white{0.0f};
   bool has_color_temperature{false};
   float color_temperature{0.0f};
+  bool has_cold_white{false};
+  float cold_white{0.0f};
+  bool has_warm_white{false};
+  float warm_white{0.0f};
   bool has_transition_length{false};
   uint32_t transition_length{0};
   bool has_flash_length{false};

@@ -301,22 +301,28 @@ bool APIConnection::send_light_state(light::LightState *light) {
 
   auto traits = light->get_traits();
   auto values = light->remote_values;
+  auto color_mode = values.get_color_mode();
   LightStateResponse resp{};
 
   resp.key = light->get_object_id_hash();
   resp.state = values.is_on();
   if (traits.get_supports_brightness())
     resp.brightness = values.get_brightness();
-  if (traits.get_supports_rgb()) {
+  resp.color_mode = static_cast<enums::ColorMode>(color_mode);
+  if (*color_mode & *light::ColorChannel::RGB) {
     resp.color_brightness = values.get_color_brightness();
     resp.red = values.get_red();
     resp.green = values.get_green();
     resp.blue = values.get_blue();
   }
-  if (traits.get_supports_rgb_white_value())
+  if (*color_mode & *light::ColorChannel::WHITE)
     resp.white = values.get_white();
-  if (traits.get_supports_color_temperature())
+  if (*color_mode & *light::ColorChannel::COLOR_TEMPERATURE)
     resp.color_temperature = values.get_color_temperature();
+  if (*color_mode & *light::ColorChannel::COLD_WARM_WHITE) {
+    resp.cold_white = values.get_cold_white();
+    resp.warm_white = values.get_warm_white();
+  }
   if (light->supports_effects())
     resp.effect = light->get_effect_name();
   return this->send_light_state_response(resp);
@@ -329,9 +335,13 @@ bool APIConnection::send_light_info(light::LightState *light) {
   msg.name = light->get_name();
   msg.unique_id = get_default_unique_id("light", light);
   msg.supports_brightness = traits.get_supports_brightness();
-  msg.supports_rgb = traits.get_supports_rgb();
-  msg.supports_white_value = traits.get_supports_rgb_white_value();
-  msg.supports_color_temperature = traits.get_supports_color_temperature();
+  for (auto mode : traits.get_supported_color_modes())
+    msg.supported_color_modes.push_back(static_cast<enums::ColorMode>(mode));
+  msg.supports_rgb = traits.supports_color_channel(light::ColorChannel::RGB);
+  msg.supports_white_value = msg.supports_rgb && (traits.supports_color_channel(light::ColorChannel::WHITE) ||
+                                                  traits.supports_color_channel(light::ColorChannel::COLD_WARM_WHITE));
+  msg.supports_color_temperature = traits.supports_color_channel(light::ColorChannel::COLOR_TEMPERATURE) ||
+                                   traits.supports_color_channel(light::ColorChannel::COLD_WARM_WHITE);
   if (msg.supports_color_temperature) {
     msg.min_mireds = traits.get_min_mireds();
     msg.max_mireds = traits.get_max_mireds();
@@ -353,6 +363,8 @@ void APIConnection::light_command(const LightCommandRequest &msg) {
     call.set_state(msg.state);
   if (msg.has_brightness)
     call.set_brightness(msg.brightness);
+  if (msg.has_color_mode)
+    call.set_color_mode(static_cast<light::ColorMode>(msg.color_mode));
   if (msg.has_color_brightness)
     call.set_color_brightness(msg.color_brightness);
   if (msg.has_rgb) {
@@ -364,6 +376,10 @@ void APIConnection::light_command(const LightCommandRequest &msg) {
     call.set_white(msg.white);
   if (msg.has_color_temperature)
     call.set_color_temperature(msg.color_temperature);
+  if (msg.has_cold_white)
+    call.set_cold_white(msg.cold_white);
+  if (msg.has_warm_white)
+    call.set_warm_white(msg.warm_white);
   if (msg.has_transition_length)
     call.set_transition_length(msg.transition_length);
   if (msg.has_flash_length)
