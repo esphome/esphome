@@ -141,7 +141,7 @@ void TeleInfo::loop() {
           buf_finger += field_len + 1 + 1 + 1;
 
           publish_value_(std::string(tag_), std::string(val_));
-	}
+        }
       }
       state_ = OFF;
       break;
