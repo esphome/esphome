@@ -25,6 +25,7 @@ class NexaProtocol : public RemoteProtocol<NexaData> {
   void encode(RemoteTransmitData *dst, const NexaData &data) override;
   optional<NexaData> decode(RemoteReceiveData src) override;
   void dump(const NexaData &data) override;
+  void rawDump(RemoteReceiveData src);
 };
 
 DECLARE_REMOTE_PROTOCOL(Nexa)

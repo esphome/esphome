@@ -116,6 +116,15 @@ class RemoteReceiveData {
     return false;
   }
 
+  bool expect_pulse_with_gap(uint32_t mark, uint32_t space) {
+    if (this->peek_mark(mark, 0) && this->peek_space_at_least(space, 1)) {
+      this->advance(2);
+      return true;
+    }
+    return false;
+  }
+
+
   void reset() { this->index_ = 0; }
 
   int32_t pos(uint32_t index) const { return (*this->data_)[index]; }
