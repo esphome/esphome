@@ -48,9 +48,11 @@ class ToshibaClimate : public climate_ir::ClimateIR {
   float temperature_max_() {
     return (this->model_ == MODEL_GENERIC) ? TOSHIBA_GENERIC_TEMP_C_MAX : TOSHIBA_RAC_PT1411HWRU_TEMP_C_MAX;
   }
-  bool supports_dry_() { return (this->model_ == MODEL_RAC_PT1411HWRU_C || this->model_ == MODEL_RAC_PT1411HWRU_F); }
+  bool supports_dry_() {
+    return ((this->model_ == MODEL_RAC_PT1411HWRU_C) || (this->model_ == MODEL_RAC_PT1411HWRU_F));
+  }
   bool supports_fan_only_() {
-    return (this->model_ == MODEL_RAC_PT1411HWRU_C || this->model_ == MODEL_RAC_PT1411HWRU_F);
+    return ((this->model_ == MODEL_RAC_PT1411HWRU_C) || (this->model_ == MODEL_RAC_PT1411HWRU_F));
   }
   std::set<climate::ClimateFanMode> fan_modes_() {
     return (this->model_ == MODEL_GENERIC)
