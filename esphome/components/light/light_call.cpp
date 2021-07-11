@@ -418,7 +418,7 @@ LightCall &LightCall::set_brightness_if_supported(float brightness) {
 }
 LightCall &LightCall::set_color_brightness_if_supported(float brightness) {
   if (this->parent_->get_traits().get_supports_rgb_white_value())
-    this->set_brightness(brightness);
+    this->set_color_brightness(brightness);
   return *this;
 }
 LightCall &LightCall::set_red_if_supported(float red) {
