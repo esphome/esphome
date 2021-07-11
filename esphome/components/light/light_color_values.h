@@ -43,10 +43,12 @@ class LightColorValues {
         green_(1.0f),
         blue_(1.0f),
         white_(1.0f),
-        color_temperature_{1.0f} {}
+        color_temperature_{1.0f},
+        cold_white_{1.0f},
+        warm_white_{1.0f} {}
 
   LightColorValues(float state, float brightness, ColorMode color_mode, float color_brightness, float red, float green,
-                   float blue, float white, float color_temperature = 1.0f) {
+                   float blue, float white, float color_temperature, float cold_white, float warm_white) {
     this->set_state(state);
     this->set_brightness(brightness);
     this->set_color_mode(color_mode);
@@ -56,6 +58,8 @@ class LightColorValues {
     this->set_blue(blue);
     this->set_white(white);
     this->set_color_temperature(color_temperature);
+    this->set_cold_white(cold_white);
+    this->set_warm_white(warm_white);
   }
 
   /** Linearly interpolate between the values in start to the values in end.
@@ -79,6 +83,8 @@ class LightColorValues {
     v.set_blue(esphome::lerp(completion, start.get_blue(), end.get_blue()));
     v.set_white(esphome::lerp(completion, start.get_white(), end.get_white()));
     v.set_color_temperature(esphome::lerp(completion, start.get_color_temperature(), end.get_color_temperature()));
+    v.set_cold_white(esphome::lerp(completion, start.get_cold_white(), end.get_cold_white()));
+    v.set_warm_white(esphome::lerp(completion, start.get_warm_white(), end.get_warm_white()));
     return v;
   }
 
@@ -177,7 +183,8 @@ class LightColorValues {
   bool operator==(const LightColorValues &rhs) const {
     return state_ == rhs.state_ && brightness_ == rhs.brightness_ && color_mode_ == rhs.color_mode_ &&
            color_brightness_ == rhs.color_brightness_ && red_ == rhs.red_ && green_ == rhs.green_ &&
-           blue_ == rhs.blue_ && white_ == rhs.white_ && color_temperature_ == rhs.color_temperature_;
+           blue_ == rhs.blue_ && white_ == rhs.white_ && color_temperature_ == rhs.color_temperature_ &&
+           cold_white_ == rhs.cold_white_ && warm_white_ == rhs.warm_white_;
   }
   bool operator!=(const LightColorValues &rhs) const { return !(rhs == *this); }
 
@@ -232,6 +239,16 @@ class LightColorValues {
     this->color_temperature_ = std::max(0.000001f, color_temperature);
   }
 
+  /// Get the cold white property of these light color values. In range 0.0 to 1.0.
+  float get_cold_white() const { return this->cold_white_; }
+  /// Set the cold white property of these light color values. In range 0.0 to 1.0.
+  void set_cold_white(float cold_white) { this->cold_white_ = clamp(cold_white, 0.0f, 1.0f); }
+
+  /// Get the warm white property of these light color values. In range 0.0 to 1.0.
+  float get_warm_white() const { return this->warm_white_; }
+  /// Set the warm white property of these light color values. In range 0.0 to 1.0.
+  void set_warm_white(float warm_white) { this->warm_white_ = clamp(warm_white, 0.0f, 1.0f); }
+
  protected:
   float state_;  ///< ON / OFF, float for transition
   float brightness_;
@@ -242,6 +259,8 @@ class LightColorValues {
   float blue_;
   float white_;
   float color_temperature_;  ///< Color Temperature in Mired
+  float cold_white_;
+  float warm_white_;
 };
 
 }  // namespace light

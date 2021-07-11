@@ -57,6 +57,8 @@ class LightTransitionTransformer : public LightTransformer {
       this->start_values_.set_blue(target_values.get_blue());
       this->start_values_.set_white(target_values.get_white());
       this->start_values_.set_color_temperature(target_values.get_color_temperature());
+      this->start_values_.set_cold_white(target_values.get_cold_white());
+      this->start_values_.set_warm_white(target_values.get_warm_white());
     }
   }
 
