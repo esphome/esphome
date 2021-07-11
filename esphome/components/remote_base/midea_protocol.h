@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 #include "remote_base.h"
 
 namespace esphome {
@@ -27,7 +28,7 @@ class MideaData {
   bool is_valid() const { return this->data_[OFFSET_CS] == this->calc_cs_(); }
   void finalize() { this->data_[OFFSET_CS] = this->calc_cs_(); }
   bool check_compliment(const MideaData &rhs) const;
-  String raw_data() const;
+  std::string to_string() const { return hexencode(*this); }
   // compare only 40-bits
   bool operator==(const MideaData &rhs) const { return !memcmp(this->data_, rhs.data_, OFFSET_CS); }
   enum MideaDataType : uint8_t {

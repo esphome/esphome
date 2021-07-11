@@ -1,5 +1,6 @@
 #pragma once
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome {
 namespace midea_dongle {
@@ -25,7 +26,7 @@ class Frame {
   template<typename T> typename std::enable_if<std::is_base_of<Frame, T>::value, T>::type as() const {
     return T(*this);
   }
-  String to_string() const;
+  std::string to_string() const { return hexencode(*this); }
 
  protected:
   uint8_t *pbuf_;

@@ -6,34 +6,11 @@ namespace remote_base {
 
 static const char *const TAG = "remote.midea";
 
-// Reverse bits in byte
-static uint8_t s_reverse(uint8_t data) {
-  static const uint8_t PROGMEM TABLE[] = {
-      0b0000, 0b1000, 0b0100, 0b1100, 0b0010, 0b1010, 0b0110, 0b1110,
-      0b0001, 0b1001, 0b0101, 0b1101, 0b0011, 0b1011, 0b0111, 0b1111,
-  };
-  return pgm_read_byte(TABLE + data % 16) * 16 + pgm_read_byte(TABLE + data / 16);
-}
-
 uint8_t MideaData::calc_cs_() const {
-  uint8_t sum = 0;
-  for (const uint8_t *p = this->data(); p != this->data() + OFFSET_CS; ++p)
-    sum -= s_reverse(*p);
-  return s_reverse(sum);
-}
-
-static char u4hex(uint8_t num) { return num + ((num < 10) ? '0' : ('A' - 10)); }
-
-String MideaData::raw_data() const {
-  String ret;
-  ret.reserve(this->size() * 3);
-  for (const uint8_t *it = this->data();;) {
-    ret += u4hex(*it >> 4);
-    ret += u4hex(*it++ & 15);
-    if (it == this->data() + this->size())
-      return ret;
-    ret += ' ';
-  }
+  uint8_t cs = 0;
+  for (const uint8_t *it = this->data(); it != this->data() + OFFSET_CS; ++it)
+    cs -= reverse_bits_8(*it);
+  return reverse_bits_8(cs);
 }
 
 bool MideaData::check_compliment(const MideaData &rhs) const {
@@ -116,7 +93,7 @@ optional<MideaData> MideaProtocol::decode(RemoteReceiveData src) {
   return {};
 }
 
-void MideaProtocol::dump(const MideaData &data) { ESP_LOGD(TAG, "Received Midea: %s", data.raw_data().c_str()); }
+void MideaProtocol::dump(const MideaData &data) { ESP_LOGD(TAG, "Received Midea: %s", data.to_string().c_str()); }
 
 }  // namespace remote_base
 }  // namespace esphome
