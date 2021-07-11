@@ -479,6 +479,9 @@ LightCall &LightCall::from_light_color_values(const LightColorValues &values) {
   this->set_warm_white_if_supported(values.get_warm_white());
   return *this;
 }
+ColorMode LightCall::get_active_color_mode_() {
+  return this->color_mode_.value_or(this->parent_->remote_values.get_color_mode());
+}
 LightCall &LightCall::set_transition_length_if_supported(uint32_t transition_length) {
   if (this->parent_->get_traits().get_supports_brightness())
     this->set_transition_length(transition_length);
@@ -495,42 +498,42 @@ LightCall &LightCall::set_color_mode_if_supported(ColorMode color_mode) {
   return *this;
 }
 LightCall &LightCall::set_color_brightness_if_supported(float brightness) {
-  if (this->parent_->get_traits().get_supports_rgb_white_value())
+  if (*this->get_active_color_mode_() & *ColorChannel::RGB)
     this->set_color_brightness(brightness);
   return *this;
 }
 LightCall &LightCall::set_red_if_supported(float red) {
-  if (this->parent_->get_traits().get_supports_rgb())
+  if (*this->get_active_color_mode_() & *ColorChannel::RGB)
     this->set_red(red);
   return *this;
 }
 LightCall &LightCall::set_green_if_supported(float green) {
-  if (this->parent_->get_traits().get_supports_rgb())
+  if (*this->get_active_color_mode_() & *ColorChannel::RGB)
     this->set_green(green);
   return *this;
 }
 LightCall &LightCall::set_blue_if_supported(float blue) {
-  if (this->parent_->get_traits().get_supports_rgb())
+  if (*this->get_active_color_mode_() & *ColorChannel::RGB)
     this->set_blue(blue);
   return *this;
 }
 LightCall &LightCall::set_white_if_supported(float white) {
-  if (this->parent_->get_traits().get_supports_rgb_white_value())
+  if (*this->get_active_color_mode_() & *ColorChannel::WHITE)
     this->set_white(white);
   return *this;
 }
 LightCall &LightCall::set_color_temperature_if_supported(float color_temperature) {
-  if (this->parent_->get_traits().get_supports_color_temperature())
+  if (*this->get_active_color_mode_() & *ColorChannel::COLOR_TEMPERATURE)
     this->set_color_temperature(color_temperature);
   return *this;
 }
 LightCall &LightCall::set_cold_white_if_supported(float cold_white) {
-  if (true)  // TODO
+  if (*this->get_active_color_mode_() & *ColorChannel::COLD_WARM_WHITE)
     this->set_cold_white(cold_white);
   return *this;
 }
 LightCall &LightCall::set_warm_white_if_supported(float warm_white) {
-  if (true)  // TODO
+  if (*this->get_active_color_mode_() & *ColorChannel::COLD_WARM_WHITE)
     this->set_warm_white(warm_white);
   return *this;
 }

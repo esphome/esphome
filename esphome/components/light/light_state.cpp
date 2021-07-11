@@ -91,7 +91,7 @@ void LightState::dump_config() {
     ESP_LOGCONFIG(TAG, "  Default Transition Length: %.1fs", this->default_transition_length_ / 1e3f);
     ESP_LOGCONFIG(TAG, "  Gamma Correct: %.2f", this->gamma_correct_);
   }
-  if (this->get_traits().get_supports_color_temperature()) {
+  if (this->get_traits().supports_color_channel(ColorChannel::COLOR_TEMPERATURE)) {
     ESP_LOGCONFIG(TAG, "  Min Mireds: %.1f", this->get_traits().get_min_mireds());
     ESP_LOGCONFIG(TAG, "  Max Mireds: %.1f", this->get_traits().get_max_mireds());
   }

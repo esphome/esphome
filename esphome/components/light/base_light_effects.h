@@ -58,7 +58,7 @@ class RandomLightEffect : public LightEffect {
       return;
     }
     auto call = this->state_->turn_on();
-    if (this->state_->get_traits().get_supports_rgb()) {
+    if (this->state_->get_traits().supports_color_mode(ColorMode::RGB)) {
       call.set_red_if_supported(random_float());
       call.set_green_if_supported(random_float());
       call.set_blue_if_supported(random_float());

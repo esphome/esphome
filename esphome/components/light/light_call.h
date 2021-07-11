@@ -156,6 +156,9 @@ class LightCall {
   void perform();
 
  protected:
+  /// Get the currently targeted, or active if none set, color mode.
+  ColorMode get_active_color_mode_();
+
   /// Validate all properties and return the target light color values.
   LightColorValues validate_();
 
