@@ -197,8 +197,8 @@ void PanasonicClimate::transmit_state() {
   }
 
   /* Reverse message bytes */
-  for (uint8_t byte = 0; byte < message_length; byte++) {
-    message[byte] = reverse_bits_8(message[byte]);
+  for (unsigned char &byte : message) {
+    byte = reverse_bits_8(byte);
   }
 
   /* Transmit */
@@ -210,10 +210,10 @@ void PanasonicClimate::transmit_state() {
   data->space(PANASONIC_HEADER_SPACE);
 
   // send first packet, which is always the same, regardless of AC state (stored in dataconst)
-  for (uint8_t byte = 0; byte < dataconst_length; byte++) {
+  for (unsigned char byte : dataconst) {
     for (uint8_t bit = 0; bit < 8; bit++) {
       data->mark(PANASONIC_BIT_MARK);
-      if (dataconst[byte] & (1 << (7 - bit))) {
+      if (byte & (1 << (7 - bit))) {
         data->space(PANASONIC_ONE_SPACE);
       } else {
         data->space(PANASONIC_ZERO_SPACE);
@@ -229,10 +229,10 @@ void PanasonicClimate::transmit_state() {
   data->mark(PANASONIC_HEADER_MARK);
   data->space(PANASONIC_HEADER_SPACE);
 
-  for (uint8_t byte = 0; byte < message_length; byte++) {
+  for (unsigned char byte : message) {
     for (uint8_t bit = 0; bit < 8; bit++) {
       data->mark(PANASONIC_BIT_MARK);
-      if (message[byte] & (1 << (7 - bit))) {
+      if (byte & (1 << (7 - bit))) {
         data->space(PANASONIC_ONE_SPACE);
       } else {
         data->space(PANASONIC_ZERO_SPACE);
@@ -281,8 +281,8 @@ bool PanasonicClimate::on_receive(remote_base::RemoteReceiveData data) {
   }
 
   /* Reverse message bytes */
-  for (uint8_t byte = 0; byte < message_length; byte++) {
-    message[byte] = reverse_bits_8(message[byte]);
+  for (unsigned char &byte : message) {
+    byte = reverse_bits_8(byte);
   }
 
   /* Validate the checksum */
