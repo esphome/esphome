@@ -96,7 +96,7 @@ void MideaDongle::write_frame(const Frame &frame) {
 
 void MideaDongle::transmit_ir(remote_base::MideaData &data) {
   if (this->transmitter_ == nullptr) {
-    ESP_LOGD(TAG, "To transmit IR you need remote_transmitter component in your YAML configuration.");
+    ESP_LOGW(TAG, "To transmit IR you need remote_transmitter component in your YAML configuration.");
     return;
   }
   data.finalize();
