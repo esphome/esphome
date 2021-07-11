@@ -371,6 +371,7 @@ class LightStateResponse : public ProtoMessage {
   uint32_t key{0};
   bool state{false};
   float brightness{0.0f};
+  float color_brightness{0.0f};
   float red{0.0f};
   float green{0.0f};
   float blue{0.0f};
@@ -392,6 +393,8 @@ class LightCommandRequest : public ProtoMessage {
   bool state{false};
   bool has_brightness{false};
   float brightness{0.0f};
+  bool has_color_brightness{false};
+  float color_brightness{0.0f};
   bool has_rgb{false};
   float red{0.0f};
   float green{0.0f};

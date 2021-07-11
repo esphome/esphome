@@ -1263,6 +1263,10 @@ bool LightStateResponse::decode_32bit(uint32_t field_id, Proto32Bit value) {
       this->brightness = value.as_float();
       return true;
     }
+    case 10: {
+      this->color_brightness = value.as_float();
+      return true;
+    }
     case 4: {
       this->red = value.as_float();
       return true;
@@ -1291,6 +1295,7 @@ void LightStateResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_fixed32(1, this->key);
   buffer.encode_bool(2, this->state);
   buffer.encode_float(3, this->brightness);
+  buffer.encode_float(10, this->color_brightness);
   buffer.encode_float(4, this->red);
   buffer.encode_float(5, this->green);
   buffer.encode_float(6, this->blue);
@@ -1312,6 +1317,11 @@ void LightStateResponse::dump_to(std::string &out) const {
 
   out.append("  brightness: ");
   sprintf(buffer, "%g", this->brightness);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  color_brightness: ");
+  sprintf(buffer, "%g", this->color_brightness);
   out.append(buffer);
   out.append("\n");
 
@@ -1357,6 +1367,10 @@ bool LightCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
     }
     case 4: {
       this->has_brightness = value.as_bool();
+      return true;
+    }
+    case 20: {
+      this->has_color_brightness = value.as_bool();
       return true;
     }
     case 6: {
@@ -1415,6 +1429,10 @@ bool LightCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
       this->brightness = value.as_float();
       return true;
     }
+    case 21: {
+      this->color_brightness = value.as_float();
+      return true;
+    }
     case 7: {
       this->red = value.as_float();
       return true;
@@ -1445,6 +1463,8 @@ void LightCommandRequest::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_bool(3, this->state);
   buffer.encode_bool(4, this->has_brightness);
   buffer.encode_float(5, this->brightness);
+  buffer.encode_bool(20, this->has_color_brightness);
+  buffer.encode_float(21, this->color_brightness);
   buffer.encode_bool(6, this->has_rgb);
   buffer.encode_float(7, this->red);
   buffer.encode_float(8, this->green);
@@ -1482,6 +1502,15 @@ void LightCommandRequest::dump_to(std::string &out) const {
 
   out.append("  brightness: ");
   sprintf(buffer, "%g", this->brightness);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  has_color_brightness: ");
+  out.append(YESNO(this->has_color_brightness));
+  out.append("\n");
+
+  out.append("  color_brightness: ");
+  sprintf(buffer, "%g", this->color_brightness);
   out.append(buffer);
   out.append("\n");
 
