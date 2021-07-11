@@ -127,6 +127,7 @@ esphome/components/time/* @OttoWinter
 esphome/components/tm1637/* @glmnet
 esphome/components/tmp102/* @timsavage
 esphome/components/tof10120/* @wstrzalka
+esphome/components/toshiba/* @kbx81
 esphome/components/tuya/binary_sensor/* @jesserockz
 esphome/components/tuya/climate/* @jesserockz
 esphome/components/tuya/sensor/* @jesserockz
