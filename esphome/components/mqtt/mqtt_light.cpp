@@ -37,12 +37,30 @@ void MQTTJSONLightComponent::send_discovery(JsonObject &root, mqtt::SendDiscover
   auto traits = this->state_->get_traits();
   if (traits.get_supports_brightness())
     root["brightness"] = true;
-  if (traits.get_supports_rgb())
+
+  root["color_mode"] = true;
+  JsonArray &color_modes = root.createNestedArray("supported_color_modes");
+  if (traits.supports_color_mode(ColorMode::COLOR_TEMPERATURE))
+    color_modes.add("color_temp");
+  if (traits.supports_color_mode(ColorMode::RGB))
+    color_modes.add("rgb");
+  if (traits.supports_color_mode(ColorMode::RGB_WHITE))
+    color_modes.add("rgbw");
+  if (traits.supports_color_mode(ColorMode::RGB_COLD_WARM_WHITE))
+    color_modes.add("rgbww");
+  if (color_modes.size() == 0 && traits.get_supports_brightness())
+    color_modes.add("brightness");
+  if (color_modes.size() == 0)
+    color_modes.add("onoff");
+
+  // legacy API
+  if (traits.supports_color_channel(ColorChannel::RGB))
     root["rgb"] = true;
-  if (traits.get_supports_color_temperature())
+  if (traits.supports_color_channel(ColorChannel::COLOR_TEMPERATURE))
     root["color_temp"] = true;
-  if (traits.get_supports_rgb_white_value())
+  if (traits.supports_color_channel(ColorChannel::WHITE))
     root["white_value"] = true;
+
   if (this->state_->supports_effects()) {
     root["effect"] = true;
     JsonArray &effect_list = root.createNestedArray("effect_list");

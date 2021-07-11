@@ -17,17 +17,51 @@ void LightJSONSchema::dump_json(LightState &state, JsonObject &root) {
   root["state"] = (values.get_state() != 0.0f) ? "ON" : "OFF";
   if (traits.get_supports_brightness())
     root["brightness"] = uint8_t(values.get_brightness() * 255);
-  if (traits.get_supports_rgb()) {
-    JsonObject &color = root.createNestedObject("color");
+
+  switch (values.get_color_mode()) {
+    case ColorMode::UNKNOWN:  // don't need to set color mode if we don't know it
+      break;
+    case ColorMode::WHITE:  // not supported by HA in MQTT
+      root["color_mode"] = "white";
+      break;
+    case ColorMode::COLOR_TEMPERATURE:
+      root["color_mode"] = "color_temp";
+      break;
+    case ColorMode::COLD_WARM_WHITE:  // not supported by HA
+      root["color_mode"] = "cwww";
+      break;
+    case ColorMode::RGB:
+      root["color_mode"] = "rgb";
+      break;
+    case ColorMode::RGB_WHITE:
+      root["color_mode"] = "rgbw";
+      break;
+    case ColorMode::RGB_COLOR_TEMPERATURE:  // not supported by HA
+      root["color_mode"] = "rgbct";
+      break;
+    case ColorMode::RGB_COLD_WARM_WHITE:
+      root["color_mode"] = "rgbww";
+      break;
+  }
+
+  JsonObject &color = root.createNestedObject("color");
+  if (*values.get_color_mode() & *ColorMode::RGB) {
     color["r"] = uint8_t(values.get_color_brightness() * values.get_red() * 255);
     color["g"] = uint8_t(values.get_color_brightness() * values.get_green() * 255);
     color["b"] = uint8_t(values.get_color_brightness() * values.get_blue() * 255);
   }
-  if (traits.get_supports_rgb_white_value()) {
-    root["white_value"] = uint8_t(values.get_white() * 255);
+  if (*values.get_color_mode() & *ColorMode::WHITE) {
+    color["w"] = uint8_t(values.get_white() * 255);
+    root["white_value"] = uint8_t(values.get_white() * 255);  // legacy API
   }
-  if (traits.get_supports_color_temperature())
+  if (*values.get_color_mode() & *ColorMode::COLOR_TEMPERATURE) {
+    // this one isn't under the color subkey for some reason
     root["color_temp"] = uint32_t(values.get_color_temperature());
+  }
+  if (*values.get_color_mode() & *ColorMode::COLD_WARM_WHITE) {
+    color["c"] = uint8_t(values.get_cold_white() * 255);
+    color["w"] = uint8_t(values.get_warm_white() * 255);
+  }
 }
 
 void LightJSONSchema::parse_color_json(LightState &state, LightCall &call, JsonObject &root) {
@@ -74,9 +108,22 @@ void LightJSONSchema::parse_color_json(LightState &state, LightCall &call, JsonO
     if (color.containsKey("r") || color.containsKey("g") || color.containsKey("b")) {
       call.set_color_brightness(max_rgb);
     }
+
+    if (color.containsKey("c")) {
+      call.set_cold_white(float(color["c"]) / 255.0f);
+    }
+    if (color.containsKey("w")) {
+      // the HA scheme is ambigious here, the same key is used for white channel in RGBW and warm
+      // white channel in RGBWW.
+      if (color.containsKey("c")) {
+        call.set_warm_white(float(color["w"]) / 255.0f);
+      } else {
+        call.set_white(float(color["w"]) / 255.0f);
+      }
+    }
   }
 
-  if (root.containsKey("white_value")) {
+  if (root.containsKey("white_value")) {  // legacy API
     call.set_white(float(root["white_value"]) / 255.0f);
   }
 
