@@ -1,6 +1,5 @@
 #include "esphome/core/log.h"
 #include "midea_climate.h"
-#include "automations.h"
 
 namespace esphome {
 namespace midea_ac {

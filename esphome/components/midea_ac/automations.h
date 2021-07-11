@@ -1,5 +1,4 @@
 #pragma once
-
 #include "esphome/core/automation.h"
 #include "midea_climate.h"
 

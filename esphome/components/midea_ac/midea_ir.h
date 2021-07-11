@@ -1,12 +1,10 @@
 #pragma once
-
 #include "esphome/components/remote_base/midea_protocol.h"
 
 namespace esphome {
 namespace midea_ac {
 
 using IrData = remote_base::MideaData;
-using IrProtocol = remote_base::MideaProtocol;
 
 class IrFollowMeData : public IrData {
  public:
