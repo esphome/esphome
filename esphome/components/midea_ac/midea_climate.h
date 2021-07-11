@@ -6,8 +6,8 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/midea_dongle/midea_dongle.h"
 #include "esphome/components/climate/climate.h"
-#include "esphome/components/remote_transmitter/remote_transmitter.h"
 #include "midea_frame.h"
+#include "midea_ir.h"
 
 namespace esphome {
 namespace midea_ac {
@@ -36,13 +36,16 @@ class MideaAC : public midea_dongle::MideaAppliance, public climate::Climate, pu
     this->traits_custom_presets_ = std::move(custom_presets);
   }
   bool allow_custom_preset(const std::string &custom_preset) const;
-  void transmit_ir(remote_base::MideaData &data) { this->parent_->transmit_ir(data); }
+  void do_follow_me(float temperature, bool beeper = false);
+  void do_display_toggle();
+  void do_swing_step();
 
  protected:
   /// Override control to change settings of the climate device.
   void control(const climate::ClimateCall &call) override;
   /// Return the traits of this controller.
   climate::ClimateTraits traits() override;
+  void transmit_ir_(IrData &data) { this->parent_->transmit_ir(data); }
 
   QueryFrame query_frame_;
   PowerQueryFrame power_frame_;

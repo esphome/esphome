@@ -1,5 +1,6 @@
 #include "esphome/core/log.h"
 #include "midea_climate.h"
+#include "automations.h"
 
 namespace esphome {
 namespace midea_ac {
@@ -188,6 +189,23 @@ climate::ClimateTraits MideaAC::traits() {
   traits.set_supported_custom_presets(this->traits_custom_presets_);
   traits.set_supports_current_temperature(true);
   return traits;
+}
+
+/* ACTIONS */
+
+void MideaAC::do_follow_me(float temperature, bool beeper) {
+  IrFollowMeData data(static_cast<uint8_t>(temperature + 0.5), beeper);
+  this->transmit_ir_(data);
+}
+
+void MideaAC::do_swing_step() {
+  IrSpecialData data(0x01);
+  this->transmit_ir_(data);
+}
+
+void MideaAC::do_display_toggle() {
+  IrSpecialData data(0x08);
+  this->transmit_ir_(data);
 }
 
 }  // namespace midea_ac
