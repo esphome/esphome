@@ -25,10 +25,6 @@ class RGBWWLightOutput : public light::LightOutput {
       traits.set_supported_color_modes({light::ColorMode::RGB, light::ColorMode::COLD_WARM_WHITE});
     else
       traits.set_supported_color_modes({light::ColorMode::RGB_COLD_WARM_WHITE});
-    traits.set_supports_rgb(true);
-    traits.set_supports_rgb_white_value(true);
-    traits.set_supports_color_temperature(true);
-    traits.set_supports_color_interlock(this->color_interlock_);
     traits.set_min_mireds(this->cold_white_temperature_);
     traits.set_max_mireds(this->warm_white_temperature_);
     return traits;

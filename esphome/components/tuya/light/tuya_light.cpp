@@ -46,7 +46,6 @@ void TuyaLight::dump_config() {
 light::LightTraits TuyaLight::get_traits() {
   auto traits = light::LightTraits();
   traits.set_supports_brightness(this->dimmer_id_.has_value());
-  traits.set_supports_color_temperature(this->color_temperature_id_.has_value());
   if (this->color_temperature_id_.has_value()) {
     traits.set_supported_color_modes({light::ColorMode::COLOR_TEMPERATURE});
     traits.set_min_mireds(this->cold_white_temperature_);

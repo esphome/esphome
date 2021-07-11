@@ -17,13 +17,10 @@ class RGBWLightOutput : public light::LightOutput {
   light::LightTraits get_traits() override {
     auto traits = light::LightTraits();
     traits.set_supports_brightness(true);
-    traits.set_supports_color_interlock(this->color_interlock_);
     if (this->color_interlock_)
       traits.set_supported_color_modes({light::ColorMode::RGB, light::ColorMode::WHITE});
     else
       traits.set_supported_color_modes({light::ColorMode::RGB_WHITE});
-    traits.set_supports_rgb(true);
-    traits.set_supports_rgb_white_value(true);
     return traits;
   }
   void write_state(light::LightState *state) override {

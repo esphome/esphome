@@ -28,20 +28,22 @@ class LightTraits {
     return false;
   }
 
-  bool get_supports_rgb() const { return this->supports_rgb_; }
-  void set_supports_rgb(bool supports_rgb) { this->supports_rgb_ = supports_rgb; }
-  bool get_supports_rgb_white_value() const { return this->supports_rgb_white_value_; }
-  void set_supports_rgb_white_value(bool supports_rgb_white_value) {
-    this->supports_rgb_white_value_ = supports_rgb_white_value;
+  ESPDEPRECATED("get_supports_rgb() is deprecated, use color modes instead.")
+  bool get_supports_rgb() const { return this->supports_color_channel(ColorChannel::RGB); }
+  ESPDEPRECATED("get_supports_rgb_white_value() is deprecated, use color modes instead.")
+  bool get_supports_rgb_white_value() const {
+    return this->supports_color_mode(ColorMode::RGB_WHITE) ||
+           this->supports_color_mode(ColorMode::RGB_COLOR_TEMPERATURE);
   }
-  bool get_supports_color_temperature() const { return this->supports_color_temperature_; }
-  void set_supports_color_temperature(bool supports_color_temperature) {
-    this->supports_color_temperature_ = supports_color_temperature;
+  ESPDEPRECATED("get_supports_color_temperature() is deprecated, use color modes instead.")
+  bool get_supports_color_temperature() const { return this->supports_color_channel(ColorChannel::COLOR_TEMPERATURE); }
+  ESPDEPRECATED("get_supports_color_interlock() is deprecated, use color modes instead.")
+  bool get_supports_color_interlock() const {
+    return this->supports_color_mode(ColorMode::RGB) &&
+           (this->supports_color_mode(ColorMode::WHITE) || this->supports_color_mode(ColorMode::COLD_WARM_WHITE) ||
+            this->supports_color_mode(ColorMode::COLOR_TEMPERATURE));
   }
-  bool get_supports_color_interlock() const { return this->supports_color_interlock_; }
-  void set_supports_color_interlock(bool supports_color_interlock) {
-    this->supports_color_interlock_ = supports_color_interlock;
-  }
+
   float get_min_mireds() const { return this->min_mireds_; }
   void set_min_mireds(float min_mireds) { this->min_mireds_ = min_mireds; }
   float get_max_mireds() const { return this->max_mireds_; }
@@ -50,12 +52,8 @@ class LightTraits {
  protected:
   bool supports_brightness_{false};
   std::set<ColorMode> supported_color_modes_{};
-  bool supports_rgb_{false};
-  bool supports_rgb_white_value_{false};
-  bool supports_color_temperature_{false};
   float min_mireds_{0};
   float max_mireds_{0};
-  bool supports_color_interlock_{false};
 };
 
 }  // namespace light

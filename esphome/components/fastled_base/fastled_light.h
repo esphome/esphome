@@ -210,7 +210,6 @@ class FastLEDLightOutput : public light::AddressableLight {
     auto traits = light::LightTraits();
     traits.set_supports_brightness(true);
     traits.set_supported_color_modes({light::ColorMode::RGB});
-    traits.set_supports_rgb(true);
     return traits;
   }
   void setup() override;
