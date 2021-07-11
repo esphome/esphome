@@ -81,6 +81,7 @@ const uint8_t RAC_PT1411HWRU_MODE_COOL = 0x00;
 const uint8_t RAC_PT1411HWRU_MODE_DRY = 0x04;
 const uint8_t RAC_PT1411HWRU_MODE_FAN = 0x04;
 const uint8_t RAC_PT1411HWRU_MODE_HEAT = 0x0C;
+const uint8_t RAC_PT1411HWRU_MODE_OFF = 0x00;
 // RAC-PT1411HWRU Fan-only "temperature"/system off
 const uint8_t RAC_PT1411HWRU_TEMPERATURE_FAN_ONLY = 0x0E;
 // RAC-PT1411HWRU temperature codes are not sequential; they instead follow a modified Gray code.
@@ -405,8 +406,8 @@ uint8_t ToshibaClimate::is_valid_rac_pt1411hwru_header_(const uint8_t *message) 
                                     RAC_PT1411HWRU_SWING_HEADER};
 
   for (auto i : header) {
-    if ((message[0] == header[i]) && (message[1] == static_cast<uint8_t>(~header[i])))
-      return header[i];
+    if ((message[0] == i) && (message[1] == static_cast<uint8_t>(~i)))
+      return i;
   }
   if (message[0] == RAC_PT1411HWRU_MESSAGE_HEADER1)
     return RAC_PT1411HWRU_MESSAGE_HEADER1;
@@ -507,118 +508,108 @@ bool ToshibaClimate::on_receive(remote_base::RemoteReceiveData data) {
       // If the first two packets don't match each other, fail
       return false;
     }
+    if (!is_valid_rac_pt1411hwru_message_(&message[0])) {
+      // If the first packet isn't valid, fail
+      return false;
+    }
   }
 
-  // Header has been verified, now determine protocol version, verify the integrity of the received data and set the
-  // climate component properties
+  // Header has been verified, now determine protocol version and set the climate component properties
   switch (is_valid_rac_pt1411hwru_header_(message)) {
     // Power, temperature, mode, fan speed
     case RAC_PT1411HWRU_MESSAGE_HEADER0:
-      if (is_valid_rac_pt1411hwru_message_(message)) {
-        // Get the mode
-        if ((message[2] == RAC_PT1411HWRU_FAN_OFF) && (message[4] == (RAC_PT1411HWRU_TEMPERATURE_FAN_ONLY << 4))) {
-          this->mode = climate::CLIMATE_MODE_OFF;
-        } else {
-          switch (message[4] & 0x0F) {
-            case RAC_PT1411HWRU_MODE_AUTO:
-              this->mode = climate::CLIMATE_MODE_HEAT_COOL;
-              break;
+      // Get the mode
+      switch (message[4] & 0x0F) {
+        case RAC_PT1411HWRU_MODE_AUTO:
+          this->mode = climate::CLIMATE_MODE_HEAT_COOL;
+          break;
 
-            case RAC_PT1411HWRU_MODE_COOL:
-              this->mode = climate::CLIMATE_MODE_COOL;
-              break;
-
-            // case RAC_PT1411HWRU_MODE_DRY:
-            case RAC_PT1411HWRU_MODE_FAN:
-              if ((message[4] >> 4) == RAC_PT1411HWRU_TEMPERATURE_FAN_ONLY)
-                this->mode = climate::CLIMATE_MODE_FAN_ONLY;
-              else
-                this->mode = climate::CLIMATE_MODE_DRY;
-              break;
-
-            case RAC_PT1411HWRU_MODE_HEAT:
-              this->mode = climate::CLIMATE_MODE_HEAT;
-              break;
-
-            default:
-              this->mode = climate::CLIMATE_MODE_OFF;
-              break;
-          }
-        }
-        // Get the fan speed/mode
-        switch (message[2]) {
-          case RAC_PT1411HWRU_FAN_LOW.code1:
-            this->fan_mode = climate::CLIMATE_FAN_LOW;
-            break;
-
-          case RAC_PT1411HWRU_FAN_MED.code1:
-            this->fan_mode = climate::CLIMATE_FAN_MEDIUM;
-            break;
-
-          case RAC_PT1411HWRU_FAN_HIGH.code1:
-            this->fan_mode = climate::CLIMATE_FAN_HIGH;
-            break;
-
-          case RAC_PT1411HWRU_FAN_AUTO.code1:
-          default:
-            this->fan_mode = climate::CLIMATE_FAN_AUTO;
-            break;
-        }
-        // Get the target temperature
-        if (is_valid_rac_pt1411hwru_message_(&message[12])) {
-          temperature_code =
-              (message[4] >> 4) | (message[14] & RAC_PT1411HWRU_FLAG_FRAC) | (message[15] & RAC_PT1411HWRU_FLAG_NEG);
-          if (message[15] & RAC_PT1411HWRU_FLAG_FAH) {
-            for (uint8_t i = 0; i < RAC_PT1411HWRU_TEMPERATURE_F.size(); i++) {
-              if (RAC_PT1411HWRU_TEMPERATURE_F[i] == temperature_code) {
-                this->target_temperature = static_cast<float>((i + TOSHIBA_RAC_PT1411HWRU_TEMP_F_MIN - 32) * 5) / 9;
-              }
-            }
+        // case RAC_PT1411HWRU_MODE_OFF:
+        case RAC_PT1411HWRU_MODE_COOL:
+          if (((message[4] >> 4) == RAC_PT1411HWRU_TEMPERATURE_FAN_ONLY) && (message[2] == RAC_PT1411HWRU_FAN_OFF)) {
+            this->mode = climate::CLIMATE_MODE_OFF;
           } else {
-            for (uint8_t i = 0; i < RAC_PT1411HWRU_TEMPERATURE_C.size(); i++) {
-              if (RAC_PT1411HWRU_TEMPERATURE_C[i] == temperature_code) {
-                this->target_temperature = i + TOSHIBA_RAC_PT1411HWRU_TEMP_C_MIN;
-              }
+            this->mode = climate::CLIMATE_MODE_COOL;
+          }
+          break;
+
+        // case RAC_PT1411HWRU_MODE_DRY:
+        case RAC_PT1411HWRU_MODE_FAN:
+          if ((message[4] >> 4) == RAC_PT1411HWRU_TEMPERATURE_FAN_ONLY)
+            this->mode = climate::CLIMATE_MODE_FAN_ONLY;
+          else
+            this->mode = climate::CLIMATE_MODE_DRY;
+          break;
+
+        case RAC_PT1411HWRU_MODE_HEAT:
+          this->mode = climate::CLIMATE_MODE_HEAT;
+          break;
+
+        default:
+          this->mode = climate::CLIMATE_MODE_OFF;
+          break;
+      }
+      // Get the fan speed/mode
+      switch (message[2]) {
+        case RAC_PT1411HWRU_FAN_LOW.code1:
+          this->fan_mode = climate::CLIMATE_FAN_LOW;
+          break;
+
+        case RAC_PT1411HWRU_FAN_MED.code1:
+          this->fan_mode = climate::CLIMATE_FAN_MEDIUM;
+          break;
+
+        case RAC_PT1411HWRU_FAN_HIGH.code1:
+          this->fan_mode = climate::CLIMATE_FAN_HIGH;
+          break;
+
+        case RAC_PT1411HWRU_FAN_AUTO.code1:
+        default:
+          this->fan_mode = climate::CLIMATE_FAN_AUTO;
+          break;
+      }
+      // Get the target temperature
+      if (is_valid_rac_pt1411hwru_message_(&message[12])) {
+        temperature_code =
+            (message[4] >> 4) | (message[14] & RAC_PT1411HWRU_FLAG_FRAC) | (message[15] & RAC_PT1411HWRU_FLAG_NEG);
+        if (message[15] & RAC_PT1411HWRU_FLAG_FAH) {
+          for (uint8_t i = 0; i < RAC_PT1411HWRU_TEMPERATURE_F.size(); i++) {
+            if (RAC_PT1411HWRU_TEMPERATURE_F[i] == temperature_code) {
+              this->target_temperature = static_cast<float>((i + TOSHIBA_RAC_PT1411HWRU_TEMP_F_MIN - 32) * 5) / 9;
+            }
+          }
+        } else {
+          for (uint8_t i = 0; i < RAC_PT1411HWRU_TEMPERATURE_C.size(); i++) {
+            if (RAC_PT1411HWRU_TEMPERATURE_C[i] == temperature_code) {
+              this->target_temperature = i + TOSHIBA_RAC_PT1411HWRU_TEMP_C_MIN;
             }
           }
         }
-        break;
-      } else {
-        return false;
       }
-
       break;
     // "Comfort Sense" temperature packet
     case RAC_PT1411HWRU_CS_HEADER:
-      if (is_valid_rac_pt1411hwru_message_(message)) {
-        // "Comfort Sense" feature notes
-        // IR Code: 0xBA45 xxXX yyYY
-        // xx: Temperature in °C
-        //     Bit 6: feature state (on/off)
-        //     Bit 7: message contains temperature data for feature (bit 6 must also be set)
-        // XX: Bitwise complement of xx
-        // yy: Mode: Auto: 7A
-        //           Cool: 72
-        //           Heat: 7E
-        // YY: Bitwise complement of yy
-        if ((message[2] & RAC_PT1411HWRU_CS_ENABLED) && (message[2] & RAC_PT1411HWRU_CS_DATA)) {
-          // Setting current_temperature this way allows the unit's remote to provide the temperature to HA
-          this->current_temperature = message[2] & ~(RAC_PT1411HWRU_CS_ENABLED | RAC_PT1411HWRU_CS_DATA);
-        }
-      } else {
-        return false;
+      // "Comfort Sense" feature notes
+      // IR Code: 0xBA45 xxXX yyYY
+      // xx: Temperature in °C
+      //     Bit 6: feature state (on/off)
+      //     Bit 7: message contains temperature data for feature (bit 6 must also be set)
+      // XX: Bitwise complement of xx
+      // yy: Mode: Auto: 7A
+      //           Cool: 72
+      //           Heat: 7E
+      // YY: Bitwise complement of yy
+      if ((message[2] & RAC_PT1411HWRU_CS_ENABLED) && (message[2] & RAC_PT1411HWRU_CS_DATA)) {
+        // Setting current_temperature this way allows the unit's remote to provide the temperature to HA
+        this->current_temperature = message[2] & ~(RAC_PT1411HWRU_CS_ENABLED | RAC_PT1411HWRU_CS_DATA);
       }
       break;
     // Swing mode
     case RAC_PT1411HWRU_SWING_HEADER:
-      if (is_valid_rac_pt1411hwru_message_(message)) {
-        if (message[4] == RAC_PT1411HWRU_SWING_VERTICAL[4]) {
-          this->swing_mode = climate::CLIMATE_SWING_VERTICAL;
-        } else {
-          this->swing_mode = climate::CLIMATE_SWING_OFF;
-        }
+      if (message[4] == RAC_PT1411HWRU_SWING_VERTICAL[4]) {
+        this->swing_mode = climate::CLIMATE_SWING_VERTICAL;
       } else {
-        return false;
+        this->swing_mode = climate::CLIMATE_SWING_OFF;
       }
       break;
     // Generic (old) Toshiba packet
