@@ -404,7 +404,7 @@ uint8_t ToshibaClimate::is_valid_rac_pt1411hwru_header_(const uint8_t *message) 
   const std::vector<uint8_t> header{RAC_PT1411HWRU_MESSAGE_HEADER0, RAC_PT1411HWRU_CS_HEADER,
                                     RAC_PT1411HWRU_SWING_HEADER};
 
-  for (uint8_t i = 0; i < header.size(); i++) {
+  for (auto i : header) {
     if ((message[0] == header[i]) && (message[1] == static_cast<uint8_t>(~header[i])))
       return header[i];
   }
