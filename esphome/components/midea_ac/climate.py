@@ -138,9 +138,9 @@ MIDEA_FOLLOW_ME_SCHEMA = MIDEA_ACTION_BASE_SCHEMA.extend(
 
 @register_action("follow_me", FollowMeAction, MIDEA_FOLLOW_ME_SCHEMA)
 async def follow_me_to_code(var, config, args):
-    template_ = await cg.templatable(config[CONF_BEEPER], args, cg.uint8)
+    template_ = await cg.templatable(config[CONF_BEEPER], args, cg.bool_)
     cg.add(var.set_beeper(template_))
-    template_ = await cg.templatable(config[CONF_TEMPERATURE], args, cg.uint8)
+    template_ = await cg.templatable(config[CONF_TEMPERATURE], args, cg.float_)
     cg.add(var.set_temperature(template_))
 
 
