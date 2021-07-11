@@ -8,6 +8,10 @@
 
 #include <cstdlib>
 
+#ifdef USE_LIGHT
+#include "esphome/components/light/light_json_schema.h"
+#endif
+
 #ifdef USE_LOGGER
 #include <esphome/components/logger/logger.h>
 #endif
@@ -528,7 +532,7 @@ std::string WebServer::light_json(light::LightState *obj) {
   return json::build_json([obj](JsonObject &root) {
     root["id"] = "light-" + obj->get_object_id();
     root["state"] = obj->remote_values.is_on() ? "ON" : "OFF";
-    obj->dump_json(root);
+    light::LightJSONSchema::dump_json(*obj, root);
   });
 }
 #endif

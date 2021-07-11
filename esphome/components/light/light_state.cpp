@@ -141,14 +141,6 @@ void LightState::add_new_target_state_reached_callback(std::function<void()> &&s
   this->target_state_reached_callback_.add(std::move(send_callback));
 }
 
-#ifdef USE_JSON
-void LightState::dump_json(JsonObject &root) {
-  if (this->supports_effects())
-    root["effect"] = this->get_effect_name();
-  this->remote_values.dump_json(root, this->output_->get_traits());
-}
-#endif
-
 void LightState::set_default_transition_length(uint32_t default_transition_length) {
   this->default_transition_length_ = default_transition_length;
 }

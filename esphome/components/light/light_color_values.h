@@ -80,30 +80,6 @@ class LightColorValues {
     return v;
   }
 
-#ifdef USE_JSON
-  /** Dump this color into a JsonObject. Only dumps values if the corresponding traits are marked supported by traits.
-   *
-   * @param root The json root object.
-   * @param traits The traits object used for determining whether to include certain attributes.
-   */
-  void dump_json(JsonObject &root, const LightTraits &traits) const {
-    root["state"] = (this->get_state() != 0.0f) ? "ON" : "OFF";
-    if (traits.get_supports_brightness())
-      root["brightness"] = uint8_t(this->get_brightness() * 255);
-    if (traits.get_supports_rgb()) {
-      JsonObject &color = root.createNestedObject("color");
-      color["r"] = uint8_t(this->get_color_brightness() * this->get_red() * 255);
-      color["g"] = uint8_t(this->get_color_brightness() * this->get_green() * 255);
-      color["b"] = uint8_t(this->get_color_brightness() * this->get_blue() * 255);
-    }
-    if (traits.get_supports_rgb_white_value()) {
-      root["white_value"] = uint8_t(this->get_white() * 255);
-    }
-    if (traits.get_supports_color_temperature())
-      root["color_temp"] = uint32_t(this->get_color_temperature());
-  }
-#endif
-
   /** Normalize the color (RGB/W) component.
    *
    * Divides all color attributes by the maximum attribute, so effectively set at least one attribute to 1.

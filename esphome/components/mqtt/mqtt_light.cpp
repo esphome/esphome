@@ -1,4 +1,5 @@
 #include "mqtt_light.h"
+#include "esphome/components/light/light_json_schema.h"
 #include "esphome/core/log.h"
 
 #ifdef USE_LIGHT
@@ -14,7 +15,9 @@ std::string MQTTJSONLightComponent::component_type() const { return "light"; }
 
 void MQTTJSONLightComponent::setup() {
   this->subscribe_json(this->get_command_topic_(), [this](const std::string &topic, JsonObject &root) {
-    this->state_->make_call().parse_json(root).perform();
+    LightCall call = this->state_->make_call();
+    LightJSONSchema::parse_json(*this->state_, call, root);
+    call.perform();
   });
 
   auto f = std::bind(&MQTTJSONLightComponent::publish_state_, this);
@@ -24,7 +27,8 @@ void MQTTJSONLightComponent::setup() {
 MQTTJSONLightComponent::MQTTJSONLightComponent(LightState *state) : MQTTComponent(), state_(state) {}
 
 bool MQTTJSONLightComponent::publish_state_() {
-  return this->publish_json(this->get_state_topic_(), [this](JsonObject &root) { this->state_->dump_json(root); });
+  return this->publish_json(this->get_state_topic_(),
+                            [this](JsonObject &root) { LightJSONSchema::dump_json(*this->state_, root); });
 }
 LightState *MQTTJSONLightComponent::get_state() const { return this->state_; }
 std::string MQTTJSONLightComponent::friendly_name() const { return this->state_->get_name(); }

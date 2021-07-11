@@ -131,10 +131,6 @@ class LightCall {
    * @return The light call for chaining setters.
    */
   LightCall &set_rgbw(float red, float green, float blue, float white);
-#ifdef USE_JSON
-  LightCall &parse_color_json(JsonObject &root);
-  LightCall &parse_json(JsonObject &root);
-#endif
   LightCall &from_light_color_values(const LightColorValues &values);
 
   void perform();
