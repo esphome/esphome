@@ -194,7 +194,7 @@ climate::ClimateTraits MideaAC::traits() {
 /* ACTIONS */
 
 void MideaAC::do_follow_me(float temperature, bool beeper) {
-  IrFollowMeData data(static_cast<uint8_t>(temperature + 0.5), beeper);
+  IrFollowMeData data(static_cast<uint8_t>(lroundf(temperature)), beeper);
   this->transmit_ir_(data);
 }
 
