@@ -119,6 +119,9 @@ class LightColorValues {
     }
   }
 
+  // Note that method signature of as_* methods is kept as-is for compatibility reasons, so not all parameters
+  // are always used or necessary. Methods will be deprecated later.
+
   /// Convert these light color values to a binary representation and write them to binary.
   void as_binary(bool *binary) const { *binary = this->state_ == 1.0f; }
 
@@ -129,53 +132,51 @@ class LightColorValues {
 
   /// Convert these light color values to an RGB representation and write them to red, green, blue.
   void as_rgb(float *red, float *green, float *blue, float gamma = 0, bool color_interlock = false) const {
-    float brightness = this->state_ * this->brightness_ * this->color_brightness_;
-    if (color_interlock && this->white_ > 0.0f) {
-      brightness = 0;
+    if (*this->color_mode_ & *ColorChannel::RGB) {
+      float brightness = this->state_ * this->brightness_ * this->color_brightness_;
+      *red = gamma_correct(brightness * this->red_, gamma);
+      *green = gamma_correct(brightness * this->green_, gamma);
+      *blue = gamma_correct(brightness * this->blue_, gamma);
+    } else {
+      *red = *green = *blue = 0;
     }
-    *red = gamma_correct(brightness * this->red_, gamma);
-    *green = gamma_correct(brightness * this->green_, gamma);
-    *blue = gamma_correct(brightness * this->blue_, gamma);
   }
 
   /// Convert these light color values to an RGBW representation and write them to red, green, blue, white.
   void as_rgbw(float *red, float *green, float *blue, float *white, float gamma = 0,
                bool color_interlock = false) const {
-    this->as_rgb(red, green, blue, gamma, color_interlock);
-    *white = gamma_correct(this->state_ * this->brightness_ * this->white_, gamma);
+    this->as_rgb(red, green, blue, gamma);
+    if (*this->color_mode_ & *ColorChannel::WHITE) {
+      *white = gamma_correct(this->state_ * this->brightness_ * this->white_, gamma);
+    } else {
+      *white = 0;
+    }
   }
 
   /// Convert these light color values to an RGBWW representation with the given parameters.
   void as_rgbww(float color_temperature_cw, float color_temperature_ww, float *red, float *green, float *blue,
                 float *cold_white, float *warm_white, float gamma = 0, bool constant_brightness = false,
                 bool color_interlock = false) const {
-    this->as_rgb(red, green, blue, gamma, color_interlock);
-    const float color_temp = clamp(this->color_temperature_, color_temperature_cw, color_temperature_ww);
-    const float ww_fraction = (color_temp - color_temperature_cw) / (color_temperature_ww - color_temperature_cw);
-    const float cw_fraction = 1.0f - ww_fraction;
-    const float white_level = gamma_correct(this->state_ * this->brightness_ * this->white_, gamma);
-    *cold_white = white_level * cw_fraction;
-    *warm_white = white_level * ww_fraction;
-    if (!constant_brightness) {
-      const float max_cw_ww = std::max(ww_fraction, cw_fraction);
-      *cold_white /= max_cw_ww;
-      *warm_white /= max_cw_ww;
-    }
+    this->as_rgb(red, green, blue, gamma);
+    this->as_cwww(0, 0, cold_white, warm_white, gamma, constant_brightness);
   }
 
   /// Convert these light color values to an CWWW representation with the given parameters.
   void as_cwww(float color_temperature_cw, float color_temperature_ww, float *cold_white, float *warm_white,
                float gamma = 0, bool constant_brightness = false) const {
-    const float color_temp = clamp(this->color_temperature_, color_temperature_cw, color_temperature_ww);
-    const float ww_fraction = (color_temp - color_temperature_cw) / (color_temperature_ww - color_temperature_cw);
-    const float cw_fraction = 1.0f - ww_fraction;
-    const float white_level = gamma_correct(this->state_ * this->brightness_ * this->white_, gamma);
-    *cold_white = white_level * cw_fraction;
-    *warm_white = white_level * ww_fraction;
-    if (!constant_brightness) {
-      const float max_cw_ww = std::max(ww_fraction, cw_fraction);
-      *cold_white /= max_cw_ww;
-      *warm_white /= max_cw_ww;
+    if (*this->color_mode_ & *ColorMode::COLD_WARM_WHITE) {
+      const float cw_level = gamma_correct(this->cold_white_, gamma);
+      const float ww_level = gamma_correct(this->warm_white_, gamma);
+      const float white_level = gamma_correct(this->state_ * this->brightness_, gamma);
+      *cold_white = white_level * cw_level;
+      *warm_white = white_level * ww_level;
+      if (constant_brightness && (cw_level > 0 || ww_level > 0)) {
+        const float sum = cw_level + ww_level;
+        *cold_white /= sum;
+        *warm_white /= sum;
+      }
+    } else {
+      *cold_white = *warm_white = 0;
     }
   }
 
