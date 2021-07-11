@@ -127,13 +127,13 @@ class ClimateTraits {
 
   void set_supported_swing_modes(std::set<ClimateSwingMode> modes) { supported_swing_modes_ = std::move(modes); }
   void add_supported_swing_mode(ClimateSwingMode mode) { supported_swing_modes_.insert(mode); }
-  ESPDEPRECATED("This method is deprecated, use set_supported_fan_modes() instead")
+  ESPDEPRECATED("This method is deprecated, use set_supported_swing_modes() instead")
   void set_supports_swing_mode_off(bool supported) { set_swing_mode_support_(CLIMATE_SWING_OFF, supported); }
-  ESPDEPRECATED("This method is deprecated, use set_supported_fan_modes() instead")
+  ESPDEPRECATED("This method is deprecated, use set_supported_swing_modes() instead")
   void set_supports_swing_mode_both(bool supported) { set_swing_mode_support_(CLIMATE_SWING_BOTH, supported); }
-  ESPDEPRECATED("This method is deprecated, use set_supported_fan_modes() instead")
+  ESPDEPRECATED("This method is deprecated, use set_supported_swing_modes() instead")
   void set_supports_swing_mode_vertical(bool supported) { set_swing_mode_support_(CLIMATE_SWING_VERTICAL, supported); }
-  ESPDEPRECATED("This method is deprecated, use set_supported_fan_modes() instead")
+  ESPDEPRECATED("This method is deprecated, use set_supported_swing_modes() instead")
   void set_supports_swing_mode_horizontal(bool supported) {
     set_swing_mode_support_(CLIMATE_SWING_HORIZONTAL, supported);
   }
