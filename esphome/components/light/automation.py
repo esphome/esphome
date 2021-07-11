@@ -8,16 +8,21 @@ from esphome.const import (
     CONF_FLASH_LENGTH,
     CONF_EFFECT,
     CONF_BRIGHTNESS,
+    CONF_COLOR_MODE,
     CONF_COLOR_BRIGHTNESS,
     CONF_RED,
     CONF_GREEN,
     CONF_BLUE,
     CONF_WHITE,
     CONF_COLOR_TEMPERATURE,
+    CONF_COLD_WHITE,
+    CONF_WARM_WHITE,
     CONF_RANGE_FROM,
     CONF_RANGE_TO,
 )
 from .types import (
+    ColorMode,
+    COLOR_MODES,
     DimRelativeAction,
     ToggleAction,
     LightState,
@@ -64,12 +69,15 @@ LIGHT_CONTROL_ACTION_SCHEMA = cv.Schema(
         ),
         cv.Exclusive(CONF_EFFECT, "transformer"): cv.templatable(cv.string),
         cv.Optional(CONF_BRIGHTNESS): cv.templatable(cv.percentage),
+        cv.Optional(CONF_COLOR_MODE): cv.enum(COLOR_MODES, upper=True, space="_"),
         cv.Optional(CONF_COLOR_BRIGHTNESS): cv.templatable(cv.percentage),
         cv.Optional(CONF_RED): cv.templatable(cv.percentage),
         cv.Optional(CONF_GREEN): cv.templatable(cv.percentage),
         cv.Optional(CONF_BLUE): cv.templatable(cv.percentage),
         cv.Optional(CONF_WHITE): cv.templatable(cv.percentage),
         cv.Optional(CONF_COLOR_TEMPERATURE): cv.templatable(cv.color_temperature),
+        cv.Optional(CONF_COLD_WHITE): cv.templatable(cv.percentage),
+        cv.Optional(CONF_WARM_WHITE): cv.templatable(cv.percentage),
     }
 )
 LIGHT_TURN_OFF_ACTION_SCHEMA = automation.maybe_simple_id(
@@ -116,6 +124,9 @@ async def light_control_to_code(config, action_id, template_arg, args):
     if CONF_BRIGHTNESS in config:
         template_ = await cg.templatable(config[CONF_BRIGHTNESS], args, float)
         cg.add(var.set_brightness(template_))
+    if CONF_COLOR_MODE in config:
+        template_ = await cg.templatable(config[CONF_COLOR_MODE], args, ColorMode)
+        cg.add(var.set_color_mode(template_))
     if CONF_COLOR_BRIGHTNESS in config:
         template_ = await cg.templatable(config[CONF_COLOR_BRIGHTNESS], args, float)
         cg.add(var.set_color_brightness(template_))
@@ -134,6 +145,12 @@ async def light_control_to_code(config, action_id, template_arg, args):
     if CONF_COLOR_TEMPERATURE in config:
         template_ = await cg.templatable(config[CONF_COLOR_TEMPERATURE], args, float)
         cg.add(var.set_color_temperature(template_))
+    if CONF_COLD_WHITE in config:
+        template_ = await cg.templatable(config[CONF_COLD_WHITE], args, float)
+        cg.add(var.set_cold_white(template_))
+    if CONF_WARM_WHITE in config:
+        template_ = await cg.templatable(config[CONF_WARM_WHITE], args, float)
+        cg.add(var.set_warm_white(template_))
     if CONF_EFFECT in config:
         template_ = await cg.templatable(config[CONF_EFFECT], args, cg.std_string)
         cg.add(var.set_effect(template_))

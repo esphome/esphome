@@ -13,6 +13,18 @@ AddressableLightRef = AddressableLight.operator("ref")
 Color = cg.esphome_ns.class_("Color")
 LightColorValues = light_ns.class_("LightColorValues")
 
+# Color modes
+ColorMode = light_ns.enum("ColorMode", is_class=True)
+COLOR_MODES = {
+    "WHITE": ColorMode.WHITE,
+    "COLOR_TEMPERATURE": ColorMode.COLOR_TEMPERATURE,
+    "COLD_WARM_WHITE": ColorMode.COLD_WARM_WHITE,
+    "RGB": ColorMode.RGB,
+    "RGB_WHITE": ColorMode.RGB_WHITE,
+    "RGB_COLOR_TEMPERATURE": ColorMode.RGB_COLOR_TEMPERATURE,
+    "RGB_COLD_WARM_WHITE": ColorMode.RGB_COLD_WARM_WHITE,
+}
+
 # Actions
 ToggleAction = light_ns.class_("ToggleAction", automation.Action)
 LightControlAction = light_ns.class_("LightControlAction", automation.Action)
