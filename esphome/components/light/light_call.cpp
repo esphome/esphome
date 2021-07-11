@@ -32,19 +32,26 @@ LightCall &LightCall::parse_color_json(JsonObject &root) {
 
   if (root.containsKey("color")) {
     JsonObject &color = root["color"];
+    // HA also encodes brightness information in the r, g, b values, so extract that and set it as color brightness.
+    float max_rgb = 0.0f;
     if (color.containsKey("r")) {
-      this->set_red(float(color["r"]) / 255.0f);
+      float r = float(color["r"]) / 255.0f;
+      max_rgb = fmaxf(max_rgb, r);
+      this->set_red(r);
     }
     if (color.containsKey("g")) {
-      this->set_green(float(color["g"]) / 255.0f);
+      float g = float(color["g"]) / 255.0f;
+      max_rgb = fmaxf(max_rgb, g);
+      this->set_green(g);
     }
     if (color.containsKey("b")) {
-      this->set_blue(float(color["b"]) / 255.0f);
+      float b = float(color["b"]) / 255.0f;
+      max_rgb = fmaxf(max_rgb, b);
+      this->set_blue(b);
     }
-  }
-
-  if (root.containsKey("color_brightness")) {
-    this->set_color_brightness(float(root["color_brightness"]) / 255.0f);
+    if (color.containsKey("r") || color.containsKey("g") || color.containsKey("b")) {
+      this->set_color_brightness(max_rgb);
+    }
   }
 
   if (root.containsKey("white_value")) {
