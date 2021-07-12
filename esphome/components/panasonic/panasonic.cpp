@@ -54,15 +54,15 @@ const uint8_t PANASONIC_PRESET_NORMAL = 0x40;
 const uint8_t PANASONIC_PRESET_QUIET = 0x40;
 const uint8_t PANASONIC_PRESET_BOOST = 0x40;
 
-static const char *TAG = "panasonic.climate";
+static const char const *TAG = "panasonic.climate";
 
-// const uint8_t dataconst[8] = { 0x02, 0x20, 0xE0, 0x04, 0x00, 0x00, 0x00, 0x06};
-const uint8_t dataconst[8] = {0x40, 0x04, 0x07, 0x20, 0x00, 0x00, 0x00, 0x60};  // reversed
-const uint8_t dataconst_length = 8;
-const uint8_t message_length = 19;
+// const uint8_t DATACONST[8] = { 0x02, 0x20, 0xE0, 0x04, 0x00, 0x00, 0x00, 0x06};
+const uint8_t DATACONST[8] = {0x40, 0x04, 0x07, 0x20, 0x00, 0x00, 0x00, 0x60};  // reversed
+const uint8_t DATACONST_LENGTH = 8;
+const uint8_t MESSAGE_LENGTH = 19;
 
 void PanasonicClimate::transmit_state() {
-  uint8_t message[message_length] = {0x02, 0x20, 0xE0, 0x04, 0x00, 0x48, 0x3C, 0x80, 0xAF, 0x00,
+  uint8_t message[MESSAGE_LENGTH] = {0x02, 0x20, 0xE0, 0x04, 0x00, 0x48, 0x3C, 0x80, 0xAF, 0x00,
                                      0x00, 0x0E, 0xE0, 0x00, 0x00, 0x81, 0x00, 0x06, 0xBE};
 
   // Byte 6 - On / Off
@@ -206,8 +206,8 @@ void PanasonicClimate::transmit_state() {
   data->mark(PANASONIC_HEADER_MARK);
   data->space(PANASONIC_HEADER_SPACE);
 
-  // send first packet, which is always the same, regardless of AC state (stored in dataconst)
-  for (unsigned char byte : dataconst) {
+  // send first packet, which is always the same, regardless of AC state (stored in DATACONST)
+  for (unsigned char byte : DATACONST) {
     for (uint8_t bit = 0; bit < 8; bit++) {
       data->mark(PANASONIC_BIT_MARK);
       if (byte & (1 << (7 - bit))) {
@@ -245,7 +245,7 @@ void PanasonicClimate::transmit_state() {
 }
 
 bool PanasonicClimate::on_receive(remote_base::RemoteReceiveData data) {
-  uint8_t message[message_length] = {0};
+  uint8_t message[MESSAGE_LENGTH] = {0};
   ESP_LOGV(TAG, "on_receive");
 
   /* Validate header */
@@ -256,7 +256,7 @@ bool PanasonicClimate::on_receive(remote_base::RemoteReceiveData data) {
 
   /* Decode bytes */
   bool message_matches_header = true;
-  for (uint8_t byte = 0; byte < message_length; byte++) {
+  for (uint8_t byte = 0; byte < MESSAGE_LENGTH; byte++) {
     for (uint8_t bit = 0; bit < 8; bit++) {
       if (data.expect_item(PANASONIC_BIT_MARK, PANASONIC_ONE_SPACE)) {
         message[byte] |= 1 << (7 - bit);
@@ -273,7 +273,7 @@ bool PanasonicClimate::on_receive(remote_base::RemoteReceiveData data) {
         return false;
       }
       // after first 8 bytes, no need to keep checking
-      message_matches_header = (byte < 8 && (message[byte] == dataconst[byte]));
+      message_matches_header = (byte < 8 && (message[byte] == DATACONST[byte]));
     }
   }
 
@@ -286,18 +286,18 @@ bool PanasonicClimate::on_receive(remote_base::RemoteReceiveData data) {
   if ((message[4] & B11110000) == 0x80) {
     // This is a non-standard command, not yet supported
     // Econavi, powerful, quiet, nanoe-g, auto comfort
-    ESP_LOGD(TAG, "Unsupported command received: %s", hexencode(message, dataconst_length).c_str());
+    ESP_LOGD(TAG, "Unsupported command received: %s", hexencode(message, DATACONST_LENGTH).c_str());
     return false;
   }
 
   /* Validate the checksum */
   uint8_t checksum = 0;
-  for (uint8_t i = 0; i < message_length - 1; i++) {
+  for (uint8_t i = 0; i < MESSAGE_LENGTH - 1; i++) {
     checksum += message[i];
   }
 
-  if (checksum != (message[message_length - 1] % 256)) {
-    ESP_LOGD(TAG, "on_receive, checksum failed %d != %d", checksum, (message[message_length - 1] % 256));
+  if (checksum != (message[MESSAGE_LENGTH - 1] % 256)) {
+    ESP_LOGD(TAG, "on_receive, checksum failed %d != %d", checksum, (message[MESSAGE_LENGTH - 1] % 256));
     return false;
   }
 
