@@ -11,7 +11,7 @@ static const char *const TAG = "inkbird_ibsth1_mini";
 void InkbirdIBSTH1_MINI::dump_config() {
   ESP_LOGCONFIG(TAG, "Inkbird IBS TH1 MINI");
   LOG_SENSOR("  ", "Temperature", this->temperature_);
-  LOG_SENSOR("  ", "External Temperature", this->ext_temperature_);
+  LOG_SENSOR("  ", "External Temperature", this->external_temperature_);
   LOG_SENSOR("  ", "Humidity", this->humidity_);
   LOG_SENSOR("  ", "Battery Level", this->battery_level_);
 }
@@ -69,16 +69,16 @@ bool InkbirdIBSTH1_MINI::parse_device(const esp32_ble_tracker::ESPBTDevice &devi
 
   // Create empty variables to pass automatic checks
   auto temperature = NAN;
-  auto ext_temperature = NAN;
+  auto external_temperature = NAN;
 
   // Read bluetooth data into variable
   auto measured_temperature = mnfData.uuid.get_uuid().uuid.uuid16 / 100.0f;
 
-  // Set temperature or ext_temperature based on which sensor is in use
+  // Set temperature or external_temperature based on which sensor is in use
   if (mnfData.data[2] == 0) {
     temperature = measured_temperature;
   } else if (mnfData.data[2] == 1) {
-    ext_temperature = measured_temperature;
+    external_temperature = measured_temperature;
   } else {
     ESP_LOGVV(TAG, "parse_device(): unknown sensor type");
     return false;
@@ -91,8 +91,8 @@ bool InkbirdIBSTH1_MINI::parse_device(const esp32_ble_tracker::ESPBTDevice &devi
   if (!isnan(temperature) && this->temperature_ != nullptr) {
     this->temperature_->publish_state(temperature);
   }
-  if (!isnan(ext_temperature) && this->ext_temperature_ != nullptr) {
-    this->ext_temperature_->publish_state(ext_temperature);
+  if (!isnan(external_temperature) && this->external_temperature_ != nullptr) {
+    this->external_temperature_->publish_state(external_temperature);
   }
   if (this->humidity_ != nullptr) {
     this->humidity_->publish_state(humidity);

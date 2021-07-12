@@ -19,7 +19,7 @@ from esphome.const import (
 CODEOWNERS = ["@fkirill"]
 DEPENDENCIES = ["esp32_ble_tracker"]
 
-CONF_EXT_TEMPERATURE = "ext_temperature"
+CONF_EXTERNAL_TEMPERATURE = "external_temperature"
 
 inkbird_ibsth1_mini_ns = cg.esphome_ns.namespace("inkbird_ibsth1_mini")
 InkbirdUBSTH1_MINI = inkbird_ibsth1_mini_ns.class_(
@@ -38,7 +38,7 @@ CONFIG_SCHEMA = (
                 DEVICE_CLASS_TEMPERATURE,
                 STATE_CLASS_MEASUREMENT,
             ),
-            cv.Optional(CONF_EXT_TEMPERATURE): sensor.sensor_schema(
+            cv.Optional(CONF_EXTERNAL_TEMPERATURE): sensor.sensor_schema(
                 UNIT_CELSIUS,
                 ICON_EMPTY,
                 1,
@@ -76,9 +76,9 @@ async def to_code(config):
     if CONF_TEMPERATURE in config:
         sens = await sensor.new_sensor(config[CONF_TEMPERATURE])
         cg.add(var.set_temperature(sens))
-    if CONF_EXT_TEMPERATURE in config:
-        sens = await sensor.new_sensor(config[CONF_EXT_TEMPERATURE])
-        cg.add(var.set_ext_temperature(sens))
+    if CONF_EXTERNAL_TEMPERATURE in config:
+        sens = await sensor.new_sensor(config[CONF_EXTERNAL_TEMPERATURE])
+        cg.add(var.set_external_temperature(sens))
     if CONF_HUMIDITY in config:
         sens = await sensor.new_sensor(config[CONF_HUMIDITY])
         cg.add(var.set_humidity(sens))
