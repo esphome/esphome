@@ -1,4 +1,5 @@
 #pragma once
+#ifdef USE_REMOTE_TRANSMITTER
 #include "esphome/components/remote_base/midea_protocol.h"
 
 namespace esphome {
@@ -86,3 +87,5 @@ class IrCommandData : public IrData {
 
 }  // namespace midea_ac
 }  // namespace esphome
+
+#endif

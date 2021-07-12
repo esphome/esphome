@@ -193,18 +193,30 @@ climate::ClimateTraits MideaAC::traits() {
 /* ACTIONS */
 
 void MideaAC::do_follow_me(float temperature, bool beeper) {
+#ifdef USE_REMOTE_TRANSMITTER
   IrFollowMeData data(static_cast<uint8_t>(lroundf(temperature)), beeper);
   this->transmit_ir_(data);
+#else
+  ESP_LOGW(TAG, "Action needs remote_transmitter component");
+#endif
 }
 
 void MideaAC::do_swing_step() {
+#ifdef USE_REMOTE_TRANSMITTER
   IrSpecialData data(0x01);
   this->transmit_ir_(data);
+#else
+  ESP_LOGW(TAG, "Action needs remote_transmitter component");
+#endif
 }
 
 void MideaAC::do_display_toggle() {
+#ifdef USE_REMOTE_TRANSMITTER
   IrSpecialData data(0x08);
   this->transmit_ir_(data);
+#else
+  ESP_LOGW(TAG, "Action needs remote_transmitter component");
+#endif
 }
 
 }  // namespace midea_ac

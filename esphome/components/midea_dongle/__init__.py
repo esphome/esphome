@@ -5,7 +5,6 @@ from esphome.components.remote_base import CONF_TRANSMITTER_ID
 from esphome.const import CONF_ID
 
 DEPENDENCIES = ["wifi", "uart"]
-AUTO_LOAD = ["remote_transmitter"]
 CODEOWNERS = ["@dudanov"]
 
 midea_dongle_ns = cg.esphome_ns.namespace("midea_dongle")
@@ -34,5 +33,6 @@ async def to_code(config):
     await uart.register_uart_device(var, config)
     cg.add(var.use_strength_icon(config[CONF_STRENGTH_ICON]))
     if CONF_TRANSMITTER_ID in config:
+        cg.add_define("USE_REMOTE_TRANSMITTER")
         transmitter_ = await cg.get_variable(config[CONF_TRANSMITTER_ID])
         cg.add(var.set_transmitter(transmitter_))

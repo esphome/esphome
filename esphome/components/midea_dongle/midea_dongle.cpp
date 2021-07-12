@@ -94,6 +94,7 @@ void MideaDongle::write_frame(const Frame &frame) {
   ESP_LOGD(TAG, "TX: %s", frame.to_string().c_str());
 }
 
+#ifdef USE_REMOTE_TRANSMITTER
 void MideaDongle::transmit_ir(remote_base::MideaData &data) {
   if (this->transmitter_ == nullptr) {
     ESP_LOGW(TAG, "To transmit IR you need remote_transmitter component in your YAML configuration.");
@@ -105,6 +106,7 @@ void MideaDongle::transmit_ir(remote_base::MideaData &data) {
   remote_base::MideaProtocol().encode(transmit.get_data(), data);
   transmit.perform();
 }
+#endif
 
 }  // namespace midea_dongle
 }  // namespace esphome

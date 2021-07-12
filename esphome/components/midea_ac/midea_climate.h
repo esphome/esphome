@@ -43,8 +43,9 @@ class MideaAC : public midea_dongle::MideaAppliance, public climate::Climate, pu
   void control(const climate::ClimateCall &call) override;
   /// Return the traits of this controller.
   climate::ClimateTraits traits() override;
+#ifdef USE_REMOTE_TRANSMITTER
   void transmit_ir_(IrData &data) { this->parent_->transmit_ir(data); }
-
+#endif
   QueryFrame query_frame_;
   PowerQueryFrame power_frame_;
   CommandFrame cmd_frame_;

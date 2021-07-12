@@ -2,9 +2,11 @@
 #include "esphome/core/component.h"
 #include "esphome/components/wifi/wifi_component.h"
 #include "esphome/components/uart/uart.h"
+#include "midea_frame.h"
+#ifdef USE_REMOTE_TRANSMITTER
 #include "esphome/components/remote_base/midea_protocol.h"
 #include "esphome/components/remote_transmitter/remote_transmitter.h"
-#include "midea_frame.h"
+#endif
 
 namespace esphome {
 namespace midea_dongle {
@@ -31,16 +33,17 @@ class MideaDongle : public PollingComponent, public uart::UARTDevice {
   void update() override;
   void loop() override;
   void set_appliance(MideaAppliance *app) { this->appliance_ = app; }
-  void set_transmitter(remote_transmitter::RemoteTransmitterComponent *transmitter) {
-    this->transmitter_ = transmitter;
-  }
-  void transmit_ir(remote_base::MideaData &data);
   void use_strength_icon(bool state) { this->rssi_timer_ = state; }
   void write_frame(const Frame &frame);
+#ifdef USE_REMOTE_TRANSMITTER
+  void set_transmitter(remote_transmitter::RemoteTransmitterComponent *transmitter) { this->transmitter_ = transmitter; }
+  void transmit_ir(remote_base::MideaData &data);
+ protected:
+  remote_transmitter::RemoteTransmitterComponent *transmitter_{nullptr};
+#endif
 
  protected:
   MideaAppliance *appliance_{nullptr};
-  remote_transmitter::RemoteTransmitterComponent *transmitter_{nullptr};
   NotifyFrame notify_;
   unsigned notify_timer_{1};
   // Buffer
