@@ -100,7 +100,7 @@ async def to_code(config):
     if model_type == "a":
         rhs = WaveshareEPaperTypeA.new(model)
         var = cg.Pvariable(config[CONF_ID], rhs, WaveshareEPaperTypeA)
-    elif (model_type == "b") | (model_type == "c"):
+    elif model_type in ("b", "c"):
         rhs = model.new()
         var = cg.Pvariable(config[CONF_ID], rhs, model)
     else:
