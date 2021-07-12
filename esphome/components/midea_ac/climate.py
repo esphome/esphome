@@ -128,7 +128,7 @@ MIDEA_ACTION_BASE_SCHEMA = cv.Schema(
 # FollowMe action
 MIDEA_FOLLOW_ME_MIN = 0
 MIDEA_FOLLOW_ME_MAX = 37
-MIDEA_FOLLOW_ME_SCHEMA = MIDEA_ACTION_BASE_SCHEMA.extend(
+MIDEA_FOLLOW_ME_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_TEMPERATURE): cv.templatable(cv.temperature),
         cv.Optional(CONF_BEEPER, default=False): cv.templatable(cv.boolean),

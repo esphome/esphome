@@ -36,8 +36,11 @@ class MideaDongle : public PollingComponent, public uart::UARTDevice {
   void use_strength_icon(bool state) { this->rssi_timer_ = state; }
   void write_frame(const Frame &frame);
 #ifdef USE_REMOTE_TRANSMITTER
-  void set_transmitter(remote_transmitter::RemoteTransmitterComponent *transmitter) { this->transmitter_ = transmitter; }
+  void set_transmitter(remote_transmitter::RemoteTransmitterComponent *transmitter) {
+    this->transmitter_ = transmitter;
+  }
   void transmit_ir(remote_base::MideaData &data);
+
  protected:
   remote_transmitter::RemoteTransmitterComponent *transmitter_{nullptr};
 #endif

@@ -96,10 +96,6 @@ void MideaDongle::write_frame(const Frame &frame) {
 
 #ifdef USE_REMOTE_TRANSMITTER
 void MideaDongle::transmit_ir(remote_base::MideaData &data) {
-  if (this->transmitter_ == nullptr) {
-    ESP_LOGW(TAG, "To transmit IR you need remote_transmitter component in your YAML configuration.");
-    return;
-  }
   data.finalize();
   ESP_LOGD(TAG, "Sending Midea IR data: %s", data.to_string().c_str());
   auto transmit = this->transmitter_->transmit();
