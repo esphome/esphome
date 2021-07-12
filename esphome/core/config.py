@@ -14,6 +14,7 @@ from esphome.const import (
     CONF_ESPHOME,
     CONF_INCLUDES,
     CONF_LIBRARIES,
+    CONF_LOG_LONG_LOOP_AT_WARNING_LEVEL,
     CONF_NAME,
     CONF_ON_BOOT,
     CONF_ON_LOOP,
@@ -201,6 +202,7 @@ CONFIG_SCHEMA = cv.Schema(
                 cv.Required(CONF_VERSION): cv.string_strict,
             }
         ),
+        cv.Optional(CONF_LOG_LONG_LOOP_AT_WARNING_LEVEL, default=False): cv.boolean,
         cv.Optional("esphome_core_version"): cv.invalid(
             "The esphome_core_version option has been "
             "removed in 1.13 - the esphome core source "
@@ -353,3 +355,6 @@ async def to_code(config):
     if CONF_PROJECT in config:
         cg.add_define("ESPHOME_PROJECT_NAME", config[CONF_PROJECT][CONF_NAME])
         cg.add_define("ESPHOME_PROJECT_VERSION", config[CONF_PROJECT][CONF_VERSION])
+
+    if config.get(CONF_LOG_LONG_LOOP_AT_WARNING_LEVEL, False):
+        cg.add_define("ESPHOME_LOG_LONG_LOOP_AT_WARNING_LEVEL")

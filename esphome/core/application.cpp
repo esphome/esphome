@@ -78,8 +78,14 @@ void Application::loop() {
 
   const uint32_t end = millis();
   if (end - start > 200) {
+    // FIXME: surely we can avoid duplicating these lines like this
+#ifdef ESPHOME_LOG_LONG_LOOP_AT_WARNING_LEVEL
     ESP_LOGW(TAG, "A component took a long time in a loop() cycle (%.2f s).", (end - start) / 1e3f);
     ESP_LOGW(TAG, "Components should block for at most 20-30ms in loop().");
+#else
+    ESP_LOGV(TAG, "A component took a long time in a loop() cycle (%.2f s).", (end - start) / 1e3f);
+    ESP_LOGV(TAG, "Components should block for at most 20-30ms in loop().");
+#endif
   }
 
   const uint32_t now = millis();

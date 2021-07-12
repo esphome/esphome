@@ -309,6 +309,7 @@ CONF_LIGHTNING_ENERGY = "lightning_energy"
 CONF_LIGHTNING_THRESHOLD = "lightning_threshold"
 CONF_LOADED_INTEGRATIONS = "loaded_integrations"
 CONF_LOCAL = "local"
+CONF_LOG_LONG_LOOP_AT_WARNING_LEVEL = 'log_long_loop_at_warning_level'
 CONF_LOG_TOPIC = "log_topic"
 CONF_LOGGER = "logger"
 CONF_LOGS = "logs"
