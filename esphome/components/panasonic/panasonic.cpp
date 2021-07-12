@@ -54,7 +54,7 @@ const uint8_t PANASONIC_PRESET_NORMAL = 0x40;
 const uint8_t PANASONIC_PRESET_QUIET = 0x40;
 const uint8_t PANASONIC_PRESET_BOOST = 0x40;
 
-static const char const *TAG = "panasonic.climate";
+static const char *const TAG = "panasonic.climate";
 
 // const uint8_t DATACONST[8] = { 0x02, 0x20, 0xE0, 0x04, 0x00, 0x00, 0x00, 0x06};
 const uint8_t DATACONST[8] = {0x40, 0x04, 0x07, 0x20, 0x00, 0x00, 0x00, 0x60};  // reversed
