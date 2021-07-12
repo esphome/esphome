@@ -282,6 +282,14 @@ bool PanasonicClimate::on_receive(remote_base::RemoteReceiveData data) {
     byte = reverse_bits_8(byte);
   }
 
+  // Byte 5 - Command mode
+  if ((message[4] & B11110000) == 0x80) {
+    // This is a non-standard command, not yet supported
+    // Econavi, powerful, quiet, nanoe-g, auto comfort
+    ESP_LOGD(TAG, "Unsupported command received: %s", hexencode(message, dataconst_length).c_str());
+    return false;
+  }
+
   /* Validate the checksum */
   uint8_t checksum = 0;
   for (uint8_t i = 0; i < message_length - 1; i++) {
