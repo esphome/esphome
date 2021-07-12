@@ -9,28 +9,33 @@ static const char *TAG = "remote.nexa";
 static const uint8_t NBITS = 32;
 static const uint32_t HEADER_HIGH_US = 319;
 static const uint32_t HEADER_LOW_US = 2610;
+static const uint32_t BIT_HIGH_US = 319;
 static const uint32_t BIT_ONE_LOW_US = 1000;
 static const uint32_t BIT_ZERO_LOW_US = 140;
-static const uint32_t BIT_HIGH_US = 319;
-static const uint32_t TX_GAP_EXTENSION = 100;
+
+static const uint32_t TX_HEADER_HIGH_US = 250;
+static const uint32_t TX_HEADER_LOW_US = TX_HEADER_HIGH_US*10;
+static const uint32_t TX_BIT_HIGH_US = 250;
+static const uint32_t TX_BIT_ONE_LOW_US = TX_BIT_HIGH_US*5;
+static const uint32_t TX_BIT_ZERO_LOW_US = TX_BIT_HIGH_US*1;
 
 
 void NexaProtocol::one(RemoteTransmitData *dst) const {
-    // '1' => '10'
-    dst->item(BIT_HIGH_US, BIT_ONE_LOW_US+TX_GAP_EXTENSION);
-    dst->item(BIT_HIGH_US, BIT_ZERO_LOW_US+TX_GAP_EXTENSION);
-    //ESP_LOGD(TAG, "1 ");
+  // '1' => '10'
+  dst->item(TX_BIT_HIGH_US, TX_BIT_ONE_LOW_US);
+  dst->item(TX_BIT_HIGH_US, TX_BIT_ZERO_LOW_US);
+  //ESP_LOGD(TAG, "1 ");
 }
 
 void NexaProtocol::zero(RemoteTransmitData *dst) const {
-    // '0' => '01' 
-    dst->item(BIT_HIGH_US, BIT_ZERO_LOW_US+TX_GAP_EXTENSION);
-    dst->item(BIT_HIGH_US, BIT_ONE_LOW_US+TX_GAP_EXTENSION);
-    //ESP_LOGD(TAG, "0 ");
+  // '0' => '01' 
+  dst->item(TX_BIT_HIGH_US, TX_BIT_ZERO_LOW_US);
+  dst->item(TX_BIT_HIGH_US, TX_BIT_ONE_LOW_US);
+  //ESP_LOGD(TAG, "0 ");
 }
 
 void NexaProtocol::sync(RemoteTransmitData *dst) const {
-  dst->item(HEADER_HIGH_US, HEADER_LOW_US);
+  dst->item(TX_HEADER_HIGH_US, TX_HEADER_LOW_US);
   //ESP_LOGD(TAG, "S ");
 }
 
@@ -38,8 +43,6 @@ void NexaProtocol::sync(RemoteTransmitData *dst) const {
 void NexaProtocol::encode(RemoteTransmitData *dst, const NexaData &data) {
   dst->set_carrier_frequency(0);
   ESP_LOGD(TAG, "Transmit NEXA: device=0x%04X group=%d state=%d channel=%d level=%d", data.device, data.group, data.state, data.channel, data.level);
-  // Start with SPACE (better timing if done)
-  dst->space(BIT_HIGH_US*5);
 
   // Send SYNC
   this->sync(dst);
@@ -87,12 +90,8 @@ void NexaProtocol::encode(RemoteTransmitData *dst, const NexaData &data) {
 
   // Send finishing Zero
   this->zero(dst);
-
-  // Send the PAUSE 
-  dst->mark(BIT_HIGH_US);
-  dst->space(BIT_HIGH_US*40);
-
 }
+
 
 optional<NexaData> NexaProtocol::decode(RemoteReceiveData src) {
 
@@ -125,7 +124,7 @@ optional<NexaData> NexaProtocol::decode(RemoteReceiveData src) {
   */
 
   // Require a SYNC pulse + long gap
-  if (!src.expect_item(HEADER_HIGH_US, HEADER_LOW_US)) 
+  if (!src.expect_pulse_with_gap(HEADER_HIGH_US, HEADER_LOW_US)) 
     return {};
 
   // Device
@@ -238,8 +237,6 @@ void NexaProtocol::rawDump(RemoteReceiveData src) {
 void NexaProtocol::dump(const NexaData &data) { 
   ESP_LOGD(TAG, "Received NEXA: device=0x%04X group=%d state=%d channel=%d level=%d", data.device, data.group, data.state, data.channel, data.level); 
 }
-
-
 
 
 }  // namespace remote_base
