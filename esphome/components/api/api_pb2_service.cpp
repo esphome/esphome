@@ -184,6 +184,20 @@ bool APIServerConnectionBase::send_climate_state_response(const ClimateStateResp
 #endif
 #ifdef USE_CLIMATE
 #endif
+#ifdef USE_NUMBER
+bool APIServerConnectionBase::send_list_entities_number_response(const ListEntitiesNumberResponse &msg) {
+  ESP_LOGVV(TAG, "send_list_entities_number_response: %s", msg.dump().c_str());
+  return this->send_message_<ListEntitiesNumberResponse>(msg, 49);
+}
+#endif
+#ifdef USE_NUMBER
+bool APIServerConnectionBase::send_number_state_response(const NumberStateResponse &msg) {
+  ESP_LOGVV(TAG, "send_number_state_response: %s", msg.dump().c_str());
+  return this->send_message_<NumberStateResponse>(msg, 50);
+}
+#endif
+#ifdef USE_NUMBER
+#endif
 bool APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) {
   switch (msg_type) {
     case 1: {
@@ -349,6 +363,15 @@ bool APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
       msg.decode(msg_data, msg_size);
       ESP_LOGVV(TAG, "on_climate_command_request: %s", msg.dump().c_str());
       this->on_climate_command_request(msg);
+#endif
+      break;
+    }
+    case 51: {
+#ifdef USE_NUMBER
+      NumberCommandRequest msg;
+      msg.decode(msg_data, msg_size);
+      ESP_LOGVV(TAG, "on_number_command_request: %s", msg.dump().c_str());
+      this->on_number_command_request(msg);
 #endif
       break;
     }
@@ -545,6 +568,19 @@ void APIServerConnection::on_climate_command_request(const ClimateCommandRequest
     return;
   }
   this->climate_command(msg);
+}
+#endif
+#ifdef USE_NUMBER
+void APIServerConnection::on_number_command_request(const NumberCommandRequest &msg) {
+  if (!this->is_connection_setup()) {
+    this->on_no_setup_connection();
+    return;
+  }
+  if (!this->is_authenticated()) {
+    this->on_unauthenticated_access();
+    return;
+  }
+  this->number_command(msg);
 }
 #endif
 
