@@ -160,9 +160,6 @@ void PanasonicClimate::transmit_state() {
       vertical_swing = PANASONIC_SWING_V_OFF;
       horizontal_swing = PANASONIC_SWING_H_OFF;
   }
-#ifndef SUPPORTS_HORIZONTAL_SWING
-  horizontal_swing = PANASONIC_SWING_H_AUTO;
-#endif
   message[8] = message[8] | vertical_swing;
   message[9] = message[9] | horizontal_swing;
 
@@ -346,12 +343,10 @@ bool PanasonicClimate::on_receive(remote_base::RemoteReceiveData data) {
   }
 
   /* Swing Mode */
-  const bool vertical_auto = (message[8] & B00001111) == PANASONIC_SWING_V_AUTO;
-#ifdef SUPPORTS_HORIZONTAL_SWING
-  const bool horizontal_auto = (message[9] == PANASONIC_SWING_H_AUTO);
-#else
-  const bool horizontal_auto = false;
-#endif
+  const bool vertical_auto = this->get_traits().supports_swing_mode(climate::CLIMATE_SWING_VERTICAL) &&
+                             (message[8] & B00001111) == PANASONIC_SWING_V_AUTO;
+  const bool horizontal_auto = this->get_traits().supports_swing_mode(climate::CLIMATE_SWING_HORIZONTAL) &&
+                               ((message[9] & B00001111) == PANASONIC_SWING_H_AUTO);
 
   if (vertical_auto && horizontal_auto) {
     this->swing_mode = climate::CLIMATE_SWING_BOTH;
