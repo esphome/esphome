@@ -21,9 +21,8 @@ namespace climate_ir {
 class ClimateIR : public climate::Climate, public Component, public remote_base::RemoteReceiverListener {
  public:
   ClimateIR(float minimum_temperature, float maximum_temperature, float temperature_step = 1.0f,
-            bool supports_dry = false, bool supports_fan_only = false,
-            std::vector<climate::ClimateFanMode> fan_modes = {},
-            std::vector<climate::ClimateSwingMode> swing_modes = {}) {
+            bool supports_dry = false, bool supports_fan_only = false, std::set<climate::ClimateFanMode> fan_modes = {},
+            std::set<climate::ClimateSwingMode> swing_modes = {}) {
     this->minimum_temperature_ = minimum_temperature;
     this->maximum_temperature_ = maximum_temperature;
     this->temperature_step_ = temperature_step;
@@ -60,8 +59,8 @@ class ClimateIR : public climate::Climate, public Component, public remote_base:
   bool supports_heat_{true};
   bool supports_dry_{false};
   bool supports_fan_only_{false};
-  std::vector<climate::ClimateFanMode> fan_modes_ = {};
-  std::vector<climate::ClimateSwingMode> swing_modes_ = {};
+  std::set<climate::ClimateFanMode> fan_modes_ = {};
+  std::set<climate::ClimateSwingMode> swing_modes_ = {};
 
   remote_transmitter::RemoteTransmitterComponent *transmitter_;
   sensor::Sensor *sensor_{nullptr};

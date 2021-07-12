@@ -1109,27 +1109,27 @@ fingerprint_grow:
   new_password: 0xA65B9840
   on_finger_scan_matched:
     - homeassistant.event:
-        event: esphome.${devicename}_fingerprint_grow_finger_scan_matched
+        event: esphome.${device_name}_fingerprint_grow_finger_scan_matched
         data:
           finger_id: !lambda 'return finger_id;'
           confidence: !lambda 'return confidence;'
   on_finger_scan_unmatched:
     - homeassistant.event:
-        event: esphome.${devicename}_fingerprint_grow_finger_scan_unmatched
+        event: esphome.${device_name}_fingerprint_grow_finger_scan_unmatched
   on_enrollment_scan:
     - homeassistant.event:
-        event: esphome.${devicename}_fingerprint_grow_enrollment_scan
+        event: esphome.${device_name}_fingerprint_grow_enrollment_scan
         data:
           finger_id: !lambda 'return finger_id;'
           scan_num: !lambda 'return scan_num;'
   on_enrollment_done:
     - homeassistant.event:
-        event: esphome.${devicename}_fingerprint_grow_node_enrollment_done
+        event: esphome.${device_name}_fingerprint_grow_node_enrollment_done
         data:
           finger_id: !lambda 'return finger_id;'
   on_enrollment_failed:
     - homeassistant.event:
-        event: esphome.${devicename}_fingerprint_grow_enrollment_failed
+        event: esphome.${device_name}_fingerprint_grow_enrollment_failed
         data:
           finger_id: !lambda 'return finger_id;'
   uart_id: uart6

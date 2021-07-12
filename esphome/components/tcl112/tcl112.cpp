@@ -47,7 +47,7 @@ void Tcl112Climate::transmit_state() {
 
   // Set mode
   switch (this->mode) {
-    case climate::CLIMATE_MODE_AUTO:
+    case climate::CLIMATE_MODE_HEAT_COOL:
       remote_state[6] &= 0xF0;
       remote_state[6] |= TCL112_AUTO;
       break;
@@ -204,7 +204,7 @@ bool Tcl112Climate::on_receive(remote_base::RemoteReceiveData data) {
         this->mode = climate::CLIMATE_MODE_FAN_ONLY;
         break;
       case TCL112_AUTO:
-        this->mode = climate::CLIMATE_MODE_AUTO;
+        this->mode = climate::CLIMATE_MODE_HEAT_COOL;
         break;
     }
   }

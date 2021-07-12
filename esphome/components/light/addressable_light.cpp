@@ -25,10 +25,10 @@ void AddressableLight::call_setup() {
 }
 
 Color esp_color_from_light_color_values(LightColorValues val) {
-  auto r = static_cast<uint8_t>(roundf(val.get_red() * 255.0f));
-  auto g = static_cast<uint8_t>(roundf(val.get_green() * 255.0f));
-  auto b = static_cast<uint8_t>(roundf(val.get_blue() * 255.0f));
-  auto w = static_cast<uint8_t>(roundf(val.get_white() * val.get_state() * 255.0f));
+  auto r = static_cast<uint8_t>(roundf(val.get_color_brightness() * val.get_red() * 255.0f));
+  auto g = static_cast<uint8_t>(roundf(val.get_color_brightness() * val.get_green() * 255.0f));
+  auto b = static_cast<uint8_t>(roundf(val.get_color_brightness() * val.get_blue() * 255.0f));
+  auto w = static_cast<uint8_t>(roundf(val.get_white() * 255.0f));
   return Color(r, g, b, w);
 }
 

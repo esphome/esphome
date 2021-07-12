@@ -44,6 +44,12 @@ class LightCall {
   LightCall &set_brightness(float brightness);
   /// Set the brightness property if the light supports brightness.
   LightCall &set_brightness_if_supported(float brightness);
+  /// Set the color brightness of the light from 0.0 (no color) to 1.0 (fully on)
+  LightCall &set_color_brightness(optional<float> brightness);
+  /// Set the color brightness of the light from 0.0 (no color) to 1.0 (fully on)
+  LightCall &set_color_brightness(float brightness);
+  /// Set the color brightness property if the light supports RGBW.
+  LightCall &set_color_brightness_if_supported(float brightness);
   /** Set the red RGB value of the light from 0.0 to 1.0.
    *
    * Note that this only controls the color of the light, not its brightness.
@@ -146,6 +152,7 @@ class LightCall {
   optional<uint32_t> transition_length_;
   optional<uint32_t> flash_length_;
   optional<float> brightness_;
+  optional<float> color_brightness_;
   optional<float> red_;
   optional<float> green_;
   optional<float> blue_;

@@ -13,7 +13,7 @@ void TuyaClimate::setup() {
       this->mode = climate::CLIMATE_MODE_OFF;
       if (datapoint.value_bool) {
         if (this->supports_heat_ && this->supports_cool_) {
-          this->mode = climate::CLIMATE_MODE_AUTO;
+          this->mode = climate::CLIMATE_MODE_HEAT_COOL;
         } else if (this->supports_heat_) {
           this->mode = climate::CLIMATE_MODE_HEAT;
         } else if (this->supports_cool_) {
@@ -68,8 +68,10 @@ void TuyaClimate::control(const climate::ClimateCall &call) {
 climate::ClimateTraits TuyaClimate::traits() {
   auto traits = climate::ClimateTraits();
   traits.set_supports_current_temperature(this->current_temperature_id_.has_value());
-  traits.set_supports_heat_mode(this->supports_heat_);
-  traits.set_supports_cool_mode(this->supports_cool_);
+  if (supports_heat_)
+    traits.add_supported_mode(climate::CLIMATE_MODE_HEAT);
+  if (supports_cool_)
+    traits.add_supported_mode(climate::CLIMATE_MODE_COOL);
   traits.set_supports_action(true);
   return traits;
 }

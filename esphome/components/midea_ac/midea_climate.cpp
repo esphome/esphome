@@ -167,24 +167,38 @@ climate::ClimateTraits MideaAC::traits() {
   traits.set_visual_min_temperature(17);
   traits.set_visual_max_temperature(30);
   traits.set_visual_temperature_step(0.5);
-  traits.set_supports_auto_mode(true);
-  traits.set_supports_cool_mode(true);
-  traits.set_supports_dry_mode(true);
-  traits.set_supports_heat_mode(true);
-  traits.set_supports_fan_only_mode(true);
-  traits.set_supports_fan_mode_auto(true);
-  traits.set_supports_fan_mode_low(true);
-  traits.set_supports_fan_mode_medium(true);
-  traits.set_supports_fan_mode_high(true);
+  traits.set_supported_modes({
+      climate::CLIMATE_MODE_OFF,
+      climate::CLIMATE_MODE_HEAT_COOL,
+      climate::CLIMATE_MODE_COOL,
+      climate::CLIMATE_MODE_DRY,
+      climate::CLIMATE_MODE_HEAT,
+      climate::CLIMATE_MODE_FAN_ONLY,
+  });
+  traits.set_supported_fan_modes({
+      climate::CLIMATE_FAN_AUTO,
+      climate::CLIMATE_FAN_LOW,
+      climate::CLIMATE_FAN_MEDIUM,
+      climate::CLIMATE_FAN_HIGH,
+  });
   traits.set_supported_custom_fan_modes(this->traits_custom_fan_modes_);
-  traits.set_supports_swing_mode_off(true);
-  traits.set_supports_swing_mode_vertical(true);
-  traits.set_supports_swing_mode_horizontal(this->traits_swing_horizontal_);
-  traits.set_supports_swing_mode_both(this->traits_swing_both_);
-  traits.set_supports_preset_home(true);
-  traits.set_supports_preset_eco(this->traits_preset_eco_);
-  traits.set_supports_preset_sleep(this->traits_preset_sleep_);
-  traits.set_supports_preset_boost(this->traits_preset_boost_);
+  traits.set_supported_swing_modes({
+      climate::CLIMATE_SWING_OFF,
+      climate::CLIMATE_SWING_VERTICAL,
+  });
+  if (traits_swing_horizontal_)
+    traits.add_supported_swing_mode(climate::CLIMATE_SWING_HORIZONTAL);
+  if (traits_swing_both_)
+    traits.add_supported_swing_mode(climate::CLIMATE_SWING_BOTH);
+  traits.set_supported_presets({
+      climate::CLIMATE_PRESET_HOME,
+  });
+  if (traits_preset_eco_)
+    traits.add_supported_preset(climate::CLIMATE_PRESET_ECO);
+  if (traits_preset_sleep_)
+    traits.add_supported_preset(climate::CLIMATE_PRESET_SLEEP);
+  if (traits_preset_boost_)
+    traits.add_supported_preset(climate::CLIMATE_PRESET_BOOST);
   traits.set_supported_custom_presets(this->traits_custom_presets_);
   traits.set_supports_current_temperature(true);
   return traits;

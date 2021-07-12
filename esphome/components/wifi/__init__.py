@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
+import esphome.final_validate as fv
 from esphome import automation
 from esphome.automation import Condition
 from esphome.components.network import add_mdns_library
@@ -137,16 +138,51 @@ WIFI_NETWORK_STA = WIFI_NETWORK_BASE.extend(
 )
 
 
-def validate(config, item_config):
-    if (
-        (CONF_NETWORKS in item_config)
-        and (item_config[CONF_NETWORKS] == [])
-        and (CONF_AP not in item_config)
-    ):
-        if "esp32_improv" not in config:
-            raise ValueError(
-                "Please specify at least an SSID or an Access Point to create."
+def final_validate(config):
+    has_sta = bool(config.get(CONF_NETWORKS, True))
+    has_ap = CONF_AP in config
+    has_improv = "esp32_improv" in fv.full_config.get()
+    if (not has_sta) and (not has_ap) and (not has_improv):
+        raise cv.Invalid(
+            "Please specify at least an SSID or an Access Point to create."
+        )
+
+
+def final_validate_power_esp32_ble(value):
+    if not CORE.is_esp32:
+        return
+    if value != "NONE":
+        # WiFi should be in modem sleep (!=NONE) with BLE coexistence
+        # https://docs.espressif.com/projects/esp-idf/en/v3.3.5/api-guides/wifi.html#station-sleep
+        return
+    framework_version = fv.get_arduino_framework_version()
+    if framework_version not in (None, "dev") and framework_version < "1.0.5":
+        # Only frameworks 1.0.5+ impacted
+        return
+    full = fv.full_config.get()
+    for conflicting in [
+        "esp32_ble",
+        "esp32_ble_beacon",
+        "esp32_ble_server",
+        "esp32_ble_tracker",
+    ]:
+        if conflicting in full:
+            raise cv.Invalid(
+                f"power_save_mode NONE is incompatible with {conflicting}. "
+                f"Please remove the power save mode. See also "
+                f"https://github.com/esphome/issues/issues/2141#issuecomment-865688582"
             )
+
+
+FINAL_VALIDATE_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.Optional(CONF_POWER_SAVE_MODE): final_validate_power_esp32_ble,
+        },
+        extra=cv.ALLOW_EXTRA,
+    ),
+    final_validate,
+)
 
 
 def _validate(config):
