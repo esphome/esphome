@@ -16,20 +16,6 @@ class PanasonicClimate : public climate_ir::ClimateIR {
                               {climate::CLIMATE_FAN_AUTO, climate::CLIMATE_FAN_LOW, climate::CLIMATE_FAN_MEDIUM,
                                climate::CLIMATE_FAN_HIGH}) {}
 
-  void set_supported_swing_modes(bool horizontal, bool vertical, bool both) {
-    if (horizontal || vertical)
-      this->swing_modes_.insert(climate::CLIMATE_SWING_OFF);
-
-    if (horizontal)
-      this->swing_modes_.insert(climate::CLIMATE_SWING_HORIZONTAL);
-
-    if (vertical)
-      this->swing_modes_.insert(climate::CLIMATE_SWING_VERTICAL);
-
-    if (both)
-      this->swing_modes_.insert(climate::CLIMATE_SWING_BOTH);
-  }
-
  protected:
   /// Transmit via IR the state of this climate controller.
   void transmit_state() override;
