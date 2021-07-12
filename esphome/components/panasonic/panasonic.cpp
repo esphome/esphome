@@ -268,9 +268,9 @@ bool PanasonicClimate::on_receive(remote_base::RemoteReceiveData data) {
     }
     if (message_matches_header) {
       if (byte == 8) {
-        // on 9th byte, check for header and if so, return false
+        // on 9th byte, check for header and if so, return true
         ESP_LOGV(TAG, "on_receive, found header packet");
-        return false;
+        return true;
       }
       // after first 8 bytes, no need to keep checking
       message_matches_header = (byte < 8 && (message[byte] == DATACONST[byte]));
@@ -287,7 +287,7 @@ bool PanasonicClimate::on_receive(remote_base::RemoteReceiveData data) {
     // This is a non-standard command, not yet supported
     // Econavi, powerful, quiet, nanoe-g, auto comfort
     ESP_LOGD(TAG, "Unsupported command received: %s", hexencode(message, DATACONST_LENGTH).c_str());
-    return false;
+    return true;
   }
 
   /* Validate the checksum */
