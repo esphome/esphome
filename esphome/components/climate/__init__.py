@@ -22,7 +22,7 @@ from esphome.const import (
     CONF_FAN_MODE,
     CONF_SWING_MODE,
     CONF_TILT_MODE,
-    CONF_PAN_MODE
+    CONF_PAN_MODE,
 )
 from esphome.core import CORE, coroutine_with_priority
 
@@ -218,14 +218,10 @@ async def climate_control_to_code(config, action_id, template_arg, args):
         )
         cg.add(var.set_swing_mode(template_))
     if CONF_TILT_MODE in config:
-        template_ = await cg.templatable(
-            config[CONF_TILT_MODE], args, ClimateTilt
-        )
+        template_ = await cg.templatable(config[CONF_TILT_MODE], args, ClimateTilt)
         cg.add(var.set_tilt_mode(template_))
     if CONF_PAN_MODE in config:
-        template_ = await cg.templatable(
-            config[CONF_PAN_MODE], args, ClimatePan
-        )
+        template_ = await cg.templatable(config[CONF_PAN_MODE], args, ClimatePan)
         cg.add(var.set_pan_mode(template_))
     return var
 
