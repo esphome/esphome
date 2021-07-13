@@ -12,7 +12,7 @@ struct NexaData {
   uint8_t channel;
   uint8_t level;
   bool operator==(const NexaData &rhs) const { 
-    return device == rhs.device && group == rhs.group && state == rhs.state && channel == rhs.channel; }
+    return device == rhs.device && group == rhs.group && state == rhs.state && channel == rhs.channel && level == rhs.level; }
 };
 
 class NexaProtocol : public RemoteProtocol<NexaData> {
