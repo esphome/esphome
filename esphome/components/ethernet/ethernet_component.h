@@ -27,9 +27,9 @@ struct ManualIP {
 };
 
 enum class EthernetComponentState {
-  Stopped,
-  Connecting,
-  Connected,
+  STOPPED,
+  CONNECTING,
+  CONNECTED,
 };
 
 class EthernetComponent : public Component {
