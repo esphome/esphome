@@ -23,7 +23,7 @@ def run_format(args, queue, lock, failed_files):
         if args.inplace:
             invocation.append('-i')
         else:
-            invocation.extend(['-n', '-Werror'])
+            invocation.extend(['--dry-run', '-Werror'])
         invocation.append(path)
 
         proc = subprocess.run(invocation, capture_output=True, encoding='utf-8')
