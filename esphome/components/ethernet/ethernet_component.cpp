@@ -84,21 +84,21 @@ void EthernetComponent::loop() {
   const uint32_t now = millis();
 
   switch (this->state_) {
-    case EthernetComponentState::Stopped:
+    case EthernetComponentState::STOPPED:
       if (this->started_) {
         ESP_LOGI(TAG, "Starting ethernet connection");
-        this->state_ = EthernetComponentState::Connecting;
+        this->state_ = EthernetComponentState::CONNECTING;
         this->start_connect_();
       }
       break;
-    case EthernetComponentState::Connecting:
+    case EthernetComponentState::CONNECTING:
       if (!this->started_) {
         ESP_LOGI(TAG, "Stopped ethernet connection");
-        this->state_ = EthernetComponentState::Stopped;
+        this->state_ = EthernetComponentState::STOPPED;
       } else if (this->connected_) {
         // connection established
         ESP_LOGI(TAG, "Connected via Ethernet!");
-        this->state_ = EthernetComponentState::Connected;
+        this->state_ = EthernetComponentState::CONNECTED;
 
         this->dump_connect_params_();
         this->status_clear_warning();
@@ -109,13 +109,13 @@ void EthernetComponent::loop() {
         this->start_connect_();
       }
       break;
-    case EthernetComponentState::Connected:
+    case EthernetComponentState::CONNECTED:
       if (!this->started_) {
         ESP_LOGI(TAG, "Stopped ethernet connection");
-        this->state_ = EthernetComponentState::Stopped;
+        this->state_ = EthernetComponentState::STOPPED;
       } else if (!this->connected_) {
         ESP_LOGW(TAG, "Connection via Ethernet lost! Re-connecting...");
-        this->state_ = EthernetComponentState::Connecting;
+        this->state_ = EthernetComponentState::CONNECTING;
         this->start_connect_();
       }
       break;
@@ -225,7 +225,7 @@ void EthernetComponent::eth_phy_power_enable_(bool enable) {
   delay(1);
   global_eth_component->orig_power_enable_fun_(enable);
 }
-bool EthernetComponent::is_connected() { return this->state_ == EthernetComponentState::Connected; }
+bool EthernetComponent::is_connected() { return this->state_ == EthernetComponentState::CONNECTED; }
 void EthernetComponent::dump_connect_params_() {
   tcpip_adapter_ip_info_t ip;
   tcpip_adapter_get_ip_info(TCPIP_ADAPTER_IF_ETH, &ip);

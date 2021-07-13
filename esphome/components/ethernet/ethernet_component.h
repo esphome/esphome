@@ -73,7 +73,7 @@ class EthernetComponent : public Component {
 
   bool started_{false};
   bool connected_{false};
-  EthernetComponentState state_{EthernetComponentState::Stopped};
+  EthernetComponentState state_{EthernetComponentState::STOPPED};
   uint32_t connect_begin_;
   eth_config_t eth_config;
   eth_phy_power_enable_func orig_power_enable_fun_;
