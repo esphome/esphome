@@ -6,7 +6,7 @@
 namespace esphome {
 namespace ufire_ise {
 
-static const char *TAG = "ufire_ise";
+static const char *const TAG = "ufire_ise";
 
 void UFireISEComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up uFire_ise...");
