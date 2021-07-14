@@ -53,11 +53,11 @@ class ADS1115Component : public Component, public i2c::I2CDevice {
 class ADS1115Sensor : public sensor::Sensor, public PollingComponent, public voltage_sampler::VoltageSampler {
  public:
   ADS1115Sensor(ADS1115Component *parent) : parent_(parent) {}
-  void update() override;
+  void update() final;
   void set_multiplexer(ADS1115Multiplexer multiplexer) { multiplexer_ = multiplexer; }
   void set_gain(ADS1115Gain gain) { gain_ = gain; }
 
-  float sample() override;
+  float sample() final;
   uint8_t get_multiplexer() const { return multiplexer_; }
   uint8_t get_gain() const { return gain_; }
 
