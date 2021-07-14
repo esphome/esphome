@@ -4,11 +4,11 @@
 namespace esphome {
 namespace tuya {
 
-static const char *TAG = "tuya.light";
+static const char *const TAG = "tuya.light";
 
 void TuyaLight::setup() {
   if (this->color_temperature_id_.has_value()) {
-    this->parent_->register_listener(*this->color_temperature_id_, [this](TuyaDatapoint datapoint) {
+    this->parent_->register_listener(*this->color_temperature_id_, [this](const TuyaDatapoint &datapoint) {
       auto call = this->state_->make_call();
       call.set_color_temperature(this->cold_white_temperature_ +
                                  (this->warm_white_temperature_ - this->cold_white_temperature_) *
@@ -17,14 +17,14 @@ void TuyaLight::setup() {
     });
   }
   if (this->dimmer_id_.has_value()) {
-    this->parent_->register_listener(*this->dimmer_id_, [this](TuyaDatapoint datapoint) {
+    this->parent_->register_listener(*this->dimmer_id_, [this](const TuyaDatapoint &datapoint) {
       auto call = this->state_->make_call();
       call.set_brightness(float(datapoint.value_uint) / this->max_value_);
       call.perform();
     });
   }
   if (switch_id_.has_value()) {
-    this->parent_->register_listener(*this->switch_id_, [this](TuyaDatapoint datapoint) {
+    this->parent_->register_listener(*this->switch_id_, [this](const TuyaDatapoint &datapoint) {
       auto call = this->state_->make_call();
       call.set_state(datapoint.value_bool);
       call.perform();

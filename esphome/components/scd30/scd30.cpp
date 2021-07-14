@@ -4,7 +4,7 @@
 namespace esphome {
 namespace scd30 {
 
-static const char *TAG = "scd30";
+static const char *const TAG = "scd30";
 
 static const uint16_t SCD30_CMD_GET_FIRMWARE_VERSION = 0xd100;
 static const uint16_t SCD30_CMD_START_CONTINUOUS_MEASUREMENTS = 0x0010;

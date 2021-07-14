@@ -10,7 +10,7 @@
 namespace esphome {
 namespace esp32_improv {
 
-static const char *TAG = "esp32_improv.component";
+static const char *const TAG = "esp32_improv.component";
 
 ESP32ImprovComponent::ESP32ImprovComponent() { global_improv_component = this; }
 

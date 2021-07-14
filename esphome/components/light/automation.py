@@ -8,6 +8,7 @@ from esphome.const import (
     CONF_FLASH_LENGTH,
     CONF_EFFECT,
     CONF_BRIGHTNESS,
+    CONF_COLOR_BRIGHTNESS,
     CONF_RED,
     CONF_GREEN,
     CONF_BLUE,
@@ -63,6 +64,7 @@ LIGHT_CONTROL_ACTION_SCHEMA = cv.Schema(
         ),
         cv.Exclusive(CONF_EFFECT, "transformer"): cv.templatable(cv.string),
         cv.Optional(CONF_BRIGHTNESS): cv.templatable(cv.percentage),
+        cv.Optional(CONF_COLOR_BRIGHTNESS): cv.templatable(cv.percentage),
         cv.Optional(CONF_RED): cv.templatable(cv.percentage),
         cv.Optional(CONF_GREEN): cv.templatable(cv.percentage),
         cv.Optional(CONF_BLUE): cv.templatable(cv.percentage),
@@ -114,6 +116,9 @@ async def light_control_to_code(config, action_id, template_arg, args):
     if CONF_BRIGHTNESS in config:
         template_ = await cg.templatable(config[CONF_BRIGHTNESS], args, float)
         cg.add(var.set_brightness(template_))
+    if CONF_COLOR_BRIGHTNESS in config:
+        template_ = await cg.templatable(config[CONF_COLOR_BRIGHTNESS], args, float)
+        cg.add(var.set_color_brightness(template_))
     if CONF_RED in config:
         template_ = await cg.templatable(config[CONF_RED], args, float)
         cg.add(var.set_red(template_))

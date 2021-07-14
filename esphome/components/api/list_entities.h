@@ -40,6 +40,9 @@ class ListEntitiesIterator : public ComponentIterator {
 #ifdef USE_CLIMATE
   bool on_climate(climate::Climate *climate) override;
 #endif
+#ifdef USE_NUMBER
+  bool on_number(number::Number *number) override;
+#endif
   bool on_end() override;
 
  protected:

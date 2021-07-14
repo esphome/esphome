@@ -4,7 +4,7 @@
 namespace esphome {
 namespace gpio {
 
-static const char *TAG = "switch.gpio";
+static const char *const TAG = "switch.gpio";
 
 float GPIOSwitch::get_setup_priority() const { return setup_priority::HARDWARE; }
 void GPIOSwitch::setup() {

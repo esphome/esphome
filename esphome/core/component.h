@@ -246,7 +246,7 @@ class PollingComponent : public Component {
 class Nameable {
  public:
   Nameable() : Nameable("") {}
-  explicit Nameable(const std::string &name);
+  explicit Nameable(std::string name);
   const std::string &get_name() const;
   void set_name(const std::string &name);
   /// Get the sanitized name of this nameable as an ID. Caching it internally.

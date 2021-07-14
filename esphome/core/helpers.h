@@ -28,7 +28,7 @@
 namespace esphome {
 
 /// The characters that are allowed in a hostname.
-extern const char *HOSTNAME_CHARACTER_ALLOWLIST;
+extern const char *const HOSTNAME_CHARACTER_ALLOWLIST;
 
 /// Gets the MAC address as a string, this can be used as way to identify this ESP.
 std::string get_mac_address();
@@ -37,11 +37,11 @@ std::string get_mac_address_pretty();
 
 std::string to_string(const std::string &val);
 std::string to_string(int val);
-std::string to_string(long val);
-std::string to_string(long long val);
-std::string to_string(unsigned val);
-std::string to_string(unsigned long val);
-std::string to_string(unsigned long long val);
+std::string to_string(long val);                // NOLINT
+std::string to_string(long long val);           // NOLINT
+std::string to_string(unsigned val);            // NOLINT
+std::string to_string(unsigned long val);       // NOLINT
+std::string to_string(unsigned long long val);  // NOLINT
 std::string to_string(float val);
 std::string to_string(double val);
 std::string to_string(long double val);
@@ -80,7 +80,7 @@ class HighFrequencyLoopRequester {
  * @param max The maximum value.
  * @return val clamped in between min and max.
  */
-float clamp(float val, float min, float max);
+template<typename T> T clamp(T val, T min, T max);
 
 /** Linearly interpolate between end start and end by completion.
  *

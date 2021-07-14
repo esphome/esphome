@@ -1,5 +1,5 @@
 #pragma once
-#include <stdint.h>
+#include <cstdint>
 namespace esphome {
 namespace sgp40 {
 
@@ -52,31 +52,31 @@ struct VocAlgorithmParams {
   fix16_t mUptime;
   fix16_t mSraw;
   fix16_t mVoc_Index;
-  fix16_t m_Mean_Variance_Estimator__Gating_Max_Duration_Minutes;
-  bool m_Mean_Variance_Estimator___Initialized;
-  fix16_t m_Mean_Variance_Estimator___Mean;
-  fix16_t m_Mean_Variance_Estimator___Sraw_Offset;
-  fix16_t m_Mean_Variance_Estimator___Std;
-  fix16_t m_Mean_Variance_Estimator___Gamma;
-  fix16_t m_Mean_Variance_Estimator___Gamma_Initial_Mean;
-  fix16_t m_Mean_Variance_Estimator___Gamma_Initial_Variance;
-  fix16_t m_Mean_Variance_Estimator__Gamma_Mean;
-  fix16_t m_Mean_Variance_Estimator__Gamma_Variance;
-  fix16_t m_Mean_Variance_Estimator___Uptime_Gamma;
-  fix16_t m_Mean_Variance_Estimator___Uptime_Gating;
-  fix16_t m_Mean_Variance_Estimator___Gating_Duration_Minutes;
-  fix16_t m_Mean_Variance_Estimator___Sigmoid__L;
-  fix16_t m_Mean_Variance_Estimator___Sigmoid__K;
-  fix16_t m_Mean_Variance_Estimator___Sigmoid__X0;
-  fix16_t m_Mox_Model__Sraw_Std;
-  fix16_t m_Mox_Model__Sraw_Mean;
-  fix16_t m_Sigmoid_Scaled__Offset;
-  fix16_t m_Adaptive_Lowpass__A1;
-  fix16_t m_Adaptive_Lowpass__A2;
-  bool m_Adaptive_Lowpass___Initialized;
-  fix16_t m_Adaptive_Lowpass___X1;
-  fix16_t m_Adaptive_Lowpass___X2;
-  fix16_t m_Adaptive_Lowpass___X3;
+  fix16_t m_Mean_Variance_Estimator_Gating_Max_Duration_Minutes;
+  bool m_Mean_Variance_Estimator_Initialized;
+  fix16_t m_Mean_Variance_Estimator_Mean;
+  fix16_t m_Mean_Variance_Estimator_Sraw_Offset;
+  fix16_t m_Mean_Variance_Estimator_Std;
+  fix16_t m_Mean_Variance_Estimator_Gamma;
+  fix16_t m_Mean_Variance_Estimator_Gamma_Initial_Mean;
+  fix16_t m_Mean_Variance_Estimator_Gamma_Initial_Variance;
+  fix16_t m_Mean_Variance_Estimator_Gamma_Mean;
+  fix16_t m_Mean_Variance_Estimator_Gamma_Variance;
+  fix16_t m_Mean_Variance_Estimator_Uptime_Gamma;
+  fix16_t m_Mean_Variance_Estimator_Uptime_Gating;
+  fix16_t m_Mean_Variance_Estimator_Gating_Duration_Minutes;
+  fix16_t m_Mean_Variance_Estimator_Sigmoid_L;
+  fix16_t m_Mean_Variance_Estimator_Sigmoid_K;
+  fix16_t m_Mean_Variance_Estimator_Sigmoid_X0;
+  fix16_t m_Mox_Model_Sraw_Std;
+  fix16_t m_Mox_Model_Sraw_Mean;
+  fix16_t m_Sigmoid_Scaled_Offset;
+  fix16_t m_Adaptive_Lowpass_A1;
+  fix16_t m_Adaptive_Lowpass_A2;
+  bool m_Adaptive_Lowpass_Initialized;
+  fix16_t m_Adaptive_Lowpass_X1;
+  fix16_t m_Adaptive_Lowpass_X2;
+  fix16_t m_Adaptive_Lowpass_X3;
 };
 
 /**

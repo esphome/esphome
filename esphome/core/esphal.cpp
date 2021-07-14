@@ -18,7 +18,7 @@ void ICACHE_RAM_ATTR __detachInterrupt(uint8_t pin);  // NOLINT
 
 namespace esphome {
 
-static const char *TAG = "esphal";
+static const char *const TAG = "esphal";
 
 GPIOPin::GPIOPin(uint8_t pin, uint8_t mode, bool inverted)
     : pin_(pin),

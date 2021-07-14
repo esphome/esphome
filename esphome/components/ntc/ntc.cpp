@@ -4,7 +4,7 @@
 namespace esphome {
 namespace ntc {
 
-static const char *TAG = "ntc";
+static const char *const TAG = "ntc";
 
 void NTC::setup() {
   this->sensor_->add_on_state_callback([this](float value) { this->process_(value); });

@@ -4,7 +4,7 @@
 namespace esphome {
 namespace teleinfo {
 
-static const char *TAG = "teleinfo";
+static const char *const TAG = "teleinfo";
 
 /* Helpers */
 static int get_field(char *dest, char *buf_start, char *buf_end, int sep) {
@@ -120,7 +120,7 @@ void TeleInfo::loop() {
         }
 
         if (!check_crc_(buf_finger, grp_end))
-          break;
+          continue;
 
         /* Get tag */
         field_len = get_field(tag_, buf_finger, grp_end, separator_);
@@ -148,7 +148,7 @@ void TeleInfo::loop() {
       break;
   }
 }
-void TeleInfo::publish_value_(std::string tag, std::string val) {
+void TeleInfo::publish_value_(const std::string &tag, const std::string &val) {
   for (auto element : teleinfo_listeners_) {
     if (tag != element->tag)
       continue;

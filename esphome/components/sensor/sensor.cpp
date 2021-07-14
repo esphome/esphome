@@ -4,7 +4,7 @@
 namespace esphome {
 namespace sensor {
 
-static const char *TAG = "sensor";
+static const char *const TAG = "sensor";
 
 const char *state_class_to_string(StateClass state_class) {
   switch (state_class) {
@@ -28,7 +28,6 @@ void Sensor::publish_state(float state) {
     this->filter_list_->input(state);
   }
 }
-void Sensor::push_new_value(float state) { this->publish_state(state); }
 std::string Sensor::unit_of_measurement() { return ""; }
 std::string Sensor::icon() { return ""; }
 uint32_t Sensor::update_interval() { return 0; }
@@ -104,9 +103,7 @@ void Sensor::clear_filters() {
   }
   this->filter_list_ = nullptr;
 }
-float Sensor::get_value() const { return this->state; }
 float Sensor::get_state() const { return this->state; }
-float Sensor::get_raw_value() const { return this->raw_state; }
 float Sensor::get_raw_state() const { return this->raw_state; }
 std::string Sensor::unique_id() { return ""; }
 

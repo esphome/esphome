@@ -4,7 +4,7 @@
 namespace esphome {
 namespace custom {
 
-static const char *TAG = "custom.sensor";
+static const char *const TAG = "custom.sensor";
 
 void CustomSensorConstructor::dump_config() {
   for (auto *child : this->sensors_) {

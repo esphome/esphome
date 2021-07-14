@@ -15,10 +15,12 @@ esphome/components/ac_dimmer/* @glmnet
 esphome/components/adc/* @esphome/core
 esphome/components/addressable_light/* @justfalter
 esphome/components/animation/* @syndlex
+esphome/components/anova/* @buxtronix
 esphome/components/api/* @OttoWinter
 esphome/components/async_tcp/* @OttoWinter
 esphome/components/atc_mithermometer/* @ahpohl
 esphome/components/b_parasite/* @rbaron
+esphome/components/ballu/* @bazuchan
 esphome/components/bang_bang/* @OttoWinter
 esphome/components/binary_sensor/* @esphome/core
 esphome/components/ble_client/* @buxtronix
@@ -45,6 +47,7 @@ esphome/components/fingerprint_grow/* @OnFreund @loongyh
 esphome/components/globals/* @esphome/core
 esphome/components/gpio/* @esphome/core
 esphome/components/gps/* @coogle
+esphome/components/havells_solar/* @sourabhjaiswal
 esphome/components/homeassistant/* @OttoWinter
 esphome/components/i2c/* @esphome/core
 esphome/components/improv/* @jesserockz
@@ -71,6 +74,7 @@ esphome/components/midea_dongle/* @dudanov
 esphome/components/mitsubishi/* @RubyBailey
 esphome/components/network/* @esphome/core
 esphome/components/nfc/* @jesserockz
+esphome/components/number/* @esphome/core
 esphome/components/ota/* @esphome/core
 esphome/components/output/* @esphome/core
 esphome/components/pid/* @OttoWinter

@@ -29,7 +29,7 @@
 namespace esphome {
 namespace wifi {
 
-static const char *TAG = "wifi";
+static const char *const TAG = "wifi";
 
 float WiFiComponent::get_setup_priority() const { return setup_priority::WIFI; }
 
@@ -164,7 +164,7 @@ void WiFiComponent::loop() {
 
 WiFiComponent::WiFiComponent() { global_wifi_component = this; }
 
-bool WiFiComponent::has_ap() const { return !this->ap_.get_ssid().empty(); }
+bool WiFiComponent::has_ap() const { return this->has_ap_; }
 bool WiFiComponent::has_sta() const { return !this->sta_.empty(); }
 void WiFiComponent::set_fast_connect(bool fast_connect) { this->fast_connect_ = fast_connect; }
 IPAddress WiFiComponent::get_ip_address() {
@@ -186,6 +186,18 @@ void WiFiComponent::setup_ap_config_() {
 
   if (this->ap_setup_)
     return;
+
+  if (this->ap_.get_ssid().empty()) {
+    std::string name = App.get_name();
+    if (name.length() > 32) {
+      if (App.is_name_add_mac_suffix_enabled()) {
+        name.erase(name.begin() + 25, name.end() - 7);  // Remove characters between 25 and the mac address
+      } else {
+        name = name.substr(0, 32);
+      }
+    }
+    this->ap_.set_ssid(name);
+  }
 
   ESP_LOGCONFIG(TAG, "Setting up AP...");
 
@@ -212,7 +224,10 @@ void WiFiComponent::setup_ap_config_() {
 float WiFiComponent::get_loop_priority() const {
   return 10.0f;  // before other loop components
 }
-void WiFiComponent::set_ap(const WiFiAP &ap) { this->ap_ = ap; }
+void WiFiComponent::set_ap(const WiFiAP &ap) {
+  this->ap_ = ap;
+  this->has_ap_ = true;
+}
 void WiFiComponent::add_sta(const WiFiAP &ap) { this->sta_.push_back(ap); }
 void WiFiComponent::set_sta(const WiFiAP &ap) {
   this->clear_sta();
@@ -221,8 +236,8 @@ void WiFiComponent::set_sta(const WiFiAP &ap) {
 void WiFiComponent::clear_sta() { this->sta_.clear(); }
 void WiFiComponent::save_wifi_sta(const std::string &ssid, const std::string &password) {
   SavedWifiSettings save{};
-  strcpy(save.ssid, ssid.c_str());
-  strcpy(save.password, password.c_str());
+  strncpy(save.ssid, ssid.c_str(), sizeof(save.ssid));
+  strncpy(save.password, password.c_str(), sizeof(save.password));
   this->pref_.save(&save);
 
   WiFiAP sta{};
@@ -587,7 +602,7 @@ void WiFiComponent::retry_connect() {
 }
 
 bool WiFiComponent::can_proceed() {
-  if (this->has_ap() && !this->has_sta()) {
+  if (!this->has_sta()) {
     return true;
   }
   return this->is_connected();
@@ -627,7 +642,7 @@ void WiFiAP::set_password(const std::string &password) { this->password_ = passw
 void WiFiAP::set_eap(optional<EAPAuth> eap_auth) { this->eap_ = eap_auth; }
 #endif
 void WiFiAP::set_channel(optional<uint8_t> channel) { this->channel_ = channel; }
-void WiFiAP::set_manual_ip(optional<ManualIP> manual_ip) { this->manual_ip_ = manual_ip; }
+void WiFiAP::set_manual_ip(optional<ManualIP> manual_ip) { this->manual_ip_ = std::move(manual_ip); }
 void WiFiAP::set_hidden(bool hidden) { this->hidden_ = hidden; }
 const std::string &WiFiAP::get_ssid() const { return this->ssid_; }
 const optional<bssid_t> &WiFiAP::get_bssid() const { return this->bssid_; }
@@ -639,9 +654,14 @@ const optional<uint8_t> &WiFiAP::get_channel() const { return this->channel_; }
 const optional<ManualIP> &WiFiAP::get_manual_ip() const { return this->manual_ip_; }
 bool WiFiAP::get_hidden() const { return this->hidden_; }
 
-WiFiScanResult::WiFiScanResult(const bssid_t &bssid, const std::string &ssid, uint8_t channel, int8_t rssi,
-                               bool with_auth, bool is_hidden)
-    : bssid_(bssid), ssid_(ssid), channel_(channel), rssi_(rssi), with_auth_(with_auth), is_hidden_(is_hidden) {}
+WiFiScanResult::WiFiScanResult(const bssid_t &bssid, std::string ssid, uint8_t channel, int8_t rssi, bool with_auth,
+                               bool is_hidden)
+    : bssid_(bssid),
+      ssid_(std::move(ssid)),
+      channel_(channel),
+      rssi_(rssi),
+      with_auth_(with_auth),
+      is_hidden_(is_hidden) {}
 bool WiFiScanResult::matches(const WiFiAP &config) {
   if (config.get_hidden()) {
     // User configured a hidden network, only match actually hidden networks
@@ -688,7 +708,7 @@ int8_t WiFiScanResult::get_rssi() const { return this->rssi_; }
 bool WiFiScanResult::get_with_auth() const { return this->with_auth_; }
 bool WiFiScanResult::get_is_hidden() const { return this->is_hidden_; }
 
-WiFiComponent *global_wifi_component;
+WiFiComponent *global_wifi_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 }  // namespace wifi
 }  // namespace esphome

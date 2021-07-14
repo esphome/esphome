@@ -66,7 +66,7 @@ bool mqtt_is_connected() {
 bool remote_is_connected() { return api_is_connected() || mqtt_is_connected(); }
 
 #if defined(ARDUINO_ARCH_ESP8266) && defined(USE_MDNS)
-bool mdns_setup;
+static bool mdns_setup;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 #endif
 
 #ifndef WEBSERVER_PORT
@@ -80,7 +80,7 @@ void network_setup_mdns(IPAddress address, int interface) {
   // see https://github.com/esp8266/Arduino/issues/6114
   if (interface == 1)
     return;
-  MDNS.begin(App.get_name().c_str(), address);
+  MDNS.begin(App.get_name().c_str(), std::move(address));
   mdns_setup = true;
 #endif
 #ifdef ARDUINO_ARCH_ESP32
