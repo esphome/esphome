@@ -47,6 +47,7 @@ esphome/components/fingerprint_grow/* @OnFreund @loongyh
 esphome/components/globals/* @esphome/core
 esphome/components/gpio/* @esphome/core
 esphome/components/gps/* @coogle
+esphome/components/havells_solar/* @sourabhjaiswal
 esphome/components/homeassistant/* @OttoWinter
 esphome/components/i2c/* @esphome/core
 esphome/components/improv/* @jesserockz
