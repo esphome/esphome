@@ -122,7 +122,7 @@ void TeleInfo::loop() {
         if (!check_crc_(buf_finger, grp_end))
           continue;
 
-	/* Get tag */
+        /* Get tag */
         field_len = get_field(tag_, buf_finger, grp_end, separator_);
         if (!field_len || field_len >= MAX_TAG_SIZE) {
           ESP_LOGE(TAG, "Invalid tag.");
