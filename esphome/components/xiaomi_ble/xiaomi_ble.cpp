@@ -10,7 +10,7 @@
 namespace esphome {
 namespace xiaomi_ble {
 
-static const char *TAG = "xiaomi_ble";
+static const char *const TAG = "xiaomi_ble";
 
 bool parse_xiaomi_value(uint8_t value_type, const uint8_t *data, uint8_t value_length, XiaomiParseResult &result) {
   // motion detection, 1 byte, 8-bit unsigned integer

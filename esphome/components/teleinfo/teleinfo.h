@@ -16,7 +16,7 @@ static const uint16_t MAX_BUF_SIZE = 1024;
 class TeleInfoListener {
  public:
   std::string tag;
-  virtual void publish_val(std::string val){};
+  virtual void publish_val(const std::string &val){};
 };
 class TeleInfo : public PollingComponent, public uart::UARTDevice {
  public:
@@ -44,7 +44,7 @@ class TeleInfo : public PollingComponent, public uart::UARTDevice {
   } state_{OFF};
   bool read_chars_until_(bool drop, uint8_t c);
   bool check_crc_(const char *grp, const char *grp_end);
-  void publish_value_(std::string tag, std::string val);
+  void publish_value_(const std::string &tag, const std::string &val);
 };
 }  // namespace teleinfo
 }  // namespace esphome

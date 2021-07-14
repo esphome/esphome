@@ -19,7 +19,7 @@
 namespace esphome {
 namespace web_server {
 
-static const char *TAG = "web_server";
+static const char *const TAG = "web_server";
 
 void write_row(AsyncResponseStream *stream, Nameable *obj, const std::string &klass, const std::string &action) {
   if (obj->is_internal())
@@ -119,6 +119,12 @@ void WebServer::setup() {
       if (!obj->is_internal())
         client->send(this->cover_json(obj).c_str(), "state");
 #endif
+
+#ifdef USE_NUMBER
+    for (auto *obj : App.get_numbers())
+      if (!obj->is_internal())
+        client->send(this->number_json(obj, obj->state).c_str(), "state");
+#endif
   });
 
 #ifdef USE_LOGGER
@@ -196,6 +202,11 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
     write_row(stream, obj, "cover", "<button>Open</button><button>Close</button>");
 #endif
 
+#ifdef USE_NUMBER
+  for (auto *obj : App.get_numbers())
+    write_row(stream, obj, "number", "");
+#endif
+
   stream->print(F("</tbody></table><p>See <a href=\"https://esphome.io/web-api/index.html\">ESPHome Web API</a> for "
                   "REST API documentation.</p>"
                   "<h2>OTA Update</h2><form method=\"POST\" action=\"/update\" enctype=\"multipart/form-data\"><input "
@@ -242,7 +253,7 @@ void WebServer::handle_js_request(AsyncWebServerRequest *request) {
 void WebServer::on_sensor_update(sensor::Sensor *obj, float state) {
   this->events_.send(this->sensor_json(obj, state).c_str(), "state");
 }
-void WebServer::handle_sensor_request(AsyncWebServerRequest *request, UrlMatch match) {
+void WebServer::handle_sensor_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (sensor::Sensor *obj : App.get_sensors()) {
     if (obj->is_internal())
       continue;
@@ -267,10 +278,10 @@ std::string WebServer::sensor_json(sensor::Sensor *obj, float value) {
 #endif
 
 #ifdef USE_TEXT_SENSOR
-void WebServer::on_text_sensor_update(text_sensor::TextSensor *obj, std::string state) {
+void WebServer::on_text_sensor_update(text_sensor::TextSensor *obj, const std::string &state) {
   this->events_.send(this->text_sensor_json(obj, state).c_str(), "state");
 }
-void WebServer::handle_text_sensor_request(AsyncWebServerRequest *request, UrlMatch match) {
+void WebServer::handle_text_sensor_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (text_sensor::TextSensor *obj : App.get_text_sensors()) {
     if (obj->is_internal())
       continue;
@@ -302,7 +313,7 @@ std::string WebServer::switch_json(switch_::Switch *obj, bool value) {
     root["value"] = value;
   });
 }
-void WebServer::handle_switch_request(AsyncWebServerRequest *request, UrlMatch match) {
+void WebServer::handle_switch_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (switch_::Switch *obj : App.get_switches()) {
     if (obj->is_internal())
       continue;
@@ -343,7 +354,7 @@ std::string WebServer::binary_sensor_json(binary_sensor::BinarySensor *obj, bool
     root["value"] = value;
   });
 }
-void WebServer::handle_binary_sensor_request(AsyncWebServerRequest *request, UrlMatch match) {
+void WebServer::handle_binary_sensor_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (binary_sensor::BinarySensor *obj : App.get_binary_sensors()) {
     if (obj->is_internal())
       continue;
@@ -387,7 +398,7 @@ std::string WebServer::fan_json(fan::FanState *obj) {
       root["oscillation"] = obj->oscillating;
   });
 }
-void WebServer::handle_fan_request(AsyncWebServerRequest *request, UrlMatch match) {
+void WebServer::handle_fan_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (fan::FanState *obj : App.get_fans()) {
     if (obj->is_internal())
       continue;
@@ -453,7 +464,7 @@ void WebServer::on_light_update(light::LightState *obj) {
     return;
   this->events_.send(this->light_json(obj).c_str(), "state");
 }
-void WebServer::handle_light_request(AsyncWebServerRequest *request, UrlMatch match) {
+void WebServer::handle_light_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (light::LightState *obj : App.get_lights()) {
     if (obj->is_internal())
       continue;
@@ -528,7 +539,7 @@ void WebServer::on_cover_update(cover::Cover *obj) {
     return;
   this->events_.send(this->cover_json(obj).c_str(), "state");
 }
-void WebServer::handle_cover_request(AsyncWebServerRequest *request, UrlMatch match) {
+void WebServer::handle_cover_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (cover::Cover *obj : App.get_covers()) {
     if (obj->is_internal())
       continue;
@@ -584,6 +595,32 @@ std::string WebServer::cover_json(cover::Cover *obj) {
 }
 #endif
 
+#ifdef USE_NUMBER
+void WebServer::on_number_update(number::Number *obj, float state) {
+  this->events_.send(this->number_json(obj, state).c_str(), "state");
+}
+void WebServer::handle_number_request(AsyncWebServerRequest *request, const UrlMatch &match) {
+  for (auto *obj : App.get_numbers()) {
+    if (obj->is_internal())
+      continue;
+    if (obj->get_object_id() != match.id)
+      continue;
+    std::string data = this->number_json(obj, obj->state);
+    request->send(200, "text/json", data.c_str());
+    return;
+  }
+  request->send(404);
+}
+std::string WebServer::number_json(number::Number *obj, float value) {
+  return json::build_json([obj, value](JsonObject &root) {
+    root["id"] = "number-" + obj->get_object_id();
+    std::string state = value_accuracy_to_string(value, obj->get_accuracy_decimals());
+    root["state"] = state;
+    root["value"] = value;
+  });
+}
+#endif
+
 bool WebServer::canHandle(AsyncWebServerRequest *request) {
   if (request->url() == "/")
     return true;
@@ -633,6 +670,11 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) {
 
 #ifdef USE_COVER
   if ((request->method() == HTTP_POST || request->method() == HTTP_GET) && match.domain == "cover")
+    return true;
+#endif
+
+#ifdef USE_NUMBER
+  if (request->method() == HTTP_GET && match.domain == "number")
     return true;
 #endif
 
@@ -708,6 +750,13 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
 #ifdef USE_COVER
   if (match.domain == "cover") {
     this->handle_cover_request(request, match);
+    return;
+  }
+#endif
+
+#ifdef USE_NUMBER
+  if (match.domain == "number") {
+    this->handle_number_request(request, match);
     return;
   }
 #endif

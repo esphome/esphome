@@ -716,9 +716,6 @@ class LogoutHandler(BaseHandler):
         self.redirect("./login")
 
 
-_STATIC_FILE_HASHES = {}
-
-
 def get_base_frontend_path():
     if ENV_DEV not in os.environ:
         import esphome_dashboard
@@ -741,19 +738,23 @@ def get_static_path(*args):
     return os.path.join(get_base_frontend_path(), "static", *args)
 
 
+@functools.lru_cache(maxsize=None)
 def get_static_file_url(name):
+    base = f"./static/{name}"
+
+    if ENV_DEV in os.environ:
+        return base
+
     # Module imports can't deduplicate if stuff added to url
     if name == "js/esphome/index.js":
-        return f"./static/{name}"
+        import esphome_dashboard
 
-    if name in _STATIC_FILE_HASHES:
-        hash_ = _STATIC_FILE_HASHES[name]
-    else:
-        path = get_static_path(name)
-        with open(path, "rb") as f_handle:
-            hash_ = hashlib.md5(f_handle.read()).hexdigest()[:8]
-        _STATIC_FILE_HASHES[name] = hash_
-    return f"./static/{name}?hash={hash_}"
+        return base.replace("index.js", esphome_dashboard.entrypoint())
+
+    path = get_static_path(name)
+    with open(path, "rb") as f_handle:
+        hash_ = hashlib.md5(f_handle.read()).hexdigest()[:8]
+    return f"{base}?hash={hash_}"
 
 
 def make_app(debug=get_bool_env(ENV_DEV)):
@@ -819,9 +820,6 @@ def make_app(debug=get_bool_env(ENV_DEV)):
         ],
         **app_settings,
     )
-
-    if debug:
-        _STATIC_FILE_HASHES.clear()
 
     return app
 

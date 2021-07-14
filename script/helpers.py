@@ -40,7 +40,7 @@ def build_all_include():
 def build_compile_commands():
     gcc_flags_json = os.path.join(root_path, ".gcc-flags.json")
     if not os.path.isfile(gcc_flags_json):
-        print("Could not find {} file which is required for clang-tidy.")
+        print("Could not find {} file which is required for clang-tidy.".format(gcc_flags_json))
         print(
             'Please run "pio init --ide atom" in the root esphome folder to generate that file.'
         )

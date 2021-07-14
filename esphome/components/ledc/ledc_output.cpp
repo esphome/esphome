@@ -8,7 +8,7 @@
 namespace esphome {
 namespace ledc {
 
-static const char *TAG = "ledc.output";
+static const char *const TAG = "ledc.output";
 
 void LEDCOutput::write_state(float state) {
   if (this->pin_->is_inverted())

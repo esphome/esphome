@@ -63,6 +63,11 @@ class APIConnection : public APIServerConnection {
   bool send_climate_info(climate::Climate *climate);
   void climate_command(const ClimateCommandRequest &msg) override;
 #endif
+#ifdef USE_NUMBER
+  bool send_number_state(number::Number *number, float state);
+  bool send_number_info(number::Number *number);
+  void number_command(const NumberCommandRequest &msg) override;
+#endif
   bool send_log_message(int level, const char *tag, const char *line);
   void send_homeassistant_service_call(const HomeassistantServiceResponse &call) {
     if (!this->service_call_subscription_)

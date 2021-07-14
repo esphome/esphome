@@ -4,7 +4,7 @@
 namespace esphome {
 namespace tcl112 {
 
-static const char *TAG = "tcl112.climate";
+static const char *const TAG = "tcl112.climate";
 
 const uint16_t TCL112_STATE_LENGTH = 14;
 const uint16_t TCL112_BITS = TCL112_STATE_LENGTH * 8;
@@ -47,7 +47,7 @@ void Tcl112Climate::transmit_state() {
 
   // Set mode
   switch (this->mode) {
-    case climate::CLIMATE_MODE_AUTO:
+    case climate::CLIMATE_MODE_HEAT_COOL:
       remote_state[6] &= 0xF0;
       remote_state[6] |= TCL112_AUTO;
       break;
@@ -204,7 +204,7 @@ bool Tcl112Climate::on_receive(remote_base::RemoteReceiveData data) {
         this->mode = climate::CLIMATE_MODE_FAN_ONLY;
         break;
       case TCL112_AUTO:
-        this->mode = climate::CLIMATE_MODE_AUTO;
+        this->mode = climate::CLIMATE_MODE_HEAT_COOL;
         break;
     }
   }

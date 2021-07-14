@@ -4,7 +4,7 @@
 namespace esphome {
 namespace sgp40 {
 
-static const char *TAG = "sgp40";
+static const char *const TAG = "sgp40";
 
 void SGP40Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up SGP40...");

@@ -307,4 +307,4 @@ jobs:
             -X POST \
             -H "Accept: application/vnd.github.v3+json" \
             https://api.github.com/repos/esphome/hassio/actions/workflows/bump-version.yml/dispatches \
-            -d "{\"ref\":\"master\",\"inputs\":{\"version\":\"$TAG\"}}"
+            -d "{\"ref\":\"main\",\"inputs\":{\"version\":\"$TAG\"}}"

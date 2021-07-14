@@ -5,7 +5,7 @@
 namespace esphome {
 namespace e131 {
 
-static const char *TAG = "e131_addressable_light_effect";
+static const char *const TAG = "e131_addressable_light_effect";
 static const int MAX_DATA_SIZE = (sizeof(E131Packet::values) - 1);
 
 E131AddressableLightEffect::E131AddressableLightEffect(const std::string &name) : AddressableLightEffect(name) {}
