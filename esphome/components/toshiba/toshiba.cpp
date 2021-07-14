@@ -120,8 +120,8 @@ void ToshibaClimate::setup() {
     this->swing_mode = climate::CLIMATE_SWING_OFF;
   }
   // Set supported modes & temperatures based on model
-  this->minimum_temperature_ = temperature_min_();
-  this->maximum_temperature_ = temperature_max_();
+  this->minimum_temperature_ = this->temperature_min_();
+  this->maximum_temperature_ = this->temperature_max_();
   this->supports_dry_ = this->toshiba_supports_dry_();
   this->supports_fan_only_ = this->toshiba_supports_fan_only_();
   this->fan_modes_ = this->toshiba_fan_modes_();
