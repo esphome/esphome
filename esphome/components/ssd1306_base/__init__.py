@@ -13,8 +13,6 @@ from esphome.const import (
     CONF_INVERT,
 )
 
-_LOGGER = logging.getLogger(__name__)
-
 ssd1306_base_ns = cg.esphome_ns.namespace("ssd1306_base")
 SSD1306 = ssd1306_base_ns.class_("SSD1306", cg.PollingComponent, display.DisplayBuffer)
 SSD1306Model = ssd1306_base_ns.enum("SSD1306Model")
