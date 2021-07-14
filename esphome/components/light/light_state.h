@@ -68,14 +68,6 @@ class LightState : public Nameable, public Component {
    */
   LightColorValues remote_values;
 
-  /// Deprecated method to access current_values.
-  ESPDEPRECATED("get_current_values() is deprecated, please use .current_values instead.")
-  LightColorValues get_current_values();
-
-  /// Deprecated method to access remote_values.
-  ESPDEPRECATED("get_remote_values() is deprecated, please use .remote_values instead.")
-  LightColorValues get_remote_values();
-
   /// Publish the currently active state to the frontend.
   void publish_state();
 
