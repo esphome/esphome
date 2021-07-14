@@ -47,12 +47,13 @@ class LightColorValues {
   LightColorValues()
       : state_(0.0f),
         brightness_(1.0f),
+        color_mode_(ColorMode::UNKNOWN),
         color_brightness_(1.0f),
         red_(1.0f),
         green_(1.0f),
         blue_(1.0f),
         white_(1.0f),
-        color_temperature_{1.0f},
+        color_temperature_{0.0f},
         cold_white_{1.0f},
         warm_white_{1.0f} {}
 
@@ -245,9 +246,7 @@ class LightColorValues {
   /// Get the color temperature property of these light color values in mired.
   float get_color_temperature() const { return this->color_temperature_; }
   /// Set the color temperature property of these light color values in mired.
-  void set_color_temperature(float color_temperature) {
-    this->color_temperature_ = std::max(0.000001f, color_temperature);
-  }
+  void set_color_temperature(float color_temperature) { this->color_temperature_ = color_temperature; }
 
   /// Get the cold white property of these light color values. In range 0.0 to 1.0.
   float get_cold_white() const { return this->cold_white_; }
