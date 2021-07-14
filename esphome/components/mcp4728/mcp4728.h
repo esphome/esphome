@@ -15,7 +15,7 @@ namespace esphome
     Adafruit_MCP4728 mcp;
     static const char *const TAG = "mcp4728";
 
-    class MCP4728Output;
+    class MCP4728OutputComponent;
 
     class MCP4728Channel : public output::FloatOutput
     {
@@ -42,7 +42,14 @@ namespace esphome
           channel_enum = MCP4728_CHANNEL_D;
           break;
         }
-        this->parent_->set_channel_value_(channel_enum, value);
+
+        mcp.setChannelValue(
+            channel_enum,
+            value,
+            MCP4728_VREF_VDD,
+            MCP4728_GAIN_2X,
+            MCP4728_PD_MODE_NORMAL,
+            false);
       };
 
       MCP4728OutputComponent *parent_;
@@ -52,7 +59,7 @@ namespace esphome
     class MCP4728OutputComponent : public Component, public i2c::I2CDevice
     {
     public:
-      MCP4728OutputComponent(float value) : value_(value) {}
+      MCP4728OutputComponent() {}
       MCP4728Channel *create_channel(uint8_t channel)
       {
         auto *c = new MCP4728Channel(this, channel);
@@ -65,26 +72,12 @@ namespace esphome
         if (!mcp.begin())
         {
           ESP_LOGE(TAG, "Communication with MCP4725 failed!");
-          while (1)
-          {
-            delay(10);
-          }
         }
       };
       float get_setup_priority() const override { return setup_priority::HARDWARE; }
 
     protected:
       friend MCP4728Channel;
-      void set_channel_value_(MCP4728_channel_t channel, uint16_t value)
-      {
-        mcp.setChannelValue(
-            channel,
-            value,
-            MCP4728_VREF_VDD,
-            MCP4728_GAIN_2X,
-            MCP4728_PD_MODE_NORMAL,
-            false);
-      }
       float value_;
     };
 

@@ -1,4 +1,3 @@
-from custom_components import mcp4728
 import esphome.config_validation as cv
 import esphome.codegen as cg
 from esphome.components import output, i2c
