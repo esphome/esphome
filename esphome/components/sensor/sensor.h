@@ -87,12 +87,8 @@ class Sensor : public Nameable {
   /// Clear the entire filter chain.
   void clear_filters();
 
-  /// Getter-syntax for .value. Please use .state instead.
-  float get_value() const ESPDEPRECATED(".value is deprecated, please use .state");
   /// Getter-syntax for .state.
   float get_state() const;
-  /// Getter-syntax for .raw_value. Please use .raw_state instead.
-  float get_raw_value() const ESPDEPRECATED(".raw_value is deprecated, please use .raw_state");
   /// Getter-syntax for .raw_state
   float get_raw_state() const;
 
@@ -113,12 +109,6 @@ class Sensor : public Nameable {
    * @param state The state as a floating point number.
    */
   void publish_state(float state);
-
-  /** Push a new value to the MQTT front-end.
-   *
-   * Note: deprecated, please use publish_state.
-   */
-  void push_new_value(float state) ESPDEPRECATED("push_new_value is deprecated. Please use .publish_state instead");
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)

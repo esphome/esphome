@@ -18,19 +18,22 @@ RGBWWLightOutput = rgbww_ns.class_("RGBWWLightOutput", light.LightOutput)
 CONF_CONSTANT_BRIGHTNESS = "constant_brightness"
 CONF_COLOR_INTERLOCK = "color_interlock"
 
-CONFIG_SCHEMA = light.RGB_LIGHT_SCHEMA.extend(
-    {
-        cv.GenerateID(CONF_OUTPUT_ID): cv.declare_id(RGBWWLightOutput),
-        cv.Required(CONF_RED): cv.use_id(output.FloatOutput),
-        cv.Required(CONF_GREEN): cv.use_id(output.FloatOutput),
-        cv.Required(CONF_BLUE): cv.use_id(output.FloatOutput),
-        cv.Required(CONF_COLD_WHITE): cv.use_id(output.FloatOutput),
-        cv.Required(CONF_WARM_WHITE): cv.use_id(output.FloatOutput),
-        cv.Required(CONF_COLD_WHITE_COLOR_TEMPERATURE): cv.color_temperature,
-        cv.Required(CONF_WARM_WHITE_COLOR_TEMPERATURE): cv.color_temperature,
-        cv.Optional(CONF_CONSTANT_BRIGHTNESS, default=False): cv.boolean,
-        cv.Optional(CONF_COLOR_INTERLOCK, default=False): cv.boolean,
-    }
+CONFIG_SCHEMA = cv.All(
+    light.RGB_LIGHT_SCHEMA.extend(
+        {
+            cv.GenerateID(CONF_OUTPUT_ID): cv.declare_id(RGBWWLightOutput),
+            cv.Required(CONF_RED): cv.use_id(output.FloatOutput),
+            cv.Required(CONF_GREEN): cv.use_id(output.FloatOutput),
+            cv.Required(CONF_BLUE): cv.use_id(output.FloatOutput),
+            cv.Required(CONF_COLD_WHITE): cv.use_id(output.FloatOutput),
+            cv.Required(CONF_WARM_WHITE): cv.use_id(output.FloatOutput),
+            cv.Required(CONF_COLD_WHITE_COLOR_TEMPERATURE): cv.color_temperature,
+            cv.Required(CONF_WARM_WHITE_COLOR_TEMPERATURE): cv.color_temperature,
+            cv.Optional(CONF_CONSTANT_BRIGHTNESS, default=False): cv.boolean,
+            cv.Optional(CONF_COLOR_INTERLOCK, default=False): cv.boolean,
+        }
+    ),
+    light.validate_color_temperature_channels,
 )
 
 

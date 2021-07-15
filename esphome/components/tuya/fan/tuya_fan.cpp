@@ -80,7 +80,7 @@ void TuyaFan::write_state() {
   }
   if (this->speed_id_.has_value()) {
     ESP_LOGV(TAG, "Setting speed: %d", this->fan_->speed);
-    this->parent_->set_datapoint_value(*this->speed_id_, this->fan_->speed);
+    this->parent_->set_datapoint_value(*this->speed_id_, this->fan_->speed - 1);
   }
 }
 
