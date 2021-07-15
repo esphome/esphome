@@ -19,9 +19,9 @@ enum EzoCommandType : uint8_t {
   EZO_T = 6,
   EZO_CUSTOM = 7
 };
-static const char *EzoCommandTypeStrings[] = {"EZO_READ",  "EZO_LED",         "EZO_DEVICE_INFORMATION",
-                                              "EZO_SLOPE", "EZO_CALIBRATION", "EZO_SLEEP",
-                                              "EZO_I2C",   "EZO_T",           "EZO_CUSTOM"};
+static const char *const EZO_COMMAND_TYPE_STRINGS[] = {"EZO_READ",  "EZO_LED",         "EZO_DEVICE_INFORMATION",
+                                                       "EZO_SLOPE", "EZO_CALIBRATION", "EZO_SLEEP",
+                                                       "EZO_I2C",   "EZO_T",           "EZO_CUSTOM"};
 
 class EzoCommand {
  public:
@@ -103,7 +103,7 @@ class EZOSensor : public sensor::Sensor, public PollingComponent, public i2c::I2
   CallbackManager<void(std::string)> custom_callback_{};
   CallbackManager<void(bool)> led_callback_{};
 
-  unsigned long start_time_ = 0;
+  uint32_t start_time_ = 0;
 };
 
 }  // namespace ezo

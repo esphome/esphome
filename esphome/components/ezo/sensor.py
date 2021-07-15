@@ -91,24 +91,24 @@ async def to_code(config):
 
     for conf in config.get(CONF_ON_CUSTOM, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        yield automation.build_automation(trigger, [(cg.std_string, "x")], conf)
+        await automation.build_automation(trigger, [(cg.std_string, "x")], conf)
 
     for conf in config.get(CONF_ON_LED, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        yield automation.build_automation(trigger, [(bool, "x")], conf)
+        await automation.build_automation(trigger, [(bool, "x")], conf)
 
     for conf in config.get(CONF_ON_DEVICE_INFORMATION, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        yield automation.build_automation(trigger, [(cg.std_string, "x")], conf)
+        await automation.build_automation(trigger, [(cg.std_string, "x")], conf)
 
     for conf in config.get(CONF_ON_SLOPE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        yield automation.build_automation(trigger, [(cg.std_string, "x")], conf)
+        await automation.build_automation(trigger, [(cg.std_string, "x")], conf)
 
     for conf in config.get(CONF_ON_CALIBRATION, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        yield automation.build_automation(trigger, [(cg.std_string, "x")], conf)
+        await automation.build_automation(trigger, [(cg.std_string, "x")], conf)
 
     for conf in config.get(CONF_ON_T, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        yield automation.build_automation(trigger, [(cg.std_string, "x")], conf)
+        await automation.build_automation(trigger, [(cg.std_string, "x")], conf)
