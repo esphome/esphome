@@ -115,7 +115,7 @@ void ToshibaClimate::setup() {
     this->mode = climate::CLIMATE_MODE_OFF;
     // initialize target temperature to some value so that it's not NAN
     this->target_temperature =
-        roundf(clamp(this->current_temperature, this->minimum_temperature_, this->maximum_temperature_));
+        roundf(clamp<float>(this->current_temperature, this->minimum_temperature_, this->maximum_temperature_));
     this->fan_mode = climate::CLIMATE_FAN_AUTO;
     this->swing_mode = climate::CLIMATE_SWING_OFF;
   }
@@ -157,8 +157,8 @@ void ToshibaClimate::transmit_generic_() {
   message[4] = TOSHIBA_COMMAND_DEFAULT;
 
   // Temperature
-  uint8_t temperature =
-      static_cast<uint8_t>(clamp(this->target_temperature, TOSHIBA_GENERIC_TEMP_C_MIN, TOSHIBA_GENERIC_TEMP_C_MAX));
+  uint8_t temperature = static_cast<uint8_t>(
+      clamp<float>(this->target_temperature, TOSHIBA_GENERIC_TEMP_C_MIN, TOSHIBA_GENERIC_TEMP_C_MAX));
   message[5] = (temperature - static_cast<uint8_t>(TOSHIBA_GENERIC_TEMP_C_MIN)) << 4;
 
   // Mode and fan
@@ -207,7 +207,7 @@ void ToshibaClimate::transmit_generic_() {
 void ToshibaClimate::transmit_rac_pt1411hwru_() {
   uint8_t code = 0, index = 0, message[RAC_PT1411HWRU_MESSAGE_LENGTH * 2] = {0};
   float temperature =
-      clamp(this->target_temperature, TOSHIBA_RAC_PT1411HWRU_TEMP_C_MIN, TOSHIBA_RAC_PT1411HWRU_TEMP_C_MAX);
+      clamp<float>(this->target_temperature, TOSHIBA_RAC_PT1411HWRU_TEMP_C_MIN, TOSHIBA_RAC_PT1411HWRU_TEMP_C_MAX);
   float temp_adjd = temperature - TOSHIBA_RAC_PT1411HWRU_TEMP_C_MIN;
   auto transmit = this->transmitter_->transmit();
   auto data = transmit.get_data();
@@ -355,7 +355,7 @@ void ToshibaClimate::transmit_rac_pt1411hwru_temp_(const bool cs_state, const bo
   if ((this->mode == climate::CLIMATE_MODE_HEAT) || (this->mode == climate::CLIMATE_MODE_COOL) ||
       (this->mode == climate::CLIMATE_MODE_HEAT_COOL)) {
     uint8_t message[RAC_PT1411HWRU_MESSAGE_LENGTH] = {0};
-    float temperature = clamp(this->current_temperature, 0, TOSHIBA_RAC_PT1411HWRU_TEMP_C_MAX + 1);
+    float temperature = clamp<float>(this->current_temperature, 0.0, TOSHIBA_RAC_PT1411HWRU_TEMP_C_MAX + 1);
     auto transmit = this->transmitter_->transmit();
     auto data = transmit.get_data();
     // "Comfort Sense" feature notes
