@@ -28,4 +28,4 @@ def to_code(config):
     yield cg.register_component(var, config)
     yield i2c.register_i2c_device(var, config)
 
-    cg.add_library("adafruit/Adafruit MCP4728", "1.0.7")
+    # cg.add_library("adafruit/Adafruit MCP4728", "1.0.7")

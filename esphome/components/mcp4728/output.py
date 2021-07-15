@@ -13,7 +13,7 @@ CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
     {
         cv.Required(CONF_ID): cv.declare_id(MCP4728Channel),
         cv.GenerateID(CONF_MCP4728_ID): cv.use_id(MCP4728Output),
-        cv.Required(CONF_CHANNEL): cv.int_range(min=0, max=3)
+        cv.Required(CONF_CHANNEL): cv.enum({"A": 0, "B": 1, "C": 2, "D": 3}),
     }
 )
 
