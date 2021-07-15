@@ -1,4 +1,4 @@
-ARG BUILD_FROM
+ARG BUILD_FROM=esphome/esphome-hassio-base:latest
 FROM ${BUILD_FROM}
 
 # First install requirements to leverage caching when requirements don't change
