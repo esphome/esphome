@@ -111,8 +111,13 @@ def main():
     if args.command == "build":
         # 1. pull cache image
         params = DockerParams.for_type_arch(args.build_type, args.arch)
-        cache_tag = "beta" if channel == CHANNEL_BETA else "latest"
-        run_command("docker", "pull", f"{params.build_to}:{cache_tag}", ignore_error=True)
+        cache_tag = {
+            CHANNEL_DEV: "dev",
+            CHANNEL_BETA: "beta",
+            CHANNEL_RELEASE: "latest",
+        }[channel]
+        cache_img = f"ghcr.io/{params.build_to}:{cache_tag}"
+        run_command("docker", "pull", cache_img, ignore_error=True)
 
         # 2. register QEMU binfmt (if not host arch)
         is_native = UNAME_TO_ARCH.get(platform.machine()) == args.arch
@@ -128,13 +133,14 @@ def main():
             "--build-arg", f"BUILD_FROM={params.build_from}",
             "--build-arg", f"BUILD_VERSION={args.tag}",
             "--tag", f"{params.build_to}:{args.tag}",
-            "--cache-from", f"{params.build_to}:{cache_tag}",
+            "--cache-from", cache_img,
             "--file", params.dockerfile,
             "."
         )
     elif args.command == "push":
         params = DockerParams.for_type_arch(args.build_type, args.arch)
         imgs = [f"{params.build_to}:{tag}" for tag in tags_to_push]
+        imgs += [f"ghcr.io/{params.build_to}:{tag}" for tag in tags_to_push]
         src = imgs[0]
         # 1. tag images
         for img in imgs[1:]:
@@ -150,12 +156,15 @@ def main():
         manifest = DockerParams.for_type_arch(args.build_type, ARCH_AMD64).manifest_to
 
         targets = [f"{manifest}:{tag}" for tag in tags_to_push]
+        targets += [f"ghcr.io/{manifest}:{tag}" for tag in tags_to_push]
         # 1. Create manifests
         for target in targets:
-            cmd = ["docker", "manifest", "create", target] + [
-                f"{DockerParams.for_type_arch(args.build_type, arch).build_to}:{args.tag}"
-                for arch in ARCHS
-            ]
+            cmd = ["docker", "manifest", "create", target]
+            for arch in ARCHS:
+                src = f"{DockerParams.for_type_arch(args.build_type, arch).build_to}:{args.tag}"
+                if target.startswith("ghcr.io"):
+                    src = f"ghcr.io/{src}"
+                cmd.append(src)
             run_command(*cmd)
         # 2. Push manifests
         for target in targets:
