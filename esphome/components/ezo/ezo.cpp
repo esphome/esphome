@@ -100,7 +100,7 @@ void EZOSensor::loop() {
       break;
   }
 
-  ESP_LOGVV(TAG, "Received buffer \"%s\" for command type %s", buf, EzoCommandTypeStrings[to_run->command_type]);
+  ESP_LOGVV(TAG, "Received buffer \"%s\" for command type %s", buf, EZO_COMMAND_TYPE_STRINGS[to_run->command_type]);
 
   // for (int index = 0; index < 32; ++index) {
   //   ESP_LOGD(TAG, "Received buffer index: %d char: \"%c\" %d", index, buf[index], buf[index]);
@@ -152,7 +152,9 @@ void EZOSensor::loop() {
           this->custom_callback_.call(payload);
           break;
         }
-        default: { break; }
+        default: {
+          break;
+        }
       }
     }
   }
