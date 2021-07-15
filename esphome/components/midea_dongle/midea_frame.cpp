@@ -76,8 +76,8 @@ void BaseFrame::set_bytemask_(uint8_t idx, uint8_t mask, bool state) {
 
 static char u4hex(uint8_t num) { return num + ((num < 10) ? '0' : ('A' - 10)); }
 
-String Frame::to_string() const {
-  String ret;
+std::string Frame::to_string() const {
+  std::string ret;
   char buf[4];
   buf[2] = ' ';
   buf[3] = '\0';
@@ -86,7 +86,7 @@ String Frame::to_string() const {
   for (size_t i = 0; i < this->size(); i++, it++) {
     buf[0] = u4hex(*it >> 4);
     buf[1] = u4hex(*it & 15);
-    ret.concat(buf);
+    ret.append(buf);
   }
   return ret;
 }
