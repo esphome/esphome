@@ -20,8 +20,8 @@ static const int MAX_DATA_LENGTH_BYTES = 6;
  * 1234 means a distance of 1,234 m.
  */
 void HrxlMaxsonarWrComponent::loop() {
-  std::string buffer;
   while (this->available() > 0) {
+    std::string buffer;
     uint8_t data;
     for (int i = 0; i < MAX_DATA_LENGTH_BYTES; i++) {
       if (this->read_byte(&data)) {
