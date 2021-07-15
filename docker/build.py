@@ -63,7 +63,7 @@ class DockerParams:
             TYPE_HA_ADDON: "esphome/esphome-hassio",
             TYPE_LINT: "esphome/esphome-lint"
         }[build_type]
-        build_from = f"{prefix}-base-{arch}:{BASE_VERSION}"
+        build_from = f"ghcr.io/{prefix}-base-{arch}:{BASE_VERSION}"
         build_to = f"{prefix}-{arch}"
         dockerfile = {
             TYPE_DOCKER: "docker/Dockerfile",
