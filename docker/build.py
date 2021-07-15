@@ -90,7 +90,7 @@ def main():
                 sys.exit(1)
 
     # detect channel from tag
-    match = re.match(r'\d+\.\d+(?:\.\d+)?(b\d+)?', args.tag)
+    match = re.match(r'^\d+\.\d+(?:\.\d+)?(b\d+)?$', args.tag)
     if match is None:
         channel = CHANNEL_DEV
     elif match.group(1) is None:
