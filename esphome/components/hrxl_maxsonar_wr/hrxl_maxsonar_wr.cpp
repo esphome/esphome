@@ -20,8 +20,7 @@ static const int MAX_DATA_LENGTH_BYTES = 6;
  * 1234 means a distance of 1,234 m.
  */
 void HrxlMaxsonarWrComponent::loop() {
-  this->flush();
-  String buffer;
+  std::string buffer;
   while (this->available() > 0) {
     uint8_t data;
     for (int i = 0; i < MAX_DATA_LENGTH_BYTES; i++) {
@@ -37,8 +36,8 @@ void HrxlMaxsonarWrComponent::loop() {
     }
 
     ESP_LOGV(TAG, "Read from serial: %s", buffer.c_str());
-    if (buffer.length() == (MAX_DATA_LENGTH_BYTES - 1) && buffer.startsWith("R")) {
-      int millimeters = buffer.substring(1).toInt();
+    if (buffer.length() == (MAX_DATA_LENGTH_BYTES - 1) && buffer[0] == 'R') {
+      int millimeters = atoi(buffer.substr(1).c_str());
       float meters = float(millimeters) / 1000.0;
       ESP_LOGV(TAG, "Distance from sensor: %u mm, %f m", millis, meters);
       this->publish_state(meters);
@@ -51,7 +50,7 @@ void HrxlMaxsonarWrComponent::loop() {
 void HrxlMaxsonarWrComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "HRXL MaxSonar WR Sensor:");
   LOG_SENSOR("  ", "Distance", this);
-  // As specified in the sensonr's data sheet
+  // As specified in the sensor's data sheet
   this->check_uart_settings(9600, 1, esphome::uart::UART_CONFIG_PARITY_NONE, 8);
 }
 
