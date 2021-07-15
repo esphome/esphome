@@ -130,5 +130,5 @@ jobs:
 
       - name: Run pytest
         run: |
-          pytest -vv --tv=native tests
+          pytest -vv --tb=native tests
         if: ${{ matrix.id == 'pytest' }}
