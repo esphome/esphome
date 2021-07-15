@@ -40,10 +40,16 @@ jobs:
           build
 
     - name: Log in to docker hub
-      env:
-        DOCKER_USER: ${{ secrets.DOCKER_USER }}
-        DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
-      run: docker login -u "${DOCKER_USER}" -p "${DOCKER_PASSWORD}"
+      uses: docker/login-action@v1
+      with:
+        username: ${{ secrets.DOCKER_USER }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+    - name: Log in to the GitHub container registry
+      uses: docker/login-action@v1
+      with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Run push
       run: |
@@ -75,10 +81,16 @@ jobs:
         echo "{\"experimental\": \"enabled\"}" > ~/.docker/config.json
 
     - name: Log in to docker hub
-      env:
-        DOCKER_USER: ${{ secrets.DOCKER_USER }}
-        DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
-      run: docker login -u "${DOCKER_USER}" -p "${DOCKER_PASSWORD}"
+      uses: docker/login-action@v1
+      with:
+        username: ${{ secrets.DOCKER_USER }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+    - name: Log in to the GitHub container registry
+      uses: docker/login-action@v1
+      with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Run manifest
       run: |
