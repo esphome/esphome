@@ -24,7 +24,7 @@ TYPE_LINT = 'lint'
 TYPES = [TYPE_DOCKER, TYPE_HA_ADDON, TYPE_LINT]
 
 
-BASE_VERSION = "3.5.0"
+BASE_VERSION = "3.6.0"
 
 
 parser = argparse.ArgumentParser()
