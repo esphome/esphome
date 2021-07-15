@@ -34,7 +34,7 @@ class ADCSensor : public sensor::Sensor, public PollingComponent, public voltage
   uint8_t pin_;
 
 #ifdef ARDUINO_ARCH_ESP32
-  adc_attenuation_t attenuation_{ADC_0db};
+  adc_atten_t attenuation_{};
 #endif
 };
 
