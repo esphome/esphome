@@ -1,0 +1,19 @@
+{
+  "problemMatcher": [
+    {
+      "owner": "pytest",
+      "fileLocation": "absolute",
+      "pattern": [
+        {
+          "regexp": "^\\s+File \"(.*)\", line (\\d+), in (.*)$",
+          "file": 1,
+          "line": 2
+        },
+        {
+          "regexp": "^\\s+(.*)$",
+          "message": 1
+        }
+      ]
+    }
+  ]
+}
