@@ -918,25 +918,6 @@ sensor:
   - platform: mcp9808
     name: 'MCP9808 Temperature'
     update_interval: 15s
-  - platform: ezo
-    id: ph_ezo
-    address: 99
-    unit_of_measurement: 'pH'
-    on_led:
-      - lambda: |-
-          ESP_LOGD("TEST","Triggered with %s", x);
-    on_device_information:
-      - lambda: |-
-          ESP_LOGD("TEST","Triggered with %s", x);
-    on_slope:
-      - lambda: |-
-          ESP_LOGD("TEST","Triggered with %s", x);
-    on_calibration:
-      - lambda: |-
-          ESP_LOGD("TEST","Triggered with %s", x);
-    on_t:
-      - lambda: |-
-          ESP_LOGD("TEST","Triggered with %s", x);
   - platform: cs5460a
     id: cs5460a1
     current:
