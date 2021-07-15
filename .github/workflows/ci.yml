@@ -10,20 +10,25 @@ on:
 
 jobs:
   ci-with-container:
-    name: ${{ matrix.id }}
+    name: ${{ matrix.name }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         include:
           - id: clang-format
+            name: Run script/clang-format
           - id: clang-tidy
+            name: Run script/clang-tidy 1/4
             split: 1
           - id: clang-tidy
+            name: Run script/clang-tidy 2/4
             split: 2
           - id: clang-tidy
+            name: Run script/clang-tidy 3/4
             split: 3
           - id: clang-tidy
+            name: Run script/clang-tidy 4/4
             split: 4
 
     # cpp lint job runs with esphome-lint docker image so that clang-format-*
