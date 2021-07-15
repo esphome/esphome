@@ -1,10 +1,6 @@
 """Constants used by esphome."""
 
-MAJOR_VERSION = 1
-MINOR_VERSION = 21
-PATCH_VERSION = "0-dev"
-__short_version__ = f"{MAJOR_VERSION}.{MINOR_VERSION}"
-__version__ = f"{__short_version__}.{PATCH_VERSION}"
+__version__ = "1.21.0-dev"
 
 ESP_PLATFORM_ESP32 = "ESP32"
 ESP_PLATFORM_ESP8266 = "ESP8266"
