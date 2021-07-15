@@ -33,7 +33,7 @@ jobs:
 
     # cpp lint job runs with esphome-lint docker image so that clang-format-*
     # doesn't have to be installed
-    container: esphome/esphome-lint:1.1
+    container: ghcr.io/esphome/esphome-lint:1.1
     steps:
       - uses: actions/checkout@v2
       # Set up the pio project so that the cpp checks know how files are compiled
