@@ -7,7 +7,7 @@ namespace panasonic {
 
 const uint16_t PANASONIC_HEADER_MARK = 3500;
 const uint16_t PANASONIC_HEADER_SPACE = 1750;
-const uint16_t PANASONIC_GAP_SPACE = 5000;
+const uint16_t PANASONIC_GAP_SPACE = 10250;
 const uint16_t PANASONIC_BIT_MARK = 435;
 const uint16_t PANASONIC_ZERO_SPACE = 435;
 const uint16_t PANASONIC_ONE_SPACE = 1300;
@@ -286,7 +286,7 @@ bool PanasonicClimate::on_receive(remote_base::RemoteReceiveData data) {
   if ((message[4] & B11110000) == 0x80) {
     // This is a non-standard command, not yet supported
     // Econavi, powerful, quiet, nanoe-g, auto comfort
-    ESP_LOGD(TAG, "Unsupported command received: %s", hexencode(message, DATACONST_LENGTH).c_str());
+    ESP_LOGD(TAG, "Unsupported command received: %s", hexencode(message, MESSAGE_LENGTH).c_str());
     return true;
   }
 
