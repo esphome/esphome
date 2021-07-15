@@ -1616,6 +1616,12 @@ switch:
         address: 0x0400
         command: 0x000E00FF
   - platform: template
+    name: ToshibaAC
+    turn_on_action:
+      - remote_transmitter.transmit_toshiba_ac:
+          rc_code_1: 0xB24DBF4050AF
+          rc_code_2: 0xD5660001003C
+  - platform: template
     name: Sony
     turn_on_action:
       remote_transmitter.transmit_sony:

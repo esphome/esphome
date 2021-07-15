@@ -966,7 +966,7 @@ TOSHIBAAC_SCHEMA = cv.Schema(
 )
 
 
-@register_binary_sensor("toshibaac", ToshibaAcBinarySensor, TOSHIBAAC_SCHEMA)
+@register_binary_sensor("toshiba_ac", ToshibaAcBinarySensor, TOSHIBAAC_SCHEMA)
 def toshibaac_binary_sensor(var, config):
     cg.add(
         var.set_data(
@@ -979,17 +979,17 @@ def toshibaac_binary_sensor(var, config):
     )
 
 
-@register_trigger("toshibaac", ToshibaAcTrigger, ToshibaAcData)
+@register_trigger("toshiba_ac", ToshibaAcTrigger, ToshibaAcData)
 def toshibaac_trigger(var, config):
     pass
 
 
-@register_dumper("toshibaac", ToshibaAcDumper)
+@register_dumper("toshiba_ac", ToshibaAcDumper)
 def toshibaac_dumper(var, config):
     pass
 
 
-@register_action("toshibaac", ToshibaAcAction, TOSHIBAAC_SCHEMA)
+@register_action("toshiba_ac", ToshibaAcAction, TOSHIBAAC_SCHEMA)
 async def toshibaac_action(var, config, args):
     template_ = await cg.templatable(config[CONF_RC_CODE_1], args, cg.uint64)
     cg.add(var.set_rc_code_1(template_))
