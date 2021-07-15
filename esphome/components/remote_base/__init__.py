@@ -950,6 +950,53 @@ async def samsung36_action(var, config, args):
     cg.add(var.set_command(template_))
 
 
+# Toshiba AC
+(
+    ToshibaAcData,
+    ToshibaAcBinarySensor,
+    ToshibaAcTrigger,
+    ToshibaAcAction,
+    ToshibaAcDumper,
+) = declare_protocol("ToshibaAc")
+TOSHIBAAC_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_RC_CODE_1): cv.hex_uint64_t,
+        cv.Optional(CONF_RC_CODE_2, default=0): cv.hex_uint64_t,
+    }
+)
+
+
+@register_binary_sensor("toshibaac", ToshibaAcBinarySensor, TOSHIBAAC_SCHEMA)
+def toshibaac_binary_sensor(var, config):
+    cg.add(
+        var.set_data(
+            cg.StructInitializer(
+                ToshibaAcData,
+                ("rc_code_1", config[CONF_RC_CODE_1]),
+                ("rc_code_2", config[CONF_RC_CODE_2]),
+            )
+        )
+    )
+
+
+@register_trigger("toshibaac", ToshibaAcTrigger, ToshibaAcData)
+def toshibaac_trigger(var, config):
+    pass
+
+
+@register_dumper("toshibaac", ToshibaAcDumper)
+def toshibaac_dumper(var, config):
+    pass
+
+
+@register_action("toshibaac", ToshibaAcAction, TOSHIBAAC_SCHEMA)
+async def toshibaac_action(var, config, args):
+    template_ = await cg.templatable(config[CONF_RC_CODE_1], args, cg.uint64)
+    cg.add(var.set_rc_code_1(template_))
+    template_ = await cg.templatable(config[CONF_RC_CODE_2], args, cg.uint64)
+    cg.add(var.set_rc_code_2(template_))
+
+
 # Panasonic
 (
     PanasonicData,
