@@ -34,6 +34,7 @@ from esphome.const import (
     CONF_SWING_HORIZONTAL_ACTION,
     CONF_SWING_OFF_ACTION,
     CONF_SWING_VERTICAL_ACTION,
+    CONF_TARGET_TEMPERATURE_CHANGE_ACTION,
 )
 
 CODEOWNERS = ["@kbx81"]
@@ -245,6 +246,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_SWING_VERTICAL_ACTION): automation.validate_automation(
                 single=True
             ),
+            cv.Optional(
+                CONF_TARGET_TEMPERATURE_CHANGE_ACTION
+            ): automation.validate_automation(single=True),
             cv.Optional(CONF_DEFAULT_MODE, default=CONF_OFF_MODE): cv.one_of(
                 CONF_AUTO_MODE,
                 CONF_COOL_MODE,
@@ -429,6 +433,12 @@ async def to_code(config):
             config[CONF_SWING_VERTICAL_ACTION],
         )
         cg.add(var.set_supports_swing_mode_vertical(True))
+    if CONF_TARGET_TEMPERATURE_CHANGE_ACTION in config:
+        await automation.build_automation(
+            var.get_temperature_change_trigger(),
+            [],
+            config[CONF_TARGET_TEMPERATURE_CHANGE_ACTION],
+        )
 
     if CONF_AWAY_CONFIG in config:
         away = config[CONF_AWAY_CONFIG]

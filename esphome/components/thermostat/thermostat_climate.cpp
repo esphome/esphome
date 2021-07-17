@@ -35,6 +35,7 @@ void ThermostatClimate::refresh() {
   this->switch_to_action_(compute_action_());
   this->switch_to_fan_mode_(this->fan_mode.value());
   this->switch_to_swing_mode_(this->swing_mode);
+  this->check_temperature_change_trigger();
   this->publish_state();
 }
 void ThermostatClimate::control(const climate::ClimateCall &call) {
@@ -406,6 +407,30 @@ void ThermostatClimate::switch_to_swing_mode_(climate::ClimateSwingMode swing_mo
   this->prev_swing_mode_ = swing_mode;
   this->prev_swing_mode_trigger_ = trig;
 }
+void ThermostatClimate::check_temperature_change_trigger() {
+  if (this->supports_two_points_) {
+    // setup_complete_ helps us ensure an action is called immediately after boot
+    if ((this->prev_target_temperature_low_ == this->target_temperature_low) &&
+        (this->prev_target_temperature_high_ == this->target_temperature_high) && this->setup_complete_) {
+      return;  // nothing changed, no reason to trigger
+    } else {
+      // save the new temperatures so we can check them again later; the trigger will fire below
+      this->prev_target_temperature_low_ = this->target_temperature_low;
+      this->prev_target_temperature_high_ = this->target_temperature_high;
+    }
+  } else {
+    if ((this->prev_target_temperature_ == this->target_temperature) && this->setup_complete_) {
+      return;  // nothing changed, no reason to trigger
+    } else {
+      // save the new temperature so we can check it again later; the trigger will fire below
+      this->prev_target_temperature_ = this->target_temperature;
+    }
+  }
+  // trigger the action
+  Trigger<> *trig = this->temperature_change_trigger_;
+  assert(trig != nullptr);
+  trig->trigger();
+}
 void ThermostatClimate::change_away_(bool away) {
   if (!away) {
     if (this->supports_two_points_) {
@@ -453,7 +478,8 @@ ThermostatClimate::ThermostatClimate()
       swing_mode_both_trigger_(new Trigger<>()),
       swing_mode_off_trigger_(new Trigger<>()),
       swing_mode_horizontal_trigger_(new Trigger<>()),
-      swing_mode_vertical_trigger_(new Trigger<>()) {}
+      swing_mode_vertical_trigger_(new Trigger<>()),
+      temperature_change_trigger_(new Trigger<>()) {}
 void ThermostatClimate::set_default_mode(climate::ClimateMode default_mode) { this->default_mode_ = default_mode; }
 void ThermostatClimate::set_hysteresis(float hysteresis) { this->hysteresis_ = hysteresis; }
 void ThermostatClimate::set_sensor(sensor::Sensor *sensor) { this->sensor_ = sensor; }
@@ -531,6 +557,7 @@ Trigger<> *ThermostatClimate::get_swing_mode_both_trigger() const { return this-
 Trigger<> *ThermostatClimate::get_swing_mode_off_trigger() const { return this->swing_mode_off_trigger_; }
 Trigger<> *ThermostatClimate::get_swing_mode_horizontal_trigger() const { return this->swing_mode_horizontal_trigger_; }
 Trigger<> *ThermostatClimate::get_swing_mode_vertical_trigger() const { return this->swing_mode_vertical_trigger_; }
+Trigger<> *ThermostatClimate::get_temperature_change_trigger() const { return this->temperature_change_trigger_; }
 void ThermostatClimate::dump_config() {
   LOG_CLIMATE("", "Thermostat", this);
   if (this->supports_heat_) {
