@@ -35,7 +35,7 @@ void ThermostatClimate::refresh() {
   this->switch_to_action_(compute_action_());
   this->switch_to_fan_mode_(this->fan_mode.value());
   this->switch_to_swing_mode_(this->swing_mode);
-  this->check_temperature_change_trigger();
+  this->check_temperature_change_trigger_();
   this->publish_state();
 }
 void ThermostatClimate::control(const climate::ClimateCall &call) {
@@ -406,7 +406,7 @@ void ThermostatClimate::switch_to_swing_mode_(climate::ClimateSwingMode swing_mo
   this->prev_swing_mode_ = swing_mode;
   this->prev_swing_mode_trigger_ = trig;
 }
-void ThermostatClimate::check_temperature_change_trigger() {
+void ThermostatClimate::check_temperature_change_trigger_() {
   if (this->supports_two_points_) {
     // setup_complete_ helps us ensure an action is called immediately after boot
     if ((this->prev_target_temperature_low_ == this->target_temperature_low) &&

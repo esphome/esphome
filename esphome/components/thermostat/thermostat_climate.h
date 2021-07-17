@@ -109,7 +109,7 @@ class ThermostatClimate : public climate::Climate, public Component {
   void switch_to_swing_mode_(climate::ClimateSwingMode swing_mode);
 
   /// Check if the temperature change trigger should be called.
-  void check_temperature_change_trigger();
+  void check_temperature_change_trigger_();
 
   /// The sensor used for getting the current temperature
   sensor::Sensor *sensor_{nullptr};
