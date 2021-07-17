@@ -39,6 +39,14 @@ void ThermostatClimate::refresh() {
   this->publish_state();
 }
 void ThermostatClimate::control(const climate::ClimateCall &call) {
+  if (call.get_preset().has_value()) {
+    // setup_complete_ blocks modifying/resetting the temps immediately after boot
+    if (this->setup_complete_) {
+      this->change_away_(*call.get_preset() == climate::CLIMATE_PRESET_AWAY);
+    } else {
+      this->preset = *call.get_preset();
+    }
+  }
   if (call.get_mode().has_value())
     this->mode = *call.get_mode();
   if (call.get_fan_mode().has_value())
@@ -51,15 +59,6 @@ void ThermostatClimate::control(const climate::ClimateCall &call) {
     this->target_temperature_low = *call.get_target_temperature_low();
   if (call.get_target_temperature_high().has_value())
     this->target_temperature_high = *call.get_target_temperature_high();
-  if (call.get_preset().has_value()) {
-    // setup_complete_ blocks modifying/resetting the temps immediately after boot
-    if (this->setup_complete_) {
-      this->change_away_(*call.get_preset() == climate::CLIMATE_PRESET_AWAY);
-    } else {
-      this->preset = *call.get_preset();
-      ;
-    }
-  }
   // set point validation
   if (this->supports_two_points_) {
     if (this->target_temperature_low < this->get_traits().get_visual_min_temperature())
