@@ -128,8 +128,10 @@ climate::ClimateTraits ThermostatClimate::traits() {
   return traits;
 }
 climate::ClimateAction ThermostatClimate::compute_action_() {
-  climate::ClimateAction target_action = this->action;
-  if (this->supports_two_points_) {
+  climate::ClimateAction target_action = climate::CLIMATE_ACTION_IDLE;
+  if (this->mode == climate::CLIMATE_MODE_OFF) {
+    return climate::CLIMATE_ACTION_OFF;
+  } else if (this->supports_two_points_) {
     if (isnan(this->current_temperature) || isnan(this->target_temperature_low) ||
         isnan(this->target_temperature_high) || isnan(this->hysteresis_))
       // if any control parameters are nan, go to OFF action (not IDLE!)
@@ -152,9 +154,6 @@ climate::ClimateAction ThermostatClimate::compute_action_() {
         break;
       case climate::CLIMATE_MODE_DRY:
         target_action = climate::CLIMATE_ACTION_DRYING;
-        break;
-      case climate::CLIMATE_MODE_OFF:
-        target_action = climate::CLIMATE_ACTION_OFF;
         break;
       case climate::CLIMATE_MODE_HEAT_COOL:
       case climate::CLIMATE_MODE_COOL:
@@ -199,9 +198,6 @@ climate::ClimateAction ThermostatClimate::compute_action_() {
         break;
       case climate::CLIMATE_MODE_DRY:
         target_action = climate::CLIMATE_ACTION_DRYING;
-        break;
-      case climate::CLIMATE_MODE_OFF:
-        target_action = climate::CLIMATE_ACTION_OFF;
         break;
       case climate::CLIMATE_MODE_COOL:
         if (this->supports_cool_) {
