@@ -21,7 +21,7 @@ void ThermostatClimate::setup() {
     restore->to_call(this).perform();
   } else {
     // restore from defaults, change_away handles temps for us
-    this->mode = climate::CLIMATE_MODE_HEAT_COOL;
+    this->mode = this->default_mode_;
     this->change_away_(false);
   }
   // refresh the climate action based on the restored settings
@@ -458,6 +458,7 @@ ThermostatClimate::ThermostatClimate()
       swing_mode_off_trigger_(new Trigger<>()),
       swing_mode_horizontal_trigger_(new Trigger<>()),
       swing_mode_vertical_trigger_(new Trigger<>()) {}
+void ThermostatClimate::set_default_mode(climate::ClimateMode default_mode) { this->default_mode_ = default_mode; }
 void ThermostatClimate::set_hysteresis(float hysteresis) { this->hysteresis_ = hysteresis; }
 void ThermostatClimate::set_sensor(sensor::Sensor *sensor) { this->sensor_ = sensor; }
 void ThermostatClimate::set_supports_heat_cool(bool supports_heat_cool) {

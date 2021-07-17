@@ -26,6 +26,7 @@ class ThermostatClimate : public climate::Climate, public Component {
   void setup() override;
   void dump_config() override;
 
+  void set_default_mode(climate::ClimateMode default_mode);
   void set_hysteresis(float hysteresis);
   void set_sensor(sensor::Sensor *sensor);
   void set_supports_auto(bool supports_auto);
@@ -256,6 +257,7 @@ class ThermostatClimate : public climate::Climate, public Component {
   /// These are used to determine when a trigger/action needs to be called
   climate::ClimateFanMode prev_fan_mode_{climate::CLIMATE_FAN_ON};
   climate::ClimateMode prev_mode_{climate::CLIMATE_MODE_OFF};
+  climate::ClimateMode default_mode_{climate::CLIMATE_MODE_OFF};
   climate::ClimateSwingMode prev_swing_mode_{climate::CLIMATE_SWING_OFF};
 
   /// Temperature data for normal/home and away modes

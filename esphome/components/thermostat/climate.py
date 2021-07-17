@@ -7,6 +7,7 @@ from esphome.const import (
     CONF_AWAY_CONFIG,
     CONF_COOL_ACTION,
     CONF_COOL_MODE,
+    CONF_DEFAULT_MODE,
     CONF_DEFAULT_TARGET_TEMPERATURE_HIGH,
     CONF_DEFAULT_TARGET_TEMPERATURE_LOW,
     CONF_DRY_ACTION,
@@ -141,6 +142,46 @@ def validate_thermostat(config):
                     CONF_DEFAULT_TARGET_TEMPERATURE_LOW, CONF_HEAT_ACTION
                 )
             )
+    # verify default climate mode is valid given above configuration
+    if config[CONF_DEFAULT_MODE] == CONF_AUTO_MODE and CONF_COOL_ACTION not in config:
+        raise cv.Invalid(
+            "{} is set to {} but {} is not present in the configuration".format(
+                CONF_DEFAULT_MODE, CONF_AUTO_MODE, CONF_COOL_ACTION
+            )
+        )
+    if config[CONF_DEFAULT_MODE] == CONF_AUTO_MODE and CONF_HEAT_ACTION not in config:
+        raise cv.Invalid(
+            "{} is set to {} but {} is not present in the configuration".format(
+                CONF_DEFAULT_MODE, CONF_AUTO_MODE, CONF_HEAT_ACTION
+            )
+        )
+    if config[CONF_DEFAULT_MODE] == CONF_COOL_MODE and CONF_COOL_ACTION not in config:
+        raise cv.Invalid(
+            "{} is set to {} but {} is not present in the configuration".format(
+                CONF_DEFAULT_MODE, CONF_COOL_MODE, CONF_COOL_ACTION
+            )
+        )
+    if config[CONF_DEFAULT_MODE] == CONF_DRY_MODE and CONF_DRY_ACTION not in config:
+        raise cv.Invalid(
+            "{} is set to {} but {} is not present in the configuration".format(
+                CONF_DEFAULT_MODE, CONF_DRY_MODE, CONF_DRY_ACTION
+            )
+        )
+    if (
+        config[CONF_DEFAULT_MODE] == CONF_FAN_ONLY_MODE
+        and CONF_FAN_ONLY_ACTION not in config
+    ):
+        raise cv.Invalid(
+            "{} is set to {} but {} is not present in the configuration".format(
+                CONF_DEFAULT_MODE, CONF_FAN_ONLY_MODE, CONF_FAN_ONLY_ACTION
+            )
+        )
+    if config[CONF_DEFAULT_MODE] == CONF_HEAT_MODE and CONF_HEAT_ACTION not in config:
+        raise cv.Invalid(
+            "{} is set to {} but {} is not present in the configuration".format(
+                CONF_DEFAULT_MODE, CONF_HEAT_MODE, CONF_HEAT_ACTION
+            )
+        )
 
     return config
 
@@ -203,6 +244,14 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_SWING_VERTICAL_ACTION): automation.validate_automation(
                 single=True
+            ),
+            cv.Optional(CONF_DEFAULT_MODE, default=CONF_OFF_MODE): cv.one_of(
+                CONF_AUTO_MODE,
+                CONF_COOL_MODE,
+                CONF_DRY_MODE,
+                CONF_FAN_ONLY_MODE,
+                CONF_HEAT_MODE,
+                CONF_OFF_MODE,
             ),
             cv.Optional(CONF_DEFAULT_TARGET_TEMPERATURE_HIGH): cv.temperature,
             cv.Optional(CONF_DEFAULT_TARGET_TEMPERATURE_LOW): cv.temperature,
