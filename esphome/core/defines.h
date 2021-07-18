@@ -13,6 +13,7 @@
 #define USE_COVER
 #define USE_LIGHT
 #define USE_CLIMATE
+#define USE_NUMBER
 #define USE_MQTT
 #define USE_POWER_SUPPLY
 #define USE_HOMEASSISTANT_TIME
