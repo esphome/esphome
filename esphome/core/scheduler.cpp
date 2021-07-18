@@ -175,8 +175,7 @@ void ICACHE_RAM_ATTR HOT Scheduler::call() {
       if (item->type == SchedulerItem::INTERVAL) {
         if (item->interval != 0) {
           const uint32_t before = item->last_execution;
-          const uint32_t amount = (now - item->last_execution) / item->interval;
-          item->last_execution += amount * item->interval;
+          item->last_execution = now;
           if (item->last_execution < before)
             item->last_execution_major++;
         }
