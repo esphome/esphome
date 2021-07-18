@@ -128,10 +128,17 @@ climate::ClimateTraits ThermostatClimate::traits() {
   return traits;
 }
 climate::ClimateAction ThermostatClimate::compute_action_() {
-  climate::ClimateAction target_action = climate::CLIMATE_ACTION_IDLE;
+  // we need to know the current climate action before anything else happens here
+  climate::ClimateAction target_action = this->action;
+  // if the climate mode is OFF then the climate action must be OFF
   if (this->mode == climate::CLIMATE_MODE_OFF) {
     return climate::CLIMATE_ACTION_OFF;
-  } else if (this->supports_two_points_) {
+  } else if (this->action == climate::CLIMATE_ACTION_OFF) {
+    // ...but if the climate mode is NOT OFF then the climate action must not be OFF
+    target_action = climate::CLIMATE_ACTION_IDLE;
+  }
+
+  if (this->supports_two_points_) {
     if (isnan(this->current_temperature) || isnan(this->target_temperature_low) ||
         isnan(this->target_temperature_high) || isnan(this->hysteresis_))
       // if any control parameters are nan, go to OFF action (not IDLE!)
