@@ -29,9 +29,15 @@ GPIOPin::GPIOPin(uint8_t pin, uint8_t mode, bool inverted)
       gpio_mask_(pin < 16 ? (1UL << pin) : 1)
 #endif
 #ifdef ARDUINO_ARCH_ESP32
-          gpio_set_(pin < 32 ? &GPIO.out_w1ts : &GPIO.out1_w1ts.val),
+#ifdef CONFIG_IDF_TARGET_ESP32C3
+      gpio_set_(&GPIO.out_w1ts.val),
+      gpio_clear_(&GPIO.out_w1tc.val),
+      gpio_read_(&GPIO.in.val),
+#else
+      gpio_set_(pin < 32 ? &GPIO.out_w1ts : &GPIO.out1_w1ts.val),
       gpio_clear_(pin < 32 ? &GPIO.out_w1tc : &GPIO.out1_w1tc.val),
       gpio_read_(pin < 32 ? &GPIO.in : &GPIO.in1.val),
+#endif
       gpio_mask_(pin < 32 ? (1UL << pin) : (1UL << (pin - 32)))
 #endif
 {
@@ -194,11 +200,15 @@ void ICACHE_RAM_ATTR ISRInternalGPIOPin::clear_interrupt() {
   GPIO_REG_WRITE(GPIO_STATUS_W1TC_ADDRESS, this->gpio_mask_);
 #endif
 #ifdef ARDUINO_ARCH_ESP32
+#ifdef CONFIG_IDF_TARGET_ESP32C3
+  GPIO.status_w1tc.val = this->gpio_mask_;
+#else
   if (this->pin_ < 32) {
     GPIO.status_w1tc = this->gpio_mask_;
   } else {
     GPIO.status1_w1tc.intr_st = this->gpio_mask_;
   }
+#endif
 #endif
 }
 
