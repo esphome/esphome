@@ -27,8 +27,7 @@ GPIOPin::GPIOPin(uint8_t pin, uint8_t mode, bool inverted)
 #ifdef ARDUINO_ARCH_ESP8266
       gpio_read_(pin < 16 ? &GPI : &GP16I),
       gpio_mask_(pin < 16 ? (1UL << pin) : 1)
-#endif
-#ifdef ARDUINO_ARCH_ESP32
+#elif ARDUINO_ARCH_ESP32
 #ifdef CONFIG_IDF_TARGET_ESP32C3
       gpio_set_(&GPIO.out_w1ts.val),
       gpio_clear_(&GPIO.out_w1tc.val),
