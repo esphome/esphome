@@ -25,12 +25,12 @@ void PM1006Component::loop() {
     return;
   }
 
-   ESP_LOGD(TAG, "data available");
+//   ESP_LOGD(TAG, "data available");
   // this->last_transmission_ = now;
   while (this->available() != 0) {
-   ESP_LOGD(TAG, "data  still available");
+//   ESP_LOGD(TAG, "data  still available");
     this->read_byte(&this->data_[this->data_index_]);
-    ESP_LOGD(TAG, "read %02x at index %i", this->data_[this->data_index_], this->data_index_);
+//    ESP_LOGD(TAG, "read %02x at index %i", this->data_[this->data_index_], this->data_index_);
     auto check = this->check_byte_();
     if (!check.has_value()) {
       // finished
