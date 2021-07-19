@@ -399,6 +399,7 @@ bool APIConnection::send_sensor_info(sensor::Sensor *sensor) {
   msg.force_update = sensor->get_force_update();
   msg.device_class = sensor->get_device_class();
   msg.state_class = static_cast<enums::SensorStateClass>(sensor->state_class);
+  msg.last_reset_type = static_cast<enums::SensorLastResetType>(sensor->last_reset_type);
 
   return this->send_list_entities_sensor_response(msg);
 }

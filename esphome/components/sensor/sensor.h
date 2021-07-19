@@ -14,6 +14,10 @@ namespace sensor {
       ESP_LOGCONFIG(TAG, "%s  Device Class: '%s'", prefix, (obj)->get_device_class().c_str()); \
     } \
     ESP_LOGCONFIG(TAG, "%s  State Class: '%s'", prefix, state_class_to_string((obj)->state_class)); \
+    if ((obj)->state_class == sensor::STATE_CLASS_MEASUREMENT && \
+        (obj)->last_reset_type != sensor::LAST_RESET_TYPE_NONE) { \
+      ESP_LOGCONFIG(TAG, "%s  Last Reset Type: '%s'", prefix, last_reset_type_to_string((obj)->last_reset_type)); \
+    } \
     ESP_LOGCONFIG(TAG, "%s  Unit of Measurement: '%s'", prefix, (obj)->get_unit_of_measurement().c_str()); \
     ESP_LOGCONFIG(TAG, "%s  Accuracy Decimals: %d", prefix, (obj)->get_accuracy_decimals()); \
     if (!(obj)->get_icon().empty()) { \
@@ -36,6 +40,17 @@ enum StateClass : uint8_t {
 };
 
 const char *state_class_to_string(StateClass state_class);
+
+/**
+ * Sensor last reset types
+ */
+enum LastResetType : uint8_t {
+  LAST_RESET_TYPE_NONE = 0,
+  LAST_RESET_TYPE_NEVER = 1,
+  LAST_RESET_TYPE_AUTO = 2,
+};
+
+const char *last_reset_type_to_string(LastResetType last_reset_type);
 
 /** Base-class for all sensors.
  *
@@ -154,6 +169,12 @@ class Sensor : public Nameable {
    * @return The device class of this sensor, for example "temperature".
    */
   virtual std::string device_class();
+
+  // The Last reset type of this sensor
+  LastResetType last_reset_type{LAST_RESET_TYPE_NONE};
+
+  void set_last_reset_type(LastResetType last_reset_type);
+  void set_last_reset_type(const std::string &last_reset_type);
 
   /** A unique ID for this sensor, empty for no unique id. See unique ID requirements:
    * https://developers.home-assistant.io/docs/en/entity_registry_index.html#unique-id-requirements
