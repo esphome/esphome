@@ -32,8 +32,8 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_MAX_VALUE): cv.float_,
             cv.Required(CONF_MIN_VALUE): cv.float_,
             cv.Required(CONF_STEP): cv.positive_float,
-            cv.Optional(CONF_LAMBDA): cv.returning_lambda,
-            cv.Optional(CONF_OPTIMISTIC, default=False): cv.boolean,
+            cv.Exclusive(CONF_LAMBDA, "lambda-optimistic"): cv.returning_lambda,
+            cv.Exclusive(CONF_OPTIMISTIC, "lambda-optimistic"): cv.boolean,
             cv.Optional(CONF_SET_ACTION): automation.validate_automation(single=True),
         }
     ).extend(cv.polling_component_schema("60s")),
@@ -57,9 +57,11 @@ async def to_code(config):
             config[CONF_LAMBDA], [], return_type=cg.optional.template(float)
         )
         cg.add(var.set_template(template_))
+
+    elif CONF_OPTIMISTIC in config:
+        cg.add(var.set_optimistic(config[CONF_OPTIMISTIC]))
+
     if CONF_SET_ACTION in config:
         await automation.build_automation(
             var.get_set_trigger(), [(float, "x")], config[CONF_SET_ACTION]
         )
-
-    cg.add(var.set_optimistic(config[CONF_OPTIMISTIC]))
