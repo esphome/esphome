@@ -23,7 +23,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_PM_2_5): sensor.sensor_schema(
                 UNIT_MICROGRAMS_PER_CUBIC_METER,
                 ICON_CHEMICAL_WEAPON,
-                1,
+                0,
                 DEVICE_CLASS_EMPTY,
                 STATE_CLASS_MEASUREMENT,
             ),

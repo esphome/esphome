@@ -19,11 +19,6 @@ void PM1006Component::dump_config() {
 }
 
 void PM1006Component::loop() {
-  if (this->available() == 0) {
-    return;
-  }
-
-  // this->last_transmission_ = now;
   while (this->available() != 0) {
     this->read_byte(&this->data_[this->data_index_]);
     auto check = this->check_byte_();
@@ -82,10 +77,9 @@ optional<bool> PM1006Component::check_byte_() const {
 }
 
 void PM1006Component::parse_data_() {
-  this->status_clear_warning();
-  const float pm_2_5_concentration = this->get_16_bit_uint_(5);
+  const int pm_2_5_concentration = this->get_16_bit_uint_(5);
 
-  ESP_LOGD(TAG, "Got PM2.5 Concentration: %.1f µg/m³", pm_2_5_concentration);
+  ESP_LOGD(TAG, "Got PM2.5 Concentration: %d µg/m³", pm_2_5_concentration);
 
   if (this->pm_2_5_sensor_ != nullptr) {
     this->pm_2_5_sensor_->publish_state(pm_2_5_concentration);
@@ -93,7 +87,7 @@ void PM1006Component::parse_data_() {
 }
 
 uint16_t PM1006Component::get_16_bit_uint_(uint8_t start_index) const {
-  return (uint16_t(this->data_[start_index]) << 8) | uint16_t(this->data_[start_index+1]);
+  return encode_uint16(this->data_[start_index], this->data_[start_index+1]);
 }
 
 }  // namespace pm1006

@@ -11,7 +11,7 @@ class PM1006Component : public Component, public uart::UARTDevice {
  public:
   PM1006Component() = default;
 
-  void set_pm_2_5_sensor(sensor::Sensor *pm_2_5_sensor) { pm_2_5_sensor_ = pm_2_5_sensor; }
+  void set_pm_2_5_sensor(sensor::Sensor *pm_2_5_sensor) { this->pm_2_5_sensor_ = pm_2_5_sensor; }
   void setup() override;
   void dump_config() override;
   void loop() override;
