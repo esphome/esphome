@@ -30,7 +30,7 @@ def to_code(config):
 
 
 @automation.register_action(
-    "pipsolaroutput.set_level",
+    "output.pipsolar.set_level",
     SetOutputAction,
     cv.Schema(
         {
@@ -39,7 +39,7 @@ def to_code(config):
         }
     ),
 )
-def pipsolaroutput_set_level_to_code(config, action_id, template_arg, args):
+def output_pipsolar_set_level_to_code(config, action_id, template_arg, args):
     paren = yield cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
     template_ = yield cg.templatable(config[CONF_VALUE], args, float)
