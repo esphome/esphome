@@ -4,6 +4,7 @@ import esphome.config_validation as cv
 from esphome.components import number
 from esphome.const import (
     CONF_ID,
+    CONF_INITIAL_VALUE,
     CONF_LAMBDA,
     CONF_MAX_VALUE,
     CONF_MIN_VALUE,
@@ -35,6 +36,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Exclusive(CONF_LAMBDA, "lambda-optimistic"): cv.returning_lambda,
             cv.Exclusive(CONF_OPTIMISTIC, "lambda-optimistic"): cv.boolean,
             cv.Optional(CONF_SET_ACTION): automation.validate_automation(single=True),
+            cv.Optional(CONF_INITIAL_VALUE): cv.float_,
         }
     ).extend(cv.polling_component_schema("60s")),
     validate_min_max,
@@ -65,3 +67,6 @@ async def to_code(config):
         await automation.build_automation(
             var.get_set_trigger(), [(float, "x")], config[CONF_SET_ACTION]
         )
+
+    if CONF_INITIAL_VALUE in config:
+        cg.add(var.set_initial_value(config[CONF_INITIAL_VALUE]))
