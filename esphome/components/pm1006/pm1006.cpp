@@ -51,16 +51,13 @@ float PM1006Component::get_setup_priority() const { return setup_priority::DATA;
 
 void PM1006Component::set_rx_mode_only(bool rx_mode_only) { /* this->rx_mode_only_ = rx_mode_only; */ }
 
-#if 0
 uint8_t PM1006Component::pm1006_checksum_(const uint8_t *command_data, uint8_t length) const {
-// FIXME check if there is one
   uint8_t sum = 0;
   for (uint8_t i = 0; i < length; i++) {
     sum += command_data[i];
   }
   return sum;
 }
-#endif
 
 optional<bool> PM1006Component::check_byte_() const {
   uint8_t index = this->data_index_;
@@ -71,8 +68,6 @@ optional<bool> PM1006Component::check_byte_() const {
     return byte == PM1006_RESPONSE_HEADER[index];
   }
 
-  // FIXME: until we figure out the checksum, there's nothing more we can check other than
-  // 'did we receive all 16 bytes that come after the header'
   // just some additional notes here:
   // index 3..4 is unused
   // index 5..6 is our PM2.5 reading (3..6 is called DF1-DF4 in the datasheet at http://www.jdscompany.co.kr/download.asp?gubun=07&filename=PM1006_LED_PARTICLE_SENSOR_MODULE_SPECIFICATIONS.pdf
@@ -80,7 +75,17 @@ optional<bool> PM1006Component::check_byte_() const {
   // so this code should be trivially extensible to support that one later
   if (index < (sizeof(PM1006_RESPONSE_HEADER)+16)) return true;
 
-  return {};
+  // checksum
+  if (index == (sizeof(PM1006_RESPONSE_HEADER)+16)) {
+    uint8_t checksum = pm1006_checksum_(this->data_, sizeof(PM1006_RESPONSE_HEADER)+17);
+    if (checksum != 0) {
+      ESP_LOGW(TAG, "PM1006 checksum is wrong: %02x, expected zero", checksum);
+      return false;
+    }
+    return {};
+  }
+
+  return false;
 }
 
 void PM1006Component::parse_data_() {

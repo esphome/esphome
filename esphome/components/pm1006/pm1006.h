@@ -25,6 +25,7 @@ class PM1006Component : public Component, public uart::UARTDevice {
   optional<bool> check_byte_() const;
   void parse_data_();
   uint16_t get_16_bit_uint_(uint8_t start_index) const;
+  uint8_t pm1006_checksum_(const uint8_t *command_data, uint8_t length) const;
 
   sensor::Sensor *pm_2_5_sensor_{nullptr};
 
