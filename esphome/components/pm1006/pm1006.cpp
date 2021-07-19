@@ -14,23 +14,18 @@ void PM1006Component::setup() {
 
 void PM1006Component::dump_config() {
   ESP_LOGCONFIG(TAG, "PM1006:");
-  //ESP_LOGCONFIG(TAG, "  RX-only mode: %s", ONOFF(this->rx_mode_only_));
   LOG_SENSOR("  ", "PM2.5", this->pm_2_5_sensor_);
   this->check_uart_settings(9600);
 }
 
 void PM1006Component::loop() {
-//  ESP_LOGD(TAG, "loop() called, sizeof header=%d", sizeof(PM1006_RESPONSE_HEADER));
   if (this->available() == 0) {
     return;
   }
 
-//   ESP_LOGD(TAG, "data available");
   // this->last_transmission_ = now;
   while (this->available() != 0) {
-//   ESP_LOGD(TAG, "data  still available");
     this->read_byte(&this->data_[this->data_index_]);
-//    ESP_LOGD(TAG, "read %02x at index %i", this->data_[this->data_index_], this->data_index_);
     auto check = this->check_byte_();
     if (!check.has_value()) {
       // finished
