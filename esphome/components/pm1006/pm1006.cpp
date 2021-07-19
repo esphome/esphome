@@ -44,8 +44,6 @@ void PM1006Component::loop() {
 
 float PM1006Component::get_setup_priority() const { return setup_priority::DATA; }
 
-void PM1006Component::set_rx_mode_only(bool rx_mode_only) { /* this->rx_mode_only_ = rx_mode_only; */ }
-
 uint8_t PM1006Component::pm1006_checksum_(const uint8_t *command_data, uint8_t length) const {
   uint8_t sum = 0;
   for (uint8_t i = 0; i < length; i++) {

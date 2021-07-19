@@ -11,9 +11,6 @@ class PM1006Component : public Component, public uart::UARTDevice {
  public:
   PM1006Component() = default;
 
-  /// Manually set the rx-only mode. Defaults to true.
-  void set_rx_mode_only(bool rx_mode_only);
-
   void set_pm_2_5_sensor(sensor::Sensor *pm_2_5_sensor) { pm_2_5_sensor_ = pm_2_5_sensor; }
   void setup() override;
   void dump_config() override;
