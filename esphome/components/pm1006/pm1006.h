@@ -29,7 +29,6 @@ class PM1006Component : public Component, public uart::UARTDevice {
   uint8_t data_[20];
   uint8_t data_index_{0};
   uint32_t last_transmission_{0};
-
 };
 
 }  // namespace pm1006

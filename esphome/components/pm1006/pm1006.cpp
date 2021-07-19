@@ -6,7 +6,7 @@ namespace pm1006 {
 
 static const char *const TAG = "pm1006";
 
-static const uint8_t PM1006_RESPONSE_HEADER[] = { 0x16, 0x11, 0x0B };
+static const uint8_t PM1006_RESPONSE_HEADER[] = {0x16, 0x11, 0x0B};
 
 void PM1006Component::setup() {
   // because this implementation is currently rx-only, there is nothing to setup
@@ -58,14 +58,16 @@ optional<bool> PM1006Component::check_byte_() const {
 
   // just some additional notes here:
   // index 3..4 is unused
-  // index 5..6 is our PM2.5 reading (3..6 is called DF1-DF4 in the datasheet at http://www.jdscompany.co.kr/download.asp?gubun=07&filename=PM1006_LED_PARTICLE_SENSOR_MODULE_SPECIFICATIONS.pdf
+  // index 5..6 is our PM2.5 reading (3..6 is called DF1-DF4 in the datasheet at
+  // http://www.jdscompany.co.kr/download.asp?gubun=07&filename=PM1006_LED_PARTICLE_SENSOR_MODULE_SPECIFICATIONS.pdf
   // that datasheet goes on up to DF16, which is unused for PM1006 but used in PM1006K
   // so this code should be trivially extensible to support that one later
-  if (index < (sizeof(PM1006_RESPONSE_HEADER)+16)) return true;
+  if (index < (sizeof(PM1006_RESPONSE_HEADER) + 16))
+    return true;
 
   // checksum
-  if (index == (sizeof(PM1006_RESPONSE_HEADER)+16)) {
-    uint8_t checksum = pm1006_checksum_(this->data_, sizeof(PM1006_RESPONSE_HEADER)+17);
+  if (index == (sizeof(PM1006_RESPONSE_HEADER) + 16)) {
+    uint8_t checksum = pm1006_checksum_(this->data_, sizeof(PM1006_RESPONSE_HEADER) + 17);
     if (checksum != 0) {
       ESP_LOGW(TAG, "PM1006 checksum is wrong: %02x, expected zero", checksum);
       return false;
@@ -87,7 +89,7 @@ void PM1006Component::parse_data_() {
 }
 
 uint16_t PM1006Component::get_16_bit_uint_(uint8_t start_index) const {
-  return encode_uint16(this->data_[start_index], this->data_[start_index+1]);
+  return encode_uint16(this->data_[start_index], this->data_[start_index + 1]);
 }
 
 }  // namespace pm1006
