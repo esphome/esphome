@@ -6,34 +6,45 @@ namespace template_ {
 
 static const char *const TAG = "template.number";
 
-TemplateNumber::TemplateNumber() : set_trigger_(new Trigger<float>()) {}
+void TemplateNumber::setup() {
+  if (this->f_.has_value() || !this->optimistic_)
+    return;
+
+  this->pref_ = global_preferences.make_preference<float>(this->get_object_id_hash());
+  float value;
+  if (!this->pref_.load(&value)) {
+    if (!isnan(this->initial_value_))
+      value = this->initial_value_;
+    else
+      value = this->traits.get_min_value();
+  }
+  this->publish_state(value);
+}
 
 void TemplateNumber::update() {
   if (!this->f_.has_value())
     return;
 
   auto val = (*this->f_)();
-  if (val.has_value()) {
-    this->publish_state(*val);
-  }
+  if (!val.has_value())
+    return;
+
+  this->publish_state(*val);
 }
 
-void TemplateNumber::set(float value) {
+void TemplateNumber::control(float value) {
   this->set_trigger_->trigger(value);
 
-  if (this->optimistic_)
+  if (this->optimistic_) {
     this->publish_state(value);
+    this->pref_.save(&value);
+  }
 }
-float TemplateNumber::get_setup_priority() const { return setup_priority::HARDWARE; }
-void TemplateNumber::set_template(std::function<optional<float>()> &&f) { this->f_ = f; }
 void TemplateNumber::dump_config() {
   LOG_NUMBER("", "Template Number", this);
   ESP_LOGCONFIG(TAG, "  Optimistic: %s", YESNO(this->optimistic_));
   LOG_UPDATE_INTERVAL(this);
 }
-
-void TemplateNumber::set_optimistic(bool optimistic) { this->optimistic_ = optimistic; }
-Trigger<float> *TemplateNumber::get_set_trigger() const { return this->set_trigger_; };
 
 }  // namespace template_
 }  // namespace esphome
