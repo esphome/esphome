@@ -53,19 +53,19 @@ void LightCall::perform() {
     // Only print color mode when it's being changed
     ColorMode current_color_mode = this->parent_->remote_values.get_color_mode();
     if (this->color_mode_.value_or(current_color_mode) != current_color_mode) {
-      ESP_LOGD(TAG, "  Color Mode: %s", color_mode_to_human(v.get_color_mode()));
+      ESP_LOGD(TAG, "  Color mode: %s", color_mode_to_human(v.get_color_mode()));
     }
 
     if (this->red_.has_value() || this->green_.has_value() || this->blue_.has_value()) {
-      ESP_LOGD(TAG, "  Red=%.0f%%, Green=%.0f%%, Blue=%.0f%%", v.get_red() * 100.0f, v.get_green() * 100.0f,
+      ESP_LOGD(TAG, "  Red: %.0f%%, Green: %.0f%%, Blue: %.0f%%", v.get_red() * 100.0f, v.get_green() * 100.0f,
                v.get_blue() * 100.0f);
     }
 
     if (this->white_.has_value()) {
-      ESP_LOGD(TAG, "  White Value: %.0f%%", v.get_white() * 100.0f);
+      ESP_LOGD(TAG, "  White: %.0f%%", v.get_white() * 100.0f);
     }
     if (this->color_temperature_.has_value()) {
-      ESP_LOGD(TAG, "  Color Temperature: %.1f mireds", v.get_color_temperature());
+      ESP_LOGD(TAG, "  Color temperature: %.1f mireds", v.get_color_temperature());
     }
 
     if (this->cold_white_.has_value() || this->warm_white_.has_value()) {
@@ -77,14 +77,14 @@ void LightCall::perform() {
   if (this->has_flash_()) {
     // FLASH
     if (this->publish_) {
-      ESP_LOGD(TAG, "  Flash Length: %.1fs", *this->flash_length_ / 1e3f);
+      ESP_LOGD(TAG, "  Flash length: %.1fs", *this->flash_length_ / 1e3f);
     }
 
     this->parent_->start_flash_(v, *this->flash_length_);
   } else if (this->has_transition_()) {
     // TRANSITION
     if (this->publish_) {
-      ESP_LOGD(TAG, "  Transition Length: %.1fs", *this->transition_length_ / 1e3f);
+      ESP_LOGD(TAG, "  Transition length: %.1fs", *this->transition_length_ / 1e3f);
     }
 
     // Special case: Transition and effect can be set when turning off
@@ -268,7 +268,7 @@ LightColorValues LightCall::validate_() {
 
   // validate effect index
   if (this->has_effect_() && *this->effect_ > this->parent_->effects_.size()) {
-    ESP_LOGW(TAG, "'%s' Invalid effect index %u", name, *this->effect_);
+    ESP_LOGW(TAG, "'%s' - Invalid effect index %u!", name, *this->effect_);
     this->effect_.reset();
   }
 
