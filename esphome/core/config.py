@@ -77,7 +77,7 @@ PLATFORMIO_ESP8266_LUT = {
     #    recommended version as otherwise a bunch of devices could be bricked
     #  * The docker images need to be updated to ship the new recommended version, in order not
     #    to DDoS platformio servers.
-    #    Update this file: https://github.com/esphome/esphome-docker-base/blob/master/platformio.ini
+    #    Update this file: https://github.com/esphome/esphome-docker-base/blob/main/platformio.ini
     "RECOMMENDED": ARDUINO_VERSION_ESP8266["2.7.4"],
     "LATEST": "espressif8266",
     "DEV": ARDUINO_VERSION_ESP8266["dev"],
@@ -200,11 +200,6 @@ CONFIG_SCHEMA = cv.Schema(
                 cv.Required(CONF_NAME): cv.All(cv.string_strict, valid_project_name),
                 cv.Required(CONF_VERSION): cv.string_strict,
             }
-        ),
-        cv.Optional("esphome_core_version"): cv.invalid(
-            "The esphome_core_version option has been "
-            "removed in 1.13 - the esphome core source "
-            "files are now bundled with ESPHome."
         ),
     }
 )

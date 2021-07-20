@@ -7,10 +7,7 @@ from esphome import automation
 from esphome.const import (
     CONF_ID,
     CONF_TIMEOUT,
-    CONF_ESPHOME,
     CONF_METHOD,
-    CONF_ARDUINO_VERSION,
-    ARDUINO_VERSION_ESP8266,
     CONF_TRIGGER_ID,
     CONF_URL,
 )
@@ -78,23 +75,19 @@ CONFIG_SCHEMA = cv.Schema(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-def validate_framework(config):
-    if CORE.is_esp32:
+def validate_framework(value):
+    if not CORE.is_esp8266:
+        # only for ESP8266
         return
 
-    # only for ESP8266
-    path = [CONF_ESPHOME, CONF_ARDUINO_VERSION]
-    version: str = fv.full_config.get().get_config_for_path(path)
-
-    reverse_map = {v: k for k, v in ARDUINO_VERSION_ESP8266.items()}
-    framework_version = reverse_map.get(version)
+    framework_version = fv.get_arduino_framework_version()
     if framework_version is None or framework_version == "dev":
         return
 
     if framework_version < "2.5.1":
         raise cv.Invalid(
-            "This component is not supported on arduino framework version below 2.5.1",
-            path=[cv.ROOT_CONFIG_PATH] + path,
+            "This component is not supported on arduino framework version below 2.5.1, ",
+            "please check esphome->arduino_version",
         )
 
 

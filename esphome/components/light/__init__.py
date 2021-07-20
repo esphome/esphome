@@ -16,6 +16,8 @@ from esphome.const import (
     CONF_ON_TURN_OFF,
     CONF_ON_TURN_ON,
     CONF_TRIGGER_ID,
+    CONF_COLD_WHITE_COLOR_TEMPERATURE,
+    CONF_WARM_WHITE_COLOR_TEMPERATURE,
 )
 from esphome.core import coroutine_with_priority
 from .automation import light_control_to_code  # noqa
@@ -102,6 +104,18 @@ ADDRESSABLE_LIGHT_SCHEMA = RGB_LIGHT_SCHEMA.extend(
         cv.Optional(CONF_POWER_SUPPLY): cv.use_id(power_supply.PowerSupply),
     }
 )
+
+
+def validate_color_temperature_channels(value):
+    if (
+        value[CONF_COLD_WHITE_COLOR_TEMPERATURE]
+        >= value[CONF_WARM_WHITE_COLOR_TEMPERATURE]
+    ):
+        raise cv.Invalid(
+            "Color temperature of the cold white channel must be colder than that of the warm white channel.",
+            path=[CONF_COLD_WHITE_COLOR_TEMPERATURE],
+        )
+    return value
 
 
 async def setup_light_core_(light_var, output_var, config):

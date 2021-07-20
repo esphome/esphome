@@ -56,6 +56,7 @@ class ESP8266SoftwareSerial {
 class UARTComponent : public Component, public Stream {
  public:
   void set_baud_rate(uint32_t baud_rate) { baud_rate_ = baud_rate; }
+  uint32_t get_baud_rate() const { return baud_rate_; }
 
   uint32_t get_config();
 

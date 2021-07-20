@@ -94,11 +94,17 @@ bool HOT ICACHE_RAM_ATTR DHT::read_sensor_(float *temperature, float *humidity, 
       delayMicroseconds(40);
     } else if (this->model_ == DHT_MODEL_DHT22_TYPE2) {
       delayMicroseconds(2000);
+    } else if (this->model_ == DHT_MODEL_AM2302) {
+      delayMicroseconds(1000);
     } else {
       delayMicroseconds(800);
     }
     this->pin_->pin_mode(INPUT_PULLUP);
-    delayMicroseconds(40);
+
+    // Host pull up 20-40us then DHT response 80us
+    // Start waiting for initial rising edge at the center when we
+    // expect the DHT response (30us+40us)
+    delayMicroseconds(70);
 
     uint8_t bit = 7;
     uint8_t byte = 0;
@@ -116,8 +122,6 @@ bool HOT ICACHE_RAM_ATTR DHT::read_sensor_(float *temperature, float *humidity, 
           break;
         }
       }
-      if (error_code != 0)
-        break;
 
       start_time = micros();
       uint32_t end_time = start_time;
@@ -132,8 +136,6 @@ bool HOT ICACHE_RAM_ATTR DHT::read_sensor_(float *temperature, float *humidity, 
           break;
         }
       }
-      if (error_code != 0)
-        break;
 
       if (i < 0)
         continue;

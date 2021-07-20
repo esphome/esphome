@@ -18,6 +18,7 @@ LightCall LightState::make_call() { return LightCall(this); }
 struct LightStateRTCState {
   bool state{false};
   float brightness{1.0f};
+  float color_brightness{1.0f};
   float red{1.0f};
   float green{1.0f};
   float blue{1.0f};
@@ -65,6 +66,7 @@ void LightState::setup() {
 
   call.set_state(recovered.state);
   call.set_brightness_if_supported(recovered.brightness);
+  call.set_color_brightness_if_supported(recovered.color_brightness);
   call.set_red_if_supported(recovered.red);
   call.set_green_if_supported(recovered.green);
   call.set_blue_if_supported(recovered.blue);
@@ -118,9 +120,6 @@ void LightState::loop() {
 
 float LightState::get_setup_priority() const { return setup_priority::HARDWARE - 1.0f; }
 uint32_t LightState::hash_base() { return 1114400283; }
-
-LightColorValues LightState::get_current_values() { return this->current_values; }
-LightColorValues LightState::get_remote_values() { return this->remote_values; }
 
 void LightState::publish_state() {
   this->remote_values_callback_.call();
@@ -244,6 +243,7 @@ void LightState::save_remote_values_() {
   LightStateRTCState saved;
   saved.state = this->remote_values.is_on();
   saved.brightness = this->remote_values.get_brightness();
+  saved.color_brightness = this->remote_values.get_color_brightness();
   saved.red = this->remote_values.get_red();
   saved.green = this->remote_values.get_green();
   saved.blue = this->remote_values.get_blue();

@@ -4,6 +4,13 @@ import contextvars
 
 from esphome.types import ConfigFragmentType, ID, ConfigPathType
 import esphome.config_validation as cv
+from esphome.const import (
+    ARDUINO_VERSION_ESP32,
+    ARDUINO_VERSION_ESP8266,
+    CONF_ESPHOME,
+    CONF_ARDUINO_VERSION,
+)
+from esphome.core import CORE
 
 
 class FinalValidateConfig(ABC):
@@ -55,3 +62,20 @@ def id_declaration_match_schema(schema):
             return schema(declaration_config)
 
     return validator
+
+
+def get_arduino_framework_version():
+    path = [CONF_ESPHOME, CONF_ARDUINO_VERSION]
+    # This is run after core validation, so the property is set even if user didn't
+    version: str = full_config.get().get_config_for_path(path)
+
+    if CORE.is_esp32:
+        version_map = ARDUINO_VERSION_ESP32
+    elif CORE.is_esp8266:
+        version_map = ARDUINO_VERSION_ESP8266
+    else:
+        raise ValueError("Platform not supported yet for this validator")
+
+    reverse_map = {v: k for k, v in version_map.items()}
+    framework_version = reverse_map.get(version)
+    return framework_version
