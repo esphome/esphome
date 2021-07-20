@@ -4,6 +4,7 @@ import esphome.config_validation as cv
 from esphome.components import number
 from esphome.const import (
     CONF_ID,
+    CONF_INITIAL_VALUE,
     CONF_LAMBDA,
     CONF_MAX_VALUE,
     CONF_MIN_VALUE,
@@ -32,9 +33,10 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_MAX_VALUE): cv.float_,
             cv.Required(CONF_MIN_VALUE): cv.float_,
             cv.Required(CONF_STEP): cv.positive_float,
-            cv.Optional(CONF_LAMBDA): cv.returning_lambda,
-            cv.Optional(CONF_OPTIMISTIC, default=False): cv.boolean,
+            cv.Exclusive(CONF_LAMBDA, "lambda-optimistic"): cv.returning_lambda,
+            cv.Exclusive(CONF_OPTIMISTIC, "lambda-optimistic"): cv.boolean,
             cv.Optional(CONF_SET_ACTION): automation.validate_automation(single=True),
+            cv.Optional(CONF_INITIAL_VALUE): cv.float_,
         }
     ).extend(cv.polling_component_schema("60s")),
     validate_min_max,
@@ -44,20 +46,27 @@ CONFIG_SCHEMA = cv.All(
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
-    await number.register_number(var, config)
+    await number.register_number(
+        var,
+        config,
+        min_value=config[CONF_MIN_VALUE],
+        max_value=config[CONF_MAX_VALUE],
+        step=config[CONF_STEP],
+    )
 
     if CONF_LAMBDA in config:
         template_ = await cg.process_lambda(
             config[CONF_LAMBDA], [], return_type=cg.optional.template(float)
         )
         cg.add(var.set_template(template_))
+
+    elif CONF_OPTIMISTIC in config:
+        cg.add(var.set_optimistic(config[CONF_OPTIMISTIC]))
+
     if CONF_SET_ACTION in config:
         await automation.build_automation(
             var.get_set_trigger(), [(float, "x")], config[CONF_SET_ACTION]
         )
 
-    cg.add(var.set_optimistic(config[CONF_OPTIMISTIC]))
-
-    cg.add(var.set_min_value(config[CONF_MIN_VALUE]))
-    cg.add(var.set_max_value(config[CONF_MAX_VALUE]))
-    cg.add(var.set_step(config[CONF_STEP]))
+    if CONF_INITIAL_VALUE in config:
+        cg.add(var.set_initial_value(config[CONF_INITIAL_VALUE]))
