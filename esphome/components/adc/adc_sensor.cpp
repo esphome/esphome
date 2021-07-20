@@ -1,8 +1,5 @@
 #include "adc_sensor.h"
 #include "esphome/core/log.h"
-#ifdef ARDUINO_ARCH_ESP32
-#include "driver/adc.h"
-#endif
 
 #ifdef USE_ADC_SENSOR_VCC
 ADC_MODE(ADC_VCC)
@@ -14,7 +11,7 @@ namespace adc {
 static const char *const TAG = "adc";
 
 #ifdef ARDUINO_ARCH_ESP32
-void ADCSensor::set_attenuation(adc_attenuation_t attenuation) { this->attenuation_ = attenuation; }
+void ADCSensor::set_attenuation(adc_atten_t attenuation) { this->attenuation_ = attenuation; }
 
 inline adc1_channel_t gpio_to_adc1(uint8_t pin) {
   switch (pin) {
@@ -76,6 +73,8 @@ void ADCSensor::dump_config() {
     case ADC_ATTEN_DB_11:
       ESP_LOGCONFIG(TAG, " Attenuation: 11db (max 3.9V)");
       break;
+    default:  // This is to satisfy the unused ADC_ATTEN_MAX
+      break;
   }
 #endif
   LOG_UPDATE_INTERVAL(this);
@@ -102,6 +101,8 @@ float ADCSensor::sample() {
       break;
     case ADC_ATTEN_DB_11:
       value_v *= 3.9;
+      break;
+    default:  // This is to satisfy the unused ADC_ATTEN_MAX
       break;
   }
   return value_v;

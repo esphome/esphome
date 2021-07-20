@@ -6,6 +6,10 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/voltage_sampler/voltage_sampler.h"
 
+#ifdef ARDUINO_ARCH_ESP32
+#include "driver/adc.h"
+#endif
+
 namespace esphome {
 namespace adc {
 
@@ -13,7 +17,7 @@ class ADCSensor : public sensor::Sensor, public PollingComponent, public voltage
  public:
 #ifdef ARDUINO_ARCH_ESP32
   /// Set the attenuation for this pin. Only available on the ESP32.
-  void set_attenuation(adc_attenuation_t attenuation);
+  void set_attenuation(adc_atten_t attenuation);
 #endif
 
   /// Update adc values.
@@ -34,7 +38,7 @@ class ADCSensor : public sensor::Sensor, public PollingComponent, public voltage
   uint8_t pin_;
 
 #ifdef ARDUINO_ARCH_ESP32
-  adc_atten_t attenuation_{};
+  adc_atten_t attenuation_{ADC_ATTEN_DB_0};
 #endif
 };
 
