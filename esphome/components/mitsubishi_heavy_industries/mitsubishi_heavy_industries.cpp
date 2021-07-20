@@ -3,7 +3,7 @@
 
 namespace esphome {
 namespace mitsubishi_heavy_industries {
-static const char *TAG = "mitsubishi_heavy_industries.climate";
+static const char *const TAG = "mitsubishi_heavy_industries.climate";
 
 // Power
 const uint32_t MHI_OFF = 0x08;
@@ -64,25 +64,18 @@ const uint16_t MHI_MIN_GAP = 17500;
 bool MitsubishiHeavyIndustriesClimate::on_receive(remote_base::RemoteReceiveData data) {
   ESP_LOGD(TAG, "Received some bytes");
 
-  // The protocol sends the data twice, read here
-  // uint32_t loop_read;
-
   uint8_t bytes[19] = {};
 
-  // for (uint16_t loop = 1; loop <= 2; loop++) {
   if (!data.expect_item(MHI_HEADER_MARK, MHI_HEADER_SPACE))
     return false;
 
-  // loop_read = 0;
-  for (uint8_t a_byte = 0; a_byte < 19; a_byte++) {
-    uint8_t byte = 0;
+  for (unsigned char & a_byte : bytes) {
     for (int8_t a_bit = 0; a_bit < 8; a_bit++) {
       if (data.expect_item(MHI_BIT_MARK, MHI_ONE_SPACE))
-        byte |= 1 << a_bit;
+        a_byte |= 1 << a_bit;
       else if (!data.expect_item(MHI_BIT_MARK, MHI_ZERO_SPACE))
         return false;
     }
-    bytes[a_byte] = byte;
   }
 
   ESP_LOGD(TAG,
@@ -107,21 +100,21 @@ bool MitsubishiHeavyIndustriesClimate::on_receive(remote_base::RemoteReceiveData
 
   ESP_LOGD(TAG, "Passed check 2");
 
-  auto powerMode = bytes[5] & 0x08;
-  auto operationMode = bytes[5] & 0x07;
+  auto power_mode = bytes[5] & 0x08;
+  auto operation_mode = bytes[5] & 0x07;
   auto temperature = (~bytes[7] & 0x0F) + 17;
-  auto fanSpeed = bytes[9] & 0x0F;
-  auto swingV = bytes[11] & 0xE0;  // ignore the bit for the 3D auto
-  auto swingH = bytes[13] & 0x0F;
+  auto fan_speed = bytes[9] & 0x0F;
+  auto swing_v = bytes[11] & 0xE0;  // ignore the bit for the 3D auto
+  auto swing_h = bytes[13] & 0x0F;
 
   ESP_LOGD(TAG,
-           "Resulting numbers: powerMode=0x%02X operationMode=0x%02X temperature=%d fanSpeed=0x%02X swingV=0x%02X "
-           "swingH=0x%02X",
-           powerMode, operationMode, temperature, fanSpeed, swingV, swingH);
+           "Resulting numbers: power_mode=0x%02X operation_mode=0x%02X temperature=%d fan_speed=0x%02X swing_v=0x%02X "
+           "swing_h=0x%02X",
+           power_mode, operation_mode, temperature, fan_speed, swing_v, swing_h);
 
-  if (powerMode == MHI_ON) {
+  if (power_mode == MHI_ON) {
     // Power and operating mode
-    switch (operationMode) {
+    switch (operation_mode) {
       case MHI_COOL:
         this->mode = climate::CLIMATE_MODE_COOL;
         break;
@@ -147,18 +140,18 @@ bool MitsubishiHeavyIndustriesClimate::on_receive(remote_base::RemoteReceiveData
   this->target_temperature = temperature;
 
   // Horizontal and vertical swing
-  if (swingV == MHI_VS_SWING && swingH == MHI_HS_SWING) {
+  if (swing_v == MHI_VS_SWING && swing_h == MHI_HS_SWING) {
     this->swing_mode = climate::CLIMATE_SWING_BOTH;
-  } else if (swingV == MHI_VS_SWING) {
+  } else if (swing_v == MHI_VS_SWING) {
     this->swing_mode = climate::CLIMATE_SWING_VERTICAL;
-  } else if (swingH == MHI_HS_SWING) {
+  } else if (swing_h == MHI_HS_SWING) {
     this->swing_mode = climate::CLIMATE_SWING_HORIZONTAL;
   } else {
     this->swing_mode = climate::CLIMATE_SWING_OFF;
   }
 
   // Fan speed
-  switch (fanSpeed) {
+  switch (fan_speed) {
     case MHI_FAN1:
     case MHI_FAN2:  // Only to support remote feedback
       this->fan_mode = climate::CLIMATE_FAN_LOW;
@@ -172,7 +165,7 @@ bool MitsubishiHeavyIndustriesClimate::on_receive(remote_base::RemoteReceiveData
       break;
     case MHI_FAN_AUTO:
       this->fan_mode = climate::CLIMATE_FAN_AUTO;
-      switch (swingH) {
+      switch (swing_h) {
         case MHI_HS_MIDDLE:
           this->fan_mode = climate::CLIMATE_FAN_MIDDLE;
           break;
@@ -203,17 +196,17 @@ void MitsubishiHeavyIndustriesClimate::transmit_state() {
   // Initial values
   // ----------------------
 
-  auto operatingMode = MHI_AUTO;
-  auto powerMode = MHI_ON;
-  auto cleanMode = 0x60;  // always off
+  auto operating_mode = MHI_AUTO;
+  auto power_mode = MHI_ON;
+  auto clean_mode = 0x60;  // always off
 
   auto temperature = 22;
-  auto fanSpeed = MHI_FAN_AUTO;
-  auto swingV = MHI_VS_STOP;
-  // auto swingH = MHI_HS_RIGHT;  // custom preferred value for this mode, should be MHI_HS_STOP
-  auto swingH = MHI_HS_STOP;
-  auto _3DAuto = MHI_3DAUTO_OFF;
-  auto silentMode = MHI_SILENT_OFF;
+  auto fan_speed = MHI_FAN_AUTO;
+  auto swing_v = MHI_VS_STOP;
+  // auto swing_h = MHI_HS_RIGHT;  // custom preferred value for this mode, should be MHI_HS_STOP
+  auto swing_h = MHI_HS_STOP;
+  auto mhi_3d_auto = MHI_3DAUTO_OFF;
+  auto silent_mode = MHI_SILENT_OFF;
 
   // ----------------------
   // Assign the values
@@ -222,28 +215,28 @@ void MitsubishiHeavyIndustriesClimate::transmit_state() {
   // Power and operating mode
   switch (this->mode) {
     case climate::CLIMATE_MODE_COOL:
-      operatingMode = MHI_COOL;
-      swingV = MHI_VS_UP;  // custom preferred value for this mode
+      operating_mode = MHI_COOL;
+      swing_v = MHI_VS_UP;  // custom preferred value for this mode
       break;
     case climate::CLIMATE_MODE_HEAT:
-      operatingMode = MHI_HEAT;
-      swingV = MHI_VS_DOWN;  // custom preferred value for this mode
+      operating_mode = MHI_HEAT;
+      swing_v = MHI_VS_DOWN;  // custom preferred value for this mode
       break;
     case climate::CLIMATE_MODE_AUTO:
-      operatingMode = MHI_AUTO;
-      swingV = MHI_VS_MIDDLE;  // custom preferred value for this mode
+      operating_mode = MHI_AUTO;
+      swing_v = MHI_VS_MIDDLE;  // custom preferred value for this mode
       break;
     case climate::CLIMATE_MODE_FAN_ONLY:
-      operatingMode = MHI_FAN;
-      swingV = MHI_VS_MIDDLE;  // custom preferred value for this mode
+      operating_mode = MHI_FAN;
+      swing_v = MHI_VS_MIDDLE;  // custom preferred value for this mode
       break;
     case climate::CLIMATE_MODE_DRY:
-      operatingMode = MHI_DRY;
-      swingV = MHI_VS_MIDDLE;  // custom preferred value for this mode
+      operating_mode = MHI_DRY;
+      swing_v = MHI_VS_MIDDLE;  // custom preferred value for this mode
       break;
     case climate::CLIMATE_MODE_OFF:
     default:
-      powerMode = MHI_OFF;
+      power_mode = MHI_OFF;
       break;
   }
 
@@ -254,14 +247,14 @@ void MitsubishiHeavyIndustriesClimate::transmit_state() {
   // Horizontal and vertical swing
   switch (this->swing_mode) {
     case climate::CLIMATE_SWING_BOTH:
-      swingV = MHI_VS_SWING;
-      swingH = MHI_HS_SWING;
+      swing_v = MHI_VS_SWING;
+      swing_h = MHI_HS_SWING;
       break;
     case climate::CLIMATE_SWING_HORIZONTAL:
-      swingH = MHI_HS_SWING;
+      swing_h = MHI_HS_SWING;
       break;
     case climate::CLIMATE_SWING_VERTICAL:
-      swingV = MHI_VS_SWING;
+      swing_v = MHI_VS_SWING;
       break;
     case climate::CLIMATE_SWING_OFF:
     default:
@@ -272,29 +265,29 @@ void MitsubishiHeavyIndustriesClimate::transmit_state() {
   // Fan speed
   switch (this->fan_mode.value()) {
     case climate::CLIMATE_FAN_LOW:
-      fanSpeed = MHI_FAN1;
+      fan_speed = MHI_FAN1;
       break;
     case climate::CLIMATE_FAN_MEDIUM:
-      fanSpeed = MHI_FAN3;
+      fan_speed = MHI_FAN3;
       break;
     case climate::CLIMATE_FAN_HIGH:
-      fanSpeed = MHI_FAN4;
+      fan_speed = MHI_FAN4;
       break;
     case climate::CLIMATE_FAN_MIDDLE:
-      fanSpeed = MHI_FAN_AUTO;
-      swingH = MHI_HS_MIDDLE;
+      fan_speed = MHI_FAN_AUTO;
+      swing_h = MHI_HS_MIDDLE;
       break;
     case climate::CLIMATE_FAN_FOCUS:
-      fanSpeed = MHI_FAN_AUTO;
-      swingH = MHI_HS_RIGHTLEFT;
+      fan_speed = MHI_FAN_AUTO;
+      swing_h = MHI_HS_RIGHTLEFT;
       break;
     case climate::CLIMATE_FAN_DIFFUSE:
-      fanSpeed = MHI_FAN_AUTO;
-      swingH = MHI_HS_LEFTRIGHT;
+      fan_speed = MHI_FAN_AUTO;
+      swing_h = MHI_HS_LEFTRIGHT;
       break;
     case climate::CLIMATE_FAN_AUTO:
     default:
-      fanSpeed = MHI_FAN_AUTO;
+      fan_speed = MHI_FAN_AUTO;
       break;
   }
 
@@ -303,22 +296,22 @@ void MitsubishiHeavyIndustriesClimate::transmit_state() {
   // ----------------------
 
   // Power state + operating mode
-  remote_state[5] |= powerMode | operatingMode | cleanMode;
+  remote_state[5] |= power_mode | operating_mode | clean_mode;
 
   // Temperature
   remote_state[7] |= (~((uint8_t) temperature - 17) & 0x0F);
 
   // Fan speed
-  remote_state[9] |= fanSpeed;
+  remote_state[9] |= fan_speed;
 
   // Vertical air flow + 3D auto
-  remote_state[11] |= swingV | _3DAuto;
+  remote_state[11] |= swing_v | mhi_3d_auto;
 
   // Horizontal air flow
-  remote_state[13] |= swingV | swingH;
+  remote_state[13] |= swing_v | swing_h;
 
   // Silent
-  remote_state[15] |= silentMode;
+  remote_state[15] |= silent_mode;
 
   // There is no real checksum, but some bytes are inverted
   remote_state[6] = ~remote_state[5];
