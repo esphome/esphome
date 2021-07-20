@@ -422,6 +422,12 @@ enum SensorStateClass {
   STATE_CLASS_MEASUREMENT = 1;
 }
 
+enum SensorLastResetType {
+  LAST_RESET_NONE = 0;
+  LAST_RESET_NEVER = 1;
+  LAST_RESET_AUTO = 2;
+}
+
 message ListEntitiesSensorResponse {
   option (id) = 16;
   option (source) = SOURCE_SERVER;
@@ -438,6 +444,7 @@ message ListEntitiesSensorResponse {
   bool force_update = 8;
   string device_class = 9;
   SensorStateClass state_class = 10;
+  SensorLastResetType last_reset_type = 11;
 }
 message SensorStateResponse {
   option (id) = 25;
