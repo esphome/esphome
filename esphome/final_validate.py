@@ -1,4 +1,4 @@
-from abc import ABC, abstractmethod, abstractproperty
+from abc import ABC, abstractmethod
 from typing import Dict, Any
 import contextvars
 
@@ -14,7 +14,8 @@ from esphome.core import CORE
 
 
 class FinalValidateConfig(ABC):
-    @abstractproperty
+    @property
+    @abstractmethod
     def data(self) -> Dict[str, Any]:
         """A dictionary that can be used by post validation functions to store
         global data during the validation phase. Each component should store its
