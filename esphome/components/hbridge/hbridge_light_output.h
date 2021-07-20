@@ -19,7 +19,7 @@ class HBridgeLightOutput : public PollingComponent, public light::LightOutput {
   light::LightTraits get_traits() override {
     auto traits = light::LightTraits();
     traits.set_supports_brightness(true);  // Dimming
-    traits.set_supported_color_modes({light::ColorMode::WHITE});
+    traits.set_supported_color_modes({light::ColorMode::COLD_WARM_WHITE});
     return traits;
   }
 
@@ -29,11 +29,11 @@ class HBridgeLightOutput : public PollingComponent, public light::LightOutput {
     // This method runs around 60 times per second
     // We cannot do the PWM ourselves so we are reliant on the hardware PWM
     if (!this->forward_direction_) {  // First LED Direction
-      this->pinb_pin_->set_level(this->duty_off_);
       this->pina_pin_->set_level(this->pina_duty_);
+      this->pinb_pin_->set_level(0);
       this->forward_direction_ = true;
     } else {  // Second LED Direction
-      this->pina_pin_->set_level(this->duty_off_);
+      this->pina_pin_->set_level(0);
       this->pinb_pin_->set_level(this->pinb_duty_);
       this->forward_direction_ = false;
     }
@@ -42,23 +42,7 @@ class HBridgeLightOutput : public PollingComponent, public light::LightOutput {
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
 
   void write_state(light::LightState *state) override {
-    float bright;
-    state->current_values_as_brightness(&bright);
-
-    state->set_gamma_correct(0);
-    float red, green, blue, white;
-    state->current_values_as_rgbw(&red, &green, &blue, &white);
-
-    if ((white / bright) > 0.55) {
-      this->pina_duty_ = (bright * (1 - (white / bright)));
-      this->pinb_duty_ = bright;
-    } else if (white < 0.45) {
-      this->pina_duty_ = bright;
-      this->pinb_duty_ = white;
-    } else {
-      this->pina_duty_ = bright;
-      this->pinb_duty_ = bright;
-    }
+    state->current_values_as_cwww(&this->pina_duty_, &this->pinb_duty_, false);
   }
 
  protected:
@@ -66,7 +50,6 @@ class HBridgeLightOutput : public PollingComponent, public light::LightOutput {
   output::FloatOutput *pinb_pin_;
   float pina_duty_ = 0;
   float pinb_duty_ = 0;
-  float duty_off_ = 0;
   bool forward_direction_ = false;
 };
 
