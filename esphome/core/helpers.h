@@ -116,6 +116,8 @@ uint8_t fast_random_8();
 
 /// Applies gamma correction with the provided gamma to value.
 float gamma_correct(float value, float gamma);
+/// Reverts gamma correction with the provided gamma to value.
+float gamma_uncorrect(float value, float gamma);
 
 /// Create a string from a value and an accuracy in decimals.
 std::string value_accuracy_to_string(float value, int8_t accuracy_decimals);

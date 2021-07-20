@@ -50,7 +50,9 @@ void LightCall::perform() {
       ESP_LOGD(TAG, "  Brightness: %.0f%%", v.get_brightness() * 100.0f);
     }
 
-    if (this->color_mode_.has_value()) {
+    // Only print color mode when it's being changed
+    ColorMode current_color_mode = this->parent_->remote_values.get_color_mode();
+    if (this->color_mode_.value_or(current_color_mode) != current_color_mode) {
       ESP_LOGD(TAG, "  Color Mode: %s", color_mode_to_human(v.get_color_mode()));
     }
 
@@ -133,6 +135,9 @@ LightColorValues LightCall::validate_() {
   auto *name = this->parent_->get_name().c_str();
   auto traits = this->parent_->get_traits();
 
+  // Handle calls following a legacy format
+  this->transform_legacy_calls_();
+
   // Brightness exists check
   if (this->brightness_.has_value() && !traits.get_supports_brightness()) {
     ESP_LOGW(TAG, "'%s' - This light does not support setting brightness!", name);
@@ -146,15 +151,17 @@ LightColorValues LightCall::validate_() {
   }
 
   // Color mode check
-  if (this->color_mode_.has_value()) {
-    if (!traits.supports_color_mode(this->color_mode_.value())) {
-      ESP_LOGW(TAG, "'%s' - This light does not support color mode %s!", name,
-               color_mode_to_human(this->color_mode_.value()));
-      this->color_mode_.reset();
-    }
+  if (this->color_mode_.has_value() && !traits.supports_color_mode(this->color_mode_.value())) {
+    ESP_LOGW(TAG, "'%s' - This light does not support color mode %s!", name,
+             color_mode_to_human(this->color_mode_.value()));
+    this->color_mode_.reset();
   }
 
-  auto color_mode = this->color_mode_.value_or(this->parent_->remote_values.get_color_mode());
+  // Ensure there is always a color mode set
+  if (!this->color_mode_.has_value()) {
+    this->color_mode_ = this->compute_color_mode_();
+  }
+  auto color_mode = *this->color_mode_;
 
   // Color brightness exists check
   if (this->color_brightness_.has_value() && !(*color_mode & *ColorChannel::RGB)) {
@@ -311,6 +318,132 @@ LightColorValues LightCall::validate_() {
 
   return v;
 }
+void LightCall::transform_legacy_calls_() {
+  auto traits = this->parent_->get_traits();
+
+  // If color mode is specified, it's by definition not a legacy call.
+  if (this->color_mode_.has_value())
+    return;
+
+  // Compatibility with pre-colormode model: if white value or color temperature is given, but only
+  // CWWW modes are supported and we know the temperature of the cold/warm white channels, emulate
+  // the color temperature through the CWWW modes as best as we can, because CWWW and RGBWW lights
+  // used to represent their values as white + color temperature.
+  if (((this->white_.has_value() && *this->white_ > 0.0f) || this->color_temperature_.has_value()) &&
+      !traits.supports_color_channel(ColorChannel::WHITE) &&
+      traits.supports_color_channel(ColorChannel::COLD_WARM_WHITE) && traits.get_min_mireds() > 0 &&
+      traits.get_max_mireds() > 0) {
+    ESP_LOGI(TAG, "'%s' - Emulating white/color temperature using cold/warm white channels.",
+             this->parent_->get_name().c_str());
+    auto current_values = this->parent_->remote_values;
+    if (this->color_temperature_.has_value()) {
+      const float white =
+          this->white_.value_or(fmaxf(current_values.get_cold_white(), current_values.get_warm_white()));
+      const float color_temp = clamp(*this->color_temperature_, traits.get_min_mireds(), traits.get_max_mireds());
+      const float ww_fraction =
+          (color_temp - traits.get_min_mireds()) / (traits.get_max_mireds() - traits.get_min_mireds());
+      const float cw_fraction = 1.0f - ww_fraction;
+      const float max_cw_ww = std::max(ww_fraction, cw_fraction);
+      this->cold_white_ = white * gamma_uncorrect(cw_fraction / max_cw_ww, this->parent_->get_gamma_correct());
+      this->warm_white_ = white * gamma_uncorrect(ww_fraction / max_cw_ww, this->parent_->get_gamma_correct());
+    } else {
+      const float max_cw_ww = std::max(current_values.get_warm_white(), current_values.get_cold_white());
+      this->cold_white_ = *this->white_ * current_values.get_cold_white() / max_cw_ww;
+      this->warm_white_ = *this->white_ * current_values.get_warm_white() / max_cw_ww;
+    }
+    this->white_.reset();
+    this->color_temperature_.reset();
+  }
+}
+ColorMode LightCall::compute_color_mode_() {
+  auto supported_modes = this->parent_->get_traits().get_supported_color_modes();
+  int supported_count = supported_modes.size();
+
+  // Some lights don't support any color modes (e.g. monochromatic light), leave it at unknown.
+  if (supported_count == 0)
+    return ColorMode::UNKNOWN;
+
+  // In the common case of lights supporting only a single mode, use that one.
+  if (supported_count == 1)
+    return *supported_modes.begin();
+
+  // Don't change if the light is being turned off.
+  ColorMode current_mode = this->parent_->remote_values.get_color_mode();
+  if (this->state_.has_value() && !*this->state_)
+    return current_mode;
+
+  // If no color mode is specified, we try to guess the color mode. This is needed for backward compatibility to
+  // pre-colormode clients and automations, but also for the MQTT API, where HA doesn't let us know which color mode
+  // was used for some reason.
+  std::set<ColorMode> suitable_modes = this->get_suitable_color_modes_();
+
+  // Don't change if the current mode is suitable.
+  if (suitable_modes.count(current_mode) > 0) {
+    ESP_LOGI(TAG, "'%s' - Keeping current color mode %s for call without color mode.",
+             this->parent_->get_name().c_str(), color_mode_to_human(current_mode));
+    return current_mode;
+  }
+
+  // Use the preferred suitable mode.
+  for (auto mode : suitable_modes) {
+    if (supported_modes.count(mode) == 0)
+      continue;
+
+    ESP_LOGI(TAG, "'%s' - Using color mode %s for call without color mode.", this->parent_->get_name().c_str(),
+             color_mode_to_human(mode));
+    return mode;
+  }
+
+  // There's no supported mode for this call, so warn, use a mode at random and let validation strip out whatever we
+  // don't support.
+  ESP_LOGW(TAG, "'%s' - This light does not support a color mode suitable for this call without color mode!",
+           this->parent_->get_name().c_str());
+  return *supported_modes.begin();
+}
+std::set<ColorMode> LightCall::get_suitable_color_modes_() {
+  bool has_rgb = (this->color_brightness_.has_value() && *this->color_brightness_ > 0.0f) || this->red_.has_value() ||
+                 this->green_.has_value() || this->blue_.has_value();
+  bool has_white = this->white_.has_value() && *this->white_ > 0.0f;
+  bool has_ct = this->color_temperature_.has_value();
+  bool has_cwww = (this->cold_white_.has_value() && *this->cold_white_ > 0.0f) ||
+                  (this->warm_white_.has_value() && *this->warm_white_ > 0.0f);
+
+  // If white value is given, use a mode with a white channel, i.e. WHITE or COLOR_TEMPERATURE (with RGB if also given).
+  // Force the COLOR_TEMPERATURE mode when a color temperature is also given, otherwise prefer WHITE if available.
+  if (has_white) {
+    if (has_rgb) {
+      if (has_ct)
+        return {ColorMode::RGB_COLOR_TEMPERATURE};
+      return {ColorMode::RGB_WHITE, ColorMode::RGB_COLOR_TEMPERATURE};
+    }
+    if (has_ct)
+      return {ColorMode::COLOR_TEMPERATURE, ColorMode::RGB_COLOR_TEMPERATURE};
+    return {ColorMode::WHITE, ColorMode::COLOR_TEMPERATURE, ColorMode::RGB_WHITE, ColorMode::RGB_COLOR_TEMPERATURE};
+  }
+
+  // If color temperature is given, use COLOR_TEMPERATURE (with RGB if also given).
+  if (has_ct) {
+    if (has_rgb)
+      return {ColorMode::RGB_COLOR_TEMPERATURE};
+    return {ColorMode::COLOR_TEMPERATURE, ColorMode::RGB_COLOR_TEMPERATURE};
+  }
+
+  // If CWWW is given, use COLD_WARM_WHITE (with RGB if also given).
+  if (has_cwww) {
+    if (has_rgb)
+      return {ColorMode::RGB_COLD_WARM_WHITE};
+    return {ColorMode::COLD_WARM_WHITE, ColorMode::RGB_COLD_WARM_WHITE};
+  }
+
+  // If only RGB is given, use any RGB mode.
+  if (has_rgb)
+    return {ColorMode::RGB, ColorMode::RGB_WHITE, ColorMode::RGB_COLOR_TEMPERATURE, ColorMode::RGB_COLD_WARM_WHITE};
+
+  // No color channel values given, so any color mode is suitable.
+  return {ColorMode::RGB_WHITE, ColorMode::RGB_COLOR_TEMPERATURE, ColorMode::RGB_COLD_WARM_WHITE, ColorMode::RGB,
+          ColorMode::WHITE,     ColorMode::COLOR_TEMPERATURE,     ColorMode::COLD_WARM_WHITE};
+}
+
 LightCall &LightCall::set_effect(const std::string &effect) {
   if (strcasecmp(effect.c_str(), "none") == 0) {
     this->set_effect(0);
