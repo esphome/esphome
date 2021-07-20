@@ -64,11 +64,6 @@ void ADS1115Component::setup() {
     return;
   }
   this->prev_config_ = config;
-
-  for (auto *sensor : this->sensors_) {
-    this->set_interval(sensor->get_name(), sensor->update_interval(),
-                       [this, sensor] { this->request_measurement(sensor); });
-  }
 }
 void ADS1115Component::dump_config() {
   ESP_LOGCONFIG(TAG, "Setting up ADS1115...");
