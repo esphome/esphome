@@ -12,6 +12,8 @@ CONFIG_SCHEMA = climate_ir.CLIMATE_IR_WITH_RECEIVER_SCHEMA.extend({
     cv.GenerateID(): cv.declare_id(MitsubishiHeavyIndustriesClimate),
 })
 
+
 def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     yield climate_ir.register_climate_ir(var, config)
+
