@@ -787,6 +787,9 @@ STATE_CLASS_NONE = ""
 # The state represents a measurement in present time
 STATE_CLASS_MEASUREMENT = "measurement"
 
+# This sensor does not support resetting. ie, it is not accumulative
 LAST_RESET_TYPE_NONE = ""
+# This sensor is expected to never reset its value
 LAST_RESET_TYPE_NEVER = "never"
+# This sensor may reset and Home Assistant will watch for this
 LAST_RESET_TYPE_AUTO = "auto"

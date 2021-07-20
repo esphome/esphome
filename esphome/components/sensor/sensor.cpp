@@ -77,17 +77,6 @@ void Sensor::set_state_class(const std::string &state_class) {
   }
 }
 void Sensor::set_last_reset_type(LastResetType last_reset_type) { this->last_reset_type = last_reset_type; }
-void Sensor::set_last_reset_type(const std::string &last_reset_type) {
-  if (str_equals_case_insensitive(last_reset_type, "never")) {
-    this->last_reset_type = LAST_RESET_TYPE_NEVER;
-  } else if (str_equals_case_insensitive(last_reset_type, "auto")) {
-    this->last_reset_type = LAST_RESET_TYPE_AUTO;
-  } else if (str_equals_case_insensitive(last_reset_type, "")) {
-    this->last_reset_type = LAST_RESET_TYPE_NONE;
-  } else {
-    ESP_LOGW(TAG, "'%s' - Unrecognized last reset type %s", this->get_name().c_str(), last_reset_type.c_str());
-  }
-}
 std::string Sensor::get_unit_of_measurement() {
   if (this->unit_of_measurement_.has_value())
     return *this->unit_of_measurement_;

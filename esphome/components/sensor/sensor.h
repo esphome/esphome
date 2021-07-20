@@ -45,8 +45,11 @@ const char *state_class_to_string(StateClass state_class);
  * Sensor last reset types
  */
 enum LastResetType : uint8_t {
+  /// This sensor does not support resetting. ie, it is not accumulative
   LAST_RESET_TYPE_NONE = 0,
+  /// This sensor is expected to never reset its value
   LAST_RESET_TYPE_NEVER = 1,
+  /// This sensor may reset and Home Assistant will watch for this
   LAST_RESET_TYPE_AUTO = 2,
 };
 
@@ -173,8 +176,8 @@ class Sensor : public Nameable {
   // The Last reset type of this sensor
   LastResetType last_reset_type{LAST_RESET_TYPE_NONE};
 
+  /// Manually set the Home Assistant last reset type for this sensor.
   void set_last_reset_type(LastResetType last_reset_type);
-  void set_last_reset_type(const std::string &last_reset_type);
 
   /** A unique ID for this sensor, empty for no unique id. See unique ID requirements:
    * https://developers.home-assistant.io/docs/en/entity_registry_index.html#unique-id-requirements
