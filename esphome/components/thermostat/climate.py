@@ -144,45 +144,19 @@ def validate_thermostat(config):
                 )
             )
     # verify default climate mode is valid given above configuration
-    if config[CONF_DEFAULT_MODE] == CONF_AUTO_MODE and CONF_COOL_ACTION not in config:
-        raise cv.Invalid(
-            "{} is set to {} but {} is not present in the configuration".format(
-                CONF_DEFAULT_MODE, CONF_AUTO_MODE, CONF_COOL_ACTION
+    default_mode = config[CONF_DEFAULT_MODE]
+    requirements = {
+        CONF_AUTO_MODE: [CONF_COOL_ACTION, CONF_HEAT_ACTION],
+        CONF_COOL_MODE: [CONF_COOL_ACTION],
+        CONF_HEAT_MODE: [CONF_HEAT_ACTION],
+        CONF_DRY_MODE: [CONF_DRY_ACTION],
+        CONF_FAN_ONLY_MODE: [CONF_FAN_ONLY_ACTION],
+    }.get(default_mode, [])
+    for req in requirements:
+        if req not in config:
+            raise cv.Invalid(
+                f"{CONF_DEFAULT_MODE} is set to {default_mode} but {req} is not present in the configuration"
             )
-        )
-    if config[CONF_DEFAULT_MODE] == CONF_AUTO_MODE and CONF_HEAT_ACTION not in config:
-        raise cv.Invalid(
-            "{} is set to {} but {} is not present in the configuration".format(
-                CONF_DEFAULT_MODE, CONF_AUTO_MODE, CONF_HEAT_ACTION
-            )
-        )
-    if config[CONF_DEFAULT_MODE] == CONF_COOL_MODE and CONF_COOL_ACTION not in config:
-        raise cv.Invalid(
-            "{} is set to {} but {} is not present in the configuration".format(
-                CONF_DEFAULT_MODE, CONF_COOL_MODE, CONF_COOL_ACTION
-            )
-        )
-    if config[CONF_DEFAULT_MODE] == CONF_DRY_MODE and CONF_DRY_ACTION not in config:
-        raise cv.Invalid(
-            "{} is set to {} but {} is not present in the configuration".format(
-                CONF_DEFAULT_MODE, CONF_DRY_MODE, CONF_DRY_ACTION
-            )
-        )
-    if (
-        config[CONF_DEFAULT_MODE] == CONF_FAN_ONLY_MODE
-        and CONF_FAN_ONLY_ACTION not in config
-    ):
-        raise cv.Invalid(
-            "{} is set to {} but {} is not present in the configuration".format(
-                CONF_DEFAULT_MODE, CONF_FAN_ONLY_MODE, CONF_FAN_ONLY_ACTION
-            )
-        )
-    if config[CONF_DEFAULT_MODE] == CONF_HEAT_MODE and CONF_HEAT_ACTION not in config:
-        raise cv.Invalid(
-            "{} is set to {} but {} is not present in the configuration".format(
-                CONF_DEFAULT_MODE, CONF_HEAT_MODE, CONF_HEAT_ACTION
-            )
-        )
 
     return config
 
