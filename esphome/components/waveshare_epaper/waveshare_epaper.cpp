@@ -6,7 +6,7 @@
 namespace esphome {
 namespace waveshare_epaper {
 
-static const char *TAG = "waveshare_epaper";
+static const char *const TAG = "waveshare_epaper";
 
 static const uint8_t LUT_SIZE_WAVESHARE = 30;
 
@@ -210,6 +210,9 @@ void WaveshareEPaperTypeA::dump_config() {
     case WAVESHARE_EPAPER_1_54_IN:
       ESP_LOGCONFIG(TAG, "  Model: 1.54in");
       break;
+    case WAVESHARE_EPAPER_1_54_IN_V2:
+      ESP_LOGCONFIG(TAG, "  Model: 1.54inV2");
+      break;
     case WAVESHARE_EPAPER_2_13_IN:
       ESP_LOGCONFIG(TAG, "  Model: 2.13in");
       break;
@@ -334,7 +337,7 @@ void HOT WaveshareEPaperTypeA::display() {
 
   // COMMAND DISPLAY UPDATE CONTROL 2
   this->command(0x22);
-  if (this->model_ == WAVESHARE_EPAPER_2_9_IN_V2) {
+  if (this->model_ == WAVESHARE_EPAPER_2_9_IN_V2 || this->model_ == WAVESHARE_EPAPER_1_54_IN_V2) {
     this->data(full_update ? 0xF7 : 0xFF);
   } else if (this->model_ == TTGO_EPAPER_2_13_IN_B73) {
     this->data(0xC7);
@@ -352,6 +355,8 @@ void HOT WaveshareEPaperTypeA::display() {
 int WaveshareEPaperTypeA::get_width_internal() {
   switch (this->model_) {
     case WAVESHARE_EPAPER_1_54_IN:
+      return 200;
+    case WAVESHARE_EPAPER_1_54_IN_V2:
       return 200;
     case WAVESHARE_EPAPER_2_13_IN:
       return 128;
@@ -371,6 +376,8 @@ int WaveshareEPaperTypeA::get_width_internal() {
 int WaveshareEPaperTypeA::get_height_internal() {
   switch (this->model_) {
     case WAVESHARE_EPAPER_1_54_IN:
+      return 200;
+    case WAVESHARE_EPAPER_1_54_IN_V2:
       return 200;
     case WAVESHARE_EPAPER_2_13_IN:
       return 250;

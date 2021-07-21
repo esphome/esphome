@@ -7,7 +7,7 @@ insert_final_newline = true
 charset = utf-8
 
 # python
-[*.{py}]
+[*.py]
 indent_style = space
 indent_size = 4
 
@@ -26,3 +26,9 @@ indent_size = 2
 indent_style = space
 indent_size = 2
 quote_type = single
+
+# JSON
+[*.json]
+indent_style = space
+indent_size = 2
+

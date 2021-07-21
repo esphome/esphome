@@ -66,7 +66,7 @@ bool mqtt_is_connected() {
 bool remote_is_connected() { return api_is_connected() || mqtt_is_connected(); }
 
 #if defined(ARDUINO_ARCH_ESP8266) && defined(USE_MDNS)
-bool mdns_setup;
+static bool mdns_setup;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 #endif
 
 #ifndef WEBSERVER_PORT
@@ -80,7 +80,7 @@ void network_setup_mdns(IPAddress address, int interface) {
   // see https://github.com/esp8266/Arduino/issues/6114
   if (interface == 1)
     return;
-  MDNS.begin(App.get_name().c_str(), address);
+  MDNS.begin(App.get_name().c_str(), std::move(address));
   mdns_setup = true;
 #endif
 #ifdef ARDUINO_ARCH_ESP32
@@ -94,6 +94,17 @@ void network_setup_mdns(IPAddress address, int interface) {
       MDNS.addServiceTxt("esphomelib", "tcp", "version", ESPHOME_VERSION);
       MDNS.addServiceTxt("esphomelib", "tcp", "address", network_get_address().c_str());
       MDNS.addServiceTxt("esphomelib", "tcp", "mac", get_mac_address().c_str());
+#ifdef ARDUINO_ARCH_ESP8266
+      MDNS.addServiceTxt("esphomelib", "tcp", "platform", "ESP8266");
+#endif
+#ifdef ARDUINO_ARCH_ESP32
+      MDNS.addServiceTxt("esphomelib", "tcp", "platform", "ESP32");
+#endif
+      MDNS.addServiceTxt("esphomelib", "tcp", "board", ESPHOME_BOARD);
+#ifdef ESPHOME_PROJECT_NAME
+      MDNS.addServiceTxt("esphomelib", "tcp", "project_name", ESPHOME_PROJECT_NAME);
+      MDNS.addServiceTxt("esphomelib", "tcp", "project_version", ESPHOME_PROJECT_VERSION);
+#endif
     } else {
 #endif
       // Publish "http" service if not using native API nor the webserver component

@@ -85,9 +85,6 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_ENABLE_MDNS, default=True): cv.boolean,
             cv.Optional(CONF_DOMAIN, default=".local"): cv.domain_name,
             cv.Optional(CONF_USE_ADDRESS): cv.string_strict,
-            cv.Optional("hostname"): cv.invalid(
-                "The hostname option has been removed in 1.11.0"
-            ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
     _validate,

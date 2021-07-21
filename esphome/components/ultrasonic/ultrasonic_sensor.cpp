@@ -4,7 +4,7 @@
 namespace esphome {
 namespace ultrasonic {
 
-static const char *TAG = "ultrasonic.sensor";
+static const char *const TAG = "ultrasonic.sensor";
 
 void UltrasonicSensorComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up Ultrasonic Sensor...");

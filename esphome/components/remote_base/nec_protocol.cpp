@@ -4,7 +4,7 @@
 namespace esphome {
 namespace remote_base {
 
-static const char *TAG = "remote.nec";
+static const char *const TAG = "remote.nec";
 
 static const uint32_t HEADER_HIGH_US = 9000;
 static const uint32_t HEADER_LOW_US = 4500;

@@ -3,7 +3,7 @@ PyYAML==5.4.1
 paho-mqtt==1.5.1
 colorama==0.4.4
 tornado==6.1
-protobuf==3.17.0
+protobuf==3.17.3
 tzlocal==2.1
 pytz==2021.1
 pyserial==3.5
@@ -11,3 +11,4 @@ ifaddr==0.1.7
 platformio==5.1.1
 esptool==2.8
 click==7.1.2
+esphome-dashboard==20210719.0

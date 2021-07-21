@@ -9,7 +9,7 @@
 namespace esphome {
 namespace pn532 {
 
-static const char *TAG = "pn532";
+static const char *const TAG = "pn532";
 
 void PN532::setup() {
   ESP_LOGCONFIG(TAG, "Setting up PN532...");

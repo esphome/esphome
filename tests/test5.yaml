@@ -1,0 +1,57 @@
+esphome:
+  name: test5
+  platform: ESP32
+  board: nodemcu-32s
+  build_path: build/test5
+  project:
+    name: esphome.test5_project
+    version: "1.0.0"
+
+wifi:
+  networks:
+    - ssid: 'MySSID'
+      password: 'password1'
+
+api:
+
+ota:
+
+logger:
+
+binary_sensor:
+  - platform: gpio
+    pin: GPIO0
+    id: io0_button
+
+output:
+  - platform: gpio
+    pin: GPIO2
+    id: built_in_led
+
+esp32_ble:
+
+esp32_ble_server:
+  manufacturer: "ESPHome"
+  model: "Test5"
+
+esp32_improv:
+  authorizer: io0_button
+  authorized_duration: 1min
+  status_indicator: built_in_led
+
+number:
+  - platform: template
+    name: My template number
+    id: template_number_id
+    optimistic: true
+    on_value:
+      - logger.log:
+          format: "Number changed to %f"
+          args: ["x"]
+    set_action:
+      - logger.log:
+          format: "Template Number set to %f"
+          args: ["x"]
+    max_value: 100
+    min_value: 0
+    step: 5

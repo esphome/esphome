@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """Python 3 script to automatically generate C++ classes for ESPHome's native API.
 
 It's pretty crappy spaghetti code, but it works.
@@ -821,7 +822,7 @@ cpp += """\
 namespace esphome {
 namespace api {
 
-static const char *TAG = "api.service";
+static const char *const TAG = "api.service";
 
 """
 
