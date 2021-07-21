@@ -12,7 +12,7 @@ namespace selec_meter {
   sensor::Sensor *name##_sensor_{nullptr}; \
 \
  public: \
-  void set_##name##_sensor(sensor::Sensor *name) { this->name##_sensor_ = name; }
+  void set_##name##_sensor(sensor::Sensor *(name)) { this->name##_sensor_ = name; }
 
 class SelecMeter : public PollingComponent, public modbus::ModbusDevice {
  public:
