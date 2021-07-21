@@ -16,7 +16,7 @@ from esphome.const import (
     CONF_BUS_VOLTAGE,
     CONF_BATTERY_VOLTAGE,
 )
-from . import PipsolarComponent
+from .. import PipsolarComponent
 
 DEPENDENCIES = ["uart"]
 

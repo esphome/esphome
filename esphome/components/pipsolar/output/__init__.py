@@ -1,12 +1,15 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
+from esphome import automation
 from esphome.components import output
-from esphome.const import CONF_ID, CONF_PIPSOLAR_ID
-from . import PipsolarComponent, pipsolar_ns
+from esphome.const import CONF_ID, CONF_PIPSOLAR_ID, CONF_VALUE
+from .. import PipsolarComponent, pipsolar_ns
 
 DEPENDENCIES = ["pipsolar"]
 
 PipsolarOutput = pipsolar_ns.class_("PipsolarOutput", output.FloatOutput)
+SetOutputAction = pipsolar_ns.class_("SetOutputAction", automation.Action)
+
 CONF_POSSIBLE_VALUES = "possible_values"
 
 BATTERY_RECHARGE_VOLTAGE_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
@@ -242,3 +245,21 @@ def to_code(config):
         cg.add(var.set_set_command("PBDV%02.1f"))
         if (CONF_POSSIBLE_VALUES) in conf:
             cg.add(var.set_possible_values(conf[CONF_POSSIBLE_VALUES]))
+
+
+@automation.register_action(
+    "output.pipsolar.set_level",
+    SetOutputAction,
+    cv.Schema(
+        {
+            cv.Required(CONF_ID): cv.use_id(CONF_ID),
+            cv.Required(CONF_VALUE): cv.templatable(cv.positive_float),
+        }
+    ),
+)
+def output_pipsolar_set_level_to_code(config, action_id, template_arg, args):
+    paren = yield cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, paren)
+    template_ = yield cg.templatable(config[CONF_VALUE], args, float)
+    cg.add(var.set_level(template_))
+    yield var

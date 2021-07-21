@@ -8,7 +8,7 @@ from esphome.const import (
     ICON_POWER,
     CONF_PIPSOLAR_ID,
 )
-from . import PipsolarComponent, pipsolar_ns
+from .. import PipsolarComponent, pipsolar_ns
 
 DEPENDENCIES = ["uart"]
 

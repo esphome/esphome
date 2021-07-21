@@ -1,8 +1,8 @@
 #pragma once
 
-#include "esphome/core/component.h"
+#include "../pipsolar.h"
 #include "esphome/components/text_sensor/text_sensor.h"
-#include "pipsolar.h"
+#include "esphome/core/component.h"
 
 namespace esphome {
 namespace pipsolar {

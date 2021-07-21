@@ -5,7 +5,7 @@ from esphome.const import (
     CONF_ID,
     CONF_PIPSOLAR_ID,
 )
-from . import PipsolarComponent
+from .. import PipsolarComponent
 
 DEPENDENCIES = ["uart"]
 

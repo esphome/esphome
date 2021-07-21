@@ -1,8 +1,9 @@
 #pragma once
 
-#include "esphome/core/component.h"
+#include "../pipsolar.h"
 #include "esphome/components/output/float_output.h"
-#include "pipsolar.h"
+#include "esphome/core/component.h"
+
 namespace esphome {
 namespace pipsolar {
 
@@ -22,6 +23,18 @@ class PipsolarOutput : public output::FloatOutput {
   std::string set_command_;
   Pipsolar *parent_;
   std::vector<float> possible_values_;
+};
+
+template<typename... Ts> class SetOutputAction : public Action<Ts...> {
+ public:
+  SetOutputAction(PipsolarOutput *output) : output_(output) {}
+
+  TEMPLATABLE_VALUE(float, level)
+
+  void play(Ts... x) override { this->output_->set_value(this->level_.value(x...)); }
+
+ protected:
+  PipsolarOutput *output_;
 };
 
 }  // namespace pipsolar
