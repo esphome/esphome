@@ -22,8 +22,8 @@ from esphome.const import (
     DEVICE_CLASS_VOLTAGE,
     ICON_CURRENT_AC,
     ICON_EMPTY,
+    LAST_RESET_TYPE_AUTO,
     STATE_CLASS_MEASUREMENT,
-    STATE_CLASS_NONE,
     UNIT_AMPERE,
     UNIT_EMPTY,
     UNIT_HERTZ,
@@ -52,118 +52,107 @@ SelecMeter = selec_meter_ns.class_(
     "SelecMeter", cg.PollingComponent, modbus.ModbusDevice
 )
 
+SENSORS = {
+    CONF_TOTAL_ACTIVE_ENERGY: sensor.sensor_schema(
+        UNIT_KILOWATT_HOURS,
+        ICON_EMPTY,
+        2,
+        DEVICE_CLASS_ENERGY,
+        STATE_CLASS_MEASUREMENT,
+        LAST_RESET_TYPE_AUTO,
+    ),
+    CONF_IMPORT_ACTIVE_ENERGY: sensor.sensor_schema(
+        UNIT_KILOWATT_HOURS,
+        ICON_EMPTY,
+        2,
+        DEVICE_CLASS_ENERGY,
+        STATE_CLASS_MEASUREMENT,
+        LAST_RESET_TYPE_AUTO,
+    ),
+    CONF_EXPORT_ACTIVE_ENERGY: sensor.sensor_schema(
+        UNIT_KILOWATT_HOURS,
+        ICON_EMPTY,
+        2,
+        DEVICE_CLASS_ENERGY,
+        STATE_CLASS_MEASUREMENT,
+        LAST_RESET_TYPE_AUTO,
+    ),
+    CONF_TOTAL_REACTIVE_ENERGY: sensor.sensor_schema(
+        UNIT_KILOVOLT_AMPS_REACTIVE_HOURS,
+        ICON_EMPTY,
+        2,
+        DEVICE_CLASS_ENERGY,
+        STATE_CLASS_MEASUREMENT,
+        LAST_RESET_TYPE_AUTO,
+    ),
+    CONF_IMPORT_REACTIVE_ENERGY: sensor.sensor_schema(
+        UNIT_KILOVOLT_AMPS_REACTIVE_HOURS,
+        ICON_EMPTY,
+        2,
+        DEVICE_CLASS_ENERGY,
+        STATE_CLASS_MEASUREMENT,
+        LAST_RESET_TYPE_AUTO,
+    ),
+    CONF_EXPORT_REACTIVE_ENERGY: sensor.sensor_schema(
+        UNIT_KILOVOLT_AMPS_REACTIVE_HOURS,
+        ICON_EMPTY,
+        2,
+        DEVICE_CLASS_ENERGY,
+        STATE_CLASS_MEASUREMENT,
+        LAST_RESET_TYPE_AUTO,
+    ),
+    CONF_APPARENT_ENERGY: sensor.sensor_schema(
+        UNIT_KILOVOLT_AMPS_HOURS,
+        ICON_EMPTY,
+        2,
+        DEVICE_CLASS_ENERGY,
+        STATE_CLASS_MEASUREMENT,
+        LAST_RESET_TYPE_AUTO,
+    ),
+    CONF_ACTIVE_POWER: sensor.sensor_schema(
+        UNIT_WATT, ICON_EMPTY, 3, DEVICE_CLASS_POWER, STATE_CLASS_MEASUREMENT
+    ),
+    CONF_REACTIVE_POWER: sensor.sensor_schema(
+        UNIT_VOLT_AMPS_REACTIVE,
+        ICON_EMPTY,
+        3,
+        DEVICE_CLASS_POWER,
+        STATE_CLASS_MEASUREMENT,
+    ),
+    CONF_APPARENT_POWER: sensor.sensor_schema(
+        UNIT_VOLT_AMPS, ICON_EMPTY, 3, DEVICE_CLASS_POWER, STATE_CLASS_MEASUREMENT
+    ),
+    CONF_VOLTAGE: sensor.sensor_schema(
+        UNIT_VOLT, ICON_EMPTY, 2, DEVICE_CLASS_VOLTAGE, STATE_CLASS_MEASUREMENT
+    ),
+    CONF_CURRENT: sensor.sensor_schema(
+        UNIT_AMPERE, ICON_EMPTY, 3, DEVICE_CLASS_CURRENT, STATE_CLASS_MEASUREMENT
+    ),
+    CONF_POWER_FACTOR: sensor.sensor_schema(
+        UNIT_EMPTY, ICON_EMPTY, 3, DEVICE_CLASS_POWER_FACTOR, STATE_CLASS_MEASUREMENT
+    ),
+    CONF_FREQUENCY: sensor.sensor_schema(
+        UNIT_HERTZ, ICON_CURRENT_AC, 2, DEVICE_CLASS_EMPTY, STATE_CLASS_MEASUREMENT
+    ),
+    CONF_MAXIMUM_DEMAND_ACTIVE_POWER: sensor.sensor_schema(
+        UNIT_WATT, ICON_EMPTY, 3, DEVICE_CLASS_POWER, STATE_CLASS_MEASUREMENT
+    ),
+    CONF_MAXIMUM_DEMAND_REACTIVE_POWER: sensor.sensor_schema(
+        UNIT_VOLT_AMPS_REACTIVE,
+        ICON_EMPTY,
+        3,
+        DEVICE_CLASS_POWER,
+        STATE_CLASS_MEASUREMENT,
+    ),
+    CONF_MAXIMUM_DEMAND_APPARENT_POWER: sensor.sensor_schema(
+        UNIT_VOLT_AMPS, ICON_EMPTY, 3, DEVICE_CLASS_POWER, STATE_CLASS_MEASUREMENT
+    ),
+}
+
 CONFIG_SCHEMA = (
-    cv.Schema(
-        {
-            cv.GenerateID(): cv.declare_id(SelecMeter),
-            cv.Optional(CONF_TOTAL_ACTIVE_ENERGY): sensor.sensor_schema(
-                UNIT_KILOWATT_HOURS,
-                ICON_EMPTY,
-                2,
-                DEVICE_CLASS_ENERGY,
-                STATE_CLASS_NONE,
-            ),
-            cv.Optional(CONF_IMPORT_ACTIVE_ENERGY): sensor.sensor_schema(
-                UNIT_KILOWATT_HOURS,
-                ICON_EMPTY,
-                2,
-                DEVICE_CLASS_ENERGY,
-                STATE_CLASS_NONE,
-            ),
-            cv.Optional(CONF_EXPORT_ACTIVE_ENERGY): sensor.sensor_schema(
-                UNIT_KILOWATT_HOURS,
-                ICON_EMPTY,
-                2,
-                DEVICE_CLASS_ENERGY,
-                STATE_CLASS_NONE,
-            ),
-            cv.Optional(CONF_TOTAL_REACTIVE_ENERGY): sensor.sensor_schema(
-                UNIT_KILOVOLT_AMPS_REACTIVE_HOURS,
-                ICON_EMPTY,
-                2,
-                DEVICE_CLASS_ENERGY,
-                STATE_CLASS_NONE,
-            ),
-            cv.Optional(CONF_IMPORT_REACTIVE_ENERGY): sensor.sensor_schema(
-                UNIT_KILOVOLT_AMPS_REACTIVE_HOURS,
-                ICON_EMPTY,
-                2,
-                DEVICE_CLASS_ENERGY,
-                STATE_CLASS_NONE,
-            ),
-            cv.Optional(CONF_EXPORT_REACTIVE_ENERGY): sensor.sensor_schema(
-                UNIT_KILOVOLT_AMPS_REACTIVE_HOURS,
-                ICON_EMPTY,
-                2,
-                DEVICE_CLASS_ENERGY,
-                STATE_CLASS_NONE,
-            ),
-            cv.Optional(CONF_APPARENT_ENERGY): sensor.sensor_schema(
-                UNIT_KILOVOLT_AMPS_HOURS,
-                ICON_EMPTY,
-                2,
-                DEVICE_CLASS_ENERGY,
-                STATE_CLASS_NONE,
-            ),
-            cv.Optional(CONF_ACTIVE_POWER): sensor.sensor_schema(
-                UNIT_WATT, ICON_EMPTY, 3, DEVICE_CLASS_POWER, STATE_CLASS_MEASUREMENT
-            ),
-            cv.Optional(CONF_REACTIVE_POWER): sensor.sensor_schema(
-                UNIT_VOLT_AMPS_REACTIVE,
-                ICON_EMPTY,
-                3,
-                DEVICE_CLASS_POWER,
-                STATE_CLASS_MEASUREMENT,
-            ),
-            cv.Optional(CONF_APPARENT_POWER): sensor.sensor_schema(
-                UNIT_VOLT_AMPS,
-                ICON_EMPTY,
-                3,
-                DEVICE_CLASS_POWER,
-                STATE_CLASS_MEASUREMENT,
-            ),
-            cv.Optional(CONF_VOLTAGE): sensor.sensor_schema(
-                UNIT_VOLT, ICON_EMPTY, 2, DEVICE_CLASS_VOLTAGE
-            ),
-            cv.Optional(CONF_CURRENT): sensor.sensor_schema(
-                UNIT_AMPERE,
-                ICON_EMPTY,
-                3,
-                DEVICE_CLASS_CURRENT,
-                STATE_CLASS_MEASUREMENT,
-            ),
-            cv.Optional(CONF_POWER_FACTOR): sensor.sensor_schema(
-                UNIT_EMPTY,
-                ICON_EMPTY,
-                3,
-                DEVICE_CLASS_POWER_FACTOR,
-                STATE_CLASS_MEASUREMENT,
-            ),
-            cv.Optional(CONF_FREQUENCY): sensor.sensor_schema(
-                UNIT_HERTZ,
-                ICON_CURRENT_AC,
-                2,
-                DEVICE_CLASS_EMPTY,
-                STATE_CLASS_MEASUREMENT,
-            ),
-            cv.Optional(CONF_MAXIMUM_DEMAND_ACTIVE_POWER): sensor.sensor_schema(
-                UNIT_WATT, ICON_EMPTY, 3, DEVICE_CLASS_POWER, STATE_CLASS_MEASUREMENT
-            ),
-            cv.Optional(CONF_MAXIMUM_DEMAND_REACTIVE_POWER): sensor.sensor_schema(
-                UNIT_VOLT_AMPS_REACTIVE,
-                ICON_EMPTY,
-                3,
-                DEVICE_CLASS_POWER,
-                STATE_CLASS_MEASUREMENT,
-            ),
-            cv.Optional(CONF_MAXIMUM_DEMAND_APPARENT_POWER): sensor.sensor_schema(
-                UNIT_VOLT_AMPS,
-                ICON_EMPTY,
-                3,
-                DEVICE_CLASS_POWER,
-                STATE_CLASS_MEASUREMENT,
-            ),
-        }
+    cv.Schema({cv.GenerateID(): cv.declare_id(SelecMeter)})
+    .extend(
+        {cv.Optional(sensor_name): schema for sensor_name, schema in SENSORS.items()}
     )
     .extend(cv.polling_component_schema("10s"))
     .extend(modbus.modbus_device_schema(0x01))
@@ -174,71 +163,7 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await modbus.register_modbus_device(var, config)
-
-    if CONF_TOTAL_ACTIVE_ENERGY in config:
-        sens = await sensor.new_sensor(config[CONF_TOTAL_ACTIVE_ENERGY])
-        cg.add(var.set_total_active_energy_sensor(sens))
-
-    if CONF_IMPORT_ACTIVE_ENERGY in config:
-        sens = await sensor.new_sensor(config[CONF_IMPORT_ACTIVE_ENERGY])
-        cg.add(var.set_import_active_energy_sensor(sens))
-
-    if CONF_EXPORT_ACTIVE_ENERGY in config:
-        sens = await sensor.new_sensor(config[CONF_EXPORT_ACTIVE_ENERGY])
-        cg.add(var.set_export_active_energy_sensor(sens))
-
-    if CONF_TOTAL_REACTIVE_ENERGY in config:
-        sens = await sensor.new_sensor(config[CONF_TOTAL_REACTIVE_ENERGY])
-        cg.add(var.set_total_reactive_energy_sensor(sens))
-
-    if CONF_IMPORT_REACTIVE_ENERGY in config:
-        sens = await sensor.new_sensor(config[CONF_IMPORT_REACTIVE_ENERGY])
-        cg.add(var.set_import_reactive_energy_sensor(sens))
-
-    if CONF_EXPORT_REACTIVE_ENERGY in config:
-        sens = await sensor.new_sensor(config[CONF_EXPORT_REACTIVE_ENERGY])
-        cg.add(var.set_export_reactive_energy_sensor(sens))
-
-    if CONF_APPARENT_ENERGY in config:
-        sens = await sensor.new_sensor(config[CONF_APPARENT_ENERGY])
-        cg.add(var.set_apparent_energy_sensor(sens))
-
-    if CONF_ACTIVE_POWER in config:
-        sens = await sensor.new_sensor(config[CONF_ACTIVE_POWER])
-        cg.add(var.set_active_power_sensor(sens))
-
-    if CONF_REACTIVE_POWER in config:
-        sens = await sensor.new_sensor(config[CONF_REACTIVE_POWER])
-        cg.add(var.set_reactive_power_sensor(sens))
-
-    if CONF_APPARENT_POWER in config:
-        sens = await sensor.new_sensor(config[CONF_APPARENT_POWER])
-        cg.add(var.set_apparent_power_sensor(sens))
-
-    if CONF_VOLTAGE in config:
-        sens = await sensor.new_sensor(config[CONF_VOLTAGE])
-        cg.add(var.set_voltage_sensor(sens))
-
-    if CONF_CURRENT in config:
-        sens = await sensor.new_sensor(config[CONF_CURRENT])
-        cg.add(var.set_current_sensor(sens))
-
-    if CONF_POWER_FACTOR in config:
-        sens = await sensor.new_sensor(config[CONF_POWER_FACTOR])
-        cg.add(var.set_power_factor_sensor(sens))
-
-    if CONF_FREQUENCY in config:
-        sens = await sensor.new_sensor(config[CONF_FREQUENCY])
-        cg.add(var.set_frequency_sensor(sens))
-
-    if CONF_MAXIMUM_DEMAND_ACTIVE_POWER in config:
-        sens = await sensor.new_sensor(config[CONF_MAXIMUM_DEMAND_ACTIVE_POWER])
-        cg.add(var.set_maximum_demand_active_power_sensor(sens))
-
-    if CONF_MAXIMUM_DEMAND_REACTIVE_POWER in config:
-        sens = await sensor.new_sensor(config[CONF_MAXIMUM_DEMAND_REACTIVE_POWER])
-        cg.add(var.set_maximum_demand_reactive_power_sensor(sens))
-
-    if CONF_MAXIMUM_DEMAND_APPARENT_POWER in config:
-        sens = await sensor.new_sensor(config[CONF_MAXIMUM_DEMAND_APPARENT_POWER])
-        cg.add(var.set_maximum_demand_apparent_power_sensor(sens))
+    for name in SENSORS:
+        if name in config:
+            sens = await sensor.new_sensor(config[name])
+            cg.add(getattr(var, f"set_{name}_sensor")(sens))
