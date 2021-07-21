@@ -14,7 +14,7 @@
 namespace esphome {
 namespace e131 {
 
-static const char *TAG = "e131";
+static const char *const TAG = "e131";
 static const int PORT = 5568;
 
 E131Component::E131Component() {}

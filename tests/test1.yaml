@@ -197,6 +197,24 @@ ota:
   port: 3286
   reboot_timeout: 2min
   num_attempts: 5
+  on_state_change:
+    then:
+      lambda: >-
+        ESP_LOGD("ota", "State %d", state);
+  on_begin:
+    then:
+      logger.log: "OTA begin"
+  on_progress:
+    then:
+      lambda: >-
+        ESP_LOGD("ota", "Got progress %f", x);
+  on_end:
+    then:
+      logger.log: "OTA end"
+  on_error:
+    then:
+      lambda: >-
+        ESP_LOGD("ota", "Got error code %d", x);
 
 logger:
   baud_rate: 0
@@ -514,6 +532,7 @@ sensor:
     voltage_divider: 2351
     change_mode_every: 16
     initial_mode: VOLTAGE
+    model: hlw8012
   - platform: total_daily_energy
     power_id: hlw8012_power
     name: 'HLW8012 Total Daily Energy'
@@ -1036,10 +1055,6 @@ binary_sensor:
     pin: GPIO27
     threshold: 1000
     id: btn_left
-  - platform: nextion
-    page_id: 0
-    component_id: 2
-    name: 'Nextion Component 2 Touch'
   - platform: template
     name: 'Garage Door Open'
     id: garage_door
@@ -1525,6 +1540,26 @@ climate:
     name: Toshiba Climate
   - platform: hitachi_ac344
     name: Hitachi Climate
+  - platform: midea_ac
+    visual:
+      min_temperature: 18 °C
+      max_temperature: 25 °C
+      temperature_step: 0.1 °C
+    name: 'Electrolux EACS'
+    beeper: true
+    outdoor_temperature:
+      name: 'Temp'
+    power_usage:
+      name: 'Power'
+    humidity_setpoint:
+      name: 'Hum'
+  - platform: anova
+    name: Anova cooker
+    ble_client_id: ble_blah
+
+midea_dongle:
+  uart_id: uart0
+  strength_icon: true
 
 switch:
   - platform: gpio
@@ -1843,11 +1878,6 @@ display:
     intensity: 3
     lambda: |-
       it.print("1234");
-  - platform: nextion
-    uart_id: uart0
-    lambda: |-
-      it.set_component_value("gauge", 50);
-      it.set_component_text("textview", "Hello World!");
   - platform: pcd8544
     cs_pin: GPIO23
     dc_pin: GPIO23

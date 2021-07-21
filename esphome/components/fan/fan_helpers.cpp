@@ -6,7 +6,7 @@ namespace fan {
 
 FanSpeed speed_level_to_enum(int speed_level, int supported_speed_levels) {
   const auto speed_ratio = static_cast<float>(speed_level) / (supported_speed_levels + 1);
-  const auto legacy_level = static_cast<int>(clamp(ceilf(speed_ratio * 3), 1, 3));
+  const auto legacy_level = clamp<int>(static_cast<int>(ceilf(speed_ratio * 3)), 1, 3);
   return static_cast<FanSpeed>(legacy_level - 1);
 }
 

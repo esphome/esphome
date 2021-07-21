@@ -21,7 +21,7 @@
 namespace esphome {
 namespace wifi {
 
-static const char *TAG = "wifi_esp32";
+static const char *const TAG = "wifi_esp32";
 
 bool WiFiComponent::wifi_mode_(optional<bool> sta, optional<bool> ap) {
   uint8_t current_mode = WiFi.getMode();
@@ -149,7 +149,7 @@ bool WiFiComponent::wifi_apply_hostname_() {
   }
   return true;
 }
-bool WiFiComponent::wifi_sta_connect_(WiFiAP ap) {
+bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
   // enable STA
   if (!this->wifi_mode_(true, {}))
     return false;

@@ -6,7 +6,7 @@
 namespace esphome {
 namespace mqtt {
 
-static const char *TAG = "mqtt.climate";
+static const char *const TAG = "mqtt.climate";
 
 using namespace esphome::climate;
 
@@ -97,6 +97,8 @@ void MQTTClimateComponent::send_discovery(JsonObject &root, mqtt::SendDiscoveryC
       fan_modes.add("focus");
     if (traits.supports_fan_mode(CLIMATE_FAN_DIFFUSE))
       fan_modes.add("diffuse");
+    for (const auto &fan_mode : traits.get_supported_custom_fan_modes())
+      fan_modes.add(fan_mode);
   }
 
   if (traits.get_supports_swing_modes()) {
@@ -291,36 +293,39 @@ bool MQTTClimateComponent::publish_state_() {
   }
 
   if (traits.get_supports_fan_modes()) {
-    const char *payload = "";
-    switch (this->device_->fan_mode.value()) {
-      case CLIMATE_FAN_ON:
-        payload = "on";
-        break;
-      case CLIMATE_FAN_OFF:
-        payload = "off";
-        break;
-      case CLIMATE_FAN_AUTO:
-        payload = "auto";
-        break;
-      case CLIMATE_FAN_LOW:
-        payload = "low";
-        break;
-      case CLIMATE_FAN_MEDIUM:
-        payload = "medium";
-        break;
-      case CLIMATE_FAN_HIGH:
-        payload = "high";
-        break;
-      case CLIMATE_FAN_MIDDLE:
-        payload = "middle";
-        break;
-      case CLIMATE_FAN_FOCUS:
-        payload = "focus";
-        break;
-      case CLIMATE_FAN_DIFFUSE:
-        payload = "diffuse";
-        break;
-    }
+    std::string payload;
+    if (this->device_->fan_mode.has_value())
+      switch (this->device_->fan_mode.value()) {
+        case CLIMATE_FAN_ON:
+          payload = "on";
+          break;
+        case CLIMATE_FAN_OFF:
+          payload = "off";
+          break;
+        case CLIMATE_FAN_AUTO:
+          payload = "auto";
+          break;
+        case CLIMATE_FAN_LOW:
+          payload = "low";
+          break;
+        case CLIMATE_FAN_MEDIUM:
+          payload = "medium";
+          break;
+        case CLIMATE_FAN_HIGH:
+          payload = "high";
+          break;
+        case CLIMATE_FAN_MIDDLE:
+          payload = "middle";
+          break;
+        case CLIMATE_FAN_FOCUS:
+          payload = "focus";
+          break;
+        case CLIMATE_FAN_DIFFUSE:
+          payload = "diffuse";
+          break;
+      }
+    if (this->device_->custom_fan_mode.has_value())
+      payload = this->device_->custom_fan_mode.value();
     if (!this->publish(this->get_fan_mode_state_topic(), payload))
       success = false;
   }

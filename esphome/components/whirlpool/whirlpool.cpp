@@ -4,7 +4,7 @@
 namespace esphome {
 namespace whirlpool {
 
-static const char *TAG = "whirlpool.climate";
+static const char *const TAG = "whirlpool.climate";
 
 const uint16_t WHIRLPOOL_HEADER_MARK = 9000;
 const uint16_t WHIRLPOOL_HEADER_SPACE = 4494;

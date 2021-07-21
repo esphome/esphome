@@ -4,7 +4,7 @@
 namespace esphome {
 namespace midea_ac {
 
-static const char *TAG = "midea_ac";
+static const char *const TAG = "midea_ac";
 
 static void set_sensor(sensor::Sensor *sensor, float value) {
   if (sensor != nullptr && (!sensor->has_state() || sensor->get_raw_state() != value))

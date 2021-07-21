@@ -4,7 +4,7 @@
 namespace esphome {
 namespace cse7766 {
 
-static const char *TAG = "cse7766";
+static const char *const TAG = "cse7766";
 
 void CSE7766Component::loop() {
   const uint32_t now = millis();

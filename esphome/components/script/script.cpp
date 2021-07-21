@@ -4,7 +4,7 @@
 namespace esphome {
 namespace script {
 
-static const char *TAG = "script";
+static const char *const TAG = "script";
 
 void SingleScript::execute() {
   if (this->is_action_running()) {

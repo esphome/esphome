@@ -6,7 +6,7 @@
 namespace esphome {
 namespace captive_portal {
 
-static const char *TAG = "captive_portal";
+static const char *const TAG = "captive_portal";
 
 void CaptivePortal::handle_index(AsyncWebServerRequest *request) {
   AsyncResponseStream *stream = request->beginResponseStream("text/html");
@@ -147,7 +147,7 @@ float CaptivePortal::get_setup_priority() const {
 }
 void CaptivePortal::dump_config() { ESP_LOGCONFIG(TAG, "Captive Portal:"); }
 
-CaptivePortal *global_captive_portal = nullptr;
+CaptivePortal *global_captive_portal = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 }  // namespace captive_portal
 }  // namespace esphome

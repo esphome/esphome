@@ -516,7 +516,7 @@ def parse_args(argv):
 
     deprecated_argv_suggestion = None
 
-    if ["dashboard", "config"] == argv[1:3]:
+    if ["dashboard", "config"] == argv[1:3] or ["version"] == argv[1:2]:
         # this is most likely meant in new-style arg format. do not try compat parsing
         pass
     else:

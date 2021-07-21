@@ -1,10 +1,6 @@
 """Constants used by esphome."""
 
-MAJOR_VERSION = 1
-MINOR_VERSION = 19
-PATCH_VERSION = "4"
-__short_version__ = f"{MAJOR_VERSION}.{MINOR_VERSION}"
-__version__ = f"{__short_version__}.{PATCH_VERSION}"
+__version__ = "1.20.0"
 
 ESP_PLATFORM_ESP32 = "ESP32"
 ESP_PLATFORM_ESP8266 = "ESP8266"
@@ -28,6 +24,7 @@ ARDUINO_VERSION_ESP32 = {
 # See also https://github.com/platformio/platform-espressif8266/releases
 ARDUINO_VERSION_ESP8266 = {
     "dev": "https://github.com/platformio/platform-espressif8266.git",
+    "3.0.0": "platformio/espressif8266@3.0.0",
     "2.7.4": "platformio/espressif8266@2.6.2",
     "2.7.3": "platformio/espressif8266@2.6.1",
     "2.7.2": "platformio/espressif8266@2.6.0",
@@ -76,6 +73,7 @@ CONF_AVAILABILITY = "availability"
 CONF_AWAY = "away"
 CONF_AWAY_CONFIG = "away_config"
 CONF_BACKLIGHT_PIN = "backlight_pin"
+CONF_BASELINE = "baseline"
 CONF_BATTERY_LEVEL = "battery_level"
 CONF_BATTERY_VOLTAGE = "battery_voltage"
 CONF_BAUD_RATE = "baud_rate"
@@ -120,6 +118,7 @@ CONF_CODE = "code"
 CONF_COLD_WHITE = "cold_white"
 CONF_COLD_WHITE_COLOR_TEMPERATURE = "cold_white_color_temperature"
 CONF_COLOR = "color"
+CONF_COLOR_BRIGHTNESS = "color_brightness"
 CONF_COLOR_CORRECT = "color_correct"
 CONF_COLOR_TEMPERATURE = "color_temperature"
 CONF_COLORS = "colors"
@@ -187,6 +186,7 @@ CONF_DUMP = "dump"
 CONF_DURATION = "duration"
 CONF_EAP = "eap"
 CONF_ECHO_PIN = "echo_pin"
+CONF_ECO2 = "eco2"
 CONF_EFFECT = "effect"
 CONF_EFFECTS = "effects"
 CONF_ELSE = "else"
@@ -297,6 +297,7 @@ CONF_KEY = "key"
 CONF_LAMBDA = "lambda"
 CONF_LAST_CONFIDENCE = "last_confidence"
 CONF_LAST_FINGER_ID = "last_finger_id"
+CONF_LAST_RESET_TYPE = "last_reset_type"
 CONF_LATITUDE = "latitude"
 CONF_LENGTH = "length"
 CONF_LEVEL = "level"
@@ -497,7 +498,6 @@ CONF_ROTATION = "rotation"
 CONF_RS_PIN = "rs_pin"
 CONF_RTD_NOMINAL_RESISTANCE = "rtd_nominal_resistance"
 CONF_RTD_WIRES = "rtd_wires"
-CONF_RUN_CYCLES = "run_cycles"
 CONF_RUN_DURATION = "run_duration"
 CONF_RW_PIN = "rw_pin"
 CONF_RX_BUFFER_SIZE = "rx_buffer_size"
@@ -551,6 +551,7 @@ CONF_STATE_CLASS = "state_class"
 CONF_STATE_TOPIC = "state_topic"
 CONF_STATIC_IP = "static_ip"
 CONF_STATUS = "status"
+CONF_STEP = "step"
 CONF_STEP_MODE = "step_mode"
 CONF_STEP_PIN = "step_pin"
 CONF_STOP = "stop"
@@ -785,3 +786,10 @@ STATE_CLASS_NONE = ""
 
 # The state represents a measurement in present time
 STATE_CLASS_MEASUREMENT = "measurement"
+
+# This sensor does not support resetting. ie, it is not accumulative
+LAST_RESET_TYPE_NONE = ""
+# This sensor is expected to never reset its value
+LAST_RESET_TYPE_NEVER = "never"
+# This sensor may reset and Home Assistant will watch for this
+LAST_RESET_TYPE_AUTO = "auto"

@@ -16,7 +16,7 @@
 namespace esphome {
 namespace api {
 
-static const char *TAG = "api.connection";
+static const char *const TAG = "api.connection";
 
 APIConnection::APIConnection(AsyncClient *client, APIServer *parent)
     : client_(client), parent_(parent), initial_state_iterator_(parent, this), list_entities_iterator_(parent, this) {
@@ -308,6 +308,7 @@ bool APIConnection::send_light_state(light::LightState *light) {
   if (traits.get_supports_brightness())
     resp.brightness = values.get_brightness();
   if (traits.get_supports_rgb()) {
+    resp.color_brightness = values.get_color_brightness();
     resp.red = values.get_red();
     resp.green = values.get_green();
     resp.blue = values.get_blue();
@@ -352,6 +353,8 @@ void APIConnection::light_command(const LightCommandRequest &msg) {
     call.set_state(msg.state);
   if (msg.has_brightness)
     call.set_brightness(msg.brightness);
+  if (msg.has_color_brightness)
+    call.set_color_brightness(msg.color_brightness);
   if (msg.has_rgb) {
     call.set_red(msg.red);
     call.set_green(msg.green);
@@ -396,6 +399,7 @@ bool APIConnection::send_sensor_info(sensor::Sensor *sensor) {
   msg.force_update = sensor->get_force_update();
   msg.device_class = sensor->get_device_class();
   msg.state_class = static_cast<enums::SensorStateClass>(sensor->state_class);
+  msg.last_reset_type = static_cast<enums::SensorLastResetType>(sensor->last_reset_type);
 
   return this->send_list_entities_sensor_response(msg);
 }
@@ -546,6 +550,42 @@ void APIConnection::climate_command(const ClimateCommandRequest &msg) {
     call.set_preset(msg.custom_preset);
   if (msg.has_swing_mode)
     call.set_swing_mode(static_cast<climate::ClimateSwingMode>(msg.swing_mode));
+  call.perform();
+}
+#endif
+
+#ifdef USE_NUMBER
+bool APIConnection::send_number_state(number::Number *number, float state) {
+  if (!this->state_subscription_)
+    return false;
+
+  NumberStateResponse resp{};
+  resp.key = number->get_object_id_hash();
+  resp.state = state;
+  resp.missing_state = !number->has_state();
+  return this->send_number_state_response(resp);
+}
+bool APIConnection::send_number_info(number::Number *number) {
+  ListEntitiesNumberResponse msg;
+  msg.key = number->get_object_id_hash();
+  msg.object_id = number->get_object_id();
+  msg.name = number->get_name();
+  msg.unique_id = get_default_unique_id("number", number);
+  msg.icon = number->traits.get_icon();
+
+  msg.min_value = number->traits.get_min_value();
+  msg.max_value = number->traits.get_max_value();
+  msg.step = number->traits.get_step();
+
+  return this->send_list_entities_number_response(msg);
+}
+void APIConnection::number_command(const NumberCommandRequest &msg) {
+  number::Number *number = App.get_number_by_key(msg.key);
+  if (number == nullptr)
+    return;
+
+  auto call = number->make_call();
+  call.set_value(msg.state);
   call.perform();
 }
 #endif

@@ -4,7 +4,7 @@
 namespace esphome {
 namespace coolix {
 
-static const char *TAG = "coolix.climate";
+static const char *const TAG = "coolix.climate";
 
 const uint32_t COOLIX_OFF = 0xB27BE0;
 const uint32_t COOLIX_SWING = 0xB26BE0;
@@ -84,7 +84,7 @@ void CoolixClimate::transmit_state() {
     }
     if (this->mode != climate::CLIMATE_MODE_OFF) {
       if (this->mode != climate::CLIMATE_MODE_FAN_ONLY) {
-        auto temp = (uint8_t) roundf(clamp(this->target_temperature, COOLIX_TEMP_MIN, COOLIX_TEMP_MAX));
+        auto temp = (uint8_t) roundf(clamp<float>(this->target_temperature, COOLIX_TEMP_MIN, COOLIX_TEMP_MAX));
         remote_state |= COOLIX_TEMP_MAP[temp - COOLIX_TEMP_MIN];
       } else {
         remote_state |= COOLIX_FAN_TEMP_CODE;

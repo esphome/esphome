@@ -4,7 +4,7 @@
 namespace esphome {
 namespace daikin {
 
-static const char *TAG = "daikin.climate";
+static const char *const TAG = "daikin.climate";
 
 void DaikinClimate::transmit_state() {
   uint8_t remote_state[35] = {0x11, 0xDA, 0x27, 0x00, 0xC5, 0x00, 0x00, 0xD7, 0x11, 0xDA, 0x27, 0x00,
@@ -135,7 +135,7 @@ uint8_t DaikinClimate::temperature_() {
     case climate::CLIMATE_MODE_DRY:
       return 0xc0;
     default:
-      uint8_t temperature = (uint8_t) roundf(clamp(this->target_temperature, DAIKIN_TEMP_MIN, DAIKIN_TEMP_MAX));
+      uint8_t temperature = (uint8_t) roundf(clamp<float>(this->target_temperature, DAIKIN_TEMP_MIN, DAIKIN_TEMP_MAX));
       return temperature << 1;
   }
 }

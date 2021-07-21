@@ -44,7 +44,7 @@ struct Color {
                                                    w((colorcode >> 24) & 0xFF) {}
 
   inline bool is_on() ALWAYS_INLINE { return this->raw_32 != 0; }
-  inline Color &operator=(const Color &rhs) ALWAYS_INLINE {
+  inline Color &operator=(const Color &rhs) ALWAYS_INLINE {  // NOLINT
     this->r = rhs.r;
     this->g = rhs.g;
     this->b = rhs.b;

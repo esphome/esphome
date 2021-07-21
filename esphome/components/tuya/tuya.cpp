@@ -6,7 +6,7 @@
 namespace esphome {
 namespace tuya {
 
-static const char *TAG = "tuya";
+static const char *const TAG = "tuya";
 static const int COMMAND_DELAY = 50;
 
 void Tuya::setup() {
@@ -232,7 +232,7 @@ void Tuya::handle_datapoint_(const uint8_t *buffer, size_t len) {
   const uint8_t *data = buffer + 4;
   size_t data_len = len - 4;
   if (data_size != data_len) {
-    ESP_LOGW(TAG, "Datapoint %u is not expected size", datapoint.id);
+    ESP_LOGW(TAG, "Datapoint %u is not expected size (%zu != %zu)", datapoint.id, data_size, data_len);
     return;
   }
   datapoint.len = data_len;
@@ -339,7 +339,7 @@ void Tuya::process_command_queue_() {
   }
 }
 
-void Tuya::send_command_(TuyaCommand command) {
+void Tuya::send_command_(const TuyaCommand &command) {
   command_queue_.push_back(command);
   process_command_queue_();
 }
@@ -427,7 +427,7 @@ void Tuya::set_datapoint_value(uint8_t datapoint_id, uint32_t value) {
   this->send_datapoint_command_(datapoint->id, datapoint->type, data);
 }
 
-void Tuya::set_datapoint_value(uint8_t datapoint_id, std::string value) {
+void Tuya::set_datapoint_value(uint8_t datapoint_id, const std::string &value) {
   ESP_LOGD(TAG, "Setting datapoint %u to %s", datapoint_id, value.c_str());
   optional<TuyaDatapoint> datapoint = this->get_datapoint_(datapoint_id);
   if (!datapoint.has_value()) {

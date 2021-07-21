@@ -56,10 +56,13 @@ class APIServer : public Component, public Controller {
   void on_switch_update(switch_::Switch *obj, bool state) override;
 #endif
 #ifdef USE_TEXT_SENSOR
-  void on_text_sensor_update(text_sensor::TextSensor *obj, std::string state) override;
+  void on_text_sensor_update(text_sensor::TextSensor *obj, const std::string &state) override;
 #endif
 #ifdef USE_CLIMATE
   void on_climate_update(climate::Climate *obj) override;
+#endif
+#ifdef USE_NUMBER
+  void on_number_update(number::Number *obj, float state) override;
 #endif
   void send_homeassistant_service_call(const HomeassistantServiceResponse &call);
   void register_user_service(UserServiceDescriptor *descriptor) { this->user_services_.push_back(descriptor); }
@@ -91,7 +94,7 @@ class APIServer : public Component, public Controller {
   std::vector<UserServiceDescriptor *> user_services_;
 };
 
-extern APIServer *global_api_server;
+extern APIServer *global_api_server;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 template<typename... Ts> class APIConnectedCondition : public Condition<Ts...> {
  public:

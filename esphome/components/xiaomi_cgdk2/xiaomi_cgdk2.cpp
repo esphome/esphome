@@ -6,7 +6,7 @@
 namespace esphome {
 namespace xiaomi_cgdk2 {
 
-static const char *TAG = "xiaomi_cgdk2";
+static const char *const TAG = "xiaomi_cgdk2";
 
 void XiaomiCGDK2::dump_config() {
   ESP_LOGCONFIG(TAG, "Xiaomi CGDK2");
