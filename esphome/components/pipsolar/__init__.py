@@ -8,10 +8,16 @@ CODEOWNERS = ["@andreashergert1984"]
 AUTO_LOAD = ["binary_sensor", "text_sensor", "sensor", "switch", "output"]
 MULTI_CONF = True
 
+CONF_PIPSOLAR_ID = "pipsolar_id"
+
 pipsolar_ns = cg.esphome_ns.namespace("pipsolar")
 PipsolarComponent = pipsolar_ns.class_("Pipsolar", cg.Component)
 
-Device = pipsolar_ns.enum("Device")
+PIPSOLAR_COMPONENT_SCHEMA = cv.COMPONENT_SCHEMA.extend(
+    {
+        cv.Required(CONF_PIPSOLAR_ID): cv.use_id(PipsolarComponent),
+    }
+)
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema({cv.GenerateID(): cv.declare_id(PipsolarComponent)})

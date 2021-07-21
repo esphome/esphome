@@ -3,9 +3,8 @@ import esphome.config_validation as cv
 from esphome.components import binary_sensor
 from esphome.const import (
     CONF_ID,
-    CONF_PIPSOLAR_ID,
 )
-from .. import PipsolarComponent
+from .. import PIPSOLAR_COMPONENT_SCHEMA, CONF_PIPSOLAR_ID
 
 DEPENDENCIES = ["uart"]
 
@@ -71,375 +70,75 @@ CONF_WARNING_HIGH_AC_INPUT_DURING_BUS_SOFT_START = (
 )
 CONF_WARNING_BATTERY_EQUALIZATION = "warning_battery_equalization"
 
+TYPES = [
+    CONF_ADD_SBU_PRIORITY_VERSION,
+    CONF_CONFIGURATION_STATUS,
+    CONF_SCC_FIRMWARE_VERSION,
+    CONF_LOAD_STATUS,
+    CONF_BATTERY_VOLTAGE_TO_STEADY_WHILE_CHARGING,
+    CONF_CHARGING_STATUS,
+    CONF_SCC_CHARGING_STATUS,
+    CONF_AC_CHARGING_STATUS,
+    CONF_CHARGING_TO_FLOATING_MODE,
+    CONF_SWITCH_ON,
+    CONF_DUSTPROOF_INSTALLED,
+    CONF_SILENCE_BUZZER_OPEN_BUZZER,
+    CONF_OVERLOAD_BYPASS_FUNCTION,
+    CONF_LCD_ESCAPE_TO_DEFAULT,
+    CONF_OVERLOAD_RESTART_FUNCTION,
+    CONF_OVER_TEMPERATURE_RESTART_FUNCTION,
+    CONF_BACKLIGHT_ON,
+    CONF_ALARM_ON_WHEN_PRIMARY_SOURCE_INTERRUPT,
+    CONF_FAULT_CODE_RECORD,
+    CONF_POWER_SAVING,
+    CONF_WARNINGS_PRESENT,
+    CONF_FAULTS_PRESENT,
+    CONF_WARNING_POWER_LOSS,
+    CONF_FAULT_INVERTER_FAULT,
+    CONF_FAULT_BUS_OVER,
+    CONF_FAULT_BUS_UNDER,
+    CONF_FAULT_BUS_SOFT_FAIL,
+    CONF_WARNING_LINE_FAIL,
+    CONF_FAULT_OPVSHORT,
+    CONF_FAULT_INVERTER_VOLTAGE_TOO_LOW,
+    CONF_FAULT_INVERTER_VOLTAGE_TOO_HIGH,
+    CONF_WARNING_OVER_TEMPERATURE,
+    CONF_WARNING_FAN_LOCK,
+    CONF_WARNING_BATTERY_VOLTAGE_HIGH,
+    CONF_WARNING_BATTERY_LOW_ALARM,
+    CONF_WARNING_BATTERY_UNDER_SHUTDOWN,
+    CONF_WARNING_BATTERY_DERATING,
+    CONF_WARNING_OVER_LOAD,
+    CONF_WARNING_EEPROM_FAILED,
+    CONF_FAULT_INVERTER_OVER_CURRENT,
+    CONF_FAULT_INVERTER_SOFT_FAILED,
+    CONF_FAULT_SELF_TEST_FAILED,
+    CONF_FAULT_OP_DC_VOLTAGE_OVER,
+    CONF_FAULT_BATTERY_OPEN,
+    CONF_FAULT_CURRENT_SENSOR_FAILED,
+    CONF_FAULT_BATTERY_SHORT,
+    CONF_WARNING_POWER_LIMIT,
+    CONF_WARNING_PV_VOLTAGE_HIGH,
+    CONF_FAULT_MPPT_OVERLOAD,
+    CONF_WARNING_MPPT_OVERLOAD,
+    CONF_WARNING_BATTERY_TOO_LOW_TO_CHARGE,
+    CONF_FAULT_DC_DC_OVER_CURRENT,
+    CONF_FAULT_CODE,
+    CONF_WARNUNG_LOW_PV_ENERGY,
+    CONF_WARNING_HIGH_AC_INPUT_DURING_BUS_SOFT_START,
+    CONF_WARNING_BATTERY_EQUALIZATION,
+]
 
-pipsolar_binary_sensor_ns = cg.esphome_ns.namespace("pipsolarbinarysensor")
-
-CONFIG_SCHEMA = cv.Schema(
-    {
-        cv.GenerateID(): cv.declare_id(pipsolar_binary_sensor_ns),
-        cv.Required(CONF_PIPSOLAR_ID): cv.use_id(PipsolarComponent),
-        cv.Optional(CONF_ADD_SBU_PRIORITY_VERSION): binary_sensor.BINARY_SENSOR_SCHEMA,
-        cv.Optional(CONF_CONFIGURATION_STATUS): binary_sensor.BINARY_SENSOR_SCHEMA,
-        cv.Optional(CONF_SCC_FIRMWARE_VERSION): binary_sensor.BINARY_SENSOR_SCHEMA,
-        cv.Optional(CONF_LOAD_STATUS): binary_sensor.BINARY_SENSOR_SCHEMA,
-        cv.Optional(
-            CONF_BATTERY_VOLTAGE_TO_STEADY_WHILE_CHARGING
-        ): binary_sensor.BINARY_SENSOR_SCHEMA,
-        cv.Optional(CONF_CHARGING_STATUS): binary_sensor.BINARY_SENSOR_SCHEMA,
-        cv.Optional(CONF_SCC_CHARGING_STATUS): binary_sensor.BINARY_SENSOR_SCHEMA,
-        cv.Optional(CONF_AC_CHARGING_STATUS): binary_sensor.BINARY_SENSOR_SCHEMA,
-        cv.Optional(CONF_CHARGING_TO_FLOATING_MODE): binary_sensor.BINARY_SENSOR_SCHEMA,
-        cv.Optional(CONF_SWITCH_ON): binary_sensor.BINARY_SENSOR_SCHEMA,
-        cv.Optional(CONF_DUSTPROOF_INSTALLED): binary_sensor.BINARY_SENSOR_SCHEMA,
-        cv.Optional(
-            CONF_SILENCE_BUZZER_OPEN_BUZZER
-        ): binary_sensor.BINARY_SENSOR_SCHEMA,
-        cv.Optional(CONF_OVERLOAD_BYPASS_FUNCTION): binary_sensor.BINARY_SENSOR_SCHEMA,
-        cv.Optional(CONF_LCD_ESCAPE_TO_DEFAULT): binary_sensor.BINARY_SENSOR_SCHEMA,
-        cv.Optional(CONF_OVERLOAD_RESTART_FUNCTION): binary_sensor.BINARY_SENSOR_SCHEMA,
-        cv.Optional(
-            CONF_OVER_TEMPERATURE_RESTART_FUNCTION
-        ): binary_sensor.BINARY_SENSOR_SCHEMA,
-        cv.Optional(CONF_BACKLIGHT_ON): binary_sensor.BINARY_SENSOR_SCHEMA,
-        cv.Optional(
-            CONF_ALARM_ON_WHEN_PRIMARY_SOURCE_INTERRUPT
-        ): binary_sensor.BINARY_SENSOR_SCHEMA,
-        cv.Optional(CONF_FAULT_CODE_RECORD): binary_sensor.BINARY_SENSOR_SCHEMA,
-        cv.Optional(CONF_POWER_SAVING): binary_sensor.BINARY_SENSOR_SCHEMA,
-        cv.Optional(CONF_WARNINGS_PRESENT): binary_sensor.BINARY_SENSOR_SCHEMA,
-        cv.Optional(CONF_FAULTS_PRESENT): binary_sensor.BINARY_SENSOR_SCHEMA,
-        cv.Optional(CONF_WARNING_POWER_LOSS): binary_sensor.BINARY_SENSOR_SCHEMA,
-        cv.Optional(CONF_FAULT_INVERTER_FAULT): binary_sensor.BINARY_SENSOR_SCHEMA,
-        cv.Optional(CONF_FAULT_BUS_OVER): binary_sensor.BINARY_SENSOR_SCHEMA,
-        cv.Optional(CONF_FAULT_BUS_UNDER): binary_sensor.BINARY_SENSOR_SCHEMA,
-        cv.Optional(CONF_FAULT_BUS_SOFT_FAIL): binary_sensor.BINARY_SENSOR_SCHEMA,
-        cv.Optional(CONF_WARNING_LINE_FAIL): binary_sensor.BINARY_SENSOR_SCHEMA,
-        cv.Optional(CONF_FAULT_OPVSHORT): binary_sensor.BINARY_SENSOR_SCHEMA,
-        cv.Optional(
-            CONF_FAULT_INVERTER_VOLTAGE_TOO_LOW
-        ): binary_sensor.BINARY_SENSOR_SCHEMA,
-        cv.Optional(
-            CONF_FAULT_INVERTER_VOLTAGE_TOO_HIGH
-        ): binary_sensor.BINARY_SENSOR_SCHEMA,
-        cv.Optional(CONF_WARNING_OVER_TEMPERATURE): binary_sensor.BINARY_SENSOR_SCHEMA,
-        cv.Optional(CONF_WARNING_FAN_LOCK): binary_sensor.BINARY_SENSOR_SCHEMA,
-        cv.Optional(
-            CONF_WARNING_BATTERY_VOLTAGE_HIGH
-        ): binary_sensor.BINARY_SENSOR_SCHEMA,
-        cv.Optional(CONF_WARNING_BATTERY_LOW_ALARM): binary_sensor.BINARY_SENSOR_SCHEMA,
-        cv.Optional(
-            CONF_WARNING_BATTERY_UNDER_SHUTDOWN
-        ): binary_sensor.BINARY_SENSOR_SCHEMA,
-        cv.Optional(CONF_WARNING_BATTERY_DERATING): binary_sensor.BINARY_SENSOR_SCHEMA,
-        cv.Optional(CONF_WARNING_OVER_LOAD): binary_sensor.BINARY_SENSOR_SCHEMA,
-        cv.Optional(CONF_WARNING_EEPROM_FAILED): binary_sensor.BINARY_SENSOR_SCHEMA,
-        cv.Optional(
-            CONF_FAULT_INVERTER_OVER_CURRENT
-        ): binary_sensor.BINARY_SENSOR_SCHEMA,
-        cv.Optional(
-            CONF_FAULT_INVERTER_SOFT_FAILED
-        ): binary_sensor.BINARY_SENSOR_SCHEMA,
-        cv.Optional(CONF_FAULT_SELF_TEST_FAILED): binary_sensor.BINARY_SENSOR_SCHEMA,
-        cv.Optional(CONF_FAULT_OP_DC_VOLTAGE_OVER): binary_sensor.BINARY_SENSOR_SCHEMA,
-        cv.Optional(CONF_FAULT_BATTERY_OPEN): binary_sensor.BINARY_SENSOR_SCHEMA,
-        cv.Optional(
-            CONF_FAULT_CURRENT_SENSOR_FAILED
-        ): binary_sensor.BINARY_SENSOR_SCHEMA,
-        cv.Optional(CONF_FAULT_BATTERY_SHORT): binary_sensor.BINARY_SENSOR_SCHEMA,
-        cv.Optional(CONF_WARNING_POWER_LIMIT): binary_sensor.BINARY_SENSOR_SCHEMA,
-        cv.Optional(CONF_WARNING_PV_VOLTAGE_HIGH): binary_sensor.BINARY_SENSOR_SCHEMA,
-        cv.Optional(CONF_FAULT_MPPT_OVERLOAD): binary_sensor.BINARY_SENSOR_SCHEMA,
-        cv.Optional(CONF_WARNING_MPPT_OVERLOAD): binary_sensor.BINARY_SENSOR_SCHEMA,
-        cv.Optional(
-            CONF_WARNING_BATTERY_TOO_LOW_TO_CHARGE
-        ): binary_sensor.BINARY_SENSOR_SCHEMA,
-        cv.Optional(CONF_FAULT_DC_DC_OVER_CURRENT): binary_sensor.BINARY_SENSOR_SCHEMA,
-        cv.Optional(CONF_FAULT_CODE): binary_sensor.BINARY_SENSOR_SCHEMA,
-        cv.Optional(CONF_WARNUNG_LOW_PV_ENERGY): binary_sensor.BINARY_SENSOR_SCHEMA,
-        cv.Optional(
-            CONF_WARNING_HIGH_AC_INPUT_DURING_BUS_SOFT_START
-        ): binary_sensor.BINARY_SENSOR_SCHEMA,
-        cv.Optional(
-            CONF_WARNING_BATTERY_EQUALIZATION
-        ): binary_sensor.BINARY_SENSOR_SCHEMA,
-    }
+CONFIG_SCHEMA = PIPSOLAR_COMPONENT_SCHEMA.extend(
+    {cv.Optional(type): binary_sensor.BINARY_SENSOR_SCHEMA for type in TYPES}
 )
 
 
-def to_code(config):
-    paren = yield cg.get_variable(config[CONF_PIPSOLAR_ID])
-    if CONF_ADD_SBU_PRIORITY_VERSION in config:
-        conf = config[CONF_ADD_SBU_PRIORITY_VERSION]
-        sens = cg.new_Pvariable(conf[CONF_ID])
-        yield binary_sensor.register_binary_sensor(sens, conf)
-        cg.add(paren.set_add_sbu_priority_version_sensor(sens))
-    if CONF_CONFIGURATION_STATUS in config:
-        conf = config[CONF_CONFIGURATION_STATUS]
-        sens = cg.new_Pvariable(conf[CONF_ID])
-        yield binary_sensor.register_binary_sensor(sens, conf)
-        cg.add(paren.set_configuration_status_sensor(sens))
-    if CONF_SCC_FIRMWARE_VERSION in config:
-        conf = config[CONF_SCC_FIRMWARE_VERSION]
-        sens = cg.new_Pvariable(conf[CONF_ID])
-        yield binary_sensor.register_binary_sensor(sens, conf)
-        cg.add(paren.set_scc_firmware_version_sensor(sens))
-    if CONF_LOAD_STATUS in config:
-        conf = config[CONF_LOAD_STATUS]
-        sens = cg.new_Pvariable(conf[CONF_ID])
-        yield binary_sensor.register_binary_sensor(sens, conf)
-        cg.add(paren.set_load_status_sensor(sens))
-    if CONF_BATTERY_VOLTAGE_TO_STEADY_WHILE_CHARGING in config:
-        conf = config[CONF_BATTERY_VOLTAGE_TO_STEADY_WHILE_CHARGING]
-        sens = cg.new_Pvariable(conf[CONF_ID])
-        yield binary_sensor.register_binary_sensor(sens, conf)
-        cg.add(paren.set_battery_voltage_to_steady_while_charging_sensor(sens))
-    if CONF_CHARGING_STATUS in config:
-        conf = config[CONF_CHARGING_STATUS]
-        sens = cg.new_Pvariable(conf[CONF_ID])
-        yield binary_sensor.register_binary_sensor(sens, conf)
-        cg.add(paren.set_charging_status_sensor(sens))
-    if CONF_SCC_CHARGING_STATUS in config:
-        conf = config[CONF_SCC_CHARGING_STATUS]
-        sens = cg.new_Pvariable(conf[CONF_ID])
-        yield binary_sensor.register_binary_sensor(sens, conf)
-        cg.add(paren.set_scc_charging_status_sensor(sens))
-    if CONF_AC_CHARGING_STATUS in config:
-        conf = config[CONF_AC_CHARGING_STATUS]
-        sens = cg.new_Pvariable(conf[CONF_ID])
-        yield binary_sensor.register_binary_sensor(sens, conf)
-        cg.add(paren.set_ac_charging_status_sensor(sens))
-    if CONF_CHARGING_TO_FLOATING_MODE in config:
-        conf = config[CONF_CHARGING_TO_FLOATING_MODE]
-        sens = cg.new_Pvariable(conf[CONF_ID])
-        yield binary_sensor.register_binary_sensor(sens, conf)
-        cg.add(paren.set_charging_to_floating_mode_sensor(sens))
-    if CONF_SWITCH_ON in config:
-        conf = config[CONF_SWITCH_ON]
-        sens = cg.new_Pvariable(conf[CONF_ID])
-        yield binary_sensor.register_binary_sensor(sens, conf)
-        cg.add(paren.set_switch_on_sensor(sens))
-    if CONF_DUSTPROOF_INSTALLED in config:
-        conf = config[CONF_DUSTPROOF_INSTALLED]
-        sens = cg.new_Pvariable(conf[CONF_ID])
-        yield binary_sensor.register_binary_sensor(sens, conf)
-        cg.add(paren.set_dustproof_installed_sensor(sens))
-    if CONF_SILENCE_BUZZER_OPEN_BUZZER in config:
-        conf = config[CONF_SILENCE_BUZZER_OPEN_BUZZER]
-        sens = cg.new_Pvariable(conf[CONF_ID])
-        yield binary_sensor.register_binary_sensor(sens, conf)
-        cg.add(paren.set_silence_buzzer_open_buzzer_sensor(sens))
-    if CONF_OVERLOAD_BYPASS_FUNCTION in config:
-        conf = config[CONF_OVERLOAD_BYPASS_FUNCTION]
-        sens = cg.new_Pvariable(conf[CONF_ID])
-        yield binary_sensor.register_binary_sensor(sens, conf)
-        cg.add(paren.set_overload_bypass_function_sensor(sens))
-    if CONF_LCD_ESCAPE_TO_DEFAULT in config:
-        conf = config[CONF_LCD_ESCAPE_TO_DEFAULT]
-        sens = cg.new_Pvariable(conf[CONF_ID])
-        yield binary_sensor.register_binary_sensor(sens, conf)
-        cg.add(paren.set_lcd_escape_to_default_sensor(sens))
-    if CONF_OVERLOAD_RESTART_FUNCTION in config:
-        conf = config[CONF_OVERLOAD_RESTART_FUNCTION]
-        sens = cg.new_Pvariable(conf[CONF_ID])
-        yield binary_sensor.register_binary_sensor(sens, conf)
-        cg.add(paren.set_overload_restart_function_sensor(sens))
-    if CONF_OVER_TEMPERATURE_RESTART_FUNCTION in config:
-        conf = config[CONF_OVER_TEMPERATURE_RESTART_FUNCTION]
-        sens = cg.new_Pvariable(conf[CONF_ID])
-        yield binary_sensor.register_binary_sensor(sens, conf)
-        cg.add(paren.set_over_temperature_restart_function_sensor(sens))
-    if CONF_BACKLIGHT_ON in config:
-        conf = config[CONF_BACKLIGHT_ON]
-        sens = cg.new_Pvariable(conf[CONF_ID])
-        yield binary_sensor.register_binary_sensor(sens, conf)
-        cg.add(paren.set_backlight_on_sensor(sens))
-    if CONF_ALARM_ON_WHEN_PRIMARY_SOURCE_INTERRUPT in config:
-        conf = config[CONF_ALARM_ON_WHEN_PRIMARY_SOURCE_INTERRUPT]
-        sens = cg.new_Pvariable(conf[CONF_ID])
-        yield binary_sensor.register_binary_sensor(sens, conf)
-        cg.add(paren.set_alarm_on_when_primary_source_interrupt_sensor(sens))
-    if CONF_FAULT_CODE_RECORD in config:
-        conf = config[CONF_FAULT_CODE_RECORD]
-        sens = cg.new_Pvariable(conf[CONF_ID])
-        yield binary_sensor.register_binary_sensor(sens, conf)
-        cg.add(paren.set_fault_code_record_sensor(sens))
-    if CONF_WARNINGS_PRESENT in config:
-        conf = config[CONF_WARNINGS_PRESENT]
-        sens = cg.new_Pvariable(conf[CONF_ID])
-        yield binary_sensor.register_binary_sensor(sens, conf)
-        cg.add(paren.set_warnings_present_sensor(sens))
-    if CONF_FAULTS_PRESENT in config:
-        conf = config[CONF_FAULTS_PRESENT]
-        sens = cg.new_Pvariable(conf[CONF_ID])
-        yield binary_sensor.register_binary_sensor(sens, conf)
-        cg.add(paren.set_faults_present_sensor(sens))
-    if CONF_WARNING_POWER_LOSS in config:
-        conf = config[CONF_WARNING_POWER_LOSS]
-        sens = cg.new_Pvariable(conf[CONF_ID])
-        yield binary_sensor.register_binary_sensor(sens, conf)
-        cg.add(paren.set_warning_power_loss_sensor(sens))
-    if CONF_FAULT_INVERTER_FAULT in config:
-        conf = config[CONF_FAULT_INVERTER_FAULT]
-        sens = cg.new_Pvariable(conf[CONF_ID])
-        yield binary_sensor.register_binary_sensor(sens, conf)
-        cg.add(paren.set_fault_inverter_fault_sensor(sens))
-    if CONF_FAULT_BUS_OVER in config:
-        conf = config[CONF_FAULT_BUS_OVER]
-        sens = cg.new_Pvariable(conf[CONF_ID])
-        yield binary_sensor.register_binary_sensor(sens, conf)
-        cg.add(paren.set_fault_bus_over_sensor(sens))
-    if CONF_FAULT_BUS_UNDER in config:
-        conf = config[CONF_FAULT_BUS_UNDER]
-        sens = cg.new_Pvariable(conf[CONF_ID])
-        yield binary_sensor.register_binary_sensor(sens, conf)
-        cg.add(paren.set_fault_bus_under_sensor(sens))
-    if CONF_FAULT_BUS_SOFT_FAIL in config:
-        conf = config[CONF_FAULT_BUS_SOFT_FAIL]
-        sens = cg.new_Pvariable(conf[CONF_ID])
-        yield binary_sensor.register_binary_sensor(sens, conf)
-        cg.add(paren.set_fault_bus_soft_fail_sensor(sens))
-    if CONF_WARNING_LINE_FAIL in config:
-        conf = config[CONF_WARNING_LINE_FAIL]
-        sens = cg.new_Pvariable(conf[CONF_ID])
-        yield binary_sensor.register_binary_sensor(sens, conf)
-        cg.add(paren.set_warning_line_fail_sensor(sens))
-    if CONF_FAULT_OPVSHORT in config:
-        conf = config[CONF_FAULT_OPVSHORT]
-        sens = cg.new_Pvariable(conf[CONF_ID])
-        yield binary_sensor.register_binary_sensor(sens, conf)
-        cg.add(paren.set_fault_opvshort_sensor(sens))
-    if CONF_FAULT_INVERTER_VOLTAGE_TOO_LOW in config:
-        conf = config[CONF_FAULT_INVERTER_VOLTAGE_TOO_LOW]
-        sens = cg.new_Pvariable(conf[CONF_ID])
-        yield binary_sensor.register_binary_sensor(sens, conf)
-        cg.add(paren.set_fault_inverter_voltage_too_low_sensor(sens))
-    if CONF_FAULT_INVERTER_VOLTAGE_TOO_HIGH in config:
-        conf = config[CONF_FAULT_INVERTER_VOLTAGE_TOO_HIGH]
-        sens = cg.new_Pvariable(conf[CONF_ID])
-        yield binary_sensor.register_binary_sensor(sens, conf)
-        cg.add(paren.set_fault_inverter_voltage_too_high_sensor(sens))
-    if CONF_WARNING_OVER_TEMPERATURE in config:
-        conf = config[CONF_WARNING_OVER_TEMPERATURE]
-        sens = cg.new_Pvariable(conf[CONF_ID])
-        yield binary_sensor.register_binary_sensor(sens, conf)
-        cg.add(paren.set_warning_over_temperature_sensor(sens))
-    if CONF_WARNING_FAN_LOCK in config:
-        conf = config[CONF_WARNING_FAN_LOCK]
-        sens = cg.new_Pvariable(conf[CONF_ID])
-        yield binary_sensor.register_binary_sensor(sens, conf)
-        cg.add(paren.set_warning_fan_lock_sensor(sens))
-    if CONF_WARNING_BATTERY_VOLTAGE_HIGH in config:
-        conf = config[CONF_WARNING_BATTERY_VOLTAGE_HIGH]
-        sens = cg.new_Pvariable(conf[CONF_ID])
-        yield binary_sensor.register_binary_sensor(sens, conf)
-        cg.add(paren.set_warning_battery_voltage_high_sensor(sens))
-    if CONF_WARNING_BATTERY_LOW_ALARM in config:
-        conf = config[CONF_WARNING_BATTERY_LOW_ALARM]
-        sens = cg.new_Pvariable(conf[CONF_ID])
-        yield binary_sensor.register_binary_sensor(sens, conf)
-        cg.add(paren.set_warning_battery_low_alarm_sensor(sens))
-    if CONF_WARNING_BATTERY_UNDER_SHUTDOWN in config:
-        conf = config[CONF_WARNING_BATTERY_UNDER_SHUTDOWN]
-        sens = cg.new_Pvariable(conf[CONF_ID])
-        yield binary_sensor.register_binary_sensor(sens, conf)
-        cg.add(paren.set_warning_battery_under_shutdown_sensor(sens))
-    if CONF_WARNING_BATTERY_DERATING in config:
-        conf = config[CONF_WARNING_BATTERY_DERATING]
-        sens = cg.new_Pvariable(conf[CONF_ID])
-        yield binary_sensor.register_binary_sensor(sens, conf)
-        cg.add(paren.set_warning_battery_derating_sensor(sens))
-    if CONF_WARNING_OVER_LOAD in config:
-        conf = config[CONF_WARNING_OVER_LOAD]
-        sens = cg.new_Pvariable(conf[CONF_ID])
-        yield binary_sensor.register_binary_sensor(sens, conf)
-        cg.add(paren.set_warning_over_load_sensor(sens))
-    if CONF_WARNING_EEPROM_FAILED in config:
-        conf = config[CONF_WARNING_EEPROM_FAILED]
-        sens = cg.new_Pvariable(conf[CONF_ID])
-        yield binary_sensor.register_binary_sensor(sens, conf)
-        cg.add(paren.set_warning_eeprom_failed_sensor(sens))
-    if CONF_FAULT_INVERTER_OVER_CURRENT in config:
-        conf = config[CONF_FAULT_INVERTER_OVER_CURRENT]
-        sens = cg.new_Pvariable(conf[CONF_ID])
-        yield binary_sensor.register_binary_sensor(sens, conf)
-        cg.add(paren.set_fault_inverter_over_current_sensor(sens))
-    if CONF_FAULT_INVERTER_SOFT_FAILED in config:
-        conf = config[CONF_FAULT_INVERTER_SOFT_FAILED]
-        sens = cg.new_Pvariable(conf[CONF_ID])
-        yield binary_sensor.register_binary_sensor(sens, conf)
-        cg.add(paren.set_fault_inverter_soft_failed_sensor(sens))
-    if CONF_FAULT_SELF_TEST_FAILED in config:
-        conf = config[CONF_FAULT_SELF_TEST_FAILED]
-        sens = cg.new_Pvariable(conf[CONF_ID])
-        yield binary_sensor.register_binary_sensor(sens, conf)
-        cg.add(paren.set_fault_self_test_failed_sensor(sens))
-    if CONF_FAULT_OP_DC_VOLTAGE_OVER in config:
-        conf = config[CONF_FAULT_OP_DC_VOLTAGE_OVER]
-        sens = cg.new_Pvariable(conf[CONF_ID])
-        yield binary_sensor.register_binary_sensor(sens, conf)
-        cg.add(paren.set_fault_op_dc_voltage_over_sensor(sens))
-    if CONF_FAULT_BATTERY_OPEN in config:
-        conf = config[CONF_FAULT_BATTERY_OPEN]
-        sens = cg.new_Pvariable(conf[CONF_ID])
-        yield binary_sensor.register_binary_sensor(sens, conf)
-        cg.add(paren.set_fault_battery_open_sensor(sens))
-    if CONF_FAULT_CURRENT_SENSOR_FAILED in config:
-        conf = config[CONF_FAULT_CURRENT_SENSOR_FAILED]
-        sens = cg.new_Pvariable(conf[CONF_ID])
-        yield binary_sensor.register_binary_sensor(sens, conf)
-        cg.add(paren.set_fault_current_sensor_failed_sensor(sens))
-    if CONF_FAULT_BATTERY_SHORT in config:
-        conf = config[CONF_FAULT_BATTERY_SHORT]
-        sens = cg.new_Pvariable(conf[CONF_ID])
-        yield binary_sensor.register_binary_sensor(sens, conf)
-        cg.add(paren.set_fault_battery_short_sensor(sens))
-    if CONF_WARNING_POWER_LIMIT in config:
-        conf = config[CONF_WARNING_POWER_LIMIT]
-        sens = cg.new_Pvariable(conf[CONF_ID])
-        yield binary_sensor.register_binary_sensor(sens, conf)
-        cg.add(paren.set_warning_power_limit_sensor(sens))
-    if CONF_WARNING_PV_VOLTAGE_HIGH in config:
-        conf = config[CONF_WARNING_PV_VOLTAGE_HIGH]
-        sens = cg.new_Pvariable(conf[CONF_ID])
-        yield binary_sensor.register_binary_sensor(sens, conf)
-        cg.add(paren.set_warning_pv_voltage_high_sensor(sens))
-    if CONF_FAULT_MPPT_OVERLOAD in config:
-        conf = config[CONF_FAULT_MPPT_OVERLOAD]
-        sens = cg.new_Pvariable(conf[CONF_ID])
-        yield binary_sensor.register_binary_sensor(sens, conf)
-        cg.add(paren.set_fault_mppt_overload_sensor(sens))
-    if CONF_WARNING_MPPT_OVERLOAD in config:
-        conf = config[CONF_WARNING_MPPT_OVERLOAD]
-        sens = cg.new_Pvariable(conf[CONF_ID])
-        yield binary_sensor.register_binary_sensor(sens, conf)
-        cg.add(paren.set_warning_mppt_overload_sensor(sens))
-    if CONF_WARNING_BATTERY_TOO_LOW_TO_CHARGE in config:
-        conf = config[CONF_WARNING_BATTERY_TOO_LOW_TO_CHARGE]
-        sens = cg.new_Pvariable(conf[CONF_ID])
-        yield binary_sensor.register_binary_sensor(sens, conf)
-        cg.add(paren.set_warning_battery_too_low_to_charge_sensor(sens))
-    if CONF_FAULT_DC_DC_OVER_CURRENT in config:
-        conf = config[CONF_FAULT_DC_DC_OVER_CURRENT]
-        sens = cg.new_Pvariable(conf[CONF_ID])
-        yield binary_sensor.register_binary_sensor(sens, conf)
-        cg.add(paren.set_fault_dc_dc_over_current_sensor(sens))
-    if CONF_FAULT_CODE in config:
-        conf = config[CONF_FAULT_CODE]
-        sens = cg.new_Pvariable(conf[CONF_ID])
-        yield binary_sensor.register_binary_sensor(sens, conf)
-        cg.add(paren.set_fault_code_sensor(sens))
-    if CONF_WARNUNG_LOW_PV_ENERGY in config:
-        conf = config[CONF_WARNUNG_LOW_PV_ENERGY]
-        sens = cg.new_Pvariable(conf[CONF_ID])
-        yield binary_sensor.register_binary_sensor(sens, conf)
-        cg.add(paren.set_warnung_low_pv_energy_sensor(sens))
-    if CONF_WARNING_HIGH_AC_INPUT_DURING_BUS_SOFT_START in config:
-        conf = config[CONF_WARNING_HIGH_AC_INPUT_DURING_BUS_SOFT_START]
-        sens = cg.new_Pvariable(conf[CONF_ID])
-        yield binary_sensor.register_binary_sensor(sens, conf)
-        cg.add(paren.set_warning_high_ac_input_during_bus_soft_start_sensor(sens))
-    if CONF_WARNING_BATTERY_EQUALIZATION in config:
-        conf = config[CONF_WARNING_BATTERY_EQUALIZATION]
-        sens = cg.new_Pvariable(conf[CONF_ID])
-        yield binary_sensor.register_binary_sensor(sens, conf)
-        cg.add(paren.set_warning_battery_equalization_sensor(sens))
+async def to_code(config):
+    paren = await cg.get_variable(config[CONF_PIPSOLAR_ID])
+    for type in TYPES:
+        if type in config:
+            conf = config[type]
+            sens = cg.new_Pvariable(conf[CONF_ID])
+            await binary_sensor.register_binary_sensor(sens, conf)
+            cg.add(getattr(paren, f"set_{type}")(sens))
