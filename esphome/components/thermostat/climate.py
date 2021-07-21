@@ -39,6 +39,7 @@ from esphome.const import (
 
 CODEOWNERS = ["@kbx81"]
 
+climate_ns = cg.esphome_ns.namespace("climate")
 thermostat_ns = cg.esphome_ns.namespace("thermostat")
 ThermostatClimate = thermostat_ns.class_(
     "ThermostatClimate", climate.Climate, cg.Component
@@ -46,6 +47,17 @@ ThermostatClimate = thermostat_ns.class_(
 ThermostatClimateTargetTempConfig = thermostat_ns.struct(
     "ThermostatClimateTargetTempConfig"
 )
+ClimateMode = climate_ns.enum("ClimateMode")
+CLIMATE_MODES = {
+    "OFF": ClimateMode.CLIMATE_MODE_OFF,
+    "HEAT_COOL": ClimateMode.CLIMATE_MODE_HEAT_COOL,
+    "COOL": ClimateMode.CLIMATE_MODE_COOL,
+    "HEAT": ClimateMode.CLIMATE_MODE_HEAT,
+    "DRY": ClimateMode.CLIMATE_MODE_DRY,
+    "FAN_ONLY": ClimateMode.CLIMATE_MODE_FAN_ONLY,
+    "AUTO": ClimateMode.CLIMATE_MODE_AUTO,
+}
+validate_climate_mode = cv.enum(CLIMATE_MODES, upper=True)
 
 
 def validate_thermostat(config):
@@ -146,11 +158,12 @@ def validate_thermostat(config):
     # verify default climate mode is valid given above configuration
     default_mode = config[CONF_DEFAULT_MODE]
     requirements = {
-        CONF_AUTO_MODE: [CONF_COOL_ACTION, CONF_HEAT_ACTION],
-        CONF_COOL_MODE: [CONF_COOL_ACTION],
-        CONF_HEAT_MODE: [CONF_HEAT_ACTION],
-        CONF_DRY_MODE: [CONF_DRY_ACTION],
-        CONF_FAN_ONLY_MODE: [CONF_FAN_ONLY_ACTION],
+        "HEAT_COOL": [CONF_COOL_ACTION, CONF_HEAT_ACTION],
+        "COOL": [CONF_COOL_ACTION],
+        "HEAT": [CONF_HEAT_ACTION],
+        "DRY": [CONF_DRY_ACTION],
+        "FAN_ONLY": [CONF_FAN_ONLY_ACTION],
+        "AUTO": [CONF_COOL_ACTION, CONF_HEAT_ACTION],
     }.get(default_mode, [])
     for req in requirements:
         if req not in config:
@@ -223,13 +236,8 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(
                 CONF_TARGET_TEMPERATURE_CHANGE_ACTION
             ): automation.validate_automation(single=True),
-            cv.Optional(CONF_DEFAULT_MODE, default=CONF_OFF_MODE): cv.one_of(
-                CONF_AUTO_MODE,
-                CONF_COOL_MODE,
-                CONF_DRY_MODE,
-                CONF_FAN_ONLY_MODE,
-                CONF_HEAT_MODE,
-                CONF_OFF_MODE,
+            cv.Optional(CONF_DEFAULT_MODE, default="OFF"): cv.templatable(
+                validate_climate_mode
             ),
             cv.Optional(CONF_DEFAULT_TARGET_TEMPERATURE_HIGH): cv.temperature,
             cv.Optional(CONF_DEFAULT_TARGET_TEMPERATURE_LOW): cv.temperature,
@@ -260,6 +268,7 @@ async def to_code(config):
     )
 
     sens = await cg.get_variable(config[CONF_SENSOR])
+    cg.add(var.set_default_mode(config[CONF_DEFAULT_MODE]))
     cg.add(var.set_sensor(sens))
     cg.add(var.set_hysteresis(config[CONF_HYSTERESIS]))
 
