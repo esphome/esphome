@@ -154,6 +154,15 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   std::string cover_json(cover::Cover *obj);
 #endif
 
+#ifdef USE_NUMBER
+  void on_number_update(number::Number *obj, float state) override;
+  /// Handle a number request under '/number/<id>'.
+  void handle_number_request(AsyncWebServerRequest *request, const UrlMatch &match);
+
+  /// Dump the number state with its value as a JSON string.
+  std::string number_json(number::Number *obj, float value);
+#endif
+
   /// Override the web handler's canHandle method.
   bool canHandle(AsyncWebServerRequest *request) override;
   /// Override the web handler's handleRequest method.

@@ -91,7 +91,7 @@ class ClimateTraits {
   ESPDEPRECATED("This method is deprecated, use set_supported_fan_modes() instead")
   void set_supports_fan_mode_diffuse(bool supported) { set_fan_mode_support_(CLIMATE_FAN_DIFFUSE, supported); }
   bool supports_fan_mode(ClimateFanMode fan_mode) const { return supported_fan_modes_.count(fan_mode); }
-  bool get_supports_fan_modes() const { return !supported_fan_modes_.empty(); }
+  bool get_supports_fan_modes() const { return !supported_fan_modes_.empty() || !supported_custom_fan_modes_.empty(); }
   const std::set<ClimateFanMode> get_supported_fan_modes() const { return supported_fan_modes_; }
 
   void set_supported_custom_fan_modes(std::set<std::string> supported_custom_fan_modes) {
@@ -127,13 +127,13 @@ class ClimateTraits {
 
   void set_supported_swing_modes(std::set<ClimateSwingMode> modes) { supported_swing_modes_ = std::move(modes); }
   void add_supported_swing_mode(ClimateSwingMode mode) { supported_swing_modes_.insert(mode); }
-  ESPDEPRECATED("This method is deprecated, use set_supported_fan_modes() instead")
+  ESPDEPRECATED("This method is deprecated, use set_supported_swing_modes() instead")
   void set_supports_swing_mode_off(bool supported) { set_swing_mode_support_(CLIMATE_SWING_OFF, supported); }
-  ESPDEPRECATED("This method is deprecated, use set_supported_fan_modes() instead")
+  ESPDEPRECATED("This method is deprecated, use set_supported_swing_modes() instead")
   void set_supports_swing_mode_both(bool supported) { set_swing_mode_support_(CLIMATE_SWING_BOTH, supported); }
-  ESPDEPRECATED("This method is deprecated, use set_supported_fan_modes() instead")
+  ESPDEPRECATED("This method is deprecated, use set_supported_swing_modes() instead")
   void set_supports_swing_mode_vertical(bool supported) { set_swing_mode_support_(CLIMATE_SWING_VERTICAL, supported); }
-  ESPDEPRECATED("This method is deprecated, use set_supported_fan_modes() instead")
+  ESPDEPRECATED("This method is deprecated, use set_supported_swing_modes() instead")
   void set_supports_swing_mode_horizontal(bool supported) {
     set_swing_mode_support_(CLIMATE_SWING_HORIZONTAL, supported);
   }

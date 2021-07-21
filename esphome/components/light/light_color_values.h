@@ -135,12 +135,11 @@ class LightColorValues {
       root["brightness"] = uint8_t(this->get_brightness() * 255);
     if (traits.get_supports_rgb()) {
       JsonObject &color = root.createNestedObject("color");
-      color["r"] = uint8_t(this->get_red() * 255);
-      color["g"] = uint8_t(this->get_green() * 255);
-      color["b"] = uint8_t(this->get_blue() * 255);
+      color["r"] = uint8_t(this->get_color_brightness() * this->get_red() * 255);
+      color["g"] = uint8_t(this->get_color_brightness() * this->get_green() * 255);
+      color["b"] = uint8_t(this->get_color_brightness() * this->get_blue() * 255);
     }
     if (traits.get_supports_rgb_white_value()) {
-      root["color_brightness"] = uint8_t(this->get_color_brightness() * 255);
       root["white_value"] = uint8_t(this->get_white() * 255);
     }
     if (traits.get_supports_color_temperature())

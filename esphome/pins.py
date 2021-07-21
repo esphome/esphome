@@ -538,7 +538,7 @@ ESP32_BOARD_PINS = {
     "iotbusio": {},
     "iotbusproteus": {},
     "lolin32": {"LED": 5},
-    "lolin32-lite": {"LED": 22},
+    "lolin32_lite": {"LED": 22},
     "lolin_d32": {"LED": 5, "_VBAT": 35},
     "lolin_d32_pro": {"LED": 5, "_VBAT": 35},
     "lopy": {
