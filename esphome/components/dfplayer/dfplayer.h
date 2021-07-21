@@ -103,7 +103,10 @@ class DFPlayer : public uart::UARTDevice, public Component {
 };
 
 #define DFPLAYER_SIMPLE_ACTION(ACTION_CLASS, ACTION_METHOD) \
-  template<typename... Ts> class ACTION_CLASS : public Action<Ts...>, public Parented<DFPlayer> { \
+  template<typename... Ts> \
+  class ACTION_CLASS : /* NOLINT */ \
+                       public Action<Ts...>, \
+                       public Parented<DFPlayer> { \
     void play(Ts... x) override { this->parent_->ACTION_METHOD(); } \
   };
 

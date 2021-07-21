@@ -44,13 +44,19 @@ void Controller::setup_controller() {
 #ifdef USE_TEXT_SENSOR
   for (auto *obj : App.get_text_sensors()) {
     if (!obj->is_internal())
-      obj->add_on_state_callback([this, obj](std::string state) { this->on_text_sensor_update(obj, state); });
+      obj->add_on_state_callback([this, obj](const std::string &state) { this->on_text_sensor_update(obj, state); });
   }
 #endif
 #ifdef USE_CLIMATE
   for (auto *obj : App.get_climates()) {
     if (!obj->is_internal())
       obj->add_on_state_callback([this, obj]() { this->on_climate_update(obj); });
+  }
+#endif
+#ifdef USE_NUMBER
+  for (auto *obj : App.get_numbers()) {
+    if (!obj->is_internal())
+      obj->add_on_state_callback([this, obj](float state) { this->on_number_update(obj, state); });
   }
 #endif
 }

@@ -5,7 +5,7 @@
 namespace esphome {
 namespace fan {
 
-static const char *TAG = "fan";
+static const char *const TAG = "fan";
 
 const FanTraits &FanState::get_traits() const { return this->traits_; }
 void FanState::set_traits(const FanTraits &traits) { this->traits_ = traits; }
@@ -54,7 +54,7 @@ void FanStateCall::perform() const {
   }
   if (this->speed_.has_value()) {
     const int speed_count = this->state_->get_traits().supported_speed_count();
-    this->state_->speed = static_cast<int>(clamp(*this->speed_, 1, speed_count));
+    this->state_->speed = clamp(*this->speed_, 1, speed_count);
   }
 
   FanStateRTCState saved{};

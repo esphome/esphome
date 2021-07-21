@@ -822,7 +822,7 @@ cpp += """\
 namespace esphome {
 namespace api {
 
-static const char *TAG = "api.service";
+static const char *const TAG = "api.service";
 
 """
 

@@ -111,7 +111,7 @@ class XPT2046Component : public PollingComponent,
   bool swap_x_y_;
 
   uint32_t report_millis_;
-  unsigned long last_pos_ms_{0};
+  uint32_t last_pos_ms_{0};
 
   GPIOPin *irq_pin_{nullptr};
   bool last_irq_{true};

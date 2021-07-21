@@ -6,7 +6,7 @@
 namespace esphome {
 namespace esp32_touch {
 
-static const char *TAG = "esp32_touch";
+static const char *const TAG = "esp32_touch";
 
 void ESP32TouchComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up ESP32 Touch Hub...");

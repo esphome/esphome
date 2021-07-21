@@ -176,7 +176,9 @@ validate_binary_sensor = cv.validate_registry_entry(
 TRIGGER_REGISTRY = SimpleRegistry()
 DUMPER_REGISTRY = Registry(
     {
-        cv.GenerateID(CONF_RECEIVER_ID): cv.use_id(RemoteReceiverBase),
+        cv.Optional(CONF_RECEIVER_ID): cv.invalid(
+            "This has been removed in ESPHome 1.20.0 and the dumper attaches directly to the parent receiver."
+        ),
     }
 )
 
@@ -228,8 +230,6 @@ async def build_dumpers(config):
     dumpers = []
     for conf in config:
         dumper = await cg.build_registry_entry(DUMPER_REGISTRY, conf)
-        receiver = await cg.get_variable(conf[CONF_RECEIVER_ID])
-        cg.add(receiver.register_dumper(dumper))
         dumpers.append(dumper)
     return dumpers
 
@@ -698,7 +698,7 @@ RC_SWITCH_TRANSMITTER = cv.Schema(
     }
 )
 
-rc_switch_protocols = ns.rc_switch_protocols
+rc_switch_protocols = ns.RC_SWITCH_PROTOCOLS
 RCSwitchData = ns.struct("RCSwitchData")
 RCSwitchBase = ns.class_("RCSwitchBase")
 RCSwitchTrigger = ns.class_("RCSwitchTrigger", RemoteReceiverTrigger)
@@ -866,7 +866,8 @@ def rc_switch_dumper(var, config):
 ) = declare_protocol("Samsung")
 SAMSUNG_SCHEMA = cv.Schema(
     {
-        cv.Required(CONF_DATA): cv.hex_uint32_t,
+        cv.Required(CONF_DATA): cv.hex_uint64_t,
+        cv.Optional(CONF_NBITS, default=32): cv.int_range(32, 64),
     }
 )
 
@@ -878,6 +879,7 @@ def samsung_binary_sensor(var, config):
             cg.StructInitializer(
                 SamsungData,
                 ("data", config[CONF_DATA]),
+                ("nbits", config[CONF_NBITS]),
             )
         )
     )
@@ -895,8 +897,10 @@ def samsung_dumper(var, config):
 
 @register_action("samsung", SamsungAction, SAMSUNG_SCHEMA)
 async def samsung_action(var, config, args):
-    template_ = await cg.templatable(config[CONF_DATA], args, cg.uint32)
+    template_ = await cg.templatable(config[CONF_DATA], args, cg.uint64)
     cg.add(var.set_data(template_))
+    template_ = await cg.templatable(config[CONF_NBITS], args, cg.uint8)
+    cg.add(var.set_nbits(template_))
 
 
 # Samsung36

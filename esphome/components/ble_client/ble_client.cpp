@@ -9,7 +9,7 @@
 namespace esphome {
 namespace ble_client {
 
-static const char *TAG = "ble_client";
+static const char *const TAG = "ble_client";
 
 void BLEClient::setup() {
   auto ret = esp_ble_gattc_app_register(this->app_id);

@@ -102,8 +102,11 @@ class PropertiesFrame : public midea_dongle::BaseFrame {
   void set_sleep_mode(bool state) { this->set_bytemask_(20, 0x01, state); }
 
   /* TURBO MODE */
-  bool get_turbo_mode() const { return this->pbuf_[18] & 0x20; }
-  void set_turbo_mode(bool state) { this->set_bytemask_(18, 0x20, state); }
+  bool get_turbo_mode() const { return this->pbuf_[18] & 0x20 || this->pbuf_[20] & 0x02; }
+  void set_turbo_mode(bool state) {
+    this->set_bytemask_(18, 0x20, state);
+    this->set_bytemask_(20, 0x02, state);
+  }
 
   /* FREEZE PROTECTION */
   bool get_freeze_protection_mode() const { return this->pbuf_[31] & 0x80; }

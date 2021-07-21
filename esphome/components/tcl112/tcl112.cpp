@@ -4,7 +4,7 @@
 namespace esphome {
 namespace tcl112 {
 
-static const char *TAG = "tcl112.climate";
+static const char *const TAG = "tcl112.climate";
 
 const uint16_t TCL112_STATE_LENGTH = 14;
 const uint16_t TCL112_BITS = TCL112_STATE_LENGTH * 8;

@@ -115,7 +115,7 @@ class Logger : public Component {
   CallbackManager<void(int, const char *, const char *)> log_callback_{};
 };
 
-extern Logger *global_logger;
+extern Logger *global_logger;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 class LoggerMessageTrigger : public Trigger<int, const char *, const char *> {
  public:

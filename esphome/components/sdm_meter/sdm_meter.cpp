@@ -5,7 +5,7 @@
 namespace esphome {
 namespace sdm_meter {
 
-static const char *TAG = "sdm_meter";
+static const char *const TAG = "sdm_meter";
 
 static const uint8_t MODBUS_CMD_READ_IN_REGISTERS = 0x04;
 static const uint8_t MODBUS_REGISTER_COUNT = 80;  // 74 x 16-bit registers
