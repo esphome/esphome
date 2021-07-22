@@ -54,8 +54,9 @@ jobs:
         run: script/clang-tidy --all-headers --fix --split-num 4 --split-at ${{ matrix.split }}
         if: ${{ matrix.id == 'clang-tidy' }}
 
-      - name: Suggest changes
+      - name: Suggested changes
         run: script/ci-suggest-changes
+        if: always()
 
   ci:
     # Don't use the esphome-lint docker image because it may contain outdated requirements.
