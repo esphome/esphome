@@ -4,7 +4,7 @@
 namespace esphome {
 namespace pmsx003 {
 
-static const char *TAG = "pmsx003";
+static const char *const TAG = "pmsx003";
 
 void PMSX003Component::set_pm_1_0_sensor(sensor::Sensor *pm_1_0_sensor) { pm_1_0_sensor_ = pm_1_0_sensor; }
 void PMSX003Component::set_pm_2_5_sensor(sensor::Sensor *pm_2_5_sensor) { pm_2_5_sensor_ = pm_2_5_sensor; }

@@ -5,7 +5,7 @@
 namespace esphome {
 namespace shutdown {
 
-static const char *TAG = "shutdown.switch";
+static const char *const TAG = "shutdown.switch";
 
 void ShutdownSwitch::dump_config() { LOG_SWITCH("", "Shutdown Switch", this); }
 void ShutdownSwitch::write_state(bool state) {

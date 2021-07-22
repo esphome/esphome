@@ -16,7 +16,7 @@ class HomeassistantTime : public time::RealTimeClock {
   float get_setup_priority() const override;
 };
 
-extern HomeassistantTime *global_homeassistant_time;
+extern HomeassistantTime *global_homeassistant_time;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 }  // namespace homeassistant
 }  // namespace esphome

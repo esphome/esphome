@@ -12,7 +12,7 @@ template<typename... Ts> class TurnOnAction : public Action<Ts...> {
   explicit TurnOnAction(FanState *state) : state_(state) {}
 
   TEMPLATABLE_VALUE(bool, oscillating)
-  TEMPLATABLE_VALUE(FanSpeed, speed)
+  TEMPLATABLE_VALUE(int, speed)
 
   void play(Ts... x) override {
     auto call = this->state_->turn_on();
@@ -44,6 +44,42 @@ template<typename... Ts> class ToggleAction : public Action<Ts...> {
   void play(Ts... x) override { this->state_->toggle().perform(); }
 
   FanState *state_;
+};
+
+class FanTurnOnTrigger : public Trigger<> {
+ public:
+  FanTurnOnTrigger(FanState *state) {
+    state->add_on_state_callback([this, state]() {
+      auto is_on = state->state;
+      auto should_trigger = is_on && !this->last_on_;
+      this->last_on_ = is_on;
+      if (should_trigger) {
+        this->trigger();
+      }
+    });
+    this->last_on_ = state->state;
+  }
+
+ protected:
+  bool last_on_;
+};
+
+class FanTurnOffTrigger : public Trigger<> {
+ public:
+  FanTurnOffTrigger(FanState *state) {
+    state->add_on_state_callback([this, state]() {
+      auto is_on = state->state;
+      auto should_trigger = !is_on && this->last_on_;
+      this->last_on_ = is_on;
+      if (should_trigger) {
+        this->trigger();
+      }
+    });
+    this->last_on_ = state->state;
+  }
+
+ protected:
+  bool last_on_;
 };
 
 }  // namespace fan

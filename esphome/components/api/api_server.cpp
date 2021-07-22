@@ -15,7 +15,7 @@
 namespace esphome {
 namespace api {
 
-static const char *TAG = "api";
+static const char *const TAG = "api";
 
 // APIServer
 void APIServer::setup() {
@@ -180,7 +180,7 @@ void APIServer::on_switch_update(switch_::Switch *obj, bool state) {
 #endif
 
 #ifdef USE_TEXT_SENSOR
-void APIServer::on_text_sensor_update(text_sensor::TextSensor *obj, std::string state) {
+void APIServer::on_text_sensor_update(text_sensor::TextSensor *obj, const std::string &state) {
   if (obj->is_internal())
     return;
   for (auto *c : this->clients_)
@@ -197,9 +197,18 @@ void APIServer::on_climate_update(climate::Climate *obj) {
 }
 #endif
 
+#ifdef USE_NUMBER
+void APIServer::on_number_update(number::Number *obj, float state) {
+  if (obj->is_internal())
+    return;
+  for (auto *c : this->clients_)
+    c->send_number_state(obj, state);
+}
+#endif
+
 float APIServer::get_setup_priority() const { return setup_priority::AFTER_WIFI; }
 void APIServer::set_port(uint16_t port) { this->port_ = port; }
-APIServer *global_api_server = nullptr;
+APIServer *global_api_server = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 void APIServer::set_password(const std::string &password) { this->password_ = password; }
 void APIServer::send_homeassistant_service_call(const HomeassistantServiceResponse &call) {
@@ -208,9 +217,11 @@ void APIServer::send_homeassistant_service_call(const HomeassistantServiceRespon
   }
 }
 APIServer::APIServer() { global_api_server = this; }
-void APIServer::subscribe_home_assistant_state(std::string entity_id, std::function<void(std::string)> f) {
+void APIServer::subscribe_home_assistant_state(std::string entity_id, optional<std::string> attribute,
+                                               std::function<void(std::string)> f) {
   this->state_subs_.push_back(HomeAssistantStateSubscription{
       .entity_id = std::move(entity_id),
+      .attribute = std::move(attribute),
       .callback = std::move(f),
   });
 }

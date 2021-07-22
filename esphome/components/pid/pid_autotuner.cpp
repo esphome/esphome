@@ -4,7 +4,7 @@
 namespace esphome {
 namespace pid {
 
-static const char *TAG = "pid.autotune";
+static const char *const TAG = "pid.autotune";
 
 /*
  * # PID Autotuner

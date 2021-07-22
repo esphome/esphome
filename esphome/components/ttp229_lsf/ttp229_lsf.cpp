@@ -4,7 +4,7 @@
 namespace esphome {
 namespace ttp229_lsf {
 
-static const char *TAG = "ttp229_lsf";
+static const char *const TAG = "ttp229_lsf";
 
 void TTP229LSFComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up ttp229...");

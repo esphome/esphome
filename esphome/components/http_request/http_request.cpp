@@ -4,7 +4,7 @@
 namespace esphome {
 namespace http_request {
 
-static const char *TAG = "http_request";
+static const char *const TAG = "http_request";
 
 void HttpRequestComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "HTTP Request:");
@@ -13,8 +13,8 @@ void HttpRequestComponent::dump_config() {
 }
 
 void HttpRequestComponent::set_url(std::string url) {
-  this->url_ = url;
-  this->secure_ = url.compare(0, 6, "https:") == 0;
+  this->url_ = std::move(url);
+  this->secure_ = this->url_.compare(0, 6, "https:") == 0;
 
   if (!this->last_url_.empty() && this->url_ != this->last_url_) {
     // Close connection if url has been changed
@@ -24,7 +24,7 @@ void HttpRequestComponent::set_url(std::string url) {
   this->client_.setReuse(true);
 }
 
-void HttpRequestComponent::send() {
+void HttpRequestComponent::send(const std::vector<HttpRequestResponseTrigger *> &response_triggers) {
   bool begin_status = false;
   const String url = this->url_.c_str();
 #ifdef ARDUINO_ARCH_ESP32
@@ -54,6 +54,9 @@ void HttpRequestComponent::send() {
   }
 
   int http_code = this->client_.sendRequest(this->method_, this->body_.c_str());
+  for (auto *trigger : response_triggers)
+    trigger->process(http_code);
+
   if (http_code < 0) {
     ESP_LOGW(TAG, "HTTP Request failed; URL: %s; Error: %s", this->url_.c_str(),
              HTTPClient::errorToString(http_code).c_str());

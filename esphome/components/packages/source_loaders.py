@@ -44,3 +44,6 @@ class LocalSourceLoader(BaseSourceLoader):
                              "File {} doesn't exist".format(file_path))
         package.file_system_location = file_path
         package.content = yaml_util.load_yaml_package(package.file_system_location)
+
+
+# TODO: Github loader: https://api.github.com/repos/corvis/esphome-packages/zipball/main

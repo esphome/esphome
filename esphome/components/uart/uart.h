@@ -56,6 +56,7 @@ class ESP8266SoftwareSerial {
 class UARTComponent : public Component, public Stream {
  public:
   void set_baud_rate(uint32_t baud_rate) { baud_rate_ = baud_rate; }
+  uint32_t get_baud_rate() const { return baud_rate_; }
 
   uint32_t get_config();
 
@@ -90,6 +91,9 @@ class UARTComponent : public Component, public Stream {
   void set_tx_pin(uint8_t tx_pin) { this->tx_pin_ = tx_pin; }
   void set_rx_pin(uint8_t rx_pin) { this->rx_pin_ = rx_pin; }
   void set_rx_buffer_size(size_t rx_buffer_size) { this->rx_buffer_size_ = rx_buffer_size; }
+#ifdef ARDUINO_ARCH_ESP32
+  void set_invert(bool invert) { this->invert_ = invert; }
+#endif
   void set_stop_bits(uint8_t stop_bits) { this->stop_bits_ = stop_bits; }
   void set_data_bits(uint8_t data_bits) { this->data_bits_ = data_bits; }
   void set_parity(UARTParityOptions parity) { this->parity_ = parity; }
@@ -106,6 +110,9 @@ class UARTComponent : public Component, public Stream {
   optional<uint8_t> tx_pin_;
   optional<uint8_t> rx_pin_;
   size_t rx_buffer_size_;
+#ifdef ARDUINO_ARCH_ESP32
+  bool invert_;
+#endif
   uint32_t baud_rate_;
   uint8_t stop_bits_;
   uint8_t data_bits_;

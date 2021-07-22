@@ -31,13 +31,13 @@ struct ZaMessage {
 
 class ZaDataProcessor {
  public:
-  bool decode(unsigned long ms, bool data);
+  bool decode(uint32_t ms, bool data);
   ZaMessage *message = new ZaMessage;
 
  protected:
   uint8_t buffer_[ZA_MSG_LEN];
   int num_bits_ = 0;
-  unsigned long prev_ms_;
+  uint32_t prev_ms_;
 };
 
 class ZaSensorStore {

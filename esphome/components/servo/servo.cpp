@@ -4,9 +4,9 @@
 namespace esphome {
 namespace servo {
 
-static const char *TAG = "servo";
+static const char *const TAG = "servo";
 
-uint32_t global_servo_id = 1911044085ULL;
+uint32_t global_servo_id = 1911044085ULL;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 void Servo::dump_config() {
   ESP_LOGCONFIG(TAG, "Servo:");
@@ -31,7 +31,7 @@ void Servo::loop() {
     if (this->transition_length_) {
       float new_value;
       float travel_diff = this->target_value_ - this->source_value_;
-      uint32_t target_runtime = target_runtime = abs((int) ((travel_diff) * this->transition_length_ * 1.0f / 2.0f));
+      uint32_t target_runtime = abs((int) ((travel_diff) * this->transition_length_ * 1.0f / 2.0f));
       uint32_t current_runtime = millis() - this->start_millis_;
       float percentage_run = current_runtime * 1.0f / target_runtime * 1.0f;
       if (percentage_run > 1.0f) {
@@ -52,6 +52,8 @@ void Servo::loop() {
 
 void Servo::write(float value) {
   value = clamp(value, -1.0f, 1.0f);
+  if (this->target_value_ == value)
+    this->internal_write(value);
   this->target_value_ = value;
   this->source_value_ = this->current_value_;
   this->state_ = STATE_ATTACHED;

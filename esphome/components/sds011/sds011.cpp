@@ -4,7 +4,7 @@
 namespace esphome {
 namespace sds011 {
 
-static const char *TAG = "sds011";
+static const char *const TAG = "sds011";
 
 static const uint8_t SDS011_MSG_REQUEST_LENGTH = 19;
 static const uint8_t SDS011_MSG_RESPONSE_LENGTH = 10;
@@ -45,6 +45,21 @@ void SDS011Component::setup() {
   command_data[0] = SDS011_COMMAND_PERIOD;
   command_data[1] = SDS011_SET_MODE;
   command_data[2] = this->update_interval_min_;
+  command_data[13] = 0xff;
+  command_data[14] = 0xff;
+  this->sds011_write_command_(command_data);
+}
+
+void SDS011Component::set_working_state(bool working_state) {
+  if (this->rx_mode_only_) {
+    // In RX-only mode we do not setup the sensor, it is assumed to be setup
+    // already
+    return;
+  }
+  uint8_t command_data[SDS011_DATA_REQUEST_LENGTH] = {0};
+  command_data[0] = SDS011_COMMAND_SLEEP;
+  command_data[1] = SDS011_SET_MODE;
+  command_data[2] = working_state ? SDS011_MODE_WORK : SDS011_MODE_SLEEP;
   command_data[13] = 0xff;
   command_data[14] = 0xff;
   this->sds011_write_command_(command_data);

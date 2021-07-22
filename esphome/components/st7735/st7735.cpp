@@ -218,10 +218,9 @@ static const uint8_t PROGMEM
       100 };                        //     100 ms delay
 
 // clang-format on
-static const char *TAG = "st7735";
+static const char *const TAG = "st7735";
 
-ST7735::ST7735(ST7735Model model, int width, int height, int colstart, int rowstart, boolean eightbitcolor,
-               boolean usebgr) {
+ST7735::ST7735(ST7735Model model, int width, int height, int colstart, int rowstart, bool eightbitcolor, bool usebgr) {
   model_ = model;
   this->width_ = width;
   this->height_ = height;
@@ -308,11 +307,11 @@ void HOT ST7735::draw_absolute_pixel_internal(int x, int y, Color color) {
     return;
 
   if (this->eightbitcolor_) {
-    const uint32_t color332 = color.to_332();
+    const uint32_t color332 = display::ColorUtil::color_to_332(color);
     uint16_t pos = (x + y * this->get_width_internal());
     this->buffer_[pos] = color332;
   } else {
-    const uint32_t color565 = color.to_565();
+    const uint32_t color565 = display::ColorUtil::color_to_565(color);
     uint16_t pos = (x + y * this->get_width_internal()) * 2;
     this->buffer_[pos++] = (color565 >> 8) & 0xff;
     this->buffer_[pos] = color565 & 0xff;
@@ -444,9 +443,11 @@ void HOT ST7735::write_display_data_() {
   if (this->eightbitcolor_) {
     for (int line = 0; line < this->get_buffer_length(); line = line + this->get_width_internal()) {
       for (int index = 0; index < this->get_width_internal(); ++index) {
-        auto color = Color(this->buffer_[index + line], Color::ColorOrder::COLOR_ORDER_RGB,
-                           Color::ColorBitness::COLOR_BITNESS_332, true)
-                         .to_565();
+        auto color332 = display::ColorUtil::to_color(this->buffer_[index + line], display::ColorOrder::COLOR_ORDER_RGB,
+                                                     display::ColorBitness::COLOR_BITNESS_332, true);
+
+        auto color = display::ColorUtil::color_to_565(color332);
+
         this->write_byte((color >> 8) & 0xff);
         this->write_byte(color & 0xff);
       }

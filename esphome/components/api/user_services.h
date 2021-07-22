@@ -1,5 +1,7 @@
 #pragma once
 
+#include <utility>
+
 #include "esphome/core/component.h"
 #include "esphome/core/automation.h"
 #include "api_pb2.h"
@@ -20,8 +22,8 @@ template<typename T> enums::ServiceArgType to_service_arg_type();
 
 template<typename... Ts> class UserServiceBase : public UserServiceDescriptor {
  public:
-  UserServiceBase(const std::string &name, const std::array<std::string, sizeof...(Ts)> &arg_names)
-      : name_(name), arg_names_(arg_names) {
+  UserServiceBase(std::string name, const std::array<std::string, sizeof...(Ts)> &arg_names)
+      : name_(std::move(name)), arg_names_(arg_names) {
     this->key_ = fnv1_hash(this->name_);
   }
 

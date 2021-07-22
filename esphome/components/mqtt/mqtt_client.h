@@ -157,7 +157,16 @@ class MQTTClientComponent : public Component {
    * received.
    * @param qos The QoS of this subscription.
    */
-  void subscribe_json(const std::string &topic, mqtt_json_callback_t callback, uint8_t qos = 0);
+  void subscribe_json(const std::string &topic, const mqtt_json_callback_t &callback, uint8_t qos = 0);
+
+  /** Unsubscribe from an MQTT topic.
+   *
+   * If multiple existing subscriptions to the same topic exist, all of them will be removed.
+   *
+   * @param topic The topic to unsubscribe from.
+   * Must match the topic in the original subscribe or subscribe_json call exactly.
+   */
+  void unsubscribe(const std::string &topic);
 
   /** Publish a MQTTMessage
    *
@@ -250,6 +259,7 @@ class MQTTClientComponent : public Component {
   };
   std::string topic_prefix_{};
   MQTTMessage log_message_;
+  std::string payload_buffer_;
   int log_level_{ESPHOME_LOG_LEVEL};
 
   std::vector<MQTTSubscription> subscriptions_;
@@ -265,11 +275,11 @@ class MQTTClientComponent : public Component {
   optional<AsyncMqttClientDisconnectReason> disconnect_reason_{};
 };
 
-extern MQTTClientComponent *global_mqtt_client;
+extern MQTTClientComponent *global_mqtt_client;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 class MQTTMessageTrigger : public Trigger<std::string>, public Component {
  public:
-  explicit MQTTMessageTrigger(const std::string &topic);
+  explicit MQTTMessageTrigger(std::string topic);
 
   void set_qos(uint8_t qos);
   void set_payload(const std::string &payload);

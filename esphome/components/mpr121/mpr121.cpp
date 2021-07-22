@@ -4,7 +4,7 @@
 namespace esphome {
 namespace mpr121 {
 
-static const char *TAG = "mpr121";
+static const char *const TAG = "mpr121";
 
 void MPR121Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up MPR121...");

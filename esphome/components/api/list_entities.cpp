@@ -51,5 +51,9 @@ bool ListEntitiesIterator::on_camera(esp32_camera::ESP32Camera *camera) {
 bool ListEntitiesIterator::on_climate(climate::Climate *climate) { return this->client_->send_climate_info(climate); }
 #endif
 
+#ifdef USE_NUMBER
+bool ListEntitiesIterator::on_number(number::Number *number) { return this->client_->send_number_info(number); }
+#endif
+
 }  // namespace api
 }  // namespace esphome

@@ -1,11 +1,11 @@
 #pragma once
 
+#include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
-#include "esphome/core/automation.h"
-#include <stdlib.h>
-#include <time.h>
 #include <bitset>
+#include <cstdlib>
+#include <ctime>
 
 namespace esphome {
 namespace time {
@@ -30,13 +30,10 @@ struct ESPTime {
   uint8_t month;
   /// year
   uint16_t year;
-  /// daylight savings time flag
+  /// daylight saving time flag
   bool is_dst;
-  union {
-    ESPDEPRECATED(".time is deprecated, use .timestamp instead") time_t time;
-    /// unix epoch time (seconds since UTC Midnight January 1, 1970)
-    time_t timestamp;
-  };
+  /// unix epoch time (seconds since UTC Midnight January 1, 1970)
+  time_t timestamp;
 
   /** Convert this ESPTime struct to a null-terminated c string buffer as specified by the format argument.
    * Up to buffer_len bytes are written.

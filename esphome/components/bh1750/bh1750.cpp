@@ -4,7 +4,7 @@
 namespace esphome {
 namespace bh1750 {
 
-static const char *TAG = "bh1750.sensor";
+static const char *const TAG = "bh1750.sensor";
 
 static const uint8_t BH1750_COMMAND_POWER_ON = 0b00000001;
 static const uint8_t BH1750_COMMAND_MT_REG_HI = 0b01000000;  // last 3 bits
@@ -17,8 +17,8 @@ void BH1750Sensor::setup() {
     return;
   }
 
-  uint8_t mtreg_hi = (this->measurement_time_ >> 5) & 0b111;
-  uint8_t mtreg_lo = (this->measurement_time_ >> 0) & 0b11111;
+  uint8_t mtreg_hi = (this->measurement_duration_ >> 5) & 0b111;
+  uint8_t mtreg_lo = (this->measurement_duration_ >> 0) & 0b11111;
   this->write_bytes(BH1750_COMMAND_MT_REG_HI | mtreg_hi, nullptr, 0);
   this->write_bytes(BH1750_COMMAND_MT_REG_LO | mtreg_lo, nullptr, 0);
 }
@@ -77,7 +77,7 @@ void BH1750Sensor::read_data_() {
   }
 
   float lx = float(raw_value) / 1.2f;
-  lx *= 69.0f / this->measurement_time_;
+  lx *= 69.0f / this->measurement_duration_;
   ESP_LOGD(TAG, "'%s': Got illuminance=%.1flx", this->get_name().c_str(), lx);
   this->publish_state(lx);
   this->status_clear_warning();
