@@ -653,7 +653,9 @@ class EsphomeCore:
                     "requested with conflicting repositories!"
                     "".format(library, other)
                 )
-            elif library.repository is not None:
+
+            if library.repository is not None:
+                # This is more specific since its using a repository
                 self.libraries.remove(other)
                 continue
 
