@@ -5,7 +5,7 @@
 namespace esphome {
 namespace pipsolar {
 
-static const char *TAG = "pipsolar.switch";
+static const char *const TAG = "pipsolar.switch";
 
 void PipsolarSwitch::dump_config() { LOG_SWITCH("", "Pipsolar Switch", this); }
 void PipsolarSwitch::write_state(bool state) {

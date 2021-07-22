@@ -5,7 +5,7 @@
 namespace esphome {
 namespace pipsolar {
 
-static const char *TAG = "pipsolar.textsensor";
+static const char *const TAG = "pipsolar.text_sensor";
 
 void PipsolarTextSensor::dump_config() { LOG_TEXT_SENSOR("", "Pipsolar TextSensor", this); }
 

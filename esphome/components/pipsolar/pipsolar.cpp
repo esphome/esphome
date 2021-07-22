@@ -4,7 +4,7 @@
 namespace esphome {
 namespace pipsolar {
 
-static const char* TAG = "pipsolar";
+static const char *const TAG = "pipsolar";
 
 void Pipsolar::setup() {
   this->state_ = STATE_IDLE;
@@ -741,7 +741,7 @@ void Pipsolar::loop() {
   if (this->state_ == STATE_COMMAND) {
     if (millis() - this->command_start_millis_ > esphome::pipsolar::Pipsolar::COMMAND_TIMEOUT) {
       // command timeout
-      const char* command = this->command_queue_[this->command_queue_position_].c_str();
+      const char *command = this->command_queue_[this->command_queue_position_].c_str();
       this->command_start_millis_ = millis();
       ESP_LOGD(TAG, "timeout command from queue: %s", command);
       this->command_queue_[this->command_queue_position_] = std::string("");
@@ -772,15 +772,15 @@ uint8_t Pipsolar::check_incoming_crc_() {
   uint16_t crc16;
   crc16 = calc_crc_(read_buffer_, read_pos_ - 3);
   ESP_LOGD(TAG, "checking crc on incoming message");
-  if (((uint8_t)((crc16) >> 8)) == read_buffer_[read_pos_ - 3] &&
-      ((uint8_t)((crc16) &0xff)) == read_buffer_[read_pos_ - 2]) {
+  if (((uint8_t) ((crc16) >> 8)) == read_buffer_[read_pos_ - 3] &&
+      ((uint8_t) ((crc16) &0xff)) == read_buffer_[read_pos_ - 2]) {
     ESP_LOGD(TAG, "CRC OK");
     read_buffer_[read_pos_ - 1] = 0;
     read_buffer_[read_pos_ - 2] = 0;
     read_buffer_[read_pos_ - 3] = 0;
     return 1;
   }
-  ESP_LOGD(TAG, "CRC NOK expected: %X %X but got: %X %X", ((uint8_t)((crc16) >> 8)), ((uint8_t)((crc16) &0xff)),
+  ESP_LOGD(TAG, "CRC NOK expected: %X %X but got: %X %X", ((uint8_t) ((crc16) >> 8)), ((uint8_t) ((crc16) &0xff)),
            read_buffer_[read_pos_ - 3], read_buffer_[read_pos_ - 2]);
   return 0;
 }
@@ -789,7 +789,7 @@ uint8_t Pipsolar::check_incoming_crc_() {
 uint8_t Pipsolar::send_next_command_() {
   uint16_t crc16;
   if (this->command_queue_[this->command_queue_position_].length() != 0) {
-    const char* command = this->command_queue_[this->command_queue_position_].c_str();
+    const char *command = this->command_queue_[this->command_queue_position_].c_str();
     uint8_t byte_command[16];
     uint8_t length = this->command_queue_[this->command_queue_position_].length();
     for (uint8_t i = 0; i < length; i++) {
@@ -802,8 +802,8 @@ uint8_t Pipsolar::send_next_command_() {
     crc16 = calc_crc_(byte_command, length);
     this->write_str(command);
     // checksum
-    this->write(((uint8_t)((crc16) >> 8)));   // highbyte
-    this->write(((uint8_t)((crc16) &0xff)));  // lowbyte
+    this->write(((uint8_t) ((crc16) >> 8)));   // highbyte
+    this->write(((uint8_t) ((crc16) &0xff)));  // lowbyte
     // end Byte
     this->write(0x0D);
     ESP_LOGD(TAG, "Sending command from queue: %s with length %d", command, length);
@@ -831,8 +831,8 @@ void Pipsolar::send_next_poll_() {
   this->write_array(this->used_polling_commands_[this->last_polling_command_].command,
                     this->used_polling_commands_[this->last_polling_command_].length);
   // checksum
-  this->write(((uint8_t)((crc16) >> 8)));   // highbyte
-  this->write(((uint8_t)((crc16) &0xff)));  // lowbyte
+  this->write(((uint8_t) ((crc16) >> 8)));   // highbyte
+  this->write(((uint8_t) ((crc16) &0xff)));  // lowbyte
   // end Byte
   this->write(0x0D);
   ESP_LOGD(TAG, "Sending polling command : %s with length %d",
@@ -840,7 +840,7 @@ void Pipsolar::send_next_poll_() {
            this->used_polling_commands_[this->last_polling_command_].length);
 }
 
-void Pipsolar::queue_command_(const char* command, byte length) {
+void Pipsolar::queue_command_(const char *command, byte length) {
   uint8_t next_position = command_queue_position_;
   for (uint8_t i = 0; i < COMMAND_QUEUE_LENGTH; i++) {
     uint8_t testposition = (next_position + i) % COMMAND_QUEUE_LENGTH;
@@ -861,7 +861,7 @@ void Pipsolar::switch_command(std::string command) {
 void Pipsolar::dump_config() {
   ESP_LOGCONFIG(TAG, "Pipsolar:");
   ESP_LOGCONFIG(TAG, "used commands:");
-  for (auto& used_polling_command : this->used_polling_commands_) {
+  for (auto &used_polling_command : this->used_polling_commands_) {
     if (used_polling_command.length != 0) {
       ESP_LOGCONFIG(TAG, "%s", used_polling_command.command);
     }
@@ -869,8 +869,8 @@ void Pipsolar::dump_config() {
 }
 void Pipsolar::update() {}
 
-void Pipsolar::add_polling_command_(const char* command, ENUMPollingCommand polling_command) {
-  for (auto& used_polling_command : this->used_polling_commands_) {
+void Pipsolar::add_polling_command_(const char *command, ENUMPollingCommand polling_command) {
+  for (auto &used_polling_command : this->used_polling_commands_) {
     if (used_polling_command.length == strlen(command)) {
       uint8_t len = strlen(command);
       if (memcmp(used_polling_command.command, command, len) == 0) {
@@ -879,12 +879,12 @@ void Pipsolar::add_polling_command_(const char* command, ENUMPollingCommand poll
     }
     if (used_polling_command.length == 0) {
       size_t length = strlen(command) + 1;
-      const char* beg = command;
-      const char* end = command + length;
+      const char *beg = command;
+      const char *end = command + length;
       used_polling_command.command = new uint8_t[length];
       size_t i = 0;
       for (; beg != end; ++beg, ++i) {
-        used_polling_command.command[i] = (uint8_t)(*beg);
+        used_polling_command.command[i] = (uint8_t) (*beg);
       }
       used_polling_command.errors = 0;
       used_polling_command.identifier = polling_command;
@@ -894,7 +894,7 @@ void Pipsolar::add_polling_command_(const char* command, ENUMPollingCommand poll
   }
 }
 
-uint16_t Pipsolar::calc_crc_(uint8_t* msg, int n) {
+uint16_t Pipsolar::calc_crc_(uint8_t *msg, int n) {
   // Initial value. xmodem uses 0xFFFF but this example
   // requires an initial value of zero.
   uint16_t x = 0;

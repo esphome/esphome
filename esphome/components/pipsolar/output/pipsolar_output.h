@@ -12,10 +12,9 @@ class Pipsolar;
 class PipsolarOutput : public output::FloatOutput {
  public:
   PipsolarOutput() {}
-  void set_parent(Pipsolar *parent) { parent_ = parent; }
-  void set_set_command(std::string command) { this->set_command_ = command; };
-  void add_possible_value(float v) {}
-  void set_possible_values(std::vector<float> possible_values) { possible_values_ = possible_values; }
+  void set_parent(Pipsolar *parent) { this->parent_ = parent; }
+  void set_set_command(std::string command) { this->set_command_ = std::move(command); };
+  void set_possible_values(std::vector<float> possible_values) { this->possible_values_ = std::move(possible_values); }
   void set_value(float value) { this->write_state(value); };
 
  protected:

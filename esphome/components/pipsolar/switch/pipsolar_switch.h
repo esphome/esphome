@@ -10,8 +10,8 @@ class Pipsolar;
 class PipsolarSwitch : public switch_::Switch, public Component {
  public:
   void set_parent(Pipsolar *parent) { this->parent_ = parent; };
-  void set_on_command(std::string command) { this->on_command_ = command; };
-  void set_off_command(std::string command) { this->off_command_ = command; };
+  void set_on_command(std::string command) { this->on_command_ = std::move(command); };
+  void set_off_command(std::string command) { this->off_command_ = std::move(command); };
   void dump_config() override;
 
  protected:

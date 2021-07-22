@@ -5,7 +5,7 @@
 namespace esphome {
 namespace pipsolar {
 
-static const char *TAG = "pipsolar";
+static const char *const TAG = "pipsolar.output";
 
 void PipsolarOutput::write_state(float state) {
   char tmp[10];
