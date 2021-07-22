@@ -93,7 +93,7 @@ optional<climate::ClimatePreset> PropertiesFrame::get_preset() const {
   } else if (this->get_turbo_mode()) {
     return climate::CLIMATE_PRESET_BOOST;
   } else {
-    return climate::CLIMATE_PRESET_HOME;
+    return climate::CLIMATE_PRESET_NONE;
   }
 }
 

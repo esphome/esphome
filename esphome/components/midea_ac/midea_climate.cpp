@@ -191,7 +191,7 @@ climate::ClimateTraits MideaAC::traits() {
   if (traits_swing_both_)
     traits.add_supported_swing_mode(climate::CLIMATE_SWING_BOTH);
   traits.set_supported_presets({
-      climate::CLIMATE_PRESET_HOME,
+      climate::CLIMATE_PRESET_NONE,
   });
   if (traits_preset_eco_)
     traits.add_supported_preset(climate::CLIMATE_PRESET_ECO);
