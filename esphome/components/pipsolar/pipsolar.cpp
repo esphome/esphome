@@ -854,7 +854,7 @@ void Pipsolar::queue_command_(const char *command, byte length) {
   ESP_LOGD(TAG, "Command queue full dropping command: %s", command);
 }
 
-void Pipsolar::switch_command(std::string command) {
+void Pipsolar::switch_command(const std::string &command) {
   ESP_LOGD(TAG, "got command: %s", command.c_str());
   queue_command_(command.c_str(), command.length());
 }
