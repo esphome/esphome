@@ -86,15 +86,13 @@ void PropertiesFrame::set_mode(climate::ClimateMode mode) {
 }
 
 optional<climate::ClimatePreset> PropertiesFrame::get_preset() const {
-  if (this->get_eco_mode()) {
+  if (this->get_eco_mode())
     return climate::CLIMATE_PRESET_ECO;
-  } else if (this->get_sleep_mode()) {
+  if (this->get_sleep_mode())
     return climate::CLIMATE_PRESET_SLEEP;
-  } else if (this->get_turbo_mode()) {
+  if (this->get_turbo_mode())
     return climate::CLIMATE_PRESET_BOOST;
-  } else {
-    return climate::CLIMATE_PRESET_NONE;
-  }
+  return climate::CLIMATE_PRESET_NONE;
 }
 
 void PropertiesFrame::set_preset(climate::ClimatePreset preset) {
