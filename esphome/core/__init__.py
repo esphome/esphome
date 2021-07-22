@@ -421,8 +421,7 @@ class Library:
         if self.repository is not None:
             if self.name is not None:
                 return f"{self.name}={self.repository}"
-            else:
-                return self.repository
+            return self.repository
 
         if self.version is None:
             return self.name
@@ -649,12 +648,11 @@ class EsphomeCore:
                 if library.repository is None or other.repository == library.repository:
                     # Other is using a/the same repository, takes precendence
                     break
-                else:
-                    raise ValueError(
-                        "Adding named Library with repository failed! Libraries {} and {} "
-                        "requested with conflicting repositories!"
-                        "".format(library, other)
-                    )
+                raise ValueError(
+                    "Adding named Library with repository failed! Libraries {} and {} "
+                    "requested with conflicting repositories!"
+                    "".format(library, other)
+                )
             elif library.repository is not None:
                 self.libraries.remove(other)
                 continue
