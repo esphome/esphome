@@ -34,10 +34,10 @@ struct PollingCommand {
 
 #define PIPSOLAR_ENTITY_(type, name, polling_command) \
  protected: \
-  (type) * name##_{}; \
+  type *name##_{}; /* NOLINT */ \
 \
  public: \
-  void set_##name((type) * (name)) { \
+  void set_##name(type *name) { /* NOLINT */ \
     this->name##_ = name; \
     this->add_polling_command_(#polling_command, POLLING_##polling_command); \
   }
