@@ -1,6 +1,5 @@
 import collections
 import copy
-import importlib
 import logging
 import re
 
@@ -32,7 +31,7 @@ import esphome.config_validation as cv
 from esphome.types import ConfigType, ConfigPathType, ConfigFragmentType
 
 _LOGGER = logging.getLogger(__name__)
-OUTPUT_PATH_ROOT = ([], '')
+OUTPUT_PATH_ROOT = ([], "")
 
 
 def iter_components(config):
@@ -345,6 +344,7 @@ def validate_config(config, command_line_substitutions):
     # 1. Load packages
     if CONF_PACKAGES in config:
         from esphome.components.packages import do_packages_pass
+
         result.add_output_path([CONF_PACKAGES], CONF_PACKAGES)
         try:
             config = do_packages_pass(config)

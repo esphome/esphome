@@ -17,7 +17,7 @@ def filter_bool(value: ConvertibleIntoBool) -> bool:
     if isinstance(value, bool):
         return value
     if isinstance(value, str):
-        return value.strip().lower() in ['true', 'yes', '1']
+        return value.strip().lower() in ["true", "yes", "1"]
     if isinstance(value, (int, float)):
         return value != 0
     raise ValueError("Value {} can't be converted into boolean".format(value))

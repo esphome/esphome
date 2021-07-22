@@ -3,25 +3,26 @@ import logging
 from typing import Optional, Tuple
 
 import esphome.config_validation as cv
-from esphome.components.expressions import process_expression_value, TemplateRenderingError
+from esphome.components.expressions import (
+    process_expression_value,
+    TemplateRenderingError,
+)
 from esphome.const import CONF_PACKAGES
 from .common import PackageDefinition, TreeItem, PackageConfig, PackageSource
 from .source_loaders import BaseSourceLoader, LocalSourceLoader
 
-CODEOWNERS = ['@corvis', '@esphome/core']
+CODEOWNERS = ["@corvis", "@esphome/core"]
 _LOGGER = logging.getLogger(__name__)
 
 # Config
-CONF_SOURCE = 'source'
-CONF_PARAMS = 'params'
+CONF_SOURCE = "source"
+CONF_PARAMS = "params"
 
 PACKAGE_SOURCE_DEFAULT_LOADER = LocalSourceLoader()
-PACKAGE_SOURCE_LOADERS: Tuple[BaseSourceLoader] = (
-    PACKAGE_SOURCE_DEFAULT_LOADER,
-)
+PACKAGE_SOURCE_LOADERS: Tuple[BaseSourceLoader] = (PACKAGE_SOURCE_DEFAULT_LOADER,)
 
 # Context
-CONTEXT_PKG = 'pkg'
+CONTEXT_PKG = "pkg"
 
 
 # Validation
@@ -47,16 +48,20 @@ def _validate_package_source(value):
         return cv.string_strict(value)
     if isinstance(value, dict):
         return value
-    raise cv.Invalid('Package should be defined either by locator string pointing the file'
-                     'or dictionary holding package content (deprecated)')
+    raise cv.Invalid(
+        "Package should be defined either by locator string pointing the file"
+        "or dictionary holding package content (deprecated)"
+    )
 
 
-FULL_PACKAGE_SCHEMA = cv.Schema({
-    cv.Required(CONF_SOURCE): _validate_package_source,
-    cv.Optional(CONF_PARAMS, default={}): cv.ensure_schema(cv.Schema({
-        cv.valid_param_name: lambda v: v
-    }))
-})
+FULL_PACKAGE_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_SOURCE): _validate_package_source,
+        cv.Optional(CONF_PARAMS, default={}): cv.ensure_schema(
+            cv.Schema({cv.valid_param_name: lambda v: v})
+        ),
+    }
+)
 PACKAGE_DEFINITION_SCHEMA = cv.Schema(_validate_package_definition)
 
 
@@ -81,12 +86,12 @@ def _merge_package(full_old, full_new):
 
 
 def _create_context_for_package(package: PackageDefinition) -> dict:
-    return {
-        CONTEXT_PKG: package
-    }
+    return {CONTEXT_PKG: package}
 
 
-def _render_templates_for_item(val: TreeItem, context: dict, path: list) -> Optional[TreeItem]:
+def _render_templates_for_item(
+    val: TreeItem, context: dict, path: list
+) -> Optional[TreeItem]:
     # Walk the three recursively
     if isinstance(val, dict):
         for k, v in val.items():
@@ -118,16 +123,20 @@ def _is_short_package_config_syntax(package_config: PackageConfig) -> bool:
 def _load_package_source(package_source: PackageSource, package_def: PackageDefinition):
     if isinstance(package_source, dict):
         package_def.content = copy.deepcopy(package_source)
-        _LOGGER.warning("You are using outdated syntax for package \"%s\" definition. "
-                        "Consider specifying package with string locator e.g. "
-                        "\"local:path/to/package.yaml\" (path is relative to the current "
-                        "yaml file)", package_def.local_name)
+        _LOGGER.warning(
+            'You are using outdated syntax for package "%s" definition. '
+            "Consider specifying package with string locator e.g. "
+            '"local:path/to/package.yaml" (path is relative to the current '
+            "yaml file)",
+            package_def.local_name,
+        )
         return
 
     if not isinstance(package_source, str):
-        raise cv.Invalid('Package source is incorrect. Expected source definition is either'
-                         'a string locator or dictionary containing package configuration. '
-                         )
+        raise cv.Invalid(
+            "Package source is incorrect. Expected source definition is either"
+            "a string locator or dictionary containing package configuration. "
+        )
     source_loader: BaseSourceLoader = None
     locator: str = None
     for loader in PACKAGE_SOURCE_LOADERS:
@@ -136,20 +145,29 @@ def _load_package_source(package_source: PackageSource, package_def: PackageDefi
             locator = package_source
             break
     if source_loader is None:
-        if ':' in package_source:
-            raise cv.Invalid('Unknown package loader \"{loader}\" for package {package}'
-                             .format(loader=package_source.split(':', 1)[0],
-                                     package=package_def.local_name))
+        if ":" in package_source:
+            raise cv.Invalid(
+                'Unknown package loader "{loader}" for package {package}'.format(
+                    loader=package_source.split(":", 1)[0],
+                    package=package_def.local_name,
+                )
+            )
         # If there is no prefix - default locator should be used
-        locator = ':'.join((PACKAGE_SOURCE_DEFAULT_LOADER.LOCATOR_PREFIX, package_source))
+        locator = ":".join(
+            (PACKAGE_SOURCE_DEFAULT_LOADER.LOCATOR_PREFIX, package_source)
+        )
         source_loader = PACKAGE_SOURCE_DEFAULT_LOADER
     source_loader.load(locator, package_def)
-    assert package_def.content is not None, "Package loader {} didn't update content of " \
-                                            "the package. By convention it should either " \
-                                            "update content or raise error."
+    assert package_def.content is not None, (
+        "Package loader {} didn't update content of "
+        "the package. By convention it should either "
+        "update content or raise error."
+    )
 
 
-def _validate_package_config(package_name: str, package_config: PackageConfig) -> PackageConfig:
+def _validate_package_config(
+    package_name: str, package_config: PackageConfig
+) -> PackageConfig:
     """
     There are 2 versions of the syntax supported.
     The short one: Either dictionary representing package source or string locator pointing
@@ -167,8 +185,11 @@ def _validate_package_config(package_name: str, package_config: PackageConfig) -
     return PACKAGE_DEFINITION_SCHEMA(package_config)
 
 
-def _load_package(package_name, package_config: PackageConfig,
-                  parent: Optional[PackageDefinition] = None) -> PackageDefinition:
+def _load_package(
+    package_name,
+    package_config: PackageConfig,
+    parent: Optional[PackageDefinition] = None,
+) -> PackageDefinition:
     _validate_package_config(package_name, package_config)
     package = PackageDefinition(package_name, parent)
     if _is_short_package_config_syntax(package_config):
@@ -207,17 +228,22 @@ def do_packages_pass(config: dict, parent: Optional[PackageDefinition] = None):
     packages = config[CONF_PACKAGES]
     with cv.prepend_path(CONF_PACKAGES):
         if not isinstance(packages, dict):
-            raise cv.Invalid("Packages must be a key to value mapping, got {} instead"
-                             "".format(type(packages)))
+            raise cv.Invalid(
+                "Packages must be a key to value mapping, got {} instead"
+                "".format(type(packages))
+            )
 
         for package_name, package_config in packages.items():
             with cv.prepend_path(package_name):
                 package = _load_package(package_name, package_config, parent)
                 recursive_package_content = package.content
                 if isinstance(package_config, dict):
-                    recursive_package_content = do_packages_pass(recursive_package_content, package)
-                do_template_rendering_pass(recursive_package_content,
-                                           _create_context_for_package(package))
+                    recursive_package_content = do_packages_pass(
+                        recursive_package_content, package
+                    )
+                do_template_rendering_pass(
+                    recursive_package_content, _create_context_for_package(package)
+                )
                 config = _merge_package(recursive_package_content, config)
 
         del config[CONF_PACKAGES]

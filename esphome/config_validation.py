@@ -32,7 +32,6 @@ from esphome.const import (
     CONF_UPDATE_INTERVAL,
     CONF_TYPE_ID,
     CONF_TYPE,
-    CONF_PACKAGES,
 )
 from esphome.core import (
     CORE,
@@ -192,7 +191,9 @@ RESERVED_IDS = [
     "loop",
 ]
 
-VALID_PARAM_NAME_REGEX = re.compile(r'^[a-zA-Z_][a-zA-Z0-9_]*(\.[a-zA-Z_][a-zA-Z0-9_]*)*$')
+VALID_PARAM_NAME_REGEX = re.compile(
+    r"^[a-zA-Z_][a-zA-Z0-9_]*(\.[a-zA-Z_][a-zA-Z0-9_]*)*$"
+)
 
 
 class Optional(vol.Optional):
@@ -259,8 +260,10 @@ def valid_param_name(value):
     """
     value = string_strict(value)
     if not VALID_PARAM_NAME_REGEX.fullmatch(value):
-        raise Invalid("Invalid name \"{}\". Name should consist of latin letters, "
-                      "numbers symbol _ and can't start with digit".format(value))
+        raise Invalid(
+            'Invalid name "{}". Name should consist of latin letters, '
+            "numbers symbol _ and can't start with digit".format(value)
+        )
     return value
 
 

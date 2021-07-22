@@ -6,15 +6,15 @@ from esphome import yaml_util
 from .common import PackageDefinition, ParsedLocator
 from .utils import get_abs_path_from_config_relative, get_abs_path_from_package_relative
 
-DEFAULT_PACKAGE_FILE = 'main.yaml'
-FILE_LOCATOR_SUFFIXES = ['.yaml', '.yml']
+DEFAULT_PACKAGE_FILE = "main.yaml"
+FILE_LOCATOR_SUFFIXES = [".yaml", ".yml"]
 
 
 class BaseSourceLoader(object, metaclass=abc.ABCMeta):
     LOCATOR_PREFIX: str = None
 
     def can_handle(self, locator: str) -> bool:
-        return locator.startswith(self.LOCATOR_PREFIX + ':')
+        return locator.startswith(self.LOCATOR_PREFIX + ":")
 
     @abc.abstractmethod
     def load(self, locator: str, package: PackageDefinition):
@@ -26,7 +26,7 @@ class LocalLocator(ParsedLocator):
 
 
 class LocalSourceLoader(BaseSourceLoader):
-    LOCATOR_PREFIX = 'local'
+    LOCATOR_PREFIX = "local"
 
     def load(self, locator: str, package: PackageDefinition):
         package.locator = LocalLocator(locator)
@@ -38,10 +38,14 @@ class LocalSourceLoader(BaseSourceLoader):
             if package.parent is None:
                 file_path = get_abs_path_from_config_relative(file_path)
             else:
-                file_path = get_abs_path_from_package_relative(file_path, package.parent)
+                file_path = get_abs_path_from_package_relative(
+                    file_path, package.parent
+                )
         if not os.path.exists(file_path):
-            raise cv.Invalid("Invalid package declaration. "
-                             "File {} doesn't exist".format(file_path))
+            raise cv.Invalid(
+                "Invalid package declaration. "
+                "File {} doesn't exist".format(file_path)
+            )
         package.file_system_location = file_path
         package.content = yaml_util.load_yaml_package(package.file_system_location)
 

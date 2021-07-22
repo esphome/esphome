@@ -20,5 +20,9 @@ def get_abs_path_from_package_relative(path: str, package):
     """
     path = os.path.expanduser(path)
     if package.file_system_location is None:
-        raise ValueError('Can\'t resolve package-relative path for package without source locator')
-    return os.path.abspath(os.path.join(os.path.dirname(package.file_system_location), path))
+        raise ValueError(
+            "Can't resolve package-relative path for package without source locator"
+        )
+    return os.path.abspath(
+        os.path.join(os.path.dirname(package.file_system_location), path)
+    )
