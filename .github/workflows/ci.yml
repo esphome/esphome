@@ -82,6 +82,9 @@ jobs:
           - id: test
             file: tests/test4.yaml
             name: Test tests/test4.yaml
+          - id: test
+            file: tests/test5.yaml
+            name: Test tests/test5.yaml
           - id: pytest
             name: Run pytest
 
