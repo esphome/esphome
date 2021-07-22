@@ -23,9 +23,9 @@ bool InkbirdIBSTH1_MINI::parse_device(const esp32_ble_tracker::ESPBTDevice &devi
   // for Inkbird IBS-TH1 Mini device we expect
   // 1) expected mac address
   // 2) device address type == PUBLIC
-  // 3) no service datas
-  // 4) one manufacturer datas
-  // 5) the manufacturer datas should contain a 16-bit uuid amd a 7-byte data vector
+  // 3) no service data
+  // 4) one manufacturer data
+  // 5) the manufacturer data should contain a 16-bit uuid amd a 7-byte data vector
   // 6) the 7-byte data component should have data[2] == 0 and data[6] == 8
 
   // the address should match the address we declared
@@ -63,7 +63,7 @@ bool InkbirdIBSTH1_MINI::parse_device(const esp32_ble_tracker::ESPBTDevice &devi
   // sensor output encoding
   // data[5] is a battery level
   // data[0] and data[1] is humidity * 100 (in pct)
-  // uuid is a temperature * 100 (in Celcius)
+  // uuid is a temperature * 100 (in Celsius)
   // when data[2] == 0 temperature is from internal sensor (IBS-TH1 or IBS-TH1 Mini)
   // when data[2] == 1 temperature is from external sensor (IBS-TH1 only)
 

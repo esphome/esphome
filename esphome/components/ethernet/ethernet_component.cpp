@@ -9,7 +9,7 @@
 #include <eth_phy/phy_tlk110.h>
 #include <lwip/dns.h>
 
-/// Macro for IDF version comparision
+/// Macro for IDF version comparison
 #ifndef ESP_IDF_VERSION_VAL
 #define ESP_IDF_VERSION_VAL(major, minor, patch) (((major) << 16) | ((minor) << 8) | (patch))
 #endif

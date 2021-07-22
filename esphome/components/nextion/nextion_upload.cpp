@@ -305,7 +305,7 @@ void Nextion::upload_tft() {
     App.feed_wdt();
     ESP_LOGD(TAG, "Heap Size %d, Bytes left %d", ESP.getFreeHeap(), this->content_length_);
   }
-  ESP_LOGD(TAG, "Succesfully updated Nextion!");
+  ESP_LOGD(TAG, "Successfully updated Nextion!");
 
   this->upload_end_();
 }

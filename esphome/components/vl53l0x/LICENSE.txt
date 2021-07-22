@@ -3,7 +3,7 @@ by Pololu (Pololu Corporation), which in turn is based on the VL53L0X
 API from ST. The code has been adapted to work with ESPHome's i2c APIs.
 Please see the top-level LICENSE.txt for information about ESPHome's license.
 The licenses for Pololu's and ST's software are included below.
-Orignally taken from https://github.com/pololu/vl53l0x-arduino (accessed 20th october 2019).
+Originally taken from https://github.com/pololu/vl53l0x-arduino (accessed 20th october 2019).
 
 =================================================================
 
