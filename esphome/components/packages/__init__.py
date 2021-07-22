@@ -7,7 +7,7 @@ from esphome.components.expressions import (
     process_expression_value,
     TemplateRenderingError,
 )
-from esphome.const import CONF_PACKAGES
+from esphome.const import CONF_PACKAGES, CONF_SOURCE
 from .common import PackageDefinition, TreeItem, PackageConfig, PackageSource
 from .source_loaders import BaseSourceLoader, LocalSourceLoader
 
@@ -15,7 +15,6 @@ CODEOWNERS = ["@corvis", "@esphome/core"]
 _LOGGER = logging.getLogger(__name__)
 
 # Config
-CONF_SOURCE = "source"
 CONF_PARAMS = "params"
 
 PACKAGE_SOURCE_DEFAULT_LOADER = LocalSourceLoader()
