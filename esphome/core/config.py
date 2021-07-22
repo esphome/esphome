@@ -332,6 +332,14 @@ async def to_code(config):
         if "@" in lib:
             name, vers = lib.split("@", 1)
             cg.add_library(name, vers)
+        elif "://" in lib:
+            # Repository...
+            if "=" in lib:
+                name, repo = lib.split("=", 1)
+                cg.add_library(name, None, repo)
+            else:
+                cg.add_library(None, None, lib)
+
         else:
             cg.add_library(lib, None)
 
