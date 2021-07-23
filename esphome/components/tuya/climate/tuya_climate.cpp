@@ -54,13 +54,13 @@ void TuyaClimate::control(const climate::ClimateCall &call) {
   if (call.get_mode().has_value()) {
     const bool switch_state = *call.get_mode() != climate::CLIMATE_MODE_OFF;
     ESP_LOGV(TAG, "Setting switch: %s", ONOFF(switch_state));
-    this->parent_->set_datapoint_value(*this->switch_id_, switch_state);
+    this->parent_->set_boolean_datapoint_value(*this->switch_id_, switch_state);
   }
 
   if (call.get_target_temperature().has_value()) {
     const float target_temperature = *call.get_target_temperature();
     ESP_LOGV(TAG, "Setting target temperature: %.1f", target_temperature);
-    this->parent_->set_datapoint_value(*this->target_temperature_id_,
+    this->parent_->set_integer_datapoint_value(*this->target_temperature_id_,
                                        (int) (target_temperature / this->target_temperature_multiplier_));
   }
 }
