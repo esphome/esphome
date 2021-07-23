@@ -399,16 +399,14 @@ void Tuya::send_local_time_() {
 #endif
 
 void Tuya::set_raw_datapoint_value(uint8_t datapoint_id, std::vector<uint8_t> value) {
-  ESP_LOGD(TAG, "Setting datapoint %u to %s", datapoint.id, hexencode(value).c_str());
+  ESP_LOGD(TAG, "Setting datapoint %u to %s", datapoint_id, hexencode(value).c_str());
   optional<TuyaDatapoint> datapoint = this->get_datapoint_(datapoint_id);
   if (!datapoint.has_value()) {
     ESP_LOGW(TAG, "Attempt to set unknown datapoint %u", datapoint_id);
-  }
-  else if (datapoint->type != TuyaDatapointType::RAW) {
+  } else if (datapoint->type != TuyaDatapointType::RAW) {
     ESP_LOGE(TAG, "Attempt to set datapoint %u with incorrect type", datapoint_id);
     return;
-  }
-  else if (datapoint->value_raw == value) {
+  } else if (datapoint->value_raw == value) {
     ESP_LOGV(TAG, "Not sending unchanged value");
     return;
   }
@@ -428,12 +426,10 @@ void Tuya::set_string_datapoint_value(uint8_t datapoint_id, const std::string &v
   optional<TuyaDatapoint> datapoint = this->get_datapoint_(datapoint_id);
   if (!datapoint.has_value()) {
     ESP_LOGW(TAG, "Attempt to set unknown datapoint %u", datapoint_id);
-  }
-  else if (datapoint->type != TuyaDatapointType::STRING) {
+  } else if (datapoint->type != TuyaDatapointType::STRING) {
     ESP_LOGE(TAG, "Attempt to set datapoint %u with incorrect type", datapoint_id);
     return;
-  }
-  if (datapoint->value_string == value) {
+  } else if (datapoint->value_string == value) {
     ESP_LOGV(TAG, "Not sending unchanged value");
     return;
   }
@@ -459,17 +455,16 @@ optional<TuyaDatapoint> Tuya::get_datapoint_(uint8_t datapoint_id) {
   return {};
 }
 
-void Tuya::set_numeric_datapoint_value_(uint8_t datapoint_id, TuyaDatapointType datapoint_type, uint32_t value, uint8_t length) {
+void Tuya::set_numeric_datapoint_value_(uint8_t datapoint_id, TuyaDatapointType datapoint_type, const uint32_t value,
+                                        uint8_t length) {
   ESP_LOGD(TAG, "Setting datapoint %u to %u", datapoint_id, value);
   optional<TuyaDatapoint> datapoint = this->get_datapoint_(datapoint_id);
   if (!datapoint.has_value()) {
     ESP_LOGW(TAG, "Attempt to set unknown datapoint %u", datapoint_id);
-  }
-  else if (datapoint->type != datapoint_type) {
+  } else if (datapoint->type != datapoint_type) {
     ESP_LOGE(TAG, "Attempt to set datapoint %u with incorrect type", datapoint_id);
     return;
-  }
-  else if (datapoint->value_uint == value) {
+  } else if (datapoint->value_uint == value) {
     ESP_LOGV(TAG, "Not sending unchanged value");
     return;
   }
@@ -485,7 +480,7 @@ void Tuya::set_numeric_datapoint_value_(uint8_t datapoint_id, TuyaDatapointType 
       data.push_back(value >> 0);
       break;
     default:
-      ESP_LOGE(TAG, "Unexpected datapoint length %zu", length);
+      ESP_LOGE(TAG, "Unexpected datapoint length %u", length);
       return;
   }
   this->send_datapoint_command_(datapoint_id, datapoint_type, data);

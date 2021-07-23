@@ -61,7 +61,7 @@ void TuyaClimate::control(const climate::ClimateCall &call) {
     const float target_temperature = *call.get_target_temperature();
     ESP_LOGV(TAG, "Setting target temperature: %.1f", target_temperature);
     this->parent_->set_integer_datapoint_value(*this->target_temperature_id_,
-                                       (int) (target_temperature / this->target_temperature_multiplier_));
+                                               (int) (target_temperature / this->target_temperature_multiplier_));
   }
 }
 
