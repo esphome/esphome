@@ -66,7 +66,7 @@ CONFIG_SCHEMA = cv.Schema(
                 cv.GenerateID(): cv.declare_id(text_sensor.TextSensor),
             }
         ),
-        cv.Optional("slave_equipment_id"): text_sensor.TEXT_SENSOR_SCHEMA.extend(
+        cv.Optional("sub_equipment_id"): text_sensor.TEXT_SENSOR_SCHEMA.extend(
             {
                 cv.GenerateID(): cv.declare_id(text_sensor.TextSensor),
             }
