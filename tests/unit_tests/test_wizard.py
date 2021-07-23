@@ -2,7 +2,7 @@
 
 import esphome.wizard as wz
 import pytest
-from esphome.pins import ESP8266_BOARD_PINS
+from esphome.boards import ESP8266_BOARD_PINS
 from mock import MagicMock
 
 
