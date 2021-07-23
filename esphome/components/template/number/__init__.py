@@ -9,6 +9,7 @@ from esphome.const import (
     CONF_MAX_VALUE,
     CONF_MIN_VALUE,
     CONF_OPTIMISTIC,
+    CONF_RESTORE_VALUE,
     CONF_STEP,
 )
 from .. import template_ns
@@ -26,6 +27,17 @@ def validate_min_max(config):
     return config
 
 
+def validate(config):
+    if CONF_LAMBDA in config:
+        if CONF_OPTIMISTIC in config:
+            raise cv.Invalid("optimistic cannot be used with lambda")
+        if CONF_INITIAL_VALUE in config:
+            raise cv.Invalid("initial_value cannot be used with lambda")
+        if CONF_RESTORE_VALUE in config:
+            raise cv.Invalid("restore_value cannot be used with lambda")
+    return config
+
+
 CONFIG_SCHEMA = cv.All(
     number.NUMBER_SCHEMA.extend(
         {
@@ -33,13 +45,15 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_MAX_VALUE): cv.float_,
             cv.Required(CONF_MIN_VALUE): cv.float_,
             cv.Required(CONF_STEP): cv.positive_float,
-            cv.Exclusive(CONF_LAMBDA, "lambda-optimistic"): cv.returning_lambda,
-            cv.Exclusive(CONF_OPTIMISTIC, "lambda-optimistic"): cv.boolean,
+            cv.Optional(CONF_LAMBDA): cv.returning_lambda,
+            cv.Optional(CONF_OPTIMISTIC): cv.boolean,
             cv.Optional(CONF_SET_ACTION): automation.validate_automation(single=True),
             cv.Optional(CONF_INITIAL_VALUE): cv.float_,
+            cv.Optional(CONF_RESTORE_VALUE): cv.boolean,
         }
     ).extend(cv.polling_component_schema("60s")),
     validate_min_max,
+    validate,
 )
 
 
@@ -60,13 +74,15 @@ async def to_code(config):
         )
         cg.add(var.set_template(template_))
 
-    elif CONF_OPTIMISTIC in config:
-        cg.add(var.set_optimistic(config[CONF_OPTIMISTIC]))
+    else:
+        if CONF_OPTIMISTIC in config:
+            cg.add(var.set_optimistic(config[CONF_OPTIMISTIC]))
+        if CONF_INITIAL_VALUE in config:
+            cg.add(var.set_initial_value(config[CONF_INITIAL_VALUE]))
+        if CONF_RESTORE_VALUE in config:
+            cg.add(var.set_restore_value(config[CONF_RESTORE_VALUE]))
 
     if CONF_SET_ACTION in config:
         await automation.build_automation(
             var.get_set_trigger(), [(float, "x")], config[CONF_SET_ACTION]
         )
-
-    if CONF_INITIAL_VALUE in config:
-        cg.add(var.set_initial_value(config[CONF_INITIAL_VALUE]))

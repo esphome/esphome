@@ -68,10 +68,7 @@ void AddressableLight::write_state(LightState *state) {
 
     // our transition will handle brightness, disable brightness in correction.
     this->correction_.set_local_brightness(255);
-    uint8_t orig_w = target_color.w;
     target_color *= static_cast<uint8_t>(roundf(end_values.get_brightness() * end_values.get_state() * 255.0f));
-    // w is not scaled by brightness
-    target_color.w = orig_w;
 
     float denom = (1.0f - new_smoothed);
     float alpha = denom == 0.0f ? 0.0f : (new_smoothed - prev_smoothed) / denom;

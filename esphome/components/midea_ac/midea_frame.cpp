@@ -86,18 +86,17 @@ void PropertiesFrame::set_mode(climate::ClimateMode mode) {
 }
 
 optional<climate::ClimatePreset> PropertiesFrame::get_preset() const {
-  if (this->get_eco_mode()) {
+  if (this->get_eco_mode())
     return climate::CLIMATE_PRESET_ECO;
-  } else if (this->get_sleep_mode()) {
+  if (this->get_sleep_mode())
     return climate::CLIMATE_PRESET_SLEEP;
-  } else if (this->get_turbo_mode()) {
+  if (this->get_turbo_mode())
     return climate::CLIMATE_PRESET_BOOST;
-  } else {
-    return climate::CLIMATE_PRESET_HOME;
-  }
+  return climate::CLIMATE_PRESET_NONE;
 }
 
 void PropertiesFrame::set_preset(climate::ClimatePreset preset) {
+  this->clear_presets();
   switch (preset) {
     case climate::CLIMATE_PRESET_ECO:
       this->set_eco_mode(true);
@@ -113,14 +112,21 @@ void PropertiesFrame::set_preset(climate::ClimatePreset preset) {
   }
 }
 
+void PropertiesFrame::clear_presets() {
+  this->set_eco_mode(false);
+  this->set_sleep_mode(false);
+  this->set_turbo_mode(false);
+  this->set_freeze_protection_mode(false);
+}
+
 bool PropertiesFrame::is_custom_preset() const { return this->get_freeze_protection_mode(); }
 
 const std::string &PropertiesFrame::get_custom_preset() const { return midea_ac::MIDEA_FREEZE_PROTECTION_PRESET; };
 
 void PropertiesFrame::set_custom_preset(const std::string &preset) {
-  if (preset == MIDEA_FREEZE_PROTECTION_PRESET) {
+  this->clear_presets();
+  if (preset == MIDEA_FREEZE_PROTECTION_PRESET)
     this->set_freeze_protection_mode(true);
-  }
 }
 
 bool PropertiesFrame::is_custom_fan_mode() const {
