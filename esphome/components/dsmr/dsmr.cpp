@@ -34,6 +34,7 @@ void Dsmr::receive_telegram() {
       header_found_ = false;
       footer_found_ = false;
       ESP_LOGE(TAG, "Error: Message larger than buffer");
+      return;
     }
 
     telegram_[telegram_len_] = c;
@@ -99,14 +100,14 @@ void Dsmr::receive_encrypted() {
         buffer[i] = buffer[i + 4];
       constexpr uint16_t iv_size{12};
       gcmaes128->setIV(&buffer[2], iv_size);
-      gcmaes128->decrypt(static_cast<uint8_t *>(static_cast<void *>(this->telegram_)),
+      gcmaes128->decrypt(reinterpret_cast<uint8_t *>(this->telegram_),
                          // the cypher text start at byte 18
                          &buffer[18],
                          // cypher data size
                          buffer_length - 17);
       delete gcmaes128;
 
-      telegram_len_ = strlen(this->telegram_);
+      telegram_len_ = strnlen(this->telegram_, sizeof(this->telegram_));
       ESP_LOGV(TAG, "Decrypted data length: %d", telegram_len_);
       ESP_LOGVV(TAG, "Decrypted data %s", this->telegram_);
 
