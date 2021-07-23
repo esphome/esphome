@@ -218,7 +218,9 @@ async def random_effect_to_code(config, effect_id):
                     {
                         cv.Optional(CONF_STATE, default=True): cv.boolean,
                         cv.Optional(CONF_BRIGHTNESS, default=1.0): cv.percentage,
-                        cv.Optional(CONF_COLOR_MODE): cv.enum(COLOR_MODES, upper=True, space="_"),
+                        cv.Optional(CONF_COLOR_MODE): cv.enum(
+                            COLOR_MODES, upper=True, space="_"
+                        ),
                         cv.Optional(CONF_COLOR_BRIGHTNESS, default=1.0): cv.percentage,
                         cv.Optional(CONF_RED, default=1.0): cv.percentage,
                         cv.Optional(CONF_GREEN, default=1.0): cv.percentage,
@@ -243,7 +245,7 @@ async def random_effect_to_code(config, effect_id):
                     CONF_WHITE,
                     CONF_COLOR_TEMPERATURE,
                     CONF_COLD_WHITE,
-                    CONF_WARM_WHITE
+                    CONF_WARM_WHITE,
                 ),
             ),
             cv.Length(min=2),
@@ -262,15 +264,15 @@ async def strobe_effect_to_code(config, effect_id):
                     LightColorValues(
                         color[CONF_STATE],
                         color[CONF_BRIGHTNESS],
-                        color[CONF_COLOR_MODE] if CONF_COLOR_MODE in color else ColorMode.UNKNOWN,
+                        color.get(CONF_COLOR_MODE, ColorMode.UNKNOWN),
                         color[CONF_COLOR_BRIGHTNESS],
                         color[CONF_RED],
                         color[CONF_GREEN],
                         color[CONF_BLUE],
                         color[CONF_WHITE],
-                        color[CONF_COLOR_TEMPERATURE] if CONF_COLOR_TEMPERATURE in color else 0,
+                        color.get(CONF_COLOR_TEMPERATURE, 0.0),
                         color[CONF_COLD_WHITE],
-                        color[CONF_WARM_WHITE]
+                        color[CONF_WARM_WHITE],
                     ),
                 ),
                 ("duration", color[CONF_DURATION]),
