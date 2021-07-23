@@ -14,7 +14,7 @@ AUTO_LOAD = ["sensor", "text_sensor"]
 CONF_DSMR_ID = "dsmr_id"
 CONF_DECRYPTION_KEY = "decryption_key"
 
-dsmr_ns = cg.esphome_ns.namespace("dsmr_")
+dsmr_ns = cg.esphome_ns.namespace("esphome::dsmr")
 DSMR = dsmr_ns.class_("Dsmr", cg.Component, uart.UARTDevice)
 
 
@@ -51,5 +51,8 @@ def to_code(config):
         cg.add(var.set_decryption_key(config[CONF_DECRYPTION_KEY]))
     yield cg.register_component(var, config)
 
+    # DSMR Parser
+    cg.add_library("glmnet/Dsmr", "0.1")
+
     # Crypto
-    cg.add_library("1168", "0.2.0")
+    cg.add_library("rweather/Crypto", "0.2.0")
