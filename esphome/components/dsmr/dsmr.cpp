@@ -8,16 +8,16 @@
 namespace esphome {
 namespace dsmr {
 
-static const char *TAG = "dsmr";
+static const char *const TAG = "dsmr";
 
 void Dsmr::loop() {
   if (this->decryption_key_.size() == 0)
-    this->receive_telegram();
+    this->receive_telegram_();
   else
-    this->receive_encrypted();
+    this->receive_encrypted_();
 }
 
-void Dsmr::receive_telegram() {
+void Dsmr::receive_telegram_() {
   while (available()) {
     const char c = read();
 
@@ -53,7 +53,7 @@ void Dsmr::receive_telegram() {
   }
 }
 
-void Dsmr::receive_encrypted() {
+void Dsmr::receive_encrypted_() {
   // Encrypted buffer
   uint8_t buffer[MAX_TELEGRAM_LENGTH];
   size_t buffer_length = 0;

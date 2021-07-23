@@ -74,8 +74,8 @@ class Dsmr : public Component, public uart::UARTDevice {
   DSMR_TEXT_SENSOR_LIST(DSMR_SET_TEXT_SENSOR, )
 
  protected:
-  void receive_telegram();
-  void receive_encrypted();
+  void receive_telegram_();
+  void receive_encrypted_();
 
   // Telegram buffer
   char telegram_[MAX_TELEGRAM_LENGTH];
