@@ -51,26 +51,45 @@ class LightTransitionTransformer : public LightTransformer {
       : LightTransformer(start_time, length, start_values, target_values) {
     // When turning light on from off state, use colors from new.
     if (!this->start_values_.is_on() && this->target_values_.is_on()) {
+      this->start_values_ = LightColorValues(target_values);
       this->start_values_.set_brightness(0.0f);
-      this->start_values_.set_red(target_values.get_red());
-      this->start_values_.set_green(target_values.get_green());
-      this->start_values_.set_blue(target_values.get_blue());
-      this->start_values_.set_white(target_values.get_white());
-      this->start_values_.set_color_temperature(target_values.get_color_temperature());
-      this->start_values_.set_cold_white(target_values.get_cold_white());
-      this->start_values_.set_warm_white(target_values.get_warm_white());
+    }
+
+    // When changing color mode, go through off state, as color modes are orthogonal and there can't be two active.
+    if (this->start_values_.get_color_mode() != this->target_values_.get_color_mode()) {
+      this->changing_color_mode_ = true;
+      this->intermediate_values_ = LightColorValues(this->get_start_values_());
+      this->intermediate_values_.set_state(false);
     }
   }
 
   LightColorValues get_values() override {
-    float v = LightTransitionTransformer::smoothed_progress(this->get_progress());
-    return LightColorValues::lerp(this->get_start_values_(), this->get_target_values_(), v);
+    float p = this->get_progress();
+
+    // Halfway through, when intermediate state (off) is reached, flip it to the target, but remain off.
+    if (this->changing_color_mode_ && p > 0.5f &&
+        this->intermediate_values_.get_color_mode() != this->target_values_.get_color_mode()) {
+      this->intermediate_values_ = LightColorValues(this->get_end_values());
+      this->intermediate_values_.set_state(false);
+    }
+
+    LightColorValues &start = this->changing_color_mode_ && p > 0.5f ? this->intermediate_values_ : this->start_values_;
+    LightColorValues &end = this->changing_color_mode_ && p < 0.5f ? this->intermediate_values_ : this->target_values_;
+    if (this->changing_color_mode_)
+      p = p < 0.5f ? p * 2 : (p - 0.5) * 2;
+
+    float v = LightTransitionTransformer::smoothed_progress(p);
+    return LightColorValues::lerp(start, end, v);
   }
 
   bool publish_at_end() override { return false; }
   bool is_transition() override { return true; }
 
   static float smoothed_progress(float x) { return x * x * x * (x * (x * 6.0f - 15.0f) + 10.0f); }
+
+ protected:
+  bool changing_color_mode_{false};
+  LightColorValues intermediate_values_{};
 };
 
 class LightFlashTransformer : public LightTransformer {

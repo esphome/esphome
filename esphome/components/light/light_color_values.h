@@ -86,7 +86,7 @@ class LightColorValues {
     LightColorValues v;
     v.set_state(esphome::lerp(completion, start.get_state(), end.get_state()));
     v.set_brightness(esphome::lerp(completion, start.get_brightness(), end.get_brightness()));
-    v.set_color_mode(end.color_mode_);  // FIXME interpolation between different color modes is tricky
+    v.set_color_mode(end.color_mode_);
     v.set_color_brightness(esphome::lerp(completion, start.get_color_brightness(), end.get_color_brightness()));
     v.set_red(esphome::lerp(completion, start.get_red(), end.get_red()));
     v.set_green(esphome::lerp(completion, start.get_green(), end.get_green()));
