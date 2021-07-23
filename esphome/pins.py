@@ -144,10 +144,9 @@ def analog_pin(value):
             if 0 <= value <= 4:  # ADC1
                 return value
             raise cv.Invalid("ESP32-C3: Only pins 0 though 4 support ADC.")
-        else:
-            if 32 <= value <= 39:  # ADC1
-                return value
-            raise cv.Invalid("ESP32: Only pins 32 though 39 support ADC.")
+        if 32 <= value <= 39:  # ADC1
+            return value
+        raise cv.Invalid("ESP32: Only pins 32 though 39 support ADC.")
     if CORE.is_esp8266:
         if value == 17:  # A0
             return value
