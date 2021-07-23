@@ -153,8 +153,8 @@ CONFIG_SCHEMA = cv.Schema(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-def to_code(config):
-    hub = yield cg.get_variable(config[CONF_DSMR_ID])
+async def to_code(config):
+    hub = await cg.get_variable(config[CONF_DSMR_ID])
 
     sensors = []
     for key, conf in config.items():
@@ -162,7 +162,7 @@ def to_code(config):
             continue
         id = conf.get("id")
         if id and id.type == sensor.Sensor:
-            s = yield sensor.new_sensor(conf)
+            s = await sensor.new_sensor(conf)
             cg.add(getattr(hub, f"set_{key}")(s))
             sensors.append(f"F({key})")
 

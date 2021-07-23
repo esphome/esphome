@@ -44,12 +44,12 @@ CONFIG_SCHEMA = cv.Schema(
 ).extend(uart.UART_DEVICE_SCHEMA)
 
 
-def to_code(config):
-    uart_component = yield cg.get_variable(config[CONF_UART_ID])
+async def to_code(config):
+    uart_component = await cg.get_variable(config[CONF_UART_ID])
     var = cg.new_Pvariable(config[CONF_ID], uart_component)
     if CONF_DECRYPTION_KEY in config:
         cg.add(var.set_decryption_key(config[CONF_DECRYPTION_KEY]))
-    yield cg.register_component(var, config)
+    await cg.register_component(var, config)
 
     # DSMR Parser
     cg.add_library("glmnet/Dsmr", "0.1")
