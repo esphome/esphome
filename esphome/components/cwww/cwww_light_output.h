@@ -32,8 +32,8 @@ class CWWWLightOutput : public light::LightOutput {
  protected:
   output::FloatOutput *cold_white_;
   output::FloatOutput *warm_white_;
-  float cold_white_temperature_;
-  float warm_white_temperature_;
+  float cold_white_temperature_{0};
+  float warm_white_temperature_{0};
   bool constant_brightness_;
 };
 

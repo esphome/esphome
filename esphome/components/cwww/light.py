@@ -20,8 +20,8 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(CONF_OUTPUT_ID): cv.declare_id(CWWWLightOutput),
             cv.Required(CONF_COLD_WHITE): cv.use_id(output.FloatOutput),
             cv.Required(CONF_WARM_WHITE): cv.use_id(output.FloatOutput),
-            cv.Required(CONF_COLD_WHITE_COLOR_TEMPERATURE): cv.color_temperature,
-            cv.Required(CONF_WARM_WHITE_COLOR_TEMPERATURE): cv.color_temperature,
+            cv.Optional(CONF_COLD_WHITE_COLOR_TEMPERATURE): cv.color_temperature,
+            cv.Optional(CONF_WARM_WHITE_COLOR_TEMPERATURE): cv.color_temperature,
             cv.Optional(CONF_CONSTANT_BRIGHTNESS, default=False): cv.boolean,
         }
     ),
@@ -32,11 +32,19 @@ CONFIG_SCHEMA = cv.All(
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_OUTPUT_ID])
     await light.register_light(var, config)
+
     cwhite = await cg.get_variable(config[CONF_COLD_WHITE])
     cg.add(var.set_cold_white(cwhite))
-    cg.add(var.set_cold_white_temperature(config[CONF_COLD_WHITE_COLOR_TEMPERATURE]))
+    if CONF_COLD_WHITE_COLOR_TEMPERATURE in config:
+        cg.add(
+            var.set_cold_white_temperature(config[CONF_COLD_WHITE_COLOR_TEMPERATURE])
+        )
 
     wwhite = await cg.get_variable(config[CONF_WARM_WHITE])
     cg.add(var.set_warm_white(wwhite))
-    cg.add(var.set_warm_white_temperature(config[CONF_WARM_WHITE_COLOR_TEMPERATURE]))
+    if CONF_WARM_WHITE_COLOR_TEMPERATURE in config:
+        cg.add(
+            var.set_warm_white_temperature(config[CONF_WARM_WHITE_COLOR_TEMPERATURE])
+        )
+
     cg.add(var.set_constant_brightness(config[CONF_CONSTANT_BRIGHTNESS]))
