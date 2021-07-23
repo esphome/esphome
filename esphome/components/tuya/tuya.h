@@ -75,7 +75,7 @@ class Tuya : public Component, public uart::UARTDevice {
   void loop() override;
   void dump_config() override;
   void register_listener(uint8_t datapoint_id, const std::function<void(TuyaDatapoint)> &func);
-  void set_raw_datapoint_value(uint8_t datapoint_id, std::vector<uint8_t> &value);
+  void set_raw_datapoint_value(uint8_t datapoint_id, const std::vector<uint8_t> &value);
   void set_boolean_datapoint_value(uint8_t datapoint_id, bool value);
   void set_integer_datapoint_value(uint8_t datapoint_id, uint32_t value);
   void set_string_datapoint_value(uint8_t datapoint_id, const std::string &value);
