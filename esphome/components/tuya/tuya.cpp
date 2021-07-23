@@ -398,7 +398,7 @@ void Tuya::send_local_time_() {
 }
 #endif
 
-void Tuya::set_raw_datapoint_value(uint8_t datapoint_id, const std::vector<uint8_t> value) {
+void Tuya::set_raw_datapoint_value(uint8_t datapoint_id, const std::vector<uint8_t> &value) {
   ESP_LOGD(TAG, "Setting datapoint %u to %s", datapoint_id, hexencode(value).c_str());
   optional<TuyaDatapoint> datapoint = this->get_datapoint_(datapoint_id);
   if (!datapoint.has_value()) {
