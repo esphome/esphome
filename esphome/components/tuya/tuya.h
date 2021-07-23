@@ -99,8 +99,9 @@ class Tuya : public Component, public uart::UARTDevice {
   void process_command_queue_();
   void send_command_(const TuyaCommand &command);
   void send_empty_command_(TuyaCommandType command);
-  void set_numeric_datapoint_value_(uint8_t datapoint_id, TuyaDatapointType datapoint_type, uint32_t value, uint8_t length);
-  void send_datapoint_command_(uint8_t datapoint_id, TuyaDatapointType datapoint_type, const std::vector<uint8_t> data);
+  void set_numeric_datapoint_value_(uint8_t datapoint_id, TuyaDatapointType datapoint_type, uint32_t value,
+                                    uint8_t length);
+  void send_datapoint_command_(uint8_t datapoint_id, TuyaDatapointType datapoint_type, std::vector<uint8_t> data);
   void send_wifi_status_();
 
 #ifdef USE_TIME
