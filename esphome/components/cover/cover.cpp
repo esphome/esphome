@@ -80,7 +80,8 @@ void CoverCall::perform() {
   if (this->toggle_) {
     ESP_LOGD(TAG, "  Command: TOGGLE");
     if (this->parent_->current_operation == CoverOperation::COVER_OPERATION_IDLE) {
-      if (this->parent_->is_fully_closed() || this->parent_->last_operation == CoverOperation::COVER_OPERATION_CLOSING) {
+      if (this->parent_->is_fully_closed() ||
+          this->parent_->last_operation == CoverOperation::COVER_OPERATION_CLOSING) {
         this->parent_->last_operation = CoverOperation::COVER_OPERATION_OPENING;
         this->position_ = COVER_OPEN;
       } else {
