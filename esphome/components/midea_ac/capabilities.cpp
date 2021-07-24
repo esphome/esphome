@@ -221,8 +221,8 @@ bool Capabilities::read(const Frame &frame) {
 }
 
 const std::string Capabilities::FREEZE_PROTECTION = "FREEZE_PROTECTION";
-const std::string Capabilities::SILENT = "silent";
-const std::string Capabilities::TURBO = "turbo";
+const std::string Capabilities::SILENT = "SILENT";
+const std::string Capabilities::TURBO = "TURBO";
 
 void Capabilities::to_climate_traits(ClimateTraits &traits) const {
   /* TEMPERATURES */
