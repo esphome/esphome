@@ -129,12 +129,10 @@ bool MideaAC::allow_preset(climate::ClimatePreset preset) const {
 }
 
 bool MideaAC::allow_custom_preset(const std::string &custom_preset) const {
-  if (custom_preset == MIDEA_FREEZE_PROTECTION_PRESET) {
-    if (this->mode == climate::CLIMATE_MODE_HEAT) {
+  if (custom_preset == Capabilities::FREEZE_PROTECTION) {
+    if (this->mode == climate::CLIMATE_MODE_HEAT)
       return true;
-    } else {
-      ESP_LOGD(TAG, "%s is only available in HEAT mode", MIDEA_FREEZE_PROTECTION_PRESET.c_str());
-    }
+    ESP_LOGD(TAG, "%s is only available in HEAT mode", Capabilities::FREEZE_PROTECTION.c_str());
   }
   return false;
 }

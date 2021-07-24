@@ -33,14 +33,14 @@ midea_ac_ns = cg.esphome_ns.namespace("midea_ac")
 MideaAC = midea_ac_ns.class_("MideaAC", climate.Climate, cg.Component)
 
 CLIMATE_CUSTOM_FAN_MODES = {
-    "SILENT": "silent",
-    "TURBO": "turbo",
+    "SILENT": "SILENT",
+    "TURBO": "TURBO",
 }
 
 validate_climate_custom_fan_mode = cv.enum(CLIMATE_CUSTOM_FAN_MODES, upper=True)
 
 CLIMATE_CUSTOM_PRESETS = {
-    "FREEZE_PROTECTION": "freeze protection",
+    "FREEZE_PROTECTION": "FREEZE_PROTECTION",
 }
 
 validate_climate_custom_preset = cv.enum(CLIMATE_CUSTOM_PRESETS, upper=True)

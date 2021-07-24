@@ -1,12 +1,10 @@
 #include "midea_frame.h"
+#include "capabilities.h"
 
 namespace esphome {
 namespace midea_ac {
 
 static const char *const TAG = "midea_ac";
-const std::string MIDEA_SILENT_FAN_MODE = "silent";
-const std::string MIDEA_TURBO_FAN_MODE = "turbo";
-const std::string MIDEA_FREEZE_PROTECTION_PRESET = "freeze protection";
 
 const uint8_t QueryFrame::INIT[] = {0xAA, 0x21, 0xAC, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0x41, 0x81,
                                     0x00, 0xFF, 0x03, 0xFF, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -118,11 +116,11 @@ void PropertiesFrame::clear_presets() {
 
 bool PropertiesFrame::is_custom_preset() const { return this->get_freeze_protection_mode(); }
 
-const std::string &PropertiesFrame::get_custom_preset() const { return midea_ac::MIDEA_FREEZE_PROTECTION_PRESET; };
+const std::string &PropertiesFrame::get_custom_preset() const { return Capabilities::FREEZE_PROTECTION; };
 
 void PropertiesFrame::set_custom_preset(const std::string &preset) {
   this->clear_presets();
-  if (preset == MIDEA_FREEZE_PROTECTION_PRESET)
+  if (preset == Capabilities::FREEZE_PROTECTION)
     this->set_freeze_protection_mode(true);
 }
 
@@ -171,15 +169,15 @@ void PropertiesFrame::set_fan_mode(climate::ClimateFanMode mode) {
 const std::string &PropertiesFrame::get_custom_fan_mode() const {
   switch (this->pb_[13]) {
     case MIDEA_FAN_SILENT:
-      return MIDEA_SILENT_FAN_MODE;
+      return Capabilities::SILENT;
     default:
-      return MIDEA_TURBO_FAN_MODE;
+      return Capabilities::TURBO;
   }
 }
 
 void PropertiesFrame::set_custom_fan_mode(const std::string &mode) {
   uint8_t m;
-  if (mode == MIDEA_SILENT_FAN_MODE) {
+  if (mode == Capabilities::SILENT) {
     m = MIDEA_FAN_SILENT;
   } else {
     m = MIDEA_FAN_TURBO;

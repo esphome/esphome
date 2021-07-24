@@ -5,10 +5,6 @@
 namespace esphome {
 namespace midea_ac {
 
-extern const std::string MIDEA_SILENT_FAN_MODE;
-extern const std::string MIDEA_TURBO_FAN_MODE;
-extern const std::string MIDEA_FREEZE_PROTECTION_PRESET;
-
 /// Enum for all modes a Midea device can be in.
 enum MideaMode : uint8_t {
   /// The Midea device is set to automatically change the heating/cooling cycle

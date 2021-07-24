@@ -14,7 +14,10 @@ using climate::ClimateFanMode;
 
 class Capabilities {
  public:
-  static const std::string FROST_PROTECTION;
+  static const std::string FREEZE_PROTECTION;
+  static const std::string SILENT;
+  static const std::string TURBO;
+
   // Read from frames
   bool read(const Frame &frame);
   // Is ready for reading Climate traits

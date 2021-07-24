@@ -220,7 +220,9 @@ bool Capabilities::read(const Frame &frame) {
   return false;
 }
 
-const std::string Capabilities::FROST_PROTECTION = "FROST_PROTECTION";
+const std::string Capabilities::FREEZE_PROTECTION = "FREEZE_PROTECTION";
+const std::string Capabilities::SILENT = "silent";
+const std::string Capabilities::TURBO = "turbo";
 
 void Capabilities::to_climate_traits(ClimateTraits &traits) const {
   /* TEMPERATURES */
@@ -263,7 +265,7 @@ void Capabilities::to_climate_traits(ClimateTraits &traits) const {
 
   /* CUSTOM PRESETS */
   if (this->frost_protection_mode())
-    traits.add_supported_custom_preset(FROST_PROTECTION);
+    traits.add_supported_custom_preset(FREEZE_PROTECTION);
 }
 
 
