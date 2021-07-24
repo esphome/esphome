@@ -460,7 +460,7 @@ void Tuya::set_numeric_datapoint_value_(uint8_t datapoint_id, TuyaDatapointType 
   ESP_LOGD(TAG, "Setting datapoint %u to %u", datapoint_id, value);
   optional<TuyaDatapoint> datapoint = this->get_datapoint_(datapoint_id);
   if (!datapoint.has_value()) {
-    ESP_LOGW(TAG, "Attempt to set unknown datapoint %u", datapoint_id);
+    ESP_LOGW(TAG, "Setting unknown datapoint %u", datapoint_id);
   } else if (datapoint->type != datapoint_type) {
     ESP_LOGE(TAG, "Attempt to set datapoint %u with incorrect type", datapoint_id);
     return;
