@@ -402,7 +402,7 @@ void Tuya::set_raw_datapoint_value(uint8_t datapoint_id, const std::vector<uint8
   ESP_LOGD(TAG, "Setting datapoint %u to %s", datapoint_id, hexencode(value).c_str());
   optional<TuyaDatapoint> datapoint = this->get_datapoint_(datapoint_id);
   if (!datapoint.has_value()) {
-    ESP_LOGW(TAG, "Attempt to set unknown datapoint %u", datapoint_id);
+    ESP_LOGW(TAG, "Setting unknown datapoint %u", datapoint_id);
   } else if (datapoint->type != TuyaDatapointType::RAW) {
     ESP_LOGE(TAG, "Attempt to set datapoint %u with incorrect type", datapoint_id);
     return;
