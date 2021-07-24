@@ -57,7 +57,10 @@ void MideaAC::get_capabilities_() {
 }
 
 void MideaAC::on_idle() {
-  this->dongle_->queue_request(this->query_frame_, 5, 2000, [this](const Frame &frame) -> ResponseStatus{
+  this->dongle_->queue_request(this->query_frame_, 5, 2000, std::bind(&MideaAC::read_status_, this, std::placeholders::_1));
+}
+
+ResponseStatus MideaAC::read_status_(const Frame &frame) {
     const auto p = frame.as<PropertiesFrame>();
     if (!p.has_properties())
       return ResponseStatus::RESPONSE_WRONG;
@@ -89,7 +92,6 @@ void MideaAC::on_idle() {
     set_sensor(this->outdoor_sensor_, p.get_outdoor_temp());
     set_sensor(this->humidity_sensor_, p.get_humidity_setpoint());
     return ResponseStatus::RESPONSE_OK;
-  });
 }
 
 void MideaAC::on_frame(const Frame &frame) {
@@ -178,7 +180,7 @@ void MideaAC::control(const climate::ClimateCall &call) {
   if (update) {
     this->cmd_frame_.set_beeper_feedback(this->beeper_feedback_);
     this->cmd_frame_.update_all();
-    this->dongle_->queue_request_priority(this->cmd_frame_, 5, 2000);
+    this->dongle_->queue_request_priority(this->cmd_frame_, 5, 2000, std::bind(&MideaAC::read_status_, this, std::placeholders::_1));
   }
 }
 

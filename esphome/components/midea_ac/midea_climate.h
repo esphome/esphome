@@ -69,6 +69,7 @@ class MideaAC : public midea_dongle::MideaAppliance, public climate::Climate, pu
   std::set<std::string> traits_custom_fan_modes_{{}};
   std::set<std::string> traits_custom_presets_{{}};
   void get_capabilities_();
+  ResponseStatus read_status_(const Frame &frame);
   ResponseStatus parse_properties_frame(const Frame &frame);
 };
 
