@@ -19,9 +19,6 @@ ResponseStatus MideaRequest::call_handler(const Frame &frame) {
 void MideaDongle::setup() {
   this->get_electronic_id_();
   this->setup_network_notify_task_();
-  this->set_timeout(SEND_TIMEOUT, 5000, [this](){
-    this->is_ready_ = true;
-  });
 }
 
 void MideaDongle::loop() {

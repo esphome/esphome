@@ -40,7 +40,7 @@ void MideaAC::get_capabilities_() {
     0xB5, 0x01, 0x00, 0x4D, 0x3D
   };
   ESP_LOGD(TAG, "Queue GET_CAPABILITIES(0xB5) request...");
-  this->dongle_->queue_request(data, 5, 2000, [this](const Frame &frame) -> ResponseStatus {
+  this->dongle_->queue_request_priority(data, 5, 2000, [this](const Frame &frame) -> ResponseStatus {
     if (!frame.has_id(0xB5))
       return ResponseStatus::RESPONSE_WRONG;
     if (this->capabilities_.read(frame)) {

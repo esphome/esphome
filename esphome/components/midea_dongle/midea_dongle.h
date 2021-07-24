@@ -54,8 +54,8 @@ class MideaDongle : public Component, public uart::UARTDevice {
   MideaAppliance *appliance_{nullptr};
   std::deque<MideaRequest *> queue_;
   MideaRequest *request_{nullptr};
-  FrameReceiver<256> receiver_;
-  bool is_ready_{false};
+  FrameReceiver<64> receiver_;
+  bool is_ready_{true};
   void handler_(const Frame &frame);
   void get_electronic_id_();
   void report_network_status_(uint8_t type);
