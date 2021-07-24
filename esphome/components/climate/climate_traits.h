@@ -72,6 +72,7 @@ class ClimateTraits {
 
   void set_supported_fan_modes(std::set<ClimateFanMode> modes) { supported_fan_modes_ = std::move(modes); }
   void add_supported_fan_mode(ClimateFanMode mode) { supported_fan_modes_.insert(mode); }
+  void add_supported_custom_fan_mode(const std::string &mode) { supported_custom_fan_modes_.insert(mode); }
   ESPDEPRECATED("This method is deprecated, use set_supported_fan_modes() instead")
   void set_supports_fan_mode_on(bool supported) { set_fan_mode_support_(CLIMATE_FAN_ON, supported); }
   ESPDEPRECATED("This method is deprecated, use set_supported_fan_modes() instead")
@@ -104,6 +105,7 @@ class ClimateTraits {
 
   void set_supported_presets(std::set<ClimatePreset> presets) { supported_presets_ = std::move(presets); }
   void add_supported_preset(ClimatePreset preset) { supported_presets_.insert(preset); }
+  void add_supported_custom_preset(const std::string &preset) { supported_custom_presets_.insert(preset); }
   bool supports_preset(ClimatePreset preset) const { return supported_presets_.count(preset); }
   bool get_supports_presets() const { return !supported_presets_.empty(); }
   const std::set<climate::ClimatePreset> &get_supported_presets() const { return supported_presets_; }

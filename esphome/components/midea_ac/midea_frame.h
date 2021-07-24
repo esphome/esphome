@@ -51,17 +51,17 @@ enum MideaSwingMode : uint8_t {
   MIDEA_SWING_HORIZONTAL = 0b0011,
 };
 
-class PropertiesFrame : public midea_dongle::BaseFrame {
+class PropertiesFrame : public midea_dongle::Frame {
  public:
   PropertiesFrame() = delete;
-  PropertiesFrame(uint8_t *data) : BaseFrame(data) {}
-  PropertiesFrame(const Frame &frame) : BaseFrame(frame) {}
+  PropertiesFrame(uint8_t *data) : Frame(data) {}
+  PropertiesFrame(const Frame &frame) : Frame(frame) {}
 
   bool has_properties() const {
-    return this->has_response_type(0xC0) && (this->has_type(0x03) || this->has_type(0x02));
+    return this->has_id(0xC0) && (this->has_type(0x03) || this->has_type(0x02));
   }
 
-  bool has_power_info() const { return this->has_response_type(0xC1); }
+  bool has_power_info() const { return this->has_id(0xC1); }
 
   /* TARGET TEMPERATURE */
 
@@ -94,22 +94,22 @@ class PropertiesFrame : public midea_dongle::BaseFrame {
   float get_humidity_setpoint() const;
 
   /* ECO MODE */
-  bool get_eco_mode() const { return this->pbuf_[19] & 0x10; }
+  bool get_eco_mode() const { return this->pb_[19] & 0x10; }
   void set_eco_mode(bool state) { this->set_bytemask_(19, 0x80, state); }
 
   /* SLEEP MODE */
-  bool get_sleep_mode() const { return this->pbuf_[20] & 0x01; }
+  bool get_sleep_mode() const { return this->pb_[20] & 0x01; }
   void set_sleep_mode(bool state) { this->set_bytemask_(20, 0x01, state); }
 
   /* TURBO MODE */
-  bool get_turbo_mode() const { return this->pbuf_[18] & 0x20 || this->pbuf_[20] & 0x02; }
+  bool get_turbo_mode() const { return this->pb_[18] & 0x20 || this->pb_[20] & 0x02; }
   void set_turbo_mode(bool state) {
     this->set_bytemask_(18, 0x20, state);
     this->set_bytemask_(20, 0x02, state);
   }
 
   /* FREEZE PROTECTION */
-  bool get_freeze_protection_mode() const { return this->pbuf_[31] & 0x80; }
+  bool get_freeze_protection_mode() const { return this->pb_[31] & 0x80; }
   void set_freeze_protection_mode(bool state) { this->set_bytemask_(31, 0x80, state); }
 
   /* PRESET */
@@ -125,11 +125,11 @@ class PropertiesFrame : public midea_dongle::BaseFrame {
   float get_power_usage() const;
 
   /// Set properties from another frame
-  void set_properties(const PropertiesFrame &p) { memcpy(this->pbuf_ + 11, p.data() + 11, 10); }
+  void set_properties(const PropertiesFrame &p) { memcpy(this->pb_ + 11, p.data() + 11, 10); }
 
  protected:
   /* POWER */
-  bool get_power_() const { return this->pbuf_[11] & 0x01; }
+  bool get_power_() const { return this->pb_[11] & 0x01; }
   void set_power_(bool state) { this->set_bytemask_(11, 0x01, state); }
 };
 

@@ -18,63 +18,82 @@ template<typename T> void set_property(T &property, T value, bool &flag) {
   }
 }
 
-void MideaAC::on_frame(const midea_dongle::Frame &frame) {
-  const auto p = frame.as<PropertiesFrame>();
-  if (p.has_power_info()) {
-    set_sensor(this->power_sensor_, p.get_power_usage());
-    return;
-  } else if (!p.has_properties()) {
-    ESP_LOGW(TAG, "RX: frame has unknown type");
-    return;
+void MideaAC::setup() {
+  this->dongle_->set_appliance(this);
+  this->get_capabilities_();
+  if (this->power_sensor_ != nullptr) {
+    this->set_interval("midea_ac: power_query", 30*1000, [this](){
+      this->dongle_->queue_request(this->power_frame_, 5, 2000, [this](const Frame &frame) -> ResponseStatus{
+        const auto p = frame.as<PropertiesFrame>();
+        if (!p.has_power_info())
+          return ResponseStatus::RESPONSE_WRONG;
+        set_sensor(this->power_sensor_, p.get_power_usage());
+        return ResponseStatus::RESPONSE_OK;
+      });
+    });
   }
-  if (p.get_type() == midea_dongle::MideaMessageType::DEVICE_CONTROL) {
-    ESP_LOGD(TAG, "RX: control frame");
-    this->ctrl_request_ = false;
-  } else {
-    ESP_LOGD(TAG, "RX: query frame");
-  }
-  if (this->ctrl_request_)
-    return;
-  this->cmd_frame_.set_properties(p);  // copy properties from response
-  bool need_publish = false;
-  set_property(this->mode, p.get_mode(), need_publish);
-  set_property(this->target_temperature, p.get_target_temp(), need_publish);
-  set_property(this->current_temperature, p.get_indoor_temp(), need_publish);
-  if (p.is_custom_fan_mode()) {
-    this->fan_mode.reset();
-    optional<std::string> mode = p.get_custom_fan_mode();
-    set_property(this->custom_fan_mode, mode, need_publish);
-  } else {
-    this->custom_fan_mode.reset();
-    optional<climate::ClimateFanMode> mode = p.get_fan_mode();
-    set_property(this->fan_mode, mode, need_publish);
-  }
-  set_property(this->swing_mode, p.get_swing_mode(), need_publish);
-  if (p.is_custom_preset()) {
-    this->preset.reset();
-    optional<std::string> preset = p.get_custom_preset();
-    set_property(this->custom_preset, preset, need_publish);
-  } else {
-    this->custom_preset.reset();
-    set_property(this->preset, p.get_preset(), need_publish);
-  }
-  if (need_publish)
-    this->publish_state();
-  set_sensor(this->outdoor_sensor_, p.get_outdoor_temp());
-  set_sensor(this->humidity_sensor_, p.get_humidity_setpoint());
 }
 
-void MideaAC::on_update() {
-  if (this->ctrl_request_) {
-    ESP_LOGD(TAG, "TX: control");
-    this->parent_->write_frame(this->cmd_frame_);
-  } else {
-    ESP_LOGD(TAG, "TX: query");
-    if (this->power_sensor_ == nullptr || this->request_num_++ % 32)
-      this->parent_->write_frame(this->query_frame_);
-    else
-      this->parent_->write_frame(this->power_frame_);
-  }
+void MideaAC::get_capabilities_() {
+  uint8_t data[] = {
+    0xAA, 0x0E, 0xAC, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0x03,
+    0xB5, 0x01, 0x00, 0x4D, 0x3D
+  };
+  ESP_LOGD(TAG, "Queue GET_CAPABILITIES(0xB5) request...");
+  this->dongle_->queue_request(data, 5, 2000, [this](const Frame &frame) -> ResponseStatus {
+    if (!frame.has_id(0xB5))
+      return ResponseStatus::RESPONSE_WRONG;
+    if (this->capabilities_.read(frame)) {
+      uint8_t data[] = {
+        0xAA, 0x0F, 0xAC, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0x03,
+        0xB5, 0x01, 0x01, 0x01, 0x21, 0x66
+      };
+      this->dongle_->send_frame(data);
+      return ResponseStatus::RESPONSE_PARTIAL;
+    }
+    print_capabilities(TAG, this->capabilities_);
+    return ResponseStatus::RESPONSE_OK;
+  });
+}
+
+void MideaAC::on_idle() {
+  this->dongle_->queue_request(this->query_frame_, 5, 2000, [this](const Frame &frame) -> ResponseStatus{
+    const auto p = frame.as<PropertiesFrame>();
+    if (!p.has_properties())
+      return ResponseStatus::RESPONSE_WRONG;
+    this->cmd_frame_.set_properties(p);  // copy properties from response
+    bool need_publish = false;
+    set_property(this->mode, p.get_mode(), need_publish);
+    set_property(this->target_temperature, p.get_target_temp(), need_publish);
+    set_property(this->current_temperature, p.get_indoor_temp(), need_publish);
+    if (p.is_custom_fan_mode()) {
+      this->fan_mode.reset();
+      optional<std::string> mode = p.get_custom_fan_mode();
+      set_property(this->custom_fan_mode, mode, need_publish);
+    } else {
+      this->custom_fan_mode.reset();
+      optional<climate::ClimateFanMode> mode = p.get_fan_mode();
+      set_property(this->fan_mode, mode, need_publish);
+    }
+    set_property(this->swing_mode, p.get_swing_mode(), need_publish);
+    if (p.is_custom_preset()) {
+      this->preset.reset();
+      optional<std::string> preset = p.get_custom_preset();
+      set_property(this->custom_preset, preset, need_publish);
+    } else {
+      this->custom_preset.reset();
+      set_property(this->preset, p.get_preset(), need_publish);
+    }
+    if (need_publish)
+      this->publish_state();
+    set_sensor(this->outdoor_sensor_, p.get_outdoor_temp());
+    set_sensor(this->humidity_sensor_, p.get_humidity_setpoint());
+    return ResponseStatus::RESPONSE_OK;
+  });
+}
+
+void MideaAC::on_frame(const Frame &frame) {
+  ESP_LOGW(TAG, "RX: frame has unknown type");
 }
 
 bool MideaAC::allow_preset(climate::ClimatePreset preset) const {
@@ -94,7 +113,8 @@ bool MideaAC::allow_preset(climate::ClimatePreset preset) const {
       }
       break;
     case climate::CLIMATE_PRESET_BOOST:
-      if (this->mode == climate::CLIMATE_MODE_HEAT || this->mode == climate::CLIMATE_MODE_COOL) {
+      if ((this->mode == climate::CLIMATE_MODE_HEAT && this->capabilities_.turbo_heat()) ||
+          (this->mode == climate::CLIMATE_MODE_COOL && this->capabilities_.turbo_cool())) {
         return true;
       } else {
         ESP_LOGD(TAG, "BOOST preset is only available in HEAT or COOL mode");
@@ -120,87 +140,62 @@ bool MideaAC::allow_custom_preset(const std::string &custom_preset) const {
 }
 
 void MideaAC::control(const climate::ClimateCall &call) {
+  bool update = false;
   if (call.get_mode().has_value() && call.get_mode().value() != this->mode) {
     this->cmd_frame_.set_mode(call.get_mode().value());
-    this->ctrl_request_ = true;
+    update = true;
   }
   if (call.get_target_temperature().has_value() && call.get_target_temperature().value() != this->target_temperature) {
     this->cmd_frame_.set_target_temp(call.get_target_temperature().value());
-    this->ctrl_request_ = true;
+    update = true;
   }
   if (call.get_fan_mode().has_value() &&
       (!this->fan_mode.has_value() || this->fan_mode.value() != call.get_fan_mode().value())) {
     this->custom_fan_mode.reset();
     this->cmd_frame_.set_fan_mode(call.get_fan_mode().value());
-    this->ctrl_request_ = true;
+    update = true;
   }
   if (call.get_custom_fan_mode().has_value() &&
       (!this->custom_fan_mode.has_value() || this->custom_fan_mode.value() != call.get_custom_fan_mode().value())) {
     this->fan_mode.reset();
     this->cmd_frame_.set_custom_fan_mode(call.get_custom_fan_mode().value());
-    this->ctrl_request_ = true;
+    update = true;
   }
   if (call.get_swing_mode().has_value() && call.get_swing_mode().value() != this->swing_mode) {
     this->cmd_frame_.set_swing_mode(call.get_swing_mode().value());
-    this->ctrl_request_ = true;
+    update = true;
   }
   if (call.get_preset().has_value() && this->allow_preset(call.get_preset().value()) &&
       (!this->preset.has_value() || this->preset.value() != call.get_preset().value())) {
     this->custom_preset.reset();
     this->cmd_frame_.set_preset(call.get_preset().value());
-    this->ctrl_request_ = true;
+    update = true;
   }
   if (call.get_custom_preset().has_value() && this->allow_custom_preset(call.get_custom_preset().value()) &&
       (!this->custom_preset.has_value() || this->custom_preset.value() != call.get_custom_preset().value())) {
     this->preset.reset();
     this->cmd_frame_.set_custom_preset(call.get_custom_preset().value());
-    this->ctrl_request_ = true;
+    update = true;
   }
-  if (this->ctrl_request_) {
+  if (update) {
     this->cmd_frame_.set_beeper_feedback(this->beeper_feedback_);
-    this->cmd_frame_.finalize();
+    this->cmd_frame_.update_all();
+    this->dongle_->queue_request_priority(this->cmd_frame_, 5, 2000);
   }
 }
 
 climate::ClimateTraits MideaAC::traits() {
   auto traits = climate::ClimateTraits();
-  traits.set_visual_min_temperature(17);
-  traits.set_visual_max_temperature(30);
-  traits.set_visual_temperature_step(0.5);
-  traits.set_supported_modes({
-      climate::CLIMATE_MODE_OFF,
-      climate::CLIMATE_MODE_HEAT_COOL,
-      climate::CLIMATE_MODE_COOL,
-      climate::CLIMATE_MODE_DRY,
-      climate::CLIMATE_MODE_HEAT,
-      climate::CLIMATE_MODE_FAN_ONLY,
-  });
-  traits.set_supported_fan_modes({
-      climate::CLIMATE_FAN_AUTO,
-      climate::CLIMATE_FAN_LOW,
-      climate::CLIMATE_FAN_MEDIUM,
-      climate::CLIMATE_FAN_HIGH,
-  });
+  this->capabilities_.to_climate_traits(traits);
+
   traits.set_supported_custom_fan_modes(this->traits_custom_fan_modes_);
-  traits.set_supported_swing_modes({
-      climate::CLIMATE_SWING_OFF,
-      climate::CLIMATE_SWING_VERTICAL,
-  });
+
   if (traits_swing_horizontal_)
     traits.add_supported_swing_mode(climate::CLIMATE_SWING_HORIZONTAL);
   if (traits_swing_both_)
     traits.add_supported_swing_mode(climate::CLIMATE_SWING_BOTH);
-  traits.set_supported_presets({
-      climate::CLIMATE_PRESET_NONE,
-  });
-  if (traits_preset_eco_)
-    traits.add_supported_preset(climate::CLIMATE_PRESET_ECO);
-  if (traits_preset_sleep_)
-    traits.add_supported_preset(climate::CLIMATE_PRESET_SLEEP);
-  if (traits_preset_boost_)
-    traits.add_supported_preset(climate::CLIMATE_PRESET_BOOST);
+
   traits.set_supported_custom_presets(this->traits_custom_presets_);
-  traits.set_supports_current_temperature(true);
   return traits;
 }
 

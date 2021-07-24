@@ -88,8 +88,8 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await climate.register_climate(var, config)
-    paren = await cg.get_variable(config[CONF_MIDEA_DONGLE_ID])
-    cg.add(var.set_midea_dongle_parent(paren))
+    dongle_ = await cg.get_variable(config[CONF_MIDEA_DONGLE_ID])
+    cg.add(var.set_dongle(dongle_))
     cg.add(var.set_beeper_feedback(config[CONF_BEEPER]))
     if CONF_CUSTOM_FAN_MODES in config:
         cg.add(var.set_custom_fan_modes(config[CONF_CUSTOM_FAN_MODES]))

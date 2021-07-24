@@ -15,14 +15,13 @@ const uint8_t QueryFrame::INIT[] = {0xAA, 0x21, 0xAC, 0x00, 0x00, 0x00, 0x00, 0x
 const uint8_t PowerQueryFrame::INIT[] = {0xAA, 0x22, 0xAC, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0x03, 0x41, 0x21,
                                          0x01, 0x44, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
                                          0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0x00, 0x17, 0x6A};
-
-const uint8_t CommandFrame::INIT[] = {0xAA, 0x22, 0xAC, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0x02, 0x40, 0x00,
+const uint8_t CommandFrame::INIT[] = {0xAA, 0x23, 0xAC, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x40, 0x00,
                                       0x00, 0x00, 0x7F, 0x7F, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                                      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+                                      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 
 float PropertiesFrame::get_target_temp() const {
-  float temp = static_cast<float>((this->pbuf_[12] & 0x0F) + 16);
-  if (this->pbuf_[12] & 0x10)
+  float temp = static_cast<float>(this->get_val_(12, 0, 0b1111) + 16);
+  if (this->get_val_(12, 0, 0x10))
     temp += 0.5;
   return temp;
 }
@@ -30,19 +29,18 @@ float PropertiesFrame::get_target_temp() const {
 void PropertiesFrame::set_target_temp(float temp) {
   uint8_t tmp = static_cast<uint8_t>(temp * 16.0) + 4;
   tmp = ((tmp & 8) << 1) | (tmp >> 4);
-  this->pbuf_[12] &= ~0x1F;
-  this->pbuf_[12] |= tmp;
+  this->set_val_(12, 0, 0x1F, tmp);
 }
 
-static float i16tof(int16_t in) { return static_cast<float>(in - 50) / 2.0; }
-float PropertiesFrame::get_indoor_temp() const { return i16tof(this->pbuf_[21]); }
-float PropertiesFrame::get_outdoor_temp() const { return i16tof(this->pbuf_[22]); }
-float PropertiesFrame::get_humidity_setpoint() const { return static_cast<float>(this->pbuf_[29] & 0x7F); }
+static float i16tof(int16_t in) { return static_cast<float>(in - 50) * 0.5f; }
+float PropertiesFrame::get_indoor_temp() const { return i16tof(this->get_val_(21)); }
+float PropertiesFrame::get_outdoor_temp() const { return i16tof(this->get_val_(22)); }
+float PropertiesFrame::get_humidity_setpoint() const { return static_cast<float>(this->get_val_(29, 0, 0x7F)); }
 
 climate::ClimateMode PropertiesFrame::get_mode() const {
   if (!this->get_power_())
     return climate::CLIMATE_MODE_OFF;
-  switch (this->pbuf_[12] >> 5) {
+  switch (this->get_val_(12, 5)) {
     case MIDEA_MODE_AUTO:
       return climate::CLIMATE_MODE_HEAT_COOL;
     case MIDEA_MODE_COOL:
@@ -81,8 +79,7 @@ void PropertiesFrame::set_mode(climate::ClimateMode mode) {
       return;
   }
   this->set_power_(true);
-  this->pbuf_[12] &= ~0xE0;
-  this->pbuf_[12] |= m << 5;
+  this->set_val_(12, 5, 0b111, m);
 }
 
 optional<climate::ClimatePreset> PropertiesFrame::get_preset() const {
@@ -130,7 +127,7 @@ void PropertiesFrame::set_custom_preset(const std::string &preset) {
 }
 
 bool PropertiesFrame::is_custom_fan_mode() const {
-  switch (this->pbuf_[13]) {
+  switch (this->pb_[13]) {
     case MIDEA_FAN_SILENT:
     case MIDEA_FAN_TURBO:
       return true;
@@ -140,7 +137,7 @@ bool PropertiesFrame::is_custom_fan_mode() const {
 }
 
 climate::ClimateFanMode PropertiesFrame::get_fan_mode() const {
-  switch (this->pbuf_[13]) {
+  switch (this->pb_[13]) {
     case MIDEA_FAN_LOW:
       return climate::CLIMATE_FAN_LOW;
     case MIDEA_FAN_MEDIUM:
@@ -168,11 +165,11 @@ void PropertiesFrame::set_fan_mode(climate::ClimateFanMode mode) {
       m = MIDEA_FAN_AUTO;
       break;
   }
-  this->pbuf_[13] = m;
+  this->pb_[13] = m;
 }
 
 const std::string &PropertiesFrame::get_custom_fan_mode() const {
-  switch (this->pbuf_[13]) {
+  switch (this->pb_[13]) {
     case MIDEA_FAN_SILENT:
       return MIDEA_SILENT_FAN_MODE;
     default:
@@ -187,11 +184,11 @@ void PropertiesFrame::set_custom_fan_mode(const std::string &mode) {
   } else {
     m = MIDEA_FAN_TURBO;
   }
-  this->pbuf_[13] = m;
+  this->pb_[13] = m;
 }
 
 climate::ClimateSwingMode PropertiesFrame::get_swing_mode() const {
-  switch (this->pbuf_[17] & 0x0F) {
+  switch (this->get_val_(17, 0, 0b1111)) {
     case MIDEA_SWING_VERTICAL:
       return climate::CLIMATE_SWING_VERTICAL;
     case MIDEA_SWING_HORIZONTAL:
@@ -219,18 +216,18 @@ void PropertiesFrame::set_swing_mode(climate::ClimateSwingMode mode) {
       m = MIDEA_SWING_OFF;
       break;
   }
-  this->pbuf_[17] = 0x30 | m;
+  this->pb_[17] = 0x30 | m;
 }
 
 float PropertiesFrame::get_power_usage() const {
   uint32_t power = 0;
-  const uint8_t *ptr = this->pbuf_ + 28;
+  const uint8_t *ptr = this->pb_ + 28;
   for (uint32_t weight = 1;; weight *= 10, ptr--) {
     power += (*ptr % 16) * weight;
     weight *= 10;
     power += (*ptr / 16) * weight;
     if (weight == 100000)
-      return static_cast<float>(power) * 0.1;
+      return static_cast<float>(power) * 0.1f;
   }
 }
 
