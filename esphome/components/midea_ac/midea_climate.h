@@ -23,7 +23,7 @@ using midea_dongle::MideaDongle;
 
 class MideaAC : public midea_dongle::MideaAppliance, public climate::Climate, public Component {
  public:
-  float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
+  float get_setup_priority() const override { return setup_priority::BEFORE_API; }
   /// Calling on requests from MideaDongle component
   void on_frame(const Frame &frame) override;
   void on_idle() override;

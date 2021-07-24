@@ -42,7 +42,7 @@ struct MideaRequest {
 
 class MideaDongle : public Component, public uart::UARTDevice {
  public:
-  float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
+  float get_setup_priority() const override { return setup_priority::BEFORE_API; }
   void setup() override;
   void loop() override;
   void set_appliance(MideaAppliance *app) { this->appliance_ = app; }
