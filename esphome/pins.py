@@ -73,10 +73,10 @@ def validate_gpio_pin(value):
     value = _translate_pin(value)
     if CORE.is_esp32_c3:
         if value < 0 or value > 22:
-            raise cv.Invalid(f"ESP32C3: Invalid pin number: {value}")
+            raise cv.Invalid(f"ESP32-C3: Invalid pin number: {value}")
         if value in _ESP32C3_SDIO_PINS:
             raise cv.Invalid(
-                "This pin cannot be used on ESP32s and is already used by "
+                "This pin cannot be used on ESP32-C3s and is already used by "
                 "the flash interface (function: {})".format(_ESP_SDIO_PINS[value])
             )
         return value
