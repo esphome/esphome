@@ -90,9 +90,9 @@ class Application {
 #endif
 
   /// Register the component in this Application instance.
-  template<class C> C *register_component(C *c) {
+  template<class C> C *register_component(C *c, std::string id) {
     static_assert(std::is_base_of<Component, C>::value, "Only Component subclasses can be registered");
-    this->register_component_((Component *) c);
+    this->register_component_((Component *) c, id);
     return c;
   }
 
@@ -230,7 +230,7 @@ class Application {
  protected:
   friend Component;
 
-  void register_component_(Component *comp);
+  void register_component_(Component *comp, std::string id);
 
   void calculate_looping_components_();
 

@@ -54,7 +54,7 @@ async def register_component(var, config):
         add(var.set_setup_priority(config[CONF_SETUP_PRIORITY]))
     if CONF_UPDATE_INTERVAL in config:
         add(var.set_update_interval(config[CONF_UPDATE_INTERVAL]))
-    add(App.register_component(var))
+    add(App.register_component(var, id_))
     return var
 
 

@@ -93,7 +93,8 @@ void Component::call() {
   }
 }
 void Component::mark_failed() {
-  ESP_LOGE(TAG, "Component was marked as failed.");
+  ESP_LOGE(TAG, "Component (%s) was marked as failed. Config dump of failing component follows:", this->esphome_component_name.c_str());
+  this->dump_config();
   this->component_state_ &= ~COMPONENT_STATE_MASK;
   this->component_state_ |= COMPONENT_STATE_FAILED;
   this->status_set_error();

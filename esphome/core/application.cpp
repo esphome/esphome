@@ -11,7 +11,7 @@ namespace esphome {
 
 static const char *const TAG = "app";
 
-void Application::register_component_(Component *comp) {
+void Application::register_component_(Component *comp, std::string id) {
   if (comp == nullptr) {
     ESP_LOGW(TAG, "Tried to register null component!");
     return;
@@ -23,6 +23,7 @@ void Application::register_component_(Component *comp) {
       return;
     }
   }
+  comp->esphome_component_name = id;
   this->components_.push_back(comp);
 }
 void Application::setup() {

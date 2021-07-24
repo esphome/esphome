@@ -130,6 +130,8 @@ class Component {
 
   bool has_overridden_loop() const;
 
+  std::string esphome_component_name;
+
  protected:
   virtual void call_loop();
   virtual void call_setup();
