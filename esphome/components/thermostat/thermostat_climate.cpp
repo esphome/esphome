@@ -7,6 +7,7 @@ namespace thermostat {
 static const char *const TAG = "thermostat.climate";
 
 void ThermostatClimate::setup() {
+  // add a callback so that whenever the sensor state changes we can take action
   this->sensor_->add_on_state_callback([this](float state) {
     this->current_temperature = state;
     // required action may have changed, recompute, refresh
@@ -29,7 +30,9 @@ void ThermostatClimate::setup() {
   this->setup_complete_ = true;
   this->publish_state();
 }
+
 float ThermostatClimate::hysteresis() { return this->hysteresis_; }
+
 void ThermostatClimate::refresh() {
   this->switch_to_mode_(this->mode);
   this->switch_to_action_(compute_action_());
@@ -38,6 +41,52 @@ void ThermostatClimate::refresh() {
   this->check_temperature_change_trigger_();
   this->publish_state();
 }
+
+void ThermostatClimate::validate_target_temperature() {
+  // target_temperature must be between the visual minimum and the visual maximum
+  if (this->target_temperature < this->get_traits().get_visual_min_temperature())
+    this->target_temperature = this->get_traits().get_visual_min_temperature();
+  if (this->target_temperature > this->get_traits().get_visual_max_temperature())
+    this->target_temperature = this->get_traits().get_visual_max_temperature();
+}
+
+void ThermostatClimate::validate_target_temperatures() {
+  if (this->supports_two_points_) {
+    validate_target_temperature_low();
+    validate_target_temperature_high();
+  } else {
+    validate_target_temperature();
+  }
+}
+
+void ThermostatClimate::validate_target_temperature_low() {
+  // target_temperature_low must not be lower than the visual minimum
+  if (this->target_temperature_low < this->get_traits().get_visual_min_temperature())
+    this->target_temperature_low = this->get_traits().get_visual_min_temperature();
+  // target_temperature_low must not be greater than the visual maximum minus set_point_minimum_differential_
+  if (this->target_temperature_low >
+      this->get_traits().get_visual_max_temperature() - this->set_point_minimum_differential_)
+    this->target_temperature_low =
+        this->get_traits().get_visual_max_temperature() - this->set_point_minimum_differential_;
+  // if target_temperature_low is set greater than target_temperature_high, move up target_temperature_high
+  if (this->target_temperature_low > this->target_temperature_high - this->set_point_minimum_differential_)
+    this->target_temperature_high = this->target_temperature_low + this->set_point_minimum_differential_;
+}
+
+void ThermostatClimate::validate_target_temperature_high() {
+  // target_temperature_high must not be lower than the visual maximum
+  if (this->target_temperature_high > this->get_traits().get_visual_max_temperature())
+    this->target_temperature_high = this->get_traits().get_visual_max_temperature();
+  // target_temperature_high must not be lower than the visual minimum plus set_point_minimum_differential_
+  if (this->target_temperature_high <
+      this->get_traits().get_visual_min_temperature() + this->set_point_minimum_differential_)
+    this->target_temperature_high =
+        this->get_traits().get_visual_min_temperature() + this->set_point_minimum_differential_;
+  // if target_temperature_high is set less than target_temperature_low, move down target_temperature_low
+  if (this->target_temperature_high < this->target_temperature_low + this->set_point_minimum_differential_)
+    this->target_temperature_low = this->target_temperature_high - this->set_point_minimum_differential_;
+}
+
 void ThermostatClimate::control(const climate::ClimateCall &call) {
   if (call.get_preset().has_value()) {
     // setup_complete_ blocks modifying/resetting the temps immediately after boot
@@ -53,29 +102,25 @@ void ThermostatClimate::control(const climate::ClimateCall &call) {
     this->fan_mode = *call.get_fan_mode();
   if (call.get_swing_mode().has_value())
     this->swing_mode = *call.get_swing_mode();
-  if (call.get_target_temperature().has_value())
-    this->target_temperature = *call.get_target_temperature();
-  if (call.get_target_temperature_low().has_value())
-    this->target_temperature_low = *call.get_target_temperature_low();
-  if (call.get_target_temperature_high().has_value())
-    this->target_temperature_high = *call.get_target_temperature_high();
-  // set point validation
   if (this->supports_two_points_) {
-    if (this->target_temperature_low < this->get_traits().get_visual_min_temperature())
-      this->target_temperature_low = this->get_traits().get_visual_min_temperature();
-    if (this->target_temperature_high > this->get_traits().get_visual_max_temperature())
-      this->target_temperature_high = this->get_traits().get_visual_max_temperature();
-    if (this->target_temperature_high < this->target_temperature_low)
-      this->target_temperature_high = this->target_temperature_low;
+    if (call.get_target_temperature_low().has_value()) {
+      this->target_temperature_low = *call.get_target_temperature_low();
+      validate_target_temperature_low();
+    }
+    if (call.get_target_temperature_high().has_value()) {
+      this->target_temperature_high = *call.get_target_temperature_high();
+      validate_target_temperature_high();
+    }
   } else {
-    if (this->target_temperature < this->get_traits().get_visual_min_temperature())
-      this->target_temperature = this->get_traits().get_visual_min_temperature();
-    if (this->target_temperature > this->get_traits().get_visual_max_temperature())
-      this->target_temperature = this->get_traits().get_visual_max_temperature();
+    if (call.get_target_temperature().has_value()) {
+      this->target_temperature = *call.get_target_temperature();
+      validate_target_temperature();
+    }
   }
   // make any changes happen
   refresh();
 }
+
 climate::ClimateTraits ThermostatClimate::traits() {
   auto traits = climate::ClimateTraits();
   traits.set_supports_current_temperature(true);
@@ -127,9 +172,12 @@ climate::ClimateTraits ThermostatClimate::traits() {
   traits.set_supports_action(true);
   return traits;
 }
+
 climate::ClimateAction ThermostatClimate::compute_action_() {
   // we need to know the current climate action before anything else happens here
   climate::ClimateAction target_action = this->action;
+  // always ensure set point(s) is/are valid before computing the action
+  this->validate_target_temperatures();
   // if the climate mode is OFF then the climate action must be OFF
   if (this->mode == climate::CLIMATE_MODE_OFF) {
     return climate::CLIMATE_ACTION_OFF;
@@ -235,6 +283,7 @@ climate::ClimateAction ThermostatClimate::compute_action_() {
 
   return target_action;
 }
+
 void ThermostatClimate::switch_to_action_(climate::ClimateAction action) {
   // setup_complete_ helps us ensure an action is called immediately after boot
   if ((action == this->action) && this->setup_complete_)
@@ -284,6 +333,7 @@ void ThermostatClimate::switch_to_action_(climate::ClimateAction action) {
   this->action = action;
   this->prev_action_trigger_ = trig;
 }
+
 void ThermostatClimate::switch_to_fan_mode_(climate::ClimateFanMode fan_mode) {
   // setup_complete_ helps us ensure an action is called immediately after boot
   if ((fan_mode == this->prev_fan_mode_) && this->setup_complete_)
@@ -335,6 +385,7 @@ void ThermostatClimate::switch_to_fan_mode_(climate::ClimateFanMode fan_mode) {
   this->prev_fan_mode_ = fan_mode;
   this->prev_fan_mode_trigger_ = trig;
 }
+
 void ThermostatClimate::switch_to_mode_(climate::ClimateMode mode) {
   // setup_complete_ helps us ensure an action is called immediately after boot
   if ((mode == this->prev_mode_) && this->setup_complete_)
@@ -377,6 +428,7 @@ void ThermostatClimate::switch_to_mode_(climate::ClimateMode mode) {
   this->prev_mode_ = mode;
   this->prev_mode_trigger_ = trig;
 }
+
 void ThermostatClimate::switch_to_swing_mode_(climate::ClimateSwingMode swing_mode) {
   // setup_complete_ helps us ensure an action is called immediately after boot
   if ((swing_mode == this->prev_swing_mode_) && this->setup_complete_)
@@ -413,6 +465,7 @@ void ThermostatClimate::switch_to_swing_mode_(climate::ClimateSwingMode swing_mo
   this->prev_swing_mode_ = swing_mode;
   this->prev_swing_mode_trigger_ = trig;
 }
+
 void ThermostatClimate::check_temperature_change_trigger_() {
   if (this->supports_two_points_) {
     // setup_complete_ helps us ensure an action is called immediately after boot
@@ -437,6 +490,7 @@ void ThermostatClimate::check_temperature_change_trigger_() {
   assert(trig != nullptr);
   trig->trigger();
 }
+
 void ThermostatClimate::change_away_(bool away) {
   if (!away) {
     if (this->supports_two_points_) {
@@ -453,13 +507,16 @@ void ThermostatClimate::change_away_(bool away) {
   }
   this->preset = away ? climate::CLIMATE_PRESET_AWAY : climate::CLIMATE_PRESET_HOME;
 }
+
 void ThermostatClimate::set_normal_config(const ThermostatClimateTargetTempConfig &normal_config) {
   this->normal_config_ = normal_config;
 }
+
 void ThermostatClimate::set_away_config(const ThermostatClimateTargetTempConfig &away_config) {
   this->supports_away_ = true;
   this->away_config_ = away_config;
 }
+
 ThermostatClimate::ThermostatClimate()
     : cool_action_trigger_(new Trigger<>()),
       cool_mode_trigger_(new Trigger<>()),
@@ -486,7 +543,11 @@ ThermostatClimate::ThermostatClimate()
       swing_mode_horizontal_trigger_(new Trigger<>()),
       swing_mode_vertical_trigger_(new Trigger<>()),
       temperature_change_trigger_(new Trigger<>()) {}
+
 void ThermostatClimate::set_default_mode(climate::ClimateMode default_mode) { this->default_mode_ = default_mode; }
+void ThermostatClimate::set_set_point_minimum_differential(float differential) {
+  this->set_point_minimum_differential_ = differential;
+}
 void ThermostatClimate::set_hysteresis(float hysteresis) { this->hysteresis_ = hysteresis; }
 void ThermostatClimate::set_sensor(sensor::Sensor *sensor) { this->sensor_ = sensor; }
 void ThermostatClimate::set_supports_heat_cool(bool supports_heat_cool) {
@@ -539,6 +600,7 @@ void ThermostatClimate::set_supports_swing_mode_vertical(bool supports_swing_mod
 void ThermostatClimate::set_supports_two_points(bool supports_two_points) {
   this->supports_two_points_ = supports_two_points;
 }
+
 Trigger<> *ThermostatClimate::get_cool_action_trigger() const { return this->cool_action_trigger_; }
 Trigger<> *ThermostatClimate::get_dry_action_trigger() const { return this->dry_action_trigger_; }
 Trigger<> *ThermostatClimate::get_fan_only_action_trigger() const { return this->fan_only_action_trigger_; }
@@ -564,6 +626,7 @@ Trigger<> *ThermostatClimate::get_swing_mode_off_trigger() const { return this->
 Trigger<> *ThermostatClimate::get_swing_mode_horizontal_trigger() const { return this->swing_mode_horizontal_trigger_; }
 Trigger<> *ThermostatClimate::get_swing_mode_vertical_trigger() const { return this->swing_mode_vertical_trigger_; }
 Trigger<> *ThermostatClimate::get_temperature_change_trigger() const { return this->temperature_change_trigger_; }
+
 void ThermostatClimate::dump_config() {
   LOG_CLIMATE("", "Thermostat", this);
   if (this->supports_heat_) {
@@ -578,6 +641,7 @@ void ThermostatClimate::dump_config() {
     else
       ESP_LOGCONFIG(TAG, "  Default Target Temperature High: %.1f°C", this->normal_config_.default_temperature);
   }
+  ESP_LOGCONFIG(TAG, "  Minimum Set Point Differential: %.1f°C", this->set_point_minimum_differential_);
   ESP_LOGCONFIG(TAG, "  Hysteresis: %.1f°C", this->hysteresis_);
   ESP_LOGCONFIG(TAG, "  Supports AUTO: %s", YESNO(this->supports_auto_));
   ESP_LOGCONFIG(TAG, "  Supports HEAT/COOL: %s", YESNO(this->supports_heat_cool_));
@@ -619,8 +683,10 @@ void ThermostatClimate::dump_config() {
 }
 
 ThermostatClimateTargetTempConfig::ThermostatClimateTargetTempConfig() = default;
+
 ThermostatClimateTargetTempConfig::ThermostatClimateTargetTempConfig(float default_temperature)
     : default_temperature(default_temperature) {}
+
 ThermostatClimateTargetTempConfig::ThermostatClimateTargetTempConfig(float default_temperature_low,
                                                                      float default_temperature_high)
     : default_temperature_low(default_temperature_low), default_temperature_high(default_temperature_high) {}

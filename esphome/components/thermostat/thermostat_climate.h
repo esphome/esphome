@@ -27,6 +27,7 @@ class ThermostatClimate : public climate::Climate, public Component {
   void dump_config() override;
 
   void set_default_mode(climate::ClimateMode default_mode);
+  void set_set_point_minimum_differential(float differential);
   void set_hysteresis(float hysteresis);
   void set_sensor(sensor::Sensor *sensor);
   void set_supports_auto(bool supports_auto);
@@ -82,6 +83,11 @@ class ThermostatClimate : public climate::Climate, public Component {
   float hysteresis();
   /// Call triggers based on updated climate states (modes/actions)
   void refresh();
+  /// Set point validation
+  void validate_target_temperature();
+  void validate_target_temperatures();
+  void validate_target_temperature_low();
+  void validate_target_temperature_high();
 
  protected:
   /// Override control to change settings of the climate device.
@@ -277,6 +283,9 @@ class ThermostatClimate : public climate::Climate, public Component {
   /// Temperature data for normal/home and away modes
   ThermostatClimateTargetTempConfig normal_config_{};
   ThermostatClimateTargetTempConfig away_config_{};
+
+  /// Minimum differential required between set points
+  float set_point_minimum_differential_{0};
 
   /// Hysteresis value used for computing climate actions
   float hysteresis_{0};

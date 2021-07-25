@@ -30,6 +30,7 @@ from esphome.const import (
     CONF_IDLE_ACTION,
     CONF_OFF_MODE,
     CONF_SENSOR,
+    CONF_SET_POINT_MINIMUM_DIFFERENTIAL,
     CONF_SWING_BOTH_ACTION,
     CONF_SWING_HORIZONTAL_ACTION,
     CONF_SWING_OFF_ACTION,
@@ -241,6 +242,9 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_DEFAULT_TARGET_TEMPERATURE_HIGH): cv.temperature,
             cv.Optional(CONF_DEFAULT_TARGET_TEMPERATURE_LOW): cv.temperature,
+            cv.Optional(
+                CONF_SET_POINT_MINIMUM_DIFFERENTIAL, default=0.5
+            ): cv.temperature,
             cv.Optional(CONF_HYSTERESIS, default=0.5): cv.temperature,
             cv.Optional(CONF_AWAY_CONFIG): cv.Schema(
                 {
@@ -269,6 +273,11 @@ async def to_code(config):
 
     sens = await cg.get_variable(config[CONF_SENSOR])
     cg.add(var.set_default_mode(config[CONF_DEFAULT_MODE]))
+    cg.add(
+        var.set_set_point_minimum_differential(
+            config[CONF_SET_POINT_MINIMUM_DIFFERENTIAL]
+        )
+    )
     cg.add(var.set_sensor(sens))
     cg.add(var.set_hysteresis(config[CONF_HYSTERESIS]))
 
