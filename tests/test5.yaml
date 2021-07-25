@@ -33,7 +33,7 @@ binary_sensor:
 tlc5947:
   data_pin: GPIO12
   clock_pin: GPIO14
-  xlat_pin: GPIO15
+  lat_pin: GPIO15
 
 output:
   - platform: gpio
