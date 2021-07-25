@@ -13,7 +13,7 @@ static const uint8_t SDP3X_START_DP_AVG[2] = {0x36, 0x15};
 static const uint8_t SDP3X_STOP_MEAS[2] = {0x3F, 0xF9};
 
 void SDP3XComponent::update() {
-  this->set_timeout("pressure", 5, [this]() { this->read_pressure_(); });
+  this->read_pressure_();
 }
 
 void SDP3XComponent::setup() {
