@@ -186,16 +186,15 @@ void MideaAC::control(const climate::ClimateCall &call) {
 
 climate::ClimateTraits MideaAC::traits() {
   auto traits = climate::ClimateTraits();
-  this->capabilities_.to_climate_traits(traits);
-
-  traits.set_supported_custom_fan_modes(this->traits_custom_fan_modes_);
-
-  if (traits_swing_horizontal_)
-    traits.add_supported_swing_mode(climate::CLIMATE_SWING_HORIZONTAL);
-  if (traits_swing_both_)
-    traits.add_supported_swing_mode(climate::CLIMATE_SWING_BOTH);
-
   traits.set_supported_custom_presets(this->traits_custom_presets_);
+  traits.set_supported_custom_fan_modes(this->traits_custom_fan_modes_);
+  if (this->traits_preset_sleep_)
+    traits.add_supported_preset(ClimatePreset::CLIMATE_PRESET_SLEEP);
+  if (this->traits_swing_horizontal_)
+    traits.add_supported_swing_mode(ClimateSwingMode::CLIMATE_SWING_HORIZONTAL);
+  if (this->traits_swing_both_)
+    traits.add_supported_swing_mode(ClimateSwingMode::CLIMATE_SWING_BOTH);
+  this->capabilities_.to_climate_traits(traits);
   return traits;
 }
 

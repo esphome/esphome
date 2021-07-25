@@ -220,9 +220,9 @@ bool Capabilities::read(const Frame &frame) {
   return false;
 }
 
-const std::string Capabilities::FREEZE_PROTECTION = "FREEZE_PROTECTION";
-const std::string Capabilities::SILENT = "SILENT";
-const std::string Capabilities::TURBO = "TURBO";
+const std::string Capabilities::FREEZE_PROTECTION = "freeze protection";
+const std::string Capabilities::SILENT = "silent";
+const std::string Capabilities::TURBO = "turbo";
 
 void Capabilities::to_climate_traits(ClimateTraits &traits) const {
   /* TEMPERATURES */
@@ -243,18 +243,14 @@ void Capabilities::to_climate_traits(ClimateTraits &traits) const {
     traits.add_supported_mode(ClimateMode::CLIMATE_MODE_DRY);
 
   /* FAN MODES */
-  traits.set_supported_fan_modes({
-      ClimateFanMode::CLIMATE_FAN_AUTO,
-      ClimateFanMode::CLIMATE_FAN_LOW,
-      ClimateFanMode::CLIMATE_FAN_MEDIUM,
-      ClimateFanMode::CLIMATE_FAN_HIGH,
-  });
+  traits.add_supported_fan_mode(ClimateFanMode::CLIMATE_FAN_AUTO);
+  traits.add_supported_fan_mode(ClimateFanMode::CLIMATE_FAN_LOW);
+  traits.add_supported_fan_mode(ClimateFanMode::CLIMATE_FAN_MEDIUM);
+  traits.add_supported_fan_mode(ClimateFanMode::CLIMATE_FAN_HIGH);
 
   /* SWING MODES */
-  traits.set_supported_swing_modes({
-      ClimateSwingMode::CLIMATE_SWING_OFF,
-      ClimateSwingMode::CLIMATE_SWING_VERTICAL,
-  });
+  traits.add_supported_swing_mode(ClimateSwingMode::CLIMATE_SWING_OFF);
+  traits.add_supported_swing_mode(ClimateSwingMode::CLIMATE_SWING_VERTICAL);
 
   /* PRESETS */
   traits.add_supported_preset(ClimatePreset::CLIMATE_PRESET_NONE);

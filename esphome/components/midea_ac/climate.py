@@ -33,14 +33,14 @@ midea_ac_ns = cg.esphome_ns.namespace("midea_ac")
 MideaAC = midea_ac_ns.class_("MideaAC", climate.Climate, cg.Component)
 
 CLIMATE_CUSTOM_FAN_MODES = {
-    "SILENT": "SILENT",
-    "TURBO": "TURBO",
+    "SILENT": "silent",
+    "TURBO": "turbo",
 }
 
 validate_climate_custom_fan_mode = cv.enum(CLIMATE_CUSTOM_FAN_MODES, upper=True)
 
 CLIMATE_CUSTOM_PRESETS = {
-    "FREEZE_PROTECTION": "FREEZE_PROTECTION",
+    "FREEZE_PROTECTION": "freeze protection",
 }
 
 validate_climate_custom_preset = cv.enum(CLIMATE_CUSTOM_PRESETS, upper=True)
@@ -97,9 +97,9 @@ async def to_code(config):
         cg.add(var.set_custom_presets(config[CONF_CUSTOM_PRESETS]))
     cg.add(var.set_swing_horizontal(config[CONF_SWING_HORIZONTAL]))
     cg.add(var.set_swing_both(config[CONF_SWING_BOTH]))
-    cg.add(var.set_preset_eco(config[CONF_PRESET_ECO]))
+    #    cg.add(var.set_preset_eco(config[CONF_PRESET_ECO]))
     cg.add(var.set_preset_sleep(config[CONF_PRESET_SLEEP]))
-    cg.add(var.set_preset_boost(config[CONF_PRESET_BOOST]))
+    #    cg.add(var.set_preset_boost(config[CONF_PRESET_BOOST]))
     if CONF_OUTDOOR_TEMPERATURE in config:
         sens = await sensor.new_sensor(config[CONF_OUTDOOR_TEMPERATURE])
         cg.add(var.set_outdoor_temperature_sensor(sens))
