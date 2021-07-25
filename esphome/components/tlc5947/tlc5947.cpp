@@ -13,7 +13,7 @@ void TLC5947::setup() {
   this->clock_pin_->digital_write(true);
   this->lat_pin_->setup();
   this->lat_pin_->digital_write(true);
-  if (this->outenable_pin_ != nullptr){
+  if (this->outenable_pin_ != nullptr) {
     this->outenable_pin_->setup();
     this->outenable_pin_->digital_write(false);
   }
@@ -38,7 +38,7 @@ void TLC5947::loop() {
 
   this->lat_pin_->digital_write(false);
 
-  //push the data out, MSB first, 12 bit word per channel, 24 channels per chip
+  // push the data out, MSB first, 12 bit word per channel, 24 channels per chip
   for (int32_t ch = N_CHANNELS_PER_CHIP * num_chips_ - 1; ch >= 0; ch--) {
     uint16_t word = pwm_amounts_[ch];
     for (uint8_t bit = 0; bit < 12; bit++) {
@@ -47,7 +47,7 @@ void TLC5947::loop() {
       word <<= 1;
 
       this->clock_pin_->digital_write(true);
-      this->clock_pin_->digital_write(true);//TWH0>12ns, so we should be fine using this as delay
+      this->clock_pin_->digital_write(true);  // TWH0>12ns, so we should be fine using this as delay
     }
   }
 
@@ -55,7 +55,7 @@ void TLC5947::loop() {
 
   // latch the values, so they will be applied
   this->lat_pin_->digital_write(true);
-  delayMicroseconds(1); // TWH1 > 30ns
+  delayMicroseconds(1);  // TWH1 > 30ns
   this->lat_pin_->digital_write(false);
 
   this->update_ = false;

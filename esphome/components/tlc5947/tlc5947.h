@@ -9,7 +9,6 @@
 namespace esphome {
 namespace tlc5947 {
 
-
 class TLC5947 : public Component {
  public:
   class Channel;
@@ -49,7 +48,7 @@ class TLC5947 : public Component {
  protected:
   void set_channel_value_(uint16_t channel, uint16_t value) {
     if (channel >= this->num_chips_ * N_CHANNELS_PER_CHIP)
-        return;
+      return;
     if (this->pwm_amounts_[channel] != value) {
       this->update_ = true;
     }
