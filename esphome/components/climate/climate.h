@@ -240,6 +240,7 @@ class Climate : public Nameable {
   void set_visual_min_temperature_override(float visual_min_temperature_override);
   void set_visual_max_temperature_override(float visual_max_temperature_override);
   void set_visual_temperature_step_override(float visual_temperature_step_override);
+  void dump_traits(const char *tag);
 
  protected:
   friend ClimateCall;

@@ -490,5 +490,130 @@ void ClimateDeviceRestoreState::apply(Climate *climate) {
   climate->publish_state();
 }
 
+static const char *mode_to_string(ClimateMode mode) {
+  switch (mode) {
+  case ClimateMode::CLIMATE_MODE_AUTO:
+    return "AUTO";
+  case ClimateMode::CLIMATE_MODE_COOL:
+    return "COOL";
+  case ClimateMode::CLIMATE_MODE_DRY:
+    return "DRY";
+  case ClimateMode::CLIMATE_MODE_FAN_ONLY:
+    return "FAN_ONLY";
+  case ClimateMode::CLIMATE_MODE_HEAT:
+    return "HEAT";
+  case ClimateMode::CLIMATE_MODE_HEAT_COOL:
+    return "HEAT_COOL";
+  case ClimateMode::CLIMATE_MODE_OFF:
+    return "OFF";
+  }
+  return "UNKNOWN";
+}
+
+static const char *fanmode_to_string(ClimateFanMode mode) {
+  switch (mode) {
+  case ClimateFanMode::CLIMATE_FAN_AUTO:
+    return "AUTO";
+  case ClimateFanMode::CLIMATE_FAN_DIFFUSE:
+    return "DIFFUSE";
+  case ClimateFanMode::CLIMATE_FAN_FOCUS:
+    return "FOCUS";
+  case ClimateFanMode::CLIMATE_FAN_HIGH:
+    return "HIGH";
+  case ClimateFanMode::CLIMATE_FAN_LOW:
+    return "LOW";
+  case ClimateFanMode::CLIMATE_FAN_MEDIUM:
+    return "MEDIUM";
+  case ClimateFanMode::CLIMATE_FAN_MIDDLE:
+    return "MIDDLE";
+  case ClimateFanMode::CLIMATE_FAN_OFF:
+    return "OFF";
+  case ClimateFanMode::CLIMATE_FAN_ON:
+    return "ON";
+  }
+  return "UNKNOWN";
+}
+
+static const char *swingmode_to_string(ClimateSwingMode mode) {
+  switch (mode) {
+  case ClimateSwingMode::CLIMATE_SWING_BOTH:
+    return "BOTH";
+  case ClimateSwingMode::CLIMATE_SWING_HORIZONTAL:
+    return "HORIZONTAL";
+  case ClimateSwingMode::CLIMATE_SWING_OFF:
+    return "OFF";
+  case ClimateSwingMode::CLIMATE_SWING_VERTICAL:
+    return "VERTICAL";
+  }
+  return "UNKNOWN";
+}
+
+static const char *preset_to_string(ClimatePreset preset) {
+  switch (preset) {
+  case ClimatePreset::CLIMATE_PRESET_ACTIVITY:
+    return "ACTIVITY";
+  case ClimatePreset::CLIMATE_PRESET_AWAY:
+    return "AWAY";
+  case ClimatePreset::CLIMATE_PRESET_BOOST:
+    return "BOOST";
+  case ClimatePreset::CLIMATE_PRESET_COMFORT:
+    return "COMFORT";
+  case ClimatePreset::CLIMATE_PRESET_ECO:
+    return "ECO";
+  case ClimatePreset::CLIMATE_PRESET_HOME:
+    return "HOME";
+  case ClimatePreset::CLIMATE_PRESET_NONE:
+    return "NONE";
+  case ClimatePreset::CLIMATE_PRESET_SLEEP:
+    return "SLEEP";
+  }
+  return "UNKNOWN";
+}
+
+void Climate::dump_traits(const char *tag) {
+  auto traits = this->get_traits();
+  ESP_LOGCONFIG(tag, "ClimateTraits:");
+  ESP_LOGCONFIG(tag, "  [x] Visual settings:");
+  ESP_LOGCONFIG(tag, "      - Min: %.1f", traits.get_visual_min_temperature());
+  ESP_LOGCONFIG(tag, "      - Max: %.1f", traits.get_visual_max_temperature());
+  ESP_LOGCONFIG(tag, "      - Step: %.1f", traits.get_visual_temperature_step());
+  if (traits.get_supports_current_temperature())
+    ESP_LOGCONFIG(tag, "  [x] Current temperature");
+  if (traits.get_supports_two_point_target_temperature())
+    ESP_LOGCONFIG(tag, "  [x] Two-point target temperature");
+  if (traits.get_supports_action())
+    ESP_LOGCONFIG(tag, "  [x] Action");
+  if (!traits.get_supported_modes().empty()) {
+    ESP_LOGCONFIG(tag, "  [x] Modes:");
+    for (ClimateMode m : traits.get_supported_modes())
+      ESP_LOGCONFIG(tag, "      - %s", mode_to_string(m));
+  }
+  if (!traits.get_supported_fan_modes().empty()) {
+    ESP_LOGCONFIG(tag, "  [x] Fan modes:");
+    for (ClimateFanMode m : traits.get_supported_fan_modes())
+      ESP_LOGCONFIG(tag, "      - %s", fanmode_to_string(m));
+  }
+  if (!traits.get_supported_custom_fan_modes().empty()) {
+    ESP_LOGCONFIG(tag, "  [x] Custom fan modes:");
+    for (const std::string &s : traits.get_supported_custom_fan_modes())
+      ESP_LOGCONFIG(tag, "      - %s", s.c_str());
+  }
+  if (!traits.get_supported_presets().empty()) {
+    ESP_LOGCONFIG(tag, "  [x] Presets:");
+    for (ClimatePreset p : traits.get_supported_presets())
+      ESP_LOGCONFIG(tag, "      - %s", preset_to_string(p));
+  }
+  if (!traits.get_supported_custom_presets().empty()) {
+    ESP_LOGCONFIG(tag, "  [x] Custom presets:");
+    for (const std::string &s : traits.get_supported_custom_presets())
+      ESP_LOGCONFIG(tag, "      - %s", s.c_str());
+  }
+  if (!traits.get_supported_swing_modes().empty()) {
+    ESP_LOGCONFIG(tag, "  [x] Swing modes:");
+    for (ClimateSwingMode m : traits.get_supported_swing_modes())
+      ESP_LOGCONFIG(tag, "      - %s", swingmode_to_string(m));
+  }
+}
+
 }  // namespace climate
 }  // namespace esphome

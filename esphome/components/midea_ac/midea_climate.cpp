@@ -222,7 +222,8 @@ void MideaAC::display_toggle_() {
 }
 
 void MideaAC::dump_config() {
-  print_capabilities(TAG, this->capabilities_);
+  this->capabilities_.dump(TAG);
+  this->dump_traits(TAG);
 }
 
 /* ACTIONS */

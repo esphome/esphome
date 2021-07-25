@@ -29,11 +29,10 @@ extern const float PROCESSOR;
 extern const float BLUETOOTH;
 extern const float AFTER_BLUETOOTH;
 extern const float WIFI;
-/// For components that should be initialized after WiFi is connected.
-extern const float AFTER_WIFI;
 /// For components that should be initialized after WiFi and before API is connected.
 extern const float BEFORE_CONNECTION;
-extern const float CONNECTION;
+/// For components that should be initialized after WiFi is connected.
+extern const float AFTER_WIFI;
 /// For components that should be initialized after a data connection (API/MQTT) is connected.
 extern const float AFTER_CONNECTION;
 /// For components that should be initialized at the very end of the setup process.

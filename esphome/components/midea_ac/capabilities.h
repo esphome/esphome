@@ -22,6 +22,7 @@ class Capabilities {
   bool read(const Frame &frame);
   // Is ready for reading Climate traits
   bool is_ready() const { return this->is_ready_; }
+  void dump(const char *tag) const;
   // To ClimateTraits
   void to_climate_traits(ClimateTraits &traits) const;
   // Control humidity
@@ -109,8 +110,6 @@ class Capabilities {
   // is filled?
   bool is_ready_{false};
 };
-
-void print_capabilities(const char *tag, const Capabilities &capabilities);
 
 }  // namespace midea_ac
 }  // namespace esphome

@@ -68,8 +68,8 @@ class MideaAC : public midea_dongle::MideaAppliance, public climate::Climate, pu
   Sensor *outdoor_sensor_{nullptr};
   Sensor *humidity_sensor_{nullptr};
   Sensor *power_sensor_{nullptr};
-  std::set<std::string> traits_custom_fan_modes_{{}};
-  std::set<std::string> traits_custom_presets_{{}};
+  std::set<std::string> traits_custom_fan_modes_{};
+  std::set<std::string> traits_custom_presets_{};
   CommandFrame cmd_frame_{};
   Capabilities capabilities_{};
   bool beeper_feedback_{false};

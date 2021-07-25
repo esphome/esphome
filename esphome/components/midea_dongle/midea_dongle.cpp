@@ -128,18 +128,20 @@ void MideaDongle::destroy_request_() {
 }
 
 void MideaDongle::dump_config() {
-  ESP_LOGCONFIG(TAG, "Using period: %dms", this->period_);
+  ESP_LOGCONFIG(TAG, "MideaDongle:");
+  ESP_LOGCONFIG(TAG, "  [x] Period: %dms", this->period_);
+#ifdef USE_REMOTE_TRANSMITTER
+  ESP_LOGCONFIG(TAG, "  [x] Using RemoteTransmitter");
 }
 
-#ifdef USE_REMOTE_TRANSMITTER
 void MideaDongle::transmit_ir(remote_base::MideaData &data) {
   data.finalize();
   ESP_LOGD(TAG, "Sending Midea IR data: %s", data.to_string().c_str());
   auto transmit = this->transmitter_->transmit();
   remote_base::MideaProtocol().encode(transmit.get_data(), data);
   transmit.perform();
-}
 #endif
+}
 
 }  // namespace midea_dongle
 }  // namespace esphome
