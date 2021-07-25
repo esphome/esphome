@@ -5,6 +5,7 @@ from esphome.const import (
     CONF_ID,
     DEVICE_CLASS_PRESSURE,
     ICON_EMPTY,
+    STATE_CLASS_MEASUREMENT,
     UNIT_HECTOPASCAL,
 )
 
