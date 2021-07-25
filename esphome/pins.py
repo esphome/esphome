@@ -69,6 +69,7 @@ _ESP32C3_SDIO_PINS = {
     17: "Flash IO1/DO",
 }
 
+
 def validate_gpio_pin(value):
     value = _translate_pin(value)
     if CORE.is_esp32_c3:
