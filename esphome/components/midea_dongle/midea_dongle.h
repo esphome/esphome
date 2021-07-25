@@ -46,9 +46,10 @@ struct MideaRequest {
 
 class MideaDongle : public Component, public uart::UARTDevice {
  public:
-  float get_setup_priority() const override { return setup_priority::BEFORE_API; }
+  float get_setup_priority() const override { return setup_priority::BEFORE_CONNECTION; }
   void setup() override;
   void loop() override;
+  void dump_config() override;
   void set_appliance(MideaAppliance *app) { this->appliance_ = app; }
   void send_frame(const Frame &frame);
   void queue_request(const Frame &frame, uint32_t attempts, uint32_t timeout, ResponseHandler handler = nullptr);
@@ -74,7 +75,7 @@ class MideaDongle : public Component, public uart::UARTDevice {
 #ifdef USE_REMOTE_TRANSMITTER
   remote_transmitter::RemoteTransmitterComponent *transmitter_{nullptr};
 #endif
-  FrameReceiver<64> receiver_{};
+  FrameReceiver<256> receiver_{};
   uint32_t period_{1000};
   bool is_ready_{true};
 };

@@ -199,7 +199,6 @@ void MideaAC::get_capabilities_() {
       this->dongle_->send_frame(data);
       return ResponseStatus::RESPONSE_PARTIAL;
     }
-    print_capabilities(TAG, this->capabilities_);
     return ResponseStatus::RESPONSE_OK;
   });
 }
@@ -220,6 +219,10 @@ void MideaAC::display_toggle_() {
                     0x00, 0x00, 0xE3, 0xA8};
   ESP_LOGD(TAG, "Enqueuing a priority TOGGLE_LIGHT(0x41) request...");
   this->dongle_->queue_request_priority(data, 5, 2000, std::bind(&MideaAC::read_status_, this, std::placeholders::_1));
+}
+
+void MideaAC::dump_config() {
+  print_capabilities(TAG, this->capabilities_);
 }
 
 /* ACTIONS */

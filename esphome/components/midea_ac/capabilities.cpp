@@ -268,7 +268,7 @@ void Capabilities::to_climate_traits(ClimateTraits &traits) const {
 static const char *bool_to_string(bool val) { return val ? "TRUE" : "FALSE"; }
 
 void print_capabilities(const char *tag, const Capabilities &capabilities) {
-  ESP_LOGCONFIG(tag, "AIR CONDITIONER CAPABILITIES:");
+  ESP_LOGCONFIG(tag, "MIDEA_AC CAPABILITIES REPORT:");
   ESP_LOGCONFIG(tag, "  AUTO SET HUMIDITY: %s", bool_to_string(capabilities.auto_set_humidity()));
   ESP_LOGCONFIG(tag, "  AUTO MODE: %s", bool_to_string(capabilities.auto_mode()));
   ESP_LOGCONFIG(tag, "  ACTIVE CLEAN: %s", bool_to_string(capabilities.active_clean()));

@@ -127,6 +127,10 @@ void MideaDongle::destroy_request_() {
   this->cancel_timeout(RESPONSE_TIMEOUT);
 }
 
+void MideaDongle::dump_config() {
+  ESP_LOGCONFIG(TAG, "Using period: %dms", this->period_);
+}
+
 #ifdef USE_REMOTE_TRANSMITTER
 void MideaDongle::transmit_ir(remote_base::MideaData &data) {
   data.finalize();

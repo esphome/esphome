@@ -24,11 +24,12 @@ using midea_dongle::MideaDongle;
 
 class MideaAC : public midea_dongle::MideaAppliance, public climate::Climate, public Component {
  public:
-  float get_setup_priority() const override { return setup_priority::BEFORE_API; }
+  float get_setup_priority() const override { return setup_priority::BEFORE_CONNECTION; }
   void on_frame(const Frame &frame) override;
   void on_idle() override { this->get_status_(); }
   void setup() override;
   bool can_proceed() override { return this->capabilities_.is_ready(); }
+  void dump_config() override;
   void set_dongle(MideaDongle *dongle) { this->dongle_ = dongle; }
   void set_outdoor_temperature_sensor(Sensor *sensor) { this->outdoor_sensor_ = sensor; }
   void set_humidity_setpoint_sensor(Sensor *sensor) { this->humidity_sensor_ = sensor; }
