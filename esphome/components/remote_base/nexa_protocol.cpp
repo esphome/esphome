@@ -6,7 +6,6 @@ namespace remote_base {
 
 static const char *const TAG = "remote.nexa";
 
-
 static const uint8_t NBITS = 32;
 static const uint32_t HEADER_HIGH_US = 319;
 static const uint32_t HEADER_LOW_US = 2610;
