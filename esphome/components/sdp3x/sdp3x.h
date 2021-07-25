@@ -23,7 +23,7 @@ class SDP3XComponent : public PollingComponent, public i2c::I2CDevice, public se
 
   bool CheckCrc(const uint8_t data[], uint8_t size, uint8_t checksum);
 
-  float pressure_scale_factor = 0.0f; // hPa per count
+  float pressure_scale_factor_ = 0.0f; // hPa per count
 };
 
 }  // namespace sdp3x

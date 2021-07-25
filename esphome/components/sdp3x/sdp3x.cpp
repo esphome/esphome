@@ -55,11 +55,11 @@ void SDP3XComponent::setup() {
 
   if (data[3] == 0x01) {
     ESP_LOGCONFIG(TAG, "SDP3X is SDP31");
-    pressure_scale_factor = 60.0f * 100.0f; // Scale factors converted to hPa per count
+    pressure_scale_factor_ = 60.0f * 100.0f; // Scale factors converted to hPa per count
   } 
   else if (data[3] == 0x02) {
     ESP_LOGCONFIG(TAG, "SDP3X is SDP32");
-    pressure_scale_factor = 240.0f * 100.0f;
+    pressure_scale_factor_ = 240.0f * 100.0f;
   }
 
   if (!this->write_bytes_raw(SDP3X_START_DP_AVG, 2)) {
@@ -95,8 +95,8 @@ void SDP3XComponent::read_pressure_() {
   }
   
   int16_t pressure_raw = (int16_t)((data[0] << 8) | data[1]);
-  float pressure = pressure_raw / pressure_scale_factor;
-  ESP_LOGD(TAG, "Got raw pressure=%d, scale factor =%.3f ", pressure_raw, pressure_scale_factor);
+  float pressure = pressure_raw / pressure_scale_factor_;
+  ESP_LOGD(TAG, "Got raw pressure=%d, scale factor =%.3f ", pressure_raw, pressure_scale_factor_);
   ESP_LOGD(TAG, "Got Pressure=%.3f hPa", pressure);
 
   this->publish_state(pressure);
@@ -107,7 +107,7 @@ float SDP3XComponent::get_setup_priority() const { return setup_priority::DATA; 
 
 // Check CRC function from SDP3X sample code provided by sensirion
 // Returns true if a checksum is OK
-bool SDP3XComponent::CheckCrc(const uint8_t data[], uint8_t size, uint8_t checksum) {
+bool SDP3XComponent::check_crc_(const uint8_t data[], uint8_t size, uint8_t checksum) {
   uint8_t crc = 0xFF;
 
   // calculates 8-Bit checksum with given polynomial 0x31 (x^8 + x^5 + x^4 + 1)
