@@ -6,7 +6,7 @@
 namespace esphome {
 namespace xiaomi_miscale2 {
 
-static const char *TAG = "xiaomi_miscale2";
+static const char *const TAG = "xiaomi_miscale2";
 
 void XiaomiMiscale2::dump_config() {
   ESP_LOGCONFIG(TAG, "Xiaomi Miscale2");

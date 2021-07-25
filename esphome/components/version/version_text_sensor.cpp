@@ -6,7 +6,7 @@
 namespace esphome {
 namespace version {
 
-static const char *TAG = "version.text_sensor";
+static const char *const TAG = "version.text_sensor";
 
 void VersionTextSensor::setup() {
   if (this->hide_timestamp_) {

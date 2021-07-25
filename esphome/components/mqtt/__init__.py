@@ -37,7 +37,7 @@ from esphome.const import (
     CONF_USERNAME,
     CONF_WILL_MESSAGE,
 )
-from esphome.core import coroutine_with_priority, coroutine, CORE
+from esphome.core import coroutine_with_priority, CORE
 
 DEPENDENCIES = ["network"]
 AUTO_LOAD = ["json", "async_tcp"]
@@ -91,6 +91,7 @@ MQTTJSONLightComponent = mqtt_ns.class_("MQTTJSONLightComponent", MQTTComponent)
 MQTTSensorComponent = mqtt_ns.class_("MQTTSensorComponent", MQTTComponent)
 MQTTSwitchComponent = mqtt_ns.class_("MQTTSwitchComponent", MQTTComponent)
 MQTTTextSensor = mqtt_ns.class_("MQTTTextSensor", MQTTComponent)
+MQTTNumberComponent = mqtt_ns.class_("MQTTNumberComponent", MQTTComponent)
 
 
 def validate_config(value):
@@ -207,9 +208,9 @@ def exp_mqtt_message(config):
 
 
 @coroutine_with_priority(40.0)
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
+    await cg.register_component(var, config)
 
     # https://github.com/OttoWinter/async-mqtt-client/blob/master/library.json
     cg.add_library("AsyncMqttClient-esphome", "0.8.4")
@@ -279,12 +280,12 @@ def to_code(config):
         cg.add(trig.set_qos(conf[CONF_QOS]))
         if CONF_PAYLOAD in conf:
             cg.add(trig.set_payload(conf[CONF_PAYLOAD]))
-        yield cg.register_component(trig, conf)
-        yield automation.build_automation(trig, [(cg.std_string, "x")], conf)
+        await cg.register_component(trig, conf)
+        await automation.build_automation(trig, [(cg.std_string, "x")], conf)
 
     for conf in config.get(CONF_ON_JSON_MESSAGE, []):
         trig = cg.new_Pvariable(conf[CONF_TRIGGER_ID], conf[CONF_TOPIC], conf[CONF_QOS])
-        yield automation.build_automation(trig, [(cg.JsonObjectConstRef, "x")], conf)
+        await automation.build_automation(trig, [(cg.JsonObjectConstRef, "x")], conf)
 
 
 MQTT_PUBLISH_ACTION_SCHEMA = cv.Schema(
@@ -301,19 +302,19 @@ MQTT_PUBLISH_ACTION_SCHEMA = cv.Schema(
 @automation.register_action(
     "mqtt.publish", MQTTPublishAction, MQTT_PUBLISH_ACTION_SCHEMA
 )
-def mqtt_publish_action_to_code(config, action_id, template_arg, args):
-    paren = yield cg.get_variable(config[CONF_ID])
+async def mqtt_publish_action_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = yield cg.templatable(config[CONF_TOPIC], args, cg.std_string)
+    template_ = await cg.templatable(config[CONF_TOPIC], args, cg.std_string)
     cg.add(var.set_topic(template_))
 
-    template_ = yield cg.templatable(config[CONF_PAYLOAD], args, cg.std_string)
+    template_ = await cg.templatable(config[CONF_PAYLOAD], args, cg.std_string)
     cg.add(var.set_payload(template_))
-    template_ = yield cg.templatable(config[CONF_QOS], args, cg.uint8)
+    template_ = await cg.templatable(config[CONF_QOS], args, cg.uint8)
     cg.add(var.set_qos(template_))
-    template_ = yield cg.templatable(config[CONF_RETAIN], args, bool)
+    template_ = await cg.templatable(config[CONF_RETAIN], args, bool)
     cg.add(var.set_retain(template_))
-    yield var
+    return var
 
 
 MQTT_PUBLISH_JSON_ACTION_SCHEMA = cv.Schema(
@@ -330,20 +331,20 @@ MQTT_PUBLISH_JSON_ACTION_SCHEMA = cv.Schema(
 @automation.register_action(
     "mqtt.publish_json", MQTTPublishJsonAction, MQTT_PUBLISH_JSON_ACTION_SCHEMA
 )
-def mqtt_publish_json_action_to_code(config, action_id, template_arg, args):
-    paren = yield cg.get_variable(config[CONF_ID])
+async def mqtt_publish_json_action_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = yield cg.templatable(config[CONF_TOPIC], args, cg.std_string)
+    template_ = await cg.templatable(config[CONF_TOPIC], args, cg.std_string)
     cg.add(var.set_topic(template_))
 
     args_ = args + [(cg.JsonObjectRef, "root")]
-    lambda_ = yield cg.process_lambda(config[CONF_PAYLOAD], args_, return_type=cg.void)
+    lambda_ = await cg.process_lambda(config[CONF_PAYLOAD], args_, return_type=cg.void)
     cg.add(var.set_payload(lambda_))
-    template_ = yield cg.templatable(config[CONF_QOS], args, cg.uint8)
+    template_ = await cg.templatable(config[CONF_QOS], args, cg.uint8)
     cg.add(var.set_qos(template_))
-    template_ = yield cg.templatable(config[CONF_RETAIN], args, bool)
+    template_ = await cg.templatable(config[CONF_RETAIN], args, bool)
     cg.add(var.set_retain(template_))
-    yield var
+    return var
 
 
 def get_default_topic_for(data, component_type, name, suffix):
@@ -356,9 +357,8 @@ def get_default_topic_for(data, component_type, name, suffix):
     )
 
 
-@coroutine
-def register_mqtt_component(var, config):
-    yield cg.register_component(var, {})
+async def register_mqtt_component(var, config):
+    await cg.register_component(var, {})
 
     if CONF_RETAIN in config:
         cg.add(var.set_retain(config[CONF_RETAIN]))
@@ -391,6 +391,6 @@ def register_mqtt_component(var, config):
         }
     ),
 )
-def mqtt_connected_to_code(config, condition_id, template_arg, args):
-    paren = yield cg.get_variable(config[CONF_ID])
-    yield cg.new_Pvariable(condition_id, template_arg, paren)
+async def mqtt_connected_to_code(config, condition_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(condition_id, template_arg, paren)

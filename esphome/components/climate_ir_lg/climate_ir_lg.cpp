@@ -4,7 +4,7 @@
 namespace esphome {
 namespace climate_ir_lg {
 
-static const char *TAG = "climate.climate_ir_lg";
+static const char *const TAG = "climate.climate_ir_lg";
 
 const uint32_t COMMAND_ON = 0x00000;
 const uint32_t COMMAND_ON_AI = 0x03000;
@@ -39,7 +39,7 @@ void LgIrClimate::transmit_state() {
     send_swing_cmd_ = false;
     remote_state |= COMMAND_SWING;
   } else {
-    if (mode_before_ == climate::CLIMATE_MODE_OFF && this->mode == climate::CLIMATE_MODE_AUTO) {
+    if (mode_before_ == climate::CLIMATE_MODE_OFF && this->mode == climate::CLIMATE_MODE_HEAT_COOL) {
       remote_state |= COMMAND_ON_AI;
     } else if (mode_before_ == climate::CLIMATE_MODE_OFF && this->mode != climate::CLIMATE_MODE_OFF) {
       remote_state |= COMMAND_ON;
@@ -52,7 +52,7 @@ void LgIrClimate::transmit_state() {
         case climate::CLIMATE_MODE_HEAT:
           remote_state |= COMMAND_HEAT;
           break;
-        case climate::CLIMATE_MODE_AUTO:
+        case climate::CLIMATE_MODE_HEAT_COOL:
           remote_state |= COMMAND_AUTO;
           break;
         case climate::CLIMATE_MODE_DRY:
@@ -72,7 +72,7 @@ void LgIrClimate::transmit_state() {
       remote_state |= FAN_AUTO;
     } else if (this->mode == climate::CLIMATE_MODE_COOL || this->mode == climate::CLIMATE_MODE_DRY ||
                this->mode == climate::CLIMATE_MODE_HEAT) {
-      switch (this->fan_mode) {
+      switch (this->fan_mode.value()) {
         case climate::CLIMATE_FAN_HIGH:
           remote_state |= FAN_MAX;
           break;
@@ -89,12 +89,12 @@ void LgIrClimate::transmit_state() {
       }
     }
 
-    if (this->mode == climate::CLIMATE_MODE_AUTO) {
+    if (this->mode == climate::CLIMATE_MODE_HEAT_COOL) {
       this->fan_mode = climate::CLIMATE_FAN_AUTO;
       // remote_state |= FAN_MODE_AUTO_DRY;
     }
     if (this->mode == climate::CLIMATE_MODE_COOL || this->mode == climate::CLIMATE_MODE_HEAT) {
-      auto temp = (uint8_t) roundf(clamp(this->target_temperature, TEMP_MIN, TEMP_MAX));
+      auto temp = (uint8_t) roundf(clamp<float>(this->target_temperature, TEMP_MIN, TEMP_MAX));
       remote_state |= ((temp - 15) << TEMP_SHIFT);
     }
   }
@@ -128,7 +128,7 @@ bool LgIrClimate::on_receive(remote_base::RemoteReceiveData data) {
   if ((remote_state & COMMAND_MASK) == COMMAND_ON) {
     this->mode = climate::CLIMATE_MODE_COOL;
   } else if ((remote_state & COMMAND_MASK) == COMMAND_ON_AI) {
-    this->mode = climate::CLIMATE_MODE_AUTO;
+    this->mode = climate::CLIMATE_MODE_HEAT_COOL;
   }
 
   if ((remote_state & COMMAND_MASK) == COMMAND_OFF) {
@@ -138,7 +138,7 @@ bool LgIrClimate::on_receive(remote_base::RemoteReceiveData data) {
         this->swing_mode == climate::CLIMATE_SWING_OFF ? climate::CLIMATE_SWING_VERTICAL : climate::CLIMATE_SWING_OFF;
   } else {
     if ((remote_state & COMMAND_MASK) == COMMAND_AUTO)
-      this->mode = climate::CLIMATE_MODE_AUTO;
+      this->mode = climate::CLIMATE_MODE_HEAT_COOL;
     else if ((remote_state & COMMAND_MASK) == COMMAND_DRY_FAN)
       this->mode = climate::CLIMATE_MODE_DRY;
     else if ((remote_state & COMMAND_MASK) == COMMAND_HEAT) {
@@ -152,7 +152,7 @@ bool LgIrClimate::on_receive(remote_base::RemoteReceiveData data) {
       this->target_temperature = ((remote_state & TEMP_MASK) >> TEMP_SHIFT) + 15;
 
     // Fan Speed
-    if (this->mode == climate::CLIMATE_MODE_AUTO) {
+    if (this->mode == climate::CLIMATE_MODE_HEAT_COOL) {
       this->fan_mode = climate::CLIMATE_FAN_AUTO;
     } else if (this->mode == climate::CLIMATE_MODE_COOL || this->mode == climate::CLIMATE_MODE_HEAT ||
                this->mode == climate::CLIMATE_MODE_DRY) {

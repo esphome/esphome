@@ -8,6 +8,7 @@ from esphome.const import (
     CONF_PIN,
     DEVICE_CLASS_VOLTAGE,
     ICON_EMPTY,
+    STATE_CLASS_MEASUREMENT,
     UNIT_VOLT,
 )
 
@@ -15,10 +16,10 @@ from esphome.const import (
 AUTO_LOAD = ["voltage_sampler"]
 
 ATTENUATION_MODES = {
-    "0db": cg.global_ns.ADC_0db,
-    "2.5db": cg.global_ns.ADC_2_5db,
-    "6db": cg.global_ns.ADC_6db,
-    "11db": cg.global_ns.ADC_11db,
+    "0db": cg.global_ns.ADC_ATTEN_DB_0,
+    "2.5db": cg.global_ns.ADC_ATTEN_DB_2_5,
+    "6db": cg.global_ns.ADC_ATTEN_DB_6,
+    "11db": cg.global_ns.ADC_ATTEN_DB_11,
 }
 
 
@@ -35,7 +36,9 @@ ADCSensor = adc_ns.class_(
 )
 
 CONFIG_SCHEMA = (
-    sensor.sensor_schema(UNIT_VOLT, ICON_EMPTY, 2, DEVICE_CLASS_VOLTAGE)
+    sensor.sensor_schema(
+        UNIT_VOLT, ICON_EMPTY, 2, DEVICE_CLASS_VOLTAGE, STATE_CLASS_MEASUREMENT
+    )
     .extend(
         {
             cv.GenerateID(): cv.declare_id(ADCSensor),
@@ -49,10 +52,10 @@ CONFIG_SCHEMA = (
 )
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
-    yield sensor.register_sensor(var, config)
+    await cg.register_component(var, config)
+    await sensor.register_sensor(var, config)
 
     if config[CONF_PIN] == "VCC":
         cg.add_define("USE_ADC_SENSOR_VCC")

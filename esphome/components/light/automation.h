@@ -31,6 +31,7 @@ template<typename... Ts> class LightControlAction : public Action<Ts...> {
   TEMPLATABLE_VALUE(uint32_t, transition_length)
   TEMPLATABLE_VALUE(uint32_t, flash_length)
   TEMPLATABLE_VALUE(float, brightness)
+  TEMPLATABLE_VALUE(float, color_brightness)
   TEMPLATABLE_VALUE(float, red)
   TEMPLATABLE_VALUE(float, green)
   TEMPLATABLE_VALUE(float, blue)
@@ -42,6 +43,7 @@ template<typename... Ts> class LightControlAction : public Action<Ts...> {
     auto call = this->parent_->make_call();
     call.set_state(this->state_.optional_value(x...));
     call.set_brightness(this->brightness_.optional_value(x...));
+    call.set_color_brightness(this->color_brightness_.optional_value(x...));
     call.set_red(this->red_.optional_value(x...));
     call.set_green(this->green_.optional_value(x...));
     call.set_blue(this->blue_.optional_value(x...));
@@ -139,6 +141,7 @@ template<typename... Ts> class AddressableSet : public Action<Ts...> {
 
   TEMPLATABLE_VALUE(int32_t, range_from)
   TEMPLATABLE_VALUE(int32_t, range_to)
+  TEMPLATABLE_VALUE(uint8_t, color_brightness)
   TEMPLATABLE_VALUE(uint8_t, red)
   TEMPLATABLE_VALUE(uint8_t, green)
   TEMPLATABLE_VALUE(uint8_t, blue)
@@ -148,13 +151,16 @@ template<typename... Ts> class AddressableSet : public Action<Ts...> {
     auto *out = (AddressableLight *) this->parent_->get_output();
     int32_t range_from = this->range_from_.value_or(x..., 0);
     int32_t range_to = this->range_to_.value_or(x..., out->size() - 1) + 1;
+    uint8_t remote_color_brightness =
+        static_cast<uint8_t>(roundf(this->parent_->remote_values.get_color_brightness() * 255.0f));
+    uint8_t color_brightness = this->color_brightness_.value_or(x..., remote_color_brightness);
     auto range = out->range(range_from, range_to);
     if (this->red_.has_value())
-      range.set_red(this->red_.value(x...));
+      range.set_red(esp_scale8(this->red_.value(x...), color_brightness));
     if (this->green_.has_value())
-      range.set_green(this->green_.value(x...));
+      range.set_green(esp_scale8(this->green_.value(x...), color_brightness));
     if (this->blue_.has_value())
-      range.set_blue(this->blue_.value(x...));
+      range.set_blue(esp_scale8(this->blue_.value(x...), color_brightness));
     if (this->white_.has_value())
       range.set_white(this->white_.value(x...));
     out->schedule_show();

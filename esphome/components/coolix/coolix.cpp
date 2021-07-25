@@ -4,7 +4,7 @@
 namespace esphome {
 namespace coolix {
 
-static const char *TAG = "coolix.climate";
+static const char *const TAG = "coolix.climate";
 
 const uint32_t COOLIX_OFF = 0xB27BE0;
 const uint32_t COOLIX_SWING = 0xB26BE0;
@@ -70,7 +70,7 @@ void CoolixClimate::transmit_state() {
       case climate::CLIMATE_MODE_HEAT:
         remote_state |= COOLIX_HEAT;
         break;
-      case climate::CLIMATE_MODE_AUTO:
+      case climate::CLIMATE_MODE_HEAT_COOL:
         remote_state |= COOLIX_AUTO;
         break;
       case climate::CLIMATE_MODE_FAN_ONLY:
@@ -84,16 +84,16 @@ void CoolixClimate::transmit_state() {
     }
     if (this->mode != climate::CLIMATE_MODE_OFF) {
       if (this->mode != climate::CLIMATE_MODE_FAN_ONLY) {
-        auto temp = (uint8_t) roundf(clamp(this->target_temperature, COOLIX_TEMP_MIN, COOLIX_TEMP_MAX));
+        auto temp = (uint8_t) roundf(clamp<float>(this->target_temperature, COOLIX_TEMP_MIN, COOLIX_TEMP_MAX));
         remote_state |= COOLIX_TEMP_MAP[temp - COOLIX_TEMP_MIN];
       } else {
         remote_state |= COOLIX_FAN_TEMP_CODE;
       }
-      if (this->mode == climate::CLIMATE_MODE_AUTO || this->mode == climate::CLIMATE_MODE_DRY) {
+      if (this->mode == climate::CLIMATE_MODE_HEAT_COOL || this->mode == climate::CLIMATE_MODE_DRY) {
         this->fan_mode = climate::CLIMATE_FAN_AUTO;
         remote_state |= COOLIX_FAN_MODE_AUTO_DRY;
       } else {
-        switch (this->fan_mode) {
+        switch (this->fan_mode.value()) {
           case climate::CLIMATE_FAN_HIGH:
             remote_state |= COOLIX_FAN_MAX;
             break;
@@ -197,7 +197,7 @@ bool CoolixClimate::on_receive(remote_base::RemoteReceiveData data) {
     if ((remote_state & COOLIX_MODE_MASK) == COOLIX_HEAT)
       this->mode = climate::CLIMATE_MODE_HEAT;
     else if ((remote_state & COOLIX_MODE_MASK) == COOLIX_AUTO)
-      this->mode = climate::CLIMATE_MODE_AUTO;
+      this->mode = climate::CLIMATE_MODE_HEAT_COOL;
     else if ((remote_state & COOLIX_MODE_MASK) == COOLIX_DRY_FAN) {
       if ((remote_state & COOLIX_FAN_MASK) == COOLIX_FAN_MODE_AUTO_DRY)
         this->mode = climate::CLIMATE_MODE_DRY;
@@ -207,7 +207,7 @@ bool CoolixClimate::on_receive(remote_base::RemoteReceiveData data) {
       this->mode = climate::CLIMATE_MODE_COOL;
 
     // Fan Speed
-    if ((remote_state & COOLIX_FAN_AUTO) == COOLIX_FAN_AUTO || this->mode == climate::CLIMATE_MODE_AUTO ||
+    if ((remote_state & COOLIX_FAN_AUTO) == COOLIX_FAN_AUTO || this->mode == climate::CLIMATE_MODE_HEAT_COOL ||
         this->mode == climate::CLIMATE_MODE_DRY)
       this->fan_mode = climate::CLIMATE_FAN_AUTO;
     else if ((remote_state & COOLIX_FAN_MIN) == COOLIX_FAN_MIN)

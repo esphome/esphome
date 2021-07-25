@@ -103,7 +103,10 @@ class DFPlayer : public uart::UARTDevice, public Component {
 };
 
 #define DFPLAYER_SIMPLE_ACTION(ACTION_CLASS, ACTION_METHOD) \
-  template<typename... Ts> class ACTION_CLASS : public Action<Ts...>, public Parented<DFPlayer> { \
+  template<typename... Ts> \
+  class ACTION_CLASS : /* NOLINT */ \
+                       public Action<Ts...>, \
+                       public Parented<DFPlayer> { \
     void play(Ts... x) override { this->parent_->ACTION_METHOD(); } \
   };
 
@@ -113,7 +116,7 @@ DFPLAYER_SIMPLE_ACTION(PreviousAction, previous)
 template<typename... Ts> class PlayFileAction : public Action<Ts...>, public Parented<DFPlayer> {
  public:
   TEMPLATABLE_VALUE(uint16_t, file)
-  TEMPLATABLE_VALUE(boolean, loop)
+  TEMPLATABLE_VALUE(bool, loop)
 
   void play(Ts... x) override {
     auto file = this->file_.value(x...);
@@ -130,7 +133,7 @@ template<typename... Ts> class PlayFolderAction : public Action<Ts...>, public P
  public:
   TEMPLATABLE_VALUE(uint16_t, folder)
   TEMPLATABLE_VALUE(uint16_t, file)
-  TEMPLATABLE_VALUE(boolean, loop)
+  TEMPLATABLE_VALUE(bool, loop)
 
   void play(Ts... x) override {
     auto folder = this->folder_.value(x...);
@@ -180,6 +183,8 @@ DFPLAYER_SIMPLE_ACTION(StartAction, start)
 DFPLAYER_SIMPLE_ACTION(PauseAction, pause)
 DFPLAYER_SIMPLE_ACTION(StopAction, stop)
 DFPLAYER_SIMPLE_ACTION(RandomAction, random)
+DFPLAYER_SIMPLE_ACTION(VolumeUpAction, volume_up)
+DFPLAYER_SIMPLE_ACTION(VolumeDownAction, volume_down)
 
 template<typename... Ts> class DFPlayerIsPlayingCondition : public Condition<Ts...>, public Parented<DFPlayer> {
  public:

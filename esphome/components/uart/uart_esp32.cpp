@@ -7,12 +7,12 @@
 
 namespace esphome {
 namespace uart {
-static const char *TAG = "uart_esp32";
+static const char *const TAG = "uart_esp32";
 uint8_t next_uart_num = 1;
 
 static const uint32_t UART_PARITY_EVEN = 0 << 0;
 static const uint32_t UART_PARITY_ODD = 1 << 0;
-static const uint32_t UART_PARITY_EN = 1 << 1;
+static const uint32_t UART_PARITY_ENABLE = 1 << 1;
 static const uint32_t UART_NB_BIT_5 = 0 << 2;
 static const uint32_t UART_NB_BIT_6 = 1 << 2;
 static const uint32_t UART_NB_BIT_7 = 2 << 2;
@@ -39,9 +39,9 @@ uint32_t UARTComponent::get_config() {
    */
 
   if (this->parity_ == UART_CONFIG_PARITY_EVEN)
-    config |= UART_PARITY_EVEN | UART_PARITY_EN;
+    config |= UART_PARITY_EVEN | UART_PARITY_ENABLE;
   else if (this->parity_ == UART_CONFIG_PARITY_ODD)
-    config |= UART_PARITY_ODD | UART_PARITY_EN;
+    config |= UART_PARITY_ODD | UART_PARITY_ENABLE;
 
   switch (this->data_bits_) {
     case 5:

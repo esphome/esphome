@@ -13,7 +13,7 @@
 namespace esphome {
 namespace status {
 
-static const char *TAG = "status";
+static const char *const TAG = "status";
 
 void StatusBinarySensor::loop() {
   bool status = network_is_connected();

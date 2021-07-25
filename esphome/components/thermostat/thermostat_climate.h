@@ -26,9 +26,11 @@ class ThermostatClimate : public climate::Climate, public Component {
   void setup() override;
   void dump_config() override;
 
+  void set_default_mode(climate::ClimateMode default_mode);
   void set_hysteresis(float hysteresis);
   void set_sensor(sensor::Sensor *sensor);
   void set_supports_auto(bool supports_auto);
+  void set_supports_heat_cool(bool supports_heat_cool);
   void set_supports_cool(bool supports_cool);
   void set_supports_dry(bool supports_dry);
   void set_supports_fan_only(bool supports_fan_only);
@@ -75,6 +77,7 @@ class ThermostatClimate : public climate::Climate, public Component {
   Trigger<> *get_swing_mode_horizontal_trigger() const;
   Trigger<> *get_swing_mode_off_trigger() const;
   Trigger<> *get_swing_mode_vertical_trigger() const;
+  Trigger<> *get_temperature_change_trigger() const;
   /// Get current hysteresis value
   float hysteresis();
   /// Call triggers based on updated climate states (modes/actions)
@@ -105,6 +108,9 @@ class ThermostatClimate : public climate::Climate, public Component {
   /// Switch the climate device to the given climate swing mode.
   void switch_to_swing_mode_(climate::ClimateSwingMode swing_mode);
 
+  /// Check if the temperature change trigger should be called.
+  void check_temperature_change_trigger_();
+
   /// The sensor used for getting the current temperature
   sensor::Sensor *sensor_{nullptr};
 
@@ -113,6 +119,7 @@ class ThermostatClimate : public climate::Climate, public Component {
   /// A false value for any given attribute means that the controller has no such action
   /// (for example a thermostat, where only heating and not-heating is possible).
   bool supports_auto_{false};
+  bool supports_heat_cool_{false};
   bool supports_cool_{false};
   bool supports_dry_{false};
   bool supports_fan_only_{false};
@@ -240,6 +247,9 @@ class ThermostatClimate : public climate::Climate, public Component {
   /// The trigger to call when the controller should switch the swing mode to "vertical".
   Trigger<> *swing_mode_vertical_trigger_{nullptr};
 
+  /// The trigger to call when the target temperature(s) change(es).
+  Trigger<> *temperature_change_trigger_{nullptr};
+
   /// A reference to the trigger that was previously active.
   ///
   /// This is so that the previous trigger can be stopped before enabling a new one
@@ -254,7 +264,15 @@ class ThermostatClimate : public climate::Climate, public Component {
   /// These are used to determine when a trigger/action needs to be called
   climate::ClimateFanMode prev_fan_mode_{climate::CLIMATE_FAN_ON};
   climate::ClimateMode prev_mode_{climate::CLIMATE_MODE_OFF};
+  climate::ClimateMode default_mode_{climate::CLIMATE_MODE_OFF};
   climate::ClimateSwingMode prev_swing_mode_{climate::CLIMATE_SWING_OFF};
+
+  /// Store previously-known temperatures
+  ///
+  /// These are used to determine when the temperature change trigger/action needs to be called
+  float prev_target_temperature_{NAN};
+  float prev_target_temperature_low_{NAN};
+  float prev_target_temperature_high_{NAN};
 
   /// Temperature data for normal/home and away modes
   ThermostatClimateTargetTempConfig normal_config_{};

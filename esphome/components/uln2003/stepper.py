@@ -38,18 +38,18 @@ CONFIG_SCHEMA = stepper.STEPPER_SCHEMA.extend(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
-    yield stepper.register_stepper(var, config)
+    await cg.register_component(var, config)
+    await stepper.register_stepper(var, config)
 
-    pin_a = yield cg.gpio_pin_expression(config[CONF_PIN_A])
+    pin_a = await cg.gpio_pin_expression(config[CONF_PIN_A])
     cg.add(var.set_pin_a(pin_a))
-    pin_b = yield cg.gpio_pin_expression(config[CONF_PIN_B])
+    pin_b = await cg.gpio_pin_expression(config[CONF_PIN_B])
     cg.add(var.set_pin_b(pin_b))
-    pin_c = yield cg.gpio_pin_expression(config[CONF_PIN_C])
+    pin_c = await cg.gpio_pin_expression(config[CONF_PIN_C])
     cg.add(var.set_pin_c(pin_c))
-    pin_d = yield cg.gpio_pin_expression(config[CONF_PIN_D])
+    pin_d = await cg.gpio_pin_expression(config[CONF_PIN_D])
     cg.add(var.set_pin_d(pin_d))
 
     cg.add(var.set_sleep_when_done(config[CONF_SLEEP_WHEN_DONE]))

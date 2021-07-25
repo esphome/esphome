@@ -60,10 +60,10 @@ def cpp_string_escape(string, encoding="utf-8"):
 def run_system_command(*args):
     import subprocess
 
-    p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    stdout, stderr = p.communicate()
-    rc = p.returncode
-    return rc, stdout, stderr
+    with subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE) as p:
+        stdout, stderr = p.communicate()
+        rc = p.returncode
+        return rc, stdout, stderr
 
 
 def mkdir_p(path):

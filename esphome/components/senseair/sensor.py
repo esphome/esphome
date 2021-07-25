@@ -8,6 +8,7 @@ from esphome.const import (
     CONF_ID,
     DEVICE_CLASS_EMPTY,
     ICON_MOLECULE_CO2,
+    STATE_CLASS_MEASUREMENT,
     UNIT_PARTS_PER_MILLION,
 )
 
@@ -38,7 +39,11 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(SenseAirComponent),
             cv.Required(CONF_CO2): sensor.sensor_schema(
-                UNIT_PARTS_PER_MILLION, ICON_MOLECULE_CO2, 0, DEVICE_CLASS_EMPTY
+                UNIT_PARTS_PER_MILLION,
+                ICON_MOLECULE_CO2,
+                0,
+                DEVICE_CLASS_EMPTY,
+                STATE_CLASS_MEASUREMENT,
             ),
         }
     )
@@ -47,13 +52,13 @@ CONFIG_SCHEMA = (
 )
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
-    yield uart.register_uart_device(var, config)
+    await cg.register_component(var, config)
+    await uart.register_uart_device(var, config)
 
     if CONF_CO2 in config:
-        sens = yield sensor.new_sensor(config[CONF_CO2])
+        sens = await sensor.new_sensor(config[CONF_CO2])
         cg.add(var.set_co2_sensor(sens))
 
 
@@ -83,6 +88,6 @@ CALIBRATION_ACTION_SCHEMA = maybe_simple_id(
 @automation.register_action(
     "senseair.abc_get_period", SenseAirABCGetPeriodAction, CALIBRATION_ACTION_SCHEMA
 )
-def senseair_action_to_code(config, action_id, template_arg, args):
-    paren = yield cg.get_variable(config[CONF_ID])
-    yield cg.new_Pvariable(action_id, template_arg, paren)
+async def senseair_action_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(action_id, template_arg, paren)

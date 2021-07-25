@@ -51,15 +51,9 @@ def sub(path, pattern, repl, expected_count=1):
 
 def write_version(version: Version):
     sub(
-        "esphome/const.py", r"^MAJOR_VERSION = \d+$", f"MAJOR_VERSION = {version.major}"
-    )
-    sub(
-        "esphome/const.py", r"^MINOR_VERSION = \d+$", f"MINOR_VERSION = {version.minor}"
-    )
-    sub(
         "esphome/const.py",
-        r"^PATCH_VERSION = .*$",
-        f"PATCH_VERSION = '{version.full_patch}'",
+        r"^__version__ = .*$",
+        f'__version__ = "{version}"',
     )
 
 

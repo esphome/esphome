@@ -4,12 +4,12 @@
 namespace esphome {
 namespace text_sensor {
 
-static const char *TAG = "text_sensor";
+static const char *const TAG = "text_sensor";
 
 TextSensor::TextSensor() : TextSensor("") {}
 TextSensor::TextSensor(const std::string &name) : Nameable(name) {}
 
-void TextSensor::publish_state(std::string state) {
+void TextSensor::publish_state(const std::string &state) {
   this->state = state;
   this->has_state_ = true;
   ESP_LOGD(TAG, "'%s': Sending state '%s'", this->name_.c_str(), state.c_str());

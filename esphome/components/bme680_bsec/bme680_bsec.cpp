@@ -1,5 +1,3 @@
-
-
 #include "bme680_bsec.h"
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
@@ -7,8 +5,8 @@
 
 namespace esphome {
 namespace bme680_bsec {
-#ifdef USING_BSEC
-static const char *TAG = "bme680_bsec.sensor";
+#ifdef USE_BSEC
+static const char *const TAG = "bme680_bsec.sensor";
 
 static const std::string IAQ_ACCURACY_STATES[4] = {"Stabilizing", "Uncertain", "Calibrating", "Calibrated"};
 
@@ -30,7 +28,6 @@ void BME680BSECComponent::setup() {
   this->bme680_.write = BME680BSECComponent::write_bytes_wrapper;
   this->bme680_.delay_ms = BME680BSECComponent::delay_ms;
   this->bme680_.amb_temp = 25;
-  this->bme680_.power_mode = BME680_FORCED_MODE;
 
   this->bme680_status_ = bme680_init(&this->bme680_);
   if (this->bme680_status_ != BME680_OK) {
@@ -43,14 +40,13 @@ void BME680BSECComponent::setup() {
 #include "config/generic_33v_300s_28d/bsec_iaq.txt"
     };
     this->set_config_(bsec_config);
-    this->update_subscription_(BSEC_SAMPLE_RATE_ULP);
   } else {
     const uint8_t bsec_config[] = {
 #include "config/generic_33v_3s_28d/bsec_iaq.txt"
     };
     this->set_config_(bsec_config);
-    this->update_subscription_(BSEC_SAMPLE_RATE_LP);
   }
+  this->update_subscription_();
   if (this->bsec_status_ != BSEC_OK) {
     this->mark_failed();
     return;
@@ -64,50 +60,57 @@ void BME680BSECComponent::set_config_(const uint8_t *config) {
   this->bsec_status_ = bsec_set_configuration(config, BSEC_MAX_PROPERTY_BLOB_SIZE, work_buffer, sizeof(work_buffer));
 }
 
-void BME680BSECComponent::update_subscription_(float sample_rate) {
+float BME680BSECComponent::calc_sensor_sample_rate_(SampleRate sample_rate) {
+  if (sample_rate == SAMPLE_RATE_DEFAULT) {
+    sample_rate = this->sample_rate_;
+  }
+  return sample_rate == SAMPLE_RATE_ULP ? BSEC_SAMPLE_RATE_ULP : BSEC_SAMPLE_RATE_LP;
+}
+
+void BME680BSECComponent::update_subscription_() {
   bsec_sensor_configuration_t virtual_sensors[BSEC_NUMBER_OUTPUTS];
   int num_virtual_sensors = 0;
 
   if (this->iaq_sensor_) {
     virtual_sensors[num_virtual_sensors].sensor_id =
         this->iaq_mode_ == IAQ_MODE_STATIC ? BSEC_OUTPUT_STATIC_IAQ : BSEC_OUTPUT_IAQ;
-    virtual_sensors[num_virtual_sensors].sample_rate = sample_rate;
+    virtual_sensors[num_virtual_sensors].sample_rate = this->calc_sensor_sample_rate_(SAMPLE_RATE_DEFAULT);
     num_virtual_sensors++;
   }
 
   if (this->co2_equivalent_sensor_) {
     virtual_sensors[num_virtual_sensors].sensor_id = BSEC_OUTPUT_CO2_EQUIVALENT;
-    virtual_sensors[num_virtual_sensors].sample_rate = sample_rate;
+    virtual_sensors[num_virtual_sensors].sample_rate = this->calc_sensor_sample_rate_(SAMPLE_RATE_DEFAULT);
     num_virtual_sensors++;
   }
 
   if (this->breath_voc_equivalent_sensor_) {
     virtual_sensors[num_virtual_sensors].sensor_id = BSEC_OUTPUT_BREATH_VOC_EQUIVALENT;
-    virtual_sensors[num_virtual_sensors].sample_rate = sample_rate;
+    virtual_sensors[num_virtual_sensors].sample_rate = this->calc_sensor_sample_rate_(SAMPLE_RATE_DEFAULT);
     num_virtual_sensors++;
   }
 
   if (this->pressure_sensor_) {
     virtual_sensors[num_virtual_sensors].sensor_id = BSEC_OUTPUT_RAW_PRESSURE;
-    virtual_sensors[num_virtual_sensors].sample_rate = sample_rate;
+    virtual_sensors[num_virtual_sensors].sample_rate = this->calc_sensor_sample_rate_(this->pressure_sample_rate_);
     num_virtual_sensors++;
   }
 
   if (this->gas_resistance_sensor_) {
     virtual_sensors[num_virtual_sensors].sensor_id = BSEC_OUTPUT_RAW_GAS;
-    virtual_sensors[num_virtual_sensors].sample_rate = sample_rate;
+    virtual_sensors[num_virtual_sensors].sample_rate = this->calc_sensor_sample_rate_(SAMPLE_RATE_DEFAULT);
     num_virtual_sensors++;
   }
 
   if (this->temperature_sensor_) {
     virtual_sensors[num_virtual_sensors].sensor_id = BSEC_OUTPUT_SENSOR_HEAT_COMPENSATED_TEMPERATURE;
-    virtual_sensors[num_virtual_sensors].sample_rate = sample_rate;
+    virtual_sensors[num_virtual_sensors].sample_rate = this->calc_sensor_sample_rate_(this->temperature_sample_rate_);
     num_virtual_sensors++;
   }
 
   if (this->humidity_sensor_) {
     virtual_sensors[num_virtual_sensors].sensor_id = BSEC_OUTPUT_SENSOR_HEAT_COMPENSATED_HUMIDITY;
-    virtual_sensors[num_virtual_sensors].sample_rate = sample_rate;
+    virtual_sensors[num_virtual_sensors].sample_rate = this->calc_sensor_sample_rate_(this->humidity_sample_rate_);
     num_virtual_sensors++;
   }
 
@@ -134,12 +137,15 @@ void BME680BSECComponent::dump_config() {
 
   ESP_LOGCONFIG(TAG, "  Temperature Offset: %.2f", this->temperature_offset_);
   ESP_LOGCONFIG(TAG, "  IAQ Mode: %s", this->iaq_mode_ == IAQ_MODE_STATIC ? "Static" : "Mobile");
-  ESP_LOGCONFIG(TAG, "  Sample Rate: %s", this->sample_rate_ == SAMPLE_RATE_ULP ? "ULP" : "LP");
+  ESP_LOGCONFIG(TAG, "  Sample Rate: %s", BME680_BSEC_SAMPLE_RATE_LOG(this->sample_rate_));
   ESP_LOGCONFIG(TAG, "  State Save Interval: %ims", this->state_save_interval_ms_);
 
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
+  ESP_LOGCONFIG(TAG, "    Sample Rate: %s", BME680_BSEC_SAMPLE_RATE_LOG(this->temperature_sample_rate_));
   LOG_SENSOR("  ", "Pressure", this->pressure_sensor_);
+  ESP_LOGCONFIG(TAG, "    Sample Rate: %s", BME680_BSEC_SAMPLE_RATE_LOG(this->pressure_sample_rate_));
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
+  ESP_LOGCONFIG(TAG, "    Sample Rate: %s", BME680_BSEC_SAMPLE_RATE_LOG(this->humidity_sample_rate_));
   LOG_SENSOR("  ", "Gas Resistance", this->gas_resistance_sensor_);
   LOG_SENSOR("  ", "IAQ", this->iaq_sensor_);
   LOG_SENSOR("  ", "Numeric IAQ Accuracy", this->iaq_accuracy_sensor_);
@@ -181,34 +187,55 @@ void BME680BSECComponent::run_() {
   }
   this->next_call_ns_ = bme680_settings.next_call;
 
-  this->bme680_.gas_sett.run_gas = bme680_settings.run_gas;
-  this->bme680_.tph_sett.os_hum = bme680_settings.humidity_oversampling;
-  this->bme680_.tph_sett.os_temp = bme680_settings.temperature_oversampling;
-  this->bme680_.tph_sett.os_pres = bme680_settings.pressure_oversampling;
-  this->bme680_.gas_sett.heatr_temp = bme680_settings.heater_temperature;
-  this->bme680_.gas_sett.heatr_dur = bme680_settings.heating_duration;
-  uint16_t desired_settings =
-      BME680_OST_SEL | BME680_OSP_SEL | BME680_OSH_SEL | BME680_FILTER_SEL | BME680_GAS_SENSOR_SEL;
-  this->bme680_status_ = bme680_set_sensor_settings(desired_settings, &this->bme680_);
-  if (this->bme680_status_ != BME680_OK) {
-    ESP_LOGW(TAG, "Failed to set sensor settings (BME680 Error Code %d)", this->bme680_status_);
-    return;
-  }
+  if (bme680_settings.trigger_measurement) {
+    this->bme680_.tph_sett.os_temp = bme680_settings.temperature_oversampling;
+    this->bme680_.tph_sett.os_pres = bme680_settings.pressure_oversampling;
+    this->bme680_.tph_sett.os_hum = bme680_settings.humidity_oversampling;
+    this->bme680_.gas_sett.run_gas = bme680_settings.run_gas;
+    this->bme680_.gas_sett.heatr_temp = bme680_settings.heater_temperature;
+    this->bme680_.gas_sett.heatr_dur = bme680_settings.heating_duration;
+    this->bme680_.power_mode = BME680_FORCED_MODE;
+    uint16_t desired_settings = BME680_OST_SEL | BME680_OSP_SEL | BME680_OSH_SEL | BME680_GAS_SENSOR_SEL;
+    this->bme680_status_ = bme680_set_sensor_settings(desired_settings, &this->bme680_);
+    if (this->bme680_status_ != BME680_OK) {
+      ESP_LOGW(TAG, "Failed to set sensor settings (BME680 Error Code %d)", this->bme680_status_);
+      return;
+    }
 
-  this->bme680_status_ = bme680_set_sensor_mode(&this->bme680_);
-  if (this->bme680_status_ != BME680_OK) {
-    ESP_LOGW(TAG, "Failed to set sensor mode (BME680 Error Code %d)", this->bme680_status_);
-    return;
-  }
+    this->bme680_status_ = bme680_set_sensor_mode(&this->bme680_);
+    if (this->bme680_status_ != BME680_OK) {
+      ESP_LOGW(TAG, "Failed to set sensor mode (BME680 Error Code %d)", this->bme680_status_);
+      return;
+    }
 
-  uint16_t meas_dur = 0;
-  bme680_get_profile_dur(&meas_dur, &this->bme680_);
-  ESP_LOGV(TAG, "Queueing read in %ums", meas_dur);
-  this->set_timeout("read", meas_dur, [this, bme680_settings]() { this->read_(bme680_settings); });
+    uint16_t meas_dur = 0;
+    bme680_get_profile_dur(&meas_dur, &this->bme680_);
+    ESP_LOGV(TAG, "Queueing read in %ums", meas_dur);
+    this->set_timeout("read", meas_dur,
+                      [this, curr_time_ns, bme680_settings]() { this->read_(curr_time_ns, bme680_settings); });
+  } else {
+    ESP_LOGV(TAG, "Measurement not required");
+    this->read_(curr_time_ns, bme680_settings);
+  }
 }
 
-void BME680BSECComponent::read_(bsec_bme_settings_t bme680_settings) {
+void BME680BSECComponent::read_(int64_t trigger_time_ns, bsec_bme_settings_t bme680_settings) {
   ESP_LOGV(TAG, "Reading data");
+
+  if (bme680_settings.trigger_measurement) {
+    while (this->bme680_.power_mode != BME680_SLEEP_MODE) {
+      this->bme680_status_ = bme680_get_sensor_mode(&this->bme680_);
+      if (this->bme680_status_ != BME680_OK) {
+        ESP_LOGW(TAG, "Failed to get sensor mode (BME680 Error Code %d)", this->bme680_status_);
+      }
+    }
+  }
+
+  if (!bme680_settings.process_data) {
+    ESP_LOGV(TAG, "Data processing not required");
+    return;
+  }
+
   struct bme680_field_data data;
   this->bme680_status_ = bme680_get_sensor_data(&data, &this->bme680_);
 
@@ -223,37 +250,40 @@ void BME680BSECComponent::read_(bsec_bme_settings_t bme680_settings) {
 
   bsec_input_t inputs[BSEC_MAX_PHYSICAL_SENSOR];  // Temperature, Pressure, Humidity & Gas Resistance
   uint8_t num_inputs = 0;
-  int64_t curr_time_ns = this->get_time_ns_();
 
   if (bme680_settings.process_data & BSEC_PROCESS_TEMPERATURE) {
     inputs[num_inputs].sensor_id = BSEC_INPUT_TEMPERATURE;
     inputs[num_inputs].signal = data.temperature / 100.0f;
-    inputs[num_inputs].time_stamp = curr_time_ns;
+    inputs[num_inputs].time_stamp = trigger_time_ns;
     num_inputs++;
 
     // Temperature offset from the real temperature due to external heat sources
     inputs[num_inputs].sensor_id = BSEC_INPUT_HEATSOURCE;
     inputs[num_inputs].signal = this->temperature_offset_;
-    inputs[num_inputs].time_stamp = curr_time_ns;
+    inputs[num_inputs].time_stamp = trigger_time_ns;
     num_inputs++;
   }
   if (bme680_settings.process_data & BSEC_PROCESS_HUMIDITY) {
     inputs[num_inputs].sensor_id = BSEC_INPUT_HUMIDITY;
     inputs[num_inputs].signal = data.humidity / 1000.0f;
-    inputs[num_inputs].time_stamp = curr_time_ns;
+    inputs[num_inputs].time_stamp = trigger_time_ns;
     num_inputs++;
   }
   if (bme680_settings.process_data & BSEC_PROCESS_PRESSURE) {
     inputs[num_inputs].sensor_id = BSEC_INPUT_PRESSURE;
     inputs[num_inputs].signal = data.pressure;
-    inputs[num_inputs].time_stamp = curr_time_ns;
+    inputs[num_inputs].time_stamp = trigger_time_ns;
     num_inputs++;
   }
   if (bme680_settings.process_data & BSEC_PROCESS_GAS) {
-    inputs[num_inputs].sensor_id = BSEC_INPUT_GASRESISTOR;
-    inputs[num_inputs].signal = data.gas_resistance;
-    inputs[num_inputs].time_stamp = curr_time_ns;
-    num_inputs++;
+    if (data.status & BME680_GASM_VALID_MSK) {
+      inputs[num_inputs].sensor_id = BSEC_INPUT_GASRESISTOR;
+      inputs[num_inputs].signal = data.gas_resistance;
+      inputs[num_inputs].time_stamp = trigger_time_ns;
+      num_inputs++;
+    } else {
+      ESP_LOGD(TAG, "BME680 did not report gas data");
+    }
   }
   if (num_inputs < 1) {
     ESP_LOGD(TAG, "No signal inputs available for BSEC");

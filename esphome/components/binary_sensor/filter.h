@@ -66,9 +66,36 @@ class InvertFilter : public Filter {
   optional<bool> new_value(bool value, bool is_initial) override;
 };
 
+struct AutorepeatFilterTiming {
+  AutorepeatFilterTiming(uint32_t delay, uint32_t off, uint32_t on) {
+    this->delay = delay;
+    this->time_off = off;
+    this->time_on = on;
+  }
+  uint32_t delay;
+  uint32_t time_off;
+  uint32_t time_on;
+};
+
+class AutorepeatFilter : public Filter, public Component {
+ public:
+  explicit AutorepeatFilter(std::vector<AutorepeatFilterTiming> timings);
+
+  optional<bool> new_value(bool value, bool is_initial) override;
+
+  float get_setup_priority() const override;
+
+ protected:
+  void next_timing_();
+  void next_value_(bool val);
+
+  std::vector<AutorepeatFilterTiming> timings_;
+  uint8_t active_timing_{0};
+};
+
 class LambdaFilter : public Filter {
  public:
-  explicit LambdaFilter(const std::function<optional<bool>(bool)> &f);
+  explicit LambdaFilter(std::function<optional<bool>(bool)> f);
 
   optional<bool> new_value(bool value, bool is_initial) override;
 
