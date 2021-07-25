@@ -5,7 +5,7 @@
 namespace esphome {
 namespace sdp3x {
 
-static const char *TAG = "sdp3x.sensor";
+static const char *const TAG = "sdp3x.sensor";
 static const uint8_t SDP3X_SOFT_RESET[2] = {0x00, 0x06};
 static const uint8_t SDP3X_READ_ID1[2] = {0x36, 0x7C};
 static const uint8_t SDP3X_READ_ID2[2] = {0xE1, 0x02};
