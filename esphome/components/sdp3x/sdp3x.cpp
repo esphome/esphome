@@ -20,11 +20,11 @@ void SDP3XComponent::setup() {
   ESP_LOGD(TAG, "Setting up SDP3X...");
 
   if (!this->write_bytes_raw(SDP3X_STOP_MEAS, 2)) {
-    ESP_LOGW(TAG, "Stop SDP3X failed!"); // This sometimes fails for no good reason
+    ESP_LOGW(TAG, "Stop SDP3X failed!");  // This sometimes fails for no good reason
   }
 
   if (!this->write_bytes_raw(SDP3X_SOFT_RESET, 2)) {
-    ESP_LOGW(TAG, "Soft Reset SDP3X failed!"); // This sometimes fails for no good reason
+    ESP_LOGW(TAG, "Soft Reset SDP3X failed!");  // This sometimes fails for no good reason
   }
 
   delay_microseconds_accurate(20000);
@@ -47,23 +47,22 @@ void SDP3XComponent::setup() {
     return;
   }
 
-  if (!(check_crc_(&data[0], 2, data[2]) && check_crc_(&data[3], 2, data[5]))){
-    ESP_LOGE(TAG, "CRC ID SDP3X failed!");      
+  if (!(check_crc_(&data[0], 2, data[2]) && check_crc_(&data[3], 2, data[5]))) {
+    ESP_LOGE(TAG, "CRC ID SDP3X failed!");
     this->mark_failed();
     return;
   }
 
   if (data[3] == 0x01) {
     ESP_LOGCONFIG(TAG, "SDP3X is SDP31");
-    pressure_scale_factor_ = 60.0f * 100.0f; // Scale factors converted to hPa per count
-  } 
-  else if (data[3] == 0x02) {
+    pressure_scale_factor_ = 60.0f * 100.0f;  // Scale factors converted to hPa per count
+  } else if (data[3] == 0x02) {
     ESP_LOGCONFIG(TAG, "SDP3X is SDP32");
     pressure_scale_factor_ = 240.0f * 100.0f;
   }
 
   if (!this->write_bytes_raw(SDP3X_START_DP_AVG, 2)) {
-    ESP_LOGE(TAG, "Start Measurements SDP3X failed!");  
+    ESP_LOGE(TAG, "Start Measurements SDP3X failed!");
     this->mark_failed();
     return;
   }
@@ -88,12 +87,12 @@ void SDP3XComponent::read_pressure_() {
     return;
   }
 
-  if (!(check_crc_(&data[0], 2, data[2])&& check_crc_(&data[3], 2, data[5])&& check_crc_(&data[6], 2, data[8]))){
+  if (!(check_crc_(&data[0], 2, data[2])&& check_crc_(&data[3], 2, data[5])&& check_crc_(&data[6], 2, data[8]))) {
     ESP_LOGW(TAG, "Invalid SDP3X data!");
     this->status_set_warning();
     return;
   }
-  
+
   int16_t pressure_raw = (int16_t)((data[0] << 8) | data[1]);
   float pressure = pressure_raw / pressure_scale_factor_;
   ESP_LOGD(TAG, "Got raw pressure=%d, scale factor =%.3f ", pressure_raw, pressure_scale_factor_);
@@ -120,7 +119,7 @@ bool SDP3XComponent::check_crc_(const uint8_t data[], uint8_t size, uint8_t chec
         crc = (crc << 1);
     }
   }
-  
+
   // verify checksum
   return (crc == checksum);
 }
