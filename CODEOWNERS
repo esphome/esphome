@@ -126,6 +126,7 @@ esphome/components/tcl112/* @glmnet
 esphome/components/teleinfo/* @0hax
 esphome/components/thermostat/* @kbx81
 esphome/components/time/* @OttoWinter
+esphome/components/tlc5947/* @rnauber
 esphome/components/tm1637/* @glmnet
 esphome/components/tmp102/* @timsavage
 esphome/components/tof10120/* @wstrzalka
