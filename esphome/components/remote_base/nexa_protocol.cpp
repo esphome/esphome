@@ -4,7 +4,8 @@
 namespace esphome {
 namespace remote_base {
 
-static const char *TAG = "remote.nexa";
+static const char *const TAG = "remote.nexa";
+
 
 static const uint8_t NBITS = 32;
 static const uint32_t HEADER_HIGH_US = 319;
@@ -244,7 +245,7 @@ optional<NexaData> NexaProtocol::decode(RemoteReceiveData src) {
   // Optional to transmit LEVEL data (8 bits more)
   if (int32_t(src.get_index() + 8) >= src.size()) {
     // ESP_LOGD(TAG, "DECODE NEXA: DONE - No LEVEL DATA");
-    // rawDump(src);
+    // raw_dump(src);
     // ESP_LOGD(TAG, "         NEXA: device=0x%04X group=%d state=%d channel=%d level=%d", out.device, out.group,
     //      out.state, out.channel, out.level);
     return out;
@@ -272,7 +273,7 @@ optional<NexaData> NexaProtocol::decode(RemoteReceiveData src) {
     }
   }
 
-  // rawDump(src);
+  // raw_dump(src);
 
   // ESP_LOGD(TAG, "DECODE NEXA: DONE");
 
@@ -282,7 +283,7 @@ optional<NexaData> NexaProtocol::decode(RemoteReceiveData src) {
   return out;
 }
 
-void NexaProtocol::rawDump(RemoteReceiveData src) {
+void NexaProtocol::raw_dump(RemoteReceiveData src) {
   char buffer[256];
   uint32_t buffer_offset = 0;
   buffer_offset += sprintf(buffer, "Timings: ");
