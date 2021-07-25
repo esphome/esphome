@@ -908,6 +908,11 @@ sensor:
     id: ph_ezo
     address: 99
     unit_of_measurement: 'pH'
+  - platform: sdp3x
+    name: "HVAC Filter Pressure drop"
+    id: filter_pressure
+    update_interval: 5s
+    accuracy_decimals: 3
 
 esp32_touch:
   setup_mode: False
