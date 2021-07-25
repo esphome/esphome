@@ -90,7 +90,7 @@ static const uint8_t ST7789_SPI2EN = 0xE7;     // SPI2 Enable
 static const uint8_t ST7789_PWCTRL2 = 0xE8;    // Power Control 2
 static const uint8_t ST7789_EQCTRL = 0xE9;     // Equalize time control
 static const uint8_t ST7789_PROMCTRL = 0xEC;   // Program Mode Control
-static const uint8_t ST7789_PROMEN = 0xFA;     // Program Mode Enabl
+static const uint8_t ST7789_PROMEN = 0xFA;     // Program Mode Enable
 static const uint8_t ST7789_NVMSET = 0xFC;     // NVM Setting
 static const uint8_t ST7789_PROMACT = 0xFE;    // Program action
 
