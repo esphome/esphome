@@ -69,14 +69,12 @@ void SDP3XComponent::setup() {
   ESP_LOGCONFIG(TAG, "SDP3X started!");
 }
 void SDP3XComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "SDP3X:");
+  LOG_SENSOR("  ", "SDP3X", this);
   LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Connection with SDP3X failed!");
+    ESP_LOGE(TAG, "  Connection with SDP3X failed!");
   }
   LOG_UPDATE_INTERVAL(this);
-
-  LOG_SENSOR("  ", "Pressure", this);
 }
 
 void SDP3XComponent::read_pressure_() {
