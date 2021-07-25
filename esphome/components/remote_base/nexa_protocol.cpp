@@ -40,7 +40,7 @@ void NexaProtocol::sync(RemoteTransmitData *dst) const {
 
 void NexaProtocol::encode(RemoteTransmitData *dst, const NexaData &data) {
   dst->set_carrier_frequency(0);
-  ESP_LOGD(TAG, "Transmit NEXA: device=0x%04X group=%d state=%d channel=%d level=%d", data.device, data.group,
+  ESP_LOGD(TAG, "ENCODE NEXA: device=0x%04X group=%d state=%d channel=%d level=%d", data.device, data.group,
            data.state, data.channel, data.level);
 
   // Send SYNC
@@ -84,15 +84,24 @@ void NexaProtocol::encode(RemoteTransmitData *dst, const NexaData &data) {
 
   // ESP_LOGD(TAG, "Level:");
   // Level (4 bits)
-  for (int16_t i = 4 - 1; i >= 0; i--) {
-    if (data.level & (1 << i))
-      this->one(dst);
-    else
-      this->zero(dst);
+  if (data.state == 2) {
+    for (int16_t i = 4 - 1; i >= 0; i--) {
+      if (data.level & (1 << i))
+        this->one(dst);
+      else
+        this->zero(dst);
+    }
   }
 
   // Send finishing Zero
-  this->zero(dst);
+  //this->zero(dst);
+  dst->item(TX_BIT_HIGH_US, TX_BIT_ZERO_LOW_US);
+
+  // Send the PAUSE 
+  //dst->mark(BIT_HIGH_US);
+  //dst->space(TX_BIT_HIGH_US*50);
+
+  ESP_LOGD(TAG, "ENCODE NEXA: Done");
 }
 
 optional<NexaData> NexaProtocol::decode(RemoteReceiveData src) {
@@ -128,6 +137,7 @@ optional<NexaData> NexaProtocol::decode(RemoteReceiveData src) {
   if (!src.expect_pulse_with_gap(HEADER_HIGH_US, HEADER_LOW_US))
     return {};
 
+  //ESP_LOGD(TAG, "DECODE NEXA (good sync pulse): ");
   //ESP_LOGD(TAG, "SYNC");
 
   //ESP_LOGD(TAG, "DEVICE:");
@@ -234,7 +244,10 @@ optional<NexaData> NexaProtocol::decode(RemoteReceiveData src) {
   // Optional to transmit LEVEL data (8 bits more)
   if (int32_t(src.get_index() + 8) >= src.size())
   {
-      //ESP_LOGD(TAG, "DONE - No LEVEL DATA");
+      //ESP_LOGD(TAG, "DECODE NEXA: DONE - No LEVEL DATA");
+      //rawDump(src);
+      //ESP_LOGD(TAG, "         NEXA: device=0x%04X group=%d state=%d channel=%d level=%d", out.device, out.group,
+      //      out.state, out.channel, out.level);
       return out;
   }
 
@@ -255,14 +268,17 @@ optional<NexaData> NexaProtocol::decode(RemoteReceiveData src) {
     } else {
       //ESP_LOGD(TAG, "...unknown..");
       // This should not happen...failed command
-      return {};
+      //return {};
+      break;
     }
   }
 
   //rawDump(src);
 
-  if (out.device == 0)
-    return {};
+  //ESP_LOGD(TAG, "DECODE NEXA: DONE");
+
+  //ESP_LOGD(TAG, "         NEXA: device=0x%04X group=%d state=%d channel=%d level=%d", out.device, out.group,
+  //         out.state, out.channel, out.level);
 
   return out;
 }
