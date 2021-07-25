@@ -91,7 +91,7 @@ void SDP3XComponent::read_pressure_() {
     return;
   }
 
-  int16_t pressure_raw = (int16_t)((data[0] << 8) | data[1]);
+  int16_t pressure_raw = encode_uint16(data[0], data[1]);
   float pressure = pressure_raw / pressure_scale_factor_;
   ESP_LOGD(TAG, "Got raw pressure=%d, scale factor =%.3f ", pressure_raw, pressure_scale_factor_);
   ESP_LOGD(TAG, "Got Pressure=%.3f hPa", pressure);
