@@ -49,6 +49,7 @@ class MideaDongle : public Component, public uart::UARTDevice {
   void send_frame(const Frame &frame);
   void queue_request(const Frame &frame, uint32_t attempts, uint32_t timeout, ResponseHandler handler = nullptr);
   void queue_request_priority(const Frame &frame, uint32_t attempts, uint32_t timeout, ResponseHandler handler = nullptr);
+  void set_period(uint32_t ms) { this->period_ = ms; }
 
  protected:
   void handler_(const Frame &frame);
@@ -61,6 +62,7 @@ class MideaDongle : public Component, public uart::UARTDevice {
   MideaAppliance *appliance_{nullptr};
   MideaRequest *request_{nullptr};
   FrameReceiver<64> receiver_{};
+  uint32_t period_{1000};
   bool is_ready_{true};
 };
 

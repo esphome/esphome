@@ -102,7 +102,7 @@ void MideaDongle::send_frame(const Frame &frame) {
   ESP_LOGD(TAG, "TX: %s", frame.to_string().c_str());
   this->write_array(frame.data(), frame.size());
   this->is_ready_ = false;
-  this->set_timeout(1000, [this](){
+  this->set_timeout(this->period_, [this](){
     this->is_ready_ = true;
   });
 }
