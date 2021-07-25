@@ -87,7 +87,7 @@ void SDP3XComponent::read_pressure_() {
     return;
   }
 
-  if (!(check_crc_(&data[0], 2, data[2])&& check_crc_(&data[3], 2, data[5])&& check_crc_(&data[6], 2, data[8]))) {
+  if (!(check_crc_(&data[0], 2, data[2]) && check_crc_(&data[3], 2, data[5]) && check_crc_(&data[6], 2, data[8]))) {
     ESP_LOGW(TAG, "Invalid SDP3X data!");
     this->status_set_warning();
     return;
@@ -110,7 +110,7 @@ bool SDP3XComponent::check_crc_(const uint8_t data[], uint8_t size, uint8_t chec
   uint8_t crc = 0xFF;
 
   // calculates 8-Bit checksum with given polynomial 0x31 (x^8 + x^5 + x^4 + 1)
-  for(int i = 0; i < size; i++) {
+  for (int i = 0; i < size; i++) {
     crc ^= (data[i]);
     for (uint8_t bit = 8; bit > 0; --bit) {
       if (crc & 0x80)
