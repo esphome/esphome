@@ -127,5 +127,15 @@ void MideaDongle::destroy_request_() {
   this->cancel_timeout(RESPONSE_TIMEOUT);
 }
 
+#ifdef USE_REMOTE_TRANSMITTER
+void MideaDongle::transmit_ir(remote_base::MideaData &data) {
+  data.finalize();
+  ESP_LOGD(TAG, "Sending Midea IR data: %s", data.to_string().c_str());
+  auto transmit = this->transmitter_->transmit();
+  remote_base::MideaProtocol().encode(transmit.get_data(), data);
+  transmit.perform();
+}
+#endif
+
 }  // namespace midea_dongle
 }  // namespace esphome

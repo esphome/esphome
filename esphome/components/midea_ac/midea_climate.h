@@ -7,6 +7,7 @@
 #include "esphome/components/midea_dongle/midea_dongle.h"
 #include "esphome/components/climate/climate.h"
 #include "midea_frame.h"
+#include "midea_ir.h"
 #include "capabilities.h"
 
 namespace esphome {
@@ -44,6 +45,9 @@ class MideaAC : public midea_dongle::MideaAppliance, public climate::Climate, pu
     this->traits_custom_presets_ = std::move(custom_presets);
   }
   bool allow_custom_preset(const std::string &custom_preset) const;
+  void do_follow_me(float temperature, bool beeper = false);
+  void do_display_toggle();
+  void do_swing_step();
 //  void set_preset_boost(bool state) { this->traits_preset_boost_ = state; }
 //  void set_preset_eco(bool state) { this->traits_preset_eco_ = state; }
 
@@ -54,6 +58,10 @@ class MideaAC : public midea_dongle::MideaAppliance, public climate::Climate, pu
   void get_power_usage_();
   void get_capabilities_();
   void get_status_();
+  void display_toggle_();
+#ifdef USE_REMOTE_TRANSMITTER
+  void transmit_ir_(IrData &data) { this->dongle_->transmit_ir(data); }
+#endif
 
   MideaDongle *dongle_{nullptr};
   Sensor *outdoor_sensor_{nullptr};

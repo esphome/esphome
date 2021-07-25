@@ -1,3 +1,5 @@
+from esphome.core import coroutine
+from esphome import automation
 from esphome.components import climate, sensor
 import esphome.config_validation as cv
 import esphome.codegen as cg
@@ -8,6 +10,7 @@ from esphome.const import (
     CONF_PRESET_BOOST,
     CONF_PRESET_ECO,
     CONF_PRESET_SLEEP,
+    CONF_TEMPERATURE,
     STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
     UNIT_PERCENT,
@@ -20,6 +23,33 @@ from esphome.const import (
     DEVICE_CLASS_HUMIDITY,
 )
 from esphome.components.midea_dongle import CONF_MIDEA_DONGLE_ID, MideaDongle
+
+
+def templatize(value):
+    if isinstance(value, cv.Schema):
+        value = value.schema
+    ret = {}
+    for key, val in value.items():
+        ret[key] = cv.templatable(val)
+    return cv.Schema(ret)
+
+
+def register_action(name, type_, schema):
+    validator = templatize(schema).extend(MIDEA_ACTION_BASE_SCHEMA)
+    registerer = automation.register_action(f"midea_ac.{name}", type_, validator)
+
+    def decorator(func):
+        async def new_func(config, action_id, template_arg, args):
+            ac_ = await cg.get_variable(config[CONF_ID])
+            var = cg.new_Pvariable(action_id, template_arg)
+            cg.add(var.set_parent(ac_))
+            await coroutine(func)(var, config, args)
+            return var
+
+        return registerer(new_func)
+
+    return decorator
+
 
 AUTO_LOAD = ["climate", "sensor", "midea_dongle"]
 CODEOWNERS = ["@dudanov"]
@@ -82,6 +112,55 @@ CONFIG_SCHEMA = cv.All(
         }
     ).extend(cv.COMPONENT_SCHEMA)
 )
+
+# Actions
+FollowMeAction = midea_ac_ns.class_("FollowMeAction", automation.Action)
+DisplayToggleAction = midea_ac_ns.class_("DisplayToggleAction", automation.Action)
+SwingStepAction = midea_ac_ns.class_("SwingStepAction", automation.Action)
+
+MIDEA_ACTION_BASE_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(CONF_ID): cv.use_id(MideaAC),
+    }
+)
+
+# FollowMe action
+MIDEA_FOLLOW_ME_MIN = 0
+MIDEA_FOLLOW_ME_MAX = 37
+MIDEA_FOLLOW_ME_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_TEMPERATURE): cv.templatable(cv.temperature),
+        cv.Optional(CONF_BEEPER, default=False): cv.templatable(cv.boolean),
+    }
+)
+
+
+@register_action("follow_me", FollowMeAction, MIDEA_FOLLOW_ME_SCHEMA)
+async def follow_me_to_code(var, config, args):
+    template_ = await cg.templatable(config[CONF_BEEPER], args, cg.bool_)
+    cg.add(var.set_beeper(template_))
+    template_ = await cg.templatable(config[CONF_TEMPERATURE], args, cg.float_)
+    cg.add(var.set_temperature(template_))
+
+
+# Toggle Display action
+@register_action(
+    "display_toggle",
+    DisplayToggleAction,
+    cv.Schema({}),
+)
+async def display_toggle_to_code(var, config, args):
+    pass
+
+
+# Swing Step action
+@register_action(
+    "swing_step",
+    SwingStepAction,
+    cv.Schema({}),
+)
+async def swing_step_to_code(var, config, args):
+    pass
 
 
 async def to_code(config):

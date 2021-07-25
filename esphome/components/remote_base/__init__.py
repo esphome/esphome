@@ -995,3 +995,45 @@ async def panasonic_action(var, config, args):
     cg.add(var.set_address(template_))
     template_ = await cg.templatable(config[CONF_COMMAND], args, cg.uint32)
     cg.add(var.set_command(template_))
+
+
+# Midea
+MideaData, MideaBinarySensor, MideaTrigger, MideaAction, MideaDumper = declare_protocol(
+    "Midea"
+)
+MideaAction = ns.class_("MideaAction", RemoteTransmitterActionBase)
+MIDEA_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_CODE): cv.All(
+            [cv.Any(cv.hex_uint8_t, cv.uint8_t)],
+            cv.Length(min=5, max=5),
+        ),
+        cv.GenerateID(CONF_CODE_STORAGE_ID): cv.declare_id(cg.uint8),
+    }
+)
+
+
+@register_binary_sensor("midea", MideaBinarySensor, MIDEA_SCHEMA)
+def midea_binary_sensor(var, config):
+    arr_ = cg.progmem_array(config[CONF_CODE_STORAGE_ID], config[CONF_CODE])
+    cg.add(var.set_code(arr_))
+
+
+@register_trigger("midea", MideaTrigger, MideaData)
+def midea_trigger(var, config):
+    pass
+
+
+@register_dumper("midea", MideaDumper)
+def midea_dumper(var, config):
+    pass
+
+
+@register_action(
+    "midea",
+    MideaAction,
+    MIDEA_SCHEMA,
+)
+async def midea_action(var, config, args):
+    arr_ = cg.progmem_array(config[CONF_CODE_STORAGE_ID], config[CONF_CODE])
+    cg.add(var.set_code(arr_))

@@ -4,6 +4,10 @@
 #include "esphome/components/wifi/wifi_component.h"
 #include "esphome/components/uart/uart.h"
 #include "midea_frame.h"
+#ifdef USE_REMOTE_TRANSMITTER
+#include "esphome/components/remote_base/midea_protocol.h"
+#include "esphome/components/remote_transmitter/remote_transmitter.h"
+#endif
 
 namespace esphome {
 namespace midea_dongle {
@@ -50,6 +54,12 @@ class MideaDongle : public Component, public uart::UARTDevice {
   void queue_request(const Frame &frame, uint32_t attempts, uint32_t timeout, ResponseHandler handler = nullptr);
   void queue_request_priority(const Frame &frame, uint32_t attempts, uint32_t timeout, ResponseHandler handler = nullptr);
   void set_period(uint32_t ms) { this->period_ = ms; }
+#ifdef USE_REMOTE_TRANSMITTER
+  void set_transmitter(remote_transmitter::RemoteTransmitterComponent *transmitter) {
+    this->transmitter_ = transmitter;
+  }
+  void transmit_ir(remote_base::MideaData &data);
+#endif
 
  protected:
   void handler_(const Frame &frame);
@@ -61,6 +71,9 @@ class MideaDongle : public Component, public uart::UARTDevice {
   std::deque<MideaRequest *> queue_;
   MideaAppliance *appliance_{nullptr};
   MideaRequest *request_{nullptr};
+#ifdef USE_REMOTE_TRANSMITTER
+  remote_transmitter::RemoteTransmitterComponent *transmitter_{nullptr};
+#endif
   FrameReceiver<64> receiver_{};
   uint32_t period_{1000};
   bool is_ready_{true};

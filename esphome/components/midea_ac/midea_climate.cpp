@@ -205,11 +205,54 @@ void MideaAC::get_capabilities_() {
 }
 
 void MideaAC::get_status_() {
-  uint8_t data[] = {0xAA, 0x21, 0xAC, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0x41, 0x81,
-                    0x00, 0xFF, 0x03, 0xFF, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0x00, 0x37, 0x31};
+  uint8_t data[] = {0xAA, 0x21, 0xAC, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03,
+                    0x41, 0x81, 0x00, 0xFF, 0x03, 0xFF, 0x00, 0x02, 0x00, 0x00,
+                    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                    0x03, 0x00, 0x37, 0x31};
   ESP_LOGD(TAG, "Enqueuing a GET_STATUS(0x41) request...");
   this->dongle_->queue_request(data, 5, 2000, std::bind(&MideaAC::read_status_, this, std::placeholders::_1));
+}
+
+void MideaAC::display_toggle_() {
+  uint8_t data[] = {0xAA, 0x21, 0xAC, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03,
+                    0x41, 0x61, 0x00, 0xFF, 0x02, 0x00, 0x02, 0x00, 0x00, 0x00,
+                    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                    0x00, 0x00, 0xE3, 0xA8};
+  ESP_LOGD(TAG, "Enqueuing a priority TOGGLE_LIGHT(0x41) request...");
+  this->dongle_->queue_request_priority(data, 5, 2000, std::bind(&MideaAC::read_status_, this, std::placeholders::_1));
+}
+
+/* ACTIONS */
+
+void MideaAC::do_follow_me(float temperature, bool beeper) {
+#ifdef USE_REMOTE_TRANSMITTER
+  IrFollowMeData data(static_cast<uint8_t>(lroundf(temperature)), beeper);
+  this->transmit_ir_(data);
+#else
+  ESP_LOGW(TAG, "Action needs remote_transmitter component");
+#endif
+}
+
+void MideaAC::do_swing_step() {
+#ifdef USE_REMOTE_TRANSMITTER
+  IrSpecialData data(0x01);
+  this->transmit_ir_(data);
+#else
+  ESP_LOGW(TAG, "Action needs remote_transmitter component");
+#endif
+}
+
+void MideaAC::do_display_toggle() {
+  if (this->capabilities_.light_control()) {
+    this->display_toggle_();
+  } else {
+#ifdef USE_REMOTE_TRANSMITTER
+    IrSpecialData data(0x08);
+    this->transmit_ir_(data);
+#else
+    ESP_LOGW(TAG, "Action needs remote_transmitter component");
+#endif
+  }
 }
 
 }  // namespace midea_ac

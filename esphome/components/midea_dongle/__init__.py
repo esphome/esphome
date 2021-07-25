@@ -1,6 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.components import uart
+from esphome.components import uart, remote_transmitter
+from esphome.components.remote_base import CONF_TRANSMITTER_ID
 from esphome.const import CONF_ID, CONF_PERIOD
 
 DEPENDENCIES = ["wifi", "uart"]
@@ -16,6 +17,9 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(MideaDongle),
             cv.Optional(CONF_PERIOD, default="1s"): cv.time_period,
+            cv.Optional(CONF_TRANSMITTER_ID): cv.use_id(
+                remote_transmitter.RemoteTransmitterComponent
+            ),
             cv.Optional(CONF_STRENGTH_ICON, default=False): cv.boolean,
         }
     )
@@ -29,3 +33,7 @@ async def to_code(config):
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
     cg.add(var.set_period(config[CONF_PERIOD].total_milliseconds))
+    if CONF_TRANSMITTER_ID in config:
+        cg.add_define("USE_REMOTE_TRANSMITTER")
+        transmitter_ = await cg.get_variable(config[CONF_TRANSMITTER_ID])
+        cg.add(var.set_transmitter(transmitter_))
