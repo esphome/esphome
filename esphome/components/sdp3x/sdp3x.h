@@ -21,7 +21,7 @@ class SDP3XComponent : public PollingComponent, public i2c::I2CDevice, public se
   /// Internal method to read the pressure from the component after it has been scheduled.
   void read_pressure_();
 
-  bool CheckCrc(const uint8_t data[], uint8_t size, uint8_t checksum);
+  bool check_crc_(const uint8_t data[], uint8_t size, uint8_t checksum);
 
   float pressure_scale_factor_ = 0.0f; // hPa per count
 };

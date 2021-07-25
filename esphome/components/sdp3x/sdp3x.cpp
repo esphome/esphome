@@ -47,7 +47,7 @@ void SDP3XComponent::setup() {
     return;
   }
 
-  if (!(CheckCrc(&data[0], 2, data[2]) && CheckCrc(&data[3], 2, data[5]))){
+  if (!(check_crc_(&data[0], 2, data[2]) && check_crc_(&data[3], 2, data[5]))){
     ESP_LOGE(TAG, "CRC ID SDP3X failed!");      
     this->mark_failed();
     return;
@@ -88,7 +88,7 @@ void SDP3XComponent::read_pressure_() {
     return;
   }
 
-  if (!(CheckCrc(&data[0], 2, data[2])&& CheckCrc(&data[3], 2, data[5])&& CheckCrc(&data[6], 2, data[8]))){
+  if (!(check_crc_(&data[0], 2, data[2])&& check_crc_(&data[3], 2, data[5])&& check_crc_(&data[6], 2, data[8]))){
     ESP_LOGW(TAG, "Invalid SDP3X data!");
     this->status_set_warning();
     return;
