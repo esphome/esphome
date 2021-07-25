@@ -15,7 +15,13 @@ sdp3x_ns = cg.esphome_ns.namespace("sdp3x")
 SDP3XComponent = sdp3x_ns.class_("SDP3XComponent", cg.PollingComponent, i2c.I2CDevice)
 
 CONFIG_SCHEMA = (
-    sensor.sensor_schema(UNIT_HECTOPASCAL, ICON_EMPTY, 3, DEVICE_CLASS_PRESSURE)
+    sensor.sensor_schema(
+        UNIT_HECTOPASCAL, 
+        ICON_EMPTY, 
+        3, 
+        DEVICE_CLASS_PRESSURE, 
+        STATE_CLASS_MEASUREMENT,
+    )
     .extend(
         {
             cv.GenerateID(): cv.declare_id(SDP3XComponent),
