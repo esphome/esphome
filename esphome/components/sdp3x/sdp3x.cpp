@@ -12,9 +12,7 @@ static const uint8_t SDP3X_READ_ID2[2] = {0xE1, 0x02};
 static const uint8_t SDP3X_START_DP_AVG[2] = {0x36, 0x15};
 static const uint8_t SDP3X_STOP_MEAS[2] = {0x3F, 0xF9};
 
-void SDP3XComponent::update() {
-  this->read_pressure_();
-}
+void SDP3XComponent::update() { this->read_pressure_(); }
 
 void SDP3XComponent::setup() {
   ESP_LOGD(TAG, "Setting up SDP3X...");
