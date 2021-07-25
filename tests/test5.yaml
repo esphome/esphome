@@ -30,10 +30,20 @@ binary_sensor:
     pin: GPIO0
     id: io0_button
 
+tlc5947:
+  data_pin: GPIO12
+  clock_pin: GPIO14
+  xlat_pin: GPIO15
+
 output:
   - platform: gpio
     pin: GPIO2
     id: built_in_led
+
+  - platform: tlc5947
+    id: output_red
+    channel: 0
+    max_power: 0.8
 
 esp32_ble:
 
