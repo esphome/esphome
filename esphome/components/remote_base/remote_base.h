@@ -124,9 +124,7 @@ class RemoteReceiveData {
     return false;
   }
 
-  uint32_t get_index() {
-    return index_;
-  }
+  uint32_t get_index() { return index_; }
 
   void reset() { this->index_ = 0; }
 
