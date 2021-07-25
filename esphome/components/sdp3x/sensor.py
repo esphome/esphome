@@ -9,6 +9,7 @@ from esphome.const import (
 )
 
 DEPENDENCIES = ["i2c"]
+CODEOWNERS = ["@Azimath"]
 
 sdp3x_ns = cg.esphome_ns.namespace("sdp3x")
 SDP3XComponent = sdp3x_ns.class_("SDP3XComponent", cg.PollingComponent, i2c.I2CDevice)
