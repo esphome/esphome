@@ -120,7 +120,7 @@ void Tuya::handle_char_(uint8_t c) {
 void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buffer, size_t len) {
   TuyaCommandType command_type = (TuyaCommandType) command;
 
-  if(this->expected_response_.has_value() && this->expected_response_ == command_type) {
+  if (this->expected_response_.has_value() && this->expected_response_ == command_type) {
     this->expected_response_.reset();
   }
 
@@ -359,7 +359,7 @@ void Tuya::send_raw_command_(TuyaCommand command) {
 void Tuya::process_command_queue_() {
   uint32_t delay = millis() - this->last_command_timestamp_;
 
-  if(this->expected_response_.has_value() && delay > RECEIVE_TIMEOUT) {
+  if (this->expected_response_.has_value() && delay > RECEIVE_TIMEOUT) {
     this->expected_response_.reset();
   }
 
