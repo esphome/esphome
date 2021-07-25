@@ -367,7 +367,8 @@ void Tuya::process_command_queue_() {
   }
 
   // Left check of delay since last command in case theres ever a command sent by calling send_raw_command_ directly
-  if (delay > COMMAND_DELAY && !this->command_queue_.empty() && this->rx_message_.empty() && !this->expected_response_.has_value()) {
+  if (delay > COMMAND_DELAY && !this->command_queue_.empty() && this->rx_message_.empty() &&
+      !this->expected_response_.has_value()) {
     this->send_raw_command_(command_queue_.front());
     this->command_queue_.erase(command_queue_.begin());
   }
