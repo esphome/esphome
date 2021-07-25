@@ -177,7 +177,7 @@ async def to_code(config):
     cg.add(var.set_swing_horizontal(config[CONF_SWING_HORIZONTAL]))
     cg.add(var.set_swing_both(config[CONF_SWING_BOTH]))
     #    cg.add(var.set_preset_eco(config[CONF_PRESET_ECO]))
-    cg.add(var.set_preset_sleep(config[CONF_PRESET_SLEEP]))
+    #    cg.add(var.set_preset_sleep(config[CONF_PRESET_SLEEP]))
     #    cg.add(var.set_preset_boost(config[CONF_PRESET_BOOST]))
     if CONF_OUTDOOR_TEMPERATURE in config:
         sens = await sensor.new_sensor(config[CONF_OUTDOOR_TEMPERATURE])

@@ -37,7 +37,6 @@ class MideaAC : public midea_dongle::MideaAppliance, public climate::Climate, pu
   void set_beeper_feedback(bool state) { this->beeper_feedback_ = state; }
   void set_swing_horizontal(bool state) { this->traits_swing_horizontal_ = state; }
   void set_swing_both(bool state) { this->traits_swing_both_ = state; }
-  void set_preset_sleep(bool state) { this->traits_preset_sleep_ = state; }
   bool allow_preset(ClimatePreset preset) const;
   void set_custom_fan_modes(std::set<std::string> custom_fan_modes) {
     this->traits_custom_fan_modes_ = std::move(custom_fan_modes);
@@ -49,6 +48,7 @@ class MideaAC : public midea_dongle::MideaAppliance, public climate::Climate, pu
   void do_follow_me(float temperature, bool beeper = false);
   void do_display_toggle();
   void do_swing_step();
+//  void set_preset_sleep(bool state) { this->traits_preset_sleep_ = state; }
 //  void set_preset_boost(bool state) { this->traits_preset_boost_ = state; }
 //  void set_preset_eco(bool state) { this->traits_preset_eco_ = state; }
 
@@ -75,7 +75,7 @@ class MideaAC : public midea_dongle::MideaAppliance, public climate::Climate, pu
   bool beeper_feedback_{false};
   bool traits_swing_horizontal_{false};
   bool traits_swing_both_{false};
-  bool traits_preset_sleep_{false};
+//  bool traits_preset_sleep_{false};
 //  bool traits_preset_boost_{false};
 //  bool traits_preset_eco_{false};
 };
