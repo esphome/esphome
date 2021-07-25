@@ -5,7 +5,6 @@ namespace esphome {
 namespace midea_dongle {
 
 static const char *const TAG = "midea_dongle";
-static const std::string SEND_TIMEOUT = "midea_dongle: send_timeout";
 static const std::string RESPONSE_TIMEOUT = "midea_dongle: response_timeout";
 
 ResponseStatus MideaRequest::call_handler(const Frame &frame) {
@@ -17,8 +16,9 @@ ResponseStatus MideaRequest::call_handler(const Frame &frame) {
 }
 
 void MideaDongle::setup() {
-  this->get_electronic_id_();
-  this->setup_network_notify_task_();
+  this->set_interval(2*60*1000, [this](){
+    this->send_network_notify_();
+  });
 }
 
 void MideaDongle::loop() {
@@ -40,21 +40,6 @@ void MideaDongle::loop() {
   this->update_timeout_();
 }
 
-void MideaDongle::get_electronic_id_() {
-  uint8_t data[] = {0xAA, 0x0B, 0xFF, 0xF4, 0x00, 0x00, 0x01, 0x00, 0x00, GET_ELECTRONIC_ID, 0x00, 0xFA};
-  this->queue_request(data, 5, 2000, [this](const Frame &frame) -> ResponseStatus {
-    ESP_LOGI(TAG, "Detected appliance type: 0x%.2X", frame.app_type());
-    return RESPONSE_OK;
-  });
-}
-
-void MideaDongle::setup_network_notify_task_() {
-  static const std::string NETWORK_NOTIFY_TASK = "midea_dongle: network_notify_task";
-  this->set_interval(NETWORK_NOTIFY_TASK, 2*60*1000, [this](){
-    this->send_network_notify_();
-  });
-}
-
 static uint8_t get_signal_strength() {
   const int32_t dbm = WiFi.RSSI();
   if (dbm > -63)
@@ -68,31 +53,27 @@ static uint8_t get_signal_strength() {
 
 void MideaDongle::send_network_notify_(uint8_t msg_type) {
   NotifyFrame notify;
-  auto connected = WiFi.isConnected();
-  auto strength = get_signal_strength();
-  auto ip = WiFi.localIP();
   notify.set_type(msg_type);
-  notify.set_connected(connected);
-  notify.set_signal_strength(connected ? strength : 0);
-  notify.set_ip(ip);
+  notify.set_connected(WiFi.isConnected());
+  notify.set_signal_strength(get_signal_strength());
+  notify.set_ip(WiFi.localIP());
   notify.update_cs();
-  ESP_LOGD(TAG, "Send network notify: WiFi STA is %s, signal strength: %d, ip: %s",
-    connected ? "connected" : "not connected", strength,
-    ip.toString().c_str()
-  );
-  if (msg_type == NETWORK_NOTIFY)
+  if (msg_type == NETWORK_NOTIFY) {
+    ESP_LOGD(TAG, "Enqueuing a DEVICE_NETWORK(0x0D) notification...");
     this->queue_request(notify, 5, 2000);
-  else
+  } else {
+    ESP_LOGD(TAG, "Answer to QUERY_NETWORK(0x63) request...");
     this->send_frame(notify);
+  }
 }
 
 void MideaDongle::queue_request(const Frame &request, uint32_t attempts, uint32_t timeout, ResponseHandler handler) {
-  ESP_LOGD(TAG, "Request push_back to queue. Attempts: %d, response timeout: %dms", attempts, timeout);
+  ESP_LOGD(TAG, "Enqueuing the request. Attempts: %d, response timeout: %dms", attempts, timeout);
   this->queue_.push_back(new MideaRequest{request, attempts, timeout, handler});
 }
 
 void MideaDongle::queue_request_priority(const Frame &request, uint32_t attempts, uint32_t timeout, ResponseHandler handler) {
-  ESP_LOGD(TAG, "Request push_front to queue. Attempts: %d, response timeout: %dms", attempts, timeout);
+  ESP_LOGD(TAG, "Priority request queuing. Attempts: %d, response timeout: %dms", attempts, timeout);
   this->queue_.push_front(new MideaRequest{request, attempts, timeout, handler});
 }
 
@@ -107,15 +88,12 @@ void MideaDongle::handler_(const Frame &frame) {
       return;
     }
   }
-
   /* HANDLE REQUESTS */
-
   if (frame.has_type(QUERY_NETWORK)) {
     this->send_network_notify_(QUERY_NETWORK);
     return;
   }
-
-  // other requests send to appliance
+  // Other requests send to appliance
   if (this->appliance_ != nullptr)
     this->appliance_->on_frame(frame);
 }
@@ -124,7 +102,7 @@ void MideaDongle::send_frame(const Frame &frame) {
   ESP_LOGD(TAG, "TX: %s", frame.to_string().c_str());
   this->write_array(frame.data(), frame.size());
   this->is_ready_ = false;
-  this->set_timeout(SEND_TIMEOUT, 1000, [this](){
+  this->set_timeout(1000, [this](){
     this->is_ready_ = true;
   });
 }

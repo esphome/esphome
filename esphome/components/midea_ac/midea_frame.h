@@ -129,24 +129,6 @@ class PropertiesFrame : public midea_dongle::Frame {
   void set_power_(bool state) { this->set_bytemask_(11, 0x01, state); }
 };
 
-// Query state frame (read-only)
-class QueryFrame : public midea_dongle::StaticFrame<midea_dongle::Frame> {
- public:
-  QueryFrame() : StaticFrame(FPSTR(this->INIT)) {}
-
- private:
-  static const uint8_t PROGMEM INIT[];
-};
-
-// Power query state frame (read-only)
-class PowerQueryFrame : public midea_dongle::StaticFrame<midea_dongle::Frame> {
- public:
-  PowerQueryFrame() : StaticFrame(FPSTR(this->INIT)) {}
-
- private:
-  static const uint8_t PROGMEM INIT[];
-};
-
 // Command frame
 class CommandFrame : public midea_dongle::StaticFrame<PropertiesFrame> {
  public:

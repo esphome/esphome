@@ -22,48 +22,17 @@ void MideaAC::setup() {
   this->dongle_->set_appliance(this);
   this->get_capabilities_();
   if (this->power_sensor_ != nullptr) {
-    this->set_interval("midea_ac: power_query", 30*1000, [this](){
-      this->dongle_->queue_request(this->power_frame_, 5, 2000, [this](const Frame &frame) -> ResponseStatus{
-        const auto p = frame.as<PropertiesFrame>();
-        if (!p.has_power_info())
-          return ResponseStatus::RESPONSE_WRONG;
-        set_sensor(this->power_sensor_, p.get_power_usage());
-        return ResponseStatus::RESPONSE_OK;
-      });
+    this->set_interval(30*1000, [this](){
+      this->get_power_usage_();
     });
   }
-}
-
-void MideaAC::get_capabilities_() {
-  uint8_t data[] = {
-    0xAA, 0x0E, 0xAC, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0x03,
-    0xB5, 0x01, 0x00, 0x4D, 0x3D
-  };
-  ESP_LOGD(TAG, "Queue GET_CAPABILITIES(0xB5) request...");
-  this->dongle_->queue_request_priority(data, 5, 2000, [this](const Frame &frame) -> ResponseStatus {
-    if (!frame.has_id(0xB5))
-      return ResponseStatus::RESPONSE_WRONG;
-    if (this->capabilities_.read(frame)) {
-      uint8_t data[] = {
-        0xAA, 0x0F, 0xAC, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0x03,
-        0xB5, 0x01, 0x01, 0x01, 0x21, 0x66
-      };
-      this->dongle_->send_frame(data);
-      return ResponseStatus::RESPONSE_PARTIAL;
-    }
-    print_capabilities(TAG, this->capabilities_);
-    return ResponseStatus::RESPONSE_OK;
-  });
-}
-
-void MideaAC::on_idle() {
-  this->dongle_->queue_request(this->query_frame_, 5, 2000, std::bind(&MideaAC::read_status_, this, std::placeholders::_1));
 }
 
 ResponseStatus MideaAC::read_status_(const Frame &frame) {
     const auto p = frame.as<PropertiesFrame>();
     if (!p.has_properties())
       return ResponseStatus::RESPONSE_WRONG;
+    ESP_LOGD(TAG, "New status data received. Data parsing started...");
     this->cmd_frame_.set_properties(p);  // copy properties from response
     bool need_publish = false;
     set_property(this->mode, p.get_mode(), need_publish);
@@ -134,7 +103,7 @@ bool MideaAC::allow_custom_preset(const std::string &custom_preset) const {
   if (custom_preset == Capabilities::FREEZE_PROTECTION) {
     if (this->mode == climate::CLIMATE_MODE_HEAT)
       return true;
-    ESP_LOGD(TAG, "%s is only available in HEAT mode", Capabilities::FREEZE_PROTECTION.c_str());
+    ESP_LOGD(TAG, "FREEZE_PROTECTION preset is only available in HEAT mode");
   }
   return false;
 }
@@ -180,6 +149,7 @@ void MideaAC::control(const climate::ClimateCall &call) {
   if (update) {
     this->cmd_frame_.set_beeper_feedback(this->beeper_feedback_);
     this->cmd_frame_.update_all();
+    ESP_LOGD(TAG, "Enqueuing a priority SET_STATUS(0x40) request...");
     this->dongle_->queue_request_priority(this->cmd_frame_, 5, 2000, std::bind(&MideaAC::read_status_, this, std::placeholders::_1));
   }
 }
@@ -196,6 +166,50 @@ climate::ClimateTraits MideaAC::traits() {
     traits.add_supported_swing_mode(ClimateSwingMode::CLIMATE_SWING_BOTH);
   this->capabilities_.to_climate_traits(traits);
   return traits;
+}
+
+void MideaAC::get_power_usage_() {
+  uint8_t data[] = {0xAA, 0x22, 0xAC, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0x03, 0x41, 0x21,
+                    0x01, 0x44, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0x00, 0x17, 0x6A};
+  ESP_LOGD(TAG, "Enqueuing a GET_POWERUSAGE(0x41) request...");
+  this->dongle_->queue_request(data, 5, 2000, [this](const Frame &frame) -> ResponseStatus{
+    const auto p = frame.as<PropertiesFrame>();
+    if (!p.has_power_info())
+      return ResponseStatus::RESPONSE_WRONG;
+    set_sensor(this->power_sensor_, p.get_power_usage());
+    return ResponseStatus::RESPONSE_OK;
+  });
+}
+
+void MideaAC::get_capabilities_() {
+  uint8_t data[] = {
+    0xAA, 0x0E, 0xAC, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0x03,
+    0xB5, 0x01, 0x00, 0x4D, 0x3D
+  };
+  ESP_LOGD(TAG, "Enqueuing a priority GET_CAPABILITIES(0xB5) request...");
+  this->dongle_->queue_request_priority(data, 5, 2000, [this](const Frame &frame) -> ResponseStatus {
+    if (!frame.has_id(0xB5))
+      return ResponseStatus::RESPONSE_WRONG;
+    if (this->capabilities_.read(frame)) {
+      uint8_t data[] = {
+        0xAA, 0x0F, 0xAC, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0x03,
+        0xB5, 0x01, 0x01, 0x01, 0x21, 0x66
+      };
+      this->dongle_->send_frame(data);
+      return ResponseStatus::RESPONSE_PARTIAL;
+    }
+    print_capabilities(TAG, this->capabilities_);
+    return ResponseStatus::RESPONSE_OK;
+  });
+}
+
+void MideaAC::get_status_() {
+  uint8_t data[] = {0xAA, 0x21, 0xAC, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0x41, 0x81,
+                    0x00, 0xFF, 0x03, 0xFF, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0x00, 0x37, 0x31};
+  ESP_LOGD(TAG, "Enqueuing a GET_STATUS(0x41) request...");
+  this->dongle_->queue_request(data, 5, 2000, std::bind(&MideaAC::read_status_, this, std::placeholders::_1));
 }
 
 }  // namespace midea_ac

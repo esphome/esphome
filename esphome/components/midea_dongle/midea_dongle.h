@@ -51,19 +51,17 @@ class MideaDongle : public Component, public uart::UARTDevice {
   void queue_request_priority(const Frame &frame, uint32_t attempts, uint32_t timeout, ResponseHandler handler = nullptr);
 
  protected:
-  MideaAppliance *appliance_{nullptr};
-  std::deque<MideaRequest *> queue_;
-  MideaRequest *request_{nullptr};
-  FrameReceiver<64> receiver_;
-  bool is_ready_{true};
   void handler_(const Frame &frame);
-  void get_electronic_id_();
-  void report_network_status_(uint8_t type);
-  void setup_network_notify_task_();
   void send_network_notify_(uint8_t msg_type = NETWORK_NOTIFY);
   void destroy_request_();
   void update_timeout_();
   bool is_wait_for_response_() const { return this->request_ != nullptr; }
+
+  std::deque<MideaRequest *> queue_;
+  MideaAppliance *appliance_{nullptr};
+  MideaRequest *request_{nullptr};
+  FrameReceiver<64> receiver_{};
+  bool is_ready_{true};
 };
 
 }  // namespace midea_dongle

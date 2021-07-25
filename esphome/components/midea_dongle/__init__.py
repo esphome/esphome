@@ -10,12 +10,12 @@ midea_dongle_ns = cg.esphome_ns.namespace("midea_dongle")
 MideaDongle = midea_dongle_ns.class_("MideaDongle", cg.Component, uart.UARTDevice)
 
 CONF_MIDEA_DONGLE_ID = "midea_dongle_id"
-# CONF_STRENGTH_ICON = "strength_icon"
+CONF_STRENGTH_ICON = "strength_icon"
 CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(MideaDongle),
-            # cv.Optional(CONF_STRENGTH_ICON, default=False): cv.boolean,
+            cv.Optional(CONF_STRENGTH_ICON, default=False): cv.boolean,
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
