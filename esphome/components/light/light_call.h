@@ -162,12 +162,12 @@ class LightCall {
   /// Validate all properties and return the target light color values.
   LightColorValues validate_();
 
-  /// Transform calls following a legacy format to the current API.
-  void transform_legacy_calls_();
   //// Compute the color mode that should be used for this call.
   ColorMode compute_color_mode_();
   /// Get potential color modes for this light call.
   std::set<ColorMode> get_suitable_color_modes_();
+  /// Some color modes also can be set using non-native parameters, transform those calls.
+  void transform_parameters_();
 
   bool has_transition_() { return this->transition_length_.has_value(); }
   bool has_flash_() { return this->flash_length_.has_value(); }

@@ -135,9 +135,6 @@ LightColorValues LightCall::validate_() {
   auto *name = this->parent_->get_name().c_str();
   auto traits = this->parent_->get_traits();
 
-  // Handle calls following a legacy format
-  this->transform_legacy_calls_();
-
   // Color mode check
   if (this->color_mode_.has_value() && !traits.supports_color_mode(this->color_mode_.value())) {
     ESP_LOGW(TAG, "'%s' - This light does not support color mode %s!", name,
@@ -150,6 +147,9 @@ LightColorValues LightCall::validate_() {
     this->color_mode_ = this->compute_color_mode_();
   }
   auto color_mode = *this->color_mode_;
+
+  // Transform calls that use non-native parameters for the current mode.
+  this->transform_parameters_();
 
   // Brightness exists check
   if (this->brightness_.has_value() && !(*color_mode & *ColorCapability::BRIGHTNESS)) {
@@ -181,13 +181,15 @@ LightColorValues LightCall::validate_() {
   }
 
   // White value exists check
-  if (this->white_.has_value() && !(*color_mode & *ColorCapability::WHITE)) {
+  if (this->white_.has_value() &&
+      !(*color_mode & *ColorCapability::WHITE || *color_mode & *ColorCapability::COLD_WARM_WHITE)) {
     ESP_LOGW(TAG, "'%s' - This color mode does not support setting white value!", name);
     this->white_.reset();
   }
 
   // Color temperature exists check
-  if (this->color_temperature_.has_value() && !(*color_mode & *ColorCapability::COLOR_TEMPERATURE)) {
+  if (this->color_temperature_.has_value() &&
+      !(*color_mode & *ColorCapability::COLOR_TEMPERATURE || *color_mode & *ColorCapability::COLD_WARM_WHITE)) {
     ESP_LOGW(TAG, "'%s' - This light does not support setting color temperature!", name);
     this->color_temperature_.reset();
   }
@@ -319,22 +321,18 @@ LightColorValues LightCall::validate_() {
 
   return v;
 }
-void LightCall::transform_legacy_calls_() {
+void LightCall::transform_parameters_() {
   auto traits = this->parent_->get_traits();
 
-  // If color mode is specified, it's by definition not a legacy call.
-  if (this->color_mode_.has_value())
-    return;
-
-  // Compatibility with pre-colormode model: if white value or color temperature is given, but only
-  // CWWW modes are supported and we know the temperature of the cold/warm white channels, emulate
-  // the color temperature through the CWWW modes as best as we can, because CWWW and RGBWW lights
-  // used to represent their values as white + color temperature.
-  if (((this->white_.has_value() && *this->white_ > 0.0f) || this->color_temperature_.has_value()) &&
-      !traits.supports_color_capability(ColorCapability::WHITE) &&
-      traits.supports_color_capability(ColorCapability::COLD_WARM_WHITE) && traits.get_min_mireds() > 0 &&
-      traits.get_max_mireds() > 0) {
-    ESP_LOGI(TAG, "'%s' - Emulating white/color temperature using cold/warm white channels.",
+  // Allow CWWW modes to be set with a white value and/or color temperature. This is used by HA,
+  // which doesn't support CWWW modes (yet?), and for compatibility with the pre-colormode model,
+  // as CWWW and RGBWW lights used to represent their values as white + color temperature.
+  if (((this->white_.has_value() && *this->white_ > 0.0f) || this->color_temperature_.has_value()) &&  //
+      (**this->color_mode_ & *ColorCapability::COLD_WARM_WHITE) &&                                     //
+      !(**this->color_mode_ & *ColorCapability::WHITE) &&                                              //
+      !(**this->color_mode_ & *ColorCapability::COLOR_TEMPERATURE) &&                                  //
+      traits.get_min_mireds() > 0.0f && traits.get_max_mireds() > 0.0f) {
+    ESP_LOGD(TAG, "'%s' - Setting cold/warm white channels using white/color temperature values.",
              this->parent_->get_name().c_str());
     auto current_values = this->parent_->remote_values;
     if (this->color_temperature_.has_value()) {
@@ -352,8 +350,6 @@ void LightCall::transform_legacy_calls_() {
       this->cold_white_ = *this->white_ * current_values.get_cold_white() / max_cw_ww;
       this->warm_white_ = *this->white_ * current_values.get_warm_white() / max_cw_ww;
     }
-    this->white_.reset();
-    this->color_temperature_.reset();
   }
 }
 ColorMode LightCall::compute_color_mode_() {
@@ -409,24 +405,26 @@ std::set<ColorMode> LightCall::get_suitable_color_modes_() {
   bool has_cwww = (this->cold_white_.has_value() && *this->cold_white_ > 0.0f) ||
                   (this->warm_white_.has_value() && *this->warm_white_ > 0.0f);
 
-  // If white value is given, use a mode with a white channel, i.e. WHITE (with RGB if also given) or
-  // RGB_COLOR_TEMPERATURE. Note that COLOR_TEMPERATURE without RGB doesn't accept a white parameter.
+  // If white value is given, use a mode with a white channel, i.e. WHITE or COLD_WARM_WHITE (emulated) with
+  // RGB if also given, or RGB_COLOR_TEMPERATURE (note that COLOR_TEMPERATURE doesn't have a white parameter).
   if (has_white) {
     if (has_rgb) {
       if (has_ct)
-        return {ColorMode::RGB_COLOR_TEMPERATURE};
-      return {ColorMode::RGB_WHITE, ColorMode::RGB_COLOR_TEMPERATURE};
+        return {ColorMode::RGB_COLOR_TEMPERATURE, ColorMode::RGB_COLD_WARM_WHITE};
+      return {ColorMode::RGB_WHITE, ColorMode::RGB_COLOR_TEMPERATURE, ColorMode::RGB_COLD_WARM_WHITE};
     }
     if (has_ct)
-      return {ColorMode::RGB_COLOR_TEMPERATURE};
-    return {ColorMode::WHITE, ColorMode::RGB_WHITE, ColorMode::RGB_COLOR_TEMPERATURE};
+      return {ColorMode::RGB_COLOR_TEMPERATURE, ColorMode::RGB_COLD_WARM_WHITE};
+    return {ColorMode::WHITE, ColorMode::RGB_WHITE, ColorMode::RGB_COLOR_TEMPERATURE, ColorMode::COLD_WARM_WHITE,
+            ColorMode::RGB_COLD_WARM_WHITE};
   }
 
-  // If color temperature is given, use COLOR_TEMPERATURE (with RGB if also given).
+  // If color temperature is given, use COLOR_TEMPERATURE or COLD_WARM_WHITE (emulated), with RGB if also given.
   if (has_ct) {
     if (has_rgb)
-      return {ColorMode::RGB_COLOR_TEMPERATURE};
-    return {ColorMode::COLOR_TEMPERATURE, ColorMode::RGB_COLOR_TEMPERATURE};
+      return {ColorMode::RGB_COLOR_TEMPERATURE, ColorMode::RGB_COLD_WARM_WHITE};
+    return {ColorMode::COLOR_TEMPERATURE, ColorMode::RGB_COLOR_TEMPERATURE, ColorMode::COLD_WARM_WHITE,
+            ColorMode::RGB_COLD_WARM_WHITE};
   }
 
   // If CWWW is given, use COLD_WARM_WHITE (with RGB if also given).
