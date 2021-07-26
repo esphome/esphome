@@ -32,6 +32,7 @@ esphome:
           green: !lambda 'return 255;'
           blue: 0%
           white: 100%
+          color_brightness: 50%
       - http_request.get:
           url: https://esphome.io
           headers:
@@ -1458,6 +1459,7 @@ light:
                 red: 100%
                 green: 100%
                 blue: 0%
+                color_brightness: !lambda return 255;
             - delay: 100ms
             - light.addressable_set:
                 id: addr1

@@ -177,6 +177,7 @@ LIGHT_ADDRESSABLE_SET_ACTION_SCHEMA = cv.Schema(
         cv.Optional(CONF_GREEN): cv.templatable(cv.percentage),
         cv.Optional(CONF_BLUE): cv.templatable(cv.percentage),
         cv.Optional(CONF_WHITE): cv.templatable(cv.percentage),
+        cv.Optional(CONF_COLOR_BRIGHTNESS): cv.templatable(cv.percentage),
     }
 )
 
@@ -217,6 +218,11 @@ async def light_addressable_set_to_code(config, action_id, template_arg, args):
             config[CONF_WHITE], args, cg.uint8, to_exp=rgbw_to_exp
         )
         cg.add(var.set_white(templ))
+    if CONF_COLOR_BRIGHTNESS in config:
+        templ = await cg.templatable(
+            config[CONF_COLOR_BRIGHTNESS], args, cg.uint8, to_exp=rgbw_to_exp
+        )
+        cg.add(var.set_color_brightness(templ))
     return var
 
 
