@@ -25,6 +25,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_CONSTANT_BRIGHTNESS, default=False): cv.boolean,
         }
     ),
+    cv.has_none_or_all_keys(
+        [CONF_COLD_WHITE_COLOR_TEMPERATURE, CONF_WARM_WHITE_COLOR_TEMPERATURE]
+    ),
     light.validate_color_temperature_channels,
 )
 

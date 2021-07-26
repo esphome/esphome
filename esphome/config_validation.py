@@ -563,6 +563,23 @@ def has_at_most_one_key(*keys):
     return validate
 
 
+def has_none_or_all_keys(*keys):
+    """Validate that none or all of the given keys exist in the config."""
+
+    def validate(obj):
+        if not isinstance(obj, dict):
+            raise Invalid("expected dictionary")
+
+        number = sum(k in keys for k in obj)
+        if number != 0 and number != len(keys):
+            raise Invalid(
+                "Must specify either none or all of {}.".format(", ".join(keys))
+            )
+        return obj
+
+    return validate
+
+
 TIME_PERIOD_ERROR = (
     "Time period {} should be format number + unit, for example 5ms, 5s, 5min, 5h"
 )
