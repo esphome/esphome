@@ -31,7 +31,10 @@ void ThermostatClimate::setup() {
   this->publish_state();
 }
 
-float ThermostatClimate::hysteresis() { return this->hysteresis_; }
+float ThermostatClimate::cool_deadband() { return this->cool_deadband_; }
+float ThermostatClimate::cool_overrun() { return this->cool_overrun_; }
+float ThermostatClimate::heat_deadband() { return this->heat_deadband_; }
+float ThermostatClimate::heat_overrun() { return this->heat_overrun_; }
 
 void ThermostatClimate::refresh() {
   this->switch_to_mode_(this->mode);
@@ -43,11 +46,17 @@ void ThermostatClimate::refresh() {
 }
 
 void ThermostatClimate::validate_target_temperature() {
-  // target_temperature must be between the visual minimum and the visual maximum
-  if (this->target_temperature < this->get_traits().get_visual_min_temperature())
-    this->target_temperature = this->get_traits().get_visual_min_temperature();
-  if (this->target_temperature > this->get_traits().get_visual_max_temperature())
-    this->target_temperature = this->get_traits().get_visual_max_temperature();
+  if (isnan(this->target_temperature)) {
+    this->target_temperature =
+        ((this->get_traits().get_visual_max_temperature() - this->get_traits().get_visual_min_temperature()) / 2) +
+        this->get_traits().get_visual_min_temperature();
+  } else {
+    // target_temperature must be between the visual minimum and the visual maximum
+    if (this->target_temperature < this->get_traits().get_visual_min_temperature())
+      this->target_temperature = this->get_traits().get_visual_min_temperature();
+    if (this->target_temperature > this->get_traits().get_visual_max_temperature())
+      this->target_temperature = this->get_traits().get_visual_max_temperature();
+  }
 }
 
 void ThermostatClimate::validate_target_temperatures() {
@@ -60,31 +69,39 @@ void ThermostatClimate::validate_target_temperatures() {
 }
 
 void ThermostatClimate::validate_target_temperature_low() {
-  // target_temperature_low must not be lower than the visual minimum
-  if (this->target_temperature_low < this->get_traits().get_visual_min_temperature())
+  if (isnan(this->target_temperature_low)) {
     this->target_temperature_low = this->get_traits().get_visual_min_temperature();
-  // target_temperature_low must not be greater than the visual maximum minus set_point_minimum_differential_
-  if (this->target_temperature_low >
-      this->get_traits().get_visual_max_temperature() - this->set_point_minimum_differential_)
-    this->target_temperature_low =
-        this->get_traits().get_visual_max_temperature() - this->set_point_minimum_differential_;
-  // if target_temperature_low is set greater than target_temperature_high, move up target_temperature_high
-  if (this->target_temperature_low > this->target_temperature_high - this->set_point_minimum_differential_)
-    this->target_temperature_high = this->target_temperature_low + this->set_point_minimum_differential_;
+  } else {
+    // target_temperature_low must not be lower than the visual minimum
+    if (this->target_temperature_low < this->get_traits().get_visual_min_temperature())
+      this->target_temperature_low = this->get_traits().get_visual_min_temperature();
+    // target_temperature_low must not be greater than the visual maximum minus set_point_minimum_differential_
+    if (this->target_temperature_low >
+        this->get_traits().get_visual_max_temperature() - this->set_point_minimum_differential_)
+      this->target_temperature_low =
+          this->get_traits().get_visual_max_temperature() - this->set_point_minimum_differential_;
+    // if target_temperature_low is set greater than target_temperature_high, move up target_temperature_high
+    if (this->target_temperature_low > this->target_temperature_high - this->set_point_minimum_differential_)
+      this->target_temperature_high = this->target_temperature_low + this->set_point_minimum_differential_;
+  }
 }
 
 void ThermostatClimate::validate_target_temperature_high() {
-  // target_temperature_high must not be lower than the visual maximum
-  if (this->target_temperature_high > this->get_traits().get_visual_max_temperature())
+  if (isnan(this->target_temperature_high)) {
     this->target_temperature_high = this->get_traits().get_visual_max_temperature();
-  // target_temperature_high must not be lower than the visual minimum plus set_point_minimum_differential_
-  if (this->target_temperature_high <
-      this->get_traits().get_visual_min_temperature() + this->set_point_minimum_differential_)
-    this->target_temperature_high =
-        this->get_traits().get_visual_min_temperature() + this->set_point_minimum_differential_;
-  // if target_temperature_high is set less than target_temperature_low, move down target_temperature_low
-  if (this->target_temperature_high < this->target_temperature_low + this->set_point_minimum_differential_)
-    this->target_temperature_low = this->target_temperature_high - this->set_point_minimum_differential_;
+  } else {
+    // target_temperature_high must not be lower than the visual maximum
+    if (this->target_temperature_high > this->get_traits().get_visual_max_temperature())
+      this->target_temperature_high = this->get_traits().get_visual_max_temperature();
+    // target_temperature_high must not be lower than the visual minimum plus set_point_minimum_differential_
+    if (this->target_temperature_high <
+        this->get_traits().get_visual_min_temperature() + this->set_point_minimum_differential_)
+      this->target_temperature_high =
+          this->get_traits().get_visual_min_temperature() + this->set_point_minimum_differential_;
+    // if target_temperature_high is set less than target_temperature_low, move down target_temperature_low
+    if (this->target_temperature_high < this->target_temperature_low + this->set_point_minimum_differential_)
+      this->target_temperature_low = this->target_temperature_high - this->set_point_minimum_differential_;
+  }
 }
 
 void ThermostatClimate::control(const climate::ClimateCall &call) {
@@ -174,113 +191,53 @@ climate::ClimateTraits ThermostatClimate::traits() {
 }
 
 climate::ClimateAction ThermostatClimate::compute_action_() {
-  // we need to know the current climate action before anything else happens here
-  climate::ClimateAction target_action = this->action;
-  // always ensure set point(s) is/are valid before computing the action
-  this->validate_target_temperatures();
+  climate::ClimateAction target_action = climate::CLIMATE_ACTION_IDLE;
+  // if any hysteresis values or current_temperature is not valid, we go to OFF;
   // if the climate mode is OFF then the climate action must be OFF
-  if (this->mode == climate::CLIMATE_MODE_OFF) {
+  if (isnan(this->current_temperature) || isnan(this->cool_deadband_) || isnan(this->cool_overrun_) ||
+      isnan(this->heat_deadband_) || isnan(this->heat_overrun_) || (this->mode == climate::CLIMATE_MODE_OFF)) {
     return climate::CLIMATE_ACTION_OFF;
-  } else if (this->action == climate::CLIMATE_ACTION_OFF) {
-    // ...but if the climate mode is NOT OFF then the climate action must not be OFF
+  }
+  // ensure set point(s) is/are valid before computing the action
+  this->validate_target_temperatures();
+  // everything has been validated so we can now safely compute the action
+  // first, eliminate a some possible action/mode conflicts
+  if (((this->action == climate::CLIMATE_ACTION_FAN) && (this->mode != climate::CLIMATE_MODE_FAN_ONLY)) ||
+      ((this->action == climate::CLIMATE_ACTION_DRYING) && (this->mode != climate::CLIMATE_MODE_DRY))) {
     target_action = climate::CLIMATE_ACTION_IDLE;
   }
 
-  if (this->supports_two_points_) {
-    if (isnan(this->current_temperature) || isnan(this->target_temperature_low) ||
-        isnan(this->target_temperature_high) || isnan(this->hysteresis_))
-      // if any control parameters are nan, go to OFF action (not IDLE!)
-      return climate::CLIMATE_ACTION_OFF;
-
-    if (((this->action == climate::CLIMATE_ACTION_FAN) && (this->mode != climate::CLIMATE_MODE_FAN_ONLY)) ||
-        ((this->action == climate::CLIMATE_ACTION_DRYING) && (this->mode != climate::CLIMATE_MODE_DRY))) {
-      target_action = climate::CLIMATE_ACTION_IDLE;
-    }
-
-    switch (this->mode) {
-      case climate::CLIMATE_MODE_FAN_ONLY:
-        if (this->supports_fan_only_) {
-          if (this->current_temperature > this->target_temperature_high + this->hysteresis_)
-            target_action = climate::CLIMATE_ACTION_FAN;
-          else if (this->current_temperature < this->target_temperature_high - this->hysteresis_)
-            if (this->action == climate::CLIMATE_ACTION_FAN)
-              target_action = climate::CLIMATE_ACTION_IDLE;
-        }
-        break;
-      case climate::CLIMATE_MODE_DRY:
-        target_action = climate::CLIMATE_ACTION_DRYING;
-        break;
-      case climate::CLIMATE_MODE_HEAT_COOL:
-      case climate::CLIMATE_MODE_COOL:
-      case climate::CLIMATE_MODE_HEAT:
-        if (this->supports_cool_) {
-          if (this->current_temperature > this->target_temperature_high + this->hysteresis_)
-            target_action = climate::CLIMATE_ACTION_COOLING;
-          else if (this->current_temperature < this->target_temperature_high - this->hysteresis_)
-            if (this->action == climate::CLIMATE_ACTION_COOLING)
-              target_action = climate::CLIMATE_ACTION_IDLE;
-        }
-        if (this->supports_heat_) {
-          if (this->current_temperature < this->target_temperature_low - this->hysteresis_)
-            target_action = climate::CLIMATE_ACTION_HEATING;
-          else if (this->current_temperature > this->target_temperature_low + this->hysteresis_)
-            if (this->action == climate::CLIMATE_ACTION_HEATING)
-              target_action = climate::CLIMATE_ACTION_IDLE;
-        }
-        break;
-      default:
-        break;
-    }
-  } else {
-    if (isnan(this->current_temperature) || isnan(this->target_temperature) || isnan(this->hysteresis_))
-      // if any control parameters are nan, go to OFF action (not IDLE!)
-      return climate::CLIMATE_ACTION_OFF;
-
-    if (((this->action == climate::CLIMATE_ACTION_FAN) && (this->mode != climate::CLIMATE_MODE_FAN_ONLY)) ||
-        ((this->action == climate::CLIMATE_ACTION_DRYING) && (this->mode != climate::CLIMATE_MODE_DRY))) {
-      target_action = climate::CLIMATE_ACTION_IDLE;
-    }
-
-    switch (this->mode) {
-      case climate::CLIMATE_MODE_FAN_ONLY:
-        if (this->supports_fan_only_) {
-          if (this->current_temperature > this->target_temperature + this->hysteresis_)
-            target_action = climate::CLIMATE_ACTION_FAN;
-          else if (this->current_temperature < this->target_temperature - this->hysteresis_)
-            if (this->action == climate::CLIMATE_ACTION_FAN)
-              target_action = climate::CLIMATE_ACTION_IDLE;
-        }
-        break;
-      case climate::CLIMATE_MODE_DRY:
-        target_action = climate::CLIMATE_ACTION_DRYING;
-        break;
-      case climate::CLIMATE_MODE_COOL:
-        if (this->supports_cool_) {
-          if (this->current_temperature > this->target_temperature + this->hysteresis_)
-            target_action = climate::CLIMATE_ACTION_COOLING;
-          else if (this->current_temperature < this->target_temperature - this->hysteresis_)
-            if (this->action == climate::CLIMATE_ACTION_COOLING)
-              target_action = climate::CLIMATE_ACTION_IDLE;
-        }
-      case climate::CLIMATE_MODE_HEAT:
-        if (this->supports_heat_) {
-          if (this->current_temperature < this->target_temperature - this->hysteresis_)
-            target_action = climate::CLIMATE_ACTION_HEATING;
-          else if (this->current_temperature > this->target_temperature + this->hysteresis_)
-            if (this->action == climate::CLIMATE_ACTION_HEATING)
-              target_action = climate::CLIMATE_ACTION_IDLE;
-        }
-        break;
-      default:
-        break;
-    }
+  switch (this->mode) {
+    case climate::CLIMATE_MODE_FAN_ONLY:
+      if (fanning_required_())
+        target_action = climate::CLIMATE_ACTION_FAN;
+      break;
+    case climate::CLIMATE_MODE_DRY:
+      target_action = climate::CLIMATE_ACTION_DRYING;
+      break;
+    case climate::CLIMATE_MODE_HEAT_COOL:
+      if (cooling_required_() && heating_required_()) {
+        // this is bad and should never happen, so just stop.
+        // target_action = climate::CLIMATE_ACTION_IDLE;
+      } else if (cooling_required_()) {
+        target_action = climate::CLIMATE_ACTION_COOLING;
+      } else if (heating_required_()) {
+        target_action = climate::CLIMATE_ACTION_HEATING;
+      }
+      break;
+    case climate::CLIMATE_MODE_COOL:
+      if (cooling_required_()) {
+        target_action = climate::CLIMATE_ACTION_COOLING;
+      }
+      break;
+    case climate::CLIMATE_MODE_HEAT:
+      if (heating_required_()) {
+        target_action = climate::CLIMATE_ACTION_HEATING;
+      }
+      break;
+    default:
+      break;
   }
-  // do not switch to an action that isn't enabled per the active climate mode
-  if ((this->mode == climate::CLIMATE_MODE_COOL) && (target_action == climate::CLIMATE_ACTION_HEATING))
-    target_action = climate::CLIMATE_ACTION_IDLE;
-  if ((this->mode == climate::CLIMATE_MODE_HEAT) && (target_action == climate::CLIMATE_ACTION_COOLING))
-    target_action = climate::CLIMATE_ACTION_IDLE;
-
   return target_action;
 }
 
@@ -491,6 +448,63 @@ void ThermostatClimate::check_temperature_change_trigger_() {
   trig->trigger();
 }
 
+bool ThermostatClimate::cooling_required_() {
+  if (this->supports_cool_) {
+    if (this->current_temperature > (this->target_temperature_high + this->cool_deadband_)) {
+      // if the current temperature exceeds the target + deadband, cooling is required
+      return true;
+    } else if (this->current_temperature < (this->target_temperature_high - this->cool_overrun_)) {
+      // if the current temperature is less than the target - overrun, cooling should stop
+      return false;
+    } else {
+      // if we get here, the current temperature is between target + deadband and target - overrun,
+      //  so the action should not change unless it conflicts with the current mode
+      return (this->action == climate::CLIMATE_ACTION_COOLING) &&
+             ((this->mode == climate::CLIMATE_MODE_HEAT_COOL) || (this->mode == climate::CLIMATE_MODE_COOL));
+    }
+  }
+  return false;
+}
+
+bool ThermostatClimate::fanning_required_() {
+  if (this->supports_fan_only_) {
+    if (this->supports_fan_only_cooling_) {
+      if (this->current_temperature > (this->target_temperature_high + this->cool_deadband_)) {
+        // if the current temperature exceeds the target + deadband, fanning is required
+        return true;
+      } else if (this->current_temperature < (this->target_temperature_high - this->cool_overrun_)) {
+        // if the current temperature is less than the target - overrun, fanning should stop
+        return false;
+      } else {
+        // if we get here, the current temperature is between target + deadband and target - overrun,
+        //  so the action should not change unless it conflicts with the current mode
+        return (this->action == climate::CLIMATE_ACTION_FAN) && (this->mode == climate::CLIMATE_MODE_FAN_ONLY);
+      }
+    } else {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool ThermostatClimate::heating_required_() {
+  if (this->supports_heat_) {
+    if (this->current_temperature < this->target_temperature_low - this->heat_deadband_) {
+      // if the current temperature is below the target - deadband, heating is required
+      return true;
+    } else if (this->current_temperature > this->target_temperature_low + this->heat_overrun_) {
+      // if the current temperature is above the target + overrun, heating should stop
+      return false;
+    } else {
+      // if we get here, the current temperature is between target - deadband and target + overrun,
+      //  so the action should not change unless it conflicts with the current mode
+      return (this->action == climate::CLIMATE_ACTION_HEATING) &&
+             ((this->mode == climate::CLIMATE_MODE_HEAT_COOL) || (this->mode == climate::CLIMATE_MODE_HEAT));
+    }
+  }
+  return false;
+}
+
 void ThermostatClimate::change_away_(bool away) {
   if (!away) {
     if (this->supports_two_points_) {
@@ -548,7 +562,10 @@ void ThermostatClimate::set_default_mode(climate::ClimateMode default_mode) { th
 void ThermostatClimate::set_set_point_minimum_differential(float differential) {
   this->set_point_minimum_differential_ = differential;
 }
-void ThermostatClimate::set_hysteresis(float hysteresis) { this->hysteresis_ = hysteresis; }
+void ThermostatClimate::set_cool_deadband(float deadband) { this->cool_deadband_ = deadband; }
+void ThermostatClimate::set_cool_overrun(float overrun) { this->cool_overrun_ = overrun; }
+void ThermostatClimate::set_heat_deadband(float deadband) { this->heat_deadband_ = deadband; }
+void ThermostatClimate::set_heat_overrun(float overrun) { this->heat_overrun_ = overrun; }
 void ThermostatClimate::set_sensor(sensor::Sensor *sensor) { this->sensor_ = sensor; }
 void ThermostatClimate::set_supports_heat_cool(bool supports_heat_cool) {
   this->supports_heat_cool_ = supports_heat_cool;
@@ -557,6 +574,9 @@ void ThermostatClimate::set_supports_auto(bool supports_auto) { this->supports_a
 void ThermostatClimate::set_supports_cool(bool supports_cool) { this->supports_cool_ = supports_cool; }
 void ThermostatClimate::set_supports_dry(bool supports_dry) { this->supports_dry_ = supports_dry; }
 void ThermostatClimate::set_supports_fan_only(bool supports_fan_only) { this->supports_fan_only_ = supports_fan_only; }
+void ThermostatClimate::set_supports_fan_only_cooling(bool supports_fan_only_cooling) {
+  this->supports_fan_only_cooling_ = supports_fan_only_cooling;
+}
 void ThermostatClimate::set_supports_heat(bool supports_heat) { this->supports_heat_ = supports_heat; }
 void ThermostatClimate::set_supports_fan_mode_on(bool supports_fan_mode_on) {
   this->supports_fan_mode_on_ = supports_fan_mode_on;
@@ -642,7 +662,10 @@ void ThermostatClimate::dump_config() {
       ESP_LOGCONFIG(TAG, "  Default Target Temperature High: %.1f°C", this->normal_config_.default_temperature);
   }
   ESP_LOGCONFIG(TAG, "  Minimum Set Point Differential: %.1f°C", this->set_point_minimum_differential_);
-  ESP_LOGCONFIG(TAG, "  Hysteresis: %.1f°C", this->hysteresis_);
+  ESP_LOGCONFIG(TAG, "  Cool Deadband: %.1f°C", this->cool_deadband_);
+  ESP_LOGCONFIG(TAG, "  Cool Overrun: %.1f°C", this->cool_overrun_);
+  ESP_LOGCONFIG(TAG, "  Heat Deadband: %.1f°C", this->heat_deadband_);
+  ESP_LOGCONFIG(TAG, "  Heat Overrun: %.1f°C", this->heat_overrun_);
   ESP_LOGCONFIG(TAG, "  Supports AUTO: %s", YESNO(this->supports_auto_));
   ESP_LOGCONFIG(TAG, "  Supports HEAT/COOL: %s", YESNO(this->supports_heat_cool_));
   ESP_LOGCONFIG(TAG, "  Supports COOL: %s", YESNO(this->supports_cool_));

@@ -6,7 +6,9 @@ from esphome.const import (
     CONF_AUTO_MODE,
     CONF_AWAY_CONFIG,
     CONF_COOL_ACTION,
+    CONF_COOL_DEADBAND,
     CONF_COOL_MODE,
+    CONF_COOL_OVERRUN,
     CONF_DEFAULT_MODE,
     CONF_DEFAULT_TARGET_TEMPERATURE_HIGH,
     CONF_DEFAULT_TARGET_TEMPERATURE_LOW,
@@ -22,9 +24,12 @@ from esphome.const import (
     CONF_FAN_MODE_FOCUS_ACTION,
     CONF_FAN_MODE_DIFFUSE_ACTION,
     CONF_FAN_ONLY_ACTION,
+    CONF_FAN_ONLY_COOLING,
     CONF_FAN_ONLY_MODE,
     CONF_HEAT_ACTION,
+    CONF_HEAT_DEADBAND,
     CONF_HEAT_MODE,
+    CONF_HEAT_OVERRUN,
     CONF_HYSTERESIS,
     CONF_ID,
     CONF_IDLE_ACTION,
@@ -245,7 +250,12 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(
                 CONF_SET_POINT_MINIMUM_DIFFERENTIAL, default=0.5
             ): cv.temperature,
+            cv.Optional(CONF_COOL_DEADBAND): cv.temperature,
+            cv.Optional(CONF_COOL_OVERRUN): cv.temperature,
+            cv.Optional(CONF_HEAT_DEADBAND): cv.temperature,
+            cv.Optional(CONF_HEAT_OVERRUN): cv.temperature,
             cv.Optional(CONF_HYSTERESIS, default=0.5): cv.temperature,
+            cv.Optional(CONF_FAN_ONLY_COOLING, default=False): cv.boolean,
             cv.Optional(CONF_AWAY_CONFIG): cv.Schema(
                 {
                     cv.Optional(CONF_DEFAULT_TARGET_TEMPERATURE_HIGH): cv.temperature,
@@ -279,7 +289,26 @@ async def to_code(config):
         )
     )
     cg.add(var.set_sensor(sens))
-    cg.add(var.set_hysteresis(config[CONF_HYSTERESIS]))
+
+    if CONF_COOL_DEADBAND in config:
+        cg.add(var.set_cool_deadband(config[CONF_COOL_DEADBAND]))
+    else:
+        cg.add(var.set_cool_deadband(config[CONF_HYSTERESIS]))
+
+    if CONF_COOL_OVERRUN in config:
+        cg.add(var.set_cool_overrun(config[CONF_COOL_OVERRUN]))
+    else:
+        cg.add(var.set_cool_overrun(config[CONF_HYSTERESIS]))
+
+    if CONF_HEAT_DEADBAND in config:
+        cg.add(var.set_heat_deadband(config[CONF_HEAT_DEADBAND]))
+    else:
+        cg.add(var.set_heat_deadband(config[CONF_HYSTERESIS]))
+
+    if CONF_HEAT_OVERRUN in config:
+        cg.add(var.set_heat_overrun(config[CONF_HEAT_OVERRUN]))
+    else:
+        cg.add(var.set_heat_overrun(config[CONF_HYSTERESIS]))
 
     if two_points_available is True:
         cg.add(var.set_supports_two_points(True))
@@ -297,6 +326,7 @@ async def to_code(config):
         normal_config = ThermostatClimateTargetTempConfig(
             config[CONF_DEFAULT_TARGET_TEMPERATURE_LOW]
         )
+    cg.add(var.set_supports_fan_only_cooling(config[CONF_FAN_ONLY_COOLING]))
     cg.add(var.set_normal_config(normal_config))
 
     await automation.build_automation(
