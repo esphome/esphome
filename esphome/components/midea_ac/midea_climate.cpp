@@ -100,7 +100,7 @@ bool MideaAC::allow_preset(climate::ClimatePreset preset) const {
         ESP_LOGD(TAG, "BOOST preset is only available in HEAT or COOL mode");
       }
       break;
-    case climate::CLIMATE_PRESET_HOME:
+    case climate::CLIMATE_PRESET_NONE:
       return true;
     default:
       break;
@@ -191,7 +191,7 @@ climate::ClimateTraits MideaAC::traits() {
   if (traits_swing_both_)
     traits.add_supported_swing_mode(climate::CLIMATE_SWING_BOTH);
   traits.set_supported_presets({
-      climate::CLIMATE_PRESET_HOME,
+      climate::CLIMATE_PRESET_NONE,
   });
   if (traits_preset_eco_)
     traits.add_supported_preset(climate::CLIMATE_PRESET_ECO);
