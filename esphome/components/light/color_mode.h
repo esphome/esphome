@@ -18,7 +18,7 @@ enum class ColorChannel : uint8_t {
 };
 
 // Define unary * operator to convert enum to underlying value -- this saves a lot of typing and ugly code.
-inline constexpr unsigned operator*(ColorChannel val) { return static_cast<uint8_t>(val); }
+inline constexpr uint8_t operator*(ColorChannel val) { return static_cast<uint8_t>(val); }
 
 /// Color modes are a combination of color channels that can be used at the same time.
 enum class ColorMode : uint8_t {
@@ -42,7 +42,7 @@ enum class ColorMode : uint8_t {
 };
 
 // Define unary * operator to convert enum to underlying value -- this saves a lot of typing and ugly code.
-inline constexpr unsigned operator*(ColorMode val) { return static_cast<uint8_t>(val); }
+inline constexpr uint8_t operator*(ColorMode val) { return static_cast<uint8_t>(val); }
 
 }  // namespace light
 }  // namespace esphome
