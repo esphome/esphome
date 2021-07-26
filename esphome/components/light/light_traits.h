@@ -14,7 +14,7 @@ class LightTraits {
   bool get_supports_brightness() const { return this->supports_brightness_; }
   void set_supports_brightness(bool supports_brightness) { this->supports_brightness_ = supports_brightness; }
 
-  std::set<ColorMode> get_supported_color_modes() const { return this->supported_color_modes_; }
+  const std::set<ColorMode> &get_supported_color_modes() const { return this->supported_color_modes_; }
   void set_supported_color_modes(std::set<ColorMode> supported_color_modes) {
     this->supported_color_modes_ = std::move(supported_color_modes);
   }
