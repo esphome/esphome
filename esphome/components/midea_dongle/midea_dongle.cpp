@@ -114,9 +114,9 @@ void MideaDongle::reset_timeout_() {
   this->set_timeout(RESPONSE_TIMEOUT, this->response_timeout_, [this](){
     ESP_LOGD(TAG, "Response timeout...");
     if (!--this->remain_attempts_) {
-      this->destroy_request_();
       if (this->request_->error_cb != nullptr)
         this->request_->error_cb();
+      this->destroy_request_();
       return;
     }
     ESP_LOGD(TAG, "Sending request again. Attempts left: %d...", this->remain_attempts_);
