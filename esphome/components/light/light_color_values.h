@@ -46,11 +46,11 @@ namespace light {
  */
 class LightColorValues {
  public:
-  /// Construct the LightColorValues with all attributes enabled, but state set to 0.0
+  /// Construct the LightColorValues with all attributes enabled, but state set to off.
   LightColorValues()
-      : state_(0.0f),
+      : color_mode_(ColorMode::UNKNOWN),
+        state_(0.0f),
         brightness_(1.0f),
-        color_mode_(ColorMode::UNKNOWN),
         color_brightness_(1.0f),
         red_(1.0f),
         green_(1.0f),
@@ -60,11 +60,11 @@ class LightColorValues {
         cold_white_{1.0f},
         warm_white_{1.0f} {}
 
-  LightColorValues(float state, float brightness, ColorMode color_mode, float color_brightness, float red, float green,
+  LightColorValues(ColorMode color_mode, float state, float brightness, float color_brightness, float red, float green,
                    float blue, float white, float color_temperature, float cold_white, float warm_white) {
+    this->set_color_mode(color_mode);
     this->set_state(state);
     this->set_brightness(brightness);
-    this->set_color_mode(color_mode);
     this->set_color_brightness(color_brightness);
     this->set_red(red);
     this->set_green(green);
@@ -87,9 +87,9 @@ class LightColorValues {
    */
   static LightColorValues lerp(const LightColorValues &start, const LightColorValues &end, float completion) {
     LightColorValues v;
+    v.set_color_mode(end.color_mode_);
     v.set_state(esphome::lerp(completion, start.get_state(), end.get_state()));
     v.set_brightness(esphome::lerp(completion, start.get_brightness(), end.get_brightness()));
-    v.set_color_mode(end.color_mode_);
     v.set_color_brightness(esphome::lerp(completion, start.get_color_brightness(), end.get_color_brightness()));
     v.set_red(esphome::lerp(completion, start.get_red(), end.get_red()));
     v.set_green(esphome::lerp(completion, start.get_green(), end.get_green()));
@@ -195,12 +195,17 @@ class LightColorValues {
 
   /// Compare this LightColorValues to rhs, return true if and only if all attributes match.
   bool operator==(const LightColorValues &rhs) const {
-    return state_ == rhs.state_ && brightness_ == rhs.brightness_ && color_mode_ == rhs.color_mode_ &&
+    return color_mode_ == rhs.color_mode_ && state_ == rhs.state_ && brightness_ == rhs.brightness_ &&
            color_brightness_ == rhs.color_brightness_ && red_ == rhs.red_ && green_ == rhs.green_ &&
            blue_ == rhs.blue_ && white_ == rhs.white_ && color_temperature_ == rhs.color_temperature_ &&
            cold_white_ == rhs.cold_white_ && warm_white_ == rhs.warm_white_;
   }
   bool operator!=(const LightColorValues &rhs) const { return !(rhs == *this); }
+
+  /// Get the color mode of these light color values.
+  ColorMode get_color_mode() const { return this->color_mode_; }
+  /// Set the color mode of these light color values.
+  void set_color_mode(ColorMode color_mode) { this->color_mode_ = color_mode; }
 
   /// Get the state of these light color values. In range from 0.0 (off) to 1.0 (on)
   float get_state() const { return this->state_; }
@@ -215,11 +220,6 @@ class LightColorValues {
   float get_brightness() const { return this->brightness_; }
   /// Set the brightness property of these light color values. In range 0.0 to 1.0
   void set_brightness(float brightness) { this->brightness_ = clamp(brightness, 0.0f, 1.0f); }
-
-  /// Get the color mode of these light color values.
-  ColorMode get_color_mode() const { return this->color_mode_; }
-  /// Set the color mode of these light color values.
-  void set_color_mode(ColorMode color_mode) { this->color_mode_ = color_mode; }
 
   /// Get the color brightness property of these light color values. In range 0.0 to 1.0
   float get_color_brightness() const { return this->color_brightness_; }
@@ -262,9 +262,9 @@ class LightColorValues {
   void set_warm_white(float warm_white) { this->warm_white_ = clamp(warm_white, 0.0f, 1.0f); }
 
  protected:
+  ColorMode color_mode_;
   float state_;  ///< ON / OFF, float for transition
   float brightness_;
-  ColorMode color_mode_;
   float color_brightness_;
   float red_;
   float green_;

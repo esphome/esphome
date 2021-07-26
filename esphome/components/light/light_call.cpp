@@ -40,6 +40,12 @@ void LightCall::perform() {
   LightColorValues v = this->validate_();
 
   if (this->publish_) {
+    // Only print color mode when it's being changed
+    ColorMode current_color_mode = this->parent_->remote_values.get_color_mode();
+    if (this->color_mode_.value_or(current_color_mode) != current_color_mode) {
+      ESP_LOGD(TAG, "  Color mode: %s", color_mode_to_human(v.get_color_mode()));
+    }
+
     // Only print state when it's being changed
     bool current_state = this->parent_->remote_values.is_on();
     if (this->state_.value_or(current_state) != current_state) {
@@ -48,12 +54,6 @@ void LightCall::perform() {
 
     if (this->brightness_.has_value()) {
       ESP_LOGD(TAG, "  Brightness: %.0f%%", v.get_brightness() * 100.0f);
-    }
-
-    // Only print color mode when it's being changed
-    ColorMode current_color_mode = this->parent_->remote_values.get_color_mode();
-    if (this->color_mode_.value_or(current_color_mode) != current_color_mode) {
-      ESP_LOGD(TAG, "  Color mode: %s", color_mode_to_human(v.get_color_mode()));
     }
 
     if (this->red_.has_value() || this->green_.has_value() || this->blue_.has_value()) {
@@ -228,12 +228,12 @@ LightColorValues LightCall::validate_() {
   }
 
   auto v = this->parent_->remote_values;
+  if (this->color_mode_.has_value())
+    v.set_color_mode(*this->color_mode_);
   if (this->state_.has_value())
     v.set_state(*this->state_);
   if (this->brightness_.has_value())
     v.set_brightness(*this->brightness_);
-  if (this->color_mode_.has_value())
-    v.set_color_mode(*this->color_mode_);
   if (this->color_brightness_.has_value())
     v.set_color_brightness(*this->color_brightness_);
   if (this->red_.has_value())

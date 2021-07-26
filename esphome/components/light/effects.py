@@ -262,9 +262,9 @@ async def strobe_effect_to_code(config, effect_id):
                 (
                     "color",
                     LightColorValues(
+                        color.get(CONF_COLOR_MODE, ColorMode.UNKNOWN),
                         color[CONF_STATE],
                         color[CONF_BRIGHTNESS],
-                        color.get(CONF_COLOR_MODE, ColorMode.UNKNOWN),
                         color[CONF_COLOR_BRIGHTNESS],
                         color[CONF_RED],
                         color[CONF_GREEN],

@@ -3,12 +3,12 @@ import esphome.config_validation as cv
 from esphome import automation
 from esphome.const import (
     CONF_ID,
+    CONF_COLOR_MODE,
     CONF_TRANSITION_LENGTH,
     CONF_STATE,
     CONF_FLASH_LENGTH,
     CONF_EFFECT,
     CONF_BRIGHTNESS,
-    CONF_COLOR_MODE,
     CONF_COLOR_BRIGHTNESS,
     CONF_RED,
     CONF_GREEN,
@@ -60,6 +60,7 @@ async def light_toggle_to_code(config, action_id, template_arg, args):
 LIGHT_CONTROL_ACTION_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_ID): cv.use_id(LightState),
+        cv.Optional(CONF_COLOR_MODE): cv.enum(COLOR_MODES, upper=True, space="_"),
         cv.Optional(CONF_STATE): cv.templatable(cv.boolean),
         cv.Exclusive(CONF_TRANSITION_LENGTH, "transformer"): cv.templatable(
             cv.positive_time_period_milliseconds
@@ -69,7 +70,6 @@ LIGHT_CONTROL_ACTION_SCHEMA = cv.Schema(
         ),
         cv.Exclusive(CONF_EFFECT, "transformer"): cv.templatable(cv.string),
         cv.Optional(CONF_BRIGHTNESS): cv.templatable(cv.percentage),
-        cv.Optional(CONF_COLOR_MODE): cv.enum(COLOR_MODES, upper=True, space="_"),
         cv.Optional(CONF_COLOR_BRIGHTNESS): cv.templatable(cv.percentage),
         cv.Optional(CONF_RED): cv.templatable(cv.percentage),
         cv.Optional(CONF_GREEN): cv.templatable(cv.percentage),
@@ -110,6 +110,9 @@ LIGHT_TURN_ON_ACTION_SCHEMA = automation.maybe_simple_id(
 async def light_control_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
+    if CONF_COLOR_MODE in config:
+        template_ = await cg.templatable(config[CONF_COLOR_MODE], args, ColorMode)
+        cg.add(var.set_color_mode(template_))
     if CONF_STATE in config:
         template_ = await cg.templatable(config[CONF_STATE], args, bool)
         cg.add(var.set_state(template_))
@@ -124,9 +127,6 @@ async def light_control_to_code(config, action_id, template_arg, args):
     if CONF_BRIGHTNESS in config:
         template_ = await cg.templatable(config[CONF_BRIGHTNESS], args, float)
         cg.add(var.set_brightness(template_))
-    if CONF_COLOR_MODE in config:
-        template_ = await cg.templatable(config[CONF_COLOR_MODE], args, ColorMode)
-        cg.add(var.set_color_mode(template_))
     if CONF_COLOR_BRIGHTNESS in config:
         template_ = await cg.templatable(config[CONF_COLOR_BRIGHTNESS], args, float)
         cg.add(var.set_color_brightness(template_))

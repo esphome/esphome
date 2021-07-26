@@ -16,9 +16,9 @@ LightCall LightState::toggle() { return this->make_call().set_state(!this->remot
 LightCall LightState::make_call() { return LightCall(this); }
 
 struct LightStateRTCState {
+  ColorMode color_mode{ColorMode::UNKNOWN};
   bool state{false};
   float brightness{1.0f};
-  ColorMode color_mode{ColorMode::UNKNOWN};
   float color_brightness{1.0f};
   float red{1.0f};
   float green{1.0f};
@@ -67,9 +67,9 @@ void LightState::setup() {
       break;
   }
 
+  call.set_color_mode_if_supported(recovered.color_mode);
   call.set_state(recovered.state);
   call.set_brightness_if_supported(recovered.brightness);
-  call.set_color_mode_if_supported(recovered.color_mode);
   call.set_color_brightness_if_supported(recovered.color_brightness);
   call.set_red_if_supported(recovered.red);
   call.set_green_if_supported(recovered.green);
@@ -238,9 +238,9 @@ void LightState::set_transformer_(std::unique_ptr<LightTransformer> transformer)
 
 void LightState::save_remote_values_() {
   LightStateRTCState saved;
+  saved.color_mode = this->remote_values.get_color_mode();
   saved.state = this->remote_values.is_on();
   saved.brightness = this->remote_values.get_brightness();
-  saved.color_mode = this->remote_values.get_color_mode();
   saved.color_brightness = this->remote_values.get_color_brightness();
   saved.red = this->remote_values.get_red();
   saved.green = this->remote_values.get_green();
