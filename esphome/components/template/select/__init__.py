@@ -25,6 +25,7 @@ def validate_initial_value_in_options(config):
             raise cv.Invalid(
                 f"initial_value '{config[CONF_INITIAL_VALUE]}' is not a valid option [{', '.join(config[CONF_OPTIONS])}]"
             )
+    return config
 
 
 CONFIG_SCHEMA = cv.All(
