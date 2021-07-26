@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 
-from __future__ import print_function
-
 import argparse
 import multiprocessing
 import os
+import queue
 import re
 import shutil
 import subprocess
@@ -18,13 +17,6 @@ import pexpect
 sys.path.append(os.path.dirname(__file__))
 from helpers import basepath, shlex_quote, get_output, build_compile_commands, \
     build_all_include, temp_header_file, git_ls_files, filter_changed
-
-is_py2 = sys.version[0] == '2'
-
-if is_py2:
-    import Queue as queue
-else:
-    import queue as queue
 
 
 def run_tidy(args, tmpdir, queue, lock, failed_files):
@@ -49,8 +41,8 @@ def run_tidy(args, tmpdir, queue, lock, failed_files):
         # Use pexpect for a pseudy-TTY with colored output
         output, rc = pexpect.run(invocation_s, withexitstatus=True, encoding='utf-8',
                                  timeout=15 * 60)
-        with lock:
-            if rc != 0:
+        if rc != 0:
+            with lock:
                 print()
                 print("\033[0;32m************* File \033[1;32m{}\033[0m".format(path))
                 print(output)
@@ -78,15 +70,15 @@ def main():
                         help='files to be processed (regex on path)')
     parser.add_argument('--fix', action='store_true', help='apply fix-its')
     parser.add_argument('-q', '--quiet', action='store_false',
-                        help='Run clang-tidy in quiet mode')
+                        help='run clang-tidy in quiet mode')
     parser.add_argument('-c', '--changed', action='store_true',
-                        help='Only run on changed files')
-    parser.add_argument('--split-num', type=int, help='Split the files into X jobs.',
+                        help='only run on changed files')
+    parser.add_argument('--split-num', type=int, help='split the files into X jobs.',
                         default=None)
-    parser.add_argument('--split-at', type=int, help='Which split is this? Starts at 1',
+    parser.add_argument('--split-at', type=int, help='which split is this? starts at 1',
                         default=None)
     parser.add_argument('--all-headers', action='store_true',
-                        help='Create a dummy file that checks all headers')
+                        help='create a dummy file that checks all headers')
     args = parser.parse_args()
 
     try:
@@ -107,15 +99,13 @@ def main():
     build_compile_commands()
 
     files = []
-    for path in git_ls_files():
-        filetypes = ('.cpp',)
-        ext = os.path.splitext(path)[1]
-        if ext in filetypes:
-            path = os.path.relpath(path, os.getcwd())
-            files.append(path)
-    # Match against re
-    file_name_re = re.compile('|'.join(args.files))
-    files = [p for p in files if file_name_re.search(p)]
+    for path in git_ls_files(['*.cpp']):
+        files.append(os.path.relpath(path, os.getcwd()))
+
+    if args.files:
+        # Match against files specified on command-line
+        file_name_re = re.compile('|'.join(args.files))
+        files = [p for p in files if file_name_re.search(p)]
 
     if args.changed:
         files = filter_changed(files)
@@ -133,7 +123,6 @@ def main():
         tmpdir = tempfile.mkdtemp()
 
     failed_files = []
-    return_code = 0
     try:
         task_queue = queue.Queue(args.jobs)
         lock = threading.Lock()
@@ -151,7 +140,6 @@ def main():
 
         # Wait for all threads to be done.
         task_queue.join()
-        return_code = len(failed_files)
 
     except KeyboardInterrupt:
         print()
@@ -168,8 +156,8 @@ def main():
             print('Error applying fixes.\n', file=sys.stderr)
             raise
 
-    return return_code
+    sys.exit(len(failed_files))
 
 
 if __name__ == '__main__':
-    sys.exit(main())
+    main()

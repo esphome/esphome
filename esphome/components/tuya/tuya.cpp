@@ -8,9 +8,10 @@ namespace tuya {
 
 static const char *const TAG = "tuya";
 static const int COMMAND_DELAY = 50;
+static const int RECEIVE_TIMEOUT = 300;
 
 void Tuya::setup() {
-  this->set_interval("heartbeat", 10000, [this] { this->send_empty_command_(TuyaCommandType::HEARTBEAT); });
+  this->set_interval("heartbeat", 15000, [this] { this->send_empty_command_(TuyaCommandType::HEARTBEAT); });
 }
 
 void Tuya::loop() {
@@ -117,7 +118,13 @@ void Tuya::handle_char_(uint8_t c) {
 }
 
 void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buffer, size_t len) {
-  switch ((TuyaCommandType) command) {
+  TuyaCommandType command_type = (TuyaCommandType) command;
+
+  if (this->expected_response_.has_value() && this->expected_response_ == command_type) {
+    this->expected_response_.reset();
+  }
+
+  switch (command_type) {
     case TuyaCommandType::HEARTBEAT:
       ESP_LOGV(TAG, "MCU Heartbeat (0x%02X)", buffer[0]);
       this->protocol_version_ = version;
@@ -316,6 +323,25 @@ void Tuya::send_raw_command_(TuyaCommand command) {
   uint8_t version = 0;
 
   this->last_command_timestamp_ = millis();
+  switch (command.cmd) {
+    case TuyaCommandType::HEARTBEAT:
+      this->expected_response_ = TuyaCommandType::HEARTBEAT;
+      break;
+    case TuyaCommandType::PRODUCT_QUERY:
+      this->expected_response_ = TuyaCommandType::PRODUCT_QUERY;
+      break;
+    case TuyaCommandType::CONF_QUERY:
+      this->expected_response_ = TuyaCommandType::CONF_QUERY;
+      break;
+    case TuyaCommandType::DATAPOINT_DELIVER:
+      this->expected_response_ = TuyaCommandType::DATAPOINT_REPORT;
+      break;
+    case TuyaCommandType::DATAPOINT_QUERY:
+      this->expected_response_ = TuyaCommandType::DATAPOINT_REPORT;
+      break;
+    default:
+      break;
+  }
 
   ESP_LOGV(TAG, "Sending Tuya: CMD=0x%02X VERSION=%u DATA=[%s] INIT_STATE=%u", static_cast<uint8_t>(command.cmd),
            version, hexencode(command.payload).c_str(), static_cast<uint8_t>(this->init_state_));
@@ -332,8 +358,14 @@ void Tuya::send_raw_command_(TuyaCommand command) {
 
 void Tuya::process_command_queue_() {
   uint32_t delay = millis() - this->last_command_timestamp_;
+
+  if (this->expected_response_.has_value() && delay > RECEIVE_TIMEOUT) {
+    this->expected_response_.reset();
+  }
+
   // Left check of delay since last command in case there's ever a command sent by calling send_raw_command_ directly
-  if (delay > COMMAND_DELAY && !this->command_queue_.empty() && this->rx_message_.empty()) {
+  if (delay > COMMAND_DELAY && !this->command_queue_.empty() && this->rx_message_.empty() &&
+      !this->expected_response_.has_value()) {
     this->send_raw_command_(command_queue_.front());
     this->command_queue_.erase(command_queue_.begin());
   }
@@ -345,7 +377,7 @@ void Tuya::send_command_(const TuyaCommand &command) {
 }
 
 void Tuya::send_empty_command_(TuyaCommandType command) {
-  send_command_(TuyaCommand{.cmd = command, .payload = std::vector<uint8_t>{0x04}});
+  send_command_(TuyaCommand{.cmd = command, .payload = std::vector<uint8_t>{}});
 }
 
 void Tuya::send_wifi_status_() {

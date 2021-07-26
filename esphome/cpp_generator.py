@@ -543,13 +543,13 @@ def add_global(expression: Union[SafeExpType, Statement]):
     CORE.add_global(expression)
 
 
-def add_library(name: str, version: Optional[str]):
+def add_library(name: str, version: Optional[str], repository: Optional[str] = None):
     """Add a library to the codegen library storage.
 
     :param name: The name of the library (for example 'AsyncTCP')
     :param version: The version of the library, may be None.
     """
-    CORE.add_library(Library(name, version))
+    CORE.add_library(Library(name, version, repository))
 
 
 def add_build_flag(build_flag: str):

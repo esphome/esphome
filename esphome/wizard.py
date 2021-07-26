@@ -10,7 +10,7 @@ from esphome.helpers import get_bool_env, write_file
 from esphome.log import color, Fore
 
 # pylint: disable=anomalous-backslash-in-string
-from esphome.pins import ESP32_BOARD_PINS, ESP8266_BOARD_PINS
+from esphome.boards import ESP32_BOARD_PINS, ESP8266_BOARD_PINS
 from esphome.storage_json import StorageJSON, ext_storage_path
 from esphome.util import safe_print
 from esphome.const import ALLOWED_NAME_CHARS, ENV_QUICKWIZARD
