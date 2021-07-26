@@ -26,7 +26,7 @@ void SelectCall::perform() {
   this->parent_->control(*this->value_);
 }
 
-void Select::publish_state(std::string state) {
+void Select::publish_state(const std::string &state) {
   this->has_state_ = true;
   this->state = state;
   ESP_LOGD(TAG, "'%s': Sending state %s", this->get_name().c_str(), state.c_str());

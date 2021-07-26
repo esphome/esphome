@@ -19,7 +19,7 @@ class TemplateSelect : public select::Select, public PollingComponent {
 
   Trigger<std::string> *get_set_trigger() const { return this->set_trigger_; }
   void set_optimistic(bool optimistic) { this->optimistic_ = optimistic; }
-  void set_initial_value(std::string initial_value) { this->initial_value_ = std::move(initial_value); }
+  void set_initial_value(const std::string &initial_value) { this->initial_value_ = initial_value; }
   void set_restore_value(bool restore_value) { this->restore_value_ = restore_value; }
 
  protected:

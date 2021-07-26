@@ -10,7 +10,7 @@ namespace select {
 class SelectStateTrigger : public Trigger<std::string> {
  public:
   explicit SelectStateTrigger(Select *parent) {
-    parent->add_on_state_callback([this](std::string value) { this->trigger(value); });
+    parent->add_on_state_callback([this](std::string value) { this->trigger(std::move(value)); });
   }
 };
 

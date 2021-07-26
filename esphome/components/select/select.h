@@ -1,6 +1,7 @@
 #pragma once
 
 #include <set>
+#include <utility>
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 
@@ -22,7 +23,7 @@ class SelectCall {
   explicit SelectCall(Select *parent) : parent_(parent) {}
   void perform();
 
-  SelectCall &set_value(std::string value) {
+  SelectCall &set_value(const std::string &value) {
     value_ = value;
     return *this;
   }
@@ -53,10 +54,10 @@ class Select : public Nameable {
  public:
   std::string state;
 
-  void publish_state(std::string state);
+  void publish_state(const std::string &state);
 
   SelectCall make_call() { return SelectCall(this); }
-  void set(std::string value) { make_call().set_value(value).perform(); }
+  void set(const std::string &value) { make_call().set_value(value).perform(); }
 
   void add_on_state_callback(std::function<void(std::string)> &&callback);
 

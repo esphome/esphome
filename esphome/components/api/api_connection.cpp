@@ -597,7 +597,7 @@ bool APIConnection::send_select_state(select::Select *select, std::string state)
 
   SelectStateResponse resp{};
   resp.key = select->get_object_id_hash();
-  resp.state = state;
+  resp.state = std::move(state);
   resp.missing_state = !select->has_state();
   return this->send_select_state_response(resp);
 }
@@ -609,7 +609,7 @@ bool APIConnection::send_select_info(select::Select *select) {
   msg.unique_id = get_default_unique_id("select", select);
   msg.icon = select->traits.get_icon();
 
-  for (auto option : select->traits.get_options())
+  for (const auto &option : select->traits.get_options())
     msg.options.push_back(option);
 
   return this->send_list_entities_select_response(msg);
