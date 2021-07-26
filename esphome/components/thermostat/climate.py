@@ -68,99 +68,59 @@ validate_climate_mode = cv.enum(CLIMATE_MODES, upper=True)
 
 def validate_thermostat(config):
     # verify corresponding climate action action exists for any defined climate mode action
-    if CONF_COOL_MODE in config and CONF_COOL_ACTION not in config:
-        raise cv.Invalid(
-            "{} must be defined to use {}".format(CONF_COOL_ACTION, CONF_COOL_MODE)
-        )
-    if CONF_DRY_MODE in config and CONF_DRY_ACTION not in config:
-        raise cv.Invalid(
-            "{} must be defined to use {}".format(CONF_DRY_ACTION, CONF_DRY_MODE)
-        )
-    if CONF_FAN_ONLY_MODE in config and CONF_FAN_ONLY_ACTION not in config:
-        raise cv.Invalid(
-            "{} must be defined to use {}".format(
-                CONF_FAN_ONLY_ACTION, CONF_FAN_ONLY_MODE
-            )
-        )
-    if CONF_HEAT_MODE in config and CONF_HEAT_ACTION not in config:
-        raise cv.Invalid(
-            "{} must be defined to use {}".format(CONF_HEAT_ACTION, CONF_HEAT_MODE)
-        )
-    # verify corresponding default target temperature exists when a given climate action exists
-    if CONF_DEFAULT_TARGET_TEMPERATURE_HIGH not in config and (
-        CONF_COOL_ACTION in config or CONF_FAN_ONLY_ACTION in config
-    ):
-        raise cv.Invalid(
-            "{} must be defined when using {} or {}".format(
-                CONF_DEFAULT_TARGET_TEMPERATURE_HIGH,
+    requirements = {
+        CONF_AUTO_MODE: [CONF_COOL_ACTION, CONF_HEAT_ACTION],
+        CONF_COOL_MODE: [CONF_COOL_ACTION],
+        CONF_DRY_MODE: [CONF_DRY_ACTION],
+        CONF_FAN_ONLY_MODE: [CONF_FAN_ONLY_ACTION],
+        CONF_HEAT_MODE: [CONF_HEAT_ACTION],
+    }
+    for config_mode, req_actions in requirements.items():
+        for req_action in req_actions:
+            if config_mode in config and req_action not in config:
+                raise cv.Invalid(f"{req_action} must be defined to use {config_mode}")
+
+    # determine validation requirements based on fan_only_cooling setting
+    if config[CONF_FAN_ONLY_COOLING] == True:
+        requirements = {
+            CONF_DEFAULT_TARGET_TEMPERATURE_HIGH: [
                 CONF_COOL_ACTION,
                 CONF_FAN_ONLY_ACTION,
-            )
-        )
-    if CONF_DEFAULT_TARGET_TEMPERATURE_LOW not in config and CONF_HEAT_ACTION in config:
-        raise cv.Invalid(
-            "{} must be defined when using {}".format(
-                CONF_DEFAULT_TARGET_TEMPERATURE_LOW, CONF_HEAT_ACTION
-            )
-        )
-    # if a given climate action is NOT defined, it should not have a default target temperature
-    if CONF_DEFAULT_TARGET_TEMPERATURE_HIGH in config and (
-        CONF_COOL_ACTION not in config and CONF_FAN_ONLY_ACTION not in config
-    ):
-        raise cv.Invalid(
-            "{} is defined with no {}".format(
-                CONF_DEFAULT_TARGET_TEMPERATURE_HIGH, CONF_COOL_ACTION
-            )
-        )
-    if CONF_DEFAULT_TARGET_TEMPERATURE_LOW in config and CONF_HEAT_ACTION not in config:
-        raise cv.Invalid(
-            "{} is defined with no {}".format(
-                CONF_DEFAULT_TARGET_TEMPERATURE_LOW, CONF_HEAT_ACTION
-            )
-        )
+            ],
+            CONF_DEFAULT_TARGET_TEMPERATURE_LOW: [CONF_HEAT_ACTION],
+        }
+    else:
+        requirements = {
+            CONF_DEFAULT_TARGET_TEMPERATURE_HIGH: [CONF_COOL_ACTION],
+            CONF_DEFAULT_TARGET_TEMPERATURE_LOW: [CONF_HEAT_ACTION],
+        }
+
+    for config_temp, req_actions in requirements.items():
+        for req_action in req_actions:
+            # verify corresponding default target temperature exists when a given climate action exists
+            if config_temp not in config and req_action in config:
+                raise cv.Invalid(
+                    f"{config_temp} must be defined when using {req_action}"
+                )
+            # if a given climate action is NOT defined, it should not have a default target temperature
+            if config_temp in config and req_action not in config:
+                raise cv.Invalid(f"{config_temp} is defined with no {req_action}")
 
     if CONF_AWAY_CONFIG in config:
         away = config[CONF_AWAY_CONFIG]
-        # verify corresponding default target temperature exists when a given climate action exists
-        if CONF_DEFAULT_TARGET_TEMPERATURE_HIGH not in away and (
-            CONF_COOL_ACTION in config or CONF_FAN_ONLY_ACTION in config
-        ):
-            raise cv.Invalid(
-                "{} must be defined in away configuration when using {} or {}".format(
-                    CONF_DEFAULT_TARGET_TEMPERATURE_HIGH,
-                    CONF_COOL_ACTION,
-                    CONF_FAN_ONLY_ACTION,
-                )
-            )
-        if (
-            CONF_DEFAULT_TARGET_TEMPERATURE_LOW not in away
-            and CONF_HEAT_ACTION in config
-        ):
-            raise cv.Invalid(
-                "{} must be defined in away configuration when using {}".format(
-                    CONF_DEFAULT_TARGET_TEMPERATURE_LOW, CONF_HEAT_ACTION
-                )
-            )
-        # if a given climate action is NOT defined, it should not have a default target temperature
-        if CONF_DEFAULT_TARGET_TEMPERATURE_HIGH in away and (
-            CONF_COOL_ACTION not in config and CONF_FAN_ONLY_ACTION not in config
-        ):
-            raise cv.Invalid(
-                "{} is defined in away configuration with no {} or {}".format(
-                    CONF_DEFAULT_TARGET_TEMPERATURE_HIGH,
-                    CONF_COOL_ACTION,
-                    CONF_FAN_ONLY_ACTION,
-                )
-            )
-        if (
-            CONF_DEFAULT_TARGET_TEMPERATURE_LOW in away
-            and CONF_HEAT_ACTION not in config
-        ):
-            raise cv.Invalid(
-                "{} is defined in away configuration with no {}".format(
-                    CONF_DEFAULT_TARGET_TEMPERATURE_LOW, CONF_HEAT_ACTION
-                )
-            )
+        for config_temp, req_actions in requirements.items():
+            for req_action in req_actions:
+                # verify corresponding default target temperature exists when a given climate action exists
+                if config_temp not in away and req_action in config:
+                    raise cv.Invalid(
+                        f"{config_temp} must be defined in away configuration when using {req_action}"
+                    )
+                # if a given climate action is NOT defined, it should not have a default target temperature
+                if config_temp in away and req_action not in config:
+                    raise cv.Invalid(
+                        f"{config_temp} is defined in away configuration with no {req_action}"
+                    )
+
     # verify default climate mode is valid given above configuration
     default_mode = config[CONF_DEFAULT_MODE]
     requirements = {
