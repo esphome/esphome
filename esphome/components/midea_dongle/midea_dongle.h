@@ -36,14 +36,6 @@ enum ResponseStatus : uint8_t {
 
 using ResponseHandler = std::function<ResponseStatus(const Frame &)>;
 
-struct MideaRequest {
-  StaticFrame<Frame, 36> request;
-  uint32_t attempts;
-  uint32_t timeout;
-  ResponseHandler handler;
-  ResponseStatus call_handler(const Frame &frame);
-};
-
 class MideaDongle : public Component, public uart::UARTDevice {
  public:
   float get_setup_priority() const override { return setup_priority::BEFORE_CONNECTION; }
@@ -52,9 +44,11 @@ class MideaDongle : public Component, public uart::UARTDevice {
   void dump_config() override;
   void set_appliance(MideaAppliance *app) { this->appliance_ = app; }
   void send_frame(const Frame &frame);
-  void queue_request(const Frame &frame, uint32_t attempts, uint32_t timeout, ResponseHandler handler = nullptr);
-  void queue_request_priority(const Frame &frame, uint32_t attempts, uint32_t timeout, ResponseHandler handler = nullptr);
+  void queue_request(const Frame &frame, ResponseHandler handler = nullptr);
+  void queue_request_priority(const Frame &frame, ResponseHandler handler = nullptr);
   void set_period(uint32_t ms) { this->period_ = ms; }
+  void set_response_timeout(uint32_t ms) { this->response_timeout_ = ms; }
+  void set_request_attempts(uint32_t attempts) { this->request_attempts_ = attempts; }
 #ifdef USE_REMOTE_TRANSMITTER
   void set_transmitter(remote_transmitter::RemoteTransmitterComponent *transmitter) {
     this->transmitter_ = transmitter;
@@ -63,21 +57,30 @@ class MideaDongle : public Component, public uart::UARTDevice {
 #endif
 
  protected:
+  struct Request {
+    StaticFrame<Frame, 36> request;
+    ResponseHandler handler;
+    ResponseStatus call_handler(const Frame &frame);
+  };
   void handler_(const Frame &frame);
   void send_network_notify_(uint8_t msg_type = NETWORK_NOTIFY);
   void destroy_request_();
-  void update_timeout_();
+  void reset_timeout_();
+  void reset_attempts_() { this->remain_attempts_ = this->request_attempts_; }
   bool is_wait_for_response_() const { return this->request_ != nullptr; }
 
-  std::deque<MideaRequest *> queue_;
+  std::deque<Request *> queue_;
   MideaAppliance *appliance_{nullptr};
-  MideaRequest *request_{nullptr};
+  Request *request_{nullptr};
+  uint32_t remain_attempts_{};
 #ifdef USE_REMOTE_TRANSMITTER
   remote_transmitter::RemoteTransmitterComponent *transmitter_{nullptr};
 #endif
-  FrameReceiver<256> receiver_{};
+  FrameReceiver<128> receiver_{};
   uint32_t period_{1000};
-  bool is_ready_{true};
+  uint32_t request_attempts_{5};
+  uint32_t response_timeout_{2000};
+  bool is_busy_{false};
 };
 
 }  // namespace midea_dongle

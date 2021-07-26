@@ -7,7 +7,7 @@ namespace midea_dongle {
 static const char *const TAG = "midea_dongle";
 static const std::string RESPONSE_TIMEOUT = "midea_dongle: response_timeout";
 
-ResponseStatus MideaRequest::call_handler(const Frame &frame) {
+ResponseStatus MideaDongle::Request::call_handler(const Frame &frame) {
   if (!frame.has_type(this->request.get_type()))
     return ResponseStatus::RESPONSE_WRONG;
   if (this->handler == nullptr)
@@ -26,7 +26,7 @@ void MideaDongle::loop() {
     ESP_LOGD(TAG, "RX: %s", this->receiver_.to_string().c_str());
     this->handler_(this->receiver_);
   }
-  if (!this->is_ready_ || this->is_wait_for_response_())
+  if (this->is_busy_ || this->is_wait_for_response_())
     return;
   if (this->queue_.empty()) {
     if (this->appliance_ != nullptr)
@@ -37,7 +37,8 @@ void MideaDongle::loop() {
   this->queue_.pop_front();
   ESP_LOGD(TAG, "Getting and sending a request from the queue...");
   this->send_frame(this->request_->request);
-  this->update_timeout_();
+  this->reset_attempts_();
+  this->reset_timeout_();
 }
 
 static uint8_t get_signal_strength() {
@@ -60,31 +61,33 @@ void MideaDongle::send_network_notify_(uint8_t msg_type) {
   notify.update_cs();
   if (msg_type == NETWORK_NOTIFY) {
     ESP_LOGD(TAG, "Enqueuing a DEVICE_NETWORK(0x0D) notification...");
-    this->queue_request(notify, 5, 2000);
+    this->queue_request(notify);
   } else {
     ESP_LOGD(TAG, "Answer to QUERY_NETWORK(0x63) request...");
     this->send_frame(notify);
   }
 }
 
-void MideaDongle::queue_request(const Frame &request, uint32_t attempts, uint32_t timeout, ResponseHandler handler) {
-  ESP_LOGD(TAG, "Enqueuing the request. Attempts: %d, response timeout: %dms", attempts, timeout);
-  this->queue_.push_back(new MideaRequest{request, attempts, timeout, handler});
+void MideaDongle::queue_request(const Frame &request, ResponseHandler handler) {
+  ESP_LOGD(TAG, "Enqueuing the request...");
+  this->queue_.push_back(new Request{request, handler});
 }
 
-void MideaDongle::queue_request_priority(const Frame &request, uint32_t attempts, uint32_t timeout, ResponseHandler handler) {
-  ESP_LOGD(TAG, "Priority request queuing. Attempts: %d, response timeout: %dms", attempts, timeout);
-  this->queue_.push_front(new MideaRequest{request, attempts, timeout, handler});
+void MideaDongle::queue_request_priority(const Frame &request, ResponseHandler handler) {
+  ESP_LOGD(TAG, "Priority request queuing...");
+  this->queue_.push_front(new Request{request, handler});
 }
 
 void MideaDongle::handler_(const Frame &frame) {
   if (this->is_wait_for_response_()) {
     auto result = this->request_->call_handler(frame);
     if (result != RESPONSE_WRONG) {
-      if (result == RESPONSE_OK)
+      if (result == RESPONSE_OK) {
         this->destroy_request_();
-      else
-        this->update_timeout_();
+      } else {
+        this->reset_attempts_();
+        this->reset_timeout_();
+      }
       return;
     }
   }
@@ -101,30 +104,30 @@ void MideaDongle::handler_(const Frame &frame) {
 void MideaDongle::send_frame(const Frame &frame) {
   ESP_LOGD(TAG, "TX: %s", frame.to_string().c_str());
   this->write_array(frame.data(), frame.size());
-  this->is_ready_ = false;
+  this->is_busy_ = true;
   this->set_timeout(this->period_, [this](){
-    this->is_ready_ = true;
+    this->is_busy_ = false;
   });
 }
 
-void MideaDongle::update_timeout_() {
-  this->set_timeout(RESPONSE_TIMEOUT, this->request_->timeout, [this](){
-    ESP_LOGD(TAG, "Response timeout. Attempts left: %d", this->request_->attempts - 1);
-    if (!--this->request_->attempts) {
+void MideaDongle::reset_timeout_() {
+  this->set_timeout(RESPONSE_TIMEOUT, this->response_timeout_, [this](){
+    ESP_LOGD(TAG, "Response timeout...");
+    if (!--this->remain_attempts_) {
       this->destroy_request_();
       return;
     }
-    ESP_LOGD(TAG, "Trying to send the request again...");
+    ESP_LOGD(TAG, "Sending request again. Attempts left: %d...", this->remain_attempts_);
     this->send_frame(this->request_->request);
-    this->update_timeout_();
+    this->reset_timeout_();
   });
 }
 
 void MideaDongle::destroy_request_() {
   ESP_LOGD(TAG, "Destroying the request...");
+  this->cancel_timeout(RESPONSE_TIMEOUT);
   delete this->request_;
   this->request_ = nullptr;
-  this->cancel_timeout(RESPONSE_TIMEOUT);
 }
 
 void MideaDongle::dump_config() {

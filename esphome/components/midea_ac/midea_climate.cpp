@@ -150,7 +150,7 @@ void MideaAC::control(const climate::ClimateCall &call) {
     this->cmd_frame_.set_beeper_feedback(this->beeper_feedback_);
     this->cmd_frame_.update_all();
     ESP_LOGD(TAG, "Enqueuing a priority SET_STATUS(0x40) request...");
-    this->dongle_->queue_request_priority(this->cmd_frame_, 5, 2000, std::bind(&MideaAC::read_status_, this, std::placeholders::_1));
+    this->dongle_->queue_request_priority(this->cmd_frame_, std::bind(&MideaAC::read_status_, this, std::placeholders::_1));
   }
 }
 
@@ -171,7 +171,7 @@ void MideaAC::get_power_usage_() {
                     0x01, 0x44, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
                     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0x00, 0x17, 0x6A};
   ESP_LOGD(TAG, "Enqueuing a GET_POWERUSAGE(0x41) request...");
-  this->dongle_->queue_request(data, 5, 2000, [this](const Frame &frame) -> ResponseStatus{
+  this->dongle_->queue_request(data, [this](const Frame &frame) -> ResponseStatus{
     const auto p = frame.as<PropertiesFrame>();
     if (!p.has_power_info())
       return ResponseStatus::RESPONSE_WRONG;
@@ -186,7 +186,7 @@ void MideaAC::get_capabilities_() {
     0xB5, 0x01, 0x00, 0x4D, 0x3D
   };
   ESP_LOGD(TAG, "Enqueuing a priority GET_CAPABILITIES(0xB5) request...");
-  this->dongle_->queue_request_priority(data, 5, 2000, [this](const Frame &frame) -> ResponseStatus {
+  this->dongle_->queue_request_priority(data, [this](const Frame &frame) -> ResponseStatus {
     if (!frame.has_id(0xB5))
       return ResponseStatus::RESPONSE_WRONG;
     if (this->capabilities_.read(frame)) {
@@ -207,7 +207,7 @@ void MideaAC::get_status_() {
                     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
                     0x03, 0x00, 0x37, 0x31};
   ESP_LOGD(TAG, "Enqueuing a GET_STATUS(0x41) request...");
-  this->dongle_->queue_request(data, 5, 2000, std::bind(&MideaAC::read_status_, this, std::placeholders::_1));
+  this->dongle_->queue_request(data, std::bind(&MideaAC::read_status_, this, std::placeholders::_1));
 }
 
 void MideaAC::display_toggle_() {
@@ -216,7 +216,7 @@ void MideaAC::display_toggle_() {
                     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
                     0x00, 0x00, 0xE3, 0xA8};
   ESP_LOGD(TAG, "Enqueuing a priority TOGGLE_LIGHT(0x41) request...");
-  this->dongle_->queue_request_priority(data, 5, 2000, std::bind(&MideaAC::read_status_, this, std::placeholders::_1));
+  this->dongle_->queue_request_priority(data, std::bind(&MideaAC::read_status_, this, std::placeholders::_1));
 }
 
 void MideaAC::dump_config() {
