@@ -23,7 +23,7 @@ static const uint8_t AHT10_CALIBRATE_CMD[] = {0xE1};
 static const uint8_t AHT10_MEASURE_CMD[] = {0xAC, 0x33, 0x00};
 static const uint8_t AHT10_DEFAULT_DELAY = 5;    // ms, for calibration and temperature measurement
 static const uint8_t AHT10_HUMIDITY_DELAY = 30;  // ms
-static const uint8_t AHT10_ATTEMPS = 3;          // safety margin, normally 3 attempts are enough: 3*30=90ms
+static const uint8_t AHT10_ATTEMPTS = 3;          // safety margin, normally 3 attempts are enough: 3*30=90ms
 
 void AHT10Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up AHT10...");
@@ -58,7 +58,7 @@ void AHT10Component::update() {
   uint8_t delay = AHT10_DEFAULT_DELAY;
   if (this->humidity_sensor_ != nullptr)
     delay = AHT10_HUMIDITY_DELAY;
-  for (int i = 0; i < AHT10_ATTEMPS; ++i) {
+  for (int i = 0; i < AHT10_ATTEMPTS; ++i) {
     ESP_LOGVV(TAG, "Attempt %u at %6ld", i, millis());
     delay_microseconds_accurate(4);
     if (!this->read_bytes(0, data, 6, delay)) {
