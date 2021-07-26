@@ -419,7 +419,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * fill_area(50, 50, 100, 100, "RED");
    * ```
    *
-   * Fills an area that starts at x coordiante `50` and y coordinate `50` with a height of `100` and width of `100` with
+   * Fills an area that starts at x coordinate `50` and y coordinate `50` with a height of `100` and width of `100` with
    * the color of blue. Use this [color picker](https://nodtem66.github.io/nextion-hmi-color-convert/index.html) to
    * convert color codes to Nextion HMI colors
    */
@@ -437,7 +437,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * fill_area(50, 50, 100, 100, color);
    * ```
    *
-   * Fills an area that starts at x coordiante `50` and y coordinate `50` with a height of `100` and width of `100` with
+   * Fills an area that starts at x coordinate `50` and y coordinate `50` with a height of `100` and width of `100` with
    * the color of blue. Use this [color picker](https://nodtem66.github.io/nextion-hmi-color-convert/index.html) to
    * convert color codes to Nextion HMI colors
    */
@@ -546,7 +546,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * it.filled_cricle(25, 25, 10, "17013");
    * ```
    *
-   * Makes a filled circle at the x cordinates `25` and y coordinate `25` with a radius of `10` with a color of blue.
+   * Makes a filled circle at the x coordinate `25` and y coordinate `25` with a radius of `10` with a color of blue.
    * Use this [color picker](https://nodtem66.github.io/nextion-hmi-color-convert/index.html) to convert color codes to
    * Nextion HMI colors.
    */
@@ -563,7 +563,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * it.filled_cricle(25, 25, 10, color);
    * ```
    *
-   * Makes a filled circle at the x cordinates `25` and y coordinate `25` with a radius of `10` with a color of blue.
+   * Makes a filled circle at the x coordinate `25` and y coordinate `25` with a radius of `10` with a color of blue.
    * Use this [color picker](https://nodtem66.github.io/nextion-hmi-color-convert/index.html) to convert color codes to
    * Nextion HMI colors.
    */

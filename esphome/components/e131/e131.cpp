@@ -50,7 +50,7 @@ void E131Component::loop() {
     }
 
     if (!packet_(payload, universe, packet)) {
-      ESP_LOGV(TAG, "Invalid packet recevied of size %zu.", payload.size());
+      ESP_LOGV(TAG, "Invalid packet received of size %zu.", payload.size());
       continue;
     }
 

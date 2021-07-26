@@ -9,7 +9,7 @@ Here you'll find the Arduino code used to interface with the SX1509 I2C
 16 I/O expander. There are functions to take advantage of everything the
 SX1509 provides - input/output setting, writing pins high/low, reading
 the input value of pins, LED driver utilities (blink, breath, pwm), and
-keypad engine utilites.
+keypad engine utilities.
 
 Development environment specifics:
     IDE: Arduino 1.6.5

@@ -137,7 +137,7 @@ void DallasComponent::update() {
       }
 
       if (!res) {
-        ESP_LOGW(TAG, "'%s' - Reseting bus for read failed!", sensor->get_name().c_str());
+        ESP_LOGW(TAG, "'%s' - Resetting bus for read failed!", sensor->get_name().c_str());
         sensor->publish_state(NAN);
         this->status_set_warning();
         return;

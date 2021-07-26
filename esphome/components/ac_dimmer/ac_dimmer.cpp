@@ -125,7 +125,7 @@ void ICACHE_RAM_ATTR HOT AcDimmerDataStore::gpio_intr() {
 }
 
 void ICACHE_RAM_ATTR HOT AcDimmerDataStore::s_gpio_intr(AcDimmerDataStore *store) {
-  // Attaching pin interrupts on the same pin will override the previous interupt
+  // Attaching pin interrupts on the same pin will override the previous interrupt
   // However, the user expects that multiple dimmers sharing the same ZC pin will work.
   // We solve this in a bit of a hacky way: On each pin interrupt, we check all dimmers
   // if any of them are using the same ZC pin, and also trigger the interrupt for *them*.

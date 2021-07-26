@@ -65,7 +65,7 @@ class QueueingScript : public Script, public Component {
 /** A script type that executes new instances in parallel.
  *
  * If a new instance is started while previous ones haven't finished yet,
- * the new one is exeucted in parallel to the other instances.
+ * the new one is executed in parallel to the other instances.
  */
 class ParallelScript : public Script {
  public:

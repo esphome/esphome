@@ -163,7 +163,7 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
         this->gpio_reset_ = buffer[1];
       }
       if (this->init_state_ == TuyaInitState::INIT_CONF) {
-        // If mcu returned status gpio, then we can ommit sending wifi state
+        // If mcu returned status gpio, then we can omit sending wifi state
         if (this->gpio_status_ != -1) {
           this->init_state_ = TuyaInitState::INIT_DATAPOINT;
           this->send_empty_command_(TuyaCommandType::DATAPOINT_QUERY);
@@ -363,7 +363,7 @@ void Tuya::process_command_queue_() {
     this->expected_response_.reset();
   }
 
-  // Left check of delay since last command in case theres ever a command sent by calling send_raw_command_ directly
+  // Left check of delay since last command in case there's ever a command sent by calling send_raw_command_ directly
   if (delay > COMMAND_DELAY && !this->command_queue_.empty() && this->rx_message_.empty() &&
       !this->expected_response_.has_value()) {
     this->send_raw_command_(command_queue_.front());

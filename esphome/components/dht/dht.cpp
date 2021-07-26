@@ -203,7 +203,7 @@ bool HOT ICACHE_RAM_ATTR DHT::read_sensor_(float *temperature, float *humidity, 
       const uint16_t raw_humidity = uint16_t(data[0]) * 10 + data[1];
       *humidity = raw_humidity / 10.0f;
     } else {
-      // For compatibily with DHT11 models which might only use 2 bytes checksums, only use the data from these two
+      // For compatibility with DHT11 models which might only use 2 bytes checksums, only use the data from these two
       // bytes
       *temperature = data[2];
       *humidity = data[0];

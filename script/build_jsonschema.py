@@ -419,7 +419,7 @@ def get_jschema(path, vschema, create_return_ref=True):
 
 
 def get_schema_str(vschema):
-    # Hack on cs.use_id, in the future this can be improved by trackign which type is required by
+    # Hack on cs.use_id, in the future this can be improved by tracking which type is required by
     # the id, this information can be added somehow to schema (not supported by jsonschema) and
     # completion can be improved listing valid ids only Meanwhile it's a problem because it makes
     # all partial schemas with cv.use_id different, e.g. i2c
@@ -675,7 +675,7 @@ def dump_schema():
     # The root directory of the repo
     root = Path(__file__).parent.parent
 
-    # Fake some diretory so that get_component works
+    # Fake some directory so that get_component works
     CORE.config_path = str(root)
 
     file_path = args.output
