@@ -58,8 +58,6 @@ def validate_board(value: str):
         boardlist += list(boards.ESP32_C3_BOARD_PINS.keys())
     else:
         raise NotImplementedError
-    # for board in sorted([str(value) for value in boards]):
-    #    print(board)
 
     if value not in boardlist:
         raise cv.Invalid(
