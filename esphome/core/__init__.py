@@ -408,19 +408,28 @@ class Define:
 
 
 class Library:
-    def __init__(self, name, version):
+    def __init__(self, name, version, repository=None):
         self.name = name
         self.version = version
+        self.repository = repository
+
+    def __str__(self):
+        return self.as_lib_dep
 
     @property
     def as_lib_dep(self):
+        if self.repository is not None:
+            if self.name is not None:
+                return f"{self.name}={self.repository}"
+            return self.repository
+
         if self.version is None:
             return self.name
         return f"{self.name}@{self.version}"
 
     @property
     def as_tuple(self):
-        return self.name, self.version
+        return self.name, self.version, self.repository
 
     def __hash__(self):
         return hash(self.as_tuple)
@@ -632,10 +641,24 @@ class EsphomeCore:
                 "Library {} must be instance of Library, not {}"
                 "".format(library, type(library))
             )
-        _LOGGER.debug("Adding library: %s", library)
         for other in self.libraries[:]:
             if other.name != library.name:
                 continue
+            if other.repository is not None:
+                if library.repository is None or other.repository == library.repository:
+                    # Other is using a/the same repository, takes precendence
+                    break
+                raise ValueError(
+                    "Adding named Library with repository failed! Libraries {} and {} "
+                    "requested with conflicting repositories!"
+                    "".format(library, other)
+                )
+
+            if library.repository is not None:
+                # This is more specific since its using a repository
+                self.libraries.remove(other)
+                continue
+
             if library.version is None:
                 # Other requirement is more specific
                 break
@@ -652,6 +675,7 @@ class EsphomeCore:
                 "".format(library, other)
             )
         else:
+            _LOGGER.debug("Adding library: %s", library)
             self.libraries.append(library)
         return library
 
