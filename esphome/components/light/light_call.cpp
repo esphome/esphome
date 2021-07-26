@@ -391,56 +391,54 @@ ColorMode LightCall::compute_color_mode_() {
     return mode;
   }
 
-  // There's no supported mode for this call, so warn, use a mode at random and let validation strip out whatever we
-  // don't support.
+  // There's no supported mode for this call, so warn, use the current more or a mode at random and let validation strip
+  // out whatever we don't support.
   ESP_LOGW(TAG, "'%s' - This light does not support a color mode suitable for this call without color mode!",
            this->parent_->get_name().c_str());
-  return *supported_modes.begin();
+  return current_mode != ColorMode::UNKNOWN ? current_mode : *supported_modes.begin();
 }
 std::set<ColorMode> LightCall::get_suitable_color_modes_() {
-  bool has_rgb = (this->color_brightness_.has_value() && *this->color_brightness_ > 0.0f) || this->red_.has_value() ||
-                 this->green_.has_value() || this->blue_.has_value();
   bool has_white = this->white_.has_value() && *this->white_ > 0.0f;
   bool has_ct = this->color_temperature_.has_value();
   bool has_cwww = (this->cold_white_.has_value() && *this->cold_white_ > 0.0f) ||
                   (this->warm_white_.has_value() && *this->warm_white_ > 0.0f);
+  bool has_rgb = (this->color_brightness_.has_value() && *this->color_brightness_ > 0.0f) ||
+                 (this->red_.has_value() || this->green_.has_value() || this->blue_.has_value());
 
-  // If white value is given, use a mode with a white channel, i.e. WHITE or COLD_WARM_WHITE (emulated) with
-  // RGB if also given, or RGB_COLOR_TEMPERATURE (note that COLOR_TEMPERATURE doesn't have a white parameter).
-  if (has_white) {
-    if (has_rgb) {
-      if (has_ct)
-        return {ColorMode::RGB_COLOR_TEMPERATURE, ColorMode::RGB_COLD_WARM_WHITE};
-      return {ColorMode::RGB_WHITE, ColorMode::RGB_COLOR_TEMPERATURE, ColorMode::RGB_COLD_WARM_WHITE};
-    }
-    if (has_ct)
-      return {ColorMode::RGB_COLOR_TEMPERATURE, ColorMode::RGB_COLD_WARM_WHITE};
-    return {ColorMode::WHITE, ColorMode::RGB_WHITE, ColorMode::RGB_COLOR_TEMPERATURE, ColorMode::COLD_WARM_WHITE,
-            ColorMode::RGB_COLD_WARM_WHITE};
-  }
+#define KEY(white, ct, cwww, rgb) ((white) << 0 | (ct) << 1 | (cwww) << 2 | (rgb) << 3)
+#define ENTRY(white, ct, cwww, rgb, ...) \
+  std::make_tuple<uint8_t, std::set<ColorMode>>(KEY(white, ct, cwww, rgb), __VA_ARGS__)
 
-  // If color temperature is given, use COLOR_TEMPERATURE or COLD_WARM_WHITE (emulated), with RGB if also given.
-  if (has_ct) {
-    if (has_rgb)
-      return {ColorMode::RGB_COLOR_TEMPERATURE, ColorMode::RGB_COLD_WARM_WHITE};
-    return {ColorMode::COLOR_TEMPERATURE, ColorMode::RGB_COLOR_TEMPERATURE, ColorMode::COLD_WARM_WHITE,
-            ColorMode::RGB_COLD_WARM_WHITE};
-  }
+  // Flag order: white, color temperature, cwww, rgb
+  std::array<std::tuple<uint8_t, std::set<ColorMode>>, 10> lookup_table{
+      ENTRY(true, false, false, false,
+            {ColorMode::WHITE, ColorMode::RGB_WHITE, ColorMode::RGB_COLOR_TEMPERATURE, ColorMode::COLD_WARM_WHITE,
+             ColorMode::RGB_COLD_WARM_WHITE}),
+      ENTRY(false, true, false, false,
+            {ColorMode::COLOR_TEMPERATURE, ColorMode::RGB_COLOR_TEMPERATURE, ColorMode::COLD_WARM_WHITE,
+             ColorMode::RGB_COLD_WARM_WHITE}),
+      ENTRY(true, true, false, false,
+            {ColorMode::COLD_WARM_WHITE, ColorMode::RGB_COLOR_TEMPERATURE, ColorMode::RGB_COLD_WARM_WHITE}),
+      ENTRY(false, false, true, false, {ColorMode::COLD_WARM_WHITE, ColorMode::RGB_COLD_WARM_WHITE}),
+      ENTRY(false, false, false, false,
+            {ColorMode::RGB_WHITE, ColorMode::RGB_COLOR_TEMPERATURE, ColorMode::RGB_COLD_WARM_WHITE, ColorMode::RGB,
+             ColorMode::WHITE, ColorMode::COLOR_TEMPERATURE, ColorMode::COLD_WARM_WHITE}),
+      ENTRY(true, false, false, true,
+            {ColorMode::RGB_WHITE, ColorMode::RGB_COLOR_TEMPERATURE, ColorMode::RGB_COLD_WARM_WHITE}),
+      ENTRY(false, true, false, true, {ColorMode::RGB_COLOR_TEMPERATURE, ColorMode::RGB_COLD_WARM_WHITE}),
+      ENTRY(true, true, false, true, {ColorMode::RGB_COLOR_TEMPERATURE, ColorMode::RGB_COLD_WARM_WHITE}),
+      ENTRY(false, false, true, true, {ColorMode::RGB_COLD_WARM_WHITE}),
+      ENTRY(false, false, false, true,
+            {ColorMode::RGB, ColorMode::RGB_WHITE, ColorMode::RGB_COLOR_TEMPERATURE, ColorMode::RGB_COLD_WARM_WHITE}),
+  };
 
-  // If CWWW is given, use COLD_WARM_WHITE (with RGB if also given).
-  if (has_cwww) {
-    if (has_rgb)
-      return {ColorMode::RGB_COLD_WARM_WHITE};
-    return {ColorMode::COLD_WARM_WHITE, ColorMode::RGB_COLD_WARM_WHITE};
-  }
+  auto key = KEY(has_white, has_ct, has_cwww, has_rgb);
+  for (auto &item : lookup_table)
+    if (std::get<0>(item) == key)
+      return std::get<1>(item);
 
-  // If only RGB is given, use any RGB mode.
-  if (has_rgb)
-    return {ColorMode::RGB, ColorMode::RGB_WHITE, ColorMode::RGB_COLOR_TEMPERATURE, ColorMode::RGB_COLD_WARM_WHITE};
-
-  // No color channel values given, so any color mode is suitable.
-  return {ColorMode::RGB_WHITE, ColorMode::RGB_COLOR_TEMPERATURE, ColorMode::RGB_COLD_WARM_WHITE, ColorMode::RGB,
-          ColorMode::WHITE,     ColorMode::COLOR_TEMPERATURE,     ColorMode::COLD_WARM_WHITE};
+  // This happens if there are conflicting flags given.
+  return {};
 }
 
 LightCall &LightCall::set_effect(const std::string &effect) {
