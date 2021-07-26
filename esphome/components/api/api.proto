@@ -39,6 +39,7 @@ service APIConnection {
   rpc camera_image (CameraImageRequest) returns (void) {}
   rpc climate_command (ClimateCommandRequest) returns (void) {}
   rpc number_command (NumberCommandRequest) returns (void) {}
+  rpc select_command (SelectCommandRequest) returns (void) {}
 }
 
 
@@ -843,4 +844,40 @@ message NumberCommandRequest {
 
   fixed32 key = 1;
   float state = 2;
+}
+
+// ==================== SELECT ====================
+message ListEntitiesSelectResponse {
+  option (id) = 52;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_SELECT";
+
+  string object_id = 1;
+  fixed32 key = 2;
+  string name = 3;
+  string unique_id = 4;
+
+  string icon = 5;
+  repeated string options = 6;
+}
+message SelectStateResponse {
+  option (id) = 53;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_SELECT";
+  option (no_delay) = true;
+
+  fixed32 key = 1;
+  string state = 2;
+  // If the select does not have a valid state yet.
+  // Equivalent to `!obj->has_state()` - inverse logic to make state packets smaller
+  bool missing_state = 3;
+}
+message SelectCommandRequest {
+  option (id) = 54;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_SELECT";
+  option (no_delay) = true;
+
+  fixed32 key = 1;
+  string state = 2;
 }

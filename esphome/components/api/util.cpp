@@ -183,6 +183,21 @@ void ComponentIterator::advance() {
       }
       break;
 #endif
+#ifdef USE_SELECT
+    case IteratorState::SELECT:
+      if (this->at_ >= App.get_selects().size()) {
+        advance_platform = true;
+      } else {
+        auto *select = App.get_selects()[this->at_];
+        if (select->is_internal()) {
+          success = true;
+          break;
+        } else {
+          success = this->on_select(select);
+        }
+      }
+      break;
+#endif
     case IteratorState::MAX:
       if (this->on_end()) {
         this->state_ = IteratorState::NONE;

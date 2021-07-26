@@ -198,6 +198,20 @@ bool APIServerConnectionBase::send_number_state_response(const NumberStateRespon
 #endif
 #ifdef USE_NUMBER
 #endif
+#ifdef USE_SELECT
+bool APIServerConnectionBase::send_list_entities_select_response(const ListEntitiesSelectResponse &msg) {
+  ESP_LOGVV(TAG, "send_list_entities_select_response: %s", msg.dump().c_str());
+  return this->send_message_<ListEntitiesSelectResponse>(msg, 52);
+}
+#endif
+#ifdef USE_SELECT
+bool APIServerConnectionBase::send_select_state_response(const SelectStateResponse &msg) {
+  ESP_LOGVV(TAG, "send_select_state_response: %s", msg.dump().c_str());
+  return this->send_message_<SelectStateResponse>(msg, 53);
+}
+#endif
+#ifdef USE_SELECT
+#endif
 bool APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) {
   switch (msg_type) {
     case 1: {
@@ -372,6 +386,15 @@ bool APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
       msg.decode(msg_data, msg_size);
       ESP_LOGVV(TAG, "on_number_command_request: %s", msg.dump().c_str());
       this->on_number_command_request(msg);
+#endif
+      break;
+    }
+    case 54: {
+#ifdef USE_SELECT
+      SelectCommandRequest msg;
+      msg.decode(msg_data, msg_size);
+      ESP_LOGVV(TAG, "on_select_command_request: %s", msg.dump().c_str());
+      this->on_select_command_request(msg);
 #endif
       break;
     }
@@ -581,6 +604,19 @@ void APIServerConnection::on_number_command_request(const NumberCommandRequest &
     return;
   }
   this->number_command(msg);
+}
+#endif
+#ifdef USE_SELECT
+void APIServerConnection::on_select_command_request(const SelectCommandRequest &msg) {
+  if (!this->is_connection_setup()) {
+    this->on_no_setup_connection();
+    return;
+  }
+  if (!this->is_authenticated()) {
+    this->on_unauthenticated_access();
+    return;
+  }
+  this->select_command(msg);
 }
 #endif
 

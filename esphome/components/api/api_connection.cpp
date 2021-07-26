@@ -590,6 +590,41 @@ void APIConnection::number_command(const NumberCommandRequest &msg) {
 }
 #endif
 
+#ifdef USE_SELECT
+bool APIConnection::send_select_state(select::Select *select, std::string state) {
+  if (!this->state_subscription_)
+    return false;
+
+  SelectStateResponse resp{};
+  resp.key = select->get_object_id_hash();
+  resp.state = state;
+  resp.missing_state = !select->has_state();
+  return this->send_select_state_response(resp);
+}
+bool APIConnection::send_select_info(select::Select *select) {
+  ListEntitiesSelectResponse msg;
+  msg.key = select->get_object_id_hash();
+  msg.object_id = select->get_object_id();
+  msg.name = select->get_name();
+  msg.unique_id = get_default_unique_id("select", select);
+  msg.icon = select->traits.get_icon();
+
+  for (auto option : select->traits.get_options())
+    msg.options.push_back(option);
+
+  return this->send_list_entities_select_response(msg);
+}
+void APIConnection::select_command(const SelectCommandRequest &msg) {
+  select::Select *select = App.get_select_by_key(msg.key);
+  if (select == nullptr)
+    return;
+
+  auto call = select->make_call();
+  call.set_value(msg.state);
+  call.perform();
+}
+#endif
+
 #ifdef USE_ESP32_CAMERA
 void APIConnection::send_camera_state(std::shared_ptr<esp32_camera::CameraImage> image) {
   if (!this->state_subscription_)

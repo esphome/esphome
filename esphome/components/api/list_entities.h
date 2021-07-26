@@ -43,6 +43,9 @@ class ListEntitiesIterator : public ComponentIterator {
 #ifdef USE_NUMBER
   bool on_number(number::Number *number) override;
 #endif
+#ifdef USE_SELECT
+  bool on_select(select::Select *select) override;
+#endif
   bool on_end() override;
 
  protected:
