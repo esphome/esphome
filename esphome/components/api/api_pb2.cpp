@@ -72,6 +72,18 @@ template<> const char *proto_enum_to_string<enums::SensorStateClass>(enums::Sens
       return "UNKNOWN";
   }
 }
+template<> const char *proto_enum_to_string<enums::SensorLastResetType>(enums::SensorLastResetType value) {
+  switch (value) {
+    case enums::LAST_RESET_NONE:
+      return "LAST_RESET_NONE";
+    case enums::LAST_RESET_NEVER:
+      return "LAST_RESET_NEVER";
+    case enums::LAST_RESET_AUTO:
+      return "LAST_RESET_AUTO";
+    default:
+      return "UNKNOWN";
+  }
+}
 template<> const char *proto_enum_to_string<enums::LogLevel>(enums::LogLevel value) {
   switch (value) {
     case enums::LOG_LEVEL_NONE:
@@ -1592,6 +1604,10 @@ bool ListEntitiesSensorResponse::decode_varint(uint32_t field_id, ProtoVarInt va
       this->state_class = value.as_enum<enums::SensorStateClass>();
       return true;
     }
+    case 11: {
+      this->last_reset_type = value.as_enum<enums::SensorLastResetType>();
+      return true;
+    }
     default:
       return false;
   }
@@ -1647,6 +1663,7 @@ void ListEntitiesSensorResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_bool(8, this->force_update);
   buffer.encode_string(9, this->device_class);
   buffer.encode_enum<enums::SensorStateClass>(10, this->state_class);
+  buffer.encode_enum<enums::SensorLastResetType>(11, this->last_reset_type);
 }
 void ListEntitiesSensorResponse::dump_to(std::string &out) const {
   char buffer[64];
@@ -1691,6 +1708,10 @@ void ListEntitiesSensorResponse::dump_to(std::string &out) const {
 
   out.append("  state_class: ");
   out.append(proto_enum_to_string<enums::SensorStateClass>(this->state_class));
+  out.append("\n");
+
+  out.append("  last_reset_type: ");
+  out.append(proto_enum_to_string<enums::SensorLastResetType>(this->last_reset_type));
   out.append("\n");
   out.append("}");
 }

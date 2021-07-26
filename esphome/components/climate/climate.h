@@ -120,6 +120,7 @@ class ClimateCall {
 };
 
 /// Struct used to save the state of the climate device in restore memory.
+/// Make sure to update RESTORE_STATE_VERSION when changing the struct entries.
 struct ClimateDeviceRestoreState {
   ClimateMode mode;
   bool uses_custom_fan_mode{false};

@@ -9,7 +9,6 @@
 #include "util.h"
 #include "list_entities.h"
 #include "subscribe_state.h"
-#include "homeassistant_service.h"
 #include "user_services.h"
 
 #ifdef ARDUINO_ARCH_ESP32

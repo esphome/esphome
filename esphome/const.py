@@ -1,10 +1,6 @@
 """Constants used by esphome."""
 
-MAJOR_VERSION = 1
-MINOR_VERSION = 20
-PATCH_VERSION = "0-dev"
-__short_version__ = f"{MAJOR_VERSION}.{MINOR_VERSION}"
-__version__ = f"{__short_version__}.{PATCH_VERSION}"
+__version__ = "1.21.0-dev"
 
 ESP_PLATFORM_ESP32 = "ESP32"
 ESP_PLATFORM_ESP8266 = "ESP8266"
@@ -163,6 +159,7 @@ CONF_DAYS_OF_WEEK = "days_of_week"
 CONF_DC_PIN = "dc_pin"
 CONF_DEBOUNCE = "debounce"
 CONF_DECELERATION = "deceleration"
+CONF_DEFAULT_MODE = "default_mode"
 CONF_DEFAULT_TARGET_TEMPERATURE_HIGH = "default_target_temperature_high"
 CONF_DEFAULT_TARGET_TEMPERATURE_LOW = "default_target_temperature_low"
 CONF_DEFAULT_TRANSITION_LENGTH = "default_transition_length"
@@ -301,6 +298,7 @@ CONF_KEY = "key"
 CONF_LAMBDA = "lambda"
 CONF_LAST_CONFIDENCE = "last_confidence"
 CONF_LAST_FINGER_ID = "last_finger_id"
+CONF_LAST_RESET_TYPE = "last_reset_type"
 CONF_LATITUDE = "latitude"
 CONF_LENGTH = "length"
 CONF_LEVEL = "level"
@@ -501,7 +499,6 @@ CONF_ROTATION = "rotation"
 CONF_RS_PIN = "rs_pin"
 CONF_RTD_NOMINAL_RESISTANCE = "rtd_nominal_resistance"
 CONF_RTD_WIRES = "rtd_wires"
-CONF_RUN_CYCLES = "run_cycles"
 CONF_RUN_DURATION = "run_duration"
 CONF_RW_PIN = "rw_pin"
 CONF_RX_BUFFER_SIZE = "rx_buffer_size"
@@ -576,6 +573,7 @@ CONF_TABLET = "tablet"
 CONF_TAG = "tag"
 CONF_TARGET = "target"
 CONF_TARGET_TEMPERATURE = "target_temperature"
+CONF_TARGET_TEMPERATURE_CHANGE_ACTION = "target_temperature_change_action"
 CONF_TARGET_TEMPERATURE_HIGH = "target_temperature_high"
 CONF_TARGET_TEMPERATURE_LOW = "target_temperature_low"
 CONF_TEMPERATURE = "temperature"
@@ -790,3 +788,10 @@ STATE_CLASS_NONE = ""
 
 # The state represents a measurement in present time
 STATE_CLASS_MEASUREMENT = "measurement"
+
+# This sensor does not support resetting. ie, it is not accumulative
+LAST_RESET_TYPE_NONE = ""
+# This sensor is expected to never reset its value
+LAST_RESET_TYPE_NEVER = "never"
+# This sensor may reset and Home Assistant will watch for this
+LAST_RESET_TYPE_AUTO = "auto"

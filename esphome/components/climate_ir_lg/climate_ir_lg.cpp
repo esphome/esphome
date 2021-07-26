@@ -94,7 +94,7 @@ void LgIrClimate::transmit_state() {
       // remote_state |= FAN_MODE_AUTO_DRY;
     }
     if (this->mode == climate::CLIMATE_MODE_COOL || this->mode == climate::CLIMATE_MODE_HEAT) {
-      auto temp = (uint8_t) roundf(clamp(this->target_temperature, TEMP_MIN, TEMP_MAX));
+      auto temp = (uint8_t) roundf(clamp<float>(this->target_temperature, TEMP_MIN, TEMP_MAX));
       remote_state |= ((temp - 15) << TEMP_SHIFT);
     }
   }

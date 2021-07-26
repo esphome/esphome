@@ -50,7 +50,7 @@ def assign_declare_id(value):
 CONFIG_SCHEMA = automation.validate_automation(
     {
         # Don't declare id as cv.declare_id yet, because the ID type
-        # dpeends on the mode. Will be checked later with assign_declare_id
+        # depends on the mode. Will be checked later with assign_declare_id
         cv.Required(CONF_ID): cv.string_strict,
         cv.Optional(CONF_MODE, default=CONF_SINGLE): cv.one_of(
             *SCRIPT_MODES, lower=True

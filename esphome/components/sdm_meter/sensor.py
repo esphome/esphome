@@ -25,8 +25,8 @@ from esphome.const import (
     ICON_CURRENT_AC,
     ICON_EMPTY,
     ICON_FLASH,
+    LAST_RESET_TYPE_AUTO,
     STATE_CLASS_MEASUREMENT,
-    STATE_CLASS_NONE,
     UNIT_AMPERE,
     UNIT_DEGREES,
     UNIT_EMPTY,
@@ -88,24 +88,36 @@ CONFIG_SCHEMA = (
                 STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_IMPORT_ACTIVE_ENERGY): sensor.sensor_schema(
-                UNIT_WATT_HOURS, ICON_EMPTY, 2, DEVICE_CLASS_ENERGY, STATE_CLASS_NONE
+                UNIT_WATT_HOURS,
+                ICON_EMPTY,
+                2,
+                DEVICE_CLASS_ENERGY,
+                STATE_CLASS_MEASUREMENT,
+                LAST_RESET_TYPE_AUTO,
             ),
             cv.Optional(CONF_EXPORT_ACTIVE_ENERGY): sensor.sensor_schema(
-                UNIT_WATT_HOURS, ICON_EMPTY, 2, DEVICE_CLASS_ENERGY, STATE_CLASS_NONE
+                UNIT_WATT_HOURS,
+                ICON_EMPTY,
+                2,
+                DEVICE_CLASS_ENERGY,
+                STATE_CLASS_MEASUREMENT,
+                LAST_RESET_TYPE_AUTO,
             ),
             cv.Optional(CONF_IMPORT_REACTIVE_ENERGY): sensor.sensor_schema(
                 UNIT_VOLT_AMPS_REACTIVE_HOURS,
                 ICON_EMPTY,
                 2,
                 DEVICE_CLASS_ENERGY,
-                STATE_CLASS_NONE,
+                STATE_CLASS_MEASUREMENT,
+                LAST_RESET_TYPE_AUTO,
             ),
             cv.Optional(CONF_EXPORT_REACTIVE_ENERGY): sensor.sensor_schema(
                 UNIT_VOLT_AMPS_REACTIVE_HOURS,
                 ICON_EMPTY,
                 2,
                 DEVICE_CLASS_ENERGY,
-                STATE_CLASS_NONE,
+                STATE_CLASS_MEASUREMENT,
+                LAST_RESET_TYPE_AUTO,
             ),
         }
     )

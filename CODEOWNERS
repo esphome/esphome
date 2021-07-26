@@ -47,6 +47,7 @@ esphome/components/fingerprint_grow/* @OnFreund @loongyh
 esphome/components/globals/* @esphome/core
 esphome/components/gpio/* @esphome/core
 esphome/components/gps/* @coogle
+esphome/components/havells_solar/* @sourabhjaiswal
 esphome/components/homeassistant/* @OttoWinter
 esphome/components/i2c/* @esphome/core
 esphome/components/improv/* @jesserockz
@@ -72,6 +73,11 @@ esphome/components/midea_ac/* @dudanov
 esphome/components/midea_dongle/* @dudanov
 esphome/components/mitsubishi/* @RubyBailey
 esphome/components/network/* @esphome/core
+esphome/components/nextion/* @senexcrenshaw
+esphome/components/nextion/binary_sensor/* @senexcrenshaw
+esphome/components/nextion/sensor/* @senexcrenshaw
+esphome/components/nextion/switch/* @senexcrenshaw
+esphome/components/nextion/text_sensor/* @senexcrenshaw
 esphome/components/nfc/* @jesserockz
 esphome/components/number/* @esphome/core
 esphome/components/ota/* @esphome/core
@@ -82,6 +88,7 @@ esphome/components/pn532_i2c/* @OttoWinter @jesserockz
 esphome/components/pn532_spi/* @OttoWinter @jesserockz
 esphome/components/power_supply/* @esphome/core
 esphome/components/pulse_meter/* @stevebaxter
+esphome/components/pvvx_mithermometer/* @pasiz
 esphome/components/rc522/* @glmnet
 esphome/components/rc522_i2c/* @glmnet
 esphome/components/rc522_spi/* @glmnet
@@ -90,6 +97,7 @@ esphome/components/rf_bridge/* @jesserockz
 esphome/components/rtttl/* @glmnet
 esphome/components/script/* @esphome/core
 esphome/components/sdm_meter/* @jesserockz @polyfaces
+esphome/components/selec_meter/* @sourabhjaiswal
 esphome/components/sensor/* @esphome/core
 esphome/components/sgp40/* @SenexCrenshaw
 esphome/components/sht4x/* @sjtrny

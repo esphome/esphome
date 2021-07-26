@@ -110,15 +110,12 @@ class Cover : public Nameable {
 
   /// The current operation of the cover (idle, opening, closing).
   CoverOperation current_operation{COVER_OPERATION_IDLE};
-  union {
-    /** The position of the cover from 0.0 (fully closed) to 1.0 (fully open).
-     *
-     * For binary covers this is always equals to 0.0 or 1.0 (see also COVER_OPEN and
-     * COVER_CLOSED constants).
-     */
-    float position;
-    ESPDEPRECATED("<cover>.state is deprecated, please use .position instead") float state;
-  };
+  /** The position of the cover from 0.0 (fully closed) to 1.0 (fully open).
+   *
+   * For binary covers this is always equals to 0.0 or 1.0 (see also COVER_OPEN and
+   * COVER_CLOSED constants).
+   */
+  float position;
   /// The current tilt value of the cover from 0.0 to 1.0.
   float tilt{COVER_OPEN};
 

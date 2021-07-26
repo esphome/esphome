@@ -16,6 +16,18 @@ const char *state_class_to_string(StateClass state_class) {
   }
 }
 
+const char *last_reset_type_to_string(LastResetType last_reset_type) {
+  switch (last_reset_type) {
+    case LAST_RESET_TYPE_NEVER:
+      return "never";
+    case LAST_RESET_TYPE_AUTO:
+      return "auto";
+    case LAST_RESET_TYPE_NONE:
+    default:
+      return "";
+  }
+}
+
 void Sensor::publish_state(float state) {
   this->raw_state = state;
   this->raw_callback_.call(state);
@@ -28,7 +40,6 @@ void Sensor::publish_state(float state) {
     this->filter_list_->input(state);
   }
 }
-void Sensor::push_new_value(float state) { this->publish_state(state); }
 std::string Sensor::unit_of_measurement() { return ""; }
 std::string Sensor::icon() { return ""; }
 uint32_t Sensor::update_interval() { return 0; }
@@ -65,6 +76,7 @@ void Sensor::set_state_class(const std::string &state_class) {
     ESP_LOGW(TAG, "'%s' - Unrecognized state class %s", this->get_name().c_str(), state_class.c_str());
   }
 }
+void Sensor::set_last_reset_type(LastResetType last_reset_type) { this->last_reset_type = last_reset_type; }
 std::string Sensor::get_unit_of_measurement() {
   if (this->unit_of_measurement_.has_value())
     return *this->unit_of_measurement_;
@@ -104,9 +116,7 @@ void Sensor::clear_filters() {
   }
   this->filter_list_ = nullptr;
 }
-float Sensor::get_value() const { return this->state; }
 float Sensor::get_state() const { return this->state; }
-float Sensor::get_raw_value() const { return this->raw_state; }
 float Sensor::get_raw_state() const { return this->raw_state; }
 std::string Sensor::unique_id() { return ""; }
 

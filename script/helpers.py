@@ -145,8 +145,10 @@ def filter_changed(files):
     return files
 
 
-def git_ls_files():
+def git_ls_files(patterns=None):
     command = ["git", "ls-files", "-s"]
+    if patterns is not None:
+        command.extend(patterns)
     proc = subprocess.Popen(command, stdout=subprocess.PIPE)
     output, err = proc.communicate()
     lines = [x.split() for x in output.decode("utf-8").splitlines()]

@@ -109,7 +109,15 @@ def _compute_destination_path(key: str) -> Path:
     return base_dir / h.hexdigest()[:8]
 
 
-def _handle_git_response(ret):
+def _run_git_command(cmd, cwd=None):
+    try:
+        ret = subprocess.run(cmd, cwd=cwd, capture_output=True, check=False)
+    except FileNotFoundError as err:
+        raise cv.Invalid(
+            "git is not installed but required for external_components.\n"
+            "Please see https://git-scm.com/book/en/v2/Getting-Started-Installing-Git for installing git"
+        ) from err
+
     if ret.returncode != 0 and ret.stderr:
         err_str = ret.stderr.decode("utf-8")
         lines = [x.strip() for x in err_str.splitlines()]
@@ -118,46 +126,61 @@ def _handle_git_response(ret):
         raise cv.Invalid(err_str)
 
 
+def _process_git_config(config: dict, refresh) -> str:
+    key = f"{config[CONF_URL]}@{config.get(CONF_REF)}"
+    repo_dir = _compute_destination_path(key)
+    if not repo_dir.is_dir():
+        _LOGGER.info("Cloning %s", key)
+        _LOGGER.debug("Location: %s", repo_dir)
+        cmd = ["git", "clone", "--depth=1"]
+        if CONF_REF in config:
+            cmd += ["--branch", config[CONF_REF]]
+        cmd += ["--", config[CONF_URL], str(repo_dir)]
+        _run_git_command(cmd)
+
+    else:
+        # Check refresh needed
+        file_timestamp = Path(repo_dir / ".git" / "FETCH_HEAD")
+        # On first clone, FETCH_HEAD does not exists
+        if not file_timestamp.exists():
+            file_timestamp = Path(repo_dir / ".git" / "HEAD")
+        age = datetime.datetime.now() - datetime.datetime.fromtimestamp(
+            file_timestamp.stat().st_mtime
+        )
+        if age.seconds > refresh.total_seconds:
+            _LOGGER.info("Updating %s", key)
+            _LOGGER.debug("Location: %s", repo_dir)
+            # Stash local changes (if any)
+            _run_git_command(
+                ["git", "stash", "push", "--include-untracked"], str(repo_dir)
+            )
+            # Fetch remote ref
+            cmd = ["git", "fetch", "--", "origin"]
+            if CONF_REF in config:
+                cmd.append(config[CONF_REF])
+            _run_git_command(cmd, str(repo_dir))
+            # Hard reset to FETCH_HEAD (short-lived git ref corresponding to most recent fetch)
+            _run_git_command(["git", "reset", "--hard", "FETCH_HEAD"], str(repo_dir))
+
+    if (repo_dir / "esphome" / "components").is_dir():
+        components_dir = repo_dir / "esphome" / "components"
+    elif (repo_dir / "components").is_dir():
+        components_dir = repo_dir / "components"
+    else:
+        raise cv.Invalid(
+            "Could not find components folder for source. Please check the source contains a 'components' or 'esphome/components' folder"
+        )
+
+    return components_dir
+
+
 def _process_single_config(config: dict):
     conf = config[CONF_SOURCE]
     if conf[CONF_TYPE] == TYPE_GIT:
-        key = f"{conf[CONF_URL]}@{conf.get(CONF_REF)}"
-        repo_dir = _compute_destination_path(key)
-        if not repo_dir.is_dir():
-            cmd = ["git", "clone", "--depth=1"]
-            if CONF_REF in conf:
-                cmd += ["--branch", conf[CONF_REF]]
-            cmd += [conf[CONF_URL], str(repo_dir)]
-            ret = subprocess.run(cmd, capture_output=True, check=False)
-            _handle_git_response(ret)
-
-        else:
-            # Check refresh needed
-            file_timestamp = Path(repo_dir / ".git" / "FETCH_HEAD")
-            # On first clone, FETCH_HEAD does not exists
-            if not file_timestamp.exists():
-                file_timestamp = Path(repo_dir / ".git" / "HEAD")
-            age = datetime.datetime.now() - datetime.datetime.fromtimestamp(
-                file_timestamp.stat().st_mtime
+        with cv.prepend_path([CONF_SOURCE]):
+            components_dir = _process_git_config(
+                config[CONF_SOURCE], config[CONF_REFRESH]
             )
-            if age.seconds > config[CONF_REFRESH].total_seconds:
-                _LOGGER.info("Executing git pull %s", key)
-                cmd = ["git", "pull"]
-                ret = subprocess.run(
-                    cmd, cwd=repo_dir, capture_output=True, check=False
-                )
-                _handle_git_response(ret)
-
-        if (repo_dir / "esphome" / "components").is_dir():
-            components_dir = repo_dir / "esphome" / "components"
-        elif (repo_dir / "components").is_dir():
-            components_dir = repo_dir / "components"
-        else:
-            raise cv.Invalid(
-                "Could not find components folder for source. Please check the source contains a 'components' or 'esphome/components' folder",
-                [CONF_SOURCE],
-            )
-
     elif conf[CONF_TYPE] == TYPE_LOCAL:
         components_dir = Path(CORE.relative_config_path(conf[CONF_PATH]))
     else:

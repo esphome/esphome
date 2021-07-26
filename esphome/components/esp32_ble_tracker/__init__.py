@@ -163,9 +163,6 @@ CONFIG_SCHEMA = cv.Schema(
                 cv.Required(CONF_MANUFACTURER_ID): bt_uuid,
             }
         ),
-        cv.Optional("scan_interval"): cv.invalid(
-            "This option has been removed in 1.14 (Reason: " "it never had an effect)"
-        ),
     }
 ).extend(cv.COMPONENT_SCHEMA)
 

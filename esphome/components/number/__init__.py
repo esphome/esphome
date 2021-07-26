@@ -1,3 +1,4 @@
+from typing import Optional
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
@@ -66,12 +67,18 @@ NUMBER_SCHEMA = cv.MQTT_COMPONENT_SCHEMA.extend(
 )
 
 
-async def setup_number_core_(var, config):
+async def setup_number_core_(
+    var, config, *, min_value: float, max_value: float, step: Optional[float]
+):
     cg.add(var.set_name(config[CONF_NAME]))
     if CONF_INTERNAL in config:
         cg.add(var.set_internal(config[CONF_INTERNAL]))
 
-    cg.add(var.set_icon(config[CONF_ICON]))
+    cg.add(var.traits.set_icon(config[CONF_ICON]))
+    cg.add(var.traits.set_min_value(min_value))
+    cg.add(var.traits.set_max_value(max_value))
+    if step is not None:
+        cg.add(var.traits.set_step(step))
 
     for conf in config.get(CONF_ON_VALUE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
@@ -92,16 +99,24 @@ async def setup_number_core_(var, config):
         await mqtt.register_mqtt_component(mqtt_, config)
 
 
-async def register_number(var, config):
+async def register_number(
+    var, config, *, min_value: float, max_value: float, step: Optional[float] = None
+):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
     cg.add(cg.App.register_number(var))
-    await setup_number_core_(var, config)
+    await setup_number_core_(
+        var, config, min_value=min_value, max_value=max_value, step=step
+    )
 
 
-async def new_number(config):
+async def new_number(
+    config, *, min_value: float, max_value: float, step: Optional[float] = None
+):
     var = cg.new_Pvariable(config[CONF_ID])
-    await register_number(var, config)
+    await register_number(
+        var, config, min_value=min_value, max_value=max_value, step=step
+    )
     return var
 
 

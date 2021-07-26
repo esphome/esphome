@@ -598,7 +598,7 @@ void WaveshareEPaper2P9InB::initialize() {
   this->data(0x9F);
 
   // COMMAND RESOLUTION SETTING
-  // set to 128x296 by COMMAND PANNEL SETTING
+  // set to 128x296 by COMMAND PANEL SETTING
 
   // COMMAND VCOM AND DATA INTERVAL SETTING
   // use defaults for white border and ESPHome image polarity
