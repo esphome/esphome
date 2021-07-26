@@ -50,6 +50,7 @@ void RemoteTransmitterComponent::configure_rmt() {
   } else {
     c.tx_config.carrier_level = RMT_CARRIER_LEVEL_LOW;
     c.tx_config.idle_level = RMT_IDLE_LEVEL_HIGH;
+    this->inverted_ = true;
   }
 
   esp_err_t error = rmt_config(&c);
@@ -95,10 +96,10 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
       val -= item;
 
       if (rmt_i % 2 == 0) {
-        rmt_item.level0 = static_cast<uint32_t>(level);
+        rmt_item.level0 = static_cast<uint32_t>(level ^ this->inverted_);
         rmt_item.duration0 = static_cast<uint32_t>(item);
       } else {
-        rmt_item.level1 = static_cast<uint32_t>(level);
+        rmt_item.level1 = static_cast<uint32_t>(level ^ this->inverted_);
         rmt_item.duration1 = static_cast<uint32_t>(item);
         this->rmt_temp_.push_back(rmt_item);
       }
