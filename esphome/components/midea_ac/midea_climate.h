@@ -17,6 +17,7 @@ using sensor::Sensor;
 using climate::ClimateCall;
 using climate::ClimatePreset;
 using climate::ClimateTraits;
+using climate::ClimateMode;
 using midea_dongle::Frame;
 using midea_dongle::ResponseStatus;
 using midea_dongle::ResponseHandler;

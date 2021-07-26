@@ -28,42 +28,42 @@ float PropertiesFrame::get_indoor_temp() const { return i16tof(this->get_val_(21
 float PropertiesFrame::get_outdoor_temp() const { return i16tof(this->get_val_(22)); }
 float PropertiesFrame::get_humidity_setpoint() const { return static_cast<float>(this->get_val_(29, 0, 0x7F)); }
 
-climate::ClimateMode PropertiesFrame::get_mode() const {
+ClimateMode PropertiesFrame::get_mode() const {
   if (!this->get_power_())
-    return climate::CLIMATE_MODE_OFF;
+    return ClimateMode::CLIMATE_MODE_OFF;
   switch (this->get_val_(12, 5)) {
-    case MIDEA_MODE_AUTO:
-      return climate::CLIMATE_MODE_HEAT_COOL;
-    case MIDEA_MODE_COOL:
-      return climate::CLIMATE_MODE_COOL;
-    case MIDEA_MODE_DRY:
-      return climate::CLIMATE_MODE_DRY;
-    case MIDEA_MODE_HEAT:
-      return climate::CLIMATE_MODE_HEAT;
-    case MIDEA_MODE_FAN_ONLY:
-      return climate::CLIMATE_MODE_FAN_ONLY;
+    case MideaMode::MIDEA_MODE_AUTO:
+      return ClimateMode::CLIMATE_MODE_HEAT_COOL;
+    case MideaMode::MIDEA_MODE_COOL:
+      return ClimateMode::CLIMATE_MODE_COOL;
+    case MideaMode::MIDEA_MODE_DRY:
+      return ClimateMode::CLIMATE_MODE_DRY;
+    case MideaMode::MIDEA_MODE_HEAT:
+      return ClimateMode::CLIMATE_MODE_HEAT;
+    case MideaMode::MIDEA_MODE_FAN_ONLY:
+      return ClimateMode::CLIMATE_MODE_FAN_ONLY;
     default:
-      return climate::CLIMATE_MODE_OFF;
+      return ClimateMode::CLIMATE_MODE_OFF;
   }
 }
 
-void PropertiesFrame::set_mode(climate::ClimateMode mode) {
+void PropertiesFrame::set_mode(ClimateMode mode) {
   uint8_t m;
   switch (mode) {
-    case climate::CLIMATE_MODE_HEAT_COOL:
-      m = MIDEA_MODE_AUTO;
+    case ClimateMode::CLIMATE_MODE_HEAT_COOL:
+      m = MideaMode::MIDEA_MODE_AUTO;
       break;
-    case climate::CLIMATE_MODE_COOL:
-      m = MIDEA_MODE_COOL;
+    case ClimateMode::CLIMATE_MODE_COOL:
+      m = MideaMode::MIDEA_MODE_COOL;
       break;
-    case climate::CLIMATE_MODE_DRY:
-      m = MIDEA_MODE_DRY;
+    case ClimateMode::CLIMATE_MODE_DRY:
+      m = MideaMode::MIDEA_MODE_DRY;
       break;
-    case climate::CLIMATE_MODE_HEAT:
-      m = MIDEA_MODE_HEAT;
+    case ClimateMode::CLIMATE_MODE_HEAT:
+      m = MideaMode::MIDEA_MODE_HEAT;
       break;
-    case climate::CLIMATE_MODE_FAN_ONLY:
-      m = MIDEA_MODE_FAN_ONLY;
+    case ClimateMode::CLIMATE_MODE_FAN_ONLY:
+      m = MideaMode::MIDEA_MODE_FAN_ONLY;
       break;
     default:
       this->set_power_(false);
@@ -73,26 +73,26 @@ void PropertiesFrame::set_mode(climate::ClimateMode mode) {
   this->set_val_(12, 5, 0b111, m);
 }
 
-optional<climate::ClimatePreset> PropertiesFrame::get_preset() const {
+optional<ClimatePreset> PropertiesFrame::get_preset() const {
   if (this->get_eco_mode())
-    return climate::CLIMATE_PRESET_ECO;
+    return ClimatePreset::CLIMATE_PRESET_ECO;
   if (this->get_sleep_mode())
-    return climate::CLIMATE_PRESET_SLEEP;
+    return ClimatePreset::CLIMATE_PRESET_SLEEP;
   if (this->get_turbo_mode())
-    return climate::CLIMATE_PRESET_BOOST;
-  return climate::CLIMATE_PRESET_NONE;
+    return ClimatePreset::CLIMATE_PRESET_BOOST;
+  return ClimatePreset::CLIMATE_PRESET_NONE;
 }
 
-void PropertiesFrame::set_preset(climate::ClimatePreset preset) {
+void PropertiesFrame::set_preset(ClimatePreset preset) {
   this->clear_presets();
   switch (preset) {
-    case climate::CLIMATE_PRESET_ECO:
+    case ClimatePreset::CLIMATE_PRESET_ECO:
       this->set_eco_mode(true);
       break;
-    case climate::CLIMATE_PRESET_SLEEP:
+    case ClimatePreset::CLIMATE_PRESET_SLEEP:
       this->set_sleep_mode(true);
       break;
-    case climate::CLIMATE_PRESET_BOOST:
+    case ClimatePreset::CLIMATE_PRESET_BOOST:
       this->set_turbo_mode(true);
       break;
     default:
@@ -119,41 +119,41 @@ void PropertiesFrame::set_custom_preset(const std::string &preset) {
 
 bool PropertiesFrame::is_custom_fan_mode() const {
   switch (this->pb_[13]) {
-    case MIDEA_FAN_SILENT:
-    case MIDEA_FAN_TURBO:
+    case MideaFanMode::MIDEA_FAN_SILENT:
+    case MideaFanMode::MIDEA_FAN_TURBO:
       return true;
     default:
       return false;
   }
 }
 
-climate::ClimateFanMode PropertiesFrame::get_fan_mode() const {
+ClimateFanMode PropertiesFrame::get_fan_mode() const {
   switch (this->pb_[13]) {
-    case MIDEA_FAN_LOW:
-      return climate::CLIMATE_FAN_LOW;
-    case MIDEA_FAN_MEDIUM:
-      return climate::CLIMATE_FAN_MEDIUM;
-    case MIDEA_FAN_HIGH:
-      return climate::CLIMATE_FAN_HIGH;
+    case MideaFanMode::MIDEA_FAN_LOW:
+      return ClimateFanMode::CLIMATE_FAN_LOW;
+    case MideaFanMode::MIDEA_FAN_MEDIUM:
+      return ClimateFanMode::CLIMATE_FAN_MEDIUM;
+    case MideaFanMode::MIDEA_FAN_HIGH:
+      return ClimateFanMode::CLIMATE_FAN_HIGH;
     default:
-      return climate::CLIMATE_FAN_AUTO;
+      return ClimateFanMode::CLIMATE_FAN_AUTO;
   }
 }
 
-void PropertiesFrame::set_fan_mode(climate::ClimateFanMode mode) {
+void PropertiesFrame::set_fan_mode(ClimateFanMode mode) {
   uint8_t m;
   switch (mode) {
-    case climate::CLIMATE_FAN_LOW:
-      m = MIDEA_FAN_LOW;
+    case ClimateFanMode::CLIMATE_FAN_LOW:
+      m = MideaFanMode::MIDEA_FAN_LOW;
       break;
-    case climate::CLIMATE_FAN_MEDIUM:
-      m = MIDEA_FAN_MEDIUM;
+    case ClimateFanMode::CLIMATE_FAN_MEDIUM:
+      m = MideaFanMode::MIDEA_FAN_MEDIUM;
       break;
-    case climate::CLIMATE_FAN_HIGH:
-      m = MIDEA_FAN_HIGH;
+    case ClimateFanMode::CLIMATE_FAN_HIGH:
+      m = MideaFanMode::MIDEA_FAN_HIGH;
       break;
     default:
-      m = MIDEA_FAN_AUTO;
+      m = MideaFanMode::MIDEA_FAN_AUTO;
       break;
   }
   this->pb_[13] = m;
@@ -161,7 +161,7 @@ void PropertiesFrame::set_fan_mode(climate::ClimateFanMode mode) {
 
 const std::string &PropertiesFrame::get_custom_fan_mode() const {
   switch (this->pb_[13]) {
-    case MIDEA_FAN_SILENT:
+    case MideaFanMode::MIDEA_FAN_SILENT:
       return Capabilities::SILENT;
     default:
       return Capabilities::TURBO;
@@ -171,40 +171,40 @@ const std::string &PropertiesFrame::get_custom_fan_mode() const {
 void PropertiesFrame::set_custom_fan_mode(const std::string &mode) {
   uint8_t m;
   if (mode == Capabilities::SILENT) {
-    m = MIDEA_FAN_SILENT;
+    m = MideaFanMode::MIDEA_FAN_SILENT;
   } else {
-    m = MIDEA_FAN_TURBO;
+    m = MideaFanMode::MIDEA_FAN_TURBO;
   }
   this->pb_[13] = m;
 }
 
-climate::ClimateSwingMode PropertiesFrame::get_swing_mode() const {
+ClimateSwingMode PropertiesFrame::get_swing_mode() const {
   switch (this->get_val_(17, 0, 0b1111)) {
-    case MIDEA_SWING_VERTICAL:
-      return climate::CLIMATE_SWING_VERTICAL;
-    case MIDEA_SWING_HORIZONTAL:
-      return climate::CLIMATE_SWING_HORIZONTAL;
-    case MIDEA_SWING_BOTH:
-      return climate::CLIMATE_SWING_BOTH;
+    case MideaSwingMode::MIDEA_SWING_VERTICAL:
+      return ClimateSwingMode::CLIMATE_SWING_VERTICAL;
+    case MideaSwingMode::MIDEA_SWING_HORIZONTAL:
+      return ClimateSwingMode::CLIMATE_SWING_HORIZONTAL;
+    case MideaSwingMode::MIDEA_SWING_BOTH:
+      return ClimateSwingMode::CLIMATE_SWING_BOTH;
     default:
-      return climate::CLIMATE_SWING_OFF;
+      return ClimateSwingMode::CLIMATE_SWING_OFF;
   }
 }
 
-void PropertiesFrame::set_swing_mode(climate::ClimateSwingMode mode) {
+void PropertiesFrame::set_swing_mode(ClimateSwingMode mode) {
   uint8_t m;
   switch (mode) {
-    case climate::CLIMATE_SWING_VERTICAL:
-      m = MIDEA_SWING_VERTICAL;
+    case ClimateSwingMode::CLIMATE_SWING_VERTICAL:
+      m = MideaSwingMode::MIDEA_SWING_VERTICAL;
       break;
-    case climate::CLIMATE_SWING_HORIZONTAL:
-      m = MIDEA_SWING_HORIZONTAL;
+    case ClimateSwingMode::CLIMATE_SWING_HORIZONTAL:
+      m = MideaSwingMode::MIDEA_SWING_HORIZONTAL;
       break;
-    case climate::CLIMATE_SWING_BOTH:
-      m = MIDEA_SWING_BOTH;
+    case ClimateSwingMode::CLIMATE_SWING_BOTH:
+      m = MideaSwingMode::MIDEA_SWING_BOTH;
       break;
     default:
-      m = MIDEA_SWING_OFF;
+      m = MideaSwingMode::MIDEA_SWING_OFF;
       break;
   }
   this->pb_[17] = 0x30 | m;

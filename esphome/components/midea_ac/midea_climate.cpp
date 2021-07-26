@@ -6,7 +6,7 @@ namespace midea_ac {
 
 static const char *const TAG = "midea_ac";
 
-static void set_sensor(sensor::Sensor *sensor, float value) {
+static void set_sensor(Sensor *sensor, float value) {
   if (sensor != nullptr && (!sensor->has_state() || sensor->get_raw_state() != value))
     sensor->publish_state(value);
 }
@@ -44,7 +44,7 @@ ResponseStatus MideaAC::read_status_(const Frame &frame) {
       set_property(this->custom_fan_mode, mode, need_publish);
     } else {
       this->custom_fan_mode.reset();
-      optional<climate::ClimateFanMode> mode = p.get_fan_mode();
+      optional<ClimateFanMode> mode = p.get_fan_mode();
       set_property(this->fan_mode, mode, need_publish);
     }
     set_property(this->swing_mode, p.get_swing_mode(), need_publish);
@@ -67,31 +67,31 @@ void MideaAC::on_frame(const Frame &frame) {
   ESP_LOGW(TAG, "RX: frame has unknown type");
 }
 
-bool MideaAC::allow_preset(climate::ClimatePreset preset) const {
+bool MideaAC::allow_preset(ClimatePreset preset) const {
   switch (preset) {
-    case climate::CLIMATE_PRESET_ECO:
-      if (this->mode == climate::CLIMATE_MODE_COOL) {
+    case ClimatePreset::CLIMATE_PRESET_ECO:
+      if (this->mode == ClimateMode::CLIMATE_MODE_COOL) {
         return true;
       } else {
         ESP_LOGD(TAG, "ECO preset is only available in COOL mode");
       }
       break;
-    case climate::CLIMATE_PRESET_SLEEP:
-      if (this->mode == climate::CLIMATE_MODE_FAN_ONLY || this->mode == climate::CLIMATE_MODE_DRY) {
+    case ClimatePreset::CLIMATE_PRESET_SLEEP:
+      if (this->mode == ClimateMode::CLIMATE_MODE_FAN_ONLY || this->mode == ClimateMode::CLIMATE_MODE_DRY) {
         ESP_LOGD(TAG, "SLEEP preset is not available in FAN_ONLY or DRY mode");
       } else {
         return true;
       }
       break;
-    case climate::CLIMATE_PRESET_BOOST:
-      if ((this->mode == climate::CLIMATE_MODE_HEAT && this->capabilities_.turbo_heat()) ||
-          (this->mode == climate::CLIMATE_MODE_COOL && this->capabilities_.turbo_cool())) {
+    case ClimatePreset::CLIMATE_PRESET_BOOST:
+      if ((this->mode == ClimateMode::CLIMATE_MODE_HEAT && this->capabilities_.turbo_heat()) ||
+          (this->mode == ClimateMode::CLIMATE_MODE_COOL && this->capabilities_.turbo_cool())) {
         return true;
       } else {
         ESP_LOGD(TAG, "BOOST preset is only available in HEAT or COOL mode");
       }
       break;
-    case climate::CLIMATE_PRESET_NONE:
+    case ClimatePreset::CLIMATE_PRESET_NONE:
       return true;
     default:
       break;
@@ -101,14 +101,14 @@ bool MideaAC::allow_preset(climate::ClimatePreset preset) const {
 
 bool MideaAC::allow_custom_preset(const std::string &custom_preset) const {
   if (custom_preset == Capabilities::FREEZE_PROTECTION) {
-    if (this->mode == climate::CLIMATE_MODE_HEAT)
+    if (this->mode == ClimateMode::CLIMATE_MODE_HEAT)
       return true;
     ESP_LOGD(TAG, "FREEZE_PROTECTION preset is only available in HEAT mode");
   }
   return false;
 }
 
-void MideaAC::control(const climate::ClimateCall &call) {
+void MideaAC::control(const ClimateCall &call) {
   bool update = false;
   if (call.get_mode().has_value() && call.get_mode().value() != this->mode) {
     this->cmd_frame_.set_mode(call.get_mode().value());
@@ -154,8 +154,8 @@ void MideaAC::control(const climate::ClimateCall &call) {
   }
 }
 
-climate::ClimateTraits MideaAC::traits() {
-  auto traits = climate::ClimateTraits();
+ClimateTraits MideaAC::traits() {
+  auto traits = ClimateTraits();
   traits.set_supported_custom_presets(this->traits_custom_presets_);
   traits.set_supported_custom_fan_modes(this->traits_custom_fan_modes_);
   if (this->traits_swing_horizontal_)

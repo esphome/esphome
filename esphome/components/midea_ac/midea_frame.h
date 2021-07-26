@@ -5,6 +5,13 @@
 namespace esphome {
 namespace midea_ac {
 
+using midea_dongle::Frame;
+using midea_dongle::StaticFrame;
+using climate::ClimateMode;
+using climate::ClimatePreset;
+using climate::ClimateSwingMode;
+using climate::ClimateFanMode;
+
 /// Enum for all modes a Midea device can be in.
 enum MideaMode : uint8_t {
   /// The Midea device is set to automatically change the heating/cooling cycle
@@ -47,7 +54,7 @@ enum MideaSwingMode : uint8_t {
   MIDEA_SWING_HORIZONTAL = 0b0011,
 };
 
-class PropertiesFrame : public midea_dongle::Frame {
+class PropertiesFrame : public Frame {
  public:
   PropertiesFrame() = delete;
   PropertiesFrame(uint8_t *data) : Frame(data) {}
@@ -65,20 +72,20 @@ class PropertiesFrame : public midea_dongle::Frame {
   void set_target_temp(float temp);
 
   /* MODE */
-  climate::ClimateMode get_mode() const;
-  void set_mode(climate::ClimateMode mode);
+  ClimateMode get_mode() const;
+  void set_mode(ClimateMode mode);
 
   /* FAN SPEED */
   bool is_custom_fan_mode() const;
-  climate::ClimateFanMode get_fan_mode() const;
-  void set_fan_mode(climate::ClimateFanMode mode);
+  ClimateFanMode get_fan_mode() const;
+  void set_fan_mode(ClimateFanMode mode);
 
   const std::string &get_custom_fan_mode() const;
   void set_custom_fan_mode(const std::string &mode);
 
   /* SWING MODE */
-  climate::ClimateSwingMode get_swing_mode() const;
-  void set_swing_mode(climate::ClimateSwingMode mode);
+  ClimateSwingMode get_swing_mode() const;
+  void set_swing_mode(ClimateSwingMode mode);
 
   /* INDOOR TEMPERATURE */
   float get_indoor_temp() const;
@@ -109,8 +116,8 @@ class PropertiesFrame : public midea_dongle::Frame {
   void set_freeze_protection_mode(bool state) { this->set_bytemask_(31, 0x80, state); }
 
   /* PRESET */
-  optional<climate::ClimatePreset> get_preset() const;
-  void set_preset(climate::ClimatePreset preset);
+  optional<ClimatePreset> get_preset() const;
+  void set_preset(ClimatePreset preset);
   void clear_presets();
 
   bool is_custom_preset() const;
@@ -130,7 +137,7 @@ class PropertiesFrame : public midea_dongle::Frame {
 };
 
 // Command frame
-class CommandFrame : public midea_dongle::StaticFrame<PropertiesFrame> {
+class CommandFrame : public StaticFrame<PropertiesFrame> {
  public:
   CommandFrame() : StaticFrame(FPSTR(this->INIT)) {}
   void set_beeper_feedback(bool state) { this->set_bytemask_(11, 0x40, state); }
