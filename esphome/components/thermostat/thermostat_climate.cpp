@@ -201,12 +201,6 @@ climate::ClimateAction ThermostatClimate::compute_action_() {
   // ensure set point(s) is/are valid before computing the action
   this->validate_target_temperatures();
   // everything has been validated so we can now safely compute the action
-  // first, eliminate a some possible action/mode conflicts
-  if (((this->action == climate::CLIMATE_ACTION_FAN) && (this->mode != climate::CLIMATE_MODE_FAN_ONLY)) ||
-      ((this->action == climate::CLIMATE_ACTION_DRYING) && (this->mode != climate::CLIMATE_MODE_DRY))) {
-    target_action = climate::CLIMATE_ACTION_IDLE;
-  }
-
   switch (this->mode) {
     case climate::CLIMATE_MODE_FAN_ONLY:
       if (fanning_required_())
@@ -449,11 +443,13 @@ void ThermostatClimate::check_temperature_change_trigger_() {
 }
 
 bool ThermostatClimate::cooling_required_() {
+  auto temperature = this->supports_two_points_ ? this->target_temperature_high : this->target_temperature;
+
   if (this->supports_cool_) {
-    if (this->current_temperature > (this->target_temperature_high + this->cool_deadband_)) {
+    if (this->current_temperature > (temperature + this->cool_deadband_)) {
       // if the current temperature exceeds the target + deadband, cooling is required
       return true;
-    } else if (this->current_temperature < (this->target_temperature_high - this->cool_overrun_)) {
+    } else if (this->current_temperature < (temperature - this->cool_overrun_)) {
       // if the current temperature is less than the target - overrun, cooling should stop
       return false;
     } else {
@@ -467,12 +463,14 @@ bool ThermostatClimate::cooling_required_() {
 }
 
 bool ThermostatClimate::fanning_required_() {
+  auto temperature = this->supports_two_points_ ? this->target_temperature_high : this->target_temperature;
+
   if (this->supports_fan_only_) {
     if (this->supports_fan_only_cooling_) {
-      if (this->current_temperature > (this->target_temperature_high + this->cool_deadband_)) {
+      if (this->current_temperature > (temperature + this->cool_deadband_)) {
         // if the current temperature exceeds the target + deadband, fanning is required
         return true;
-      } else if (this->current_temperature < (this->target_temperature_high - this->cool_overrun_)) {
+      } else if (this->current_temperature < (temperature - this->cool_overrun_)) {
         // if the current temperature is less than the target - overrun, fanning should stop
         return false;
       } else {
@@ -488,11 +486,13 @@ bool ThermostatClimate::fanning_required_() {
 }
 
 bool ThermostatClimate::heating_required_() {
+  auto temperature = this->supports_two_points_ ? this->target_temperature_low : this->target_temperature;
+
   if (this->supports_heat_) {
-    if (this->current_temperature < this->target_temperature_low - this->heat_deadband_) {
+    if (this->current_temperature < temperature - this->heat_deadband_) {
       // if the current temperature is below the target - deadband, heating is required
       return true;
-    } else if (this->current_temperature > this->target_temperature_low + this->heat_overrun_) {
+    } else if (this->current_temperature > temperature + this->heat_overrun_) {
       // if the current temperature is above the target + overrun, heating should stop
       return false;
     } else {
