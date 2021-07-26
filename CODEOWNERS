@@ -98,6 +98,7 @@ esphome/components/rtttl/* @glmnet
 esphome/components/script/* @esphome/core
 esphome/components/sdm_meter/* @jesserockz @polyfaces
 esphome/components/selec_meter/* @sourabhjaiswal
+esphome/components/select/* @esphome/core
 esphome/components/sensor/* @esphome/core
 esphome/components/sgp40/* @SenexCrenshaw
 esphome/components/sht4x/* @sjtrny
