@@ -23,7 +23,7 @@ static const uint8_t AHT10_CALIBRATE_CMD[] = {0xE1};
 static const uint8_t AHT10_MEASURE_CMD[] = {0xAC, 0x33, 0x00};
 static const uint8_t AHT10_DEFAULT_DELAY = 5;    // ms, for calibration and temperature measurement
 static const uint8_t AHT10_HUMIDITY_DELAY = 30;  // ms
-static const uint8_t AHT10_ATTEMPTS = 3;          // safety margin, normally 3 attempts are enough: 3*30=90ms
+static const uint8_t AHT10_ATTEMPTS = 3;         // safety margin, normally 3 attempts are enough: 3*30=90ms
 
 void AHT10Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up AHT10...");
