@@ -68,14 +68,14 @@ void MideaDongle::send_network_notify_(uint8_t msg_type) {
   }
 }
 
-void MideaDongle::queue_request(const Frame &request, ResponseHandler handler) {
+void MideaDongle::queue_request(const Frame &request, ResponseHandler handler, ErrorHandler error_cb) {
   ESP_LOGD(TAG, "Enqueuing the request...");
-  this->queue_.push_back(new Request{request, handler});
+  this->queue_.push_back(new Request{request, handler, error_cb});
 }
 
-void MideaDongle::queue_request_priority(const Frame &request, ResponseHandler handler) {
+void MideaDongle::queue_request_priority(const Frame &request, ResponseHandler handler, ErrorHandler error_cb) {
   ESP_LOGD(TAG, "Priority request queuing...");
-  this->queue_.push_front(new Request{request, handler});
+  this->queue_.push_front(new Request{request, handler, error_cb});
 }
 
 void MideaDongle::handler_(const Frame &frame) {
@@ -115,6 +115,8 @@ void MideaDongle::reset_timeout_() {
     ESP_LOGD(TAG, "Response timeout...");
     if (!--this->remain_attempts_) {
       this->destroy_request_();
+      if (this->request_->error_cb != nullptr)
+        this->request_->error_cb();
       return;
     }
     ESP_LOGD(TAG, "Sending request again. Attempts left: %d...", this->remain_attempts_);
