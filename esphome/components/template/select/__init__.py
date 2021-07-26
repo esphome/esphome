@@ -18,6 +18,15 @@ TemplateSelect = template_ns.class_(
 
 CONF_SET_ACTION = "set_action"
 
+
+def validate_initial_value_in_options(config):
+    if CONF_INITIAL_VALUE in config:
+        if config[CONF_INITIAL_VALUE] not in config[CONF_OPTIONS]:
+            raise cv.Invalid(
+                f"initial_value '{config[CONF_INITIAL_VALUE]}' is not a valid option [{', '.join(config[CONF_OPTIONS])}]"
+            )
+
+
 CONFIG_SCHEMA = cv.All(
     select.SELECT_SCHEMA.extend(
         {
@@ -32,6 +41,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_RESTORE_VALUE): cv.boolean,
         }
     ).extend(cv.polling_component_schema("60s")),
+    validate_initial_value_in_options,
 )
 
 
