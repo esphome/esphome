@@ -1148,15 +1148,15 @@ bool ListEntitiesLightResponse::decode_varint(uint32_t field_id, ProtoVarInt val
       return true;
     }
     case 6: {
-      this->supports_rgb = value.as_bool();
+      this->legacy_supports_rgb = value.as_bool();
       return true;
     }
     case 7: {
-      this->supports_white_value = value.as_bool();
+      this->legacy_supports_white_value = value.as_bool();
       return true;
     }
     case 8: {
-      this->supports_color_temperature = value.as_bool();
+      this->legacy_supports_color_temperature = value.as_bool();
       return true;
     }
     default:
@@ -1212,9 +1212,9 @@ void ListEntitiesLightResponse::encode(ProtoWriteBuffer buffer) const {
   for (auto &it : this->supported_color_modes) {
     buffer.encode_enum<enums::ColorMode>(12, it, true);
   }
-  buffer.encode_bool(6, this->supports_rgb);
-  buffer.encode_bool(7, this->supports_white_value);
-  buffer.encode_bool(8, this->supports_color_temperature);
+  buffer.encode_bool(6, this->legacy_supports_rgb);
+  buffer.encode_bool(7, this->legacy_supports_white_value);
+  buffer.encode_bool(8, this->legacy_supports_color_temperature);
   buffer.encode_float(9, this->min_mireds);
   buffer.encode_float(10, this->max_mireds);
   for (auto &it : this->effects) {
@@ -1251,16 +1251,16 @@ void ListEntitiesLightResponse::dump_to(std::string &out) const {
     out.append("\n");
   }
 
-  out.append("  supports_rgb: ");
-  out.append(YESNO(this->supports_rgb));
+  out.append("  legacy_supports_rgb: ");
+  out.append(YESNO(this->legacy_supports_rgb));
   out.append("\n");
 
-  out.append("  supports_white_value: ");
-  out.append(YESNO(this->supports_white_value));
+  out.append("  legacy_supports_white_value: ");
+  out.append(YESNO(this->legacy_supports_white_value));
   out.append("\n");
 
-  out.append("  supports_color_temperature: ");
-  out.append(YESNO(this->supports_color_temperature));
+  out.append("  legacy_supports_color_temperature: ");
+  out.append(YESNO(this->legacy_supports_color_temperature));
   out.append("\n");
 
   out.append("  min_mireds: ");

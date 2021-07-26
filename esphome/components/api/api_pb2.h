@@ -368,9 +368,9 @@ class ListEntitiesLightResponse : public ProtoMessage {
   std::string unique_id{};
   bool supports_brightness{false};
   std::vector<enums::ColorMode> supported_color_modes{};
-  bool supports_rgb{false};
-  bool supports_white_value{false};
-  bool supports_color_temperature{false};
+  bool legacy_supports_rgb{false};
+  bool legacy_supports_white_value{false};
+  bool legacy_supports_color_temperature{false};
   float min_mireds{0.0f};
   float max_mireds{0.0f};
   std::vector<std::string> effects{};

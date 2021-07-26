@@ -375,9 +375,9 @@ message ListEntitiesLightResponse {
   bool supports_brightness = 5;
   repeated ColorMode supported_color_modes = 12;
   // next three supports_* are for legacy clients, newer clients should use color modes
-  bool supports_rgb = 6 [deprecated=true];
-  bool supports_white_value = 7 [deprecated=true];
-  bool supports_color_temperature = 8 [deprecated=true];
+  bool legacy_supports_rgb = 6 [deprecated=true];
+  bool legacy_supports_white_value = 7 [deprecated=true];
+  bool legacy_supports_color_temperature = 8 [deprecated=true];
   float min_mireds = 9;
   float max_mireds = 10;
   repeated string effects = 11;

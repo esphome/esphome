@@ -337,12 +337,13 @@ bool APIConnection::send_light_info(light::LightState *light) {
   msg.supports_brightness = traits.get_supports_brightness();
   for (auto mode : traits.get_supported_color_modes())
     msg.supported_color_modes.push_back(static_cast<enums::ColorMode>(mode));
-  msg.supports_rgb = traits.supports_color_channel(light::ColorChannel::RGB);
-  msg.supports_white_value = msg.supports_rgb && (traits.supports_color_channel(light::ColorChannel::WHITE) ||
-                                                  traits.supports_color_channel(light::ColorChannel::COLD_WARM_WHITE));
-  msg.supports_color_temperature = traits.supports_color_channel(light::ColorChannel::COLOR_TEMPERATURE) ||
-                                   traits.supports_color_channel(light::ColorChannel::COLD_WARM_WHITE);
-  if (msg.supports_color_temperature) {
+  msg.legacy_supports_rgb = traits.supports_color_channel(light::ColorChannel::RGB);
+  msg.legacy_supports_white_value =
+      msg.legacy_supports_rgb && (traits.supports_color_channel(light::ColorChannel::WHITE) ||
+                                  traits.supports_color_channel(light::ColorChannel::COLD_WARM_WHITE));
+  msg.legacy_supports_color_temperature = traits.supports_color_channel(light::ColorChannel::COLOR_TEMPERATURE) ||
+                                          traits.supports_color_channel(light::ColorChannel::COLD_WARM_WHITE);
+  if (msg.legacy_supports_color_temperature) {
     msg.min_mireds = traits.get_min_mireds();
     msg.max_mireds = traits.get_max_mireds();
   }
