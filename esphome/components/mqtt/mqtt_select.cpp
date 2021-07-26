@@ -34,7 +34,6 @@ void MQTTSelectComponent::send_discovery(JsonObject &root, mqtt::SendDiscoveryCo
   // https://www.home-assistant.io/integrations/select.mqtt/
   if (!traits.get_icon().empty())
     root["icon"] = traits.get_icon();
-  root["options"] = traits.get_options();
   JsonArray &options = root.createNestedArray("options");
   for (const auto &option : traits.get_options())
     options.add(option);
