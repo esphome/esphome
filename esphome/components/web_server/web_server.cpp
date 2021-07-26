@@ -129,7 +129,7 @@ void WebServer::setup() {
 #ifdef USE_SELECT
     for (auto *obj : App.get_selects())
       if (!obj->is_internal())
-        client->send(this->number_json(obj, obj->state).c_str(), "state");
+        client->send(this->select_json(obj, obj->state).c_str(), "state");
 #endif
   });
 
