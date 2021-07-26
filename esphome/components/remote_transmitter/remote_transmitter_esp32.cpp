@@ -9,7 +9,7 @@ namespace remote_transmitter {
 
 static const char *const TAG = "remote_transmitter";
 
-void RemoteTransmitterComponent::setup() {}
+void RemoteTransmitterComponent::setup() { this->configure_rmt(); }
 
 void RemoteTransmitterComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "Remote Transmitter...");
