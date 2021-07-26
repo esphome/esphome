@@ -31,15 +31,12 @@ static const char *color_mode_to_human(ColorMode color_mode) {
 }
 
 void LightCall::perform() {
-  // use remote values for fallback
   const char *name = this->parent_->get_name().c_str();
-  if (this->publish_) {
-    ESP_LOGD(TAG, "'%s' Setting:", name);
-  }
-
   LightColorValues v = this->validate_();
 
   if (this->publish_) {
+    ESP_LOGD(TAG, "'%s' Setting:", name);
+
     // Only print color mode when it's being changed
     ColorMode current_color_mode = this->parent_->remote_values.get_color_mode();
     if (this->color_mode_.value_or(current_color_mode) != current_color_mode) {
@@ -190,7 +187,7 @@ LightColorValues LightCall::validate_() {
   // Color temperature exists check
   if (this->color_temperature_.has_value() &&
       !(*color_mode & *ColorCapability::COLOR_TEMPERATURE || *color_mode & *ColorCapability::COLD_WARM_WHITE)) {
-    ESP_LOGW(TAG, "'%s' - This light does not support setting color temperature!", name);
+    ESP_LOGW(TAG, "'%s' - This color mode does not support setting color temperature!", name);
     this->color_temperature_.reset();
   }
 
@@ -393,9 +390,10 @@ ColorMode LightCall::compute_color_mode_() {
 
   // There's no supported mode for this call, so warn, use the current more or a mode at random and let validation strip
   // out whatever we don't support.
-  ESP_LOGW(TAG, "'%s' - This light does not support a color mode suitable for this call without color mode!",
-           this->parent_->get_name().c_str());
-  return current_mode != ColorMode::UNKNOWN ? current_mode : *supported_modes.begin();
+  auto color_mode = current_mode != ColorMode::UNKNOWN ? current_mode : *supported_modes.begin();
+  ESP_LOGW(TAG, "'%s' - No color mode suitable for this call supported, defaulting to %s!",
+           this->parent_->get_name().c_str(), color_mode_to_human(color_mode));
+  return color_mode;
 }
 std::set<ColorMode> LightCall::get_suitable_color_modes_() {
   bool has_white = this->white_.has_value() && *this->white_ > 0.0f;
