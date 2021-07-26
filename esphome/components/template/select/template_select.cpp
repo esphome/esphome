@@ -21,8 +21,9 @@ void TemplateSelect::setup() {
       ESP_LOGD(TAG, "State from options: %s", value.c_str());
     }
   } else {
-    this->pref_ = global_preferences.make_preference<std::string>(this->get_object_id_hash());
-    if (!this->pref_.load(&value) || value.empty()) {
+    size_t index;
+    this->pref_ = global_preferences.make_preference<size_t>(this->get_object_id_hash());
+    if (!this->pref_.load(&index)) {
       if (this->initial_value_.has_value()) {
         value = *this->initial_value_;
         ESP_LOGD(TAG, "State from initial (could not load): %s", value.c_str());
@@ -31,6 +32,7 @@ void TemplateSelect::setup() {
         ESP_LOGD(TAG, "State from options (could not load): %s", value.c_str());
       }
     } else {
+      value = this->traits.get_options().at(index);
       ESP_LOGD(TAG, "State from restore: %s", value.c_str());
     }
   }
@@ -55,8 +57,12 @@ void TemplateSelect::control(const std::string &value) {
   if (this->optimistic_)
     this->publish_state(value);
 
-  if (this->restore_value_)
-    this->pref_.save(&value);
+  if (this->restore_value_) {
+    auto options = this->traits.get_options();
+    size_t index = std::find(options.begin(), options.end(), value) - options.begin();
+
+    this->pref_.save(&index);
+  }
 }
 void TemplateSelect::dump_config() {
   LOG_SELECT("", "Template Select", this);
