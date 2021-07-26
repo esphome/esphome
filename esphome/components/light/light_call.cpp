@@ -138,18 +138,6 @@ LightColorValues LightCall::validate_() {
   // Handle calls following a legacy format
   this->transform_legacy_calls_();
 
-  // Brightness exists check
-  if (this->brightness_.has_value() && !traits.get_supports_brightness()) {
-    ESP_LOGW(TAG, "'%s' - This light does not support setting brightness!", name);
-    this->brightness_.reset();
-  }
-
-  // Transition length possible check
-  if (this->transition_length_.has_value() && *this->transition_length_ != 0 && !traits.get_supports_brightness()) {
-    ESP_LOGW(TAG, "'%s' - This light does not support transitions!", name);
-    this->transition_length_.reset();
-  }
-
   // Color mode check
   if (this->color_mode_.has_value() && !traits.supports_color_mode(this->color_mode_.value())) {
     ESP_LOGW(TAG, "'%s' - This light does not support color mode %s!", name,
@@ -162,6 +150,19 @@ LightColorValues LightCall::validate_() {
     this->color_mode_ = this->compute_color_mode_();
   }
   auto color_mode = *this->color_mode_;
+
+  // Brightness exists check
+  if (this->brightness_.has_value() && !(*color_mode & *ColorCapability::BRIGHTNESS)) {
+    ESP_LOGW(TAG, "'%s' - This light does not support setting brightness!", name);
+    this->brightness_.reset();
+  }
+
+  // Transition length possible check
+  if (this->transition_length_.has_value() && *this->transition_length_ != 0 &&
+      !(*color_mode & *ColorCapability::BRIGHTNESS)) {
+    ESP_LOGW(TAG, "'%s' - This light does not support transitions!", name);
+    this->transition_length_.reset();
+  }
 
   // Color brightness exists check
   if (this->color_brightness_.has_value() && !(*color_mode & *ColorCapability::RGB)) {
@@ -259,7 +260,7 @@ LightColorValues LightCall::validate_() {
   }
 
   // validate transition length/flash length/effect not used at the same time
-  bool supports_transition = traits.get_supports_brightness();
+  bool supports_transition = *color_mode & *ColorCapability::BRIGHTNESS;
 
   // If effect is already active, remove effect start
   if (this->has_effect_() && *this->effect_ == this->parent_->active_effect_index_) {
@@ -408,8 +409,8 @@ std::set<ColorMode> LightCall::get_suitable_color_modes_() {
   bool has_cwww = (this->cold_white_.has_value() && *this->cold_white_ > 0.0f) ||
                   (this->warm_white_.has_value() && *this->warm_white_ > 0.0f);
 
-  // If white value is given, use a mode with a white channel, i.e. WHITE or COLOR_TEMPERATURE (with RGB if also given).
-  // Force the COLOR_TEMPERATURE mode when a color temperature is also given, otherwise prefer WHITE if available.
+  // If white value is given, use a mode with a white channel, i.e. WHITE (with RGB if also given) or
+  // RGB_COLOR_TEMPERATURE. Note that COLOR_TEMPERATURE without RGB doesn't accept a white parameter.
   if (has_white) {
     if (has_rgb) {
       if (has_ct)
@@ -417,8 +418,8 @@ std::set<ColorMode> LightCall::get_suitable_color_modes_() {
       return {ColorMode::RGB_WHITE, ColorMode::RGB_COLOR_TEMPERATURE};
     }
     if (has_ct)
-      return {ColorMode::COLOR_TEMPERATURE, ColorMode::RGB_COLOR_TEMPERATURE};
-    return {ColorMode::WHITE, ColorMode::COLOR_TEMPERATURE, ColorMode::RGB_WHITE, ColorMode::RGB_COLOR_TEMPERATURE};
+      return {ColorMode::RGB_COLOR_TEMPERATURE};
+    return {ColorMode::WHITE, ColorMode::RGB_WHITE, ColorMode::RGB_COLOR_TEMPERATURE};
   }
 
   // If color temperature is given, use COLOR_TEMPERATURE (with RGB if also given).
@@ -483,12 +484,12 @@ ColorMode LightCall::get_active_color_mode_() {
   return this->color_mode_.value_or(this->parent_->remote_values.get_color_mode());
 }
 LightCall &LightCall::set_transition_length_if_supported(uint32_t transition_length) {
-  if (this->parent_->get_traits().get_supports_brightness())
+  if (*this->get_active_color_mode_() & *ColorCapability::BRIGHTNESS)
     this->set_transition_length(transition_length);
   return *this;
 }
 LightCall &LightCall::set_brightness_if_supported(float brightness) {
-  if (this->parent_->get_traits().get_supports_brightness())
+  if (*this->get_active_color_mode_() & *ColorCapability::BRIGHTNESS)
     this->set_brightness(brightness);
   return *this;
 }

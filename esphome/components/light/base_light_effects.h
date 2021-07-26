@@ -194,8 +194,7 @@ class FlickerLightEffect : public LightEffect {
     auto call = this->state_->make_call();
     call.set_publish(false);
     call.set_save(false);
-    if (traits.get_supports_brightness())
-      call.set_transition_length(0);
+    call.set_transition_length_if_supported(0);
     call.from_light_color_values(out);
     call.set_state(true);
     call.perform();

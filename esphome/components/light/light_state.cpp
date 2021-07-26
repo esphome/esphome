@@ -87,7 +87,7 @@ void LightState::setup() {
 }
 void LightState::dump_config() {
   ESP_LOGCONFIG(TAG, "Light '%s'", this->get_name().c_str());
-  if (this->get_traits().get_supports_brightness()) {
+  if (this->get_traits().supports_color_capability(ColorCapability::BRIGHTNESS)) {
     ESP_LOGCONFIG(TAG, "  Default Transition Length: %.1fs", this->default_transition_length_ / 1e3f);
     ESP_LOGCONFIG(TAG, "  Gamma Correct: %.2f", this->gamma_correct_);
   }

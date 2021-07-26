@@ -372,9 +372,9 @@ message ListEntitiesLightResponse {
   string name = 3;
   string unique_id = 4;
 
-  bool supports_brightness = 5;
   repeated ColorMode supported_color_modes = 12;
-  // next three supports_* are for legacy clients, newer clients should use color modes
+  // next four supports_* are for legacy clients, newer clients should use color modes
+  bool legacy_supports_brightness = 5 [deprecated=true];
   bool legacy_supports_rgb = 6 [deprecated=true];
   bool legacy_supports_white_value = 7 [deprecated=true];
   bool legacy_supports_color_temperature = 8 [deprecated=true];

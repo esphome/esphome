@@ -14,12 +14,15 @@ void LightJSONSchema::dump_json(LightState &state, JsonObject &root) {
 
   auto values = state.remote_values;
   auto traits = state.get_output()->get_traits();
-  root["state"] = (values.get_state() != 0.0f) ? "ON" : "OFF";
-  if (traits.get_supports_brightness())
-    root["brightness"] = uint8_t(values.get_brightness() * 255);
 
   switch (values.get_color_mode()) {
     case ColorMode::UNKNOWN:  // don't need to set color mode if we don't know it
+      break;
+    case ColorMode::ON_OFF:
+      root["color_mode"] = "onoff";
+      break;
+    case ColorMode::BRIGHTNESS:
+      root["color_mode"] = "brightness";
       break;
     case ColorMode::WHITE:  // not supported by HA in MQTT
       root["color_mode"] = "white";
@@ -43,6 +46,11 @@ void LightJSONSchema::dump_json(LightState &state, JsonObject &root) {
       root["color_mode"] = "rgbww";
       break;
   }
+
+  if (*values.get_color_mode() & *ColorMode::ON_OFF)
+    root["state"] = (values.get_state() != 0.0f) ? "ON" : "OFF";
+  if (*values.get_color_mode() & *ColorMode::BRIGHTNESS)
+    root["brightness"] = uint8_t(values.get_brightness() * 255);
 
   JsonObject &color = root.createNestedObject("color");
   if (*values.get_color_mode() & *ColorMode::RGB) {

@@ -18,10 +18,12 @@ namespace light {
  * follows:
  *
  * Always:
- * - state: Whether the light should be on/off. Represented as a float for transitions.
  * - color_mode: The currently active color mode.
  *
- * Applies to all capabilities:
+ * For ON_OFF capability:
+ * - state: Whether the light should be on/off. Represented as a float for transitions.
+ *
+ * For BRIGHTNESS capability:
  * - brightness: The master brightness of the light, should be applied to all channels.
  *
  * For RGB capability:
@@ -122,7 +124,7 @@ class LightColorValues {
       }
     }
 
-    if (traits.get_supports_brightness() && this->get_brightness() == 0.0f) {
+    if (*this->color_mode_ & *ColorCapability::BRIGHTNESS && this->get_brightness() == 0.0f) {
       // 0% brightness means off
       this->set_state(false);
       // reset brightness to 100%

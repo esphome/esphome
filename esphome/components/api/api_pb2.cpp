@@ -1139,12 +1139,12 @@ void FanCommandRequest::dump_to(std::string &out) const {
 }
 bool ListEntitiesLightResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {
-    case 5: {
-      this->supports_brightness = value.as_bool();
-      return true;
-    }
     case 12: {
       this->supported_color_modes.push_back(value.as_enum<enums::ColorMode>());
+      return true;
+    }
+    case 5: {
+      this->legacy_supports_brightness = value.as_bool();
       return true;
     }
     case 6: {
@@ -1208,10 +1208,10 @@ void ListEntitiesLightResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_fixed32(2, this->key);
   buffer.encode_string(3, this->name);
   buffer.encode_string(4, this->unique_id);
-  buffer.encode_bool(5, this->supports_brightness);
   for (auto &it : this->supported_color_modes) {
     buffer.encode_enum<enums::ColorMode>(12, it, true);
   }
+  buffer.encode_bool(5, this->legacy_supports_brightness);
   buffer.encode_bool(6, this->legacy_supports_rgb);
   buffer.encode_bool(7, this->legacy_supports_white_value);
   buffer.encode_bool(8, this->legacy_supports_color_temperature);
@@ -1241,15 +1241,15 @@ void ListEntitiesLightResponse::dump_to(std::string &out) const {
   out.append("'").append(this->unique_id).append("'");
   out.append("\n");
 
-  out.append("  supports_brightness: ");
-  out.append(YESNO(this->supports_brightness));
-  out.append("\n");
-
   for (const auto &it : this->supported_color_modes) {
     out.append("  supported_color_modes: ");
     out.append(proto_enum_to_string<enums::ColorMode>(it));
     out.append("\n");
   }
+
+  out.append("  legacy_supports_brightness: ");
+  out.append(YESNO(this->legacy_supports_brightness));
+  out.append("\n");
 
   out.append("  legacy_supports_rgb: ");
   out.append(YESNO(this->legacy_supports_rgb));

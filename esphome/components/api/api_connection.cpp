@@ -306,9 +306,9 @@ bool APIConnection::send_light_state(light::LightState *light) {
 
   resp.key = light->get_object_id_hash();
   resp.state = values.is_on();
-  if (traits.get_supports_brightness())
-    resp.brightness = values.get_brightness();
   resp.color_mode = static_cast<enums::ColorMode>(color_mode);
+  if (*color_mode & *light::ColorCapability::BRIGHTNESS)
+    resp.brightness = values.get_brightness();
   if (*color_mode & *light::ColorCapability::RGB) {
     resp.color_brightness = values.get_color_brightness();
     resp.red = values.get_red();
@@ -334,15 +334,17 @@ bool APIConnection::send_light_info(light::LightState *light) {
   msg.object_id = light->get_object_id();
   msg.name = light->get_name();
   msg.unique_id = get_default_unique_id("light", light);
-  msg.supports_brightness = traits.get_supports_brightness();
   for (auto mode : traits.get_supported_color_modes())
     msg.supported_color_modes.push_back(static_cast<enums::ColorMode>(mode));
+
+  msg.legacy_supports_brightness = traits.supports_color_capability(light::ColorCapability::BRIGHTNESS);
   msg.legacy_supports_rgb = traits.supports_color_capability(light::ColorCapability::RGB);
   msg.legacy_supports_white_value =
       msg.legacy_supports_rgb && (traits.supports_color_capability(light::ColorCapability::WHITE) ||
                                   traits.supports_color_capability(light::ColorCapability::COLD_WARM_WHITE));
   msg.legacy_supports_color_temperature = traits.supports_color_capability(light::ColorCapability::COLOR_TEMPERATURE) ||
                                           traits.supports_color_capability(light::ColorCapability::COLD_WARM_WHITE);
+
   if (msg.legacy_supports_color_temperature) {
     msg.min_mireds = traits.get_min_mireds();
     msg.max_mireds = traits.get_max_mireds();

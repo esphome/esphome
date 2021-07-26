@@ -11,9 +11,6 @@ class LightTraits {
  public:
   LightTraits() = default;
 
-  bool get_supports_brightness() const { return this->supports_brightness_; }
-  void set_supports_brightness(bool supports_brightness) { this->supports_brightness_ = supports_brightness; }
-
   const std::set<ColorMode> &get_supported_color_modes() const { return this->supported_color_modes_; }
   void set_supported_color_modes(std::set<ColorMode> supported_color_modes) {
     this->supported_color_modes_ = std::move(supported_color_modes);
@@ -28,6 +25,8 @@ class LightTraits {
     return false;
   }
 
+  ESPDEPRECATED("get_supports_brightness() is deprecated, use color modes instead.")
+  bool get_supports_brightness() const { return this->supports_color_capability(ColorCapability::BRIGHTNESS); }
   ESPDEPRECATED("get_supports_rgb() is deprecated, use color modes instead.")
   bool get_supports_rgb() const { return this->supports_color_capability(ColorCapability::RGB); }
   ESPDEPRECATED("get_supports_rgb_white_value() is deprecated, use color modes instead.")
@@ -52,7 +51,6 @@ class LightTraits {
   void set_max_mireds(float max_mireds) { this->max_mireds_ = max_mireds; }
 
  protected:
-  bool supports_brightness_{false};
   std::set<ColorMode> supported_color_modes_{};
   float min_mireds_{0};
   float max_mireds_{0};

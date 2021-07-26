@@ -12,7 +12,7 @@ class MonochromaticLightOutput : public light::LightOutput {
   void set_output(output::FloatOutput *output) { output_ = output; }
   light::LightTraits get_traits() override {
     auto traits = light::LightTraits();
-    traits.set_supports_brightness(true);
+    traits.set_supported_color_modes({light::ColorMode::BRIGHTNESS});
     return traits;
   }
   void write_state(light::LightState *state) override {

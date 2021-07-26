@@ -35,8 +35,6 @@ std::string MQTTJSONLightComponent::friendly_name() const { return this->state_-
 void MQTTJSONLightComponent::send_discovery(JsonObject &root, mqtt::SendDiscoveryConfig &config) {
   root["schema"] = "json";
   auto traits = this->state_->get_traits();
-  if (traits.get_supports_brightness())
-    root["brightness"] = true;
 
   root["color_mode"] = true;
   JsonArray &color_modes = root.createNestedArray("supported_color_modes");
@@ -48,12 +46,14 @@ void MQTTJSONLightComponent::send_discovery(JsonObject &root, mqtt::SendDiscover
     color_modes.add("rgbw");
   if (traits.supports_color_mode(ColorMode::RGB_COLD_WARM_WHITE))
     color_modes.add("rgbww");
-  if (color_modes.size() == 0 && traits.get_supports_brightness())
+  if (traits.supports_color_mode(ColorMode::BRIGHTNESS))
     color_modes.add("brightness");
-  if (color_modes.size() == 0)
+  if (traits.supports_color_mode(ColorMode::ON_OFF))
     color_modes.add("onoff");
 
   // legacy API
+  if (traits.supports_color_capability(ColorCapability::BRIGHTNESS))
+    root["brightness"] = true;
   if (traits.supports_color_capability(ColorCapability::RGB))
     root["rgb"] = true;
   if (traits.supports_color_capability(ColorCapability::COLOR_TEMPERATURE))

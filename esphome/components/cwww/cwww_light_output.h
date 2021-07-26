@@ -16,7 +16,6 @@ class CWWWLightOutput : public light::LightOutput {
   void set_constant_brightness(bool constant_brightness) { constant_brightness_ = constant_brightness; }
   light::LightTraits get_traits() override {
     auto traits = light::LightTraits();
-    traits.set_supports_brightness(true);
     traits.set_supported_color_modes({light::ColorMode::COLD_WARM_WHITE});
     traits.set_min_mireds(this->cold_white_temperature_);
     traits.set_max_mireds(this->warm_white_temperature_);

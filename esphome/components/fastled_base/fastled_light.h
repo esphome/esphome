@@ -208,7 +208,6 @@ class FastLEDLightOutput : public light::AddressableLight {
   // (In most use cases you won't need these)
   light::LightTraits get_traits() override {
     auto traits = light::LightTraits();
-    traits.set_supports_brightness(true);
     traits.set_supported_color_modes({light::ColorMode::RGB});
     return traits;
   }
