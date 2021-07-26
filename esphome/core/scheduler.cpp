@@ -155,7 +155,10 @@ void ICACHE_RAM_ATTR HOT Scheduler::call() {
       // Warning: During f(), a lot of stuff can happen, including:
       //  - timeouts/intervals get added, potentially invalidating vector pointers
       //  - timeouts/intervals get cancelled
-      item->f();
+      {
+        WarnIfComponentBlockingGuard guard{item->component};
+        item->f();
+      }
     }
 
     {

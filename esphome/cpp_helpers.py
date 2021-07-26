@@ -1,3 +1,5 @@
+import logging
+
 from esphome.const import (
     CONF_INVERTED,
     CONF_MODE,
@@ -13,6 +15,9 @@ from esphome.types import ConfigType
 from esphome.cpp_generator import RawExpression, add, get_variable
 from esphome.cpp_types import App, GPIOPin
 from esphome.util import Registry, RegistryEntry
+
+
+_LOGGER = logging.getLogger(__name__)
 
 
 async def gpio_pin_expression(conf):
@@ -42,6 +47,8 @@ async def register_component(var, config):
     :param var: The variable representing the component.
     :param config: The configuration for the component.
     """
+    import inspect
+
     id_ = str(var.base)
     if id_ not in CORE.component_ids:
         raise ValueError(
@@ -54,6 +61,32 @@ async def register_component(var, config):
         add(var.set_setup_priority(config[CONF_SETUP_PRIORITY]))
     if CONF_UPDATE_INTERVAL in config:
         add(var.set_update_interval(config[CONF_UPDATE_INTERVAL]))
+
+    # Set component source by inspecting the stack and getting the callee module
+    # https://stackoverflow.com/a/1095621
+    try:
+        name = None
+        for frm in inspect.stack()[1:]:
+            mod = inspect.getmodule(frm[0])
+            if mod is None:
+                continue
+            name = mod.__name__
+            if name.startswith("esphome.components."):
+                name = name[len("esphome.components.") :]
+                break
+            if name == "esphome.automation":
+                name = "automation"
+                # continue looking further up in stack in case we find a better one
+            if name == "esphome.coroutine":
+                # Only works for async-await coroutine syntax
+                break
+        if name is not None:
+            add(var.set_component_source(name))
+    except (KeyError, AttributeError, IndexError) as e:
+        _LOGGER.warning("Error while setting component overrides", exc_info=e)
+        # temporary, remove before merge
+        raise e
+
     add(App.register_component(var))
     return var
 

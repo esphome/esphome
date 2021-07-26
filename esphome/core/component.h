@@ -130,6 +130,17 @@ class Component {
 
   bool has_overridden_loop() const;
 
+  /** Set where this component was loaded from for some debug messages.
+   *
+   * This is set by the ESPHome core, and should not be called manually.
+   */
+  void set_component_source(const char *source) { component_source_ = source; }
+  /** Get the integration where this component was declared as a string.
+   *
+   * Returns "<unknown>" if source not set
+   */
+  const char *get_component_source() const;
+
  protected:
   virtual void call_loop();
   virtual void call_setup();
@@ -201,6 +212,7 @@ class Component {
 
   uint32_t component_state_{0x0000};  ///< State of this component.
   float setup_priority_override_{NAN};
+  const char *component_source_ = nullptr;
 };
 
 /** This class simplifies creating components that periodically check a state.
@@ -265,6 +277,15 @@ class Nameable {
   std::string object_id_;
   uint32_t object_id_hash_;
   bool internal_{false};
+};
+
+class WarnIfComponentBlockingGuard {
+ public:
+  WarnIfComponentBlockingGuard(Component *component);
+  ~WarnIfComponentBlockingGuard();
+ protected:
+  uint32_t started_;
+  Component *component_;
 };
 
 }  // namespace esphome

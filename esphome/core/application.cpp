@@ -19,7 +19,7 @@ void Application::register_component_(Component *comp) {
 
   for (auto *c : this->components_) {
     if (comp == c) {
-      ESP_LOGW(TAG, "Component already registered! (%p)", c);
+      ESP_LOGW(TAG, "Component %s already registered! (%p)", c->get_component_source(), c);
       return;
     }
   }
@@ -65,22 +65,18 @@ void Application::setup() {
 }
 void Application::loop() {
   uint32_t new_app_state = 0;
-  const uint32_t start = millis();
 
   this->scheduler.call();
   for (Component *component : this->looping_components_) {
-    component->call();
+    {
+      WarnIfComponentBlockingGuard guard{component};
+      component->call();
+    }
     new_app_state |= component->get_component_state();
     this->app_state_ |= new_app_state;
     this->feed_wdt();
   }
   this->app_state_ = new_app_state;
-
-  const uint32_t end = millis();
-  if (end - start > 200) {
-    ESP_LOGV(TAG, "A component took a long time in a loop() cycle (%.2f s).", (end - start) / 1e3f);
-    ESP_LOGV(TAG, "Components should block for at most 20-30ms in loop().");
-  }
 
   const uint32_t now = millis();
 
