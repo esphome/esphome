@@ -91,7 +91,6 @@ class ThermostatClimate : public climate::Climate, public Component {
   float cool_overrun();
   float heat_deadband();
   float heat_overrun();
-  float hysteresis();
   /// Call triggers based on updated climate states (modes/actions)
   void refresh();
   /// Set point validation
