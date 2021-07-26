@@ -48,6 +48,8 @@ class MideaAC : public midea_dongle::MideaAppliance, public climate::Climate, pu
   void do_follow_me(float temperature, bool beeper = false);
   void do_display_toggle();
   void do_swing_step();
+  void do_beeper_on();
+  void do_beeper_off();
 //  void set_preset_sleep(bool state) { this->traits_preset_sleep_ = state; }
 //  void set_preset_boost(bool state) { this->traits_preset_boost_ = state; }
 //  void set_preset_eco(bool state) { this->traits_preset_eco_ = state; }

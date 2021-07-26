@@ -257,5 +257,15 @@ void MideaAC::do_display_toggle() {
   }
 }
 
+void MideaAC::do_beeper_on() {
+  ESP_LOGD(TAG, "Beeper Feedback Turning ON...");
+  this->set_beeper_feedback(true);
+}
+
+void MideaAC::do_beeper_off() {
+  ESP_LOGD(TAG, "Beeper Feedback Turning OFF...");
+  this->set_beeper_feedback(false);
+}
+
 }  // namespace midea_ac
 }  // namespace esphome

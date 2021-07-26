@@ -117,6 +117,8 @@ CONFIG_SCHEMA = cv.All(
 FollowMeAction = midea_ac_ns.class_("FollowMeAction", automation.Action)
 DisplayToggleAction = midea_ac_ns.class_("DisplayToggleAction", automation.Action)
 SwingStepAction = midea_ac_ns.class_("SwingStepAction", automation.Action)
+BeeperOnAction = midea_ac_ns.class_("BeeperOnAction", automation.Action)
+BeeperOffAction = midea_ac_ns.class_("BeeperOffAction", automation.Action)
 
 MIDEA_ACTION_BASE_SCHEMA = cv.Schema(
     {
@@ -160,6 +162,26 @@ async def display_toggle_to_code(var, config, args):
     cv.Schema({}),
 )
 async def swing_step_to_code(var, config, args):
+    pass
+
+
+# Beeper On action
+@register_action(
+    "beeper_on",
+    BeeperOnAction,
+    cv.Schema({}),
+)
+async def beeper_on_to_code(var, config, args):
+    pass
+
+
+# Beeper Off action
+@register_action(
+    "beeper_off",
+    BeeperOffAction,
+    cv.Schema({}),
+)
+async def beeper_off_to_code(var, config, args):
     pass
 
 
