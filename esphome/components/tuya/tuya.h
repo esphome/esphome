@@ -113,6 +113,7 @@ class Tuya : public Component, public uart::UARTDevice {
   std::vector<uint8_t> rx_message_;
   std::vector<uint8_t> ignore_mcu_update_on_datapoints_{};
   std::vector<TuyaCommand> command_queue_;
+  optional<TuyaCommandType> expected_response_{};
   uint8_t wifi_status_ = -1;
 };
 
