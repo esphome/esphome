@@ -81,7 +81,7 @@ def validate_thermostat(config):
                 raise cv.Invalid(f"{req_action} must be defined to use {config_mode}")
 
     # determine validation requirements based on fan_only_cooling setting
-    if config[CONF_FAN_ONLY_COOLING] == True:
+    if config[CONF_FAN_ONLY_COOLING] is True:
         requirements = {
             CONF_DEFAULT_TARGET_TEMPERATURE_HIGH: [
                 CONF_COOL_ACTION,
