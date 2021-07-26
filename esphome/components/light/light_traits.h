@@ -20,23 +20,25 @@ class LightTraits {
   }
 
   bool supports_color_mode(ColorMode color_mode) const { return this->supported_color_modes_.count(color_mode); }
-  bool supports_color_channel(ColorChannel color_channel) const {
+  bool supports_color_capability(ColorCapability color_capability) const {
     for (auto mode : this->supported_color_modes_) {
-      if (*mode & *color_channel)
+      if (*mode & *color_capability)
         return true;
     }
     return false;
   }
 
   ESPDEPRECATED("get_supports_rgb() is deprecated, use color modes instead.")
-  bool get_supports_rgb() const { return this->supports_color_channel(ColorChannel::RGB); }
+  bool get_supports_rgb() const { return this->supports_color_capability(ColorCapability::RGB); }
   ESPDEPRECATED("get_supports_rgb_white_value() is deprecated, use color modes instead.")
   bool get_supports_rgb_white_value() const {
     return this->supports_color_mode(ColorMode::RGB_WHITE) ||
            this->supports_color_mode(ColorMode::RGB_COLOR_TEMPERATURE);
   }
   ESPDEPRECATED("get_supports_color_temperature() is deprecated, use color modes instead.")
-  bool get_supports_color_temperature() const { return this->supports_color_channel(ColorChannel::COLOR_TEMPERATURE); }
+  bool get_supports_color_temperature() const {
+    return this->supports_color_capability(ColorCapability::COLOR_TEMPERATURE);
+  }
   ESPDEPRECATED("get_supports_color_interlock() is deprecated, use color modes instead.")
   bool get_supports_color_interlock() const {
     return this->supports_color_mode(ColorMode::RGB) &&

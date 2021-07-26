@@ -14,27 +14,28 @@ namespace light {
 /** This class represents the color state for a light object.
  *
  * The representation of the color state is dependent on the active color mode. A color mode consists of multiple
- * color channels, and each color channel has its own representation in this class. The fields available are as follows:
+ * color capabilities, and each color capability has its own representation in this class. The fields available are as
+ * follows:
  *
- * Light state:
+ * Always:
  * - state: Whether the light should be on/off. Represented as a float for transitions.
  * - color_mode: The currently active color mode.
  *
- * For all color channels:
+ * Applies to all capabilities:
  * - brightness: The master brightness of the light, should be applied to all channels.
  *
- * For RGB color channel:
+ * For RGB capability:
  * - color_brightness: The brightness of the color channels of the light.
  * - red, green, blue: The RGB values of the current color. They are normalized, so at least one of them is always 1.0.
  *
- * For WHITE color channel:
+ * For WHITE capability:
  * - white: The brightness of the white channel of the light.
  *
- * For COLOR_TEMPERATURE color channel:
+ * For COLOR_TEMPERATURE capability:
  * - color_temperature: The color temperature of the white channel in mireds. Note that it is not clamped to the valid
  *   range as set in the traits, so the output needs to do this.
  *
- * For COLD_WARM_WHITE color channel:
+ * For COLD_WARM_WHITE capability:
  * - cold_white, warm_white: The brightness of the cald and warm white channels of the light.
  *
  * All values (except color temperature) are represented using floats in the range 0.0 (off) to 1.0 (on), and are
@@ -108,7 +109,7 @@ class LightColorValues {
    * @param traits Used for determining which attributes to consider.
    */
   void normalize_color(const LightTraits &traits) {
-    if (*this->color_mode_ & *ColorChannel::RGB) {
+    if (*this->color_mode_ & *ColorCapability::RGB) {
       float max_value = fmaxf(this->get_red(), fmaxf(this->get_green(), this->get_blue()));
       if (max_value == 0.0f) {
         this->set_red(1.0f);
@@ -142,7 +143,7 @@ class LightColorValues {
 
   /// Convert these light color values to an RGB representation and write them to red, green, blue.
   void as_rgb(float *red, float *green, float *blue, float gamma = 0, bool color_interlock = false) const {
-    if (*this->color_mode_ & *ColorChannel::RGB) {
+    if (*this->color_mode_ & *ColorCapability::RGB) {
       float brightness = this->state_ * this->brightness_ * this->color_brightness_;
       *red = gamma_correct(brightness * this->red_, gamma);
       *green = gamma_correct(brightness * this->green_, gamma);
@@ -156,7 +157,7 @@ class LightColorValues {
   void as_rgbw(float *red, float *green, float *blue, float *white, float gamma = 0,
                bool color_interlock = false) const {
     this->as_rgb(red, green, blue, gamma);
-    if (*this->color_mode_ & *ColorChannel::WHITE) {
+    if (*this->color_mode_ & *ColorCapability::WHITE) {
       *white = gamma_correct(this->state_ * this->brightness_ * this->white_, gamma);
     } else {
       *white = 0;

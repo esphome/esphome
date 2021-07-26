@@ -309,17 +309,17 @@ bool APIConnection::send_light_state(light::LightState *light) {
   if (traits.get_supports_brightness())
     resp.brightness = values.get_brightness();
   resp.color_mode = static_cast<enums::ColorMode>(color_mode);
-  if (*color_mode & *light::ColorChannel::RGB) {
+  if (*color_mode & *light::ColorCapability::RGB) {
     resp.color_brightness = values.get_color_brightness();
     resp.red = values.get_red();
     resp.green = values.get_green();
     resp.blue = values.get_blue();
   }
-  if (*color_mode & *light::ColorChannel::WHITE)
+  if (*color_mode & *light::ColorCapability::WHITE)
     resp.white = values.get_white();
-  if (*color_mode & *light::ColorChannel::COLOR_TEMPERATURE)
+  if (*color_mode & *light::ColorCapability::COLOR_TEMPERATURE)
     resp.color_temperature = values.get_color_temperature();
-  if (*color_mode & *light::ColorChannel::COLD_WARM_WHITE) {
+  if (*color_mode & *light::ColorCapability::COLD_WARM_WHITE) {
     resp.cold_white = values.get_cold_white();
     resp.warm_white = values.get_warm_white();
   }
@@ -337,12 +337,12 @@ bool APIConnection::send_light_info(light::LightState *light) {
   msg.supports_brightness = traits.get_supports_brightness();
   for (auto mode : traits.get_supported_color_modes())
     msg.supported_color_modes.push_back(static_cast<enums::ColorMode>(mode));
-  msg.legacy_supports_rgb = traits.supports_color_channel(light::ColorChannel::RGB);
+  msg.legacy_supports_rgb = traits.supports_color_capability(light::ColorCapability::RGB);
   msg.legacy_supports_white_value =
-      msg.legacy_supports_rgb && (traits.supports_color_channel(light::ColorChannel::WHITE) ||
-                                  traits.supports_color_channel(light::ColorChannel::COLD_WARM_WHITE));
-  msg.legacy_supports_color_temperature = traits.supports_color_channel(light::ColorChannel::COLOR_TEMPERATURE) ||
-                                          traits.supports_color_channel(light::ColorChannel::COLD_WARM_WHITE);
+      msg.legacy_supports_rgb && (traits.supports_color_capability(light::ColorCapability::WHITE) ||
+                                  traits.supports_color_capability(light::ColorCapability::COLD_WARM_WHITE));
+  msg.legacy_supports_color_temperature = traits.supports_color_capability(light::ColorCapability::COLOR_TEMPERATURE) ||
+                                          traits.supports_color_capability(light::ColorCapability::COLD_WARM_WHITE);
   if (msg.legacy_supports_color_temperature) {
     msg.min_mireds = traits.get_min_mireds();
     msg.max_mireds = traits.get_max_mireds();

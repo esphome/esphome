@@ -54,11 +54,11 @@ void MQTTJSONLightComponent::send_discovery(JsonObject &root, mqtt::SendDiscover
     color_modes.add("onoff");
 
   // legacy API
-  if (traits.supports_color_channel(ColorChannel::RGB))
+  if (traits.supports_color_capability(ColorCapability::RGB))
     root["rgb"] = true;
-  if (traits.supports_color_channel(ColorChannel::COLOR_TEMPERATURE))
+  if (traits.supports_color_capability(ColorCapability::COLOR_TEMPERATURE))
     root["color_temp"] = true;
-  if (traits.supports_color_channel(ColorChannel::WHITE))
+  if (traits.supports_color_capability(ColorCapability::WHITE))
     root["white_value"] = true;
 
   if (this->state_->supports_effects()) {

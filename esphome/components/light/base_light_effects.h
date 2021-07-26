@@ -60,15 +60,15 @@ class RandomLightEffect : public LightEffect {
 
     auto color_mode = this->state_->remote_values.get_color_mode();
     auto call = this->state_->turn_on();
-    if (*color_mode & *ColorChannel::RGB) {
+    if (*color_mode & *ColorCapability::RGB) {
       call.set_red(random_float());
       call.set_green(random_float());
       call.set_blue(random_float());
-    } else if (*color_mode & *ColorChannel::COLOR_TEMPERATURE) {
+    } else if (*color_mode & *ColorCapability::COLOR_TEMPERATURE) {
       float min = this->state_->get_traits().get_min_mireds();
       float max = this->state_->get_traits().get_max_mireds();
       call.set_color_temperature(min + random_float() * (max - min));
-    } else if (*color_mode & *ColorChannel::COLD_WARM_WHITE) {
+    } else if (*color_mode & *ColorCapability::COLD_WARM_WHITE) {
       call.set_cold_white(random_float());
       call.set_warm_white(random_float());
     } else {

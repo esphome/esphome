@@ -164,14 +164,14 @@ LightColorValues LightCall::validate_() {
   auto color_mode = *this->color_mode_;
 
   // Color brightness exists check
-  if (this->color_brightness_.has_value() && !(*color_mode & *ColorChannel::RGB)) {
+  if (this->color_brightness_.has_value() && !(*color_mode & *ColorCapability::RGB)) {
     ESP_LOGW(TAG, "'%s' - This color mode does not support setting RGB brightness!", name);
     this->color_brightness_.reset();
   }
 
   // RGB exists check
   if (this->red_.has_value() || this->green_.has_value() || this->blue_.has_value()) {
-    if (!(*color_mode & *ColorChannel::RGB)) {
+    if (!(*color_mode & *ColorCapability::RGB)) {
       ESP_LOGW(TAG, "'%s' - This color mode does not support setting RGB color!", name);
       this->red_.reset();
       this->green_.reset();
@@ -180,20 +180,20 @@ LightColorValues LightCall::validate_() {
   }
 
   // White value exists check
-  if (this->white_.has_value() && !(*color_mode & *ColorChannel::WHITE)) {
+  if (this->white_.has_value() && !(*color_mode & *ColorCapability::WHITE)) {
     ESP_LOGW(TAG, "'%s' - This color mode does not support setting white value!", name);
     this->white_.reset();
   }
 
   // Color temperature exists check
-  if (this->color_temperature_.has_value() && !(*color_mode & *ColorChannel::COLOR_TEMPERATURE)) {
+  if (this->color_temperature_.has_value() && !(*color_mode & *ColorCapability::COLOR_TEMPERATURE)) {
     ESP_LOGW(TAG, "'%s' - This light does not support setting color temperature!", name);
     this->color_temperature_.reset();
   }
 
   // Cold/warm white value exists check
   if (this->cold_white_.has_value() || this->warm_white_.has_value()) {
-    if (!(*color_mode & *ColorChannel::COLD_WARM_WHITE)) {
+    if (!(*color_mode & *ColorCapability::COLD_WARM_WHITE)) {
       ESP_LOGW(TAG, "'%s' - This color mode does not support setting cold/warm white value!", name);
       this->cold_white_.reset();
       this->warm_white_.reset();
@@ -330,8 +330,8 @@ void LightCall::transform_legacy_calls_() {
   // the color temperature through the CWWW modes as best as we can, because CWWW and RGBWW lights
   // used to represent their values as white + color temperature.
   if (((this->white_.has_value() && *this->white_ > 0.0f) || this->color_temperature_.has_value()) &&
-      !traits.supports_color_channel(ColorChannel::WHITE) &&
-      traits.supports_color_channel(ColorChannel::COLD_WARM_WHITE) && traits.get_min_mireds() > 0 &&
+      !traits.supports_color_capability(ColorCapability::WHITE) &&
+      traits.supports_color_capability(ColorCapability::COLD_WARM_WHITE) && traits.get_min_mireds() > 0 &&
       traits.get_max_mireds() > 0) {
     ESP_LOGI(TAG, "'%s' - Emulating white/color temperature using cold/warm white channels.",
              this->parent_->get_name().c_str());
@@ -498,42 +498,42 @@ LightCall &LightCall::set_color_mode_if_supported(ColorMode color_mode) {
   return *this;
 }
 LightCall &LightCall::set_color_brightness_if_supported(float brightness) {
-  if (*this->get_active_color_mode_() & *ColorChannel::RGB)
+  if (*this->get_active_color_mode_() & *ColorCapability::RGB)
     this->set_color_brightness(brightness);
   return *this;
 }
 LightCall &LightCall::set_red_if_supported(float red) {
-  if (*this->get_active_color_mode_() & *ColorChannel::RGB)
+  if (*this->get_active_color_mode_() & *ColorCapability::RGB)
     this->set_red(red);
   return *this;
 }
 LightCall &LightCall::set_green_if_supported(float green) {
-  if (*this->get_active_color_mode_() & *ColorChannel::RGB)
+  if (*this->get_active_color_mode_() & *ColorCapability::RGB)
     this->set_green(green);
   return *this;
 }
 LightCall &LightCall::set_blue_if_supported(float blue) {
-  if (*this->get_active_color_mode_() & *ColorChannel::RGB)
+  if (*this->get_active_color_mode_() & *ColorCapability::RGB)
     this->set_blue(blue);
   return *this;
 }
 LightCall &LightCall::set_white_if_supported(float white) {
-  if (*this->get_active_color_mode_() & *ColorChannel::WHITE)
+  if (*this->get_active_color_mode_() & *ColorCapability::WHITE)
     this->set_white(white);
   return *this;
 }
 LightCall &LightCall::set_color_temperature_if_supported(float color_temperature) {
-  if (*this->get_active_color_mode_() & *ColorChannel::COLOR_TEMPERATURE)
+  if (*this->get_active_color_mode_() & *ColorCapability::COLOR_TEMPERATURE)
     this->set_color_temperature(color_temperature);
   return *this;
 }
 LightCall &LightCall::set_cold_white_if_supported(float cold_white) {
-  if (*this->get_active_color_mode_() & *ColorChannel::COLD_WARM_WHITE)
+  if (*this->get_active_color_mode_() & *ColorCapability::COLD_WARM_WHITE)
     this->set_cold_white(cold_white);
   return *this;
 }
 LightCall &LightCall::set_warm_white_if_supported(float warm_white) {
-  if (*this->get_active_color_mode_() & *ColorChannel::COLD_WARM_WHITE)
+  if (*this->get_active_color_mode_() & *ColorCapability::COLD_WARM_WHITE)
     this->set_warm_white(warm_white);
   return *this;
 }
