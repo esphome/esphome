@@ -48,6 +48,12 @@ void TemplateSelect::update() {
   if (!val.has_value())
     return;
 
+  auto options = this->traits.get_options();
+  if (std::find(options.begin(), options.end(), *val) == options.end()) {
+    ESP_LOGE(TAG, "lambda returned an invalid option %s", (*val).c_str());
+    return;
+  }
+
   this->publish_state(*val);
 }
 
