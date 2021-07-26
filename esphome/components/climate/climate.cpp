@@ -312,8 +312,11 @@ void Climate::add_on_state_callback(std::function<void()> &&callback) {
   this->state_callback_.add(std::move(callback));
 }
 
+// Random 32bit value; If this changes existing restore preferences are invalided
+static const uint32_t RESTORE_STATE_VERSION = 0x848EA6ADUL;
+
 optional<ClimateDeviceRestoreState> Climate::restore_state_() {
-  this->rtc_ = global_preferences.make_preference<ClimateDeviceRestoreState>(this->get_object_id_hash() ^ 0x848EA6ADUL);
+  this->rtc_ = global_preferences.make_preference<ClimateDeviceRestoreState>(this->get_object_id_hash() ^ RESTORE_STATE_VERSION);
   ClimateDeviceRestoreState recovered{};
   if (!this->rtc_.load(&recovered))
     return {};
