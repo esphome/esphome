@@ -270,7 +270,7 @@ void Capabilities::to_climate_traits(ClimateTraits &traits) const {
     ESP_LOGCONFIG(tag, str);
 
 void Capabilities::dump(const char *tag) const {
-  ESP_LOGCONFIG(tag, "MIDEA CAPABILITIES REPORT:");
+  ESP_LOGCONFIG(tag, "CAPABILITIES REPORT:");
   if (this->auto_mode()) {
     ESP_LOGCONFIG(tag, "  [x] AUTO MODE");
     ESP_LOGCONFIG(tag, "      - MIN TEMP: %.1f", this->min_temp_auto());

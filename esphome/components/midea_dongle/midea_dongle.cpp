@@ -133,6 +133,8 @@ void MideaDongle::destroy_request_() {
 void MideaDongle::dump_config() {
   ESP_LOGCONFIG(TAG, "MideaDongle:");
   ESP_LOGCONFIG(TAG, "  [x] Period: %dms", this->period_);
+  ESP_LOGCONFIG(TAG, "  [x] Response timeout: %dms", this->response_timeout_);
+  ESP_LOGCONFIG(TAG, "  [x] Request attempts: %d", this->request_attempts_);
 #ifdef USE_REMOTE_TRANSMITTER
   ESP_LOGCONFIG(TAG, "  [x] Using RemoteTransmitter");
 }
