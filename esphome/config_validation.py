@@ -876,8 +876,8 @@ def hostname(value):
     if len(value) > 63:
         raise Invalid("Hostnames can only be 63 characters long")
     for c in value:
-        if not (c.isalnum() or c in "_-"):
-            raise Invalid("Hostname can only have alphanumeric characters and _ or -")
+        if not (c.isalnum() or c in "-"):
+            raise Invalid("Hostname can only have alphanumeric characters and -")
     return value
 
 
