@@ -68,7 +68,8 @@ class MideaDongle : public Component, public uart::UARTDevice {
   void reset_timeout_();
   void reset_attempts_() { this->remain_attempts_ = this->request_attempts_; }
   bool is_wait_for_response_() const { return this->request_ != nullptr; }
-
+  void get_electronic_id_();
+  
   std::deque<Request *> queue_;
   MideaAppliance *appliance_{nullptr};
   Request *request_{nullptr};

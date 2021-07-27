@@ -16,8 +16,19 @@ ResponseStatus MideaDongle::Request::call_handler(const Frame &frame) {
 }
 
 void MideaDongle::setup() {
-  this->set_interval(2*60*1000, [this](){
-    this->send_network_notify_();
+  this->set_interval(10*1000, [this](){
+    this->get_electronic_id_();
+    //this->send_network_notify_();
+  });
+}
+
+void MideaDongle::get_electronic_id_() {
+  static uint8_t data[] = {0xAA, 0x0B, 0xAC, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x07, 0x00, 0xFA};
+  Frame dd(data);
+  dd.update_cs();
+  this->queue_request(data, [this](const Frame &frame) -> ResponseStatus {
+    ESP_LOGI(TAG, "Serial Number: %s", hexencode(frame.data() + 10, 32).c_str());
+    return RESPONSE_OK;
   });
 }
 
