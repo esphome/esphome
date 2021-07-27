@@ -23,9 +23,7 @@ void MideaDongle::setup() {
 }
 
 void MideaDongle::get_electronic_id_() {
-  static uint8_t data[] = {0xAA, 0x0B, 0xAC, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x07, 0x00, 0xFA};
-  Frame dd(data);
-  dd.update_cs();
+  uint8_t data[] = {0xAA, 0x0B, 0xFF, 0xF4, 0x00, 0x00, 0x01, 0x00, 0x00, GET_ELECTRONIC_ID, 0x00, 0xFA};
   this->queue_request(data, [this](const Frame &frame) -> ResponseStatus {
     ESP_LOGI(TAG, "Serial Number: %s", hexencode(frame.data() + 10, 32).c_str());
     return RESPONSE_OK;
