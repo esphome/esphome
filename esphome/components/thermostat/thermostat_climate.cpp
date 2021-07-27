@@ -45,6 +45,17 @@ void ThermostatClimate::refresh() {
   this->publish_state();
 }
 
+bool ThermostatClimate::hysteresis_valid() {
+  if ((this->supports_cool_ || (this->supports_fan_only_ && this->supports_fan_only_cooling_)) &&
+      (isnan(this->cool_deadband_) || isnan(this->cool_overrun_)))
+    return false;
+
+  if (this->supports_heat_ && (isnan(this->heat_deadband_) || isnan(this->heat_overrun_)))
+    return false;
+
+  return true;
+}
+
 void ThermostatClimate::validate_target_temperature() {
   if (isnan(this->target_temperature)) {
     this->target_temperature =
@@ -191,41 +202,43 @@ climate::ClimateTraits ThermostatClimate::traits() {
 }
 
 climate::ClimateAction ThermostatClimate::compute_action_() {
-  climate::ClimateAction target_action = climate::CLIMATE_ACTION_IDLE;
+  auto target_action = climate::CLIMATE_ACTION_IDLE;
   // if any hysteresis values or current_temperature is not valid, we go to OFF;
-  // if the climate mode is OFF then the climate action must be OFF
-  if (isnan(this->current_temperature) || isnan(this->cool_deadband_) || isnan(this->cool_overrun_) ||
-      isnan(this->heat_deadband_) || isnan(this->heat_overrun_) || (this->mode == climate::CLIMATE_MODE_OFF)) {
+  if (isnan(this->current_temperature) || !this->hysteresis_valid()) {
     return climate::CLIMATE_ACTION_OFF;
   }
   // ensure set point(s) is/are valid before computing the action
   this->validate_target_temperatures();
   // everything has been validated so we can now safely compute the action
   switch (this->mode) {
+    // if the climate mode is OFF then the climate action must be OFF
+    case climate::CLIMATE_MODE_OFF:
+      target_action = climate::CLIMATE_ACTION_OFF;
+      break;
     case climate::CLIMATE_MODE_FAN_ONLY:
-      if (fanning_required_())
+      if (this->fanning_required_())
         target_action = climate::CLIMATE_ACTION_FAN;
       break;
     case climate::CLIMATE_MODE_DRY:
       target_action = climate::CLIMATE_ACTION_DRYING;
       break;
     case climate::CLIMATE_MODE_HEAT_COOL:
-      if (cooling_required_() && heating_required_()) {
+      if (this->cooling_required_() && this->heating_required_()) {
         // this is bad and should never happen, so just stop.
         // target_action = climate::CLIMATE_ACTION_IDLE;
-      } else if (cooling_required_()) {
+      } else if (this->cooling_required_()) {
         target_action = climate::CLIMATE_ACTION_COOLING;
-      } else if (heating_required_()) {
+      } else if (this->heating_required_()) {
         target_action = climate::CLIMATE_ACTION_HEATING;
       }
       break;
     case climate::CLIMATE_MODE_COOL:
-      if (cooling_required_()) {
+      if (this->cooling_required_()) {
         target_action = climate::CLIMATE_ACTION_COOLING;
       }
       break;
     case climate::CLIMATE_MODE_HEAT:
-      if (heating_required_()) {
+      if (this->heating_required_()) {
         target_action = climate::CLIMATE_ACTION_HEATING;
       }
       break;
@@ -671,6 +684,7 @@ void ThermostatClimate::dump_config() {
   ESP_LOGCONFIG(TAG, "  Supports COOL: %s", YESNO(this->supports_cool_));
   ESP_LOGCONFIG(TAG, "  Supports DRY: %s", YESNO(this->supports_dry_));
   ESP_LOGCONFIG(TAG, "  Supports FAN_ONLY: %s", YESNO(this->supports_fan_only_));
+  ESP_LOGCONFIG(TAG, "  Supports FAN_ONLY_COOLING: %s", YESNO(this->supports_fan_only_cooling_));
   ESP_LOGCONFIG(TAG, "  Supports HEAT: %s", YESNO(this->supports_heat_));
   ESP_LOGCONFIG(TAG, "  Supports FAN MODE ON: %s", YESNO(this->supports_fan_mode_on_));
   ESP_LOGCONFIG(TAG, "  Supports FAN MODE OFF: %s", YESNO(this->supports_fan_mode_off_));

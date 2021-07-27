@@ -93,7 +93,8 @@ class ThermostatClimate : public climate::Climate, public Component {
   float heat_overrun();
   /// Call triggers based on updated climate states (modes/actions)
   void refresh();
-  /// Set point validation
+  /// Set point and hysteresis validation
+  bool hysteresis_valid();  // returns true if valid
   void validate_target_temperature();
   void validate_target_temperatures();
   void validate_target_temperature_low();
