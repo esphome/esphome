@@ -12,18 +12,29 @@ extern const uint8_t MCP4728_MULTI_IR_CMD;
 extern const uint8_t MCP4728_MULTI_EEPROM_CMD;
 extern const uint8_t MCP4728_FAST_WRITE_CMD;
 
-typedef enum pd_mode {
+enum MCP4728PDMode {
   MCP4728_PD_MODE_NORMAL,
   MCP4728_PD_MODE_GND_1K,
   MCP4728_PD_MODE_GND_100K,
   MCP4728_PD_MODE_GND_500K
-} MCP4728_pd_mode_t;
+};
 
-typedef enum gain { MCP4728_GAIN_1X, MCP4728_GAIN_2X } MCP4728_gain_t;
+enum MCP4728Gain { 
+  MCP4728_GAIN_1X,
+  MCP4728_GAIN_2X 
+};
 
-typedef enum vref { MCP4728_VREF_VDD, MCP4728_VREF_INTERNAL } MCP4728_vref_t;
+enum MCP4728VRef { 
+  MCP4728_VREF_VDD, 
+  MCP4728_VREF_INTERNAL 
+};
 
-typedef enum channel { MCP4728_CHANNEL_A, MCP4728_CHANNEL_B, MCP4728_CHANNEL_C, MCP4728_CHANNEL_D } MCP4728_channel_t;
+enum MCP4728ChannelID { 
+  MCP4728_CHANNEL_A,
+  MCP4728_CHANNEL_B,
+  MCP4728_CHANNEL_C,
+  MCP4728_CHANNEL_D 
+};
 
 class MCP4728OutputComponent;
 class MCP4728Channel : public output::FloatOutput {
@@ -47,8 +58,8 @@ class MCP4728OutputComponent : public Component, public i2c::I2CDevice {
 
  protected:
   friend MCP4728Channel;
-  bool set_channel_value_(MCP4728_channel_t channel, uint16_t new_value, MCP4728_vref_t new_vref,
-                          MCP4728_gain_t new_gain, MCP4728_pd_mode_t new_pd_mode, bool udac);
+  bool set_channel_value_(MCP4728ChannelID channel, uint16_t new_value, MCP4728VRef new_vref,
+                          MCP4728Gain new_gain, MCP4728PDMode new_pd_mode, bool udac);
 
   float value_;
 };

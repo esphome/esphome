@@ -16,10 +16,10 @@ MCP4728Channel *MCP4728OutputComponent::create_channel(uint8_t channel) {
   return c;
 }
 
-bool MCP4728OutputComponent::set_channel_value_(MCP4728_channel_t channel, uint16_t new_value,
-                                                MCP4728_vref_t new_vref = MCP4728_VREF_VDD,
-                                                MCP4728_gain_t new_gain = MCP4728_GAIN_1X,
-                                                MCP4728_pd_mode_t new_pd_mode = MCP4728_PD_MODE_NORMAL,
+bool MCP4728OutputComponent::set_channel_value_(MCP4728ChannelID channel, uint16_t new_value,
+                                                MCP4728VRef new_vref = MCP4728_VREF_VDD,
+                                                MCP4728Gain new_gain = MCP4728_GAIN_1X,
+                                                MCP4728PDMode new_pd_mode = MCP4728_PD_MODE_NORMAL,
                                                 bool udac = false) {
   uint8_t output_buffer[3];
 
@@ -45,7 +45,7 @@ bool MCP4728OutputComponent::set_channel_value_(MCP4728_channel_t channel, uint1
 }
 
 void MCP4728Channel::write_state(float state) {
-  MCP4728_channel_t channel_enum;
+  MCP4728ChannelID channel_enum;
   uint16_t value = (uint16_t) round(state * (pow(2, 12) - 1));
   switch (this->channel_) {
     case 0:
@@ -60,13 +60,9 @@ void MCP4728Channel::write_state(float state) {
     case 3:
       channel_enum = MCP4728_CHANNEL_D;
       break;
+    default:
+      break;
   }
-
-  // uint8_t output_buffer[3];
-  // uint8_t sequential_write_cmd = MCP4728_MULTI_IR_CMD;
-  // sequential_write_cmd |= (this->channel_ << 1);
-  // sequential_write_cmd |= this->udac;
-
   this->parent_->set_channel_value_(channel_enum, value);
 }
 
