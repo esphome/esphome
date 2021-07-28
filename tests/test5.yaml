@@ -66,8 +66,10 @@ number:
 select:
   - platform: template
     name: My template select
-    id: select_number_id
+    id: template_select_id
     optimistic: true
+    initial_option: two
+    restore_value: true
     on_value:
       - logger.log:
           format: "Select changed to %s"
@@ -76,6 +78,9 @@ select:
       - logger.log:
           format: "Template Select set to %s"
           args: ["x.c_str()"]
+      - select.set:
+          id: template_select_id
+          option: two
     options:
       - one
       - two

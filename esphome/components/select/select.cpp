@@ -8,22 +8,22 @@ static const char *const TAG = "select";
 
 void SelectCall::perform() {
   ESP_LOGD(TAG, "'%s' - Setting", this->parent_->get_name().c_str());
-  if (!this->value_.has_value()) {
+  if (!this->option_.has_value()) {
     ESP_LOGW(TAG, "No value set for SelectCall");
     return;
   }
 
   const auto &traits = this->parent_->traits;
-  auto value = *this->value_;
+  auto value = *this->option_;
   auto options = traits.get_options();
 
   if (std::find(options.begin(), options.end(), value) == options.end()) {
-    ESP_LOGW(TAG, "  Value %s is not a valid option.", value.c_str());
+    ESP_LOGW(TAG, "  Option %s is not a valid option.", value.c_str());
     return;
   }
 
-  ESP_LOGD(TAG, "  Value: %s", (*this->value_).c_str());
-  this->parent_->control(*this->value_);
+  ESP_LOGD(TAG, "  Option: %s", (*this->option_).c_str());
+  this->parent_->control(*this->option_);
 }
 
 void Select::publish_state(const std::string &state) {

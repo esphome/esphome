@@ -23,15 +23,15 @@ class SelectCall {
   explicit SelectCall(Select *parent) : parent_(parent) {}
   void perform();
 
-  SelectCall &set_value(const std::string &value) {
-    value_ = value;
+  SelectCall &set_option(const std::string &option) {
+    option_ = option;
     return *this;
   }
-  const optional<std::string> &get_value() const { return value_; }
+  const optional<std::string> &get_option() const { return option_; }
 
  protected:
   Select *const parent_;
-  optional<std::string> value_;
+  optional<std::string> option_;
 };
 
 class SelectTraits {
@@ -57,7 +57,7 @@ class Select : public Nameable {
   void publish_state(const std::string &state);
 
   SelectCall make_call() { return SelectCall(this); }
-  void set(const std::string &value) { make_call().set_value(value).perform(); }
+  void set(const std::string &value) { make_call().set_option(value).perform(); }
 
   void add_on_state_callback(std::function<void(std::string)> &&callback);
 

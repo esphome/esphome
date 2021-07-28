@@ -620,7 +620,7 @@ void APIConnection::select_command(const SelectCommandRequest &msg) {
     return;
 
   auto call = select->make_call();
-  call.set_value(msg.state);
+  call.set_option(msg.state);
   call.perform();
 }
 #endif

@@ -8,10 +8,10 @@ from esphome.const import (
     CONF_ID,
     CONF_INTERNAL,
     CONF_ON_VALUE,
+    CONF_OPTION,
     CONF_TRIGGER_ID,
     CONF_NAME,
     CONF_MQTT_ID,
-    CONF_VALUE,
     ICON_EMPTY,
 )
 from esphome.core import CORE, coroutine_with_priority
@@ -90,13 +90,13 @@ async def to_code(config):
     cv.Schema(
         {
             cv.Required(CONF_ID): cv.use_id(Select),
-            cv.Required(CONF_VALUE): cv.templatable(cv.float_),
+            cv.Required(CONF_OPTION): cv.templatable(cv.string_strict),
         }
     ),
 )
 async def select_set_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_VALUE], args, str)
-    cg.add(var.set_value(template_))
+    template_ = await cg.templatable(config[CONF_OPTION], args, str)
+    cg.add(var.set_option(template_))
     return var

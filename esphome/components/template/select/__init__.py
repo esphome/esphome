@@ -4,7 +4,7 @@ import esphome.config_validation as cv
 from esphome.components import select
 from esphome.const import (
     CONF_ID,
-    CONF_INITIAL_VALUE,
+    CONF_INITIAL_OPTION,
     CONF_LAMBDA,
     CONF_OPTIONS,
     CONF_OPTIMISTIC,
@@ -20,10 +20,10 @@ CONF_SET_ACTION = "set_action"
 
 
 def validate_initial_value_in_options(config):
-    if CONF_INITIAL_VALUE in config:
-        if config[CONF_INITIAL_VALUE] not in config[CONF_OPTIONS]:
+    if CONF_INITIAL_OPTION in config:
+        if config[CONF_INITIAL_OPTION] not in config[CONF_OPTIONS]:
             raise cv.Invalid(
-                f"initial_value '{config[CONF_INITIAL_VALUE]}' is not a valid option [{', '.join(config[CONF_OPTIONS])}]"
+                f"initial_option '{config[CONF_INITIAL_OPTION]}' is not a valid option [{', '.join(config[CONF_OPTIONS])}]"
             )
     return config
 
@@ -38,7 +38,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_LAMBDA): cv.returning_lambda,
             cv.Optional(CONF_OPTIMISTIC): cv.boolean,
             cv.Optional(CONF_SET_ACTION): automation.validate_automation(single=True),
-            cv.Optional(CONF_INITIAL_VALUE): cv.string_strict,
+            cv.Optional(CONF_INITIAL_OPTION): cv.string_strict,
             cv.Optional(CONF_RESTORE_VALUE): cv.boolean,
         }
     ).extend(cv.polling_component_schema("60s")),
@@ -60,8 +60,8 @@ async def to_code(config):
     else:
         if CONF_OPTIMISTIC in config:
             cg.add(var.set_optimistic(config[CONF_OPTIMISTIC]))
-        if CONF_INITIAL_VALUE in config:
-            cg.add(var.set_initial_value(config[CONF_INITIAL_VALUE]))
+        if CONF_INITIAL_OPTION in config:
+            cg.add(var.set_initial_option(config[CONF_INITIAL_OPTION]))
         if CONF_RESTORE_VALUE in config:
             cg.add(var.set_restore_value(config[CONF_RESTORE_VALUE]))
 

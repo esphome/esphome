@@ -17,11 +17,11 @@ class SelectStateTrigger : public Trigger<std::string> {
 template<typename... Ts> class SelectSetAction : public Action<Ts...> {
  public:
   SelectSetAction(Select *select) : select_(select) {}
-  TEMPLATABLE_VALUE(std::string, value)
+  TEMPLATABLE_VALUE(std::string, option)
 
   void play(Ts... x) override {
     auto call = this->select_->make_call();
-    call.set_value(this->value_.value(x...));
+    call.set_option(this->option_.value(x...));
     call.perform();
   }
 
