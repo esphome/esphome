@@ -7,8 +7,8 @@
 namespace esphome {
 namespace as3935 {
 
-#define DIRECT_COMMAND    0x96
-#define ANTFREQ 3
+static const uint8_t DIRECT_COMMAND = 0x96
+static const uint8_t ANTFREQ = 3
 
 enum AS3935RegisterNames {
   AFE_GAIN = 0x00,
@@ -91,6 +91,7 @@ class AS3935Component : public Component {
   void trim_antenna();
   void set_trim_antenna(bool trim_antenna) { trim_antenna_ = trim_antenna; }
   void set_calibration(bool calibration) { calibration_ = calibration; }
+
  protected:
   uint8_t read_interrupt_register_();
   void clear_statistics_();

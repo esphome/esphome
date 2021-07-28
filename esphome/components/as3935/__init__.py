@@ -39,7 +39,6 @@ AS3935_SCHEMA = cv.Schema(
         cv.Optional(CONF_CAPACITANCE, default=0): cv.int_range(min=0, max=15),
         cv.Optional(CONF_TRIM_ANTENNA, default=False): cv.boolean,
         cv.Optional(CONF_CALIBRATION, default=True): cv.boolean,
-
     }
 )
 
