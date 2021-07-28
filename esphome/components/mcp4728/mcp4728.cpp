@@ -38,10 +38,7 @@ bool MCP4728OutputComponent::set_channel_value_(MCP4728ChannelID channel, uint16
   output_buffer[1] = new_value >> 8;
   output_buffer[2] = new_value & 0xFF;
 
-  if (!this->write_bytes_raw(output_buffer, 3)) {
-    return false;
-  }
-  return true;
+  return this->write_bytes_raw(output_buffer, 3);
 }
 
 void MCP4728Channel::write_state(float state) {
