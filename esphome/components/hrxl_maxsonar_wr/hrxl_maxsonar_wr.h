@@ -5,21 +5,21 @@
 #include "esphome/components/uart/uart.h"
 
 namespace esphome {
-namespace hrxlmaxsonarwr {
+namespace hrxl_maxsonar_wr {
 
 class HrxlMaxsonarWrComponent : public sensor::Sensor, public Component, public uart::UARTDevice {
-  public:
-    // Nothing really public.
+ public:
+  // Nothing really public.
 
-    // ========== INTERNAL METHODS ==========
-    void loop() override;
-    void dump_config() override;
+  // ========== INTERNAL METHODS ==========
+  void loop() override;
+  void dump_config() override;
 
-  protected:
-    void check_buffer_();
+ protected:
+  void check_buffer_();
 
-    std::string buffer;
+  std::string buffer_;
 };
 
-}  // namespace hrxlmaxsonarwr
+}  // namespace hrxl_maxsonar_wr
 }  // namespace esphome

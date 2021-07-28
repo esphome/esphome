@@ -12,7 +12,7 @@ from esphome.const import (
 CODEOWNERS = ["@netmikey"]
 DEPENDENCIES = ["uart"]
 
-hrxlmaxsonarwr_ns = cg.esphome_ns.namespace("hrxlmaxsonarwr")
+hrxlmaxsonarwr_ns = cg.esphome_ns.namespace("hrxl_maxsonar_wr")
 HrxlMaxsonarWrComponent = hrxlmaxsonarwr_ns.class_(
     "HrxlMaxsonarWrComponent", sensor.Sensor, cg.Component, uart.UARTDevice
 )
