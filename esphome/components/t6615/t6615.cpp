@@ -4,7 +4,8 @@
 namespace esphome {
 namespace t6615 {
 
-static const char *TAG = "t6615";
+static const char *const TAG = "t6615";
+
 static const uint8_t T6615_RESPONSE_BUFFER_LENGTH = 32;
 static const uint8_t T6615_MAGIC = 0xFF;
 static const uint8_t T6615_ADDR_HOST = 0xFA;
