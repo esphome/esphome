@@ -16,7 +16,9 @@ class HrxlMaxsonarWrComponent : public sensor::Sensor, public Component, public 
     void dump_config() override;
 
   protected:
-    // Nothing.
+    void check_buffer_();
+
+    std::string buffer;
 };
 
 }  // namespace hrxlmaxsonarwr

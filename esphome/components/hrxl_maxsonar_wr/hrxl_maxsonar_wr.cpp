@@ -20,30 +20,35 @@ static const int MAX_DATA_LENGTH_BYTES = 6;
  * 1234 means a distance of 1,234 m.
  */
 void HrxlMaxsonarWrComponent::loop() {
+  uint8_t data;
   while (this->available() > 0) {
-    std::string buffer;
-    uint8_t data;
-    for (int i = 0; i < MAX_DATA_LENGTH_BYTES; i++) {
-      if (this->read_byte(&data)) {
-        if (data == ASCII_CR) {
-          break;
-        } else {
-          buffer += (char) data;
-        }
-      } else {
-        break;
-      }
+    if (this->read_byte(&data)) {
+      buffer += (char) data;
+      this->check_buffer_();
     }
+  }
+}
 
-    ESP_LOGV(TAG, "Read from serial: %s", buffer.c_str());
-    if (buffer.length() == (MAX_DATA_LENGTH_BYTES - 1) && buffer[0] == 'R') {
-      int millimeters = atoi(buffer.substr(1).c_str());
+void HrxlMaxsonarWrComponent::check_buffer_() {
+  // Stop reading at ASCII_CR. Also prevent the buffer from growing
+  // indefinitely if no ASCII_CR is received after MAX_DATA_LENGTH_BYTES.
+  if (this->buffer.back() == ASCII_CR ||
+      this->buffer.length() >= MAX_DATA_LENGTH_BYTES) {
+
+    ESP_LOGV(TAG, "Read from serial: %s", this->buffer.c_str());
+
+    if (this->buffer.length() == MAX_DATA_LENGTH_BYTES &&
+        this->buffer[0] == 'R' &&
+        this->buffer.back() == ASCII_CR) {
+
+      int millimeters = atoi(this->buffer.substr(1, MAX_DATA_LENGTH_BYTES - 2).c_str());
       float meters = float(millimeters) / 1000.0;
       ESP_LOGV(TAG, "Distance from sensor: %u mm, %f m", millis, meters);
       this->publish_state(meters);
     } else {
-      ESP_LOGW(TAG, "Invalid data read from sensor: %s", buffer.c_str());
+      ESP_LOGW(TAG, "Invalid data read from sensor: %s", this->buffer.c_str());
     }
+    this->buffer.clear();
   }
 }
 
