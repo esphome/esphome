@@ -7,7 +7,7 @@ namespace esphome {
 namespace tuya {
 
 static const char *const TAG = "tuya";
-static const int COMMAND_DELAY = 50;
+static const int COMMAND_DELAY = 10;
 static const int RECEIVE_TIMEOUT = 300;
 
 void Tuya::setup() {
@@ -114,6 +114,8 @@ void Tuya::handle_char_(uint8_t c) {
   this->rx_message_.push_back(c);
   if (!this->validate_message_()) {
     this->rx_message_.clear();
+  } else {
+    this->last_rx_char_timestamp_ = millis();
   }
 }
 
@@ -357,7 +359,12 @@ void Tuya::send_raw_command_(TuyaCommand command) {
 }
 
 void Tuya::process_command_queue_() {
-  uint32_t delay = millis() - this->last_command_timestamp_;
+  uint32_t now = millis();
+  uint32_t delay = now - this->last_command_timestamp_;
+
+  if (now - this->last_rx_char_timestamp_ > RECEIVE_TIMEOUT) {
+    this->rx_message_.clear();
+  }
 
   if (this->expected_response_.has_value() && delay > RECEIVE_TIMEOUT) {
     this->expected_response_.reset();
