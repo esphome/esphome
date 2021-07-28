@@ -233,13 +233,13 @@ uint8_t AS3935Component::get_div_ratio() {
   ESP_LOGV(TAG, "Calling get_div_ratio");
   uint8_t regVal = this->read_register(INT_MASK_ANT);
   regVal &= ~DIV_MASK;
-  regVal >>= 6; // Front of the line.
+  regVal >>= 6;  // Front of the line.
 
-  if( regVal == 0)
+  if ( egVal == 0)
     return 16;
-  else if(regVal == 1)
+  else if (regVal == 1)
     return 32;
-  else if(regVal == 2)
+  else if (regVal == 2)
     return 64;
   else if (regVal == 3)
     return 128;
@@ -250,7 +250,7 @@ uint8_t AS3935Component::get_div_ratio() {
 uint8_t AS3935Component::get_tune_cap() {
   ESP_LOGV(TAG, "Calling get_tune_cap");
   uint8_t regVal = this->read_register(FREQ_DISP_IRQ);
-  return ((regVal &= ~CAP_MASK) * 8); // Multiplied by 8pF
+  return ((regVal &= ~CAP_MASK) * 8);  // Multiplied by 8pF
 }
 
 // REG0x08, bits [5,6,7], manufacturer default: 0.
@@ -264,20 +264,20 @@ void AS3935Component::display_oscillator(bool _state, uint8_t _osc) {
 
   if (_state == true) {
     if (_osc == 1)
-      this->write_register(FREQ_DISP_IRQ, OSC_MASK, 1, 5); 
+      this->write_register(FREQ_DISP_IRQ, OSC_MASK, 1, 5);
     if (_osc == 2)
-      this->write_register(FREQ_DISP_IRQ, OSC_MASK, 1, 6); 
+      this->write_register(FREQ_DISP_IRQ, OSC_MASK, 1, 6);
     if (_osc == 3)
-      this->write_register(FREQ_DISP_IRQ, OSC_MASK, 1, 7); 
+      this->write_register(FREQ_DISP_IRQ, OSC_MASK, 1, 7);
   }
 
   if (_state == false) {
     if (_osc == 1)
-      this->write_register(FREQ_DISP_IRQ, OSC_MASK, 0, 5); //Demonstrative
+      this->write_register(FREQ_DISP_IRQ, OSC_MASK, 0, 5);  // Demonstrative
     if (_osc == 2)
-      this->write_register(FREQ_DISP_IRQ, OSC_MASK, 0, 6); 
+      this->write_register(FREQ_DISP_IRQ, OSC_MASK, 0, 6);
     if (_osc == 3)
-      this->write_register(FREQ_DISP_IRQ, OSC_MASK, 0, 7); 
+      this->write_register(FREQ_DISP_IRQ, OSC_MASK, 0, 7);
   }
 }
 
@@ -286,14 +286,14 @@ void AS3935Component::display_oscillator(bool _state, uint8_t _osc) {
 // based on the resonance frequency of the antenna and so it should be trimmed
 // before the calibration is done.
 bool AS3935Component::calibrate_oscillator() {
-  this->write_register(CALIB_RCO, WIPE_ALL, DIRECT_COMMAND, 0);  // Send command to calibrate the oscillators 
+  this->write_register(CALIB_RCO, WIPE_ALL, DIRECT_COMMAND, 0);  // Send command to calibrate the oscillators
   ESP_LOGI(TAG, "Starting oscillators calibration...");
 
   this->display_oscillator(true, 2);
-  delay(2);  // Give time for the internal oscillators to start up.  
+  delay(2);  // Give time for the internal oscillators to start up.
   this->display_oscillator(false, 2);
 
-  // Check it they were calibrated successfully.   
+  // Check it they were calibrated successfully.
   uint8_t regValSrco = this->read_register(CALIB_SRCO);
   uint8_t regValTrco = this->read_register(CALIB_TRCO);
 
@@ -302,7 +302,7 @@ bool AS3935Component::calibrate_oscillator() {
   regValTrco &= CALIB_MASK;
   regValTrco >>= 6;
 
-  if(!regValSrco && !regValTrco) {// Zero upon success
+  if (!regValSrco && !regValTrco) {  // Zero upon success
     ESP_LOGI(TAG, "Calibration was succesful");
     return true;
   } else {
