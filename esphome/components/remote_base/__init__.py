@@ -234,6 +234,49 @@ async def build_dumpers(config):
     return dumpers
 
 
+# Dish
+DishData, DishBinarySensor, DishTrigger, DishAction, DishDumper = declare_protocol(
+    "Dish"
+)
+Dish_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_ADDRESS, default=1): cv.int_range(min=1, max=16),
+        cv.Required(CONF_COMMAND): cv.int_range(min=0, max=63),
+    }
+)
+
+
+@register_binary_sensor("dish", DishBinarySensor, Dish_SCHEMA)
+def dish_binary_sensor(var, config):
+    cg.add(
+        var.set_data(
+            cg.StructInitializer(
+                DishData,
+                ("address", config[CONF_ADDRESS]),
+                ("command", config[CONF_COMMAND]),
+            )
+        )
+    )
+
+
+@register_trigger("dish", DishTrigger, DishData)
+def dish_trigger(var, config):
+    pass
+
+
+@register_dumper("dish", DishDumper)
+def dish_dumper(var, config):
+    pass
+
+
+@register_action("dish", DishAction, Dish_SCHEMA)
+async def dish_action(var, config, args):
+    template_ = await cg.templatable(config[CONF_ADDRESS], args, cg.uint16)
+    cg.add(var.set_address(template_))
+    template_ = await cg.templatable(config[CONF_COMMAND], args, cg.uint16)
+    cg.add(var.set_command(template_))
+
+
 # JVC
 JVCData, JVCBinarySensor, JVCTrigger, JVCAction, JVCDumper = declare_protocol("JVC")
 JVC_SCHEMA = cv.Schema({cv.Required(CONF_DATA): cv.hex_uint32_t})
