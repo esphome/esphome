@@ -25,6 +25,8 @@ def validate_initial_value_in_options(config):
             raise cv.Invalid(
                 f"initial_option '{config[CONF_INITIAL_OPTION]}' is not a valid option [{', '.join(config[CONF_OPTIONS])}]"
             )
+    else:
+        config[CONF_INITIAL_OPTION] = config[CONF_OPTIONS][0]
     return config
 
 
@@ -60,8 +62,9 @@ async def to_code(config):
     else:
         if CONF_OPTIMISTIC in config:
             cg.add(var.set_optimistic(config[CONF_OPTIMISTIC]))
-        if CONF_INITIAL_OPTION in config:
-            cg.add(var.set_initial_option(config[CONF_INITIAL_OPTION]))
+
+        cg.add(var.set_initial_option(config[CONF_INITIAL_OPTION]))
+
         if CONF_RESTORE_VALUE in config:
             cg.add(var.set_restore_value(config[CONF_RESTORE_VALUE]))
 

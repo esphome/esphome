@@ -13,24 +13,14 @@ void TemplateSelect::setup() {
   std::string value;
   ESP_LOGD(TAG, "Setting up Template Number");
   if (!this->restore_value_) {
-    if (this->initial_option_.has_value()) {
-      value = *this->initial_option_;
-      ESP_LOGD(TAG, "State from initial: %s", value.c_str());
-    } else {
-      value = this->traits.get_options().front();
-      ESP_LOGD(TAG, "State from options: %s", value.c_str());
-    }
+    value = this->initial_option_;
+    ESP_LOGD(TAG, "State from initial: %s", value.c_str());
   } else {
     size_t index;
     this->pref_ = global_preferences.make_preference<size_t>(this->get_object_id_hash());
     if (!this->pref_.load(&index)) {
-      if (this->initial_option_.has_value()) {
-        value = *this->initial_option_;
-        ESP_LOGD(TAG, "State from initial (could not load): %s", value.c_str());
-      } else {
-        value = this->traits.get_options().front();
-        ESP_LOGD(TAG, "State from options (could not load): %s", value.c_str());
-      }
+      value = this->initial_option_;
+      ESP_LOGD(TAG, "State from initial (could not load): %s", value.c_str());
     } else {
       value = this->traits.get_options().at(index);
       ESP_LOGD(TAG, "State from restore: %s", value.c_str());
@@ -76,9 +66,8 @@ void TemplateSelect::dump_config() {
   if (this->f_.has_value())
     return;
   ESP_LOGCONFIG(TAG, "  Optimistic: %s", YESNO(this->optimistic_));
+  ESP_LOGCONFIG(TAG, "  Initial Option: %s", this->initial_option_.c_str());
   ESP_LOGCONFIG(TAG, "  Restore Value: %s", YESNO(this->restore_value_));
-  if (this->initial_option_.has_value())
-    ESP_LOGCONFIG(TAG, "  Initial Option: %s", (*this->initial_option_).c_str());
 }
 
 }  // namespace template_
