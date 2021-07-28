@@ -37,7 +37,7 @@ void PIDClimate::control(const climate::ClimateCall &call) {
 
   // If switching to off mode, set output immediately
   if (this->mode == climate::CLIMATE_MODE_OFF)
-    this->handle_non_auto_mode_();
+    this->write_output_(0.0f);
 
   this->publish_state();
 }
