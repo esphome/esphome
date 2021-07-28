@@ -19,8 +19,7 @@ MCP4728Channel *MCP4728OutputComponent::create_channel(uint8_t channel) {
 bool MCP4728OutputComponent::set_channel_value_(MCP4728ChannelID channel, uint16_t new_value,
                                                 MCP4728VRef new_vref = MCP4728_VREF_VDD,
                                                 MCP4728Gain new_gain = MCP4728_GAIN_1X,
-                                                MCP4728PDMode new_pd_mode = MCP4728_PD_MODE_NORMAL,
-                                                bool udac = false) {
+                                                MCP4728PDMode new_pd_mode = MCP4728_PD_MODE_NORMAL, bool udac = false) {
   uint8_t output_buffer[3];
 
   // build the setter header/ "address"
