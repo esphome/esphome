@@ -12,6 +12,7 @@ from esphome.const import (
     CONF_ID,
     CONF_LEVEL,
     CONF_LOGS,
+    CONF_LOW_RTS_DTR,
     CONF_ON_MESSAGE,
     CONF_TAG,
     CONF_TRIGGER_ID,
@@ -104,6 +105,7 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(): cv.declare_id(Logger),
             cv.Optional(CONF_BAUD_RATE, default=115200): cv.positive_int,
             cv.Optional(CONF_TX_BUFFER_SIZE, default=512): cv.validate_bytes,
+            cv.Optional(CONF_LOW_RTS_DTR, default=False): cv.boolean,
             cv.Optional(CONF_HARDWARE_UART, default="UART0"): uart_selection,
             cv.Optional(CONF_LEVEL, default="DEBUG"): is_log_level,
             cv.Optional(CONF_LOGS, default={}): cv.Schema(

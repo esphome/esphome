@@ -12,6 +12,7 @@ from esphome.const import (
     CONF_BAUD_RATE,
     CONF_BROKER,
     CONF_LOGGER,
+    CONF_LOW_RTS_DTR,
     CONF_OTA,
     CONF_PASSWORD,
     CONF_PORT,
@@ -99,10 +100,21 @@ def run_miniterm(config, port):
     baud_rate = config["logger"][CONF_BAUD_RATE]
     if baud_rate == 0:
         _LOGGER.info("UART logging is disabled (baud_rate=0). Not starting UART logs.")
+        return
     _LOGGER.info("Starting log output from %s with baud rate %s", port, baud_rate)
 
     backtrace_state = False
-    with serial.Serial(port, baudrate=baud_rate) as ser:
+    ser = serial.Serial()
+    ser.baudrate = baud_rate
+    ser.port = port
+
+    # We can't set to False by default since it leads to toggling and hence
+    # ESP32 resets on some platforms.
+    if config["logger"][CONF_LOW_RTS_DTR]:
+        ser.dtr = False
+        ser.rts = False
+
+    with ser:
         while True:
             try:
                 raw = ser.readline()
