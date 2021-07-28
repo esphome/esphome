@@ -23,6 +23,8 @@ using midea_dongle::ResponseStatus;
 using midea_dongle::ResponseHandler;
 using midea_dongle::MideaDongle;
 
+enum AC_TYPE : uint8_t { AC_TYPE_SPLIT = 0x01, AC_TYPE_PORTABLE = 0x02, AC_TYPE_WINDOW = 0x03 };
+
 class MideaAC : public midea_dongle::MideaAppliance, public climate::Climate, public Component {
  public:
   float get_setup_priority() const override { return setup_priority::BEFORE_CONNECTION; }

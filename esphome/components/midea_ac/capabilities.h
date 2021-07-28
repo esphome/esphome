@@ -197,127 +197,126 @@ enum DeviceType {
   OTHER = 111111
 };
 
-class DeviceInfo {
- public:
+struct DeviceInfo {
   void read(const std::string &sn);
   // define the air-conditioned property
-  DeviceType device_type_{DeviceType::INVALID};
+  DeviceType deviceType{DeviceType::INVALID};
   // the new Protocol initiative to report
-  bool has_new_protocol_auto_upload_{false};
+  bool hasNewProtocolAutoUpload{false};
   // just Protocol initiative to report
-  bool has_old_protocol_auto_upload_{true};
+  bool hasOldProtocolAutoUpload{true};
   // Refrigeration
-  bool has_refrigerant_check_{true};
+  bool hasRefrigerantCheck{true};
   // heating
-  bool has_hot_mode_{true};
+  bool hasHotMode{true};
   // send the winds
-  bool has_wind_mode_{true};
+  bool hasWindMode{true};
   // automatically
-  bool has_auto_mode_{true};
+  bool hasAutoMode{true};
   // dehumidifier
-  bool has_dry_mode_{true};
+  bool hasDryMode{true};
   // comfort dehumidifier
-  bool has_smart_remove_wet_{false};
+  bool hasSmartRemoveWet{false};
   // personality pumping wet
-  bool has_manual_remove_wet_{false};
+  bool hasManualRemoveWet{false};
   // 0.5 degree control
-  bool has_dot5_support_{false};
+  bool hasDot5Support{false};
   // stepless
-  bool has_no_polar_{true};
+  bool hasNoPolar{true};
   // outdoor temperature display
-  bool has_outer_door_display_{true};
+  bool hasOuterDoorDisplay{true};
   // indoor humidity display
-  bool has_humidity_display_{false};
+  bool hasHumidityDisplay{false};
   // put on the air to
-  bool has_up_swipe_wind_{false};
+  bool hasUpSwipeWind{false};
   // hem wind of
-  bool has_down_swipe_wind_{false};
+  bool hasDownSwipeWind{false};
   // up and down swing of the wind
-  bool has_up_down_swipe_wind_{false};
+  bool hasUpDownSwipeWind{false};
   // from left to right wind of
-  bool has_left_right_swipe_wind_{false};
+  bool hasLeftRightSwipeWind{false};
   // put the wind
-  bool has_swipe_wind_{false};
+  bool hasSwipeWind{false};
   // ECO
-  bool has_eco_{false};
+  bool hasECO{false};
   // dried
-  bool has_dry_{true};
+  bool hasDry{true};
   // electric auxiliary heat
-  bool has_electric_heat_{true};
+  bool hasElectricHeat{true};
   // purge
-  bool has_purify_{false};
+  bool hasPurify{false};
   // the natural wind of
-  bool has_nature_wind_{false};
+  bool hasNatureWind{false};
   // child anti-catch
-  bool has_children_prevent_cold_{false};
+  bool hasChildrenPreventCold{false};
   // pre-cooling preheating
-  bool has_ready_cold_or_hot_{false};
+  bool hasReadyColdOrHot{false};
   // no wind sense of
-  bool has_no_wind_feel_{false};
+  bool hasNoWindFeel{false};
   // PMV
-  bool has_pmv_{false};
+  bool hasPMV{false};
   // saving
-  bool has_saving_power_{false};
+  bool hasSavingPower{false};
   // PM2. 5detecting
-  bool has_purify_check_{false};
+  bool hasPurifyCheck{false};
   // comfortable sleep curve
-  bool has_sleep_curve_{false};
+  bool hasSleepCurve{false};
   // millet curve
-  bool has_xiaomi_smart_curve_{false};
+  bool hasXiaomiSmartCurve{false};
   // millet bracelet
-  bool has_my_xiaomi_bracelet_{false};
+  bool hasMyXiaomiBracelet{false};
   // Bluetooth online upgrade
-  bool has_bluetooth_upgrade_{false};
+  bool hasBluetoothUpgrade{false};
   // healthy cool down
-  bool has_ladder_control_{false};
+  bool hasLadderControl{false};
   // self-learning
-  bool has_self_learn_{false};
+  bool hasSelfLearn{false};
   // examination
-  bool has_device_examination_{true};
+  bool hasDeviceExamination{true};
   // filter to detect
-  bool has_strainer_clean_{false};
+  bool hasStrainerClean{false};
   // battery statistics
-  bool has_power_manager_{false};
-  bool has_strong_{false}; // 
+  bool hasPowerManager{false};
+  bool hasStrong{false}; // 
   // comfort dehumidifier
-  bool has_comfort_dry_{false};
+  bool hasComfortDry{false};
   // manually pumping wet
-  bool has_manual_dry_{false};
+  bool hasManualDry{false};
   //security monitoring
-  bool has_safe_invade_{false};
+  bool hasSafeInvade{false};
   //intelligent control
-  bool has_intel_control_{false};
+  bool hasIntelControl{false};
   //gesture recognition
-  bool has_gesture_recognize_{false};
+  bool hasGestureRecognize{false};
   //from clean control
-  bool has_self_cleaning_{false};
+  bool hasSelfCleaning{false};
   //voice function
-  bool has_voice_{false};
+  bool hasVoice{false};
   //hot and cold-sensitive features
-  bool has_cold_hot_{false};
+  bool hasColdHot{false};
   //volume function
-  bool has_volume_{true};
-  bool has_yuyin_version_{false};
+  bool hasVolume{true};
+  bool hasYuyinVersion{false};
   //anti-straight blow
-  bool has_prevent_straight_line_wind_{false};
+  bool hasPreventStraightLineWind{false};
   //child anti-cold wind
-  bool has_children_prevent_wind_{false};
+  bool hasChildrenPreventWind{false};
   //there are separate upper and lower no sense of style(not tucao translated copy of the above)
-  bool has_up_down_no_wind_feel_{false};
-  bool is_central_ac_{false};
+  bool hasUpDownNoWindFeel{false};
+  bool isCentralAC{false};
   //display
-  bool has_show_{true};
+  bool hasShow{true};
   //Keep Warm function
-  bool has_keep_warm_{false};
+  bool hasKeepWarm{false};
   //the old Protocol to the anti-direct blowing feature
-  bool has_wind_blowing_{false};
+  bool hasWindBlowing{false};
   //filter dirty block
-  bool has_filter_screen_{false};
-  bool has_changes_temperature_{false};
-  bool has_no_wind_feel_modal_{false};
-  bool has_disney_{false};
-  bool has_time_1TO1_{false};
-  bool has_video_description_{false};
+  bool hasFilterScreen{false};
+  bool hasChangesTemperature{false};
+  bool hasNoWindFeelModal{false};
+  bool hasDisney{false};
+  bool hasTime1TO1{false};
+  bool hasVideoDescription{false};
 };
 
 }  // namespace midea_ac

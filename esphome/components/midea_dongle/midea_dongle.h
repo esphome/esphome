@@ -12,7 +12,7 @@
 namespace esphome {
 namespace midea_dongle {
 
-enum MideaApplianceType : uint8_t { DEHUMIDIFIER = 0xA1, AIR_CONDITIONER = 0xAC, BROADCAST = 0xFF };
+enum MideaApplianceType : uint8_t { DEHUMIDIFIER = 0xA1, AIR_CONDITIONER = 0xAC, AIR2WATER = 0xC3, FAN = 0xFA, CLEANER = 0xFC, HUMIDIFIER = 0xFD, BROADCAST = 0xFF };
 enum MideaMessageType : uint8_t {
   DEVICE_CONTROL = 0x02,
   DEVICE_QUERY = 0x03,
