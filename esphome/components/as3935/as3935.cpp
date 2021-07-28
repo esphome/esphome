@@ -229,7 +229,7 @@ uint32_t AS3935Component::get_lightning_energy_() {
 // (tuneCap()) it's important to keep in mind that the displayed frequency on
 // the IRQ pin is divided by this number. 
 uint8_t AS3935Component::get_div_ratio(){
-  ESP_LOGD(TAG, "Calling get_div_ratio");
+  ESP_LOGV(TAG, "Calling get_div_ratio");
   uint8_t regVal = this->read_register(INT_MASK_ANT); 
   regVal &= ~DIV_MASK; 
   regVal >>= 6; // Front of the line. 
@@ -248,7 +248,7 @@ uint8_t AS3935Component::get_div_ratio(){
 }
 
 uint8_t AS3935Component::get_tune_cap(){
-  ESP_LOGD(TAG, "Calling get_tune_cap");
+  ESP_LOGV(TAG, "Calling get_tune_cap");
   uint8_t regVal = this->read_register(FREQ_DISP_IRQ);
   return ((regVal &= ~CAP_MASK) * 8); //Multiplied by 8pF
 }
@@ -306,7 +306,7 @@ bool AS3935Component::calibrate_oscillator() {
     ESP_LOGI(TAG, "Calibration was succesful");
     return true;
   } else {
-    ESP_LOGI(TAG, "Calibration was NOT succesful");
+    ESP_LOGW(TAG, "Calibration was NOT succesful");
     return false; 
   }
 }
