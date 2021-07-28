@@ -15,7 +15,7 @@ MQTTSelectComponent::MQTTSelectComponent(Select *select) : MQTTComponent(), sele
 void MQTTSelectComponent::setup() {
   this->subscribe(this->get_command_topic_(), [this](const std::string &topic, const std::string &state) {
     auto call = this->select_->make_call();
-    call.set_value(state);
+    call.set_option(state);
     call.perform();
   });
   this->select_->add_on_state_callback([this](const std::string &state) { this->publish_state(state); });
