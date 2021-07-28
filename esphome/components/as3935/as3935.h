@@ -7,6 +7,9 @@
 namespace esphome {
 namespace as3935 {
 
+#define DIRECT_COMMAND    0x96
+#define ANTFREQ 3
+
 enum AS3935RegisterNames {
   AFE_GAIN = 0x00,
   THRESHOLD,
@@ -24,6 +27,8 @@ enum AS3935RegisterNames {
 };
 
 enum AS3935RegisterMasks {
+  WIPE_ALL = 0x0,
+
   GAIN_MASK = 0x3E,
   SPIKE_MASK = 0xF,
   IO_MASK = 0xC1,
@@ -79,7 +84,13 @@ class AS3935Component : public Component {
   void write_div_ratio(uint8_t div_ratio);
   void set_capacitance(uint8_t capacitance) { capacitance_ = capacitance; }
   void write_capacitance(uint8_t capacitance);
-
+  uint8_t get_div_ratio();
+  uint8_t get_tune_cap();
+  bool calibrate_oscillator();
+  void display_oscillator(bool _state, uint8_t _osc);
+  void trim_antenna();
+  void set_trim_antenna(bool trim_antenna) { trim_antenna_ = trim_antenna; }
+  void set_calibration(bool calibration) { calibration_ = calibration; }
  protected:
   uint8_t read_interrupt_register_();
   void clear_statistics_();
@@ -104,6 +115,8 @@ class AS3935Component : public Component {
   bool mask_disturber_;
   uint8_t div_ratio_;
   uint8_t capacitance_;
+  bool trim_antenna_;
+  bool calibration_;
 };
 
 }  // namespace as3935

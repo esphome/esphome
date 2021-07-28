@@ -29,6 +29,12 @@ void AS3935Component::dump_config() {
   LOG_BINARY_SENSOR("  ", "Thunder alert", this->thunder_alert_binary_sensor_);
   LOG_SENSOR("  ", "Distance", this->distance_sensor_);
   LOG_SENSOR("  ", "Lightning energy", this->energy_sensor_);
+  if (this->trim_antenna_) {
+    ESP_LOGCONFIG(TAG, "  Antenna trimming: ENABLED - lighting detecion is not working in this mode");
+    this->trim_antenna();
+  } else {
+    if (this->calibration_) this->calibrate_oscillator();
+  }
 }
 
 float AS3935Component::get_setup_priority() const { return setup_priority::DATA; }
@@ -214,6 +220,105 @@ uint32_t AS3935Component::get_lightning_energy_() {
   temp = this->read_register(ENERGY_LIGHT_LSB);
   pure_light |= temp;
   return pure_light;
+}
+
+// REG0x03, bit [7:6], manufacturer default: 0 (16 division ratio). 
+// This function returns the current division ratio of the resonance frequency.
+// The antenna resonance frequency should be within 3.5 percent of 500kHz, and
+// so when modifying the resonance frequency with the internal capacitors
+// (tuneCap()) it's important to keep in mind that the displayed frequency on
+// the IRQ pin is divided by this number. 
+uint8_t AS3935Component::get_div_ratio(){
+  ESP_LOGD(TAG, "Calling get_div_ratio");
+  uint8_t regVal = this->read_register(INT_MASK_ANT); 
+  regVal &= ~DIV_MASK; 
+  regVal >>= 6; // Front of the line. 
+
+  if( regVal == 0 )
+    return 16; 
+  else if(regVal == 1) 
+    return 32;
+  else if(regVal == 2)
+    return 64;
+  else if (regVal == 3) 
+    return 128; 
+  else
+    ESP_LOGW(TAG, "Unknown response received for div_ratio");
+    return 0;
+}
+
+uint8_t AS3935Component::get_tune_cap(){
+  ESP_LOGD(TAG, "Calling get_tune_cap");
+  uint8_t regVal = this->read_register(FREQ_DISP_IRQ);
+  return ((regVal &= ~CAP_MASK) * 8); //Multiplied by 8pF
+}
+
+// REG0x08, bits [5,6,7], manufacturer default: 0. 
+// This will send the frequency of the oscillators to the IRQ pin. 
+//  _osc 1, bit[5] = TRCO - System RCO at 32.768kHz
+//  _osc 2, bit[6] = SRCO - Timer RCO Oscillators 1.1MHz
+//  _osc 3, bit[7] = LCO - Frequency of the Antenna
+void AS3935Component::display_oscillator(bool _state, uint8_t _osc) {
+  if( (_osc < 1) || (_osc > 3) )
+    return;
+
+  if(_state == true){
+    if(_osc == 1)
+      this->write_register(FREQ_DISP_IRQ, OSC_MASK, 1, 5); 
+    if(_osc == 2)
+      this->write_register(FREQ_DISP_IRQ, OSC_MASK, 1, 6); 
+    if(_osc == 3)
+      this->write_register(FREQ_DISP_IRQ, OSC_MASK, 1, 7); 
+  }
+
+  if(_state == false){
+    if(_osc == 1)
+      this->write_register(FREQ_DISP_IRQ, OSC_MASK, 0, 5); //Demonstrative
+    if(_osc == 2)
+      this->write_register(FREQ_DISP_IRQ, OSC_MASK, 0, 6); 
+    if(_osc == 3)
+      this->write_register(FREQ_DISP_IRQ, OSC_MASK, 0, 7); 
+  }
+}
+
+// REG0x3D, bits[7:0]
+// This function calibrates both internal oscillators The oscillators are tuned
+// based on the resonance frequency of the antenna and so it should be trimmed
+// before the calibration is done. 
+bool AS3935Component::calibrate_oscillator() {
+  this->write_register(CALIB_RCO, WIPE_ALL, DIRECT_COMMAND, 0); // Send command to calibrate the oscillators 
+  ESP_LOGI(TAG, "Starting oscillators calibration...");
+
+  this->display_oscillator(true, 2);
+  delay(2); // Give time for the internal oscillators to start up.  
+  this->display_oscillator(false, 2); 
+
+  // Check it they were calibrated successfully.   
+  uint8_t regValSrco = this->read_register(CALIB_SRCO);
+  uint8_t regValTrco = this->read_register(CALIB_TRCO);
+
+  regValSrco &= CALIB_MASK; 
+  regValSrco >>= 6;
+  regValTrco &= CALIB_MASK; 
+  regValTrco >>= 6;
+
+  if(!regValSrco && !regValTrco) {// Zero upon success
+    ESP_LOGI(TAG, "Calibration was succesful");
+    return true;
+  } else {
+    ESP_LOGI(TAG, "Calibration was NOT succesful");
+    return false; 
+  }
+}
+
+void AS3935Component::trim_antenna() {
+  ESP_LOGI(TAG, "Starting antenna trimming...");
+  uint8_t div_ratio = this->get_div_ratio();
+  uint8_t tune_val = this->get_tune_cap();
+  ESP_LOGI(TAG, "Division Ratio is set to: %d", div_ratio);
+  ESP_LOGI(TAG, "Internal Capacitor is set to: %d", tune_val);
+  ESP_LOGI(TAG, "Displaying oscillator on INT pin. Measure its frequency - multiply value by DivisionRatio");
+  this->display_oscillator(true, ANTFREQ);
 }
 
 uint8_t AS3935Component::read_register_(uint8_t reg, uint8_t mask) {
