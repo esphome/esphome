@@ -7,8 +7,8 @@
 namespace esphome {
 namespace as3935 {
 
-static const uint8_t DIRECT_COMMAND = 0x96
-static const uint8_t ANTFREQ = 3
+static const uint8_t DIRECT_COMMAND = 0x96;
+static const uint8_t ANTFREQ = 3;
 
 enum AS3935RegisterNames {
   AFE_GAIN = 0x00,
