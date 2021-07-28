@@ -87,7 +87,7 @@ class AS3935Component : public Component {
   uint8_t get_div_ratio();
   uint8_t get_tune_cap();
   bool calibrate_oscillator();
-  void display_oscillator(bool _state, uint8_t _osc);
+  void display_oscillator(bool state, uint8_t osc);
   void trim_antenna();
   void set_trim_antenna(bool trim_antenna) { trim_antenna_ = trim_antenna; }
   void set_calibration(bool calibration) { calibration_ = calibration; }

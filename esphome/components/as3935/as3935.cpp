@@ -231,17 +231,17 @@ uint32_t AS3935Component::get_lightning_energy_() {
 // the IRQ pin is divided by this number.
 uint8_t AS3935Component::get_div_ratio() {
   ESP_LOGV(TAG, "Calling get_div_ratio");
-  uint8_t regVal = this->read_register(INT_MASK_ANT);
-  regVal &= ~DIV_MASK;
-  regVal >>= 6;  // Front of the line.
+  uint8_t reg_val = this->read_register(INT_MASK_ANT);
+  reg_val &= ~DIV_MASK;
+  reg_val >>= 6;  // Front of the line.
 
-  if (regVal == 0)
+  if (reg_val == 0)
     return 16;
-  else if (regVal == 1)
+  else if (reg_val == 1)
     return 32;
-  else if (regVal == 2)
+  else if (reg_val == 2)
     return 64;
-  else if (regVal == 3)
+  else if (reg_val == 3)
     return 128;
   ESP_LOGW(TAG, "Unknown response received for div_ratio");
   return 0;
@@ -249,8 +249,8 @@ uint8_t AS3935Component::get_div_ratio() {
 
 uint8_t AS3935Component::get_tune_cap() {
   ESP_LOGV(TAG, "Calling get_tune_cap");
-  uint8_t regVal = this->read_register(FREQ_DISP_IRQ);
-  return ((regVal &= ~CAP_MASK) * 8);  // Multiplied by 8pF
+  uint8_t reg_val = this->read_register(FREQ_DISP_IRQ);
+  return ((reg_val &= ~CAP_MASK) * 8);  // Multiplied by 8pF
 }
 
 // REG0x08, bits [5,6,7], manufacturer default: 0.
@@ -258,25 +258,25 @@ uint8_t AS3935Component::get_tune_cap() {
 //  _osc 1, bit[5] = TRCO - System RCO at 32.768kHz
 //  _osc 2, bit[6] = SRCO - Timer RCO Oscillators 1.1MHz
 //  _osc 3, bit[7] = LCO - Frequency of the Antenna
-void AS3935Component::display_oscillator(bool _state, uint8_t _osc) {
-  if ((_osc < 1) || (_osc > 3))
+void AS3935Component::display_oscillator(bool _state, uint8_t osc) {
+  if ((osc < 1) || (osc > 3))
     return;
 
-  if (_state == true) {
-    if (_osc == 1)
+  if (_state) {
+    if (osc == 1)
       this->write_register(FREQ_DISP_IRQ, OSC_MASK, 1, 5);
-    if (_osc == 2)
+    if (osc == 2)
       this->write_register(FREQ_DISP_IRQ, OSC_MASK, 1, 6);
-    if (_osc == 3)
+    if (osc == 3)
       this->write_register(FREQ_DISP_IRQ, OSC_MASK, 1, 7);
   }
 
-  if (_state == false) {
-    if (_osc == 1)
+  if (!_state) {
+    if (osc == 1)
       this->write_register(FREQ_DISP_IRQ, OSC_MASK, 0, 5);  // Demonstrative
-    if (_osc == 2)
+    if (osc == 2)
       this->write_register(FREQ_DISP_IRQ, OSC_MASK, 0, 6);
-    if (_osc == 3)
+    if (osc == 3)
       this->write_register(FREQ_DISP_IRQ, OSC_MASK, 0, 7);
   }
 }
@@ -294,15 +294,15 @@ bool AS3935Component::calibrate_oscillator() {
   this->display_oscillator(false, 2);
 
   // Check it they were calibrated successfully.
-  uint8_t regValSrco = this->read_register(CALIB_SRCO);
-  uint8_t regValTrco = this->read_register(CALIB_TRCO);
+  uint8_t reg_val_srco = this->read_register(CALIB_SRCO);
+  uint8_t reg_val_trco = this->read_register(CALIB_TRCO);
 
-  regValSrco &= CALIB_MASK;
-  regValSrco >>= 6;
-  regValTrco &= CALIB_MASK;
-  regValTrco >>= 6;
+  reg_val_srco &= CALIB_MASK;
+  reg_val_srco >>= 6;
+  reg_val_trco &= CALIB_MASK;
+  reg_val_trco >>= 6;
 
-  if (!regValSrco && !regValTrco) {  // Zero upon success
+  if (!reg_val_srco && !reg_val_trco) {  // Zero upon success
     ESP_LOGI(TAG, "Calibration was succesful");
     return true;
   } else {
