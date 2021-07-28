@@ -235,7 +235,7 @@ uint8_t AS3935Component::get_div_ratio() {
   regVal &= ~DIV_MASK;
   regVal >>= 6;  // Front of the line.
 
-  if ( egVal == 0)
+  if (regVal == 0)
     return 16;
   else if (regVal == 1)
     return 32;
