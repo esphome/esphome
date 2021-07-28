@@ -61,7 +61,7 @@ void MCP4728Channel::write_state(float state) {
       channel_enum = MCP4728_CHANNEL_D;
       break;
     default:
-      break;
+      return;
   }
   this->parent_->set_channel_value_(channel_enum, value);
 }
