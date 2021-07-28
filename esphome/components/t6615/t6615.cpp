@@ -18,52 +18,55 @@ static const uint8_t T6615_COMMAND_ENABLE_ABC[] = {0xB7, 0x01};
 static const uint8_t T6615_COMMAND_DISABLE_ABC[] = {0xB7, 0x02};
 static const uint8_t T6615_COMMAND_SET_ELEVATION[] = {0x03, 0x0F};
 
-void T6615Component::setup() {}
-
-void T6615Component::update() { this->publish_ppm_(); }
-
-void T6615Component::publish_ppm_() {
-  if (this->co2_sensor_ == nullptr) {
+void T6615Component::loop() {
+  if (!this->available())
     return;
-  }
-
-  uint8_t response[T6615_RESPONSE_BUFFER_LENGTH];
-  uint8_t length = this->t6615_write_command_(sizeof(T6615_COMMAND_GET_PPM), T6615_COMMAND_GET_PPM, response);
-  if (length == 0) {
-    ESP_LOGW(TAG, "Reading data from T6615 failed!");
-    this->status_set_warning();
-    return;
-  }
-
-  const uint16_t ppm = (response[0] * 255) + response[1];
-  ESP_LOGD(TAG, "T6615 Received CO₂=%uppm", ppm);
-  this->co2_sensor_->publish_state(ppm);
-}
-
-uint8_t T6615Component::t6615_write_command_(uint8_t len, const uint8_t *command, uint8_t *response) {
-  // Empty existing buffer
-  while (this->available()) {
-    this->read();
-  }
-
-  // Send command and wait for response
-  this->write_byte(T6615_MAGIC);
-  this->write_byte(T6615_ADDR_SENSOR);
-  this->write_byte(len);
-  this->write_array(command, len);
-  this->flush();
-  delay(40);
 
   // Read header
   uint8_t header[3];
   this->read_array(header, 3);
   if (header[0] != T6615_MAGIC || header[1] != T6615_ADDR_HOST) {
-    return 0;
+    ESP_LOGW(TAG, "Reading data from T6615 failed!");
+    while (this->available())
+      this->read();  // Clear the incoming buffer
+    this->status_set_warning();
+    return;
   }
 
   // Read body
-  this->read_array(response, header[2]);
-  return header[2];
+  uint8_t length = header[2];
+  uint8_t response[T6615_RESPONSE_BUFFER_LENGTH];
+  this->read_array(response, length);
+
+  this->status_clear_warning();
+
+  switch (this->command_) {
+    case T6615Command::GET_PPM: {
+      const uint16_t ppm = encode_uint16(response[0], response[1]);
+      ESP_LOGD(TAG, "T6615 Received CO₂=%uppm", ppm);
+      this->co2_sensor_->publish_state(ppm);
+      break;
+    }
+    default:
+      break;
+  }
+
+  this->command_ = T6615Command::NONE;
+}
+
+void T6615Component::update() { this->query_ppm_(); }
+
+void T6615Component::query_ppm_() {
+  if (this->co2_sensor_ == nullptr || this->command_ != T6615Command::NONE) {
+    return;
+  }
+
+  this->command_ = T6615Command::GET_PPM;
+
+  this->write_byte(T6615_MAGIC);
+  this->write_byte(T6615_ADDR_SENSOR);
+  this->write_byte(sizeof(T6615_COMMAND_GET_PPM));
+  this->write_array(T6615_COMMAND_GET_PPM, sizeof(T6615_COMMAND_GET_PPM));
 }
 
 float T6615Component::get_setup_priority() const { return setup_priority::DATA; }

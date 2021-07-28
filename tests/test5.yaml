@@ -19,11 +19,18 @@ ota:
 logger:
 
 uart:
-  tx_pin: 1
-  rx_pin: 3
-  baud_rate: 9600
+  - id: uart1
+    tx_pin: 1
+    rx_pin: 3
+    baud_rate: 9600
+  - id: uart2
+    tx_pin: 17
+    rx_pin: 16
+    baud_rate: 19200
+
 
 modbus:
+  uart_id: uart1
 
 binary_sensor:
   - platform: gpio
@@ -99,3 +106,7 @@ sensor:
       name: "SelecEM2M Maximum Demand Reactive Power"
     maximum_demand_apparent_power:
       name: "SelecEM2M Maximum Demand Apparent Power"
+  - platform: t6615
+    uart_id: uart2
+    co2:
+      name: CO2 Sensor

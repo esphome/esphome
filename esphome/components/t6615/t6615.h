@@ -8,19 +8,32 @@
 namespace esphome {
 namespace t6615 {
 
+enum class T6615Command : uint8_t {
+  NONE = 0,
+  GET_PPM,
+  GET_SERIAL,
+  GET_VERSION,
+  GET_ELEVATION,
+  GET_ABC,
+  ENABLE_ABC,
+  DISABLE_ABC,
+  SET_ELEVATION,
+};
+
 class T6615Component : public PollingComponent, public uart::UARTDevice {
  public:
   float get_setup_priority() const override;
 
-  void setup() override;
+  void loop() override;
   void update() override;
   void dump_config() override;
 
-  void set_co2_sensor(sensor::Sensor *co2_sensor) { co2_sensor_ = co2_sensor; }
+  void set_co2_sensor(sensor::Sensor *co2_sensor) { this->co2_sensor_ = co2_sensor; }
 
  protected:
-  uint8_t t6615_write_command_(uint8_t len, const uint8_t *command, uint8_t *response);
-  void publish_ppm_();
+  void query_ppm_();
+
+  T6615Command command_ = T6615Command::NONE;
 
   sensor::Sensor *co2_sensor_{nullptr};
 };
