@@ -11,7 +11,7 @@
 namespace esphome {
 namespace sntp {
 
-static const char *TAG = "sntp";
+static const char *const TAG = "sntp";
 
 void SNTPComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up SNTP...");
@@ -33,10 +33,6 @@ void SNTPComponent::setup() {
     sntp_setservername(2, strdup(this->server_3_.c_str()));
   }
 
-#ifdef ARDUINO_ARCH_ESP8266
-  // let localtime/gmtime handle timezones, not sntp
-  sntp_set_timezone(0);
-#endif
   sntp_init();
 }
 void SNTPComponent::dump_config() {
@@ -46,6 +42,7 @@ void SNTPComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "  Server 3: '%s'", this->server_3_.c_str());
   ESP_LOGCONFIG(TAG, "  Timezone: '%s'", this->timezone_.c_str());
 }
+void SNTPComponent::update() {}
 void SNTPComponent::loop() {
   if (this->has_time_)
     return;
@@ -57,6 +54,7 @@ void SNTPComponent::loop() {
   char buf[128];
   time.strftime(buf, sizeof(buf), "%c");
   ESP_LOGD(TAG, "Synchronized time: %s", buf);
+  this->time_sync_callback_.call();
   this->has_time_ = true;
 }
 

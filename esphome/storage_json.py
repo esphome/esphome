@@ -4,39 +4,50 @@ from datetime import datetime
 import json
 import logging
 import os
+from typing import Any, Optional, List
 
 from esphome import const
 from esphome.core import CORE
 from esphome.helpers import write_file_if_changed
 
-# pylint: disable=unused-import, wrong-import-order
-from esphome.core import CoreType
-from typing import Any, Optional, List
+from esphome.types import CoreType
 
 _LOGGER = logging.getLogger(__name__)
 
 
 def storage_path():  # type: () -> str
-    return CORE.relative_config_path('.esphome', f'{CORE.config_filename}.json')
+    return CORE.relative_config_path(".esphome", f"{CORE.config_filename}.json")
 
 
 def ext_storage_path(base_path, config_filename):  # type: (str, str) -> str
-    return os.path.join(base_path, '.esphome', f'{config_filename}.json')
+    return os.path.join(base_path, ".esphome", f"{config_filename}.json")
 
 
 def esphome_storage_path(base_path):  # type: (str) -> str
-    return os.path.join(base_path, '.esphome', 'esphome.json')
+    return os.path.join(base_path, ".esphome", "esphome.json")
 
 
 def trash_storage_path(base_path):  # type: (str) -> str
-    return os.path.join(base_path, '.esphome', 'trash')
+    return os.path.join(base_path, ".esphome", "trash")
 
 
 # pylint: disable=too-many-instance-attributes
 class StorageJSON:
-    def __init__(self, storage_version, name, comment, esphome_version,
-                 src_version, arduino_version, address, esp_platform, board, build_path,
-                 firmware_bin_path, loaded_integrations):
+    def __init__(
+        self,
+        storage_version,
+        name,
+        comment,
+        esphome_version,
+        src_version,
+        arduino_version,
+        address,
+        esp_platform,
+        board,
+        build_path,
+        firmware_bin_path,
+        loaded_integrations,
+    ):
         # Version of the storage JSON schema
         assert storage_version is None or isinstance(storage_version, int)
         self.storage_version = storage_version  # type: int
@@ -63,33 +74,35 @@ class StorageJSON:
         # The absolute path to the firmware binary
         self.firmware_bin_path = firmware_bin_path  # type: str
         # A list of strings of names of loaded integrations
-        self.loaded_integrations = loaded_integrations   # type: List[str]
+        self.loaded_integrations = loaded_integrations  # type: List[str]
         self.loaded_integrations.sort()
 
     def as_dict(self):
         return {
-            'storage_version': self.storage_version,
-            'name': self.name,
-            'comment': self.comment,
-            'esphome_version': self.esphome_version,
-            'src_version': self.src_version,
-            'arduino_version': self.arduino_version,
-            'address': self.address,
-            'esp_platform': self.esp_platform,
-            'board': self.board,
-            'build_path': self.build_path,
-            'firmware_bin_path': self.firmware_bin_path,
-            'loaded_integrations': self.loaded_integrations,
+            "storage_version": self.storage_version,
+            "name": self.name,
+            "comment": self.comment,
+            "esphome_version": self.esphome_version,
+            "src_version": self.src_version,
+            "arduino_version": self.arduino_version,
+            "address": self.address,
+            "esp_platform": self.esp_platform,
+            "board": self.board,
+            "build_path": self.build_path,
+            "firmware_bin_path": self.firmware_bin_path,
+            "loaded_integrations": self.loaded_integrations,
         }
 
     def to_json(self):
-        return json.dumps(self.as_dict(), indent=2) + '\n'
+        return json.dumps(self.as_dict(), indent=2) + "\n"
 
     def save(self, path):
         write_file_if_changed(path, self.to_json())
 
     @staticmethod
-    def from_esphome_core(esph, old):  # type: (CoreType, Optional[StorageJSON]) -> StorageJSON
+    def from_esphome_core(
+        esph, old
+    ):  # type: (CoreType, Optional[StorageJSON]) -> StorageJSON
         return StorageJSON(
             storage_version=1,
             name=esph.name,
@@ -125,23 +138,36 @@ class StorageJSON:
 
     @staticmethod
     def _load_impl(path):  # type: (str) -> Optional[StorageJSON]
-        with codecs.open(path, 'r', encoding='utf-8') as f_handle:
+        with codecs.open(path, "r", encoding="utf-8") as f_handle:
             storage = json.load(f_handle)
-        storage_version = storage['storage_version']
-        name = storage.get('name')
-        comment = storage.get('comment')
-        esphome_version = storage.get('esphome_version', storage.get('esphomeyaml_version'))
-        src_version = storage.get('src_version')
-        arduino_version = storage.get('arduino_version')
-        address = storage.get('address')
-        esp_platform = storage.get('esp_platform')
-        board = storage.get('board')
-        build_path = storage.get('build_path')
-        firmware_bin_path = storage.get('firmware_bin_path')
-        loaded_integrations = storage.get('loaded_integrations', [])
-        return StorageJSON(storage_version, name, comment, esphome_version,
-                           src_version, arduino_version, address, esp_platform, board, build_path,
-                           firmware_bin_path, loaded_integrations)
+        storage_version = storage["storage_version"]
+        name = storage.get("name")
+        comment = storage.get("comment")
+        esphome_version = storage.get(
+            "esphome_version", storage.get("esphomeyaml_version")
+        )
+        src_version = storage.get("src_version")
+        arduino_version = storage.get("arduino_version")
+        address = storage.get("address")
+        esp_platform = storage.get("esp_platform")
+        board = storage.get("board")
+        build_path = storage.get("build_path")
+        firmware_bin_path = storage.get("firmware_bin_path")
+        loaded_integrations = storage.get("loaded_integrations", [])
+        return StorageJSON(
+            storage_version,
+            name,
+            comment,
+            esphome_version,
+            src_version,
+            arduino_version,
+            address,
+            esp_platform,
+            board,
+            build_path,
+            firmware_bin_path,
+            loaded_integrations,
+        )
 
     @staticmethod
     def load(path):  # type: (str) -> Optional[StorageJSON]
@@ -155,8 +181,9 @@ class StorageJSON:
 
 
 class EsphomeStorageJSON:
-    def __init__(self, storage_version, cookie_secret, last_update_check,
-                 remote_version):
+    def __init__(
+        self, storage_version, cookie_secret, last_update_check, remote_version
+    ):
         # Version of the storage JSON schema
         assert storage_version is None or isinstance(storage_version, int)
         self.storage_version = storage_version  # type: int
@@ -169,10 +196,10 @@ class EsphomeStorageJSON:
 
     def as_dict(self):  # type: () -> dict
         return {
-            'storage_version': self.storage_version,
-            'cookie_secret': self.cookie_secret,
-            'last_update_check': self.last_update_check_str,
-            'remote_version': self.remote_version,
+            "storage_version": self.storage_version,
+            "cookie_secret": self.cookie_secret,
+            "last_update_check": self.last_update_check_str,
+            "remote_version": self.remote_version,
         }
 
     @property
@@ -187,21 +214,22 @@ class EsphomeStorageJSON:
         self.last_update_check_str = new.strftime("%Y-%m-%dT%H:%M:%S")
 
     def to_json(self):  # type: () -> dict
-        return json.dumps(self.as_dict(), indent=2) + '\n'
+        return json.dumps(self.as_dict(), indent=2) + "\n"
 
     def save(self, path):  # type: (str) -> None
         write_file_if_changed(path, self.to_json())
 
     @staticmethod
     def _load_impl(path):  # type: (str) -> Optional[EsphomeStorageJSON]
-        with codecs.open(path, 'r', encoding='utf-8') as f_handle:
+        with codecs.open(path, "r", encoding="utf-8") as f_handle:
             storage = json.load(f_handle)
-        storage_version = storage['storage_version']
-        cookie_secret = storage.get('cookie_secret')
-        last_update_check = storage.get('last_update_check')
-        remote_version = storage.get('remote_version')
-        return EsphomeStorageJSON(storage_version, cookie_secret, last_update_check,
-                                  remote_version)
+        storage_version = storage["storage_version"]
+        cookie_secret = storage.get("cookie_secret")
+        last_update_check = storage.get("last_update_check")
+        remote_version = storage.get("remote_version")
+        return EsphomeStorageJSON(
+            storage_version, cookie_secret, last_update_check, remote_version
+        )
 
     @staticmethod
     def load(path):  # type: (str) -> Optional[EsphomeStorageJSON]

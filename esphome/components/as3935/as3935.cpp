@@ -4,7 +4,7 @@
 namespace esphome {
 namespace as3935 {
 
-static const char *TAG = "as3935";
+static const char *const TAG = "as3935";
 
 void AS3935Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up AS3935...");
@@ -26,6 +26,9 @@ void AS3935Component::setup() {
 void AS3935Component::dump_config() {
   ESP_LOGCONFIG(TAG, "AS3935:");
   LOG_PIN("  Interrupt Pin: ", this->irq_pin_);
+  LOG_BINARY_SENSOR("  ", "Thunder alert", this->thunder_alert_binary_sensor_);
+  LOG_SENSOR("  ", "Distance", this->distance_sensor_);
+  LOG_SENSOR("  ", "Lightning energy", this->energy_sensor_);
 }
 
 float AS3935Component::get_setup_priority() const { return setup_priority::DATA; }

@@ -4,7 +4,7 @@
 namespace esphome {
 namespace resistance {
 
-static const char *TAG = "resistance";
+static const char *const TAG = "resistance";
 
 void ResistanceSensor::dump_config() {
   LOG_SENSOR("", "Resistance Sensor", this);

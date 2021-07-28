@@ -18,7 +18,7 @@ class E131AddressableLightEffect : public light::AddressableLightEffect {
  public:
   void start() override;
   void stop() override;
-  void apply(light::AddressableLight &it, const light::ESPColor &current_color) override;
+  void apply(light::AddressableLight &it, const Color &current_color) override;
 
  public:
   int get_data_per_universe() const;

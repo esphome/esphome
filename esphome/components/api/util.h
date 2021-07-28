@@ -48,6 +48,9 @@ class ComponentIterator {
 #ifdef USE_CLIMATE
   virtual bool on_climate(climate::Climate *climate) = 0;
 #endif
+#ifdef USE_NUMBER
+  virtual bool on_number(number::Number *number) = 0;
+#endif
   virtual bool on_end();
 
  protected:
@@ -81,6 +84,9 @@ class ComponentIterator {
 #endif
 #ifdef USE_CLIMATE
     CLIMATE,
+#endif
+#ifdef USE_NUMBER
+    NUMBER,
 #endif
     MAX,
   } state_{IteratorState::NONE};

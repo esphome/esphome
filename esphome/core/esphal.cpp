@@ -18,7 +18,7 @@ void ICACHE_RAM_ATTR __detachInterrupt(uint8_t pin);  // NOLINT
 
 namespace esphome {
 
-static const char *TAG = "esphal";
+static const char *const TAG = "esphal";
 
 GPIOPin::GPIOPin(uint8_t pin, uint8_t mode, bool inverted)
     : pin_(pin),
@@ -27,11 +27,16 @@ GPIOPin::GPIOPin(uint8_t pin, uint8_t mode, bool inverted)
 #ifdef ARDUINO_ARCH_ESP8266
       gpio_read_(pin < 16 ? &GPI : &GP16I),
       gpio_mask_(pin < 16 ? (1UL << pin) : 1)
-#endif
-#ifdef ARDUINO_ARCH_ESP32
-          gpio_set_(pin < 32 ? &GPIO.out_w1ts : &GPIO.out1_w1ts.val),
+#elif ARDUINO_ARCH_ESP32
+#ifdef CONFIG_IDF_TARGET_ESP32C3
+      gpio_set_(&GPIO.out_w1ts.val),
+      gpio_clear_(&GPIO.out_w1tc.val),
+      gpio_read_(&GPIO.in.val),
+#else
+      gpio_set_(pin < 32 ? &GPIO.out_w1ts : &GPIO.out1_w1ts.val),
       gpio_clear_(pin < 32 ? &GPIO.out_w1tc : &GPIO.out1_w1tc.val),
       gpio_read_(pin < 32 ? &GPIO.in : &GPIO.in1.val),
+#endif
       gpio_mask_(pin < 32 ? (1UL << pin) : (1UL << (pin - 32)))
 #endif
 {
@@ -194,11 +199,15 @@ void ICACHE_RAM_ATTR ISRInternalGPIOPin::clear_interrupt() {
   GPIO_REG_WRITE(GPIO_STATUS_W1TC_ADDRESS, this->gpio_mask_);
 #endif
 #ifdef ARDUINO_ARCH_ESP32
+#ifdef CONFIG_IDF_TARGET_ESP32C3
+  GPIO.status_w1tc.val = this->gpio_mask_;
+#else
   if (this->pin_ < 32) {
     GPIO.status_w1tc = this->gpio_mask_;
   } else {
     GPIO.status1_w1tc.intr_st = this->gpio_mask_;
   }
+#endif
 #endif
 }
 
@@ -271,6 +280,22 @@ ISRInternalGPIOPin *GPIOPin::to_isr() const {
                                 this->gpio_read_, this->gpio_mask_, this->inverted_);
 }
 
+void force_link_symbols() {
+#ifdef ARDUINO_ARCH_ESP8266
+  // Tasmota uses magic bytes in the binary to check if an OTA firmware is compatible
+  // with their settings - ESPHome uses a different settings system (that can also survive
+  // erases). So set magic bytes indicating all tasmota versions are supported.
+  // This only adds 12 bytes of binary size, which is an acceptable price to pay for easier support
+  // for Tasmota.
+  // https://github.com/arendst/Tasmota/blob/b05301b1497942167a015a6113b7f424e42942cd/tasmota/settings.ino#L346-L380
+  // https://github.com/arendst/Tasmota/blob/b05301b1497942167a015a6113b7f424e42942cd/tasmota/i18n.h#L652-L654
+  const static uint32_t TASMOTA_MAGIC_BYTES[] PROGMEM = {0x5AA55AA5, 0xFFFFFFFF, 0xA55AA55A};
+  // Force link symbol by using a volatile integer (GCC attribute used does not work because of LTO)
+  volatile int x = 0;
+  x = TASMOTA_MAGIC_BYTES[x];
+#endif
+}
+
 }  // namespace esphome
 
 #ifdef ARDUINO_ESP8266_RELEASE_2_3_0
@@ -287,4 +312,15 @@ void *memchr(const void *s, int c, size_t n) {
   return nullptr;
 }
 };
+#endif
+
+#ifdef ARDUINO_ARCH_ESP8266
+extern "C" {
+extern void resetPins() {  // NOLINT
+  // Added in framework 2.7.0
+  // usually this sets up all pins to be in INPUT mode
+  // however, not strictly needed as we set up the pins properly
+  // ourselves and this causes pins to toggle during reboot.
+}
+}
 #endif

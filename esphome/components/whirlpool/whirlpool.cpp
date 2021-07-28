@@ -4,7 +4,7 @@
 namespace esphome {
 namespace whirlpool {
 
-static const char *TAG = "whirlpool.climate";
+static const char *const TAG = "whirlpool.climate";
 
 const uint16_t WHIRLPOOL_HEADER_MARK = 9000;
 const uint16_t WHIRLPOOL_HEADER_SPACE = 4494;
@@ -41,14 +41,14 @@ void WhirlpoolClimate::transmit_state() {
   remote_state[18] = 0x08;
 
   auto powered_on = this->mode != climate::CLIMATE_MODE_OFF;
-  if (powered_on != this->powered_on_assumed_) {
+  if (powered_on != this->powered_on_assumed) {
     // Set power toggle command
     remote_state[2] = 4;
     remote_state[15] = 1;
-    this->powered_on_assumed_ = powered_on;
+    this->powered_on_assumed = powered_on;
   }
   switch (this->mode) {
-    case climate::CLIMATE_MODE_AUTO:
+    case climate::CLIMATE_MODE_HEAT_COOL:
       // set fan auto
       // set temp auto temp
       // set sleep false
@@ -81,7 +81,7 @@ void WhirlpoolClimate::transmit_state() {
   remote_state[3] |= (uint8_t)(temp - this->temperature_min_()) << 4;
 
   // Fan speed
-  switch (this->fan_mode) {
+  switch (this->fan_mode.value()) {
     case climate::CLIMATE_FAN_HIGH:
       remote_state[2] |= WHIRLPOOL_FAN_HIGH;
       break;
@@ -105,7 +105,7 @@ void WhirlpoolClimate::transmit_state() {
   }
 
   // Checksum
-  for (uint8_t i = 2; i < 12; i++)
+  for (uint8_t i = 2; i < 13; i++)
     remote_state[13] ^= remote_state[i];
   for (uint8_t i = 14; i < 20; i++)
     remote_state[20] ^= remote_state[i];
@@ -184,7 +184,7 @@ bool WhirlpoolClimate::on_receive(remote_base::RemoteReceiveData data) {
   uint8_t checksum13 = 0;
   uint8_t checksum20 = 0;
   // Calculate  checksum and compare with signal value.
-  for (uint8_t i = 2; i < 12; i++)
+  for (uint8_t i = 2; i < 13; i++)
     checksum13 ^= remote_state[i];
   for (uint8_t i = 14; i < 20; i++)
     checksum20 ^= remote_state[i];
@@ -215,14 +215,14 @@ bool WhirlpoolClimate::on_receive(remote_base::RemoteReceiveData data) {
 
     if (powered_on) {
       this->mode = climate::CLIMATE_MODE_OFF;
-      this->powered_on_assumed_ = false;
+      this->powered_on_assumed = false;
     } else {
-      this->powered_on_assumed_ = true;
+      this->powered_on_assumed = true;
     }
   }
 
   // Set received mode
-  if (powered_on_assumed_) {
+  if (powered_on_assumed) {
     auto mode = remote_state[3] & 0x7;
     ESP_LOGV(TAG, "Mode: %02X", mode);
     switch (mode) {
@@ -239,7 +239,7 @@ bool WhirlpoolClimate::on_receive(remote_base::RemoteReceiveData data) {
         this->mode = climate::CLIMATE_MODE_FAN_ONLY;
         break;
       case WHIRLPOOL_AUTO:
-        this->mode = climate::CLIMATE_MODE_AUTO;
+        this->mode = climate::CLIMATE_MODE_HEAT_COOL;
         break;
     }
   }

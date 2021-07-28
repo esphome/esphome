@@ -103,6 +103,10 @@ venv.bak/
 # mypy
 .mypy_cache/
 
+# PlatformIO
+.pio/
+
+# ESPHome
 config/
 examples/
 Dockerfile

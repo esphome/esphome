@@ -38,7 +38,7 @@ class FastLEDLightOutput : public light::AddressableLight {
     return *this->controller_;
   }
 
-  template<ESPIChipsets CHIPSET, uint8_t DATA_PIN, uint8_t CLOCK_PIN, EOrder RGB_ORDER, uint8_t SPI_DATA_RATE>
+  template<ESPIChipsets CHIPSET, uint8_t DATA_PIN, uint8_t CLOCK_PIN, EOrder RGB_ORDER, uint32_t SPI_DATA_RATE>
   CLEDController &add_leds(int num_leds) {
     switch (CHIPSET) {
       case LPD8806: {

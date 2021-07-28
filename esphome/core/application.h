@@ -32,13 +32,21 @@
 #ifdef USE_COVER
 #include "esphome/components/cover/cover.h"
 #endif
+#ifdef USE_NUMBER
+#include "esphome/components/number/number.h"
+#endif
 
 namespace esphome {
 
 class Application {
  public:
-  void pre_setup(const std::string &name, const char *compilation_time) {
-    this->name_ = name;
+  void pre_setup(const std::string &name, const char *compilation_time, bool name_add_mac_suffix) {
+    this->name_add_mac_suffix_ = name_add_mac_suffix;
+    if (name_add_mac_suffix) {
+      this->name_ = name + "-" + get_mac_address().substr(6);
+    } else {
+      this->name_ = name;
+    }
     this->compilation_time_ = compilation_time;
     global_preferences.begin();
   }
@@ -77,6 +85,10 @@ class Application {
   void register_light(light::LightState *light) { this->lights_.push_back(light); }
 #endif
 
+#ifdef USE_NUMBER
+  void register_number(number::Number *number) { this->numbers_.push_back(number); }
+#endif
+
   /// Register the component in this Application instance.
   template<class C> C *register_component(C *c) {
     static_assert(std::is_base_of<Component, C>::value, "Only Component subclasses can be registered");
@@ -92,6 +104,8 @@ class Application {
 
   /// Get the name of this Application set by set_name().
   const std::string &get_name() const { return this->name_; }
+
+  bool is_name_add_mac_suffix_enabled() const { return this->name_add_mac_suffix_; }
 
   const std::string &get_compilation_time() const { return this->compilation_time_; }
 
@@ -201,6 +215,15 @@ class Application {
     return nullptr;
   }
 #endif
+#ifdef USE_NUMBER
+  const std::vector<number::Number *> &get_numbers() { return this->numbers_; }
+  number::Number *get_number_by_key(uint32_t key, bool include_internal = false) {
+    for (auto *obj : this->numbers_)
+      if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal()))
+        return obj;
+    return nullptr;
+  }
+#endif
 
   Scheduler scheduler;
 
@@ -238,9 +261,13 @@ class Application {
 #ifdef USE_LIGHT
   std::vector<light::LightState *> lights_{};
 #endif
+#ifdef USE_NUMBER
+  std::vector<number::Number *> numbers_{};
+#endif
 
   std::string name_;
   std::string compilation_time_;
+  bool name_add_mac_suffix_;
   uint32_t last_loop_{0};
   uint32_t loop_interval_{16};
   int dump_config_at_{-1};
@@ -248,6 +275,6 @@ class Application {
 };
 
 /// Global storage of Application pointer - only one Application can exist.
-extern Application App;
+extern Application App;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 }  // namespace esphome

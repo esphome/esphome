@@ -1,22 +1,10 @@
-FROM esphome/esphome-base-amd64:2.1.1
+ARG BUILD_FROM=esphome/esphome-lint-base:latest
+FROM ${BUILD_FROM}
 
+COPY requirements.txt requirements_optional.txt requirements_test.txt docker/platformio_install_deps.py  platformio.ini /
 RUN \
-    apt-get update \
-    && apt-get install -y --no-install-recommends \
-        clang-format-7 \
-        clang-tidy-7 \
-        patch \
-        software-properties-common \
-    && apt-add-repository ppa:git-core/ppa \
-    && apt-get install -y --no-install-recommends \
-        git \
-    && rm -rf \
-        /tmp/* \
-        /var/{cache,log}/* \
-        /var/lib/apt/lists/*
-
-COPY requirements_test.txt /requirements_test.txt
-RUN pip3 install --no-cache-dir wheel && pip3 install --no-cache-dir -r /requirements_test.txt
+    pip3 install --no-cache-dir -r /requirements.txt -r /requirements_optional.txt -r /requirements_test.txt \
+    && /platformio_install_deps.py /platformio.ini
 
 VOLUME ["/esphome"]
 WORKDIR /esphome

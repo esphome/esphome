@@ -13,21 +13,57 @@
 namespace esphome {
 namespace vl53l0x {
 
-static const char *TAG = "vl53l0x";
+static const char *const TAG = "vl53l0x";
+
+std::list<VL53L0XSensor *> VL53L0XSensor::vl53_sensors;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+bool VL53L0XSensor::enable_pin_setup_complete = false;   // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
+VL53L0XSensor::VL53L0XSensor() { VL53L0XSensor::vl53_sensors.push_back(this); }
 
 void VL53L0XSensor::dump_config() {
   LOG_SENSOR("", "VL53L0X", this);
   LOG_UPDATE_INTERVAL(this);
   LOG_I2C_DEVICE(this);
+  if (this->enable_pin_ != nullptr) {
+    LOG_PIN("  Enable Pin: ", this->enable_pin_);
+  }
+  ESP_LOGCONFIG(TAG, "  Timeout: %u%s", this->timeout_us_, this->timeout_us_ > 0 ? "us" : " (no timeout)");
 }
+
 void VL53L0XSensor::setup() {
+  ESP_LOGD(TAG, "'%s' - setup BEGIN", this->name_.c_str());
+
+  if (!esphome::vl53l0x::VL53L0XSensor::enable_pin_setup_complete) {
+    for (auto &vl53_sensor : vl53_sensors) {
+      if (vl53_sensor->enable_pin_ != nullptr) {
+        // Disable the enable pin to force vl53 to HW Standby mode
+        ESP_LOGD(TAG, "i2c vl53l0x disable enable pins: GPIO%u", (vl53_sensor->enable_pin_)->get_pin());
+        // Set enable pin as OUTPUT and disable the enable pin to force vl53 to HW Standby mode
+        vl53_sensor->enable_pin_->setup();
+        vl53_sensor->enable_pin_->digital_write(false);
+      }
+    }
+    esphome::vl53l0x::VL53L0XSensor::enable_pin_setup_complete = true;
+  }
+
+  if (this->enable_pin_ != nullptr) {
+    // Enable the enable pin to cause FW boot (to get back to 0x29 default address)
+    this->enable_pin_->digital_write(true);
+    delayMicroseconds(100);
+  }
+
+  // Save the i2c address we want and force it to use the default 0x29
+  // until we finish setup, then re-address to final desired address.
+  uint8_t final_address = address_;
+  this->set_i2c_address(0x29);
+
   reg(0x89) |= 0x01;
   reg(0x88) = 0x00;
 
   reg(0x80) = 0x01;
   reg(0xFF) = 0x01;
   reg(0x00) = 0x00;
-  stop_variable_ = reg(0x91).get();
+  this->stop_variable_ = reg(0x91).get();
 
   reg(0x00) = 0x01;
   reg(0xFF) = 0x00;
@@ -52,8 +88,15 @@ void VL53L0XSensor::setup() {
   reg(0x94) = 0x6B;
   reg(0x83) = 0x00;
 
-  while (reg(0x83).get() == 0x00)
+  this->timeout_start_us_ = micros();
+  while (reg(0x83).get() == 0x00) {
+    if (this->timeout_us_ > 0 && ((uint16_t)(micros() - this->timeout_start_us_) > this->timeout_us_)) {
+      ESP_LOGE(TAG, "'%s' - setup timeout", this->name_.c_str());
+      this->mark_failed();
+      return;
+    }
     yield();
+  }
 
   reg(0x83) = 0x01;
   uint8_t tmp = reg(0x92).get();
@@ -205,11 +248,22 @@ void VL53L0XSensor::setup() {
     return;
   }
   reg(0x01) = 0xE8;
+
+  // Set the sensor to the desired final address
+  // The following is different for VL53L0X vs VL53L1X
+  // I2C_SXXXX_DEVICE_ADDRESS = 0x8A for VL53L0X
+  // I2C_SXXXX__DEVICE_ADDRESS = 0x0001 for VL53L1X
+  reg(0x8A) = final_address & 0x7F;
+  this->set_i2c_address(final_address);
+
+  ESP_LOGD(TAG, "'%s' - setup END", this->name_.c_str());
 }
 void VL53L0XSensor::update() {
   if (this->initiated_read_ || this->waiting_for_interrupt_) {
     this->publish_state(NAN);
-    this->status_set_warning();
+    this->status_momentary_warning("update", 5000);
+    ESP_LOGW(TAG, "%s - update called before prior reading complete - initiated:%d waiting_for_interrupt:%d",
+             this->name_.c_str(), this->initiated_read_, this->waiting_for_interrupt_);
   }
 
   // initiate single shot measurement
@@ -217,7 +271,7 @@ void VL53L0XSensor::update() {
   reg(0xFF) = 0x01;
 
   reg(0x00) = 0x00;
-  reg(0x91) = stop_variable_;
+  reg(0x91) = this->stop_variable_;
   reg(0x00) = 0x01;
   reg(0xFF) = 0x00;
   reg(0x80) = 0x00;
@@ -246,7 +300,7 @@ void VL53L0XSensor::loop() {
       this->waiting_for_interrupt_ = false;
 
       if (range_mm >= 8190) {
-        ESP_LOGW(TAG, "'%s' - Distance is out of range, please move the target closer", this->name_.c_str());
+        ESP_LOGD(TAG, "'%s' - Distance is out of range, please move the target closer", this->name_.c_str());
         this->publish_state(NAN);
         return;
       }
