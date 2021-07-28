@@ -13,6 +13,7 @@ namespace hrxl_maxsonar_wr {
 
 static const char *const TAG = "hrxl.maxsonar.wr.sensor";
 static const uint8_t ASCII_CR = 0x0D;
+static const uint8_t ASCII_NBSP = 0xFF;
 static const int MAX_DATA_LENGTH_BYTES = 6;
 
 /**
@@ -30,14 +31,23 @@ void HrxlMaxsonarWrComponent::loop() {
 }
 
 void HrxlMaxsonarWrComponent::check_buffer_() {
+  // The sensor seems to inject a rogue ASCII 255 byte from time to time. Get rid of that.
+  if (this->buffer_.back() == ASCII_NBSP) {
+    this->buffer_.pop_back();
+    return;
+  }
+
   // Stop reading at ASCII_CR. Also prevent the buffer from growing
   // indefinitely if no ASCII_CR is received after MAX_DATA_LENGTH_BYTES.
   if (this->buffer_.back() == ASCII_CR || this->buffer_.length() >= MAX_DATA_LENGTH_BYTES) {
     ESP_LOGV(TAG, "Read from serial: %s", this->buffer_.c_str());
-    if (this->buffer_.length() == MAX_DATA_LENGTH_BYTES && this->buffer_[0] == 'R' && this->buffer_.back() == ASCII_CR) {
-      int millimeters = atoi(this->buffer_.substr(1, MAX_DATA_LENGTH_BYTES - 2).c_str());
+
+    if (this->buffer_.length() == MAX_DATA_LENGTH_BYTES && this->buffer_[0] == 'R' &&
+        this->buffer_.back() == ASCII_CR) {
+
+      int millimeters = strtol(this->buffer_.substr(1, MAX_DATA_LENGTH_BYTES - 2).c_str(), nullptr, 10);
       float meters = float(millimeters) / 1000.0;
-      ESP_LOGV(TAG, "Distance from sensor: %u mm, %f m", millis, meters);
+      ESP_LOGV(TAG, "Distance from sensor: %lu mm, %f m", millis, meters);
       this->publish_state(meters);
     } else {
       ESP_LOGW(TAG, "Invalid data read from sensor: %s", this->buffer_.c_str());
