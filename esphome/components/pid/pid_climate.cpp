@@ -35,8 +35,8 @@ void PIDClimate::control(const climate::ClimateCall &call) {
   if (call.get_target_temperature().has_value())
     this->target_temperature = *call.get_target_temperature();
 
-  // If switching to non-auto mode, set output immediately
-  if (this->mode != climate::CLIMATE_MODE_HEAT_COOL)
+  // If switching to off mode, set output immediately
+  if (this->mode == climate::CLIMATE_MODE_OFF)
     this->handle_non_auto_mode_();
 
   this->publish_state();

@@ -3,13 +3,16 @@ import esphome.config_validation as cv
 from esphome.components import i2c, sensor
 from esphome.const import (
     CONF_ID,
+    CONF_BASELINE,
     DEVICE_CLASS_EMPTY,
+    CONF_ECO2,
+    CONF_TVOC,
     ICON_RADIATOR,
     STATE_CLASS_MEASUREMENT,
     UNIT_PARTS_PER_MILLION,
     UNIT_PARTS_PER_BILLION,
+    UNIT_EMPTY,
     ICON_MOLECULE_CO2,
-    CONF_TVOC,
 )
 
 DEPENDENCIES = ["i2c"]
@@ -17,10 +20,9 @@ DEPENDENCIES = ["i2c"]
 sgp30_ns = cg.esphome_ns.namespace("sgp30")
 SGP30Component = sgp30_ns.class_("SGP30Component", cg.PollingComponent, i2c.I2CDevice)
 
-CONF_ECO2 = "eco2"
-CONF_BASELINE = "baseline"
 CONF_ECO2_BASELINE = "eco2_baseline"
 CONF_TVOC_BASELINE = "tvoc_baseline"
+CONF_STORE_BASELINE = "store_baseline"
 CONF_UPTIME = "uptime"
 CONF_COMPENSATION = "compensation"
 CONF_HUMIDITY_SOURCE = "humidity_source"
@@ -44,6 +46,13 @@ CONFIG_SCHEMA = (
                 DEVICE_CLASS_EMPTY,
                 STATE_CLASS_MEASUREMENT,
             ),
+            cv.Optional(CONF_ECO2_BASELINE): sensor.sensor_schema(
+                UNIT_EMPTY, ICON_MOLECULE_CO2, 0, DEVICE_CLASS_EMPTY
+            ),
+            cv.Optional(CONF_TVOC_BASELINE): sensor.sensor_schema(
+                UNIT_EMPTY, ICON_RADIATOR, 0, DEVICE_CLASS_EMPTY
+            ),
+            cv.Optional(CONF_STORE_BASELINE, default=True): cv.boolean,
             cv.Optional(CONF_BASELINE): cv.Schema(
                 {
                     cv.Required(CONF_ECO2_BASELINE): cv.hex_uint16_t,
@@ -58,7 +67,7 @@ CONFIG_SCHEMA = (
             ),
         }
     )
-    .extend(cv.polling_component_schema("60s"))
+    .extend(cv.polling_component_schema("1s"))
     .extend(i2c.i2c_device_schema(0x58))
 )
 
@@ -75,6 +84,17 @@ async def to_code(config):
     if CONF_TVOC in config:
         sens = await sensor.new_sensor(config[CONF_TVOC])
         cg.add(var.set_tvoc_sensor(sens))
+
+    if CONF_ECO2_BASELINE in config:
+        sens = await sensor.new_sensor(config[CONF_ECO2_BASELINE])
+        cg.add(var.set_eco2_baseline_sensor(sens))
+
+    if CONF_TVOC_BASELINE in config:
+        sens = await sensor.new_sensor(config[CONF_TVOC_BASELINE])
+        cg.add(var.set_tvoc_baseline_sensor(sens))
+
+    if CONF_STORE_BASELINE in config:
+        cg.add(var.set_store_baseline(config[CONF_STORE_BASELINE]))
 
     if CONF_BASELINE in config:
         baseline_config = config[CONF_BASELINE]

@@ -21,6 +21,7 @@ from esphome.const import (
     ICON_EMPTY,
     ICON_LIGHTBULB,
     ICON_CURRENT_AC,
+    LAST_RESET_TYPE_AUTO,
     STATE_CLASS_MEASUREMENT,
     UNIT_HERTZ,
     UNIT_VOLT,
@@ -91,10 +92,20 @@ ATM90E32_PHASE_SCHEMA = cv.Schema(
             STATE_CLASS_MEASUREMENT,
         ),
         cv.Optional(CONF_FORWARD_ACTIVE_ENERGY): sensor.sensor_schema(
-            UNIT_WATT_HOURS, ICON_EMPTY, 2, DEVICE_CLASS_ENERGY, STATE_CLASS_MEASUREMENT
+            UNIT_WATT_HOURS,
+            ICON_EMPTY,
+            2,
+            DEVICE_CLASS_ENERGY,
+            STATE_CLASS_MEASUREMENT,
+            LAST_RESET_TYPE_AUTO,
         ),
         cv.Optional(CONF_REVERSE_ACTIVE_ENERGY): sensor.sensor_schema(
-            UNIT_WATT_HOURS, ICON_EMPTY, 2, DEVICE_CLASS_ENERGY, STATE_CLASS_MEASUREMENT
+            UNIT_WATT_HOURS,
+            ICON_EMPTY,
+            2,
+            DEVICE_CLASS_ENERGY,
+            STATE_CLASS_MEASUREMENT,
+            LAST_RESET_TYPE_AUTO,
         ),
         cv.Optional(CONF_GAIN_VOLTAGE, default=7305): cv.uint16_t,
         cv.Optional(CONF_GAIN_CT, default=27961): cv.uint16_t,

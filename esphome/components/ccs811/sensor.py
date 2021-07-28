@@ -8,6 +8,8 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_PARTS_PER_MILLION,
     UNIT_PARTS_PER_BILLION,
+    CONF_BASELINE,
+    CONF_ECO2,
     CONF_TEMPERATURE,
     CONF_TVOC,
     CONF_HUMIDITY,
@@ -20,9 +22,6 @@ ccs811_ns = cg.esphome_ns.namespace("ccs811")
 CCS811Component = ccs811_ns.class_(
     "CCS811Component", cg.PollingComponent, i2c.I2CDevice
 )
-
-CONF_ECO2 = "eco2"
-CONF_BASELINE = "baseline"
 
 CONFIG_SCHEMA = (
     cv.Schema(

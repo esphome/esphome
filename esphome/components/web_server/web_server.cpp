@@ -119,6 +119,12 @@ void WebServer::setup() {
       if (!obj->is_internal())
         client->send(this->cover_json(obj).c_str(), "state");
 #endif
+
+#ifdef USE_NUMBER
+    for (auto *obj : App.get_numbers())
+      if (!obj->is_internal())
+        client->send(this->number_json(obj, obj->state).c_str(), "state");
+#endif
   });
 
 #ifdef USE_LOGGER
@@ -194,6 +200,11 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
 #ifdef USE_COVER
   for (auto *obj : App.get_covers())
     write_row(stream, obj, "cover", "<button>Open</button><button>Close</button>");
+#endif
+
+#ifdef USE_NUMBER
+  for (auto *obj : App.get_numbers())
+    write_row(stream, obj, "number", "");
 #endif
 
   stream->print(F("</tbody></table><p>See <a href=\"https://esphome.io/web-api/index.html\">ESPHome Web API</a> for "
@@ -584,6 +595,33 @@ std::string WebServer::cover_json(cover::Cover *obj) {
 }
 #endif
 
+#ifdef USE_NUMBER
+void WebServer::on_number_update(number::Number *obj, float state) {
+  this->events_.send(this->number_json(obj, state).c_str(), "state");
+}
+void WebServer::handle_number_request(AsyncWebServerRequest *request, const UrlMatch &match) {
+  for (auto *obj : App.get_numbers()) {
+    if (obj->is_internal())
+      continue;
+    if (obj->get_object_id() != match.id)
+      continue;
+    std::string data = this->number_json(obj, obj->state);
+    request->send(200, "text/json", data.c_str());
+    return;
+  }
+  request->send(404);
+}
+std::string WebServer::number_json(number::Number *obj, float value) {
+  return json::build_json([obj, value](JsonObject &root) {
+    root["id"] = "number-" + obj->get_object_id();
+    char buffer[64];
+    snprintf(buffer, sizeof(buffer), "%f", value);
+    root["state"] = buffer;
+    root["value"] = value;
+  });
+}
+#endif
+
 bool WebServer::canHandle(AsyncWebServerRequest *request) {
   if (request->url() == "/")
     return true;
@@ -633,6 +671,11 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) {
 
 #ifdef USE_COVER
   if ((request->method() == HTTP_POST || request->method() == HTTP_GET) && match.domain == "cover")
+    return true;
+#endif
+
+#ifdef USE_NUMBER
+  if (request->method() == HTTP_GET && match.domain == "number")
     return true;
 #endif
 
@@ -708,6 +751,13 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
 #ifdef USE_COVER
   if (match.domain == "cover") {
     this->handle_cover_request(request, match);
+    return;
+  }
+#endif
+
+#ifdef USE_NUMBER
+  if (match.domain == "number") {
+    this->handle_number_request(request, match);
     return;
   }
 #endif

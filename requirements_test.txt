@@ -1,6 +1,6 @@
-pylint==2.8.2
+pylint==2.9.5
 flake8==3.9.2
-black==21.5b1
+black==21.7b0
 pexpect==4.8.0
 pre-commit
 

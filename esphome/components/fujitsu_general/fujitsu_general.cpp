@@ -110,7 +110,7 @@ void FujitsuGeneralClimate::transmit_state() {
 
   // Set temperature
   uint8_t temperature_clamped =
-      (uint8_t) roundf(clamp(this->target_temperature, FUJITSU_GENERAL_TEMP_MIN, FUJITSU_GENERAL_TEMP_MAX));
+      (uint8_t) roundf(clamp<float>(this->target_temperature, FUJITSU_GENERAL_TEMP_MIN, FUJITSU_GENERAL_TEMP_MAX));
   uint8_t temperature_offset = temperature_clamped - FUJITSU_GENERAL_TEMP_MIN;
   SET_NIBBLE(remote_state, FUJITSU_GENERAL_TEMPERATURE_NIBBLE, temperature_offset);
 
