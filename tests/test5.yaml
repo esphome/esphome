@@ -52,6 +52,8 @@ output:
     channel: 0
     max_power: 0.8
 
+demo:
+
 esp32_ble:
 
 esp32_ble_server:
@@ -116,6 +118,7 @@ sensor:
       name: "SelecEM2M Maximum Demand Reactive Power"
     maximum_demand_apparent_power:
       name: "SelecEM2M Maximum Demand Apparent Power"
+
   - platform: t6615
     uart_id: uart2
     co2:
