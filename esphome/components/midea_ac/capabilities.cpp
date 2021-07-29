@@ -1356,15 +1356,90 @@ static const uint8_t extraDeviceTypeForYADot5[] PROGMEM = { 4 };
 static const uint8_t extraDeviceTypeForYADot5jr26YA[] PROGMEM = { 5 };
 static const uint8_t extraDeviceTypeForYADot5YAB3[] PROGMEM = { 6 };
 
+struct SerialInfo {
+  std::string barCode;
+  uint8_t version;
+  int8_t year;
+  int8_t month;
+  int8_t day;
+};
+
+static int8_t hex2int(char hex) {
+  if (hex >= '0' && hex <= '9')
+    return hex - '0';
+  if (hex >= 'A' && hex <= 'F')
+    return hex - 'A' + 10;
+  if (hex >= 'a' && hex <= 'f')
+    return hex - 'a' + 10;
+  return -1;
+}
+
+static int8_t char2year(char ch) {
+  const char years[] = "5678901234ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  auto ptr = strchr(years, ch);
+  if (ptr == nullptr)
+    return -1;
+  return ptr - years + 15;
+}
+
+static SerialInfo get_sn_info(const std::string &sn) {
+  SerialInfo result;
+  uint8_t offset = (sn.length() == 32) ? 6 : 0;
+  result.barCode = sn.substr(offset + 6, 5);
+  result.version = hex2int(sn[offset]);
+  result.year = char2year(sn[offset + 11]);
+  result.month = hex2int(sn[offset + 12]);
+  result.day = hex2int(sn[offset + 13]) * 10 + hex2int(sn[offset + 14]);
+  return result;
+}
+
+static bool check_date(const SerialInfo &info, int8_t year, int8_t month, int8_t day) {
+  if (info.year > year)
+    return true;
+  if (info.year < year)
+    return false;
+  if (info.month > month)
+    return true;
+  if (info.month < month)
+    return false;
+  return info.day >= day;
+}
+
+static bool check_id(uint8_t id, const uint8_t *pos, uint8_t num) {
+  for (; num; --num, ++pos) {
+    if (pgm_read_byte(pos) == id)
+      return true;
+  }
+  return false;
+}
+
+#define CHECK_ID(pos, list, info, y, m, d) (check_id(pos, list, sizeof(list)) && check_date(info, y, m, d))
+
 void DeviceInfo::read(const std::string &sn) {
+  // Get device information based on Serial Number
+  const SerialInfo info = get_sn_info(sn);
   const DeviceData *pgm = DEVICES_DATABASE;
   char buf[270];
-  uint8_t pos = 0;
-  for (; pos < sizeof(DEVICES_DATABASE) / sizeof(DEVICES_DATABASE[0]); ++pos, ++pgm) {
+  for (uint8_t pos = 0; pos < sizeof(DEVICES_DATABASE) / sizeof(DEVICES_DATABASE[0]); ++pos, ++pgm) {
     DeviceData data;
     memcpy_P(&data, pgm, sizeof(data));
     strncpy_P(buf, data.list, sizeof(buf));
-    if (strstr(buf, sn.c_str()) != nullptr) {
+    if (strstr(buf, info.barCode.c_str()) != nullptr) {
+      if (info.version != 13 && info.version >= 2) {
+        if (CHECK_ID(pos, extraDeviceTypeForYADot5, info, 17, 9, 6) || CHECK_ID(pos, extraDeviceTypeForYADot5jr26YA, info, 17, 9, 30)) {
+          this->hasDot5Support = true;
+          this->hasReadyColdOrHot = true;
+          this->hasKeepWarm = true;
+        } else if (CHECK_ID(pos, extraDeviceTypeForYADot5YAB3, info, 17, 9, 6)) {
+          this->hasDot5Support = true;
+          this->hasReadyColdOrHot = true;          
+        } else if (CHECK_ID(pos, extraDeviceTypeForKeepWarm, info, 17, 7, 1)) {
+          this->hasKeepWarm = true;
+        }
+        if (CHECK_ID(pos, extraDeviceTypeForSelfClean, info, 16, 9, 1)) {
+          this->hasSelfCleaning = true;
+        }
+      }
       data.func(*this);
       return;
     }
