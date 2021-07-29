@@ -515,9 +515,8 @@ def convert_schema(path, vschema, un_extend=True):
                 return rhs
 
             # merge
-
             if JSC_ALLOF in lhs and JSC_ALLOF in rhs:
-                output = lhs[JSC_ALLOF]
+                output = lhs
                 for k in rhs[JSC_ALLOF]:
                     merge(output[JSC_ALLOF], k)
             elif JSC_ALLOF in lhs:
