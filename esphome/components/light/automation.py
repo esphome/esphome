@@ -173,6 +173,7 @@ LIGHT_ADDRESSABLE_SET_ACTION_SCHEMA = cv.Schema(
         cv.Required(CONF_ID): cv.use_id(AddressableLightState),
         cv.Optional(CONF_RANGE_FROM): cv.templatable(cv.positive_int),
         cv.Optional(CONF_RANGE_TO): cv.templatable(cv.positive_int),
+        cv.Optional(CONF_COLOR_BRIGHTNESS): cv.templatable(cv.percentage),
         cv.Optional(CONF_RED): cv.templatable(cv.percentage),
         cv.Optional(CONF_GREEN): cv.templatable(cv.percentage),
         cv.Optional(CONF_BLUE): cv.templatable(cv.percentage),
@@ -194,28 +195,20 @@ async def light_addressable_set_to_code(config, action_id, template_arg, args):
         templ = await cg.templatable(config[CONF_RANGE_TO], args, cg.int32)
         cg.add(var.set_range_to(templ))
 
-    def rgbw_to_exp(x):
-        return int(round(x * 255))
-
+    if CONF_COLOR_BRIGHTNESS in config:
+        templ = await cg.templatable(config[CONF_COLOR_BRIGHTNESS], args, cg.float_)
+        cg.add(var.set_color_brightness(templ))
     if CONF_RED in config:
-        templ = await cg.templatable(
-            config[CONF_RED], args, cg.uint8, to_exp=rgbw_to_exp
-        )
+        templ = await cg.templatable(config[CONF_RED], args, cg.float_)
         cg.add(var.set_red(templ))
     if CONF_GREEN in config:
-        templ = await cg.templatable(
-            config[CONF_GREEN], args, cg.uint8, to_exp=rgbw_to_exp
-        )
+        templ = await cg.templatable(config[CONF_GREEN], args, cg.float_)
         cg.add(var.set_green(templ))
     if CONF_BLUE in config:
-        templ = await cg.templatable(
-            config[CONF_BLUE], args, cg.uint8, to_exp=rgbw_to_exp
-        )
+        templ = await cg.templatable(config[CONF_BLUE], args, cg.float_)
         cg.add(var.set_blue(templ))
     if CONF_WHITE in config:
-        templ = await cg.templatable(
-            config[CONF_WHITE], args, cg.uint8, to_exp=rgbw_to_exp
-        )
+        templ = await cg.templatable(config[CONF_WHITE], args, cg.float_)
         cg.add(var.set_white(templ))
     return var
 

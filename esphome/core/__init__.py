@@ -20,6 +20,7 @@ from esphome.coroutine import FakeEventLoop as _FakeEventLoop
 from esphome.coroutine import coroutine, coroutine_with_priority  # noqa
 from esphome.helpers import ensure_unique_string, is_hassio
 from esphome.util import OrderedDict
+from esphome import boards
 
 if TYPE_CHECKING:
     from ..cpp_generator import MockObj, MockObjClass, Statement
@@ -408,19 +409,28 @@ class Define:
 
 
 class Library:
-    def __init__(self, name, version):
+    def __init__(self, name, version, repository=None):
         self.name = name
         self.version = version
+        self.repository = repository
+
+    def __str__(self):
+        return self.as_lib_dep
 
     @property
     def as_lib_dep(self):
+        if self.repository is not None:
+            if self.name is not None:
+                return f"{self.name}={self.repository}"
+            return self.repository
+
         if self.version is None:
             return self.name
         return f"{self.name}@{self.version}"
 
     @property
     def as_tuple(self):
-        return self.name, self.version
+        return self.name, self.version, self.repository
 
     def __hash__(self):
         return hash(self.as_tuple)
@@ -584,9 +594,19 @@ class EsphomeCore:
 
     @property
     def is_esp32(self):
+        """Check if the ESP32 platform is used.
+
+        This checks if the ESP32 platform is in use, which
+        support ESP32 as well as other chips such as ESP32-C3
+        """
         if self.esp_platform is None:
             raise ValueError("No platform specified")
         return self.esp_platform == "ESP32"
+
+    @property
+    def is_esp32_c3(self):
+        """Check if the ESP32-C3 SoC is being used."""
+        return self.is_esp32 and self.board in boards.ESP32_C3_BOARD_PINS
 
     def add_job(self, func, *args, **kwargs):
         self.event_loop.add_job(func, *args, **kwargs)
@@ -632,10 +652,24 @@ class EsphomeCore:
                 "Library {} must be instance of Library, not {}"
                 "".format(library, type(library))
             )
-        _LOGGER.debug("Adding library: %s", library)
         for other in self.libraries[:]:
             if other.name != library.name:
                 continue
+            if other.repository is not None:
+                if library.repository is None or other.repository == library.repository:
+                    # Other is using a/the same repository, takes precendence
+                    break
+                raise ValueError(
+                    "Adding named Library with repository failed! Libraries {} and {} "
+                    "requested with conflicting repositories!"
+                    "".format(library, other)
+                )
+
+            if library.repository is not None:
+                # This is more specific since its using a repository
+                self.libraries.remove(other)
+                continue
+
             if library.version is None:
                 # Other requirement is more specific
                 break
@@ -652,6 +686,7 @@ class EsphomeCore:
                 "".format(library, other)
             )
         else:
+            _LOGGER.debug("Adding library: %s", library)
             self.libraries.append(library)
         return library
 

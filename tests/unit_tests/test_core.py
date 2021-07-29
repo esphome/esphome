@@ -444,16 +444,24 @@ class TestDefine:
 
 class TestLibrary:
     @pytest.mark.parametrize(
-        "name, value, prop, expected",
+        "name, version, repository, prop, expected",
         (
-            ("mylib", None, "as_lib_dep", "mylib"),
-            ("mylib", None, "as_tuple", ("mylib", None)),
-            ("mylib", "1.2.3", "as_lib_dep", "mylib@1.2.3"),
-            ("mylib", "1.2.3", "as_tuple", ("mylib", "1.2.3")),
+            ("mylib", None, None, "as_lib_dep", "mylib"),
+            ("mylib", None, None, "as_tuple", ("mylib", None, None)),
+            ("mylib", "1.2.3", None, "as_lib_dep", "mylib@1.2.3"),
+            ("mylib", "1.2.3", None, "as_tuple", ("mylib", "1.2.3", None)),
+            ("mylib", None, "file:///test", "as_lib_dep", "mylib=file:///test"),
+            (
+                "mylib",
+                None,
+                "file:///test",
+                "as_tuple",
+                ("mylib", None, "file:///test"),
+            ),
         ),
     )
-    def test_properties(self, name, value, prop, expected):
-        target = core.Library(name, value)
+    def test_properties(self, name, version, repository, prop, expected):
+        target = core.Library(name, version, repository)
 
         actual = getattr(target, prop)
 
@@ -465,6 +473,7 @@ class TestLibrary:
             ("__eq__", core.Library(name="libfoo", version="1.2.3"), True),
             ("__eq__", core.Library(name="libfoo", version="1.2.4"), False),
             ("__eq__", core.Library(name="libbar", version="1.2.3"), False),
+            ("__eq__", core.Library(name="libbar", version=None, repository="file:///test"), False),
             ("__eq__", 1000, NotImplemented),
             ("__eq__", "1000", NotImplemented),
             ("__eq__", True, NotImplemented),
