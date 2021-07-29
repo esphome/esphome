@@ -283,6 +283,7 @@ class WarnIfComponentBlockingGuard {
  public:
   WarnIfComponentBlockingGuard(Component *component);
   ~WarnIfComponentBlockingGuard();
+
  protected:
   uint32_t started_;
   Component *component_;
