@@ -27,6 +27,7 @@ template<typename... Ts> class LightControlAction : public Action<Ts...> {
  public:
   explicit LightControlAction(LightState *parent) : parent_(parent) {}
 
+  TEMPLATABLE_VALUE(ColorMode, color_mode)
   TEMPLATABLE_VALUE(bool, state)
   TEMPLATABLE_VALUE(uint32_t, transition_length)
   TEMPLATABLE_VALUE(uint32_t, flash_length)
@@ -37,10 +38,13 @@ template<typename... Ts> class LightControlAction : public Action<Ts...> {
   TEMPLATABLE_VALUE(float, blue)
   TEMPLATABLE_VALUE(float, white)
   TEMPLATABLE_VALUE(float, color_temperature)
+  TEMPLATABLE_VALUE(float, cold_white)
+  TEMPLATABLE_VALUE(float, warm_white)
   TEMPLATABLE_VALUE(std::string, effect)
 
   void play(Ts... x) override {
     auto call = this->parent_->make_call();
+    call.set_color_mode(this->color_mode_.optional_value(x...));
     call.set_state(this->state_.optional_value(x...));
     call.set_brightness(this->brightness_.optional_value(x...));
     call.set_color_brightness(this->color_brightness_.optional_value(x...));
@@ -49,6 +53,8 @@ template<typename... Ts> class LightControlAction : public Action<Ts...> {
     call.set_blue(this->blue_.optional_value(x...));
     call.set_white(this->white_.optional_value(x...));
     call.set_color_temperature(this->color_temperature_.optional_value(x...));
+    call.set_cold_white(this->cold_white_.optional_value(x...));
+    call.set_warm_white(this->warm_white_.optional_value(x...));
     call.set_effect(this->effect_.optional_value(x...));
     call.set_flash_length(this->flash_length_.optional_value(x...));
     call.set_transition_length(this->transition_length_.optional_value(x...));

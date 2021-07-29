@@ -79,6 +79,15 @@ float gamma_correct(float value, float gamma) {
 
   return powf(value, gamma);
 }
+float gamma_uncorrect(float value, float gamma) {
+  if (value <= 0.0f)
+    return 0.0f;
+  if (gamma <= 0.0f)
+    return value;
+
+  return powf(value, 1 / gamma);
+}
+
 std::string to_lowercase_underscore(std::string s) {
   std::transform(s.begin(), s.end(), s.begin(), ::tolower);
   std::replace(s.begin(), s.end(), ' ', '_');
