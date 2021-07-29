@@ -147,7 +147,9 @@ void Chenyang::process_status_() {
       ESP_LOGE(TAG, "Invalid status operation received");
       return;
   }
-  float pos = clamp((float) this->rx_buffer_[3] / 100, 0.0f, 1.0f);
+  float pos = 0.5f;
+  if (this->rx_buffer_[3] != 0x6E)
+    pos = clamp((float) this->rx_buffer_[3] / 100, 0.0f, 1.0f);
   if (this->position != pos) {
     this->position = pos;
     publish_state = true;
