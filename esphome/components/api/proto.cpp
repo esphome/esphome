@@ -5,7 +5,7 @@
 namespace esphome {
 namespace api {
 
-static const char *TAG = "api.proto";
+static const char *const TAG = "api.proto";
 
 void ProtoMessage::decode(const uint8_t *buffer, size_t length) {
   uint32_t i = 0;

@@ -4,7 +4,7 @@
 namespace esphome {
 namespace gps {
 
-static const char *TAG = "gps.time";
+static const char *const TAG = "gps.time";
 
 void GPSTime::from_tiny_gps_(TinyGPSPlus &tiny_gps) {
   if (!tiny_gps.time.isValid() || !tiny_gps.date.isValid())

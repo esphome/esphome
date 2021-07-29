@@ -46,6 +46,7 @@ WaveshareEPaperTypeBModel = waveshare_epaper_ns.enum("WaveshareEPaperTypeBModel"
 
 MODELS = {
     "1.54in": ("a", WaveshareEPaperTypeAModel.WAVESHARE_EPAPER_1_54_IN),
+    "1.54inv2": ("a", WaveshareEPaperTypeAModel.WAVESHARE_EPAPER_1_54_IN_V2),
     "2.13in": ("a", WaveshareEPaperTypeAModel.WAVESHARE_EPAPER_2_13_IN),
     "2.13in-ttgo": ("a", WaveshareEPaperTypeAModel.TTGO_EPAPER_2_13_IN),
     "2.13in-ttgo-b1": ("a", WaveshareEPaperTypeAModel.TTGO_EPAPER_2_13_IN_B1),
@@ -67,7 +68,7 @@ def validate_full_update_every_only_type_a(value):
     if MODELS[value[CONF_MODEL]][0] != "a":
         raise cv.Invalid(
             "The 'full_update_every' option is only available for models "
-            "'1.54in', '2.13in', '2.90in', and '2.90inV2'."
+            "'1.54in', '1.54inV2', '2.13in', '2.90in', and '2.90inV2'."
         )
     return value
 

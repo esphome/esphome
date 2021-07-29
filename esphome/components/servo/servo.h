@@ -9,7 +9,7 @@
 namespace esphome {
 namespace servo {
 
-extern uint32_t global_servo_id;
+extern uint32_t global_servo_id;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 class Servo : public Component {
  public:

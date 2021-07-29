@@ -6,7 +6,7 @@
 namespace esphome {
 namespace esp32_camera {
 
-static const char *TAG = "esp32_camera";
+static const char *const TAG = "esp32_camera";
 
 void ESP32Camera::setup() {
   global_esp32_camera = this;

@@ -62,6 +62,7 @@ CONFIG_SCHEMA = (
     .extend(cv.polling_component_schema("20s"))
     .extend(uart.UART_DEVICE_SCHEMA)
 )
+FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema("gps", require_rx=True)
 
 
 async def to_code(config):
@@ -95,7 +96,3 @@ async def to_code(config):
 
     # https://platformio.org/lib/show/1655/TinyGPSPlus
     cg.add_library("1655", "1.0.2")  # TinyGPSPlus, has name conflict
-
-
-def validate(config, item_config):
-    uart.validate_device("gps", config, item_config, require_tx=False)

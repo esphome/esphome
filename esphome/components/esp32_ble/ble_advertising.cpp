@@ -7,6 +7,8 @@
 namespace esphome {
 namespace esp32_ble {
 
+static const char *const TAG = "esp32_ble";
+
 BLEAdvertising::BLEAdvertising() {
   this->advertising_data_.set_scan_rsp = false;
   this->advertising_data_.include_name = true;
@@ -32,6 +34,10 @@ BLEAdvertising::BLEAdvertising() {
 }
 
 void BLEAdvertising::add_service_uuid(ESPBTUUID uuid) { this->advertising_uuids_.push_back(uuid); }
+void BLEAdvertising::remove_service_uuid(ESPBTUUID uuid) {
+  this->advertising_uuids_.erase(std::remove(this->advertising_uuids_.begin(), this->advertising_uuids_.end(), uuid),
+                                 this->advertising_uuids_.end());
+}
 
 void BLEAdvertising::start() {
   int num_services = this->advertising_uuids_.size();

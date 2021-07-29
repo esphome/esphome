@@ -4,16 +4,16 @@
 namespace esphome {
 namespace tuya {
 
-static const char *TAG = "tuya.climate";
+static const char *const TAG = "tuya.climate";
 
 void TuyaClimate::setup() {
   if (this->switch_id_.has_value()) {
-    this->parent_->register_listener(*this->switch_id_, [this](TuyaDatapoint datapoint) {
+    this->parent_->register_listener(*this->switch_id_, [this](const TuyaDatapoint &datapoint) {
       ESP_LOGV(TAG, "MCU reported switch is: %s", ONOFF(datapoint.value_bool));
       this->mode = climate::CLIMATE_MODE_OFF;
       if (datapoint.value_bool) {
         if (this->supports_heat_ && this->supports_cool_) {
-          this->mode = climate::CLIMATE_MODE_AUTO;
+          this->mode = climate::CLIMATE_MODE_HEAT_COOL;
         } else if (this->supports_heat_) {
           this->mode = climate::CLIMATE_MODE_HEAT;
         } else if (this->supports_cool_) {
@@ -25,7 +25,7 @@ void TuyaClimate::setup() {
     });
   }
   if (this->active_state_id_.has_value()) {
-    this->parent_->register_listener(*this->active_state_id_, [this](TuyaDatapoint datapoint) {
+    this->parent_->register_listener(*this->active_state_id_, [this](const TuyaDatapoint &datapoint) {
       ESP_LOGV(TAG, "MCU reported active state is: %u", datapoint.value_enum);
       this->active_state_ = datapoint.value_enum;
       this->compute_state_();
@@ -33,7 +33,7 @@ void TuyaClimate::setup() {
     });
   }
   if (this->target_temperature_id_.has_value()) {
-    this->parent_->register_listener(*this->target_temperature_id_, [this](TuyaDatapoint datapoint) {
+    this->parent_->register_listener(*this->target_temperature_id_, [this](const TuyaDatapoint &datapoint) {
       this->target_temperature = datapoint.value_int * this->target_temperature_multiplier_;
       ESP_LOGV(TAG, "MCU reported target temperature is: %.1f", this->target_temperature);
       this->compute_state_();
@@ -41,7 +41,7 @@ void TuyaClimate::setup() {
     });
   }
   if (this->current_temperature_id_.has_value()) {
-    this->parent_->register_listener(*this->current_temperature_id_, [this](TuyaDatapoint datapoint) {
+    this->parent_->register_listener(*this->current_temperature_id_, [this](const TuyaDatapoint &datapoint) {
       this->current_temperature = datapoint.value_int * this->current_temperature_multiplier_;
       ESP_LOGV(TAG, "MCU reported current temperature is: %.1f", this->current_temperature);
       this->compute_state_();
@@ -68,8 +68,10 @@ void TuyaClimate::control(const climate::ClimateCall &call) {
 climate::ClimateTraits TuyaClimate::traits() {
   auto traits = climate::ClimateTraits();
   traits.set_supports_current_temperature(this->current_temperature_id_.has_value());
-  traits.set_supports_heat_mode(this->supports_heat_);
-  traits.set_supports_cool_mode(this->supports_cool_);
+  if (supports_heat_)
+    traits.add_supported_mode(climate::CLIMATE_MODE_HEAT);
+  if (supports_cool_)
+    traits.add_supported_mode(climate::CLIMATE_MODE_COOL);
   traits.set_supports_action(true);
   return traits;
 }

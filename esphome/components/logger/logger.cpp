@@ -8,9 +8,9 @@
 namespace esphome {
 namespace logger {
 
-static const char *TAG = "logger";
+static const char *const TAG = "logger";
 
-static const char *LOG_LEVEL_COLORS[] = {
+static const char *const LOG_LEVEL_COLORS[] = {
     "",                                            // NONE
     ESPHOME_LOG_BOLD(ESPHOME_LOG_COLOR_RED),       // ERROR
     ESPHOME_LOG_COLOR(ESPHOME_LOG_COLOR_YELLOW),   // WARNING
@@ -20,7 +20,7 @@ static const char *LOG_LEVEL_COLORS[] = {
     ESPHOME_LOG_COLOR(ESPHOME_LOG_COLOR_GRAY),     // VERBOSE
     ESPHOME_LOG_COLOR(ESPHOME_LOG_COLOR_WHITE),    // VERY_VERBOSE
 };
-static const char *LOG_LEVEL_LETTERS[] = {
+static const char *const LOG_LEVEL_LETTERS[] = {
     "",    // NONE
     "E",   // ERROR
     "W",   // WARNING
@@ -178,12 +178,12 @@ void Logger::add_on_log_callback(std::function<void(int, const char *, const cha
   this->log_callback_.add(std::move(callback));
 }
 float Logger::get_setup_priority() const { return setup_priority::HARDWARE - 1.0f; }
-const char *LOG_LEVELS[] = {"NONE", "ERROR", "WARN", "INFO", "CONFIG", "DEBUG", "VERBOSE", "VERY_VERBOSE"};
+const char *const LOG_LEVELS[] = {"NONE", "ERROR", "WARN", "INFO", "CONFIG", "DEBUG", "VERBOSE", "VERY_VERBOSE"};
 #ifdef ARDUINO_ARCH_ESP32
-const char *UART_SELECTIONS[] = {"UART0", "UART1", "UART2"};
+const char *const UART_SELECTIONS[] = {"UART0", "UART1", "UART2"};
 #endif
 #ifdef ARDUINO_ARCH_ESP8266
-const char *UART_SELECTIONS[] = {"UART0", "UART1", "UART0_SWAP"};
+const char *const UART_SELECTIONS[] = {"UART0", "UART1", "UART0_SWAP"};
 #endif
 void Logger::dump_config() {
   ESP_LOGCONFIG(TAG, "Logger:");
@@ -196,7 +196,7 @@ void Logger::dump_config() {
 }
 void Logger::write_footer_() { this->write_to_buffer_(ESPHOME_LOG_RESET_COLOR, strlen(ESPHOME_LOG_RESET_COLOR)); }
 
-Logger *global_logger = nullptr;
+Logger *global_logger = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 }  // namespace logger
 }  // namespace esphome

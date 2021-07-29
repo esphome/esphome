@@ -269,6 +269,7 @@ wled:
 
 adalight:
 
+
 sensor:
   - platform: apds9960
     type: proximity
@@ -534,6 +535,15 @@ sensor:
     export_reactive_energy:
       name: 'Export Reactive Energy'
 
+  - platform: nextion
+    id: testnumber
+    name: 'testnumber'
+    variable_name: testnumber
+  - platform: nextion
+    id: testwave
+    name: 'testwave'
+    component_id: 2
+    wave_channel_id: 1
 time:
   - platform: homeassistant
 
@@ -605,7 +615,14 @@ binary_sensor:
     binary_sensors:
       - id: custom_binary_sensor
         name: Custom Binary Sensor
-
+  - platform: nextion
+    page_id: 0
+    component_id: 2
+    name: 'Nextion Component 2 Touch'
+  - platform: nextion
+    id: r0_sensor
+    name: 'R0 Sensor'
+    component_name: page0.r0
 globals:
   - id: my_global_string
     type: std::string
@@ -653,6 +670,11 @@ text_sensor:
     text_sensors:
       - id: custom_text_sensor
         name: Custom Text Sensor
+  - platform: nextion
+    name: text0
+    id: text0
+    update_interval: 4s
+    component_name: text0
 
 script:
   - id: my_script
@@ -704,6 +726,10 @@ switch:
     switches:
       - id: custom_switch
         name: Custom Switch
+  - platform: nextion
+    id: r0
+    name: 'R0 Switch'
+    component_name: page0.r0
 
 custom_component:
   lambda: |-
@@ -1086,6 +1112,16 @@ display:
     id: my_matrix
     lambda: |-
       it.printdigit("hello");
+  - platform: nextion
+    uart_id: uart1
+    tft_url: 'http://esphome.io/default35.tft'
+    update_interval: 5s
+    on_sleep:
+      then:
+        lambda: 'ESP_LOGD("display","Display went to sleep");'
+    on_wake:
+      then:
+        lambda: 'ESP_LOGD("display","Display woke up");'
 
 http_request:
   useragent: esphome/device
@@ -1097,27 +1133,27 @@ fingerprint_grow:
   new_password: 0xA65B9840
   on_finger_scan_matched:
     - homeassistant.event:
-        event: esphome.${devicename}_fingerprint_grow_finger_scan_matched
+        event: esphome.${device_name}_fingerprint_grow_finger_scan_matched
         data:
           finger_id: !lambda 'return finger_id;'
           confidence: !lambda 'return confidence;'
   on_finger_scan_unmatched:
     - homeassistant.event:
-        event: esphome.${devicename}_fingerprint_grow_finger_scan_unmatched
+        event: esphome.${device_name}_fingerprint_grow_finger_scan_unmatched
   on_enrollment_scan:
     - homeassistant.event:
-        event: esphome.${devicename}_fingerprint_grow_enrollment_scan
+        event: esphome.${device_name}_fingerprint_grow_enrollment_scan
         data:
           finger_id: !lambda 'return finger_id;'
           scan_num: !lambda 'return scan_num;'
   on_enrollment_done:
     - homeassistant.event:
-        event: esphome.${devicename}_fingerprint_grow_node_enrollment_done
+        event: esphome.${device_name}_fingerprint_grow_node_enrollment_done
         data:
           finger_id: !lambda 'return finger_id;'
   on_enrollment_failed:
     - homeassistant.event:
-        event: esphome.${devicename}_fingerprint_grow_enrollment_failed
+        event: esphome.${device_name}_fingerprint_grow_enrollment_failed
         data:
           finger_id: !lambda 'return finger_id;'
   uart_id: uart6

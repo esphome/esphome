@@ -6,7 +6,7 @@
 namespace esphome {
 namespace max31856 {
 
-static const char *TAG = "max31856";
+static const char *const TAG = "max31856";
 
 // Based on Adafruit's library: https://github.com/adafruit/Adafruit_MAX31856
 

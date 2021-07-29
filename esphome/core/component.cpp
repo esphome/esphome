@@ -1,12 +1,14 @@
 #include "esphome/core/component.h"
-#include "esphome/core/helpers.h"
-#include "esphome/core/esphal.h"
-#include "esphome/core/log.h"
+
 #include "esphome/core/application.h"
+#include "esphome/core/esphal.h"
+#include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
+#include <utility>
 
 namespace esphome {
 
-static const char *TAG = "component";
+static const char *const TAG = "component";
 
 namespace setup_priority {
 
@@ -34,7 +36,7 @@ const uint32_t STATUS_LED_OK = 0x0000;
 const uint32_t STATUS_LED_WARNING = 0x0100;
 const uint32_t STATUS_LED_ERROR = 0x0200;
 
-uint32_t global_state = 0;
+uint32_t global_state = 0;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 float Component::get_loop_priority() const { return 0.0f; }
 
@@ -173,7 +175,7 @@ void Nameable::set_name(const std::string &name) {
   this->name_ = name;
   this->calc_object_id_();
 }
-Nameable::Nameable(const std::string &name) : name_(name) { this->calc_object_id_(); }
+Nameable::Nameable(std::string name) : name_(std::move(name)) { this->calc_object_id_(); }
 
 const std::string &Nameable::get_object_id() { return this->object_id_; }
 bool Nameable::is_internal() const { return this->internal_; }

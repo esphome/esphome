@@ -17,6 +17,7 @@ class BLEAdvertising {
   BLEAdvertising();
 
   void add_service_uuid(ESPBTUUID uuid);
+  void remove_service_uuid(ESPBTUUID uuid);
   void set_scan_response(bool scan_response) { this->scan_response_ = scan_response; }
   void set_min_preferred_interval(uint16_t interval) { this->advertising_data_.min_interval = interval; }
 

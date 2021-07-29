@@ -168,6 +168,21 @@ void ComponentIterator::advance() {
       }
       break;
 #endif
+#ifdef USE_NUMBER
+    case IteratorState::NUMBER:
+      if (this->at_ >= App.get_numbers().size()) {
+        advance_platform = true;
+      } else {
+        auto *number = App.get_numbers()[this->at_];
+        if (number->is_internal()) {
+          success = true;
+          break;
+        } else {
+          success = this->on_number(number);
+        }
+      }
+      break;
+#endif
     case IteratorState::MAX:
       if (this->on_end()) {
         this->state_ = IteratorState::NONE;

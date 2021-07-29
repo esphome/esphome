@@ -12,6 +12,7 @@ from esphome.const import (
     CONF_STATE,
     CONF_DURATION,
     CONF_BRIGHTNESS,
+    CONF_COLOR_BRIGHTNESS,
     CONF_RED,
     CONF_GREEN,
     CONF_BLUE,
@@ -211,6 +212,7 @@ async def random_effect_to_code(config, effect_id):
                     {
                         cv.Optional(CONF_STATE, default=True): cv.boolean,
                         cv.Optional(CONF_BRIGHTNESS, default=1.0): cv.percentage,
+                        cv.Optional(CONF_COLOR_BRIGHTNESS, default=1.0): cv.percentage,
                         cv.Optional(CONF_RED, default=1.0): cv.percentage,
                         cv.Optional(CONF_GREEN, default=1.0): cv.percentage,
                         cv.Optional(CONF_BLUE, default=1.0): cv.percentage,
@@ -223,6 +225,7 @@ async def random_effect_to_code(config, effect_id):
                 cv.has_at_least_one_key(
                     CONF_STATE,
                     CONF_BRIGHTNESS,
+                    CONF_COLOR_BRIGHTNESS,
                     CONF_RED,
                     CONF_GREEN,
                     CONF_BLUE,
@@ -245,6 +248,7 @@ async def strobe_effect_to_code(config, effect_id):
                     LightColorValues(
                         color[CONF_STATE],
                         color[CONF_BRIGHTNESS],
+                        color[CONF_COLOR_BRIGHTNESS],
                         color[CONF_RED],
                         color[CONF_GREEN],
                         color[CONF_BLUE],

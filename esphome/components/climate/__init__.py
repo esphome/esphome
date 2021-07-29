@@ -36,7 +36,7 @@ ClimateTraits = climate_ns.class_("ClimateTraits")
 ClimateMode = climate_ns.enum("ClimateMode")
 CLIMATE_MODES = {
     "OFF": ClimateMode.CLIMATE_MODE_OFF,
-    "HEAT_COOL": ClimateMode.CLIMATE_HEAT_COOL,
+    "HEAT_COOL": ClimateMode.CLIMATE_MODE_HEAT_COOL,
     "COOL": ClimateMode.CLIMATE_MODE_COOL,
     "HEAT": ClimateMode.CLIMATE_MODE_HEAT,
     "DRY": ClimateMode.CLIMATE_MODE_DRY,

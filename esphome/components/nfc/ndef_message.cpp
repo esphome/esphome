@@ -3,7 +3,7 @@
 namespace esphome {
 namespace nfc {
 
-static const char *TAG = "nfc.ndef_message";
+static const char *const TAG = "nfc.ndef_message";
 
 NdefMessage::NdefMessage(std::vector<uint8_t> &data) {
   ESP_LOGV(TAG, "Building NdefMessage with %zu bytes", data.size());

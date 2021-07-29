@@ -5,7 +5,7 @@
 namespace esphome {
 namespace duty_cycle {
 
-static const char *TAG = "duty_cycle";
+static const char *const TAG = "duty_cycle";
 
 void DutyCycleSensor::setup() {
   ESP_LOGCONFIG(TAG, "Setting up Duty Cycle Sensor '%s'...", this->get_name().c_str());

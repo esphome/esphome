@@ -1,8 +1,10 @@
 #include "mqtt_client.h"
-#include "esphome/core/log.h"
+
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 #include "esphome/core/util.h"
+#include <utility>
 #ifdef USE_LOGGER
 #include "esphome/components/logger/logger.h"
 #endif
@@ -13,7 +15,7 @@
 namespace esphome {
 namespace mqtt {
 
-static const char *TAG = "mqtt";
+static const char *const TAG = "mqtt";
 
 MQTTClientComponent::MQTTClientComponent() {
   global_mqtt_client = this;
@@ -340,7 +342,7 @@ void MQTTClientComponent::subscribe(const std::string &topic, mqtt_callback_t ca
   this->subscriptions_.push_back(subscription);
 }
 
-void MQTTClientComponent::subscribe_json(const std::string &topic, mqtt_json_callback_t callback, uint8_t qos) {
+void MQTTClientComponent::subscribe_json(const std::string &topic, const mqtt_json_callback_t &callback, uint8_t qos) {
   auto f = [callback](const std::string &topic, const std::string &payload) {
     json::parse_json(payload, [topic, callback](JsonObject &root) { callback(topic, root); });
   };
@@ -558,10 +560,10 @@ void MQTTClientComponent::add_ssl_fingerprint(const std::array<uint8_t, SHA1_SIZ
 }
 #endif
 
-MQTTClientComponent *global_mqtt_client = nullptr;
+MQTTClientComponent *global_mqtt_client = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 // MQTTMessageTrigger
-MQTTMessageTrigger::MQTTMessageTrigger(const std::string &topic) : topic_(topic) {}
+MQTTMessageTrigger::MQTTMessageTrigger(std::string topic) : topic_(std::move(topic)) {}
 void MQTTMessageTrigger::set_qos(uint8_t qos) { this->qos_ = qos; }
 void MQTTMessageTrigger::set_payload(const std::string &payload) { this->payload_ = payload; }
 void MQTTMessageTrigger::setup() {

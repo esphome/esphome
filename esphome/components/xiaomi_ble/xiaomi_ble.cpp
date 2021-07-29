@@ -10,7 +10,7 @@
 namespace esphome {
 namespace xiaomi_ble {
 
-static const char *TAG = "xiaomi_ble";
+static const char *const TAG = "xiaomi_ble";
 
 bool parse_xiaomi_value(uint8_t value_type, const uint8_t *data, uint8_t value_length, XiaomiParseResult &result) {
   // motion detection, 1 byte, 8-bit unsigned integer
@@ -344,9 +344,9 @@ bool report_xiaomi_results(const optional<XiaomiParseResult> &result, const std:
 bool XiaomiListener::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
   // Previously the message was parsed twice per packet, once by XiaomiListener::parse_device()
   // and then again by the respective device class's parse_device() function. Parsing the header
-  // here and then for each device seems to be unneccessary and complicates the duplicate packet filtering.
+  // here and then for each device seems to be unnecessary and complicates the duplicate packet filtering.
   // Hence I disabled the call to parse_xiaomi_header() here and the message parsing is done entirely
-  // in the respecive device instance. The XiaomiListener class is defined in __init__.py and I was not
+  // in the respective device instance. The XiaomiListener class is defined in __init__.py and I was not
   // able to remove it entirely.
 
   return false;  // with true it's not showing device scans

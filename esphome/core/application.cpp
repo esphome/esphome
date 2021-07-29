@@ -9,7 +9,7 @@
 
 namespace esphome {
 
-static const char *TAG = "app";
+static const char *const TAG = "app";
 
 void Application::register_component_(Component *comp) {
   if (comp == nullptr) {
@@ -161,6 +161,6 @@ void Application::calculate_looping_components_() {
   }
 }
 
-Application App;
+Application App;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 }  // namespace esphome

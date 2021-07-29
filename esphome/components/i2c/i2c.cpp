@@ -6,7 +6,7 @@
 namespace esphome {
 namespace i2c {
 
-static const char *TAG = "i2c";
+static const char *const TAG = "i2c";
 
 I2CComponent::I2CComponent() {
 #ifdef ARDUINO_ARCH_ESP32

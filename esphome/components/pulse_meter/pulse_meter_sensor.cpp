@@ -4,7 +4,7 @@
 namespace esphome {
 namespace pulse_meter {
 
-static const char *TAG = "pulse_meter";
+static const char *const TAG = "pulse_meter";
 
 void PulseMeterSensor::setup() {
   this->pin_->setup();
