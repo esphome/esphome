@@ -86,12 +86,12 @@ class Capabilities {
   bool leftright_fan_{false};
   bool light_control_{false};
   bool manual_set_humidity_{false};
-  float max_temp_auto_{31};
-  float max_temp_cool_{31};
-  float max_temp_heat_{31};
-  float min_temp_auto_{16};
-  float min_temp_cool_{16};
-  float min_temp_heat_{16};
+  float max_temp_auto_{30};
+  float max_temp_cool_{30};
+  float max_temp_heat_{30};
+  float min_temp_auto_{17};
+  float min_temp_cool_{17};
+  float min_temp_heat_{17};
   bool nest_check_{false};
   bool nest_need_change_{false};
   bool one_key_no_wind_on_me_{false};
@@ -198,7 +198,7 @@ enum DeviceType {
 };
 
 struct DeviceInfo {
-  void read(const std::string &sn);
+  static DeviceInfo fromSN(const char *sn);
   // define the air-conditioned property
   DeviceType deviceType{DeviceType::INVALID};
   // the new Protocol initiative to report

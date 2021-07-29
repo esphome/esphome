@@ -322,9 +322,9 @@ void Capabilities::dump(const char *tag) const {
 #define DEVICE_LIST(name, data) static const char LIST_##name[] PROGMEM = data
 #define DEVICE_NAME(name) static const char NAME_##name[] PROGMEM = #name
 #define DEVICE_FUNC(name) static void FUNC_##name(DeviceInfo &di)
-#define DEVICE_DATA(name) { LIST_##name, NAME_##name, FUNC_##name }
+#define DEVICE_RECORD(name) { LIST_##name, NAME_##name, FUNC_##name }
 
-struct DeviceData {
+struct DeviceDbRecord {
   const char *list;
   const char *name;
   std::function<void(DeviceInfo &)> func;
@@ -1255,88 +1255,88 @@ DEVICE_FUNC(1TON) {
   di.isCentralAC = true;
 }
 
-static const DeviceData DEVICES_DATABASE[] PROGMEM = {
-  DEVICE_DATA(QA100),     // 0
-  DEVICE_DATA(SA100),     // 1
-  DEVICE_DATA(SA200),     // 2
-  DEVICE_DATA(SA300),     // 3
-  DEVICE_DATA(YA),        // 4
-  DEVICE_DATA(26YA),      // 5
-  DEVICE_DATA(YAB3),      // 6
-  DEVICE_DATA(WJABC),     // 7
-  DEVICE_DATA(YA100),     // 8
-  DEVICE_DATA(CJ200),     // 9
-  DEVICE_DATA(WYA),       // 10
-  DEVICE_DATA(WPA),       // 11
-  DEVICE_DATA(LBB2),      // 12
-  DEVICE_DATA(LBB3),      // 13
-  DEVICE_DATA(PA400),     // 14
-  DEVICE_DATA(WEA),       // 15
-  DEVICE_DATA(CA),        // 16
-  DEVICE_DATA(TAB3),      // 17
-  DEVICE_DATA(TAB12),     // 18
-  DEVICE_DATA(KHB1),      // 19
-  DEVICE_DATA(CACP),      // 20
-  DEVICE_DATA(ZA300),     // 21
-  DEVICE_DATA(ZA300B3),   // 22
-  DEVICE_DATA(ZB300),     // 23
-  DEVICE_DATA(ZB300YJ),   // 24
-  DEVICE_DATA(YA300),     // 25
-  DEVICE_DATA(YA201),     // 26
-  DEVICE_DATA(YA200),     // 27
-  DEVICE_DATA(YA301),     // 28
-  DEVICE_DATA(YA302),     // 29
-  DEVICE_DATA(PC400B23),  // 30
-  DEVICE_DATA(WXA),       // 31
-  DEVICE_DATA(WJ7),       // 32
-  DEVICE_DATA(WYB),       // 33
-  DEVICE_DATA(PCB50),     // 34
-  DEVICE_DATA(YB200),     // 35
-  DEVICE_DATA(DA100),     // 36
-  DEVICE_DATA(YB200TEST), // 37
-  DEVICE_DATA(WXD),       // 38
-  DEVICE_DATA(YB300),     // 39
-  DEVICE_DATA(WDAA3),     // 40
-  DEVICE_DATA(WDAD3),     // 41
-  DEVICE_DATA(WYAD2D3),   // 42
-  DEVICE_DATA(WPAD3),     // 43
-  DEVICE_DATA(DA400B3),   // 44
-  DEVICE_DATA(PC400B1),   // 45
-  DEVICE_DATA(DA200300),  // 46
-  DEVICE_DATA(DA400D3),   // 47
-  DEVICE_DATA(DA400BP),   // 48
-  DEVICE_DATA(DA400DP),   // 49
-  DEVICE_DATA(PA400B3),   // 50
-  DEVICE_DATA(J9),        // 51
-  DEVICE_DATA(YA400D2D3), // 52
-  DEVICE_DATA(QA301B1),   // 53
-  DEVICE_DATA(WCBA3),     // 54
-  DEVICE_DATA(IQ100),     // 55
-  DEVICE_DATA(DA100Z),    // 56
-  DEVICE_DATA(IQ300),     // 57
-  DEVICE_DATA(J7),        // 58
-  DEVICE_DATA(WPBC),      // 59
-  DEVICE_DATA(WPCD),      // 60
-  DEVICE_DATA(YB400),     // 61
-  DEVICE_DATA(PE400B3),   // 62
-  DEVICE_DATA(J8),        // 63
-  DEVICE_DATA(YA400B2),   // 64
-  DEVICE_DATA(YB301),     // 65
-  DEVICE_DATA(WYS),       // 66
-  DEVICE_DATA(1TO1),      // 67
-  DEVICE_DATA(1TON),      // 68
-  DEVICE_DATA(YB201),     // 69
-  DEVICE_DATA(PF200),     // 70
-  DEVICE_DATA(GM100),     // 71
-  DEVICE_DATA(WOW),       // 72
-  DEVICE_DATA(S10),       // 73
-  DEVICE_DATA(FA100),     // 74
-  DEVICE_DATA(FA200),     // 75
-  DEVICE_DATA(W10),       // 76
-  DEVICE_DATA(WXDF),      // 77
-  DEVICE_DATA(YB100),     // 78
-  DEVICE_DATA(MQ200),     // 79
-  DEVICE_DATA(GW10),      // 80
+static const DeviceDbRecord DEVICES_DBASE[] PROGMEM = {
+  DEVICE_RECORD(QA100),     // 0
+  DEVICE_RECORD(SA100),     // 1
+  DEVICE_RECORD(SA200),     // 2
+  DEVICE_RECORD(SA300),     // 3
+  DEVICE_RECORD(YA),        // 4
+  DEVICE_RECORD(26YA),      // 5
+  DEVICE_RECORD(YAB3),      // 6
+  DEVICE_RECORD(WJABC),     // 7
+  DEVICE_RECORD(YA100),     // 8
+  DEVICE_RECORD(CJ200),     // 9
+  DEVICE_RECORD(WYA),       // 10
+  DEVICE_RECORD(WPA),       // 11
+  DEVICE_RECORD(LBB2),      // 12
+  DEVICE_RECORD(LBB3),      // 13
+  DEVICE_RECORD(PA400),     // 14
+  DEVICE_RECORD(WEA),       // 15
+  DEVICE_RECORD(CA),        // 16
+  DEVICE_RECORD(TAB3),      // 17
+  DEVICE_RECORD(TAB12),     // 18
+  DEVICE_RECORD(KHB1),      // 19
+  DEVICE_RECORD(CACP),      // 20
+  DEVICE_RECORD(ZA300),     // 21
+  DEVICE_RECORD(ZA300B3),   // 22
+  DEVICE_RECORD(ZB300),     // 23
+  DEVICE_RECORD(ZB300YJ),   // 24
+  DEVICE_RECORD(YA300),     // 25
+  DEVICE_RECORD(YA201),     // 26
+  DEVICE_RECORD(YA200),     // 27
+  DEVICE_RECORD(YA301),     // 28
+  DEVICE_RECORD(YA302),     // 29
+  DEVICE_RECORD(PC400B23),  // 30
+  DEVICE_RECORD(WXA),       // 31
+  DEVICE_RECORD(WJ7),       // 32
+  DEVICE_RECORD(WYB),       // 33
+  DEVICE_RECORD(PCB50),     // 34
+  DEVICE_RECORD(YB200),     // 35
+  DEVICE_RECORD(DA100),     // 36
+  DEVICE_RECORD(YB200TEST), // 37
+  DEVICE_RECORD(WXD),       // 38
+  DEVICE_RECORD(YB300),     // 39
+  DEVICE_RECORD(WDAA3),     // 40
+  DEVICE_RECORD(WDAD3),     // 41
+  DEVICE_RECORD(WYAD2D3),   // 42
+  DEVICE_RECORD(WPAD3),     // 43
+  DEVICE_RECORD(DA400B3),   // 44
+  DEVICE_RECORD(PC400B1),   // 45
+  DEVICE_RECORD(DA200300),  // 46
+  DEVICE_RECORD(DA400D3),   // 47
+  DEVICE_RECORD(DA400BP),   // 48
+  DEVICE_RECORD(DA400DP),   // 49
+  DEVICE_RECORD(PA400B3),   // 50
+  DEVICE_RECORD(J9),        // 51
+  DEVICE_RECORD(YA400D2D3), // 52
+  DEVICE_RECORD(QA301B1),   // 53
+  DEVICE_RECORD(WCBA3),     // 54
+  DEVICE_RECORD(IQ100),     // 55
+  DEVICE_RECORD(DA100Z),    // 56
+  DEVICE_RECORD(IQ300),     // 57
+  DEVICE_RECORD(J7),        // 58
+  DEVICE_RECORD(WPBC),      // 59
+  DEVICE_RECORD(WPCD),      // 60
+  DEVICE_RECORD(YB400),     // 61
+  DEVICE_RECORD(PE400B3),   // 62
+  DEVICE_RECORD(J8),        // 63
+  DEVICE_RECORD(YA400B2),   // 64
+  DEVICE_RECORD(YB301),     // 65
+  DEVICE_RECORD(WYS),       // 66
+  DEVICE_RECORD(1TO1),      // 67
+  DEVICE_RECORD(1TON),      // 68
+  DEVICE_RECORD(YB201),     // 69
+  DEVICE_RECORD(PF200),     // 70
+  DEVICE_RECORD(GM100),     // 71
+  DEVICE_RECORD(WOW),       // 72
+  DEVICE_RECORD(S10),       // 73
+  DEVICE_RECORD(FA100),     // 74
+  DEVICE_RECORD(FA200),     // 75
+  DEVICE_RECORD(W10),       // 76
+  DEVICE_RECORD(WXDF),      // 77
+  DEVICE_RECORD(YB100),     // 78
+  DEVICE_RECORD(MQ200),     // 79
+  DEVICE_RECORD(GW10),      // 80
 };
 
 static const uint8_t extraDeviceTypeForSelfClean[] PROGMEM = {
@@ -1353,10 +1353,10 @@ static const uint8_t extraDeviceTypeForKeepWarm[] PROGMEM = {
 };
 
 static const uint8_t extraDeviceTypeForYADot5[] PROGMEM = { 4 };
-static const uint8_t extraDeviceTypeForYADot5jr26YA[] PROGMEM = { 5 };
+static const uint8_t extraDeviceTypeFor26YADot5[] PROGMEM = { 5 };
 static const uint8_t extraDeviceTypeForYADot5YAB3[] PROGMEM = { 6 };
 
-struct SerialInfo {
+struct SnData {
   char barcode[6];
   uint8_t version;
   int8_t year;
@@ -1382,27 +1382,28 @@ static int8_t char2year(char ch) {
   return ptr - years + 15;
 }
 
-static SerialInfo get_sn_info(const std::string &sn) {
-  SerialInfo result;
-  uint8_t offset = (sn.length() == 32) ? 6 : 0;
-  strlcpy(result.barcode, sn.c_str() + offset + 6, sizeof(result.barcode));
-  result.version = hex2int(sn[offset]);
-  result.year = char2year(sn[offset + 11]);
-  result.month = hex2int(sn[offset + 12]);
-  result.day = hex2int(sn[offset + 13]) * 10 + hex2int(sn[offset + 14]);
-  return result;
+static SnData parseSN(const char *sn) {
+  SnData ret;
+  if (strlen(sn) == 32)
+    sn += 6;
+  strlcpy(ret.barcode, sn + 6, sizeof(ret.barcode));
+  ret.version = hex2int(sn[0]);
+  ret.year = char2year(sn[11]);
+  ret.month = hex2int(sn[12]);
+  ret.day = hex2int(sn[13]) * 10 + hex2int(sn[14]);
+  return ret;
 }
 
-static bool check_date(const SerialInfo &info, int8_t year, int8_t month, int8_t day) {
-  if (info.year > year)
+static bool check_date(const SnData &data, int8_t year, int8_t month, int8_t day) {
+  if (data.year > year)
     return true;
-  if (info.year < year)
+  if (data.year < year)
     return false;
-  if (info.month > month)
+  if (data.month > month)
     return true;
-  if (info.month < month)
+  if (data.month < month)
     return false;
-  return info.day >= day;
+  return data.day >= day;
 }
 
 static bool check_id(uint8_t id, const uint8_t *pos, uint8_t num) {
@@ -1413,40 +1414,45 @@ static bool check_id(uint8_t id, const uint8_t *pos, uint8_t num) {
   return false;
 }
 
-#define CHECK_ID(pos, list, info, y, m, d) (check_id(pos, list, sizeof(list)) && check_date(info, y, m, d))
+#define CHECK_ID(pos, list, data, y, m, d) (check_id(pos, list, sizeof(list)) && check_date(data, y, m, d))
 
-void DeviceInfo::read(const std::string &sn) {
-  // Get device information based on Serial Number
-  const SerialInfo info = get_sn_info(sn);
-  const DeviceData *pgm = DEVICES_DATABASE;
+DeviceInfo DeviceInfo::fromSN(const char *sn) {
+  DeviceInfo ret{};
   char buf[270];
-  for (uint8_t pos = 0; pos < sizeof(DEVICES_DATABASE) / sizeof(DEVICES_DATABASE[0]); ++pos, ++pgm) {
-    DeviceData data;
-    memcpy_P(&data, pgm, sizeof(data));
-    strncpy_P(buf, data.list, sizeof(buf));
-    if (strstr(buf, info.barcode) == nullptr)
+  const SnData snData = parseSN(sn);
+  const DeviceDbRecord *dbCursor = DEVICES_DBASE;
+  for (uint8_t id = 0; id < sizeof(DEVICES_DBASE) / sizeof(DEVICES_DBASE[0]); ++id, ++dbCursor) {
+    DeviceDbRecord dev;
+    memcpy_P(&dev, dbCursor, sizeof(dev));
+    strncpy_P(buf, dev.list, sizeof(buf));
+    if (strstr(buf, snData.barcode) == nullptr)
       continue;
-    if (info.version != 13 && info.version >= 2) {
-      if (CHECK_ID(pos, extraDeviceTypeForYADot5, info, 17, 9, 6) || CHECK_ID(pos, extraDeviceTypeForYADot5jr26YA, info, 17, 9, 30)) {
-        this->hasDot5Support = true;
-        this->hasReadyColdOrHot = true;
-        this->hasKeepWarm = true;
-      } else if (CHECK_ID(pos, extraDeviceTypeForYADot5YAB3, info, 17, 9, 6)) {
-        this->hasDot5Support = true;
-        this->hasReadyColdOrHot = true;          
-      } else if (CHECK_ID(pos, extraDeviceTypeForKeepWarm, info, 17, 7, 1)) {
-        this->hasKeepWarm = true;
+    if (snData.version != 13 && snData.version >= 2) {
+      // YA: from 2017/09/06 or 26YA: from 2017/09/30
+      if (CHECK_ID(id, extraDeviceTypeForYADot5, snData, 17, 9, 6) || CHECK_ID(id, extraDeviceTypeFor26YADot5, snData, 17, 9, 30)) {
+        ret.hasDot5Support = true;
+        ret.hasReadyColdOrHot = true;
+        ret.hasKeepWarm = true;
+      // YAB3: from 2017/09/06
+      } else if (CHECK_ID(id, extraDeviceTypeForYADot5YAB3, snData, 17, 9, 6)) {
+        ret.hasDot5Support = true;
+        ret.hasReadyColdOrHot = true;
+      // List of KeepWarm devices: from 2017/07/01
+      } else if (CHECK_ID(id, extraDeviceTypeForKeepWarm, snData, 17, 7, 1)) {
+        ret.hasKeepWarm = true;
       }
-      if (CHECK_ID(pos, extraDeviceTypeForSelfClean, info, 16, 9, 1)) {
-        this->hasSelfCleaning = true;
+      // List of SelfClean devices: from 2016/09/01
+      if (CHECK_ID(id, extraDeviceTypeForSelfClean, snData, 16, 9, 1)) {
+        ret.hasSelfCleaning = true;
       }
     }
-    data.func(*this);
-    return;
+    dev.func(ret);
+    return ret;
   }
-  this->deviceType = DeviceType::OTHER;
-  this->hasUpDownSwipeWind = true;
-  this->hasLeftRightSwipeWind = true;
+  ret.deviceType = DeviceType::OTHER;
+  ret.hasUpDownSwipeWind = true;
+  ret.hasLeftRightSwipeWind = true;
+  return ret;
 }
 
 }  // namespace midea_ac
