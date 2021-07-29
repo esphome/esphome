@@ -28,11 +28,6 @@ class DemoLight : public light::LightOutput, public Component {
   void set_type(DemoLightType type) { type_ = type; }
   light::LightTraits get_traits() override {
     light::LightTraits traits{};
-    // brightness
-    // rgb
-    // rgb_white_value
-    // color_temperature, min_mireds, max_mireds
-    // color_interlock
     switch (type_) {
       case DemoLightType::TYPE_1:
         traits.set_supported_color_modes({light::ColorMode::ON_OFF});
@@ -47,7 +42,7 @@ class DemoLight : public light::LightOutput, public Component {
         traits.set_supported_color_modes({light::ColorMode::RGB_WHITE});
         break;
       case DemoLightType::TYPE_5:
-        traits.set_supported_color_modes({light::ColorMode::RGB_COLD_WARM_WHITE});
+        traits.set_supported_color_modes({light::ColorMode::RGB_COLOR_TEMPERATURE});
         traits.set_min_mireds(153);
         traits.set_max_mireds(500);
         break;
