@@ -41,6 +41,7 @@ namespace esphome {
 class Application {
  public:
   void pre_setup(const std::string &name, const char *compilation_time, bool name_add_mac_suffix) {
+    pre_setup_arch_();
     this->name_add_mac_suffix_ = name_add_mac_suffix;
     if (name_add_mac_suffix) {
       this->name_ = name + "-" + get_mac_address().substr(6);
@@ -235,6 +236,8 @@ class Application {
   void calculate_looping_components_();
 
   void feed_wdt_arch_();
+  void pre_setup_arch_();
+  void post_setup_arch_();
 
   std::vector<Component *> components_{};
   std::vector<Component *> looping_components_{};

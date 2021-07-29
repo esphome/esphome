@@ -59,6 +59,7 @@ void Application::setup() {
   ESP_LOGI(TAG, "setup() finished successfully!");
   this->schedule_dump_config();
   this->calculate_looping_components_();
+  this->post_setup_arch_();
 
   // Dummy function to link some symbols into the binary.
   force_link_symbols();
