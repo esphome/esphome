@@ -97,6 +97,7 @@ esphome/components/rf_bridge/* @jesserockz
 esphome/components/rtttl/* @glmnet
 esphome/components/script/* @esphome/core
 esphome/components/sdm_meter/* @jesserockz @polyfaces
+esphome/components/sdp3x/* @Azimath
 esphome/components/selec_meter/* @sourabhjaiswal
 esphome/components/sensor/* @esphome/core
 esphome/components/sgp40/* @SenexCrenshaw
@@ -128,6 +129,7 @@ esphome/components/thermostat/* @kbx81
 esphome/components/time/* @OttoWinter
 esphome/components/tm1637/* @glmnet
 esphome/components/tmp102/* @timsavage
+esphome/components/tmp117/* @Azimath
 esphome/components/tof10120/* @wstrzalka
 esphome/components/tuya/binary_sensor/* @jesserockz
 esphome/components/tuya/climate/* @jesserockz
