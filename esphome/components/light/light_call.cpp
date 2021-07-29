@@ -325,9 +325,9 @@ void LightCall::transform_parameters_() {
   // which doesn't support CWWW modes (yet?), and for compatibility with the pre-colormode model,
   // as CWWW and RGBWW lights used to represent their values as white + color temperature.
   if (((this->white_.has_value() && *this->white_ > 0.0f) || this->color_temperature_.has_value()) &&  //
-      (*this->color_mode_ & ColorCapability::COLD_WARM_WHITE) &&                                     //
-      !(*this->color_mode_ & ColorCapability::WHITE) &&                                              //
-      !(*this->color_mode_ & ColorCapability::COLOR_TEMPERATURE) &&                                  //
+      (*this->color_mode_ & ColorCapability::COLD_WARM_WHITE) &&                                       //
+      !(*this->color_mode_ & ColorCapability::WHITE) &&                                                //
+      !(*this->color_mode_ & ColorCapability::COLOR_TEMPERATURE) &&                                    //
       traits.get_min_mireds() > 0.0f && traits.get_max_mireds() > 0.0f) {
     ESP_LOGD(TAG, "'%s' - Setting cold/warm white channels using white/color temperature values.",
              this->parent_->get_name().c_str());

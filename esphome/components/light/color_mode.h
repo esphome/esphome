@@ -28,32 +28,21 @@ class ColorCapabilityHelper {
   constexpr operator ColorCapability() const { return val_; }
   constexpr operator uint8_t() const { return static_cast<uint8_t>(val_); }
   constexpr operator bool() const { return static_cast<uint8_t>(val_) != 0; }
+
  protected:
   ColorCapability val_;
 };
 constexpr ColorCapabilityHelper operator&(ColorCapability lhs, ColorCapability rhs) {
-  return static_cast<ColorCapability>(
-    static_cast<uint8_t>(lhs) &
-    static_cast<uint8_t>(rhs)
-  );
+  return static_cast<ColorCapability>(static_cast<uint8_t>(lhs) & static_cast<uint8_t>(rhs));
 }
 constexpr ColorCapabilityHelper operator&(ColorCapabilityHelper lhs, ColorCapability rhs) {
-  return static_cast<ColorCapability>(
-    static_cast<uint8_t>(lhs) &
-    static_cast<uint8_t>(rhs)
-  );
+  return static_cast<ColorCapability>(static_cast<uint8_t>(lhs) & static_cast<uint8_t>(rhs));
 }
 constexpr ColorCapabilityHelper operator|(ColorCapability lhs, ColorCapability rhs) {
-  return static_cast<ColorCapability>(
-    static_cast<uint8_t>(lhs) |
-    static_cast<uint8_t>(rhs)
-  );
+  return static_cast<ColorCapability>(static_cast<uint8_t>(lhs) | static_cast<uint8_t>(rhs));
 }
 constexpr ColorCapabilityHelper operator|(ColorCapabilityHelper lhs, ColorCapability rhs) {
-  return static_cast<ColorCapability>(
-    static_cast<uint8_t>(lhs) |
-    static_cast<uint8_t>(rhs)
-  );
+  return static_cast<ColorCapability>(static_cast<uint8_t>(lhs) | static_cast<uint8_t>(rhs));
 }
 
 /// Color modes are a combination of color capabilities that can be used at the same time.
@@ -65,23 +54,24 @@ enum class ColorMode : uint8_t {
   /// Dimmable light.
   BRIGHTNESS = (uint8_t) ColorCapability::BRIGHTNESS,
   /// White output only (use only if the light also has another color mode such as RGB).
-  WHITE = ColorCapability::ON_OFF | ColorCapability::BRIGHTNESS | ColorCapability::WHITE,
+  WHITE = (uint8_t)(ColorCapability::ON_OFF | ColorCapability::BRIGHTNESS | ColorCapability::WHITE),
   /// Controllable color temperature output.
-  COLOR_TEMPERATURE = ColorCapability::ON_OFF | ColorCapability::BRIGHTNESS | ColorCapability::COLOR_TEMPERATURE,
+  COLOR_TEMPERATURE =
+      (uint8_t)(ColorCapability::ON_OFF | ColorCapability::BRIGHTNESS | ColorCapability::COLOR_TEMPERATURE),
   /// Cold and warm white output with individually controllable brightness.
-  COLD_WARM_WHITE = ColorCapability::ON_OFF | ColorCapability::BRIGHTNESS | ColorCapability::COLD_WARM_WHITE,
+  COLD_WARM_WHITE = (uint8_t)(ColorCapability::ON_OFF | ColorCapability::BRIGHTNESS | ColorCapability::COLD_WARM_WHITE),
   /// RGB color output.
-  RGB = ColorCapability::ON_OFF | ColorCapability::BRIGHTNESS | ColorCapability::RGB,
+  RGB = (uint8_t)(ColorCapability::ON_OFF | ColorCapability::BRIGHTNESS | ColorCapability::RGB),
   /// RGB color output and a separate white output.
-  RGB_WHITE = ColorCapability::ON_OFF | ColorCapability::BRIGHTNESS | ColorCapability::RGB | ColorCapability::WHITE,
+  RGB_WHITE =
+      (uint8_t)(ColorCapability::ON_OFF | ColorCapability::BRIGHTNESS | ColorCapability::RGB | ColorCapability::WHITE),
   /// RGB color output and a separate white output with controllable color temperature.
-  RGB_COLOR_TEMPERATURE = ColorCapability::ON_OFF | ColorCapability::BRIGHTNESS | ColorCapability::RGB |
-                          ColorCapability::WHITE | ColorCapability::COLOR_TEMPERATURE,
+  RGB_COLOR_TEMPERATURE = (uint8_t)(ColorCapability::ON_OFF | ColorCapability::BRIGHTNESS | ColorCapability::RGB |
+                                    ColorCapability::WHITE | ColorCapability::COLOR_TEMPERATURE),
   /// RGB color output, and separate cold and warm white outputs.
-  RGB_COLD_WARM_WHITE = ColorCapability::ON_OFF | ColorCapability::BRIGHTNESS | ColorCapability::RGB |
-                        ColorCapability::COLD_WARM_WHITE,
+  RGB_COLD_WARM_WHITE = (uint8_t)(ColorCapability::ON_OFF | ColorCapability::BRIGHTNESS | ColorCapability::RGB |
+                                  ColorCapability::COLD_WARM_WHITE),
 };
-
 
 /// Helper class to allow bitwise operations on ColorMode with ColorCapability
 class ColorModeHelper {
@@ -90,44 +80,27 @@ class ColorModeHelper {
   constexpr operator ColorMode() const { return val_; }
   constexpr operator uint8_t() const { return static_cast<uint8_t>(val_); }
   constexpr operator bool() const { return static_cast<uint8_t>(val_) != 0; }
+
  protected:
   ColorMode val_;
 };
 constexpr ColorModeHelper operator&(ColorMode lhs, ColorMode rhs) {
-  return static_cast<ColorMode>(
-    static_cast<uint8_t>(lhs) &
-    static_cast<uint8_t>(rhs)
-  );
+  return static_cast<ColorMode>(static_cast<uint8_t>(lhs) & static_cast<uint8_t>(rhs));
 }
 constexpr ColorModeHelper operator&(ColorMode lhs, ColorCapability rhs) {
-  return static_cast<ColorMode>(
-    static_cast<uint8_t>(lhs) &
-    static_cast<uint8_t>(rhs)
-  );
+  return static_cast<ColorMode>(static_cast<uint8_t>(lhs) & static_cast<uint8_t>(rhs));
 }
 constexpr ColorModeHelper operator&(ColorModeHelper lhs, ColorMode rhs) {
-  return static_cast<ColorMode>(
-    static_cast<uint8_t>(lhs) &
-    static_cast<uint8_t>(rhs)
-  );
+  return static_cast<ColorMode>(static_cast<uint8_t>(lhs) & static_cast<uint8_t>(rhs));
 }
 constexpr ColorModeHelper operator|(ColorMode lhs, ColorMode rhs) {
-  return static_cast<ColorMode>(
-    static_cast<uint8_t>(lhs) |
-    static_cast<uint8_t>(rhs)
-  );
+  return static_cast<ColorMode>(static_cast<uint8_t>(lhs) | static_cast<uint8_t>(rhs));
 }
 constexpr ColorModeHelper operator|(ColorMode lhs, ColorCapability rhs) {
-  return static_cast<ColorMode>(
-    static_cast<uint8_t>(lhs) |
-    static_cast<uint8_t>(rhs)
-  );
+  return static_cast<ColorMode>(static_cast<uint8_t>(lhs) | static_cast<uint8_t>(rhs));
 }
 constexpr ColorModeHelper operator|(ColorModeHelper lhs, ColorMode rhs) {
-  return static_cast<ColorMode>(
-    static_cast<uint8_t>(lhs) |
-    static_cast<uint8_t>(rhs)
-  );
+  return static_cast<ColorMode>(static_cast<uint8_t>(lhs) | static_cast<uint8_t>(rhs));
 }
 
 }  // namespace light
