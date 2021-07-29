@@ -496,7 +496,7 @@ DEVICE_NAME(GW10);
 DEVICE_NAME(OTHER);
 
 DEVICE_FUNC(QA100) {
-  di.deviceType = DeviceType::QA100;
+  di.deviceType = DeviceID::ID_QA100;
   di.hasLeftRightSwipeWind = true;
   di.hasUpDownSwipeWind = true;
   di.hasECO = true;
@@ -506,7 +506,7 @@ DEVICE_FUNC(QA100) {
 }
 
 DEVICE_FUNC(SA100) {
-  di.deviceType = DeviceType::SA100;
+  di.deviceType = DeviceID::ID_SA100;
   di.hasUpDownSwipeWind = true;
   di.hasLeftRightSwipeWind = true;
   di.hasECO = true;
@@ -516,7 +516,7 @@ DEVICE_FUNC(SA100) {
 }
 
 DEVICE_FUNC(SA200) {
-  di.deviceType = DeviceType::SA200;
+  di.deviceType = DeviceID::ID_SA200;
   di.hasUpDownSwipeWind = true;
   di.hasLeftRightSwipeWind = true;
   di.hasECO = true;
@@ -525,14 +525,14 @@ DEVICE_FUNC(SA200) {
 }
 
 DEVICE_FUNC(SA300) {
-  di.deviceType = DeviceType::SA300;
+  di.deviceType = DeviceID::ID_SA300;
   di.hasUpDownSwipeWind = true;
   di.hasECO = true;
   di.hasSleepCurve = true;
 }
 
 DEVICE_FUNC(YA) {
-  di.deviceType = DeviceType::YA;
+  di.deviceType = DeviceID::ID_YA;
   di.hasUpDownSwipeWind = true;
   di.hasLeftRightSwipeWind = true;
   di.hasECO = true;
@@ -540,7 +540,7 @@ DEVICE_FUNC(YA) {
 }
 
 DEVICE_FUNC(WOW) {
-  di.deviceType = DeviceType::WOW;
+  di.deviceType = DeviceID::ID_WOW;
   di.hasUpDownSwipeWind = true;
   di.hasLeftRightSwipeWind = true;
   di.hasECO = true;
@@ -551,7 +551,7 @@ DEVICE_FUNC(WOW) {
 }
 
 DEVICE_FUNC(26YA) {
-  di.deviceType = DeviceType::YA;
+  di.deviceType = DeviceID::ID_26YA;
   di.hasUpDownSwipeWind = true;
   di.hasLeftRightSwipeWind = true;
   di.hasECO = true;
@@ -559,7 +559,7 @@ DEVICE_FUNC(26YA) {
 }
 
 DEVICE_FUNC(GM100) {
-  di.deviceType = DeviceType::GM100;
+  di.deviceType = DeviceID::ID_GM100;
   di.hasUpDownSwipeWind = true;
   di.hasECO = true;
   di.hasSleepCurve = true;
@@ -568,7 +568,7 @@ DEVICE_FUNC(GM100) {
 }
 
 DEVICE_FUNC(S10) {
-  di.deviceType = DeviceType::GM100;
+  di.deviceType = DeviceID::ID_S10;
   di.hasUpDownSwipeWind = true;
   di.hasECO = true;
   di.hasSleepCurve = true;
@@ -578,7 +578,7 @@ DEVICE_FUNC(S10) {
 }
 
 DEVICE_FUNC(YAB3) {
-  di.deviceType = DeviceType::YAB3;
+  di.deviceType = DeviceID::ID_YAB3;
   di.hasUpDownSwipeWind = true;
   di.hasECO = true;
   di.hasSleepCurve = true;
@@ -586,13 +586,13 @@ DEVICE_FUNC(YAB3) {
 }
 
 DEVICE_FUNC(WJABC) {
-  di.deviceType = DeviceType::WJABC;
+  di.deviceType = DeviceID::ID_WJABC;
   di.hasUpDownSwipeWind = true;
   di.hasSleepCurve = true;
 }
 
 DEVICE_FUNC(YA100) {
-  di.deviceType = DeviceType::YA100;
+  di.deviceType = DeviceID::ID_YA100;
   di.hasUpDownSwipeWind = true;
   di.hasLeftRightSwipeWind = true;
   di.hasPurify = true;
@@ -600,44 +600,44 @@ DEVICE_FUNC(YA100) {
 }
 
 DEVICE_FUNC(CJ200) {
-  di.deviceType = DeviceType::CJ200;
+  di.deviceType = DeviceID::ID_CJ200;
   di.hasLeftRightSwipeWind = true;
   di.hasPurify = true;
 }
 
 DEVICE_FUNC(WYA) {
-  di.deviceType = DeviceType::WYA;
+  di.deviceType = DeviceID::ID_WYA;
   di.hasSwipeWind = true;
   di.hasPurify = true;
 }
 
 DEVICE_FUNC(WPA) {
-  di.deviceType = DeviceType::WPA;
+  di.deviceType = DeviceID::ID_WPA;
   di.hasUpDownSwipeWind = true;
   di.hasLeftRightSwipeWind = true;
 }
 
 DEVICE_FUNC(LBB2) {
-  di.deviceType = DeviceType::LBB2;
+  di.deviceType = DeviceID::ID_LBB2;
   di.hasUpDownSwipeWind = true;
   di.hasLeftRightSwipeWind = true;
   di.hasPurify = true;
 }
 
 DEVICE_FUNC(LBB3) {
-  di.deviceType = DeviceType::LBB3;
+  di.deviceType = DeviceID::ID_LBB3;
   di.hasUpDownSwipeWind = true;
   di.hasLeftRightSwipeWind = true;
   di.hasNoPolar = false;
 }
 
 DEVICE_FUNC(PA400) {
-  di.deviceType = DeviceType::PA400;
+  di.deviceType = DeviceID::ID_PA400;
   di.hasUpDownSwipeWind = true;
 }
 
 DEVICE_FUNC(WEA) {
-  di.deviceType = DeviceType::WEA;
+  di.deviceType = DeviceID::ID_WEA;
   di.hasUpDownSwipeWind = true;
   di.hasECO = true;
   di.hasChildrenPreventCold = true;
@@ -646,7 +646,7 @@ DEVICE_FUNC(WEA) {
 }
 
 DEVICE_FUNC(MQ200) {
-  di.deviceType = DeviceType::MQ200;
+  di.deviceType = DeviceID::ID_MQ200;
   di.hasUpDownSwipeWind = true;
   di.hasECO = true;
   di.hasChildrenPreventCold = true;
@@ -656,7 +656,7 @@ DEVICE_FUNC(MQ200) {
 }
 
 DEVICE_FUNC(CA) {
-  di.deviceType = DeviceType::CA;
+  di.deviceType = DeviceID::ID_CA;
   di.hasUpDownSwipeWind = true;
   di.hasECO = true;
   di.hasReadyColdOrHot = true;
@@ -667,7 +667,7 @@ DEVICE_FUNC(CA) {
 }
 
 DEVICE_FUNC(TAB3) {
-  di.deviceType = DeviceType::TAB3;
+  di.deviceType = DeviceID::ID_TAB3;
   di.hasUpDownSwipeWind = true;
   di.hasECO = true;
   di.hasReadyColdOrHot = true;
@@ -683,7 +683,7 @@ DEVICE_FUNC(TAB3) {
 }
 
 DEVICE_FUNC(TAB12) {
-  di.deviceType = DeviceType::TAB12;
+  di.deviceType = DeviceID::ID_TAB12;
   di.hasUpDownSwipeWind = true;
   di.hasLeftRightSwipeWind = true;
   di.hasECO = true;
@@ -701,7 +701,7 @@ DEVICE_FUNC(TAB12) {
 }
 
 DEVICE_FUNC(FA100) {
-  di.deviceType = DeviceType::FA100;
+  di.deviceType = DeviceID::ID_FA100;
   di.hasUpDownSwipeWind = true;
   di.hasLeftRightSwipeWind = true;
   di.hasECO = true;
@@ -719,7 +719,7 @@ DEVICE_FUNC(FA100) {
 }
 
 DEVICE_FUNC(FA200) {
-  di.deviceType = DeviceType::FA200;
+  di.deviceType = DeviceID::ID_FA200;
   di.hasUpDownSwipeWind = true;
   di.hasLeftRightSwipeWind = true;
   di.hasECO = true;
@@ -735,7 +735,7 @@ DEVICE_FUNC(FA200) {
 }
 
 DEVICE_FUNC(KHB1) {
-  di.deviceType = DeviceType::KHB1;
+  di.deviceType = DeviceID::ID_KHB1;
   di.hasLeftRightSwipeWind = true;
   di.hasPurify = true;
   di.hasReadyColdOrHot = true;
@@ -747,14 +747,14 @@ DEVICE_FUNC(KHB1) {
 }
 
 DEVICE_FUNC(J8) {
-  di.deviceType = DeviceType::KHB1;
+  di.deviceType = DeviceID::ID_J8;
   di.hasLeftRightSwipeWind = true;
   di.hasReadyColdOrHot = true;
   di.hasDot5Support = true;
 }
 
 DEVICE_FUNC(CACP) {
-  di.deviceType = DeviceType::CACP;
+  di.deviceType = DeviceID::ID_CACP;
   di.hasUpDownSwipeWind = true;
   di.hasOuterDoorDisplay = false;
   di.hasNoPolar = false;
@@ -763,21 +763,21 @@ DEVICE_FUNC(CACP) {
 }
 
 DEVICE_FUNC(ZA300) {
-  di.deviceType = DeviceType::ZA300;
+  di.deviceType = DeviceID::ID_ZA300;
   di.hasUpDownSwipeWind = true;
   di.hasLeftRightSwipeWind = true;
   di.hasPurify = true;
 }
 
 DEVICE_FUNC(ZA300B3) {
-  di.deviceType = DeviceType::ZA300B3;
+  di.deviceType = DeviceID::ID_ZA300B3;
   di.hasUpDownSwipeWind = true;
   di.hasLeftRightSwipeWind = true;
   di.hasNoPolar = false;
 }
 
 DEVICE_FUNC(ZB300) {
-  di.deviceType = DeviceType::ZB300;
+  di.deviceType = DeviceID::ID_ZB300;
   di.hasUpDownSwipeWind = true;
   di.hasLeftRightSwipeWind = true;
   di.hasSavingPower = true;
@@ -786,7 +786,7 @@ DEVICE_FUNC(ZB300) {
 }
 
 DEVICE_FUNC(ZB300YJ) {
-  di.deviceType = DeviceType::ZB300YJ;
+  di.deviceType = DeviceID::ID_ZB300YJ;
   di.hasUpDownSwipeWind = true;
   di.hasLeftRightSwipeWind = true;
   di.hasSavingPower = true;
@@ -795,44 +795,44 @@ DEVICE_FUNC(ZB300YJ) {
 }
 
 DEVICE_FUNC(YA300) {
-  di.deviceType = DeviceType::YA300;
+  di.deviceType = DeviceID::ID_YA300;
   di.hasLeftRightSwipeWind = true;
   di.hasPurify = true;
 }
 
 DEVICE_FUNC(YA301) {
-  di.deviceType = DeviceType::YA301;
+  di.deviceType = DeviceID::ID_YA301;
   di.hasUpSwipeWind = true;
   di.hasDownSwipeWind = true;
   di.hasPurify = true;
 }
 
 DEVICE_FUNC(W10) {
-  di.deviceType = DeviceType::W10;
+  di.deviceType = DeviceID::ID_W10;
   di.hasUpSwipeWind = true;
   di.hasDownSwipeWind = true;
 }
 
 DEVICE_FUNC(YA201) {
-  di.deviceType = DeviceType::YA201;
+  di.deviceType = DeviceID::ID_YA201;
   di.hasLeftRightSwipeWind = true;
   di.hasPurify = true;
 }
 
 DEVICE_FUNC(YA200) {
-  di.deviceType = DeviceType::YA200;
+  di.deviceType = DeviceID::ID_YA200;
   di.hasLeftRightSwipeWind = true;
 }
 
 DEVICE_FUNC(YA302) {
-  di.deviceType = DeviceType::YA302;
+  di.deviceType = DeviceID::ID_YA302;
   di.hasUpDownSwipeWind = true;
   di.hasLeftRightSwipeWind = true;
   di.hasPurify = true;
 }
 
 DEVICE_FUNC(PC400B23) {
-  di.deviceType = DeviceType::PC400B23;
+  di.deviceType = DeviceID::ID_PC400B23;
   di.hasUpDownSwipeWind = true;
   di.hasECO = true;
   di.hasSleepCurve = true;
@@ -841,7 +841,7 @@ DEVICE_FUNC(PC400B23) {
 }
 
 DEVICE_FUNC(WXA) {
-  di.deviceType = DeviceType::WXA;
+  di.deviceType = DeviceID::ID_WXA;
   di.hasUpDownSwipeWind = true;
   di.hasLeftRightSwipeWind = true;
   di.hasECO = true;
@@ -854,7 +854,7 @@ DEVICE_FUNC(WXA) {
 }
 
 DEVICE_FUNC(WJ7) {
-  di.deviceType = DeviceType::WJ7;
+  di.deviceType = DeviceID::ID_WJ7;
   di.hasNatureWind = true;
   di.hasUpDownSwipeWind = true;
   di.hasLeftRightSwipeWind = true;
@@ -863,13 +863,13 @@ DEVICE_FUNC(WJ7) {
 }
 
 DEVICE_FUNC(WYB) {
-  di.deviceType = DeviceType::WYB;
+  di.deviceType = DeviceID::ID_WYB;
   di.hasUpDownSwipeWind = true;
   di.hasLeftRightSwipeWind = true;
 }
 
 DEVICE_FUNC(PCB50) {
-  di.deviceType = DeviceType::PCB50;
+  di.deviceType = DeviceID::ID_PCB50;
   di.hasUpDownSwipeWind = true;
   di.hasLeftRightSwipeWind = true;
   di.hasSleepCurve = true;
@@ -877,7 +877,7 @@ DEVICE_FUNC(PCB50) {
 }
 
 DEVICE_FUNC(YB200) {
-  di.deviceType = DeviceType::YB200;
+  di.deviceType = DeviceID::ID_YB200;
   di.hasComfortDry = true;
   di.hasManualDry = true;
   di.hasPMV = true;
@@ -895,7 +895,7 @@ DEVICE_FUNC(YB200) {
 }
 
 DEVICE_FUNC(YB100) {
-  //di.deviceType = DeviceType::YB100;
+  di.deviceType = DeviceID::ID_YB100;
   di.hasUpDownSwipeWind = true;
   di.hasUpSwipeWind = true;
   di.hasDownSwipeWind = true;
@@ -911,7 +911,7 @@ DEVICE_FUNC(YB100) {
 }
 
 DEVICE_FUNC(DA100) {
-  di.deviceType = DeviceType::DA100;
+  di.deviceType = DeviceID::ID_DA100;
   di.hasReadyColdOrHot = true;
   di.hasUpDownSwipeWind = true;
   di.hasLeftRightSwipeWind = true;
@@ -921,7 +921,7 @@ DEVICE_FUNC(DA100) {
 }
 
 DEVICE_FUNC(DA100Z) {
-  di.deviceType = DeviceType::DA100Z;
+  di.deviceType = DeviceID::ID_DA100Z;
   di.hasReadyColdOrHot = true;
   di.hasUpDownSwipeWind = true;
   di.hasLeftRightSwipeWind = true;
@@ -931,7 +931,7 @@ DEVICE_FUNC(DA100Z) {
 }
 
 DEVICE_FUNC(YB200TEST) {
-  di.deviceType = DeviceType::YB200Test;
+  di.deviceType = DeviceID::ID_YB200TEST;
   di.hasComfortDry = true;
   di.hasManualDry = true;
   di.hasPMV = true;
@@ -951,7 +951,7 @@ DEVICE_FUNC(YB200TEST) {
 }
 
 DEVICE_FUNC(WXD) {
-  di.deviceType = DeviceType::WXD;
+  di.deviceType = DeviceID::ID_WXD;
   di.hasReadyColdOrHot = true;
   di.hasUpDownSwipeWind = true;
   di.hasLeftRightSwipeWind = true;
@@ -961,7 +961,7 @@ DEVICE_FUNC(WXD) {
 }
 
 DEVICE_FUNC(WXDF) {
-  //di.deviceType = DeviceType::WXDF;
+  di.deviceType = DeviceID::ID_WXDF;
   di.hasReadyColdOrHot = true;
   di.hasUpDownSwipeWind = true;
   di.hasLeftRightSwipeWind = true;
@@ -971,7 +971,7 @@ DEVICE_FUNC(WXDF) {
 }
 
 DEVICE_FUNC(YB300) {
-  di.deviceType = DeviceType::YB300;
+  di.deviceType = DeviceID::ID_YB300;
   di.hasReadyColdOrHot = true;
   di.hasUpDownSwipeWind = true;
   di.hasLeftRightSwipeWind = true;
@@ -980,7 +980,7 @@ DEVICE_FUNC(YB300) {
 }
 
 DEVICE_FUNC(WDAA3) {
-  di.deviceType = DeviceType::WDAA3;
+  di.deviceType = DeviceID::ID_WDAA3;
   di.hasReadyColdOrHot = true;
   di.hasUpDownSwipeWind = true;
   di.hasDot5Support = true;
@@ -989,7 +989,7 @@ DEVICE_FUNC(WDAA3) {
 }
 
 DEVICE_FUNC(WDAD3) {
-  di.deviceType = DeviceType::WDAD3;
+  di.deviceType = DeviceID::ID_WDAD3;
   di.hasUpDownSwipeWind = true;
   di.hasOuterDoorDisplay = false;
   di.hasNoPolar = false;
@@ -998,7 +998,7 @@ DEVICE_FUNC(WDAD3) {
 }
 
 DEVICE_FUNC(WYAD2D3) {
-  di.deviceType = DeviceType::WYAD2D3;
+  di.deviceType = DeviceID::ID_WYAD2D3;
   di.hasUpSwipeWind = true;
   di.hasDownSwipeWind = true;
   di.hasOuterDoorDisplay = false;
@@ -1006,7 +1006,7 @@ DEVICE_FUNC(WYAD2D3) {
 }
 
 DEVICE_FUNC(WPAD3) {
-  di.deviceType = DeviceType::WPAD3;
+  di.deviceType = DeviceID::ID_WPAD3;
   di.hasUpDownSwipeWind = true;
   di.hasLeftRightSwipeWind = true;
   di.hasOuterDoorDisplay = false;
@@ -1015,7 +1015,7 @@ DEVICE_FUNC(WPAD3) {
 }
 
 DEVICE_FUNC(DA400B3) {
-  di.deviceType = DeviceType::DA400B3;
+  di.deviceType = DeviceID::ID_DA400B3;
   di.hasUpDownSwipeWind = true;
   di.hasOuterDoorDisplay = true;
   di.hasSleepCurve = true;
@@ -1023,7 +1023,7 @@ DEVICE_FUNC(DA400B3) {
 }
 
 DEVICE_FUNC(PC400B1) {
-  di.deviceType = DeviceType::PC400B1;
+  di.deviceType = DeviceID::ID_PC400B1;
   di.hasUpDownSwipeWind = true;
   di.hasLeftRightSwipeWind = true;
   di.hasECO = true;
@@ -1033,7 +1033,7 @@ DEVICE_FUNC(PC400B1) {
 }
 
 DEVICE_FUNC(GW10) {
-  di.deviceType = DeviceType::GW10;
+  di.deviceType = DeviceID::ID_GW10;
   di.hasUpDownSwipeWind = true;
   di.hasLeftRightSwipeWind = true;
   di.hasECO = true;
@@ -1042,7 +1042,7 @@ DEVICE_FUNC(GW10) {
 }
 
 DEVICE_FUNC(PE400B3) {
-  di.deviceType = DeviceType::PE400B3;
+  di.deviceType = DeviceID::ID_PE400B3;
   di.hasUpDownSwipeWind = true;
   di.hasECO = true;
   di.hasReadyColdOrHot = true;
@@ -1051,7 +1051,7 @@ DEVICE_FUNC(PE400B3) {
 }
 
 DEVICE_FUNC(DA200300) {
-  di.deviceType = DeviceType::DA200300;
+  di.deviceType = DeviceID::ID_DA200300;
   di.hasUpDownSwipeWind = true;
   di.hasOuterDoorDisplay = true;
   di.hasSleepCurve = true;
@@ -1061,7 +1061,7 @@ DEVICE_FUNC(DA200300) {
 }
 
 DEVICE_FUNC(DA400D3) {
-  di.deviceType = DeviceType::DA400D3;
+  di.deviceType = DeviceID::ID_DA400D3;
   di.hasUpDownSwipeWind = true;
   di.hasOuterDoorDisplay = false;
   di.hasNoPolar = false;
@@ -1070,7 +1070,7 @@ DEVICE_FUNC(DA400D3) {
 }
 
 DEVICE_FUNC(DA400BP) {
-  di.deviceType = DeviceType::DA400BP;
+  di.deviceType = DeviceID::ID_DA400BP;
   di.hasReadyColdOrHot = true;
   di.hasUpDownSwipeWind = true;
   di.hasLeftRightSwipeWind = true;
@@ -1080,7 +1080,7 @@ DEVICE_FUNC(DA400BP) {
 }
 
 DEVICE_FUNC(DA400DP) {
-  di.deviceType = DeviceType::DA400DP;
+  di.deviceType = DeviceID::ID_DA400DP;
   di.hasUpDownSwipeWind = true;
   di.hasLeftRightSwipeWind = true;
   di.hasNoPolar = false;
@@ -1090,7 +1090,7 @@ DEVICE_FUNC(DA400DP) {
 }
 
 DEVICE_FUNC(PA400B3) {
-  di.deviceType = DeviceType::PA400B3;
+  di.deviceType = DeviceID::ID_PA400B3;
   di.hasUpDownSwipeWind = true;
   di.hasLeftRightSwipeWind = true;
   di.hasNoPolar = false;
@@ -1098,7 +1098,7 @@ DEVICE_FUNC(PA400B3) {
 }
 
 DEVICE_FUNC(J9) {
-  //di.deviceType = DeviceType::WJ9;
+  di.deviceType = DeviceID::ID_J9;
   di.hasNatureWind = true;
   di.hasUpDownSwipeWind = true;
   di.hasLeftRightSwipeWind = true;
@@ -1108,14 +1108,14 @@ DEVICE_FUNC(J9) {
 }
 
 DEVICE_FUNC(YA400D2D3) {
-  di.deviceType = DeviceType::YA400D2D3;
+  di.deviceType = DeviceID::ID_YA400D2D3;
   di.hasLeftRightSwipeWind = true;
   di.hasOuterDoorDisplay = false;
   di.hasDeviceExamination = false;
 }
 
 DEVICE_FUNC(QA301B1) {
-  di.deviceType = DeviceType::QA301B1;
+  di.deviceType = DeviceID::ID_QA301B1;
   di.hasUpDownSwipeWind = true;
   di.hasECO = true;
   di.hasSleepCurve = true;
@@ -1124,7 +1124,7 @@ DEVICE_FUNC(QA301B1) {
 }
 
 DEVICE_FUNC(WCBA3) {
-  di.deviceType = DeviceType::WCBA3;
+  di.deviceType = DeviceID::ID_WCBA3;
   di.hasUpDownSwipeWind = true;
   di.hasECO = true;
   di.hasSleepCurve = true;
@@ -1133,7 +1133,7 @@ DEVICE_FUNC(WCBA3) {
 }
 
 DEVICE_FUNC(IQ100) {
-  di.deviceType = DeviceType::IQ100;
+  di.deviceType = DeviceID::ID_IQ100;
   di.hasUpDownSwipeWind = true;
   di.hasLeftRightSwipeWind = true;
   di.hasECO = true;
@@ -1151,7 +1151,7 @@ DEVICE_FUNC(IQ100) {
 }
 
 DEVICE_FUNC(IQ300) {
-  di.deviceType = DeviceType::IQ300;
+  di.deviceType = DeviceID::ID_IQ300;
   di.hasUpDownSwipeWind = true;
   di.hasLeftRightSwipeWind = true;
   di.hasECO = true;
@@ -1167,25 +1167,25 @@ DEVICE_FUNC(IQ300) {
 }
 
 DEVICE_FUNC(J7) {
-  di.deviceType = DeviceType::J7;
+  di.deviceType = DeviceID::ID_J7;
   di.hasUpDownSwipeWind = true;
   di.hasLeftRightSwipeWind = true;
 }
 
 DEVICE_FUNC(YA400B2) {
-  di.deviceType = DeviceType::YA400B2;
+  di.deviceType = DeviceID::ID_YA400B2;
   di.hasLeftRightSwipeWind = true;
 }
 
 DEVICE_FUNC(WPBC) {
-  di.deviceType = DeviceType::WPBC;
+  di.deviceType = DeviceID::ID_WPBC;
   di.hasUpDownSwipeWind = true;
   di.hasLeftRightSwipeWind = true;
   di.hasNoPolar = false;
 }
 
 DEVICE_FUNC(WPCD) {
-  di.deviceType = DeviceType::WPCD;
+  di.deviceType = DeviceID::ID_WPCD;
   di.hasUpDownSwipeWind = true;
   di.hasLeftRightSwipeWind = true;
   di.hasNoPolar = false;
@@ -1194,14 +1194,14 @@ DEVICE_FUNC(WPCD) {
 }
 
 DEVICE_FUNC(YB400) {
-  di.deviceType = DeviceType::YB400;
+  di.deviceType = DeviceID::ID_YB400;
   di.hasLeftRightSwipeWind = true;
   di.hasReadyColdOrHot = true;
   di.hasDot5Support = true;
 }
 
 DEVICE_FUNC(YB301) {
-  di.deviceType = DeviceType::YB301;
+  di.deviceType = DeviceID::ID_YB301;
   di.hasReadyColdOrHot = true;
   di.hasLeftRightSwipeWind = true;
   di.hasUpDownSwipeWind = true;
@@ -1211,7 +1211,7 @@ DEVICE_FUNC(YB301) {
 }
 
 DEVICE_FUNC(WYS) {
-  di.deviceType = DeviceType::WYS;
+  di.deviceType = DeviceID::ID_WYS;
   di.hasReadyColdOrHot = true;
   di.hasLeftRightSwipeWind = true;
   di.hasUpDownSwipeWind = true;
@@ -1220,7 +1220,7 @@ DEVICE_FUNC(WYS) {
 }
 
 DEVICE_FUNC(YB201) {
-  di.deviceType = DeviceType::YB301;
+  di.deviceType = DeviceID::ID_YB201;
   di.hasReadyColdOrHot = true;
   di.hasLeftRightSwipeWind = true;
   di.hasUpDownSwipeWind = true;
@@ -1231,7 +1231,7 @@ DEVICE_FUNC(YB201) {
 }
 
 DEVICE_FUNC(1TO1) {
-  di.deviceType = DeviceType::ONETOONE;
+  di.deviceType = DeviceID::ID_1TO1;
   di.hasElectricHeat = true;
   di.hasDry = true;
   di.hasShow = false;
@@ -1241,7 +1241,7 @@ DEVICE_FUNC(1TO1) {
 }
 
 DEVICE_FUNC(PF200) {
-  di.deviceType = DeviceType::PF200;
+  di.deviceType = DeviceID::ID_PF200;
   di.hasUpDownSwipeWind = true;
   di.hasECO = true;
   di.hasSleepCurve = true;
@@ -1251,7 +1251,7 @@ DEVICE_FUNC(PF200) {
 }
 
 DEVICE_FUNC(1TON) {
-  di.deviceType = DeviceType::ONETOONE;
+  di.deviceType = DeviceID::ID_1TON;
   di.isCentralAC = true;
 }
 
@@ -1340,21 +1340,21 @@ static const DeviceDbRecord DEVICES_DBASE[] PROGMEM = {
 };
 
 static const uint8_t extraDeviceTypeForSelfClean[] PROGMEM = {
-   4,  5,  6, 13, 15, 17, 18, 19, 22, 23,
-  26, 27, 28, 29, 30, 31, 32, 33, 34, 35,
-  38, 39, 40, 44, 45, 46, 48, 49, 51, 53,
-  54, 56, 58, 59, 61, 62, 63, 64, 65, 66,
-  69, 70, 71, 72, 73, 74, 75, 76, 77, 78,
-  79, 80
+  ID_YA, ID_26YA, ID_YAB3, ID_LBB3, ID_WEA, ID_TAB3, ID_TAB12, ID_KHB1, ID_ZA300B3, ID_ZB300,
+  ID_YA201, ID_YA200, ID_YA301, ID_YA302, ID_PC400B23, ID_WXA, ID_WJ7, ID_WYB, ID_PCB50, ID_YB200,
+  ID_WXD, ID_YB300, ID_WDAA3, ID_DA400B3, ID_PC400B1, ID_DA200300, ID_DA400BP, ID_DA400DP, ID_J9, ID_QA301B1,
+  ID_WCBA3, ID_DA100Z, ID_J7, ID_WPBC, ID_YB400, ID_PE400B3, ID_J8, ID_YA400B2, ID_YB301, ID_WYS,
+  ID_YB201, ID_PF200, ID_GM100, ID_WOW, ID_S10, ID_FA100, ID_FA200, ID_W10, ID_WXDF, ID_YB100,
+  ID_MQ200, ID_GW10
 };
 
 static const uint8_t extraDeviceTypeForKeepWarm[] PROGMEM = {
-  71, 72, 73, 74, 75, 77, 80
+  ID_GM100, ID_WOW, ID_S10, ID_FA100, ID_FA200, ID_WXDF, ID_GW10
 };
 
-static const uint8_t extraDeviceTypeForYADot5[] PROGMEM = { 4 };
-static const uint8_t extraDeviceTypeFor26YADot5[] PROGMEM = { 5 };
-static const uint8_t extraDeviceTypeForYADot5YAB3[] PROGMEM = { 6 };
+static const uint8_t extraDeviceTypeForYADot5[] PROGMEM = { ID_YA };
+static const uint8_t extraDeviceTypeFor26YADot5[] PROGMEM = { ID_26YA };
+static const uint8_t extraDeviceTypeForYADot5YAB3[] PROGMEM = { ID_YAB3 };
 
 struct SnData {
   char barcode[6];
@@ -1447,9 +1447,11 @@ DeviceInfo DeviceInfo::fromSN(const char *sn) {
       }
     }
     dev.func(ret);
+    strncpy_P(ret.id, dev.name, sizeof(ret.id));
     return ret;
   }
-  ret.deviceType = DeviceType::OTHER;
+  ret.deviceType = DeviceID::ID_OTHER;
+  strncpy_P(ret.id, NAME_OTHER, sizeof(ret.id));
   ret.hasUpDownSwipeWind = true;
   ret.hasLeftRightSwipeWind = true;
   return ret;
