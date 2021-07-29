@@ -53,7 +53,11 @@ ADS1115Sensor = ads1115_ns.class_(
 CONF_ADS1115_ID = "ads1115_id"
 CONFIG_SCHEMA = (
     sensor.sensor_schema(
-        UNIT_VOLT, ICON_EMPTY, 3, DEVICE_CLASS_VOLTAGE, STATE_CLASS_MEASUREMENT
+        unit_of_measurement=UNIT_VOLT,
+        icon=ICON_EMPTY,
+        accuracy_decimals=3,
+        device_class=DEVICE_CLASS_VOLTAGE,
+        state_class=STATE_CLASS_MEASUREMENT,
     )
     .extend(
         {

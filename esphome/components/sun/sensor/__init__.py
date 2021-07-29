@@ -22,7 +22,11 @@ TYPES = {
 
 CONFIG_SCHEMA = (
     sensor.sensor_schema(
-        UNIT_DEGREES, ICON_WEATHER_SUNSET, 1, DEVICE_CLASS_EMPTY, STATE_CLASS_NONE
+        unit_of_measurement=UNIT_DEGREES,
+        icon=ICON_WEATHER_SUNSET,
+        accuracy_decimals=1,
+        device_class=DEVICE_CLASS_EMPTY,
+        state_class=STATE_CLASS_NONE,
     )
     .extend(
         {

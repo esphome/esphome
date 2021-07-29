@@ -16,16 +16,21 @@ MAX31855Sensor = max31855_ns.class_(
 )
 
 CONFIG_SCHEMA = (
-    sensor.sensor_schema(UNIT_CELSIUS, ICON_EMPTY, 1, DEVICE_CLASS_TEMPERATURE)
+    sensor.sensor_schema(
+        unit_of_measurement=UNIT_CELSIUS,
+        icon=ICON_EMPTY,
+        accuracy_decimals=1,
+        device_class=DEVICE_CLASS_TEMPERATURE,
+    )
     .extend(
         {
             cv.GenerateID(): cv.declare_id(MAX31855Sensor),
             cv.Optional(CONF_REFERENCE_TEMPERATURE): sensor.sensor_schema(
-                UNIT_CELSIUS,
-                ICON_EMPTY,
-                2,
-                DEVICE_CLASS_TEMPERATURE,
-                STATE_CLASS_MEASUREMENT,
+                unit_of_measurement=UNIT_CELSIUS,
+                icon=ICON_EMPTY,
+                accuracy_decimals=2,
+                device_class=DEVICE_CLASS_TEMPERATURE,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
         }
     )

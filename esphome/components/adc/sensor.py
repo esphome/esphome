@@ -37,7 +37,11 @@ ADCSensor = adc_ns.class_(
 
 CONFIG_SCHEMA = (
     sensor.sensor_schema(
-        UNIT_VOLT, ICON_EMPTY, 2, DEVICE_CLASS_VOLTAGE, STATE_CLASS_MEASUREMENT
+        unit_of_measurement=UNIT_VOLT,
+        icon=ICON_EMPTY,
+        accuracy_decimals=2,
+        device_class=DEVICE_CLASS_VOLTAGE,
+        state_class=STATE_CLASS_MEASUREMENT,
     )
     .extend(
         {

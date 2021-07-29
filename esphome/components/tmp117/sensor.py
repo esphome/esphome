@@ -20,7 +20,11 @@ TMP117Component = tmp117_ns.class_(
 
 CONFIG_SCHEMA = cv.All(
     sensor.sensor_schema(
-        UNIT_CELSIUS, ICON_EMPTY, 1, DEVICE_CLASS_TEMPERATURE, STATE_CLASS_MEASUREMENT
+        unit_of_measurement=UNIT_CELSIUS,
+        icon=ICON_EMPTY,
+        accuracy_decimals=1,
+        device_class=DEVICE_CLASS_TEMPERATURE,
+        state_class=STATE_CLASS_MEASUREMENT,
     )
     .extend(
         {

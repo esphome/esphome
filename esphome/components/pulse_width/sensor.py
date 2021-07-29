@@ -19,7 +19,11 @@ PulseWidthSensor = pulse_width_ns.class_(
 
 CONFIG_SCHEMA = (
     sensor.sensor_schema(
-        UNIT_SECOND, ICON_TIMER, 3, DEVICE_CLASS_EMPTY, STATE_CLASS_MEASUREMENT
+        unit_of_measurement=UNIT_SECOND,
+        icon=ICON_TIMER,
+        accuracy_decimals=3,
+        device_class=DEVICE_CLASS_EMPTY,
+        state_class=STATE_CLASS_MEASUREMENT,
     )
     .extend(
         {

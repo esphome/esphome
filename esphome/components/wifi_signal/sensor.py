@@ -17,11 +17,11 @@ WiFiSignalSensor = wifi_signal_ns.class_(
 
 CONFIG_SCHEMA = (
     sensor.sensor_schema(
-        UNIT_DECIBEL_MILLIWATT,
-        ICON_EMPTY,
-        0,
-        DEVICE_CLASS_SIGNAL_STRENGTH,
-        STATE_CLASS_MEASUREMENT,
+        unit_of_measurement=UNIT_DECIBEL_MILLIWATT,
+        icon=ICON_EMPTY,
+        accuracy_decimals=0,
+        device_class=DEVICE_CLASS_SIGNAL_STRENGTH,
+        state_class=STATE_CLASS_MEASUREMENT,
     )
     .extend(
         {

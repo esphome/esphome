@@ -33,24 +33,30 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(SGP30Component),
             cv.Required(CONF_ECO2): sensor.sensor_schema(
-                UNIT_PARTS_PER_MILLION,
-                ICON_MOLECULE_CO2,
-                0,
-                DEVICE_CLASS_EMPTY,
-                STATE_CLASS_MEASUREMENT,
+                unit_of_measurement=UNIT_PARTS_PER_MILLION,
+                icon=ICON_MOLECULE_CO2,
+                accuracy_decimals=0,
+                device_class=DEVICE_CLASS_EMPTY,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Required(CONF_TVOC): sensor.sensor_schema(
-                UNIT_PARTS_PER_BILLION,
-                ICON_RADIATOR,
-                0,
-                DEVICE_CLASS_EMPTY,
-                STATE_CLASS_MEASUREMENT,
+                unit_of_measurement=UNIT_PARTS_PER_BILLION,
+                icon=ICON_RADIATOR,
+                accuracy_decimals=0,
+                device_class=DEVICE_CLASS_EMPTY,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_ECO2_BASELINE): sensor.sensor_schema(
-                UNIT_EMPTY, ICON_MOLECULE_CO2, 0, DEVICE_CLASS_EMPTY
+                unit_of_measurement=UNIT_EMPTY,
+                icon=ICON_MOLECULE_CO2,
+                accuracy_decimals=0,
+                device_class=DEVICE_CLASS_EMPTY,
             ),
             cv.Optional(CONF_TVOC_BASELINE): sensor.sensor_schema(
-                UNIT_EMPTY, ICON_RADIATOR, 0, DEVICE_CLASS_EMPTY
+                unit_of_measurement=UNIT_EMPTY,
+                icon=ICON_RADIATOR,
+                accuracy_decimals=0,
+                device_class=DEVICE_CLASS_EMPTY,
             ),
             cv.Optional(CONF_STORE_BASELINE, default=True): cv.boolean,
             cv.Optional(CONF_BASELINE): cv.Schema(

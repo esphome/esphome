@@ -14,7 +14,11 @@ UptimeSensor = uptime_ns.class_("UptimeSensor", sensor.Sensor, cg.PollingCompone
 
 CONFIG_SCHEMA = (
     sensor.sensor_schema(
-        UNIT_SECOND, ICON_TIMER, 0, DEVICE_CLASS_EMPTY, STATE_CLASS_NONE
+        unit_of_measurement=UNIT_SECOND,
+        icon=ICON_TIMER,
+        accuracy_decimals=0,
+        device_class=DEVICE_CLASS_EMPTY,
+        state_class=STATE_CLASS_NONE,
     )
     .extend(
         {

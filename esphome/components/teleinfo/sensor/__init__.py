@@ -9,7 +9,9 @@ CONF_TAG_NAME = "tag_name"
 
 TeleInfoSensor = teleinfo_ns.class_("TeleInfoSensor", sensor.Sensor, cg.Component)
 
-CONFIG_SCHEMA = sensor.sensor_schema(UNIT_WATT_HOURS, ICON_FLASH, 0).extend(
+CONFIG_SCHEMA = sensor.sensor_schema(
+    unit_of_measurement=UNIT_WATT_HOURS, icon=ICON_FLASH, accuracy_decimals=0
+).extend(
     {
         cv.GenerateID(): cv.declare_id(TeleInfoSensor),
         cv.GenerateID(CONF_TELEINFO_ID): cv.use_id(TeleInfo),

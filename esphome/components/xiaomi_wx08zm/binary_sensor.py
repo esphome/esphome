@@ -32,14 +32,18 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(): cv.declare_id(XiaomiWX08ZM),
             cv.Required(CONF_MAC_ADDRESS): cv.mac_address,
             cv.Optional(CONF_TABLET): sensor.sensor_schema(
-                UNIT_PERCENT, ICON_BUG, 0, DEVICE_CLASS_EMPTY, STATE_CLASS_MEASUREMENT
+                unit_of_measurement=UNIT_PERCENT,
+                icon=ICON_BUG,
+                accuracy_decimals=0,
+                device_class=DEVICE_CLASS_EMPTY,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_BATTERY_LEVEL): sensor.sensor_schema(
-                UNIT_PERCENT,
-                ICON_EMPTY,
-                0,
-                DEVICE_CLASS_BATTERY,
-                STATE_CLASS_MEASUREMENT,
+                unit_of_measurement=UNIT_PERCENT,
+                icon=ICON_EMPTY,
+                accuracy_decimals=0,
+                device_class=DEVICE_CLASS_BATTERY,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
         }
     )

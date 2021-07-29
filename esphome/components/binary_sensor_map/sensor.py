@@ -35,11 +35,11 @@ entry = {
 CONFIG_SCHEMA = cv.typed_schema(
     {
         CONF_GROUP: sensor.sensor_schema(
-            UNIT_EMPTY,
-            ICON_CHECK_CIRCLE_OUTLINE,
-            0,
-            DEVICE_CLASS_EMPTY,
-            STATE_CLASS_NONE,
+            unit_of_measurement=UNIT_EMPTY,
+            icon=ICON_CHECK_CIRCLE_OUTLINE,
+            accuracy_decimals=0,
+            device_class=DEVICE_CLASS_EMPTY,
+            state_class=STATE_CLASS_NONE,
         ).extend(
             {
                 cv.GenerateID(): cv.declare_id(BinarySensorMap),

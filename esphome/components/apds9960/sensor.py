@@ -21,7 +21,11 @@ TYPES = {
 }
 
 CONFIG_SCHEMA = sensor.sensor_schema(
-    UNIT_PERCENT, ICON_LIGHTBULB, 1, DEVICE_CLASS_EMPTY, STATE_CLASS_MEASUREMENT
+    unit_of_measurement=UNIT_PERCENT,
+    icon=ICON_LIGHTBULB,
+    accuracy_decimals=1,
+    device_class=DEVICE_CLASS_EMPTY,
+    state_class=STATE_CLASS_MEASUREMENT,
 ).extend(
     {
         cv.Required(CONF_TYPE): cv.one_of(*TYPES, upper=True),

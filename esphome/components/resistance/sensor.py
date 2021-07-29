@@ -25,7 +25,11 @@ CONFIGURATIONS = {
 
 CONFIG_SCHEMA = (
     sensor.sensor_schema(
-        UNIT_OHM, ICON_FLASH, 1, DEVICE_CLASS_EMPTY, STATE_CLASS_MEASUREMENT
+        unit_of_measurement=UNIT_OHM,
+        icon=ICON_FLASH,
+        accuracy_decimals=1,
+        device_class=DEVICE_CLASS_EMPTY,
+        state_class=STATE_CLASS_MEASUREMENT,
     )
     .extend(
         {

@@ -27,14 +27,18 @@ CONFIG_SCHEMA = (
             cv.GenerateID(): cv.declare_id(XiaomiMiscale2),
             cv.Required(CONF_MAC_ADDRESS): cv.mac_address,
             cv.Optional(CONF_WEIGHT): sensor.sensor_schema(
-                UNIT_KILOGRAM,
-                ICON_SCALE_BATHROOM,
-                2,
-                DEVICE_CLASS_EMPTY,
-                STATE_CLASS_MEASUREMENT,
+                unit_of_measurement=UNIT_KILOGRAM,
+                icon=ICON_SCALE_BATHROOM,
+                accuracy_decimals=2,
+                device_class=DEVICE_CLASS_EMPTY,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_IMPEDANCE): sensor.sensor_schema(
-                UNIT_OHM, ICON_OMEGA, 0, DEVICE_CLASS_EMPTY, STATE_CLASS_MEASUREMENT
+                unit_of_measurement=UNIT_OHM,
+                icon=ICON_OMEGA,
+                accuracy_decimals=0,
+                device_class=DEVICE_CLASS_EMPTY,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
         }
     )

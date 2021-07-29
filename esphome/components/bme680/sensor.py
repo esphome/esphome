@@ -59,11 +59,11 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(BME680Component),
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-                UNIT_CELSIUS,
-                ICON_EMPTY,
-                1,
-                DEVICE_CLASS_TEMPERATURE,
-                STATE_CLASS_MEASUREMENT,
+                unit_of_measurement=UNIT_CELSIUS,
+                icon=ICON_EMPTY,
+                accuracy_decimals=1,
+                device_class=DEVICE_CLASS_TEMPERATURE,
+                state_class=STATE_CLASS_MEASUREMENT,
             ).extend(
                 {
                     cv.Optional(CONF_OVERSAMPLING, default="16X"): cv.enum(
@@ -72,11 +72,11 @@ CONFIG_SCHEMA = (
                 }
             ),
             cv.Optional(CONF_PRESSURE): sensor.sensor_schema(
-                UNIT_HECTOPASCAL,
-                ICON_EMPTY,
-                1,
-                DEVICE_CLASS_PRESSURE,
-                STATE_CLASS_MEASUREMENT,
+                unit_of_measurement=UNIT_HECTOPASCAL,
+                icon=ICON_EMPTY,
+                accuracy_decimals=1,
+                device_class=DEVICE_CLASS_PRESSURE,
+                state_class=STATE_CLASS_MEASUREMENT,
             ).extend(
                 {
                     cv.Optional(CONF_OVERSAMPLING, default="16X"): cv.enum(
@@ -85,11 +85,11 @@ CONFIG_SCHEMA = (
                 }
             ),
             cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(
-                UNIT_PERCENT,
-                ICON_EMPTY,
-                1,
-                DEVICE_CLASS_HUMIDITY,
-                STATE_CLASS_MEASUREMENT,
+                unit_of_measurement=UNIT_PERCENT,
+                icon=ICON_EMPTY,
+                accuracy_decimals=1,
+                device_class=DEVICE_CLASS_HUMIDITY,
+                state_class=STATE_CLASS_MEASUREMENT,
             ).extend(
                 {
                     cv.Optional(CONF_OVERSAMPLING, default="16X"): cv.enum(
@@ -98,11 +98,11 @@ CONFIG_SCHEMA = (
                 }
             ),
             cv.Optional(CONF_GAS_RESISTANCE): sensor.sensor_schema(
-                UNIT_OHM,
-                ICON_GAS_CYLINDER,
-                1,
-                DEVICE_CLASS_EMPTY,
-                STATE_CLASS_MEASUREMENT,
+                unit_of_measurement=UNIT_OHM,
+                icon=ICON_GAS_CYLINDER,
+                accuracy_decimals=1,
+                device_class=DEVICE_CLASS_EMPTY,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_IIR_FILTER, default="OFF"): cv.enum(
                 IIR_FILTER_OPTIONS, upper=True

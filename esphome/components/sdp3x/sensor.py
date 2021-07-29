@@ -17,11 +17,11 @@ SDP3XComponent = sdp3x_ns.class_("SDP3XComponent", cg.PollingComponent, i2c.I2CD
 
 CONFIG_SCHEMA = (
     sensor.sensor_schema(
-        UNIT_HECTOPASCAL,
-        ICON_EMPTY,
-        3,
-        DEVICE_CLASS_PRESSURE,
-        STATE_CLASS_MEASUREMENT,
+        unit_of_measurement=UNIT_HECTOPASCAL,
+        icon=ICON_EMPTY,
+        accuracy_decimals=3,
+        device_class=DEVICE_CLASS_PRESSURE,
+        state_class=STATE_CLASS_MEASUREMENT,
     )
     .extend(
         {

@@ -21,11 +21,11 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(PM1006Component),
             cv.Optional(CONF_PM_2_5): sensor.sensor_schema(
-                UNIT_MICROGRAMS_PER_CUBIC_METER,
-                ICON_BLUR,
-                0,
-                DEVICE_CLASS_EMPTY,
-                STATE_CLASS_MEASUREMENT,
+                unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
+                icon=ICON_BLUR,
+                accuracy_decimals=0,
+                device_class=DEVICE_CLASS_EMPTY,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
         }
     )

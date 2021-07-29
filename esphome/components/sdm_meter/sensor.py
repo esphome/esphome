@@ -46,27 +46,50 @@ sdm_meter_ns = cg.esphome_ns.namespace("sdm_meter")
 SDMMeter = sdm_meter_ns.class_("SDMMeter", cg.PollingComponent, modbus.ModbusDevice)
 
 PHASE_SENSORS = {
-    CONF_VOLTAGE: sensor.sensor_schema(UNIT_VOLT, ICON_EMPTY, 2, DEVICE_CLASS_VOLTAGE),
+    CONF_VOLTAGE: sensor.sensor_schema(
+        unit_of_measurement=UNIT_VOLT,
+        icon=ICON_EMPTY,
+        accuracy_decimals=2,
+        device_class=DEVICE_CLASS_VOLTAGE,
+    ),
     CONF_CURRENT: sensor.sensor_schema(
-        UNIT_AMPERE, ICON_EMPTY, 3, DEVICE_CLASS_CURRENT, STATE_CLASS_MEASUREMENT
+        unit_of_measurement=UNIT_AMPERE,
+        icon=ICON_EMPTY,
+        accuracy_decimals=3,
+        device_class=DEVICE_CLASS_CURRENT,
+        state_class=STATE_CLASS_MEASUREMENT,
     ),
     CONF_ACTIVE_POWER: sensor.sensor_schema(
-        UNIT_WATT, ICON_EMPTY, 2, DEVICE_CLASS_POWER, STATE_CLASS_MEASUREMENT
+        unit_of_measurement=UNIT_WATT,
+        icon=ICON_EMPTY,
+        accuracy_decimals=2,
+        device_class=DEVICE_CLASS_POWER,
+        state_class=STATE_CLASS_MEASUREMENT,
     ),
     CONF_APPARENT_POWER: sensor.sensor_schema(
-        UNIT_VOLT_AMPS, ICON_EMPTY, 2, DEVICE_CLASS_POWER, STATE_CLASS_MEASUREMENT
+        unit_of_measurement=UNIT_VOLT_AMPS,
+        icon=ICON_EMPTY,
+        accuracy_decimals=2,
+        device_class=DEVICE_CLASS_POWER,
+        state_class=STATE_CLASS_MEASUREMENT,
     ),
     CONF_REACTIVE_POWER: sensor.sensor_schema(
-        UNIT_VOLT_AMPS_REACTIVE,
-        ICON_EMPTY,
-        2,
-        DEVICE_CLASS_POWER,
-        STATE_CLASS_MEASUREMENT,
+        unit_of_measurement=UNIT_VOLT_AMPS_REACTIVE,
+        icon=ICON_EMPTY,
+        accuracy_decimals=2,
+        device_class=DEVICE_CLASS_POWER,
+        state_class=STATE_CLASS_MEASUREMENT,
     ),
     CONF_POWER_FACTOR: sensor.sensor_schema(
-        UNIT_EMPTY, ICON_EMPTY, 3, DEVICE_CLASS_POWER_FACTOR, STATE_CLASS_MEASUREMENT
+        unit_of_measurement=UNIT_EMPTY,
+        icon=ICON_EMPTY,
+        accuracy_decimals=3,
+        device_class=DEVICE_CLASS_POWER_FACTOR,
+        state_class=STATE_CLASS_MEASUREMENT,
     ),
-    CONF_PHASE_ANGLE: sensor.sensor_schema(UNIT_DEGREES, ICON_FLASH, 3),
+    CONF_PHASE_ANGLE: sensor.sensor_schema(
+        unit_of_measurement=UNIT_DEGREES, icon=ICON_FLASH, accuracy_decimals=3
+    ),
 }
 
 PHASE_SCHEMA = cv.Schema(
@@ -81,43 +104,43 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_PHASE_B): PHASE_SCHEMA,
             cv.Optional(CONF_PHASE_C): PHASE_SCHEMA,
             cv.Optional(CONF_FREQUENCY): sensor.sensor_schema(
-                UNIT_HERTZ,
-                ICON_CURRENT_AC,
-                3,
-                DEVICE_CLASS_EMPTY,
-                STATE_CLASS_MEASUREMENT,
+                unit_of_measurement=UNIT_HERTZ,
+                icon=ICON_CURRENT_AC,
+                accuracy_decimals=3,
+                device_class=DEVICE_CLASS_EMPTY,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_IMPORT_ACTIVE_ENERGY): sensor.sensor_schema(
-                UNIT_WATT_HOURS,
-                ICON_EMPTY,
-                2,
-                DEVICE_CLASS_ENERGY,
-                STATE_CLASS_MEASUREMENT,
-                LAST_RESET_TYPE_AUTO,
+                unit_of_measurement=UNIT_WATT_HOURS,
+                icon=ICON_EMPTY,
+                accuracy_decimals=2,
+                device_class=DEVICE_CLASS_ENERGY,
+                state_class=STATE_CLASS_MEASUREMENT,
+                last_reset_type=LAST_RESET_TYPE_AUTO,
             ),
             cv.Optional(CONF_EXPORT_ACTIVE_ENERGY): sensor.sensor_schema(
-                UNIT_WATT_HOURS,
-                ICON_EMPTY,
-                2,
-                DEVICE_CLASS_ENERGY,
-                STATE_CLASS_MEASUREMENT,
-                LAST_RESET_TYPE_AUTO,
+                unit_of_measurement=UNIT_WATT_HOURS,
+                icon=ICON_EMPTY,
+                accuracy_decimals=2,
+                device_class=DEVICE_CLASS_ENERGY,
+                state_class=STATE_CLASS_MEASUREMENT,
+                last_reset_type=LAST_RESET_TYPE_AUTO,
             ),
             cv.Optional(CONF_IMPORT_REACTIVE_ENERGY): sensor.sensor_schema(
-                UNIT_VOLT_AMPS_REACTIVE_HOURS,
-                ICON_EMPTY,
-                2,
-                DEVICE_CLASS_ENERGY,
-                STATE_CLASS_MEASUREMENT,
-                LAST_RESET_TYPE_AUTO,
+                unit_of_measurement=UNIT_VOLT_AMPS_REACTIVE_HOURS,
+                icon=ICON_EMPTY,
+                accuracy_decimals=2,
+                device_class=DEVICE_CLASS_ENERGY,
+                state_class=STATE_CLASS_MEASUREMENT,
+                last_reset_type=LAST_RESET_TYPE_AUTO,
             ),
             cv.Optional(CONF_EXPORT_REACTIVE_ENERGY): sensor.sensor_schema(
-                UNIT_VOLT_AMPS_REACTIVE_HOURS,
-                ICON_EMPTY,
-                2,
-                DEVICE_CLASS_ENERGY,
-                STATE_CLASS_MEASUREMENT,
-                LAST_RESET_TYPE_AUTO,
+                unit_of_measurement=UNIT_VOLT_AMPS_REACTIVE_HOURS,
+                icon=ICON_EMPTY,
+                accuracy_decimals=2,
+                device_class=DEVICE_CLASS_ENERGY,
+                state_class=STATE_CLASS_MEASUREMENT,
+                last_reset_type=LAST_RESET_TYPE_AUTO,
             ),
         }
     )

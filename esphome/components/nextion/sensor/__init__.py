@@ -46,7 +46,12 @@ def _validate(config):
 
 
 CONFIG_SCHEMA = cv.All(
-    sensor.sensor_schema(UNIT_EMPTY, ICON_EMPTY, 2, DEVICE_CLASS_EMPTY)
+    sensor.sensor_schema(
+        unit_of_measurement=UNIT_EMPTY,
+        icon=ICON_EMPTY,
+        accuracy_decimals=2,
+        device_class=DEVICE_CLASS_EMPTY,
+    )
     .extend(
         {
             cv.GenerateID(): cv.declare_id(NextionSensor),

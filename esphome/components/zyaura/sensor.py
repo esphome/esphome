@@ -34,21 +34,25 @@ CONFIG_SCHEMA = cv.Schema(
             pins.internal_gpio_input_pin_schema, pins.validate_has_interrupt
         ),
         cv.Optional(CONF_CO2): sensor.sensor_schema(
-            UNIT_PARTS_PER_MILLION,
-            ICON_MOLECULE_CO2,
-            0,
-            DEVICE_CLASS_EMPTY,
-            STATE_CLASS_MEASUREMENT,
+            unit_of_measurement=UNIT_PARTS_PER_MILLION,
+            icon=ICON_MOLECULE_CO2,
+            accuracy_decimals=0,
+            device_class=DEVICE_CLASS_EMPTY,
+            state_class=STATE_CLASS_MEASUREMENT,
         ),
         cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-            UNIT_CELSIUS,
-            ICON_EMPTY,
-            1,
-            DEVICE_CLASS_TEMPERATURE,
-            STATE_CLASS_MEASUREMENT,
+            unit_of_measurement=UNIT_CELSIUS,
+            icon=ICON_EMPTY,
+            accuracy_decimals=1,
+            device_class=DEVICE_CLASS_TEMPERATURE,
+            state_class=STATE_CLASS_MEASUREMENT,
         ),
         cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(
-            UNIT_PERCENT, ICON_EMPTY, 1, DEVICE_CLASS_HUMIDITY, STATE_CLASS_MEASUREMENT
+            unit_of_measurement=UNIT_PERCENT,
+            icon=ICON_EMPTY,
+            accuracy_decimals=1,
+            device_class=DEVICE_CLASS_HUMIDITY,
+            state_class=STATE_CLASS_MEASUREMENT,
         ),
     }
 ).extend(cv.polling_component_schema("60s"))
