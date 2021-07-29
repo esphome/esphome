@@ -7,8 +7,6 @@ from esphome.const import (
     CONF_CHANNELS,
     CONF_VALUE,
     CONF_TYPE,
-    DEVICE_CLASS_EMPTY,
-    UNIT_EMPTY,
     ICON_CHECK_CIRCLE_OUTLINE,
     CONF_BINARY_SENSOR,
     CONF_GROUP,
@@ -35,10 +33,8 @@ entry = {
 CONFIG_SCHEMA = cv.typed_schema(
     {
         CONF_GROUP: sensor.sensor_schema(
-            unit_of_measurement=UNIT_EMPTY,
             icon=ICON_CHECK_CIRCLE_OUTLINE,
             accuracy_decimals=0,
-            device_class=DEVICE_CLASS_EMPTY,
             state_class=STATE_CLASS_NONE,
         ).extend(
             {

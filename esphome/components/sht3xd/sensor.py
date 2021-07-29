@@ -7,7 +7,6 @@ from esphome.const import (
     CONF_TEMPERATURE,
     DEVICE_CLASS_HUMIDITY,
     DEVICE_CLASS_TEMPERATURE,
-    ICON_EMPTY,
     STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
     UNIT_PERCENT,
@@ -26,14 +25,12 @@ CONFIG_SCHEMA = (
             cv.GenerateID(): cv.declare_id(SHT3XDComponent),
             cv.Required(CONF_TEMPERATURE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_CELSIUS,
-                icon=ICON_EMPTY,
                 accuracy_decimals=1,
                 device_class=DEVICE_CLASS_TEMPERATURE,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Required(CONF_HUMIDITY): sensor.sensor_schema(
                 unit_of_measurement=UNIT_PERCENT,
-                icon=ICON_EMPTY,
                 accuracy_decimals=1,
                 device_class=DEVICE_CLASS_HUMIDITY,
                 state_class=STATE_CLASS_MEASUREMENT,

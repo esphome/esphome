@@ -3,7 +3,6 @@ import esphome.config_validation as cv
 from esphome.components import sensor
 from esphome.const import (
     CONF_ID,
-    DEVICE_CLASS_EMPTY,
     ESP_PLATFORM_ESP32,
     STATE_CLASS_MEASUREMENT,
     UNIT_MICROTESLA,
@@ -22,7 +21,6 @@ CONFIG_SCHEMA = (
         unit_of_measurement=UNIT_MICROTESLA,
         icon=ICON_MAGNET,
         accuracy_decimals=1,
-        device_class=DEVICE_CLASS_EMPTY,
         state_class=STATE_CLASS_MEASUREMENT,
     )
     .extend(

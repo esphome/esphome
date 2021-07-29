@@ -7,7 +7,6 @@ from esphome.const import (
     CONF_WIND_SPEED,
     CONF_PIN,
     CONF_WIND_DIRECTION_DEGREES,
-    DEVICE_CLASS_EMPTY,
     STATE_CLASS_MEASUREMENT,
     STATE_CLASS_NONE,
     UNIT_KILOMETER_PER_HOUR,
@@ -26,14 +25,12 @@ CONFIG_SCHEMA = cv.Schema(
             unit_of_measurement=UNIT_KILOMETER_PER_HOUR,
             icon=ICON_WEATHER_WINDY,
             accuracy_decimals=1,
-            device_class=DEVICE_CLASS_EMPTY,
             state_class=STATE_CLASS_MEASUREMENT,
         ),
         cv.Optional(CONF_WIND_DIRECTION_DEGREES): sensor.sensor_schema(
             unit_of_measurement=UNIT_DEGREES,
             icon=ICON_SIGN_DIRECTION,
             accuracy_decimals=1,
-            device_class=DEVICE_CLASS_EMPTY,
             state_class=STATE_CLASS_NONE,
         ),
         cv.Required(CONF_PIN): cv.All(

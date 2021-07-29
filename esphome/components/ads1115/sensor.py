@@ -5,7 +5,6 @@ from esphome.const import (
     CONF_GAIN,
     CONF_MULTIPLEXER,
     DEVICE_CLASS_VOLTAGE,
-    ICON_EMPTY,
     STATE_CLASS_MEASUREMENT,
     UNIT_VOLT,
     CONF_ID,
@@ -54,7 +53,6 @@ CONF_ADS1115_ID = "ads1115_id"
 CONFIG_SCHEMA = (
     sensor.sensor_schema(
         unit_of_measurement=UNIT_VOLT,
-        icon=ICON_EMPTY,
         accuracy_decimals=3,
         device_class=DEVICE_CLASS_VOLTAGE,
         state_class=STATE_CLASS_MEASUREMENT,

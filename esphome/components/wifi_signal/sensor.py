@@ -4,7 +4,6 @@ from esphome.components import sensor
 from esphome.const import (
     CONF_ID,
     DEVICE_CLASS_SIGNAL_STRENGTH,
-    ICON_EMPTY,
     STATE_CLASS_MEASUREMENT,
     UNIT_DECIBEL_MILLIWATT,
 )
@@ -18,7 +17,6 @@ WiFiSignalSensor = wifi_signal_ns.class_(
 CONFIG_SCHEMA = (
     sensor.sensor_schema(
         unit_of_measurement=UNIT_DECIBEL_MILLIWATT,
-        icon=ICON_EMPTY,
         accuracy_decimals=0,
         device_class=DEVICE_CLASS_SIGNAL_STRENGTH,
         state_class=STATE_CLASS_MEASUREMENT,

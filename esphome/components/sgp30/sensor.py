@@ -4,14 +4,12 @@ from esphome.components import i2c, sensor
 from esphome.const import (
     CONF_ID,
     CONF_BASELINE,
-    DEVICE_CLASS_EMPTY,
     CONF_ECO2,
     CONF_TVOC,
     ICON_RADIATOR,
     STATE_CLASS_MEASUREMENT,
     UNIT_PARTS_PER_MILLION,
     UNIT_PARTS_PER_BILLION,
-    UNIT_EMPTY,
     ICON_MOLECULE_CO2,
 )
 
@@ -36,27 +34,21 @@ CONFIG_SCHEMA = (
                 unit_of_measurement=UNIT_PARTS_PER_MILLION,
                 icon=ICON_MOLECULE_CO2,
                 accuracy_decimals=0,
-                device_class=DEVICE_CLASS_EMPTY,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Required(CONF_TVOC): sensor.sensor_schema(
                 unit_of_measurement=UNIT_PARTS_PER_BILLION,
                 icon=ICON_RADIATOR,
                 accuracy_decimals=0,
-                device_class=DEVICE_CLASS_EMPTY,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_ECO2_BASELINE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_EMPTY,
                 icon=ICON_MOLECULE_CO2,
                 accuracy_decimals=0,
-                device_class=DEVICE_CLASS_EMPTY,
             ),
             cv.Optional(CONF_TVOC_BASELINE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_EMPTY,
                 icon=ICON_RADIATOR,
                 accuracy_decimals=0,
-                device_class=DEVICE_CLASS_EMPTY,
             ),
             cv.Optional(CONF_STORE_BASELINE, default=True): cv.boolean,
             cv.Optional(CONF_BASELINE): cv.Schema(

@@ -2,7 +2,6 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import sensor
 from esphome.const import (
-    DEVICE_CLASS_EMPTY,
     STATE_CLASS_NONE,
     UNIT_DEGREES,
     ICON_WEATHER_SUNSET,
@@ -25,7 +24,6 @@ CONFIG_SCHEMA = (
         unit_of_measurement=UNIT_DEGREES,
         icon=ICON_WEATHER_SUNSET,
         accuracy_decimals=1,
-        device_class=DEVICE_CLASS_EMPTY,
         state_class=STATE_CLASS_NONE,
     )
     .extend(

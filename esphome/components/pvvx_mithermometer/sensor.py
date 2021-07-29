@@ -12,7 +12,6 @@ from esphome.const import (
     DEVICE_CLASS_HUMIDITY,
     DEVICE_CLASS_TEMPERATURE,
     DEVICE_CLASS_VOLTAGE,
-    ICON_EMPTY,
     UNIT_CELSIUS,
     UNIT_PERCENT,
     UNIT_VOLT,
@@ -34,25 +33,21 @@ CONFIG_SCHEMA = (
             cv.Required(CONF_MAC_ADDRESS): cv.mac_address,
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_CELSIUS,
-                icon=ICON_EMPTY,
                 accuracy_decimals=2,
                 device_class=DEVICE_CLASS_TEMPERATURE,
             ),
             cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(
                 unit_of_measurement=UNIT_PERCENT,
-                icon=ICON_EMPTY,
                 accuracy_decimals=2,
                 device_class=DEVICE_CLASS_HUMIDITY,
             ),
             cv.Optional(CONF_BATTERY_LEVEL): sensor.sensor_schema(
                 unit_of_measurement=UNIT_PERCENT,
-                icon=ICON_EMPTY,
                 accuracy_decimals=0,
                 device_class=DEVICE_CLASS_BATTERY,
             ),
             cv.Optional(CONF_BATTERY_VOLTAGE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_VOLT,
-                icon=ICON_EMPTY,
                 accuracy_decimals=3,
                 device_class=DEVICE_CLASS_VOLTAGE,
             ),

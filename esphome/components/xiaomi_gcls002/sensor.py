@@ -4,10 +4,8 @@ from esphome.components import sensor, esp32_ble_tracker
 from esphome.const import (
     CONF_MAC_ADDRESS,
     CONF_TEMPERATURE,
-    DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_ILLUMINANCE,
     DEVICE_CLASS_TEMPERATURE,
-    ICON_EMPTY,
     ICON_WATER_PERCENT,
     STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
@@ -36,7 +34,6 @@ CONFIG_SCHEMA = (
             cv.Required(CONF_MAC_ADDRESS): cv.mac_address,
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_CELSIUS,
-                icon=ICON_EMPTY,
                 accuracy_decimals=1,
                 device_class=DEVICE_CLASS_TEMPERATURE,
                 state_class=STATE_CLASS_MEASUREMENT,
@@ -45,12 +42,10 @@ CONFIG_SCHEMA = (
                 unit_of_measurement=UNIT_PERCENT,
                 icon=ICON_WATER_PERCENT,
                 accuracy_decimals=0,
-                device_class=DEVICE_CLASS_EMPTY,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_ILLUMINANCE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_LUX,
-                icon=ICON_EMPTY,
                 accuracy_decimals=0,
                 device_class=DEVICE_CLASS_ILLUMINANCE,
                 state_class=STATE_CLASS_MEASUREMENT,
@@ -59,7 +54,6 @@ CONFIG_SCHEMA = (
                 unit_of_measurement=UNIT_MICROSIEMENS_PER_CENTIMETER,
                 icon=ICON_FLOWER,
                 accuracy_decimals=0,
-                device_class=DEVICE_CLASS_EMPTY,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
         }

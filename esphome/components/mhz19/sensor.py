@@ -7,13 +7,11 @@ from esphome.const import (
     CONF_CO2,
     CONF_ID,
     CONF_TEMPERATURE,
-    DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_TEMPERATURE,
     ICON_MOLECULE_CO2,
     STATE_CLASS_MEASUREMENT,
     UNIT_PARTS_PER_MILLION,
     UNIT_CELSIUS,
-    ICON_EMPTY,
 )
 
 DEPENDENCIES = ["uart"]
@@ -36,12 +34,10 @@ CONFIG_SCHEMA = (
                 unit_of_measurement=UNIT_PARTS_PER_MILLION,
                 icon=ICON_MOLECULE_CO2,
                 accuracy_decimals=0,
-                device_class=DEVICE_CLASS_EMPTY,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_CELSIUS,
-                icon=ICON_EMPTY,
                 accuracy_decimals=0,
                 device_class=DEVICE_CLASS_TEMPERATURE,
                 state_class=STATE_CLASS_MEASUREMENT,

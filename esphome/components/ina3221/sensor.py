@@ -11,7 +11,6 @@ from esphome.const import (
     DEVICE_CLASS_VOLTAGE,
     DEVICE_CLASS_CURRENT,
     DEVICE_CLASS_POWER,
-    ICON_EMPTY,
     STATE_CLASS_MEASUREMENT,
     UNIT_VOLT,
     UNIT_AMPERE,
@@ -33,28 +32,24 @@ INA3221_CHANNEL_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_BUS_VOLTAGE): sensor.sensor_schema(
             unit_of_measurement=UNIT_VOLT,
-            icon=ICON_EMPTY,
             accuracy_decimals=2,
             device_class=DEVICE_CLASS_VOLTAGE,
             state_class=STATE_CLASS_MEASUREMENT,
         ),
         cv.Optional(CONF_SHUNT_VOLTAGE): sensor.sensor_schema(
             unit_of_measurement=UNIT_VOLT,
-            icon=ICON_EMPTY,
             accuracy_decimals=2,
             device_class=DEVICE_CLASS_VOLTAGE,
             state_class=STATE_CLASS_MEASUREMENT,
         ),
         cv.Optional(CONF_CURRENT): sensor.sensor_schema(
             unit_of_measurement=UNIT_AMPERE,
-            icon=ICON_EMPTY,
             accuracy_decimals=2,
             device_class=DEVICE_CLASS_CURRENT,
             state_class=STATE_CLASS_MEASUREMENT,
         ),
         cv.Optional(CONF_POWER): sensor.sensor_schema(
             unit_of_measurement=UNIT_WATT,
-            icon=ICON_EMPTY,
             accuracy_decimals=2,
             device_class=DEVICE_CLASS_POWER,
             state_class=STATE_CLASS_MEASUREMENT,

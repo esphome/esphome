@@ -8,7 +8,6 @@ from esphome.const import (
     CONF_MODEL,
     CONF_PIN,
     CONF_TEMPERATURE,
-    ICON_EMPTY,
     STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
     UNIT_PERCENT,
@@ -37,14 +36,12 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Required(CONF_PIN): pins.gpio_input_pin_schema,
         cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
             unit_of_measurement=UNIT_CELSIUS,
-            icon=ICON_EMPTY,
             accuracy_decimals=1,
             device_class=DEVICE_CLASS_TEMPERATURE,
             state_class=STATE_CLASS_MEASUREMENT,
         ),
         cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(
             unit_of_measurement=UNIT_PERCENT,
-            icon=ICON_EMPTY,
             accuracy_decimals=0,
             device_class=DEVICE_CLASS_HUMIDITY,
             state_class=STATE_CLASS_MEASUREMENT,

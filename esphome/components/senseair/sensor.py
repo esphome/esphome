@@ -6,7 +6,6 @@ from esphome.components import sensor, uart
 from esphome.const import (
     CONF_CO2,
     CONF_ID,
-    DEVICE_CLASS_EMPTY,
     ICON_MOLECULE_CO2,
     STATE_CLASS_MEASUREMENT,
     UNIT_PARTS_PER_MILLION,
@@ -42,7 +41,6 @@ CONFIG_SCHEMA = (
                 unit_of_measurement=UNIT_PARTS_PER_MILLION,
                 icon=ICON_MOLECULE_CO2,
                 accuracy_decimals=0,
-                device_class=DEVICE_CLASS_EMPTY,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
         }

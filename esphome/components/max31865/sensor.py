@@ -8,7 +8,6 @@ from esphome.const import (
     CONF_RTD_NOMINAL_RESISTANCE,
     CONF_RTD_WIRES,
     DEVICE_CLASS_TEMPERATURE,
-    ICON_EMPTY,
     STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
 )
@@ -27,7 +26,6 @@ FILTER = {
 CONFIG_SCHEMA = (
     sensor.sensor_schema(
         unit_of_measurement=UNIT_CELSIUS,
-        icon=ICON_EMPTY,
         accuracy_decimals=2,
         device_class=DEVICE_CLASS_TEMPERATURE,
         state_class=STATE_CLASS_MEASUREMENT,

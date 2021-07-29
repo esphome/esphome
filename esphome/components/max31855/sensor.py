@@ -5,7 +5,6 @@ from esphome.const import (
     CONF_ID,
     CONF_REFERENCE_TEMPERATURE,
     DEVICE_CLASS_TEMPERATURE,
-    ICON_EMPTY,
     STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
 )
@@ -18,7 +17,6 @@ MAX31855Sensor = max31855_ns.class_(
 CONFIG_SCHEMA = (
     sensor.sensor_schema(
         unit_of_measurement=UNIT_CELSIUS,
-        icon=ICON_EMPTY,
         accuracy_decimals=1,
         device_class=DEVICE_CLASS_TEMPERATURE,
     )
@@ -27,7 +25,6 @@ CONFIG_SCHEMA = (
             cv.GenerateID(): cv.declare_id(MAX31855Sensor),
             cv.Optional(CONF_REFERENCE_TEMPERATURE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_CELSIUS,
-                icon=ICON_EMPTY,
                 accuracy_decimals=2,
                 device_class=DEVICE_CLASS_TEMPERATURE,
                 state_class=STATE_CLASS_MEASUREMENT,

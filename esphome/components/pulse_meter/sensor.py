@@ -15,7 +15,6 @@ from esphome.const import (
     STATE_CLASS_NONE,
     UNIT_PULSES,
     UNIT_PULSES_PER_MINUTE,
-    DEVICE_CLASS_EMPTY,
 )
 from esphome.core import CORE
 
@@ -54,7 +53,6 @@ CONFIG_SCHEMA = sensor.sensor_schema(
     unit_of_measurement=UNIT_PULSES_PER_MINUTE,
     icon=ICON_PULSE,
     accuracy_decimals=2,
-    device_class=DEVICE_CLASS_EMPTY,
     state_class=STATE_CLASS_MEASUREMENT,
 ).extend(
     {
@@ -66,7 +64,6 @@ CONFIG_SCHEMA = sensor.sensor_schema(
             unit_of_measurement=UNIT_PULSES,
             icon=ICON_PULSE,
             accuracy_decimals=0,
-            device_class=DEVICE_CLASS_EMPTY,
             state_class=STATE_CLASS_NONE,
         ),
     }

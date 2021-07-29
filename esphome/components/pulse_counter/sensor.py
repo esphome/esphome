@@ -11,7 +11,6 @@ from esphome.const import (
     CONF_RISING_EDGE,
     CONF_NUMBER,
     CONF_TOTAL,
-    DEVICE_CLASS_EMPTY,
     ICON_PULSE,
     STATE_CLASS_MEASUREMENT,
     STATE_CLASS_NONE,
@@ -70,7 +69,6 @@ CONFIG_SCHEMA = (
         unit_of_measurement=UNIT_PULSES_PER_MINUTE,
         icon=ICON_PULSE,
         accuracy_decimals=2,
-        device_class=DEVICE_CLASS_EMPTY,
         state_class=STATE_CLASS_MEASUREMENT,
     )
     .extend(
@@ -97,7 +95,6 @@ CONFIG_SCHEMA = (
                 unit_of_measurement=UNIT_PULSES,
                 icon=ICON_PULSE,
                 accuracy_decimals=0,
-                device_class=DEVICE_CLASS_EMPTY,
                 state_class=STATE_CLASS_NONE,
             ),
         }

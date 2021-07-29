@@ -6,7 +6,6 @@ from esphome.const import (
     CONF_PM_2_5,
     CONF_PM_10_0,
     CONF_PM_1_0,
-    DEVICE_CLASS_EMPTY,
     STATE_CLASS_MEASUREMENT,
     UNIT_MICROGRAMS_PER_CUBIC_METER,
     ICON_CHEMICAL_WEAPON,
@@ -46,28 +45,24 @@ CONFIG_SCHEMA = cv.All(
                 unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
                 icon=ICON_CHEMICAL_WEAPON,
                 accuracy_decimals=0,
-                device_class=DEVICE_CLASS_EMPTY,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_PM_2_5): sensor.sensor_schema(
                 unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
                 icon=ICON_CHEMICAL_WEAPON,
                 accuracy_decimals=0,
-                device_class=DEVICE_CLASS_EMPTY,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_PM_10_0): sensor.sensor_schema(
                 unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
                 icon=ICON_CHEMICAL_WEAPON,
                 accuracy_decimals=0,
-                device_class=DEVICE_CLASS_EMPTY,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_AQI): sensor.sensor_schema(
                 unit_of_measurement=UNIT_INDEX,
                 icon=ICON_CHEMICAL_WEAPON,
                 accuracy_decimals=0,
-                device_class=DEVICE_CLASS_EMPTY,
                 state_class=STATE_CLASS_MEASUREMENT,
             ).extend(
                 {

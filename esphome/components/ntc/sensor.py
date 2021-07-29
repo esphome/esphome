@@ -12,7 +12,6 @@ from esphome.const import (
     CONF_TEMPERATURE,
     CONF_VALUE,
     DEVICE_CLASS_TEMPERATURE,
-    ICON_EMPTY,
     STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
 )
@@ -121,7 +120,6 @@ def process_calibration(value):
 CONFIG_SCHEMA = (
     sensor.sensor_schema(
         unit_of_measurement=UNIT_CELSIUS,
-        icon=ICON_EMPTY,
         accuracy_decimals=1,
         device_class=DEVICE_CLASS_TEMPERATURE,
         state_class=STATE_CLASS_MEASUREMENT,

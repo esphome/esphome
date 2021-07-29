@@ -8,7 +8,6 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_KILOGRAM,
     ICON_SCALE_BATHROOM,
-    DEVICE_CLASS_EMPTY,
 )
 
 DEPENDENCIES = ["esp32_ble_tracker"]
@@ -27,7 +26,6 @@ CONFIG_SCHEMA = (
                 unit_of_measurement=UNIT_KILOGRAM,
                 icon=ICON_SCALE_BATHROOM,
                 accuracy_decimals=2,
-                device_class=DEVICE_CLASS_EMPTY,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
         }

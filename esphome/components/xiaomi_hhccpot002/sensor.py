@@ -3,7 +3,6 @@ import esphome.config_validation as cv
 from esphome.components import sensor, esp32_ble_tracker
 from esphome.const import (
     CONF_MAC_ADDRESS,
-    DEVICE_CLASS_EMPTY,
     STATE_CLASS_MEASUREMENT,
     UNIT_PERCENT,
     ICON_WATER_PERCENT,
@@ -31,14 +30,12 @@ CONFIG_SCHEMA = (
                 unit_of_measurement=UNIT_PERCENT,
                 icon=ICON_WATER_PERCENT,
                 accuracy_decimals=0,
-                device_class=DEVICE_CLASS_EMPTY,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_CONDUCTIVITY): sensor.sensor_schema(
                 unit_of_measurement=UNIT_MICROSIEMENS_PER_CENTIMETER,
                 icon=ICON_FLOWER,
                 accuracy_decimals=0,
-                device_class=DEVICE_CLASS_EMPTY,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
         }

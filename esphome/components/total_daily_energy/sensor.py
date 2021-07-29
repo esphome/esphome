@@ -5,10 +5,8 @@ from esphome.const import (
     CONF_ID,
     CONF_TIME_ID,
     DEVICE_CLASS_ENERGY,
-    ICON_EMPTY,
     LAST_RESET_TYPE_AUTO,
     STATE_CLASS_MEASUREMENT,
-    UNIT_EMPTY,
 )
 
 DEPENDENCIES = ["time"]
@@ -21,8 +19,6 @@ TotalDailyEnergy = total_daily_energy_ns.class_(
 
 CONFIG_SCHEMA = (
     sensor.sensor_schema(
-        unit_of_measurement=UNIT_EMPTY,
-        icon=ICON_EMPTY,
         accuracy_decimals=0,
         device_class=DEVICE_CLASS_ENERGY,
         state_class=STATE_CLASS_MEASUREMENT,

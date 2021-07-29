@@ -4,10 +4,8 @@ from esphome.components import i2c, sensor
 from esphome.const import (
     CONF_ID,
     CONF_TEMPERATURE,
-    DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_TEMPERATURE,
     ICON_BRIEFCASE_DOWNLOAD,
-    ICON_EMPTY,
     STATE_CLASS_MEASUREMENT,
     UNIT_METER_PER_SECOND_SQUARED,
     ICON_SCREEN_ROTATION,
@@ -33,19 +31,16 @@ accel_schema = sensor.sensor_schema(
     unit_of_measurement=UNIT_METER_PER_SECOND_SQUARED,
     icon=ICON_BRIEFCASE_DOWNLOAD,
     accuracy_decimals=2,
-    device_class=DEVICE_CLASS_EMPTY,
     state_class=STATE_CLASS_MEASUREMENT,
 )
 gyro_schema = sensor.sensor_schema(
     unit_of_measurement=UNIT_DEGREE_PER_SECOND,
     icon=ICON_SCREEN_ROTATION,
     accuracy_decimals=2,
-    device_class=DEVICE_CLASS_EMPTY,
     state_class=STATE_CLASS_MEASUREMENT,
 )
 temperature_schema = sensor.sensor_schema(
     unit_of_measurement=UNIT_CELSIUS,
-    icon=ICON_EMPTY,
     accuracy_decimals=1,
     device_class=DEVICE_CLASS_TEMPERATURE,
     state_class=STATE_CLASS_MEASUREMENT,

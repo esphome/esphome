@@ -7,7 +7,6 @@ from esphome.const import (
     CONF_ID,
     CONF_TRIGGER_PIN,
     CONF_TIMEOUT,
-    DEVICE_CLASS_EMPTY,
     STATE_CLASS_MEASUREMENT,
     UNIT_METER,
     ICON_ARROW_EXPAND_VERTICAL,
@@ -25,7 +24,6 @@ CONFIG_SCHEMA = (
         unit_of_measurement=UNIT_METER,
         icon=ICON_ARROW_EXPAND_VERTICAL,
         accuracy_decimals=2,
-        device_class=DEVICE_CLASS_EMPTY,
         state_class=STATE_CLASS_MEASUREMENT,
     )
     .extend(

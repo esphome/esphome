@@ -9,7 +9,6 @@ from esphome.const import (
     DEVICE_CLASS_TEMPERATURE,
     STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
-    ICON_EMPTY,
     UNIT_HECTOPASCAL,
 )
 
@@ -26,14 +25,12 @@ CONFIG_SCHEMA = (
             cv.GenerateID(): cv.declare_id(BMP085Component),
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_CELSIUS,
-                icon=ICON_EMPTY,
                 accuracy_decimals=1,
                 device_class=DEVICE_CLASS_TEMPERATURE,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_PRESSURE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_HECTOPASCAL,
-                icon=ICON_EMPTY,
                 accuracy_decimals=1,
                 device_class=DEVICE_CLASS_PRESSURE,
                 state_class=STATE_CLASS_MEASUREMENT,

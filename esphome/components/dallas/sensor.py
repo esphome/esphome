@@ -7,7 +7,6 @@ from esphome.const import (
     CONF_INDEX,
     CONF_RESOLUTION,
     DEVICE_CLASS_TEMPERATURE,
-    ICON_EMPTY,
     STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
     CONF_ID,
@@ -19,7 +18,6 @@ DallasTemperatureSensor = dallas_ns.class_("DallasTemperatureSensor", sensor.Sen
 CONFIG_SCHEMA = cv.All(
     sensor.sensor_schema(
         unit_of_measurement=UNIT_CELSIUS,
-        icon=ICON_EMPTY,
         accuracy_decimals=1,
         device_class=DEVICE_CLASS_TEMPERATURE,
         state_class=STATE_CLASS_MEASUREMENT,

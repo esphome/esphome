@@ -3,7 +3,6 @@ import esphome.config_validation as cv
 from esphome.components import sensor, uart
 from esphome.const import (
     CONF_ID,
-    DEVICE_CLASS_EMPTY,
     STATE_CLASS_MEASUREMENT,
     UNIT_METER,
     ICON_ARROW_EXPAND_VERTICAL,
@@ -22,7 +21,6 @@ CONFIG_SCHEMA = (
         unit_of_measurement=UNIT_METER,
         icon=ICON_ARROW_EXPAND_VERTICAL,
         accuracy_decimals=3,
-        device_class=DEVICE_CLASS_EMPTY,
         state_class=STATE_CLASS_MEASUREMENT,
     )
     .extend(

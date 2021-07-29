@@ -3,7 +3,6 @@ import esphome.config_validation as cv
 from esphome.components import sensor
 from esphome.const import (
     CONF_TYPE,
-    DEVICE_CLASS_EMPTY,
     STATE_CLASS_MEASUREMENT,
     UNIT_PERCENT,
     ICON_LIGHTBULB,
@@ -24,7 +23,6 @@ CONFIG_SCHEMA = sensor.sensor_schema(
     unit_of_measurement=UNIT_PERCENT,
     icon=ICON_LIGHTBULB,
     accuracy_decimals=1,
-    device_class=DEVICE_CLASS_EMPTY,
     state_class=STATE_CLASS_MEASUREMENT,
 ).extend(
     {

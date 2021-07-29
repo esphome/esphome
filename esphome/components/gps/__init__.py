@@ -15,9 +15,6 @@ from esphome.const import (
     UNIT_DEGREES,
     UNIT_KILOMETER_PER_HOUR,
     UNIT_METER,
-    UNIT_EMPTY,
-    ICON_EMPTY,
-    DEVICE_CLASS_EMPTY,
 )
 
 DEPENDENCIES = ["uart"]
@@ -37,44 +34,31 @@ CONFIG_SCHEMA = (
             cv.GenerateID(): cv.declare_id(GPS),
             cv.Optional(CONF_LATITUDE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_DEGREES,
-                icon=ICON_EMPTY,
                 accuracy_decimals=6,
-                device_class=DEVICE_CLASS_EMPTY,
                 state_class=STATE_CLASS_NONE,
             ),
             cv.Optional(CONF_LONGITUDE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_DEGREES,
-                icon=ICON_EMPTY,
                 accuracy_decimals=6,
-                device_class=DEVICE_CLASS_EMPTY,
                 state_class=STATE_CLASS_NONE,
             ),
             cv.Optional(CONF_SPEED): sensor.sensor_schema(
                 unit_of_measurement=UNIT_KILOMETER_PER_HOUR,
-                icon=ICON_EMPTY,
                 accuracy_decimals=6,
-                device_class=DEVICE_CLASS_EMPTY,
                 state_class=STATE_CLASS_NONE,
             ),
             cv.Optional(CONF_COURSE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_DEGREES,
-                icon=ICON_EMPTY,
                 accuracy_decimals=2,
-                device_class=DEVICE_CLASS_EMPTY,
                 state_class=STATE_CLASS_NONE,
             ),
             cv.Optional(CONF_ALTITUDE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_METER,
-                icon=ICON_EMPTY,
                 accuracy_decimals=1,
-                device_class=DEVICE_CLASS_EMPTY,
                 state_class=STATE_CLASS_NONE,
             ),
             cv.Optional(CONF_SATELLITES): sensor.sensor_schema(
-                unit_of_measurement=UNIT_EMPTY,
-                icon=ICON_EMPTY,
                 accuracy_decimals=0,
-                device_class=DEVICE_CLASS_EMPTY,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
         }

@@ -2,12 +2,9 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import sensor, ble_client, esp32_ble_tracker
 from esphome.const import (
-    DEVICE_CLASS_EMPTY,
     CONF_ID,
     CONF_LAMBDA,
     STATE_CLASS_NONE,
-    UNIT_EMPTY,
-    ICON_EMPTY,
     CONF_TRIGGER_ID,
     CONF_SERVICE_UUID,
 )
@@ -34,10 +31,7 @@ BLESensorNotifyTrigger = ble_client_ns.class_(
 
 CONFIG_SCHEMA = cv.All(
     sensor.sensor_schema(
-        unit_of_measurement=UNIT_EMPTY,
-        icon=ICON_EMPTY,
         accuracy_decimals=0,
-        device_class=DEVICE_CLASS_EMPTY,
         state_class=STATE_CLASS_NONE,
     )
     .extend(

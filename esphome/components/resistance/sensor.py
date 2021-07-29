@@ -3,7 +3,6 @@ import esphome.config_validation as cv
 from esphome.components import sensor
 from esphome.const import (
     CONF_SENSOR,
-    DEVICE_CLASS_EMPTY,
     STATE_CLASS_MEASUREMENT,
     UNIT_OHM,
     ICON_FLASH,
@@ -28,7 +27,6 @@ CONFIG_SCHEMA = (
         unit_of_measurement=UNIT_OHM,
         icon=ICON_FLASH,
         accuracy_decimals=1,
-        device_class=DEVICE_CLASS_EMPTY,
         state_class=STATE_CLASS_MEASUREMENT,
     )
     .extend(

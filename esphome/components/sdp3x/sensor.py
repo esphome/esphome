@@ -4,7 +4,6 @@ from esphome.components import i2c, sensor
 from esphome.const import (
     CONF_ID,
     DEVICE_CLASS_PRESSURE,
-    ICON_EMPTY,
     STATE_CLASS_MEASUREMENT,
     UNIT_HECTOPASCAL,
 )
@@ -18,7 +17,6 @@ SDP3XComponent = sdp3x_ns.class_("SDP3XComponent", cg.PollingComponent, i2c.I2CD
 CONFIG_SCHEMA = (
     sensor.sensor_schema(
         unit_of_measurement=UNIT_HECTOPASCAL,
-        icon=ICON_EMPTY,
         accuracy_decimals=3,
         device_class=DEVICE_CLASS_PRESSURE,
         state_class=STATE_CLASS_MEASUREMENT,

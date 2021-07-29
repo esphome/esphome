@@ -11,7 +11,6 @@ from esphome.const import (
     UNIT_OHM,
     CONF_IMPEDANCE,
     ICON_OMEGA,
-    DEVICE_CLASS_EMPTY,
 )
 
 DEPENDENCIES = ["esp32_ble_tracker"]
@@ -30,14 +29,12 @@ CONFIG_SCHEMA = (
                 unit_of_measurement=UNIT_KILOGRAM,
                 icon=ICON_SCALE_BATHROOM,
                 accuracy_decimals=2,
-                device_class=DEVICE_CLASS_EMPTY,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_IMPEDANCE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_OHM,
                 icon=ICON_OMEGA,
                 accuracy_decimals=0,
-                device_class=DEVICE_CLASS_EMPTY,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
         }
