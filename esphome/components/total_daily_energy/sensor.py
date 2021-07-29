@@ -1,7 +1,15 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import sensor, time
-from esphome.const import CONF_ID, CONF_TIME_ID
+from esphome.const import (
+    CONF_ID,
+    CONF_TIME_ID,
+    DEVICE_CLASS_ENERGY,
+    ICON_EMPTY,
+    LAST_RESET_TYPE_AUTO,
+    STATE_CLASS_MEASUREMENT,
+    UNIT_EMPTY,
+)
 
 DEPENDENCIES = ["time"]
 
@@ -11,13 +19,24 @@ TotalDailyEnergy = total_daily_energy_ns.class_(
     "TotalDailyEnergy", sensor.Sensor, cg.Component
 )
 
-CONFIG_SCHEMA = sensor.SENSOR_SCHEMA.extend(
-    {
-        cv.GenerateID(): cv.declare_id(TotalDailyEnergy),
-        cv.GenerateID(CONF_TIME_ID): cv.use_id(time.RealTimeClock),
-        cv.Required(CONF_POWER_ID): cv.use_id(sensor.Sensor),
-    }
-).extend(cv.COMPONENT_SCHEMA)
+CONFIG_SCHEMA = (
+    sensor.sensor_schema(
+        UNIT_EMPTY,
+        ICON_EMPTY,
+        0,
+        DEVICE_CLASS_ENERGY,
+        STATE_CLASS_MEASUREMENT,
+        LAST_RESET_TYPE_AUTO,
+    )
+    .extend(
+        {
+            cv.GenerateID(): cv.declare_id(TotalDailyEnergy),
+            cv.GenerateID(CONF_TIME_ID): cv.use_id(time.RealTimeClock),
+            cv.Required(CONF_POWER_ID): cv.use_id(sensor.Sensor),
+        }
+    )
+    .extend(cv.COMPONENT_SCHEMA)
+)
 
 
 async def to_code(config):
