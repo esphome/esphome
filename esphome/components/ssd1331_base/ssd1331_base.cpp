@@ -78,7 +78,7 @@ void SSD1331::setup() {
   set_brightness(this->brightness_);
   this->fill(Color::BLACK);  // clear display - ensures we do not see garbage at power-on
   this->display();           // ...write buffer, which actually clears the display's memory
-  this->turn_on();          // display ON
+  this->turn_on();           // display ON
 }
 void SSD1331::display() {
   this->command(SSD1331_SETCOLUMN);  // set column address

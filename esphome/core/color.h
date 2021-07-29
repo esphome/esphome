@@ -38,10 +38,10 @@ struct Color {
                                                                                         g(green),
                                                                                         b(blue),
                                                                                         w(white) {}
-  inline Color(uint32_t colorcode) ALWAYS_INLINE : r((colorcode >> 16) & 0xFF),
-                                                   g((colorcode >> 8) & 0xFF),
-                                                   b((colorcode >> 0) & 0xFF),
-                                                   w((colorcode >> 24) & 0xFF) {}
+  inline explicit Color(uint32_t colorcode) ALWAYS_INLINE : r((colorcode >> 16) & 0xFF),
+                                                            g((colorcode >> 8) & 0xFF),
+                                                            b((colorcode >> 0) & 0xFF),
+                                                            w((colorcode >> 24) & 0xFF) {}
 
   inline bool is_on() ALWAYS_INLINE { return this->raw_32 != 0; }
   inline Color &operator=(const Color &rhs) ALWAYS_INLINE {  // NOLINT
