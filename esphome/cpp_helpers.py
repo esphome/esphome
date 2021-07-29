@@ -64,8 +64,8 @@ async def register_component(var, config):
 
     # Set component source by inspecting the stack and getting the callee module
     # https://stackoverflow.com/a/1095621
+    name = None
     try:
-        name = None
         for frm in inspect.stack()[1:]:
             mod = inspect.getmodule(frm[0])
             if mod is None:
@@ -80,12 +80,12 @@ async def register_component(var, config):
             if name == "esphome.coroutine":
                 # Only works for async-await coroutine syntax
                 break
-        if name is not None:
-            add(var.set_component_source(name))
     except (KeyError, AttributeError, IndexError) as e:
-        _LOGGER.warning("Error while setting component overrides", exc_info=e)
-        # temporary, remove before merge
-        raise e
+        _LOGGER.warning(
+            "Error while finding name of component, please report this", exc_info=e
+        )
+    if name is not None:
+        add(var.set_component_source(name))
 
     add(App.register_component(var))
     return var
