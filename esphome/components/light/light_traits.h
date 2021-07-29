@@ -19,7 +19,7 @@ class LightTraits {
   bool supports_color_mode(ColorMode color_mode) const { return this->supported_color_modes_.count(color_mode); }
   bool supports_color_capability(ColorCapability color_capability) const {
     for (auto mode : this->supported_color_modes_) {
-      if (*mode & *color_capability)
+      if (mode & color_capability)
         return true;
     }
     return false;

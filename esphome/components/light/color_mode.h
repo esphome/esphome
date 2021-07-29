@@ -21,6 +21,7 @@ enum class ColorCapability : uint8_t {
   RGB = 1 << 5
 };
 
+/// Helper class to allow bitwise operations on ColorCapability
 class ColorCapabilityHelper {
  public:
   constexpr ColorCapabilityHelper(ColorCapability val) : val_(val) {}
@@ -81,9 +82,8 @@ enum class ColorMode : uint8_t {
                         ColorCapability::COLD_WARM_WHITE,
 };
 
-// Define unary * operator to convert enum to underlying value -- this saves a lot of typing and ugly code.
-inline constexpr uint8_t operator*(ColorMode val) { return static_cast<uint8_t>(val); }
 
+/// Helper class to allow bitwise operations on ColorMode with ColorCapability
 class ColorModeHelper {
  public:
   constexpr ColorModeHelper(ColorMode val) : val_(val) {}

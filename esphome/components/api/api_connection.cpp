@@ -307,19 +307,19 @@ bool APIConnection::send_light_state(light::LightState *light) {
   resp.key = light->get_object_id_hash();
   resp.state = values.is_on();
   resp.color_mode = static_cast<enums::ColorMode>(color_mode);
-  if (*color_mode & *light::ColorCapability::BRIGHTNESS)
+  if (color_mode & light::ColorCapability::BRIGHTNESS)
     resp.brightness = values.get_brightness();
-  if (*color_mode & *light::ColorCapability::RGB) {
+  if (color_mode & light::ColorCapability::RGB) {
     resp.color_brightness = values.get_color_brightness();
     resp.red = values.get_red();
     resp.green = values.get_green();
     resp.blue = values.get_blue();
   }
-  if (*color_mode & *light::ColorCapability::WHITE)
+  if (color_mode & light::ColorCapability::WHITE)
     resp.white = values.get_white();
-  if (*color_mode & *light::ColorCapability::COLOR_TEMPERATURE)
+  if (color_mode & light::ColorCapability::COLOR_TEMPERATURE)
     resp.color_temperature = values.get_color_temperature();
-  if (*color_mode & *light::ColorCapability::COLD_WARM_WHITE) {
+  if (color_mode & light::ColorCapability::COLD_WARM_WHITE) {
     resp.cold_white = values.get_cold_white();
     resp.warm_white = values.get_warm_white();
   }

@@ -113,7 +113,7 @@ class LightColorValues {
    * @param traits Used for determining which attributes to consider.
    */
   void normalize_color(const LightTraits &traits) {
-    if (*this->color_mode_ & ColorCapability::RGB) {
+    if (this->color_mode_ & ColorCapability::RGB) {
       float max_value = fmaxf(this->get_red(), fmaxf(this->get_green(), this->get_blue()));
       if (max_value == 0.0f) {
         this->set_red(1.0f);
