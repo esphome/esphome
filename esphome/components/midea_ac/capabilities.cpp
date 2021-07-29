@@ -1357,7 +1357,7 @@ static const uint8_t extraDeviceTypeForYADot5jr26YA[] PROGMEM = { 5 };
 static const uint8_t extraDeviceTypeForYADot5YAB3[] PROGMEM = { 6 };
 
 struct SerialInfo {
-  std::string barCode;
+  char barcode[6];
   uint8_t version;
   int8_t year;
   int8_t month;
@@ -1385,7 +1385,7 @@ static int8_t char2year(char ch) {
 static SerialInfo get_sn_info(const std::string &sn) {
   SerialInfo result;
   uint8_t offset = (sn.length() == 32) ? 6 : 0;
-  result.barCode = sn.substr(offset + 6, 5);
+  strlcpy(result.barcode, sn.c_str() + offset + 6, sizeof(result.barcode));
   result.version = hex2int(sn[offset]);
   result.year = char2year(sn[offset + 11]);
   result.month = hex2int(sn[offset + 12]);
@@ -1424,25 +1424,25 @@ void DeviceInfo::read(const std::string &sn) {
     DeviceData data;
     memcpy_P(&data, pgm, sizeof(data));
     strncpy_P(buf, data.list, sizeof(buf));
-    if (strstr(buf, info.barCode.c_str()) != nullptr) {
-      if (info.version != 13 && info.version >= 2) {
-        if (CHECK_ID(pos, extraDeviceTypeForYADot5, info, 17, 9, 6) || CHECK_ID(pos, extraDeviceTypeForYADot5jr26YA, info, 17, 9, 30)) {
-          this->hasDot5Support = true;
-          this->hasReadyColdOrHot = true;
-          this->hasKeepWarm = true;
-        } else if (CHECK_ID(pos, extraDeviceTypeForYADot5YAB3, info, 17, 9, 6)) {
-          this->hasDot5Support = true;
-          this->hasReadyColdOrHot = true;          
-        } else if (CHECK_ID(pos, extraDeviceTypeForKeepWarm, info, 17, 7, 1)) {
-          this->hasKeepWarm = true;
-        }
-        if (CHECK_ID(pos, extraDeviceTypeForSelfClean, info, 16, 9, 1)) {
-          this->hasSelfCleaning = true;
-        }
+    if (strstr(buf, info.barcode) == nullptr)
+      continue;
+    if (info.version != 13 && info.version >= 2) {
+      if (CHECK_ID(pos, extraDeviceTypeForYADot5, info, 17, 9, 6) || CHECK_ID(pos, extraDeviceTypeForYADot5jr26YA, info, 17, 9, 30)) {
+        this->hasDot5Support = true;
+        this->hasReadyColdOrHot = true;
+        this->hasKeepWarm = true;
+      } else if (CHECK_ID(pos, extraDeviceTypeForYADot5YAB3, info, 17, 9, 6)) {
+        this->hasDot5Support = true;
+        this->hasReadyColdOrHot = true;          
+      } else if (CHECK_ID(pos, extraDeviceTypeForKeepWarm, info, 17, 7, 1)) {
+        this->hasKeepWarm = true;
       }
-      data.func(*this);
-      return;
+      if (CHECK_ID(pos, extraDeviceTypeForSelfClean, info, 16, 9, 1)) {
+        this->hasSelfCleaning = true;
+      }
     }
+    data.func(*this);
+    return;
   }
   this->deviceType = DeviceType::OTHER;
   this->hasUpDownSwipeWind = true;
