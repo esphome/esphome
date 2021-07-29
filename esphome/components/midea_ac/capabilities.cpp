@@ -493,7 +493,6 @@ DEVICE_NAME(WXDF);
 DEVICE_NAME(YB100);
 DEVICE_NAME(MQ200);
 DEVICE_NAME(GW10);
-DEVICE_NAME(OTHER);
 
 DEVICE_FUNC(QA100) {
   di.deviceType = DeviceID::ID_QA100;
@@ -1451,7 +1450,7 @@ DeviceInfo DeviceInfo::fromSN(const char *sn) {
     return ret;
   }
   ret.deviceType = DeviceID::ID_OTHER;
-  strncpy_P(ret.id, NAME_OTHER, sizeof(ret.id));
+  strncpy_P(ret.id, PSTR("OTHER"), sizeof(ret.id));
   ret.hasUpDownSwipeWind = true;
   ret.hasLeftRightSwipeWind = true;
   return ret;
