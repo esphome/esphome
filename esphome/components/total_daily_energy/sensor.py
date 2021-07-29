@@ -29,7 +29,7 @@ CONFIG_SCHEMA = (
     )
     .extend(
         sensor.sensor_schema(
-            UNIT_WATT_HOURS,
+            UNIT_EMPTY,
             ICON_EMPTY,
             0,
             DEVICE_CLASS_ENERGY,
