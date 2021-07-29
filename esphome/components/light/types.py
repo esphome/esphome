@@ -16,6 +16,8 @@ LightColorValues = light_ns.class_("LightColorValues")
 # Color modes
 ColorMode = light_ns.enum("ColorMode", is_class=True)
 COLOR_MODES = {
+    "ON_OFF": ColorMode.ON_OFF,
+    "BRIGHTNESS": ColorMode.BRIGHTNESS,
     "WHITE": ColorMode.WHITE,
     "COLOR_TEMPERATURE": ColorMode.COLOR_TEMPERATURE,
     "COLD_WARM_WHITE": ColorMode.COLD_WARM_WHITE,
