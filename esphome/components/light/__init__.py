@@ -108,7 +108,9 @@ ADDRESSABLE_LIGHT_SCHEMA = RGB_LIGHT_SCHEMA.extend(
 
 def validate_color_temperature_channels(value):
     if (
-        value[CONF_COLD_WHITE_COLOR_TEMPERATURE]
+        CONF_COLD_WHITE_COLOR_TEMPERATURE in value
+        and CONF_WARM_WHITE_COLOR_TEMPERATURE in value
+        and value[CONF_COLD_WHITE_COLOR_TEMPERATURE]
         >= value[CONF_WARM_WHITE_COLOR_TEMPERATURE]
     ):
         raise cv.Invalid(

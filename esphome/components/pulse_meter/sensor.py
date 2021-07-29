@@ -11,8 +11,8 @@ from esphome.const import (
     CONF_TOTAL,
     CONF_VALUE,
     ICON_PULSE,
+    LAST_RESET_TYPE_AUTO,
     STATE_CLASS_MEASUREMENT,
-    STATE_CLASS_NONE,
     UNIT_PULSES,
     UNIT_PULSES_PER_MINUTE,
 )
@@ -64,7 +64,8 @@ CONFIG_SCHEMA = sensor.sensor_schema(
             unit_of_measurement=UNIT_PULSES,
             icon=ICON_PULSE,
             accuracy_decimals=0,
-            state_class=STATE_CLASS_NONE,
+            state_class=STATE_CLASS_MEASUREMENT,
+            last_reset_type=LAST_RESET_TYPE_AUTO,
         ),
     }
 )
