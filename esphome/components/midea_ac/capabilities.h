@@ -111,6 +111,7 @@ class Capabilities {
   bool is_ready_{false};
 };
 
+#if 0
 enum DeviceID : int8_t {
   ID_INVALID = -1,
   ID_QA100,
@@ -320,5 +321,6 @@ struct DeviceInfo {
   bool hasVideoDescription{false};
 };
 
+#endif
 }  // namespace midea_ac
 }  // namespace esphome

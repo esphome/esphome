@@ -318,7 +318,7 @@ void Capabilities::dump(const char *tag) const {
   LOG_CAPABILITY(tag, "  [x] WIND OF ME", this->wind_of_me());
   LOG_CAPABILITY(tag, "  [x] WIND ON ME", this->wind_on_me());
 }
-
+#if 0
 #define AC_LIST(name, data) static const char LIST_##name[] PROGMEM = data
 #define AC_NAME(name) static const char NAME_ID_##name[] PROGMEM = #name
 #define AC_FUNC(name) static void FUNC_##name(DeviceInfo &di)
@@ -1455,6 +1455,8 @@ DeviceInfo DeviceInfo::fromSN(const char *sn) {
   ret.hasLeftRightSwipeWind = true;
   return ret;
 }
+
+#endif
 
 }  // namespace midea_ac
 }  // namespace esphome
