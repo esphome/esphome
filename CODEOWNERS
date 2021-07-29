@@ -5,8 +5,6 @@
 # Every time an issue is created with a label corresponding to an integration,
 # the integration's code owner is automatically notified.
 
-# test change
-
 # Core Code
 setup.py @esphome/core
 esphome/*.py @esphome/core
