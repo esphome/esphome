@@ -45,6 +45,7 @@ void HLW8012Component::dump_config() {
   LOG_SENSOR("  ", "Voltage", this->voltage_sensor_)
   LOG_SENSOR("  ", "Current", this->current_sensor_)
   LOG_SENSOR("  ", "Power", this->power_sensor_)
+  LOG_SENSOR("  ", "Energy", this->energy_sensor_)
 }
 float HLW8012Component::get_setup_priority() const { return setup_priority::DATA; }
 void HLW8012Component::update() {

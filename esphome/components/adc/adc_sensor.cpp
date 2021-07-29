@@ -14,6 +14,7 @@ static const char *const TAG = "adc";
 void ADCSensor::set_attenuation(adc_atten_t attenuation) { this->attenuation_ = attenuation; }
 
 inline adc1_channel_t gpio_to_adc1(uint8_t pin) {
+#if CONFIG_IDF_TARGET_ESP32
   switch (pin) {
     case 36:
       return ADC1_CHANNEL_0;
@@ -34,6 +35,22 @@ inline adc1_channel_t gpio_to_adc1(uint8_t pin) {
     default:
       return ADC1_CHANNEL_MAX;
   }
+#elif CONFIG_IDF_TARGET_ESP32C3 || CONFIG_IDF_TARGET_ESP32H2
+  switch (pin) {
+    case 0:
+      return ADC1_CHANNEL_0;
+    case 1:
+      return ADC1_CHANNEL_1;
+    case 2:
+      return ADC1_CHANNEL_2;
+    case 3:
+      return ADC1_CHANNEL_3;
+    case 4:
+      return ADC1_CHANNEL_4;
+    default:
+      return ADC1_CHANNEL_MAX;
+  }
+#endif
 }
 #endif
 
@@ -46,7 +63,9 @@ void ADCSensor::setup() {
 #ifdef ARDUINO_ARCH_ESP32
   adc1_config_channel_atten(gpio_to_adc1(pin_), attenuation_);
   adc1_config_width(ADC_WIDTH_BIT_12);
+#if !CONFIG_IDF_TARGET_ESP32C3 && !CONFIG_IDF_TARGET_ESP32H2
   adc_gpio_init(ADC_UNIT_1, (adc_channel_t) gpio_to_adc1(pin_));
+#endif
 #endif
 }
 void ADCSensor::dump_config() {
@@ -89,6 +108,7 @@ float ADCSensor::sample() {
 #ifdef ARDUINO_ARCH_ESP32
   int raw = adc1_get_raw(gpio_to_adc1(pin_));
   float value_v = raw / 4095.0f;
+#if CONFIG_IDF_TARGET_ESP32
   switch (this->attenuation_) {
     case ADC_ATTEN_DB_0:
       value_v *= 1.1;
@@ -105,6 +125,24 @@ float ADCSensor::sample() {
     default:  // This is to satisfy the unused ADC_ATTEN_MAX
       break;
   }
+#elif CONFIG_IDF_TARGET_ESP32C3 || CONFIG_IDF_TARGET_ESP32H2
+  switch (this->attenuation_) {
+    case ADC_ATTEN_DB_0:
+      value_v *= 0.84;
+      break;
+    case ADC_ATTEN_DB_2_5:
+      value_v *= 1.13;
+      break;
+    case ADC_ATTEN_DB_6:
+      value_v *= 1.56;
+      break;
+    case ADC_ATTEN_DB_11:
+      value_v *= 3.0;
+      break;
+    default:  // This is to satisfy the unused ADC_ATTEN_MAX
+      break;
+  }
+#endif
   return value_v;
 #endif
 
