@@ -8,7 +8,7 @@ from esphome.const import (
     ICON_EMPTY,
     LAST_RESET_TYPE_AUTO,
     STATE_CLASS_MEASUREMENT,
-    UNIT_WATT_HOURS,
+    UNIT_EMPTY,
 )
 
 DEPENDENCIES = ["time"]
@@ -20,22 +20,20 @@ TotalDailyEnergy = total_daily_energy_ns.class_(
 )
 
 CONFIG_SCHEMA = (
-    cv.Schema(
+    sensor.sensor_schema(
+        UNIT_EMPTY,
+        ICON_EMPTY,
+        0,
+        DEVICE_CLASS_ENERGY,
+        STATE_CLASS_MEASUREMENT,
+        LAST_RESET_TYPE_AUTO,
+    )
+    .extend(
         {
             cv.GenerateID(): cv.declare_id(TotalDailyEnergy),
             cv.GenerateID(CONF_TIME_ID): cv.use_id(time.RealTimeClock),
             cv.Required(CONF_POWER_ID): cv.use_id(sensor.Sensor),
         }
-    )
-    .extend(
-        sensor.sensor_schema(
-            UNIT_EMPTY,
-            ICON_EMPTY,
-            0,
-            DEVICE_CLASS_ENERGY,
-            STATE_CLASS_MEASUREMENT,
-            LAST_RESET_TYPE_AUTO,
-        )
     )
     .extend(cv.COMPONENT_SCHEMA)
 )
