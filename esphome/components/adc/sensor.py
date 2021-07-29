@@ -16,10 +16,10 @@ from esphome.const import (
 AUTO_LOAD = ["voltage_sampler"]
 
 ATTENUATION_MODES = {
-    "0db": cg.global_ns.ADC_0db,
-    "2.5db": cg.global_ns.ADC_2_5db,
-    "6db": cg.global_ns.ADC_6db,
-    "11db": cg.global_ns.ADC_11db,
+    "0db": cg.global_ns.ADC_ATTEN_DB_0,
+    "2.5db": cg.global_ns.ADC_ATTEN_DB_2_5,
+    "6db": cg.global_ns.ADC_ATTEN_DB_6,
+    "11db": cg.global_ns.ADC_ATTEN_DB_11,
 }
 
 

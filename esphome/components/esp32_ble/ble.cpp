@@ -91,7 +91,16 @@ bool ESP32BLE::ble_setup_() {
     }
   }
 
-  err = esp_ble_gap_set_device_name(App.get_name().c_str());
+  std::string name = App.get_name();
+  if (name.length() > 20) {
+    if (App.is_name_add_mac_suffix_enabled()) {
+      name.erase(name.begin() + 13, name.end() - 7);  // Remove characters between 13 and the mac address
+    } else {
+      name = name.substr(0, 20);
+    }
+  }
+
+  err = esp_ble_gap_set_device_name(name.c_str());
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "esp_ble_gap_set_device_name failed: %d", err);
     return false;

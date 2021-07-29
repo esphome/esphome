@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
+import esphome.final_validate as fv
 from esphome import pins
 from esphome.const import (
     CONF_CLK_PIN,
@@ -69,9 +70,24 @@ async def register_spi_device(var, config):
         cg.add(var.set_cs_pin(pin))
 
 
-def validate_device(name, config, item_config, require_mosi, require_miso):
-    spi_config = config.get_config_by_id(item_config[CONF_SPI_ID])
-    if require_mosi and CONF_MISO_PIN not in spi_config:
-        raise ValueError(f"Component {name} requires parent spi to declare miso_pin")
-    if require_miso and CONF_MOSI_PIN not in spi_config:
-        raise ValueError(f"Component {name} requires parent spi to declare mosi_pin")
+def final_validate_device_schema(name: str, *, require_mosi: bool, require_miso: bool):
+    hub_schema = {}
+    if require_miso:
+        hub_schema[
+            cv.Required(
+                CONF_MISO_PIN,
+                msg=f"Component {name} requires this spi bus to declare a miso_pin",
+            )
+        ] = cv.valid
+    if require_mosi:
+        hub_schema[
+            cv.Required(
+                CONF_MOSI_PIN,
+                msg=f"Component {name} requires this spi bus to declare a mosi_pin",
+            )
+        ] = cv.valid
+
+    return cv.Schema(
+        {cv.Required(CONF_SPI_ID): fv.id_declaration_match_schema(hub_schema)},
+        extra=cv.ALLOW_EXTRA,
+    )

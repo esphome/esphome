@@ -105,7 +105,7 @@ std::string truncate_string(const std::string &s, size_t length) {
 }
 
 std::string value_accuracy_to_string(float value, int8_t accuracy_decimals) {
-  auto multiplier = float(pow10(accuracy_decimals));
+  auto multiplier = float(powf(10.0f, accuracy_decimals));
   float value_rounded = roundf(value * multiplier) / multiplier;
   char tmp[32];  // should be enough, but we should maybe improve this at some point.
   dtostrf(value_rounded, 0, uint8_t(std::max(0, int(accuracy_decimals))), tmp);
@@ -287,13 +287,16 @@ void HighFrequencyLoopRequester::stop() {
 }
 bool HighFrequencyLoopRequester::is_high_frequency() { return high_freq_num_requests > 0; }
 
-float clamp(float val, float min, float max) {
+template<typename T> T clamp(const T val, const T min, const T max) {
   if (val < min)
     return min;
   if (val > max)
     return max;
   return val;
 }
+template float clamp(float, float, float);
+template int clamp(int, int, int);
+
 float lerp(float completion, float start, float end) { return start + (end - start) * completion; }
 
 bool str_startswith(const std::string &full, const std::string &start) { return full.rfind(start, 0) == 0; }

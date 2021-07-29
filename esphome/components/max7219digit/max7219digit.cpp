@@ -104,7 +104,7 @@ void MAX7219Component::display() {
   uint8_t pixels[8];
   // Run this loop for every MAX CHIP (GRID OF 64 leds)
   // Run this routine for the rows of every chip 8x row 0 top to 7 bottom
-  // Fill the pixel parameter with diplay data
+  // Fill the pixel parameter with display data
   // Send the data to the chip
   for (uint8_t i = 0; i < this->num_chips_; i++) {
     for (uint8_t j = 0; j < 8; j++) {
@@ -119,7 +119,7 @@ void MAX7219Component::display() {
 }
 
 int MAX7219Component::get_height_internal() {
-  return 8;  // TO BE DONE -> STACK TWO DISPLAYS ON TOP OF EACH OTHE
+  return 8;  // TO BE DONE -> STACK TWO DISPLAYS ON TOP OF EACH OTHER
              // TO BE DONE -> CREATE Virtual size of screen and scroll
 }
 
@@ -238,7 +238,7 @@ void MAX7219Component::send64pixels(uint8_t chip, const uint8_t pixels[8]) {
     } else {
       b = pixels[7 - col];
     }
-    // send this byte to dispay at selected chip
+    // send this byte to display at selected chip
     if (this->invert_) {
       this->send_byte_(col + 1, ~b);
     } else {

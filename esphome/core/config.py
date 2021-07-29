@@ -4,7 +4,7 @@ import re
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome import automation, pins
+from esphome import automation, boards
 from esphome.const import (
     CONF_ARDUINO_VERSION,
     CONF_BOARD,
@@ -50,18 +50,19 @@ VERSION_REGEX = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+(?:[ab]\d+)?$")
 CONF_NAME_ADD_MAC_SUFFIX = "name_add_mac_suffix"
 
 
-def validate_board(value):
+def validate_board(value: str):
     if CORE.is_esp8266:
-        board_pins = pins.ESP8266_BOARD_PINS
+        boardlist = boards.ESP8266_BOARD_PINS.keys()
     elif CORE.is_esp32:
-        board_pins = pins.ESP32_BOARD_PINS
+        boardlist = list(boards.ESP32_BOARD_PINS.keys())
+        boardlist += list(boards.ESP32_C3_BOARD_PINS.keys())
     else:
         raise NotImplementedError
 
-    if value not in board_pins:
+    if value not in boardlist:
         raise cv.Invalid(
             "Could not find board '{}'. Valid boards are {}".format(
-                value, ", ".join(sorted(board_pins.keys()))
+                value, ", ".join(sorted(boardlist))
             )
         )
     return value
@@ -77,7 +78,7 @@ PLATFORMIO_ESP8266_LUT = {
     #    recommended version as otherwise a bunch of devices could be bricked
     #  * The docker images need to be updated to ship the new recommended version, in order not
     #    to DDoS platformio servers.
-    #    Update this file: https://github.com/esphome/esphome-docker-base/blob/master/platformio.ini
+    #    Update this file: https://github.com/esphome/esphome-docker-base/blob/main/platformio.ini
     "RECOMMENDED": ARDUINO_VERSION_ESP8266["2.7.4"],
     "LATEST": "espressif8266",
     "DEV": ARDUINO_VERSION_ESP8266["dev"],
@@ -200,11 +201,6 @@ CONFIG_SCHEMA = cv.Schema(
                 cv.Required(CONF_NAME): cv.All(cv.string_strict, valid_project_name),
                 cv.Required(CONF_VERSION): cv.string_strict,
             }
-        ),
-        cv.Optional("esphome_core_version"): cv.invalid(
-            "The esphome_core_version option has been "
-            "removed in 1.13 - the esphome core source "
-            "files are now bundled with ESPHome."
         ),
     }
 )
@@ -337,6 +333,14 @@ async def to_code(config):
         if "@" in lib:
             name, vers = lib.split("@", 1)
             cg.add_library(name, vers)
+        elif "://" in lib:
+            # Repository...
+            if "=" in lib:
+                name, repo = lib.split("=", 1)
+                cg.add_library(name, None, repo)
+            else:
+                cg.add_library(None, None, lib)
+
         else:
             cg.add_library(lib, None)
 

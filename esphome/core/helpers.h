@@ -80,7 +80,7 @@ class HighFrequencyLoopRequester {
  * @param max The maximum value.
  * @return val clamped in between min and max.
  */
-float clamp(float val, float min, float max);
+template<typename T> T clamp(T val, T min, T max);
 
 /** Linearly interpolate between end start and end by completion.
  *

@@ -126,7 +126,7 @@ void SSD1322::update() {
   this->display();
 }
 void SSD1322::set_brightness(float brightness) {
-  this->brightness_ = clamp(brightness, 0, 1);
+  this->brightness_ = clamp(brightness, 0.0F, 1.0F);
   // now write the new brightness level to the display
   this->command(SSD1322_SETCONTRAST);
   this->data(int(SSD1322_MAX_CONTRAST * (this->brightness_)));

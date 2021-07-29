@@ -75,6 +75,9 @@ Inclusive = vol.Inclusive
 ALLOW_EXTRA = vol.ALLOW_EXTRA
 UNDEFINED = vol.UNDEFINED
 RequiredFieldInvalid = vol.RequiredFieldInvalid
+# this sentinel object can be placed in an 'Invalid' path to say
+# the rest of the error path is relative to the root config path
+ROOT_CONFIG_PATH = object()
 
 RESERVED_IDS = [
     # C++ keywords http://en.cppreference.com/w/cpp/keyword
@@ -218,8 +221,8 @@ class Required(vol.Required):
     - *not* the `config.get(CONF_<KEY>)` syntax.
     """
 
-    def __init__(self, key):
-        super().__init__(key)
+    def __init__(self, key, msg=None):
+        super().__init__(key, msg=msg)
 
 
 def check_not_templatable(value):
@@ -1015,9 +1018,11 @@ def requires_component(comp):
 uint8_t = int_range(min=0, max=255)
 uint16_t = int_range(min=0, max=65535)
 uint32_t = int_range(min=0, max=4294967295)
+uint64_t = int_range(min=0, max=18446744073709551615)
 hex_uint8_t = hex_int_range(min=0, max=255)
 hex_uint16_t = hex_int_range(min=0, max=65535)
 hex_uint32_t = hex_int_range(min=0, max=4294967295)
+hex_uint64_t = hex_int_range(min=0, max=18446744073709551615)
 i2c_address = hex_uint8_t
 
 
@@ -1073,6 +1078,7 @@ def invalid(message):
 
 
 def valid(value):
+    """A validator that is always valid and returns the value as-is."""
     return value
 
 

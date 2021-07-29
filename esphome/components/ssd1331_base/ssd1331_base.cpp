@@ -19,7 +19,7 @@ static const uint8_t SSD1331_DRAWLINE = 0x21;        // Draw line
 static const uint8_t SSD1331_DRAWRECT = 0x22;        // Draw rectangle
 static const uint8_t SSD1331_FILL = 0x26;            // Fill enable/disable
 static const uint8_t SSD1331_SETCOLUMN = 0x15;       // Set column address
-static const uint8_t SSD1331_SETROW = 0x75;          // Set row adress
+static const uint8_t SSD1331_SETROW = 0x75;          // Set row address
 static const uint8_t SSD1331_CONTRASTA = 0x81;       // Set contrast for color A
 static const uint8_t SSD1331_CONTRASTB = 0x82;       // Set contrast for color B
 static const uint8_t SSD1331_CONTRASTC = 0x83;       // Set contrast for color C
@@ -97,7 +97,7 @@ void SSD1331::update() {
 }
 void SSD1331::set_brightness(float brightness) {
   // validation
-  this->brightness_ = clamp(brightness, 0, 1);
+  this->brightness_ = clamp(brightness, 0.0F, 1.0F);
   // now write the new brightness level to the display
   this->command(SSD1331_CONTRASTA);  // 0x81
   this->command(int(SSD1331_MAX_CONTRASTA * (this->brightness_)));

@@ -45,6 +45,9 @@ CONFIG_SCHEMA = (
     .extend(cv.polling_component_schema("60s"))
     .extend(uart.UART_DEVICE_SCHEMA)
 )
+FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
+    "cse7766", baud_rate=4800, require_rx=True
+)
 
 
 async def to_code(config):
@@ -64,9 +67,3 @@ async def to_code(config):
         conf = config[CONF_POWER]
         sens = await sensor.new_sensor(conf)
         cg.add(var.set_power_sensor(sens))
-
-
-def validate(config, item_config):
-    uart.validate_device(
-        "cse7766", config, item_config, baud_rate=4800, require_tx=False
-    )

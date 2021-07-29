@@ -62,7 +62,7 @@ class FujitsuGeneralClimate : public climate_ir::ClimateIR {
   /// Transmit via IR power off command.
   void transmit_off_();
 
-  /// Parse incomming message
+  /// Parse incoming message
   bool on_receive(remote_base::RemoteReceiveData data) override;
 
   /// Transmit message as IR pulses

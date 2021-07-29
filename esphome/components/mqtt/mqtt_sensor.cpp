@@ -46,6 +46,9 @@ void MQTTSensorComponent::set_expire_after(uint32_t expire_after) { this->expire
 void MQTTSensorComponent::disable_expire_after() { this->expire_after_ = 0; }
 std::string MQTTSensorComponent::friendly_name() const { return this->sensor_->get_name(); }
 void MQTTSensorComponent::send_discovery(JsonObject &root, mqtt::SendDiscoveryConfig &config) {
+  if (!this->sensor_->get_device_class().empty())
+    root["device_class"] = this->sensor_->get_device_class();
+
   if (!this->sensor_->get_unit_of_measurement().empty())
     root["unit_of_measurement"] = this->sensor_->get_unit_of_measurement();
 

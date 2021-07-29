@@ -218,6 +218,16 @@ sensor:
       name: 'ATC Battery-Level'
     battery_voltage:
       name: 'ATC Battery-Voltage'
+  - platform: pvvx_mithermometer
+    mac_address: 'A4:C1:38:4E:16:78'
+    temperature:
+      name: 'PVVX Temperature'
+    humidity:
+      name: 'PVVX Humidity'
+    battery_level:
+      name: 'PVVX Battery-Level'
+    battery_voltage:
+      name: 'PVVX Battery-Voltage'
   - platform: inkbird_ibsth1_mini
     mac_address: 38:81:D7:0A:9C:11
     temperature:
