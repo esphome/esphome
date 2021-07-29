@@ -219,7 +219,7 @@ def sensor_schema(
     last_reset_type: str = _UNDEF,
 ) -> cv.Schema:
     schema = SENSOR_SCHEMA
-    if unit_of_measurement is not None:
+    if unit_of_measurement is not _UNDEF:
         schema = schema.extend(
             {
                 cv.Optional(
@@ -227,7 +227,7 @@ def sensor_schema(
                 ): validate_unit_of_measurement
             }
         )
-    if icon is not None:
+    if icon is not _UNDEF:
         schema = schema.extend({cv.Optional(CONF_ICON, default=icon): validate_icon})
     if accuracy_decimals is not _UNDEF:
         schema = schema.extend(
