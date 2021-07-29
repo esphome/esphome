@@ -11,8 +11,8 @@ from esphome.config import iter_components, read_config, strip_default_ids
 from esphome.const import (
     CONF_BAUD_RATE,
     CONF_BROKER,
+    CONF_DEASSERT_RTS_DTR,
     CONF_LOGGER,
-    CONF_LOW_RTS_DTR,
     CONF_OTA,
     CONF_PASSWORD,
     CONF_PORT,
@@ -110,7 +110,7 @@ def run_miniterm(config, port):
 
     # We can't set to False by default since it leads to toggling and hence
     # ESP32 resets on some platforms.
-    if config["logger"][CONF_LOW_RTS_DTR]:
+    if config["logger"][CONF_DEASSERT_RTS_DTR]:
         ser.dtr = False
         ser.rts = False
 
