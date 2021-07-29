@@ -47,26 +47,26 @@ void LightJSONSchema::dump_json(LightState &state, JsonObject &root) {
       break;
   }
 
-  if (*values.get_color_mode() & *ColorMode::ON_OFF)
+  if (values.get_color_mode() & ColorCapability::ON_OFF)
     root["state"] = (values.get_state() != 0.0f) ? "ON" : "OFF";
-  if (*values.get_color_mode() & *ColorMode::BRIGHTNESS)
+  if (values.get_color_mode() & ColorCapability::BRIGHTNESS)
     root["brightness"] = uint8_t(values.get_brightness() * 255);
 
   JsonObject &color = root.createNestedObject("color");
-  if (*values.get_color_mode() & *ColorMode::RGB) {
+  if (values.get_color_mode() & ColorCapability::RGB) {
     color["r"] = uint8_t(values.get_color_brightness() * values.get_red() * 255);
     color["g"] = uint8_t(values.get_color_brightness() * values.get_green() * 255);
     color["b"] = uint8_t(values.get_color_brightness() * values.get_blue() * 255);
   }
-  if (*values.get_color_mode() & *ColorMode::WHITE) {
+  if (values.get_color_mode() & ColorCapability::WHITE) {
     color["w"] = uint8_t(values.get_white() * 255);
     root["white_value"] = uint8_t(values.get_white() * 255);  // legacy API
   }
-  if (*values.get_color_mode() & *ColorMode::COLOR_TEMPERATURE) {
+  if (*values.get_color_mode() & ColorCapability::COLOR_TEMPERATURE) {
     // this one isn't under the color subkey for some reason
     root["color_temp"] = uint32_t(values.get_color_temperature());
   }
-  if (*values.get_color_mode() & *ColorMode::COLD_WARM_WHITE) {
+  if (*values.get_color_mode() & ColorCapability::COLD_WARM_WHITE) {
     color["c"] = uint8_t(values.get_cold_white() * 255);
     color["w"] = uint8_t(values.get_warm_white() * 255);
   }
