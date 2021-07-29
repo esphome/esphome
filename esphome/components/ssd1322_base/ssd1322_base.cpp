@@ -106,7 +106,7 @@ void SSD1322::setup() {
   this->data(180);
   this->command(SSD1322_ENABLEGRAYSCALETABLE);
   set_brightness(this->brightness_);
-  this->fill(COLOR_BLACK);  // clear display - ensures we do not see garbage at power-on
+  this->fill(Color::BLACK);  // clear display - ensures we do not see garbage at power-on
   this->display();          // ...write buffer, which actually clears the display's memory
   this->turn_on();          // display ON
 }

@@ -143,8 +143,14 @@ struct Color {
   Color fade_to_black(uint8_t amnt) { return *this * amnt; }
   Color lighten(uint8_t delta) { return *this + delta; }
   Color darken(uint8_t delta) { return *this - delta; }
+
+  static const Color BLACK;
+  static const Color WHITE;
 };
 
-static const Color COLOR_BLACK(0, 0, 0);
+ESPDEPRECATED("Use Color::BLACK instead of COLOR_BLACK")
+static const Color COLOR_BLACK(0, 0, 0, 0);
+ESPDEPRECATED("Use Color::WHITE instead of COLOR_WHITE")
 static const Color COLOR_WHITE(255, 255, 255, 255);
-};  // namespace esphome
+
+}  // namespace esphome
