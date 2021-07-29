@@ -11,6 +11,7 @@ from esphome.const import (
 )
 
 DEPENDENCIES = ["i2c"]
+CODEOWNERS = ["@Azimath"]
 
 tmp117_ns = cg.esphome_ns.namespace("tmp117")
 TMP117Component = tmp117_ns.class_(

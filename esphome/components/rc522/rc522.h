@@ -32,7 +32,7 @@ class RC522 : public PollingComponent {
     STATUS_OK,                 // Success
     STATUS_WAITING,            // Waiting result from RC522 chip
     STATUS_ERROR,              // Error in communication
-    STATUS_COLLISION,          // Collission detected
+    STATUS_COLLISION,          // Collision detected
     STATUS_TIMEOUT,            // Timeout in communication.
     STATUS_NO_ROOM,            // A buffer is not big enough.
     STATUS_INTERNAL_ERROR,     // Internal error in the code. Should not happen ;-)

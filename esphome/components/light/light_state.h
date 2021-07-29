@@ -68,14 +68,6 @@ class LightState : public Nameable, public Component {
    */
   LightColorValues remote_values;
 
-  /// Deprecated method to access current_values.
-  ESPDEPRECATED("get_current_values() is deprecated, please use .current_values instead.")
-  LightColorValues get_current_values();
-
-  /// Deprecated method to access remote_values.
-  ESPDEPRECATED("get_remote_values() is deprecated, please use .remote_values instead.")
-  LightColorValues get_remote_values();
-
   /// Publish the currently active state to the frontend.
   void publish_state();
 
@@ -100,11 +92,6 @@ class LightState : public Nameable, public Component {
    * @param send_callback
    */
   void add_new_target_state_reached_callback(std::function<void()> &&send_callback);
-
-#ifdef USE_JSON
-  /// Dump the state of this light as JSON.
-  void dump_json(JsonObject &root);
-#endif
 
   /// Set the default transition length, i.e. the transition length when no transition is provided.
   void set_default_transition_length(uint32_t default_transition_length);

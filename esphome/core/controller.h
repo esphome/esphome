@@ -25,6 +25,9 @@
 #ifdef USE_CLIMATE
 #include "esphome/components/climate/climate.h"
 #endif
+#ifdef USE_NUMBER
+#include "esphome/components/number/number.h"
+#endif
 
 namespace esphome {
 
@@ -54,6 +57,9 @@ class Controller {
 #endif
 #ifdef USE_CLIMATE
   virtual void on_climate_update(climate::Climate *obj){};
+#endif
+#ifdef USE_NUMBER
+  virtual void on_number_update(number::Number *obj, float state){};
 #endif
 };
 

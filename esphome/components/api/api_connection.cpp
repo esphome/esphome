@@ -301,22 +301,28 @@ bool APIConnection::send_light_state(light::LightState *light) {
 
   auto traits = light->get_traits();
   auto values = light->remote_values;
+  auto color_mode = values.get_color_mode();
   LightStateResponse resp{};
 
   resp.key = light->get_object_id_hash();
   resp.state = values.is_on();
-  if (traits.get_supports_brightness())
+  resp.color_mode = static_cast<enums::ColorMode>(color_mode);
+  if (color_mode & light::ColorCapability::BRIGHTNESS)
     resp.brightness = values.get_brightness();
-  if (traits.get_supports_rgb()) {
+  if (color_mode & light::ColorCapability::RGB) {
     resp.color_brightness = values.get_color_brightness();
     resp.red = values.get_red();
     resp.green = values.get_green();
     resp.blue = values.get_blue();
   }
-  if (traits.get_supports_rgb_white_value())
+  if (color_mode & light::ColorCapability::WHITE)
     resp.white = values.get_white();
-  if (traits.get_supports_color_temperature())
+  if (color_mode & light::ColorCapability::COLOR_TEMPERATURE)
     resp.color_temperature = values.get_color_temperature();
+  if (color_mode & light::ColorCapability::COLD_WARM_WHITE) {
+    resp.cold_white = values.get_cold_white();
+    resp.warm_white = values.get_warm_white();
+  }
   if (light->supports_effects())
     resp.effect = light->get_effect_name();
   return this->send_light_state_response(resp);
@@ -328,11 +334,18 @@ bool APIConnection::send_light_info(light::LightState *light) {
   msg.object_id = light->get_object_id();
   msg.name = light->get_name();
   msg.unique_id = get_default_unique_id("light", light);
-  msg.supports_brightness = traits.get_supports_brightness();
-  msg.supports_rgb = traits.get_supports_rgb();
-  msg.supports_white_value = traits.get_supports_rgb_white_value();
-  msg.supports_color_temperature = traits.get_supports_color_temperature();
-  if (msg.supports_color_temperature) {
+  for (auto mode : traits.get_supported_color_modes())
+    msg.supported_color_modes.push_back(static_cast<enums::ColorMode>(mode));
+
+  msg.legacy_supports_brightness = traits.supports_color_capability(light::ColorCapability::BRIGHTNESS);
+  msg.legacy_supports_rgb = traits.supports_color_capability(light::ColorCapability::RGB);
+  msg.legacy_supports_white_value =
+      msg.legacy_supports_rgb && (traits.supports_color_capability(light::ColorCapability::WHITE) ||
+                                  traits.supports_color_capability(light::ColorCapability::COLD_WARM_WHITE));
+  msg.legacy_supports_color_temperature = traits.supports_color_capability(light::ColorCapability::COLOR_TEMPERATURE) ||
+                                          traits.supports_color_capability(light::ColorCapability::COLD_WARM_WHITE);
+
+  if (msg.legacy_supports_color_temperature) {
     msg.min_mireds = traits.get_min_mireds();
     msg.max_mireds = traits.get_max_mireds();
   }
@@ -353,6 +366,8 @@ void APIConnection::light_command(const LightCommandRequest &msg) {
     call.set_state(msg.state);
   if (msg.has_brightness)
     call.set_brightness(msg.brightness);
+  if (msg.has_color_mode)
+    call.set_color_mode(static_cast<light::ColorMode>(msg.color_mode));
   if (msg.has_color_brightness)
     call.set_color_brightness(msg.color_brightness);
   if (msg.has_rgb) {
@@ -364,6 +379,10 @@ void APIConnection::light_command(const LightCommandRequest &msg) {
     call.set_white(msg.white);
   if (msg.has_color_temperature)
     call.set_color_temperature(msg.color_temperature);
+  if (msg.has_cold_white)
+    call.set_cold_white(msg.cold_white);
+  if (msg.has_warm_white)
+    call.set_warm_white(msg.warm_white);
   if (msg.has_transition_length)
     call.set_transition_length(msg.transition_length);
   if (msg.has_flash_length)
@@ -399,6 +418,7 @@ bool APIConnection::send_sensor_info(sensor::Sensor *sensor) {
   msg.force_update = sensor->get_force_update();
   msg.device_class = sensor->get_device_class();
   msg.state_class = static_cast<enums::SensorStateClass>(sensor->state_class);
+  msg.last_reset_type = static_cast<enums::SensorLastResetType>(sensor->last_reset_type);
 
   return this->send_list_entities_sensor_response(msg);
 }
@@ -553,6 +573,42 @@ void APIConnection::climate_command(const ClimateCommandRequest &msg) {
 }
 #endif
 
+#ifdef USE_NUMBER
+bool APIConnection::send_number_state(number::Number *number, float state) {
+  if (!this->state_subscription_)
+    return false;
+
+  NumberStateResponse resp{};
+  resp.key = number->get_object_id_hash();
+  resp.state = state;
+  resp.missing_state = !number->has_state();
+  return this->send_number_state_response(resp);
+}
+bool APIConnection::send_number_info(number::Number *number) {
+  ListEntitiesNumberResponse msg;
+  msg.key = number->get_object_id_hash();
+  msg.object_id = number->get_object_id();
+  msg.name = number->get_name();
+  msg.unique_id = get_default_unique_id("number", number);
+  msg.icon = number->traits.get_icon();
+
+  msg.min_value = number->traits.get_min_value();
+  msg.max_value = number->traits.get_max_value();
+  msg.step = number->traits.get_step();
+
+  return this->send_list_entities_number_response(msg);
+}
+void APIConnection::number_command(const NumberCommandRequest &msg) {
+  number::Number *number = App.get_number_by_key(msg.key);
+  if (number == nullptr)
+    return;
+
+  auto call = number->make_call();
+  call.set_value(msg.state);
+  call.perform();
+}
+#endif
+
 #ifdef USE_ESP32_CAMERA
 void APIConnection::send_camera_state(std::shared_ptr<esp32_camera::CameraImage> image) {
   if (!this->state_subscription_)
@@ -618,7 +674,7 @@ HelloResponse APIConnection::hello(const HelloRequest &msg) {
 
   HelloResponse resp;
   resp.api_version_major = 1;
-  resp.api_version_minor = 5;
+  resp.api_version_minor = 6;
   resp.server_info = App.get_name() + " (esphome v" ESPHOME_VERSION ")";
   this->connection_state_ = ConnectionState::CONNECTED;
   return resp;

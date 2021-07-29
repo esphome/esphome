@@ -7,6 +7,8 @@
 namespace esphome {
 namespace esp32_ble {
 
+static const char *const TAG = "esp32_ble";
+
 BLEAdvertising::BLEAdvertising() {
   this->advertising_data_.set_scan_rsp = false;
   this->advertising_data_.include_name = true;

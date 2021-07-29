@@ -64,11 +64,6 @@ void ADS1115Component::setup() {
     return;
   }
   this->prev_config_ = config;
-
-  for (auto *sensor : this->sensors_) {
-    this->set_interval(sensor->get_name(), sensor->update_interval(),
-                       [this, sensor] { this->request_measurement(sensor); });
-  }
 }
 void ADS1115Component::dump_config() {
   ESP_LOGCONFIG(TAG, "Setting up ADS1115...");
@@ -107,17 +102,22 @@ float ADS1115Component::request_measurement(ADS1115Sensor *sensor) {
     }
     this->prev_config_ = config;
 
-    // about 1.6 ms with 860 samples per second
+    // about 1.2 ms with 860 samples per second
     delay(2);
 
-    uint32_t start = millis();
-    while (this->read_byte_16(ADS1115_REGISTER_CONFIG, &config) && (config >> 15) == 0) {
-      if (millis() - start > 100) {
-        ESP_LOGW(TAG, "Reading ADS1115 timed out");
-        this->status_set_warning();
-        return NAN;
+    // in continuous mode, conversion will always be running, rely on the delay
+    // to ensure conversion is taking place with the correct settings
+    // can we use the rdy pin to trigger when a conversion is done?
+    if (!this->continuous_mode_) {
+      uint32_t start = millis();
+      while (this->read_byte_16(ADS1115_REGISTER_CONFIG, &config) && (config >> 15) == 0) {
+        if (millis() - start > 100) {
+          ESP_LOGW(TAG, "Reading ADS1115 timed out");
+          this->status_set_warning();
+          return NAN;
+        }
+        yield();
       }
-      yield();
     }
   }
 

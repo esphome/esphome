@@ -37,13 +37,6 @@ CONFIG_SCHEMA = (
             cv.Optional(
                 CONF_PULSE_TIME, default="10us"
             ): cv.positive_time_period_microseconds,
-            cv.Optional("timeout_meter"): cv.invalid(
-                "The timeout_meter option has been renamed " "to 'timeout' in 1.12."
-            ),
-            cv.Optional("timeout_time"): cv.invalid(
-                "The timeout_time option has been removed. Please "
-                "use 'timeout' in 1.12."
-            ),
         }
     )
     .extend(cv.polling_component_schema("60s"))

@@ -249,9 +249,6 @@ CONFIG_SCHEMA = cv.All(
             cv.SplitDefault(CONF_OUTPUT_POWER, esp8266=20.0): cv.All(
                 cv.decibel, cv.float_range(min=10.0, max=20.5)
             ),
-            cv.Optional("hostname"): cv.invalid(
-                "The hostname option has been removed in 1.11.0"
-            ),
         }
     ),
     _validate,

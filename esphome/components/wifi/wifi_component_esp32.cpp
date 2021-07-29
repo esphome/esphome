@@ -142,11 +142,7 @@ IPAddress WiFiComponent::wifi_sta_ip_() {
 }
 
 bool WiFiComponent::wifi_apply_hostname_() {
-  esp_err_t err = tcpip_adapter_set_hostname(TCPIP_ADAPTER_IF_STA, App.get_name().c_str());
-  if (err != ESP_OK) {
-    ESP_LOGV(TAG, "Setting hostname failed: %d", err);
-    return false;
-  }
+  // setting is done in SYSTEM_EVENT_STA_START callback
   return true;
 }
 bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
@@ -154,10 +150,24 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
   if (!this->wifi_mode_(true, {}))
     return false;
 
+  // https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/network/esp_wifi.html#_CPPv417wifi_sta_config_t
   wifi_config_t conf;
   memset(&conf, 0, sizeof(conf));
   strcpy(reinterpret_cast<char *>(conf.sta.ssid), ap.get_ssid().c_str());
   strcpy(reinterpret_cast<char *>(conf.sta.password), ap.get_password().c_str());
+
+  // The weakest authmode to accept in the fast scan mode
+  if (ap.get_password().empty()) {
+    conf.sta.threshold.authmode = WIFI_AUTH_OPEN;
+  } else {
+    conf.sta.threshold.authmode = WIFI_AUTH_WPA_WPA2_PSK;
+  }
+
+#ifdef ESPHOME_WIFI_WPA2_EAP
+  if (ap.get_eap().has_value()) {
+    conf.sta.threshold.authmode = WIFI_AUTH_WPA2_ENTERPRISE;
+  }
+#endif
 
   if (ap.get_bssid().has_value()) {
     conf.sta.bssid_set = 1;
@@ -167,7 +177,26 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
   }
   if (ap.get_channel().has_value()) {
     conf.sta.channel = *ap.get_channel();
+    conf.sta.scan_method = WIFI_FAST_SCAN;
+  } else {
+    conf.sta.scan_method = WIFI_ALL_CHANNEL_SCAN;
   }
+  // Listen interval for ESP32 station to receive beacon when WIFI_PS_MAX_MODEM is set.
+  // Units: AP beacon intervals. Defaults to 3 if set to 0.
+  conf.sta.listen_interval = 0;
+
+#if ESP_IDF_VERSION_MAJOR >= 4
+  // Protected Management Frame
+  // Device will prefer to connect in PMF mode if other device also advertizes PMF capability.
+  conf.sta.pmf_cfg.capable = true;
+  conf.sta.pmf_cfg.required = false;
+#endif
+
+  // note, we do our own filtering
+  // The minimum rssi to accept in the fast scan mode
+  conf.sta.threshold.rssi = -127;
+
+  conf.sta.threshold.authmode = WIFI_AUTH_OPEN;
 
   wifi_config_t current_conf;
   esp_err_t err;
@@ -348,6 +377,8 @@ const char *get_disconnect_reason_str(uint8_t reason) {
       return "Association Failed";
     case WIFI_REASON_HANDSHAKE_TIMEOUT:
       return "Handshake Failed";
+    case WIFI_REASON_CONNECTION_FAIL:
+      return "Connection Failed";
     case WIFI_REASON_UNSPECIFIED:
     default:
       return "Unspecified";
@@ -374,6 +405,7 @@ void WiFiComponent::wifi_event_callback_(system_event_id_t event, system_event_i
     }
     case SYSTEM_EVENT_STA_START: {
       ESP_LOGV(TAG, "Event: WiFi STA start");
+      tcpip_adapter_set_hostname(TCPIP_ADAPTER_IF_STA, App.get_name().c_str());
       break;
     }
     case SYSTEM_EVENT_STA_STOP: {
@@ -635,6 +667,11 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
     conf.ap.authmode = WIFI_AUTH_WPA2_PSK;
     strcpy(reinterpret_cast<char *>(conf.ap.password), ap.get_password().c_str());
   }
+
+#if ESP_IDF_VERSION_MAJOR >= 4
+  // pairwise cipher of SoftAP, group cipher will be derived using this.
+  conf.ap.pairwise_cipher = WIFI_CIPHER_TYPE_CCMP;
+#endif
 
   esp_err_t err = esp_wifi_set_config(WIFI_IF_AP, &conf);
   if (err != ESP_OK) {
