@@ -62,11 +62,11 @@ void LightJSONSchema::dump_json(LightState &state, JsonObject &root) {
     color["w"] = uint8_t(values.get_white() * 255);
     root["white_value"] = uint8_t(values.get_white() * 255);  // legacy API
   }
-  if (*values.get_color_mode() & ColorCapability::COLOR_TEMPERATURE) {
+  if (values.get_color_mode() & ColorCapability::COLOR_TEMPERATURE) {
     // this one isn't under the color subkey for some reason
     root["color_temp"] = uint32_t(values.get_color_temperature());
   }
-  if (*values.get_color_mode() & ColorCapability::COLD_WARM_WHITE) {
+  if (values.get_color_mode() & ColorCapability::COLD_WARM_WHITE) {
     color["c"] = uint8_t(values.get_cold_white() * 255);
     color["w"] = uint8_t(values.get_warm_white() * 255);
   }
