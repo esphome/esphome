@@ -16,9 +16,9 @@ ResponseStatus MideaDongle::Request::call_handler(const Frame &frame) {
 }
 
 void MideaDongle::setup() {
-  this->set_interval(10*1000, [this](){
+  this->set_interval(2*60*1000, [this](){
     this->send_network_notify_();
-    this->get_electronic_id_();
+    //this->get_electronic_id_();
   });
 }
 

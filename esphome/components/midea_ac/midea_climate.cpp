@@ -20,6 +20,7 @@ template<typename T> void set_property(T &property, T value, bool &flag) {
 
 void MideaAC::setup() {
   this->dongle_->set_appliance(this);
+  this->get_status_();
   this->get_capabilities_();
   if (this->power_sensor_ != nullptr) {
     this->set_interval(30*1000, [this](){
@@ -188,7 +189,7 @@ void MideaAC::get_capabilities_() {
   Frame f = data;
   f.update_all();
   ESP_LOGD(TAG, "Enqueuing a priority GET_CAPABILITIES(0xB5) request...");
-  this->dongle_->queue_request_priority(data, [this](const Frame &frame) -> ResponseStatus {
+  this->dongle_->queue_request(data, [this](const Frame &frame) -> ResponseStatus {
     if (!frame.has_id(0xB5))
       return ResponseStatus::RESPONSE_WRONG;
     if (this->capabilities_.read(frame)) {
