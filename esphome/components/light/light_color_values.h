@@ -11,6 +11,8 @@
 namespace esphome {
 namespace light {
 
+inline static uint8_t to_uint8_scale(float x) { return static_cast<uint8_t>(roundf(x * 255.0f)); }
+
 /** This class represents the color state for a light object.
  *
  * The representation of the color state is dependent on the active color mode. A color mode consists of multiple

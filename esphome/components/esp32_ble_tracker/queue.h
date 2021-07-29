@@ -12,7 +12,7 @@
 
 /*
  * BLE events come in from a separate Task (thread) in the ESP32 stack. Rather
- * than trying to deal wth various locking strategies, all incoming GAP and GATT
+ * than trying to deal with various locking strategies, all incoming GAP and GATT
  * events will simply be placed on a semaphore guarded queue. The next time the
  * component runs loop(), these events are popped off the queue and handed at
  * this safer time.

@@ -51,7 +51,7 @@ optional<ParseResult> XiaomiMiscale::parse_header(const esp32_ble_tracker::Servi
 }
 
 bool XiaomiMiscale::parse_message(const std::vector<uint8_t> &message, ParseResult &result) {
-  // exemple 1d18 a2 6036 e307 07 11 0f1f11
+  // example 1d18 a2 6036 e307 07 11 0f1f11
   // 1-2 Weight (MISCALE 181D)
   // 3-4 Years (MISCALE 181D)
   // 5 month (MISCALE 181D)

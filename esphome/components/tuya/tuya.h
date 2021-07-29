@@ -107,12 +107,14 @@ class Tuya : public Component, public uart::UARTDevice {
   int gpio_status_ = -1;
   int gpio_reset_ = -1;
   uint32_t last_command_timestamp_ = 0;
+  uint32_t last_rx_char_timestamp_ = 0;
   std::string product_ = "";
   std::vector<TuyaDatapointListener> listeners_;
   std::vector<TuyaDatapoint> datapoints_;
   std::vector<uint8_t> rx_message_;
   std::vector<uint8_t> ignore_mcu_update_on_datapoints_{};
   std::vector<TuyaCommand> command_queue_;
+  optional<TuyaCommandType> expected_response_{};
   uint8_t wifi_status_ = -1;
 };
 
