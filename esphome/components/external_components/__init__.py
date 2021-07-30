@@ -14,7 +14,7 @@ from esphome.const import (
     CONF_EXTERNAL_COMPONENTS,
     CONF_PATH,
 )
-from esphome.core import CORE
+from esphome.core import CORE, TimePeriod
 from esphome import loader
 
 _LOGGER = logging.getLogger(__name__)
@@ -25,6 +25,7 @@ TYPE_GIT = "git"
 TYPE_LOCAL = "local"
 CONF_REFRESH = "refresh"
 CONF_REF = "ref"
+CONF_ROOT = "root"
 
 
 def validate_git_ref(value):
@@ -91,6 +92,7 @@ CONFIG_SCHEMA = cv.ensure_list(
     {
         cv.Required(CONF_SOURCE): SOURCE_SCHEMA,
         cv.Optional(CONF_REFRESH, default="1d"): cv.All(cv.string, validate_refresh),
+        cv.Optional(CONF_ROOT, default=False): cv.boolean,
         cv.Optional(CONF_COMPONENTS, default="all"): cv.Any(
             "all", cv.ensure_list(cv.string)
         ),
@@ -126,7 +128,7 @@ def _run_git_command(cmd, cwd=None):
         raise cv.Invalid(err_str)
 
 
-def _process_git_config(config: dict, refresh) -> str:
+def _process_git_config(config: dict, refresh: TimePeriod, root: bool) -> str:
     key = f"{config[CONF_URL]}@{config.get(CONF_REF)}"
     repo_dir = _compute_destination_path(key)
     if not repo_dir.is_dir():
@@ -167,9 +169,14 @@ def _process_git_config(config: dict, refresh) -> str:
     elif (repo_dir / "components").is_dir():
         components_dir = repo_dir / "components"
     else:
-        raise cv.Invalid(
-            "Could not find components folder for source. Please check the source contains a 'components' or 'esphome/components' folder"
-        )
+        if root:
+            components_dir = repo_dir
+        else:
+            raise cv.Invalid(
+                "Could not find components folder for source. "
+                "Please check the source contains a 'components' or 'esphome/components' folder. "
+                "Or set `root: true` in this config"
+            )
 
     return components_dir
 
@@ -179,7 +186,7 @@ def _process_single_config(config: dict):
     if conf[CONF_TYPE] == TYPE_GIT:
         with cv.prepend_path([CONF_SOURCE]):
             components_dir = _process_git_config(
-                config[CONF_SOURCE], config[CONF_REFRESH]
+                config[CONF_SOURCE], config[CONF_REFRESH], config[CONF_ROOT]
             )
     elif conf[CONF_TYPE] == TYPE_LOCAL:
         components_dir = Path(CORE.relative_config_path(conf[CONF_PATH]))
