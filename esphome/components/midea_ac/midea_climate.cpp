@@ -21,7 +21,7 @@ template<typename T> void set_property(T &property, T value, bool &flag) {
 void MideaAC::setup() {
   this->dongle_->set_appliance(this);
   this->get_status_();
-  if (!this->autoconf_disabled_)
+  if (this->use_autoconf_)
     this->get_capabilities_();
   if (this->power_sensor_ != nullptr) {
     this->set_interval(30*1000, [this](){
@@ -245,7 +245,7 @@ void MideaAC::display_toggle_() {
 void MideaAC::dump_config() {
   if (this->capabilities_.is_ready()) {
     this->capabilities_.dump(TAG);
-  } else if (!this->autoconf_disabled_) {
+  } else if (this->use_autoconf_) {
     ESP_LOGW(TAG, "Failed to get 0xB5 capabilities report. Suggest to disable it in config and manually set your appliance options.");
   }
   this->dump_traits(TAG);

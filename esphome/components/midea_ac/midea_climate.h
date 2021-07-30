@@ -31,7 +31,7 @@ class MideaAC : public midea_dongle::MideaAppliance, public climate::Climate, pu
   void on_frame(const Frame &frame) override;
   void on_idle() override { this->get_status_(); }
   void setup() override;
-  bool can_proceed() override { return this->capabilities_.is_ready() || this->autoconf_disabled_ || this->autoconf_failed_; }
+  bool can_proceed() override { return this->capabilities_.is_ready() || !this->use_autoconf_ || this->autoconf_failed_; }
   void dump_config() override;
   void set_dongle(MideaDongle *dongle) { this->dongle_ = dongle; }
   void set_outdoor_temperature_sensor(Sensor *sensor) { this->outdoor_sensor_ = sensor; }
@@ -54,7 +54,7 @@ class MideaAC : public midea_dongle::MideaAppliance, public climate::Climate, pu
   void set_custom_fan_modes(std::set<std::string> modes) {
     this->supported_custom_fan_modes_ = std::move(modes);
   }
-  void set_autoconf(bool value) { this->autoconf_disabled_ = !value; }
+  void set_autoconf(bool value) { this->use_autoconf_ = value; }
   bool allow_custom_preset(const std::string &custom_preset) const;
   void do_follow_me(float temperature, bool beeper = false);
   void do_display_toggle();
@@ -84,7 +84,7 @@ class MideaAC : public midea_dongle::MideaAppliance, public climate::Climate, pu
   std::set<std::string> supported_custom_fan_modes_{};
   CommandFrame cmd_frame_{};
   Capabilities capabilities_{};
-  bool autoconf_disabled_{false};
+  bool use_autoconf_{false};
   bool autoconf_failed_{false};
   bool beeper_feedback_{false};
 };
