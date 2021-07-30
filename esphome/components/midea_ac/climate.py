@@ -4,13 +4,15 @@ from esphome.components import climate, sensor
 import esphome.config_validation as cv
 import esphome.codegen as cg
 from esphome.const import (
-    CONF_CUSTOM_FAN_MODES,
-    CONF_CUSTOM_PRESETS,
     CONF_ID,
-    CONF_PRESET_BOOST,
-    CONF_PRESET_ECO,
-    CONF_PRESET_SLEEP,
+    CONF_BEEPER,
+    CONF_AUTOCONF,
     CONF_TEMPERATURE,
+    CONF_SUPPORTED_MODES,
+    CONF_SUPPORTED_PRESETS,
+    CONF_CUSTOM_PRESETS,
+    CONF_SUPPORTED_SWING_MODES,
+    CONF_CUSTOM_FAN_MODES,
     STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
     UNIT_PERCENT,
@@ -23,6 +25,14 @@ from esphome.const import (
     DEVICE_CLASS_HUMIDITY,
 )
 from esphome.components.midea_dongle import CONF_MIDEA_DONGLE_ID, MideaDongle
+
+CODEOWNERS = ["@dudanov"]
+AUTO_LOAD = ["climate", "sensor", "midea_dongle"]
+CONF_OUTDOOR_TEMPERATURE = "outdoor_temperature"
+CONF_POWER_USAGE = "power_usage"
+CONF_HUMIDITY_SETPOINT = "humidity_setpoint"
+midea_ac_ns = cg.esphome_ns.namespace("midea_ac")
+MideaAC = midea_ac_ns.class_("MideaAC", climate.Climate, cg.Component)
 
 
 def templatize(value):
@@ -51,16 +61,15 @@ def register_action(name, type_, schema):
     return decorator
 
 
-AUTO_LOAD = ["climate", "sensor", "midea_dongle"]
-CODEOWNERS = ["@dudanov"]
-CONF_BEEPER = "beeper"
-CONF_SWING_HORIZONTAL = "swing_horizontal"
-CONF_SWING_BOTH = "swing_both"
-CONF_OUTDOOR_TEMPERATURE = "outdoor_temperature"
-CONF_POWER_USAGE = "power_usage"
-CONF_HUMIDITY_SETPOINT = "humidity_setpoint"
-midea_ac_ns = cg.esphome_ns.namespace("midea_ac")
-MideaAC = midea_ac_ns.class_("MideaAC", climate.Climate, cg.Component)
+CLIMATE_MODES = {
+    "HEAT_COOL": climate.ClimateMode.CLIMATE_MODE_HEAT_COOL,
+    "COOL": climate.ClimateMode.CLIMATE_MODE_COOL,
+    "HEAT": climate.ClimateMode.CLIMATE_MODE_HEAT,
+    "DRY": climate.ClimateMode.CLIMATE_MODE_DRY,
+    "FAN_ONLY": climate.ClimateMode.CLIMATE_MODE_FAN_ONLY,
+}
+
+validate_climate_mode = cv.enum(CLIMATE_MODES, upper=True)
 
 CLIMATE_CUSTOM_FAN_MODES = {
     "SILENT": "silent",
@@ -69,11 +78,27 @@ CLIMATE_CUSTOM_FAN_MODES = {
 
 validate_climate_custom_fan_mode = cv.enum(CLIMATE_CUSTOM_FAN_MODES, upper=True)
 
+CLIMATE_PRESETS = {
+    "ECO": climate.ClimatePreset.CLIMATE_PRESET_ECO,
+    "BOOST": climate.ClimatePreset.CLIMATE_PRESET_BOOST,
+    "SLEEP": climate.ClimatePreset.CLIMATE_PRESET_SLEEP,
+}
+
+validate_climate_preset = cv.enum(CLIMATE_PRESETS, upper=True)
+
 CLIMATE_CUSTOM_PRESETS = {
     "FREEZE_PROTECTION": "freeze protection",
 }
 
 validate_climate_custom_preset = cv.enum(CLIMATE_CUSTOM_PRESETS, upper=True)
+
+CLIMATE_SWING_MODES = {
+    "BOTH": climate.ClimateSwingMode.CLIMATE_SWING_BOTH,
+    "VERTICAL": climate.ClimateSwingMode.CLIMATE_SWING_VERTICAL,
+    "HORIZONTAL": climate.ClimateSwingMode.CLIMATE_SWING_HORIZONTAL,
+}
+
+validate_climate_swing_mode = cv.enum(CLIMATE_SWING_MODES, upper=True)
 
 CONFIG_SCHEMA = cv.All(
     climate.CLIMATE_SCHEMA.extend(
@@ -81,17 +106,20 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(): cv.declare_id(MideaAC),
             cv.GenerateID(CONF_MIDEA_DONGLE_ID): cv.use_id(MideaDongle),
             cv.Optional(CONF_BEEPER, default=False): cv.boolean,
-            cv.Optional(CONF_CUSTOM_FAN_MODES): cv.ensure_list(
-                validate_climate_custom_fan_mode
+            cv.Optional(CONF_AUTOCONF, default=True): cv.boolean,
+            cv.Optional(CONF_SUPPORTED_MODES): cv.ensure_list(validate_climate_mode),
+            cv.Optional(CONF_SUPPORTED_SWING_MODES): cv.ensure_list(
+                validate_climate_swing_mode
+            ),
+            cv.Optional(CONF_SUPPORTED_PRESETS): cv.ensure_list(
+                validate_climate_preset
             ),
             cv.Optional(CONF_CUSTOM_PRESETS): cv.ensure_list(
                 validate_climate_custom_preset
             ),
-            cv.Optional(CONF_SWING_HORIZONTAL, default=False): cv.boolean,
-            cv.Optional(CONF_SWING_BOTH, default=False): cv.boolean,
-            cv.Optional(CONF_PRESET_ECO, default=False): cv.boolean,
-            cv.Optional(CONF_PRESET_SLEEP, default=False): cv.boolean,
-            cv.Optional(CONF_PRESET_BOOST, default=False): cv.boolean,
+            cv.Optional(CONF_CUSTOM_FAN_MODES): cv.ensure_list(
+                validate_climate_custom_fan_mode
+            ),
             cv.Optional(CONF_OUTDOOR_TEMPERATURE): sensor.sensor_schema(
                 UNIT_CELSIUS,
                 ICON_THERMOMETER,
@@ -192,15 +220,17 @@ async def to_code(config):
     dongle_ = await cg.get_variable(config[CONF_MIDEA_DONGLE_ID])
     cg.add(var.set_dongle(dongle_))
     cg.add(var.set_beeper_feedback(config[CONF_BEEPER]))
-    if CONF_CUSTOM_FAN_MODES in config:
-        cg.add(var.set_custom_fan_modes(config[CONF_CUSTOM_FAN_MODES]))
+    cg.add(var.set_autoconf(config[CONF_AUTOCONF]))
+    if CONF_SUPPORTED_MODES in config:
+        cg.add(var.set_supported_modes(config[CONF_SUPPORTED_MODES]))
+    if CONF_SUPPORTED_SWING_MODES in config:
+        cg.add(var.set_supported_swing_modes(config[CONF_SUPPORTED_SWING_MODES]))
+    if CONF_SUPPORTED_PRESETS in config:
+        cg.add(var.set_supported_presets(config[CONF_SUPPORTED_PRESETS]))
     if CONF_CUSTOM_PRESETS in config:
         cg.add(var.set_custom_presets(config[CONF_CUSTOM_PRESETS]))
-    cg.add(var.set_swing_horizontal(config[CONF_SWING_HORIZONTAL]))
-    cg.add(var.set_swing_both(config[CONF_SWING_BOTH]))
-    #    cg.add(var.set_preset_eco(config[CONF_PRESET_ECO]))
-    #    cg.add(var.set_preset_sleep(config[CONF_PRESET_SLEEP]))
-    #    cg.add(var.set_preset_boost(config[CONF_PRESET_BOOST]))
+    if CONF_CUSTOM_FAN_MODES in config:
+        cg.add(var.set_custom_fan_modes(config[CONF_CUSTOM_FAN_MODES]))
     if CONF_OUTDOOR_TEMPERATURE in config:
         sens = await sensor.new_sensor(config[CONF_OUTDOOR_TEMPERATURE])
         cg.add(var.set_outdoor_temperature_sensor(sens))

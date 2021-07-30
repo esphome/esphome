@@ -227,14 +227,6 @@ const std::string Capabilities::SILENT = "silent";
 const std::string Capabilities::TURBO = "turbo";
 
 void Capabilities::to_climate_traits(ClimateTraits &traits) const {
-  /* TEMPERATURES */
-  traits.set_supports_current_temperature(true);
-  traits.set_visual_min_temperature(17);
-  traits.set_visual_max_temperature(30);
-  traits.set_visual_temperature_step(0.5);
-
-  /* MODES */
-  traits.add_supported_mode(ClimateMode::CLIMATE_MODE_FAN_ONLY);
   if (this->auto_mode())
     traits.add_supported_mode(ClimateMode::CLIMATE_MODE_HEAT_COOL);
   if (this->cool_mode())
@@ -243,26 +235,10 @@ void Capabilities::to_climate_traits(ClimateTraits &traits) const {
     traits.add_supported_mode(ClimateMode::CLIMATE_MODE_HEAT);
   if (this->dry_mode())
     traits.add_supported_mode(ClimateMode::CLIMATE_MODE_DRY);
-
-  /* FAN MODES */
-  traits.add_supported_fan_mode(ClimateFanMode::CLIMATE_FAN_AUTO);
-  traits.add_supported_fan_mode(ClimateFanMode::CLIMATE_FAN_LOW);
-  traits.add_supported_fan_mode(ClimateFanMode::CLIMATE_FAN_MEDIUM);
-  traits.add_supported_fan_mode(ClimateFanMode::CLIMATE_FAN_HIGH);
-
-  /* SWING MODES */
-  traits.add_supported_swing_mode(ClimateSwingMode::CLIMATE_SWING_OFF);
-  traits.add_supported_swing_mode(ClimateSwingMode::CLIMATE_SWING_VERTICAL);
-
-  /* PRESETS */
-  traits.add_supported_preset(ClimatePreset::CLIMATE_PRESET_NONE);
-  traits.add_supported_preset(ClimatePreset::CLIMATE_PRESET_SLEEP);
   if (this->turbo_cool() || this->turbo_heat())
     traits.add_supported_preset(ClimatePreset::CLIMATE_PRESET_BOOST);
   if (this->eco_mode())
     traits.add_supported_preset(ClimatePreset::CLIMATE_PRESET_ECO);
-
-  /* CUSTOM PRESETS */
   if (this->frost_protection_mode())
     traits.add_supported_custom_preset(FREEZE_PROTECTION);
 }

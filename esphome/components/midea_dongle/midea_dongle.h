@@ -35,6 +35,7 @@ enum ResponseStatus : uint8_t {
 };
 
 using ResponseHandler = std::function<ResponseStatus(const Frame &)>;
+using ErrorHandler = std::function<void()>;
 
 class MideaDongle : public Component, public uart::UARTDevice {
  public:
@@ -44,8 +45,8 @@ class MideaDongle : public Component, public uart::UARTDevice {
   void dump_config() override;
   void set_appliance(MideaAppliance *app) { this->appliance_ = app; }
   void send_frame(Frame &frame);
-  void queue_request(const Frame &frame, ResponseHandler handler = nullptr);
-  void queue_request_priority(const Frame &frame, ResponseHandler handler = nullptr);
+  void queue_request(const Frame &frame, ResponseHandler handler = nullptr, ErrorHandler error_cb = nullptr);
+  void queue_request_priority(const Frame &frame, ResponseHandler handler = nullptr, ErrorHandler error_cb = nullptr);
   void set_period(uint32_t ms) { this->period_ = ms; }
   void set_response_timeout(uint32_t ms) { this->response_timeout_ = ms; }
   void set_request_attempts(uint32_t attempts) { this->request_attempts_ = attempts; }
@@ -60,6 +61,7 @@ class MideaDongle : public Component, public uart::UARTDevice {
   struct Request {
     StaticFrame<Frame, 36> request;
     ResponseHandler handler;
+    ErrorHandler error_cb;
     ResponseStatus call_handler(const Frame &frame);
   };
   void handler_(const Frame &frame);
@@ -68,7 +70,6 @@ class MideaDongle : public Component, public uart::UARTDevice {
   void reset_timeout_();
   void reset_attempts_() { this->remain_attempts_ = this->request_attempts_; }
   bool is_wait_for_response_() const { return this->request_ != nullptr; }
-  void get_electronic_id_();
   
   std::deque<Request *> queue_;
   MideaAppliance *appliance_{nullptr};
@@ -77,11 +78,11 @@ class MideaDongle : public Component, public uart::UARTDevice {
 #ifdef USE_REMOTE_TRANSMITTER
   remote_transmitter::RemoteTransmitterComponent *transmitter_{nullptr};
 #endif
-  FrameReceiver<128> receiver_{};
+  FrameReceiver<64> receiver_{};
   uint32_t period_{1000};
   uint32_t request_attempts_{5};
   uint32_t response_timeout_{2000};
-  uint8_t protocol_{0};
+  uint8_t protocol_{3};
   bool is_busy_{false};
 };
 

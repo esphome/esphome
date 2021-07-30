@@ -18,24 +18,6 @@ ResponseStatus MideaDongle::Request::call_handler(const Frame &frame) {
 void MideaDongle::setup() {
   this->set_interval(2*60*1000, [this](){
     this->send_network_notify_();
-    //this->get_electronic_id_();
-  });
-}
-
-void MideaDongle::get_electronic_id_() {
-  uint8_t data[] = {
-    0xAA, 0x0E, 0xAC, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03,
-    0xB5, 0x01, 0x11, 0x8E, 0xEE
-  };
-  //uint8_t data[] = {0xaa, 0x1e, 0xff, 0xe1, 0x00, 0x00, 0x01, 0x00, 0x00, 0x65, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x9c};
-  //uint8_t data[] = {0xaa, 0x0b, 0xac, 0xa7, 0x00, 0x00, 0x00, 0x00, 0x03, 0xe1, 0x00, 0xbe};
-  //static uint8_t ff;
-  //data[9] = ff++;
-  Frame d = data;
-  d.update_all();
-  this->queue_request(data, [this](const Frame &frame) -> ResponseStatus {
-    //ESP_LOGI(TAG, "Serial Number: %s", hexencode(frame.data() + 10, 32).c_str());
-    return RESPONSE_OK;
   });
 }
 
@@ -86,14 +68,14 @@ void MideaDongle::send_network_notify_(uint8_t msg_type) {
   }
 }
 
-void MideaDongle::queue_request(const Frame &request, ResponseHandler handler) {
+void MideaDongle::queue_request(const Frame &request, ResponseHandler handler, ErrorHandler error_cb) {
   ESP_LOGD(TAG, "Enqueuing the request...");
-  this->queue_.push_back(new Request{request, handler});
+  this->queue_.push_back(new Request{request, handler, error_cb});
 }
 
-void MideaDongle::queue_request_priority(const Frame &request, ResponseHandler handler) {
+void MideaDongle::queue_request_priority(const Frame &request, ResponseHandler handler, ErrorHandler error_cb) {
   ESP_LOGD(TAG, "Priority request queuing...");
-  this->queue_.push_front(new Request{request, handler});
+  this->queue_.push_front(new Request{request, handler, error_cb});
 }
 
 void MideaDongle::handler_(const Frame &frame) {
@@ -134,6 +116,8 @@ void MideaDongle::reset_timeout_() {
   this->set_timeout(RESPONSE_TIMEOUT, this->response_timeout_, [this](){
     ESP_LOGD(TAG, "Response timeout...");
     if (!--this->remain_attempts_) {
+      if (this->request_->error_cb != nullptr)
+        this->request_->error_cb();
       this->destroy_request_();
       return;
     }
@@ -153,6 +137,8 @@ void MideaDongle::destroy_request_() {
 void MideaDongle::dump_config() {
   ESP_LOGCONFIG(TAG, "MideaDongle:");
   ESP_LOGCONFIG(TAG, "  [x] Period: %dms", this->period_);
+  ESP_LOGCONFIG(TAG, "  [x] Response timeout: %dms", this->response_timeout_);
+  ESP_LOGCONFIG(TAG, "  [x] Request attempts: %d", this->request_attempts_);
 #ifdef USE_REMOTE_TRANSMITTER
   ESP_LOGCONFIG(TAG, "  [x] Using RemoteTransmitter");
 }
