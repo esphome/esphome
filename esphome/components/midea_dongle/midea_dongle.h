@@ -12,7 +12,7 @@
 namespace esphome {
 namespace midea_dongle {
 
-enum MideaApplianceType : uint8_t { DEHUMIDIFIER = 0xA1, AIR_CONDITIONER = 0xAC, BROADCAST = 0xFF };
+enum MideaApplianceType : uint8_t { DEHUMIDIFIER = 0xA1, AIR_CONDITIONER = 0xAC, AIR2WATER = 0xC3, FAN = 0xFA, CLEANER = 0xFC, HUMIDIFIER = 0xFD, BROADCAST = 0xFF };
 enum MideaMessageType : uint8_t {
   DEVICE_CONTROL = 0x02,
   DEVICE_QUERY = 0x03,
@@ -44,7 +44,7 @@ class MideaDongle : public Component, public uart::UARTDevice {
   void loop() override;
   void dump_config() override;
   void set_appliance(MideaAppliance *app) { this->appliance_ = app; }
-  void send_frame(const Frame &frame);
+  void send_frame(Frame &frame);
   void queue_request(const Frame &frame, ResponseHandler handler = nullptr, ErrorHandler error_cb = nullptr);
   void queue_request_priority(const Frame &frame, ResponseHandler handler = nullptr, ErrorHandler error_cb = nullptr);
   void set_period(uint32_t ms) { this->period_ = ms; }
@@ -70,7 +70,7 @@ class MideaDongle : public Component, public uart::UARTDevice {
   void reset_timeout_();
   void reset_attempts_() { this->remain_attempts_ = this->request_attempts_; }
   bool is_wait_for_response_() const { return this->request_ != nullptr; }
-
+  
   std::deque<Request *> queue_;
   MideaAppliance *appliance_{nullptr};
   Request *request_{nullptr};
@@ -78,10 +78,11 @@ class MideaDongle : public Component, public uart::UARTDevice {
 #ifdef USE_REMOTE_TRANSMITTER
   remote_transmitter::RemoteTransmitterComponent *transmitter_{nullptr};
 #endif
-  FrameReceiver<128> receiver_{};
+  FrameReceiver<64> receiver_{};
   uint32_t period_{1000};
   uint32_t request_attempts_{5};
   uint32_t response_timeout_{2000};
+  uint8_t protocol_{3};
   bool is_busy_{false};
 };
 

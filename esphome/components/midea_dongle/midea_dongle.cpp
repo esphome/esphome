@@ -24,6 +24,7 @@ void MideaDongle::setup() {
 void MideaDongle::loop() {
   while (this->receiver_.read(this)) {
     ESP_LOGD(TAG, "RX: %s", this->receiver_.to_string().c_str());
+    this->protocol_ = this->receiver_.get_protocol();
     this->handler_(this->receiver_);
   }
   if (this->is_busy_ || this->is_wait_for_response_())
@@ -58,7 +59,6 @@ void MideaDongle::send_network_notify_(uint8_t msg_type) {
   notify.set_connected(WiFi.isConnected());
   notify.set_signal_strength(get_signal_strength());
   notify.set_ip(WiFi.localIP());
-  notify.update_cs();
   if (msg_type == NETWORK_NOTIFY) {
     ESP_LOGD(TAG, "Enqueuing a DEVICE_NETWORK(0x0D) notification...");
     this->queue_request(notify);
@@ -101,7 +101,9 @@ void MideaDongle::handler_(const Frame &frame) {
     this->appliance_->on_frame(frame);
 }
 
-void MideaDongle::send_frame(const Frame &frame) {
+void MideaDongle::send_frame(Frame &frame) {
+  frame.set_protocol(this->protocol_);
+  frame.update_cs();
   ESP_LOGD(TAG, "TX: %s", frame.to_string().c_str());
   this->write_array(frame.data(), frame.size());
   this->is_busy_ = true;

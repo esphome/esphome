@@ -20,7 +20,9 @@ template<typename T> void set_property(T &property, T value, bool &flag) {
 
 void MideaAC::setup() {
   this->dongle_->set_appliance(this);
-  this->get_capabilities_();
+  this->get_status_();
+  if (this->use_autoconf_)
+    this->get_capabilities_();
   if (this->power_sensor_ != nullptr) {
     this->set_interval(30*1000, [this](){
       this->get_power_usage_();
@@ -156,13 +158,28 @@ void MideaAC::control(const ClimateCall &call) {
 
 ClimateTraits MideaAC::traits() {
   auto traits = ClimateTraits();
-  traits.set_supported_custom_presets(this->traits_custom_presets_);
-  traits.set_supported_custom_fan_modes(this->traits_custom_fan_modes_);
-  if (this->traits_swing_horizontal_)
-    traits.add_supported_swing_mode(ClimateSwingMode::CLIMATE_SWING_HORIZONTAL);
-  if (this->traits_swing_both_)
-    traits.add_supported_swing_mode(ClimateSwingMode::CLIMATE_SWING_BOTH);
-  this->capabilities_.to_climate_traits(traits);
+  traits.set_supports_current_temperature(true);
+  traits.set_visual_min_temperature(17);
+  traits.set_visual_max_temperature(30);
+  traits.set_visual_temperature_step(0.5);
+  traits.set_supported_modes(this->supported_modes_);
+  traits.set_supported_swing_modes(this->supported_swing_modes_);
+  traits.set_supported_presets(this->supported_presets_);
+  traits.set_supported_custom_presets(this->supported_custom_presets_);
+  traits.set_supported_custom_fan_modes(this->supported_custom_fan_modes_);
+  /* + MINIMAL SET OF CAPABILITIES */
+  traits.add_supported_mode(ClimateMode::CLIMATE_MODE_OFF);
+  traits.add_supported_mode(ClimateMode::CLIMATE_MODE_FAN_ONLY);
+  traits.add_supported_fan_mode(ClimateFanMode::CLIMATE_FAN_AUTO);
+  traits.add_supported_fan_mode(ClimateFanMode::CLIMATE_FAN_LOW);
+  traits.add_supported_fan_mode(ClimateFanMode::CLIMATE_FAN_MEDIUM);
+  traits.add_supported_fan_mode(ClimateFanMode::CLIMATE_FAN_HIGH);
+  traits.add_supported_swing_mode(ClimateSwingMode::CLIMATE_SWING_OFF);
+  traits.add_supported_swing_mode(ClimateSwingMode::CLIMATE_SWING_VERTICAL);
+  traits.add_supported_preset(ClimatePreset::CLIMATE_PRESET_NONE);
+  traits.add_supported_preset(ClimatePreset::CLIMATE_PRESET_SLEEP);
+  if (this->capabilities_.is_ready())
+    this->capabilities_.to_climate_traits(traits);
   return traits;
 }
 
@@ -182,22 +199,28 @@ void MideaAC::get_power_usage_() {
 
 void MideaAC::get_capabilities_() {
   uint8_t data[] = {
-    0xAA, 0x0E, 0xAC, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0x03,
-    0xB5, 0x01, 0x00, 0x4D, 0x3D
+    0xAA, 0x0E, 0xAC, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03,
+    0xB5, 0x01, 0x11, 0x00, 0x00
   };
+  Frame f = data;
+  f.update_crc();
   ESP_LOGD(TAG, "Enqueuing a priority GET_CAPABILITIES(0xB5) request...");
-  this->dongle_->queue_request_priority(data, [this](const Frame &frame) -> ResponseStatus {
+  this->dongle_->queue_request(data, [this](const Frame &frame) -> ResponseStatus {
     if (!frame.has_id(0xB5))
       return ResponseStatus::RESPONSE_WRONG;
     if (this->capabilities_.read(frame)) {
       uint8_t data[] = {
-        0xAA, 0x0F, 0xAC, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0x03,
-        0xB5, 0x01, 0x01, 0x01, 0x21, 0x66
+        0xAA, 0x0F, 0xAC, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03,
+        0xB5, 0x01, 0x01, 0x00, 0x00, 0x00
       };
-      this->dongle_->send_frame(data);
+      Frame f = data;
+      f.update_crc();
+      this->dongle_->send_frame(f);
       return ResponseStatus::RESPONSE_PARTIAL;
     }
     return ResponseStatus::RESPONSE_OK;
+  }, [this](){
+    this->autoconf_failed_ = true;
   });
 }
 
@@ -220,7 +243,11 @@ void MideaAC::display_toggle_() {
 }
 
 void MideaAC::dump_config() {
-  this->capabilities_.dump(TAG);
+  if (this->capabilities_.is_ready()) {
+    this->capabilities_.dump(TAG);
+  } else if (this->use_autoconf_) {
+    ESP_LOGW(TAG, "Failed to get 0xB5 capabilities report. Suggest to disable it in config and manually set your appliance options.");
+  }
   this->dump_traits(TAG);
 }
 
