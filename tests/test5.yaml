@@ -19,21 +19,40 @@ ota:
 logger:
 
 uart:
-  tx_pin: 1
-  rx_pin: 3
-  baud_rate: 9600
+  - id: uart1
+    tx_pin: 1
+    rx_pin: 3
+    baud_rate: 9600
+  - id: uart2
+    tx_pin: 17
+    rx_pin: 16
+    baud_rate: 19200
+
 
 modbus:
+  uart_id: uart1
 
 binary_sensor:
   - platform: gpio
     pin: GPIO0
     id: io0_button
 
+tlc5947:
+  data_pin: GPIO12
+  clock_pin: GPIO14
+  lat_pin: GPIO15
+
 output:
   - platform: gpio
     pin: GPIO2
     id: built_in_led
+
+  - platform: tlc5947
+    id: output_red
+    channel: 0
+    max_power: 0.8
+
+demo:
 
 esp32_ble:
 
@@ -99,3 +118,8 @@ sensor:
       name: "SelecEM2M Maximum Demand Reactive Power"
     maximum_demand_apparent_power:
       name: "SelecEM2M Maximum Demand Apparent Power"
+
+  - platform: t6615
+    uart_id: uart2
+    co2:
+      name: CO2 Sensor

@@ -63,6 +63,15 @@ sensor:
   - platform: tuya
     id: tuya_sensor
     sensor_datapoint: 1
+  - platform: "hrxl_maxsonar_wr"
+    name: "Rainwater Tank Level"
+    filters:
+      - sliding_window_moving_average:
+          window_size: 12
+          send_every: 12
+      - or:
+        - throttle: "20min"
+        - delta: 0.02
 #
 # platform sensor.apds9960 requires component apds9960
 #
