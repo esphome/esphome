@@ -43,7 +43,7 @@ class MideaDongle : public Component, public uart::UARTDevice {
   void loop() override;
   void dump_config() override;
   void set_appliance(MideaAppliance *app) { this->appliance_ = app; }
-  void send_frame(const Frame &frame);
+  void send_frame(Frame &frame);
   void queue_request(const Frame &frame, ResponseHandler handler = nullptr);
   void queue_request_priority(const Frame &frame, ResponseHandler handler = nullptr);
   void set_period(uint32_t ms) { this->period_ = ms; }
@@ -81,6 +81,7 @@ class MideaDongle : public Component, public uart::UARTDevice {
   uint32_t period_{1000};
   uint32_t request_attempts_{5};
   uint32_t response_timeout_{2000};
+  uint8_t protocol_{0};
   bool is_busy_{false};
 };
 

@@ -31,6 +31,8 @@ class Frame {
   uint8_t size() const { return this->len_() + OFFSET_LENGTH; }
   void set_type(uint8_t value) { this->pb_[9] = value; }
   uint8_t get_type() const { return this->pb_[9]; }
+  uint8_t get_protocol() const { return this->pb_[8]; }
+  void set_protocol(uint8_t value) { this->pb_[8] = value; }
   bool has_type(uint8_t value) const { return this->pb_[9] == value; }
   bool has_id(uint8_t value) const { return this->pb_[10] == value; }
   bool has_app(uint8_t value) const { return this->pb_[OFFSET_APPTYPE] == value; }

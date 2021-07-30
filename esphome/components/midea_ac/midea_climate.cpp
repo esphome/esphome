@@ -187,7 +187,7 @@ void MideaAC::get_capabilities_() {
     0xB5, 0x01, 0x11, 0x00, 0x00
   };
   Frame f = data;
-  f.update_all();
+  f.update_crc();
   ESP_LOGD(TAG, "Enqueuing a priority GET_CAPABILITIES(0xB5) request...");
   this->dongle_->queue_request(data, [this](const Frame &frame) -> ResponseStatus {
     if (!frame.has_id(0xB5))
@@ -198,8 +198,8 @@ void MideaAC::get_capabilities_() {
         0xB5, 0x01, 0x01, 0x00, 0x21, 0x66
       };
       Frame f = data;
-      f.update_all();
-      this->dongle_->send_frame(data);
+      f.update_crc();
+      this->dongle_->send_frame(f);
       return ResponseStatus::RESPONSE_PARTIAL;
     }
     return ResponseStatus::RESPONSE_OK;
