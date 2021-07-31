@@ -76,10 +76,9 @@ class PropertiesFrame : public Frame {
   void set_mode(ClimateMode mode);
 
   /* FAN SPEED */
-  bool is_custom_fan_mode() const;
   ClimateFanMode get_fan_mode() const;
   void set_fan_mode(ClimateFanMode mode);
-
+  bool has_custom_fan_mode() const;
   const std::string &get_custom_fan_mode() const;
   void set_custom_fan_mode(const std::string &mode);
 
@@ -116,11 +115,10 @@ class PropertiesFrame : public Frame {
   void set_freeze_protection_mode(bool state) { this->set_bytemask_(31, 0x80, state); }
 
   /* PRESET */
-  optional<ClimatePreset> get_preset() const;
+  ClimatePreset get_preset() const;
   void set_preset(ClimatePreset preset);
   void clear_presets();
-
-  bool is_custom_preset() const;
+  bool has_custom_preset() const;
   const std::string &get_custom_preset() const;
   void set_custom_preset(const std::string &preset);
 

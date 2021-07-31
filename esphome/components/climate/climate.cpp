@@ -494,6 +494,32 @@ void ClimateDeviceRestoreState::apply(Climate *climate) {
   climate->publish_state();
 }
 
+template <typename T1, typename T2> bool set_alternative(optional<T1> &dst, optional<T2> &alt, const T1 &src) {
+  bool is_changed = alt.has_value();
+  alt.reset();
+  if (dst != src) {
+    dst = src;
+    is_changed = true;
+  }
+  return is_changed;
+}
+
+bool Climate::set_fan_mode(ClimateFanMode mode) {
+  return set_alternative(this->fan_mode, this->custom_fan_mode, mode);
+}
+
+bool Climate::set_custom_fan_mode(const std::string &mode) {
+  return set_alternative(this->custom_fan_mode, this->fan_mode, mode);
+}
+
+bool Climate::set_preset(ClimatePreset preset) {
+  return set_alternative(this->preset, this->custom_preset, preset);
+}
+
+bool Climate::set_custom_preset(const std::string &preset) {
+  return set_alternative(this->custom_preset, this->preset, preset);
+}
+
 static const char *mode_to_string(ClimateMode mode) {
   switch (mode) {
   case ClimateMode::CLIMATE_MODE_AUTO:

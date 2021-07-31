@@ -73,7 +73,7 @@ void PropertiesFrame::set_mode(ClimateMode mode) {
   this->set_val_(12, 5, 0b111, m);
 }
 
-optional<ClimatePreset> PropertiesFrame::get_preset() const {
+ClimatePreset PropertiesFrame::get_preset() const {
   if (this->get_eco_mode())
     return ClimatePreset::CLIMATE_PRESET_ECO;
   if (this->get_sleep_mode())
@@ -107,7 +107,7 @@ void PropertiesFrame::clear_presets() {
   this->set_freeze_protection_mode(false);
 }
 
-bool PropertiesFrame::is_custom_preset() const { return this->get_freeze_protection_mode(); }
+bool PropertiesFrame::has_custom_preset() const { return this->get_freeze_protection_mode(); }
 
 const std::string &PropertiesFrame::get_custom_preset() const { return Capabilities::FREEZE_PROTECTION; };
 
@@ -117,7 +117,7 @@ void PropertiesFrame::set_custom_preset(const std::string &preset) {
     this->set_freeze_protection_mode(true);
 }
 
-bool PropertiesFrame::is_custom_fan_mode() const {
+bool PropertiesFrame::has_custom_fan_mode() const {
   switch (this->pb_[13]) {
     case MideaFanMode::MIDEA_FAN_SILENT:
     case MideaFanMode::MIDEA_FAN_TURBO:

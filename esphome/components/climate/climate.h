@@ -205,11 +205,23 @@ class Climate : public Nameable {
   /// The active custom fan mode of the climate device.
   optional<std::string> custom_fan_mode;
 
+  /// Set fan mode. Reset custom fan mode.
+  bool set_fan_mode(ClimateFanMode mode);
+
+  /// Set custom fan mode. Reset primary fan mode.
+  bool set_custom_fan_mode(const std::string &mode);
+
   /// The active preset of the climate device.
   optional<ClimatePreset> preset;
 
   /// The active custom preset mode of the climate device.
   optional<std::string> custom_preset;
+
+  /// Set preset. Reset custom preset.
+  bool set_preset(ClimatePreset mode);
+
+  /// Set custom preset. Reset primary preset.
+  bool set_custom_preset(const std::string &preset);
 
   /** Add a callback for the climate device state, each time the state of the climate device is updated
    * (using publish_state), this callback will be called.

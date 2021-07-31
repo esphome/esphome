@@ -11,7 +11,7 @@ static void set_sensor(Sensor *sensor, float value) {
     sensor->publish_state(value);
 }
 
-template<typename T> void set_property(T &property, T value, bool &flag) {
+template<typename T> void set_property(T &property, const T &value, bool &flag) {
   if (property != value) {
     property = value;
     flag = true;
@@ -31,38 +31,33 @@ void MideaAC::setup() {
 }
 
 ResponseStatus MideaAC::read_status_(const Frame &frame) {
-    const auto p = frame.as<PropertiesFrame>();
-    if (!p.has_properties())
-      return ResponseStatus::RESPONSE_WRONG;
-    ESP_LOGD(TAG, "New status data received. Data parsing started...");
-    this->cmd_frame_.set_properties(p);  // copy properties from response
-    bool need_publish = false;
-    set_property(this->mode, p.get_mode(), need_publish);
-    set_property(this->target_temperature, p.get_target_temp(), need_publish);
-    set_property(this->current_temperature, p.get_indoor_temp(), need_publish);
-    if (p.is_custom_fan_mode()) {
-      this->fan_mode.reset();
-      optional<std::string> mode = p.get_custom_fan_mode();
-      set_property(this->custom_fan_mode, mode, need_publish);
-    } else {
-      this->custom_fan_mode.reset();
-      optional<ClimateFanMode> mode = p.get_fan_mode();
-      set_property(this->fan_mode, mode, need_publish);
-    }
-    set_property(this->swing_mode, p.get_swing_mode(), need_publish);
-    if (p.is_custom_preset()) {
-      this->preset.reset();
-      optional<std::string> preset = p.get_custom_preset();
-      set_property(this->custom_preset, preset, need_publish);
-    } else {
-      this->custom_preset.reset();
-      set_property(this->preset, p.get_preset(), need_publish);
-    }
-    if (need_publish)
-      this->publish_state();
-    set_sensor(this->outdoor_sensor_, p.get_outdoor_temp());
-    set_sensor(this->humidity_sensor_, p.get_humidity_setpoint());
-    return ResponseStatus::RESPONSE_OK;
+  const auto p = frame.as<PropertiesFrame>();
+  bool need_publish = false;
+  if (!p.has_properties())
+    return ResponseStatus::RESPONSE_WRONG;
+  ESP_LOGD(TAG, "New status data received. Parsing...");
+  this->cmd_frame_.set_properties(p); // copy properties from response
+  set_property(this->mode, p.get_mode(), need_publish);
+  set_property(this->target_temperature, p.get_target_temp(), need_publish);
+  set_property(this->current_temperature, p.get_indoor_temp(), need_publish);
+  set_property(this->swing_mode, p.get_swing_mode(), need_publish);
+  if (p.has_custom_fan_mode()) {
+    if (this->set_custom_fan_mode(p.get_custom_fan_mode()))
+      need_publish = true;
+  } else if (this->set_fan_mode(p.get_fan_mode())) {
+    need_publish = true;
+  }
+  if (p.has_custom_preset()) {
+    if (this->set_custom_preset(p.get_custom_preset()))
+      need_publish = true;
+  } else if (this->set_preset(p.get_preset())) {
+    need_publish = true;
+  }
+  if (need_publish)
+    this->publish_state();
+  set_sensor(this->outdoor_sensor_, p.get_outdoor_temp());
+  set_sensor(this->humidity_sensor_, p.get_humidity_setpoint());
+  return ResponseStatus::RESPONSE_OK;
 }
 
 void MideaAC::on_frame(const Frame &frame) {
@@ -86,8 +81,7 @@ bool MideaAC::allow_preset(ClimatePreset preset) const {
       }
       break;
     case ClimatePreset::CLIMATE_PRESET_BOOST:
-      if ((this->mode == ClimateMode::CLIMATE_MODE_HEAT && this->capabilities_.turbo_heat()) ||
-          (this->mode == ClimateMode::CLIMATE_MODE_COOL && this->capabilities_.turbo_cool())) {
+      if (this->mode == ClimateMode::CLIMATE_MODE_HEAT || this->mode == ClimateMode::CLIMATE_MODE_COOL) {
         return true;
       } else {
         ESP_LOGD(TAG, "BOOST preset is only available in HEAT or COOL mode");
