@@ -1104,7 +1104,7 @@ def shorthand_input_pullup_pin(value):
 
 def shorthand_analog_pin(value):
     value = analog_pin(value)
-    return GPIO_FULL_INPUT_PIN_SCHEMA({CONF_NUMBER: value})
+    return GPIO_FULL_ANALOG_PIN_SCHEMA({CONF_NUMBER: value})
 
 
 def validate_has_interrupt(value):
