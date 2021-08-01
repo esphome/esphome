@@ -23,15 +23,15 @@ using midea_dongle::ResponseStatus;
 using midea_dongle::ResponseHandler;
 using midea_dongle::MideaDongle;
 
-enum AC_TYPE : uint8_t { AC_TYPE_SPLIT = 0x01, AC_TYPE_PORTABLE = 0x02, AC_TYPE_WINDOW = 0x03 };
-
 class MideaAC : public midea_dongle::MideaAppliance, public climate::Climate, public Component {
  public:
   float get_setup_priority() const override { return setup_priority::BEFORE_CONNECTION; }
   void on_frame(const Frame &frame) override;
   void on_idle() override { this->get_status_(); }
   void setup() override;
-  bool can_proceed() override { return this->capabilities_.is_ready() || !this->use_autoconf_ || this->autoconf_failed_; }
+  bool can_proceed() override {
+    return this->capabilities_.is_ready() || !this->use_autoconf_ || this->autoconf_failed_;
+  }
   void dump_config() override;
   void set_dongle(MideaDongle *dongle) { this->dongle_ = dongle; }
   void set_outdoor_temperature_sensor(Sensor *sensor) { this->outdoor_sensor_ = sensor; }
@@ -39,21 +39,11 @@ class MideaAC : public midea_dongle::MideaAppliance, public climate::Climate, pu
   void set_power_sensor(Sensor *sensor) { this->power_sensor_ = sensor; }
   void set_beeper_feedback(bool state) { this->beeper_feedback_ = state; }
   bool allow_preset(ClimatePreset preset) const;
-  void set_supported_modes(std::set<ClimateMode> modes) {
-    this->supported_modes_ = std::move(modes);
-  }
-  void set_supported_swing_modes(std::set<ClimateSwingMode> modes) {
-    this->supported_swing_modes_ = std::move(modes);
-  }
-  void set_supported_presets(std::set<ClimatePreset> presets) {
-    this->supported_presets_ = std::move(presets);
-  }
-  void set_custom_presets(std::set<std::string> presets) {
-    this->supported_custom_presets_ = std::move(presets);
-  }
-  void set_custom_fan_modes(std::set<std::string> modes) {
-    this->supported_custom_fan_modes_ = std::move(modes);
-  }
+  void set_supported_modes(std::set<ClimateMode> modes) { this->supported_modes_ = std::move(modes); }
+  void set_supported_swing_modes(std::set<ClimateSwingMode> modes) { this->supported_swing_modes_ = std::move(modes); }
+  void set_supported_presets(std::set<ClimatePreset> presets) { this->supported_presets_ = std::move(presets); }
+  void set_custom_presets(std::set<std::string> presets) { this->supported_custom_presets_ = std::move(presets); }
+  void set_custom_fan_modes(std::set<std::string> modes) { this->supported_custom_fan_modes_ = std::move(modes); }
   void set_autoconf(bool value) { this->use_autoconf_ = value; }
   bool allow_custom_preset(const std::string &custom_preset) const;
   void do_follow_me(float temperature, bool beeper = false);

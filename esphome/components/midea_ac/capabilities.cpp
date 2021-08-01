@@ -11,9 +11,9 @@ bool Capabilities::read(const Frame &frame) {
   const uint8_t length = frame.size() - 12;
 
   uint8_t i = 2;
-  uint8_t caps2Process = data[1];
+  uint8_t caps2_process = data[1];
 
-  while (i < length - 2 && caps2Process) {
+  while (i < length - 2 && caps2_process) {
     if (data[i + 1] == 0x00 && data[i + 2] > 0) {
       switch (data[i]) {
         case 0x15:
@@ -28,10 +28,10 @@ bool Capabilities::read(const Frame &frame) {
         case 0x32:
           this->wind_on_me_ = data[i + 3] == 1;
           break;
-        case 0x33: 
+        case 0x33:
           this->wind_of_me_ = data[i + 3] == 1;
           break;
-        case 0x39: 
+        case 0x39:
           this->active_clean_ = data[i + 3] == 1;
           break;
         case 0x42:
@@ -45,7 +45,7 @@ bool Capabilities::read(const Frame &frame) {
 
     if (data[i + 1] == 0x02 && data[i + 2] > 0) {
       switch (data[i]) {
-        case 0x10:        
+        case 0x10:
           this->fanspeed_control_ = data[i + 3] != 1;
           break;
         case 0x12:
@@ -103,7 +103,7 @@ bool Capabilities::read(const Frame &frame) {
               break;
           }
           break;
-        case 0x16: 
+        case 0x16:
           switch (data[i + 3]) {
             case 0:
             case 1:
@@ -120,22 +120,22 @@ bool Capabilities::read(const Frame &frame) {
               break;
           }
           break;
-        case 0x17: 
+        case 0x17:
           switch (data[i + 3]) {
             case 0:
               this->nest_check_ = false;
               this->nest_need_change_ = false;
               break;
-            case 1: 
+            case 1:
             case 2:
               this->nest_check_ = true;
               this->nest_need_change_ = false;
               break;
-            case 3: 
+            case 3:
               this->nest_check_ = false;
               this->nest_need_change_ = true;
               break;
-            case 4: 
+            case 4:
               this->nest_check_ = true;
               this->nest_need_change_ = true;
               break;
@@ -144,7 +144,7 @@ bool Capabilities::read(const Frame &frame) {
         case 0x19:
           this->electric_aux_heating_ = data[i + 3] == 1;
           break;
-        case 0x1A: 
+        case 0x1A:
           switch (data[i + 3]) {
             case 0:
               this->turbo_heat_ = false;
@@ -166,7 +166,7 @@ bool Capabilities::read(const Frame &frame) {
           break;
         case 0x1F:
           switch (data[i + 3]) {
-            case 0: 
+            case 0:
               this->auto_set_humidity_ = false;
               this->manual_set_humidity_ = false;
               break;
@@ -203,21 +203,21 @@ bool Capabilities::read(const Frame &frame) {
               this->decimals_ = data[i + 9] > 0;
             else
               this->decimals_ = data[i + 5] != 0;
-          break;
-        case 0x2C:
-          this->buzzer_ = data[i + 3] != 0;
-          break;
-        }
+            break;
+            case 0x2C:
+              this->buzzer_ = data[i + 3] != 0;
+              break;
+          }
       }
     }
     // Increment cursor and decrement capabilities to process
     i += (3 + data[i + 2]);
-    caps2Process--;
+    caps2_process--;
   }
-  
+
   if (length - i > 1)
     return data[length - 2] > 0;
-  
+
   this->is_ready_ = true;
   return false;
 }
@@ -244,7 +244,7 @@ void Capabilities::to_climate_traits(ClimateTraits &traits) const {
 }
 
 #define LOG_CAPABILITY(tag, str, condition) \
-  if (condition)                            \
+  if (condition) \
     ESP_LOGCONFIG(tag, str);
 
 void Capabilities::dump(const char *tag) const {
@@ -298,7 +298,8 @@ void Capabilities::dump(const char *tag) const {
 #define AC_LIST(name, data) static const char LIST_##name[] PROGMEM = data
 #define AC_NAME(name) static const char NAME_ID_##name[] PROGMEM = #name
 #define AC_FUNC(name) static void FUNC_##name(DeviceInfo &di)
-#define AC_RECORD(name) { LIST_##name, NAME_##name, FUNC_##name }
+#define AC_RECORD(name) \
+  { LIST_##name, NAME_##name, FUNC_##name }
 
 struct DbRecord {
   const char *list;

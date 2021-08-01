@@ -49,7 +49,9 @@ class Frame {
   uint8_t resp_type_() const { return this->pb_[OFFSET_BODY]; }
   uint8_t calc_crc_() const;
   uint8_t calc_cs_() const;
-  uint8_t get_val_(uint8_t idx, uint8_t shift = 0, uint8_t mask = 255) const { return (this->pb_[idx] >> shift) & mask; }
+  uint8_t get_val_(uint8_t idx, uint8_t shift = 0, uint8_t mask = 255) const {
+    return (this->pb_[idx] >> shift) & mask;
+  }
   void set_val_(uint8_t idx, uint8_t shift, uint8_t mask, uint8_t value) {
     this->pb_[idx] &= ~(mask << shift);
     this->pb_[idx] |= (value << shift);
@@ -99,23 +101,23 @@ class NotifyFrame : public StaticFrame<Frame, 32> {
 };
 
 // Frame reader from Stream object
-template <size_t buf_size> class FrameReceiver : public StaticFrame<Frame, buf_size> {
+template<size_t buf_size> class FrameReceiver : public StaticFrame<Frame, buf_size> {
  public:
   // Read frame from Stream. Return True if frame is received.
   bool read(Stream *stream) {
     while (stream->available() > 0) {
       const uint8_t data = stream->read();
       switch (this->index_) {
-      case 0:
-        if (data != SYNC_BYTE)
-          continue;
-        break;
-      case OFFSET_LENGTH:
-        if (data <= OFFSET_BODY || data >= sizeof(this->buf_)) {
-          this->reset_();
-          continue;
-        }
-        this->remain_ = data;
+        case 0:
+          if (data != SYNC_BYTE)
+            continue;
+          break;
+        case OFFSET_LENGTH:
+          if (data <= OFFSET_BODY || data >= sizeof(this->buf_)) {
+            this->reset_();
+            continue;
+          }
+          this->remain_ = data;
       }
       this->buf_[this->index_++] = data;
       if (--this->remain_)
@@ -125,6 +127,7 @@ template <size_t buf_size> class FrameReceiver : public StaticFrame<Frame, buf_s
     }
     return false;
   }
+
  protected:
   uint8_t index_{0};
   uint8_t remain_{0};

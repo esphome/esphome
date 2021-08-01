@@ -68,6 +68,7 @@ class Capabilities {
   bool updown_fan() const { return this->updown_fan_; }
   bool wind_of_me() const { return this->wind_of_me_; }
   bool wind_on_me() const { return this->wind_on_me_; }
+
  protected:
   bool auto_set_humidity_{false};
   bool auto_mode_{false};

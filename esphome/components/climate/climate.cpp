@@ -494,7 +494,7 @@ void ClimateDeviceRestoreState::apply(Climate *climate) {
   climate->publish_state();
 }
 
-template <typename T1, typename T2> bool set_alternative(optional<T1> &dst, optional<T2> &alt, const T1 &src) {
+template<typename T1, typename T2> bool set_alternative(optional<T1> &dst, optional<T2> &alt, const T1 &src) {
   bool is_changed = alt.has_value();
   alt.reset();
   if (dst != src) {
@@ -504,17 +504,13 @@ template <typename T1, typename T2> bool set_alternative(optional<T1> &dst, opti
   return is_changed;
 }
 
-bool Climate::set_fan_mode(ClimateFanMode mode) {
-  return set_alternative(this->fan_mode, this->custom_fan_mode, mode);
-}
+bool Climate::set_fan_mode(ClimateFanMode mode) { return set_alternative(this->fan_mode, this->custom_fan_mode, mode); }
 
 bool Climate::set_custom_fan_mode(const std::string &mode) {
   return set_alternative(this->custom_fan_mode, this->fan_mode, mode);
 }
 
-bool Climate::set_preset(ClimatePreset preset) {
-  return set_alternative(this->preset, this->custom_preset, preset);
-}
+bool Climate::set_preset(ClimatePreset preset) { return set_alternative(this->preset, this->custom_preset, preset); }
 
 bool Climate::set_custom_preset(const std::string &preset) {
   return set_alternative(this->custom_preset, this->preset, preset);
@@ -522,80 +518,80 @@ bool Climate::set_custom_preset(const std::string &preset) {
 
 static const char *mode_to_string(ClimateMode mode) {
   switch (mode) {
-  case ClimateMode::CLIMATE_MODE_AUTO:
-    return "AUTO";
-  case ClimateMode::CLIMATE_MODE_COOL:
-    return "COOL";
-  case ClimateMode::CLIMATE_MODE_DRY:
-    return "DRY";
-  case ClimateMode::CLIMATE_MODE_FAN_ONLY:
-    return "FAN_ONLY";
-  case ClimateMode::CLIMATE_MODE_HEAT:
-    return "HEAT";
-  case ClimateMode::CLIMATE_MODE_HEAT_COOL:
-    return "HEAT_COOL";
-  case ClimateMode::CLIMATE_MODE_OFF:
-    return "OFF";
+    case ClimateMode::CLIMATE_MODE_AUTO:
+      return "AUTO";
+    case ClimateMode::CLIMATE_MODE_COOL:
+      return "COOL";
+    case ClimateMode::CLIMATE_MODE_DRY:
+      return "DRY";
+    case ClimateMode::CLIMATE_MODE_FAN_ONLY:
+      return "FAN_ONLY";
+    case ClimateMode::CLIMATE_MODE_HEAT:
+      return "HEAT";
+    case ClimateMode::CLIMATE_MODE_HEAT_COOL:
+      return "HEAT_COOL";
+    case ClimateMode::CLIMATE_MODE_OFF:
+      return "OFF";
   }
   return "UNKNOWN";
 }
 
 static const char *fanmode_to_string(ClimateFanMode mode) {
   switch (mode) {
-  case ClimateFanMode::CLIMATE_FAN_AUTO:
-    return "AUTO";
-  case ClimateFanMode::CLIMATE_FAN_DIFFUSE:
-    return "DIFFUSE";
-  case ClimateFanMode::CLIMATE_FAN_FOCUS:
-    return "FOCUS";
-  case ClimateFanMode::CLIMATE_FAN_HIGH:
-    return "HIGH";
-  case ClimateFanMode::CLIMATE_FAN_LOW:
-    return "LOW";
-  case ClimateFanMode::CLIMATE_FAN_MEDIUM:
-    return "MEDIUM";
-  case ClimateFanMode::CLIMATE_FAN_MIDDLE:
-    return "MIDDLE";
-  case ClimateFanMode::CLIMATE_FAN_OFF:
-    return "OFF";
-  case ClimateFanMode::CLIMATE_FAN_ON:
-    return "ON";
+    case ClimateFanMode::CLIMATE_FAN_AUTO:
+      return "AUTO";
+    case ClimateFanMode::CLIMATE_FAN_DIFFUSE:
+      return "DIFFUSE";
+    case ClimateFanMode::CLIMATE_FAN_FOCUS:
+      return "FOCUS";
+    case ClimateFanMode::CLIMATE_FAN_HIGH:
+      return "HIGH";
+    case ClimateFanMode::CLIMATE_FAN_LOW:
+      return "LOW";
+    case ClimateFanMode::CLIMATE_FAN_MEDIUM:
+      return "MEDIUM";
+    case ClimateFanMode::CLIMATE_FAN_MIDDLE:
+      return "MIDDLE";
+    case ClimateFanMode::CLIMATE_FAN_OFF:
+      return "OFF";
+    case ClimateFanMode::CLIMATE_FAN_ON:
+      return "ON";
   }
   return "UNKNOWN";
 }
 
 static const char *swingmode_to_string(ClimateSwingMode mode) {
   switch (mode) {
-  case ClimateSwingMode::CLIMATE_SWING_BOTH:
-    return "BOTH";
-  case ClimateSwingMode::CLIMATE_SWING_HORIZONTAL:
-    return "HORIZONTAL";
-  case ClimateSwingMode::CLIMATE_SWING_OFF:
-    return "OFF";
-  case ClimateSwingMode::CLIMATE_SWING_VERTICAL:
-    return "VERTICAL";
+    case ClimateSwingMode::CLIMATE_SWING_BOTH:
+      return "BOTH";
+    case ClimateSwingMode::CLIMATE_SWING_HORIZONTAL:
+      return "HORIZONTAL";
+    case ClimateSwingMode::CLIMATE_SWING_OFF:
+      return "OFF";
+    case ClimateSwingMode::CLIMATE_SWING_VERTICAL:
+      return "VERTICAL";
   }
   return "UNKNOWN";
 }
 
 static const char *preset_to_string(ClimatePreset preset) {
   switch (preset) {
-  case ClimatePreset::CLIMATE_PRESET_ACTIVITY:
-    return "ACTIVITY";
-  case ClimatePreset::CLIMATE_PRESET_AWAY:
-    return "AWAY";
-  case ClimatePreset::CLIMATE_PRESET_BOOST:
-    return "BOOST";
-  case ClimatePreset::CLIMATE_PRESET_COMFORT:
-    return "COMFORT";
-  case ClimatePreset::CLIMATE_PRESET_ECO:
-    return "ECO";
-  case ClimatePreset::CLIMATE_PRESET_HOME:
-    return "HOME";
-  case ClimatePreset::CLIMATE_PRESET_NONE:
-    return "NONE";
-  case ClimatePreset::CLIMATE_PRESET_SLEEP:
-    return "SLEEP";
+    case ClimatePreset::CLIMATE_PRESET_ACTIVITY:
+      return "ACTIVITY";
+    case ClimatePreset::CLIMATE_PRESET_AWAY:
+      return "AWAY";
+    case ClimatePreset::CLIMATE_PRESET_BOOST:
+      return "BOOST";
+    case ClimatePreset::CLIMATE_PRESET_COMFORT:
+      return "COMFORT";
+    case ClimatePreset::CLIMATE_PRESET_ECO:
+      return "ECO";
+    case ClimatePreset::CLIMATE_PRESET_HOME:
+      return "HOME";
+    case ClimatePreset::CLIMATE_PRESET_NONE:
+      return "NONE";
+    case ClimatePreset::CLIMATE_PRESET_SLEEP:
+      return "SLEEP";
   }
   return "UNKNOWN";
 }

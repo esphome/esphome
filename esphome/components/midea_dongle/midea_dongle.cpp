@@ -1,5 +1,7 @@
 #include "midea_dongle.h"
+
 #include "esphome/core/log.h"
+#include <utility>
 
 namespace esphome {
 namespace midea_dongle {
@@ -16,9 +18,7 @@ ResponseStatus MideaDongle::Request::call_handler(const Frame &frame) {
 }
 
 void MideaDongle::setup() {
-  this->set_interval(2*60*1000, [this](){
-    this->send_network_notify_();
-  });
+  this->set_interval(2 * 60 * 1000, [this]() { this->send_network_notify_(); });
 }
 
 void MideaDongle::loop() {
@@ -70,12 +70,12 @@ void MideaDongle::send_network_notify_(uint8_t msg_type) {
 
 void MideaDongle::queue_request(const Frame &request, ResponseHandler handler, ErrorHandler error_cb) {
   ESP_LOGD(TAG, "Enqueuing the request...");
-  this->queue_.push_back(new Request{request, handler, error_cb});
+  this->queue_.push_back(new Request{request, std::move(handler), std::move(error_cb)});
 }
 
 void MideaDongle::queue_request_priority(const Frame &request, ResponseHandler handler, ErrorHandler error_cb) {
   ESP_LOGD(TAG, "Priority request queuing...");
-  this->queue_.push_front(new Request{request, handler, error_cb});
+  this->queue_.push_front(new Request{request, std::move(handler), std::move(error_cb)});
 }
 
 void MideaDongle::handler_(const Frame &frame) {
@@ -107,13 +107,11 @@ void MideaDongle::send_frame(Frame &frame) {
   ESP_LOGD(TAG, "TX: %s", frame.to_string().c_str());
   this->write_array(frame.data(), frame.size());
   this->is_busy_ = true;
-  this->set_timeout(this->period_, [this](){
-    this->is_busy_ = false;
-  });
+  this->set_timeout(this->period_, [this]() { this->is_busy_ = false; });
 }
 
 void MideaDongle::reset_timeout_() {
-  this->set_timeout(RESPONSE_TIMEOUT, this->response_timeout_, [this](){
+  this->set_timeout(RESPONSE_TIMEOUT, this->response_timeout_, [this]() {
     ESP_LOGD(TAG, "Response timeout...");
     if (!--this->remain_attempts_) {
       if (this->request_->error_cb != nullptr)

@@ -24,9 +24,7 @@ void MideaAC::setup() {
   if (this->use_autoconf_)
     this->get_capabilities_();
   if (this->power_sensor_ != nullptr) {
-    this->set_interval(30*1000, [this](){
-      this->get_power_usage_();
-    });
+    this->set_interval(30 * 1000, [this]() { this->get_power_usage_(); });
   }
 }
 
@@ -36,7 +34,7 @@ ResponseStatus MideaAC::read_status_(const Frame &frame) {
   if (!p.has_properties())
     return ResponseStatus::RESPONSE_WRONG;
   ESP_LOGD(TAG, "New status data received. Parsing...");
-  this->cmd_frame_.set_properties(p); // copy properties from response
+  this->cmd_frame_.set_properties(p);  // copy properties from response
   set_property(this->mode, p.get_mode(), need_publish);
   set_property(this->target_temperature, p.get_target_temp(), need_publish);
   set_property(this->current_temperature, p.get_indoor_temp(), need_publish);
@@ -60,9 +58,7 @@ ResponseStatus MideaAC::read_status_(const Frame &frame) {
   return ResponseStatus::RESPONSE_OK;
 }
 
-void MideaAC::on_frame(const Frame &frame) {
-  ESP_LOGW(TAG, "RX: frame has unknown type");
-}
+void MideaAC::on_frame(const Frame &frame) { ESP_LOGW(TAG, "RX: frame has unknown type"); }
 
 bool MideaAC::allow_preset(ClimatePreset preset) const {
   switch (preset) {
@@ -144,9 +140,10 @@ void MideaAC::control(const ClimateCall &call) {
   }
   if (update) {
     this->cmd_frame_.set_beeper_feedback(this->beeper_feedback_);
-    this->cmd_frame_.update_all();
+    this->cmd_frame_.update_cs();
     ESP_LOGD(TAG, "Enqueuing a priority SET_STATUS(0x40) request...");
-    this->dongle_->queue_request_priority(this->cmd_frame_, std::bind(&MideaAC::read_status_, this, std::placeholders::_1));
+    this->dongle_->queue_request_priority(this->cmd_frame_,
+                                          std::bind(&MideaAC::read_status_, this, std::placeholders::_1));
   }
 }
 
@@ -182,7 +179,7 @@ void MideaAC::get_power_usage_() {
                     0x01, 0x44, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
                     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0x00, 0x17, 0x6A};
   ESP_LOGD(TAG, "Enqueuing a GET_POWERUSAGE(0x41) request...");
-  this->dongle_->queue_request(data, [this](const Frame &frame) -> ResponseStatus{
+  this->dongle_->queue_request(data, [this](const Frame &frame) -> ResponseStatus {
     const auto p = frame.as<PropertiesFrame>();
     if (!p.has_power_info())
       return ResponseStatus::RESPONSE_WRONG;
@@ -192,46 +189,40 @@ void MideaAC::get_power_usage_() {
 }
 
 void MideaAC::get_capabilities_() {
-  uint8_t data[] = {
-    0xAA, 0x0E, 0xAC, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03,
-    0xB5, 0x01, 0x11, 0x00, 0x00
-  };
+  uint8_t data[] = {0xAA, 0x0E, 0xAC, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0xB5, 0x01, 0x11, 0x00, 0x00};
   Frame f = data;
   f.update_crc();
   ESP_LOGD(TAG, "Enqueuing a priority GET_CAPABILITIES(0xB5) request...");
-  this->dongle_->queue_request(data, [this](const Frame &frame) -> ResponseStatus {
-    if (!frame.has_id(0xB5))
-      return ResponseStatus::RESPONSE_WRONG;
-    if (this->capabilities_.read(frame)) {
-      uint8_t data[] = {
-        0xAA, 0x0F, 0xAC, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03,
-        0xB5, 0x01, 0x01, 0x00, 0x00, 0x00
-      };
-      Frame f = data;
-      f.update_crc();
-      this->dongle_->send_frame(f);
-      return ResponseStatus::RESPONSE_PARTIAL;
-    }
-    return ResponseStatus::RESPONSE_OK;
-  }, [this](){
-    this->autoconf_failed_ = true;
-  });
+  this->dongle_->queue_request(
+      data,
+      [this](const Frame &frame) -> ResponseStatus {
+        if (!frame.has_id(0xB5))
+          return ResponseStatus::RESPONSE_WRONG;
+        if (this->capabilities_.read(frame)) {
+          uint8_t data[] = {0xAA, 0x0F, 0xAC, 0x00, 0x00, 0x00, 0x00, 0x00,
+                            0x00, 0x03, 0xB5, 0x01, 0x01, 0x00, 0x00, 0x00};
+          Frame f = data;
+          f.update_crc();
+          this->dongle_->send_frame(f);
+          return ResponseStatus::RESPONSE_PARTIAL;
+        }
+        return ResponseStatus::RESPONSE_OK;
+      },
+      [this]() { this->autoconf_failed_ = true; });
 }
 
 void MideaAC::get_status_() {
-  uint8_t data[] = {0xAA, 0x21, 0xAC, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03,
-                    0x41, 0x81, 0x00, 0xFF, 0x03, 0xFF, 0x00, 0x02, 0x00, 0x00,
-                    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                    0x03, 0x00, 0x37, 0x31};
+  uint8_t data[] = {0xAA, 0x21, 0xAC, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0x41, 0x81,
+                    0x00, 0xFF, 0x03, 0xFF, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0x00, 0x37, 0x31};
   ESP_LOGD(TAG, "Enqueuing a GET_STATUS(0x41) request...");
   this->dongle_->queue_request(data, std::bind(&MideaAC::read_status_, this, std::placeholders::_1));
 }
 
 void MideaAC::display_toggle_() {
-  uint8_t data[] = {0xAA, 0x21, 0xAC, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03,
-                    0x41, 0x61, 0x00, 0xFF, 0x02, 0x00, 0x02, 0x00, 0x00, 0x00,
-                    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                    0x00, 0x00, 0xE3, 0xA8};
+  uint8_t data[] = {0xAA, 0x21, 0xAC, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0x41, 0x61,
+                    0x00, 0xFF, 0x02, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xE3, 0xA8};
   ESP_LOGD(TAG, "Enqueuing a priority TOGGLE_LIGHT(0x41) request...");
   this->dongle_->queue_request_priority(data, std::bind(&MideaAC::read_status_, this, std::placeholders::_1));
 }
@@ -240,7 +231,8 @@ void MideaAC::dump_config() {
   if (this->capabilities_.is_ready()) {
     this->capabilities_.dump(TAG);
   } else if (this->use_autoconf_) {
-    ESP_LOGW(TAG, "Failed to get 0xB5 capabilities report. Suggest to disable it in config and manually set your appliance options.");
+    ESP_LOGW(TAG, "Failed to get 0xB5 capabilities report. Suggest to disable it in config and manually set your "
+                  "appliance options.");
   }
   this->dump_traits(TAG);
 }

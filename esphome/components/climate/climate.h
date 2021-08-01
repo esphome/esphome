@@ -218,7 +218,7 @@ class Climate : public Nameable {
   optional<std::string> custom_preset;
 
   /// Set preset. Reset custom preset.
-  bool set_preset(ClimatePreset mode);
+  bool set_preset(ClimatePreset preset);
 
   /// Set custom preset. Reset primary preset.
   bool set_custom_preset(const std::string &preset);
