@@ -1,5 +1,6 @@
 #pragma once
 
+#include "esphome/core/helpers.h"
 #include "color_mode.h"
 #include <set>
 
