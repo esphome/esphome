@@ -65,7 +65,7 @@ bool Capabilities::read(const Frame &frame) {
               break;
             case 1:
               this->cool_mode_ = true;
-              this->heat_mode_= true;
+              this->heat_mode_ = true;
               this->dry_mode_ = true;
               this->auto_mode_ = true;
               break;
