@@ -5,6 +5,7 @@ from esphome.components import sensor
 from esphome.const import (
     ESP_PLATFORM_ESP32,
     CONF_MAC_ADDRESS,
+    CONF_UPDATE_INTERVAL,
     DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_HUMIDITY,
     DEVICE_CLASS_RADON,
@@ -46,6 +47,7 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(AirthingsWavePlus),
             cv.Required(CONF_MAC_ADDRESS): cv.mac_address,
+            cv.Optional(CONF_UPDATE_INTERVAL, default="5min"): cv.update_interval,
             cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(
                 UNIT_PERCENT, ICON_PERCENT, 0, DEVICE_CLASS_HUMIDITY
             ),
