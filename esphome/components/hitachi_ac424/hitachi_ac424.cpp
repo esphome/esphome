@@ -137,7 +137,8 @@ void HitachiClimate::set_swing_h_(uint8_t position) {
 }
 
 uint8_t HitachiClimate::get_swing_h_() {
-  return HITACHI_AC424_GETBITS8(remote_state_[HITACHI_AC424_SWINGH_BYTE], HITACHI_AC424_SWINGH_OFFSET, HITACHI_AC424_SWINGH_SIZE);
+  return HITACHI_AC424_GETBITS8(remote_state_[HITACHI_AC424_SWINGH_BYTE], HITACHI_AC424_SWINGH_OFFSET,
+                                HITACHI_AC424_SWINGH_SIZE);
 }
 
 uint8_t HitachiClimate::get_button_() { return remote_state_[HITACHI_AC424_BUTTON_BYTE]; }
@@ -295,8 +296,8 @@ bool HitachiClimate::parse_fan_(const uint8_t remote_state[]) {
 }
 
 bool HitachiClimate::parse_swing_(const uint8_t remote_state[]) {
-  uint8_t swing_modeh =
-      HITACHI_AC424_GETBITS8(remote_state[HITACHI_AC424_SWINGH_BYTE], HITACHI_AC424_SWINGH_OFFSET, HITACHI_AC424_SWINGH_SIZE);
+  uint8_t swing_modeh = HITACHI_AC424_GETBITS8(remote_state[HITACHI_AC424_SWINGH_BYTE], HITACHI_AC424_SWINGH_OFFSET,
+                                               HITACHI_AC424_SWINGH_SIZE);
   ESP_LOGV(TAG, "SwingH: %02X %02X", remote_state[HITACHI_AC424_SWINGH_BYTE], swing_modeh);
 
   if ((swing_modeh & 0x7) == 0x0) {
