@@ -140,7 +140,7 @@ void MideaAC::control(const ClimateCall &call) {
   }
   if (update) {
     this->cmd_frame_.set_beeper_feedback(this->beeper_feedback_);
-    this->cmd_frame_.update_cs();
+    this->cmd_frame_.update_crc();
     ESP_LOGD(TAG, "Enqueuing a priority SET_STATUS(0x40) request...");
     this->dongle_->queue_request_priority(this->cmd_frame_,
                                           std::bind(&MideaAC::read_status_, this, std::placeholders::_1));
