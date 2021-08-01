@@ -497,7 +497,7 @@ void ClimateDeviceRestoreState::apply(Climate *climate) {
 template<typename T1, typename T2> bool set_alternative(optional<T1> &dst, optional<T2> &alt, const T1 &src) {
   bool is_changed = alt.has_value();
   alt.reset();
-  if (dst != src) {
+  if (is_changed || dst != src) {
     dst = src;
     is_changed = true;
   }
