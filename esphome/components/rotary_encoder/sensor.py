@@ -7,7 +7,6 @@ from esphome.const import (
     CONF_RESOLUTION,
     CONF_MIN_VALUE,
     CONF_MAX_VALUE,
-    DEVICE_CLASS_EMPTY,
     STATE_CLASS_NONE,
     UNIT_STEPS,
     ICON_ROTATE_RIGHT,
@@ -58,7 +57,10 @@ def validate_min_max_value(config):
 
 CONFIG_SCHEMA = cv.All(
     sensor.sensor_schema(
-        UNIT_STEPS, ICON_ROTATE_RIGHT, 0, DEVICE_CLASS_EMPTY, STATE_CLASS_NONE
+        unit_of_measurement=UNIT_STEPS,
+        icon=ICON_ROTATE_RIGHT,
+        accuracy_decimals=0,
+        state_class=STATE_CLASS_NONE,
     )
     .extend(
         {
