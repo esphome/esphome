@@ -183,7 +183,7 @@ void Dsmr::set_decryption_key(const std::string &decryption_key) {
   char temp[3] = {0};
   for (int i = 0; i < 16; i++) {
     strncpy(temp, &(decryption_key.c_str()[i * 2]), 2);
-    decryption_key_.push_back(std::strtoul(temp, NULL, 16));
+    decryption_key_.push_back(std::strtoul(temp, nullptr, 16));
   }
 }
 #endif  // USE_DSMR_CRYPTO
