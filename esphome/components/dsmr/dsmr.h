@@ -54,7 +54,7 @@ class Dsmr : public Component, public uart::UARTDevice {
 
   bool parse_telegram();
 
-  void publish_sensors(const MyData &data) {
+  void publish_sensors(MyData &data) {
 #define DSMR_PUBLISH_SENSOR(s) \
   if (data.s##_present && this->s_##s##_ != nullptr) \
     s_##s##_->publish_state(data.s);
