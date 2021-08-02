@@ -640,7 +640,7 @@ void Graph::redraw_() {
       int16_t x = this->width_ - i;
       uint8_t b = (i % (this->line_thickness_ * LineType::PATTERN_LENGTH)) / this->line_thickness_;
       if ((this->line_type_ & (1 << b)) == (1 << b)) {
-        int16_t y = (int16_t) roundf((this->height_ - 1) * (1.0 - v) - this->line_thickness_ / 2);
+        int16_t y = (int16_t) roundf((this->height_ - 1) * (1.0 - v)) - this->line_thickness_ / 2;
         for (int16_t t = 0; t < this->line_thickness_; t++) {
           this->set_pixel_(x, y + t);
         }
