@@ -69,6 +69,7 @@ LIGHT_SCHEMA = cv.MQTT_COMMAND_COMPONENT_SCHEMA.extend(
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(LightTurnOffTrigger),
             }
         ),
+        cv.Optional(CONF_POWER_SUPPLY): cv.use_id(power_supply.PowerSupply),
     }
 )
 
@@ -101,7 +102,6 @@ ADDRESSABLE_LIGHT_SCHEMA = RGB_LIGHT_SCHEMA.extend(
         cv.Optional(CONF_COLOR_CORRECT): cv.All(
             [cv.percentage], cv.Length(min=3, max=4)
         ),
-        cv.Optional(CONF_POWER_SUPPLY): cv.use_id(power_supply.PowerSupply),
     }
 )
 
