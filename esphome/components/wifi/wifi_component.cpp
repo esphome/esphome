@@ -164,7 +164,7 @@ void WiFiComponent::loop() {
 
 WiFiComponent::WiFiComponent() { global_wifi_component = this; }
 
-bool WiFiComponent::has_ap() const { return !this->ap_.get_ssid().empty(); }
+bool WiFiComponent::has_ap() const { return this->has_ap_; }
 bool WiFiComponent::has_sta() const { return !this->sta_.empty(); }
 void WiFiComponent::set_fast_connect(bool fast_connect) { this->fast_connect_ = fast_connect; }
 IPAddress WiFiComponent::get_ip_address() {
@@ -186,6 +186,18 @@ void WiFiComponent::setup_ap_config_() {
 
   if (this->ap_setup_)
     return;
+
+  if (this->ap_.get_ssid().empty()) {
+    std::string name = App.get_name();
+    if (name.length() > 32) {
+      if (App.is_name_add_mac_suffix_enabled()) {
+        name.erase(name.begin() + 25, name.end() - 7);  // Remove characters between 25 and the mac address
+      } else {
+        name = name.substr(0, 32);
+      }
+    }
+    this->ap_.set_ssid(name);
+  }
 
   ESP_LOGCONFIG(TAG, "Setting up AP...");
 
@@ -212,7 +224,10 @@ void WiFiComponent::setup_ap_config_() {
 float WiFiComponent::get_loop_priority() const {
   return 10.0f;  // before other loop components
 }
-void WiFiComponent::set_ap(const WiFiAP &ap) { this->ap_ = ap; }
+void WiFiComponent::set_ap(const WiFiAP &ap) {
+  this->ap_ = ap;
+  this->has_ap_ = true;
+}
 void WiFiComponent::add_sta(const WiFiAP &ap) { this->sta_.push_back(ap); }
 void WiFiComponent::set_sta(const WiFiAP &ap) {
   this->clear_sta();
@@ -587,7 +602,7 @@ void WiFiComponent::retry_connect() {
 }
 
 bool WiFiComponent::can_proceed() {
-  if (this->has_ap() && !this->has_sta()) {
+  if (!this->has_sta()) {
     return true;
   }
   return this->is_connected();

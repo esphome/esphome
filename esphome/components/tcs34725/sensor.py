@@ -7,9 +7,7 @@ from esphome.const import (
     CONF_ID,
     CONF_ILLUMINANCE,
     CONF_INTEGRATION_TIME,
-    DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_ILLUMINANCE,
-    ICON_EMPTY,
     ICON_LIGHTBULB,
     STATE_CLASS_MEASUREMENT,
     UNIT_PERCENT,
@@ -49,13 +47,22 @@ TCS34725_GAINS = {
 }
 
 color_channel_schema = sensor.sensor_schema(
-    UNIT_PERCENT, ICON_LIGHTBULB, 1, DEVICE_CLASS_EMPTY, STATE_CLASS_MEASUREMENT
+    unit_of_measurement=UNIT_PERCENT,
+    icon=ICON_LIGHTBULB,
+    accuracy_decimals=1,
+    state_class=STATE_CLASS_MEASUREMENT,
 )
 color_temperature_schema = sensor.sensor_schema(
-    UNIT_KELVIN, ICON_THERMOMETER, 1, DEVICE_CLASS_EMPTY, STATE_CLASS_MEASUREMENT
+    unit_of_measurement=UNIT_KELVIN,
+    icon=ICON_THERMOMETER,
+    accuracy_decimals=1,
+    state_class=STATE_CLASS_MEASUREMENT,
 )
 illuminance_schema = sensor.sensor_schema(
-    UNIT_LUX, ICON_EMPTY, 1, DEVICE_CLASS_ILLUMINANCE, STATE_CLASS_MEASUREMENT
+    unit_of_measurement=UNIT_LUX,
+    accuracy_decimals=1,
+    device_class=DEVICE_CLASS_ILLUMINANCE,
+    state_class=STATE_CLASS_MEASUREMENT,
 )
 
 CONFIG_SCHEMA = (

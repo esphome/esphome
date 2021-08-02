@@ -37,6 +37,12 @@ class InitialStateIterator : public ComponentIterator {
 #ifdef USE_CLIMATE
   bool on_climate(climate::Climate *climate) override;
 #endif
+#ifdef USE_NUMBER
+  bool on_number(number::Number *number) override;
+#endif
+#ifdef USE_SELECT
+  bool on_select(select::Select *select) override;
+#endif
  protected:
   APIConnection *client_;
 };

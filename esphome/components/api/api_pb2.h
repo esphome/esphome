@@ -32,9 +32,26 @@ enum FanDirection : uint32_t {
   FAN_DIRECTION_FORWARD = 0,
   FAN_DIRECTION_REVERSE = 1,
 };
+enum ColorMode : uint32_t {
+  COLOR_MODE_UNKNOWN = 0,
+  COLOR_MODE_ON_OFF = 1,
+  COLOR_MODE_BRIGHTNESS = 2,
+  COLOR_MODE_WHITE = 7,
+  COLOR_MODE_COLOR_TEMPERATURE = 11,
+  COLOR_MODE_COLD_WARM_WHITE = 19,
+  COLOR_MODE_RGB = 35,
+  COLOR_MODE_RGB_WHITE = 39,
+  COLOR_MODE_RGB_COLOR_TEMPERATURE = 47,
+  COLOR_MODE_RGB_COLD_WARM_WHITE = 51,
+};
 enum SensorStateClass : uint32_t {
   STATE_CLASS_NONE = 0,
   STATE_CLASS_MEASUREMENT = 1,
+};
+enum SensorLastResetType : uint32_t {
+  LAST_RESET_NONE = 0,
+  LAST_RESET_NEVER = 1,
+  LAST_RESET_AUTO = 2,
 };
 enum LogLevel : uint32_t {
   LOG_LEVEL_NONE = 0,
@@ -90,13 +107,14 @@ enum ClimateAction : uint32_t {
   CLIMATE_ACTION_FAN = 6,
 };
 enum ClimatePreset : uint32_t {
-  CLIMATE_PRESET_ECO = 0,
-  CLIMATE_PRESET_AWAY = 1,
-  CLIMATE_PRESET_BOOST = 2,
-  CLIMATE_PRESET_COMFORT = 3,
-  CLIMATE_PRESET_HOME = 4,
-  CLIMATE_PRESET_SLEEP = 5,
-  CLIMATE_PRESET_ACTIVITY = 6,
+  CLIMATE_PRESET_NONE = 0,
+  CLIMATE_PRESET_HOME = 1,
+  CLIMATE_PRESET_AWAY = 2,
+  CLIMATE_PRESET_BOOST = 3,
+  CLIMATE_PRESET_COMFORT = 4,
+  CLIMATE_PRESET_ECO = 5,
+  CLIMATE_PRESET_SLEEP = 6,
+  CLIMATE_PRESET_ACTIVITY = 7,
 };
 
 }  // namespace enums
@@ -350,10 +368,11 @@ class ListEntitiesLightResponse : public ProtoMessage {
   uint32_t key{0};
   std::string name{};
   std::string unique_id{};
-  bool supports_brightness{false};
-  bool supports_rgb{false};
-  bool supports_white_value{false};
-  bool supports_color_temperature{false};
+  std::vector<enums::ColorMode> supported_color_modes{};
+  bool legacy_supports_brightness{false};
+  bool legacy_supports_rgb{false};
+  bool legacy_supports_white_value{false};
+  bool legacy_supports_color_temperature{false};
   float min_mireds{0.0f};
   float max_mireds{0.0f};
   std::vector<std::string> effects{};
@@ -370,11 +389,15 @@ class LightStateResponse : public ProtoMessage {
   uint32_t key{0};
   bool state{false};
   float brightness{0.0f};
+  enums::ColorMode color_mode{};
+  float color_brightness{0.0f};
   float red{0.0f};
   float green{0.0f};
   float blue{0.0f};
   float white{0.0f};
   float color_temperature{0.0f};
+  float cold_white{0.0f};
+  float warm_white{0.0f};
   std::string effect{};
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
@@ -391,6 +414,10 @@ class LightCommandRequest : public ProtoMessage {
   bool state{false};
   bool has_brightness{false};
   float brightness{0.0f};
+  bool has_color_mode{false};
+  enums::ColorMode color_mode{};
+  bool has_color_brightness{false};
+  float color_brightness{0.0f};
   bool has_rgb{false};
   float red{0.0f};
   float green{0.0f};
@@ -399,6 +426,10 @@ class LightCommandRequest : public ProtoMessage {
   float white{0.0f};
   bool has_color_temperature{false};
   float color_temperature{0.0f};
+  bool has_cold_white{false};
+  float cold_white{0.0f};
+  bool has_warm_white{false};
+  float warm_white{0.0f};
   bool has_transition_length{false};
   uint32_t transition_length{0};
   bool has_flash_length{false};
@@ -425,6 +456,7 @@ class ListEntitiesSensorResponse : public ProtoMessage {
   bool force_update{false};
   std::string device_class{};
   enums::SensorStateClass state_class{};
+  enums::SensorLastResetType last_reset_type{};
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
 
@@ -709,7 +741,7 @@ class ListEntitiesClimateResponse : public ProtoMessage {
   float visual_min_temperature{0.0f};
   float visual_max_temperature{0.0f};
   float visual_temperature_step{0.0f};
-  bool supports_away{false};
+  bool legacy_supports_away{false};
   bool supports_action{false};
   std::vector<enums::ClimateFanMode> supported_fan_modes{};
   std::vector<enums::ClimateSwingMode> supported_swing_modes{};
@@ -732,7 +764,7 @@ class ClimateStateResponse : public ProtoMessage {
   float target_temperature{0.0f};
   float target_temperature_low{0.0f};
   float target_temperature_high{0.0f};
-  bool away{false};
+  bool legacy_away{false};
   enums::ClimateAction action{};
   enums::ClimateFanMode fan_mode{};
   enums::ClimateSwingMode swing_mode{};
@@ -758,8 +790,8 @@ class ClimateCommandRequest : public ProtoMessage {
   float target_temperature_low{0.0f};
   bool has_target_temperature_high{false};
   float target_temperature_high{0.0f};
-  bool has_away{false};
-  bool away{false};
+  bool has_legacy_away{false};
+  bool legacy_away{false};
   bool has_fan_mode{false};
   enums::ClimateFanMode fan_mode{};
   bool has_swing_mode{false};
@@ -777,6 +809,84 @@ class ClimateCommandRequest : public ProtoMessage {
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+class ListEntitiesNumberResponse : public ProtoMessage {
+ public:
+  std::string object_id{};
+  uint32_t key{0};
+  std::string name{};
+  std::string unique_id{};
+  std::string icon{};
+  float min_value{0.0f};
+  float max_value{0.0f};
+  float step{0.0f};
+  void encode(ProtoWriteBuffer buffer) const override;
+  void dump_to(std::string &out) const override;
+
+ protected:
+  bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
+};
+class NumberStateResponse : public ProtoMessage {
+ public:
+  uint32_t key{0};
+  float state{0.0f};
+  bool missing_state{false};
+  void encode(ProtoWriteBuffer buffer) const override;
+  void dump_to(std::string &out) const override;
+
+ protected:
+  bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+class NumberCommandRequest : public ProtoMessage {
+ public:
+  uint32_t key{0};
+  float state{0.0f};
+  void encode(ProtoWriteBuffer buffer) const override;
+  void dump_to(std::string &out) const override;
+
+ protected:
+  bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
+};
+class ListEntitiesSelectResponse : public ProtoMessage {
+ public:
+  std::string object_id{};
+  uint32_t key{0};
+  std::string name{};
+  std::string unique_id{};
+  std::string icon{};
+  std::vector<std::string> options{};
+  void encode(ProtoWriteBuffer buffer) const override;
+  void dump_to(std::string &out) const override;
+
+ protected:
+  bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
+};
+class SelectStateResponse : public ProtoMessage {
+ public:
+  uint32_t key{0};
+  std::string state{};
+  bool missing_state{false};
+  void encode(ProtoWriteBuffer buffer) const override;
+  void dump_to(std::string &out) const override;
+
+ protected:
+  bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+class SelectCommandRequest : public ProtoMessage {
+ public:
+  uint32_t key{0};
+  std::string state{};
+  void encode(ProtoWriteBuffer buffer) const override;
+  void dump_to(std::string &out) const override;
+
+ protected:
+  bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
 };
 
 }  // namespace api

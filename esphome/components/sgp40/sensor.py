@@ -3,10 +3,8 @@ import esphome.config_validation as cv
 from esphome.components import i2c, sensor
 from esphome.const import (
     CONF_ID,
-    DEVICE_CLASS_EMPTY,
     ICON_RADIATOR,
     STATE_CLASS_MEASUREMENT,
-    UNIT_EMPTY,
 )
 
 DEPENDENCIES = ["i2c"]
@@ -26,7 +24,9 @@ CONF_VOC_BASELINE = "voc_baseline"
 
 CONFIG_SCHEMA = (
     sensor.sensor_schema(
-        UNIT_EMPTY, ICON_RADIATOR, 0, DEVICE_CLASS_EMPTY, STATE_CLASS_MEASUREMENT
+        icon=ICON_RADIATOR,
+        accuracy_decimals=0,
+        state_class=STATE_CLASS_MEASUREMENT,
     )
     .extend(
         {

@@ -282,6 +282,7 @@ class WiFiComponent : public Component {
   WiFiAP selected_ap_;
   bool fast_connect_{false};
 
+  bool has_ap_{false};
   WiFiAP ap_;
   WiFiComponentState state_{WIFI_COMPONENT_STATE_OFF};
   uint32_t action_started_;
