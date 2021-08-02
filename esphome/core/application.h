@@ -92,7 +92,7 @@ class Application {
   /// Register the component in this Application instance.
   template<class C> C *register_component(C *c, std::string id) {
     static_assert(std::is_base_of<Component, C>::value, "Only Component subclasses can be registered");
-    this->register_component_((Component *) c, id);
+    this->register_component_((Component *) c, std::move(id));
     return c;
   }
 
