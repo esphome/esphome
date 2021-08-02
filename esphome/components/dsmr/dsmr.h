@@ -68,7 +68,9 @@ class Dsmr : public Component, public uart::UARTDevice {
 
   void dump_config() override;
 
+#ifdef USE_DSMR_CRYPTO
   void set_decryption_key(const std::string &decryption_key);
+#endif
 
 // Sensor setters
 #define DSMR_SET_SENSOR(s) \
@@ -98,7 +100,9 @@ class Dsmr : public Component, public uart::UARTDevice {
 #define DSMR_DECLARE_TEXT_SENSOR(s) text_sensor::TextSensor *s_##s##_{nullptr};
   DSMR_TEXT_SENSOR_LIST(DSMR_DECLARE_TEXT_SENSOR, )
 
+#ifdef USE_DSMR_CRYPTO
   std::vector<uint8_t> decryption_key_{};
+#endif
 };
 }  // namespace dsmr
 }  // namespace esphome
