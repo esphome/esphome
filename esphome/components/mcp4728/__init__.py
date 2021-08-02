@@ -6,6 +6,7 @@ from esphome.const import CONF_ID
 DEPENDENCIES = ["i2c"]
 MULTI_CONF = True
 AUTO_LOAD = ["output"]
+CODEOWNERS = ["@brotherdust"]
 
 mcp4728_ns = cg.esphome_ns.namespace("mcp4728")
 MCP4728Output = mcp4728_ns.class_("MCP4728OutputComponent", cg.Component, i2c.I2CDevice)
