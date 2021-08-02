@@ -85,8 +85,8 @@ void Dsmr::receive_encrypted_() {
 
     buffer[buffer_length++] = c;
 
-    if (packet_size == 0 && buffer_length > 20)  // Complete header + a few bytes of data
-    {
+    if (packet_size == 0 && buffer_length > 20) {
+      // Complete header + a few bytes of data
       packet_size = buffer[11] << 8 | buffer[12];
     }
     if (buffer_length == packet_size + 13 && packet_size > 0) {
@@ -101,9 +101,9 @@ void Dsmr::receive_encrypted_() {
       constexpr uint16_t iv_size{12};
       gcmaes128->setIV(&buffer[2], iv_size);
       gcmaes128->decrypt(reinterpret_cast<uint8_t *>(this->telegram_),
-                         // the cypher text start at byte 18
+                         // the ciphertext start at byte 18
                          &buffer[18],
-                         // cypher data size
+                         // cipher size
                          buffer_length - 17);
       delete gcmaes128;
 

@@ -4,13 +4,13 @@ from esphome.components import text_sensor
 from esphome.const import (
     CONF_ID,
 )
-from . import DSMR, CONF_DSMR_ID
+from . import Dsmr, CONF_DSMR_ID
 
 AUTO_LOAD = ["dsmr"]
 
 CONFIG_SCHEMA = cv.Schema(
     {
-        cv.GenerateID(CONF_DSMR_ID): cv.use_id(DSMR),
+        cv.GenerateID(CONF_DSMR_ID): cv.use_id(Dsmr),
         cv.Optional("identification"): text_sensor.TEXT_SENSOR_SCHEMA.extend(
             {
                 cv.GenerateID(): cv.declare_id(text_sensor.TextSensor),

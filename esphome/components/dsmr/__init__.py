@@ -14,8 +14,9 @@ AUTO_LOAD = ["sensor", "text_sensor"]
 CONF_DSMR_ID = "dsmr_id"
 CONF_DECRYPTION_KEY = "decryption_key"
 
+# Hack to prevent compile error due to ambiguity with lib namespace
 dsmr_ns = cg.esphome_ns.namespace("esphome::dsmr")
-DSMR = dsmr_ns.class_("Dsmr", cg.Component, uart.UARTDevice)
+Dsmr = dsmr_ns.class_("Dsmr", cg.Component, uart.UARTDevice)
 
 
 def _validate_key(value):
@@ -38,7 +39,7 @@ def _validate_key(value):
 
 CONFIG_SCHEMA = cv.Schema(
     {
-        cv.GenerateID(): cv.declare_id(DSMR),
+        cv.GenerateID(): cv.declare_id(Dsmr),
         cv.Optional(CONF_DECRYPTION_KEY): _validate_key,
     }
 ).extend(uart.UART_DEVICE_SCHEMA)

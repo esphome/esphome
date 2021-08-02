@@ -16,14 +16,14 @@ from esphome.const import (
     UNIT_VOLT,
     UNIT_WATT,
 )
-from . import DSMR, CONF_DSMR_ID
+from . import Dsmr, CONF_DSMR_ID
 
 AUTO_LOAD = ["dsmr"]
 
 
 CONFIG_SCHEMA = cv.Schema(
     {
-        cv.GenerateID(CONF_DSMR_ID): cv.use_id(DSMR),
+        cv.GenerateID(CONF_DSMR_ID): cv.use_id(Dsmr),
         cv.Optional("energy_delivered_lux"): sensor.sensor_schema(
             "kWh",
             ICON_EMPTY,
