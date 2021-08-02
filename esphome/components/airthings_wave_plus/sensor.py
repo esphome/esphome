@@ -38,41 +38,36 @@ DEPENDENCIES = []
 AUTO_LOAD = []
 
 airthings_wave_plus_ns = cg.esphome_ns.namespace("airthings_wave_plus")
-AirthingsWavePlus = airthings_wave_plus_ns.class_(
-    "AirthingsWavePlus", cg.Component
-)
+AirthingsWavePlus = airthings_wave_plus_ns.class_("AirthingsWavePlus", cg.Component)
 
-CONFIG_SCHEMA = (
-    cv.Schema(
-        {
-            cv.GenerateID(): cv.declare_id(AirthingsWavePlus),
-            cv.Required(CONF_MAC_ADDRESS): cv.mac_address,
-            cv.Optional(CONF_UPDATE_INTERVAL, default="5min"): cv.update_interval,
-            cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(
-                UNIT_PERCENT, ICON_PERCENT, 0, DEVICE_CLASS_HUMIDITY
-            ),
-            cv.Optional(CONF_RADON): sensor.sensor_schema(
-                UNIT_BECQUEREL_PER_CUBIC_METER, ICON_RADIOACTIVE, 0, DEVICE_CLASS_RADON
-            ),
-            cv.Optional(CONF_RADON_LONG_TERM): sensor.sensor_schema(
-                UNIT_BECQUEREL_PER_CUBIC_METER, ICON_RADIOACTIVE, 0, DEVICE_CLASS_RADON
-            ),
-            cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-                UNIT_CELSIUS, ICON_THERMOMETER, 2, DEVICE_CLASS_TEMPERATURE
-            ),
-            cv.Optional(CONF_PRESSURE): sensor.sensor_schema(
-                UNIT_HECTOPASCAL, ICON_GAUGE, 1, DEVICE_CLASS_PRESSURE
-            ),
-            cv.Optional(CONF_CO2): sensor.sensor_schema(
-                UNIT_PARTS_PER_MILLION, ICON_MOLECULE_CO2, 0, DEVICE_CLASS_EMPTY
-            ),
-            cv.Optional(CONF_TVOC): sensor.sensor_schema(
-                UNIT_PARTS_PER_BILLION, ICON_RADIATOR, 0, DEVICE_CLASS_EMPTY
-            ),
-        }
-    )
-    .extend(cv.COMPONENT_SCHEMA)
-)
+CONFIG_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.declare_id(AirthingsWavePlus),
+        cv.Required(CONF_MAC_ADDRESS): cv.mac_address,
+        cv.Optional(CONF_UPDATE_INTERVAL, default="5min"): cv.update_interval,
+        cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(
+            UNIT_PERCENT, ICON_PERCENT, 0, DEVICE_CLASS_HUMIDITY
+        ),
+        cv.Optional(CONF_RADON): sensor.sensor_schema(
+            UNIT_BECQUEREL_PER_CUBIC_METER, ICON_RADIOACTIVE, 0, DEVICE_CLASS_RADON
+        ),
+        cv.Optional(CONF_RADON_LONG_TERM): sensor.sensor_schema(
+            UNIT_BECQUEREL_PER_CUBIC_METER, ICON_RADIOACTIVE, 0, DEVICE_CLASS_RADON
+        ),
+        cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
+            UNIT_CELSIUS, ICON_THERMOMETER, 2, DEVICE_CLASS_TEMPERATURE
+        ),
+        cv.Optional(CONF_PRESSURE): sensor.sensor_schema(
+            UNIT_HECTOPASCAL, ICON_GAUGE, 1, DEVICE_CLASS_PRESSURE
+        ),
+        cv.Optional(CONF_CO2): sensor.sensor_schema(
+            UNIT_PARTS_PER_MILLION, ICON_MOLECULE_CO2, 0, DEVICE_CLASS_EMPTY
+        ),
+        cv.Optional(CONF_TVOC): sensor.sensor_schema(
+            UNIT_PARTS_PER_BILLION, ICON_RADIATOR, 0, DEVICE_CLASS_EMPTY
+        ),
+    }
+).extend(cv.COMPONENT_SCHEMA)
 
 
 def to_code(config):
