@@ -58,18 +58,18 @@ void AirthingsWavePlus::read_sensors_() {
         ESP_LOGD(TAG, "ambient light = %d", value->ambientLight);
 
         this->humidity_sensor_->publish_state(value->humidity / 2.0f);
-        if (isValidRadonValue_(value->radon)) {
+        if (is_valid_radon_value_(value->radon)) {
           this->radon_sensor_->publish_state(value->radon);
         }
-        if (isValidRadonValue_(value->radon_lt)) {
+        if (is_valid_radon_value_(value->radon_lt)) {
           this->radon_long_term_sensor_->publish_state(value->radon_lt);
         }
         this->temperature_sensor_->publish_state(value->temperature / 100.0f);
         this->pressure_sensor_->publish_state(value->pressure / 50.0f);
-        if (isValidCo2Value_(value->co2)) {
+        if (is_valid_co2_value_(value->co2)) {
           this->co2_sensor_->publish_state(value->co2);
         }
-        if (isValidVocValue_(value->voc)) {
+        if (is_valid_voc_value_(value->voc)) {
           this->tvoc_sensor_->publish_state(value->voc);
         }
       } else {
@@ -85,17 +85,11 @@ void AirthingsWavePlus::read_sensors_() {
   client_->disconnect();
 }
 
-boolean AirthingsWavePlus::isValidRadonValue_(short radon) {
-  return 0 <= radon && radon <= 16383;
-}
+boolean AirthingsWavePlus::is_valid_radon_value_(short radon) { return 0 <= radon && radon <= 16383; }
 
-boolean AirthingsWavePlus::isValidVocValue_(short voc) {
-  return 0 <= voc && voc <= 16383;
-}
+boolean AirthingsWavePlus::is_valid_voc_value_(short voc) { return 0 <= voc && voc <= 16383; }
 
-boolean AirthingsWavePlus::isValidCo2Value_(short co2) {
-  return 0 <= co2 && co2 <= 16383;
-}
+boolean AirthingsWavePlus::is_valid_co2_value_(short co2) { return 0 <= co2 && co2 <= 16383; }
 
 void AirthingsWavePlus::update_() {
   update_count_++;
