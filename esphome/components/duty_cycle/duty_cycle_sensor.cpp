@@ -13,6 +13,7 @@ void DutyCycleSensor::setup() {
   this->store_.pin = this->pin_->to_isr();
   this->store_.last_level = this->pin_->digital_read();
   this->last_update_ = micros();
+  this->store_.last_interrupt = micros();
 
   this->pin_->attach_interrupt(DutyCycleSensorStore::gpio_intr, &this->store_, CHANGE);
 }

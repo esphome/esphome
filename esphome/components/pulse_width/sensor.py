@@ -5,7 +5,6 @@ from esphome.components import sensor
 from esphome.const import (
     CONF_ID,
     CONF_PIN,
-    DEVICE_CLASS_EMPTY,
     STATE_CLASS_MEASUREMENT,
     UNIT_SECOND,
     ICON_TIMER,
@@ -19,7 +18,10 @@ PulseWidthSensor = pulse_width_ns.class_(
 
 CONFIG_SCHEMA = (
     sensor.sensor_schema(
-        UNIT_SECOND, ICON_TIMER, 3, DEVICE_CLASS_EMPTY, STATE_CLASS_MEASUREMENT
+        unit_of_measurement=UNIT_SECOND,
+        icon=ICON_TIMER,
+        accuracy_decimals=3,
+        state_class=STATE_CLASS_MEASUREMENT,
     )
     .extend(
         {

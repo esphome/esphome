@@ -5,12 +5,12 @@ from esphome.const import (
     CONF_ID,
     CONF_UPDATE_INTERVAL,
     DEVICE_CLASS_TEMPERATURE,
-    ICON_EMPTY,
     STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
 )
 
 DEPENDENCIES = ["i2c"]
+CODEOWNERS = ["@Azimath"]
 
 tmp117_ns = cg.esphome_ns.namespace("tmp117")
 TMP117Component = tmp117_ns.class_(
@@ -19,7 +19,10 @@ TMP117Component = tmp117_ns.class_(
 
 CONFIG_SCHEMA = cv.All(
     sensor.sensor_schema(
-        UNIT_CELSIUS, ICON_EMPTY, 1, DEVICE_CLASS_TEMPERATURE, STATE_CLASS_MEASUREMENT
+        unit_of_measurement=UNIT_CELSIUS,
+        accuracy_decimals=1,
+        device_class=DEVICE_CLASS_TEMPERATURE,
+        state_class=STATE_CLASS_MEASUREMENT,
     )
     .extend(
         {
