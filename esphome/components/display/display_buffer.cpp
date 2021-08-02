@@ -539,14 +539,14 @@ Color Graph::get_grayscale_pixel(int x, int y) const {
   return Color(gray | gray << 8 | gray << 16 | gray << 24);
 }
 Color Graph::get_color_pixel(int x, int y) const { return this->get_grayscale_pixel(x, y); }
-void Graph::set_pixel(int x, int y) {
+void Graph::set_pixel_(int x, int y) {
   if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_)
     return;
   const uint32_t width_8 = ((this->width_ + 7u) / 8u) * 8u;
   const uint32_t pos = x + y * width_8;
   this->pixels_[pos / 8u] |= (0x80 >> (pos % 8u));
 }
-void Graph::redraw() {
+void Graph::redraw_() {
   /// Clear graph pixel buffer
   uint16_t sz = ((this->width_ + 7u) / 8u) * this->height_;
   for (uint16_t i = 0; i < sz; i++)
@@ -554,12 +554,12 @@ void Graph::redraw() {
   /// Plot border
   if (this->border_) {
     for (int i = 0; i < this->width_; i++) {
-      this->set_pixel(i, 0);
-      this->set_pixel(i, this->height_ - 1);
+      this->set_pixel_(i, 0);
+      this->set_pixel_(i, this->height_ - 1);
     }
     for (int i = 0; i < this->height_; i++) {
-      this->set_pixel(0, i);
-      this->set_pixel(this->width_ - 1, i);
+      this->set_pixel_(0, i);
+      this->set_pixel_(this->width_ - 1, i);
     }
   }
   /// Determine best grid scale and range
@@ -618,7 +618,7 @@ void Graph::redraw() {
     for (int y = yn; y <= ym; y++) {
       int16_t py = (int16_t) roundf((this->height_ - 1) * (1.0 - (float) (y - yn) / (ym - yn)));
       for (int x = 0; x < this->width_; x += 2) {
-        this->set_pixel(x, py);
+        this->set_pixel_(x, py);
       }
     }
     ymin = yn * y_per_div;
@@ -628,7 +628,7 @@ void Graph::redraw() {
   if (!isnan(this->gridspacing_x_)) {
     for (int i = 0; i <= this->width_ / this->gridspacing_x_; i++) {
       for (int y = 0; y < this->height_; y += 2) {
-        this->set_pixel(this->width_ - i * this->gridspacing_x_, y);
+        this->set_pixel_(this->width_ - i * this->gridspacing_x_, y);
       }
     }
   }
@@ -642,7 +642,7 @@ void Graph::redraw() {
       if ((this->line_type_ & (1 << b)) == (1 << b)) {
         int16_t y = (int16_t) roundf((this->height_ - 1) * (1.0 - v) - this->line_thickness_ / 2);
         for (int16_t t = 0; t < this->line_thickness_; t++) {
-          this->set_pixel(x, y + t);
+          this->set_pixel_(x, y + t);
         }
       }
     }
@@ -653,7 +653,7 @@ void Graph::update() {
   float sensor_value = this->sensor_->get_state();
   this->data_->take_sample(sensor_value);
   ESP_LOGI(TAG, "Updating graph with value: %f", sensor_value);
-  this->redraw();  // TODO: move to only when updating display
+  this->redraw_();  // TODO: move to only when updating display
 }
 void Graph::set_sensor(sensor::Sensor *sensor) { this->sensor_ = sensor; }
 int Graph::get_width() const { return this->width_; }

@@ -479,8 +479,8 @@ class Graph : public PollingComponent {
   void dump_config() override;
 
  protected:
-  void redraw();
-  void set_pixel(int x, int y);
+  void redraw_();
+  void set_pixel_(int x, int y);
   int width_;
   int height_;
   float min_value_;
