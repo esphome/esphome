@@ -438,12 +438,12 @@ class HistoryData {
   HistoryData(int length);
   ~HistoryData();
   void take_sample(float data);
-  int get_length() const {return length_;}
-  float get_maxvalue() const {return max_;}
-  float get_minvalue() const {return min_;}
-  float get_recent_max() const {return recent_max_;}
-  float get_recent_min() const {return recent_min_;}
-  float get_value(int idx) const {return data_[(count_ + length_ - 1 - idx) % length_];}
+  int get_length() const { return length_; }
+  float get_maxvalue() const { return max_; }
+  float get_minvalue() const { return min_; }
+  float get_recent_max() const { return recent_max_; }
+  float get_recent_min() const { return recent_min_; }
+  float get_value(int idx) const { return data_[(count_ + length_ - 1 - idx) % length_]; }
 
  protected:
   int length_;
@@ -465,16 +465,16 @@ class Graph : public PollingComponent {
   int get_width() const;
   int get_height() const;
   void set_sensor(sensor::Sensor *sensor);
-  void set_min_value(float val) {this->min_value_ = val;}
-  void set_max_value(float val) {this->max_value_ = val;}
-  void set_min_range(float val) {this->min_range_ = val;}
-  void set_max_range(float val) {this->max_range_ = val;}
-  void set_line_thickness(uint8_t val) {this->line_thickness_ = val;}
-  void set_line_type(uint8_t val) {this->line_type_ = val;}
-  void set_grid_x(float val) {this->gridspacing_x_ = val;}
-  void set_grid_y(float val) {this->gridspacing_y_ = val;}
-  void set_border(bool val) {this->border_ = val;}
-  
+  void set_min_value(float val) { this->min_value_ = val; }
+  void set_max_value(float val) { this->max_value_ = val; }
+  void set_min_range(float val) { this->min_range_ = val; }
+  void set_max_range(float val) { this->max_range_ = val; }
+  void set_line_thickness(uint8_t val) { this->line_thickness_ = val; }
+  void set_line_type(uint8_t val) { this->line_type_ = val; }
+  void set_grid_x(float val) { this->gridspacing_x_ = val; }
+  void set_grid_y(float val) { this->gridspacing_y_ = val; }
+  void set_border(bool val) { this->border_ = val; }
+
   void update() override;
   void dump_config() override;
 
@@ -492,12 +492,10 @@ class Graph : public PollingComponent {
   float gridspacing_x_;
   float gridspacing_y_;
   bool border_;
-  //bool transparant_;
   sensor::Sensor *sensor_{nullptr};
   uint8_t *pixels_;
   HistoryData *data_;
 };
-
 
 class Animation : public Image {
  public:
