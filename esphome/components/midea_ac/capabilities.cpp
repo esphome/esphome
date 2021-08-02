@@ -6,9 +6,7 @@
 namespace esphome {
 namespace midea_ac {
 
-static uint8_t s_safe_(const uint8_t *data, uint8_t length, uint8_t idx) {
-  return (idx < length) ? data[idx] : 0;
-}
+static uint8_t s_safe_(const uint8_t *data, uint8_t length, uint8_t idx) { return (idx < length) ? data[idx] : 0; }
 
 bool Capabilities::read(const Frame &frame) {
   if (frame.size() < 14)
