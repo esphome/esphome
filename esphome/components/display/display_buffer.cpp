@@ -233,6 +233,15 @@ void DisplayBuffer::image(int x, int y, Image *image, Color color_on, Color colo
   }
 }
 
+void DisplayBuffer::graph(int x, int y, Graph *graph, Color color_on, Color color_off) {
+  for (int img_x = 0; img_x < graph->get_width(); img_x++) {
+    for (int img_y = 0; img_y < graph->get_height(); img_y++) {
+      this->draw_pixel_at(x + img_x, y + img_y, graph->get_pixel(img_x, img_y) ? color_on : color_off);
+      //this->draw_pixel_at(x + img_x, y + img_y, graph->get_color_pixel(img_x, img_y));
+    }
+  }
+}
+
 void DisplayBuffer::get_text_bounds(int x, int y, const char *text, Font *font, TextAlign align, int *x1, int *y1,
                                     int *width, int *height) {
   int x_offset, baseline;
@@ -480,6 +489,191 @@ int Image::get_height() const { return this->height_; }
 ImageType Image::get_type() const { return this->type_; }
 Image::Image(const uint8_t *data_start, int width, int height, ImageType type)
     : width_(width), height_(height), type_(type), data_start_(data_start) {}
+
+HistoryData::HistoryData(int length)
+    : length_(length), count_(0), min_(NAN), max_(NAN), recent_min_(NAN), recent_max_(NAN) {
+  this->data_ = new float[length];
+  if (this->data_ == nullptr) {
+    ESP_LOGE(TAG, "Could not allocate HistoryData buffer!");
+    return;
+  }      
+  for (int i=0; i<this->length_; i++) this->data_[i] = NAN;
+}
+HistoryData::~HistoryData() {
+  delete(this->data_);
+}
+void HistoryData::take_sample(float data) {
+  this->data_[this->count_] = data;
+  if (!isnan(data)) {
+    // Track all-time max/min
+    if (isnan(this->max_) || (data > this->max_)) {
+      this->max_ = data;
+    }
+    if (isnan(this->min_) || (data < this->min_)) {
+      this->min_ = data;
+    }
+    // Recalc recent max/min
+    this->recent_min_ = data;
+    this->recent_max_ = data;
+    for (int i=0; i<this->length_; i++) {
+      if (!isnan(this->data_[i])) {
+        if (this->recent_max_ < this->data_[i]) this->recent_max_ = this->data_[i];
+        if (this->recent_min_ > this->data_[i]) this->recent_min_ = this->data_[i];
+      }
+    }
+  }
+  this->count_ = (this->count_ + 1) % this->length_;
+}
+
+void Graph::dump_config() {
+  LOG_UPDATE_INTERVAL(this);
+}
+
+bool Graph::get_pixel(int x, int y) const {
+  if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_)
+    return false;
+  const uint32_t width_8 = ((this->width_ + 7u) / 8u) * 8u;
+  const uint32_t pos = x + y * width_8;
+  return this->pixels_[pos / 8u] & (0x80 >> (pos % 8u));
+}
+Color Graph::get_grayscale_pixel(int x, int y) const {
+  const uint8_t gray = (bool) this->get_pixel(x,y) * 255;
+  return Color(gray | gray << 8 | gray << 16 | gray << 24);
+}
+Color Graph::get_color_pixel(int x, int y) const {
+  return this->get_grayscale_pixel(x,y);
+}
+void Graph::set_pixel(int x, int y) {
+  if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_)
+    return;
+  const uint32_t width_8 = ((this->width_ + 7u) / 8u) * 8u;
+  const uint32_t pos = x + y * width_8;
+  this->pixels_[pos / 8u] |= (0x80 >> (pos % 8u));
+}
+void Graph::redraw() {
+  /// Clear graph pixel buffer
+  uint16_t sz = ((this->width_ + 7u) / 8u) * this->height_;
+  for (uint16_t i=0; i<sz; i++) this->pixels_[i] = 0;
+  /// Plot border
+  if (this->border_) {
+    for (int i=0; i<this->width_; i++) {
+      this->set_pixel(i, 0);
+      this->set_pixel(i, this->height_-1);
+    }
+    for (int i=0; i<this->height_; i++) {
+      this->set_pixel(0, i);
+      this->set_pixel(this->width_-1, i);
+    }
+  }
+  /// Determine best grid scale and range
+  // Get all-time max / min values for data - as default auto-range plotting
+  // float ymin = this->data_->get_minvalue();
+  // float ymax = this->data_->get_maxvalue();
+  float ymin = this->data_->get_recent_min();
+  float ymax = this->data_->get_recent_max();
+  
+  // Adjust if manually overridden
+  if (!isnan(this->min_value_)) ymin = this->min_value_;
+  if (!isnan(this->max_value_)) ymax = this->max_value_;
+
+  float yrange = ymax - ymin;  
+  if (isnan(yrange) || (yrange == 0)) {
+    ESP_LOGI(TAG, "Graph, forcing yrange to 1");
+    yrange = 1;
+  }
+  if (yrange < this->min_range_) {
+    // Adjust range to keep last value in centre
+    float s = this->data_->get_value(0);
+    ymin = s - (yrange/2.0);
+    ymax = s + (yrange/2.0);
+    yrange = this->min_range_;
+    ESP_LOGI(TAG, "Graphing forcing yrange to min_range");
+  }
+  if (yrange > this->max_range_) {
+    // Look back in data to fit into local range
+    float mx = NAN;
+    float mn = NAN;
+    for (int16_t i=0; i<this->data_->get_length(); i++) {
+      float v = this->data_->get_value(i);
+      if (!isnan(v)) {
+        if ((v - mn) > this->max_range_) break;
+        if ((mx - v) > this->max_range_) break;
+        if (isnan(mx) || (v > mx)) mx = v;
+        if (isnan(mn) || (v <mn)) mn = v;
+      }
+    }
+    yrange = this->max_range_;
+    if (!isnan(mn)) {
+      ymin = mn;
+      ymax = ymin + this->max_range_;
+    }
+    ESP_LOGI(TAG, "Graphing at max_range. Using local min %f, max %f", mn, mx);
+  }
+  /// Draw grid
+  if (!isnan(this->gridspacing_y_)) {
+    float y_per_div = this->gridspacing_y_;
+    int yn = int(ymin / y_per_div);
+    int ym = int(ymax / y_per_div) + int(1 * (fmodf(ymax, y_per_div) != 0));
+    for (int y=yn; y<=ym; y++) {
+      int16_t py = (int16_t) roundf((this->height_ - 1) * (1.0 - (float)(y-yn) / (ym-yn)));
+      for (int x=0; x<this->width_; x+=2) {
+        this->set_pixel(x, py);
+      }
+    }
+    ymin = yn * y_per_div;
+    ymax = ym * y_per_div;
+    yrange = ymax - ymin;
+  }
+  if (!isnan(this->gridspacing_x_)) {
+    for (int i=0; i<=this->width_/this->gridspacing_x_; i++) {
+      for (int y=0; y<this->height_; y+=2) {
+        this->set_pixel(this->width_- i*this->gridspacing_x_, y);
+      }
+    }
+  }
+  ESP_LOGI(TAG, "Graph. ymin %f, ymax %f, yrange %f", ymin, ymax, yrange);
+  /// Draw data trace
+  for (int16_t i=0; i<this->data_->get_length(); i++) {
+    float v = (this->data_->get_value(i) - ymin) / yrange;
+    if (!isnan(v) && (this->line_thickness_> 0)) {
+      int16_t x = this->width_ - i;
+      uint8_t b = (i % (this->line_thickness_*LineType::PATTERN_LENGTH))/this->line_thickness_;
+      if ((this->line_type_ & (1<<b)) == (1<<b)) {
+        int16_t y = (int16_t) roundf((this->height_ - 1) * (1.0 - v) - this->line_thickness_/2);
+        for (int16_t t=0; t<this->line_thickness_; t++) {
+          this->set_pixel(x, y + t);
+        }
+      }
+    }
+  }
+}
+
+void Graph::update() {
+  float sensor_value = this->sensor_->get_state();
+  this->data_->take_sample(sensor_value);
+  ESP_LOGI(TAG, "Updating graph with value: %f", sensor_value);
+  this->redraw();   // TODO: move to only when updating display
+}
+void Graph::set_sensor(sensor::Sensor *sensor) { this->sensor_ = sensor; }
+int Graph::get_width() const { return this->width_; }
+int Graph::get_height() const { return this->height_; }
+
+Graph::Graph(int width, int height)
+    : width_(width), height_(height) {
+  uint16_t sz = ((this->width_ + 7u) / 8u) * this->height_;
+  this->pixels_ = new uint8_t[sz];
+  if (this->pixels_ == nullptr) {
+    ESP_LOGE(TAG, "Could not allocate graph pixel buffer!");
+    return;  
+  }      
+  for (uint16_t i=0; i<sz; i++) {
+    this->pixels_[i] = 0xF0;
+  }
+  this->data_ = new HistoryData(width);
+}
+Graph::~Graph() {
+    delete(this->pixels_);
+}
 
 bool Animation::get_pixel(int x, int y) const {
   if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_)

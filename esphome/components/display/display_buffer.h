@@ -4,6 +4,7 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/automation.h"
 #include "display_color_utils.h"
+#include "esphome/components/sensor/sensor.h"
 
 #ifdef USE_TIME
 #include "esphome/components/time/real_time_clock.h"
@@ -70,6 +71,15 @@ extern const Color COLOR_ON;
 
 enum ImageType { IMAGE_TYPE_BINARY = 0, IMAGE_TYPE_GRAYSCALE = 1, IMAGE_TYPE_RGB24 = 2 };
 
+/// Bit pattern defines the line-type
+enum LineType {
+  LINE_TYPE_SOLID = 0b1111,
+  LINE_TYPE_DOTTED = 0b0101,
+  LINE_TYPE_DASHED = 0b0111,
+  // Following defines number of bits used to define line pattern
+  PATTERN_LENGTH = 4
+};
+
 enum DisplayRotation {
   DISPLAY_ROTATION_0_DEGREES = 0,
   DISPLAY_ROTATION_90_DEGREES = 90,
@@ -79,6 +89,7 @@ enum DisplayRotation {
 
 class Font;
 class Image;
+class Graph;
 class DisplayBuffer;
 class DisplayPage;
 class DisplayOnPageChangeTrigger;
@@ -273,6 +284,16 @@ class DisplayBuffer {
    */
   void image(int x, int y, Image *image, Color color_on = COLOR_ON, Color color_off = COLOR_OFF);
 
+  /** Draw the `graph` with the top-left corner at [x,y] to the screen.
+   *
+   * @param x The x coordinate of the upper left corner.
+   * @param y The y coordinate of the upper left corner.
+   * @param graph The graph id to draw
+   * @param color_on The color to replace in binary images for the on bits.
+   * @param color_off The color to replace in binary images for the off bits.
+   */
+  void graph(int x, int y, Graph *graph, Color color_on = COLOR_ON, Color color_off = COLOR_OFF);
+
   /** Get the text bounds of the given string.
    *
    * @param x The x coordinate to place the string at, can be 0 if only interested in dimensions.
@@ -411,6 +432,72 @@ class Image {
   ImageType type_;
   const uint8_t *data_start_;
 };
+
+class HistoryData {
+ public:
+  HistoryData(int length);
+  ~HistoryData();
+  void take_sample(float data);
+  int get_length() const {return length_;}
+  float get_maxvalue() const {return max_;}
+  float get_minvalue() const {return min_;}
+  float get_recent_max() const {return recent_max_;}
+  float get_recent_min() const {return recent_min_;}
+  float get_value(int idx) const {return data_[(count_ + length_ - 1 - idx) % length_];}
+
+ protected:
+  int length_;
+  int count_;
+  float min_;
+  float max_;
+  float recent_min_;
+  float recent_max_;
+  float *data_;
+};
+
+class Graph : public PollingComponent {
+ public:
+  Graph(int width, int height);
+  ~Graph();
+  virtual bool get_pixel(int x, int y) const;
+  virtual Color get_color_pixel(int x, int y) const;
+  virtual Color get_grayscale_pixel(int x, int y) const;
+  int get_width() const;
+  int get_height() const;
+  void set_sensor(sensor::Sensor *sensor);
+  void set_min_value(float val) {this->min_value_ = val;}
+  void set_max_value(float val) {this->max_value_ = val;}
+  void set_min_range(float val) {this->min_range_ = val;}
+  void set_max_range(float val) {this->max_range_ = val;}
+  void set_line_thickness(uint8_t val) {this->line_thickness_ = val;}
+  void set_line_type(uint8_t val) {this->line_type_ = val;}
+  void set_grid_x(float val) {this->gridspacing_x_ = val;}
+  void set_grid_y(float val) {this->gridspacing_y_ = val;}
+  void set_border(bool val) {this->border_ = val;}
+  
+  void update() override;
+  void dump_config() override;
+
+ protected:
+  void redraw();
+  void set_pixel(int x, int y);
+  int width_;
+  int height_;
+  float min_value_;
+  float max_value_;
+  float min_range_;
+  float max_range_;
+  uint8_t line_thickness_;
+  uint8_t line_type_;
+  float gridspacing_x_;
+  float gridspacing_y_;
+  bool border_;
+  //bool transparant_;
+  sensor::Sensor *sensor_{nullptr};
+  uint8_t *pixels_;
+  HistoryData *data_;
+};
+
 
 class Animation : public Image {
  public:
