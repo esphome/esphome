@@ -504,15 +504,15 @@ template<typename T1, typename T2> bool set_alternative(optional<T1> &dst, optio
   return is_changed;
 }
 
-bool Climate::set_fan_mode(ClimateFanMode mode) { return set_alternative(this->fan_mode, this->custom_fan_mode, mode); }
+bool Climate::set_fan_mode_(ClimateFanMode mode) { return set_alternative(this->fan_mode, this->custom_fan_mode, mode); }
 
-bool Climate::set_custom_fan_mode(const std::string &mode) {
+bool Climate::set_custom_fan_mode_(const std::string &mode) {
   return set_alternative(this->custom_fan_mode, this->fan_mode, mode);
 }
 
-bool Climate::set_preset(ClimatePreset preset) { return set_alternative(this->preset, this->custom_preset, preset); }
+bool Climate::set_preset_(ClimatePreset preset) { return set_alternative(this->preset, this->custom_preset, preset); }
 
-bool Climate::set_custom_preset(const std::string &preset) {
+bool Climate::set_custom_preset_(const std::string &preset) {
   return set_alternative(this->custom_preset, this->preset, preset);
 }
 

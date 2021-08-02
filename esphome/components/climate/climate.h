@@ -246,16 +246,16 @@ class Climate : public Nameable {
   friend ClimateCall;
 
   /// Set fan mode. Reset custom fan mode. Return true if fan mode has been changed.
-  bool set_fan_mode(ClimateFanMode mode);
+  bool set_fan_mode_(ClimateFanMode mode);
 
   /// Set custom fan mode. Reset primary fan mode. Return true if fan mode has been changed.
-  bool set_custom_fan_mode(const std::string &mode);
+  bool set_custom_fan_mode_(const std::string &mode);
 
   /// Set preset. Reset custom preset. Return true if preset has been changed.
-  bool set_preset(ClimatePreset preset);
+  bool set_preset_(ClimatePreset preset);
 
   /// Set custom preset. Reset primary preset. Return true if preset has been changed.
-  bool set_custom_preset(const std::string &preset);
+  bool set_custom_preset_(const std::string &preset);
 
   /** Get the default traits of this climate device.
    *

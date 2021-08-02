@@ -40,15 +40,15 @@ ResponseStatus MideaAC::read_status_(const Frame &frame) {
   set_property(this->current_temperature, p.get_indoor_temp(), need_publish);
   set_property(this->swing_mode, p.get_swing_mode(), need_publish);
   if (p.has_custom_fan_mode()) {
-    if (this->set_custom_fan_mode(p.get_custom_fan_mode()))
+    if (this->set_custom_fan_mode_(p.get_custom_fan_mode()))
       need_publish = true;
-  } else if (this->set_fan_mode(p.get_fan_mode())) {
+  } else if (this->set_fan_mode_(p.get_fan_mode())) {
     need_publish = true;
   }
   if (p.has_custom_preset()) {
-    if (this->set_custom_preset(p.get_custom_preset()))
+    if (this->set_custom_preset_(p.get_custom_preset()))
       need_publish = true;
-  } else if (this->set_preset(p.get_preset())) {
+  } else if (this->set_preset_(p.get_preset())) {
     need_publish = true;
   }
   if (need_publish)
