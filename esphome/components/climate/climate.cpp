@@ -604,38 +604,38 @@ void Climate::dump_traits(const char *tag) {
   ESP_LOGCONFIG(tag, "      - Max: %.1f", traits.get_visual_max_temperature());
   ESP_LOGCONFIG(tag, "      - Step: %.1f", traits.get_visual_temperature_step());
   if (traits.get_supports_current_temperature())
-    ESP_LOGCONFIG(tag, "  [x] Current temperature");
+    ESP_LOGCONFIG(tag, "  [x] Supports current temperature");
   if (traits.get_supports_two_point_target_temperature())
-    ESP_LOGCONFIG(tag, "  [x] Two-point target temperature");
+    ESP_LOGCONFIG(tag, "  [x] Supports two-point target temperature");
   if (traits.get_supports_action())
-    ESP_LOGCONFIG(tag, "  [x] Action");
+    ESP_LOGCONFIG(tag, "  [x] Supports action");
   if (!traits.get_supported_modes().empty()) {
-    ESP_LOGCONFIG(tag, "  [x] Modes:");
+    ESP_LOGCONFIG(tag, "  [x] Supported modes:");
     for (ClimateMode m : traits.get_supported_modes())
       ESP_LOGCONFIG(tag, "      - %s", mode_to_string(m));
   }
   if (!traits.get_supported_fan_modes().empty()) {
-    ESP_LOGCONFIG(tag, "  [x] Fan modes:");
+    ESP_LOGCONFIG(tag, "  [x] Supported fan modes:");
     for (ClimateFanMode m : traits.get_supported_fan_modes())
       ESP_LOGCONFIG(tag, "      - %s", fanmode_to_string(m));
   }
   if (!traits.get_supported_custom_fan_modes().empty()) {
-    ESP_LOGCONFIG(tag, "  [x] Custom fan modes:");
+    ESP_LOGCONFIG(tag, "  [x] Supported custom fan modes:");
     for (const std::string &s : traits.get_supported_custom_fan_modes())
       ESP_LOGCONFIG(tag, "      - %s", s.c_str());
   }
   if (!traits.get_supported_presets().empty()) {
-    ESP_LOGCONFIG(tag, "  [x] Presets:");
+    ESP_LOGCONFIG(tag, "  [x] Supported presets:");
     for (ClimatePreset p : traits.get_supported_presets())
       ESP_LOGCONFIG(tag, "      - %s", preset_to_string(p));
   }
   if (!traits.get_supported_custom_presets().empty()) {
-    ESP_LOGCONFIG(tag, "  [x] Custom presets:");
+    ESP_LOGCONFIG(tag, "  [x] Supported custom presets:");
     for (const std::string &s : traits.get_supported_custom_presets())
       ESP_LOGCONFIG(tag, "      - %s", s.c_str());
   }
   if (!traits.get_supported_swing_modes().empty()) {
-    ESP_LOGCONFIG(tag, "  [x] Swing modes:");
+    ESP_LOGCONFIG(tag, "  [x] Supported swing modes:");
     for (ClimateSwingMode m : traits.get_supported_swing_modes())
       ESP_LOGCONFIG(tag, "      - %s", swingmode_to_string(m));
   }

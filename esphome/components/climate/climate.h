@@ -205,23 +205,11 @@ class Climate : public Nameable {
   /// The active custom fan mode of the climate device.
   optional<std::string> custom_fan_mode;
 
-  /// Set fan mode. Reset custom fan mode.
-  bool set_fan_mode(ClimateFanMode mode);
-
-  /// Set custom fan mode. Reset primary fan mode.
-  bool set_custom_fan_mode(const std::string &mode);
-
   /// The active preset of the climate device.
   optional<ClimatePreset> preset;
 
   /// The active custom preset mode of the climate device.
   optional<std::string> custom_preset;
-
-  /// Set preset. Reset custom preset.
-  bool set_preset(ClimatePreset preset);
-
-  /// Set custom preset. Reset primary preset.
-  bool set_custom_preset(const std::string &preset);
 
   /** Add a callback for the climate device state, each time the state of the climate device is updated
    * (using publish_state), this callback will be called.
@@ -253,10 +241,21 @@ class Climate : public Nameable {
   void set_visual_min_temperature_override(float visual_min_temperature_override);
   void set_visual_max_temperature_override(float visual_max_temperature_override);
   void set_visual_temperature_step_override(float visual_temperature_step_override);
-  void dump_traits(const char *tag);
 
  protected:
   friend ClimateCall;
+
+  /// Set fan mode. Reset custom fan mode. Return true if fan mode has been changed.
+  bool set_fan_mode(ClimateFanMode mode);
+
+  /// Set custom fan mode. Reset primary fan mode. Return true if fan mode has been changed.
+  bool set_custom_fan_mode(const std::string &mode);
+
+  /// Set preset. Reset custom preset. Return true if preset has been changed.
+  bool set_preset(ClimatePreset preset);
+
+  /// Set custom preset. Reset primary preset. Return true if preset has been changed.
+  bool set_custom_preset(const std::string &preset);
 
   /** Get the default traits of this climate device.
    *
@@ -283,6 +282,7 @@ class Climate : public Nameable {
   void save_state_();
 
   uint32_t hash_base() override;
+  void dump_traits(const char *tag);
 
   CallbackManager<void()> state_callback_{};
   ESPPreferenceObject rtc_;

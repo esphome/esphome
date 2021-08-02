@@ -67,7 +67,7 @@ def register_action(name, type_, schema):
     return decorator
 
 
-CLIMATE_MODES = {
+ALLOWED_CLIMATE_MODES = {
     "HEAT_COOL": ClimateMode.CLIMATE_MODE_HEAT_COOL,
     "COOL": ClimateMode.CLIMATE_MODE_COOL,
     "HEAT": ClimateMode.CLIMATE_MODE_HEAT,
@@ -75,32 +75,32 @@ CLIMATE_MODES = {
     "FAN_ONLY": ClimateMode.CLIMATE_MODE_FAN_ONLY,
 }
 
-CLIMATE_PRESETS = {
+ALLOWED_CLIMATE_PRESETS = {
     "ECO": ClimatePreset.CLIMATE_PRESET_ECO,
     "BOOST": ClimatePreset.CLIMATE_PRESET_BOOST,
     "SLEEP": ClimatePreset.CLIMATE_PRESET_SLEEP,
 }
 
-CLIMATE_SWING_MODES = {
+ALLOWED_CLIMATE_SWING_MODES = {
     "BOTH": ClimateSwingMode.CLIMATE_SWING_BOTH,
     "VERTICAL": ClimateSwingMode.CLIMATE_SWING_VERTICAL,
     "HORIZONTAL": ClimateSwingMode.CLIMATE_SWING_HORIZONTAL,
 }
 
-CLIMATE_CUSTOM_FAN_MODES = {
+CUSTOM_FAN_MODES = {
     "SILENT": Capabilities.SILENT,
     "TURBO": Capabilities.TURBO,
 }
 
-CLIMATE_CUSTOM_PRESETS = {
+CUSTOM_PRESETS = {
     "FREEZE_PROTECTION": Capabilities.FREEZE_PROTECTION,
 }
 
-validate_modes = cv.enum(CLIMATE_MODES, upper=True)
-validate_presets = cv.enum(CLIMATE_PRESETS, upper=True)
-validate_swing_modes = cv.enum(CLIMATE_SWING_MODES, upper=True)
-validate_custom_fan_modes = cv.enum(CLIMATE_CUSTOM_FAN_MODES, upper=True)
-validate_custom_presets = cv.enum(CLIMATE_CUSTOM_PRESETS, upper=True)
+validate_modes = cv.enum(ALLOWED_CLIMATE_MODES, upper=True)
+validate_presets = cv.enum(ALLOWED_CLIMATE_PRESETS, upper=True)
+validate_swing_modes = cv.enum(ALLOWED_CLIMATE_SWING_MODES, upper=True)
+validate_custom_fan_modes = cv.enum(CUSTOM_FAN_MODES, upper=True)
+validate_custom_presets = cv.enum(CUSTOM_PRESETS, upper=True)
 
 CONFIG_SCHEMA = cv.All(
     climate.CLIMATE_SCHEMA.extend(
