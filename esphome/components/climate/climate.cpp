@@ -598,7 +598,7 @@ static const char *preset_to_string(ClimatePreset preset) {
   return "UNKNOWN";
 }
 
-void Climate::dump_traits(const char *tag) {
+void Climate::dump_traits_(const char *tag) {
   auto traits = this->get_traits();
   ESP_LOGCONFIG(tag, "ClimateTraits:");
   ESP_LOGCONFIG(tag, "  [x] Visual settings:");

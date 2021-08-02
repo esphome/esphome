@@ -234,7 +234,7 @@ void MideaAC::dump_config() {
     ESP_LOGW(TAG, "Failed to get 0xB5 capabilities report. Suggest to disable it in config and manually set your "
                   "appliance options.");
   }
-  this->dump_traits(TAG);
+  this->dump_traits_(TAG);
 }
 
 /* ACTIONS */

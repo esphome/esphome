@@ -6,7 +6,7 @@
 namespace esphome {
 namespace midea_ac {
 
-static uint8_t s_safe_(const uint8_t *data, uint8_t length, uint8_t idx) { return (idx < length) ? data[idx] : 0; }
+static uint8_t s_safe(const uint8_t *data, uint8_t length, uint8_t idx) { return (idx < length) ? data[idx] : 0; }
 
 bool Capabilities::read(const Frame &frame) {
   if (frame.size() < 14)
@@ -16,52 +16,52 @@ bool Capabilities::read(const Frame &frame) {
   const uint8_t length = frame.size() - 12;
 
   uint8_t i = 2;
-  uint8_t caps2_process = s_safe_(data, length, 1);
+  uint8_t caps2_process = s_safe(data, length, 1);
 
   while (i < length - 2 && caps2_process) {
-    if (s_safe_(data, length, i + 1) == 0x00 && s_safe_(data, length, i + 2) > 0) {
-      switch (s_safe_(data, length, i)) {
+    if (s_safe(data, length, i + 1) == 0x00 && s_safe(data, length, i + 2) > 0) {
+      switch (s_safe(data, length, i)) {
         case 0x15:
-          this->indoor_humidity_ = s_safe_(data, length, i + 3) != 0;
+          this->indoor_humidity_ = s_safe(data, length, i + 3) != 0;
           break;
         case 0x18:
-          this->silky_cool_ = s_safe_(data, length, i + 3) != 0;
+          this->silky_cool_ = s_safe(data, length, i + 3) != 0;
           break;
         case 0x30:
-          this->smart_eye_ = s_safe_(data, length, i + 3) == 1;
+          this->smart_eye_ = s_safe(data, length, i + 3) == 1;
           break;
         case 0x32:
-          this->wind_on_me_ = s_safe_(data, length, i + 3) == 1;
+          this->wind_on_me_ = s_safe(data, length, i + 3) == 1;
           break;
         case 0x33:
-          this->wind_of_me_ = s_safe_(data, length, i + 3) == 1;
+          this->wind_of_me_ = s_safe(data, length, i + 3) == 1;
           break;
         case 0x39:
-          this->active_clean_ = s_safe_(data, length, i + 3) == 1;
+          this->active_clean_ = s_safe(data, length, i + 3) == 1;
           break;
         case 0x42:
-          this->one_key_no_wind_on_me_ = s_safe_(data, length, i + 3) == 1;
+          this->one_key_no_wind_on_me_ = s_safe(data, length, i + 3) == 1;
           break;
         case 0x43:
-          this->breeze_control_ = s_safe_(data, length, i + 3) == 1;
+          this->breeze_control_ = s_safe(data, length, i + 3) == 1;
           break;
       }
     }
 
-    if (s_safe_(data, length, i + 1) == 0x02 && s_safe_(data, length, i + 2) > 0) {
-      switch (s_safe_(data, length, i)) {
+    if (s_safe(data, length, i + 1) == 0x02 && s_safe(data, length, i + 2) > 0) {
+      switch (s_safe(data, length, i)) {
         case 0x10:
-          this->fanspeed_control_ = s_safe_(data, length, i + 3) != 1;
+          this->fanspeed_control_ = s_safe(data, length, i + 3) != 1;
           break;
         case 0x12:
-          this->eco_mode_ = s_safe_(data, length, i + 3) == 1;
-          this->special_eco_ = s_safe_(data, length, i + 3) == 2;
+          this->eco_mode_ = s_safe(data, length, i + 3) == 1;
+          this->special_eco_ = s_safe(data, length, i + 3) == 2;
           break;
         case 0x13:
-          this->frost_protection_mode_ = s_safe_(data, length, i + 3) == 1;
+          this->frost_protection_mode_ = s_safe(data, length, i + 3) == 1;
           break;
         case 0x14:
-          switch (s_safe_(data, length, i + 3)) {
+          switch (s_safe(data, length, i + 3)) {
             case 0:
               this->heat_mode_ = false;
               this->cool_mode_ = true;
@@ -89,7 +89,7 @@ bool Capabilities::read(const Frame &frame) {
           }
           break;
         case 0x15:
-          switch (s_safe_(data, length, i + 3)) {
+          switch (s_safe(data, length, i + 3)) {
             case 0:
               this->leftright_fan_ = false;
               this->updown_fan_ = true;
@@ -109,7 +109,7 @@ bool Capabilities::read(const Frame &frame) {
           }
           break;
         case 0x16:
-          switch (s_safe_(data, length, i + 3)) {
+          switch (s_safe(data, length, i + 3)) {
             case 0:
             case 1:
               this->power_cal_ = false;
@@ -126,7 +126,7 @@ bool Capabilities::read(const Frame &frame) {
           }
           break;
         case 0x17:
-          switch (s_safe_(data, length, i + 3)) {
+          switch (s_safe(data, length, i + 3)) {
             case 0:
               this->nest_check_ = false;
               this->nest_need_change_ = false;
@@ -147,10 +147,10 @@ bool Capabilities::read(const Frame &frame) {
           }
           break;
         case 0x19:
-          this->electric_aux_heating_ = s_safe_(data, length, i + 3) == 1;
+          this->electric_aux_heating_ = s_safe(data, length, i + 3) == 1;
           break;
         case 0x1A:
-          switch (s_safe_(data, length, i + 3)) {
+          switch (s_safe(data, length, i + 3)) {
             case 0:
               this->turbo_heat_ = false;
               this->turbo_cool_ = true;
@@ -170,7 +170,7 @@ bool Capabilities::read(const Frame &frame) {
           }
           break;
         case 0x1F:
-          switch (s_safe_(data, length, i + 3)) {
+          switch (s_safe(data, length, i + 3)) {
             case 0:
               this->auto_set_humidity_ = false;
               this->manual_set_humidity_ = false;
@@ -190,38 +190,38 @@ bool Capabilities::read(const Frame &frame) {
           }
           break;
         case 0x22:
-          this->unit_changeable_ = s_safe_(data, length, i + 3) == 0;
+          this->unit_changeable_ = s_safe(data, length, i + 3) == 0;
           break;
         case 0x24:
-          this->light_control_ = s_safe_(data, length, i + 3);
+          this->light_control_ = s_safe(data, length, i + 3);
           break;
         case 0x25:
-          if (s_safe_(data, length, i + 2) >= 6) {
-            this->min_temp_cool_ = static_cast<float>(s_safe_(data, length, i + 3)) * 0.5f;
-            this->max_temp_cool_ = static_cast<float>(s_safe_(data, length, i + 4)) * 0.5f;
-            this->min_temp_auto_ = static_cast<float>(s_safe_(data, length, i + 5)) * 0.5f;
-            this->max_temp_auto_ = static_cast<float>(s_safe_(data, length, i + 6)) * 0.5f;
-            this->min_temp_heat_ = static_cast<float>(s_safe_(data, length, i + 7)) * 0.5f;
-            this->max_temp_heat_ = static_cast<float>(s_safe_(data, length, i + 8)) * 0.5f;
+          if (s_safe(data, length, i + 2) >= 6) {
+            this->min_temp_cool_ = static_cast<float>(s_safe(data, length, i + 3)) * 0.5f;
+            this->max_temp_cool_ = static_cast<float>(s_safe(data, length, i + 4)) * 0.5f;
+            this->min_temp_auto_ = static_cast<float>(s_safe(data, length, i + 5)) * 0.5f;
+            this->max_temp_auto_ = static_cast<float>(s_safe(data, length, i + 6)) * 0.5f;
+            this->min_temp_heat_ = static_cast<float>(s_safe(data, length, i + 7)) * 0.5f;
+            this->max_temp_heat_ = static_cast<float>(s_safe(data, length, i + 8)) * 0.5f;
 
-            if (s_safe_(data, length, i + 2) > 6)
-              this->decimals_ = s_safe_(data, length, i + 9) > 0;
+            if (s_safe(data, length, i + 2) > 6)
+              this->decimals_ = s_safe(data, length, i + 9) > 0;
             else
-              this->decimals_ = s_safe_(data, length, i + 5) != 0;
+              this->decimals_ = s_safe(data, length, i + 5) != 0;
             break;
             case 0x2C:
-              this->buzzer_ = s_safe_(data, length, i + 3) != 0;
+              this->buzzer_ = s_safe(data, length, i + 3) != 0;
               break;
           }
       }
     }
     // Increment cursor and decrement capabilities to process
-    i += (3 + s_safe_(data, length, i + 2));
+    i += (3 + s_safe(data, length, i + 2));
     caps2_process--;
   }
 
   if (length - i > 1)
-    return s_safe_(data, length, length - 2) > 0;
+    return s_safe(data, length, length - 2) > 0;
 
   this->is_ready_ = true;
   return false;
