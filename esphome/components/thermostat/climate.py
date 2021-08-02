@@ -6,7 +6,9 @@ from esphome.const import (
     CONF_AUTO_MODE,
     CONF_AWAY_CONFIG,
     CONF_COOL_ACTION,
+    CONF_COOL_DEADBAND,
     CONF_COOL_MODE,
+    CONF_COOL_OVERRUN,
     CONF_DEFAULT_MODE,
     CONF_DEFAULT_TARGET_TEMPERATURE_HIGH,
     CONF_DEFAULT_TARGET_TEMPERATURE_LOW,
@@ -22,14 +24,18 @@ from esphome.const import (
     CONF_FAN_MODE_FOCUS_ACTION,
     CONF_FAN_MODE_DIFFUSE_ACTION,
     CONF_FAN_ONLY_ACTION,
+    CONF_FAN_ONLY_COOLING,
     CONF_FAN_ONLY_MODE,
     CONF_HEAT_ACTION,
+    CONF_HEAT_DEADBAND,
     CONF_HEAT_MODE,
+    CONF_HEAT_OVERRUN,
     CONF_HYSTERESIS,
     CONF_ID,
     CONF_IDLE_ACTION,
     CONF_OFF_MODE,
     CONF_SENSOR,
+    CONF_SET_POINT_MINIMUM_DIFFERENTIAL,
     CONF_SWING_BOTH_ACTION,
     CONF_SWING_HORIZONTAL_ACTION,
     CONF_SWING_OFF_ACTION,
@@ -62,99 +68,59 @@ validate_climate_mode = cv.enum(CLIMATE_MODES, upper=True)
 
 def validate_thermostat(config):
     # verify corresponding climate action action exists for any defined climate mode action
-    if CONF_COOL_MODE in config and CONF_COOL_ACTION not in config:
-        raise cv.Invalid(
-            "{} must be defined to use {}".format(CONF_COOL_ACTION, CONF_COOL_MODE)
-        )
-    if CONF_DRY_MODE in config and CONF_DRY_ACTION not in config:
-        raise cv.Invalid(
-            "{} must be defined to use {}".format(CONF_DRY_ACTION, CONF_DRY_MODE)
-        )
-    if CONF_FAN_ONLY_MODE in config and CONF_FAN_ONLY_ACTION not in config:
-        raise cv.Invalid(
-            "{} must be defined to use {}".format(
-                CONF_FAN_ONLY_ACTION, CONF_FAN_ONLY_MODE
-            )
-        )
-    if CONF_HEAT_MODE in config and CONF_HEAT_ACTION not in config:
-        raise cv.Invalid(
-            "{} must be defined to use {}".format(CONF_HEAT_ACTION, CONF_HEAT_MODE)
-        )
-    # verify corresponding default target temperature exists when a given climate action exists
-    if CONF_DEFAULT_TARGET_TEMPERATURE_HIGH not in config and (
-        CONF_COOL_ACTION in config or CONF_FAN_ONLY_ACTION in config
-    ):
-        raise cv.Invalid(
-            "{} must be defined when using {} or {}".format(
-                CONF_DEFAULT_TARGET_TEMPERATURE_HIGH,
+    requirements = {
+        CONF_AUTO_MODE: [CONF_COOL_ACTION, CONF_HEAT_ACTION],
+        CONF_COOL_MODE: [CONF_COOL_ACTION],
+        CONF_DRY_MODE: [CONF_DRY_ACTION],
+        CONF_FAN_ONLY_MODE: [CONF_FAN_ONLY_ACTION],
+        CONF_HEAT_MODE: [CONF_HEAT_ACTION],
+    }
+    for config_mode, req_actions in requirements.items():
+        for req_action in req_actions:
+            if config_mode in config and req_action not in config:
+                raise cv.Invalid(f"{req_action} must be defined to use {config_mode}")
+
+    # determine validation requirements based on fan_only_cooling setting
+    if config[CONF_FAN_ONLY_COOLING] is True:
+        requirements = {
+            CONF_DEFAULT_TARGET_TEMPERATURE_HIGH: [
                 CONF_COOL_ACTION,
                 CONF_FAN_ONLY_ACTION,
-            )
-        )
-    if CONF_DEFAULT_TARGET_TEMPERATURE_LOW not in config and CONF_HEAT_ACTION in config:
-        raise cv.Invalid(
-            "{} must be defined when using {}".format(
-                CONF_DEFAULT_TARGET_TEMPERATURE_LOW, CONF_HEAT_ACTION
-            )
-        )
-    # if a given climate action is NOT defined, it should not have a default target temperature
-    if CONF_DEFAULT_TARGET_TEMPERATURE_HIGH in config and (
-        CONF_COOL_ACTION not in config and CONF_FAN_ONLY_ACTION not in config
-    ):
-        raise cv.Invalid(
-            "{} is defined with no {}".format(
-                CONF_DEFAULT_TARGET_TEMPERATURE_HIGH, CONF_COOL_ACTION
-            )
-        )
-    if CONF_DEFAULT_TARGET_TEMPERATURE_LOW in config and CONF_HEAT_ACTION not in config:
-        raise cv.Invalid(
-            "{} is defined with no {}".format(
-                CONF_DEFAULT_TARGET_TEMPERATURE_LOW, CONF_HEAT_ACTION
-            )
-        )
+            ],
+            CONF_DEFAULT_TARGET_TEMPERATURE_LOW: [CONF_HEAT_ACTION],
+        }
+    else:
+        requirements = {
+            CONF_DEFAULT_TARGET_TEMPERATURE_HIGH: [CONF_COOL_ACTION],
+            CONF_DEFAULT_TARGET_TEMPERATURE_LOW: [CONF_HEAT_ACTION],
+        }
+
+    for config_temp, req_actions in requirements.items():
+        for req_action in req_actions:
+            # verify corresponding default target temperature exists when a given climate action exists
+            if config_temp not in config and req_action in config:
+                raise cv.Invalid(
+                    f"{config_temp} must be defined when using {req_action}"
+                )
+            # if a given climate action is NOT defined, it should not have a default target temperature
+            if config_temp in config and req_action not in config:
+                raise cv.Invalid(f"{config_temp} is defined with no {req_action}")
 
     if CONF_AWAY_CONFIG in config:
         away = config[CONF_AWAY_CONFIG]
-        # verify corresponding default target temperature exists when a given climate action exists
-        if CONF_DEFAULT_TARGET_TEMPERATURE_HIGH not in away and (
-            CONF_COOL_ACTION in config or CONF_FAN_ONLY_ACTION in config
-        ):
-            raise cv.Invalid(
-                "{} must be defined in away configuration when using {} or {}".format(
-                    CONF_DEFAULT_TARGET_TEMPERATURE_HIGH,
-                    CONF_COOL_ACTION,
-                    CONF_FAN_ONLY_ACTION,
-                )
-            )
-        if (
-            CONF_DEFAULT_TARGET_TEMPERATURE_LOW not in away
-            and CONF_HEAT_ACTION in config
-        ):
-            raise cv.Invalid(
-                "{} must be defined in away configuration when using {}".format(
-                    CONF_DEFAULT_TARGET_TEMPERATURE_LOW, CONF_HEAT_ACTION
-                )
-            )
-        # if a given climate action is NOT defined, it should not have a default target temperature
-        if CONF_DEFAULT_TARGET_TEMPERATURE_HIGH in away and (
-            CONF_COOL_ACTION not in config and CONF_FAN_ONLY_ACTION not in config
-        ):
-            raise cv.Invalid(
-                "{} is defined in away configuration with no {} or {}".format(
-                    CONF_DEFAULT_TARGET_TEMPERATURE_HIGH,
-                    CONF_COOL_ACTION,
-                    CONF_FAN_ONLY_ACTION,
-                )
-            )
-        if (
-            CONF_DEFAULT_TARGET_TEMPERATURE_LOW in away
-            and CONF_HEAT_ACTION not in config
-        ):
-            raise cv.Invalid(
-                "{} is defined in away configuration with no {}".format(
-                    CONF_DEFAULT_TARGET_TEMPERATURE_LOW, CONF_HEAT_ACTION
-                )
-            )
+        for config_temp, req_actions in requirements.items():
+            for req_action in req_actions:
+                # verify corresponding default target temperature exists when a given climate action exists
+                if config_temp not in away and req_action in config:
+                    raise cv.Invalid(
+                        f"{config_temp} must be defined in away configuration when using {req_action}"
+                    )
+                # if a given climate action is NOT defined, it should not have a default target temperature
+                if config_temp in away and req_action not in config:
+                    raise cv.Invalid(
+                        f"{config_temp} is defined in away configuration with no {req_action}"
+                    )
+
     # verify default climate mode is valid given above configuration
     default_mode = config[CONF_DEFAULT_MODE]
     requirements = {
@@ -241,7 +207,15 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_DEFAULT_TARGET_TEMPERATURE_HIGH): cv.temperature,
             cv.Optional(CONF_DEFAULT_TARGET_TEMPERATURE_LOW): cv.temperature,
+            cv.Optional(
+                CONF_SET_POINT_MINIMUM_DIFFERENTIAL, default=0.5
+            ): cv.temperature,
+            cv.Optional(CONF_COOL_DEADBAND): cv.temperature,
+            cv.Optional(CONF_COOL_OVERRUN): cv.temperature,
+            cv.Optional(CONF_HEAT_DEADBAND): cv.temperature,
+            cv.Optional(CONF_HEAT_OVERRUN): cv.temperature,
             cv.Optional(CONF_HYSTERESIS, default=0.5): cv.temperature,
+            cv.Optional(CONF_FAN_ONLY_COOLING, default=False): cv.boolean,
             cv.Optional(CONF_AWAY_CONFIG): cv.Schema(
                 {
                     cv.Optional(CONF_DEFAULT_TARGET_TEMPERATURE_HIGH): cv.temperature,
@@ -269,8 +243,32 @@ async def to_code(config):
 
     sens = await cg.get_variable(config[CONF_SENSOR])
     cg.add(var.set_default_mode(config[CONF_DEFAULT_MODE]))
+    cg.add(
+        var.set_set_point_minimum_differential(
+            config[CONF_SET_POINT_MINIMUM_DIFFERENTIAL]
+        )
+    )
     cg.add(var.set_sensor(sens))
-    cg.add(var.set_hysteresis(config[CONF_HYSTERESIS]))
+
+    if CONF_COOL_DEADBAND in config:
+        cg.add(var.set_cool_deadband(config[CONF_COOL_DEADBAND]))
+    else:
+        cg.add(var.set_cool_deadband(config[CONF_HYSTERESIS]))
+
+    if CONF_COOL_OVERRUN in config:
+        cg.add(var.set_cool_overrun(config[CONF_COOL_OVERRUN]))
+    else:
+        cg.add(var.set_cool_overrun(config[CONF_HYSTERESIS]))
+
+    if CONF_HEAT_DEADBAND in config:
+        cg.add(var.set_heat_deadband(config[CONF_HEAT_DEADBAND]))
+    else:
+        cg.add(var.set_heat_deadband(config[CONF_HYSTERESIS]))
+
+    if CONF_HEAT_OVERRUN in config:
+        cg.add(var.set_heat_overrun(config[CONF_HEAT_OVERRUN]))
+    else:
+        cg.add(var.set_heat_overrun(config[CONF_HYSTERESIS]))
 
     if two_points_available is True:
         cg.add(var.set_supports_two_points(True))
@@ -288,6 +286,7 @@ async def to_code(config):
         normal_config = ThermostatClimateTargetTempConfig(
             config[CONF_DEFAULT_TARGET_TEMPERATURE_LOW]
         )
+    cg.add(var.set_supports_fan_only_cooling(config[CONF_FAN_ONLY_COOLING]))
     cg.add(var.set_normal_config(normal_config))
 
     await automation.build_automation(
