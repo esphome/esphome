@@ -53,6 +53,7 @@ void Application::setup() {
       }
       this->app_state_ = new_app_state;
       yield();
+      this->feed_wdt();
     } while (!component->can_proceed());
   }
 
