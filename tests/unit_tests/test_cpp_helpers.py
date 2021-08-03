@@ -6,27 +6,24 @@ from esphome import const
 from esphome.cpp_generator import MockObj
 
 
-def test_gpio_pin_expression__conf_is_none(monkeypatch):
-    target = ch.gpio_pin_expression(None)
-
-    actual = next(target)
+@pytest.mark.asyncio
+async def test_gpio_pin_expression__conf_is_none(monkeypatch):
+    actual = await ch.gpio_pin_expression(None)
 
     assert actual is None
 
 
-def test_gpio_pin_expression__new_pin(monkeypatch):
-    target = ch.gpio_pin_expression({
-        const.CONF_NUMBER: 42,
-        const.CONF_MODE: "input",
-        const.CONF_INVERTED: False
-    })
-
-    actual = next(target)
+@pytest.mark.asyncio
+async def test_gpio_pin_expression__new_pin(monkeypatch):
+    actual = await ch.gpio_pin_expression(
+        {const.CONF_NUMBER: 42, const.CONF_MODE: "input", const.CONF_INVERTED: False}
+    )
 
     assert isinstance(actual, MockObj)
 
 
-def test_register_component(monkeypatch):
+@pytest.mark.asyncio
+async def test_register_component(monkeypatch):
     var = Mock(base="foo.bar")
 
     app_mock = Mock(register_component=Mock(return_value=var))
@@ -38,9 +35,7 @@ def test_register_component(monkeypatch):
     add_mock = Mock()
     monkeypatch.setattr(ch, "add", add_mock)
 
-    target = ch.register_component(var, {})
-
-    actual = next(target)
+    actual = await ch.register_component(var, {})
 
     assert actual is var
     add_mock.assert_called_once()
@@ -48,18 +43,19 @@ def test_register_component(monkeypatch):
     assert core_mock.component_ids == []
 
 
-def test_register_component__no_component_id(monkeypatch):
+@pytest.mark.asyncio
+async def test_register_component__no_component_id(monkeypatch):
     var = Mock(base="foo.eek")
 
     core_mock = Mock(component_ids=["foo.bar"])
     monkeypatch.setattr(ch, "CORE", core_mock)
 
     with pytest.raises(ValueError, match="Component ID foo.eek was not declared to"):
-        target = ch.register_component(var, {})
-        next(target)
+        await ch.register_component(var, {})
 
 
-def test_register_component__with_setup_priority(monkeypatch):
+@pytest.mark.asyncio
+async def test_register_component__with_setup_priority(monkeypatch):
     var = Mock(base="foo.bar")
 
     app_mock = Mock(register_component=Mock(return_value=var))
@@ -71,12 +67,13 @@ def test_register_component__with_setup_priority(monkeypatch):
     add_mock = Mock()
     monkeypatch.setattr(ch, "add", add_mock)
 
-    target = ch.register_component(var, {
-        const.CONF_SETUP_PRIORITY: "123",
-        const.CONF_UPDATE_INTERVAL: "456",
-    })
-
-    actual = next(target)
+    actual = await ch.register_component(
+        var,
+        {
+            const.CONF_SETUP_PRIORITY: "123",
+            const.CONF_UPDATE_INTERVAL: "456",
+        },
+    )
 
     assert actual is var
     add_mock.assert_called()

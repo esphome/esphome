@@ -2,6 +2,7 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/color.h"
 #include "esphome/components/light/light_output.h"
 #include "esphome/components/light/addressable_light.h"
 
@@ -67,13 +68,14 @@ class NeoPixelBusLightOutputBase : public light::AddressableLight {
   void add_leds(uint16_t count_pixels) { this->add_leds(new NeoPixelBus<T_COLOR_FEATURE, T_METHOD>(count_pixels)); }
   void add_leds(NeoPixelBus<T_COLOR_FEATURE, T_METHOD> *controller) {
     this->controller_ = controller;
-    this->controller_->Begin();
+    // controller gets initialised in setup() - avoid calling twice (crashes with RMT)
+    // this->controller_->Begin();
   }
 
   // ========== INTERNAL METHODS ==========
   void setup() override {
     for (int i = 0; i < this->size(); i++) {
-      (*this)[i] = light::ESPColor(0, 0, 0, 0);
+      (*this)[i] = Color(0, 0, 0, 0);
     }
 
     this->effect_data_ = new uint8_t[this->size()];
@@ -113,8 +115,7 @@ class NeoPixelRGBLightOutput : public NeoPixelBusLightOutputBase<T_METHOD, T_COL
  public:
   light::LightTraits get_traits() override {
     auto traits = light::LightTraits();
-    traits.set_supports_brightness(true);
-    traits.set_supports_rgb(true);
+    traits.set_supported_color_modes({light::ColorMode::RGB});
     return traits;
   }
 
@@ -131,9 +132,7 @@ class NeoPixelRGBWLightOutput : public NeoPixelBusLightOutputBase<T_METHOD, T_CO
  public:
   light::LightTraits get_traits() override {
     auto traits = light::LightTraits();
-    traits.set_supports_brightness(true);
-    traits.set_supports_rgb(true);
-    traits.set_supports_rgb_white_value(true);
+    traits.set_supported_color_modes({light::ColorMode::RGB_WHITE});
     return traits;
   }
 

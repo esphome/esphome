@@ -4,7 +4,7 @@
 namespace esphome {
 namespace sht3xd {
 
-static const char *TAG = "sht3xd";
+static const char *const TAG = "sht3xd";
 
 static const uint16_t SHT3XD_COMMAND_READ_SERIAL_NUMBER = 0x3780;
 static const uint16_t SHT3XD_COMMAND_READ_STATUS = 0xF32D;

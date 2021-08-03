@@ -4,7 +4,6 @@ from esphome.const import CONF_PACKAGES
 
 
 def _merge_package(full_old, full_new):
-
     def merge(old, new):
         # pylint: disable=no-else-return
         if isinstance(new, dict):
@@ -30,8 +29,10 @@ def do_packages_pass(config: dict):
     packages = config[CONF_PACKAGES]
     with cv.prepend_path(CONF_PACKAGES):
         if not isinstance(packages, dict):
-            raise cv.Invalid("Packages must be a key to value mapping, got {} instead"
-                             "".format(type(packages)))
+            raise cv.Invalid(
+                "Packages must be a key to value mapping, got {} instead"
+                "".format(type(packages))
+            )
 
         for package_name, package_config in packages.items():
             with cv.prepend_path(package_name):
