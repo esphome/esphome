@@ -4,7 +4,7 @@
 namespace esphome {
 namespace pmsa003i {
 
-static const char *TAG = "pmsa003i";
+static const char *const TAG = "pmsa003i";
 
 void PMSA003IComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up pmsa003i...");
