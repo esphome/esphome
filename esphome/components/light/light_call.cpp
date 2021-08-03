@@ -205,15 +205,15 @@ LightColorValues LightCall::validate_() {
     }
   }
 
-#define VALIDATE_RANGE_(name_, upper_name) \
+#define VALIDATE_RANGE_(name_, upper_name, min, max) \
   if (name_##_.has_value()) { \
     auto val = *name_##_; \
-    if (val < 0.0f || val > 1.0f) { \
-      ESP_LOGW(TAG, "'%s' - %s value %.2f is out of range [0.0 - 1.0]!", name, upper_name, val); \
-      name_##_ = clamp(val, 0.0f, 1.0f); \
+    if (val < (min) || val > (max)) { \
+      ESP_LOGW(TAG, "'%s' - %s value %.2f is out of range [%.1f - %.1f]!", name, upper_name, val, (min), (max)); \
+      name_##_ = clamp(val, (min), (max)); \
     } \
   }
-#define VALIDATE_RANGE(name, upper_name) VALIDATE_RANGE_(name, upper_name)
+#define VALIDATE_RANGE(name, upper_name) VALIDATE_RANGE_(name, upper_name, 0.0f, 1.0f)
 
   // Range checks
   VALIDATE_RANGE(brightness, "Brightness")
@@ -224,6 +224,7 @@ LightColorValues LightCall::validate_() {
   VALIDATE_RANGE(white, "White")
   VALIDATE_RANGE(cold_white, "Cold white")
   VALIDATE_RANGE(warm_white, "Warm white")
+  VALIDATE_RANGE_(color_temperature, "Color temperature", traits.get_min_mireds(), traits.get_max_mireds())
 
   // Turn off when brightness is set to zero, and reset brightness (so that it has nonzero brightness when turned on).
   if (this->brightness_.has_value() && *this->brightness_ == 0.0f) {
