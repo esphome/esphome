@@ -5,7 +5,7 @@
 
 namespace esphome {
 
-static const char *TAG = "scheduler";
+static const char *const TAG = "scheduler";
 
 static const uint32_t SCHEDULER_DONT_RUN = 4294967295UL;
 static const uint32_t MAX_LOGICALLY_DELETED_ITEMS = 10;

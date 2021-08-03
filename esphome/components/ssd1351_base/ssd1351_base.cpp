@@ -5,7 +5,7 @@
 namespace esphome {
 namespace ssd1351_base {
 
-static const char *TAG = "ssd1351";
+static const char *const TAG = "ssd1351";
 
 static const uint16_t BLACK = 0;
 static const uint16_t WHITE = 0xffff;
@@ -151,14 +151,14 @@ size_t SSD1351::get_buffer_length_() {
 void HOT SSD1351::draw_absolute_pixel_internal(int x, int y, Color color) {
   if (x >= this->get_width_internal() || x < 0 || y >= this->get_height_internal() || y < 0)
     return;
-  const uint32_t color565 = color.to_rgb_565();
+  const uint32_t color565 = display::ColorUtil::color_to_565(color);
   // where should the bits go in the big buffer array? math...
   uint16_t pos = (x + y * this->get_width_internal()) * SSD1351_BYTESPERPIXEL;
   this->buffer_[pos++] = (color565 >> 8) & 0xff;
   this->buffer_[pos] = color565 & 0xff;
 }
 void SSD1351::fill(Color color) {
-  const uint32_t color565 = color.to_rgb_565();
+  const uint32_t color565 = display::ColorUtil::color_to_565(color);
   for (uint32_t i = 0; i < this->get_buffer_length_(); i++)
     if (i & 1) {
       this->buffer_[i] = color565 & 0xff;

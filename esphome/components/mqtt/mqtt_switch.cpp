@@ -6,7 +6,7 @@
 namespace esphome {
 namespace mqtt {
 
-static const char *TAG = "mqtt.switch";
+static const char *const TAG = "mqtt.switch";
 
 using namespace esphome::switch_;
 

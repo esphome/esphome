@@ -63,7 +63,7 @@ class TM1637Display : public PollingComponent {
   GPIOPin *clk_pin_;
   uint8_t intensity_;
   optional<tm1637_writer_t> writer_{};
-  uint8_t buffer_[4] = {0};
+  uint8_t buffer_[6] = {0};
 };
 
 }  // namespace tm1637

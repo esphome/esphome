@@ -20,7 +20,7 @@ _LISTENER_TIME = 200
 
 # Some DNS constants
 
-_MDNS_ADDR = '224.0.0.251'
+_MDNS_ADDR = "224.0.0.251"
 _MDNS_PORT = 5353
 
 _MAX_MSG_ABSOLUTE = 8966
@@ -96,7 +96,7 @@ class QuietLogger:
             logger = log.debug
         if logger_data is not None:
             logger(*logger_data)
-        logger('Exception occurred:', exc_info=True)
+        logger("Exception occurred:", exc_info=True)
 
     @classmethod
     def log_warning_once(cls, *args):
@@ -129,9 +129,11 @@ class DNSQuestion(DNSEntry):
 
     def answered_by(self, rec):
         """Returns true if the question is answered by the record"""
-        return (self.class_ == rec.class_ and
-                (self.type == rec.type or self.type == _TYPE_ANY) and
-                self.name == rec.name)
+        return (
+            self.class_ == rec.class_
+            and (self.type == rec.type or self.type == _TYPE_ANY)
+            and self.name == rec.name
+        )
 
 
 class DNSRecord(DNSEntry):
@@ -202,26 +204,32 @@ class DNSIncoming(QuietLogger):
             self.valid = True
 
         except (IndexError, struct.error, IncomingDecodeError):
-            self.log_exception_warning((
-                'Choked at offset %d while unpacking %r', self.offset, data))
+            self.log_exception_warning(
+                ("Choked at offset %d while unpacking %r", self.offset, data)
+            )
 
     def unpack(self, format_):
         length = struct.calcsize(format_)
-        info = struct.unpack(
-            format_, self.data[self.offset:self.offset + length])
+        info = struct.unpack(format_, self.data[self.offset : self.offset + length])
         self.offset += length
         return info
 
     def read_header(self):
         """Reads header portion of packet"""
-        (self.id, self.flags, self.num_questions, self.num_answers,
-         self.num_authorities, self.num_additionals) = self.unpack(b'!6H')
+        (
+            self.id,
+            self.flags,
+            self.num_questions,
+            self.num_answers,
+            self.num_authorities,
+            self.num_additionals,
+        ) = self.unpack(b"!6H")
 
     def read_questions(self):
         """Reads questions section of packet"""
         for _ in range(self.num_questions):
             name = self.read_name()
-            type_, class_ = self.unpack(b'!HH')
+            type_, class_ = self.unpack(b"!HH")
 
             question = DNSQuestion(name, type_, class_)
             self.questions.append(question)
@@ -234,13 +242,13 @@ class DNSIncoming(QuietLogger):
 
     def read_string(self, length):
         """Reads a string of a given length from the packet"""
-        info = self.data[self.offset:self.offset + length]
+        info = self.data[self.offset : self.offset + length]
         self.offset += length
         return info
 
     def read_unsigned_short(self):
         """Reads an unsigned short from the packet"""
-        return self.unpack(b'!H')[0]
+        return self.unpack(b"!H")[0]
 
     def read_others(self):
         """Reads the answers, authorities and additionals section of the
@@ -248,18 +256,15 @@ class DNSIncoming(QuietLogger):
         n = self.num_answers + self.num_authorities + self.num_additionals
         for _ in range(n):
             domain = self.read_name()
-            type_, class_, ttl, length = self.unpack(b'!HHiH')
+            type_, class_, ttl, length = self.unpack(b"!HHiH")
 
             rec = None
             if type_ == _TYPE_A:
-                rec = DNSAddress(
-                    domain, type_, class_, ttl, self.read_string(4))
+                rec = DNSAddress(domain, type_, class_, ttl, self.read_string(4))
             elif type_ == _TYPE_TXT:
-                rec = DNSText(
-                    domain, type_, class_, ttl, self.read_string(length))
+                rec = DNSText(domain, type_, class_, ttl, self.read_string(length))
             elif type_ == _TYPE_AAAA:
-                rec = DNSAddress(
-                    domain, type_, class_, ttl, self.read_string(16))
+                rec = DNSAddress(domain, type_, class_, ttl, self.read_string(16))
             else:
                 # Try to ignore types we don't know about
                 # Skip the payload for the resource record so the next
@@ -279,11 +284,11 @@ class DNSIncoming(QuietLogger):
 
     def read_utf(self, offset, length):
         """Reads a UTF-8 string of a given length from the packet"""
-        return str(self.data[offset:offset + length], 'utf-8', 'replace')
+        return str(self.data[offset : offset + length], "utf-8", "replace")
 
     def read_name(self):
         """Reads a domain name from the packet"""
-        result = ''
+        result = ""
         off = self.offset
         next_ = -1
         first = off
@@ -295,15 +300,14 @@ class DNSIncoming(QuietLogger):
                 break
             t = length & 0xC0
             if t == 0x00:
-                result = ''.join((result, self.read_utf(off, length) + '.'))
+                result = "".join((result, self.read_utf(off, length) + "."))
                 off += length
             elif t == 0xC0:
                 if next_ < 0:
                     next_ = off + 1
                 off = ((length & 0x3F) << 8) | self.data[off]
                 if off >= first:
-                    raise IncomingDecodeError(
-                        f"Bad domain name (circular) at {off}")
+                    raise IncomingDecodeError(f"Bad domain name (circular) at {off}")
                 first = off
             else:
                 raise IncomingDecodeError(f"Bad domain name at {off}")
@@ -341,20 +345,20 @@ class DNSOutgoing:
 
     def write_byte(self, value):
         """Writes a single byte to the packet"""
-        self.pack(b'!c', int2byte(value))
+        self.pack(b"!c", int2byte(value))
 
     def insert_short(self, index, value):
         """Inserts an unsigned short in a certain position in the packet"""
-        self.data.insert(index, struct.pack(b'!H', value))
+        self.data.insert(index, struct.pack(b"!H", value))
         self.size += 2
 
     def write_short(self, value):
         """Writes an unsigned short to the packet"""
-        self.pack(b'!H', value)
+        self.pack(b"!H", value)
 
     def write_int(self, value):
         """Writes an unsigned integer to the packet"""
-        self.pack(b'!I', int(value))
+        self.pack(b"!I", int(value))
 
     def write_string(self, value):
         """Writes a string to the packet"""
@@ -364,7 +368,7 @@ class DNSOutgoing:
 
     def write_utf(self, s):
         """Writes a UTF-8 string of a given length to the packet"""
-        utfstr = s.encode('utf-8')
+        utfstr = s.encode("utf-8")
         length = len(utfstr)
         self.write_byte(length)
         self.write_string(utfstr)
@@ -377,12 +381,12 @@ class DNSOutgoing:
 
     def write_name(self, name):
         # split name into each label
-        parts = name.split('.')
+        parts = name.split(".")
         if not parts[-1]:
             parts.pop()
 
         # construct each suffix
-        name_suffices = ['.'.join(parts[i:]) for i in range(len(parts))]
+        name_suffices = [".".join(parts[i:]) for i in range(len(parts))]
 
         # look for an existing name or suffix
         for count, sub_name in enumerate(name_suffices):
@@ -392,9 +396,11 @@ class DNSOutgoing:
             count = len(name_suffices)
 
         # note the new names we are saving into the packet
-        name_length = len(name.encode('utf-8'))
+        name_length = len(name.encode("utf-8"))
         for suffix in name_suffices[:count]:
-            self.names[suffix] = self.size + name_length - len(suffix.encode('utf-8')) - 1
+            self.names[suffix] = (
+                self.size + name_length - len(suffix.encode("utf-8")) - 1
+            )
 
         # write the new names out.
         for part in parts[:count]:
@@ -427,12 +433,12 @@ class DNSOutgoing:
             self.insert_short(0, len(self.questions))
             self.insert_short(0, self.flags)  # _FLAGS_QR_QUERY
             self.insert_short(0, 0)
-        return b''.join(self.data)
+        return b"".join(self.data)
 
 
 class Engine(threading.Thread):
     def __init__(self, zc):
-        threading.Thread.__init__(self, name='zeroconf-Engine')
+        threading.Thread.__init__(self, name="zeroconf-Engine")
         self.daemon = True
         self.zc = zc
         self.readers = {}
@@ -488,7 +494,7 @@ class Listener(QuietLogger):
             self.log_exception_warning()
             return
 
-        log.debug('Received from %r:%r: %r ', addr, port, data)
+        log.debug("Received from %r:%r: %r ", addr, port, data)
 
         self.data = data
         msg = DNSIncoming(data)
@@ -530,8 +536,7 @@ class HostResolver(RecordUpdateListener):
                     return False
                 if next_ <= now:
                     out = DNSOutgoing(_FLAGS_QR_QUERY)
-                    out.add_question(
-                        DNSQuestion(self.name, _TYPE_A, _CLASS_IN))
+                    out.add_question(DNSQuestion(self.name, _TYPE_A, _CLASS_IN))
                     zc.send(out)
                     next_ = now + delay
                     delay *= 2
@@ -592,10 +597,12 @@ class DashboardStatus(RecordUpdateListener, threading.Thread):
         while not self.stop_event.is_set():
             self.purge_cache()
             for host in self.query_hosts:
-                if all(record.is_expired(time.time()) for record in self.cache.get(host, [])):
+                if all(
+                    record.is_expired(time.time())
+                    for record in self.cache.get(host, [])
+                ):
                     out = DNSOutgoing(_FLAGS_QR_QUERY)
-                    out.add_question(
-                        DNSQuestion(host, _TYPE_A, _CLASS_IN))
+                    out.add_question(DNSQuestion(host, _TYPE_A, _CLASS_IN))
                     self.zc.send(out)
             self.query_event.wait()
             self.query_event.clear()
@@ -603,12 +610,15 @@ class DashboardStatus(RecordUpdateListener, threading.Thread):
 
 
 def get_all_addresses():
-    return list({
-        addr.ip
-        for iface in ifaddr.get_adapters()
-        for addr in iface.ips
-        if addr.is_IPv4 and addr.network_prefix != 32  # Host only netmask 255.255.255.255
-    })
+    return list(
+        {
+            addr.ip
+            for iface in ifaddr.get_adapters()
+            for addr in iface.ips
+            if addr.is_IPv4
+            and addr.network_prefix != 32  # Host only netmask 255.255.255.255
+        }
+    )
 
 
 def new_socket():
@@ -636,12 +646,12 @@ def new_socket():
 
     # OpenBSD needs the ttl and loop values for the IP_MULTICAST_TTL and
     # IP_MULTICAST_LOOP socket options as an unsigned char.
-    ttl = struct.pack(b'B', 255)
+    ttl = struct.pack(b"B", 255)
     s.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, ttl)
-    loop = struct.pack(b'B', 1)
+    loop = struct.pack(b"B", 1)
     s.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_LOOP, loop)
 
-    s.bind(('', _MDNS_PORT))
+    s.bind(("", _MDNS_PORT))
     return s
 
 
@@ -659,24 +669,28 @@ class Zeroconf(QuietLogger):
             try:
                 _value = socket.inet_aton(_MDNS_ADDR) + socket.inet_aton(i)
                 self._listen_socket.setsockopt(
-                    socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, _value)
+                    socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, _value
+                )
             except OSError as e:
                 _errno = e.args[0]
                 if _errno == errno.EADDRINUSE:
                     log.info(
-                        'Address in use when adding %s to multicast group, '
-                        'it is expected to happen on some systems', i,
+                        "Address in use when adding %s to multicast group, "
+                        "it is expected to happen on some systems",
+                        i,
                     )
                 elif _errno == errno.EADDRNOTAVAIL:
                     log.info(
-                        'Address not available when adding %s to multicast '
-                        'group, it is expected to happen on some systems', i,
+                        "Address not available when adding %s to multicast "
+                        "group, it is expected to happen on some systems",
+                        i,
                     )
                     continue
                 elif _errno == errno.EINVAL:
                     log.info(
-                        'Interface of %s does not support multicast, '
-                        'it is expected in WSL', i
+                        "Interface of %s does not support multicast, "
+                        "it is expected in WSL",
+                        i,
                     )
                     continue
 
@@ -685,7 +699,8 @@ class Zeroconf(QuietLogger):
 
             respond_socket = new_socket()
             respond_socket.setsockopt(
-                socket.IPPROTO_IP, socket.IP_MULTICAST_IF, socket.inet_aton(i))
+                socket.IPPROTO_IP, socket.IP_MULTICAST_IF, socket.inet_aton(i)
+            )
 
             self._respond_sockets.append(respond_socket)
 
@@ -728,7 +743,7 @@ class Zeroconf(QuietLogger):
             self.listeners.remove(listener)
             self.notify_all()
         except Exception as e:  # pylint: disable=broad-except
-            log.exception('Unknown error, possibly benign: %r', e)
+            log.exception("Unknown error, possibly benign: %r", e)
 
     def update_record(self, now, rec):
         """Used to notify listeners of new information that has updated
@@ -747,7 +762,7 @@ class Zeroconf(QuietLogger):
     def send(self, out):
         """Sends an outgoing packet."""
         packet = out.packet()
-        log.debug('Sending %r (%d bytes) as %r...', out, len(packet), packet)
+        log.debug("Sending %r (%d bytes) as %r...", out, len(packet), packet)
         for s in self._respond_sockets:
             if self._GLOBAL_DONE:
                 return
@@ -759,8 +774,9 @@ class Zeroconf(QuietLogger):
             else:
                 if bytes_sent != len(packet):
                     self.log_warning_once(
-                        '!!! sent %d out of %d bytes to %r' % (
-                            bytes_sent, len(packet), s))
+                        "!!! sent %d out of %d bytes to %r"
+                        % (bytes_sent, len(packet), s)
+                    )
 
     def close(self):
         """Ends the background threads, and prevent this instance from

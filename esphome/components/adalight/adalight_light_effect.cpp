@@ -4,7 +4,7 @@
 namespace esphome {
 namespace adalight {
 
-static const char *TAG = "adalight_light_effect";
+static const char *const TAG = "adalight_light_effect";
 
 static const uint32_t ADALIGHT_ACK_INTERVAL = 1000;
 static const uint32_t ADALIGHT_RECEIVE_TIMEOUT = 1000;
@@ -42,11 +42,11 @@ void AdalightLightEffect::reset_frame_(light::AddressableLight &it) {
 
 void AdalightLightEffect::blank_all_leds_(light::AddressableLight &it) {
   for (int led = it.size(); led-- > 0;) {
-    it[led].set(light::ESPColor::BLACK);
+    it[led].set(COLOR_BLACK);
   }
 }
 
-void AdalightLightEffect::apply(light::AddressableLight &it, const light::ESPColor &current_color) {
+void AdalightLightEffect::apply(light::AddressableLight &it, const Color &current_color) {
   const uint32_t now = millis();
 
   if (now - this->last_ack_ >= ADALIGHT_ACK_INTERVAL) {
@@ -130,7 +130,7 @@ AdalightLightEffect::Frame AdalightLightEffect::parse_frame_(light::AddressableL
   for (int led = 0; led < accepted_led_count; led++, led_data += 3) {
     auto white = std::min(std::min(led_data[0], led_data[1]), led_data[2]);
 
-    it[led].set(light::ESPColor(led_data[0], led_data[1], led_data[2], white));
+    it[led].set(Color(led_data[0], led_data[1], led_data[2], white));
   }
 
   return CONSUMED;

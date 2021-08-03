@@ -13,6 +13,9 @@ __pycache__/
 # Intellij Idea
 .idea
 
+# Vim
+*.swp
+
 # Hide some OS X stuff
 .DS_Store
 .AppleDouble
@@ -81,7 +84,8 @@ venv.bak/
 .pioenvs
 .piolibdeps
 .pio
-.vscode
+.vscode/
+!.vscode/tasks.json
 CMakeListsPrivate.txt
 CMakeLists.txt
 
@@ -99,6 +103,8 @@ CMakeLists.txt
 
 # CMake
 cmake-build-debug/
+cmake-build-livingroom8266/
+cmake-build-livingroom32/
 cmake-build-release/
 
 CMakeCache.txt
