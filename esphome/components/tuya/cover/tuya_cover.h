@@ -3,7 +3,6 @@
 #include "esphome/core/component.h"
 #include "esphome/components/tuya/tuya.h"
 #include "esphome/components/cover/cover.h"
-#include "esphome/components/api/custom_api_device.h"
 
 namespace esphome {
 namespace tuya {
@@ -14,7 +13,7 @@ enum TuyaCoverRestoreMode {
   COVER_RESTORE_AND_CALL,
 };
 
-class TuyaCover : public cover::Cover, public Component, api::CustomAPIDevice {
+class TuyaCover : public cover::Cover, public Component {
  public:
   void setup() override;
   void dump_config() override;

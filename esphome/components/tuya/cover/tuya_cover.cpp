@@ -51,8 +51,6 @@ void TuyaCover::setup() {
   // report a useful value.  As the operation state can only be idle,
   // opening or closing, we can't set an accurate mode, so don't bother to
   // set it at all - it'll always report itself as idle.
-
-  register_service(&TuyaCover::set_direction, "set_direction", {"inverted"});
 }
 
 void TuyaCover::dump_config() { ESP_LOGCONFIG(TAG, "Tuya Cover:"); }
@@ -62,11 +60,7 @@ void TuyaCover::set_direction(bool inverted) {
   if (this->direction_id_.has_value()) {
     direction_id = *this->direction_id_;
   }
-  TuyaDatapoint datapoint{};
-  datapoint.id = direction_id;
-  datapoint.type = TuyaDatapointType::BOOLEAN;
-  datapoint.value_bool = inverted;
-  this->parent_->set_datapoint_value(datapoint);
+  this->parent_->set_datapoint_value(direction_id, inverted);
 
   if (inverted) {
     ESP_LOGD(TAG, "Setting direction: inverted");
@@ -83,41 +77,26 @@ void TuyaCover::control(const CoverCall &call) {
     control_id = *this->control_id_;
   }
   if (call.get_stop()) {
-    TuyaDatapoint datapoint{};
-    datapoint.id = control_id;
-    datapoint.type = TuyaDatapointType::ENUM;
-    datapoint.value_enum = 0x01;
-    this->parent_->set_datapoint_value(datapoint);
+    this->parent_->set_datapoint_value(control_id, 0x01);
     ESP_LOGD(TAG, "Stopping");
   }
   if (call.get_position().has_value()) {
     auto pos = *call.get_position();
 
     if (pos == COVER_OPEN) {
-      TuyaDatapoint datapoint{};
-      datapoint.id = control_id;
-      datapoint.type = TuyaDatapointType::ENUM;
-      datapoint.value_enum = 0x00;
-      this->parent_->set_datapoint_value(datapoint);
+      this->parent_->set_datapoint_value(control_id, 0x00);
       ESP_LOGD(TAG, "Opening");
     } else if (pos == COVER_CLOSED) {
-      TuyaDatapoint datapoint{};
-      datapoint.id = control_id;
-      datapoint.type = TuyaDatapointType::ENUM;
-      datapoint.value_enum = 0x02;
-      this->parent_->set_datapoint_value(datapoint);
+      this->parent_->set_datapoint_value(control_id, 0x02);
       ESP_LOGD(TAG, "Closing");
     } else {
       uint8_t pos_control_id = 0x02;
       if (this->position_control_id_.has_value()) {
         pos_control_id = *this->position_control_id_;
       }
-      TuyaDatapoint datapoint{};
-      datapoint.id = pos_control_id;
-      datapoint.type = TuyaDatapointType::INTEGER;
       int requested_pos = (int) (pos * 100);
-      datapoint.value_int = 100 - requested_pos;
-      this->parent_->set_datapoint_value(datapoint);
+      int value_int = 100 - requested_pos;
+      this->parent_->set_datapoint_value(pos_control_id, value_int);
       ESP_LOGD(TAG, "Setting position: %d%%", requested_pos);
     }
 
