@@ -120,7 +120,7 @@ void SCD30Component::dump_config() {
     ESP_LOGCONFIG(TAG, "  Altitude compensation: %dm", this->altitude_compensation_);
   }
   ESP_LOGCONFIG(TAG, "  Automatic self calibration: %s", ONOFF(this->enable_asc_));
-  ESP_LOGCONFIG(TAG, "  CO2 concentration used for forced calibration: %d ppm", frc_baseline_);
+  ESP_LOGCONFIG(TAG, "  CO2 concentration used for forced calibration: %d ppm", forced_calibration_baseline_);
   ESP_LOGCONFIG(TAG, "  Ambient pressure compensation: %dmBar", this->ambient_pressure_compensation_);
   ESP_LOGCONFIG(TAG, "  Temperature offset: %.2f °C", this->temperature_offset_);
   LOG_UPDATE_INTERVAL(this);
@@ -187,9 +187,9 @@ void SCD30Component::forced_recalibration() {
     asc_disable();
   }
 
-  ESP_LOGD(TAG, "SCD30 starting forced recalibration (FRC) with value %d ppm", frc_baseline_);
+  ESP_LOGD(TAG, "SCD30 starting forced recalibration (FRC) with value %d ppm", forced_calibration_baseline_);
 
-  if (!this->write_command_(SCD30_CMD_FORCED_CALIBRATION, frc_baseline_)) {
+  if (!this->write_command_(SCD30_CMD_FORCED_CALIBRATION, forced_calibration_baseline_)) {
     ESP_LOGE(TAG, "Sensor SCD30 error starting continuous measurements.");
     this->error_code_ = MEASUREMENT_INIT_FAILED;
     this->mark_failed();

@@ -16,7 +16,7 @@ class SCD30Component : public PollingComponent, public i2c::I2CDevice {
   void set_temperature_sensor(sensor::Sensor *temperature) { temperature_sensor_ = temperature; }
   void set_altitude_compensation(uint16_t altitude) { altitude_compensation_ = altitude; }
   void set_automatic_self_calibration(bool asc_enabled) { enable_asc_ = asc_enabled; }
-  void set_frc_baseline(int baseline) { frc_baseline_ = baseline; }
+  void set_forced_calibration_baseline(int baseline) { forced_calibration_baseline_ = baseline; }
 
   void forced_recalibration();
   void asc_enable();
@@ -51,7 +51,7 @@ class SCD30Component : public PollingComponent, public i2c::I2CDevice {
   sensor::Sensor *co2_sensor_{nullptr};
   sensor::Sensor *humidity_sensor_{nullptr};
   sensor::Sensor *temperature_sensor_{nullptr};
-  int frc_baseline_ = 410;
+  int forced_calibration_baseline_ = 410;
 };
 
 template<typename... Ts> class SCD30ForcedRecalibrationAction : public Action<Ts...> {

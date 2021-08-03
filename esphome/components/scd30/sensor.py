@@ -31,7 +31,7 @@ CONF_AUTOMATIC_SELF_CALIBRATION = "automatic_self_calibration"
 CONF_ALTITUDE_COMPENSATION = "altitude_compensation"
 CONF_AMBIENT_PRESSURE_COMPENSATION = "ambient_pressure_compensation"
 CONF_TEMPERATURE_OFFSET = "temperature_offset"
-CONF_FRC_BASELINE = "frc_baseline"
+CONF_FORCED_CALIBRATION_BASELINE = "forced_calibration_baseline"
 
 
 CONFIG_SCHEMA = (
@@ -63,43 +63,7 @@ CONFIG_SCHEMA = (
             ),
             cv.Optional(CONF_AMBIENT_PRESSURE_COMPENSATION, default=0): cv.pressure,
             cv.Optional(CONF_TEMPERATURE_OFFSET): cv.temperature,
-        }
-    )
-    .extend(cv.polling_component_schema("60s"))
-    .extend(i2c.i2c_device_schema(0x61))
-)
-
-
-CONFIG_SCHEMA = (
-    cv.Schema(
-        {
-            cv.GenerateID(): cv.declare_id(SCD30Component),
-            cv.Optional(CONF_CO2): sensor.sensor_schema(
-                unit_of_measurement=UNIT_PARTS_PER_MILLION,
-                icon=ICON_MOLECULE_CO2,
-                accuracy_decimals=0,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ),
-            cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_CELSIUS,
-                accuracy_decimals=1,
-                device_class=DEVICE_CLASS_TEMPERATURE,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ),
-            cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(
-                unit_of_measurement=UNIT_PERCENT,
-                accuracy_decimals=1,
-                device_class=DEVICE_CLASS_HUMIDITY,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ),
-            cv.Optional(CONF_AUTOMATIC_SELF_CALIBRATION, default=True): cv.boolean,
-            cv.Optional(CONF_ALTITUDE_COMPENSATION): cv.All(
-                cv.float_with_unit("altitude", "(m|m a.s.l.|MAMSL|MASL)"),
-                cv.int_range(min=0, max=0xFFFF, max_included=False),
-            ),
-            cv.Optional(CONF_AMBIENT_PRESSURE_COMPENSATION, default=0): cv.pressure,
-            cv.Optional(CONF_TEMPERATURE_OFFSET): cv.temperature,
-            cv.Optional(CONF_FRC_BASELINE): cv.int_range(
+            cv.Optional(CONF_FORCED_CALIBRATION_BASELINE): cv.int_range(
                 min=400, max=2000, max_included=True
             ),
         }
@@ -118,8 +82,12 @@ async def to_code(config):
     if CONF_ALTITUDE_COMPENSATION in config:
         cg.add(var.set_altitude_compensation(config[CONF_ALTITUDE_COMPENSATION]))
 
-    if CONF_FRC_BASELINE in config:
-        cg.add(var.set_frc_baseline(config[CONF_FRC_BASELINE]))
+    if CONF_FORCED_CALIBRATION_BASELINE in config:
+        cg.add(
+            var.set_forced_calibration_baseline(
+                config[CONF_FORCED_CALIBRATION_BASELINE]
+            )
+        )
 
     if CONF_AMBIENT_PRESSURE_COMPENSATION in config:
         cg.add(
@@ -152,15 +120,19 @@ CALIBRATION_ACTION_SCHEMA = maybe_simple_id(
 
 
 @automation.register_action(
-    "scd30.forced_recalibration",
+    "scd30.start_forced_recalibration",
     SCD30ForcedRecalibrationAction,
     CALIBRATION_ACTION_SCHEMA,
 )
 @automation.register_action(
-    "scd30.asc_enable", SCD30ASCEnableAction, CALIBRATION_ACTION_SCHEMA
+    "scd30.automatic_self_calibration_enable",
+    SCD30ASCEnableAction,
+    CALIBRATION_ACTION_SCHEMA,
 )
 @automation.register_action(
-    "scd30.asc_disable", SCD30ASCDisableAction, CALIBRATION_ACTION_SCHEMA
+    "scd30.automatic_self_calibration_disable",
+    SCD30ASCDisableAction,
+    CALIBRATION_ACTION_SCHEMA,
 )
 async def scd30_calibration_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
