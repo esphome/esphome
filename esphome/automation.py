@@ -158,7 +158,7 @@ async def not_condition_to_code(config, condition_id, template_arg, args):
     return cg.new_Pvariable(condition_id, template_arg, condition)
 
 
-@register_condition("lambda", LambdaCondition, cv.lambda_)
+@register_condition("lambda", LambdaCondition, cv.returning_lambda)
 async def lambda_condition_to_code(config, condition_id, template_arg, args):
     lambda_ = await cg.process_lambda(config, args, return_type=bool)
     return cg.new_Pvariable(condition_id, template_arg, lambda_)

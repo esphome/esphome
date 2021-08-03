@@ -85,12 +85,6 @@ class ESPBTDevice {
   int get_rssi() const { return rssi_; }
   const std::string &get_name() const { return this->name_; }
 
-  ESPDEPRECATED("Use get_tx_powers() instead")
-  optional<int8_t> get_tx_power() const {
-    if (this->tx_powers_.empty())
-      return {};
-    return this->tx_powers_[0];
-  }
   const std::vector<int8_t> &get_tx_powers() const { return tx_powers_; }
 
   const optional<uint16_t> &get_appearance() const { return appearance_; }

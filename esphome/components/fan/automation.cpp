@@ -4,7 +4,7 @@
 namespace esphome {
 namespace fan {
 
-static const char *TAG = "fan.automation";
+static const char *const TAG = "fan.automation";
 
 }  // namespace fan
 }  // namespace esphome

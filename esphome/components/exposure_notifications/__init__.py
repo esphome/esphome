@@ -32,8 +32,8 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
-def to_code(config):
+async def to_code(config):
     for conf in config.get(CONF_ON_EXPOSURE_NOTIFICATION, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
-        yield automation.build_automation(trigger, [(ExposureNotification, "x")], conf)
-        yield esp32_ble_tracker.register_ble_device(trigger, conf)
+        await automation.build_automation(trigger, [(ExposureNotification, "x")], conf)
+        await esp32_ble_tracker.register_ble_device(trigger, conf)

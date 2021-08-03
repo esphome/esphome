@@ -4,7 +4,7 @@
 namespace esphome {
 namespace sds011 {
 
-static const char *TAG = "sds011";
+static const char *const TAG = "sds011";
 
 static const uint8_t SDS011_MSG_REQUEST_LENGTH = 19;
 static const uint8_t SDS011_MSG_RESPONSE_LENGTH = 10;

@@ -16,9 +16,9 @@ CONFIG_SCHEMA = light.BRIGHTNESS_ONLY_LIGHT_SCHEMA.extend(
 )
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_OUTPUT_ID])
-    yield light.register_light(var, config)
+    await light.register_light(var, config)
 
-    out = yield cg.get_variable(config[CONF_OUTPUT])
+    out = await cg.get_variable(config[CONF_OUTPUT])
     cg.add(var.set_output(out))

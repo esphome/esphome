@@ -4,7 +4,7 @@
 namespace esphome {
 namespace adalight {
 
-static const char *TAG = "adalight_light_effect";
+static const char *const TAG = "adalight_light_effect";
 
 static const uint32_t ADALIGHT_ACK_INTERVAL = 1000;
 static const uint32_t ADALIGHT_RECEIVE_TIMEOUT = 1000;

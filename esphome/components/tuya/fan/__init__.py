@@ -28,14 +28,14 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def to_code(config):
-    parent = yield cg.get_variable(config[CONF_TUYA_ID])
-    state = yield fan.create_fan_state(config)
+async def to_code(config):
+    parent = await cg.get_variable(config[CONF_TUYA_ID])
+    state = await fan.create_fan_state(config)
 
     var = cg.new_Pvariable(
         config[CONF_OUTPUT_ID], parent, state, config[CONF_SPEED_COUNT]
     )
-    yield cg.register_component(var, config)
+    await cg.register_component(var, config)
 
     if CONF_SPEED_DATAPOINT in config:
         cg.add(var.set_speed_id(config[CONF_SPEED_DATAPOINT]))

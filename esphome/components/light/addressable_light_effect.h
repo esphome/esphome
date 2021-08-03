@@ -1,5 +1,7 @@
 #pragma once
 
+#include <utility>
+
 #include "esphome/core/component.h"
 #include "esphome/components/light/light_state.h"
 #include "esphome/components/light/addressable_light.h"
@@ -51,9 +53,9 @@ class AddressableLightEffect : public LightEffect {
 class AddressableLambdaLightEffect : public AddressableLightEffect {
  public:
   AddressableLambdaLightEffect(const std::string &name,
-                               const std::function<void(AddressableLight &, Color, bool initial_run)> &f,
+                               std::function<void(AddressableLight &, Color, bool initial_run)> f,
                                uint32_t update_interval)
-      : AddressableLightEffect(name), f_(f), update_interval_(update_interval) {}
+      : AddressableLightEffect(name), f_(std::move(f)), update_interval_(update_interval) {}
   void start() override { this->initial_run_ = true; }
   void apply(AddressableLight &it, const Color &current_color) override {
     const uint32_t now = millis();
@@ -335,7 +337,7 @@ class AddressableFlickerEffect : public AddressableLightEffect {
     }
   }
   void set_update_interval(uint32_t update_interval) { this->update_interval_ = update_interval; }
-  void set_intensity(float intensity) { this->intensity_ = static_cast<uint8_t>(roundf(intensity * 255.0f)); }
+  void set_intensity(float intensity) { this->intensity_ = to_uint8_scale(intensity); }
 
  protected:
   uint32_t update_interval_{16};

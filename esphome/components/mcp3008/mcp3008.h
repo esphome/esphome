@@ -26,7 +26,7 @@ class MCP3008 : public Component,
 
 class MCP3008Sensor : public PollingComponent, public sensor::Sensor, public voltage_sampler::VoltageSampler {
  public:
-  MCP3008Sensor(MCP3008 *parent, std::string name, uint8_t pin, float reference_voltage);
+  MCP3008Sensor(MCP3008 *parent, const std::string &name, uint8_t pin, float reference_voltage);
 
   void set_reference_voltage(float reference_voltage) { reference_voltage_ = reference_voltage; }
   void setup() override;

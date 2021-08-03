@@ -4,7 +4,7 @@
 namespace esphome {
 namespace addressable_light {
 
-static const char* TAG = "addressable_light.display";
+static const char *const TAG = "addressable_light.display";
 
 int AddressableLightDisplay::get_width_internal() { return this->width_; }
 int AddressableLightDisplay::get_height_internal() { return this->height_; }
@@ -24,7 +24,7 @@ void AddressableLightDisplay::update() {
 void AddressableLightDisplay::display() {
   bool dirty = false;
   uint8_t old_r, old_g, old_b, old_w;
-  Color* c;
+  Color *c;
 
   for (uint32_t offset = 0; offset < this->addressable_light_buffer_.size(); offset++) {
     c = &(this->addressable_light_buffer_[offset]);

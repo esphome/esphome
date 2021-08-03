@@ -29,7 +29,7 @@ class DutyCycleSensor : public sensor::Sensor, public PollingComponent {
  protected:
   GPIOPin *pin_;
 
-  DutyCycleSensorStore store_;
+  DutyCycleSensorStore store_{};
   uint32_t last_update_;
 };
 

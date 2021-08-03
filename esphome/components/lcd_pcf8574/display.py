@@ -18,13 +18,13 @@ CONFIG_SCHEMA = lcd_base.LCD_SCHEMA.extend(
 ).extend(i2c.i2c_device_schema(0x3F))
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield lcd_base.setup_lcd_display(var, config)
-    yield i2c.register_i2c_device(var, config)
+    await lcd_base.setup_lcd_display(var, config)
+    await i2c.register_i2c_device(var, config)
 
     if CONF_LAMBDA in config:
-        lambda_ = yield cg.process_lambda(
+        lambda_ = await cg.process_lambda(
             config[CONF_LAMBDA],
             [(PCF8574LCDDisplay.operator("ref"), "it")],
             return_type=cg.void,
