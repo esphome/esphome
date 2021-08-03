@@ -8,7 +8,7 @@ namespace custom {
 
 class CustomTextSensorConstructor : public Component {
  public:
-  CustomTextSensorConstructor(std::function<std::vector<text_sensor::TextSensor *>()> init) {
+  CustomTextSensorConstructor(const std::function<std::vector<text_sensor::TextSensor *>()> &init) {
     this->text_sensors_ = init();
   }
 

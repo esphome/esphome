@@ -24,10 +24,10 @@ CONFIG_SCHEMA = binary_sensor.BINARY_SENSOR_SCHEMA.extend(
 )
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield binary_sensor.register_binary_sensor(var, config)
-    hub = yield cg.get_variable(config[CONF_MPR121_ID])
+    await binary_sensor.register_binary_sensor(var, config)
+    hub = await cg.get_variable(config[CONF_MPR121_ID])
     cg.add(var.set_channel(config[CONF_CHANNEL]))
 
     if CONF_TOUCH_THRESHOLD in config:

@@ -127,7 +127,7 @@ class MQTTComponent : public Component {
    * received.
    * @param qos The MQTT quality of service. Defaults to 0.
    */
-  void subscribe_json(const std::string &topic, mqtt_json_callback_t callback, uint8_t qos = 0);
+  void subscribe_json(const std::string &topic, const mqtt_json_callback_t &callback, uint8_t qos = 0);
 
  protected:
   /// Helper method to get the discovery topic for this component.

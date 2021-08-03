@@ -4,7 +4,7 @@
 namespace esphome {
 namespace switch_ {
 
-static const char *TAG = "switch";
+static const char *const TAG = "switch";
 
 std::string Switch::icon() { return ""; }
 Switch::Switch(const std::string &name) : Nameable(name), state(false) {}

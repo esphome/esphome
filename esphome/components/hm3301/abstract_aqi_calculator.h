@@ -1,7 +1,5 @@
 #pragma once
 
-#include "Arduino.h"
-
 namespace esphome {
 namespace hm3301 {
 

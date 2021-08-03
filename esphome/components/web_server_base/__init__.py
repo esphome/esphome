@@ -19,11 +19,11 @@ CONFIG_SCHEMA = cv.Schema(
 
 
 @coroutine_with_priority(65.0)
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
+    await cg.register_component(var, config)
 
     if CORE.is_esp32:
         cg.add_library("FS", None)
-    # https://github.com/OttoWinter/ESPAsyncWebServer/blob/master/library.json
-    cg.add_library("ESPAsyncWebServer-esphome", "1.2.7")
+    # https://github.com/esphome/ESPAsyncWebServer/blob/master/library.json
+    cg.add_library("esphome/ESPAsyncWebServer-esphome", "1.3.0")

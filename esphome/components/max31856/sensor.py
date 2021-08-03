@@ -5,7 +5,7 @@ from esphome.const import (
     CONF_ID,
     CONF_MAINS_FILTER,
     DEVICE_CLASS_TEMPERATURE,
-    ICON_EMPTY,
+    STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
 )
 
@@ -21,7 +21,12 @@ FILTER = {
 }
 
 CONFIG_SCHEMA = (
-    sensor.sensor_schema(UNIT_CELSIUS, ICON_EMPTY, 1, DEVICE_CLASS_TEMPERATURE)
+    sensor.sensor_schema(
+        unit_of_measurement=UNIT_CELSIUS,
+        accuracy_decimals=1,
+        device_class=DEVICE_CLASS_TEMPERATURE,
+        state_class=STATE_CLASS_MEASUREMENT,
+    )
     .extend(
         {
             cv.GenerateID(): cv.declare_id(MAX31856Sensor),
@@ -35,9 +40,9 @@ CONFIG_SCHEMA = (
 )
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
-    yield spi.register_spi_device(var, config)
-    yield sensor.register_sensor(var, config)
+    await cg.register_component(var, config)
+    await spi.register_spi_device(var, config)
+    await sensor.register_sensor(var, config)
     cg.add(var.set_filter(config[CONF_MAINS_FILTER]))

@@ -16,10 +16,10 @@ CONFIG_SCHEMA = binary_sensor.BINARY_SENSOR_SCHEMA.extend(
 )
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield binary_sensor.register_binary_sensor(var, config)
+    await binary_sensor.register_binary_sensor(var, config)
 
     cg.add(var.set_channel(config[CONF_CHANNEL]))
-    hub = yield cg.get_variable(config[CONF_TTP229_ID])
+    hub = await cg.get_variable(config[CONF_TTP229_ID])
     cg.add(hub.register_channel(var))

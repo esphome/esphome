@@ -46,11 +46,11 @@ CONFIG_SCHEMA = cv.Schema(
 
 
 @coroutine_with_priority(40.0)
-def to_code(config):
-    paren = yield cg.get_variable(config[CONF_WEB_SERVER_BASE_ID])
+async def to_code(config):
+    paren = await cg.get_variable(config[CONF_WEB_SERVER_BASE_ID])
 
     var = cg.new_Pvariable(config[CONF_ID], paren)
-    yield cg.register_component(var, config)
+    await cg.register_component(var, config)
 
     cg.add(paren.set_port(config[CONF_PORT]))
     cg.add_define("WEBSERVER_PORT", config[CONF_PORT])

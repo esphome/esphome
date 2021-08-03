@@ -35,12 +35,12 @@ CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
-    yield output.register_output(var, config)
+    await cg.register_component(var, config)
+    await output.register_output(var, config)
 
-    pin = yield cg.gpio_pin_expression(config[CONF_PIN])
+    pin = await cg.gpio_pin_expression(config[CONF_PIN])
     cg.add(var.set_pin(pin))
 
     cg.add(var.set_frequency(config[CONF_FREQUENCY]))
@@ -56,9 +56,9 @@ def to_code(config):
         }
     ),
 )
-def esp8266_set_frequency_to_code(config, action_id, template_arg, args):
-    paren = yield cg.get_variable(config[CONF_ID])
+async def esp8266_set_frequency_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = yield cg.templatable(config[CONF_FREQUENCY], args, float)
+    template_ = await cg.templatable(config[CONF_FREQUENCY], args, float)
     cg.add(var.set_frequency(template_))
-    yield var
+    return var
