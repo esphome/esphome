@@ -29,6 +29,9 @@ class PIDClimate : public climate::Climate, public Component {
 
   float get_output_value() const { return output_value_; }
   float get_error_value() const { return controller_.error; }
+  float get_kp() { return controller_.kp; }
+  float get_ki() { return controller_.ki; }
+  float get_kd() { return controller_.kd; }
   float get_proportional_term() const { return controller_.proportional_term; }
   float get_integral_term() const { return controller_.integral_term; }
   float get_derivative_term() const { return controller_.derivative_term; }
@@ -39,6 +42,7 @@ class PIDClimate : public climate::Climate, public Component {
     default_target_temperature_ = default_target_temperature;
   }
   void start_autotune(std::unique_ptr<PIDAutotuner> &&autotune);
+  void reset_integral_term();
 
  protected:
   /// Override control to change settings of the climate device.
@@ -52,7 +56,6 @@ class PIDClimate : public climate::Climate, public Component {
   bool supports_heat_() const { return this->heat_output_ != nullptr; }
 
   void write_output_(float value);
-  void handle_non_auto_mode_();
 
   /// The sensor used for getting the current temperature
   sensor::Sensor *sensor_;
@@ -87,6 +90,38 @@ template<typename... Ts> class PIDAutotuneAction : public Action<Ts...> {
   float noiseband_;
   float positive_output_;
   float negative_output_;
+  PIDClimate *parent_;
+};
+
+template<typename... Ts> class PIDResetIntegralTermAction : public Action<Ts...> {
+ public:
+  PIDResetIntegralTermAction(PIDClimate *parent) : parent_(parent) {}
+
+  void play(Ts... x) { this->parent_->reset_integral_term(); }
+
+ protected:
+  PIDClimate *parent_;
+};
+
+template<typename... Ts> class PIDSetControlParametersAction : public Action<Ts...> {
+ public:
+  PIDSetControlParametersAction(PIDClimate *parent) : parent_(parent) {}
+
+  void play(Ts... x) {
+    auto kp = this->kp_.value(x...);
+    auto ki = this->ki_.value(x...);
+    auto kd = this->kd_.value(x...);
+
+    this->parent_->set_kp(kp);
+    this->parent_->set_ki(ki);
+    this->parent_->set_kd(kd);
+  }
+
+ protected:
+  TEMPLATABLE_VALUE(float, kp)
+  TEMPLATABLE_VALUE(float, ki)
+  TEMPLATABLE_VALUE(float, kd)
+
   PIDClimate *parent_;
 };
 

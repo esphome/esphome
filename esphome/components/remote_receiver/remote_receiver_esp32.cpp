@@ -7,10 +7,11 @@
 namespace esphome {
 namespace remote_receiver {
 
-static const char *TAG = "remote_receiver.esp32";
+static const char *const TAG = "remote_receiver.esp32";
 
 void RemoteReceiverComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up Remote Receiver...");
+  this->pin_->setup();
   rmt_config_t rmt{};
   this->config_rmt(rmt);
   rmt.gpio_num = gpio_num_t(this->pin_->get_pin());

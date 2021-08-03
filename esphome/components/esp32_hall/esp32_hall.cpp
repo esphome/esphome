@@ -7,7 +7,7 @@
 namespace esphome {
 namespace esp32_hall {
 
-static const char *TAG = "esp32_hall";
+static const char *const TAG = "esp32_hall";
 
 void ESP32HallSensor::update() {
   float value = (hallRead() / 4095.0f) * 10000.0f;

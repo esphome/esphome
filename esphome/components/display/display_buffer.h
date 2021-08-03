@@ -3,7 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/automation.h"
-#include "esphome/core/color.h"
+#include "display_color_utils.h"
 
 #ifdef USE_TIME
 #include "esphome/components/time/real_time_clock.h"
@@ -68,7 +68,7 @@ extern const Color COLOR_OFF;
 /// Turn the pixel ON.
 extern const Color COLOR_ON;
 
-enum ImageType { BINARY = 0, GRAYSCALE4 = 1, RGB565 = 2 };
+enum ImageType { IMAGE_TYPE_BINARY = 0, IMAGE_TYPE_GRAYSCALE = 1, IMAGE_TYPE_RGB24 = 2 };
 
 enum DisplayRotation {
   DISPLAY_ROTATION_0_DEGREES = 0,
@@ -81,14 +81,15 @@ class Font;
 class Image;
 class DisplayBuffer;
 class DisplayPage;
+class DisplayOnPageChangeTrigger;
 
 using display_writer_t = std::function<void(DisplayBuffer &)>;
 
 #define LOG_DISPLAY(prefix, type, obj) \
-  if (obj != nullptr) { \
+  if ((obj) != nullptr) { \
     ESP_LOGCONFIG(TAG, prefix type); \
-    ESP_LOGCONFIG(TAG, "%s  Rotations: %d °", prefix, obj->rotation_); \
-    ESP_LOGCONFIG(TAG, "%s  Dimensions: %dpx x %dpx", prefix, obj->get_width(), obj->get_height()); \
+    ESP_LOGCONFIG(TAG, "%s  Rotations: %d °", prefix, (obj)->rotation_); \
+    ESP_LOGCONFIG(TAG, "%s  Dimensions: %dpx x %dpx", prefix, (obj)->get_width(), (obj)->get_height()); \
   }
 
 class DisplayBuffer {
@@ -262,9 +263,15 @@ class DisplayBuffer {
       __attribute__((format(strftime, 5, 0)));
 #endif
 
-  /// Draw the `image` with the top-left corner at [x,y] to the screen.
-  void image(int x, int y, Image *image);
-  void image(int x, int y, Color color, Image *image, bool invert = false);
+  /** Draw the `image` with the top-left corner at [x,y] to the screen.
+   *
+   * @param x The x coordinate of the upper left corner.
+   * @param y The y coordinate of the upper left corner.
+   * @param image The image to draw
+   * @param color_on The color to replace in binary images for the on bits.
+   * @param color_off The color to replace in binary images for the off bits.
+   */
+  void image(int x, int y, Image *image, Color color_on = COLOR_ON, Color color_off = COLOR_OFF);
 
   /** Get the text bounds of the given string.
    *
@@ -290,6 +297,10 @@ class DisplayBuffer {
 
   void set_pages(std::vector<DisplayPage *> pages);
 
+  const DisplayPage *get_active_page() const { return this->page_; }
+
+  void add_on_page_change_trigger(DisplayOnPageChangeTrigger *t) { this->on_page_change_triggers_.push_back(t); }
+
   /// Internal method to set the display rotation with.
   void set_rotation(DisplayRotation rotation);
 
@@ -310,11 +321,13 @@ class DisplayBuffer {
   DisplayRotation rotation_{DISPLAY_ROTATION_0_DEGREES};
   optional<display_writer_t> writer_{};
   DisplayPage *page_{nullptr};
+  DisplayPage *previous_page_{nullptr};
+  std::vector<DisplayOnPageChangeTrigger *> on_page_change_triggers_;
 };
 
 class DisplayPage {
  public:
-  DisplayPage(const display_writer_t &writer);
+  DisplayPage(display_writer_t writer);
   void show();
   void show_next();
   void show_prev();
@@ -330,10 +343,18 @@ class DisplayPage {
   DisplayPage *next_{nullptr};
 };
 
+struct GlyphData {
+  const char *a_char;
+  const uint8_t *data;
+  int offset_x;
+  int offset_y;
+  int width;
+  int height;
+};
+
 class Glyph {
  public:
-  Glyph(const char *a_char, const uint8_t *data_start, uint32_t offset, int offset_x, int offset_y, int width,
-        int height);
+  Glyph(const GlyphData *data) : glyph_data_(data) {}
 
   bool get_pixel(int x, int y) const;
 
@@ -349,12 +370,7 @@ class Glyph {
   friend Font;
   friend DisplayBuffer;
 
-  const char *char_;
-  const uint8_t *data_;
-  int offset_x_;
-  int offset_y_;
-  int width_;
-  int height_;
+  const GlyphData *glyph_data_;
 };
 
 class Font {
@@ -365,7 +381,7 @@ class Font {
    * @param baseline The y-offset from the top of the text to the baseline.
    * @param bottom The y-offset from the top of the text to the bottom (i.e. height).
    */
-  Font(std::vector<Glyph> &&glyphs, int baseline, int bottom);
+  Font(const GlyphData *data, int data_nr, int baseline, int bottom);
 
   int match_next_glyph(const char *str, int *match_length);
 
@@ -381,11 +397,10 @@ class Font {
 
 class Image {
  public:
-  Image(const uint8_t *data_start, int width, int height);
-  Image(const uint8_t *data_start, int width, int height, int type);
-  bool get_pixel(int x, int y) const;
-  int get_color_pixel(int x, int y) const;
-  int get_grayscale4_pixel(int x, int y) const;
+  Image(const uint8_t *data_start, int width, int height, ImageType type);
+  virtual bool get_pixel(int x, int y) const;
+  virtual Color get_color_pixel(int x, int y) const;
+  virtual Color get_grayscale_pixel(int x, int y) const;
   int get_width() const;
   int get_height() const;
   ImageType get_type() const;
@@ -393,8 +408,24 @@ class Image {
  protected:
   int width_;
   int height_;
-  ImageType type_{BINARY};
+  ImageType type_;
   const uint8_t *data_start_;
+};
+
+class Animation : public Image {
+ public:
+  Animation(const uint8_t *data_start, int width, int height, uint32_t animation_frame_count, ImageType type);
+  bool get_pixel(int x, int y) const override;
+  Color get_color_pixel(int x, int y) const override;
+  Color get_grayscale_pixel(int x, int y) const override;
+
+  int get_animation_frame_count() const;
+  int get_current_frame() const;
+  void next_frame();
+
+ protected:
+  int current_frame_;
+  int animation_frame_count_;
 };
 
 template<typename... Ts> class DisplayPageShowAction : public Action<Ts...> {
@@ -425,6 +456,30 @@ template<typename... Ts> class DisplayPageShowPrevAction : public Action<Ts...> 
   void play(Ts... x) override { this->buffer_->show_prev_page(); }
 
   DisplayBuffer *buffer_;
+};
+
+template<typename... Ts> class DisplayIsDisplayingPageCondition : public Condition<Ts...> {
+ public:
+  DisplayIsDisplayingPageCondition(DisplayBuffer *parent) : parent_(parent) {}
+
+  void set_page(DisplayPage *page) { this->page_ = page; }
+  bool check(Ts... x) override { return this->parent_->get_active_page() == this->page_; }
+
+ protected:
+  DisplayBuffer *parent_;
+  DisplayPage *page_;
+};
+
+class DisplayOnPageChangeTrigger : public Trigger<DisplayPage *, DisplayPage *> {
+ public:
+  explicit DisplayOnPageChangeTrigger(DisplayBuffer *parent) { parent->add_on_page_change_trigger(this); }
+  void process(DisplayPage *from, DisplayPage *to);
+  void set_from(DisplayPage *p) { this->from_ = p; }
+  void set_to(DisplayPage *p) { this->to_ = p; }
+
+ protected:
+  DisplayPage *from_{nullptr};
+  DisplayPage *to_{nullptr};
 };
 
 }  // namespace display

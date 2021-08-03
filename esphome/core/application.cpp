@@ -1,6 +1,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
 #include "esphome/core/version.h"
+#include "esphome/core/esphal.h"
 
 #ifdef USE_STATUS_LED
 #include "esphome/components/status_led/status_led.h"
@@ -8,7 +9,7 @@
 
 namespace esphome {
 
-static const char *TAG = "app";
+static const char *const TAG = "app";
 
 void Application::register_component_(Component *comp) {
   if (comp == nullptr) {
@@ -58,6 +59,9 @@ void Application::setup() {
   ESP_LOGI(TAG, "setup() finished successfully!");
   this->schedule_dump_config();
   this->calculate_looping_components_();
+
+  // Dummy function to link some symbols into the binary.
+  force_link_symbols();
 }
 void Application::loop() {
   uint32_t new_app_state = 0;
@@ -99,6 +103,9 @@ void Application::loop() {
   if (this->dump_config_at_ >= 0 && this->dump_config_at_ < this->components_.size()) {
     if (this->dump_config_at_ == 0) {
       ESP_LOGI(TAG, "ESPHome version " ESPHOME_VERSION " compiled on %s", this->compilation_time_.c_str());
+#ifdef ESPHOME_PROJECT_NAME
+      ESP_LOGI(TAG, "Project " ESPHOME_PROJECT_NAME " version " ESPHOME_PROJECT_VERSION);
+#endif
     }
 
     this->components_[this->dump_config_at_]->dump_config();
@@ -154,6 +161,6 @@ void Application::calculate_looping_components_() {
   }
 }
 
-Application App;
+Application App;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 }  // namespace esphome

@@ -38,7 +38,7 @@ class FastLEDLightOutput : public light::AddressableLight {
     return *this->controller_;
   }
 
-  template<ESPIChipsets CHIPSET, uint8_t DATA_PIN, uint8_t CLOCK_PIN, EOrder RGB_ORDER, uint8_t SPI_DATA_RATE>
+  template<ESPIChipsets CHIPSET, uint8_t DATA_PIN, uint8_t CLOCK_PIN, EOrder RGB_ORDER, uint32_t SPI_DATA_RATE>
   CLEDController &add_leds(int num_leds) {
     switch (CHIPSET) {
       case LPD8806: {
@@ -208,8 +208,7 @@ class FastLEDLightOutput : public light::AddressableLight {
   // (In most use cases you won't need these)
   light::LightTraits get_traits() override {
     auto traits = light::LightTraits();
-    traits.set_supports_brightness(true);
-    traits.set_supports_rgb(true);
+    traits.set_supported_color_modes({light::ColorMode::RGB});
     return traits;
   }
   void setup() override;

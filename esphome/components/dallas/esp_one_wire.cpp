@@ -5,7 +5,7 @@
 namespace esphome {
 namespace dallas {
 
-static const char *TAG = "dallas.one_wire";
+static const char *const TAG = "dallas.one_wire";
 
 const uint8_t ONE_WIRE_ROM_SELECT = 0x55;
 const int ONE_WIRE_ROM_SEARCH = 0xF0;
@@ -30,7 +30,7 @@ bool HOT ICACHE_RAM_ATTR ESPOneWire::reset() {
 
   // Switch into RX mode, letting the pin float
   this->pin_->pin_mode(INPUT_PULLUP);
-  // after 15µs-60µs wait time, slave pulls low for 60µs-240µs
+  // after 15µs-60µs wait time, responder pulls low for 60µs-240µs
   // let's have 70µs just in case
   delayMicroseconds(70);
 

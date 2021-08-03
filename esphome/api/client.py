@@ -13,7 +13,8 @@ from esphome import const
 import esphome.api.api_pb2 as pb
 from esphome.const import CONF_PASSWORD, CONF_PORT
 from esphome.core import EsphomeError
-from esphome.helpers import resolve_ip_address, indent, color
+from esphome.helpers import resolve_ip_address, indent
+from esphome.log import color, Fore
 from esphome.util import safe_print
 
 _LOGGER = logging.getLogger(__name__)
@@ -177,11 +178,15 @@ class APIClient(threading.Thread):
         try:
             ip = resolve_ip_address(self._address)
         except EsphomeError as err:
-            _LOGGER.warning("Error resolving IP address of %s. Is it connected to WiFi?",
-                            self._address)
-            _LOGGER.warning("(If this error persists, please set a static IP address: "
-                            "https://esphome.io/components/wifi.html#manual-ips)")
-            raise APIConnectionError(err)
+            _LOGGER.warning(
+                "Error resolving IP address of %s. Is it connected to WiFi?",
+                self._address,
+            )
+            _LOGGER.warning(
+                "(If this error persists, please set a static IP address: "
+                "https://esphome.io/components/wifi.html#manual-ips)"
+            )
+            raise APIConnectionError(err) from err
 
         _LOGGER.info("Connecting to %s:%s (%s)", self._address, self._port, ip)
         self._socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -198,14 +203,19 @@ class APIClient(threading.Thread):
         self._socket_open_event.set()
 
         hello = pb.HelloRequest()
-        hello.client_info = f'ESPHome v{const.__version__}'
+        hello.client_info = f"ESPHome v{const.__version__}"
         try:
             resp = self._send_message_await_response(hello, pb.HelloResponse)
         except APIConnectionError as err:
             self._fatal_error(err)
             raise err
-        _LOGGER.debug("Successfully connected to %s ('%s' API=%s.%s)", self._address,
-                      resp.server_info, resp.api_version_major, resp.api_version_minor)
+        _LOGGER.debug(
+            "Successfully connected to %s ('%s' API=%s.%s)",
+            self._address,
+            resp.server_info,
+            resp.api_version_major,
+            resp.api_version_minor,
+        )
         self._connected = True
         self._refresh_ping()
         if self.on_connect is not None:
@@ -270,7 +280,9 @@ class APIClient(threading.Thread):
         req += encoded
         self._write(req)
 
-    def _send_message_await_response_complex(self, send_msg, do_append, do_stop, timeout=5):
+    def _send_message_await_response_complex(
+        self, send_msg, do_append, do_stop, timeout=5
+    ):
         event = threading.Event()
         responses = []
 
@@ -295,12 +307,15 @@ class APIClient(threading.Thread):
         def is_response(msg):
             return isinstance(msg, response_type)
 
-        return self._send_message_await_response_complex(send_msg, is_response, is_response,
-                                                         timeout)[0]
+        return self._send_message_await_response_complex(
+            send_msg, is_response, is_response, timeout
+        )[0]
 
     def device_info(self):
         self._check_connected()
-        return self._send_message_await_response(pb.DeviceInfoRequest(), pb.DeviceInfoResponse)
+        return self._send_message_await_response(
+            pb.DeviceInfoRequest(), pb.DeviceInfoResponse
+        )
 
     def ping(self):
         self._check_connected()
@@ -310,7 +325,9 @@ class APIClient(threading.Thread):
         self._check_connected()
 
         try:
-            self._send_message_await_response(pb.DisconnectRequest(), pb.DisconnectResponse)
+            self._send_message_await_response(
+                pb.DisconnectRequest(), pb.DisconnectResponse
+            )
         except APIConnectionError:
             pass
         self._close_socket()
@@ -346,12 +363,12 @@ class APIClient(threading.Thread):
                 raise APIConnectionError("No socket!")
             try:
                 val = self._socket.recv(amount - len(ret))
-            except AttributeError:
-                raise APIConnectionError("Socket was closed")
+            except AttributeError as err:
+                raise APIConnectionError("Socket was closed") from err
             except socket.timeout:
                 continue
             except OSError as err:
-                raise APIConnectionError(f"Error while receiving data: {err}")
+                raise APIConnectionError(f"Error while receiving data: {err}") from err
             ret += val
         return ret
 
@@ -415,7 +432,7 @@ class APIClient(threading.Thread):
 
 
 def run_logs(config, address):
-    conf = config['api']
+    conf = config["api"]
     port = conf[CONF_PORT]
     password = conf[CONF_PASSWORD]
     _LOGGER.info("Starting log output from %s using esphome API", address)
@@ -447,24 +464,35 @@ def run_logs(config, address):
             _LOGGER.info("Successfully connected to %s", address)
             return
 
-        wait_time = int(min(1.5**min(tries, 100), 30))
+        wait_time = int(min(1.5 ** min(tries, 100), 30))
         if not has_connects:
-            _LOGGER.warning("Initial connection failed. The ESP might not be connected "
-                            "to WiFi yet (%s). Re-Trying in %s seconds",
-                            error, wait_time)
+            _LOGGER.warning(
+                "Initial connection failed. The ESP might not be connected "
+                "to WiFi yet (%s). Re-Trying in %s seconds",
+                error,
+                wait_time,
+            )
         else:
-            _LOGGER.warning("Couldn't connect to API (%s). Trying to reconnect in %s seconds",
-                            error, wait_time)
-        timer = threading.Timer(wait_time, functools.partial(try_connect, None, tries + 1))
+            _LOGGER.warning(
+                "Couldn't connect to API (%s). Trying to reconnect in %s seconds",
+                error,
+                wait_time,
+            )
+        timer = threading.Timer(
+            wait_time, functools.partial(try_connect, None, tries + 1)
+        )
         timer.start()
         retry_timer.append(timer)
 
     def on_log(msg):
-        time_ = datetime.now().time().strftime('[%H:%M:%S]')
+        time_ = datetime.now().time().strftime("[%H:%M:%S]")
         text = msg.message
         if msg.send_failed:
-            text = color('white', '(Message skipped because it was too big to fit in '
-                                  'TCP buffer - This is only cosmetic)')
+            text = color(
+                Fore.WHITE,
+                "(Message skipped because it was too big to fit in "
+                "TCP buffer - This is only cosmetic)",
+            )
         safe_print(time_ + text)
 
     def on_login():

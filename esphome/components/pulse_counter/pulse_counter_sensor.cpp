@@ -4,9 +4,9 @@
 namespace esphome {
 namespace pulse_counter {
 
-static const char *TAG = "pulse_counter";
+static const char *const TAG = "pulse_counter";
 
-const char *EDGE_MODE_TO_STRING[] = {"DISABLE", "INCREMENT", "DECREMENT"};
+const char *const EDGE_MODE_TO_STRING[] = {"DISABLE", "INCREMENT", "DECREMENT"};
 
 #ifdef ARDUINO_ARCH_ESP8266
 void ICACHE_RAM_ATTR PulseCounterStorage::gpio_intr(PulseCounterStorage *arg) {
@@ -158,6 +158,12 @@ void PulseCounterSensor::update() {
 
   ESP_LOGD(TAG, "'%s': Retrieved counter: %0.2f pulses/min", this->get_name().c_str(), value);
   this->publish_state(value);
+
+  if (this->total_sensor_ != nullptr) {
+    current_total_ += raw;
+    ESP_LOGD(TAG, "'%s': Total : %i pulses", this->get_name().c_str(), current_total_);
+    this->total_sensor_->publish_state(current_total_);
+  }
 }
 
 #ifdef ARDUINO_ARCH_ESP32

@@ -4,7 +4,7 @@
 namespace esphome {
 namespace cover {
 
-static const char *TAG = "cover";
+static const char *const TAG = "cover";
 
 const float COVER_OPEN = 1.0f;
 const float COVER_CLOSED = 0.0f;

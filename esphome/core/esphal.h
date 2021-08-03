@@ -116,4 +116,12 @@ class GPIOPin {
 template<typename T> void GPIOPin::attach_interrupt(void (*func)(T *), T *arg, int mode) const {
   this->attach_interrupt_(reinterpret_cast<void (*)(void *)>(func), arg, mode);
 }
+/** This function can be used by the HAL to force-link specific symbols
+ * into the generated binary without modifying the linker script.
+ *
+ * It is called by the application very early on startup and should not be used for anything
+ * other than forcing symbols to be linked.
+ */
+void force_link_symbols();
+
 }  // namespace esphome
