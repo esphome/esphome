@@ -152,7 +152,7 @@ LightColorValues LightCall::validate_() {
   this->transform_parameters_();
 
   // Brightness exists check
-  if (this->brightness_.has_value() && !(color_mode & ColorCapability::BRIGHTNESS)) {
+  if (this->brightness_.has_value() && *this->brightness_ > 0.0f && !(color_mode & ColorCapability::BRIGHTNESS)) {
     ESP_LOGW(TAG, "'%s' - This light does not support setting brightness!", name);
     this->brightness_.reset();
   }
@@ -165,13 +165,14 @@ LightColorValues LightCall::validate_() {
   }
 
   // Color brightness exists check
-  if (this->color_brightness_.has_value() && !(color_mode & ColorCapability::RGB)) {
+  if (this->color_brightness_.has_value() && *this->color_brightness_ > 0.0f && !(color_mode & ColorCapability::RGB)) {
     ESP_LOGW(TAG, "'%s' - This color mode does not support setting RGB brightness!", name);
     this->color_brightness_.reset();
   }
 
   // RGB exists check
-  if (this->red_.has_value() || this->green_.has_value() || this->blue_.has_value()) {
+  if ((this->red_.has_value() && *this->red_ > 0.0f) || (this->green_.has_value() && *this->green_ > 0.0f) ||
+      (this->blue_.has_value() && *this->blue_ > 0.0f)) {
     if (!(color_mode & ColorCapability::RGB)) {
       ESP_LOGW(TAG, "'%s' - This color mode does not support setting RGB color!", name);
       this->red_.reset();
@@ -181,7 +182,7 @@ LightColorValues LightCall::validate_() {
   }
 
   // White value exists check
-  if (this->white_.has_value() &&
+  if (this->white_.has_value() && *this->white_ > 0.0f &&
       !(color_mode & ColorCapability::WHITE || color_mode & ColorCapability::COLD_WARM_WHITE)) {
     ESP_LOGW(TAG, "'%s' - This color mode does not support setting white value!", name);
     this->white_.reset();
@@ -195,7 +196,8 @@ LightColorValues LightCall::validate_() {
   }
 
   // Cold/warm white value exists check
-  if (this->cold_white_.has_value() || this->warm_white_.has_value()) {
+  if ((this->cold_white_.has_value() && *this->cold_white_ > 0.0f) ||
+      (this->warm_white_.has_value() && *this->warm_white_ > 0.0f)) {
     if (!(color_mode & ColorCapability::COLD_WARM_WHITE)) {
       ESP_LOGW(TAG, "'%s' - This color mode does not support setting cold/warm white value!", name);
       this->cold_white_.reset();
