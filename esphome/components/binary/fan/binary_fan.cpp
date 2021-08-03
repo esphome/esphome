@@ -4,7 +4,7 @@
 namespace esphome {
 namespace binary {
 
-static const char *TAG = "binary.fan";
+static const char *const TAG = "binary.fan";
 
 void binary::BinaryFan::dump_config() {
   ESP_LOGCONFIG(TAG, "Fan '%s':", this->fan_->get_name().c_str());
@@ -16,7 +16,7 @@ void binary::BinaryFan::dump_config() {
   }
 }
 void BinaryFan::setup() {
-  auto traits = fan::FanTraits(this->oscillating_ != nullptr, false, this->direction_ != nullptr);
+  auto traits = fan::FanTraits(this->oscillating_ != nullptr, false, this->direction_ != nullptr, 0);
   this->fan_->set_traits(traits);
   this->fan_->add_on_state_callback([this]() { this->next_update_ = true; });
 }

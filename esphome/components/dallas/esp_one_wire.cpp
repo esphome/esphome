@@ -5,7 +5,7 @@
 namespace esphome {
 namespace dallas {
 
-static const char *TAG = "dallas.one_wire";
+static const char *const TAG = "dallas.one_wire";
 
 const uint8_t ONE_WIRE_ROM_SELECT = 0x55;
 const int ONE_WIRE_ROM_SEARCH = 0xF0;

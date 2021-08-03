@@ -4,7 +4,7 @@
 namespace esphome {
 namespace ina3221 {
 
-static const char *TAG = "ina3221";
+static const char *const TAG = "ina3221";
 
 static const uint8_t INA3221_REGISTER_CONFIG = 0x00;
 static const uint8_t INA3221_REGISTER_CHANNEL1_SHUNT_VOLTAGE = 0x01;

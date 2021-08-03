@@ -10,7 +10,7 @@
 namespace esphome {
 namespace xiaomi_ble {
 
-static const char *TAG = "xiaomi_ble";
+static const char *const TAG = "xiaomi_ble";
 
 bool parse_xiaomi_value(uint8_t value_type, const uint8_t *data, uint8_t value_length, XiaomiParseResult &result) {
   // motion detection, 1 byte, 8-bit unsigned integer
@@ -70,8 +70,7 @@ bool parse_xiaomi_value(uint8_t value_type, const uint8_t *data, uint8_t value_l
   }
   // idle time since last motion, 4 byte, 32-bit unsigned integer, 1 min
   else if ((value_type == 0x17) && (value_length == 4)) {
-    const uint32_t idle_time =
-        uint32_t(data[0]) | (uint32_t(data[1]) << 8) | (uint32_t(data[2]) << 16) | (uint32_t(data[2]) << 24);
+    const uint32_t idle_time = encode_uint32(data[3], data[2], data[1], data[0]);
     result.idle_time = idle_time / 60.0f;
     result.has_motion = (idle_time) ? false : true;
   } else {
@@ -104,7 +103,7 @@ bool parse_xiaomi_message(const std::vector<uint8_t> &message, XiaomiParseResult
     return false;
   }
 
-  while (payload_length > 0) {
+  while (payload_length > 3) {
     if (payload[payload_offset + 1] != 0x10) {
       ESP_LOGVV(TAG, "parse_xiaomi_message(): fixed byte not found, stop parsing residual data.");
       break;
@@ -172,7 +171,10 @@ optional<XiaomiParseResult> parse_xiaomi_header(const esp32_ble_tracker::Service
     result.type = XiaomiParseResult::TYPE_MUE4094RT;
     result.name = "MUE4094RT";
     result.raw_offset -= 6;
-  } else if ((raw[2] == 0x47) && (raw[3] == 0x03)) {  // round body, e-ink display
+  } else if ((raw[2] == 0x47) && (raw[3] == 0x03)) {  // ClearGrass-branded, round body, e-ink display
+    result.type = XiaomiParseResult::TYPE_CGG1;
+    result.name = "CGG1";
+  } else if ((raw[2] == 0x48) && (raw[3] == 0x0B)) {  // Qingping-branded, round body, e-ink display — with bindkeys
     result.type = XiaomiParseResult::TYPE_CGG1;
     result.name = "CGG1";
   } else if ((raw[2] == 0xbc) && (raw[3] == 0x03)) {  // VegTrug Grow Care Garden
@@ -187,6 +189,9 @@ optional<XiaomiParseResult> parse_xiaomi_header(const esp32_ble_tracker::Service
   } else if ((raw[2] == 0x76) && (raw[3] == 0x05)) {  // Cleargrass (Qingping) alarm clock, segment LCD
     result.type = XiaomiParseResult::TYPE_CGD1;
     result.name = "CGD1";
+  } else if ((raw[2] == 0x6F) && (raw[3] == 0x06)) {  // Cleargrass (Qingping) Temp & RH Lite
+    result.type = XiaomiParseResult::TYPE_CGDK2;
+    result.name = "CGDK2";
   } else if ((raw[2] == 0x5b) && (raw[3] == 0x05)) {  // small square body, segment LCD, encrypted
     result.type = XiaomiParseResult::TYPE_LYWSD03MMC;
     result.name = "LYWSD03MMC";
@@ -195,6 +200,9 @@ optional<XiaomiParseResult> parse_xiaomi_header(const esp32_ble_tracker::Service
     result.name = "MJYD02YLA";
     if (raw.size() == 19)
       result.raw_offset -= 6;
+  } else if ((raw[2] == 0x87) && (raw[3] == 0x03)) {  // square body, e-ink display
+    result.type = XiaomiParseResult::TYPE_MHOC401;
+    result.name = "MHOC401";
   } else {
     ESP_LOGVV(TAG, "parse_xiaomi_header(): unknown device, no magic bytes.");
     return {};
@@ -336,9 +344,9 @@ bool report_xiaomi_results(const optional<XiaomiParseResult> &result, const std:
 bool XiaomiListener::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
   // Previously the message was parsed twice per packet, once by XiaomiListener::parse_device()
   // and then again by the respective device class's parse_device() function. Parsing the header
-  // here and then for each device seems to be unneccessary and complicates the duplicate packet filtering.
+  // here and then for each device seems to be unnecessary and complicates the duplicate packet filtering.
   // Hence I disabled the call to parse_xiaomi_header() here and the message parsing is done entirely
-  // in the respecive device instance. The XiaomiListener class is defined in __init__.py and I was not
+  // in the respective device instance. The XiaomiListener class is defined in __init__.py and I was not
   // able to remove it entirely.
 
   return false;  // with true it's not showing device scans

@@ -24,6 +24,7 @@ class SNTPComponent : public time::RealTimeClock {
   }
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
 
+  void update() override;
   void loop() override;
 
  protected:
