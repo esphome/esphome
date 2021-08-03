@@ -447,11 +447,11 @@ class HistoryData {
 
  protected:
   int length_;
-  int count_;
-  float min_;
-  float max_;
-  float recent_min_;
-  float recent_max_;
+  int count_{0};
+  float min_{NAN};
+  float max_{NAN};
+  float recent_min_{NAN};
+  float recent_max_{NAN};
   float *data_;
 };
 
@@ -483,15 +483,15 @@ class Graph : public PollingComponent {
   void set_pixel_(int x, int y);
   int width_;
   int height_;
-  float min_value_;
-  float max_value_;
-  float min_range_;
-  float max_range_;
-  uint8_t line_thickness_;
-  uint8_t line_type_;
-  float gridspacing_x_;
-  float gridspacing_y_;
-  bool border_;
+  float min_value_{NAN};
+  float max_value_{NAN};
+  float min_range_{NAN};
+  float max_range_{NAN};
+  uint8_t line_thickness_{3};
+  uint8_t line_type_{LINE_TYPE_SOLID};
+  float gridspacing_x_{NAN};
+  float gridspacing_y_{NAN};
+  bool border_{true};
   sensor::Sensor *sensor_{nullptr};
   uint8_t *pixels_;
   HistoryData *data_;

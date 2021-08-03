@@ -48,28 +48,26 @@ GRAPH_BASIC_SCHEMA = cv.Schema(
 CONFIG_SCHEMA = GRAPH_BASIC_SCHEMA.extend(
     {
         cv.Optional(CONF_SENSOR): cv.use_id(sensor.Sensor),
-        cv.Optional(CONF_MIN_VALUE, default=float("nan")): cv.float_,
-        cv.Optional(CONF_MAX_VALUE, default=float("nan")): cv.float_,
-        cv.Optional(CONF_MIN_RANGE, default=float("nan")): cv.float_,
-        cv.Optional(CONF_MAX_RANGE, default=float("nan")): cv.float_,
-        cv.Optional(CONF_LINE_THICKNESS, default=3): cv.positive_int,
-        cv.Optional(CONF_LINE_TYPE, default="SOLID"): cv.enum(LINE_TYPE, upper=True),
-        cv.Optional(CONF_X_GRID, default=float("nan")): cv.float_,
-        cv.Optional(CONF_Y_GRID, default=float("nan")): cv.float_,
-        cv.Optional(CONF_BORDER, default=True): cv.boolean,
+        cv.Optional(CONF_MIN_VALUE): cv.float_,
+        cv.Optional(CONF_MAX_VALUE): cv.float_,
+        cv.Optional(CONF_MIN_RANGE): cv.float_,
+        cv.Optional(CONF_MAX_RANGE): cv.float_,
+        cv.Optional(CONF_LINE_THICKNESS): cv.positive_int,
+        cv.Optional(CONF_LINE_TYPE): cv.enum(LINE_TYPE, upper=True),
+        cv.Optional(CONF_X_GRID): cv.float_,
+        cv.Optional(CONF_Y_GRID): cv.float_,
+        cv.Optional(CONF_BORDER): cv.boolean,
         cv.Optional(CONF_AXES): cv.All(
             cv.ensure_list(
                 {
                     cv.GenerateID(): cv.declare_id(GraphAxes),
                     cv.Required(CONF_SENSOR): cv.use_id(sensor.Sensor),
-                    cv.Optional(CONF_MIN_VALUE, default=float("nan")): cv.float_,
-                    cv.Optional(CONF_MAX_VALUE, default=float("nan")): cv.float_,
-                    cv.Optional(CONF_MIN_RANGE, default=float("nan")): cv.float_,
-                    cv.Optional(CONF_MAX_RANGE, default=float("nan")): cv.float_,
-                    cv.Optional(CONF_LINE_THICKNESS, default=3): cv.positive_int,
-                    cv.Optional(CONF_LINE_TYPE, default="SOLID"): cv.enum(
-                        LINE_TYPE, upper=True
-                    ),
+                    cv.Optional(CONF_MIN_VALUE): cv.float_,
+                    cv.Optional(CONF_MAX_VALUE): cv.float_,
+                    cv.Optional(CONF_MIN_RANGE): cv.float_,
+                    cv.Optional(CONF_MAX_RANGE): cv.float_,
+                    cv.Optional(CONF_LINE_THICKNESS): cv.positive_int,
+                    cv.Optional(CONF_LINE_TYPE): cv.enum(LINE_TYPE, upper=True),
                 }
             ),
             cv.Length(min=1),
@@ -83,15 +81,24 @@ async def to_code(config):
 
     sens = await cg.get_variable(config[CONF_SENSOR])
     cg.add(var.set_sensor(sens))
-    cg.add(var.set_min_value(config[CONF_MIN_VALUE]))
-    cg.add(var.set_max_value(config[CONF_MAX_VALUE]))
-    cg.add(var.set_min_range(config[CONF_MIN_RANGE]))
-    cg.add(var.set_max_range(config[CONF_MAX_RANGE]))
-    cg.add(var.set_line_thickness(config[CONF_LINE_THICKNESS]))
-    cg.add(var.set_line_type(config[CONF_LINE_TYPE]))
-    cg.add(var.set_grid_x(config[CONF_X_GRID]))
-    cg.add(var.set_grid_y(config[CONF_Y_GRID]))
-    cg.add(var.set_border(config[CONF_BORDER]))
+    if CONF_MIN_VALUE in config:
+        cg.add(var.set_min_value(config[CONF_MIN_VALUE]))
+    if CONF_MAX_VALUE in config:
+        cg.add(var.set_max_value(config[CONF_MAX_VALUE]))
+    if CONF_MIN_RANGE in config:
+        cg.add(var.set_min_range(config[CONF_MIN_RANGE]))
+    if CONF_MAX_RANGE in config:
+        cg.add(var.set_max_range(config[CONF_MAX_RANGE]))
+    if CONF_LINE_THICKNESS in config:
+        cg.add(var.set_line_thickness(config[CONF_LINE_THICKNESS]))
+    if CONF_LINE_TYPE in config:
+        cg.add(var.set_line_type(config[CONF_LINE_TYPE]))
+    if CONF_X_GRID in config:
+        cg.add(var.set_grid_x(config[CONF_X_GRID]))
+    if CONF_Y_GRID in config:
+        cg.add(var.set_grid_y(config[CONF_Y_GRID]))
+    if CONF_BORDER in config:
+        cg.add(var.set_border(config[CONF_BORDER]))
 
     # TODO: This correct??? -since cg.register_component caused errors
     # await cg.register_component(var, config)

@@ -490,7 +490,7 @@ Image::Image(const uint8_t *data_start, int width, int height, ImageType type)
     : width_(width), height_(height), type_(type), data_start_(data_start) {}
 
 HistoryData::HistoryData(int length)
-    : length_(length), count_(0), min_(NAN), max_(NAN), recent_min_(NAN), recent_max_(NAN) {
+    : length_(length) {
   this->data_ = new float[length];
   if (this->data_ == nullptr) {
     ESP_LOGE(TAG, "Could not allocate HistoryData buffer!");
@@ -575,7 +575,7 @@ void Graph::redraw_() {
 
   float yrange = ymax - ymin;
   if (isnan(yrange) || (yrange == 0)) {
-    ESP_LOGI(TAG, "Graph, forcing yrange to 1");
+    ESP_LOGV(TAG, "Graph, forcing yrange to 1");
     yrange = 1;
   }
   if (yrange < this->min_range_) {
@@ -584,7 +584,7 @@ void Graph::redraw_() {
     ymin = s - (yrange / 2.0);
     ymax = s + (yrange / 2.0);
     yrange = this->min_range_;
-    ESP_LOGI(TAG, "Graphing forcing yrange to min_range");
+    ESP_LOGV(TAG, "Graphing forcing yrange to min_range");
   }
   if (yrange > this->max_range_) {
     // Look back in data to fit into local range
@@ -608,7 +608,7 @@ void Graph::redraw_() {
       ymin = mn;
       ymax = ymin + this->max_range_;
     }
-    ESP_LOGI(TAG, "Graphing at max_range. Using local min %f, max %f", mn, mx);
+    ESP_LOGV(TAG, "Graphing at max_range. Using local min %f, max %f", mn, mx);
   }
   /// Draw grid
   if (!isnan(this->gridspacing_y_)) {
@@ -632,7 +632,7 @@ void Graph::redraw_() {
       }
     }
   }
-  ESP_LOGI(TAG, "Graph. ymin %f, ymax %f, yrange %f", ymin, ymax, yrange);
+  ESP_LOGI(TAG, "Updating graph. Last sample %f, ymin %f, ymax %f, yrange %f", this->data_->get_value(0), ymin, ymax, yrange);
   /// Draw data trace
   for (int16_t i = 0; i < this->data_->get_length(); i++) {
     float v = (this->data_->get_value(i) - ymin) / yrange;
@@ -652,10 +652,10 @@ void Graph::redraw_() {
 void Graph::update() {
   float sensor_value = this->sensor_->get_state();
   this->data_->take_sample(sensor_value);
-  ESP_LOGI(TAG, "Updating graph with value: %f", sensor_value);
+  ESP_LOGV(TAG, "Updating graph with value: %f", sensor_value);
   this->redraw_();  // TODO: move to only when updating display
 }
-void Graph::set_sensor(sensor::Sensor *sensor) { this->sensor_ = sensor; }
+void Graph::set_sensor(sensor::Sensor *sensor) {this->sensor_ = sensor; }
 int Graph::get_width() const { return this->width_; }
 int Graph::get_height() const { return this->height_; }
 
