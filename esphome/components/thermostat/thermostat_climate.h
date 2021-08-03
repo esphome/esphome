@@ -404,7 +404,7 @@ class ThermostatClimate : public climate::Climate, public Component {
   ThermostatClimateTargetTempConfig away_config_{};
 
   /// Climate action timers
-  std::vector<ThermostatClimateTimer> timer{
+  std::vector<ThermostatClimateTimer> timer_{
       {"cool_run", false, 0, &ThermostatClimate::cooling_max_run_time_timer_callback_},
       {"cool_off", false, 0, &ThermostatClimate::cooling_off_timer_callback_},
       {"cool_on", false, 0, &ThermostatClimate::cooling_on_timer_callback_},
