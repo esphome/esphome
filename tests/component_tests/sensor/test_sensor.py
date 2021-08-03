@@ -1,4 +1,4 @@
-""" Tests for the sensor component """
+"""Tests for the sensor component."""
 
 
 def test_sensor_device_class_set(generate_main):
@@ -11,4 +11,4 @@ def test_sensor_device_class_set(generate_main):
     main_cpp = generate_main("tests/component_tests/sensor/test_sensor.yaml")
 
     # Then
-    assert "s_1->set_device_class(\"voltage\");" in main_cpp
+    assert 's_1->set_device_class("voltage");' in main_cpp

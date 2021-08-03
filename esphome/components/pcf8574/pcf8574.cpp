@@ -4,7 +4,7 @@
 namespace esphome {
 namespace pcf8574 {
 
-static const char *TAG = "pcf8574";
+static const char *const TAG = "pcf8574";
 
 void PCF8574Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up PCF8574...");

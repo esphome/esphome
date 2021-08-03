@@ -4,7 +4,7 @@
 namespace esphome {
 namespace pn532 {
 
-static const char *TAG = "pn532.mifare_ultralight";
+static const char *const TAG = "pn532.mifare_ultralight";
 
 nfc::NfcTag *PN532::read_mifare_ultralight_tag_(std::vector<uint8_t> &uid) {
   if (!this->is_mifare_ultralight_formatted_()) {
@@ -17,12 +17,12 @@ nfc::NfcTag *PN532::read_mifare_ultralight_tag_(std::vector<uint8_t> &uid) {
   if (!this->find_mifare_ultralight_ndef_(message_length, message_start_index)) {
     return new nfc::NfcTag(uid, nfc::NFC_FORUM_TYPE_2);
   }
+  ESP_LOGVV(TAG, "message length: %d, start: %d", message_length, message_start_index);
 
   if (message_length == 0) {
     return new nfc::NfcTag(uid, nfc::NFC_FORUM_TYPE_2);
   }
   std::vector<uint8_t> data;
-  uint8_t index = 0;
   for (uint8_t page = nfc::MIFARE_ULTRALIGHT_DATA_START_PAGE; page < nfc::MIFARE_ULTRALIGHT_MAX_PAGE; page++) {
     std::vector<uint8_t> page_data;
     if (!this->read_mifare_ultralight_page_(page, page_data)) {
@@ -31,13 +31,12 @@ nfc::NfcTag *PN532::read_mifare_ultralight_tag_(std::vector<uint8_t> &uid) {
     }
     data.insert(data.end(), page_data.begin(), page_data.end());
 
-    if (index >= (message_length + message_start_index))
+    if (data.size() >= (message_length + message_start_index))
       break;
-
-    index += page_data.size();
   }
 
   data.erase(data.begin(), data.begin() + message_start_index);
+  data.erase(data.begin() + message_length, data.end());
 
   return new nfc::NfcTag(uid, nfc::NFC_FORUM_TYPE_2, data);
 }

@@ -6,7 +6,7 @@
 namespace esphome {
 namespace xiaomi_mjyd02yla {
 
-static const char *TAG = "xiaomi_mjyd02yla";
+static const char *const TAG = "xiaomi_mjyd02yla";
 
 void XiaomiMJYD02YLA::dump_config() {
   ESP_LOGCONFIG(TAG, "Xiaomi MJYD02YL-A");

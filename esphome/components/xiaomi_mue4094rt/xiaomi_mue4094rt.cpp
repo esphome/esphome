@@ -6,7 +6,7 @@
 namespace esphome {
 namespace xiaomi_mue4094rt {
 
-static const char *TAG = "xiaomi_mue4094rt";
+static const char *const TAG = "xiaomi_mue4094rt";
 
 void XiaomiMUE4094RT::dump_config() {
   ESP_LOGCONFIG(TAG, "Xiaomi MUE4094RT");

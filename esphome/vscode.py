@@ -20,11 +20,11 @@ def _dump_range(range):
     if range is None:
         return None
     return {
-        'document': range.start_mark.document,
-        'start_line': range.start_mark.line,
-        'start_col': range.start_mark.column,
-        'end_line': range.end_mark.line,
-        'end_col': range.end_mark.column,
+        "document": range.start_mark.document,
+        "start_line": range.start_mark.line,
+        "start_col": range.start_mark.column,
+        "end_line": range.end_mark.line,
+        "end_col": range.end_mark.column,
     }
 
 
@@ -34,36 +34,42 @@ class VSCodeResult:
         self.validation_errors = []
 
     def dump(self):
-        return json.dumps({
-            'type': 'result',
-            'yaml_errors': self.yaml_errors,
-            'validation_errors': self.validation_errors,
-        })
+        return json.dumps(
+            {
+                "type": "result",
+                "yaml_errors": self.yaml_errors,
+                "validation_errors": self.validation_errors,
+            }
+        )
 
     def add_yaml_error(self, message):
-        self.yaml_errors.append({
-            'message': message,
-        })
+        self.yaml_errors.append(
+            {
+                "message": message,
+            }
+        )
 
     def add_validation_error(self, range_, message):
-        self.validation_errors.append({
-            'range': _dump_range(range_),
-            'message': message,
-        })
+        self.validation_errors.append(
+            {
+                "range": _dump_range(range_),
+                "message": message,
+            }
+        )
 
 
 def read_config(args):
     while True:
         CORE.reset()
         data = json.loads(input())
-        assert data['type'] == 'validate'
+        assert data["type"] == "validate"
         CORE.vscode = True
         CORE.ace = args.ace
-        f = data['file']
+        f = data["file"]
         if CORE.ace:
             CORE.config_path = os.path.join(args.configuration[0], f)
         else:
-            CORE.config_path = data['file']
+            CORE.config_path = data["file"]
         vs = VSCodeResult()
         try:
             res = load_config(dict(args.substitution) if args.substitution else {})

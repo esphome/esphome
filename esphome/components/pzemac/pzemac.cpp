@@ -4,7 +4,7 @@
 namespace esphome {
 namespace pzemac {
 
-static const char *TAG = "pzemac";
+static const char *const TAG = "pzemac";
 
 static const uint8_t PZEM_CMD_READ_IN_REGISTERS = 0x04;
 static const uint8_t PZEM_REGISTER_COUNT = 10;  // 10x 16-bit registers

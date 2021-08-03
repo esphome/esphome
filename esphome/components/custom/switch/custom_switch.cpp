@@ -4,7 +4,7 @@
 namespace esphome {
 namespace custom {
 
-static const char *TAG = "custom.switch";
+static const char *const TAG = "custom.switch";
 
 void CustomSwitchConstructor::dump_config() {
   for (auto *child : this->switches_) {

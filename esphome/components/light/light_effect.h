@@ -1,5 +1,7 @@
 #pragma once
 
+#include <utility>
+
 #include "esphome/core/component.h"
 #include "light_color_values.h"
 #include "light_state.h"
@@ -11,7 +13,7 @@ class LightState;
 
 class LightEffect {
  public:
-  explicit LightEffect(const std::string &name) : name_(name) {}
+  explicit LightEffect(std::string name) : name_(std::move(name)) {}
 
   /// Initialize this LightEffect. Will be called once after creation.
   virtual void start() {}
