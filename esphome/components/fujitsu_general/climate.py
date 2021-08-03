@@ -10,13 +10,13 @@ FujitsuGeneralClimate = fujitsu_general_ns.class_(
     "FujitsuGeneralClimate", climate_ir.ClimateIR
 )
 
-CONFIG_SCHEMA = climate_ir.CLIMATE_IR_SCHEMA.extend(
+CONFIG_SCHEMA = climate_ir.CLIMATE_IR_WITH_RECEIVER_SCHEMA.extend(
     {
         cv.GenerateID(): cv.declare_id(FujitsuGeneralClimate),
     }
 )
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield climate_ir.register_climate_ir(var, config)
+    await climate_ir.register_climate_ir(var, config)

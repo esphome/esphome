@@ -4,7 +4,7 @@
 namespace esphome {
 namespace tmp102 {
 
-static const char *TAG = "tmp102";
+static const char *const TAG = "tmp102";
 
 static const uint8_t TMP102_ADDRESS = 0x48;
 static const uint8_t TMP102_REGISTER_TEMPERATURE = 0x00;

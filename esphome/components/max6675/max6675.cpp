@@ -4,7 +4,7 @@
 namespace esphome {
 namespace max6675 {
 
-static const char *TAG = "max6675";
+static const char *const TAG = "max6675";
 
 void MAX6675Sensor::update() {
   this->enable();

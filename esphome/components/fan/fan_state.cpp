@@ -1,10 +1,11 @@
 #include "fan_state.h"
+#include "fan_helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
 namespace fan {
 
-static const char *TAG = "fan";
+static const char *const TAG = "fan";
 
 const FanTraits &FanState::get_traits() const { return this->traits_; }
 void FanState::set_traits(const FanTraits &traits) { this->traits_ = traits; }
@@ -20,7 +21,7 @@ FanStateCall FanState::make_call() { return FanStateCall(this); }
 
 struct FanStateRTCState {
   bool state;
-  FanSpeed speed;
+  int speed;
   bool oscillating;
   FanDirection direction;
 };
@@ -52,16 +53,8 @@ void FanStateCall::perform() const {
     this->state_->direction = *this->direction_;
   }
   if (this->speed_.has_value()) {
-    switch (*this->speed_) {
-      case FAN_SPEED_LOW:
-      case FAN_SPEED_MEDIUM:
-      case FAN_SPEED_HIGH:
-        this->state_->speed = *this->speed_;
-        break;
-      default:
-        // protect from invalid input
-        break;
-    }
+    const int speed_count = this->state_->get_traits().supported_speed_count();
+    this->state_->speed = clamp(*this->speed_, 1, speed_count);
   }
 
   FanStateRTCState saved{};
@@ -73,13 +66,15 @@ void FanStateCall::perform() const {
 
   this->state_->state_callback_.call();
 }
-FanStateCall &FanStateCall::set_speed(const char *speed) {
-  if (strcasecmp(speed, "low") == 0) {
-    this->set_speed(FAN_SPEED_LOW);
-  } else if (strcasecmp(speed, "medium") == 0) {
-    this->set_speed(FAN_SPEED_MEDIUM);
-  } else if (strcasecmp(speed, "high") == 0) {
-    this->set_speed(FAN_SPEED_HIGH);
+
+FanStateCall &FanStateCall::set_speed(const char *legacy_speed) {
+  const auto supported_speed_count = this->state_->get_traits().supported_speed_count();
+  if (strcasecmp(legacy_speed, "low") == 0) {
+    this->set_speed(fan::speed_enum_to_level(FAN_SPEED_LOW, supported_speed_count));
+  } else if (strcasecmp(legacy_speed, "medium") == 0) {
+    this->set_speed(fan::speed_enum_to_level(FAN_SPEED_MEDIUM, supported_speed_count));
+  } else if (strcasecmp(legacy_speed, "high") == 0) {
+    this->set_speed(fan::speed_enum_to_level(FAN_SPEED_HIGH, supported_speed_count));
   }
   return *this;
 }

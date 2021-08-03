@@ -24,8 +24,8 @@ CONFIG_SCHEMA = binary_sensor.BINARY_SENSOR_SCHEMA.extend(
 )
 
 
-def to_code(config):
-    hub = yield cg.get_variable(config[CONF_APDS9960_ID])
-    var = yield binary_sensor.new_binary_sensor(config)
+async def to_code(config):
+    hub = await cg.get_variable(config[CONF_APDS9960_ID])
+    var = await binary_sensor.new_binary_sensor(config)
     func = getattr(hub, DIRECTIONS[config[CONF_DIRECTION]])
     cg.add(func(var))

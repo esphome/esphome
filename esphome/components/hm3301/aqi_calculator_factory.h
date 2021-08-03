@@ -1,8 +1,7 @@
 #pragma once
 
-#include "Arduino.h"
-#include "caqi_calculator.cpp"
-#include "aqi_calculator.cpp"
+#include "caqi_calculator.h"
+#include "aqi_calculator.h"
 
 namespace esphome {
 namespace hm3301 {

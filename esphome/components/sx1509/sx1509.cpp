@@ -5,7 +5,7 @@
 namespace esphome {
 namespace sx1509 {
 
-static const char *TAG = "sx1509";
+static const char *const TAG = "sx1509";
 
 void SX1509Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up SX1509Component...");

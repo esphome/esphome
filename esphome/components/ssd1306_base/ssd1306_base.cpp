@@ -5,7 +5,7 @@
 namespace esphome {
 namespace ssd1306_base {
 
-static const char *TAG = "ssd1306";
+static const char *const TAG = "ssd1306";
 
 static const uint8_t BLACK = 0;
 static const uint8_t WHITE = 1;
@@ -130,7 +130,7 @@ void SSD1306::update() {
 }
 void SSD1306::set_brightness(float brightness) {
   // validation
-  this->brightness_ = clamp(brightness, 0, 1);
+  this->brightness_ = clamp(brightness, 0.0F, 1.0F);
   // now write the new brightness level to the display
   this->command(SSD1306_COMMAND_SET_CONTRAST);
   this->command(int(SSD1306_MAX_CONTRAST * (this->brightness_)));

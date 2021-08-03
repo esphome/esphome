@@ -266,7 +266,11 @@ template<typename... Ts> class UpdateComponentAction : public Action<Ts...> {
  public:
   UpdateComponentAction(PollingComponent *component) : component_(component) {}
 
-  void play(Ts... x) override { this->component_->update(); }
+  void play(Ts... x) override {
+    if (this->component_->is_failed())
+      return;
+    this->component_->update();
+  }
 
  protected:
   PollingComponent *component_;

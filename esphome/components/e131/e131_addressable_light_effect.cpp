@@ -5,7 +5,7 @@
 namespace esphome {
 namespace e131 {
 
-static const char *TAG = "e131_addressable_light_effect";
+static const char *const TAG = "e131_addressable_light_effect";
 static const int MAX_DATA_SIZE = (sizeof(E131Packet::values) - 1);
 
 E131AddressableLightEffect::E131AddressableLightEffect(const std::string &name) : AddressableLightEffect(name) {}
@@ -53,7 +53,8 @@ bool E131AddressableLightEffect::process_(int universe, const E131Packet &packet
 
   int output_offset = (universe - first_universe_) * get_lights_per_universe();
   // limit amount of lights per universe and received
-  int output_end = std::min(it->size(), std::min(output_offset + get_lights_per_universe(), packet.count - 1));
+  int output_end =
+      std::min(it->size(), std::min(output_offset + get_lights_per_universe(), output_offset + packet.count - 1));
   auto input_data = packet.values + 1;
 
   ESP_LOGV(TAG, "Applying data for '%s' on %d universe, for %d-%d.", get_name().c_str(), universe, output_offset,

@@ -5,7 +5,7 @@ from esphome.const import (
     CONF_SENSOR,
     CONF_ID,
     DEVICE_CLASS_CURRENT,
-    ICON_EMPTY,
+    STATE_CLASS_MEASUREMENT,
     UNIT_AMPERE,
 )
 
@@ -18,7 +18,12 @@ ct_clamp_ns = cg.esphome_ns.namespace("ct_clamp")
 CTClampSensor = ct_clamp_ns.class_("CTClampSensor", sensor.Sensor, cg.PollingComponent)
 
 CONFIG_SCHEMA = (
-    sensor.sensor_schema(UNIT_AMPERE, ICON_EMPTY, 2, DEVICE_CLASS_CURRENT)
+    sensor.sensor_schema(
+        unit_of_measurement=UNIT_AMPERE,
+        accuracy_decimals=2,
+        device_class=DEVICE_CLASS_CURRENT,
+        state_class=STATE_CLASS_MEASUREMENT,
+    )
     .extend(
         {
             cv.GenerateID(): cv.declare_id(CTClampSensor),
@@ -32,11 +37,11 @@ CONFIG_SCHEMA = (
 )
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
-    yield sensor.register_sensor(var, config)
+    await cg.register_component(var, config)
+    await sensor.register_sensor(var, config)
 
-    sens = yield cg.get_variable(config[CONF_SENSOR])
+    sens = await cg.get_variable(config[CONF_SENSOR])
     cg.add(var.set_source(sens))
     cg.add(var.set_sample_duration(config[CONF_SAMPLE_DURATION]))

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+from helpers import git_ls_files, filter_changed
 import codecs
 import collections
 import fnmatch
@@ -12,7 +13,6 @@ import functools
 import argparse
 
 sys.path.append(os.path.dirname(__file__))
-from helpers import git_ls_files, filter_changed
 
 
 def find_all(a_str, sub):
@@ -217,7 +217,7 @@ def lint_ext_check(fname):
     )
 
 
-@lint_file_check(exclude=["docker/rootfs/*", "script/*", "setup.py"])
+@lint_file_check(exclude=["docker/rootfs/*", "docker/*.py", "script/*", "setup.py"])
 def lint_executable_bit(fname):
     ex = EXECUTABLE_BIT[fname]
     if ex != 100644:
@@ -405,6 +405,7 @@ ARDUINO_FORBIDDEN_RE = r"[^\w\d](" + r"|".join(ARDUINO_FORBIDDEN) + r")\(.*"
     include=cpp_include,
     exclude=[
         "esphome/components/mqtt/custom_mqtt_device.h",
+        "esphome/components/sun/sun.cpp",
         "esphome/core/esphal.*",
     ],
 )
@@ -558,8 +559,11 @@ def lint_inclusive_language(fname, match):
         "esphome/components/display/display_buffer.h",
         "esphome/components/i2c/i2c.h",
         "esphome/components/mqtt/mqtt_component.h",
+        "esphome/components/number/number.h",
         "esphome/components/output/binary_output.h",
         "esphome/components/output/float_output.h",
+        "esphome/components/nextion/nextion_base.h",
+        "esphome/components/select/select.h",
         "esphome/components/sensor/sensor.h",
         "esphome/components/stepper/stepper.h",
         "esphome/components/switch/switch.h",

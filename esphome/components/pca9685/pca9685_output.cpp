@@ -5,7 +5,7 @@
 namespace esphome {
 namespace pca9685 {
 
-static const char *TAG = "pca9685";
+static const char *const TAG = "pca9685";
 
 const uint8_t PCA9685_MODE_INVERTED = 0x10;
 const uint8_t PCA9685_MODE_OUTPUT_ONACK = 0x08;
