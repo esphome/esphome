@@ -6,11 +6,11 @@ namespace tuya {
 
 using namespace esphome::cover;
 
-static const char *TAG = "tuya.cover";
+static const char *const TAG = "tuya.cover";
 
 void TuyaCover::setup() {
   ESP_LOGCONFIG(TAG, "Setting up Tuya cover '%s'...", this->name_.c_str());
-  
+
   // Handle configured restore mode.
   switch (this->restore_mode_) {
     case COVER_NO_RESTORE:
@@ -35,12 +35,12 @@ void TuyaCover::setup() {
   if (this->position_report_id_.has_value()) {
     pos_report_id = *this->position_report_id_;
   }
-  this->parent_->register_listener(pos_report_id, [this](TuyaDatapoint datapoint) {
+  this->parent_->register_listener(pos_report_id, [this](const TuyaDatapoint &datapoint) {
     if (datapoint.value_int == 123) {
       ESP_LOGD(TAG, "Ignoring MCU position report - not calibrated");
     } else {
       ESP_LOGD(TAG, "MCU reported position of: %d%%", 100 - datapoint.value_int);
-      this->position = 1.0f - (float)datapoint.value_int / 100;
+      this->position = 1.0f - (float) datapoint.value_int / 100;
       this->current_operation = CoverOperation::COVER_OPERATION_IDLE;
       this->publish_state();
     }
@@ -55,9 +55,7 @@ void TuyaCover::setup() {
   register_service(&TuyaCover::set_direction, "set_direction", {"inverted"});
 }
 
-void TuyaCover::dump_config() {
-  ESP_LOGCONFIG(TAG, "Tuya Cover:");
-}
+void TuyaCover::dump_config() { ESP_LOGCONFIG(TAG, "Tuya Cover:"); }
 
 void TuyaCover::set_direction(bool inverted) {
   uint8_t direction_id = 0x05;
@@ -77,9 +75,7 @@ void TuyaCover::set_direction(bool inverted) {
   }
 }
 
-void TuyaCover::set_optimistic(bool optimistic) {
-  this->optimistic_ = optimistic;
-}
+void TuyaCover::set_optimistic(bool optimistic) { this->optimistic_ = optimistic; }
 
 void TuyaCover::control(const CoverCall &call) {
   uint8_t control_id = 0x01;
@@ -119,7 +115,7 @@ void TuyaCover::control(const CoverCall &call) {
       TuyaDatapoint datapoint{};
       datapoint.id = pos_control_id;
       datapoint.type = TuyaDatapointType::INTEGER;
-      int requested_pos = (int)(pos * 100);
+      int requested_pos = (int) (pos * 100);
       datapoint.value_int = 100 - requested_pos;
       this->parent_->set_datapoint_value(datapoint);
       ESP_LOGD(TAG, "Setting position: %d%%", requested_pos);
