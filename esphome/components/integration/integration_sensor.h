@@ -56,11 +56,12 @@ class IntegrationSensor : public sensor::Sensor, public Component {
     this->result_ = result;
     this->publish_state(result);
     float result_f = result;
-    if (this->min_save_interval_) {
-      if (millis() - this->last_save_ < this->min_save_interval_) {
+    if (this->min_save_interval_ != 0) {
+      const uint32_t now = millis();
+      if (now - this->last_save_ < this->min_save_interval_) {
         return;
       }
-      this->last_save_ = millis();
+      this->last_save_ = now;
     }
     this->rtc_.save(&result_f);
   }
