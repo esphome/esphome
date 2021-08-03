@@ -4,7 +4,7 @@
 namespace esphome {
 namespace gps {
 
-static const char *TAG = "gps";
+static const char *const TAG = "gps";
 
 TinyGPSPlus &GPSListener::get_tiny_gps() { return this->parent_->get_tiny_gps(); }
 

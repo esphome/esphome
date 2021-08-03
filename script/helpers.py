@@ -40,7 +40,7 @@ def build_all_include():
 def build_compile_commands():
     gcc_flags_json = os.path.join(root_path, ".gcc-flags.json")
     if not os.path.isfile(gcc_flags_json):
-        print("Could not find {} file which is required for clang-tidy.")
+        print("Could not find {} file which is required for clang-tidy.".format(gcc_flags_json))
         print(
             'Please run "pio init --ide atom" in the root esphome folder to generate that file.'
         )
@@ -145,8 +145,10 @@ def filter_changed(files):
     return files
 
 
-def git_ls_files():
+def git_ls_files(patterns=None):
     command = ["git", "ls-files", "-s"]
+    if patterns is not None:
+        command.extend(patterns)
     proc = subprocess.Popen(command, stdout=subprocess.PIPE)
     output, err = proc.communicate()
     lines = [x.split() for x in output.decode("utf-8").splitlines()]

@@ -33,17 +33,17 @@ CONFIG_SCHEMA = cv.Schema(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
-    data_pin = yield cg.gpio_pin_expression(config[CONF_DATA_PIN])
+    await cg.register_component(var, config)
+    data_pin = await cg.gpio_pin_expression(config[CONF_DATA_PIN])
     cg.add(var.set_data_pin(data_pin))
-    clock_pin = yield cg.gpio_pin_expression(config[CONF_CLOCK_PIN])
+    clock_pin = await cg.gpio_pin_expression(config[CONF_CLOCK_PIN])
     cg.add(var.set_clock_pin(clock_pin))
-    latch_pin = yield cg.gpio_pin_expression(config[CONF_LATCH_PIN])
+    latch_pin = await cg.gpio_pin_expression(config[CONF_LATCH_PIN])
     cg.add(var.set_latch_pin(latch_pin))
     if CONF_OE_PIN in config:
-        oe_pin = yield cg.gpio_pin_expression(config[CONF_OE_PIN])
+        oe_pin = await cg.gpio_pin_expression(config[CONF_OE_PIN])
         cg.add(var.set_oe_pin(oe_pin))
     cg.add(var.set_sr_count(config[CONF_SR_COUNT]))
 
@@ -61,6 +61,6 @@ SN74HC595_INPUT_PIN_SCHEMA = cv.Schema({})
 @pins.PIN_SCHEMA_REGISTRY.register(
     CONF_SN74HC595, (SN74HC595_OUTPUT_PIN_SCHEMA, SN74HC595_INPUT_PIN_SCHEMA)
 )
-def sn74hc595_pin_to_code(config):
-    parent = yield cg.get_variable(config[CONF_SN74HC595])
-    yield SN74HC595GPIOPin.new(parent, config[CONF_NUMBER], config[CONF_INVERTED])
+async def sn74hc595_pin_to_code(config):
+    parent = await cg.get_variable(config[CONF_SN74HC595])
+    return SN74HC595GPIOPin.new(parent, config[CONF_NUMBER], config[CONF_INVERTED])

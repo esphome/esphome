@@ -27,18 +27,18 @@ CONFIG_SCHEMA = fan.FAN_SCHEMA.extend(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-def to_code(config):
-    output_ = yield cg.get_variable(config[CONF_OUTPUT])
-    state = yield fan.create_fan_state(config)
+async def to_code(config):
+    output_ = await cg.get_variable(config[CONF_OUTPUT])
+    state = await fan.create_fan_state(config)
     var = cg.new_Pvariable(
         config[CONF_OUTPUT_ID], state, output_, config[CONF_SPEED_COUNT]
     )
-    yield cg.register_component(var, config)
+    await cg.register_component(var, config)
 
     if CONF_OSCILLATION_OUTPUT in config:
-        oscillation_output = yield cg.get_variable(config[CONF_OSCILLATION_OUTPUT])
+        oscillation_output = await cg.get_variable(config[CONF_OSCILLATION_OUTPUT])
         cg.add(var.set_oscillating(oscillation_output))
 
     if CONF_DIRECTION_OUTPUT in config:
-        direction_output = yield cg.get_variable(config[CONF_DIRECTION_OUTPUT])
+        direction_output = await cg.get_variable(config[CONF_DIRECTION_OUTPUT])
         cg.add(var.set_direction(direction_output))

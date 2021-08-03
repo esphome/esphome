@@ -4,7 +4,7 @@
 namespace esphome {
 namespace rdm6300 {
 
-static const char *TAG = "rdm6300";
+static const char *const TAG = "rdm6300";
 
 static const uint8_t RDM6300_START_BYTE = 0x02;
 static const uint8_t RDM6300_END_BYTE = 0x03;

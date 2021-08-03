@@ -14,7 +14,7 @@ from esphome.const import (
     CONF_MQTT_ID,
     CONF_NAME,
 )
-from esphome.core import CORE, coroutine, coroutine_with_priority
+from esphome.core import CORE, coroutine_with_priority
 
 IS_PLATFORM_COMPONENT = True
 
@@ -73,8 +73,7 @@ COVER_SCHEMA = cv.MQTT_COMMAND_COMPONENT_SCHEMA.extend(
 )
 
 
-@coroutine
-def setup_cover_core_(var, config):
+async def setup_cover_core_(var, config):
     cg.add(var.set_name(config[CONF_NAME]))
     if CONF_INTERNAL in config:
         cg.add(var.set_internal(config[CONF_INTERNAL]))
@@ -83,15 +82,14 @@ def setup_cover_core_(var, config):
 
     if CONF_MQTT_ID in config:
         mqtt_ = cg.new_Pvariable(config[CONF_MQTT_ID], var)
-        yield mqtt.register_mqtt_component(mqtt_, config)
+        await mqtt.register_mqtt_component(mqtt_, config)
 
 
-@coroutine
-def register_cover(var, config):
+async def register_cover(var, config):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
     cg.add(cg.App.register_cover(var))
-    yield setup_cover_core_(var, config)
+    await setup_cover_core_(var, config)
 
 
 COVER_ACTION_SCHEMA = maybe_simple_id(
@@ -102,21 +100,21 @@ COVER_ACTION_SCHEMA = maybe_simple_id(
 
 
 @automation.register_action("cover.open", OpenAction, COVER_ACTION_SCHEMA)
-def cover_open_to_code(config, action_id, template_arg, args):
-    paren = yield cg.get_variable(config[CONF_ID])
-    yield cg.new_Pvariable(action_id, template_arg, paren)
+async def cover_open_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(action_id, template_arg, paren)
 
 
 @automation.register_action("cover.close", CloseAction, COVER_ACTION_SCHEMA)
-def cover_close_to_code(config, action_id, template_arg, args):
-    paren = yield cg.get_variable(config[CONF_ID])
-    yield cg.new_Pvariable(action_id, template_arg, paren)
+async def cover_close_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(action_id, template_arg, paren)
 
 
 @automation.register_action("cover.stop", StopAction, COVER_ACTION_SCHEMA)
-def cover_stop_to_code(config, action_id, template_arg, args):
-    paren = yield cg.get_variable(config[CONF_ID])
-    yield cg.new_Pvariable(action_id, template_arg, paren)
+async def cover_stop_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(action_id, template_arg, paren)
 
 
 COVER_CONTROL_ACTION_SCHEMA = cv.Schema(
@@ -131,25 +129,25 @@ COVER_CONTROL_ACTION_SCHEMA = cv.Schema(
 
 
 @automation.register_action("cover.control", ControlAction, COVER_CONTROL_ACTION_SCHEMA)
-def cover_control_to_code(config, action_id, template_arg, args):
-    paren = yield cg.get_variable(config[CONF_ID])
+async def cover_control_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
     if CONF_STOP in config:
-        template_ = yield cg.templatable(config[CONF_STOP], args, bool)
+        template_ = await cg.templatable(config[CONF_STOP], args, bool)
         cg.add(var.set_stop(template_))
     if CONF_STATE in config:
-        template_ = yield cg.templatable(config[CONF_STATE], args, float)
+        template_ = await cg.templatable(config[CONF_STATE], args, float)
         cg.add(var.set_position(template_))
     if CONF_POSITION in config:
-        template_ = yield cg.templatable(config[CONF_POSITION], args, float)
+        template_ = await cg.templatable(config[CONF_POSITION], args, float)
         cg.add(var.set_position(template_))
     if CONF_TILT in config:
-        template_ = yield cg.templatable(config[CONF_TILT], args, float)
+        template_ = await cg.templatable(config[CONF_TILT], args, float)
         cg.add(var.set_tilt(template_))
-    yield var
+    return var
 
 
 @coroutine_with_priority(100.0)
-def to_code(config):
+async def to_code(config):
     cg.add_define("USE_COVER")
     cg.add_global(cover_ns.using)

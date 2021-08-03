@@ -1,194 +1,35 @@
 import collections
-import importlib
 import logging
 import re
-import os.path
 
 # pylint: disable=unused-import, wrong-import-order
-import sys
 from contextlib import contextmanager
 
 import voluptuous as vol
 
-from esphome import core, core_config, yaml_util
+from esphome import core, yaml_util, loader
+import esphome.core.config as core_config
 from esphome.const import (
     CONF_ESPHOME,
     CONF_PLATFORM,
-    ESP_PLATFORMS,
     CONF_PACKAGES,
     CONF_SUBSTITUTIONS,
+    CONF_EXTERNAL_COMPONENTS,
 )
-from esphome.core import CORE, EsphomeError  # noqa
+from esphome.core import CORE, EsphomeError
 from esphome.helpers import indent
 from esphome.util import safe_print, OrderedDict
 
-from typing import List, Optional, Tuple, Union  # noqa
-from esphome.core import ConfigType  # noqa
+from typing import List, Optional, Tuple, Union
+from esphome.loader import get_component, get_platform, ComponentManifest
 from esphome.yaml_util import is_secret, ESPHomeDataBase, ESPForceValue
 from esphome.voluptuous_schema import ExtraKeysInvalid
 from esphome.log import color, Fore
+import esphome.final_validate as fv
+import esphome.config_validation as cv
+from esphome.types import ConfigType, ConfigPathType, ConfigFragmentType
 
 _LOGGER = logging.getLogger(__name__)
-
-_COMPONENT_CACHE = {}
-
-
-class ComponentManifest:
-    def __init__(self, module, base_components_path, is_core=False, is_platform=False):
-        self.module = module
-        self._is_core = is_core
-        self.is_platform = is_platform
-        self.base_components_path = base_components_path
-
-    @property
-    def is_platform_component(self):
-        return getattr(self.module, "IS_PLATFORM_COMPONENT", False)
-
-    @property
-    def config_schema(self):
-        return getattr(self.module, "CONFIG_SCHEMA", None)
-
-    @property
-    def multi_conf(self):
-        return getattr(self.module, "MULTI_CONF", False)
-
-    @property
-    def to_code(self):
-        return getattr(self.module, "to_code", None)
-
-    @property
-    def esp_platforms(self):
-        return getattr(self.module, "ESP_PLATFORMS", ESP_PLATFORMS)
-
-    @property
-    def dependencies(self):
-        return getattr(self.module, "DEPENDENCIES", [])
-
-    @property
-    def conflicts_with(self):
-        return getattr(self.module, "CONFLICTS_WITH", [])
-
-    @property
-    def auto_load(self):
-        return getattr(self.module, "AUTO_LOAD", [])
-
-    @property
-    def codeowners(self) -> List[str]:
-        return getattr(self.module, "CODEOWNERS", [])
-
-    def _get_flags_set(self, name, config):
-        if not hasattr(self.module, name):
-            return set()
-        obj = getattr(self.module, name)
-        if callable(obj):
-            obj = obj(config)
-        if obj is None:
-            return set()
-        if not isinstance(obj, (list, tuple, set)):
-            obj = [obj]
-        return set(obj)
-
-    @property
-    def source_files(self):
-        if self._is_core:
-            core_p = os.path.abspath(os.path.join(os.path.dirname(__file__), "core"))
-            source_files = core.find_source_files(os.path.join(core_p, "dummy"))
-            ret = {}
-            for f in source_files:
-                ret[f"esphome/core/{f}"] = os.path.join(core_p, f)
-            return ret
-
-        source_files = core.find_source_files(self.module.__file__)
-        ret = {}
-        # Make paths absolute
-        directory = os.path.abspath(os.path.dirname(self.module.__file__))
-        for x in source_files:
-            full_file = os.path.join(directory, x)
-            rel = os.path.relpath(full_file, self.base_components_path)
-            # Always use / for C++ include names
-            rel = rel.replace(os.sep, "/")
-            target_file = f"esphome/components/{rel}"
-            ret[target_file] = full_file
-        return ret
-
-
-CORE_COMPONENTS_PATH = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), "components")
-)
-_UNDEF = object()
-CUSTOM_COMPONENTS_PATH = _UNDEF
-
-
-def _mount_config_dir():
-    global CUSTOM_COMPONENTS_PATH
-    if CUSTOM_COMPONENTS_PATH is not _UNDEF:
-        return
-    custom_path = os.path.abspath(os.path.join(CORE.config_dir, "custom_components"))
-    if not os.path.isdir(custom_path):
-        CUSTOM_COMPONENTS_PATH = None
-        return
-    if CORE.config_dir not in sys.path:
-        sys.path.insert(0, CORE.config_dir)
-    CUSTOM_COMPONENTS_PATH = custom_path
-
-
-def _lookup_module(domain, is_platform):
-    if domain in _COMPONENT_CACHE:
-        return _COMPONENT_CACHE[domain]
-
-    _mount_config_dir()
-    # First look for custom_components
-    try:
-        module = importlib.import_module(f"custom_components.{domain}")
-    except ImportError as e:
-        # ImportError when no such module
-        if "No module named" not in str(e):
-            _LOGGER.warning(
-                "Unable to import custom component %s:", domain, exc_info=True
-            )
-    except Exception:  # pylint: disable=broad-except
-        # Other error means component has an issue
-        _LOGGER.error("Unable to load custom component %s:", domain, exc_info=True)
-        return None
-    else:
-        # Found in custom components
-        manif = ComponentManifest(
-            module, CUSTOM_COMPONENTS_PATH, is_platform=is_platform
-        )
-        _COMPONENT_CACHE[domain] = manif
-        return manif
-
-    try:
-        module = importlib.import_module(f"esphome.components.{domain}")
-    except ImportError as e:
-        if "No module named" not in str(e):
-            _LOGGER.error("Unable to import component %s:", domain, exc_info=True)
-        return None
-    except Exception:  # pylint: disable=broad-except
-        _LOGGER.error("Unable to load component %s:", domain, exc_info=True)
-        return None
-    else:
-        manif = ComponentManifest(module, CORE_COMPONENTS_PATH, is_platform=is_platform)
-        _COMPONENT_CACHE[domain] = manif
-        return manif
-
-
-def get_component(domain):
-    assert "." not in domain
-    return _lookup_module(domain, False)
-
-
-def get_platform(domain, platform):
-    full = f"{platform}.{domain}"
-    return _lookup_module(full, True)
-
-
-_COMPONENT_CACHE["esphome"] = ComponentManifest(
-    core_config,
-    CORE_COMPONENTS_PATH,
-    is_core=True,
-    is_platform=False,
-)
 
 
 def iter_components(config):
@@ -215,7 +56,7 @@ def _path_begins_with(path, other):  # type: (ConfigPath, ConfigPath) -> bool
     return path[: len(other)] == other
 
 
-class Config(OrderedDict):
+class Config(OrderedDict, fv.FinalValidateConfig):
     def __init__(self):
         super().__init__()
         # A list of voluptuous errors
@@ -224,6 +65,9 @@ class Config(OrderedDict):
         # The values will be the paths to all "domain", for example (['logger'], 'logger')
         # or (['sensor', 'ultrasonic'], 'sensor.ultrasonic')
         self.output_paths = []  # type: List[Tuple[ConfigPath, str]]
+        # A list of components ids with the config path
+        self.declare_ids = []  # type: List[Tuple[core.ID, ConfigPath]]
+        self._data = {}
 
     def add_error(self, error):
         # type: (vol.Invalid) -> None
@@ -231,6 +75,12 @@ class Config(OrderedDict):
             for err in error.errors:
                 self.add_error(err)
             return
+        if cv.ROOT_CONFIG_PATH in error.path:
+            # Root value means that the path before the root should be ignored
+            last_root = max(
+                i for i, v in enumerate(error.path) if v is cv.ROOT_CONFIG_PATH
+            )
+            error.path = error.path[last_root + 1 :]
         self.errors.append(error)
 
     @contextmanager
@@ -299,13 +149,16 @@ class Config(OrderedDict):
 
         return doc_range
 
-    def get_nested_item(self, path):
-        # type: (ConfigPath) -> ConfigType
+    def get_nested_item(
+        self, path: ConfigPathType, raise_error: bool = False
+    ) -> ConfigFragmentType:
         data = self
         for item_index in path:
             try:
                 data = data[item_index]
             except (KeyError, IndexError, TypeError):
+                if raise_error:
+                    raise
                 return {}
         return data
 
@@ -321,6 +174,21 @@ class Config(OrderedDict):
                 return part
             part.append(item_index)
         return part
+
+    def get_path_for_id(self, id: core.ID):
+        """Return the config fragment where the given ID is declared."""
+        for declared_id, path in self.declare_ids:
+            if declared_id.id == str(id):
+                return path
+        raise KeyError(f"ID {id} not found in configuration")
+
+    def get_config_for_path(self, path: ConfigPathType) -> ConfigFragmentType:
+        return self.get_nested_item(path, raise_error=True)
+
+    @property
+    def data(self):
+        """Return temporary data used by final validation functions."""
+        return self._data
 
 
 def iter_ids(config, path=None):
@@ -342,23 +210,22 @@ def do_id_pass(result):  # type: (Config) -> None
     from esphome.cpp_generator import MockObjClass
     from esphome.cpp_types import Component
 
-    declare_ids = []  # type: List[Tuple[core.ID, ConfigPath]]
     searching_ids = []  # type: List[Tuple[core.ID, ConfigPath]]
     for id, path in iter_ids(result):
         if id.is_declaration:
             if id.id is not None:
                 # Look for duplicate definitions
-                match = next((v for v in declare_ids if v[0].id == id.id), None)
+                match = next((v for v in result.declare_ids if v[0].id == id.id), None)
                 if match is not None:
                     opath = "->".join(str(v) for v in match[1])
                     result.add_str_error(f"ID {id.id} redefined! Check {opath}", path)
                     continue
-            declare_ids.append((id, path))
+            result.declare_ids.append((id, path))
         else:
             searching_ids.append((id, path))
     # Resolve default ids after manual IDs
-    for id, _ in declare_ids:
-        id.resolve([v[0].id for v in declare_ids])
+    for id, _ in result.declare_ids:
+        id.resolve([v[0].id for v in result.declare_ids])
         if isinstance(id.type, MockObjClass) and id.type.inherits_from(Component):
             CORE.component_ids.add(id.id)
 
@@ -366,7 +233,7 @@ def do_id_pass(result):  # type: (Config) -> None
     for id, path in searching_ids:
         if id.id is not None:
             # manually declared
-            match = next((v[0] for v in declare_ids if v[0].id == id.id), None)
+            match = next((v[0] for v in result.declare_ids if v[0].id == id.id), None)
             if match is None or not match.is_manual:
                 # No declared ID with this name
                 import difflib
@@ -377,7 +244,7 @@ def do_id_pass(result):  # type: (Config) -> None
                 )
                 # Find candidates
                 matches = difflib.get_close_matches(
-                    id.id, [v[0].id for v in declare_ids if v[0].is_manual]
+                    id.id, [v[0].id for v in result.declare_ids if v[0].is_manual]
                 )
                 if matches:
                     matches_s = ", ".join(f'"{x}"' for x in matches)
@@ -398,7 +265,7 @@ def do_id_pass(result):  # type: (Config) -> None
 
         if id.id is None and id.type is not None:
             matches = []
-            for v in declare_ids:
+            for v in result.declare_ids:
                 if v[0] is None or not isinstance(v[0].type, MockObjClass):
                     continue
                 inherits = v[0].type.inherits_from(id.type)
@@ -431,8 +298,6 @@ def do_id_pass(result):  # type: (Config) -> None
 
 
 def recursive_check_replaceme(value):
-    import esphome.config_validation as cv
-
     if isinstance(value, list):
         return cv.Schema([recursive_check_replaceme])(value)
     if isinstance(value, dict):
@@ -452,6 +317,9 @@ def recursive_check_replaceme(value):
 
 def validate_config(config, command_line_substitutions):
     result = Config()
+
+    loader.clear_component_meta_finders()
+    loader.install_custom_components_meta_finder()
 
     # 0. Load packages
     if CONF_PACKAGES in config:
@@ -485,6 +353,18 @@ def validate_config(config, command_line_substitutions):
         recursive_check_replaceme(config)
     except vol.Invalid as err:
         result.add_error(err)
+
+    # 1.2. Load external_components
+    if CONF_EXTERNAL_COMPONENTS in config:
+        from esphome.components.external_components import do_external_components_pass
+
+        result.add_output_path([CONF_EXTERNAL_COMPONENTS], CONF_EXTERNAL_COMPONENTS)
+        try:
+            do_external_components_pass(config)
+        except vol.Invalid as err:
+            result.update(config)
+            result.add_error(err)
+            return result
 
     if "esphomeyaml" in config:
         _LOGGER.warning(
@@ -692,6 +572,21 @@ def validate_config(config, command_line_substitutions):
         # Only parse IDs if no validation error. Otherwise
         # user gets confusing messages
         do_id_pass(result)
+
+    # 7. Final validation
+    if not result.errors:
+        # Inter - components validation
+        token = fv.full_config.set(result)
+
+        for path, _, comp in validate_queue:
+            if comp.final_validate_schema is None:
+                continue
+            conf = result.get_nested_item(path)
+            with result.catch_error(path):
+                comp.final_validate_schema(conf)
+
+        fv.full_config.reset(token)
+
     return result
 
 
@@ -746,8 +641,12 @@ def _format_vol_invalid(ex, config):
             )
     elif "extra keys not allowed" in str(ex):
         message += "[{}] is an invalid option for [{}].".format(ex.path[-1], paren)
-    elif "required key not provided" in str(ex):
-        message += "'{}' is a required option for [{}].".format(ex.path[-1], paren)
+    elif isinstance(ex, vol.RequiredFieldInvalid):
+        if ex.msg == "required key not provided":
+            message += "'{}' is a required option for [{}].".format(ex.path[-1], paren)
+        else:
+            # Required has set a custom error message
+            message += ex.msg
     else:
         message += humanize_error(config, ex)
 

@@ -4,7 +4,7 @@
 namespace esphome {
 namespace tcs34725 {
 
-static const char *TAG = "tcs34725";
+static const char *const TAG = "tcs34725";
 
 static const uint8_t TCS34725_ADDRESS = 0x29;
 static const uint8_t TCS34725_COMMAND_BIT = 0x80;

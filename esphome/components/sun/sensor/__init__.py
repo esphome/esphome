@@ -2,7 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import sensor
 from esphome.const import (
-    DEVICE_CLASS_EMPTY,
+    STATE_CLASS_NONE,
     UNIT_DEGREES,
     ICON_WEATHER_SUNSET,
     CONF_ID,
@@ -20,7 +20,12 @@ TYPES = {
 }
 
 CONFIG_SCHEMA = (
-    sensor.sensor_schema(UNIT_DEGREES, ICON_WEATHER_SUNSET, 1, DEVICE_CLASS_EMPTY)
+    sensor.sensor_schema(
+        unit_of_measurement=UNIT_DEGREES,
+        icon=ICON_WEATHER_SUNSET,
+        accuracy_decimals=1,
+        state_class=STATE_CLASS_NONE,
+    )
     .extend(
         {
             cv.GenerateID(): cv.declare_id(SunSensor),
@@ -32,11 +37,11 @@ CONFIG_SCHEMA = (
 )
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
-    yield sensor.register_sensor(var, config)
+    await cg.register_component(var, config)
+    await sensor.register_sensor(var, config)
 
     cg.add(var.set_type(config[CONF_TYPE]))
-    paren = yield cg.get_variable(config[CONF_SUN_ID])
+    paren = await cg.get_variable(config[CONF_SUN_ID])
     cg.add(var.set_parent(paren))

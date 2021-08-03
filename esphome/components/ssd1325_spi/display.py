@@ -25,10 +25,10 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield ssd1325_base.setup_ssd1325(var, config)
-    yield spi.register_spi_device(var, config)
+    await ssd1325_base.setup_ssd1325(var, config)
+    await spi.register_spi_device(var, config)
 
-    dc = yield cg.gpio_pin_expression(config[CONF_DC_PIN])
+    dc = await cg.gpio_pin_expression(config[CONF_DC_PIN])
     cg.add(var.set_dc_pin(dc))

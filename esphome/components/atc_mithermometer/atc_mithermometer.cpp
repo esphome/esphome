@@ -6,7 +6,7 @@
 namespace esphome {
 namespace atc_mithermometer {
 
-static const char *TAG = "atc_mithermometer";
+static const char *const TAG = "atc_mithermometer";
 
 void ATCMiThermometer::dump_config() {
   ESP_LOGCONFIG(TAG, "ATC MiThermometer");

@@ -4,7 +4,7 @@
 namespace esphome {
 namespace hm3301 {
 
-static const char *TAG = "hm3301.sensor";
+static const char *const TAG = "hm3301.sensor";
 
 static const uint8_t PM_1_0_VALUE_INDEX = 5;
 static const uint8_t PM_2_5_VALUE_INDEX = 6;
