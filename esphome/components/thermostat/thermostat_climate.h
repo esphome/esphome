@@ -396,10 +396,6 @@ class ThermostatClimate : public climate::Climate, public Component {
   float supplemental_cool_delta_{0};
   float supplemental_heat_delta_{0};
 
-  /// Maximum allowable run time before engauging supplemental cooling/heating actions
-  uint32_t cooling_maximum_run_time_{0};
-  uint32_t heating_maximum_run_time_{0};
-
   /// Minimum allowable duration in seconds for action timers
   const uint8_t min_timer_duration_{1};
 
