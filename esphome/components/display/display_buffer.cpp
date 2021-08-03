@@ -626,9 +626,9 @@ void Graph::redraw_() {
     yrange = ymax - ymin;
   }
   if (!isnan(this->gridspacing_x_)) {
-    for (int i = 0; i <= this->width_ / this->gridspacing_x_; i++) {
+    for (int i = 0; i < (this->width_+1) / this->gridspacing_x_; i++) {
       for (int y = 0; y < this->height_; y += 2) {
-        this->set_pixel_(this->width_ - i * this->gridspacing_x_, y);
+        this->set_pixel_(this->width_ - 1 - i * this->gridspacing_x_, y);
       }
     }
   }
