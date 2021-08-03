@@ -4,32 +4,38 @@ import esphome.codegen as cg
 from esphome.const import CONF_OUTPUT_ID, CONF_OPTIMISTIC, CONF_RESTORE_MODE
 from .. import tuya_ns, CONF_TUYA_ID, Tuya
 
-DEPENDENCIES = ['tuya']
+DEPENDENCIES = ["tuya"]
 
 CONF_POSITION_REPORT_DATAPOINT = "position_report_datapoint"
 CONF_POSITION_CONTROL_DATAPOINT = "position_control_datapoint"
 CONF_CONTROL_DATAPOINT = "control_datapoint"
 CONF_DIRECTION_DATAPOINT = "direction_datapoint"
 
-TuyaCover = tuya_ns.class_('TuyaCover', cover.Cover, cg.Component)
+TuyaCover = tuya_ns.class_("TuyaCover", cover.Cover, cg.Component)
 
-TuyaCoverRestoreMode = tuya_ns.enum('TuyaCoverRestoreMode')
+TuyaCoverRestoreMode = tuya_ns.enum("TuyaCoverRestoreMode")
 RESTORE_MODES = {
-    'NO_RESTORE': TuyaCoverRestoreMode.COVER_NO_RESTORE,
-    'RESTORE': TuyaCoverRestoreMode.COVER_RESTORE,
-    'RESTORE_AND_CALL': TuyaCoverRestoreMode.COVER_RESTORE_AND_CALL,
+    "NO_RESTORE": TuyaCoverRestoreMode.COVER_NO_RESTORE,
+    "RESTORE": TuyaCoverRestoreMode.COVER_RESTORE,
+    "RESTORE_AND_CALL": TuyaCoverRestoreMode.COVER_RESTORE_AND_CALL,
 }
 
-CONFIG_SCHEMA = cv.All(cover.COVER_SCHEMA.extend({
-    cv.GenerateID(CONF_OUTPUT_ID): cv.declare_id(TuyaCover),
-    cv.GenerateID(CONF_TUYA_ID): cv.use_id(Tuya),
-    cv.Optional(CONF_OPTIMISTIC, default=False): cv.boolean,
-    cv.Optional(CONF_POSITION_REPORT_DATAPOINT): cv.uint8_t,
-    cv.Optional(CONF_POSITION_CONTROL_DATAPOINT): cv.uint8_t,
-    cv.Optional(CONF_CONTROL_DATAPOINT): cv.uint8_t,
-    cv.Optional(CONF_DIRECTION_DATAPOINT): cv.uint8_t,
-    cv.Optional(CONF_RESTORE_MODE, default='RESTORE'): cv.enum(RESTORE_MODES, upper=True),
-}).extend(cv.COMPONENT_SCHEMA))
+CONFIG_SCHEMA = cv.All(
+    cover.COVER_SCHEMA.extend(
+        {
+            cv.GenerateID(CONF_OUTPUT_ID): cv.declare_id(TuyaCover),
+            cv.GenerateID(CONF_TUYA_ID): cv.use_id(Tuya),
+            cv.Optional(CONF_OPTIMISTIC, default=False): cv.boolean,
+            cv.Optional(CONF_POSITION_REPORT_DATAPOINT): cv.uint8_t,
+            cv.Optional(CONF_POSITION_CONTROL_DATAPOINT): cv.uint8_t,
+            cv.Optional(CONF_CONTROL_DATAPOINT): cv.uint8_t,
+            cv.Optional(CONF_DIRECTION_DATAPOINT): cv.uint8_t,
+            cv.Optional(CONF_RESTORE_MODE, default="RESTORE"): cv.enum(
+                RESTORE_MODES, upper=True
+            ),
+        }
+    ).extend(cv.COMPONENT_SCHEMA)
+)
 
 
 def to_code(config):
