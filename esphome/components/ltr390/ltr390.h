@@ -1,10 +1,9 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/optional.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
-#include <map>
-#include <atomic>
 #include <tuple>
 
 namespace esphome {
@@ -23,8 +22,7 @@ static const uint8_t LTR390_MEAS_RATE = 0x04;
 static const uint8_t LTR390_GAIN = 0x05;
 static const uint8_t LTR390_PART_ID = 0x06;
 static const uint8_t LTR390_MAIN_STATUS = 0x07;
-
-#define LTR390_SENSITIVITY 2300.0
+static const float LTR390_SENSITIVITY = 2300.0;
 
 // Sensing modes
 enum LTR390MODE {
@@ -68,36 +66,17 @@ class LTR390Component : public PollingComponent, public i2c::I2CDevice {
   void set_uv_sensor(sensor::Sensor *uv_sensor) { this->uv_sensor_ = uv_sensor; }
 
  protected:
-  bool enabled_();
-  void enable_(bool en);
-
-  bool reset_();
-
-  void set_mode_(LTR390MODE mode);
-  LTR390MODE get_mode_();
-
-  void set_gain_(LTR390GAIN gain);
-  LTR390GAIN get_gain_();
-
-  void set_resolution_(LTR390RESOLUTION res);
-  LTR390RESOLUTION get_resolution_();
-
-  bool new_data_available_();
-  uint32_t read_sensor_data_(LTR390MODE mode);
+  optional<uint32_t> read_sensor_data_(LTR390MODE mode);
 
   void read_als_();
   void read_uvs_();
 
   void read_mode_(int mode_index);
 
-  std::atomic<bool> reading_;
+  bool reading_;
 
-  std::vector<std::tuple<LTR390MODE, std::function<void(void)> > > *mode_funcs_;
-
-  i2c::I2CRegister *ctrl_reg_;
-  i2c::I2CRegister *status_reg_;
-  i2c::I2CRegister *gain_reg_;
-  i2c::I2CRegister *res_reg_;
+  // a list of modes and corresponding read functions
+  std::vector<std::tuple<LTR390MODE, std::function<void()>>> mode_funcs_;
 
   LTR390GAIN gain_;
   LTR390RESOLUTION res_;
