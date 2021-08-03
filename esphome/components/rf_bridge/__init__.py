@@ -12,6 +12,7 @@ from esphome.const import (
     CONF_RAW,
     CONF_SYNC,
     CONF_TRIGGER_ID,
+    CONF_DURATION,
 )
 
 DEPENDENCIES = ["uart"]
@@ -49,6 +50,12 @@ RFBridgeStopAdvancedSniffingAction = rf_bridge_ns.class_(
     "RFBridgeStopAdvancedSniffingAction", automation.Action
 )
 
+RFBridgeStartBucketSniffingAction = rf_bridge_ns.class_(
+    "RFBridgeStartBucketSniffingAction", automation.Action
+)
+
+RFBridgeBeepAction = rf_bridge_ns.class_("RFBridgeBeepAction", automation.Action)
+
 RFBridgeSendRawAction = rf_bridge_ns.class_("RFBridgeSendRawAction", automation.Action)
 
 CONF_ON_CODE_RECEIVED = "on_code_received"
@@ -79,18 +86,18 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
-    yield uart.register_uart_device(var, config)
+    await cg.register_component(var, config)
+    await uart.register_uart_device(var, config)
 
     for conf in config.get(CONF_ON_CODE_RECEIVED, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        yield automation.build_automation(trigger, [(RFBridgeData, "data")], conf)
+        await automation.build_automation(trigger, [(RFBridgeData, "data")], conf)
 
     for conf in config.get(CONF_ON_ADVANCED_CODE_RECEIVED, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        yield automation.build_automation(
+        await automation.build_automation(
             trigger, [(RFBridgeAdvancedData, "data")], conf
         )
 
@@ -109,28 +116,28 @@ RFBRIDGE_SEND_CODE_SCHEMA = cv.Schema(
 @automation.register_action(
     "rf_bridge.send_code", RFBridgeSendCodeAction, RFBRIDGE_SEND_CODE_SCHEMA
 )
-def rf_bridge_send_code_to_code(config, action_id, template_args, args):
-    paren = yield cg.get_variable(config[CONF_ID])
+async def rf_bridge_send_code_to_code(config, action_id, template_args, args):
+    paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_args, paren)
-    template_ = yield cg.templatable(config[CONF_SYNC], args, cg.uint16)
+    template_ = await cg.templatable(config[CONF_SYNC], args, cg.uint16)
     cg.add(var.set_sync(template_))
-    template_ = yield cg.templatable(config[CONF_LOW], args, cg.uint16)
+    template_ = await cg.templatable(config[CONF_LOW], args, cg.uint16)
     cg.add(var.set_low(template_))
-    template_ = yield cg.templatable(config[CONF_HIGH], args, cg.uint16)
+    template_ = await cg.templatable(config[CONF_HIGH], args, cg.uint16)
     cg.add(var.set_high(template_))
-    template_ = yield cg.templatable(config[CONF_CODE], args, cg.uint32)
+    template_ = await cg.templatable(config[CONF_CODE], args, cg.uint32)
     cg.add(var.set_code(template_))
-    yield var
+    return var
 
 
 RFBRIDGE_ID_SCHEMA = cv.Schema({cv.GenerateID(): cv.use_id(RFBridgeComponent)})
 
 
 @automation.register_action("rf_bridge.learn", RFBridgeLearnAction, RFBRIDGE_ID_SCHEMA)
-def rf_bridge_learnx_to_code(config, action_id, template_args, args):
-    paren = yield cg.get_variable(config[CONF_ID])
+async def rf_bridge_learnx_to_code(config, action_id, template_args, args):
+    paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_args, paren)
-    yield var
+    return var
 
 
 @automation.register_action(
@@ -138,10 +145,12 @@ def rf_bridge_learnx_to_code(config, action_id, template_args, args):
     RFBridgeStartAdvancedSniffingAction,
     RFBRIDGE_ID_SCHEMA,
 )
-def rf_bridge_start_advanced_sniffing_to_code(config, action_id, template_args, args):
-    paren = yield cg.get_variable(config[CONF_ID])
+async def rf_bridge_start_advanced_sniffing_to_code(
+    config, action_id, template_args, args
+):
+    paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_args, paren)
-    yield var
+    return var
 
 
 @automation.register_action(
@@ -149,10 +158,25 @@ def rf_bridge_start_advanced_sniffing_to_code(config, action_id, template_args, 
     RFBridgeStopAdvancedSniffingAction,
     RFBRIDGE_ID_SCHEMA,
 )
-def rf_bridge_stop_advanced_sniffing_to_code(config, action_id, template_args, args):
-    paren = yield cg.get_variable(config[CONF_ID])
+async def rf_bridge_stop_advanced_sniffing_to_code(
+    config, action_id, template_args, args
+):
+    paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_args, paren)
-    yield var
+    return var
+
+
+@automation.register_action(
+    "rf_bridge.start_bucket_sniffing",
+    RFBridgeStartBucketSniffingAction,
+    RFBRIDGE_ID_SCHEMA,
+)
+async def rf_bridge_start_bucket_sniffing_to_code(
+    config, action_id, template_args, args
+):
+    paren = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_args, paren)
+    return var
 
 
 RFBRIDGE_SEND_ADVANCED_CODE_SCHEMA = cv.Schema(
@@ -170,16 +194,16 @@ RFBRIDGE_SEND_ADVANCED_CODE_SCHEMA = cv.Schema(
     RFBridgeSendAdvancedCodeAction,
     RFBRIDGE_SEND_ADVANCED_CODE_SCHEMA,
 )
-def rf_bridge_send_advanced_code_to_code(config, action_id, template_args, args):
-    paren = yield cg.get_variable(config[CONF_ID])
+async def rf_bridge_send_advanced_code_to_code(config, action_id, template_args, args):
+    paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_args, paren)
-    template_ = yield cg.templatable(config[CONF_LENGTH], args, cg.uint16)
+    template_ = await cg.templatable(config[CONF_LENGTH], args, cg.uint16)
     cg.add(var.set_length(template_))
-    template_ = yield cg.templatable(config[CONF_PROTOCOL], args, cg.uint16)
+    template_ = await cg.templatable(config[CONF_PROTOCOL], args, cg.uint16)
     cg.add(var.set_protocol(template_))
-    template_ = yield cg.templatable(config[CONF_CODE], args, cg.std_string)
+    template_ = await cg.templatable(config[CONF_CODE], args, cg.std_string)
     cg.add(var.set_code(template_))
-    yield var
+    return var
 
 
 RFBRIDGE_SEND_RAW_SCHEMA = cv.Schema(
@@ -193,9 +217,26 @@ RFBRIDGE_SEND_RAW_SCHEMA = cv.Schema(
 @automation.register_action(
     "rf_bridge.send_raw", RFBridgeSendRawAction, RFBRIDGE_SEND_RAW_SCHEMA
 )
-def rf_bridge_send_raw_to_code(config, action_id, template_args, args):
-    paren = yield cg.get_variable(config[CONF_ID])
+async def rf_bridge_send_raw_to_code(config, action_id, template_args, args):
+    paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_args, paren)
-    template_ = yield cg.templatable(config[CONF_RAW], args, cg.std_string)
+    template_ = await cg.templatable(config[CONF_RAW], args, cg.std_string)
     cg.add(var.set_raw(template_))
-    yield var
+    return var
+
+
+RFBRIDGE_BEEP_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.use_id(RFBridgeComponent),
+        cv.Required(CONF_DURATION): cv.templatable(cv.uint16_t),
+    }
+)
+
+
+@automation.register_action("rf_bridge.beep", RFBridgeBeepAction, RFBRIDGE_BEEP_SCHEMA)
+async def rf_bridge_beep_to_code(config, action_id, template_args, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_args, paren)
+    template_ = await cg.templatable(config[CONF_DURATION], args, cg.uint16)
+    cg.add(var.set_duration(template_))
+    return var

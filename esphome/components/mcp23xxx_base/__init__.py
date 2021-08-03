@@ -40,9 +40,9 @@ MCP23XXX_CONFIG_SCHEMA = cv.Schema(
 
 
 @coroutine
-def register_mcp23xxx(config):
+async def register_mcp23xxx(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
+    await cg.register_component(var, config)
     cg.add(var.set_open_drain_ints(config[CONF_OPEN_DRAIN_INTERRUPT]))
     return var
 
@@ -79,9 +79,9 @@ MCP23XXX_INPUT_PIN_SCHEMA = cv.Schema(
 @pins.PIN_SCHEMA_REGISTRY.register(
     CONF_MCP23XXX, (MCP23XXX_OUTPUT_PIN_SCHEMA, MCP23XXX_INPUT_PIN_SCHEMA)
 )
-def mcp23xxx_pin_to_code(config):
-    parent = yield cg.get_variable(config[CONF_MCP23XXX])
-    yield MCP23XXXGPIOPin.new(
+async def mcp23xxx_pin_to_code(config):
+    parent = await cg.get_variable(config[CONF_MCP23XXX])
+    return MCP23XXXGPIOPin.new(
         parent,
         config[CONF_NUMBER],
         config[CONF_MODE],

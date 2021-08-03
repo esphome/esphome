@@ -8,7 +8,7 @@
 namespace esphome {
 namespace uart {
 
-static const char *TAG = "uart_esp8266";
+static const char *const TAG = "uart_esp8266";
 uint32_t UARTComponent::get_config() {
   uint32_t config = 0;
 
@@ -242,9 +242,9 @@ void ICACHE_RAM_ATTR HOT ESP8266SoftwareSerial::write_byte(uint8_t data) {
   bool parity_bit = false;
   bool need_parity_bit = true;
   if (this->parity_ == UART_CONFIG_PARITY_EVEN)
-    parity_bit = true;
-  else if (this->parity_ == UART_CONFIG_PARITY_ODD)
     parity_bit = false;
+  else if (this->parity_ == UART_CONFIG_PARITY_ODD)
+    parity_bit = true;
   else
     need_parity_bit = false;
 

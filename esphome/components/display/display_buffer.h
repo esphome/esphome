@@ -81,14 +81,15 @@ class Font;
 class Image;
 class DisplayBuffer;
 class DisplayPage;
+class DisplayOnPageChangeTrigger;
 
 using display_writer_t = std::function<void(DisplayBuffer &)>;
 
 #define LOG_DISPLAY(prefix, type, obj) \
-  if (obj != nullptr) { \
+  if ((obj) != nullptr) { \
     ESP_LOGCONFIG(TAG, prefix type); \
-    ESP_LOGCONFIG(TAG, "%s  Rotations: %d °", prefix, obj->rotation_); \
-    ESP_LOGCONFIG(TAG, "%s  Dimensions: %dpx x %dpx", prefix, obj->get_width(), obj->get_height()); \
+    ESP_LOGCONFIG(TAG, "%s  Rotations: %d °", prefix, (obj)->rotation_); \
+    ESP_LOGCONFIG(TAG, "%s  Dimensions: %dpx x %dpx", prefix, (obj)->get_width(), (obj)->get_height()); \
   }
 
 class DisplayBuffer {
@@ -296,6 +297,10 @@ class DisplayBuffer {
 
   void set_pages(std::vector<DisplayPage *> pages);
 
+  const DisplayPage *get_active_page() const { return this->page_; }
+
+  void add_on_page_change_trigger(DisplayOnPageChangeTrigger *t) { this->on_page_change_triggers_.push_back(t); }
+
   /// Internal method to set the display rotation with.
   void set_rotation(DisplayRotation rotation);
 
@@ -316,11 +321,13 @@ class DisplayBuffer {
   DisplayRotation rotation_{DISPLAY_ROTATION_0_DEGREES};
   optional<display_writer_t> writer_{};
   DisplayPage *page_{nullptr};
+  DisplayPage *previous_page_{nullptr};
+  std::vector<DisplayOnPageChangeTrigger *> on_page_change_triggers_;
 };
 
 class DisplayPage {
  public:
-  DisplayPage(const display_writer_t &writer);
+  DisplayPage(display_writer_t writer);
   void show();
   void show_next();
   void show_prev();
@@ -336,10 +343,18 @@ class DisplayPage {
   DisplayPage *next_{nullptr};
 };
 
+struct GlyphData {
+  const char *a_char;
+  const uint8_t *data;
+  int offset_x;
+  int offset_y;
+  int width;
+  int height;
+};
+
 class Glyph {
  public:
-  Glyph(const char *a_char, const uint8_t *data_start, uint32_t offset, int offset_x, int offset_y, int width,
-        int height);
+  Glyph(const GlyphData *data) : glyph_data_(data) {}
 
   bool get_pixel(int x, int y) const;
 
@@ -355,12 +370,7 @@ class Glyph {
   friend Font;
   friend DisplayBuffer;
 
-  const char *char_;
-  const uint8_t *data_;
-  int offset_x_;
-  int offset_y_;
-  int width_;
-  int height_;
+  const GlyphData *glyph_data_;
 };
 
 class Font {
@@ -371,7 +381,7 @@ class Font {
    * @param baseline The y-offset from the top of the text to the baseline.
    * @param bottom The y-offset from the top of the text to the bottom (i.e. height).
    */
-  Font(std::vector<Glyph> &&glyphs, int baseline, int bottom);
+  Font(const GlyphData *data, int data_nr, int baseline, int bottom);
 
   int match_next_glyph(const char *str, int *match_length);
 
@@ -446,6 +456,30 @@ template<typename... Ts> class DisplayPageShowPrevAction : public Action<Ts...> 
   void play(Ts... x) override { this->buffer_->show_prev_page(); }
 
   DisplayBuffer *buffer_;
+};
+
+template<typename... Ts> class DisplayIsDisplayingPageCondition : public Condition<Ts...> {
+ public:
+  DisplayIsDisplayingPageCondition(DisplayBuffer *parent) : parent_(parent) {}
+
+  void set_page(DisplayPage *page) { this->page_ = page; }
+  bool check(Ts... x) override { return this->parent_->get_active_page() == this->page_; }
+
+ protected:
+  DisplayBuffer *parent_;
+  DisplayPage *page_;
+};
+
+class DisplayOnPageChangeTrigger : public Trigger<DisplayPage *, DisplayPage *> {
+ public:
+  explicit DisplayOnPageChangeTrigger(DisplayBuffer *parent) { parent->add_on_page_change_trigger(this); }
+  void process(DisplayPage *from, DisplayPage *to);
+  void set_from(DisplayPage *p) { this->from_ = p; }
+  void set_to(DisplayPage *p) { this->to_ = p; }
+
+ protected:
+  DisplayPage *from_{nullptr};
+  DisplayPage *to_{nullptr};
 };
 
 }  // namespace display

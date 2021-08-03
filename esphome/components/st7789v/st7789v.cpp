@@ -4,7 +4,7 @@
 namespace esphome {
 namespace st7789v {
 
-static const char *TAG = "st7789v";
+static const char *const TAG = "st7789v";
 
 void ST7789V::setup() {
   ESP_LOGCONFIG(TAG, "Setting up SPI ST7789V...");

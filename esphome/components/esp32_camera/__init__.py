@@ -25,8 +25,6 @@ ESP32CameraFrameSize = esp32_camera_ns.enum("ESP32CameraFrameSize")
 FRAME_SIZES = {
     "160X120": ESP32CameraFrameSize.ESP32_CAMERA_SIZE_160X120,
     "QQVGA": ESP32CameraFrameSize.ESP32_CAMERA_SIZE_160X120,
-    "128X160": ESP32CameraFrameSize.ESP32_CAMERA_SIZE_128X160,
-    "QQVGA2": ESP32CameraFrameSize.ESP32_CAMERA_SIZE_128X160,
     "176X144": ESP32CameraFrameSize.ESP32_CAMERA_SIZE_176X144,
     "QCIF": ESP32CameraFrameSize.ESP32_CAMERA_SIZE_176X144,
     "240X176": ESP32CameraFrameSize.ESP32_CAMERA_SIZE_240X176,
@@ -124,9 +122,9 @@ SETTERS = {
 }
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID], config[CONF_NAME])
-    yield cg.register_component(var, config)
+    await cg.register_component(var, config)
 
     for key, setter in SETTERS.items():
         if key in config:

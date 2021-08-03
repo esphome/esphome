@@ -4,7 +4,7 @@
 namespace esphome {
 namespace canbus {
 
-static const char *TAG = "canbus";
+static const char *const TAG = "canbus";
 
 void Canbus::setup() {
   ESP_LOGCONFIG(TAG, "Setting up Canbus...");

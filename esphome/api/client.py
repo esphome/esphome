@@ -13,7 +13,8 @@ from esphome import const
 import esphome.api.api_pb2 as pb
 from esphome.const import CONF_PASSWORD, CONF_PORT
 from esphome.core import EsphomeError
-from esphome.helpers import resolve_ip_address, indent, color
+from esphome.helpers import resolve_ip_address, indent
+from esphome.log import color, Fore
 from esphome.util import safe_print
 
 _LOGGER = logging.getLogger(__name__)
@@ -488,7 +489,7 @@ def run_logs(config, address):
         text = msg.message
         if msg.send_failed:
             text = color(
-                "white",
+                Fore.WHITE,
                 "(Message skipped because it was too big to fit in "
                 "TCP buffer - This is only cosmetic)",
             )

@@ -51,13 +51,13 @@ CONFIG_SCHEMA = binary_sensor.BINARY_SENSOR_SCHEMA.extend(
 )
 
 
-def to_code(config):
-    hub = yield cg.get_variable(config[CONF_ESP32_TOUCH_ID])
+async def to_code(config):
+    hub = await cg.get_variable(config[CONF_ESP32_TOUCH_ID])
     var = cg.new_Pvariable(
         config[CONF_ID],
         config[CONF_NAME],
         TOUCH_PADS[config[CONF_PIN]],
         config[CONF_THRESHOLD],
     )
-    yield binary_sensor.register_binary_sensor(var, config)
+    await binary_sensor.register_binary_sensor(var, config)
     cg.add(hub.register_touch_pad(var))
