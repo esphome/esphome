@@ -5,7 +5,7 @@
 namespace esphome {
 namespace hx711 {
 
-static const char *TAG = "hx711";
+static const char *const TAG = "hx711";
 
 void HX711Sensor::setup() {
   ESP_LOGCONFIG(TAG, "Setting up HX711 '%s'...", this->name_.c_str());

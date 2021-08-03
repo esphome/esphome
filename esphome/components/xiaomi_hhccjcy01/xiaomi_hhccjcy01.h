@@ -22,6 +22,7 @@ class XiaomiHHCCJCY01 : public Component, public esp32_ble_tracker::ESPBTDeviceL
   void set_moisture(sensor::Sensor *moisture) { moisture_ = moisture; }
   void set_conductivity(sensor::Sensor *conductivity) { conductivity_ = conductivity; }
   void set_illuminance(sensor::Sensor *illuminance) { illuminance_ = illuminance; }
+  void set_battery_level(sensor::Sensor *battery_level) { battery_level_ = battery_level; }
 
  protected:
   uint64_t address_;
@@ -29,6 +30,7 @@ class XiaomiHHCCJCY01 : public Component, public esp32_ble_tracker::ESPBTDeviceL
   sensor::Sensor *moisture_{nullptr};
   sensor::Sensor *conductivity_{nullptr};
   sensor::Sensor *illuminance_{nullptr};
+  sensor::Sensor *battery_level_{nullptr};
 };
 
 }  // namespace xiaomi_hhccjcy01

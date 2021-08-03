@@ -15,8 +15,7 @@ class RGBLightOutput : public light::LightOutput {
 
   light::LightTraits get_traits() override {
     auto traits = light::LightTraits();
-    traits.set_supports_brightness(true);
-    traits.set_supports_rgb(true);
+    traits.set_supported_color_modes({light::ColorMode::RGB});
     return traits;
   }
   void write_state(light::LightState *state) override {

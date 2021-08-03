@@ -1,10 +1,11 @@
 #include "sgp30.h"
 #include "esphome/core/log.h"
+#include "esphome/core/application.h"
 
 namespace esphome {
 namespace sgp30 {
 
-static const char *TAG = "sgp30";
+static const char *const TAG = "sgp30";
 
 static const uint16_t SGP30_CMD_GET_SERIAL_ID = 0x3682;
 static const uint16_t SGP30_CMD_GET_FEATURESET = 0x202f;
@@ -16,11 +17,18 @@ static const uint16_t SGP30_CMD_SET_IAQ_BASELINE = 0x201E;
 
 // Sensor baseline should first be relied on after 1H of operation,
 // if the sensor starts with a baseline value provided
-const long IAQ_BASELINE_WARM_UP_SECONDS_WITH_BASELINE_PROVIDED = 3600;
+const uint32_t IAQ_BASELINE_WARM_UP_SECONDS_WITH_BASELINE_PROVIDED = 3600;
 
 // Sensor baseline could first be relied on after 12H of operation,
 // if the sensor starts without any prior baseline value provided
-const long IAQ_BASELINE_WARM_UP_SECONDS_WITHOUT_BASELINE = 43200;
+const uint32_t IAQ_BASELINE_WARM_UP_SECONDS_WITHOUT_BASELINE = 43200;
+
+// Shortest time interval of 1H for storing baseline values.
+// Prevents wear of the flash because of too many write operations
+const uint32_t SHORTEST_BASELINE_STORE_INTERVAL = 3600;
+
+// Store anyway if the baseline difference exceeds the max storage diff value
+const uint32_t MAXIMUM_STORAGE_DIFF = 50;
 
 void SGP30Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up SGP30...");
@@ -73,6 +81,21 @@ void SGP30Component::setup() {
     return;
   }
 
+  // Hash with compilation time
+  // This ensures the baseline storage is cleared after OTA
+  uint32_t hash = fnv1_hash(App.get_compilation_time());
+  this->pref_ = global_preferences.make_preference<SGP30Baselines>(hash, true);
+
+  if (this->pref_.load(&this->baselines_storage_)) {
+    ESP_LOGI(TAG, "Loaded eCO2 baseline: 0x%04X, TVOC baseline: 0x%04X", this->baselines_storage_.eco2,
+             baselines_storage_.tvoc);
+    this->eco2_baseline_ = this->baselines_storage_.eco2;
+    this->tvoc_baseline_ = this->baselines_storage_.tvoc;
+  }
+
+  // Initialize storage timestamp
+  this->seconds_since_last_store_ = 0;
+
   // Sensor baseline reliability timer
   if (this->eco2_baseline_ > 0 && this->tvoc_baseline_ > 0) {
     this->required_warm_up_time_ = IAQ_BASELINE_WARM_UP_SECONDS_WITH_BASELINE_PROVIDED;
@@ -110,6 +133,31 @@ void SGP30Component::read_iaq_baseline_() {
       uint16_t tvocbaseline = (raw_data[1]);
 
       ESP_LOGI(TAG, "Current eCO2 baseline: 0x%04X, TVOC baseline: 0x%04X", eco2baseline, tvocbaseline);
+      if (eco2baseline != this->eco2_baseline_ || tvocbaseline != this->tvoc_baseline_) {
+        this->eco2_baseline_ = eco2baseline;
+        this->tvoc_baseline_ = tvocbaseline;
+        if (this->eco2_sensor_baseline_ != nullptr)
+          this->eco2_sensor_baseline_->publish_state(this->eco2_baseline_);
+        if (this->tvoc_sensor_baseline_ != nullptr)
+          this->tvoc_sensor_baseline_->publish_state(this->tvoc_baseline_);
+
+        // Store baselines after defined interval or if the difference between current and stored baseline becomes too
+        // much
+        if (this->store_baseline_ &&
+            (this->seconds_since_last_store_ > SHORTEST_BASELINE_STORE_INTERVAL ||
+             abs(this->baselines_storage_.eco2 - this->eco2_baseline_) > MAXIMUM_STORAGE_DIFF ||
+             abs(this->baselines_storage_.tvoc - this->tvoc_baseline_) > MAXIMUM_STORAGE_DIFF)) {
+          this->seconds_since_last_store_ = 0;
+          this->baselines_storage_.eco2 = this->eco2_baseline_;
+          this->baselines_storage_.tvoc = this->tvoc_baseline_;
+          if (this->pref_.save(&this->baselines_storage_)) {
+            ESP_LOGI(TAG, "Store eCO2 baseline: 0x%04X, TVOC baseline: 0x%04X", this->baselines_storage_.eco2,
+                     this->baselines_storage_.tvoc);
+          } else {
+            ESP_LOGW(TAG, "Could not store eCO2 and TVOC baselines");
+          }
+        }
+      }
       this->status_clear_warning();
     });
   } else {
@@ -171,7 +219,8 @@ void SGP30Component::write_iaq_baseline_(uint16_t eco2_baseline, uint16_t tvoc_b
   if (!this->write_bytes(SGP30_CMD_SET_IAQ_BASELINE >> 8, data, 7)) {
     ESP_LOGE(TAG, "Error applying eCO2 baseline: 0x%04X, TVOC baseline: 0x%04X", eco2_baseline, tvoc_baseline);
   } else
-    ESP_LOGI(TAG, "Initial eCO2 and TVOC baselines applied successfully!");
+    ESP_LOGI(TAG, "Initial baselines applied successfully! eCO2 baseline: 0x%04X, TVOC baseline: 0x%04X", eco2_baseline,
+             tvoc_baseline);
 }
 
 void SGP30Component::dump_config() {
@@ -204,11 +253,14 @@ void SGP30Component::dump_config() {
     } else {
       ESP_LOGCONFIG(TAG, "  Baseline: No baseline configured");
     }
-    ESP_LOGCONFIG(TAG, "  Warm up time: %lds", this->required_warm_up_time_);
+    ESP_LOGCONFIG(TAG, "  Warm up time: %us", this->required_warm_up_time_);
   }
   LOG_UPDATE_INTERVAL(this);
-  LOG_SENSOR("  ", "eCO2", this->eco2_sensor_);
-  LOG_SENSOR("  ", "TVOC", this->tvoc_sensor_);
+  LOG_SENSOR("  ", "eCO2 sensor", this->eco2_sensor_);
+  LOG_SENSOR("  ", "TVOC sensor", this->tvoc_sensor_);
+  LOG_SENSOR("  ", "eCO2 baseline sensor", this->eco2_sensor_baseline_);
+  LOG_SENSOR("  ", "TVOC baseline sensor", this->tvoc_sensor_baseline_);
+  ESP_LOGCONFIG(TAG, "Store baseline: %s", YESNO(this->store_baseline_));
   if (this->humidity_sensor_ != nullptr && this->temperature_sensor_ != nullptr) {
     ESP_LOGCONFIG(TAG, "  Compensation:");
     LOG_SENSOR("    ", "Temperature Source:", this->temperature_sensor_);
@@ -223,7 +275,7 @@ void SGP30Component::update() {
     this->status_set_warning();
     return;
   }
-
+  this->seconds_since_last_store_ += this->update_interval_ / 1000;
   this->set_timeout(50, [this]() {
     uint16_t raw_data[2];
     if (!this->read_data_(raw_data, 2)) {
@@ -239,6 +291,11 @@ void SGP30Component::update() {
       this->eco2_sensor_->publish_state(eco2);
     if (this->tvoc_sensor_ != nullptr)
       this->tvoc_sensor_->publish_state(tvoc);
+
+    if (this->get_update_interval() != 1000) {
+      ESP_LOGW(TAG, "Update interval for SGP30 sensor must be set to 1s for optimized readout");
+    }
+
     this->status_clear_warning();
     this->send_env_data_();
     this->read_iaq_baseline_();

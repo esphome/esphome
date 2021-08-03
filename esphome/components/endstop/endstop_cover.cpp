@@ -4,7 +4,7 @@
 namespace esphome {
 namespace endstop {
 
-static const char *TAG = "endstop.cover";
+static const char *const TAG = "endstop.cover";
 
 using namespace esphome::cover;
 

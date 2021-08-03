@@ -6,7 +6,7 @@
 namespace esphome {
 namespace max7219digit {
 
-static const char *TAG = "max7219DIGIT";
+static const char *const TAG = "max7219DIGIT";
 
 static const uint8_t MAX7219_REGISTER_NOOP = 0x00;
 static const uint8_t MAX7219_REGISTER_DECODE_MODE = 0x09;
@@ -55,7 +55,7 @@ void MAX7219Component::dump_config() {
 }
 
 void MAX7219Component::loop() {
-  unsigned long now = millis();
+  uint32_t now = millis();
 
   // check if the buffer has shrunk past the current position since last update
   if ((this->max_displaybuffer_.size() >= this->old_buffer_size_ + 3) ||
@@ -104,18 +104,22 @@ void MAX7219Component::display() {
   uint8_t pixels[8];
   // Run this loop for every MAX CHIP (GRID OF 64 leds)
   // Run this routine for the rows of every chip 8x row 0 top to 7 bottom
-  // Fill the pixel parameter with diplay data
+  // Fill the pixel parameter with display data
   // Send the data to the chip
   for (uint8_t i = 0; i < this->num_chips_; i++) {
     for (uint8_t j = 0; j < 8; j++) {
-      pixels[j] = this->max_displaybuffer_[i * 8 + j];
+      if (this->reverse_) {
+        pixels[j] = this->max_displaybuffer_[(this->num_chips_ - i - 1) * 8 + j];
+      } else {
+        pixels[j] = this->max_displaybuffer_[i * 8 + j];
+      }
     }
     this->send64pixels(i, pixels);
   }
 }
 
 int MAX7219Component::get_height_internal() {
-  return 8;  // TO BE DONE -> STACK TWO DISPLAYS ON TOP OF EACH OTHE
+  return 8;  // TO BE DONE -> STACK TWO DISPLAYS ON TOP OF EACH OTHER
              // TO BE DONE -> CREATE Virtual size of screen and scroll
 }
 
@@ -128,7 +132,7 @@ void HOT MAX7219Component::draw_absolute_pixel_internal(int x, int y, Color colo
     this->max_displaybuffer_.resize(x + 1, this->bckgrnd_);
   }
 
-  if (y >= this->get_height_internal() || y < 0)  // If pixel is outside display then dont draw
+  if ((y >= this->get_height_internal()) || (y < 0) || (x < 0))  // If pixel is outside display then dont draw
     return;
 
   uint16_t pos = x;    // X is starting at 0 top left
@@ -229,12 +233,12 @@ void MAX7219Component::send64pixels(uint8_t chip, const uint8_t pixels[8]) {
       b = pixels[col];
     } else if (this->orientation_ == 2) {
       for (uint8_t i = 0; i < 8; i++) {
-        b |= ((pixels[i] >> (7 - col)) << (7 - i));
+        b |= ((pixels[i] >> (7 - col)) & 1) << i;
       }
     } else {
       b = pixels[7 - col];
     }
-    // send this byte to dispay at selected chip
+    // send this byte to display at selected chip
     if (this->invert_) {
       this->send_byte_(col + 1, ~b);
     } else {

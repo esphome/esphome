@@ -50,11 +50,15 @@ enum SPIClockPhase {
  */
 enum SPIDataRate : uint32_t {
   DATA_RATE_1KHZ = 1000,
+  DATA_RATE_75KHZ = 75000,
   DATA_RATE_200KHZ = 200000,
   DATA_RATE_1MHZ = 1000000,
   DATA_RATE_2MHZ = 2000000,
   DATA_RATE_4MHZ = 4000000,
   DATA_RATE_8MHZ = 8000000,
+  DATA_RATE_10MHZ = 10000000,
+  DATA_RATE_20MHZ = 20000000,
+  DATA_RATE_40MHZ = 40000000,
 };
 
 class SPIComponent : public Component {
@@ -95,6 +99,30 @@ class SPIComponent : public Component {
   }
 
   template<SPIBitOrder BIT_ORDER, SPIClockPolarity CLOCK_POLARITY, SPIClockPhase CLOCK_PHASE>
+  void write_byte16(const uint16_t data) {
+    if (this->hw_spi_ != nullptr) {
+      this->hw_spi_->write16(data);
+      return;
+    }
+
+    this->write_byte<BIT_ORDER, CLOCK_POLARITY, CLOCK_PHASE>(data >> 8);
+    this->write_byte<BIT_ORDER, CLOCK_POLARITY, CLOCK_PHASE>(data);
+  }
+
+  template<SPIBitOrder BIT_ORDER, SPIClockPolarity CLOCK_POLARITY, SPIClockPhase CLOCK_PHASE>
+  void write_array16(const uint16_t *data, size_t length) {
+    if (this->hw_spi_ != nullptr) {
+      for (size_t i = 0; i < length; i++) {
+        this->hw_spi_->write16(data[i]);
+      }
+      return;
+    }
+    for (size_t i = 0; i < length; i++) {
+      this->write_byte16<BIT_ORDER, CLOCK_POLARITY, CLOCK_PHASE>(data[i]);
+    }
+  }
+
+  template<SPIBitOrder BIT_ORDER, SPIClockPolarity CLOCK_POLARITY, SPIClockPhase CLOCK_PHASE>
   void write_array(const uint8_t *data, size_t length) {
     if (this->hw_spi_ != nullptr) {
       auto *data_c = const_cast<uint8_t *>(data);
@@ -108,20 +136,34 @@ class SPIComponent : public Component {
 
   template<SPIBitOrder BIT_ORDER, SPIClockPolarity CLOCK_POLARITY, SPIClockPhase CLOCK_PHASE>
   uint8_t transfer_byte(uint8_t data) {
-    if (this->hw_spi_ != nullptr) {
-      return this->hw_spi_->transfer(data);
+    if (this->miso_ != nullptr) {
+      if (this->hw_spi_ != nullptr) {
+        return this->hw_spi_->transfer(data);
+      } else {
+        return this->transfer_<BIT_ORDER, CLOCK_POLARITY, CLOCK_PHASE, true, true>(data);
+      }
     }
-    return this->transfer_<BIT_ORDER, CLOCK_POLARITY, CLOCK_PHASE, true, true>(data);
+    this->write_byte<BIT_ORDER, CLOCK_POLARITY, CLOCK_PHASE>(data);
+    return 0;
   }
 
   template<SPIBitOrder BIT_ORDER, SPIClockPolarity CLOCK_POLARITY, SPIClockPhase CLOCK_PHASE>
   void transfer_array(uint8_t *data, size_t length) {
     if (this->hw_spi_ != nullptr) {
-      this->hw_spi_->transfer(data, length);
+      if (this->miso_ != nullptr) {
+        this->hw_spi_->transfer(data, length);
+      } else {
+        this->hw_spi_->writeBytes(data, length);
+      }
       return;
     }
-    for (size_t i = 0; i < length; i++) {
-      data[i] = this->transfer_byte<BIT_ORDER, CLOCK_POLARITY, CLOCK_PHASE>(data[i]);
+
+    if (this->miso_ != nullptr) {
+      for (size_t i = 0; i < length; i++) {
+        data[i] = this->transfer_byte<BIT_ORDER, CLOCK_POLARITY, CLOCK_PHASE>(data[i]);
+      }
+    } else {
+      this->write_array<BIT_ORDER, CLOCK_POLARITY, CLOCK_PHASE>(data, length);
     }
   }
 
@@ -202,6 +244,14 @@ class SPIDevice {
 
   void write_byte(uint8_t data) {
     return this->parent_->template write_byte<BIT_ORDER, CLOCK_POLARITY, CLOCK_PHASE>(data);
+  }
+
+  void write_byte16(uint8_t data) {
+    return this->parent_->template write_byte16<BIT_ORDER, CLOCK_POLARITY, CLOCK_PHASE>(data);
+  }
+
+  void write_array16(const uint16_t *data, size_t length) {
+    this->parent_->template write_array16<BIT_ORDER, CLOCK_POLARITY, CLOCK_PHASE>(data, length);
   }
 
   void write_array(const uint8_t *data, size_t length) {
