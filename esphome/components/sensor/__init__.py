@@ -10,6 +10,7 @@ from esphome.const import (
     CONF_ACCURACY_DECIMALS,
     CONF_ALPHA,
     CONF_BELOW,
+    CONF_DISABLED_DEFAULT,
     CONF_EXPIRE_AFTER,
     CONF_FILTERS,
     CONF_FROM,
@@ -170,7 +171,7 @@ validate_accuracy_decimals = cv.int_
 validate_icon = cv.icon
 validate_device_class = cv.one_of(*DEVICE_CLASSES, lower=True, space="_")
 
-SENSOR_SCHEMA = cv.MQTT_COMPONENT_SCHEMA.extend(
+SENSOR_SCHEMA = cv.MQTT_COMPONENT_SCHEMA.extend(cv.NAMEABLE_SCHEMA).extend(
     {
         cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTSensorComponent),
         cv.GenerateID(): cv.declare_id(Sensor),
@@ -494,6 +495,7 @@ async def build_filters(config):
 
 async def setup_sensor_core_(var, config):
     cg.add(var.set_name(config[CONF_NAME]))
+    cg.add(var.set_disabled_default(config[CONF_DISABLED_DEFAULT]))
     if CONF_INTERNAL in config:
         cg.add(var.set_internal(config[CONF_INTERNAL]))
     if CONF_DEVICE_CLASS in config:
