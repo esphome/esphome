@@ -489,8 +489,7 @@ ImageType Image::get_type() const { return this->type_; }
 Image::Image(const uint8_t *data_start, int width, int height, ImageType type)
     : width_(width), height_(height), type_(type), data_start_(data_start) {}
 
-HistoryData::HistoryData(int length)
-    : length_(length) {
+HistoryData::HistoryData(int length) : length_(length) {
   this->data_ = new float[length];
   if (this->data_ == nullptr) {
     ESP_LOGE(TAG, "Could not allocate HistoryData buffer!");
@@ -626,13 +625,14 @@ void Graph::redraw_() {
     yrange = ymax - ymin;
   }
   if (!isnan(this->gridspacing_x_)) {
-    for (int i = 0; i < (this->width_+1) / this->gridspacing_x_; i++) {
+    for (int i = 0; i < (this->width_ + 1) / this->gridspacing_x_; i++) {
       for (int y = 0; y < this->height_; y += 2) {
         this->set_pixel_(this->width_ - 1 - i * this->gridspacing_x_, y);
       }
     }
   }
-  ESP_LOGI(TAG, "Updating graph. Last sample %f, ymin %f, ymax %f, yrange %f", this->data_->get_value(0), ymin, ymax, yrange);
+  ESP_LOGI(TAG, "Updating graph. Last sample %f, ymin %f, ymax %f, yrange %f", this->data_->get_value(0), ymin, ymax,
+           yrange);
   /// Draw data trace
   for (int16_t i = 0; i < this->data_->get_length(); i++) {
     float v = (this->data_->get_value(i) - ymin) / yrange;
@@ -655,7 +655,7 @@ void Graph::update() {
   ESP_LOGV(TAG, "Updating graph with value: %f", sensor_value);
   this->redraw_();  // TODO: move to only when updating display
 }
-void Graph::set_sensor(sensor::Sensor *sensor) {this->sensor_ = sensor; }
+void Graph::set_sensor(sensor::Sensor *sensor) { this->sensor_ = sensor; }
 int Graph::get_width() const { return this->width_; }
 int Graph::get_height() const { return this->height_; }
 
