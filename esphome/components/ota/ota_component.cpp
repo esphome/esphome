@@ -399,7 +399,7 @@ bool OTAComponent::should_enter_safe_mode(uint8_t num_attempts, uint32_t enable_
     return false;
   }
 }
-uint32_t OTAComponent::get_safe_mode_boot_count() { return this->safe_mode_rtc_value_; }
+uint32_t OTAComponent::get_safe_mode_boot_count() const { return this->safe_mode_rtc_value_; }
 void OTAComponent::write_rtc_(uint32_t val) { this->rtc_.save(&val); }
 uint32_t OTAComponent::read_rtc_() {
   uint32_t val;
