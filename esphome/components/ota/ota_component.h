@@ -52,7 +52,7 @@ class OTAComponent : public Component {
 
   bool should_enter_safe_mode(uint8_t num_attempts, uint32_t enable_time);
 
-  uint32_t get_safe_mode_boot_count();
+  uint32_t get_safe_mode_boot_count() const;
 
 #ifdef USE_OTA_STATE_CALLBACK
   void add_on_state_callback(std::function<void(OTAState, float, uint8_t)> &&callback);
