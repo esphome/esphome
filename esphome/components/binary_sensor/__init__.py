@@ -316,7 +316,7 @@ def validate_multi_click_timing(value):
 
 device_class = cv.one_of(*DEVICE_CLASSES, lower=True, space="_")
 
-BINARY_SENSOR_SCHEMA = cv.MQTT_COMPONENT_SCHEMA.extend(cv.NAMEABLE_SCHEMA).extend(
+BINARY_SENSOR_SCHEMA = cv.NAMEABLE_SCHEMA.extend(cv.MQTT_COMPONENT_SCHEMA).extend(
     {
         cv.GenerateID(): cv.declare_id(BinarySensor),
         cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(

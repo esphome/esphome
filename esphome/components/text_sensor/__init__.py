@@ -34,7 +34,7 @@ TextSensorStateCondition = text_sensor_ns.class_(
 
 icon = cv.icon
 
-TEXT_SENSOR_SCHEMA = cv.MQTT_COMPONENT_SCHEMA.extend(cv.NAMEABLE_SCHEMA).extend(
+TEXT_SENSOR_SCHEMA = cv.NAMEABLE_SCHEMA.extend(cv.MQTT_COMPONENT_SCHEMA).extend(
     {
         cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTTextSensor),
         cv.Optional(CONF_ICON): icon,

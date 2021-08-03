@@ -171,7 +171,7 @@ validate_accuracy_decimals = cv.int_
 validate_icon = cv.icon
 validate_device_class = cv.one_of(*DEVICE_CLASSES, lower=True, space="_")
 
-SENSOR_SCHEMA = cv.MQTT_COMPONENT_SCHEMA.extend(cv.NAMEABLE_SCHEMA).extend(
+SENSOR_SCHEMA = cv.NAMEABLE_SCHEMA.extend(cv.MQTT_COMPONENT_SCHEMA).extend(
     {
         cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTSensorComponent),
         cv.GenerateID(): cv.declare_id(Sensor),

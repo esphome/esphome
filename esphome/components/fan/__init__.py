@@ -35,7 +35,7 @@ ToggleAction = fan_ns.class_("ToggleAction", automation.Action)
 FanTurnOnTrigger = fan_ns.class_("FanTurnOnTrigger", automation.Trigger.template())
 FanTurnOffTrigger = fan_ns.class_("FanTurnOffTrigger", automation.Trigger.template())
 
-FAN_SCHEMA = cv.MQTT_COMMAND_COMPONENT_SCHEMA.extend(cv.NAMEABLE_SCHEMA).extend(
+FAN_SCHEMA = cv.NAMEABLE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).extend(
     {
         cv.GenerateID(): cv.declare_id(FanState),
         cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTFanComponent),

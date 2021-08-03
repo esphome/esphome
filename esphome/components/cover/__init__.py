@@ -64,7 +64,7 @@ CoverPublishAction = cover_ns.class_("CoverPublishAction", automation.Action)
 CoverIsOpenCondition = cover_ns.class_("CoverIsOpenCondition", Condition)
 CoverIsClosedCondition = cover_ns.class_("CoverIsClosedCondition", Condition)
 
-COVER_SCHEMA = cv.MQTT_COMMAND_COMPONENT_SCHEMA.extend(cv.NAMEABLE_SCHEMA).extend(
+COVER_SCHEMA = cv.NAMEABLE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).extend(
     {
         cv.GenerateID(): cv.declare_id(Cover),
         cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTCoverComponent),
