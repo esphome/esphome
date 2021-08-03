@@ -7,8 +7,8 @@ from esphome.const import (
     CONF_TEMPERATURE,
     DEVICE_CLASS_PRESSURE,
     DEVICE_CLASS_TEMPERATURE,
+    STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
-    ICON_EMPTY,
     UNIT_HECTOPASCAL,
     CONF_IIR_FILTER,
     CONF_OVERSAMPLING,
@@ -45,7 +45,10 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(BMP280Component),
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-                UNIT_CELSIUS, ICON_EMPTY, 1, DEVICE_CLASS_TEMPERATURE
+                unit_of_measurement=UNIT_CELSIUS,
+                accuracy_decimals=1,
+                device_class=DEVICE_CLASS_TEMPERATURE,
+                state_class=STATE_CLASS_MEASUREMENT,
             ).extend(
                 {
                     cv.Optional(CONF_OVERSAMPLING, default="16X"): cv.enum(
@@ -54,7 +57,10 @@ CONFIG_SCHEMA = (
                 }
             ),
             cv.Optional(CONF_PRESSURE): sensor.sensor_schema(
-                UNIT_HECTOPASCAL, ICON_EMPTY, 1, DEVICE_CLASS_PRESSURE
+                unit_of_measurement=UNIT_HECTOPASCAL,
+                accuracy_decimals=1,
+                device_class=DEVICE_CLASS_PRESSURE,
+                state_class=STATE_CLASS_MEASUREMENT,
             ).extend(
                 {
                     cv.Optional(CONF_OVERSAMPLING, default="16X"): cv.enum(
@@ -72,19 +78,19 @@ CONFIG_SCHEMA = (
 )
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
-    yield i2c.register_i2c_device(var, config)
+    await cg.register_component(var, config)
+    await i2c.register_i2c_device(var, config)
 
     if CONF_TEMPERATURE in config:
         conf = config[CONF_TEMPERATURE]
-        sens = yield sensor.new_sensor(conf)
+        sens = await sensor.new_sensor(conf)
         cg.add(var.set_temperature_sensor(sens))
         cg.add(var.set_temperature_oversampling(conf[CONF_OVERSAMPLING]))
 
     if CONF_PRESSURE in config:
         conf = config[CONF_PRESSURE]
-        sens = yield sensor.new_sensor(conf)
+        sens = await sensor.new_sensor(conf)
         cg.add(var.set_pressure_sensor(sens))
         cg.add(var.set_pressure_oversampling(conf[CONF_OVERSAMPLING]))

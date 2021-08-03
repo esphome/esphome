@@ -4,7 +4,7 @@
 namespace esphome {
 namespace output {
 
-static const char *TAG = "output.switch";
+static const char *const TAG = "output.switch";
 
 void OutputSwitch::dump_config() { LOG_SWITCH("", "Output Switch", this); }
 void OutputSwitch::setup() {

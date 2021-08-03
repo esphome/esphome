@@ -50,7 +50,7 @@ def assign_declare_id(value):
 CONFIG_SCHEMA = automation.validate_automation(
     {
         # Don't declare id as cv.declare_id yet, because the ID type
-        # dpeends on the mode. Will be checked later with assign_declare_id
+        # depends on the mode. Will be checked later with assign_declare_id
         cv.Required(CONF_ID): cv.string_strict,
         cv.Optional(CONF_MODE, default=CONF_SINGLE): cv.one_of(
             *SCRIPT_MODES, lower=True
@@ -61,7 +61,7 @@ CONFIG_SCHEMA = automation.validate_automation(
 )
 
 
-def to_code(config):
+async def to_code(config):
     # Register all variables first, so that scripts can use other scripts
     triggers = []
     for conf in config:
@@ -73,12 +73,12 @@ def to_code(config):
             cg.add(trigger.set_max_runs(conf[CONF_MAX_RUNS]))
 
         if conf[CONF_MODE] == CONF_QUEUED:
-            yield cg.register_component(trigger, conf)
+            await cg.register_component(trigger, conf)
 
         triggers.append((trigger, conf))
 
     for trigger, conf in triggers:
-        yield automation.build_automation(trigger, [], conf)
+        await automation.build_automation(trigger, [], conf)
 
 
 @automation.register_action(
@@ -90,9 +90,9 @@ def to_code(config):
         }
     ),
 )
-def script_execute_action_to_code(config, action_id, template_arg, args):
-    paren = yield cg.get_variable(config[CONF_ID])
-    yield cg.new_Pvariable(action_id, template_arg, paren)
+async def script_execute_action_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(action_id, template_arg, paren)
 
 
 @automation.register_action(
@@ -100,9 +100,9 @@ def script_execute_action_to_code(config, action_id, template_arg, args):
     ScriptStopAction,
     maybe_simple_id({cv.Required(CONF_ID): cv.use_id(Script)}),
 )
-def script_stop_action_to_code(config, action_id, template_arg, args):
-    paren = yield cg.get_variable(config[CONF_ID])
-    yield cg.new_Pvariable(action_id, template_arg, paren)
+async def script_stop_action_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(action_id, template_arg, paren)
 
 
 @automation.register_action(
@@ -110,11 +110,11 @@ def script_stop_action_to_code(config, action_id, template_arg, args):
     ScriptWaitAction,
     maybe_simple_id({cv.Required(CONF_ID): cv.use_id(Script)}),
 )
-def script_wait_action_to_code(config, action_id, template_arg, args):
-    paren = yield cg.get_variable(config[CONF_ID])
-    var = yield cg.new_Pvariable(action_id, template_arg, paren)
-    yield cg.register_component(var, {})
-    yield var
+async def script_wait_action_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, paren)
+    await cg.register_component(var, {})
+    return var
 
 
 @automation.register_condition(
@@ -122,6 +122,6 @@ def script_wait_action_to_code(config, action_id, template_arg, args):
     IsRunningCondition,
     automation.maybe_simple_id({cv.Required(CONF_ID): cv.use_id(Script)}),
 )
-def script_is_running_to_code(config, condition_id, template_arg, args):
-    paren = yield cg.get_variable(config[CONF_ID])
-    yield cg.new_Pvariable(condition_id, template_arg, paren)
+async def script_is_running_to_code(config, condition_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(condition_id, template_arg, paren)

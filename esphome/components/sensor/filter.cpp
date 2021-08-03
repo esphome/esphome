@@ -5,7 +5,7 @@
 namespace esphome {
 namespace sensor {
 
-static const char *TAG = "sensor.filter";
+static const char *const TAG = "sensor.filter";
 
 // Filter
 uint32_t Filter::expected_interval(uint32_t input) { return input; }
@@ -237,7 +237,7 @@ optional<float> FilterOutValueFilter::new_value(float value) {
       return value;
   } else {
     int8_t accuracy = this->parent_->get_accuracy_decimals();
-    float accuracy_mult = pow10f(accuracy);
+    float accuracy_mult = powf(10.0f, accuracy);
     float rounded_filter_out = roundf(accuracy_mult * this->value_to_filter_out_);
     float rounded_value = roundf(accuracy_mult * value);
     if (rounded_filter_out == rounded_value)

@@ -4,14 +4,13 @@ from datetime import datetime
 import json
 import logging
 import os
+from typing import Any, Optional, List
 
 from esphome import const
 from esphome.core import CORE
 from esphome.helpers import write_file_if_changed
 
-# pylint: disable=unused-import, wrong-import-order
-from esphome.core import CoreType
-from typing import Any, Optional, List
+from esphome.types import CoreType
 
 _LOGGER = logging.getLogger(__name__)
 

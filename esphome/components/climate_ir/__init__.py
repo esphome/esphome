@@ -9,7 +9,6 @@ from esphome.components import (
 )
 from esphome.components.remote_base import CONF_RECEIVER_ID, CONF_TRANSMITTER_ID
 from esphome.const import CONF_SUPPORTS_COOL, CONF_SUPPORTS_HEAT, CONF_SENSOR
-from esphome.core import coroutine
 
 AUTO_LOAD = ["sensor", "remote_base"]
 CODEOWNERS = ["@glmnet"]
@@ -39,19 +38,18 @@ CLIMATE_IR_WITH_RECEIVER_SCHEMA = CLIMATE_IR_SCHEMA.extend(
 )
 
 
-@coroutine
-def register_climate_ir(var, config):
-    yield cg.register_component(var, config)
-    yield climate.register_climate(var, config)
+async def register_climate_ir(var, config):
+    await cg.register_component(var, config)
+    await climate.register_climate(var, config)
 
     cg.add(var.set_supports_cool(config[CONF_SUPPORTS_COOL]))
     cg.add(var.set_supports_heat(config[CONF_SUPPORTS_HEAT]))
     if CONF_SENSOR in config:
-        sens = yield cg.get_variable(config[CONF_SENSOR])
+        sens = await cg.get_variable(config[CONF_SENSOR])
         cg.add(var.set_sensor(sens))
     if CONF_RECEIVER_ID in config:
-        receiver = yield cg.get_variable(config[CONF_RECEIVER_ID])
+        receiver = await cg.get_variable(config[CONF_RECEIVER_ID])
         cg.add(receiver.register_listener(var))
 
-    transmitter = yield cg.get_variable(config[CONF_TRANSMITTER_ID])
+    transmitter = await cg.get_variable(config[CONF_TRANSMITTER_ID])
     cg.add(var.set_transmitter(transmitter))

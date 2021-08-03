@@ -112,6 +112,24 @@ class APIServerConnectionBase : public ProtoService {
 #ifdef USE_CLIMATE
   virtual void on_climate_command_request(const ClimateCommandRequest &value){};
 #endif
+#ifdef USE_NUMBER
+  bool send_list_entities_number_response(const ListEntitiesNumberResponse &msg);
+#endif
+#ifdef USE_NUMBER
+  bool send_number_state_response(const NumberStateResponse &msg);
+#endif
+#ifdef USE_NUMBER
+  virtual void on_number_command_request(const NumberCommandRequest &value){};
+#endif
+#ifdef USE_SELECT
+  bool send_list_entities_select_response(const ListEntitiesSelectResponse &msg);
+#endif
+#ifdef USE_SELECT
+  bool send_select_state_response(const SelectStateResponse &msg);
+#endif
+#ifdef USE_SELECT
+  virtual void on_select_command_request(const SelectCommandRequest &value){};
+#endif
  protected:
   bool read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) override;
 };
@@ -148,6 +166,12 @@ class APIServerConnection : public APIServerConnectionBase {
 #ifdef USE_CLIMATE
   virtual void climate_command(const ClimateCommandRequest &msg) = 0;
 #endif
+#ifdef USE_NUMBER
+  virtual void number_command(const NumberCommandRequest &msg) = 0;
+#endif
+#ifdef USE_SELECT
+  virtual void select_command(const SelectCommandRequest &msg) = 0;
+#endif
  protected:
   void on_hello_request(const HelloRequest &msg) override;
   void on_connect_request(const ConnectRequest &msg) override;
@@ -178,6 +202,12 @@ class APIServerConnection : public APIServerConnectionBase {
 #endif
 #ifdef USE_CLIMATE
   void on_climate_command_request(const ClimateCommandRequest &msg) override;
+#endif
+#ifdef USE_NUMBER
+  void on_number_command_request(const NumberCommandRequest &msg) override;
+#endif
+#ifdef USE_SELECT
+  void on_select_command_request(const SelectCommandRequest &msg) override;
 #endif
 };
 

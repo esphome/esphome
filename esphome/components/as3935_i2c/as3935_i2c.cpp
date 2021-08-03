@@ -4,7 +4,7 @@
 namespace esphome {
 namespace as3935_i2c {
 
-static const char *TAG = "as3935_i2c";
+static const char *const TAG = "as3935_i2c";
 
 void I2CAS3935Component::write_register(uint8_t reg, uint8_t mask, uint8_t bits, uint8_t start_pos) {
   uint8_t write_reg;

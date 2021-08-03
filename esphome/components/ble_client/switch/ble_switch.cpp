@@ -7,7 +7,7 @@
 namespace esphome {
 namespace ble_client {
 
-static const char *TAG = "ble_switch";
+static const char *const TAG = "ble_switch";
 
 void BLEClientSwitch::write_state(bool state) {
   this->parent_->set_enabled(state);

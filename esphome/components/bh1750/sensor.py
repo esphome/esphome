@@ -5,7 +5,7 @@ from esphome.const import (
     CONF_ID,
     CONF_RESOLUTION,
     DEVICE_CLASS_ILLUMINANCE,
-    ICON_EMPTY,
+    STATE_CLASS_MEASUREMENT,
     UNIT_LUX,
     CONF_MEASUREMENT_DURATION,
 )
@@ -26,7 +26,12 @@ BH1750Sensor = bh1750_ns.class_(
 
 CONF_MEASUREMENT_TIME = "measurement_time"
 CONFIG_SCHEMA = (
-    sensor.sensor_schema(UNIT_LUX, ICON_EMPTY, 1, DEVICE_CLASS_ILLUMINANCE)
+    sensor.sensor_schema(
+        unit_of_measurement=UNIT_LUX,
+        accuracy_decimals=1,
+        device_class=DEVICE_CLASS_ILLUMINANCE,
+        state_class=STATE_CLASS_MEASUREMENT,
+    )
     .extend(
         {
             cv.GenerateID(): cv.declare_id(BH1750Sensor),
@@ -46,11 +51,11 @@ CONFIG_SCHEMA = (
 )
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
-    yield sensor.register_sensor(var, config)
-    yield i2c.register_i2c_device(var, config)
+    await cg.register_component(var, config)
+    await sensor.register_sensor(var, config)
+    await i2c.register_i2c_device(var, config)
 
     cg.add(var.set_resolution(config[CONF_RESOLUTION]))
     cg.add(var.set_measurement_duration(config[CONF_MEASUREMENT_DURATION]))

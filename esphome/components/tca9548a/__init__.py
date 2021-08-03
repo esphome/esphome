@@ -22,9 +22,9 @@ CONFIG_SCHEMA = cv.Schema(
 ).extend(i2c.i2c_device_schema(0x70))
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add_define("USE_I2C_MULTIPLEXER")
-    yield cg.register_component(var, config)
-    yield i2c.register_i2c_device(var, config)
+    await cg.register_component(var, config)
+    await i2c.register_i2c_device(var, config)
     cg.add(var.set_scan(config[CONF_SCAN]))

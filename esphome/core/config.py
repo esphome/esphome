@@ -4,7 +4,7 @@ import re
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome import automation, pins
+from esphome import automation, boards
 from esphome.const import (
     CONF_ARDUINO_VERSION,
     CONF_BOARD,
@@ -21,10 +21,12 @@ from esphome.const import (
     CONF_PLATFORM,
     CONF_PLATFORMIO_OPTIONS,
     CONF_PRIORITY,
+    CONF_PROJECT,
     CONF_TRIGGER_ID,
     CONF_ESP8266_RESTORE_FROM_FLASH,
     ARDUINO_VERSION_ESP8266,
     ARDUINO_VERSION_ESP32,
+    CONF_VERSION,
     ESP_PLATFORMS,
 )
 from esphome.core import CORE, coroutine_with_priority
@@ -48,18 +50,19 @@ VERSION_REGEX = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+(?:[ab]\d+)?$")
 CONF_NAME_ADD_MAC_SUFFIX = "name_add_mac_suffix"
 
 
-def validate_board(value):
+def validate_board(value: str):
     if CORE.is_esp8266:
-        board_pins = pins.ESP8266_BOARD_PINS
+        boardlist = boards.ESP8266_BOARD_PINS.keys()
     elif CORE.is_esp32:
-        board_pins = pins.ESP32_BOARD_PINS
+        boardlist = list(boards.ESP32_BOARD_PINS.keys())
+        boardlist += list(boards.ESP32_C3_BOARD_PINS.keys())
     else:
         raise NotImplementedError
 
-    if value not in board_pins:
+    if value not in boardlist:
         raise cv.Invalid(
             "Could not find board '{}'. Valid boards are {}".format(
-                value, ", ".join(sorted(board_pins.keys()))
+                value, ", ".join(sorted(boardlist))
             )
         )
     return value
@@ -69,6 +72,13 @@ validate_platform = cv.one_of(*ESP_PLATFORMS, upper=True)
 
 PLATFORMIO_ESP8266_LUT = {
     **ARDUINO_VERSION_ESP8266,
+    # Keep this in mind when updating the recommended version:
+    #  * New framework historically have had some regressions, especially for WiFi, BLE and the
+    #    bootloader system. The new version needs to be thoroughly validated before changing the
+    #    recommended version as otherwise a bunch of devices could be bricked
+    #  * The docker images need to be updated to ship the new recommended version, in order not
+    #    to DDoS platformio servers.
+    #    Update this file: https://github.com/esphome/esphome-docker-base/blob/main/platformio.ini
     "RECOMMENDED": ARDUINO_VERSION_ESP8266["2.7.4"],
     "LATEST": "espressif8266",
     "DEV": ARDUINO_VERSION_ESP8266["dev"],
@@ -76,7 +86,8 @@ PLATFORMIO_ESP8266_LUT = {
 
 PLATFORMIO_ESP32_LUT = {
     **ARDUINO_VERSION_ESP32,
-    "RECOMMENDED": ARDUINO_VERSION_ESP32["1.0.4"],
+    # See PLATFORMIO_ESP8266_LUT for considerations when changing the recommended version
+    "RECOMMENDED": ARDUINO_VERSION_ESP32["1.0.6"],
     "LATEST": "espressif32",
     "DEV": ARDUINO_VERSION_ESP32["dev"],
 }
@@ -136,6 +147,15 @@ def valid_include(value):
     return value
 
 
+def valid_project_name(value: str):
+    if value.count(".") != 1:
+        raise cv.Invalid("project name needs to have a namespace")
+
+    value = value.replace(" ", "_")
+
+    return value
+
+
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_NAME): cv.valid_name,
@@ -176,10 +196,11 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_INCLUDES, default=[]): cv.ensure_list(valid_include),
         cv.Optional(CONF_LIBRARIES, default=[]): cv.ensure_list(cv.string_strict),
         cv.Optional(CONF_NAME_ADD_MAC_SUFFIX, default=False): cv.boolean,
-        cv.Optional("esphome_core_version"): cv.invalid(
-            "The esphome_core_version option has been "
-            "removed in 1.13 - the esphome core source "
-            "files are now bundled with ESPHome."
+        cv.Optional(CONF_PROJECT): cv.Schema(
+            {
+                cv.Required(CONF_NAME): cv.All(cv.string_strict, valid_project_name),
+                cv.Required(CONF_VERSION): cv.string_strict,
+            }
         ),
     }
 )
@@ -233,7 +254,7 @@ def include_file(path, basename):
 
 
 @coroutine_with_priority(-1000.0)
-def add_includes(includes):
+async def add_includes(includes):
     # Add includes at the very end, so that the included files can access global variables
     for include in includes:
         path = CORE.relative_config_path(include)
@@ -249,7 +270,7 @@ def add_includes(includes):
 
 
 @coroutine_with_priority(-1000.0)
-def _esp8266_add_lwip_type():
+async def _esp8266_add_lwip_type():
     # If any component has already set this, do not change it
     if any(
         flag.startswith("-DPIO_FRAMEWORK_ARDUINO_LWIP2_") for flag in CORE.build_flags
@@ -271,25 +292,25 @@ def _esp8266_add_lwip_type():
 
 
 @coroutine_with_priority(30.0)
-def _add_automations(config):
+async def _add_automations(config):
     for conf in config.get(CONF_ON_BOOT, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], conf.get(CONF_PRIORITY))
-        yield cg.register_component(trigger, conf)
-        yield automation.build_automation(trigger, [], conf)
+        await cg.register_component(trigger, conf)
+        await automation.build_automation(trigger, [], conf)
 
     for conf in config.get(CONF_ON_SHUTDOWN, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
-        yield cg.register_component(trigger, conf)
-        yield automation.build_automation(trigger, [], conf)
+        await cg.register_component(trigger, conf)
+        await automation.build_automation(trigger, [], conf)
 
     for conf in config.get(CONF_ON_LOOP, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
-        yield cg.register_component(trigger, conf)
-        yield automation.build_automation(trigger, [], conf)
+        await cg.register_component(trigger, conf)
+        await automation.build_automation(trigger, [], conf)
 
 
 @coroutine_with_priority(100.0)
-def to_code(config):
+async def to_code(config):
     cg.add_global(cg.global_ns.namespace("esphome").using)
     cg.add(
         cg.App.pre_setup(
@@ -312,6 +333,14 @@ def to_code(config):
         if "@" in lib:
             name, vers = lib.split("@", 1)
             cg.add_library(name, vers)
+        elif "://" in lib:
+            # Repository...
+            if "=" in lib:
+                name, repo = lib.split("=", 1)
+                cg.add_library(name, None, repo)
+            else:
+                cg.add_library(None, None, lib)
+
         else:
             cg.add_library(lib, None)
 
@@ -323,3 +352,8 @@ def to_code(config):
 
     if config[CONF_INCLUDES]:
         CORE.add_job(add_includes, config[CONF_INCLUDES])
+
+    cg.add_define("ESPHOME_BOARD", CORE.board)
+    if CONF_PROJECT in config:
+        cg.add_define("ESPHOME_PROJECT_NAME", config[CONF_PROJECT][CONF_NAME])
+        cg.add_define("ESPHOME_PROJECT_VERSION", config[CONF_PROJECT][CONF_VERSION])

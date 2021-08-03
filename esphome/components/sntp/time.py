@@ -22,15 +22,15 @@ CONFIG_SCHEMA = time_.TIME_SCHEMA.extend(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
 
     servers = config[CONF_SERVERS]
     servers += [""] * (3 - len(servers))
     cg.add(var.set_servers(*servers))
 
-    yield cg.register_component(var, config)
-    yield time_.register_time(var, config)
+    await cg.register_component(var, config)
+    await time_.register_time(var, config)
 
     if CORE.is_esp8266 and len(servers) > 1:
         # We need LwIP features enabled to get 3 SNTP servers (not just one)
