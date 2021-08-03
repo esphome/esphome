@@ -6,7 +6,7 @@ from esphome.components import mqtt
 from esphome.const import (
     CONF_ABOVE,
     CONF_BELOW,
-    CONF_DISABLED_DEFAULT,
+    CONF_DISABLED_BY_DEFAULT,
     CONF_ICON,
     CONF_ID,
     CONF_INTERNAL,
@@ -72,7 +72,7 @@ async def setup_number_core_(
     var, config, *, min_value: float, max_value: float, step: Optional[float]
 ):
     cg.add(var.set_name(config[CONF_NAME]))
-    cg.add(var.set_disabled_default(config[CONF_DISABLED_DEFAULT]))
+    cg.add(var.set_disabled_by_default(config[CONF_DISABLED_BY_DEFAULT]))
     if CONF_INTERNAL in config:
         cg.add(var.set_internal(config[CONF_INTERNAL]))
 

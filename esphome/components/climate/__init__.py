@@ -6,7 +6,7 @@ from esphome.const import (
     CONF_AWAY,
     CONF_CUSTOM_FAN_MODE,
     CONF_CUSTOM_PRESET,
-    CONF_DISABLED_DEFAULT,
+    CONF_DISABLED_BY_DEFAULT,
     CONF_ID,
     CONF_INTERNAL,
     CONF_MAX_TEMPERATURE,
@@ -105,7 +105,7 @@ CLIMATE_SCHEMA = cv.NAMEABLE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).ext
 
 async def setup_climate_core_(var, config):
     cg.add(var.set_name(config[CONF_NAME]))
-    cg.add(var.set_disabled_default(config[CONF_DISABLED_DEFAULT]))
+    cg.add(var.set_disabled_by_default(config[CONF_DISABLED_BY_DEFAULT]))
     if CONF_INTERNAL in config:
         cg.add(var.set_internal(config[CONF_INTERNAL]))
     visual = config[CONF_VISUAL]

@@ -3,7 +3,7 @@ import esphome.config_validation as cv
 from esphome import automation
 from esphome.components import mqtt
 from esphome.const import (
-    CONF_DISABLED_DEFAULT,
+    CONF_DISABLED_BY_DEFAULT,
     CONF_ICON,
     CONF_ID,
     CONF_INTERNAL,
@@ -49,7 +49,7 @@ TEXT_SENSOR_SCHEMA = cv.NAMEABLE_SCHEMA.extend(cv.MQTT_COMPONENT_SCHEMA).extend(
 
 async def setup_text_sensor_core_(var, config):
     cg.add(var.set_name(config[CONF_NAME]))
-    cg.add(var.set_disabled_default(config[CONF_DISABLED_DEFAULT]))
+    cg.add(var.set_disabled_by_default(config[CONF_DISABLED_BY_DEFAULT]))
     if CONF_INTERNAL in config:
         cg.add(var.set_internal(config[CONF_INTERNAL]))
     if CONF_ICON in config:

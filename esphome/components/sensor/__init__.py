@@ -10,7 +10,7 @@ from esphome.const import (
     CONF_ACCURACY_DECIMALS,
     CONF_ALPHA,
     CONF_BELOW,
-    CONF_DISABLED_DEFAULT,
+    CONF_DISABLED_BY_DEFAULT,
     CONF_EXPIRE_AFTER,
     CONF_FILTERS,
     CONF_FROM,
@@ -495,7 +495,7 @@ async def build_filters(config):
 
 async def setup_sensor_core_(var, config):
     cg.add(var.set_name(config[CONF_NAME]))
-    cg.add(var.set_disabled_default(config[CONF_DISABLED_DEFAULT]))
+    cg.add(var.set_disabled_by_default(config[CONF_DISABLED_BY_DEFAULT]))
     if CONF_INTERNAL in config:
         cg.add(var.set_internal(config[CONF_INTERNAL]))
     if CONF_DEVICE_CLASS in config:

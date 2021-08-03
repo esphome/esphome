@@ -15,7 +15,7 @@ from esphome.const import (
     ALLOWED_NAME_CHARS,
     CONF_AVAILABILITY,
     CONF_COMMAND_TOPIC,
-    CONF_DISABLED_DEFAULT,
+    CONF_DISABLED_BY_DEFAULT,
     CONF_DISCOVERY,
     CONF_ID,
     CONF_INTERNAL,
@@ -1576,7 +1576,7 @@ NAMEABLE_SCHEMA = Schema(
     {
         Optional(CONF_NAME): string,
         Optional(CONF_INTERNAL): boolean,
-        Optional(CONF_DISABLED_DEFAULT, default=False): boolean,
+        Optional(CONF_DISABLED_BY_DEFAULT, default=False): boolean,
     }
 )
 

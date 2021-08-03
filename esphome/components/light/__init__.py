@@ -5,7 +5,7 @@ from esphome.components import mqtt, power_supply
 from esphome.const import (
     CONF_COLOR_CORRECT,
     CONF_DEFAULT_TRANSITION_LENGTH,
-    CONF_DISABLED_DEFAULT,
+    CONF_DISABLED_BY_DEFAULT,
     CONF_EFFECTS,
     CONF_GAMMA_CORRECT,
     CONF_ID,
@@ -122,7 +122,7 @@ def validate_color_temperature_channels(value):
 
 
 async def setup_light_core_(light_var, output_var, config):
-    cg.add(light_var.set_disabled_default(config[CONF_DISABLED_DEFAULT]))
+    cg.add(light_var.set_disabled_by_default(config[CONF_DISABLED_BY_DEFAULT]))
     cg.add(light_var.set_restore_mode(config[CONF_RESTORE_MODE]))
     if CONF_INTERNAL in config:
         cg.add(light_var.set_internal(config[CONF_INTERNAL]))

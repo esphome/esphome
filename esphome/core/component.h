@@ -256,8 +256,8 @@ class Nameable {
   bool is_internal() const;
   void set_internal(bool internal);
 
-  bool is_disabled_default() const;
-  void set_disabled_default(bool disabled_default);
+  bool is_disabled_by_default() const;
+  void set_disabled_by_default(bool disabled_by_default);
 
  protected:
   virtual uint32_t hash_base() = 0;
@@ -268,7 +268,7 @@ class Nameable {
   std::string object_id_;
   uint32_t object_id_hash_;
   bool internal_{false};
-  bool disabled_default_{false};
+  bool disabled_by_default_{false};
 };
 
 }  // namespace esphome

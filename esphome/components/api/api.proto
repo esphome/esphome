@@ -214,7 +214,7 @@ message ListEntitiesBinarySensorResponse {
 
   string device_class = 5;
   bool is_status_binary_sensor = 6;
-  bool disabled_default = 7;
+  bool disabled_by_default = 7;
 }
 message BinarySensorStateResponse {
   option (id) = 21;
@@ -244,7 +244,7 @@ message ListEntitiesCoverResponse {
   bool supports_position = 6;
   bool supports_tilt = 7;
   string device_class = 8;
-  bool disabled_default = 9;
+  bool disabled_by_default = 9;
 }
 
 enum LegacyCoverState {
@@ -312,7 +312,7 @@ message ListEntitiesFanResponse {
   bool supports_speed = 6;
   bool supports_direction = 7;
   int32 supported_speed_count = 8;
-  bool disabled_default = 9;
+  bool disabled_by_default = 9;
 }
 enum FanSpeed {
   FAN_SPEED_LOW = 0;
@@ -387,7 +387,7 @@ message ListEntitiesLightResponse {
   float min_mireds = 9;
   float max_mireds = 10;
   repeated string effects = 11;
-  bool disabled_default = 13;
+  bool disabled_by_default = 13;
 }
 message LightStateResponse {
   option (id) = 24;
@@ -473,7 +473,7 @@ message ListEntitiesSensorResponse {
   string device_class = 9;
   SensorStateClass state_class = 10;
   SensorLastResetType last_reset_type = 11;
-  bool disabled_default = 12;
+  bool disabled_by_default = 12;
 }
 message SensorStateResponse {
   option (id) = 25;
@@ -501,7 +501,7 @@ message ListEntitiesSwitchResponse {
 
   string icon = 5;
   bool assumed_state = 6;
-  bool disabled_default = 7;
+  bool disabled_by_default = 7;
 }
 message SwitchStateResponse {
   option (id) = 26;
@@ -534,7 +534,7 @@ message ListEntitiesTextSensorResponse {
   string unique_id = 4;
 
   string icon = 5;
-  bool disabled_default = 6;
+  bool disabled_by_default = 6;
 }
 message TextSensorStateResponse {
   option (id) = 27;
@@ -694,7 +694,7 @@ message ListEntitiesCameraResponse {
   fixed32 key = 2;
   string name = 3;
   string unique_id = 4;
-  bool disabled_default = 5;
+  bool disabled_by_default = 5;
 }
 
 message CameraImageResponse {
@@ -787,7 +787,7 @@ message ListEntitiesClimateResponse {
   repeated string supported_custom_fan_modes = 15;
   repeated ClimatePreset supported_presets = 16;
   repeated string supported_custom_presets = 17;
-  bool disabled_default = 18;
+  bool disabled_by_default = 18;
 }
 message ClimateStateResponse {
   option (id) = 47;
@@ -855,7 +855,7 @@ message ListEntitiesNumberResponse {
   float min_value = 6;
   float max_value = 7;
   float step = 8;
-  bool disabled_default = 9;
+  bool disabled_by_default = 9;
 }
 message NumberStateResponse {
   option (id) = 50;
@@ -892,7 +892,7 @@ message ListEntitiesSelectResponse {
 
   string icon = 5;
   repeated string options = 6;
-  bool disabled_default = 7;
+  bool disabled_by_default = 7;
 }
 message SelectStateResponse {
   option (id) = 53;
