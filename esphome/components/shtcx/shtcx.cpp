@@ -4,7 +4,7 @@
 namespace esphome {
 namespace shtcx {
 
-static const char *TAG = "shtcx";
+static const char *const TAG = "shtcx";
 
 static const uint16_t SHTCX_COMMAND_SLEEP = 0xB098;
 static const uint16_t SHTCX_COMMAND_WAKEUP = 0x3517;

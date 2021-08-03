@@ -36,7 +36,7 @@ const uint8_t TOSHIBA_POWER_ECO = 0x03;
 const uint8_t TOSHIBA_MOTION_SWING = 0x04;
 const uint8_t TOSHIBA_MOTION_FIX = 0x00;
 
-static const char *TAG = "toshiba.climate";
+static const char *const TAG = "toshiba.climate";
 
 void ToshibaClimate::transmit_state() {
   uint8_t message[16] = {0};
@@ -80,7 +80,7 @@ void ToshibaClimate::transmit_state() {
       mode = TOSHIBA_MODE_COOL;
       break;
 
-    case climate::CLIMATE_MODE_AUTO:
+    case climate::CLIMATE_MODE_HEAT_COOL:
     default:
       mode = TOSHIBA_MODE_AUTO;
   }
@@ -190,7 +190,7 @@ bool ToshibaClimate::on_receive(remote_base::RemoteReceiveData data) {
     case TOSHIBA_MODE_AUTO:
     default:
       /* Note: Dry and Fan-only modes are reported as Auto, as they are not supported yet */
-      this->mode = climate::CLIMATE_MODE_AUTO;
+      this->mode = climate::CLIMATE_MODE_HEAT_COOL;
   }
 
   /* Get the target temperature */

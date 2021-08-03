@@ -77,9 +77,9 @@ CONFIG_SCHEMA = cv.Schema(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-def to_code(config):
+async def to_code(config):
     touch = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(touch, config)
+    await cg.register_component(touch, config)
 
     cg.add(touch.set_setup_mode(config[CONF_SETUP_MODE]))
     cg.add(touch.set_iir_filter(config[CONF_IIR_FILTER]))

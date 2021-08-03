@@ -4,7 +4,7 @@
 namespace esphome {
 namespace tm1651 {
 
-static const char *TAG = "tm1651.display";
+static const char *const TAG = "tm1651.display";
 
 static const uint8_t MAX_INPUT_LEVEL_PERCENT = 100;
 static const uint8_t TM1651_MAX_LEVEL = 7;

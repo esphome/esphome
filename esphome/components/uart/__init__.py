@@ -1,5 +1,8 @@
+from typing import Optional
+
 import esphome.codegen as cg
 import esphome.config_validation as cv
+import esphome.final_validate as fv
 from esphome import pins, automation
 from esphome.const import (
     CONF_BAUD_RATE,
@@ -11,7 +14,7 @@ from esphome.const import (
     CONF_RX_BUFFER_SIZE,
     CONF_INVERT,
 )
-from esphome.core import CORE, coroutine
+from esphome.core import CORE
 
 CODEOWNERS = ["@esphome/core"]
 uart_ns = cg.esphome_ns.namespace("uart")
@@ -73,10 +76,10 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def to_code(config):
+async def to_code(config):
     cg.add_global(uart_ns.using)
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
+    await cg.register_component(var, config)
 
     cg.add(var.set_baud_rate(config[CONF_BAUD_RATE]))
 
@@ -99,14 +102,71 @@ UART_DEVICE_SCHEMA = cv.Schema(
     }
 )
 
+KEY_UART_DEVICES = "uart_devices"
 
-@coroutine
-def register_uart_device(var, config):
+
+def final_validate_device_schema(
+    name: str,
+    *,
+    baud_rate: Optional[int] = None,
+    require_tx: bool = False,
+    require_rx: bool = False,
+):
+    def validate_baud_rate(value):
+        if value != baud_rate:
+            raise cv.Invalid(
+                f"Component {name} required baud rate {baud_rate} for the uart bus"
+            )
+        return value
+
+    def validate_pin(opt, device):
+        def validator(value):
+            if opt in device:
+                raise cv.Invalid(
+                    f"The uart {opt} is used both by {name} and {device[opt]}, "
+                    f"but can only be used by one. Please create a new uart bus for {name}."
+                )
+            device[opt] = name
+            return value
+
+        return validator
+
+    def validate_hub(hub_config):
+        hub_schema = {}
+        uart_id = hub_config[CONF_ID]
+        devices = fv.full_config.get().data.setdefault(KEY_UART_DEVICES, {})
+        device = devices.setdefault(uart_id, {})
+
+        if require_tx:
+            hub_schema[
+                cv.Required(
+                    CONF_TX_PIN,
+                    msg=f"Component {name} requires this uart bus to declare a tx_pin",
+                )
+            ] = validate_pin(CONF_TX_PIN, device)
+        if require_rx:
+            hub_schema[
+                cv.Required(
+                    CONF_RX_PIN,
+                    msg=f"Component {name} requires this uart bus to declare a rx_pin",
+                )
+            ] = validate_pin(CONF_RX_PIN, device)
+        if baud_rate is not None:
+            hub_schema[cv.Required(CONF_BAUD_RATE)] = validate_baud_rate
+        return cv.Schema(hub_schema, extra=cv.ALLOW_EXTRA)(hub_config)
+
+    return cv.Schema(
+        {cv.Required(CONF_UART_ID): fv.id_declaration_match_schema(validate_hub)},
+        extra=cv.ALLOW_EXTRA,
+    )
+
+
+async def register_uart_device(var, config):
     """Register a UART device, setting up all the internal values.
 
     This is a coroutine, you need to await it with a 'yield' expression!
     """
-    parent = yield cg.get_variable(config[CONF_UART_ID])
+    parent = await cg.get_variable(config[CONF_UART_ID])
     cg.add(var.set_uart_parent(parent))
 
 
@@ -121,16 +181,16 @@ def register_uart_device(var, config):
         key=CONF_DATA,
     ),
 )
-def uart_write_to_code(config, action_id, template_arg, args):
+async def uart_write_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
-    yield cg.register_parented(var, config[CONF_ID])
+    await cg.register_parented(var, config[CONF_ID])
     data = config[CONF_DATA]
     if isinstance(data, bytes):
         data = list(data)
 
     if cg.is_template(data):
-        templ = yield cg.templatable(data, args, cg.std_vector.template(cg.uint8))
+        templ = await cg.templatable(data, args, cg.std_vector.template(cg.uint8))
         cg.add(var.set_data_template(templ))
     else:
         cg.add(var.set_data_static(data))
-    yield var
+    return var

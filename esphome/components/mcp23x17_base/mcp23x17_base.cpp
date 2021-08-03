@@ -4,7 +4,7 @@
 namespace esphome {
 namespace mcp23x17_base {
 
-static const char *TAG = "mcp23x17_base";
+static const char *const TAG = "mcp23x17_base";
 
 bool MCP23X17Base::digital_read(uint8_t pin) {
   uint8_t bit = pin % 8;

@@ -4,7 +4,7 @@
 namespace esphome {
 namespace dallas {
 
-static const char *TAG = "dallas.sensor";
+static const char *const TAG = "dallas.sensor";
 
 static const uint8_t DALLAS_MODEL_DS18S20 = 0x10;
 static const uint8_t DALLAS_MODEL_DS1822 = 0x22;
@@ -137,7 +137,7 @@ void DallasComponent::update() {
       }
 
       if (!res) {
-        ESP_LOGW(TAG, "'%s' - Reseting bus for read failed!", sensor->get_name().c_str());
+        ESP_LOGW(TAG, "'%s' - Resetting bus for read failed!", sensor->get_name().c_str());
         sensor->publish_state(NAN);
         this->status_set_warning();
         return;

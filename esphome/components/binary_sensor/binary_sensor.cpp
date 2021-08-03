@@ -5,7 +5,7 @@ namespace esphome {
 
 namespace binary_sensor {
 
-static const char *TAG = "binary_sensor";
+static const char *const TAG = "binary_sensor";
 
 void BinarySensor::add_on_state_callback(std::function<void(bool)> &&callback) {
   this->state_callback_.add(std::move(callback));
@@ -61,7 +61,7 @@ void BinarySensor::add_filter(Filter *filter) {
     last_filter->next_ = filter;
   }
 }
-void BinarySensor::add_filters(std::vector<Filter *> filters) {
+void BinarySensor::add_filters(const std::vector<Filter *> &filters) {
   for (Filter *filter : filters) {
     this->add_filter(filter);
   }
