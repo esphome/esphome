@@ -262,7 +262,7 @@ LightColorValues LightCall::validate_() {
   if (this->warm_white_.has_value())
     v.set_warm_white(*this->warm_white_);
 
-  v.normalize_color(traits);
+  v.normalize_color();
 
   // Flash length check
   if (this->has_flash_() && *this->flash_length_ == 0) {
