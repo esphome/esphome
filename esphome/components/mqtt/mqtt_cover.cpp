@@ -61,6 +61,9 @@ void MQTTCoverComponent::dump_config() {
   }
 }
 void MQTTCoverComponent::send_discovery(JsonObject &root, mqtt::SendDiscoveryConfig &config) {
+  if (!this->cover_->get_device_class().empty())
+    root["device_class"] = this->cover_->get_device_class();
+
   auto traits = this->cover_->get_traits();
   if (traits.get_is_assumed_state()) {
     root["optimistic"] = true;
