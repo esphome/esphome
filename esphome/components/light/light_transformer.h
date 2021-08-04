@@ -18,13 +18,13 @@ class LightTransformer {
   }
 
   /// Indicates whether this transformation is finished.
-  virtual bool is_finished() { return this->get_progress() >= 1.0f; }
+  virtual bool is_finished() { return this->get_progress_() >= 1.0f; }
 
   /// This will be called before the transition is started.
   virtual void start() {}
 
-  /// This will be called while the transformer is active to apply the transition to the light. Can either write to the light directly, or return
-  /// LightColorValues that will be applied.
+  /// This will be called while the transformer is active to apply the transition to the light. Can either write to the
+  /// light directly, or return LightColorValues that will be applied.
   virtual optional<LightColorValues> apply() = 0;
 
   /// This will be called after transition is finished.
@@ -36,7 +36,7 @@ class LightTransformer {
 
  protected:
   /// The progress of this transition, on a scale of 0 to 1.
-  float get_progress() { return clamp((millis() - this->start_time_) / float(this->length_), 0.0f, 1.0f); }
+  float get_progress_() { return clamp((millis() - this->start_time_) / float(this->length_), 0.0f, 1.0f); }
 
   uint32_t start_time_;
   uint32_t length_;

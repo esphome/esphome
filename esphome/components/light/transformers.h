@@ -27,7 +27,7 @@ class LightTransitionTransformer : public LightTransformer {
   }
 
   optional<LightColorValues> apply() override {
-    float p = this->get_progress();
+    float p = this->get_progress_();
 
     // Halfway through, when intermediate state (off) is reached, flip it to the target, but remain off.
     if (this->changing_color_mode_ && p > 0.5f &&

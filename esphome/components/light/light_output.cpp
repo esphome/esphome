@@ -10,4 +10,3 @@ std::unique_ptr<LightTransformer> LightOutput::create_default_transition() {
 
 }  // namespace light
 }  // namespace esphome
-

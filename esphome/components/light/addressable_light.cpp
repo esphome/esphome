@@ -71,7 +71,7 @@ optional<LightColorValues> AddressableLightTransformer::apply() {
   // Instead, we "fake" the look of the LERP by using an exponential average over time and using
   // dynamically-calculated alpha values to match the look.
 
-  float smoothed_progress = LightTransitionTransformer::smoothed_progress(this->get_progress());
+  float smoothed_progress = LightTransitionTransformer::smoothed_progress(this->get_progress_());
 
   float denom = (1.0f - smoothed_progress);
   float alpha = denom == 0.0f ? 0.0f : (smoothed_progress - this->last_transition_progress_) / denom;
