@@ -159,8 +159,14 @@ template<typename... Ts> class AddressableSet : public Action<Ts...> {
 
   void play(Ts... x) override {
     auto *out = (AddressableLight *) this->parent_->get_output();
-    int32_t range_from = this->range_from_.value_or(x..., 0);
-    int32_t range_to = this->range_to_.value_or(x..., out->size() - 1) + 1;
+    int32_t range_from = interpret_index(this->range_from_.value_or(x..., 0), out->size());
+    if (range_from < 0 || range_from >= out->size())
+      range_from = 0;
+
+    int32_t range_to = interpret_index(this->range_to_.value_or(x..., out->size() - 1) + 1, out->size());
+    if (range_to < 0 || range_to >= out->size())
+      range_to = out->size();
+
     uint8_t color_brightness =
         to_uint8_scale(this->color_brightness_.value_or(x..., this->parent_->remote_values.get_color_brightness()));
     auto range = out->range(range_from, range_to);
