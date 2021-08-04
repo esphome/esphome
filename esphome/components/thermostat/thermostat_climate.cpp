@@ -646,9 +646,10 @@ bool ThermostatClimate::heating_action_ready_() {
 }
 
 void ThermostatClimate::start_timer_(const ThermostatClimateTimerIndex timer_index) {
-  auto cbf = std::bind(this->timer_[timer_index].func, this);
-  this->set_timeout(this->timer_[timer_index].name, this->timer_[timer_index].time, cbf);
-  this->timer_[timer_index].active = true;
+  if (timer_duration_(timer_index) > 0) {
+    this->set_timeout(this->timer_[timer_index].name, timer_duration_(timer_index), timer_cbf_(timer_index));
+    this->timer_[timer_index].active = true;
+  }
 }
 
 bool ThermostatClimate::cancel_timer_(ThermostatClimateTimerIndex timer_index) {
@@ -662,6 +663,10 @@ bool ThermostatClimate::timer_active_(ThermostatClimateTimerIndex timer_index) {
 
 uint32_t ThermostatClimate::timer_duration_(ThermostatClimateTimerIndex timer_index) {
   return this->timer_[timer_index].time;
+}
+
+std::function<void()> ThermostatClimate::timer_cbf_(ThermostatClimateTimerIndex timer_index) {
+  return this->timer_[timer_index].func;
 }
 
 void ThermostatClimate::cooling_max_run_time_timer_callback_() {
@@ -1071,23 +1076,27 @@ void ThermostatClimate::dump_config() {
     ESP_LOGCONFIG(TAG, "  Cooling Parameters:");
     ESP_LOGCONFIG(TAG, "    Deadband: %.1f°C", this->cooling_deadband_);
     ESP_LOGCONFIG(TAG, "    Overrun: %.1f°C", this->cooling_overrun_);
-    ESP_LOGCONFIG(TAG, "    Supplemental Delta: %.1f°C", this->supplemental_cool_delta_);
-    ESP_LOGCONFIG(TAG, "    Maximum Run Time: %us", this->timer_[thermostat::TIMER_COOLING_MAX_RUN_TIME].time / 1000);
-    ESP_LOGCONFIG(TAG, "    Minimum Off Time: %us", this->timer_[thermostat::TIMER_COOLING_OFF].time / 1000);
-    ESP_LOGCONFIG(TAG, "    Minimum Run Time: %us", this->timer_[thermostat::TIMER_COOLING_ON].time / 1000);
+    if ((this->supplemental_cool_delta_ > 0) || (timer_duration_(thermostat::TIMER_COOLING_MAX_RUN_TIME) > 0)) {
+      ESP_LOGCONFIG(TAG, "    Supplemental Delta: %.1f°C", this->supplemental_cool_delta_);
+      ESP_LOGCONFIG(TAG, "    Maximum Run Time: %us", timer_duration_(thermostat::TIMER_COOLING_MAX_RUN_TIME) / 1000);
+    }
+    ESP_LOGCONFIG(TAG, "    Minimum Off Time: %us", timer_duration_(thermostat::TIMER_COOLING_OFF) / 1000);
+    ESP_LOGCONFIG(TAG, "    Minimum Run Time: %us", timer_duration_(thermostat::TIMER_COOLING_ON) / 1000);
   }
   if (this->supports_heat_) {
     ESP_LOGCONFIG(TAG, "  Heating Parameters:");
     ESP_LOGCONFIG(TAG, "    Deadband: %.1f°C", this->heating_deadband_);
     ESP_LOGCONFIG(TAG, "    Overrun: %.1f°C", this->heating_overrun_);
-    ESP_LOGCONFIG(TAG, "    Supplemental Delta: %.1f°C", this->supplemental_heat_delta_);
-    ESP_LOGCONFIG(TAG, "    Maximum Run Time: %us", this->timer_[thermostat::TIMER_HEATING_MAX_RUN_TIME].time / 1000);
-    ESP_LOGCONFIG(TAG, "    Minimum Off Time: %us", this->timer_[thermostat::TIMER_HEATING_OFF].time / 1000);
-    ESP_LOGCONFIG(TAG, "    Minimum Run Time: %us", this->timer_[thermostat::TIMER_HEATING_ON].time / 1000);
+    if ((this->supplemental_heat_delta_ > 0) || (timer_duration_(thermostat::TIMER_HEATING_MAX_RUN_TIME) > 0)) {
+      ESP_LOGCONFIG(TAG, "    Supplemental Delta: %.1f°C", this->supplemental_heat_delta_);
+      ESP_LOGCONFIG(TAG, "    Maximum Run Time: %us", timer_duration_(thermostat::TIMER_HEATING_MAX_RUN_TIME) / 1000);
+    }
+    ESP_LOGCONFIG(TAG, "    Minimum Off Time: %us", timer_duration_(thermostat::TIMER_HEATING_OFF) / 1000);
+    ESP_LOGCONFIG(TAG, "    Minimum Run Time: %us", timer_duration_(thermostat::TIMER_HEATING_ON) / 1000);
   }
   if (this->supports_fan_only_) {
-    ESP_LOGCONFIG(TAG, "  Fanning Minimum Off Time: %us", this->timer_[thermostat::TIMER_FANNING_OFF].time / 1000);
-    ESP_LOGCONFIG(TAG, "  Fanning Minimum Run Time: %us", this->timer_[thermostat::TIMER_FANNING_ON].time / 1000);
+    ESP_LOGCONFIG(TAG, "  Fanning Minimum Off Time: %us", timer_duration_(thermostat::TIMER_FANNING_OFF) / 1000);
+    ESP_LOGCONFIG(TAG, "  Fanning Minimum Run Time: %us", timer_duration_(thermostat::TIMER_FANNING_ON) / 1000);
   }
   ESP_LOGCONFIG(TAG, "  Minimum Idle Time: %us", this->timer_[thermostat::TIMER_IDLE_ON].time / 1000);
   ESP_LOGCONFIG(TAG, "  Supports AUTO: %s", YESNO(this->supports_auto_));

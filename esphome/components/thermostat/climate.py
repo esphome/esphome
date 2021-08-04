@@ -83,21 +83,111 @@ validate_climate_mode = cv.enum(CLIMATE_MODES, upper=True)
 
 
 def validate_thermostat(config):
-    # verify corresponding climate action action exists for any defined climate mode action
-    # ...also covers supplemental climate actions
+    # verify corresponding action(s) exist(s) for any defined climate mode or action
     requirements = {
-        CONF_AUTO_MODE: [CONF_COOL_ACTION, CONF_HEAT_ACTION],
-        CONF_COOL_MODE: [CONF_COOL_ACTION],
-        CONF_DRY_MODE: [CONF_DRY_ACTION],
-        CONF_FAN_ONLY_MODE: [CONF_FAN_ONLY_ACTION],
-        CONF_HEAT_MODE: [CONF_HEAT_ACTION],
-        CONF_SUPPLEMENTAL_COOLING_ACTION: [CONF_COOL_ACTION],
-        CONF_SUPPLEMENTAL_HEATING_ACTION: [CONF_HEAT_ACTION],
+        CONF_AUTO_MODE: [
+            CONF_COOL_ACTION,
+            CONF_HEAT_ACTION,
+            CONF_MIN_COOLING_OFF_TIME,
+            CONF_MIN_COOLING_RUN_TIME,
+            CONF_MIN_HEATING_OFF_TIME,
+            CONF_MIN_HEATING_RUN_TIME,
+        ],
+        CONF_COOL_MODE: [
+            CONF_COOL_ACTION,
+            CONF_MIN_COOLING_OFF_TIME,
+            CONF_MIN_COOLING_RUN_TIME,
+        ],
+        CONF_DRY_MODE: [
+            CONF_DRY_ACTION,
+            CONF_MIN_COOLING_OFF_TIME,
+            CONF_MIN_COOLING_RUN_TIME,
+        ],
+        CONF_FAN_ONLY_MODE: [
+            CONF_FAN_ONLY_ACTION,
+            CONF_MIN_FANNING_OFF_TIME,
+            CONF_MIN_FANNING_RUN_TIME,
+        ],
+        CONF_HEAT_MODE: [
+            CONF_HEAT_ACTION,
+            CONF_MIN_HEATING_OFF_TIME,
+            CONF_MIN_HEATING_RUN_TIME,
+        ],
+        CONF_COOL_ACTION: [
+            CONF_MIN_COOLING_OFF_TIME,
+            CONF_MIN_COOLING_RUN_TIME,
+        ],
+        CONF_DRY_ACTION: [
+            CONF_MIN_COOLING_OFF_TIME,
+            CONF_MIN_COOLING_RUN_TIME,
+        ],
+        CONF_FAN_ONLY_ACTION: [
+            CONF_MIN_FANNING_OFF_TIME,
+            CONF_MIN_FANNING_RUN_TIME,
+        ],
+        CONF_HEAT_ACTION: [
+            CONF_MIN_HEATING_OFF_TIME,
+            CONF_MIN_HEATING_RUN_TIME,
+        ],
+        CONF_SUPPLEMENTAL_COOLING_ACTION: [
+            CONF_COOL_ACTION,
+            CONF_MAX_COOLING_RUN_TIME,
+            CONF_MIN_COOLING_OFF_TIME,
+            CONF_MIN_COOLING_RUN_TIME,
+            CONF_SUPPLEMENTAL_COOLING_DELTA,
+        ],
+        CONF_SUPPLEMENTAL_HEATING_ACTION: [
+            CONF_HEAT_ACTION,
+            CONF_MAX_HEATING_RUN_TIME,
+            CONF_MIN_HEATING_OFF_TIME,
+            CONF_MIN_HEATING_RUN_TIME,
+            CONF_SUPPLEMENTAL_HEATING_DELTA,
+        ],
+        CONF_MAX_COOLING_RUN_TIME: [
+            CONF_COOL_ACTION,
+            CONF_SUPPLEMENTAL_COOLING_ACTION,
+            CONF_SUPPLEMENTAL_COOLING_DELTA,
+        ],
+        CONF_MAX_HEATING_RUN_TIME: [
+            CONF_HEAT_ACTION,
+            CONF_SUPPLEMENTAL_HEATING_ACTION,
+            CONF_SUPPLEMENTAL_HEATING_DELTA,
+        ],
+        CONF_MIN_COOLING_OFF_TIME: [
+            CONF_COOL_ACTION,
+        ],
+        CONF_MIN_COOLING_RUN_TIME: [
+            CONF_COOL_ACTION,
+        ],
+        CONF_MIN_FANNING_OFF_TIME: [
+            CONF_FAN_ONLY_ACTION,
+        ],
+        CONF_MIN_FANNING_RUN_TIME: [
+            CONF_FAN_ONLY_ACTION,
+        ],
+        CONF_MIN_HEATING_OFF_TIME: [
+            CONF_HEAT_ACTION,
+        ],
+        CONF_MIN_HEATING_RUN_TIME: [
+            CONF_HEAT_ACTION,
+        ],
+        CONF_SUPPLEMENTAL_COOLING_DELTA: [
+            CONF_COOL_ACTION,
+            CONF_MAX_COOLING_RUN_TIME,
+            CONF_SUPPLEMENTAL_COOLING_ACTION,
+        ],
+        CONF_SUPPLEMENTAL_HEATING_DELTA: [
+            CONF_HEAT_ACTION,
+            CONF_MAX_HEATING_RUN_TIME,
+            CONF_SUPPLEMENTAL_HEATING_ACTION,
+        ],
     }
-    for config_mode, req_actions in requirements.items():
-        for req_action in req_actions:
-            if config_mode in config and req_action not in config:
-                raise cv.Invalid(f"{req_action} must be defined to use {config_mode}")
+    for config_trigger, req_triggers in requirements.items():
+        for req_trigger in req_triggers:
+            if config_trigger in config and req_trigger not in config:
+                raise cv.Invalid(
+                    f"{req_trigger} must be defined to use {config_trigger}"
+                )
 
     # determine validation requirements based on fan_only_cooling setting
     if config[CONF_FAN_ONLY_COOLING] is True:
@@ -247,35 +337,17 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_COOL_OVERRUN): cv.temperature,
             cv.Optional(CONF_HEAT_DEADBAND): cv.temperature,
             cv.Optional(CONF_HEAT_OVERRUN): cv.temperature,
-            cv.Optional(
-                CONF_MAX_COOLING_RUN_TIME, default="600s"
-            ): cv.positive_time_period_seconds,
-            cv.Optional(
-                CONF_MAX_HEATING_RUN_TIME, default="600s"
-            ): cv.positive_time_period_seconds,
-            cv.Optional(
-                CONF_MIN_COOLING_OFF_TIME, default="300s"
-            ): cv.positive_time_period_seconds,
-            cv.Optional(
-                CONF_MIN_COOLING_RUN_TIME, default="300s"
-            ): cv.positive_time_period_seconds,
-            cv.Optional(
-                CONF_MIN_FANNING_OFF_TIME, default="30s"
-            ): cv.positive_time_period_seconds,
-            cv.Optional(
-                CONF_MIN_FANNING_RUN_TIME, default="30s"
-            ): cv.positive_time_period_seconds,
-            cv.Optional(
-                CONF_MIN_HEATING_OFF_TIME, default="300s"
-            ): cv.positive_time_period_seconds,
-            cv.Optional(
-                CONF_MIN_HEATING_RUN_TIME, default="300s"
-            ): cv.positive_time_period_seconds,
-            cv.Optional(
-                CONF_MIN_IDLE_TIME, default="15s"
-            ): cv.positive_time_period_seconds,
-            cv.Optional(CONF_SUPPLEMENTAL_COOLING_DELTA, default=2.0): cv.temperature,
-            cv.Optional(CONF_SUPPLEMENTAL_HEATING_DELTA, default=2.0): cv.temperature,
+            cv.Optional(CONF_MAX_COOLING_RUN_TIME): cv.positive_time_period_seconds,
+            cv.Optional(CONF_MAX_HEATING_RUN_TIME): cv.positive_time_period_seconds,
+            cv.Optional(CONF_MIN_COOLING_OFF_TIME): cv.positive_time_period_seconds,
+            cv.Optional(CONF_MIN_COOLING_RUN_TIME): cv.positive_time_period_seconds,
+            cv.Optional(CONF_MIN_FANNING_OFF_TIME): cv.positive_time_period_seconds,
+            cv.Optional(CONF_MIN_FANNING_RUN_TIME): cv.positive_time_period_seconds,
+            cv.Optional(CONF_MIN_HEATING_OFF_TIME): cv.positive_time_period_seconds,
+            cv.Optional(CONF_MIN_HEATING_RUN_TIME): cv.positive_time_period_seconds,
+            cv.Required(CONF_MIN_IDLE_TIME): cv.positive_time_period_seconds,
+            cv.Optional(CONF_SUPPLEMENTAL_COOLING_DELTA): cv.temperature,
+            cv.Optional(CONF_SUPPLEMENTAL_HEATING_DELTA): cv.temperature,
             cv.Optional(CONF_HYSTERESIS, default=0.5): cv.temperature,
             cv.Optional(CONF_FAN_ONLY_COOLING, default=False): cv.boolean,
             cv.Optional(CONF_FAN_WITH_COOLING, default=False): cv.boolean,
@@ -352,17 +424,53 @@ async def to_code(config):
             config[CONF_DEFAULT_TARGET_TEMPERATURE_LOW]
         )
 
-    cg.add(var.set_cooling_maximum_run_time_in_sec(config[CONF_MAX_COOLING_RUN_TIME]))
-    cg.add(var.set_heating_maximum_run_time_in_sec(config[CONF_MAX_HEATING_RUN_TIME]))
-    cg.add(var.set_cooling_minimum_off_time_in_sec(config[CONF_MIN_COOLING_OFF_TIME]))
-    cg.add(var.set_cooling_minimum_run_time_in_sec(config[CONF_MIN_COOLING_RUN_TIME]))
-    cg.add(var.set_fanning_minimum_off_time_in_sec(config[CONF_MIN_FANNING_OFF_TIME]))
-    cg.add(var.set_fanning_minimum_run_time_in_sec(config[CONF_MIN_FANNING_RUN_TIME]))
-    cg.add(var.set_heating_minimum_off_time_in_sec(config[CONF_MIN_HEATING_OFF_TIME]))
-    cg.add(var.set_heating_minimum_run_time_in_sec(config[CONF_MIN_HEATING_RUN_TIME]))
+    if CONF_MAX_COOLING_RUN_TIME in config:
+        cg.add(
+            var.set_cooling_maximum_run_time_in_sec(config[CONF_MAX_COOLING_RUN_TIME])
+        )
+
+    if CONF_MAX_HEATING_RUN_TIME in config:
+        cg.add(
+            var.set_heating_maximum_run_time_in_sec(config[CONF_MAX_HEATING_RUN_TIME])
+        )
+
+    if CONF_MIN_COOLING_OFF_TIME in config:
+        cg.add(
+            var.set_cooling_minimum_off_time_in_sec(config[CONF_MIN_COOLING_OFF_TIME])
+        )
+
+    if CONF_MIN_COOLING_RUN_TIME in config:
+        cg.add(
+            var.set_cooling_minimum_run_time_in_sec(config[CONF_MIN_COOLING_RUN_TIME])
+        )
+
+    if CONF_MIN_FANNING_OFF_TIME in config:
+        cg.add(
+            var.set_fanning_minimum_off_time_in_sec(config[CONF_MIN_FANNING_OFF_TIME])
+        )
+
+    if CONF_MIN_FANNING_RUN_TIME in config:
+        cg.add(
+            var.set_fanning_minimum_run_time_in_sec(config[CONF_MIN_FANNING_RUN_TIME])
+        )
+
+    if CONF_MIN_HEATING_OFF_TIME in config:
+        cg.add(
+            var.set_heating_minimum_off_time_in_sec(config[CONF_MIN_HEATING_OFF_TIME])
+        )
+
+    if CONF_MIN_HEATING_RUN_TIME in config:
+        cg.add(
+            var.set_heating_minimum_run_time_in_sec(config[CONF_MIN_HEATING_RUN_TIME])
+        )
+
+    if CONF_SUPPLEMENTAL_COOLING_DELTA in config:
+        cg.add(var.set_supplemental_cool_delta(config[CONF_SUPPLEMENTAL_COOLING_DELTA]))
+
+    if CONF_SUPPLEMENTAL_HEATING_DELTA in config:
+        cg.add(var.set_supplemental_heat_delta(config[CONF_SUPPLEMENTAL_HEATING_DELTA]))
+
     cg.add(var.set_idle_minimum_time_in_sec(config[CONF_MIN_IDLE_TIME]))
-    cg.add(var.set_supplemental_cool_delta(config[CONF_SUPPLEMENTAL_COOLING_DELTA]))
-    cg.add(var.set_supplemental_heat_delta(config[CONF_SUPPLEMENTAL_HEATING_DELTA]))
 
     cg.add(var.set_supports_fan_only_cooling(config[CONF_FAN_ONLY_COOLING]))
     cg.add(var.set_supports_fan_with_cooling(config[CONF_FAN_WITH_COOLING]))

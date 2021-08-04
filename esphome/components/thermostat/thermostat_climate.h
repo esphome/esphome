@@ -27,7 +27,7 @@ struct ThermostatClimateTimer {
   const std::string name;
   bool active;
   uint32_t time;
-  void (esphome::thermostat::ThermostatClimate::*func)();
+  std::function<void()> func;
 };
 
 struct ThermostatClimateTargetTempConfig {
@@ -183,6 +183,7 @@ class ThermostatClimate : public climate::Climate, public Component {
   bool cancel_timer_(ThermostatClimateTimerIndex timer_index);
   bool timer_active_(ThermostatClimateTimerIndex timer_index);
   uint32_t timer_duration_(ThermostatClimateTimerIndex timer_index);
+  std::function<void()> timer_cbf_(ThermostatClimateTimerIndex timer_index);
 
   /// set_timeout() callbacks for various actions (see above)
   void cooling_max_run_time_timer_callback_();
@@ -405,15 +406,15 @@ class ThermostatClimate : public climate::Climate, public Component {
 
   /// Climate action timers
   std::vector<ThermostatClimateTimer> timer_{
-      {"cool_run", false, 0, &ThermostatClimate::cooling_max_run_time_timer_callback_},
-      {"cool_off", false, 0, &ThermostatClimate::cooling_off_timer_callback_},
-      {"cool_on", false, 0, &ThermostatClimate::cooling_on_timer_callback_},
-      {"fan_off", false, 0, &ThermostatClimate::fanning_off_timer_callback_},
-      {"fan_on", false, 0, &ThermostatClimate::fanning_on_timer_callback_},
-      {"heat_run", false, 0, &ThermostatClimate::heating_max_run_time_timer_callback_},
-      {"heat_off", false, 0, &ThermostatClimate::heating_off_timer_callback_},
-      {"heat_on", false, 0, &ThermostatClimate::heating_on_timer_callback_},
-      {"idle_on", false, 0, &ThermostatClimate::idle_on_timer_callback_}};
+      {"cool_run", false, 0, std::bind(&ThermostatClimate::cooling_max_run_time_timer_callback_, this)},
+      {"cool_off", false, 0, std::bind(&ThermostatClimate::cooling_off_timer_callback_, this)},
+      {"cool_on", false, 0, std::bind(&ThermostatClimate::cooling_on_timer_callback_, this)},
+      {"fan_off", false, 0, std::bind(&ThermostatClimate::fanning_off_timer_callback_, this)},
+      {"fan_on", false, 0, std::bind(&ThermostatClimate::fanning_on_timer_callback_, this)},
+      {"heat_run", false, 0, std::bind(&ThermostatClimate::heating_max_run_time_timer_callback_, this)},
+      {"heat_off", false, 0, std::bind(&ThermostatClimate::heating_off_timer_callback_, this)},
+      {"heat_on", false, 0, std::bind(&ThermostatClimate::heating_on_timer_callback_, this)},
+      {"idle_on", false, 0, std::bind(&ThermostatClimate::idle_on_timer_callback_, this)}};
 };
 
 }  // namespace thermostat
