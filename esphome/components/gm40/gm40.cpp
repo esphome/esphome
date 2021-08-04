@@ -148,14 +148,16 @@ void GM40::process_status_() {
   std::vector<uint8_t> frame(this->rx_buffer_.begin() + 3, this->rx_buffer_.end() - 1);
   if (calc_checksum(frame) == this->rx_buffer_.end()[-1]) {
     bool publish_state = false;
-    float pos = clamp((float) (100 - this->rx_buffer_[11]) / 100, 0.0f, 1.0f);
+    float pos = 0.5f;
+    if (this->rx_buffer_[11] != 0xFF)
+      pos = clamp((float) (100 - this->rx_buffer_[11]) / 100, 0.0f, 1.0f);
     if (this->position != pos) {
       this->position = pos;
       publish_state = true;
     }
     if (this->current_operation != COVER_OPERATION_IDLE)
-      if ((pos >= clamp(this->target_position_ - 0.03, 0.0f, 1.0f)) &&
-          (pos <= clamp(this->target_position_ + 0.03, 0.0f, 1.0f))) {
+      if ((pos >= clamp(this->target_position_ - 0.03f, 0.0f, 1.0f)) &&
+          (pos <= clamp(this->target_position_ + 0.03f, 0.0f, 1.0f))) {
         this->current_operation = COVER_OPERATION_IDLE;
         publish_state = true;
       }

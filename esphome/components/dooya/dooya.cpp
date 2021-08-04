@@ -138,7 +138,9 @@ void Dooya::process_status_() {
   uint16_t crc = crc16(&frame[0], frame.size());
   if (((crc & 0xFF) == this->rx_buffer_.end()[-2]) && ((crc >> 8) == this->rx_buffer_.end()[-1])) {
     if (this->current_request_ == GET_POSITION) {
-      float pos = clamp((float) this->rx_buffer_[5] / 100, 0.0f, 1.0f);
+      float pos = 0.5f;
+      if (this->rx_buffer_[5] != 0xFF)
+        pos = clamp((float) this->rx_buffer_[5] / 100, 0.0f, 1.0f);
       if (this->position != pos) {
         this->position = pos;
         this->publish_state(false);
