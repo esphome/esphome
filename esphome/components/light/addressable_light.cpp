@@ -48,35 +48,33 @@ void AddressableLight::write_state(LightState *state) {
   this->all() = esp_color_from_light_color_values(val);
 }
 
+void AddressableLightTransformer::start() {
+  auto end_values = this->target_values_;
+  this->target_color_ = esp_color_from_light_color_values(end_values);
+
+  // our transition will handle brightness, disable brightness in correction.
+  this->light_.correction_.set_local_brightness(255);
+  this->target_color_ *= to_uint8_scale(end_values.get_brightness() * end_values.get_state());
+}
+
 optional<LightColorValues> AddressableLightTransformer::apply() {
   // Don't try to transition over running effects, instead immediately use the target values. write_state() and the
   // effects pick up the change from current_values.
   if (this->light_.is_effect_active())
     return this->target_values_;
 
-  // transition transformer active, activate specialized transition for addressable effects
-  // instead of using a unified transition for all LEDs, we use the current state each LED as the
-  // start. Warning: ugly
+  // Use a specialized transition for addressable lights: instead of using a unified transition for
+  // all LEDs, we use the current state of each LED as the start.
 
   // We can't use a direct lerp smoothing here though - that would require creating a copy of the original
-  // state of each LED at the start of the transition
+  // state of each LED at the start of the transition.
   // Instead, we "fake" the look of the LERP by using an exponential average over time and using
-  // dynamically-calculated alpha values to match the look of the
+  // dynamically-calculated alpha values to match the look.
 
-  float new_progress = this->get_progress();
-  float prev_smoothed = LightTransitionTransformer::smoothed_progress(last_transition_progress_);
-  float new_smoothed = LightTransitionTransformer::smoothed_progress(new_progress);
-  this->last_transition_progress_ = new_progress;
+  float smoothed_progress = LightTransitionTransformer::smoothed_progress(this->get_progress());
 
-  auto end_values = this->target_values_;
-  Color target_color = esp_color_from_light_color_values(end_values);
-
-  // our transition will handle brightness, disable brightness in correction.
-  this->light_.correction_.set_local_brightness(255);
-  target_color *= to_uint8_scale(end_values.get_brightness() * end_values.get_state());
-
-  float denom = (1.0f - new_smoothed);
-  float alpha = denom == 0.0f ? 0.0f : (new_smoothed - prev_smoothed) / denom;
+  float denom = (1.0f - smoothed_progress);
+  float alpha = denom == 0.0f ? 0.0f : (smoothed_progress - this->last_transition_progress_) / denom;
 
   // We need to use a low-resolution alpha here which makes the transition set in only after ~half of the length
   // We solve this by accumulating the fractional part of the alpha over time.
@@ -94,12 +92,13 @@ optional<LightColorValues> AddressableLightTransformer::apply() {
 
   if (alpha8 != 0) {
     uint8_t inv_alpha8 = 255 - alpha8;
-    Color add = target_color * alpha8;
+    Color add = this->target_color_ * alpha8;
 
     for (auto led : this->light_)
       led.set(add + led.get() * inv_alpha8);
   }
 
+  this->last_transition_progress_ = smoothed_progress;
   this->light_.schedule_show();
 
   return {};
