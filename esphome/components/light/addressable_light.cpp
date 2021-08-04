@@ -49,9 +49,6 @@ void AddressableLight::write_state(LightState *state) {
 }
 
 optional<LightColorValues> AddressableLightTransformer::apply() {
-  this->last_transition_progress_ = 0.0f;
-  this->accumulated_alpha_ = 0.0f;
-
   // Don't try to transition over running effects, instead immediately use the target values. write_state() and the
   // effects pick up the change from current_values.
   if (this->light_.is_effect_active())
