@@ -32,7 +32,6 @@ from esphome.const import (
     CONF_HEAT_DEADBAND,
     CONF_HEAT_MODE,
     CONF_HEAT_OVERRUN,
-    CONF_HYSTERESIS,
     CONF_ID,
     CONF_IDLE_ACTION,
     CONF_MAX_COOLING_RUN_TIME,
@@ -333,10 +332,10 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(
                 CONF_SET_POINT_MINIMUM_DIFFERENTIAL, default=0.5
             ): cv.temperature,
-            cv.Optional(CONF_COOL_DEADBAND): cv.temperature,
-            cv.Optional(CONF_COOL_OVERRUN): cv.temperature,
-            cv.Optional(CONF_HEAT_DEADBAND): cv.temperature,
-            cv.Optional(CONF_HEAT_OVERRUN): cv.temperature,
+            cv.Optional(CONF_COOL_DEADBAND, default=0.5): cv.temperature,
+            cv.Optional(CONF_COOL_OVERRUN, default=0.5): cv.temperature,
+            cv.Optional(CONF_HEAT_DEADBAND, default=0.5): cv.temperature,
+            cv.Optional(CONF_HEAT_OVERRUN, default=0.5): cv.temperature,
             cv.Optional(CONF_MAX_COOLING_RUN_TIME): cv.positive_time_period_seconds,
             cv.Optional(CONF_MAX_HEATING_RUN_TIME): cv.positive_time_period_seconds,
             cv.Optional(CONF_MIN_COOLING_OFF_TIME): cv.positive_time_period_seconds,
@@ -348,7 +347,6 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_MIN_IDLE_TIME): cv.positive_time_period_seconds,
             cv.Optional(CONF_SUPPLEMENTAL_COOLING_DELTA): cv.temperature,
             cv.Optional(CONF_SUPPLEMENTAL_HEATING_DELTA): cv.temperature,
-            cv.Optional(CONF_HYSTERESIS, default=0.5): cv.temperature,
             cv.Optional(CONF_FAN_ONLY_COOLING, default=False): cv.boolean,
             cv.Optional(CONF_FAN_WITH_COOLING, default=False): cv.boolean,
             cv.Optional(CONF_FAN_WITH_HEATING, default=False): cv.boolean,
@@ -387,25 +385,10 @@ async def to_code(config):
     )
     cg.add(var.set_sensor(sens))
 
-    if CONF_COOL_DEADBAND in config:
-        cg.add(var.set_cool_deadband(config[CONF_COOL_DEADBAND]))
-    else:
-        cg.add(var.set_cool_deadband(config[CONF_HYSTERESIS]))
-
-    if CONF_COOL_OVERRUN in config:
-        cg.add(var.set_cool_overrun(config[CONF_COOL_OVERRUN]))
-    else:
-        cg.add(var.set_cool_overrun(config[CONF_HYSTERESIS]))
-
-    if CONF_HEAT_DEADBAND in config:
-        cg.add(var.set_heat_deadband(config[CONF_HEAT_DEADBAND]))
-    else:
-        cg.add(var.set_heat_deadband(config[CONF_HYSTERESIS]))
-
-    if CONF_HEAT_OVERRUN in config:
-        cg.add(var.set_heat_overrun(config[CONF_HEAT_OVERRUN]))
-    else:
-        cg.add(var.set_heat_overrun(config[CONF_HYSTERESIS]))
+    cg.add(var.set_cool_deadband(config[CONF_COOL_DEADBAND]))
+    cg.add(var.set_cool_overrun(config[CONF_COOL_OVERRUN]))
+    cg.add(var.set_heat_deadband(config[CONF_HEAT_DEADBAND]))
+    cg.add(var.set_heat_overrun(config[CONF_HEAT_OVERRUN]))
 
     if two_points_available is True:
         cg.add(var.set_supports_two_points(True))
