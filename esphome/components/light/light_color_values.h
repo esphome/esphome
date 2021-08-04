@@ -1,12 +1,7 @@
 #pragma once
 
 #include "esphome/core/helpers.h"
-#include "esphome/core/defines.h"
 #include "color_mode.h"
-
-#ifdef USE_JSON
-#include "esphome/components/json/json_util.h"
-#endif
 
 namespace esphome {
 namespace light {

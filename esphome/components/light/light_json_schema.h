@@ -1,9 +1,12 @@
 #pragma once
 
-#include "light_call.h"
-#include "light_state.h"
+#include "esphome/core/defines.h"
 
 #ifdef USE_JSON
+
+#include "esphome/components/json/json_util.h"
+#include "light_call.h"
+#include "light_state.h"
 
 namespace esphome {
 namespace light {
