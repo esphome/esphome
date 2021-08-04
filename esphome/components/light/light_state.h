@@ -54,6 +54,8 @@ class LightState : public Nameable, public Component {
    * property will be changed continuously (in contrast to .remote_values, where they
    * are constant during transitions).
    *
+   * This value does not have gamma correction applied.
+   *
    * This property is read-only for users. Any changes to it will be ignored.
    */
   LightColorValues current_values;
@@ -63,6 +65,8 @@ class LightState : public Nameable, public Component {
    * These are different from the "current" values: For example transitions will
    * continuously change the "current" values. But the remote values will immediately
    * switch to the target value for a transition, reducing the number of packets sent.
+   *
+   * This value does not have gamma correction applied.
    *
    * This property is read-only for users. Any changes to it will be ignored.
    */
@@ -112,6 +116,7 @@ class LightState : public Nameable, public Component {
   /// Add effects for this light state.
   void add_effects(const std::vector<LightEffect *> &effects);
 
+  /// The result of all the current_values_as_* methods have gamma correction applied.
   void current_values_as_binary(bool *binary);
 
   void current_values_as_brightness(float *brightness);
