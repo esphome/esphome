@@ -57,4 +57,4 @@ async def to_code(config):
     await cg.register_component(var, config)
 
     # DSMR Parser
-    cg.add_library("glmnet/Dsmr", "0.2")
+    cg.add_library("glmnet/Dsmr", "0.2.1")
