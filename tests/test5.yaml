@@ -82,6 +82,29 @@ number:
     min_value: 0
     step: 5
 
+select:
+  - platform: template
+    name: My template select
+    id: template_select_id
+    optimistic: true
+    initial_option: two
+    restore_value: true
+    on_value:
+      - logger.log:
+          format: "Select changed to %s"
+          args: ["x.c_str()"]
+    set_action:
+      - logger.log:
+          format: "Template Select set to %s"
+          args: ["x.c_str()"]
+      - select.set:
+          id: template_select_id
+          option: two
+    options:
+      - one
+      - two
+      - three
+
 sensor:
   - platform: selec_meter
     total_active_energy:

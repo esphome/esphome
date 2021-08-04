@@ -42,6 +42,11 @@ bool InitialStateIterator::on_number(number::Number *number) {
   return this->client_->send_number_state(number, number->state);
 }
 #endif
+#ifdef USE_SELECT
+bool InitialStateIterator::on_select(select::Select *select) {
+  return this->client_->send_select_state(select, select->state);
+}
+#endif
 InitialStateIterator::InitialStateIterator(APIServer *server, APIConnection *client)
     : ComponentIterator(server), client_(client) {}
 

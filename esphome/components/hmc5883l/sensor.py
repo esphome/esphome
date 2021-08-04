@@ -6,7 +6,6 @@ from esphome.const import (
     CONF_ID,
     CONF_OVERSAMPLING,
     CONF_RANGE,
-    DEVICE_CLASS_EMPTY,
     ICON_MAGNET,
     STATE_CLASS_MEASUREMENT,
     STATE_CLASS_NONE,
@@ -80,10 +79,16 @@ def validate_enum(enum_values, units=None, int=True):
 
 
 field_strength_schema = sensor.sensor_schema(
-    UNIT_MICROTESLA, ICON_MAGNET, 1, DEVICE_CLASS_EMPTY, STATE_CLASS_MEASUREMENT
+    unit_of_measurement=UNIT_MICROTESLA,
+    icon=ICON_MAGNET,
+    accuracy_decimals=1,
+    state_class=STATE_CLASS_MEASUREMENT,
 )
 heading_schema = sensor.sensor_schema(
-    UNIT_DEGREES, ICON_SCREEN_ROTATION, 1, DEVICE_CLASS_EMPTY, STATE_CLASS_NONE
+    unit_of_measurement=UNIT_DEGREES,
+    icon=ICON_SCREEN_ROTATION,
+    accuracy_decimals=1,
+    state_class=STATE_CLASS_NONE,
 )
 
 CONFIG_SCHEMA = (

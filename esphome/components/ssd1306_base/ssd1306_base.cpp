@@ -7,8 +7,6 @@ namespace ssd1306_base {
 
 static const char *const TAG = "ssd1306";
 
-static const uint8_t BLACK = 0;
-static const uint8_t WHITE = 1;
 static const uint8_t SSD1306_MAX_CONTRAST = 255;
 
 static const uint8_t SSD1306_COMMAND_DISPLAY_OFF = 0xAE;
@@ -89,8 +87,8 @@ void SSD1306::setup() {
 
   set_brightness(this->brightness_);
 
-  this->fill(BLACK);  // clear display - ensures we do not see garbage at power-on
-  this->display();    // ...write buffer, which actually clears the display's memory
+  this->fill(Color::BLACK);  // clear display - ensures we do not see garbage at power-on
+  this->display();           // ...write buffer, which actually clears the display's memory
 
   this->turn_on();
 }

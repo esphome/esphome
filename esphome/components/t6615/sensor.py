@@ -5,7 +5,6 @@ from esphome.const import (
     CONF_CO2,
     CONF_ID,
     DEVICE_CLASS_CARBON_DIOXIDE,
-    ICON_EMPTY,
     STATE_CLASS_MEASUREMENT,
     UNIT_PARTS_PER_MILLION,
 )
@@ -21,11 +20,10 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(T6615Component),
             cv.Required(CONF_CO2): sensor.sensor_schema(
-                UNIT_PARTS_PER_MILLION,
-                ICON_EMPTY,
-                0,
-                DEVICE_CLASS_CARBON_DIOXIDE,
-                STATE_CLASS_MEASUREMENT,
+                unit_of_measurement=UNIT_PARTS_PER_MILLION,
+                accuracy_decimals=0,
+                device_class=DEVICE_CLASS_CARBON_DIOXIDE,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
         }
     )
