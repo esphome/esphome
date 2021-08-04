@@ -882,7 +882,8 @@ def hostname(value):
         if c in "_" and not warned_underscore:
             _LOGGER.warning(
                 "'%s': Using the '_' (underscore) character in the hostname is discouraged "
-                "as it can cause problems with some DHCP and local name services.",
+                "as it can cause problems with some DHCP and local name services. "
+                "To rename an existing device see https://esphome.io/components/esphome.html#changing-esphome-node-name",
                 value,
             )
             warned_underscore = True
