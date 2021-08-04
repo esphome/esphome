@@ -1015,7 +1015,7 @@ void Nextion::add_no_result_to_queue_with_set_internal_(const std::string &varia
  *
  * @param variable_name Variable name for the queue
  * @param variable_name_to_send Variable name for the left of the command
- * @param state_value Sting value to set
+ * @param state_value String value to set
  * @param is_sleep_safe The command is safe to send when the Nextion is sleeping
  */
 void Nextion::add_no_result_to_queue_with_set(NextionComponentBase *component, const std::string &state_value) {
@@ -1086,8 +1086,8 @@ void Nextion::add_addt_command_to_queue(NextionComponentBase *component) {
 
 void Nextion::set_writer(const nextion_writer_t &writer) { this->writer_ = writer; }
 
-ESPDEPRECATED("set_wait_for_ack(bool) is deprecated and has no effect")
-void Nextion::set_wait_for_ack(bool wait_for_ack) { ESP_LOGE(TAG, "This command is depreciated"); }
+ESPDEPRECATED("set_wait_for_ack(bool) is deprecated and has no effect", "v1.20")
+void Nextion::set_wait_for_ack(bool wait_for_ack) { ESP_LOGE(TAG, "This command is deprecated"); }
 
 }  // namespace nextion
 }  // namespace esphome

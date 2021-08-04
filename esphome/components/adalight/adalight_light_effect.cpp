@@ -42,7 +42,7 @@ void AdalightLightEffect::reset_frame_(light::AddressableLight &it) {
 
 void AdalightLightEffect::blank_all_leds_(light::AddressableLight &it) {
   for (int led = it.size(); led-- > 0;) {
-    it[led].set(COLOR_BLACK);
+    it[led].set(Color::BLACK);
   }
 }
 

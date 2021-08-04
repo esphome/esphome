@@ -7,7 +7,6 @@ from esphome.const import (
     CONF_ID,
     CONF_TRIGGER_PIN,
     CONF_TIMEOUT,
-    DEVICE_CLASS_EMPTY,
     STATE_CLASS_MEASUREMENT,
     UNIT_METER,
     ICON_ARROW_EXPAND_VERTICAL,
@@ -22,11 +21,10 @@ UltrasonicSensorComponent = ultrasonic_ns.class_(
 
 CONFIG_SCHEMA = (
     sensor.sensor_schema(
-        UNIT_METER,
-        ICON_ARROW_EXPAND_VERTICAL,
-        2,
-        DEVICE_CLASS_EMPTY,
-        STATE_CLASS_MEASUREMENT,
+        unit_of_measurement=UNIT_METER,
+        icon=ICON_ARROW_EXPAND_VERTICAL,
+        accuracy_decimals=2,
+        state_class=STATE_CLASS_MEASUREMENT,
     )
     .extend(
         {

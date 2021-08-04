@@ -162,7 +162,7 @@ void RC522::loop() {
         ESP_LOGW(TAG, "CMD_REQA -> Not OK %d", status);
         state_ = STATE_DONE;
       } else if (back_length_ != 2) {  // || *valid_bits_ != 0) {  // ATQA must be exactly 16 bits.
-        ESP_LOGW(TAG, "CMD_REQA -> OK, but unexpacted back_length_ of %d", back_length_);
+        ESP_LOGW(TAG, "CMD_REQA -> OK, but unexpected back_length_ of %d", back_length_);
         state_ = STATE_DONE;
       } else {
         state_ = STATE_READ_SERIAL;
@@ -470,7 +470,7 @@ RC522::StatusCode RC522::await_crc_() {
     return STATUS_WAITING;
 
   ESP_LOGD(TAG, "pcd_calculate_crc_() TIMEOUT");
-  // 89ms passed and nothing happend. Communication with the MFRC522 might be down.
+  // 89ms passed and nothing happened. Communication with the MFRC522 might be down.
   return STATUS_TIMEOUT;
 }
 
