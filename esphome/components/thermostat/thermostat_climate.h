@@ -18,10 +18,7 @@ enum ThermostatClimateTimerIndex : size_t {
   TIMER_HEATING_OFF = 6,
   TIMER_HEATING_ON = 7,
   TIMER_IDLE_ON = 8,
-  TIMER_TIMER_COUNT = 9
 };
-
-class ThermostatClimate;  // ...so we can use it in the struct below
 
 struct ThermostatClimateTimer {
   const std::string name;
