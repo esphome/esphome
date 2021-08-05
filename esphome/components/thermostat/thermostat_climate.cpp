@@ -822,42 +822,22 @@ bool ThermostatClimate::heating_required_() {
 
 bool ThermostatClimate::supplemental_cooling_required_() {
   auto temperature = this->supports_two_points_ ? this->target_temperature_high : this->target_temperature;
-
-  if (this->supports_cool_) {
-    if (this->action == climate::CLIMATE_ACTION_COOLING) {
-      // don't change the action if it is already engaged
-      if (this->supplemental_action_ == climate::CLIMATE_ACTION_COOLING) {
-        return true;
-      }
-      // if max delta exceeded, return true
-      if (this->current_temperature > temperature + this->supplemental_cool_delta_) {
-        return true;
-      }
-      // if max runtime exceeded, return true
-      return this->cooling_max_runtime_exceeded_;
-    }
-  }
-  return false;
+  // the component must supports_cool_ and the climate action must be climate::CLIMATE_ACTION_COOLING. then...
+  // supplemental cooling is required if the max delta or max runtime was exceeded or the action is already engaged
+  return this->supports_cool_ && (this->action == climate::CLIMATE_ACTION_COOLING) &&
+         (this->cooling_max_runtime_exceeded_ ||
+          (this->current_temperature > temperature + this->supplemental_cool_delta_) ||
+          (this->supplemental_action_ == climate::CLIMATE_ACTION_COOLING));
 }
 
 bool ThermostatClimate::supplemental_heating_required_() {
   auto temperature = this->supports_two_points_ ? this->target_temperature_low : this->target_temperature;
-
-  if (this->supports_heat_) {
-    if (this->action == climate::CLIMATE_ACTION_HEATING) {
-      // don't change the action if it is already engaged
-      if (this->supplemental_action_ == climate::CLIMATE_ACTION_HEATING) {
-        return true;
-      }
-      // if max delta exceeded, return true
-      if (this->current_temperature < temperature - this->supplemental_heat_delta_) {
-        return true;
-      }
-      // if max runtime exceeded, return true
-      return this->heating_max_runtime_exceeded_;
-    }
-  }
-  return false;
+  // the component must supports_heat_ and the climate action must be climate::CLIMATE_ACTION_HEATING. then...
+  // supplemental heating is required if the max delta or max runtime was exceeded or the action is already engaged
+  return this->supports_heat_ && (this->action == climate::CLIMATE_ACTION_HEATING) &&
+         (this->heating_max_runtime_exceeded_ ||
+          (this->current_temperature < temperature - this->supplemental_heat_delta_) ||
+          (this->supplemental_action_ == climate::CLIMATE_ACTION_HEATING));
 }
 
 void ThermostatClimate::change_away_(bool away) {
