@@ -8,9 +8,9 @@ static const char *const TAG = "tsl2591";
 
 void TSL2591Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up TSL2591...");
-  if (!tsl2591_.begin()) {
+  if (!this->tsl2591_.begin()) {
     ESP_LOGD("ERROR","Could not find a TSL2591 Sensor. Did you configure I2C?");
-    mark_failed();
+    this->mark_failed();
     return;
   }
 }
@@ -19,12 +19,12 @@ void TSL2591Component::dump_config() {
   ESP_LOGCONFIG(TAG, "TSL2591:");
   LOG_I2C_DEVICE(this);
 
-  if (is_failed()) {
+  if (this->is_failed()) {
     ESP_LOGE(TAG, "Communication with TSL2591 failed earlier, during setup");
     return;
   }
 
-  tsl2591Gain_t raw_gain = tsl2591_.getGain();
+  tsl2591Gain_t raw_gain = this->tsl2591_.getGain();
   int gain = 0;
   std::string gain_word = "unknown";
   switch (raw_gain) {
@@ -47,29 +47,29 @@ void TSL2591Component::dump_config() {
   }
   ESP_LOGCONFIG(TAG, "  Gain: %dx (%s)", gain, gain_word.c_str());
 
-  tsl2591IntegrationTime_t raw_timing = tsl2591_.getTiming();
+  tsl2591IntegrationTime_t raw_timing = this->tsl2591_.getTiming();
   int timing_ms = (1 + raw_timing) * 100;
   ESP_LOGCONFIG(TAG, "  Integration Time: %d ms", timing_ms);
-  LOG_SENSOR("  ", "Visible", this->visible_sensor_);
-  LOG_SENSOR("  ", "Infrared", this->infrared_sensor_);
-  LOG_SENSOR("  ", "Full spectrum", this->full_spectrum_sensor_);
+  LOG_SENSOR("  ", "Visible:", this->visible_sensor_);
+  LOG_SENSOR("  ", "Infrared:", this->infrared_sensor_);
+  LOG_SENSOR("  ", "Full spectrum:", this->full_spectrum_sensor_);
 
   LOG_UPDATE_INTERVAL(this);
 }
 
 void TSL2591Component::update() {
   if (!is_failed()) {
-    uint32_t combined = getCombinedIlluminance();
-    uint16_t visible  = getIlluminance(TSL2591_SENSOR_CHANNEL_VISIBLE, combined);
-    uint16_t infrared = getIlluminance(TSL2591_SENSOR_CHANNEL_INFRARED, combined);
-    uint16_t full     = getIlluminance(TSL2591_SENSOR_CHANNEL_FULL_SPECTRUM, combined);
+    uint32_t combined = this->getCombinedIlluminance();
+    uint16_t visible  = this->getIlluminance(TSL2591_SENSOR_CHANNEL_VISIBLE, combined);
+    uint16_t infrared = this->getIlluminance(TSL2591_SENSOR_CHANNEL_INFRARED, combined);
+    uint16_t full     = this->getIlluminance(TSL2591_SENSOR_CHANNEL_FULL_SPECTRUM, combined);
     ESP_LOGD(TAG, "Got illuminance: combined 0x%X, visible %d, infrared %d, full spectrum %d", combined, visible, infrared, full);
-    if (visible_sensor_ != nullptr)
-      visible_sensor_->publish_state(visible);
-    if (infrared_sensor_ != nullptr)
-      infrared_sensor_->publish_state(infrared);
-    if (full_spectrum_sensor_ != nullptr)
-      full_spectrum_sensor_->publish_state(full);
+    if (this->visible_sensor_ != nullptr)
+      this->visible_sensor_->publish_state(visible);
+    if (this->infrared_sensor_ != nullptr)
+      this->infrared_sensor_->publish_state(infrared);
+    if (this->full_spectrum_sensor_ != nullptr)
+      this->full_spectrum_sensor_->publish_state(full);
     status_clear_warning();
   }
 }
@@ -79,13 +79,13 @@ void TSL2591Component::set_visible_sensor(sensor::Sensor *visible_sensor) { this
 void TSL2591Component::set_full_spectrum_sensor(sensor::Sensor *full_spectrum_sensor) { this->full_spectrum_sensor_ = full_spectrum_sensor; }
 
 void TSL2591Component::set_integration_time(TSL2591IntegrationTime integration_time) {
-  tsl2591_.setTiming((tsl2591IntegrationTime_t)integration_time);
+  this->tsl2591_.setTiming((tsl2591IntegrationTime_t)integration_time);
 }
-void TSL2591Component::set_gain(TSL2591Gain gain) { tsl2591_.setGain((tsl2591Gain_t)gain); }
+void TSL2591Component::set_gain(TSL2591Gain gain) { this->tsl2591_.setGain((tsl2591Gain_t)gain); }
 float TSL2591Component::get_setup_priority() const { return setup_priority::DATA; }
 
-uint32_t TSL2591Component::getCombinedIlluminance() {return tsl2591_.getFullLuminosity();}
-uint16_t TSL2591Component::getIlluminance(TSL2591SensorChannel channel) {return tsl2591_.getLuminosity(channel);}
+uint32_t TSL2591Component::getCombinedIlluminance() {return this->tsl2591_.getFullLuminosity();}
+uint16_t TSL2591Component::getIlluminance(TSL2591SensorChannel channel) {return this->tsl2591_.getLuminosity(channel);}
 
 // logic cloned from Adafruit library
 uint16_t TSL2591Component::getIlluminance(TSL2591SensorChannel channel, uint32_t combined_illuminance) {
