@@ -6,7 +6,7 @@
 
 #include <utility>
 #include <algorithm>
-#ifdef ESPHOME_WIFI_WPA2_EAP
+#ifdef USE_WIFI_WPA2_EAP
 #include <wpa2_enterprise.h>
 #endif
 
@@ -253,7 +253,7 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
   }
 
   // setup enterprise authentication if required
-#ifdef ESPHOME_WIFI_WPA2_EAP
+#ifdef USE_WIFI_WPA2_EAP
   if (ap.get_eap().has_value()) {
     // note: all certificates and keys have to be null terminated. Lengths are appended by +1 to include \0.
     EAPAuth eap = ap.get_eap().value();
@@ -296,7 +296,7 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
       ESP_LOGV(TAG, "esp_wifi_sta_wpa2_ent_enable failed! %d", ret);
     }
   }
-#endif  // ESPHOME_WIFI_WPA2_EAP
+#endif  // USE_WIFI_WPA2_EAP
 
   this->wifi_apply_hostname_();
 
