@@ -290,9 +290,8 @@ class DisplayBuffer {
    * @param y The y coordinate of the upper left corner.
    * @param graph The graph id to draw
    * @param color_on The color to replace in binary images for the on bits.
-   * @param color_off The color to replace in binary images for the off bits.
    */
-  void graph(int x, int y, Graph *graph, Color color_on = COLOR_ON, Color color_off = COLOR_OFF);
+  void graph(int x, int y, Graph *graph, Color color_on = COLOR_ON);
 
   /** Get the text bounds of the given string.
    *
@@ -437,33 +436,28 @@ class HistoryData {
  public:
   HistoryData(int length);
   ~HistoryData();
+  void set_update_time_ms(uint32_t u);
   void take_sample(float data);
   int get_length() const { return length_; }
-  float get_maxvalue() const { return max_; }
-  float get_minvalue() const { return min_; }
+  float get_value(int idx) const { return data_[(count_ + length_ - 1 - idx) % length_]; }
   float get_recent_max() const { return recent_max_; }
   float get_recent_min() const { return recent_min_; }
-  float get_value(int idx) const { return data_[(count_ + length_ - 1 - idx) % length_]; }
 
  protected:
+  unsigned long last_sample_;
+  uint32_t period_{0};       /// in ms
+  uint32_t update_time_{0};  /// in ms
   int length_;
   int count_{0};
-  float min_{NAN};
-  float max_{NAN};
   float recent_min_{NAN};
   float recent_max_{NAN};
   float *data_;
 };
 
-class Graph : public PollingComponent {
+class Graph {
  public:
-  Graph(int width, int height);
-  ~Graph();
-  virtual bool get_pixel(int x, int y) const;
-  virtual Color get_color_pixel(int x, int y) const;
-  virtual Color get_grayscale_pixel(int x, int y) const;
-  int get_width() const;
-  int get_height() const;
+  Graph(uint32_t duration, int width, int height);
+  void draw(DisplayBuffer *buff, uint16_t x_offset, uint16_t y_offset, Color color);
   void set_sensor(sensor::Sensor *sensor);
   void set_min_value(float val) { this->min_value_ = val; }
   void set_max_value(float val) { this->max_value_ = val; }
@@ -475,14 +469,10 @@ class Graph : public PollingComponent {
   void set_grid_y(float val) { this->gridspacing_y_ = val; }
   void set_border(bool val) { this->border_ = val; }
 
-  void update() override;
-  void dump_config() override;
-
  protected:
-  void redraw_();
-  void set_pixel_(int x, int y);
-  int width_;
-  int height_;
+  int duration_;  /// in seconds
+  int width_;     /// in pixels
+  int height_;    /// in pixels
   float min_value_{NAN};
   float max_value_{NAN};
   float min_range_{NAN};
@@ -492,8 +482,7 @@ class Graph : public PollingComponent {
   float gridspacing_x_{NAN};
   float gridspacing_y_{NAN};
   bool border_{true};
-  sensor::Sensor *sensor_{nullptr};
-  uint8_t *pixels_;
+  sensor::Sensor *sensor_{nullptr};  // TODO: Used??
   HistoryData *data_;
 };
 

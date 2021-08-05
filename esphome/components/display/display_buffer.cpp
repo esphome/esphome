@@ -233,6 +233,9 @@ void DisplayBuffer::image(int x, int y, Image *image, Color color_on, Color colo
   }
 }
 
+void DisplayBuffer::graph(int x, int y, Graph *graph, Color color_on) { graph->draw(this, x, y, color_on); }
+
+/*
 void DisplayBuffer::graph(int x, int y, Graph *graph, Color color_on, Color color_off) {
   for (int img_x = 0; img_x < graph->get_width(); img_x++) {
     for (int img_y = 0; img_y < graph->get_height(); img_y++) {
@@ -240,7 +243,7 @@ void DisplayBuffer::graph(int x, int y, Graph *graph, Color color_on, Color colo
     }
   }
 }
-
+ */
 void DisplayBuffer::get_text_bounds(int x, int y, const char *text, Font *font, TextAlign align, int *x1, int *y1,
                                     int *width, int *height) {
   int x_offset, baseline;
@@ -495,20 +498,26 @@ HistoryData::HistoryData(int length) : length_(length) {
     ESP_LOGE(TAG, "Could not allocate HistoryData buffer!");
     return;
   }
+  this->last_sample_ = millis();
   for (int i = 0; i < this->length_; i++)
     this->data_[i] = NAN;
 }
 HistoryData::~HistoryData() { delete (this->data_); }
+
 void HistoryData::take_sample(float data) {
-  this->data_[this->count_] = data;
+  unsigned long tm = millis();
+  unsigned long dt = tm - last_sample_;
+  last_sample_ = tm;
+
+  // Step data based on time
+  this->period_ += dt;
+  while (this->period_ >= this->update_time_) {
+    this->data_[this->count_] = data;
+    this->period_ -= this->update_time_;
+    this->count_ = (this->count_ + 1) % this->length_;
+    ESP_LOGV(TAG, "Updating graph with value: %f", data);
+  }
   if (!isnan(data)) {
-    // Track all-time max/min
-    if (isnan(this->max_) || (data > this->max_)) {
-      this->max_ = data;
-    }
-    if (isnan(this->min_) || (data < this->min_)) {
-      this->min_ = data;
-    }
     // Recalc recent max/min
     this->recent_min_ = data;
     this->recent_max_ = data;
@@ -521,48 +530,18 @@ void HistoryData::take_sample(float data) {
       }
     }
   }
-  this->count_ = (this->count_ + 1) % this->length_;
 }
+void HistoryData::set_update_time_ms(uint32_t u) { this->update_time_ = u; }
 
-void Graph::dump_config() { LOG_UPDATE_INTERVAL(this); }
-
-bool Graph::get_pixel(int x, int y) const {
-  if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_)
-    return false;
-  const uint32_t width_8 = ((this->width_ + 7u) / 8u) * 8u;
-  const uint32_t pos = x + y * width_8;
-  return this->pixels_[pos / 8u] & (0x80 >> (pos % 8u));
-}
-Color Graph::get_grayscale_pixel(int x, int y) const {
-  const uint8_t gray = (bool) this->get_pixel(x, y) * 255;
-  return Color(gray | gray << 8 | gray << 16 | gray << 24);
-}
-Color Graph::get_color_pixel(int x, int y) const { return this->get_grayscale_pixel(x, y); }
-void Graph::set_pixel_(int x, int y) {
-  if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_)
-    return;
-  const uint32_t width_8 = ((this->width_ + 7u) / 8u) * 8u;
-  const uint32_t pos = x + y * width_8;
-  this->pixels_[pos / 8u] |= (0x80 >> (pos % 8u));
-}
-void Graph::redraw_() {
-  /// Clear graph pixel buffer
-  uint16_t sz = ((this->width_ + 7u) / 8u) * this->height_;
-  for (uint16_t i = 0; i < sz; i++)
-    this->pixels_[i] = 0;
+void Graph::draw(DisplayBuffer *buff, uint16_t x_offset, uint16_t y_offset, Color color) {
   /// Plot border
   if (this->border_) {
-    for (int i = 0; i < this->width_; i++) {
-      this->set_pixel_(i, 0);
-      this->set_pixel_(i, this->height_ - 1);
-    }
-    for (int i = 0; i < this->height_; i++) {
-      this->set_pixel_(0, i);
-      this->set_pixel_(this->width_ - 1, i);
-    }
+    buff->horizontal_line(x_offset, y_offset, this->width_, color);
+    buff->horizontal_line(x_offset, y_offset + this->height_ - 1, this->width_, color);
+    buff->vertical_line(x_offset, y_offset, this->height_, color);
+    buff->vertical_line(x_offset + this->width_ - 1, y_offset, this->height_, color);
   }
-  /// Determine best grid scale and range
-  /// Get max / min values for history data
+  /// Determine best y-axis scale and range
   float ymin = this->data_->get_recent_min();
   float ymax = this->data_->get_recent_max();
 
@@ -617,61 +596,45 @@ void Graph::redraw_() {
     for (int y = yn; y <= ym; y++) {
       int16_t py = (int16_t) roundf((this->height_ - 1) * (1.0 - (float) (y - yn) / (ym - yn)));
       for (int x = 0; x < this->width_; x += 2) {
-        this->set_pixel_(x, py);
+        buff->draw_pixel_at(x_offset + x, y_offset + py);
       }
     }
     ymin = yn * y_per_div;
     ymax = ym * y_per_div;
     yrange = ymax - ymin;
   }
-  if (!isnan(this->gridspacing_x_)) {
-    for (int i = 0; i < (this->width_ + 1) / this->gridspacing_x_; i++) {
+  if (!isnan(this->gridspacing_x_) && (this->gridspacing_x_ > 0)) {
+    int n = this->duration_ / this->gridspacing_x_;
+    for (int i = 0; i <= n; i++) {
       for (int y = 0; y < this->height_; y += 2) {
-        this->set_pixel_(this->width_ - 1 - i * this->gridspacing_x_, y);
+        buff->draw_pixel_at(x_offset + i * (this->width_ - 1) / n, y_offset + y);
       }
     }
   }
-  ESP_LOGI(TAG, "Updating graph. Last sample %f, ymin %f, ymax %f, yrange %f", this->data_->get_value(0), ymin, ymax,
-           yrange);
+  ESP_LOGI(TAG, "Updating graph. Last sample %f, ymin %f, ymax %f", this->data_->get_value(0), ymin, ymax);
   /// Draw data trace
   for (int16_t i = 0; i < this->data_->get_length(); i++) {
     float v = (this->data_->get_value(i) - ymin) / yrange;
     if (!isnan(v) && (this->line_thickness_ > 0)) {
-      int16_t x = this->width_ - i;
+      int16_t x = this->width_ - 1 - i;
       uint8_t b = (i % (this->line_thickness_ * LineType::PATTERN_LENGTH)) / this->line_thickness_;
       if ((this->line_type_ & (1 << b)) == (1 << b)) {
         int16_t y = (int16_t) roundf((this->height_ - 1) * (1.0 - v)) - this->line_thickness_ / 2;
         for (int16_t t = 0; t < this->line_thickness_; t++) {
-          this->set_pixel_(x, y + t);
+          buff->draw_pixel_at(x_offset + x, y_offset + y + t);
         }
       }
     }
   }
 }
-
-void Graph::update() {
-  float sensor_value = this->sensor_->get_state();
-  this->data_->take_sample(sensor_value);
-  ESP_LOGV(TAG, "Updating graph with value: %f", sensor_value);
-  this->redraw_();  // TODO: move to only when updating display
+void Graph::set_sensor(sensor::Sensor *sensor) {
+  this->sensor_ = sensor;
+  sensor->add_on_state_callback([this](float state) { this->data_->take_sample(state); });
+  this->data_->set_update_time_ms(this->duration_ * 1000 / this->width_);
 }
-void Graph::set_sensor(sensor::Sensor *sensor) { this->sensor_ = sensor; }
-int Graph::get_width() const { return this->width_; }
-int Graph::get_height() const { return this->height_; }
-
-Graph::Graph(int width, int height) : width_(width), height_(height) {
-  uint16_t sz = ((this->width_ + 7u) / 8u) * this->height_;
-  this->pixels_ = new uint8_t[sz];
-  if (this->pixels_ == nullptr) {
-    ESP_LOGE(TAG, "Could not allocate graph pixel buffer!");
-    return;
-  }
-  for (uint16_t i = 0; i < sz; i++) {
-    this->pixels_[i] = 0xF0;
-  }
+Graph::Graph(uint32_t duration, int width, int height) : duration_(duration), width_(width), height_(height) {
   this->data_ = new HistoryData(width);
 }
-Graph::~Graph() { delete (this->pixels_); }
 
 bool Animation::get_pixel(int x, int y) const {
   if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_)

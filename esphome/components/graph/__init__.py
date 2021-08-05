@@ -1,8 +1,8 @@
 from esphome.components import display, sensor
 import esphome.config_validation as cv
 import esphome.codegen as cg
-from esphome.cpp_types import App
 from esphome.const import (
+    CONF_DURATION,
     CONF_ID,
     CONF_WIDTH,
     CONF_SENSOR,
@@ -13,7 +13,6 @@ from esphome.const import (
     CONF_MAX_RANGE,
     CONF_LINE_THICKNESS,
     CONF_LINE_TYPE,
-    CONF_UPDATE_INTERVAL,
     CONF_X_GRID,
     CONF_Y_GRID,
     CONF_BORDER,
@@ -40,10 +39,11 @@ GraphAxesPtr = GraphAxes.operator("ptr")
 GRAPH_BASIC_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_ID): cv.declare_id(Graph_),
+        cv.Required(CONF_DURATION): cv.positive_time_period_seconds,
         cv.Required(CONF_WIDTH): cv.positive_int,
         cv.Required(CONF_HEIGHT): cv.positive_int,
     }
-).extend(cv.polling_component_schema("10s"))
+)
 
 CONFIG_SCHEMA = GRAPH_BASIC_SCHEMA.extend(
     {
@@ -54,7 +54,7 @@ CONFIG_SCHEMA = GRAPH_BASIC_SCHEMA.extend(
         cv.Optional(CONF_MAX_RANGE): cv.float_,
         cv.Optional(CONF_LINE_THICKNESS): cv.positive_int,
         cv.Optional(CONF_LINE_TYPE): cv.enum(LINE_TYPE, upper=True),
-        cv.Optional(CONF_X_GRID): cv.float_,
+        cv.Optional(CONF_X_GRID): cv.positive_time_period_seconds,
         cv.Optional(CONF_Y_GRID): cv.float_,
         cv.Optional(CONF_BORDER): cv.boolean,
         cv.Optional(CONF_AXES): cv.All(
@@ -77,7 +77,9 @@ CONFIG_SCHEMA = GRAPH_BASIC_SCHEMA.extend(
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID], config[CONF_WIDTH], config[CONF_HEIGHT])
+    var = cg.new_Pvariable(
+        config[CONF_ID], config[CONF_DURATION], config[CONF_WIDTH], config[CONF_HEIGHT]
+    )
 
     sens = await cg.get_variable(config[CONF_SENSOR])
     cg.add(var.set_sensor(sens))
@@ -99,11 +101,6 @@ async def to_code(config):
         cg.add(var.set_grid_y(config[CONF_Y_GRID]))
     if CONF_BORDER in config:
         cg.add(var.set_border(config[CONF_BORDER]))
-
-    # TODO: This correct??? -since cg.register_component caused errors
-    # await cg.register_component(var, config)
-    cg.add(var.set_update_interval(config[CONF_UPDATE_INTERVAL]))
-    cg.add(App.register_component(var))
 
     # TODO: add support for multiple traces on graph
     # if CONF_AXES in config:
