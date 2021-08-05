@@ -71,11 +71,9 @@ class AnovaCodec {
   bool has_unit_;
   bool has_running_;
   char buf_[32];
+  bool fahrenheit_;
 
   CurrentQuery current_query_;
- 
- private:
-  bool fahrenheit_;
 };
 
 }  // namespace anova

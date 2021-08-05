@@ -3,13 +3,9 @@
 namespace esphome {
 namespace anova {
 
-float ftoc(float f) {
-  return (f-32.0) * (5.0f/9.0f);
-}
+float ftoc(float f) { return (f-32.0) * (5.0f/9.0f); }
 
-float ctof(float c) {
-  return (c * 9.0f/5.0f) + 32.0;
-}
+float ctof(float c) { return (c * 9.0f/5.0f) + 32.0; }
 
 AnovaPacket *AnovaCodec::clean_packet_() {
   this->packet_.length = strlen((char *) this->packet_.data);
@@ -50,7 +46,8 @@ AnovaPacket *AnovaCodec::get_read_data_request() {
 
 AnovaPacket *AnovaCodec::get_set_target_temp_request(float temperature) {
   this->current_query_ = SET_TARGET_TEMPERATURE;
-  if (this->fahrenheit_) temperature = ctof(temperature);
+  if (this->fahrenheit_)
+    temperature = ctof(temperature);
   sprintf((char *) this->packet_.data, CMD_SET_TARGET_TEMP, temperature);
   return this->clean_packet_();
 }
@@ -105,19 +102,22 @@ void AnovaCodec::decode(const uint8_t *data, uint16_t length) {
     }
     case READ_TARGET_TEMPERATURE: {
       this->target_temp_ = strtof(this->buf_, nullptr);
-      if (this->fahrenheit_) this->target_temp_ = ftoc(this->target_temp_);
+      if (this->fahrenheit_)
+        this->target_temp_ = ftoc(this->target_temp_);
       this->has_target_temp_ = true;
       break;
     }
     case SET_TARGET_TEMPERATURE: {
       this->target_temp_ = strtof(this->buf_, nullptr);
-      if (this->fahrenheit_) this->target_temp_ = ftoc(this->target_temp_);
+      if (this->fahrenheit_)
+        this->target_temp_ = ftoc(this->target_temp_);
       this->has_target_temp_ = true;
       break;
     }
     case READ_CURRENT_TEMPERATURE: {
       this->current_temp_ = strtof(this->buf_, nullptr);
-      if (this->fahrenheit_) this->current_temp_ = ftoc(this->current_temp_);
+      if (this->fahrenheit_)
+        this->current_temp_ = ftoc(this->current_temp_);
       this->has_current_temp_ = true;
       break;
     }

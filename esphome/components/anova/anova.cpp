@@ -126,9 +126,7 @@ void Anova::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_
   }
 }
 
-void Anova::set_unit_of_measurement(const char *unit) {
-  this->fahrenheit_ = !strncmp(unit, "f", 1);
-}
+void Anova::set_unit_of_measurement(const char *unit) { this->fahrenheit_ = !strncmp(unit, "f", 1); }
 
 void Anova::update() {
   if (this->node_state != espbt::ClientState::Established)
@@ -137,7 +135,7 @@ void Anova::update() {
   if (this->current_request_ < 2) {
     auto pkt = this->codec_->get_read_device_status_request();
     if (this->current_request_ == 0)
-      auto pkt = this->codec_->get_set_unit_request(this->fahrenheit_ ? 'f': 'c');
+      auto pkt = this->codec_->get_set_unit_request(this->fahrenheit_ ? 'f' : 'c');
     auto status = esp_ble_gattc_write_char(this->parent_->gattc_if, this->parent_->conn_id, this->char_handle_,
                                            pkt->length, pkt->data, ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE);
     if (status)
