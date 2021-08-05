@@ -73,6 +73,9 @@ class AnovaCodec {
   char buf_[32];
 
   CurrentQuery current_query_;
+ 
+ private:
+  bool fahrenheit_;
 };
 
 }  // namespace anova
