@@ -102,9 +102,7 @@ bool MQTTComponent::send_discovery_() {
         device_info["identifiers"] = get_mac_address();
         device_info["name"] = node_name;
         device_info["sw_version"] = "esphome v" ESPHOME_VERSION " " + App.get_compilation_time();
-#ifdef ARDUINO_BOARD
-        device_info["model"] = ARDUINO_BOARD;
-#endif
+        device_info["model"] = ESPHOME_BOARD;
         device_info["manufacturer"] = "espressif";
       },
       0, discovery_info.retain);

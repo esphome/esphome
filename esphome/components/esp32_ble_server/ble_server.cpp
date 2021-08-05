@@ -82,11 +82,9 @@ bool BLEServer::create_device_characteristics_() {
         this->device_information_service_->create_characteristic(MODEL_UUID, BLECharacteristic::PROPERTY_READ);
     model->set_value(this->model_.value());
   } else {
-#ifdef ARDUINO_BOARD
     BLECharacteristic *model =
         this->device_information_service_->create_characteristic(MODEL_UUID, BLECharacteristic::PROPERTY_READ);
-    model->set_value(ARDUINO_BOARD);
-#endif
+    model->set_value(ESPHOME_BOARD);
   }
 
   BLECharacteristic *version =
