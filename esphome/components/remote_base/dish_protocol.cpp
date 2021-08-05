@@ -23,7 +23,7 @@ void DishProtocol::encode(RemoteTransmitData *dst, const DishData &data) {
   //  at least 4 times to accept it.
   for (uint i = 0; i < 4; i++) {
     // COMMAND (function, in MSB)
-    for (uint32_t mask = 1UL << 5; mask; mask >>= 1) {
+    for (uint8_t mask = 1UL << 5; mask; mask >>= 1) {
       if (data.command & mask)
         dst->item(BIT_HIGH_US, BIT_ONE_LOW_US);
       else
@@ -31,12 +31,15 @@ void DishProtocol::encode(RemoteTransmitData *dst, const DishData &data) {
     }
 
     // ADDRESS (unit code, in LSB)
-    for (uint32_t mask = 1UL; mask < 1UL << 10; mask <<= 1) {
+    for (uint8_t mask = 1UL; mask < 1UL << 4; mask <<= 1) {
       if ((data.address - 1) & mask)
         dst->item(BIT_HIGH_US, BIT_ONE_LOW_US);
       else
         dst->item(BIT_HIGH_US, BIT_ZERO_LOW_US);
     }
+    // PADDING
+    for (uint j = 0; j < 6; j++)
+      dst->item(BIT_HIGH_US, BIT_ZERO_LOW_US);
 
     // FOOTER
     dst->item(HEADER_HIGH_US, HEADER_LOW_US);
@@ -50,7 +53,7 @@ optional<DishData> DishProtocol::decode(RemoteReceiveData src) {
   if (!src.expect_item(HEADER_HIGH_US, HEADER_LOW_US))
     return {};
 
-  for (uint32_t mask = 1UL << 5; mask != 0; mask >>= 1) {
+  for (uint8_t mask = 1UL << 5; mask != 0; mask >>= 1) {
     if (src.expect_item(BIT_HIGH_US, BIT_ONE_LOW_US)) {
       data.command |= mask;
     } else if (src.expect_item(BIT_HIGH_US, BIT_ZERO_LOW_US)) {
@@ -60,12 +63,17 @@ optional<DishData> DishProtocol::decode(RemoteReceiveData src) {
     }
   }
 
-  for (uint32_t mask = 1UL; mask < 1UL << 10; mask <<= 1) {
+  for (uint8_t mask = 1UL; mask < 1UL << 5; mask <<= 1) {
     if (src.expect_item(BIT_HIGH_US, BIT_ONE_LOW_US)) {
       data.address |= mask;
     } else if (src.expect_item(BIT_HIGH_US, BIT_ZERO_LOW_US)) {
       data.address &= ~mask;
     } else {
+      return {};
+    }
+  }
+  for (uint j = 0; j < 6; j++) {
+    if (!src.expect_item(BIT_HIGH_US, BIT_ZERO_LOW_US)) {
       return {};
     }
   }
@@ -75,8 +83,9 @@ optional<DishData> DishProtocol::decode(RemoteReceiveData src) {
 
   return data;
 }
+
 void DishProtocol::dump(const DishData &data) {
-  ESP_LOGD(TAG, "Received Dish: address=0x%04X, command=0x%04X", data.address, data.command);
+  ESP_LOGD(TAG, "Received Dish: address=0x%02X, command=0x%02X", data.address, data.command);
 }
 
 }  // namespace remote_base

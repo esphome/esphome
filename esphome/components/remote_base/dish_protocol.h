@@ -6,8 +6,8 @@ namespace esphome {
 namespace remote_base {
 
 struct DishData {
-  uint16_t address;
-  uint16_t command;
+  uint8_t address;
+  uint8_t command;
 
   bool operator==(const DishData &rhs) const { return address == rhs.address && command == rhs.command; }
 };
@@ -23,8 +23,8 @@ DECLARE_REMOTE_PROTOCOL(Dish)
 
 template<typename... Ts> class DishAction : public RemoteTransmitterActionBase<Ts...> {
  public:
-  TEMPLATABLE_VALUE(uint16_t, address)
-  TEMPLATABLE_VALUE(uint16_t, command)
+  TEMPLATABLE_VALUE(uint8_t, address)
+  TEMPLATABLE_VALUE(uint8_t, command)
 
   void encode(RemoteTransmitData *dst, Ts... x) override {
     DishData data{};

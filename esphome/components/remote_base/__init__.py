@@ -238,7 +238,7 @@ async def build_dumpers(config):
 DishData, DishBinarySensor, DishTrigger, DishAction, DishDumper = declare_protocol(
     "Dish"
 )
-Dish_SCHEMA = cv.Schema(
+DISH_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_ADDRESS, default=1): cv.int_range(min=1, max=16),
         cv.Required(CONF_COMMAND): cv.int_range(min=0, max=63),
@@ -246,7 +246,7 @@ Dish_SCHEMA = cv.Schema(
 )
 
 
-@register_binary_sensor("dish", DishBinarySensor, Dish_SCHEMA)
+@register_binary_sensor("dish", DishBinarySensor, DISH_SCHEMA)
 def dish_binary_sensor(var, config):
     cg.add(
         var.set_data(
@@ -269,7 +269,7 @@ def dish_dumper(var, config):
     pass
 
 
-@register_action("dish", DishAction, Dish_SCHEMA)
+@register_action("dish", DishAction, DISH_SCHEMA)
 async def dish_action(var, config, args):
     template_ = await cg.templatable(config[CONF_ADDRESS], args, cg.uint16)
     cg.add(var.set_address(template_))
