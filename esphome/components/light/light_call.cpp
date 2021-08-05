@@ -53,6 +53,9 @@ void LightCall::perform() {
       ESP_LOGD(TAG, "  Brightness: %.0f%%", v.get_brightness() * 100.0f);
     }
 
+    if (this->color_brightness_.has_value()) {
+      ESP_LOGD(TAG, "  Color brightness: %.0f%%", v.get_color_brightness() * 100.0f);
+    }
     if (this->red_.has_value() || this->green_.has_value() || this->blue_.has_value()) {
       ESP_LOGD(TAG, "  Red: %.0f%%, Green: %.0f%%, Blue: %.0f%%", v.get_red() * 100.0f, v.get_green() * 100.0f,
                v.get_blue() * 100.0f);
@@ -149,7 +152,7 @@ LightColorValues LightCall::validate_() {
   this->transform_parameters_();
 
   // Brightness exists check
-  if (this->brightness_.has_value() && !(color_mode & ColorCapability::BRIGHTNESS)) {
+  if (this->brightness_.has_value() && *this->brightness_ > 0.0f && !(color_mode & ColorCapability::BRIGHTNESS)) {
     ESP_LOGW(TAG, "'%s' - This light does not support setting brightness!", name);
     this->brightness_.reset();
   }
@@ -162,13 +165,14 @@ LightColorValues LightCall::validate_() {
   }
 
   // Color brightness exists check
-  if (this->color_brightness_.has_value() && !(color_mode & ColorCapability::RGB)) {
+  if (this->color_brightness_.has_value() && *this->color_brightness_ > 0.0f && !(color_mode & ColorCapability::RGB)) {
     ESP_LOGW(TAG, "'%s' - This color mode does not support setting RGB brightness!", name);
     this->color_brightness_.reset();
   }
 
   // RGB exists check
-  if (this->red_.has_value() || this->green_.has_value() || this->blue_.has_value()) {
+  if ((this->red_.has_value() && *this->red_ > 0.0f) || (this->green_.has_value() && *this->green_ > 0.0f) ||
+      (this->blue_.has_value() && *this->blue_ > 0.0f)) {
     if (!(color_mode & ColorCapability::RGB)) {
       ESP_LOGW(TAG, "'%s' - This color mode does not support setting RGB color!", name);
       this->red_.reset();
@@ -178,7 +182,7 @@ LightColorValues LightCall::validate_() {
   }
 
   // White value exists check
-  if (this->white_.has_value() &&
+  if (this->white_.has_value() && *this->white_ > 0.0f &&
       !(color_mode & ColorCapability::WHITE || color_mode & ColorCapability::COLD_WARM_WHITE)) {
     ESP_LOGW(TAG, "'%s' - This color mode does not support setting white value!", name);
     this->white_.reset();
@@ -192,7 +196,8 @@ LightColorValues LightCall::validate_() {
   }
 
   // Cold/warm white value exists check
-  if (this->cold_white_.has_value() || this->warm_white_.has_value()) {
+  if ((this->cold_white_.has_value() && *this->cold_white_ > 0.0f) ||
+      (this->warm_white_.has_value() && *this->warm_white_ > 0.0f)) {
     if (!(color_mode & ColorCapability::COLD_WARM_WHITE)) {
       ESP_LOGW(TAG, "'%s' - This color mode does not support setting cold/warm white value!", name);
       this->cold_white_.reset();
@@ -200,15 +205,15 @@ LightColorValues LightCall::validate_() {
     }
   }
 
-#define VALIDATE_RANGE_(name_, upper_name) \
+#define VALIDATE_RANGE_(name_, upper_name, min, max) \
   if (name_##_.has_value()) { \
     auto val = *name_##_; \
-    if (val < 0.0f || val > 1.0f) { \
-      ESP_LOGW(TAG, "'%s' - %s value %.2f is out of range [0.0 - 1.0]!", name, upper_name, val); \
-      name_##_ = clamp(val, 0.0f, 1.0f); \
+    if (val < (min) || val > (max)) { \
+      ESP_LOGW(TAG, "'%s' - %s value %.2f is out of range [%.1f - %.1f]!", name, upper_name, val, (min), (max)); \
+      name_##_ = clamp(val, (min), (max)); \
     } \
   }
-#define VALIDATE_RANGE(name, upper_name) VALIDATE_RANGE_(name, upper_name)
+#define VALIDATE_RANGE(name, upper_name) VALIDATE_RANGE_(name, upper_name, 0.0f, 1.0f)
 
   // Range checks
   VALIDATE_RANGE(brightness, "Brightness")
@@ -219,6 +224,13 @@ LightColorValues LightCall::validate_() {
   VALIDATE_RANGE(white, "White")
   VALIDATE_RANGE(cold_white, "Cold white")
   VALIDATE_RANGE(warm_white, "Warm white")
+  VALIDATE_RANGE_(color_temperature, "Color temperature", traits.get_min_mireds(), traits.get_max_mireds())
+
+  // Turn off when brightness is set to zero, and reset brightness (so that it has nonzero brightness when turned on).
+  if (this->brightness_.has_value() && *this->brightness_ == 0.0f) {
+    this->state_ = optional<float>(false);
+    this->brightness_ = optional<float>(1.0f);
+  }
 
   // Set color brightness to 100% if currently zero and a color is set.
   if (this->red_.has_value() || this->green_.has_value() || this->blue_.has_value()) {
@@ -250,7 +262,7 @@ LightColorValues LightCall::validate_() {
   if (this->warm_white_.has_value())
     v.set_warm_white(*this->warm_white_);
 
-  v.normalize_color(traits);
+  v.normalize_color();
 
   // Flash length check
   if (this->has_flash_() && *this->flash_length_ == 0) {
