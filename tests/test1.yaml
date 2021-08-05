@@ -840,6 +840,18 @@ sensor:
     is_cs_package: true
     integration_time: 402ms
     gain: 16x
+  - platform: tsl2591
+    name: 'TSL2591 Ambient Light'
+    address: 0x29
+    update_interval: 15s
+    integration_time: 600ms
+    gain: high
+    visible:
+      name: "tsl2591 visible"
+    infrared:
+      name: "tsl2591 infrared"
+    full_spectrum:
+      name: "tsl2591 full_spectrum"
   - platform: ultrasonic
     trigger_pin: GPIO25
     echo_pin:
