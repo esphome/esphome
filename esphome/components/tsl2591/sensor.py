@@ -5,25 +5,25 @@ from esphome.const import (
     CONF_GAIN,
     CONF_ID,
     CONF_INTEGRATION_TIME,
-#    CONF_INFRARED,
-#    CONF_VISIBLE,
-#    CONF_FULL_SPECTRUM,
+    CONF_INFRARED,
+    CONF_VISIBLE,
+    CONF_FULL_SPECTRUM,
     DEVICE_CLASS_ILLUMINANCE,
     STATE_CLASS_MEASUREMENT,
-    ICON_EMPTY,
+    ICON_LIGHTBULB,
     UNIT_LUX,
 )
 
-CONF_INFRARED = "infrared"
-CONF_VISIBLE = "visible"
-CONF_FULL_SPECTRUM = "full_spectrum"
-
 CODEOWNERS = ["@wjcarpenter"]
 
+# The Adafruit sensors library requires both i2c and spi in ESPhome configs, but
+# we don't use spi for this component.
 DEPENDENCIES = ["i2c","spi"]
 
 tsl2591_ns = cg.esphome_ns.namespace("tsl2591")
 
+# This enum is a clone of the enum in the Adafruit library.
+# I couldn't work out how to use the Adafruit enum directly in codegen.
 TSL2591IntegrationTime = tsl2591_ns.enum("TSL2591IntegrationTime")
 INTEGRATION_TIMES = {
     100: TSL2591IntegrationTime.TSL2591_INTEGRATION_TIME_100MS,
@@ -33,16 +33,9 @@ INTEGRATION_TIMES = {
     500: TSL2591IntegrationTime.TSL2591_INTEGRATION_TIME_500MS,
     600: TSL2591IntegrationTime.TSL2591_INTEGRATION_TIME_600MS,
 }
-# TSL2591IntegrationTime = tsl2591_ns.enum("tsl2591IntegrationTime_t")
-# INTEGRATION_TIMES = {
-#     100: TSL2591IntegrationTime.TSL2591_INTEGRATIONTIME_100MS,
-#     200: TSL2591IntegrationTime.TSL2591_INTEGRATIONTIME_200MS,
-#     300: TSL2591IntegrationTime.TSL2591_INTEGRATIONTIME_300MS,
-#     400: TSL2591IntegrationTime.TSL2591_INTEGRATIONTIME_400MS,
-#     500: TSL2591IntegrationTime.TSL2591_INTEGRATIONTIME_500MS,
-#     600: TSL2591IntegrationTime.TSL2591_INTEGRATIONTIME_600MS,
-# }
 
+# This enum is a clone of the enum in the Adafruit library.
+# I couldn't work out how to use the Adafruit enum directly in codegen.
 TSL2591Gain = tsl2591_ns.enum("TSL2591Gain")
 GAINS = {
     "1X":      TSL2591Gain.TSL2591_GAIN_MULTIPLIER_LOW,
@@ -74,21 +67,22 @@ CONFIG_SCHEMA = (
             cv.GenerateID(): cv.declare_id(TSL2591Component),
             cv.Optional("infrared"): sensor.sensor_schema(
                 UNIT_LUX,
-                ICON_EMPTY,
+                ICON_LIGHTBULB,
+                # Values are reported as integers, so no point in reporting more precision.
                 0,
                 DEVICE_CLASS_ILLUMINANCE,
                 STATE_CLASS_MEASUREMENT
             ),
             cv.Optional(CONF_VISIBLE): sensor.sensor_schema(
                 UNIT_LUX,
-                ICON_EMPTY,
+                ICON_LIGHTBULB,
                 0,
                 DEVICE_CLASS_ILLUMINANCE,
                 STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_FULL_SPECTRUM): sensor.sensor_schema(
                 UNIT_LUX,
-                ICON_EMPTY,
+                ICON_LIGHTBULB,
                 0,
                 DEVICE_CLASS_ILLUMINANCE,
                 STATE_CLASS_MEASUREMENT,
@@ -124,4 +118,4 @@ async def to_code(config):
     cg.add(var.set_integration_time(config[CONF_INTEGRATION_TIME]))
     cg.add(var.set_gain(config[CONF_GAIN]))
     # https://platformio.org/lib/show/463/Adafruit%20TSL2591%20Library
-    cg.add_library("463", "^1.4.0")
+    cg.add_library("Adafruit TSL2591 Library", "^1.4.0")

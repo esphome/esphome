@@ -29,10 +29,10 @@ enum TSL2591IntegrationTime {
  * Higher values are better for low light situations, but can increase noise.
  */
 enum TSL2591Gain {
-  TSL2591_GAIN_MULTIPLIER_LOW  = TSL2591_GAIN_LOW,
-  TSL2591_GAIN_MULTIPLIER_MED  = TSL2591_GAIN_MED,
-  TSL2591_GAIN_MULTIPLIER_HIGH = TSL2591_GAIN_HIGH,
-  TSL2591_GAIN_MULTIPLIER_MAX  = TSL2591_GAIN_MAX,
+  TSL2591_GAIN_MULTIPLIER_LOW  = TSL2591_GAIN_LOW,  // 1x
+  TSL2591_GAIN_MULTIPLIER_MED  = TSL2591_GAIN_MED,  // 25x
+  TSL2591_GAIN_MULTIPLIER_HIGH = TSL2591_GAIN_HIGH, // 480x
+  TSL2591_GAIN_MULTIPLIER_MAX  = TSL2591_GAIN_MAX,  // 9876x
 };
 
 /** Enum listing sensor channels.
@@ -47,12 +47,16 @@ enum TSL2591SensorChannel {
 };
 
 /// This class includes support for the TSL2591 i2c ambient light sensor.
+/// The device has two distinct sensors. One is for visible light and the
+/// other is for infrared light. They are reported as separate sensors,
+/// and the combined value "full spectrum" is reported as a third sensor
+/// as a convenience. It is merely the sum of the first two.
+///
+/// This is a fairly thin ESPhome compatibility wrapper around the
+/// Adafruit TSL2591 library. Adafruit uses the term "luminosity", but
+/// ESPhome uses the term "illuminance", as does the TLS2591 datasheet.
 class TSL2591Component : public PollingComponent, public i2c::I2CDevice {
  public:
-  void set_infrared_sensor(sensor::Sensor *infrared_sensor);
-  void set_visible_sensor(sensor::Sensor *visible_sensor);
-  void set_full_spectrum_sensor(sensor::Sensor *full_spectrum_sensor);
-
   /** Set the time that sensor values should be accumulated for.
    *
    * Longer means more accurate, but also mean more power consumption.
@@ -74,10 +78,10 @@ class TSL2591Component : public PollingComponent, public i2c::I2CDevice {
    *
    * Possible values are:
    *
-   *  - `esphome::tsl2591::TSL2591_GAIN_MULTIPLIER_LOW`
-   *  - `esphome::tsl2591::TSL2591_GAIN_MULTIPLIER_MED` (default)
-   *  - `esphome::tsl2591::TSL2591_GAIN_MULTIPLIER_HIGH`
-   *  - `esphome::tsl2591::TSL2591_GAIN_MULTIPLIER_MAX`
+   *  - `esphome::tsl2591::TSL2591_GAIN_MULTIPLIER_LOW`  (1x)
+   *  - `esphome::tsl2591::TSL2591_GAIN_MULTIPLIER_MED`  (25x, default)
+   *  - `esphome::tsl2591::TSL2591_GAIN_MULTIPLIER_HIGH` (480x)
+   *  - `esphome::tsl2591::TSL2591_GAIN_MULTIPLIER_MAX`  (9876x)
    *
    * @param gain The new gain.
    */
@@ -85,7 +89,7 @@ class TSL2591Component : public PollingComponent, public i2c::I2CDevice {
 
   /** Get the combined illuminance value.
    *
-   * This is encoded into a 32bit value. The high 16 bit are the value of the
+   * This is encoded into a 32 bit value. The high 16 bits are the value of the
    * infrared sensor. The low 16 bits are the sum of the combined sensor values.
    */
   uint32_t getCombinedIlluminance();
@@ -114,6 +118,12 @@ class TSL2591Component : public PollingComponent, public i2c::I2CDevice {
    */  
   uint16_t getIlluminance(TSL2591SensorChannel channel, uint32_t combined_illuminance);
 
+  // These methods are normally called by ESPhome core at the right time, based
+  // on config in YAML.
+  void set_infrared_sensor(sensor::Sensor *infrared_sensor);
+  void set_visible_sensor(sensor::Sensor *visible_sensor);
+  void set_full_spectrum_sensor(sensor::Sensor *full_spectrum_sensor);
+
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these. They're for ESPhome integration use.)
   void setup() override;
@@ -123,7 +133,6 @@ class TSL2591Component : public PollingComponent, public i2c::I2CDevice {
 
 protected:
   Adafruit_TSL2591 tsl2591_ = Adafruit_TSL2591(2591);
-  bool disabled_{false};
   sensor::Sensor *infrared_sensor_;
   sensor::Sensor *visible_sensor_;
   sensor::Sensor *full_spectrum_sensor_;

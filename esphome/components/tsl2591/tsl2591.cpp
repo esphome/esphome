@@ -11,7 +11,6 @@ void TSL2591Component::setup() {
   if (!tsl2591_.begin()) {
     ESP_LOGD("ERROR","Could not find a TSL2591 Sensor. Did you configure I2C?");
     mark_failed();
-    disabled_ = true;
     return;
   }
 }
@@ -20,28 +19,33 @@ void TSL2591Component::dump_config() {
   ESP_LOGCONFIG(TAG, "TSL2591:");
   LOG_I2C_DEVICE(this);
 
-  if (disabled_) {
+  if (is_failed()) {
     ESP_LOGE(TAG, "Communication with TSL2591 failed earlier, during setup");
     return;
   }
 
   tsl2591Gain_t raw_gain = tsl2591_.getGain();
   int gain = 0;
+  std::string gain_word = "unknown";
   switch (raw_gain) {
   case TSL2591_GAIN_MULTIPLIER_LOW:
     gain = 1;
+    gain_word = "low";
     break;
   case TSL2591_GAIN_MULTIPLIER_MED:
     gain = 25;
+    gain_word = "medium";
     break;
   case TSL2591_GAIN_MULTIPLIER_HIGH:
     gain = 428;
+    gain_word = "high";
     break;
   case TSL2591_GAIN_MULTIPLIER_MAX:
     gain = 9876;
+    gain_word = "maximum";
     break;
   }
-  ESP_LOGCONFIG(TAG, "  Gain: %dx", gain);
+  ESP_LOGCONFIG(TAG, "  Gain: %dx (%s)", gain, gain_word.c_str());
 
   tsl2591IntegrationTime_t raw_timing = tsl2591_.getTiming();
   int timing_ms = (1 + raw_timing) * 100;
@@ -54,7 +58,7 @@ void TSL2591Component::dump_config() {
 }
 
 void TSL2591Component::update() {
-  if (!disabled_) {
+  if (!is_failed()) {
     uint32_t combined = getCombinedIlluminance();
     uint16_t visible  = getIlluminance(TSL2591_SENSOR_CHANNEL_VISIBLE, combined);
     uint16_t infrared = getIlluminance(TSL2591_SENSOR_CHANNEL_INFRARED, combined);
