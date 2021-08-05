@@ -1,7 +1,7 @@
 #include "version_text_sensor.h"
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
-#include "esphome/core/version.h"
+#include "esphome/core/defines.h"
 
 namespace esphome {
 namespace version {

@@ -11,7 +11,6 @@ from esphome.const import (
     CONF_PLATFORMIO_OPTIONS,
     HEADER_FILE_EXTENSIONS,
     SOURCE_FILE_EXTENSIONS,
-    __version__,
     ARDUINO_VERSION_ESP8266,
     ENV_NOGITIGNORE,
 )
@@ -340,12 +339,7 @@ DEFINES_H_FORMAT = ESPHOME_H_FORMAT = """\
 #pragma once
 {}
 """
-VERSION_H_FORMAT = """\
-#pragma once
-#define ESPHOME_VERSION "{}"
-"""
 DEFINES_H_TARGET = "esphome/core/defines.h"
-VERSION_H_TARGET = "esphome/core/version.h"
 ESPHOME_README_TXT = """
 THIS DIRECTORY IS AUTO-GENERATED, DO NOT MODIFY
 
@@ -376,9 +370,8 @@ def copy_src_tree():
     include_s = "\n".join(include_l)
 
     source_files_copy = source_files.copy()
-    ignore_targets = [Path(x) for x in (DEFINES_H_TARGET, VERSION_H_TARGET)]
-    for t in ignore_targets:
-        source_files_copy.pop(t)
+    # Don't copy defines.h from the source, it's generated dynamically.
+    source_files_copy.pop(Path(DEFINES_H_TARGET))
 
     for fname in walk_files(CORE.relative_src_path("esphome")):
         p = Path(fname)
@@ -387,7 +380,7 @@ def copy_src_tree():
             continue
         # Transform path to target path name
         target = p.relative_to(CORE.relative_src_path())
-        if target in ignore_targets:
+        if target == Path(DEFINES_H_TARGET):
             # Ignore defines.h, will be dealt with later
             continue
         if target not in source_files_copy:
@@ -413,10 +406,6 @@ def copy_src_tree():
     )
     write_file_if_changed(
         CORE.relative_src_path("esphome.h"), ESPHOME_H_FORMAT.format(include_s)
-    )
-    write_file_if_changed(
-        CORE.relative_src_path("esphome", "core", "version.h"),
-        VERSION_H_FORMAT.format(__version__),
     )
 
 

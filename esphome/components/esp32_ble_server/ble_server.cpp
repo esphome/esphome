@@ -3,7 +3,7 @@
 #include "esphome/components/esp32_ble/ble.h"
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
-#include "esphome/core/version.h"
+#include "esphome/core/defines.h"
 
 #ifdef ARDUINO_ARCH_ESP32
 

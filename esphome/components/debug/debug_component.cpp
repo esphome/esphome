@@ -2,7 +2,6 @@
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/defines.h"
-#include "esphome/core/version.h"
 
 #ifdef ARDUINO_ARCH_ESP32
 #include <rom/rtc.h>

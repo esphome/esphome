@@ -4,7 +4,6 @@
 #include "esphome/core/application.h"
 #include "esphome/core/util.h"
 #include "esphome/core/defines.h"
-#include "esphome/core/version.h"
 
 #ifdef USE_LOGGER
 #include "esphome/components/logger/logger.h"

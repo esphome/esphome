@@ -28,6 +28,7 @@ from esphome.const import (
     ARDUINO_VERSION_ESP32,
     CONF_VERSION,
     ESP_PLATFORMS,
+    __version__
 )
 from esphome.core import CORE, coroutine_with_priority
 from esphome.helpers import copy_file_if_changed, walk_files
@@ -362,6 +363,7 @@ async def to_code(config):
     if config[CONF_INCLUDES]:
         CORE.add_job(add_includes, config[CONF_INCLUDES])
 
+    cg.add_define("ESPHOME_VERSION", __version__)
     cg.add_define("ESPHOME_BOARD", CORE.board)
     if CONF_PROJECT in config:
         cg.add_define("ESPHOME_PROJECT_NAME", config[CONF_PROJECT][CONF_NAME])

@@ -28,4 +28,5 @@
 #define USE_DEEP_SLEEP
 #define USE_CAPTIVE_PORTAL
 #define ESPHOME_BOARD "dummy_board"
+#define ESPHOME_VERSION "dev"
 #define USE_MDNS
