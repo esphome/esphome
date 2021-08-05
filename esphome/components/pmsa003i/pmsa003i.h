@@ -9,7 +9,7 @@ namespace pmsa003i {
 
 /**! Structure holding Plantower's standard packet **/
 // From https://github.com/adafruit/Adafruit_PM25AQI
-using PM25AQIData = struct PMSAQIdata {
+struct PM25AQIData {
   uint16_t framelen;        ///< How long this data chunk is
   uint16_t pm10_standard,   ///< Standard PM1.0
       pm25_standard,        ///< Standard PM2.5
