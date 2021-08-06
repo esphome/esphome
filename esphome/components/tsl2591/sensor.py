@@ -73,6 +73,7 @@ GAINS = {
     "MAXIMUM": TSL2591Gain.TSL2591_GAIN_MULTIPLIER_MAX,
 }
 
+
 def validate_integration_time(value):
     value = cv.positive_time_period_milliseconds(value).total_milliseconds
     return cv.enum(INTEGRATION_TIMES, int=True)(value)

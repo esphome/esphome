@@ -3,7 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
-#include "Adafruit_TSL2591.h"
+#include <Adafruit_TSL2591.h>
 
 namespace esphome {
 namespace tsl2591 {
@@ -28,10 +28,10 @@ enum TSL2591IntegrationTime {
  * Higher values are better for low light situations, but can increase noise.
  */
 enum TSL2591Gain {
-  TSL2591_GAIN_MULTIPLIER_LOW = TSL2591_GAIN_LOW,  // 1x
-  TSL2591_GAIN_MULTIPLIER_MED = TSL2591_GAIN_MED,  // 25x
+  TSL2591_GAIN_MULTIPLIER_LOW = TSL2591_GAIN_LOW,   // 1x
+  TSL2591_GAIN_MULTIPLIER_MED = TSL2591_GAIN_MED,   // 25x
   TSL2591_GAIN_MULTIPLIER_HIGH = TSL2591_GAIN_HIGH, // 480x
-  TSL2591_GAIN_MULTIPLIER_MAX = TSL2591_GAIN_MAX,  // 9876x
+  TSL2591_GAIN_MULTIPLIER_MAX = TSL2591_GAIN_MAX,   // 9876x
 };
 
 /** Enum listing sensor channels.
@@ -109,7 +109,7 @@ class TSL2591Component : public PollingComponent, public i2c::I2CDevice {
    * method with a different signature.
    *
    * @param channel The sensor channel of interest.
-   */  
+   */
   uint16_t get_illuminance(TSL2591SensorChannel channel);
 
   /** Get an individual sensor channel reading from combined illuminance.
@@ -121,7 +121,7 @@ class TSL2591Component : public PollingComponent, public i2c::I2CDevice {
    *
    * @param channel The sensor channel of interest.
    * @param combined_illuminance The previously obtained combined illuminance value.
-   */  
+   */
   uint16_t get_illuminance(TSL2591SensorChannel channel, uint32_t combined_illuminance);
 
   // These methods are normally called by ESPHome core at the right time, based

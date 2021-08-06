@@ -64,7 +64,7 @@ void TSL2591Component::update() {
     uint16_t visible = this->getIlluminance(TSL2591_SENSOR_CHANNEL_VISIBLE, combined);
     uint16_t infrared = this->getIlluminance(TSL2591_SENSOR_CHANNEL_INFRARED, combined);
     uint16_t full = this->getIlluminance(TSL2591_SENSOR_CHANNEL_FULL_SPECTRUM, combined);
-    float    lux = this->getCalculatedLux(full, infrared);
+    float lux = this->getCalculatedLux(full, infrared);
     ESP_LOGD(TAG, "Got illuminance: combined 0x%X, full %d, IR %d, vis %d. Calc lux: %f", combined, full, infrared,
              visible, lux);
     if (this->full_spectrum_sensor_ != nullptr)
@@ -82,9 +82,7 @@ void TSL2591Component::update() {
 void TSL2591Component::set_infrared_sensor(sensor::Sensor *infrared_sensor) {
   this->infrared_sensor_ = infrared_sensor;
 }
-void TSL2591Component::set_visible_sensor(sensor::Sensor *visible_sensor) {
-  this->visible_sensor_ = visible_sensor;
-}
+void TSL2591Component::set_visible_sensor(sensor::Sensor *visible_sensor) { this->visible_sensor_ = visible_sensor; }
 void TSL2591Component::set_full_spectrum_sensor(sensor::Sensor *full_spectrum_sensor) {
   this->full_spectrum_sensor_ = full_spectrum_sensor;
 }
@@ -92,19 +90,11 @@ void TSL2591Component::set_calculated_lux_sensor(sensor::Sensor *calculated_lux_
   this->calculated_lux_sensor_ = calculated_lux_sensor;
 }
 
-void TSL2591Component::set_integration_time(TSL2591IntegrationTime integration_time) {
-  this->tsl2591_.setTiming((tsl2591IntegrationTime_t) integration_time);
-}
-void TSL2591Component::set_gain(TSL2591Gain gain) {
-  this->tsl2591_.setGain((tsl2591Gain_t) gain);
-}
-float TSL2591Component::get_setup_priority() const {
-  return setup_priority::DATA;
-}
+void TSL2591Component::set_integration_time(TSL2591IntegrationTime integration_time) { this->tsl2591_.setTiming((tsl2591IntegrationTime_t) integration_time); }
+void TSL2591Component::set_gain(TSL2591Gain gain) { this->tsl2591_.setGain((tsl2591Gain_t) gain); }
+float TSL2591Component::get_setup_priority() const { return setup_priority::DATA; }
 
-uint32_t TSL2591Component::get_combined_illuminance() {
-  return this->tsl2591_.getFullLuminosity();
-}
+uint32_t TSL2591Component::get_combined_illuminance() { return this->tsl2591_.getFullLuminosity(); }
 uint16_t TSL2591Component::get_illuminance(TSL2591SensorChannel channel) {
   return this->tsl2591_.getLuminosity(channel);
 }
@@ -127,7 +117,6 @@ uint16_t TSL2591Component::get_illuminance(TSL2591SensorChannel channel, uint32_
   // unknown channel!
   return 0;
 }
-
 
 }  // namespace tsl2591
 }  // namespace esphome
