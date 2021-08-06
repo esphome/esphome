@@ -132,7 +132,7 @@ void Graph::draw(DisplayBuffer *buff, uint16_t x_offset, uint16_t y_offset, Colo
   if (!std::isnan(this->gridspacing_y_)) {
     for (int y = yn; y <= ym; y++) {
       int16_t py = (int16_t) roundf((this->height_ - 1) * (1.0 - (float) (y - yn) / (ym - yn)));
-      for (int x = 0; x < this->width_; x += 2) {
+      for (uint32_t x = 0; x < this->width_; x += 2) {
         buff->draw_pixel_at(x_offset + x, y_offset + py, color);
       }
     }
@@ -147,7 +147,7 @@ void Graph::draw(DisplayBuffer *buff, uint16_t x_offset, uint16_t y_offset, Colo
       ESP_LOGW(TAG, "Graphing reducing x-scale to prevent too many gridlines");
     }
     for (int i = 0; i <= n; i++) {
-      for (int y = 0; y < this->height_; y += 2) {
+      for (uint32_t y = 0; y < this->height_; y += 2) {
         buff->draw_pixel_at(x_offset + i * (this->width_ - 1) / n, y_offset + y, color);
       }
     }

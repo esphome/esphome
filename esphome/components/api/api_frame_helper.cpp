@@ -197,7 +197,7 @@ APIError APINoiseFrameHelper::try_read_frame_(ParsedFrame *frame) {
       return APIError::CONNECTION_CLOSED;
     }
     rx_header_buf_len_ += received;
-    if (received != to_read) {
+    if ((size_t) received != to_read) {
       // not a full read
       return APIError::WOULD_BLOCK;
     }
@@ -244,7 +244,7 @@ APIError APINoiseFrameHelper::try_read_frame_(ParsedFrame *frame) {
       return APIError::CONNECTION_CLOSED;
     }
     rx_buf_len_ += received;
-    if (received != to_read) {
+    if ((size_t) received != to_read) {
       // not all read
       return APIError::WOULD_BLOCK;
     }
@@ -580,7 +580,7 @@ APIError APINoiseFrameHelper::write_raw_(const struct iovec *iov, int iovcnt) {
     state_ = State::FAILED;
     HELPER_LOG("Socket write failed with errno %d", errno);
     return APIError::SOCKET_WRITE_FAILED;
-  } else if (sent != total_write_len) {
+  } else if ((size_t) sent != total_write_len) {
     // partially sent, add end to tx_buf
     size_t to_consume = sent;
     for (int i = 0; i < iovcnt; i++) {
@@ -847,7 +847,7 @@ APIError APIPlaintextFrameHelper::try_read_frame_(ParsedFrame *frame) {
       return APIError::CONNECTION_CLOSED;
     }
     rx_buf_len_ += received;
-    if (received != to_read) {
+    if ((size_t) received != to_read) {
       // not all read
       return APIError::WOULD_BLOCK;
     }
@@ -968,7 +968,7 @@ APIError APIPlaintextFrameHelper::write_raw_(const struct iovec *iov, int iovcnt
     state_ = State::FAILED;
     HELPER_LOG("Socket write failed with errno %d", errno);
     return APIError::SOCKET_WRITE_FAILED;
-  } else if (sent != total_write_len) {
+  } else if ((size_t) sent != total_write_len) {
     // partially sent, add end to tx_buf
     size_t to_consume = sent;
     for (int i = 0; i < iovcnt; i++) {

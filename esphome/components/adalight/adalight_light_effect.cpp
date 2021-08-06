@@ -25,7 +25,7 @@ void AdalightLightEffect::stop() {
   AddressableLightEffect::stop();
 }
 
-int AdalightLightEffect::get_frame_size_(int led_count) const {
+unsigned int AdalightLightEffect::get_frame_size_(int led_count) const {
   // 3 bytes: Ada
   // 2 bytes: LED count
   // 1 byte: checksum

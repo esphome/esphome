@@ -16,7 +16,6 @@ Checks: >-
   -clang-diagnostic-delete-abstract-non-virtual-dtor,
   -clang-diagnostic-delete-non-abstract-non-virtual-dtor,
   -clang-diagnostic-shadow-field,
-  -clang-diagnostic-sign-compare,
   -clang-diagnostic-unused-const-variable,
   -clang-diagnostic-unused-parameter,
   -concurrency-*,

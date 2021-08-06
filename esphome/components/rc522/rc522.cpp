@@ -479,7 +479,7 @@ bool RC522BinarySensor::process(std::vector<uint8_t> &data) {
   if (data.size() != this->uid_.size())
     result = false;
   else {
-    for (uint8_t i = 0; i < data.size(); i++) {
+    for (size_t i = 0; i < data.size(); i++) {
       if (data[i] != this->uid_[i]) {
         result = false;
         break;
