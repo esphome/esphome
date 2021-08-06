@@ -60,14 +60,11 @@ TSL2591Gain = tsl2591_ns.enum("TSL2591Gain")
 GAINS = {
     "1X": TSL2591Gain.TSL2591_GAIN_MULTIPLIER_LOW,
     "LOW": TSL2591Gain.TSL2591_GAIN_MULTIPLIER_LOW,
-
     "25X": TSL2591Gain.TSL2591_GAIN_MULTIPLIER_MED,
     "MED": TSL2591Gain.TSL2591_GAIN_MULTIPLIER_MED,
     "MEDIUM": TSL2591Gain.TSL2591_GAIN_MULTIPLIER_MED,
-
     "428X": TSL2591Gain.TSL2591_GAIN_MULTIPLIER_HIGH,
     "HIGH": TSL2591Gain.TSL2591_GAIN_MULTIPLIER_HIGH,
-
     "9876X": TSL2591Gain.TSL2591_GAIN_MULTIPLIER_MAX,
     "MAX": TSL2591Gain.TSL2591_GAIN_MULTIPLIER_MAX,
     "MAXIMUM": TSL2591Gain.TSL2591_GAIN_MULTIPLIER_MAX,
@@ -93,7 +90,7 @@ CONFIG_SCHEMA = (
                 ICON_LIGHTBULB,
                 0,
                 DEVICE_CLASS_ILLUMINANCE,
-                STATE_CLASS_MEASUREMENT
+                STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_VISIBLE): sensor.sensor_schema(
                 UNIT_LUX,
@@ -116,7 +113,9 @@ CONFIG_SCHEMA = (
                 DEVICE_CLASS_ILLUMINANCE,
                 STATE_CLASS_MEASUREMENT,
             ),
-            cv.Optional(CONF_INTEGRATION_TIME, default="100ms"): validate_integration_time,
+            cv.Optional(
+                CONF_INTEGRATION_TIME, default="100ms"
+            ): validate_integration_time,
             cv.Optional(CONF_GAIN, default="MEDIUM"): cv.enum(GAINS, upper=True),
         }
     )

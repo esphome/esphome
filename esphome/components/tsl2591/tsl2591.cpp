@@ -60,11 +60,11 @@ void TSL2591Component::dump_config() {
 
 void TSL2591Component::update() {
   if (!is_failed()) {
-    uint32_t combined = this->getCombinedIlluminance();
-    uint16_t visible = this->getIlluminance(TSL2591_SENSOR_CHANNEL_VISIBLE, combined);
-    uint16_t infrared = this->getIlluminance(TSL2591_SENSOR_CHANNEL_INFRARED, combined);
-    uint16_t full = this->getIlluminance(TSL2591_SENSOR_CHANNEL_FULL_SPECTRUM, combined);
-    float lux = this->getCalculatedLux(full, infrared);
+    uint32_t combined = this->get_combined_illuminance();
+    uint16_t visible = this->get_illuminance(TSL2591_SENSOR_CHANNEL_VISIBLE, combined);
+    uint16_t infrared = this->get_illuminance(TSL2591_SENSOR_CHANNEL_INFRARED, combined);
+    uint16_t full = this->get_illuminance(TSL2591_SENSOR_CHANNEL_FULL_SPECTRUM, combined);
+    float lux = this->get_calculated_lux(full, infrared);
     ESP_LOGD(TAG, "Got illuminance: combined 0x%X, full %d, IR %d, vis %d. Calc lux: %f", combined, full, infrared,
              visible, lux);
     if (this->full_spectrum_sensor_ != nullptr)
