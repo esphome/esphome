@@ -80,7 +80,6 @@ Checks: >-
   -readability-use-anyofallof,
   -warnings-as-errors
 WarningsAsErrors: '*'
-HeaderFilterRegex: '^.*/src/esphome/.*'
 AnalyzeTemporaryDtors: false
 FormatStyle:     google
 CheckOptions:
