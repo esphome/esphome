@@ -6,7 +6,7 @@
 namespace esphome {
 namespace anova {
 
-static const char *TAG = "anova";
+static const char *const TAG = "anova";
 
 using namespace esphome::climate;
 

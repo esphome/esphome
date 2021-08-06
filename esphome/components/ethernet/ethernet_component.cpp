@@ -26,7 +26,7 @@ static const char *const TAG = "ethernet";
 EthernetComponent *global_eth_component;
 
 #define ESPHL_ERROR_CHECK(err, message) \
-  if (err != ESP_OK) { \
+  if ((err) != ESP_OK) { \
     ESP_LOGE(TAG, message ": (%d) %s", err, esp_err_to_name(err)); \
     this->mark_failed(); \
     return; \
@@ -258,7 +258,7 @@ void EthernetComponent::set_mdc_pin(uint8_t mdc_pin) { this->mdc_pin_ = mdc_pin;
 void EthernetComponent::set_mdio_pin(uint8_t mdio_pin) { this->mdio_pin_ = mdio_pin; }
 void EthernetComponent::set_type(EthernetType type) { this->type_ = type; }
 void EthernetComponent::set_clk_mode(eth_clock_mode_t clk_mode) { this->clk_mode_ = clk_mode; }
-void EthernetComponent::set_manual_ip(ManualIP manual_ip) { this->manual_ip_ = manual_ip; }
+void EthernetComponent::set_manual_ip(const ManualIP &manual_ip) { this->manual_ip_ = manual_ip; }
 std::string EthernetComponent::get_use_address() const {
   if (this->use_address_.empty()) {
     return App.get_name() + ".local";

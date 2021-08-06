@@ -28,7 +28,7 @@ static esp_ble_adv_params_t ble_adv_params = {
 
 #define ENDIAN_CHANGE_U16(x) ((((x) &0xFF00) >> 8) + (((x) &0xFF) << 8))
 
-static esp_ble_ibeacon_head_t ibeacon_common_head = {
+static const esp_ble_ibeacon_head_t ibeacon_common_head = {
     .flags = {0x02, 0x01, 0x06}, .length = 0x1A, .type = 0xFF, .company_id = 0x004C, .beacon_type = 0x1502};
 
 void ESP32BLEBeacon::dump_config() {

@@ -57,11 +57,7 @@ bool XiaomiMJYD02YLA::parse_device(const esp32_ble_tracker::ESPBTDevice &device)
     success = true;
   }
 
-  if (!success) {
-    return false;
-  }
-
-  return true;
+  return success;
 }
 
 void XiaomiMJYD02YLA::set_bindkey(const std::string &bindkey) {

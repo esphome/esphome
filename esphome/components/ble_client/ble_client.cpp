@@ -130,7 +130,7 @@ void BLEClient::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t es
         break;
       }
       ESP_LOGV(TAG, "cfg_mtu status %d, mtu %d", param->cfg_mtu.status, param->cfg_mtu.mtu);
-      esp_ble_gattc_search_service(esp_gattc_if, param->cfg_mtu.conn_id, NULL);
+      esp_ble_gattc_search_service(esp_gattc_if, param->cfg_mtu.conn_id, nullptr);
       break;
     }
     case ESP_GATTC_DISCONNECT_EVT: {

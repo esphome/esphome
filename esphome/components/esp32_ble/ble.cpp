@@ -123,11 +123,11 @@ void ESP32BLE::loop() {
   BLEEvent *ble_event = this->ble_events_.pop();
   while (ble_event != nullptr) {
     switch (ble_event->type_) {
-      case ble_event->GATTS:
+      case BLEEvent::GATTS:
         this->real_gatts_event_handler_(ble_event->event_.gatts.gatts_event, ble_event->event_.gatts.gatts_if,
                                         &ble_event->event_.gatts.gatts_param);
         break;
-      case ble_event->GAP:
+      case BLEEvent::GAP:
         this->real_gap_event_handler_(ble_event->event_.gap.gap_event, &ble_event->event_.gap.gap_param);
         break;
       default:

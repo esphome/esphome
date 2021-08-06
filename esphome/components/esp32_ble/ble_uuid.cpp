@@ -33,14 +33,14 @@ ESPBTUUID ESPBTUUID::from_raw(const std::string &data) {
     ret.uuid_.len = ESP_UUID_LEN_16;
     ret.uuid_.uuid.uuid16 = 0;
     for (int i = 0; i < data.length();) {
-      uint8_t MSB = data.c_str()[i];
-      uint8_t LSB = data.c_str()[i + 1];
+      uint8_t msb = data.c_str()[i];
+      uint8_t lsb = data.c_str()[i + 1];
 
-      if (MSB > '9')
-        MSB -= 7;
-      if (LSB > '9')
-        LSB -= 7;
-      ret.uuid_.uuid.uuid16 += (((MSB & 0x0F) << 4) | (LSB & 0x0F)) << (2 - i) * 4;
+      if (msb > '9')
+        msb -= 7;
+      if (lsb > '9')
+        lsb -= 7;
+      ret.uuid_.uuid.uuid16 += (((msb & 0x0F) << 4) | (lsb & 0x0F)) << (2 - i) * 4;
       i += 2;
     }
   } else if (data.length() == 8) {

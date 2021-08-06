@@ -27,26 +27,26 @@ bool WiFiComponent::wifi_mode_(optional<bool> sta, optional<bool> ap) {
   uint8_t current_mode = WiFi.getMode();
   bool current_sta = current_mode & 0b01;
   bool current_ap = current_mode & 0b10;
-  bool sta_ = sta.value_or(current_sta);
-  bool ap_ = ap.value_or(current_ap);
-  if (current_sta == sta_ && current_ap == ap_)
+  bool enable_sta = sta.value_or(current_sta);
+  bool enable_ap = ap.value_or(current_ap);
+  if (current_sta == enable_sta && current_ap == enable_ap)
     return true;
 
-  if (sta_ && !current_sta) {
+  if (enable_sta && !current_sta) {
     ESP_LOGV(TAG, "Enabling STA.");
-  } else if (!sta_ && current_sta) {
+  } else if (!enable_sta && current_sta) {
     ESP_LOGV(TAG, "Disabling STA.");
   }
-  if (ap_ && !current_ap) {
+  if (enable_ap && !current_ap) {
     ESP_LOGV(TAG, "Enabling AP.");
-  } else if (!ap_ && current_ap) {
+  } else if (!enable_ap && current_ap) {
     ESP_LOGV(TAG, "Disabling AP.");
   }
 
   uint8_t mode = 0;
-  if (sta_)
+  if (enable_sta)
     mode |= 0b01;
-  if (ap_)
+  if (enable_ap)
     mode |= 0b10;
   bool ret = WiFi.mode(static_cast<wifi_mode_t>(mode));
 
@@ -153,8 +153,8 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
   // https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/network/esp_wifi.html#_CPPv417wifi_sta_config_t
   wifi_config_t conf;
   memset(&conf, 0, sizeof(conf));
-  strcpy(reinterpret_cast<char *>(conf.sta.ssid), ap.get_ssid().c_str());
-  strcpy(reinterpret_cast<char *>(conf.sta.password), ap.get_password().c_str());
+  strlcpy(reinterpret_cast<char *>(conf.sta.ssid), ap.get_ssid().c_str(), sizeof(conf.sta.ssid));
+  strlcpy(reinterpret_cast<char *>(conf.sta.password), ap.get_password().c_str(), sizeof(conf.sta.password));
 
   // The weakest authmode to accept in the fast scan mode
   if (ap.get_password().empty()) {
@@ -170,10 +170,10 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
 #endif
 
   if (ap.get_bssid().has_value()) {
-    conf.sta.bssid_set = 1;
+    conf.sta.bssid_set = true;
     memcpy(conf.sta.bssid, ap.get_bssid()->data(), 6);
   } else {
-    conf.sta.bssid_set = 0;
+    conf.sta.bssid_set = false;
   }
   if (ap.get_channel().has_value()) {
     conf.sta.channel = *ap.get_channel();
@@ -654,7 +654,7 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
 
   wifi_config_t conf;
   memset(&conf, 0, sizeof(conf));
-  strcpy(reinterpret_cast<char *>(conf.ap.ssid), ap.get_ssid().c_str());
+  strlcpy(reinterpret_cast<char *>(conf.ap.ssid), ap.get_ssid().c_str(), sizeof(conf.ap.ssid));
   conf.ap.channel = ap.get_channel().value_or(1);
   conf.ap.ssid_hidden = ap.get_ssid().size();
   conf.ap.max_connection = 5;
@@ -665,7 +665,7 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
     *conf.ap.password = 0;
   } else {
     conf.ap.authmode = WIFI_AUTH_WPA2_PSK;
-    strcpy(reinterpret_cast<char *>(conf.ap.password), ap.get_password().c_str());
+    strlcpy(reinterpret_cast<char *>(conf.ap.password), ap.get_password().c_str(), sizeof(conf.ap.ssid));
   }
 
 #if ESP_IDF_VERSION_MAJOR >= 4

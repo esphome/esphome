@@ -278,7 +278,7 @@ void ESP32Camera::set_test_pattern(bool test_pattern) { this->test_pattern_ = te
 ESP32Camera *global_esp32_camera;
 
 void CameraImageReader::set_image(std::shared_ptr<CameraImage> image) {
-  this->image_ = image;
+  this->image_ = std::move(image);
   this->offset_ = 0;
 }
 size_t CameraImageReader::available() const {

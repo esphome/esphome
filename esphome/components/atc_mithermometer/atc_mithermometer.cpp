@@ -26,7 +26,7 @@ bool ATCMiThermometer::parse_device(const esp32_ble_tracker::ESPBTDevice &device
   bool success = false;
   for (auto &service_data : device.get_service_datas()) {
     auto res = parse_header(service_data);
-    if (res->is_duplicate) {
+    if (!res.has_value()) {
       continue;
     }
     if (!(parse_message(service_data.data, *res))) {
@@ -46,11 +46,7 @@ bool ATCMiThermometer::parse_device(const esp32_ble_tracker::ESPBTDevice &device
     success = true;
   }
 
-  if (!success) {
-    return false;
-  }
-
-  return true;
+  return success;
 }
 
 optional<ParseResult> ATCMiThermometer::parse_header(const esp32_ble_tracker::ServiceData &service_data) {
@@ -65,11 +61,9 @@ optional<ParseResult> ATCMiThermometer::parse_header(const esp32_ble_tracker::Se
   static uint8_t last_frame_count = 0;
   if (last_frame_count == raw[12]) {
     ESP_LOGVV(TAG, "parse_header(): duplicate data packet received (%d).", static_cast<int>(last_frame_count));
-    result.is_duplicate = true;
     return {};
   }
   last_frame_count = raw[12];
-  result.is_duplicate = false;
 
   return result;
 }
