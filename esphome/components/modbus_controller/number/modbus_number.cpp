@@ -8,11 +8,6 @@ namespace modbus_controller {
 static const char *const TAG = "modbus.number";
 
 void ModbusNumber::parse_and_publish(const std::vector<uint8_t> &data) {
-  union {
-    float float_value;
-    uint32_t raw;
-  } raw_to_float;
-
   float result = payload_to_float(data, *this);
 
   // Is there a lambda registered
@@ -31,13 +26,7 @@ void ModbusNumber::parse_and_publish(const std::vector<uint8_t> &data) {
 }
 
 void ModbusNumber::control(float value) {
-  union {
-    float float_value;
-    uint32_t raw;
-  } raw_to_float;
-
   std::vector<uint16_t> data;
-  auto original_value = value;
   // Is there are lambda configured?
   if (this->write_transform_func_.has_value()) {
     // data is passed by reference

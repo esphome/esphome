@@ -179,8 +179,8 @@ void GraphLegend::init(Graph *g) {
   parent_ = g;
 
   // Determine maximum expected text and value width / height
-  int txtw = 0, txtos = 0, txtbl = 0, txth = 0;
-  int valw = 0, valos = 0, valbl = 0, valh = 0;
+  int txtw = 0, txth = 0;
+  int valw = 0, valh = 0;
   int lt = 0;
   for (auto *trace : g->traces_) {
     std::string txtstr = trace->get_name();

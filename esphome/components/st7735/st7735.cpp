@@ -275,7 +275,7 @@ void ST7735::setup() {
 
   uint8_t data = 0;
   if (this->model_ != INITR_HALLOWING) {
-    uint8_t data = ST77XX_MADCTL_MX | ST77XX_MADCTL_MY;
+    data = ST77XX_MADCTL_MX | ST77XX_MADCTL_MY;
   }
   if (this->usebgr_) {
     data = data | ST7735_MADCTL_BGR;
