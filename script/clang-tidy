@@ -38,13 +38,9 @@ def clang_options(idedata):
         '-DCLANG_TIDY'
     ]
 
-    # copy compiler flags
-    for flag in idedata['cxx_flags'].split(' '):
-        # skip flags clang doesn't understand, and flags we already have (this is hacky workaround for
-        # PlatformIO appending -Wall, which overrides our disabled warnings).
-        if flag in ('-free', '-fipa-pta', '-mlongcalls', '-mtext-section-literals') or flag in cmd:
-            continue
-        cmd.append(flag)
+    # copy compiler flags, except those clang doesn't understand.
+    cmd.extend(flag for flag in idedata['cxx_flags'].split(' ')
+               if flag not in ('-free', '-fipa-pta', '-mlongcalls', '-mtext-section-literals'))
 
     # defines
     cmd.extend(f'-D{define}' for define in idedata['defines'])
