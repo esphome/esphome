@@ -6,6 +6,9 @@ from esphome.components import color
 from . import CONF_NEXTION_ID
 from . import Nextion
 
+from esphome.const import (
+    CONF_VISIBLE,
+)
 CONF_VARIABLE_NAME = "variable_name"
 CONF_COMPONENT_NAME = "component_name"
 CONF_WAVE_CHANNEL_ID = "wave_channel_id"

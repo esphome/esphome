@@ -36,13 +36,6 @@ from esphome.const import (
     UNIT_LUX,
 )
 
-#CONF_FULL_SPECTRUM = "full_spectrum"
-#CONF_INFRARED = "infrared"
-#CONF_VISIBLE = "visible"
-#CONF_CALCULATED_LUX = "calculated_lux"
-
-CODEOWNERS = ["@wjcarpenter"]
-
 # The Adafruit sensors library requires both i2c and spi in ESPhome configs, but
 # we don't use spi for this component.
 DEPENDENCIES = ["i2c","spi"]
