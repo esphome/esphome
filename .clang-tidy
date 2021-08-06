@@ -22,6 +22,7 @@ Checks: >-
   -clang-diagnostic-sign-compare,
   -clang-diagnostic-unused-variable,
   -clang-diagnostic-unused-const-variable,
+  -clang-diagnostic-unused-parameter,
   -concurrency-*,
   -cppcoreguidelines-avoid-c-arrays,
   -cppcoreguidelines-avoid-goto,
