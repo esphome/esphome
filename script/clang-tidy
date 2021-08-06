@@ -27,6 +27,11 @@ def clang_options(idedata):
         # disable built-in include directories from the host
         '-nostdinc',
         '-nostdinc++',
+        # suppress warning about identifier naming in expansion of this macro
+        '-DPSTRN(s, n)=(s)',
+        # suppress warning about attribute cannot be applied to type
+        # https://github.com/esp8266/Arduino/pull/8258
+        '-Ddeprecated(x)=',
         # allow to condition code on the presence of clang-tidy
         '-DCLANG_TIDY'
     ]
