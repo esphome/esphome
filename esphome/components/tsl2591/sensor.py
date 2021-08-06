@@ -95,7 +95,6 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_VISIBLE): sensor.sensor_schema(
                 UNIT_LUX,
                 ICON_BRIGHTNESS_6,
-                ICON_LIGHTBULB,
                 0,
                 DEVICE_CLASS_ILLUMINANCE,
                 STATE_CLASS_MEASUREMENT,
@@ -103,7 +102,6 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_FULL_SPECTRUM): sensor.sensor_schema(
                 UNIT_LUX,
                 ICON_BRIGHTNESS_6,
-                ICON_LIGHTBULB,
                 0,
                 DEVICE_CLASS_ILLUMINANCE,
                 STATE_CLASS_MEASUREMENT,
@@ -111,7 +109,6 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_CALCULATED_LUX): sensor.sensor_schema(
                 UNIT_LUX,
                 ICON_BRIGHTNESS_6,
-                ICON_LIGHTBULB,
                 4,
                 DEVICE_CLASS_ILLUMINANCE,
                 STATE_CLASS_MEASUREMENT,
