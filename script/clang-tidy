@@ -22,7 +22,7 @@ from helpers import shlex_quote, get_output, \
 
 def load_idedata():
     # Load IDE data from PlatformIO, which contains the compiler flags we need.
-    process = subprocess.run(['pio', 'run', '-t', 'idedata'], capture_output=True)
+    process = subprocess.run(['pio', 'run', '-t', 'idedata', '-e', 'esp8266-tidy'], capture_output=True)
     match = re.search(r'{\s*".*}', process.stdout.decode('utf-8'))
     return json.loads(match.group())
 
