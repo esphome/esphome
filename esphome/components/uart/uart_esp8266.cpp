@@ -211,7 +211,7 @@ void ESP8266SoftwareSerial::setup(int8_t tx_pin, int8_t rx_pin, uint32_t baud_ra
 }
 void ICACHE_RAM_ATTR ESP8266SoftwareSerial::gpio_intr(ESP8266SoftwareSerial *arg) {
   uint32_t wait = arg->bit_time_ + arg->bit_time_ / 3 - 500;
-  const uint32_t start = ESP.getCycleCount();
+  const uint32_t start = ESP.getCycleCount();  // NOLINT(readability-static-accessed-through-instance)
   uint8_t rec = 0;
   // Manually unroll the loop
   for (int i = 0; i < arg->data_bits_; i++)
@@ -251,7 +251,7 @@ void ICACHE_RAM_ATTR HOT ESP8266SoftwareSerial::write_byte(uint8_t data) {
   {
     InterruptLock lock;
     uint32_t wait = this->bit_time_;
-    const uint32_t start = ESP.getCycleCount();
+    const uint32_t start = ESP.getCycleCount();  // NOLINT(readability-static-accessed-through-instance)
     // Start bit
     this->write_bit_(false, &wait, start);
     for (int i = 0; i < this->data_bits_; i++) {
@@ -269,7 +269,7 @@ void ICACHE_RAM_ATTR HOT ESP8266SoftwareSerial::write_byte(uint8_t data) {
   }
 }
 void ICACHE_RAM_ATTR ESP8266SoftwareSerial::wait_(uint32_t *wait, const uint32_t &start) {
-  while (ESP.getCycleCount() - start < *wait)
+  while (ESP.getCycleCount() - start < *wait)  // NOLINT(readability-static-accessed-through-instance)
     ;
   *wait += this->bit_time_;
 }

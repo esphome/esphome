@@ -1,5 +1,6 @@
 #include "esphome/core/log.h"
 #include "sgp40.h"
+#include <cinttypes>
 
 namespace esphome {
 namespace sgp40 {

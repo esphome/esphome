@@ -29,6 +29,7 @@ void OTARequestHandler::handleUpload(AsyncWebServerRequest *request, const Strin
     this->ota_read_length_ = 0;
 #ifdef ARDUINO_ARCH_ESP8266
     Update.runAsync(true);
+    // NOLINTNEXTLINE(readability-static-accessed-through-instance)
     success = Update.begin((ESP.getFreeSketchSpace() - 0x1000) & 0xFFFFF000);
 #endif
 #ifdef ARDUINO_ARCH_ESP32

@@ -61,11 +61,14 @@ Checks: >-
   -misc-no-recursion,
   -misc-unused-parameters,
   -modernize-avoid-c-arrays,
+  -modernize-avoid-bind,
+  -modernize-concat-nested-namespaces,
   -modernize-return-braced-init-list,
   -modernize-use-auto,
   -modernize-use-default-member-init,
   -modernize-use-equals-default,
   -modernize-use-trailing-return-type,
+  -modernize-use-nodiscard,
   -mpi-*,
   -objc-*,
   -readability-braces-around-statements,
@@ -83,7 +86,6 @@ Checks: >-
   -readability-redundant-string-init,
   -readability-uppercase-literal-suffix,
   -readability-use-anyofallof,
-  -warnings-as-errors
 WarningsAsErrors: '*'
 AnalyzeTemporaryDtors: false
 FormatStyle:     google

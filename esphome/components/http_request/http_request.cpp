@@ -1,4 +1,5 @@
 #include "http_request.h"
+#include "esphome/core/macros.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
@@ -31,11 +32,15 @@ void HttpRequestComponent::send(const std::vector<HttpRequestResponseTrigger *> 
   begin_status = this->client_.begin(url);
 #endif
 #ifdef ARDUINO_ARCH_ESP8266
-#ifndef CLANG_TIDY
+#if ARDUINO_VERSION_CODE >= VERSION_CODE(2, 7, 0)
+  this->client_.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+#elif ARDUINO_VERSION_CODE >= VERSION_CODE(2, 6, 0)
   this->client_.setFollowRedirects(true);
-  this->client_.setRedirectLimit(3);
-  begin_status = this->client_.begin(*this->get_wifi_client_(), url);
 #endif
+#if ARDUINO_VERSION_CODE >= VERSION_CODE(2, 6, 0)
+  this->client_.setRedirectLimit(3);
+#endif
+  begin_status = this->client_.begin(*this->get_wifi_client_(), url);
 #endif
 
   if (!begin_status) {

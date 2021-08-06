@@ -131,7 +131,7 @@ void Application::reboot() {
   ESP_LOGI(TAG, "Forcing a reboot...");
   for (auto *comp : this->components_)
     comp->on_shutdown();
-  ESP.restart();
+  ESP.restart();  // NOLINT(readability-static-accessed-through-instance)
   // restart() doesn't always end execution
   while (true) {
     yield();
@@ -143,7 +143,7 @@ void Application::safe_reboot() {
     comp->on_safe_shutdown();
   for (auto *comp : this->components_)
     comp->on_shutdown();
-  ESP.restart();
+  ESP.restart();  // NOLINT(readability-static-accessed-through-instance)
   // restart() doesn't always end execution
   while (true) {
     yield();

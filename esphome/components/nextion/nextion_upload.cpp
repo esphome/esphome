@@ -260,6 +260,7 @@ void Nextion::upload_tft() {
     }
   }
 #else
+  // NOLINTNEXTLINE(readability-static-accessed-through-instance)
   uint32_t chunk_size = ESP.getFreeHeap() < 10240 ? 4096 : 8192;
 #endif
 
@@ -274,6 +275,7 @@ void Nextion::upload_tft() {
       }
     } else {
 #endif
+      // NOLINTNEXTLINE(readability-static-accessed-through-instance)
       ESP_LOGD(TAG, "Allocating buffer size %d, Heap size is %u", chunk_size, ESP.getFreeHeap());
       this->transfer_buffer_ = new (std::nothrow) uint8_t[chunk_size];
       if (this->transfer_buffer_ == nullptr) {  // Try a smaller size
@@ -292,6 +294,7 @@ void Nextion::upload_tft() {
     this->transfer_buffer_size_ = chunk_size;
   }
 
+  // NOLINTNEXTLINE(readability-static-accessed-through-instance)
   ESP_LOGD(TAG, "Updating tft from \"%s\" with a file size of %d using %zu chunksize, Heap Size %d",
            this->tft_url_.c_str(), this->content_length_, this->transfer_buffer_size_, ESP.getFreeHeap());
 
@@ -303,6 +306,7 @@ void Nextion::upload_tft() {
       this->upload_end_();
     }
     App.feed_wdt();
+    // NOLINTNEXTLINE(readability-static-accessed-through-instance)
     ESP_LOGD(TAG, "Heap Size %d, Bytes left %d", ESP.getFreeHeap(), this->content_length_);
   }
   ESP_LOGD(TAG, "Successfully updated Nextion!");
@@ -315,7 +319,7 @@ void Nextion::upload_end_() {
   this->soft_reset();
   delay(1500);  // NOLINT
   ESP_LOGD(TAG, "Restarting esphome");
-  ESP.restart();
+  ESP.restart();  // NOLINT(readability-static-accessed-through-instance)
 }
 
 #ifdef ARDUINO_ARCH_ESP8266
