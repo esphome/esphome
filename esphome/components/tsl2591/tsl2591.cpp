@@ -90,7 +90,9 @@ void TSL2591Component::set_calculated_lux_sensor(sensor::Sensor *calculated_lux_
   this->calculated_lux_sensor_ = calculated_lux_sensor;
 }
 
-void TSL2591Component::set_integration_time(TSL2591IntegrationTime integration_time) { this->tsl2591_.setTiming((tsl2591IntegrationTime_t) integration_time); }
+void TSL2591Component::set_integration_time(TSL2591IntegrationTime integration_time) {
+  this->tsl2591_.setTiming((tsl2591IntegrationTime_t) integration_time);
+}
 void TSL2591Component::set_gain(TSL2591Gain gain) { this->tsl2591_.setGain((tsl2591Gain_t) gain); }
 float TSL2591Component::get_setup_priority() const { return setup_priority::DATA; }
 

@@ -841,7 +841,7 @@ sensor:
     integration_time: 402ms
     gain: 16x
   - platform: tsl2591
-    name: 'TSL2591 Ambient Light'
+    id: this_little_light_of_mine
     address: 0x29
     update_interval: 15s
     integration_time: 600ms
