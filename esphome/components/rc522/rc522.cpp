@@ -28,7 +28,7 @@ std::string format_buffer(uint8_t *b, uint8_t len) {
 std::string format_uid(std::vector<uint8_t> &uid) {
   char buf[32];
   int offset = 0;
-  for (uint8_t i = 0; i < uid.size(); i++) {
+  for (size_t i = 0; i < uid.size(); i++) {
     const char *format = "%02X";
     if (i + 1 < uid.size())
       format = "%02X-";

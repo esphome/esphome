@@ -7,7 +7,6 @@ Checks: >-
   -boost-*,
   -bugprone-narrowing-conversions,
   -bugprone-signed-char-misuse,
-  -bugprone-too-small-loop-variable,
   -cert-dcl50-cpp,
   -cert-err58-cpp,
   -cert-oop57-cpp,

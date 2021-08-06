@@ -86,7 +86,7 @@ void Graph::draw(DisplayBuffer *buff, uint16_t x_offset, uint16_t y_offset, Colo
     // Look back in trace data to best-fit into local range
     float mx = NAN;
     float mn = NAN;
-    for (int16_t i = 0; i < this->width_; i++) {
+    for (uint32_t i = 0; i < this->width_; i++) {
       for (auto *trace : traces_) {
         float v = trace->get_tracedata()->get_value(i);
         if (!std::isnan(v)) {
@@ -158,14 +158,14 @@ void Graph::draw(DisplayBuffer *buff, uint16_t x_offset, uint16_t y_offset, Colo
   for (auto *trace : traces_) {
     Color c = trace->get_line_color();
     uint16_t thick = trace->get_line_thickness();
-    for (int16_t i = 0; i < this->width_; i++) {
+    for (uint32_t i = 0; i < this->width_; i++) {
       float v = (trace->get_tracedata()->get_value(i) - ymin) / yrange;
       if (!std::isnan(v) && (thick > 0)) {
         int16_t x = this->width_ - 1 - i;
         uint8_t b = (i % (thick * LineType::PATTERN_LENGTH)) / thick;
         if (((uint8_t) trace->get_line_type() & (1 << b)) == (1 << b)) {
           int16_t y = (int16_t) roundf((this->height_ - 1) * (1.0 - v)) - thick / 2;
-          for (int16_t t = 0; t < thick; t++) {
+          for (uint16_t t = 0; t < thick; t++) {
             buff->draw_pixel_at(x_offset + x, y_offset + y + t, c);
           }
         }
@@ -320,7 +320,7 @@ void Graph::draw_legend(display::DisplayBuffer *buff, uint16_t x_offset, uint16_
 
     if (legend_->lines_) {
       uint16_t thick = trace->get_line_thickness();
-      for (int16_t i = 0; i < legend_->x0_ * 4 / 3; i++) {
+      for (int i = 0; i < legend_->x0_ * 4 / 3; i++) {
         uint8_t b = (i % (thick * LineType::PATTERN_LENGTH)) / thick;
         if (((uint8_t) trace->get_line_type() & (1 << b)) == (1 << b)) {
           buff->vertical_line(x - legend_->x0_ * 2 / 3 + i, y + legend_->yl_ - thick / 2, thick,
