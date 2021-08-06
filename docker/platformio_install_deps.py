@@ -10,7 +10,7 @@ import sys
 config = configparser.ConfigParser()
 config.read(sys.argv[1])
 libs = []
-for line in config['common']['lib_deps'].splitlines():
+for line in config['env']['lib_deps'].splitlines():
     # Format: '1655@1.0.2  ; TinyGPSPlus (has name conflict)' (includes comment)
     m = re.search(r'([a-zA-Z0-9-_/]+@[0-9\.]+)', line)
     if m is None:
