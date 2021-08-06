@@ -29,6 +29,8 @@ def load_idedata():
 
 def clang_options(idedata):
     cmd = [
+        # target 32-bit arch (this prevents size mismatch errors on a 64-bit host)
+        '-m32',
         # disable built-in include directories from the host
         '-nostdinc',
         '-nostdinc++',
