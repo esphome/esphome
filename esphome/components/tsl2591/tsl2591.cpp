@@ -27,7 +27,7 @@ void TSL2591Component::dump_config() {
   tsl2591Gain_t raw_gain = this->tsl2591_.getGain();
   int gain = 0;
   std::string gain_word = "unknown";
-  switch (raw_gain) {
+  switch ((TSL2591Gain) raw_gain) {
     case TSL2591_GAIN_MULTIPLIER_LOW:
       gain = 1;
       gain_word = "low";
