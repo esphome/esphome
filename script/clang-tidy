@@ -27,13 +27,15 @@ def clang_options(idedata):
         # disable built-in include directories from the host
         '-nostdinc',
         '-nostdinc++',
+        # pretend we're an Xtensa compiler, which gates some features in the headers
+        '-D__XTENSA__',
         # allow to condition code on the presence of clang-tidy
         '-DCLANG_TIDY'
     ]
 
     # copy compiler flags, except those clang doesn't understand.
     cmd.extend(flag for flag in idedata['cxx_flags'].split(' ')
-               if flag not in ('-free', '-fipa-pta', '-mlongcalls', '-mtext-section-literals'))
+               if flag not in ('-free', '-fipa-pta', '-fstrict-volatile-bitfields', '-mlongcalls', '-mtext-section-literals'))
 
     # defines
     cmd.extend(f'-D{define}' for define in idedata['defines'])
