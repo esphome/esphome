@@ -36,7 +36,6 @@ Checks: >-
   -cppcoreguidelines-pro-type-union-access,
   -cppcoreguidelines-pro-type-vararg,
   -cppcoreguidelines-special-member-functions,
-  -fuchsia-default-arguments,
   -fuchsia-multiple-inheritance,
   -fuchsia-overloaded-operator,
   -fuchsia-statically-constructed-objects,
