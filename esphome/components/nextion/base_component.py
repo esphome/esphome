@@ -2,13 +2,12 @@ from string import ascii_letters, digits
 import esphome.config_validation as cv
 import esphome.codegen as cg
 from esphome.components import color
-
-from . import CONF_NEXTION_ID
-from . import Nextion
-
 from esphome.const import (
     CONF_VISIBLE,
 )
+from . import CONF_NEXTION_ID
+from . import Nextion
+
 CONF_VARIABLE_NAME = "variable_name"
 CONF_COMPONENT_NAME = "component_name"
 CONF_WAVE_CHANNEL_ID = "wave_channel_id"
@@ -28,7 +27,6 @@ CONF_BACKGROUND_PRESSED_COLOR = "background_pressed_color"
 CONF_FOREGROUND_COLOR = "foreground_color"
 CONF_FOREGROUND_PRESSED_COLOR = "foreground_pressed_color"
 CONF_FONT_ID = "font_id"
-CONF_VISIBLE = "visible"
 
 
 def NextionName(value):

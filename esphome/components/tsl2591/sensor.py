@@ -29,7 +29,7 @@ from esphome.const import (
     CONF_FULL_SPECTRUM,
     CONF_INFRARED,
     CONF_VISIBLE,
-    CONF_CALCULATED_LUX
+    CONF_CALCULATED_LUX,
     DEVICE_CLASS_ILLUMINANCE,
     STATE_CLASS_MEASUREMENT,
     ICON_LIGHTBULB,
@@ -38,7 +38,7 @@ from esphome.const import (
 
 # The Adafruit sensors library requires both i2c and spi in ESPhome configs, but
 # we don't use spi for this component.
-DEPENDENCIES = ["i2c","spi"]
+DEPENDENCIES = ["i2c", "spi"]
 
 tsl2591_ns = cg.esphome_ns.namespace("tsl2591")
 
@@ -58,18 +58,18 @@ INTEGRATION_TIMES = {
 # I couldn't work out how to use the Adafruit enum directly in codegen.
 TSL2591Gain = tsl2591_ns.enum("TSL2591Gain")
 GAINS = {
-    "1X":      TSL2591Gain.TSL2591_GAIN_MULTIPLIER_LOW,
-    "LOW":     TSL2591Gain.TSL2591_GAIN_MULTIPLIER_LOW,
+    "1X": TSL2591Gain.TSL2591_GAIN_MULTIPLIER_LOW,
+    "LOW": TSL2591Gain.TSL2591_GAIN_MULTIPLIER_LOW,
 
-    "25X":     TSL2591Gain.TSL2591_GAIN_MULTIPLIER_MED,
-    "MED":     TSL2591Gain.TSL2591_GAIN_MULTIPLIER_MED,
-    "MEDIUM":  TSL2591Gain.TSL2591_GAIN_MULTIPLIER_MED,
+    "25X": TSL2591Gain.TSL2591_GAIN_MULTIPLIER_MED,
+    "MED": TSL2591Gain.TSL2591_GAIN_MULTIPLIER_MED,
+    "MEDIUM": TSL2591Gain.TSL2591_GAIN_MULTIPLIER_MED,
 
-    "428X":    TSL2591Gain.TSL2591_GAIN_MULTIPLIER_HIGH,
-    "HIGH":    TSL2591Gain.TSL2591_GAIN_MULTIPLIER_HIGH,
+    "428X": TSL2591Gain.TSL2591_GAIN_MULTIPLIER_HIGH,
+    "HIGH": TSL2591Gain.TSL2591_GAIN_MULTIPLIER_HIGH,
 
-    "9876X":   TSL2591Gain.TSL2591_GAIN_MULTIPLIER_MAX,
-    "MAX":     TSL2591Gain.TSL2591_GAIN_MULTIPLIER_MAX,
+    "9876X": TSL2591Gain.TSL2591_GAIN_MULTIPLIER_MAX,
+    "MAX": TSL2591Gain.TSL2591_GAIN_MULTIPLIER_MAX,
     "MAXIMUM": TSL2591Gain.TSL2591_GAIN_MULTIPLIER_MAX,
 }
 
@@ -77,9 +77,11 @@ def validate_integration_time(value):
     value = cv.positive_time_period_milliseconds(value).total_milliseconds
     return cv.enum(INTEGRATION_TIMES, int=True)(value)
 
+
 TSL2591Component = tsl2591_ns.class_(
     "TSL2591Component", cg.PollingComponent, i2c.I2CDevice
 )
+
 
 CONFIG_SCHEMA = (
     cv.Schema(
@@ -120,6 +122,7 @@ CONFIG_SCHEMA = (
     .extend(cv.polling_component_schema("60s"))
     .extend(i2c.i2c_device_schema(0x29))
 )
+
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])

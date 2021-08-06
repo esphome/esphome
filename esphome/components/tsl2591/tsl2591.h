@@ -28,10 +28,10 @@ enum TSL2591IntegrationTime {
  * Higher values are better for low light situations, but can increase noise.
  */
 enum TSL2591Gain {
-  TSL2591_GAIN_MULTIPLIER_LOW  = TSL2591_GAIN_LOW,  // 1x
-  TSL2591_GAIN_MULTIPLIER_MED  = TSL2591_GAIN_MED,  // 25x
+  TSL2591_GAIN_MULTIPLIER_LOW = TSL2591_GAIN_LOW,  // 1x
+  TSL2591_GAIN_MULTIPLIER_MED = TSL2591_GAIN_MED,  // 25x
   TSL2591_GAIN_MULTIPLIER_HIGH = TSL2591_GAIN_HIGH, // 480x
-  TSL2591_GAIN_MULTIPLIER_MAX  = TSL2591_GAIN_MAX,  // 9876x
+  TSL2591_GAIN_MULTIPLIER_MAX = TSL2591_GAIN_MAX,  // 9876x
 };
 
 /** Enum listing sensor channels.
@@ -40,8 +40,8 @@ enum TSL2591Gain {
  * They identify the type of light to measure.
  */
 enum TSL2591SensorChannel {
-  TSL2591_SENSOR_CHANNEL_VISIBLE       = TSL2591_VISIBLE,
-  TSL2591_SENSOR_CHANNEL_INFRARED      = TSL2591_INFRARED,
+  TSL2591_SENSOR_CHANNEL_VISIBLE = TSL2591_VISIBLE,
+  TSL2591_SENSOR_CHANNEL_INFRARED = TSL2591_INFRARED,
   TSL2591_SENSOR_CHANNEL_FULL_SPECTRUM = TSL2591_FULLSPECTRUM,
 };
 
@@ -91,14 +91,14 @@ class TSL2591Component : public PollingComponent, public i2c::I2CDevice {
    * @param full_spectrum The ADC reading for the full spectrum sensor.
    * @param infrared The ADC reading for the infrared sensor.
    */
-  float getCalculatedLux(uint16_t full_spectrum, uint16_t infrared);
+  float get_calculated_lux(uint16_t full_spectrum, uint16_t infrared);
 
   /** Get the combined illuminance value.
    *
    * This is encoded into a 32 bit value. The high 16 bits are the value of the
    * infrared sensor. The low 16 bits are the sum of the combined sensor values.
    */
-  uint32_t getCombinedIlluminance();
+  uint32_t get_combined_illuminance();
 
   /** Get an individual sensor channel reading.
    *
@@ -110,7 +110,7 @@ class TSL2591Component : public PollingComponent, public i2c::I2CDevice {
    *
    * @param channel The sensor channel of interest.
    */  
-  uint16_t getIlluminance(TSL2591SensorChannel channel);
+  uint16_t get_illuminance(TSL2591SensorChannel channel);
 
   /** Get an individual sensor channel reading from combined illuminance.
    *
@@ -122,7 +122,7 @@ class TSL2591Component : public PollingComponent, public i2c::I2CDevice {
    * @param channel The sensor channel of interest.
    * @param combined_illuminance The previously obtained combined illuminance value.
    */  
-  uint16_t getIlluminance(TSL2591SensorChannel channel, uint32_t combined_illuminance);
+  uint16_t get_illuminance(TSL2591SensorChannel channel, uint32_t combined_illuminance);
 
   // These methods are normally called by ESPHome core at the right time, based
   // on config in YAML.
@@ -138,7 +138,7 @@ class TSL2591Component : public PollingComponent, public i2c::I2CDevice {
   void update() override;
   float get_setup_priority() const override;
 
-protected:
+ protected:
   Adafruit_TSL2591 tsl2591_ = Adafruit_TSL2591(2591);
   sensor::Sensor *full_spectrum_sensor_;
   sensor::Sensor *infrared_sensor_;
