@@ -505,8 +505,8 @@ HistoryData::HistoryData(int length) : length_(length) {
 HistoryData::~HistoryData() { delete (this->data_); }
 
 void HistoryData::take_sample(float data) {
-  unsigned long tm = millis();
-  unsigned long dt = tm - last_sample_;
+  uint64_t tm = millis();
+  uint32_t dt = tm - last_sample_;
   last_sample_ = tm;
 
   // Step data based on time

@@ -444,7 +444,7 @@ class HistoryData {
   float get_recent_min() const { return recent_min_; }
 
  protected:
-  unsigned long last_sample_;
+  uint64_t last_sample_;
   uint32_t period_{0};       /// in ms
   uint32_t update_time_{0};  /// in ms
   int length_;
