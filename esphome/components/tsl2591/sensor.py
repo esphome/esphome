@@ -152,4 +152,4 @@ async def to_code(config):
     cg.add(var.set_integration_time(config[CONF_INTEGRATION_TIME]))
     cg.add(var.set_gain(config[CONF_GAIN]))
     # https://platformio.org/lib/show/463/Adafruit%20TSL2591%20Library
-    cg.add_library("Adafruit TSL2591 Library", "^1.4.0")
+    cg.add_library("adafruit/Adafruit TSL2591 Library", "^1.4.0")
