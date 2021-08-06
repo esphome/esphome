@@ -40,8 +40,8 @@ GRAPH_BASIC_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_ID): cv.declare_id(Graph_),
         cv.Required(CONF_DURATION): cv.positive_time_period_seconds,
-        cv.Required(CONF_WIDTH): cv.positive_int,
-        cv.Required(CONF_HEIGHT): cv.positive_int,
+        cv.Required(CONF_WIDTH): cv.positive_not_null_int,
+        cv.Required(CONF_HEIGHT): cv.positive_not_null_int,
     }
 )
 
@@ -50,12 +50,12 @@ CONFIG_SCHEMA = GRAPH_BASIC_SCHEMA.extend(
         cv.Optional(CONF_SENSOR): cv.use_id(sensor.Sensor),
         cv.Optional(CONF_MIN_VALUE): cv.float_,
         cv.Optional(CONF_MAX_VALUE): cv.float_,
-        cv.Optional(CONF_MIN_RANGE): cv.float_,
-        cv.Optional(CONF_MAX_RANGE): cv.float_,
+        cv.Optional(CONF_MIN_RANGE): cv.float_range(min=0, min_included=False),
+        cv.Optional(CONF_MAX_RANGE): cv.float_range(min=0, min_included=False),
         cv.Optional(CONF_LINE_THICKNESS): cv.positive_int,
         cv.Optional(CONF_LINE_TYPE): cv.enum(LINE_TYPE, upper=True),
         cv.Optional(CONF_X_GRID): cv.positive_time_period_seconds,
-        cv.Optional(CONF_Y_GRID): cv.float_,
+        cv.Optional(CONF_Y_GRID): cv.float_range(min=0, min_included=False),
         cv.Optional(CONF_BORDER): cv.boolean,
         cv.Optional(CONF_AXES): cv.All(
             cv.ensure_list(
@@ -64,8 +64,12 @@ CONFIG_SCHEMA = GRAPH_BASIC_SCHEMA.extend(
                     cv.Required(CONF_SENSOR): cv.use_id(sensor.Sensor),
                     cv.Optional(CONF_MIN_VALUE): cv.float_,
                     cv.Optional(CONF_MAX_VALUE): cv.float_,
-                    cv.Optional(CONF_MIN_RANGE): cv.float_,
-                    cv.Optional(CONF_MAX_RANGE): cv.float_,
+                    cv.Optional(CONF_MIN_RANGE): cv.float_range(
+                        min=0, min_included=False
+                    ),
+                    cv.Optional(CONF_MAX_RANGE): cv.float_range(
+                        min=0, min_included=False
+                    ),
                     cv.Optional(CONF_LINE_THICKNESS): cv.positive_int,
                     cv.Optional(CONF_LINE_TYPE): cv.enum(LINE_TYPE, upper=True),
                 }

@@ -475,7 +475,7 @@ class Graph {
   int height_;    /// in pixels
   float min_value_{NAN};
   float max_value_{NAN};
-  float min_range_{NAN};
+  float min_range_{1.0};
   float max_range_{NAN};
   uint8_t line_thickness_{3};
   uint8_t line_type_{LINE_TYPE_SOLID};

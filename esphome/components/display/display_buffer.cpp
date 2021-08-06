@@ -552,18 +552,6 @@ void Graph::draw(DisplayBuffer *buff, uint16_t x_offset, uint16_t y_offset, Colo
     ymax = this->max_value_;
 
   float yrange = ymax - ymin;
-  if (isnan(yrange) || (yrange == 0)) {
-    ESP_LOGV(TAG, "Graph, forcing yrange to 1");
-    yrange = 1;
-  }
-  if (yrange < this->min_range_) {
-    // Adjust range to keep last value in centre
-    float s = this->data_->get_value(0);
-    ymin = s - (yrange / 2.0);
-    ymax = s + (yrange / 2.0);
-    yrange = this->min_range_;
-    ESP_LOGV(TAG, "Graphing forcing yrange to min_range");
-  }
   if (yrange > this->max_range_) {
     // Look back in data to fit into local range
     float mx = NAN;
@@ -588,23 +576,44 @@ void Graph::draw(DisplayBuffer *buff, uint16_t x_offset, uint16_t y_offset, Colo
     }
     ESP_LOGV(TAG, "Graphing at max_range. Using local min %f, max %f", mn, mx);
   }
+
+  float y_per_div = this->min_range_;
+  if (!isnan(this->gridspacing_y_)) {
+    y_per_div = this->gridspacing_y_;
+  }
+  // Restrict drawing too many gridlines
+  if (yrange > 10 * y_per_div) {
+    while (yrange > 10 * y_per_div) {
+      y_per_div *= 2;
+    }
+    ESP_LOGW(TAG, "Graphing reducing y-scale to prevent too many gridlines");
+  }
+
+  // Adjust limits to nice y_per_div boundaries
+  int yn = int(ymin / y_per_div);
+  int ym = int(ymax / y_per_div) + int(1 * (fmodf(ymax, y_per_div) != 0));
+  ymin = yn * y_per_div;
+  ymax = ym * y_per_div;
+  yrange = ymax - ymin;
+
   /// Draw grid
   if (!isnan(this->gridspacing_y_)) {
-    float y_per_div = this->gridspacing_y_;
-    int yn = int(ymin / y_per_div);
-    int ym = int(ymax / y_per_div) + int(1 * (fmodf(ymax, y_per_div) != 0));
     for (int y = yn; y <= ym; y++) {
       int16_t py = (int16_t) roundf((this->height_ - 1) * (1.0 - (float) (y - yn) / (ym - yn)));
       for (int x = 0; x < this->width_; x += 2) {
         buff->draw_pixel_at(x_offset + x, y_offset + py);
       }
     }
-    ymin = yn * y_per_div;
-    ymax = ym * y_per_div;
-    yrange = ymax - ymin;
   }
   if (!isnan(this->gridspacing_x_) && (this->gridspacing_x_ > 0)) {
     int n = this->duration_ / this->gridspacing_x_;
+    // Restrict drawing too many gridlines
+    if (n > 20) {
+      while (n > 20) {
+        n /= 2;
+      }
+      ESP_LOGW(TAG, "Graphing reducing x-scale to prevent too many gridlines");
+    }
     for (int i = 0; i <= n; i++) {
       for (int y = 0; y < this->height_; y += 2) {
         buff->draw_pixel_at(x_offset + i * (this->width_ - 1) / n, y_offset + y);
