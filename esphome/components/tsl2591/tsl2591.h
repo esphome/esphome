@@ -52,9 +52,9 @@ enum TSL2591SensorChannel {
 /// and the combined value "full spectrum" is reported as a third sensor
 /// as a convenience. It is merely the sum of the first two.
 ///
-/// This is a fairly thin ESPhome compatibility wrapper around the
+/// This is a fairly thin ESPHome compatibility wrapper around the
 /// Adafruit TSL2591 library. Adafruit uses the term "luminosity", but
-/// ESPhome uses the term "illuminance", as does the TLS2591 datasheet.
+/// ESPHome uses the term "illuminance", as does the TLS2591 datasheet.
 class TSL2591Component : public PollingComponent, public i2c::I2CDevice {
  public:
   /** Set the time that sensor values should be accumulated for.
@@ -87,6 +87,13 @@ class TSL2591Component : public PollingComponent, public i2c::I2CDevice {
    */
   void set_gain(TSL2591Gain gain);
 
+  /** Calculates and returns a lux value based on the ADC readings.
+   *
+   * @param full_spectrum The ADC reading for the full spectrum sensor.
+   * @param infrared The ADC reading for the infrared sensor.
+   */
+  float getCalculatedLux(uint16_t full_spectrum, uint16_t infrared);
+
   /** Get the combined illuminance value.
    *
    * This is encoded into a 32 bit value. The high 16 bits are the value of the
@@ -118,14 +125,15 @@ class TSL2591Component : public PollingComponent, public i2c::I2CDevice {
    */  
   uint16_t getIlluminance(TSL2591SensorChannel channel, uint32_t combined_illuminance);
 
-  // These methods are normally called by ESPhome core at the right time, based
+  // These methods are normally called by ESPHome core at the right time, based
   // on config in YAML.
+  void set_full_spectrum_sensor(sensor::Sensor *full_spectrum_sensor);
   void set_infrared_sensor(sensor::Sensor *infrared_sensor);
   void set_visible_sensor(sensor::Sensor *visible_sensor);
-  void set_full_spectrum_sensor(sensor::Sensor *full_spectrum_sensor);
+  void set_calculated_lux_sensor(sensor::Sensor *calculated_lux_sensor);
 
   // ========== INTERNAL METHODS ==========
-  // (In most use cases you won't need these. They're for ESPhome integration use.)
+  // (In most use cases you won't need these. They're for ESPHome integration use.)
   void setup() override;
   void dump_config() override;
   void update() override;
@@ -133,9 +141,10 @@ class TSL2591Component : public PollingComponent, public i2c::I2CDevice {
 
 protected:
   Adafruit_TSL2591 tsl2591_ = Adafruit_TSL2591(2591);
+  sensor::Sensor *full_spectrum_sensor_;
   sensor::Sensor *infrared_sensor_;
   sensor::Sensor *visible_sensor_;
-  sensor::Sensor *full_spectrum_sensor_;
+  sensor::Sensor *calculated_lux_sensor_;
 };
 
 }  // namespace tsl2591

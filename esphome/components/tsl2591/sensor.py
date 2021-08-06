@@ -1,3 +1,24 @@
+# Credit where due....
+# I put a certain amount of work into this, but a lot of ESPHome integration is
+# "look for other examples and see what they do" programming-by-example. Here are
+# things that helped me along with this:
+#
+# - I mined the existing tsl2561 integration for basic structural framing for both
+#   the code and documentation.
+#
+# - I looked at the existing bme280 integration as an example of a single device
+#   with multiple sensors.
+#
+# - Comments and code in this thread got me going with the Adafruit TSL2591 library
+#   and prompted my desired to have tsl2591 as a standard component instead of a
+#   custom/external component.
+#
+# - And, of course, the handy and available Adafruit TSL2591 library was very
+#   helpful in understanding what the device is actually talking about.
+#
+# Here is the project that started me down the TSL2591 device trail in the first
+# place: https://hackaday.io/project/176690-the-water-watcher
+
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import i2c, sensor
@@ -5,14 +26,20 @@ from esphome.const import (
     CONF_GAIN,
     CONF_ID,
     CONF_INTEGRATION_TIME,
+    CONF_FULL_SPECTRUM,
     CONF_INFRARED,
     CONF_VISIBLE,
-    CONF_FULL_SPECTRUM,
+    CONF_CALCULATED_LUX
     DEVICE_CLASS_ILLUMINANCE,
     STATE_CLASS_MEASUREMENT,
     ICON_LIGHTBULB,
     UNIT_LUX,
 )
+
+#CONF_FULL_SPECTRUM = "full_spectrum"
+#CONF_INFRARED = "infrared"
+#CONF_VISIBLE = "visible"
+#CONF_CALCULATED_LUX = "calculated_lux"
 
 CODEOWNERS = ["@wjcarpenter"]
 
@@ -65,10 +92,9 @@ CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(TSL2591Component),
-            cv.Optional("infrared"): sensor.sensor_schema(
+            cv.Optional(CONF_INFRARED): sensor.sensor_schema(
                 UNIT_LUX,
                 ICON_LIGHTBULB,
-                # Values are reported as integers, so no point in reporting more precision.
                 0,
                 DEVICE_CLASS_ILLUMINANCE,
                 STATE_CLASS_MEASUREMENT
@@ -87,6 +113,13 @@ CONFIG_SCHEMA = (
                 DEVICE_CLASS_ILLUMINANCE,
                 STATE_CLASS_MEASUREMENT,
             ),
+            cv.Optional(CONF_CALCULATED_LUX): sensor.sensor_schema(
+                UNIT_LUX,
+                ICON_LIGHTBULB,
+                4,
+                DEVICE_CLASS_ILLUMINANCE,
+                STATE_CLASS_MEASUREMENT,
+            ),
             cv.Optional(CONF_INTEGRATION_TIME, default="100ms"): validate_integration_time,
             cv.Optional(CONF_GAIN, default="MEDIUM"): cv.enum(GAINS, upper=True),
         }
@@ -100,20 +133,25 @@ async def to_code(config):
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
 
-    if CONF_VISIBLE in config:
-        conf = config[CONF_VISIBLE]
+    if CONF_FULL_SPECTRUM in config:
+        conf = config[CONF_FULL_SPECTRUM]
         sens = await sensor.new_sensor(conf)
-        cg.add(var.set_visible_sensor(sens))
+        cg.add(var.set_full_spectrum_sensor(sens))
 
     if CONF_INFRARED in config:
         conf = config[CONF_INFRARED]
         sens = await sensor.new_sensor(conf)
         cg.add(var.set_infrared_sensor(sens))
 
-    if CONF_FULL_SPECTRUM in config:
-        conf = config[CONF_FULL_SPECTRUM]
+    if CONF_VISIBLE in config:
+        conf = config[CONF_VISIBLE]
         sens = await sensor.new_sensor(conf)
-        cg.add(var.set_full_spectrum_sensor(sens))
+        cg.add(var.set_visible_sensor(sens))
+
+    if CONF_CALCULATED_LUX in config:
+        conf = config[CONF_CALCULATED_LUX]
+        sens = await sensor.new_sensor(conf)
+        cg.add(var.set_calculated_lux_sensor(sens))
 
     cg.add(var.set_integration_time(config[CONF_INTEGRATION_TIME]))
     cg.add(var.set_gain(config[CONF_GAIN]))
