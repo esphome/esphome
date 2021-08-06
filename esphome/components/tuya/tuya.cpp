@@ -339,8 +339,6 @@ void Tuya::send_raw_command_(TuyaCommand command) {
       this->expected_response_ = TuyaCommandType::CONF_QUERY;
       break;
     case TuyaCommandType::DATAPOINT_DELIVER:
-      this->expected_response_ = TuyaCommandType::DATAPOINT_REPORT;
-      break;
     case TuyaCommandType::DATAPOINT_QUERY:
       this->expected_response_ = TuyaCommandType::DATAPOINT_REPORT;
       break;

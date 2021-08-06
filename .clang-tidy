@@ -5,8 +5,6 @@ Checks: >-
   -altera-*,
   -android-*,
   -boost-*,
-  -bugprone-branch-clone,
-  -bugprone-easily-swappable-parameters,
   -bugprone-narrowing-conversions,
   -bugprone-signed-char-misuse,
   -bugprone-too-small-loop-variable,

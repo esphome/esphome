@@ -103,13 +103,7 @@ void AnovaCodec::decode(const uint8_t *data, uint16_t length) {
       }
       break;
     }
-    case READ_TARGET_TEMPERATURE: {
-      this->target_temp_ = parse_number<float>(str_until(buf, '\r')).value_or(0.0f);
-      if (this->fahrenheit_)
-        this->target_temp_ = ftoc(this->target_temp_);
-      this->has_target_temp_ = true;
-      break;
-    }
+    case READ_TARGET_TEMPERATURE:
     case SET_TARGET_TEMPERATURE: {
       this->target_temp_ = parse_number<float>(str_until(buf, '\r')).value_or(0.0f);
       if (this->fahrenheit_)

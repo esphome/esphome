@@ -413,8 +413,6 @@ void Pipsolar::loop() {
         this->state_ = STATE_IDLE;
         break;
       case POLLING_QT:
-        this->state_ = STATE_IDLE;
-        break;
       case POLLING_QMN:
         this->state_ = STATE_IDLE;
         break;

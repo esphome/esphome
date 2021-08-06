@@ -209,9 +209,7 @@ void IRAM_ATTR ESP8266SoftwareSerial::gpio_intr(ESP8266SoftwareSerial *arg) {
 
   /* If parity is enabled, just read it and ignore it. */
   /* TODO: Should we check parity? Or is it too slow for nothing added..*/
-  if (arg->parity_ == UART_CONFIG_PARITY_EVEN)
-    arg->read_bit_(&wait, start);
-  else if (arg->parity_ == UART_CONFIG_PARITY_ODD)
+  if (arg->parity_ == UART_CONFIG_PARITY_EVEN || arg->parity_ == UART_CONFIG_PARITY_ODD)
     arg->read_bit_(&wait, start);
 
   // Stop bit

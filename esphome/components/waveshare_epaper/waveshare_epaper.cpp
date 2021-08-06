@@ -360,15 +360,18 @@ void HOT WaveshareEPaperTypeA::display() {
 
   // COMMAND DISPLAY UPDATE CONTROL 2
   this->command(0x22);
-  if (this->model_ == WAVESHARE_EPAPER_2_9_IN_V2 || this->model_ == WAVESHARE_EPAPER_1_54_IN_V2) {
-    this->data(full_update ? 0xF7 : 0xFF);
-  } else if (this->model_ == TTGO_EPAPER_2_13_IN_B73) {
-    this->data(0xC7);
-  } else if (this->model_ == TTGO_EPAPER_2_13_IN_B74) {
-    // this->data(0xC7);
-    this->data(full_update ? 0xF7 : 0xFF);
-  } else {
-    this->data(0xC4);
+  switch (this->model_) {
+    case WAVESHARE_EPAPER_2_9_IN_V2:
+    case WAVESHARE_EPAPER_1_54_IN_V2:
+    case TTGO_EPAPER_2_13_IN_B74:
+      this->data(full_update ? 0xF7 : 0xFF);
+      break;
+    case TTGO_EPAPER_2_13_IN_B73:
+      this->data(0xC7);
+      break;
+    default:
+      this->data(0xC4);
+      break;
   }
 
   // COMMAND MASTER ACTIVATION
@@ -381,20 +384,14 @@ void HOT WaveshareEPaperTypeA::display() {
 int WaveshareEPaperTypeA::get_width_internal() {
   switch (this->model_) {
     case WAVESHARE_EPAPER_1_54_IN:
-      return 200;
     case WAVESHARE_EPAPER_1_54_IN_V2:
       return 200;
     case WAVESHARE_EPAPER_2_13_IN:
-      return 128;
     case TTGO_EPAPER_2_13_IN:
-      return 128;
     case TTGO_EPAPER_2_13_IN_B73:
     case TTGO_EPAPER_2_13_IN_B74:
-      return 128;
     case TTGO_EPAPER_2_13_IN_B1:
-      return 128;
     case WAVESHARE_EPAPER_2_9_IN:
-      return 128;
     case WAVESHARE_EPAPER_2_9_IN_V2:
       return 128;
   }
@@ -403,20 +400,15 @@ int WaveshareEPaperTypeA::get_width_internal() {
 int WaveshareEPaperTypeA::get_height_internal() {
   switch (this->model_) {
     case WAVESHARE_EPAPER_1_54_IN:
-      return 200;
     case WAVESHARE_EPAPER_1_54_IN_V2:
       return 200;
     case WAVESHARE_EPAPER_2_13_IN:
-      return 250;
     case TTGO_EPAPER_2_13_IN:
-      return 250;
     case TTGO_EPAPER_2_13_IN_B73:
     case TTGO_EPAPER_2_13_IN_B74:
-      return 250;
     case TTGO_EPAPER_2_13_IN_B1:
       return 250;
     case WAVESHARE_EPAPER_2_9_IN:
-      return 296;
     case WAVESHARE_EPAPER_2_9_IN_V2:
       return 296;
   }
