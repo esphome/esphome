@@ -32,7 +32,7 @@ from esphome.const import (
     CONF_CALCULATED_LUX,
     DEVICE_CLASS_ILLUMINANCE,
     STATE_CLASS_MEASUREMENT,
-    ICON_LIGHTBULB,
+    ICON_BRIGHTNESS_6,
     UNIT_LUX,
 )
 
@@ -87,13 +87,14 @@ CONFIG_SCHEMA = (
             cv.GenerateID(): cv.declare_id(TSL2591Component),
             cv.Optional(CONF_INFRARED): sensor.sensor_schema(
                 UNIT_LUX,
-                ICON_LIGHTBULB,
+                ICON_BRIGHTNESS_6,
                 0,
                 DEVICE_CLASS_ILLUMINANCE,
                 STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_VISIBLE): sensor.sensor_schema(
                 UNIT_LUX,
+                ICON_BRIGHTNESS_6,
                 ICON_LIGHTBULB,
                 0,
                 DEVICE_CLASS_ILLUMINANCE,
@@ -101,6 +102,7 @@ CONFIG_SCHEMA = (
             ),
             cv.Optional(CONF_FULL_SPECTRUM): sensor.sensor_schema(
                 UNIT_LUX,
+                ICON_BRIGHTNESS_6,
                 ICON_LIGHTBULB,
                 0,
                 DEVICE_CLASS_ILLUMINANCE,
@@ -108,6 +110,7 @@ CONFIG_SCHEMA = (
             ),
             cv.Optional(CONF_CALCULATED_LUX): sensor.sensor_schema(
                 UNIT_LUX,
+                ICON_BRIGHTNESS_6,
                 ICON_LIGHTBULB,
                 4,
                 DEVICE_CLASS_ILLUMINANCE,
