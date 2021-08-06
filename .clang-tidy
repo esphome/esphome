@@ -22,7 +22,6 @@ Checks: >-
   -clang-diagnostic-unused-parameter,
   -concurrency-*,
   -cppcoreguidelines-avoid-c-arrays,
-  -cppcoreguidelines-avoid-goto,
   -cppcoreguidelines-avoid-magic-numbers,
   -cppcoreguidelines-init-variables,
   -cppcoreguidelines-macro-usage,
