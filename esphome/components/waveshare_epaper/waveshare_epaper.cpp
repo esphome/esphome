@@ -170,7 +170,7 @@ void WaveshareEPaperTypeA::initialize() {
     delay(10);
     this->wait_until_idle_();
 
-    this->command(0x12); // SWRESET
+    this->command(0x12);  // SWRESET
     this->wait_until_idle_();
   }
 
