@@ -198,7 +198,7 @@ class TSL2591Component : public PollingComponent, public i2c::I2CDevice {
   TSL2591IntegrationTime integration_time_;
   TSL2591Gain gain_;
   bool power_save_mode_enabled_;
-  void disable_internal_(void);
+  void disable_internal_();
 };
 
 }  // namespace tsl2591
