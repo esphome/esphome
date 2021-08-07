@@ -22,19 +22,19 @@ static const char *const TAG = "tsl2591.sensor";
 #define TSL2591_REGISTER_CHAN1_LOW (0x16)
 #define TSL2591_REGISTER_CHAN1_HIGH (0x17)
 
-void TSL2591Component::enable(void) {
+void TSL2591Component::enable() {
   // Enable the device by setting the control bit to 0x01. Also turn on ADCs.
   this->write_byte(TSL2591_COMMAND_BIT | TSL2591_REGISTER_ENABLE, TSL2591_ENABLE_POWERON | TSL2591_ENABLE_AEN);
 }
 
-void TSL2591Component::disable(void) {
+void TSL2591Component::disable() {
   if (this->power_save_mode_enabled_) {
     // Disable the device by setting the control bit to 0x00
     this->write_byte(TSL2591_COMMAND_BIT | TSL2591_REGISTER_ENABLE, TSL2591_ENABLE_POWEROFF);
   }
 }
 
-void TSL2591Component::disable_internal(void) {
+void TSL2591Component::disable_internal_() {
   if (this->power_save_mode_enabled_) {
     this->disable();
   }
@@ -47,7 +47,7 @@ void TSL2591Component::setup() {
     ESP_LOGD("ERROR", "Could not find a TSL2591 Sensor. Did you configure I2C with the correct address?");
     this->mark_failed();
   } else {
-    disable_internal();
+    this->disable_internal_();
   }
 }
 
@@ -135,17 +135,17 @@ void TSL2591Component::set_calculated_lux_sensor(sensor::Sensor *calculated_lux_
 }
 
 void TSL2591Component::set_integration_time(TSL2591IntegrationTime integration_time) {
-  enable();
+  this->enable();
   this->integration_time_ = integration_time;
   this->write_byte(TSL2591_COMMAND_BIT | TSL2591_REGISTER_CONTROL, this->integration_time_ | this->gain_);
-  disable_internal();
+  disable_internal_();
 }
 
 void TSL2591Component::set_gain(TSL2591Gain gain) {
-  enable();
+  this->enable();
   this->gain_ = gain;
   this->write_byte(TSL2591_COMMAND_BIT | TSL2591_REGISTER_CONTROL, this->integration_time_ | this->gain_);
-  disable_internal();
+  this->disable_internal_();
 }
 
 void TSL2591Component::set_power_save_mode(bool enable) { this->power_save_mode_enabled_ = enable; }
@@ -181,10 +181,10 @@ uint32_t TSL2591Component::get_combined_illuminance() {
     // still not valid after a sutiable delay
     // we don't mark the device as failed since it might come around in the future (probably not :-()
     ESP_LOGE(TAG, "tsl2591 device '%s' did not return valid readings.", this->name_);
-    this->disable_internal();
+    this->disable_internal_();
     return 0;
   }
-  
+
   // CHAN0 must be read before CHAN1
   // See: https://forums.adafruit.com/viewtopic.php?f=19&t=124176
   // Also, low byte must be read before high byte..
@@ -201,7 +201,7 @@ uint32_t TSL2591Component::get_combined_illuminance() {
   ch1_16 = (ch1high << 8) | ch1low;
   x32 = (ch1_16 << 16) | ch0_16;
 
-  this->disable_internal();
+  this->disable_internal_();
   return x32;
 }
 uint16_t TSL2591Component::get_illuminance(TSL2591SensorChannel channel) {
@@ -285,7 +285,7 @@ float TSL2591Component::get_calculated_lux(uint16_t full_spectrum, uint16_t infr
     // of ranges from the datasheet. We don't know why the other libraries
     // used the values they did for HIGH and MAX.
     // If cpl or full_spectrum are 0, this will return NaN due to divide by 0.
-#define TSL2591_LUX_DGF (408.0F) // Lux device factor * glass attenuation factor
+#define TSL2591_LUX_DGF (408.0F)  // Lux device factor * glass attenuation factor
   float cpl = (atime * again) / TSL2591_LUX_DGF;
   float lux = (((float) full_spectrum - (float) infrared)) * (1.0F - ((float) infrared / (float) full_spectrum)) / cpl;
   return lux;

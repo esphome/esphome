@@ -107,7 +107,7 @@ class TSL2591Component : public PollingComponent, public i2c::I2CDevice {
   /** Sets the name for this instance of the device.
    *
    * @param name The user-friendly name.
-   */ 
+   */
   void set_name(const char *name);
 
   /** Calculates and returns a lux value based on the ADC readings.
@@ -166,14 +166,14 @@ class TSL2591Component : public PollingComponent, public i2c::I2CDevice {
    * You only need to call this if you have disabled the device.
    * The device starts enabled in ESPHome.
    */
-  void enable(void);
+  void enable();
   /** Powers off the TSL2591 device.
    *
    * You can call this from an ESPHome script if you are explicitly
    * controlling TSL2591 power consumption.
    * The device starts enabled in ESPHome.
    */
-  void disable(void);
+  void disable();
 
   // These methods are normally called by ESPHome core at the right time, based
   // on config in YAML.
@@ -198,7 +198,7 @@ class TSL2591Component : public PollingComponent, public i2c::I2CDevice {
   TSL2591IntegrationTime integration_time_;
   TSL2591Gain gain_;
   bool power_save_mode_enabled_;
-  void disable_internal(void);
+  void disable_internal_(void);
 };
 
 }  // namespace tsl2591
