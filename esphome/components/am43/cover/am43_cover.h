@@ -25,11 +25,13 @@ class Am43Component : public cover::Cover, public esphome::ble_client::BLEClient
   float get_setup_priority() const override { return setup_priority::DATA; }
   cover::CoverTraits get_traits() override;
   void set_pin(uint16_t pin) { this->pin_ = pin; }
+  void set_invert_position(bool invert_position) { this->invert_position_ = invert_position; }
 
  protected:
   void control(const cover::CoverCall &call) override;
   uint16_t char_handle_;
   uint16_t pin_;
+  bool invert_position_;
   Am43Encoder *encoder_;
   Am43Decoder *decoder_;
   bool logged_in_;
