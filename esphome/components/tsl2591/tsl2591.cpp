@@ -137,14 +137,14 @@ void TSL2591Component::set_calculated_lux_sensor(sensor::Sensor *calculated_lux_
 void TSL2591Component::set_integration_time(TSL2591IntegrationTime integration_time) {
   this->enable();
   this->integration_time_ = integration_time;
-  this->write_byte(TSL2591_COMMAND_BIT | TSL2591_REGISTER_CONTROL, this->integration_time_ | this->gain_);
+  this->write_byte(TSL2591_COMMAND_BIT | TSL2591_REGISTER_CONTROL, this->integration_time_ | this->gain_);  // NOLINT
   disable_internal_();
 }
 
 void TSL2591Component::set_gain(TSL2591Gain gain) {
   this->enable();
   this->gain_ = gain;
-  this->write_byte(TSL2591_COMMAND_BIT | TSL2591_REGISTER_CONTROL, this->integration_time_ | this->gain_);
+  this->write_byte(TSL2591_COMMAND_BIT | TSL2591_REGISTER_CONTROL, this->integration_time_ | this->gain_);  // NOLINT
   this->disable_internal_();
 }
 
