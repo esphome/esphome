@@ -7,10 +7,10 @@ namespace tsl2591 {
 static const char *const TAG = "tsl2591.sensor";
 
 // Various constants used in TSL2591 register manipulation
-#define TSL2591_COMMAND_BIT (0xA0)  // 1010 0000: bits 7 and 5 for 'command normal'
-#define TSL2591_ENABLE_POWERON (0x01)  // Flag for ENABLE register, to enable
+#define TSL2591_COMMAND_BIT (0xA0)      // 1010 0000: bits 7 and 5 for 'command normal'
+#define TSL2591_ENABLE_POWERON (0x01)   // Flag for ENABLE register, to enable
 #define TSL2591_ENABLE_POWEROFF (0x00)  // Flag for ENABLE register, to disable
-#define TSL2591_ENABLE_AEN (0x02) // Flag for ENABLE register, to turn on ADCs
+#define TSL2591_ENABLE_AEN (0x02)       // Flag for ENABLE register, to turn on ADCs
 
 // TSL2591 registers from the datasheet. We only define what we use.
 #define TSL2591_REGISTER_ENABLE (0x00)
@@ -24,8 +24,7 @@ static const char *const TAG = "tsl2591.sensor";
 
 void TSL2591Component::enable(void) {
   // Enable the device by setting the control bit to 0x01. Also turn on ADCs.
-  this->write_byte(TSL2591_COMMAND_BIT | TSL2591_REGISTER_ENABLE,
-         TSL2591_ENABLE_POWERON | TSL2591_ENABLE_AEN);
+  this->write_byte(TSL2591_COMMAND_BIT | TSL2591_REGISTER_ENABLE, TSL2591_ENABLE_POWERON | TSL2591_ENABLE_AEN);
 }
 
 void TSL2591Component::disable(void) {
@@ -103,8 +102,8 @@ void TSL2591Component::update() {
     uint16_t infrared = this->get_illuminance(TSL2591_SENSOR_CHANNEL_INFRARED, combined);
     uint16_t full = this->get_illuminance(TSL2591_SENSOR_CHANNEL_FULL_SPECTRUM, combined);
     float lux = this->get_calculated_lux(full, infrared);
-    ESP_LOGD(TAG, "Got illuminance: combined 0x%X, full %d, IR %d, vis %d. Calc lux: %f",
-	     combined, full, infrared, visible, lux);
+    ESP_LOGD(TAG, "Got illuminance: combined 0x%X, full %d, IR %d, vis %d. Calc lux: %f", combined, full, infrared,
+             visible, lux);
     if (this->full_spectrum_sensor_ != nullptr) {
       this->full_spectrum_sensor_->publish_state(full);
     }
@@ -149,13 +148,9 @@ void TSL2591Component::set_gain(TSL2591Gain gain) {
   disable_internal();
 }
 
-void TSL2591Component::set_power_save_mode(bool enable) {
-  this->power_save_mode_enabled_ = enable;
-}
+void TSL2591Component::set_power_save_mode(bool enable) { this->power_save_mode_enabled_ = enable; }
 
-void TSL2591Component::set_name(const char *name) {
-  this->name_ = name;
-}
+void TSL2591Component::set_name(const char *name) { this->name_ = name; }
 
 float TSL2591Component::get_setup_priority() const { return setup_priority::DATA; }
 
@@ -173,13 +168,13 @@ uint32_t TSL2591Component::get_combined_illuminance() {
   // We'll do mini-delays and break out as soon as the ADC is good.
   bool avalid;
   const uint8_t mini_delay = 50;
-  for (uint16_t d = 0; d < 620; d+=mini_delay) {
+  for (uint16_t d = 0; d < 620; d += mini_delay) {
     avalid = this->is_adc_valid();
     if (avalid) {
       break;
     }
     // we only log this if we need any delay, since normally we don't
-    ESP_LOGD(TAG, "   after %3d ms: ADC valid? %s", d, avalid?"true":"false");
+    ESP_LOGD(TAG, "   after %3d ms: ADC valid? %s", d, avalid ? "true" : "false");
     delay(mini_delay);
   }
   if (!avalid) {
@@ -200,10 +195,10 @@ uint32_t TSL2591Component::get_combined_illuminance() {
   uint16_t ch1_16;
   this->read_byte(TSL2591_COMMAND_BIT | TSL2591_REGISTER_CHAN0_LOW, &ch0low);
   this->read_byte(TSL2591_COMMAND_BIT | TSL2591_REGISTER_CHAN0_HIGH, &ch0high);
-  ch0_16 = (ch0high<<8) | ch0low;
+  ch0_16 = (ch0high << 8) | ch0low;
   this->read_byte(TSL2591_COMMAND_BIT | TSL2591_REGISTER_CHAN1_LOW, &ch1low);
   this->read_byte(TSL2591_COMMAND_BIT | TSL2591_REGISTER_CHAN1_HIGH, &ch1high);
-  ch1_16 = (ch1high<<8) | ch1low;
+  ch1_16 = (ch1high << 8) | ch1low;
   x32 = (ch1_16 << 16) | ch0_16;
 
   this->disable_internal();
@@ -280,19 +275,19 @@ float TSL2591Component::get_calculated_lux(uint16_t full_spectrum, uint16_t infr
       break;
   }
 
-  // This lux equation is copied from the Adafruit TSL2591 v1.4.0.
-  // See: https://github.com/adafruit/Adafruit_TSL2591_Library/issues/14
-  // and that library code.
-  // They said:
-  //   Note: This algorithm is based on preliminary coefficients
-  //   provided by AMS and may need to be updated in the future
-  // However, we use gain multipliers that are more in line with the midpoints
-  // of ranges from the datasheet. We don't know why the other libraries
-  // used the values they did for HIGH and MAX.
-  // If cpl or full_spectrum are 0, this will return NaN due to divide by 0.
+    // This lux equation is copied from the Adafruit TSL2591 v1.4.0.
+    // See: https://github.com/adafruit/Adafruit_TSL2591_Library/issues/14
+    // and that library code.
+    // They said:
+    //   Note: This algorithm is based on preliminary coefficients
+    //   provided by AMS and may need to be updated in the future
+    // However, we use gain multipliers that are more in line with the midpoints
+    // of ranges from the datasheet. We don't know why the other libraries
+    // used the values they did for HIGH and MAX.
+    // If cpl or full_spectrum are 0, this will return NaN due to divide by 0.
 #define TSL2591_LUX_DGF (408.0F) // Lux device factor * glass attenuation factor
   float cpl = (atime * again) / TSL2591_LUX_DGF;
-  float lux = (((float)full_spectrum - (float)infrared)) * (1.0F - ((float)infrared / (float)full_spectrum)) / cpl;
+  float lux = (((float) full_spectrum - (float) infrared)) * (1.0F - ((float) infrared / (float) full_spectrum)) / cpl;
   return lux;
 }
 

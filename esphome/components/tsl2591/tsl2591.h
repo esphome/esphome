@@ -96,7 +96,7 @@ class TSL2591Component : public PollingComponent, public i2c::I2CDevice {
    * integration cycle before a reliable reading is available.
    * This happens during ESPHome's update loop, so waiting slows
    * down the entire ESP device. You should only enable this if
-   * you need to minimize power consumption and you can tolerate 
+   * you need to minimize power consumption and you can tolerate
    * that delay. Otherwise, keep the default of disabling
    * power save mode.
    *
@@ -156,7 +156,7 @@ class TSL2591Component : public PollingComponent, public i2c::I2CDevice {
    * before the ADC values are valid, you may cause a general delay in
    * the ESPHome update loop.
    *
-   * It should take no more than the configured integration time for 
+   * It should take no more than the configured integration time for
    * the ADC values to become valid after the TSL2591 device is enabled.
    */
   boolean is_adc_valid();
@@ -199,7 +199,7 @@ class TSL2591Component : public PollingComponent, public i2c::I2CDevice {
   TSL2591Gain gain_;
   bool power_save_mode_enabled_;
   void disable_internal(void);
-  };
+};
 
 }  // namespace tsl2591
 }  // namespace esphome
