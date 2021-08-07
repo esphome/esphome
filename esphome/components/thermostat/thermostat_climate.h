@@ -12,12 +12,13 @@ enum ThermostatClimateTimerIndex : size_t {
   TIMER_COOLING_MAX_RUN_TIME = 0,
   TIMER_COOLING_OFF = 1,
   TIMER_COOLING_ON = 2,
-  TIMER_FANNING_OFF = 3,
-  TIMER_FANNING_ON = 4,
-  TIMER_HEATING_MAX_RUN_TIME = 5,
-  TIMER_HEATING_OFF = 6,
-  TIMER_HEATING_ON = 7,
-  TIMER_IDLE_ON = 8,
+  TIMER_FAN_MODE = 3,
+  TIMER_FANNING_OFF = 4,
+  TIMER_FANNING_ON = 5,
+  TIMER_HEATING_MAX_RUN_TIME = 6,
+  TIMER_HEATING_OFF = 7,
+  TIMER_HEATING_ON = 8,
+  TIMER_IDLE_ON = 9,
 };
 
 struct ThermostatClimateTimer {
@@ -60,6 +61,7 @@ class ThermostatClimate : public climate::Climate, public Component {
   void set_heating_maximum_run_time_in_sec(uint32_t time);
   void set_cooling_minimum_off_time_in_sec(uint32_t time);
   void set_cooling_minimum_run_time_in_sec(uint32_t time);
+  void set_fan_mode_minimum_switching_time_in_sec(uint32_t time);
   void set_fanning_minimum_off_time_in_sec(uint32_t time);
   void set_fanning_minimum_run_time_in_sec(uint32_t time);
   void set_heating_minimum_off_time_in_sec(uint32_t time);
@@ -72,6 +74,7 @@ class ThermostatClimate : public climate::Climate, public Component {
   void set_supports_cool(bool supports_cool);
   void set_supports_dry(bool supports_dry);
   void set_supports_fan_only(bool supports_fan_only);
+  void set_supports_fan_only_action_uses_fan_mode_timer(bool fan_only_action_uses_fan_mode_timer);
   void set_supports_fan_only_cooling(bool supports_fan_only_cooling);
   void set_supports_fan_with_cooling(bool supports_fan_with_cooling);
   void set_supports_fan_with_heating(bool supports_fan_with_heating);
@@ -128,8 +131,13 @@ class ThermostatClimate : public climate::Climate, public Component {
   float heat_overrun();
   /// Call triggers based on updated climate states (modes/actions)
   void refresh();
-  /// Returns true if a climate action transition is being delayed
+  /// Returns true if a climate action/fan mode transition is being delayed
   bool climate_action_change_delayed();
+  bool fan_mode_change_delayed();
+  /// Returns climate action that is being delayed (check climate_action_change_delayed(), first!)
+  climate::ClimateAction delayed_climate_action();
+  /// Returns fan mode that is being delayed (check fan_mode_change_delayed(), first!)
+  climate::ClimateFanMode delayed_fan_mode();
   /// Set point and hysteresis validation
   bool hysteresis_valid();  // returns true if valid
   void validate_target_temperature();
@@ -172,6 +180,7 @@ class ThermostatClimate : public climate::Climate, public Component {
   bool idle_action_ready_();
   bool cooling_action_ready_();
   bool drying_action_ready_();
+  bool fan_mode_ready_();
   bool fanning_action_ready_();
   bool heating_action_ready_();
 
@@ -186,6 +195,7 @@ class ThermostatClimate : public climate::Climate, public Component {
   void cooling_max_run_time_timer_callback_();
   void cooling_off_timer_callback_();
   void cooling_on_timer_callback_();
+  void fan_mode_timer_callback_();
   void fanning_off_timer_callback_();
   void fanning_on_timer_callback_();
   void heating_max_run_time_timer_callback_();
@@ -213,6 +223,8 @@ class ThermostatClimate : public climate::Climate, public Component {
   bool supports_dry_{false};
   bool supports_fan_only_{false};
   bool supports_heat_{false};
+  /// Special flag -- enables fan_modes to share timer with fan_only climate action
+  bool supports_fan_only_action_uses_fan_mode_timer_{false};
   /// Special flag -- enables fan to be switched based on target_temperature_high
   bool supports_fan_only_cooling_{false};
   /// Special flags -- enables fan_only action to be called with cooling/heating actions
@@ -365,6 +377,9 @@ class ThermostatClimate : public climate::Climate, public Component {
   Trigger<> *prev_mode_trigger_{nullptr};
   Trigger<> *prev_swing_mode_trigger_{nullptr};
 
+  /// Desired fan_mode -- used to store desired mode for callback when switching is delayed
+  climate::ClimateFanMode desired_fan_mode_{climate::CLIMATE_FAN_ON};
+
   /// Store previously-known states
   ///
   /// These are used to determine when a trigger/action needs to be called
@@ -406,6 +421,7 @@ class ThermostatClimate : public climate::Climate, public Component {
       {"cool_run", false, 0, std::bind(&ThermostatClimate::cooling_max_run_time_timer_callback_, this)},
       {"cool_off", false, 0, std::bind(&ThermostatClimate::cooling_off_timer_callback_, this)},
       {"cool_on", false, 0, std::bind(&ThermostatClimate::cooling_on_timer_callback_, this)},
+      {"fan_mode", false, 0, std::bind(&ThermostatClimate::fan_mode_timer_callback_, this)},
       {"fan_off", false, 0, std::bind(&ThermostatClimate::fanning_off_timer_callback_, this)},
       {"fan_on", false, 0, std::bind(&ThermostatClimate::fanning_on_timer_callback_, this)},
       {"heat_run", false, 0, std::bind(&ThermostatClimate::heating_max_run_time_timer_callback_, this)},

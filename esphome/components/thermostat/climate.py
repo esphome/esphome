@@ -24,6 +24,7 @@ from esphome.const import (
     CONF_FAN_MODE_FOCUS_ACTION,
     CONF_FAN_MODE_DIFFUSE_ACTION,
     CONF_FAN_ONLY_ACTION,
+    CONF_FAN_ONLY_ACTION_USES_FAN_MODE_TIMER,
     CONF_FAN_ONLY_COOLING,
     CONF_FAN_ONLY_MODE,
     CONF_FAN_WITH_COOLING,
@@ -38,6 +39,7 @@ from esphome.const import (
     CONF_MAX_HEATING_RUN_TIME,
     CONF_MIN_COOLING_OFF_TIME,
     CONF_MIN_COOLING_RUN_TIME,
+    CONF_MIN_FAN_MODE_SWITCHING_TIME,
     CONF_MIN_FANNING_OFF_TIME,
     CONF_MIN_FANNING_RUN_TIME,
     CONF_MIN_HEATING_OFF_TIME,
@@ -104,8 +106,6 @@ def validate_thermostat(config):
         ],
         CONF_FAN_ONLY_MODE: [
             CONF_FAN_ONLY_ACTION,
-            CONF_MIN_FANNING_OFF_TIME,
-            CONF_MIN_FANNING_RUN_TIME,
         ],
         CONF_HEAT_MODE: [
             CONF_HEAT_ACTION,
@@ -119,10 +119,6 @@ def validate_thermostat(config):
         CONF_DRY_ACTION: [
             CONF_MIN_COOLING_OFF_TIME,
             CONF_MIN_COOLING_RUN_TIME,
-        ],
-        CONF_FAN_ONLY_ACTION: [
-            CONF_MIN_FANNING_OFF_TIME,
-            CONF_MIN_FANNING_RUN_TIME,
         ],
         CONF_HEAT_ACTION: [
             CONF_MIN_HEATING_OFF_TIME,
@@ -186,6 +182,42 @@ def validate_thermostat(config):
             if config_trigger in config and req_trigger not in config:
                 raise cv.Invalid(
                     f"{req_trigger} must be defined to use {config_trigger}"
+                )
+
+    if CONF_FAN_ONLY_ACTION in config:
+        # determine validation requirements based on fan_only_action_uses_fan_mode_timer setting
+        if config[CONF_FAN_ONLY_ACTION_USES_FAN_MODE_TIMER] is True:
+            requirements = [CONF_MIN_FAN_MODE_SWITCHING_TIME]
+        else:
+            requirements = [
+                CONF_MIN_FANNING_OFF_TIME,
+                CONF_MIN_FANNING_RUN_TIME,
+            ]
+        for config_req_action in requirements:
+            if config_req_action not in config:
+                raise cv.Invalid(
+                    f"{config_req_action} must be defined to use {CONF_FAN_ONLY_ACTION}"
+                )
+
+    # for any fan_mode action, confirm min_fan_mode_switching_time is defined
+    requirements = {
+        CONF_MIN_FAN_MODE_SWITCHING_TIME: [
+            CONF_FAN_MODE_ON_ACTION,
+            CONF_FAN_MODE_OFF_ACTION,
+            CONF_FAN_MODE_AUTO_ACTION,
+            CONF_FAN_MODE_LOW_ACTION,
+            CONF_FAN_MODE_MEDIUM_ACTION,
+            CONF_FAN_MODE_HIGH_ACTION,
+            CONF_FAN_MODE_MIDDLE_ACTION,
+            CONF_FAN_MODE_FOCUS_ACTION,
+            CONF_FAN_MODE_DIFFUSE_ACTION,
+        ],
+    }
+    for req_config_item, config_triggers in requirements.items():
+        for config_trigger in config_triggers:
+            if config_trigger in config and req_config_item not in config:
+                raise cv.Invalid(
+                    f"{req_config_item} must be defined to use {config_trigger}"
                 )
 
     # determine validation requirements based on fan_only_cooling setting
@@ -252,6 +284,26 @@ def validate_thermostat(config):
     if config[CONF_FAN_WITH_HEATING] is True and CONF_FAN_ONLY_ACTION not in config:
         raise cv.Invalid(
             f"{CONF_FAN_ONLY_ACTION} must be defined to use {CONF_FAN_WITH_HEATING}"
+        )
+
+    # if min_fan_mode_switching_time is defined, at least one fan_mode action should be defined
+    if CONF_MIN_FAN_MODE_SWITCHING_TIME in config:
+        requirements = [
+            CONF_FAN_MODE_ON_ACTION,
+            CONF_FAN_MODE_OFF_ACTION,
+            CONF_FAN_MODE_AUTO_ACTION,
+            CONF_FAN_MODE_LOW_ACTION,
+            CONF_FAN_MODE_MEDIUM_ACTION,
+            CONF_FAN_MODE_HIGH_ACTION,
+            CONF_FAN_MODE_MIDDLE_ACTION,
+            CONF_FAN_MODE_FOCUS_ACTION,
+            CONF_FAN_MODE_DIFFUSE_ACTION,
+        ]
+        for config_req_action in requirements:
+            if config_req_action in config:
+                return config
+        raise cv.Invalid(
+            f"At least one of {CONF_FAN_MODE_ON_ACTION}, {CONF_FAN_MODE_OFF_ACTION}, {CONF_FAN_MODE_AUTO_ACTION}, {CONF_FAN_MODE_LOW_ACTION}, {CONF_FAN_MODE_MEDIUM_ACTION}, {CONF_FAN_MODE_HIGH_ACTION}, {CONF_FAN_MODE_MIDDLE_ACTION}, {CONF_FAN_MODE_FOCUS_ACTION}, {CONF_FAN_MODE_DIFFUSE_ACTION} must be defined to use {CONF_MIN_FAN_MODE_SWITCHING_TIME}"
         )
     return config
 
@@ -340,6 +392,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_MAX_HEATING_RUN_TIME): cv.positive_time_period_seconds,
             cv.Optional(CONF_MIN_COOLING_OFF_TIME): cv.positive_time_period_seconds,
             cv.Optional(CONF_MIN_COOLING_RUN_TIME): cv.positive_time_period_seconds,
+            cv.Optional(
+                CONF_MIN_FAN_MODE_SWITCHING_TIME
+            ): cv.positive_time_period_seconds,
             cv.Optional(CONF_MIN_FANNING_OFF_TIME): cv.positive_time_period_seconds,
             cv.Optional(CONF_MIN_FANNING_RUN_TIME): cv.positive_time_period_seconds,
             cv.Optional(CONF_MIN_HEATING_OFF_TIME): cv.positive_time_period_seconds,
@@ -347,6 +402,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_MIN_IDLE_TIME): cv.positive_time_period_seconds,
             cv.Optional(CONF_SUPPLEMENTAL_COOLING_DELTA): cv.temperature,
             cv.Optional(CONF_SUPPLEMENTAL_HEATING_DELTA): cv.temperature,
+            cv.Optional(
+                CONF_FAN_ONLY_ACTION_USES_FAN_MODE_TIMER, default=False
+            ): cv.boolean,
             cv.Optional(CONF_FAN_ONLY_COOLING, default=False): cv.boolean,
             cv.Optional(CONF_FAN_WITH_COOLING, default=False): cv.boolean,
             cv.Optional(CONF_FAN_WITH_HEATING, default=False): cv.boolean,
@@ -427,6 +485,13 @@ async def to_code(config):
             var.set_cooling_minimum_run_time_in_sec(config[CONF_MIN_COOLING_RUN_TIME])
         )
 
+    if CONF_MIN_FAN_MODE_SWITCHING_TIME in config:
+        cg.add(
+            var.set_fan_mode_minimum_switching_time_in_sec(
+                config[CONF_MIN_FAN_MODE_SWITCHING_TIME]
+            )
+        )
+
     if CONF_MIN_FANNING_OFF_TIME in config:
         cg.add(
             var.set_fanning_minimum_off_time_in_sec(config[CONF_MIN_FANNING_OFF_TIME])
@@ -455,6 +520,11 @@ async def to_code(config):
 
     cg.add(var.set_idle_minimum_time_in_sec(config[CONF_MIN_IDLE_TIME]))
 
+    cg.add(
+        var.set_supports_fan_only_action_uses_fan_mode_timer(
+            config[CONF_FAN_ONLY_ACTION_USES_FAN_MODE_TIMER]
+        )
+    )
     cg.add(var.set_supports_fan_only_cooling(config[CONF_FAN_ONLY_COOLING]))
     cg.add(var.set_supports_fan_with_cooling(config[CONF_FAN_WITH_COOLING]))
     cg.add(var.set_supports_fan_with_heating(config[CONF_FAN_WITH_HEATING]))
