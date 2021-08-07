@@ -4,46 +4,43 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
 
-#include <Adafruit_TSL2591.h>
-
 namespace esphome {
 namespace tsl2591 {
 
 /** Enum listing all conversion/integration time settings for the TSL2591.
  *
- * These are mere clones of the values from the Adafruit library.
- * Higher values mean more accurate results, but will take more energy/more time.
+ * Specific values of the enum constants are register values taken from the TSL2591 datasheet.
+ * Longer times mean more accurate results, but will take more energy/more time.
  */
 enum TSL2591IntegrationTime {
-  TSL2591_INTEGRATION_TIME_100MS = TSL2591_INTEGRATIONTIME_100MS,
-  TSL2591_INTEGRATION_TIME_200MS = TSL2591_INTEGRATIONTIME_200MS,
-  TSL2591_INTEGRATION_TIME_300MS = TSL2591_INTEGRATIONTIME_300MS,
-  TSL2591_INTEGRATION_TIME_400MS = TSL2591_INTEGRATIONTIME_400MS,
-  TSL2591_INTEGRATION_TIME_500MS = TSL2591_INTEGRATIONTIME_500MS,
-  TSL2591_INTEGRATION_TIME_600MS = TSL2591_INTEGRATIONTIME_600MS,
+  TSL2591_INTEGRATION_TIME_100MS = 0b000,
+  TSL2591_INTEGRATION_TIME_200MS = 0b001,
+  TSL2591_INTEGRATION_TIME_300MS = 0b010,
+  TSL2591_INTEGRATION_TIME_400MS = 0b011,
+  TSL2591_INTEGRATION_TIME_500MS = 0b100,
+  TSL2591_INTEGRATION_TIME_600MS = 0b101,
 };
 
 /** Enum listing all gain settings for the TSL2591.
  *
- * These are mere clones of the values from the Adafruit library.
+ * Specific values of the enum constants are register values taken from the TSL2591 datasheet.
  * Higher values are better for low light situations, but can increase noise.
  */
 enum TSL2591Gain {
-  TSL2591_GAIN_MULTIPLIER_LOW = TSL2591_GAIN_LOW,    // 1x
-  TSL2591_GAIN_MULTIPLIER_MED = TSL2591_GAIN_MED,    // 25x
-  TSL2591_GAIN_MULTIPLIER_HIGH = TSL2591_GAIN_HIGH,  // 480x
-  TSL2591_GAIN_MULTIPLIER_MAX = TSL2591_GAIN_MAX,    // 9876x
+  TSL2591_GAIN_LOW = 0b00 << 4,   // 1x
+  TSL2591_GAIN_MED = 0b01 << 4,   // 25x
+  TSL2591_GAIN_HIGH = 0b10 << 4,  // 400x
+  TSL2591_GAIN_MAX = 0b11 << 4,   // 9500x
 };
 
 /** Enum listing sensor channels.
  *
- * These are mere clones of the values from the Adafruit library.
- * They identify the type of light to measure.
+ * They identify the type of light to report.
  */
 enum TSL2591SensorChannel {
-  TSL2591_SENSOR_CHANNEL_VISIBLE = TSL2591_VISIBLE,
-  TSL2591_SENSOR_CHANNEL_INFRARED = TSL2591_INFRARED,
-  TSL2591_SENSOR_CHANNEL_FULL_SPECTRUM = TSL2591_FULLSPECTRUM,
+  TSL2591_SENSOR_CHANNEL_VISIBLE,
+  TSL2591_SENSOR_CHANNEL_INFRARED,
+  TSL2591_SENSOR_CHANNEL_FULL_SPECTRUM,
 };
 
 /// This class includes support for the TSL2591 i2c ambient light sensor.
@@ -60,6 +57,8 @@ class TSL2591Component : public PollingComponent, public i2c::I2CDevice {
   /** Set the time that sensor values should be accumulated for.
    *
    * Longer means more accurate, but also mean more power consumption.
+   * If you change this parameter at runtime, you should ignore the
+   * first subsequent sensor readings since the ADC values will not be reliable.
    *
    * Possible values are:
    *
@@ -76,16 +75,40 @@ class TSL2591Component : public PollingComponent, public i2c::I2CDevice {
 
   /** Set the internal gain of the sensor. Can be useful for low-light conditions
    *
+   * When using the API to set the gain, you should first disable the
+   * TSL2591 device. Otherwise, the next set of ADC readings will not be reliable.
+   *
    * Possible values are:
    *
-   *  - `esphome::tsl2591::TSL2591_GAIN_MULTIPLIER_LOW`  (1x)
-   *  - `esphome::tsl2591::TSL2591_GAIN_MULTIPLIER_MED`  (25x, default)
-   *  - `esphome::tsl2591::TSL2591_GAIN_MULTIPLIER_HIGH` (480x)
-   *  - `esphome::tsl2591::TSL2591_GAIN_MULTIPLIER_MAX`  (9876x)
+   *  - `esphome::tsl2591::TSL2591_GAIN_LOW`  (1x)
+   *  - `esphome::tsl2591::TSL2591_GAIN_MED`  (25x, default)
+   *  - `esphome::tsl2591::TSL2591_GAIN_HIGH` (400x)
+   *  - `esphome::tsl2591::TSL2591_GAIN_MAX`  (9500x)
    *
    * @param gain The new gain.
    */
   void set_gain(TSL2591Gain gain);
+
+  /** Should the device be powered down between readings?
+   *
+   * The disadvantage of powering down the device between readings
+   * is that you have to wait for the ADC to go through an
+   * integration cycle before a reliable reading is available.
+   * This happens during ESPHome's update loop, so waiting slows
+   * down the entire ESP device. You should only enable this if
+   * you need to minimize power consumption and you can tolerate 
+   * that delay. Otherwise, keep the default of disabling
+   * power save mode.
+   *
+   * @param enable Enable or disable power save mode.
+   */
+  void set_power_save_mode(bool enable);
+
+  /** Sets the name for this instance of the device.
+   *
+   * @param name The user-friendly name.
+   */ 
+  void set_name(const char *name);
 
   /** Calculates and returns a lux value based on the ADC readings.
    *
@@ -125,6 +148,33 @@ class TSL2591Component : public PollingComponent, public i2c::I2CDevice {
    */
   uint16_t get_illuminance(TSL2591SensorChannel channel, uint32_t combined_illuminance);
 
+  /** Are the device ADC values valid?
+   *
+   * Useful for scripting. This should be checked before calling update().
+   * It asks the TSL2591 if the ADC has completed an integration cycle
+   * and has reliable values in the device registers. If you call update()
+   * before the ADC values are valid, you may cause a general delay in
+   * the ESPHome update loop.
+   *
+   * It should take no more than the configured integration time for 
+   * the ADC values to become valid after the TSL2591 device is enabled.
+   */
+  boolean is_adc_valid();
+
+  /** Powers on the TSL2591 device and enables its sensors.
+   *
+   * You only need to call this if you have disabled the device.
+   * The device starts enabled in ESPHome.
+   */
+  void enable(void);
+  /** Powers off the TSL2591 device.
+   *
+   * You can call this from an ESPHome script if you are explicitly
+   * controlling TSL2591 power consumption.
+   * The device starts enabled in ESPHome.
+   */
+  void disable(void);
+
   // These methods are normally called by ESPHome core at the right time, based
   // on config in YAML.
   void set_full_spectrum_sensor(sensor::Sensor *full_spectrum_sensor);
@@ -140,12 +190,16 @@ class TSL2591Component : public PollingComponent, public i2c::I2CDevice {
   float get_setup_priority() const override;
 
  protected:
-  Adafruit_TSL2591 tsl2591_ = Adafruit_TSL2591(2591);
+  const char *name_;  // TODO: extend esphome::Nameable
   sensor::Sensor *full_spectrum_sensor_;
   sensor::Sensor *infrared_sensor_;
   sensor::Sensor *visible_sensor_;
   sensor::Sensor *calculated_lux_sensor_;
-};
+  TSL2591IntegrationTime integration_time_;
+  TSL2591Gain gain_;
+  bool power_save_mode_enabled_;
+  void disable_internal(void);
+  };
 
 }  // namespace tsl2591
 }  // namespace esphome

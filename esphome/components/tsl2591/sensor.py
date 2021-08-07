@@ -25,7 +25,9 @@ from esphome.components import i2c, sensor
 from esphome.const import (
     CONF_GAIN,
     CONF_ID,
+    CONF_NAME,
     CONF_INTEGRATION_TIME,
+    CONF_POWER_SAVE_MODE,
     CONF_FULL_SPECTRUM,
     CONF_INFRARED,
     CONF_VISIBLE,
@@ -36,14 +38,10 @@ from esphome.const import (
     UNIT_LUX,
 )
 
-# The Adafruit sensors library requires both i2c and spi in ESPhome configs, but
-# we don't use spi for this component.
-DEPENDENCIES = ["i2c", "spi"]
+DEPENDENCIES = ["i2c"]
 
 tsl2591_ns = cg.esphome_ns.namespace("tsl2591")
 
-# This enum is a clone of the enum in the Adafruit library.
-# I couldn't work out how to use the Adafruit enum directly in codegen.
 TSL2591IntegrationTime = tsl2591_ns.enum("TSL2591IntegrationTime")
 INTEGRATION_TIMES = {
     100: TSL2591IntegrationTime.TSL2591_INTEGRATION_TIME_100MS,
@@ -54,20 +52,18 @@ INTEGRATION_TIMES = {
     600: TSL2591IntegrationTime.TSL2591_INTEGRATION_TIME_600MS,
 }
 
-# This enum is a clone of the enum in the Adafruit library.
-# I couldn't work out how to use the Adafruit enum directly in codegen.
 TSL2591Gain = tsl2591_ns.enum("TSL2591Gain")
 GAINS = {
-    "1X": TSL2591Gain.TSL2591_GAIN_MULTIPLIER_LOW,
-    "LOW": TSL2591Gain.TSL2591_GAIN_MULTIPLIER_LOW,
-    "25X": TSL2591Gain.TSL2591_GAIN_MULTIPLIER_MED,
-    "MED": TSL2591Gain.TSL2591_GAIN_MULTIPLIER_MED,
-    "MEDIUM": TSL2591Gain.TSL2591_GAIN_MULTIPLIER_MED,
-    "428X": TSL2591Gain.TSL2591_GAIN_MULTIPLIER_HIGH,
-    "HIGH": TSL2591Gain.TSL2591_GAIN_MULTIPLIER_HIGH,
-    "9876X": TSL2591Gain.TSL2591_GAIN_MULTIPLIER_MAX,
-    "MAX": TSL2591Gain.TSL2591_GAIN_MULTIPLIER_MAX,
-    "MAXIMUM": TSL2591Gain.TSL2591_GAIN_MULTIPLIER_MAX,
+    "1X": TSL2591Gain.TSL2591_GAIN_LOW,
+    "LOW": TSL2591Gain.TSL2591_GAIN_LOW,
+    "25X": TSL2591Gain.TSL2591_GAIN_MED,
+    "MED": TSL2591Gain.TSL2591_GAIN_MED,
+    "MEDIUM": TSL2591Gain.TSL2591_GAIN_MED,
+    "400X": TSL2591Gain.TSL2591_GAIN_HIGH,
+    "HIGH": TSL2591Gain.TSL2591_GAIN_HIGH,
+    "9500X": TSL2591Gain.TSL2591_GAIN_MAX,
+    "MAX": TSL2591Gain.TSL2591_GAIN_MAX,
+    "MAXIMUM": TSL2591Gain.TSL2591_GAIN_MAX,
 }
 
 
@@ -116,7 +112,9 @@ CONFIG_SCHEMA = (
             cv.Optional(
                 CONF_INTEGRATION_TIME, default="100ms"
             ): validate_integration_time,
+            cv.Optional(CONF_NAME, default="TLS2591"): cv.string,
             cv.Optional(CONF_GAIN, default="MEDIUM"): cv.enum(GAINS, upper=True),
+            cv.Optional(CONF_POWER_SAVE_MODE, default=False): cv.boolean,
         }
     )
     .extend(cv.polling_component_schema("60s"))
@@ -149,7 +147,7 @@ async def to_code(config):
         sens = await sensor.new_sensor(conf)
         cg.add(var.set_calculated_lux_sensor(sens))
 
+    cg.add(var.set_name(config[CONF_NAME]))
+    cg.add(var.set_power_save_mode(config[CONF_POWER_SAVE_MODE]))
     cg.add(var.set_integration_time(config[CONF_INTEGRATION_TIME]))
     cg.add(var.set_gain(config[CONF_GAIN]))
-    # https://platformio.org/lib/show/463/Adafruit%20TSL2591%20Library
-    cg.add_library("adafruit/Adafruit TSL2591 Library", "^1.4.0")
