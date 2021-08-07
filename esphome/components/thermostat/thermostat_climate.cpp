@@ -512,7 +512,7 @@ void ThermostatClimate::switch_to_fan_mode_(climate::ClimateFanMode fan_mode) {
 
   this->desired_fan_mode_ = fan_mode;  // needed for timer callback
 
-  if (fan_mode_ready_()) {
+  if (this->fan_mode_ready_()) {
     Trigger<> *trig = this->fan_mode_auto_trigger_;
     switch (fan_mode) {
       case climate::CLIMATE_FAN_ON:
@@ -652,40 +652,41 @@ void ThermostatClimate::switch_to_swing_mode_(climate::ClimateSwingMode swing_mo
 
 bool ThermostatClimate::idle_action_ready_() {
   if (this->supports_fan_only_action_uses_fan_mode_timer_) {
-    return !(timer_active_(thermostat::TIMER_COOLING_ON) || timer_active_(thermostat::TIMER_FAN_MODE) ||
-             timer_active_(thermostat::TIMER_HEATING_ON));
+    return !(this->timer_active_(thermostat::TIMER_COOLING_ON) || this->timer_active_(thermostat::TIMER_FAN_MODE) ||
+             this->timer_active_(thermostat::TIMER_HEATING_ON));
   }
-  return !(timer_active_(thermostat::TIMER_COOLING_ON) || timer_active_(thermostat::TIMER_FANNING_ON) ||
-           timer_active_(thermostat::TIMER_HEATING_ON));
+  return !(this->timer_active_(thermostat::TIMER_COOLING_ON) || this->timer_active_(thermostat::TIMER_FANNING_ON) ||
+           this->timer_active_(thermostat::TIMER_HEATING_ON));
 }
 
 bool ThermostatClimate::cooling_action_ready_() {
-  return !(timer_active_(thermostat::TIMER_IDLE_ON) || timer_active_(thermostat::TIMER_FANNING_OFF) ||
-           timer_active_(thermostat::TIMER_COOLING_OFF) || timer_active_(thermostat::TIMER_HEATING_ON));
+  return !(this->timer_active_(thermostat::TIMER_IDLE_ON) || this->timer_active_(thermostat::TIMER_FANNING_OFF) ||
+           this->timer_active_(thermostat::TIMER_COOLING_OFF) || this->timer_active_(thermostat::TIMER_HEATING_ON));
 }
 
 bool ThermostatClimate::drying_action_ready_() {
-  return !(timer_active_(thermostat::TIMER_IDLE_ON) || timer_active_(thermostat::TIMER_FANNING_OFF) ||
-           timer_active_(thermostat::TIMER_COOLING_OFF) || timer_active_(thermostat::TIMER_HEATING_ON));
+  return !(this->timer_active_(thermostat::TIMER_IDLE_ON) || this->timer_active_(thermostat::TIMER_FANNING_OFF) ||
+           this->timer_active_(thermostat::TIMER_COOLING_OFF) || this->timer_active_(thermostat::TIMER_HEATING_ON));
 }
 
-bool ThermostatClimate::fan_mode_ready_() { return !(timer_active_(thermostat::TIMER_FAN_MODE)); }
+bool ThermostatClimate::fan_mode_ready_() { return !(this->timer_active_(thermostat::TIMER_FAN_MODE)); }
 
 bool ThermostatClimate::fanning_action_ready_() {
   if (this->supports_fan_only_action_uses_fan_mode_timer_) {
-    return !(timer_active_(thermostat::TIMER_FAN_MODE));
+    return !(this->timer_active_(thermostat::TIMER_FAN_MODE));
   }
-  return !(timer_active_(thermostat::TIMER_IDLE_ON) || timer_active_(thermostat::TIMER_FANNING_OFF));
+  return !(this->timer_active_(thermostat::TIMER_IDLE_ON) || this->timer_active_(thermostat::TIMER_FANNING_OFF));
 }
 
 bool ThermostatClimate::heating_action_ready_() {
-  return !(timer_active_(thermostat::TIMER_IDLE_ON) || timer_active_(thermostat::TIMER_COOLING_ON) ||
-           timer_active_(thermostat::TIMER_FANNING_OFF) || timer_active_(thermostat::TIMER_HEATING_OFF));
+  return !(this->timer_active_(thermostat::TIMER_IDLE_ON) || this->timer_active_(thermostat::TIMER_COOLING_ON) ||
+           this->timer_active_(thermostat::TIMER_FANNING_OFF) || this->timer_active_(thermostat::TIMER_HEATING_OFF));
 }
 
 void ThermostatClimate::start_timer_(const ThermostatClimateTimerIndex timer_index) {
-  if (timer_duration_(timer_index) > 0) {
-    this->set_timeout(this->timer_[timer_index].name, timer_duration_(timer_index), timer_cbf_(timer_index));
+  if (this->timer_duration_(timer_index) > 0) {
+    this->set_timeout(this->timer_[timer_index].name, this->timer_duration_(timer_index),
+                      this->timer_cbf_(timer_index));
     this->timer_[timer_index].active = true;
   }
 }
@@ -1110,27 +1111,35 @@ void ThermostatClimate::dump_config() {
     ESP_LOGCONFIG(TAG, "  Cooling Parameters:");
     ESP_LOGCONFIG(TAG, "    Deadband: %.1f°C", this->cooling_deadband_);
     ESP_LOGCONFIG(TAG, "    Overrun: %.1f°C", this->cooling_overrun_);
-    if ((this->supplemental_cool_delta_ > 0) || (timer_duration_(thermostat::TIMER_COOLING_MAX_RUN_TIME) > 0)) {
+    if ((this->supplemental_cool_delta_ > 0) || (this->timer_duration_(thermostat::TIMER_COOLING_MAX_RUN_TIME) > 0)) {
       ESP_LOGCONFIG(TAG, "    Supplemental Delta: %.1f°C", this->supplemental_cool_delta_);
-      ESP_LOGCONFIG(TAG, "    Maximum Run Time: %us", timer_duration_(thermostat::TIMER_COOLING_MAX_RUN_TIME) / 1000);
+      ESP_LOGCONFIG(TAG, "    Maximum Run Time: %us",
+                    this->timer_duration_(thermostat::TIMER_COOLING_MAX_RUN_TIME) / 1000);
     }
-    ESP_LOGCONFIG(TAG, "    Minimum Off Time: %us", timer_duration_(thermostat::TIMER_COOLING_OFF) / 1000);
-    ESP_LOGCONFIG(TAG, "    Minimum Run Time: %us", timer_duration_(thermostat::TIMER_COOLING_ON) / 1000);
+    ESP_LOGCONFIG(TAG, "    Minimum Off Time: %us", this->timer_duration_(thermostat::TIMER_COOLING_OFF) / 1000);
+    ESP_LOGCONFIG(TAG, "    Minimum Run Time: %us", this->timer_duration_(thermostat::TIMER_COOLING_ON) / 1000);
   }
   if (this->supports_heat_) {
     ESP_LOGCONFIG(TAG, "  Heating Parameters:");
     ESP_LOGCONFIG(TAG, "    Deadband: %.1f°C", this->heating_deadband_);
     ESP_LOGCONFIG(TAG, "    Overrun: %.1f°C", this->heating_overrun_);
-    if ((this->supplemental_heat_delta_ > 0) || (timer_duration_(thermostat::TIMER_HEATING_MAX_RUN_TIME) > 0)) {
+    if ((this->supplemental_heat_delta_ > 0) || (this->timer_duration_(thermostat::TIMER_HEATING_MAX_RUN_TIME) > 0)) {
       ESP_LOGCONFIG(TAG, "    Supplemental Delta: %.1f°C", this->supplemental_heat_delta_);
-      ESP_LOGCONFIG(TAG, "    Maximum Run Time: %us", timer_duration_(thermostat::TIMER_HEATING_MAX_RUN_TIME) / 1000);
+      ESP_LOGCONFIG(TAG, "    Maximum Run Time: %us",
+                    this->timer_duration_(thermostat::TIMER_HEATING_MAX_RUN_TIME) / 1000);
     }
-    ESP_LOGCONFIG(TAG, "    Minimum Off Time: %us", timer_duration_(thermostat::TIMER_HEATING_OFF) / 1000);
-    ESP_LOGCONFIG(TAG, "    Minimum Run Time: %us", timer_duration_(thermostat::TIMER_HEATING_ON) / 1000);
+    ESP_LOGCONFIG(TAG, "    Minimum Off Time: %us", this->timer_duration_(thermostat::TIMER_HEATING_OFF) / 1000);
+    ESP_LOGCONFIG(TAG, "    Minimum Run Time: %us", this->timer_duration_(thermostat::TIMER_HEATING_ON) / 1000);
   }
   if (this->supports_fan_only_) {
-    ESP_LOGCONFIG(TAG, "  Fanning Minimum Off Time: %us", timer_duration_(thermostat::TIMER_FANNING_OFF) / 1000);
-    ESP_LOGCONFIG(TAG, "  Fanning Minimum Run Time: %us", timer_duration_(thermostat::TIMER_FANNING_ON) / 1000);
+    ESP_LOGCONFIG(TAG, "  Fanning Minimum Off Time: %us", this->timer_duration_(thermostat::TIMER_FANNING_OFF) / 1000);
+    ESP_LOGCONFIG(TAG, "  Fanning Minimum Run Time: %us", this->timer_duration_(thermostat::TIMER_FANNING_ON) / 1000);
+  }
+  if (this->supports_fan_mode_on_ || this->supports_fan_mode_off_ || this->supports_fan_mode_auto_ ||
+      this->supports_fan_mode_low_ || this->supports_fan_mode_medium_ || this->supports_fan_mode_high_ ||
+      this->supports_fan_mode_middle_ || this->supports_fan_mode_focus_ || this->supports_fan_mode_diffuse_) {
+    ESP_LOGCONFIG(TAG, "  Minimum Fan Mode Switching Time: %us",
+                  this->timer_duration_(thermostat::TIMER_FAN_MODE) / 1000);
   }
   ESP_LOGCONFIG(TAG, "  Minimum Idle Time: %us", this->timer_[thermostat::TIMER_IDLE_ON].time / 1000);
   ESP_LOGCONFIG(TAG, "  Supports AUTO: %s", YESNO(this->supports_auto_));
@@ -1138,6 +1147,8 @@ void ThermostatClimate::dump_config() {
   ESP_LOGCONFIG(TAG, "  Supports COOL: %s", YESNO(this->supports_cool_));
   ESP_LOGCONFIG(TAG, "  Supports DRY: %s", YESNO(this->supports_dry_));
   ESP_LOGCONFIG(TAG, "  Supports FAN_ONLY: %s", YESNO(this->supports_fan_only_));
+  ESP_LOGCONFIG(TAG, "  Supports FAN_ONLY_ACTION_USES_FAN_MODE_TIMER: %s",
+                YESNO(this->supports_fan_only_action_uses_fan_mode_timer_));
   ESP_LOGCONFIG(TAG, "  Supports FAN_ONLY_COOLING: %s", YESNO(this->supports_fan_only_cooling_));
   if (this->supports_cool_)
     ESP_LOGCONFIG(TAG, "  Supports FAN_WITH_COOLING: %s", YESNO(this->supports_fan_with_cooling_));

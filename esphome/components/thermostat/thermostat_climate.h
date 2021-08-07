@@ -134,9 +134,9 @@ class ThermostatClimate : public climate::Climate, public Component {
   /// Returns true if a climate action/fan mode transition is being delayed
   bool climate_action_change_delayed();
   bool fan_mode_change_delayed();
-  /// Returns climate action that is being delayed (check climate_action_change_delayed(), first!)
+  /// Returns the climate action that is being delayed (check climate_action_change_delayed(), first!)
   climate::ClimateAction delayed_climate_action();
-  /// Returns fan mode that is being delayed (check fan_mode_change_delayed(), first!)
+  /// Returns the fan mode that is being delayed (check fan_mode_change_delayed(), first!)
   climate::ClimateFanMode delayed_fan_mode();
   /// Set point and hysteresis validation
   bool hysteresis_valid();  // returns true if valid
