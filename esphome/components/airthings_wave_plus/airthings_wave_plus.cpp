@@ -185,4 +185,4 @@ void AirthingsWavePlus::WavePlusClientCallbacks::onDisconnect(BLEClient *p_clien
 }  // namespace airthings_wave_plus
 }  // namespace esphome
 
-#endif // ARDUINO_ARCH_ESP32
+#endif  // ARDUINO_ARCH_ESP32
