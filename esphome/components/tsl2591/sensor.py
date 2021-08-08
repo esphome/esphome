@@ -27,14 +27,18 @@ from esphome.const import (
     CONF_ID,
     CONF_NAME,
     CONF_INTEGRATION_TIME,
-    CONF_POWER_SAVE_MODE,
     CONF_FULL_SPECTRUM,
     CONF_INFRARED,
+    CONF_POWER_SAVE_MODE,
     CONF_VISIBLE,
     CONF_CALCULATED_LUX,
+    CONF_DEVICE_FACTOR,
+    CONF_GLASS_ATTENUATION_FACTOR,
+    ICON_BRIGHTNESS_6,
+    DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_ILLUMINANCE,
     STATE_CLASS_MEASUREMENT,
-    ICON_BRIGHTNESS_6,
+    UNIT_EMPTY,
     UNIT_LUX,
 )
 
@@ -82,24 +86,24 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(TSL2591Component),
             cv.Optional(CONF_INFRARED): sensor.sensor_schema(
-                UNIT_LUX,
+                UNIT_EMPTY,
                 ICON_BRIGHTNESS_6,
                 0,
-                DEVICE_CLASS_ILLUMINANCE,
+                DEVICE_CLASS_EMPTY,
                 STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_VISIBLE): sensor.sensor_schema(
-                UNIT_LUX,
+                UNIT_EMPTY,
                 ICON_BRIGHTNESS_6,
                 0,
-                DEVICE_CLASS_ILLUMINANCE,
+                DEVICE_CLASS_EMPTY,
                 STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_FULL_SPECTRUM): sensor.sensor_schema(
-                UNIT_LUX,
+                UNIT_EMPTY,
                 ICON_BRIGHTNESS_6,
                 0,
-                DEVICE_CLASS_ILLUMINANCE,
+                DEVICE_CLASS_EMPTY,
                 STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_CALCULATED_LUX): sensor.sensor_schema(
@@ -115,6 +119,8 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_NAME, default="TLS2591"): cv.string,
             cv.Optional(CONF_GAIN, default="MEDIUM"): cv.enum(GAINS, upper=True),
             cv.Optional(CONF_POWER_SAVE_MODE, default=False): cv.boolean,
+            cv.Optional(CONF_DEVICE_FACTOR, default=53.0): cv.float_with_unit("device_factor", "", True),
+            cv.Optional(CONF_GLASS_ATTENUATION_FACTOR, default=7.7): cv.float_with_unit("glass_attenuation_factor", "", True),
         }
     )
     .extend(cv.polling_component_schema("60s"))
@@ -151,3 +157,4 @@ async def to_code(config):
     cg.add(var.set_power_save_mode(config[CONF_POWER_SAVE_MODE]))
     cg.add(var.set_integration_time(config[CONF_INTEGRATION_TIME]))
     cg.add(var.set_gain(config[CONF_GAIN]))
+    cg.add(var.set_device_and_glass_attenuation_factors(config[CONF_DEVICE_FACTOR], config[CONF_GLASS_ATTENUATION_FACTOR]))

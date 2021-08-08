@@ -7,7 +7,7 @@ namespace tsl2591 {
 static const char *const TAG = "tsl2591.sensor";
 
 // Various constants used in TSL2591 register manipulation
-#define TSL2591_COMMAND_BIT (0xA0)      // 1010 0000: bits 7 and 5 for 'command normal'
+#define TSL2591_COMMAND_BIT (0xA0)      // 1010 0000: bits 7 and 5 for 'command, normal'
 #define TSL2591_ENABLE_POWERON (0x01)   // Flag for ENABLE register, to enable
 #define TSL2591_ENABLE_POWEROFF (0x00)  // Flag for ENABLE register, to disable
 #define TSL2591_ENABLE_AEN (0x02)       // Flag for ENABLE register, to turn on ADCs
@@ -28,26 +28,26 @@ void TSL2591Component::enable() {
 }
 
 void TSL2591Component::disable() {
-  if (this->power_save_mode_enabled_) {
-    // Disable the device by setting the control bit to 0x00
     this->write_byte(TSL2591_COMMAND_BIT | TSL2591_REGISTER_ENABLE, TSL2591_ENABLE_POWEROFF);
-  }
 }
 
-void TSL2591Component::disable_internal_() {
+void TSL2591Component::disable_if_power_saving_() {
   if (this->power_save_mode_enabled_) {
     this->disable();
   }
 }
 
 void TSL2591Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up TSL2591...");
+  uint8_t address =  this->address_;
+  ESP_LOGI(TAG, "Setting up TSL2591 sensor at I2C address 0x%02X", address);
   auto id = this->read_byte(TSL2591_COMMAND_BIT | TSL2591_REGISTER_DEVICE_ID);
   if (id != 0x50) {
-    ESP_LOGD("ERROR", "Could not find a TSL2591 Sensor. Did you configure I2C with the correct address?");
+    ESP_LOGE(TAG, "Could not find the TSL2591 sensor. The ID register of the device at address 0x%02X reported 0x%02X instead of 0x50.",
+             address, id);
     this->mark_failed();
   } else {
-    this->disable_internal_();
+    this->set_integration_time_and_gain(this->integration_time_, this->gain_);
+    this->disable_if_power_saving_();
   }
 }
 
@@ -87,6 +87,8 @@ void TSL2591Component::dump_config() {
   int timing_ms = (1 + raw_timing) * 100;
   ESP_LOGCONFIG(TAG, "  Integration Time: %d ms", timing_ms);
   ESP_LOGCONFIG(TAG, "  Power save mode enabled: %s", ONOFF(this->power_save_mode_enabled_));
+  ESP_LOGCONFIG(TAG, "  Device factor: %f", this->device_factor_);
+  ESP_LOGCONFIG(TAG, "  Glass attenuation factor: %f", this->glass_attenuation_factor_);
   LOG_SENSOR("  ", "Full spectrum:", this->full_spectrum_sensor_);
   LOG_SENSOR("  ", "Infrared:", this->infrared_sensor_);
   LOG_SENSOR("  ", "Visible:", this->visible_sensor_);
@@ -135,17 +137,30 @@ void TSL2591Component::set_calculated_lux_sensor(sensor::Sensor *calculated_lux_
 }
 
 void TSL2591Component::set_integration_time(TSL2591IntegrationTime integration_time) {
-  this->enable();
   this->integration_time_ = integration_time;
-  this->write_byte(TSL2591_COMMAND_BIT | TSL2591_REGISTER_CONTROL, this->integration_time_ | this->gain_);  // NOLINT
-  disable_internal_();
 }
 
 void TSL2591Component::set_gain(TSL2591Gain gain) {
-  this->enable();
   this->gain_ = gain;
+}
+
+void TSL2591Component::set_device_and_glass_attenuation_factors(float device_factor, float glass_attenuation_factor) {
+  this->device_factor_ = device_factor;
+  this->glass_attenuation_factor_ = glass_attenuation_factor;
+}
+
+void TSL2591Component::set_integration_time_and_gain(TSL2591IntegrationTime integration_time, TSL2591Gain gain) {
+  this->enable();
+  this->integration_time_ = integration_time;
+  this->gain_ = gain_;
   this->write_byte(TSL2591_COMMAND_BIT | TSL2591_REGISTER_CONTROL, this->integration_time_ | this->gain_);  // NOLINT
-  this->disable_internal_();
+  // The ADC values can be confused if gain or integration time are changed in the middle of a cycle.
+  // So, we unconditionally disable the device to turn the ADCs off. When re-enabling, the ADCs
+  // will tell us when they are ready again. That avoids an initial bogus reading.
+  this->disable();
+  if (!this->power_save_mode_enabled_) {
+    this->enable();
+  }
 }
 
 void TSL2591Component::set_power_save_mode(bool enable) { this->power_save_mode_enabled_ = enable; }
@@ -154,7 +169,7 @@ void TSL2591Component::set_name(const char *name) { this->name_ = name; }
 
 float TSL2591Component::get_setup_priority() const { return setup_priority::DATA; }
 
-boolean TSL2591Component::is_adc_valid() {
+bool TSL2591Component::is_adc_valid() {
   uint8_t status;
   this->read_byte(TSL2591_COMMAND_BIT | TSL2591_REGISTER_STATUS, &status);
   return status & 0x01;
@@ -181,7 +196,7 @@ uint32_t TSL2591Component::get_combined_illuminance() {
     // still not valid after a sutiable delay
     // we don't mark the device as failed since it might come around in the future (probably not :-()
     ESP_LOGE(TAG, "tsl2591 device '%s' did not return valid readings.", this->name_);
-    this->disable_internal_();
+    this->disable_if_power_saving_();
     return 0;
   }
 
@@ -201,7 +216,7 @@ uint32_t TSL2591Component::get_combined_illuminance() {
   ch1_16 = (ch1high << 8) | ch1low;
   x32 = (ch1_16 << 16) | ch0_16;
 
-  this->disable_internal_();
+  this->disable_if_power_saving_();
   return x32;
 }
 uint16_t TSL2591Component::get_illuminance(TSL2591SensorChannel channel) {
@@ -233,7 +248,7 @@ uint16_t TSL2591Component::get_illuminance(TSL2591SensorChannel channel, uint32_
  * using that Adafruit library to using this ESPHome integration, and (b) we
  * don't have a definitive better idea.
  *
- * Since the ADC readings are available, you can ignore this method and
+ * Since the raw ADC readings are available, you can ignore this method and
  * implement your own lux equation.
  *
  * @param full_spectrum The ADC reading for TSL2591 channel 0.
@@ -275,7 +290,7 @@ float TSL2591Component::get_calculated_lux(uint16_t full_spectrum, uint16_t infr
       break;
   }
 
-    // This lux equation is copied from the Adafruit TSL2591 v1.4.0.
+    // This lux equation is copied from the Adafruit TSL2591 v1.4.0 and modified slightly.
     // See: https://github.com/adafruit/Adafruit_TSL2591_Library/issues/14
     // and that library code.
     // They said:
@@ -285,10 +300,10 @@ float TSL2591Component::get_calculated_lux(uint16_t full_spectrum, uint16_t infr
     // of ranges from the datasheet. We don't know why the other libraries
     // used the values they did for HIGH and MAX.
     // If cpl or full_spectrum are 0, this will return NaN due to divide by 0.
-#define TSL2591_LUX_DGF (408.0F)  // Lux device factor * glass attenuation factor
-  float cpl = (atime * again) / TSL2591_LUX_DGF;
+    // For the curious "cpl" is counts per lux, a term used in AMS application notes.
+  float cpl = (atime * again) / (this->device_factor_ * this->glass_attenuation_factor_);
   float lux = (((float) full_spectrum - (float) infrared)) * (1.0F - ((float) infrared / (float) full_spectrum)) / cpl;
-  return lux;
+  return max(lux, 0.0F);
 }
 
 }  // namespace tsl2591

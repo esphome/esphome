@@ -43,51 +43,46 @@ enum TSL2591SensorChannel {
   TSL2591_SENSOR_CHANNEL_FULL_SPECTRUM,
 };
 
-/// This class includes support for the TSL2591 i2c ambient light sensor.
-/// The device has two distinct sensors. One is for visible light and the
-/// other is for infrared light. They are reported as separate sensors,
-/// and the combined value "full spectrum" is reported as a third sensor
-/// as a convenience. It is merely the sum of the first two.
-///
-/// This is a fairly thin ESPHome compatibility wrapper around the
-/// Adafruit TSL2591 library. Adafruit uses the term "luminosity", but
-/// ESPHome uses the term "illuminance", as does the TLS2591 datasheet.
+/// This class includes support for the TSL2591 i2c ambient light
+/// sensor.  The device has two distinct sensors. One is for visible
+/// light plus infrared light, and the other is for infrared
+/// light. They are reported as separate sensors, and the difference
+/// between the values is reported as a third sensor as a convenience
+/// for visible light only.
 class TSL2591Component : public PollingComponent, public i2c::I2CDevice {
  public:
-  /** Set the time that sensor values should be accumulated for.
+  /** Set device integration time and gain.
    *
-   * Longer means more accurate, but also mean more power consumption.
-   * If you change this parameter at runtime, you should ignore the
-   * first subsequent sensor readings since the ADC values will not be reliable.
+   * These are set as a single I2C transaction, so you must supply values
+   * for both.
    *
-   * Possible values are:
+   * Longer integration times provides more accurate values, but also
+   * means more power consumption. Higher gain values are useful for
+   * lower light intensities but are also subject to more noise. The
+   * device might use a slightly different gain multiplier than those
+   * indicated; see the datasheet for details.
    *
-   *  - `esphome::tsl2591::TSL2591_INTEGRATION_TIME_100MS` (default)
+   * Possible values for integration_time (from enum
+   * TSL2591IntegrationTime) are:
+   *
+   *  - `esphome::tsl2591::TSL2591_INTEGRATION_TIME_100MS`
    *  - `esphome::tsl2591::TSL2591_INTEGRATION_TIME_200MS`
    *  - `esphome::tsl2591::TSL2591_INTEGRATION_TIME_300MS`
    *  - `esphome::tsl2591::TSL2591_INTEGRATION_TIME_400MS`
    *  - `esphome::tsl2591::TSL2591_INTEGRATION_TIME_500MS`
    *  - `esphome::tsl2591::TSL2591_INTEGRATION_TIME_600MS`
    *
-   * @param integration_time The new integration time.
-   */
-  void set_integration_time(TSL2591IntegrationTime integration_time);
-
-  /** Set the internal gain of the sensor. Can be useful for low-light conditions
-   *
-   * When using the API to set the gain, you should first disable the
-   * TSL2591 device. Otherwise, the next set of ADC readings will not be reliable.
-   *
-   * Possible values are:
+   * Possible values for gain (from enum TSL2591Gain) are:
    *
    *  - `esphome::tsl2591::TSL2591_GAIN_LOW`  (1x)
-   *  - `esphome::tsl2591::TSL2591_GAIN_MED`  (25x, default)
+   *  - `esphome::tsl2591::TSL2591_GAIN_MED`  (25x)
    *  - `esphome::tsl2591::TSL2591_GAIN_HIGH` (400x)
    *  - `esphome::tsl2591::TSL2591_GAIN_MAX`  (9500x)
    *
+   * @param integration_time The new integration time.
    * @param gain The new gain.
    */
-  void set_gain(TSL2591Gain gain);
+ void set_integration_time_and_gain(TSL2591IntegrationTime integration_time, TSL2591Gain gain);
 
   /** Should the device be powered down between readings?
    *
@@ -110,6 +105,30 @@ class TSL2591Component : public PollingComponent, public i2c::I2CDevice {
    */
   void set_name(const char *name);
 
+  /** Sets the device and glass attenuation factors.
+   *
+   * The lux equation, used to calculate the lux from the ADC readings,
+   * involves a scaling coefficient that is the product of a device
+   * factor (specific to the type of device being used) and a glass
+   * attenuation factor (specific to whatever glass or plastic cover
+   * is installed in front of the light sensors.
+   *
+   * AMS does not publish the device factor for the TSL2591. In the
+   * datasheet for the earlier TSL2571 and in application notes, they
+   * use the value 53, so we use that as the default.
+   *
+   * The glass attenuation factor depends on factors external to the
+   * TSL2591 and is best obtained through experimental measurements.
+   * The Adafruit TSL2591 library use a value of ~7.7, which we use as
+   * a default. Waveshare uses a value of ~14.4. Presumably, those
+   * factors are appropriate to the breakout boards from those vendors,
+   * but we have not verified that.
+   * 
+   * @param device_factor The device factor.
+   * @param glass_attenuation_factor The glass attenuation factor.
+   */
+  void set_device_and_glass_attenuation_factors(float device_factor, float glass_attenuation_factor);
+
   /** Calculates and returns a lux value based on the ADC readings.
    *
    * @param full_spectrum The ADC reading for the full spectrum sensor.
@@ -121,6 +140,9 @@ class TSL2591Component : public PollingComponent, public i2c::I2CDevice {
    *
    * This is encoded into a 32 bit value. The high 16 bits are the value of the
    * infrared sensor. The low 16 bits are the sum of the combined sensor values.
+   *
+   * If power saving mode is enabled, there can be a delay (up to the value of the integration 
+   * time) while waiting for the device ADCs to signal that values are valid.
    */
   uint32_t get_combined_illuminance();
 
@@ -131,6 +153,9 @@ class TSL2591Component : public PollingComponent, public i2c::I2CDevice {
    * you want to get all possible channel values. If you want that, first
    * call `get_combined_illuminance()` and pass that value to the companion
    * method with a different signature.
+   *
+   * If power saving mode is enabled, there can be a delay (up to the value of the integration 
+   * time) while waiting for the device ADCs to signal that values are valid.
    *
    * @param channel The sensor channel of interest.
    */
@@ -164,29 +189,38 @@ class TSL2591Component : public PollingComponent, public i2c::I2CDevice {
   /** Powers on the TSL2591 device and enables its sensors.
    *
    * You only need to call this if you have disabled the device.
-   * The device starts enabled in ESPHome.
+   * The device starts enabled in ESPHome unless power save mode is enabled.
    */
   void enable();
   /** Powers off the TSL2591 device.
    *
    * You can call this from an ESPHome script if you are explicitly
    * controlling TSL2591 power consumption.
-   * The device starts enabled in ESPHome.
+   * The device starts enabled in ESPHome unless power save mode is enabled.
    */
   void disable();
 
-  // These methods are normally called by ESPHome core at the right time, based
-  // on config in YAML.
-  void set_full_spectrum_sensor(sensor::Sensor *full_spectrum_sensor);
-  void set_infrared_sensor(sensor::Sensor *infrared_sensor);
-  void set_visible_sensor(sensor::Sensor *visible_sensor);
-  void set_calculated_lux_sensor(sensor::Sensor *calculated_lux_sensor);
-
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these. They're for ESPHome integration use.)
+  /** Used by ESPHome framework. */
+  void set_full_spectrum_sensor(sensor::Sensor *full_spectrum_sensor);
+  /** Used by ESPHome framework. */
+  void set_infrared_sensor(sensor::Sensor *infrared_sensor);
+  /** Used by ESPHome framework. */
+  void set_visible_sensor(sensor::Sensor *visible_sensor);
+  /** Used by ESPHome framework. */
+  void set_calculated_lux_sensor(sensor::Sensor *calculated_lux_sensor);
+  /** Used by ESPHome framework. Does NOT actually set the value on the device. */
+  void set_integration_time(TSL2591IntegrationTime integration_time);
+  /** Used by ESPHome framework. Does NOT actually set the value on the device. */
+  void set_gain(TSL2591Gain gain);
+  /** Used by ESPHome framework. */
   void setup() override;
+  /** Used by ESPHome framework. */
   void dump_config() override;
+  /** Used by ESPHome framework. */
   void update() override;
+  /** Used by ESPHome framework. */
   float get_setup_priority() const override;
 
  protected:
@@ -198,7 +232,9 @@ class TSL2591Component : public PollingComponent, public i2c::I2CDevice {
   TSL2591IntegrationTime integration_time_;
   TSL2591Gain gain_;
   bool power_save_mode_enabled_;
-  void disable_internal_();
+  float device_factor_;
+  float glass_attenuation_factor_;
+  void disable_if_power_saving_();
 };
 
 }  // namespace tsl2591
