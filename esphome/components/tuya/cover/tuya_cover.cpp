@@ -72,22 +72,28 @@ void TuyaCover::set_direction(bool inverted) {
 void TuyaCover::set_optimistic(bool optimistic) { this->optimistic_ = optimistic; }
 
 void TuyaCover::control(const CoverCall &call) {
+  // NOTE: The control datapoint isn't updated when setting a percentage or
+  // when the curtains are opened/closed externally (manually or via the RF
+  // remote control), so we need to "force set" the control datapoint so that
+  // open/close/stop commands are issued reliably.  Also, many of the Tuya
+  // MCU's datapoint reports for the control datapoint have an invalid
+  // checksum and are thus ignored - further compounding the issue.
   uint8_t control_id = 0x01;
   if (this->control_id_.has_value()) {
     control_id = *this->control_id_;
   }
   if (call.get_stop()) {
-    this->parent_->set_datapoint_value(control_id, 0x01);
+    this->parent_->force_set_datapoint_value(control_id, 0x01);
     ESP_LOGD(TAG, "Stopping");
   }
   if (call.get_position().has_value()) {
     auto pos = *call.get_position();
 
     if (pos == COVER_OPEN) {
-      this->parent_->set_datapoint_value(control_id, 0x00);
+      this->parent_->force_set_datapoint_value(control_id, 0x00);
       ESP_LOGD(TAG, "Opening");
     } else if (pos == COVER_CLOSED) {
-      this->parent_->set_datapoint_value(control_id, 0x02);
+      this->parent_->force_set_datapoint_value(control_id, 0x02);
       ESP_LOGD(TAG, "Closing");
     } else {
       uint8_t pos_control_id = 0x02;
