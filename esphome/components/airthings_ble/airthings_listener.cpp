@@ -11,7 +11,6 @@ static const char *TAG = "airthings_ble";
 bool AirthingsListener::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
   for (auto &it : device.get_manufacturer_datas()) {
     if (it.uuid == esp32_ble_tracker::ESPBTUUID::from_uint32_t16(0x0334)) {
-    
       if (it.data.size() < 4)
         continue;
 

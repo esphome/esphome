@@ -1,5 +1,7 @@
 #include "airthings_wave_plus.h"
 
+#ifdef ARDUINO_ARCH_ESP32
+
 namespace esphome {
 namespace airthings_wave_plus {
 
@@ -148,10 +150,8 @@ AirthingsWavePlus::AirthingsWavePlus() : PollingComponent(10000) {
 
   // set_interval("connect", 10000, [this] { this->update_(); });
 }
-  
-void AirthingsWavePlus::setup() {
-  last_connect_time_ = connection_timeout_in_seconds_ * -1000;
-}
+
+void AirthingsWavePlus::setup() { last_connect_time_ = connection_timeout_in_seconds_ * -1000; }
 
 void AirthingsWavePlus::enumerate_services_() {
   //
@@ -184,3 +184,5 @@ void AirthingsWavePlus::WavePlusClientCallbacks::onDisconnect(BLEClient *p_clien
 
 }  // namespace airthings_wave_plus
 }  // namespace esphome
+
+#endif // ARDUINO_ARCH_ESP32

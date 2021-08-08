@@ -22,7 +22,7 @@ class AirthingsWavePlus : public PollingComponent {
   void setup() override;
   void dump_config() override;
   void update() override;
-  
+
   void set_address(std::string address) { address_ = std::move(address); }
   void set_update_interval(uint32_t update_interval);
 
