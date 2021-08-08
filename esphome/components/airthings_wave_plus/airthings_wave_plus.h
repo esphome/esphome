@@ -2,14 +2,13 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
-#include "esphome/core/preferences.h"
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
-#include "esphome/core/version.h"
-
 #include <BLEDevice.h>
 #include <algorithm>
 #include <iterator>
+
+#ifdef ARDUINO_ARCH_ESP32
 
 namespace esphome {
 namespace airthings_wave_plus {
@@ -20,6 +19,7 @@ class AirthingsWavePlus : public Component {
  public:
   AirthingsWavePlus();
 
+  void setup() override;
   void dump_config() override;
   void set_address(std::string address) { address_ = std::move(address); }
   void set_update_interval(uint32_t update_interval);
@@ -39,17 +39,17 @@ class AirthingsWavePlus : public Component {
   uint32_t update_count_ = 0;
   bool connected_ = false;
   bool connecting_ = false;
-  int32_t last_value_time_;
-  int32_t last_connect_time_ = connection_timeout_in_seconds_ * -1000;
+  uint32_t last_value_time_;
+  uint32_t last_connect_time_ = connection_timeout_in_seconds_ * -1000;
 
   void update_();
   void enumerate_services_();
   void client_connected_();
   void client_disconnected_();
   void read_sensors_();
-  boolean is_valid_radon_value_(short radon);
-  boolean is_valid_voc_value_(short voc);
-  boolean is_valid_co2_value_(short co2);
+  bool is_valid_radon_value_(short radon);
+  bool is_valid_voc_value_(short voc);
+  bool is_valid_co2_value_(short co2);
 
   BLEClient *client_;
   std::string address_;
@@ -73,18 +73,20 @@ class AirthingsWavePlus : public Component {
   };
 
   struct WavePlusReadings {
-    unsigned char version;
-    unsigned char humidity;
-    unsigned char ambientLight;
-    unsigned char unused01;
-    unsigned short radon;
-    unsigned short radon_lt;
-    unsigned short temperature;
-    unsigned short pressure;
-    unsigned short co2;
-    unsigned short voc;
+    uint8_t version;
+    uint8_t humidity;
+    uint8_t ambientLight;
+    uint8_t unused01;
+    uint16_t radon;
+    uint16_t radon_lt;
+    uint16_t temperature;
+    uint16_t pressure;
+    uint16_t co2;
+    uint16_t voc;
   };
 };
 
 }  // namespace airthings_wave_plus
 }  // namespace esphome
+
+#endif // ARDUINO_ARCH_ESP32

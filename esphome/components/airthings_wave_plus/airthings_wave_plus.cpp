@@ -11,7 +11,7 @@ void AirthingsWavePlus::client_connected_() {
   last_value_time_ = millis();
 
   // Schedule to avoid a deadlock
-  set_timeout(0, [this] { this->read_sensors_(); });
+  defer([this] { this->read_sensors_(); });
 }
 
 void AirthingsWavePlus::client_disconnected_() {
@@ -85,11 +85,11 @@ void AirthingsWavePlus::read_sensors_() {
   client_->disconnect();
 }
 
-boolean AirthingsWavePlus::is_valid_radon_value_(short radon) { return 0 <= radon && radon <= 16383; }
+bool AirthingsWavePlus::is_valid_radon_value_(short radon) { return 0 <= radon && radon <= 16383; }
 
-boolean AirthingsWavePlus::is_valid_voc_value_(short voc) { return 0 <= voc && voc <= 16383; }
+bool AirthingsWavePlus::is_valid_voc_value_(short voc) { return 0 <= voc && voc <= 16383; }
 
-boolean AirthingsWavePlus::is_valid_co2_value_(short co2) { return 0 <= co2 && co2 <= 16383; }
+bool AirthingsWavePlus::is_valid_co2_value_(short co2) { return 0 <= co2 && co2 <= 16383; }
 
 void AirthingsWavePlus::update_() {
   update_count_++;
@@ -147,6 +147,10 @@ AirthingsWavePlus::AirthingsWavePlus() {
   client_->setClientCallbacks(client_callbacks);
 
   set_interval("connect", 10000, [this] { this->update_(); });
+}
+  
+void AirthingsWavePlus::setup() {
+  last_connect_time_ = connection_timeout_in_seconds_ * -1000;
 }
 
 void AirthingsWavePlus::enumerate_services_() {

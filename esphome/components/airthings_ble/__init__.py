@@ -4,6 +4,7 @@ from esphome.components import esp32_ble_tracker
 from esphome.const import CONF_ID
 
 DEPENDENCIES = ["esp32_ble_tracker"]
+CODEOWNERS = ["@jeromelaban"]
 
 airthings_ble_ns = cg.esphome_ns.namespace("airthings_ble")
 AirthingsListener = airthings_ble_ns.class_(
