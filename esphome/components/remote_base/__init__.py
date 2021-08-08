@@ -271,9 +271,9 @@ def dish_dumper(var, config):
 
 @register_action("dish", DishAction, DISH_SCHEMA)
 async def dish_action(var, config, args):
-    template_ = await cg.templatable(config[CONF_ADDRESS], args, cg.uint16)
+    template_ = await cg.templatable(config[CONF_ADDRESS], args, cg.uint8)
     cg.add(var.set_address(template_))
-    template_ = await cg.templatable(config[CONF_COMMAND], args, cg.uint16)
+    template_ = await cg.templatable(config[CONF_COMMAND], args, cg.uint8)
     cg.add(var.set_command(template_))
 
 
