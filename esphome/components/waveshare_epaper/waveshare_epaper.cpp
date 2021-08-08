@@ -163,16 +163,15 @@ void WaveshareEPaper::on_safe_shutdown() { this->deep_sleep(); }
 // ========================================================
 
 void WaveshareEPaperTypeA::initialize() {
-  if (this->model_ == TTGO_EPAPER_2_13_IN_B74)
-  {
-     this->reset_pin_->digital_write(false);
-     delay(10);
-     this->reset_pin_->digital_write(true);
-     delay(10);
-     this->wait_until_idle_();
+  if (this->model_ == TTGO_EPAPER_2_13_IN_B74) {
+    this->reset_pin_->digital_write(false);
+    delay(10);
+    this->reset_pin_->digital_write(true);
+    delay(10);
+    this->wait_until_idle_();
 
-     this->command(0x12); // SWRESET
-     this->wait_until_idle_();
+    this->command(0x12);  // SWRESET
+    this->wait_until_idle_();
   }
 
   // COMMAND DRIVER OUTPUT CONTROL
