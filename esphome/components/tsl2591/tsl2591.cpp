@@ -24,11 +24,15 @@ static const char *const TAG = "tsl2591.sensor";
 
 void TSL2591Component::enable() {
   // Enable the device by setting the control bit to 0x01. Also turn on ADCs.
-  this->write_byte(TSL2591_COMMAND_BIT | TSL2591_REGISTER_ENABLE, TSL2591_ENABLE_POWERON | TSL2591_ENABLE_AEN);
+  if (!this->write_byte(TSL2591_COMMAND_BIT | TSL2591_REGISTER_ENABLE, TSL2591_ENABLE_POWERON | TSL2591_ENABLE_AEN)) {
+    ESP_LOGE(TAG, "Failed I2C write during enable()");
+  }
 }
 
 void TSL2591Component::disable() {
-  this->write_byte(TSL2591_COMMAND_BIT | TSL2591_REGISTER_ENABLE, TSL2591_ENABLE_POWEROFF);
+  if (!this->write_byte(TSL2591_COMMAND_BIT | TSL2591_REGISTER_ENABLE, TSL2591_ENABLE_POWEROFF)) {
+    ESP_LOGE(TAG, "Failed I2C write during disable()");
+  }
 }
 
 void TSL2591Component::disable_if_power_saving_() {
@@ -40,16 +44,21 @@ void TSL2591Component::disable_if_power_saving_() {
 void TSL2591Component::setup() {
   uint8_t address = this->address_;
   ESP_LOGI(TAG, "Setting up TSL2591 sensor at I2C address 0x%02X", address);
-  uint8_t id = this->read_byte(TSL2591_COMMAND_BIT | TSL2591_REGISTER_DEVICE_ID);
+  uint8_t id;
+  if (!this->read_byte(TSL2591_COMMAND_BIT | TSL2591_REGISTER_DEVICE_ID, &id)) {
+    ESP_LOGE(TAG, "Failed I2C read during setup()");
+    this->mark_failed();
+    return;
+  }
   if (id != 0x50) {
     ESP_LOGE(TAG,
-	     "Could not find the TSL2591 sensor. The ID register of the device at address 0x%02X reported 0x%02X "
-	     "instead of 0x50.", address, id);
+              "Could not find the TSL2591 sensor. The ID register of the device at address 0x%02X reported 0x%02X "
+              "instead of 0x50.", address, id);
     this->mark_failed();
-  } else {
-    this->set_integration_time_and_gain(this->integration_time_, this->gain_);
-    this->disable_if_power_saving_();
+    return;
   }
+  this->set_integration_time_and_gain(this->integration_time_, this->gain_);
+  this->disable_if_power_saving_();
 }
 
 void TSL2591Component::dump_config() {
@@ -152,7 +161,9 @@ void TSL2591Component::set_integration_time_and_gain(TSL2591IntegrationTime inte
   this->enable();
   this->integration_time_ = integration_time;
   this->gain_ = gain;
-  this->write_byte(TSL2591_COMMAND_BIT | TSL2591_REGISTER_CONTROL, this->integration_time_ | this->gain_);  // NOLINT
+  if (!this->write_byte(TSL2591_COMMAND_BIT | TSL2591_REGISTER_CONTROL, this->integration_time_ | this->gain_)) {  // NOLINT
+    ESP_LOGE(TAG, "Failed I2C write during set_integration_time_and_gain()");
+  }
   // The ADC values can be confused if gain or integration time are changed in the middle of a cycle.
   // So, we unconditionally disable the device to turn the ADCs off. When re-enabling, the ADCs
   // will tell us when they are ready again. That avoids an initial bogus reading.
@@ -170,7 +181,10 @@ float TSL2591Component::get_setup_priority() const { return setup_priority::DATA
 
 bool TSL2591Component::is_adc_valid() {
   uint8_t status;
-  this->read_byte(TSL2591_COMMAND_BIT | TSL2591_REGISTER_STATUS, &status);
+  if (!this->read_byte(TSL2591_COMMAND_BIT | TSL2591_REGISTER_STATUS, &status)) {
+    ESP_LOGE(TAG, "Failed I2C read during is_adc_valid()");
+    return false;
+  }
   return status & 0x01;
 }
 
@@ -207,17 +221,30 @@ uint32_t TSL2591Component::get_combined_illuminance() {
   uint8_t ch0low, ch0high, ch1low, ch1high;
   uint16_t ch0_16;
   uint16_t ch1_16;
-  this->read_byte(TSL2591_COMMAND_BIT | TSL2591_REGISTER_CHAN0_LOW, &ch0low);
-  this->read_byte(TSL2591_COMMAND_BIT | TSL2591_REGISTER_CHAN0_HIGH, &ch0high);
+  if (!this->read_byte(TSL2591_COMMAND_BIT | TSL2591_REGISTER_CHAN0_LOW, &ch0low)) {
+    ESP_LOGE(TAG, "Failed I2C read during get_combined_illuminance()");
+    return 0;
+  }
+  if (!this->read_byte(TSL2591_COMMAND_BIT | TSL2591_REGISTER_CHAN0_HIGH, &ch0high)) {
+    ESP_LOGE(TAG, "Failed I2C read during get_combined_illuminance()");
+    return 0;
+  }
   ch0_16 = (ch0high << 8) | ch0low;
-  this->read_byte(TSL2591_COMMAND_BIT | TSL2591_REGISTER_CHAN1_LOW, &ch1low);
-  this->read_byte(TSL2591_COMMAND_BIT | TSL2591_REGISTER_CHAN1_HIGH, &ch1high);
+  if (!this->read_byte(TSL2591_COMMAND_BIT | TSL2591_REGISTER_CHAN1_LOW, &ch1low)) {
+    ESP_LOGE(TAG, "Failed I2C read during get_combined_illuminance()");
+    return 0;
+  }
+  if (!this->read_byte(TSL2591_COMMAND_BIT | TSL2591_REGISTER_CHAN1_HIGH, &ch1high)) {
+    ESP_LOGE(TAG, "Failed I2C read during get_combined_illuminance()");
+    return 0;
+  }
   ch1_16 = (ch1high << 8) | ch1low;
   x32 = (ch1_16 << 16) | ch0_16;
 
   this->disable_if_power_saving_();
   return x32;
 }
+
 uint16_t TSL2591Component::get_illuminance(TSL2591SensorChannel channel) {
   uint32_t combined = this->get_combined_illuminance();
   return this->get_illuminance(channel, combined);

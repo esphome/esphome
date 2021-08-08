@@ -166,4 +166,3 @@ async def to_code(config):
             config[CONF_DEVICE_FACTOR], config[CONF_GLASS_ATTENUATION_FACTOR]
         )
     )
-

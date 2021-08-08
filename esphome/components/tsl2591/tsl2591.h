@@ -82,7 +82,7 @@ class TSL2591Component : public PollingComponent, public i2c::I2CDevice {
    * @param integration_time The new integration time.
    * @param gain The new gain.
    */
- void set_integration_time_and_gain(TSL2591IntegrationTime integration_time, TSL2591Gain gain);
+  void set_integration_time_and_gain(TSL2591IntegrationTime integration_time, TSL2591Gain gain);
 
   /** Should the device be powered down between readings?
    *
