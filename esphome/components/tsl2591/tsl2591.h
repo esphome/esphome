@@ -129,7 +129,7 @@ class TSL2591Component : public PollingComponent, public i2c::I2CDevice {
    * This gets an individual light sensor reading. Since it goes through
    * the entire component read cycle to get one value, it's not optimal if
    * you want to get all possible channel values. If you want that, first
-   * call `getCombinedIlluminance()` and pass that value to the companion
+   * call `get_combined_illuminance()` and pass that value to the companion
    * method with a different signature.
    *
    * @param channel The sensor channel of interest.
