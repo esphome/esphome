@@ -119,8 +119,12 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_NAME, default="TLS2591"): cv.string,
             cv.Optional(CONF_GAIN, default="MEDIUM"): cv.enum(GAINS, upper=True),
             cv.Optional(CONF_POWER_SAVE_MODE, default=False): cv.boolean,
-            cv.Optional(CONF_DEVICE_FACTOR, default=53.0): cv.float_with_unit("device_factor", "", True),
-            cv.Optional(CONF_GLASS_ATTENUATION_FACTOR, default=7.7): cv.float_with_unit("glass_attenuation_factor", "", True),
+            cv.Optional(CONF_DEVICE_FACTOR, default=53.0): cv.float_with_unit(
+                "device_factor", "", True
+            ),
+            cv.Optional(CONF_GLASS_ATTENUATION_FACTOR, default=7.7): cv.float_with_unit(
+                "glass_attenuation_factor", "", True
+            ),
         }
     )
     .extend(cv.polling_component_schema("60s"))
@@ -157,4 +161,9 @@ async def to_code(config):
     cg.add(var.set_power_save_mode(config[CONF_POWER_SAVE_MODE]))
     cg.add(var.set_integration_time(config[CONF_INTEGRATION_TIME]))
     cg.add(var.set_gain(config[CONF_GAIN]))
-    cg.add(var.set_device_and_glass_attenuation_factors(config[CONF_DEVICE_FACTOR], config[CONF_GLASS_ATTENUATION_FACTOR]))
+    cg.add(
+        var.set_device_and_glass_attenuation_factors(
+            config[CONF_DEVICE_FACTOR], config[CONF_GLASS_ATTENUATION_FACTOR]
+        )
+    )
+

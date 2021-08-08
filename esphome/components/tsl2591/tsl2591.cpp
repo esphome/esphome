@@ -28,7 +28,7 @@ void TSL2591Component::enable() {
 }
 
 void TSL2591Component::disable() {
-    this->write_byte(TSL2591_COMMAND_BIT | TSL2591_REGISTER_ENABLE, TSL2591_ENABLE_POWEROFF);
+  this->write_byte(TSL2591_COMMAND_BIT | TSL2591_REGISTER_ENABLE, TSL2591_ENABLE_POWEROFF);
 }
 
 void TSL2591Component::disable_if_power_saving_() {
@@ -38,12 +38,13 @@ void TSL2591Component::disable_if_power_saving_() {
 }
 
 void TSL2591Component::setup() {
-  uint8_t address =  this->address_;
+  uint8_t address = this->address_;
   ESP_LOGI(TAG, "Setting up TSL2591 sensor at I2C address 0x%02X", address);
-  auto id = this->read_byte(TSL2591_COMMAND_BIT | TSL2591_REGISTER_DEVICE_ID);
+  uint8_t id = this->read_byte(TSL2591_COMMAND_BIT | TSL2591_REGISTER_DEVICE_ID);
   if (id != 0x50) {
-    ESP_LOGE(TAG, "Could not find the TSL2591 sensor. The ID register of the device at address 0x%02X reported 0x%02X instead of 0x50.",
-             address, id);
+    ESP_LOGE(TAG,
+	     "Could not find the TSL2591 sensor. The ID register of the device at address 0x%02X reported 0x%02X "
+	     "instead of 0x50.", address, id);
     this->mark_failed();
   } else {
     this->set_integration_time_and_gain(this->integration_time_, this->gain_);
@@ -140,9 +141,7 @@ void TSL2591Component::set_integration_time(TSL2591IntegrationTime integration_t
   this->integration_time_ = integration_time;
 }
 
-void TSL2591Component::set_gain(TSL2591Gain gain) {
-  this->gain_ = gain;
-}
+void TSL2591Component::set_gain(TSL2591Gain gain) { this->gain_ = gain; }
 
 void TSL2591Component::set_device_and_glass_attenuation_factors(float device_factor, float glass_attenuation_factor) {
   this->device_factor_ = device_factor;
@@ -152,7 +151,7 @@ void TSL2591Component::set_device_and_glass_attenuation_factors(float device_fac
 void TSL2591Component::set_integration_time_and_gain(TSL2591IntegrationTime integration_time, TSL2591Gain gain) {
   this->enable();
   this->integration_time_ = integration_time;
-  this->gain_ = gain_;
+  this->gain_ = gain;
   this->write_byte(TSL2591_COMMAND_BIT | TSL2591_REGISTER_CONTROL, this->integration_time_ | this->gain_);  // NOLINT
   // The ADC values can be confused if gain or integration time are changed in the middle of a cycle.
   // So, we unconditionally disable the device to turn the ADCs off. When re-enabling, the ADCs
@@ -290,17 +289,17 @@ float TSL2591Component::get_calculated_lux(uint16_t full_spectrum, uint16_t infr
       break;
   }
 
-    // This lux equation is copied from the Adafruit TSL2591 v1.4.0 and modified slightly.
-    // See: https://github.com/adafruit/Adafruit_TSL2591_Library/issues/14
-    // and that library code.
-    // They said:
-    //   Note: This algorithm is based on preliminary coefficients
-    //   provided by AMS and may need to be updated in the future
-    // However, we use gain multipliers that are more in line with the midpoints
-    // of ranges from the datasheet. We don't know why the other libraries
-    // used the values they did for HIGH and MAX.
-    // If cpl or full_spectrum are 0, this will return NaN due to divide by 0.
-    // For the curious "cpl" is counts per lux, a term used in AMS application notes.
+  // This lux equation is copied from the Adafruit TSL2591 v1.4.0 and modified slightly.
+  // See: https://github.com/adafruit/Adafruit_TSL2591_Library/issues/14
+  // and that library code.
+  // They said:
+  //   Note: This algorithm is based on preliminary coefficients
+  //   provided by AMS and may need to be updated in the future
+  // However, we use gain multipliers that are more in line with the midpoints
+  // of ranges from the datasheet. We don't know why the other libraries
+  // used the values they did for HIGH and MAX.
+  // If cpl or full_spectrum are 0, this will return NaN due to divide by 0.
+  // For the curious "cpl" is counts per lux, a term used in AMS application notes.
   float cpl = (atime * again) / (this->device_factor_ * this->glass_attenuation_factor_);
   float lux = (((float) full_spectrum - (float) infrared)) * (1.0F - ((float) infrared / (float) full_spectrum)) / cpl;
   return max(lux, 0.0F);

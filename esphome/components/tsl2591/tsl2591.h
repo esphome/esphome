@@ -123,7 +123,7 @@ class TSL2591Component : public PollingComponent, public i2c::I2CDevice {
    * a default. Waveshare uses a value of ~14.4. Presumably, those
    * factors are appropriate to the breakout boards from those vendors,
    * but we have not verified that.
-   * 
+   *
    * @param device_factor The device factor.
    * @param glass_attenuation_factor The glass attenuation factor.
    */
@@ -141,7 +141,7 @@ class TSL2591Component : public PollingComponent, public i2c::I2CDevice {
    * This is encoded into a 32 bit value. The high 16 bits are the value of the
    * infrared sensor. The low 16 bits are the sum of the combined sensor values.
    *
-   * If power saving mode is enabled, there can be a delay (up to the value of the integration 
+   * If power saving mode is enabled, there can be a delay (up to the value of the integration
    * time) while waiting for the device ADCs to signal that values are valid.
    */
   uint32_t get_combined_illuminance();
@@ -154,7 +154,7 @@ class TSL2591Component : public PollingComponent, public i2c::I2CDevice {
    * call `get_combined_illuminance()` and pass that value to the companion
    * method with a different signature.
    *
-   * If power saving mode is enabled, there can be a delay (up to the value of the integration 
+   * If power saving mode is enabled, there can be a delay (up to the value of the integration
    * time) while waiting for the device ADCs to signal that values are valid.
    *
    * @param channel The sensor channel of interest.
