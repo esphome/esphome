@@ -108,28 +108,59 @@ void TSL2591Component::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 }
 
+void TSL2591Component::process_update_() {
+  uint32_t combined = this->get_combined_illuminance();
+  uint16_t visible = this->get_illuminance(TSL2591_SENSOR_CHANNEL_VISIBLE, combined);
+  uint16_t infrared = this->get_illuminance(TSL2591_SENSOR_CHANNEL_INFRARED, combined);
+  uint16_t full = this->get_illuminance(TSL2591_SENSOR_CHANNEL_FULL_SPECTRUM, combined);
+  float lux = this->get_calculated_lux(full, infrared);
+  ESP_LOGD(TAG, "Got illuminance: combined 0x%X, full %d, IR %d, vis %d. Calc lux: %f", combined, full, infrared,
+	   visible, lux);
+  if (this->full_spectrum_sensor_ != nullptr) {
+    this->full_spectrum_sensor_->publish_state(full);
+  }
+  if (this->infrared_sensor_ != nullptr) {
+    this->infrared_sensor_->publish_state(infrared);
+  }
+  if (this->visible_sensor_ != nullptr) {
+    this->visible_sensor_->publish_state(visible);
+  }
+  if (this->calculated_lux_sensor_ != nullptr) {
+    this->calculated_lux_sensor_->publish_state(lux);
+  }
+  this->status_clear_warning();
+}
+
+static const char *interval_name = "tsl2591_interval_for_update";
+
+void TSL2591Component::interval_function_for_update_() {
+  if (!this->is_adc_valid()) {
+    unsigned long now = millis();
+    ESP_LOGD(TAG, "Elapsed %3d ms; still waiting for valid ADC", (now - this->interval_start_));
+    if (now > this->interval_timeout_) {
+      ESP_LOGW(TAG, "Interval timeout for TSL2591 '%s' expired before ADCs became valid.", this->name_);
+      this->cancel_interval(interval_name);
+    }
+    return;
+  }
+  this->cancel_interval(interval_name);
+  this->process_update_();
+}
+
 void TSL2591Component::update() {
   if (!is_failed()) {
-    uint32_t combined = this->get_combined_illuminance();
-    uint16_t visible = this->get_illuminance(TSL2591_SENSOR_CHANNEL_VISIBLE, combined);
-    uint16_t infrared = this->get_illuminance(TSL2591_SENSOR_CHANNEL_INFRARED, combined);
-    uint16_t full = this->get_illuminance(TSL2591_SENSOR_CHANNEL_FULL_SPECTRUM, combined);
-    float lux = this->get_calculated_lux(full, infrared);
-    ESP_LOGD(TAG, "Got illuminance: combined 0x%X, full %d, IR %d, vis %d. Calc lux: %f", combined, full, infrared,
-             visible, lux);
-    if (this->full_spectrum_sensor_ != nullptr) {
-      this->full_spectrum_sensor_->publish_state(full);
+    if (this->power_save_mode_enabled_) {
+      // we enabled it here, else ADC will never become valid
+      // but actually doing the reads will disable device if needed
+      this->enable();
     }
-    if (this->infrared_sensor_ != nullptr) {
-      this->infrared_sensor_->publish_state(infrared);
+    if (this->is_adc_valid()) {
+      this->process_update_();
+    } else {
+      this->interval_start_ = millis();
+      this->interval_timeout_ = this->interval_start_ + 620;
+      this->set_interval(interval_name, 100, [this] { this->interval_function_for_update_(); });
     }
-    if (this->visible_sensor_ != nullptr) {
-      this->visible_sensor_->publish_state(visible);
-    }
-    if (this->calculated_lux_sensor_ != nullptr) {
-      this->calculated_lux_sensor_->publish_state(lux);
-    }
-    status_clear_warning();
   }
 }
 
@@ -197,7 +228,7 @@ uint32_t TSL2591Component::get_combined_illuminance() {
   // (But we use 620ms as a bit of slack.)
   // We'll do mini-delays and break out as soon as the ADC is good.
   bool avalid;
-  const uint8_t mini_delay = 50;
+  const uint8_t mini_delay = 100;
   for (uint16_t d = 0; d < 620; d += mini_delay) {
     avalid = this->is_adc_valid();
     if (avalid) {

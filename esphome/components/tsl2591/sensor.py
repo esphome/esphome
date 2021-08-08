@@ -118,7 +118,7 @@ CONFIG_SCHEMA = (
             ): validate_integration_time,
             cv.Optional(CONF_NAME, default="TLS2591"): cv.string,
             cv.Optional(CONF_GAIN, default="MEDIUM"): cv.enum(GAINS, upper=True),
-            cv.Optional(CONF_POWER_SAVE_MODE, default=False): cv.boolean,
+            cv.Optional(CONF_POWER_SAVE_MODE, default=True): cv.boolean,
             cv.Optional(CONF_DEVICE_FACTOR, default=53.0): cv.float_with_unit(
                 "device_factor", "", True
             ),
