@@ -85,6 +85,8 @@ class LightTransitionTransformer : public LightTransformer {
   bool publish_at_end() override { return false; }
   bool is_transition() override { return true; }
 
+  // This looks crazy, but it reduces to 6x^5 - 15x^4 + 10x^3 which is just a smooth sigmoid-like
+  // transition from 0 to 1 on x = [0, 1]
   static float smoothed_progress(float x) { return x * x * x * (x * (x * 6.0f - 15.0f) + 10.0f); }
 
  protected:

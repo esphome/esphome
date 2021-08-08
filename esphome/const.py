@@ -24,6 +24,7 @@ ARDUINO_VERSION_ESP32 = {
 # See also https://github.com/platformio/platform-espressif8266/releases
 ARDUINO_VERSION_ESP8266 = {
     "dev": "https://github.com/platformio/platform-espressif8266.git",
+    "3.0.1": "platformio/espressif8266@3.1.0",
     "3.0.0": "platformio/espressif8266@3.0.0",
     "2.7.4": "platformio/espressif8266@2.6.2",
     "2.7.3": "platformio/espressif8266@2.6.1",
