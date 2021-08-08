@@ -15,12 +15,14 @@ namespace airthings_wave_plus {
 
 static const char *TAG = "airthings_wave_plus";
 
-class AirthingsWavePlus : public Component {
+class AirthingsWavePlus : public PollingComponent {
  public:
   AirthingsWavePlus();
 
   void setup() override;
   void dump_config() override;
+  void update() override;
+  
   void set_address(std::string address) { address_ = std::move(address); }
   void set_update_interval(uint32_t update_interval);
 
@@ -42,7 +44,6 @@ class AirthingsWavePlus : public Component {
   uint32_t last_value_time_;
   uint32_t last_connect_time_ = connection_timeout_in_seconds_ * -1000;
 
-  void update_();
   void enumerate_services_();
   void client_connected_();
   void client_disconnected_();

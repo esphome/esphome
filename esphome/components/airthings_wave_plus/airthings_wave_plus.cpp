@@ -91,7 +91,7 @@ bool AirthingsWavePlus::is_valid_voc_value_(short voc) { return 0 <= voc && voc 
 
 bool AirthingsWavePlus::is_valid_co2_value_(short co2) { return 0 <= co2 && co2 <= 16383; }
 
-void AirthingsWavePlus::update_() {
+void AirthingsWavePlus::update() {
   update_count_++;
 
   if (!client_->isConnected()) {
@@ -136,7 +136,7 @@ void AirthingsWavePlus::dump_config() {
   LOG_SENSOR("  ", "TVOC", this->tvoc_sensor_);
 }
 
-AirthingsWavePlus::AirthingsWavePlus() {
+AirthingsWavePlus::AirthingsWavePlus() : PollingComponent(10000) {
   ESP_LOGD(TAG, "AirthingsWavePlus()");
 
   BLEDevice::init("");
@@ -146,7 +146,7 @@ AirthingsWavePlus::AirthingsWavePlus() {
       new WavePlusClientCallbacks([this] { this->client_connected_(); }, [this] { this->client_disconnected_(); });
   client_->setClientCallbacks(client_callbacks);
 
-  set_interval("connect", 10000, [this] { this->update_(); });
+  // set_interval("connect", 10000, [this] { this->update_(); });
 }
   
 void AirthingsWavePlus::setup() {

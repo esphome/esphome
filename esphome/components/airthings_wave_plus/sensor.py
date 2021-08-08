@@ -38,7 +38,7 @@ DEPENDENCIES = []
 AUTO_LOAD = []
 
 airthings_wave_plus_ns = cg.esphome_ns.namespace("airthings_wave_plus")
-AirthingsWavePlus = airthings_wave_plus_ns.class_("AirthingsWavePlus", cg.Component)
+AirthingsWavePlus = airthings_wave_plus_ns.class_("AirthingsWavePlus", cg.PollingComponent)
 
 CONFIG_SCHEMA = cv.Schema(
     {
