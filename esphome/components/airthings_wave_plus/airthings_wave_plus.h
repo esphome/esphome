@@ -21,7 +21,7 @@ class AirthingsWavePlus : public Component {
   AirthingsWavePlus();
 
   void dump_config() override;
-  void set_address(std::string address) { address_ = address; }
+  void set_address(std::string address) { address_ = std::move(address); }
   void set_update_interval(uint32_t update_interval);
 
   void set_temperature(sensor::Sensor *temperature) { temperature_sensor_ = temperature; }
