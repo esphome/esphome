@@ -77,6 +77,8 @@ class Tuya : public Component, public uart::UARTDevice {
   void register_listener(uint8_t datapoint_id, const std::function<void(TuyaDatapoint)> &func);
   void set_datapoint_value(uint8_t datapoint_id, uint32_t value);
   void set_datapoint_value(uint8_t datapoint_id, const std::string &value);
+  void force_set_datapoint_value(uint8_t datapoint_id, uint32_t value);
+  void force_set_datapoint_value(uint8_t datapoint_id, const std::string &value);
 #ifdef USE_TIME
   void set_time_id(time::RealTimeClock *time_id) { this->time_id_ = time_id; }
 #endif
@@ -97,6 +99,8 @@ class Tuya : public Component, public uart::UARTDevice {
   void send_empty_command_(TuyaCommandType command);
   void send_datapoint_command_(uint8_t datapoint_id, TuyaDatapointType datapoint_type, std::vector<uint8_t> data);
   void send_wifi_status_();
+  void set_datapoint_value_(uint8_t datapoint_id, uint32_t value, bool force);
+  void set_datapoint_value_(uint8_t datapoint_id, const std::string &value, bool force);
 
 #ifdef USE_TIME
   void send_local_time_();
