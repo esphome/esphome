@@ -159,7 +159,7 @@ class TSL2591Component : public PollingComponent, public i2c::I2CDevice {
    * It should take no more than the configured integration time for
    * the ADC values to become valid after the TSL2591 device is enabled.
    */
-  boolean is_adc_valid();
+  bool is_adc_valid();
 
   /** Powers on the TSL2591 device and enables its sensors.
    *
