@@ -53,7 +53,8 @@ void TSL2591Component::setup() {
   if (id != 0x50) {
     ESP_LOGE(TAG,
              "Could not find the TSL2591 sensor. The ID register of the device at address 0x%02X reported 0x%02X "
-             "instead of 0x50.", address, id);
+             "instead of 0x50.",
+             address, id);
     this->mark_failed();
     return;
   }
