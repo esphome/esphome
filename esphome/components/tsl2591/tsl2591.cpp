@@ -52,8 +52,8 @@ void TSL2591Component::setup() {
   }
   if (id != 0x50) {
     ESP_LOGE(TAG,
-              "Could not find the TSL2591 sensor. The ID register of the device at address 0x%02X reported 0x%02X "
-              "instead of 0x50.", address, id);
+             "Could not find the TSL2591 sensor. The ID register of the device at address 0x%02X reported 0x%02X "
+             "instead of 0x50.", address, id);
     this->mark_failed();
     return;
   }
@@ -161,7 +161,8 @@ void TSL2591Component::set_integration_time_and_gain(TSL2591IntegrationTime inte
   this->enable();
   this->integration_time_ = integration_time;
   this->gain_ = gain;
-  if (!this->write_byte(TSL2591_COMMAND_BIT | TSL2591_REGISTER_CONTROL, this->integration_time_ | this->gain_)) {  // NOLINT
+  if (!this->write_byte(TSL2591_COMMAND_BIT | TSL2591_REGISTER_CONTROL,
+                        this->integration_time_ | this->gain_)) {  // NOLINT
     ESP_LOGE(TAG, "Failed I2C write during set_integration_time_and_gain()");
   }
   // The ADC values can be confused if gain or integration time are changed in the middle of a cycle.
