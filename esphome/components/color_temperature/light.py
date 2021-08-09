@@ -14,8 +14,6 @@ CODEOWNERS = ["@jesserockz"]
 color_temperature_ns = cg.esphome_ns.namespace("color_temperature")
 CTLightOutput = color_temperature_ns.class_("CTLightOutput", light.LightOutput)
 
-CONF_CONSTANT_BRIGHTNESS = "constant_brightness"
-
 CONFIG_SCHEMA = cv.All(
     light.RGB_LIGHT_SCHEMA.extend(
         {

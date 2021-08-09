@@ -16,7 +16,6 @@ CODEOWNERS = ["@jesserockz"]
 rgbct_ns = cg.esphome_ns.namespace("rgbct")
 RGBCTLightOutput = rgbct_ns.class_("RGBCTLightOutput", light.LightOutput)
 
-CONF_CONSTANT_BRIGHTNESS = "constant_brightness"
 CONF_COLOR_INTERLOCK = "color_interlock"
 CONF_WHITE_BRIGHTNESS = "white_brightness"
 
