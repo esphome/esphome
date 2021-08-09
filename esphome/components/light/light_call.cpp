@@ -226,6 +226,9 @@ LightColorValues LightCall::validate_() {
   VALIDATE_RANGE(warm_white, "Warm white")
   VALIDATE_RANGE_(color_temperature, "Color temperature", traits.get_min_mireds(), traits.get_max_mireds())
 
+  // Flag whether an explicit turn off was requested, in which case we'll also stop the effect.
+  bool explicit_turn_off_request = this->state_.has_value() && !*this->state_;
+
   // Turn off when brightness is set to zero, and reset brightness (so that it has nonzero brightness when turned on).
   if (this->brightness_.has_value() && *this->brightness_ == 0.0f) {
     this->state_ = optional<float>(false);
@@ -238,6 +241,7 @@ LightColorValues LightCall::validate_() {
       this->color_brightness_ = optional<float>(1.0f);
   }
 
+  // Create color values for the light with this call applied.
   auto v = this->parent_->remote_values;
   if (this->color_mode_.has_value())
     v.set_color_mode(*this->color_mode_);
@@ -318,7 +322,7 @@ LightColorValues LightCall::validate_() {
     if (this->has_effect_()) {
       ESP_LOGW(TAG, "'%s' - Cannot start an effect when turning off!", name);
       this->effect_.reset();
-    } else if (this->parent_->active_effect_index_ != 0) {
+    } else if (this->parent_->active_effect_index_ != 0 && explicit_turn_off_request) {
       // Auto turn off effect
       this->effect_ = 0;
     }
