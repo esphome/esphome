@@ -11,9 +11,10 @@ namespace api {
 
 class APIConnection : public APIServerConnection {
  public:
-  APIConnection(AsyncClient *client, APIServer *parent);
+  APIConnection(std::unique_ptr<socket::Socket> socket, APIServer *parent);
   virtual ~APIConnection();
 
+  void start();
   void disconnect_client();
   void loop();
 
@@ -135,19 +136,18 @@ class APIConnection : public APIServerConnection {
   void on_unauthenticated_access() override;
   void on_no_setup_connection() override;
   ProtoWriteBuffer create_buffer() override {
-    this->send_buffer_.clear();
-    return {&this->send_buffer_};
+    // FIXME: ensure no recursive writes can happen
+    this->proto_write_buffer_.clear();
+    return {&this->proto_write_buffer_};
   }
   bool send_buffer(ProtoWriteBuffer buffer, uint32_t message_type) override;
 
  protected:
   friend APIServer;
 
-  void on_error_(int8_t error);
-  void on_disconnect_();
-  void on_timeout_(uint32_t time);
-  void on_data_(uint8_t *buf, size_t len);
   void parse_recv_buffer_();
+  bool send_(const void *buf, size_t len, bool force);
+  void try_send_pending_data_();
 
   enum class ConnectionState {
     WAITING_FOR_HELLO,
@@ -157,8 +157,14 @@ class APIConnection : public APIServerConnection {
 
   bool remove_{false};
 
-  std::vector<uint8_t> send_buffer_;
+  // Buffer used to encode proto messages
+  // Re-use to prevent allocations
+  std::vector<uint8_t> proto_write_buffer_;
+  // Buffer containing pending sends
+  std::vector<uint8_t> pending_send_buffer_;
+  // Buffer containing data that was received but not parsed yet
   std::vector<uint8_t> recv_buffer_;
+  size_t recv_len_{0};
 
   std::string client_info_;
 #ifdef USE_ESP32_CAMERA
@@ -170,9 +176,8 @@ class APIConnection : public APIServerConnection {
   uint32_t last_traffic_;
   bool sent_ping_{false};
   bool service_call_subscription_{false};
-  bool current_nodelay_{false};
   bool next_close_{false};
-  AsyncClient *client_;
+  std::unique_ptr<socket::Socket> socket_;
   APIServer *parent_;
   InitialStateIterator initial_state_iterator_;
   ListEntitiesIterator list_entities_iterator_;

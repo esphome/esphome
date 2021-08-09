@@ -5,6 +5,8 @@
 #include "esphome/core/util.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/version.h"
+#include <errno.h>
+//#include <arpa/inet.h>
 
 #ifdef USE_LOGGER
 #include "esphome/components/logger/logger.h"
@@ -21,20 +23,115 @@ static const char *const TAG = "api";
 void APIServer::setup() {
   ESP_LOGCONFIG(TAG, "Setting up Home Assistant API server...");
   this->setup_controller();
-  this->server_ = AsyncServer(this->port_);
-  this->server_.setNoDelay(false);
-  this->server_.begin();
-  this->server_.onClient(
-      [](void *s, AsyncClient *client) {
-        if (client == nullptr)
-          return;
+  socket_ = socket::socket(AF_INET, SOCK_STREAM, 0);
+  if (socket_ == nullptr) {
+    ESP_LOGW(TAG, "Could not create socket.");
+    this->mark_failed();
+    return;
+  }
+  int enable = 1;
+  int err = socket_->setsockopt(SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int));
+  if (err != 0) {
+    ESP_LOGW(TAG, "Socket unable to set reuseaddr: errno %d", err);
+    // we can still continue
+  }
+  err = socket_->setblocking(false);
+  if (err != 0) {
+    ESP_LOGW(TAG, "Socket unable to set nonblocking mode: errno %d", err);
+    this->mark_failed();
+    return;
+  }
 
-        // can't print here because in lwIP thread
-        // ESP_LOGD(TAG, "New client connected from %s", client->remoteIP().toString().c_str());
-        auto *a_this = (APIServer *) s;
-        a_this->clients_.push_back(new APIConnection(client, a_this));
-      },
-      this);
+  /*struct sockaddr_storage dest_addr;
+  memset(&dest_addr, 0, sizeof(dest_addr));
+  struct sockaddr_in *dest_addr_ip4 = (struct sockaddr_in *) &dest_addr;
+  dest_addr_ip4->sin_addr.s_addr = htonl(INADDR_ANY);
+  dest_addr_ip4->sin_family = AF_INET;
+  dest_addr_ip4->sin_port = htons(this->port_);
+
+  err = socket_->bind((struct sockaddr *) &dest_addr, sizeof(dest_addr));*/
+
+  struct sockaddr_in server;
+  memset(&server, 0, sizeof(server));
+  server.sin_family = AF_INET;
+  server.sin_addr.s_addr = INADDR_ANY;
+  server.sin_port = htons(this->port_);
+
+  err = socket_->bind((struct sockaddr *) &server, sizeof(server));
+  if (err != 0) {
+    ESP_LOGW(TAG, "Socket unable to bind: errno %d", errno);
+    this->mark_failed();
+    return;
+  }
+
+  err = socket_->listen(4);
+  if (err != 0) {
+    ESP_LOGW(TAG, "Socket unable to listen: errno %d", errno);
+    this->mark_failed();
+    return;
+  }
+
+  ssl_ = ssl::create_context();
+  if (!ssl_) {
+    ESP_LOGW(TAG, "Failed to create SSL context: errno %d", errno);
+    this->mark_failed();
+    return;
+  }
+  ssl_->set_server_certificate(R"(-----BEGIN CERTIFICATE-----
+MIIDETCCAfkCFGNtbm6nA3CZM7no7HqdWikhUMSkMA0GCSqGSIb3DQEBCwUAMEUx
+CzAJBgNVBAYTAkFVMRMwEQYDVQQIDApTb21lLVN0YXRlMSEwHwYDVQQKDBhJbnRl
+cm5ldCBXaWRnaXRzIFB0eSBMdGQwHhcNMjEwODA5MTgwOTMyWhcNMjEwOTA4MTgw
+OTMyWjBFMQswCQYDVQQGEwJBVTETMBEGA1UECAwKU29tZS1TdGF0ZTEhMB8GA1UE
+CgwYSW50ZXJuZXQgV2lkZ2l0cyBQdHkgTHRkMIIBIjANBgkqhkiG9w0BAQEFAAOC
+AQ8AMIIBCgKCAQEAwbt/qjWftqZtdRaJ5QjRf/8Sh6JT8KN4Bu9cGbHJIKAQLhy6
+8/qdB24Ar8SyuKEaV8HRcCguTQ58jdK5rbaQu/Zpppgy9lF3AHH1MhVHavGNca3A
+ejFtJr4DuTLkv/HjpgcAHjhZk+mFeNXrHeFrPIzF3imSyV1xyqoBxpa1cCFH/D3J
+o2S6PMdAEcHSoaP5TEuM9e2j9Sc97LughMaFkR1R4cz2kEyMZIOASHkFCJMV6pjg
+PVOqxu11oFYJn9/zh1Ea6PChYq+bGBmj60vwh+tpA6E8T0PzkxUuVklAD5pBfXoD
+y8xW8ulc0CPSGSaxbn2vudUBJyZFvQBTQhFVcwIDAQABMA0GCSqGSIb3DQEBCwUA
+A4IBAQBQM80osk+ryQ+CqBhyOLQBOeQkmCVNzMUjVBG7tP4vkuJtfAdyUuKBWGtr
+X2VrkL0yueeDt9rdib5QbXWih4sT7KdQlnSBmnrac0MM7wCh+lhCnJhWWCUBHP9s
+8rkL2XOrISbVi80wqpJn0y4FMaoK6KnxyelallHuNZ+3EZAuZrhGAkV68Z83CIFO
+5emvAIGq73U/lddLDV6sz7zWeDdnyfTpkLzml8wJLO9Ob7o6aw7WJK/edjYdc2XW
+pIMatEESaN9MlWI5SXQS4AcMnqdUqab5587cHDrgVjBd8RmvdyT9j2v7nS2JyEK0
+DkASogRqBmCLR1/0UW+dFARCZI9k
+-----END CERTIFICATE-----
+)");
+  ssl_->set_private_key(R"(-----BEGIN RSA PRIVATE KEY-----
+MIIEpAIBAAKCAQEAwbt/qjWftqZtdRaJ5QjRf/8Sh6JT8KN4Bu9cGbHJIKAQLhy6
+8/qdB24Ar8SyuKEaV8HRcCguTQ58jdK5rbaQu/Zpppgy9lF3AHH1MhVHavGNca3A
+ejFtJr4DuTLkv/HjpgcAHjhZk+mFeNXrHeFrPIzF3imSyV1xyqoBxpa1cCFH/D3J
+o2S6PMdAEcHSoaP5TEuM9e2j9Sc97LughMaFkR1R4cz2kEyMZIOASHkFCJMV6pjg
+PVOqxu11oFYJn9/zh1Ea6PChYq+bGBmj60vwh+tpA6E8T0PzkxUuVklAD5pBfXoD
+y8xW8ulc0CPSGSaxbn2vudUBJyZFvQBTQhFVcwIDAQABAoIBAGVpQuDUhTBVWkLK
+c5CC1zfLS+XYIVx8FZ57uZhxqjj70LxyqaKBc6Wp/Y4ExxFCs8lwWbP+NI59oNGU
+l0HJqWXbDV75mOO7rTF8db+rx+DBZSs2quTL7rkzCjvt2jRn6KTGUVeAY9O7j/S6
+9gKEN2BQyFsNJBtoYOKXr6pGxd9Vg3K0j7DJXf5uK7lWIrxtU9k7QgMJFdnhbzEu
+0TnhFEVMDdBIm+yrTdL8lmIdT8DOUIJgyTJ1iICFndksPQSgBAWQaGKaaxZbn0c3
+Oy778VFqT2HywHVbJQL4XBe/yYUhjbpF1Hv9EEbK3Rm04xsCDbZru6/AK88gHBk4
+b7uUSwECgYEA4BmML1isP9h8zqAvCEFjFmAWpoLBBZ+5I9Go1PIWhlCYY+G7AUXw
+zxb0J6d9UGsYTkJXlgE77+HBzqlgyhCkngNuAAPm37ebdwuy5iBr32c9RLahR5W5
+Nh+J3le9JTXe9B9uwfggD06dBFmhgG0PQdyBr4Daa3a8VRJAD1MGYMECgYEA3U9U
+QwxQOYBkdJTbIQnTP7vnFuhWn9V5BMn5PczJSwGJEgaHgIL5Bm5NHa/ON3UX6QIi
+uk73fGfohN8Ii1MjVKNFKM/LZ30XSufVHrm7yH6xRR4qbZUk4KhKxV/uOVluv38P
+bis9B9cye3ETnjDhkWK4/TJeTHHlTAKMQuOQzzMCgYEAmtlsYYbvNwq7aveKqDSu
+aFarMBGnmOA+SP7ln4dMgzELq/DdjEqs1BwzR3dXgwsNd34mEVP2+5HOnqOxas7H
+QRxzlPUdQjcX6NGfo56Bi5RF5MYheVp+6WQvmwCbhSvNTHivyr5OQOV8X/YjP5+c
+bFEXF5N82cbo6gu7Uht3i8ECgYAh511JSEGiDYFWOte3IAI06VxlrgJXSiTYDvkX
+9p9/1iRhlo57qZTs30kBG0XESTP4hlM7p41SibidYm20qm/nL3wQ3ISUvh0rZIjJ
+xDp4ZLBTnmNxlj+oCyApTKD6ODE3NQfwIL+gy973+kK/IU3tL+qXH3hCzdAK7Pj/
+5kzw8QKBgQDUYQGH1JT93Yn9uIyfX1v6HcB1azDbF16JEOFZoGlS1gxFCobIb7jA
+2/Y0HfFUUfDGexjQNReFi0IXjgBvYmJX7rF9tGsTdXh35Lu2cTd0DcykGPVcFyJW
+PSf0vGzbAqpdriYQStaed+HgTdW6kHsOBNeJbbJkjsQpoaoWX3tEDw==
+-----END RSA PRIVATE KEY-----
+)");
+  err = ssl_->init();
+  if (err != 0) {
+    ESP_LOGW(TAG, "Failed to initialize SSL context: errno %d", errno);
+    this->mark_failed();
+    return;
+  }
+
 #ifdef USE_LOGGER
   if (logger::global_logger != nullptr) {
     logger::global_logger->add_on_log_callback([this](int level, const char *tag, const char *message) {
@@ -59,6 +156,27 @@ void APIServer::setup() {
 #endif
 }
 void APIServer::loop() {
+  // Accept new clients
+  while (true) {
+    struct sockaddr_storage source_addr;
+    socklen_t addr_len = sizeof(source_addr);
+    auto sock = socket_->accept((struct sockaddr *) &source_addr, &addr_len);
+    if (!sock)
+      break;
+    ESP_LOGD(TAG, "Accepted %s", sock->getpeername().c_str());
+
+    // wrap socket
+    auto sock2 = ssl_->wrap_socket(std::move(sock));
+    if (!sock2) {
+      ESP_LOGW(TAG, "Failed to wrap socket with SSL: errno %d", errno);
+      continue;
+    }
+
+    auto *conn = new APIConnection(std::move(sock2), this);
+    clients_.push_back(conn);
+    conn->start();
+  }
+
   // Partition clients into remove and active
   auto new_end =
       std::partition(this->clients_.begin(), this->clients_.end(), [](APIConnection *conn) { return !conn->remove_; });

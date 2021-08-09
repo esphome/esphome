@@ -3,8 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/preferences.h"
 #include "esphome/core/helpers.h"
-#include <WiFiServer.h>
-#include <WiFiClient.h>
+#include "esphome/components/socket/socket.h"
 
 namespace esphome {
 namespace ota {
@@ -74,14 +73,15 @@ class OTAComponent : public Component {
   uint32_t read_rtc_();
 
   void handle_();
-  size_t wait_receive_(uint8_t *buf, size_t bytes, bool check_disconnected = true);
+  bool readall_(uint8_t *buf, size_t len);
+  bool writeall_(const uint8_t *buf, size_t len);
 
   std::string password_;
 
   uint16_t port_;
 
-  WiFiServer *server_{nullptr};
-  WiFiClient client_{};
+  std::unique_ptr<socket::Socket> server_;
+  std::unique_ptr<socket::Socket> client_;
 
   bool has_safe_mode_{false};              ///< stores whether safe mode can be enabled.
   uint32_t safe_mode_start_time_;          ///< stores when safe mode was enabled.
