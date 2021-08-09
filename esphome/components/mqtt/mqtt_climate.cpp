@@ -72,7 +72,7 @@ void MQTTClimateComponent::send_discovery(JsonObject &root, mqtt::SendDiscoveryC
     root["act_t"] = this->get_action_state_topic();
   }
 
-  if (traits.get_supports_fan_modes()) {
+  if (traits.get_supports_fan_modes() || !traits.get_supported_custom_fan_modes().empty()) {
     // fan_mode_command_topic
     root["fan_mode_cmd_t"] = this->get_fan_mode_command_topic();
     // fan_mode_state_topic

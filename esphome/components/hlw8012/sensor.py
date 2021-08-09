@@ -18,7 +18,6 @@ from esphome.const import (
     DEVICE_CLASS_ENERGY,
     DEVICE_CLASS_POWER,
     DEVICE_CLASS_VOLTAGE,
-    ICON_EMPTY,
     LAST_RESET_TYPE_AUTO,
     STATE_CLASS_MEASUREMENT,
     UNIT_VOLT,
@@ -58,21 +57,29 @@ CONFIG_SCHEMA = cv.Schema(
             pins.internal_gpio_input_pullup_pin_schema, pins.validate_has_interrupt
         ),
         cv.Optional(CONF_VOLTAGE): sensor.sensor_schema(
-            UNIT_VOLT, ICON_EMPTY, 1, DEVICE_CLASS_VOLTAGE, STATE_CLASS_MEASUREMENT
+            unit_of_measurement=UNIT_VOLT,
+            accuracy_decimals=1,
+            device_class=DEVICE_CLASS_VOLTAGE,
+            state_class=STATE_CLASS_MEASUREMENT,
         ),
         cv.Optional(CONF_CURRENT): sensor.sensor_schema(
-            UNIT_AMPERE, ICON_EMPTY, 2, DEVICE_CLASS_CURRENT, STATE_CLASS_MEASUREMENT
+            unit_of_measurement=UNIT_AMPERE,
+            accuracy_decimals=2,
+            device_class=DEVICE_CLASS_CURRENT,
+            state_class=STATE_CLASS_MEASUREMENT,
         ),
         cv.Optional(CONF_POWER): sensor.sensor_schema(
-            UNIT_WATT, ICON_EMPTY, 1, DEVICE_CLASS_POWER, STATE_CLASS_MEASUREMENT
+            unit_of_measurement=UNIT_WATT,
+            accuracy_decimals=1,
+            device_class=DEVICE_CLASS_POWER,
+            state_class=STATE_CLASS_MEASUREMENT,
         ),
         cv.Optional(CONF_ENERGY): sensor.sensor_schema(
-            UNIT_WATT_HOURS,
-            ICON_EMPTY,
-            1,
-            DEVICE_CLASS_ENERGY,
-            STATE_CLASS_MEASUREMENT,
-            LAST_RESET_TYPE_AUTO,
+            unit_of_measurement=UNIT_WATT_HOURS,
+            accuracy_decimals=1,
+            device_class=DEVICE_CLASS_ENERGY,
+            state_class=STATE_CLASS_MEASUREMENT,
+            last_reset_type=LAST_RESET_TYPE_AUTO,
         ),
         cv.Optional(CONF_CURRENT_RESISTOR, default=0.001): cv.resistance,
         cv.Optional(CONF_VOLTAGE_DIVIDER, default=2351): cv.positive_float,

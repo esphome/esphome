@@ -115,6 +115,7 @@ class PropertiesFrame : public midea_dongle::BaseFrame {
   /* PRESET */
   optional<climate::ClimatePreset> get_preset() const;
   void set_preset(climate::ClimatePreset preset);
+  void clear_presets();
 
   bool is_custom_preset() const;
   const std::string &get_custom_preset() const;

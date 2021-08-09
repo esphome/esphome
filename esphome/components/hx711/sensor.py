@@ -6,10 +6,8 @@ from esphome.const import (
     CONF_CLK_PIN,
     CONF_GAIN,
     CONF_ID,
-    DEVICE_CLASS_EMPTY,
     ICON_SCALE,
     STATE_CLASS_MEASUREMENT,
-    UNIT_EMPTY,
 )
 
 hx711_ns = cg.esphome_ns.namespace("hx711")
@@ -26,7 +24,9 @@ GAINS = {
 
 CONFIG_SCHEMA = (
     sensor.sensor_schema(
-        UNIT_EMPTY, ICON_SCALE, 0, DEVICE_CLASS_EMPTY, STATE_CLASS_MEASUREMENT
+        icon=ICON_SCALE,
+        accuracy_decimals=0,
+        state_class=STATE_CLASS_MEASUREMENT,
     )
     .extend(
         {

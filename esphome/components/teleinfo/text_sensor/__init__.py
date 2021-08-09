@@ -20,9 +20,9 @@ CONFIG_SCHEMA = text_sensor.TEXT_SENSOR_SCHEMA.extend(
 )
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID], config[CONF_TAG_NAME])
-    yield cg.register_component(var, config)
-    yield text_sensor.register_text_sensor(var, config)
-    teleinfo = yield cg.get_variable(config[CONF_TELEINFO_ID])
+    await cg.register_component(var, config)
+    await text_sensor.register_text_sensor(var, config)
+    teleinfo = await cg.get_variable(config[CONF_TELEINFO_ID])
     cg.add(teleinfo.register_teleinfo_listener(var))

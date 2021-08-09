@@ -1,5 +1,6 @@
 #pragma once
 
+#include <vector>
 #include <HardwareSerial.h>
 #include "esphome/core/esphal.h"
 #include "esphome/core/component.h"

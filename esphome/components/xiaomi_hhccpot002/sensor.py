@@ -3,7 +3,6 @@ import esphome.config_validation as cv
 from esphome.components import sensor, esp32_ble_tracker
 from esphome.const import (
     CONF_MAC_ADDRESS,
-    DEVICE_CLASS_EMPTY,
     STATE_CLASS_MEASUREMENT,
     UNIT_PERCENT,
     ICON_WATER_PERCENT,
@@ -28,18 +27,16 @@ CONFIG_SCHEMA = (
             cv.GenerateID(): cv.declare_id(XiaomiHHCCPOT002),
             cv.Required(CONF_MAC_ADDRESS): cv.mac_address,
             cv.Optional(CONF_MOISTURE): sensor.sensor_schema(
-                UNIT_PERCENT,
-                ICON_WATER_PERCENT,
-                0,
-                DEVICE_CLASS_EMPTY,
-                STATE_CLASS_MEASUREMENT,
+                unit_of_measurement=UNIT_PERCENT,
+                icon=ICON_WATER_PERCENT,
+                accuracy_decimals=0,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_CONDUCTIVITY): sensor.sensor_schema(
-                UNIT_MICROSIEMENS_PER_CENTIMETER,
-                ICON_FLOWER,
-                0,
-                DEVICE_CLASS_EMPTY,
-                STATE_CLASS_MEASUREMENT,
+                unit_of_measurement=UNIT_MICROSIEMENS_PER_CENTIMETER,
+                icon=ICON_FLOWER,
+                accuracy_decimals=0,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
         }
     )

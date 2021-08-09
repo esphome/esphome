@@ -17,7 +17,10 @@ struct ThermostatClimateTargetTempConfig {
   float default_temperature{NAN};
   float default_temperature_low{NAN};
   float default_temperature_high{NAN};
-  float hysteresis{NAN};
+  float cool_deadband_{NAN};
+  float cool_overrun_{NAN};
+  float heat_deadband_{NAN};
+  float heat_overrun_{NAN};
 };
 
 class ThermostatClimate : public climate::Climate, public Component {
@@ -26,13 +29,19 @@ class ThermostatClimate : public climate::Climate, public Component {
   void setup() override;
   void dump_config() override;
 
-  void set_hysteresis(float hysteresis);
+  void set_default_mode(climate::ClimateMode default_mode);
+  void set_set_point_minimum_differential(float differential);
+  void set_cool_deadband(float deadband);
+  void set_cool_overrun(float overrun);
+  void set_heat_deadband(float deadband);
+  void set_heat_overrun(float overrun);
   void set_sensor(sensor::Sensor *sensor);
   void set_supports_auto(bool supports_auto);
   void set_supports_heat_cool(bool supports_heat_cool);
   void set_supports_cool(bool supports_cool);
   void set_supports_dry(bool supports_dry);
   void set_supports_fan_only(bool supports_fan_only);
+  void set_supports_fan_only_cooling(bool supports_fan_only_cooling);
   void set_supports_heat(bool supports_heat);
   void set_supports_fan_mode_on(bool supports_fan_mode_on);
   void set_supports_fan_mode_off(bool supports_fan_mode_off);
@@ -76,10 +85,20 @@ class ThermostatClimate : public climate::Climate, public Component {
   Trigger<> *get_swing_mode_horizontal_trigger() const;
   Trigger<> *get_swing_mode_off_trigger() const;
   Trigger<> *get_swing_mode_vertical_trigger() const;
-  /// Get current hysteresis value
-  float hysteresis();
+  Trigger<> *get_temperature_change_trigger() const;
+  /// Get current hysteresis values
+  float cool_deadband();
+  float cool_overrun();
+  float heat_deadband();
+  float heat_overrun();
   /// Call triggers based on updated climate states (modes/actions)
   void refresh();
+  /// Set point and hysteresis validation
+  bool hysteresis_valid();  // returns true if valid
+  void validate_target_temperature();
+  void validate_target_temperatures();
+  void validate_target_temperature_low();
+  void validate_target_temperature_high();
 
  protected:
   /// Override control to change settings of the climate device.
@@ -106,6 +125,14 @@ class ThermostatClimate : public climate::Climate, public Component {
   /// Switch the climate device to the given climate swing mode.
   void switch_to_swing_mode_(climate::ClimateSwingMode swing_mode);
 
+  /// Check if the temperature change trigger should be called.
+  void check_temperature_change_trigger_();
+
+  /// Check if cooling/fanning/heating actions are required; returns true if so
+  bool cooling_required_();
+  bool fanning_required_();
+  bool heating_required_();
+
   /// The sensor used for getting the current temperature
   sensor::Sensor *sensor_{nullptr};
 
@@ -119,6 +146,8 @@ class ThermostatClimate : public climate::Climate, public Component {
   bool supports_dry_{false};
   bool supports_fan_only_{false};
   bool supports_heat_{false};
+  /// Special flag -- enables fan to be switched based on target_temperature_high
+  bool supports_fan_only_cooling_{false};
 
   /// Whether the controller supports turning on or off just the fan.
   ///
@@ -242,6 +271,9 @@ class ThermostatClimate : public climate::Climate, public Component {
   /// The trigger to call when the controller should switch the swing mode to "vertical".
   Trigger<> *swing_mode_vertical_trigger_{nullptr};
 
+  /// The trigger to call when the target temperature(s) change(es).
+  Trigger<> *temperature_change_trigger_{nullptr};
+
   /// A reference to the trigger that was previously active.
   ///
   /// This is so that the previous trigger can be stopped before enabling a new one
@@ -256,14 +288,28 @@ class ThermostatClimate : public climate::Climate, public Component {
   /// These are used to determine when a trigger/action needs to be called
   climate::ClimateFanMode prev_fan_mode_{climate::CLIMATE_FAN_ON};
   climate::ClimateMode prev_mode_{climate::CLIMATE_MODE_OFF};
+  climate::ClimateMode default_mode_{climate::CLIMATE_MODE_OFF};
   climate::ClimateSwingMode prev_swing_mode_{climate::CLIMATE_SWING_OFF};
+
+  /// Store previously-known temperatures
+  ///
+  /// These are used to determine when the temperature change trigger/action needs to be called
+  float prev_target_temperature_{NAN};
+  float prev_target_temperature_low_{NAN};
+  float prev_target_temperature_high_{NAN};
 
   /// Temperature data for normal/home and away modes
   ThermostatClimateTargetTempConfig normal_config_{};
   ThermostatClimateTargetTempConfig away_config_{};
 
-  /// Hysteresis value used for computing climate actions
-  float hysteresis_{0};
+  /// Minimum differential required between set points
+  float set_point_minimum_differential_{0};
+
+  /// Hysteresis values used for computing climate actions
+  float cool_deadband_{0};
+  float cool_overrun_{0};
+  float heat_deadband_{0};
+  float heat_overrun_{0};
 
   /// setup_complete_ blocks modifying/resetting the temps immediately after boot
   bool setup_complete_{false};

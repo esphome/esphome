@@ -200,6 +200,15 @@ sensor:
     pv_charging_power:
       id: inverter0_pv_charging_power
       name: inverter0_pv_charging_power
+  - platform: "hrxl_maxsonar_wr"
+    name: "Rainwater Tank Level"
+    filters:
+      - sliding_window_moving_average:
+          window_size: 12
+          send_every: 12
+      - or:
+        - throttle: "20min"
+        - delta: 0.02
 #
 # platform sensor.apds9960 requires component apds9960
 #

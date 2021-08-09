@@ -8,7 +8,6 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_KILOGRAM,
     ICON_SCALE_BATHROOM,
-    DEVICE_CLASS_EMPTY,
 )
 
 DEPENDENCIES = ["esp32_ble_tracker"]
@@ -24,11 +23,10 @@ CONFIG_SCHEMA = (
             cv.GenerateID(): cv.declare_id(XiaomiMiscale),
             cv.Required(CONF_MAC_ADDRESS): cv.mac_address,
             cv.Optional(CONF_WEIGHT): sensor.sensor_schema(
-                UNIT_KILOGRAM,
-                ICON_SCALE_BATHROOM,
-                2,
-                DEVICE_CLASS_EMPTY,
-                STATE_CLASS_MEASUREMENT,
+                unit_of_measurement=UNIT_KILOGRAM,
+                icon=ICON_SCALE_BATHROOM,
+                accuracy_decimals=2,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
         }
     )
