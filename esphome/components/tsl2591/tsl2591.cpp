@@ -131,7 +131,7 @@ void TSL2591Component::process_update_() {
   this->status_clear_warning();
 }
 
-static const char *interval_name = "tsl2591_interval_for_update";
+#define interval_name "tsl2591_interval_for_update"
 
 void TSL2591Component::interval_function_for_update_() {
   if (!this->is_adc_valid()) {
