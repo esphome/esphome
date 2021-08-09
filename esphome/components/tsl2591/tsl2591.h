@@ -234,8 +234,8 @@ class TSL2591Component : public PollingComponent, public i2c::I2CDevice {
   bool power_save_mode_enabled_;
   float device_factor_;
   float glass_attenuation_factor_;
-  uint64 interval_start_;
-  uint64 interval_timeout_;
+  uint64_t interval_start_;
+  uint64_t interval_timeout_;
   void disable_if_power_saving_();
   void process_update_();
   void interval_function_for_update_();
