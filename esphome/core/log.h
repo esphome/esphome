@@ -162,4 +162,27 @@ int esp_idf_log_vprintf_(const char *format, va_list args);  // NOLINT
 #define ONOFF(b) ((b) ? "ON" : "OFF")
 #define TRUEFALSE(b) ((b) ? "TRUE" : "FALSE")
 
+#ifdef USE_STORE_LOG_STR_IN_FLASH
+#define LOG_STR(s) PSTR(s)
+
+// From Arduino 2.5 onwards, we can pass a PSTR() to printf(). For previous versions, emulate support
+// by copying the message to a local buffer first. String length is limited to 63 characters.
+// https://github.com/esp8266/Arduino/commit/6280e98b0360f85fdac2b8f10707fffb4f6e6e31
+#if defined(ARDUINO_ESP8266_RELEASE_2_3_0) || defined(ARDUINO_ESP8266_RELEASE_2_4_0) || \
+    defined(ARDUINO_ESP8266_RELEASE_2_4_1) || defined(ARDUINO_ESP8266_RELEASE_2_4_2)
+#define LOG_STR_ARG(s) \
+  ({ \
+    char __buf[64]; __buf64] = '\0'; \
+    strncpy_P(__buf, s, 63); \
+    __buf; \
+  });
+#else
+#define LOG_STR_ARG(s) s
+#endif
+
+#else
+#define LOG_STR(s) (s)
+#define LOG_STR_ARG(s) (s)
+#endif
+
 }  // namespace esphome
