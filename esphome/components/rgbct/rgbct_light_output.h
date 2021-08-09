@@ -1,5 +1,6 @@
 #pragma once
 
+#include "esphome/components/light/color_mode.h"
 #include "esphome/components/light/light_output.h"
 #include "esphome/components/output/float_output.h"
 #include "esphome/core/component.h"
@@ -33,7 +34,12 @@ class RGBCTLightOutput : public light::LightOutput {
   void write_state(light::LightState *state) override {
     float red, green, blue, color_temperature, white_brightness;
 
-    state->current_values_as_rgbct(&red, &green, &blue, &color_temperature, &white_brightness);
+    state->current_values_as_rgbct(&red, &green, &blue, &color_temperature);
+    if (state->current_values.get_color_mode() & light::ColorCapability::COLOR_TEMPERATURE) {
+      state->current_values_as_brightness(&white_brightness);
+    } else {
+      white_brightness = 0;
+    }
 
     this->red_->set_level(red);
     this->green_->set_level(green);
