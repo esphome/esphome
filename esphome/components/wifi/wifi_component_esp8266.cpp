@@ -370,51 +370,60 @@ const char *get_op_mode_str(uint8_t mode) {
   }
 }
 const char *get_disconnect_reason_str(uint8_t reason) {
+  /* If this were one big switch statement, GCC would generate a lookup table for it. However, the values of the
+   * REASON_* constants aren't continuous, and GCC will fill in the gap with the default value -- wasting 4 bytes of RAM
+   * per entry. As there's ~175 default entries, this wastes 700 bytes of RAM.
+   */
+  if (reason <= REASON_CIPHER_SUITE_REJECTED) {  // This must be the last constant with a value <200
+    switch (reason) {
+      case REASON_AUTH_EXPIRE:
+        return "Auth Expired";
+      case REASON_AUTH_LEAVE:
+        return "Auth Leave";
+      case REASON_ASSOC_EXPIRE:
+        return "Association Expired";
+      case REASON_ASSOC_TOOMANY:
+        return "Too Many Associations";
+      case REASON_NOT_AUTHED:
+        return "Not Authenticated";
+      case REASON_NOT_ASSOCED:
+        return "Not Associated";
+      case REASON_ASSOC_LEAVE:
+        return "Association Leave";
+      case REASON_ASSOC_NOT_AUTHED:
+        return "Association not Authenticated";
+      case REASON_DISASSOC_PWRCAP_BAD:
+        return "Disassociate Power Cap Bad";
+      case REASON_DISASSOC_SUPCHAN_BAD:
+        return "Disassociate Supported Channel Bad";
+      case REASON_IE_INVALID:
+        return "IE Invalid";
+      case REASON_MIC_FAILURE:
+        return "Mic Failure";
+      case REASON_4WAY_HANDSHAKE_TIMEOUT:
+        return "4-Way Handshake Timeout";
+      case REASON_GROUP_KEY_UPDATE_TIMEOUT:
+        return "Group Key Update Timeout";
+      case REASON_IE_IN_4WAY_DIFFERS:
+        return "IE In 4-Way Handshake Differs";
+      case REASON_GROUP_CIPHER_INVALID:
+        return "Group Cipher Invalid";
+      case REASON_PAIRWISE_CIPHER_INVALID:
+        return "Pairwise Cipher Invalid";
+      case REASON_AKMP_INVALID:
+        return "AKMP Invalid";
+      case REASON_UNSUPP_RSN_IE_VERSION:
+        return "Unsupported RSN IE version";
+      case REASON_INVALID_RSN_IE_CAP:
+        return "Invalid RSN IE Cap";
+      case REASON_802_1X_AUTH_FAILED:
+        return "802.1x Authentication Failed";
+      case REASON_CIPHER_SUITE_REJECTED:
+        return "Cipher Suite Rejected";
+    }
+  }
+
   switch (reason) {
-    case REASON_AUTH_EXPIRE:
-      return "Auth Expired";
-    case REASON_AUTH_LEAVE:
-      return "Auth Leave";
-    case REASON_ASSOC_EXPIRE:
-      return "Association Expired";
-    case REASON_ASSOC_TOOMANY:
-      return "Too Many Associations";
-    case REASON_NOT_AUTHED:
-      return "Not Authenticated";
-    case REASON_NOT_ASSOCED:
-      return "Not Associated";
-    case REASON_ASSOC_LEAVE:
-      return "Association Leave";
-    case REASON_ASSOC_NOT_AUTHED:
-      return "Association not Authenticated";
-    case REASON_DISASSOC_PWRCAP_BAD:
-      return "Disassociate Power Cap Bad";
-    case REASON_DISASSOC_SUPCHAN_BAD:
-      return "Disassociate Supported Channel Bad";
-    case REASON_IE_INVALID:
-      return "IE Invalid";
-    case REASON_MIC_FAILURE:
-      return "Mic Failure";
-    case REASON_4WAY_HANDSHAKE_TIMEOUT:
-      return "4-Way Handshake Timeout";
-    case REASON_GROUP_KEY_UPDATE_TIMEOUT:
-      return "Group Key Update Timeout";
-    case REASON_IE_IN_4WAY_DIFFERS:
-      return "IE In 4-Way Handshake Differs";
-    case REASON_GROUP_CIPHER_INVALID:
-      return "Group Cipher Invalid";
-    case REASON_PAIRWISE_CIPHER_INVALID:
-      return "Pairwise Cipher Invalid";
-    case REASON_AKMP_INVALID:
-      return "AKMP Invalid";
-    case REASON_UNSUPP_RSN_IE_VERSION:
-      return "Unsupported RSN IE version";
-    case REASON_INVALID_RSN_IE_CAP:
-      return "Invalid RSN IE Cap";
-    case REASON_802_1X_AUTH_FAILED:
-      return "802.1x Authentication Failed";
-    case REASON_CIPHER_SUITE_REJECTED:
-      return "Cipher Suite Rejected";
     case REASON_BEACON_TIMEOUT:
       return "Beacon Timeout";
     case REASON_NO_AP_FOUND:
