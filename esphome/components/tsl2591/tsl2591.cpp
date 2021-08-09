@@ -136,7 +136,7 @@ static const char *interval_name = "tsl2591_interval_for_update";
 void TSL2591Component::interval_function_for_update_() {
   if (!this->is_adc_valid()) {
     uint64_t now = millis();
-    ESP_LOGD(TAG, "Elapsed %3lu ms; still waiting for valid ADC", (now - this->interval_start_));
+    ESP_LOGD(TAG, "Elapsed %3llu ms; still waiting for valid ADC", (now - this->interval_start_));
     if (now > this->interval_timeout_) {
       ESP_LOGW(TAG, "Interval timeout for TSL2591 '%s' expired before ADCs became valid.", this->name_);
       this->cancel_interval(interval_name);
