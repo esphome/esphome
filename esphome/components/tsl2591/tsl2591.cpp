@@ -115,7 +115,7 @@ void TSL2591Component::process_update_() {
   uint16_t full = this->get_illuminance(TSL2591_SENSOR_CHANNEL_FULL_SPECTRUM, combined);
   float lux = this->get_calculated_lux(full, infrared);
   ESP_LOGD(TAG, "Got illuminance: combined 0x%X, full %d, IR %d, vis %d. Calc lux: %f", combined, full, infrared,
-	   visible, lux);
+           visible, lux);
   if (this->full_spectrum_sensor_ != nullptr) {
     this->full_spectrum_sensor_->publish_state(full);
   }
