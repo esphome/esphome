@@ -1,5 +1,4 @@
 #pragma once
-#include <string>
 #include <cstdint>
 
 namespace esphome {
@@ -18,13 +17,11 @@ enum class GPIOFlags : uint32_t {
   PULLDOWN = 0x10,
 };
 
-std::string format_gpio_flags(GPIOFlags flags);
-
 class GPIOFlagsHelper {
  public:
   constexpr GPIOFlagsHelper(GPIOFlags val) : val_(val) {}
   constexpr operator GPIOFlags() const { return val_; }
-  constexpr operator bool() const { return static_cast<uint32_t>(val_) != 0; }
+  constexpr explicit operator bool() const { return static_cast<uint32_t>(val_) != 0; }
  protected:
   GPIOFlags val_;
 };
@@ -66,17 +63,15 @@ class GPIOPin {
 /// Copy of GPIOPin that is safe to use from ISRs (with no virtual functions)
 class ISRInternalGPIOPin {
  public:
-  void setup();
   bool digital_read();
   void digital_write(bool value);
   void clear_interrupt();
 
  protected:
   friend class InternalGPIOPin;
-  ISRInternalGPIOPin(uint8_t pin, bool inverted);
+  ISRInternalGPIOPin(void *arg) : arg_(arg) {}
 
-  const uint8_t pin_;
-  const bool inverted_;
+  const void *arg_;
 };
 
 class InternalGPIOPin : public GPIOPin {
@@ -88,7 +83,7 @@ class InternalGPIOPin : public GPIOPin {
 
   virtual void detach_interrupt() const = 0;
 
-  virtual ISRInternalGPIOPin *to_isr() const = 0;
+  virtual ISRInternalGPIOPin to_isr() const = 0;
 
  protected:
   virtual void attach_interrupt_(void (*func)(void *), void *arg, GPIOInterruptType type) const = 0;

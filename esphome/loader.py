@@ -1,5 +1,4 @@
 import logging
-import typing
 from typing import Callable, List, Optional, Dict, Any, ContextManager
 from types import ModuleType
 import importlib
@@ -8,6 +7,7 @@ import importlib.resources
 import importlib.abc
 import sys
 from pathlib import Path
+from dataclasses import dataclass
 
 from esphome.const import ESP_PLATFORMS, SOURCE_FILE_EXTENSIONS
 import esphome.core.config
@@ -17,20 +17,13 @@ from esphome.types import ConfigType
 _LOGGER = logging.getLogger(__name__)
 
 
-class SourceFile:
-    def __init__(
-        self,
-        package: importlib.resources.Package,
-        resource: importlib.resources.Resource,
-    ) -> None:
-        self._package = package
-        self._resource = resource
-
-    def open_binary(self) -> typing.BinaryIO:
-        return importlib.resources.open_binary(self._package, self._resource)
+@dataclass(frozen=True)
+class FileResource:
+    package: str
+    resource: str
 
     def path(self) -> ContextManager[Path]:
-        return importlib.resources.path(self._package, self._resource)
+        return importlib.resources.path(self.package, self.resource)
 
 
 class ComponentManifest:
@@ -39,6 +32,13 @@ class ComponentManifest:
 
     @property
     def package(self) -> str:
+        """Return the package name the module is contained in.
+
+        Examples:
+        - esphome/components/gpio/__init__.py -> esphome.components.gpio
+        - esphome/components/gpio/switch/__init__.py -> esphome.components.gpio.switch
+        - esphome/components/a4988/stepper.py -> esphome.components.a4988
+        """
         return self.module.__package__
 
     @property
@@ -91,18 +91,25 @@ class ComponentManifest:
         return getattr(self.module, "FINAL_VALIDATE_SCHEMA", None)
 
     @property
-    def source_files(self) -> Dict[Path, SourceFile]:
-        ret = {}
+    def resources(self) -> List[FileResource]:
+        """Return a list of all file resources defined in the package of this component.
+
+        This will return all cpp source files that are located in the same folder as the
+        loaded .py file (does not look through subdirectories)
+        """
+        ret = []
         for resource in importlib.resources.contents(self.package):
             if Path(resource).suffix not in SOURCE_FILE_EXTENSIONS:
                 continue
             if not importlib.resources.is_resource(self.package, resource):
                 # Not a resource = this is a directory (yeah this is confusing)
                 continue
-            # Always use / for C++ include names
-            target_path = Path(*self.package.split(".")) / resource
-            ret[target_path] = SourceFile(self.package, resource)
+            ret.append(FileResource(self.package, resource))
         return ret
+
+    @property
+    def extra_resources(self) -> Dict[FileResource, str]:
+        """Components can declare extra resources to be included in the generated PIO project."""
 
 
 class ComponentMetaFinder(importlib.abc.MetaPathFinder):

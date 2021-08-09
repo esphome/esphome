@@ -2,7 +2,7 @@ import logging
 import math
 import os
 import re
-from typing import TYPE_CHECKING, Dict, List, Optional, Set, Tuple
+from typing import TYPE_CHECKING, Dict, List, Optional, Set, Tuple, Union
 
 from esphome.const import (
     CONF_ARDUINO_VERSION,
@@ -441,19 +441,6 @@ class Library:
         return NotImplemented
 
 
-def find_source_files(file):
-    files = set()
-    directory = os.path.abspath(os.path.dirname(file))
-    for f in os.listdir(directory):
-        if not os.path.isfile(os.path.join(directory, f)):
-            continue
-        _, ext = os.path.splitext(f)
-        if ext.lower() not in SOURCE_FILE_EXTENSIONS:
-            continue
-        files.add(f)
-    return files
-
-
 # pylint: disable=too-many-instance-attributes,too-many-public-methods
 class EsphomeCore:
     def __init__(self):
@@ -494,6 +481,8 @@ class EsphomeCore:
         self.build_flags: Set[str] = set()
         # A set of defines to set for the compile process in esphome/core/defines.h
         self.defines: Set["Define"] = set()
+        # A map of all platformio options to apply
+        self.platformio_options: Dict[str, Union[str, List[str]]] = {}
         # A set of strings of names of loaded integrations, used to find namespace ID conflicts
         self.loaded_integrations = set()
         # A set of component IDs to track what Component subclasses are declared
@@ -518,6 +507,7 @@ class EsphomeCore:
         self.libraries = []
         self.build_flags = set()
         self.defines = set()
+        self.platformio_options = {}
         self.loaded_integrations = set()
         self.component_ids = set()
 
@@ -708,6 +698,14 @@ class EsphomeCore:
         self.defines.add(define)
         _LOGGER.debug("Adding define: %s", define)
         return define
+
+    def add_platformio_option(self, key: str, value: Union[str, List[str]]) -> None:
+        new_val = value
+        old_val = self.platformio_options.get(key)
+        if isinstance(old_val, list):
+            assert isinstance(value, list)
+            new_val = old_val + value
+        self.platformio_options[key] = new_val
 
     def _get_variable_generator(self, id):
         while True:

@@ -3,7 +3,6 @@
 #ifdef ARDUINO_ARCH_ESP32
 #include <esp_log.h>
 #endif
-#include <HardwareSerial.h>
 
 namespace esphome {
 namespace logger {

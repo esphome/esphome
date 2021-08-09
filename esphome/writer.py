@@ -2,7 +2,7 @@ import logging
 import os
 import re
 from pathlib import Path
-from typing import Dict
+from typing import Dict, List, Union
 
 from esphome.config import iter_components
 from esphome.const import (
@@ -72,7 +72,9 @@ upload_flags =
 """,
 )
 
-UPLOAD_SPEED_OVERRIDE = {"esp210": 57600}
+UPLOAD_SPEED_OVERRIDE = {
+    "esp210": 57600,
+}
 
 
 def get_flags(key):
@@ -192,10 +194,10 @@ def update_storage_json():
     new.save(path)
 
 
-def format_ini(data):
+def format_ini(data: Dict[str, Union[str, List[str]]]) -> str:
     content = ""
     for key, value in sorted(data.items()):
-        if isinstance(value, (list, set, tuple)):
+        if isinstance(value, list):
             content += f"{key} =\n"
             for x in value:
                 content += f"    {x}\n"
@@ -204,6 +206,7 @@ def format_ini(data):
     return content
 
 
+<<<<<<< Updated upstream
 def gather_lib_deps():
     return [x.as_lib_dep for x in CORE.libraries]
 
@@ -227,59 +230,12 @@ spiffs,   data, spiffs,  0x391000, 0x00F000
 
 
 def get_ini_content():
-    overrides = CORE.config[CONF_ESPHOME].get(CONF_PLATFORMIO_OPTIONS, {})
-
-    lib_deps = gather_lib_deps()
-    build_flags = gather_build_flags(overrides.pop("build_flags", []))
-
-    data = {
-        "platform": CORE.arduino_version,
-        "board": CORE.board,
-        "framework": "arduino",
-        "lib_deps": lib_deps + ["${common.lib_deps}"],
-        "build_flags": build_flags + ["${common.build_flags}"],
-        "upload_speed": UPLOAD_SPEED_OVERRIDE.get(CORE.board, 115200),
-    }
-
-    if CORE.is_esp32:
-        data["board_build.partitions"] = "partitions.csv"
-        partitions_csv = CORE.relative_build_path("partitions.csv")
-        write_file_if_changed(partitions_csv, ESP32_LARGE_PARTITIONS_CSV)
-
-    # pylint: disable=unsubscriptable-object
-    if CONF_BOARD_FLASH_MODE in CORE.config[CONF_ESPHOME]:
-        flash_mode = CORE.config[CONF_ESPHOME][CONF_BOARD_FLASH_MODE]
-        data["board_build.flash_mode"] = flash_mode
-
-    # Build flags
-    if CORE.is_esp8266 and CORE.board in ESP8266_FLASH_SIZES:
-        flash_size = ESP8266_FLASH_SIZES[CORE.board]
-        ld_scripts = ESP8266_LD_SCRIPTS[flash_size]
-
-        versions_with_old_ldscripts = [
-            ARDUINO_VERSION_ESP8266["2.4.0"],
-            ARDUINO_VERSION_ESP8266["2.4.1"],
-            ARDUINO_VERSION_ESP8266["2.4.2"],
-        ]
-        if CORE.arduino_version == ARDUINO_VERSION_ESP8266["2.3.0"]:
-            # No ld script support
-            ld_script = None
-        if CORE.arduino_version in versions_with_old_ldscripts:
-            # Old ld script path
-            ld_script = ld_scripts[0]
-        else:
-            ld_script = ld_scripts[1]
-
-        if ld_script is not None:
-            data["board_build.ldscript"] = ld_script
-
-    # Ignore libraries that are not explicitly used, but may
-    # be added by LDF
-    # data['lib_ldf_mode'] = 'chain'
-    data.update(overrides)
+    CORE.add_platformio_option("lib_deps", [x.as_lib_dep for x in CORE.libraries] + ["${common.lib_deps}"])
+    # Sort to avoid changing build flags order
+    CORE.add_platformio_option("build_flags", sorted(CORE.build_flags))
 
     content = f"[env:{CORE.name}]\n"
-    content += format_ini(data)
+    content += format_ini(CORE.platformio_options)
 
     return content
 
