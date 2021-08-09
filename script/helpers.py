@@ -2,10 +2,13 @@ import codecs
 import os.path
 import re
 import subprocess
+import json
+from pathlib import Path
 
 root_path = os.path.abspath(os.path.normpath(os.path.join(__file__, "..", "..")))
 basepath = os.path.join(root_path, "esphome")
-temp_header_file = os.path.join(root_path, ".temp-clang-tidy.cpp")
+temp_folder = os.path.join(root_path, ".temp")
+temp_header_file = os.path.join(temp_folder, "all-include.cpp")
 
 
 def shlex_quote(s):
@@ -31,8 +34,9 @@ def build_all_include():
     headers.sort()
     headers.append("")
     content = "\n".join(headers)
-    with codecs.open(temp_header_file, "w", encoding="utf-8") as f:
-        f.write(content)
+    p = Path(temp_header_file)
+    p.parent.mkdir(exist_ok=True)
+    p.write_text(content)
 
 
 def walk_files(path):
@@ -96,3 +100,28 @@ def git_ls_files(patterns=None):
     output, err = proc.communicate()
     lines = [x.split() for x in output.decode("utf-8").splitlines()]
     return {s[3].strip(): int(s[0]) for s in lines}
+
+
+def load_idedata(environment):
+    platformio_ini = Path(root_path) / "platformio.ini"
+    temp_idedata = Path(temp_folder) / f"idedata-{environment}.json"
+    if not platformio_ini.is_file() or not temp_idedata.is_file():
+        changed = True
+    elif platformio_ini.stat().st_mtime >= temp_idedata.stat().st_mtime:
+        changed = True
+    else:
+        changed = False
+
+    if not changed:
+        text = temp_idedata.read_text()
+    else:
+        stdout = subprocess.check_output(
+            ["pio", "run", "-t", "idedata", "-e", environment]
+        )
+        match = re.search(r'{\s*".*}', stdout.decode("utf-8"))
+        text = match.group()
+
+        temp_idedata.parent.mkdir(exist_ok=True)
+        temp_idedata.write_text(text)
+
+    return json.loads(text)

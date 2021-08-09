@@ -17,14 +17,7 @@ import pexpect
 
 sys.path.append(os.path.dirname(__file__))
 from helpers import shlex_quote, get_output, \
-    build_all_include, temp_header_file, git_ls_files, filter_changed
-
-
-def load_idedata():
-    # Load IDE data from PlatformIO, which contains the compiler flags we need.
-    process = subprocess.run(['pio', 'run', '-t', 'idedata', '-e', 'esp8266-tidy'], capture_output=True)
-    match = re.search(r'{\s*".*}', process.stdout.decode('utf-8'))
-    return json.loads(match.group())
+    build_all_include, temp_header_file, git_ls_files, filter_changed, load_idedata
 
 
 def clang_options(idedata):
@@ -133,7 +126,7 @@ def main():
         """)
         return 1
 
-    idedata = load_idedata()
+    idedata = load_idedata("esp8266-tidy")
     options = clang_options(idedata)
 
     files = []
