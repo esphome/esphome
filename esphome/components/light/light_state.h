@@ -3,9 +3,9 @@
 #include "esphome/core/component.h"
 #include "esphome/core/optional.h"
 #include "esphome/core/preferences.h"
-#include "light_effect.h"
-#include "light_color_values.h"
 #include "light_call.h"
+#include "light_color_values.h"
+#include "light_effect.h"
 #include "light_traits.h"
 #include "light_transformer.h"
 
@@ -126,7 +126,7 @@ class LightState : public Nameable, public Component {
   void current_values_as_rgbw(float *red, float *green, float *blue, float *white, bool color_interlock = false);
 
   void current_values_as_rgbww(float *red, float *green, float *blue, float *cold_white, float *warm_white,
-                               bool constant_brightness = false, bool color_interlock = false);
+                               bool constant_brightness = false);
 
   void current_values_as_cwww(float *cold_white, float *warm_white, bool constant_brightness = false);
 
