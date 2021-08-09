@@ -32,7 +32,6 @@ esphome/components/climate_ir/* @glmnet
 esphome/components/color_temperature/* @jesserockz
 esphome/components/coolix/* @glmnet
 esphome/components/cover/* @esphome/core
-esphome/components/crow_alarm_panel/switch/* @jesserockz
 esphome/components/cs5460a/* @balrog-kun
 esphome/components/ct_clamp/* @jesserockz
 esphome/components/debug/* @OttoWinter
