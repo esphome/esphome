@@ -31,7 +31,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_WHITE_BRIGHTNESS): cv.use_id(output.FloatOutput),
             cv.Required(CONF_COLD_WHITE_COLOR_TEMPERATURE): cv.color_temperature,
             cv.Required(CONF_WARM_WHITE_COLOR_TEMPERATURE): cv.color_temperature,
-            # cv.Optional(CONF_COLOR_INTERLOCK, default=True): cv.boolean,
+            cv.Optional(CONF_COLOR_INTERLOCK, default=False): cv.boolean,
         }
     ),
     light.validate_color_temperature_channels,
@@ -57,5 +57,4 @@ async def to_code(config):
     cg.add(var.set_cold_white_temperature(config[CONF_COLD_WHITE_COLOR_TEMPERATURE]))
     cg.add(var.set_warm_white_temperature(config[CONF_WARM_WHITE_COLOR_TEMPERATURE]))
 
-    # cg.add(var.set_color_interlock(config[CONF_COLOR_INTERLOCK]))
-    cg.add(var.set_color_interlock(True))
+    cg.add(var.set_color_interlock(config[CONF_COLOR_INTERLOCK]))

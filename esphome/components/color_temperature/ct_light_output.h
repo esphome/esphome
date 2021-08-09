@@ -22,8 +22,7 @@ class CTLightOutput : public light::LightOutput {
   }
   void write_state(light::LightState *state) override {
     float color_temperature, brightness;
-    state->current_values_as_ct(&color_temperature);
-    state->current_values_as_brightness(&brightness);
+    state->current_values_as_ct(&color_temperature, &brightness);
     this->color_temperature_->set_level(color_temperature);
     this->brightness_->set_level(brightness);
   }

@@ -163,11 +163,11 @@ class LightColorValues {
     this->as_cwww(cold_white, warm_white, gamma, constant_brightness);
   }
 
-  /// Convert these light color values to an RGBWW representation with the given parameters.
+  /// Convert these light color values to an RGB+CT+BR representation with the given parameters.
   void as_rgbct(float color_temperature_cw, float color_temperature_ww, float *red, float *green, float *blue,
-                float *color_temperature, float gamma = 0) const {
+                float *color_temperature, float *white_brightness, float gamma = 0) const {
     this->as_rgb(red, green, blue, gamma);
-    this->as_ct(color_temperature_cw, color_temperature_ww, color_temperature);
+    this->as_ct(color_temperature_cw, color_temperature_ww, color_temperature, white_brightness, gamma);
   }
 
   /// Convert these light color values to an CWWW representation with the given parameters.
@@ -188,12 +188,23 @@ class LightColorValues {
     }
   }
 
-  /// Convert these light color values to an CWWW representation with the given parameters.
-  void as_ct(float color_temperature_cw, float color_temperature_ww, float *color_temperature) const {
-    if (this->color_mode_ & ColorCapability::COLOR_TEMPERATURE) {
+  /// Convert these light color values to a CT+BR representation with the given parameters.
+  void as_ct(float color_temperature_cw, float color_temperature_ww, float *color_temperature, float *white_brightness,
+             float gamma = 0) const {
+    if (this->color_mode_ & ColorCapability::RGB) {  // Handles lights in RGB_COLOR_TEMPERATURE mode.
       const float ct_level =
           (this->color_temperature_ - color_temperature_cw) / (color_temperature_ww - color_temperature_cw);
       *color_temperature = ct_level;
+      const float brightness = gamma_correct(this->state_ * this->brightness_ * this->white_, gamma);
+      *white_brightness = brightness;
+    } else if (this->color_mode_ &
+               ColorCapability::COLOR_TEMPERATURE) {  // Handles lights in COLOUR_TEMPERATURE only only mode.
+      const float ct_level =
+          (this->color_temperature_ - color_temperature_cw) / (color_temperature_ww - color_temperature_cw);
+      *color_temperature = ct_level;
+      this->as_brightness(white_brightness, gamma);
+    } else {  // Probably wont get here but put this here anyway.
+      *white_brightness = 0;
     }
   }
 
