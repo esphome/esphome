@@ -157,11 +157,10 @@ class LightColorValues {
   }
 
   /// Convert these light color values to an RGBWW representation with the given parameters.
-  void as_rgbww(float color_temperature_cw, float color_temperature_ww, float *red, float *green, float *blue,
-                float *cold_white, float *warm_white, float gamma = 0, bool constant_brightness = false,
-                bool color_interlock = false) const {
+  void as_rgbww(float *red, float *green, float *blue, float *cold_white, float *warm_white, float gamma = 0,
+                bool constant_brightness = false) const {
     this->as_rgb(red, green, blue, gamma);
-    this->as_cwww(0, 0, cold_white, warm_white, gamma, constant_brightness);
+    this->as_cwww(cold_white, warm_white, gamma, constant_brightness);
   }
 
   /// Convert these light color values to an RGBWW representation with the given parameters.
@@ -172,8 +171,7 @@ class LightColorValues {
   }
 
   /// Convert these light color values to an CWWW representation with the given parameters.
-  void as_cwww(float color_temperature_cw, float color_temperature_ww, float *cold_white, float *warm_white,
-               float gamma = 0, bool constant_brightness = false) const {
+  void as_cwww(float *cold_white, float *warm_white, float gamma = 0, bool constant_brightness = false) const {
     if (this->color_mode_ & ColorCapability::COLD_WARM_WHITE) {
       const float cw_level = gamma_correct(this->cold_white_, gamma);
       const float ww_level = gamma_correct(this->warm_white_, gamma);

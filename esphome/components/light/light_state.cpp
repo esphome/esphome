@@ -1,6 +1,6 @@
 #include "light_state.h"
-#include "light_output.h"
 #include "esphome/core/log.h"
+#include "light_output.h"
 
 namespace esphome {
 namespace light {
@@ -174,10 +174,9 @@ void LightState::current_values_as_rgbw(float *red, float *green, float *blue, f
   this->current_values.as_rgbw(red, green, blue, white, this->gamma_correct_, false);
 }
 void LightState::current_values_as_rgbww(float *red, float *green, float *blue, float *cold_white, float *warm_white,
-                                         bool constant_brightness, bool color_interlock) {
-  auto traits = this->get_traits();
-  this->current_values.as_rgbww(traits.get_min_mireds(), traits.get_max_mireds(), red, green, blue, cold_white,
-                                warm_white, this->gamma_correct_, constant_brightness, false);
+                                         bool constant_brightness) {
+  this->current_values.as_rgbww(red, green, blue, cold_white, warm_white, this->gamma_correct_, constant_brightness);
+}
 void LightState::current_values_as_rgbct(float *red, float *green, float *blue, float *color_temperature,
                                          float *white_brightness) {
   auto traits = this->get_traits();
@@ -186,8 +185,7 @@ void LightState::current_values_as_rgbct(float *red, float *green, float *blue, 
 }
 void LightState::current_values_as_cwww(float *cold_white, float *warm_white, bool constant_brightness) {
   auto traits = this->get_traits();
-  this->current_values.as_cwww(traits.get_min_mireds(), traits.get_max_mireds(), cold_white, warm_white,
-                               this->gamma_correct_, constant_brightness);
+  this->current_values.as_cwww(cold_white, warm_white, this->gamma_correct_, constant_brightness);
 }
 
 void LightState::start_effect_(uint32_t effect_index) {
