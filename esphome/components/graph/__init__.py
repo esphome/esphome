@@ -21,7 +21,7 @@ from esphome.const import (
 
 CODEOWNERS = ["@synco"]
 
-DEPENDENCIES = ["display"]
+DEPENDENCIES = ["display", "sensor"]
 MULTI_CONF = True
 
 LineType = display.display_ns.enum("LineType")
@@ -105,6 +105,8 @@ async def to_code(config):
         cg.add(var.set_grid_y(config[CONF_Y_GRID]))
     if CONF_BORDER in config:
         cg.add(var.set_border(config[CONF_BORDER]))
+
+    cg.add_define("USE_GRAPH")
 
     # TODO: add support for multiple traces on graph
     # if CONF_AXES in config:

@@ -4,92 +4,22 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/automation.h"
 #include "display_color_utils.h"
+#include "types.h"
 #include "esphome/components/sensor/sensor.h"
 
 #ifdef USE_TIME
 #include "esphome/components/time/real_time_clock.h"
 #endif
 
+#ifdef USE_GRAPH
+#include "esphome/components/graph/graph.h"
+#endif
+
 namespace esphome {
 namespace display {
 
-/** TextAlign is used to tell the display class how to position a piece of text. By default
- * the coordinates you enter for the print*() functions take the upper left corner of the text
- * as the "anchor" point. You can customize this behavior to, for example, make the coordinates
- * refer to the *center* of the text.
- *
- * All text alignments consist of an X and Y-coordinate alignment. For the alignment along the X-axis
- * these options are allowed:
- *
- * - LEFT (x-coordinate of anchor point is on left)
- * - CENTER_HORIZONTAL (x-coordinate of anchor point is in the horizontal center of the text)
- * - RIGHT (x-coordinate of anchor point is on right)
- *
- * For the Y-Axis alignment these options are allowed:
- *
- * - TOP (y-coordinate of anchor is on the top of the text)
- * - CENTER_VERTICAL (y-coordinate of anchor is in the vertical center of the text)
- * - BASELINE (y-coordinate of anchor is on the baseline of the text)
- * - BOTTOM (y-coordinate of anchor is on the bottom of the text)
- *
- * These options are then combined to create combined TextAlignment options like:
- * - TOP_LEFT (default)
- * - CENTER (anchor point is in the middle of the text bounds)
- * - ...
- */
-enum class TextAlign {
-  TOP = 0x00,
-  CENTER_VERTICAL = 0x01,
-  BASELINE = 0x02,
-  BOTTOM = 0x04,
-
-  LEFT = 0x00,
-  CENTER_HORIZONTAL = 0x08,
-  RIGHT = 0x10,
-
-  TOP_LEFT = TOP | LEFT,
-  TOP_CENTER = TOP | CENTER_HORIZONTAL,
-  TOP_RIGHT = TOP | RIGHT,
-
-  CENTER_LEFT = CENTER_VERTICAL | LEFT,
-  CENTER = CENTER_VERTICAL | CENTER_HORIZONTAL,
-  CENTER_RIGHT = CENTER_VERTICAL | RIGHT,
-
-  BASELINE_LEFT = BASELINE | LEFT,
-  BASELINE_CENTER = BASELINE | CENTER_HORIZONTAL,
-  BASELINE_RIGHT = BASELINE | RIGHT,
-
-  BOTTOM_LEFT = BOTTOM | LEFT,
-  BOTTOM_CENTER = BOTTOM | CENTER_HORIZONTAL,
-  BOTTOM_RIGHT = BOTTOM | RIGHT,
-};
-
-/// Turn the pixel OFF.
-extern const Color COLOR_OFF;
-/// Turn the pixel ON.
-extern const Color COLOR_ON;
-
-enum ImageType { IMAGE_TYPE_BINARY = 0, IMAGE_TYPE_GRAYSCALE = 1, IMAGE_TYPE_RGB24 = 2 };
-
-/// Bit pattern defines the line-type
-enum LineType {
-  LINE_TYPE_SOLID = 0b1111,
-  LINE_TYPE_DOTTED = 0b0101,
-  LINE_TYPE_DASHED = 0b0111,
-  // Following defines number of bits used to define line pattern
-  PATTERN_LENGTH = 4
-};
-
-enum DisplayRotation {
-  DISPLAY_ROTATION_0_DEGREES = 0,
-  DISPLAY_ROTATION_90_DEGREES = 90,
-  DISPLAY_ROTATION_180_DEGREES = 180,
-  DISPLAY_ROTATION_270_DEGREES = 270,
-};
-
 class Font;
 class Image;
-class Graph;
 class DisplayBuffer;
 class DisplayPage;
 class DisplayOnPageChangeTrigger;
@@ -284,6 +214,7 @@ class DisplayBuffer {
    */
   void image(int x, int y, Image *image, Color color_on = COLOR_ON, Color color_off = COLOR_OFF);
 
+#ifdef USE_GRAPH
   /** Draw the `graph` with the top-left corner at [x,y] to the screen.
    *
    * @param x The x coordinate of the upper left corner.
@@ -291,7 +222,8 @@ class DisplayBuffer {
    * @param graph The graph id to draw
    * @param color_on The color to replace in binary images for the on bits.
    */
-  void graph(int x, int y, Graph *graph, Color color_on = COLOR_ON);
+  void graph(int x, int y, graph::Graph *graph, Color color_on = COLOR_ON);
+#endif  // USE_GRAPH
 
   /** Get the text bounds of the given string.
    *
@@ -430,60 +362,6 @@ class Image {
   int height_;
   ImageType type_;
   const uint8_t *data_start_;
-};
-
-class HistoryData {
- public:
-  HistoryData(int length);
-  ~HistoryData();
-  void set_update_time_ms(uint32_t u);
-  void take_sample(float data);
-  int get_length() const { return length_; }
-  float get_value(int idx) const { return data_[(count_ + length_ - 1 - idx) % length_]; }
-  float get_recent_max() const { return recent_max_; }
-  float get_recent_min() const { return recent_min_; }
-
- protected:
-  uint64_t last_sample_;
-  uint32_t period_{0};       /// in ms
-  uint32_t update_time_{0};  /// in ms
-  int length_;
-  int count_{0};
-  float recent_min_{NAN};
-  float recent_max_{NAN};
-  float *data_;
-};
-
-class Graph {
- public:
-  Graph(uint32_t duration, int width, int height);
-  void draw(DisplayBuffer *buff, uint16_t x_offset, uint16_t y_offset, Color color);
-  void set_sensor(sensor::Sensor *sensor);
-  void set_min_value(float val) { this->min_value_ = val; }
-  void set_max_value(float val) { this->max_value_ = val; }
-  void set_min_range(float val) { this->min_range_ = val; }
-  void set_max_range(float val) { this->max_range_ = val; }
-  void set_line_thickness(uint8_t val) { this->line_thickness_ = val; }
-  void set_line_type(uint8_t val) { this->line_type_ = val; }
-  void set_grid_x(float val) { this->gridspacing_x_ = val; }
-  void set_grid_y(float val) { this->gridspacing_y_ = val; }
-  void set_border(bool val) { this->border_ = val; }
-
- protected:
-  int duration_;  /// in seconds
-  int width_;     /// in pixels
-  int height_;    /// in pixels
-  float min_value_{NAN};
-  float max_value_{NAN};
-  float min_range_{1.0};
-  float max_range_{NAN};
-  uint8_t line_thickness_{3};
-  uint8_t line_type_{LINE_TYPE_SOLID};
-  float gridspacing_x_{NAN};
-  float gridspacing_y_{NAN};
-  bool border_{true};
-  sensor::Sensor *sensor_{nullptr};  // TODO: Used??
-  HistoryData *data_;
 };
 
 class Animation : public Image {
