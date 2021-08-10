@@ -1,11 +1,9 @@
 #include "dsmr.h"
 #include "esphome/core/log.h"
 
-#ifdef USE_DSMR_CRYPTO
 #include <AES.h>
 #include <Crypto.h>
 #include <GCM.h>
-#endif  // USE_DSMR_CRYPTO
 
 namespace esphome {
 namespace dsmr {
@@ -13,14 +11,10 @@ namespace dsmr {
 static const char *const TAG = "dsmr";
 
 void Dsmr::loop() {
-#ifdef USE_DSMR_CRYPTO
-  if (!this->decryption_key_.empty()) {
+  if (this->decryption_key_.size() == 0)
+    this->receive_telegram_();
+  else
     this->receive_encrypted_();
-    return;
-  }
-#endif  // USE_DSMR_CRYPTO
-
-  this->receive_telegram_();
 }
 
 void Dsmr::receive_telegram_() {
@@ -59,7 +53,6 @@ void Dsmr::receive_telegram_() {
   }
 }
 
-#ifdef USE_DSMR_CRYPTO
 void Dsmr::receive_encrypted_() {
   // Encrypted buffer
   uint8_t buffer[MAX_TELEGRAM_LENGTH];
@@ -132,7 +125,6 @@ void Dsmr::receive_encrypted_() {
   if (buffer_length > 0)
     ESP_LOGW(TAG, "Timeout while waiting for encrypted data or invalid data received.");
 }
-#endif  // USE_DSMR_CRYPTO
 
 bool Dsmr::parse_telegram() {
   MyData data;
@@ -162,7 +154,6 @@ void Dsmr::dump_config() {
   DSMR_TEXT_SENSOR_LIST(DSMR_LOG_TEXT_SENSOR, )
 }
 
-#ifdef USE_DSMR_CRYPTO
 void Dsmr::set_decryption_key(const std::string &decryption_key) {
   if (decryption_key.length() == 0) {
     ESP_LOGI(TAG, "Disabling decryption");
@@ -186,7 +177,6 @@ void Dsmr::set_decryption_key(const std::string &decryption_key) {
     decryption_key_.push_back(std::strtoul(temp, nullptr, 16));
   }
 }
-#endif  // USE_DSMR_CRYPTO
 
 }  // namespace dsmr
 }  // namespace esphome

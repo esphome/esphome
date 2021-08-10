@@ -50,11 +50,10 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID], uart_component)
     if CONF_DECRYPTION_KEY in config:
         cg.add(var.set_decryption_key(config[CONF_DECRYPTION_KEY]))
-        # Crypto
-        cg.add_library("rweather/Crypto", "0.2.0")
-        cg.add_define("USE_DSMR_CRYPTO")
-
     await cg.register_component(var, config)
 
     # DSMR Parser
     cg.add_library("glmnet/Dsmr", "0.3")
+
+    # Crypto
+    cg.add_library("rweather/Crypto", "0.2.0")
