@@ -137,10 +137,13 @@ sensor:
       name: "SelecEM2M Frequency"
     maximum_demand_active_power:
       name: "SelecEM2M Maximum Demand Active Power"
+      disabled_by_default: true
     maximum_demand_reactive_power:
       name: "SelecEM2M Maximum Demand Reactive Power"
+      disabled_by_default: true
     maximum_demand_apparent_power:
       name: "SelecEM2M Maximum Demand Apparent Power"
+      disabled_by_default: true
 
   - platform: t6615
     uart_id: uart2

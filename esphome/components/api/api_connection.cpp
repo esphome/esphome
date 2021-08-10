@@ -176,6 +176,7 @@ bool APIConnection::send_binary_sensor_info(binary_sensor::BinarySensor *binary_
   msg.unique_id = get_default_unique_id("binary_sensor", binary_sensor);
   msg.device_class = binary_sensor->get_device_class();
   msg.is_status_binary_sensor = binary_sensor->is_status_binary_sensor();
+  msg.disabled_by_default = binary_sensor->is_disabled_by_default();
   return this->send_list_entities_binary_sensor_response(msg);
 }
 #endif
@@ -207,6 +208,7 @@ bool APIConnection::send_cover_info(cover::Cover *cover) {
   msg.supports_position = traits.get_supports_position();
   msg.supports_tilt = traits.get_supports_tilt();
   msg.device_class = cover->get_device_class();
+  msg.disabled_by_default = cover->is_disabled_by_default();
   return this->send_list_entities_cover_response(msg);
 }
 void APIConnection::cover_command(const CoverCommandRequest &msg) {
@@ -268,6 +270,7 @@ bool APIConnection::send_fan_info(fan::FanState *fan) {
   msg.supports_speed = traits.supports_speed();
   msg.supports_direction = traits.supports_direction();
   msg.supported_speed_count = traits.supported_speed_count();
+  msg.disabled_by_default = fan->is_disabled_by_default();
   return this->send_list_entities_fan_response(msg);
 }
 void APIConnection::fan_command(const FanCommandRequest &msg) {
@@ -334,6 +337,9 @@ bool APIConnection::send_light_info(light::LightState *light) {
   msg.object_id = light->get_object_id();
   msg.name = light->get_name();
   msg.unique_id = get_default_unique_id("light", light);
+
+  msg.disabled_by_default = light->is_disabled_by_default();
+
   for (auto mode : traits.get_supported_color_modes())
     msg.supported_color_modes.push_back(static_cast<enums::ColorMode>(mode));
 
@@ -419,6 +425,7 @@ bool APIConnection::send_sensor_info(sensor::Sensor *sensor) {
   msg.device_class = sensor->get_device_class();
   msg.state_class = static_cast<enums::SensorStateClass>(sensor->state_class);
   msg.last_reset_type = static_cast<enums::SensorLastResetType>(sensor->last_reset_type);
+  msg.disabled_by_default = sensor->is_disabled_by_default();
 
   return this->send_list_entities_sensor_response(msg);
 }
@@ -442,6 +449,7 @@ bool APIConnection::send_switch_info(switch_::Switch *a_switch) {
   msg.unique_id = get_default_unique_id("switch", a_switch);
   msg.icon = a_switch->get_icon();
   msg.assumed_state = a_switch->assumed_state();
+  msg.disabled_by_default = a_switch->is_disabled_by_default();
   return this->send_list_entities_switch_response(msg);
 }
 void APIConnection::switch_command(const SwitchCommandRequest &msg) {
@@ -476,6 +484,7 @@ bool APIConnection::send_text_sensor_info(text_sensor::TextSensor *text_sensor) 
   if (msg.unique_id.empty())
     msg.unique_id = get_default_unique_id("text_sensor", text_sensor);
   msg.icon = text_sensor->get_icon();
+  msg.disabled_by_default = text_sensor->is_disabled_by_default();
   return this->send_list_entities_text_sensor_response(msg);
 }
 #endif
@@ -519,6 +528,9 @@ bool APIConnection::send_climate_info(climate::Climate *climate) {
   msg.object_id = climate->get_object_id();
   msg.name = climate->get_name();
   msg.unique_id = get_default_unique_id("climate", climate);
+
+  msg.disabled_by_default = climate->is_disabled_by_default();
+
   msg.supports_current_temperature = traits.get_supports_current_temperature();
   msg.supports_two_point_target_temperature = traits.get_supports_two_point_target_temperature();
 
@@ -591,6 +603,7 @@ bool APIConnection::send_number_info(number::Number *number) {
   msg.name = number->get_name();
   msg.unique_id = get_default_unique_id("number", number);
   msg.icon = number->traits.get_icon();
+  msg.disabled_by_default = number->is_disabled_by_default();
 
   msg.min_value = number->traits.get_min_value();
   msg.max_value = number->traits.get_max_value();
@@ -627,6 +640,7 @@ bool APIConnection::send_select_info(select::Select *select) {
   msg.name = select->get_name();
   msg.unique_id = get_default_unique_id("select", select);
   msg.icon = select->traits.get_icon();
+  msg.disabled_by_default = select->is_disabled_by_default();
 
   for (const auto &option : select->traits.get_options())
     msg.options.push_back(option);
@@ -658,6 +672,7 @@ bool APIConnection::send_camera_info(esp32_camera::ESP32Camera *camera) {
   msg.object_id = camera->get_object_id();
   msg.name = camera->get_name();
   msg.unique_id = get_default_unique_id("camera", camera);
+  msg.disabled_by_default = camera->is_disabled_by_default();
   return this->send_list_entities_camera_response(msg);
 }
 void APIConnection::camera_image(const CameraImageRequest &msg) {
