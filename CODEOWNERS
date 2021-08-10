@@ -37,6 +37,7 @@ esphome/components/debug/* @OttoWinter
 esphome/components/dfplayer/* @glmnet
 esphome/components/dht/* @OttoWinter
 esphome/components/ds1307/* @badbadc0ffee
+esphome/components/dsmr/* @glmnet @zuidwijk
 esphome/components/esp32_ble/* @jesserockz
 esphome/components/esp32_ble_server/* @jesserockz
 esphome/components/esp32_improv/* @jesserockz
@@ -86,6 +87,7 @@ esphome/components/ota/* @esphome/core
 esphome/components/output/* @esphome/core
 esphome/components/pid/* @OttoWinter
 esphome/components/pipsolar/* @andreashergert1984
+esphome/components/pmsa003i/* @sjtrny
 esphome/components/pn532/* @OttoWinter @jesserockz
 esphome/components/pn532_i2c/* @OttoWinter @jesserockz
 esphome/components/pn532_spi/* @OttoWinter @jesserockz
@@ -137,6 +139,8 @@ esphome/components/tm1637/* @glmnet
 esphome/components/tmp102/* @timsavage
 esphome/components/tmp117/* @Azimath
 esphome/components/tof10120/* @wstrzalka
+esphome/components/toshiba/* @kbx81
+esphome/components/tsl2591/* @wjcarpenter
 esphome/components/tuya/binary_sensor/* @jesserockz
 esphome/components/tuya/climate/* @jesserockz
 esphome/components/tuya/sensor/* @jesserockz

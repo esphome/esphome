@@ -329,7 +329,7 @@ class EsphomeVscodeHandler(EsphomeCommandWebSocket):
 
 class EsphomeAceEditorHandler(EsphomeCommandWebSocket):
     def build_command(self, json_message):
-        return ["esphome", "--dashboard", "-q", "vscode", settings.config_dir, "--ace"]
+        return ["esphome", "--dashboard", "-q", "vscode", "--ace", settings.config_dir]
 
 
 class EsphomeUpdateAllHandler(EsphomeCommandWebSocket):

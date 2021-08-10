@@ -7,11 +7,20 @@ namespace thermostat {
 static const char *const TAG = "thermostat.climate";
 
 void ThermostatClimate::setup() {
+  if (this->use_startup_delay_) {
+    // start timers so that no actions are called for a moment
+    this->start_timer_(thermostat::TIMER_COOLING_OFF);
+    this->start_timer_(thermostat::TIMER_FANNING_OFF);
+    this->start_timer_(thermostat::TIMER_HEATING_OFF);
+    if (this->supports_fan_only_action_uses_fan_mode_timer_)
+      this->start_timer_(thermostat::TIMER_FAN_MODE);
+  }
   // add a callback so that whenever the sensor state changes we can take action
   this->sensor_->add_on_state_callback([this](float state) {
     this->current_temperature = state;
     // required action may have changed, recompute, refresh
-    this->switch_to_action_(compute_action_());
+    this->switch_to_action_(this->compute_action_());
+    this->switch_to_supplemental_action_(this->compute_supplemental_action_());
     // current temperature and possibly action changed, so publish the new state
     this->publish_state();
   });
@@ -26,31 +35,58 @@ void ThermostatClimate::setup() {
     this->change_away_(false);
   }
   // refresh the climate action based on the restored settings
-  this->switch_to_action_(compute_action_());
+  this->switch_to_action_(this->compute_action_());
+  this->switch_to_supplemental_action_(this->compute_supplemental_action_());
   this->setup_complete_ = true;
   this->publish_state();
 }
 
-float ThermostatClimate::cool_deadband() { return this->cool_deadband_; }
-float ThermostatClimate::cool_overrun() { return this->cool_overrun_; }
-float ThermostatClimate::heat_deadband() { return this->heat_deadband_; }
-float ThermostatClimate::heat_overrun() { return this->heat_overrun_; }
+float ThermostatClimate::cool_deadband() { return this->cooling_deadband_; }
+float ThermostatClimate::cool_overrun() { return this->cooling_overrun_; }
+float ThermostatClimate::heat_deadband() { return this->heating_deadband_; }
+float ThermostatClimate::heat_overrun() { return this->heating_overrun_; }
 
 void ThermostatClimate::refresh() {
   this->switch_to_mode_(this->mode);
-  this->switch_to_action_(compute_action_());
+  this->switch_to_action_(this->compute_action_());
+  this->switch_to_supplemental_action_(this->compute_supplemental_action_());
   this->switch_to_fan_mode_(this->fan_mode.value());
   this->switch_to_swing_mode_(this->swing_mode);
   this->check_temperature_change_trigger_();
   this->publish_state();
 }
 
+bool ThermostatClimate::climate_action_change_delayed() {
+  switch (this->compute_action_(true)) {
+    case climate::CLIMATE_ACTION_OFF:
+    case climate::CLIMATE_ACTION_IDLE:
+      return !this->idle_action_ready_();
+    case climate::CLIMATE_ACTION_COOLING:
+      return !this->cooling_action_ready_();
+    case climate::CLIMATE_ACTION_HEATING:
+      return !this->heating_action_ready_();
+    case climate::CLIMATE_ACTION_FAN:
+      return !this->fanning_action_ready_();
+    case climate::CLIMATE_ACTION_DRYING:
+      return !this->drying_action_ready_();
+    default:
+      break;
+  }
+  return false;
+}
+
+bool ThermostatClimate::fan_mode_change_delayed() { return !this->fan_mode_ready_(); }
+
+climate::ClimateAction ThermostatClimate::delayed_climate_action() { return this->compute_action_(true); }
+
+climate::ClimateFanMode ThermostatClimate::delayed_fan_mode() { return this->desired_fan_mode_; }
+
 bool ThermostatClimate::hysteresis_valid() {
   if ((this->supports_cool_ || (this->supports_fan_only_ && this->supports_fan_only_cooling_)) &&
-      (isnan(this->cool_deadband_) || isnan(this->cool_overrun_)))
+      (isnan(this->cooling_deadband_) || isnan(this->cooling_overrun_)))
     return false;
 
-  if (this->supports_heat_ && (isnan(this->heat_deadband_) || isnan(this->heat_overrun_)))
+  if (this->supports_heat_ && (isnan(this->heating_deadband_) || isnan(this->heating_overrun_)))
     return false;
 
   return true;
@@ -72,10 +108,10 @@ void ThermostatClimate::validate_target_temperature() {
 
 void ThermostatClimate::validate_target_temperatures() {
   if (this->supports_two_points_) {
-    validate_target_temperature_low();
-    validate_target_temperature_high();
+    this->validate_target_temperature_low();
+    this->validate_target_temperature_high();
   } else {
-    validate_target_temperature();
+    this->validate_target_temperature();
   }
 }
 
@@ -201,12 +237,19 @@ climate::ClimateTraits ThermostatClimate::traits() {
   return traits;
 }
 
-climate::ClimateAction ThermostatClimate::compute_action_() {
+climate::ClimateAction ThermostatClimate::compute_action_(const bool ignore_timers) {
   auto target_action = climate::CLIMATE_ACTION_IDLE;
   // if any hysteresis values or current_temperature is not valid, we go to OFF;
   if (isnan(this->current_temperature) || !this->hysteresis_valid()) {
     return climate::CLIMATE_ACTION_OFF;
   }
+  // do not change the action if an "ON" timer is running
+  if ((!ignore_timers) &&
+      (timer_active_(thermostat::TIMER_IDLE_ON) || timer_active_(thermostat::TIMER_COOLING_ON) ||
+       timer_active_(thermostat::TIMER_FANNING_ON) || timer_active_(thermostat::TIMER_HEATING_ON))) {
+    return this->action;
+  }
+
   // ensure set point(s) is/are valid before computing the action
   this->validate_target_temperatures();
   // everything has been validated so we can now safely compute the action
@@ -245,6 +288,56 @@ climate::ClimateAction ThermostatClimate::compute_action_() {
     default:
       break;
   }
+  // do not abruptly switch actions. cycle through IDLE, first. we'll catch this at the next update.
+  if ((((this->action == climate::CLIMATE_ACTION_COOLING) || (this->action == climate::CLIMATE_ACTION_DRYING)) &&
+       (target_action == climate::CLIMATE_ACTION_HEATING)) ||
+      ((this->action == climate::CLIMATE_ACTION_HEATING) &&
+       ((target_action == climate::CLIMATE_ACTION_COOLING) || (target_action == climate::CLIMATE_ACTION_DRYING)))) {
+    return climate::CLIMATE_ACTION_IDLE;
+  }
+
+  return target_action;
+}
+
+climate::ClimateAction ThermostatClimate::compute_supplemental_action_() {
+  auto target_action = climate::CLIMATE_ACTION_IDLE;
+  // if any hysteresis values or current_temperature is not valid, we go to OFF;
+  if (isnan(this->current_temperature) || !this->hysteresis_valid()) {
+    return climate::CLIMATE_ACTION_OFF;
+  }
+
+  // ensure set point(s) is/are valid before computing the action
+  this->validate_target_temperatures();
+  // everything has been validated so we can now safely compute the action
+  switch (this->mode) {
+    // if the climate mode is OFF then the climate action must be OFF
+    case climate::CLIMATE_MODE_OFF:
+      target_action = climate::CLIMATE_ACTION_OFF;
+      break;
+    case climate::CLIMATE_MODE_HEAT_COOL:
+      if (this->supplemental_cooling_required_() && this->supplemental_heating_required_()) {
+        // this is bad and should never happen, so just stop.
+        // target_action = climate::CLIMATE_ACTION_IDLE;
+      } else if (this->supplemental_cooling_required_()) {
+        target_action = climate::CLIMATE_ACTION_COOLING;
+      } else if (this->supplemental_heating_required_()) {
+        target_action = climate::CLIMATE_ACTION_HEATING;
+      }
+      break;
+    case climate::CLIMATE_MODE_COOL:
+      if (this->supplemental_cooling_required_()) {
+        target_action = climate::CLIMATE_ACTION_COOLING;
+      }
+      break;
+    case climate::CLIMATE_MODE_HEAT:
+      if (this->supplemental_heating_required_()) {
+        target_action = climate::CLIMATE_ACTION_HEATING;
+      }
+      break;
+    default:
+      break;
+  }
+
   return target_action;
 }
 
@@ -257,34 +350,81 @@ void ThermostatClimate::switch_to_action_(climate::ClimateAction action) {
   if (((action == climate::CLIMATE_ACTION_OFF && this->action == climate::CLIMATE_ACTION_IDLE) ||
        (action == climate::CLIMATE_ACTION_IDLE && this->action == climate::CLIMATE_ACTION_OFF)) &&
       this->setup_complete_) {
-    // switching from OFF to IDLE or vice-versa
-    // these only have visual difference. OFF means user manually disabled,
-    // IDLE means it's in auto mode but value is in target range.
+    // switching from OFF to IDLE or vice-versa -- this is only a visual difference.
+    // OFF means user manually disabled, IDLE means the temperature is in target range.
     this->action = action;
     return;
   }
 
-  if (this->prev_action_trigger_ != nullptr) {
-    this->prev_action_trigger_->stop_action();
-    this->prev_action_trigger_ = nullptr;
-  }
-  Trigger<> *trig = this->idle_action_trigger_;
+  bool action_ready = false;
+  Trigger<> *trig = this->idle_action_trigger_, *trig_fan = nullptr;
   switch (action) {
     case climate::CLIMATE_ACTION_OFF:
     case climate::CLIMATE_ACTION_IDLE:
-      // trig = this->idle_action_trigger_;
+      if (this->idle_action_ready_()) {
+        this->start_timer_(thermostat::TIMER_IDLE_ON);
+        if (this->action == climate::CLIMATE_ACTION_COOLING)
+          this->start_timer_(thermostat::TIMER_COOLING_OFF);
+        if (this->action == climate::CLIMATE_ACTION_FAN) {
+          if (this->supports_fan_only_action_uses_fan_mode_timer_)
+            this->start_timer_(thermostat::TIMER_FAN_MODE);
+          else
+            this->start_timer_(thermostat::TIMER_FANNING_OFF);
+        }
+        if (this->action == climate::CLIMATE_ACTION_HEATING)
+          this->start_timer_(thermostat::TIMER_HEATING_OFF);
+        // trig = this->idle_action_trigger_;
+        ESP_LOGVV(TAG, "Switching to IDLE/OFF action");
+        this->cooling_max_runtime_exceeded_ = false;
+        this->heating_max_runtime_exceeded_ = false;
+        action_ready = true;
+      }
       break;
     case climate::CLIMATE_ACTION_COOLING:
-      trig = this->cool_action_trigger_;
+      if (this->cooling_action_ready_()) {
+        this->start_timer_(thermostat::TIMER_COOLING_ON);
+        this->start_timer_(thermostat::TIMER_COOLING_MAX_RUN_TIME);
+        if (this->supports_fan_with_cooling_) {
+          this->start_timer_(thermostat::TIMER_FANNING_ON);
+          trig_fan = this->fan_only_action_trigger_;
+        }
+        trig = this->cool_action_trigger_;
+        ESP_LOGVV(TAG, "Switching to COOLING action");
+        action_ready = true;
+      }
       break;
     case climate::CLIMATE_ACTION_HEATING:
-      trig = this->heat_action_trigger_;
+      if (this->heating_action_ready_()) {
+        this->start_timer_(thermostat::TIMER_HEATING_ON);
+        this->start_timer_(thermostat::TIMER_HEATING_MAX_RUN_TIME);
+        if (this->supports_fan_with_heating_) {
+          this->start_timer_(thermostat::TIMER_FANNING_ON);
+          trig_fan = this->fan_only_action_trigger_;
+        }
+        trig = this->heat_action_trigger_;
+        ESP_LOGVV(TAG, "Switching to HEATING action");
+        action_ready = true;
+      }
       break;
     case climate::CLIMATE_ACTION_FAN:
-      trig = this->fan_only_action_trigger_;
+      if (this->fanning_action_ready_()) {
+        if (this->supports_fan_only_action_uses_fan_mode_timer_)
+          this->start_timer_(thermostat::TIMER_FAN_MODE);
+        else
+          this->start_timer_(thermostat::TIMER_FANNING_ON);
+        trig = this->fan_only_action_trigger_;
+        ESP_LOGVV(TAG, "Switching to FAN_ONLY action");
+        action_ready = true;
+      }
       break;
     case climate::CLIMATE_ACTION_DRYING:
-      trig = this->dry_action_trigger_;
+      if (this->drying_action_ready_()) {
+        this->start_timer_(thermostat::TIMER_COOLING_ON);
+        this->start_timer_(thermostat::TIMER_FANNING_ON);
+        trig = this->dry_action_trigger_;
+        ESP_LOGVV(TAG, "Switching to DRYING action");
+        action_ready = true;
+      }
       break;
     default:
       // we cannot report an invalid mode back to HA (even if it asked for one)
@@ -292,10 +432,76 @@ void ThermostatClimate::switch_to_action_(climate::ClimateAction action) {
       action = climate::CLIMATE_ACTION_OFF;
       // trig = this->idle_action_trigger_;
   }
-  assert(trig != nullptr);
-  trig->trigger();
-  this->action = action;
-  this->prev_action_trigger_ = trig;
+
+  if (action_ready) {
+    if (this->prev_action_trigger_ != nullptr) {
+      this->prev_action_trigger_->stop_action();
+      this->prev_action_trigger_ = nullptr;
+    }
+    this->action = action;
+    this->prev_action_trigger_ = trig;
+    assert(trig != nullptr);
+    trig->trigger();
+    // if enabled, call the fan_only action with cooling/heating actions
+    if (trig_fan != nullptr) {
+      ESP_LOGVV(TAG, "Calling FAN_ONLY action with HEATING/COOLING action");
+      trig_fan->trigger();
+    }
+  }
+}
+
+void ThermostatClimate::switch_to_supplemental_action_(climate::ClimateAction action) {
+  // setup_complete_ helps us ensure an action is called immediately after boot
+  if ((action == this->supplemental_action_) && this->setup_complete_)
+    // already in target mode
+    return;
+
+  switch (action) {
+    case climate::CLIMATE_ACTION_OFF:
+    case climate::CLIMATE_ACTION_IDLE:
+      this->cancel_timer_(thermostat::TIMER_COOLING_MAX_RUN_TIME);
+      this->cancel_timer_(thermostat::TIMER_HEATING_MAX_RUN_TIME);
+      break;
+    case climate::CLIMATE_ACTION_COOLING:
+      this->cancel_timer_(thermostat::TIMER_COOLING_MAX_RUN_TIME);
+      break;
+    case climate::CLIMATE_ACTION_HEATING:
+      this->cancel_timer_(thermostat::TIMER_HEATING_MAX_RUN_TIME);
+      break;
+    default:
+      return;
+  }
+  ESP_LOGVV(TAG, "Updating supplemental action...");
+  this->supplemental_action_ = action;
+  this->trigger_supplemental_action_();
+}
+
+void ThermostatClimate::trigger_supplemental_action_() {
+  Trigger<> *trig = nullptr;
+
+  switch (this->supplemental_action_) {
+    case climate::CLIMATE_ACTION_COOLING:
+      if (!this->timer_active_(thermostat::TIMER_COOLING_MAX_RUN_TIME)) {
+        this->start_timer_(thermostat::TIMER_COOLING_MAX_RUN_TIME);
+      }
+      trig = this->supplemental_cool_action_trigger_;
+      ESP_LOGVV(TAG, "Calling supplemental COOLING action");
+      break;
+    case climate::CLIMATE_ACTION_HEATING:
+      if (!this->timer_active_(thermostat::TIMER_HEATING_MAX_RUN_TIME)) {
+        this->start_timer_(thermostat::TIMER_HEATING_MAX_RUN_TIME);
+      }
+      trig = this->supplemental_heat_action_trigger_;
+      ESP_LOGVV(TAG, "Calling supplemental HEATING action");
+      break;
+    default:
+      break;
+  }
+
+  if (trig != nullptr) {
+    assert(trig != nullptr);
+    trig->trigger();
+  }
 }
 
 void ThermostatClimate::switch_to_fan_mode_(climate::ClimateFanMode fan_mode) {
@@ -304,50 +510,64 @@ void ThermostatClimate::switch_to_fan_mode_(climate::ClimateFanMode fan_mode) {
     // already in target mode
     return;
 
-  if (this->prev_fan_mode_trigger_ != nullptr) {
-    this->prev_fan_mode_trigger_->stop_action();
-    this->prev_fan_mode_trigger_ = nullptr;
+  this->desired_fan_mode_ = fan_mode;  // needed for timer callback
+
+  if (this->fan_mode_ready_()) {
+    Trigger<> *trig = this->fan_mode_auto_trigger_;
+    switch (fan_mode) {
+      case climate::CLIMATE_FAN_ON:
+        trig = this->fan_mode_on_trigger_;
+        ESP_LOGVV(TAG, "Switching to FAN_ON mode");
+        break;
+      case climate::CLIMATE_FAN_OFF:
+        trig = this->fan_mode_off_trigger_;
+        ESP_LOGVV(TAG, "Switching to FAN_OFF mode");
+        break;
+      case climate::CLIMATE_FAN_AUTO:
+        // trig = this->fan_mode_auto_trigger_;
+        ESP_LOGVV(TAG, "Switching to FAN_AUTO mode");
+        break;
+      case climate::CLIMATE_FAN_LOW:
+        trig = this->fan_mode_low_trigger_;
+        ESP_LOGVV(TAG, "Switching to FAN_LOW mode");
+        break;
+      case climate::CLIMATE_FAN_MEDIUM:
+        trig = this->fan_mode_medium_trigger_;
+        ESP_LOGVV(TAG, "Switching to FAN_MEDIUM mode");
+        break;
+      case climate::CLIMATE_FAN_HIGH:
+        trig = this->fan_mode_high_trigger_;
+        ESP_LOGVV(TAG, "Switching to FAN_HIGH mode");
+        break;
+      case climate::CLIMATE_FAN_MIDDLE:
+        trig = this->fan_mode_middle_trigger_;
+        ESP_LOGVV(TAG, "Switching to FAN_MIDDLE mode");
+        break;
+      case climate::CLIMATE_FAN_FOCUS:
+        trig = this->fan_mode_focus_trigger_;
+        ESP_LOGVV(TAG, "Switching to FAN_FOCUS mode");
+        break;
+      case climate::CLIMATE_FAN_DIFFUSE:
+        trig = this->fan_mode_diffuse_trigger_;
+        ESP_LOGVV(TAG, "Switching to FAN_DIFFUSE mode");
+        break;
+      default:
+        // we cannot report an invalid mode back to HA (even if it asked for one)
+        //  and must assume some valid value
+        fan_mode = climate::CLIMATE_FAN_AUTO;
+        // trig = this->fan_mode_auto_trigger_;
+    }
+    if (this->prev_fan_mode_trigger_ != nullptr) {
+      this->prev_fan_mode_trigger_->stop_action();
+      this->prev_fan_mode_trigger_ = nullptr;
+    }
+    this->start_timer_(thermostat::TIMER_FAN_MODE);
+    assert(trig != nullptr);
+    trig->trigger();
+    this->fan_mode = fan_mode;
+    this->prev_fan_mode_ = fan_mode;
+    this->prev_fan_mode_trigger_ = trig;
   }
-  Trigger<> *trig = this->fan_mode_auto_trigger_;
-  switch (fan_mode) {
-    case climate::CLIMATE_FAN_ON:
-      trig = this->fan_mode_on_trigger_;
-      break;
-    case climate::CLIMATE_FAN_OFF:
-      trig = this->fan_mode_off_trigger_;
-      break;
-    case climate::CLIMATE_FAN_AUTO:
-      // trig = this->fan_mode_auto_trigger_;
-      break;
-    case climate::CLIMATE_FAN_LOW:
-      trig = this->fan_mode_low_trigger_;
-      break;
-    case climate::CLIMATE_FAN_MEDIUM:
-      trig = this->fan_mode_medium_trigger_;
-      break;
-    case climate::CLIMATE_FAN_HIGH:
-      trig = this->fan_mode_high_trigger_;
-      break;
-    case climate::CLIMATE_FAN_MIDDLE:
-      trig = this->fan_mode_middle_trigger_;
-      break;
-    case climate::CLIMATE_FAN_FOCUS:
-      trig = this->fan_mode_focus_trigger_;
-      break;
-    case climate::CLIMATE_FAN_DIFFUSE:
-      trig = this->fan_mode_diffuse_trigger_;
-      break;
-    default:
-      // we cannot report an invalid mode back to HA (even if it asked for one)
-      //  and must assume some valid value
-      fan_mode = climate::CLIMATE_FAN_AUTO;
-      // trig = this->fan_mode_auto_trigger_;
-  }
-  assert(trig != nullptr);
-  trig->trigger();
-  this->fan_mode = fan_mode;
-  this->prev_fan_mode_ = fan_mode;
-  this->prev_fan_mode_trigger_ = trig;
 }
 
 void ThermostatClimate::switch_to_mode_(climate::ClimateMode mode) {
@@ -430,6 +650,135 @@ void ThermostatClimate::switch_to_swing_mode_(climate::ClimateSwingMode swing_mo
   this->prev_swing_mode_trigger_ = trig;
 }
 
+bool ThermostatClimate::idle_action_ready_() {
+  if (this->supports_fan_only_action_uses_fan_mode_timer_) {
+    return !(this->timer_active_(thermostat::TIMER_COOLING_ON) || this->timer_active_(thermostat::TIMER_FAN_MODE) ||
+             this->timer_active_(thermostat::TIMER_HEATING_ON));
+  }
+  return !(this->timer_active_(thermostat::TIMER_COOLING_ON) || this->timer_active_(thermostat::TIMER_FANNING_ON) ||
+           this->timer_active_(thermostat::TIMER_HEATING_ON));
+}
+
+bool ThermostatClimate::cooling_action_ready_() {
+  return !(this->timer_active_(thermostat::TIMER_IDLE_ON) || this->timer_active_(thermostat::TIMER_FANNING_OFF) ||
+           this->timer_active_(thermostat::TIMER_COOLING_OFF) || this->timer_active_(thermostat::TIMER_HEATING_ON));
+}
+
+bool ThermostatClimate::drying_action_ready_() {
+  return !(this->timer_active_(thermostat::TIMER_IDLE_ON) || this->timer_active_(thermostat::TIMER_FANNING_OFF) ||
+           this->timer_active_(thermostat::TIMER_COOLING_OFF) || this->timer_active_(thermostat::TIMER_HEATING_ON));
+}
+
+bool ThermostatClimate::fan_mode_ready_() { return !(this->timer_active_(thermostat::TIMER_FAN_MODE)); }
+
+bool ThermostatClimate::fanning_action_ready_() {
+  if (this->supports_fan_only_action_uses_fan_mode_timer_) {
+    return !(this->timer_active_(thermostat::TIMER_FAN_MODE));
+  }
+  return !(this->timer_active_(thermostat::TIMER_IDLE_ON) || this->timer_active_(thermostat::TIMER_FANNING_OFF));
+}
+
+bool ThermostatClimate::heating_action_ready_() {
+  return !(this->timer_active_(thermostat::TIMER_IDLE_ON) || this->timer_active_(thermostat::TIMER_COOLING_ON) ||
+           this->timer_active_(thermostat::TIMER_FANNING_OFF) || this->timer_active_(thermostat::TIMER_HEATING_OFF));
+}
+
+void ThermostatClimate::start_timer_(const ThermostatClimateTimerIndex timer_index) {
+  if (this->timer_duration_(timer_index) > 0) {
+    this->set_timeout(this->timer_[timer_index].name, this->timer_duration_(timer_index),
+                      this->timer_cbf_(timer_index));
+    this->timer_[timer_index].active = true;
+  }
+}
+
+bool ThermostatClimate::cancel_timer_(ThermostatClimateTimerIndex timer_index) {
+  this->timer_[timer_index].active = false;
+  return this->cancel_timeout(this->timer_[timer_index].name);
+}
+
+bool ThermostatClimate::timer_active_(ThermostatClimateTimerIndex timer_index) {
+  return this->timer_[timer_index].active;
+}
+
+uint32_t ThermostatClimate::timer_duration_(ThermostatClimateTimerIndex timer_index) {
+  return this->timer_[timer_index].time;
+}
+
+std::function<void()> ThermostatClimate::timer_cbf_(ThermostatClimateTimerIndex timer_index) {
+  return this->timer_[timer_index].func;
+}
+
+void ThermostatClimate::cooling_max_run_time_timer_callback_() {
+  ESP_LOGVV(TAG, "cooling_max_run_time timer expired");
+  this->timer_[thermostat::TIMER_COOLING_MAX_RUN_TIME].active = false;
+  this->cooling_max_runtime_exceeded_ = true;
+  this->trigger_supplemental_action_();
+  this->switch_to_supplemental_action_(this->compute_supplemental_action_());
+}
+
+void ThermostatClimate::cooling_off_timer_callback_() {
+  ESP_LOGVV(TAG, "cooling_off timer expired");
+  this->timer_[thermostat::TIMER_COOLING_OFF].active = false;
+  this->switch_to_action_(this->compute_action_());
+  this->switch_to_supplemental_action_(this->compute_supplemental_action_());
+}
+
+void ThermostatClimate::cooling_on_timer_callback_() {
+  ESP_LOGVV(TAG, "cooling_on timer expired");
+  this->timer_[thermostat::TIMER_COOLING_ON].active = false;
+  this->switch_to_action_(this->compute_action_());
+  this->switch_to_supplemental_action_(this->compute_supplemental_action_());
+}
+
+void ThermostatClimate::fan_mode_timer_callback_() {
+  ESP_LOGVV(TAG, "fan_mode timer expired");
+  this->timer_[thermostat::TIMER_FAN_MODE].active = false;
+  this->switch_to_fan_mode_(this->desired_fan_mode_);
+  if (this->supports_fan_only_action_uses_fan_mode_timer_)
+    this->switch_to_action_(this->compute_action_());
+}
+
+void ThermostatClimate::fanning_off_timer_callback_() {
+  ESP_LOGVV(TAG, "fanning_off timer expired");
+  this->timer_[thermostat::TIMER_FANNING_OFF].active = false;
+  this->switch_to_action_(this->compute_action_());
+}
+
+void ThermostatClimate::fanning_on_timer_callback_() {
+  ESP_LOGVV(TAG, "fanning_on timer expired");
+  this->timer_[thermostat::TIMER_FANNING_ON].active = false;
+  this->switch_to_action_(this->compute_action_());
+}
+
+void ThermostatClimate::heating_max_run_time_timer_callback_() {
+  ESP_LOGVV(TAG, "heating_max_run_time timer expired");
+  this->timer_[thermostat::TIMER_HEATING_MAX_RUN_TIME].active = false;
+  this->heating_max_runtime_exceeded_ = true;
+  this->trigger_supplemental_action_();
+  this->switch_to_supplemental_action_(this->compute_supplemental_action_());
+}
+
+void ThermostatClimate::heating_off_timer_callback_() {
+  ESP_LOGVV(TAG, "heating_off timer expired");
+  this->timer_[thermostat::TIMER_HEATING_OFF].active = false;
+  this->switch_to_action_(this->compute_action_());
+  this->switch_to_supplemental_action_(this->compute_supplemental_action_());
+}
+
+void ThermostatClimate::heating_on_timer_callback_() {
+  ESP_LOGVV(TAG, "heating_on timer expired");
+  this->timer_[thermostat::TIMER_HEATING_ON].active = false;
+  this->switch_to_action_(this->compute_action_());
+  this->switch_to_supplemental_action_(this->compute_supplemental_action_());
+}
+
+void ThermostatClimate::idle_on_timer_callback_() {
+  ESP_LOGVV(TAG, "idle_on timer expired");
+  this->timer_[thermostat::TIMER_IDLE_ON].active = false;
+  this->switch_to_action_(this->compute_action_());
+  this->switch_to_supplemental_action_(this->compute_supplemental_action_());
+}
+
 void ThermostatClimate::check_temperature_change_trigger_() {
   if (this->supports_two_points_) {
     // setup_complete_ helps us ensure an action is called immediately after boot
@@ -459,10 +808,10 @@ bool ThermostatClimate::cooling_required_() {
   auto temperature = this->supports_two_points_ ? this->target_temperature_high : this->target_temperature;
 
   if (this->supports_cool_) {
-    if (this->current_temperature > (temperature + this->cool_deadband_)) {
+    if (this->current_temperature > temperature + this->cooling_deadband_) {
       // if the current temperature exceeds the target + deadband, cooling is required
       return true;
-    } else if (this->current_temperature < (temperature - this->cool_overrun_)) {
+    } else if (this->current_temperature < temperature - this->cooling_overrun_) {
       // if the current temperature is less than the target - overrun, cooling should stop
       return false;
     } else {
@@ -480,10 +829,10 @@ bool ThermostatClimate::fanning_required_() {
 
   if (this->supports_fan_only_) {
     if (this->supports_fan_only_cooling_) {
-      if (this->current_temperature > (temperature + this->cool_deadband_)) {
+      if (this->current_temperature > temperature + this->cooling_deadband_) {
         // if the current temperature exceeds the target + deadband, fanning is required
         return true;
-      } else if (this->current_temperature < (temperature - this->cool_overrun_)) {
+      } else if (this->current_temperature < temperature - this->cooling_overrun_) {
         // if the current temperature is less than the target - overrun, fanning should stop
         return false;
       } else {
@@ -502,10 +851,10 @@ bool ThermostatClimate::heating_required_() {
   auto temperature = this->supports_two_points_ ? this->target_temperature_low : this->target_temperature;
 
   if (this->supports_heat_) {
-    if (this->current_temperature < temperature - this->heat_deadband_) {
+    if (this->current_temperature < temperature - this->heating_deadband_) {
       // if the current temperature is below the target - deadband, heating is required
       return true;
-    } else if (this->current_temperature > temperature + this->heat_overrun_) {
+    } else if (this->current_temperature > temperature + this->heating_overrun_) {
       // if the current temperature is above the target + overrun, heating should stop
       return false;
     } else {
@@ -516,6 +865,26 @@ bool ThermostatClimate::heating_required_() {
     }
   }
   return false;
+}
+
+bool ThermostatClimate::supplemental_cooling_required_() {
+  auto temperature = this->supports_two_points_ ? this->target_temperature_high : this->target_temperature;
+  // the component must supports_cool_ and the climate action must be climate::CLIMATE_ACTION_COOLING. then...
+  // supplemental cooling is required if the max delta or max runtime was exceeded or the action is already engaged
+  return this->supports_cool_ && (this->action == climate::CLIMATE_ACTION_COOLING) &&
+         (this->cooling_max_runtime_exceeded_ ||
+          (this->current_temperature > temperature + this->supplemental_cool_delta_) ||
+          (this->supplemental_action_ == climate::CLIMATE_ACTION_COOLING));
+}
+
+bool ThermostatClimate::supplemental_heating_required_() {
+  auto temperature = this->supports_two_points_ ? this->target_temperature_low : this->target_temperature;
+  // the component must supports_heat_ and the climate action must be climate::CLIMATE_ACTION_HEATING. then...
+  // supplemental heating is required if the max delta or max runtime was exceeded or the action is already engaged
+  return this->supports_heat_ && (this->action == climate::CLIMATE_ACTION_HEATING) &&
+         (this->heating_max_runtime_exceeded_ ||
+          (this->current_temperature < temperature - this->supplemental_heat_delta_) ||
+          (this->supplemental_action_ == climate::CLIMATE_ACTION_HEATING));
 }
 
 void ThermostatClimate::change_away_(bool away) {
@@ -546,10 +915,12 @@ void ThermostatClimate::set_away_config(const ThermostatClimateTargetTempConfig 
 
 ThermostatClimate::ThermostatClimate()
     : cool_action_trigger_(new Trigger<>()),
+      supplemental_cool_action_trigger_(new Trigger<>()),
       cool_mode_trigger_(new Trigger<>()),
       dry_action_trigger_(new Trigger<>()),
       dry_mode_trigger_(new Trigger<>()),
       heat_action_trigger_(new Trigger<>()),
+      supplemental_heat_action_trigger_(new Trigger<>()),
       heat_mode_trigger_(new Trigger<>()),
       auto_mode_trigger_(new Trigger<>()),
       idle_action_trigger_(new Trigger<>()),
@@ -575,11 +946,54 @@ void ThermostatClimate::set_default_mode(climate::ClimateMode default_mode) { th
 void ThermostatClimate::set_set_point_minimum_differential(float differential) {
   this->set_point_minimum_differential_ = differential;
 }
-void ThermostatClimate::set_cool_deadband(float deadband) { this->cool_deadband_ = deadband; }
-void ThermostatClimate::set_cool_overrun(float overrun) { this->cool_overrun_ = overrun; }
-void ThermostatClimate::set_heat_deadband(float deadband) { this->heat_deadband_ = deadband; }
-void ThermostatClimate::set_heat_overrun(float overrun) { this->heat_overrun_ = overrun; }
+void ThermostatClimate::set_cool_deadband(float deadband) { this->cooling_deadband_ = deadband; }
+void ThermostatClimate::set_cool_overrun(float overrun) { this->cooling_overrun_ = overrun; }
+void ThermostatClimate::set_heat_deadband(float deadband) { this->heating_deadband_ = deadband; }
+void ThermostatClimate::set_heat_overrun(float overrun) { this->heating_overrun_ = overrun; }
+void ThermostatClimate::set_supplemental_cool_delta(float delta) { this->supplemental_cool_delta_ = delta; }
+void ThermostatClimate::set_supplemental_heat_delta(float delta) { this->supplemental_heat_delta_ = delta; }
+void ThermostatClimate::set_cooling_maximum_run_time_in_sec(uint32_t time) {
+  this->timer_[thermostat::TIMER_COOLING_MAX_RUN_TIME].time =
+      1000 * (time < this->min_timer_duration_ ? this->min_timer_duration_ : time);
+}
+void ThermostatClimate::set_cooling_minimum_off_time_in_sec(uint32_t time) {
+  this->timer_[thermostat::TIMER_COOLING_OFF].time =
+      1000 * (time < this->min_timer_duration_ ? this->min_timer_duration_ : time);
+}
+void ThermostatClimate::set_cooling_minimum_run_time_in_sec(uint32_t time) {
+  this->timer_[thermostat::TIMER_COOLING_ON].time =
+      1000 * (time < this->min_timer_duration_ ? this->min_timer_duration_ : time);
+}
+void ThermostatClimate::set_fan_mode_minimum_switching_time_in_sec(uint32_t time) {
+  this->timer_[thermostat::TIMER_FAN_MODE].time =
+      1000 * (time < this->min_timer_duration_ ? this->min_timer_duration_ : time);
+}
+void ThermostatClimate::set_fanning_minimum_off_time_in_sec(uint32_t time) {
+  this->timer_[thermostat::TIMER_FANNING_OFF].time =
+      1000 * (time < this->min_timer_duration_ ? this->min_timer_duration_ : time);
+}
+void ThermostatClimate::set_fanning_minimum_run_time_in_sec(uint32_t time) {
+  this->timer_[thermostat::TIMER_FANNING_ON].time =
+      1000 * (time < this->min_timer_duration_ ? this->min_timer_duration_ : time);
+}
+void ThermostatClimate::set_heating_maximum_run_time_in_sec(uint32_t time) {
+  this->timer_[thermostat::TIMER_HEATING_MAX_RUN_TIME].time =
+      1000 * (time < this->min_timer_duration_ ? this->min_timer_duration_ : time);
+}
+void ThermostatClimate::set_heating_minimum_off_time_in_sec(uint32_t time) {
+  this->timer_[thermostat::TIMER_HEATING_OFF].time =
+      1000 * (time < this->min_timer_duration_ ? this->min_timer_duration_ : time);
+}
+void ThermostatClimate::set_heating_minimum_run_time_in_sec(uint32_t time) {
+  this->timer_[thermostat::TIMER_HEATING_ON].time =
+      1000 * (time < this->min_timer_duration_ ? this->min_timer_duration_ : time);
+}
+void ThermostatClimate::set_idle_minimum_time_in_sec(uint32_t time) {
+  this->timer_[thermostat::TIMER_IDLE_ON].time =
+      1000 * (time < this->min_timer_duration_ ? this->min_timer_duration_ : time);
+}
 void ThermostatClimate::set_sensor(sensor::Sensor *sensor) { this->sensor_ = sensor; }
+void ThermostatClimate::set_use_startup_delay(bool use_startup_delay) { this->use_startup_delay_ = use_startup_delay; }
 void ThermostatClimate::set_supports_heat_cool(bool supports_heat_cool) {
   this->supports_heat_cool_ = supports_heat_cool;
 }
@@ -587,8 +1001,18 @@ void ThermostatClimate::set_supports_auto(bool supports_auto) { this->supports_a
 void ThermostatClimate::set_supports_cool(bool supports_cool) { this->supports_cool_ = supports_cool; }
 void ThermostatClimate::set_supports_dry(bool supports_dry) { this->supports_dry_ = supports_dry; }
 void ThermostatClimate::set_supports_fan_only(bool supports_fan_only) { this->supports_fan_only_ = supports_fan_only; }
+void ThermostatClimate::set_supports_fan_only_action_uses_fan_mode_timer(
+    bool supports_fan_only_action_uses_fan_mode_timer) {
+  this->supports_fan_only_action_uses_fan_mode_timer_ = supports_fan_only_action_uses_fan_mode_timer;
+}
 void ThermostatClimate::set_supports_fan_only_cooling(bool supports_fan_only_cooling) {
   this->supports_fan_only_cooling_ = supports_fan_only_cooling;
+}
+void ThermostatClimate::set_supports_fan_with_cooling(bool supports_fan_with_cooling) {
+  this->supports_fan_with_cooling_ = supports_fan_with_cooling;
+}
+void ThermostatClimate::set_supports_fan_with_heating(bool supports_fan_with_heating) {
+  this->supports_fan_with_heating_ = supports_fan_with_heating;
 }
 void ThermostatClimate::set_supports_heat(bool supports_heat) { this->supports_heat_ = supports_heat; }
 void ThermostatClimate::set_supports_fan_mode_on(bool supports_fan_mode_on) {
@@ -635,9 +1059,15 @@ void ThermostatClimate::set_supports_two_points(bool supports_two_points) {
 }
 
 Trigger<> *ThermostatClimate::get_cool_action_trigger() const { return this->cool_action_trigger_; }
+Trigger<> *ThermostatClimate::get_supplemental_cool_action_trigger() const {
+  return this->supplemental_cool_action_trigger_;
+}
 Trigger<> *ThermostatClimate::get_dry_action_trigger() const { return this->dry_action_trigger_; }
 Trigger<> *ThermostatClimate::get_fan_only_action_trigger() const { return this->fan_only_action_trigger_; }
 Trigger<> *ThermostatClimate::get_heat_action_trigger() const { return this->heat_action_trigger_; }
+Trigger<> *ThermostatClimate::get_supplemental_heat_action_trigger() const {
+  return this->supplemental_heat_action_trigger_;
+}
 Trigger<> *ThermostatClimate::get_idle_action_trigger() const { return this->idle_action_trigger_; }
 Trigger<> *ThermostatClimate::get_auto_mode_trigger() const { return this->auto_mode_trigger_; }
 Trigger<> *ThermostatClimate::get_cool_mode_trigger() const { return this->cool_mode_trigger_; }
@@ -668,23 +1098,62 @@ void ThermostatClimate::dump_config() {
     else
       ESP_LOGCONFIG(TAG, "  Default Target Temperature Low: %.1f°C", this->normal_config_.default_temperature);
   }
-  if ((this->supports_cool_) || (this->supports_fan_only_)) {
+  if ((this->supports_cool_) || (this->supports_fan_only_ && this->supports_fan_only_cooling_)) {
     if (this->supports_two_points_)
       ESP_LOGCONFIG(TAG, "  Default Target Temperature High: %.1f°C", this->normal_config_.default_temperature_high);
     else
       ESP_LOGCONFIG(TAG, "  Default Target Temperature High: %.1f°C", this->normal_config_.default_temperature);
   }
-  ESP_LOGCONFIG(TAG, "  Minimum Set Point Differential: %.1f°C", this->set_point_minimum_differential_);
-  ESP_LOGCONFIG(TAG, "  Cool Deadband: %.1f°C", this->cool_deadband_);
-  ESP_LOGCONFIG(TAG, "  Cool Overrun: %.1f°C", this->cool_overrun_);
-  ESP_LOGCONFIG(TAG, "  Heat Deadband: %.1f°C", this->heat_deadband_);
-  ESP_LOGCONFIG(TAG, "  Heat Overrun: %.1f°C", this->heat_overrun_);
+  if (this->supports_two_points_)
+    ESP_LOGCONFIG(TAG, "  Minimum Set Point Differential: %.1f°C", this->set_point_minimum_differential_);
+  ESP_LOGCONFIG(TAG, "  Start-up Delay Enabled: %s", YESNO(this->use_startup_delay_));
+  if (this->supports_cool_) {
+    ESP_LOGCONFIG(TAG, "  Cooling Parameters:");
+    ESP_LOGCONFIG(TAG, "    Deadband: %.1f°C", this->cooling_deadband_);
+    ESP_LOGCONFIG(TAG, "    Overrun: %.1f°C", this->cooling_overrun_);
+    if ((this->supplemental_cool_delta_ > 0) || (this->timer_duration_(thermostat::TIMER_COOLING_MAX_RUN_TIME) > 0)) {
+      ESP_LOGCONFIG(TAG, "    Supplemental Delta: %.1f°C", this->supplemental_cool_delta_);
+      ESP_LOGCONFIG(TAG, "    Maximum Run Time: %us",
+                    this->timer_duration_(thermostat::TIMER_COOLING_MAX_RUN_TIME) / 1000);
+    }
+    ESP_LOGCONFIG(TAG, "    Minimum Off Time: %us", this->timer_duration_(thermostat::TIMER_COOLING_OFF) / 1000);
+    ESP_LOGCONFIG(TAG, "    Minimum Run Time: %us", this->timer_duration_(thermostat::TIMER_COOLING_ON) / 1000);
+  }
+  if (this->supports_heat_) {
+    ESP_LOGCONFIG(TAG, "  Heating Parameters:");
+    ESP_LOGCONFIG(TAG, "    Deadband: %.1f°C", this->heating_deadband_);
+    ESP_LOGCONFIG(TAG, "    Overrun: %.1f°C", this->heating_overrun_);
+    if ((this->supplemental_heat_delta_ > 0) || (this->timer_duration_(thermostat::TIMER_HEATING_MAX_RUN_TIME) > 0)) {
+      ESP_LOGCONFIG(TAG, "    Supplemental Delta: %.1f°C", this->supplemental_heat_delta_);
+      ESP_LOGCONFIG(TAG, "    Maximum Run Time: %us",
+                    this->timer_duration_(thermostat::TIMER_HEATING_MAX_RUN_TIME) / 1000);
+    }
+    ESP_LOGCONFIG(TAG, "    Minimum Off Time: %us", this->timer_duration_(thermostat::TIMER_HEATING_OFF) / 1000);
+    ESP_LOGCONFIG(TAG, "    Minimum Run Time: %us", this->timer_duration_(thermostat::TIMER_HEATING_ON) / 1000);
+  }
+  if (this->supports_fan_only_) {
+    ESP_LOGCONFIG(TAG, "  Fanning Minimum Off Time: %us", this->timer_duration_(thermostat::TIMER_FANNING_OFF) / 1000);
+    ESP_LOGCONFIG(TAG, "  Fanning Minimum Run Time: %us", this->timer_duration_(thermostat::TIMER_FANNING_ON) / 1000);
+  }
+  if (this->supports_fan_mode_on_ || this->supports_fan_mode_off_ || this->supports_fan_mode_auto_ ||
+      this->supports_fan_mode_low_ || this->supports_fan_mode_medium_ || this->supports_fan_mode_high_ ||
+      this->supports_fan_mode_middle_ || this->supports_fan_mode_focus_ || this->supports_fan_mode_diffuse_) {
+    ESP_LOGCONFIG(TAG, "  Minimum Fan Mode Switching Time: %us",
+                  this->timer_duration_(thermostat::TIMER_FAN_MODE) / 1000);
+  }
+  ESP_LOGCONFIG(TAG, "  Minimum Idle Time: %us", this->timer_[thermostat::TIMER_IDLE_ON].time / 1000);
   ESP_LOGCONFIG(TAG, "  Supports AUTO: %s", YESNO(this->supports_auto_));
   ESP_LOGCONFIG(TAG, "  Supports HEAT/COOL: %s", YESNO(this->supports_heat_cool_));
   ESP_LOGCONFIG(TAG, "  Supports COOL: %s", YESNO(this->supports_cool_));
   ESP_LOGCONFIG(TAG, "  Supports DRY: %s", YESNO(this->supports_dry_));
   ESP_LOGCONFIG(TAG, "  Supports FAN_ONLY: %s", YESNO(this->supports_fan_only_));
+  ESP_LOGCONFIG(TAG, "  Supports FAN_ONLY_ACTION_USES_FAN_MODE_TIMER: %s",
+                YESNO(this->supports_fan_only_action_uses_fan_mode_timer_));
   ESP_LOGCONFIG(TAG, "  Supports FAN_ONLY_COOLING: %s", YESNO(this->supports_fan_only_cooling_));
+  if (this->supports_cool_)
+    ESP_LOGCONFIG(TAG, "  Supports FAN_WITH_COOLING: %s", YESNO(this->supports_fan_with_cooling_));
+  if (this->supports_heat_)
+    ESP_LOGCONFIG(TAG, "  Supports FAN_WITH_HEATING: %s", YESNO(this->supports_fan_with_heating_));
   ESP_LOGCONFIG(TAG, "  Supports HEAT: %s", YESNO(this->supports_heat_));
   ESP_LOGCONFIG(TAG, "  Supports FAN MODE ON: %s", YESNO(this->supports_fan_mode_on_));
   ESP_LOGCONFIG(TAG, "  Supports FAN MODE OFF: %s", YESNO(this->supports_fan_mode_off_));

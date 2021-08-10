@@ -266,6 +266,7 @@ class ListEntitiesBinarySensorResponse : public ProtoMessage {
   std::string unique_id{};
   std::string device_class{};
   bool is_status_binary_sensor{false};
+  bool disabled_by_default{false};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -300,6 +301,7 @@ class ListEntitiesCoverResponse : public ProtoMessage {
   bool supports_position{false};
   bool supports_tilt{false};
   std::string device_class{};
+  bool disabled_by_default{false};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -355,6 +357,7 @@ class ListEntitiesFanResponse : public ProtoMessage {
   bool supports_speed{false};
   bool supports_direction{false};
   int32_t supported_speed_count{0};
+  bool disabled_by_default{false};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -418,6 +421,7 @@ class ListEntitiesLightResponse : public ProtoMessage {
   float min_mireds{0.0f};
   float max_mireds{0.0f};
   std::vector<std::string> effects{};
+  bool disabled_by_default{false};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -505,6 +509,7 @@ class ListEntitiesSensorResponse : public ProtoMessage {
   std::string device_class{};
   enums::SensorStateClass state_class{};
   enums::SensorLastResetType last_reset_type{};
+  bool disabled_by_default{false};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -537,6 +542,7 @@ class ListEntitiesSwitchResponse : public ProtoMessage {
   std::string unique_id{};
   std::string icon{};
   bool assumed_state{false};
+  bool disabled_by_default{false};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -580,6 +586,7 @@ class ListEntitiesTextSensorResponse : public ProtoMessage {
   std::string name{};
   std::string unique_id{};
   std::string icon{};
+  bool disabled_by_default{false};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -588,6 +595,7 @@ class ListEntitiesTextSensorResponse : public ProtoMessage {
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
 class TextSensorStateResponse : public ProtoMessage {
  public:
@@ -789,6 +797,7 @@ class ListEntitiesCameraResponse : public ProtoMessage {
   uint32_t key{0};
   std::string name{};
   std::string unique_id{};
+  bool disabled_by_default{false};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -797,6 +806,7 @@ class ListEntitiesCameraResponse : public ProtoMessage {
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
 class CameraImageResponse : public ProtoMessage {
  public:
@@ -844,6 +854,7 @@ class ListEntitiesClimateResponse : public ProtoMessage {
   std::vector<std::string> supported_custom_fan_modes{};
   std::vector<enums::ClimatePreset> supported_presets{};
   std::vector<std::string> supported_custom_presets{};
+  bool disabled_by_default{false};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -922,6 +933,7 @@ class ListEntitiesNumberResponse : public ProtoMessage {
   float min_value{0.0f};
   float max_value{0.0f};
   float step{0.0f};
+  bool disabled_by_default{false};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -930,6 +942,7 @@ class ListEntitiesNumberResponse : public ProtoMessage {
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
 class NumberStateResponse : public ProtoMessage {
  public:
@@ -965,6 +978,7 @@ class ListEntitiesSelectResponse : public ProtoMessage {
   std::string unique_id{};
   std::string icon{};
   std::vector<std::string> options{};
+  bool disabled_by_default{false};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -973,6 +987,7 @@ class ListEntitiesSelectResponse : public ProtoMessage {
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
 class SelectStateResponse : public ProtoMessage {
  public:
