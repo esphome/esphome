@@ -11,7 +11,7 @@ namespace dsmr {
 static const char *const TAG = "dsmr";
 
 void Dsmr::loop() {
-  if (this->decryption_key_.size() == 0)
+  if (this->decryption_key_.empty())
     this->receive_telegram_();
   else
     this->receive_encrypted_();
@@ -63,7 +63,7 @@ void Dsmr::receive_encrypted_() {
     const char c = read();
 
     if (!header_found_) {
-      if (c == 0xdb) {
+      if ((uint8_t) c == 0xdb) {
         ESP_LOGV(TAG, "Start byte 0xDB found");
         header_found_ = true;
       }
