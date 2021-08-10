@@ -2,6 +2,7 @@
 
 #include "esphome/core/optional.h"
 #include "light_color_values.h"
+#include <set>
 
 namespace esphome {
 namespace light {

@@ -16,7 +16,7 @@
 namespace esphome {
 namespace light {
 
-using ESPColor = Color;
+using ESPColor ESPDEPRECATED("esphome::light::ESPColor is deprecated, use esphome::Color instead.", "v1.21") = Color;
 
 class AddressableLight : public LightOutput, public Component {
  public:

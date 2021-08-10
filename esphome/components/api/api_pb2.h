@@ -123,7 +123,9 @@ class HelloRequest : public ProtoMessage {
  public:
   std::string client_info{};
   void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
+#endif
 
  protected:
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
@@ -134,7 +136,9 @@ class HelloResponse : public ProtoMessage {
   uint32_t api_version_minor{0};
   std::string server_info{};
   void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
+#endif
 
  protected:
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
@@ -144,7 +148,9 @@ class ConnectRequest : public ProtoMessage {
  public:
   std::string password{};
   void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
+#endif
 
  protected:
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
@@ -153,7 +159,9 @@ class ConnectResponse : public ProtoMessage {
  public:
   bool invalid_password{false};
   void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
+#endif
 
  protected:
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
@@ -161,35 +169,45 @@ class ConnectResponse : public ProtoMessage {
 class DisconnectRequest : public ProtoMessage {
  public:
   void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
+#endif
 
  protected:
 };
 class DisconnectResponse : public ProtoMessage {
  public:
   void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
+#endif
 
  protected:
 };
 class PingRequest : public ProtoMessage {
  public:
   void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
+#endif
 
  protected:
 };
 class PingResponse : public ProtoMessage {
  public:
   void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
+#endif
 
  protected:
 };
 class DeviceInfoRequest : public ProtoMessage {
  public:
   void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
+#endif
 
  protected:
 };
@@ -205,7 +223,9 @@ class DeviceInfoResponse : public ProtoMessage {
   std::string project_name{};
   std::string project_version{};
   void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
+#endif
 
  protected:
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
@@ -214,21 +234,27 @@ class DeviceInfoResponse : public ProtoMessage {
 class ListEntitiesRequest : public ProtoMessage {
  public:
   void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
+#endif
 
  protected:
 };
 class ListEntitiesDoneResponse : public ProtoMessage {
  public:
   void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
+#endif
 
  protected:
 };
 class SubscribeStatesRequest : public ProtoMessage {
  public:
   void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
+#endif
 
  protected:
 };
@@ -242,7 +268,9 @@ class ListEntitiesBinarySensorResponse : public ProtoMessage {
   bool is_status_binary_sensor{false};
   bool disabled_by_default{false};
   void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
+#endif
 
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
@@ -255,7 +283,9 @@ class BinarySensorStateResponse : public ProtoMessage {
   bool state{false};
   bool missing_state{false};
   void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
+#endif
 
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
@@ -273,7 +303,9 @@ class ListEntitiesCoverResponse : public ProtoMessage {
   std::string device_class{};
   bool disabled_by_default{false};
   void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
+#endif
 
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
@@ -288,7 +320,9 @@ class CoverStateResponse : public ProtoMessage {
   float tilt{0.0f};
   enums::CoverOperation current_operation{};
   void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
+#endif
 
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
@@ -305,7 +339,9 @@ class CoverCommandRequest : public ProtoMessage {
   float tilt{0.0f};
   bool stop{false};
   void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
+#endif
 
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
@@ -323,7 +359,9 @@ class ListEntitiesFanResponse : public ProtoMessage {
   int32_t supported_speed_count{0};
   bool disabled_by_default{false};
   void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
+#endif
 
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
@@ -339,7 +377,9 @@ class FanStateResponse : public ProtoMessage {
   enums::FanDirection direction{};
   int32_t speed_level{0};
   void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
+#endif
 
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
@@ -359,7 +399,9 @@ class FanCommandRequest : public ProtoMessage {
   bool has_speed_level{false};
   int32_t speed_level{0};
   void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
+#endif
 
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
@@ -381,7 +423,9 @@ class ListEntitiesLightResponse : public ProtoMessage {
   std::vector<std::string> effects{};
   bool disabled_by_default{false};
   void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
+#endif
 
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
@@ -404,7 +448,9 @@ class LightStateResponse : public ProtoMessage {
   float warm_white{0.0f};
   std::string effect{};
   void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
+#endif
 
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
@@ -441,7 +487,9 @@ class LightCommandRequest : public ProtoMessage {
   bool has_effect{false};
   std::string effect{};
   void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
+#endif
 
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
@@ -463,7 +511,9 @@ class ListEntitiesSensorResponse : public ProtoMessage {
   enums::SensorLastResetType last_reset_type{};
   bool disabled_by_default{false};
   void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
+#endif
 
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
@@ -476,7 +526,9 @@ class SensorStateResponse : public ProtoMessage {
   float state{0.0f};
   bool missing_state{false};
   void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
+#endif
 
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
@@ -492,7 +544,9 @@ class ListEntitiesSwitchResponse : public ProtoMessage {
   bool assumed_state{false};
   bool disabled_by_default{false};
   void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
+#endif
 
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
@@ -504,7 +558,9 @@ class SwitchStateResponse : public ProtoMessage {
   uint32_t key{0};
   bool state{false};
   void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
+#endif
 
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
@@ -515,7 +571,9 @@ class SwitchCommandRequest : public ProtoMessage {
   uint32_t key{0};
   bool state{false};
   void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
+#endif
 
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
@@ -530,7 +588,9 @@ class ListEntitiesTextSensorResponse : public ProtoMessage {
   std::string icon{};
   bool disabled_by_default{false};
   void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
+#endif
 
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
@@ -543,7 +603,9 @@ class TextSensorStateResponse : public ProtoMessage {
   std::string state{};
   bool missing_state{false};
   void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
+#endif
 
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
@@ -555,7 +617,9 @@ class SubscribeLogsRequest : public ProtoMessage {
   enums::LogLevel level{};
   bool dump_config{false};
   void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
+#endif
 
  protected:
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
@@ -567,7 +631,9 @@ class SubscribeLogsResponse : public ProtoMessage {
   std::string message{};
   bool send_failed{false};
   void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
+#endif
 
  protected:
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
@@ -576,7 +642,9 @@ class SubscribeLogsResponse : public ProtoMessage {
 class SubscribeHomeassistantServicesRequest : public ProtoMessage {
  public:
   void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
+#endif
 
  protected:
 };
@@ -585,7 +653,9 @@ class HomeassistantServiceMap : public ProtoMessage {
   std::string key{};
   std::string value{};
   void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
+#endif
 
  protected:
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
@@ -598,7 +668,9 @@ class HomeassistantServiceResponse : public ProtoMessage {
   std::vector<HomeassistantServiceMap> variables{};
   bool is_event{false};
   void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
+#endif
 
  protected:
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
@@ -607,7 +679,9 @@ class HomeassistantServiceResponse : public ProtoMessage {
 class SubscribeHomeAssistantStatesRequest : public ProtoMessage {
  public:
   void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
+#endif
 
  protected:
 };
@@ -616,7 +690,9 @@ class SubscribeHomeAssistantStateResponse : public ProtoMessage {
   std::string entity_id{};
   std::string attribute{};
   void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
+#endif
 
  protected:
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
@@ -627,7 +703,9 @@ class HomeAssistantStateResponse : public ProtoMessage {
   std::string state{};
   std::string attribute{};
   void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
+#endif
 
  protected:
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
@@ -635,7 +713,9 @@ class HomeAssistantStateResponse : public ProtoMessage {
 class GetTimeRequest : public ProtoMessage {
  public:
   void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
+#endif
 
  protected:
 };
@@ -643,7 +723,9 @@ class GetTimeResponse : public ProtoMessage {
  public:
   uint32_t epoch_seconds{0};
   void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
+#endif
 
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
@@ -653,7 +735,9 @@ class ListEntitiesServicesArgument : public ProtoMessage {
   std::string name{};
   enums::ServiceArgType type{};
   void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
+#endif
 
  protected:
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
@@ -665,7 +749,9 @@ class ListEntitiesServicesResponse : public ProtoMessage {
   uint32_t key{0};
   std::vector<ListEntitiesServicesArgument> args{};
   void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
+#endif
 
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
@@ -683,7 +769,9 @@ class ExecuteServiceArgument : public ProtoMessage {
   std::vector<float> float_array{};
   std::vector<std::string> string_array{};
   void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
+#endif
 
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
@@ -695,7 +783,9 @@ class ExecuteServiceRequest : public ProtoMessage {
   uint32_t key{0};
   std::vector<ExecuteServiceArgument> args{};
   void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
+#endif
 
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
@@ -709,7 +799,9 @@ class ListEntitiesCameraResponse : public ProtoMessage {
   std::string unique_id{};
   bool disabled_by_default{false};
   void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
+#endif
 
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
@@ -722,7 +814,9 @@ class CameraImageResponse : public ProtoMessage {
   std::string data{};
   bool done{false};
   void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
+#endif
 
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
@@ -734,7 +828,9 @@ class CameraImageRequest : public ProtoMessage {
   bool single{false};
   bool stream{false};
   void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
+#endif
 
  protected:
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
@@ -760,7 +856,9 @@ class ListEntitiesClimateResponse : public ProtoMessage {
   std::vector<std::string> supported_custom_presets{};
   bool disabled_by_default{false};
   void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
+#endif
 
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
@@ -783,7 +881,9 @@ class ClimateStateResponse : public ProtoMessage {
   enums::ClimatePreset preset{};
   std::string custom_preset{};
   void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
+#endif
 
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
@@ -814,7 +914,9 @@ class ClimateCommandRequest : public ProtoMessage {
   bool has_custom_preset{false};
   std::string custom_preset{};
   void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
+#endif
 
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
@@ -833,7 +935,9 @@ class ListEntitiesNumberResponse : public ProtoMessage {
   float step{0.0f};
   bool disabled_by_default{false};
   void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
+#endif
 
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
@@ -846,7 +950,9 @@ class NumberStateResponse : public ProtoMessage {
   float state{0.0f};
   bool missing_state{false};
   void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
+#endif
 
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
@@ -857,7 +963,9 @@ class NumberCommandRequest : public ProtoMessage {
   uint32_t key{0};
   float state{0.0f};
   void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
+#endif
 
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
@@ -872,7 +980,9 @@ class ListEntitiesSelectResponse : public ProtoMessage {
   std::vector<std::string> options{};
   bool disabled_by_default{false};
   void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
+#endif
 
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
@@ -885,7 +995,9 @@ class SelectStateResponse : public ProtoMessage {
   std::string state{};
   bool missing_state{false};
   void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
+#endif
 
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
@@ -897,7 +1009,9 @@ class SelectCommandRequest : public ProtoMessage {
   uint32_t key{0};
   std::string state{};
   void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
+#endif
 
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
