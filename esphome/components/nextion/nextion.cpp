@@ -1086,8 +1086,8 @@ void Nextion::add_addt_command_to_queue(NextionComponentBase *component) {
 
 void Nextion::set_writer(const nextion_writer_t &writer) { this->writer_ = writer; }
 
-ESPDEPRECATED("set_wait_for_ack(bool) is deprecated and has no effect")
-void Nextion::set_wait_for_ack(bool wait_for_ack) { ESP_LOGE(TAG, "This command is depreciated"); }
+ESPDEPRECATED("set_wait_for_ack(bool) is deprecated and has no effect", "v1.20")
+void Nextion::set_wait_for_ack(bool wait_for_ack) { ESP_LOGE(TAG, "This command is deprecated"); }
 
 }  // namespace nextion
 }  // namespace esphome

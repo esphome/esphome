@@ -14,7 +14,12 @@ Checks: >-
   -cert-str34-c,
   -clang-analyzer-optin.cplusplus.UninitializedObject,
   -clang-analyzer-osx.*,
+  -clang-diagnostic-delete-abstract-non-virtual-dtor,
+  -clang-diagnostic-delete-non-abstract-non-virtual-dtor,
   -clang-diagnostic-shadow-field,
+  -clang-diagnostic-sign-compare,
+  -clang-diagnostic-unused-variable,
+  -clang-diagnostic-unused-const-variable,
   -cppcoreguidelines-avoid-c-arrays,
   -cppcoreguidelines-avoid-goto,
   -cppcoreguidelines-avoid-magic-numbers,
@@ -80,7 +85,6 @@ Checks: >-
   -readability-use-anyofallof,
   -warnings-as-errors
 WarningsAsErrors: '*'
-HeaderFilterRegex: '^.*/src/esphome/.*'
 AnalyzeTemporaryDtors: false
 FormatStyle:     google
 CheckOptions:

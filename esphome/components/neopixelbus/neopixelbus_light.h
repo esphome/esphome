@@ -115,8 +115,7 @@ class NeoPixelRGBLightOutput : public NeoPixelBusLightOutputBase<T_METHOD, T_COL
  public:
   light::LightTraits get_traits() override {
     auto traits = light::LightTraits();
-    traits.set_supports_brightness(true);
-    traits.set_supports_rgb(true);
+    traits.set_supported_color_modes({light::ColorMode::RGB});
     return traits;
   }
 
@@ -133,9 +132,7 @@ class NeoPixelRGBWLightOutput : public NeoPixelBusLightOutputBase<T_METHOD, T_CO
  public:
   light::LightTraits get_traits() override {
     auto traits = light::LightTraits();
-    traits.set_supports_brightness(true);
-    traits.set_supports_rgb(true);
-    traits.set_supports_rgb_white_value(true);
+    traits.set_supported_color_modes({light::ColorMode::RGB_WHITE});
     return traits;
   }
 

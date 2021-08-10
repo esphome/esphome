@@ -147,7 +147,7 @@ def _process_git_config(config: dict, refresh) -> str:
         age = datetime.datetime.now() - datetime.datetime.fromtimestamp(
             file_timestamp.stat().st_mtime
         )
-        if age.seconds > refresh.total_seconds:
+        if age.total_seconds() > refresh.total_seconds:
             _LOGGER.info("Updating %s", key)
             _LOGGER.debug("Location: %s", repo_dir)
             # Stash local changes (if any)

@@ -3,6 +3,10 @@
 namespace esphome {
 namespace anova {
 
+float ftoc(float f) { return (f - 32.0) * (5.0f / 9.0f); }
+
+float ctof(float c) { return (c * 9.0f / 5.0f) + 32.0; }
+
 AnovaPacket *AnovaCodec::clean_packet_() {
   this->packet_.length = strlen((char *) this->packet_.data);
   this->packet_.data[this->packet_.length] = '\0';
@@ -42,6 +46,8 @@ AnovaPacket *AnovaCodec::get_read_data_request() {
 
 AnovaPacket *AnovaCodec::get_set_target_temp_request(float temperature) {
   this->current_query_ = SET_TARGET_TEMPERATURE;
+  if (this->fahrenheit_)
+    temperature = ctof(temperature);
   sprintf((char *) this->packet_.data, CMD_SET_TARGET_TEMP, temperature);
   return this->clean_packet_();
 }
@@ -67,7 +73,6 @@ AnovaPacket *AnovaCodec::get_stop_request() {
 void AnovaCodec::decode(const uint8_t *data, uint16_t length) {
   memset(this->buf_, 0, 32);
   strncpy(this->buf_, (char *) data, length);
-  ESP_LOGV("anova", "Received: %s\n", this->buf_);
   this->has_target_temp_ = this->has_current_temp_ = this->has_unit_ = this->has_running_ = false;
   switch (this->current_query_) {
     case READ_DEVICE_STATUS: {
@@ -97,17 +102,30 @@ void AnovaCodec::decode(const uint8_t *data, uint16_t length) {
     }
     case READ_TARGET_TEMPERATURE: {
       this->target_temp_ = strtof(this->buf_, nullptr);
+      if (this->fahrenheit_)
+        this->target_temp_ = ftoc(this->target_temp_);
       this->has_target_temp_ = true;
       break;
     }
     case SET_TARGET_TEMPERATURE: {
       this->target_temp_ = strtof(this->buf_, nullptr);
+      if (this->fahrenheit_)
+        this->target_temp_ = ftoc(this->target_temp_);
       this->has_target_temp_ = true;
       break;
     }
     case READ_CURRENT_TEMPERATURE: {
       this->current_temp_ = strtof(this->buf_, nullptr);
+      if (this->fahrenheit_)
+        this->current_temp_ = ftoc(this->current_temp_);
       this->has_current_temp_ = true;
+      break;
+    }
+    case SET_UNIT:
+    case READ_UNIT: {
+      this->unit_ = this->buf_[0];
+      this->fahrenheit_ = this->buf_[0] == 'f';
+      this->has_unit_ = true;
       break;
     }
     default:

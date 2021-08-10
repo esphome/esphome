@@ -28,6 +28,9 @@
 #ifdef USE_NUMBER
 #include "esphome/components/number/number.h"
 #endif
+#ifdef USE_SELECT
+#include "esphome/components/select/select.h"
+#endif
 
 namespace esphome {
 
@@ -60,6 +63,9 @@ class Controller {
 #endif
 #ifdef USE_NUMBER
   virtual void on_number_update(number::Number *obj, float state){};
+#endif
+#ifdef USE_SELECT
+  virtual void on_select_update(select::Select *obj, const std::string &state){};
 #endif
 };
 

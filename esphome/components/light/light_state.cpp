@@ -1,6 +1,6 @@
 #include "light_state.h"
-#include "light_output.h"
 #include "esphome/core/log.h"
+#include "light_output.h"
 
 namespace esphome {
 namespace light {
@@ -16,6 +16,7 @@ LightCall LightState::toggle() { return this->make_call().set_state(!this->remot
 LightCall LightState::make_call() { return LightCall(this); }
 
 struct LightStateRTCState {
+  ColorMode color_mode{ColorMode::UNKNOWN};
   bool state{false};
   float brightness{1.0f};
   float color_brightness{1.0f};
@@ -24,6 +25,8 @@ struct LightStateRTCState {
   float blue{1.0f};
   float white{1.0f};
   float color_temp{1.0f};
+  float cold_white{1.0f};
+  float warm_white{1.0f};
   uint32_t effect{0};
 };
 
@@ -64,6 +67,7 @@ void LightState::setup() {
       break;
   }
 
+  call.set_color_mode_if_supported(recovered.color_mode);
   call.set_state(recovered.state);
   call.set_brightness_if_supported(recovered.brightness);
   call.set_color_brightness_if_supported(recovered.color_brightness);
@@ -72,6 +76,8 @@ void LightState::setup() {
   call.set_blue_if_supported(recovered.blue);
   call.set_white_if_supported(recovered.white);
   call.set_color_temperature_if_supported(recovered.color_temp);
+  call.set_cold_white_if_supported(recovered.cold_white);
+  call.set_warm_white_if_supported(recovered.warm_white);
   if (recovered.effect != 0) {
     call.set_effect(recovered.effect);
   } else {
@@ -81,11 +87,11 @@ void LightState::setup() {
 }
 void LightState::dump_config() {
   ESP_LOGCONFIG(TAG, "Light '%s'", this->get_name().c_str());
-  if (this->get_traits().get_supports_brightness()) {
+  if (this->get_traits().supports_color_capability(ColorCapability::BRIGHTNESS)) {
     ESP_LOGCONFIG(TAG, "  Default Transition Length: %.1fs", this->default_transition_length_ / 1e3f);
     ESP_LOGCONFIG(TAG, "  Gamma Correct: %.2f", this->gamma_correct_);
   }
-  if (this->get_traits().get_supports_color_temperature()) {
+  if (this->get_traits().supports_color_capability(ColorCapability::COLOR_TEMPERATURE)) {
     ESP_LOGCONFIG(TAG, "  Min Mireds: %.1f", this->get_traits().get_min_mireds());
     ESP_LOGCONFIG(TAG, "  Max Mireds: %.1f", this->get_traits().get_max_mireds());
   }
@@ -141,14 +147,6 @@ void LightState::add_new_target_state_reached_callback(std::function<void()> &&s
   this->target_state_reached_callback_.add(std::move(send_callback));
 }
 
-#ifdef USE_JSON
-void LightState::dump_json(JsonObject &root) {
-  if (this->supports_effects())
-    root["effect"] = this->get_effect_name();
-  this->remote_values.dump_json(root, this->output_->get_traits());
-}
-#endif
-
 void LightState::set_default_transition_length(uint32_t default_transition_length) {
   this->default_transition_length_ = default_transition_length;
 }
@@ -169,23 +167,30 @@ void LightState::current_values_as_brightness(float *brightness) {
 }
 void LightState::current_values_as_rgb(float *red, float *green, float *blue, bool color_interlock) {
   auto traits = this->get_traits();
-  this->current_values.as_rgb(red, green, blue, this->gamma_correct_, traits.get_supports_color_interlock());
+  this->current_values.as_rgb(red, green, blue, this->gamma_correct_, false);
 }
 void LightState::current_values_as_rgbw(float *red, float *green, float *blue, float *white, bool color_interlock) {
   auto traits = this->get_traits();
-  this->current_values.as_rgbw(red, green, blue, white, this->gamma_correct_, traits.get_supports_color_interlock());
+  this->current_values.as_rgbw(red, green, blue, white, this->gamma_correct_, false);
 }
 void LightState::current_values_as_rgbww(float *red, float *green, float *blue, float *cold_white, float *warm_white,
-                                         bool constant_brightness, bool color_interlock) {
+                                         bool constant_brightness) {
+  this->current_values.as_rgbww(red, green, blue, cold_white, warm_white, this->gamma_correct_, constant_brightness);
+}
+void LightState::current_values_as_rgbct(float *red, float *green, float *blue, float *color_temperature,
+                                         float *white_brightness) {
   auto traits = this->get_traits();
-  this->current_values.as_rgbww(traits.get_min_mireds(), traits.get_max_mireds(), red, green, blue, cold_white,
-                                warm_white, this->gamma_correct_, constant_brightness,
-                                traits.get_supports_color_interlock());
+  this->current_values.as_rgbct(traits.get_min_mireds(), traits.get_max_mireds(), red, green, blue, color_temperature,
+                                white_brightness, this->gamma_correct_);
 }
 void LightState::current_values_as_cwww(float *cold_white, float *warm_white, bool constant_brightness) {
   auto traits = this->get_traits();
-  this->current_values.as_cwww(traits.get_min_mireds(), traits.get_max_mireds(), cold_white, warm_white,
-                               this->gamma_correct_, constant_brightness);
+  this->current_values.as_cwww(cold_white, warm_white, this->gamma_correct_, constant_brightness);
+}
+void LightState::current_values_as_ct(float *color_temperature, float *white_brightness) {
+  auto traits = this->get_traits();
+  this->current_values.as_ct(traits.get_min_mireds(), traits.get_max_mireds(), color_temperature, white_brightness,
+                             this->gamma_correct_);
 }
 
 void LightState::start_effect_(uint32_t effect_index) {
@@ -241,6 +246,7 @@ void LightState::set_transformer_(std::unique_ptr<LightTransformer> transformer)
 
 void LightState::save_remote_values_() {
   LightStateRTCState saved;
+  saved.color_mode = this->remote_values.get_color_mode();
   saved.state = this->remote_values.is_on();
   saved.brightness = this->remote_values.get_brightness();
   saved.color_brightness = this->remote_values.get_color_brightness();
@@ -249,6 +255,8 @@ void LightState::save_remote_values_() {
   saved.blue = this->remote_values.get_blue();
   saved.white = this->remote_values.get_white();
   saved.color_temp = this->remote_values.get_color_temperature();
+  saved.cold_white = this->remote_values.get_cold_white();
+  saved.warm_white = this->remote_values.get_warm_white();
   saved.effect = this->active_effect_index_;
   this->rtc_.save(&saved);
 }
