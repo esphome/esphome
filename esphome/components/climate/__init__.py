@@ -6,6 +6,7 @@ from esphome.const import (
     CONF_AWAY,
     CONF_CUSTOM_FAN_MODE,
     CONF_CUSTOM_PRESET,
+    CONF_DISABLED_BY_DEFAULT,
     CONF_ID,
     CONF_INTERNAL,
     CONF_MAX_TEMPERATURE,
@@ -86,7 +87,7 @@ validate_climate_swing_mode = cv.enum(CLIMATE_SWING_MODES, upper=True)
 # Actions
 ControlAction = climate_ns.class_("ControlAction", automation.Action)
 
-CLIMATE_SCHEMA = cv.MQTT_COMMAND_COMPONENT_SCHEMA.extend(
+CLIMATE_SCHEMA = cv.NAMEABLE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).extend(
     {
         cv.GenerateID(): cv.declare_id(Climate),
         cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTClimateComponent),
@@ -104,6 +105,7 @@ CLIMATE_SCHEMA = cv.MQTT_COMMAND_COMPONENT_SCHEMA.extend(
 
 async def setup_climate_core_(var, config):
     cg.add(var.set_name(config[CONF_NAME]))
+    cg.add(var.set_disabled_by_default(config[CONF_DISABLED_BY_DEFAULT]))
     if CONF_INTERNAL in config:
         cg.add(var.set_internal(config[CONF_INTERNAL]))
     visual = config[CONF_VISUAL]

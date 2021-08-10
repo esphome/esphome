@@ -16,6 +16,7 @@ void TotalDailyEnergy::setup() {
     this->publish_state_and_save(0);
   }
   this->last_update_ = millis();
+  this->last_save_ = this->last_update_;
 
   this->parent_->add_on_state_callback([this](float state) { this->process_new_state_(state); });
 }
@@ -37,9 +38,14 @@ void TotalDailyEnergy::loop() {
   }
 }
 void TotalDailyEnergy::publish_state_and_save(float state) {
-  this->pref_.save(&state);
   this->total_energy_ = state;
   this->publish_state(state);
+  const uint32_t now = millis();
+  if (now - this->last_save_ < this->min_save_interval_) {
+    return;
+  }
+  this->last_save_ = now;
+  this->pref_.save(&state);
 }
 void TotalDailyEnergy::process_new_state_(float state) {
   if (isnan(state))
