@@ -128,7 +128,12 @@ class LightState : public Nameable, public Component {
   void current_values_as_rgbww(float *red, float *green, float *blue, float *cold_white, float *warm_white,
                                bool constant_brightness = false);
 
+  void current_values_as_rgbct(float *red, float *green, float *blue, float *color_temperature,
+                               float *white_brightness);
+
   void current_values_as_cwww(float *cold_white, float *warm_white, bool constant_brightness = false);
+
+  void current_values_as_ct(float *color_temperature, float *white_brightness);
 
  protected:
   friend LightOutput;

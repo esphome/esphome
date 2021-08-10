@@ -53,6 +53,7 @@ void Application::setup() {
       }
       this->app_state_ = new_app_state;
       yield();
+      this->feed_wdt();
     } while (!component->can_proceed());
   }
 
@@ -117,12 +118,7 @@ void ICACHE_RAM_ATTR HOT Application::feed_wdt() {
   static uint32_t LAST_FEED = 0;
   uint32_t now = millis();
   if (now - LAST_FEED > 3) {
-#ifdef ARDUINO_ARCH_ESP8266
-    ESP.wdtFeed();
-#endif
-#ifdef ARDUINO_ARCH_ESP32
-    yield();
-#endif
+    this->feed_wdt_arch_();
     LAST_FEED = now;
 #ifdef USE_STATUS_LED
     if (status_led::global_status_led != nullptr) {
