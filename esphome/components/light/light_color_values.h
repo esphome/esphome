@@ -163,6 +163,13 @@ class LightColorValues {
     this->as_cwww(cold_white, warm_white, gamma, constant_brightness);
   }
 
+  /// Convert these light color values to an RGB+CT+BR representation with the given parameters.
+  void as_rgbct(float color_temperature_cw, float color_temperature_ww, float *red, float *green, float *blue,
+                float *color_temperature, float *white_brightness, float gamma = 0) const {
+    this->as_rgb(red, green, blue, gamma);
+    this->as_ct(color_temperature_cw, color_temperature_ww, color_temperature, white_brightness, gamma);
+  }
+
   /// Convert these light color values to an CWWW representation with the given parameters.
   void as_cwww(float *cold_white, float *warm_white, float gamma = 0, bool constant_brightness = false) const {
     if (this->color_mode_ & ColorCapability::COLD_WARM_WHITE) {
@@ -184,6 +191,19 @@ class LightColorValues {
       }
     } else {
       *cold_white = *warm_white = 0;
+    }
+  }
+
+  /// Convert these light color values to a CT+BR representation with the given parameters.
+  void as_ct(float color_temperature_cw, float color_temperature_ww, float *color_temperature, float *white_brightness,
+             float gamma = 0) const {
+    const float white_level = this->color_mode_ & ColorCapability::RGB ? this->white_ : 1;
+    if (this->color_mode_ & ColorCapability::COLOR_TEMPERATURE) {
+      *color_temperature =
+          (this->color_temperature_ - color_temperature_cw) / (color_temperature_ww - color_temperature_cw);
+      *white_brightness = gamma_correct(this->state_ * this->brightness_ * white_level, gamma);
+    } else {  // Probably wont get here but put this here anyway.
+      *white_brightness = 0;
     }
   }
 
