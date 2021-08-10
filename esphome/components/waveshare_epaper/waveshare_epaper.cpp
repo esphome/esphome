@@ -163,6 +163,17 @@ void WaveshareEPaper::on_safe_shutdown() { this->deep_sleep(); }
 // ========================================================
 
 void WaveshareEPaperTypeA::initialize() {
+  if (this->model_ == TTGO_EPAPER_2_13_IN_B74) {
+    this->reset_pin_->digital_write(false);
+    delay(10);
+    this->reset_pin_->digital_write(true);
+    delay(10);
+    this->wait_until_idle_();
+
+    this->command(0x12);  // SWRESET
+    this->wait_until_idle_();
+  }
+
   // COMMAND DRIVER OUTPUT CONTROL
   this->command(0x01);
   this->data(this->get_height_internal() - 1);
@@ -193,6 +204,7 @@ void WaveshareEPaperTypeA::initialize() {
     case TTGO_EPAPER_2_13_IN_B1:
       this->data(0x01);  // x increase, y decrease : as in demo code
       break;
+    case TTGO_EPAPER_2_13_IN_B74:
     case WAVESHARE_EPAPER_2_9_IN_V2:
       this->data(0x03);  // from top left to bottom right
       // RAM content option for Display Update
@@ -221,6 +233,9 @@ void WaveshareEPaperTypeA::dump_config() {
       break;
     case TTGO_EPAPER_2_13_IN_B73:
       ESP_LOGCONFIG(TAG, "  Model: 2.13in (TTGO B73)");
+      break;
+    case TTGO_EPAPER_2_13_IN_B74:
+      ESP_LOGCONFIG(TAG, "  Model: 2.13in (TTGO B74)");
       break;
     case TTGO_EPAPER_2_13_IN_B1:
       ESP_LOGCONFIG(TAG, "  Model: 2.13in (TTGO B1)");
@@ -256,6 +271,9 @@ void HOT WaveshareEPaperTypeA::display() {
         case TTGO_EPAPER_2_13_IN_B73:
           this->write_lut_(full_update ? FULL_UPDATE_LUT_TTGO_B73 : PARTIAL_UPDATE_LUT_TTGO_B73, LUT_SIZE_TTGO_B73);
           break;
+        case TTGO_EPAPER_2_13_IN_B74:
+          // there is no LUT
+          break;
         case TTGO_EPAPER_2_13_IN_B1:
           this->write_lut_(full_update ? FULL_UPDATE_LUT_TTGO_B1 : PARTIAL_UPDATE_LUT_TTGO_B1, LUT_SIZE_TTGO_B1);
           break;
@@ -289,7 +307,12 @@ void HOT WaveshareEPaperTypeA::display() {
       this->data((this->get_height_internal() - 1) >> 8);
 
       break;
+    case TTGO_EPAPER_2_13_IN_B74:
+      // BorderWaveform
+      this->command(0x3C);
+      this->data(full_update ? 0x05 : 0x80);
 
+      // fall through
     default:
       // COMMAND SET RAM X ADDRESS START END POSITION
       this->command(0x44);
@@ -341,6 +364,9 @@ void HOT WaveshareEPaperTypeA::display() {
     this->data(full_update ? 0xF7 : 0xFF);
   } else if (this->model_ == TTGO_EPAPER_2_13_IN_B73) {
     this->data(0xC7);
+  } else if (this->model_ == TTGO_EPAPER_2_13_IN_B74) {
+    // this->data(0xC7);
+    this->data(full_update ? 0xF7 : 0xFF);
   } else {
     this->data(0xC4);
   }
@@ -363,6 +389,7 @@ int WaveshareEPaperTypeA::get_width_internal() {
     case TTGO_EPAPER_2_13_IN:
       return 128;
     case TTGO_EPAPER_2_13_IN_B73:
+    case TTGO_EPAPER_2_13_IN_B74:
       return 128;
     case TTGO_EPAPER_2_13_IN_B1:
       return 128;
@@ -384,6 +411,7 @@ int WaveshareEPaperTypeA::get_height_internal() {
     case TTGO_EPAPER_2_13_IN:
       return 250;
     case TTGO_EPAPER_2_13_IN_B73:
+    case TTGO_EPAPER_2_13_IN_B74:
       return 250;
     case TTGO_EPAPER_2_13_IN_B1:
       return 250;
@@ -759,6 +787,62 @@ int WaveshareEPaper4P2In::get_height_internal() { return 300; }
 void WaveshareEPaper4P2In::dump_config() {
   LOG_DISPLAY("", "Waveshare E-Paper", this);
   ESP_LOGCONFIG(TAG, "  Model: 4.2in");
+  LOG_PIN("  Reset Pin: ", this->reset_pin_);
+  LOG_PIN("  DC Pin: ", this->dc_pin_);
+  LOG_PIN("  Busy Pin: ", this->busy_pin_);
+  LOG_UPDATE_INTERVAL(this);
+}
+
+// ========================================================
+//               4.20in Type B (LUT from OTP)
+// Datasheet:
+//  - https://www.waveshare.com/w/upload/2/20/4.2inch-e-paper-module-user-manual-en.pdf
+//  - https://github.com/waveshare/e-Paper/blob/master/RaspberryPi_JetsonNano/c/lib/e-Paper/EPD_4in2b_V2.c
+// ========================================================
+void WaveshareEPaper4P2InBV2::initialize() {
+  // these exact timings are required for a proper reset/init
+  this->reset_pin_->digital_write(false);
+  delay(2);
+  this->reset_pin_->digital_write(true);
+  delay(200);  // NOLINT
+
+  // COMMAND POWER ON
+  this->command(0x04);
+  this->wait_until_idle_();
+
+  // COMMAND PANEL SETTING
+  this->command(0x00);
+  this->data(0x0f);  // LUT from OTP
+}
+
+void HOT WaveshareEPaper4P2InBV2::display() {
+  // COMMAND DATA START TRANSMISSION 1 (B/W data)
+  this->command(0x10);
+  this->start_data_();
+  this->write_array(this->buffer_, this->get_buffer_length_());
+  this->end_data_();
+
+  // COMMAND DATA START TRANSMISSION 2 (RED data)
+  this->command(0x13);
+  this->start_data_();
+  for (int i = 0; i < this->get_buffer_length_(); i++)
+    this->write_byte(0xFF);
+  this->end_data_();
+  delay(2);
+
+  // COMMAND DISPLAY REFRESH
+  this->command(0x12);
+  this->wait_until_idle_();
+
+  // COMMAND POWER OFF
+  // NOTE: power off < deep sleep
+  this->command(0x02);
+}
+int WaveshareEPaper4P2InBV2::get_width_internal() { return 400; }
+int WaveshareEPaper4P2InBV2::get_height_internal() { return 300; }
+void WaveshareEPaper4P2InBV2::dump_config() {
+  LOG_DISPLAY("", "Waveshare E-Paper", this);
+  ESP_LOGCONFIG(TAG, "  Model: 4.2in (B V2)");
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
   LOG_PIN("  DC Pin: ", this->dc_pin_);
   LOG_PIN("  Busy Pin: ", this->busy_pin_);

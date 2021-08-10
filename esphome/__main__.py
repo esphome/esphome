@@ -408,7 +408,7 @@ def command_update_all(args):
         print("-" * twidth)
         print()
         rc = run_external_process(
-            "esphome", "--dashboard", "run", "--no-logs", "--device", "OTA", f
+            "esphome", "--dashboard", "run", f, "--no-logs", "--device", "OTA"
         )
         if rc == 0:
             print_bar("[{}] {}".format(color(Fore.BOLD_GREEN, "SUCCESS"), f))
@@ -505,6 +505,7 @@ def parse_args(argv):
             "clean",
             "dashboard",
             "vscode",
+            "update-all",
         ],
     )
 
