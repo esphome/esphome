@@ -9,8 +9,15 @@
 #include "mbedtls/error.h"
 #include "mbedtls/certs.h"
 
+#ifdef INADDR_NONE
+#undef INADDR_NONE
+#endif
+#include "esphome/core/log.h"
+
 namespace esphome {
 namespace ssl {
+
+static const char *const TAG = "ssl.mbedtls";
 
 static int entropy_hw_random_source(void *data, uint8_t *output, size_t len, size_t *olen) {
   esp_fill_random(output, len);
@@ -60,7 +67,11 @@ class MbedTLSWrappedSocket : public socket::Socket {
   void init(const mbedtls_ssl_config *conf) {
     // TODO: reuse ssl contexts?
     mbedtls_ssl_init(&ssl_);
-    mbedtls_ssl_setup(&ssl_, conf);
+    int err = mbedtls_ssl_setup(&ssl_, conf);
+    if (err != 0) {
+      ESP_LOGW(TAG, "mbedtls_ssl_setup failed: %d", err);
+      return;
+    }
     // sock pointer does not fit in void*
     // instead store it in a heap-allocated var
     auto *ctx = new MbedTLSBioCtx;
@@ -136,7 +147,7 @@ class MbedTLSWrappedSocket : public socket::Socket {
 
  protected:
   int mbedtls_to_errno_(int ret) {
-    if (ret > 0) {
+    if (ret >= 0) {
       return ret;
     } else if (ret == MBEDTLS_ERR_SSL_WANT_READ || ret == MBEDTLS_ERR_SSL_WANT_WRITE) {
       errno = EWOULDBLOCK;
@@ -145,7 +156,9 @@ class MbedTLSWrappedSocket : public socket::Socket {
       errno = ECONNRESET;
       return -1;
     } else {
-      errno = EIO;
+      if (errno == 0)
+        errno = EIO;
+      ESP_LOGW(TAG, "mbedtls failed with %d", ret);
       return -1;
     }
   }
@@ -154,6 +167,10 @@ class MbedTLSWrappedSocket : public socket::Socket {
   mbedtls_ssl_context ssl_;
   bool do_handshake_ = false;
 };
+
+void debug_callback(void *arg, int level, const char *filename, int line_number, const char *msg) {
+  ESP_LOGV(TAG, "mbedtls %d [%s:%d]: %s", level, filename, line_number, msg);
+}
 
 class MbedTLSContext : public SSLContext {
  public:
@@ -181,31 +198,58 @@ class MbedTLSContext : public SSLContext {
     mbedtls_ssl_config_init(&conf_);
 
     // TODO check what this does
-    mbedtls_entropy_add_source(&entropy_, entropy_hw_random_source, NULL, 134, MBEDTLS_ENTROPY_SOURCE_STRONG);
-    mbedtls_ctr_drbg_seed(&ctr_drbg_, mbedtls_entropy_func, &entropy_, NULL, 0);
+    int err = mbedtls_entropy_add_source(&entropy_, entropy_hw_random_source, NULL, 134, MBEDTLS_ENTROPY_SOURCE_STRONG);
+    if (err != 0) {
+      ESP_LOGW(TAG, "mbedtls_entropy_add_source failed: %d", err);
+      return 1;
+    }
+    err = mbedtls_ctr_drbg_seed(&ctr_drbg_, mbedtls_entropy_func, &entropy_, NULL, 0);
+    if (err != 0) {
+      ESP_LOGW(TAG, "mbedtls_ctr_drbg_seed failed: %d", err);
+      return 1;
+    }
 
-    mbedtls_x509_crt_parse(
+    err = mbedtls_x509_crt_parse(
       &srv_cert_,
       reinterpret_cast<const uint8_t *>(srv_cert_str_),
-      strlen(srv_cert_str_)
+      // "including the terminating NULL byte"
+      strlen(srv_cert_str_) + 1
     );
+    if (err != 0) {
+      ESP_LOGW(TAG, "mbedtls_x509_crt_parse failed: %d", err);
+      return 1;
+    }
 
-    mbedtls_pk_parse_key(
+    err = mbedtls_pk_parse_key(
       &pkey_,
       reinterpret_cast<const uint8_t *>(privkey_str_),
-      strlen(privkey_str_),
+      // "including the terminating NULL byte"
+      strlen(privkey_str_) + 1,
       nullptr,
       0
     );
+    if (err != 0) {
+      ESP_LOGW(TAG, "mbedtls_pk_parse_key failed: %d", err);
+      return 1;
+    }
 
-    mbedtls_ssl_config_defaults(
+    err = mbedtls_ssl_config_defaults(
       &conf_,
       MBEDTLS_SSL_IS_SERVER,
       MBEDTLS_SSL_TRANSPORT_STREAM,
       MBEDTLS_SSL_PRESET_DEFAULT
     );
+    if (err != 0) {
+      ESP_LOGW(TAG, "mbedtls_ssl_config_defaults failed: %d", err);
+      return 1;
+    }
     mbedtls_ssl_conf_rng(&conf_, mbedtls_ctr_drbg_random, &ctr_drbg_);
-    mbedtls_ssl_conf_own_cert(&conf_, &srv_cert_, &pkey_);
+    err = mbedtls_ssl_conf_own_cert(&conf_, &srv_cert_, &pkey_);
+    if (err != 0) {
+      ESP_LOGW(TAG, "mbedtls_ssl_conf_own_cert failed: %d", err);
+      return 1;
+    }
+    mbedtls_ssl_conf_dbg(&conf_, debug_callback, nullptr);
     return 0;
   }
 
