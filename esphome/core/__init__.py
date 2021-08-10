@@ -653,7 +653,7 @@ class EsphomeCore:
                 "".format(library, type(library))
             )
         for other in self.libraries[:]:
-            if other.name != library.name:
+            if other.name != library.name or other.name is None or library.name is None:
                 continue
             if other.repository is not None:
                 if library.repository is None or other.repository == library.repository:

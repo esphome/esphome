@@ -9,7 +9,6 @@ from esphome.const import (
     DEVICE_CLASS_TEMPERATURE,
     STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
-    ICON_EMPTY,
     UNIT_HECTOPASCAL,
     CONF_IIR_FILTER,
     CONF_OVERSAMPLING,
@@ -46,11 +45,10 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(BMP280Component),
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-                UNIT_CELSIUS,
-                ICON_EMPTY,
-                1,
-                DEVICE_CLASS_TEMPERATURE,
-                STATE_CLASS_MEASUREMENT,
+                unit_of_measurement=UNIT_CELSIUS,
+                accuracy_decimals=1,
+                device_class=DEVICE_CLASS_TEMPERATURE,
+                state_class=STATE_CLASS_MEASUREMENT,
             ).extend(
                 {
                     cv.Optional(CONF_OVERSAMPLING, default="16X"): cv.enum(
@@ -59,11 +57,10 @@ CONFIG_SCHEMA = (
                 }
             ),
             cv.Optional(CONF_PRESSURE): sensor.sensor_schema(
-                UNIT_HECTOPASCAL,
-                ICON_EMPTY,
-                1,
-                DEVICE_CLASS_PRESSURE,
-                STATE_CLASS_MEASUREMENT,
+                unit_of_measurement=UNIT_HECTOPASCAL,
+                accuracy_decimals=1,
+                device_class=DEVICE_CLASS_PRESSURE,
+                state_class=STATE_CLASS_MEASUREMENT,
             ).extend(
                 {
                     cv.Optional(CONF_OVERSAMPLING, default="16X"): cv.enum(

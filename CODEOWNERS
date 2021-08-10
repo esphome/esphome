@@ -48,7 +48,9 @@ esphome/components/globals/* @esphome/core
 esphome/components/gpio/* @esphome/core
 esphome/components/gps/* @coogle
 esphome/components/havells_solar/* @sourabhjaiswal
+esphome/components/hitachi_ac424/* @sourabhjaiswal
 esphome/components/homeassistant/* @OttoWinter
+esphome/components/hrxl_maxsonar_wr/* @netmikey
 esphome/components/i2c/* @esphome/core
 esphome/components/improv/* @jesserockz
 esphome/components/inkbird_ibsth1_mini/* @fkirill
@@ -97,7 +99,9 @@ esphome/components/rf_bridge/* @jesserockz
 esphome/components/rtttl/* @glmnet
 esphome/components/script/* @esphome/core
 esphome/components/sdm_meter/* @jesserockz @polyfaces
+esphome/components/sdp3x/* @Azimath
 esphome/components/selec_meter/* @sourabhjaiswal
+esphome/components/select/* @esphome/core
 esphome/components/sensor/* @esphome/core
 esphome/components/sgp40/* @SenexCrenshaw
 esphome/components/sht4x/* @sjtrny
@@ -121,14 +125,18 @@ esphome/components/st7789v/* @kbx81
 esphome/components/substitutions/* @esphome/core
 esphome/components/sun/* @OttoWinter
 esphome/components/switch/* @esphome/core
+esphome/components/t6615/* @tylermenezes
 esphome/components/tca9548a/* @andreashergert1984
 esphome/components/tcl112/* @glmnet
 esphome/components/teleinfo/* @0hax
 esphome/components/thermostat/* @kbx81
 esphome/components/time/* @OttoWinter
+esphome/components/tlc5947/* @rnauber
 esphome/components/tm1637/* @glmnet
 esphome/components/tmp102/* @timsavage
+esphome/components/tmp117/* @Azimath
 esphome/components/tof10120/* @wstrzalka
+esphome/components/toshiba/* @kbx81
 esphome/components/tuya/binary_sensor/* @jesserockz
 esphome/components/tuya/climate/* @jesserockz
 esphome/components/tuya/sensor/* @jesserockz

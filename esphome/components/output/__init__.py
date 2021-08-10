@@ -17,6 +17,8 @@ from esphome.core import CORE
 CODEOWNERS = ["@esphome/core"]
 IS_PLATFORM_COMPONENT = True
 
+CONF_ZERO_MEANS_ZERO = "zero_means_zero"
+
 BINARY_OUTPUT_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_POWER_SUPPLY): cv.use_id(power_supply.PowerSupply),
@@ -28,6 +30,7 @@ FLOAT_OUTPUT_SCHEMA = BINARY_OUTPUT_SCHEMA.extend(
     {
         cv.Optional(CONF_MAX_POWER): cv.percentage,
         cv.Optional(CONF_MIN_POWER): cv.percentage,
+        cv.Optional(CONF_ZERO_MEANS_ZERO, default=False): cv.boolean,
     }
 )
 
@@ -53,6 +56,8 @@ async def setup_output_platform_(obj, config):
         cg.add(obj.set_max_power(config[CONF_MAX_POWER]))
     if CONF_MIN_POWER in config:
         cg.add(obj.set_min_power(config[CONF_MIN_POWER]))
+    if CONF_ZERO_MEANS_ZERO in config:
+        cg.add(obj.set_zero_means_zero(config[CONF_ZERO_MEANS_ZERO]))
 
 
 async def register_output(var, config):

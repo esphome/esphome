@@ -50,19 +50,19 @@ class ClimateTraits {
   }
   void set_supported_modes(std::set<ClimateMode> modes) { supported_modes_ = std::move(modes); }
   void add_supported_mode(ClimateMode mode) { supported_modes_.insert(mode); }
-  ESPDEPRECATED("This method is deprecated, use set_supported_modes() instead")
+  ESPDEPRECATED("This method is deprecated, use set_supported_modes() instead", "v1.20")
   void set_supports_auto_mode(bool supports_auto_mode) { set_mode_support_(CLIMATE_MODE_AUTO, supports_auto_mode); }
-  ESPDEPRECATED("This method is deprecated, use set_supported_modes() instead")
+  ESPDEPRECATED("This method is deprecated, use set_supported_modes() instead", "v1.20")
   void set_supports_cool_mode(bool supports_cool_mode) { set_mode_support_(CLIMATE_MODE_COOL, supports_cool_mode); }
-  ESPDEPRECATED("This method is deprecated, use set_supported_modes() instead")
+  ESPDEPRECATED("This method is deprecated, use set_supported_modes() instead", "v1.20")
   void set_supports_heat_mode(bool supports_heat_mode) { set_mode_support_(CLIMATE_MODE_HEAT, supports_heat_mode); }
-  ESPDEPRECATED("This method is deprecated, use set_supported_modes() instead")
+  ESPDEPRECATED("This method is deprecated, use set_supported_modes() instead", "v1.20")
   void set_supports_heat_cool_mode(bool supported) { set_mode_support_(CLIMATE_MODE_HEAT_COOL, supported); }
-  ESPDEPRECATED("This method is deprecated, use set_supported_modes() instead")
+  ESPDEPRECATED("This method is deprecated, use set_supported_modes() instead", "v1.20")
   void set_supports_fan_only_mode(bool supports_fan_only_mode) {
     set_mode_support_(CLIMATE_MODE_FAN_ONLY, supports_fan_only_mode);
   }
-  ESPDEPRECATED("This method is deprecated, use set_supported_modes() instead")
+  ESPDEPRECATED("This method is deprecated, use set_supported_modes() instead", "v1.20")
   void set_supports_dry_mode(bool supports_dry_mode) { set_mode_support_(CLIMATE_MODE_DRY, supports_dry_mode); }
   bool supports_mode(ClimateMode mode) const { return supported_modes_.count(mode); }
   const std::set<ClimateMode> get_supported_modes() const { return supported_modes_; }
@@ -72,23 +72,23 @@ class ClimateTraits {
 
   void set_supported_fan_modes(std::set<ClimateFanMode> modes) { supported_fan_modes_ = std::move(modes); }
   void add_supported_fan_mode(ClimateFanMode mode) { supported_fan_modes_.insert(mode); }
-  ESPDEPRECATED("This method is deprecated, use set_supported_fan_modes() instead")
+  ESPDEPRECATED("This method is deprecated, use set_supported_fan_modes() instead", "v1.20")
   void set_supports_fan_mode_on(bool supported) { set_fan_mode_support_(CLIMATE_FAN_ON, supported); }
-  ESPDEPRECATED("This method is deprecated, use set_supported_fan_modes() instead")
+  ESPDEPRECATED("This method is deprecated, use set_supported_fan_modes() instead", "v1.20")
   void set_supports_fan_mode_off(bool supported) { set_fan_mode_support_(CLIMATE_FAN_OFF, supported); }
-  ESPDEPRECATED("This method is deprecated, use set_supported_fan_modes() instead")
+  ESPDEPRECATED("This method is deprecated, use set_supported_fan_modes() instead", "v1.20")
   void set_supports_fan_mode_auto(bool supported) { set_fan_mode_support_(CLIMATE_FAN_AUTO, supported); }
-  ESPDEPRECATED("This method is deprecated, use set_supported_fan_modes() instead")
+  ESPDEPRECATED("This method is deprecated, use set_supported_fan_modes() instead", "v1.20")
   void set_supports_fan_mode_low(bool supported) { set_fan_mode_support_(CLIMATE_FAN_LOW, supported); }
-  ESPDEPRECATED("This method is deprecated, use set_supported_fan_modes() instead")
+  ESPDEPRECATED("This method is deprecated, use set_supported_fan_modes() instead", "v1.20")
   void set_supports_fan_mode_medium(bool supported) { set_fan_mode_support_(CLIMATE_FAN_MEDIUM, supported); }
-  ESPDEPRECATED("This method is deprecated, use set_supported_fan_modes() instead")
+  ESPDEPRECATED("This method is deprecated, use set_supported_fan_modes() instead", "v1.20")
   void set_supports_fan_mode_high(bool supported) { set_fan_mode_support_(CLIMATE_FAN_HIGH, supported); }
-  ESPDEPRECATED("This method is deprecated, use set_supported_fan_modes() instead")
+  ESPDEPRECATED("This method is deprecated, use set_supported_fan_modes() instead", "v1.20")
   void set_supports_fan_mode_middle(bool supported) { set_fan_mode_support_(CLIMATE_FAN_MIDDLE, supported); }
-  ESPDEPRECATED("This method is deprecated, use set_supported_fan_modes() instead")
+  ESPDEPRECATED("This method is deprecated, use set_supported_fan_modes() instead", "v1.20")
   void set_supports_fan_mode_focus(bool supported) { set_fan_mode_support_(CLIMATE_FAN_FOCUS, supported); }
-  ESPDEPRECATED("This method is deprecated, use set_supported_fan_modes() instead")
+  ESPDEPRECATED("This method is deprecated, use set_supported_fan_modes() instead", "v1.20")
   void set_supports_fan_mode_diffuse(bool supported) { set_fan_mode_support_(CLIMATE_FAN_DIFFUSE, supported); }
   bool supports_fan_mode(ClimateFanMode fan_mode) const { return supported_fan_modes_.count(fan_mode); }
   bool get_supports_fan_modes() const { return !supported_fan_modes_.empty() || !supported_custom_fan_modes_.empty(); }
@@ -115,25 +115,25 @@ class ClimateTraits {
   bool supports_custom_preset(const std::string &custom_preset) const {
     return supported_custom_presets_.count(custom_preset);
   }
-  ESPDEPRECATED("This method is deprecated, use set_supported_presets() instead")
+  ESPDEPRECATED("This method is deprecated, use set_supported_presets() instead", "v1.20")
   void set_supports_away(bool supports) {
     if (supports) {
       supported_presets_.insert(CLIMATE_PRESET_AWAY);
       supported_presets_.insert(CLIMATE_PRESET_HOME);
     }
   }
-  ESPDEPRECATED("This method is deprecated, use supports_preset() instead")
+  ESPDEPRECATED("This method is deprecated, use supports_preset() instead", "v1.20")
   bool get_supports_away() const { return supports_preset(CLIMATE_PRESET_AWAY); }
 
   void set_supported_swing_modes(std::set<ClimateSwingMode> modes) { supported_swing_modes_ = std::move(modes); }
   void add_supported_swing_mode(ClimateSwingMode mode) { supported_swing_modes_.insert(mode); }
-  ESPDEPRECATED("This method is deprecated, use set_supported_swing_modes() instead")
+  ESPDEPRECATED("This method is deprecated, use set_supported_swing_modes() instead", "v1.20")
   void set_supports_swing_mode_off(bool supported) { set_swing_mode_support_(CLIMATE_SWING_OFF, supported); }
-  ESPDEPRECATED("This method is deprecated, use set_supported_swing_modes() instead")
+  ESPDEPRECATED("This method is deprecated, use set_supported_swing_modes() instead", "v1.20")
   void set_supports_swing_mode_both(bool supported) { set_swing_mode_support_(CLIMATE_SWING_BOTH, supported); }
-  ESPDEPRECATED("This method is deprecated, use set_supported_swing_modes() instead")
+  ESPDEPRECATED("This method is deprecated, use set_supported_swing_modes() instead", "v1.20")
   void set_supports_swing_mode_vertical(bool supported) { set_swing_mode_support_(CLIMATE_SWING_VERTICAL, supported); }
-  ESPDEPRECATED("This method is deprecated, use set_supported_swing_modes() instead")
+  ESPDEPRECATED("This method is deprecated, use set_supported_swing_modes() instead", "v1.20")
   void set_supports_swing_mode_horizontal(bool supported) {
     set_swing_mode_support_(CLIMATE_SWING_HORIZONTAL, supported);
   }

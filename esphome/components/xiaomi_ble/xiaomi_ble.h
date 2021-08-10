@@ -23,7 +23,8 @@ struct XiaomiParseResult {
     TYPE_MUE4094RT,
     TYPE_WX08ZM,
     TYPE_MJYD02YLA,
-    TYPE_MHOC401
+    TYPE_MHOC401,
+    TYPE_CGPR1
   } type;
   std::string name;
   optional<float> temperature;
