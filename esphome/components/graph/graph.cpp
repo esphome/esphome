@@ -162,9 +162,7 @@ void Graph::setup() {
   sensor_->add_on_state_callback([this](float state) { this->data_.take_sample(state); });
   this->data_.set_update_time_ms(this->duration_ * 1000 / this->width_);
 }
-void Graph::dump_config() {
-  ESP_LOGCONFIG(TAG, "Graph for sensor %s", sensor_->get_name().c_str());
-}
+void Graph::dump_config() { ESP_LOGCONFIG(TAG, "Graph for sensor %s", sensor_->get_name().c_str()); }
 
 }  // namespace graph
 }  // namespace esphome
