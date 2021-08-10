@@ -14,7 +14,7 @@ from esphome.const import (
     CONF_MQTT_ID,
     CONF_NAME,
 )
-from esphome.core import CORE, coroutine, coroutine_with_priority
+from esphome.core import CORE, coroutine_with_priority
 
 CODEOWNERS = ["@esphome/core"]
 IS_PLATFORM_COMPONENT = True
@@ -57,8 +57,7 @@ SWITCH_SCHEMA = cv.MQTT_COMMAND_COMPONENT_SCHEMA.extend(
 )
 
 
-@coroutine
-def setup_switch_core_(var, config):
+async def setup_switch_core_(var, config):
     cg.add(var.set_name(config[CONF_NAME]))
     if CONF_INTERNAL in config:
         cg.add(var.set_internal(config[CONF_INTERNAL]))
@@ -68,22 +67,21 @@ def setup_switch_core_(var, config):
         cg.add(var.set_inverted(config[CONF_INVERTED]))
     for conf in config.get(CONF_ON_TURN_ON, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        yield automation.build_automation(trigger, [], conf)
+        await automation.build_automation(trigger, [], conf)
     for conf in config.get(CONF_ON_TURN_OFF, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        yield automation.build_automation(trigger, [], conf)
+        await automation.build_automation(trigger, [], conf)
 
     if CONF_MQTT_ID in config:
         mqtt_ = cg.new_Pvariable(config[CONF_MQTT_ID], var)
-        yield mqtt.register_mqtt_component(mqtt_, config)
+        await mqtt.register_mqtt_component(mqtt_, config)
 
 
-@coroutine
-def register_switch(var, config):
+async def register_switch(var, config):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
     cg.add(cg.App.register_switch(var))
-    yield setup_switch_core_(var, config)
+    await setup_switch_core_(var, config)
 
 
 SWITCH_ACTION_SCHEMA = maybe_simple_id(
@@ -96,24 +94,24 @@ SWITCH_ACTION_SCHEMA = maybe_simple_id(
 @automation.register_action("switch.toggle", ToggleAction, SWITCH_ACTION_SCHEMA)
 @automation.register_action("switch.turn_off", TurnOffAction, SWITCH_ACTION_SCHEMA)
 @automation.register_action("switch.turn_on", TurnOnAction, SWITCH_ACTION_SCHEMA)
-def switch_toggle_to_code(config, action_id, template_arg, args):
-    paren = yield cg.get_variable(config[CONF_ID])
-    yield cg.new_Pvariable(action_id, template_arg, paren)
+async def switch_toggle_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(action_id, template_arg, paren)
 
 
 @automation.register_condition("switch.is_on", SwitchCondition, SWITCH_ACTION_SCHEMA)
-def switch_is_on_to_code(config, condition_id, template_arg, args):
-    paren = yield cg.get_variable(config[CONF_ID])
-    yield cg.new_Pvariable(condition_id, template_arg, paren, True)
+async def switch_is_on_to_code(config, condition_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(condition_id, template_arg, paren, True)
 
 
 @automation.register_condition("switch.is_off", SwitchCondition, SWITCH_ACTION_SCHEMA)
-def switch_is_off_to_code(config, condition_id, template_arg, args):
-    paren = yield cg.get_variable(config[CONF_ID])
-    yield cg.new_Pvariable(condition_id, template_arg, paren, False)
+async def switch_is_off_to_code(config, condition_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(condition_id, template_arg, paren, False)
 
 
 @coroutine_with_priority(100.0)
-def to_code(config):
+async def to_code(config):
     cg.add_global(switch_ns.using)
     cg.add_define("USE_SWITCH")

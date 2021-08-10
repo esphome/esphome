@@ -32,26 +32,26 @@ CONFIG_SCHEMA = cover.COVER_SCHEMA.extend(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
-    yield cover.register_cover(var, config)
+    await cg.register_component(var, config)
+    await cover.register_cover(var, config)
 
-    yield automation.build_automation(
+    await automation.build_automation(
         var.get_stop_trigger(), [], config[CONF_STOP_ACTION]
     )
 
-    bin = yield cg.get_variable(config[CONF_OPEN_ENDSTOP])
+    bin = await cg.get_variable(config[CONF_OPEN_ENDSTOP])
     cg.add(var.set_open_endstop(bin))
     cg.add(var.set_open_duration(config[CONF_OPEN_DURATION]))
-    yield automation.build_automation(
+    await automation.build_automation(
         var.get_open_trigger(), [], config[CONF_OPEN_ACTION]
     )
 
-    bin = yield cg.get_variable(config[CONF_CLOSE_ENDSTOP])
+    bin = await cg.get_variable(config[CONF_CLOSE_ENDSTOP])
     cg.add(var.set_close_endstop(bin))
     cg.add(var.set_close_duration(config[CONF_CLOSE_DURATION]))
-    yield automation.build_automation(
+    await automation.build_automation(
         var.get_close_trigger(), [], config[CONF_CLOSE_ACTION]
     )
 

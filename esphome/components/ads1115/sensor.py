@@ -5,7 +5,7 @@ from esphome.const import (
     CONF_GAIN,
     CONF_MULTIPLEXER,
     DEVICE_CLASS_VOLTAGE,
-    ICON_EMPTY,
+    STATE_CLASS_MEASUREMENT,
     UNIT_VOLT,
     CONF_ID,
 )
@@ -51,7 +51,12 @@ ADS1115Sensor = ads1115_ns.class_(
 
 CONF_ADS1115_ID = "ads1115_id"
 CONFIG_SCHEMA = (
-    sensor.sensor_schema(UNIT_VOLT, ICON_EMPTY, 3, DEVICE_CLASS_VOLTAGE)
+    sensor.sensor_schema(
+        unit_of_measurement=UNIT_VOLT,
+        accuracy_decimals=3,
+        device_class=DEVICE_CLASS_VOLTAGE,
+        state_class=STATE_CLASS_MEASUREMENT,
+    )
     .extend(
         {
             cv.GenerateID(): cv.declare_id(ADS1115Sensor),
@@ -64,11 +69,11 @@ CONFIG_SCHEMA = (
 )
 
 
-def to_code(config):
-    paren = yield cg.get_variable(config[CONF_ADS1115_ID])
+async def to_code(config):
+    paren = await cg.get_variable(config[CONF_ADS1115_ID])
     var = cg.new_Pvariable(config[CONF_ID], paren)
-    yield sensor.register_sensor(var, config)
-    yield cg.register_component(var, config)
+    await sensor.register_sensor(var, config)
+    await cg.register_component(var, config)
 
     cg.add(var.set_multiplexer(config[CONF_MULTIPLEXER]))
     cg.add(var.set_gain(config[CONF_GAIN]))

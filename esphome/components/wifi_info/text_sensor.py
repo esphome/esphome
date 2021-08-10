@@ -8,7 +8,6 @@ from esphome.const import (
     CONF_SSID,
     CONF_MAC_ADDRESS,
 )
-from esphome.core import coroutine
 
 DEPENDENCIES = ["wifi"]
 
@@ -50,17 +49,16 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
-@coroutine
-def setup_conf(config, key):
+async def setup_conf(config, key):
     if key in config:
         conf = config[key]
         var = cg.new_Pvariable(conf[CONF_ID])
-        yield cg.register_component(var, conf)
-        yield text_sensor.register_text_sensor(var, conf)
+        await cg.register_component(var, conf)
+        await text_sensor.register_text_sensor(var, conf)
 
 
-def to_code(config):
-    yield setup_conf(config, CONF_IP_ADDRESS)
-    yield setup_conf(config, CONF_SSID)
-    yield setup_conf(config, CONF_BSSID)
-    yield setup_conf(config, CONF_MAC_ADDRESS)
+async def to_code(config):
+    await setup_conf(config, CONF_IP_ADDRESS)
+    await setup_conf(config, CONF_SSID)
+    await setup_conf(config, CONF_BSSID)
+    await setup_conf(config, CONF_MAC_ADDRESS)

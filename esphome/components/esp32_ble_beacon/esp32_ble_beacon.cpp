@@ -13,7 +13,7 @@
 namespace esphome {
 namespace esp32_ble_beacon {
 
-static const char *TAG = "esp32_ble_beacon";
+static const char *const TAG = "esp32_ble_beacon";
 
 static esp_ble_adv_params_t ble_adv_params = {
     .adv_int_min = 0x20,

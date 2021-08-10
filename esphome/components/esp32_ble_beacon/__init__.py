@@ -22,12 +22,12 @@ CONFIG_SCHEMA = cv.Schema(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-def to_code(config):
+async def to_code(config):
     uuid = config[CONF_UUID].hex
     uuid_arr = [
         cg.RawExpression("0x{}".format(uuid[i : i + 2])) for i in range(0, len(uuid), 2)
     ]
     var = cg.new_Pvariable(config[CONF_ID], uuid_arr)
-    yield cg.register_component(var, config)
+    await cg.register_component(var, config)
     cg.add(var.set_major(config[CONF_MAJOR]))
     cg.add(var.set_minor(config[CONF_MINOR]))

@@ -52,39 +52,39 @@ CONFIG_SCHEMA = cover.COVER_SCHEMA.extend(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
-    yield cover.register_cover(var, config)
+    await cg.register_component(var, config)
+    await cover.register_cover(var, config)
     if CONF_LAMBDA in config:
-        template_ = yield cg.process_lambda(
+        template_ = await cg.process_lambda(
             config[CONF_LAMBDA], [], return_type=cg.optional.template(float)
         )
         cg.add(var.set_state_lambda(template_))
     if CONF_OPEN_ACTION in config:
-        yield automation.build_automation(
+        await automation.build_automation(
             var.get_open_trigger(), [], config[CONF_OPEN_ACTION]
         )
     if CONF_CLOSE_ACTION in config:
-        yield automation.build_automation(
+        await automation.build_automation(
             var.get_close_trigger(), [], config[CONF_CLOSE_ACTION]
         )
     if CONF_STOP_ACTION in config:
-        yield automation.build_automation(
+        await automation.build_automation(
             var.get_stop_trigger(), [], config[CONF_STOP_ACTION]
         )
     if CONF_TILT_ACTION in config:
-        yield automation.build_automation(
+        await automation.build_automation(
             var.get_tilt_trigger(), [(float, "tilt")], config[CONF_TILT_ACTION]
         )
         cg.add(var.set_has_tilt(True))
     if CONF_TILT_LAMBDA in config:
-        tilt_template_ = yield cg.process_lambda(
+        tilt_template_ = await cg.process_lambda(
             config[CONF_TILT_LAMBDA], [], return_type=cg.optional.template(float)
         )
         cg.add(var.set_tilt_lambda(tilt_template_))
     if CONF_POSITION_ACTION in config:
-        yield automation.build_automation(
+        await automation.build_automation(
             var.get_position_trigger(), [(float, "pos")], config[CONF_POSITION_ACTION]
         )
         cg.add(var.set_has_position(True))
@@ -93,6 +93,7 @@ def to_code(config):
     cg.add(var.set_optimistic(config[CONF_OPTIMISTIC]))
     cg.add(var.set_assumed_state(config[CONF_ASSUMED_STATE]))
     cg.add(var.set_restore_mode(config[CONF_RESTORE_MODE]))
+    cg.add(var.set_has_position(config[CONF_HAS_POSITION]))
 
 
 @automation.register_action(
@@ -110,21 +111,21 @@ def to_code(config):
         }
     ),
 )
-def cover_template_publish_to_code(config, action_id, template_arg, args):
-    paren = yield cg.get_variable(config[CONF_ID])
+async def cover_template_publish_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
     if CONF_STATE in config:
-        template_ = yield cg.templatable(config[CONF_STATE], args, float)
+        template_ = await cg.templatable(config[CONF_STATE], args, float)
         cg.add(var.set_position(template_))
     if CONF_POSITION in config:
-        template_ = yield cg.templatable(config[CONF_POSITION], args, float)
+        template_ = await cg.templatable(config[CONF_POSITION], args, float)
         cg.add(var.set_position(template_))
     if CONF_TILT in config:
-        template_ = yield cg.templatable(config[CONF_TILT], args, float)
+        template_ = await cg.templatable(config[CONF_TILT], args, float)
         cg.add(var.set_tilt(template_))
     if CONF_CURRENT_OPERATION in config:
-        template_ = yield cg.templatable(
+        template_ = await cg.templatable(
             config[CONF_CURRENT_OPERATION], args, cover.CoverOperation
         )
         cg.add(var.set_current_operation(template_))
-    yield var
+    return var

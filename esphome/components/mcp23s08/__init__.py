@@ -26,7 +26,7 @@ CONFIG_SCHEMA = (
 )
 
 
-def to_code(config):
-    var = yield mcp23xxx_base.register_mcp23xxx(config)
+async def to_code(config):
+    var = await mcp23xxx_base.register_mcp23xxx(config)
     cg.add(var.set_device_address(config[CONF_DEVICEADDRESS]))
-    yield spi.register_spi_device(var, config)
+    await spi.register_spi_device(var, config)

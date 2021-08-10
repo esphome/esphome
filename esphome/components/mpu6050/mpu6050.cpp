@@ -4,7 +4,7 @@
 namespace esphome {
 namespace mpu6050 {
 
-static const char *TAG = "mpu6050";
+static const char *const TAG = "mpu6050";
 
 const uint8_t MPU6050_REGISTER_WHO_AM_I = 0x75;
 const uint8_t MPU6050_REGISTER_POWER_MANAGEMENT_1 = 0x6B;

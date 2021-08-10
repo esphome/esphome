@@ -22,7 +22,7 @@ from esphome.const import (
     CONF_USERNAME,
 )
 from esphome.core import CORE, EsphomeError
-from esphome.helpers import color
+from esphome.log import color, Fore
 from esphome.util import safe_print
 
 _LOGGER = logging.getLogger(__name__)
@@ -158,7 +158,7 @@ def get_fingerprint(config):
 
     sha1 = hashlib.sha1(cert_der).hexdigest()
 
-    safe_print("SHA1 Fingerprint: " + color("cyan", sha1))
+    safe_print("SHA1 Fingerprint: " + color(Fore.CYAN, sha1))
     safe_print(
         "Copy the string above into mqtt.ssl_fingerprints section of {}"
         "".format(CORE.config_path)

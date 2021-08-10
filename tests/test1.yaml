@@ -9,6 +9,8 @@ esphome:
   name_add_mac_suffix: true
   platform: ESP32
   board: nodemcu-32s
+  platformio_options:
+    board_build.partitions: huge_app.csv
   on_boot:
     priority: 150.0
     then:
@@ -69,6 +71,7 @@ wifi:
       password: ''
       channel: 14
       bssid: 'A1:63:95:47:D3:1D'
+  enable_mdns: true
   manual_ip:
     static_ip: 192.168.178.230
     gateway: 192.168.178.1
@@ -77,7 +80,7 @@ wifi:
     dns2: 1.2.2.1
   domain: .local
   reboot_timeout: 120s
-  power_save_mode: none
+  power_save_mode: light
 
 http_request:
   useragent: esphome/device
@@ -194,6 +197,24 @@ ota:
   port: 3286
   reboot_timeout: 2min
   num_attempts: 5
+  on_state_change:
+    then:
+      lambda: >-
+        ESP_LOGD("ota", "State %d", state);
+  on_begin:
+    then:
+      logger.log: "OTA begin"
+  on_progress:
+    then:
+      lambda: >-
+        ESP_LOGD("ota", "Got progress %f", x);
+  on_end:
+    then:
+      logger.log: "OTA end"
+  on_error:
+    then:
+      lambda: >-
+        ESP_LOGD("ota", "Got error code %d", x);
 
 logger:
   baud_rate: 0
@@ -235,10 +256,19 @@ wled:
 
 adalight:
 
-mcp3008:
-  - id: 'mcp3008_hub'
-    cs_pin: GPIO12
+esp32_ble_tracker:
 
+ble_client:
+  - mac_address: AA:BB:CC:DD:EE:FF
+    id: ble_foo
+  - mac_address: 11:22:33:44:55:66
+    id: ble_blah
+    on_connect:
+      then:
+        - switch.turn_on: ble1_status
+    on_disconnect:
+      then:
+        - switch.turn_on: ble1_status
 mcp23s08:
   - id: 'mcp23s08_hub'
     cs_pin: GPIO12
@@ -250,6 +280,21 @@ mcp23s17:
     deviceaddress: 1
 
 sensor:
+  - platform: ble_client
+    ble_client_id: ble_foo
+    name: 'Green iTag btn'
+    service_uuid: 'ffe0'
+    characteristic_uuid: 'ffe1'
+    descriptor_uuid: 'ffe2'
+    notify: true
+    update_interval: never
+    lambda: |-
+      ESP_LOGD("main", "Length of data is %i", x.size());
+      return x[0];
+    on_notify:
+      then:
+        - lambda: |-
+            ESP_LOGD("green_btn", "Button was pressed, val%f", x);
   - platform: adc
     pin: A0
     name: 'Living Room Brightness'
@@ -388,7 +433,7 @@ sensor:
     retain: False
     availability:
     state_topic: livingroom/custom_state_topic
-    measurement_time: 31
+    measurement_duration: 31
   - platform: bme280
     temperature:
       name: 'Outside Temperature'
@@ -487,6 +532,7 @@ sensor:
     voltage_divider: 2351
     change_mode_every: 16
     initial_mode: VOLTAGE
+    model: hlw8012
   - platform: total_daily_energy
     power_id: hlw8012_power
     name: 'HLW8012 Total Daily Energy'
@@ -494,6 +540,11 @@ sensor:
     sensor: hlw8012_power
     name: 'Integration Sensor'
     time_unit: s
+  - platform: integration
+    sensor: hlw8012_power
+    name: 'Integration Sensor lazy'
+    time_unit: s
+    min_save_interval: 60s
   - platform: hmc5883l
     address: 0x68
     field_strength_x:
@@ -634,9 +685,14 @@ sensor:
     update_interval: 15s
   - platform: pulse_meter
     name: 'Pulse Meter'
+    id: pulse_meter_sensor
     pin: GPIO12
     internal_filter: 100ms
     timeout: 2 min
+    on_value:
+      - pulse_meter.set_total_pulses:
+          id: pulse_meter_sensor
+          value: 12345
     total:
       name: 'Pulse Meter Total'
   - platform: rotary_encoder
@@ -745,6 +801,13 @@ sensor:
       id: 'workshop_PMC_10_0'
     address: 0x69
     update_interval: 10s
+  - platform: sht4x
+    temperature:
+      name: 'SHT4X Temperature'
+    humidity:
+      name: 'SHT4X Humidity'
+    address: 0x44
+    update_interval: 15s
   - platform: shtcx
     temperature:
       name: 'Living Room Temperature 10'
@@ -754,6 +817,7 @@ sensor:
     update_interval: 15s
   - platform: template
     name: 'Template Sensor'
+    state_class: measurement
     id: template_sensor
     lambda: |-
       if (id(ultrasonic_sensor1).state > 1) {
@@ -851,25 +915,11 @@ sensor:
       name: 'AQI'
       calculation_type: 'CAQI'
   - platform: teleinfo
-    uart_id: uart0
-    tags:
-      - tag_name: 'HCHC'
-        sensor:
-          name: 'hchc'
-          unit_of_measurement: 'Wh'
-          icon: mdi:flash
-      - tag_name: 'HCHP'
-        sensor:
-          name: 'hchp'
-          unit_of_measurement: 'Wh'
-          icon: mdi:flash
-      - tag_name: 'PAPP'
-        sensor:
-          name: 'papp'
-          unit_of_measurement: 'VA'
-          icon: mdi:flash
-    update_interval: 60s
-    historical_mode: true
+    tag_name: "HCHC"
+    name: "hchc"
+    unit_of_measurement: "Wh"
+    icon: mdi:flash
+    teleinfo_id: myteleinfo
   - platform: mcp9808
     name: 'MCP9808 Temperature'
     update_interval: 15s
@@ -877,12 +927,33 @@ sensor:
     id: ph_ezo
     address: 99
     unit_of_measurement: 'pH'
-  - platform: mcp3008
+  - platform: sdp3x
+    name: "HVAC Filter Pressure drop"
+    id: filter_pressure
     update_interval: 5s
-    mcp3008_id: 'mcp3008_hub'
-    id: freezer_temp_source
-    reference_voltage: 3.19
-    number: 0
+    accuracy_decimals: 3
+  - platform: cs5460a
+    id: cs5460a1
+    current:
+      name: "Socket current"
+    voltage:
+      name: "Mains voltage"
+    power:
+      name: "Socket power"
+      on_value:
+        then:
+          cs5460a.restart: cs5460a1
+    samples: 1600
+    pga_gain: 10X
+    current_gain: 0.01
+    voltage_gain: 0.000573
+    current_hpf: on
+    voltage_hpf: on
+    phase_offset: 20
+    pulse_energy: 0.01 kWh
+    cs_pin:
+      mcp23xxx: mcp23017_hub
+      number: 14
 
 esp32_touch:
   setup_mode: False
@@ -994,10 +1065,6 @@ binary_sensor:
     pin: GPIO27
     threshold: 1000
     id: btn_left
-  - platform: nextion
-    page_id: 0
-    component_id: 2
-    name: 'Nextion Component 2 Touch'
   - platform: template
     name: 'Garage Door Open'
     id: garage_door
@@ -1488,14 +1555,18 @@ climate:
       min_temperature: 18 °C
       max_temperature: 25 °C
       temperature_step: 0.1 °C
-    name: "Electrolux EACS"
+    name: 'Electrolux EACS'
     beeper: true
     outdoor_temperature:
-      name: "Temp"
+      name: 'Temp'
     power_usage:
-      name: "Power"
+      name: 'Power'
     humidity_setpoint:
-      name: "Hum"
+      name: 'Hum'
+  - platform: anova
+    name: Anova cooker
+    ble_client_id: ble_blah
+    unit_of_measurement: c
 
 midea_dongle:
   uart_id: uart0
@@ -1555,6 +1626,12 @@ switch:
       remote_transmitter.transmit_samsung36:
         address: 0x0400
         command: 0x000E00FF
+  - platform: template
+    name: ToshibaAC
+    turn_on_action:
+      - remote_transmitter.transmit_toshiba_ac:
+          rc_code_1: 0xB24DBF4050AF
+          rc_code_2: 0xD5660001003C
   - platform: template
     name: Sony
     turn_on_action:
@@ -1725,6 +1802,8 @@ switch:
       # Use pin number 0
       number: 0
       inverted: False
+  - platform: template
+    id: ble1_status
 
 fan:
   - platform: binary
@@ -1816,11 +1895,6 @@ display:
     intensity: 3
     lambda: |-
       it.print("1234");
-  - platform: nextion
-    uart_id: uart0
-    lambda: |-
-      it.set_component_value("gauge", 50);
-      it.set_component_text("textview", "Hello World!");
   - platform: pcd8544
     cs_pin: GPIO23
     dc_pin: GPIO23
@@ -1841,6 +1915,12 @@ display:
       - id: page2
         lambda: |-
           // Nothing
+    on_page_change:
+      from: page1
+      to: page2
+      then:
+        lambda: |-
+          ESP_LOGD("display", "1 -> 2");
   - platform: ssd1306_spi
     model: 'SSD1306 128x64'
     cs_pin: GPIO23
@@ -1914,6 +1994,7 @@ display:
     row_start: 0
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
+
 tm1651:
   id: tm1651_battery
   clk_pin: GPIO23
@@ -1936,6 +2017,12 @@ pn532_spi:
     - mqtt.publish:
         topic: the/topic
         payload: !lambda 'return x;'
+  on_tag_removed:
+    - lambda: |-
+        ESP_LOGD("main", "Removed tag %s", x.c_str());
+    - mqtt.publish:
+        topic: the/topic
+        payload: !lambda 'return x;'
 
 pn532_i2c:
 
@@ -1950,10 +2037,15 @@ rc522_spi:
         ESP_LOGD("main", "Found tag %s", x.c_str());
 
 rc522_i2c:
-  update_interval: 1s
-  on_tag:
-    - lambda: |-
-        ESP_LOGD("main", "Found tag %s", x.c_str());
+  - update_interval: 1s
+    on_tag:
+      - lambda: |-
+          ESP_LOGD("main", "Found tag %s", x.c_str());
+
+  - update_interval: 1s
+    on_tag:
+      - lambda: |-
+          ESP_LOGD("main", "Found tag %s", x.c_str());
 
 gps:
   uart_id: uart0
@@ -2010,7 +2102,6 @@ tca9548a:
     multiplexer:
       id: multiplex0
       channel: 0
-    
 
 pcf8574:
   - id: 'pcf8574_hub'
@@ -2092,6 +2183,10 @@ text_sensor:
   - platform: version
     name: 'ESPHome Version No Timestamp'
     hide_timestamp: True
+  - platform: teleinfo
+    tag_name: "OPTARIF"
+    name: "optarif"
+    teleinfo_id: myteleinfo
 
 sn74hc595:
   - id: 'sn74hc595_hub'
@@ -2122,3 +2217,9 @@ canbus:
                 lambda: 'return x[0] == 0x11;'
               then:
                 light.toggle: ${roomname}_lights
+
+teleinfo:
+  id: myteleinfo
+  uart_id: uart0
+  update_interval: 60s
+  historical_mode: true

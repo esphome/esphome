@@ -34,8 +34,8 @@ CONFIG_SCHEMA = fastled_base.BASE_SCHEMA.extend(
 )
 
 
-def to_code(config):
-    var = yield fastled_base.new_fastled_light(config)
+async def to_code(config):
+    var = await fastled_base.new_fastled_light(config)
 
     rgb_order = cg.RawExpression(
         config[CONF_RGB_ORDER] if CONF_RGB_ORDER in config else "RGB"

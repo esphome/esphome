@@ -218,10 +218,9 @@ static const uint8_t PROGMEM
       100 };                        //     100 ms delay
 
 // clang-format on
-static const char *TAG = "st7735";
+static const char *const TAG = "st7735";
 
-ST7735::ST7735(ST7735Model model, int width, int height, int colstart, int rowstart, boolean eightbitcolor,
-               boolean usebgr) {
+ST7735::ST7735(ST7735Model model, int width, int height, int colstart, int rowstart, bool eightbitcolor, bool usebgr) {
   model_ = model;
   this->width_ = width;
   this->height_ = height;
