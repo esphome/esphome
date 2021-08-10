@@ -9,7 +9,7 @@
 namespace esphome {
 namespace pn532 {
 
-static const char *TAG = "pn532";
+static const char *const TAG = "pn532";
 
 void PN532::setup() {
   ESP_LOGCONFIG(TAG, "Setting up PN532...");
@@ -103,6 +103,11 @@ void PN532::loop() {
 
   if (!success) {
     // Something failed
+    if (!this->current_uid_.empty()) {
+      auto tag = new nfc::NfcTag(this->current_uid_);
+      for (auto *trigger : this->triggers_ontagremoved_)
+        trigger->process(tag);
+    }
     this->current_uid_ = {};
     this->turn_off_rf_();
     return;
@@ -111,6 +116,11 @@ void PN532::loop() {
   uint8_t num_targets = read[0];
   if (num_targets != 1) {
     // no tags found or too many
+    if (!this->current_uid_.empty()) {
+      auto tag = new nfc::NfcTag(this->current_uid_);
+      for (auto *trigger : this->triggers_ontagremoved_)
+        trigger->process(tag);
+    }
     this->current_uid_ = {};
     this->turn_off_rf_();
     return;
@@ -142,7 +152,7 @@ void PN532::loop() {
 
   if (next_task_ == READ) {
     auto tag = this->read_tag_(nfcid);
-    for (auto *trigger : this->triggers_)
+    for (auto *trigger : this->triggers_ontag_)
       trigger->process(tag);
 
     if (report) {

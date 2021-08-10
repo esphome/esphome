@@ -7,8 +7,6 @@
 namespace esphome {
 namespace light {
 
-class LightState;
-
 /// Interface to write LightStates to hardware.
 class LightOutput {
  public:

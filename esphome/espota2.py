@@ -296,15 +296,14 @@ def run_ota_impl_(remote_host, remote_port, password, filename):
         _LOGGER.error("Connecting to %s:%s failed: %s", remote_host, remote_port, err)
         return 1
 
-    file_handle = open(filename, "rb")
-    try:
-        perform_ota(sock, password, file_handle, filename)
-    except OTAError as err:
-        _LOGGER.error(str(err))
-        return 1
-    finally:
-        sock.close()
-        file_handle.close()
+    with open(filename, "rb") as file_handle:
+        try:
+            perform_ota(sock, password, file_handle, filename)
+        except OTAError as err:
+            _LOGGER.error(str(err))
+            return 1
+        finally:
+            sock.close()
 
     return 0
 

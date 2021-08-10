@@ -34,7 +34,7 @@ CONFIG_SCHEMA = cv.All(font.validate_pillow_installed, ANIMATION_SCHEMA)
 CODEOWNERS = ["@syndlex"]
 
 
-def to_code(config):
+async def to_code(config):
     from PIL import Image
 
     path = CORE.relative_config_path(config[CONF_FILE])

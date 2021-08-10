@@ -5,10 +5,8 @@
 namespace esphome {
 namespace ssd1325_base {
 
-static const char *TAG = "ssd1325";
+static const char *const TAG = "ssd1325";
 
-static const uint8_t BLACK = 0;
-static const uint8_t WHITE = 15;
 static const uint8_t SSD1325_MAX_CONTRAST = 127;
 static const uint8_t SSD1325_COLORMASK = 0x0f;
 static const uint8_t SSD1325_COLORSHIFT = 4;
@@ -114,9 +112,9 @@ void SSD1325::setup() {
   this->command(0x0D | 0x02);
   this->command(SSD1325_NORMALDISPLAY);  // set display mode
   set_brightness(this->brightness_);
-  this->fill(BLACK);  // clear display - ensures we do not see garbage at power-on
-  this->display();    // ...write buffer, which actually clears the display's memory
-  this->turn_on();    // display ON
+  this->fill(Color::BLACK);  // clear display - ensures we do not see garbage at power-on
+  this->display();           // ...write buffer, which actually clears the display's memory
+  this->turn_on();           // display ON
 }
 void SSD1325::display() {
   this->command(SSD1325_SETCOLADDR);  // set column address

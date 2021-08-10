@@ -4,7 +4,7 @@
 namespace esphome {
 namespace template_ {
 
-static const char *TAG = "template.text_sensor";
+static const char *const TAG = "template.text_sensor";
 
 void TemplateTextSensor::update() {
   if (!this->f_.has_value())

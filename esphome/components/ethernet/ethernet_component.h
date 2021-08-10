@@ -26,6 +26,12 @@ struct ManualIP {
   IPAddress dns2;  ///< The second DNS server. 0.0.0.0 for default.
 };
 
+enum class EthernetComponentState {
+  STOPPED,
+  CONNECTING,
+  CONNECTED,
+};
+
 class EthernetComponent : public Component {
  public:
   EthernetComponent();
@@ -65,9 +71,9 @@ class EthernetComponent : public Component {
   eth_clock_mode_t clk_mode_{ETH_CLOCK_GPIO0_IN};
   optional<ManualIP> manual_ip_{};
 
-  bool initialized_{false};
+  bool started_{false};
   bool connected_{false};
-  bool last_connected_{false};
+  EthernetComponentState state_{EthernetComponentState::STOPPED};
   uint32_t connect_begin_;
   eth_config_t eth_config;
   eth_phy_power_enable_func orig_power_enable_fun_;

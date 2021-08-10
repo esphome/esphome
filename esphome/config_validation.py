@@ -15,6 +15,7 @@ from esphome.const import (
     ALLOWED_NAME_CHARS,
     CONF_AVAILABILITY,
     CONF_COMMAND_TOPIC,
+    CONF_DISABLED_BY_DEFAULT,
     CONF_DISCOVERY,
     CONF_ID,
     CONF_INTERNAL,
@@ -46,7 +47,13 @@ from esphome.core import (
     TimePeriodMinutes,
 )
 from esphome.helpers import list_starts_with, add_class_to_obj
-from esphome.jsonschema import jschema_composite, jschema_registry, jschema_typed
+from esphome.jsonschema import (
+    jschema_composite,
+    jschema_extractor,
+    jschema_registry,
+    jschema_typed,
+)
+
 from esphome.voluptuous_schema import _Schema
 from esphome.yaml_util import make_data_base
 
@@ -69,6 +76,9 @@ Inclusive = vol.Inclusive
 ALLOW_EXTRA = vol.ALLOW_EXTRA
 UNDEFINED = vol.UNDEFINED
 RequiredFieldInvalid = vol.RequiredFieldInvalid
+# this sentinel object can be placed in an 'Invalid' path to say
+# the rest of the error path is relative to the root config path
+ROOT_CONFIG_PATH = object()
 
 RESERVED_IDS = [
     # C++ keywords http://en.cppreference.com/w/cpp/keyword
@@ -212,8 +222,8 @@ class Required(vol.Required):
     - *not* the `config.get(CONF_<KEY>)` syntax.
     """
 
-    def __init__(self, key):
-        super().__init__(key)
+    def __init__(self, key, msg=None):
+        super().__init__(key, msg=msg)
 
 
 def check_not_templatable(value):
@@ -549,6 +559,23 @@ def has_at_most_one_key(*keys):
         number = sum(k in keys for k in obj)
         if number > 1:
             raise Invalid("Cannot specify more than one of {}.".format(", ".join(keys)))
+        return obj
+
+    return validate
+
+
+def has_none_or_all_keys(*keys):
+    """Validate that none or all of the given keys exist in the config."""
+
+    def validate(obj):
+        if not isinstance(obj, dict):
+            raise Invalid("expected dictionary")
+
+        number = sum(k in keys for k in obj)
+        if number != 0 and number != len(keys):
+            raise Invalid(
+                "Must specify either none or all of {}.".format(", ".join(keys))
+            )
         return obj
 
     return validate
@@ -1009,9 +1036,11 @@ def requires_component(comp):
 uint8_t = int_range(min=0, max=255)
 uint16_t = int_range(min=0, max=65535)
 uint32_t = int_range(min=0, max=4294967295)
+uint64_t = int_range(min=0, max=18446744073709551615)
 hex_uint8_t = hex_int_range(min=0, max=255)
 hex_uint16_t = hex_int_range(min=0, max=65535)
 hex_uint32_t = hex_int_range(min=0, max=4294967295)
+hex_uint64_t = hex_int_range(min=0, max=18446744073709551615)
 i2c_address = hex_uint8_t
 
 
@@ -1067,6 +1096,7 @@ def invalid(message):
 
 
 def valid(value):
+    """A validator that is always valid and returns the value as-is."""
     return value
 
 
@@ -1121,7 +1151,12 @@ def one_of(*values, **kwargs):
     if kwargs:
         raise ValueError
 
+    @jschema_extractor("one_of")
     def validator(value):
+        # pylint: disable=comparison-with-callable
+        if value == jschema_extractor:
+            return values
+
         if string_:
             value = string(value)
             value = value.replace(" ", space)
@@ -1161,7 +1196,12 @@ def enum(mapping, **kwargs):
     assert isinstance(mapping, dict)
     one_of_validator = one_of(*mapping, **kwargs)
 
+    @jschema_extractor("enum")
     def validator(value):
+        # pylint: disable=comparison-with-callable
+        if value == jschema_extractor:
+            return mapping
+
         value = one_of_validator(value)
         value = add_class_to_obj(value, core.EnumValue)
         value.enum_value = mapping[value]
@@ -1347,15 +1387,17 @@ def extract_keys(schema):
 def typed_schema(schemas, **kwargs):
     """Create a schema that has a key to distinguish between schemas"""
     key = kwargs.pop("key", CONF_TYPE)
+    default_schema_option = kwargs.pop("default_type", None)
     key_validator = one_of(*schemas, **kwargs)
 
     def validator(value):
         if not isinstance(value, dict):
             raise Invalid("Value must be dict")
-        if key not in value:
-            raise Invalid("type not specified!")
         value = value.copy()
-        key_v = key_validator(value.pop(key))
+        schema_option = value.pop(key, default_schema_option)
+        if schema_option is None:
+            raise Invalid(key + " not specified!")
+        key_v = key_validator(schema_option)
         value = schemas[key_v](value)
         value[key] = key_v
         return value
@@ -1515,23 +1557,30 @@ MQTT_COMPONENT_AVAILABILITY_SCHEMA = Schema(
 
 MQTT_COMPONENT_SCHEMA = Schema(
     {
-        Optional(CONF_NAME): string,
         Optional(CONF_RETAIN): All(requires_component("mqtt"), boolean),
         Optional(CONF_DISCOVERY): All(requires_component("mqtt"), boolean),
         Optional(CONF_STATE_TOPIC): All(requires_component("mqtt"), publish_topic),
         Optional(CONF_AVAILABILITY): All(
             requires_component("mqtt"), Any(None, MQTT_COMPONENT_AVAILABILITY_SCHEMA)
         ),
-        Optional(CONF_INTERNAL): boolean,
     }
 )
-MQTT_COMPONENT_SCHEMA.add_extra(_nameable_validator)
 
 MQTT_COMMAND_COMPONENT_SCHEMA = MQTT_COMPONENT_SCHEMA.extend(
     {
         Optional(CONF_COMMAND_TOPIC): All(requires_component("mqtt"), subscribe_topic),
     }
 )
+
+NAMEABLE_SCHEMA = Schema(
+    {
+        Optional(CONF_NAME): string,
+        Optional(CONF_INTERNAL): boolean,
+        Optional(CONF_DISABLED_BY_DEFAULT, default=False): boolean,
+    }
+)
+
+NAMEABLE_SCHEMA.add_extra(_nameable_validator)
 
 COMPONENT_SCHEMA = Schema({Optional(CONF_SETUP_PRIORITY): float_})
 
@@ -1556,3 +1605,17 @@ def polling_component_schema(default_update_interval):
             ): update_interval,
         }
     )
+
+
+def url(value):
+    import urllib.parse
+
+    value = string_strict(value)
+    try:
+        parsed = urllib.parse.urlparse(value)
+    except ValueError as e:
+        raise Invalid("Not a valid URL") from e
+
+    if not parsed.scheme or not parsed.netloc:
+        raise Invalid("Expected a URL scheme and host")
+    return parsed.geturl()

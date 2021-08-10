@@ -33,11 +33,11 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
-    yield esp32_ble_tracker.register_ble_device(var, config)
-    yield binary_sensor.register_binary_sensor(var, config)
+    await cg.register_component(var, config)
+    await esp32_ble_tracker.register_ble_device(var, config)
+    await binary_sensor.register_binary_sensor(var, config)
 
     cg.add(var.set_address(config[CONF_MAC_ADDRESS].as_hex))
     cg.add(var.set_time(config[CONF_TIMEOUT]))

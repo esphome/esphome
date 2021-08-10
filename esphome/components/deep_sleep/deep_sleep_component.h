@@ -79,7 +79,7 @@ class DeepSleepComponent : public Component {
   bool prevent_{false};
 };
 
-extern bool global_has_deep_sleep;
+extern bool global_has_deep_sleep;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 template<typename... Ts> class EnterDeepSleepAction : public Action<Ts...> {
  public:

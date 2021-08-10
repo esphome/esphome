@@ -2,6 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins
 from esphome.const import (
+    CONF_DISABLED_BY_DEFAULT,
     CONF_FREQUENCY,
     CONF_ID,
     CONF_NAME,
@@ -25,8 +26,6 @@ ESP32CameraFrameSize = esp32_camera_ns.enum("ESP32CameraFrameSize")
 FRAME_SIZES = {
     "160X120": ESP32CameraFrameSize.ESP32_CAMERA_SIZE_160X120,
     "QQVGA": ESP32CameraFrameSize.ESP32_CAMERA_SIZE_160X120,
-    "128X160": ESP32CameraFrameSize.ESP32_CAMERA_SIZE_128X160,
-    "QQVGA2": ESP32CameraFrameSize.ESP32_CAMERA_SIZE_128X160,
     "176X144": ESP32CameraFrameSize.ESP32_CAMERA_SIZE_176X144,
     "QCIF": ESP32CameraFrameSize.ESP32_CAMERA_SIZE_176X144,
     "240X176": ESP32CameraFrameSize.ESP32_CAMERA_SIZE_240X176,
@@ -68,6 +67,7 @@ CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(ESP32Camera),
         cv.Required(CONF_NAME): cv.string,
+        cv.Optional(CONF_DISABLED_BY_DEFAULT, default=False): cv.boolean,
         cv.Required(CONF_DATA_PINS): cv.All([pins.input_pin], cv.Length(min=8, max=8)),
         cv.Required(CONF_VSYNC_PIN): pins.input_pin,
         cv.Required(CONF_HREF_PIN): pins.input_pin,
@@ -124,9 +124,10 @@ SETTERS = {
 }
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID], config[CONF_NAME])
-    yield cg.register_component(var, config)
+    cg.add(var.set_disabled_by_default(config[CONF_DISABLED_BY_DEFAULT]))
+    await cg.register_component(var, config)
 
     for key, setter in SETTERS.items():
         if key in config:

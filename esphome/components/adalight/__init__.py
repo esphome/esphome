@@ -21,8 +21,7 @@ CONFIG_SCHEMA = cv.Schema({})
     "Adalight",
     {cv.GenerateID(CONF_UART_ID): cv.use_id(uart.UARTComponent)},
 )
-def adalight_light_effect_to_code(config, effect_id):
+async def adalight_light_effect_to_code(config, effect_id):
     effect = cg.new_Pvariable(effect_id, config[CONF_NAME])
-    yield uart.register_uart_device(effect, config)
-
-    yield effect
+    await uart.register_uart_device(effect, config)
+    return effect

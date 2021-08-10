@@ -17,8 +17,8 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
-def to_code(config):
-    template_ = yield cg.process_lambda(
+async def to_code(config):
+    template_ = await cg.process_lambda(
         config[CONF_LAMBDA],
         [],
         return_type=cg.std_vector.template(binary_sensor.BinarySensorPtr),
@@ -28,4 +28,4 @@ def to_code(config):
     custom = cg.variable(config[CONF_ID], rhs)
     for i, conf in enumerate(config[CONF_BINARY_SENSORS]):
         rhs = custom.Pget_binary_sensor(i)
-        yield binary_sensor.register_binary_sensor(rhs, conf)
+        await binary_sensor.register_binary_sensor(rhs, conf)

@@ -8,10 +8,15 @@
 #include "sntp.h"
 #endif
 
+// Yes, the server names are leaked, but that's fine.
+#ifdef CLANG_TIDY
+#define strdup(x) (const_cast<char *>(x))
+#endif
+
 namespace esphome {
 namespace sntp {
 
-static const char *TAG = "sntp";
+static const char *const TAG = "sntp";
 
 void SNTPComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up SNTP...");

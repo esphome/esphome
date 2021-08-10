@@ -6,7 +6,7 @@
 namespace esphome {
 namespace mqtt {
 
-static const char *TAG = "mqtt.binary_sensor";
+static const char *const TAG = "mqtt.binary_sensor";
 
 std::string MQTTBinarySensorComponent::component_type() const { return "binary_sensor"; }
 
