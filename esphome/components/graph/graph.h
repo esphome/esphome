@@ -1,6 +1,7 @@
 #pragma once
 #include <cstdint>
 #include "esphome/core/color.h"
+#include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
 
 namespace esphome {
@@ -23,9 +24,9 @@ enum LineType {
 
 class HistoryData {
  public:
-  HistoryData(int length);
+  void init(int length);
   ~HistoryData();
-  void set_update_time_ms(uint32_t u);
+  void set_update_time_ms(uint32_t update_time_ms) { update_time_ = update_time_ms; }
   void take_sample(float data);
   int get_length() const { return length_; }
   float get_value(int idx) const { return data_[(count_ + length_ - 1 - idx) % length_]; }
@@ -33,21 +34,27 @@ class HistoryData {
   float get_recent_min() const { return recent_min_; }
 
  protected:
-  uint64_t last_sample_;
+  uint32_t last_sample_;
   uint32_t period_{0};       /// in ms
   uint32_t update_time_{0};  /// in ms
   int length_;
   int count_{0};
   float recent_min_{NAN};
   float recent_max_{NAN};
-  float *data_;
+  float *data_ = nullptr;
 };
 
-class Graph {
+class Graph : public Component {
  public:
-  Graph(uint32_t duration, int width, int height);
   void draw(display::DisplayBuffer *buff, uint16_t x_offset, uint16_t y_offset, Color color);
-  void set_sensor(sensor::Sensor *sensor);
+  void setup() override;
+  float get_setup_priority() const override { return setup_priority::PROCESSOR; }
+  void dump_config() override;
+
+  void set_duration(uint32_t duration) { duration_ = duration; }
+  void set_width(uint32_t width) { width_ = width; }
+  void set_height(uint32_t height) { height_ = height; }
+  void set_sensor(sensor::Sensor *sensor) { sensor_ = sensor; }
   void set_min_value(float val) { this->min_value_ = val; }
   void set_max_value(float val) { this->max_value_ = val; }
   void set_min_range(float val) { this->min_range_ = val; }
@@ -59,9 +66,9 @@ class Graph {
   void set_border(bool val) { this->border_ = val; }
 
  protected:
-  int duration_;  /// in seconds
-  int width_;     /// in pixels
-  int height_;    /// in pixels
+  uint32_t duration_;  /// in seconds
+  uint32_t width_;     /// in pixels
+  uint32_t height_;    /// in pixels
   float min_value_{NAN};
   float max_value_{NAN};
   float min_range_{1.0};
@@ -71,8 +78,8 @@ class Graph {
   float gridspacing_x_{NAN};
   float gridspacing_y_{NAN};
   bool border_{true};
-  sensor::Sensor *sensor_{nullptr};  // TODO: Used??
-  HistoryData *data_;
+  sensor::Sensor *sensor_{nullptr};
+  HistoryData data_;
 };
 
 }  // namespace graph

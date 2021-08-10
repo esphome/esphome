@@ -77,13 +77,15 @@ CONFIG_SCHEMA = GRAPH_BASIC_SCHEMA.extend(
             cv.Length(min=1),
         ),
     }
-)
+).extend(cv.COMPONENT_SCHEMA)
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(
-        config[CONF_ID], config[CONF_DURATION], config[CONF_WIDTH], config[CONF_HEIGHT]
-    )
+    var = cg.new_Pvariable(config[CONF_ID])
+    cg.add(var.set_duration(config[CONF_DURATION]))
+    cg.add(var.set_width(config[CONF_WIDTH]))
+    cg.add(var.set_height(config[CONF_HEIGHT]))
+    await cg.register_component(var, config)
 
     sens = await cg.get_variable(config[CONF_SENSOR])
     cg.add(var.set_sensor(sens))

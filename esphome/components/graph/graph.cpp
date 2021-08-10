@@ -1,6 +1,8 @@
 #include "graph.h"
 #include "esphome/components/display/display_buffer.h"
 #include "esphome/core/log.h"
+#include "esphome/core/esphal.h"
+#include <algorithm>
 
 namespace esphome {
 namespace graph {
@@ -9,20 +11,23 @@ using namespace display;
 
 static const char *const TAG = "graph";
 
-HistoryData::HistoryData(int length) : length_(length) {
-  this->data_ = new float[length];
+void HistoryData::init(int length) {
+  this->length_ = length;
+  this->data_ = new (std::nothrow) float[length];
   if (this->data_ == nullptr) {
     ESP_LOGE(TAG, "Could not allocate HistoryData buffer!");
     return;
   }
+  std::fill(data_, data_ + length_, NAN);
   this->last_sample_ = millis();
-  for (int i = 0; i < this->length_; i++)
-    this->data_[i] = NAN;
 }
 HistoryData::~HistoryData() { delete (this->data_); }
 
 void HistoryData::take_sample(float data) {
-  uint64_t tm = millis();
+  if (data_ == nullptr)
+    // init allocation failed
+    return;
+  uint32_t tm = millis();
   uint32_t dt = tm - last_sample_;
   last_sample_ = tm;
 
@@ -48,7 +53,6 @@ void HistoryData::take_sample(float data) {
     }
   }
 }
-void HistoryData::set_update_time_ms(uint32_t u) { this->update_time_ = u; }
 
 void Graph::draw(DisplayBuffer *buff, uint16_t x_offset, uint16_t y_offset, Color color) {
   /// Plot border
@@ -59,8 +63,8 @@ void Graph::draw(DisplayBuffer *buff, uint16_t x_offset, uint16_t y_offset, Colo
     buff->vertical_line(x_offset + this->width_ - 1, y_offset, this->height_, color);
   }
   /// Determine best y-axis scale and range
-  float ymin = this->data_->get_recent_min();
-  float ymax = this->data_->get_recent_max();
+  float ymin = this->data_.get_recent_min();
+  float ymax = this->data_.get_recent_max();
 
   // Adjust if manually overridden
   if (!isnan(this->min_value_))
@@ -73,8 +77,8 @@ void Graph::draw(DisplayBuffer *buff, uint16_t x_offset, uint16_t y_offset, Colo
     // Look back in data to fit into local range
     float mx = NAN;
     float mn = NAN;
-    for (int16_t i = 0; i < this->data_->get_length(); i++) {
-      float v = this->data_->get_value(i);
+    for (int16_t i = 0; i < this->data_.get_length(); i++) {
+      float v = this->data_.get_value(i);
       if (!isnan(v)) {
         if ((v - mn) > this->max_range_)
           break;
@@ -137,10 +141,10 @@ void Graph::draw(DisplayBuffer *buff, uint16_t x_offset, uint16_t y_offset, Colo
       }
     }
   }
-  ESP_LOGI(TAG, "Updating graph. Last sample %f, ymin %f, ymax %f", this->data_->get_value(0), ymin, ymax);
+  ESP_LOGI(TAG, "Updating graph. Last sample %f, ymin %f, ymax %f", this->data_.get_value(0), ymin, ymax);
   /// Draw data trace
-  for (int16_t i = 0; i < this->data_->get_length(); i++) {
-    float v = (this->data_->get_value(i) - ymin) / yrange;
+  for (int16_t i = 0; i < this->data_.get_length(); i++) {
+    float v = (this->data_.get_value(i) - ymin) / yrange;
     if (!isnan(v) && (this->line_thickness_ > 0)) {
       int16_t x = this->width_ - 1 - i;
       uint8_t b = (i % (this->line_thickness_ * LineType::PATTERN_LENGTH)) / this->line_thickness_;
@@ -153,13 +157,13 @@ void Graph::draw(DisplayBuffer *buff, uint16_t x_offset, uint16_t y_offset, Colo
     }
   }
 }
-void Graph::set_sensor(sensor::Sensor *sensor) {
-  this->sensor_ = sensor;
-  sensor->add_on_state_callback([this](float state) { this->data_->take_sample(state); });
-  this->data_->set_update_time_ms(this->duration_ * 1000 / this->width_);
+void Graph::setup() {
+  this->data_.init(this->width_);
+  sensor_->add_on_state_callback([this](float state) { this->data_.take_sample(state); });
+  this->data_.set_update_time_ms(this->duration_ * 1000 / this->width_);
 }
-Graph::Graph(uint32_t duration, int width, int height) : duration_(duration), width_(width), height_(height) {
-  this->data_ = new HistoryData(width);
+void Graph::dump_config() {
+  ESP_LOGCONFIG(TAG, "Graph for sensor %s", sensor_->get_name().c_str());
 }
 
 }  // namespace graph
