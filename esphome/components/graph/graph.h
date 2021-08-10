@@ -2,7 +2,6 @@
 #include <cstdint>
 #include "esphome/core/color.h"
 #include "esphome/components/sensor/sensor.h"
-#include "esphome/components/display/types.h"
 
 namespace esphome {
 
@@ -12,6 +11,15 @@ class DisplayBuffer;
 }  // namespace display
 
 namespace graph {
+
+/// Bit pattern defines the line-type
+enum LineType {
+  LINE_TYPE_SOLID = 0b1111,
+  LINE_TYPE_DOTTED = 0b0101,
+  LINE_TYPE_DASHED = 0b0111,
+  // Following defines number of bits used to define line pattern
+  PATTERN_LENGTH = 4
+};
 
 class HistoryData {
  public:
@@ -59,7 +67,7 @@ class Graph {
   float min_range_{1.0};
   float max_range_{NAN};
   uint8_t line_thickness_{3};
-  uint8_t line_type_{display::LINE_TYPE_SOLID};
+  uint8_t line_type_{LINE_TYPE_SOLID};
   float gridspacing_x_{NAN};
   float gridspacing_y_{NAN};
   bool border_{true};
