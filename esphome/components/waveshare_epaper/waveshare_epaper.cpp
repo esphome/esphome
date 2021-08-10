@@ -163,6 +163,17 @@ void WaveshareEPaper::on_safe_shutdown() { this->deep_sleep(); }
 // ========================================================
 
 void WaveshareEPaperTypeA::initialize() {
+  if (this->model_ == TTGO_EPAPER_2_13_IN_B74) {
+    this->reset_pin_->digital_write(false);
+    delay(10);
+    this->reset_pin_->digital_write(true);
+    delay(10);
+    this->wait_until_idle_();
+
+    this->command(0x12);  // SWRESET
+    this->wait_until_idle_();
+  }
+
   // COMMAND DRIVER OUTPUT CONTROL
   this->command(0x01);
   this->data(this->get_height_internal() - 1);
@@ -193,6 +204,7 @@ void WaveshareEPaperTypeA::initialize() {
     case TTGO_EPAPER_2_13_IN_B1:
       this->data(0x01);  // x increase, y decrease : as in demo code
       break;
+    case TTGO_EPAPER_2_13_IN_B74:
     case WAVESHARE_EPAPER_2_9_IN_V2:
       this->data(0x03);  // from top left to bottom right
       // RAM content option for Display Update
@@ -221,6 +233,9 @@ void WaveshareEPaperTypeA::dump_config() {
       break;
     case TTGO_EPAPER_2_13_IN_B73:
       ESP_LOGCONFIG(TAG, "  Model: 2.13in (TTGO B73)");
+      break;
+    case TTGO_EPAPER_2_13_IN_B74:
+      ESP_LOGCONFIG(TAG, "  Model: 2.13in (TTGO B74)");
       break;
     case TTGO_EPAPER_2_13_IN_B1:
       ESP_LOGCONFIG(TAG, "  Model: 2.13in (TTGO B1)");
@@ -256,6 +271,9 @@ void HOT WaveshareEPaperTypeA::display() {
         case TTGO_EPAPER_2_13_IN_B73:
           this->write_lut_(full_update ? FULL_UPDATE_LUT_TTGO_B73 : PARTIAL_UPDATE_LUT_TTGO_B73, LUT_SIZE_TTGO_B73);
           break;
+        case TTGO_EPAPER_2_13_IN_B74:
+          // there is no LUT
+          break;
         case TTGO_EPAPER_2_13_IN_B1:
           this->write_lut_(full_update ? FULL_UPDATE_LUT_TTGO_B1 : PARTIAL_UPDATE_LUT_TTGO_B1, LUT_SIZE_TTGO_B1);
           break;
@@ -289,7 +307,12 @@ void HOT WaveshareEPaperTypeA::display() {
       this->data((this->get_height_internal() - 1) >> 8);
 
       break;
+    case TTGO_EPAPER_2_13_IN_B74:
+      // BorderWaveform
+      this->command(0x3C);
+      this->data(full_update ? 0x05 : 0x80);
 
+      // fall through
     default:
       // COMMAND SET RAM X ADDRESS START END POSITION
       this->command(0x44);
@@ -341,6 +364,9 @@ void HOT WaveshareEPaperTypeA::display() {
     this->data(full_update ? 0xF7 : 0xFF);
   } else if (this->model_ == TTGO_EPAPER_2_13_IN_B73) {
     this->data(0xC7);
+  } else if (this->model_ == TTGO_EPAPER_2_13_IN_B74) {
+    // this->data(0xC7);
+    this->data(full_update ? 0xF7 : 0xFF);
   } else {
     this->data(0xC4);
   }
@@ -363,6 +389,7 @@ int WaveshareEPaperTypeA::get_width_internal() {
     case TTGO_EPAPER_2_13_IN:
       return 128;
     case TTGO_EPAPER_2_13_IN_B73:
+    case TTGO_EPAPER_2_13_IN_B74:
       return 128;
     case TTGO_EPAPER_2_13_IN_B1:
       return 128;
@@ -384,6 +411,7 @@ int WaveshareEPaperTypeA::get_height_internal() {
     case TTGO_EPAPER_2_13_IN:
       return 250;
     case TTGO_EPAPER_2_13_IN_B73:
+    case TTGO_EPAPER_2_13_IN_B74:
       return 250;
     case TTGO_EPAPER_2_13_IN_B1:
       return 250;
