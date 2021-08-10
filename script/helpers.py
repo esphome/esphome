@@ -113,15 +113,12 @@ def load_idedata(environment):
         changed = False
 
     if not changed:
-        text = temp_idedata.read_text()
-    else:
-        stdout = subprocess.check_output(
-            ["pio", "run", "-t", "idedata", "-e", environment]
-        )
-        match = re.search(r'{\s*".*}', stdout.decode("utf-8"))
-        text = match.group()
+        return json.loads(temp_idedata.read_text())
 
-        temp_idedata.parent.mkdir(exist_ok=True)
-        temp_idedata.write_text(text)
+    stdout = subprocess.check_output(["pio", "run", "-t", "idedata", "-e", environment])
+    match = re.search(r'{\s*".*}', stdout.decode("utf-8"))
+    data = json.loads(match.group())
 
-    return json.loads(text)
+    temp_idedata.parent.mkdir(exist_ok=True)
+    temp_idedata.write_text(json.dumps(data, indent=2) + "\n")
+    return data
