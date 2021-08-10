@@ -883,7 +883,7 @@ def hostname(value):
             _LOGGER.warning(
                 "'%s': Using the '_' (underscore) character in the hostname is discouraged "
                 "as it can cause problems with some DHCP and local name services. "
-                "To rename an existing device see https://esphome.io/components/esphome.html#changing-esphome-node-name",
+                "For more information, see https://esphome.io/guides/faq.html#why-shouldn-t-i-use-underscores-in-my-device-name",
                 value,
             )
             warned_underscore = True
