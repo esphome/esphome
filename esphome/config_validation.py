@@ -15,6 +15,7 @@ from esphome.const import (
     ALLOWED_NAME_CHARS,
     CONF_AVAILABILITY,
     CONF_COMMAND_TOPIC,
+    CONF_DISABLED_BY_DEFAULT,
     CONF_DISCOVERY,
     CONF_ID,
     CONF_INTERNAL,
@@ -563,6 +564,23 @@ def has_at_most_one_key(*keys):
     return validate
 
 
+def has_none_or_all_keys(*keys):
+    """Validate that none or all of the given keys exist in the config."""
+
+    def validate(obj):
+        if not isinstance(obj, dict):
+            raise Invalid("expected dictionary")
+
+        number = sum(k in keys for k in obj)
+        if number != 0 and number != len(keys):
+            raise Invalid(
+                "Must specify either none or all of {}.".format(", ".join(keys))
+            )
+        return obj
+
+    return validate
+
+
 TIME_PERIOD_ERROR = (
     "Time period {} should be format number + unit, for example 5ms, 5s, 5min, 5h"
 )
@@ -873,11 +891,20 @@ def validate_bytes(value):
 
 def hostname(value):
     value = string(value)
+    warned_underscore = False
     if len(value) > 63:
         raise Invalid("Hostnames can only be 63 characters long")
     for c in value:
-        if not (c.isalnum() or c in "_-"):
-            raise Invalid("Hostname can only have alphanumeric characters and _ or -")
+        if not (c.isalnum() or c in "-_"):
+            raise Invalid("Hostname can only have alphanumeric characters and -")
+        if c in "_" and not warned_underscore:
+            _LOGGER.warning(
+                "'%s': Using the '_' (underscore) character in the hostname is discouraged "
+                "as it can cause problems with some DHCP and local name services. "
+                "For more information, see https://esphome.io/guides/faq.html#why-shouldn-t-i-use-underscores-in-my-device-name",
+                value,
+            )
+            warned_underscore = True
     return value
 
 
@@ -1539,23 +1566,30 @@ MQTT_COMPONENT_AVAILABILITY_SCHEMA = Schema(
 
 MQTT_COMPONENT_SCHEMA = Schema(
     {
-        Optional(CONF_NAME): string,
         Optional(CONF_RETAIN): All(requires_component("mqtt"), boolean),
         Optional(CONF_DISCOVERY): All(requires_component("mqtt"), boolean),
         Optional(CONF_STATE_TOPIC): All(requires_component("mqtt"), publish_topic),
         Optional(CONF_AVAILABILITY): All(
             requires_component("mqtt"), Any(None, MQTT_COMPONENT_AVAILABILITY_SCHEMA)
         ),
-        Optional(CONF_INTERNAL): boolean,
     }
 )
-MQTT_COMPONENT_SCHEMA.add_extra(_nameable_validator)
 
 MQTT_COMMAND_COMPONENT_SCHEMA = MQTT_COMPONENT_SCHEMA.extend(
     {
         Optional(CONF_COMMAND_TOPIC): All(requires_component("mqtt"), subscribe_topic),
     }
 )
+
+NAMEABLE_SCHEMA = Schema(
+    {
+        Optional(CONF_NAME): string,
+        Optional(CONF_INTERNAL): boolean,
+        Optional(CONF_DISABLED_BY_DEFAULT, default=False): boolean,
+    }
+)
+
+NAMEABLE_SCHEMA.add_extra(_nameable_validator)
 
 COMPONENT_SCHEMA = Schema({Optional(CONF_SETUP_PRIORITY): float_})
 

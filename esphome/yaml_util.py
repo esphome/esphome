@@ -411,17 +411,19 @@ class ESPHomeDumper(yaml.SafeDumper):  # pylint: disable=too-many-ancestors
             return self.represent_secret(value)
         return self.represent_scalar(tag="tag:yaml.org,2002:str", value=str(value))
 
-    # pylint: disable=arguments-differ
+    # pylint: disable=arguments-renamed
     def represent_bool(self, value):
         return self.represent_scalar(
             "tag:yaml.org,2002:bool", "true" if value else "false"
         )
 
+    # pylint: disable=arguments-renamed
     def represent_int(self, value):
         if is_secret(value):
             return self.represent_secret(value)
         return self.represent_scalar(tag="tag:yaml.org,2002:int", value=str(value))
 
+    # pylint: disable=arguments-renamed
     def represent_float(self, value):
         if is_secret(value):
             return self.represent_secret(value)

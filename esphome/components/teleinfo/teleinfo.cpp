@@ -120,7 +120,7 @@ void TeleInfo::loop() {
         }
 
         if (!check_crc_(buf_finger, grp_end))
-          break;
+          continue;
 
         /* Get tag */
         field_len = get_field(tag_, buf_finger, grp_end, separator_);

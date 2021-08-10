@@ -5,6 +5,8 @@
 namespace esphome {
 namespace esp32_ble {
 
+static const char *const TAG = "esp32_ble";
+
 ESPBTUUID::ESPBTUUID() : uuid_() {}
 ESPBTUUID ESPBTUUID::from_uint16(uint16_t uuid) {
   ESPBTUUID ret;

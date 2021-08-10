@@ -11,6 +11,7 @@ from esphome.config import iter_components, read_config, strip_default_ids
 from esphome.const import (
     CONF_BAUD_RATE,
     CONF_BROKER,
+    CONF_DEASSERT_RTS_DTR,
     CONF_LOGGER,
     CONF_OTA,
     CONF_PASSWORD,
@@ -99,10 +100,21 @@ def run_miniterm(config, port):
     baud_rate = config["logger"][CONF_BAUD_RATE]
     if baud_rate == 0:
         _LOGGER.info("UART logging is disabled (baud_rate=0). Not starting UART logs.")
+        return
     _LOGGER.info("Starting log output from %s with baud rate %s", port, baud_rate)
 
     backtrace_state = False
-    with serial.Serial(port, baudrate=baud_rate) as ser:
+    ser = serial.Serial()
+    ser.baudrate = baud_rate
+    ser.port = port
+
+    # We can't set to False by default since it leads to toggling and hence
+    # ESP32 resets on some platforms.
+    if config["logger"][CONF_DEASSERT_RTS_DTR]:
+        ser.dtr = False
+        ser.rts = False
+
+    with ser:
         while True:
             try:
                 raw = ser.readline()
@@ -408,7 +420,7 @@ def command_update_all(args):
         print("-" * twidth)
         print()
         rc = run_external_process(
-            "esphome", "--dashboard", "run", "--no-logs", "--device", "OTA", f
+            "esphome", "--dashboard", "run", f, "--no-logs", "--device", "OTA"
         )
         if rc == 0:
             print_bar("[{}] {}".format(color(Fore.BOLD_GREEN, "SUCCESS"), f))
@@ -505,6 +517,7 @@ def parse_args(argv):
             "clean",
             "dashboard",
             "vscode",
+            "update-all",
         ],
     )
 
@@ -516,7 +529,7 @@ def parse_args(argv):
 
     deprecated_argv_suggestion = None
 
-    if ["dashboard", "config"] == argv[1:3]:
+    if ["dashboard", "config"] == argv[1:3] or ["version"] == argv[1:2]:
         # this is most likely meant in new-style arg format. do not try compat parsing
         pass
     else:

@@ -151,7 +151,7 @@ class AddressableScanEffect : public AddressableLightEffect {
   void set_move_interval(uint32_t move_interval) { this->move_interval_ = move_interval; }
   void set_scan_width(uint32_t scan_width) { this->scan_width_ = scan_width; }
   void apply(AddressableLight &it, const Color &current_color) override {
-    it.all() = COLOR_BLACK;
+    it.all() = Color::BLACK;
 
     for (auto i = 0; i < this->scan_width_; i++) {
       it[this->at_led_ + i] = current_color;
@@ -201,7 +201,7 @@ class AddressableTwinkleEffect : public AddressableLightEffect {
         else
           view.set_effect_data(new_pos);
       } else {
-        view = COLOR_BLACK;
+        view = Color::BLACK;
       }
     }
     while (random_float() < this->twinkle_probability_) {
@@ -272,7 +272,7 @@ class AddressableFireworksEffect : public AddressableLightEffect {
   explicit AddressableFireworksEffect(const std::string &name) : AddressableLightEffect(name) {}
   void start() override {
     auto &it = *this->get_addressable_();
-    it.all() = COLOR_BLACK;
+    it.all() = Color::BLACK;
   }
   void apply(AddressableLight &it, const Color &current_color) override {
     const uint32_t now = millis();
@@ -337,7 +337,7 @@ class AddressableFlickerEffect : public AddressableLightEffect {
     }
   }
   void set_update_interval(uint32_t update_interval) { this->update_interval_ = update_interval; }
-  void set_intensity(float intensity) { this->intensity_ = static_cast<uint8_t>(roundf(intensity * 255.0f)); }
+  void set_intensity(float intensity) { this->intensity_ = to_uint8_scale(intensity); }
 
  protected:
   uint32_t update_interval_{16};

@@ -329,7 +329,7 @@ class EsphomeVscodeHandler(EsphomeCommandWebSocket):
 
 class EsphomeAceEditorHandler(EsphomeCommandWebSocket):
     def build_command(self, json_message):
-        return ["esphome", "--dashboard", "-q", "vscode", settings.config_dir, "--ace"]
+        return ["esphome", "--dashboard", "-q", "vscode", "--ace", settings.config_dir]
 
 
 class EsphomeUpdateAllHandler(EsphomeCommandWebSocket):
@@ -782,10 +782,9 @@ def make_app(debug=get_bool_env(ENV_DEV)):
 
     class StaticFileHandler(tornado.web.StaticFileHandler):
         def set_extra_headers(self, path):
-            if debug:
-                self.set_header(
-                    "Cache-Control", "no-store, no-cache, must-revalidate, max-age=0"
-                )
+            self.set_header(
+                "Cache-Control", "no-store, no-cache, must-revalidate, max-age=0"
+            )
 
     app_settings = {
         "debug": debug,

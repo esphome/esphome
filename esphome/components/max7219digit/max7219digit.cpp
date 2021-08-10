@@ -109,7 +109,7 @@ void MAX7219Component::display() {
   uint8_t pixels[8];
   // Run this loop for every MAX CHIP (GRID OF 64 leds)
   // Run this routine for the rows of every chip 8x row 0 top to 7 bottom
-  // Fill the pixel parameter with diplay data
+  // Fill the pixel parameter with display data
   // Send the data to the chip
   for (uint8_t chip = 0; chip < this->num_chips_ / this->num_chip_lines_; chip++) {
     for (uint8_t chip_line = 0; chip_line < this->num_chip_lines_; chip_line++) {
@@ -270,7 +270,7 @@ void MAX7219Component::send64pixels(uint8_t chip, const uint8_t pixels[8]) {
     } else {
       b = pixels[7 - col];
     }
-    // send this byte to dispay at selected chip
+    // send this byte to display at selected chip
     if (this->invert_) {
       this->send_byte_(col + 1, ~b);
     } else {

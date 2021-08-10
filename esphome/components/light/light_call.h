@@ -2,6 +2,7 @@
 
 #include "esphome/core/optional.h"
 #include "light_color_values.h"
+#include <set>
 
 namespace esphome {
 namespace light {
@@ -44,6 +45,20 @@ class LightCall {
   LightCall &set_brightness(float brightness);
   /// Set the brightness property if the light supports brightness.
   LightCall &set_brightness_if_supported(float brightness);
+
+  /// Set the color mode of the light.
+  LightCall &set_color_mode(optional<ColorMode> color_mode);
+  /// Set the color mode of the light.
+  LightCall &set_color_mode(ColorMode color_mode);
+  /// Set the color mode of the light, if this mode is supported.
+  LightCall &set_color_mode_if_supported(ColorMode color_mode);
+
+  /// Set the color brightness of the light from 0.0 (no color) to 1.0 (fully on)
+  LightCall &set_color_brightness(optional<float> brightness);
+  /// Set the color brightness of the light from 0.0 (no color) to 1.0 (fully on)
+  LightCall &set_color_brightness(float brightness);
+  /// Set the color brightness property if the light supports RGBW.
+  LightCall &set_color_brightness_if_supported(float brightness);
   /** Set the red RGB value of the light from 0.0 to 1.0.
    *
    * Note that this only controls the color of the light, not its brightness.
@@ -92,6 +107,18 @@ class LightCall {
   LightCall &set_color_temperature(float color_temperature);
   /// Set the color_temperature property if the light supports color temperature.
   LightCall &set_color_temperature_if_supported(float color_temperature);
+  /// Set the cold white value of the light from 0.0 to 1.0.
+  LightCall &set_cold_white(optional<float> cold_white);
+  /// Set the cold white value of the light from 0.0 to 1.0.
+  LightCall &set_cold_white(float cold_white);
+  /// Set the cold white property if the light supports cold white output.
+  LightCall &set_cold_white_if_supported(float cold_white);
+  /// Set the warm white value of the light from 0.0 to 1.0.
+  LightCall &set_warm_white(optional<float> warm_white);
+  /// Set the warm white value of the light from 0.0 to 1.0.
+  LightCall &set_warm_white(float warm_white);
+  /// Set the warm white property if the light supports cold white output.
+  LightCall &set_warm_white_if_supported(float warm_white);
   /// Set the effect of the light by its name.
   LightCall &set_effect(optional<std::string> effect);
   /// Set the effect of the light by its name.
@@ -125,17 +152,23 @@ class LightCall {
    * @return The light call for chaining setters.
    */
   LightCall &set_rgbw(float red, float green, float blue, float white);
-#ifdef USE_JSON
-  LightCall &parse_color_json(JsonObject &root);
-  LightCall &parse_json(JsonObject &root);
-#endif
   LightCall &from_light_color_values(const LightColorValues &values);
 
   void perform();
 
  protected:
+  /// Get the currently targeted, or active if none set, color mode.
+  ColorMode get_active_color_mode_();
+
   /// Validate all properties and return the target light color values.
   LightColorValues validate_();
+
+  //// Compute the color mode that should be used for this call.
+  ColorMode compute_color_mode_();
+  /// Get potential color modes for this light call.
+  std::set<ColorMode> get_suitable_color_modes_();
+  /// Some color modes also can be set using non-native parameters, transform those calls.
+  void transform_parameters_();
 
   bool has_transition_() { return this->transition_length_.has_value(); }
   bool has_flash_() { return this->flash_length_.has_value(); }
@@ -145,12 +178,16 @@ class LightCall {
   optional<bool> state_;
   optional<uint32_t> transition_length_;
   optional<uint32_t> flash_length_;
+  optional<ColorMode> color_mode_;
   optional<float> brightness_;
+  optional<float> color_brightness_;
   optional<float> red_;
   optional<float> green_;
   optional<float> blue_;
   optional<float> white_;
   optional<float> color_temperature_;
+  optional<float> cold_white_;
+  optional<float> warm_white_;
   optional<uint32_t> effect_;
   bool publish_{true};
   bool save_{true};

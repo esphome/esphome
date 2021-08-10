@@ -116,7 +116,7 @@ DFPLAYER_SIMPLE_ACTION(PreviousAction, previous)
 template<typename... Ts> class PlayFileAction : public Action<Ts...>, public Parented<DFPlayer> {
  public:
   TEMPLATABLE_VALUE(uint16_t, file)
-  TEMPLATABLE_VALUE(boolean, loop)
+  TEMPLATABLE_VALUE(bool, loop)
 
   void play(Ts... x) override {
     auto file = this->file_.value(x...);
@@ -133,7 +133,7 @@ template<typename... Ts> class PlayFolderAction : public Action<Ts...>, public P
  public:
   TEMPLATABLE_VALUE(uint16_t, folder)
   TEMPLATABLE_VALUE(uint16_t, file)
-  TEMPLATABLE_VALUE(boolean, loop)
+  TEMPLATABLE_VALUE(bool, loop)
 
   void play(Ts... x) override {
     auto folder = this->folder_.value(x...);
