@@ -20,7 +20,7 @@ from esphome.const import (
 )
 
 DEPENDENCIES = ["esp32_ble_tracker"]
-AUTO_LOAD = ["xiaomi_ble"]
+AUTO_LOAD = ["xiaomi_ble", "sensor"]
 
 xiaomi_cgpr1_ns = cg.esphome_ns.namespace("xiaomi_cgpr1")
 XiaomiCGPR1 = xiaomi_cgpr1_ns.class_(
