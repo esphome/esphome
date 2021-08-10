@@ -846,7 +846,7 @@ void Pipsolar::queue_command_(const char *command, byte length) {
     uint8_t testposition = (next_position + i) % COMMAND_QUEUE_LENGTH;
     if (command_queue_[testposition].length() == 0) {
       command_queue_[testposition] = command;
-      ESP_LOGD(TAG, "Command queued successfully: %s with length %lu at position %d", command,
+      ESP_LOGD(TAG, "Command queued successfully: %s with length %u at position %d", command,
                command_queue_[testposition].length(), testposition);
       return;
     }
