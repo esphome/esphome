@@ -891,11 +891,20 @@ def validate_bytes(value):
 
 def hostname(value):
     value = string(value)
+    warned_underscore = False
     if len(value) > 63:
         raise Invalid("Hostnames can only be 63 characters long")
     for c in value:
-        if not (c.isalnum() or c in "_-"):
-            raise Invalid("Hostname can only have alphanumeric characters and _ or -")
+        if not (c.isalnum() or c in "-_"):
+            raise Invalid("Hostname can only have alphanumeric characters and -")
+        if c in "_" and not warned_underscore:
+            _LOGGER.warning(
+                "'%s': Using the '_' (underscore) character in the hostname is discouraged "
+                "as it can cause problems with some DHCP and local name services. "
+                "For more information, see https://esphome.io/guides/faq.html#why-shouldn-t-i-use-underscores-in-my-device-name",
+                value,
+            )
+            warned_underscore = True
     return value
 
 

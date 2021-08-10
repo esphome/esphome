@@ -158,7 +158,7 @@ def valid_project_name(value: str):
 
 CONFIG_SCHEMA = cv.Schema(
     {
-        cv.Required(CONF_NAME): cv.valid_name,
+        cv.Required(CONF_NAME): cv.hostname,
         cv.Required(CONF_PLATFORM): cv.one_of("ESP8266", "ESP32", upper=True),
         cv.Required(CONF_BOARD): validate_board,
         cv.Optional(CONF_COMMENT): cv.string,
