@@ -258,14 +258,6 @@ def sensor_schema(
                 ): validate_last_reset_type
             }
         )
-    if last_reset_type != LAST_RESET_TYPE_NONE:
-        schema = schema.extend(
-            {
-                cv.Optional(
-                    CONF_LAST_RESET_TYPE, default=last_reset_type
-                ): validate_last_reset_type
-            }
-        )
     return schema
 
 
