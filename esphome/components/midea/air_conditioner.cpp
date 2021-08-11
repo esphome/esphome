@@ -51,47 +51,21 @@ void AirConditioner::on_status_change() {
 
 void AirConditioner::control(const ClimateCall &call) {
   dudanov::midea::ac::Control ctrl{};
-  bool update = false;
-  if (call.get_target_temperature().has_value() && call.get_target_temperature().value() != this->target_temperature) {
+  if (call.get_target_temperature().has_value())
     ctrl.targetTemp = call.get_target_temperature().value();
-    update = true;
-  }
-  if (call.get_swing_mode().has_value() && call.get_swing_mode().value() != this->swing_mode) {
+  if (call.get_swing_mode().has_value())
     ctrl.swingMode = Converters::to_midea_swing_mode(call.get_swing_mode().value());
-    update = true;
-  }
-  if (call.get_mode().has_value() && call.get_mode().value() != this->mode) {
+  if (call.get_mode().has_value())
     ctrl.mode = Converters::to_midea_mode(call.get_mode().value());
-    update = true;
-  }
-  if (call.get_preset().has_value()) {
-    if (!this->preset.has_value() || this->preset.value() != call.get_preset().value()) {
-      this->custom_preset.reset();
-      ctrl.preset = Converters::to_midea_preset(call.get_preset().value());
-      update = true;
-    }
-  } else if (call.get_custom_preset().has_value()) {
-    if (!this->custom_preset.has_value() || this->custom_preset.value() != call.get_custom_preset().value()) {
-      this->preset.reset();
-      ctrl.preset = Converters::to_custom_midea_preset(call.get_custom_preset().value());
-      update = true;
-    }
-  }
-  if (call.get_fan_mode().has_value()) {
-    if (!this->fan_mode.has_value() || this->fan_mode.value() != call.get_fan_mode().value()) {
-      this->custom_fan_mode.reset();
-      ctrl.fanMode = Converters::to_midea_fan_mode(call.get_fan_mode().value());
-      update = true;
-    }
-  } else if (call.get_custom_fan_mode().has_value()) {
-    if (!this->custom_fan_mode.has_value() || this->custom_fan_mode.value() != call.get_custom_fan_mode().value()) {
-      this->fan_mode.reset();
-      ctrl.fanMode = Converters::to_custom_midea_fan_mode(call.get_custom_fan_mode().value());
-      update = true;
-    }
-  }
-  if (update)
-    this->base_.control(ctrl);
+  if (call.get_preset().has_value())
+    ctrl.preset = Converters::to_midea_preset(call.get_preset().value());
+  else if (call.get_custom_preset().has_value())
+    ctrl.preset = Converters::to_custom_midea_preset(call.get_custom_preset().value());
+  if (call.get_fan_mode().has_value())
+    ctrl.fanMode = Converters::to_midea_fan_mode(call.get_fan_mode().value());
+  else if (call.get_custom_fan_mode().has_value())
+    ctrl.fanMode = Converters::to_custom_midea_fan_mode(call.get_custom_fan_mode().value());
+  this->base_.control(ctrl);
 }
 
 ClimateTraits AirConditioner::traits() {
