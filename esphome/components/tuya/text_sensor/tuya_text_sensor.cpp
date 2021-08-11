@@ -33,7 +33,6 @@ uint16_t hexquad_to_int(const std::string &dp_data_string, const uint8_t index_i
 
 std::vector<uint8_t> raw_decode(const std::string &dp_data_string) {
   std::vector<uint8_t> res;
-  res.resize(dp_data_string.size() / 2); // reserve enough memory for all bytes
   for(size_t i = 0; i < dp_data_string.size(); i += 2)
     res.push_back(hexpair_to_int(dp_data_string, i));
   return res;
