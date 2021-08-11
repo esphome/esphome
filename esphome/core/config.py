@@ -28,7 +28,7 @@ from esphome.const import (
     ARDUINO_VERSION_ESP32,
     CONF_VERSION,
     ESP_PLATFORMS,
-    __version__
+    __version__,
 )
 from esphome.core import CORE, coroutine_with_priority
 from esphome.helpers import copy_file_if_changed, walk_files
