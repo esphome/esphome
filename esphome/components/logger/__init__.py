@@ -7,6 +7,7 @@ from esphome.automation import LambdaAction
 from esphome.const import (
     CONF_ARGS,
     CONF_BAUD_RATE,
+    CONF_DEASSERT_RTS_DTR,
     CONF_FORMAT,
     CONF_HARDWARE_UART,
     CONF_ID,
@@ -104,6 +105,7 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(): cv.declare_id(Logger),
             cv.Optional(CONF_BAUD_RATE, default=115200): cv.positive_int,
             cv.Optional(CONF_TX_BUFFER_SIZE, default=512): cv.validate_bytes,
+            cv.Optional(CONF_DEASSERT_RTS_DTR, default=False): cv.boolean,
             cv.Optional(CONF_HARDWARE_UART, default="UART0"): uart_selection,
             cv.Optional(CONF_LEVEL, default="DEBUG"): is_log_level,
             cv.Optional(CONF_LOGS, default={}): cv.Schema(
@@ -205,8 +207,7 @@ def maybe_simple_message(schema):
 
 def validate_printf(value):
     # https://stackoverflow.com/questions/30011379/how-can-i-parse-a-c-format-string-in-python
-    # pylint: disable=anomalous-backslash-in-string
-    cfmt = """\
+    cfmt = r"""
     (                                  # start of capture group 1
     %                                  # literal "%"
     (?:[-+0 #]{0,5})                   # optional flags

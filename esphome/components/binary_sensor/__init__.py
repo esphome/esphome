@@ -6,6 +6,7 @@ from esphome.components import mqtt
 from esphome.const import (
     CONF_DELAY,
     CONF_DEVICE_CLASS,
+    CONF_DISABLED_BY_DEFAULT,
     CONF_FILTERS,
     CONF_ID,
     CONF_INTERNAL,
@@ -22,7 +23,6 @@ from esphome.const import (
     CONF_STATE,
     CONF_TIMING,
     CONF_TRIGGER_ID,
-    CONF_FOR,
     CONF_NAME,
     CONF_MQTT_ID,
     DEVICE_CLASS_EMPTY,
@@ -316,7 +316,7 @@ def validate_multi_click_timing(value):
 
 device_class = cv.one_of(*DEVICE_CLASSES, lower=True, space="_")
 
-BINARY_SENSOR_SCHEMA = cv.MQTT_COMPONENT_SCHEMA.extend(
+BINARY_SENSOR_SCHEMA = cv.NAMEABLE_SCHEMA.extend(cv.MQTT_COMPONENT_SCHEMA).extend(
     {
         cv.GenerateID(): cv.declare_id(BinarySensor),
         cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(
@@ -372,17 +372,13 @@ BINARY_SENSOR_SCHEMA = cv.MQTT_COMPONENT_SCHEMA.extend(
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(StateTrigger),
             }
         ),
-        cv.Optional(CONF_INVERTED): cv.invalid(
-            "The inverted binary_sensor property has been replaced by the "
-            "new 'invert' binary  sensor filter. Please see "
-            "https://esphome.io/components/binary_sensor/index.html."
-        ),
     }
 )
 
 
 async def setup_binary_sensor_core_(var, config):
     cg.add(var.set_name(config[CONF_NAME]))
+    cg.add(var.set_disabled_by_default(config[CONF_DISABLED_BY_DEFAULT]))
     if CONF_INTERNAL in config:
         cg.add(var.set_internal(config[CONF_INTERNAL]))
     if CONF_DEVICE_CLASS in config:
@@ -455,10 +451,6 @@ async def new_binary_sensor(config):
 BINARY_SENSOR_CONDITION_SCHEMA = maybe_simple_id(
     {
         cv.Required(CONF_ID): cv.use_id(BinarySensor),
-        cv.Optional(CONF_FOR): cv.invalid(
-            "This option has been removed in 1.13, please use the "
-            "'for' condition instead."
-        ),
     }
 )
 

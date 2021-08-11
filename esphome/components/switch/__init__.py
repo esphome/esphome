@@ -4,6 +4,7 @@ from esphome import automation
 from esphome.automation import Condition, maybe_simple_id
 from esphome.components import mqtt
 from esphome.const import (
+    CONF_DISABLED_BY_DEFAULT,
     CONF_ICON,
     CONF_ID,
     CONF_INTERNAL,
@@ -38,7 +39,7 @@ SwitchTurnOffTrigger = switch_ns.class_(
 
 icon = cv.icon
 
-SWITCH_SCHEMA = cv.MQTT_COMMAND_COMPONENT_SCHEMA.extend(
+SWITCH_SCHEMA = cv.NAMEABLE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).extend(
     {
         cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTSwitchComponent),
         cv.Optional(CONF_ICON): icon,
@@ -59,6 +60,7 @@ SWITCH_SCHEMA = cv.MQTT_COMMAND_COMPONENT_SCHEMA.extend(
 
 async def setup_switch_core_(var, config):
     cg.add(var.set_name(config[CONF_NAME]))
+    cg.add(var.set_disabled_by_default(config[CONF_DISABLED_BY_DEFAULT]))
     if CONF_INTERNAL in config:
         cg.add(var.set_internal(config[CONF_INTERNAL]))
     if CONF_ICON in config:

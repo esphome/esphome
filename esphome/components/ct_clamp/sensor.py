@@ -5,7 +5,6 @@ from esphome.const import (
     CONF_SENSOR,
     CONF_ID,
     DEVICE_CLASS_CURRENT,
-    ICON_EMPTY,
     STATE_CLASS_MEASUREMENT,
     UNIT_AMPERE,
 )
@@ -20,7 +19,10 @@ CTClampSensor = ct_clamp_ns.class_("CTClampSensor", sensor.Sensor, cg.PollingCom
 
 CONFIG_SCHEMA = (
     sensor.sensor_schema(
-        UNIT_AMPERE, ICON_EMPTY, 2, DEVICE_CLASS_CURRENT, STATE_CLASS_MEASUREMENT
+        unit_of_measurement=UNIT_AMPERE,
+        accuracy_decimals=2,
+        device_class=DEVICE_CLASS_CURRENT,
+        state_class=STATE_CLASS_MEASUREMENT,
     )
     .extend(
         {

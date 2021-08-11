@@ -54,7 +54,7 @@ void FanStateCall::perform() const {
   }
   if (this->speed_.has_value()) {
     const int speed_count = this->state_->get_traits().supported_speed_count();
-    this->state_->speed = static_cast<int>(clamp(*this->speed_, 1, speed_count));
+    this->state_->speed = clamp(*this->speed_, 1, speed_count);
   }
 
   FanStateRTCState saved{};

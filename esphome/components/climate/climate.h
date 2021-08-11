@@ -63,9 +63,9 @@ class ClimateCall {
    * For climate devices with two point target temperature control
    */
   ClimateCall &set_target_temperature_high(optional<float> target_temperature_high);
-  ESPDEPRECATED("set_away() is deprecated, please use .set_preset(CLIMATE_PRESET_AWAY) instead")
+  ESPDEPRECATED("set_away() is deprecated, please use .set_preset(CLIMATE_PRESET_AWAY) instead", "v1.20")
   ClimateCall &set_away(bool away);
-  ESPDEPRECATED("set_away() is deprecated, please use .set_preset(CLIMATE_PRESET_AWAY) instead")
+  ESPDEPRECATED("set_away() is deprecated, please use .set_preset(CLIMATE_PRESET_AWAY) instead", "v1.20")
   ClimateCall &set_away(optional<bool> away);
   /// Set the fan mode of the climate device.
   ClimateCall &set_fan_mode(ClimateFanMode fan_mode);
@@ -96,7 +96,7 @@ class ClimateCall {
   const optional<float> &get_target_temperature() const;
   const optional<float> &get_target_temperature_low() const;
   const optional<float> &get_target_temperature_high() const;
-  ESPDEPRECATED("get_away() is deprecated, please use .get_preset() instead")
+  ESPDEPRECATED("get_away() is deprecated, please use .get_preset() instead", "v1.20")
   optional<bool> get_away() const;
   const optional<ClimateFanMode> &get_fan_mode() const;
   const optional<ClimateSwingMode> &get_swing_mode() const;
@@ -120,6 +120,7 @@ class ClimateCall {
 };
 
 /// Struct used to save the state of the climate device in restore memory.
+/// Make sure to update RESTORE_STATE_VERSION when changing the struct entries.
 struct ClimateDeviceRestoreState {
   ClimateMode mode;
   bool uses_custom_fan_mode{false};
@@ -192,7 +193,7 @@ class Climate : public Nameable {
    * Away allows climate devices to have two different target temperature configs:
    * one for normal mode and one for away mode.
    */
-  ESPDEPRECATED("away is deprecated, use preset instead")
+  ESPDEPRECATED("away is deprecated, use preset instead", "v1.20")
   bool away{false};
 
   /// The active fan mode of the climate device.

@@ -53,6 +53,18 @@ void Controller::setup_controller() {
       obj->add_on_state_callback([this, obj]() { this->on_climate_update(obj); });
   }
 #endif
+#ifdef USE_NUMBER
+  for (auto *obj : App.get_numbers()) {
+    if (!obj->is_internal())
+      obj->add_on_state_callback([this, obj](float state) { this->on_number_update(obj, state); });
+  }
+#endif
+#ifdef USE_SELECT
+  for (auto *obj : App.get_selects()) {
+    if (!obj->is_internal())
+      obj->add_on_state_callback([this, obj](const std::string &state) { this->on_select_update(obj, state); });
+  }
+#endif
 }
 
 }  // namespace esphome

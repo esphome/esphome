@@ -1,4 +1,5 @@
-FROM esphome/esphome-lint-base:3.4.0
+ARG BUILD_FROM=esphome/esphome-lint-base:latest
+FROM ${BUILD_FROM}
 
 COPY requirements.txt requirements_optional.txt requirements_test.txt docker/platformio_install_deps.py  platformio.ini /
 RUN \

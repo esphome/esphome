@@ -5,6 +5,7 @@ from esphome.components import mqtt, power_supply
 from esphome.const import (
     CONF_COLOR_CORRECT,
     CONF_DEFAULT_TRANSITION_LENGTH,
+    CONF_DISABLED_BY_DEFAULT,
     CONF_EFFECTS,
     CONF_GAMMA_CORRECT,
     CONF_ID,
@@ -16,6 +17,8 @@ from esphome.const import (
     CONF_ON_TURN_OFF,
     CONF_ON_TURN_ON,
     CONF_TRIGGER_ID,
+    CONF_COLD_WHITE_COLOR_TEMPERATURE,
+    CONF_WARM_WHITE_COLOR_TEMPERATURE,
 )
 from esphome.core import coroutine_with_priority
 from .automation import light_control_to_code  # noqa
@@ -50,7 +53,7 @@ RESTORE_MODES = {
     "RESTORE_INVERTED_DEFAULT_ON": LightRestoreMode.LIGHT_RESTORE_INVERTED_DEFAULT_ON,
 }
 
-LIGHT_SCHEMA = cv.MQTT_COMMAND_COMPONENT_SCHEMA.extend(
+LIGHT_SCHEMA = cv.NAMEABLE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).extend(
     {
         cv.GenerateID(): cv.declare_id(LightState),
         cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTJSONLightComponent),
@@ -104,7 +107,22 @@ ADDRESSABLE_LIGHT_SCHEMA = RGB_LIGHT_SCHEMA.extend(
 )
 
 
+def validate_color_temperature_channels(value):
+    if (
+        CONF_COLD_WHITE_COLOR_TEMPERATURE in value
+        and CONF_WARM_WHITE_COLOR_TEMPERATURE in value
+        and value[CONF_COLD_WHITE_COLOR_TEMPERATURE]
+        >= value[CONF_WARM_WHITE_COLOR_TEMPERATURE]
+    ):
+        raise cv.Invalid(
+            "Color temperature of the cold white channel must be colder than that of the warm white channel.",
+            path=[CONF_COLD_WHITE_COLOR_TEMPERATURE],
+        )
+    return value
+
+
 async def setup_light_core_(light_var, output_var, config):
+    cg.add(light_var.set_disabled_by_default(config[CONF_DISABLED_BY_DEFAULT]))
     cg.add(light_var.set_restore_mode(config[CONF_RESTORE_MODE]))
     if CONF_INTERNAL in config:
         cg.add(light_var.set_internal(config[CONF_INTERNAL]))

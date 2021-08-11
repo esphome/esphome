@@ -3,11 +3,12 @@ import esphome.config_validation as cv
 from esphome.components import i2c, sensor
 from esphome.const import (
     CONF_ID,
-    DEVICE_CLASS_EMPTY,
     ICON_RADIATOR,
     STATE_CLASS_MEASUREMENT,
     UNIT_PARTS_PER_MILLION,
     UNIT_PARTS_PER_BILLION,
+    CONF_BASELINE,
+    CONF_ECO2,
     CONF_TEMPERATURE,
     CONF_TVOC,
     CONF_HUMIDITY,
@@ -21,26 +22,21 @@ CCS811Component = ccs811_ns.class_(
     "CCS811Component", cg.PollingComponent, i2c.I2CDevice
 )
 
-CONF_ECO2 = "eco2"
-CONF_BASELINE = "baseline"
-
 CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(CCS811Component),
             cv.Required(CONF_ECO2): sensor.sensor_schema(
-                UNIT_PARTS_PER_MILLION,
-                ICON_MOLECULE_CO2,
-                0,
-                DEVICE_CLASS_EMPTY,
-                STATE_CLASS_MEASUREMENT,
+                unit_of_measurement=UNIT_PARTS_PER_MILLION,
+                icon=ICON_MOLECULE_CO2,
+                accuracy_decimals=0,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Required(CONF_TVOC): sensor.sensor_schema(
-                UNIT_PARTS_PER_BILLION,
-                ICON_RADIATOR,
-                0,
-                DEVICE_CLASS_EMPTY,
-                STATE_CLASS_MEASUREMENT,
+                unit_of_measurement=UNIT_PARTS_PER_BILLION,
+                icon=ICON_RADIATOR,
+                accuracy_decimals=0,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_BASELINE): cv.hex_uint16_t,
             cv.Optional(CONF_TEMPERATURE): cv.use_id(sensor.Sensor),
