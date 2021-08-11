@@ -34,7 +34,7 @@ uint32_t hexquad_to_int(const std::string &dp_data_string, const uint8_t index_i
 std::vector<uint8_t> raw_decode(const std::string &dp_data_string) {
   std::string res;
   for (int i = 0; i < dp_data_string.size(); i = i + 2) {
-    res += hexpair_to_int(dp_data_string,i);
+    res += hexpair_to_int(dp_data_string, i);
   }
   std::vector<uint8_t> res_vec;
   res_vec.assign(res.begin(), res.end());
