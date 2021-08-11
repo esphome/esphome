@@ -67,20 +67,20 @@ void TuyaFan::dump_config() {
 void TuyaFan::write_state() {
   if (this->switch_id_.has_value()) {
     ESP_LOGV(TAG, "Setting switch: %s", ONOFF(this->fan_->state));
-    this->parent_->set_datapoint_value(*this->switch_id_, this->fan_->state);
+    this->parent_->set_boolean_datapoint_value(*this->switch_id_, this->fan_->state);
   }
   if (this->oscillation_id_.has_value()) {
     ESP_LOGV(TAG, "Setting oscillating: %s", ONOFF(this->fan_->oscillating));
-    this->parent_->set_datapoint_value(*this->oscillation_id_, this->fan_->oscillating);
+    this->parent_->set_boolean_datapoint_value(*this->oscillation_id_, this->fan_->oscillating);
   }
   if (this->direction_id_.has_value()) {
     bool enable = this->fan_->direction == fan::FAN_DIRECTION_REVERSE;
     ESP_LOGV(TAG, "Setting reverse direction: %s", ONOFF(enable));
-    this->parent_->set_datapoint_value(*this->direction_id_, enable);
+    this->parent_->set_boolean_datapoint_value(*this->direction_id_, enable);
   }
   if (this->speed_id_.has_value()) {
     ESP_LOGV(TAG, "Setting speed: %d", this->fan_->speed);
-    this->parent_->set_datapoint_value(*this->speed_id_, this->fan_->speed - 1);
+    this->parent_->set_integer_datapoint_value(*this->speed_id_, this->fan_->speed - 1);
   }
 }
 

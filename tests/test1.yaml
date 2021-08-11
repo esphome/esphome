@@ -540,6 +540,11 @@ sensor:
     sensor: hlw8012_power
     name: 'Integration Sensor'
     time_unit: s
+  - platform: integration
+    sensor: hlw8012_power
+    name: 'Integration Sensor lazy'
+    time_unit: s
+    min_save_interval: 60s
   - platform: hmc5883l
     address: 0x68
     field_strength_x:
@@ -670,6 +675,27 @@ sensor:
       name: 'Outside Pressure'
     address: 0x77
     update_interval: 15s
+  - platform: pmsa003i
+    pm_1_0:
+      name: "PMSA003i PM1.0"
+    pm_2_5:
+      name: "PMSA003i PM2.5"
+    pm_10_0:
+      name: "PMSA003i PM10.0"
+    pmc_0_3:
+      name: "PMSA003i PMC <0.3µm"
+    pmc_0_5:
+      name: "PMSA003i PMC <0.5µm"
+    pmc_1_0:
+      name: "PMSA003i PMC <1µm"
+    pmc_2_5:
+      name: "PMSA003i PMC <2.5µm"
+    pmc_5_0:
+      name: "PMSA003i PMC <5µm"
+    pmc_10_0:
+      name: "PMSA003i PMC <10µm"
+    address: 0x12
+    standard_units: True
   - platform: pulse_counter
     name: 'Pulse Counter'
     pin: GPIO12
@@ -835,6 +861,25 @@ sensor:
     is_cs_package: true
     integration_time: 402ms
     gain: 16x
+  - platform: tsl2591
+    id: this_little_light_of_mine
+    address: 0x29
+    update_interval: 15s
+    integration_time: 600ms
+    gain: high
+    visible:
+      name: "tsl2591 visible"
+      id: tsl2591_vis
+      unit_of_measurement: 'pH'
+    infrared:
+      name: "tsl2591 infrared"
+      id: tsl2591_ir
+    full_spectrum:
+      name: "tsl2591 full_spectrum"
+      id: tsl2591_fs
+    calculated_lux:
+      name: "tsl2591 calculated_lux"
+      id: tsl2591_cl
   - platform: ultrasonic
     trigger_pin: GPIO25
     echo_pin:
@@ -922,6 +967,11 @@ sensor:
     id: ph_ezo
     address: 99
     unit_of_measurement: 'pH'
+  - platform: sdp3x
+    name: "HVAC Filter Pressure drop"
+    id: filter_pressure
+    update_interval: 5s
+    accuracy_decimals: 3
   - platform: cs5460a
     id: cs5460a1
     current:
@@ -1379,6 +1429,16 @@ light:
     cold_white_color_temperature: 153 mireds
     warm_white_color_temperature: 500 mireds
     color_interlock: true
+  - platform: rgbct
+    name: 'Living Room Lights 2'
+    red: pca_3
+    green: pca_4
+    blue: pca_5
+    color_temperature: pca_6
+    white_brightness: pca_6
+    cold_white_color_temperature: 153 mireds
+    warm_white_color_temperature: 500 mireds
+    color_interlock: true
   - platform: cwww
     name: 'Living Room Lights 2'
     cold_white: pca_6
@@ -1386,6 +1446,12 @@ light:
     cold_white_color_temperature: 153 mireds
     warm_white_color_temperature: 500 mireds
     constant_brightness: true
+  - platform: color_temperature
+    name: 'Living Room Lights 2'
+    color_temperature: pca_6
+    brightness: pca_6
+    cold_white_color_temperature: 153 mireds
+    warm_white_color_temperature: 500 mireds
   - platform: fastled_clockless
     id: addr1
     chipset: WS2811
@@ -1556,6 +1622,7 @@ climate:
   - platform: anova
     name: Anova cooker
     ble_client_id: ble_blah
+    unit_of_measurement: c
 
 midea_dongle:
   uart_id: uart0
@@ -1615,6 +1682,12 @@ switch:
       remote_transmitter.transmit_samsung36:
         address: 0x0400
         command: 0x000E00FF
+  - platform: template
+    name: ToshibaAC
+    turn_on_action:
+      - remote_transmitter.transmit_toshiba_ac:
+          rc_code_1: 0xB24DBF4050AF
+          rc_code_2: 0xD5660001003C
   - platform: template
     name: Sony
     turn_on_action:
@@ -2072,6 +2145,10 @@ cover:
           id: template_cover
           state: CLOSED
     assumed_state: no
+  - platform: am43
+    name: 'Test AM43'
+    id: am43_test
+    ble_client_id: ble_foo
 
 debug:
 
