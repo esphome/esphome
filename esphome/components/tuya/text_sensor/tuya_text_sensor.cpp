@@ -6,49 +6,39 @@ namespace tuya {
 
 static const char *const TAG = "tuya.text_sensor";
 
-int hexpair_to_int(std::string x, uint8 i)
+uint8_t hexchar_to_int(const std::string& dp_data_string, const uint8_t index_in_string)
 {
-    char a = x[i];
-    char b = x[i+1];
-    int value = 0;
-    if      (a >= '0' && a <= '9') a =       (a - '0');
-    else if (a >= 'A' && a <= 'F') a = (10 + (a - 'A'));
-    else if (a >= 'a' && a <= 'f') a = (10 + (a - 'a'));
-    if      (b >= '0' && b <= '9') b =       (b - '0');
-    else if (b >= 'A' && b <= 'F') b = (10 + (b - 'A'));
-    else if (b >= 'a' && b <= 'f') b = (10 + (b - 'a'));
-    value = (a << 4) | b;
-    return value;
+    uint8_t out = dp_data_string[index_in_string];
+    if (out >= '0' && out <= '9')
+      out = (out - '0');
+    else if (out >= 'A' && out <= 'F') 
+      out = (10 + (out - 'A'));
+    else if (out >= 'a' && out <= 'f') 
+      out = (10 + (out - 'a'));
+    return out;
 }
 
-int hexquad_to_int(std::string x, uint8 i)
+uint16_t hexpair_to_int(const std::string& dp_data_string, const uint8_t index_in_string)
 {
-    char a = x[i];
-    char b = x[i+1];
-    char c = x[i+2];
-    char d = x[i+3];
-    int value = 0;
-    if      (a >= '0' && a <= '9') a =       (a - '0');
-    else if (a >= 'A' && a <= 'F') a = (10 + (a - 'A'));
-    else if (a >= 'a' && a <= 'f') a = (10 + (a - 'a'));
-    if      (b >= '0' && b <= '9') b =       (b - '0');
-    else if (b >= 'A' && b <= 'F') b = (10 + (b - 'A'));
-    else if (b >= 'a' && b <= 'f') b = (10 + (b - 'a'));
-    if      (c >= '0' && c <= '9') c =       (c - '0');
-    else if (c >= 'A' && c <= 'F') c = (10 + (c - 'A'));
-    else if (c >= 'a' && c <= 'f') c = (10 + (c - 'a'));
-    if      (d >= '0' && d <= '9') d =       (d - '0');
-    else if (d >= 'A' && d <= 'F') d = (10 + (d - 'A'));
-    else if (d >= 'a' && d <= 'f') d = (10 + (d - 'a'));
-    value = (a << 12) | (b << 8) | (c << 4) | d;
-    return value;
+    uint8_t a = hexchar_to_int(dp_data_string, index_in_string);
+    uint8_t b = hexchar_to_int(dp_data_string, index_in_string+1);
+    return (a << 4) | b;
 }
 
-std::vector<uint8_t> raw_decode(std::string x) 
+uint32_t hexquad_to_int(const std::string& dp_data_string, const uint8_t index_in_string)
+{
+    uint8_t a = hexchar_to_int(dp_data_string, index_in_string);
+    uint8_t b = hexchar_to_int(dp_data_string, index_in_string+1);
+    uint8_t c = hexchar_to_int(dp_data_string, index_in_string+2);
+    uint8_t d = hexchar_to_int(dp_data_string, index_in_string+3);
+    return (a << 12) | (b << 8) | (c << 4) | d;
+}
+
+std::vector<uint8_t> raw_decode(const std::string& dp_data_string) 
 {
     std::string res;
-    for (int i = 0; i < x.size(); i=i+2) {
-        res += hexpair_to_int(x,i);
+    for (int i = 0; i < dp_data_string.size(); i=i+2) {
+        res += hexpair_to_int(dp_data_string,i);
     }
     std::vector<uint8_t> res_vec;
     res_vec.assign(res.begin(), res.end());
@@ -72,9 +62,11 @@ std::string raw_encode(const uint8_t *data, uint32_t len) {
 void TuyaTextSensor::setup() {
   this->parent_->register_listener(this->sensor_id_, [this](const TuyaDatapoint &datapoint) {
     if (datapoint.type == TuyaDatapointType::STRING) {
-      this->publish_state(datapoint.value_string.c_str());
+      ESP_LOGV(TAG, "MCU reported text sensor %u is (string): %s", datapoint.id, datapoint.value_string.c_str());
+      this->publish_state(datapoint.value_string);
     } else if (datapoint.type == TuyaDatapointType::RAW) {
-      this->publish_state(raw_encode(datapoint.value_raw).c_str());
+      ESP_LOGV(TAG, "MCU reported text sensor %u is (raw as string): %s", datapoint.id, raw_encode(datapoint.value_raw).c_str());
+      this->publish_state(raw_encode(datapoint.value_raw));
     }
   });
 }

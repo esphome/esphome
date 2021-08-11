@@ -5,7 +5,6 @@ from esphome.const import CONF_ID
 from .. import tuya_ns, CONF_TUYA_ID, Tuya
 
 DEPENDENCIES = ["tuya"]
-CODEOWNERS = ["@tony-fav"]
 
 CONF_SENSOR_DATAPOINT = "sensor_datapoint"
 
