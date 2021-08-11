@@ -1,4 +1,5 @@
 #include "esphome/core/esphal.h"
+#include "esphome/core/macros.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/log.h"
@@ -298,7 +299,7 @@ void force_link_symbols() {
 
 }  // namespace esphome
 
-#ifdef ARDUINO_ESP8266_RELEASE_2_3_0
+#if ARDUINO_VERSION < VERSION_CODE(2, 4, 0)
 // Fix 2.3.0 std missing memchr
 extern "C" {
 void *memchr(const void *s, int c, size_t n) {

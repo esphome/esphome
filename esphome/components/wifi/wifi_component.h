@@ -1,5 +1,6 @@
 #pragma once
 
+#include "esphome/core/macros.h"
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/automation.h"
@@ -17,7 +18,7 @@
 #include <ESP8266WiFiType.h>
 #include <ESP8266WiFi.h>
 
-#ifdef ARDUINO_ESP8266_RELEASE_2_3_0
+#if defined(ARDUINO_ARCH_ESP8266) && ARDUINO_VERSION < VERSION_CODE(2, 4, 0)
 extern "C" {
 #include <user_interface.h>
 };
