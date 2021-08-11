@@ -15,7 +15,6 @@
 #define USE_ADC_SENSOR_VCC
 #define USE_API
 #define USE_BINARY_SENSOR
-#define USE_BSEC
 #define USE_CAPTIVE_PORTAL
 #define USE_CLIMATE
 #define USE_COVER
@@ -49,3 +48,6 @@
 #define USE_ETHERNET
 #define USE_IMPROV
 #endif
+
+// Disabled feature flags
+//#define USE_BSEC  // Requires a library with proprietary library.
