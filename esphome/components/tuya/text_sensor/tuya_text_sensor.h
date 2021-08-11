@@ -23,7 +23,7 @@ class TuyaTextSensor : public text_sensor::TextSensor, public Component {
 // helper functions
 int hexpair_to_int(std::string x, uint8 i);
 int hexquad_to_int(std::string x, uint8 i);
-std::string raw_decode(std::string x);
+std::vector<uint8_t> raw_decode(std::string x);
 std::string raw_encode(const uint8_t *data, uint32_t len);
 template<typename T> std::string raw_encode(const T &data) { return raw_encode(data.data(), data.size()); }
 

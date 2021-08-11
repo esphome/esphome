@@ -44,13 +44,15 @@ int hexquad_to_int(std::string x, uint8 i)
     return value;
 }
 
-std::string raw_decode(std::string x) 
+std::vector<uint8_t> raw_decode(std::string x) 
 {
     std::string res;
     for (int i = 0; i < x.size(); i=i+2) {
         res += hexpair_to_int(x,i);
     }
-    return res;
+    std::vector<uint8_t> res_vec;
+    res_vec.assign(res.begin(), res.end());
+    return res_vec;
 }
 
 std::string raw_encode(const uint8_t *data, uint32_t len) {
