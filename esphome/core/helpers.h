@@ -9,13 +9,6 @@
 #include "esphome/core/optional.h"
 #include "esphome/core/esphal.h"
 
-#ifdef CLANG_TIDY
-#undef ICACHE_RAM_ATTR
-#define ICACHE_RAM_ATTR
-#undef ICACHE_RODATA_ATTR
-#define ICACHE_RODATA_ATTR
-#endif
-
 #define HOT __attribute__((hot))
 #define ESPDEPRECATED(msg, when) __attribute__((deprecated(msg)))
 #define ALWAYS_INLINE __attribute__((always_inline))

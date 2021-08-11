@@ -53,10 +53,8 @@ int Nextion::upload_by_chunks_(HTTPClient *http, int range_start) {
 #ifdef ARDUINO_ARCH_ESP32
     begin_status = http->begin(this->tft_url_.c_str());
 #endif
-#ifndef CLANG_TIDY
 #ifdef ARDUINO_ARCH_ESP8266
     begin_status = http->begin(*this->get_wifi_client_(), this->tft_url_.c_str());
-#endif
 #endif
 
     ++tries;
