@@ -13,6 +13,7 @@ using namespace esphome::cover;
 void Am43Component::dump_config() {
   LOG_COVER("", "AM43 Cover", this);
   ESP_LOGCONFIG(TAG, "  Device Pin: %d", this->pin_);
+  ESP_LOGCONFIG(TAG, "  Invert Position: %d", (int) this->invert_position_);
 }
 
 void Am43Component::setup() {
@@ -59,6 +60,9 @@ void Am43Component::control(const CoverCall &call) {
   }
   if (call.get_position().has_value()) {
     auto pos = *call.get_position();
+
+    if (this->invert_position_)
+      pos = 1 - pos;
     auto packet = this->encoder_->get_set_position_request(100 - (uint8_t)(pos * 100));
     auto status =
         esp_ble_gattc_write_char(this->parent_->gattc_if, this->parent_->conn_id, this->char_handle_, packet->length,
@@ -103,7 +107,10 @@ void Am43Component::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
       this->decoder_->decode(param->notify.value, param->notify.value_len);
 
       if (this->decoder_->has_position()) {
-        this->position = 1 - ((float) this->decoder_->position_ / 100.0);
+
+        this->position = ((float) this->decoder_->position_ / 100.0);
+        if (!this->invert_position_)
+          this->position = 1 - this->position;
         if (this->position > 0.97)
           this->position = 1.0;
         if (this->position < 0.02)
