@@ -639,7 +639,7 @@ void WiFiAP::set_bssid(bssid_t bssid) { this->bssid_ = bssid; }
 void WiFiAP::set_bssid(optional<bssid_t> bssid) { this->bssid_ = bssid; }
 void WiFiAP::set_password(const std::string &password) { this->password_ = password; }
 #ifdef USE_WIFI_WPA2_EAP
-void WiFiAP::set_eap(optional<EAPAuth> eap_auth) { this->eap_ = eap_auth; }
+void WiFiAP::set_eap(optional<EAPAuth> eap_auth) { this->eap_ = std::move(eap_auth); }
 #endif
 void WiFiAP::set_channel(optional<uint8_t> channel) { this->channel_ = channel; }
 void WiFiAP::set_manual_ip(optional<ManualIP> manual_ip) { this->manual_ip_ = std::move(manual_ip); }
