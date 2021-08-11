@@ -46,6 +46,6 @@
 #ifdef ARDUINO_ARCH_ESP32
 #define USE_ESP32_BLE_SERVER
 #define USE_ESP32_CAMERA
-#deifne USE_ETHERNET
+#define USE_ETHERNET
 #define USE_IMPROV
 #endif
