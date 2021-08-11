@@ -114,7 +114,7 @@ const std::string &Converters::to_custom_climate_fan_mode(MideaFanMode mode) {
   }
 }
 
-MideaFanMode Converters::to_custom_midea_fan_mode(const std::string &mode) {
+MideaFanMode Converters::to_midea_fan_mode(const std::string &mode) {
   if (mode == Constants::SILENT)
     return MideaFanMode::FAN_SILENT;
   return MideaFanMode::FAN_TURBO;
@@ -154,7 +154,7 @@ const std::string &Converters::to_custom_climate_preset(MideaPreset preset) {
   return Constants::FREEZE_PROTECTION;
 }
 
-MideaPreset Converters::to_custom_midea_preset(const std::string &preset) {
+MideaPreset Converters::to_midea_preset(const std::string &preset) {
   return MideaPreset::PRESET_FREEZE_PROTECTION;
 }
 

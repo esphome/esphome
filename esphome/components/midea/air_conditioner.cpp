@@ -60,11 +60,11 @@ void AirConditioner::control(const ClimateCall &call) {
   if (call.get_preset().has_value())
     ctrl.preset = Converters::to_midea_preset(call.get_preset().value());
   else if (call.get_custom_preset().has_value())
-    ctrl.preset = Converters::to_custom_midea_preset(call.get_custom_preset().value());
+    ctrl.preset = Converters::to_midea_preset(call.get_custom_preset().value());
   if (call.get_fan_mode().has_value())
     ctrl.fanMode = Converters::to_midea_fan_mode(call.get_fan_mode().value());
   else if (call.get_custom_fan_mode().has_value())
-    ctrl.fanMode = Converters::to_custom_midea_fan_mode(call.get_custom_fan_mode().value());
+    ctrl.fanMode = Converters::to_midea_fan_mode(call.get_custom_fan_mode().value());
   this->base_.control(ctrl);
 }
 
