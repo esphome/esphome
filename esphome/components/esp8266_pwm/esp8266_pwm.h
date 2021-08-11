@@ -1,5 +1,7 @@
 #pragma once
 
+#ifdef ARDUINO_ARCH_ESP8266
+
 #include "esphome/core/component.h"
 #include "esphome/core/esphal.h"
 #include "esphome/core/automation.h"
@@ -48,3 +50,5 @@ template<typename... Ts> class SetFrequencyAction : public Action<Ts...> {
 
 }  // namespace esp8266_pwm
 }  // namespace esphome
+
+#endif

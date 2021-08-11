@@ -135,7 +135,7 @@ void Anova::update() {
   if (this->current_request_ < 2) {
     auto pkt = this->codec_->get_read_device_status_request();
     if (this->current_request_ == 0)
-      auto pkt = this->codec_->get_set_unit_request(this->fahrenheit_ ? 'f' : 'c');
+      this->codec_->get_set_unit_request(this->fahrenheit_ ? 'f' : 'c');
     auto status = esp_ble_gattc_write_char(this->parent_->gattc_if, this->parent_->conn_id, this->char_handle_,
                                            pkt->length, pkt->data, ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE);
     if (status)

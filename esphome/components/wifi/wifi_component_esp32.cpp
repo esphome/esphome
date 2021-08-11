@@ -24,7 +24,7 @@ namespace wifi {
 static const char *const TAG = "wifi_esp32";
 
 bool WiFiComponent::wifi_mode_(optional<bool> sta, optional<bool> ap) {
-  uint8_t current_mode = WiFi.getMode();
+  uint8_t current_mode = WiFiClass::getMode();
   bool current_sta = current_mode & 0b01;
   bool current_ap = current_mode & 0b10;
   bool enable_sta = sta.value_or(current_sta);
@@ -48,7 +48,7 @@ bool WiFiComponent::wifi_mode_(optional<bool> sta, optional<bool> ap) {
     mode |= 0b01;
   if (enable_ap)
     mode |= 0b10;
-  bool ret = WiFi.mode(static_cast<wifi_mode_t>(mode));
+  bool ret = WiFiClass::mode(static_cast<wifi_mode_t>(mode));
 
   if (!ret) {
     ESP_LOGW(TAG, "Setting WiFi mode failed!");
@@ -553,7 +553,7 @@ void WiFiComponent::wifi_pre_setup_() {
   // Make sure WiFi is in clean state before anything starts
   this->wifi_mode_(false, false);
 }
-wl_status_t WiFiComponent::wifi_sta_status_() { return WiFi.status(); }
+wl_status_t WiFiComponent::wifi_sta_status_() { return WiFiClass::status(); }
 bool WiFiComponent::wifi_scan_start_() {
   // enable STA
   if (!this->wifi_mode_(true, {}))

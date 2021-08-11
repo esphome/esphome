@@ -1,3 +1,5 @@
+#ifdef ARDUINO_ARCH_ESP8266
+
 #include "esp8266_pwm.h"
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
@@ -54,3 +56,5 @@ void HOT ESP8266PWM::write_state(float state) {
 
 }  // namespace esp8266_pwm
 }  // namespace esphome
+
+#endif

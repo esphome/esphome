@@ -16,7 +16,7 @@
 
 // Defined in WiFiGeneric.cpp, sets global initialized flag, starts network event task queue and calls
 // tcpip_adapter_init()
-extern void tcpipInit();
+extern void tcpipInit();  // NOLINT(readability-identifier-naming)
 
 namespace esphome {
 namespace ethernet {
