@@ -1,6 +1,7 @@
 
 #include "nextion.h"
 #include "esphome/core/application.h"
+#include "esphome/core/macros.h"
 #include "esphome/core/util.h"
 #include "esphome/core/log.h"
 
@@ -30,11 +31,15 @@ int Nextion::upload_by_chunks_(HTTPClient *http, int range_start) {
   begin_status = http->begin(this->tft_url_.c_str());
 #endif
 #ifdef ARDUINO_ARCH_ESP8266
-#ifndef CLANG_TIDY
+#if ARDUINO_VERSION_CODE >= VERSION_CODE(2, 7, 0)
   http->setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
-  http->setRedirectLimit(3);
-  begin_status = http->begin(*this->get_wifi_client_(), this->tft_url_.c_str());
+#elif ARDUINO_VERSION_CODE >= VERSION_CODE(2, 6, 0)
+  http->setFollowRedirects(true);
 #endif
+#if ARDUINO_VERSION_CODE >= VERSION_CODE(2, 6, 0)
+  http->setRedirectLimit(3);
+#endif
+  begin_status = http->begin(*this->get_wifi_client_(), this->tft_url_.c_str());
 #endif
 
   char range_header[64];
@@ -144,11 +149,15 @@ void Nextion::upload_tft() {
   begin_status = http.begin(this->tft_url_.c_str());
 #endif
 #ifdef ARDUINO_ARCH_ESP8266
-#ifndef CLANG_TIDY
+#if ARDUINO_VERSION_CODE >= VERSION_CODE(2, 7, 0)
   http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
-  http.setRedirectLimit(3);
-  begin_status = http.begin(*this->get_wifi_client_(), this->tft_url_.c_str());
+#elif ARDUINO_VERSION_CODE >= VERSION_CODE(2, 6, 0)
+  http.setFollowRedirects(true);
 #endif
+#if ARDUINO_VERSION_CODE >= VERSION_CODE(2, 6, 0)
+  http.setRedirectLimit(3);
+#endif
+  begin_status = http.begin(*this->get_wifi_client_(), this->tft_url_.c_str());
 #endif
 
   if (!begin_status) {
