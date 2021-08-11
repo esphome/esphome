@@ -1,16 +1,16 @@
 #pragma once
 #include "esphome/core/automation.h"
-#include "midea_climate.h"
+#include "esphome/components/midea/air_conditioner.h"
 
 namespace esphome {
-namespace midea_ac {
+namespace midea {
 
 template<typename... Ts> class MideaActionBase : public Action<Ts...> {
  public:
-  void set_parent(MideaAC *parent) { this->parent_ = parent; }
+  void set_parent(AirConditioner *parent) { this->parent_ = parent; }
 
  protected:
-  MideaAC *parent_;
+  AirConditioner *parent_;
 };
 
 template<typename... Ts> class FollowMeAction : public MideaActionBase<Ts...> {
@@ -42,5 +42,5 @@ template<typename... Ts> class BeeperOffAction : public MideaActionBase<Ts...> {
   void play(Ts... x) override { this->parent_->do_beeper_off(); }
 };
 
-}  // namespace midea_ac
+}  // namespace midea
 }  // namespace esphome

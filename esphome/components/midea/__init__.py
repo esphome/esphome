@@ -41,4 +41,4 @@ async def to_code(config):
         cg.add_define("USE_REMOTE_TRANSMITTER")
         transmitter_ = await cg.get_variable(config[CONF_TRANSMITTER_ID])
         cg.add(var.set_transmitter(transmitter_))
-    cg.add_library("midea-uart-control", "1.0.0", "file://../midea-uart-control")
+    cg.add_library("MideaControl", "1.0.0", "file://../MideaControl")
