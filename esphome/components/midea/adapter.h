@@ -14,23 +14,20 @@ class Constants {
 
 class Converters {
  public:
-  static MideaMode from_mode(ClimateMode mode);
-  static ClimateMode to_mode(MideaMode mode);
-
-  static MideaSwingMode from_swing_mode(ClimateSwingMode mode);
-  static ClimateSwingMode to_swing_mode(MideaSwingMode mode);
-
-  static MideaPreset from_preset(ClimatePreset preset);
-  static MideaPreset from_custom_preset(const std::string &preset);
-  static bool is_custom_preset(MideaPreset preset);
-  static ClimatePreset to_preset(MideaPreset preset);
-  static const std::string &to_custom_preset(MideaPreset preset);
-
-  static MideaFanMode from_fan_mode(ClimateFanMode fan_mode);
-  static MideaFanMode from_custom_fan_mode(const std::string &fan_mode);
-  static bool is_custom_fan_mode(MideaFanMode fan_mode);
-  static ClimateFanMode to_fan_mode(MideaFanMode fan_mode);
-  static const std::string &to_custom_fan_mode(MideaFanMode fan_mode);
+  static MideaMode to_midea_mode(ClimateMode mode);
+  static ClimateMode to_climate_mode(MideaMode mode);
+  static MideaSwingMode to_midea_swing_mode(ClimateSwingMode mode);
+  static ClimateSwingMode to_climate_swing_mode(MideaSwingMode mode);
+  static MideaPreset to_midea_preset(ClimatePreset preset);
+  static MideaPreset to_custom_midea_preset(const std::string &preset);
+  static bool is_custom_midea_preset(MideaPreset preset);
+  static ClimatePreset to_climate_preset(MideaPreset preset);
+  static const std::string &to_custom_climate_preset(MideaPreset preset);
+  static MideaFanMode to_midea_fan_mode(ClimateFanMode fan_mode);
+  static MideaFanMode to_custom_midea_fan_mode(const std::string &fan_mode);
+  static bool is_custom_midea_fan_mode(MideaFanMode fan_mode);
+  static ClimateFanMode to_climate_fan_mode(MideaFanMode fan_mode);
+  static const std::string &to_custom_climate_fan_mode(MideaFanMode fan_mode);
 };
 
 }  // namespace midea_ac

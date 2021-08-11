@@ -22,24 +22,24 @@ void AirConditioner::on_status_change() {
   bool need_publish = false;
   update_property(this->target_temperature, this->base_.getTargetTemp(), need_publish);
   update_property(this->current_temperature, this->base_.getIndoorTemp(), need_publish);
-  auto mode = Converters::to_mode(this->base_.getMode());
+  auto mode = Converters::to_climate_mode(this->base_.getMode());
   update_property(this->mode, mode, need_publish);
-  auto swing_mode = Converters::to_swing_mode(this->base_.getSwingMode());
+  auto swing_mode = Converters::to_climate_swing_mode(this->base_.getSwingMode());
   update_property(this->swing_mode, swing_mode, need_publish);
   // Preset
   auto preset = this->base_.getPreset();
-  if (Converters::is_custom_preset(preset)) {
-    if (this->set_custom_preset_(Converters::to_custom_preset(preset)))
+  if (Converters::is_custom_midea_preset(preset)) {
+    if (this->set_custom_preset_(Converters::to_custom_climate_preset(preset)))
       need_publish = true;
-  } else if (this->set_preset_(Converters::to_preset(preset))) {
+  } else if (this->set_preset_(Converters::to_climate_preset(preset))) {
     need_publish = true;
   }
   // Fan mode
   auto fan_mode = this->base_.getFanMode();
-  if (Converters::is_custom_fan_mode(fan_mode)) {
-    if (this->set_custom_fan_mode_(Converters::to_custom_fan_mode(fan_mode)))
+  if (Converters::is_custom_midea_fan_mode(fan_mode)) {
+    if (this->set_custom_fan_mode_(Converters::to_custom_climate_fan_mode(fan_mode)))
       need_publish = true;
-  } else if (this->set_fan_mode_(Converters::to_fan_mode(fan_mode))) {
+  } else if (this->set_fan_mode_(Converters::to_climate_fan_mode(fan_mode))) {
     need_publish = true;
   }
   if (need_publish)
@@ -53,7 +53,7 @@ void AirConditioner::control(const ClimateCall &call) {
   dudanov::midea::ac::Control ctrl{};
   bool update = false;
   if (call.get_mode().has_value() && call.get_mode().value() != this->mode) {
-    ctrl.mode = Converters::from_mode(call.get_mode().value());
+    ctrl.mode = Converters::to_midea_mode(call.get_mode().value());
     update = true;
   }
   if (call.get_target_temperature().has_value() && call.get_target_temperature().value() != this->target_temperature) {
@@ -63,29 +63,29 @@ void AirConditioner::control(const ClimateCall &call) {
   if (call.get_fan_mode().has_value() &&
       (!this->fan_mode.has_value() || this->fan_mode.value() != call.get_fan_mode().value())) {
     this->custom_fan_mode.reset();
-    ctrl.fanMode = Converters::from_fan_mode(call.get_fan_mode().value());
+    ctrl.fanMode = Converters::to_midea_fan_mode(call.get_fan_mode().value());
     update = true;
   }
   if (call.get_custom_fan_mode().has_value() &&
       (!this->custom_fan_mode.has_value() || this->custom_fan_mode.value() != call.get_custom_fan_mode().value())) {
     this->fan_mode.reset();
-    ctrl.fanMode = Converters::from_custom_fan_mode(call.get_custom_fan_mode().value());
+    ctrl.fanMode = Converters::to_custom_midea_fan_mode(call.get_custom_fan_mode().value());
     update = true;
   }
   if (call.get_swing_mode().has_value() && call.get_swing_mode().value() != this->swing_mode) {
-    ctrl.swingMode = Converters::from_swing_mode(call.get_swing_mode().value());
+    ctrl.swingMode = Converters::to_midea_swing_mode(call.get_swing_mode().value());
     update = true;
   }
   if (call.get_preset().has_value() &&
       (!this->preset.has_value() || this->preset.value() != call.get_preset().value())) {
     this->custom_preset.reset();
-    ctrl.preset = Converters::from_preset(call.get_preset().value());
+    ctrl.preset = Converters::to_midea_preset(call.get_preset().value());
     update = true;
   }
   if (call.get_custom_preset().has_value() &&
       (!this->custom_preset.has_value() || this->custom_preset.value() != call.get_custom_preset().value())) {
     this->preset.reset();
-    ctrl.preset = Converters::from_custom_preset(call.get_custom_preset().value());
+    ctrl.preset = Converters::to_custom_midea_preset(call.get_custom_preset().value());
     update = true;
   }
   if (update)

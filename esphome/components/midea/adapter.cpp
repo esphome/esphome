@@ -9,7 +9,7 @@ const std::string Constants::FREEZE_PROTECTION = "freeze protection";
 const std::string Constants::SILENT = "silent";
 const std::string Constants::TURBO = "turbo";
 
-ClimateMode Converters::to_mode(MideaMode mode) {
+ClimateMode Converters::to_climate_mode(MideaMode mode) {
   switch (mode) {
   case MideaMode::MODE_AUTO:
     return ClimateMode::CLIMATE_MODE_HEAT_COOL;
@@ -26,7 +26,7 @@ ClimateMode Converters::to_mode(MideaMode mode) {
   }
 }
 
-MideaMode Converters::from_mode(ClimateMode mode) {
+MideaMode Converters::to_midea_mode(ClimateMode mode) {
   switch (mode) {
   case ClimateMode::CLIMATE_MODE_HEAT_COOL:
     return MideaMode::MODE_AUTO;
@@ -43,7 +43,7 @@ MideaMode Converters::from_mode(ClimateMode mode) {
   }
 }
 
-ClimateSwingMode Converters::to_swing_mode(MideaSwingMode mode) {
+ClimateSwingMode Converters::to_climate_swing_mode(MideaSwingMode mode) {
   switch (mode) {
   case MideaSwingMode::SWING_VERTICAL:
     return ClimateSwingMode::CLIMATE_SWING_VERTICAL;
@@ -56,7 +56,7 @@ ClimateSwingMode Converters::to_swing_mode(MideaSwingMode mode) {
   }
 }
 
-MideaSwingMode Converters::from_swing_mode(ClimateSwingMode mode) {
+MideaSwingMode Converters::to_midea_swing_mode(ClimateSwingMode mode) {
   switch (mode) {
   case ClimateSwingMode::CLIMATE_SWING_VERTICAL:
     return MideaSwingMode::SWING_VERTICAL;
@@ -69,7 +69,7 @@ MideaSwingMode Converters::from_swing_mode(ClimateSwingMode mode) {
   }
 }
 
-MideaFanMode Converters::from_fan_mode(ClimateFanMode mode) {
+MideaFanMode Converters::to_midea_fan_mode(ClimateFanMode mode) {
   switch (mode) {
   case ClimateFanMode::CLIMATE_FAN_LOW:
     return MideaFanMode::FAN_LOW;
@@ -82,7 +82,7 @@ MideaFanMode Converters::from_fan_mode(ClimateFanMode mode) {
   }
 }
 
-ClimateFanMode Converters::to_fan_mode(MideaFanMode mode) {
+ClimateFanMode Converters::to_climate_fan_mode(MideaFanMode mode) {
   switch (mode) {
   case MideaFanMode::FAN_LOW:
     return ClimateFanMode::CLIMATE_FAN_LOW;
@@ -95,7 +95,7 @@ ClimateFanMode Converters::to_fan_mode(MideaFanMode mode) {
   }
 }
 
-bool Converters::is_custom_fan_mode(MideaFanMode mode) {
+bool Converters::is_custom_midea_fan_mode(MideaFanMode mode) {
   switch (mode) {
   case MideaFanMode::FAN_SILENT:
   case MideaFanMode::FAN_TURBO:
@@ -105,7 +105,7 @@ bool Converters::is_custom_fan_mode(MideaFanMode mode) {
   }
 }
 
-const std::string &Converters::to_custom_fan_mode(MideaFanMode mode) {
+const std::string &Converters::to_custom_climate_fan_mode(MideaFanMode mode) {
   switch (mode) {
   case MideaFanMode::FAN_SILENT:
     return Constants::SILENT;
@@ -114,13 +114,13 @@ const std::string &Converters::to_custom_fan_mode(MideaFanMode mode) {
   }
 }
 
-MideaFanMode Converters::from_custom_fan_mode(const std::string &mode) {
+MideaFanMode Converters::to_custom_midea_fan_mode(const std::string &mode) {
   if (mode == Constants::SILENT)
     return MideaFanMode::FAN_SILENT;
   return MideaFanMode::FAN_TURBO;
 }
 
-MideaPreset Converters::from_preset(ClimatePreset mode) {
+MideaPreset Converters::to_midea_preset(ClimatePreset mode) {
   switch (mode) {
   case ClimatePreset::CLIMATE_PRESET_SLEEP:
     return MideaPreset::PRESET_SLEEP;
@@ -133,7 +133,7 @@ MideaPreset Converters::from_preset(ClimatePreset mode) {
   }
 }
 
-ClimatePreset Converters::to_preset(MideaPreset mode) {
+ClimatePreset Converters::to_climate_preset(MideaPreset mode) {
   switch (mode) {
   case MideaPreset::PRESET_SLEEP:
     return ClimatePreset::CLIMATE_PRESET_SLEEP;
@@ -146,15 +146,15 @@ ClimatePreset Converters::to_preset(MideaPreset mode) {
   }
 }
 
-bool Converters::is_custom_preset(MideaPreset preset) {
+bool Converters::is_custom_midea_preset(MideaPreset preset) {
   return preset == MideaPreset::PRESET_FREEZE_PROTECTION;
 }
 
-const std::string &Converters::to_custom_preset(MideaPreset preset) {
+const std::string &Converters::to_custom_climate_preset(MideaPreset preset) {
   return Constants::FREEZE_PROTECTION;
 }
 
-MideaPreset Converters::from_custom_preset(const std::string &preset) {
+MideaPreset Converters::to_custom_midea_preset(const std::string &preset) {
   return MideaPreset::PRESET_FREEZE_PROTECTION;
 }
 
