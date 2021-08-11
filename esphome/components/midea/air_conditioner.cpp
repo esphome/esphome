@@ -1,5 +1,5 @@
 #include "esphome/core/log.h"
-#include "air_conditioner.h"
+#include "esphome/components/midea/air_conditioner.h"
 #include "esphome/components/midea/adapter.h"
 
 namespace esphome {
@@ -21,6 +21,7 @@ void update_property(T &property, const T &value, bool &flag) {
 void AirConditioner::on_status_change() {
   bool need_publish = false;
   update_property(this->target_temperature, this->base_.getTargetTemp(), need_publish);
+  update_property(this->current_temperature, this->base_.getIndoorTemp(), need_publish);
   auto mode = Converters::to_mode(this->base_.getMode());
   update_property(this->mode, mode, need_publish);
   auto swing_mode = Converters::to_swing_mode(this->base_.getSwingMode());
