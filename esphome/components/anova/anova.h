@@ -36,12 +36,14 @@ class Anova : public climate::Climate, public esphome::ble_client::BLEClientNode
     traits.set_visual_temperature_step(0.1);
     return traits;
   }
+  void set_unit_of_measurement(const char *);
 
  protected:
   AnovaCodec *codec_;
   void control(const climate::ClimateCall &call) override;
   uint16_t char_handle_;
   uint8_t current_request_;
+  bool fahrenheit_;
 };
 
 }  // namespace anova

@@ -9,7 +9,7 @@
 #include <eth_phy/phy_tlk110.h>
 #include <lwip/dns.h>
 
-/// Macro for IDF version comparision
+/// Macro for IDF version comparison
 #ifndef ESP_IDF_VERSION_VAL
 #define ESP_IDF_VERSION_VAL(major, minor, patch) (((major) << 16) | ((minor) << 8) | (patch))
 #endif
@@ -102,8 +102,6 @@ void EthernetComponent::loop() {
 
         this->dump_connect_params_();
         this->status_clear_warning();
-
-        network_tick_mdns();
       } else if (now - this->connect_begin_ > 15000) {
         ESP_LOGW(TAG, "Connecting via ethernet failed! Re-connecting...");
         this->start_connect_();
@@ -120,6 +118,8 @@ void EthernetComponent::loop() {
       }
       break;
   }
+
+  network_tick_mdns();
 }
 void EthernetComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "Ethernet:");

@@ -275,8 +275,8 @@ void Nextion::upload_tft() {
     } else {
 #endif
       ESP_LOGD(TAG, "Allocating buffer size %d, Heap size is %u", chunk_size, ESP.getFreeHeap());
-      this->transfer_buffer_ = new uint8_t[chunk_size];
-      if (!this->transfer_buffer_) {  // Try a smaller size
+      this->transfer_buffer_ = new (std::nothrow) uint8_t[chunk_size];
+      if (this->transfer_buffer_ == nullptr) {  // Try a smaller size
         ESP_LOGD(TAG, "Could not allocate buffer size: %d trying 4096 instead", chunk_size);
         chunk_size = 4096;
         ESP_LOGD(TAG, "Allocating %d buffer", chunk_size);
@@ -305,7 +305,7 @@ void Nextion::upload_tft() {
     App.feed_wdt();
     ESP_LOGD(TAG, "Heap Size %d, Bytes left %d", ESP.getFreeHeap(), this->content_length_);
   }
-  ESP_LOGD(TAG, "Succesfully updated Nextion!");
+  ESP_LOGD(TAG, "Successfully updated Nextion!");
 
   this->upload_end_();
 }

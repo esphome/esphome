@@ -14,6 +14,8 @@ esphome/core/* @esphome/core
 esphome/components/ac_dimmer/* @glmnet
 esphome/components/adc/* @esphome/core
 esphome/components/addressable_light/* @justfalter
+esphome/components/am43/* @buxtronix
+esphome/components/am43/cover/* @buxtronix
 esphome/components/animation/* @syndlex
 esphome/components/anova/* @buxtronix
 esphome/components/api/* @OttoWinter
@@ -29,6 +31,7 @@ esphome/components/canbus/* @danielschramm @mvturnho
 esphome/components/captive_portal/* @OttoWinter
 esphome/components/climate/* @esphome/core
 esphome/components/climate_ir/* @glmnet
+esphome/components/color_temperature/* @jesserockz
 esphome/components/coolix/* @glmnet
 esphome/components/cover/* @esphome/core
 esphome/components/cs5460a/* @balrog-kun
@@ -37,6 +40,7 @@ esphome/components/debug/* @OttoWinter
 esphome/components/dfplayer/* @glmnet
 esphome/components/dht/* @OttoWinter
 esphome/components/ds1307/* @badbadc0ffee
+esphome/components/dsmr/* @glmnet @zuidwijk
 esphome/components/esp32_ble/* @jesserockz
 esphome/components/esp32_ble_server/* @jesserockz
 esphome/components/esp32_improv/* @jesserockz
@@ -48,7 +52,9 @@ esphome/components/globals/* @esphome/core
 esphome/components/gpio/* @esphome/core
 esphome/components/gps/* @coogle
 esphome/components/havells_solar/* @sourabhjaiswal
+esphome/components/hitachi_ac424/* @sourabhjaiswal
 esphome/components/homeassistant/* @OttoWinter
+esphome/components/hrxl_maxsonar_wr/* @netmikey
 esphome/components/i2c/* @esphome/core
 esphome/components/improv/* @jesserockz
 esphome/components/inkbird_ibsth1_mini/* @fkirill
@@ -83,19 +89,26 @@ esphome/components/number/* @esphome/core
 esphome/components/ota/* @esphome/core
 esphome/components/output/* @esphome/core
 esphome/components/pid/* @OttoWinter
+esphome/components/pipsolar/* @andreashergert1984
+esphome/components/pmsa003i/* @sjtrny
 esphome/components/pn532/* @OttoWinter @jesserockz
 esphome/components/pn532_i2c/* @OttoWinter @jesserockz
 esphome/components/pn532_spi/* @OttoWinter @jesserockz
 esphome/components/power_supply/* @esphome/core
 esphome/components/pulse_meter/* @stevebaxter
+esphome/components/pvvx_mithermometer/* @pasiz
 esphome/components/rc522/* @glmnet
 esphome/components/rc522_i2c/* @glmnet
 esphome/components/rc522_spi/* @glmnet
 esphome/components/restart/* @esphome/core
 esphome/components/rf_bridge/* @jesserockz
+esphome/components/rgbct/* @jesserockz
 esphome/components/rtttl/* @glmnet
 esphome/components/script/* @esphome/core
 esphome/components/sdm_meter/* @jesserockz @polyfaces
+esphome/components/sdp3x/* @Azimath
+esphome/components/selec_meter/* @sourabhjaiswal
+esphome/components/select/* @esphome/core
 esphome/components/sensor/* @esphome/core
 esphome/components/sgp40/* @SenexCrenshaw
 esphome/components/sht4x/* @sjtrny
@@ -119,14 +132,19 @@ esphome/components/st7789v/* @kbx81
 esphome/components/substitutions/* @esphome/core
 esphome/components/sun/* @OttoWinter
 esphome/components/switch/* @esphome/core
+esphome/components/t6615/* @tylermenezes
 esphome/components/tca9548a/* @andreashergert1984
 esphome/components/tcl112/* @glmnet
 esphome/components/teleinfo/* @0hax
 esphome/components/thermostat/* @kbx81
 esphome/components/time/* @OttoWinter
+esphome/components/tlc5947/* @rnauber
 esphome/components/tm1637/* @glmnet
 esphome/components/tmp102/* @timsavage
+esphome/components/tmp117/* @Azimath
 esphome/components/tof10120/* @wstrzalka
+esphome/components/toshiba/* @kbx81
+esphome/components/tsl2591/* @wjcarpenter
 esphome/components/tuya/binary_sensor/* @jesserockz
 esphome/components/tuya/climate/* @jesserockz
 esphome/components/tuya/sensor/* @jesserockz
