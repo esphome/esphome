@@ -62,12 +62,50 @@ template<> const char *proto_enum_to_string<enums::FanDirection>(enums::FanDirec
       return "UNKNOWN";
   }
 }
+template<> const char *proto_enum_to_string<enums::ColorMode>(enums::ColorMode value) {
+  switch (value) {
+    case enums::COLOR_MODE_UNKNOWN:
+      return "COLOR_MODE_UNKNOWN";
+    case enums::COLOR_MODE_ON_OFF:
+      return "COLOR_MODE_ON_OFF";
+    case enums::COLOR_MODE_BRIGHTNESS:
+      return "COLOR_MODE_BRIGHTNESS";
+    case enums::COLOR_MODE_WHITE:
+      return "COLOR_MODE_WHITE";
+    case enums::COLOR_MODE_COLOR_TEMPERATURE:
+      return "COLOR_MODE_COLOR_TEMPERATURE";
+    case enums::COLOR_MODE_COLD_WARM_WHITE:
+      return "COLOR_MODE_COLD_WARM_WHITE";
+    case enums::COLOR_MODE_RGB:
+      return "COLOR_MODE_RGB";
+    case enums::COLOR_MODE_RGB_WHITE:
+      return "COLOR_MODE_RGB_WHITE";
+    case enums::COLOR_MODE_RGB_COLOR_TEMPERATURE:
+      return "COLOR_MODE_RGB_COLOR_TEMPERATURE";
+    case enums::COLOR_MODE_RGB_COLD_WARM_WHITE:
+      return "COLOR_MODE_RGB_COLD_WARM_WHITE";
+    default:
+      return "UNKNOWN";
+  }
+}
 template<> const char *proto_enum_to_string<enums::SensorStateClass>(enums::SensorStateClass value) {
   switch (value) {
     case enums::STATE_CLASS_NONE:
       return "STATE_CLASS_NONE";
     case enums::STATE_CLASS_MEASUREMENT:
       return "STATE_CLASS_MEASUREMENT";
+    default:
+      return "UNKNOWN";
+  }
+}
+template<> const char *proto_enum_to_string<enums::SensorLastResetType>(enums::SensorLastResetType value) {
+  switch (value) {
+    case enums::LAST_RESET_NONE:
+      return "LAST_RESET_NONE";
+    case enums::LAST_RESET_NEVER:
+      return "LAST_RESET_NEVER";
+    case enums::LAST_RESET_AUTO:
+      return "LAST_RESET_AUTO";
     default:
       return "UNKNOWN";
   }
@@ -223,6 +261,7 @@ bool HelloRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) 
   }
 }
 void HelloRequest::encode(ProtoWriteBuffer buffer) const { buffer.encode_string(1, this->client_info); }
+#ifdef HAS_PROTO_MESSAGE_DUMP
 void HelloRequest::dump_to(std::string &out) const {
   char buffer[64];
   out.append("HelloRequest {\n");
@@ -231,6 +270,7 @@ void HelloRequest::dump_to(std::string &out) const {
   out.append("\n");
   out.append("}");
 }
+#endif
 bool HelloResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {
     case 1: {
@@ -260,6 +300,7 @@ void HelloResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_uint32(2, this->api_version_minor);
   buffer.encode_string(3, this->server_info);
 }
+#ifdef HAS_PROTO_MESSAGE_DUMP
 void HelloResponse::dump_to(std::string &out) const {
   char buffer[64];
   out.append("HelloResponse {\n");
@@ -278,6 +319,7 @@ void HelloResponse::dump_to(std::string &out) const {
   out.append("\n");
   out.append("}");
 }
+#endif
 bool ConnectRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
     case 1: {
@@ -289,6 +331,7 @@ bool ConnectRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value
   }
 }
 void ConnectRequest::encode(ProtoWriteBuffer buffer) const { buffer.encode_string(1, this->password); }
+#ifdef HAS_PROTO_MESSAGE_DUMP
 void ConnectRequest::dump_to(std::string &out) const {
   char buffer[64];
   out.append("ConnectRequest {\n");
@@ -297,6 +340,7 @@ void ConnectRequest::dump_to(std::string &out) const {
   out.append("\n");
   out.append("}");
 }
+#endif
 bool ConnectResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {
     case 1: {
@@ -308,6 +352,7 @@ bool ConnectResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
   }
 }
 void ConnectResponse::encode(ProtoWriteBuffer buffer) const { buffer.encode_bool(1, this->invalid_password); }
+#ifdef HAS_PROTO_MESSAGE_DUMP
 void ConnectResponse::dump_to(std::string &out) const {
   char buffer[64];
   out.append("ConnectResponse {\n");
@@ -316,16 +361,27 @@ void ConnectResponse::dump_to(std::string &out) const {
   out.append("\n");
   out.append("}");
 }
+#endif
 void DisconnectRequest::encode(ProtoWriteBuffer buffer) const {}
+#ifdef HAS_PROTO_MESSAGE_DUMP
 void DisconnectRequest::dump_to(std::string &out) const { out.append("DisconnectRequest {}"); }
+#endif
 void DisconnectResponse::encode(ProtoWriteBuffer buffer) const {}
+#ifdef HAS_PROTO_MESSAGE_DUMP
 void DisconnectResponse::dump_to(std::string &out) const { out.append("DisconnectResponse {}"); }
+#endif
 void PingRequest::encode(ProtoWriteBuffer buffer) const {}
+#ifdef HAS_PROTO_MESSAGE_DUMP
 void PingRequest::dump_to(std::string &out) const { out.append("PingRequest {}"); }
+#endif
 void PingResponse::encode(ProtoWriteBuffer buffer) const {}
+#ifdef HAS_PROTO_MESSAGE_DUMP
 void PingResponse::dump_to(std::string &out) const { out.append("PingResponse {}"); }
+#endif
 void DeviceInfoRequest::encode(ProtoWriteBuffer buffer) const {}
+#ifdef HAS_PROTO_MESSAGE_DUMP
 void DeviceInfoRequest::dump_to(std::string &out) const { out.append("DeviceInfoRequest {}"); }
+#endif
 bool DeviceInfoResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {
     case 1: {
@@ -385,6 +441,7 @@ void DeviceInfoResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(8, this->project_name);
   buffer.encode_string(9, this->project_version);
 }
+#ifdef HAS_PROTO_MESSAGE_DUMP
 void DeviceInfoResponse::dump_to(std::string &out) const {
   char buffer[64];
   out.append("DeviceInfoResponse {\n");
@@ -425,16 +482,27 @@ void DeviceInfoResponse::dump_to(std::string &out) const {
   out.append("\n");
   out.append("}");
 }
+#endif
 void ListEntitiesRequest::encode(ProtoWriteBuffer buffer) const {}
+#ifdef HAS_PROTO_MESSAGE_DUMP
 void ListEntitiesRequest::dump_to(std::string &out) const { out.append("ListEntitiesRequest {}"); }
+#endif
 void ListEntitiesDoneResponse::encode(ProtoWriteBuffer buffer) const {}
+#ifdef HAS_PROTO_MESSAGE_DUMP
 void ListEntitiesDoneResponse::dump_to(std::string &out) const { out.append("ListEntitiesDoneResponse {}"); }
+#endif
 void SubscribeStatesRequest::encode(ProtoWriteBuffer buffer) const {}
+#ifdef HAS_PROTO_MESSAGE_DUMP
 void SubscribeStatesRequest::dump_to(std::string &out) const { out.append("SubscribeStatesRequest {}"); }
+#endif
 bool ListEntitiesBinarySensorResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {
     case 6: {
       this->is_status_binary_sensor = value.as_bool();
+      return true;
+    }
+    case 7: {
+      this->disabled_by_default = value.as_bool();
       return true;
     }
     default:
@@ -480,7 +548,9 @@ void ListEntitiesBinarySensorResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(4, this->unique_id);
   buffer.encode_string(5, this->device_class);
   buffer.encode_bool(6, this->is_status_binary_sensor);
+  buffer.encode_bool(7, this->disabled_by_default);
 }
+#ifdef HAS_PROTO_MESSAGE_DUMP
 void ListEntitiesBinarySensorResponse::dump_to(std::string &out) const {
   char buffer[64];
   out.append("ListEntitiesBinarySensorResponse {\n");
@@ -508,8 +578,13 @@ void ListEntitiesBinarySensorResponse::dump_to(std::string &out) const {
   out.append("  is_status_binary_sensor: ");
   out.append(YESNO(this->is_status_binary_sensor));
   out.append("\n");
+
+  out.append("  disabled_by_default: ");
+  out.append(YESNO(this->disabled_by_default));
+  out.append("\n");
   out.append("}");
 }
+#endif
 bool BinarySensorStateResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {
     case 2: {
@@ -539,6 +614,7 @@ void BinarySensorStateResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_bool(2, this->state);
   buffer.encode_bool(3, this->missing_state);
 }
+#ifdef HAS_PROTO_MESSAGE_DUMP
 void BinarySensorStateResponse::dump_to(std::string &out) const {
   char buffer[64];
   out.append("BinarySensorStateResponse {\n");
@@ -556,6 +632,7 @@ void BinarySensorStateResponse::dump_to(std::string &out) const {
   out.append("\n");
   out.append("}");
 }
+#endif
 bool ListEntitiesCoverResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {
     case 5: {
@@ -568,6 +645,10 @@ bool ListEntitiesCoverResponse::decode_varint(uint32_t field_id, ProtoVarInt val
     }
     case 7: {
       this->supports_tilt = value.as_bool();
+      return true;
+    }
+    case 9: {
+      this->disabled_by_default = value.as_bool();
       return true;
     }
     default:
@@ -615,7 +696,9 @@ void ListEntitiesCoverResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_bool(6, this->supports_position);
   buffer.encode_bool(7, this->supports_tilt);
   buffer.encode_string(8, this->device_class);
+  buffer.encode_bool(9, this->disabled_by_default);
 }
+#ifdef HAS_PROTO_MESSAGE_DUMP
 void ListEntitiesCoverResponse::dump_to(std::string &out) const {
   char buffer[64];
   out.append("ListEntitiesCoverResponse {\n");
@@ -651,8 +734,13 @@ void ListEntitiesCoverResponse::dump_to(std::string &out) const {
   out.append("  device_class: ");
   out.append("'").append(this->device_class).append("'");
   out.append("\n");
+
+  out.append("  disabled_by_default: ");
+  out.append(YESNO(this->disabled_by_default));
+  out.append("\n");
   out.append("}");
 }
+#endif
 bool CoverStateResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {
     case 2: {
@@ -692,6 +780,7 @@ void CoverStateResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_float(4, this->tilt);
   buffer.encode_enum<enums::CoverOperation>(5, this->current_operation);
 }
+#ifdef HAS_PROTO_MESSAGE_DUMP
 void CoverStateResponse::dump_to(std::string &out) const {
   char buffer[64];
   out.append("CoverStateResponse {\n");
@@ -719,6 +808,7 @@ void CoverStateResponse::dump_to(std::string &out) const {
   out.append("\n");
   out.append("}");
 }
+#endif
 bool CoverCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {
     case 2: {
@@ -773,6 +863,7 @@ void CoverCommandRequest::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_float(7, this->tilt);
   buffer.encode_bool(8, this->stop);
 }
+#ifdef HAS_PROTO_MESSAGE_DUMP
 void CoverCommandRequest::dump_to(std::string &out) const {
   char buffer[64];
   out.append("CoverCommandRequest {\n");
@@ -812,6 +903,7 @@ void CoverCommandRequest::dump_to(std::string &out) const {
   out.append("\n");
   out.append("}");
 }
+#endif
 bool ListEntitiesFanResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {
     case 5: {
@@ -828,6 +920,10 @@ bool ListEntitiesFanResponse::decode_varint(uint32_t field_id, ProtoVarInt value
     }
     case 8: {
       this->supported_speed_count = value.as_int32();
+      return true;
+    }
+    case 9: {
+      this->disabled_by_default = value.as_bool();
       return true;
     }
     default:
@@ -871,7 +967,9 @@ void ListEntitiesFanResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_bool(6, this->supports_speed);
   buffer.encode_bool(7, this->supports_direction);
   buffer.encode_int32(8, this->supported_speed_count);
+  buffer.encode_bool(9, this->disabled_by_default);
 }
+#ifdef HAS_PROTO_MESSAGE_DUMP
 void ListEntitiesFanResponse::dump_to(std::string &out) const {
   char buffer[64];
   out.append("ListEntitiesFanResponse {\n");
@@ -908,8 +1006,13 @@ void ListEntitiesFanResponse::dump_to(std::string &out) const {
   sprintf(buffer, "%d", this->supported_speed_count);
   out.append(buffer);
   out.append("\n");
+
+  out.append("  disabled_by_default: ");
+  out.append(YESNO(this->disabled_by_default));
+  out.append("\n");
   out.append("}");
 }
+#endif
 bool FanStateResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {
     case 2: {
@@ -954,6 +1057,7 @@ void FanStateResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_enum<enums::FanDirection>(5, this->direction);
   buffer.encode_int32(6, this->speed_level);
 }
+#ifdef HAS_PROTO_MESSAGE_DUMP
 void FanStateResponse::dump_to(std::string &out) const {
   char buffer[64];
   out.append("FanStateResponse {\n");
@@ -984,6 +1088,7 @@ void FanStateResponse::dump_to(std::string &out) const {
   out.append("\n");
   out.append("}");
 }
+#endif
 bool FanCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {
     case 2: {
@@ -1053,6 +1158,7 @@ void FanCommandRequest::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_bool(10, this->has_speed_level);
   buffer.encode_int32(11, this->speed_level);
 }
+#ifdef HAS_PROTO_MESSAGE_DUMP
 void FanCommandRequest::dump_to(std::string &out) const {
   char buffer[64];
   out.append("FanCommandRequest {\n");
@@ -1103,22 +1209,31 @@ void FanCommandRequest::dump_to(std::string &out) const {
   out.append("\n");
   out.append("}");
 }
+#endif
 bool ListEntitiesLightResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {
+    case 12: {
+      this->supported_color_modes.push_back(value.as_enum<enums::ColorMode>());
+      return true;
+    }
     case 5: {
-      this->supports_brightness = value.as_bool();
+      this->legacy_supports_brightness = value.as_bool();
       return true;
     }
     case 6: {
-      this->supports_rgb = value.as_bool();
+      this->legacy_supports_rgb = value.as_bool();
       return true;
     }
     case 7: {
-      this->supports_white_value = value.as_bool();
+      this->legacy_supports_white_value = value.as_bool();
       return true;
     }
     case 8: {
-      this->supports_color_temperature = value.as_bool();
+      this->legacy_supports_color_temperature = value.as_bool();
+      return true;
+    }
+    case 13: {
+      this->disabled_by_default = value.as_bool();
       return true;
     }
     default:
@@ -1170,16 +1285,21 @@ void ListEntitiesLightResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_fixed32(2, this->key);
   buffer.encode_string(3, this->name);
   buffer.encode_string(4, this->unique_id);
-  buffer.encode_bool(5, this->supports_brightness);
-  buffer.encode_bool(6, this->supports_rgb);
-  buffer.encode_bool(7, this->supports_white_value);
-  buffer.encode_bool(8, this->supports_color_temperature);
+  for (auto &it : this->supported_color_modes) {
+    buffer.encode_enum<enums::ColorMode>(12, it, true);
+  }
+  buffer.encode_bool(5, this->legacy_supports_brightness);
+  buffer.encode_bool(6, this->legacy_supports_rgb);
+  buffer.encode_bool(7, this->legacy_supports_white_value);
+  buffer.encode_bool(8, this->legacy_supports_color_temperature);
   buffer.encode_float(9, this->min_mireds);
   buffer.encode_float(10, this->max_mireds);
   for (auto &it : this->effects) {
     buffer.encode_string(11, it, true);
   }
+  buffer.encode_bool(13, this->disabled_by_default);
 }
+#ifdef HAS_PROTO_MESSAGE_DUMP
 void ListEntitiesLightResponse::dump_to(std::string &out) const {
   char buffer[64];
   out.append("ListEntitiesLightResponse {\n");
@@ -1200,20 +1320,26 @@ void ListEntitiesLightResponse::dump_to(std::string &out) const {
   out.append("'").append(this->unique_id).append("'");
   out.append("\n");
 
-  out.append("  supports_brightness: ");
-  out.append(YESNO(this->supports_brightness));
+  for (const auto &it : this->supported_color_modes) {
+    out.append("  supported_color_modes: ");
+    out.append(proto_enum_to_string<enums::ColorMode>(it));
+    out.append("\n");
+  }
+
+  out.append("  legacy_supports_brightness: ");
+  out.append(YESNO(this->legacy_supports_brightness));
   out.append("\n");
 
-  out.append("  supports_rgb: ");
-  out.append(YESNO(this->supports_rgb));
+  out.append("  legacy_supports_rgb: ");
+  out.append(YESNO(this->legacy_supports_rgb));
   out.append("\n");
 
-  out.append("  supports_white_value: ");
-  out.append(YESNO(this->supports_white_value));
+  out.append("  legacy_supports_white_value: ");
+  out.append(YESNO(this->legacy_supports_white_value));
   out.append("\n");
 
-  out.append("  supports_color_temperature: ");
-  out.append(YESNO(this->supports_color_temperature));
+  out.append("  legacy_supports_color_temperature: ");
+  out.append(YESNO(this->legacy_supports_color_temperature));
   out.append("\n");
 
   out.append("  min_mireds: ");
@@ -1231,12 +1357,21 @@ void ListEntitiesLightResponse::dump_to(std::string &out) const {
     out.append("'").append(it).append("'");
     out.append("\n");
   }
+
+  out.append("  disabled_by_default: ");
+  out.append(YESNO(this->disabled_by_default));
+  out.append("\n");
   out.append("}");
 }
+#endif
 bool LightStateResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {
     case 2: {
       this->state = value.as_bool();
+      return true;
+    }
+    case 11: {
+      this->color_mode = value.as_enum<enums::ColorMode>();
       return true;
     }
     default:
@@ -1287,6 +1422,14 @@ bool LightStateResponse::decode_32bit(uint32_t field_id, Proto32Bit value) {
       this->color_temperature = value.as_float();
       return true;
     }
+    case 12: {
+      this->cold_white = value.as_float();
+      return true;
+    }
+    case 13: {
+      this->warm_white = value.as_float();
+      return true;
+    }
     default:
       return false;
   }
@@ -1295,14 +1438,18 @@ void LightStateResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_fixed32(1, this->key);
   buffer.encode_bool(2, this->state);
   buffer.encode_float(3, this->brightness);
+  buffer.encode_enum<enums::ColorMode>(11, this->color_mode);
   buffer.encode_float(10, this->color_brightness);
   buffer.encode_float(4, this->red);
   buffer.encode_float(5, this->green);
   buffer.encode_float(6, this->blue);
   buffer.encode_float(7, this->white);
   buffer.encode_float(8, this->color_temperature);
+  buffer.encode_float(12, this->cold_white);
+  buffer.encode_float(13, this->warm_white);
   buffer.encode_string(9, this->effect);
 }
+#ifdef HAS_PROTO_MESSAGE_DUMP
 void LightStateResponse::dump_to(std::string &out) const {
   char buffer[64];
   out.append("LightStateResponse {\n");
@@ -1318,6 +1465,10 @@ void LightStateResponse::dump_to(std::string &out) const {
   out.append("  brightness: ");
   sprintf(buffer, "%g", this->brightness);
   out.append(buffer);
+  out.append("\n");
+
+  out.append("  color_mode: ");
+  out.append(proto_enum_to_string<enums::ColorMode>(this->color_mode));
   out.append("\n");
 
   out.append("  color_brightness: ");
@@ -1350,11 +1501,22 @@ void LightStateResponse::dump_to(std::string &out) const {
   out.append(buffer);
   out.append("\n");
 
+  out.append("  cold_white: ");
+  sprintf(buffer, "%g", this->cold_white);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  warm_white: ");
+  sprintf(buffer, "%g", this->warm_white);
+  out.append(buffer);
+  out.append("\n");
+
   out.append("  effect: ");
   out.append("'").append(this->effect).append("'");
   out.append("\n");
   out.append("}");
 }
+#endif
 bool LightCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {
     case 2: {
@@ -1367,6 +1529,14 @@ bool LightCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
     }
     case 4: {
       this->has_brightness = value.as_bool();
+      return true;
+    }
+    case 22: {
+      this->has_color_mode = value.as_bool();
+      return true;
+    }
+    case 23: {
+      this->color_mode = value.as_enum<enums::ColorMode>();
       return true;
     }
     case 20: {
@@ -1383,6 +1553,14 @@ bool LightCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
     }
     case 12: {
       this->has_color_temperature = value.as_bool();
+      return true;
+    }
+    case 24: {
+      this->has_cold_white = value.as_bool();
+      return true;
+    }
+    case 26: {
+      this->has_warm_white = value.as_bool();
       return true;
     }
     case 14: {
@@ -1453,6 +1631,14 @@ bool LightCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
       this->color_temperature = value.as_float();
       return true;
     }
+    case 25: {
+      this->cold_white = value.as_float();
+      return true;
+    }
+    case 27: {
+      this->warm_white = value.as_float();
+      return true;
+    }
     default:
       return false;
   }
@@ -1463,6 +1649,8 @@ void LightCommandRequest::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_bool(3, this->state);
   buffer.encode_bool(4, this->has_brightness);
   buffer.encode_float(5, this->brightness);
+  buffer.encode_bool(22, this->has_color_mode);
+  buffer.encode_enum<enums::ColorMode>(23, this->color_mode);
   buffer.encode_bool(20, this->has_color_brightness);
   buffer.encode_float(21, this->color_brightness);
   buffer.encode_bool(6, this->has_rgb);
@@ -1473,6 +1661,10 @@ void LightCommandRequest::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_float(11, this->white);
   buffer.encode_bool(12, this->has_color_temperature);
   buffer.encode_float(13, this->color_temperature);
+  buffer.encode_bool(24, this->has_cold_white);
+  buffer.encode_float(25, this->cold_white);
+  buffer.encode_bool(26, this->has_warm_white);
+  buffer.encode_float(27, this->warm_white);
   buffer.encode_bool(14, this->has_transition_length);
   buffer.encode_uint32(15, this->transition_length);
   buffer.encode_bool(16, this->has_flash_length);
@@ -1480,6 +1672,7 @@ void LightCommandRequest::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_bool(18, this->has_effect);
   buffer.encode_string(19, this->effect);
 }
+#ifdef HAS_PROTO_MESSAGE_DUMP
 void LightCommandRequest::dump_to(std::string &out) const {
   char buffer[64];
   out.append("LightCommandRequest {\n");
@@ -1503,6 +1696,14 @@ void LightCommandRequest::dump_to(std::string &out) const {
   out.append("  brightness: ");
   sprintf(buffer, "%g", this->brightness);
   out.append(buffer);
+  out.append("\n");
+
+  out.append("  has_color_mode: ");
+  out.append(YESNO(this->has_color_mode));
+  out.append("\n");
+
+  out.append("  color_mode: ");
+  out.append(proto_enum_to_string<enums::ColorMode>(this->color_mode));
   out.append("\n");
 
   out.append("  has_color_brightness: ");
@@ -1551,6 +1752,24 @@ void LightCommandRequest::dump_to(std::string &out) const {
   out.append(buffer);
   out.append("\n");
 
+  out.append("  has_cold_white: ");
+  out.append(YESNO(this->has_cold_white));
+  out.append("\n");
+
+  out.append("  cold_white: ");
+  sprintf(buffer, "%g", this->cold_white);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  has_warm_white: ");
+  out.append(YESNO(this->has_warm_white));
+  out.append("\n");
+
+  out.append("  warm_white: ");
+  sprintf(buffer, "%g", this->warm_white);
+  out.append(buffer);
+  out.append("\n");
+
   out.append("  has_transition_length: ");
   out.append(YESNO(this->has_transition_length));
   out.append("\n");
@@ -1578,6 +1797,7 @@ void LightCommandRequest::dump_to(std::string &out) const {
   out.append("\n");
   out.append("}");
 }
+#endif
 bool ListEntitiesSensorResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {
     case 7: {
@@ -1590,6 +1810,14 @@ bool ListEntitiesSensorResponse::decode_varint(uint32_t field_id, ProtoVarInt va
     }
     case 10: {
       this->state_class = value.as_enum<enums::SensorStateClass>();
+      return true;
+    }
+    case 11: {
+      this->last_reset_type = value.as_enum<enums::SensorLastResetType>();
+      return true;
+    }
+    case 12: {
+      this->disabled_by_default = value.as_bool();
       return true;
     }
     default:
@@ -1647,7 +1875,10 @@ void ListEntitiesSensorResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_bool(8, this->force_update);
   buffer.encode_string(9, this->device_class);
   buffer.encode_enum<enums::SensorStateClass>(10, this->state_class);
+  buffer.encode_enum<enums::SensorLastResetType>(11, this->last_reset_type);
+  buffer.encode_bool(12, this->disabled_by_default);
 }
+#ifdef HAS_PROTO_MESSAGE_DUMP
 void ListEntitiesSensorResponse::dump_to(std::string &out) const {
   char buffer[64];
   out.append("ListEntitiesSensorResponse {\n");
@@ -1692,8 +1923,17 @@ void ListEntitiesSensorResponse::dump_to(std::string &out) const {
   out.append("  state_class: ");
   out.append(proto_enum_to_string<enums::SensorStateClass>(this->state_class));
   out.append("\n");
+
+  out.append("  last_reset_type: ");
+  out.append(proto_enum_to_string<enums::SensorLastResetType>(this->last_reset_type));
+  out.append("\n");
+
+  out.append("  disabled_by_default: ");
+  out.append(YESNO(this->disabled_by_default));
+  out.append("\n");
   out.append("}");
 }
+#endif
 bool SensorStateResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {
     case 3: {
@@ -1723,6 +1963,7 @@ void SensorStateResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_float(2, this->state);
   buffer.encode_bool(3, this->missing_state);
 }
+#ifdef HAS_PROTO_MESSAGE_DUMP
 void SensorStateResponse::dump_to(std::string &out) const {
   char buffer[64];
   out.append("SensorStateResponse {\n");
@@ -1741,10 +1982,15 @@ void SensorStateResponse::dump_to(std::string &out) const {
   out.append("\n");
   out.append("}");
 }
+#endif
 bool ListEntitiesSwitchResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {
     case 6: {
       this->assumed_state = value.as_bool();
+      return true;
+    }
+    case 7: {
+      this->disabled_by_default = value.as_bool();
       return true;
     }
     default:
@@ -1790,7 +2036,9 @@ void ListEntitiesSwitchResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(4, this->unique_id);
   buffer.encode_string(5, this->icon);
   buffer.encode_bool(6, this->assumed_state);
+  buffer.encode_bool(7, this->disabled_by_default);
 }
+#ifdef HAS_PROTO_MESSAGE_DUMP
 void ListEntitiesSwitchResponse::dump_to(std::string &out) const {
   char buffer[64];
   out.append("ListEntitiesSwitchResponse {\n");
@@ -1818,8 +2066,13 @@ void ListEntitiesSwitchResponse::dump_to(std::string &out) const {
   out.append("  assumed_state: ");
   out.append(YESNO(this->assumed_state));
   out.append("\n");
+
+  out.append("  disabled_by_default: ");
+  out.append(YESNO(this->disabled_by_default));
+  out.append("\n");
   out.append("}");
 }
+#endif
 bool SwitchStateResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {
     case 2: {
@@ -1844,6 +2097,7 @@ void SwitchStateResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_fixed32(1, this->key);
   buffer.encode_bool(2, this->state);
 }
+#ifdef HAS_PROTO_MESSAGE_DUMP
 void SwitchStateResponse::dump_to(std::string &out) const {
   char buffer[64];
   out.append("SwitchStateResponse {\n");
@@ -1857,6 +2111,7 @@ void SwitchStateResponse::dump_to(std::string &out) const {
   out.append("\n");
   out.append("}");
 }
+#endif
 bool SwitchCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {
     case 2: {
@@ -1881,6 +2136,7 @@ void SwitchCommandRequest::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_fixed32(1, this->key);
   buffer.encode_bool(2, this->state);
 }
+#ifdef HAS_PROTO_MESSAGE_DUMP
 void SwitchCommandRequest::dump_to(std::string &out) const {
   char buffer[64];
   out.append("SwitchCommandRequest {\n");
@@ -1893,6 +2149,17 @@ void SwitchCommandRequest::dump_to(std::string &out) const {
   out.append(YESNO(this->state));
   out.append("\n");
   out.append("}");
+}
+#endif
+bool ListEntitiesTextSensorResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 6: {
+      this->disabled_by_default = value.as_bool();
+      return true;
+    }
+    default:
+      return false;
+  }
 }
 bool ListEntitiesTextSensorResponse::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
@@ -1932,7 +2199,9 @@ void ListEntitiesTextSensorResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(3, this->name);
   buffer.encode_string(4, this->unique_id);
   buffer.encode_string(5, this->icon);
+  buffer.encode_bool(6, this->disabled_by_default);
 }
+#ifdef HAS_PROTO_MESSAGE_DUMP
 void ListEntitiesTextSensorResponse::dump_to(std::string &out) const {
   char buffer[64];
   out.append("ListEntitiesTextSensorResponse {\n");
@@ -1956,8 +2225,13 @@ void ListEntitiesTextSensorResponse::dump_to(std::string &out) const {
   out.append("  icon: ");
   out.append("'").append(this->icon).append("'");
   out.append("\n");
+
+  out.append("  disabled_by_default: ");
+  out.append(YESNO(this->disabled_by_default));
+  out.append("\n");
   out.append("}");
 }
+#endif
 bool TextSensorStateResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {
     case 3: {
@@ -1993,6 +2267,7 @@ void TextSensorStateResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(2, this->state);
   buffer.encode_bool(3, this->missing_state);
 }
+#ifdef HAS_PROTO_MESSAGE_DUMP
 void TextSensorStateResponse::dump_to(std::string &out) const {
   char buffer[64];
   out.append("TextSensorStateResponse {\n");
@@ -2010,6 +2285,7 @@ void TextSensorStateResponse::dump_to(std::string &out) const {
   out.append("\n");
   out.append("}");
 }
+#endif
 bool SubscribeLogsRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {
     case 1: {
@@ -2028,6 +2304,7 @@ void SubscribeLogsRequest::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_enum<enums::LogLevel>(1, this->level);
   buffer.encode_bool(2, this->dump_config);
 }
+#ifdef HAS_PROTO_MESSAGE_DUMP
 void SubscribeLogsRequest::dump_to(std::string &out) const {
   char buffer[64];
   out.append("SubscribeLogsRequest {\n");
@@ -2040,6 +2317,7 @@ void SubscribeLogsRequest::dump_to(std::string &out) const {
   out.append("\n");
   out.append("}");
 }
+#endif
 bool SubscribeLogsResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {
     case 1: {
@@ -2074,6 +2352,7 @@ void SubscribeLogsResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(3, this->message);
   buffer.encode_bool(4, this->send_failed);
 }
+#ifdef HAS_PROTO_MESSAGE_DUMP
 void SubscribeLogsResponse::dump_to(std::string &out) const {
   char buffer[64];
   out.append("SubscribeLogsResponse {\n");
@@ -2094,10 +2373,13 @@ void SubscribeLogsResponse::dump_to(std::string &out) const {
   out.append("\n");
   out.append("}");
 }
+#endif
 void SubscribeHomeassistantServicesRequest::encode(ProtoWriteBuffer buffer) const {}
+#ifdef HAS_PROTO_MESSAGE_DUMP
 void SubscribeHomeassistantServicesRequest::dump_to(std::string &out) const {
   out.append("SubscribeHomeassistantServicesRequest {}");
 }
+#endif
 bool HomeassistantServiceMap::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
     case 1: {
@@ -2116,6 +2398,7 @@ void HomeassistantServiceMap::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(1, this->key);
   buffer.encode_string(2, this->value);
 }
+#ifdef HAS_PROTO_MESSAGE_DUMP
 void HomeassistantServiceMap::dump_to(std::string &out) const {
   char buffer[64];
   out.append("HomeassistantServiceMap {\n");
@@ -2128,6 +2411,7 @@ void HomeassistantServiceMap::dump_to(std::string &out) const {
   out.append("\n");
   out.append("}");
 }
+#endif
 bool HomeassistantServiceResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {
     case 5: {
@@ -2173,6 +2457,7 @@ void HomeassistantServiceResponse::encode(ProtoWriteBuffer buffer) const {
   }
   buffer.encode_bool(5, this->is_event);
 }
+#ifdef HAS_PROTO_MESSAGE_DUMP
 void HomeassistantServiceResponse::dump_to(std::string &out) const {
   char buffer[64];
   out.append("HomeassistantServiceResponse {\n");
@@ -2203,10 +2488,13 @@ void HomeassistantServiceResponse::dump_to(std::string &out) const {
   out.append("\n");
   out.append("}");
 }
+#endif
 void SubscribeHomeAssistantStatesRequest::encode(ProtoWriteBuffer buffer) const {}
+#ifdef HAS_PROTO_MESSAGE_DUMP
 void SubscribeHomeAssistantStatesRequest::dump_to(std::string &out) const {
   out.append("SubscribeHomeAssistantStatesRequest {}");
 }
+#endif
 bool SubscribeHomeAssistantStateResponse::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
     case 1: {
@@ -2225,6 +2513,7 @@ void SubscribeHomeAssistantStateResponse::encode(ProtoWriteBuffer buffer) const 
   buffer.encode_string(1, this->entity_id);
   buffer.encode_string(2, this->attribute);
 }
+#ifdef HAS_PROTO_MESSAGE_DUMP
 void SubscribeHomeAssistantStateResponse::dump_to(std::string &out) const {
   char buffer[64];
   out.append("SubscribeHomeAssistantStateResponse {\n");
@@ -2237,6 +2526,7 @@ void SubscribeHomeAssistantStateResponse::dump_to(std::string &out) const {
   out.append("\n");
   out.append("}");
 }
+#endif
 bool HomeAssistantStateResponse::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
     case 1: {
@@ -2260,6 +2550,7 @@ void HomeAssistantStateResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(2, this->state);
   buffer.encode_string(3, this->attribute);
 }
+#ifdef HAS_PROTO_MESSAGE_DUMP
 void HomeAssistantStateResponse::dump_to(std::string &out) const {
   char buffer[64];
   out.append("HomeAssistantStateResponse {\n");
@@ -2276,8 +2567,11 @@ void HomeAssistantStateResponse::dump_to(std::string &out) const {
   out.append("\n");
   out.append("}");
 }
+#endif
 void GetTimeRequest::encode(ProtoWriteBuffer buffer) const {}
+#ifdef HAS_PROTO_MESSAGE_DUMP
 void GetTimeRequest::dump_to(std::string &out) const { out.append("GetTimeRequest {}"); }
+#endif
 bool GetTimeResponse::decode_32bit(uint32_t field_id, Proto32Bit value) {
   switch (field_id) {
     case 1: {
@@ -2289,6 +2583,7 @@ bool GetTimeResponse::decode_32bit(uint32_t field_id, Proto32Bit value) {
   }
 }
 void GetTimeResponse::encode(ProtoWriteBuffer buffer) const { buffer.encode_fixed32(1, this->epoch_seconds); }
+#ifdef HAS_PROTO_MESSAGE_DUMP
 void GetTimeResponse::dump_to(std::string &out) const {
   char buffer[64];
   out.append("GetTimeResponse {\n");
@@ -2298,6 +2593,7 @@ void GetTimeResponse::dump_to(std::string &out) const {
   out.append("\n");
   out.append("}");
 }
+#endif
 bool ListEntitiesServicesArgument::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {
     case 2: {
@@ -2322,6 +2618,7 @@ void ListEntitiesServicesArgument::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(1, this->name);
   buffer.encode_enum<enums::ServiceArgType>(2, this->type);
 }
+#ifdef HAS_PROTO_MESSAGE_DUMP
 void ListEntitiesServicesArgument::dump_to(std::string &out) const {
   char buffer[64];
   out.append("ListEntitiesServicesArgument {\n");
@@ -2334,6 +2631,7 @@ void ListEntitiesServicesArgument::dump_to(std::string &out) const {
   out.append("\n");
   out.append("}");
 }
+#endif
 bool ListEntitiesServicesResponse::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
     case 1: {
@@ -2365,6 +2663,7 @@ void ListEntitiesServicesResponse::encode(ProtoWriteBuffer buffer) const {
     buffer.encode_message<ListEntitiesServicesArgument>(3, it, true);
   }
 }
+#ifdef HAS_PROTO_MESSAGE_DUMP
 void ListEntitiesServicesResponse::dump_to(std::string &out) const {
   char buffer[64];
   out.append("ListEntitiesServicesResponse {\n");
@@ -2384,6 +2683,7 @@ void ListEntitiesServicesResponse::dump_to(std::string &out) const {
   }
   out.append("}");
 }
+#endif
 bool ExecuteServiceArgument::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {
     case 1: {
@@ -2457,6 +2757,7 @@ void ExecuteServiceArgument::encode(ProtoWriteBuffer buffer) const {
     buffer.encode_string(9, it, true);
   }
 }
+#ifdef HAS_PROTO_MESSAGE_DUMP
 void ExecuteServiceArgument::dump_to(std::string &out) const {
   char buffer[64];
   out.append("ExecuteServiceArgument {\n");
@@ -2510,6 +2811,7 @@ void ExecuteServiceArgument::dump_to(std::string &out) const {
   }
   out.append("}");
 }
+#endif
 bool ExecuteServiceRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
     case 2: {
@@ -2536,6 +2838,7 @@ void ExecuteServiceRequest::encode(ProtoWriteBuffer buffer) const {
     buffer.encode_message<ExecuteServiceArgument>(2, it, true);
   }
 }
+#ifdef HAS_PROTO_MESSAGE_DUMP
 void ExecuteServiceRequest::dump_to(std::string &out) const {
   char buffer[64];
   out.append("ExecuteServiceRequest {\n");
@@ -2550,6 +2853,17 @@ void ExecuteServiceRequest::dump_to(std::string &out) const {
     out.append("\n");
   }
   out.append("}");
+}
+#endif
+bool ListEntitiesCameraResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 5: {
+      this->disabled_by_default = value.as_bool();
+      return true;
+    }
+    default:
+      return false;
+  }
 }
 bool ListEntitiesCameraResponse::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
@@ -2584,7 +2898,9 @@ void ListEntitiesCameraResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_fixed32(2, this->key);
   buffer.encode_string(3, this->name);
   buffer.encode_string(4, this->unique_id);
+  buffer.encode_bool(5, this->disabled_by_default);
 }
+#ifdef HAS_PROTO_MESSAGE_DUMP
 void ListEntitiesCameraResponse::dump_to(std::string &out) const {
   char buffer[64];
   out.append("ListEntitiesCameraResponse {\n");
@@ -2604,8 +2920,13 @@ void ListEntitiesCameraResponse::dump_to(std::string &out) const {
   out.append("  unique_id: ");
   out.append("'").append(this->unique_id).append("'");
   out.append("\n");
+
+  out.append("  disabled_by_default: ");
+  out.append(YESNO(this->disabled_by_default));
+  out.append("\n");
   out.append("}");
 }
+#endif
 bool CameraImageResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {
     case 3: {
@@ -2641,6 +2962,7 @@ void CameraImageResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(2, this->data);
   buffer.encode_bool(3, this->done);
 }
+#ifdef HAS_PROTO_MESSAGE_DUMP
 void CameraImageResponse::dump_to(std::string &out) const {
   char buffer[64];
   out.append("CameraImageResponse {\n");
@@ -2658,6 +2980,7 @@ void CameraImageResponse::dump_to(std::string &out) const {
   out.append("\n");
   out.append("}");
 }
+#endif
 bool CameraImageRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {
     case 1: {
@@ -2676,6 +2999,7 @@ void CameraImageRequest::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_bool(1, this->single);
   buffer.encode_bool(2, this->stream);
 }
+#ifdef HAS_PROTO_MESSAGE_DUMP
 void CameraImageRequest::dump_to(std::string &out) const {
   char buffer[64];
   out.append("CameraImageRequest {\n");
@@ -2688,6 +3012,7 @@ void CameraImageRequest::dump_to(std::string &out) const {
   out.append("\n");
   out.append("}");
 }
+#endif
 bool ListEntitiesClimateResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {
     case 5: {
@@ -2720,6 +3045,10 @@ bool ListEntitiesClimateResponse::decode_varint(uint32_t field_id, ProtoVarInt v
     }
     case 16: {
       this->supported_presets.push_back(value.as_enum<enums::ClimatePreset>());
+      return true;
+    }
+    case 18: {
+      this->disabled_by_default = value.as_bool();
       return true;
     }
     default:
@@ -2804,7 +3133,9 @@ void ListEntitiesClimateResponse::encode(ProtoWriteBuffer buffer) const {
   for (auto &it : this->supported_custom_presets) {
     buffer.encode_string(17, it, true);
   }
+  buffer.encode_bool(18, this->disabled_by_default);
 }
+#ifdef HAS_PROTO_MESSAGE_DUMP
 void ListEntitiesClimateResponse::dump_to(std::string &out) const {
   char buffer[64];
   out.append("ListEntitiesClimateResponse {\n");
@@ -2891,8 +3222,13 @@ void ListEntitiesClimateResponse::dump_to(std::string &out) const {
     out.append("'").append(it).append("'");
     out.append("\n");
   }
+
+  out.append("  disabled_by_default: ");
+  out.append(YESNO(this->disabled_by_default));
+  out.append("\n");
   out.append("}");
 }
+#endif
 bool ClimateStateResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {
     case 2: {
@@ -2978,6 +3314,7 @@ void ClimateStateResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_enum<enums::ClimatePreset>(12, this->preset);
   buffer.encode_string(13, this->custom_preset);
 }
+#ifdef HAS_PROTO_MESSAGE_DUMP
 void ClimateStateResponse::dump_to(std::string &out) const {
   char buffer[64];
   out.append("ClimateStateResponse {\n");
@@ -3039,6 +3376,7 @@ void ClimateStateResponse::dump_to(std::string &out) const {
   out.append("\n");
   out.append("}");
 }
+#endif
 bool ClimateCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {
     case 2: {
@@ -3164,6 +3502,7 @@ void ClimateCommandRequest::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_bool(20, this->has_custom_preset);
   buffer.encode_string(21, this->custom_preset);
 }
+#ifdef HAS_PROTO_MESSAGE_DUMP
 void ClimateCommandRequest::dump_to(std::string &out) const {
   char buffer[64];
   out.append("ClimateCommandRequest {\n");
@@ -3256,6 +3595,17 @@ void ClimateCommandRequest::dump_to(std::string &out) const {
   out.append("\n");
   out.append("}");
 }
+#endif
+bool ListEntitiesNumberResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 9: {
+      this->disabled_by_default = value.as_bool();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
 bool ListEntitiesNumberResponse::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
     case 1: {
@@ -3309,7 +3659,9 @@ void ListEntitiesNumberResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_float(6, this->min_value);
   buffer.encode_float(7, this->max_value);
   buffer.encode_float(8, this->step);
+  buffer.encode_bool(9, this->disabled_by_default);
 }
+#ifdef HAS_PROTO_MESSAGE_DUMP
 void ListEntitiesNumberResponse::dump_to(std::string &out) const {
   char buffer[64];
   out.append("ListEntitiesNumberResponse {\n");
@@ -3348,8 +3700,13 @@ void ListEntitiesNumberResponse::dump_to(std::string &out) const {
   sprintf(buffer, "%g", this->step);
   out.append(buffer);
   out.append("\n");
+
+  out.append("  disabled_by_default: ");
+  out.append(YESNO(this->disabled_by_default));
+  out.append("\n");
   out.append("}");
 }
+#endif
 bool NumberStateResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {
     case 3: {
@@ -3379,6 +3736,7 @@ void NumberStateResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_float(2, this->state);
   buffer.encode_bool(3, this->missing_state);
 }
+#ifdef HAS_PROTO_MESSAGE_DUMP
 void NumberStateResponse::dump_to(std::string &out) const {
   char buffer[64];
   out.append("NumberStateResponse {\n");
@@ -3397,6 +3755,7 @@ void NumberStateResponse::dump_to(std::string &out) const {
   out.append("\n");
   out.append("}");
 }
+#endif
 bool NumberCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
   switch (field_id) {
     case 1: {
@@ -3415,6 +3774,7 @@ void NumberCommandRequest::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_fixed32(1, this->key);
   buffer.encode_float(2, this->state);
 }
+#ifdef HAS_PROTO_MESSAGE_DUMP
 void NumberCommandRequest::dump_to(std::string &out) const {
   char buffer[64];
   out.append("NumberCommandRequest {\n");
@@ -3429,6 +3789,194 @@ void NumberCommandRequest::dump_to(std::string &out) const {
   out.append("\n");
   out.append("}");
 }
+#endif
+bool ListEntitiesSelectResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 7: {
+      this->disabled_by_default = value.as_bool();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+bool ListEntitiesSelectResponse::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+  switch (field_id) {
+    case 1: {
+      this->object_id = value.as_string();
+      return true;
+    }
+    case 3: {
+      this->name = value.as_string();
+      return true;
+    }
+    case 4: {
+      this->unique_id = value.as_string();
+      return true;
+    }
+    case 5: {
+      this->icon = value.as_string();
+      return true;
+    }
+    case 6: {
+      this->options.push_back(value.as_string());
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+bool ListEntitiesSelectResponse::decode_32bit(uint32_t field_id, Proto32Bit value) {
+  switch (field_id) {
+    case 2: {
+      this->key = value.as_fixed32();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+void ListEntitiesSelectResponse::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_string(1, this->object_id);
+  buffer.encode_fixed32(2, this->key);
+  buffer.encode_string(3, this->name);
+  buffer.encode_string(4, this->unique_id);
+  buffer.encode_string(5, this->icon);
+  for (auto &it : this->options) {
+    buffer.encode_string(6, it, true);
+  }
+  buffer.encode_bool(7, this->disabled_by_default);
+}
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void ListEntitiesSelectResponse::dump_to(std::string &out) const {
+  char buffer[64];
+  out.append("ListEntitiesSelectResponse {\n");
+  out.append("  object_id: ");
+  out.append("'").append(this->object_id).append("'");
+  out.append("\n");
+
+  out.append("  key: ");
+  sprintf(buffer, "%u", this->key);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  name: ");
+  out.append("'").append(this->name).append("'");
+  out.append("\n");
+
+  out.append("  unique_id: ");
+  out.append("'").append(this->unique_id).append("'");
+  out.append("\n");
+
+  out.append("  icon: ");
+  out.append("'").append(this->icon).append("'");
+  out.append("\n");
+
+  for (const auto &it : this->options) {
+    out.append("  options: ");
+    out.append("'").append(it).append("'");
+    out.append("\n");
+  }
+
+  out.append("  disabled_by_default: ");
+  out.append(YESNO(this->disabled_by_default));
+  out.append("\n");
+  out.append("}");
+}
+#endif
+bool SelectStateResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 3: {
+      this->missing_state = value.as_bool();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+bool SelectStateResponse::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+  switch (field_id) {
+    case 2: {
+      this->state = value.as_string();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+bool SelectStateResponse::decode_32bit(uint32_t field_id, Proto32Bit value) {
+  switch (field_id) {
+    case 1: {
+      this->key = value.as_fixed32();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+void SelectStateResponse::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_fixed32(1, this->key);
+  buffer.encode_string(2, this->state);
+  buffer.encode_bool(3, this->missing_state);
+}
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void SelectStateResponse::dump_to(std::string &out) const {
+  char buffer[64];
+  out.append("SelectStateResponse {\n");
+  out.append("  key: ");
+  sprintf(buffer, "%u", this->key);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  state: ");
+  out.append("'").append(this->state).append("'");
+  out.append("\n");
+
+  out.append("  missing_state: ");
+  out.append(YESNO(this->missing_state));
+  out.append("\n");
+  out.append("}");
+}
+#endif
+bool SelectCommandRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+  switch (field_id) {
+    case 2: {
+      this->state = value.as_string();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+bool SelectCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
+  switch (field_id) {
+    case 1: {
+      this->key = value.as_fixed32();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+void SelectCommandRequest::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_fixed32(1, this->key);
+  buffer.encode_string(2, this->state);
+}
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void SelectCommandRequest::dump_to(std::string &out) const {
+  char buffer[64];
+  out.append("SelectCommandRequest {\n");
+  out.append("  key: ");
+  sprintf(buffer, "%u", this->key);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  state: ");
+  out.append("'").append(this->state).append("'");
+  out.append("\n");
+  out.append("}");
+}
+#endif
 
 }  // namespace api
 }  // namespace esphome

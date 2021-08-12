@@ -450,6 +450,66 @@ sensor:
       name: 'PM 2.5 Concentration'
     pm_10_0:
       name: 'PM 10.0 Concentration'
+    pm_1_0_std:
+      name: 'PM 1.0 Standard Atmospher Concentration'
+    pm_2_5_std:
+      name: 'PM 2.5 Standard Atmospher Concentration'
+    pm_10_0_std:
+      name: 'PM 10.0 Standard Atmospher Concentration'
+    pm_0_3um:
+      name: 'Particulate Count >0.3um'
+    pm_0_5um:
+      name: 'Particulate Count >0.5um'
+    pm_1_0um:
+      name: 'Particulate Count >1.0um'
+    pm_2_5um:
+      name: 'Particulate Count >2.5um'
+    pm_5_0um:
+      name: 'Particulate Count >5.0um'
+    pm_10_0um:
+      name: 'Particulate Count >10.0um'
+  - platform: pmsx003
+    uart_id: uart2
+    type: PMS5003T
+    pm_2_5:
+      name: 'PM 2.5 Concentration'
+    temperature:
+      name: 'PMS Temperature'
+    humidity:
+      name: 'PMS Humidity'
+  - platform: pmsx003
+    uart_id: uart2
+    type: PMS5003ST
+    pm_1_0:
+      name: 'PM 1.0 Concentration'
+    pm_2_5:
+      name: 'PM 2.5 Concentration'
+    pm_10_0:
+      name: 'PM 10.0 Concentration'
+    pm_1_0_std:
+      name: 'PM 1.0 Standard Atmospher Concentration'
+    pm_2_5_std:
+      name: 'PM 2.5 Standard Atmospher Concentration'
+    pm_10_0_std:
+      name: 'PM 10.0 Standard Atmospher Concentration'
+    pm_0_3um:
+      name: 'Particulate Count >0.3um'
+    pm_0_5um:
+      name: 'Particulate Count >0.5um'
+    pm_1_0um:
+      name: 'Particulate Count >1.0um'
+    pm_2_5um:
+      name: 'Particulate Count >2.5um'
+    pm_5_0um:
+      name: 'Particulate Count >5.0um'
+    pm_10_0um:
+      name: 'Particulate Count >10.0um'
+    temperature:
+      name: 'PMS Temperature'
+    humidity:
+      name: 'PMS Humidity'
+    formaldehyde:
+      name: 'PMS Formaldehyde Concentration'
   - platform: cse7766
     uart_id: uart3
     voltage:
@@ -534,6 +594,9 @@ sensor:
       name: 'Import Reactive Energy'
     export_reactive_energy:
       name: 'Export Reactive Energy'
+  - platform: dsmr
+    energy_delivered_tariff1:
+      name: dsmr_energy_delivered_tariff1
 
   - platform: nextion
     id: testnumber
@@ -675,6 +738,11 @@ text_sensor:
     id: text0
     update_interval: 4s
     component_name: text0
+  - platform: dsmr
+    identification:
+      name: "dsmr_identification"
+    p1_version:
+      name: "dsmr_p1_version"
 
 script:
   - id: my_script
@@ -798,8 +866,12 @@ climate:
       - switch.turn_on: gpio_switch1
     cool_action:
       - switch.turn_on: gpio_switch2
+    supplemental_cooling_action:
+      - switch.turn_on: gpio_switch3
     heat_action:
       - switch.turn_on: gpio_switch1
+    supplemental_heating_action:
+      - switch.turn_on: gpio_switch3
     dry_action:
       - switch.turn_on: gpio_switch2
     fan_only_action:
@@ -842,7 +914,28 @@ climate:
       - switch.turn_on: gpio_switch1
     swing_both_action:
       - switch.turn_on: gpio_switch2
-    hysteresis: 0.2
+    startup_delay: true
+    supplemental_cooling_delta: 2.0
+    cool_deadband: 0.5
+    cool_overrun: 0.5
+    min_cooling_off_time: 300s
+    min_cooling_run_time: 300s
+    max_cooling_run_time: 600s
+    supplemental_heating_delta: 2.0
+    heat_deadband: 0.5
+    heat_overrun: 0.5
+    min_heating_off_time: 300s
+    min_heating_run_time: 300s
+    max_heating_run_time: 600s
+    min_fanning_off_time: 30s
+    min_fanning_run_time: 30s
+    min_fan_mode_switching_time: 15s
+    min_idle_time: 30s
+    set_point_minimum_differential: 0.5
+    fan_only_action_uses_fan_mode_timer: true
+    fan_only_cooling: true
+    fan_with_cooling: true
+    fan_with_heating: true
     away_config:
       default_target_temperature_low: 16°C
       default_target_temperature_high: 20°C
@@ -1156,4 +1249,8 @@ fingerprint_grow:
         event: esphome.${device_name}_fingerprint_grow_enrollment_failed
         data:
           finger_id: !lambda 'return finger_id;'
+  uart_id: uart6
+
+dsmr:
+  decryption_key: 00112233445566778899aabbccddeeff
   uart_id: uart6

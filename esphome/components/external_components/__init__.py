@@ -109,9 +109,9 @@ def _compute_destination_path(key: str) -> Path:
     return base_dir / h.hexdigest()[:8]
 
 
-def _run_git_command(cmd):
+def _run_git_command(cmd, cwd=None):
     try:
-        ret = subprocess.run(cmd, capture_output=True, check=False)
+        ret = subprocess.run(cmd, cwd=cwd, capture_output=True, check=False)
     except FileNotFoundError as err:
         raise cv.Invalid(
             "git is not installed but required for external_components.\n"
@@ -147,18 +147,20 @@ def _process_git_config(config: dict, refresh) -> str:
         age = datetime.datetime.now() - datetime.datetime.fromtimestamp(
             file_timestamp.stat().st_mtime
         )
-        if age.seconds > refresh.total_seconds:
+        if age.total_seconds() > refresh.total_seconds:
             _LOGGER.info("Updating %s", key)
             _LOGGER.debug("Location: %s", repo_dir)
             # Stash local changes (if any)
-            _run_git_command(["git", "stash", "push", "--include-untracked"])
+            _run_git_command(
+                ["git", "stash", "push", "--include-untracked"], str(repo_dir)
+            )
             # Fetch remote ref
             cmd = ["git", "fetch", "--", "origin"]
             if CONF_REF in config:
                 cmd.append(config[CONF_REF])
-            _run_git_command(cmd)
+            _run_git_command(cmd, str(repo_dir))
             # Hard reset to FETCH_HEAD (short-lived git ref corresponding to most recent fetch)
-            _run_git_command(["git", "reset", "--hard", "FETCH_HEAD"])
+            _run_git_command(["git", "reset", "--hard", "FETCH_HEAD"], str(repo_dir))
 
     if (repo_dir / "esphome" / "components").is_dir():
         components_dir = repo_dir / "esphome" / "components"
