@@ -27,6 +27,16 @@ def clang_options(idedata):
         # disable built-in include directories from the host
         '-nostdinc',
         '-nostdinc++',
+        # replace pgmspace.h, as it uses GNU extensions clang doesn't support
+        # https://github.com/earlephilhower/newlib-xtensa/pull/18
+        '-D_PGMSPACE_H_',
+        '-Dpgm_read_byte(s)=(*(const uint8_t *)(s))',
+        '-Dpgm_read_byte_near(s)=(*(const uint8_t *)(s))',
+        '-Dpgm_read_dword(s)=(*(const uint32_t *)(s))',
+        '-DPROGMEM=',
+        '-DPGM_P=const char *',
+        '-DPSTR(s)=(s)',
+        # this next one is also needed with upstream pgmspace.h
         # suppress warning about identifier naming in expansion of this macro
         '-DPSTRN(s, n)=(s)',
         # suppress warning about attribute cannot be applied to type
