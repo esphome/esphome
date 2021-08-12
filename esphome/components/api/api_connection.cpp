@@ -1,7 +1,7 @@
 #include "api_connection.h"
 #include "esphome/core/log.h"
 #include "esphome/core/util.h"
-#include "esphome/core/defines.h"
+#include "esphome/core/version.h"
 
 #ifdef USE_DEEP_SLEEP
 #include "esphome/components/deep_sleep/deep_sleep_component.h"

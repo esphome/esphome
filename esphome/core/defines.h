@@ -7,7 +7,6 @@
 
 // Informative flags
 #define ESPHOME_BOARD "dummy_board"
-#define ESPHOME_VERSION "dev"
 #define ESPHOME_PROJECT_NAME "dummy project"
 #define ESPHOME_PROJECT_VERSION "v2"
 
