@@ -701,8 +701,6 @@ bool APIConnection::send_log_message(int level, const char *tag, const char *lin
   auto buffer = this->create_buffer();
   // LogLevel level = 1;
   buffer.encode_uint32(1, static_cast<uint32_t>(level));
-  // string tag = 2;
-  // buffer.encode_string(2, tag, strlen(tag));
   // string message = 3;
   buffer.encode_string(3, line, strlen(line));
   // SubscribeLogsResponse - 29

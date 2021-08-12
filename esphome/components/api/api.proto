@@ -555,9 +555,10 @@ enum LogLevel {
   LOG_LEVEL_ERROR = 1;
   LOG_LEVEL_WARN = 2;
   LOG_LEVEL_INFO = 3;
-  LOG_LEVEL_DEBUG = 4;
-  LOG_LEVEL_VERBOSE = 5;
-  LOG_LEVEL_VERY_VERBOSE = 6;
+  LOG_LEVEL_CONFIG = 4;
+  LOG_LEVEL_DEBUG = 5;
+  LOG_LEVEL_VERBOSE = 6;
+  LOG_LEVEL_VERY_VERBOSE = 7;
 }
 message SubscribeLogsRequest {
   option (id) = 28;
@@ -572,7 +573,6 @@ message SubscribeLogsResponse {
   option (no_delay) = false;
 
   LogLevel level = 1;
-  string tag = 2;
   string message = 3;
   bool send_failed = 4;
 }
