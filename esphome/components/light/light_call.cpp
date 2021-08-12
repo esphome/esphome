@@ -347,21 +347,51 @@ void LightCall::transform_parameters_() {
       traits.get_min_mireds() > 0.0f && traits.get_max_mireds() > 0.0f) {
     ESP_LOGD(TAG, "'%s' - Setting cold/warm white channels using white/color temperature values.",
              this->parent_->get_name().c_str());
-    auto current_values = this->parent_->remote_values;
+
+    /* The transform between white value (w)+color temperature (cwf) and cold white (cw)+warm white (ww) with:
+     *   cwf = cold white fraction (between 0 and 1), wwf = warm white fraction (between 0 and 1)
+     *   cwf + wwf = 1
+     *   g = gamma correction level
+     * is given by:
+     *   cw = w*(cwf/max(cwf, wwf))^(1/g), ww = w*(wwf/max(cwf, wwf))^(1/g)    (regular mode)
+     *   cw = w*cwf^(1/g), ww=w*wwf^(1/g)                                      (constant brightness mode)
+     * and inverse:
+     *   w = max(cw, ww), cwf = cw^g/(cw^g + ww^g)                             (regular mode)
+     *   w = (cw^g + ww^g)^(1/g), cwf = cw^g/(cw^g + ww^g)                     (constant brightness mode)
+     *
+     * If either color temperature or white value isn't supplied, use the inverse transform to extract it from the
+     * current values.
+     *
+     * The dance with gamma correction here is necessary because CWF and WWF give mixing after gamma correction, while
+     * the cold_white/warm_white values in LightColorValues are uncorrected values.
+     */
+    const auto val = this->parent_->remote_values;
+    const float gamma = this->parent_->get_gamma_correct();
+
+    float cwf, white;
     if (this->color_temperature_.has_value()) {
-      const float white =
-          this->white_.value_or(fmaxf(current_values.get_cold_white(), current_values.get_warm_white()));
       const float color_temp = clamp(*this->color_temperature_, traits.get_min_mireds(), traits.get_max_mireds());
-      const float ww_fraction =
-          (color_temp - traits.get_min_mireds()) / (traits.get_max_mireds() - traits.get_min_mireds());
-      const float cw_fraction = 1.0f - ww_fraction;
-      const float max_cw_ww = std::max(ww_fraction, cw_fraction);
-      this->cold_white_ = white * gamma_uncorrect(cw_fraction / max_cw_ww, this->parent_->get_gamma_correct());
-      this->warm_white_ = white * gamma_uncorrect(ww_fraction / max_cw_ww, this->parent_->get_gamma_correct());
+      cwf = (traits.get_max_mireds() - color_temp) / (traits.get_max_mireds() - traits.get_min_mireds());
     } else {
-      const float max_cw_ww = std::max(current_values.get_warm_white(), current_values.get_cold_white());
-      this->cold_white_ = *this->white_ * current_values.get_cold_white() / max_cw_ww;
-      this->warm_white_ = *this->white_ * current_values.get_warm_white() / max_cw_ww;
+      cwf = gamma_correct(val.get_cold_white(), gamma) /
+            (gamma_correct(val.get_cold_white(), gamma) + gamma_correct(val.get_warm_white(), gamma));
+    }
+    if (this->white_.has_value()) {
+      white = *this->white_;
+    } else if (!traits.get_constant_brightness()) {
+      white = fmaxf(val.get_cold_white(), val.get_warm_white());
+    } else {
+      white = gamma_uncorrect(gamma_correct(val.get_cold_white(), gamma) + gamma_correct(val.get_warm_white(), gamma),
+                              gamma);
+    }
+
+    if (!traits.get_constant_brightness()) {
+      const float max_cwf_wwf = std::max(cwf, 1.0f - cwf);
+      this->cold_white_ = white * gamma_uncorrect(cwf / max_cwf_wwf, gamma);
+      this->warm_white_ = white * gamma_uncorrect((1.0f - cwf) / max_cwf_wwf, gamma);
+    } else {
+      this->cold_white_ = white * gamma_uncorrect(cwf, gamma);
+      this->warm_white_ = white * gamma_uncorrect(1.0f - cwf, gamma);
     }
   }
 }

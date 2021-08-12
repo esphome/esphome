@@ -173,22 +173,9 @@ class LightColorValues {
   /// Convert these light color values to an CWWW representation with the given parameters.
   void as_cwww(float *cold_white, float *warm_white, float gamma = 0, bool constant_brightness = false) const {
     if (this->color_mode_ & ColorCapability::COLD_WARM_WHITE) {
-      const float cw_level = gamma_correct(this->cold_white_, gamma);
-      const float ww_level = gamma_correct(this->warm_white_, gamma);
       const float white_level = gamma_correct(this->state_ * this->brightness_, gamma);
-      if (!constant_brightness) {
-        *cold_white = white_level * cw_level;
-        *warm_white = white_level * ww_level;
-      } else {
-        // Just multiplying by cw_level / (cw_level + ww_level) would divide out the brightness information from the
-        // cold_white and warm_white settings (i.e. cw=0.8, ww=0.4 would be identical to cw=0.4, ww=0.2), which breaks
-        // transitions. Use the highest value as the brightness for the white channels (the alternative, using cw+ww/2,
-        // reduces to cw/2 and ww/2, which would still limit brightness to 100% of a single channel, but isn't very
-        // useful in all other aspects -- that behaviour can also be achieved by limiting the output power).
-        const float sum = cw_level > 0 || ww_level > 0 ? cw_level + ww_level : 1;  // Don't divide by zero.
-        *cold_white = white_level * std::max(cw_level, ww_level) * cw_level / sum;
-        *warm_white = white_level * std::max(cw_level, ww_level) * ww_level / sum;
-      }
+      *cold_white = white_level * gamma_correct(this->cold_white_, gamma);
+      *warm_white = white_level * gamma_correct(this->warm_white_, gamma);
     } else {
       *cold_white = *warm_white = 0;
     }
