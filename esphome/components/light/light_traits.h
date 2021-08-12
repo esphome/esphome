@@ -46,6 +46,9 @@ class LightTraits {
             this->supports_color_mode(ColorMode::COLOR_TEMPERATURE));
   }
 
+  bool get_constant_brightness() const { return this->constant_brightness_; }
+  void set_constant_brightness(bool constant_brightness) { this->constant_brightness_ = constant_brightness; }
+
   float get_min_mireds() const { return this->min_mireds_; }
   void set_min_mireds(float min_mireds) { this->min_mireds_ = min_mireds; }
   float get_max_mireds() const { return this->max_mireds_; }
@@ -53,6 +56,7 @@ class LightTraits {
 
  protected:
   std::set<ColorMode> supported_color_modes_{};
+  bool constant_brightness_{false};
   float min_mireds_{0};
   float max_mireds_{0};
 };
