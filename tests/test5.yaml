@@ -31,6 +31,21 @@ uart:
 
 modbus:
   uart_id: uart1
+  flow_control_pin: 5
+  id: mod_bus1
+
+modbus_controller:
+  - id: modbus_controller_test
+    address: 0x2
+    modbus_id: mod_bus1
+    sensors:
+      - id: battery_voltage2
+        name: "Battery voltage2"
+        address: 0x331A
+        offset: 0
+        modbus_functioncode: "read_input_registers"
+        value_type: U_WORD
+
 
 binary_sensor:
   - platform: gpio
