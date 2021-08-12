@@ -23,30 +23,22 @@ void NexaProtocol::one(RemoteTransmitData *dst) const {
   // '1' => '10'
   dst->item(TX_BIT_HIGH_US, TX_BIT_ONE_LOW_US);
   dst->item(TX_BIT_HIGH_US, TX_BIT_ZERO_LOW_US);
-  // ESP_LOGD(TAG, "1 ");
 }
 
 void NexaProtocol::zero(RemoteTransmitData *dst) const {
   // '0' => '01'
   dst->item(TX_BIT_HIGH_US, TX_BIT_ZERO_LOW_US);
   dst->item(TX_BIT_HIGH_US, TX_BIT_ONE_LOW_US);
-  // ESP_LOGD(TAG, "0 ");
 }
 
-void NexaProtocol::sync(RemoteTransmitData *dst) const {
-  dst->item(TX_HEADER_HIGH_US, TX_HEADER_LOW_US);
-  // ESP_LOGD(TAG, "S ");
-}
+void NexaProtocol::sync(RemoteTransmitData *dst) const { dst->item(TX_HEADER_HIGH_US, TX_HEADER_LOW_US); }
 
 void NexaProtocol::encode(RemoteTransmitData *dst, const NexaData &data) {
   dst->set_carrier_frequency(0);
-  ESP_LOGD(TAG, "ENCODE NEXA: device=0x%04X group=%d state=%d channel=%d level=%d", data.device, data.group, data.state,
-           data.channel, data.level);
 
   // Send SYNC
   this->sync(dst);
 
-  // ESP_LOGD(TAG, "Device:");
   // Device (26 bits)
   for (int16_t i = 26 - 1; i >= 0; i--) {
     if (data.device & (1 << i))
@@ -55,14 +47,12 @@ void NexaProtocol::encode(RemoteTransmitData *dst, const NexaData &data) {
       this->zero(dst);
   }
 
-  // ESP_LOGD(TAG, "Group:");
   // Group (1 bit)
   if (data.group != 0)
     this->one(dst);
   else
     this->zero(dst);
 
-  // ESP_LOGD(TAG, "State:");
   // State (1 bit)
   if (data.state == 2) {
     // Special case for dimmers...send 00 as state
@@ -73,7 +63,6 @@ void NexaProtocol::encode(RemoteTransmitData *dst, const NexaData &data) {
   else
     this->zero(dst);
 
-  // ESP_LOGD(TAG, "Channel:");
   // Channel (4 bits)
   for (int16_t i = 4 - 1; i >= 0; i--) {
     if (data.channel & (1 << i))
@@ -82,7 +71,6 @@ void NexaProtocol::encode(RemoteTransmitData *dst, const NexaData &data) {
       this->zero(dst);
   }
 
-  // ESP_LOGD(TAG, "Level:");
   // Level (4 bits)
   if (data.state == 2) {
     for (int16_t i = 4 - 1; i >= 0; i--) {
@@ -94,14 +82,7 @@ void NexaProtocol::encode(RemoteTransmitData *dst, const NexaData &data) {
   }
 
   // Send finishing Zero
-  // this->zero(dst);
   dst->item(TX_BIT_HIGH_US, TX_BIT_ZERO_LOW_US);
-
-  // Send the PAUSE
-  // dst->mark(BIT_HIGH_US);
-  // dst->space(TX_BIT_HIGH_US*50);
-
-  ESP_LOGD(TAG, "ENCODE NEXA: Done");
 }
 
 optional<NexaData> NexaProtocol::decode(RemoteReceiveData src) {
@@ -137,10 +118,6 @@ optional<NexaData> NexaProtocol::decode(RemoteReceiveData src) {
   if (!src.expect_pulse_with_gap(HEADER_HIGH_US, HEADER_LOW_US))
     return {};
 
-  // ESP_LOGD(TAG, "DECODE NEXA (good sync pulse): ");
-  // ESP_LOGD(TAG, "SYNC");
-
-  // ESP_LOGD(TAG, "DEVICE:");
   // Device
   for (uint8_t i = 0; i < 26; i++) {
     out.device <<= 1UL;
@@ -148,20 +125,16 @@ optional<NexaData> NexaProtocol::decode(RemoteReceiveData src) {
         (src.expect_pulse_with_gap(BIT_HIGH_US, BIT_ZERO_LOW_US))) {
       // '1' => '10'
       out.device |= 0x01;
-      // ESP_LOGD(TAG, "1");
     } else if (src.expect_pulse_with_gap(BIT_HIGH_US, BIT_ZERO_LOW_US) &&
                (src.expect_pulse_with_gap(BIT_HIGH_US, BIT_ONE_LOW_US))) {
       // '0' => '01'
       out.device |= 0x00;
-      // ESP_LOGD(TAG, "0");
     } else {
-      // ESP_LOGD(TAG, "...unknown..");
       // This should not happen...failed command
       return {};
     }
   }
 
-  // ESP_LOGD(TAG, "GROUP:");
   // GROUP
   for (uint8_t i = 0; i < 1; i++) {
     out.group <<= 1UL;
@@ -169,20 +142,16 @@ optional<NexaData> NexaProtocol::decode(RemoteReceiveData src) {
         (src.expect_pulse_with_gap(BIT_HIGH_US, BIT_ZERO_LOW_US))) {
       // '1' => '10'
       out.group |= 0x01;
-      // ESP_LOGD(TAG, "1");
     } else if (src.expect_pulse_with_gap(BIT_HIGH_US, BIT_ZERO_LOW_US) &&
                (src.expect_pulse_with_gap(BIT_HIGH_US, BIT_ONE_LOW_US))) {
       // '0' => '01'
       out.group |= 0x00;
-      // ESP_LOGD(TAG, "0");
     } else {
-      // ESP_LOGD(TAG, "...unknown..");
       // This should not happen...failed command
       return {};
     }
   }
 
-  // ESP_LOGD(TAG, "STATE:");
   // STATE
   for (uint8_t i = 0; i < 1; i++) {
     out.state <<= 1UL;
@@ -197,11 +166,9 @@ optional<NexaData> NexaProtocol::decode(RemoteReceiveData src) {
       if (src.expect_pulse_with_gap(BIT_HIGH_US, BIT_ZERO_LOW_US)) {
         // '10' => 1
         out.state |= 0x01;
-        // ESP_LOGD(TAG, "1");
       } else if (src.expect_pulse_with_gap(BIT_HIGH_US, BIT_ONE_LOW_US)) {
         // '11' => NOT OK
         // This case is here to make sure we advance through the correct index
-        // ESP_LOGD(TAG, "- err 11 not ok");
         // This should not happen...failed command
         return {};
       }
@@ -210,32 +177,25 @@ optional<NexaData> NexaProtocol::decode(RemoteReceiveData src) {
       if (src.expect_pulse_with_gap(BIT_HIGH_US, BIT_ONE_LOW_US)) {
         // '01' => 0
         out.state |= 0x00;
-        // ESP_LOGD(TAG, "0");
       } else if (src.expect_pulse_with_gap(BIT_HIGH_US, BIT_ZERO_LOW_US)) {
         // '00' => Special case for dimmer! => 2
         out.state |= 0x02;
-        // ESP_LOGD(TAG, "00 => special case for dimmer");
       }
     }
   }
 
-  // ESP_LOGD(TAG, "CHANNEL:");
   // CHANNEL (EE and BB bits)
-
   for (uint8_t i = 0; i < 4; i++) {
     out.channel <<= 1UL;
     if (src.expect_pulse_with_gap(BIT_HIGH_US, BIT_ONE_LOW_US) &&
         (src.expect_pulse_with_gap(BIT_HIGH_US, BIT_ZERO_LOW_US))) {
       // '1' => '10'
       out.channel |= 0x01;
-      // ESP_LOGD(TAG, "1");
     } else if (src.expect_pulse_with_gap(BIT_HIGH_US, BIT_ZERO_LOW_US) &&
                (src.expect_pulse_with_gap(BIT_HIGH_US, BIT_ONE_LOW_US))) {
       // '0' => '01'
       out.channel |= 0x00;
-      // ESP_LOGD(TAG, "0");
     } else {
-      // ESP_LOGD(TAG, "...unknown..");
       // This should not happen...failed command
       return {};
     }
@@ -243,14 +203,9 @@ optional<NexaData> NexaProtocol::decode(RemoteReceiveData src) {
 
   // Optional to transmit LEVEL data (8 bits more)
   if (int32_t(src.get_index() + 8) >= src.size()) {
-    // ESP_LOGD(TAG, "DECODE NEXA: DONE - No LEVEL DATA");
-    // raw_dump(src);
-    // ESP_LOGD(TAG, "         NEXA: device=0x%04X group=%d state=%d channel=%d level=%d", out.device, out.group,
-    //      out.state, out.channel, out.level);
     return out;
   }
 
-  // ESP_LOGD(TAG, "LEVEL:");
   // LEVEL
   for (uint8_t i = 0; i < 4; i++) {
     out.level <<= 1UL;
@@ -258,64 +213,18 @@ optional<NexaData> NexaProtocol::decode(RemoteReceiveData src) {
         (src.expect_pulse_with_gap(BIT_HIGH_US, BIT_ZERO_LOW_US))) {
       // '1' => '10'
       out.level |= 0x01;
-      // ESP_LOGD(TAG, "1");
     } else if (src.expect_pulse_with_gap(BIT_HIGH_US, BIT_ZERO_LOW_US) &&
                (src.expect_pulse_with_gap(BIT_HIGH_US, BIT_ONE_LOW_US))) {
       // '0' => '01'
       out.level |= 0x00;
-      // ESP_LOGD(TAG, "0");
     } else {
-      // ESP_LOGD(TAG, "...unknown..");
       // This should not happen...failed command
       // return {};
       break;
     }
   }
 
-  // raw_dump(src);
-
-  // ESP_LOGD(TAG, "DECODE NEXA: DONE");
-
-  // ESP_LOGD(TAG, "         NEXA: device=0x%04X group=%d state=%d channel=%d level=%d", out.device, out.group,
-  //         out.state, out.channel, out.level);
-
   return out;
-}
-
-void NexaProtocol::raw_dump(RemoteReceiveData src) {
-  char buffer[256];
-  uint32_t buffer_offset = 0;
-  buffer_offset += sprintf(buffer, "Timings: ");
-
-  for (int32_t i = 0; i < src.size() - 1; i++) {
-    const int32_t value = src[i];
-    const uint32_t remaining_length = sizeof(buffer) - buffer_offset;
-    int written;
-
-    if (i + 1 < src.size() - 1) {
-      written = snprintf(buffer + buffer_offset, remaining_length, "%d, ", value);
-    } else {
-      written = snprintf(buffer + buffer_offset, remaining_length, "%d", value);
-    }
-
-    if (written < 0 || written >= int(remaining_length)) {
-      // write failed, flush...
-      buffer[buffer_offset] = '\0';
-      ESP_LOGD(TAG, "%s", buffer);
-      buffer_offset = 0;
-      written = sprintf(buffer, "  ");
-      if (i + 1 < src.size()) {
-        written += sprintf(buffer + written, "%d, ", value);
-      } else {
-        written += sprintf(buffer + written, "%d", value);
-      }
-    }
-
-    buffer_offset += written;
-  }
-  if (buffer_offset != 0) {
-    ESP_LOGD(TAG, "%s", buffer);
-  }
 }
 
 void NexaProtocol::dump(const NexaData &data) {
