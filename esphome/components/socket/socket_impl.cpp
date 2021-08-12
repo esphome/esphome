@@ -99,7 +99,12 @@ class SocketImplSocket : public Socket {
   }
   int setblocking(bool blocking) override {
     int fl = ::fcntl(fd_, F_GETFL, 0);
-    ::fcntl(fd_, F_SETFL, fl | O_NONBLOCK);
+    if (blocking) {
+      fl &= ~O_NONBLOCK;
+    } else {
+      fl |= O_NONBLOCK;
+    }
+    ::fcntl(fd_, F_SETFL, fl);
     return 0;
   }
  protected:

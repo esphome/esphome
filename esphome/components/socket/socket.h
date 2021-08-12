@@ -2,6 +2,7 @@
 #include <string>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/ioctl.h>
 #include <memory>
 
 #include "esphome/core/optional.h"
@@ -37,6 +38,7 @@ class Socket {
   virtual ssize_t write(const void *buf, size_t len) = 0;
   // virtual ssize_t writev(const struct iovec *iov, int iovcnt) = 0;
   virtual int setblocking(bool blocking) = 0;
+  virtual int loop() { return 0; };
 };
 
 std::unique_ptr<Socket> socket(int domain, int type, int protocol);

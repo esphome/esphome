@@ -56,6 +56,8 @@ struct MbedTLSBioCtx {
   }
 };
 
+void test();
+
 class MbedTLSWrappedSocket : public socket::Socket {
  public:
   MbedTLSWrappedSocket(std::unique_ptr<socket::Socket> sock)
@@ -92,6 +94,7 @@ class MbedTLSWrappedSocket : public socket::Socket {
     return -1;
   }
   int close() override {
+    do_handshake_ = false;
     return sock_->close();
   }
   int connect(const std::string &address) override {
@@ -101,6 +104,7 @@ class MbedTLSWrappedSocket : public socket::Socket {
     return sock_->connect(addr, addrlen);
   }
   int shutdown(int how) override {
+    do_handshake_ = false;
     int ret = mbedtls_ssl_close_notify(&ssl_);
     if (ret != 0)
       return this->mbedtls_to_errno_(ret);
@@ -131,11 +135,21 @@ class MbedTLSWrappedSocket : public socket::Socket {
   }
   ssize_t read(void *buf, size_t len) override {
     // mbedtls will automatically perform handshake here if necessary
+    loop();
+    if (do_handshake_) {
+      errno = EWOULDBLOCK;
+      return -1;
+    }
     int ret = mbedtls_ssl_read(&ssl_, reinterpret_cast<uint8_t *>(buf), len);
     return this->mbedtls_to_errno_(ret);
   }
   // virtual ssize_t readv(const struct iovec *iov, int iovcnt) = 0;
   ssize_t write(const void *buf, size_t len) override {
+    loop();
+    if (do_handshake_) {
+      errno = EWOULDBLOCK;
+      return -1;
+    }
     int ret = mbedtls_ssl_write(&ssl_, reinterpret_cast<const uint8_t *>(buf), len);
     return this->mbedtls_to_errno_(ret);
   }
@@ -143,6 +157,21 @@ class MbedTLSWrappedSocket : public socket::Socket {
   int setblocking(bool blocking) override {
     // TODO: handle blocking modes
     return sock_->setblocking(blocking);
+  }
+
+  int loop() override {
+    if (do_handshake_) {
+      int err = mbedtls_ssl_handshake_step(&ssl_);
+      if (err == 0) {
+        do_handshake_ = false;
+      } else if (err == MBEDTLS_ERR_SSL_WANT_WRITE || err == MBEDTLS_ERR_SSL_WANT_READ) {
+
+      } else {
+        do_handshake_ = false;
+        return -1;
+      }
+    }
+    return 0;
   }
 
  protected:
