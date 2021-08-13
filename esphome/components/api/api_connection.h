@@ -11,11 +11,12 @@ namespace api {
 
 class APIConnection : public APIServerConnection {
  public:
-  APIConnection(AsyncClient *client, APIServer *parent);
+  APIConnection(APIServer *parent);
   virtual ~APIConnection();
 
-  void disconnect_client();
-  void loop();
+  virtual void disconnect_client();
+  virtual void loop();
+  virtual size_t space() = 0;
 
   bool send_list_info_done() {
     ListEntitiesDoneResponse resp;
@@ -129,25 +130,23 @@ class APIConnection : public APIServerConnection {
   void execute_service(const ExecuteServiceRequest &msg) override;
   bool is_authenticated() override { return this->connection_state_ == ConnectionState::AUTHENTICATED; }
   bool is_connection_setup() override {
-    return this->connection_state_ == ConnectionState ::CONNECTED || this->is_authenticated();
+    return this->connection_state_ == ConnectionState::CONNECTED || this->is_authenticated();
   }
-  void on_fatal_error() override;
+  virtual void on_fatal_error() = 0;
   void on_unauthenticated_access() override;
   void on_no_setup_connection() override;
   ProtoWriteBuffer create_buffer() override {
     this->send_buffer_.clear();
     return {&this->send_buffer_};
   }
-  bool send_buffer(ProtoWriteBuffer buffer, uint32_t message_type) override;
+  bool send_buffer(ProtoWriteBuffer buffer, uint32_t message_type);
+  virtual bool send_buffer(std::vector<uint8_t> header, ProtoWriteBuffer buffer) = 0;
 
  protected:
   friend APIServer;
 
-  void on_error_(int8_t error);
-  void on_disconnect_();
-  void on_timeout_(uint32_t time);
-  void on_data_(uint8_t *buf, size_t len);
   void parse_recv_buffer_();
+  virtual bool is_connected_() = 0;
 
   enum class ConnectionState {
     WAITING_FOR_HELLO,
@@ -172,11 +171,66 @@ class APIConnection : public APIServerConnection {
   bool service_call_subscription_{false};
   bool current_nodelay_{false};
   bool next_close_{false};
-  AsyncClient *client_;
   APIServer *parent_;
   InitialStateIterator initial_state_iterator_;
   ListEntitiesIterator list_entities_iterator_;
 };
 
+#if defined ARDUINO_ARCH_ESP8266 || defined ARDUINO_ARCH_ESP32
+class AsyncAPIConnection : public APIConnection {
+ public:
+  AsyncAPIConnection(AsyncClient *client, APIServer *parent);
+  virtual ~AsyncAPIConnection();
+  bool send_buffer(std::vector<uint8_t> header, ProtoWriteBuffer buffer) override;
+  void on_fatal_error() override;
+
+  void disconnect_client() override;
+  size_t space() { return this->client_->space(); }
+
+ protected:
+  AsyncClient *client_;
+  void on_error_(int8_t error);
+  void on_disconnect_();
+  void on_timeout_(uint32_t time);
+  void on_data_(uint8_t *buf, size_t len);
+  bool is_connected_();
+};
+#endif
+
+class StreamAPIConnection : public APIConnection {
+ public:
+  StreamAPIConnection(Stream *client, APIServer *parent);
+  virtual ~StreamAPIConnection();
+  void on_disconnect_response(const DisconnectResponse &value) override {
+    // just reset connection_state_
+    this->connection_state_ = ConnectionState::WAITING_FOR_HELLO;
+    this->next_close_ = false;
+    this->remove_ = false;
+  }
+  DisconnectResponse disconnect(const DisconnectRequest &msg) override {
+    // remote initiated disconnect_client
+    this->connection_state_ = ConnectionState::WAITING_FOR_HELLO;
+    this->next_close_ = false;
+    this->remove_ = false;
+    DisconnectResponse resp;
+    return resp;
+  }
+  bool send_buffer(std::vector<uint8_t> header, ProtoWriteBuffer buffer) override;
+  void on_fatal_error() override;
+
+  void disconnect_client() override;
+  void loop() override;
+  size_t space() { return 256; }
+
+ protected:
+  Stream *client_;
+  bool is_connected_() {
+    const uint32_t timeout = 30000;
+    if (millis() - this->last_traffic_ > timeout) {
+      return false;
+    }
+    return true;
+  }
+};
 }  // namespace api
 }  // namespace esphome

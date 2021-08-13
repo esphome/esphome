@@ -21,20 +21,6 @@ static const char *const TAG = "api";
 void APIServer::setup() {
   ESP_LOGCONFIG(TAG, "Setting up Home Assistant API server...");
   this->setup_controller();
-  this->server_ = AsyncServer(this->port_);
-  this->server_.setNoDelay(false);
-  this->server_.begin();
-  this->server_.onClient(
-      [](void *s, AsyncClient *client) {
-        if (client == nullptr)
-          return;
-
-        // can't print here because in lwIP thread
-        // ESP_LOGD(TAG, "New client connected from %s", client->remoteIP().toString().c_str());
-        auto *a_this = (APIServer *) s;
-        a_this->clients_.push_back(new APIConnection(client, a_this));
-      },
-      this);
 #ifdef USE_LOGGER
   if (logger::global_logger != nullptr) {
     logger::global_logger->add_on_log_callback([this](int level, const char *tag, const char *message) {
@@ -93,7 +79,6 @@ void APIServer::loop() {
 }
 void APIServer::dump_config() {
   ESP_LOGCONFIG(TAG, "API Server:");
-  ESP_LOGCONFIG(TAG, "  Address: %s:%u", network_get_address().c_str(), this->port_);
 }
 bool APIServer::uses_password() const { return !this->password_.empty(); }
 bool APIServer::check_password(const std::string &password) const {
@@ -124,7 +109,16 @@ bool APIServer::check_password(const std::string &password) const {
 
   return result == 0;
 }
-void APIServer::handle_disconnect(APIConnection *conn) {}
+void APIServer::handle_connect(APIConnection *conn) {
+  ESP_LOGD(TAG, "Connecting %s", conn->client_info_.c_str());
+  this->clients_.push_back(conn);
+}
+void APIServer::handle_disconnect(APIConnection *conn) {
+  ESP_LOGD(TAG, "Disconnecting %s", conn->client_info_.c_str());
+  auto position = std::find(this->clients_.begin(), this->clients_.end(), conn);
+  if (position != this->clients_.end())
+    this->clients_.erase(position);
+}
 #ifdef USE_BINARY_SENSOR
 void APIServer::on_binary_sensor_update(binary_sensor::BinarySensor *obj, bool state) {
   if (obj->is_internal())
@@ -254,6 +248,34 @@ void APIServer::on_shutdown() {
   }
   delay(10);
 }
+
+#if defined ARDUINO_ARCH_ESP8266 || defined ARDUINO_ARCH_ESP32
+AsyncAPIServer::AsyncAPIServer() {}
+void AsyncAPIServer::setup() {
+  APIServer::setup();
+  this->server_ = AsyncServer(this->port_);
+  this->server_.setNoDelay(false);
+  this->server_.begin();
+  this->server_.onClient(
+      [](void *s, AsyncClient *client) {
+        if (client == nullptr)
+          return;
+
+        // can't print here because in lwIP thread
+        ESP_LOGD(TAG, "New client connected from %s", client->remoteIP().toString().c_str());
+        auto *a_this = (APIServer *) s;
+        a_this->handle_connect(new AsyncAPIConnection(client, a_this));
+      },
+      this);
+}
+void AsyncAPIServer::dump_config() {
+  ESP_LOGCONFIG(TAG, "API Server:");
+  ESP_LOGCONFIG(TAG, "  Address: %s:%u", network_get_address().c_str(), this->port_);
+}
+void AsyncAPIServer::on_shutdown() {
+  this->server_.end();
+}
+#endif
 
 }  // namespace api
 }  // namespace esphome

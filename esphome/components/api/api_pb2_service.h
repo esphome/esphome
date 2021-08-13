@@ -1,5 +1,5 @@
 // This file was automatically generated with a tool.
-// See scripts/api_protobuf/api_protobuf.py
+// See script/api_protobuf/api_protobuf.py
 #pragma once
 
 #include "api_pb2.h"

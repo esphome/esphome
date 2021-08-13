@@ -16,14 +16,17 @@ from esphome.const import (
     CONF_EVENT,
     CONF_TAG,
 )
-from esphome.core import coroutine_with_priority
+from esphome.core import CORE, coroutine_with_priority
 
-DEPENDENCIES = ["network"]
+DEPENDENCIES = []
 AUTO_LOAD = ["async_tcp"]
 CODEOWNERS = ["@OttoWinter"]
 
 api_ns = cg.esphome_ns.namespace("api")
 APIServer = api_ns.class_("APIServer", cg.Component, cg.Controller)
+AsyncAPIServer = api_ns.class_("AsyncAPIServer", APIServer, cg.Component, cg.Controller)
+if CORE.is_esp32 or CORE.is_esp8266:
+    APIServer = AsyncAPIServer
 HomeAssistantServiceCallAction = api_ns.class_(
     "HomeAssistantServiceCallAction", automation.Action
 )

@@ -29,7 +29,7 @@ import api_options_pb2 as pb
 import google.protobuf.descriptor_pb2 as descriptor
 
 file_header = "// This file was automatically generated with a tool.\n"
-file_header += "// See scripts/api_protobuf/api_protobuf.py\n"
+file_header += "// See script/api_protobuf/api_protobuf.py\n"
 
 cwd = Path(__file__).resolve().parent
 root = cwd.parent.parent / "esphome" / "components" / "api"
@@ -185,7 +185,7 @@ class TypeInfo:
     def dump_content(self):
         o = f'out.append("  {self.name}: ");\n'
         o += self.dump(f"this->{self.field_name}") + "\n"
-        o += f'out.append("\\n");\n'
+        o += f'out.append("\\r\\n");\n'
         return o
 
     dump = None
@@ -534,7 +534,7 @@ class RepeatedTypeInfo(TypeInfo):
         o = f'for (const auto {"" if self._ti_is_bool else "&"}it : this->{self.field_name}) {{\n'
         o += f'  out.append("  {self.name}: ");\n'
         o += indent(self._ti.dump("it")) + "\n"
-        o += f'  out.append("\\n");\n'
+        o += f'  out.append("\\r\\n");\n'
         o += f"}}\n"
         return o
 
@@ -650,7 +650,7 @@ def build_message_type(desc):
         else:
             o += "\n"
             o += f"  char buffer[64];\n"
-            o += f'  out.append("{desc.name} {{\\n");\n'
+            o += f'  out.append("{desc.name} {{\\r\\n");\n'
             o += indent("\n".join(dump)) + "\n"
             o += f'  out.append("}}");\n'
     else:
@@ -753,7 +753,7 @@ def get_opt(desc, opt, default=None):
     return desc.options.Extensions[opt]
 
 
-def build_service_message_type(mt):
+def build_message_type(mt, send, receive):
     snake = camel_to_snake(mt.name)
     id_ = get_opt(mt, pb.id)
     if id_ is None:
@@ -769,24 +769,30 @@ def build_service_message_type(mt):
 
     if ifdef is not None:
         ifdefs[str(mt.name)] = ifdef
-        hout += f"#ifdef {ifdef}\n"
-        cout += f"#ifdef {ifdef}\n"
 
-    if source in (SOURCE_BOTH, SOURCE_SERVER):
+    if source in send:
         # Generate send
         func = f"send_{snake}"
+        if ifdef is not None:
+            hout += f"#ifdef {ifdef}\n"
+            cout += f"#ifdef {ifdef}\n"
         hout += f"bool {func}(const {mt.name} &msg);\n"
         cout += f"bool {class_name}::{func}(const {mt.name} &msg) {{\n"
         if log:
-            cout += f'#ifdef HAS_PROTO_MESSAGE_DUMP\n'
+            cout += f"#ifdef HAS_PROTO_MESSAGE_DUMP\n"
             cout += f'  ESP_LOGVV(TAG, "{func}: %s", msg.dump().c_str());\n'
-            cout += f'#endif\n'
+            cout += f"#endif\n"
         # cout += f'  this->set_nodelay({str(nodelay).lower()});\n'
         cout += f"  return this->send_message_<{mt.name}>(msg, {id_});\n"
         cout += f"}}\n"
-    if source in (SOURCE_BOTH, SOURCE_CLIENT):
+        if ifdef is not None:
+            hout += f"#endif\n"
+            cout += f"#endif\n"
+    if source in receive:
         # Generate receive
         func = f"on_{snake}"
+        if ifdef is not None:
+            hout += f"#ifdef {ifdef}\n"
         hout += f"virtual void {func}(const {mt.name} &value){{}};\n"
         case = ""
         if ifdef is not None:
@@ -794,18 +800,16 @@ def build_service_message_type(mt):
         case += f"{mt.name} msg;\n"
         case += f"msg.decode(msg_data, msg_size);\n"
         if log:
-            case += f'#ifdef HAS_PROTO_MESSAGE_DUMP\n'
+            case += f"#ifdef HAS_PROTO_MESSAGE_DUMP\n"
             case += f'ESP_LOGVV(TAG, "{func}: %s", msg.dump().c_str());\n'
-            case += f'#endif\n'
+            case += f"#endif\n"
         case += f"this->{func}(msg);\n"
         if ifdef is not None:
             case += f"#endif\n"
         case += "break;"
+        if ifdef is not None:
+            hout += f"#endif\n"
         RECEIVE_CASES[id_] = case
-
-    if ifdef is not None:
-        hout += f"#endif\n"
-        cout += f"#endif\n"
 
     return hout, cout
 
@@ -838,7 +842,9 @@ hpp += f"class {class_name} : public ProtoService {{\n"
 hpp += " public:\n"
 
 for mt in file.message_type:
-    obj = build_service_message_type(mt)
+    send = (SOURCE_BOTH, SOURCE_SERVER)
+    receive = (SOURCE_BOTH, SOURCE_CLIENT)
+    obj = build_message_type(mt, send, receive)
     if obj is None:
         continue
     hout, cout = obj
@@ -939,6 +945,83 @@ with open(root / "api_pb2_service.h", "w") as f:
     f.write(hpp)
 
 with open(root / "api_pb2_service.cpp", "w") as f:
+    f.write(cpp)
+
+hpp = file_header
+hpp += """\
+#pragma once
+
+#include "../api/api_pb2.h"
+#include "esphome/core/defines.h"
+
+namespace esphome {
+namespace api {
+
+"""
+
+cpp = file_header
+cpp += """\
+#include "api_pb2_client.h"
+#include "esphome/core/log.h"
+
+namespace esphome {
+namespace api {
+
+static const char *TAG = "api.client";
+
+"""
+
+RECEIVE_CASES = {}
+
+class_name = "APIClientConnectionBase"
+
+hpp += f"class {class_name} : public ProtoClient {{\n"
+hpp += " public:\n"
+
+for mt in file.message_type:
+    send = (SOURCE_BOTH, SOURCE_CLIENT)
+    receive = (SOURCE_BOTH, SOURCE_SERVER)
+    obj = build_message_type(mt, send, receive)
+    if obj is None:
+        continue
+    hout, cout = obj
+    hpp += indent(hout) + "\n"
+    cpp += cout
+
+cases = list(RECEIVE_CASES.items())
+cases.sort()
+hpp += " protected:\n"
+hpp += f"  bool read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) override;\n"
+out = f"bool {class_name}::read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) {{\n"
+out += f"  switch (msg_type) {{\n"
+for i, case in cases:
+    c = f"case {i}: {{\n"
+    c += indent(case) + "\n"
+    c += f"}}"
+    out += indent(c, "    ") + "\n"
+out += "    default:\n"
+out += "      return false;\n"
+out += "  }\n"
+out += "  return true;\n"
+out += "}\n"
+cpp += out
+hpp += "};\n"
+
+hpp += """\
+
+}  // namespace api
+}  // namespace esphome
+"""
+cpp += """\
+
+}  // namespace api
+}  // namespace esphome
+"""
+
+with open(root / ".." / "api_client" / "api_pb2_client.h", "w") as f:
+    f.write(hpp)
+
+with open(root / ".." / "api_client" / "api_pb2_client.cpp", "w") as f:
     f.write(cpp)
 
 prot.unlink()
