@@ -8,7 +8,7 @@ static const char *const TAG = "daly_bms";
 
 static const unsigned char DALY_TEMPERATURE_OFFSET = 40;
 
-static const unsigned char DALY_REQUEST_battery_level = 0x90;
+static const unsigned char DALY_REQUEST_BATTERY_LEVEL = 0x90;
 static const unsigned char DALY_REQUEST_MIN_MAX_VOLTAGE = 0x91;
 static const unsigned char DALY_REQUEST_MIN_MAX_TEMPERATURE = 0x92;
 static const unsigned char DALY_REQUEST_MOS = 0x93;
@@ -23,7 +23,7 @@ void DalyBmsComponent::dump_config() {
 }
 
 void DalyBmsComponent::update() {
-  this->request_data(DALY_REQUEST_battery_level);
+  this->request_data(DALY_REQUEST_BATTERY_LEVEL);
   this->request_data(DALY_REQUEST_MIN_MAX_VOLTAGE);
   this->request_data(DALY_REQUEST_MIN_MAX_TEMPERATURE);
   this->request_data(DALY_REQUEST_MOS);
@@ -66,10 +66,10 @@ void DalyBmsComponent::request_data(unsigned char data_id) {
 void DalyBmsComponent::decode_data(unsigned char *data, int length) {
   unsigned char *start_flag_position;
 
-  while (data != NULL) {
+  while (data != nullptr) {
     start_flag_position = (unsigned char *) strchr((const char *) data, 0xA5);
 
-    if (start_flag_position != NULL) {
+    if (start_flag_position != nullptr) {
       length = length - (start_flag_position - data);
       data = start_flag_position;
 
@@ -83,7 +83,7 @@ void DalyBmsComponent::decode_data(unsigned char *data, int length) {
 
         if (checksum == data[12]) {
           switch (data[2]) {
-            case DALY_REQUEST_battery_level:
+            case DALY_REQUEST_BATTERY_LEVEL:
               if (this->voltage_sensor_) {
                 this->voltage_sensor_->publish_state((float) (((data[4] << 8) | data[5]) / 10));
               }
@@ -173,10 +173,10 @@ void DalyBmsComponent::decode_data(unsigned char *data, int length) {
           data = &data[13];
         }
       } else {
-        data = NULL;
+        data = nullptr;
       }
     } else {
-      data = NULL;
+      data = nullptr;
     }
   }
 
