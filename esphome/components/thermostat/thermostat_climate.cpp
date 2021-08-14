@@ -57,20 +57,20 @@ void ThermostatClimate::refresh() {
 }
 
 bool ThermostatClimate::climate_action_change_delayed() {
-  bool stateMismatch = this->action != this->compute_action_(true);
+  bool state_mismatch = this->action != this->compute_action_(true);
 
   switch (this->compute_action_(true)) {
     case climate::CLIMATE_ACTION_OFF:
     case climate::CLIMATE_ACTION_IDLE:
-      return stateMismatch && (!this->idle_action_ready_());
+      return state_mismatch && (!this->idle_action_ready_());
     case climate::CLIMATE_ACTION_COOLING:
-      return stateMismatch && (!this->cooling_action_ready_());
+      return state_mismatch && (!this->cooling_action_ready_());
     case climate::CLIMATE_ACTION_HEATING:
-      return stateMismatch && (!this->heating_action_ready_());
+      return state_mismatch && (!this->heating_action_ready_());
     case climate::CLIMATE_ACTION_FAN:
-      return stateMismatch && (!this->fanning_action_ready_());
+      return state_mismatch && (!this->fanning_action_ready_());
     case climate::CLIMATE_ACTION_DRYING:
-      return stateMismatch && (!this->drying_action_ready_());
+      return state_mismatch && (!this->drying_action_ready_());
     default:
       break;
   }
@@ -78,8 +78,8 @@ bool ThermostatClimate::climate_action_change_delayed() {
 }
 
 bool ThermostatClimate::fan_mode_change_delayed() {
-  bool stateMismatch = this->fan_mode.value_or(climate::CLIMATE_FAN_ON) != this->prev_fan_mode_;
-  return stateMismatch && (!this->fan_mode_ready_());
+  bool state_mismatch = this->fan_mode.value_or(climate::CLIMATE_FAN_ON) != this->prev_fan_mode_;
+  return state_mismatch && (!this->fan_mode_ready_());
 }
 
 climate::ClimateAction ThermostatClimate::delayed_climate_action() { return this->compute_action_(true); }
