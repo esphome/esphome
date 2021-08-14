@@ -1,5 +1,6 @@
 #include "daly_bms.h"
 #include "esphome/core/log.h"
+#include <vector>
 
 namespace esphome {
 namespace daly_bms {
@@ -30,12 +31,12 @@ void DalyBmsComponent::update() {
   this->request_data(DALY_REQUEST_STATUS);
   this->request_data(DALY_REQUEST_TEMPERATURE);
 
-  unsigned char *get_battery_level_data;
+  std::vector<unsigned char> get_battery_level_data;
   int available_data = this->available();
   if (available_data >= 13) {
-    get_battery_level_data = (unsigned char *) malloc(available_data);
-    this->read_array(get_battery_level_data, available_data);
-    this->decode_data(get_battery_level_data, available_data);
+    get_battery_level_data.resize(available_data);
+    this->read_array(&get_battery_level_data[0], available_data);
+    this->decode_data(&get_battery_level_data[0], available_data);
   }
 }
 
@@ -85,13 +86,13 @@ void DalyBmsComponent::decode_data(unsigned char *data, int length) {
           switch (data[2]) {
             case DALY_REQUEST_BATTERY_LEVEL:
               if (this->voltage_sensor_) {
-                this->voltage_sensor_->publish_state((float) (((data[4] << 8) | data[5]) / 10));
+                this->voltage_sensor_->publish_state(((float) ((data[4] << 8) | data[5]) / 10));
               }
               if (this->current_sensor_) {
-                this->current_sensor_->publish_state((float) ((((data[8] << 8) | data[9]) - 30000) / 10));
+                this->current_sensor_->publish_state(((float) (((data[8] << 8) | data[9]) - 30000) / 10));
               }
               if (this->battery_level_sensor_) {
-                this->battery_level_sensor_->publish_state((float) (((data[10] << 8) | data[11]) / 10));
+                this->battery_level_sensor_->publish_state(((float) ((data[10] << 8) | data[11]) / 10));
               }
               break;
 
@@ -179,8 +180,6 @@ void DalyBmsComponent::decode_data(unsigned char *data, int length) {
       data = nullptr;
     }
   }
-
-  free(data);
 }
 
 }  // namespace daly_bms
