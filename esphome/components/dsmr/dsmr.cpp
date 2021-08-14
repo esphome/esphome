@@ -37,6 +37,12 @@ void Dsmr::receive_telegram_() {
       return;
     }
 
+    // Some v2.2 or v3 meters will send a new value which starts with '('
+    // in a new line while the value belongs to the previous ObisId. For
+    // proper parsing remove these new line characters
+    while (c == '(' && (telegram_[telegram_len_ - 1] == '\n' || telegram_[telegram_len_ - 1] == '\r'))
+      telegram_len_--;
+
     telegram_[telegram_len_] = c;
     telegram_len_++;
     if (c == '!') {  // footer: exclamation mark
