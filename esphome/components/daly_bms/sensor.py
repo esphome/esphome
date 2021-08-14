@@ -5,6 +5,8 @@ from esphome.const import (
     CONF_VOLTAGE,
     CONF_CURRENT,
     CONF_BATTERY_LEVEL,
+    CONF_MAX_TEMPERATURE,
+    CONF_MIN_TEMPERATURE,
     DEVICE_CLASS_VOLTAGE,
     DEVICE_CLASS_CURRENT,
     DEVICE_CLASS_BATTERY,
@@ -23,19 +25,15 @@ from esphome.const import (
     ICON_THERMOMETER,
     ICON_GAUGE,
 )
-from . import DalyBmsComponent, CONF_BSM_DALY_ID
+from . import DalyBmsComponent, BSM_DALY_ID
 
 CONF_MAX_CELL_VOLTAGE = "max_cell_voltage"
 CONF_MAX_CELL_VOLTAGE_NUMBER = "max_cell_voltage_number"
 CONF_MIN_CELL_VOLTAGE = "min_cell_voltage"
 CONF_MIN_CELL_VOLTAGE_NUMBER = "min_cell_voltage_number"
-CONF_MAX_TEMPERATURE = "max_temperature"
 CONF_MAX_TEMPERATURE_PROBE_NUMBER = "max_temperature_probe_number"
-CONF_MIN_TEMPERATURE = "min_temperature"
 CONF_MIN_TEMPERATURE_PROBE_NUMBER = "min_temperature_probe_number"
-CONF_STATUS = "status"
 CONF_CELLS_NUMBER = "cells_number"
-CONF_TEMPERATURE_PROBES_NUMBER = "temperature_probe_number"
 
 CONF_REMAINING_CAPACITY = "remaining_capacity"
 CONF_TEMPERATURE_1 = "temperature_1"
@@ -62,7 +60,6 @@ TYPES = [
     CONF_MIN_TEMPERATURE,
     CONF_MIN_TEMPERATURE_PROBE_NUMBER,
     CONF_CELLS_NUMBER,
-    CONF_TEMPERATURE_PROBES_NUMBER,
     CONF_REMAINING_CAPACITY,
     CONF_TEMPERATURE_1,
     CONF_TEMPERATURE_2,
@@ -71,7 +68,7 @@ TYPES = [
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
-            cv.GenerateID(CONF_BSM_DALY_ID): cv.use_id(DalyBmsComponent),
+            cv.GenerateID(BSM_DALY_ID): cv.use_id(DalyBmsComponent),
             cv.Optional(CONF_VOLTAGE): sensor.sensor_schema(
                 UNIT_VOLT,
                 ICON_FLASH,
@@ -163,13 +160,6 @@ CONFIG_SCHEMA = cv.All(
                 DEVICE_CLASS_EMPTY,
                 STATE_CLASS_NONE,
             ),
-            cv.Optional(CONF_TEMPERATURE_PROBES_NUMBER): sensor.sensor_schema(
-                UNIT_EMPTY,
-                ICON_COUNTER,
-                0,
-                DEVICE_CLASS_EMPTY,
-                STATE_CLASS_NONE,
-            ),
             cv.Optional(CONF_TEMPERATURE_1): sensor.sensor_schema(
                 UNIT_CELSIUS,
                 ICON_THERMOMETER,
@@ -185,8 +175,7 @@ CONFIG_SCHEMA = cv.All(
                 STATE_CLASS_MEASUREMENT,
             ),
         }
-    )
-    .extend(cv.COMPONENT_SCHEMA)
+    ).extend(cv.COMPONENT_SCHEMA)
 )
 
 
@@ -198,6 +187,6 @@ async def setup_conf(config, key, hub):
 
 
 async def to_code(config):
-    hub = await cg.get_variable(config[CONF_BSM_DALY_ID])
+    hub = await cg.get_variable(config[BSM_DALY_ID])
     for key in TYPES:
         await setup_conf(config, key, hub)

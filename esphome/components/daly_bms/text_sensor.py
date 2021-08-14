@@ -1,10 +1,8 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import text_sensor
-from esphome.const import CONF_ICON, CONF_ID
-from . import DalyBmsComponent, CONF_BSM_DALY_ID
-
-CONF_STATUS = "status"
+from esphome.const import CONF_ICON, CONF_ID, CONF_STATUS
+from . import DalyBmsComponent, BSM_DALY_ID
 
 ICON_CAR_BATTERY = "mdi:car-battery"
 
@@ -15,7 +13,7 @@ TYPES = [
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
-            cv.GenerateID(CONF_BSM_DALY_ID): cv.use_id(DalyBmsComponent),
+            cv.GenerateID(BSM_DALY_ID): cv.use_id(DalyBmsComponent),
             cv.Optional(CONF_STATUS): text_sensor.TEXT_SENSOR_SCHEMA.extend(
                 {
                     cv.GenerateID(): cv.declare_id(text_sensor.TextSensor),
@@ -23,8 +21,7 @@ CONFIG_SCHEMA = cv.All(
                 }
             ),
         }
-    )
-    .extend(cv.COMPONENT_SCHEMA)
+    ).extend(cv.COMPONENT_SCHEMA)
 )
 
 
@@ -37,6 +34,6 @@ async def setup_conf(config, key, hub):
 
 
 async def to_code(config):
-    hub = await cg.get_variable(config[CONF_BSM_DALY_ID])
+    hub = await cg.get_variable(config[BSM_DALY_ID])
     for key in TYPES:
         await setup_conf(config, key, hub)

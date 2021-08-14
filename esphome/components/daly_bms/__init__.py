@@ -7,7 +7,7 @@ CODEOWNERS = ["@s1lvi0"]
 DEPENDENCIES = ["uart"]
 AUTO_LOAD = ["sensor", "text_sensor", "binary_sensor"]
 
-CONF_BSM_DALY_ID = "bms_daly_id"
+BSM_DALY_ID = "bms_daly_id"
 
 daly_bms = cg.esphome_ns.namespace("daly_bms")
 DalyBmsComponent = daly_bms.class_("DalyBmsComponent", uart.UARTDevice, cg.Component)

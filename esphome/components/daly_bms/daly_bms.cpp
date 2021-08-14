@@ -74,7 +74,6 @@ void DalyBmsComponent::decode_data(unsigned char *data, int length) {
       data = start_flag_position;
 
       if (length >= 13 && data[1] == 0x01) {
-
         unsigned char checksum;
         int sum = 0;
         for (int i = 0; i < 12; i++) {
