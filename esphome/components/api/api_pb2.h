@@ -58,9 +58,10 @@ enum LogLevel : uint32_t {
   LOG_LEVEL_ERROR = 1,
   LOG_LEVEL_WARN = 2,
   LOG_LEVEL_INFO = 3,
-  LOG_LEVEL_DEBUG = 4,
-  LOG_LEVEL_VERBOSE = 5,
-  LOG_LEVEL_VERY_VERBOSE = 6,
+  LOG_LEVEL_CONFIG = 4,
+  LOG_LEVEL_DEBUG = 5,
+  LOG_LEVEL_VERBOSE = 6,
+  LOG_LEVEL_VERY_VERBOSE = 7,
 };
 enum ServiceArgType : uint32_t {
   SERVICE_ARG_TYPE_BOOL = 0,
@@ -627,7 +628,6 @@ class SubscribeLogsRequest : public ProtoMessage {
 class SubscribeLogsResponse : public ProtoMessage {
  public:
   enums::LogLevel level{};
-  std::string tag{};
   std::string message{};
   bool send_failed{false};
   void encode(ProtoWriteBuffer buffer) const override;

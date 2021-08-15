@@ -120,6 +120,8 @@ template<> const char *proto_enum_to_string<enums::LogLevel>(enums::LogLevel val
       return "LOG_LEVEL_WARN";
     case enums::LOG_LEVEL_INFO:
       return "LOG_LEVEL_INFO";
+    case enums::LOG_LEVEL_CONFIG:
+      return "LOG_LEVEL_CONFIG";
     case enums::LOG_LEVEL_DEBUG:
       return "LOG_LEVEL_DEBUG";
     case enums::LOG_LEVEL_VERBOSE:
@@ -2334,10 +2336,6 @@ bool SubscribeLogsResponse::decode_varint(uint32_t field_id, ProtoVarInt value) 
 }
 bool SubscribeLogsResponse::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
-    case 2: {
-      this->tag = value.as_string();
-      return true;
-    }
     case 3: {
       this->message = value.as_string();
       return true;
@@ -2348,7 +2346,6 @@ bool SubscribeLogsResponse::decode_length(uint32_t field_id, ProtoLengthDelimite
 }
 void SubscribeLogsResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_enum<enums::LogLevel>(1, this->level);
-  buffer.encode_string(2, this->tag);
   buffer.encode_string(3, this->message);
   buffer.encode_bool(4, this->send_failed);
 }
@@ -2358,10 +2355,6 @@ void SubscribeLogsResponse::dump_to(std::string &out) const {
   out.append("SubscribeLogsResponse {\n");
   out.append("  level: ");
   out.append(proto_enum_to_string<enums::LogLevel>(this->level));
-  out.append("\n");
-
-  out.append("  tag: ");
-  out.append("'").append(this->tag).append("'");
   out.append("\n");
 
   out.append("  message: ");
