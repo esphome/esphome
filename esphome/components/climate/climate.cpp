@@ -518,86 +518,6 @@ bool Climate::set_custom_preset_(const std::string &preset) {
   return set_alternative(this->custom_preset, this->preset, preset);
 }
 
-static const char *mode_to_string(ClimateMode mode) {
-  switch (mode) {
-    case ClimateMode::CLIMATE_MODE_AUTO:
-      return "AUTO";
-    case ClimateMode::CLIMATE_MODE_COOL:
-      return "COOL";
-    case ClimateMode::CLIMATE_MODE_DRY:
-      return "DRY";
-    case ClimateMode::CLIMATE_MODE_FAN_ONLY:
-      return "FAN_ONLY";
-    case ClimateMode::CLIMATE_MODE_HEAT:
-      return "HEAT";
-    case ClimateMode::CLIMATE_MODE_HEAT_COOL:
-      return "HEAT_COOL";
-    case ClimateMode::CLIMATE_MODE_OFF:
-      return "OFF";
-  }
-  return "UNKNOWN";
-}
-
-static const char *fanmode_to_string(ClimateFanMode mode) {
-  switch (mode) {
-    case ClimateFanMode::CLIMATE_FAN_AUTO:
-      return "AUTO";
-    case ClimateFanMode::CLIMATE_FAN_DIFFUSE:
-      return "DIFFUSE";
-    case ClimateFanMode::CLIMATE_FAN_FOCUS:
-      return "FOCUS";
-    case ClimateFanMode::CLIMATE_FAN_HIGH:
-      return "HIGH";
-    case ClimateFanMode::CLIMATE_FAN_LOW:
-      return "LOW";
-    case ClimateFanMode::CLIMATE_FAN_MEDIUM:
-      return "MEDIUM";
-    case ClimateFanMode::CLIMATE_FAN_MIDDLE:
-      return "MIDDLE";
-    case ClimateFanMode::CLIMATE_FAN_OFF:
-      return "OFF";
-    case ClimateFanMode::CLIMATE_FAN_ON:
-      return "ON";
-  }
-  return "UNKNOWN";
-}
-
-static const char *swingmode_to_string(ClimateSwingMode mode) {
-  switch (mode) {
-    case ClimateSwingMode::CLIMATE_SWING_BOTH:
-      return "BOTH";
-    case ClimateSwingMode::CLIMATE_SWING_HORIZONTAL:
-      return "HORIZONTAL";
-    case ClimateSwingMode::CLIMATE_SWING_OFF:
-      return "OFF";
-    case ClimateSwingMode::CLIMATE_SWING_VERTICAL:
-      return "VERTICAL";
-  }
-  return "UNKNOWN";
-}
-
-static const char *preset_to_string(ClimatePreset preset) {
-  switch (preset) {
-    case ClimatePreset::CLIMATE_PRESET_ACTIVITY:
-      return "ACTIVITY";
-    case ClimatePreset::CLIMATE_PRESET_AWAY:
-      return "AWAY";
-    case ClimatePreset::CLIMATE_PRESET_BOOST:
-      return "BOOST";
-    case ClimatePreset::CLIMATE_PRESET_COMFORT:
-      return "COMFORT";
-    case ClimatePreset::CLIMATE_PRESET_ECO:
-      return "ECO";
-    case ClimatePreset::CLIMATE_PRESET_HOME:
-      return "HOME";
-    case ClimatePreset::CLIMATE_PRESET_NONE:
-      return "NONE";
-    case ClimatePreset::CLIMATE_PRESET_SLEEP:
-      return "SLEEP";
-  }
-  return "UNKNOWN";
-}
-
 void Climate::dump_traits_(const char *tag) {
   auto traits = this->get_traits();
   ESP_LOGCONFIG(tag, "ClimateTraits:");
@@ -614,12 +534,12 @@ void Climate::dump_traits_(const char *tag) {
   if (!traits.get_supported_modes().empty()) {
     ESP_LOGCONFIG(tag, "  [x] Supported modes:");
     for (ClimateMode m : traits.get_supported_modes())
-      ESP_LOGCONFIG(tag, "      - %s", mode_to_string(m));
+      ESP_LOGCONFIG(tag, "      - %s", climate_mode_to_string(m));
   }
   if (!traits.get_supported_fan_modes().empty()) {
     ESP_LOGCONFIG(tag, "  [x] Supported fan modes:");
     for (ClimateFanMode m : traits.get_supported_fan_modes())
-      ESP_LOGCONFIG(tag, "      - %s", fanmode_to_string(m));
+      ESP_LOGCONFIG(tag, "      - %s", climate_fan_mode_to_string(m));
   }
   if (!traits.get_supported_custom_fan_modes().empty()) {
     ESP_LOGCONFIG(tag, "  [x] Supported custom fan modes:");
@@ -629,7 +549,7 @@ void Climate::dump_traits_(const char *tag) {
   if (!traits.get_supported_presets().empty()) {
     ESP_LOGCONFIG(tag, "  [x] Supported presets:");
     for (ClimatePreset p : traits.get_supported_presets())
-      ESP_LOGCONFIG(tag, "      - %s", preset_to_string(p));
+      ESP_LOGCONFIG(tag, "      - %s", climate_preset_to_string(p));
   }
   if (!traits.get_supported_custom_presets().empty()) {
     ESP_LOGCONFIG(tag, "  [x] Supported custom presets:");
@@ -639,7 +559,7 @@ void Climate::dump_traits_(const char *tag) {
   if (!traits.get_supported_swing_modes().empty()) {
     ESP_LOGCONFIG(tag, "  [x] Supported swing modes:");
     for (ClimateSwingMode m : traits.get_supported_swing_modes())
-      ESP_LOGCONFIG(tag, "      - %s", swingmode_to_string(m));
+      ESP_LOGCONFIG(tag, "      - %s", climate_swing_mode_to_string(m));
   }
 }
 
