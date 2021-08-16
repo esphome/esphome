@@ -7,13 +7,13 @@ from esphome.const import (
     DEVICE_CLASS_ENERGY,
     LAST_RESET_TYPE_AUTO,
     STATE_CLASS_MEASUREMENT,
+    CONF_METHOD,
 )
 
 DEPENDENCIES = ["time"]
 
 CONF_POWER_ID = "power_id"
 CONF_MIN_SAVE_INTERVAL = "min_save_interval"
-CONF_TOTAL_DAILY_ENERGY_METHOD = "method"
 total_daily_energy_ns = cg.esphome_ns.namespace("total_daily_energy")
 TotalDailyEnergyMethod = total_daily_energy_ns.enum("TotalDailyEnergyMethod")
 TOTAL_DAILY_ENERGY_METHODS = {
@@ -40,7 +40,7 @@ CONFIG_SCHEMA = (
             cv.Optional(
                 CONF_MIN_SAVE_INTERVAL, default="0s"
             ): cv.positive_time_period_milliseconds,
-            cv.Optional(CONF_TOTAL_DAILY_ENERGY_METHOD, default="trapezoid"): cv.enum(
+            cv.Optional(CONF_METHOD, default="trapezoid"): cv.enum(
                 TOTAL_DAILY_ENERGY_METHODS, lower=True
             ),
         }
@@ -60,4 +60,4 @@ async def to_code(config):
     time_ = await cg.get_variable(config[CONF_TIME_ID])
     cg.add(var.set_time(time_))
     cg.add(var.set_min_save_interval(config[CONF_MIN_SAVE_INTERVAL]))
-    cg.add(var.set_method(config[CONF_TOTAL_DAILY_ENERGY_METHOD]))
+    cg.add(var.set_method(config[CONF_METHOD]))
