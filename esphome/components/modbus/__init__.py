@@ -2,7 +2,12 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.cpp_helpers import gpio_pin_expression
 from esphome.components import uart
-from esphome.const import CONF_FLOW_CONTROL_PIN, CONF_ID, CONF_ADDRESS
+from esphome.const import (
+    CONF_FLOW_CONTROL_PIN,
+    CONF_ID,
+    CONF_ADDRESS,
+    CONF_RECEIVE_TIMEOUT,
+)
 from esphome import pins
 
 DEPENDENCIES = ["uart"]
@@ -18,6 +23,7 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(Modbus),
             cv.Optional(CONF_FLOW_CONTROL_PIN): pins.gpio_output_pin_schema,
+            cv.Optional(CONF_RECEIVE_TIMEOUT): 500,
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
@@ -35,6 +41,9 @@ async def to_code(config):
     if CONF_FLOW_CONTROL_PIN in config:
         pin = await gpio_pin_expression(config[CONF_FLOW_CONTROL_PIN])
         cg.add(var.set_flow_control_pin(pin))
+
+    if CONF_RECEIVE_TIMEOUT in config:
+        cg.add(var.set_receive_timeout(config[CONF_RECEIVE_TIMEOUT]))
 
 
 def modbus_device_schema(default_address):

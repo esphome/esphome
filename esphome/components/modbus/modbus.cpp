@@ -14,10 +14,13 @@ void Modbus::setup() {
 }
 void Modbus::loop() {
   const uint32_t now = millis();
-  // discard the buffer if we didn't get a response within the last 250ms
-  if (now - this->last_modbus_byte_ > 250) {
+
+  if (now - this->last_modbus_byte_ > 50) {
     this->rx_buffer_.clear();
     this->last_modbus_byte_ = now;
+  }
+  // stop blocking new send commands after 500 ms regardless if a response has been received since then
+  if (now - this->last_send_ > min_time_between_send_) {
     waiting_for_response = false;
   }
 
@@ -148,6 +151,7 @@ void Modbus::send(uint8_t address, uint8_t function, uint16_t start_address, uin
   if (this->flow_control_pin_ != nullptr)
     this->flow_control_pin_->digital_write(false);
   waiting_for_response = true;
+  last_send_ = millis();
 }
 
 // update existing crc
@@ -240,6 +244,7 @@ void Modbus::send_with_payload(uint8_t address, uint8_t function_code, uint16_t 
   if (this->flow_control_pin_ != nullptr)
     this->flow_control_pin_->digital_write(false);
   waiting_for_response = true;
+  last_send_ = millis();
   DUMP_LOG();
 }
 
@@ -260,6 +265,7 @@ void Modbus::send_raw(const std::vector<uint8_t> &payload) {
   if (this->flow_control_pin_ != nullptr)
     this->flow_control_pin_->digital_write(false);
   waiting_for_response = true;
+  last_send_ = millis();
 }
 
 }  // namespace modbus

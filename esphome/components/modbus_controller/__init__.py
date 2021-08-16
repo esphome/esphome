@@ -89,6 +89,8 @@ SENSOR_VALUE_TYPE = {
     "U_QWORDU_R": SensorValueType.U_QWORD_R,
     "S_QWORD": SensorValueType.S_QWORD,
     "U_QWORD_R": SensorValueType.S_QWORD_R,
+    "FP32": SensorValueType.FP32,
+    "FP32_R": SensorValueType.FP32_R,
 }
 
 RawEncodingType = cg.esphome_ns.namespace("modbus_controller::RawEncoding")

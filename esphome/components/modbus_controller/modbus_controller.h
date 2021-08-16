@@ -46,17 +46,19 @@ enum class ModbusFunctionCode {
 
 enum class SensorValueType : uint8_t {
   RAW = 0x00,      // variable length
-  U_WORD = 0x01,   // 1 Register unsigned
-  U_DWORD = 0x02,  // 2 Registers unsigned
-  S_WORD = 0x03,   // 1 Register signed
-  S_DWORD = 0x04,  // 2 Registers signed
-  BIT = 0x05,
-  U_DWORD_R = 0x06,  // 2 Registers unsigned
-  S_DWORD_R = 0x07,  // 2 Registers unsigned
+  U_WORD = 0x1,   // 1 Register unsigned
+  U_DWORD = 0x2,  // 2 Registers unsigned
+  S_WORD = 0x3,   // 1 Register signed
+  S_DWORD = 0x4,  // 2 Registers signed
+  BIT = 0x5,
+  U_DWORD_R = 0x6,  // 2 Registers unsigned
+  S_DWORD_R = 0x7,  // 2 Registers unsigned
   U_QWORD = 0x8,
   S_QWORD = 0x9,
   U_QWORD_R = 0xA,
-  S_QWORD_R = 0xB
+  S_QWORD_R = 0xB,
+  FP32 = 0xC,
+  FP32_R = 0xD
 };
 
 struct RegisterRange {
@@ -161,6 +163,8 @@ struct SensorItem {
       case SensorValueType::S_DWORD:
       case SensorValueType::U_DWORD_R:
       case SensorValueType::S_DWORD_R:
+      case SensorValueType::FP32:
+      case SensorValueType::FP32_R:
         size = 4;
         break;
       case SensorValueType::U_QWORD:

@@ -45,6 +45,10 @@ void ModbusController::setup() {
 bool ModbusController::send_next_command_() {
   uint32_t last_send = millis() - this->last_command_timestamp_;
 
+  if (!command_queue_.empty() && this->waiting_for_response()) {
+    ESP_LOGI(TAG, "Sending delayed - waiting for previous response");
+  }
+
   if ((last_send > this->command_throttle_) && !waiting_for_response() && !command_queue_.empty()) {
     auto &command = command_queue_.front();
 
