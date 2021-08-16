@@ -54,6 +54,7 @@ float ModbusSensor::parse_and_publish(const std::vector<uint8_t> &data) {
   switch (sensor_value_type) {
     case SensorValueType::U_WORD:
       value = mask_and_shift_by_rightbit(get_data<uint16_t>(data, this->offset), this->bitmask);  // default is 0xFFFF ;
+      result = static_cast<float>(value);
       break;
     case SensorValueType::U_DWORD:
       value = get_data<uint32_t>(data, this->offset);
@@ -113,7 +114,6 @@ float ModbusSensor::parse_and_publish(const std::vector<uint8_t> &data) {
     default:
       break;
   }
-  result = static_cast<float>(value);
 
   // No need to publish if the value didn't change since the last publish
   // can reduce mqtt traffic considerably if many sensors are used

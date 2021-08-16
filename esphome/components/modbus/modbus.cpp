@@ -20,7 +20,7 @@ void Modbus::loop() {
     this->last_modbus_byte_ = now;
   }
   // stop blocking new send commands after 500 ms regardless if a response has been received since then
-  if (now - this->last_send_ > min_time_between_send_) {
+  if (now - this->last_send_ > send_wait_time_) {
     waiting_for_response = false;
   }
 
@@ -125,6 +125,7 @@ bool Modbus::parse_modbus_byte_(uint8_t byte) {
 void Modbus::dump_config() {
   ESP_LOGCONFIG(TAG, "Modbus:");
   LOG_PIN("  Flow Control Pin: ", this->flow_control_pin_);
+  ESP_LOGCONFIG(TAG,"  Send Wait Time: %d ms", this->send_wait_time_); 
 }
 float Modbus::get_setup_priority() const {
   // After UART bus
