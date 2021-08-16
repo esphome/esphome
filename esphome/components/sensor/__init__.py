@@ -79,6 +79,8 @@ StateClasses = sensor_ns.enum("StateClass")
 STATE_CLASSES = {
     "": StateClasses.STATE_CLASS_NONE,
     "measurement": StateClasses.STATE_CLASS_MEASUREMENT,
+    "total": StateClasses.STATE_CLASS_TOTAL,
+    "total_increasing": StateClasses.STATE_CLASS_TOTAL_INCREASING,
 }
 validate_state_class = cv.enum(STATE_CLASSES, lower=True, space="_")
 
