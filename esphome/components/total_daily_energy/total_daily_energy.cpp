@@ -20,7 +20,9 @@ void TotalDailyEnergy::setup() {
 
   this->parent_->add_on_state_callback([this](float state) { this->process_new_state_(state); });
 }
+
 void TotalDailyEnergy::dump_config() { LOG_SENSOR("", "Total Daily Energy", this); }
+
 void TotalDailyEnergy::loop() {
   auto t = this->time_->now();
   if (!t.is_valid())
@@ -37,6 +39,7 @@ void TotalDailyEnergy::loop() {
     this->publish_state_and_save(0);
   }
 }
+
 void TotalDailyEnergy::publish_state_and_save(float state) {
   this->total_energy_ = state;
   this->publish_state(state);
@@ -47,13 +50,29 @@ void TotalDailyEnergy::publish_state_and_save(float state) {
   this->last_save_ = now;
   this->pref_.save(&state);
 }
+
 void TotalDailyEnergy::process_new_state_(float state) {
   if (isnan(state))
     return;
   const uint32_t now = millis();
+  const double old_state = this->last_power_state_;
+  const double new_state = state;
   float delta_hours = (now - this->last_update_) / 1000.0f / 60.0f / 60.0f;
+  float delta_energy = 0.0f;
+  switch (this->method_) {
+    case TOTAL_DAILY_ENERGY_METHOD_TRAPEZOID:
+      delta_energy = delta_hours * (old_state + new_state) / 2.0;
+      break;
+    case TOTAL_DAILY_ENERGY_METHOD_LEFT:
+      delta_energy = delta_hours * old_state;
+      break;
+    case TOTAL_DAILY_ENERGY_METHOD_RIGHT:
+      delta_energy = delta_hours * new_state;
+      break;
+  }
+  this->last_power_state_ = new_state;
   this->last_update_ = now;
-  this->publish_state_and_save(this->total_energy_ + state * delta_hours);
+  this->publish_state_and_save(this->total_energy_ + delta_energy);
 }
 
 }  // namespace total_daily_energy

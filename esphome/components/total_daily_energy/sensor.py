@@ -13,6 +13,12 @@ DEPENDENCIES = ["time"]
 
 CONF_POWER_ID = "power_id"
 CONF_MIN_SAVE_INTERVAL = "min_save_interval"
+CONF_TOTAL_DAILY_ENERGY_METHOD = "method"
+TOTAL_DAILY_ENERGY_METHODS = {
+    "trapezoid": TotalDailyEnergyMethod.TOTAL_DAILY_ENERGY_METHOD_TRAPEZOID,
+    "left": TotalDailyEnergyMethod.TOTAL_DAILY_ENERGY_METHOD_LEFT,
+    "right": TotalDailyEnergyMethod.TOTAL_DAILY_ENERGY_METHOD_RIGHT,
+}
 total_daily_energy_ns = cg.esphome_ns.namespace("total_daily_energy")
 TotalDailyEnergy = total_daily_energy_ns.class_(
     "TotalDailyEnergy", sensor.Sensor, cg.Component
@@ -33,6 +39,9 @@ CONFIG_SCHEMA = (
             cv.Optional(
                 CONF_MIN_SAVE_INTERVAL, default="0s"
             ): cv.positive_time_period_milliseconds,
+            cv.Optional(CONF_TOTAL_DAILY_ENERGY_METHOD, default="trapezoid"): cv.enum(
+                TOTAL_DAILY_ENERGY_METHODS, lower=True
+            ),
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
@@ -50,3 +59,4 @@ async def to_code(config):
     time_ = await cg.get_variable(config[CONF_TIME_ID])
     cg.add(var.set_time(time_))
     cg.add(var.set_min_save_interval(config[CONF_MIN_SAVE_INTERVAL]))
+    cg.add(var.set_method(config[CONF_TOTAL_DAILY_ENERGY_METHOD]))
