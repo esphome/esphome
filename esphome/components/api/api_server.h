@@ -5,13 +5,13 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/log.h"
 #include "esphome/components/socket/socket.h"
-#include "esphome/components/ssl/ssl_context.h"
 #include "api_pb2.h"
 #include "api_pb2_service.h"
 #include "util.h"
 #include "list_entities.h"
 #include "subscribe_state.h"
 #include "user_services.h"
+#include "api_noise_context.h"
 
 namespace esphome {
 namespace api {
@@ -30,6 +30,14 @@ class APIServer : public Component, public Controller {
   void set_port(uint16_t port);
   void set_password(const std::string &password);
   void set_reboot_timeout(uint32_t reboot_timeout);
+
+  void set_noise_psk(psk_t psk) {
+    noise_ctx_->set_psk(std::move(psk));
+  }
+  std::shared_ptr<APINoiseContext> get_noise_ctx() {
+    return noise_ctx_;
+  }
+
   void handle_disconnect(APIConnection *conn);
 #ifdef USE_BINARY_SENSOR
   void on_binary_sensor_update(binary_sensor::BinarySensor *obj, bool state) override;
@@ -82,7 +90,6 @@ class APIServer : public Component, public Controller {
 
  protected:
   std::unique_ptr<socket::Socket> socket_ = nullptr;
-  std::unique_ptr<ssl::SSLContext> ssl_ = nullptr;
   uint16_t port_{6053};
   uint32_t reboot_timeout_{300000};
   uint32_t last_connected_{0};
@@ -90,6 +97,7 @@ class APIServer : public Component, public Controller {
   std::string password_;
   std::vector<HomeAssistantStateSubscription> state_subs_;
   std::vector<UserServiceDescriptor *> user_services_;
+  std::shared_ptr<APINoiseContext> noise_ctx_ = std::make_shared<APINoiseContext>();
 };
 
 extern APIServer *global_api_server;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

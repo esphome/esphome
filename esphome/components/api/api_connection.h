@@ -5,6 +5,7 @@
 #include "api_pb2.h"
 #include "api_pb2_service.h"
 #include "api_server.h"
+#include "api_frame_helper.h"
 
 namespace esphome {
 namespace api {
@@ -12,10 +13,10 @@ namespace api {
 class APIConnection : public APIServerConnection {
  public:
   APIConnection(std::unique_ptr<socket::Socket> socket, APIServer *parent);
-  virtual ~APIConnection();
+  virtual ~APIConnection() = default;
 
   void start();
-  void disconnect_client();
+  void force_disconnect_client();
   void loop();
 
   bool send_list_info_done() {
@@ -88,8 +89,8 @@ class APIConnection : public APIServerConnection {
 #endif
 
   void on_disconnect_response(const DisconnectResponse &value) override {
-    // we initiated disconnect_client
-    this->next_close_ = true;
+    this->helper_->close();
+    this->remove_ = true;
   }
   void on_ping_response(const PingResponse &value) override {
     // we initiated ping
@@ -103,6 +104,8 @@ class APIConnection : public APIServerConnection {
   ConnectResponse connect(const ConnectRequest &msg) override;
   DisconnectResponse disconnect(const DisconnectRequest &msg) override {
     // remote initiated disconnect_client
+    // don't close yet, we still need to send the disconnect response
+    // close will happen on next loop
     this->next_close_ = true;
     DisconnectResponse resp;
     return resp;
@@ -145,9 +148,7 @@ class APIConnection : public APIServerConnection {
  protected:
   friend APIServer;
 
-  void parse_recv_buffer_();
   bool send_(const void *buf, size_t len, bool force);
-  void try_send_pending_data_();
 
   enum class ConnectionState {
     WAITING_FOR_HELLO,
@@ -160,11 +161,7 @@ class APIConnection : public APIServerConnection {
   // Buffer used to encode proto messages
   // Re-use to prevent allocations
   std::vector<uint8_t> proto_write_buffer_;
-  // Buffer containing pending sends
-  std::vector<uint8_t> pending_send_buffer_;
-  // Buffer containing data that was received but not parsed yet
-  std::vector<uint8_t> recv_buffer_;
-  size_t recv_len_{0};
+  std::unique_ptr<APIFrameHelper> helper_;
 
   std::string client_info_;
 #ifdef USE_ESP32_CAMERA
@@ -176,8 +173,7 @@ class APIConnection : public APIServerConnection {
   uint32_t last_traffic_;
   bool sent_ping_{false};
   bool service_call_subscription_{false};
-  bool next_close_{false};
-  std::unique_ptr<socket::Socket> socket_;
+  bool next_close_ = false;
   APIServer *parent_;
   InitialStateIterator initial_state_iterator_;
   ListEntitiesIterator list_entities_iterator_;

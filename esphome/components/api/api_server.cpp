@@ -71,39 +71,6 @@ void APIServer::setup() {
     return;
   }
 
-  ssl_ = ssl::create_context();
-  if (!ssl_) {
-    ESP_LOGW(TAG, "Failed to create SSL context: errno %d", errno);
-    this->mark_failed();
-    return;
-  }
-  ssl_->set_server_certificate(R"(-----BEGIN CERTIFICATE-----
-MIIB3zCCAYWgAwIBAgIUZvjl3kvRTeMLlFUXR8Vbhw0UXnMwCgYIKoZIzj0EAwIw
-RTELMAkGA1UEBhMCQVUxEzARBgNVBAgMClNvbWUtU3RhdGUxITAfBgNVBAoMGElu
-dGVybmV0IFdpZGdpdHMgUHR5IEx0ZDAeFw0yMTA4MTAxODA5NDNaFw0yNDA1MDYx
-ODA5NDNaMEUxCzAJBgNVBAYTAkFVMRMwEQYDVQQIDApTb21lLVN0YXRlMSEwHwYD
-VQQKDBhJbnRlcm5ldCBXaWRnaXRzIFB0eSBMdGQwWTATBgcqhkjOPQIBBggqhkjO
-PQMBBwNCAAQrW9JCZlDynrY1DphZGpDxV1jkfoVSTiBWQLWuixolu7aJuR3+o+BJ
-ZrvPCdNHpEOyx7r1DV23SWSp1eIZR43co1MwUTAdBgNVHQ4EFgQUPmWned9/9QAq
-TCnb3I8dou8plDkwHwYDVR0jBBgwFoAUPmWned9/9QAqTCnb3I8dou8plDkwDwYD
-VR0TAQH/BAUwAwEB/zAKBggqhkjOPQQDAgNIADBFAiBi375FEb+w297p0J/12lgp
-iA9ppA4/QwtZdzioULmwVAIhALhGbVdbSAaLI+bwoICROHnuttY6mxJmDK8158Xe
-s2U4
------END CERTIFICATE-----
-)");
-  ssl_->set_private_key(R"(-----BEGIN EC PRIVATE KEY-----
-MHcCAQEEICqgqSPPEMmoWbwLpLm1lv4FQ48TsLOmXRbdceKs4DQ/oAoGCCqGSM49
-AwEHoUQDQgAEK1vSQmZQ8p62NQ6YWRqQ8VdY5H6FUk4gVkC1rosaJbu2ibkd/qPg
-SWa7zwnTR6RDsse69Q1dt0lkqdXiGUeN3A==
------END EC PRIVATE KEY-----
-)");
-  err = ssl_->init();
-  if (err != 0) {
-    ESP_LOGW(TAG, "Failed to initialize SSL context: errno %d", errno);
-    this->mark_failed();
-    return;
-  }
-
 #ifdef USE_LOGGER
   if (logger::global_logger != nullptr) {
     logger::global_logger->add_on_log_callback([this](int level, const char *tag, const char *message) {
@@ -137,14 +104,7 @@ void APIServer::loop() {
       break;
     ESP_LOGD(TAG, "Accepted %s", sock->getpeername().c_str());
 
-    // wrap socket
-    auto sock2 = ssl_->wrap_socket(std::move(sock));
-    if (!sock2) {
-      ESP_LOGW(TAG, "Failed to wrap socket with SSL: errno %d", errno);
-      continue;
-    }
-
-    auto *conn = new APIConnection(std::move(sock2), this);
+    auto *conn = new APIConnection(std::move(sock), this);
     clients_.push_back(conn);
     conn->start();
   }

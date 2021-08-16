@@ -1,22 +1,18 @@
 #pragma once
 #include <string>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <sys/ioctl.h>
 #include <memory>
 
+#include "headers.h"
 #include "esphome/core/optional.h"
 
 namespace esphome {
 namespace socket {
 
-using socklen_t = uint32_t;
-
 class Socket {
  public:
   Socket() = default;
   virtual ~Socket() = default;
-  Socket(const Socket&) = delete;
+  Socket(const Socket &) = delete;
   Socket &operator=(const Socket &) = delete;
 
   virtual std::unique_ptr<Socket> accept(struct sockaddr *addr, socklen_t *addrlen) = 0;
@@ -43,5 +39,5 @@ class Socket {
 
 std::unique_ptr<Socket> socket(int domain, int type, int protocol);
 
-}  // socket
-}  // esphome
+}  // namespace socket
+}  // namespace esphome

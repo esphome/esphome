@@ -20,100 +20,28 @@ namespace api {
 static const char *const TAG = "api.connection";
 
 APIConnection::APIConnection(std::unique_ptr<socket::Socket> sock, APIServer *parent)
-    : socket_(std::move(sock)), parent_(parent),
-    initial_state_iterator_(parent, this), list_entities_iterator_(parent, this) {
+    : parent_(parent),
+      initial_state_iterator_(parent, this),
+      list_entities_iterator_(parent, this) {
   this->proto_write_buffer_.reserve(64);
-  this->recv_buffer_.reserve(32);
+
+  helper_ = std::unique_ptr<APIFrameHelper>{new APINoiseFrameHelper(std::move(sock), parent->get_noise_ctx())};
 }
 void APIConnection::start() {
-  /*
-  this->client_->onError([](void *s, AsyncClient *c, int8_t error) { ((APIConnection *) s)->on_error_(error); }, this);
-  this->client_->onDisconnect([](void *s, AsyncClient *c) { ((APIConnection *) s)->on_disconnect_(); }, this);
-  this->client_->onTimeout([](void *s, AsyncClient *c, uint32_t time) { ((APIConnection *) s)->on_timeout_(time); },
-                           this);
-  this->client_->onData([](void *s, AsyncClient *c, void *buf,
-                           size_t len) { ((APIConnection *) s)->on_data_(reinterpret_cast<uint8_t *>(buf), len); },
-                        this);*/
-  /*this->client_info_ = this->client_->remoteIP().toString().c_str();*/
   this->last_traffic_ = millis();
 
-  int err = socket_->setblocking(false);
-  if (err != 0) {
-    ESP_LOGW(TAG, "Socket could not enable non-blocking, errno: %d", errno);
+  APIError err = helper_->init();
+  if (err != APIError::OK) {
+    ESP_LOGW(TAG, "Helper init failed: %d errno=%d", (int) err, errno);
     remove_ = true;
     return;
   }
-  int enable = 1;
-  err = socket_->setsockopt(IPPROTO_TCP, TCP_NODELAY, &enable, sizeof(int));
-  if (err != 0) {
-    ESP_LOGW(TAG, "Socket could not enable tcp nodelay, errno: %d", errno);
-    remove_ = true;
-    return;
-  }
+  client_info_ = helper_->getpeername();
+  helper_->set_log_info(client_info_);
 }
 
-APIConnection::~APIConnection() { this->socket_ = nullptr; }
-/*void APIConnection::on_error_(int8_t error) { this->remove_ = true; }
-void APIConnection::on_disconnect_() { this->remove_ = true; }
-void APIConnection::on_timeout_(uint32_t time) { this->on_fatal_error(); }
-void APIConnection::on_data_(uint8_t *buf, size_t len) {
-  if (len == 0 || buf == nullptr)
-    return;
-  this->recv_buffer_.insert(this->recv_buffer_.end(), buf, buf + len);
-}*/
-
-/// Returns at estimate of how many bytes will need to be read for this message
-void APIConnection::parse_recv_buffer_() {
-  if (this->recv_len_ == 0 || this->remove_)
-    return;
-
-  while (this->recv_len_ != 0) {
-    if (this->recv_buffer_[0] != 0x00) {
-      this->on_fatal_error();
-      ESP_LOGW(TAG, "Invalid preamble from %s", this->client_info_.c_str());
-      return;
-    }
-    uint32_t i = 1;
-    const uint32_t size = recv_len_;
-    uint32_t consumed;
-    auto msg_size_varint = ProtoVarInt::parse(&this->recv_buffer_[i], size - i, &consumed);
-    if (!msg_size_varint.has_value())
-      // not enough data there yet
-      return;
-    i += consumed;
-    uint32_t msg_size = msg_size_varint->as_uint32();
-
-    auto msg_type_varint = ProtoVarInt::parse(&this->recv_buffer_[i], size - i, &consumed);
-    if (!msg_type_varint.has_value())
-      // not enough data there yet
-      return;
-    i += consumed;
-    uint32_t msg_type = msg_type_varint->as_uint32();
-
-    if (size - i < msg_size)
-      // message body not fully received
-      return;
-
-    uint8_t *msg = &this->recv_buffer_[i];
-    this->read_message(msg_size, msg_type, msg);
-    if (this->remove_)
-      return;
-    uint32_t total_size = i + msg_size;
-    // left-rotate remaining data (if any) to beginning
-    // inefficient, but at the moment this only receives small packets anyway
-    std::copy(
-      this->recv_buffer_.begin() + total_size,
-      this->recv_buffer_.begin() + recv_len_,
-      this->recv_buffer_.begin()
-    );
-    this->recv_len_ -= total_size;
-
-    this->last_traffic_ = millis();
-  }
-}
-
-void APIConnection::disconnect_client() {
-  this->socket_->close();
+void APIConnection::force_disconnect_client() {
+  this->helper_->close();
   this->remove_ = true;
 }
 
@@ -121,55 +49,43 @@ void APIConnection::loop() {
   if (this->remove_)
     return;
 
-  if (this->next_close_) {
-    this->disconnect_client();
-    return;
-  }
   if (!network_is_connected()) {
     // when network is disconnected force disconnect immediately
     // don't wait for timeout
     this->on_fatal_error();
     return;
   }
-
-  this->try_send_pending_data_();
-  while (!this->remove_) {
-    // Note: vector.capacity is not used, as there's no good way to insert
-    // data into it without zero-initialising on resize
-    // https://stackoverflow.com/a/7689457
-    size_t capacity = this->recv_buffer_.size();
-    size_t used = this->recv_len_;
-    size_t space = capacity - used;
-    uint8_t *head = &this->recv_buffer_[used];
-
-    if (space == 0) {
-      // no space to read, allocate more then retry
-      this->recv_buffer_.resize(capacity + 64);
-      continue;
-    }
-
-    ssize_t received = socket_->read(head, space);
-    if (received == -1) {
-      if (errno == EAGAIN || errno == EWOULDBLOCK) {
-        // read would block
-        break;
-      }
-      this->on_fatal_error();
-      ESP_LOGW(TAG, "Error reading from socket: errno %d", errno);
-      break;
-    } else if (received == 0) {
-      break;
-    }
-    // ESP_LOGD(TAG, "received %s", hexencode(head, received).c_str());
-    this->recv_len_ += received;
-
-    if (received != space)
-      // done with reading
-      break;
-
-    this->parse_recv_buffer_();
+  if (this->next_close_) {
+    this->helper_->close();
+    this->remove_ = true;
+    return;
   }
-  this->parse_recv_buffer_();
+
+  APIError err = helper_->loop();
+  if (err != APIError::OK) {
+    on_fatal_error();
+    ESP_LOGW(TAG, "%s: Socket operation failed: %d", client_info_.c_str(), (int) err);
+    return;
+  }
+  ReadPacketBuffer buffer;
+  err = helper_->read_packet(&buffer);
+  if (err == APIError::WOULD_BLOCK) {
+    // pass
+  } else if (err != APIError::OK) {
+    on_fatal_error();
+    ESP_LOGW(TAG, "%s: Reading failed: %d", client_info_.c_str(), (int) err);
+    return;
+  } else {
+    this->last_traffic_ = millis();
+    // read a packet
+    this->read_message(
+      buffer.data_len,
+      buffer.type,
+      &buffer.container[buffer.data_offset]
+    );
+    if (this->remove_)
+      return;
+  }
 
   this->list_entities_iterator_.advance();
   this->initial_state_iterator_.advance();
@@ -179,8 +95,8 @@ void APIConnection::loop() {
   if (this->sent_ping_) {
     // Disconnect if not responded within 2.5*keepalive
     if (now - this->last_traffic_ > (keepalive * 5) / 2) {
+      this->force_disconnect_client();
       ESP_LOGW(TAG, "'%s' didn't respond to ping request in time. Disconnecting...", this->client_info_.c_str());
-      this->disconnect_client();
     }
   } else if (now - this->last_traffic_ > keepalive) {
     this->sent_ping_ = true;
@@ -188,55 +104,26 @@ void APIConnection::loop() {
   }
 
 #ifdef USE_ESP32_CAMERA
-  // FIXME
-  if (this->image_reader_.available()) {
-    uint32_t space = this->client_->space();
-    // reserve 15 bytes for metadata, and at least 64 bytes of data
-    if (space >= 15 + 64) {
-      uint32_t to_send = std::min(space - 15, this->image_reader_.available());
-      auto buffer = this->create_buffer();
-      // fixed32 key = 1;
-      buffer.encode_fixed32(1, esp32_camera::global_esp32_camera->get_object_id_hash());
-      // bytes data = 2;
-      buffer.encode_bytes(2, this->image_reader_.peek_data_buffer(), to_send);
-      // bool done = 3;
-      bool done = this->image_reader_.available() == to_send;
-      buffer.encode_bool(3, done);
-      bool success = this->send_buffer(buffer, 44);
+  if (this->image_reader_.available() && this->helper_->can_write_without_blocking()) {
+    uint32_t to_send = std::min((size_t) 1024, this->image_reader_.available());
+    auto buffer = this->create_buffer();
+    // fixed32 key = 1;
+    buffer.encode_fixed32(1, esp32_camera::global_esp32_camera->get_object_id_hash());
+    // bytes data = 2;
+    buffer.encode_bytes(2, this->image_reader_.peek_data_buffer(), to_send);
+    // bool done = 3;
+    bool done = this->image_reader_.available() == to_send;
+    buffer.encode_bool(3, done);
+    bool success = this->send_buffer(buffer, 44);
 
-      if (success) {
-        this->image_reader_.consume_data(to_send);
-      }
-      if (success && done) {
-        this->image_reader_.return_image();
-      }
+    if (success) {
+      this->image_reader_.consume_data(to_send);
+    }
+    if (success && done) {
+      this->image_reader_.return_image();
     }
   }
 #endif
-}
-void APIConnection::try_send_pending_data_() {
-  if (this->pending_send_buffer_.empty() || this->remove_)
-    return;
-  const uint8_t *data = &this->pending_send_buffer_[0];
-  const size_t len = this->pending_send_buffer_.size();
-  ssize_t written = this->socket_->write(data, len);
-  if (written == -1) {
-    if (errno == EAGAIN || errno == EWOULDBLOCK) {
-      // write would block
-      return;
-    }
-    this->on_fatal_error();
-    ESP_LOGW(TAG, "Error writing to socket: errno %d", errno);
-    return;
-  } else if (written == len) {
-    this->pending_send_buffer_.clear();
-  } else {
-    // FIXME: inefficient
-    this->pending_send_buffer_.erase(
-      this->pending_send_buffer_.begin(),
-      this->pending_send_buffer_.begin() + written
-    );
-  }
 }
 
 std::string get_default_unique_id(const std::string &component_type, Nameable *nameable) {
@@ -804,7 +691,8 @@ bool APIConnection::send_log_message(int level, const char *tag, const char *lin
 }
 
 HelloResponse APIConnection::hello(const HelloRequest &msg) {
-  this->client_info_ = msg.client_info + " (" + this->socket_->getpeername() + ")";
+  this->client_info_ = msg.client_info + " (" + this->helper_->getpeername() + ")";
+  this->helper_->set_log_info(client_info_);
   ESP_LOGV(TAG, "Hello from client: '%s'", this->client_info_.c_str());
 
   HelloResponse resp;
@@ -879,61 +767,25 @@ void APIConnection::subscribe_home_assistant_states(const SubscribeHomeAssistant
     }
   }
 }
-bool APIConnection::send_(const void *buf, size_t len, bool force) {
-  if (this->remove_)
-    return false;
-  if (len == 0)
-    return true;
-
-  // ESP_LOGD(TAG, "writing %s", hexencode((const uint8_t *) buf, len).c_str());
-  ssize_t written = this->socket_->write(buf, len);
-  bool add_to_pending = false;
-  if (written == -1 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
-    // write would block
-    add_to_pending = force;
-  } else if (written == -1) {
-    this->on_fatal_error();
-    ESP_LOGW(TAG, "Error writing to socket: errno %d", errno);
-    return false;
-  } else if (written == len) {
-    // all written
-    return true;
-  } else if (written == 0) {
-    add_to_pending = force;
-  } else {
-    // partially written, must insert in pending data
-    add_to_pending = true;
-  }
-  if (add_to_pending) {
-    this->pending_send_buffer_.insert(
-      this->pending_send_buffer_.end(),
-      reinterpret_cast<const uint8_t *>(buf) + written,
-      reinterpret_cast<const uint8_t *>(buf) + len
-    );
-  }
-  return add_to_pending;
-}
 bool APIConnection::send_buffer(ProtoWriteBuffer buffer, uint32_t message_type) {
   if (this->remove_)
     return false;
-  this->try_send_pending_data_();
-  if (!this->pending_send_buffer_.empty())
-    // FIXME: still send important message like HA service
+  if (!this->helper_->can_write_without_blocking())
     return false;
 
-  std::vector<uint8_t> header;
-  header.push_back(0x00);
-  ProtoVarInt(buffer.get_buffer()->size()).encode(header);
-  ProtoVarInt(message_type).encode(header);
-
-  size_t needed_space = buffer.get_buffer()->size() + header.size();
-
-  if (!this->send_(header.data(), header.size(), false)) {
-    // nothing written and doesn't fit
+  APIError err = this->helper_->write_packet(
+    message_type,
+    buffer.get_buffer()->data(),
+    buffer.get_buffer()->size()
+  );
+  if (err == APIError::WOULD_BLOCK)
+    return false;
+  if (err != APIError::OK) {
+    on_fatal_error();
+    ESP_LOGW(TAG, "%s: Packet write failed %d errno=%d", client_info_.c_str(), (int) err, errno);
     return false;
   }
-  // force send because we already sent the header
-  this->send_(buffer.get_buffer()->data(), buffer.get_buffer()->size(), true);
+  this->last_traffic_ = millis();
   return true;
 }
 void APIConnection::on_unauthenticated_access() {
@@ -946,7 +798,7 @@ void APIConnection::on_no_setup_connection() {
 }
 void APIConnection::on_fatal_error() {
   ESP_LOGV(TAG, "Error: Disconnecting %s", this->client_info_.c_str());
-  this->socket_->close();
+  this->helper_->close();
   this->remove_ = true;
 }
 

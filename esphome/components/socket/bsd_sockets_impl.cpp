@@ -1,6 +1,8 @@
 #include "socket.h"
-#include <unistd.h>
-#include <fcntl.h>
+#include "esphome/core/defines.h"
+
+#ifdef USE_SOCKET_IMPL_BSD_SOCKETS
+
 #include <string.h>
 
 namespace esphome {
@@ -25,10 +27,10 @@ std::string format_sockaddr(const struct sockaddr_storage &storage) {
   return {};
 }
 
-class SocketImplSocket : public Socket {
+class BSDSocketImpl : public Socket {
  public:
-  SocketImplSocket(int fd) : Socket(), fd_(fd) {}
-  ~SocketImplSocket() override {
+  BSDSocketImpl(int fd) : Socket(), fd_(fd) {}
+  ~BSDSocketImpl() override {
     if (!closed_) {
       close();
     }
@@ -37,11 +39,9 @@ class SocketImplSocket : public Socket {
     int fd = ::accept(fd_, addr, addrlen);
     if (fd == -1)
       return {};
-    return std::unique_ptr<SocketImplSocket>{new SocketImplSocket(fd)};
+    return std::unique_ptr<BSDSocketImpl>{new BSDSocketImpl(fd)};
   }
-  int bind(const struct sockaddr *addr, socklen_t addrlen) override {
-    return ::bind(fd_, addr, addrlen);
-  }
+  int bind(const struct sockaddr *addr, socklen_t addrlen) override { return ::bind(fd_, addr, addrlen); }
   int close() override {
     int ret = ::close(fd_);
     closed_ = true;
@@ -51,16 +51,10 @@ class SocketImplSocket : public Socket {
     // TODO
     return 0;
   }
-  int connect(const struct sockaddr *addr, socklen_t addrlen) override {
-    return ::connect(fd_, addr, addrlen);
-  }
-  int shutdown(int how) override {
-    return ::shutdown(fd_, how);
-  }
+  int connect(const struct sockaddr *addr, socklen_t addrlen) override { return ::connect(fd_, addr, addrlen); }
+  int shutdown(int how) override { return ::shutdown(fd_, how); }
 
-  int getpeername(struct sockaddr *addr, socklen_t *addrlen) override {
-    return ::getpeername(fd_, addr, addrlen);
-  }
+  int getpeername(struct sockaddr *addr, socklen_t *addrlen) override { return ::getpeername(fd_, addr, addrlen); }
   std::string getpeername() override {
     struct sockaddr_storage storage;
     socklen_t len = sizeof(storage);
@@ -69,9 +63,7 @@ class SocketImplSocket : public Socket {
       return {};
     return format_sockaddr(storage);
   }
-  int getsockname(struct sockaddr *addr, socklen_t *addrlen) override {
-    return ::getsockname(fd_, addr, addrlen);
-  }
+  int getsockname(struct sockaddr *addr, socklen_t *addrlen) override { return ::getsockname(fd_, addr, addrlen); }
   std::string getsockname() override {
     struct sockaddr_storage storage;
     socklen_t len = sizeof(storage);
@@ -86,17 +78,11 @@ class SocketImplSocket : public Socket {
   int setsockopt(int level, int optname, const void *optval, socklen_t optlen) override {
     return ::setsockopt(fd_, level, optname, optval, optlen);
   }
-  int listen(int backlog) override {
-    return ::listen(fd_, backlog);
-  }
+  int listen(int backlog) override { return ::listen(fd_, backlog); }
   // virtual ssize_t readv(const struct iovec *iov, int iovcnt) = 0;
-  ssize_t read(void *buf, size_t len) override {
-    return ::read(fd_, buf, len);
-  }
+  ssize_t read(void *buf, size_t len) override { return ::read(fd_, buf, len); }
   // virtual ssize_t writev(const struct iovec *iov, int iovcnt) = 0;
-  ssize_t write(const void *buf, size_t len) override {
-    return ::write(fd_, buf, len);
-  }
+  ssize_t write(const void *buf, size_t len) override { return ::write(fd_, buf, len); }
   int setblocking(bool blocking) override {
     int fl = ::fcntl(fd_, F_GETFL, 0);
     if (blocking) {
@@ -107,6 +93,7 @@ class SocketImplSocket : public Socket {
     ::fcntl(fd_, F_SETFL, fl);
     return 0;
   }
+
  protected:
   int fd_;
   bool closed_ = false;
@@ -116,8 +103,10 @@ std::unique_ptr<Socket> socket(int domain, int type, int protocol) {
   int ret = ::socket(domain, type, protocol);
   if (ret == -1)
     return nullptr;
-  return std::unique_ptr<Socket>{new SocketImplSocket(ret)};
+  return std::unique_ptr<Socket>{new BSDSocketImpl(ret)};
 }
 
 }  // namespace socket
 }  // namespace esphome
+
+#endif // USE_SOCKET_IMPL_BSD_SOCKETS

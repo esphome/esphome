@@ -17,6 +17,7 @@ class EchoClient {
   EchoClient(std::unique_ptr<socket::Socket> socket) : socket_(std::move(socket)) {}
   void start();
   void loop();
+
  protected:
   friend class EchoServer;
 
@@ -33,6 +34,7 @@ class EchoServer : public Component {
   void setup() override;
   void loop() override;
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
+
  protected:
   friend class EchoClient;
 
@@ -48,6 +50,7 @@ class EchoNoiseClient {
   EchoNoiseClient(std::unique_ptr<socket::Socket> socket) : socket_(std::move(socket)) {}
   void start();
   void loop();
+
  protected:
   friend class EchoNoiseServer;
 
@@ -72,6 +75,7 @@ class EchoNoiseServer : public Component {
   void setup() override;
   void loop() override;
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
+
  protected:
   friend class EchoNoiseClient;
 

@@ -106,11 +106,8 @@ void EchoServer::loop() {
     clients_.push_back(std::move(cli));
   }
 
-  auto new_end = std::partition(
-    this->clients_.begin(),
-    this->clients_.end(),
-    [](const std::unique_ptr<EchoClient> &cli) { return !cli->remove_; }
-  );
+  auto new_end = std::partition(this->clients_.begin(), this->clients_.end(),
+                                [](const std::unique_ptr<EchoClient> &cli) { return !cli->remove_; });
   this->clients_.erase(new_end, this->clients_.end());
 
   for (auto &client : this->clients_) {
@@ -206,14 +203,6 @@ void EchoClient::on_error_() {
 }
 #endif
 
-
-
-
-
-
-
-
-
 #ifdef USE_ECHO_NOISE
 void EchoNoiseServer::setup() {
   ESP_LOGCONFIG(TAG, "Setting up echo server...");
@@ -272,11 +261,8 @@ void EchoNoiseServer::loop() {
     clients_.push_back(std::move(cli));
   }
 
-  auto new_end = std::partition(
-    this->clients_.begin(),
-    this->clients_.end(),
-    [](const std::unique_ptr<EchoNoiseClient> &cli) { return !cli->remove_; }
-  );
+  auto new_end = std::partition(this->clients_.begin(), this->clients_.end(),
+                                [](const std::unique_ptr<EchoNoiseClient> &cli) { return !cli->remove_; });
   this->clients_.erase(new_end, this->clients_.end());
 
   for (auto &client : this->clients_) {
@@ -325,11 +311,9 @@ void EchoNoiseClient::start() {
 
   // initialize_handshake
   {
-    const uint8_t psk[] = {
-      0xC1, 0xD5, 0xE0, 0x72, 0xE7, 0x77, 0x58, 0x02, 0x45, 0xCB, 0x3A, 0x81,
-      0x04, 0x1B, 0x2D, 0x90, 0x3A, 0x0F, 0x0E, 0xC7, 0x9C, 0xFC, 0xB4, 0x2A,
-      0x50, 0xC0, 0xE6, 0x35, 0xA1, 0x54, 0x18, 0x12
-    };
+    const uint8_t psk[] = {0xC1, 0xD5, 0xE0, 0x72, 0xE7, 0x77, 0x58, 0x02, 0x45, 0xCB, 0x3A,
+                           0x81, 0x04, 0x1B, 0x2D, 0x90, 0x3A, 0x0F, 0x0E, 0xC7, 0x9C, 0xFC,
+                           0xB4, 0x2A, 0x50, 0xC0, 0xE6, 0x35, 0xA1, 0x54, 0x18, 0x12};
     static_assert(sizeof(psk) == 32, "error");
     // noise_handshakestate_set_prologue(handshake, prologue, strlen(prologue));
     err = noise_handshakestate_set_pre_shared_key(handshake_, psk, 32);
@@ -354,9 +338,6 @@ void EchoNoiseClient::start() {
   do_handshake_ = true;
 }
 
-
-
-
 void EchoNoiseClient::loop() {
   if (this->remove_)
     return;
@@ -378,12 +359,9 @@ void EchoNoiseClient::loop() {
       noise_buffer_set_output(mbuf, msg_buffer_.data(), msg_buffer_.size());
       err = noise_handshakestate_write_message(handshake_, &mbuf, nullptr);
       if (err == 0) {
-        tx_buffer_.push_back((uint8_t) (mbuf.size >> 8));
+        tx_buffer_.push_back((uint8_t)(mbuf.size >> 8));
         tx_buffer_.push_back((uint8_t) mbuf.size);
         tx_buffer_.insert(tx_buffer_.end(), msg_buffer_.begin(), msg_buffer_.begin() + mbuf.size);
-      } else if (err == NOISE_ERROR_INVALID_LENGTH) {
-        msg_buffer_.resize(msg_buffer_.size() + 64);
-        ESP_LOGD(TAG, "Resizing msg buffer to %d bytes", msg_buffer_.size());
       } else {
         on_error_();
         ESP_LOGW(TAG, "noise_handshakestate_write_message failed: %d", err);
@@ -391,7 +369,7 @@ void EchoNoiseClient::loop() {
       }
     } else if (action == NOISE_ACTION_READ_MESSAGE) {
       if (rx_size_ >= 2) {
-        uint16_t msg_size = ((uint16_t) (rx_buffer_[0]) << 8) | (rx_buffer_[1]);
+        uint16_t msg_size = ((uint16_t)(rx_buffer_[0]) << 8) | (rx_buffer_[1]);
         if (rx_size_ >= msg_size + 2) {
           ESP_LOGD(TAG, "Message: %s", hexencode(rx_buffer_.data() + 2, msg_size).c_str());
           noise_buffer_set_input(mbuf, rx_buffer_.data() + 2, msg_size);
@@ -424,7 +402,7 @@ void EchoNoiseClient::loop() {
   while (!this->remove_ && !this->do_handshake_) {
     if (rx_size_ < 2)
       break;
-    uint16_t msg_size = ((uint16_t) (rx_buffer_[0]) << 8) | (rx_buffer_[1]);
+    uint16_t msg_size = ((uint16_t)(rx_buffer_[0]) << 8) | (rx_buffer_[1]);
     if (rx_size_ < msg_size + 2)
       break;
     noise_buffer_set_inout(mbuf, rx_buffer_.data() + 2, msg_size, rx_buffer_.size() - 2);
@@ -442,7 +420,7 @@ void EchoNoiseClient::loop() {
       ESP_LOGW(TAG, "noise_cipherstate_encrypt failed: %d", err);
       return;
     }
-    tx_buffer_.push_back((uint8_t) (mbuf.size >> 8));
+    tx_buffer_.push_back((uint8_t)(mbuf.size >> 8));
     tx_buffer_.push_back((uint8_t) mbuf.size);
     tx_buffer_.insert(tx_buffer_.end(), rx_buffer_.begin() + 2, rx_buffer_.begin() + 2 + mbuf.size);
   }
@@ -514,14 +492,9 @@ void EchoNoiseClient::on_error_() {
 }
 #endif
 
-
 }  // namespace echo
 }  // namespace esphome
 
 extern "C" {
-
-void noise_rand_bytes(void *output, size_t len) {
-  esp_fill_random(output, len);
-}
-
+void noise_rand_bytes(void *output, size_t len) { esp_fill_random(output, len); }
 }

@@ -1,9 +1,9 @@
 #pragma once
 
+#include "esphome/components/socket/socket.h"
 #include "esphome/core/component.h"
 #include "esphome/core/preferences.h"
 #include "esphome/core/helpers.h"
-#include "esphome/components/socket/socket.h"
 
 namespace esphome {
 namespace ota {

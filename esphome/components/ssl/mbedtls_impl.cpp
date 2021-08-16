@@ -21,7 +21,7 @@ static const char *const TAG = "ssl.mbedtls";
 
 static int entropy_hw_random_source(void *data, uint8_t *output, size_t len, size_t *olen) {
   esp_fill_random(output, len);
-	*olen = len;
+  *olen = len;
   return 0;
 }
 
@@ -60,8 +60,7 @@ void test();
 
 class MbedTLSWrappedSocket : public socket::Socket {
  public:
-  MbedTLSWrappedSocket(std::unique_ptr<socket::Socket> sock)
-  : socket::Socket(), sock_(std::move(sock)) {}
+  MbedTLSWrappedSocket(std::unique_ptr<socket::Socket> sock) : socket::Socket(), sock_(std::move(sock)) {}
   ~MbedTLSWrappedSocket() override {
     mbedtls_ssl_free(&ssl_);
     sock_ = nullptr;
@@ -97,12 +96,8 @@ class MbedTLSWrappedSocket : public socket::Socket {
     do_handshake_ = false;
     return sock_->close();
   }
-  int connect(const std::string &address) override {
-    return sock_->connect(address);
-  }
-  int connect(const struct sockaddr *addr, socklen_t addrlen) override {
-    return sock_->connect(addr, addrlen);
-  }
+  int connect(const std::string &address) override { return sock_->connect(address); }
+  int connect(const struct sockaddr *addr, socklen_t addrlen) override { return sock_->connect(addr, addrlen); }
   int shutdown(int how) override {
     do_handshake_ = false;
     int ret = mbedtls_ssl_close_notify(&ssl_);
@@ -111,18 +106,10 @@ class MbedTLSWrappedSocket : public socket::Socket {
     return this->sock_->shutdown(how);
   }
 
-  int getpeername(struct sockaddr *addr, socklen_t *addrlen) override {
-    return sock_->getpeername(addr, addrlen);
-  }
-  std::string getpeername() override {
-    return sock_->getpeername();
-  }
-  int getsockname(struct sockaddr *addr, socklen_t *addrlen) override {
-    return sock_->getsockname(addr, addrlen);
-  }
-  std::string getsockname() override {
-    return sock_->getsockname();
-  }
+  int getpeername(struct sockaddr *addr, socklen_t *addrlen) override { return sock_->getpeername(addr, addrlen); }
+  std::string getpeername() override { return sock_->getpeername(); }
+  int getsockname(struct sockaddr *addr, socklen_t *addrlen) override { return sock_->getsockname(addr, addrlen); }
+  std::string getsockname() override { return sock_->getsockname(); }
   int getsockopt(int level, int optname, void *optval, socklen_t *optlen) override {
     return sock_->getsockopt(level, optname, optval, optlen);
   }
@@ -165,7 +152,6 @@ class MbedTLSWrappedSocket : public socket::Socket {
       if (err == 0) {
         do_handshake_ = false;
       } else if (err == MBEDTLS_ERR_SSL_WANT_WRITE || err == MBEDTLS_ERR_SSL_WANT_READ) {
-
       } else {
         do_handshake_ = false;
         return -1;
@@ -212,12 +198,8 @@ class MbedTLSContext : public SSLContext {
     mbedtls_ssl_config_free(&conf_);
   }
 
-  void set_server_certificate(const char *cert) override {
-    this->srv_cert_str_ = cert;
-  }
-  void set_private_key(const char *private_key) override {
-    this->privkey_str_ = private_key;
-  }
+  void set_server_certificate(const char *cert) override { this->srv_cert_str_ = cert; }
+  void set_private_key(const char *private_key) override { this->privkey_str_ = private_key; }
 
   int init() override {
     mbedtls_x509_crt_init(&srv_cert_);
@@ -238,36 +220,24 @@ class MbedTLSContext : public SSLContext {
       return 1;
     }
 
-    err = mbedtls_x509_crt_parse(
-      &srv_cert_,
-      reinterpret_cast<const uint8_t *>(srv_cert_str_),
-      // "including the terminating NULL byte"
-      strlen(srv_cert_str_) + 1
-    );
+    err = mbedtls_x509_crt_parse(&srv_cert_, reinterpret_cast<const uint8_t *>(srv_cert_str_),
+                                 // "including the terminating NULL byte"
+                                 strlen(srv_cert_str_) + 1);
     if (err != 0) {
       ESP_LOGW(TAG, "mbedtls_x509_crt_parse failed: %d", err);
       return 1;
     }
 
-    err = mbedtls_pk_parse_key(
-      &pkey_,
-      reinterpret_cast<const uint8_t *>(privkey_str_),
-      // "including the terminating NULL byte"
-      strlen(privkey_str_) + 1,
-      nullptr,
-      0
-    );
+    err = mbedtls_pk_parse_key(&pkey_, reinterpret_cast<const uint8_t *>(privkey_str_),
+                               // "including the terminating NULL byte"
+                               strlen(privkey_str_) + 1, nullptr, 0);
     if (err != 0) {
       ESP_LOGW(TAG, "mbedtls_pk_parse_key failed: %d", err);
       return 1;
     }
 
-    err = mbedtls_ssl_config_defaults(
-      &conf_,
-      MBEDTLS_SSL_IS_SERVER,
-      MBEDTLS_SSL_TRANSPORT_STREAM,
-      MBEDTLS_SSL_PRESET_DEFAULT
-    );
+    err = mbedtls_ssl_config_defaults(&conf_, MBEDTLS_SSL_IS_SERVER, MBEDTLS_SSL_TRANSPORT_STREAM,
+                                      MBEDTLS_SSL_PRESET_DEFAULT);
     if (err != 0) {
       ESP_LOGW(TAG, "mbedtls_ssl_config_defaults failed: %d", err);
       return 1;
@@ -298,9 +268,7 @@ class MbedTLSContext : public SSLContext {
   mbedtls_ssl_config conf_;
 };
 
-std::unique_ptr<SSLContext> create_context() {
-  return std::unique_ptr<SSLContext>{new MbedTLSContext()};
-}
+std::unique_ptr<SSLContext> create_context() { return std::unique_ptr<SSLContext>{new MbedTLSContext()}; }
 
 }  // namespace ssl
 }  // namespace esphome

@@ -9,7 +9,7 @@ class SSLContext {
  public:
   SSLContext() = default;
   virtual ~SSLContext() = default;
-  SSLContext(const SSLContext&) = delete;
+  SSLContext(const SSLContext &) = delete;
   SSLContext &operator=(const SSLContext &) = delete;
 
   virtual int init() = 0;
