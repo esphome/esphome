@@ -14,6 +14,7 @@ DEPENDENCIES = ["time"]
 CONF_POWER_ID = "power_id"
 CONF_MIN_SAVE_INTERVAL = "min_save_interval"
 CONF_TOTAL_DAILY_ENERGY_METHOD = "method"
+TotalDailyEnergyMethod = integration_ns.enum("TotalDailyEnergyMethod")
 TOTAL_DAILY_ENERGY_METHODS = {
     "trapezoid": TotalDailyEnergyMethod.TOTAL_DAILY_ENERGY_METHOD_TRAPEZOID,
     "left": TotalDailyEnergyMethod.TOTAL_DAILY_ENERGY_METHOD_LEFT,
