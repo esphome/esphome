@@ -19,7 +19,7 @@ void AddressableLight::call_setup() {
       ESP_LOGVV(TAG, "  [%2d] Color: R=%3u G=%3u B=%3u W=%3u", i, color.get_red_raw(), color.get_green_raw(),
                 color.get_blue_raw(), color.get_white_raw());
     }
-    ESP_LOGVV(TAG, "");
+    ESP_LOGVV(TAG, " ");
   });
 #endif
 }
