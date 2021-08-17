@@ -221,40 +221,40 @@ void MQTTClientComponent::check_connected() {
 
 void MQTTClientComponent::loop() {
   if (this->disconnect_reason_.has_value()) {
-    const char *reason_s = nullptr;
+    const LogString *reason_s;
     switch (*this->disconnect_reason_) {
       case AsyncMqttClientDisconnectReason::TCP_DISCONNECTED:
-        reason_s = "TCP disconnected";
+        reason_s = LOG_STR("TCP disconnected");
         break;
       case AsyncMqttClientDisconnectReason::MQTT_UNACCEPTABLE_PROTOCOL_VERSION:
-        reason_s = "Unacceptable Protocol Version";
+        reason_s = LOG_STR("Unacceptable Protocol Version");
         break;
       case AsyncMqttClientDisconnectReason::MQTT_IDENTIFIER_REJECTED:
-        reason_s = "Identifier Rejected";
+        reason_s = LOG_STR("Identifier Rejected");
         break;
       case AsyncMqttClientDisconnectReason::MQTT_SERVER_UNAVAILABLE:
-        reason_s = "Server Unavailable";
+        reason_s = LOG_STR("Server Unavailable");
         break;
       case AsyncMqttClientDisconnectReason::MQTT_MALFORMED_CREDENTIALS:
-        reason_s = "Malformed Credentials";
+        reason_s = LOG_STR("Malformed Credentials");
         break;
       case AsyncMqttClientDisconnectReason::MQTT_NOT_AUTHORIZED:
-        reason_s = "Not Authorized";
+        reason_s = LOG_STR("Not Authorized");
         break;
       case AsyncMqttClientDisconnectReason::ESP8266_NOT_ENOUGH_SPACE:
-        reason_s = "Not Enough Space";
+        reason_s = LOG_STR("Not Enough Space");
         break;
       case AsyncMqttClientDisconnectReason::TLS_BAD_FINGERPRINT:
-        reason_s = "TLS Bad Fingerprint";
+        reason_s = LOG_STR("TLS Bad Fingerprint");
         break;
       default:
-        reason_s = "Unknown";
+        reason_s = LOG_STR("Unknown");
         break;
     }
     if (!network_is_connected()) {
-      reason_s = "WiFi disconnected";
+      reason_s = LOG_STR("WiFi disconnected");
     }
-    ESP_LOGW(TAG, "MQTT Disconnected: %s.", reason_s);
+    ESP_LOGW(TAG, "MQTT Disconnected: %s.", LOG_STR_ARG(reason_s));
     this->disconnect_reason_.reset();
   }
 
