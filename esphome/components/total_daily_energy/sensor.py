@@ -40,7 +40,7 @@ CONFIG_SCHEMA = (
             cv.Optional(
                 CONF_MIN_SAVE_INTERVAL, default="0s"
             ): cv.positive_time_period_milliseconds,
-            cv.Optional(CONF_METHOD, default="trapezoid"): cv.enum(
+            cv.Optional(CONF_METHOD, default="right"): cv.enum(
                 TOTAL_DAILY_ENERGY_METHODS, lower=True
             ),
         }
