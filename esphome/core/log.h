@@ -173,7 +173,7 @@ int esp_idf_log_vprintf_(const char *format, va_list args);  // NOLINT
     defined(ARDUINO_ESP8266_RELEASE_2_4_1) || defined(ARDUINO_ESP8266_RELEASE_2_4_2)
 #define LOG_STR_ARG(s) \
   ({ \
-    char __buf[64];
+    char __buf[64]; \
     __buf[63] = '\0'; \
     strncpy_P(__buf, s, 63); \
     __buf; \
