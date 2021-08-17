@@ -25,6 +25,8 @@
 #undef abs
 #endif
 
+#include "esphome/core/log.h"
+
 namespace esphome {
 
 #define LOG_PIN(prefix, pin) \
@@ -32,7 +34,8 @@ namespace esphome {
     ESP_LOGCONFIG(TAG, prefix LOG_PIN_PATTERN, LOG_PIN_ARGS(pin)); \
   }
 #define LOG_PIN_PATTERN "GPIO%u (Mode: %s%s)"
-#define LOG_PIN_ARGS(pin) (pin)->get_pin(), (pin)->get_pin_mode_name(), ((pin)->is_inverted() ? ", INVERTED" : "")
+#define LOG_PIN_ARGS(pin) \
+  (pin)->get_pin(), LOG_STR_ARG((pin)->get_pin_mode_name()), ((pin)->is_inverted() ? ", INVERTED" : "")
 
 /// Copy of GPIOPin that is safe to use from ISRs (with no virtual functions)
 class ISRInternalGPIOPin {
@@ -85,7 +88,7 @@ class GPIOPin {
 
   /// Get the GPIO pin number.
   uint8_t get_pin() const;
-  const char *get_pin_mode_name() const;
+  const LogString *get_pin_mode_name() const;
   /// Get the pinMode of this pin.
   uint8_t get_mode() const;
   /// Return whether this pin shall be treated as inverted. (for example active-low)
