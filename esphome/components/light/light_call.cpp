@@ -206,7 +206,8 @@ LightColorValues LightCall::validate_() {
   if (name_##_.has_value()) { \
     auto val = *name_##_; \
     if (val < (min) || val > (max)) { \
-      ESP_LOGW(TAG, "'%s' - %s value %.2f is out of range [%.1f - %.1f]!", name, upper_name, val, (min), (max)); \
+      ESP_LOGW(TAG, "'%s' - %s value %.2f is out of range [%.1f - %.1f]!", name, LOG_STR_LITERAL(upper_name), val, \
+               (min), (max)); \
       name_##_ = clamp(val, (min), (max)); \
     } \
   }
