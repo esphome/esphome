@@ -37,8 +37,7 @@ namespace sensor {
 enum StateClass : uint8_t {
   STATE_CLASS_NONE = 0,
   STATE_CLASS_MEASUREMENT = 1,
-  STATE_CLASS_TOTAL = 2,
-  STATE_CLASS_TOTAL_INCREASING = 3,
+  STATE_CLASS_TOTAL_INCREASING = 2,
 };
 
 const char *state_class_to_string(StateClass state_class);
