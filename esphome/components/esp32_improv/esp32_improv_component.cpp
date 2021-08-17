@@ -274,7 +274,7 @@ void ESP32ImprovComponent::on_wifi_connect_timeout_() {
 
 void ESP32ImprovComponent::on_client_disconnect() { this->set_error_(improv::ERROR_NONE); };
 
-ESP32ImprovComponent *global_improv_component = nullptr;
+ESP32ImprovComponent *global_improv_component = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 }  // namespace esp32_improv
 }  // namespace esphome

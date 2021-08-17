@@ -141,7 +141,7 @@ void ESP32BLE::loop() {
 void ESP32BLE::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) {
   BLEEvent *new_event = new BLEEvent(event, param);
   global_ble->ble_events_.push(new_event);
-}
+}  // NOLINT(clang-analyzer-cplusplus.NewDeleteLeaks)
 
 void ESP32BLE::real_gap_event_handler_(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) {
   ESP_LOGV(TAG, "(BLE) gap_event_handler - %d", event);
@@ -155,7 +155,7 @@ void ESP32BLE::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gat
                                    esp_ble_gatts_cb_param_t *param) {
   BLEEvent *new_event = new BLEEvent(event, gatts_if, param);
   global_ble->ble_events_.push(new_event);
-}
+}  // NOLINT(clang-analyzer-cplusplus.NewDeleteLeaks)
 
 void ESP32BLE::real_gatts_event_handler_(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if,
                                          esp_ble_gatts_cb_param_t *param) {
@@ -174,7 +174,7 @@ float ESP32BLE::get_setup_priority() const { return setup_priority::BLUETOOTH; }
 
 void ESP32BLE::dump_config() { ESP_LOGCONFIG(TAG, "ESP32 BLE:"); }
 
-ESP32BLE *global_ble = nullptr;
+ESP32BLE *global_ble = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 }  // namespace esp32_ble
 }  // namespace esphome

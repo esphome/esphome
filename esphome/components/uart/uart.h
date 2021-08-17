@@ -120,10 +120,6 @@ class UARTComponent : public Component, public Stream {
   UARTParityOptions parity_;
 };
 
-#ifdef ARDUINO_ARCH_ESP32
-extern uint8_t next_uart_num;
-#endif
-
 class UARTDevice : public Stream {
  public:
   UARTDevice() = default;

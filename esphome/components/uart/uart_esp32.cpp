@@ -8,7 +8,6 @@
 namespace esphome {
 namespace uart {
 static const char *const TAG = "uart_esp32";
-uint8_t next_uart_num = 1;
 
 static const uint32_t UART_PARITY_EVEN = 0 << 0;
 static const uint32_t UART_PARITY_ODD = 1 << 0;
@@ -76,6 +75,7 @@ void UARTComponent::setup() {
   if (this->tx_pin_.value_or(1) == 1 && this->rx_pin_.value_or(3) == 3) {
     this->hw_serial_ = &Serial;
   } else {
+    static uint8_t next_uart_num = 1;
     this->hw_serial_ = new HardwareSerial(next_uart_num++);
   }
   int8_t tx = this->tx_pin_.has_value() ? *this->tx_pin_ : -1;

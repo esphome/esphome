@@ -21,7 +21,7 @@ namespace esp32_ble_tracker {
 
 static const char *const TAG = "esp32_ble_tracker";
 
-ESP32BLETracker *global_esp32_ble_tracker = nullptr;
+ESP32BLETracker *global_esp32_ble_tracker = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 uint64_t ble_addr_to_uint64(const esp_bd_addr_t address) {
   uint64_t u = 0;
@@ -206,7 +206,7 @@ void ESP32BLETracker::register_client(ESPBTClient *client) {
 void ESP32BLETracker::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) {
   BLEEvent *gap_event = new BLEEvent(event, param);
   global_esp32_ble_tracker->ble_events_.push(gap_event);
-}
+}  // NOLINT(clang-analyzer-cplusplus.NewDeleteLeaks)
 
 void ESP32BLETracker::real_gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) {
   switch (event) {
@@ -256,7 +256,7 @@ void ESP32BLETracker::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_i
                                           esp_ble_gattc_cb_param_t *param) {
   BLEEvent *gattc_event = new BLEEvent(event, gattc_if, param);
   global_esp32_ble_tracker->ble_events_.push(gattc_event);
-}
+}  // NOLINT(clang-analyzer-cplusplus.NewDeleteLeaks)
 
 void ESP32BLETracker::real_gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
                                                esp_ble_gattc_cb_param_t *param) {

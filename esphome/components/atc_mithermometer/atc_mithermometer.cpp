@@ -60,7 +60,7 @@ optional<ParseResult> ATCMiThermometer::parse_header(const esp32_ble_tracker::Se
 
   static uint8_t last_frame_count = 0;
   if (last_frame_count == raw[12]) {
-    ESP_LOGVV(TAG, "parse_header(): duplicate data packet received (%d).", static_cast<int>(last_frame_count));
+    ESP_LOGVV(TAG, "parse_header(): duplicate data packet received (%hhu).", last_frame_count);
     return {};
   }
   last_frame_count = raw[12];

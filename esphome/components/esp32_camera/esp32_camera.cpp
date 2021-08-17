@@ -275,7 +275,7 @@ void ESP32Camera::set_idle_update_interval(uint32_t idle_update_interval) {
 }
 void ESP32Camera::set_test_pattern(bool test_pattern) { this->test_pattern_ = test_pattern; }
 
-ESP32Camera *global_esp32_camera;
+ESP32Camera *global_esp32_camera;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 void CameraImageReader::set_image(std::shared_ptr<CameraImage> image) {
   this->image_ = std::move(image);

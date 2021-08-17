@@ -160,7 +160,7 @@ float BLEServer::get_setup_priority() const { return setup_priority::BLUETOOTH -
 
 void BLEServer::dump_config() { ESP_LOGCONFIG(TAG, "ESP32 BLE Server:"); }
 
-BLEServer *global_ble_server = nullptr;
+BLEServer *global_ble_server = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 }  // namespace esp32_ble_server
 }  // namespace esphome

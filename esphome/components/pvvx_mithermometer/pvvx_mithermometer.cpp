@@ -60,7 +60,7 @@ optional<ParseResult> PVVXMiThermometer::parse_header(const esp32_ble_tracker::S
 
   static uint8_t last_frame_count = 0;
   if (last_frame_count == raw[13]) {
-    ESP_LOGVV(TAG, "parse_header(): duplicate data packet received (%d).", static_cast<int>(last_frame_count));
+    ESP_LOGVV(TAG, "parse_header(): duplicate data packet received (%hhu).", last_frame_count);
     return {};
   }
   last_frame_count = raw[13];

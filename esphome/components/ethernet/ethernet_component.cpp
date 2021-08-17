@@ -23,7 +23,7 @@ namespace ethernet {
 
 static const char *const TAG = "ethernet";
 
-EthernetComponent *global_eth_component;
+EthernetComponent *global_eth_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 #define ESPHL_ERROR_CHECK(err, message) \
   if ((err) != ESP_OK) { \

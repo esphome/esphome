@@ -6,7 +6,7 @@
 namespace esphome {
 namespace am43 {
 
-static const char *TAG = "am43_cover";
+static const char *const TAG = "am43_cover";
 
 using namespace esphome::cover;
 
