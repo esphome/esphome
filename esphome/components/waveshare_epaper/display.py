@@ -43,6 +43,9 @@ WaveshareEPaper7P5In = waveshare_epaper_ns.class_(
 WaveshareEPaper7P5InV2 = waveshare_epaper_ns.class_(
     "WaveshareEPaper7P5InV2", WaveshareEPaper
 )
+WaveshareEPaper2P13InDKE = waveshare_epaper_ns.class_(
+    "WaveshareEPaper2P13InDKE", WaveshareEPaper
+)
 
 WaveshareEPaperTypeAModel = waveshare_epaper_ns.enum("WaveshareEPaperTypeAModel")
 WaveshareEPaperTypeBModel = waveshare_epaper_ns.enum("WaveshareEPaperTypeBModel")
@@ -54,6 +57,7 @@ MODELS = {
     "2.13in-ttgo": ("a", WaveshareEPaperTypeAModel.TTGO_EPAPER_2_13_IN),
     "2.13in-ttgo-b1": ("a", WaveshareEPaperTypeAModel.TTGO_EPAPER_2_13_IN_B1),
     "2.13in-ttgo-b73": ("a", WaveshareEPaperTypeAModel.TTGO_EPAPER_2_13_IN_B73),
+    "2.13in-ttgo-b74": ("a", WaveshareEPaperTypeAModel.TTGO_EPAPER_2_13_IN_B74),
     "2.90in": ("a", WaveshareEPaperTypeAModel.WAVESHARE_EPAPER_2_9_IN),
     "2.90inv2": ("a", WaveshareEPaperTypeAModel.WAVESHARE_EPAPER_2_9_IN_V2),
     "2.70in": ("b", WaveshareEPaper2P7In),
@@ -63,13 +67,14 @@ MODELS = {
     "5.83in": ("b", WaveshareEPaper5P8In),
     "7.50in": ("b", WaveshareEPaper7P5In),
     "7.50inv2": ("b", WaveshareEPaper7P5InV2),
+    "2.13in-ttgo-dke": ("c", WaveshareEPaper2P13InDKE),
 }
 
 
 def validate_full_update_every_only_type_a(value):
     if CONF_FULL_UPDATE_EVERY not in value:
         return value
-    if MODELS[value[CONF_MODEL]][0] != "a":
+    if MODELS[value[CONF_MODEL]][0] == "b":
         raise cv.Invalid(
             "The 'full_update_every' option is only available for models "
             "'1.54in', '1.54inV2', '2.13in', '2.90in', and '2.90inV2'."
@@ -100,7 +105,7 @@ async def to_code(config):
     if model_type == "a":
         rhs = WaveshareEPaperTypeA.new(model)
         var = cg.Pvariable(config[CONF_ID], rhs, WaveshareEPaperTypeA)
-    elif model_type == "b":
+    elif model_type in ("b", "c"):
         rhs = model.new()
         var = cg.Pvariable(config[CONF_ID], rhs, model)
     else:

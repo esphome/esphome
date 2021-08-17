@@ -23,7 +23,7 @@ void SGP40Component::setup() {
   }
   this->serial_number_ = (uint64_t(raw_serial_number[0]) << 24) | (uint64_t(raw_serial_number[1]) << 16) |
                          (uint64_t(raw_serial_number[2]));
-  ESP_LOGD(TAG, "Serial Number: %llu", this->serial_number_);
+  ESP_LOGD(TAG, "Serial Number: %" PRIu64, this->serial_number_);
 
   // Featureset identification for future use
   if (!this->write_command_(SGP40_CMD_GET_FEATURESET)) {
@@ -248,7 +248,7 @@ void SGP40Component::dump_config() {
         break;
     }
   } else {
-    ESP_LOGCONFIG(TAG, "  Serial number: %llu", this->serial_number_);
+    ESP_LOGCONFIG(TAG, "  Serial number: %" PRIu64, this->serial_number_);
     ESP_LOGCONFIG(TAG, "  Minimum Samples: %f", VOC_ALGORITHM_INITIAL_BLACKOUT);
   }
   LOG_UPDATE_INTERVAL(this);

@@ -36,10 +36,6 @@ jobs:
     container: ghcr.io/esphome/esphome-lint:1.1
     steps:
       - uses: actions/checkout@v2
-      # Set up the pio project so that the cpp checks know how files are compiled
-      # (build flags, libraries etc)
-      - name: Set up platformio environment
-        run: pio init --ide atom
 
       - name: Register problem matchers
         run: |
