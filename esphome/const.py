@@ -1,6 +1,6 @@
 """Constants used by esphome."""
 
-__version__ = "1.21.0b2"
+__version__ = "1.21.0b3"
 
 ESP_PLATFORM_ESP32 = "ESP32"
 ESP_PLATFORM_ESP8266 = "ESP8266"
@@ -839,6 +839,9 @@ STATE_CLASS_NONE = ""
 
 # The state represents a measurement in present time
 STATE_CLASS_MEASUREMENT = "measurement"
+
+# The state represents a total that only increases, a decrease is considered a reset.
+STATE_CLASS_TOTAL_INCREASING = "total_increasing"
 
 # This sensor does not support resetting. ie, it is not accumulative
 LAST_RESET_TYPE_NONE = ""

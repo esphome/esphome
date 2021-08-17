@@ -94,6 +94,8 @@ template<> const char *proto_enum_to_string<enums::SensorStateClass>(enums::Sens
       return "STATE_CLASS_NONE";
     case enums::STATE_CLASS_MEASUREMENT:
       return "STATE_CLASS_MEASUREMENT";
+    case enums::STATE_CLASS_TOTAL_INCREASING:
+      return "STATE_CLASS_TOTAL_INCREASING";
     default:
       return "UNKNOWN";
   }
