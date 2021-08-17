@@ -150,8 +150,8 @@ async def fan_turn_off_to_code(config, action_id, template_arg, args):
             cv.Required(CONF_ID): cv.use_id(FanState),
             cv.Optional(CONF_OSCILLATING): cv.templatable(cv.boolean),
             cv.Optional(CONF_SPEED): cv.templatable(cv.int_range(1)),
-            cv.Optional(CONF_DIRECTION, default="FORWARD"): cv.enum(
-                FAN_DIRECTION_ENUM, upper=True
+            cv.Optional(CONF_DIRECTION, default="FORWARD"): cv.templatable(
+                cv.enum(FAN_DIRECTION_ENUM, upper=True)
             ),
         }
     ),
@@ -166,9 +166,7 @@ async def fan_turn_on_to_code(config, action_id, template_arg, args):
         template_ = await cg.templatable(config[CONF_SPEED], args, int)
         cg.add(var.set_speed(template_))
     if CONF_DIRECTION in config:
-        template_ = await cg.templatable(
-            FAN_DIRECTION_ENUM[config[CONF_DIRECTION]], args, FanDirection
-        )
+        template_ = await cg.templatable(config[CONF_DIRECTION], args, FanDirection)
         cg.add(var.set_direction(template_))
     return var
 
