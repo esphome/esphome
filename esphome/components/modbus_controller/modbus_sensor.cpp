@@ -44,7 +44,7 @@ void ModbusSensor::add_to_controller(ModbusController *master, ModbusFunctionCod
 
 float ModbusSensor::parse_and_publish(const std::vector<uint8_t> &data) {
   union {
-    float f_value;
+    float float_value;
     uint32_t raw;
   } raw_to_float;
 
@@ -58,58 +58,76 @@ float ModbusSensor::parse_and_publish(const std::vector<uint8_t> &data) {
       break;
     case SensorValueType::U_DWORD:
       value = get_data<uint32_t>(data, this->offset);
-      result = static_cast<float>(mask_and_shift_by_rightbit((uint32_t) value, this->bitmask));
+      value = mask_and_shift_by_rightbit((uint32_t) value, this->bitmask);
+      result = static_cast<float>(value);
       break;
     case SensorValueType::U_DWORD_R:
       value = get_data<uint32_t>(data, this->offset);
       value = static_cast<uint32_t>(value & 0xFFFF) << 16 | (value & 0xFFFF0000) >> 16;
-      result = static_cast<float>(mask_and_shift_by_rightbit((uint32_t) value, this->bitmask));
+      value = mask_and_shift_by_rightbit((uint32_t) value, this->bitmask);
+      result = static_cast<float>(value);
       break;
     case SensorValueType::S_WORD:
-      result = static_cast<float>(mask_and_shift_by_rightbit(get_data<int16_t>(data, this->offset),
-                                                             this->bitmask));  // default is 0xFFFF ;
+      value = mask_and_shift_by_rightbit(get_data<int16_t>(data, this->offset),
+                                         this->bitmask);  // default is 0xFFFF ;
+      result = static_cast<float>(value);
       break;
     case SensorValueType::S_DWORD:
-      result = static_cast<float>(mask_and_shift_by_rightbit(get_data<int32_t>(data, this->offset), this->bitmask));
+      value = mask_and_shift_by_rightbit(get_data<int32_t>(data, this->offset), this->bitmask);
       break;
     case SensorValueType::S_DWORD_R: {
       value = get_data<uint32_t>(data, this->offset);
       // Currently the high word is at the low position
       // the sign bit is therefore at low before the switch
       uint32_t sign_bit = (value & 0x8000) << 16;
-      result = static_cast<float>(mask_and_shift_by_rightbit(
-          static_cast<int32_t>(((value & 0x7FFF) << 16 | (value & 0xFFFF0000) >> 16) | sign_bit), this->bitmask));
+      value = mask_and_shift_by_rightbit(
+          static_cast<int32_t>(((value & 0x7FFF) << 16 | (value & 0xFFFF0000) >> 16) | sign_bit), this->bitmask);
+      result = static_cast<float>(value);
     } break;
     case SensorValueType::U_QWORD:
       // Ignore bitmask for U_QWORD
-      result = static_cast<float>(get_data<uint64_t>(data, this->offset));
+      value = get_data<uint64_t>(data, this->offset);
+      result = static_cast<float>(value);
       break;
 
     case SensorValueType::S_QWORD:
       // Ignore bitmask for S_QWORD
-      result = static_cast<float>(get_data<int64_t>(data, this->offset));
+      value = get_data<int64_t>(data, this->offset);
+      result = static_cast<float>(value);
       break;
     case SensorValueType::U_QWORD_R:
       // Ignore bitmask for U_QWORD
       value = get_data<uint64_t>(data, this->offset);
-      result =
-          static_cast<float>(static_cast<uint64_t>(value & 0xFFFF) << 48 | (value & 0xFFFF000000000000) >> 48 |
-                             static_cast<uint64_t>(value & 0xFFFF0000) << 32 | (value & 0x0000FFFF00000000) >> 32 |
-                             static_cast<uint64_t>(value & 0xFFFF00000000) << 16 | (value & 0x00000000FFFF0000) >> 16);
+      value = static_cast<uint64_t>(value & 0xFFFF) << 48 | (value & 0xFFFF000000000000) >> 48 |
+              static_cast<uint64_t>(value & 0xFFFF0000) << 32 | (value & 0x0000FFFF00000000) >> 32 |
+              static_cast<uint64_t>(value & 0xFFFF00000000) << 16 | (value & 0x00000000FFFF0000) >> 16;
+      result = static_cast<float>(value);
       break;
 
     case SensorValueType::S_QWORD_R:
       // Ignore bitmask for S_QWORD
-      result = static_cast<float>(get_data<int64_t>(data, this->offset));
+      value = get_data<int64_t>(data, this->offset);
+      result = static_cast<float>(value);
       break;
     case SensorValueType::FP32:
       raw_to_float.raw = get_data<uint32_t>(data, this->offset);
-      result = raw_to_float.f_value;
+      ESP_LOGD(TAG, "FP32 = 0x%08X => %f", raw_to_float.raw, raw_to_float.float_value);
+      result = raw_to_float.float_value;
+      // Testing only show FP32_R value as well
+      {
+        auto tmp = get_data<uint32_t>(data, this->offset);
+        raw_to_float.raw = static_cast<uint32_t>(tmp & 0xFFFF) << 16 | (tmp & 0xFFFF0000) >> 16;
+        ESP_LOGD(TAG, "FP32_R = 0x%08X => %f", raw_to_float.raw, raw_to_float.float_value);
+      }
       break;
     case SensorValueType::FP32_R: {
       auto tmp = get_data<uint32_t>(data, this->offset);
       raw_to_float.raw = static_cast<uint32_t>(tmp & 0xFFFF) << 16 | (tmp & 0xFFFF0000) >> 16;
-      result = raw_to_float.f_value;
+      ESP_LOGD(TAG, "FP32_R = 0x%08X => %f", raw_to_float.raw, raw_to_float.float_value);
+      result = raw_to_float.float_value;
+      // testing only 
+      raw_to_float.raw = tmp ; 
+      ESP_LOGD(TAG, "FP32 = 0x%08X => %f", raw_to_float.raw, raw_to_float.float_value);      
     } break;
     default:
       break;
@@ -122,6 +140,7 @@ float ModbusSensor::parse_and_publish(const std::vector<uint8_t> &data) {
   this->publish_state(result);
   return result;
 }
+
 // End ModbusSensor
 
 }  // namespace modbus_controller
