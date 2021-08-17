@@ -366,8 +366,8 @@ const char *get_op_mode_str(uint8_t mode) {
       return "UNKNOWN";
   }
 }
-// Note that this method returns PROGMEM strings, so use LOG_STR_ARG() to access them.
-const char *get_disconnect_reason_str(uint8_t reason) {
+
+const LogString *get_disconnect_reason_str(uint8_t reason) {
   /* If this were one big switch statement, GCC would generate a lookup table for it. However, the values of the
    * REASON_* constants aren't continuous, and GCC will fill in the gap with the default value -- wasting 4 bytes of RAM
    * per entry. As there's ~175 default entries, this wastes 700 bytes of RAM.
