@@ -18,7 +18,7 @@
 #include <ESP8266WiFiType.h>
 #include <ESP8266WiFi.h>
 
-#if defined(ARDUINO_ARCH_ESP8266) && ARDUINO_VERSION < VERSION_CODE(2, 4, 0)
+#if defined(ARDUINO_ARCH_ESP8266) && ARDUINO_VERSION_CODE < VERSION_CODE(2, 4, 0)
 extern "C" {
 #include <user_interface.h>
 };

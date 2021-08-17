@@ -19,7 +19,7 @@ extern "C" {
 #if LWIP_IPV6
 #include "lwip/netif.h"  // struct netif
 #endif
-#if ARDUINO_VERSION >= VERSION_CODE(3, 0, 0)
+#if ARDUINO_VERSION_CODE >= VERSION_CODE(3, 0, 0)
 #include "LwipDhcpServer.h"
 #define wifi_softap_set_dhcps_lease(lease) dhcpSoftAP.set_dhcps_lease(lease)
 #define wifi_softap_set_dhcps_lease_time(time) dhcpSoftAP.set_dhcps_lease_time(time)
@@ -226,7 +226,7 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
     conf.bssid_set = 0;
   }
 
-#if ARDUINO_VERSION >= VERSION_CODE(2, 4, 0)
+#if ARDUINO_VERSION_CODE >= VERSION_CODE(2, 4, 0)
   if (ap.get_password().empty()) {
     conf.threshold.authmode = AUTH_OPEN;
   } else {
@@ -492,7 +492,7 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
       ESP_LOGVV(TAG, "Event: AP receive Probe Request MAC=%s RSSI=%d", format_mac_addr(it.mac).c_str(), it.rssi);
       break;
     }
-#if ARDUINO_VERSION >= VERSION_CODE(2, 4, 0)
+#if ARDUINO_VERSION_CODE >= VERSION_CODE(2, 4, 0)
     case EVENT_OPMODE_CHANGED: {
       auto it = event->event_info.opmode_changed;
       ESP_LOGV(TAG, "Event: Changed Mode old=%s new=%s", get_op_mode_str(it.old_opmode),
@@ -577,7 +577,7 @@ bool WiFiComponent::wifi_scan_start_() {
   config.bssid = nullptr;
   config.channel = 0;
   config.show_hidden = 1;
-#if ARDUINO_VERSION >= VERSION_CODE(2, 4, 0)
+#if ARDUINO_VERSION_CODE >= VERSION_CODE(2, 4, 0)
   config.scan_type = WIFI_SCAN_TYPE_ACTIVE;
   if (FIRST_SCAN) {
     config.scan_time.active.min = 100;
@@ -656,7 +656,7 @@ bool WiFiComponent::wifi_ap_ip_config_(optional<ManualIP> manual_ip) {
     return false;
   }
 
-#if ARDUINO_VERSION >= VERSION_CODE(3, 0, 0)
+#if ARDUINO_VERSION_CODE >= VERSION_CODE(3, 0, 0)
   dhcpSoftAP.begin(&info);
 #endif
 

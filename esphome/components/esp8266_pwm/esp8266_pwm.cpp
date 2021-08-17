@@ -3,7 +3,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
 
-#if defined(ARDUINO_ARCH_ESP8266) && ARDUINO_VERSION < VERSION_CODE(2, 4, 0)
+#if defined(ARDUINO_ARCH_ESP8266) && ARDUINO_VERSION_CODE < VERSION_CODE(2, 4, 0)
 #error ESP8266 PWM requires at least arduino_version 2.4.0
 #endif
 

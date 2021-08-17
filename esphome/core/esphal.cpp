@@ -299,7 +299,7 @@ void force_link_symbols() {
 
 }  // namespace esphome
 
-#if defined(ARDUINO_ARCH_ESP8266) && ARDUINO_VERSION < VERSION_CODE(2, 4, 0)
+#if defined(ARDUINO_ARCH_ESP8266) && ARDUINO_VERSION_CODE < VERSION_CODE(2, 4, 0)
 // Fix 2.3.0 std missing memchr
 extern "C" {
 void *memchr(const void *s, int c, size_t n) {
