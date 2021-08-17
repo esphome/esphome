@@ -20,7 +20,6 @@ TotalDailyEnergy = total_daily_energy_ns.class_(
 
 CONFIG_SCHEMA = (
     sensor.sensor_schema(
-        accuracy_decimals=0,
         device_class=DEVICE_CLASS_ENERGY,
         state_class=STATE_CLASS_MEASUREMENT,
         last_reset_type=LAST_RESET_TYPE_AUTO,
