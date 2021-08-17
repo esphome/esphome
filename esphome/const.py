@@ -841,6 +841,9 @@ STATE_CLASS_NONE = ""
 # The state represents a measurement in present time
 STATE_CLASS_MEASUREMENT = "measurement"
 
+# The state represents a total that only increases, a decrease is considered a reset.
+STATE_CLASS_TOTAL_INCREASING = "total_increasing"
+
 # This sensor does not support resetting. ie, it is not accumulative
 LAST_RESET_TYPE_NONE = ""
 # This sensor is expected to never reset its value
