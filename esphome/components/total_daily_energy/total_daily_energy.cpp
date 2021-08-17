@@ -55,8 +55,8 @@ void TotalDailyEnergy::process_new_state_(float state) {
   if (isnan(state))
     return;
   const uint32_t now = millis();
-  const double old_state = this->last_power_state_;
-  const double new_state = state;
+  const float old_state = this->last_power_state_;
+  const float new_state = state;
   float delta_hours = (now - this->last_update_) / 1000.0f / 60.0f / 60.0f;
   float delta_energy = 0.0f;
   switch (this->method_) {
