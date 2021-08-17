@@ -6,15 +6,15 @@ namespace sensor {
 
 static const char *const TAG = "sensor";
 
-const char *state_class_to_string(StateClass state_class) {
+const LogString *state_class_to_string(StateClass state_class) {
   switch (state_class) {
     case STATE_CLASS_MEASUREMENT:
-      return "measurement";
+      return LOG_STR("measurement");
     case STATE_CLASS_TOTAL_INCREASING:
-      return "total_increasing";
+      return LOG_STR("total_increasing");
     case STATE_CLASS_NONE:
     default:
-      return "";
+      return LOG_STR("");
   }
 }
 
