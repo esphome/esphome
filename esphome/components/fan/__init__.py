@@ -18,7 +18,7 @@ from esphome.const import (
     CONF_ON_TURN_OFF,
     CONF_ON_TURN_ON,
     CONF_TRIGGER_ID,
-    CONF_DIRECTION
+    CONF_DIRECTION,
 )
 from esphome.core import CORE, coroutine_with_priority
 
@@ -166,7 +166,9 @@ async def fan_turn_on_to_code(config, action_id, template_arg, args):
         template_ = await cg.templatable(config[CONF_SPEED], args, int)
         cg.add(var.set_speed(template_))
     if CONF_DIRECTION in config:
-        template_ = await cg.templatable(FAN_DIRECTION_ENUM[config[CONF_DIRECTION]], args, FanDirection)
+        template_ = await cg.templatable(
+            FAN_DIRECTION_ENUM[config[CONF_DIRECTION]], args, FanDirection
+        )
         cg.add(var.set_direction(template_))
     return var
 
