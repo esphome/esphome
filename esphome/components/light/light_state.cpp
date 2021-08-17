@@ -39,6 +39,13 @@ void LightState::setup() {
     effect->init_internal(this);
   }
 
+  // When supported color temperature range is known, initialize color temperature setting within bounds.
+  float min_mireds = this->get_traits().get_min_mireds();
+  if (min_mireds > 0) {
+    this->remote_values.set_color_temperature(min_mireds);
+    this->current_values.set_color_temperature(min_mireds);
+  }
+
   auto call = this->make_call();
   LightStateRTCState recovered{};
   switch (this->restore_mode_) {
