@@ -16,7 +16,7 @@ import click
 import pexpect
 
 sys.path.append(os.path.dirname(__file__))
-from helpers import shlex_quote, get_output, \
+from helpers import shlex_quote, get_output, filter_grep, \
     build_all_include, temp_header_file, git_ls_files, filter_changed, load_idedata
 
 
@@ -108,6 +108,7 @@ def main():
                         help='run clang-tidy in quiet mode')
     parser.add_argument('-c', '--changed', action='store_true',
                         help='only run on changed files')
+    parser.add_argument('-g', '--grep', help='only run on files containing value')
     parser.add_argument('--split-num', type=int, help='split the files into X jobs.',
                         default=None)
     parser.add_argument('--split-at', type=int, help='which split is this? starts at 1',
@@ -144,6 +145,9 @@ def main():
 
     if args.changed:
         files = filter_changed(files)
+
+    if args.grep:
+        files = filter_grep(files, args.grep)
 
     files.sort()
 

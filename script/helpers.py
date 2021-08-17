@@ -92,6 +92,16 @@ def filter_changed(files):
     return files
 
 
+def filter_grep(files, value):
+    matched = []
+    for file in files:
+        with open(file, "r") as handle:
+            contents = handle.read()
+        if value in contents:
+            matched.append(file)
+    return matched
+
+
 def git_ls_files(patterns=None):
     command = ["git", "ls-files", "-s"]
     if patterns is not None:

@@ -10,16 +10,29 @@ on:
 
 jobs:
   ci-with-container:
-    name: Run script/${{ matrix.id }} ${{ matrix.platform && format('for {0}', matrix.platform) || '' }} ${{ matrix.split && format('{0}/4', matrix.split) || '' }}
+    name: ${{ matrix.name }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        id: [clang-tidy]
-        platform: [esp8266, esp32]
-        split: [1, 2, 3, 4]
         include:
           - id: clang-format
+            name: Run script/clang-format
+          - id: clang-tidy
+            name: Run script/clang-tidy for ESP8266
+            options: --environment esp8266-tidy --grep ARDUINO_ARCH_ESP8266
+          - id: clang-tidy
+            name: Run script/clang-tidy for ESP32 1/4
+            options: --environment esp32-tidy --split-num 4 --split-at 1
+          - id: clang-tidy
+            name: Run script/clang-tidy for ESP32 2/4
+            options: --environment esp32-tidy --split-num 4 --split-at 2
+          - id: clang-tidy
+            name: Run script/clang-tidy for ESP32 3/4
+            options: --environment esp32-tidy --split-num 4 --split-at 3
+          - id: clang-tidy
+            name: Run script/clang-tidy for ESP32 4/4
+            options: --environment esp32-tidy --split-num 4 --split-at 4
 
     # cpp lint job runs with esphome-lint docker image so that clang-format-*
     # doesn't have to be installed
@@ -41,7 +54,7 @@ jobs:
         if: ${{ matrix.id == 'clang-format' }}
 
       - name: Run clang-tidy
-        run: script/clang-tidy --all-headers --fix --split-num 4 --split-at ${{ matrix.split }} --environment ${{ matrix.platform }}-tidy
+        run: script/clang-tidy --all-headers --fix ${{ matrix.options }}
         if: ${{ matrix.id == 'clang-tidy' }}
 
       - name: Suggested changes
