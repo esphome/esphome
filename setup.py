@@ -21,7 +21,7 @@ PYPI_URL = "https://pypi.python.org/pypi/{}".format(PROJECT_PACKAGE_NAME)
 GITHUB_PATH = "{}/{}".format(PROJECT_GITHUB_USERNAME, PROJECT_GITHUB_REPOSITORY)
 GITHUB_URL = "https://github.com/{}".format(GITHUB_PATH)
 
-DOWNLOAD_URL = "{}/archive/v{}.zip".format(GITHUB_URL, const.__version__)
+DOWNLOAD_URL = "{}/archive/{}.zip".format(GITHUB_URL, const.__version__)
 
 here = os.path.abspath(os.path.dirname(__file__))
 
