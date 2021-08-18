@@ -6,14 +6,15 @@ namespace daly_bms {
 
 static const char *const TAG = "daly_bms";
 
-static const unsigned char DALY_TEMPERATURE_OFFSET = 40;
+static const uint8_t DALY_TEMPERATURE_OFFSET = 40;
+static const uint16_t DALY_CURRENT_OFFSET = 30000;
 
-static const unsigned char DALY_REQUEST_battery_level = 0x90;
-static const unsigned char DALY_REQUEST_MIN_MAX_VOLTAGE = 0x91;
-static const unsigned char DALY_REQUEST_MIN_MAX_TEMPERATURE = 0x92;
-static const unsigned char DALY_REQUEST_MOS = 0x93;
-static const unsigned char DALY_REQUEST_STATUS = 0x94;
-static const unsigned char DALY_REQUEST_TEMPERATURE = 0x96;
+static const uint8_t DALY_REQUEST_BATTERY_LEVEL = 0x90;
+static const uint8_t DALY_REQUEST_MIN_MAX_VOLTAGE = 0x91;
+static const uint8_t DALY_REQUEST_MIN_MAX_TEMPERATURE = 0x92;
+static const uint8_t DALY_REQUEST_MOS = 0x93;
+static const uint8_t DALY_REQUEST_STATUS = 0x94;
+static const uint8_t DALY_REQUEST_TEMPERATURE = 0x96;
 
 void DalyBmsComponent::setup() {}
 
@@ -23,17 +24,17 @@ void DalyBmsComponent::dump_config() {
 }
 
 void DalyBmsComponent::update() {
-  this->request_data(DALY_REQUEST_battery_level);
+  this->request_data(DALY_REQUEST_BATTERY_LEVEL);
   this->request_data(DALY_REQUEST_MIN_MAX_VOLTAGE);
   this->request_data(DALY_REQUEST_MIN_MAX_TEMPERATURE);
   this->request_data(DALY_REQUEST_MOS);
   this->request_data(DALY_REQUEST_STATUS);
   this->request_data(DALY_REQUEST_TEMPERATURE);
 
-  unsigned char *get_battery_level_data;
+  uint8_t *get_battery_level_data;
   int available_data = this->available();
   if (available_data >= 13) {
-    get_battery_level_data = (unsigned char *) malloc(available_data);
+    get_battery_level_data = (uint8_t *) malloc(available_data);
     this->read_array(get_battery_level_data, available_data);
     this->decode_data(get_battery_level_data, available_data);
   }
@@ -41,8 +42,8 @@ void DalyBmsComponent::update() {
 
 float DalyBmsComponent::get_setup_priority() const { return setup_priority::DATA; }
 
-void DalyBmsComponent::request_data(unsigned char data_id) {
-  unsigned char request_message[13];
+void DalyBmsComponent::request_data(uint8_t data_id) {
+  uint8_t request_message[13];
 
   request_message[0] = 0xA5;     // Start Flag
   request_message[1] = 0x80;     // Communication Module Address
@@ -56,25 +57,25 @@ void DalyBmsComponent::request_data(unsigned char data_id) {
   request_message[9] = 0x00;     //     |
   request_message[10] = 0x00;    //     |
   request_message[11] = 0x00;    // Empty Data
-  request_message[12] = (unsigned char) (request_message[0] + request_message[1] + request_message[2] +
-                                         request_message[3]);  // Checksum (Lower byte of the other bytes sum)
+  request_message[12] = (uint8_t)(request_message[0] + request_message[1] + request_message[2] +
+                                  request_message[3]);  // Checksum (Lower byte of the other bytes sum)
 
   this->write_array(request_message, sizeof(request_message));
   this->flush();
 }
 
-void DalyBmsComponent::decode_data(unsigned char *data, int length) {
-  unsigned char *start_flag_position;
+void DalyBmsComponent::decode_data(uint8_t *data, int length) {
+  uint8_t *start_flag_position;
 
   while (data != NULL) {
-    start_flag_position = (unsigned char *) strchr((const char *) data, 0xA5);
+    start_flag_position = (uint8_t *) strchr((const char *) data, 0xA5);
 
     if (start_flag_position != NULL) {
       length = length - (start_flag_position - data);
       data = start_flag_position;
 
       if (length >= 13 && data[1] == 0x01) {
-        unsigned char checksum;
+        uint8_t checksum;
         int sum = 0;
         for (int i = 0; i < 12; i++) {
           sum += data[i];
@@ -83,27 +84,28 @@ void DalyBmsComponent::decode_data(unsigned char *data, int length) {
 
         if (checksum == data[12]) {
           switch (data[2]) {
-            case DALY_REQUEST_battery_level:
+            case DALY_REQUEST_BATTERY_LEVEL:
               if (this->voltage_sensor_) {
-                this->voltage_sensor_->publish_state((float) (((data[4] << 8) | data[5]) / 10));
+                this->voltage_sensor_->publish_state((float) encode_uint16(data[4], data[5]) / 10);
               }
               if (this->current_sensor_) {
-                this->current_sensor_->publish_state((float) ((((data[8] << 8) | data[9]) - 30000) / 10));
+                this->current_sensor_->publish_state(
+                    (float) ((encode_uint16(data[8], data[9]) - DALY_CURRENT_OFFSET) / 10));
               }
               if (this->battery_level_sensor_) {
-                this->battery_level_sensor_->publish_state((float) (((data[10] << 8) | data[11]) / 10));
+                this->battery_level_sensor_->publish_state((float) encode_uint16(data[10], data[11]) / 10);
               }
               break;
 
             case DALY_REQUEST_MIN_MAX_VOLTAGE:
               if (this->max_cell_voltage_) {
-                this->max_cell_voltage_->publish_state((float) ((data[4] << 8) | data[5]) / 1000);
+                this->max_cell_voltage_->publish_state((float) encode_uint16(data[4], data[5]) / 1000);
               }
               if (this->max_cell_volatge_number_) {
                 this->max_cell_volatge_number_->publish_state(data[6]);
               }
               if (this->min_cell_voltage_) {
-                this->min_cell_voltage_->publish_state((float) ((data[7] << 8) | data[8]) / 1000);
+                this->min_cell_voltage_->publish_state((float) encode_uint16(data[7], data[8]) / 1000);
               }
               if (this->min_cell_voltage_number_) {
                 this->min_cell_voltage_number_->publish_state(data[9]);
@@ -148,8 +150,8 @@ void DalyBmsComponent::decode_data(unsigned char *data, int length) {
                 this->discharging_mos_enabled_->publish_state(data[6]);
               }
               if (this->remaining_capacity_) {
-                this->remaining_capacity_->publish_state(
-                    (float) ((data[8] << 24) | (data[9] << 16) | (data[10] << 8) | data[11]) / 1000);
+                this->remaining_capacity_->publish_state((float) encode_uint32(data[8], data[9], data[10], data[11]) /
+                                                         1000);
               }
               break;
 
