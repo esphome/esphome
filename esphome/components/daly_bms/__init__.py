@@ -10,17 +10,12 @@ AUTO_LOAD = ["sensor", "text_sensor", "binary_sensor"]
 BSM_DALY_ID = "bms_daly_id"
 
 daly_bms = cg.esphome_ns.namespace("daly_bms")
-DalyBmsComponent = daly_bms.class_("DalyBmsComponent", uart.UARTDevice, cg.Component)
+DalyBmsComponent = daly_bms.class_("DalyBmsComponent", cg.PollingComponent, uart.UARTDevice)
 
-CONFIG_SCHEMA = cv.All(
-    cv.Schema(
-        {
-            cv.GenerateID(): cv.declare_id(DalyBmsComponent),
-        }
-    )
-    .extend(cv.COMPONENT_SCHEMA)
+CONFIG_SCHEMA = (
+    cv.Schema({cv.GenerateID(): cv.declare_id(DalyBmsComponent)})
     .extend(uart.UART_DEVICE_SCHEMA)
-    .extend(cv.polling_component_schema("30s")),
+    .extend(cv.polling_component_schema("30s"))
 )
 
 

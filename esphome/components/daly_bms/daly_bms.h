@@ -53,8 +53,8 @@ class DalyBmsComponent : public PollingComponent, public uart::UARTDevice {
   float get_setup_priority() const override;
 
  protected:
-  void request_data(unsigned char data_id);
-  void decode_data(unsigned char *data, int length);
+  void request_data(uint8_t data_id);
+  void decode_data(uint8_t *data, int length);
 
   sensor::Sensor *voltage_sensor_{nullptr};
   sensor::Sensor *current_sensor_{nullptr};
