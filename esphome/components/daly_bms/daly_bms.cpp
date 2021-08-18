@@ -91,7 +91,7 @@ void DalyBmsComponent::decode_data(uint8_t *data, int length) {
               }
               if (this->current_sensor_) {
                 this->current_sensor_->publish_state(
-                    (float) ((encode_uint16(data[8], data[9]) - DALY_CURRENT_OFFSET) / 10));
+                    ((float) (encode_uint16(data[8], data[9]) - DALY_CURRENT_OFFSET) / 10));
               }
               if (this->battery_level_sensor_) {
                 this->battery_level_sensor_->publish_state((float) encode_uint16(data[10], data[11]) / 10);
