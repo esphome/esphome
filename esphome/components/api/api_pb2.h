@@ -47,6 +47,7 @@ enum ColorMode : uint32_t {
 enum SensorStateClass : uint32_t {
   STATE_CLASS_NONE = 0,
   STATE_CLASS_MEASUREMENT = 1,
+  STATE_CLASS_TOTAL_INCREASING = 2,
 };
 enum SensorLastResetType : uint32_t {
   LAST_RESET_NONE = 0,

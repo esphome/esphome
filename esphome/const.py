@@ -1,6 +1,6 @@
 """Constants used by esphome."""
 
-__version__ = "1.22.0-dev"
+__version__ = "2021.9.0-dev"
 
 ESP_PLATFORM_ESP32 = "ESP32"
 ESP_PLATFORM_ESP8266 = "ESP8266"
@@ -813,6 +813,7 @@ DEVICE_CLASS_PROBLEM = "problem"
 DEVICE_CLASS_SAFETY = "safety"
 DEVICE_CLASS_SMOKE = "smoke"
 DEVICE_CLASS_SOUND = "sound"
+DEVICE_CLASS_UPDATE = "update"
 DEVICE_CLASS_VIBRATION = "vibration"
 DEVICE_CLASS_WINDOW = "window"
 # device classes of both binary_sensor and sensor component
@@ -839,6 +840,9 @@ STATE_CLASS_NONE = ""
 
 # The state represents a measurement in present time
 STATE_CLASS_MEASUREMENT = "measurement"
+
+# The state represents a total that only increases, a decrease is considered a reset.
+STATE_CLASS_TOTAL_INCREASING = "total_increasing"
 
 # This sensor does not support resetting. ie, it is not accumulative
 LAST_RESET_TYPE_NONE = ""
