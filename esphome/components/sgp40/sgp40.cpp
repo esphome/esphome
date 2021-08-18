@@ -94,6 +94,7 @@ void SGP40Component::self_test_() {
     }
 
     if (reply[0] == 0xD400) {
+      this->self_test_complete_ = true;
       ESP_LOGD(TAG, "selfTest completed");
       return;
     }
@@ -113,6 +114,9 @@ void SGP40Component::self_test_() {
  */
 int32_t SGP40Component::measure_voc_index_() {
   int32_t voc_index;
+
+  if (this->self_test_complete_ == false)
+    return UINT16_MAX;
 
   uint16_t sraw = measure_raw_();
 
@@ -174,11 +178,11 @@ uint16_t SGP40Component::measure_raw_() {
   command[0] = 0x26;
   command[1] = 0x0F;
 
-  uint16_t rhticks = llround((uint16_t)((humidity * 65535) / 100));
+  uint16_t rhticks = llround((uint16_t) ((humidity * 65535) / 100));
   command[2] = rhticks >> 8;
   command[3] = rhticks & 0xFF;
   command[4] = generate_crc_(command + 2, 2);
-  uint16_t tempticks = (uint16_t)(((temperature + 45) * 65535) / 175);
+  uint16_t tempticks = (uint16_t) (((temperature + 45) * 65535) / 175);
   command[5] = tempticks >> 8;
   command[6] = tempticks & 0xFF;
   command[7] = generate_crc_(command + 5, 2);
