@@ -90,19 +90,24 @@ void Anova::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_
       if (this->codec_->has_running()) {
         this->mode = this->codec_->running_ ? climate::CLIMATE_MODE_HEAT : climate::CLIMATE_MODE_OFF;
       }
+      if (this->codec_->has_unit()) {
+        this->fahrenheit_ = (this->codec_->unit_ == 'f');
+        ESP_LOGD(TAG, "Anova units is %s", this->fahrenheit_ ? "fahrenheit" : "celcius");
+        this->current_request_++;
+      }
       this->publish_state();
 
-      if (this->current_request_ > 0) {
+      if (this->current_request_ > 1) {
         AnovaPacket *pkt = nullptr;
         switch (this->current_request_++) {
-          case 1:
+          case 2:
             pkt = this->codec_->get_read_target_temp_request();
             break;
-          case 2:
+          case 3:
             pkt = this->codec_->get_read_current_temp_request();
             break;
           default:
-            this->current_request_ = 0;
+            this->current_request_ = 1;
             break;
         }
         if (pkt != nullptr) {
@@ -121,12 +126,16 @@ void Anova::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_
   }
 }
 
+void Anova::set_unit_of_measurement(const char *unit) { this->fahrenheit_ = !strncmp(unit, "f", 1); }
+
 void Anova::update() {
   if (this->node_state != espbt::ClientState::Established)
     return;
 
-  if (this->current_request_ == 0) {
+  if (this->current_request_ < 2) {
     auto pkt = this->codec_->get_read_device_status_request();
+    if (this->current_request_ == 0)
+      auto pkt = this->codec_->get_set_unit_request(this->fahrenheit_ ? 'f' : 'c');
     auto status = esp_ble_gattc_write_char(this->parent_->gattc_if, this->parent_->conn_id, this->char_handle_,
                                            pkt->length, pkt->data, ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE);
     if (status)

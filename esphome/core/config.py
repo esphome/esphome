@@ -4,7 +4,7 @@ import re
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome import automation, pins
+from esphome import automation, boards
 from esphome.const import (
     CONF_ARDUINO_VERSION,
     CONF_BOARD,
@@ -50,18 +50,19 @@ VERSION_REGEX = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+(?:[ab]\d+)?$")
 CONF_NAME_ADD_MAC_SUFFIX = "name_add_mac_suffix"
 
 
-def validate_board(value):
+def validate_board(value: str):
     if CORE.is_esp8266:
-        board_pins = pins.ESP8266_BOARD_PINS
+        boardlist = boards.ESP8266_BOARD_PINS.keys()
     elif CORE.is_esp32:
-        board_pins = pins.ESP32_BOARD_PINS
+        boardlist = list(boards.ESP32_BOARD_PINS.keys())
+        boardlist += list(boards.ESP32_C3_BOARD_PINS.keys())
     else:
         raise NotImplementedError
 
-    if value not in board_pins:
+    if value not in boardlist:
         raise cv.Invalid(
             "Could not find board '{}'. Valid boards are {}".format(
-                value, ", ".join(sorted(board_pins.keys()))
+                value, ", ".join(sorted(boardlist))
             )
         )
     return value
@@ -157,7 +158,7 @@ def valid_project_name(value: str):
 
 CONFIG_SCHEMA = cv.Schema(
     {
-        cv.Required(CONF_NAME): cv.valid_name,
+        cv.Required(CONF_NAME): cv.hostname,
         cv.Required(CONF_PLATFORM): cv.one_of("ESP8266", "ESP32", upper=True),
         cv.Required(CONF_BOARD): validate_board,
         cv.Optional(CONF_COMMENT): cv.string,
@@ -332,8 +333,25 @@ async def to_code(config):
         if "@" in lib:
             name, vers = lib.split("@", 1)
             cg.add_library(name, vers)
+        elif "://" in lib:
+            # Repository...
+            if "=" in lib:
+                name, repo = lib.split("=", 1)
+                cg.add_library(name, None, repo)
+            else:
+                cg.add_library(None, None, lib)
+
         else:
             cg.add_library(lib, None)
+
+    if CORE.is_esp8266:
+        # Arduino 2 has a non-standards conformant new that returns a nullptr instead of failing when
+        # out of memory and exceptions are disabled. Since Arduino 2.6.0, this flag can be used to make
+        # new abort instead. Use it so that OOM fails early (on allocation) instead of on dereference of
+        # a NULL pointer (so the stacktrace makes more sense), and for consistency with Arduino 3,
+        # which always aborts if exceptions are disabled.
+        # For cases where nullptrs can be handled, use nothrow: `new (std::nothrow) T;`
+        cg.add_build_flag("-DNEW_OOM_ABORT")
 
     cg.add_build_flag("-Wno-unused-variable")
     cg.add_build_flag("-Wno-unused-but-set-variable")

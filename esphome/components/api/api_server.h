@@ -9,7 +9,6 @@
 #include "util.h"
 #include "list_entities.h"
 #include "subscribe_state.h"
-#include "homeassistant_service.h"
 #include "user_services.h"
 
 #ifdef ARDUINO_ARCH_ESP32
@@ -63,6 +62,9 @@ class APIServer : public Component, public Controller {
 #endif
 #ifdef USE_NUMBER
   void on_number_update(number::Number *obj, float state) override;
+#endif
+#ifdef USE_SELECT
+  void on_select_update(select::Select *obj, const std::string &state) override;
 #endif
   void send_homeassistant_service_call(const HomeassistantServiceResponse &call);
   void register_user_service(UserServiceDescriptor *descriptor) { this->user_services_.push_back(descriptor); }

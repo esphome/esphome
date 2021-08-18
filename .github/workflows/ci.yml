@@ -36,26 +36,27 @@ jobs:
     container: ghcr.io/esphome/esphome-lint:1.1
     steps:
       - uses: actions/checkout@v2
-      # Set up the pio project so that the cpp checks know how files are compiled
-      # (build flags, libraries etc)
-      - name: Set up platformio environment
-        run: pio init --ide atom
 
       - name: Register problem matchers
         run: |
           echo "::add-matcher::.github/workflows/matchers/clang-tidy.json"
           echo "::add-matcher::.github/workflows/matchers/gcc.json"
 
+      # Also run git-diff-index so that the step is marked as failed on formatting errors,
+      # since clang-format doesn't do anything but change files if -i is passed.
       - name: Run clang-format
-        run: script/clang-format -i
+        run: |
+          script/clang-format -i
+          git diff-index --quiet HEAD --
         if: ${{ matrix.id == 'clang-format' }}
 
       - name: Run clang-tidy
         run: script/clang-tidy --all-headers --fix --split-num 4 --split-at ${{ matrix.split }}
         if: ${{ matrix.id == 'clang-tidy' }}
 
-      - name: Suggest changes
+      - name: Suggested changes
         run: script/ci-suggest-changes
+        if: always()
 
   ci:
     # Don't use the esphome-lint docker image because it may contain outdated requirements.
@@ -82,6 +83,9 @@ jobs:
           - id: test
             file: tests/test4.yaml
             name: Test tests/test4.yaml
+          - id: test
+            file: tests/test5.yaml
+            name: Test tests/test5.yaml
           - id: pytest
             name: Run pytest
 

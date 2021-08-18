@@ -11,6 +11,9 @@ int32_t interpret_index(int32_t index, int32_t size);
 class AddressableLight;
 class ESPRangeIterator;
 
+/**
+ * A half-open range of LEDs, inclusive of the begin index and exclusive of the end index, using zero-based numbering.
+ */
 class ESPRangeView : public ESPColorSettable {
  public:
   ESPRangeView(AddressableLight *parent, int32_t begin, int32_t end)

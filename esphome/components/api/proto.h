@@ -1,7 +1,12 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
+
+#ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
+#define HAS_PROTO_MESSAGE_DUMP
+#endif
 
 namespace esphome {
 namespace api {
@@ -243,8 +248,10 @@ class ProtoMessage {
  public:
   virtual void encode(ProtoWriteBuffer buffer) const = 0;
   void decode(const uint8_t *buffer, size_t length);
+#ifdef HAS_PROTO_MESSAGE_DUMP
   std::string dump() const;
   virtual void dump_to(std::string &out) const = 0;
+#endif
 
  protected:
   virtual bool decode_varint(uint32_t field_id, ProtoVarInt value) { return false; }

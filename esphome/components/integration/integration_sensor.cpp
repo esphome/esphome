@@ -16,6 +16,8 @@ void IntegrationSensor::setup() {
   }
 
   this->last_update_ = millis();
+  this->last_save_ = this->last_update_;
+
   this->publish_and_save_(this->result_);
   this->sensor_->add_on_state_callback([this](float state) { this->process_sensor_value_(state); });
 }

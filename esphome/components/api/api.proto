@@ -39,6 +39,7 @@ service APIConnection {
   rpc camera_image (CameraImageRequest) returns (void) {}
   rpc climate_command (ClimateCommandRequest) returns (void) {}
   rpc number_command (NumberCommandRequest) returns (void) {}
+  rpc select_command (SelectCommandRequest) returns (void) {}
 }
 
 
@@ -213,6 +214,7 @@ message ListEntitiesBinarySensorResponse {
 
   string device_class = 5;
   bool is_status_binary_sensor = 6;
+  bool disabled_by_default = 7;
 }
 message BinarySensorStateResponse {
   option (id) = 21;
@@ -242,6 +244,7 @@ message ListEntitiesCoverResponse {
   bool supports_position = 6;
   bool supports_tilt = 7;
   string device_class = 8;
+  bool disabled_by_default = 9;
 }
 
 enum LegacyCoverState {
@@ -309,6 +312,7 @@ message ListEntitiesFanResponse {
   bool supports_speed = 6;
   bool supports_direction = 7;
   int32 supported_speed_count = 8;
+  bool disabled_by_default = 9;
 }
 enum FanSpeed {
   FAN_SPEED_LOW = 0;
@@ -352,6 +356,18 @@ message FanCommandRequest {
 }
 
 // ==================== LIGHT ====================
+enum ColorMode {
+  COLOR_MODE_UNKNOWN = 0;
+  COLOR_MODE_ON_OFF = 1;
+  COLOR_MODE_BRIGHTNESS = 2;
+  COLOR_MODE_WHITE = 7;
+  COLOR_MODE_COLOR_TEMPERATURE = 11;
+  COLOR_MODE_COLD_WARM_WHITE = 19;
+  COLOR_MODE_RGB = 35;
+  COLOR_MODE_RGB_WHITE = 39;
+  COLOR_MODE_RGB_COLOR_TEMPERATURE = 47;
+  COLOR_MODE_RGB_COLD_WARM_WHITE = 51;
+}
 message ListEntitiesLightResponse {
   option (id) = 15;
   option (source) = SOURCE_SERVER;
@@ -362,13 +378,16 @@ message ListEntitiesLightResponse {
   string name = 3;
   string unique_id = 4;
 
-  bool supports_brightness = 5;
-  bool supports_rgb = 6;
-  bool supports_white_value = 7;
-  bool supports_color_temperature = 8;
+  repeated ColorMode supported_color_modes = 12;
+  // next four supports_* are for legacy clients, newer clients should use color modes
+  bool legacy_supports_brightness = 5 [deprecated=true];
+  bool legacy_supports_rgb = 6 [deprecated=true];
+  bool legacy_supports_white_value = 7 [deprecated=true];
+  bool legacy_supports_color_temperature = 8 [deprecated=true];
   float min_mireds = 9;
   float max_mireds = 10;
   repeated string effects = 11;
+  bool disabled_by_default = 13;
 }
 message LightStateResponse {
   option (id) = 24;
@@ -379,12 +398,15 @@ message LightStateResponse {
   fixed32 key = 1;
   bool state = 2;
   float brightness = 3;
+  ColorMode color_mode = 11;
   float color_brightness = 10;
   float red = 4;
   float green = 5;
   float blue = 6;
   float white = 7;
   float color_temperature = 8;
+  float cold_white = 12;
+  float warm_white = 13;
   string effect = 9;
 }
 message LightCommandRequest {
@@ -398,6 +420,8 @@ message LightCommandRequest {
   bool state = 3;
   bool has_brightness = 4;
   float brightness = 5;
+  bool has_color_mode = 22;
+  ColorMode color_mode = 23;
   bool has_color_brightness = 20;
   float color_brightness = 21;
   bool has_rgb = 6;
@@ -408,6 +432,10 @@ message LightCommandRequest {
   float white = 11;
   bool has_color_temperature = 12;
   float color_temperature = 13;
+  bool has_cold_white = 24;
+  float cold_white = 25;
+  bool has_warm_white = 26;
+  float warm_white = 27;
   bool has_transition_length = 14;
   uint32 transition_length = 15;
   bool has_flash_length = 16;
@@ -420,6 +448,7 @@ message LightCommandRequest {
 enum SensorStateClass {
   STATE_CLASS_NONE = 0;
   STATE_CLASS_MEASUREMENT = 1;
+  STATE_CLASS_TOTAL_INCREASING = 2;
 }
 
 enum SensorLastResetType {
@@ -445,6 +474,7 @@ message ListEntitiesSensorResponse {
   string device_class = 9;
   SensorStateClass state_class = 10;
   SensorLastResetType last_reset_type = 11;
+  bool disabled_by_default = 12;
 }
 message SensorStateResponse {
   option (id) = 25;
@@ -472,6 +502,7 @@ message ListEntitiesSwitchResponse {
 
   string icon = 5;
   bool assumed_state = 6;
+  bool disabled_by_default = 7;
 }
 message SwitchStateResponse {
   option (id) = 26;
@@ -504,6 +535,7 @@ message ListEntitiesTextSensorResponse {
   string unique_id = 4;
 
   string icon = 5;
+  bool disabled_by_default = 6;
 }
 message TextSensorStateResponse {
   option (id) = 27;
@@ -524,9 +556,10 @@ enum LogLevel {
   LOG_LEVEL_ERROR = 1;
   LOG_LEVEL_WARN = 2;
   LOG_LEVEL_INFO = 3;
-  LOG_LEVEL_DEBUG = 4;
-  LOG_LEVEL_VERBOSE = 5;
-  LOG_LEVEL_VERY_VERBOSE = 6;
+  LOG_LEVEL_CONFIG = 4;
+  LOG_LEVEL_DEBUG = 5;
+  LOG_LEVEL_VERBOSE = 6;
+  LOG_LEVEL_VERY_VERBOSE = 7;
 }
 message SubscribeLogsRequest {
   option (id) = 28;
@@ -541,7 +574,6 @@ message SubscribeLogsResponse {
   option (no_delay) = false;
 
   LogLevel level = 1;
-  string tag = 2;
   string message = 3;
   bool send_failed = 4;
 }
@@ -663,6 +695,7 @@ message ListEntitiesCameraResponse {
   fixed32 key = 2;
   string name = 3;
   string unique_id = 4;
+  bool disabled_by_default = 5;
 }
 
 message CameraImageResponse {
@@ -755,6 +788,7 @@ message ListEntitiesClimateResponse {
   repeated string supported_custom_fan_modes = 15;
   repeated ClimatePreset supported_presets = 16;
   repeated string supported_custom_presets = 17;
+  bool disabled_by_default = 18;
 }
 message ClimateStateResponse {
   option (id) = 47;
@@ -822,6 +856,7 @@ message ListEntitiesNumberResponse {
   float min_value = 6;
   float max_value = 7;
   float step = 8;
+  bool disabled_by_default = 9;
 }
 message NumberStateResponse {
   option (id) = 50;
@@ -843,4 +878,41 @@ message NumberCommandRequest {
 
   fixed32 key = 1;
   float state = 2;
+}
+
+// ==================== SELECT ====================
+message ListEntitiesSelectResponse {
+  option (id) = 52;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_SELECT";
+
+  string object_id = 1;
+  fixed32 key = 2;
+  string name = 3;
+  string unique_id = 4;
+
+  string icon = 5;
+  repeated string options = 6;
+  bool disabled_by_default = 7;
+}
+message SelectStateResponse {
+  option (id) = 53;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_SELECT";
+  option (no_delay) = true;
+
+  fixed32 key = 1;
+  string state = 2;
+  // If the select does not have a valid state yet.
+  // Equivalent to `!obj->has_state()` - inverse logic to make state packets smaller
+  bool missing_state = 3;
+}
+message SelectCommandRequest {
+  option (id) = 54;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_SELECT";
+  option (no_delay) = true;
+
+  fixed32 key = 1;
+  string state = 2;
 }
