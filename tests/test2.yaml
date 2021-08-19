@@ -218,6 +218,16 @@ sensor:
       name: 'ATC Battery-Level'
     battery_voltage:
       name: 'ATC Battery-Voltage'
+  - platform: pvvx_mithermometer
+    mac_address: 'A4:C1:38:4E:16:78'
+    temperature:
+      name: 'PVVX Temperature'
+    humidity:
+      name: 'PVVX Humidity'
+    battery_level:
+      name: 'PVVX Battery-Level'
+    battery_voltage:
+      name: 'PVVX Battery-Voltage'
   - platform: inkbird_ibsth1_mini
     mac_address: 38:81:D7:0A:9C:11
     temperature:
@@ -293,6 +303,16 @@ binary_sensor:
       name: 'WX08ZM Tablet Resource'
     battery_level:
       name: 'WX08ZM Battery Level'
+  - platform: xiaomi_cgpr1
+    name: 'CGPR1 Motion'
+    mac_address: '12:34:56:12:34:56'
+    bindkey: '48403ebe2d385db8d0c187f81e62cb64'
+    battery_level:
+      name: 'CGPR1 battery Level'
+    idle_time:
+      name: 'CGPR1 Idle Time'
+    illuminance:
+      name: 'CGPR1 Illuminance'
 
 esp32_ble_tracker:
   on_ble_advertise:

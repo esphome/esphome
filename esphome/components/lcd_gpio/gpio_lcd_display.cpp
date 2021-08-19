@@ -4,7 +4,7 @@
 namespace esphome {
 namespace lcd_gpio {
 
-static const char *TAG = "lcd_gpio";
+static const char *const TAG = "lcd_gpio";
 
 void GPIOLCDDisplay::setup() {
   ESP_LOGCONFIG(TAG, "Setting up GPIO LCD Display...");

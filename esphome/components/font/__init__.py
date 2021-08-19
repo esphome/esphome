@@ -110,7 +110,7 @@ async def to_code(config):
         _, (offset_x, offset_y) = font.font.getsize(glyph)
         width, height = mask.size
         width8 = ((width + 7) // 8) * 8
-        glyph_data = [0 for _ in range(height * width8 // 8)]  # noqa: F812
+        glyph_data = [0] * (height * width8 // 8)
         for y in range(height):
             for x in range(width):
                 if not mask.getpixel((x, y)):

@@ -5,7 +5,7 @@
 namespace esphome {
 namespace api {
 
-static const char *TAG = "api.proto";
+static const char *const TAG = "api.proto";
 
 void ProtoMessage::decode(const uint8_t *buffer, size_t length) {
   uint32_t i = 0;
@@ -80,11 +80,13 @@ void ProtoMessage::decode(const uint8_t *buffer, size_t length) {
   }
 }
 
+#ifdef HAS_PROTO_MESSAGE_DUMP
 std::string ProtoMessage::dump() const {
   std::string out;
   this->dump_to(out);
   return out;
 }
+#endif
 
 }  // namespace api
 }  // namespace esphome

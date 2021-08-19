@@ -4,7 +4,7 @@
 namespace esphome {
 namespace adalight {
 
-static const char *TAG = "adalight_light_effect";
+static const char *const TAG = "adalight_light_effect";
 
 static const uint32_t ADALIGHT_ACK_INTERVAL = 1000;
 static const uint32_t ADALIGHT_RECEIVE_TIMEOUT = 1000;
@@ -42,7 +42,7 @@ void AdalightLightEffect::reset_frame_(light::AddressableLight &it) {
 
 void AdalightLightEffect::blank_all_leds_(light::AddressableLight &it) {
   for (int led = it.size(); led-- > 0;) {
-    it[led].set(COLOR_BLACK);
+    it[led].set(Color::BLACK);
   }
 }
 

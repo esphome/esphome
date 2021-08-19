@@ -5,7 +5,7 @@
 namespace esphome {
 namespace ssd1322_base {
 
-static const char *TAG = "ssd1322";
+static const char *const TAG = "ssd1322";
 
 static const uint8_t SSD1322_MAX_CONTRAST = 255;
 static const uint8_t SSD1322_COLORMASK = 0x0f;
@@ -106,9 +106,9 @@ void SSD1322::setup() {
   this->data(180);
   this->command(SSD1322_ENABLEGRAYSCALETABLE);
   set_brightness(this->brightness_);
-  this->fill(COLOR_BLACK);  // clear display - ensures we do not see garbage at power-on
-  this->display();          // ...write buffer, which actually clears the display's memory
-  this->turn_on();          // display ON
+  this->fill(Color::BLACK);  // clear display - ensures we do not see garbage at power-on
+  this->display();           // ...write buffer, which actually clears the display's memory
+  this->turn_on();           // display ON
 }
 void SSD1322::display() {
   this->command(SSD1322_SETCOLUMNADDRESS);  // set column address
@@ -126,7 +126,7 @@ void SSD1322::update() {
   this->display();
 }
 void SSD1322::set_brightness(float brightness) {
-  this->brightness_ = clamp(brightness, 0, 1);
+  this->brightness_ = clamp(brightness, 0.0F, 1.0F);
   // now write the new brightness level to the display
   this->command(SSD1322_SETCONTRAST);
   this->data(int(SSD1322_MAX_CONTRAST * (this->brightness_)));

@@ -9,7 +9,7 @@
 
 namespace esphome {
 
-static const char *TAG = "app";
+static const char *const TAG = "app";
 
 void Application::register_component_(Component *comp) {
   if (comp == nullptr) {
@@ -53,6 +53,7 @@ void Application::setup() {
       }
       this->app_state_ = new_app_state;
       yield();
+      this->feed_wdt();
     } while (!component->can_proceed());
   }
 
@@ -103,6 +104,9 @@ void Application::loop() {
   if (this->dump_config_at_ >= 0 && this->dump_config_at_ < this->components_.size()) {
     if (this->dump_config_at_ == 0) {
       ESP_LOGI(TAG, "ESPHome version " ESPHOME_VERSION " compiled on %s", this->compilation_time_.c_str());
+#ifdef ESPHOME_PROJECT_NAME
+      ESP_LOGI(TAG, "Project " ESPHOME_PROJECT_NAME " version " ESPHOME_PROJECT_VERSION);
+#endif
     }
 
     this->components_[this->dump_config_at_]->dump_config();
@@ -114,12 +118,7 @@ void ICACHE_RAM_ATTR HOT Application::feed_wdt() {
   static uint32_t LAST_FEED = 0;
   uint32_t now = millis();
   if (now - LAST_FEED > 3) {
-#ifdef ARDUINO_ARCH_ESP8266
-    ESP.wdtFeed();
-#endif
-#ifdef ARDUINO_ARCH_ESP32
-    yield();
-#endif
+    this->feed_wdt_arch_();
     LAST_FEED = now;
 #ifdef USE_STATUS_LED
     if (status_led::global_status_led != nullptr) {
@@ -158,6 +157,6 @@ void Application::calculate_looping_components_() {
   }
 }
 
-Application App;
+Application App;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 }  // namespace esphome

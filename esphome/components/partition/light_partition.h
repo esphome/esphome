@@ -1,5 +1,7 @@
 #pragma once
 
+#include <utility>
+
 #include "esphome/core/component.h"
 #include "esphome/components/light/addressable_light.h"
 
@@ -31,7 +33,7 @@ class AddressableSegment {
 
 class PartitionLightOutput : public light::AddressableLight {
  public:
-  explicit PartitionLightOutput(std::vector<AddressableSegment> segments) : segments_(segments) {
+  explicit PartitionLightOutput(std::vector<AddressableSegment> segments) : segments_(std::move(segments)) {
     int32_t off = 0;
     for (auto &seg : this->segments_) {
       seg.set_dst_offset(off);

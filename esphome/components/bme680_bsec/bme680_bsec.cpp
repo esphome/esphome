@@ -6,7 +6,7 @@
 namespace esphome {
 namespace bme680_bsec {
 #ifdef USE_BSEC
-static const char *TAG = "bme680_bsec.sensor";
+static const char *const TAG = "bme680_bsec.sensor";
 
 static const std::string IAQ_ACCURACY_STATES[4] = {"Stabilizing", "Uncertain", "Calibrating", "Calibrated"};
 

@@ -4,7 +4,7 @@
 namespace esphome {
 namespace bmp280 {
 
-static const char *TAG = "bmp280.sensor";
+static const char *const TAG = "bmp280.sensor";
 
 static const uint8_t BMP280_REGISTER_STATUS = 0xF3;
 static const uint8_t BMP280_REGISTER_CONTROL = 0xF4;
