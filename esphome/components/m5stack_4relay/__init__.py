@@ -6,6 +6,7 @@ from esphome.const import CONF_ID
 DEPENDENCIES = ["i2c"]
 MULTI_CONF = True
 AUTO_LOAD = ["switch"]
+CODEOWNERS = ["@brotherdust"]
 
 m5stack_4relay_ns = cg.esphome_ns.namespace("m5stack_4relay")
 M5STACK4RELAYOutput = m5stack_4relay_ns.class_(

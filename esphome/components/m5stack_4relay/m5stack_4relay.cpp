@@ -3,7 +3,6 @@
 #include "esphome/core/log.h"
 namespace esphome {
 namespace m5stack_4relay {
-uint8_t component_status;
 static const char *const TAG = "m5stack_4relay.switch";
 
 void M5STACK4RELAYSwitchComponent::setup() {
@@ -22,7 +21,7 @@ void M5STACK4RELAYSwitchComponent::get_status(uint8_t *state) { this->read_byte(
 bool M5STACK4RELAYSwitchComponent::set_channel_value_(uint8_t channel, bool state) {
   get_status(&component_status);
 
-  ESP_LOGD(TAG, "Current Status 0x%02X", component_status);
+  ESP_LOGD(TAG, "Current status 0x%02X", component_status);
   ESP_LOGD(TAG, "Desired channel: %1u", channel);
   ESP_LOGD(TAG, "Desired state: %1u", state);
 
