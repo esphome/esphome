@@ -35,22 +35,20 @@ void ST7920::setup() {
   ESP_LOGCONFIG(TAG, "Setting up ST7920...");
   this->dump_config();
   this->spi_setup();
-  this->rs_pin_->setup();
-  this->rs_pin_->digital_write(LOW);
   this->init_internal_(this->get_buffer_length_());
   display_init_();
 }
 
 void ST7920::command_(uint8_t value) {
-  this->start_transaction_();
+  this->enable();
   this->send_(LCD_COMMAND, value);
-  this->end_transaction_();
+  this->disable();
 }
 
 void ST7920::data_(uint8_t value) {
-  this->start_transaction_();
+  this->enable();
   this->send_(LCD_DATA, value);
-  this->end_transaction_();
+  this->disable();
 }
 
 void ST7920::send_(uint8_t type, uint8_t value) {
@@ -78,7 +76,7 @@ void HOT ST7920::write_display_data() {
   byte i, j, b;
   for (j = 0; j < this->get_height_internal() / 2; j++) {
     this->goto_xy_(0, j);
-    this->start_transaction_();
+    this->enable();
     for (i = 0; i < 16; i++) {  // 16 bytes from line #0+
       b = this->buffer_[i + j * 16];
       this->send_(LCD_DATA, b);
@@ -87,7 +85,7 @@ void HOT ST7920::write_display_data() {
       b = this->buffer_[i + (j + 32) * 16];
       this->send_(LCD_DATA, b);
     }
-    this->end_transaction_();
+    this->disable();
     App.feed_wdt();
   }
 }
@@ -96,7 +94,7 @@ void ST7920::fill(Color color) { memset(this->buffer_, 0, this->get_buffer_lengt
 
 void ST7920::dump_config() {
   LOG_DISPLAY("", "ST7920", this);
-  LOG_PIN("  RS Pin: ", this->rs_pin_);
+  LOG_PIN("  CS Pin: ", this->cs_);
   ESP_LOGD(TAG, "  Height: %d", this->height_);
   ESP_LOGD(TAG, "  Width: %d", this->width_);
 }
@@ -144,16 +142,6 @@ void ST7920::display_init_() {
   this->command_(LCD_EXTEND);     // LCD_EXTEND);
   this->command_(LCD_GFXMODE);    // LCD_GFXMODE);
   this->write_display_data();
-}
-
-void ST7920::start_transaction_() {
-  this->enable();
-  this->rs_pin_->digital_write(HIGH);
-}
-
-void ST7920::end_transaction_() {
-  this->disable();
-  this->rs_pin_->digital_write(LOW);
 }
 
 }  // namespace st7920

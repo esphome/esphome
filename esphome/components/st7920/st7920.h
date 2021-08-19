@@ -21,7 +21,6 @@ class ST7920 : public PollingComponent,
                                      spi::DATA_RATE_1MHZ> {
  public:
   void set_writer(st7920_writer_t &&writer) { this->writer_local_ = writer; }
-  void set_rs_pin(GPIOPin *rs_pin) { this->rs_pin_ = rs_pin; }
   void set_height(uint16_t height) { this->height_ = height; }
   void set_width(uint16_t width) { this->width_ = width; }
 
@@ -48,7 +47,6 @@ class ST7920 : public PollingComponent,
   void start_transaction_();
   void end_transaction_();
 
-  GPIOPin *rs_pin_;
   int16_t width_ = 128, height_ = 64;
   optional<st7920_writer_t> writer_local_{};
 };

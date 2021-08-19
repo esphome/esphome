@@ -1966,7 +1966,9 @@ display:
   - platform: st7920
     width: 128
     height: 64
-    rs_pin: GPIO23
+    cs_pin:
+      number: GPIO23
+      inverted: true
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
   - platform: st7735

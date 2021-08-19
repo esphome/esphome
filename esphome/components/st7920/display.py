@@ -18,13 +18,12 @@ CONFIG_SCHEMA = (
     display.FULL_DISPLAY_SCHEMA.extend(
         {
             cv.GenerateID(): cv.declare_id(ST7920),
-            cv.Required(CONF_RS_PIN): pins.gpio_output_pin_schema,
             cv.Required(CONF_WIDTH): cv.int_,
             cv.Required(CONF_HEIGHT): cv.int_,
         }
     )
     .extend(cv.polling_component_schema("60s"))
-    .extend(spi.spi_device_schema(cs_pin_required=False))
+    .extend(spi.spi_device_schema())
 )
 
 
@@ -38,8 +37,6 @@ async def to_code(config):
             config[CONF_LAMBDA], [(ST7920Ref, "it")], return_type=cg.void
         )
         cg.add(var.set_writer(lambda_))
-    rs = await cg.gpio_pin_expression(config[CONF_RS_PIN])
-    cg.add(var.set_rs_pin(rs))
     cg.add(var.set_width(config[CONF_WIDTH]))
     cg.add(var.set_height(config[CONF_HEIGHT]))
 
