@@ -97,10 +97,10 @@ def is_ip_address(host):
 
 def _resolve_with_zeroconf(host):
     from esphome.core import EsphomeError
-    from esphome.zeroconf import Zeroconf
+    from esphome.zeroconf import EsphomeZeroconf
 
     try:
-        zc = Zeroconf()
+        zc = EsphomeZeroconf()
     except Exception as err:
         raise EsphomeError(
             "Cannot start mDNS sockets, is this a docker container without "
