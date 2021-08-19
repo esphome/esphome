@@ -1,6 +1,6 @@
 import esphome.config_validation as cv
 import esphome.codegen as cg
-from esphome.components import output, switch
+from esphome.components import switch
 from esphome.const import CONF_ID, CONF_CHANNEL
 from . import M5STACK4RELAYOutput, m5stack_4relay_ns
 
@@ -13,7 +13,7 @@ CONFIG_SCHEMA = switch.SWITCH_SCHEMA.extend(
     {
         cv.Required(CONF_ID): cv.declare_id(M5STACK4RELAYChannel),
         cv.GenerateID(CONF_M5STACK4RELAY_ID): cv.use_id(M5STACK4RELAYOutput),
-        cv.Required(CONF_CHANNEL): cv.int_range(min=0, max=3)
+        cv.Required(CONF_CHANNEL): cv.int_range(min=0, max=3),
     }
 )
 
