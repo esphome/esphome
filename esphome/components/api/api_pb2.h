@@ -47,6 +47,7 @@ enum ColorMode : uint32_t {
 enum SensorStateClass : uint32_t {
   STATE_CLASS_NONE = 0,
   STATE_CLASS_MEASUREMENT = 1,
+  STATE_CLASS_TOTAL_INCREASING = 2,
 };
 enum SensorLastResetType : uint32_t {
   LAST_RESET_NONE = 0,
@@ -58,9 +59,10 @@ enum LogLevel : uint32_t {
   LOG_LEVEL_ERROR = 1,
   LOG_LEVEL_WARN = 2,
   LOG_LEVEL_INFO = 3,
-  LOG_LEVEL_DEBUG = 4,
-  LOG_LEVEL_VERBOSE = 5,
-  LOG_LEVEL_VERY_VERBOSE = 6,
+  LOG_LEVEL_CONFIG = 4,
+  LOG_LEVEL_DEBUG = 5,
+  LOG_LEVEL_VERBOSE = 6,
+  LOG_LEVEL_VERY_VERBOSE = 7,
 };
 enum ServiceArgType : uint32_t {
   SERVICE_ARG_TYPE_BOOL = 0,
@@ -627,7 +629,6 @@ class SubscribeLogsRequest : public ProtoMessage {
 class SubscribeLogsResponse : public ProtoMessage {
  public:
   enums::LogLevel level{};
-  std::string tag{};
   std::string message{};
   bool send_failed{false};
   void encode(ProtoWriteBuffer buffer) const override;
