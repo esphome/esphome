@@ -6,7 +6,7 @@
 namespace esphome {
 namespace st7920 {
 
-static const char *TAG = "st7920";
+static const char *const TAG = "st7920";
 
 // ST7920 COMMANDS
 static const uint8_t LCD_DATA = 0xFA;
