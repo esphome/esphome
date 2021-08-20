@@ -543,6 +543,7 @@ void Nextion::process_nextion_commands_() {
         ESP_LOGVV(TAG, "Received Nextion leaves sleep automatically");
         this->is_sleeping_ = false;
         this->wake_callback_.call();
+        this->all_components_send_state_(false);
         break;
       }
       case 0x88:  // system successful start up
