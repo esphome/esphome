@@ -10,7 +10,7 @@ namespace esphome {
 namespace fan {
 
 /// Simple enum to represent the speed of a fan. - DEPRECATED - Will be deleted soon
-enum ESPDEPRECATED("FanSpeed is deprecated.", "2021.9.0") FanSpeed {
+enum ESPDEPRECATED("FanSpeed is deprecated.", "2021.9") FanSpeed {
   FAN_SPEED_LOW = 0,     ///< The fan is running on low speed.
   FAN_SPEED_MEDIUM = 1,  ///< The fan is running on medium speed.
   FAN_SPEED_HIGH = 2     ///< The fan is running on high/full speed.
@@ -45,7 +45,7 @@ class FanStateCall {
     this->speed_ = speed;
     return *this;
   }
-  ESPDEPRECATED("set_speed() with string argument is deprecated, use integer argument instead.", "2021.9.0")
+  ESPDEPRECATED("set_speed() with string argument is deprecated, use integer argument instead.", "2021.9")
   FanStateCall &set_speed(const char *legacy_speed);
   FanStateCall &set_direction(FanDirection direction) {
     this->direction_ = direction;
