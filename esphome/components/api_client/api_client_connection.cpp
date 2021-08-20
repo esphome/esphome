@@ -288,8 +288,8 @@ void APIClientConnection::on_hello_response(const HelloResponse &value){
         this->on_fatal_error();
         return;
     }
-    if (value.api_version_minor != 4) {
-        ESP_LOGW(TAG, "API minor version mismatch, sent %d but got %d", 4, value.api_version_minor);
+    if (value.api_version_minor != 6) {
+        ESP_LOGW(TAG, "API minor version mismatch, sent %d but got %d", 6, value.api_version_minor);
     }
     DeviceInfoRequest req;
     if (!this->send_device_info_request(req)) {
@@ -312,16 +312,16 @@ void APIClientConnection::on_connect_response(const ConnectResponse &value){
         this->on_fatal_error();
         return;
     }
-    // SubscribeLogsRequest req;
-    // req.level = static_cast<enums::LogLevel>(4 /*ESPHOME_LOG_LEVEL*/);
-    // req.dump_config = true;
-    // if (!this->send_subscribe_logs_request(req)) {
-    //     ESP_LOGE(TAG, "Failed to send subscribe_logs_request");
-    //     this->on_fatal_error();
-    //     return;
-    // }
-    ListEntitiesRequest req;
-    if (!this->send_list_entities_request(req)) {
+    SubscribeLogsRequest slr;
+    slr.level = static_cast<enums::LogLevel>(4 /*ESPHOME_LOG_LEVEL*/);
+    slr.dump_config = true;
+    if (!this->send_subscribe_logs_request(slr)) {
+        ESP_LOGE(TAG, "Failed to send subscribe_logs_request");
+        this->on_fatal_error();
+        return;
+    }
+    ListEntitiesRequest ler;
+    if (!this->send_list_entities_request(ler)) {
         ESP_LOGE(TAG, "Failed to send list_entities_request");
         this->on_fatal_error();
         return;

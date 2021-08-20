@@ -951,6 +951,7 @@ hpp = file_header
 hpp += """\
 #pragma once
 
+#include "proto_client.h"
 #include "../api/api_pb2.h"
 #include "esphome/core/defines.h"
 
