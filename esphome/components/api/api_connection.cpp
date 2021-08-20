@@ -289,6 +289,7 @@ void APIConnection::fan_command(const FanCommandRequest &msg) {
     // Prefer level
     call.set_speed(msg.speed_level);
   } else if (msg.has_speed) {
+    // NOLINTNEXTLINE(clang-diagnostic-deprecated-declarations)
     call.set_speed(fan::speed_enum_to_level(static_cast<fan::FanSpeed>(msg.speed), traits.supported_speed_count()));
   }
   if (msg.has_direction)
