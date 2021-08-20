@@ -17,9 +17,6 @@ NdefMessage::NdefMessage(std::vector<uint8_t> &data) {
 
     ESP_LOGVV(TAG, "me=%s, sr=%s, il=%s, tnf=%d", YESNO(me), YESNO(sr), YESNO(il), tnf);
 
-    auto record = new NdefRecord();
-    record->set_tnf(tnf);
-
     uint8_t type_length = data[index++];
     uint32_t payload_length = 0;
     if (sr) {
@@ -38,33 +35,42 @@ NdefMessage::NdefMessage(std::vector<uint8_t> &data) {
     ESP_LOGVV(TAG, "Lengths: type=%d, payload=%d, id=%d", type_length, payload_length, id_length);
 
     std::string type_str(data.begin() + index, data.begin() + index + type_length);
-    record->set_type(type_str);
+
     index += type_length;
 
+    std::string id_str = "";
     if (il) {
-      std::string id_str(data.begin() + index, data.begin() + index + id_length);
-      record->set_id(id_str);
+      id_str = std::string(data.begin() + index, data.begin() + index + id_length);
       index += id_length;
     }
 
-    uint8_t payload_identifier = 0x00;
-    if (type_str == "U") {
-      payload_identifier = data[index++];
-      payload_length -= 1;
+    std::vector<uint8_t> payloadData(data.begin() + index,data.begin() + index + payload_length);
+
+    NdefRecord * record = nullptr;
+
+    if(tnf == TNF_WELL_KNOWN && type_str == "U")
+    {
+      record = new NdefRecordUri(payloadData);
+    }
+    else if (tnf == TNF_WELL_KNOWN && type_str == "T")
+    {
+      record = new NdefRecordText(payloadData);
     }
 
-    std::string payload_str(data.begin() + index, data.begin() + index + payload_length);
-
-    if (payload_identifier > 0x00 && payload_identifier <= PAYLOAD_IDENTIFIERS_COUNT) {
-      payload_str.insert(0, PAYLOAD_IDENTIFIERS[payload_identifier]);
+    if(record == nullptr) //Could not recognize the record, so store as generic one.
+    {
+      record = new NdefRecord(payloadData);
+      record->set_tnf(tnf);
+      record->set_type(type_str);
     }
 
-    record->set_payload(payload_str);
+    record->set_id(id_str);
+
     index += payload_length;
 
+    
+    ESP_LOGD(TAG, "Adding record type %s = %s", record->get_type().c_str(), record->get_payload().c_str());
     this->add_record(record);
-    ESP_LOGV(TAG, "Adding record type %s = %s", record->get_type().c_str(), record->get_payload().c_str());
-
     if (me)
       break;
   }
@@ -82,13 +88,12 @@ bool NdefMessage::add_record(NdefRecord *record) {
 bool NdefMessage::add_text_record(const std::string &text) { return this->add_text_record(text, "en"); };
 
 bool NdefMessage::add_text_record(const std::string &text, const std::string &encoding) {
-  std::string payload = to_string(text.length()) + encoding + text;
-  auto r = new NdefRecord(TNF_WELL_KNOWN, "T", payload);
+  auto r = new NdefRecordText(encoding ,text);
   return this->add_record(r);
 }
 
 bool NdefMessage::add_uri_record(const std::string &uri) {
-  auto r = new NdefRecord(TNF_WELL_KNOWN, "U", uri);
+  auto r = new NdefRecordUri(uri);
   return this->add_record(r);
 }
 

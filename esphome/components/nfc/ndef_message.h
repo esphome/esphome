@@ -3,6 +3,8 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "ndef_record.h"
+#include "ndef_record_text.h"
+#include "ndef_record_uri.h"
 
 namespace esphome {
 namespace nfc {
