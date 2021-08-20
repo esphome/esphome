@@ -73,7 +73,7 @@ void ST7920::goto_xy_(uint16_t x, uint16_t y) {
 }
 
 void HOT ST7920::write_display_data() {
-  byte i, j, b;
+  uint8_t i, j, b;
   for (j = 0; j < this->get_height_internal() / 2; j++) {
     this->goto_xy_(0, j);
     this->enable();
@@ -90,25 +90,25 @@ void HOT ST7920::write_display_data() {
   }
 }
 
-void ST7920::fill(Color color) { memset(this->buffer_, 0, this->get_buffer_length_()); }
+void ST7920::fill(Color color) { 
+  memset(this->buffer_, color.is_on() ? 0xFF : 0x00, this->get_buffer_length_()); 
+}
 
 void ST7920::dump_config() {
   LOG_DISPLAY("", "ST7920", this);
   LOG_PIN("  CS Pin: ", this->cs_);
-  ESP_LOGD(TAG, "  Height: %d", this->height_);
-  ESP_LOGD(TAG, "  Width: %d", this->width_);
+  ESP_LOGCONFIG(TAG, "  Height: %d", this->height_);
+  ESP_LOGCONFIG(TAG, "  Width: %d", this->width_);
 }
 
 float ST7920::get_setup_priority() const { return setup_priority::PROCESSOR; }
 
 void ST7920::update() {
-  this->fill(COLOR_OFF);
-  if (this->writer_local_.has_value())  // insert Labda function if available
+  this->clear();
+  if (this->writer_local_.has_value())  // call lambda function if available
     (*this->writer_local_)(*this);
   this->write_display_data();
 }
-
-void ST7920::loop() {}
 
 int ST7920::get_width_internal() { return this->width_; }
 
@@ -120,7 +120,7 @@ size_t ST7920::get_buffer_length_() {
 
 void HOT ST7920::draw_absolute_pixel_internal(int x, int y, Color color) {
   if (x >= this->get_width_internal() || x < 0 || y >= this->get_height_internal() || y < 0) {
-    ESP_LOGW(TAG, "Posiotion out of area: %dx%d", x, y);
+    ESP_LOGW(TAG, "Position out of area: %dx%d", x, y);
     return;
   }
   int width = this->get_width_internal() / 8u;
@@ -132,7 +132,7 @@ void HOT ST7920::draw_absolute_pixel_internal(int x, int y, Color color) {
 }
 
 void ST7920::display_init_() {
-  ESP_LOGCONFIG(TAG, "displayInit...");
+  ESP_LOGD(TAG, "Initializing display...");
   this->command_(LCD_BASIC);      // 8bit mode
   this->command_(LCD_BASIC);      // 8bit mode
   this->command_(LCD_CLS);        // clear screen

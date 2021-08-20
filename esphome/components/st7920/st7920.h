@@ -7,10 +7,6 @@
 namespace esphome {
 namespace st7920 {
 
-/// Turn the pixel ON.
-const Color COLOR_OFF(0, 0, 0, 0);
-const Color COLOR_ON(1, 1, 1, 1);
-
 class ST7920;
 
 using st7920_writer_t = std::function<void(ST7920 &)>;
@@ -30,7 +26,6 @@ class ST7920 : public PollingComponent,
   void dump_config() override;
   float get_setup_priority() const override;
   void update() override;
-  void loop() override;
   void fill(Color color) override;
   void write_display_data();
 
