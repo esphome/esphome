@@ -24,9 +24,9 @@ class IPAddressWiFiInfo : public Component, public text_sensor::TextSensor {
   IPAddress last_ip_;
 };
 
-class ScanResultsWiFiInfo : public Component, public text_sensor::TextSensor {
+class ScanResultsWiFiInfo : public PollingComponent, public text_sensor::TextSensor {
  public:
-  void loop() override {
+  void update() override {
     std::string scan_results;
     for (auto &scan : wifi::global_wifi_component->get_scan_result()) {
       if (scan.get_is_hidden())
