@@ -50,6 +50,10 @@ void AddressableLight::write_state(LightState *state) {
 }
 
 void AddressableLightTransformer::start() {
+  // don't try to transition over running effects.
+  if (this->light_.is_effect_active())
+    return;
+
   auto end_values = this->target_values_;
   this->target_color_ = esp_color_from_light_color_values(end_values);
 
