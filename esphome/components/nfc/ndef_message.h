@@ -16,9 +16,9 @@ class NdefMessage {
   NdefMessage(){};
   NdefMessage(std::vector<uint8_t> &data);
 
-  std::vector<NdefRecord *> get_records() { return this->records_; };
+  std::vector<std::shared_ptr<NdefRecord>> get_records() { return this->records_; };
 
-  bool add_record(NdefRecord *record);
+  bool add_record(std::shared_ptr<NdefRecord> record);
   bool add_text_record(const std::string &text);
   bool add_text_record(const std::string &text, const std::string &encoding);
   bool add_uri_record(const std::string &uri);
@@ -26,7 +26,7 @@ class NdefMessage {
   std::vector<uint8_t> encode();
 
  protected:
-  std::vector<NdefRecord *> records_;
+  std::vector<std::shared_ptr<NdefRecord>> records_;
 };
 
 }  // namespace nfc

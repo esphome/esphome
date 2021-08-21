@@ -107,6 +107,7 @@ void PN532::loop() {
       auto tag = new nfc::NfcTag(this->current_uid_);
       for (auto *trigger : this->triggers_ontagremoved_)
         trigger->process(tag);
+      delete tag;
     }
     this->current_uid_ = {};
     this->turn_off_rf_();
@@ -120,6 +121,7 @@ void PN532::loop() {
       auto tag = new nfc::NfcTag(this->current_uid_);
       for (auto *trigger : this->triggers_ontagremoved_)
         trigger->process(tag);
+      delete tag;
     }
     this->current_uid_ = {};
     this->turn_off_rf_();
@@ -153,7 +155,7 @@ void PN532::loop() {
   if (next_task_ == READ) {
     auto tag = this->read_tag_(nfcid);
     for (auto *trigger : this->triggers_ontag_)
-      trigger->process(tag);
+      trigger->process(tag.get());
 
     if (report) {
       ESP_LOGD(TAG, "Found new tag '%s'", nfc::format_uid(nfcid).c_str());
@@ -270,7 +272,7 @@ void PN532::turn_off_rf_() {
   });
 }
 
-nfc::NfcTag *PN532::read_tag_(std::vector<uint8_t> &uid) {
+std::shared_ptr<nfc::NfcTag> PN532::read_tag_(std::vector<uint8_t> &uid) {
   uint8_t type = nfc::guess_tag_type(uid.size());
 
   if (type == nfc::TAG_TYPE_MIFARE_CLASSIC) {
@@ -281,9 +283,9 @@ nfc::NfcTag *PN532::read_tag_(std::vector<uint8_t> &uid) {
     return this->read_mifare_ultralight_tag_(uid);
   } else if (type == nfc::TAG_TYPE_UNKNOWN) {
     ESP_LOGV(TAG, "Cannot determine tag type");
-    return new nfc::NfcTag(uid);
+    return std::make_shared<nfc::NfcTag>(uid);
   } else {
-    return new nfc::NfcTag(uid);
+    return std::make_shared<nfc::NfcTag>(uid);
   }
 }
 

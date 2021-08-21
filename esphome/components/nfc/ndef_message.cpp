@@ -46,20 +46,20 @@ NdefMessage::NdefMessage(std::vector<uint8_t> &data) {
 
     std::vector<uint8_t> payloadData(data.begin() + index,data.begin() + index + payload_length);
 
-    NdefRecord * record = nullptr;
+    std::shared_ptr<NdefRecord> record;
 
     if(tnf == TNF_WELL_KNOWN && type_str == "U")
     {
-      record = new NdefRecordUri(payloadData);
+      record = std::make_shared<NdefRecordUri>(payloadData);
     }
     else if (tnf == TNF_WELL_KNOWN && type_str == "T")
     {
-      record = new NdefRecordText(payloadData);
+      record = std::make_shared<NdefRecordText>(payloadData);
     }
 
     if(record == nullptr) //Could not recognize the record, so store as generic one.
     {
-      record = new NdefRecord(payloadData);
+      record = std::make_shared<NdefRecord>(payloadData);
       record->set_tnf(tnf);
       record->set_type(type_str);
     }
@@ -76,7 +76,7 @@ NdefMessage::NdefMessage(std::vector<uint8_t> &data) {
   }
 }
 
-bool NdefMessage::add_record(NdefRecord *record) {
+bool NdefMessage::add_record(std::shared_ptr<NdefRecord> record) {
   if (this->records_.size() >= MAX_NDEF_RECORDS) {
     ESP_LOGE(TAG, "Too many records. Max: %d", MAX_NDEF_RECORDS);
     return false;
@@ -88,12 +88,12 @@ bool NdefMessage::add_record(NdefRecord *record) {
 bool NdefMessage::add_text_record(const std::string &text) { return this->add_text_record(text, "en"); };
 
 bool NdefMessage::add_text_record(const std::string &text, const std::string &encoding) {
-  auto r = new NdefRecordText(encoding ,text);
+  auto r = std::make_shared<NdefRecordText>(encoding ,text);
   return this->add_record(r);
 }
 
 bool NdefMessage::add_uri_record(const std::string &uri) {
-  auto r = new NdefRecordUri(uri);
+  auto r = std::make_shared<NdefRecordUri>(uri);
   return this->add_record(r);
 }
 
