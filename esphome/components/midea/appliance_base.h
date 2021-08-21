@@ -1,12 +1,14 @@
 #pragma once
 #include "esphome/core/component.h"
+#include "esphome/core/log.h"
 #include "esphome/components/uart/uart.h"
 #include "esphome/components/climate/climate.h"
-#if 0//USE_REMOTE_TRANSMITTER
+#ifdef USE_REMOTE_TRANSMITTER
 #include "esphome/components/remote_base/midea_protocol.h"
 #include "esphome/components/remote_transmitter/remote_transmitter.h"
 #endif
 #include <Appliance/ApplianceBase.h>
+#include <Helpers/Logger.h>
 
 namespace esphome {
 namespace midea {
@@ -28,6 +30,9 @@ class ApplianceBase : public Component, public uart::UARTDevice, public climate:
   ApplianceBase() {
     this->base_.setStream(this);
     this->base_.addOnStateCallback(std::bind(&ApplianceBase::on_status_change, this));
+    dudanov::midea::ApplianceBase::setLogger([](int level, const char *tag, int line, String format, va_list args) {
+      esp_log_vprintf_(level, tag, line, format.c_str(), args);
+    });
   }
   bool can_proceed() override {
     return this->base_.getAutoconfStatus() != dudanov::midea::AutoconfStatus::AUTOCONF_PROGRESS;
@@ -47,11 +52,17 @@ class ApplianceBase : public Component, public uart::UARTDevice, public climate:
   void set_custom_presets(std::set<std::string> presets) { this->supported_custom_presets_ = std::move(presets); }
   void set_custom_fan_modes(std::set<std::string> modes) { this->supported_custom_fan_modes_ = std::move(modes); }
   virtual void on_status_change() = 0;
-#if 0 //USE_REMOTE_TRANSMITTER
+#ifdef USE_REMOTE_TRANSMITTER
   void set_transmitter(remote_transmitter::RemoteTransmitterComponent *transmitter) {
     this->transmitter_ = transmitter;
   }
-  void transmit_ir(remote_base::MideaData &data);
+  void transmit_ir(remote_base::MideaData &data) {
+    data.finalize();
+    ESP_LOGD("ApplianceBase", "Sending Midea IR data: %s", data.to_string().c_str());
+    auto transmit = this->transmitter_->transmit();
+    remote_base::MideaProtocol().encode(transmit.get_data(), data);
+    transmit.perform();
+  }
 #endif
 
  protected:

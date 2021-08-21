@@ -25,8 +25,8 @@ class AirConditioner : public ApplianceBase<dudanov::midea::ac::AirConditioner> 
   void do_follow_me(float temperature, bool beeper = false);
   void do_display_toggle();
   void do_swing_step();
-  void do_beeper_on();
-  void do_beeper_off();
+  void do_beeper_on() { this->set_beeper_feedback(true); }
+  void do_beeper_off() { this->set_beeper_feedback(false); }
 
  protected:
   void control(const ClimateCall &call) override;

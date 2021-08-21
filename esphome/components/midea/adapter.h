@@ -1,5 +1,7 @@
 #pragma once
 #include "esphome/components/midea/appliance_base.h"
+#include "esphome/components/climate/climate_traits.h"
+#include <Appliance/AirConditioner/AirConditioner.h>
 
 namespace esphome {
 namespace midea {
@@ -28,6 +30,7 @@ class Converters {
   static bool is_custom_midea_fan_mode(MideaFanMode fan_mode);
   static ClimateFanMode to_climate_fan_mode(MideaFanMode fan_mode);
   static const std::string &to_custom_climate_fan_mode(MideaFanMode fan_mode);
+  static void to_climate_traits(ClimateTraits &traits, const dudanov::midea::ac::Capabilities &capabilities);
 };
 
 }  // namespace midea_ac

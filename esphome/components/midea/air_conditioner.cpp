@@ -1,6 +1,9 @@
 #include "esphome/core/log.h"
 #include "esphome/components/midea/air_conditioner.h"
 #include "esphome/components/midea/adapter.h"
+#ifdef USE_REMOTE_TRANSMITTER
+#include "esphome/components/midea/midea_ir.h"
+#endif
 
 namespace esphome {
 namespace midea {
@@ -90,19 +93,18 @@ ClimateTraits AirConditioner::traits() {
   traits.add_supported_swing_mode(ClimateSwingMode::CLIMATE_SWING_VERTICAL);
   traits.add_supported_preset(ClimatePreset::CLIMATE_PRESET_NONE);
   traits.add_supported_preset(ClimatePreset::CLIMATE_PRESET_SLEEP);
-
-  //if (this->capabilities_.is_ready())
-    //this->capabilities_.to_climate_traits(traits);
+  if (this->base_.getAutoconfStatus() == dudanov::midea::AUTOCONF_OK)
+    Converters::to_climate_traits(traits, this->base_.getCapabilities());
   return traits;
 }
 
 void AirConditioner::dump_config() {
-  //if (this->capabilities_.is_ready()) {
-   // this->capabilities_.dump(TAG);
-  //} else if (this->use_autoconf_) {
-   // ESP_LOGW(TAG, "Failed to get 0xB5 capabilities report. Suggest to disable it in config and manually set your "
-    //              "appliance options.");
-  //}
+  if (this->base_.getAutoconfStatus() == dudanov::midea::AUTOCONF_OK) {
+    this->base_.getCapabilities().dump();
+  } else if (this->base_.getAutoconfStatus() ==  dudanov::midea::AUTOCONF_ERROR) {
+    ESP_LOGW(Constants::TAG, "Failed to get 0xB5 capabilities report. Suggest to disable it in config and manually set your "
+                  "appliance options.");
+  }
   this->dump_traits_(Constants::TAG);
 }
 
@@ -111,42 +113,32 @@ void AirConditioner::dump_config() {
 void AirConditioner::do_follow_me(float temperature, bool beeper) {
 #ifdef USE_REMOTE_TRANSMITTER
   IrFollowMeData data(static_cast<uint8_t>(lroundf(temperature)), beeper);
-  this->transmit_ir_(data);
+  this->transmit_ir(data);
 #else
-  //ESP_LOGW(TAG, "Action needs remote_transmitter component");
+  ESP_LOGW(Constants::TAG, "Action needs remote_transmitter component");
 #endif
 }
 
 void AirConditioner::do_swing_step() {
 #ifdef USE_REMOTE_TRANSMITTER
   IrSpecialData data(0x01);
-  this->transmit_ir_(data);
+  this->transmit_ir(data);
 #else
-  //ESP_LOGW(TAG, "Action needs remote_transmitter component");
+  ESP_LOGW(Constants::TAG, "Action needs remote_transmitter component");
 #endif
 }
 
 void AirConditioner::do_display_toggle() {
-  //if (this->capabilities_.light_control()) {
-    //this->display_toggle_();
-  //} else {
+  if (this->base_.getCapabilities().supportLightControl()) {
+    this->base_.displayToggle();
+  } else {
 #ifdef USE_REMOTE_TRANSMITTER
     IrSpecialData data(0x08);
-    this->transmit_ir_(data);
+    this->transmit_ir(data);
 #else
-   // ESP_LOGW(TAG, "Action needs remote_transmitter component");
+    ESP_LOGW(Constants::TAG, "Action needs remote_transmitter component");
 #endif
- // }
-}
-
-void AirConditioner::do_beeper_on() {
-  //ESP_LOGD(TAG, "Beeper Feedback Turning ON...");
-  this->set_beeper_feedback(true);
-}
-
-void AirConditioner::do_beeper_off() {
-  //ESP_LOGD(TAG, "Beeper Feedback Turning OFF...");
-  this->set_beeper_feedback(false);
+  }
 }
 
 }  // namespace midea_ac

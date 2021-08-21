@@ -158,5 +158,22 @@ MideaPreset Converters::to_midea_preset(const std::string &preset) {
   return MideaPreset::PRESET_FREEZE_PROTECTION;
 }
 
+void Converters::to_climate_traits(ClimateTraits &traits, const dudanov::midea::ac::Capabilities &capabilities) {
+  if (capabilities.supportAutoMode())
+    traits.add_supported_mode(ClimateMode::CLIMATE_MODE_HEAT_COOL);
+  if (capabilities.supportCoolMode())
+    traits.add_supported_mode(ClimateMode::CLIMATE_MODE_COOL);
+  if (capabilities.supportHeatMode())
+    traits.add_supported_mode(ClimateMode::CLIMATE_MODE_HEAT);
+  if (capabilities.supportDryMode())
+    traits.add_supported_mode(ClimateMode::CLIMATE_MODE_DRY);
+  if (capabilities.supportTurboPreset())
+    traits.add_supported_preset(ClimatePreset::CLIMATE_PRESET_BOOST);
+  if (capabilities.supportEcoPreset())
+    traits.add_supported_preset(ClimatePreset::CLIMATE_PRESET_ECO);
+  if (capabilities.supportFrostProtectionPreset())
+    traits.add_supported_custom_preset(Constants::FREEZE_PROTECTION);
+}
+
 }  // namespace midea
 }  // namespace esphome
