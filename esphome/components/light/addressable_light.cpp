@@ -46,6 +46,7 @@ void AddressableLight::write_state(LightState *state) {
 
   // don't use LightState helper, gamma correction+brightness is handled by ESPColorView
   this->all() = esp_color_from_light_color_values(val);
+  this->schedule_show();
 }
 
 void AddressableLightTransformer::start() {
