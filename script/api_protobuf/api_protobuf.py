@@ -956,7 +956,7 @@ hpp += """\
 #include "esphome/core/defines.h"
 
 namespace esphome {
-namespace api {
+namespace api_client {
 
 """
 
@@ -966,9 +966,9 @@ cpp += """\
 #include "esphome/core/log.h"
 
 namespace esphome {
-namespace api {
+namespace api_client {
 
-static const char *TAG = "api.client";
+static const char *TAG = "api_client.client";
 
 """
 
@@ -1010,12 +1010,12 @@ hpp += "};\n"
 
 hpp += """\
 
-}  // namespace api
+}  // namespace api_client
 }  // namespace esphome
 """
 cpp += """\
 
-}  // namespace api
+}  // namespace api_client
 }  // namespace esphome
 """
 

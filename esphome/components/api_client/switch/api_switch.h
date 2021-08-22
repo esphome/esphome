@@ -5,7 +5,7 @@
 #include "esphome/components/switch/switch.h"
 
 namespace esphome {
-namespace api {
+namespace api_client {
 
 class ApiClientSwitch : public switch_::Switch, public Component {
  public:
@@ -21,5 +21,5 @@ class ApiClientSwitch : public switch_::Switch, public Component {
   uint32_t key_{0};
 };
 
-}  // namespace api
+}  // namespace api_client
 }  // namespace esphome

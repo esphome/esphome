@@ -18,10 +18,14 @@ CONF_API_CLIENT_ID = "api_client_id"
 CONF_API_STREAM_ID = "stream_id"
 CONF_API_ENTITY_KEY = "key"
 
-api_ns = cg.esphome_ns.namespace("api")
-APIClient = api_ns.class_("APIClientConnection", cg.Component)
-StreamAPIClient = api_ns.class_("StreamAPIClientConnection", APIClient, cg.Component)
-AsyncAPIClient = api_ns.class_("AsyncAPIClientConnection", APIClient, cg.Component)
+api_client_ns = cg.esphome_ns.namespace("api_client")
+APIClient = api_client_ns.class_("APIClientConnection", cg.Component)
+StreamAPIClient = api_client_ns.class_(
+    "StreamAPIClientConnection", APIClient, cg.Component
+)
+AsyncAPIClient = api_client_ns.class_(
+    "AsyncAPIClientConnection", APIClient, cg.Component
+)
 
 API_CLIENT_STREAM_SCHEMA = (
     cv.Schema(
@@ -68,4 +72,4 @@ async def to_code(config):
             cg.add(client.set_password(password))
 
     cg.add_define("USE_API")
-    cg.add_global(api_ns.using)
+    cg.add_global(api_client_ns.using)

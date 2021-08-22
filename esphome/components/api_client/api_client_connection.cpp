@@ -6,9 +6,9 @@
 #include <string>
 
 namespace esphome {
-namespace api {
+namespace api_client {
 
-static const char *TAG = "api.client_connection";
+static const char *TAG = "api_client.client_connection";
 
 APIClientConnection::APIClientConnection() {
   this->send_buffer_.reserve(64);
@@ -432,5 +432,5 @@ void StreamAPIClientConnection::disconnect_client(){
     });
 }
 
-}  // namespace api
+}  // namespace api_client
 }  // namespace esphome

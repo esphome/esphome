@@ -7,7 +7,7 @@
 #include "esphome/core/defines.h"
 
 namespace esphome {
-namespace api {
+namespace api_client {
 
 class APIClientConnectionBase : public ProtoClient {
  public:
@@ -135,5 +135,5 @@ class APIClientConnectionBase : public ProtoClient {
   bool read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) override;
 };
 
-}  // namespace api
+}  // namespace api_client
 }  // namespace esphome

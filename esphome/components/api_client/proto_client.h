@@ -5,7 +5,8 @@
 #include "esphome/components/api/proto.h"
 
 namespace esphome {
-namespace api {
+namespace api_client {
+using namespace esphome::api;
 
 class ProtoClient {
  public:
@@ -24,5 +25,5 @@ class ProtoClient {
   }
 };
 
-}  // namespace api
+}  // namespace api_client
 }  // namespace esphome

@@ -8,7 +8,7 @@
 #include <map>
 
 namespace esphome {
-namespace api {
+namespace api_client {
 
 class APIClientConnection : public APIClientConnectionBase, public Component {
  public:
@@ -160,5 +160,5 @@ template<typename... Ts> class APIClientConnectedCondition : public Condition<Ts
   bool check(Ts... x) override { return true; }
 };
 
-}  // namespace api
+}  // namespace api_client
 }  // namespace esphome

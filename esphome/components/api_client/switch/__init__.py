@@ -6,8 +6,8 @@ from .. import CONF_API_CLIENT_ID, CONF_API_ENTITY_KEY, APIClient
 
 DEPENDENCIES = ["api_client"]
 
-api_ns = cg.esphome_ns.namespace("api")
-ApiSwitch = api_ns.class_("ApiClientSwitch", switch.Switch, cg.Component)
+api_client_ns = cg.esphome_ns.namespace("api_client")
+ApiSwitch = api_client_ns.class_("ApiClientSwitch", switch.Switch, cg.Component)
 
 CONFIG_SCHEMA = switch.SWITCH_SCHEMA.extend(
     {

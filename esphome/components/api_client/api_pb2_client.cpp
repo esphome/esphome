@@ -4,9 +4,9 @@
 #include "esphome/core/log.h"
 
 namespace esphome {
-namespace api {
+namespace api_client {
 
-static const char *TAG = "api.client";
+static const char *TAG = "api_client.client";
 
 bool APIClientConnectionBase::send_hello_request(const HelloRequest &msg) {
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -541,5 +541,5 @@ bool APIClientConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
   return true;
 }
 
-}  // namespace api
+}  // namespace api_client
 }  // namespace esphome

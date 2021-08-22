@@ -3,9 +3,9 @@
 #include "../../api/api_pb2.h"
 
 namespace esphome {
-namespace api {
+namespace api_client {
 
-static const char *TAG = "apiclient.switch";
+static const char *TAG = "api_client.switch";
 
 void ApiClientSwitch::write_state(bool state) {
   ESP_LOGV(TAG, "Setting switch %u: %s", this->key_, ONOFF(state));
@@ -23,5 +23,5 @@ void ApiClientSwitch::dump_config() {
   ESP_LOGCONFIG(TAG, "  Switch has key ID %u", this->key_);
 }
 
-}  // namespace api
+}  // namespace api_client
 }  // namespace esphome
