@@ -1545,9 +1545,14 @@ climate:
     name: Toshiba Climate
   - platform: hitachi_ac344
     name: Hitachi Climate
-  - platform: midea_ac
-    id: midea_ac_unit
+  - platform: midea
+    id: midea_unit
+    uart_id: uart0
     name: Midea Climate
+    transmitter_id:
+    period: 1s
+    num_attempts: 5
+    timeout: 2s
     beeper: false
     autoconf: true
     visual:
@@ -1583,24 +1588,17 @@ climate:
     name: Anova cooker
     ble_client_id: ble_blah
 
-midea_dongle:
-  uart_id: uart0
-  transmitter_id:
-  period: 1s
-  num_attempts: 5
-  timeout: 2s
-
 script:
   - id: climate_custom
     then:
       - climate.control:
-          id: midea_ac_unit
+          id: midea_unit
           custom_preset: FREEZE_PROTECTION
           custom_fan_mode: SILENT
   - id: climate_preset
     then:
       - climate.control:
-          id: midea_ac_unit
+          id: midea_unit
           preset: SLEEP
 
 switch:
