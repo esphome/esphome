@@ -59,7 +59,7 @@ void SpeedFan::loop() {
 
 // We need a higher priority than the FanState component to make sure that the traits are set
 // when that component sets itself up.
-float SpeedFan::get_setup_priority() const { return fan::FanState::get_global_setup_priority() + 1.0f; }
+float SpeedFan::get_setup_priority() const { return fan_->get_setup_priority() + 1.0f; }
 
 }  // namespace speed
 }  // namespace esphome

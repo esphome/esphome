@@ -94,7 +94,6 @@ class FanState : public Nameable, public Component {
   FanStateCall make_call();
 
   void setup() override;
-  static float get_global_setup_priority();
   float get_setup_priority() const override;
 
  protected:
