@@ -7,7 +7,7 @@ CODEOWNERS = ["@s1lvi0"]
 DEPENDENCIES = ["uart"]
 AUTO_LOAD = ["sensor", "text_sensor", "binary_sensor"]
 
-BSM_DALY_ID = "bms_daly_id"
+CONF_BMS_DALY_ID = "bms_daly_id"
 
 daly_bms = cg.esphome_ns.namespace("daly_bms")
 DalyBmsComponent = daly_bms.class_(
