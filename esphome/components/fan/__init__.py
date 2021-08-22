@@ -4,6 +4,7 @@ from esphome import automation
 from esphome.automation import maybe_simple_id
 from esphome.components import mqtt
 from esphome.const import (
+    CONF_DISABLED_BY_DEFAULT,
     CONF_ID,
     CONF_INTERNAL,
     CONF_MQTT_ID,
@@ -34,7 +35,7 @@ ToggleAction = fan_ns.class_("ToggleAction", automation.Action)
 FanTurnOnTrigger = fan_ns.class_("FanTurnOnTrigger", automation.Trigger.template())
 FanTurnOffTrigger = fan_ns.class_("FanTurnOffTrigger", automation.Trigger.template())
 
-FAN_SCHEMA = cv.MQTT_COMMAND_COMPONENT_SCHEMA.extend(
+FAN_SCHEMA = cv.NAMEABLE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).extend(
     {
         cv.GenerateID(): cv.declare_id(FanState),
         cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTFanComponent),
@@ -66,6 +67,7 @@ FAN_SCHEMA = cv.MQTT_COMMAND_COMPONENT_SCHEMA.extend(
 
 async def setup_fan_core_(var, config):
     cg.add(var.set_name(config[CONF_NAME]))
+    cg.add(var.set_disabled_by_default(config[CONF_DISABLED_BY_DEFAULT]))
     if CONF_INTERNAL in config:
         cg.add(var.set_internal(config[CONF_INTERNAL]))
 

@@ -1,9 +1,9 @@
 #include "mqtt_light.h"
-#include "esphome/components/light/light_json_schema.h"
 #include "esphome/core/log.h"
 
 #ifdef USE_LIGHT
 
+#include "esphome/components/light/light_json_schema.h"
 namespace esphome {
 namespace mqtt {
 
