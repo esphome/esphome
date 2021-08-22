@@ -74,6 +74,7 @@ Length = vol.Length
 Exclusive = vol.Exclusive
 Inclusive = vol.Inclusive
 ALLOW_EXTRA = vol.ALLOW_EXTRA
+PREVENT_EXTRA = vol.PREVENT_EXTRA
 UNDEFINED = vol.UNDEFINED
 RequiredFieldInvalid = vol.RequiredFieldInvalid
 # this sentinel object can be placed in an 'Invalid' path to say

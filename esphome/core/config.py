@@ -14,6 +14,7 @@ from esphome.const import (
     CONF_ESPHOME,
     CONF_INCLUDES,
     CONF_LIBRARIES,
+    CONF_MCU,
     CONF_NAME,
     CONF_ON_BOOT,
     CONF_ON_LOOP,
@@ -28,6 +29,12 @@ from esphome.const import (
     ARDUINO_VERSION_ESP32,
     CONF_VERSION,
     ESP_PLATFORMS,
+    ESP_MCUS,
+    ESP_MCU_ESP8266,
+    ESP_MCU_ESP32,
+    ESP_MCU_ESP32C3,
+    ESP_MCU_ESP32S2,
+    ESP_MCU_ESP32S3,
 )
 from esphome.core import CORE, coroutine_with_priority
 from esphome.helpers import copy_file_if_changed, walk_files
@@ -50,25 +57,47 @@ VERSION_REGEX = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+(?:[ab]\d+)?$")
 CONF_NAME_ADD_MAC_SUFFIX = "name_add_mac_suffix"
 
 
-def validate_board(value: str):
-    if CORE.is_esp8266:
-        boardlist = boards.ESP8266_BOARD_PINS.keys()
-    elif CORE.is_esp32:
-        boardlist = list(boards.ESP32_BOARD_PINS.keys())
-        boardlist += list(boards.ESP32_C3_BOARD_PINS.keys())
-    else:
-        raise NotImplementedError
+def validate_mcu_board(schema):
+    boardlist = {
+        ESP_MCU_ESP8266: list(boards.ESP8266_BOARD_PINS.keys()),
+        ESP_MCU_ESP32: list(boards.ESP32_BOARD_PINS.keys()),
+        ESP_MCU_ESP32C3: list(boards.ESP32_C3_BOARD_PINS.keys()),
+        ESP_MCU_ESP32S2: [],
+        ESP_MCU_ESP32S3: [],
+    }
 
-    if value not in boardlist:
-        raise cv.Invalid(
-            "Could not find board '{}'. Valid boards are {}".format(
-                value, ", ".join(sorted(boardlist))
+    for mcu, mcu_boards in boardlist.items():
+        if schema[CONF_BOARD] not in mcu_boards:
+            continue
+
+        # allow but warn if different MCU is set (some generic boards can be used for multiple MCUs)
+        if CONF_MCU in schema and schema[CONF_MCU] != mcu:
+            _LOGGER.warning(
+                "Board '%s' is known with MCU %s instead of %s.",
+                schema[CONF_BOARD],
+                mcu,
+                schema[CONF_MCU],
             )
+        elif CONF_MCU not in schema:
+            schema[CONF_MCU] = mcu
+        break
+    else:
+        if CONF_MCU not in schema:
+            raise cv.Invalid(
+                f"Unknown board '{schema[CONF_BOARD]}' used, please specify the MCU.",
+                [CONF_MCU],
+            )
+
+        _LOGGER.warning("Using unknown board '%s'.", schema[CONF_BOARD])
+
+    if schema[CONF_MCU] not in ESP_MCUS[schema[CONF_PLATFORM]]:
+        raise cv.Invalid(
+            f"MCU {schema[CONF_MCU]} is not valid for platform {schema[CONF_PLATFORM]}.",
+            [CONF_MCU],
         )
-    return value
 
+    return schema
 
-validate_platform = cv.one_of(*ESP_PLATFORMS, upper=True)
 
 PLATFORMIO_ESP8266_LUT = {
     **ARDUINO_VERSION_ESP8266,
@@ -125,10 +154,6 @@ def validate_arduino_version(value):
     raise NotImplementedError
 
 
-def default_build_path():
-    return CORE.name
-
-
 VALID_INCLUDE_EXTS = {".h", ".hpp", ".tcc", ".ino", ".cpp", ".c"}
 
 
@@ -156,16 +181,29 @@ def valid_project_name(value: str):
     return value
 
 
-CONFIG_SCHEMA = cv.Schema(
+PRELOAD_CONFIG_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_NAME): cv.hostname,
-        cv.Required(CONF_PLATFORM): cv.one_of("ESP8266", "ESP32", upper=True),
-        cv.Required(CONF_BOARD): validate_board,
+        cv.Required(CONF_PLATFORM): cv.one_of(*ESP_PLATFORMS, upper=True),
+        cv.Optional(CONF_MCU): cv.one_of(
+            *(mcu for platform in ESP_MCUS.values() for mcu in platform)
+        ),
+        cv.Required(CONF_BOARD): cv.string,
+        cv.Optional(CONF_BUILD_PATH): cv.string,
+    },
+    extra=cv.ALLOW_EXTRA,
+)
+
+# A cv.All() schema cannot be extended, so this needs to be defined separately. Also causes
+# validate_mcu_board() to only run for the preload validation (so warnings are logged only once).
+PRELOAD_CONFIG_VALIDATE = cv.All(PRELOAD_CONFIG_SCHEMA, validate_mcu_board)
+
+CONFIG_SCHEMA = PRELOAD_CONFIG_SCHEMA.extend(
+    {
         cv.Optional(CONF_COMMENT): cv.string,
         cv.Optional(
             CONF_ARDUINO_VERSION, default="recommended"
         ): validate_arduino_version,
-        cv.Optional(CONF_BUILD_PATH, default=default_build_path): cv.string,
         cv.Optional(CONF_PLATFORMIO_OPTIONS, default={}): cv.Schema(
             {
                 cv.string_strict: cv.Any([cv.string], cv.string),
@@ -202,22 +240,8 @@ CONFIG_SCHEMA = cv.Schema(
                 cv.Required(CONF_VERSION): cv.string_strict,
             }
         ),
-    }
-)
-
-PRELOAD_CONFIG_SCHEMA = cv.Schema(
-    {
-        cv.Required(CONF_NAME): cv.valid_name,
-        cv.Required(CONF_PLATFORM): validate_platform,
     },
-    extra=cv.ALLOW_EXTRA,
-)
-
-PRELOAD_CONFIG_SCHEMA2 = PRELOAD_CONFIG_SCHEMA.extend(
-    {
-        cv.Required(CONF_BOARD): validate_board,
-        cv.Optional(CONF_BUILD_PATH, default=default_build_path): cv.string,
-    }
+    extra=cv.PREVENT_EXTRA,
 )
 
 
@@ -233,13 +257,12 @@ def preload_core_config(config):
     if CONF_ESPHOME not in config:
         raise cv.RequiredFieldInvalid("required key not provided", CONF_ESPHOME)
     with cv.prepend_path(core_key):
-        out = PRELOAD_CONFIG_SCHEMA(config[CONF_ESPHOME])
+        out = PRELOAD_CONFIG_VALIDATE(config[CONF_ESPHOME])
     CORE.name = out[CONF_NAME]
     CORE.esp_platform = out[CONF_PLATFORM]
-    with cv.prepend_path(core_key):
-        out2 = PRELOAD_CONFIG_SCHEMA2(config[CONF_ESPHOME])
-    CORE.board = out2[CONF_BOARD]
-    CORE.build_path = CORE.relative_config_path(out2[CONF_BUILD_PATH])
+    CORE.mcu = out[CONF_MCU]
+    CORE.board = out[CONF_BOARD]
+    CORE.build_path = CORE.relative_config_path(out.get(CONF_BUILD_PATH, CORE.name))
 
 
 def include_file(path, basename):

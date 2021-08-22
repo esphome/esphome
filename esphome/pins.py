@@ -1,7 +1,7 @@
 import logging
 
 import esphome.config_validation as cv
-from esphome.const import CONF_INVERTED, CONF_MODE, CONF_NUMBER
+from esphome.const import ESP_MCU_ESP32C3, CONF_INVERTED, CONF_MODE, CONF_NUMBER
 from esphome.core import CORE
 from esphome.util import SimpleRegistry
 from esphome import boards
@@ -14,7 +14,7 @@ def _lookup_pin(value):
         board_pins_dict = boards.ESP8266_BOARD_PINS
         base_pins = boards.ESP8266_BASE_PINS
     elif CORE.is_esp32:
-        if CORE.board in boards.ESP32_C3_BOARD_PINS:
+        if CORE.mcu == ESP_MCU_ESP32C3:
             board_pins_dict = boards.ESP32_C3_BOARD_PINS
             base_pins = boards.ESP32_C3_BASE_PINS
         else:
@@ -72,7 +72,7 @@ _ESP32C3_SDIO_PINS = {
 
 def validate_gpio_pin(value):
     value = _translate_pin(value)
-    if CORE.is_esp32_c3:
+    if CORE.is_esp32 and CORE.mcu == ESP_MCU_ESP32C3:
         if value < 0 or value > 22:
             raise cv.Invalid(f"ESP32-C3: Invalid pin number: {value}")
         if value in _ESP32C3_SDIO_PINS:
@@ -158,7 +158,7 @@ def output_pin(value):
 def analog_pin(value):
     value = validate_gpio_pin(value)
     if CORE.is_esp32:
-        if CORE.is_esp32_c3:
+        if CORE.mcu == ESP_MCU_ESP32C3:
             if 0 <= value <= 4:  # ADC1
                 return value
             raise cv.Invalid("ESP32-C3: Only pins 0 though 4 support ADC.")

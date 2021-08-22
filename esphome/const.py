@@ -6,6 +6,21 @@ ESP_PLATFORM_ESP32 = "ESP32"
 ESP_PLATFORM_ESP8266 = "ESP8266"
 ESP_PLATFORMS = [ESP_PLATFORM_ESP32, ESP_PLATFORM_ESP8266]
 
+ESP_MCU_ESP8266 = "ESP8266"
+ESP_MCU_ESP32 = "ESP32"
+ESP_MCU_ESP32C3 = "ESP32-C3"
+ESP_MCU_ESP32S2 = "ESP32-S2"
+ESP_MCU_ESP32S3 = "ESP32-S3"
+ESP_MCUS = {
+    ESP_PLATFORM_ESP8266: [ESP_MCU_ESP8266],
+    ESP_PLATFORM_ESP32: [
+        ESP_MCU_ESP32,
+        ESP_MCU_ESP32C3,
+        ESP_MCU_ESP32S2,
+        ESP_MCU_ESP32S3,
+    ],
+}
+
 ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-_"
 
 # Lookup table from ESP32 arduino framework version to latest platformio
@@ -42,6 +57,14 @@ ARDUINO_VERSION_ESP8266 = {
     "2.4.0": "platformio/espressif8266@1.6.0",
     "2.3.0": "platformio/espressif8266@1.5.0",
 }
+
+PLATFORMIO_MCU_LUT = {
+    ESP_MCU_ESP8266: "esp8266",
+    ESP_MCU_ESP32: "esp32",
+    ESP_MCU_ESP32C3: "esp32c3",
+    ESP_MCU_ESP32S2: "esp32s2",
+}
+
 SOURCE_FILE_EXTENSIONS = {".cpp", ".hpp", ".h", ".c", ".tcc", ".ino"}
 HEADER_FILE_EXTENSIONS = {".h", ".hpp", ".tcc"}
 
@@ -352,6 +375,7 @@ CONF_MAX_SPEED = "max_speed"
 CONF_MAX_TEMPERATURE = "max_temperature"
 CONF_MAX_VALUE = "max_value"
 CONF_MAX_VOLTAGE = "max_voltage"
+CONF_MCU = "mcu"
 CONF_MEASUREMENT_DURATION = "measurement_duration"
 CONF_MEASUREMENT_SEQUENCE_NUMBER = "measurement_sequence_number"
 CONF_MEDIUM = "medium"

@@ -20,7 +20,6 @@ from esphome.coroutine import FakeEventLoop as _FakeEventLoop
 from esphome.coroutine import coroutine, coroutine_with_priority  # noqa
 from esphome.helpers import ensure_unique_string, is_hassio
 from esphome.util import OrderedDict
-from esphome import boards
 
 if TYPE_CHECKING:
     from ..cpp_generator import MockObj, MockObjClass, Statement
@@ -470,6 +469,8 @@ class EsphomeCore:
         self.build_path: Optional[str] = None
         # The platform (ESP8266, ESP32) of this device
         self.esp_platform: Optional[str] = None
+        # The MCU (ESP32, ESP32S2, ESP32C3) of this device
+        self.mcu: Optional[str] = None
         # The board that's used (for example nodemcuv2)
         self.board: Optional[str] = None
         # The full raw configuration
@@ -507,6 +508,7 @@ class EsphomeCore:
         self.config_path = None
         self.build_path = None
         self.esp_platform = None
+        self.mcu = None
         self.board = None
         self.raw_config = None
         self.config = None
@@ -597,16 +599,11 @@ class EsphomeCore:
         """Check if the ESP32 platform is used.
 
         This checks if the ESP32 platform is in use, which
-        support ESP32 as well as other chips such as ESP32-C3
+        supports ESP32 as well as other chips such as ESP32-C3
         """
         if self.esp_platform is None:
             raise ValueError("No platform specified")
         return self.esp_platform == "ESP32"
-
-    @property
-    def is_esp32_c3(self):
-        """Check if the ESP32-C3 SoC is being used."""
-        return self.is_esp32 and self.board in boards.ESP32_C3_BOARD_PINS
 
     def add_job(self, func, *args, **kwargs):
         self.event_loop.add_job(func, *args, **kwargs)

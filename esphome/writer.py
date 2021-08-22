@@ -12,6 +12,7 @@ from esphome.const import (
     HEADER_FILE_EXTENSIONS,
     SOURCE_FILE_EXTENSIONS,
     __version__,
+    PLATFORMIO_MCU_LUT,
     ARDUINO_VERSION_ESP8266,
     ENV_NOGITIGNORE,
 )
@@ -235,6 +236,7 @@ def get_ini_content():
     data = {
         "platform": CORE.arduino_version,
         "board": CORE.board,
+        "board_build.mcu": PLATFORMIO_MCU_LUT[CORE.mcu],
         "framework": "arduino",
         "lib_deps": lib_deps + ["${common.lib_deps}"],
         "build_flags": build_flags + ["${common.build_flags}"],
