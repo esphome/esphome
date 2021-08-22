@@ -96,8 +96,8 @@ void DalyBmsComponent::decode_data(std::vector<uint8_t> data) {
             if (this->max_cell_voltage_) {
               this->max_cell_voltage_->publish_state((float) encode_uint16(it[4], it[5]) / 1000);
             }
-            if (this->max_cell_volatge_number_) {
-              this->max_cell_volatge_number_->publish_state(it[6]);
+            if (this->max_cell_voltage_number_) {
+              this->max_cell_voltage_number_->publish_state(it[6]);
             }
             if (this->min_cell_voltage_) {
               this->min_cell_voltage_->publish_state((float) encode_uint16(it[7], it[8]) / 1000);

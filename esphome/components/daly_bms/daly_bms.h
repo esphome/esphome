@@ -18,8 +18,8 @@ class DalyBmsComponent : public PollingComponent, public uart::UARTDevice {
   void set_current_sensor(sensor::Sensor *current_sensor) { current_sensor_ = current_sensor; }
   void set_battery_level_sensor(sensor::Sensor *battery_level_sensor) { battery_level_sensor_ = battery_level_sensor; }
   void set_max_cell_voltage_sensor(sensor::Sensor *max_cell_voltage) { max_cell_voltage_ = max_cell_voltage; }
-  void set_max_cell_voltage_number_sensor(sensor::Sensor *max_cell_volatge_number) {
-    max_cell_volatge_number_ = max_cell_volatge_number;
+  void set_max_cell_voltage_number_sensor(sensor::Sensor *max_cell_voltage_number) {
+    max_cell_voltage_number_ = max_cell_voltage_number;
   }
   void set_min_cell_voltage_sensor(sensor::Sensor *min_cell_voltage) { min_cell_voltage_ = min_cell_voltage; }
   void set_min_cell_voltage_number_sensor(sensor::Sensor *min_cell_voltage_number) {
@@ -61,7 +61,7 @@ class DalyBmsComponent : public PollingComponent, public uart::UARTDevice {
   sensor::Sensor *current_sensor_{nullptr};
   sensor::Sensor *battery_level_sensor_{nullptr};
   sensor::Sensor *max_cell_voltage_{nullptr};
-  sensor::Sensor *max_cell_volatge_number_{nullptr};
+  sensor::Sensor *max_cell_voltage_number_{nullptr};
   sensor::Sensor *min_cell_voltage_{nullptr};
   sensor::Sensor *min_cell_voltage_number_{nullptr};
   sensor::Sensor *max_temperature_{nullptr};
