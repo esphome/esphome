@@ -58,7 +58,6 @@ template<typename T> class ApplianceBase : public Component, public uart::UARTDe
   }
   void transmit_ir(remote_base::MideaData &data) {
     data.finalize();
-    ESP_LOGD("ApplianceBase", "Sending Midea IR data: %s", data.to_string().c_str());
     auto transmit = this->transmitter_->transmit();
     remote_base::MideaProtocol().encode(transmit.get_data(), data);
     transmit.perform();
