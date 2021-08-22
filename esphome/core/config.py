@@ -25,8 +25,6 @@ from esphome.const import (
     CONF_PROJECT,
     CONF_TRIGGER_ID,
     CONF_ESP8266_RESTORE_FROM_FLASH,
-    ARDUINO_VERSION_ESP8266,
-    ARDUINO_VERSION_ESP32,
     CONF_VERSION,
     ESP_PLATFORMS,
     ESP_MCUS,
@@ -35,6 +33,8 @@ from esphome.const import (
     ESP_MCU_ESP32C3,
     ESP_MCU_ESP32S2,
     ESP_MCU_ESP32S3,
+    PLATFORMIO_ESP8266_LUT,
+    PLATFORMIO_ESP32_LUT,
 )
 from esphome.core import CORE, coroutine_with_priority
 from esphome.helpers import copy_file_if_changed, walk_files
@@ -97,29 +97,6 @@ def validate_mcu_board(schema):
         )
 
     return schema
-
-
-PLATFORMIO_ESP8266_LUT = {
-    **ARDUINO_VERSION_ESP8266,
-    # Keep this in mind when updating the recommended version:
-    #  * New framework historically have had some regressions, especially for WiFi, BLE and the
-    #    bootloader system. The new version needs to be thoroughly validated before changing the
-    #    recommended version as otherwise a bunch of devices could be bricked
-    #  * The docker images need to be updated to ship the new recommended version, in order not
-    #    to DDoS platformio servers.
-    #    Update this file: https://github.com/esphome/esphome-docker-base/blob/main/platformio.ini
-    "RECOMMENDED": ARDUINO_VERSION_ESP8266["2.7.4"],
-    "LATEST": "espressif8266",
-    "DEV": ARDUINO_VERSION_ESP8266["dev"],
-}
-
-PLATFORMIO_ESP32_LUT = {
-    **ARDUINO_VERSION_ESP32,
-    # See PLATFORMIO_ESP8266_LUT for considerations when changing the recommended version
-    "RECOMMENDED": ARDUINO_VERSION_ESP32["1.0.6"],
-    "LATEST": "espressif32",
-    "DEV": ARDUINO_VERSION_ESP32["dev"],
-}
 
 
 def validate_arduino_version(value):
