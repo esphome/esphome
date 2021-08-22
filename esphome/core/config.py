@@ -385,7 +385,10 @@ async def to_code(config):
     if config[CONF_INCLUDES]:
         CORE.add_job(add_includes, config[CONF_INCLUDES])
 
+    cg.add_define("ESPHOME_PLATFORM_" + CORE.esp_platform, 1)
+    cg.add_define("ESPHOME_MCU_" + CORE.mcu.replace("-", "_"), 1)
     cg.add_define("ESPHOME_BOARD", CORE.board)
+
     if CONF_PROJECT in config:
         cg.add_define("ESPHOME_PROJECT_NAME", config[CONF_PROJECT][CONF_NAME])
         cg.add_define("ESPHOME_PROJECT_VERSION", config[CONF_PROJECT][CONF_VERSION])
