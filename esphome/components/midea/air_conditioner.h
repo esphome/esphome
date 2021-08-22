@@ -1,7 +1,7 @@
 #pragma once
-#include "esphome/components/midea/appliance_base.h"
-#include "esphome/components/sensor/sensor.h"
 #include <Appliance/AirConditioner/AirConditioner.h>
+#include "appliance_base.h"
+#include "esphome/components/sensor/sensor.h"
 
 namespace esphome {
 namespace midea {

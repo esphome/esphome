@@ -1,6 +1,6 @@
 #pragma once
 #include "esphome/core/automation.h"
-#include "esphome/components/midea/air_conditioner.h"
+#include "air_conditioner.h"
 
 namespace esphome {
 namespace midea {

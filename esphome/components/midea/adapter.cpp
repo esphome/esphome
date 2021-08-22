@@ -1,5 +1,5 @@
 #include "esphome/core/log.h"
-#include "esphome/components/midea/adapter.h"
+#include "adapter.h"
 
 namespace esphome {
 namespace midea {
@@ -37,7 +37,7 @@ MideaMode Converters::to_midea_mode(ClimateMode mode) {
     case ClimateMode::CLIMATE_MODE_FAN_ONLY:
       return MideaMode::MODE_FAN_ONLY;
     case ClimateMode::CLIMATE_MODE_HEAT:
-      return MideaMode::MODE_HEAT;  
+      return MideaMode::MODE_HEAT;
     default:
       return MideaMode::MODE_OFF;
   }

@@ -1,8 +1,8 @@
 #include "esphome/core/log.h"
-#include "esphome/components/midea/air_conditioner.h"
-#include "esphome/components/midea/adapter.h"
+#include "air_conditioner.h"
+#include "adapter.h"
 #ifdef USE_REMOTE_TRANSMITTER
-#include "esphome/components/midea/midea_ir.h"
+#include "midea_ir.h"
 #endif
 
 namespace esphome {
