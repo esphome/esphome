@@ -120,8 +120,8 @@ MideaFanMode Converters::to_midea_fan_mode(const std::string &mode) {
   return MideaFanMode::FAN_TURBO;
 }
 
-MideaPreset Converters::to_midea_preset(ClimatePreset mode) {
-  switch (mode) {
+MideaPreset Converters::to_midea_preset(ClimatePreset preset) {
+  switch (preset) {
     case ClimatePreset::CLIMATE_PRESET_SLEEP:
       return MideaPreset::PRESET_SLEEP;
     case ClimatePreset::CLIMATE_PRESET_ECO:
@@ -133,8 +133,8 @@ MideaPreset Converters::to_midea_preset(ClimatePreset mode) {
   }
 }
 
-ClimatePreset Converters::to_climate_preset(MideaPreset mode) {
-  switch (mode) {
+ClimatePreset Converters::to_climate_preset(MideaPreset preset) {
+  switch (preset) {
     case MideaPreset::PRESET_SLEEP:
       return ClimatePreset::CLIMATE_PRESET_SLEEP;
     case MideaPreset::PRESET_ECO:
