@@ -19,6 +19,8 @@ class HBridgeLightOutput : public PollingComponent, public light::LightOutput {
   light::LightTraits get_traits() override {
     auto traits = light::LightTraits();
     traits.set_supported_color_modes({light::ColorMode::COLD_WARM_WHITE});
+    traits.set_min_mireds(153);
+    traits.set_max_mireds(500);
     return traits;
   }
 

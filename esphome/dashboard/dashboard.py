@@ -98,7 +98,7 @@ class DashboardSettings:
         return os.path.join(self.config_dir, *args)
 
     def list_yaml_files(self):
-        return util.list_yaml_files(self.config_dir)
+        return util.list_yaml_files([self.config_dir])
 
 
 settings = DashboardSettings()
@@ -329,7 +329,7 @@ class EsphomeVscodeHandler(EsphomeCommandWebSocket):
 
 class EsphomeAceEditorHandler(EsphomeCommandWebSocket):
     def build_command(self, json_message):
-        return ["esphome", "--dashboard", "-q", "vscode", settings.config_dir, "--ace"]
+        return ["esphome", "--dashboard", "-q", "vscode", "--ace", settings.config_dir]
 
 
 class EsphomeUpdateAllHandler(EsphomeCommandWebSocket):

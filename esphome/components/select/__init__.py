@@ -4,6 +4,7 @@ import esphome.config_validation as cv
 from esphome import automation
 from esphome.components import mqtt
 from esphome.const import (
+    CONF_DISABLED_BY_DEFAULT,
     CONF_ICON,
     CONF_ID,
     CONF_INTERNAL,
@@ -34,7 +35,7 @@ SelectSetAction = select_ns.class_("SelectSetAction", automation.Action)
 icon = cv.icon
 
 
-SELECT_SCHEMA = cv.MQTT_COMPONENT_SCHEMA.extend(
+SELECT_SCHEMA = cv.NAMEABLE_SCHEMA.extend(cv.MQTT_COMPONENT_SCHEMA).extend(
     {
         cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTSelectComponent),
         cv.GenerateID(): cv.declare_id(Select),
@@ -50,6 +51,7 @@ SELECT_SCHEMA = cv.MQTT_COMPONENT_SCHEMA.extend(
 
 async def setup_select_core_(var, config, *, options: List[str]):
     cg.add(var.set_name(config[CONF_NAME]))
+    cg.add(var.set_disabled_by_default(config[CONF_DISABLED_BY_DEFAULT]))
     if CONF_INTERNAL in config:
         cg.add(var.set_internal(config[CONF_INTERNAL]))
 
