@@ -17,7 +17,6 @@ class AirConditioner : public ApplianceBase<dudanov::midea::ac::AirConditioner> 
   void set_power_sensor(Sensor *sensor) { this->power_sensor_ = sensor; }
   void on_status_change() override;
 
-
   /* ############### */
   /* ### ACTIONS ### */
   /* ############### */
@@ -36,5 +35,5 @@ class AirConditioner : public ApplianceBase<dudanov::midea::ac::AirConditioner> 
   Sensor *power_sensor_{nullptr};
 };
 
-}  // namespace midea_ac
+}  // namespace midea
 }  // namespace esphome

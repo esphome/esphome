@@ -8,7 +8,7 @@ namespace midea {
 
 class Constants {
  public:
-  static const char *TAG;
+  static const char *const TAG;
   static const std::string FREEZE_PROTECTION;
   static const std::string SILENT;
   static const std::string TURBO;
@@ -33,5 +33,5 @@ class Converters {
   static void to_climate_traits(ClimateTraits &traits, const dudanov::midea::ac::Capabilities &capabilities);
 };
 
-}  // namespace midea_ac
+}  // namespace midea
 }  // namespace esphome

@@ -23,9 +23,10 @@ using MideaSwingMode = dudanov::midea::SwingMode;
 using MideaFanMode = dudanov::midea::FanMode;
 using MideaPreset = dudanov::midea::Preset;
 
-template<typename T>
-class ApplianceBase : public Component, public uart::UARTDevice, public climate::Climate {
-  static_assert(std::is_base_of<dudanov::midea::ApplianceBase, T>::value, "T must derive from dudanov::midea::ApplianceBase class");
+template<typename T> class ApplianceBase : public Component, public uart::UARTDevice, public climate::Climate {
+  static_assert(std::is_base_of<dudanov::midea::ApplianceBase, T>::value,
+                "T must derive from dudanov::midea::ApplianceBase class");
+
  public:
   ApplianceBase() {
     this->base_.setStream(this);
@@ -40,7 +41,6 @@ class ApplianceBase : public Component, public uart::UARTDevice, public climate:
   float get_setup_priority() const override { return setup_priority::BEFORE_CONNECTION; }
   void setup() override { this->base_.setup(); }
   void loop() override { this->base_.loop(); }
-  //void dump_config() override;
   void set_period(uint32_t ms) { this->base_.setPeriod(ms); }
   void set_response_timeout(uint32_t ms) { this->base_.setTimeout(ms); }
   void set_request_attempts(uint32_t attempts) { this->base_.setNumAttempts(attempts); }

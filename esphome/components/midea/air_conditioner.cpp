@@ -13,8 +13,7 @@ static void set_sensor(Sensor *sensor, float value) {
     sensor->publish_state(value);
 }
 
-template<typename T>
-void update_property(T &property, const T &value, bool &flag) {
+template<typename T> void update_property(T &property, const T &value, bool &flag) {
   if (property != value) {
     property = value;
     flag = true;
@@ -108,9 +107,10 @@ void AirConditioner::dump_config() {
 #endif
   if (this->base_.getAutoconfStatus() == dudanov::midea::AUTOCONF_OK) {
     this->base_.getCapabilities().dump();
-  } else if (this->base_.getAutoconfStatus() ==  dudanov::midea::AUTOCONF_ERROR) {
-    ESP_LOGW(Constants::TAG, "Failed to get 0xB5 capabilities report. Suggest to disable it in config and manually set your "
-                  "appliance options.");
+  } else if (this->base_.getAutoconfStatus() == dudanov::midea::AUTOCONF_ERROR) {
+    ESP_LOGW(Constants::TAG,
+             "Failed to get 0xB5 capabilities report. Suggest to disable it in config and manually set your "
+             "appliance options.");
   }
   this->dump_traits_(Constants::TAG);
 }
@@ -148,5 +148,5 @@ void AirConditioner::do_display_toggle() {
   }
 }
 
-}  // namespace midea_ac
+}  // namespace midea
 }  // namespace esphome
