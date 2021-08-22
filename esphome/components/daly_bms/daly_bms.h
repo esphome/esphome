@@ -34,6 +34,7 @@ class DalyBmsComponent : public PollingComponent, public uart::UARTDevice {
     min_temperature_probe_number_ = min_temperature_probe_number;
   }
   void set_remaining_capacity_sensor(sensor::Sensor *remaining_capacity) { remaining_capacity_ = remaining_capacity; }
+  void set_cells_number_sensor(sensor::Sensor *cells_number) { cells_number_ = cells_number; }
   void set_temperature_1_sensor(sensor::Sensor *temperature_1_sensor) { temperature_1_sensor_ = temperature_1_sensor; }
   void set_temperature_2_sensor(sensor::Sensor *temperature_2_sensor) { temperature_2_sensor_ = temperature_2_sensor; }
   // TEXT_SENSORS
@@ -54,7 +55,7 @@ class DalyBmsComponent : public PollingComponent, public uart::UARTDevice {
 
  protected:
   void request_data(uint8_t data_id);
-  void decode_data(uint8_t *data, int length);
+  void decode_data(std::vector<uint8_t> data);
 
   sensor::Sensor *voltage_sensor_{nullptr};
   sensor::Sensor *current_sensor_{nullptr};
@@ -68,6 +69,7 @@ class DalyBmsComponent : public PollingComponent, public uart::UARTDevice {
   sensor::Sensor *min_temperature_{nullptr};
   sensor::Sensor *min_temperature_probe_number_{nullptr};
   sensor::Sensor *remaining_capacity_{nullptr};
+  sensor::Sensor *cells_number_{nullptr};
   sensor::Sensor *temperature_1_sensor_{nullptr};
   sensor::Sensor *temperature_2_sensor_{nullptr};
 

@@ -25,7 +25,7 @@ from esphome.const import (
     ICON_THERMOMETER,
     ICON_GAUGE,
 )
-from . import DalyBmsComponent, BSM_DALY_ID
+from . import DalyBmsComponent, CONF_BMS_DALY_ID
 
 CONF_MAX_CELL_VOLTAGE = "max_cell_voltage"
 CONF_MAX_CELL_VOLTAGE_NUMBER = "max_cell_voltage_number"
@@ -68,7 +68,7 @@ TYPES = [
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
-            cv.GenerateID(BSM_DALY_ID): cv.use_id(DalyBmsComponent),
+            cv.GenerateID(CONF_BMS_DALY_ID): cv.use_id(DalyBmsComponent),
             cv.Optional(CONF_VOLTAGE): sensor.sensor_schema(
                 UNIT_VOLT,
                 ICON_FLASH,
@@ -187,6 +187,6 @@ async def setup_conf(config, key, hub):
 
 
 async def to_code(config):
-    hub = await cg.get_variable(config[BSM_DALY_ID])
+    hub = await cg.get_variable(config[CONF_BMS_DALY_ID])
     for key in TYPES:
         await setup_conf(config, key, hub)
