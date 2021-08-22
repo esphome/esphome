@@ -62,7 +62,7 @@ void SM300D2Sensor::update() {
   if (this->pm_2_5_sensor_ != nullptr)
     this->pm_2_5_sensor_->publish_state(pm_2_5);
 
-  ESP_LOGD(TAG, "Received pm_10_0: %u µg/m³", pm_10_0);
+  ESP_LOGD(TAG, "Received PM10: %u µg/m³", pm_10_0);
   if (this->pm_10_0_sensor_ != nullptr)
     this->pm_10_0_sensor_->publish_state(pm_10_0);
 
