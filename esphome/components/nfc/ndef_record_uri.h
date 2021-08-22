@@ -71,7 +71,8 @@ class NdefRecordUri : public NdefRecord {
 
   std::vector<uint8_t> getEncodedPayload();
   const std::string get_payload() { return this->URI_; };
- private:
+ 
+ protected:
   std::string URI_;
 };
 

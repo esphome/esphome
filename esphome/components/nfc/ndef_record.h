@@ -43,8 +43,6 @@ class NdefRecord {
   uint8_t tnf_;
   std::string type_;
   std::string id_;
-
-  private:
   std::string payload_;
 };
 

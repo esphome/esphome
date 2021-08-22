@@ -36,7 +36,7 @@ class NdefRecordText : public NdefRecord{
 
   const std::string get_payload() { return this->text_; };
 
- private:
+ protected:
   std::string text_;
   std::string langCode_;
 };
