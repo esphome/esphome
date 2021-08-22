@@ -71,7 +71,9 @@ void MQTTJSONLightComponent::send_discovery(JsonObject &root, mqtt::SendDiscover
 }
 bool MQTTJSONLightComponent::send_initial_state() { return this->publish_state_(); }
 bool MQTTJSONLightComponent::is_internal() { return this->state_->is_internal(); }
-void MQTTJSONLightComponent::do_dump_config() {
+void MQTTJSONLightComponent::dump_config() {
+  MQTTComponent::dump_config();
+
   ESP_LOGCONFIG(TAG, "MQTT Light '%s':", this->state_->get_name().c_str());
   LOG_MQTT_COMPONENT(true, true)
 }

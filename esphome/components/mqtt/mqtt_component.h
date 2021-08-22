@@ -132,9 +132,6 @@ class MQTTComponent : public Component {
   void subscribe_json(const std::string &topic, const mqtt_json_callback_t &callback, uint8_t qos = 0);
 
  protected:
-  /// Performs the actual dump of the configuration (only called for non-internal components).
-  virtual void do_dump_config() { Component::dump_config(); }
-
   /// Helper method to get the discovery topic for this component.
   std::string get_discovery_topic_(const MQTTDiscoveryInfo &discovery_info) const;
 

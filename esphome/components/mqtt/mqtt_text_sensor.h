@@ -18,6 +18,8 @@ class MQTTTextSensor : public mqtt::MQTTComponent {
 
   void setup() override;
 
+  void dump_config() override;
+
   bool publish_state(const std::string &value);
 
   bool send_initial_state() override;
@@ -25,8 +27,6 @@ class MQTTTextSensor : public mqtt::MQTTComponent {
   bool is_internal() override;
 
  protected:
-  void do_dump_config() override;
-
   std::string component_type() const override;
 
   std::string friendly_name() const override;

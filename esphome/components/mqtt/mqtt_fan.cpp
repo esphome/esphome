@@ -94,7 +94,9 @@ void MQTTFanComponent::setup() {
   this->state_->add_on_state_callback([this, f]() { this->defer("send", f); });
 }
 
-void MQTTFanComponent::do_dump_config() {
+void MQTTFanComponent::dump_config() {
+  MQTTComponent::dump_config();
+
   ESP_LOGCONFIG(TAG, "MQTT Fan '%s': ", this->state_->get_name().c_str());
   LOG_MQTT_COMPONENT(true, true);
   if (this->state_->get_traits().supports_oscillation()) {

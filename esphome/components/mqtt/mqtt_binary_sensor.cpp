@@ -14,7 +14,9 @@ void MQTTBinarySensorComponent::setup() {
   this->binary_sensor_->add_on_state_callback([this](bool state) { this->publish_state(state); });
 }
 
-void MQTTBinarySensorComponent::do_dump_config() {
+void MQTTBinarySensorComponent::dump_config() {
+  MQTTComponent::dump_config();
+
   ESP_LOGCONFIG(TAG, "MQTT Binary Sensor '%s':", this->binary_sensor_->get_name().c_str());
   LOG_MQTT_COMPONENT(true, false)
 }
