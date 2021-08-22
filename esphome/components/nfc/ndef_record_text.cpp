@@ -9,13 +9,17 @@ static const char *const TAG = "nfc.ndef_record_text";
 NdefRecordText::NdefRecordText(const std::vector<uint8_t> &payload)
 {
 
+  if(payload.size() < 1)
+  {
+    ESP_LOGE(TAG, "Record payload too short");
+    return;
+  }
+
   uint8_t langCodeLength = payload[0] & 0b00111111; //Todo, make use of encoding bit?
 
   this->langCode_ = std::string(payload.begin() + 1, payload.begin() + 1 + langCodeLength);
 
   this->text_ = std::string(payload.begin() + 1 + langCodeLength, payload.end());
-
-  ESP_LOGD(TAG,"langCodeLength = %d langCode = %s text = %s",langCodeLength,this->langCode_.c_str(),this->text_.c_str());
 
   this->tnf_ = TNF_WELL_KNOWN;
 

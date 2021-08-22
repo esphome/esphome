@@ -6,6 +6,13 @@ namespace nfc {
 static const char *const TAG = "nfc.ndef_recordURI";
 
 NdefRecordUri::NdefRecordUri(const std::vector<uint8_t> &payload) {
+  
+  if(payload.size() < 1)
+  {
+    ESP_LOGE(TAG, "Record payload too short");
+    return;
+  }
+  
   uint8_t payload_identifier = payload[0];  // First byte of payload is prefix code
 
   std::string URI(payload.begin() + 1, payload.end());
