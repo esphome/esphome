@@ -108,4 +108,4 @@ def to_code(config):
     cg.add(var.set_max_temperature(config[CONF_MIN_TEMPERATURE]))
     cg.add(var.set_min_temperature(config[CONF_MAX_TEMPERATURE]))
 
-    cg.add_library("11483", "1.0.15")  # HeatpumpIR, has name conflict
+    cg.add_library("tonia/HeatpumpIR", "1.0.15")

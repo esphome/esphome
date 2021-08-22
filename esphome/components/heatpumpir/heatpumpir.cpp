@@ -6,9 +6,9 @@
 namespace esphome {
 namespace heatpumpir {
 
-static const char *TAG = "heatpumpir.climate";
+static const char *const TAG = "heatpumpir.climate";
 
-std::map<Protocol, std::function<HeatpumpIR *()>> protocol_constructor_map = {
+const std::map<Protocol, std::function<HeatpumpIR *()>> PROTOCOL_CONSTRUCTOR_MAP = {
     {PROTOCOL_AUX, []() { return new AUXHeatpumpIR(); }},
     {PROTOCOL_BALLU, []() { return new BalluHeatpumpIR(); }},
     {PROTOCOL_CARRIER_MCA, []() { return new CarrierMCAHeatpumpIR(); }},
@@ -50,8 +50,8 @@ std::map<Protocol, std::function<HeatpumpIR *()>> protocol_constructor_map = {
 };
 
 void HeatpumpIRClimate::setup() {
-  auto protocol_constructor = protocol_constructor_map.find(protocol_);
-  if (protocol_constructor == protocol_constructor_map.end()) {
+  auto protocol_constructor = PROTOCOL_CONSTRUCTOR_MAP.find(protocol_);
+  if (protocol_constructor == PROTOCOL_CONSTRUCTOR_MAP.end()) {
     ESP_LOGE(TAG, "Invalid protocol");
     return;
   }
