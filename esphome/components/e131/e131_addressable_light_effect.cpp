@@ -84,6 +84,7 @@ bool E131AddressableLightEffect::process_(int universe, const E131Packet &packet
       break;
   }
 
+  it->schedule_show();
   return true;
 }
 
