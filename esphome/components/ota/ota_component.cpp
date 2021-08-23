@@ -243,11 +243,10 @@ void OTAComponent::handle_() {
     uint32_t now = millis();
     if (now - last_progress > 1000) {
       last_progress = now;
-      float percentage = (total * 100.0f) / ota_size;
-      state = percentage;
-      ESP_LOGD(TAG, "OTA in progress: %0.1f%%", percentage);
+      state = (total * 100.0f) / ota_size;
+      ESP_LOGD(TAG, "OTA in progress: %0.1f%%", state);
 #ifdef USE_OTA_STATE_CALLBACK
-      this->state_callback_.call(OTA_IN_PROGRESS, percentage, 0);
+      this->state_callback_.call(OTA_IN_PROGRESS, state, 0);
 #endif
       // slow down OTA update to avoid getting killed by task watchdog (task_wdt)
       delay(10);
