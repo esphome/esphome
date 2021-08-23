@@ -126,8 +126,8 @@ void BL0940::dump_config() {  // NOLINT(readability-function-cognitive-complexit
   LOG_SENSOR("", "Current", this->current_sensor_);
   LOG_SENSOR("", "Power", this->power_sensor_);
   LOG_SENSOR("", "Energy", this->energy_sensor_);
-  LOG_SENSOR("", "TempInt", this->internal_temperature_sensor_);
-  LOG_SENSOR("", "TempExt", this->external_temperature_sensor_);
+  LOG_SENSOR("", "Internal temperature", this->internal_temperature_sensor_);
+  LOG_SENSOR("", "External temperature", this->external_temperature_sensor_);
 }
 
 uint32_t BL0940::to_uint32_t(ube24_t input) { return input.h << 16 | input.m << 8 | input.l; }
