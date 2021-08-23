@@ -398,13 +398,13 @@ std::string WebServer::fan_json(fan::FanState *obj) {
     if (traits.supports_speed()) {
       root["speed_level"] = obj->speed;
       switch (fan::speed_level_to_enum(obj->speed, traits.supported_speed_count())) {
-        case fan::FAN_SPEED_LOW:
+        case fan::FAN_SPEED_LOW:  // NOLINT(clang-diagnostic-deprecated-declarations)
           root["speed"] = "low";
           break;
-        case fan::FAN_SPEED_MEDIUM:
+        case fan::FAN_SPEED_MEDIUM:  // NOLINT(clang-diagnostic-deprecated-declarations)
           root["speed"] = "medium";
           break;
-        case fan::FAN_SPEED_HIGH:
+        case fan::FAN_SPEED_HIGH:  // NOLINT(clang-diagnostic-deprecated-declarations)
           root["speed"] = "high";
           break;
       }
@@ -430,7 +430,7 @@ void WebServer::handle_fan_request(AsyncWebServerRequest *request, const UrlMatc
       auto call = obj->turn_on();
       if (request->hasParam("speed")) {
         String speed = request->getParam("speed")->value();
-        call.set_speed(speed.c_str());
+        call.set_speed(speed.c_str());  // NOLINT(clang-diagnostic-deprecated-declarations)
       }
       if (request->hasParam("speed_level")) {
         String speed_level = request->getParam("speed_level")->value();
