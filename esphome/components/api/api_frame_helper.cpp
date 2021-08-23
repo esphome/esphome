@@ -587,6 +587,10 @@ APIError APINoiseFrameHelper::shutdown(int how) {
 }  // namespace esphome
 
 extern "C" {
+
 // declare how noise generates random bytes (here with a good HWRNG based on the RF system)
-void noise_rand_bytes(void *output, size_t len) { esp_fill_random(output, len); }
+void noise_rand_bytes(void *output, size_t len) {
+  esphome::fill_random(reinterpret_cast<uint8_t *>(output), len);
+}
+
 }

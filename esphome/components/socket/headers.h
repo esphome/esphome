@@ -11,6 +11,7 @@
 #include <sys/types.h>
 #include "lwip/inet.h"
 #include <stdint.h>
+#include <errno.h>
 
 /* Address families.  */
 #define AF_UNSPEC       0
