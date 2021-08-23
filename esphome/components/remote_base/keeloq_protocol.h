@@ -7,14 +7,14 @@ namespace esphome {
 namespace remote_base {
 
 struct KeeloqData {
-	uint32_t encrypted;
-	uint32_t serial;
-	uint8_t button;
-	bool low;
-	bool repeat;
-  uint16_t sync = 0;
+    uint32_t encrypted;
+    uint32_t serial;
+    uint8_t button;
+    bool low;
+    bool repeat;
+    uint16_t sync = 0;
 
-  bool operator==(const KeeloqData &rhs) const { return serial == rhs.serial && button == rhs.button; }
+    bool operator==(const KeeloqData &rhs) const { return serial == rhs.serial && button == rhs.button; }
 };
 
 class KeeloqProtocol : public RemoteProtocol<KeeloqData> {

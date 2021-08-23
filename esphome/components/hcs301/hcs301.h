@@ -47,3 +47,4 @@ class HCS301 : public Component {
 
 }  // namespace hcs301
 }  // namespace esphome
+

@@ -27,3 +27,4 @@ class KeeloqNormalCrypter : public Component {
 
 }  // namespace empty_component
 }  // namespace esphome
+

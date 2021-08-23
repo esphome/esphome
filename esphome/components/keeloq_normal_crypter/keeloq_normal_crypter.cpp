@@ -101,3 +101,4 @@ void KeeloqNormalCrypter::encrypt(remote_base::KeeloqData &data, uint64_t key) {
 
 }  // namespace keeloq_normal_crypter
 }  // namespace esphome
+

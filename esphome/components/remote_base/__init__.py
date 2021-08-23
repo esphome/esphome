@@ -356,8 +356,6 @@ async def jvc_action(var, config, args):
 CONF_ENCRYPTED = "encrypted"
 CONF_SERIAL = "serial"
 CONF_BUTTON = "button"
-CONF_LOW = "low"
-CONF_REPEAT = "repeat"
 CONF_MANUFACTURER_KEY = "manufacturer_key"
 (
     KeeloqData,
@@ -371,8 +369,6 @@ KEELOQ_SCHEMA = cv.Schema(
         cv.Optional(CONF_ENCRYPTED, default=0): cv.hex_uint32_t,
         cv.Required(CONF_SERIAL): cv.hex_uint32_t,
         cv.Required(CONF_BUTTON): cv.hex_uint8_t,
-        cv.Optional(CONF_LOW, default=False): cv.boolean,
-        cv.Optional(CONF_REPEAT, default=False): cv.boolean,
     }
 )
 
@@ -383,11 +379,8 @@ def keeloq_binary_sensor(var, config):
         var.set_data(
             cg.StructInitializer(
                 KeeloqData,
-                ("encrypted", config[CONF_ENCRYPTED]),
                 ("serial", config[CONF_SERIAL]),
                 ("button", config[CONF_BUTTON]),
-                ("low", config[CONF_LOW]),
-                ("repeat", config[CONF_REPEAT]),
             )
         )
     )
@@ -411,10 +404,6 @@ async def keeloq_action(var, config, args):
     cg.add(var.set_serial(template_))
     template_ = await cg.templatable(config[CONF_BUTTON], args, cg.uint8)
     cg.add(var.set_button(template_))
-    template_ = await cg.templatable(config[CONF_LOW], args, cg.bool)
-    cg.add(var.set_low(template_))
-    template_ = await cg.templatable(config[CONF_REPEAT], args, cg.uint8)
-    cg.add(var.set_repeat(template_))
 
 
 # LG

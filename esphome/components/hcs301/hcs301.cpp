@@ -7,7 +7,7 @@ namespace hcs301 {
 static const char *TAG = "hcs301";
 
 // This is how many words the EEPROM has (12x 16 bit addresses)
-#define EEPROM_SIZE 12
+static const uint8_t EEPROM_SIZE = 12;
 
 void HCS301::setup() {
   if (this->power_pin_ != nullptr) {
@@ -158,7 +158,7 @@ void HCS301::write_eeprom_buffer(uint16_t *eeprom_buffer, uint16_t *vbuffer) {
     // FIXME: No check for ack?
     this->pwm_pin_->pin_mode(INPUT);
     // TWC for 50ms
-    delay(50);
+    delay(50); // NOLINT
   }
   // Verify Cycle.
   this->clock_pin_->digital_write(false);
@@ -177,9 +177,10 @@ void HCS301::write_eeprom_buffer(uint16_t *eeprom_buffer, uint16_t *vbuffer) {
     vbuffer[line_number] = val;
   }
   // Turn off the HCS301
-  delay(200);
+  delay(200); // NOLINT
   this->power_pin_->digital_write(false);
 }
 
 }  // namespace empty_component
 }  // namespace esphome
+

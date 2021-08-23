@@ -13,7 +13,7 @@ static const uint32_t PREAMBLE_LOW_US = 325;
 static const uint32_t HEADER_LOW_US = 2700;
 
 void KeeloqProtocol::encode(RemoteTransmitData *dst, const KeeloqData &data) {
-	// not implemented
+    // not implemented
 }
 
 optional<KeeloqData> KeeloqProtocol::decode(RemoteReceiveData src) {
@@ -31,7 +31,7 @@ optional<KeeloqData> KeeloqProtocol::decode(RemoteReceiveData src) {
     if (!src.expect_item(PREAMBLE_HIGH_US, PREAMBLE_LOW_US)) {
       ESP_LOGD(TAG, "Preamble failure on bit %d, got (%d,%d)", i, src.peek(), src.peek(1));
       return {};
-	  }
+    }
   }
 
   if (!src.expect_mark(PREAMBLE_HIGH_US)) {
@@ -44,7 +44,7 @@ optional<KeeloqData> KeeloqProtocol::decode(RemoteReceiveData src) {
   if (src.peek_space_at_least(HEADER_LOW_US)) {
     int32_t header_low = src.peek();
     te = (-header_low) / 10;
-  	src.advance();
+    src.advance();
   } else {
     ESP_LOGD(TAG, "Header failure: %d", src.peek());
     return {};
