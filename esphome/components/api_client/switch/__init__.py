@@ -1,8 +1,8 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import switch
-from esphome.const import CONF_ID
-from .. import CONF_API_CLIENT_ID, CONF_API_ENTITY_KEY, APIClient
+from esphome.const import CONF_ID, CONF_KEY
+from .. import CONF_API_CLIENT_ID, APIClient
 
 DEPENDENCIES = ["api_client"]
 
@@ -13,7 +13,7 @@ CONFIG_SCHEMA = switch.SWITCH_SCHEMA.extend(
     {
         cv.GenerateID(): cv.declare_id(ApiSwitch),
         cv.GenerateID(CONF_API_CLIENT_ID): cv.use_id(APIClient),
-        cv.Required(CONF_API_ENTITY_KEY): cv.uint32_t,
+        cv.Required(CONF_KEY): cv.uint32_t,
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -24,6 +24,6 @@ def to_code(config):
 
     yield switch.register_switch(var, config)
 
-    cg.add(var.set_api_key(config[CONF_API_ENTITY_KEY]))
+    cg.add(var.set_api_key(config[CONF_KEY]))
     cg.add(var.set_api_parent(paren))
-    cg.add(paren.register_switch(config[CONF_API_ENTITY_KEY], var))
+    cg.add(paren.register_switch(config[CONF_KEY], var))

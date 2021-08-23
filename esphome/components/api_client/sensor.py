@@ -1,8 +1,8 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import sensor
-from esphome.const import CONF_ID, UNIT_EMPTY, ICON_EMPTY
-from . import CONF_API_CLIENT_ID, CONF_API_ENTITY_KEY, APIClient
+from esphome.const import CONF_ID, CONF_KEY, UNIT_EMPTY, ICON_EMPTY
+from . import CONF_API_CLIENT_ID, APIClient
 
 DEPENDENCIES = ["api_client"]
 
@@ -15,7 +15,7 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(Sensor),
             cv.GenerateID(CONF_API_CLIENT_ID): cv.use_id(APIClient),
-            cv.Required(CONF_API_ENTITY_KEY): cv.uint32_t,
+            cv.Required(CONF_KEY): cv.uint32_t,
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
@@ -28,4 +28,4 @@ def to_code(config):
 
     yield sensor.register_sensor(var, config)
 
-    cg.add(paren.register_sensor(config[CONF_API_ENTITY_KEY], var))
+    cg.add(paren.register_sensor(config[CONF_KEY], var))

@@ -15,8 +15,6 @@ CODEOWNERS = ["@RoganDawes"]
 
 CONF_API_CLIENT = "api_client"
 CONF_API_CLIENT_ID = "api_client_id"
-CONF_API_STREAM_ID = "stream_id"
-CONF_API_ENTITY_KEY = "key"
 
 api_client_ns = cg.esphome_ns.namespace("api_client")
 APIClient = api_client_ns.class_("APIClientConnection", cg.Component)
