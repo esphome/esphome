@@ -968,7 +968,7 @@ cpp += """\
 namespace esphome {
 namespace api_client {
 
-static const char *TAG = "api_client.client";
+static const char *const TAG = "api_client.client";
 
 """
 

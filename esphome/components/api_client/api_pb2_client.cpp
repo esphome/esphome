@@ -6,7 +6,7 @@
 namespace esphome {
 namespace api_client {
 
-static const char *TAG = "api_client.client";
+static const char *const TAG = "api_client.client";
 
 bool APIClientConnectionBase::send_hello_request(const HelloRequest &msg) {
 #ifdef HAS_PROTO_MESSAGE_DUMP
