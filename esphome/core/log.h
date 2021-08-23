@@ -7,6 +7,7 @@
 #include "WString.h"
 #endif
 
+#include "esphome/core/macros.h"
 // avoid esp-idf redefining our macros
 #include "esphome/core/esphal.h"
 
@@ -169,8 +170,7 @@ int esp_idf_log_vprintf_(const char *format, va_list args);  // NOLINT
 // by copying the message to a local buffer first. String length is limited to 63 characters.
 // https://github.com/esp8266/Arduino/commit/6280e98b0360f85fdac2b8f10707fffb4f6e6e31
 #include <core_version.h>
-#if defined(ARDUINO_ESP8266_RELEASE_2_3_0) || defined(ARDUINO_ESP8266_RELEASE_2_4_0) || \
-    defined(ARDUINO_ESP8266_RELEASE_2_4_1) || defined(ARDUINO_ESP8266_RELEASE_2_4_2)
+#if defined(ARDUINO_ARCH_ESP8266) && ARDUINO_VERSION_CODE < VERSION_CODE(2, 5, 0)
 #define LOG_STR_ARG(s) \
   ({ \
     char __buf[64]; \
@@ -179,7 +179,7 @@ int esp_idf_log_vprintf_(const char *format, va_list args);  // NOLINT
     __buf; \
   })
 #else
-#define LOG_STR_ARG(s) s
+#define LOG_STR_ARG(s) (s)
 #endif
 
 #else
