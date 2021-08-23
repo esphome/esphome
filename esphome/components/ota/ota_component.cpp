@@ -244,6 +244,7 @@ void OTAComponent::handle_() {
     if (now - last_progress > 1000) {
       last_progress = now;
       float percentage = (total * 100.0f) / ota_size;
+      state = percentage;
       ESP_LOGD(TAG, "OTA in progress: %0.1f%%", percentage);
 #ifdef USE_OTA_STATE_CALLBACK
       this->state_callback_.call(OTA_IN_PROGRESS, percentage, 0);

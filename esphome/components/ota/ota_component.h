@@ -69,6 +69,8 @@ class OTAComponent : public Component {
 
   void on_safe_shutdown() override;
 
+  float state = 0.0;
+
  protected:
   void write_rtc_(uint32_t val);
   uint32_t read_rtc_();
