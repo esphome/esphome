@@ -24,18 +24,35 @@ from esphome.const import (
     CONF_FAN_MODE_FOCUS_ACTION,
     CONF_FAN_MODE_DIFFUSE_ACTION,
     CONF_FAN_ONLY_ACTION,
+    CONF_FAN_ONLY_ACTION_USES_FAN_MODE_TIMER,
     CONF_FAN_ONLY_COOLING,
     CONF_FAN_ONLY_MODE,
+    CONF_FAN_WITH_COOLING,
+    CONF_FAN_WITH_HEATING,
     CONF_HEAT_ACTION,
     CONF_HEAT_DEADBAND,
     CONF_HEAT_MODE,
     CONF_HEAT_OVERRUN,
-    CONF_HYSTERESIS,
     CONF_ID,
     CONF_IDLE_ACTION,
+    CONF_MAX_COOLING_RUN_TIME,
+    CONF_MAX_HEATING_RUN_TIME,
+    CONF_MIN_COOLING_OFF_TIME,
+    CONF_MIN_COOLING_RUN_TIME,
+    CONF_MIN_FAN_MODE_SWITCHING_TIME,
+    CONF_MIN_FANNING_OFF_TIME,
+    CONF_MIN_FANNING_RUN_TIME,
+    CONF_MIN_HEATING_OFF_TIME,
+    CONF_MIN_HEATING_RUN_TIME,
+    CONF_MIN_IDLE_TIME,
     CONF_OFF_MODE,
     CONF_SENSOR,
     CONF_SET_POINT_MINIMUM_DIFFERENTIAL,
+    CONF_STARTUP_DELAY,
+    CONF_SUPPLEMENTAL_COOLING_ACTION,
+    CONF_SUPPLEMENTAL_COOLING_DELTA,
+    CONF_SUPPLEMENTAL_HEATING_ACTION,
+    CONF_SUPPLEMENTAL_HEATING_DELTA,
     CONF_SWING_BOTH_ACTION,
     CONF_SWING_HORIZONTAL_ACTION,
     CONF_SWING_OFF_ACTION,
@@ -67,18 +84,141 @@ validate_climate_mode = cv.enum(CLIMATE_MODES, upper=True)
 
 
 def validate_thermostat(config):
-    # verify corresponding climate action action exists for any defined climate mode action
+    # verify corresponding action(s) exist(s) for any defined climate mode or action
     requirements = {
-        CONF_AUTO_MODE: [CONF_COOL_ACTION, CONF_HEAT_ACTION],
-        CONF_COOL_MODE: [CONF_COOL_ACTION],
-        CONF_DRY_MODE: [CONF_DRY_ACTION],
-        CONF_FAN_ONLY_MODE: [CONF_FAN_ONLY_ACTION],
-        CONF_HEAT_MODE: [CONF_HEAT_ACTION],
+        CONF_AUTO_MODE: [
+            CONF_COOL_ACTION,
+            CONF_HEAT_ACTION,
+            CONF_MIN_COOLING_OFF_TIME,
+            CONF_MIN_COOLING_RUN_TIME,
+            CONF_MIN_HEATING_OFF_TIME,
+            CONF_MIN_HEATING_RUN_TIME,
+        ],
+        CONF_COOL_MODE: [
+            CONF_COOL_ACTION,
+            CONF_MIN_COOLING_OFF_TIME,
+            CONF_MIN_COOLING_RUN_TIME,
+        ],
+        CONF_DRY_MODE: [
+            CONF_DRY_ACTION,
+            CONF_MIN_COOLING_OFF_TIME,
+            CONF_MIN_COOLING_RUN_TIME,
+        ],
+        CONF_FAN_ONLY_MODE: [
+            CONF_FAN_ONLY_ACTION,
+        ],
+        CONF_HEAT_MODE: [
+            CONF_HEAT_ACTION,
+            CONF_MIN_HEATING_OFF_TIME,
+            CONF_MIN_HEATING_RUN_TIME,
+        ],
+        CONF_COOL_ACTION: [
+            CONF_MIN_COOLING_OFF_TIME,
+            CONF_MIN_COOLING_RUN_TIME,
+        ],
+        CONF_DRY_ACTION: [
+            CONF_MIN_COOLING_OFF_TIME,
+            CONF_MIN_COOLING_RUN_TIME,
+        ],
+        CONF_HEAT_ACTION: [
+            CONF_MIN_HEATING_OFF_TIME,
+            CONF_MIN_HEATING_RUN_TIME,
+        ],
+        CONF_SUPPLEMENTAL_COOLING_ACTION: [
+            CONF_COOL_ACTION,
+            CONF_MAX_COOLING_RUN_TIME,
+            CONF_MIN_COOLING_OFF_TIME,
+            CONF_MIN_COOLING_RUN_TIME,
+            CONF_SUPPLEMENTAL_COOLING_DELTA,
+        ],
+        CONF_SUPPLEMENTAL_HEATING_ACTION: [
+            CONF_HEAT_ACTION,
+            CONF_MAX_HEATING_RUN_TIME,
+            CONF_MIN_HEATING_OFF_TIME,
+            CONF_MIN_HEATING_RUN_TIME,
+            CONF_SUPPLEMENTAL_HEATING_DELTA,
+        ],
+        CONF_MAX_COOLING_RUN_TIME: [
+            CONF_COOL_ACTION,
+            CONF_SUPPLEMENTAL_COOLING_ACTION,
+            CONF_SUPPLEMENTAL_COOLING_DELTA,
+        ],
+        CONF_MAX_HEATING_RUN_TIME: [
+            CONF_HEAT_ACTION,
+            CONF_SUPPLEMENTAL_HEATING_ACTION,
+            CONF_SUPPLEMENTAL_HEATING_DELTA,
+        ],
+        CONF_MIN_COOLING_OFF_TIME: [
+            CONF_COOL_ACTION,
+        ],
+        CONF_MIN_COOLING_RUN_TIME: [
+            CONF_COOL_ACTION,
+        ],
+        CONF_MIN_FANNING_OFF_TIME: [
+            CONF_FAN_ONLY_ACTION,
+        ],
+        CONF_MIN_FANNING_RUN_TIME: [
+            CONF_FAN_ONLY_ACTION,
+        ],
+        CONF_MIN_HEATING_OFF_TIME: [
+            CONF_HEAT_ACTION,
+        ],
+        CONF_MIN_HEATING_RUN_TIME: [
+            CONF_HEAT_ACTION,
+        ],
+        CONF_SUPPLEMENTAL_COOLING_DELTA: [
+            CONF_COOL_ACTION,
+            CONF_MAX_COOLING_RUN_TIME,
+            CONF_SUPPLEMENTAL_COOLING_ACTION,
+        ],
+        CONF_SUPPLEMENTAL_HEATING_DELTA: [
+            CONF_HEAT_ACTION,
+            CONF_MAX_HEATING_RUN_TIME,
+            CONF_SUPPLEMENTAL_HEATING_ACTION,
+        ],
     }
-    for config_mode, req_actions in requirements.items():
-        for req_action in req_actions:
-            if config_mode in config and req_action not in config:
-                raise cv.Invalid(f"{req_action} must be defined to use {config_mode}")
+    for config_trigger, req_triggers in requirements.items():
+        for req_trigger in req_triggers:
+            if config_trigger in config and req_trigger not in config:
+                raise cv.Invalid(
+                    f"{req_trigger} must be defined to use {config_trigger}"
+                )
+
+    if CONF_FAN_ONLY_ACTION in config:
+        # determine validation requirements based on fan_only_action_uses_fan_mode_timer setting
+        if config[CONF_FAN_ONLY_ACTION_USES_FAN_MODE_TIMER] is True:
+            requirements = [CONF_MIN_FAN_MODE_SWITCHING_TIME]
+        else:
+            requirements = [
+                CONF_MIN_FANNING_OFF_TIME,
+                CONF_MIN_FANNING_RUN_TIME,
+            ]
+        for config_req_action in requirements:
+            if config_req_action not in config:
+                raise cv.Invalid(
+                    f"{config_req_action} must be defined to use {CONF_FAN_ONLY_ACTION}"
+                )
+
+    # for any fan_mode action, confirm min_fan_mode_switching_time is defined
+    requirements = {
+        CONF_MIN_FAN_MODE_SWITCHING_TIME: [
+            CONF_FAN_MODE_ON_ACTION,
+            CONF_FAN_MODE_OFF_ACTION,
+            CONF_FAN_MODE_AUTO_ACTION,
+            CONF_FAN_MODE_LOW_ACTION,
+            CONF_FAN_MODE_MEDIUM_ACTION,
+            CONF_FAN_MODE_HIGH_ACTION,
+            CONF_FAN_MODE_MIDDLE_ACTION,
+            CONF_FAN_MODE_FOCUS_ACTION,
+            CONF_FAN_MODE_DIFFUSE_ACTION,
+        ],
+    }
+    for req_config_item, config_triggers in requirements.items():
+        for config_trigger in config_triggers:
+            if config_trigger in config and req_config_item not in config:
+                raise cv.Invalid(
+                    f"{req_config_item} must be defined to use {config_trigger}"
+                )
 
     # determine validation requirements based on fan_only_cooling setting
     if config[CONF_FAN_ONLY_COOLING] is True:
@@ -137,6 +277,34 @@ def validate_thermostat(config):
                 f"{CONF_DEFAULT_MODE} is set to {default_mode} but {req} is not present in the configuration"
             )
 
+    if config[CONF_FAN_WITH_COOLING] is True and CONF_FAN_ONLY_ACTION not in config:
+        raise cv.Invalid(
+            f"{CONF_FAN_ONLY_ACTION} must be defined to use {CONF_FAN_WITH_COOLING}"
+        )
+    if config[CONF_FAN_WITH_HEATING] is True and CONF_FAN_ONLY_ACTION not in config:
+        raise cv.Invalid(
+            f"{CONF_FAN_ONLY_ACTION} must be defined to use {CONF_FAN_WITH_HEATING}"
+        )
+
+    # if min_fan_mode_switching_time is defined, at least one fan_mode action should be defined
+    if CONF_MIN_FAN_MODE_SWITCHING_TIME in config:
+        requirements = [
+            CONF_FAN_MODE_ON_ACTION,
+            CONF_FAN_MODE_OFF_ACTION,
+            CONF_FAN_MODE_AUTO_ACTION,
+            CONF_FAN_MODE_LOW_ACTION,
+            CONF_FAN_MODE_MEDIUM_ACTION,
+            CONF_FAN_MODE_HIGH_ACTION,
+            CONF_FAN_MODE_MIDDLE_ACTION,
+            CONF_FAN_MODE_FOCUS_ACTION,
+            CONF_FAN_MODE_DIFFUSE_ACTION,
+        ]
+        for config_req_action in requirements:
+            if config_req_action in config:
+                return config
+        raise cv.Invalid(
+            f"At least one of {CONF_FAN_MODE_ON_ACTION}, {CONF_FAN_MODE_OFF_ACTION}, {CONF_FAN_MODE_AUTO_ACTION}, {CONF_FAN_MODE_LOW_ACTION}, {CONF_FAN_MODE_MEDIUM_ACTION}, {CONF_FAN_MODE_HIGH_ACTION}, {CONF_FAN_MODE_MIDDLE_ACTION}, {CONF_FAN_MODE_FOCUS_ACTION}, {CONF_FAN_MODE_DIFFUSE_ACTION} must be defined to use {CONF_MIN_FAN_MODE_SWITCHING_TIME}"
+        )
     return config
 
 
@@ -147,11 +315,17 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_SENSOR): cv.use_id(sensor.Sensor),
             cv.Required(CONF_IDLE_ACTION): automation.validate_automation(single=True),
             cv.Optional(CONF_COOL_ACTION): automation.validate_automation(single=True),
+            cv.Optional(
+                CONF_SUPPLEMENTAL_COOLING_ACTION
+            ): automation.validate_automation(single=True),
             cv.Optional(CONF_DRY_ACTION): automation.validate_automation(single=True),
             cv.Optional(CONF_FAN_ONLY_ACTION): automation.validate_automation(
                 single=True
             ),
             cv.Optional(CONF_HEAT_ACTION): automation.validate_automation(single=True),
+            cv.Optional(
+                CONF_SUPPLEMENTAL_HEATING_ACTION
+            ): automation.validate_automation(single=True),
             cv.Optional(CONF_AUTO_MODE): automation.validate_automation(single=True),
             cv.Optional(CONF_COOL_MODE): automation.validate_automation(single=True),
             cv.Optional(CONF_DRY_MODE): automation.validate_automation(single=True),
@@ -210,12 +384,31 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(
                 CONF_SET_POINT_MINIMUM_DIFFERENTIAL, default=0.5
             ): cv.temperature,
-            cv.Optional(CONF_COOL_DEADBAND): cv.temperature,
-            cv.Optional(CONF_COOL_OVERRUN): cv.temperature,
-            cv.Optional(CONF_HEAT_DEADBAND): cv.temperature,
-            cv.Optional(CONF_HEAT_OVERRUN): cv.temperature,
-            cv.Optional(CONF_HYSTERESIS, default=0.5): cv.temperature,
+            cv.Optional(CONF_COOL_DEADBAND, default=0.5): cv.temperature,
+            cv.Optional(CONF_COOL_OVERRUN, default=0.5): cv.temperature,
+            cv.Optional(CONF_HEAT_DEADBAND, default=0.5): cv.temperature,
+            cv.Optional(CONF_HEAT_OVERRUN, default=0.5): cv.temperature,
+            cv.Optional(CONF_MAX_COOLING_RUN_TIME): cv.positive_time_period_seconds,
+            cv.Optional(CONF_MAX_HEATING_RUN_TIME): cv.positive_time_period_seconds,
+            cv.Optional(CONF_MIN_COOLING_OFF_TIME): cv.positive_time_period_seconds,
+            cv.Optional(CONF_MIN_COOLING_RUN_TIME): cv.positive_time_period_seconds,
+            cv.Optional(
+                CONF_MIN_FAN_MODE_SWITCHING_TIME
+            ): cv.positive_time_period_seconds,
+            cv.Optional(CONF_MIN_FANNING_OFF_TIME): cv.positive_time_period_seconds,
+            cv.Optional(CONF_MIN_FANNING_RUN_TIME): cv.positive_time_period_seconds,
+            cv.Optional(CONF_MIN_HEATING_OFF_TIME): cv.positive_time_period_seconds,
+            cv.Optional(CONF_MIN_HEATING_RUN_TIME): cv.positive_time_period_seconds,
+            cv.Required(CONF_MIN_IDLE_TIME): cv.positive_time_period_seconds,
+            cv.Optional(CONF_SUPPLEMENTAL_COOLING_DELTA): cv.temperature,
+            cv.Optional(CONF_SUPPLEMENTAL_HEATING_DELTA): cv.temperature,
+            cv.Optional(
+                CONF_FAN_ONLY_ACTION_USES_FAN_MODE_TIMER, default=False
+            ): cv.boolean,
             cv.Optional(CONF_FAN_ONLY_COOLING, default=False): cv.boolean,
+            cv.Optional(CONF_FAN_WITH_COOLING, default=False): cv.boolean,
+            cv.Optional(CONF_FAN_WITH_HEATING, default=False): cv.boolean,
+            cv.Optional(CONF_STARTUP_DELAY, default=False): cv.boolean,
             cv.Optional(CONF_AWAY_CONFIG): cv.Schema(
                 {
                     cv.Optional(CONF_DEFAULT_TARGET_TEMPERATURE_HIGH): cv.temperature,
@@ -250,25 +443,10 @@ async def to_code(config):
     )
     cg.add(var.set_sensor(sens))
 
-    if CONF_COOL_DEADBAND in config:
-        cg.add(var.set_cool_deadband(config[CONF_COOL_DEADBAND]))
-    else:
-        cg.add(var.set_cool_deadband(config[CONF_HYSTERESIS]))
-
-    if CONF_COOL_OVERRUN in config:
-        cg.add(var.set_cool_overrun(config[CONF_COOL_OVERRUN]))
-    else:
-        cg.add(var.set_cool_overrun(config[CONF_HYSTERESIS]))
-
-    if CONF_HEAT_DEADBAND in config:
-        cg.add(var.set_heat_deadband(config[CONF_HEAT_DEADBAND]))
-    else:
-        cg.add(var.set_heat_deadband(config[CONF_HYSTERESIS]))
-
-    if CONF_HEAT_OVERRUN in config:
-        cg.add(var.set_heat_overrun(config[CONF_HEAT_OVERRUN]))
-    else:
-        cg.add(var.set_heat_overrun(config[CONF_HYSTERESIS]))
+    cg.add(var.set_cool_deadband(config[CONF_COOL_DEADBAND]))
+    cg.add(var.set_cool_overrun(config[CONF_COOL_OVERRUN]))
+    cg.add(var.set_heat_deadband(config[CONF_HEAT_DEADBAND]))
+    cg.add(var.set_heat_overrun(config[CONF_HEAT_OVERRUN]))
 
     if two_points_available is True:
         cg.add(var.set_supports_two_points(True))
@@ -286,7 +464,72 @@ async def to_code(config):
         normal_config = ThermostatClimateTargetTempConfig(
             config[CONF_DEFAULT_TARGET_TEMPERATURE_LOW]
         )
+
+    if CONF_MAX_COOLING_RUN_TIME in config:
+        cg.add(
+            var.set_cooling_maximum_run_time_in_sec(config[CONF_MAX_COOLING_RUN_TIME])
+        )
+
+    if CONF_MAX_HEATING_RUN_TIME in config:
+        cg.add(
+            var.set_heating_maximum_run_time_in_sec(config[CONF_MAX_HEATING_RUN_TIME])
+        )
+
+    if CONF_MIN_COOLING_OFF_TIME in config:
+        cg.add(
+            var.set_cooling_minimum_off_time_in_sec(config[CONF_MIN_COOLING_OFF_TIME])
+        )
+
+    if CONF_MIN_COOLING_RUN_TIME in config:
+        cg.add(
+            var.set_cooling_minimum_run_time_in_sec(config[CONF_MIN_COOLING_RUN_TIME])
+        )
+
+    if CONF_MIN_FAN_MODE_SWITCHING_TIME in config:
+        cg.add(
+            var.set_fan_mode_minimum_switching_time_in_sec(
+                config[CONF_MIN_FAN_MODE_SWITCHING_TIME]
+            )
+        )
+
+    if CONF_MIN_FANNING_OFF_TIME in config:
+        cg.add(
+            var.set_fanning_minimum_off_time_in_sec(config[CONF_MIN_FANNING_OFF_TIME])
+        )
+
+    if CONF_MIN_FANNING_RUN_TIME in config:
+        cg.add(
+            var.set_fanning_minimum_run_time_in_sec(config[CONF_MIN_FANNING_RUN_TIME])
+        )
+
+    if CONF_MIN_HEATING_OFF_TIME in config:
+        cg.add(
+            var.set_heating_minimum_off_time_in_sec(config[CONF_MIN_HEATING_OFF_TIME])
+        )
+
+    if CONF_MIN_HEATING_RUN_TIME in config:
+        cg.add(
+            var.set_heating_minimum_run_time_in_sec(config[CONF_MIN_HEATING_RUN_TIME])
+        )
+
+    if CONF_SUPPLEMENTAL_COOLING_DELTA in config:
+        cg.add(var.set_supplemental_cool_delta(config[CONF_SUPPLEMENTAL_COOLING_DELTA]))
+
+    if CONF_SUPPLEMENTAL_HEATING_DELTA in config:
+        cg.add(var.set_supplemental_heat_delta(config[CONF_SUPPLEMENTAL_HEATING_DELTA]))
+
+    cg.add(var.set_idle_minimum_time_in_sec(config[CONF_MIN_IDLE_TIME]))
+
+    cg.add(
+        var.set_supports_fan_only_action_uses_fan_mode_timer(
+            config[CONF_FAN_ONLY_ACTION_USES_FAN_MODE_TIMER]
+        )
+    )
     cg.add(var.set_supports_fan_only_cooling(config[CONF_FAN_ONLY_COOLING]))
+    cg.add(var.set_supports_fan_with_cooling(config[CONF_FAN_WITH_COOLING]))
+    cg.add(var.set_supports_fan_with_heating(config[CONF_FAN_WITH_HEATING]))
+
+    cg.add(var.set_use_startup_delay(config[CONF_STARTUP_DELAY]))
     cg.add(var.set_normal_config(normal_config))
 
     await automation.build_automation(
@@ -303,6 +546,12 @@ async def to_code(config):
             var.get_cool_action_trigger(), [], config[CONF_COOL_ACTION]
         )
         cg.add(var.set_supports_cool(True))
+    if CONF_SUPPLEMENTAL_COOLING_ACTION in config:
+        await automation.build_automation(
+            var.get_supplemental_cool_action_trigger(),
+            [],
+            config[CONF_SUPPLEMENTAL_COOLING_ACTION],
+        )
     if CONF_DRY_ACTION in config:
         await automation.build_automation(
             var.get_dry_action_trigger(), [], config[CONF_DRY_ACTION]
@@ -318,6 +567,12 @@ async def to_code(config):
             var.get_heat_action_trigger(), [], config[CONF_HEAT_ACTION]
         )
         cg.add(var.set_supports_heat(True))
+    if CONF_SUPPLEMENTAL_HEATING_ACTION in config:
+        await automation.build_automation(
+            var.get_supplemental_heat_action_trigger(),
+            [],
+            config[CONF_SUPPLEMENTAL_HEATING_ACTION],
+        )
     if CONF_AUTO_MODE in config:
         await automation.build_automation(
             var.get_auto_mode_trigger(), [], config[CONF_AUTO_MODE]

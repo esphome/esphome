@@ -94,6 +94,8 @@ template<> const char *proto_enum_to_string<enums::SensorStateClass>(enums::Sens
       return "STATE_CLASS_NONE";
     case enums::STATE_CLASS_MEASUREMENT:
       return "STATE_CLASS_MEASUREMENT";
+    case enums::STATE_CLASS_TOTAL_INCREASING:
+      return "STATE_CLASS_TOTAL_INCREASING";
     default:
       return "UNKNOWN";
   }
@@ -120,6 +122,8 @@ template<> const char *proto_enum_to_string<enums::LogLevel>(enums::LogLevel val
       return "LOG_LEVEL_WARN";
     case enums::LOG_LEVEL_INFO:
       return "LOG_LEVEL_INFO";
+    case enums::LOG_LEVEL_CONFIG:
+      return "LOG_LEVEL_CONFIG";
     case enums::LOG_LEVEL_DEBUG:
       return "LOG_LEVEL_DEBUG";
     case enums::LOG_LEVEL_VERBOSE:
@@ -501,6 +505,10 @@ bool ListEntitiesBinarySensorResponse::decode_varint(uint32_t field_id, ProtoVar
       this->is_status_binary_sensor = value.as_bool();
       return true;
     }
+    case 7: {
+      this->disabled_by_default = value.as_bool();
+      return true;
+    }
     default:
       return false;
   }
@@ -544,6 +552,7 @@ void ListEntitiesBinarySensorResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(4, this->unique_id);
   buffer.encode_string(5, this->device_class);
   buffer.encode_bool(6, this->is_status_binary_sensor);
+  buffer.encode_bool(7, this->disabled_by_default);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void ListEntitiesBinarySensorResponse::dump_to(std::string &out) const {
@@ -572,6 +581,10 @@ void ListEntitiesBinarySensorResponse::dump_to(std::string &out) const {
 
   out.append("  is_status_binary_sensor: ");
   out.append(YESNO(this->is_status_binary_sensor));
+  out.append("\n");
+
+  out.append("  disabled_by_default: ");
+  out.append(YESNO(this->disabled_by_default));
   out.append("\n");
   out.append("}");
 }
@@ -638,6 +651,10 @@ bool ListEntitiesCoverResponse::decode_varint(uint32_t field_id, ProtoVarInt val
       this->supports_tilt = value.as_bool();
       return true;
     }
+    case 9: {
+      this->disabled_by_default = value.as_bool();
+      return true;
+    }
     default:
       return false;
   }
@@ -683,6 +700,7 @@ void ListEntitiesCoverResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_bool(6, this->supports_position);
   buffer.encode_bool(7, this->supports_tilt);
   buffer.encode_string(8, this->device_class);
+  buffer.encode_bool(9, this->disabled_by_default);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void ListEntitiesCoverResponse::dump_to(std::string &out) const {
@@ -719,6 +737,10 @@ void ListEntitiesCoverResponse::dump_to(std::string &out) const {
 
   out.append("  device_class: ");
   out.append("'").append(this->device_class).append("'");
+  out.append("\n");
+
+  out.append("  disabled_by_default: ");
+  out.append(YESNO(this->disabled_by_default));
   out.append("\n");
   out.append("}");
 }
@@ -904,6 +926,10 @@ bool ListEntitiesFanResponse::decode_varint(uint32_t field_id, ProtoVarInt value
       this->supported_speed_count = value.as_int32();
       return true;
     }
+    case 9: {
+      this->disabled_by_default = value.as_bool();
+      return true;
+    }
     default:
       return false;
   }
@@ -945,6 +971,7 @@ void ListEntitiesFanResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_bool(6, this->supports_speed);
   buffer.encode_bool(7, this->supports_direction);
   buffer.encode_int32(8, this->supported_speed_count);
+  buffer.encode_bool(9, this->disabled_by_default);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void ListEntitiesFanResponse::dump_to(std::string &out) const {
@@ -982,6 +1009,10 @@ void ListEntitiesFanResponse::dump_to(std::string &out) const {
   out.append("  supported_speed_count: ");
   sprintf(buffer, "%d", this->supported_speed_count);
   out.append(buffer);
+  out.append("\n");
+
+  out.append("  disabled_by_default: ");
+  out.append(YESNO(this->disabled_by_default));
   out.append("\n");
   out.append("}");
 }
@@ -1205,6 +1236,10 @@ bool ListEntitiesLightResponse::decode_varint(uint32_t field_id, ProtoVarInt val
       this->legacy_supports_color_temperature = value.as_bool();
       return true;
     }
+    case 13: {
+      this->disabled_by_default = value.as_bool();
+      return true;
+    }
     default:
       return false;
   }
@@ -1266,6 +1301,7 @@ void ListEntitiesLightResponse::encode(ProtoWriteBuffer buffer) const {
   for (auto &it : this->effects) {
     buffer.encode_string(11, it, true);
   }
+  buffer.encode_bool(13, this->disabled_by_default);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void ListEntitiesLightResponse::dump_to(std::string &out) const {
@@ -1325,6 +1361,10 @@ void ListEntitiesLightResponse::dump_to(std::string &out) const {
     out.append("'").append(it).append("'");
     out.append("\n");
   }
+
+  out.append("  disabled_by_default: ");
+  out.append(YESNO(this->disabled_by_default));
+  out.append("\n");
   out.append("}");
 }
 #endif
@@ -1780,6 +1820,10 @@ bool ListEntitiesSensorResponse::decode_varint(uint32_t field_id, ProtoVarInt va
       this->last_reset_type = value.as_enum<enums::SensorLastResetType>();
       return true;
     }
+    case 12: {
+      this->disabled_by_default = value.as_bool();
+      return true;
+    }
     default:
       return false;
   }
@@ -1836,6 +1880,7 @@ void ListEntitiesSensorResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(9, this->device_class);
   buffer.encode_enum<enums::SensorStateClass>(10, this->state_class);
   buffer.encode_enum<enums::SensorLastResetType>(11, this->last_reset_type);
+  buffer.encode_bool(12, this->disabled_by_default);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void ListEntitiesSensorResponse::dump_to(std::string &out) const {
@@ -1885,6 +1930,10 @@ void ListEntitiesSensorResponse::dump_to(std::string &out) const {
 
   out.append("  last_reset_type: ");
   out.append(proto_enum_to_string<enums::SensorLastResetType>(this->last_reset_type));
+  out.append("\n");
+
+  out.append("  disabled_by_default: ");
+  out.append(YESNO(this->disabled_by_default));
   out.append("\n");
   out.append("}");
 }
@@ -1944,6 +1993,10 @@ bool ListEntitiesSwitchResponse::decode_varint(uint32_t field_id, ProtoVarInt va
       this->assumed_state = value.as_bool();
       return true;
     }
+    case 7: {
+      this->disabled_by_default = value.as_bool();
+      return true;
+    }
     default:
       return false;
   }
@@ -1987,6 +2040,7 @@ void ListEntitiesSwitchResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(4, this->unique_id);
   buffer.encode_string(5, this->icon);
   buffer.encode_bool(6, this->assumed_state);
+  buffer.encode_bool(7, this->disabled_by_default);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void ListEntitiesSwitchResponse::dump_to(std::string &out) const {
@@ -2015,6 +2069,10 @@ void ListEntitiesSwitchResponse::dump_to(std::string &out) const {
 
   out.append("  assumed_state: ");
   out.append(YESNO(this->assumed_state));
+  out.append("\n");
+
+  out.append("  disabled_by_default: ");
+  out.append(YESNO(this->disabled_by_default));
   out.append("\n");
   out.append("}");
 }
@@ -2097,6 +2155,16 @@ void SwitchCommandRequest::dump_to(std::string &out) const {
   out.append("}");
 }
 #endif
+bool ListEntitiesTextSensorResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 6: {
+      this->disabled_by_default = value.as_bool();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
 bool ListEntitiesTextSensorResponse::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
     case 1: {
@@ -2135,6 +2203,7 @@ void ListEntitiesTextSensorResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(3, this->name);
   buffer.encode_string(4, this->unique_id);
   buffer.encode_string(5, this->icon);
+  buffer.encode_bool(6, this->disabled_by_default);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void ListEntitiesTextSensorResponse::dump_to(std::string &out) const {
@@ -2159,6 +2228,10 @@ void ListEntitiesTextSensorResponse::dump_to(std::string &out) const {
 
   out.append("  icon: ");
   out.append("'").append(this->icon).append("'");
+  out.append("\n");
+
+  out.append("  disabled_by_default: ");
+  out.append(YESNO(this->disabled_by_default));
   out.append("\n");
   out.append("}");
 }
@@ -2265,10 +2338,6 @@ bool SubscribeLogsResponse::decode_varint(uint32_t field_id, ProtoVarInt value) 
 }
 bool SubscribeLogsResponse::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
-    case 2: {
-      this->tag = value.as_string();
-      return true;
-    }
     case 3: {
       this->message = value.as_string();
       return true;
@@ -2279,7 +2348,6 @@ bool SubscribeLogsResponse::decode_length(uint32_t field_id, ProtoLengthDelimite
 }
 void SubscribeLogsResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_enum<enums::LogLevel>(1, this->level);
-  buffer.encode_string(2, this->tag);
   buffer.encode_string(3, this->message);
   buffer.encode_bool(4, this->send_failed);
 }
@@ -2289,10 +2357,6 @@ void SubscribeLogsResponse::dump_to(std::string &out) const {
   out.append("SubscribeLogsResponse {\n");
   out.append("  level: ");
   out.append(proto_enum_to_string<enums::LogLevel>(this->level));
-  out.append("\n");
-
-  out.append("  tag: ");
-  out.append("'").append(this->tag).append("'");
   out.append("\n");
 
   out.append("  message: ");
@@ -2786,6 +2850,16 @@ void ExecuteServiceRequest::dump_to(std::string &out) const {
   out.append("}");
 }
 #endif
+bool ListEntitiesCameraResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 5: {
+      this->disabled_by_default = value.as_bool();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
 bool ListEntitiesCameraResponse::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
     case 1: {
@@ -2819,6 +2893,7 @@ void ListEntitiesCameraResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_fixed32(2, this->key);
   buffer.encode_string(3, this->name);
   buffer.encode_string(4, this->unique_id);
+  buffer.encode_bool(5, this->disabled_by_default);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void ListEntitiesCameraResponse::dump_to(std::string &out) const {
@@ -2839,6 +2914,10 @@ void ListEntitiesCameraResponse::dump_to(std::string &out) const {
 
   out.append("  unique_id: ");
   out.append("'").append(this->unique_id).append("'");
+  out.append("\n");
+
+  out.append("  disabled_by_default: ");
+  out.append(YESNO(this->disabled_by_default));
   out.append("\n");
   out.append("}");
 }
@@ -2963,6 +3042,10 @@ bool ListEntitiesClimateResponse::decode_varint(uint32_t field_id, ProtoVarInt v
       this->supported_presets.push_back(value.as_enum<enums::ClimatePreset>());
       return true;
     }
+    case 18: {
+      this->disabled_by_default = value.as_bool();
+      return true;
+    }
     default:
       return false;
   }
@@ -3045,6 +3128,7 @@ void ListEntitiesClimateResponse::encode(ProtoWriteBuffer buffer) const {
   for (auto &it : this->supported_custom_presets) {
     buffer.encode_string(17, it, true);
   }
+  buffer.encode_bool(18, this->disabled_by_default);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void ListEntitiesClimateResponse::dump_to(std::string &out) const {
@@ -3133,6 +3217,10 @@ void ListEntitiesClimateResponse::dump_to(std::string &out) const {
     out.append("'").append(it).append("'");
     out.append("\n");
   }
+
+  out.append("  disabled_by_default: ");
+  out.append(YESNO(this->disabled_by_default));
+  out.append("\n");
   out.append("}");
 }
 #endif
@@ -3503,6 +3591,16 @@ void ClimateCommandRequest::dump_to(std::string &out) const {
   out.append("}");
 }
 #endif
+bool ListEntitiesNumberResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 9: {
+      this->disabled_by_default = value.as_bool();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
 bool ListEntitiesNumberResponse::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
     case 1: {
@@ -3556,6 +3654,7 @@ void ListEntitiesNumberResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_float(6, this->min_value);
   buffer.encode_float(7, this->max_value);
   buffer.encode_float(8, this->step);
+  buffer.encode_bool(9, this->disabled_by_default);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void ListEntitiesNumberResponse::dump_to(std::string &out) const {
@@ -3595,6 +3694,10 @@ void ListEntitiesNumberResponse::dump_to(std::string &out) const {
   out.append("  step: ");
   sprintf(buffer, "%g", this->step);
   out.append(buffer);
+  out.append("\n");
+
+  out.append("  disabled_by_default: ");
+  out.append(YESNO(this->disabled_by_default));
   out.append("\n");
   out.append("}");
 }
@@ -3682,6 +3785,16 @@ void NumberCommandRequest::dump_to(std::string &out) const {
   out.append("}");
 }
 #endif
+bool ListEntitiesSelectResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 7: {
+      this->disabled_by_default = value.as_bool();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
 bool ListEntitiesSelectResponse::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
     case 1: {
@@ -3727,6 +3840,7 @@ void ListEntitiesSelectResponse::encode(ProtoWriteBuffer buffer) const {
   for (auto &it : this->options) {
     buffer.encode_string(6, it, true);
   }
+  buffer.encode_bool(7, this->disabled_by_default);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void ListEntitiesSelectResponse::dump_to(std::string &out) const {
@@ -3758,6 +3872,10 @@ void ListEntitiesSelectResponse::dump_to(std::string &out) const {
     out.append("'").append(it).append("'");
     out.append("\n");
   }
+
+  out.append("  disabled_by_default: ");
+  out.append(YESNO(this->disabled_by_default));
+  out.append("\n");
   out.append("}");
 }
 #endif

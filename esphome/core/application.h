@@ -250,6 +250,8 @@ class Application {
 
   void calculate_looping_components_();
 
+  void feed_wdt_arch_();
+
   std::vector<Component *> components_{};
   std::vector<Component *> looping_components_{};
 

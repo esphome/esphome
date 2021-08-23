@@ -187,4 +187,7 @@ void Nameable::calc_object_id_() {
 }
 uint32_t Nameable::get_object_id_hash() { return this->object_id_hash_; }
 
+bool Nameable::is_disabled_by_default() const { return this->disabled_by_default_; }
+void Nameable::set_disabled_by_default(bool disabled_by_default) { this->disabled_by_default_ = disabled_by_default; }
+
 }  // namespace esphome

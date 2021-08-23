@@ -149,8 +149,8 @@ struct Color {
 };
 
 ESPDEPRECATED("Use Color::BLACK instead of COLOR_BLACK", "v1.21")
-static const Color COLOR_BLACK(0, 0, 0, 0);
+extern const Color COLOR_BLACK;
 ESPDEPRECATED("Use Color::WHITE instead of COLOR_WHITE", "v1.21")
-static const Color COLOR_WHITE(255, 255, 255, 255);
+extern const Color COLOR_WHITE;
 
 }  // namespace esphome
