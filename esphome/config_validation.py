@@ -1628,3 +1628,17 @@ def url(value):
     if not parsed.scheme or not parsed.netloc:
         raise Invalid("Expected a URL scheme and host")
     return parsed.geturl()
+
+
+def git_ref(value):
+    if re.match(r"[a-zA-Z0-9\-_.\./]+", value) is None:
+        raise Invalid("Not a valid git ref")
+    return value
+
+
+def source_refresh(value: str):
+    if value.lower() == "always":
+        return source_refresh("0s")
+    if value.lower() == "never":
+        return source_refresh("1000y")
+    return positive_time_period_seconds(value)
