@@ -6,6 +6,11 @@
 namespace esphome {
 namespace midea {
 
+using MideaMode = dudanov::midea::ac::Mode;
+using MideaSwingMode = dudanov::midea::ac::SwingMode;
+using MideaFanMode = dudanov::midea::ac::FanMode;
+using MideaPreset = dudanov::midea::ac::Preset;
+
 class Constants {
  public:
   static const char *const TAG;

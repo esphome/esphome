@@ -18,10 +18,6 @@ using climate::ClimateTraits;
 using climate::ClimateMode;
 using climate::ClimateSwingMode;
 using climate::ClimateFanMode;
-using MideaMode = dudanov::midea::Mode;
-using MideaSwingMode = dudanov::midea::SwingMode;
-using MideaFanMode = dudanov::midea::FanMode;
-using MideaPreset = dudanov::midea::Preset;
 
 template<typename T> class ApplianceBase : public Component, public uart::UARTDevice, public climate::Climate {
   static_assert(std::is_base_of<dudanov::midea::ApplianceBase, T>::value,
