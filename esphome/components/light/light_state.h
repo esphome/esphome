@@ -99,6 +99,7 @@ class LightState : public Nameable, public Component {
 
   /// Set the default transition length, i.e. the transition length when no transition is provided.
   void set_default_transition_length(uint32_t default_transition_length);
+  uint32_t get_default_transition_length() const;
 
   /// Set the gamma correction factor
   void set_gamma_correct(float gamma_correct);

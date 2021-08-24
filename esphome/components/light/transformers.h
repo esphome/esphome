@@ -58,7 +58,46 @@ class LightFlashTransformer : public LightTransformer {
  public:
   LightFlashTransformer(LightState &state) : state_(state) {}
 
-  optional<LightColorValues> apply() override { return this->get_target_values(); }
+  optional<LightColorValues> apply() override {
+    float p = this->get_progress_();
+    if (this->transformer_ != nullptr) {
+      if (!this->transformer_->is_finished()) {
+        return this->transformer_->apply();
+      } else {
+        this->transformer_ = nullptr;
+      }
+    }
+
+    // apply first transformer immediately after entering
+    if (this->last_transition_p < p) {
+      if (p < 0.25f || (p > 0.5f && p < 0.75f)) {
+        // first transition to original target
+        this->transformer_ = this->state_.get_output()->create_default_transition();
+        this->transformer_->setup(this->state_.current_values, this->target_values_,
+                                  this->state_.get_default_transition_length());
+        this->last_transition_p = p + 0.25f;
+      } else if (p >= 0.25f && p < 0.5f) {
+        // second transition to dimmed target
+        float new_brightness = this->get_target_values().get_brightness() * 0.1;
+        auto new_target_values = this->get_target_values();
+        new_target_values.set_brightness(new_brightness);
+
+        this->transformer_ = this->state_.get_output()->create_default_transition();
+        this->transformer_->setup(this->state_.current_values, new_target_values,
+                                  this->state_.get_default_transition_length());
+        this->last_transition_p = p + 0.25f;
+      } else if (p >= 0.75f && p < 1.0f) {
+        // third transition back to start value
+        this->transformer_ = this->state_.get_output()->create_default_transition();
+        this->transformer_->setup(this->state_.current_values, this->get_start_values(),
+                                  this->state_.get_default_transition_length());
+        this->last_transition_p = p + 0.25f;
+      }
+    }
+
+    // once transition is complete, don't change states until next transition
+    return optional<LightColorValues>();
+  }
 
   // Restore the original values after the flash.
   void stop() override {
@@ -69,6 +108,8 @@ class LightFlashTransformer : public LightTransformer {
 
  protected:
   LightState &state_;
+  float last_transition_p;
+  std::unique_ptr<LightTransformer> transformer_{nullptr};
 };
 
 }  // namespace light
