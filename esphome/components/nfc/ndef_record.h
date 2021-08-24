@@ -18,7 +18,7 @@ static const uint8_t TNF_RESERVED = 0x07;
 class NdefRecord {
  public:
   NdefRecord(){};
-  NdefRecord(std::vector<uint8_t> payloadData);
+  NdefRecord(std::vector<uint8_t> payload_data);
   void set_tnf(uint8_t tnf) { this->tnf_ = tnf; };
   void set_type(const std::string &type) { this->type_ = type; };
   void set_payload(const std::string &payload) { this->payload_ = payload; };
