@@ -45,7 +45,6 @@ static const char *const PAYLOAD_IDENTIFIERS[] = {"",
                                                   "urn:epc:",
                                                   "urn:nfc:"};
 
-
 class NdefRecordUri : public NdefRecord {
  public:
   NdefRecordUri(){};
@@ -71,7 +70,7 @@ class NdefRecordUri : public NdefRecord {
 
   std::vector<uint8_t> getEncodedPayload();
   const std::string get_payload() { return this->URI_; };
- 
+
  protected:
   std::string URI_;
 };

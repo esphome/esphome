@@ -18,7 +18,7 @@ class NdefMessage {
 
   std::vector<std::shared_ptr<NdefRecord>> get_records() { return this->records_; };
 
-  bool add_record(std::shared_ptr<NdefRecord> record);
+  bool add_record(const std::shared_ptr<NdefRecord> &record);
   bool add_text_record(const std::string &text);
   bool add_text_record(const std::string &text, const std::string &encoding);
   bool add_uri_record(const std::string &uri);

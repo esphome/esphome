@@ -5,12 +5,11 @@ namespace nfc {
 
 static const char *const TAG = "nfc.ndef_record";
 
-NdefRecord::NdefRecord(std::vector<uint8_t> payloadData)
-{
-  this->payload_ = std::string(payloadData.begin(),payloadData.end());
+NdefRecord::NdefRecord(std::vector<uint8_t> payload_data) {
+  this->payload_ = std::string(payload_data.begin(), payload_data.end());
 }
 
-//Get more specific 
+// Get more specific
 std::vector<uint8_t> NdefRecord::encode(bool first, bool last) {
   std::vector<uint8_t> data;
 
@@ -18,9 +17,8 @@ std::vector<uint8_t> NdefRecord::encode(bool first, bool last) {
 
   data.push_back(this->type_.length());
 
-
-  std::vector<uint8_t> payloadData = getEncodedPayload();
-  uint32_t payload_length = payloadData.size();
+  std::vector<uint8_t> payload_data = getEncodedPayload();
+  uint32_t payload_length = payload_data.size();
 
   if (payload_length <= 255) {
     data.push_back(payload_length);
@@ -41,12 +39,12 @@ std::vector<uint8_t> NdefRecord::encode(bool first, bool last) {
     data.insert(data.end(), this->id_.begin(), this->id_.end());
   }
 
-  data.insert(data.end(), payloadData.begin(), payloadData.end());
+  data.insert(data.end(), payload_data.begin(), payload_data.end());
   return data;
 }
 
 uint8_t NdefRecord::create_flag_byte(bool first, bool last) {
-  uint8_t value = this->tnf_ && 0b00000111;
+  uint8_t value = this->tnf_ & 0b00000111;
   if (first) {
     value = value | 0x80;
   }

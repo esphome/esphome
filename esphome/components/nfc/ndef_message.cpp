@@ -44,22 +44,19 @@ NdefMessage::NdefMessage(std::vector<uint8_t> &data) {
       index += id_length;
     }
 
-    std::vector<uint8_t> payloadData(data.begin() + index,data.begin() + index + payload_length);
+    std::vector<uint8_t> payload_data(data.begin() + index, data.begin() + index + payload_length);
 
     std::shared_ptr<NdefRecord> record;
 
-    if(tnf == TNF_WELL_KNOWN && type_str == "U")
-    {
-      record = std::make_shared<NdefRecordUri>(payloadData);
-    }
-    else if (tnf == TNF_WELL_KNOWN && type_str == "T")
-    {
-      record = std::make_shared<NdefRecordText>(payloadData);
+    if (tnf == TNF_WELL_KNOWN && type_str == "U") {
+      record = std::make_shared<NdefRecordUri>(payload_data);
+    } else if (tnf == TNF_WELL_KNOWN && type_str == "T") {
+      record = std::make_shared<NdefRecordText>(payload_data);
     }
 
-    if(record == nullptr) //Could not recognize the record, so store as generic one.
+    if (record == nullptr)  // Could not recognize the record, so store as generic one.
     {
-      record = std::make_shared<NdefRecord>(payloadData);
+      record = std::make_shared<NdefRecord>(payload_data);
       record->set_tnf(tnf);
       record->set_type(type_str);
     }
@@ -68,7 +65,6 @@ NdefMessage::NdefMessage(std::vector<uint8_t> &data) {
 
     index += payload_length;
 
-    
     ESP_LOGD(TAG, "Adding record type %s = %s", record->get_type().c_str(), record->get_payload().c_str());
     this->add_record(record);
     if (me)
@@ -76,7 +72,7 @@ NdefMessage::NdefMessage(std::vector<uint8_t> &data) {
   }
 }
 
-bool NdefMessage::add_record(std::shared_ptr<NdefRecord> record) {
+bool NdefMessage::add_record(const std::shared_ptr<NdefRecord> &record) {
   if (this->records_.size() >= MAX_NDEF_RECORDS) {
     ESP_LOGE(TAG, "Too many records. Max: %d", MAX_NDEF_RECORDS);
     return false;
@@ -88,7 +84,7 @@ bool NdefMessage::add_record(std::shared_ptr<NdefRecord> record) {
 bool NdefMessage::add_text_record(const std::string &text) { return this->add_text_record(text, "en"); };
 
 bool NdefMessage::add_text_record(const std::string &text, const std::string &encoding) {
-  auto r = std::make_shared<NdefRecordText>(encoding ,text);
+  auto r = std::make_shared<NdefRecordText>(encoding, text);
   return this->add_record(r);
 }
 

@@ -7,7 +7,7 @@
 namespace esphome {
 namespace nfc {
 
-class NdefRecordText : public NdefRecord{
+class NdefRecordText : public NdefRecord {
  public:
   NdefRecordText(){};
   NdefRecordText(const std::vector<uint8_t> &payload);
