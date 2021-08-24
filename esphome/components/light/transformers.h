@@ -60,8 +60,8 @@ class LightFlashTransformer : public LightTransformer {
 
   void start() override {
     this->transition_length_ = this->state_.get_default_transition_length();
-    if (this->transition_length_ * 4 > this->length_)
-      this->transition_length_ = this->length_ / 4;
+    if (this->transition_length_ * 2 > this->length_)
+      this->transition_length_ = this->length_ / 2;
   }
 
   optional<LightColorValues> apply() override {
@@ -74,27 +74,17 @@ class LightFlashTransformer : public LightTransformer {
       }
     }
 
-    // apply first transformer immediately after entering
     if (this->last_transition_p_ < p) {
-      if (p < 0.25f || (p > 0.5f && p < 0.75f)) {
+      if (p < 0.5f) {
         // first transition to original target
         this->transformer_ = this->state_.get_output()->create_default_transition();
         this->transformer_->setup(this->state_.current_values, this->target_values_, this->transition_length_);
-        this->last_transition_p_ = p + 0.25f;
-      } else if (p >= 0.25f && p < 0.5f) {
-        // second transition to dimmed target
-        float new_brightness = this->get_target_values().get_brightness() * 0.1;
-        auto new_target_values = this->get_target_values();
-        new_target_values.set_brightness(new_brightness);
-
-        this->transformer_ = this->state_.get_output()->create_default_transition();
-        this->transformer_->setup(this->state_.current_values, new_target_values, this->transition_length_);
-        this->last_transition_p_ = p + 0.25f;
-      } else if (p >= 0.75f && p < 1.0f) {
-        // third transition back to start value
+        this->last_transition_p_ = p + 0.5f;
+      } else if (p >= 0.5f && p < 1.0f) {
+        // second transition back to start value
         this->transformer_ = this->state_.get_output()->create_default_transition();
         this->transformer_->setup(this->state_.current_values, this->get_start_values(), this->transition_length_);
-        this->last_transition_p_ = p + 0.25f;
+        this->last_transition_p_ = p + 0.5f;
       }
     }
 
