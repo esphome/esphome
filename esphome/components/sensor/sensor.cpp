@@ -10,6 +10,8 @@ const char *state_class_to_string(StateClass state_class) {
   switch (state_class) {
     case STATE_CLASS_MEASUREMENT:
       return "measurement";
+    case STATE_CLASS_TOTAL_INCREASING:
+      return "total_increasing";
     case STATE_CLASS_NONE:
     default:
       return "";
@@ -72,6 +74,8 @@ void Sensor::set_state_class(StateClass state_class) { this->state_class = state
 void Sensor::set_state_class(const std::string &state_class) {
   if (str_equals_case_insensitive(state_class, "measurement")) {
     this->state_class = STATE_CLASS_MEASUREMENT;
+  } else if (str_equals_case_insensitive(state_class, "total_increasing")) {
+    this->state_class = STATE_CLASS_TOTAL_INCREASING;
   } else {
     ESP_LOGW(TAG, "'%s' - Unrecognized state class %s", this->get_name().c_str(), state_class.c_str());
   }

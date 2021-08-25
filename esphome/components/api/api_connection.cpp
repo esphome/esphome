@@ -289,6 +289,7 @@ void APIConnection::fan_command(const FanCommandRequest &msg) {
     // Prefer level
     call.set_speed(msg.speed_level);
   } else if (msg.has_speed) {
+    // NOLINTNEXTLINE(clang-diagnostic-deprecated-declarations)
     call.set_speed(fan::speed_enum_to_level(static_cast<fan::FanSpeed>(msg.speed), traits.supported_speed_count()));
   }
   if (msg.has_direction)
@@ -310,22 +311,15 @@ bool APIConnection::send_light_state(light::LightState *light) {
   resp.key = light->get_object_id_hash();
   resp.state = values.is_on();
   resp.color_mode = static_cast<enums::ColorMode>(color_mode);
-  if (color_mode & light::ColorCapability::BRIGHTNESS)
-    resp.brightness = values.get_brightness();
-  if (color_mode & light::ColorCapability::RGB) {
-    resp.color_brightness = values.get_color_brightness();
-    resp.red = values.get_red();
-    resp.green = values.get_green();
-    resp.blue = values.get_blue();
-  }
-  if (color_mode & light::ColorCapability::WHITE)
-    resp.white = values.get_white();
-  if (color_mode & light::ColorCapability::COLOR_TEMPERATURE)
-    resp.color_temperature = values.get_color_temperature();
-  if (color_mode & light::ColorCapability::COLD_WARM_WHITE) {
-    resp.cold_white = values.get_cold_white();
-    resp.warm_white = values.get_warm_white();
-  }
+  resp.brightness = values.get_brightness();
+  resp.color_brightness = values.get_color_brightness();
+  resp.red = values.get_red();
+  resp.green = values.get_green();
+  resp.blue = values.get_blue();
+  resp.white = values.get_white();
+  resp.color_temperature = values.get_color_temperature();
+  resp.cold_white = values.get_cold_white();
+  resp.warm_white = values.get_warm_white();
   if (light->supports_effects())
     resp.effect = light->get_effect_name();
   return this->send_light_state_response(resp);
@@ -701,8 +695,6 @@ bool APIConnection::send_log_message(int level, const char *tag, const char *lin
   auto buffer = this->create_buffer();
   // LogLevel level = 1;
   buffer.encode_uint32(1, static_cast<uint32_t>(level));
-  // string tag = 2;
-  // buffer.encode_string(2, tag, strlen(tag));
   // string message = 3;
   buffer.encode_string(3, line, strlen(line));
   // SubscribeLogsResponse - 29
@@ -754,9 +746,7 @@ DeviceInfoResponse APIConnection::device_info(const DeviceInfoRequest &msg) {
   resp.mac_address = get_mac_address_pretty();
   resp.esphome_version = ESPHOME_VERSION;
   resp.compilation_time = App.get_compilation_time();
-#ifdef ARDUINO_BOARD
-  resp.model = ARDUINO_BOARD;
-#endif
+  resp.model = ESPHOME_BOARD;
 #ifdef USE_DEEP_SLEEP
   resp.has_deep_sleep = deep_sleep::global_has_deep_sleep;
 #endif
