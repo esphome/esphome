@@ -150,7 +150,7 @@ async def fan_turn_off_to_code(config, action_id, template_arg, args):
             cv.Required(CONF_ID): cv.use_id(FanState),
             cv.Optional(CONF_OSCILLATING): cv.templatable(cv.boolean),
             cv.Optional(CONF_SPEED): cv.templatable(cv.int_range(1)),
-            cv.Optional(CONF_DIRECTION, default="FORWARD"): cv.templatable(
+            cv.Optional(CONF_DIRECTION): cv.templatable(
                 cv.enum(FAN_DIRECTION_ENUM, upper=True)
             ),
         }
