@@ -38,7 +38,7 @@ void HistoryData::take_sample(float data) {
     this->data_[this->count_] = data;
     this->period_ -= this->update_time_;
     this->count_ = (this->count_ + 1) % this->length_;
-    ESP_LOGI(TAG, "Updating trace with value: %f", data);
+    ESP_LOGV(TAG, "Updating trace with value: %f", data);
   }
   if (!isnan(data)) {
     // Recalc recent max/min
@@ -159,7 +159,7 @@ void Graph::draw(DisplayBuffer *buff, uint16_t x_offset, uint16_t y_offset, Colo
   }
 
   /// Draw traces
-  ESP_LOGI(TAG, "Updating graph. ymin %f, ymax %f", ymin, ymax);
+  ESP_LOGV(TAG, "Updating graph. ymin %f, ymax %f", ymin, ymax);
   for (auto *trace : traces_) {
     Color c = trace->get_line_color();
     uint16_t thick = trace->get_line_thickness();
