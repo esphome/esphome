@@ -62,6 +62,7 @@ class LightFlashTransformer : public LightTransformer {
     this->transition_length_ = this->state_.get_default_transition_length();
     if (this->transition_length_ * 2 > this->length_)
       this->transition_length_ = this->length_ / 2;
+    this->transition_back_p_ = float((this->length_ - this->transition_length_)) / float(this->length_);
   }
 
   optional<LightColorValues> apply() override {
@@ -70,6 +71,7 @@ class LightFlashTransformer : public LightTransformer {
       if (!this->transformer_->is_finished()) {
         return this->transformer_->apply();
       } else {
+        this->transformer_->stop();
         this->transformer_ = nullptr;
       }
     }
@@ -80,7 +82,7 @@ class LightFlashTransformer : public LightTransformer {
         this->transformer_ = this->state_.get_output()->create_default_transition();
         this->transformer_->setup(this->state_.current_values, this->target_values_, this->transition_length_);
         this->last_transition_p_ = p + 0.5f;
-      } else if (p >= 0.5f && p < 1.0f) {
+      } else if (p >= this->transition_back_p_ && p < 1.0f) {
         // second transition back to start value
         this->transformer_ = this->state_.get_output()->create_default_transition();
         this->transformer_->setup(this->state_.current_values, this->get_start_values(), this->transition_length_);
@@ -101,7 +103,8 @@ class LightFlashTransformer : public LightTransformer {
 
  protected:
   LightState &state_;
-  float last_transition_p_;
+  float last_transition_p_{0.0};
+  float transition_back_p_;
   uint32_t transition_length_;
   std::unique_ptr<LightTransformer> transformer_{nullptr};
 };
