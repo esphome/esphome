@@ -136,8 +136,8 @@ async def to_code(config):
         if CONF_LINE_TYPE in trace:
             cg.add(tr.set_line_type(trace[CONF_LINE_TYPE]))
         if CONF_COLOR in trace:
-            color = await cg.get_variable(trace[CONF_COLOR])
-            cg.add(tr.set_line_color(color))
+            c = await cg.get_variable(trace[CONF_COLOR])
+            cg.add(tr.set_line_color(c))
         cg.add(var.add_trace(tr))
 
     cg.add_define("USE_GRAPH")
