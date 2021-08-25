@@ -158,6 +158,10 @@ void LightState::set_default_transition_length(uint32_t default_transition_lengt
   this->default_transition_length_ = default_transition_length;
 }
 uint32_t LightState::get_default_transition_length() const { return this->default_transition_length_; }
+void LightState::set_flash_transition_length(uint32_t flash_transition_length) {
+  this->flash_transition_length_ = flash_transition_length;
+}
+uint32_t LightState::get_flash_transition_length() const { return this->flash_transition_length_; }
 void LightState::set_gamma_correct(float gamma_correct) { this->gamma_correct_ = gamma_correct; }
 void LightState::set_restore_mode(LightRestoreMode restore_mode) { this->restore_mode_ = restore_mode; }
 bool LightState::supports_effects() { return !this->effects_.empty(); }
