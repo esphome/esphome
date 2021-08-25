@@ -22,7 +22,7 @@ void HistoryData::init(int length) {
   std::fill(data_, data_ + length_, NAN);
   this->last_sample_ = millis();
 }
-HistoryData::~HistoryData() { delete[] (this->data_); }
+HistoryData::~HistoryData() { delete[](this->data_); }
 
 void HistoryData::take_sample(float data) {
   if (data_ == nullptr)
