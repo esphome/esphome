@@ -55,8 +55,7 @@ void HistoryData::take_sample(float data) {
   }
 }
 
-void GraphTrace::init(Graph *g)
-{
+void GraphTrace::init(Graph *g) {
   ESP_LOGI(TAG, "Init trace for sensor %s", this->get_name().c_str());
   this->data_.init(g->get_width());
   sensor_->add_on_state_callback([this](float state) { this->data_.take_sample(state); });
@@ -77,8 +76,10 @@ void Graph::draw(DisplayBuffer *buff, uint16_t x_offset, uint16_t y_offset, Colo
   for (auto *trace : traces_) {
     float mx = trace->get_tracedata()->get_recent_max();
     float mn = trace->get_tracedata()->get_recent_min();
-    if (isnan(ymax) || (ymax < mx)) ymax = mx;
-    if (isnan(ymin) || (ymin > mn)) ymin = mn;
+    if (isnan(ymax) || (ymax < mx))
+      ymax = mx;
+    if (isnan(ymin) || (ymin > mn))
+      ymin = mn;
   }
   // Adjust if manually overridden
   if (!isnan(this->min_value_))
@@ -168,7 +169,7 @@ void Graph::draw(DisplayBuffer *buff, uint16_t x_offset, uint16_t y_offset, Colo
       if (!isnan(v) && (thick > 0)) {
         int16_t x = this->width_ - 1 - i;
         uint8_t b = (i % (thick * LineType::PATTERN_LENGTH)) / thick;
-        if (((uint8_t)trace->get_line_type() & (1 << b)) == (1 << b)) {
+        if (((uint8_t) trace->get_line_type() & (1 << b)) == (1 << b)) {
           int16_t y = (int16_t) roundf((this->height_ - 1) * (1.0 - v)) - thick / 2;
           for (int16_t t = 0; t < thick; t++) {
             buff->draw_pixel_at(x_offset + x, y_offset + y + t, c);

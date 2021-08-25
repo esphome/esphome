@@ -59,13 +59,14 @@ class GraphTrace {
   Color get_line_color() { return this->line_color_; }
   void set_line_color(Color val) { this->line_color_ = val; }
   const std::string get_name(void) { return sensor_->get_name(); }
-  const HistoryData* get_tracedata() { return &data_; }
+  const HistoryData *get_tracedata() { return &data_; }
+
  protected:
   sensor::Sensor *sensor_{nullptr};
   uint8_t line_thickness_{3};
-  enum LineType line_type_{LINE_TYPE_SOLID};
+  enum LineType line_type_ { LINE_TYPE_SOLID };
   Color line_color_{COLOR_ON};
-  HistoryData data_; 
+  HistoryData data_;
 };
 
 class Graph : public Component {
@@ -85,7 +86,7 @@ class Graph : public Component {
   void set_grid_x(float val) { this->gridspacing_x_ = val; }
   void set_grid_y(float val) { this->gridspacing_y_ = val; }
   void set_border(bool val) { this->border_ = val; }
-  void add_trace(GraphTrace* trace) {
+  void add_trace(GraphTrace *trace) {
     trace->init(this);
     traces_.push_back(trace);
   };
