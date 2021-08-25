@@ -42,5 +42,15 @@ template<typename... Ts> class BeeperOffAction : public MideaActionBase<Ts...> {
   void play(Ts... x) override { this->parent_->do_beeper_off(); }
 };
 
+template<typename... Ts> class PowerOnAction : public MideaActionBase<Ts...> {
+ public:
+  void play(Ts... x) override { this->parent_->do_power_on(); }
+};
+
+template<typename... Ts> class PowerOffAction : public MideaActionBase<Ts...> {
+ public:
+  void play(Ts... x) override { this->parent_->do_power_off(); }
+};
+
 }  // namespace midea
 }  // namespace esphome

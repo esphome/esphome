@@ -26,6 +26,8 @@ class AirConditioner : public ApplianceBase<dudanov::midea::ac::AirConditioner> 
   void do_swing_step();
   void do_beeper_on() { this->set_beeper_feedback(true); }
   void do_beeper_off() { this->set_beeper_feedback(false); }
+  void do_power_on() { this->base_.setPowerState(true); }
+  void do_power_off() { this->base_.setPowerState(false); }
 
  protected:
   void control(const ClimateCall &call) override;

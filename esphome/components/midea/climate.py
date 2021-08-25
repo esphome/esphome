@@ -160,6 +160,8 @@ DisplayToggleAction = midea_ns.class_("DisplayToggleAction", automation.Action)
 SwingStepAction = midea_ns.class_("SwingStepAction", automation.Action)
 BeeperOnAction = midea_ns.class_("BeeperOnAction", automation.Action)
 BeeperOffAction = midea_ns.class_("BeeperOffAction", automation.Action)
+PowerOnAction = midea_ns.class_("PowerOnAction", automation.Action)
+PowerOffAction = midea_ns.class_("PowerOffAction", automation.Action)
 
 MIDEA_ACTION_BASE_SCHEMA = cv.Schema(
     {
@@ -226,6 +228,26 @@ async def beeper_off_to_code(var, config, args):
     pass
 
 
+# Power On action
+@register_action(
+    "power_on",
+    PowerOnAction,
+    cv.Schema({}),
+)
+async def power_on_to_code(var, config, args):
+    pass
+
+
+# Power Off action
+@register_action(
+    "power_off",
+    PowerOffAction,
+    cv.Schema({}),
+)
+async def power_off_to_code(var, config, args):
+    pass
+
+
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
@@ -259,4 +281,4 @@ async def to_code(config):
     if CONF_HUMIDITY_SETPOINT in config:
         sens = await sensor.new_sensor(config[CONF_HUMIDITY_SETPOINT])
         cg.add(var.set_humidity_setpoint_sensor(sens))
-    cg.add_library("dudanov/MideaUART", "^1.0.3")
+    cg.add_library("dudanov/MideaUART", "^1.1.0")
