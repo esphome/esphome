@@ -8,26 +8,23 @@ namespace light {
 static const char *const TAG = "light";
 
 static const char *color_mode_to_human(ColorMode color_mode) {
-  switch (color_mode) {
-    case ColorMode::UNKNOWN:
-      return "Unknown";
-    case ColorMode::WHITE:
-      return "White";
-    case ColorMode::COLOR_TEMPERATURE:
-      return "Color temperature";
-    case ColorMode::COLD_WARM_WHITE:
-      return "Cold/warm white";
-    case ColorMode::RGB:
-      return "RGB";
-    case ColorMode::RGB_WHITE:
-      return "RGBW";
-    case ColorMode::RGB_COLD_WARM_WHITE:
-      return "RGB + cold/warm white";
-    case ColorMode::RGB_COLOR_TEMPERATURE:
-      return "RGB + color temperature";
-    default:
-      return "";
-  }
+  if (color_mode == ColorMode::UNKNOWN)
+    return "Unknown";
+  if (color_mode == ColorMode::WHITE)
+    return "White";
+  if (color_mode == ColorMode::COLOR_TEMPERATURE)
+    return "Color temperature";
+  if (color_mode == ColorMode::COLD_WARM_WHITE)
+    return "Cold/warm white";
+  if (color_mode == ColorMode::RGB)
+    return "RGB";
+  if (color_mode == ColorMode::RGB_WHITE)
+    return "RGBW";
+  if (color_mode == ColorMode::RGB_COLD_WARM_WHITE)
+    return "RGB + cold/warm white";
+  if (color_mode == ColorMode::RGB_COLOR_TEMPERATURE)
+    return "RGB + color temperature";
+  return "";
 }
 
 void LightCall::perform() {

@@ -114,9 +114,11 @@ void LightState::loop() {
   // Apply transformer (if any)
   if (this->transformer_ != nullptr) {
     auto values = this->transformer_->apply();
-    this->next_write_ = values.has_value();  // don't write if transformer doesn't want us to
-    if (values.has_value())
+    if (values.has_value()) {
       this->current_values = *values;
+      this->output_->update_state(this);
+      this->next_write_ = true;
+    }
 
     if (this->transformer_->is_finished()) {
       this->transformer_->stop();
@@ -127,18 +129,15 @@ void LightState::loop() {
 
   // Write state to the light
   if (this->next_write_) {
-    this->output_->write_state(this);
     this->next_write_ = false;
+    this->output_->write_state(this);
   }
 }
 
 float LightState::get_setup_priority() const { return setup_priority::HARDWARE - 1.0f; }
 uint32_t LightState::hash_base() { return 1114400283; }
 
-void LightState::publish_state() {
-  this->remote_values_callback_.call();
-  this->next_write_ = true;
-}
+void LightState::publish_state() { this->remote_values_callback_.call(); }
 
 LightOutput *LightState::get_output() const { return this->output_; }
 std::string LightState::get_effect_name() {
@@ -248,6 +247,7 @@ void LightState::set_immediately_(const LightColorValues &target, bool set_remot
   if (set_remote_values) {
     this->remote_values = target;
   }
+  this->output_->update_state(this);
   this->next_write_ = true;
 }
 
