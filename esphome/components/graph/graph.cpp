@@ -1,5 +1,6 @@
 #include "graph.h"
 #include "esphome/components/display/display_buffer.h"
+#include "esphome/core/color.h"
 #include "esphome/core/log.h"
 #include "esphome/core/esphal.h"
 #include <algorithm>
@@ -37,7 +38,7 @@ void HistoryData::take_sample(float data) {
     this->data_[this->count_] = data;
     this->period_ -= this->update_time_;
     this->count_ = (this->count_ + 1) % this->length_;
-    ESP_LOGV(TAG, "Updating graph with value: %f", data);
+    ESP_LOGI(TAG, "Updating trace with value: %f", data);
   }
   if (!isnan(data)) {
     // Recalc recent max/min
@@ -54,6 +55,14 @@ void HistoryData::take_sample(float data) {
   }
 }
 
+void GraphTrace::init(Graph *g)
+{
+  ESP_LOGI(TAG, "Init trace for sensor %s", this->get_name().c_str());
+  this->data_.init(g->get_width());
+  sensor_->add_on_state_callback([this](float state) { this->data_.take_sample(state); });
+  this->data_.set_update_time_ms(g->get_duration() * 1000 / g->get_width());
+}
+
 void Graph::draw(DisplayBuffer *buff, uint16_t x_offset, uint16_t y_offset, Color color) {
   /// Plot border
   if (this->border_) {
@@ -63,9 +72,14 @@ void Graph::draw(DisplayBuffer *buff, uint16_t x_offset, uint16_t y_offset, Colo
     buff->vertical_line(x_offset + this->width_ - 1, y_offset, this->height_, color);
   }
   /// Determine best y-axis scale and range
-  float ymin = this->data_.get_recent_min();
-  float ymax = this->data_.get_recent_max();
-
+  float ymin = NAN;
+  float ymax = NAN;
+  for (auto *trace : traces_) {
+    float mx = trace->get_tracedata()->get_recent_max();
+    float mn = trace->get_tracedata()->get_recent_min();
+    if (isnan(ymax) || (ymax < mx)) ymax = mx;
+    if (isnan(ymin) || (ymin > mn)) ymin = mn;
+  }
   // Adjust if manually overridden
   if (!isnan(this->min_value_))
     ymin = this->min_value_;
@@ -74,20 +88,22 @@ void Graph::draw(DisplayBuffer *buff, uint16_t x_offset, uint16_t y_offset, Colo
 
   float yrange = ymax - ymin;
   if (yrange > this->max_range_) {
-    // Look back in data to fit into local range
+    // Look back in trace data to best-fit into local range
     float mx = NAN;
     float mn = NAN;
-    for (int16_t i = 0; i < this->data_.get_length(); i++) {
-      float v = this->data_.get_value(i);
-      if (!isnan(v)) {
-        if ((v - mn) > this->max_range_)
-          break;
-        if ((mx - v) > this->max_range_)
-          break;
-        if (isnan(mx) || (v > mx))
-          mx = v;
-        if (isnan(mn) || (v < mn))
-          mn = v;
+    for (int16_t i = 0; i < this->width_; i++) {
+      for (auto *trace : traces_) {
+        float v = trace->get_tracedata()->get_value(i);
+        if (!isnan(v)) {
+          if ((v - mn) > this->max_range_)
+            break;
+          if ((mx - v) > this->max_range_)
+            break;
+          if (isnan(mx) || (v > mx))
+            mx = v;
+          if (isnan(mn) || (v < mn))
+            mn = v;
+        }
       }
     }
     yrange = this->max_range_;
@@ -122,7 +138,7 @@ void Graph::draw(DisplayBuffer *buff, uint16_t x_offset, uint16_t y_offset, Colo
     for (int y = yn; y <= ym; y++) {
       int16_t py = (int16_t) roundf((this->height_ - 1) * (1.0 - (float) (y - yn) / (ym - yn)));
       for (int x = 0; x < this->width_; x += 2) {
-        buff->draw_pixel_at(x_offset + x, y_offset + py);
+        buff->draw_pixel_at(x_offset + x, y_offset + py, color);
       }
     }
   }
@@ -137,32 +153,43 @@ void Graph::draw(DisplayBuffer *buff, uint16_t x_offset, uint16_t y_offset, Colo
     }
     for (int i = 0; i <= n; i++) {
       for (int y = 0; y < this->height_; y += 2) {
-        buff->draw_pixel_at(x_offset + i * (this->width_ - 1) / n, y_offset + y);
+        buff->draw_pixel_at(x_offset + i * (this->width_ - 1) / n, y_offset + y, color);
       }
     }
   }
-  ESP_LOGI(TAG, "Updating graph. Last sample %f, ymin %f, ymax %f", this->data_.get_value(0), ymin, ymax);
-  /// Draw data trace
-  for (int16_t i = 0; i < this->data_.get_length(); i++) {
-    float v = (this->data_.get_value(i) - ymin) / yrange;
-    if (!isnan(v) && (this->line_thickness_ > 0)) {
-      int16_t x = this->width_ - 1 - i;
-      uint8_t b = (i % (this->line_thickness_ * LineType::PATTERN_LENGTH)) / this->line_thickness_;
-      if ((this->line_type_ & (1 << b)) == (1 << b)) {
-        int16_t y = (int16_t) roundf((this->height_ - 1) * (1.0 - v)) - this->line_thickness_ / 2;
-        for (int16_t t = 0; t < this->line_thickness_; t++) {
-          buff->draw_pixel_at(x_offset + x, y_offset + y + t);
+
+  /// Draw traces
+  ESP_LOGI(TAG, "Updating graph. ymin %f, ymax %f", ymin, ymax);
+  for (auto *trace : traces_) {
+    Color c = trace->get_line_color();
+    uint16_t thick = trace->get_line_thickness();
+    for (int16_t i = 0; i < this->width_; i++) {
+      float v = (trace->get_tracedata()->get_value(i) - ymin) / yrange;
+      if (!isnan(v) && (thick > 0)) {
+        int16_t x = this->width_ - 1 - i;
+        uint8_t b = (i % (thick * LineType::PATTERN_LENGTH)) / thick;
+        if (((uint8_t)trace->get_line_type() & (1 << b)) == (1 << b)) {
+          int16_t y = (int16_t) roundf((this->height_ - 1) * (1.0 - v)) - thick / 2;
+          for (int16_t t = 0; t < thick; t++) {
+            buff->draw_pixel_at(x_offset + x, y_offset + y + t, c);
+          }
         }
       }
     }
   }
 }
+
 void Graph::setup() {
-  this->data_.init(this->width_);
-  sensor_->add_on_state_callback([this](float state) { this->data_.take_sample(state); });
-  this->data_.set_update_time_ms(this->duration_ * 1000 / this->width_);
+  for (auto *trace : traces_) {
+    trace->init(this);
+  }
 }
-void Graph::dump_config() { ESP_LOGCONFIG(TAG, "Graph for sensor %s", sensor_->get_name().c_str()); }
+
+void Graph::dump_config() {
+  for (auto *trace : traces_) {
+    ESP_LOGCONFIG(TAG, "Graph for sensor %s", trace->get_name().c_str());
+  }
+}
 
 }  // namespace graph
 }  // namespace esphome
