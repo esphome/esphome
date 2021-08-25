@@ -28,12 +28,12 @@ from esphome.const import (
     UNIT_AMPERE,
     UNIT_DEGREES,
     UNIT_HERTZ,
+    UNIT_KILOVOLT_AMPS_REACTIVE_HOURS,
+    UNIT_KILOWATT_HOURS,
     UNIT_VOLT,
     UNIT_VOLT_AMPS,
     UNIT_VOLT_AMPS_REACTIVE,
-    UNIT_VOLT_AMPS_REACTIVE_HOURS,
     UNIT_WATT,
-    UNIT_WATT_HOURS,
 )
 
 AUTO_LOAD = ["modbus"]
@@ -101,28 +101,28 @@ CONFIG_SCHEMA = (
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_IMPORT_ACTIVE_ENERGY): sensor.sensor_schema(
-                unit_of_measurement=UNIT_WATT_HOURS,
+                unit_of_measurement=UNIT_KILOWATT_HOURS,
                 accuracy_decimals=2,
                 device_class=DEVICE_CLASS_ENERGY,
                 state_class=STATE_CLASS_MEASUREMENT,
                 last_reset_type=LAST_RESET_TYPE_AUTO,
             ),
             cv.Optional(CONF_EXPORT_ACTIVE_ENERGY): sensor.sensor_schema(
-                unit_of_measurement=UNIT_WATT_HOURS,
+                unit_of_measurement=UNIT_KILOWATT_HOURS,
                 accuracy_decimals=2,
                 device_class=DEVICE_CLASS_ENERGY,
                 state_class=STATE_CLASS_MEASUREMENT,
                 last_reset_type=LAST_RESET_TYPE_AUTO,
             ),
             cv.Optional(CONF_IMPORT_REACTIVE_ENERGY): sensor.sensor_schema(
-                unit_of_measurement=UNIT_VOLT_AMPS_REACTIVE_HOURS,
+                unit_of_measurement=UNIT_KILOVOLT_AMPS_REACTIVE_HOURS,
                 accuracy_decimals=2,
                 device_class=DEVICE_CLASS_ENERGY,
                 state_class=STATE_CLASS_MEASUREMENT,
                 last_reset_type=LAST_RESET_TYPE_AUTO,
             ),
             cv.Optional(CONF_EXPORT_REACTIVE_ENERGY): sensor.sensor_schema(
-                unit_of_measurement=UNIT_VOLT_AMPS_REACTIVE_HOURS,
+                unit_of_measurement=UNIT_KILOVOLT_AMPS_REACTIVE_HOURS,
                 accuracy_decimals=2,
                 device_class=DEVICE_CLASS_ENERGY,
                 state_class=STATE_CLASS_MEASUREMENT,
