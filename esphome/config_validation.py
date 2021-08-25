@@ -1354,7 +1354,7 @@ def file_(value):
             "Path '{}' is not a file (full path: {})."
             "".format(path, os.path.abspath(path))
         )
-    return path
+    return value
 
 
 ENTITY_ID_CHARACTERS = "abcdefghijklmnopqrstuvwxyz0123456789_"
