@@ -65,7 +65,9 @@ void MQTTFanComponent::setup() {
 
   if (this->state_->get_traits().supports_speed()) {
     this->subscribe(this->get_speed_command_topic(), [this](const std::string &topic, const std::string &payload) {
-      this->state_->make_call().set_speed(payload.c_str()).perform();
+      this->state_->make_call()
+          .set_speed(payload.c_str())  // NOLINT(clang-diagnostic-deprecated-declarations)
+          .perform();
     });
   }
 
@@ -99,16 +101,16 @@ bool MQTTFanComponent::publish_state() {
   if (traits.supports_speed()) {
     const char *payload;
     switch (fan::speed_level_to_enum(this->state_->speed, traits.supported_speed_count())) {
-      case FAN_SPEED_LOW: {
+      case FAN_SPEED_LOW: {  // NOLINT(clang-diagnostic-deprecated-declarations)
         payload = "low";
         break;
       }
-      case FAN_SPEED_MEDIUM: {
+      case FAN_SPEED_MEDIUM: {  // NOLINT(clang-diagnostic-deprecated-declarations)
         payload = "medium";
         break;
       }
       default:
-      case FAN_SPEED_HIGH: {
+      case FAN_SPEED_HIGH: {  // NOLINT(clang-diagnostic-deprecated-declarations)
         payload = "high";
         break;
       }

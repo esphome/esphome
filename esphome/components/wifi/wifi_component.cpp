@@ -164,7 +164,7 @@ void WiFiComponent::loop() {
 
 WiFiComponent::WiFiComponent() { global_wifi_component = this; }
 
-bool WiFiComponent::has_ap() const { return !this->ap_.get_ssid().empty(); }
+bool WiFiComponent::has_ap() const { return this->has_ap_; }
 bool WiFiComponent::has_sta() const { return !this->sta_.empty(); }
 void WiFiComponent::set_fast_connect(bool fast_connect) { this->fast_connect_ = fast_connect; }
 IPAddress WiFiComponent::get_ip_address() {
@@ -186,6 +186,18 @@ void WiFiComponent::setup_ap_config_() {
 
   if (this->ap_setup_)
     return;
+
+  if (this->ap_.get_ssid().empty()) {
+    std::string name = App.get_name();
+    if (name.length() > 32) {
+      if (App.is_name_add_mac_suffix_enabled()) {
+        name.erase(name.begin() + 25, name.end() - 7);  // Remove characters between 25 and the mac address
+      } else {
+        name = name.substr(0, 32);
+      }
+    }
+    this->ap_.set_ssid(name);
+  }
 
   ESP_LOGCONFIG(TAG, "Setting up AP...");
 
@@ -212,7 +224,10 @@ void WiFiComponent::setup_ap_config_() {
 float WiFiComponent::get_loop_priority() const {
   return 10.0f;  // before other loop components
 }
-void WiFiComponent::set_ap(const WiFiAP &ap) { this->ap_ = ap; }
+void WiFiComponent::set_ap(const WiFiAP &ap) {
+  this->ap_ = ap;
+  this->has_ap_ = true;
+}
 void WiFiComponent::add_sta(const WiFiAP &ap) { this->sta_.push_back(ap); }
 void WiFiComponent::set_sta(const WiFiAP &ap) {
   this->clear_sta();
@@ -243,7 +258,7 @@ void WiFiComponent::start_connecting(const WiFiAP &ap, bool two) {
     ESP_LOGV(TAG, "  BSSID: Not Set");
   }
 
-#ifdef ESPHOME_WIFI_WPA2_EAP
+#ifdef USE_WIFI_WPA2_EAP
   if (ap.get_eap().has_value()) {
     ESP_LOGV(TAG, "  WPA2 Enterprise authentication configured:");
     EAPAuth eap_config = ap.get_eap().value();
@@ -259,7 +274,7 @@ void WiFiComponent::start_connecting(const WiFiAP &ap, bool two) {
   } else {
 #endif
     ESP_LOGV(TAG, "  Password: " LOG_SECRET("'%s'"), ap.get_password().c_str());
-#ifdef ESPHOME_WIFI_WPA2_EAP
+#ifdef USE_WIFI_WPA2_EAP
   }
 #endif
   if (ap.get_channel().has_value()) {
@@ -463,7 +478,7 @@ void WiFiComponent::check_scanning_finished() {
     // copy manual IP (if set)
     connect_params.set_manual_ip(config.get_manual_ip());
 
-#ifdef ESPHOME_WIFI_WPA2_EAP
+#ifdef USE_WIFI_WPA2_EAP
     // copy EAP parameters (if set)
     connect_params.set_eap(config.get_eap());
 #endif
@@ -623,8 +638,8 @@ void WiFiAP::set_ssid(const std::string &ssid) { this->ssid_ = ssid; }
 void WiFiAP::set_bssid(bssid_t bssid) { this->bssid_ = bssid; }
 void WiFiAP::set_bssid(optional<bssid_t> bssid) { this->bssid_ = bssid; }
 void WiFiAP::set_password(const std::string &password) { this->password_ = password; }
-#ifdef ESPHOME_WIFI_WPA2_EAP
-void WiFiAP::set_eap(optional<EAPAuth> eap_auth) { this->eap_ = eap_auth; }
+#ifdef USE_WIFI_WPA2_EAP
+void WiFiAP::set_eap(optional<EAPAuth> eap_auth) { this->eap_ = std::move(eap_auth); }
 #endif
 void WiFiAP::set_channel(optional<uint8_t> channel) { this->channel_ = channel; }
 void WiFiAP::set_manual_ip(optional<ManualIP> manual_ip) { this->manual_ip_ = std::move(manual_ip); }
@@ -632,7 +647,7 @@ void WiFiAP::set_hidden(bool hidden) { this->hidden_ = hidden; }
 const std::string &WiFiAP::get_ssid() const { return this->ssid_; }
 const optional<bssid_t> &WiFiAP::get_bssid() const { return this->bssid_; }
 const std::string &WiFiAP::get_password() const { return this->password_; }
-#ifdef ESPHOME_WIFI_WPA2_EAP
+#ifdef USE_WIFI_WPA2_EAP
 const optional<EAPAuth> &WiFiAP::get_eap() const { return this->eap_; }
 #endif
 const optional<uint8_t> &WiFiAP::get_channel() const { return this->channel_; }
@@ -664,7 +679,7 @@ bool WiFiScanResult::matches(const WiFiAP &config) {
   if (config.get_bssid().has_value() && *config.get_bssid() != this->bssid_)
     return false;
 
-#ifdef ESPHOME_WIFI_WPA2_EAP
+#ifdef USE_WIFI_WPA2_EAP
   // BSSID requires auth but no PSK or EAP credentials given
   if (this->with_auth_ && (config.get_password().empty() && !config.get_eap().has_value()))
     return false;

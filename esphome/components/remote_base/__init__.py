@@ -176,7 +176,9 @@ validate_binary_sensor = cv.validate_registry_entry(
 TRIGGER_REGISTRY = SimpleRegistry()
 DUMPER_REGISTRY = Registry(
     {
-        cv.GenerateID(CONF_RECEIVER_ID): cv.use_id(RemoteReceiverBase),
+        cv.Optional(CONF_RECEIVER_ID): cv.invalid(
+            "This has been removed in ESPHome 1.20.0 and the dumper attaches directly to the parent receiver."
+        ),
     }
 )
 
@@ -228,10 +230,51 @@ async def build_dumpers(config):
     dumpers = []
     for conf in config:
         dumper = await cg.build_registry_entry(DUMPER_REGISTRY, conf)
-        receiver = await cg.get_variable(conf[CONF_RECEIVER_ID])
-        cg.add(receiver.register_dumper(dumper))
         dumpers.append(dumper)
     return dumpers
+
+
+# Dish
+DishData, DishBinarySensor, DishTrigger, DishAction, DishDumper = declare_protocol(
+    "Dish"
+)
+DISH_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_ADDRESS, default=1): cv.int_range(min=1, max=16),
+        cv.Required(CONF_COMMAND): cv.int_range(min=0, max=63),
+    }
+)
+
+
+@register_binary_sensor("dish", DishBinarySensor, DISH_SCHEMA)
+def dish_binary_sensor(var, config):
+    cg.add(
+        var.set_data(
+            cg.StructInitializer(
+                DishData,
+                ("address", config[CONF_ADDRESS]),
+                ("command", config[CONF_COMMAND]),
+            )
+        )
+    )
+
+
+@register_trigger("dish", DishTrigger, DishData)
+def dish_trigger(var, config):
+    pass
+
+
+@register_dumper("dish", DishDumper)
+def dish_dumper(var, config):
+    pass
+
+
+@register_action("dish", DishAction, DISH_SCHEMA)
+async def dish_action(var, config, args):
+    template_ = await cg.templatable(config[CONF_ADDRESS], args, cg.uint8)
+    cg.add(var.set_address(template_))
+    template_ = await cg.templatable(config[CONF_COMMAND], args, cg.uint8)
+    cg.add(var.set_command(template_))
 
 
 # JVC
@@ -948,6 +991,53 @@ async def samsung36_action(var, config, args):
     cg.add(var.set_address(template_))
     template_ = await cg.templatable(config[CONF_COMMAND], args, cg.uint32)
     cg.add(var.set_command(template_))
+
+
+# Toshiba AC
+(
+    ToshibaAcData,
+    ToshibaAcBinarySensor,
+    ToshibaAcTrigger,
+    ToshibaAcAction,
+    ToshibaAcDumper,
+) = declare_protocol("ToshibaAc")
+TOSHIBAAC_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_RC_CODE_1): cv.hex_uint64_t,
+        cv.Optional(CONF_RC_CODE_2, default=0): cv.hex_uint64_t,
+    }
+)
+
+
+@register_binary_sensor("toshiba_ac", ToshibaAcBinarySensor, TOSHIBAAC_SCHEMA)
+def toshibaac_binary_sensor(var, config):
+    cg.add(
+        var.set_data(
+            cg.StructInitializer(
+                ToshibaAcData,
+                ("rc_code_1", config[CONF_RC_CODE_1]),
+                ("rc_code_2", config[CONF_RC_CODE_2]),
+            )
+        )
+    )
+
+
+@register_trigger("toshiba_ac", ToshibaAcTrigger, ToshibaAcData)
+def toshibaac_trigger(var, config):
+    pass
+
+
+@register_dumper("toshiba_ac", ToshibaAcDumper)
+def toshibaac_dumper(var, config):
+    pass
+
+
+@register_action("toshiba_ac", ToshibaAcAction, TOSHIBAAC_SCHEMA)
+async def toshibaac_action(var, config, args):
+    template_ = await cg.templatable(config[CONF_RC_CODE_1], args, cg.uint64)
+    cg.add(var.set_rc_code_1(template_))
+    template_ = await cg.templatable(config[CONF_RC_CODE_2], args, cg.uint64)
+    cg.add(var.set_rc_code_2(template_))
 
 
 # Panasonic

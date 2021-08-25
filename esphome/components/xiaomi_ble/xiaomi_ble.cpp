@@ -104,7 +104,7 @@ bool parse_xiaomi_message(const std::vector<uint8_t> &message, XiaomiParseResult
   }
 
   while (payload_length > 3) {
-    if (payload[payload_offset + 1] != 0x10) {
+    if (payload[payload_offset + 1] != 0x10 && payload[payload_offset + 1] != 0x00) {
       ESP_LOGVV(TAG, "parse_xiaomi_message(): fixed byte not found, stop parsing residual data.");
       break;
     }
@@ -203,6 +203,11 @@ optional<XiaomiParseResult> parse_xiaomi_header(const esp32_ble_tracker::Service
   } else if ((raw[2] == 0x87) && (raw[3] == 0x03)) {  // square body, e-ink display
     result.type = XiaomiParseResult::TYPE_MHOC401;
     result.name = "MHOC401";
+  } else if ((raw[2] == 0x83) && (raw[3] == 0x0A)) {  // Qingping-branded, motion & ambient light sensor
+    result.type = XiaomiParseResult::TYPE_CGPR1;
+    result.name = "CGPR1";
+    if (raw.size() == 19)
+      result.raw_offset -= 6;
   } else {
     ESP_LOGVV(TAG, "parse_xiaomi_header(): unknown device, no magic bytes.");
     return {};
@@ -344,9 +349,9 @@ bool report_xiaomi_results(const optional<XiaomiParseResult> &result, const std:
 bool XiaomiListener::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
   // Previously the message was parsed twice per packet, once by XiaomiListener::parse_device()
   // and then again by the respective device class's parse_device() function. Parsing the header
-  // here and then for each device seems to be unneccessary and complicates the duplicate packet filtering.
+  // here and then for each device seems to be unnecessary and complicates the duplicate packet filtering.
   // Hence I disabled the call to parse_xiaomi_header() here and the message parsing is done entirely
-  // in the respecive device instance. The XiaomiListener class is defined in __init__.py and I was not
+  // in the respective device instance. The XiaomiListener class is defined in __init__.py and I was not
   // able to remove it entirely.
 
   return false;  // with true it's not showing device scans

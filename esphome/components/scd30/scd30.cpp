@@ -55,7 +55,7 @@ void SCD30Component::setup() {
   // According ESP32 clock stretching is typically 30ms and up to 150ms "due to
   // internal calibration processes". The I2C peripheral only supports 13ms (at
   // least when running at 80MHz).
-  // In practise it seems that clock stretching occures during this calibration
+  // In practise it seems that clock stretching occurs during this calibration
   // calls. It also seems that delays in between calls makes them
   // disappear/shorter. Hence work around with delays for ESP32.
   //

@@ -1,5 +1,4 @@
 import math
-from typing import Optional
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
@@ -11,12 +10,14 @@ from esphome.const import (
     CONF_ACCURACY_DECIMALS,
     CONF_ALPHA,
     CONF_BELOW,
+    CONF_DISABLED_BY_DEFAULT,
     CONF_EXPIRE_AFTER,
     CONF_FILTERS,
     CONF_FROM,
     CONF_ICON,
     CONF_ID,
     CONF_INTERNAL,
+    CONF_LAST_RESET_TYPE,
     CONF_ON_RAW_VALUE,
     CONF_ON_VALUE,
     CONF_ON_VALUE_RANGE,
@@ -30,16 +31,19 @@ from esphome.const import (
     CONF_NAME,
     CONF_MQTT_ID,
     CONF_FORCE_UPDATE,
-    UNIT_EMPTY,
-    ICON_EMPTY,
+    LAST_RESET_TYPE_AUTO,
+    LAST_RESET_TYPE_NEVER,
+    LAST_RESET_TYPE_NONE,
     DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_BATTERY,
     DEVICE_CLASS_CARBON_MONOXIDE,
     DEVICE_CLASS_CARBON_DIOXIDE,
     DEVICE_CLASS_CURRENT,
     DEVICE_CLASS_ENERGY,
+    DEVICE_CLASS_GAS,
     DEVICE_CLASS_HUMIDITY,
     DEVICE_CLASS_ILLUMINANCE,
+    DEVICE_CLASS_MONETARY,
     DEVICE_CLASS_SIGNAL_STRENGTH,
     DEVICE_CLASS_TEMPERATURE,
     DEVICE_CLASS_POWER,
@@ -47,7 +51,6 @@ from esphome.const import (
     DEVICE_CLASS_PRESSURE,
     DEVICE_CLASS_TIMESTAMP,
     DEVICE_CLASS_VOLTAGE,
-    STATE_CLASS_NONE,
 )
 from esphome.core import CORE, coroutine_with_priority
 from esphome.util import Registry
@@ -60,8 +63,10 @@ DEVICE_CLASSES = [
     DEVICE_CLASS_CARBON_DIOXIDE,
     DEVICE_CLASS_CURRENT,
     DEVICE_CLASS_ENERGY,
+    DEVICE_CLASS_GAS,
     DEVICE_CLASS_HUMIDITY,
     DEVICE_CLASS_ILLUMINANCE,
+    DEVICE_CLASS_MONETARY,
     DEVICE_CLASS_SIGNAL_STRENGTH,
     DEVICE_CLASS_TEMPERATURE,
     DEVICE_CLASS_TIMESTAMP,
@@ -76,8 +81,18 @@ StateClasses = sensor_ns.enum("StateClass")
 STATE_CLASSES = {
     "": StateClasses.STATE_CLASS_NONE,
     "measurement": StateClasses.STATE_CLASS_MEASUREMENT,
+    "total_increasing": StateClasses.STATE_CLASS_TOTAL_INCREASING,
 }
 validate_state_class = cv.enum(STATE_CLASSES, lower=True, space="_")
+
+LastResetTypes = sensor_ns.enum("LastResetType")
+LAST_RESET_TYPES = {
+    LAST_RESET_TYPE_NONE: LastResetTypes.LAST_RESET_TYPE_NONE,
+    LAST_RESET_TYPE_NEVER: LastResetTypes.LAST_RESET_TYPE_NEVER,
+    LAST_RESET_TYPE_AUTO: LastResetTypes.LAST_RESET_TYPE_AUTO,
+}
+validate_last_reset_type = cv.enum(LAST_RESET_TYPES, lower=True, space="_")
+
 
 IS_PLATFORM_COMPONENT = True
 
@@ -154,20 +169,21 @@ CalibrateLinearFilter = sensor_ns.class_("CalibrateLinearFilter", Filter)
 CalibratePolynomialFilter = sensor_ns.class_("CalibratePolynomialFilter", Filter)
 SensorInRangeCondition = sensor_ns.class_("SensorInRangeCondition", Filter)
 
-unit_of_measurement = cv.string_strict
-accuracy_decimals = cv.int_
-icon = cv.icon
-device_class = cv.one_of(*DEVICE_CLASSES, lower=True, space="_")
+validate_unit_of_measurement = cv.string_strict
+validate_accuracy_decimals = cv.int_
+validate_icon = cv.icon
+validate_device_class = cv.one_of(*DEVICE_CLASSES, lower=True, space="_")
 
-SENSOR_SCHEMA = cv.MQTT_COMPONENT_SCHEMA.extend(
+SENSOR_SCHEMA = cv.NAMEABLE_SCHEMA.extend(cv.MQTT_COMPONENT_SCHEMA).extend(
     {
         cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTSensorComponent),
         cv.GenerateID(): cv.declare_id(Sensor),
-        cv.Optional(CONF_UNIT_OF_MEASUREMENT): unit_of_measurement,
-        cv.Optional(CONF_ICON): icon,
-        cv.Optional(CONF_ACCURACY_DECIMALS): accuracy_decimals,
-        cv.Optional(CONF_DEVICE_CLASS): device_class,
+        cv.Optional(CONF_UNIT_OF_MEASUREMENT): validate_unit_of_measurement,
+        cv.Optional(CONF_ICON): validate_icon,
+        cv.Optional(CONF_ACCURACY_DECIMALS): validate_accuracy_decimals,
+        cv.Optional(CONF_DEVICE_CLASS): validate_device_class,
         cv.Optional(CONF_STATE_CLASS): validate_state_class,
+        cv.Optional(CONF_LAST_RESET_TYPE): validate_last_reset_type,
         cv.Optional(CONF_FORCE_UPDATE, default=False): cv.boolean,
         cv.Optional(CONF_EXPIRE_AFTER): cv.All(
             cv.requires_component("mqtt"),
@@ -195,40 +211,55 @@ SENSOR_SCHEMA = cv.MQTT_COMPONENT_SCHEMA.extend(
     }
 )
 
+_UNDEF = object()
+
 
 def sensor_schema(
-    unit_of_measurement_: str,
-    icon_: str,
-    accuracy_decimals_: int,
-    device_class_: Optional[str] = DEVICE_CLASS_EMPTY,
-    state_class_: Optional[str] = STATE_CLASS_NONE,
+    unit_of_measurement: str = _UNDEF,
+    icon: str = _UNDEF,
+    accuracy_decimals: int = _UNDEF,
+    device_class: str = _UNDEF,
+    state_class: str = _UNDEF,
+    last_reset_type: str = _UNDEF,
 ) -> cv.Schema:
     schema = SENSOR_SCHEMA
-    if unit_of_measurement_ != UNIT_EMPTY:
+    if unit_of_measurement is not _UNDEF:
         schema = schema.extend(
             {
                 cv.Optional(
-                    CONF_UNIT_OF_MEASUREMENT, default=unit_of_measurement_
-                ): unit_of_measurement
+                    CONF_UNIT_OF_MEASUREMENT, default=unit_of_measurement
+                ): validate_unit_of_measurement
             }
         )
-    if icon_ != ICON_EMPTY:
-        schema = schema.extend({cv.Optional(CONF_ICON, default=icon_): icon})
-    if accuracy_decimals_ != 0:
+    if icon is not _UNDEF:
+        schema = schema.extend({cv.Optional(CONF_ICON, default=icon): validate_icon})
+    if accuracy_decimals is not _UNDEF:
         schema = schema.extend(
             {
                 cv.Optional(
-                    CONF_ACCURACY_DECIMALS, default=accuracy_decimals_
-                ): accuracy_decimals,
+                    CONF_ACCURACY_DECIMALS, default=accuracy_decimals
+                ): validate_accuracy_decimals,
             }
         )
-    if device_class_ != DEVICE_CLASS_EMPTY:
+    if device_class is not _UNDEF:
         schema = schema.extend(
-            {cv.Optional(CONF_DEVICE_CLASS, default=device_class_): device_class}
+            {
+                cv.Optional(
+                    CONF_DEVICE_CLASS, default=device_class
+                ): validate_device_class
+            }
         )
-    if state_class_ != STATE_CLASS_NONE:
+    if state_class is not _UNDEF:
         schema = schema.extend(
-            {cv.Optional(CONF_STATE_CLASS, default=state_class_): validate_state_class}
+            {cv.Optional(CONF_STATE_CLASS, default=state_class): validate_state_class}
+        )
+    if last_reset_type is not _UNDEF:
+        schema = schema.extend(
+            {
+                cv.Optional(
+                    CONF_LAST_RESET_TYPE, default=last_reset_type
+                ): validate_last_reset_type
+            }
         )
     return schema
 
@@ -467,6 +498,7 @@ async def build_filters(config):
 
 async def setup_sensor_core_(var, config):
     cg.add(var.set_name(config[CONF_NAME]))
+    cg.add(var.set_disabled_by_default(config[CONF_DISABLED_BY_DEFAULT]))
     if CONF_INTERNAL in config:
         cg.add(var.set_internal(config[CONF_INTERNAL]))
     if CONF_DEVICE_CLASS in config:
@@ -479,6 +511,8 @@ async def setup_sensor_core_(var, config):
         cg.add(var.set_icon(config[CONF_ICON]))
     if CONF_ACCURACY_DECIMALS in config:
         cg.add(var.set_accuracy_decimals(config[CONF_ACCURACY_DECIMALS]))
+    if CONF_LAST_RESET_TYPE in config:
+        cg.add(var.set_last_reset_type(config[CONF_LAST_RESET_TYPE]))
     cg.add(var.set_force_update(config[CONF_FORCE_UPDATE]))
     if config.get(CONF_FILTERS):  # must exist and not be empty
         filters = await build_filters(config[CONF_FILTERS])

@@ -8,6 +8,10 @@
 
 #include <cstdlib>
 
+#ifdef USE_LIGHT
+#include "esphome/components/light/light_json_schema.h"
+#endif
+
 #ifdef USE_LOGGER
 #include <esphome/components/logger/logger.h>
 #endif
@@ -119,6 +123,18 @@ void WebServer::setup() {
       if (!obj->is_internal())
         client->send(this->cover_json(obj).c_str(), "state");
 #endif
+
+#ifdef USE_NUMBER
+    for (auto *obj : App.get_numbers())
+      if (!obj->is_internal())
+        client->send(this->number_json(obj, obj->state).c_str(), "state");
+#endif
+
+#ifdef USE_SELECT
+    for (auto *obj : App.get_selects())
+      if (!obj->is_internal())
+        client->send(this->select_json(obj, obj->state).c_str(), "state");
+#endif
   });
 
 #ifdef USE_LOGGER
@@ -194,6 +210,16 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
 #ifdef USE_COVER
   for (auto *obj : App.get_covers())
     write_row(stream, obj, "cover", "<button>Open</button><button>Close</button>");
+#endif
+
+#ifdef USE_NUMBER
+  for (auto *obj : App.get_numbers())
+    write_row(stream, obj, "number", "");
+#endif
+
+#ifdef USE_SELECT
+  for (auto *obj : App.get_selects())
+    write_row(stream, obj, "select", "");
 #endif
 
   stream->print(F("</tbody></table><p>See <a href=\"https://esphome.io/web-api/index.html\">ESPHome Web API</a> for "
@@ -372,13 +398,13 @@ std::string WebServer::fan_json(fan::FanState *obj) {
     if (traits.supports_speed()) {
       root["speed_level"] = obj->speed;
       switch (fan::speed_level_to_enum(obj->speed, traits.supported_speed_count())) {
-        case fan::FAN_SPEED_LOW:
+        case fan::FAN_SPEED_LOW:  // NOLINT(clang-diagnostic-deprecated-declarations)
           root["speed"] = "low";
           break;
-        case fan::FAN_SPEED_MEDIUM:
+        case fan::FAN_SPEED_MEDIUM:  // NOLINT(clang-diagnostic-deprecated-declarations)
           root["speed"] = "medium";
           break;
-        case fan::FAN_SPEED_HIGH:
+        case fan::FAN_SPEED_HIGH:  // NOLINT(clang-diagnostic-deprecated-declarations)
           root["speed"] = "high";
           break;
       }
@@ -404,7 +430,7 @@ void WebServer::handle_fan_request(AsyncWebServerRequest *request, const UrlMatc
       auto call = obj->turn_on();
       if (request->hasParam("speed")) {
         String speed = request->getParam("speed")->value();
-        call.set_speed(speed.c_str());
+        call.set_speed(speed.c_str());  // NOLINT(clang-diagnostic-deprecated-declarations)
       }
       if (request->hasParam("speed_level")) {
         String speed_level = request->getParam("speed_level")->value();
@@ -517,7 +543,7 @@ std::string WebServer::light_json(light::LightState *obj) {
   return json::build_json([obj](JsonObject &root) {
     root["id"] = "light-" + obj->get_object_id();
     root["state"] = obj->remote_values.is_on() ? "ON" : "OFF";
-    obj->dump_json(root);
+    light::LightJSONSchema::dump_json(*obj, root);
   });
 }
 #endif
@@ -584,6 +610,58 @@ std::string WebServer::cover_json(cover::Cover *obj) {
 }
 #endif
 
+#ifdef USE_NUMBER
+void WebServer::on_number_update(number::Number *obj, float state) {
+  this->events_.send(this->number_json(obj, state).c_str(), "state");
+}
+void WebServer::handle_number_request(AsyncWebServerRequest *request, const UrlMatch &match) {
+  for (auto *obj : App.get_numbers()) {
+    if (obj->is_internal())
+      continue;
+    if (obj->get_object_id() != match.id)
+      continue;
+    std::string data = this->number_json(obj, obj->state);
+    request->send(200, "text/json", data.c_str());
+    return;
+  }
+  request->send(404);
+}
+std::string WebServer::number_json(number::Number *obj, float value) {
+  return json::build_json([obj, value](JsonObject &root) {
+    root["id"] = "number-" + obj->get_object_id();
+    char buffer[64];
+    snprintf(buffer, sizeof(buffer), "%f", value);
+    root["state"] = buffer;
+    root["value"] = value;
+  });
+}
+#endif
+
+#ifdef USE_SELECT
+void WebServer::on_select_update(select::Select *obj, const std::string &state) {
+  this->events_.send(this->select_json(obj, state).c_str(), "state");
+}
+void WebServer::handle_select_request(AsyncWebServerRequest *request, const UrlMatch &match) {
+  for (auto *obj : App.get_selects()) {
+    if (obj->is_internal())
+      continue;
+    if (obj->get_object_id() != match.id)
+      continue;
+    std::string data = this->select_json(obj, obj->state);
+    request->send(200, "text/json", data.c_str());
+    return;
+  }
+  request->send(404);
+}
+std::string WebServer::select_json(select::Select *obj, const std::string &value) {
+  return json::build_json([obj, value](JsonObject &root) {
+    root["id"] = "select-" + obj->get_object_id();
+    root["state"] = value;
+    root["value"] = value;
+  });
+}
+#endif
+
 bool WebServer::canHandle(AsyncWebServerRequest *request) {
   if (request->url() == "/")
     return true;
@@ -633,6 +711,16 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) {
 
 #ifdef USE_COVER
   if ((request->method() == HTTP_POST || request->method() == HTTP_GET) && match.domain == "cover")
+    return true;
+#endif
+
+#ifdef USE_NUMBER
+  if (request->method() == HTTP_GET && match.domain == "number")
+    return true;
+#endif
+
+#ifdef USE_SELECT
+  if (request->method() == HTTP_GET && match.domain == "select")
     return true;
 #endif
 
@@ -708,6 +796,20 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
 #ifdef USE_COVER
   if (match.domain == "cover") {
     this->handle_cover_request(request, match);
+    return;
+  }
+#endif
+
+#ifdef USE_NUMBER
+  if (match.domain == "number") {
+    this->handle_number_request(request, match);
+    return;
+  }
+#endif
+
+#ifdef USE_SELECT
+  if (match.domain == "select") {
+    this->handle_select_request(request, match);
     return;
   }
 #endif
