@@ -70,7 +70,7 @@ class BME680BSECComponent : public Component, public i2c::I2CDevice {
   int64_t get_time_ns_();
 
   void publish_sensor_state_(sensor::Sensor *sensor, float value, bool change_only = false);
-  void publish_sensor_state_(text_sensor::TextSensor *sensor, std::string value);
+  void publish_sensor_state_(text_sensor::TextSensor *sensor, const std::string &value);
 
   void load_state_();
   void save_state_(uint8_t accuracy);

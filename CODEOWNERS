@@ -14,6 +14,8 @@ esphome/core/* @esphome/core
 esphome/components/ac_dimmer/* @glmnet
 esphome/components/adc/* @esphome/core
 esphome/components/addressable_light/* @justfalter
+esphome/components/am43/* @buxtronix
+esphome/components/am43/cover/* @buxtronix
 esphome/components/animation/* @syndlex
 esphome/components/anova/* @buxtronix
 esphome/components/api/* @OttoWinter
@@ -88,6 +90,7 @@ esphome/components/number/* @esphome/core
 esphome/components/ota/* @esphome/core
 esphome/components/output/* @esphome/core
 esphome/components/pid/* @OttoWinter
+esphome/components/pipsolar/* @andreashergert1984
 esphome/components/pmsa003i/* @sjtrny
 esphome/components/pn532/* @OttoWinter @jesserockz
 esphome/components/pn532_i2c/* @OttoWinter @jesserockz

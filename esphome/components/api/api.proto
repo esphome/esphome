@@ -448,6 +448,7 @@ message LightCommandRequest {
 enum SensorStateClass {
   STATE_CLASS_NONE = 0;
   STATE_CLASS_MEASUREMENT = 1;
+  STATE_CLASS_TOTAL_INCREASING = 2;
 }
 
 enum SensorLastResetType {
@@ -555,9 +556,10 @@ enum LogLevel {
   LOG_LEVEL_ERROR = 1;
   LOG_LEVEL_WARN = 2;
   LOG_LEVEL_INFO = 3;
-  LOG_LEVEL_DEBUG = 4;
-  LOG_LEVEL_VERBOSE = 5;
-  LOG_LEVEL_VERY_VERBOSE = 6;
+  LOG_LEVEL_CONFIG = 4;
+  LOG_LEVEL_DEBUG = 5;
+  LOG_LEVEL_VERBOSE = 6;
+  LOG_LEVEL_VERY_VERBOSE = 7;
 }
 message SubscribeLogsRequest {
   option (id) = 28;
@@ -572,7 +574,6 @@ message SubscribeLogsResponse {
   option (no_delay) = false;
 
   LogLevel level = 1;
-  string tag = 2;
   string message = 3;
   bool send_failed = 4;
 }

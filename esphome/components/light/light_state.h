@@ -157,9 +157,6 @@ class LightState : public Nameable, public Component {
   /// Internal method to set the color values to target immediately (with no transition).
   void set_immediately_(const LightColorValues &target, bool set_remote_values);
 
-  /// Internal method to start a transformer.
-  void set_transformer_(std::unique_ptr<LightTransformer> transformer);
-
   /// Internal method to save the current remote_values to the preferences
   void save_remote_values_();
 

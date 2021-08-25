@@ -8,6 +8,7 @@
 #include "esp_range_view.h"
 #include "light_output.h"
 #include "light_state.h"
+#include "transformers.h"
 
 #ifdef USE_POWER_SUPPLY
 #include "esphome/components/power_supply/power_supply.h"
@@ -50,9 +51,10 @@ class AddressableLight : public LightOutput, public Component {
       amnt = this->size();
     this->range(amnt, this->size()) = this->range(0, -amnt);
   }
+  // Indicates whether an effect that directly updates the output buffer is active to prevent overwriting
   bool is_effect_active() const { return this->effect_active_; }
   void set_effect_active(bool effect_active) { this->effect_active_ = effect_active; }
-  void write_state(LightState *state) override;
+  std::unique_ptr<LightTransformer> create_default_transition() override;
   void set_correction(float red, float green, float blue, float white = 1.0f) {
     this->correction_.set_max_brightness(
         Color(to_uint8_scale(red), to_uint8_scale(green), to_uint8_scale(blue), to_uint8_scale(white)));
@@ -61,7 +63,8 @@ class AddressableLight : public LightOutput, public Component {
     this->correction_.calculate_gamma_table(state->get_gamma_correct());
     this->state_parent_ = state;
   }
-  void schedule_show() { this->next_show_ = true; }
+  void update_state(LightState *state) override;
+  void schedule_show() { this->state_parent_->next_write_ = true; }
 
 #ifdef USE_POWER_SUPPLY
   void set_power_supply(power_supply::PowerSupply *power_supply) { this->power_.set_parent(power_supply); }
@@ -70,9 +73,9 @@ class AddressableLight : public LightOutput, public Component {
   void call_setup() override;
 
  protected:
-  bool should_show_() const { return this->effect_active_ || this->next_show_; }
+  friend class AddressableLightTransformer;
+
   void mark_shown_() {
-    this->next_show_ = false;
 #ifdef USE_POWER_SUPPLY
     for (auto c : *this) {
       if (c.get().is_on()) {
@@ -86,12 +89,23 @@ class AddressableLight : public LightOutput, public Component {
   virtual ESPColorView get_view_internal(int32_t index) const = 0;
 
   bool effect_active_{false};
-  bool next_show_{true};
   ESPColorCorrection correction_{};
 #ifdef USE_POWER_SUPPLY
   power_supply::PowerSupplyRequester power_;
 #endif
   LightState *state_parent_{nullptr};
+};
+
+class AddressableLightTransformer : public LightTransitionTransformer {
+ public:
+  AddressableLightTransformer(AddressableLight &light) : light_(light) {}
+
+  void start() override;
+  optional<LightColorValues> apply() override;
+
+ protected:
+  AddressableLight &light_;
+  Color target_color_{};
   float last_transition_progress_{0.0f};
   float accumulated_alpha_{0.0f};
 };
