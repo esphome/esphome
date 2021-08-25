@@ -66,7 +66,10 @@ class LightFlashTransformer : public LightTransformer {
   }
 
   optional<LightColorValues> apply() override {
-    float p = this->get_progress_();
+    // transition transformer does not handle 0 length as progress returns nan
+    if (this->transition_length_ == 0)
+      return this->target_values_;
+
     if (this->transformer_ != nullptr) {
       if (!this->transformer_->is_finished()) {
         return this->transformer_->apply();
@@ -76,6 +79,7 @@ class LightFlashTransformer : public LightTransformer {
       }
     }
 
+    float p = this->get_progress_();
     if (this->last_transition_p_ < p) {
       if (p < 0.5f) {
         // first transition to original target
