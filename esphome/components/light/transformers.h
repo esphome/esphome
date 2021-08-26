@@ -62,7 +62,14 @@ class LightFlashTransformer : public LightTransformer {
     this->transition_length_ = this->state_.get_flash_transition_length();
     if (this->transition_length_ * 2 > this->length_)
       this->transition_length_ = this->length_ / 2;
-    this->transition_back_p_ = float((this->length_ - this->transition_length_)) / float(this->length_);
+
+    // do not create transition if length is 0
+    if (this->transition_length_ == 0)
+      return;
+
+    // first transition to original target
+    this->transformer_ = this->state_.get_output()->create_default_transition();
+    this->transformer_->setup(this->state_.current_values, this->target_values_, this->transition_length_);
   }
 
   optional<LightColorValues> apply() override {
@@ -79,22 +86,12 @@ class LightFlashTransformer : public LightTransformer {
       }
     }
 
-    float p = this->get_progress_();
-    if (this->last_transition_p_ < p) {
-      if (p < 0.5f) {
-        // first transition to original target
-        this->transformer_ = this->state_.get_output()->create_default_transition();
-        this->transformer_->setup(this->state_.current_values, this->target_values_, this->transition_length_);
-        this->last_transition_p_ = p + 0.5f;
-        // transformer must be applied immediately here instead of next loop to account for 0 transition length
-        return this->transformer_->apply();
-      } else if (p >= this->transition_back_p_ && p < 1.0f) {
-        // second transition back to start value
-        this->transformer_ = this->state_.get_output()->create_default_transition();
-        this->transformer_->setup(this->state_.current_values, this->get_start_values(), this->transition_length_);
-        this->last_transition_p_ = p + 0.5f;
-        return this->transformer_->apply();
-      }
+    if (millis() > this->start_time_ + this->length_ - this->transition_length_ &&
+        !this->secondary_transition_occurred_) {
+      // second transition back to start value
+      this->transformer_ = this->state_.get_output()->create_default_transition();
+      this->transformer_->setup(this->state_.current_values, this->get_start_values(), this->transition_length_);
+      this->secondary_transition_occurred_ = true;
     }
 
     // once transition is complete, don't change states until next transition
@@ -110,9 +107,8 @@ class LightFlashTransformer : public LightTransformer {
 
  protected:
   LightState &state_;
-  float last_transition_p_{0.0};
-  float transition_back_p_;
   uint32_t transition_length_;
+  bool secondary_transition_occurred_{false};
   std::unique_ptr<LightTransformer> transformer_{nullptr};
 };
 
