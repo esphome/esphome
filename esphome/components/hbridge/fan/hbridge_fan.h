@@ -20,6 +20,8 @@ class HBridgeFan : public fan::FanState {
   void set_pin_a(output::FloatOutput *pin_a) { pin_a_ = pin_a; }
   void set_pin_b(output::FloatOutput *pin_b) { pin_b_ = pin_b; }
 
+  void set_hbridge_levels(float a_level, float b_level);
+
   void setup() override;
   void loop() override;
   void dump_config() override;

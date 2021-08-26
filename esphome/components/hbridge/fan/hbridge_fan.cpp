@@ -7,11 +7,15 @@ namespace hbridge {
 
 static const char *const TAG = "fan.hbridge";
 
+void HBridgeFan::set_hbridge_levels(float a_level, float b_level) {
+  this->pin_a_->set_level(a_level);
+  this->pin_b_->set_level(b_level);
+  ESP_LOGD(TAG, "Setting speed: a: %.2f, b: %.2f", a_level, b_level);
+}
 
 fan::FanStateCall HBridgeFan::brake() {
-  this->pin_a_->set_level(1.0f);
-  this->pin_b_->set_level(1.0f);
   ESP_LOGD(TAG, "Braking");
+  this->set_hbridge_levels(1.0f, 1.0f);
   return this->make_call().set_state(false);
 }
 
@@ -45,30 +49,20 @@ void HBridgeFan::loop() {
     speed = static_cast<float>(this->speed) / static_cast<float>(this->speed_count_);
   }
   if (speed == 0.0f) {  // off means idle
-    this->pin_a_->set_level(speed);
-    this->pin_b_->set_level(speed);
-    ESP_LOGD(TAG, "Setting speed: a: %.2f, b: %.2f", speed, speed);
+    this->set_hbridge_levels(speed, speed);
     return;
   }
   if (this->direction == fan::FAN_DIRECTION_FORWARD) {
     if (this->decay_mode_ == DECAY_MODE_SLOW) {
-      this->pin_a_->set_level(1.0f - speed);
-      this->pin_b_->set_level(1.0f);
-      ESP_LOGD(TAG, "Setting speed: a: %.2f, b: %.2f", 1.0f - speed, 1.0f);
+      this->set_hbridge_levels(1.0f - speed, 1.0f);
     } else {  // DECAY_MODE_FAST
-      this->pin_a_->set_level(0.0f);
-      this->pin_b_->set_level(speed);
-      ESP_LOGD(TAG, "Setting speed: a: %.2f, b: %.2f", 0.0f, speed);
+      this->set_hbridge_levels(0.0f, speed);
     }
   } else {  // fan::FAN_DIRECTION_REVERSE
     if (this->decay_mode_ == DECAY_MODE_SLOW) {
-      this->pin_a_->set_level(1.0f);
-      this->pin_b_->set_level(1.0f - speed);
-      ESP_LOGD(TAG, "Setting speed: a: %.2f, b: %.2f", 1.0f, 1.0f - speed);
+      this->set_hbridge_levels(1.0f, 1.0f - speed);
     } else {  // DECAY_MODE_FAST
-      this->pin_a_->set_level(speed);
-      this->pin_b_->set_level(0.0f);
-      ESP_LOGD(TAG, "Setting speed: a: %.2f, b: %.2f", speed, 0.0f);
+      this->set_hbridge_levels(speed, 0.0f);
     }
   }
 }
