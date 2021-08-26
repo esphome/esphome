@@ -1,16 +1,18 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
+from esphome import automation
+from esphome.automation import maybe_simple_id
 from esphome.components import fan, output
 from esphome.const import (
+    CONF_ID,
     CONF_DECAY_MODE,
-    CONF_OUTPUT_ID,
     CONF_SPEED_COUNT,
     CONF_PIN_A,
-    CONF_PIN_B
+    CONF_PIN_B,
 )
 from .. import hbridge_ns
 
-HBridgeFan = hbridge_ns.class_("HBridgeFan", cg.Component)
+HBridgeFan = hbridge_ns.class_("HBridgeFan", fan.FanState)
 
 DecayMode = hbridge_ns.enum("DecayMode")
 DECAY_MODE_OPTIONS = {
@@ -18,10 +20,13 @@ DECAY_MODE_OPTIONS = {
     "FAST": DecayMode.DECAY_MODE_FAST,
 }
 
+# Actions
+BrakeAction = hbridge_ns.class_("BrakeAction", automation.Action)
+
 
 CONFIG_SCHEMA = fan.FAN_SCHEMA.extend(
     {
-        cv.GenerateID(CONF_OUTPUT_ID): cv.declare_id(HBridgeFan),
+        cv.GenerateID(CONF_ID): cv.declare_id(HBridgeFan),
         cv.Required(CONF_PIN_A): cv.use_id(output.FloatOutput),
         cv.Required(CONF_PIN_B): cv.use_id(output.FloatOutput),
         cv.Optional(CONF_DECAY_MODE, default="SLOW"): cv.enum(
@@ -32,11 +37,24 @@ CONFIG_SCHEMA = fan.FAN_SCHEMA.extend(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
+@automation.register_action(
+    "fan.brake",
+    BrakeAction,
+    maybe_simple_id({cv.Required(CONF_ID): cv.use_id(HBridgeFan)}),
+)
+async def fan_turn_off_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(action_id, template_arg, paren)
+
+
 async def to_code(config):
-    pin_a_ = await cg.get_variable(config[CONF_PIN_A])
-    pin_b_ = await cg.get_variable(config[CONF_PIN_B])
-    state = await fan.create_fan_state(config)
     var = cg.new_Pvariable(
-        config[CONF_OUTPUT_ID], state, pin_a_, pin_b_, config[CONF_SPEED_COUNT], DECAY_MODE_OPTIONS[config[CONF_DECAY_MODE]]
+        config[CONF_ID],
+        config[CONF_SPEED_COUNT],
+        DECAY_MODE_OPTIONS[config[CONF_DECAY_MODE]],
     )
-    await cg.register_component(var, config)
+    await fan.register_fan(var, config)
+    pin_a_ = await cg.get_variable(config[CONF_PIN_A])
+    cg.add(var.set_pin_a(pin_a_))
+    pin_b_ = await cg.get_variable(config[CONF_PIN_B])
+    cg.add(var.set_pin_b(pin_b_))
