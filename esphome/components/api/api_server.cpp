@@ -197,7 +197,7 @@ void APIServer::on_climate_update(climate::Climate *obj) {
 void APIServer::on_number_update(number::Number *obj, float state) {
   if (obj->is_internal())
     return;
-  for (auto *c : this->clients_)
+  for (auto &c : this->clients_)
     c->send_number_state(obj, state);
 }
 #endif
@@ -206,7 +206,7 @@ void APIServer::on_number_update(number::Number *obj, float state) {
 void APIServer::on_select_update(select::Select *obj, const std::string &state) {
   if (obj->is_internal())
     return;
-  for (auto *c : this->clients_)
+  for (auto &c : this->clients_)
     c->send_select_state(obj, state);
 }
 #endif
