@@ -28,13 +28,17 @@ void BLEBinaryOutput::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_i
       this->client_state_ = espbt::ClientState::Idle;
       break;
     case ESP_GATTC_WRITE_CHAR_EVT: {
+      if (param->write.status == 0) {
+        break;
+      }
+
       auto chr = this->parent()->get_characteristic(this->service_uuid_, this->char_uuid_);
       if (chr == nullptr) {
         ESP_LOGW(TAG, "[%s] Characteristic not found.", this->char_uuid_.to_string().c_str());
         break;
       }
       if (param->write.handle == chr->handle) {
-        ESP_LOGD(TAG, "[%s] Write complete, status=%d", this->char_uuid_.to_string().c_str(), param->write.status);
+        ESP_LOGW(TAG, "[%s] Write error, status=%d", this->char_uuid_.to_string().c_str(), param->write.status);
       }
       break;
     }
