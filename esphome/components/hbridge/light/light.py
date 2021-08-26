@@ -2,8 +2,9 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import light, output
 from esphome.const import CONF_OUTPUT_ID, CONF_PIN_A, CONF_PIN_B
+from .. import hbridge_ns
 
-hbridge_ns = cg.esphome_ns.namespace("hbridge")
+
 HBridgeLightOutput = hbridge_ns.class_(
     "HBridgeLightOutput", cg.PollingComponent, light.LightOutput
 )
