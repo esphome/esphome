@@ -29,6 +29,10 @@ class HBridgeFan : public fan::FanState {
 
   fan::FanStateCall brake();
 
+  int get_speed_count() { return this->speed_count_; }
+  // update Hbridge without a triggered FanState change, eg. for acceleration/deceleration ramping
+  void internal_update() { this->next_update_ = true; }
+
  protected:
   output::FloatOutput *pin_a_;
   output::FloatOutput *pin_b_;
