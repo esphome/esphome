@@ -59,7 +59,7 @@ class BLECharacteristic {
   void parse_descriptors();
   BLEDescriptor *get_descriptor(espbt::ESPBTUUID uuid);
   BLEDescriptor *get_descriptor(uint16_t uuid);
-  void write_value(uint8_t newVal);
+  void write_value(uint8_t *newVal, int16_t newValSize);
   BLEService *service;
 };
 

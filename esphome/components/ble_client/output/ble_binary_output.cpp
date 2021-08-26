@@ -27,27 +27,39 @@ void BLEBinaryOutput::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_i
       ESP_LOGW(TAG, "[%s] Disconnected", this->char_uuid_.to_string().c_str());
       this->client_state_ = espbt::ClientState::Idle;
       break;
+    case ESP_GATTC_WRITE_CHAR_EVT: {
+      auto chr = this->parent()->get_characteristic(this->service_uuid_, this->char_uuid_);
+      if (chr == nullptr) {
+        ESP_LOGW(TAG, "[%s] Characteristic not found.", this->char_uuid_.to_string().c_str());
+        break;
+      }
+      if (param->write.handle == chr->handle) {
+        ESP_LOGD(TAG, "[%s] Write complete, status=%d", this->char_uuid_.to_string().c_str(), param->write.status);
+      }
+      break;
+    }
     default:
       break;
   }
 }
 
 void BLEBinaryOutput::write_state(bool state) {
-  if (this->client_state_ == espbt::ClientState::Established) {
-    auto chr = this->parent()->get_characteristic(this->service_uuid_, this->char_uuid_);
-    if (chr == nullptr) {
-      ESP_LOGW(TAG, "[%s] Characteristic not found.  State update can not be written.",
-               this->char_uuid_.to_string().c_str());
-    }
-    auto stateAsUint = (uint8_t) state;
-    ESP_LOGV(TAG, "[%s] Write State: %d", this->char_uuid_.to_string().c_str(), stateAsUint);
-    chr->write_value(stateAsUint);
-    ESP_LOGVV(TAG, "[%s] SUCCESS! State:% d ", this->char_uuid_.to_string().c_str(), stateAsUint);
-  } else {
+  if (this->client_state_ != espbt::ClientState::Established) {
     ESP_LOGW(TAG, "[%s] Not connected to BLE client.  State update can not be written.",
              this->char_uuid_.to_string().c_str());
     return;
   }
+
+  auto chr = this->parent()->get_characteristic(this->service_uuid_, this->char_uuid_);
+  if (chr == nullptr) {
+    ESP_LOGW(TAG, "[%s] Characteristic not found.  State update can not be written.",
+             this->char_uuid_.to_string().c_str());
+    return;
+  }
+
+  uint8_t stateAsUint = (uint8_t) state;
+  ESP_LOGV(TAG, "[%s] Write State: %d", this->char_uuid_.to_string().c_str(), stateAsUint);
+  chr->write_value(&stateAsUint, sizeof(stateAsUint));
 }
 
 }  // namespace ble_client
