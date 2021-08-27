@@ -34,7 +34,7 @@ CONFIG_SCHEMA = fan.FAN_SCHEMA.extend(
             DECAY_MODE_OPTIONS, upper=True
         ),
         cv.Optional(CONF_SPEED_COUNT, default=100): cv.int_range(min=1),
-        cv.Required(CONF_ENABLE_PIN): cv.use_id(output.FloatOutput),
+        cv.Optional(CONF_ENABLE_PIN): cv.use_id(output.FloatOutput),
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
