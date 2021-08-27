@@ -207,4 +207,7 @@ async def to_code(config):
             cg.add(getattr(hub, f"set_{key}")(s))
             sensors.append(f"F({key})")
 
-    cg.add_define("DSMR_SENSOR_LIST(F, sep)", cg.RawExpression(" sep ".join(sensors)))
+    if sensors:
+        cg.add_define(
+            "DSMR_SENSOR_LIST(F, sep)", cg.RawExpression(" sep ".join(sensors))
+        )
