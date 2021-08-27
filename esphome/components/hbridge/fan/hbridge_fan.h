@@ -21,9 +21,6 @@ class HBridgeFan : public fan::FanState {
   void set_pin_b(output::FloatOutput *pin_b) { pin_b_ = pin_b; }
   void set_enable_pin(output::FloatOutput *enable) { enable_ = enable; }
 
-  void set_hbridge_levels(float a_level, float b_level);
-  void set_hbridge_levels(float a_level, float b_level, float enable);
-
   void setup() override;
   void loop() override;
   void dump_config() override;
@@ -43,6 +40,9 @@ class HBridgeFan : public fan::FanState {
   bool next_update_{true};
   int speed_count_{};
   DecayMode decay_mode_{DECAY_MODE_SLOW};
+
+  void set_hbridge_levels_(float a_level, float b_level);
+  void set_hbridge_levels_(float a_level, float b_level, float enable);
 };
 
 template<typename... Ts> class BrakeAction : public Action<Ts...> {
