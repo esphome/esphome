@@ -14,6 +14,7 @@ AUTO_LOAD = ["sensor", "text_sensor"]
 CONF_DSMR_ID = "dsmr_id"
 CONF_DECRYPTION_KEY = "decryption_key"
 CONF_CRC_CHECK = "crc_check"
+CONF_GAS_MBUS_ID = "gas_mbus_id"
 
 # Hack to prevent compile error due to ambiguity with lib namespace
 dsmr_ns = cg.esphome_ns.namespace("esphome::dsmr")
@@ -43,6 +44,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.GenerateID(): cv.declare_id(Dsmr),
         cv.Optional(CONF_DECRYPTION_KEY): _validate_key,
         cv.Optional(CONF_CRC_CHECK, default=True): cv.boolean,
+        cv.Optional(CONF_GAS_MBUS_ID, default=1): cv.int_,
     }
 ).extend(uart.UART_DEVICE_SCHEMA)
 
@@ -54,8 +56,10 @@ async def to_code(config):
         cg.add(var.set_decryption_key(config[CONF_DECRYPTION_KEY]))
     await cg.register_component(var, config)
 
+    cg.add_define("DSMR_GAS_MBUS_ID", config[CONF_GAS_MBUS_ID])
+
     # DSMR Parser
-    cg.add_library("glmnet/Dsmr", "0.4")
+    cg.add_library("glmnet/Dsmr", "0.5")
 
     # Crypto
     cg.add_library("rweather/Crypto", "0.2.0")
