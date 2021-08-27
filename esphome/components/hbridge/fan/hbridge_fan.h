@@ -19,8 +19,10 @@ class HBridgeFan : public fan::FanState {
 
   void set_pin_a(output::FloatOutput *pin_a) { pin_a_ = pin_a; }
   void set_pin_b(output::FloatOutput *pin_b) { pin_b_ = pin_b; }
+  void set_enable_pin(output::FloatOutput *enable) { enable_ = enable; }
 
   void set_hbridge_levels(float a_level, float b_level);
+  void set_hbridge_levels(float a_level, float b_level, float enable);
 
   void setup() override;
   void loop() override;
@@ -36,6 +38,7 @@ class HBridgeFan : public fan::FanState {
  protected:
   output::FloatOutput *pin_a_;
   output::FloatOutput *pin_b_;
+  output::FloatOutput *enable_{nullptr};
   output::BinaryOutput *oscillating_{nullptr};
   bool next_update_{true};
   int speed_count_{};

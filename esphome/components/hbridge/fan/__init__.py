@@ -9,6 +9,7 @@ from esphome.const import (
     CONF_SPEED_COUNT,
     CONF_PIN_A,
     CONF_PIN_B,
+    CONF_ENABLE_PIN,
 )
 from .. import hbridge_ns
 
@@ -33,6 +34,7 @@ CONFIG_SCHEMA = fan.FAN_SCHEMA.extend(
             DECAY_MODE_OPTIONS, upper=True
         ),
         cv.Optional(CONF_SPEED_COUNT, default=100): cv.int_range(min=1),
+        cv.Required(CONF_ENABLE_PIN): cv.use_id(output.FloatOutput),
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -58,3 +60,7 @@ async def to_code(config):
     cg.add(var.set_pin_a(pin_a_))
     pin_b_ = await cg.get_variable(config[CONF_PIN_B])
     cg.add(var.set_pin_b(pin_b_))
+
+    if CONF_ENABLE_PIN in config:
+        enable_pin = await cg.get_variable(config[CONF_ENABLE_PIN])
+        cg.add(var.set_enable_pin(enable_pin))
