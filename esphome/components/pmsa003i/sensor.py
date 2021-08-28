@@ -128,5 +128,5 @@ async def to_code(config):
     for key, funcName in TYPES.items():
 
         if key in config:
-            sens = yield sensor.new_sensor(config[key])
+            sens = await sensor.new_sensor(config[key])
             cg.add(getattr(var, funcName)(sens))
