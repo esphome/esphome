@@ -18,16 +18,13 @@ void HBridgeFan::set_hbridge_levels_(float a_level, float b_level) {
 void HBridgeFan::set_hbridge_levels_(float a_level, float b_level, float enable) {
   this->pin_a_->set_level(a_level);
   this->pin_b_->set_level(b_level);
-  // this function is only called if enable is not a nullptr, so disable clang tidy for these two lines
-#ifndef CLANG_TIDY
   this->enable_->set_level(enable);
   ESP_LOGD(TAG, "Setting speed: a: %.2f, b: %.2f, enable: %.2f", a_level, b_level, enable);
-#endif
 }
 
 fan::FanStateCall HBridgeFan::brake() {
   ESP_LOGD(TAG, "Braking");
-  (this->enable_ != nullptr) ? this->set_hbridge_levels_(1.0f, 1.0f) : this->set_hbridge_levels_(1.0f, 1.0f, 1.0f);
+  (this->enable_ == nullptr) ? this->set_hbridge_levels_(1.0f, 1.0f) : this->set_hbridge_levels_(1.0f, 1.0f, 1.0f);
   return this->make_call().set_state(false);
 }
 
@@ -66,18 +63,18 @@ void HBridgeFan::loop() {
   }
   if (this->direction == fan::FAN_DIRECTION_FORWARD) {
     if (this->decay_mode_ == DECAY_MODE_SLOW) {
-      (this->enable_ != nullptr) ? this->set_hbridge_levels_(1.0f - speed, 1.0f)
+      (this->enable_ == nullptr) ? this->set_hbridge_levels_(1.0f - speed, 1.0f)
                                  : this->set_hbridge_levels_(1.0f - speed, 1.0f, 1.0f);
     } else {  // DECAY_MODE_FAST
-      (this->enable_ != nullptr) ? this->set_hbridge_levels_(0.0f, speed)
+      (this->enable_ == nullptr) ? this->set_hbridge_levels_(0.0f, speed)
                                  : this->set_hbridge_levels_(0.0f, 1.0f, speed);
     }
   } else {  // fan::FAN_DIRECTION_REVERSE
     if (this->decay_mode_ == DECAY_MODE_SLOW) {
-      (this->enable_ != nullptr) ? this->set_hbridge_levels_(1.0f, 1.0f - speed)
+      (this->enable_ == nullptr) ? this->set_hbridge_levels_(1.0f, 1.0f - speed)
                                  : this->set_hbridge_levels_(1.0f, 1.0f - speed, 1.0f);
     } else {  // DECAY_MODE_FAST
-      (this->enable_ != nullptr) ? this->set_hbridge_levels_(speed, 0.0f)
+      (this->enable_ == nullptr) ? this->set_hbridge_levels_(speed, 0.0f)
                                  : this->set_hbridge_levels_(1.0f, 0.0f, speed);
     }
   }
