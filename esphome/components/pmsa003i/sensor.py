@@ -14,6 +14,7 @@ from esphome.const import (
     ICON_CHEMICAL_WEAPON,
     ICON_COUNTER,
     DEVICE_CLASS_EMPTY,
+    STATE_CLASS_MEASUREMENT,
 )
 
 CODEOWNERS = ["@sjtrny"]
@@ -36,40 +37,67 @@ CONFIG_SCHEMA = (
             cv.GenerateID(): cv.declare_id(PMSA003IComponent),
             cv.Optional(CONF_STANDARD_UNITS, default=True): cv.boolean,
             cv.Optional(CONF_PM_1_0): sensor.sensor_schema(
-                UNIT_MICROGRAMS_PER_CUBIC_METER,
-                ICON_CHEMICAL_WEAPON,
-                2,
-                DEVICE_CLASS_EMPTY,
+                unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
+                icon=ICON_CHEMICAL_WEAPON,
+                accuracy_decimals=2,
+                device_class=DEVICE_CLASS_EMPTY,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_PM_2_5): sensor.sensor_schema(
-                UNIT_MICROGRAMS_PER_CUBIC_METER,
-                ICON_CHEMICAL_WEAPON,
-                2,
-                DEVICE_CLASS_EMPTY,
+                unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
+                icon=ICON_CHEMICAL_WEAPON,
+                accuracy_decimals=2,
+                device_class=DEVICE_CLASS_EMPTY,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_PM_10_0): sensor.sensor_schema(
-                UNIT_MICROGRAMS_PER_CUBIC_METER,
-                ICON_CHEMICAL_WEAPON,
-                2,
-                DEVICE_CLASS_EMPTY,
+                unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
+                icon=ICON_CHEMICAL_WEAPON,
+                accuracy_decimals=2,
+                device_class=DEVICE_CLASS_EMPTY,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_PMC_0_3): sensor.sensor_schema(
-                UNIT_COUNTS_PER_100ML, ICON_COUNTER, 0, DEVICE_CLASS_EMPTY
+                unit_of_measurement=UNIT_COUNTS_PER_100ML,
+                icon=ICON_COUNTER,
+                accuracy_decimals=0,
+                device_class=DEVICE_CLASS_EMPTY,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_PMC_0_5): sensor.sensor_schema(
-                UNIT_COUNTS_PER_100ML, ICON_COUNTER, 0, DEVICE_CLASS_EMPTY
+                unit_of_measurement=UNIT_COUNTS_PER_100ML,
+                icon=ICON_COUNTER,
+                accuracy_decimals=0,
+                device_class=DEVICE_CLASS_EMPTY,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_PMC_1_0): sensor.sensor_schema(
-                UNIT_COUNTS_PER_100ML, ICON_COUNTER, 0, DEVICE_CLASS_EMPTY
+                unit_of_measurement=UNIT_COUNTS_PER_100ML,
+                icon=ICON_COUNTER,
+                accuracy_decimals=0,
+                device_class=DEVICE_CLASS_EMPTY,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_PMC_2_5): sensor.sensor_schema(
-                UNIT_COUNTS_PER_100ML, ICON_COUNTER, 0, DEVICE_CLASS_EMPTY
+                unit_of_measurement=UNIT_COUNTS_PER_100ML,
+                icon=ICON_COUNTER,
+                accuracy_decimals=0,
+                device_class=DEVICE_CLASS_EMPTY,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_PMC_5_0): sensor.sensor_schema(
-                UNIT_COUNTS_PER_100ML, ICON_COUNTER, 0, DEVICE_CLASS_EMPTY
+                unit_of_measurement=UNIT_COUNTS_PER_100ML,
+                icon=ICON_COUNTER,
+                accuracy_decimals=0,
+                device_class=DEVICE_CLASS_EMPTY,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_PMC_10_0): sensor.sensor_schema(
-                UNIT_COUNTS_PER_100ML, ICON_COUNTER, 0, DEVICE_CLASS_EMPTY
+                unit_of_measurement=UNIT_COUNTS_PER_100ML,
+                icon=ICON_COUNTER,
+                accuracy_decimals=0,
+                device_class=DEVICE_CLASS_EMPTY,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
         }
     )
@@ -90,15 +118,15 @@ TYPES = {
 }
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
-    yield i2c.register_i2c_device(var, config)
+    await cg.register_component(var, config)
+    await i2c.register_i2c_device(var, config)
 
     cg.add(var.set_standard_units(config[CONF_STANDARD_UNITS]))
 
     for key, funcName in TYPES.items():
 
         if key in config:
-            sens = yield sensor.new_sensor(config[key])
+            sens = await sensor.new_sensor(config[key])
             cg.add(getattr(var, funcName)(sens))
