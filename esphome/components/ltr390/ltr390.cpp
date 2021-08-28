@@ -155,7 +155,7 @@ void LTR390Component::setup() {
 void LTR390Component::dump_config() { LOG_I2C_DEVICE(this); }
 
 void LTR390Component::update() {
-  if (!this->reading_) {
+  if (!this->reading_ && mode_funcs_.size() > 0) {
     this->reading_ = true;
     this->read_mode_(0);
   }
