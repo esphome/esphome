@@ -1,10 +1,9 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.components import sensor
+from esphome.components import sensor, ble_client, esp32_ble_tracker
 
 from esphome.const import (
     ESP_PLATFORM_ESP32,
-    CONF_MAC_ADDRESS,
     CONF_UPDATE_INTERVAL,
     DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_HUMIDITY,
@@ -34,16 +33,17 @@ from esphome.const import (
 )
 
 ESP_PLATFORMS = [ESP_PLATFORM_ESP32]
-DEPENDENCIES = []
+DEPENDENCIES = ["ble_client"]
 AUTO_LOAD = []
 
 airthings_wave_plus_ns = cg.esphome_ns.namespace("airthings_wave_plus")
-AirthingsWavePlus = airthings_wave_plus_ns.class_("AirthingsWavePlus", cg.PollingComponent)
+AirthingsWavePlus = airthings_wave_plus_ns.class_("AirthingsWavePlus", cg.PollingComponent, ble_client.BLEClientNode)
+
+CONF_BLE_CLIENT_ID = "ble_client_id"
 
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(AirthingsWavePlus),
-        cv.Required(CONF_MAC_ADDRESS): cv.mac_address,
         cv.Optional(CONF_UPDATE_INTERVAL, default="5min"): cv.update_interval,
         cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(
             UNIT_PERCENT, ICON_PERCENT, 0, DEVICE_CLASS_HUMIDITY
@@ -67,33 +67,33 @@ CONFIG_SCHEMA = cv.Schema(
             UNIT_PARTS_PER_BILLION, ICON_RADIATOR, 0, DEVICE_CLASS_EMPTY
         ),
     }
-).extend(cv.COMPONENT_SCHEMA)
+).extend(cv.COMPONENT_SCHEMA).extend(ble_client.BLE_CLIENT_SCHEMA)
 
-
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
+    await cg.register_component(var, config)
 
-    cg.add(var.set_address(str(config[CONF_MAC_ADDRESS])))
+    parent = await cg.get_variable(config[CONF_BLE_CLIENT_ID])
+    cg.add(parent.register_ble_node(var))
 
     if CONF_HUMIDITY in config:
-        sens = yield sensor.new_sensor(config[CONF_HUMIDITY])
+        sens = await sensor.new_sensor(config[CONF_HUMIDITY])
         cg.add(var.set_humidity(sens))
     if CONF_RADON in config:
-        sens = yield sensor.new_sensor(config[CONF_RADON])
+        sens = await sensor.new_sensor(config[CONF_RADON])
         cg.add(var.set_radon(sens))
     if CONF_RADON_LONG_TERM in config:
-        sens = yield sensor.new_sensor(config[CONF_RADON_LONG_TERM])
+        sens = await sensor.new_sensor(config[CONF_RADON_LONG_TERM])
         cg.add(var.set_radon_long_term(sens))
     if CONF_TEMPERATURE in config:
-        sens = yield sensor.new_sensor(config[CONF_TEMPERATURE])
+        sens = await sensor.new_sensor(config[CONF_TEMPERATURE])
         cg.add(var.set_temperature(sens))
     if CONF_PRESSURE in config:
-        sens = yield sensor.new_sensor(config[CONF_PRESSURE])
+        sens = await sensor.new_sensor(config[CONF_PRESSURE])
         cg.add(var.set_pressure(sens))
     if CONF_CO2 in config:
-        sens = yield sensor.new_sensor(config[CONF_CO2])
+        sens = await sensor.new_sensor(config[CONF_CO2])
         cg.add(var.set_co2(sens))
     if CONF_TVOC in config:
-        sens = yield sensor.new_sensor(config[CONF_TVOC])
+        sens = await sensor.new_sensor(config[CONF_TVOC])
         cg.add(var.set_tvoc(sens))

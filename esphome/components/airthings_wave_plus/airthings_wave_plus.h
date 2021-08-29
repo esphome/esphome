@@ -1,30 +1,35 @@
 #pragma once
 
 #include "esphome/core/component.h"
-#include "esphome/core/helpers.h"
+#include "esphome/components/ble_client/ble_client.h"
+#include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
+#include "esphome/components/sensor/sensor.h"
 #include "esphome/core/log.h"
-#include "esphome/core/application.h"
 #include <BLEDevice.h>
 #include <algorithm>
 #include <iterator>
 
 #ifdef ARDUINO_ARCH_ESP32
+#include <esp_gattc_api.h>
+
+using namespace esphome::ble_client;
 
 namespace esphome {
 namespace airthings_wave_plus {
 
 static const char *TAG = "airthings_wave_plus";
 
-class AirthingsWavePlus : public PollingComponent {
+class AirthingsWavePlus : public PollingComponent, public BLEClientNode {
  public:
   AirthingsWavePlus();
 
   void setup() override;
   void dump_config() override;
   void update() override;
-
-  void set_address(std::string address) { address_ = std::move(address); }
-  void set_update_interval(uint32_t update_interval);
+  void loop() override;
+  
+  void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
+                           esp_ble_gattc_cb_param_t *param) override;
 
   void set_temperature(sensor::Sensor *temperature) { temperature_sensor_ = temperature; }
   void set_radon(sensor::Sensor *radon) { radon_sensor_ = radon; }
@@ -35,25 +40,13 @@ class AirthingsWavePlus : public PollingComponent {
   void set_tvoc(sensor::Sensor *tvoc) { tvoc_sensor_ = tvoc; }
 
  protected:
-  uint32_t connection_timeout_in_seconds_ = 30;
-  uint32_t update_interval_in_seconds_ = 300;
-
-  uint32_t update_count_ = 0;
-  bool connected_ = false;
-  bool connecting_ = false;
-  uint32_t last_value_time_;
-  uint32_t last_connect_time_ = connection_timeout_in_seconds_ * -1000;
-
-  void enumerate_services_();
-  void client_connected_();
-  void client_disconnected_();
-  void read_sensors_();
   bool is_valid_radon_value_(short radon);
   bool is_valid_voc_value_(short voc);
   bool is_valid_co2_value_(short co2);
 
-  BLEClient *client_;
-  std::string address_;
+  void read_sensors_(uint8_t *value, uint16_t value_len);
+  void request_read_values_();
+
   sensor::Sensor *temperature_sensor_{nullptr};
   sensor::Sensor *radon_sensor_{nullptr};
   sensor::Sensor *radon_long_term_sensor_{nullptr};
@@ -62,16 +55,9 @@ class AirthingsWavePlus : public PollingComponent {
   sensor::Sensor *co2_sensor_{nullptr};
   sensor::Sensor *tvoc_sensor_{nullptr};
 
-  class WavePlusClientCallbacks : public BLEClientCallbacks {
-   public:
-    WavePlusClientCallbacks(std::function<void()> &&on_connected, std::function<void()> &&on_disconnected);
-    void onConnect(BLEClient *p_client) override;
-    void onDisconnect(BLEClient *p_client) override;
-
-   protected:
-    std::function<void()> on_connected_;
-    std::function<void()> on_disconnected_;
-  };
+  uint16_t handle;
+  espbt::ESPBTUUID service_uuid;
+  espbt::ESPBTUUID sensors_data_characteristic_uuid;
 
   struct WavePlusReadings {
     uint8_t version;
