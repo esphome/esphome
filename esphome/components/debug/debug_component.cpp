@@ -103,7 +103,7 @@ void DebugComponent::dump_config() {
   device_info += "|Chip: ";
   device_info += model;
   device_info += " Features:";
-  device_info += features.c_str();
+  device_info += features;
   device_info += " Cores:" + to_string(info.cores);
   device_info += " Revision:" + to_string(info.revision);
 
