@@ -54,12 +54,6 @@ void MQTTJSONLightComponent::send_discovery(JsonObject &root, mqtt::SendDiscover
   // legacy API
   if (traits.supports_color_capability(ColorCapability::BRIGHTNESS))
     root["brightness"] = true;
-  if (traits.supports_color_capability(ColorCapability::RGB))
-    root["rgb"] = true;
-  if (traits.supports_color_capability(ColorCapability::COLOR_TEMPERATURE))
-    root["color_temp"] = true;
-  if (traits.supports_color_capability(ColorCapability::WHITE))
-    root["white_value"] = true;
 
   if (this->state_->supports_effects()) {
     root["effect"] = true;

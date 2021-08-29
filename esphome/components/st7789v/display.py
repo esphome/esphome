@@ -29,7 +29,7 @@ CONFIG_SCHEMA = (
             cv.Required(CONF_RESET_PIN): pins.gpio_output_pin_schema,
             cv.Required(CONF_DC_PIN): pins.gpio_output_pin_schema,
             cv.Required(CONF_CS_PIN): pins.gpio_output_pin_schema,
-            cv.Required(CONF_BACKLIGHT_PIN): pins.gpio_output_pin_schema,
+            cv.Optional(CONF_BACKLIGHT_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_BRIGHTNESS, default=1.0): cv.percentage,
         }
     )
@@ -49,8 +49,9 @@ async def to_code(config):
     reset = await cg.gpio_pin_expression(config[CONF_RESET_PIN])
     cg.add(var.set_reset_pin(reset))
 
-    bl = await cg.gpio_pin_expression(config[CONF_BACKLIGHT_PIN])
-    cg.add(var.set_backlight_pin(bl))
+    if CONF_BACKLIGHT_PIN in config:
+        bl = await cg.gpio_pin_expression(config[CONF_BACKLIGHT_PIN])
+        cg.add(var.set_backlight_pin(bl))
 
     if CONF_LAMBDA in config:
         lambda_ = await cg.process_lambda(

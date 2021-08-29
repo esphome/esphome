@@ -1,13 +1,14 @@
 #pragma once
 
+#include "esphome/core/macros.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/color.h"
 #include "esphome/components/light/light_output.h"
 #include "esphome/components/light/addressable_light.h"
 
-#ifdef ARDUINO_ESP8266_RELEASE_2_3_0
-#error The NeoPixelBus library requires at least arduino_core_version 2.4.x
+#if defined(ARDUINO_ARCH_ESP8266) && ARDUINO_VERSION_CODE < VERSION_CODE(2, 4, 0)
+#error The NeoPixelBus library requires at least arduino_version 2.4.x
 #endif
 
 #include "NeoPixelBus.h"
@@ -82,10 +83,7 @@ class NeoPixelBusLightOutputBase : public light::AddressableLight {
     this->controller_->Begin();
   }
 
-  void loop() override {
-    if (!this->should_show_())
-      return;
-
+  void write_state(light::LightState *state) override {
     this->mark_shown_();
     this->controller_->Dirty();
 
