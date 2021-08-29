@@ -1,5 +1,6 @@
-from esphome.core import EsphomeError
+import re
 from pathlib import Path
+from esphome.core import EsphomeError
 
 from esphome import git, yaml_util
 from esphome.const import (
@@ -64,6 +65,30 @@ def validate_yaml_filename(value):
     return value
 
 
+def validate_source_shorthand(value):
+    if not isinstance(value, str):
+        raise cv.Invalid("Shorthand only for strings")
+
+    m = re.match(
+        r"github://([a-zA-Z0-9\-]+)/([a-zA-Z0-9\-\._]+)/([a-zA-Z0-9\-_.\./]+)(?:@([a-zA-Z0-9\-_.\./]+))?",
+        value,
+    )
+    if m is None:
+        raise cv.Invalid(
+            "Source is not a file system path or in expected github://username/name[/file-path.yml][@branch-or-tag] format!"
+        )
+
+    conf = {
+        CONF_URL: f"https://github.com/{m.group(1)}/{m.group(2)}.git",
+        CONF_FILE: m.group(3),
+    }
+    if m.group(4):
+        conf[CONF_REF] = m.group(4)
+
+    # print(conf)
+    return BASE_SCHEMA(conf)
+
+
 BASE_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -86,7 +111,7 @@ BASE_SCHEMA = cv.All(
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
-            str: cv.Any(BASE_SCHEMA, dict),
+            str: cv.Any(validate_source_shorthand, BASE_SCHEMA, dict),
         }
     ),
     validate_git_package,
@@ -115,7 +140,6 @@ def _process_base_package(config: dict) -> dict:
             raise cv.Invalid(
                 f"{file} is not a valid YAML file. Please check the file contents."
             ) from e
-
     return {"packages": packages}
 
 
