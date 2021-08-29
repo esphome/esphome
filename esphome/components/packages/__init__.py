@@ -75,7 +75,7 @@ def validate_source_shorthand(value):
     )
     if m is None:
         raise cv.Invalid(
-            "Source is not a file system path or in expected github://username/name[/file-path.yml][@branch-or-tag] format!"
+            "Source is not a file system path or in expected github://username/name/[sub-folder/]file-path.yml[@branch-or-tag] format!"
         )
 
     conf = {
