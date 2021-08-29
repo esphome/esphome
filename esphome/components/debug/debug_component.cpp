@@ -250,13 +250,13 @@ void DebugComponent::dump_config() {
 }
 
 void DebugComponent::loop() {
-	// calculate loop time - from last call to this one
+  // calculate loop time - from last call to this one
   if (this->loop_time_sensor_ != nullptr) {
-		uint32_t now = millis();
-		uint32_t loop_time = now - this->last_loop_timetag_;
-		this->max_loop_time_ = max(this->max_loop_time_, loop_time);
-		this->last_loop_timetag_ = now;
-	}
+    uint32_t now = millis();
+    uint32_t loop_time = now - this->last_loop_timetag_;
+    this->max_loop_time_ = max(this->max_loop_time_, loop_time);
+    this->last_loop_timetag_ = now;
+  }
 }
 
 void DebugComponent::update() {
@@ -273,7 +273,7 @@ void DebugComponent::update() {
 
 // CLANG_TIDY uses an old arduino framework which doesn't support the heap state functions
 #if defined(ARDUINO_ARCH_ESP8266) & !defined(CLANG_TIDY)
-// NOTE: Requires arduino_version 2.5.2 or above
+  // NOTE: Requires arduino_version 2.5.2 or above
   if (this->fragmentation_sensor_ != nullptr) {
     this->fragmentation_sensor_->publish_state(ESP.getHeapFragmentation());
   }
