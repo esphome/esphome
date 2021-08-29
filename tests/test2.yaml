@@ -247,7 +247,8 @@ sensor:
     reference_voltage: 3.19
     number: 0
   - platform: airthings_wave_plus
-    mac_address: '01:02:03:04:05:06'
+    ble_client_id: airthings01
+    update_interval: 5min
     temperature:
       name: "Wave Plus Temperature"
     radon:
@@ -351,6 +352,10 @@ esp32_ble_tracker:
         - lambda: !lambda |-
             ESP_LOGD("main", "Length of manufacturer data is %i", x.size());
 
+ble_client:
+  - mac_address: 01:02:03:04:05:06
+    id: airthings01
+    
 airthings_ble:
 
 #esp32_ble_beacon:
