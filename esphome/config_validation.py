@@ -33,7 +33,6 @@ from esphome.const import (
     CONF_UPDATE_INTERVAL,
     CONF_TYPE_ID,
     CONF_TYPE,
-    CONF_PACKAGES,
 )
 from esphome.core import (
     CORE,
@@ -1454,15 +1453,7 @@ class OnlyWith(Optional):
     @property
     def default(self):
         # pylint: disable=unsupported-membership-test
-        if self._component in CORE.raw_config or (
-            CONF_PACKAGES in CORE.raw_config
-            and self._component
-            in [
-                k
-                for package in CORE.raw_config[CONF_PACKAGES].values()
-                for k in package.keys()
-            ]
-        ):
+        if self._component in CORE.raw_config:
             return self._default
         return vol.UNDEFINED
 
