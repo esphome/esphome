@@ -5,12 +5,12 @@
 #include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/core/log.h"
-#include <BLEDevice.h>
 #include <algorithm>
 #include <iterator>
 
 #ifdef ARDUINO_ARCH_ESP32
 #include <esp_gattc_api.h>
+#include <BLEDevice.h>
 
 using namespace esphome::ble_client;
 
@@ -27,7 +27,7 @@ class AirthingsWavePlus : public PollingComponent, public BLEClientNode {
   void dump_config() override;
   void update() override;
   void loop() override;
-  
+
   void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
                            esp_ble_gattc_cb_param_t *param) override;
 

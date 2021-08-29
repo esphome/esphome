@@ -7,7 +7,6 @@ namespace airthings_wave_plus {
 
 void AirthingsWavePlus::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
                                             esp_ble_gattc_cb_param_t *param) {
-
   switch (event) {
     case ESP_GATTC_OPEN_EVT: {
       if (param->open.status == ESP_GATT_OK) {
@@ -55,39 +54,37 @@ void AirthingsWavePlus::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt
 }
 
 void AirthingsWavePlus::read_sensors_(uint8_t *raw_value, uint16_t value_len) {
-    auto value = (WavePlusReadings *) raw_value;
+  auto value = (WavePlusReadings *) raw_value;
 
-    if (sizeof(WavePlusReadings) <= value_len) {
-      ESP_LOGD(TAG, "version = %d", value->version);
+  if (sizeof(WavePlusReadings) <= value_len) {
+    ESP_LOGD(TAG, "version = %d", value->version);
 
-      if (value->version == 1) {
-        ESP_LOGD(TAG, "ambient light = %d", value->ambientLight);
+    if (value->version == 1) {
+      ESP_LOGD(TAG, "ambient light = %d", value->ambientLight);
 
-        this->humidity_sensor_->publish_state(value->humidity / 2.0f);
-        if (is_valid_radon_value_(value->radon)) {
-          this->radon_sensor_->publish_state(value->radon);
-        }
-        if (is_valid_radon_value_(value->radon_lt)) {
-          this->radon_long_term_sensor_->publish_state(value->radon_lt);
-        }
-        this->temperature_sensor_->publish_state(value->temperature / 100.0f);
-        this->pressure_sensor_->publish_state(value->pressure / 50.0f);
-        if (is_valid_co2_value_(value->co2)) {
-          this->co2_sensor_->publish_state(value->co2);
-        }
-        if (is_valid_voc_value_(value->voc)) {
-          this->tvoc_sensor_->publish_state(value->voc);
-        }
-
-        // This instance must not stay connected
-        // so other clients can connect to it (e.g. the 
-        // mobile app).
-        parent()->set_enabled(false);
-      } else {
-        ESP_LOGE(TAG, 
-                 "Invalid payload version (%d != 1, newer version or not a Wave Plus?)", 
-                 value->version);
+      this->humidity_sensor_->publish_state(value->humidity / 2.0f);
+      if (is_valid_radon_value_(value->radon)) {
+        this->radon_sensor_->publish_state(value->radon);
       }
+      if (is_valid_radon_value_(value->radon_lt)) {
+        this->radon_long_term_sensor_->publish_state(value->radon_lt);
+      }
+      this->temperature_sensor_->publish_state(value->temperature / 100.0f);
+      this->pressure_sensor_->publish_state(value->pressure / 50.0f);
+      if (is_valid_co2_value_(value->co2)) {
+        this->co2_sensor_->publish_state(value->co2);
+      }
+      if (is_valid_voc_value_(value->voc)) {
+        this->tvoc_sensor_->publish_state(value->voc);
+      }
+
+      // This instance must not stay connected
+      // so other clients can connect to it (e.g. the
+      // mobile app).
+      parent()->set_enabled(false);
+    } else {
+      ESP_LOGE(TAG, "Invalid payload version (%d != 1, newer version or not a Wave Plus?)", value->version);
+    }
   }
 }
 
@@ -97,16 +94,15 @@ bool AirthingsWavePlus::is_valid_voc_value_(short voc) { return 0 <= voc && voc 
 
 bool AirthingsWavePlus::is_valid_co2_value_(short co2) { return 0 <= co2 && co2 <= 16383; }
 
-void AirthingsWavePlus::loop() { }
+void AirthingsWavePlus::loop() {}
 
 void AirthingsWavePlus::update() {
   if (this->node_state != espbt::ClientState::Established) {
-    if(!parent()->enabled) {
+    if (!parent()->enabled) {
       ESP_LOGW(TAG, "Reconnecting to device");
       parent()->set_enabled(true);
       parent()->connect();
-    }
-    else {
+    } else {
       ESP_LOGW(TAG, "Connection in progress");
     }
   }
@@ -138,7 +134,7 @@ AirthingsWavePlus::AirthingsWavePlus() : PollingComponent(10000) {
   sensors_data_characteristic_uuid = espbt::ESPBTUUID::from_uuid(characteristic_bt);
 }
 
-void AirthingsWavePlus::setup() { }
+void AirthingsWavePlus::setup() {}
 
 }  // namespace airthings_wave_plus
 }  // namespace esphome
