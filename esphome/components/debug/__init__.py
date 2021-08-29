@@ -34,11 +34,13 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_FREE): sensor.sensor_schema(
             UNIT_BYTES, ICON_COUNTER, 1, DEVICE_CLASS_EMPTY
         ),
-        cv.Optional(CONF_FRAGMENTATION): sensor.sensor_schema(
-            UNIT_COUNTS, ICON_COUNTER, 1, DEVICE_CLASS_EMPTY
+        cv.Optional(CONF_FRAGMENTATION): cv.All(
+            cv.only_on_esp8266,
+            sensor.sensor_schema(UNIT_COUNTS, ICON_COUNTER, 1, DEVICE_CLASS_EMPTY),
         ),
-        cv.Optional(CONF_BLOCK): sensor.sensor_schema(
-            UNIT_BYTES, ICON_COUNTER, 1, DEVICE_CLASS_EMPTY
+        cv.Optional(CONF_BLOCK): cv.All(
+            cv.only_on_esp8266,
+            sensor.sensor_schema(UNIT_BYTES, ICON_COUNTER, 1, DEVICE_CLASS_EMPTY),
         ),
         cv.Optional(CONF_LOOP_TIME): sensor.sensor_schema(
             UNIT_MILLISECOND, ICON_TIMER, 1, DEVICE_CLASS_EMPTY
