@@ -51,7 +51,6 @@ from esphome.const import (
     DEVICE_CLASS_PRESSURE,
     DEVICE_CLASS_TIMESTAMP,
     DEVICE_CLASS_VOLTAGE,
-    DEVICE_CLASS_MEMORY,
 )
 from esphome.core import CORE, coroutine_with_priority
 from esphome.util import Registry
@@ -75,7 +74,6 @@ DEVICE_CLASSES = [
     DEVICE_CLASS_POWER_FACTOR,
     DEVICE_CLASS_PRESSURE,
     DEVICE_CLASS_VOLTAGE,
-    DEVICE_CLASS_MEMORY,
 ]
 
 sensor_ns = cg.esphome_ns.namespace("sensor")
