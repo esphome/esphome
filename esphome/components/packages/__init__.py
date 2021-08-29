@@ -1,8 +1,10 @@
+from esphome.core import EsphomeError
 from pathlib import Path
 
 from esphome import git, yaml_util
 from esphome.const import (
     CONF_FILE,
+    CONF_FILES,
     CONF_PACKAGES,
     CONF_REF,
     CONF_REFRESH,
@@ -34,24 +36,50 @@ def _merge_package(full_old, full_new):
 
 
 def validate_git_package(config: dict):
+    new_config = config
     for key, conf in config.items():
         if CONF_URL in conf:
             try:
                 conf = BASE_SCHEMA(conf)
+                if CONF_FILE in conf:
+                    new_config[key][CONF_FILES] = [conf[CONF_FILE]]
+                    del new_config[key][CONF_FILE]
+            except cv.MultipleInvalid as e:
+                with cv.prepend_path([key]):
+                    raise e
             except cv.Invalid as e:
                 raise cv.Invalid(
-                    "Extra keys not allowed in git based package", path=[key] + e.path
+                    "Extra keys not allowed in git based package",
+                    path=[key] + e.path,
                 ) from e
-    return config
+    return new_config
 
 
-BASE_SCHEMA = cv.Schema(
-    {
-        cv.Required(CONF_URL): cv.url,
-        cv.Required(CONF_FILE): cv.string,
-        cv.Optional(CONF_REF): cv.git_ref,
-        cv.Optional(CONF_REFRESH, default="1d"): cv.All(cv.string, cv.source_refresh),
-    }
+def validate_yaml_filename(value):
+    value = cv.string(value)
+
+    if not (value.endswith(".yaml") or value.endswith(".yml")):
+        raise cv.Invalid("Only YAML (.yaml / .yml) files are supported.")
+
+    return value
+
+
+BASE_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.Required(CONF_URL): cv.url,
+            cv.Exclusive(CONF_FILE, "files"): validate_yaml_filename,
+            cv.Exclusive(CONF_FILES, "files"): cv.All(
+                cv.ensure_list(validate_yaml_filename),
+                cv.Length(min=1),
+            ),
+            cv.Optional(CONF_REF): cv.git_ref,
+            cv.Optional(CONF_REFRESH, default="1d"): cv.All(
+                cv.string, cv.source_refresh
+            ),
+        }
+    ),
+    cv.has_at_least_one_key(CONF_FILE, CONF_FILES),
 )
 
 
@@ -72,14 +100,23 @@ def _process_base_package(config: dict) -> dict:
         refresh=config[CONF_REFRESH],
         domain=DOMAIN,
     )
+    files: str = config[CONF_FILES]
 
-    yaml_file: Path = repo_dir / config[CONF_FILE]
+    packages = {}
+    for file in files:
+        yaml_file: Path = repo_dir / file
 
-    if not yaml_file.is_file():
-        raise cv.Invalid("File does not exist in repository", path=[CONF_FILE])
+        if not yaml_file.is_file():
+            raise cv.Invalid(f"{file} does not exist in repository", path=[CONF_FILES])
 
-    package_config = yaml_util.load_yaml(yaml_file)
-    return package_config
+        try:
+            packages[file] = yaml_util.load_yaml(yaml_file)
+        except EsphomeError as e:
+            raise cv.Invalid(
+                f"{file} is not a valid YAML file. Please check the file contents."
+            ) from e
+
+    return {"packages": packages}
 
 
 def do_packages_pass(config: dict):
