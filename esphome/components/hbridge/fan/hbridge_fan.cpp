@@ -58,7 +58,8 @@ void HBridgeFan::loop() {
     speed = static_cast<float>(this->speed) / static_cast<float>(this->speed_count_);
   }
   if (speed == 0.0f) {  // off means idle
-    (this->enable_ != nullptr) ? this->set_hbridge_levels_(speed, speed) : this->set_hbridge_levels_(speed, speed, speed);
+    (this->enable_ != nullptr) ? this->set_hbridge_levels_(speed, speed)
+                               : this->set_hbridge_levels_(speed, speed, speed);
     return;
   }
   if (this->direction == fan::FAN_DIRECTION_FORWARD) {
