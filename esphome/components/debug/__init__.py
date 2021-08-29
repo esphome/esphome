@@ -1,4 +1,5 @@
 import esphome.config_validation as cv
+import esphome.final_validate as fv
 import esphome.codegen as cg
 from esphome.components import sensor, text_sensor
 from esphome.const import (
@@ -16,6 +17,7 @@ from esphome.const import (
     DEVICE_CLASS_EMPTY,
 )
 import esphome.core.config as cc
+from esphome.core import CORE
 
 CODEOWNERS = ["@OttoWinter"]
 DEPENDENCIES = ["logger"]
@@ -33,21 +35,42 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_FREE): sensor.sensor_schema(
             UNIT_BYTES, ICON_COUNTER, 1, DEVICE_CLASS_EMPTY
         ),
-        cv.Optional(CONF_FRAGMENTATION): cv.All(
-            cc.atleast_esp8266_framework("2.5.2"),
-            cv.only_on_esp8266,
-            sensor.sensor_schema(UNIT_COUNTS, ICON_COUNTER, 1, DEVICE_CLASS_EMPTY),
+        cv.Optional(CONF_FRAGMENTATION): sensor.sensor_schema(
+            UNIT_COUNTS, ICON_COUNTER, 1, DEVICE_CLASS_EMPTY
         ),
-        cv.Optional(CONF_BLOCK): cv.All(
-            cc.atleast_esp8266_framework("2.5.2"),
-            cv.only_on_esp8266,
-            sensor.sensor_schema(UNIT_BYTES, ICON_COUNTER, 1, DEVICE_CLASS_EMPTY),
+        cv.Optional(CONF_BLOCK): sensor.sensor_schema(
+            UNIT_BYTES, ICON_COUNTER, 1, DEVICE_CLASS_EMPTY
         ),
         cv.Optional(CONF_LOOP_TIME): sensor.sensor_schema(
             UNIT_MILLISECOND, ICON_TIMER, 1, DEVICE_CLASS_EMPTY
         ),
     }
 ).extend(cv.polling_component_schema("60s"))
+
+
+def validate_framework(value):
+    if not CORE.is_esp8266:
+        # only for ESP8266
+        return
+
+    framework_version = fv.get_arduino_framework_version()
+    if framework_version is None or framework_version == "dev":
+        return
+
+    if framework_version < "2.5.2":
+        raise cv.Invalid(
+            "This component is not supported on arduino framework version below 2.5.2, "
+            "please check esphome->arduino_version"
+        )
+
+
+FINAL_VALIDATE_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_FRAGMENTATION): validate_framework,
+        cv.Optional(CONF_BLOCK): validate_framework,
+    },
+    extra=cv.ALLOW_EXTRA,
+)
 
 
 async def to_code(config):
