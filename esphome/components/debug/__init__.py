@@ -45,7 +45,7 @@ CONFIG_SCHEMA = cv.Schema(
             sensor.sensor_schema(UNIT_BYTES, ICON_COUNTER, 1, DEVICE_CLASS_MEMORY),
         ),
         cv.Optional(CONF_LOOP_TIME): sensor.sensor_schema(
-            UNIT_MILISECOND, ICON_TIMER, 1, DEVICE_CLASS_EMPTY
+            UNIT_MILLISECOND, ICON_TIMER, 1, DEVICE_CLASS_EMPTY
         ),
     }
 ).extend(cv.polling_component_schema("60s"))
