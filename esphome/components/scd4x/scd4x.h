@@ -20,7 +20,7 @@ class SCD4XComponent : public PollingComponent, public i2c::I2CDevice {
   void set_altitude_compensation(uint16_t altitude) { altitude_compensation_ = altitude; }
   void set_ambient_pressure_compensation(float pressure) {
     ambient_pressure_compensation_ = true;
-    ambient_pressure_ = (uint16_t) (pressure * 1000);
+    ambient_pressure_ = (uint16_t)(pressure * 1000);
   }
   void set_temperature_offset(float offset) { temperature_offset_ = offset; };
 
