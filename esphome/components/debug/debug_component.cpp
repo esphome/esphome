@@ -36,7 +36,6 @@ void DebugComponent::dump_config() {
 
   this->free_heap_ = ESP.getFreeHeap();
   ESP_LOGD(TAG, "Free Heap Size: %u bytes", this->free_heap_);
-  //  device_info += "|Heap " + to_string(this->free_heap_);
 
   const char *flash_mode;
   switch (ESP.getFlashChipMode()) {
