@@ -5,7 +5,7 @@
 namespace esphome {
 namespace sx1509 {
 
-static const char *TAG = "sx1509_float_channel";
+static const char *const TAG = "sx1509_float_channel";
 
 void SX1509FloatOutputChannel::write_state(float state) {
   const uint16_t max_duty = 255;

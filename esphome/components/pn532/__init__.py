@@ -3,7 +3,6 @@ import esphome.config_validation as cv
 from esphome import automation
 from esphome.components import nfc
 from esphome.const import CONF_ID, CONF_ON_TAG_REMOVED, CONF_ON_TAG, CONF_TRIGGER_ID
-from esphome.core import coroutine
 
 CODEOWNERS = ["@OttoWinter", "@jesserockz"]
 AUTO_LOAD = ["binary_sensor", "nfc"]
@@ -58,27 +57,26 @@ def CONFIG_SCHEMA(conf):
         )
 
 
-@coroutine
-def setup_pn532(var, config):
-    yield cg.register_component(var, config)
+async def setup_pn532(var, config):
+    await cg.register_component(var, config)
 
     for conf in config.get(CONF_ON_TAG, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
         cg.add(var.register_ontag_trigger(trigger))
-        yield automation.build_automation(
+        await automation.build_automation(
             trigger, [(cg.std_string, "x"), (nfc.NfcTag, "tag")], conf
         )
 
     for conf in config.get(CONF_ON_TAG_REMOVED, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
         cg.add(var.register_ontagremoved_trigger(trigger))
-        yield automation.build_automation(
+        await automation.build_automation(
             trigger, [(cg.std_string, "x"), (nfc.NfcTag, "tag")], conf
         )
 
     for conf in config.get(CONF_ON_FINISHED_WRITE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        yield automation.build_automation(trigger, [], conf)
+        await automation.build_automation(trigger, [], conf)
 
 
 @automation.register_condition(
@@ -90,7 +88,7 @@ def setup_pn532(var, config):
         }
     ),
 )
-def pn532_is_writing_to_code(config, condition_id, template_arg, args):
+async def pn532_is_writing_to_code(config, condition_id, template_arg, args):
     var = cg.new_Pvariable(condition_id, template_arg)
-    yield cg.register_parented(var, config[CONF_ID])
-    yield var
+    await cg.register_parented(var, config[CONF_ID])
+    return var

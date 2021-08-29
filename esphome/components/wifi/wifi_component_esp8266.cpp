@@ -1,4 +1,5 @@
 #include "wifi_component.h"
+#include "esphome/core/macros.h"
 
 #ifdef ARDUINO_ARCH_ESP8266
 
@@ -6,7 +7,7 @@
 
 #include <utility>
 #include <algorithm>
-#ifdef ESPHOME_WIFI_WPA2_EAP
+#ifdef USE_WIFI_WPA2_EAP
 #include <wpa2_enterprise.h>
 #endif
 
@@ -17,6 +18,12 @@ extern "C" {
 #include "lwip/init.h"  // LWIP_VERSION_
 #if LWIP_IPV6
 #include "lwip/netif.h"  // struct netif
+#endif
+#if ARDUINO_VERSION_CODE >= VERSION_CODE(3, 0, 0)
+#include "LwipDhcpServer.h"
+#define wifi_softap_set_dhcps_lease(lease) dhcpSoftAP.set_dhcps_lease(lease)
+#define wifi_softap_set_dhcps_lease_time(time) dhcpSoftAP.set_dhcps_lease_time(time)
+#define wifi_softap_set_dhcps_offer_option(offer, mode) dhcpSoftAP.set_dhcps_offer_option(offer, mode)
 #endif
 }
 
@@ -29,7 +36,7 @@ extern "C" {
 namespace esphome {
 namespace wifi {
 
-static const char *TAG = "wifi_esp8266";
+static const char *const TAG = "wifi_esp8266";
 
 bool WiFiComponent::wifi_mode_(optional<bool> sta, optional<bool> ap) {
   uint8_t current_mode = wifi_get_opmode();
@@ -200,7 +207,7 @@ bool WiFiComponent::wifi_apply_hostname_() {
   return ret;
 }
 
-bool WiFiComponent::wifi_sta_connect_(WiFiAP ap) {
+bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
   // enable STA
   if (!this->wifi_mode_(true, {}))
     return false;
@@ -209,8 +216,8 @@ bool WiFiComponent::wifi_sta_connect_(WiFiAP ap) {
 
   struct station_config conf {};
   memset(&conf, 0, sizeof(conf));
-  strcpy(reinterpret_cast<char *>(conf.ssid), ap.get_ssid().c_str());
-  strcpy(reinterpret_cast<char *>(conf.password), ap.get_password().c_str());
+  strncpy(reinterpret_cast<char *>(conf.ssid), ap.get_ssid().c_str(), sizeof(conf.ssid));
+  strncpy(reinterpret_cast<char *>(conf.password), ap.get_password().c_str(), sizeof(conf.password));
 
   if (ap.get_bssid().has_value()) {
     conf.bssid_set = 1;
@@ -219,7 +226,7 @@ bool WiFiComponent::wifi_sta_connect_(WiFiAP ap) {
     conf.bssid_set = 0;
   }
 
-#ifndef ARDUINO_ESP8266_RELEASE_2_3_0
+#if ARDUINO_VERSION_CODE >= VERSION_CODE(2, 4, 0)
   if (ap.get_password().empty()) {
     conf.threshold.authmode = AUTH_OPEN;
   } else {
@@ -243,7 +250,7 @@ bool WiFiComponent::wifi_sta_connect_(WiFiAP ap) {
   }
 
   // setup enterprise authentication if required
-#ifdef ESPHOME_WIFI_WPA2_EAP
+#ifdef USE_WIFI_WPA2_EAP
   if (ap.get_eap().has_value()) {
     // note: all certificates and keys have to be null terminated. Lengths are appended by +1 to include \0.
     EAPAuth eap = ap.get_eap().value();
@@ -286,7 +293,7 @@ bool WiFiComponent::wifi_sta_connect_(WiFiAP ap) {
       ESP_LOGV(TAG, "esp_wifi_sta_wpa2_ent_enable failed! %d", ret);
     }
   }
-#endif  // ESPHOME_WIFI_WPA2_EAP
+#endif  // USE_WIFI_WPA2_EAP
 
   this->wifi_apply_hostname_();
 
@@ -359,65 +366,75 @@ const char *get_op_mode_str(uint8_t mode) {
       return "UNKNOWN";
   }
 }
+// Note that this method returns PROGMEM strings, so use LOG_STR_ARG() to access them.
 const char *get_disconnect_reason_str(uint8_t reason) {
+  /* If this were one big switch statement, GCC would generate a lookup table for it. However, the values of the
+   * REASON_* constants aren't continuous, and GCC will fill in the gap with the default value -- wasting 4 bytes of RAM
+   * per entry. As there's ~175 default entries, this wastes 700 bytes of RAM.
+   */
+  if (reason <= REASON_CIPHER_SUITE_REJECTED) {  // This must be the last constant with a value <200
+    switch (reason) {
+      case REASON_AUTH_EXPIRE:
+        return LOG_STR("Auth Expired");
+      case REASON_AUTH_LEAVE:
+        return LOG_STR("Auth Leave");
+      case REASON_ASSOC_EXPIRE:
+        return LOG_STR("Association Expired");
+      case REASON_ASSOC_TOOMANY:
+        return LOG_STR("Too Many Associations");
+      case REASON_NOT_AUTHED:
+        return LOG_STR("Not Authenticated");
+      case REASON_NOT_ASSOCED:
+        return LOG_STR("Not Associated");
+      case REASON_ASSOC_LEAVE:
+        return LOG_STR("Association Leave");
+      case REASON_ASSOC_NOT_AUTHED:
+        return LOG_STR("Association not Authenticated");
+      case REASON_DISASSOC_PWRCAP_BAD:
+        return LOG_STR("Disassociate Power Cap Bad");
+      case REASON_DISASSOC_SUPCHAN_BAD:
+        return LOG_STR("Disassociate Supported Channel Bad");
+      case REASON_IE_INVALID:
+        return LOG_STR("IE Invalid");
+      case REASON_MIC_FAILURE:
+        return LOG_STR("Mic Failure");
+      case REASON_4WAY_HANDSHAKE_TIMEOUT:
+        return LOG_STR("4-Way Handshake Timeout");
+      case REASON_GROUP_KEY_UPDATE_TIMEOUT:
+        return LOG_STR("Group Key Update Timeout");
+      case REASON_IE_IN_4WAY_DIFFERS:
+        return LOG_STR("IE In 4-Way Handshake Differs");
+      case REASON_GROUP_CIPHER_INVALID:
+        return LOG_STR("Group Cipher Invalid");
+      case REASON_PAIRWISE_CIPHER_INVALID:
+        return LOG_STR("Pairwise Cipher Invalid");
+      case REASON_AKMP_INVALID:
+        return LOG_STR("AKMP Invalid");
+      case REASON_UNSUPP_RSN_IE_VERSION:
+        return LOG_STR("Unsupported RSN IE version");
+      case REASON_INVALID_RSN_IE_CAP:
+        return LOG_STR("Invalid RSN IE Cap");
+      case REASON_802_1X_AUTH_FAILED:
+        return LOG_STR("802.1x Authentication Failed");
+      case REASON_CIPHER_SUITE_REJECTED:
+        return LOG_STR("Cipher Suite Rejected");
+    }
+  }
+
   switch (reason) {
-    case REASON_AUTH_EXPIRE:
-      return "Auth Expired";
-    case REASON_AUTH_LEAVE:
-      return "Auth Leave";
-    case REASON_ASSOC_EXPIRE:
-      return "Association Expired";
-    case REASON_ASSOC_TOOMANY:
-      return "Too Many Associations";
-    case REASON_NOT_AUTHED:
-      return "Not Authenticated";
-    case REASON_NOT_ASSOCED:
-      return "Not Associated";
-    case REASON_ASSOC_LEAVE:
-      return "Association Leave";
-    case REASON_ASSOC_NOT_AUTHED:
-      return "Association not Authenticated";
-    case REASON_DISASSOC_PWRCAP_BAD:
-      return "Disassociate Power Cap Bad";
-    case REASON_DISASSOC_SUPCHAN_BAD:
-      return "Disassociate Supported Channel Bad";
-    case REASON_IE_INVALID:
-      return "IE Invalid";
-    case REASON_MIC_FAILURE:
-      return "Mic Failure";
-    case REASON_4WAY_HANDSHAKE_TIMEOUT:
-      return "4-Way Handshake Timeout";
-    case REASON_GROUP_KEY_UPDATE_TIMEOUT:
-      return "Group Key Update Timeout";
-    case REASON_IE_IN_4WAY_DIFFERS:
-      return "IE In 4-Way Handshake Differs";
-    case REASON_GROUP_CIPHER_INVALID:
-      return "Group Cipher Invalid";
-    case REASON_PAIRWISE_CIPHER_INVALID:
-      return "Pairwise Cipher Invalid";
-    case REASON_AKMP_INVALID:
-      return "AKMP Invalid";
-    case REASON_UNSUPP_RSN_IE_VERSION:
-      return "Unsupported RSN IE version";
-    case REASON_INVALID_RSN_IE_CAP:
-      return "Invalid RSN IE Cap";
-    case REASON_802_1X_AUTH_FAILED:
-      return "802.1x Authentication Failed";
-    case REASON_CIPHER_SUITE_REJECTED:
-      return "Cipher Suite Rejected";
     case REASON_BEACON_TIMEOUT:
-      return "Beacon Timeout";
+      return LOG_STR("Beacon Timeout");
     case REASON_NO_AP_FOUND:
-      return "AP Not Found";
+      return LOG_STR("AP Not Found");
     case REASON_AUTH_FAIL:
-      return "Authentication Failed";
+      return LOG_STR("Authentication Failed");
     case REASON_ASSOC_FAIL:
-      return "Association Failed";
+      return LOG_STR("Association Failed");
     case REASON_HANDSHAKE_TIMEOUT:
-      return "Handshake Failed";
+      return LOG_STR("Handshake Failed");
     case REASON_UNSPECIFIED:
     default:
-      return "Unspecified";
+      return LOG_STR("Unspecified");
   }
 }
 
@@ -441,7 +458,7 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
         ESP_LOGW(TAG, "Event: Disconnected ssid='%s' reason='Probe Request Unsuccessful'", buf);
       } else {
         ESP_LOGW(TAG, "Event: Disconnected ssid='%s' bssid=" LOG_SECRET("%s") " reason='%s'", buf,
-                 format_mac_addr(it.bssid).c_str(), get_disconnect_reason_str(it.reason));
+                 format_mac_addr(it.bssid).c_str(), LOG_STR_ARG(get_disconnect_reason_str(it.reason)));
       }
       break;
     }
@@ -485,7 +502,7 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
       ESP_LOGVV(TAG, "Event: AP receive Probe Request MAC=%s RSSI=%d", format_mac_addr(it.mac).c_str(), it.rssi);
       break;
     }
-#ifndef ARDUINO_ESP8266_RELEASE_2_3_0
+#if ARDUINO_VERSION_CODE >= VERSION_CODE(2, 4, 0)
     case EVENT_OPMODE_CHANGED: {
       auto it = event->event_info.opmode_changed;
       ESP_LOGV(TAG, "Event: Changed Mode old=%s new=%s", get_op_mode_str(it.old_opmode),
@@ -570,7 +587,7 @@ bool WiFiComponent::wifi_scan_start_() {
   config.bssid = nullptr;
   config.channel = 0;
   config.show_hidden = 1;
-#ifndef ARDUINO_ESP8266_RELEASE_2_3_0
+#if ARDUINO_VERSION_CODE >= VERSION_CODE(2, 4, 0)
   config.scan_type = WIFI_SCAN_TYPE_ACTIVE;
   if (FIRST_SCAN) {
     config.scan_time.active.min = 100;
@@ -649,6 +666,10 @@ bool WiFiComponent::wifi_ap_ip_config_(optional<ManualIP> manual_ip) {
     return false;
   }
 
+#if ARDUINO_VERSION_CODE >= VERSION_CODE(3, 0, 0)
+  dhcpSoftAP.begin(&info);
+#endif
+
   struct dhcps_lease lease {};
   IPAddress start_address = info.ip.addr;
   start_address[3] += 99;
@@ -688,7 +709,7 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
     return false;
 
   struct softap_config conf {};
-  strcpy(reinterpret_cast<char *>(conf.ssid), ap.get_ssid().c_str());
+  strncpy(reinterpret_cast<char *>(conf.ssid), ap.get_ssid().c_str(), sizeof(conf.ssid));
   conf.ssid_len = static_cast<uint8>(ap.get_ssid().size());
   conf.channel = ap.get_channel().value_or(1);
   conf.ssid_hidden = ap.get_hidden();
@@ -700,7 +721,7 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
     *conf.password = 0;
   } else {
     conf.authmode = AUTH_WPA2_PSK;
-    strcpy(reinterpret_cast<char *>(conf.password), ap.get_password().c_str());
+    strncpy(reinterpret_cast<char *>(conf.password), ap.get_password().c_str(), sizeof(conf.password));
   }
 
   ETS_UART_INTR_DISABLE();

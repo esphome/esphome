@@ -59,7 +59,7 @@ IPAddress = cg.global_ns.class_("IPAddress")
 ManualIP = ethernet_ns.struct("ManualIP")
 
 
-def validate(config):
+def _validate(config):
     if CONF_USE_ADDRESS not in config:
         if CONF_MANUAL_IP in config:
             use_address = str(config[CONF_MANUAL_IP][CONF_STATIC_IP])
@@ -85,12 +85,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_ENABLE_MDNS, default=True): cv.boolean,
             cv.Optional(CONF_DOMAIN, default=".local"): cv.domain_name,
             cv.Optional(CONF_USE_ADDRESS): cv.string_strict,
-            cv.Optional("hostname"): cv.invalid(
-                "The hostname option has been removed in 1.11.0"
-            ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
-    validate,
+    _validate,
 )
 
 

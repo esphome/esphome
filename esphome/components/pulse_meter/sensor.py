@@ -11,9 +11,10 @@ from esphome.const import (
     CONF_TOTAL,
     CONF_VALUE,
     ICON_PULSE,
+    LAST_RESET_TYPE_AUTO,
+    STATE_CLASS_MEASUREMENT,
     UNIT_PULSES,
     UNIT_PULSES_PER_MINUTE,
-    DEVICE_CLASS_EMPTY,
 )
 from esphome.core import CORE
 
@@ -49,7 +50,10 @@ def validate_pulse_meter_pin(value):
 
 
 CONFIG_SCHEMA = sensor.sensor_schema(
-    UNIT_PULSES_PER_MINUTE, ICON_PULSE, 2, DEVICE_CLASS_EMPTY
+    unit_of_measurement=UNIT_PULSES_PER_MINUTE,
+    icon=ICON_PULSE,
+    accuracy_decimals=2,
+    state_class=STATE_CLASS_MEASUREMENT,
 ).extend(
     {
         cv.GenerateID(): cv.declare_id(PulseMeterSensor),
@@ -57,7 +61,11 @@ CONFIG_SCHEMA = sensor.sensor_schema(
         cv.Optional(CONF_INTERNAL_FILTER, default="13us"): validate_internal_filter,
         cv.Optional(CONF_TIMEOUT, default="5min"): validate_timeout,
         cv.Optional(CONF_TOTAL): sensor.sensor_schema(
-            UNIT_PULSES, ICON_PULSE, 0, DEVICE_CLASS_EMPTY
+            unit_of_measurement=UNIT_PULSES,
+            icon=ICON_PULSE,
+            accuracy_decimals=0,
+            state_class=STATE_CLASS_MEASUREMENT,
+            last_reset_type=LAST_RESET_TYPE_AUTO,
         ),
     }
 )
@@ -88,9 +96,9 @@ async def to_code(config):
         }
     ),
 )
-def set_total_action_to_code(config, action_id, template_arg, args):
-    paren = yield cg.get_variable(config[CONF_ID])
+async def set_total_action_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = yield cg.templatable(config[CONF_VALUE], args, int)
+    template_ = await cg.templatable(config[CONF_VALUE], args, int)
     cg.add(var.set_total_pulses(template_))
-    yield var
+    return var

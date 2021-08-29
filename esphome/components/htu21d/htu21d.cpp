@@ -4,7 +4,7 @@
 namespace esphome {
 namespace htu21d {
 
-static const char *TAG = "htu21d";
+static const char *const TAG = "htu21d";
 
 static const uint8_t HTU21D_ADDRESS = 0x40;
 static const uint8_t HTU21D_REGISTER_RESET = 0xFE;

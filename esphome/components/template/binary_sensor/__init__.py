@@ -39,9 +39,9 @@ async def to_code(config):
         }
     ),
 )
-def binary_sensor_template_publish_to_code(config, action_id, template_arg, args):
-    paren = yield cg.get_variable(config[CONF_ID])
+async def binary_sensor_template_publish_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = yield cg.templatable(config[CONF_STATE], args, bool)
+    template_ = await cg.templatable(config[CONF_STATE], args, bool)
     cg.add(var.set_state(template_))
-    yield var
+    return var

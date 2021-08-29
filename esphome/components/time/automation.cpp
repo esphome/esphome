@@ -4,7 +4,7 @@
 namespace esphome {
 namespace time {
 
-static const char *TAG = "automation";
+static const char *const TAG = "automation";
 
 void CronTrigger::add_second(uint8_t second) { this->seconds_[second] = true; }
 void CronTrigger::add_minute(uint8_t minute) { this->minutes_[minute] = true; }
@@ -22,7 +22,10 @@ void CronTrigger::loop() {
     return;
 
   if (this->last_check_.has_value()) {
-    if (*this->last_check_ >= time) {
+    if (*this->last_check_ > time && this->last_check_->timestamp - time.timestamp > 900) {
+      // We went back in time (a lot), probably caused by time synchronization
+      ESP_LOGW(TAG, "Time has jumped back!");
+    } else if (*this->last_check_ >= time) {
       // already handled this one
       return;
     }

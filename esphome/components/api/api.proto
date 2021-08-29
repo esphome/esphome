@@ -38,6 +38,8 @@ service APIConnection {
   rpc switch_command (SwitchCommandRequest) returns (void) {}
   rpc camera_image (CameraImageRequest) returns (void) {}
   rpc climate_command (ClimateCommandRequest) returns (void) {}
+  rpc number_command (NumberCommandRequest) returns (void) {}
+  rpc select_command (SelectCommandRequest) returns (void) {}
 }
 
 
@@ -176,6 +178,10 @@ message DeviceInfoResponse {
   string model = 6;
 
   bool has_deep_sleep = 7;
+
+  // The esphome project details if set
+  string project_name = 8;
+  string project_version = 9;
 }
 
 message ListEntitiesRequest {
@@ -208,6 +214,7 @@ message ListEntitiesBinarySensorResponse {
 
   string device_class = 5;
   bool is_status_binary_sensor = 6;
+  bool disabled_by_default = 7;
 }
 message BinarySensorStateResponse {
   option (id) = 21;
@@ -237,6 +244,7 @@ message ListEntitiesCoverResponse {
   bool supports_position = 6;
   bool supports_tilt = 7;
   string device_class = 8;
+  bool disabled_by_default = 9;
 }
 
 enum LegacyCoverState {
@@ -304,6 +312,7 @@ message ListEntitiesFanResponse {
   bool supports_speed = 6;
   bool supports_direction = 7;
   int32 supported_speed_count = 8;
+  bool disabled_by_default = 9;
 }
 enum FanSpeed {
   FAN_SPEED_LOW = 0;
@@ -347,6 +356,18 @@ message FanCommandRequest {
 }
 
 // ==================== LIGHT ====================
+enum ColorMode {
+  COLOR_MODE_UNKNOWN = 0;
+  COLOR_MODE_ON_OFF = 1;
+  COLOR_MODE_BRIGHTNESS = 2;
+  COLOR_MODE_WHITE = 7;
+  COLOR_MODE_COLOR_TEMPERATURE = 11;
+  COLOR_MODE_COLD_WARM_WHITE = 19;
+  COLOR_MODE_RGB = 35;
+  COLOR_MODE_RGB_WHITE = 39;
+  COLOR_MODE_RGB_COLOR_TEMPERATURE = 47;
+  COLOR_MODE_RGB_COLD_WARM_WHITE = 51;
+}
 message ListEntitiesLightResponse {
   option (id) = 15;
   option (source) = SOURCE_SERVER;
@@ -357,13 +378,16 @@ message ListEntitiesLightResponse {
   string name = 3;
   string unique_id = 4;
 
-  bool supports_brightness = 5;
-  bool supports_rgb = 6;
-  bool supports_white_value = 7;
-  bool supports_color_temperature = 8;
+  repeated ColorMode supported_color_modes = 12;
+  // next four supports_* are for legacy clients, newer clients should use color modes
+  bool legacy_supports_brightness = 5 [deprecated=true];
+  bool legacy_supports_rgb = 6 [deprecated=true];
+  bool legacy_supports_white_value = 7 [deprecated=true];
+  bool legacy_supports_color_temperature = 8 [deprecated=true];
   float min_mireds = 9;
   float max_mireds = 10;
   repeated string effects = 11;
+  bool disabled_by_default = 13;
 }
 message LightStateResponse {
   option (id) = 24;
@@ -374,11 +398,15 @@ message LightStateResponse {
   fixed32 key = 1;
   bool state = 2;
   float brightness = 3;
+  ColorMode color_mode = 11;
+  float color_brightness = 10;
   float red = 4;
   float green = 5;
   float blue = 6;
   float white = 7;
   float color_temperature = 8;
+  float cold_white = 12;
+  float warm_white = 13;
   string effect = 9;
 }
 message LightCommandRequest {
@@ -392,6 +420,10 @@ message LightCommandRequest {
   bool state = 3;
   bool has_brightness = 4;
   float brightness = 5;
+  bool has_color_mode = 22;
+  ColorMode color_mode = 23;
+  bool has_color_brightness = 20;
+  float color_brightness = 21;
   bool has_rgb = 6;
   float red = 7;
   float green = 8;
@@ -400,6 +432,10 @@ message LightCommandRequest {
   float white = 11;
   bool has_color_temperature = 12;
   float color_temperature = 13;
+  bool has_cold_white = 24;
+  float cold_white = 25;
+  bool has_warm_white = 26;
+  float warm_white = 27;
   bool has_transition_length = 14;
   uint32 transition_length = 15;
   bool has_flash_length = 16;
@@ -409,6 +445,18 @@ message LightCommandRequest {
 }
 
 // ==================== SENSOR ====================
+enum SensorStateClass {
+  STATE_CLASS_NONE = 0;
+  STATE_CLASS_MEASUREMENT = 1;
+  STATE_CLASS_TOTAL_INCREASING = 2;
+}
+
+enum SensorLastResetType {
+  LAST_RESET_NONE = 0;
+  LAST_RESET_NEVER = 1;
+  LAST_RESET_AUTO = 2;
+}
+
 message ListEntitiesSensorResponse {
   option (id) = 16;
   option (source) = SOURCE_SERVER;
@@ -424,6 +472,9 @@ message ListEntitiesSensorResponse {
   int32 accuracy_decimals = 7;
   bool force_update = 8;
   string device_class = 9;
+  SensorStateClass state_class = 10;
+  SensorLastResetType last_reset_type = 11;
+  bool disabled_by_default = 12;
 }
 message SensorStateResponse {
   option (id) = 25;
@@ -451,6 +502,7 @@ message ListEntitiesSwitchResponse {
 
   string icon = 5;
   bool assumed_state = 6;
+  bool disabled_by_default = 7;
 }
 message SwitchStateResponse {
   option (id) = 26;
@@ -483,6 +535,7 @@ message ListEntitiesTextSensorResponse {
   string unique_id = 4;
 
   string icon = 5;
+  bool disabled_by_default = 6;
 }
 message TextSensorStateResponse {
   option (id) = 27;
@@ -503,9 +556,10 @@ enum LogLevel {
   LOG_LEVEL_ERROR = 1;
   LOG_LEVEL_WARN = 2;
   LOG_LEVEL_INFO = 3;
-  LOG_LEVEL_DEBUG = 4;
-  LOG_LEVEL_VERBOSE = 5;
-  LOG_LEVEL_VERY_VERBOSE = 6;
+  LOG_LEVEL_CONFIG = 4;
+  LOG_LEVEL_DEBUG = 5;
+  LOG_LEVEL_VERBOSE = 6;
+  LOG_LEVEL_VERY_VERBOSE = 7;
 }
 message SubscribeLogsRequest {
   option (id) = 28;
@@ -520,7 +574,6 @@ message SubscribeLogsResponse {
   option (no_delay) = false;
 
   LogLevel level = 1;
-  string tag = 2;
   string message = 3;
   bool send_failed = 4;
 }
@@ -642,6 +695,7 @@ message ListEntitiesCameraResponse {
   fixed32 key = 2;
   string name = 3;
   string unique_id = 4;
+  bool disabled_by_default = 5;
 }
 
 message CameraImageResponse {
@@ -666,11 +720,12 @@ message CameraImageRequest {
 // ==================== CLIMATE ====================
 enum ClimateMode {
   CLIMATE_MODE_OFF = 0;
-  CLIMATE_MODE_AUTO = 1;
+  CLIMATE_MODE_HEAT_COOL = 1;
   CLIMATE_MODE_COOL = 2;
   CLIMATE_MODE_HEAT = 3;
   CLIMATE_MODE_FAN_ONLY = 4;
   CLIMATE_MODE_DRY = 5;
+  CLIMATE_MODE_AUTO = 6;
 }
 enum ClimateFanMode {
   CLIMATE_FAN_ON = 0;
@@ -698,6 +753,16 @@ enum ClimateAction {
   CLIMATE_ACTION_DRYING = 5;
   CLIMATE_ACTION_FAN = 6;
 }
+enum ClimatePreset {
+  CLIMATE_PRESET_NONE = 0;
+  CLIMATE_PRESET_HOME = 1;
+  CLIMATE_PRESET_AWAY = 2;
+  CLIMATE_PRESET_BOOST = 3;
+  CLIMATE_PRESET_COMFORT = 4;
+  CLIMATE_PRESET_ECO = 5;
+  CLIMATE_PRESET_SLEEP = 6;
+  CLIMATE_PRESET_ACTIVITY = 7;
+}
 message ListEntitiesClimateResponse {
   option (id) = 46;
   option (source) = SOURCE_SERVER;
@@ -714,10 +779,16 @@ message ListEntitiesClimateResponse {
   float visual_min_temperature = 8;
   float visual_max_temperature = 9;
   float visual_temperature_step = 10;
-  bool supports_away = 11;
+  // for older peer versions - in new system this
+  // is if CLIMATE_PRESET_AWAY exists is supported_presets
+  bool legacy_supports_away = 11;
   bool supports_action = 12;
   repeated ClimateFanMode supported_fan_modes = 13;
   repeated ClimateSwingMode supported_swing_modes = 14;
+  repeated string supported_custom_fan_modes = 15;
+  repeated ClimatePreset supported_presets = 16;
+  repeated string supported_custom_presets = 17;
+  bool disabled_by_default = 18;
 }
 message ClimateStateResponse {
   option (id) = 47;
@@ -731,10 +802,14 @@ message ClimateStateResponse {
   float target_temperature = 4;
   float target_temperature_low = 5;
   float target_temperature_high = 6;
-  bool away = 7;
+  // For older peers, equal to preset == CLIMATE_PRESET_AWAY
+  bool legacy_away = 7;
   ClimateAction action = 8;
   ClimateFanMode fan_mode = 9;
   ClimateSwingMode swing_mode = 10;
+  string custom_fan_mode = 11;
+  ClimatePreset preset = 12;
+  string custom_preset = 13;
 }
 message ClimateCommandRequest {
   option (id) = 48;
@@ -751,10 +826,93 @@ message ClimateCommandRequest {
   float target_temperature_low = 7;
   bool has_target_temperature_high = 8;
   float target_temperature_high = 9;
-  bool has_away = 10;
-  bool away = 11;
+  // legacy, for older peers, newer ones should use CLIMATE_PRESET_AWAY in preset
+  bool has_legacy_away = 10;
+  bool legacy_away = 11;
   bool has_fan_mode = 12;
   ClimateFanMode fan_mode = 13;
   bool has_swing_mode = 14;
   ClimateSwingMode swing_mode = 15;
+  bool has_custom_fan_mode = 16;
+  string custom_fan_mode = 17;
+  bool has_preset = 18;
+  ClimatePreset preset = 19;
+  bool has_custom_preset = 20;
+  string custom_preset = 21;
+}
+
+// ==================== NUMBER ====================
+message ListEntitiesNumberResponse {
+  option (id) = 49;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_NUMBER";
+
+  string object_id = 1;
+  fixed32 key = 2;
+  string name = 3;
+  string unique_id = 4;
+
+  string icon = 5;
+  float min_value = 6;
+  float max_value = 7;
+  float step = 8;
+  bool disabled_by_default = 9;
+}
+message NumberStateResponse {
+  option (id) = 50;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_NUMBER";
+  option (no_delay) = true;
+
+  fixed32 key = 1;
+  float state = 2;
+  // If the number does not have a valid state yet.
+  // Equivalent to `!obj->has_state()` - inverse logic to make state packets smaller
+  bool missing_state = 3;
+}
+message NumberCommandRequest {
+  option (id) = 51;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_NUMBER";
+  option (no_delay) = true;
+
+  fixed32 key = 1;
+  float state = 2;
+}
+
+// ==================== SELECT ====================
+message ListEntitiesSelectResponse {
+  option (id) = 52;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_SELECT";
+
+  string object_id = 1;
+  fixed32 key = 2;
+  string name = 3;
+  string unique_id = 4;
+
+  string icon = 5;
+  repeated string options = 6;
+  bool disabled_by_default = 7;
+}
+message SelectStateResponse {
+  option (id) = 53;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_SELECT";
+  option (no_delay) = true;
+
+  fixed32 key = 1;
+  string state = 2;
+  // If the select does not have a valid state yet.
+  // Equivalent to `!obj->has_state()` - inverse logic to make state packets smaller
+  bool missing_state = 3;
+}
+message SelectCommandRequest {
+  option (id) = 54;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_SELECT";
+  option (no_delay) = true;
+
+  fixed32 key = 1;
+  string state = 2;
 }

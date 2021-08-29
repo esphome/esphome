@@ -5,7 +5,7 @@
 
 namespace esphome {
 
-static const char *TAG = "scheduler";
+static const char *const TAG = "scheduler";
 
 static const uint32_t SCHEDULER_DONT_RUN = 4294967295UL;
 static const uint32_t MAX_LOGICALLY_DELETED_ITEMS = 10;
@@ -155,7 +155,10 @@ void ICACHE_RAM_ATTR HOT Scheduler::call() {
       // Warning: During f(), a lot of stuff can happen, including:
       //  - timeouts/intervals get added, potentially invalidating vector pointers
       //  - timeouts/intervals get cancelled
-      item->f();
+      {
+        WarnIfComponentBlockingGuard guard{item->component};
+        item->f();
+      }
     }
 
     {

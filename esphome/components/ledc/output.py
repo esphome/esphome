@@ -3,7 +3,6 @@ from esphome.components import output
 import esphome.config_validation as cv
 import esphome.codegen as cg
 from esphome.const import (
-    CONF_BIT_DEPTH,
     CONF_CHANNEL,
     CONF_FREQUENCY,
     CONF_ID,
@@ -50,10 +49,6 @@ CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
         cv.Required(CONF_PIN): pins.internal_gpio_output_pin_schema,
         cv.Optional(CONF_FREQUENCY, default="1kHz"): cv.frequency,
         cv.Optional(CONF_CHANNEL): cv.int_range(min=0, max=15),
-        cv.Optional(CONF_BIT_DEPTH): cv.invalid(
-            "The bit_depth option has been removed in v1.14, the "
-            "best bit depth is now automatically calculated."
-        ),
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -78,9 +73,9 @@ async def to_code(config):
         }
     ),
 )
-def ledc_set_frequency_to_code(config, action_id, template_arg, args):
-    paren = yield cg.get_variable(config[CONF_ID])
+async def ledc_set_frequency_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = yield cg.templatable(config[CONF_FREQUENCY], args, float)
+    template_ = await cg.templatable(config[CONF_FREQUENCY], args, float)
     cg.add(var.set_frequency(template_))
-    yield var
+    return var

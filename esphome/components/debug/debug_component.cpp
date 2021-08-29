@@ -11,7 +11,7 @@
 namespace esphome {
 namespace debug {
 
-static const char *TAG = "debug";
+static const char *const TAG = "debug";
 
 void DebugComponent::dump_config() {
   std::string device_info;

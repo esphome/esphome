@@ -150,7 +150,7 @@ def format_method(config):
     raise NotImplementedError
 
 
-def validate(config):
+def _validate(config):
     if CONF_PIN in config:
         if CONF_CLOCK_PIN in config or CONF_DATA_PIN in config:
             raise cv.Invalid("Cannot specify both 'pin' and 'clock_pin'+'data_pin'")
@@ -176,7 +176,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_NUM_LEDS): cv.positive_not_null_int,
         }
     ).extend(cv.COMPONENT_SCHEMA),
-    validate,
+    _validate,
     validate_method_pin,
 )
 

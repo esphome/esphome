@@ -31,10 +31,10 @@ static const uint16_t SGP40_CMD_SELF_TEST = 0x280e;
 
 // Shortest time interval of 3H for storing baseline values.
 // Prevents wear of the flash because of too many write operations
-const long SHORTEST_BASELINE_STORE_INTERVAL = 10800;
+const uint32_t SHORTEST_BASELINE_STORE_INTERVAL = 10800;
 
 // Store anyway if the baseline difference exceeds the max storage diff value
-const long MAXIMUM_STORAGE_DIFF = 50;
+const uint32_t MAXIMUM_STORAGE_DIFF = 50;
 
 class SGP40Component;
 
@@ -65,7 +65,7 @@ class SGP40Component : public PollingComponent, public sensor::Sensor, public i2
   uint8_t generate_crc_(const uint8_t *data, uint8_t datalen);
   uint16_t measure_raw_();
   ESPPreferenceObject pref_;
-  long seconds_since_last_store_;
+  int32_t seconds_since_last_store_;
   SGP40Baselines baselines_storage_;
   VocAlgorithmParams voc_algorithm_params_;
   bool store_baseline_;

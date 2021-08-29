@@ -7,12 +7,11 @@ from esphome.const import (
     CONF_CO2,
     CONF_ID,
     CONF_TEMPERATURE,
-    DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_TEMPERATURE,
     ICON_MOLECULE_CO2,
+    STATE_CLASS_MEASUREMENT,
     UNIT_PARTS_PER_MILLION,
     UNIT_CELSIUS,
-    ICON_EMPTY,
 )
 
 DEPENDENCIES = ["uart"]
@@ -32,10 +31,16 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(MHZ19Component),
             cv.Required(CONF_CO2): sensor.sensor_schema(
-                UNIT_PARTS_PER_MILLION, ICON_MOLECULE_CO2, 0, DEVICE_CLASS_EMPTY
+                unit_of_measurement=UNIT_PARTS_PER_MILLION,
+                icon=ICON_MOLECULE_CO2,
+                accuracy_decimals=0,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-                UNIT_CELSIUS, ICON_EMPTY, 0, DEVICE_CLASS_TEMPERATURE
+                unit_of_measurement=UNIT_CELSIUS,
+                accuracy_decimals=0,
+                device_class=DEVICE_CLASS_TEMPERATURE,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_AUTOMATIC_BASELINE_CALIBRATION): cv.boolean,
         }
@@ -78,6 +83,6 @@ CALIBRATION_ACTION_SCHEMA = maybe_simple_id(
 @automation.register_action(
     "mhz19.abc_disable", MHZ19ABCDisableAction, CALIBRATION_ACTION_SCHEMA
 )
-def mhz19_calibration_to_code(config, action_id, template_arg, args):
-    paren = yield cg.get_variable(config[CONF_ID])
-    yield cg.new_Pvariable(action_id, template_arg, paren)
+async def mhz19_calibration_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(action_id, template_arg, paren)

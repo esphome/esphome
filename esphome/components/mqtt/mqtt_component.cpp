@@ -7,7 +7,7 @@
 namespace esphome {
 namespace mqtt {
 
-static const char *TAG = "mqtt.component";
+static const char *const TAG = "mqtt.component";
 
 void MQTTComponent::set_retain(bool retain) { this->retain_ = retain; }
 
@@ -102,9 +102,7 @@ bool MQTTComponent::send_discovery_() {
         device_info["identifiers"] = get_mac_address();
         device_info["name"] = node_name;
         device_info["sw_version"] = "esphome v" ESPHOME_VERSION " " + App.get_compilation_time();
-#ifdef ARDUINO_BOARD
-        device_info["model"] = ARDUINO_BOARD;
-#endif
+        device_info["model"] = ESPHOME_BOARD;
         device_info["manufacturer"] = "espressif";
       },
       0, discovery_info.retain);
@@ -124,8 +122,8 @@ void MQTTComponent::subscribe(const std::string &topic, mqtt_callback_t callback
   global_mqtt_client->subscribe(topic, std::move(callback), qos);
 }
 
-void MQTTComponent::subscribe_json(const std::string &topic, mqtt_json_callback_t callback, uint8_t qos) {
-  global_mqtt_client->subscribe_json(topic, std::move(callback), qos);
+void MQTTComponent::subscribe_json(const std::string &topic, const mqtt_json_callback_t &callback, uint8_t qos) {
+  global_mqtt_client->subscribe_json(topic, callback, qos);
 }
 
 MQTTComponent::MQTTComponent() = default;

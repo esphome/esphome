@@ -354,7 +354,7 @@ def safe_exp(obj: SafeExpType) -> Expression:
     if inspect.isgenerator(obj):
         raise ValueError(
             "Object {} is a coroutine. Did you forget to await the expression with "
-            "'yield'?".format(obj)
+            "'await'?".format(obj)
         )
     raise ValueError("Object is not an expression", obj)
 
@@ -543,13 +543,13 @@ def add_global(expression: Union[SafeExpType, Statement]):
     CORE.add_global(expression)
 
 
-def add_library(name: str, version: Optional[str]):
+def add_library(name: str, version: Optional[str], repository: Optional[str] = None):
     """Add a library to the codegen library storage.
 
     :param name: The name of the library (for example 'AsyncTCP')
     :param version: The version of the library, may be None.
     """
-    CORE.add_library(Library(name, version))
+    CORE.add_library(Library(name, version, repository))
 
 
 def add_build_flag(build_flag: str):
@@ -573,7 +573,7 @@ async def get_variable(id_: ID) -> "MockObj":
     Wait for the given ID to be defined in the code generation and
     return it as a MockObj.
 
-    This is a coroutine, you need to await it with a 'yield' expression!
+    This is a coroutine, you need to await it with a 'await' expression!
 
     :param id_: The ID to retrieve
     :return: The variable as a MockObj.
@@ -586,7 +586,7 @@ async def get_variable_with_full_id(id_: ID) -> Tuple[ID, "MockObj"]:
     Wait for the given ID to be defined in the code generation and
     return it as a MockObj.
 
-    This is a coroutine, you need to await it with a 'yield' expression!
+    This is a coroutine, you need to await it with a 'await' expression!
 
     :param id_: The ID to retrieve
     :return: The variable as a MockObj.
@@ -603,7 +603,7 @@ async def process_lambda(
     """Process the given lambda value into a LambdaExpression.
 
     This is a coroutine because lambdas can depend on other IDs,
-    you need to await it with 'yield'!
+    you need to await it with 'await'!
 
     :param value: The lambda to process.
     :param parameters: The parameters to pass to the Lambda, list of tuples

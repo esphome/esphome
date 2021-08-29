@@ -5,7 +5,7 @@
 namespace esphome {
 namespace atm90e32 {
 
-static const char *TAG = "atm90e32";
+static const char *const TAG = "atm90e32";
 
 void ATM90E32Component::update() {
   if (this->read16_(ATM90E32_REGISTER_METEREN) != 1) {

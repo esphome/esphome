@@ -61,6 +61,6 @@ SN74HC595_INPUT_PIN_SCHEMA = cv.Schema({})
 @pins.PIN_SCHEMA_REGISTRY.register(
     CONF_SN74HC595, (SN74HC595_OUTPUT_PIN_SCHEMA, SN74HC595_INPUT_PIN_SCHEMA)
 )
-def sn74hc595_pin_to_code(config):
-    parent = yield cg.get_variable(config[CONF_SN74HC595])
-    yield SN74HC595GPIOPin.new(parent, config[CONF_NUMBER], config[CONF_INVERTED])
+async def sn74hc595_pin_to_code(config):
+    parent = await cg.get_variable(config[CONF_SN74HC595])
+    return SN74HC595GPIOPin.new(parent, config[CONF_NUMBER], config[CONF_INVERTED])

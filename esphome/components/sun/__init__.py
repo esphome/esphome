@@ -151,13 +151,13 @@ async def to_code(config):
         }
     ),
 )
-def sun_above_horizon_to_code(config, condition_id, template_arg, args):
+async def sun_above_horizon_to_code(config, condition_id, template_arg, args):
     var = cg.new_Pvariable(condition_id, template_arg)
-    yield cg.register_parented(var, config[CONF_ID])
-    templ = yield cg.templatable(config[CONF_ELEVATION], args, cg.double)
+    await cg.register_parented(var, config[CONF_ID])
+    templ = await cg.templatable(config[CONF_ELEVATION], args, cg.double)
     cg.add(var.set_elevation(templ))
     cg.add(var.set_above(True))
-    yield var
+    return var
 
 
 @automation.register_condition(
@@ -172,10 +172,10 @@ def sun_above_horizon_to_code(config, condition_id, template_arg, args):
         }
     ),
 )
-def sun_below_horizon_to_code(config, condition_id, template_arg, args):
+async def sun_below_horizon_to_code(config, condition_id, template_arg, args):
     var = cg.new_Pvariable(condition_id, template_arg)
-    yield cg.register_parented(var, config[CONF_ID])
-    templ = yield cg.templatable(config[CONF_ELEVATION], args, cg.double)
+    await cg.register_parented(var, config[CONF_ID])
+    templ = await cg.templatable(config[CONF_ELEVATION], args, cg.double)
     cg.add(var.set_elevation(templ))
     cg.add(var.set_above(False))
-    yield var
+    return var

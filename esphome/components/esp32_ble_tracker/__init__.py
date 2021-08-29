@@ -15,7 +15,6 @@ from esphome.const import (
     CONF_ON_BLE_SERVICE_DATA_ADVERTISE,
     CONF_ON_BLE_MANUFACTURER_DATA_ADVERTISE,
 )
-from esphome.core import coroutine
 
 ESP_PLATFORMS = [ESP_PLATFORM_ESP32]
 AUTO_LOAD = ["xiaomi_ble", "ruuvi_ble"]
@@ -164,9 +163,6 @@ CONFIG_SCHEMA = cv.Schema(
                 cv.Required(CONF_MANUFACTURER_ID): bt_uuid,
             }
         ),
-        cv.Optional("scan_interval"): cv.invalid(
-            "This option has been removed in 1.14 (Reason: " "it never had an effect)"
-        ),
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -216,15 +212,13 @@ async def to_code(config):
         await automation.build_automation(trigger, [(adv_data_t_const_ref, "x")], conf)
 
 
-@coroutine
-def register_ble_device(var, config):
-    paren = yield cg.get_variable(config[CONF_ESP32_BLE_ID])
+async def register_ble_device(var, config):
+    paren = await cg.get_variable(config[CONF_ESP32_BLE_ID])
     cg.add(paren.register_listener(var))
-    yield var
+    return var
 
 
-@coroutine
-def register_client(var, config):
-    paren = yield cg.get_variable(config[CONF_ESP32_BLE_ID])
+async def register_client(var, config):
+    paren = await cg.get_variable(config[CONF_ESP32_BLE_ID])
     cg.add(paren.register_client(var))
-    yield var
+    return var

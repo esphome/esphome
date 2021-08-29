@@ -1,7 +1,6 @@
 #include "ota_component.h"
 
 #include "esphome/core/log.h"
-#include "esphome/core/helpers.h"
 #include "esphome/core/application.h"
 #include "esphome/core/util.h"
 
@@ -15,9 +14,9 @@
 namespace esphome {
 namespace ota {
 
-static const char *TAG = "ota";
+static const char *const TAG = "ota";
 
-uint8_t OTA_VERSION_1_0 = 1;
+static const uint8_t OTA_VERSION_1_0 = 1;
 
 void OTAComponent::setup() {
   this->server_ = new WiFiServer(this->port_);
@@ -25,6 +24,7 @@ void OTAComponent::setup() {
 
   this->dump_config();
 }
+
 void OTAComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "Over-The-Air Updates:");
   ESP_LOGCONFIG(TAG, "  Address: %s:%u", network_get_address().c_str(), this->port_);
@@ -71,6 +71,9 @@ void OTAComponent::handle_() {
 
   ESP_LOGD(TAG, "Starting OTA Update from %s...", this->client_.remoteIP().toString().c_str());
   this->status_set_warning();
+#ifdef USE_OTA_STATE_CALLBACK
+  this->state_callback_.call(OTA_STARTED, 0.0f, 0);
+#endif
 
   if (!this->wait_receive_(buf, 5)) {
     ESP_LOGW(TAG, "Reading magic bytes failed!");
@@ -175,28 +178,29 @@ void OTAComponent::handle_() {
 #endif
 
   if (!Update.begin(ota_size, U_FLASH)) {
+    uint8_t error = Update.getError();
     StreamString ss;
     Update.printError(ss);
 #ifdef ARDUINO_ARCH_ESP8266
-    if (ss.indexOf("Invalid bootstrapping") != -1) {
+    if (error == UPDATE_ERROR_BOOTSTRAP) {
       error_code = OTA_RESPONSE_ERROR_INVALID_BOOTSTRAPPING;
       goto error;
     }
-    if (ss.indexOf("new Flash config wrong") != -1 || ss.indexOf("new Flash config wsong") != -1) {
+    if (error == UPDATE_ERROR_NEW_FLASH_CONFIG) {
       error_code = OTA_RESPONSE_ERROR_WRONG_NEW_FLASH_CONFIG;
       goto error;
     }
-    if (ss.indexOf("Flash config wrong real") != -1 || ss.indexOf("Flash config wsong real") != -1) {
+    if (error == UPDATE_ERROR_FLASH_CONFIG) {
       error_code = OTA_RESPONSE_ERROR_WRONG_CURRENT_FLASH_CONFIG;
       goto error;
     }
-    if (ss.indexOf("Not Enough Space") != -1) {
+    if (error == UPDATE_ERROR_SPACE) {
       error_code = OTA_RESPONSE_ERROR_ESP8266_NOT_ENOUGH_SPACE;
       goto error;
     }
 #endif
 #ifdef ARDUINO_ARCH_ESP32
-    if (ss.indexOf("Bad Size Given") != -1) {
+    if (error == UPDATE_ERROR_SIZE) {
       error_code = OTA_RESPONSE_ERROR_ESP32_NOT_ENOUGH_SPACE;
       goto error;
     }
@@ -241,6 +245,9 @@ void OTAComponent::handle_() {
       last_progress = now;
       float percentage = (total * 100.0f) / ota_size;
       ESP_LOGD(TAG, "OTA in progress: %0.1f%%", percentage);
+#ifdef USE_OTA_STATE_CALLBACK
+      this->state_callback_.call(OTA_IN_PROGRESS, percentage, 0);
+#endif
       // slow down OTA update to avoid getting killed by task watchdog (task_wdt)
       delay(10);
     }
@@ -268,6 +275,9 @@ void OTAComponent::handle_() {
   delay(10);
   ESP_LOGI(TAG, "OTA update finished!");
   this->status_clear_warning();
+#ifdef USE_OTA_STATE_CALLBACK
+  this->state_callback_.call(OTA_COMPLETED, 100.0f, 0);
+#endif
   delay(100);  // NOLINT
   App.safe_reboot();
 
@@ -296,6 +306,9 @@ error:
 #endif
 
   this->status_momentary_error("onerror", 5000);
+#ifdef USE_OTA_STATE_CALLBACK
+  this->state_callback_.call(OTA_ERROR, 0.0f, static_cast<uint8_t>(error_code));
+#endif
 
 #ifdef ARDUINO_ARCH_ESP8266
   global_preferences.prevent_write(false);
@@ -399,6 +412,12 @@ void OTAComponent::on_safe_shutdown() {
   if (this->has_safe_mode_)
     this->clean_rtc();
 }
+
+#ifdef USE_OTA_STATE_CALLBACK
+void OTAComponent::add_on_state_callback(std::function<void(OTAState, float, uint8_t)> &&callback) {
+  this->state_callback_.add(std::move(callback));
+}
+#endif
 
 }  // namespace ota
 }  // namespace esphome

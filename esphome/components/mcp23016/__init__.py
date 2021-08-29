@@ -60,8 +60,8 @@ MCP23016_INPUT_PIN_SCHEMA = cv.Schema(
 @pins.PIN_SCHEMA_REGISTRY.register(
     CONF_MCP23016, (MCP23016_OUTPUT_PIN_SCHEMA, MCP23016_INPUT_PIN_SCHEMA)
 )
-def mcp23016_pin_to_code(config):
-    parent = yield cg.get_variable(config[CONF_MCP23016])
-    yield MCP23016GPIOPin.new(
+async def mcp23016_pin_to_code(config):
+    parent = await cg.get_variable(config[CONF_MCP23016])
+    return MCP23016GPIOPin.new(
         parent, config[CONF_NUMBER], config[CONF_MODE], config[CONF_INVERTED]
     )

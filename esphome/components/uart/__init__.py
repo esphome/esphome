@@ -1,5 +1,8 @@
+from typing import Optional
+
 import esphome.codegen as cg
 import esphome.config_validation as cv
+import esphome.final_validate as fv
 from esphome import pins, automation
 from esphome.const import (
     CONF_BAUD_RATE,
@@ -98,6 +101,64 @@ UART_DEVICE_SCHEMA = cv.Schema(
         cv.GenerateID(CONF_UART_ID): cv.use_id(UARTComponent),
     }
 )
+
+KEY_UART_DEVICES = "uart_devices"
+
+
+def final_validate_device_schema(
+    name: str,
+    *,
+    baud_rate: Optional[int] = None,
+    require_tx: bool = False,
+    require_rx: bool = False,
+):
+    def validate_baud_rate(value):
+        if value != baud_rate:
+            raise cv.Invalid(
+                f"Component {name} required baud rate {baud_rate} for the uart bus"
+            )
+        return value
+
+    def validate_pin(opt, device):
+        def validator(value):
+            if opt in device:
+                raise cv.Invalid(
+                    f"The uart {opt} is used both by {name} and {device[opt]}, "
+                    f"but can only be used by one. Please create a new uart bus for {name}."
+                )
+            device[opt] = name
+            return value
+
+        return validator
+
+    def validate_hub(hub_config):
+        hub_schema = {}
+        uart_id = hub_config[CONF_ID]
+        devices = fv.full_config.get().data.setdefault(KEY_UART_DEVICES, {})
+        device = devices.setdefault(uart_id, {})
+
+        if require_tx:
+            hub_schema[
+                cv.Required(
+                    CONF_TX_PIN,
+                    msg=f"Component {name} requires this uart bus to declare a tx_pin",
+                )
+            ] = validate_pin(CONF_TX_PIN, device)
+        if require_rx:
+            hub_schema[
+                cv.Required(
+                    CONF_RX_PIN,
+                    msg=f"Component {name} requires this uart bus to declare a rx_pin",
+                )
+            ] = validate_pin(CONF_RX_PIN, device)
+        if baud_rate is not None:
+            hub_schema[cv.Required(CONF_BAUD_RATE)] = validate_baud_rate
+        return cv.Schema(hub_schema, extra=cv.ALLOW_EXTRA)(hub_config)
+
+    return cv.Schema(
+        {cv.Required(CONF_UART_ID): fv.id_declaration_match_schema(validate_hub)},
+        extra=cv.ALLOW_EXTRA,
+    )
 
 
 async def register_uart_device(var, config):

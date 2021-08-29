@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """Python 3 script to automatically generate C++ classes for ESPHome's native API.
 
 It's pretty crappy spaghetti code, but it works.
@@ -660,8 +661,12 @@ def build_message_type(desc):
             o += "\n"
             o += f"  {o2}\n"
     o += "}\n"
+    cpp += f"#ifdef HAS_PROTO_MESSAGE_DUMP\n"
     cpp += o
-    prot = "void dump_to(std::string &out) const override;"
+    cpp += f"#endif\n"
+    prot = "#ifdef HAS_PROTO_MESSAGE_DUMP\n"
+    prot += "void dump_to(std::string &out) const override;\n"
+    prot += "#endif\n"
     public_content.append(prot)
 
     out = f"class {desc.name} : public ProtoMessage {{\n"
@@ -773,7 +778,9 @@ def build_service_message_type(mt):
         hout += f"bool {func}(const {mt.name} &msg);\n"
         cout += f"bool {class_name}::{func}(const {mt.name} &msg) {{\n"
         if log:
+            cout += f'#ifdef HAS_PROTO_MESSAGE_DUMP\n'
             cout += f'  ESP_LOGVV(TAG, "{func}: %s", msg.dump().c_str());\n'
+            cout += f'#endif\n'
         # cout += f'  this->set_nodelay({str(nodelay).lower()});\n'
         cout += f"  return this->send_message_<{mt.name}>(msg, {id_});\n"
         cout += f"}}\n"
@@ -787,7 +794,9 @@ def build_service_message_type(mt):
         case += f"{mt.name} msg;\n"
         case += f"msg.decode(msg_data, msg_size);\n"
         if log:
+            case += f'#ifdef HAS_PROTO_MESSAGE_DUMP\n'
             case += f'ESP_LOGVV(TAG, "{func}: %s", msg.dump().c_str());\n'
+            case += f'#endif\n'
         case += f"this->{func}(msg);\n"
         if ifdef is not None:
             case += f"#endif\n"
@@ -821,7 +830,7 @@ cpp += """\
 namespace esphome {
 namespace api {
 
-static const char *TAG = "api.service";
+static const char *const TAG = "api.service";
 
 """
 

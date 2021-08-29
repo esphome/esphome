@@ -5,9 +5,7 @@ from esphome.const import (
     CONF_ID,
     CONF_QOS,
     CONF_TOPIC,
-    UNIT_EMPTY,
-    ICON_EMPTY,
-    DEVICE_CLASS_EMPTY,
+    STATE_CLASS_NONE,
 )
 from .. import mqtt_subscribe_ns
 
@@ -19,7 +17,10 @@ MQTTSubscribeSensor = mqtt_subscribe_ns.class_(
 )
 
 CONFIG_SCHEMA = (
-    sensor.sensor_schema(UNIT_EMPTY, ICON_EMPTY, 1, DEVICE_CLASS_EMPTY)
+    sensor.sensor_schema(
+        accuracy_decimals=1,
+        state_class=STATE_CLASS_NONE,
+    )
     .extend(
         {
             cv.GenerateID(): cv.declare_id(MQTTSubscribeSensor),

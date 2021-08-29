@@ -7,7 +7,7 @@ from esphome.const import (
     CONF_RESOLUTION,
     CONF_MIN_VALUE,
     CONF_MAX_VALUE,
-    DEVICE_CLASS_EMPTY,
+    STATE_CLASS_NONE,
     UNIT_STEPS,
     ICON_ROTATE_RIGHT,
     CONF_VALUE,
@@ -56,7 +56,12 @@ def validate_min_max_value(config):
 
 
 CONFIG_SCHEMA = cv.All(
-    sensor.sensor_schema(UNIT_STEPS, ICON_ROTATE_RIGHT, 0, DEVICE_CLASS_EMPTY)
+    sensor.sensor_schema(
+        unit_of_measurement=UNIT_STEPS,
+        icon=ICON_ROTATE_RIGHT,
+        accuracy_decimals=0,
+        state_class=STATE_CLASS_NONE,
+    )
     .extend(
         {
             cv.GenerateID(): cv.declare_id(RotaryEncoderSensor),
@@ -127,9 +132,9 @@ async def to_code(config):
         }
     ),
 )
-def sensor_template_publish_to_code(config, action_id, template_arg, args):
-    paren = yield cg.get_variable(config[CONF_ID])
+async def sensor_template_publish_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = yield cg.templatable(config[CONF_VALUE], args, int)
+    template_ = await cg.templatable(config[CONF_VALUE], args, int)
     cg.add(var.set_value(template_))
-    yield var
+    return var

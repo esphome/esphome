@@ -1,15 +1,17 @@
 #include "tuya.h"
 #include "esphome/core/log.h"
+#include "esphome/core/util.h"
 #include "esphome/core/helpers.h"
 
 namespace esphome {
 namespace tuya {
 
-static const char *TAG = "tuya";
-static const int COMMAND_DELAY = 50;
+static const char *const TAG = "tuya";
+static const int COMMAND_DELAY = 10;
+static const int RECEIVE_TIMEOUT = 300;
 
 void Tuya::setup() {
-  this->set_interval("heartbeat", 1000, [this] { this->send_empty_command_(TuyaCommandType::HEARTBEAT); });
+  this->set_interval("heartbeat", 15000, [this] { this->send_empty_command_(TuyaCommandType::HEARTBEAT); });
 }
 
 void Tuya::loop() {
@@ -30,18 +32,20 @@ void Tuya::dump_config() {
     return;
   }
   for (auto &info : this->datapoints_) {
-    if (info.type == TuyaDatapointType::BOOLEAN)
-      ESP_LOGCONFIG(TAG, "  Datapoint %d: switch (value: %s)", info.id, ONOFF(info.value_bool));
+    if (info.type == TuyaDatapointType::RAW)
+      ESP_LOGCONFIG(TAG, "  Datapoint %u: raw (value: %s)", info.id, hexencode(info.value_raw).c_str());
+    else if (info.type == TuyaDatapointType::BOOLEAN)
+      ESP_LOGCONFIG(TAG, "  Datapoint %u: switch (value: %s)", info.id, ONOFF(info.value_bool));
     else if (info.type == TuyaDatapointType::INTEGER)
-      ESP_LOGCONFIG(TAG, "  Datapoint %d: int value (value: %d)", info.id, info.value_int);
+      ESP_LOGCONFIG(TAG, "  Datapoint %u: int value (value: %d)", info.id, info.value_int);
     else if (info.type == TuyaDatapointType::STRING)
-      ESP_LOGCONFIG(TAG, "  Datapoint %d: string value (value: %s)", info.id, info.value_string.c_str());
+      ESP_LOGCONFIG(TAG, "  Datapoint %u: string value (value: %s)", info.id, info.value_string.c_str());
     else if (info.type == TuyaDatapointType::ENUM)
-      ESP_LOGCONFIG(TAG, "  Datapoint %d: enum (value: %d)", info.id, info.value_enum);
+      ESP_LOGCONFIG(TAG, "  Datapoint %u: enum (value: %d)", info.id, info.value_enum);
     else if (info.type == TuyaDatapointType::BITMASK)
-      ESP_LOGCONFIG(TAG, "  Datapoint %d: bitmask (value: %x)", info.id, info.value_bitmask);
+      ESP_LOGCONFIG(TAG, "  Datapoint %u: bitmask (value: %x)", info.id, info.value_bitmask);
     else
-      ESP_LOGCONFIG(TAG, "  Datapoint %d: unknown", info.id);
+      ESP_LOGCONFIG(TAG, "  Datapoint %u: unknown", info.id);
   }
   if ((this->gpio_status_ != -1) || (this->gpio_reset_ != -1)) {
     ESP_LOGCONFIG(TAG, "  GPIO Configuration: status: pin %d, reset: pin %d (not supported)", this->gpio_status_,
@@ -98,8 +102,8 @@ bool Tuya::validate_message_() {
 
   // valid message
   const uint8_t *message_data = data + 6;
-  ESP_LOGV(TAG, "Received Tuya: CMD=0x%02X VERSION=%u DATA=[%s] INIT_STATE=%u", command, version,  // NOLINT
-           hexencode(message_data, length).c_str(), this->init_state_);
+  ESP_LOGV(TAG, "Received Tuya: CMD=0x%02X VERSION=%u DATA=[%s] INIT_STATE=%u", command, version,
+           hexencode(message_data, length).c_str(), static_cast<uint8_t>(this->init_state_));
   this->handle_command_(command, version, message_data, length);
 
   // return false to reset rx buffer
@@ -110,13 +114,22 @@ void Tuya::handle_char_(uint8_t c) {
   this->rx_message_.push_back(c);
   if (!this->validate_message_()) {
     this->rx_message_.clear();
+  } else {
+    this->last_rx_char_timestamp_ = millis();
   }
 }
 
 void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buffer, size_t len) {
-  switch ((TuyaCommandType) command) {
+  TuyaCommandType command_type = (TuyaCommandType) command;
+
+  if (this->expected_response_.has_value() && this->expected_response_ == command_type) {
+    this->expected_response_.reset();
+  }
+
+  switch (command_type) {
     case TuyaCommandType::HEARTBEAT:
       ESP_LOGV(TAG, "MCU Heartbeat (0x%02X)", buffer[0]);
+      this->protocol_version_ = version;
       if (buffer[0] == 0) {
         ESP_LOGI(TAG, "MCU restarted");
         this->init_state_ = TuyaInitState::INIT_HEARTBEAT;
@@ -148,20 +161,17 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
     }
     case TuyaCommandType::CONF_QUERY: {
       if (len >= 2) {
-        gpio_status_ = buffer[0];
-        gpio_reset_ = buffer[1];
+        this->gpio_status_ = buffer[0];
+        this->gpio_reset_ = buffer[1];
       }
       if (this->init_state_ == TuyaInitState::INIT_CONF) {
-        // If mcu returned status gpio, then we can ommit sending wifi state
+        // If mcu returned status gpio, then we can omit sending wifi state
         if (this->gpio_status_ != -1) {
           this->init_state_ = TuyaInitState::INIT_DATAPOINT;
           this->send_empty_command_(TuyaCommandType::DATAPOINT_QUERY);
         } else {
           this->init_state_ = TuyaInitState::INIT_WIFI;
-          // If we were following the spec to the letter we would send
-          // state updates until connected to both WiFi and API/MQTT.
-          // Instead we just claim to be connected immediately and move on.
-          this->send_command_(TuyaCommand{.cmd = TuyaCommandType::WIFI_STATE, .payload = std::vector<uint8_t>{0x04}});
+          this->set_interval("wifi", 1000, [this] { this->send_wifi_status_(); });
         }
       }
       break;
@@ -173,10 +183,10 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
       }
       break;
     case TuyaCommandType::WIFI_RESET:
-      ESP_LOGE(TAG, "TUYA_CMD_WIFI_RESET is not handled");
+      ESP_LOGE(TAG, "WIFI_RESET is not handled");
       break;
     case TuyaCommandType::WIFI_SELECT:
-      ESP_LOGE(TAG, "TUYA_CMD_WIFI_SELECT is not handled");
+      ESP_LOGE(TAG, "WIFI_SELECT is not handled");
       break;
     case TuyaCommandType::DATAPOINT_DELIVER:
       break;
@@ -189,48 +199,24 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
       break;
     case TuyaCommandType::DATAPOINT_QUERY:
       break;
-    case TuyaCommandType::WIFI_TEST: {
+    case TuyaCommandType::WIFI_TEST:
       this->send_command_(TuyaCommand{.cmd = TuyaCommandType::WIFI_TEST, .payload = std::vector<uint8_t>{0x00, 0x00}});
       break;
-    }
-    case TuyaCommandType::LOCAL_TIME_QUERY: {
+    case TuyaCommandType::LOCAL_TIME_QUERY:
 #ifdef USE_TIME
       if (this->time_id_.has_value()) {
+        this->send_local_time_();
         auto time_id = *this->time_id_;
-        auto now = time_id->now();
-
-        if (now.is_valid()) {
-          uint8_t year = now.year - 2000;
-          uint8_t month = now.month;
-          uint8_t day_of_month = now.day_of_month;
-          uint8_t hour = now.hour;
-          uint8_t minute = now.minute;
-          uint8_t second = now.second;
-          // Tuya days starts from Monday, esphome uses Sunday as day 1
-          uint8_t day_of_week = now.day_of_week - 1;
-          if (day_of_week == 0) {
-            day_of_week = 7;
-          }
-          this->send_command_(TuyaCommand{
-              .cmd = TuyaCommandType::LOCAL_TIME_QUERY,
-              .payload = std::vector<uint8_t>{0x01, year, month, day_of_month, hour, minute, second, day_of_week}});
-        } else {
-          ESP_LOGW(TAG, "TUYA_CMD_LOCAL_TIME_QUERY is not handled because time is not valid");
-          // By spec we need to notify MCU that the time was not obtained
-          this->send_command_(
-              TuyaCommand{.cmd = TuyaCommandType::LOCAL_TIME_QUERY,
-                          .payload = std::vector<uint8_t>{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}});
-        }
+        time_id->add_on_time_sync_callback([this] { this->send_local_time_(); });
       } else {
-        ESP_LOGW(TAG, "TUYA_CMD_LOCAL_TIME_QUERY is not handled because time is not configured");
+        ESP_LOGW(TAG, "LOCAL_TIME_QUERY is not handled because time is not configured");
       }
 #else
       ESP_LOGE(TAG, "LOCAL_TIME_QUERY is not handled");
 #endif
       break;
-    }
     default:
-      ESP_LOGE(TAG, "invalid command (%02x) received", command);
+      ESP_LOGE(TAG, "Invalid command (0x%02X) received", command);
   }
 }
 
@@ -243,8 +229,8 @@ void Tuya::handle_datapoint_(const uint8_t *buffer, size_t len) {
   datapoint.type = (TuyaDatapointType) buffer[1];
   datapoint.value_uint = 0;
 
-  // drop update if datapoint is in ignore_mcu_datapoint_update list
-  for (auto i : this->ignore_mcu_update_on_datapoints_) {
+  // Drop update if datapoint is in ignore_mcu_datapoint_update list
+  for (uint8_t i : this->ignore_mcu_update_on_datapoints_) {
     if (datapoint.id == i) {
       ESP_LOGV(TAG, "Datapoint %u found in ignore_mcu_update_on_datapoints list, dropping MCU update", datapoint.id);
       return;
@@ -255,38 +241,65 @@ void Tuya::handle_datapoint_(const uint8_t *buffer, size_t len) {
   const uint8_t *data = buffer + 4;
   size_t data_len = len - 4;
   if (data_size != data_len) {
-    ESP_LOGW(TAG, "invalid datapoint update");
+    ESP_LOGW(TAG, "Datapoint %u is not expected size (%zu != %zu)", datapoint.id, data_size, data_len);
     return;
   }
+  datapoint.len = data_len;
 
   switch (datapoint.type) {
+    case TuyaDatapointType::RAW:
+      datapoint.value_raw = std::vector<uint8_t>(data, data + data_len);
+      ESP_LOGD(TAG, "Datapoint %u update to %s", datapoint.id, hexencode(datapoint.value_raw).c_str());
+      break;
     case TuyaDatapointType::BOOLEAN:
-      if (data_len != 1)
+      if (data_len != 1) {
+        ESP_LOGW(TAG, "Datapoint %u has bad boolean len %zu", datapoint.id, data_len);
         return;
+      }
       datapoint.value_bool = data[0];
+      ESP_LOGD(TAG, "Datapoint %u update to %s", datapoint.id, ONOFF(datapoint.value_bool));
       break;
     case TuyaDatapointType::INTEGER:
-      if (data_len != 4)
+      if (data_len != 4) {
+        ESP_LOGW(TAG, "Datapoint %u has bad integer len %zu", datapoint.id, data_len);
         return;
+      }
       datapoint.value_uint = encode_uint32(data[0], data[1], data[2], data[3]);
+      ESP_LOGD(TAG, "Datapoint %u update to %d", datapoint.id, datapoint.value_int);
       break;
     case TuyaDatapointType::STRING:
       datapoint.value_string = std::string(reinterpret_cast<const char *>(data), data_len);
+      ESP_LOGD(TAG, "Datapoint %u update to %s", datapoint.id, datapoint.value_string.c_str());
       break;
     case TuyaDatapointType::ENUM:
-      if (data_len != 1)
+      if (data_len != 1) {
+        ESP_LOGW(TAG, "Datapoint %u has bad enum len %zu", datapoint.id, data_len);
         return;
+      }
       datapoint.value_enum = data[0];
+      ESP_LOGD(TAG, "Datapoint %u update to %d", datapoint.id, datapoint.value_enum);
       break;
     case TuyaDatapointType::BITMASK:
-      if (data_len != 2)
-        return;
-      datapoint.value_bitmask = (uint16_t(data[0]) << 8) | (uint16_t(data[1]) << 0);
+      switch (data_len) {
+        case 1:
+          datapoint.value_bitmask = encode_uint32(0, 0, 0, data[0]);
+          break;
+        case 2:
+          datapoint.value_bitmask = encode_uint32(0, 0, data[0], data[1]);
+          break;
+        case 4:
+          datapoint.value_bitmask = encode_uint32(data[0], data[1], data[2], data[3]);
+          break;
+        default:
+          ESP_LOGW(TAG, "Datapoint %u has bad bitmask len %zu", datapoint.id, data_len);
+          return;
+      }
+      ESP_LOGD(TAG, "Datapoint %u update to %#08X", datapoint.id, datapoint.value_bitmask);
       break;
     default:
+      ESP_LOGW(TAG, "Datapoint %u has unknown type %#02hhX", datapoint.id, static_cast<uint8_t>(datapoint.type));
       return;
   }
-  ESP_LOGV(TAG, "Datapoint %u update to %u", datapoint.id, datapoint.value_uint);
 
   // Update internal datapoints
   bool found = false;
@@ -312,9 +325,28 @@ void Tuya::send_raw_command_(TuyaCommand command) {
   uint8_t version = 0;
 
   this->last_command_timestamp_ = millis();
+  switch (command.cmd) {
+    case TuyaCommandType::HEARTBEAT:
+      this->expected_response_ = TuyaCommandType::HEARTBEAT;
+      break;
+    case TuyaCommandType::PRODUCT_QUERY:
+      this->expected_response_ = TuyaCommandType::PRODUCT_QUERY;
+      break;
+    case TuyaCommandType::CONF_QUERY:
+      this->expected_response_ = TuyaCommandType::CONF_QUERY;
+      break;
+    case TuyaCommandType::DATAPOINT_DELIVER:
+      this->expected_response_ = TuyaCommandType::DATAPOINT_REPORT;
+      break;
+    case TuyaCommandType::DATAPOINT_QUERY:
+      this->expected_response_ = TuyaCommandType::DATAPOINT_REPORT;
+      break;
+    default:
+      break;
+  }
 
-  ESP_LOGV(TAG, "Sending Tuya: CMD=0x%02X VERSION=%u DATA=[%s] INIT_STATE=%u", command.cmd, version,  // NOLINT
-           hexencode(command.payload).c_str(), this->init_state_);
+  ESP_LOGV(TAG, "Sending Tuya: CMD=0x%02X VERSION=%u DATA=[%s] INIT_STATE=%u", static_cast<uint8_t>(command.cmd),
+           version, hexencode(command.payload).c_str(), static_cast<uint8_t>(this->init_state_));
 
   this->write_array({0x55, 0xAA, version, (uint8_t) command.cmd, len_hi, len_lo});
   if (!command.payload.empty())
@@ -327,70 +359,176 @@ void Tuya::send_raw_command_(TuyaCommand command) {
 }
 
 void Tuya::process_command_queue_() {
-  uint32_t delay = millis() - this->last_command_timestamp_;
-  // Left check of delay since last command in case theres ever a command sent by calling send_raw_command_ directly
-  if (delay > COMMAND_DELAY && !command_queue_.empty()) {
+  uint32_t now = millis();
+  uint32_t delay = now - this->last_command_timestamp_;
+
+  if (now - this->last_rx_char_timestamp_ > RECEIVE_TIMEOUT) {
+    this->rx_message_.clear();
+  }
+
+  if (this->expected_response_.has_value() && delay > RECEIVE_TIMEOUT) {
+    this->expected_response_.reset();
+  }
+
+  // Left check of delay since last command in case there's ever a command sent by calling send_raw_command_ directly
+  if (delay > COMMAND_DELAY && !this->command_queue_.empty() && this->rx_message_.empty() &&
+      !this->expected_response_.has_value()) {
     this->send_raw_command_(command_queue_.front());
     this->command_queue_.erase(command_queue_.begin());
   }
 }
 
-void Tuya::send_command_(TuyaCommand command) {
+void Tuya::send_command_(const TuyaCommand &command) {
   command_queue_.push_back(command);
   process_command_queue_();
 }
 
 void Tuya::send_empty_command_(TuyaCommandType command) {
-  send_command_(TuyaCommand{.cmd = command, .payload = std::vector<uint8_t>{0x04}});
+  send_command_(TuyaCommand{.cmd = command, .payload = std::vector<uint8_t>{}});
 }
 
-void Tuya::set_datapoint_value(TuyaDatapoint datapoint) {
-  std::vector<uint8_t> buffer;
-  ESP_LOGV(TAG, "Datapoint %u set to %u", datapoint.id, datapoint.value_uint);
-  for (auto &other : this->datapoints_) {
-    if (other.id == datapoint.id) {
-      // String value is stored outside the union; must be checked separately.
-      if (datapoint.type == TuyaDatapointType::STRING) {
-        if (other.value_string == datapoint.value_string) {
-          ESP_LOGV(TAG, "Not sending unchanged value");
-          return;
-        }
-      } else if (other.value_uint == datapoint.value_uint) {
-        ESP_LOGV(TAG, "Not sending unchanged value");
-        return;
+void Tuya::send_wifi_status_() {
+  uint8_t status = 0x02;
+  if (network_is_connected()) {
+    status = 0x03;
+
+    // Protocol version 3 also supports specifying when connected to "the cloud"
+    if (this->protocol_version_ >= 0x03) {
+      if (remote_is_connected()) {
+        status = 0x04;
       }
     }
   }
-  buffer.push_back(datapoint.id);
-  buffer.push_back(static_cast<uint8_t>(datapoint.type));
 
-  std::vector<uint8_t> data;
-  switch (datapoint.type) {
-    case TuyaDatapointType::BOOLEAN:
-      data.push_back(datapoint.value_bool);
-      break;
-    case TuyaDatapointType::INTEGER:
-      data.push_back(datapoint.value_uint >> 24);
-      data.push_back(datapoint.value_uint >> 16);
-      data.push_back(datapoint.value_uint >> 8);
-      data.push_back(datapoint.value_uint >> 0);
-      break;
-    case TuyaDatapointType::STRING:
-      for (char const &c : datapoint.value_string) {
-        data.push_back(c);
-      }
-      break;
-    case TuyaDatapointType::ENUM:
-      data.push_back(datapoint.value_enum);
-      break;
-    case TuyaDatapointType::BITMASK:
-      data.push_back(datapoint.value_bitmask >> 8);
-      data.push_back(datapoint.value_bitmask >> 0);
-      break;
-    default:
-      return;
+  if (status == this->wifi_status_) {
+    return;
   }
 
+  ESP_LOGD(TAG, "Sending WiFi Status");
+  this->wifi_status_ = status;
+  this->send_command_(TuyaCommand{.cmd = TuyaCommandType::WIFI_STATE, .payload = std::vector<uint8_t>{status}});
+}
+
+#ifdef USE_TIME
+void Tuya::send_local_time_() {
+  std::vector<uint8_t> payload;
+  auto time_id = *this->time_id_;
+  time::ESPTime now = time_id->now();
+  if (now.is_valid()) {
+    uint8_t year = now.year - 2000;
+    uint8_t month = now.month;
+    uint8_t day_of_month = now.day_of_month;
+    uint8_t hour = now.hour;
+    uint8_t minute = now.minute;
+    uint8_t second = now.second;
+    // Tuya days starts from Monday, esphome uses Sunday as day 1
+    uint8_t day_of_week = now.day_of_week - 1;
+    if (day_of_week == 0) {
+      day_of_week = 7;
+    }
+    ESP_LOGD(TAG, "Sending local time");
+    payload = std::vector<uint8_t>{0x01, year, month, day_of_month, hour, minute, second, day_of_week};
+  } else {
+    // By spec we need to notify MCU that the time was not obtained if this is a response to a query
+    ESP_LOGW(TAG, "Sending missing local time");
+    payload = std::vector<uint8_t>{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+  }
+  this->send_command_(TuyaCommand{.cmd = TuyaCommandType::LOCAL_TIME_QUERY, .payload = payload});
+}
+#endif
+
+void Tuya::set_raw_datapoint_value(uint8_t datapoint_id, const std::vector<uint8_t> &value) {
+  ESP_LOGD(TAG, "Setting datapoint %u to %s", datapoint_id, hexencode(value).c_str());
+  optional<TuyaDatapoint> datapoint = this->get_datapoint_(datapoint_id);
+  if (!datapoint.has_value()) {
+    ESP_LOGW(TAG, "Setting unknown datapoint %u", datapoint_id);
+  } else if (datapoint->type != TuyaDatapointType::RAW) {
+    ESP_LOGE(TAG, "Attempt to set datapoint %u with incorrect type", datapoint_id);
+    return;
+  } else if (datapoint->value_raw == value) {
+    ESP_LOGV(TAG, "Not sending unchanged value");
+    return;
+  }
+  this->send_datapoint_command_(datapoint_id, TuyaDatapointType::RAW, value);
+}
+
+void Tuya::set_boolean_datapoint_value(uint8_t datapoint_id, bool value) {
+  this->set_numeric_datapoint_value_(datapoint_id, TuyaDatapointType::BOOLEAN, value, 1);
+}
+
+void Tuya::set_integer_datapoint_value(uint8_t datapoint_id, uint32_t value) {
+  this->set_numeric_datapoint_value_(datapoint_id, TuyaDatapointType::INTEGER, value, 4);
+}
+
+void Tuya::set_string_datapoint_value(uint8_t datapoint_id, const std::string &value) {
+  ESP_LOGD(TAG, "Setting datapoint %u to %s", datapoint_id, value.c_str());
+  optional<TuyaDatapoint> datapoint = this->get_datapoint_(datapoint_id);
+  if (!datapoint.has_value()) {
+    ESP_LOGW(TAG, "Setting unknown datapoint %u", datapoint_id);
+  } else if (datapoint->type != TuyaDatapointType::STRING) {
+    ESP_LOGE(TAG, "Attempt to set datapoint %u with incorrect type", datapoint_id);
+    return;
+  } else if (datapoint->value_string == value) {
+    ESP_LOGV(TAG, "Not sending unchanged value");
+    return;
+  }
+  std::vector<uint8_t> data;
+  for (char const &c : value) {
+    data.push_back(c);
+  }
+  this->send_datapoint_command_(datapoint->id, datapoint->type, data);
+}
+
+void Tuya::set_enum_datapoint_value(uint8_t datapoint_id, uint8_t value) {
+  this->set_numeric_datapoint_value_(datapoint_id, TuyaDatapointType::ENUM, value, 1);
+}
+
+void Tuya::set_bitmask_datapoint_value(uint8_t datapoint_id, uint32_t value, uint8_t length) {
+  this->set_numeric_datapoint_value_(datapoint_id, TuyaDatapointType::BITMASK, value, length);
+}
+
+optional<TuyaDatapoint> Tuya::get_datapoint_(uint8_t datapoint_id) {
+  for (auto &datapoint : this->datapoints_)
+    if (datapoint.id == datapoint_id)
+      return datapoint;
+  return {};
+}
+
+void Tuya::set_numeric_datapoint_value_(uint8_t datapoint_id, TuyaDatapointType datapoint_type, const uint32_t value,
+                                        uint8_t length) {
+  ESP_LOGD(TAG, "Setting datapoint %u to %u", datapoint_id, value);
+  optional<TuyaDatapoint> datapoint = this->get_datapoint_(datapoint_id);
+  if (!datapoint.has_value()) {
+    ESP_LOGW(TAG, "Setting unknown datapoint %u", datapoint_id);
+  } else if (datapoint->type != datapoint_type) {
+    ESP_LOGE(TAG, "Attempt to set datapoint %u with incorrect type", datapoint_id);
+    return;
+  } else if (datapoint->value_uint == value) {
+    ESP_LOGV(TAG, "Not sending unchanged value");
+    return;
+  }
+
+  std::vector<uint8_t> data;
+  switch (length) {
+    case 4:
+      data.push_back(value >> 24);
+      data.push_back(value >> 16);
+    case 2:
+      data.push_back(value >> 8);
+    case 1:
+      data.push_back(value >> 0);
+      break;
+    default:
+      ESP_LOGE(TAG, "Unexpected datapoint length %u", length);
+      return;
+  }
+  this->send_datapoint_command_(datapoint_id, datapoint_type, data);
+}
+
+void Tuya::send_datapoint_command_(uint8_t datapoint_id, TuyaDatapointType datapoint_type, std::vector<uint8_t> data) {
+  std::vector<uint8_t> buffer;
+  buffer.push_back(datapoint_id);
+  buffer.push_back(static_cast<uint8_t>(datapoint_type));
   buffer.push_back(data.size() >> 8);
   buffer.push_back(data.size() >> 0);
   buffer.insert(buffer.end(), data.begin(), data.end());
