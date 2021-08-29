@@ -16,7 +16,6 @@ from esphome.const import (
     UNIT_BYTES,
     DEVICE_CLASS_EMPTY,
 )
-import esphome.core.config as cc
 from esphome.core import CORE
 
 CODEOWNERS = ["@OttoWinter"]
