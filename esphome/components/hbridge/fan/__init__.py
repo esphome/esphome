@@ -13,6 +13,10 @@ from esphome.const import (
 )
 from .. import hbridge_ns
 
+
+CODEOWNERS = ["@WeekendWarrior"]
+
+
 HBridgeFan = hbridge_ns.class_("HBridgeFan", fan.FanState)
 
 DecayMode = hbridge_ns.enum("DecayMode")

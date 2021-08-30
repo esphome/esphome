@@ -4,6 +4,7 @@ from esphome.components import light, output
 from esphome.const import CONF_OUTPUT_ID, CONF_PIN_A, CONF_PIN_B
 from .. import hbridge_ns
 
+CODEOWNERS = ["@DotNetDann"]
 
 HBridgeLightOutput = hbridge_ns.class_(
     "HBridgeLightOutput", cg.PollingComponent, light.LightOutput
