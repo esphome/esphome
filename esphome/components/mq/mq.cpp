@@ -4,16 +4,16 @@
 namespace esphome {
 namespace mq {
 
-static const float Voltage_Resolution = 3.3;
-static const int ADC_Bit_Resolution_ESP8266 = 10;
-static const int ADC_Bit_Resolution_ESP32 = 12;
+static const float VOLTAGE_RESOLUTION = 3.3;
+static const int ADC_BIT_RESOLUTION_ESP8266 = 10;
+static const int ADC_BIT_RESOLUTION_ESP32 = 12;
 static const char *TAG = "mq";
 
 // Public
 
-MQSensor::MQSensor(GPIOPin *pin, MQModel model, bool is_ESP8266, float rl) {
+MQSensor::MQSensor(GPIOPin *pin, MQModel model, bool is_esp8266, float rl) {
   this->pin_ = pin;
-  this->is_ESP8266_ = is_ESP8266;
+  this->is_esp8266_ = is_esp8266;
   this->rl_ = rl;
   this->model_parameters_ = {.model = model, .gas_sensors = gas_parameters_definition[model]};
 }
@@ -34,8 +34,8 @@ float MQSensor::get_setup_priority() const { return setup_priority::DATA; }
 void MQSensor::setup() {
   ESP_LOGCONFIG(TAG, "Setting up %s...", this->model_parameters_.model_name().c_str());
 
-  this->mq_ = new MQUnifiedsensor(is_ESP8266_ ? "ESP8266" : "ESP-32", Voltage_Resolution,
-                                  this->is_ESP8266_ ? ADC_Bit_Resolution_ESP8266 : ADC_Bit_Resolution_ESP32,
+  this->mq_ = new MQUnifiedsensor(is_esp8266_ ? "ESP8266" : "ESP-32", VOLTAGE_RESOLUTION,
+                                  this->is_esp8266_ ? ADC_BIT_RESOLUTION_ESP8266 : ADC_BIT_RESOLUTION_ESP32,
                                   this->pin_->get_pin(), String(this->model_parameters_.model_name().c_str()));
 
   this->mq_->setRegressionMethod(1);
@@ -47,12 +47,12 @@ void MQSensor::setup() {
   } else {
     ESP_LOGCONFIG(TAG, "Calibrating please wait.");
     float clean_air_ratio = this->model_parameters_.get_ratio_in_clean_air();
-    float calcR0 = 0;
+    float calc_r0 = 0;
     for (int i = 1; i <= 100; i++) {
       this->mq_->update();
-      calcR0 += mq_->calibrate(clean_air_ratio);
+      calc_r0 += mq_->calibrate(clean_air_ratio);
     }
-    this->mq_->setR0(calcR0 / 100);
+    this->mq_->setR0(calc_r0 / 100);
     ESP_LOGCONFIG(TAG, "Calibrated R0 = %.2f kΩ", this->mq_->getR0());
   }
 

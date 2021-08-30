@@ -151,7 +151,7 @@ struct MQModelParameters {
 
 class MQSensor : public PollingComponent {
  public:
-  MQSensor(GPIOPin *pin, MQModel model, bool is_ESP8266, float rl);
+  MQSensor(GPIOPin *pin, MQModel model, bool is_esp8266, float rl);
   void add_sensor(sensor::Sensor *sensor, MQGasType gas_type);
   void set_R0(float r0);
 
@@ -164,7 +164,7 @@ class MQSensor : public PollingComponent {
  protected:
   MQUnifiedsensor *mq_;
   GPIOPin *pin_;
-  bool is_ESP8266_;
+  bool is_esp8266_;
   float rl_ = 10.0;
   float r0_ = 0.0;
   MQModelParameters model_parameters_;
