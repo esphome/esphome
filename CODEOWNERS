@@ -78,6 +78,7 @@ esphome/components/mcp9808/* @k7hpn
 esphome/components/midea_ac/* @dudanov
 esphome/components/midea_dongle/* @dudanov
 esphome/components/mitsubishi/* @RubyBailey
+esphome/components/mq/* @nonameplum
 esphome/components/network/* @esphome/core
 esphome/components/nextion/* @senexcrenshaw
 esphome/components/nextion/binary_sensor/* @senexcrenshaw
