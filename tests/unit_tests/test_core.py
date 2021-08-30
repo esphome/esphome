@@ -473,7 +473,11 @@ class TestLibrary:
             ("__eq__", core.Library(name="libfoo", version="1.2.3"), True),
             ("__eq__", core.Library(name="libfoo", version="1.2.4"), False),
             ("__eq__", core.Library(name="libbar", version="1.2.3"), False),
-            ("__eq__", core.Library(name="libbar", version=None, repository="file:///test"), False),
+            (
+                "__eq__",
+                core.Library(name="libbar", version=None, repository="file:///test"),
+                False,
+            ),
             ("__eq__", 1000, NotImplemented),
             ("__eq__", "1000", NotImplemented),
             ("__eq__", True, NotImplemented),

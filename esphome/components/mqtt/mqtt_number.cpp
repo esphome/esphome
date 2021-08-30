@@ -39,8 +39,8 @@ void MQTTNumberComponent::send_discovery(JsonObject &root, mqtt::SendDiscoveryCo
   // https://www.home-assistant.io/integrations/number.mqtt/
   if (!traits.get_icon().empty())
     root["icon"] = traits.get_icon();
-  root["min_value"] = traits.get_min_value();
-  root["max_value"] = traits.get_max_value();
+  root["min"] = traits.get_min_value();
+  root["max"] = traits.get_max_value();
   root["step"] = traits.get_step();
 
   config.command_topic = true;

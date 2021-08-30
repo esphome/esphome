@@ -9,9 +9,7 @@ from esphome.const import (
     CONF_LIGHT,
     CONF_BATTERY_LEVEL,
     DEVICE_CLASS_BATTERY,
-    DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_ILLUMINANCE,
-    ICON_EMPTY,
     STATE_CLASS_MEASUREMENT,
     STATE_CLASS_NONE,
     UNIT_PERCENT,
@@ -43,21 +41,22 @@ CONFIG_SCHEMA = cv.All(
                 CONF_DEVICE_CLASS, default="motion"
             ): binary_sensor.device_class,
             cv.Optional(CONF_IDLE_TIME): sensor.sensor_schema(
-                UNIT_MINUTE, ICON_TIMELAPSE, 0, DEVICE_CLASS_EMPTY, STATE_CLASS_NONE
+                unit_of_measurement=UNIT_MINUTE,
+                icon=ICON_TIMELAPSE,
+                accuracy_decimals=0,
+                state_class=STATE_CLASS_NONE,
             ),
             cv.Optional(CONF_BATTERY_LEVEL): sensor.sensor_schema(
-                UNIT_PERCENT,
-                ICON_EMPTY,
-                0,
-                DEVICE_CLASS_BATTERY,
-                STATE_CLASS_MEASUREMENT,
+                unit_of_measurement=UNIT_PERCENT,
+                accuracy_decimals=0,
+                device_class=DEVICE_CLASS_BATTERY,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_ILLUMINANCE): sensor.sensor_schema(
-                UNIT_LUX,
-                ICON_EMPTY,
-                0,
-                DEVICE_CLASS_ILLUMINANCE,
-                STATE_CLASS_MEASUREMENT,
+                unit_of_measurement=UNIT_LUX,
+                accuracy_decimals=0,
+                device_class=DEVICE_CLASS_ILLUMINANCE,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_LIGHT): binary_sensor.BINARY_SENSOR_SCHEMA.extend(
                 {

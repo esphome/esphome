@@ -3,8 +3,6 @@
 #include <utility>
 
 #include "esphome/core/component.h"
-#include "light_color_values.h"
-#include "light_state.h"
 
 namespace esphome {
 namespace light {

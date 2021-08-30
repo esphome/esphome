@@ -63,6 +63,7 @@ class AddressableLambdaLightEffect : public AddressableLightEffect {
       this->last_run_ = now;
       this->f_(it, current_color, this->initial_run_);
       this->initial_run_ = false;
+      it.schedule_show();
     }
   }
 
@@ -87,6 +88,7 @@ class AddressableRainbowLightEffect : public AddressableLightEffect {
       var = hsv;
       hue += add;
     }
+    it.schedule_show();
   }
   void set_speed(uint32_t speed) { this->speed_ = speed; }
   void set_width(uint16_t width) { this->width_ = width; }
@@ -134,6 +136,7 @@ class AddressableColorWipeEffect : public AddressableLightEffect {
         new_color.b = c.b;
       }
     }
+    it.schedule_show();
   }
 
  protected:
@@ -151,25 +154,27 @@ class AddressableScanEffect : public AddressableLightEffect {
   void set_move_interval(uint32_t move_interval) { this->move_interval_ = move_interval; }
   void set_scan_width(uint32_t scan_width) { this->scan_width_ = scan_width; }
   void apply(AddressableLight &it, const Color &current_color) override {
-    it.all() = COLOR_BLACK;
+    const uint32_t now = millis();
+    if (now - this->last_move_ < this->move_interval_)
+      return;
 
+    if (direction_) {
+      this->at_led_++;
+      if (this->at_led_ == it.size() - this->scan_width_)
+        this->direction_ = false;
+    } else {
+      this->at_led_--;
+      if (this->at_led_ == 0)
+        this->direction_ = true;
+    }
+    this->last_move_ = now;
+
+    it.all() = Color::BLACK;
     for (auto i = 0; i < this->scan_width_; i++) {
       it[this->at_led_ + i] = current_color;
     }
 
-    const uint32_t now = millis();
-    if (now - this->last_move_ > this->move_interval_) {
-      if (direction_) {
-        this->at_led_++;
-        if (this->at_led_ == it.size() - this->scan_width_)
-          this->direction_ = false;
-      } else {
-        this->at_led_--;
-        if (this->at_led_ == 0)
-          this->direction_ = true;
-      }
-      this->last_move_ = now;
-    }
+    it.schedule_show();
   }
 
  protected:
@@ -201,7 +206,7 @@ class AddressableTwinkleEffect : public AddressableLightEffect {
         else
           view.set_effect_data(new_pos);
       } else {
-        view = COLOR_BLACK;
+        view = Color::BLACK;
       }
     }
     while (random_float() < this->twinkle_probability_) {
@@ -210,6 +215,7 @@ class AddressableTwinkleEffect : public AddressableLightEffect {
         continue;
       addressable[pos].set_effect_data(1);
     }
+    addressable.schedule_show();
   }
   void set_twinkle_probability(float twinkle_probability) { this->twinkle_probability_ = twinkle_probability; }
   void set_progress_interval(uint32_t progress_interval) { this->progress_interval_ = progress_interval; }
@@ -257,6 +263,7 @@ class AddressableRandomTwinkleEffect : public AddressableLightEffect {
       const uint8_t color = random_uint32() & 0b111;
       it[pos].set_effect_data(0b1000 | color);
     }
+    it.schedule_show();
   }
   void set_twinkle_probability(float twinkle_probability) { this->twinkle_probability_ = twinkle_probability; }
   void set_progress_interval(uint32_t progress_interval) { this->progress_interval_ = progress_interval; }
@@ -272,7 +279,7 @@ class AddressableFireworksEffect : public AddressableLightEffect {
   explicit AddressableFireworksEffect(const std::string &name) : AddressableLightEffect(name) {}
   void start() override {
     auto &it = *this->get_addressable_();
-    it.all() = COLOR_BLACK;
+    it.all() = Color::BLACK;
   }
   void apply(AddressableLight &it, const Color &current_color) override {
     const uint32_t now = millis();
@@ -301,6 +308,7 @@ class AddressableFireworksEffect : public AddressableLightEffect {
         it[pos] = current_color;
       }
     }
+    it.schedule_show();
   }
   void set_update_interval(uint32_t update_interval) { this->update_interval_ = update_interval; }
   void set_spark_probability(float spark_probability) { this->spark_probability_ = spark_probability; }
@@ -335,6 +343,7 @@ class AddressableFlickerEffect : public AddressableLightEffect {
       // slowly fade back to "real" value
       var = (var.get() * inv_intensity) + (current_color * intensity);
     }
+    it.schedule_show();
   }
   void set_update_interval(uint32_t update_interval) { this->update_interval_ = update_interval; }
   void set_intensity(float intensity) { this->intensity_ = to_uint8_scale(intensity); }

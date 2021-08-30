@@ -12,7 +12,7 @@ from esphome.const import (
     DEVICE_CLASS_HUMIDITY,
     DEVICE_CLASS_TEMPERATURE,
     DEVICE_CLASS_VOLTAGE,
-    ICON_EMPTY,
+    STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
     UNIT_PERCENT,
     UNIT_VOLT,
@@ -33,16 +33,28 @@ CONFIG_SCHEMA = (
             cv.GenerateID(): cv.declare_id(PVVXMiThermometer),
             cv.Required(CONF_MAC_ADDRESS): cv.mac_address,
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-                UNIT_CELSIUS, ICON_EMPTY, 2, DEVICE_CLASS_TEMPERATURE
+                unit_of_measurement=UNIT_CELSIUS,
+                accuracy_decimals=2,
+                device_class=DEVICE_CLASS_TEMPERATURE,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(
-                UNIT_PERCENT, ICON_EMPTY, 2, DEVICE_CLASS_HUMIDITY
+                unit_of_measurement=UNIT_PERCENT,
+                accuracy_decimals=2,
+                device_class=DEVICE_CLASS_HUMIDITY,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_BATTERY_LEVEL): sensor.sensor_schema(
-                UNIT_PERCENT, ICON_EMPTY, 0, DEVICE_CLASS_BATTERY
+                unit_of_measurement=UNIT_PERCENT,
+                accuracy_decimals=0,
+                device_class=DEVICE_CLASS_BATTERY,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_BATTERY_VOLTAGE): sensor.sensor_schema(
-                UNIT_VOLT, ICON_EMPTY, 3, DEVICE_CLASS_VOLTAGE
+                unit_of_measurement=UNIT_VOLT,
+                accuracy_decimals=3,
+                device_class=DEVICE_CLASS_VOLTAGE,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
         }
     )

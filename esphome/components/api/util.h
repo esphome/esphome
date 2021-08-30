@@ -51,6 +51,9 @@ class ComponentIterator {
 #ifdef USE_NUMBER
   virtual bool on_number(number::Number *number) = 0;
 #endif
+#ifdef USE_SELECT
+  virtual bool on_select(select::Select *select) = 0;
+#endif
   virtual bool on_end();
 
  protected:
@@ -87,6 +90,9 @@ class ComponentIterator {
 #endif
 #ifdef USE_NUMBER
     NUMBER,
+#endif
+#ifdef USE_SELECT
+    SELECT,
 #endif
     MAX,
   } state_{IteratorState::NONE};

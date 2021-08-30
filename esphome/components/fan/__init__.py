@@ -4,6 +4,7 @@ from esphome import automation
 from esphome.automation import maybe_simple_id
 from esphome.components import mqtt
 from esphome.const import (
+    CONF_DISABLED_BY_DEFAULT,
     CONF_ID,
     CONF_INTERNAL,
     CONF_MQTT_ID,
@@ -17,6 +18,7 @@ from esphome.const import (
     CONF_ON_TURN_OFF,
     CONF_ON_TURN_ON,
     CONF_TRIGGER_ID,
+    CONF_DIRECTION,
 )
 from esphome.core import CORE, coroutine_with_priority
 
@@ -26,6 +28,12 @@ fan_ns = cg.esphome_ns.namespace("fan")
 FanState = fan_ns.class_("FanState", cg.Nameable, cg.Component)
 MakeFan = cg.Application.struct("MakeFan")
 
+FanDirection = fan_ns.enum("FanDirection")
+FAN_DIRECTION_ENUM = {
+    "FORWARD": FanDirection.FAN_DIRECTION_FORWARD,
+    "REVERSE": FanDirection.FAN_DIRECTION_REVERSE,
+}
+
 # Actions
 TurnOnAction = fan_ns.class_("TurnOnAction", automation.Action)
 TurnOffAction = fan_ns.class_("TurnOffAction", automation.Action)
@@ -34,7 +42,7 @@ ToggleAction = fan_ns.class_("ToggleAction", automation.Action)
 FanTurnOnTrigger = fan_ns.class_("FanTurnOnTrigger", automation.Trigger.template())
 FanTurnOffTrigger = fan_ns.class_("FanTurnOffTrigger", automation.Trigger.template())
 
-FAN_SCHEMA = cv.MQTT_COMMAND_COMPONENT_SCHEMA.extend(
+FAN_SCHEMA = cv.NAMEABLE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).extend(
     {
         cv.GenerateID(): cv.declare_id(FanState),
         cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTFanComponent),
@@ -66,6 +74,7 @@ FAN_SCHEMA = cv.MQTT_COMMAND_COMPONENT_SCHEMA.extend(
 
 async def setup_fan_core_(var, config):
     cg.add(var.set_name(config[CONF_NAME]))
+    cg.add(var.set_disabled_by_default(config[CONF_DISABLED_BY_DEFAULT]))
     if CONF_INTERNAL in config:
         cg.add(var.set_internal(config[CONF_INTERNAL]))
 
@@ -141,6 +150,9 @@ async def fan_turn_off_to_code(config, action_id, template_arg, args):
             cv.Required(CONF_ID): cv.use_id(FanState),
             cv.Optional(CONF_OSCILLATING): cv.templatable(cv.boolean),
             cv.Optional(CONF_SPEED): cv.templatable(cv.int_range(1)),
+            cv.Optional(CONF_DIRECTION): cv.templatable(
+                cv.enum(FAN_DIRECTION_ENUM, upper=True)
+            ),
         }
     ),
 )
@@ -153,6 +165,9 @@ async def fan_turn_on_to_code(config, action_id, template_arg, args):
     if CONF_SPEED in config:
         template_ = await cg.templatable(config[CONF_SPEED], args, int)
         cg.add(var.set_speed(template_))
+    if CONF_DIRECTION in config:
+        template_ = await cg.templatable(config[CONF_DIRECTION], args, FanDirection)
+        cg.add(var.set_direction(template_))
     return var
 
 

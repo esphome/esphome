@@ -42,8 +42,9 @@ void AdalightLightEffect::reset_frame_(light::AddressableLight &it) {
 
 void AdalightLightEffect::blank_all_leds_(light::AddressableLight &it) {
   for (int led = it.size(); led-- > 0;) {
-    it[led].set(COLOR_BLACK);
+    it[led].set(Color::BLACK);
   }
+  it.schedule_show();
 }
 
 void AdalightLightEffect::apply(light::AddressableLight &it, const Color &current_color) {
@@ -133,6 +134,7 @@ AdalightLightEffect::Frame AdalightLightEffect::parse_frame_(light::AddressableL
     it[led].set(Color(led_data[0], led_data[1], led_data[2], white));
   }
 
+  it.schedule_show();
   return CONSUMED;
 }
 

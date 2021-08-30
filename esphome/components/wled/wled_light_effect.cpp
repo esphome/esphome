@@ -40,8 +40,9 @@ void WLEDLightEffect::stop() {
 
 void WLEDLightEffect::blank_all_leds_(light::AddressableLight &it) {
   for (int led = it.size(); led-- > 0;) {
-    it[led].set(COLOR_BLACK);
+    it[led].set(Color::BLACK);
   }
+  it.schedule_show();
 }
 
 void WLEDLightEffect::apply(light::AddressableLight &it, const Color &current_color) {
@@ -134,6 +135,7 @@ bool WLEDLightEffect::parse_frame_(light::AddressableLight &it, const uint8_t *p
     blank_at_ = millis() + DEFAULT_BLANK_TIME;
   }
 
+  it.schedule_show();
   return true;
 }
 
