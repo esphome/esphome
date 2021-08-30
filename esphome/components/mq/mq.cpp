@@ -7,7 +7,7 @@ namespace mq {
 static const float VOLTAGE_RESOLUTION = 3.3;
 static const int ADC_BIT_RESOLUTION_ESP8266 = 10;
 static const int ADC_BIT_RESOLUTION_ESP32 = 12;
-static const char *TAG = "mq";
+static const char *const TAG = "mq";
 
 // Public
 
