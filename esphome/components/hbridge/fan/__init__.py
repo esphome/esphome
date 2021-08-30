@@ -44,11 +44,11 @@ CONFIG_SCHEMA = fan.FAN_SCHEMA.extend(
 
 
 @automation.register_action(
-    "fan.brake",
+    "fan.hbridge.brake",
     BrakeAction,
     maybe_simple_id({cv.Required(CONF_ID): cv.use_id(HBridgeFan)}),
 )
-async def fan_turn_off_to_code(config, action_id, template_arg, args):
+async def fan_hbridge_brake_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, paren)
 
