@@ -3,20 +3,14 @@ import esphome.config_validation as cv
 from esphome.components import sensor, ble_client
 
 from esphome.const import (
-    ESP_PLATFORM_ESP32,
-    CONF_UPDATE_INTERVAL,
-    DEVICE_CLASS_EMPTY,
+    DEVICE_CLASS_CARBON_DIOXIDE,
     DEVICE_CLASS_HUMIDITY,
-    DEVICE_CLASS_RADON,
     DEVICE_CLASS_TEMPERATURE,
     DEVICE_CLASS_PRESSURE,
     UNIT_PERCENT,
     UNIT_CELSIUS,
     UNIT_HECTOPASCAL,
-    ICON_PERCENT,
-    ICON_THERMOMETER,
     ICON_RADIOACTIVE,
-    ICON_MOLECULE_CO2,
     CONF_ID,
     CONF_RADON,
     CONF_RADON_LONG_TERM,
@@ -29,49 +23,58 @@ from esphome.const import (
     UNIT_PARTS_PER_MILLION,
     UNIT_PARTS_PER_BILLION,
     ICON_RADIATOR,
-    ICON_GAUGE,
 )
 
-ESP_PLATFORMS = [ESP_PLATFORM_ESP32]
 DEPENDENCIES = ["ble_client"]
-AUTO_LOAD = []
 
 airthings_wave_plus_ns = cg.esphome_ns.namespace("airthings_wave_plus")
 AirthingsWavePlus = airthings_wave_plus_ns.class_(
     "AirthingsWavePlus", cg.PollingComponent, ble_client.BLEClientNode
 )
 
-CONF_BLE_CLIENT_ID = "ble_client_id"
 
 CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(AirthingsWavePlus),
-            cv.Optional(CONF_UPDATE_INTERVAL, default="5min"): cv.update_interval,
             cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(
-                UNIT_PERCENT, ICON_PERCENT, 0, DEVICE_CLASS_HUMIDITY
+                unit_of_measurement=UNIT_PERCENT,
+                device_class=DEVICE_CLASS_HUMIDITY,
+                accuracy_decimals=0,
             ),
             cv.Optional(CONF_RADON): sensor.sensor_schema(
-                UNIT_BECQUEREL_PER_CUBIC_METER, ICON_RADIOACTIVE, 0, DEVICE_CLASS_RADON
+                unit_of_measurement=UNIT_BECQUEREL_PER_CUBIC_METER,
+                icon=ICON_RADIOACTIVE,
+                accuracy_decimals=0,
             ),
             cv.Optional(CONF_RADON_LONG_TERM): sensor.sensor_schema(
-                UNIT_BECQUEREL_PER_CUBIC_METER, ICON_RADIOACTIVE, 0, DEVICE_CLASS_RADON
+                unit_of_measurement=UNIT_BECQUEREL_PER_CUBIC_METER,
+                icon=ICON_RADIOACTIVE,
+                accuracy_decimals=0,
             ),
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-                UNIT_CELSIUS, ICON_THERMOMETER, 2, DEVICE_CLASS_TEMPERATURE
+                unit_of_measurement=UNIT_CELSIUS,
+                accuracy_decimals=2,
+                device_class=DEVICE_CLASS_TEMPERATURE,
             ),
             cv.Optional(CONF_PRESSURE): sensor.sensor_schema(
-                UNIT_HECTOPASCAL, ICON_GAUGE, 1, DEVICE_CLASS_PRESSURE
+                unit_of_measurement=UNIT_HECTOPASCAL,
+                accuracy_decimals=1,
+                device_class=DEVICE_CLASS_PRESSURE,
             ),
             cv.Optional(CONF_CO2): sensor.sensor_schema(
-                UNIT_PARTS_PER_MILLION, ICON_MOLECULE_CO2, 0, DEVICE_CLASS_EMPTY
+                unit_of_measurement=UNIT_PARTS_PER_MILLION,
+                accuracy_decimals=0,
+                device_class=DEVICE_CLASS_CARBON_DIOXIDE,
             ),
             cv.Optional(CONF_TVOC): sensor.sensor_schema(
-                UNIT_PARTS_PER_BILLION, ICON_RADIATOR, 0, DEVICE_CLASS_EMPTY
+                unit_of_measurement=UNIT_PARTS_PER_BILLION,
+                icon=ICON_RADIATOR,
+                accuracy_decimals=0,
             ),
         }
     )
-    .extend(cv.COMPONENT_SCHEMA)
+    .extend(cv.polling_component_schema("5mins"))
     .extend(ble_client.BLE_CLIENT_SCHEMA)
 )
 
@@ -80,8 +83,7 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
-    parent = await cg.get_variable(config[CONF_BLE_CLIENT_ID])
-    cg.add(parent.register_ble_node(var))
+    await ble_client.register_ble_node(var, config)
 
     if CONF_HUMIDITY in config:
         sens = await sensor.new_sensor(config[CONF_HUMIDITY])
