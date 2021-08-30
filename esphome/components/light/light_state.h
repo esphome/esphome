@@ -128,7 +128,12 @@ class LightState : public Nameable, public Component {
   void current_values_as_rgbww(float *red, float *green, float *blue, float *cold_white, float *warm_white,
                                bool constant_brightness = false);
 
+  void current_values_as_rgbct(float *red, float *green, float *blue, float *color_temperature,
+                               float *white_brightness);
+
   void current_values_as_cwww(float *cold_white, float *warm_white, bool constant_brightness = false);
+
+  void current_values_as_ct(float *color_temperature, float *white_brightness);
 
  protected:
   friend LightOutput;
@@ -151,9 +156,6 @@ class LightState : public Nameable, public Component {
 
   /// Internal method to set the color values to target immediately (with no transition).
   void set_immediately_(const LightColorValues &target, bool set_remote_values);
-
-  /// Internal method to start a transformer.
-  void set_transformer_(std::unique_ptr<LightTransformer> transformer);
 
   /// Internal method to save the current remote_values to the preferences
   void save_remote_values_();

@@ -2,6 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import light, output
 from esphome.const import (
+    CONF_CONSTANT_BRIGHTNESS,
     CONF_OUTPUT_ID,
     CONF_COLD_WHITE,
     CONF_WARM_WHITE,
@@ -11,8 +12,6 @@ from esphome.const import (
 
 cwww_ns = cg.esphome_ns.namespace("cwww")
 CWWWLightOutput = cwww_ns.class_("CWWWLightOutput", light.LightOutput)
-
-CONF_CONSTANT_BRIGHTNESS = "constant_brightness"
 
 CONFIG_SCHEMA = cv.All(
     light.RGB_LIGHT_SCHEMA.extend(

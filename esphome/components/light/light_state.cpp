@@ -1,6 +1,7 @@
-#include "light_state.h"
 #include "esphome/core/log.h"
+#include "light_state.h"
 #include "light_output.h"
+#include "transformers.h"
 
 namespace esphome {
 namespace light {
@@ -36,6 +37,13 @@ void LightState::setup() {
   this->output_->setup_state(this);
   for (auto *effect : this->effects_) {
     effect->init_internal(this);
+  }
+
+  // When supported color temperature range is known, initialize color temperature setting within bounds.
+  float min_mireds = this->get_traits().get_min_mireds();
+  if (min_mireds > 0) {
+    this->remote_values.set_color_temperature(min_mireds);
+    this->current_values.set_color_temperature(min_mireds);
   }
 
   auto call = this->make_call();
@@ -105,32 +113,31 @@ void LightState::loop() {
 
   // Apply transformer (if any)
   if (this->transformer_ != nullptr) {
-    if (this->transformer_->is_finished()) {
-      this->remote_values = this->current_values = this->transformer_->get_end_values();
-      this->target_state_reached_callback_.call();
-      if (this->transformer_->publish_at_end())
-        this->publish_state();
-      this->transformer_ = nullptr;
-    } else {
-      this->current_values = this->transformer_->get_values();
-      this->remote_values = this->transformer_->get_remote_values();
+    auto values = this->transformer_->apply();
+    if (values.has_value()) {
+      this->current_values = *values;
+      this->output_->update_state(this);
+      this->next_write_ = true;
     }
-    this->next_write_ = true;
+
+    if (this->transformer_->is_finished()) {
+      this->transformer_->stop();
+      this->transformer_ = nullptr;
+      this->target_state_reached_callback_.call();
+    }
   }
 
+  // Write state to the light
   if (this->next_write_) {
-    this->output_->write_state(this);
     this->next_write_ = false;
+    this->output_->write_state(this);
   }
 }
 
 float LightState::get_setup_priority() const { return setup_priority::HARDWARE - 1.0f; }
 uint32_t LightState::hash_base() { return 1114400283; }
 
-void LightState::publish_state() {
-  this->remote_values_callback_.call();
-  this->next_write_ = true;
-}
+void LightState::publish_state() { this->remote_values_callback_.call(); }
 
 LightOutput *LightState::get_output() const { return this->output_; }
 std::string LightState::get_effect_name() {
@@ -175,12 +182,22 @@ void LightState::current_values_as_rgbw(float *red, float *green, float *blue, f
 }
 void LightState::current_values_as_rgbww(float *red, float *green, float *blue, float *cold_white, float *warm_white,
                                          bool constant_brightness) {
-  auto traits = this->get_traits();
   this->current_values.as_rgbww(red, green, blue, cold_white, warm_white, this->gamma_correct_, constant_brightness);
+}
+void LightState::current_values_as_rgbct(float *red, float *green, float *blue, float *color_temperature,
+                                         float *white_brightness) {
+  auto traits = this->get_traits();
+  this->current_values.as_rgbct(traits.get_min_mireds(), traits.get_max_mireds(), red, green, blue, color_temperature,
+                                white_brightness, this->gamma_correct_);
 }
 void LightState::current_values_as_cwww(float *cold_white, float *warm_white, bool constant_brightness) {
   auto traits = this->get_traits();
   this->current_values.as_cwww(cold_white, warm_white, this->gamma_correct_, constant_brightness);
+}
+void LightState::current_values_as_ct(float *color_temperature, float *white_brightness) {
+  auto traits = this->get_traits();
+  this->current_values.as_ct(traits.get_min_mireds(), traits.get_max_mireds(), color_temperature, white_brightness,
+                             this->gamma_correct_);
 }
 
 void LightState::start_effect_(uint32_t effect_index) {
@@ -207,18 +224,21 @@ void LightState::stop_effect_() {
 }
 
 void LightState::start_transition_(const LightColorValues &target, uint32_t length) {
-  this->transformer_ = make_unique<LightTransitionTransformer>(millis(), length, this->current_values, target);
-  this->remote_values = this->transformer_->get_remote_values();
+  this->transformer_ = this->output_->create_default_transition();
+  this->transformer_->setup(this->current_values, target, length);
+  this->remote_values = target;
 }
 
 void LightState::start_flash_(const LightColorValues &target, uint32_t length) {
-  LightColorValues end_colors = this->current_values;
+  LightColorValues end_colors = this->remote_values;
   // If starting a flash if one is already happening, set end values to end values of current flash
   // Hacky but works
   if (this->transformer_ != nullptr)
-    end_colors = this->transformer_->get_end_values();
-  this->transformer_ = make_unique<LightFlashTransformer>(millis(), length, end_colors, target);
-  this->remote_values = this->transformer_->get_remote_values();
+    end_colors = this->transformer_->get_target_values();
+
+  this->transformer_ = make_unique<LightFlashTransformer>(*this);
+  this->transformer_->setup(end_colors, target, length);
+  this->remote_values = target;
 }
 
 void LightState::set_immediately_(const LightColorValues &target, bool set_remote_values) {
@@ -227,11 +247,8 @@ void LightState::set_immediately_(const LightColorValues &target, bool set_remot
   if (set_remote_values) {
     this->remote_values = target;
   }
+  this->output_->update_state(this);
   this->next_write_ = true;
-}
-
-void LightState::set_transformer_(std::unique_ptr<LightTransformer> transformer) {
-  this->transformer_ = std::move(transformer);
 }
 
 void LightState::save_remote_values_() {

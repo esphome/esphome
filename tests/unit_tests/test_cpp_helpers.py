@@ -38,7 +38,7 @@ async def test_register_component(monkeypatch):
     actual = await ch.register_component(var, {})
 
     assert actual is var
-    add_mock.assert_called_once()
+    assert add_mock.call_count == 2
     app_mock.register_component.assert_called_with(var)
     assert core_mock.component_ids == []
 
@@ -77,6 +77,6 @@ async def test_register_component__with_setup_priority(monkeypatch):
 
     assert actual is var
     add_mock.assert_called()
-    assert add_mock.call_count == 3
+    assert add_mock.call_count == 4
     app_mock.register_component.assert_called_with(var)
     assert core_mock.component_ids == []
