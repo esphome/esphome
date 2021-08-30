@@ -57,7 +57,7 @@ async def to_code(config):
     var = cg.new_Pvariable(
         config[CONF_ID],
         config[CONF_SPEED_COUNT],
-        DECAY_MODE_OPTIONS[config[CONF_DECAY_MODE]],
+        config[CONF_DECAY_MODE],
     )
     await fan.register_fan(var, config)
     pin_a_ = await cg.get_variable(config[CONF_PIN_A])
