@@ -62,10 +62,10 @@ async def to_code(config):
     if CONF_CSS_INCLUDE in config:
         cg.add_define("WEBSERVER_CSS_INCLUDE")
         path = CORE.relative_config_path(config[CONF_CSS_INCLUDE])
-        with open(path, "r") as myfile:
+        with open(file=path, mode="r", encoding="utf-8") as myfile:
             cg.add(var.set_css_include(myfile.read()))
     if CONF_JS_INCLUDE in config:
         cg.add_define("WEBSERVER_JS_INCLUDE")
         path = CORE.relative_config_path(config[CONF_JS_INCLUDE])
-        with open(path, "r") as myfile:
+        with open(file=path, mode="r", encoding="utf-8") as myfile:
             cg.add(var.set_js_include(myfile.read()))
