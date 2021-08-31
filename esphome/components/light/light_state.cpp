@@ -157,6 +157,11 @@ void LightState::add_new_target_state_reached_callback(std::function<void()> &&s
 void LightState::set_default_transition_length(uint32_t default_transition_length) {
   this->default_transition_length_ = default_transition_length;
 }
+uint32_t LightState::get_default_transition_length() const { return this->default_transition_length_; }
+void LightState::set_flash_transition_length(uint32_t flash_transition_length) {
+  this->flash_transition_length_ = flash_transition_length;
+}
+uint32_t LightState::get_flash_transition_length() const { return this->flash_transition_length_; }
 void LightState::set_gamma_correct(float gamma_correct) { this->gamma_correct_ = gamma_correct; }
 void LightState::set_restore_mode(LightRestoreMode restore_mode) { this->restore_mode_ = restore_mode; }
 bool LightState::supports_effects() { return !this->effects_.empty(); }
@@ -234,7 +239,7 @@ void LightState::start_flash_(const LightColorValues &target, uint32_t length) {
   // If starting a flash if one is already happening, set end values to end values of current flash
   // Hacky but works
   if (this->transformer_ != nullptr)
-    end_colors = this->transformer_->get_target_values();
+    end_colors = this->transformer_->get_start_values();
 
   this->transformer_ = make_unique<LightFlashTransformer>(*this);
   this->transformer_->setup(end_colors, target, length);

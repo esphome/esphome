@@ -99,6 +99,11 @@ class LightState : public Nameable, public Component {
 
   /// Set the default transition length, i.e. the transition length when no transition is provided.
   void set_default_transition_length(uint32_t default_transition_length);
+  uint32_t get_default_transition_length() const;
+
+  /// Set the flash transition length
+  void set_flash_transition_length(uint32_t flash_transition_length);
+  uint32_t get_flash_transition_length() const;
 
   /// Set the gamma correction factor
   void set_gamma_correct(float gamma_correct);
@@ -188,6 +193,8 @@ class LightState : public Nameable, public Component {
 
   /// Default transition length for all transitions in ms.
   uint32_t default_transition_length_{};
+  /// Transition length to use for flash transitions.
+  uint32_t flash_transition_length_{};
   /// Gamma correction factor for the light.
   float gamma_correct_{};
   /// Restore mode of the light.
