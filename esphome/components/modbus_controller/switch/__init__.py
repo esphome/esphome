@@ -4,14 +4,16 @@ import esphome.codegen as cg
 
 
 from esphome.const import CONF_ID, CONF_ADDRESS, CONF_OFFSET
-from . import modbus_controller_ns, ModbusController, MODBUS_FUNCTION_CODE
-from .const import CONF_MODBUS_CONTROLLER_ID, CONF_MODBUS_FUNCTIONCODE, CONF_BITMASK
+from .. import SensorItem, modbus_controller_ns, ModbusController, MODBUS_FUNCTION_CODE
+from ..const import CONF_MODBUS_CONTROLLER_ID, CONF_MODBUS_FUNCTIONCODE, CONF_BITMASK
 
 DEPENDENCIES = ["modbus_controller"]
 CODEOWNERS = ["@martgras"]
 
 
-ModbusSwitch = modbus_controller_ns.class_("ModbusSwitch", switch.Switch, cg.Component)
+ModbusSwitch = modbus_controller_ns.class_(
+    "ModbusSwitch", cg.Component, switch.Switch, SensorItem
+)
 
 CONFIG_SCHEMA = switch.SWITCH_SCHEMA.extend(
     {
@@ -37,12 +39,5 @@ def to_code(config):
     yield switch.register_switch(var, config)
 
     paren = yield cg.get_variable(config[CONF_MODBUS_CONTROLLER_ID])
-    cg.add(
-        var.add_to_controller(
-            paren,
-            config[CONF_MODBUS_FUNCTIONCODE],
-            config[CONF_ADDRESS],
-            config[CONF_OFFSET],
-            config[CONF_BITMASK],
-        )
-    )
+    cg.add(paren.add_sensor_item(var))
+    cg.add(var.set_parent(paren))

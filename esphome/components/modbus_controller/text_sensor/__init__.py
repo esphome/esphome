@@ -4,8 +4,13 @@ import esphome.codegen as cg
 
 
 from esphome.const import CONF_ID, CONF_ADDRESS, CONF_OFFSET
-from . import modbus_controller_ns, ModbusController, MODBUS_FUNCTION_CODE, RAW_ENCODING
-from .const import (
+from .. import (
+    SensorItem,
+    modbus_controller_ns,
+    ModbusController,
+    MODBUS_FUNCTION_CODE,
+)
+from ..const import (
     CONF_MODBUS_CONTROLLER_ID,
     CONF_MODBUS_FUNCTIONCODE,
     CONF_REGISTER_COUNT,
@@ -19,8 +24,16 @@ CODEOWNERS = ["@martgras"]
 
 
 ModbusTextSensor = modbus_controller_ns.class_(
-    "ModbusTextSensor", text_sensor.TextSensor, cg.Component
+    "ModbusTextSensor", cg.Component, text_sensor.TextSensor, SensorItem
 )
+
+RawEncoding_ns = modbus_controller_ns.namespace("RawEncoding")
+RawEncoding = RawEncoding_ns.enum("RawEncoding")
+RAW_ENCODING = {
+    "NONE": RawEncoding.NONE,
+    "HEXBYTES": RawEncoding.HEXBYTES,
+    "COMMA": RawEncoding.COMMA,
+}
 
 CONFIG_SCHEMA = text_sensor.TEXT_SENSOR_SCHEMA.extend(
     {
@@ -37,7 +50,7 @@ CONFIG_SCHEMA = text_sensor.TEXT_SENSOR_SCHEMA.extend(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(
         config[CONF_ID],
         config[CONF_MODBUS_FUNCTIONCODE],
@@ -48,20 +61,8 @@ def to_code(config):
         config[CONF_RAW_ENCODE],
         config[CONF_SKIP_UPDATES],
     )
-    yield cg.register_component(var, config)
-    yield text_sensor.register_text_sensor(var, config)
+    await cg.register_component(var, config)
+    await text_sensor.register_text_sensor(var, config)
 
-    paren = yield cg.get_variable(config[CONF_MODBUS_CONTROLLER_ID])
-    cg.add(var.set_modbus_parent(paren))
-    cg.add(
-        var.add_to_controller(
-            paren,
-            config[CONF_MODBUS_FUNCTIONCODE],
-            config[CONF_ADDRESS],
-            config[CONF_OFFSET],
-            config[CONF_REGISTER_COUNT],
-            config[CONF_RESPONSE_SIZE],
-            config[CONF_RAW_ENCODE],
-            config[CONF_SKIP_UPDATES],
-        )
-    )
+    paren = await cg.get_variable(config[CONF_MODBUS_CONTROLLER_ID])
+    cg.add(paren.add_sensor_item(var))
