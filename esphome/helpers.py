@@ -276,11 +276,11 @@ def file_compare(path1: os.PathLike, path2: os.PathLike) -> bool:
 # A dict of types that need to be converted to heaptypes before a class can be added
 # to the object
 _TYPE_OVERLOADS = {
-    int: type("EInt", (int,), dict()),
-    float: type("EFloat", (float,), dict()),
-    str: type("EStr", (str,), dict()),
-    dict: type("EDict", (str,), dict()),
-    list: type("EList", (list,), dict()),
+    int: type("EInt", (int,), {}),
+    float: type("EFloat", (float,), {}),
+    str: type("EStr", (str,), {}),
+    dict: type("EDict", (str,), {}),
+    list: type("EList", (list,), {}),
 }
 
 # cache created classes here
