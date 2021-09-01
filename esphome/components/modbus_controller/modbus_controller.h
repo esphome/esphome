@@ -38,7 +38,7 @@ enum class ModbusFunctionCode {
 };
 
 enum class SensorValueType : uint8_t {
-  RAW = 0x00,      // variable length
+  RAW = 0x00,     // variable length
   U_WORD = 0x1,   // 1 Register unsigned
   U_DWORD = 0x2,  // 2 Registers unsigned
   S_WORD = 0x3,   // 1 Register signed

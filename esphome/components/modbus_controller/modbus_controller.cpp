@@ -93,7 +93,7 @@ void ModbusController::on_register_data(ModbusFunctionCode function_code, uint16
   // loop through all sensors with the same start address
   while (map_it != sensormap_.end() && map_it->second->start_address == start_address) {
     if (map_it->second->register_type == function_code) {
-      float val = map_it->second->parse_and_publish(data);
+      map_it->second->parse_and_publish(data);
     }
     map_it++;
   }
