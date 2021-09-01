@@ -600,7 +600,7 @@ class EditRequestHandler(BaseHandler):
         content = ""
         if os.path.isfile(filename):
             # pylint: disable=no-value-for-parameter
-            with open(filename, "r") as f:
+            with open(file=filename, mode="r", encoding="utf-8") as f:
                 content = f.read()
         self.write(content)
 
@@ -608,7 +608,9 @@ class EditRequestHandler(BaseHandler):
     @bind_config
     def post(self, configuration=None):
         # pylint: disable=no-value-for-parameter
-        with open(settings.rel_path(configuration), "wb") as f:
+        with open(
+            file=settings.rel_path(configuration), mode="wb", encoding="utf-8"
+        ) as f:
             f.write(self.request.body)
         self.set_status(200)
 

@@ -836,10 +836,11 @@ pressure = float_with_unit("pressure", "(bar|Bar)", optional_unit=True)
 
 
 def temperature(value):
+    err = None
     try:
         return _temperature_c(value)
-    except Invalid as orig_err:  # noqa
-        pass
+    except Invalid as orig_err:
+        err = orig_err
 
     try:
         kelvin = _temperature_k(value)
@@ -853,7 +854,7 @@ def temperature(value):
     except Invalid:
         pass
 
-    raise orig_err  # noqa
+    raise err
 
 
 _color_temperature_mireds = float_with_unit("Color Temperature", r"(mireds|Mireds)")
@@ -1457,7 +1458,11 @@ class OnlyWith(Optional):
         if self._component in CORE.raw_config or (
             CONF_PACKAGES in CORE.raw_config
             and self._component
-            in {list(x.keys())[0] for x in CORE.raw_config[CONF_PACKAGES].values()}
+            in [
+                k
+                for package in CORE.raw_config[CONF_PACKAGES].values()
+                for k in package.keys()
+            ]
         ):
             return self._default
         return vol.UNDEFINED
