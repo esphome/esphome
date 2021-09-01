@@ -40,6 +40,7 @@ from esphome.const import (
     DEVICE_CLASS_CARBON_DIOXIDE,
     DEVICE_CLASS_CURRENT,
     DEVICE_CLASS_ENERGY,
+    DEVICE_CLASS_GAS,
     DEVICE_CLASS_HUMIDITY,
     DEVICE_CLASS_ILLUMINANCE,
     DEVICE_CLASS_MONETARY,
@@ -62,6 +63,7 @@ DEVICE_CLASSES = [
     DEVICE_CLASS_CARBON_DIOXIDE,
     DEVICE_CLASS_CURRENT,
     DEVICE_CLASS_ENERGY,
+    DEVICE_CLASS_GAS,
     DEVICE_CLASS_HUMIDITY,
     DEVICE_CLASS_ILLUMINANCE,
     DEVICE_CLASS_MONETARY,
@@ -79,6 +81,7 @@ StateClasses = sensor_ns.enum("StateClass")
 STATE_CLASSES = {
     "": StateClasses.STATE_CLASS_NONE,
     "measurement": StateClasses.STATE_CLASS_MEASUREMENT,
+    "total_increasing": StateClasses.STATE_CLASS_TOTAL_INCREASING,
 }
 validate_state_class = cv.enum(STATE_CLASSES, lower=True, space="_")
 

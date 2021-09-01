@@ -14,10 +14,13 @@ void Modbus::setup() {
 }
 void Modbus::loop() {
   const uint32_t now = millis();
-  // discard the buffer if we didn't get a response within the last 250ms
-  if (now - this->last_modbus_byte_ > 250) {
+
+  if (now - this->last_modbus_byte_ > 50) {
     this->rx_buffer_.clear();
     this->last_modbus_byte_ = now;
+  }
+  // stop blocking new send commands after send_wait_time_ ms regardless if a response has been received since then
+  if (now - this->last_send_ > send_wait_time_) {
     waiting_for_response = false;
   }
 
@@ -52,7 +55,7 @@ bool Modbus::parse_modbus_byte_(uint8_t byte) {
   size_t at = this->rx_buffer_.size();
   this->rx_buffer_.push_back(byte);
   const uint8_t *raw = &this->rx_buffer_[0];
-  ESP_LOGV(TAG, "Modbus recieved Byte  %d (0X%x)", byte, byte);
+  ESP_LOGV(TAG, "Modbus received Byte  %d (0X%x)", byte, byte);
   // Byte 0: modbus address (match all)
   if (at == 0)
     return true;
@@ -92,7 +95,7 @@ bool Modbus::parse_modbus_byte_(uint8_t byte) {
   uint16_t remote_crc = uint16_t(raw[data_offset + data_len]) | (uint16_t(raw[data_offset + data_len + 1]) << 8);
   if (computed_crc != remote_crc) {
     ESP_LOGW(TAG, "Modbus CRC Check failed! %02X!=%02X", computed_crc, remote_crc);
-    // return false;
+    return false;
   }
 
   waiting_for_response = false;
@@ -122,6 +125,7 @@ bool Modbus::parse_modbus_byte_(uint8_t byte) {
 void Modbus::dump_config() {
   ESP_LOGCONFIG(TAG, "Modbus:");
   LOG_PIN("  Flow Control Pin: ", this->flow_control_pin_);
+  ESP_LOGCONFIG(TAG, "  Send Wait Time: %d ms", this->send_wait_time_);
 }
 float Modbus::get_setup_priority() const {
   // After UART bus
@@ -148,6 +152,7 @@ void Modbus::send(uint8_t address, uint8_t function, uint16_t start_address, uin
   if (this->flow_control_pin_ != nullptr)
     this->flow_control_pin_->digital_write(false);
   waiting_for_response = true;
+  last_send_ = millis();
 }
 
 // update existing crc
@@ -204,17 +209,17 @@ void Modbus::send_with_payload(uint8_t address, uint8_t function_code, uint16_t 
   this->write_byte(start_address >> 8);
   crc = update_crc16(crc, start_address >> 8);
   LOG_BYTE(start_address >> 8);
-  this->write_byte(start_address >> 0);
-  crc = update_crc16(crc, start_address >> 0);
-  LOG_BYTE(start_address >> 0);
+  this->write_byte((start_address & 0xFF));
+  crc = update_crc16(crc, start_address & 0xFF);
+  LOG_BYTE(start_address & 0xFF);
 
   if (function_code != 0x5 && function_code != 0x6) {
     this->write_byte(number_of_entities >> 8);
     crc = update_crc16(crc, number_of_entities >> 8);
-    this->write_byte(number_of_entities >> 0);
-    crc = update_crc16(crc, number_of_entities >> 0);
+    this->write_byte(number_of_entities & 0xFF);
+    crc = update_crc16(crc, number_of_entities & 0xFF);
     LOG_BYTE(number_of_entities >> 8);
-    LOG_BYTE(number_of_entities >> 0);
+    LOG_BYTE(number_of_entities & 0xFF);
   }
   // if this is a write command add the payload
   if (payload != nullptr) {
@@ -231,15 +236,16 @@ void Modbus::send_with_payload(uint8_t address, uint8_t function_code, uint16_t 
       LOG_BYTE(payload[i]);
     }
   }
-  this->write_byte(crc >> 0);
+  this->write_byte(crc & 0xFF);
   this->write_byte(crc >> 8);
-  LOG_BYTE(crc >> 0);
+  LOG_BYTE(crc & 0xFF);
   LOG_BYTE(crc >> 8);
   this->flush();
 
   if (this->flow_control_pin_ != nullptr)
     this->flow_control_pin_->digital_write(false);
   waiting_for_response = true;
+  last_send_ = millis();
   DUMP_LOG();
 }
 
@@ -260,6 +266,7 @@ void Modbus::send_raw(const std::vector<uint8_t> &payload) {
   if (this->flow_control_pin_ != nullptr)
     this->flow_control_pin_->digital_write(false);
   waiting_for_response = true;
+  last_send_ = millis();
 }
 
 }  // namespace modbus

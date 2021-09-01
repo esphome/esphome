@@ -8,12 +8,12 @@ from .. import (
     modbus_controller_ns,
     ModbusController,
     MODBUS_FUNCTION_CODE,
-    CONF_BITMASK,
 )
 from ..const import (
     CONF_MODBUS_CONTROLLER_ID,
     CONF_MODBUS_FUNCTIONCODE,
     CONF_SKIP_UPDATES,
+    CONF_BITMASK,
 )
 
 DEPENDENCIES = ["modbus_controller"]

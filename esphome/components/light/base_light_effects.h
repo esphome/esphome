@@ -196,7 +196,6 @@ class FlickerLightEffect : public LightEffect {
     out.set_warm_white(remote.get_warm_white() * beta + current.get_warm_white() * alpha +
                        (random_cubic_float() * this->intensity_));
 
-    auto traits = this->state_->get_traits();
     auto call = this->state_->make_call();
     call.set_publish(false);
     call.set_save(false);

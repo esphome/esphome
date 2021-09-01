@@ -19,7 +19,7 @@ jobs:
         id: tag
         run: |
           if [[ "$GITHUB_EVENT_NAME" = "release" ]]; then
-            TAG="${GITHUB_REF#refs/tags/v}"
+            TAG="${GITHUB_REF#refs/tags/}"
           else
             TAG=$(cat esphome/const.py | sed -n -E "s/^__version__\s+=\s+\"(.+)\"$/\1/p")
             today="$(date --utc '+%Y%m%d')"
@@ -138,7 +138,7 @@ jobs:
       - env:
           TOKEN: ${{ secrets.DEPLOY_HASSIO_TOKEN }}
         run: |
-          TAG="${GITHUB_REF#refs/tags/v}"
+          TAG="${GITHUB_REF#refs/tags/}"
           curl \
             -u ":$TOKEN" \
             -X POST \

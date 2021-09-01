@@ -1,12 +1,12 @@
 
 #include "modbus_switch.h"
-
+#include "esphome/core/log.h"
 namespace esphome {
 namespace modbus_controller {
 
 static const char *const TAG = "modbus_controller.switch";
 
-void ModbusSwitch::log() { LOG_SWITCH("", "Modbus Controller Switch", this); }
+void ModbusSwitch::dump_config() { LOG_SWITCH("", "Modbus Controller Switch", this); }
 
 float ModbusSwitch::parse_and_publish(const std::vector<uint8_t> &data) {
   int64_t value = 0;
@@ -22,6 +22,8 @@ float ModbusSwitch::parse_and_publish(const std::vector<uint8_t> &data) {
   }
 
   float result = static_cast<float>(value);
+  ESP_LOGV(TAG, "publish ModbusSwitch '%s': new value = %d  type = %d address = %X offset = %x",
+           this->get_name().c_str(), value != 0.0, (int) this->register_type, this->start_address, this->offset);
   this->publish_state(value != 0.0);
   return result;
 }
@@ -29,7 +31,7 @@ float ModbusSwitch::parse_and_publish(const std::vector<uint8_t> &data) {
 void ModbusSwitch::write_state(bool state) {
   // This will be called every time the user requests a state change.
   ModbusCommandItem cmd;
-  ESP_LOGD(TAG, "write_state for ModbusSwitch '%s': new value = %d  type = %d address = %X offset = %x",
+  ESP_LOGV(TAG, "write_state for ModbusSwitch '%s': new value = %d  type = %d address = %X offset = %x",
            this->get_name().c_str(), state, (int) this->register_type, this->start_address, this->offset);
   switch (this->register_type) {
     case ModbusFunctionCode::READ_COILS:

@@ -21,10 +21,15 @@ void ModbusController::setup() {
 bool ModbusController::send_next_command_() {
   uint32_t last_send = millis() - this->last_command_timestamp_;
 
+// if (!command_queue_.empty() && this->waiting_for_response()) {
+//    ESP_LOGV(TAG, "Sending delayed - waiting for previous response");
+//  }
+
   if ((last_send > this->command_throttle_) && !waiting_for_response() && !command_queue_.empty()) {
     auto &command = command_queue_.front();
 
-    ESP_LOGD(TAG, "Sending next modbus command to %d register 0x%02X", this->address_, command->register_address);
+    ESP_LOGD(TAG, "Sending next modbus command to device %d register 0x%02X", this->address_,
+             command->register_address);
     command->send();
     this->last_command_timestamp_ = millis();
     if (!command->on_data_func) {  // No handler remove from queue directly after sending

@@ -28,14 +28,16 @@ class Modbus : public uart::UARTDevice, public Component {
   void send_raw(const std::vector<uint8_t> &payload);
   void set_flow_control_pin(GPIOPin *flow_control_pin) { this->flow_control_pin_ = flow_control_pin; }
   bool waiting_for_response{false};
+  void set_send_wait_time(uint16_t time_in_ms) { send_wait_time_ = time_in_ms; }
 
  protected:
   GPIOPin *flow_control_pin_{nullptr};
 
   bool parse_modbus_byte_(uint8_t byte);
-
+  uint16_t send_wait_time_{250};
   std::vector<uint8_t> rx_buffer_;
   uint32_t last_modbus_byte_{0};
+  uint32_t last_send_{0};
   std::vector<ModbusDevice *> devices_;
 };
 
