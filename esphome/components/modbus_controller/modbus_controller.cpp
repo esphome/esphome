@@ -21,9 +21,9 @@ void ModbusController::setup() {
 bool ModbusController::send_next_command_() {
   uint32_t last_send = millis() - this->last_command_timestamp_;
 
-// if (!command_queue_.empty() && this->waiting_for_response()) {
-//    ESP_LOGV(TAG, "Sending delayed - waiting for previous response");
-//  }
+  // if (!command_queue_.empty() && this->waiting_for_response()) {
+  //    ESP_LOGV(TAG, "Sending delayed - waiting for previous response");
+  //  }
 
   if ((last_send > this->command_throttle_) && !waiting_for_response() && !command_queue_.empty()) {
     auto &command = command_queue_.front();
@@ -161,10 +161,9 @@ size_t ModbusController::create_register_ranges() {
   while (ix != sensormap_.end()) {
     // use the lowest non zero value for the whole range
     // Because zero is the default value for skip_updates it is excluded from getting the min value.
-    ESP_LOGV(TAG, "Register: 0x%X %d %d  0x%llx (%d) buffer_offset = %d (0x%X) skip=%u",
-             ix->second->start_address, ix->second->register_count,
-             ix->second->offset, ix->second->getkey(), total_register_count, buffer_offset, buffer_offset,
-             ix->second->skip_updates);
+    ESP_LOGV(TAG, "Register: 0x%X %d %d  0x%llx (%d) buffer_offset = %d (0x%X) skip=%u", ix->second->start_address,
+             ix->second->register_count, ix->second->offset, ix->second->getkey(), total_register_count, buffer_offset,
+             buffer_offset, ix->second->skip_updates);
     if (current_start_address != ix->second->start_address ||
         //  ( prev->second->start_address + prev->second->offset != ix->second->start_address) ||
         ix->second->register_type != prev->second->register_type) {
