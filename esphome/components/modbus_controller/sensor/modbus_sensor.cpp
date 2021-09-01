@@ -1,12 +1,12 @@
 
 #include "modbus_sensor.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace modbus_controller {
 
-static const char *const TAG = "modbus_sensor";
+static const char *const TAG = "modbus_controller.sensor";
 
-// ModbusSensor
 // Extract bits from value and shift right according to the bitmask
 // if the bitmask is 0x00F0  we want the values frrom bit 5 - 8.
 // the result is then shifted right by the postion if the first right set bit in the mask
@@ -26,21 +26,7 @@ template<typename N> N mask_and_shift_by_rightbit(N data, uint32_t mask) {
   return 0;
 }
 
-void ModbusSensor::log() { LOG_SENSOR(TAG, get_name().c_str(), this); }
-
-void ModbusSensor::add_to_controller(ModbusController *master, ModbusFunctionCode register_type, uint16_t start_address,
-                                     uint8_t offset, uint32_t bitmask, SensorValueType value_type, int register_count,
-                                     uint8_t skip_updates) {
-  this->register_type = register_type;
-  this->start_address = start_address;
-  this->offset = offset;
-  this->bitmask = bitmask;
-  this->sensor_value_type = value_type;
-  this->register_count = register_count;
-  this->skip_updates = 0;
-  this->parent_ = master;
-  master->add_sensor_item(this);
-}
+void ModbusSensor::dump_config() { LOG_SENSOR("", "Modbus Controller Sensor", this); }
 
 float ModbusSensor::parse_and_publish(const std::vector<uint8_t> &data) {
   int64_t value = 0;  // int64_t because it can hold signed and unsigned 32 bits
@@ -102,12 +88,11 @@ float ModbusSensor::parse_and_publish(const std::vector<uint8_t> &data) {
 
   // No need to publish if the value didn't change since the last publish
   // can reduce mqtt traffic considerably if many sensors are used
-  ESP_LOGVV(TAG, " SENSOR : new: %lld", value);
+  ESP_LOGD(TAG, " SENSOR : new: %lld", value);
   // this->sensor_->raw_state = result;
   this->publish_state(result);
   return result;
 }
-// End ModbusSensor
 
 }  // namespace modbus_controller
 }  // namespace esphome

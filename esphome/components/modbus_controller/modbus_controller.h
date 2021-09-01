@@ -1,20 +1,14 @@
 #pragma once
 
 #include "esphome/core/component.h"
-#include "esphome/core/log.h"
-#include "esphome/components/sensor/sensor.h"
-#include "esphome/components/binary_sensor/binary_sensor.h"
-#include "esphome/components/text_sensor/text_sensor.h"
-#include "esphome/components/switch/switch.h"
+
 #include "esphome/core/automation.h"
 #include "esphome/components/modbus/modbus.h"
 
-#include <string>
-#include <map>
-#include <memory>
-#include <vector>
 #include <list>
-#include <atomic>
+#include <map>
+#include <queue>
+#include <vector>
 
 namespace esphome {
 namespace modbus_controller {
@@ -40,8 +34,7 @@ enum class ModbusFunctionCode {
   WRITE_FILE_RECORD = 0x15,              // not implemented
   MASK_WRITE_REGISTER = 0x16,            // not implemented
   READ_WRITE_MULTIPLE_REGISTERS = 0x17,  // not implemented
-  READ_FIFO_QUEUE = 0x18                 // not implemented
-
+  READ_FIFO_QUEUE = 0x18,                // not implemented
 };
 
 enum class SensorValueType : uint8_t {
@@ -56,7 +49,7 @@ enum class SensorValueType : uint8_t {
   U_QWORD = 0x8,
   S_QWORD = 0x9,
   U_QWORD_R = 0xA,
-  S_QWORD_R = 0xB
+  S_QWORD_R = 0xB,
 };
 
 struct RegisterRange {
@@ -104,8 +97,6 @@ inline uint64_t qword_from_hex_str(const std::string &value, uint8_t pos) {
   return static_cast<uint64_t>(dword_from_hex_str(value, pos)) << 32 | dword_from_hex_str(value, pos + 4);
 }
 
-std::string get_hex_string(const std::vector<uint8_t> &data);
-
 // Extract data from modbus response buffer
 template<typename T> T get_data(const std::vector<uint8_t> &data, size_t offset) {
   if (sizeof(T) == sizeof(uint8_t)) {
@@ -141,8 +132,6 @@ struct SensorItem {
   uint8_t register_count;
   uint8_t skip_updates;
 
-  virtual std::string const &get_sensorname() = 0;
-  virtual void log() = 0;
   virtual float parse_and_publish(const std::vector<uint8_t> &data) = 0;
 
   uint64_t getkey() const { return calc_key(register_type, start_address, offset, bitmask); }

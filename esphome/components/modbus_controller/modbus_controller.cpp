@@ -1,35 +1,11 @@
-#include <cstdint>
-#include <iomanip>
-#include <list>
-#include <sstream>
-
-#include "esphome/core/log.h"
-#include "esphome/core/application.h"
-#ifdef USE_MQTT
-#include "esphome/components/mqtt/mqtt_component.h"
-#include "esphome/components/mqtt/mqtt_switch.h"
-#endif
 #include "modbus_controller.h"
-
-static const char *const TAG = "Modbus_Controller";
+#include "esphome/core/application.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace modbus_controller {
 
-std::string get_hex_string(const std::vector<uint8_t> &data) {
-  std::ostringstream output;
-  char buffer[3];
-  for (uint8_t b : data) {
-    //    sprintf(buffer, "%02x", b);
-    uint8_t val = (b & 0xF0) >> 4;
-    buffer[0] = val > 9 ? 'a' + val : '0' + val;
-    val = (b & 0xF);
-    buffer[1] = val > 9 ? 'a' + val : '0' + val;
-    buffer[2] = '\0';
-    output << buffer;
-  }
-  return output.str();
-}
+static const char *const TAG = "modbus_controller";
 
 void ModbusController::setup() {
   // Modbus::setup();
@@ -65,7 +41,7 @@ void ModbusController::on_modbus_data(const std::vector<uint8_t> &data) {
     // Move the commandItem to the response queue
     current_command->payload = data;
     this->incoming_queue_.push(std::move(current_command));
-    ESP_LOGD(TAG, "Modbus respone queued");
+    ESP_LOGV(TAG, "Modbus response queued");
     command_queue_.pop_front();
   }
 }
@@ -94,7 +70,7 @@ void ModbusController::on_modbus_error(uint8_t function_code, uint8_t exception_
 
 void ModbusController::on_register_data(ModbusFunctionCode function_code, uint16_t start_address,
                                         const std::vector<uint8_t> &data) {
-  ESP_LOGD(TAG, "data for register address : 0x%X : ", start_address);
+  ESP_LOGV(TAG, "data for register address : 0x%X : ", start_address);
 
   auto vec_it = find_if(begin(register_ranges_), end(register_ranges_), [=](RegisterRange const &r) {
     return (r.start_address == start_address && r.register_type == function_code);
@@ -113,7 +89,6 @@ void ModbusController::on_register_data(ModbusFunctionCode function_code, uint16
   while (map_it != sensormap_.end() && map_it->second->start_address == start_address) {
     if (map_it->second->register_type == function_code) {
       float val = map_it->second->parse_and_publish(data);
-      ESP_LOGV(TAG, "Sensor : %s = %.02f ", map_it->second->get_sensorname().c_str(), val);
     }
     map_it++;
   }
@@ -136,7 +111,7 @@ void ModbusController::queue_command(const ModbusCommandItem &command) {
 }
 
 void ModbusController::update_range(RegisterRange &r) {
-  ESP_LOGD(TAG, "Range : %X Size: %x (%d) skip: %d", r.start_address, r.register_count, (int) r.register_type,
+  ESP_LOGV(TAG, "Range : %X Size: %x (%d) skip: %d", r.start_address, r.register_count, (int) r.register_type,
            r.skip_updates_counter);
   if (r.skip_updates_counter == 0) {
     ModbusCommandItem command_item =
@@ -153,15 +128,14 @@ void ModbusController::update_range(RegisterRange &r) {
 //
 void ModbusController::update() {
   if (!command_queue_.empty()) {
-    ESP_LOGW(TAG, "%zu modbus commands already in queue", command_queue_.size());
+    ESP_LOGV(TAG, "%zu modbus commands already in queue", command_queue_.size());
   } else {
-    ESP_LOGI(TAG, "updating modbus component");
+    ESP_LOGV(TAG, "Updating modbus component");
   }
 
   for (auto &r : this->register_ranges_) {
     update_range(r);
   }
-  ESP_LOGI(TAG, "Modbus update complete Free Heap  %u bytes", ESP.getFreeHeap());
 }
 
 // walk through the sensors and determine the registerranges to read
@@ -182,8 +156,8 @@ size_t ModbusController::create_register_ranges() {
   while (ix != sensormap_.end()) {
     // use the lowest non zero value for the whole range
     // Because zero is the default value for skip_updates it is excluded from getting the min value.
-    ESP_LOGV(TAG, "Register '%s': 0x%X %d %d  0x%llx (%d) buffer_offset = %d (0x%X) skip=%u",
-             ix->second->get_sensorname().c_str(), ix->second->start_address, ix->second->register_count,
+    ESP_LOGV(TAG, "Register: 0x%X %d %d  0x%llx (%d) buffer_offset = %d (0x%X) skip=%u",
+             ix->second->start_address, ix->second->register_count,
              ix->second->offset, ix->second->getkey(), total_register_count, buffer_offset, buffer_offset,
              ix->second->skip_updates);
     if (current_start_address != ix->second->start_address ||
@@ -202,7 +176,7 @@ size_t ModbusController::create_register_ranges() {
         r.first_sensorkey = first_sensorkey;
         r.skip_updates = skip_updates;
         r.skip_updates_counter = 0;
-        ESP_LOGD(TAG, "Add range 0x%X %d skip:%d", r.start_address, r.register_count, r.skip_updates);
+        ESP_LOGV(TAG, "Add range 0x%X %d skip:%d", r.start_address, r.register_count, r.skip_updates);
         register_ranges_.push_back(r);
       }
       skip_updates = ix->second->skip_updates;
@@ -250,10 +224,6 @@ size_t ModbusController::create_register_ranges() {
 void ModbusController::dump_config() {
   ESP_LOGCONFIG(TAG, "ModbusController:");
   ESP_LOGCONFIG(TAG, "  Address: 0x%02X", this->address_);
-  for (auto &item : this->sensormap_) {
-    item.second->log();
-  }
-  create_register_ranges();
 }
 
 void ModbusController::loop() {
@@ -280,7 +250,7 @@ void ModbusController::loop() {
 
 void ModbusController::on_write_register_response(ModbusFunctionCode function_code, uint16_t start_address,
                                                   const std::vector<uint8_t> &data) {
-  ESP_LOGD(TAG, "Command ACK 0x%X %d ", get_data<uint16_t>(data, 0), get_data<int16_t>(data, 1));
+  ESP_LOGV(TAG, "Command ACK 0x%X %d ", get_data<uint16_t>(data, 0), get_data<int16_t>(data, 1));
 }
 
 // factory methods
