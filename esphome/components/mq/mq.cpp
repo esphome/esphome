@@ -8,6 +8,81 @@ static const float VOLTAGE_RESOLUTION = 3.3;
 static const int ADC_BIT_RESOLUTION_ESP8266 = 10;
 static const int ADC_BIT_RESOLUTION_ESP32 = 12;
 static const char *const TAG = "mq";
+static const std::map<MQModel, std::vector<MQGasSensor>> GAS_PARAMETERS_DEFINITION = {
+  {MQ_MODEL_2,
+    {
+        {.gas_type = MQ_GAS_TYPE_H2, .a = 987.99, .b = -2.162},
+        {.gas_type = MQ_GAS_TYPE_LPG, .a = 574.25, .b = -2.222},
+        {.gas_type = MQ_GAS_TYPE_CO, .a = 36974.0, .b = -3.109},
+        {.gas_type = MQ_GAS_TYPE_ALCOHOL, .a = 3616.1, .b = -2.675},
+        {.gas_type = MQ_GAS_TYPE_PROPANE, .a = 658.71, .b = -2.168},
+    }},
+  {MQ_MODEL_3,
+    {
+        {.gas_type = MQ_GAS_TYPE_LPG, .a = 44771, .b = -3.245},
+        {.gas_type = MQ_GAS_TYPE_CH4, .a = 2 * 10 ^ 31, .b = 19.01},
+        {.gas_type = MQ_GAS_TYPE_CO, .a = 521853, .b = -3.821},
+        {.gas_type = MQ_GAS_TYPE_ALCOHOL, .a = 0.3934, .b = -1.504},
+        {.gas_type = MQ_GAS_TYPE_BENZENE, .a = 4.8387, .b = -2.68},
+        {.gas_type = MQ_GAS_TYPE_HEXANE, .a = 7585.3, .b = -2.849},
+    }},
+  {MQ_MODEL_4,
+    {
+        {.gas_type = MQ_GAS_TYPE_LPG, .a = 3811.9, .b = -3.113},
+        {.gas_type = MQ_GAS_TYPE_CH4, .a = 1012.7, .b = -2.786},
+        {.gas_type = MQ_GAS_TYPE_CO, .a = 200000000000000.0, .b = -19.05},
+        {.gas_type = MQ_GAS_TYPE_ALCOHOL, .a = 60000000000.0, .b = -14.01},
+        {.gas_type = MQ_GAS_TYPE_SMOKE, .a = 30000000.0, .b = -8.308},
+    }},
+
+  {MQ_MODEL_5,
+    {
+        {.gas_type = MQ_GAS_TYPE_H2, .a = 1163.8, .b = -3.874},
+        {.gas_type = MQ_GAS_TYPE_LPG, .a = 80.897, .b = -2.431},
+        {.gas_type = MQ_GAS_TYPE_CH4, .a = 177.65, .b = -2.56},
+        {.gas_type = MQ_GAS_TYPE_CO, .a = 491204, .b = -5.826},
+        {.gas_type = MQ_GAS_TYPE_ALCOHOL, .a = 97124, .b = -4.918},
+    }},
+  {MQ_MODEL_6,
+    {
+        {.gas_type = MQ_GAS_TYPE_H2, .a = 88158, .b = -3.597},
+        {.gas_type = MQ_GAS_TYPE_LPG, .a = 1009.2, .b = -2.35},
+        {.gas_type = MQ_GAS_TYPE_CH4, .a = 2127.2, .b = -2.526},
+        {.gas_type = MQ_GAS_TYPE_CO, .a = 1000000000000000.0, .b = -13.5},
+        {.gas_type = MQ_GAS_TYPE_ALCOHOL, .a = 50000000.0, .b = -6.017},
+    }},
+  {MQ_MODEL_7,
+    {
+        {.gas_type = MQ_GAS_TYPE_H2, .a = 69.014, .b = -1.374},
+        {.gas_type = MQ_GAS_TYPE_LPG, .a = 700000000.0, .b = -7.703},
+        {.gas_type = MQ_GAS_TYPE_CH4, .a = 60000000000000.0, .b = -10.54},
+        {.gas_type = MQ_GAS_TYPE_CO, .a = 99.042, .b = -1.518},
+        {.gas_type = MQ_GAS_TYPE_ALCOHOL, .a = 40000000000000000.0, .b = -12.35},
+    }},
+  {MQ_MODEL_8,
+    {
+        {.gas_type = MQ_GAS_TYPE_H2, .a = 976.97, .b = -0.688},
+        {.gas_type = MQ_GAS_TYPE_LPG, .a = 10000000.0, .b = -3.123},
+        {.gas_type = MQ_GAS_TYPE_CH4, .a = 80000000000000.0, .b = -6.666},
+        {.gas_type = MQ_GAS_TYPE_CO, .a = 2000000000000000000.0, .b = -8.074},
+        {.gas_type = MQ_GAS_TYPE_ALCOHOL, .a = 76101.0, .b = -1.86},
+    }},
+  {MQ_MODEL_9,
+    {
+        {.gas_type = MQ_GAS_TYPE_LPG, .a = 1000.5, .b = -2.186},
+        {.gas_type = MQ_GAS_TYPE_CH4, .a = 4269.6, .b = -2.648},
+        {.gas_type = MQ_GAS_TYPE_CO, .a = 599.65, .b = -2.244},
+    }},
+  {MQ_MODEL_135,
+    {
+        {.gas_type = MQ_GAS_TYPE_CO, .a = 605.18, .b = -3.937},
+        {.gas_type = MQ_GAS_TYPE_ALCOHOL, .a = 77.255, .b = -3.18},
+        {.gas_type = MQ_GAS_TYPE_CO2, .a = 110.47, .b = -2.862},
+        {.gas_type = MQ_GAS_TYPE_TOLUENO, .a = 44.947, .b = -3.445},
+        {.gas_type = MQ_GAS_TYPE_NH4, .a = 102.2, .b = -2.473},
+        {.gas_type = MQ_GAS_TYPE_ACETONA, .a = 34.668, .b = -3.369},
+    }},
+};
 
 // Public
 
@@ -15,7 +90,7 @@ MQSensor::MQSensor(GPIOPin *pin, MQModel model, bool is_esp8266, float rl) {
   this->pin_ = pin;
   this->is_esp8266_ = is_esp8266;
   this->rl_ = rl;
-  this->model_parameters_ = {.model = model, .gas_sensors = gas_parameters_definition[model]};
+  this->model_parameters_ = {.model = model, .gas_sensors = GAS_PARAMETERS_DEFINITION.at(model)};
 }
 
 void MQSensor::add_sensor(sensor::Sensor *sensor, MQGasType gas_type) {
@@ -103,81 +178,81 @@ void MQSensor::update() {
 
 // Private
 
-std::map<MQModel, std::vector<MQGasSensor>> MQSensor::gas_parameters_definition = {
-    {MQ_MODEL_2,
-     {
-         {.gas_type = MQ_GAS_TYPE_H2, .a = 987.99, .b = -2.162},
-         {.gas_type = MQ_GAS_TYPE_LPG, .a = 574.25, .b = -2.222},
-         {.gas_type = MQ_GAS_TYPE_CO, .a = 36974.0, .b = -3.109},
-         {.gas_type = MQ_GAS_TYPE_ALCOHOL, .a = 3616.1, .b = -2.675},
-         {.gas_type = MQ_GAS_TYPE_PROPANE, .a = 658.71, .b = -2.168},
-     }},
-    {MQ_MODEL_3,
-     {
-         {.gas_type = MQ_GAS_TYPE_LPG, .a = 44771, .b = -3.245},
-         {.gas_type = MQ_GAS_TYPE_CH4, .a = 2 * 10 ^ 31, .b = 19.01},
-         {.gas_type = MQ_GAS_TYPE_CO, .a = 521853, .b = -3.821},
-         {.gas_type = MQ_GAS_TYPE_ALCOHOL, .a = 0.3934, .b = -1.504},
-         {.gas_type = MQ_GAS_TYPE_BENZENE, .a = 4.8387, .b = -2.68},
-         {.gas_type = MQ_GAS_TYPE_HEXANE, .a = 7585.3, .b = -2.849},
-     }},
-    {MQ_MODEL_4,
-     {
-         {.gas_type = MQ_GAS_TYPE_LPG, .a = 3811.9, .b = -3.113},
-         {.gas_type = MQ_GAS_TYPE_CH4, .a = 1012.7, .b = -2.786},
-         {.gas_type = MQ_GAS_TYPE_CO, .a = 200000000000000.0, .b = -19.05},
-         {.gas_type = MQ_GAS_TYPE_ALCOHOL, .a = 60000000000.0, .b = -14.01},
-         {.gas_type = MQ_GAS_TYPE_SMOKE, .a = 30000000.0, .b = -8.308},
-     }},
+// std::map<MQModel, std::vector<MQGasSensor>> MQSensor::gas_parameters_definition = {
+//     {MQ_MODEL_2,
+//      {
+//          {.gas_type = MQ_GAS_TYPE_H2, .a = 987.99, .b = -2.162},
+//          {.gas_type = MQ_GAS_TYPE_LPG, .a = 574.25, .b = -2.222},
+//          {.gas_type = MQ_GAS_TYPE_CO, .a = 36974.0, .b = -3.109},
+//          {.gas_type = MQ_GAS_TYPE_ALCOHOL, .a = 3616.1, .b = -2.675},
+//          {.gas_type = MQ_GAS_TYPE_PROPANE, .a = 658.71, .b = -2.168},
+//      }},
+//     {MQ_MODEL_3,
+//      {
+//          {.gas_type = MQ_GAS_TYPE_LPG, .a = 44771, .b = -3.245},
+//          {.gas_type = MQ_GAS_TYPE_CH4, .a = 2 * 10 ^ 31, .b = 19.01},
+//          {.gas_type = MQ_GAS_TYPE_CO, .a = 521853, .b = -3.821},
+//          {.gas_type = MQ_GAS_TYPE_ALCOHOL, .a = 0.3934, .b = -1.504},
+//          {.gas_type = MQ_GAS_TYPE_BENZENE, .a = 4.8387, .b = -2.68},
+//          {.gas_type = MQ_GAS_TYPE_HEXANE, .a = 7585.3, .b = -2.849},
+//      }},
+//     {MQ_MODEL_4,
+//      {
+//          {.gas_type = MQ_GAS_TYPE_LPG, .a = 3811.9, .b = -3.113},
+//          {.gas_type = MQ_GAS_TYPE_CH4, .a = 1012.7, .b = -2.786},
+//          {.gas_type = MQ_GAS_TYPE_CO, .a = 200000000000000.0, .b = -19.05},
+//          {.gas_type = MQ_GAS_TYPE_ALCOHOL, .a = 60000000000.0, .b = -14.01},
+//          {.gas_type = MQ_GAS_TYPE_SMOKE, .a = 30000000.0, .b = -8.308},
+//      }},
 
-    {MQ_MODEL_5,
-     {
-         {.gas_type = MQ_GAS_TYPE_H2, .a = 1163.8, .b = -3.874},
-         {.gas_type = MQ_GAS_TYPE_LPG, .a = 80.897, .b = -2.431},
-         {.gas_type = MQ_GAS_TYPE_CH4, .a = 177.65, .b = -2.56},
-         {.gas_type = MQ_GAS_TYPE_CO, .a = 491204, .b = -5.826},
-         {.gas_type = MQ_GAS_TYPE_ALCOHOL, .a = 97124, .b = -4.918},
-     }},
-    {MQ_MODEL_6,
-     {
-         {.gas_type = MQ_GAS_TYPE_H2, .a = 88158, .b = -3.597},
-         {.gas_type = MQ_GAS_TYPE_LPG, .a = 1009.2, .b = -2.35},
-         {.gas_type = MQ_GAS_TYPE_CH4, .a = 2127.2, .b = -2.526},
-         {.gas_type = MQ_GAS_TYPE_CO, .a = 1000000000000000.0, .b = -13.5},
-         {.gas_type = MQ_GAS_TYPE_ALCOHOL, .a = 50000000.0, .b = -6.017},
-     }},
-    {MQ_MODEL_7,
-     {
-         {.gas_type = MQ_GAS_TYPE_H2, .a = 69.014, .b = -1.374},
-         {.gas_type = MQ_GAS_TYPE_LPG, .a = 700000000.0, .b = -7.703},
-         {.gas_type = MQ_GAS_TYPE_CH4, .a = 60000000000000.0, .b = -10.54},
-         {.gas_type = MQ_GAS_TYPE_CO, .a = 99.042, .b = -1.518},
-         {.gas_type = MQ_GAS_TYPE_ALCOHOL, .a = 40000000000000000.0, .b = -12.35},
-     }},
-    {MQ_MODEL_8,
-     {
-         {.gas_type = MQ_GAS_TYPE_H2, .a = 976.97, .b = -0.688},
-         {.gas_type = MQ_GAS_TYPE_LPG, .a = 10000000.0, .b = -3.123},
-         {.gas_type = MQ_GAS_TYPE_CH4, .a = 80000000000000.0, .b = -6.666},
-         {.gas_type = MQ_GAS_TYPE_CO, .a = 2000000000000000000.0, .b = -8.074},
-         {.gas_type = MQ_GAS_TYPE_ALCOHOL, .a = 76101.0, .b = -1.86},
-     }},
-    {MQ_MODEL_9,
-     {
-         {.gas_type = MQ_GAS_TYPE_LPG, .a = 1000.5, .b = -2.186},
-         {.gas_type = MQ_GAS_TYPE_CH4, .a = 4269.6, .b = -2.648},
-         {.gas_type = MQ_GAS_TYPE_CO, .a = 599.65, .b = -2.244},
-     }},
-    {MQ_MODEL_135,
-     {
-         {.gas_type = MQ_GAS_TYPE_CO, .a = 605.18, .b = -3.937},
-         {.gas_type = MQ_GAS_TYPE_ALCOHOL, .a = 77.255, .b = -3.18},
-         {.gas_type = MQ_GAS_TYPE_CO2, .a = 110.47, .b = -2.862},
-         {.gas_type = MQ_GAS_TYPE_TOLUENO, .a = 44.947, .b = -3.445},
-         {.gas_type = MQ_GAS_TYPE_NH4, .a = 102.2, .b = -2.473},
-         {.gas_type = MQ_GAS_TYPE_ACETONA, .a = 34.668, .b = -3.369},
-     }},
-};
+//     {MQ_MODEL_5,
+//      {
+//          {.gas_type = MQ_GAS_TYPE_H2, .a = 1163.8, .b = -3.874},
+//          {.gas_type = MQ_GAS_TYPE_LPG, .a = 80.897, .b = -2.431},
+//          {.gas_type = MQ_GAS_TYPE_CH4, .a = 177.65, .b = -2.56},
+//          {.gas_type = MQ_GAS_TYPE_CO, .a = 491204, .b = -5.826},
+//          {.gas_type = MQ_GAS_TYPE_ALCOHOL, .a = 97124, .b = -4.918},
+//      }},
+//     {MQ_MODEL_6,
+//      {
+//          {.gas_type = MQ_GAS_TYPE_H2, .a = 88158, .b = -3.597},
+//          {.gas_type = MQ_GAS_TYPE_LPG, .a = 1009.2, .b = -2.35},
+//          {.gas_type = MQ_GAS_TYPE_CH4, .a = 2127.2, .b = -2.526},
+//          {.gas_type = MQ_GAS_TYPE_CO, .a = 1000000000000000.0, .b = -13.5},
+//          {.gas_type = MQ_GAS_TYPE_ALCOHOL, .a = 50000000.0, .b = -6.017},
+//      }},
+//     {MQ_MODEL_7,
+//      {
+//          {.gas_type = MQ_GAS_TYPE_H2, .a = 69.014, .b = -1.374},
+//          {.gas_type = MQ_GAS_TYPE_LPG, .a = 700000000.0, .b = -7.703},
+//          {.gas_type = MQ_GAS_TYPE_CH4, .a = 60000000000000.0, .b = -10.54},
+//          {.gas_type = MQ_GAS_TYPE_CO, .a = 99.042, .b = -1.518},
+//          {.gas_type = MQ_GAS_TYPE_ALCOHOL, .a = 40000000000000000.0, .b = -12.35},
+//      }},
+//     {MQ_MODEL_8,
+//      {
+//          {.gas_type = MQ_GAS_TYPE_H2, .a = 976.97, .b = -0.688},
+//          {.gas_type = MQ_GAS_TYPE_LPG, .a = 10000000.0, .b = -3.123},
+//          {.gas_type = MQ_GAS_TYPE_CH4, .a = 80000000000000.0, .b = -6.666},
+//          {.gas_type = MQ_GAS_TYPE_CO, .a = 2000000000000000000.0, .b = -8.074},
+//          {.gas_type = MQ_GAS_TYPE_ALCOHOL, .a = 76101.0, .b = -1.86},
+//      }},
+//     {MQ_MODEL_9,
+//      {
+//          {.gas_type = MQ_GAS_TYPE_LPG, .a = 1000.5, .b = -2.186},
+//          {.gas_type = MQ_GAS_TYPE_CH4, .a = 4269.6, .b = -2.648},
+//          {.gas_type = MQ_GAS_TYPE_CO, .a = 599.65, .b = -2.244},
+//      }},
+//     {MQ_MODEL_135,
+//      {
+//          {.gas_type = MQ_GAS_TYPE_CO, .a = 605.18, .b = -3.937},
+//          {.gas_type = MQ_GAS_TYPE_ALCOHOL, .a = 77.255, .b = -3.18},
+//          {.gas_type = MQ_GAS_TYPE_CO2, .a = 110.47, .b = -2.862},
+//          {.gas_type = MQ_GAS_TYPE_TOLUENO, .a = 44.947, .b = -3.445},
+//          {.gas_type = MQ_GAS_TYPE_NH4, .a = 102.2, .b = -2.473},
+//          {.gas_type = MQ_GAS_TYPE_ACETONA, .a = 34.668, .b = -3.369},
+//      }},
+// };
 
 }  // namespace mq
 }  // namespace esphome

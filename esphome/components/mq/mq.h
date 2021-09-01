@@ -2,7 +2,7 @@
 
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
-#include <MQUnifiedsensor.h>
+#include "MQUnifiedsensor.h"
 #include <map>
 
 namespace esphome {
@@ -168,9 +168,6 @@ class MQSensor : public PollingComponent {
   float rl_ = 10.0;
   float r0_ = 0.0;
   MQModelParameters model_parameters_;
-
- private:
-  static std::map<MQModel, std::vector<MQGasSensor>> gas_parameters_definition;
 };
 }  // namespace mq
 }  // namespace esphome

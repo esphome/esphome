@@ -51,15 +51,65 @@ MQ_MODELS = {
 MQGasType = mq_ns.enum("MQ_GAS_TYPES")
 
 MQ_MODEL_SENSORS = {
-    "MQ2": [CONF_SENSOR_H2, CONF_SENSOR_LPG, CONF_SENSOR_CO, CONF_SENSOR_ALCOHOL, CONF_SENSOR_PROPANE],
-    "MQ3": [CONF_SENSOR_LPG, CONF_SENSOR_CH4, CONF_SENSOR_CO, CONF_SENSOR_ALCOHOL, CONF_SENSOR_BENZENE, CONF_SENSOR_HEXANE],
-    "MQ4": [CONF_SENSOR_LPG, CONF_SENSOR_CH4, CONF_SENSOR_CO, CONF_SENSOR_ALCOHOL, CONF_SENSOR_SMOKE],
-    "MQ5": [CONF_SENSOR_H2, CONF_SENSOR_LPG, CONF_SENSOR_CH4, CONF_SENSOR_CO, CONF_SENSOR_ALCOHOL],
-    "MQ6": [CONF_SENSOR_H2, CONF_SENSOR_LPG, CONF_SENSOR_CH4, CONF_SENSOR_CO, CONF_SENSOR_ALCOHOL],
-    "MQ7": [CONF_SENSOR_H2, CONF_SENSOR_LPG, CONF_SENSOR_CH4, CONF_SENSOR_CO, CONF_SENSOR_ALCOHOL],
-    "MQ8": [CONF_SENSOR_H2, CONF_SENSOR_LPG, CONF_SENSOR_CH4, CONF_SENSOR_CO, CONF_SENSOR_ALCOHOL],
+    "MQ2": [
+        CONF_SENSOR_H2,
+        CONF_SENSOR_LPG,
+        CONF_SENSOR_CO,
+        CONF_SENSOR_ALCOHOL,
+        CONF_SENSOR_PROPANE,
+    ],
+    "MQ3": [
+        CONF_SENSOR_LPG,
+        CONF_SENSOR_CH4,
+        CONF_SENSOR_CO,
+        CONF_SENSOR_ALCOHOL,
+        CONF_SENSOR_BENZENE,
+        CONF_SENSOR_HEXANE,
+    ],
+    "MQ4": [
+        CONF_SENSOR_LPG,
+        CONF_SENSOR_CH4,
+        CONF_SENSOR_CO,
+        CONF_SENSOR_ALCOHOL,
+        CONF_SENSOR_SMOKE,
+    ],
+    "MQ5": [
+        CONF_SENSOR_H2,
+        CONF_SENSOR_LPG,
+        CONF_SENSOR_CH4,
+        CONF_SENSOR_CO,
+        CONF_SENSOR_ALCOHOL,
+    ],
+    "MQ6": [
+        CONF_SENSOR_H2,
+        CONF_SENSOR_LPG,
+        CONF_SENSOR_CH4,
+        CONF_SENSOR_CO,
+        CONF_SENSOR_ALCOHOL,
+    ],
+    "MQ7": [
+        CONF_SENSOR_H2,
+        CONF_SENSOR_LPG,
+        CONF_SENSOR_CH4,
+        CONF_SENSOR_CO,
+        CONF_SENSOR_ALCOHOL,
+    ],
+    "MQ8": [
+        CONF_SENSOR_H2,
+        CONF_SENSOR_LPG,
+        CONF_SENSOR_CH4,
+        CONF_SENSOR_CO,
+        CONF_SENSOR_ALCOHOL,
+    ],
     "MQ9": [CONF_SENSOR_LPG, CONF_SENSOR_CH4, CONF_SENSOR_CO],
-    "MQ135": [CONF_SENSOR_CO, CONF_SENSOR_ALCOHOL, CONF_SENSOR_CO2, CONF_SENSOR_TOLUENO, CONF_SENSOR_NH4, CONF_SENSOR_ACETONA],
+    "MQ135": [
+        CONF_SENSOR_CO,
+        CONF_SENSOR_ALCOHOL,
+        CONF_SENSOR_CO2,
+        CONF_SENSOR_TOLUENO,
+        CONF_SENSOR_NH4,
+        CONF_SENSOR_ACETONA,
+    ],
 }
 
 MQ_GAS_TYPES = {
@@ -92,7 +142,13 @@ def get_model_valid_sensors(config):
 
 
 def get_sensors_schemas(config):
-    return set(list(dict(filter(lambda elem: "sensor_" in elem[0].lower(), config.items())).keys()))
+    return set(
+        list(
+            dict(
+                filter(lambda elem: "sensor_" in elem[0].lower(), config.items())
+            ).keys()
+        )
+    )
 
 
 def validate_sensors(config):
@@ -103,7 +159,11 @@ def validate_sensors(config):
         invalid_sensors = sensors_schemas.difference(valid_sensors)
         raise cv.Invalid(
             "Invalid sensors definition for {model}\nNot supported sensors:\n\t{}\n{model} supports:\n\t{}"
-            "".format(", ".join(map(str, invalid_sensors)), ", ".join(map(str, valid_sensors)), model=model)
+            "".format(
+                ", ".join(map(str, invalid_sensors)),
+                ", ".join(map(str, valid_sensors)),
+                model=model,
+            )
         )
     return config
 
@@ -113,48 +173,48 @@ sensor_schema = sensor.sensor_schema(
     icon=ICON_MOLECULE_CO2,
     accuracy_decimals=2,
     device_class=DEVICE_CLASS_CARBON_MONOXIDE,
-    state_class=STATE_CLASS_MEASUREMENT
+    state_class=STATE_CLASS_MEASUREMENT,
 )
 
 CONFIG_SCHEMA = cv.All(
-    cv.Schema({
-        cv.GenerateID(): cv.declare_id(MQSensor),
-        cv.Required(CONF_PIN): pins.internal_gpio_analog_pin_schema,
-        cv.Optional(CONF_RL, default=10.0): cv.positive_float,
-        cv.Optional(CONF_R0): cv.positive_float,
-        cv.Required(CONF_MODEL): cv.enum(
-            MQ_MODELS, upper=True, space="_"
-        ),
-        cv.Optional(CONF_SENSOR_ACETONA): sensor_schema,
-        cv.Optional(CONF_SENSOR_ALCOHOL): sensor_schema,
-        cv.Optional(CONF_SENSOR_BENZENE): sensor_schema,
-        cv.Optional(CONF_SENSOR_CH4): sensor_schema,
-        cv.Optional(CONF_SENSOR_CL2): sensor_schema,
-        cv.Optional(CONF_SENSOR_CO): sensor_schema,
-        cv.Optional(CONF_SENSOR_CO2): sensor_schema,
-        cv.Optional(CONF_SENSOR_ETHANOL): sensor_schema,
-        cv.Optional(CONF_SENSOR_H2): sensor_schema,
-        cv.Optional(CONF_SENSOR_HEXANE): sensor_schema,
-        cv.Optional(CONF_SENSOR_HYDROGEN): sensor_schema,
-        cv.Optional(CONF_SENSOR_ISO_BUTANO): sensor_schema,
-        cv.Optional(CONF_SENSOR_LPG): sensor_schema,
-        cv.Optional(CONF_SENSOR_NH4): sensor_schema,
-        cv.Optional(CONF_SENSOR_NOX): sensor_schema,
-        cv.Optional(CONF_SENSOR_O3): sensor_schema,
-        cv.Optional(CONF_SENSOR_PROPANE): sensor_schema,
-        cv.Optional(CONF_SENSOR_SMOKE): sensor_schema,
-        cv.Optional(CONF_SENSOR_TOLUENO): sensor_schema,
-    }).extend(cv.polling_component_schema("10s")),
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(MQSensor),
+            cv.Required(CONF_PIN): pins.internal_gpio_analog_pin_schema,
+            cv.Optional(CONF_RL, default=10.0): cv.positive_float,
+            cv.Optional(CONF_R0): cv.positive_float,
+            cv.Required(CONF_MODEL): cv.enum(MQ_MODELS, upper=True, space="_"),
+            cv.Optional(CONF_SENSOR_ACETONA): sensor_schema,
+            cv.Optional(CONF_SENSOR_ALCOHOL): sensor_schema,
+            cv.Optional(CONF_SENSOR_BENZENE): sensor_schema,
+            cv.Optional(CONF_SENSOR_CH4): sensor_schema,
+            cv.Optional(CONF_SENSOR_CL2): sensor_schema,
+            cv.Optional(CONF_SENSOR_CO): sensor_schema,
+            cv.Optional(CONF_SENSOR_CO2): sensor_schema,
+            cv.Optional(CONF_SENSOR_ETHANOL): sensor_schema,
+            cv.Optional(CONF_SENSOR_H2): sensor_schema,
+            cv.Optional(CONF_SENSOR_HEXANE): sensor_schema,
+            cv.Optional(CONF_SENSOR_HYDROGEN): sensor_schema,
+            cv.Optional(CONF_SENSOR_ISO_BUTANO): sensor_schema,
+            cv.Optional(CONF_SENSOR_LPG): sensor_schema,
+            cv.Optional(CONF_SENSOR_NH4): sensor_schema,
+            cv.Optional(CONF_SENSOR_NOX): sensor_schema,
+            cv.Optional(CONF_SENSOR_O3): sensor_schema,
+            cv.Optional(CONF_SENSOR_PROPANE): sensor_schema,
+            cv.Optional(CONF_SENSOR_SMOKE): sensor_schema,
+            cv.Optional(CONF_SENSOR_TOLUENO): sensor_schema,
+        }
+    ).extend(cv.polling_component_schema("10s")),
     validate_sensors,
 )
 
 
 async def to_code(config):
     pin = await cg.gpio_pin_expression(config[CONF_PIN])
-    var = cg.new_Pvariable(config[CONF_ID], pin, config[CONF_MODEL], CORE.is_esp8266, config[CONF_RL])
+    var = cg.new_Pvariable(
+        config[CONF_ID], pin, config[CONF_MODEL], CORE.is_esp8266, config[CONF_RL]
+    )
     await cg.register_component(var, config)
-
-    cg.add_library("MQUnifiedsensor", "2.0.1")
 
     if CONF_R0 in config:
         cg.add(var.set_R0(config[CONF_R0]))

@@ -9,8 +9,8 @@ esphome:
 
 wifi:
   networks:
-    - ssid: 'MySSID'
-      password: 'password1'
+    - ssid: "MySSID"
+      password: "password1"
 
 api:
 
@@ -27,7 +27,6 @@ uart:
     tx_pin: 17
     rx_pin: 16
     baud_rate: 19200
-
 
 modbus:
   uart_id: uart1
@@ -144,6 +143,16 @@ sensor:
     maximum_demand_apparent_power:
       name: "SelecEM2M Maximum Demand Apparent Power"
       disabled_by_default: true
+  - platform: mq
+    model: MQ9
+    pin: A0
+    update_interval: 10s
+    sensor_lpg:
+      name: Sensor LPG
+    sensor_ch4:
+      name: Sensor CH4
+    sensor_co:
+      name: Sensor CO
 
   - platform: t6615
     uart_id: uart2
