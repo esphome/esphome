@@ -55,7 +55,7 @@ void UARTComponent::setup() {
   // is 1 we still want to use Serial.
   SerialConfig config = static_cast<SerialConfig>(get_config());
 
-  if (!this->serial0InUse && this->tx_pin_.value_or(1) == 1 &&
+  if (!esphome::uart::UARTComponent::serial0InUse && this->tx_pin_.value_or(1) == 1 &&
       this->rx_pin_.value_or(3) == 3
 #ifdef USE_LOGGER
       // we will use UART0 if Logger is using either UART0 or UART1 or NONE
@@ -65,8 +65,8 @@ void UARTComponent::setup() {
     this->hw_serial_ = &Serial;
     this->hw_serial_->begin(this->baud_rate_, config);
     this->hw_serial_->setRxBufferSize(this->rx_buffer_size_);
-    this->serial0InUse = true;
-  } else if (!this->serial0InUse && this->tx_pin_.value_or(15) == 15 &&
+    esphome::uart::UARTComponent::serial0InUse = true;
+  } else if (!esphome::uart::UARTComponent::serial0InUse && this->tx_pin_.value_or(15) == 15 &&
              this->rx_pin_.value_or(13) == 13
 #ifdef USE_LOGGER
              // we will use UART0_swapped if Logger is using either UART0_swapped or UART1 or NONE
@@ -77,7 +77,7 @@ void UARTComponent::setup() {
     this->hw_serial_->begin(this->baud_rate_, config);
     this->hw_serial_->setRxBufferSize(this->rx_buffer_size_);
     this->hw_serial_->swap();
-    this->serial0InUse = true;
+    esphome::uart::UARTComponent::serial0InUse = true;
   } else if (this->tx_pin_.value_or(2) == 2 && this->rx_pin_.value_or(8) == 8) {
     this->hw_serial_ = &Serial1;
     this->hw_serial_->begin(this->baud_rate_, config);
