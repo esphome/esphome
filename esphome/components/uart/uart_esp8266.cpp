@@ -72,7 +72,7 @@ void UARTComponent::setup() {
 #ifdef USE_LOGGER
              // we will use UART0 swapped if logger isn't using it in regular mode
              && (logger::global_logger->get_hw_serial() == nullptr ||
-			     logger::global_logger->get_uart() != logger::UART_SELECTION_UART0)
+                 logger::global_logger->get_uart() != logger::UART_SELECTION_UART0)
 #endif
   ) {
     this->hw_serial_ = &Serial;
