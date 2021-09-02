@@ -29,7 +29,7 @@ def validate_min_max(config):
 
 def validate(config):
     if CONF_LAMBDA in config:
-        if CONF_OPTIMISTIC in config:
+        if config[CONF_OPTIMISTIC]:
             raise cv.Invalid("optimistic cannot be used with lambda")
         if CONF_INITIAL_VALUE in config:
             raise cv.Invalid("initial_value cannot be used with lambda")
@@ -46,7 +46,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_MIN_VALUE): cv.float_,
             cv.Required(CONF_STEP): cv.positive_float,
             cv.Optional(CONF_LAMBDA): cv.returning_lambda,
-            cv.Optional(CONF_OPTIMISTIC): cv.boolean,
+            cv.Optional(CONF_OPTIMISTIC, default=False): cv.boolean,
             cv.Optional(CONF_SET_ACTION): automation.validate_automation(single=True),
             cv.Optional(CONF_INITIAL_VALUE): cv.float_,
             cv.Optional(CONF_RESTORE_VALUE): cv.boolean,
@@ -75,8 +75,7 @@ async def to_code(config):
         cg.add(var.set_template(template_))
 
     else:
-        if CONF_OPTIMISTIC in config:
-            cg.add(var.set_optimistic(config[CONF_OPTIMISTIC]))
+        cg.add(var.set_optimistic(config[CONF_OPTIMISTIC]))
         if CONF_INITIAL_VALUE in config:
             cg.add(var.set_initial_value(config[CONF_INITIAL_VALUE]))
         if CONF_RESTORE_VALUE in config:

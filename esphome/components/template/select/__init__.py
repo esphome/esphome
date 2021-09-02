@@ -38,7 +38,7 @@ CONFIG_SCHEMA = cv.All(
                 cv.ensure_list(cv.string_strict), cv.Length(min=1)
             ),
             cv.Optional(CONF_LAMBDA): cv.returning_lambda,
-            cv.Optional(CONF_OPTIMISTIC): cv.boolean,
+            cv.Optional(CONF_OPTIMISTIC, default=False): cv.boolean,
             cv.Optional(CONF_SET_ACTION): automation.validate_automation(single=True),
             cv.Optional(CONF_INITIAL_OPTION): cv.string_strict,
             cv.Optional(CONF_RESTORE_VALUE): cv.boolean,
@@ -60,9 +60,7 @@ async def to_code(config):
         cg.add(var.set_template(template_))
 
     else:
-        if CONF_OPTIMISTIC in config:
-            cg.add(var.set_optimistic(config[CONF_OPTIMISTIC]))
-
+        cg.add(var.set_optimistic(config[CONF_OPTIMISTIC]))
         cg.add(var.set_initial_option(config[CONF_INITIAL_OPTION]))
 
         if CONF_RESTORE_VALUE in config:
