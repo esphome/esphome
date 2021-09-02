@@ -108,9 +108,9 @@ void ESP32Camera::dump_config() {
   // ESP_LOGCONFIG(TAG, "  Auto White Balance: %u", st.awb);
   // ESP_LOGCONFIG(TAG, "  Auto White Balance Gain: %u", st.awb_gain);
   // ESP_LOGCONFIG(TAG, "  Auto Exposure Control: %u", st.aec);
-  // ESP_LOGCONFIG(TAG, "  Auto Exposure Control 2: %u", st.aec2);
-  // ESP_LOGCONFIG(TAG, "  Auto Exposure Level: %d", st.ae_level);
-  // ESP_LOGCONFIG(TAG, "  Auto Exposure Value: %u", st.aec_value);
+  ESP_LOGCONFIG(TAG, "  Auto Exposure Control 2: %u", st.aec2);
+  ESP_LOGCONFIG(TAG, "  Auto Exposure Level: %d", st.ae_level);
+  ESP_LOGCONFIG(TAG, "  Auto Exposure Value: %u", st.aec_value);
   // ESP_LOGCONFIG(TAG, "  AGC: %u", st.agc);
   // ESP_LOGCONFIG(TAG, "  AGC Gain: %u", st.agc_gain);
   // ESP_LOGCONFIG(TAG, "  Gain Ceiling: %u", st.gainceiling);
