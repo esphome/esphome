@@ -50,7 +50,7 @@ void MQTTJSONLightComponent::send_discovery(JsonObject &root, mqtt::SendDiscover
   if (traits.supports_color_mode(ColorMode::RGB))
     color_modes.add("rgb");
   if (traits.supports_color_mode(ColorMode::RGB_WHITE) ||
-      // HA doesn't support RGBCT, and there's not CWWW->CT emulation in ESPHome yet, so ignore CT control for now
+      // HA doesn't support RGBCT, and there's no CWWW->CT emulation in ESPHome yet, so ignore CT control for now
       traits.supports_color_mode(ColorMode::RGB_COLOR_TEMPERATURE))
     color_modes.add("rgbw");
   if (traits.supports_color_mode(ColorMode::RGB_COLD_WARM_WHITE))
