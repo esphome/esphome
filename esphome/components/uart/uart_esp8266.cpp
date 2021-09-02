@@ -55,11 +55,12 @@ void UARTComponent::setup() {
   // is 1 we still want to use Serial.
   SerialConfig config = static_cast<SerialConfig>(get_config());
 
+
   if (!UARTComponent::serial0InUse && this->tx_pin_.value_or(1) == 1 &&
       this->rx_pin_.value_or(3) == 3
 #ifdef USE_LOGGER
       // we will use UART0 if logger isn't using it in swapped mode
-      && logger::global_logger->get_uart() != logger::UART_SELECTION_UART0_SWAP
+      && (logger::global_logger->get_hw_serial() == nullptr || logger::global_logger->get_uart() != logger::UART_SELECTION_UART0_SWAP )
 #endif
   ) {
     this->hw_serial_ = &Serial;
@@ -70,7 +71,7 @@ void UARTComponent::setup() {
              this->rx_pin_.value_or(13) == 13
 #ifdef USE_LOGGER
              // we will use UART0 swapped if logger isn't using it in regular mode
-             && logger::global_logger->get_uart() != logger::UART_SELECTION_UART0
+             && (logger::global_logger->get_hw_serial() == nullptr || logger::global_logger->get_uart() != logger::UART_SELECTION_UART0 )
 #endif
   ) {
     this->hw_serial_ = &Serial;
