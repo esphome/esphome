@@ -23,6 +23,9 @@ void ESP32Camera::setup() {
   sensor_t *s = esp_camera_sensor_get();
   s->set_vflip(s, this->vertical_flip_);
   s->set_hmirror(s, this->horizontal_mirror_);
+  s->set_aec2(s, this->aec2_);            //  0 = disable , 1 = enable
+  s->set_ae_level(s, this->ae_level_);    // -2 to 2
+  s->set_aec_value(s, this->aec_value_);  //	0 to 1200
   s->set_contrast(s, this->contrast_);
   s->set_brightness(s, this->brightness_);
   s->set_saturation(s, this->saturation_);
@@ -243,6 +246,9 @@ void ESP32Camera::add_image_callback(std::function<void(std::shared_ptr<CameraIm
 }
 void ESP32Camera::set_vertical_flip(bool vertical_flip) { this->vertical_flip_ = vertical_flip; }
 void ESP32Camera::set_horizontal_mirror(bool horizontal_mirror) { this->horizontal_mirror_ = horizontal_mirror; }
+void ESP32Camera::set_aec2(bool aec2) { this->aec2_ = aec2; }
+void ESP32Camera::set_ae_level(int ae_level) { this->ae_level_ = ae_level; }
+void ESP32Camera::set_aec_value(uint32_t aec_value) { this->aec_value_ = aec_value; }
 void ESP32Camera::set_contrast(int contrast) { this->contrast_ = contrast; }
 void ESP32Camera::set_brightness(int brightness) { this->brightness_ = brightness; }
 void ESP32Camera::set_saturation(int saturation) { this->saturation_ = saturation; }
