@@ -35,6 +35,10 @@ def validate(config):
             raise cv.Invalid("initial_value cannot be used with lambda")
         if CONF_RESTORE_VALUE in config:
             raise cv.Invalid("restore_value cannot be used with lambda")
+    if not config[CONF_OPTIMISTIC] and CONF_SET_ACTION not in config:
+        raise cv.Invalid(
+            "Either optimistic mode must be enabled, or set_action must be set, to handle the number being set."
+        )
     return config
 
 
