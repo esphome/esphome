@@ -30,6 +30,17 @@ def validate_initial_value_in_options(config):
     return config
 
 
+def validate(config):
+    if CONF_LAMBDA in config:
+        if config[CONF_OPTIMISTIC]:
+            raise cv.Invalid("optimistic cannot be used with lambda")
+        if CONF_INITIAL_OPTION in config:
+            raise cv.Invalid("initial_value cannot be used with lambda")
+        if CONF_RESTORE_VALUE in config:
+            raise cv.Invalid("restore_value cannot be used with lambda")
+    return config
+
+
 CONFIG_SCHEMA = cv.All(
     select.SELECT_SCHEMA.extend(
         {
@@ -45,6 +56,7 @@ CONFIG_SCHEMA = cv.All(
         }
     ).extend(cv.polling_component_schema("60s")),
     validate_initial_value_in_options,
+    validate,
 )
 
 
