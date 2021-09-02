@@ -4,11 +4,17 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/application.h"
 #include "esphome/core/defines.h"
-#
+
+#ifdef USE_LOGGER
+#include "esphome/components/logger/logger.h"
+#endif
+
 namespace esphome {
 namespace uart {
 
 static const char *const TAG = "uart_esp8266";
+bool UARTComponent::serial0InUse = false;
+
 uint32_t UARTComponent::get_config() {
   uint32_t config = 0;
 
@@ -49,15 +55,27 @@ void UARTComponent::setup() {
   // is 1 we still want to use Serial.
   SerialConfig config = static_cast<SerialConfig>(get_config());
 
-  if (this->tx_pin_.value_or(1) == 1 && this->rx_pin_.value_or(3) == 3) {
+  if (!this->serial0InUse && this->tx_pin_.value_or(1) == 1 && this->rx_pin_.value_or(3) == 3
+#ifdef USE_LOGGER
+// we will use UART0 if Logger is using either UART0 or UART1 or NONE
+    && ! (logger::global_logger->get_hw_serial() == &Serial && ( IOSWAP & (1 << IOSWAPU0)) )
+#endif
+  ) {
     this->hw_serial_ = &Serial;
     this->hw_serial_->begin(this->baud_rate_, config);
     this->hw_serial_->setRxBufferSize(this->rx_buffer_size_);
-  } else if (this->tx_pin_.value_or(15) == 15 && this->rx_pin_.value_or(13) == 13) {
+    this->serial0InUse = true;
+  } else if (!this->serial0InUse && this->tx_pin_.value_or(15) == 15 && this->rx_pin_.value_or(13) == 13
+#ifdef USE_LOGGER
+// we will use UART0_swapped if Logger is using either UART0_swapped or UART1 or NONE
+    && ! (logger::global_logger->get_hw_serial() == &Serial && ! ( IOSWAP & (1 << IOSWAPU0)) )
+#endif
+    ) {
     this->hw_serial_ = &Serial;
     this->hw_serial_->begin(this->baud_rate_, config);
     this->hw_serial_->setRxBufferSize(this->rx_buffer_size_);
     this->hw_serial_->swap();
+    this->serial0InUse = true;
   } else if (this->tx_pin_.value_or(2) == 2 && this->rx_pin_.value_or(8) == 8) {
     this->hw_serial_ = &Serial1;
     this->hw_serial_->begin(this->baud_rate_, config);

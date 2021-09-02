@@ -107,6 +107,7 @@ class UARTComponent : public Component, public Stream {
   HardwareSerial *hw_serial_{nullptr};
 #ifdef ARDUINO_ARCH_ESP8266
   ESP8266SoftwareSerial *sw_serial_{nullptr};
+  static bool serial0InUse;
 #endif
   optional<uint8_t> tx_pin_;
   optional<uint8_t> rx_pin_;
