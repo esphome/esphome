@@ -118,6 +118,7 @@ class UARTComponent : public Component, public Stream {
   uint8_t stop_bits_;
   uint8_t data_bits_;
   UARTParityOptions parity_;
+
  private:
 #ifdef ARDUINO_ARCH_ESP8266
   static bool serial0InUse;
