@@ -52,13 +52,14 @@ class CoverCall {
   const optional<float> &get_position() const;
   bool get_stop() const;
   const optional<float> &get_tilt() const;
+  const optional<bool> &get_toggle() const;
 
  protected:
   void validate_();
 
   Cover *parent_;
   bool stop_{false};
-  bool toggle_{false};
+  optional<bool> toggle_{};
   optional<float> position_{};
   optional<float> tilt_{};
 };
@@ -113,8 +114,6 @@ class Cover : public Nameable {
 
   /// The current operation of the cover (idle, opening, closing).
   CoverOperation current_operation{COVER_OPERATION_IDLE};
-  /// The last operation of the cover (opening, closing), needed for toggle action.
-  CoverOperation last_operation{COVER_OPERATION_OPENING};
   /** The position of the cover from 0.0 (fully closed) to 1.0 (fully open).
    *
    * For binary covers this is always equals to 0.0 or 1.0 (see also COVER_OPEN and
