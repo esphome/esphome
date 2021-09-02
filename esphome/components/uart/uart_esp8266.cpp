@@ -58,8 +58,8 @@ void UARTComponent::setup() {
   if (!UARTComponent::serial0InUse && this->tx_pin_.value_or(1) == 1 &&
       this->rx_pin_.value_or(3) == 3
 #ifdef USE_LOGGER
-      // we will use UART0 if Logger is using either UART0 or UART1 or NONE
-      && !(logger::global_logger->get_hw_serial() == &Serial && (IOSWAP & (1 << IOSWAPU0)))
+      // we will use UART0 if logger isn't using it in swapped mode
+      && logger::global_logger->get_uart() != logger::UART_SELECTION_UART0_SWAP
 #endif
   ) {
     this->hw_serial_ = &Serial;
