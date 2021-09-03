@@ -171,7 +171,7 @@ SENSOR_SCHEMA = cv.NAMEABLE_SCHEMA.extend(cv.MQTT_COMPONENT_SCHEMA).extend(
         cv.Optional(CONF_DEVICE_CLASS): validate_device_class,
         cv.Optional(CONF_STATE_CLASS): validate_state_class,
         cv.Optional("last_reset_type"): cv.invalid(
-            "last_reset_type has been removed since 2021.9.0. Please see documentation on correct usage for total values."
+            "last_reset_type has been removed since 2021.9.0. state_class: total_increasing should be used for total values."
         ),
         cv.Optional(CONF_FORCE_UPDATE, default=False): cv.boolean,
         cv.Optional(CONF_EXPIRE_AFTER): cv.All(
