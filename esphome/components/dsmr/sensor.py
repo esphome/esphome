@@ -10,6 +10,7 @@ from esphome.const import (
     DEVICE_CLASS_VOLTAGE,
     ICON_EMPTY,
     LAST_RESET_TYPE_NEVER,
+    STATE_CLASS_TOTAL_INCREASING,
     STATE_CLASS_MEASUREMENT,
     STATE_CLASS_NONE,
     UNIT_AMPERE,
@@ -30,7 +31,7 @@ CONFIG_SCHEMA = cv.Schema(
             ICON_EMPTY,
             3,
             DEVICE_CLASS_ENERGY,
-            STATE_CLASS_MEASUREMENT,
+            STATE_CLASS_TOTAL_INCREASING,
             LAST_RESET_TYPE_NEVER,
         ),
         cv.Optional("energy_delivered_tariff1"): sensor.sensor_schema(
@@ -38,7 +39,7 @@ CONFIG_SCHEMA = cv.Schema(
             ICON_EMPTY,
             3,
             DEVICE_CLASS_ENERGY,
-            STATE_CLASS_MEASUREMENT,
+            STATE_CLASS_TOTAL_INCREASING,
             LAST_RESET_TYPE_NEVER,
         ),
         cv.Optional("energy_delivered_tariff2"): sensor.sensor_schema(
@@ -46,7 +47,7 @@ CONFIG_SCHEMA = cv.Schema(
             ICON_EMPTY,
             3,
             DEVICE_CLASS_ENERGY,
-            STATE_CLASS_MEASUREMENT,
+            STATE_CLASS_TOTAL_INCREASING,
             LAST_RESET_TYPE_NEVER,
         ),
         cv.Optional("energy_returned_lux"): sensor.sensor_schema(
@@ -54,7 +55,7 @@ CONFIG_SCHEMA = cv.Schema(
             ICON_EMPTY,
             3,
             DEVICE_CLASS_ENERGY,
-            STATE_CLASS_MEASUREMENT,
+            STATE_CLASS_TOTAL_INCREASING,
             LAST_RESET_TYPE_NEVER,
         ),
         cv.Optional("energy_returned_tariff1"): sensor.sensor_schema(
@@ -62,7 +63,7 @@ CONFIG_SCHEMA = cv.Schema(
             ICON_EMPTY,
             3,
             DEVICE_CLASS_ENERGY,
-            STATE_CLASS_MEASUREMENT,
+            STATE_CLASS_TOTAL_INCREASING,
             LAST_RESET_TYPE_NEVER,
         ),
         cv.Optional("energy_returned_tariff2"): sensor.sensor_schema(
@@ -70,7 +71,7 @@ CONFIG_SCHEMA = cv.Schema(
             ICON_EMPTY,
             3,
             DEVICE_CLASS_ENERGY,
-            STATE_CLASS_MEASUREMENT,
+            STATE_CLASS_TOTAL_INCREASING,
             LAST_RESET_TYPE_NEVER,
         ),
         cv.Optional("total_imported_energy"): sensor.sensor_schema(
