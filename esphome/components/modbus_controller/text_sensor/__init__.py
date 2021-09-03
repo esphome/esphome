@@ -42,8 +42,8 @@ CONFIG_SCHEMA = text_sensor.TEXT_SENSOR_SCHEMA.extend(
         cv.Required(CONF_MODBUS_FUNCTIONCODE): cv.enum(MODBUS_FUNCTION_CODE),
         cv.Required(CONF_ADDRESS): cv.int_,
         cv.Optional(CONF_OFFSET, default=0): cv.int_,
-        cv.Optional(CONF_REGISTER_COUNT, default=1): cv.int_,
-        cv.Optional(CONF_RESPONSE_SIZE, default=0): cv.int_,
+        cv.Optional(CONF_REGISTER_COUNT, default=0): cv.int_,
+        cv.Optional(CONF_RESPONSE_SIZE, default=2): cv.int_,
         cv.Optional(CONF_RAW_ENCODE, default="NONE"): cv.enum(RAW_ENCODING),
         cv.Optional(CONF_SKIP_UPDATES, default=0): cv.int_,
     }
@@ -51,12 +51,16 @@ CONFIG_SCHEMA = text_sensor.TEXT_SENSOR_SCHEMA.extend(
 
 
 async def to_code(config):
+    response_size = config[CONF_RESPONSE_SIZE]
+    reg_count = config[CONF_REGISTER_COUNT]
+    if reg_count == 0:
+        reg_count = response_size / 2
     var = cg.new_Pvariable(
         config[CONF_ID],
         config[CONF_MODBUS_FUNCTIONCODE],
         config[CONF_ADDRESS],
         config[CONF_OFFSET],
-        config[CONF_REGISTER_COUNT],
+        reg_count,
         config[CONF_RESPONSE_SIZE],
         config[CONF_RAW_ENCODE],
         config[CONF_SKIP_UPDATES],

@@ -27,6 +27,23 @@ ModbusSensor = modbus_controller_ns.class_(
     "ModbusSensor", cg.Component, sensor.Sensor, SensorItem
 )
 
+TYPE_REGISTER_MAP = {
+    "RAW": 1,
+    "U_WORD": 1,
+    "S_WORD": 1,
+    "U_DWORD": 2,
+    "U_DWORD_R": 2,
+    "S_DWORD": 2,
+    "S_DWORD_R": 2,
+    "U_QWORD": 4,
+    "U_QWORDU_R": 4,
+    "S_QWORD": 4,
+    "U_QWORD_R": 4,
+    "FP32": 2,
+    "FP32_R": 2,
+}
+
+
 CONFIG_SCHEMA = sensor.SENSOR_SCHEMA.extend(
     {
         cv.GenerateID(): cv.declare_id(ModbusSensor),
@@ -36,13 +53,17 @@ CONFIG_SCHEMA = sensor.SENSOR_SCHEMA.extend(
         cv.Optional(CONF_OFFSET, default=0): cv.int_,
         cv.Optional(CONF_BITMASK, default=0xFFFFFFFF): cv.hex_uint32_t,
         cv.Optional(CONF_VALUE_TYPE, default="U_WORD"): cv.enum(SENSOR_VALUE_TYPE),
-        cv.Optional(CONF_REGISTER_COUNT, default=1): cv.int_,
+        cv.Optional(CONF_REGISTER_COUNT, default=0): cv.int_,
         cv.Optional(CONF_SKIP_UPDATES, default=0): cv.int_,
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
 
 async def to_code(config):
+    value_type = config[CONF_VALUE_TYPE]
+    reg_count = config[CONF_REGISTER_COUNT]
+    if reg_count == 0:
+        reg_count = TYPE_REGISTER_MAP[value_type]
     var = cg.new_Pvariable(
         config[CONF_ID],
         config[CONF_MODBUS_FUNCTIONCODE],
@@ -50,7 +71,7 @@ async def to_code(config):
         config[CONF_OFFSET],
         config[CONF_BITMASK],
         config[CONF_VALUE_TYPE],
-        config[CONF_REGISTER_COUNT],
+        reg_count,
         config[CONF_SKIP_UPDATES],
     )
     await cg.register_component(var, config)
