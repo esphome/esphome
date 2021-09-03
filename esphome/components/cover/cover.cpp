@@ -122,7 +122,6 @@ void CoverCall::validate_() {
     }
   }
   if (this->toggle_.has_value()) {
-    auto toggle = *this->toggle_;
     if (!traits.get_supports_toggle()) {
       ESP_LOGW(TAG, "'%s' - This cover device does not support toggle!", this->parent_->get_name().c_str());
       this->toggle_.reset();
