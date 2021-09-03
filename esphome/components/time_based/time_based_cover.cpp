@@ -66,12 +66,12 @@ void TimeBasedCover::control(const CoverCall &call) {
       this->start_direction_(COVER_OPERATION_IDLE);
       this->publish_state();
     } else {
-      if (this->last_operation_ == COVER_OPERATION_OPENING) {
-        this->target_position_ = COVER_CLOSED;
-        this->start_direction_(COVER_OPERATION_CLOSING);
-      } else {
+      if (this->position == COVER_CLOSED || this->last_operation_ == COVER_OPERATION_CLOSING) {
         this->target_position_ = COVER_OPEN;
         this->start_direction_(COVER_OPERATION_OPENING);
+      } else {
+        this->target_position_ = COVER_CLOSED;
+        this->start_direction_(COVER_OPERATION_CLOSING);
       }
     }
   }
