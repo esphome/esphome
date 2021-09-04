@@ -8,6 +8,7 @@ from esphome.const import (
     DEVICE_CLASS_CURRENT,
     DEVICE_CLASS_POWER,
     DEVICE_CLASS_VOLTAGE,
+    DEVICE_CLASS_POWER_FACTOR,
     STATE_CLASS_MEASUREMENT,
     UNIT_VOLT,
     UNIT_AMPERE,
@@ -24,6 +25,12 @@ CONF_CURRENT_A = "current_a"
 CONF_CURRENT_B = "current_b"
 CONF_ACTIVE_POWER_A = "active_power_a"
 CONF_ACTIVE_POWER_B = "active_power_b"
+CONF_APPARENT_POWER_A = "apparent_power_a"
+CONF_APPARENT_POWER_B = "apparent_power_b"
+CONF_REACTIVE_POWER_A = "reactive_power_a"
+CONF_REACTIVE_POWER_B = "reactive_power_b"
+CONF_POWER_FACTOR_A = "power_factor_a"
+CONF_POWER_FACTOR_B = "power_factor_b"
 
 CONFIG_SCHEMA = (
     cv.Schema(
@@ -60,6 +67,40 @@ CONFIG_SCHEMA = (
                 device_class=DEVICE_CLASS_POWER,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
+            cv.Optional(CONF_APPARENT_POWER_A): sensor.sensor_schema(
+                unit_of_measurement=UNIT_VA,
+                accuracy_decimals=1,
+                device_class=DEVICE_CLASS_POWER,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_APPARENT_POWER_B): sensor.sensor_schema(
+                unit_of_measurement=UNIT_VA,
+                accuracy_decimals=1,
+                device_class=DEVICE_CLASS_POWER,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_REACTIVE_POWER_A): sensor.sensor_schema(
+                unit_of_measurement=UNIT_VAR,
+                accuracy_decimals=1,
+                device_class=DEVICE_CLASS_POWER,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_REACTIVE_POWER_B): sensor.sensor_schema(
+                unit_of_measurement=UNIT_VAR,
+                accuracy_decimals=1,
+                device_class=DEVICE_CLASS_POWER,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_POWER_FACTOR_A): sensor.sensor_schema(
+                accuracy_decimals=2,
+                device_class=DEVICE_CLASS_POWER,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_POWER_FACTOR_B): sensor.sensor_schema(
+                accuracy_decimals=2,
+                device_class=DEVICE_CLASS_POWER,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
         }
     )
     .extend(cv.polling_component_schema("60s"))
@@ -81,6 +122,12 @@ async def to_code(config):
         CONF_CURRENT_B,
         CONF_ACTIVE_POWER_A,
         CONF_ACTIVE_POWER_B,
+        CONF_APPARENT_POWER_A,
+        CONF_APPARENT_POWER_B,
+        CONF_REACTIVE_POWER_A,
+        CONF_REACTIVE_POWER_B,
+        CONF_POWER_FACTOR_A,
+        CONF_POWER_FACTOR_B
     ]:
         if key not in config:
             continue

@@ -23,6 +23,30 @@ class ADE7953 : public i2c::I2CDevice, public PollingComponent {
     active_power_b_sensor_ = active_power_b_sensor;
   }
 
+  void set_apparent_power_a_sensor(sensor::Sensor *apparent_power_a_sensor) {
+    apparent_power_a_sensor_ = apparent_power_a_sensor;
+  }
+
+  void set_apparent_power_b_sensor(sensor::Sensor *apparent_power_b_sensor) {
+    apparent_power_b_sensor_ = apparent_power_b_sensor;
+  }
+
+  void set_reactive_power_a_sensor(sensor::Sensor *reactive_power_a_sensor) {
+    reactive_power_a_sensor_ = reactive_power_a_sensor;
+  }
+
+  void set_reactive_power_b_sensor(sensor::Sensor *reactive_power_b_sensor) {
+    reactive_power_b_sensor_ = reactive_power_b_sensor;
+  }
+
+    void set_power_factor_a_sensor(sensor::Sensor *power_factor_a_sensor) {
+    power_factor_a_sensor_ = power_factor_a_sensor;
+  }
+
+  void set_power_factor_b_sensor(sensor::Sensor *power_factor_b_sensor) {
+    power_factor_b_sensor_ = power_factor_b_sensor;
+  }
+
   void setup() override {
     if (this->has_irq_) {
       auto pin = GPIOPin(this->irq_pin_number_, INPUT);
@@ -73,6 +97,12 @@ class ADE7953 : public i2c::I2CDevice, public PollingComponent {
   sensor::Sensor *current_b_sensor_{nullptr};
   sensor::Sensor *active_power_a_sensor_{nullptr};
   sensor::Sensor *active_power_b_sensor_{nullptr};
+  sensor::Sensor *apparent_power_a_sensor_{nullptr};
+  sensor::Sensor *apparent_power_b_sensor_{nullptr};
+  sensor::Sensor *reactive_power_a_sensor_{nullptr};
+  sensor::Sensor *reactive_power_b_sensor_{nullptr};
+  sensor::Sensor *power_factor_a_sensor_{nullptr};
+  sensor::Sensor *power_factor_b_sensor_{nullptr};
 };
 
 }  // namespace ade7953

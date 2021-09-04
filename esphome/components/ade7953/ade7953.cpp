@@ -18,6 +18,12 @@ void ADE7953::dump_config() {
   LOG_SENSOR("  ", "Current B Sensor", this->current_b_sensor_);
   LOG_SENSOR("  ", "Active Power A Sensor", this->active_power_a_sensor_);
   LOG_SENSOR("  ", "Active Power B Sensor", this->active_power_b_sensor_);
+  LOG_SENSOR("  ", "Apparent Power A Sensor", this->apparent_power_a_sensor_);
+  LOG_SENSOR("  ", "Apparent Power B Sensor", this->apparent_power_b_sensor_);
+  LOG_SENSOR("  ", "Reactive Power A Sensor", this->reactive_power_a_sensor_);
+  LOG_SENSOR("  ", "Reactive Power B Sensor", this->reactive_power_b_sensor_);
+  LOG_SENSOR("  ", "Power Factor A Sensor", this->power_factor_a_sensor_);
+  LOG_SENSOR("  ", "Power Factor B Sensor", this->power_factor_b_sensor_);
 }
 
 #define ADE_PUBLISH_(name, factor) \
@@ -41,13 +47,18 @@ void ADE7953::update() {
   ADE_PUBLISH(current_b, 100000.0f);
   auto voltage = this->ade_read_<uint32_t>(0x031C);
   ADE_PUBLISH(voltage, 26000.0f);
-
-  //    auto apparent_power_a = this->ade_read_<int32_t>(0x0310);
-  //    auto apparent_power_b = this->ade_read_<int32_t>(0x0311);
-  //    auto reactive_power_a = this->ade_read_<int32_t>(0x0314);
-  //    auto reactive_power_b = this->ade_read_<int32_t>(0x0315);
-  //    auto power_factor_a = this->ade_read_<int16_t>(0x010A);
-  //    auto power_factor_b = this->ade_read_<int16_t>(0x010B);
+  auto apparent_power_a = this->ade_read_<int32_t>(0x0310);
+  ADE_PUBLISH(apparent_power_a, 154.0f);
+  auto apparent_power_b = this->ade_read_<int32_t>(0x0311);
+  ADE_PUBLISH(apparent_power_b, 154.0f);
+  auto reactive_power_a = this->ade_read_<int32_t>(0x0314);
+  ADE_PUBLISH(reactive_power_a, 154.0f);
+  auto reactive_power_b = this->ade_read_<int32_t>(0x0315);
+  ADE_PUBLISH(reactive_power_b, 154.0f);
+  auto power_factor_a = this->ade_read_<int16_t>(0x010A);
+  ADE_PUBLISH(power_factor_a, 1.0f);
+  auto power_factor_b = this->ade_read_<int16_t>(0x010B);
+  ADE_PUBLISH(power_factor_b, 1.0f);
 }
 
 }  // namespace ade7953
