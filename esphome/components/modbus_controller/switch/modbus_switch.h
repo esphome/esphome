@@ -28,7 +28,7 @@ class ModbusSwitch : public Component, public switch_::Switch, public SensorItem
   void write_state(bool state) override;
   void dump_config() override;
   void set_state(bool state) { this->state = state; }
-  float parse_and_publish(const std::vector<uint8_t> &data) override;
+  void parse_and_publish(const std::vector<uint8_t> &data) override;
   void set_parent(ModbusController *parent) { this->parent_ = parent; }
 
  protected:

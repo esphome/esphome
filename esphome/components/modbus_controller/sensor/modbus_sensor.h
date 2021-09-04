@@ -21,7 +21,7 @@ class ModbusSensor : public Component, public sensor::Sensor, public SensorItem 
     this->skip_updates = skip_updates;
   }
 
-  float parse_and_publish(const std::vector<uint8_t> &data) override;
+  void parse_and_publish(const std::vector<uint8_t> &data) override;
 
   void dump_config() override;
 };

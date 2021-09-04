@@ -134,7 +134,7 @@ struct SensorItem {
   uint8_t register_count;
   uint8_t skip_updates;
 
-  virtual float parse_and_publish(const std::vector<uint8_t> &data) = 0;
+  virtual void parse_and_publish(const std::vector<uint8_t> &data) = 0;
 
   uint64_t getkey() const { return calc_key(register_type, start_address, offset, bitmask); }
   size_t get_register_size() const {

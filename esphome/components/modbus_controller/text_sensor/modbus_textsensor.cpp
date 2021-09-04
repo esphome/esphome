@@ -11,8 +11,7 @@ static const char *const TAG = "modbus_controller.text_sensor";
 
 void ModbusTextSensor::dump_config() { LOG_TEXT_SENSOR("", "Modbus Controller Text Sensor", this); }
 
-float ModbusTextSensor::parse_and_publish(const std::vector<uint8_t> &data) {
-  float result = static_cast<float>(this->response_bytes_);
+void ModbusTextSensor::parse_and_publish(const std::vector<uint8_t> &data) {
   std::ostringstream output;
   uint8_t max_items = this->response_bytes_;
   char buffer[4];
@@ -39,7 +38,6 @@ float ModbusTextSensor::parse_and_publish(const std::vector<uint8_t> &data) {
     }
   }
   this->publish_state(output.str());
-  return result;
 }
 
 }  // namespace modbus_controller

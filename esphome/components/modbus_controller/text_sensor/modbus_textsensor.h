@@ -27,7 +27,7 @@ class ModbusTextSensor : public Component, public text_sensor::TextSensor, publi
 
   void dump_config() override;
 
-  float parse_and_publish(const std::vector<uint8_t> &data) override;
+  void parse_and_publish(const std::vector<uint8_t> &data) override;
 
  protected:
   RawEncoding encode_;

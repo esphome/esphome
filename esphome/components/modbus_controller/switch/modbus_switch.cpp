@@ -8,7 +8,7 @@ static const char *const TAG = "modbus_controller.switch";
 
 void ModbusSwitch::dump_config() { LOG_SWITCH("", "Modbus Controller Switch", this); }
 
-float ModbusSwitch::parse_and_publish(const std::vector<uint8_t> &data) {
+void ModbusSwitch::parse_and_publish(const std::vector<uint8_t> &data) {
   int64_t value = 0;
   switch (this->register_type) {
     case ModbusFunctionCode::READ_DISCRETE_INPUTS:
@@ -20,12 +20,9 @@ float ModbusSwitch::parse_and_publish(const std::vector<uint8_t> &data) {
       value = get_data<uint16_t>(data, this->offset) & this->bitmask;
       break;
   }
-
-  float result = static_cast<float>(value);
   ESP_LOGV(TAG, "publish ModbusSwitch '%s': new value = %d  type = %d address = %X offset = %x",
            this->get_name().c_str(), value != 0.0, (int) this->register_type, this->start_address, this->offset);
   this->publish_state(value != 0.0);
-  return result;
 }
 
 void ModbusSwitch::write_state(bool state) {

@@ -25,7 +25,7 @@ class ModbusBinarySensor : public Component, public binary_sensor::BinarySensor,
       this->register_count = 1;
   }
 
-  float parse_and_publish(const std::vector<uint8_t> &data) override;
+  void parse_and_publish(const std::vector<uint8_t> &data) override;
   void set_state(bool state) { this->state = state; }
 
   void dump_config() override;

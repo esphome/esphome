@@ -28,7 +28,7 @@ template<typename N> N mask_and_shift_by_rightbit(N data, uint32_t mask) {
 
 void ModbusSensor::dump_config() { LOG_SENSOR("", "Modbus Controller Sensor", this); }
 
-float ModbusSensor::parse_and_publish(const std::vector<uint8_t> &data) {
+void ModbusSensor::parse_and_publish(const std::vector<uint8_t> &data) {
   union {
     float float_value;
     uint32_t raw;
@@ -124,7 +124,6 @@ float ModbusSensor::parse_and_publish(const std::vector<uint8_t> &data) {
   ESP_LOGD(TAG, " SENSOR : new: %lld", value);
   // this->sensor_->raw_state = result;
   this->publish_state(result);
-  return result;
 }
 
 }  // namespace modbus_controller
