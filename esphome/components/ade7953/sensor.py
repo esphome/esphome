@@ -13,6 +13,8 @@ from esphome.const import (
     UNIT_VOLT,
     UNIT_AMPERE,
     UNIT_WATT,
+    UNIT_VOLT_AMPS,
+    UNIT_VOLT_AMPS_REACTIVE
 )
 
 DEPENDENCIES = ["i2c"]
@@ -68,25 +70,25 @@ CONFIG_SCHEMA = (
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_APPARENT_POWER_A): sensor.sensor_schema(
-                unit_of_measurement=UNIT_VA,
+                unit_of_measurement=UNIT_VOLT_AMPS,
                 accuracy_decimals=1,
                 device_class=DEVICE_CLASS_POWER,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_APPARENT_POWER_B): sensor.sensor_schema(
-                unit_of_measurement=UNIT_VA,
+                unit_of_measurement=UNIT_VOLT_AMPS,
                 accuracy_decimals=1,
                 device_class=DEVICE_CLASS_POWER,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_REACTIVE_POWER_A): sensor.sensor_schema(
-                unit_of_measurement=UNIT_VAR,
+                unit_of_measurement=UNIT_VOLT_AMPS_REACTIVE,
                 accuracy_decimals=1,
                 device_class=DEVICE_CLASS_POWER,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_REACTIVE_POWER_B): sensor.sensor_schema(
-                unit_of_measurement=UNIT_VAR,
+                unit_of_measurement=UNIT_VOLT_AMPS_REACTIVE,
                 accuracy_decimals=1,
                 device_class=DEVICE_CLASS_POWER,
                 state_class=STATE_CLASS_MEASUREMENT,
