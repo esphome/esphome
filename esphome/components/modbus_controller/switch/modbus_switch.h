@@ -16,7 +16,7 @@ class ModbusSwitch : public Component, public switch_::Switch, public SensorItem
     this->offset = offset;
     this->bitmask = bitmask;
     this->sensor_value_type = SensorValueType::BIT;
-    this->skip_updates = skip_updates;
+    this->skip_updates = 0;
     this->register_count = 1;
     if (register_type == ModbusFunctionCode::WRITE_SINGLE_REGISTER ||
         register_type == ModbusFunctionCode::WRITE_SINGLE_COIL) {
