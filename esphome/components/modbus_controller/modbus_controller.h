@@ -100,21 +100,21 @@ inline uint64_t qword_from_hex_str(const std::string &value, uint8_t pos) {
 }
 
 // Extract data from modbus response buffer
-template<typename T> T get_data(const std::vector<uint8_t> &data, size_t offset) {
+template<typename T> T get_data(const std::vector<uint8_t> &data, size_t buffer_offset) {
   if (sizeof(T) == sizeof(uint8_t)) {
-    return T(data[offset]);
+    return T(data[buffer_offset]);
   }
   if (sizeof(T) == sizeof(uint16_t)) {
-    return T((uint16_t(data[offset + 0]) << 8) | (uint16_t(data[offset + 1]) << 0));
+    return T((uint16_t(data[buffer_offset + 0]) << 8) | (uint16_t(data[buffer_offset + 1]) << 0));
   }
 
   if (sizeof(T) == sizeof(uint32_t)) {
-    return get_data<uint16_t>(data, offset) << 16 | get_data<uint16_t>(data, (offset + 2));
+    return get_data<uint16_t>(data, buffer_offset) << 16 | get_data<uint16_t>(data, (buffer_offset + 2));
   }
 
   if (sizeof(T) == sizeof(uint64_t)) {
-    return static_cast<uint64_t>(get_data<uint32_t>(data, offset)) << 32 |
-           (static_cast<uint64_t>(get_data<uint32_t>(data, offset + 4)));
+    return static_cast<uint64_t>(get_data<uint32_t>(data, buffer_offset)) << 32 |
+           (static_cast<uint64_t>(get_data<uint32_t>(data, buffer_offset + 4)));
   }
 }
 
