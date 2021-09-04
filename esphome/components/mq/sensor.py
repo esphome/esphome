@@ -217,7 +217,7 @@ async def to_code(config):
     await cg.register_component(var, config)
 
     if CONF_R0 in config:
-        cg.add(var.set_R0(config[CONF_R0]))
+        cg.add(var.set_r0(config[CONF_R0]))
 
     model_valid_sensors = set(MQ_MODEL_SENSORS[config[CONF_MODEL]])
     sensors_schemas = get_sensors_schemas(config)

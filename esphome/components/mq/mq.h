@@ -2,7 +2,6 @@
 
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
-#include "MQUnifiedsensor.h"
 #include <map>
 
 namespace esphome {
@@ -153,7 +152,7 @@ class MQSensor : public PollingComponent {
  public:
   MQSensor(GPIOPin *pin, MQModel model, bool is_esp8266, float rl);
   void add_sensor(sensor::Sensor *sensor, MQGasType gas_type);
-  void set_R0(float r0);
+  void set_r0(float r0);
 
   float get_setup_priority() const override;
   void setup() override;
@@ -162,12 +161,22 @@ class MQSensor : public PollingComponent {
   void update() override;
 
  protected:
-  MQUnifiedsensor *mq_;
   GPIOPin *pin_;
   bool is_esp8266_;
   float rl_ = 10.0;
   float r0_ = 0.0;
+  float sensor_volt_ = 0.0;
+  float a_ = 0.0;
+  float b_ = 0.0;
+  byte adc_bit_resolution_ = 10;
   MQModelParameters model_parameters_;
+
+ private:
+  void update_sensor_voltage();
+  float read_sensor();
+  float calibrate(float ratio_in_clean_air);
+  void set_a(float a);
+  void set_b(float b);
 };
 }  // namespace mq
 }  // namespace esphome
