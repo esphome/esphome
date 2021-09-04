@@ -30,6 +30,21 @@ def validate_initial_value_in_options(config):
     return config
 
 
+def validate(config):
+    if CONF_LAMBDA in config:
+        if config[CONF_OPTIMISTIC]:
+            raise cv.Invalid("optimistic cannot be used with lambda")
+        if CONF_INITIAL_OPTION in config:
+            raise cv.Invalid("initial_value cannot be used with lambda")
+        if CONF_RESTORE_VALUE in config:
+            raise cv.Invalid("restore_value cannot be used with lambda")
+    if not config[CONF_OPTIMISTIC] and CONF_SET_ACTION not in config:
+        raise cv.Invalid(
+            "Either optimistic mode must be enabled, or set_action must be set, to handle the option being set."
+        )
+    return config
+
+
 CONFIG_SCHEMA = cv.All(
     select.SELECT_SCHEMA.extend(
         {
@@ -38,13 +53,14 @@ CONFIG_SCHEMA = cv.All(
                 cv.ensure_list(cv.string_strict), cv.Length(min=1)
             ),
             cv.Optional(CONF_LAMBDA): cv.returning_lambda,
-            cv.Optional(CONF_OPTIMISTIC): cv.boolean,
+            cv.Optional(CONF_OPTIMISTIC, default=False): cv.boolean,
             cv.Optional(CONF_SET_ACTION): automation.validate_automation(single=True),
             cv.Optional(CONF_INITIAL_OPTION): cv.string_strict,
             cv.Optional(CONF_RESTORE_VALUE): cv.boolean,
         }
     ).extend(cv.polling_component_schema("60s")),
     validate_initial_value_in_options,
+    validate,
 )
 
 
@@ -60,9 +76,7 @@ async def to_code(config):
         cg.add(var.set_template(template_))
 
     else:
-        if CONF_OPTIMISTIC in config:
-            cg.add(var.set_optimistic(config[CONF_OPTIMISTIC]))
-
+        cg.add(var.set_optimistic(config[CONF_OPTIMISTIC]))
         cg.add(var.set_initial_option(config[CONF_INITIAL_OPTION]))
 
         if CONF_RESTORE_VALUE in config:

@@ -1862,6 +1862,7 @@ switch:
       inverted: False
   - platform: template
     id: ble1_status
+    optimistic: true
 
 fan:
   - platform: binary
