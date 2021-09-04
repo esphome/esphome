@@ -56,9 +56,9 @@ void ADE7953::update() {
   auto reactive_power_b = this->ade_read_<int32_t>(0x0315);
   ADE_PUBLISH(reactive_power_b, 154.0f);
   auto power_factor_a = this->ade_read_<int16_t>(0x010A);
-  ADE_PUBLISH(power_factor_a, 1.0f);
+  ADE_PUBLISH(power_factor_a, 32767.0f);
   auto power_factor_b = this->ade_read_<int16_t>(0x010B);
-  ADE_PUBLISH(power_factor_b, 1.0f);
+  ADE_PUBLISH(power_factor_b, 32767.0f);
 }
 
 }  // namespace ade7953
