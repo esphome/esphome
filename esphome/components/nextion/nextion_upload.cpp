@@ -320,6 +320,7 @@ void Nextion::upload_end_() {
 
 #ifdef ARDUINO_ARCH_ESP8266
 WiFiClient *Nextion::get_wifi_client_() {
+#ifdef USE_HTTP_REQUEST_ESP8266_HTTPS
   if (this->tft_url_.compare(0, 6, "https:") == 0) {
     if (this->wifi_client_secure_ == nullptr) {
       this->wifi_client_secure_ = new BearSSL::WiFiClientSecure();  // NOLINT(cppcoreguidelines-owning-memory)
@@ -328,6 +329,7 @@ WiFiClient *Nextion::get_wifi_client_() {
     }
     return this->wifi_client_secure_;
   }
+#endif
 
   if (this->wifi_client_ == nullptr) {
     this->wifi_client_ = new WiFiClient();  // NOLINT(cppcoreguidelines-owning-memory)
