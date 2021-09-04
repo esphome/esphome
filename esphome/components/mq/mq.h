@@ -168,7 +168,7 @@ class MQSensor : public PollingComponent {
   float sensor_volt_ = 0.0;
   float a_ = 0.0;
   float b_ = 0.0;
-  byte adc_bit_resolution_ = 10;
+  uint8_t adc_bit_resolution_ = 10;
   MQModelParameters model_parameters_;
 
  private:

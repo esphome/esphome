@@ -1,6 +1,8 @@
 #include "esphome/core/log.h"
 #include "mq.h"
 
+#include <cmath>
+
 namespace esphome {
 namespace mq {
 
@@ -175,7 +177,7 @@ void MQSensor::update() {
 void MQSensor::update_sensor_voltage() {
   float avg = 0.0;
   for (int i = 0; i < RETRIES; i++) {
-    avg += analogRead(this->pin_->get_pin());
+    avg += analogRead(this->pin_->get_pin());  // NOLINT
     delay(RETRY_INTERVAL);
   }
   this->sensor_volt_ = (avg / RETRIES) * VOLTAGE_RESOLUTION / ((pow(2, this->adc_bit_resolution_)) - 1);
@@ -205,7 +207,7 @@ float MQSensor::read_sensor() {
     // Source of linear ecuation
     // https://jayconsystems.com/blog/understanding-a-gas-sensor
     // Get ppm value in linear scale according to the the ratio value
-    double ppm_log = (log10(ratio) - this->b_) / this->a_;
+    double ppm_log = (std::log10(ratio) - this->b_) / this->a_;
     // Convert ppm value to log scale
     ppm = pow(10, ppm_log);
   }
