@@ -12,6 +12,7 @@ from .. import (
 )
 from ..const import (
     CONF_BITMASK,
+    CONF_BYTE_OFFSET,
     CONF_MODBUS_CONTROLLER_ID,
     CONF_MODBUS_FUNCTIONCODE,
     CONF_REGISTER_COUNT,
@@ -43,23 +44,31 @@ TYPE_REGISTER_MAP = {
     "FP32_R": 2,
 }
 
-
-CONFIG_SCHEMA = sensor.SENSOR_SCHEMA.extend(
-    {
-        cv.GenerateID(): cv.declare_id(ModbusSensor),
-        cv.GenerateID(CONF_MODBUS_CONTROLLER_ID): cv.use_id(ModbusController),
-        cv.Required(CONF_MODBUS_FUNCTIONCODE): cv.enum(MODBUS_FUNCTION_CODE),
-        cv.Required(CONF_ADDRESS): cv.int_,
-        cv.Optional(CONF_OFFSET, default=0): cv.int_,
-        cv.Optional(CONF_BITMASK, default=0xFFFFFFFF): cv.hex_uint32_t,
-        cv.Optional(CONF_VALUE_TYPE, default="U_WORD"): cv.enum(SENSOR_VALUE_TYPE),
-        cv.Optional(CONF_REGISTER_COUNT, default=0): cv.int_,
-        cv.Optional(CONF_SKIP_UPDATES, default=0): cv.int_,
-    }
-).extend(cv.COMPONENT_SCHEMA)
+CONFIG_SCHEMA = cv.All(
+    sensor.SENSOR_SCHEMA.extend(
+        {
+            cv.GenerateID(): cv.declare_id(ModbusSensor),
+            cv.GenerateID(CONF_MODBUS_CONTROLLER_ID): cv.use_id(ModbusController),
+            cv.Required(CONF_MODBUS_FUNCTIONCODE): cv.enum(MODBUS_FUNCTION_CODE),
+            cv.Required(CONF_ADDRESS): cv.positive_int,
+            cv.Optional(CONF_OFFSET, default=0): cv.positive_int,
+            cv.Optional(CONF_BYTE_OFFSET): cv.positive_int,
+            cv.Optional(CONF_BITMASK, default=0xFFFFFFFF): cv.hex_uint32_t,
+            cv.Optional(CONF_VALUE_TYPE, default="U_WORD"): cv.enum(SENSOR_VALUE_TYPE),
+            cv.Optional(CONF_REGISTER_COUNT, default=0): cv.positive_int,
+            cv.Optional(CONF_SKIP_UPDATES, default=0): cv.positive_int,
+        }
+    ).extend(cv.COMPONENT_SCHEMA),
+)
 
 
 async def to_code(config):
+    byte_offset = 0
+    if CONF_OFFSET in config:
+        byte_offset = config[CONF_OFFSET] * 2
+    # A CONF_BYTE_OFFSET setting overrides CONF_OFFSET
+    if CONF_BYTE_OFFSET in config:
+        byte_offset = config[CONF_BYTE_OFFSET]
     value_type = config[CONF_VALUE_TYPE]
     reg_count = config[CONF_REGISTER_COUNT]
     if reg_count == 0:
@@ -68,7 +77,7 @@ async def to_code(config):
         config[CONF_ID],
         config[CONF_MODBUS_FUNCTIONCODE],
         config[CONF_ADDRESS],
-        config[CONF_OFFSET],
+        byte_offset,
         config[CONF_BITMASK],
         config[CONF_VALUE_TYPE],
         reg_count,

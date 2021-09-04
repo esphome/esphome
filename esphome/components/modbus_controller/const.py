@@ -1,3 +1,4 @@
+CONF_BYTE_OFFSET = "byte_offset"
 CONF_COMMAND_THROTTLE = "command_throttle"
 CONF_VALUE_TYPE = "value_type"
 CONF_MODBUS_FUNCTIONCODE = "modbus_functioncode"
