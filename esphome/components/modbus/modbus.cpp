@@ -138,124 +138,55 @@ float Modbus::get_setup_priority() const {
   // After UART bus
   return setup_priority::BUS - 1.0f;
 }
-void Modbus::send(uint8_t address, uint8_t function, uint16_t start_address, uint16_t register_count) {
-  uint8_t frame[8];
-  frame[0] = address;
-  frame[1] = function;
-  frame[2] = start_address >> 8;
-  frame[3] = start_address >> 0;
-  frame[4] = register_count >> 8;
-  frame[5] = register_count >> 0;
-  auto crc = crc16(frame, 6);
-  frame[6] = crc >> 0;
-  frame[7] = crc >> 8;
 
-  if (this->flow_control_pin_ != nullptr)
-    this->flow_control_pin_->digital_write(true);
-
-  this->write_array(frame, 8);
-  this->flush();
-
-  if (this->flow_control_pin_ != nullptr)
-    this->flow_control_pin_->digital_write(false);
-  waiting_for_response = address;
-  last_send_ = millis();
-}
-
-// update existing crc
-uint16_t update_crc16(uint16_t crc, uint8_t byte) {
-  crc ^= byte;
-  for (uint8_t i = 0; i < 8; i++) {
-    if ((crc & 0x01) != 0) {
-      crc >>= 1;
-      crc ^= 0xA001;
-    } else {
-      crc >>= 1;
-    }
-  }
-  return crc;
-}
-
-void Modbus::send_with_payload(uint8_t address, uint8_t function_code, uint16_t start_address,
-                               uint16_t number_of_entities, uint8_t payload_len, const uint8_t *payload) {
+void Modbus::send(uint8_t address, uint8_t function_code, uint16_t start_address, uint16_t number_of_entities,
+                  uint8_t payload_len, const uint8_t *payload) {
   static const size_t MAX_VALUES = 128;
 
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-  uint8_t debug_buffer_[32];
-  uint8_t *p_ = debug_buffer_;
-
-#define LOG_BYTE(b) \
-  { \
-    if (p_ - debug_buffer_ < sizeof(debug_buffer_)) \
-      *p_++ = b; \
-  }
-
-#define DUMP_LOG() \
-  { \
-    ESP_LOGV(TAG, "modbus write: %s", \
-             hexencode(debug_buffer_, min(static_cast<uint32_t>(p_ - debug_buffer_), sizeof(debug_buffer_))).c_str()); \
-  }
-#else
-#define LOG_BYTE(b)
-#define DUMP_LOG()
-#endif
-
-  if (this->flow_control_pin_ != nullptr)
-    this->flow_control_pin_->digital_write(true);
   if (number_of_entities > MAX_VALUES) {
     ESP_LOGE(TAG, "send too many values %d max=%zu", number_of_entities, MAX_VALUES);
     return;
   }
-  uint16_t crc = 0xFFFF;
-  this->write_byte(address);
-  crc = update_crc16(crc, address);
-  LOG_BYTE(address);
-  this->write_byte(function_code);
-  crc = update_crc16(crc, function_code);
-  LOG_BYTE(function_code);
-  this->write_byte(start_address >> 8);
-  crc = update_crc16(crc, start_address >> 8);
-  LOG_BYTE(start_address >> 8);
-  this->write_byte((start_address & 0xFF));
-  crc = update_crc16(crc, start_address & 0xFF);
-  LOG_BYTE(start_address & 0xFF);
 
+  std::vector<uint8_t> data;
+  data.push_back(address);
+  data.push_back(function_code);
+  data.push_back(start_address >> 8);
+  data.push_back(start_address >> 0);
   if (function_code != 0x5 && function_code != 0x6) {
-    this->write_byte(number_of_entities >> 8);
-    crc = update_crc16(crc, number_of_entities >> 8);
-    this->write_byte(number_of_entities & 0xFF);
-    crc = update_crc16(crc, number_of_entities & 0xFF);
-    LOG_BYTE(number_of_entities >> 8);
-    LOG_BYTE(number_of_entities & 0xFF);
+    data.push_back(number_of_entities >> 8);
+    data.push_back(number_of_entities >> 0);
   }
-  // if this is a write command add the payload
+
   if (payload != nullptr) {
     if (function_code == 0xF || function_code == 0x10) {  // Write multiple
-      this->write_byte(payload_len);                      // Byte count is required for write
-      crc = update_crc16(crc, payload_len);
-      LOG_BYTE(payload_len);
+      data.push_back(payload_len);                        // Byte count is required for write
     } else {
       payload_len = 2;  // Write single register or coil
     }
     for (int i = 0; i < payload_len; i++) {
-      this->write_byte(payload[i]);
-      crc = update_crc16(crc, payload[i]);
-      LOG_BYTE(payload[i]);
+      data.push_back(payload[i]);
     }
   }
-  this->write_byte(crc & 0xFF);
-  this->write_byte(crc >> 8);
-  LOG_BYTE(crc & 0xFF);
-  LOG_BYTE(crc >> 8);
+
+  auto crc = crc16(data.data(), data.size());
+  data.push_back(crc >> 0);
+  data.push_back(crc >> 8);
+
+  if (this->flow_control_pin_ != nullptr)
+    this->flow_control_pin_->digital_write(true);
+
+  this->write_array(data);
   this->flush();
 
   if (this->flow_control_pin_ != nullptr)
     this->flow_control_pin_->digital_write(false);
   waiting_for_response = address;
   last_send_ = millis();
-  DUMP_LOG();
+  ESP_LOGV(TAG, "Modbus write: %s", hexencode(data).c_str());
 }
 
+// Helper function for lambdas
 // Send raw command. Except CRC everything must be contained in payload
 void Modbus::send_raw(const std::vector<uint8_t> &payload) {
   if (payload.empty()) {
