@@ -608,9 +608,7 @@ class EditRequestHandler(BaseHandler):
     @bind_config
     def post(self, configuration=None):
         # pylint: disable=no-value-for-parameter
-        with open(
-            file=settings.rel_path(configuration), mode="wb", encoding="utf-8"
-        ) as f:
+        with open(file=settings.rel_path(configuration), mode="wb") as f:
             f.write(self.request.body)
         self.set_status(200)
 
