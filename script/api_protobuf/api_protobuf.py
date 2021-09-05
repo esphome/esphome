@@ -183,6 +183,8 @@ class TypeInfo:
 
     @property
     def dump_content(self):
+        if self.name.startswith("legacy_"):
+            return None
         o = f'out.append("  {self.name}: ");\n'
         o += self.dump(f"this->{self.field_name}") + "\n"
         o += f'out.append("\\n");\n'

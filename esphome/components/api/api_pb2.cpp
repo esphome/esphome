@@ -793,10 +793,6 @@ void CoverStateResponse::dump_to(std::string &out) const {
   out.append(buffer);
   out.append("\n");
 
-  out.append("  legacy_state: ");
-  out.append(proto_enum_to_string<enums::LegacyCoverState>(this->legacy_state));
-  out.append("\n");
-
   out.append("  position: ");
   sprintf(buffer, "%g", this->position);
   out.append(buffer);
@@ -878,10 +874,6 @@ void CoverCommandRequest::dump_to(std::string &out) const {
 
   out.append("  has_legacy_command: ");
   out.append(YESNO(this->has_legacy_command));
-  out.append("\n");
-
-  out.append("  legacy_command: ");
-  out.append(proto_enum_to_string<enums::LegacyCoverCommand>(this->legacy_command));
   out.append("\n");
 
   out.append("  has_position: ");
@@ -1329,22 +1321,6 @@ void ListEntitiesLightResponse::dump_to(std::string &out) const {
     out.append(proto_enum_to_string<enums::ColorMode>(it));
     out.append("\n");
   }
-
-  out.append("  legacy_supports_brightness: ");
-  out.append(YESNO(this->legacy_supports_brightness));
-  out.append("\n");
-
-  out.append("  legacy_supports_rgb: ");
-  out.append(YESNO(this->legacy_supports_rgb));
-  out.append("\n");
-
-  out.append("  legacy_supports_white_value: ");
-  out.append(YESNO(this->legacy_supports_white_value));
-  out.append("\n");
-
-  out.append("  legacy_supports_color_temperature: ");
-  out.append(YESNO(this->legacy_supports_color_temperature));
-  out.append("\n");
 
   out.append("  min_mireds: ");
   sprintf(buffer, "%g", this->min_mireds);
@@ -2760,11 +2736,6 @@ void ExecuteServiceArgument::dump_to(std::string &out) const {
   out.append(YESNO(this->bool_));
   out.append("\n");
 
-  out.append("  legacy_int: ");
-  sprintf(buffer, "%d", this->legacy_int);
-  out.append(buffer);
-  out.append("\n");
-
   out.append("  float_: ");
   sprintf(buffer, "%g", this->float_);
   out.append(buffer);
@@ -3180,10 +3151,6 @@ void ListEntitiesClimateResponse::dump_to(std::string &out) const {
   out.append(buffer);
   out.append("\n");
 
-  out.append("  legacy_supports_away: ");
-  out.append(YESNO(this->legacy_supports_away));
-  out.append("\n");
-
   out.append("  supports_action: ");
   out.append(YESNO(this->supports_action));
   out.append("\n");
@@ -3340,10 +3307,6 @@ void ClimateStateResponse::dump_to(std::string &out) const {
   out.append("  target_temperature_high: ");
   sprintf(buffer, "%g", this->target_temperature_high);
   out.append(buffer);
-  out.append("\n");
-
-  out.append("  legacy_away: ");
-  out.append(YESNO(this->legacy_away));
   out.append("\n");
 
   out.append("  action: ");
@@ -3543,10 +3506,6 @@ void ClimateCommandRequest::dump_to(std::string &out) const {
 
   out.append("  has_legacy_away: ");
   out.append(YESNO(this->has_legacy_away));
-  out.append("\n");
-
-  out.append("  legacy_away: ");
-  out.append(YESNO(this->legacy_away));
   out.append("\n");
 
   out.append("  has_fan_mode: ");
