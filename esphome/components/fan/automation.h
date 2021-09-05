@@ -103,5 +103,23 @@ class FanTurnOffTrigger : public Trigger<> {
   bool last_on_;
 };
 
+class FanSetSpeedTrigger : public Trigger<> {
+ public:
+  FanSetSpeedTrigger(FanState *state) {
+    state->add_on_state_callback([this, state]() {
+      auto speed = state->speed;
+      auto should_trigger = speed != !this->last_speed_;
+      this->last_speed_ = speed;
+      if (should_trigger) {
+        this->trigger();
+      }
+    });
+    this->last_speed_ = state->speed;
+  }
+
+ protected:
+  int last_speed_;
+};
+
 }  // namespace fan
 }  // namespace esphome
