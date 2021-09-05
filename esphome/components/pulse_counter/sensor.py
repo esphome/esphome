@@ -13,7 +13,7 @@ from esphome.const import (
     CONF_TOTAL,
     ICON_PULSE,
     STATE_CLASS_MEASUREMENT,
-    STATE_CLASS_NONE,
+    STATE_CLASS_TOTAL_INCREASING,
     UNIT_PULSES_PER_MINUTE,
     UNIT_PULSES,
 )
@@ -95,7 +95,7 @@ CONFIG_SCHEMA = (
                 unit_of_measurement=UNIT_PULSES,
                 icon=ICON_PULSE,
                 accuracy_decimals=0,
-                state_class=STATE_CLASS_NONE,
+                state_class=STATE_CLASS_TOTAL_INCREASING,
             ),
         }
     )

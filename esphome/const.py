@@ -323,7 +323,6 @@ CONF_KEY = "key"
 CONF_LAMBDA = "lambda"
 CONF_LAST_CONFIDENCE = "last_confidence"
 CONF_LAST_FINGER_ID = "last_finger_id"
-CONF_LAST_RESET_TYPE = "last_reset_type"
 CONF_LATITUDE = "latitude"
 CONF_LENGTH = "length"
 CONF_LEVEL = "level"
@@ -857,10 +856,3 @@ STATE_CLASS_MEASUREMENT = "measurement"
 
 # The state represents a total that only increases, a decrease is considered a reset.
 STATE_CLASS_TOTAL_INCREASING = "total_increasing"
-
-# This sensor does not support resetting. ie, it is not accumulative
-LAST_RESET_TYPE_NONE = ""
-# This sensor is expected to never reset its value
-LAST_RESET_TYPE_NEVER = "never"
-# This sensor may reset and Home Assistant will watch for this
-LAST_RESET_TYPE_AUTO = "auto"
