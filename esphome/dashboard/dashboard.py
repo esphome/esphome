@@ -41,7 +41,7 @@ from .util import password_hash
 # pylint: disable=unused-import, wrong-import-order
 from typing import Optional  # noqa
 
-from esphome.zeroconf import DashboardStatus, Zeroconf
+from esphome.zeroconf import DashboardStatus, EsphomeZeroconf
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -501,7 +501,7 @@ def _ping_func(filename, address):
 
 class MDNSStatusThread(threading.Thread):
     def run(self):
-        zc = Zeroconf()
+        zc = EsphomeZeroconf()
 
         def on_update(dat):
             for key, b in dat.items():
