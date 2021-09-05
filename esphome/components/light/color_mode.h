@@ -52,7 +52,7 @@ enum class ColorMode : uint8_t {
   /// Only on/off control.
   ON_OFF = (uint8_t) ColorCapability::ON_OFF,
   /// Dimmable light.
-  BRIGHTNESS = (uint8_t) (ColorCapability::ON_OFF | ColorCapability::BRIGHTNESS),
+  BRIGHTNESS = (uint8_t)(ColorCapability::ON_OFF | ColorCapability::BRIGHTNESS),
   /// White output only (use only if the light also has another color mode such as RGB).
   WHITE = (uint8_t)(ColorCapability::ON_OFF | ColorCapability::BRIGHTNESS | ColorCapability::WHITE),
   /// Controllable color temperature output.
