@@ -1881,6 +1881,9 @@ fan:
     oscillation_command_topic: oscillation/command/topic
     speed_state_topic: speed/state/topic
     speed_command_topic: speed/command/topic
+    on_set_speed:
+      then:
+        - logger.log: "Fan speed was changed!"
 
 interval:
   - interval: 10s
