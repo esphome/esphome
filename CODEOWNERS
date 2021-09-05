@@ -14,6 +14,8 @@ esphome/core/* @esphome/core
 esphome/components/ac_dimmer/* @glmnet
 esphome/components/adc/* @esphome/core
 esphome/components/addressable_light/* @justfalter
+esphome/components/airthings_ble/* @jeromelaban
+esphome/components/airthings_wave_plus/* @jeromelaban
 esphome/components/am43/* @buxtronix
 esphome/components/am43/cover/* @buxtronix
 esphome/components/animation/* @syndlex
@@ -52,6 +54,8 @@ esphome/components/globals/* @esphome/core
 esphome/components/gpio/* @esphome/core
 esphome/components/gps/* @coogle
 esphome/components/havells_solar/* @sourabhjaiswal
+esphome/components/hbridge/fan/* @WeekendWarrior
+esphome/components/hbridge/light/* @DotNetDann
 esphome/components/hitachi_ac424/* @sourabhjaiswal
 esphome/components/homeassistant/* @OttoWinter
 esphome/components/hrxl_maxsonar_wr/* @netmikey
@@ -129,6 +133,7 @@ esphome/components/ssd1351_base/* @kbx81
 esphome/components/ssd1351_spi/* @kbx81
 esphome/components/st7735/* @SenexCrenshaw
 esphome/components/st7789v/* @kbx81
+esphome/components/st7920/* @marsjan155
 esphome/components/substitutions/* @esphome/core
 esphome/components/sun/* @OttoWinter
 esphome/components/switch/* @esphome/core

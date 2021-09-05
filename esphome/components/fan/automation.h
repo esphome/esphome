@@ -13,6 +13,7 @@ template<typename... Ts> class TurnOnAction : public Action<Ts...> {
 
   TEMPLATABLE_VALUE(bool, oscillating)
   TEMPLATABLE_VALUE(int, speed)
+  TEMPLATABLE_VALUE(FanDirection, direction)
 
   void play(Ts... x) override {
     auto call = this->state_->turn_on();
@@ -21,6 +22,9 @@ template<typename... Ts> class TurnOnAction : public Action<Ts...> {
     }
     if (this->speed_.has_value()) {
       call.set_speed(this->speed_.value(x...));
+    }
+    if (this->direction_.has_value()) {
+      call.set_direction(this->direction_.value(x...));
     }
     call.perform();
   }
@@ -43,6 +47,23 @@ template<typename... Ts> class ToggleAction : public Action<Ts...> {
 
   void play(Ts... x) override { this->state_->toggle().perform(); }
 
+  FanState *state_;
+};
+
+template<typename... Ts> class FanIsOnCondition : public Condition<Ts...> {
+ public:
+  explicit FanIsOnCondition(FanState *state) : state_(state) {}
+  bool check(Ts... x) override { return this->state_->state; }
+
+ protected:
+  FanState *state_;
+};
+template<typename... Ts> class FanIsOffCondition : public Condition<Ts...> {
+ public:
+  explicit FanIsOffCondition(FanState *state) : state_(state) {}
+  bool check(Ts... x) override { return !this->state_->state; }
+
+ protected:
   FanState *state_;
 };
 

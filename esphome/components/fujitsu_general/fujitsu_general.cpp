@@ -297,12 +297,6 @@ bool FujitsuGeneralClimate::on_receive(remote_base::RemoteReceiveData data) {
     }
   }
 
-  // Validate footer
-  if (!data.expect_mark(FUJITSU_GENERAL_BIT_MARK)) {
-    ESP_LOGV(TAG, "Footer fail");
-    return false;
-  }
-
   for (uint8_t byte = 0; byte < recv_message_length; ++byte) {
     ESP_LOGVV(TAG, "%02X", recv_message[byte]);
   }

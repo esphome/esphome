@@ -129,6 +129,8 @@ mqtt:
             - mqtt.connected:
             - light.is_on: kitchen
             - light.is_off: kitchen
+            - fan.is_on: fan_speed
+            - fan.is_off: fan_speed
           then:
             - lambda: |-
                 int data = x["my_data"];
@@ -1860,6 +1862,7 @@ switch:
       inverted: False
   - platform: template
     id: ble1_status
+    optimistic: true
 
 fan:
   - platform: binary
@@ -1868,6 +1871,7 @@ fan:
     oscillation_output: gpio_19
     direction_output: gpio_26
   - platform: speed
+    id: fan_speed
     output: pca_6
     speed_count: 10
     name: 'Living Room Fan 2'
@@ -2036,6 +2040,14 @@ display:
     dc_pin: GPIO16
     reset_pin: GPIO23
     backlight_pin: GPIO4
+    lambda: |-
+      it.rectangle(0, 0, it.get_width(), it.get_height());
+  - platform: st7920
+    width: 128
+    height: 64
+    cs_pin:
+      number: GPIO23
+      inverted: true
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
   - platform: st7735

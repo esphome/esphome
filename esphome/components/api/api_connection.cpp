@@ -289,6 +289,7 @@ void APIConnection::fan_command(const FanCommandRequest &msg) {
     // Prefer level
     call.set_speed(msg.speed_level);
   } else if (msg.has_speed) {
+    // NOLINTNEXTLINE(clang-diagnostic-deprecated-declarations)
     call.set_speed(fan::speed_enum_to_level(static_cast<fan::FanSpeed>(msg.speed), traits.supported_speed_count()));
   }
   if (msg.has_direction)
@@ -417,7 +418,6 @@ bool APIConnection::send_sensor_info(sensor::Sensor *sensor) {
   msg.force_update = sensor->get_force_update();
   msg.device_class = sensor->get_device_class();
   msg.state_class = static_cast<enums::SensorStateClass>(sensor->state_class);
-  msg.last_reset_type = static_cast<enums::SensorLastResetType>(sensor->last_reset_type);
   msg.disabled_by_default = sensor->is_disabled_by_default();
 
   return this->send_list_entities_sensor_response(msg);
@@ -745,9 +745,7 @@ DeviceInfoResponse APIConnection::device_info(const DeviceInfoRequest &msg) {
   resp.mac_address = get_mac_address_pretty();
   resp.esphome_version = ESPHOME_VERSION;
   resp.compilation_time = App.get_compilation_time();
-#ifdef ARDUINO_BOARD
-  resp.model = ARDUINO_BOARD;
-#endif
+  resp.model = ESPHOME_BOARD;
 #ifdef USE_DEEP_SLEEP
   resp.has_deep_sleep = deep_sleep::global_has_deep_sleep;
 #endif
