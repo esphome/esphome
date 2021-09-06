@@ -4,7 +4,7 @@
 namespace esphome {
 namespace fastled_base {
 
-static const char *TAG = "fastled";
+static const char *const TAG = "fastled";
 
 void FastLEDLightOutput::setup() {
   ESP_LOGCONFIG(TAG, "Setting up FastLED light...");
@@ -20,13 +20,12 @@ void FastLEDLightOutput::dump_config() {
   ESP_LOGCONFIG(TAG, "  Num LEDs: %u", this->num_leds_);
   ESP_LOGCONFIG(TAG, "  Max refresh rate: %u", *this->max_refresh_rate_);
 }
-void FastLEDLightOutput::loop() {
-  if (!this->should_show_())
-    return;
-
-  uint32_t now = micros();
+void FastLEDLightOutput::write_state(light::LightState *state) {
   // protect from refreshing too often
+  uint32_t now = micros();
   if (*this->max_refresh_rate_ != 0 && (now - this->last_refresh_) < *this->max_refresh_rate_) {
+    // try again next loop iteration, so that this change won't get lost
+    this->schedule_show();
     return;
   }
   this->last_refresh_ = now;

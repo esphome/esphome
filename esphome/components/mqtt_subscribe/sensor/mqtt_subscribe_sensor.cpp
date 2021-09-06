@@ -4,21 +4,22 @@
 namespace esphome {
 namespace mqtt_subscribe {
 
-static const char *TAG = "mqtt_subscribe.sensor";
+static const char *const TAG = "mqtt_subscribe.sensor";
 
 void MQTTSubscribeSensor::setup() {
-  mqtt::global_mqtt_client->subscribe(this->topic_,
-                                      [this](const std::string &topic, std::string payload) {
-                                        auto val = parse_float(payload);
-                                        if (!val.has_value()) {
-                                          ESP_LOGW(TAG, "Can't convert '%s' to number!", payload.c_str());
-                                          this->publish_state(NAN);
-                                          return;
-                                        }
+  mqtt::global_mqtt_client->subscribe(
+      this->topic_,
+      [this](const std::string &topic, const std::string &payload) {
+        auto val = parse_float(payload);
+        if (!val.has_value()) {
+          ESP_LOGW(TAG, "Can't convert '%s' to number!", payload.c_str());
+          this->publish_state(NAN);
+          return;
+        }
 
-                                        this->publish_state(*val);
-                                      },
-                                      this->qos_);
+        this->publish_state(*val);
+      },
+      this->qos_);
 }
 
 float MQTTSubscribeSensor::get_setup_priority() const { return setup_priority::AFTER_CONNECTION; }

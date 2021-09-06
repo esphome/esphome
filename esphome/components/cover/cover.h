@@ -12,14 +12,14 @@ const extern float COVER_OPEN;
 const extern float COVER_CLOSED;
 
 #define LOG_COVER(prefix, type, obj) \
-  if (obj != nullptr) { \
-    ESP_LOGCONFIG(TAG, "%s%s '%s'", prefix, type, obj->get_name().c_str()); \
-    auto traits_ = obj->get_traits(); \
+  if ((obj) != nullptr) { \
+    ESP_LOGCONFIG(TAG, "%s%s '%s'", prefix, type, (obj)->get_name().c_str()); \
+    auto traits_ = (obj)->get_traits(); \
     if (traits_.get_is_assumed_state()) { \
       ESP_LOGCONFIG(TAG, "%s  Assumed State: YES", prefix); \
     } \
-    if (!obj->get_device_class().empty()) { \
-      ESP_LOGCONFIG(TAG, "%s  Device Class: '%s'", prefix, obj->get_device_class().c_str()); \
+    if (!(obj)->get_device_class().empty()) { \
+      ESP_LOGCONFIG(TAG, "%s  Device Class: '%s'", prefix, (obj)->get_device_class().c_str()); \
     } \
   }
 
@@ -110,15 +110,12 @@ class Cover : public Nameable {
 
   /// The current operation of the cover (idle, opening, closing).
   CoverOperation current_operation{COVER_OPERATION_IDLE};
-  union {
-    /** The position of the cover from 0.0 (fully closed) to 1.0 (fully open).
-     *
-     * For binary covers this is always equals to 0.0 or 1.0 (see also COVER_OPEN and
-     * COVER_CLOSED constants).
-     */
-    float position;
-    ESPDEPRECATED("<cover>.state is deprecated, please use .position instead") float state;
-  };
+  /** The position of the cover from 0.0 (fully closed) to 1.0 (fully open).
+   *
+   * For binary covers this is always equals to 0.0 or 1.0 (see also COVER_OPEN and
+   * COVER_CLOSED constants).
+   */
+  float position;
   /// The current tilt value of the cover from 0.0 to 1.0.
   float tilt{COVER_OPEN};
 
@@ -128,16 +125,19 @@ class Cover : public Nameable {
    *
    * This is a legacy method and may be removed later, please use `.make_call()` instead.
    */
+  ESPDEPRECATED("open() is deprecated, use make_call().set_command_open() instead.", "2021.9")
   void open();
   /** Close the cover.
    *
    * This is a legacy method and may be removed later, please use `.make_call()` instead.
    */
+  ESPDEPRECATED("close() is deprecated, use make_call().set_command_close() instead.", "2021.9")
   void close();
   /** Stop the cover.
    *
    * This is a legacy method and may be removed later, please use `.make_call()` instead.
    */
+  ESPDEPRECATED("stop() is deprecated, use make_call().set_command_stop() instead.", "2021.9")
   void stop();
 
   void add_on_state_callback(std::function<void()> &&f);

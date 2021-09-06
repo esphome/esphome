@@ -3,6 +3,7 @@ reports=no
 ignore=api_pb2.py
 
 disable=
+  format,
   missing-docstring,
   fixme,
   unused-argument,

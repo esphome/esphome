@@ -1,9 +1,11 @@
-ARG BUILD_FROM
+ARG BUILD_FROM=esphome/esphome-hassio-base:latest
 FROM ${BUILD_FROM}
 
 # First install requirements to leverage caching when requirements don't change
-COPY requirements.txt /
-RUN pip3 install --no-cache-dir -r /requirements.txt
+COPY requirements.txt requirements_optional.txt docker/platformio_install_deps.py platformio.ini /
+RUN \
+    pip3 install --no-cache-dir -r /requirements.txt -r /requirements_optional.txt \
+    && /platformio_install_deps.py /platformio.ini
 
 # Copy root filesystem
 COPY docker/rootfs/ /

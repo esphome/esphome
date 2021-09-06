@@ -5,10 +5,8 @@
 namespace esphome {
 namespace ssd1325_base {
 
-static const char *TAG = "ssd1325";
+static const char *const TAG = "ssd1325";
 
-static const uint8_t BLACK = 0;
-static const uint8_t WHITE = 15;
 static const uint8_t SSD1325_MAX_CONTRAST = 127;
 static const uint8_t SSD1325_COLORMASK = 0x0f;
 static const uint8_t SSD1325_COLORSHIFT = 4;
@@ -114,9 +112,9 @@ void SSD1325::setup() {
   this->command(0x0D | 0x02);
   this->command(SSD1325_NORMALDISPLAY);  // set display mode
   set_brightness(this->brightness_);
-  this->fill(BLACK);  // clear display - ensures we do not see garbage at power-on
-  this->display();    // ...write buffer, which actually clears the display's memory
-  this->turn_on();    // display ON
+  this->fill(Color::BLACK);  // clear display - ensures we do not see garbage at power-on
+  this->display();           // ...write buffer, which actually clears the display's memory
+  this->turn_on();           // display ON
 }
 void SSD1325::display() {
   this->command(SSD1325_SETCOLADDR);  // set column address
@@ -192,7 +190,7 @@ size_t SSD1325::get_buffer_length_() {
 void HOT SSD1325::draw_absolute_pixel_internal(int x, int y, Color color) {
   if (x >= this->get_width_internal() || x < 0 || y >= this->get_height_internal() || y < 0)
     return;
-  uint32_t color4 = color.to_grayscale4();
+  uint32_t color4 = display::ColorUtil::color_to_grayscale4(color);
   // where should the bits go in the big buffer array? math...
   uint16_t pos = (x / SSD1325_PIXELSPERBYTE) + (y * this->get_width_internal() / SSD1325_PIXELSPERBYTE);
   uint8_t shift = (x % SSD1325_PIXELSPERBYTE) * SSD1325_COLORSHIFT;
@@ -204,7 +202,7 @@ void HOT SSD1325::draw_absolute_pixel_internal(int x, int y, Color color) {
   this->buffer_[pos] |= color4;
 }
 void SSD1325::fill(Color color) {
-  const uint32_t color4 = color.to_grayscale4();
+  const uint32_t color4 = display::ColorUtil::color_to_grayscale4(color);
   uint8_t fill = (color4 & SSD1325_COLORMASK) | ((color4 & SSD1325_COLORMASK) << SSD1325_COLORSHIFT);
   for (uint32_t i = 0; i < this->get_buffer_length_(); i++)
     this->buffer_[i] = fill;

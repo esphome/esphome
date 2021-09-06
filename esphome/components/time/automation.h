@@ -37,5 +37,12 @@ class CronTrigger : public Trigger<>, public Component {
   optional<ESPTime> last_check_;
 };
 
+class SyncTrigger : public Trigger<>, public Component {
+ public:
+  explicit SyncTrigger(RealTimeClock *rtc);
+
+ protected:
+  RealTimeClock *rtc_;
+};
 }  // namespace time
 }  // namespace esphome

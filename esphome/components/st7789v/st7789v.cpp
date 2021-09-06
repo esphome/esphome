@@ -4,7 +4,7 @@
 namespace esphome {
 namespace st7789v {
 
-static const char *TAG = "st7789v";
+static const char *const TAG = "st7789v";
 
 void ST7789V::setup() {
   ESP_LOGCONFIG(TAG, "Setting up SPI ST7789V...");
@@ -263,7 +263,7 @@ void HOT ST7789V::draw_absolute_pixel_internal(int x, int y, Color color) {
   if (x >= this->get_width_internal() || x < 0 || y >= this->get_height_internal() || y < 0)
     return;
 
-  auto color565 = color.to_rgb_565();
+  auto color565 = display::ColorUtil::color_to_565(color);
 
   uint16_t pos = (x + y * this->get_width_internal()) * 2;
   this->buffer_[pos++] = (color565 >> 8) & 0xff;

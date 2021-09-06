@@ -61,6 +61,7 @@ class Scheduler {
   std::vector<std::unique_ptr<SchedulerItem>> to_add_;
   uint32_t last_millis_{0};
   uint8_t millis_major_{0};
+  uint32_t to_remove_{0};
 };
 
 }  // namespace esphome

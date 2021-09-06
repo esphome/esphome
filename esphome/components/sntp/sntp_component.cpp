@@ -8,10 +8,15 @@
 #include "sntp.h"
 #endif
 
+// Yes, the server names are leaked, but that's fine.
+#ifdef CLANG_TIDY
+#define strdup(x) (const_cast<char *>(x))
+#endif
+
 namespace esphome {
 namespace sntp {
 
-static const char *TAG = "sntp";
+static const char *const TAG = "sntp";
 
 void SNTPComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up SNTP...");
@@ -42,6 +47,7 @@ void SNTPComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "  Server 3: '%s'", this->server_3_.c_str());
   ESP_LOGCONFIG(TAG, "  Timezone: '%s'", this->timezone_.c_str());
 }
+void SNTPComponent::update() {}
 void SNTPComponent::loop() {
   if (this->has_time_)
     return;
@@ -50,9 +56,9 @@ void SNTPComponent::loop() {
   if (!time.is_valid())
     return;
 
-  char buf[128];
-  time.strftime(buf, sizeof(buf), "%c");
-  ESP_LOGD(TAG, "Synchronized time: %s", buf);
+  ESP_LOGD(TAG, "Synchronized time: %d-%d-%d %d:%d:%d", time.year, time.month, time.day_of_month, time.hour,
+           time.minute, time.second);
+  this->time_sync_callback_.call();
   this->has_time_ = true;
 }
 

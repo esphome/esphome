@@ -11,7 +11,7 @@
 namespace esphome {
 namespace uart {
 
-static const char *TAG = "uart";
+static const char *const TAG = "uart";
 
 size_t UARTComponent::write(uint8_t data) {
   this->write_byte(data);
