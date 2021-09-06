@@ -231,13 +231,7 @@ class ModbusController : public PollingComponent, public modbus::ModbusDevice {
   std::queue<std::unique_ptr<ModbusCommandItem>> incoming_queue_;
   uint32_t last_command_timestamp_;
   uint16_t command_throttle_;
-  void dump_sensormap_() {
-    ESP_LOGV("modbuscontroller.h", "sensormap");
-    for (auto &it : sensormap_) {
-      ESP_LOGV("modbuscontroller.h", "  Sensor 0x%llX start=0x%X count=%d size=%d", it.second->getkey(),
-               it.second->start_address, it.second->register_count, it.second->get_register_size());
-    }
-  }
+  void dump_sensormap_();
 };
 
 }  // namespace modbus_controller
