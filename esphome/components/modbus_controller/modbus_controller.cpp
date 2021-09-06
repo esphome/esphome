@@ -171,9 +171,9 @@ size_t ModbusController::create_register_ranges() {
       ix->second->offset += prev->second->offset + prev->second->get_register_size();
 
       // replace entry in sensormap_
-      auto const value = std::move(ix->second);
+      auto const value = ix->second;
       sensormap_.erase(ix);
-      sensormap_.insert({value->getkey(), std::move(value)});
+      sensormap_.insert({value->getkey(), value});
       // move iterator back to new element
       ix = sensormap_.find(value->getkey());  // next(prev, 1);
     }
@@ -271,6 +271,13 @@ void ModbusController::on_write_register_response(ModbusFunctionCode function_co
   ESP_LOGV(TAG, "Command ACK 0x%X %d ", get_data<uint16_t>(data, 0), get_data<int16_t>(data, 1));
 }
 
+void ModbusController::dump_sensormap_() {
+  ESP_LOGV("modbuscontroller.h", "sensormap");
+  for (auto &it : sensormap_) {
+    ESP_LOGV("modbuscontroller.h", "  Sensor 0x%llX start=0x%X count=%d size=%d", it.second->getkey(),
+             it.second->start_address, it.second->register_count, it.second->get_register_size());
+  }
+}
 // factory methods
 ModbusCommandItem ModbusCommandItem::create_read_command(
     ModbusController *modbusdevice, ModbusFunctionCode function_code, uint16_t start_address, uint16_t register_count,
