@@ -8,6 +8,7 @@ from .. import SensorItem, modbus_controller_ns, ModbusController, MODBUS_FUNCTI
 from ..const import (
     CONF_BITMASK,
     CONF_BYTE_OFFSET,
+    CONF_FORCE_NEW_RANGE,
     CONF_MODBUS_CONTROLLER_ID,
     CONF_MODBUS_FUNCTIONCODE,
 )
@@ -31,6 +32,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_OFFSET, default=0): cv.positive_int,
             cv.Optional(CONF_BYTE_OFFSET): cv.positive_int,
             cv.Optional(CONF_BITMASK, default=0x1): cv.hex_uint32_t,
+            cv.Optional(CONF_FORCE_NEW_RANGE, default=False): cv.boolean,
         }
     ).extend(cv.COMPONENT_SCHEMA),
 )
@@ -49,6 +51,7 @@ async def to_code(config):
         config[CONF_ADDRESS],
         byte_offset,
         config[CONF_BITMASK],
+        config[CONF_FORCE_NEW_RANGE],
     )
     await cg.register_component(var, config)
     await switch.register_switch(var, config)

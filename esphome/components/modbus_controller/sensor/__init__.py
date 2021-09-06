@@ -13,6 +13,7 @@ from .. import (
 from ..const import (
     CONF_BITMASK,
     CONF_BYTE_OFFSET,
+    CONF_FORCE_NEW_RANGE,
     CONF_MODBUS_CONTROLLER_ID,
     CONF_MODBUS_FUNCTIONCODE,
     CONF_REGISTER_COUNT,
@@ -57,6 +58,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_VALUE_TYPE, default="U_WORD"): cv.enum(SENSOR_VALUE_TYPE),
             cv.Optional(CONF_REGISTER_COUNT, default=0): cv.positive_int,
             cv.Optional(CONF_SKIP_UPDATES, default=0): cv.positive_int,
+            cv.Optional(CONF_FORCE_NEW_RANGE, default=False): cv.boolean,
         }
     ).extend(cv.COMPONENT_SCHEMA),
 )
@@ -82,6 +84,7 @@ async def to_code(config):
         config[CONF_VALUE_TYPE],
         reg_count,
         config[CONF_SKIP_UPDATES],
+        config[CONF_FORCE_NEW_RANGE],
     )
     await cg.register_component(var, config)
     await sensor.register_sensor(var, config)

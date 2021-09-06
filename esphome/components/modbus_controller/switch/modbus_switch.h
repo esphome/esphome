@@ -9,7 +9,8 @@ namespace modbus_controller {
 
 class ModbusSwitch : public Component, public switch_::Switch, public SensorItem {
  public:
-  ModbusSwitch(ModbusFunctionCode register_type, uint16_t start_address, uint8_t offset, uint32_t bitmask)
+  ModbusSwitch(ModbusFunctionCode register_type, uint16_t start_address, uint8_t offset, uint32_t bitmask,
+               bool force_new_range)
       : Component(), switch_::Switch() {
     this->register_type = register_type;
     this->start_address = start_address;
@@ -23,6 +24,7 @@ class ModbusSwitch : public Component, public switch_::Switch, public SensorItem
       this->start_address += offset;
       this->offset = 0;
     }
+    this->force_new_range = force_new_range;
   };
 
   void write_state(bool state) override;

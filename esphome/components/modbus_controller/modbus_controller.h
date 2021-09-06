@@ -133,11 +133,12 @@ struct SensorItem {
   uint8_t offset;
   uint8_t register_count;
   uint8_t skip_updates;
+  bool force_new_range{false};
 
   virtual void parse_and_publish(const std::vector<uint8_t> &data) = 0;
 
   uint64_t getkey() const { return calc_key(register_type, start_address, offset, bitmask); }
-  size_t get_register_size() const {
+  size_t virtual get_register_size() const {
     size_t size = 0;
     switch (sensor_value_type) {
       case SensorValueType::BIT:
@@ -147,7 +148,6 @@ struct SensorItem {
       case SensorValueType::S_WORD:
         size = 2;
         break;
-      case SensorValueType::RAW:
       case SensorValueType::U_DWORD:
       case SensorValueType::S_DWORD:
       case SensorValueType::U_DWORD_R:
@@ -162,6 +162,8 @@ struct SensorItem {
       case SensorValueType::S_QWORD_R:
         size = 8;
         break;
+      case SensorValueType::RAW:
+        size = this->register_count * 2;
     }
     return size;
   }
@@ -229,6 +231,13 @@ class ModbusController : public PollingComponent, public modbus::ModbusDevice {
   std::queue<std::unique_ptr<ModbusCommandItem>> incoming_queue_;
   uint32_t last_command_timestamp_;
   uint16_t command_throttle_;
+  void dump_sensormap_() {
+    ESP_LOGV("modbuscontroller.h", "sensormap");
+    for (auto &it : sensormap_) {
+      ESP_LOGV("modbuscontroller.h", "  Sensor 0x%llX start=0x%X count=%d size=%d", it.second->getkey(),
+               it.second->start_address, it.second->register_count, it.second->get_register_size());
+    }
+  }
 };
 
 }  // namespace modbus_controller

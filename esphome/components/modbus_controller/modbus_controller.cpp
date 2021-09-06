@@ -21,10 +21,6 @@ void ModbusController::setup() {
 bool ModbusController::send_next_command_() {
   uint32_t last_send = millis() - this->last_command_timestamp_;
 
-  // if (!command_queue_.empty() && this->waiting_for_response()) {
-  //    ESP_LOGV(TAG, "Sending delayed - waiting for previous response");
-  //  }
-
   if ((last_send > this->command_throttle_) && !waiting_for_response() && !command_queue_.empty()) {
     auto &command = command_queue_.front();
 
@@ -87,7 +83,8 @@ void ModbusController::on_register_data(ModbusFunctionCode function_code, uint16
   }
   auto map_it = sensormap_.find(vec_it->first_sensorkey);
   if (map_it == sensormap_.end()) {
-    ESP_LOGE(TAG, "Handle incoming data : No sensor found in at start_address :  0x%X", start_address);
+    ESP_LOGE(TAG, "Handle incoming data : No sensor found in at start_address :  0x%X (0x%llX)", start_address,
+             vec_it->first_sensorkey);
     return;
   }
   // loop through all sensors with the same start address
@@ -139,6 +136,7 @@ void ModbusController::update() {
   }
 
   for (auto &r : this->register_ranges_) {
+    ESP_LOGVV(TAG, "Updating range 0x%X", r.start_address);
     update_range(r);
   }
 }
@@ -150,20 +148,35 @@ size_t ModbusController::create_register_ranges() {
   if (sensormap_.empty()) {
     return 0;
   }
-  // map is already sorted by keys so we start with the lowest address ;
+
   auto ix = sensormap_.begin();
   auto prev = ix;
+  int total_register_count = 0;
   uint16_t current_start_address = ix->second->start_address;
   uint8_t buffer_offset = ix->second->offset;
   uint8_t skip_updates = ix->second->skip_updates;
   auto first_sensorkey = ix->second->getkey();
-  int total_register_count = 0;
+  total_register_count = 0;
   while (ix != sensormap_.end()) {
-    // use the lowest non zero value for the whole range
-    // Because zero is the default value for skip_updates it is excluded from getting the min value.
     ESP_LOGV(TAG, "Register: 0x%X %d %d  0x%llx (%d) buffer_offset = %d (0x%X) skip=%u", ix->second->start_address,
              ix->second->register_count, ix->second->offset, ix->second->getkey(), total_register_count, buffer_offset,
              buffer_offset, ix->second->skip_updates);
+    // if this is a sequential address based on number of registers and address of previous sensor
+    // convert to an offset to the previous sensor (address 0x101 becomes address 0x100 offset 2 bytes)
+    if (!ix->second->force_new_range && total_register_count >= 0 &&
+        prev->second->register_type == ix->second->register_type &&
+        prev->second->start_address + total_register_count == ix->second->start_address &&
+        prev->second->start_address < ix->second->start_address) {
+      ix->second->start_address = prev->second->start_address;
+      ix->second->offset += prev->second->offset + prev->second->get_register_size();
+
+      // replace entry in sensormap_
+      auto const value = std::move(ix->second);
+      sensormap_.erase(ix);
+      sensormap_.insert({value->getkey(), std::move(value)});
+      // move iterator back to new element
+      ix = sensormap_.find(value->getkey());  // next(prev, 1);
+    }
     if (current_start_address != ix->second->start_address ||
         //  ( prev->second->start_address + prev->second->offset != ix->second->start_address) ||
         ix->second->register_type != prev->second->register_type) {
@@ -195,7 +208,8 @@ size_t ModbusController::create_register_ranges() {
         total_register_count += ix->second->register_count;
         buffer_offset += ix->second->get_register_size();
       }
-      // Use the lowest non zero skip_upates value for the range
+      // use the lowest non zero value for the whole range
+      // Because zero is the default value for skip_updates it is excluded from getting the min value.
       if (ix->second->skip_updates != 0) {
         if (skip_updates != 0) {
           skip_updates = std::min(skip_updates, ix->second->skip_updates);
@@ -220,6 +234,7 @@ size_t ModbusController::create_register_ranges() {
     r.first_sensorkey = first_sensorkey;
     r.skip_updates = skip_updates;
     r.skip_updates_counter = 0;
+    ESP_LOGV(TAG, "Add last range 0x%X %d skip:%d", r.start_address, r.register_count, r.skip_updates);
     register_ranges_.push_back(r);
   }
   return register_ranges_.size();
@@ -228,18 +243,17 @@ size_t ModbusController::create_register_ranges() {
 void ModbusController::dump_config() {
   ESP_LOGCONFIG(TAG, "ModbusController:");
   ESP_LOGCONFIG(TAG, "  Address: 0x%02X", this->address_);
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+  ESP_LOGCONFIG(TAG, "sensormap");
+  for (auto &it : sensormap_) {
+    ESP_LOGCONFIG("TAG", "  Sensor 0x%llX start=0x%X count=%d size=%d", it.second->getkey(), it.second->start_address,
+                  it.second->register_count, it.second->get_register_size());
+  }
+#endif
 }
 
 void ModbusController::loop() {
   // Incoming data to process?
-
-  /*
-    if (!incoming_data.empty()) {
-      auto &message = incoming_data.front();
-      process_modbus_data(message);
-      incoming_data.pop();
-  */
-  //  read_uart();
   if (!incoming_queue_.empty()) {
     auto &message = incoming_queue_.front();
     if (message != nullptr)

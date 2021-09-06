@@ -10,7 +10,7 @@ namespace modbus_controller {
 class ModbusSensor : public Component, public sensor::Sensor, public SensorItem {
  public:
   ModbusSensor(ModbusFunctionCode register_type, uint16_t start_address, uint8_t offset, uint32_t bitmask,
-               SensorValueType value_type, int register_count, uint8_t skip_updates)
+               SensorValueType value_type, int register_count, uint8_t skip_updates, bool force_new_range)
       : Component(), sensor::Sensor() {
     this->register_type = register_type;
     this->start_address = start_address;
@@ -19,6 +19,7 @@ class ModbusSensor : public Component, public sensor::Sensor, public SensorItem 
     this->sensor_value_type = value_type;
     this->register_count = register_count;
     this->skip_updates = skip_updates;
+    this->force_new_range = force_new_range;
   }
 
   void parse_and_publish(const std::vector<uint8_t> &data) override;

@@ -12,6 +12,7 @@ from .. import (
 )
 from ..const import (
     CONF_BYTE_OFFSET,
+    CONF_FORCE_NEW_RANGE,
     CONF_MODBUS_CONTROLLER_ID,
     CONF_MODBUS_FUNCTIONCODE,
     CONF_REGISTER_COUNT,
@@ -49,6 +50,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_RESPONSE_SIZE, default=2): cv.positive_int,
             cv.Optional(CONF_RAW_ENCODE, default="NONE"): cv.enum(RAW_ENCODING),
             cv.Optional(CONF_SKIP_UPDATES, default=0): cv.positive_int,
+            cv.Optional(CONF_FORCE_NEW_RANGE, default=False): cv.boolean,
         }
     ).extend(cv.COMPONENT_SCHEMA),
 )
@@ -74,7 +76,9 @@ async def to_code(config):
         config[CONF_RESPONSE_SIZE],
         config[CONF_RAW_ENCODE],
         config[CONF_SKIP_UPDATES],
+        config[CONF_FORCE_NEW_RANGE],
     )
+
     await cg.register_component(var, config)
     await text_sensor.register_text_sensor(var, config)
 
