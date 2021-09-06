@@ -8,11 +8,10 @@
 #endif
 
 #include "esphome/core/macros.h"
-// avoid esp-idf redefining our macros
-#include "esphome/core/esphal.h"
 
-#ifdef ARDUINO_ARCH_ESP32
-#include "esp_err.h"
+#if defined(USE_ESP32_ARDUINO) || defined(USE_ESP_IDF)
+#include <esp_err.h>
+#include <esp_log.h>
 #endif
 
 namespace esphome {
@@ -56,7 +55,7 @@ void esp_log_vprintf_(int level, const char *tag, int line, const char *format, 
 #ifdef USE_STORE_LOG_STR_IN_FLASH
 void esp_log_vprintf_(int level, const char *tag, int line, const __FlashStringHelper *format, va_list args);
 #endif
-#ifdef ARDUINO_ARCH_ESP32
+#if defined(USE_ESP32_ARDUINO) || defined(USE_ESP_IDF)
 int esp_idf_log_vprintf_(const char *format, va_list args);  // NOLINT
 #endif
 

@@ -5,6 +5,7 @@
 #include "esphome/core/util.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/version.h"
+#include "esphome/components/network/util.h"
 
 #ifdef USE_LOGGER
 #include "esphome/components/logger/logger.h"
@@ -93,7 +94,7 @@ void APIServer::loop() {
 }
 void APIServer::dump_config() {
   ESP_LOGCONFIG(TAG, "API Server:");
-  ESP_LOGCONFIG(TAG, "  Address: %s:%u", network_get_address().c_str(), this->port_);
+  ESP_LOGCONFIG(TAG, "  Address: %s:%u", network::get_use_address().c_str(), this->port_);
 }
 bool APIServer::uses_password() const { return !this->password_.empty(); }
 bool APIServer::check_password(const std::string &password) const {

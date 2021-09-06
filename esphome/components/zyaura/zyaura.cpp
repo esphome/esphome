@@ -82,7 +82,7 @@ bool ZyAuraSensor::publish_state_(sensor::Sensor *sensor, float *value) {
   sensor->publish_state(*value);
 
   // Sensor reported wrong value
-  if (isnan(*value)) {
+  if (std::isnan(*value)) {
     ESP_LOGW(TAG, "Sensor reported invalid data. Is the update interval too small?");
     this->status_set_warning();
     return false;

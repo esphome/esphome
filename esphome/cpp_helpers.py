@@ -26,17 +26,13 @@ async def gpio_pin_expression(conf):
     This is a coroutine, you must await it with a 'await' expression!
     """
     if conf is None:
-        return
+        return None
     from esphome import pins
 
     for key, (func, _) in pins.PIN_SCHEMA_REGISTRY.items():
         if key in conf:
             return await coroutine(func)(conf)
-
-    number = conf[CONF_NUMBER]
-    mode = conf[CONF_MODE]
-    inverted = conf.get(CONF_INVERTED)
-    return GPIOPin.new(number, RawExpression(mode), inverted)
+    return await coroutine(pins.PIN_SCHEMA_REGISTRY["default"][0])(conf)
 
 
 async def register_component(var, config):

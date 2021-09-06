@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 from dataclasses import dataclass
 
-from esphome.const import ESP_PLATFORMS, SOURCE_FILE_EXTENSIONS
+from esphome.const import SOURCE_FILE_EXTENSIONS
 import esphome.core.config
 from esphome.core import CORE
 from esphome.types import ConfigType
@@ -17,7 +17,7 @@ from esphome.types import ConfigType
 _LOGGER = logging.getLogger(__name__)
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, order=True)
 class FileResource:
     package: str
     resource: str
@@ -62,10 +62,6 @@ class ComponentManifest:
         return getattr(self.module, "to_code", None)
 
     @property
-    def esp_platforms(self) -> List[str]:
-        return getattr(self.module, "ESP_PLATFORMS", ESP_PLATFORMS)
-
-    @property
     def dependencies(self) -> List[str]:
         return getattr(self.module, "DEPENDENCIES", [])
 
@@ -106,10 +102,6 @@ class ComponentManifest:
                 continue
             ret.append(FileResource(self.package, resource))
         return ret
-
-    @property
-    def extra_resources(self) -> Dict[FileResource, str]:
-        """Components can declare extra resources to be included in the generated PIO project."""
 
 
 class ComponentMetaFinder(importlib.abc.MetaPathFinder):

@@ -1,6 +1,6 @@
 #include "tuya.h"
 #include "esphome/core/log.h"
-#include "esphome/core/util.h"
+#include "esphome/components/network/util.h"
 #include "esphome/core/helpers.h"
 
 namespace esphome {
@@ -389,7 +389,7 @@ void Tuya::send_empty_command_(TuyaCommandType command) {
 
 void Tuya::send_wifi_status_() {
   uint8_t status = 0x02;
-  if (network_is_connected()) {
+  if (network::is_connected()) {
     status = 0x03;
 
     // Protocol version 3 also supports specifying when connected to "the cloud"

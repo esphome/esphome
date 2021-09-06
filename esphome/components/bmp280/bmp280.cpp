@@ -139,7 +139,7 @@ void BMP280Component::update() {
   this->set_timeout("data", uint32_t(ceilf(meas_time)), [this]() {
     int32_t t_fine = 0;
     float temperature = this->read_temperature_(&t_fine);
-    if (isnan(temperature)) {
+    if (std::isnan(temperature)) {
       ESP_LOGW(TAG, "Invalid temperature, cannot read pressure values.");
       this->status_set_warning();
       return;

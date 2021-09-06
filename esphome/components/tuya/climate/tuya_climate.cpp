@@ -89,7 +89,7 @@ void TuyaClimate::dump_config() {
 }
 
 void TuyaClimate::compute_state_() {
-  if (isnan(this->current_temperature) || isnan(this->target_temperature)) {
+  if (std::isnan(this->current_temperature) || std::isnan(this->target_temperature)) {
     // if any control parameters are nan, go to OFF action (not IDLE!)
     this->switch_to_action_(climate::CLIMATE_ACTION_OFF);
     return;

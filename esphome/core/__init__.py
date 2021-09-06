@@ -5,13 +5,14 @@ import re
 from typing import TYPE_CHECKING, Dict, List, Optional, Set, Tuple, Union
 
 from esphome.const import (
-    CONF_ARDUINO_VERSION,
     CONF_COMMENT,
     CONF_ESPHOME,
     CONF_USE_ADDRESS,
     CONF_ETHERNET,
     CONF_WIFI,
-    SOURCE_FILE_EXTENSIONS,
+    KEY_CORE,
+    KEY_TARGET_FRAMEWORK,
+    KEY_TARGET_PLATFORM,
 )
 from esphome.coroutine import FakeAwaitable as _FakeAwaitable
 from esphome.coroutine import FakeEventLoop as _FakeEventLoop
@@ -20,7 +21,6 @@ from esphome.coroutine import FakeEventLoop as _FakeEventLoop
 from esphome.coroutine import coroutine, coroutine_with_priority  # noqa
 from esphome.helpers import ensure_unique_string, is_hassio
 from esphome.util import OrderedDict
-from esphome import boards
 
 if TYPE_CHECKING:
     from ..cpp_generator import MockObj, MockObjClass, Statement
@@ -451,16 +451,13 @@ class EsphomeCore:
         self.ace = False
         # The name of the node
         self.name: Optional[str] = None
+        # Additional data components can store temporary data in
+        # The first key to this dict should always be the integration name
+        self.data = {}
         # The relative path to the configuration YAML
         self.config_path: Optional[str] = None
         # The relative path to where all build files are stored
         self.build_path: Optional[str] = None
-        # The platform (ESP8266, ESP32) of this device
-        self.esp_platform: Optional[str] = None
-        # The board that's used (for example nodemcuv2)
-        self.board: Optional[str] = None
-        # The full raw configuration
-        self.raw_config: Optional["ConfigType"] = None
         # The validated configuration, this is None until the config has been validated
         self.config: Optional["ConfigType"] = None
         # The pending tasks in the task queue (mostly for C++ generation)
@@ -493,11 +490,9 @@ class EsphomeCore:
     def reset(self):
         self.dashboard = False
         self.name = None
+        self.data = {}
         self.config_path = None
         self.build_path = None
-        self.esp_platform = None
-        self.board = None
-        self.raw_config = None
         self.config = None
         self.event_loop = _FakeEventLoop()
         self.task_counter = 0
@@ -535,13 +530,6 @@ class EsphomeCore:
         return None
 
     @property
-    def arduino_version(self) -> str:
-        if self.config is None:
-            raise ValueError("Config has not been loaded yet")
-
-        return self.config[CONF_ESPHOME][CONF_ARDUINO_VERSION]
-
-    @property
     def config_dir(self):
         return os.path.dirname(self.config_path)
 
@@ -577,26 +565,28 @@ class EsphomeCore:
         return self.relative_pioenvs_path(self.name, "firmware.bin")
 
     @property
+    def target_platform(self):
+        return self.data[KEY_CORE][KEY_TARGET_PLATFORM]
+
+    @property
     def is_esp8266(self):
-        if self.esp_platform is None:
-            raise ValueError("No platform specified")
-        return self.esp_platform == "ESP8266"
+        return self.target_platform == "esp8266"
 
     @property
     def is_esp32(self):
-        """Check if the ESP32 platform is used.
-
-        This checks if the ESP32 platform is in use, which
-        support ESP32 as well as other chips such as ESP32-C3
-        """
-        if self.esp_platform is None:
-            raise ValueError("No platform specified")
-        return self.esp_platform == "ESP32"
+        return self.target_platform == "esp32"
 
     @property
-    def is_esp32_c3(self):
-        """Check if the ESP32-C3 SoC is being used."""
-        return self.is_esp32 and self.board in boards.ESP32_C3_BOARD_PINS
+    def target_framework(self):
+        return self.data[KEY_CORE][KEY_TARGET_FRAMEWORK]
+
+    @property
+    def using_arduino(self):
+        return self.target_framework == "arduino"
+
+    @property
+    def using_esp_idf(self):
+        return self.target_framework == "esp-idf"
 
     def add_job(self, func, *args, **kwargs):
         self.event_loop.add_job(func, *args, **kwargs)

@@ -3,7 +3,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
-#include "esphome/core/util.h"
+#include "esphome/components/network/util.h"
 #include <utility>
 #ifdef USE_LOGGER
 #include "esphome/components/logger/logger.h"
@@ -166,7 +166,7 @@ void MQTTClientComponent::dns_found_callback(const char *name, const ip_addr_t *
 }
 
 void MQTTClientComponent::start_connect_() {
-  if (!network_is_connected())
+  if (!network::is_connected())
     return;
 
   ESP_LOGI(TAG, "Connecting to MQTT...");
@@ -251,7 +251,7 @@ void MQTTClientComponent::loop() {
         reason_s = "Unknown";
         break;
     }
-    if (!network_is_connected()) {
+    if (!network::is_connected()) {
       reason_s = "WiFi disconnected";
     }
     ESP_LOGW(TAG, "MQTT Disconnected: %s.", reason_s);

@@ -80,7 +80,7 @@ class SunTrigger : public Trigger<>, public PollingComponent, public Parented<Su
 
   void update() override {
     double current = this->parent_->elevation();
-    if (isnan(current))
+    if (std::isnan(current))
       return;
 
     bool crossed;
@@ -90,7 +90,7 @@ class SunTrigger : public Trigger<>, public PollingComponent, public Parented<Su
       crossed = this->last_elevation_ >= this->elevation_ && this->elevation_ > current;
     }
 
-    if (crossed && !isnan(this->last_elevation_)) {
+    if (crossed && !std::isnan(this->last_elevation_)) {
       this->trigger();
     }
     this->last_elevation_ = current;

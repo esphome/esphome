@@ -93,7 +93,7 @@ void ClimateCall::validate_() {
       ESP_LOGW(TAG, "  Cannot set target temperature for climate device "
                     "with two-point target temperature!");
       this->target_temperature_.reset();
-    } else if (isnan(target)) {
+    } else if (std::isnan(target)) {
       ESP_LOGW(TAG, "  Target temperature must not be NAN!");
       this->target_temperature_.reset();
     }
@@ -105,11 +105,11 @@ void ClimateCall::validate_() {
       this->target_temperature_high_.reset();
     }
   }
-  if (this->target_temperature_low_.has_value() && isnan(*this->target_temperature_low_)) {
+  if (this->target_temperature_low_.has_value() && std::isnan(*this->target_temperature_low_)) {
     ESP_LOGW(TAG, "  Target temperature low must not be NAN!");
     this->target_temperature_low_.reset();
   }
-  if (this->target_temperature_high_.has_value() && isnan(*this->target_temperature_high_)) {
+  if (this->target_temperature_high_.has_value() && std::isnan(*this->target_temperature_high_)) {
     ESP_LOGW(TAG, "  Target temperature low must not be NAN!");
     this->target_temperature_high_.reset();
   }

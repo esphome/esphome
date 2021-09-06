@@ -3,6 +3,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/util.h"
 #include "esphome/components/json/json_util.h"
+#include "esphome/components/network/util.h"
 
 #include "StreamString.h"
 
@@ -150,7 +151,7 @@ void WebServer::setup() {
 }
 void WebServer::dump_config() {
   ESP_LOGCONFIG(TAG, "Web Server:");
-  ESP_LOGCONFIG(TAG, "  Address: %s:%u", network_get_address().c_str(), this->base_->get_port());
+  ESP_LOGCONFIG(TAG, "  Address: %s:%u", network::get_use_address().c_str(), this->base_->get_port());
   if (this->using_auth()) {
     ESP_LOGCONFIG(TAG, "  Basic authentication enabled");
   }

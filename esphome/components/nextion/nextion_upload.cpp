@@ -3,6 +3,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/util.h"
 #include "esphome/core/log.h"
+#include "esphome/components/network/util.h"
 
 namespace esphome {
 namespace nextion {
@@ -130,7 +131,7 @@ void Nextion::upload_tft() {
     return;
   }
 
-  if (!network_is_connected()) {
+  if (!network::is_connected()) {
     ESP_LOGD(TAG, "network is not connected");
     return;
   }

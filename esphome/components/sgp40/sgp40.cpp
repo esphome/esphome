@@ -157,7 +157,7 @@ uint16_t SGP40Component::measure_raw_() {
   if (this->humidity_sensor_ != nullptr) {
     humidity = this->humidity_sensor_->state;
   }
-  if (isnan(humidity) || humidity < 0.0f || humidity > 100.0f) {
+  if (std::isnan(humidity) || humidity < 0.0f || humidity > 100.0f) {
     humidity = 50;
   }
 
@@ -165,7 +165,7 @@ uint16_t SGP40Component::measure_raw_() {
   if (this->temperature_sensor_ != nullptr) {
     temperature = float(this->temperature_sensor_->state);
   }
-  if (isnan(temperature) || temperature < -40.0f || temperature > 85.0f) {
+  if (std::isnan(temperature) || temperature < -40.0f || temperature > 85.0f) {
     temperature = 25;
   }
 

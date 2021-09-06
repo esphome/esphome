@@ -14,7 +14,9 @@
 #define USE_ADC_SENSOR_VCC
 #define USE_API
 #define USE_BINARY_SENSOR
+#ifdef USE_ARDUINO
 #define USE_CAPTIVE_PORTAL
+#endif
 #define USE_CLIMATE
 #define USE_COVER
 #define USE_DEEP_SLEEP

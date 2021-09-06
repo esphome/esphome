@@ -4,7 +4,6 @@ import esphome.config_validation as cv
 from esphome import automation
 from esphome.const import (
     CONF_ID,
-    ESP_PLATFORM_ESP32,
     CONF_INTERVAL,
     CONF_DURATION,
     CONF_TRIGGER_ID,
@@ -16,7 +15,7 @@ from esphome.const import (
     CONF_ON_BLE_MANUFACTURER_DATA_ADVERTISE,
 )
 
-ESP_PLATFORMS = [ESP_PLATFORM_ESP32]
+DEPENDENCIES = ["ESP32"]
 AUTO_LOAD = ["xiaomi_ble", "ruuvi_ble"]
 
 CONF_ESP32_BLE_ID = "esp32_ble_id"

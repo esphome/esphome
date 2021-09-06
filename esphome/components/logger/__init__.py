@@ -215,7 +215,7 @@ def validate_printf(value):
     (?:\.(?:\d+|\*))?                  # precision
     (?:h|l|ll|w|I|I32|I64)?            # size
     [cCdiouxXeEfgGaAnpsSZ]             # type
-    ) 
+    )
     """  # noqa
     matches = re.findall(cfmt, value[CONF_FORMAT], flags=re.X)
     if len(matches) != len(value[CONF_ARGS]):

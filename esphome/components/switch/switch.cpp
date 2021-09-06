@@ -30,9 +30,10 @@ void Switch::toggle() {
   this->write_state(this->inverted_ == this->state);
 }
 optional<bool> Switch::get_initial_state() {
-  this->rtc_ = global_preferences.make_preference<bool>(this->get_object_id_hash());
+  std::string key = this->get_object_id() + "$restore$v1";
+  this->pref_ = global_preferences->make_preference<bool>(key);
   bool initial_state;
-  if (!this->rtc_.load(&initial_state))
+  if (!this->pref_->load(&initial_state))
     return {};
   return initial_state;
 }
@@ -41,7 +42,9 @@ void Switch::publish_state(bool state) {
     return;
   this->state = state != this->inverted_;
 
-  this->rtc_.save(&this->state);
+  if (this->pref_ != nullptr) {
+    this->pref_->save(&this->state);
+  }
   ESP_LOGD(TAG, "'%s': Sending state %s", this->name_.c_str(), ONOFF(state));
   this->state_callback_.call(this->state);
 }

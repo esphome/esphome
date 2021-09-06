@@ -5,7 +5,7 @@ namespace esphome {
 
 #define LOG_PIN(prefix, pin) \
   if ((pin) != nullptr) { \
-    pin->dump_config(); \
+    pin->dump_config(prefix); \
   }
 
 enum class GPIOFlags : uint32_t {
@@ -21,7 +21,7 @@ class GPIOFlagsHelper {
  public:
   constexpr GPIOFlagsHelper(GPIOFlags val) : val_(val) {}
   constexpr operator GPIOFlags() const { return val_; }
-  constexpr explicit operator bool() const { return static_cast<uint32_t>(val_) != 0; }
+  constexpr operator bool() const { return static_cast<uint32_t>(val_) != 0; }
  protected:
   GPIOFlags val_;
 };
@@ -57,21 +57,19 @@ class GPIOPin {
 
   virtual void digital_write(bool value) = 0;
 
-  virtual void dump_config() = 0;
+  virtual void dump_config(const char *prefix) = 0;
 };
 
 /// Copy of GPIOPin that is safe to use from ISRs (with no virtual functions)
 class ISRInternalGPIOPin {
  public:
+  ISRInternalGPIOPin(void *arg) : arg_(arg) {}
   bool digital_read();
   void digital_write(bool value);
   void clear_interrupt();
 
  protected:
-  friend class InternalGPIOPin;
-  ISRInternalGPIOPin(void *arg) : arg_(arg) {}
-
-  const void *arg_;
+  void *arg_;
 };
 
 class InternalGPIOPin : public GPIOPin {

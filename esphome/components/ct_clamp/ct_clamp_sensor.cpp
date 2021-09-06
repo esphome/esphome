@@ -64,7 +64,7 @@ void CTClampSensor::loop() {
 
   // Perform a single sample
   float value = this->source_->sample();
-  if (isnan(value))
+  if (std::isnan(value))
     return;
 
   if (this->is_calibrating_offset_) {

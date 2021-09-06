@@ -1,25 +1,19 @@
 #include "esphome/core/esphal.h"
-#include "esphome/core/log.h"
-#include "esphome/core/optional.h"
 #include <driver/gpio.h>
 
 namespace esphome {
 namespace esp32 {
 
-static const char *const TAG = "esp32";
-
 class ESP32InternalGPIOPin : public InternalGPIOPin {
  public:
   void set_pin(gpio_num_t pin) { pin_ = pin; }
   void set_inverted(bool inverted) { inverted_ = inverted; }
-  void set_drive_strength(optional<gpio_drive_cap_t> drive_strength) { drive_strength_ = drive_strength; }
+  void set_drive_strength(gpio_drive_cap_t drive_strength) { drive_strength_ = drive_strength; }
   void set_flags(GPIOFlags flags) { flags_ = flags; }
 
   void setup() override {
     pin_mode(flags_);
-    if (drive_strength_.has_value()) {
-      gpio_set_drive_capability(pin_, *drive_strength_);
-    }
+    gpio_set_drive_capability(pin_, drive_strength_);
   }
   void pin_mode(GPIOFlags flags) override {
     gpio_config_t conf{};
@@ -37,54 +31,11 @@ class ESP32InternalGPIOPin : public InternalGPIOPin {
   void digital_write(bool value)  override {
     gpio_set_level(pin_, value != inverted_ ? 1 : 0);
   }
-  void dump_config() override {
-    ESP_LOGCONFIG(TAG, "    Pin: GPIO%u", static_cast<uint32_t>(pin_));
-    if (inverted_) {
-      ESP_LOGCONFIG(TAG, "    Inverted: Yes");
-    }
-    if (drive_strength_.has_value()) {
-      const char *drive_strength_s = "unknown";
-      switch (*drive_strength_) {
-        case GPIO_DRIVE_CAP_0:
-          drive_strength_s = "~5 mA";
-          break;
-        case GPIO_DRIVE_CAP_1:
-          drive_strength_s = "~10 mA";
-          break;
-        case GPIO_DRIVE_CAP_2:
-          drive_strength_s = "~20 mA";
-          break;
-        case GPIO_DRIVE_CAP_3:
-          drive_strength_s = "~40 mA";
-          break;
-        default:
-          break;
-      }
-      ESP_LOGCONFIG(TAG, "    Drive Strength: %s", drive_strength_s);
-    }
-    bool in = flags_ & GPIOFlags::INPUT;
-    bool out = flags_ & GPIOFlags::OUTPUT;
-    if (in && out) {
-      ESP_LOGCONFIG(TAG, "    Mode: INPUT_OUTPUT");
-    } else if (in) {
-      ESP_LOGCONFIG(TAG, "    Mode: INPUT");
-    } else if (out) {
-      ESP_LOGCONFIG(TAG, "    Mode: OUTPUT");
-    }
-    if (flags_ & GPIOFlags::OPEN_DRAIN) {
-      ESP_LOGCONFIG(TAG, "    Open drain: enabled");
-    }
-    if (flags_ & GPIOFlags::PULLDOWN) {
-      ESP_LOGCONFIG(TAG, "    Pulldown: enabled");
-    }
-    if (flags_ & GPIOFlags::PULLUP) {
-      ESP_LOGCONFIG(TAG, "    Pullup: enabled");
-    }
-  }
+  void dump_config(const char *prefix) override;
   void detach_interrupt() const override {
     gpio_intr_disable(pin_);
   }
-  ISRInternalGPIOPin *to_isr() const override;
+  ISRInternalGPIOPin to_isr() const override;
 
  protected:
   static gpio_mode_t flags_to_mode_(GPIOFlags flags) {
@@ -102,10 +53,11 @@ class ESP32InternalGPIOPin : public InternalGPIOPin {
       return GPIO_MODE_INPUT_OUTPUT;
     } else {
       // unsupported
+      return GPIO_MODE_DISABLE;
     }
   }
   void attach_interrupt_(void (*func)(void *), void *arg, GPIOInterruptType type) const override {
-    gpio_int_type_t idf_type;
+    gpio_int_type_t idf_type = GPIO_INTR_ANYEDGE;
     switch (type) {
       case GPIOInterruptType::RISING_EDGE:
         idf_type = inverted_ ? GPIO_INTR_NEGEDGE : GPIO_INTR_POSEDGE;
@@ -134,7 +86,7 @@ class ESP32InternalGPIOPin : public InternalGPIOPin {
 
   gpio_num_t pin_;
   bool inverted_;
-  optional<gpio_drive_cap_t> drive_strength_{};
+  gpio_drive_cap_t drive_strength_;
   GPIOFlags flags_;
   static bool isr_service_installed_;
 };

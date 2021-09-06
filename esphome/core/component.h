@@ -2,6 +2,7 @@
 
 #include <string>
 #include <functional>
+#include <cmath>
 
 #include "esphome/core/optional.h"
 

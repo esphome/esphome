@@ -52,7 +52,7 @@ void TotalDailyEnergy::publish_state_and_save(float state) {
 }
 
 void TotalDailyEnergy::process_new_state_(float state) {
-  if (isnan(state))
+  if (std::isnan(state))
     return;
   const uint32_t now = millis();
   const float old_state = this->last_power_state_;

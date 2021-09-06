@@ -568,6 +568,10 @@ def add_define(name: str, value: SafeExpType = None):
         CORE.add_define(Define(name, safe_exp(value)))
 
 
+def add_platformio_option(key: str, value: Union[str, List[str]]):
+    CORE.add_platformio_option(key, value)
+
+
 async def get_variable(id_: ID) -> "MockObj":
     """
     Wait for the given ID to be defined in the code generation and

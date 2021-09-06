@@ -2,9 +2,9 @@
 
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
-#include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/defines.h"
+#include <cstdarg>
 
 namespace esphome {
 
@@ -17,11 +17,11 @@ namespace logger {
 enum UARTSelection {
   UART_SELECTION_UART0 = 0,
   UART_SELECTION_UART1,
-#ifdef ARDUINO_ARCH_ESP32
-  UART_SELECTION_UART2
+#ifdef USE_ESP32
+  UART_SELECTION_UART2,
 #endif
 #ifdef ARDUINO_ARCH_ESP8266
-      UART_SELECTION_UART0_SWAP
+  UART_SELECTION_UART0_SWAP,
 #endif
 };
 
@@ -32,7 +32,9 @@ class Logger : public Component {
   /// Manually set the baud rate for serial, set to 0 to disable.
   void set_baud_rate(uint32_t baud_rate);
   uint32_t get_baud_rate() const { return baud_rate_; }
+#ifdef USE_ARDUINO
   HardwareSerial *get_hw_serial() const { return hw_serial_; }
+#endif
 
   /// Get the UART used by the logger.
   UARTSelection get_uart() const;
@@ -106,7 +108,9 @@ class Logger : public Component {
   int tx_buffer_at_{0};
   int tx_buffer_size_{0};
   UARTSelection uart_{UART_SELECTION_UART0};
+#ifdef USE_ARDUINO
   HardwareSerial *hw_serial_{nullptr};
+#endif
   struct LogLevelOverride {
     std::string tag;
     int level;

@@ -3,6 +3,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 #include "esphome/core/util.h"
+#include "esphome/components/network/util.h"
 
 #include <cstdio>
 #include <MD5Builder.h>
@@ -27,7 +28,7 @@ void OTAComponent::setup() {
 
 void OTAComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "Over-The-Air Updates:");
-  ESP_LOGCONFIG(TAG, "  Address: %s:%u", network_get_address().c_str(), this->port_);
+  ESP_LOGCONFIG(TAG, "  Address: %s:%u", network::get_use_address().c_str(), this->port_);
   if (!this->password_.empty()) {
     ESP_LOGCONFIG(TAG, "  Using Password.");
   }

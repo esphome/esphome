@@ -52,18 +52,18 @@ class ValueRangeTrigger : public Trigger<float>, public Component {
 
  protected:
   void on_state_(float state) {
-    if (isnan(state))
+    if (std::isnan(state))
       return;
 
     float local_min = this->min_.value(state);
     float local_max = this->max_.value(state);
 
     bool in_range;
-    if (isnan(local_min) && isnan(local_max)) {
+    if (std::isnan(local_min) && std::isnan(local_max)) {
       in_range = this->previous_in_range_;
-    } else if (isnan(local_min)) {
+    } else if (std::isnan(local_min)) {
       in_range = state <= local_max;
-    } else if (isnan(local_max)) {
+    } else if (std::isnan(local_max)) {
       in_range = state >= local_min;
     } else {
       in_range = local_min <= state && state <= local_max;
@@ -92,9 +92,9 @@ template<typename... Ts> class SensorInRangeCondition : public Condition<Ts...> 
   void set_max(float max) { this->max_ = max; }
   bool check(Ts... x) override {
     const float state = this->parent_->state;
-    if (isnan(this->min_)) {
+    if (std::isnan(this->min_)) {
       return state <= this->max_;
-    } else if (isnan(this->max_)) {
+    } else if (std::isnan(this->max_)) {
       return state >= this->min_;
     } else {
       return this->min_ <= state && state <= this->max_;

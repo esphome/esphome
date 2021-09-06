@@ -504,15 +504,15 @@ def only_on(platforms):
         platforms = [platforms]
 
     def validator_(obj):
-        if CORE.esp_platform not in platforms:
+        if CORE.target_platform not in platforms:
             raise Invalid(f"This feature is only available on {platforms}")
         return obj
 
     return validator_
 
 
-only_on_esp32 = only_on("ESP32")
-only_on_esp8266 = only_on("ESP8266")
+only_on_esp32 = only_on("esp32")
+only_on_esp8266 = only_on("esp8266")
 
 
 # Adapted from:
@@ -1036,7 +1036,7 @@ def requires_component(comp):
     # pylint: disable=unsupported-membership-test
     def validator(value):
         # pylint: disable=unsupported-membership-test
-        if comp not in CORE.raw_config:
+        if comp not in CORE.loaded_integrations:
             raise Invalid(f"This option requires component {comp}")
         return value
 
@@ -1436,7 +1436,7 @@ class SplitDefault(Optional):
             return self._esp8266_default
         if CORE.is_esp32:
             return self._esp32_default
-        raise ValueError
+        raise NotImplementedError
 
     @default.setter
     def default(self, value):
@@ -1455,15 +1455,7 @@ class OnlyWith(Optional):
     @property
     def default(self):
         # pylint: disable=unsupported-membership-test
-        if self._component in CORE.raw_config or (
-            CONF_PACKAGES in CORE.raw_config
-            and self._component
-            in [
-                k
-                for package in CORE.raw_config[CONF_PACKAGES].values()
-                for k in package.keys()
-            ]
-        ):
+        if self._component in CORE.loaded_integrations:
             return self._default
         return vol.UNDEFINED
 

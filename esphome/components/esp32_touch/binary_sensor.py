@@ -5,14 +5,12 @@ from esphome.const import (
     CONF_NAME,
     CONF_PIN,
     CONF_THRESHOLD,
-    ESP_PLATFORM_ESP32,
     CONF_ID,
 )
 from esphome.pins import validate_gpio_pin
 from . import esp32_touch_ns, ESP32TouchComponent
 
-ESP_PLATFORMS = [ESP_PLATFORM_ESP32]
-DEPENDENCIES = ["esp32_touch"]
+DEPENDENCIES = ["esp32_touch", "esp32"]
 
 CONF_ESP32_TOUCH_ID = "esp32_touch_id"
 

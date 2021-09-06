@@ -6,13 +6,9 @@ from typing import Dict, List, Union
 
 from esphome.config import iter_components
 from esphome.const import (
-    CONF_BOARD_FLASH_MODE,
-    CONF_ESPHOME,
-    CONF_PLATFORMIO_OPTIONS,
     HEADER_FILE_EXTENSIONS,
     SOURCE_FILE_EXTENSIONS,
     __version__,
-    ARDUINO_VERSION_ESP8266,
     ENV_NOGITIGNORE,
 )
 from esphome.core import CORE, EsphomeError
@@ -168,10 +164,6 @@ def storage_should_clean(old, new):  # type: (StorageJSON, StorageJSON) -> bool
 
     if old.src_version != new.src_version:
         return True
-    if old.arduino_version != new.arduino_version:
-        return True
-    if old.board != new.board:
-        return True
     if old.build_path != new.build_path:
         return True
     return False
@@ -206,31 +198,10 @@ def format_ini(data: Dict[str, Union[str, List[str]]]) -> str:
     return content
 
 
-<<<<<<< Updated upstream
-def gather_lib_deps():
-    return [x.as_lib_dep for x in CORE.libraries]
-
-
-def gather_build_flags(overrides):
-    build_flags = list(CORE.build_flags)
-    build_flags += [overrides] if isinstance(overrides, str) else overrides
-
-    # avoid changing build flags order
-    return list(sorted(build_flags))
-
-
-ESP32_LARGE_PARTITIONS_CSV = """\
-nvs,      data, nvs,     0x009000, 0x005000,
-otadata,  data, ota,     0x00e000, 0x002000,
-app0,     app,  ota_0,   0x010000, 0x1C0000,
-app1,     app,  ota_1,   0x1D0000, 0x1C0000,
-eeprom,   data, 0x99,    0x390000, 0x001000,
-spiffs,   data, spiffs,  0x391000, 0x00F000
-"""
-
-
 def get_ini_content():
-    CORE.add_platformio_option("lib_deps", [x.as_lib_dep for x in CORE.libraries] + ["${common.lib_deps}"])
+    CORE.add_platformio_option(
+        "lib_deps", [x.as_lib_dep for x in CORE.libraries] + ["${common.lib_deps}"]
+    )
     # Sort to avoid changing build flags order
     CORE.add_platformio_option("build_flags", sorted(CORE.build_flags))
 
@@ -315,12 +286,15 @@ or use the custom_components folder.
 
 
 def copy_src_tree():
-    source_files: Dict[Path, loader.SourceFile] = {}
+    source_files: List[loader.FileResource] = []
     for _, component, _ in iter_components(CORE.config):
-        source_files.update(component.source_files)
+        source_files += component.resources
+    source_files_map = {
+        Path(x.package.replace(".", "/") + "/" + x.resource): x for x in source_files
+    }
 
     # Convert to list and sort
-    source_files_l = list(source_files.items())
+    source_files_l = list(source_files_map.items())
     source_files_l.sort()
 
     # Build #include list for esphome.h
@@ -331,7 +305,7 @@ def copy_src_tree():
     include_l.append("")
     include_s = "\n".join(include_l)
 
-    source_files_copy = source_files.copy()
+    source_files_copy = source_files_map.copy()
     ignore_targets = [Path(x) for x in (DEFINES_H_TARGET, VERSION_H_TARGET)]
     for t in ignore_targets:
         source_files_copy.pop(t)

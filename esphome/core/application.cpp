@@ -60,9 +60,6 @@ void Application::setup() {
   ESP_LOGI(TAG, "setup() finished successfully!");
   this->schedule_dump_config();
   this->calculate_looping_components_();
-
-  // Dummy function to link some symbols into the binary.
-  force_link_symbols();
 }
 void Application::loop() {
   uint32_t new_app_state = 0;
@@ -114,7 +111,7 @@ void ICACHE_RAM_ATTR HOT Application::feed_wdt() {
   static uint32_t LAST_FEED = 0;
   uint32_t now = millis();
   if (now - LAST_FEED > 3) {
-    this->feed_wdt_arch_();
+    arch_feed_wdt();
     LAST_FEED = now;
 #ifdef USE_STATUS_LED
     if (status_led::global_status_led != nullptr) {
@@ -127,11 +124,7 @@ void Application::reboot() {
   ESP_LOGI(TAG, "Forcing a reboot...");
   for (auto *comp : this->components_)
     comp->on_shutdown();
-  ESP.restart();
-  // restart() doesn't always end execution
-  while (true) {
-    yield();
-  }
+  arch_restart();
 }
 void Application::safe_reboot() {
   ESP_LOGI(TAG, "Rebooting safely...");
@@ -139,11 +132,7 @@ void Application::safe_reboot() {
     comp->on_safe_shutdown();
   for (auto *comp : this->components_)
     comp->on_shutdown();
-  ESP.restart();
-  // restart() doesn't always end execution
-  while (true) {
-    yield();
-  }
+  arch_restart();
 }
 
 void Application::calculate_looping_components_() {

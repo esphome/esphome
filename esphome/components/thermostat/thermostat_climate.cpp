@@ -88,17 +88,17 @@ climate::ClimateFanMode ThermostatClimate::locked_fan_mode() { return this->prev
 
 bool ThermostatClimate::hysteresis_valid() {
   if ((this->supports_cool_ || (this->supports_fan_only_ && this->supports_fan_only_cooling_)) &&
-      (isnan(this->cooling_deadband_) || isnan(this->cooling_overrun_)))
+      (std::isnan(this->cooling_deadband_) || std::isnan(this->cooling_overrun_)))
     return false;
 
-  if (this->supports_heat_ && (isnan(this->heating_deadband_) || isnan(this->heating_overrun_)))
+  if (this->supports_heat_ && (std::isnan(this->heating_deadband_) || std::isnan(this->heating_overrun_)))
     return false;
 
   return true;
 }
 
 void ThermostatClimate::validate_target_temperature() {
-  if (isnan(this->target_temperature)) {
+  if (std::isnan(this->target_temperature)) {
     this->target_temperature =
         ((this->get_traits().get_visual_max_temperature() - this->get_traits().get_visual_min_temperature()) / 2) +
         this->get_traits().get_visual_min_temperature();
@@ -121,7 +121,7 @@ void ThermostatClimate::validate_target_temperatures() {
 }
 
 void ThermostatClimate::validate_target_temperature_low() {
-  if (isnan(this->target_temperature_low)) {
+  if (std::isnan(this->target_temperature_low)) {
     this->target_temperature_low = this->get_traits().get_visual_min_temperature();
   } else {
     // target_temperature_low must not be lower than the visual minimum
@@ -139,7 +139,7 @@ void ThermostatClimate::validate_target_temperature_low() {
 }
 
 void ThermostatClimate::validate_target_temperature_high() {
-  if (isnan(this->target_temperature_high)) {
+  if (std::isnan(this->target_temperature_high)) {
     this->target_temperature_high = this->get_traits().get_visual_max_temperature();
   } else {
     // target_temperature_high must not be lower than the visual maximum
@@ -245,7 +245,7 @@ climate::ClimateTraits ThermostatClimate::traits() {
 climate::ClimateAction ThermostatClimate::compute_action_(const bool ignore_timers) {
   auto target_action = climate::CLIMATE_ACTION_IDLE;
   // if any hysteresis values or current_temperature is not valid, we go to OFF;
-  if (isnan(this->current_temperature) || !this->hysteresis_valid()) {
+  if (std::isnan(this->current_temperature) || !this->hysteresis_valid()) {
     return climate::CLIMATE_ACTION_OFF;
   }
   // do not change the action if an "ON" timer is running
@@ -307,7 +307,7 @@ climate::ClimateAction ThermostatClimate::compute_action_(const bool ignore_time
 climate::ClimateAction ThermostatClimate::compute_supplemental_action_() {
   auto target_action = climate::CLIMATE_ACTION_IDLE;
   // if any hysteresis values or current_temperature is not valid, we go to OFF;
-  if (isnan(this->current_temperature) || !this->hysteresis_valid()) {
+  if (std::isnan(this->current_temperature) || !this->hysteresis_valid()) {
     return climate::CLIMATE_ACTION_OFF;
   }
 

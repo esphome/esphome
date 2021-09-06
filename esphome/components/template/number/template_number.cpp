@@ -16,7 +16,7 @@ void TemplateNumber::setup() {
   } else {
     this->pref_ = global_preferences.make_preference<float>(this->get_object_id_hash());
     if (!this->pref_.load(&value)) {
-      if (!isnan(this->initial_value_))
+      if (!std::isnan(this->initial_value_))
         value = this->initial_value_;
       else
         value = this->traits.get_min_value();

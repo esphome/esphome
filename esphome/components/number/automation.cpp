@@ -18,18 +18,18 @@ void ValueRangeTrigger::setup() {
 float ValueRangeTrigger::get_setup_priority() const { return setup_priority::HARDWARE; }
 
 void ValueRangeTrigger::on_state_(float state) {
-  if (isnan(state))
+  if (std::isnan(state))
     return;
 
   float local_min = this->min_.value(state);
   float local_max = this->max_.value(state);
 
   bool in_range;
-  if (isnan(local_min) && isnan(local_max)) {
+  if (std::isnan(local_min) && std::isnan(local_max)) {
     in_range = this->previous_in_range_;
-  } else if (isnan(local_min)) {
+  } else if (std::isnan(local_min)) {
     in_range = state <= local_max;
-  } else if (isnan(local_max)) {
+  } else if (std::isnan(local_max)) {
     in_range = state >= local_min;
   } else {
     in_range = local_min <= state && state <= local_max;

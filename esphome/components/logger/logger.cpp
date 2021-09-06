@@ -1,8 +1,14 @@
 #include "logger.h"
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP_IDF
+#include "freertos/FreeRTOS.h"
+#include <driver/uart.h>
+#endif
+
+#if defined(USE_ESP32_ARDUINO) || defined(USE_ESP_IDF)
 #include <esp_log.h>
 #endif
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace logger {
@@ -100,19 +106,26 @@ void HOT Logger::log_message_(int level, const char *tag, int offset) {
   this->set_null_terminator_();
 
   const char *msg = this->tx_buffer_ + offset;
+#ifdef USE_ARDUINO
   if (this->baud_rate_ > 0)
     this->hw_serial_->println(msg);
-#ifdef ARDUINO_ARCH_ESP32
+#endif  // USE_ARDUINO
+#ifdef USE_ESP_IDF
+  uart_write_bytes(UART_NUM_0, msg, strlen(msg));
+  uart_write_bytes(UART_NUM_0, "\n", 1);
+#endif
+
+#ifdef USE_ESP32
   // Suppress network-logging if memory constrained, but still log to serial
   // ports. In some configurations (eg BLE enabled) there may be some transient
   // memory exhaustion, and trying to log when OOM can lead to a crash. Skipping
   // here usually allows the stack to recover instead.
   // See issue #1234 for analysis.
   if (xPortGetFreeHeapSize() > 2048)
-    this->log_callback_.call(level, tag, msg);
-#else
-  this->log_callback_.call(level, tag, msg);
+    return;
 #endif
+
+  this->log_callback_.call(level, tag, msg);
 }
 
 Logger::Logger(uint32_t baud_rate, size_t tx_buffer_size, UARTSelection uart)
@@ -123,9 +136,10 @@ Logger::Logger(uint32_t baud_rate, size_t tx_buffer_size, UARTSelection uart)
 
 void Logger::pre_setup() {
   if (this->baud_rate_ > 0) {
+#ifdef USE_ARDUINO
     switch (this->uart_) {
       case UART_SELECTION_UART0:
-#ifdef ARDUINO_ARCH_ESP8266
+#ifdef USE_ESP8266
       case UART_SELECTION_UART0_SWAP:
 #endif
         this->hw_serial_ = &Serial;
@@ -133,7 +147,7 @@ void Logger::pre_setup() {
       case UART_SELECTION_UART1:
         this->hw_serial_ = &Serial1;
         break;
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
       case UART_SELECTION_UART2:
 #if !CONFIG_IDF_TARGET_ESP32S2 && !CONFIG_IDF_TARGET_ESP32C3
         // FIXME: Validate in config that UART2 can't be set for ESP32-S2 (only has
@@ -143,7 +157,34 @@ void Logger::pre_setup() {
         break;
 #endif
     }
+#endif  // USE_ARDUINO
+#ifdef USE_ESP_IDF
+    uart_port_t uart_num = UART_NUM_0;
+    switch (uart_) {
+      case UART_SELECTION_UART0:
+        uart_num = UART_NUM_0;
+        break;
+      case UART_SELECTION_UART1:
+        uart_num = UART_NUM_1;
+        break;
+      case UART_SELECTION_UART2:
+        uart_num = UART_NUM_2;
+        break;
+    }
+    uart_config_t uart_config = {
+        .baud_rate = (int) baud_rate_,
+        .data_bits = UART_DATA_8_BITS,
+        .parity = UART_PARITY_DISABLE,
+        .stop_bits = UART_STOP_BITS_1,
+        .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
+    };
+    uart_param_config(uart_num, &uart_config);
+    const int uart_buffer_size = tx_buffer_size_;
+    // Install UART driver using an event queue here
+    uart_driver_install(uart_num, uart_buffer_size, uart_buffer_size, 10, nullptr, 0);
+#endif
 
+#ifdef USE_ARDUINO
     this->hw_serial_->begin(this->baud_rate_);
 #ifdef ARDUINO_ARCH_ESP8266
     if (this->uart_ == UART_SELECTION_UART0_SWAP) {
@@ -151,6 +192,7 @@ void Logger::pre_setup() {
     }
     this->hw_serial_->setDebugOutput(ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE);
 #endif
+#endif // USE_ARDUINO
   }
 #ifdef ARDUINO_ARCH_ESP8266
   else {
@@ -159,7 +201,7 @@ void Logger::pre_setup() {
 #endif
 
   global_logger = this;
-#ifdef ARDUINO_ARCH_ESP32
+#if defined(USE_ESP_IDF) || defined(USE_ESP32_ARDUINO)
   esp_log_set_vprintf(esp_idf_log_vprintf_);
   if (ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE) {
     esp_log_level_set("*", ESP_LOG_VERBOSE);
@@ -188,7 +230,9 @@ void Logger::dump_config() {
   ESP_LOGCONFIG(TAG, "Logger:");
   ESP_LOGCONFIG(TAG, "  Level: %s", LOG_LEVELS[ESPHOME_LOG_LEVEL]);
   ESP_LOGCONFIG(TAG, "  Log Baud Rate: %u", this->baud_rate_);
+#if 0
   ESP_LOGCONFIG(TAG, "  Hardware UART: %s", UART_SELECTIONS[this->uart_]);
+#endif
   for (auto &it : this->log_levels_) {
     ESP_LOGCONFIG(TAG, "  Level for '%s': %s", it.tag.c_str(), LOG_LEVELS[it.level]);
   }

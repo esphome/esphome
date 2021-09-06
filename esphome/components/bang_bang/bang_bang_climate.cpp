@@ -69,7 +69,7 @@ void BangBangClimate::compute_state_() {
     this->switch_to_action_(climate::CLIMATE_ACTION_OFF);
     return;
   }
-  if (isnan(this->current_temperature) || isnan(this->target_temperature_low) || isnan(this->target_temperature_high)) {
+  if (std::isnan(this->current_temperature) || std::isnan(this->target_temperature_low) || std::isnan(this->target_temperature_high)) {
     // if any control parameters are nan, go to OFF action (not IDLE!)
     this->switch_to_action_(climate::CLIMATE_ACTION_OFF);
     return;

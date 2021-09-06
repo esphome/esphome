@@ -674,10 +674,10 @@ bool WiFiComponent::wifi_ap_ip_config_(optional<ManualIP> manual_ip) {
   IPAddress start_address = info.ip.addr;
   start_address[3] += 99;
   lease.start_ip.addr = static_cast<uint32_t>(start_address);
-  ESP_LOGV(TAG, "DHCP server IP lease start: %s", start_address.toString().c_str());
+  ESP_LOGV(TAG, "DHCP server IP lease start: %s", start_address.str().c_str());
   start_address[3] += 100;
   lease.end_ip.addr = static_cast<uint32_t>(start_address);
-  ESP_LOGV(TAG, "DHCP server IP lease end: %s", start_address.toString().c_str());
+  ESP_LOGV(TAG, "DHCP server IP lease end: %s", start_address.str().c_str());
   if (!wifi_softap_set_dhcps_lease(&lease)) {
     ESP_LOGV(TAG, "Setting SoftAP DHCP lease failed!");
     return false;

@@ -1,11 +1,15 @@
 #include "esphome/core/helpers.h"
 #include <cstdio>
 #include <algorithm>
+#include <cmath>
+#include <cstring>
 
-#ifdef ARDUINO_ARCH_ESP8266
+#if defined(USE_ESP8266_ARDUINO)
 #include <ESP8266WiFi.h>
-#else
+#elif defined(USE_ESP32_ARDUINO)
 #include <Esp.h>
+#elif defined(USE_ESP_IDF)
+#include "esp_system.h"
 #endif
 
 #include "esphome/core/log.h"
@@ -18,10 +22,10 @@ static const char *const TAG = "helpers";
 std::string get_mac_address() {
   char tmp[20];
   uint8_t mac[6];
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
   esp_efuse_mac_get_default(mac);
 #endif
-#ifdef ARDUINO_ARCH_ESP8266
+#ifdef USE_ESP8266_ARDUINO
   WiFi.macAddress(mac);
 #endif
   sprintf(tmp, "%02x%02x%02x%02x%02x%02x", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
@@ -31,10 +35,10 @@ std::string get_mac_address() {
 std::string get_mac_address_pretty() {
   char tmp[20];
   uint8_t mac[6];
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
   esp_efuse_mac_get_default(mac);
 #endif
-#ifdef ARDUINO_ARCH_ESP8266
+#ifdef USE_ESP8266_ARDUINO
   WiFi.macAddress(mac);
 #endif
   sprintf(tmp, "%02X:%02X:%02X:%02X:%02X:%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
@@ -44,9 +48,9 @@ std::string get_mac_address_pretty() {
 std::string generate_hostname(const std::string &base) { return base + std::string("-") + get_mac_address(); }
 
 uint32_t random_uint32() {
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
   return esp_random();
-#else
+#elif defined(USE_ESP8266)
   return os_random();
 #endif
 }
@@ -114,10 +118,13 @@ std::string truncate_string(const std::string &s, size_t length) {
 }
 
 std::string value_accuracy_to_string(float value, int8_t accuracy_decimals) {
-  auto multiplier = float(powf(10.0f, accuracy_decimals));
-  float value_rounded = roundf(value * multiplier) / multiplier;
+  if (accuracy_decimals < 0) {
+    auto multiplier = powf(10.0f, accuracy_decimals);
+    value = roundf(value * multiplier) / multiplier;
+    accuracy_decimals = 0;
+  }
   char tmp[32];  // should be enough, but we should maybe improve this at some point.
-  dtostrf(value_rounded, 0, uint8_t(std::max(0, int(accuracy_decimals))), tmp);
+  snprintf(tmp, sizeof(tmp), "%.*f", accuracy_decimals, value);
   return std::string(tmp);
 }
 std::string uint64_to_string(uint64_t num) {

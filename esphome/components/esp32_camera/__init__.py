@@ -9,7 +9,6 @@ from esphome.const import (
     CONF_PIN,
     CONF_SCL,
     CONF_SDA,
-    ESP_PLATFORM_ESP32,
     CONF_DATA_PINS,
     CONF_RESET_PIN,
     CONF_RESOLUTION,
@@ -17,8 +16,7 @@ from esphome.const import (
     CONF_CONTRAST,
 )
 
-ESP_PLATFORMS = [ESP_PLATFORM_ESP32]
-DEPENDENCIES = ["api"]
+DEPENDENCIES = ["esp32", "api"]
 
 esp32_camera_ns = cg.esphome_ns.namespace("esp32_camera")
 ESP32Camera = esp32_camera_ns.class_("ESP32Camera", cg.PollingComponent, cg.Nameable)

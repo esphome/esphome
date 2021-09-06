@@ -105,7 +105,7 @@ void AHT10Component::update() {
     this->temperature_sensor_->publish_state(temperature);
   }
   if (this->humidity_sensor_ != nullptr) {
-    if (isnan(humidity))
+    if (std::isnan(humidity))
       ESP_LOGW(TAG, "Invalid humidity! Sensor reported 0%% Hum");
     this->humidity_sensor_->publish_state(humidity);
   }

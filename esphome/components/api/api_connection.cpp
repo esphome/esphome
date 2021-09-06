@@ -1,6 +1,6 @@
 #include "api_connection.h"
 #include "esphome/core/log.h"
-#include "esphome/core/util.h"
+#include "esphome/components/network/util.h"
 #include "esphome/core/version.h"
 
 #ifdef USE_DEEP_SLEEP
@@ -98,7 +98,7 @@ void APIConnection::loop() {
     return;
   }
 
-  if (!network_is_connected()) {
+  if (!network::is_connected()) {
     // when network is disconnected force disconnect immediately
     // don't wait for timeout
     this->on_fatal_error();
