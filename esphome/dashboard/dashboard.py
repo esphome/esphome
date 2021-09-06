@@ -447,12 +447,6 @@ class DashboardEntry:
         return self.storage.esp_platform
 
     @property
-    def board(self):
-        if self.storage is None:
-            return None
-        return self.storage.board
-
-    @property
     def update_available(self):
         if self.storage is None:
             return True

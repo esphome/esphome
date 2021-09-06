@@ -113,6 +113,8 @@ captive_portal:
 
 
 def wizard_write(path, **kwargs):
+    from esphome.components.esp32 import boards as esp32_boards
+
     name = kwargs["name"]
     board = kwargs["board"]
 
@@ -121,11 +123,13 @@ def wizard_write(path, **kwargs):
             kwargs[key] = sanitize_double_quotes(kwargs[key])
 
     if "platform" not in kwargs:
-        kwargs["platform"] = "ESP8266" if board in ESP8266_BOARD_PINS else "ESP32"
+        kwargs["platform"] = (
+            "ESP32" if board in esp32_boards.ESP32_BOARD_PINS else "ESP8266"
+        )
     platform = kwargs["platform"]
 
     write_file(path, wizard_file(**kwargs))
-    storage = StorageJSON.from_wizard(name, name + ".local", platform, board)
+    storage = StorageJSON.from_wizard(name, name + ".local", platform)
     storage_path = ext_storage_path(os.path.dirname(path), os.path.basename(path))
     storage.save(storage_path)
 
@@ -165,6 +169,8 @@ def strip_accents(value):
 
 
 def wizard(path):
+    from esphome.components.esp32 import boards as esp32_boards
+
     if not path.endswith(".yaml") and not path.endswith(".yml"):
         safe_print(
             "Please make your configuration file {} have the extension .yaml or .yml"
@@ -282,7 +288,7 @@ def wizard(path):
     # Don't sleep because user needs to copy link
     if platform == "ESP32":
         safe_print('For example "{}".'.format(color(Fore.BOLD_WHITE, "nodemcu-32s")))
-        boards = list(ESP32_BOARD_PINS.keys())
+        boards = list(esp32_boards.ESP32_BOARD_PINS.keys())
     else:
         safe_print('For example "{}".'.format(color(Fore.BOLD_WHITE, "nodemcuv2")))
         boards = list(ESP8266_BOARD_PINS.keys())

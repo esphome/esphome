@@ -1,9 +1,6 @@
 import logging
 
 from esphome.const import (
-    CONF_INVERTED,
-    CONF_MODE,
-    CONF_NUMBER,
     CONF_SETUP_PRIORITY,
     CONF_UPDATE_INTERVAL,
     CONF_TYPE_ID,
@@ -12,8 +9,8 @@ from esphome.const import (
 # pylint: disable=unused-import
 from esphome.core import coroutine, ID, CORE
 from esphome.types import ConfigType
-from esphome.cpp_generator import RawExpression, add, get_variable
-from esphome.cpp_types import App, GPIOPin
+from esphome.cpp_generator import add, get_variable
+from esphome.cpp_types import App
 from esphome.util import Registry, RegistryEntry
 
 

@@ -1,5 +1,4 @@
 import abc
-import collections
 import functools
 import heapq
 import logging
@@ -62,12 +61,7 @@ def _path_begins_with(path, other):  # type: (ConfigPath, ConfigPath) -> bool
 
 @functools.total_ordering
 class _ValidationStepTask:
-    def __init__(
-        self,
-        priority: float,
-        id_number: int,
-        step: 'ConfigValidationStep'
-    ):
+    def __init__(self, priority: float, id_number: int, step: "ConfigValidationStep"):
         self.priority = priority
         self.id_number = id_number
         self.step = step
@@ -117,10 +111,12 @@ class Config(OrderedDict, fv.FinalValidateConfig):
             error.path = error.path[last_root + 1 :]
         self.errors.append(error)
 
-    def add_validate_step(self, step: 'ConfigValidationStep'):
+    def add_validate_step(self, step: "ConfigValidationStep"):
         id_num = self._validation_tasks_id
         self._validation_tasks_id += 1
-        heapq.heappush(self.validation_tasks, _ValidationStepTask(step.priority, id_num, step))
+        heapq.heappush(
+            self.validation_tasks, _ValidationStepTask(step.priority, id_num, step)
+        )
 
     @contextmanager
     def catch_error(self, path=None):
@@ -282,6 +278,7 @@ class LoadValidationStep(ConfigValidationStep):
     - Ensure all AUTO_LOADs are added
     - Set output paths of result
     """
+
     def __init__(self, domain: str, conf: ConfigType):
         self.domain = domain
         self.conf = conf
@@ -308,7 +305,9 @@ class LoadValidationStep(ConfigValidationStep):
                 result.add_validate_step(AutoLoadValidationStep(load))
 
         if not component.is_platform_component:
-            result.add_validate_step(MetadataValidationStep([self.domain], self.domain, self.conf, component))
+            result.add_validate_step(
+                MetadataValidationStep([self.domain], self.domain, self.conf, component)
+            )
             return
 
         # This is a platform component, proceed to reading platform entries
@@ -350,13 +349,16 @@ class LoadValidationStep(ConfigValidationStep):
                 if load not in result:
                     result.add_validate_step(AutoLoadValidationStep(load))
 
-            result.add_validate_step(MetadataValidationStep(path, p_domain, p_config, platform))
+            result.add_validate_step(
+                MetadataValidationStep(path, p_domain, p_config, platform)
+            )
 
 
 class AutoLoadValidationStep(ConfigValidationStep):
     """Auto load step. This step is used to automatically load components if
     a component requested that with AUTO_LOAD.
     """
+
     # Only load after all regular loads have taken place
     priority = -1.0
 
@@ -379,10 +381,17 @@ class MetadataValidationStep(ConfigValidationStep):
      - Check conflicts
      - Check supported target platforms
     """
+
     # All components need to be loaded first to ensure dependency check works
     priority = -2.0
 
-    def __init__(self, path: ConfigPath, domain: str, conf: ConfigType, component: ComponentManifest) -> None:
+    def __init__(
+        self,
+        path: ConfigPath,
+        domain: str,
+        conf: ConfigType,
+        component: ComponentManifest,
+    ) -> None:
         self.path = path
         self.domain = domain
         self.conf = conf
@@ -432,7 +441,10 @@ class MetadataValidationStep(ConfigValidationStep):
         if self.comp.multi_conf:
             if not isinstance(self.conf, list):
                 result[self.domain] = self.conf = [self.conf]
-            if not isinstance(self.comp.multi_conf, bool) and len(self.conf) > self.comp.multi_conf:
+            if (
+                not isinstance(self.comp.multi_conf, bool)
+                and len(self.conf) > self.comp.multi_conf
+            ):
                 result.add_str_error(
                     f"Component {self.domain} supports a maximum of {self.comp.multi_conf} "
                     f"entries ({len(self.conf)} found).",
@@ -440,10 +452,16 @@ class MetadataValidationStep(ConfigValidationStep):
                 )
                 return
             for i, part_conf in enumerate(self.conf):
-                result.add_validate_step(SchemaValidationStep(self.domain, self.path + [i], part_conf, self.comp))
+                result.add_validate_step(
+                    SchemaValidationStep(
+                        self.domain, self.path + [i], part_conf, self.comp
+                    )
+                )
             return
 
-        result.add_validate_step(SchemaValidationStep(self.domain, self.path, self.conf, self.comp))
+        result.add_validate_step(
+            SchemaValidationStep(self.domain, self.path, self.conf, self.comp)
+        )
 
 
 class SchemaValidationStep(ConfigValidationStep):
@@ -451,7 +469,10 @@ class SchemaValidationStep(ConfigValidationStep):
 
     During this step all CONFIG_SCHEMAs are checked against the configs.
     """
-    def __init__(self, domain: str, path: ConfigPath, conf: ConfigType, comp: ComponentManifest):
+
+    def __init__(
+        self, domain: str, path: ConfigPath, conf: ConfigType, comp: ComponentManifest
+    ):
         self.path = path
         self.conf = conf
         self.comp = comp
@@ -491,6 +512,7 @@ class IDPassValidationStep(ConfigValidationStep):
     If an automatic ID reference is used, a fitting declared ID is automatically searched.
     Also checks duplicate ID names, and that referenced IDs are declared.
     """
+
     # Has to happen after all schemas validated
     priority = -10.0
 
@@ -512,10 +534,14 @@ class IDPassValidationStep(ConfigValidationStep):
             if id.is_declaration:
                 if id.id is not None:
                     # Look for duplicate definitions
-                    match = next((v for v in result.declare_ids if v[0].id == id.id), None)
+                    match = next(
+                        (v for v in result.declare_ids if v[0].id == id.id), None
+                    )
                     if match is not None:
                         opath = "->".join(str(v) for v in match[1])
-                        result.add_str_error(f"ID {id.id} redefined! Check {opath}", path)
+                        result.add_str_error(
+                            f"ID {id.id} redefined! Check {opath}", path
+                        )
                         continue
                 result.declare_ids.append((id, path))
             else:
@@ -531,7 +557,9 @@ class IDPassValidationStep(ConfigValidationStep):
         for id, path in searching_ids:
             if id.id is not None:
                 # manually declared
-                match = next((v[0] for v in result.declare_ids if v[0].id == id.id), None)
+                match = next(
+                    (v[0] for v in result.declare_ids if v[0].id == id.id), None
+                )
                 if match is None or not match.is_manual:
                     # No declared ID with this name
                     import difflib
@@ -582,7 +610,9 @@ class IDPassValidationStep(ConfigValidationStep):
                     else:
                         manual_declared_count = sum(1 for m in matches if m.is_manual)
                         if manual_declared_count > 0:
-                            ids = ", ".join([f"'{m.id}'" for m in matches if m.is_manual])
+                            ids = ", ".join(
+                                [f"'{m.id}'" for m in matches if m.is_manual]
+                            )
                             result.add_str_error(
                                 f"Too many candidates found for '{path[-1]}' type '{id.type}' {'Some are' if manual_declared_count > 1 else 'One is'} {ids}",
                                 path,
@@ -596,6 +626,7 @@ class IDPassValidationStep(ConfigValidationStep):
 
 class FinalValidateValidationStep(ConfigValidationStep):
     """Run final_validate_schema for all components."""
+
     # Has to happen after ID pass validated
     priority = -20.0
 

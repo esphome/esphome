@@ -246,7 +246,6 @@ CONFIG_SCHEMA = cv.All(
             cv.SplitDefault(CONF_OUTPUT_POWER, esp8266=20.0): cv.All(
                 cv.decibel, cv.float_range(min=10.0, max=20.5)
             ),
-
             cv.Optional("enable_mdns"): cv.invalid(
                 "This option has been removed. Please use the [disable] option under the "
                 "new mdns component instead."

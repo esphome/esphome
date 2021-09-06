@@ -66,13 +66,15 @@ CONFIG_SCHEMA = cv.Schema(
         cv.GenerateID(): cv.declare_id(ESP32Camera),
         cv.Required(CONF_NAME): cv.string,
         cv.Optional(CONF_DISABLED_BY_DEFAULT, default=False): cv.boolean,
-        cv.Required(CONF_DATA_PINS): cv.All([pins.input_pin], cv.Length(min=8, max=8)),
-        cv.Required(CONF_VSYNC_PIN): pins.input_pin,
-        cv.Required(CONF_HREF_PIN): pins.input_pin,
-        cv.Required(CONF_PIXEL_CLOCK_PIN): pins.input_pin,
+        cv.Required(CONF_DATA_PINS): cv.All(
+            [pins.internal_gpio_input_pin_number], cv.Length(min=8, max=8)
+        ),
+        cv.Required(CONF_VSYNC_PIN): pins.internal_gpio_input_pin_number,
+        cv.Required(CONF_HREF_PIN): pins.internal_gpio_input_pin_number,
+        cv.Required(CONF_PIXEL_CLOCK_PIN): pins.internal_gpio_input_pin_number,
         cv.Required(CONF_EXTERNAL_CLOCK): cv.Schema(
             {
-                cv.Required(CONF_PIN): pins.output_pin,
+                cv.Required(CONF_PIN): pins.internal_gpio_output_pin_number,
                 cv.Optional(CONF_FREQUENCY, default="20MHz"): cv.All(
                     cv.frequency, cv.one_of(20e6, 10e6)
                 ),
@@ -80,12 +82,12 @@ CONFIG_SCHEMA = cv.Schema(
         ),
         cv.Required(CONF_I2C_PINS): cv.Schema(
             {
-                cv.Required(CONF_SDA): pins.output_pin,
-                cv.Required(CONF_SCL): pins.output_pin,
+                cv.Required(CONF_SDA): pins.internal_gpio_output_pin_number,
+                cv.Required(CONF_SCL): pins.internal_gpio_output_pin_number,
             }
         ),
-        cv.Optional(CONF_RESET_PIN): pins.output_pin,
-        cv.Optional(CONF_POWER_DOWN_PIN): pins.output_pin,
+        cv.Optional(CONF_RESET_PIN): pins.internal_gpio_output_pin_number,
+        cv.Optional(CONF_POWER_DOWN_PIN): pins.internal_gpio_output_pin_number,
         cv.Optional(CONF_MAX_FRAMERATE, default="10 fps"): cv.All(
             cv.framerate, cv.Range(min=0, min_included=False, max=60)
         ),

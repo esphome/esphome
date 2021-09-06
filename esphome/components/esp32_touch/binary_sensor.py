@@ -7,7 +7,7 @@ from esphome.const import (
     CONF_THRESHOLD,
     CONF_ID,
 )
-from esphome.pins import validate_gpio_pin
+from esphome.components import esp32
 from . import esp32_touch_ns, ESP32TouchComponent
 
 DEPENDENCIES = ["esp32_touch", "esp32"]
@@ -29,7 +29,7 @@ TOUCH_PADS = {
 
 
 def validate_touch_pad(value):
-    value = validate_gpio_pin(value)
+    value = esp32.validate_gpio_pin(value)
     if value not in TOUCH_PADS:
         raise cv.Invalid(f"Pin {value} does not support touch pads.")
     return value

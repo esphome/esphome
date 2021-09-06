@@ -4,7 +4,7 @@ import re
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome import automation, boards
+from esphome import automation
 from esphome.const import (
     CONF_ARDUINO_VERSION,
     CONF_BOARD,
@@ -118,7 +118,6 @@ PRELOAD_CONFIG_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_NAME): cv.valid_name,
         cv.Optional(CONF_BUILD_PATH): cv.string,
-
         # Compat options, these were moved to target-platform specific sections
         # but we'll keep these around for a long time because every config would
         # be impacted
@@ -145,19 +144,33 @@ def preload_core_config(config, result):
 
     has_oldstyle = CONF_PLATFORM in conf
     newstyle_found = [key for key in TARGET_PLATFORMS if key in config]
-    oldstyle_opts = [CONF_ESP8266_RESTORE_FROM_FLASH, CONF_BOARD_FLASH_MODE, CONF_ARDUINO_VERSION, CONF_BOARD]
+    oldstyle_opts = [
+        CONF_ESP8266_RESTORE_FROM_FLASH,
+        CONF_BOARD_FLASH_MODE,
+        CONF_ARDUINO_VERSION,
+        CONF_BOARD,
+    ]
 
     if not has_oldstyle and not newstyle_found:
         raise cv.Invalid("Platform missing for core options!", [CONF_ESPHOME])
     if has_oldstyle and newstyle_found:
-        raise cv.Invalid(f"Please remove the `platform` key from the [esphome] block. You're already using the new style with the [{conf[CONF_PLATFORM]}] block", [CONF_ESPHOME, CONF_PLATFORM])
+        raise cv.Invalid(
+            f"Please remove the `platform` key from the [esphome] block. You're already using the new style with the [{conf[CONF_PLATFORM]}] block",
+            [CONF_ESPHOME, CONF_PLATFORM],
+        )
     if len(newstyle_found) > 1:
-        raise cv.Invalid(f"Found multiple target platform blocks: {', '.join(newstyle_found)}. Only one is allowed.", [newstyle_found[0]])
+        raise cv.Invalid(
+            f"Found multiple target platform blocks: {', '.join(newstyle_found)}. Only one is allowed.",
+            [newstyle_found[0]],
+        )
     if newstyle_found:
         # Convert to newstyle
         for key in oldstyle_opts:
             if key in conf:
-                raise cv.Invalid(f"Please move {key} to the [{newstyle_found[0]}] block.", [CONF_ESPHOME, key])
+                raise cv.Invalid(
+                    f"Please move {key} to the [{newstyle_found[0]}] block.",
+                    [CONF_ESPHOME, key],
+                )
     if has_oldstyle:
         plat = conf[CONF_PLATFORM]
         plat_conf = {}

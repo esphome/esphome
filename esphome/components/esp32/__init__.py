@@ -1,4 +1,6 @@
 from functools import reduce
+import logging
+
 from esphome.cpp_types import GPIOFlags
 from esphome.const import (
     CONF_BOARD,
@@ -20,13 +22,15 @@ from esphome import pins
 from esphome.core import CORE
 import esphome.config_validation as cv
 import esphome.codegen as cg
+
 from . import boards
-import logging
 
 _LOGGER = logging.getLogger(__name__)
 
 esp32_ns = cg.esphome_ns.namespace("esp32")
 ESP32InternalGPIOPin = esp32_ns.class_("ESP32InternalGPIOPin", cg.InternalGPIOPin)
+KEY_ESP32 = "esp32"
+KEY_BOARD = "board"
 
 VARIANTS = ["ESP32", "ESP32S2", "ESP32S3", "ESP32C3", "ESP32H2"]
 
@@ -48,6 +52,7 @@ ARDUINO_VERSION_ESP32 = {
 def set_core_data(config):
     CORE.data[KEY_CORE][KEY_TARGET_PLATFORM] = "esp32"
     CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = "esp-idf"
+    CORE.data[KEY_ESP32][KEY_BOARD] = config[CONF_BOARD]
     return config
 
 
@@ -56,7 +61,7 @@ CONFIG_SCHEMA = cv.All(
         cv.Optional(CONF_BOARD, default="nodemcu-32s"): cv.string_strict,
         cv.Optional(CONF_VARIANT, default="ESP32"): cv.one_of(*VARIANTS, upper=True),
     },
-    set_core_data
+    set_core_data,
 )
 
 
@@ -72,7 +77,8 @@ async def to_code(config):
 
 def _lookup_pin(value):
     # TODO: lookup from esp32 schema
-    board_pins = boards.ESP32_BOARD_PINS.get("nodemcu-32s", {})
+    board = CORE.data[KEY_ESP32][KEY_BOARD]
+    board_pins = boards.ESP32_BOARD_PINS.get(board, {})
 
     # Resolved aliased board pins (shorthand when two boards have the same pin configuration)
     while isinstance(board_pins, str):
@@ -82,7 +88,7 @@ def _lookup_pin(value):
         return board_pins[value]
     if value in boards.ESP32_BASE_PINS:
         return boards.ESP32_BASE_PINS[value]
-    raise cv.Invalid(f"Cannot resolve pin name '{value}' for board {CORE.board}.")
+    raise cv.Invalid(f"Cannot resolve pin name '{value}' for board {board}.")
 
 
 def _translate_pin(value):

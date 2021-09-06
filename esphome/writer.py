@@ -21,7 +21,6 @@ from esphome.helpers import (
     get_bool_env,
 )
 from esphome.storage_json import StorageJSON, storage_path
-from esphome.boards import ESP8266_FLASH_SIZES, ESP8266_LD_SCRIPTS
 from esphome import loader
 
 _LOGGER = logging.getLogger(__name__)

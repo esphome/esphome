@@ -6,9 +6,11 @@ CODEOWNERS = ["@esphome/core"]
 DEPENDENCIES = ["network"]
 
 CONF_DISABLED = "disabled"
-CONFIG_SCHEMA = cv.Schema({
-    cv.Optional(CONF_DISABLED, default=False): cv.boolean,
-})
+CONFIG_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_DISABLED, default=False): cv.boolean,
+    }
+)
 
 
 async def to_code(config):
