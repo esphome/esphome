@@ -13,6 +13,9 @@ from esphome.const import (
     UNIT_MICROGRAMS_PER_CUBIC_METER,
     ICON_CHEMICAL_WEAPON,
     ICON_COUNTER,
+    DEVICE_CLASS_PM1,
+    DEVICE_CLASS_PM10,
+    DEVICE_CLASS_PM25,
     DEVICE_CLASS_EMPTY,
 )
 
@@ -39,19 +42,19 @@ CONFIG_SCHEMA = (
                 UNIT_MICROGRAMS_PER_CUBIC_METER,
                 ICON_CHEMICAL_WEAPON,
                 2,
-                DEVICE_CLASS_EMPTY,
+                DEVICE_CLASS_PM1,
             ),
             cv.Optional(CONF_PM_2_5): sensor.sensor_schema(
                 UNIT_MICROGRAMS_PER_CUBIC_METER,
                 ICON_CHEMICAL_WEAPON,
                 2,
-                DEVICE_CLASS_EMPTY,
+                DEVICE_CLASS_PM25,
             ),
             cv.Optional(CONF_PM_10_0): sensor.sensor_schema(
                 UNIT_MICROGRAMS_PER_CUBIC_METER,
                 ICON_CHEMICAL_WEAPON,
                 2,
-                DEVICE_CLASS_EMPTY,
+                DEVICE_CLASS_PM10,
             ),
             cv.Optional(CONF_PMC_0_3): sensor.sensor_schema(
                 UNIT_COUNTS_PER_100ML, ICON_COUNTER, 0, DEVICE_CLASS_EMPTY
