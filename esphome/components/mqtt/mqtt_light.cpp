@@ -38,18 +38,23 @@ void MQTTJSONLightComponent::send_discovery(JsonObject &root, mqtt::SendDiscover
 
   root["color_mode"] = true;
   JsonArray &color_modes = root.createNestedArray("supported_color_modes");
-  if (traits.supports_color_mode(ColorMode::COLOR_TEMPERATURE))
+  if (traits.supports_color_mode(ColorMode::ON_OFF))
+    color_modes.add("onoff");
+  if (traits.supports_color_mode(ColorMode::BRIGHTNESS))
+    color_modes.add("brightness");
+  if (traits.supports_color_mode(ColorMode::WHITE))
+    color_modes.add("white");
+  if (traits.supports_color_mode(ColorMode::COLOR_TEMPERATURE) ||
+      traits.supports_color_mode(ColorMode::COLD_WARM_WHITE))
     color_modes.add("color_temp");
   if (traits.supports_color_mode(ColorMode::RGB))
     color_modes.add("rgb");
-  if (traits.supports_color_mode(ColorMode::RGB_WHITE))
+  if (traits.supports_color_mode(ColorMode::RGB_WHITE) ||
+      // HA doesn't support RGBCT, and there's no CWWW->CT emulation in ESPHome yet, so ignore CT control for now
+      traits.supports_color_mode(ColorMode::RGB_COLOR_TEMPERATURE))
     color_modes.add("rgbw");
   if (traits.supports_color_mode(ColorMode::RGB_COLD_WARM_WHITE))
     color_modes.add("rgbww");
-  if (traits.supports_color_mode(ColorMode::BRIGHTNESS))
-    color_modes.add("brightness");
-  if (traits.supports_color_mode(ColorMode::ON_OFF))
-    color_modes.add("onoff");
 
   // legacy API
   if (traits.supports_color_capability(ColorCapability::BRIGHTNESS))

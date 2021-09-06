@@ -38,8 +38,12 @@ extern const float LATE;
 
 }  // namespace setup_priority
 
+static const uint32_t SCHEDULER_DONT_RUN = 4294967295UL;
+
 #define LOG_UPDATE_INTERVAL(this) \
-  if (this->get_update_interval() < 100) { \
+  if (this->get_update_interval() == SCHEDULER_DONT_RUN) { \
+    ESP_LOGCONFIG(TAG, "  Update Interval: never"); \
+  } else if (this->get_update_interval() < 100) { \
     ESP_LOGCONFIG(TAG, "  Update Interval: %.3fs", this->get_update_interval() / 1000.0f); \
   } else { \
     ESP_LOGCONFIG(TAG, "  Update Interval: %.1fs", this->get_update_interval() / 1000.0f); \

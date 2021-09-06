@@ -50,6 +50,23 @@ template<typename... Ts> class ToggleAction : public Action<Ts...> {
   FanState *state_;
 };
 
+template<typename... Ts> class FanIsOnCondition : public Condition<Ts...> {
+ public:
+  explicit FanIsOnCondition(FanState *state) : state_(state) {}
+  bool check(Ts... x) override { return this->state_->state; }
+
+ protected:
+  FanState *state_;
+};
+template<typename... Ts> class FanIsOffCondition : public Condition<Ts...> {
+ public:
+  explicit FanIsOffCondition(FanState *state) : state_(state) {}
+  bool check(Ts... x) override { return !this->state_->state; }
+
+ protected:
+  FanState *state_;
+};
+
 class FanTurnOnTrigger : public Trigger<> {
  public:
   FanTurnOnTrigger(FanState *state) {

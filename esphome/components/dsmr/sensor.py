@@ -9,9 +9,9 @@ from esphome.const import (
     DEVICE_CLASS_POWER,
     DEVICE_CLASS_VOLTAGE,
     ICON_EMPTY,
-    LAST_RESET_TYPE_NEVER,
     STATE_CLASS_MEASUREMENT,
     STATE_CLASS_NONE,
+    STATE_CLASS_TOTAL_INCREASING,
     UNIT_AMPERE,
     UNIT_EMPTY,
     UNIT_VOLT,
@@ -26,52 +26,22 @@ CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_DSMR_ID): cv.use_id(Dsmr),
         cv.Optional("energy_delivered_lux"): sensor.sensor_schema(
-            "kWh",
-            ICON_EMPTY,
-            3,
-            DEVICE_CLASS_ENERGY,
-            STATE_CLASS_MEASUREMENT,
-            LAST_RESET_TYPE_NEVER,
+            "kWh", ICON_EMPTY, 3, DEVICE_CLASS_ENERGY, STATE_CLASS_TOTAL_INCREASING
         ),
         cv.Optional("energy_delivered_tariff1"): sensor.sensor_schema(
-            "kWh",
-            ICON_EMPTY,
-            3,
-            DEVICE_CLASS_ENERGY,
-            STATE_CLASS_MEASUREMENT,
-            LAST_RESET_TYPE_NEVER,
+            "kWh", ICON_EMPTY, 3, DEVICE_CLASS_ENERGY, STATE_CLASS_TOTAL_INCREASING
         ),
         cv.Optional("energy_delivered_tariff2"): sensor.sensor_schema(
-            "kWh",
-            ICON_EMPTY,
-            3,
-            DEVICE_CLASS_ENERGY,
-            STATE_CLASS_MEASUREMENT,
-            LAST_RESET_TYPE_NEVER,
+            "kWh", ICON_EMPTY, 3, DEVICE_CLASS_ENERGY, STATE_CLASS_TOTAL_INCREASING
         ),
         cv.Optional("energy_returned_lux"): sensor.sensor_schema(
-            "kWh",
-            ICON_EMPTY,
-            3,
-            DEVICE_CLASS_ENERGY,
-            STATE_CLASS_MEASUREMENT,
-            LAST_RESET_TYPE_NEVER,
+            "kWh", ICON_EMPTY, 3, DEVICE_CLASS_ENERGY, STATE_CLASS_TOTAL_INCREASING
         ),
         cv.Optional("energy_returned_tariff1"): sensor.sensor_schema(
-            "kWh",
-            ICON_EMPTY,
-            3,
-            DEVICE_CLASS_ENERGY,
-            STATE_CLASS_MEASUREMENT,
-            LAST_RESET_TYPE_NEVER,
+            "kWh", ICON_EMPTY, 3, DEVICE_CLASS_ENERGY, STATE_CLASS_TOTAL_INCREASING
         ),
         cv.Optional("energy_returned_tariff2"): sensor.sensor_schema(
-            "kWh",
-            ICON_EMPTY,
-            3,
-            DEVICE_CLASS_ENERGY,
-            STATE_CLASS_MEASUREMENT,
-            LAST_RESET_TYPE_NEVER,
+            "kWh", ICON_EMPTY, 3, DEVICE_CLASS_ENERGY, STATE_CLASS_TOTAL_INCREASING
         ),
         cv.Optional("total_imported_energy"): sensor.sensor_schema(
             "kvarh", ICON_EMPTY, 3, DEVICE_CLASS_ENERGY, STATE_CLASS_NONE
@@ -176,20 +146,10 @@ CONFIG_SCHEMA = cv.Schema(
             UNIT_VOLT, ICON_EMPTY, 1, DEVICE_CLASS_VOLTAGE, STATE_CLASS_NONE
         ),
         cv.Optional("gas_delivered"): sensor.sensor_schema(
-            "m³",
-            ICON_EMPTY,
-            3,
-            DEVICE_CLASS_GAS,
-            STATE_CLASS_MEASUREMENT,
-            LAST_RESET_TYPE_NEVER,
+            "m³", ICON_EMPTY, 3, DEVICE_CLASS_GAS, STATE_CLASS_TOTAL_INCREASING
         ),
         cv.Optional("gas_delivered_be"): sensor.sensor_schema(
-            "m³",
-            ICON_EMPTY,
-            3,
-            DEVICE_CLASS_GAS,
-            STATE_CLASS_MEASUREMENT,
-            LAST_RESET_TYPE_NEVER,
+            "m³", ICON_EMPTY, 3, DEVICE_CLASS_GAS, STATE_CLASS_TOTAL_INCREASING
         ),
     }
 ).extend(cv.COMPONENT_SCHEMA)

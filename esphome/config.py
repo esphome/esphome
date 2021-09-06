@@ -638,6 +638,8 @@ def validate_config(config, command_line_substitutions):
             result.add_error(err)
             return result
 
+    CORE.raw_config = config
+
     # 1. Load substitutions
     if CONF_SUBSTITUTIONS in config:
         from esphome.components import substitutions
@@ -652,6 +654,8 @@ def validate_config(config, command_line_substitutions):
         except vol.Invalid as err:
             result.add_error(err)
             return result
+
+    CORE.raw_config = config
 
     # 1.1. Check for REPLACEME special value
     try:
