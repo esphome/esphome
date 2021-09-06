@@ -58,7 +58,7 @@ CONF_IDLE_FRAMERATE = "idle_framerate"
 CONF_JPEG_QUALITY = "jpeg_quality"
 CONF_VERTICAL_FLIP = "vertical_flip"
 CONF_HORIZONTAL_MIRROR = "horizontal_mirror"
-CONF_AEC2: "set_aec2"
+CONF_AEC2: "aec2"
 CONF_AE_LEVEL: "ae_level"
 CONF_AEC_VALUE: "aec_value"
 CONF_SATURATION = "saturation"
@@ -124,8 +124,8 @@ SETTERS = {
     CONF_VERTICAL_FLIP: "set_vertical_flip",
     CONF_HORIZONTAL_MIRROR: "set_horizontal_mirror",
     CONF_AEC2: "set_aec2",
-    CONF_AE_LEVEL: "ae_level",
-    CONF_AEC_VALUE: "aec_value",
+    CONF_AE_LEVEL: "set_ae_level",
+    CONF_AEC_VALUE: "set_aec_value",
     CONF_CONTRAST: "set_contrast",
     CONF_BRIGHTNESS: "set_brightness",
     CONF_SATURATION: "set_saturation",
