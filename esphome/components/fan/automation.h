@@ -103,9 +103,9 @@ class FanTurnOffTrigger : public Trigger<> {
   bool last_on_;
 };
 
-class FanSetSpeedTrigger : public Trigger<> {
+class FanSpeedSetTrigger : public Trigger<> {
  public:
-  FanSetSpeedTrigger(FanState *state) {
+  FanSpeedSetTrigger(FanState *state) {
     state->add_on_state_callback([this, state]() {
       auto speed = state->speed;
       auto should_trigger = speed != !this->last_speed_;
