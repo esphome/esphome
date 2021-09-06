@@ -48,21 +48,24 @@ void Logger::write_header_(int level, const char *tag, int line) {
 }
 
 void HOT Logger::log_vprintf_(int level, const char *tag, int line, const char *format, va_list args) {  // NOLINT
-  if (level > this->level_for(tag))
+  if (level > this->level_for(tag) || recursion_guard_)
     return;
 
+  recursion_guard_ = true;
   this->reset_buffer_();
   this->write_header_(level, tag, line);
   this->vprintf_to_buffer_(format, args);
   this->write_footer_();
   this->log_message_(level, tag);
+  recursion_guard_ = false;
 }
 #ifdef USE_STORE_LOG_STR_IN_FLASH
 void Logger::log_vprintf_(int level, const char *tag, int line, const __FlashStringHelper *format,
                           va_list args) {  // NOLINT
-  if (level > this->level_for(tag))
+  if (level > this->level_for(tag) || recursion_guard_)
     return;
 
+  recursion_guard_ = true;
   this->reset_buffer_();
   // copy format string
   const char *format_pgm_p = (PGM_P) format;
@@ -83,6 +86,7 @@ void Logger::log_vprintf_(int level, const char *tag, int line, const __FlashStr
   this->vprintf_to_buffer_(this->tx_buffer_, args);
   this->write_footer_();
   this->log_message_(level, tag, offset);
+  recursion_guard_ = false;
 }
 #endif
 

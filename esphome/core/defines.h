@@ -52,3 +52,12 @@
 
 // Disabled feature flags
 //#define USE_BSEC  // Requires a library with proprietary license.
+#define USE_TIME
+#define USE_DEEP_SLEEP
+#define USE_CAPTIVE_PORTAL
+#define ESPHOME_BOARD "dummy_board"
+#define USE_MDNS
+#define USE_SOCKET_IMPL_LWIP_TCP
+#define USE_SOCKET_IMPL_BSD_SOCKETS
+#define USE_API_NOISE
+#define USE_API_PLAINTEXT

@@ -192,6 +192,11 @@ class APIClient(threading.Thread):
         self._socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._socket.settimeout(10.0)
         self._socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+        import ssl
+
+        context = ssl.SSLContext()
+        self._socket = context.wrap_socket(self._socket)
+
         try:
             self._socket.connect((ip, self._port))
         except OSError as err:
