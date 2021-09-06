@@ -1,7 +1,7 @@
 import socket
 import threading
 import time
-from typing import Optional, Dict
+from typing import Dict, Optional
 
 from zeroconf import (
     _CLASS_IN,
