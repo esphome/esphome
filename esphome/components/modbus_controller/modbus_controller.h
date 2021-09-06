@@ -216,11 +216,6 @@ class ModbusController : public PollingComponent, public modbus::ModbusDevice {
   void queue_command(const ModbusCommandItem &command);
   void add_sensor_item(SensorItem *item) { sensormap_[item->getkey()] = item; }
   size_t get_command_queue_length() { return command_queue_.size(); }
-  void set_ctrl_pin(uint8_t ctrl_pin) {
-    static GPIOPin PIN(ctrl_pin, OUTPUT);
-
-    parent_->set_flow_control_pin(&PIN);
-  }
 
  protected:
   bool send_next_command_();

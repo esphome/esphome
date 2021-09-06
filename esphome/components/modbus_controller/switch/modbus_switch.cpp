@@ -9,7 +9,7 @@ static const char *const TAG = "modbus_controller.switch";
 void ModbusSwitch::dump_config() { LOG_SWITCH("", "Modbus Controller Switch", this); }
 
 void ModbusSwitch::parse_and_publish(const std::vector<uint8_t> &data) {
-  int64_t value = 0;
+  bool value = false;
   switch (this->register_type) {
     case ModbusFunctionCode::READ_DISCRETE_INPUTS:
     case ModbusFunctionCode::READ_COILS:
@@ -20,16 +20,16 @@ void ModbusSwitch::parse_and_publish(const std::vector<uint8_t> &data) {
       value = get_data<uint16_t>(data, this->offset) & this->bitmask;
       break;
   }
-  ESP_LOGV(TAG, "publish ModbusSwitch '%s': new value = %d  type = %d address = %X offset = %x",
-           this->get_name().c_str(), value != 0.0, (int) this->register_type, this->start_address, this->offset);
-  this->publish_state(value != 0.0);
+  ESP_LOGV(TAG, "Publish '%s': new value = %s type = %d address = %X offset = %x", this->get_name().c_str(),
+           ONOFF(value), (int) this->register_type, this->start_address, this->offset);
+  this->publish_state(value);
 }
 
 void ModbusSwitch::write_state(bool state) {
   // This will be called every time the user requests a state change.
   ModbusCommandItem cmd;
-  ESP_LOGV(TAG, "write_state for ModbusSwitch '%s': new value = %d  type = %d address = %X offset = %x",
-           this->get_name().c_str(), state, (int) this->register_type, this->start_address, this->offset);
+  ESP_LOGV(TAG, "write_state '%s': new value = %s type = %d address = %X offset = %x", this->get_name().c_str(),
+           ONOFF(state), (int) this->register_type, this->start_address, this->offset);
   switch (this->register_type) {
     case ModbusFunctionCode::READ_COILS:
       // offset for coil and discrete inputs is the coil/register number not bytes

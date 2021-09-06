@@ -28,8 +28,8 @@ bool ModbusController::send_next_command_() {
   if ((last_send > this->command_throttle_) && !waiting_for_response() && !command_queue_.empty()) {
     auto &command = command_queue_.front();
 
-    ESP_LOGD(TAG, "Sending next modbus command to device %d register 0x%02X", this->address_,
-             command->register_address);
+    ESP_LOGV(TAG, "Sending next modbus command to device %d register 0x%02X count %d", this->address_,
+             command->register_address, command->register_count);
     command->send();
     this->last_command_timestamp_ = millis();
     if (!command->on_data_func) {  // No handler remove from queue directly after sending
@@ -53,7 +53,7 @@ void ModbusController::on_modbus_data(const std::vector<uint8_t> &data) {
 
 // Dispatch the response to the registered handler
 void ModbusController::process_modbus_data(const ModbusCommandItem *response) {
-  ESP_LOGD(TAG, "Process modbus response for address 0x%X size: %zu", response->register_address,
+  ESP_LOGV(TAG, "Process modbus response for address 0x%X size: %zu", response->register_address,
            response->payload.size());
   response->on_data_func(response->function_code, response->register_address, response->payload);
 }
@@ -383,8 +383,8 @@ ModbusCommandItem ModbusCommandItem::create_custom_command(ModbusController *mod
 
 bool ModbusCommandItem::send() {
   if (this->function_code != ModbusFunctionCode::CUSTOM) {
-    modbusdevice->send(uint8_t(this->function_code), this->register_address, this->register_count,
-                                    this->payload.size(), this->payload.empty() ? nullptr : &this->payload[0]);
+    modbusdevice->send(uint8_t(this->function_code), this->register_address, this->register_count, this->payload.size(),
+                       this->payload.empty() ? nullptr : &this->payload[0]);
   } else {
     modbusdevice->send_raw(this->payload);
   }

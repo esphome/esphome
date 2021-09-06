@@ -60,6 +60,7 @@ void ModbusSensor::parse_and_publish(const std::vector<uint8_t> &data) {
       break;
     case SensorValueType::S_DWORD:
       value = mask_and_shift_by_rightbit(get_data<int32_t>(data, this->offset), this->bitmask);
+      result = static_cast<float>(value);
       break;
     case SensorValueType::S_DWORD_R: {
       value = get_data<uint32_t>(data, this->offset);
