@@ -30,8 +30,8 @@ void LightJSONSchema::dump_json(LightState &state, JsonObject &root) {
     case ColorMode::COLOR_TEMPERATURE:
       root["color_mode"] = "color_temp";
       break;
-    case ColorMode::COLD_WARM_WHITE:  // not supported by HA
-      root["color_mode"] = "cwww";
+    case ColorMode::COLD_WARM_WHITE:
+      root["color_mode"] = "color_temp";
       break;
     case ColorMode::RGB:
       root["color_mode"] = "rgb";
@@ -39,8 +39,9 @@ void LightJSONSchema::dump_json(LightState &state, JsonObject &root) {
     case ColorMode::RGB_WHITE:
       root["color_mode"] = "rgbw";
       break;
-    case ColorMode::RGB_COLOR_TEMPERATURE:  // not supported by HA
-      root["color_mode"] = "rgbct";
+    case ColorMode::RGB_COLOR_TEMPERATURE:
+      // HA doesn't support RGBCT, and there's no CWWW->CT emulation in ESPHome yet, so ignore CT control for now
+      root["color_mode"] = "rgbw";
       break;
     case ColorMode::RGB_COLD_WARM_WHITE:
       root["color_mode"] = "rgbww";
