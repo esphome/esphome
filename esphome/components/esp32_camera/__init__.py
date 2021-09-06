@@ -108,7 +108,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_HORIZONTAL_MIRROR, default=True): cv.boolean,
         cv.Optional(CONF_AEC2, default=False): cv.boolean,
         cv.Optional(CONF_AE_LEVEL, default=0): camera_range_param,
-        cv.Optional(CONF_AEC_VALUE, default=600): cv.int_range(min=0, max=1200),
+        cv.Optional(CONF_AEC_VALUE, default=300): cv.int_range(min=0, max=1200),
         cv.Optional(CONF_TEST_PATTERN, default=False): cv.boolean,
     }
 ).extend(cv.COMPONENT_SCHEMA)
