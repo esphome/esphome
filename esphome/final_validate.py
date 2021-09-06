@@ -5,8 +5,6 @@ import contextvars
 from esphome.types import ConfigFragmentType, ID, ConfigPathType
 import esphome.config_validation as cv
 from esphome.const import (
-    ARDUINO_VERSION_ESP32,
-    ARDUINO_VERSION_ESP8266,
     CONF_ESPHOME,
     CONF_ARDUINO_VERSION,
 )

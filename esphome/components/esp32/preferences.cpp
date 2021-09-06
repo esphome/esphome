@@ -17,12 +17,12 @@ class ESP32Preference : public Preference {
   bool save_(const uint8_t *data, size_t len) {
     esp_err_t err = nvs_set_blob(nvs_handle, key.c_str(), data, len);
     if (err != 0) {
-      ESP_LOGV(TAG, "nvs_set_blob('%s', len=%u) failed: %s", key, len, esp_err_to_name(err));
+      ESP_LOGV(TAG, "nvs_set_blob('%s', len=%u) failed: %s", key.c_str(), len, esp_err_to_name(err));
       return false;
     }
     err = nvs_commit(nvs_handle);
     if (err != 0) {
-      ESP_LOGV(TAG, "nvs_commit('%s', len=%u) failed: %s", key, len, esp_err_to_name(err));
+      ESP_LOGV(TAG, "nvs_commit('%s', len=%u) failed: %s", key.c_str(), len, esp_err_to_name(err));
       return false;
     }
     return true;

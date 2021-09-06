@@ -52,6 +52,7 @@ ARDUINO_VERSION_ESP32 = {
 def set_core_data(config):
     CORE.data[KEY_CORE][KEY_TARGET_PLATFORM] = "esp32"
     CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = "esp-idf"
+    CORE.data[KEY_ESP32] = {}
     CORE.data[KEY_ESP32][KEY_BOARD] = config[CONF_BOARD]
     return config
 
@@ -73,6 +74,7 @@ async def to_code(config):
     if config[CONF_VARIANT] != "ESP32":
         cg.add_build_flag(f"-DUSE_{config[CONF_VARIANT]}")
     cg.add_build_flag("-DUSE_ESP_IDF")
+    cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
 
 
 def _lookup_pin(value):
@@ -199,7 +201,7 @@ ESP32_PIN_SCHEMA = cv.All(
 )
 
 
-@pins.PIN_SCHEMA_REGISTRY.register("default", ESP32_PIN_SCHEMA)
+@pins.PIN_SCHEMA_REGISTRY.register("esp32", ESP32_PIN_SCHEMA)
 async def esp32_pin_to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     num = config[CONF_NUMBER]

@@ -41,7 +41,7 @@ class StorageJSON:
         esphome_version,
         src_version,
         address,
-        esp_platform,
+        target_platform,
         build_path,
         firmware_bin_path,
         loaded_integrations,
@@ -61,7 +61,7 @@ class StorageJSON:
         # Address of the ESP, for example livingroom.local or a static IP
         self.address = address  # type: str
         # The type of ESP in use, either ESP32 or ESP8266
-        self.esp_platform = esp_platform  # type: str
+        self.target_platform = target_platform  # type: str
         # The absolute path to the platformio project
         self.build_path = build_path  # type: str
         # The absolute path to the firmware binary
@@ -78,7 +78,7 @@ class StorageJSON:
             "esphome_version": self.esphome_version,
             "src_version": self.src_version,
             "address": self.address,
-            "esp_platform": self.esp_platform,
+            "esp_platform": self.target_platform,
             "build_path": self.build_path,
             "firmware_bin_path": self.firmware_bin_path,
             "loaded_integrations": self.loaded_integrations,
@@ -101,7 +101,7 @@ class StorageJSON:
             esphome_version=const.__version__,
             src_version=1,
             address=esph.address,
-            esp_platform=esph.esp_platform,
+            target_platform=esph.target_platform,
             build_path=esph.build_path,
             firmware_bin_path=esph.firmware_bin,
             loaded_integrations=list(esph.loaded_integrations),
@@ -117,7 +117,7 @@ class StorageJSON:
             esphome_version=const.__version__,
             src_version=1,
             address=address,
-            esp_platform=esp_platform,
+            target_platform=esp_platform,
             build_path=None,
             firmware_bin_path=None,
             loaded_integrations=[],

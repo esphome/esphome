@@ -26,7 +26,19 @@ bool is_connected() {
   return false;
 }
 
-network::IPAddress get_address() {
+network::IPAddress get_ip_address() {
+#ifdef USE_ETHERNET
+  if (ethernet::global_eth_component != nullptr)
+    return ethernet::global_eth_component->get_ip_address();
+#endif
+#ifdef USE_WIFI
+  if (wifi::global_wifi_component != nullptr)
+    return wifi::global_wifi_component->get_ip_address();
+#endif
+  return {};
+}
+
+std::string get_use_address() {
 #ifdef USE_ETHERNET
   if (ethernet::global_eth_component != nullptr)
     return ethernet::global_eth_component->get_use_address();

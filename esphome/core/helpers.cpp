@@ -60,11 +60,13 @@ double random_double() { return random_uint32() / double(UINT32_MAX); }
 float random_float() { return float(random_double()); }
 
 void fill_random(uint8_t *data, size_t len) {
-#ifdef ARDUINO_ARCH_ESP32
+#if defined(USE_ESP_IDF) || defined(USE_ESP32_ARDUINO)
   esp_fill_random(data, len);
-#else
+#elif defined(USE_ESP8266)
   int err = os_get_random(data, len);
   assert(err == 0);
+#else
+#error "No random source for this system config"
 #endif
 }
 

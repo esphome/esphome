@@ -29,7 +29,7 @@ async def gpio_pin_expression(conf):
     for key, (func, _) in pins.PIN_SCHEMA_REGISTRY.items():
         if key in conf:
             return await coroutine(func)(conf)
-    return await coroutine(pins.PIN_SCHEMA_REGISTRY["default"][0])(conf)
+    return await coroutine(pins.PIN_SCHEMA_REGISTRY[CORE.target_platform][0])(conf)
 
 
 async def register_component(var, config):

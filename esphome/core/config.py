@@ -184,6 +184,7 @@ def preload_core_config(config, result):
             plat_conf[CONF_BOARD] = conf[CONF_BOARD]
         # Insert generated target platform config to main config
         config[plat] = plat_conf
+    config[CONF_ESPHOME] = conf
 
 
 def include_file(path, basename):

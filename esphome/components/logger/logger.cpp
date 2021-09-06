@@ -115,8 +115,20 @@ void HOT Logger::log_message_(int level, const char *tag, int offset) {
     this->hw_serial_->println(msg);
 #endif  // USE_ARDUINO
 #ifdef USE_ESP_IDF
-  uart_write_bytes(UART_NUM_0, msg, strlen(msg));
-  uart_write_bytes(UART_NUM_0, "\n", 1);
+  uart_port_t uart_num = UART_NUM_0;
+  switch (uart_) {
+    case UART_SELECTION_UART0:
+      uart_num = UART_NUM_0;
+      break;
+    case UART_SELECTION_UART1:
+      uart_num = UART_NUM_1;
+      break;
+    case UART_SELECTION_UART2:
+      uart_num = UART_NUM_2;
+      break;
+  }
+  uart_write_bytes(uart_num, msg, strlen(msg));
+  uart_write_bytes(uart_num, "\n", 1);
 #endif
 
 #ifdef USE_ESP32
@@ -125,7 +137,7 @@ void HOT Logger::log_message_(int level, const char *tag, int offset) {
   // memory exhaustion, and trying to log when OOM can lead to a crash. Skipping
   // here usually allows the stack to recover instead.
   // See issue #1234 for analysis.
-  if (xPortGetFreeHeapSize() > 2048)
+  if (xPortGetFreeHeapSize() < 2048)
     return;
 #endif
 
