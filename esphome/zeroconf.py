@@ -1,7 +1,7 @@
 import socket
 import threading
 import time
-from typing import Optional
+from typing import Dict, Optional
 
 from zeroconf import (
     _CLASS_IN,
@@ -64,7 +64,7 @@ class DashboardStatus(RecordUpdateListener, threading.Thread):
         threading.Thread.__init__(self)
         self.zc = zc
         self.query_hosts: set[str] = set()
-        self.key_to_host: dict[str, str] = {}
+        self.key_to_host: Dict[str, str] = {}
         self.stop_event = threading.Event()
         self.query_event = threading.Event()
         self.on_update = on_update
@@ -72,7 +72,7 @@ class DashboardStatus(RecordUpdateListener, threading.Thread):
     def update_record(self, zc: Zeroconf, now: float, record: DNSRecord) -> None:
         pass
 
-    def request_query(self, hosts: dict[str, str]) -> None:
+    def request_query(self, hosts: Dict[str, str]) -> None:
         self.query_hosts = set(hosts.values())
         self.key_to_host = hosts
         self.query_event.set()
