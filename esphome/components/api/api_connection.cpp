@@ -25,7 +25,14 @@ APIConnection::APIConnection(std::unique_ptr<socket::Socket> sock, APIServer *pa
       list_entities_iterator_(parent, this) {
   this->proto_write_buffer_.reserve(64);
 
+#ifdef USE_API_NOISE
   helper_ = std::unique_ptr<APIFrameHelper>{new APINoiseFrameHelper(std::move(sock), parent->get_noise_ctx())};
+#elif defined(USE_API_PLAINTEXT)
+  helper_ = std::unique_ptr<APIFrameHelper>{new APIPlaintextFrameHelper(std::move(sock))};
+#else
+#error "No api frame helper enabled"
+#endif
+
 }
 void APIConnection::start() {
   this->last_traffic_ = millis();

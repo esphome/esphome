@@ -130,7 +130,6 @@ class MbedTLSWrappedSocket : public socket::Socket {
     int ret = mbedtls_ssl_read(&ssl_, reinterpret_cast<uint8_t *>(buf), len);
     return this->mbedtls_to_errno_(ret);
   }
-  // virtual ssize_t readv(const struct iovec *iov, int iovcnt) = 0;
   ssize_t write(const void *buf, size_t len) override {
     loop();
     if (do_handshake_) {
@@ -140,7 +139,6 @@ class MbedTLSWrappedSocket : public socket::Socket {
     int ret = mbedtls_ssl_write(&ssl_, reinterpret_cast<const uint8_t *>(buf), len);
     return this->mbedtls_to_errno_(ret);
   }
-  // virtual ssize_t writev(const struct iovec *iov, int iovcnt) = 0;
   int setblocking(bool blocking) override {
     // TODO: handle blocking modes
     return sock_->setblocking(blocking);

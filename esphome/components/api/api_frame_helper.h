@@ -3,7 +3,11 @@
 #include <vector>
 #include <deque>
 
+#include "esphome/core/defines.h"
+
+#ifdef USE_API_NOISE
 #include "noise/protocol.h"
+#endif
 
 #include "esphome/components/socket/socket.h"
 #include "api_noise_context.h"
@@ -63,39 +67,39 @@ class APIFrameHelper {
   virtual void set_log_info(std::string info) = 0;
 };
 
+#ifdef USE_API_NOISE
 class APINoiseFrameHelper : public APIFrameHelper {
  public:
   APINoiseFrameHelper(std::unique_ptr<socket::Socket> socket, std::shared_ptr<APINoiseContext> ctx) : socket_(std::move(socket)), ctx_(ctx) {}
   ~APINoiseFrameHelper();
-  APIError init();
-  APIError loop();
-  APIError read_packet(ReadPacketBuffer *buffer);
-  bool can_write_without_blocking();
-  APIError write_packet(uint16_t type, const uint8_t *data, size_t len);
-  std::string getpeername() {
+  APIError init() override;
+  APIError loop() override;
+  APIError read_packet(ReadPacketBuffer *buffer) override;
+  bool can_write_without_blocking() override;
+  APIError write_packet(uint16_t type, const uint8_t *data, size_t len) override;
+  std::string getpeername()  override{
     return socket_->getpeername();
   }
-  APIError close();
-  APIError shutdown(int how);
+  APIError close() override;
+  APIError shutdown(int how) override;
   // Give this helper a name for logging
-  void set_log_info(std::string info) {
+  void set_log_info(std::string info) override {
     info_ = std::move(info);
   }
 
  protected:
-  APIError reserve_rx_buf_(size_t new_capacity);
-
   struct ParsedFrame {
     std::vector<uint8_t> msg;
   };
 
   APIError state_action_();
   APIError try_read_frame_(ParsedFrame *frame);
-  APIError try_send_raw_();
+  APIError try_send_tx_buf_();
   APIError write_frame_(const uint8_t *data, size_t len);
   APIError write_raw_(const uint8_t *data, size_t len);
   APIError init_handshake_();
   APIError check_handshake_finished_();
+  void send_explicit_handshake_reject_(const std::string &reason);
 
   std::unique_ptr<socket::Socket> socket_;
 
@@ -124,6 +128,59 @@ class APINoiseFrameHelper : public APIFrameHelper {
     FAILED = 7,
   } state_ = State::INITIALIZE;
 };
+#endif  // USE_API_NOISE
+
+#ifdef USE_API_PLAINTEXT
+class APIPlaintextFrameHelper : public APIFrameHelper {
+ public:
+  APIPlaintextFrameHelper(std::unique_ptr<socket::Socket> socket) : socket_(std::move(socket)) {}
+  ~APIPlaintextFrameHelper() = default;
+  APIError init() override;
+  APIError loop() override;
+  APIError read_packet(ReadPacketBuffer *buffer) override;
+  bool can_write_without_blocking() override;
+  APIError write_packet(uint16_t type, const uint8_t *data, size_t len) override;
+  std::string getpeername() override {
+    return socket_->getpeername();
+  }
+  APIError close() override;
+  APIError shutdown(int how) override;
+  // Give this helper a name for logging
+  void set_log_info(std::string info) override {
+    info_ = std::move(info);
+  }
+
+ protected:
+  struct ParsedFrame {
+    std::vector<uint8_t> msg;
+  };
+
+  APIError try_read_frame_(ParsedFrame *frame);
+  APIError try_send_tx_buf_();
+  APIError write_frame_(const uint8_t *data, size_t len);
+  APIError write_raw_(const uint8_t *data, size_t len);
+
+  std::unique_ptr<socket::Socket> socket_;
+
+  std::string info_;
+  std::vector<uint8_t> rx_header_buf_;
+  bool rx_header_parsed_ = false;
+  uint32_t rx_header_parsed_type_ = 0;
+  uint32_t rx_header_parsed_len_ = 0;
+
+  std::vector<uint8_t> rx_buf_;
+  size_t rx_buf_len_ = 0;
+
+  std::vector<uint8_t> tx_buf_;
+
+  enum class State {
+    INITIALIZE = 1,
+    DATA = 2,
+    CLOSED = 3,
+    FAILED = 4,
+  } state_ = State::INITIALIZE;
+};
+#endif
 
 }  // namespace api
 }  // namespace esphome

@@ -1,10 +1,12 @@
 #pragma once
 #include <cstdint>
 #include <array>
+#include "esphome/core/defines.h"
 
 namespace esphome {
 namespace api {
 
+#ifdef USE_API_NOISE
 using psk_t = std::array<uint8_t, 32>;
 
 class APINoiseContext {
@@ -19,6 +21,7 @@ class APINoiseContext {
  protected:
   psk_t psk_;
 };
+#endif // USE_API_NOISE
 
 }  // namespace api
 }  // namespace esphome

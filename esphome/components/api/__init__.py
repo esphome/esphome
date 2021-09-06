@@ -120,6 +120,9 @@ async def to_code(config):
         conf = config[CONF_ENCRYPTION]
         decoded = base64.b64decode(conf[CONF_KEY])
         cg.add(var.set_noise_psk(list(decoded)))
+        cg.add_define("USE_API_NOISE")
+    else:
+        cg.add_define("USE_API_PLAINTEXT")
 
     cg.add_define("USE_API")
     cg.add_global(api_ns.using)

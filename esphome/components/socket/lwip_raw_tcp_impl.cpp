@@ -29,7 +29,6 @@ class LWIPRawImpl : public Socket {
   }
 
   void init() {
-    ESP_LOGD(TAG, "init()");
     tcp_arg(pcb_, this);
     tcp_accept(pcb_, LWIPRawImpl::s_accept_fn);
     tcp_recv(pcb_, LWIPRawImpl::s_recv_fn);
@@ -98,8 +97,7 @@ class LWIPRawImpl : public Socket {
     port = ntohs(addr4->sin_port);
     ip.addr = addr4->sin_addr.s_addr;
 #endif
-    err_t err = tcp_bind(pcb_, IP4_ADDR_ANY, port);
-    ESP_LOGD(TAG, "bind(ip=%u, port=%u) -> %d", ip.addr, port, err);
+    err_t err = tcp_bind(pcb_, &ip, port);
     if (err == ERR_USE) {
       errno = EADDRINUSE;
       return -1;
@@ -128,14 +126,6 @@ class LWIPRawImpl : public Socket {
     }
     pcb_ = nullptr;
     return 0;
-  }
-  int connect(const std::string &address) override {
-    // TODO
-    return -1;
-  }
-  int connect(const struct sockaddr *addr, socklen_t addrlen) override {
-    // TODO
-    return -1;
   }
   int shutdown(int how) override {
     if (pcb_ == nullptr) {
@@ -226,7 +216,29 @@ class LWIPRawImpl : public Socket {
       errno = EBADF;
       return -1;
     }
-    // TODO
+    if (level == SOL_SOCKET && optname == SO_REUSEADDR) {
+      if (optlen < 4) {
+        errno = EINVAL;
+        return -1;
+      }
+
+      // lwip doesn't seem to have this feature. Don't send an error
+      // to prevent warnings
+      *reinterpret_cast<int *>(optval) = 1;
+      *optlen = 4;
+      return 0;
+    }
+    if (level == IPPROTO_TCP && optname == TCP_NODELAY) {
+      if (optlen < 4) {
+        errno = EINVAL;
+        return -1;
+      }
+      *reinterpret_cast<int *>(optval) = tcp_nagle_disabled(pcb_);
+      *optlen = 4;
+      return 0;
+    }
+
+    errno = EINVAL;
     return -1;
   }
   int setsockopt(int level, int optname, const void *optval, socklen_t optlen) override {
@@ -240,7 +252,8 @@ class LWIPRawImpl : public Socket {
         return -1;
       }
 
-      // TODO
+      // lwip doesn't seem to have this feature. Don't send an error
+      // to prevent warnings
       return 0;
     }
     if (level == IPPROTO_TCP && optname == TCP_NODELAY) {
@@ -266,7 +279,6 @@ class LWIPRawImpl : public Socket {
       return -1;
     }
     struct tcp_pcb *listen_pcb = tcp_listen_with_backlog(pcb_, backlog);
-    ESP_LOGD(TAG, "listen(%d) -> %p", backlog, listen_pcb);
     if (listen_pcb == nullptr) {
       tcp_abort(pcb_);
       pcb_ = nullptr;
@@ -286,7 +298,7 @@ class LWIPRawImpl : public Socket {
       return -1;
     }
     if (rx_closed_ && rx_buf_ == nullptr) {
-      errno = ECONNRESET;  // TODO: is this the right errno?
+      errno = ECONNRESET;
       return -1;
     }
     if (len == 0) {
@@ -333,7 +345,6 @@ class LWIPRawImpl : public Socket {
 
     return read;
   }
-  // virtual ssize_t readv(const struct iovec *iov, int iovcnt) = 0;
   ssize_t write(const void *buf, size_t len) {
     if (pcb_ == nullptr) {
       errno = EBADF;
@@ -367,7 +378,6 @@ class LWIPRawImpl : public Socket {
     }
     return to_send;
   }
-  // virtual ssize_t writev(const struct iovec *iov, int iovcnt) = 0;
   int setblocking(bool blocking) {
     if (pcb_ == nullptr) {
       errno = EBADF;
@@ -382,20 +392,32 @@ class LWIPRawImpl : public Socket {
   }
 
   err_t accept_fn(struct tcp_pcb *newpcb, err_t err) {
-    // TODO: check err
+    if (err != ERR_OK || newpcb == 0) {
+      // "An error code if there has been an error accepting. Only return ERR_ABRT if you have
+      // called tcp_abort from within the callback function!"
+      // https://www.nongnu.org/lwip/2_1_x/tcp_8h.html#a00517abce6856d6c82f0efebdafb734d
+      // nothing to do here, we just don't push it to the queue
+      return ERR_OK;
+    }
     accepted_sockets_.emplace(new LWIPRawImpl(newpcb));
-    ESP_LOGD(TAG, "accept_fn newpcb=%p err=%d", newpcb, err);
     return ERR_OK;
   }
   void err_fn(err_t err) {
-    ESP_LOGD(TAG, "err_fn err=%d", err);
+    // "If a connection is aborted because of an error, the application is alerted of this event by
+    // the err callback."
+    // pcb is already freed when this callback is called
+    // ERR_RST: connection was reset by remote host
+    // ERR_ABRT: aborted through tcp_abort or TCP timer
+    pcb_ = nullptr;
   }
   err_t recv_fn(struct pbuf *pb, err_t err) {
-    // TODO: check err
-    ESP_LOGD(TAG, "recv_fn pb=%p err=%d", pb, err);
+    if (err != 0) {
+      // "An error code if there has been an error receiving Only return ERR_ABRT if you have
+      // called tcp_abort from within the callback function!"
+      rx_closed_ = true;
+      return ERR_OK;
+    }
     if (pb == nullptr) {
-      // remote host has closed the connection
-      // TODO
       rx_closed_ = true;
       return ERR_OK;
     }

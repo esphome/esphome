@@ -47,11 +47,6 @@ class BSDSocketImpl : public Socket {
     closed_ = true;
     return ret;
   }
-  int connect(const std::string &address) override {
-    // TODO
-    return 0;
-  }
-  int connect(const struct sockaddr *addr, socklen_t addrlen) override { return ::connect(fd_, addr, addrlen); }
   int shutdown(int how) override { return ::shutdown(fd_, how); }
 
   int getpeername(struct sockaddr *addr, socklen_t *addrlen) override { return ::getpeername(fd_, addr, addrlen); }
@@ -79,9 +74,7 @@ class BSDSocketImpl : public Socket {
     return ::setsockopt(fd_, level, optname, optval, optlen);
   }
   int listen(int backlog) override { return ::listen(fd_, backlog); }
-  // virtual ssize_t readv(const struct iovec *iov, int iovcnt) = 0;
   ssize_t read(void *buf, size_t len) override { return ::read(fd_, buf, len); }
-  // virtual ssize_t writev(const struct iovec *iov, int iovcnt) = 0;
   ssize_t write(const void *buf, size_t len) override { return ::write(fd_, buf, len); }
   int setblocking(bool blocking) override {
     int fl = ::fcntl(fd_, F_GETFL, 0);

@@ -1,7 +1,6 @@
 import esphome.config_validation as cv
 import esphome.codegen as cg
 
-# Dummy package to allow components to depend on network
 CODEOWNERS = ["@esphome/core"]
 
 CONF_IMPLEMENTATION = "implementation"
