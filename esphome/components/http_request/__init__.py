@@ -2,7 +2,6 @@ import urllib.parse as urlparse
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
-import esphome.final_validate as fv
 from esphome import automation
 from esphome.const import (
     CONF_ID,
@@ -11,7 +10,7 @@ from esphome.const import (
     CONF_TRIGGER_ID,
     CONF_URL,
 )
-from esphome.core import CORE, Lambda
+from esphome.core import Lambda
 
 DEPENDENCIES = ["network"]
 AUTO_LOAD = ["json"]
@@ -66,32 +65,21 @@ def validate_secure_url(config):
     return config
 
 
-CONFIG_SCHEMA = cv.Schema(
-    {
-        cv.GenerateID(): cv.declare_id(HttpRequestComponent),
-        cv.Optional(CONF_USERAGENT, "ESPHome"): cv.string,
-        cv.Optional(CONF_TIMEOUT, default="5s"): cv.positive_time_period_milliseconds,
-    }
-).extend(cv.COMPONENT_SCHEMA)
-
-
-def validate_framework(value):
-    if not CORE.is_esp8266:
-        # only for ESP8266
-        return
-
-    framework_version = fv.get_arduino_framework_version()
-    if framework_version is None or framework_version == "dev":
-        return
-
-    if framework_version < "2.5.1":
-        raise cv.Invalid(
-            "This component is not supported on arduino framework version below 2.5.1, ",
-            "please check esphome->arduino_version",
-        )
-
-
-FINAL_VALIDATE_SCHEMA = cv.Schema(validate_framework)
+CONFIG_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(HttpRequestComponent),
+            cv.Optional(CONF_USERAGENT, "ESPHome"): cv.string,
+            cv.Optional(
+                CONF_TIMEOUT, default="5s"
+            ): cv.positive_time_period_milliseconds,
+        }
+    ).extend(cv.COMPONENT_SCHEMA),
+    cv.require_framework_version(
+        esp8266_arduino=cv.Version(0, 0, 0),
+        esp32_arduino=cv.Version(2, 5, 1),
+    ),
+)
 
 
 async def to_code(config):

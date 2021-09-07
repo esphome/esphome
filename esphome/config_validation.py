@@ -1,5 +1,6 @@
 """Helpers for config validation using voluptuous."""
 
+from dataclasses import dataclass
 import logging
 import os
 import re
@@ -33,6 +34,9 @@ from esphome.const import (
     CONF_UPDATE_INTERVAL,
     CONF_TYPE_ID,
     CONF_TYPE,
+    KEY_CORE,
+    KEY_FRAMEWORK_VERSION,
+    KEY_TARGET_FRAMEWORK,
 )
 from esphome.core import (
     CORE,
@@ -1638,3 +1642,65 @@ def source_refresh(value: str):
     if value.lower() == "never":
         return source_refresh("1000y")
     return positive_time_period_seconds(value)
+
+
+@dataclass(frozen=True, order=True)
+class Version:
+    major: int
+    minor: int
+    patch: int
+
+    def __str__(self):
+        return f"{self.major}.{self.minor}.{self.patch}"
+
+    @classmethod
+    def parse(cls, value: str) -> "Version":
+        match = re.match(r"(\d+).(\d+).(\d+)", value)
+        if match is None:
+            raise ValueError(f"Not a valid version number {value}")
+        major = int(match[1])
+        minor = int(match[2])
+        patch = int(match[3])
+        return Version(major=major, minor=minor, patch=patch)
+
+
+def version_number(value):
+    value = string_strict(value)
+    try:
+        return str(Version.parse(value))
+    except ValueError as e:
+        raise Invalid("Not a version number") from e
+
+
+def require_framework_version(
+    *,
+    esp_idf=None,
+    esp32_arduino=None,
+    esp8266_arduino=None,
+):
+    def validator(value):
+        core_data = CORE.data[KEY_CORE]
+        framework = core_data[KEY_TARGET_FRAMEWORK]
+        if framework == "esp-idf":
+            if esp_idf is None:
+                raise Invalid("This feature is incompatible with esp-idf")
+            required = esp_idf
+        elif CORE.is_esp32 and framework == "arduino":
+            if esp32_arduino is None:
+                raise Invalid(
+                    "This feature is incompatible with ESP32 using arduino framework"
+                )
+            required = esp32_arduino
+        elif CORE.is_esp8266 and framework == "arduino":
+            if esp8266_arduino is None:
+                raise Invalid("This feature is incompatible with ESP8266")
+            required = esp8266_arduino
+        else:
+            raise NotImplementedError
+        if core_data[KEY_FRAMEWORK_VERSION] < required:
+            raise Invalid(
+                f"This feature requires at least framework version {required}"
+            )
+        return value
+
+    return validator

@@ -5,6 +5,8 @@ from esphome.const import (
     CONF_CHANNEL,
     CONF_FREQUENCY,
     CONF_ID,
+    CONF_INPUT,
+    CONF_OUTPUT,
     CONF_SCAN,
     CONF_SCL,
     CONF_SDA,
@@ -24,8 +26,14 @@ MULTI_CONF = True
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(I2CComponent),
-        cv.Optional(CONF_SDA, default="SDA"): pins.input_pin,
-        cv.Optional(CONF_SCL, default="SCL"): pins.input_pin,
+        cv.Optional(CONF_SDA, default="SDA"): pins.internal_gpio_pin_number({
+            CONF_INPUT: True,
+            CONF_OUTPUT: True
+        }),
+        cv.Optional(CONF_SCL, default="SCL"): pins.internal_gpio_pin_number({
+            CONF_INPUT: True,
+            CONF_OUTPUT: True
+        }),
         cv.Optional(CONF_FREQUENCY, default="50kHz"): cv.All(
             cv.frequency, cv.Range(min=0, min_included=False)
         ),

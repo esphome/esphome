@@ -74,7 +74,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Required(CONF_PIXEL_CLOCK_PIN): pins.internal_gpio_input_pin_number,
         cv.Required(CONF_EXTERNAL_CLOCK): cv.Schema(
             {
-                cv.Required(CONF_PIN): pins.internal_gpio_output_pin_number,
+                cv.Required(CONF_PIN): pins.internal_gpio_input_pin_number,
                 cv.Optional(CONF_FREQUENCY, default="20MHz"): cv.All(
                     cv.frequency, cv.one_of(20e6, 10e6)
                 ),

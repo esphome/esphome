@@ -1,9 +1,11 @@
+from contextlib import suppress
 from functools import reduce
 import logging
 
 from esphome.cpp_types import GPIOFlags
 from esphome.const import (
     CONF_BOARD,
+    CONF_FRAMEWORK,
     CONF_ID,
     CONF_INPUT,
     CONF_INVERTED,
@@ -13,8 +15,11 @@ from esphome.const import (
     CONF_OUTPUT,
     CONF_PULLDOWN,
     CONF_PULLUP,
+    CONF_TYPE,
     CONF_VARIANT,
+    CONF_VERSION,
     KEY_CORE,
+    KEY_FRAMEWORK_VERSION,
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
 )
@@ -34,51 +39,154 @@ KEY_BOARD = "board"
 
 VARIANTS = ["ESP32", "ESP32S2", "ESP32S3", "ESP32C3", "ESP32H2"]
 
-# Lookup table from ESP32 arduino framework version to latest platformio
-# package with that version
-# See also https://github.com/platformio/platform-espressif32/releases
-ARDUINO_VERSION_ESP32 = {
-    "dev": "https://github.com/platformio/platform-espressif32.git",
-    "1.0.6": "platformio/espressif32@3.2.0",
-    "1.0.5": "platformio/espressif32@3.1.1",
-    "1.0.4": "platformio/espressif32@3.0.0",
-    "1.0.3": "platformio/espressif32@1.10.0",
-    "1.0.2": "platformio/espressif32@1.9.0",
-    "1.0.1": "platformio/espressif32@1.7.0",
-    "1.0.0": "platformio/espressif32@1.5.0",
-}
-
 
 def set_core_data(config):
-    CORE.data[KEY_CORE][KEY_TARGET_PLATFORM] = "esp32"
-    CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = "esp-idf"
     CORE.data[KEY_ESP32] = {}
+    CORE.data[KEY_CORE][KEY_TARGET_PLATFORM] = "esp32"
+    conf = config[CONF_FRAMEWORK]
+    if conf[CONF_TYPE] == CONF_ESP_IDF:
+        CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = "esp-idf"
+    elif conf[CONF_TYPE] == CONF_ARDUINO:
+        CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = "arduino"
+    CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] = cv.Version.parse(
+        config[CONF_FRAMEWORK][CONF_VERSION_HINT]
+    )
     CORE.data[KEY_ESP32][KEY_BOARD] = config[CONF_BOARD]
     return config
 
 
-CONFIG_SCHEMA = cv.All(
+def _arduino_check_versions(value):
+    lookups = {
+        "dev": ("https://github.com/espressif/arduino-esp32.git", cv.Version(2, 0, 0)),
+        "latest": ("", cv.Version(1, 0, 3)),
+        "recommended": ("~3.10006.0", cv.Version(1, 0, 6)),
+    }
+    ver_value = value[CONF_VERSION]
+    default_ver_hint = None
+    if ver_value.lower() in lookups:
+        default_ver_hint = str(lookups[ver_value.lower()][1])
+        ver_value = lookups[ver_value.lower()][0]
+    else:
+        with suppress(cv.Invalid):
+            ver = cv.Version.parse(cv.version_number(value))
+            if ver <= cv.Version(1, 0, 3):
+                ver_value = f"~2.{ver.major}{ver.minor:02d}{ver.patch:02d}.0"
+            else:
+                ver_value = f"~3.{ver.major}{ver.minor:02d}{ver.patch:02d}.0"
+            default_ver_hint = str(ver)
+
+    if CONF_VERSION_HINT not in value and default_ver_hint is None:
+        raise cv.Invalid("Needs a version hint to understand the framework version")
+
+    return {
+        CONF_VERSION: ver_value,
+        CONF_VERSION_HINT: value.get(CONF_VERSION_HINT, default_ver_hint),
+    }
+
+
+def _esp_idf_check_versions(value):
+    lookups = {
+        "dev": ("https://github.com/espressif/esp-idf.git", cv.Version(4, 3, 1)),
+        "latest": ("", cv.Version(4, 3, 0)),
+        "recommended": ("~3.40300.0", cv.Version(4, 3, 0)),
+    }
+    ver_value = value[CONF_VERSION]
+    default_ver_hint = None
+    if ver_value.lower() in lookups:
+        default_ver_hint = str(lookups[ver_value.lower()][1])
+        ver_value = lookups[ver_value.lower()][0]
+    else:
+        with suppress(cv.Invalid):
+            ver = cv.Version.parse(cv.version_number(value))
+            ver_value = f"~3.{ver.major}{ver.minor:02d}{ver.patch:02d}.0"
+            default_ver_hint = str(ver)
+
+    if CONF_VERSION_HINT not in value and default_ver_hint is None:
+        raise cv.Invalid("Needs a version hint to understand the framework version")
+
+    return {
+        CONF_VERSION: ver_value,
+        CONF_VERSION_HINT: value.get(CONF_VERSION_HINT, default_ver_hint),
+    }
+
+
+CONF_VERSION_HINT = "version_hint"
+ARDUINO_FRAMEWORK_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.Optional(CONF_VERSION, default="recommended"): cv.string_strict,
+            cv.Optional(CONF_VERSION_HINT): cv.version_number,
+        }
+    ),
+    _arduino_check_versions,
+)
+ESP_IDF_FRAMEWORK_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.Optional(CONF_VERSION, default="recommended"): cv.string_strict,
+            cv.Optional(CONF_VERSION_HINT): cv.version_number,
+        }
+    ),
+    _esp_idf_check_versions,
+)
+
+
+CONF_ESP_IDF = "esp-idf"
+CONF_ARDUINO = "arduino"
+FRAMEWORK_SCHEMA = cv.typed_schema(
     {
-        cv.Optional(CONF_BOARD, default="nodemcu-32s"): cv.string_strict,
-        cv.Optional(CONF_VARIANT, default="ESP32"): cv.one_of(*VARIANTS, upper=True),
+        CONF_ESP_IDF: ESP_IDF_FRAMEWORK_SCHEMA,
+        CONF_ARDUINO: ARDUINO_FRAMEWORK_SCHEMA,
     },
+    lower=True,
+    space="-",
+    default_type=CONF_ARDUINO,
+)
+
+
+CONFIG_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.Required(CONF_BOARD): cv.string_strict,
+            cv.Optional(CONF_VARIANT, default="ESP32"): cv.one_of(
+                *VARIANTS, upper=True
+            ),
+            cv.Optional(CONF_FRAMEWORK, default={}): FRAMEWORK_SCHEMA,
+        }
+    ),
     set_core_data,
 )
 
 
 async def to_code(config):
-    cg.add_platformio_option("board", config[CONF_BOARD])
-    cg.add_platformio_option("framework", "espidf")
     cg.add_platformio_option("platform", "espressif32")
+    cg.add_platformio_option("board", config[CONF_BOARD])
     cg.add_build_flag("-DUSE_ESP32")
-    if config[CONF_VARIANT] != "ESP32":
-        cg.add_build_flag(f"-DUSE_{config[CONF_VARIANT]}")
-    cg.add_build_flag("-DUSE_ESP_IDF")
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
+    cg.add_build_flag(f"-DUSE_ESP32_VARIANT_{config[CONF_VARIANT]}")
+
+    conf = config[CONF_FRAMEWORK]
+    if conf[CONF_TYPE] == CONF_ESP_IDF:
+        cg.add_platformio_option("framework", "espidf")
+        cg.add_build_flag("-DUSE_ESP_IDF")
+        cg.add_build_flag("-DUSE_ESP32_FRAMEWORK_ESP_IDF")
+        if conf[CONF_VERSION]:
+            cg.add_platformio_option(
+                "platform_packages",
+                [f"platformio/framework-espidf @ {conf[CONF_VERSION]}"],
+            )
+    elif conf[CONF_TYPE] == CONF_ARDUINO:
+        cg.add_platformio_option("framework", "arduino")
+        cg.add_build_flag("-DUSE_ARDUINO")
+        cg.add_build_flag("-DUSE_ESP32_FRAMEWORK_ARDUINO")
+        if conf[CONF_VERSION]:
+            cg.add_platformio_option(
+                "platform_packages",
+                [f"platformio/framework-arduinoespressif32 @ {conf[CONF_VERSION]}"],
+            )
 
 
 def _lookup_pin(value):
-    # TODO: lookup from esp32 schema
     board = CORE.data[KEY_ESP32][KEY_BOARD]
     board_pins = boards.ESP32_BOARD_PINS.get(board, {})
 

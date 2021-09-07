@@ -93,7 +93,7 @@ class Config(OrderedDict, fv.FinalValidateConfig):
         self.declare_ids = []  # type: List[Tuple[core.ID, ConfigPath]]
         self._data = {}
         # Store pending validation tasks (in heap order)
-        self.validation_tasks: List[_ValidationStepTask] = []
+        self._validation_tasks: List[_ValidationStepTask] = []
         # ID to ensure stable order for keys with equal priority
         self._validation_tasks_id = 0
 
@@ -111,12 +111,17 @@ class Config(OrderedDict, fv.FinalValidateConfig):
             error.path = error.path[last_root + 1 :]
         self.errors.append(error)
 
-    def add_validate_step(self, step: "ConfigValidationStep"):
+    def add_validation_step(self, step: "ConfigValidationStep"):
         id_num = self._validation_tasks_id
         self._validation_tasks_id += 1
         heapq.heappush(
-            self.validation_tasks, _ValidationStepTask(step.priority, id_num, step)
+            self._validation_tasks, _ValidationStepTask(step.priority, id_num, step)
         )
+
+    def run_validation_steps(self):
+        while self._validation_tasks:
+            task = heapq.heappop(self._validation_tasks)
+            task.step.run(self)
 
     @contextmanager
     def catch_error(self, path=None):
@@ -283,9 +288,6 @@ class LoadValidationStep(ConfigValidationStep):
         self.domain = domain
         self.conf = conf
 
-        if domain in TARGET_PLATFORMS:
-            self.priority += 100
-
     def run(self, result: Config) -> None:
         if self.domain.startswith("."):
             # Ignore top-level keys starting with a dot
@@ -302,10 +304,10 @@ class LoadValidationStep(ConfigValidationStep):
         # Process AUTO_LOAD
         for load in component.auto_load:
             if load not in result:
-                result.add_validate_step(AutoLoadValidationStep(load))
+                result.add_validation_step(AutoLoadValidationStep(load))
 
         if not component.is_platform_component:
-            result.add_validate_step(
+            result.add_validation_step(
                 MetadataValidationStep([self.domain], self.domain, self.conf, component)
             )
             return
@@ -347,9 +349,9 @@ class LoadValidationStep(ConfigValidationStep):
             # Process AUTO_LOAD
             for load in platform.auto_load:
                 if load not in result:
-                    result.add_validate_step(AutoLoadValidationStep(load))
+                    result.add_validation_step(AutoLoadValidationStep(load))
 
-            result.add_validate_step(
+            result.add_validation_step(
                 MetadataValidationStep(path, p_domain, p_config, platform)
             )
 
@@ -369,7 +371,7 @@ class AutoLoadValidationStep(ConfigValidationStep):
         if self.domain in result:
             # already loaded
             return
-        result.add_validate_step(LoadValidationStep(self.domain, core.AutoLoad()))
+        result.add_validation_step(LoadValidationStep(self.domain, core.AutoLoad()))
 
 
 class MetadataValidationStep(ConfigValidationStep):
@@ -396,9 +398,6 @@ class MetadataValidationStep(ConfigValidationStep):
         self.domain = domain
         self.conf = conf
         self.comp = component
-
-        if domain in TARGET_PLATFORMS:
-            self.priority += 100
 
     def run(self, result: Config) -> None:
         if self.conf is None:
@@ -452,14 +451,14 @@ class MetadataValidationStep(ConfigValidationStep):
                 )
                 return
             for i, part_conf in enumerate(self.conf):
-                result.add_validate_step(
+                result.add_validation_step(
                     SchemaValidationStep(
                         self.domain, self.path + [i], part_conf, self.comp
                     )
                 )
             return
 
-        result.add_validate_step(
+        result.add_validation_step(
             SchemaValidationStep(self.domain, self.path, self.conf, self.comp)
         )
 
@@ -476,9 +475,6 @@ class SchemaValidationStep(ConfigValidationStep):
         self.path = path
         self.conf = conf
         self.comp = comp
-
-        if domain in TARGET_PLATFORMS:
-            self.priority += 100
 
     def run(self, result: Config) -> None:
         if self.comp.config_schema is None:
@@ -501,7 +497,7 @@ class SchemaValidationStep(ConfigValidationStep):
                 validated = schema(self.conf)
                 result.set_by_path(self.path, validated)
 
-        result.add_validate_step(FinalValidateValidationStep(self.path, self.comp))
+        result.add_validation_step(FinalValidateValidationStep(self.path, self.comp))
 
 
 class IDPassValidationStep(ConfigValidationStep):
@@ -732,13 +728,20 @@ def validate_config(config, command_line_substitutions):
     # Remove temporary esphome config path again, it will be reloaded later
     result.remove_output_path([CONF_ESPHOME], CONF_ESPHOME)
 
-    for domain, conf in config.items():
-        result.add_validate_step(LoadValidationStep(domain, conf))
-    result.add_validate_step(IDPassValidationStep())
+    # First run platform validation steps
+    for key in TARGET_PLATFORMS:
+        if key in config:
+            result.add_validation_step(LoadValidationStep(key, config[key]))
+    result.run_validation_steps()
 
-    while result.validation_tasks:
-        task = heapq.heappop(result.validation_tasks)
-        task.step.run(result)
+    if result.errors:
+        return result
+
+    for domain, conf in config.items():
+        result.add_validation_step(LoadValidationStep(domain, conf))
+    result.add_validation_step(IDPassValidationStep())
+
+    result.run_validation_steps()
 
     return result
 

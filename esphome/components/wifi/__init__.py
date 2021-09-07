@@ -153,18 +153,17 @@ def final_validate_power_esp32_ble(value):
         # WiFi should be in modem sleep (!=NONE) with BLE coexistence
         # https://docs.espressif.com/projects/esp-idf/en/v3.3.5/api-guides/wifi.html#station-sleep
         return
-    framework_version = fv.get_arduino_framework_version()
-    if framework_version not in (None, "dev") and framework_version < "1.0.5":
-        # Only frameworks 1.0.5+ impacted
-        return
-    full = fv.full_config.get()
     for conflicting in [
         "esp32_ble",
         "esp32_ble_beacon",
         "esp32_ble_server",
         "esp32_ble_tracker",
     ]:
-        if conflicting in full:
+        try:
+            cv.require_framework_version(esp32_arduino=cv.Version(1, 0, 5))(None)
+        except cv.Invalid:
+            pass
+        else:
             raise cv.Invalid(
                 f"power_save_mode NONE is incompatible with {conflicting}. "
                 f"Please remove the power save mode. See also "

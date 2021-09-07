@@ -37,7 +37,7 @@ def _schema_creator(default_mode, internal: bool = False):
     return validator
 
 
-def _number_creator(mode):
+def _internal_number_creator(mode):
     def validator(value):
         value_d = {CONF_NUMBER: value}
         value_d = _set_mode(value_d, mode)
@@ -46,6 +46,8 @@ def _number_creator(mode):
     return validator
 
 
+gpio_pin_schema = _schema_creator
+internal_gpio_pin_number = _internal_number_creator
 gpio_output_pin_schema = _schema_creator(
     {
         CONF_OUTPUT: True,
@@ -68,17 +70,14 @@ internal_gpio_output_pin_schema = _schema_creator(
     },
     internal=True,
 )
-internal_gpio_output_pin_number = _number_creator({CONF_OUTPUT: True})
+internal_gpio_output_pin_number = _internal_number_creator({CONF_OUTPUT: True})
 internal_gpio_input_pin_schema = _schema_creator(
     {
         CONF_INPUT: True,
     },
     internal=True,
 )
-internal_gpio_input_pin_number = _number_creator({CONF_INPUT: True})
-internal_gpio_input_output_pin_number = _number_creator(
-    {CONF_INPUT: True, CONF_OUTPUT: True}
-)
+internal_gpio_input_pin_number = _internal_number_creator({CONF_INPUT: True})
 internal_gpio_input_pullup_pin_schema = _schema_creator(
     {
         CONF_INPUT: True,
@@ -86,7 +85,7 @@ internal_gpio_input_pullup_pin_schema = _schema_creator(
     },
     internal=True,
 )
-internal_gpio_input_pullup_pin_number = _number_creator(
+internal_gpio_input_pullup_pin_number = _internal_number_creator(
     {
         CONF_INPUT: True,
         CONF_PULLUP: True,
@@ -97,9 +96,4 @@ internal_gpio_analog_pin_schema = _schema_creator(
         CONF_ANALOG: True,
     },
     internal=True,
-)
-internal_gpio_analog_pin_number = _number_creator(
-    {
-        CONF_ANALOG: True,
-    }
 )

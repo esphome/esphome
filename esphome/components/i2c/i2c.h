@@ -27,10 +27,6 @@ namespace i2c {
 class I2CComponent : public Component {
  public:
   I2CComponent();
-  void set_sda_pin(uint8_t sda_pin) { sda_pin_ = sda_pin; }
-  void set_scl_pin(uint8_t scl_pin) { scl_pin_ = scl_pin; }
-  void set_frequency(uint32_t frequency) { frequency_ = frequency; }
-  void set_scan(bool scan) { scan_ = scan; }
 
   /** Read len amount of bytes from a register into data. Optionally with a conversion time after
    * writing the register value to the bus.
@@ -88,52 +84,7 @@ class I2CComponent : public Component {
 
   /// Write a single 16-bit word of data into the specified register of address. Return true if successful.
   bool write_byte_16(uint8_t address, uint8_t a_register, uint16_t data);
-
-  // ========== INTERNAL METHODS ==========
-  // (In most use cases you won't need these)
-  /// Begin a write transmission to an address.
-  void raw_begin_transmission(uint8_t address);
-
-  /// End a write transmission to an address, return true if successful.
-  bool raw_end_transmission(uint8_t address, bool send_stop = true);
-
-  /** Request data from an address with a number of (8-bit) bytes.
-   *
-   * @param address The address to request the bytes from.
-   * @param len The number of bytes to receive, must not be 0.
-   * @return True if all requested bytes were read, false otherwise.
-   */
-  bool raw_request_from(uint8_t address, uint8_t len);
-
-  /// Write len amount of bytes from data to address. begin_transmission_ must be called before this.
-  void raw_write(uint8_t address, const uint8_t *data, uint8_t len);
-
-  /// Write len amount of 16-bit words from data to address. begin_transmission_ must be called before this.
-  void raw_write_16(uint8_t address, const uint16_t *data, uint8_t len);
-
-  /// Request len amount of bytes from address and write the result it into data. Returns true iff was successful.
-  bool raw_receive(uint8_t address, uint8_t *data, uint8_t len);
-
-  /// Request len amount of 16-bit words from address and write the result into data. Returns true iff was successful.
-  bool raw_receive_16(uint8_t address, uint16_t *data, uint8_t len);
-
-  /// Setup the i2c. bus
-  void setup() override;
-  void dump_config() override;
-  /// Set a very high setup priority to make sure it's loaded before all other hardware.
-  float get_setup_priority() const override;
-
- protected:
-  TwoWire *wire_;
-  uint8_t sda_pin_;
-  uint8_t scl_pin_;
-  uint32_t frequency_;
-  bool scan_;
 };
-
-#ifdef ARDUINO_ARCH_ESP32
-extern uint8_t next_i2c_bus_num_;
-#endif
 
 class I2CDevice;
 class I2CMultiplexer;
@@ -168,20 +119,10 @@ class I2CDevice {
 
   /// Manually set the i2c address of this device.
   void set_i2c_address(uint8_t address);
-#ifdef USE_I2C_MULTIPLEXER
-  /// Manually set the i2c multiplexer of this device.
-  void set_i2c_multiplexer(I2CMultiplexer *multiplexer, uint8_t channel);
-#endif
   /// Manually set the parent i2c bus for this device.
   void set_i2c_parent(I2CComponent *parent);
 
   I2CRegister reg(uint8_t a_register) { return {this, a_register}; }
-
-  /// Begin a write transmission.
-  void raw_begin_transmission();
-
-  /// End a write transmission, return true if successful.
-  bool raw_end_transmission(bool send_stop = true);
 
   /// Write len amount of bytes from data. begin_transmission_ must be called before this.
   void raw_write(const uint8_t *data, uint8_t len);
@@ -281,13 +222,8 @@ class I2CDevice {
 
  protected:
   // Checks for multiplexer set and set channel
-  void check_multiplexer_();
   uint8_t address_{0x00};
   I2CComponent *parent_{nullptr};
-#ifdef USE_I2C_MULTIPLEXER
-  I2CMultiplexer *multiplexer_{nullptr};
-  uint8_t channel_;
-#endif
 };
 class I2CMultiplexer : public I2CDevice {
  public:

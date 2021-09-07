@@ -4,7 +4,9 @@ import esphome.codegen as cg
 from esphome.const import (
     CONF_DOMAIN,
     CONF_ID,
+    CONF_INPUT,
     CONF_MANUAL_IP,
+    CONF_OUTPUT,
     CONF_STATIC_IP,
     CONF_TYPE,
     CONF_USE_ADDRESS,
@@ -72,7 +74,10 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(): cv.declare_id(EthernetComponent),
             cv.Required(CONF_TYPE): cv.enum(ETHERNET_TYPES, upper=True),
             cv.Required(CONF_MDC_PIN): pins.internal_gpio_output_pin_number,
-            cv.Required(CONF_MDIO_PIN): pins.internal_gpio_input_output_pin_number,
+            cv.Required(CONF_MDIO_PIN): pins.internal_gpio_pin_number({
+                CONF_INPUT: True,
+                CONF_OUTPUT: True,
+            }),
             cv.Optional(CONF_CLK_MODE, default="GPIO0_IN"): cv.enum(
                 CLK_MODES, upper=True, space="_"
             ),
