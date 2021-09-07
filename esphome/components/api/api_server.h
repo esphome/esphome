@@ -4,19 +4,13 @@
 #include "esphome/core/controller.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/log.h"
+#include "esphome/components/socket/socket.h"
 #include "api_pb2.h"
 #include "api_pb2_service.h"
 #include "util.h"
 #include "list_entities.h"
 #include "subscribe_state.h"
 #include "user_services.h"
-
-#ifdef ARDUINO_ARCH_ESP32
-#include <AsyncTCP.h>
-#endif
-#ifdef ARDUINO_ARCH_ESP8266
-#include <ESPAsyncTCP.h>
-#endif
 
 namespace esphome {
 namespace api {
@@ -35,6 +29,7 @@ class APIServer : public Component, public Controller {
   void set_port(uint16_t port);
   void set_password(const std::string &password);
   void set_reboot_timeout(uint32_t reboot_timeout);
+
   void handle_disconnect(APIConnection *conn);
 #ifdef USE_BINARY_SENSOR
   void on_binary_sensor_update(binary_sensor::BinarySensor *obj, bool state) override;
@@ -86,7 +81,7 @@ class APIServer : public Component, public Controller {
   const std::vector<UserServiceDescriptor *> &get_user_services() const { return this->user_services_; }
 
  protected:
-  AsyncServer server_{0};
+  std::unique_ptr<socket::Socket> socket_ = nullptr;
   uint16_t port_{6053};
   uint32_t reboot_timeout_{300000};
   uint32_t last_connected_{0};
