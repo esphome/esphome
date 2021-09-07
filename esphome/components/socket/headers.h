@@ -89,6 +89,8 @@ typedef uint32_t socklen_t;
 #ifdef INADDR_NONE
 #undef INADDR_NONE
 #endif
+
+#define INADDR_ANY ((uint32_t) 0x00000000UL)
 #endif
 
 #endif  // USE_SOCKET_IMPL_LWIP_TCP
