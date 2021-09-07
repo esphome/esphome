@@ -17,7 +17,7 @@ IPAddressWiFiInfo = wifi_info_ns.class_(
     "IPAddressWiFiInfo", text_sensor.TextSensor, cg.Component
 )
 ScanResultsWiFiInfo = wifi_info_ns.class_(
-    "ScanResultsWiFiInfo", text_sensor.TextSensor, cg.Component
+    "ScanResultsWiFiInfo", text_sensor.TextSensor, cg.PollingComponent
 )
 SSIDWiFiInfo = wifi_info_ns.class_("SSIDWiFiInfo", text_sensor.TextSensor, cg.Component)
 BSSIDWiFiInfo = wifi_info_ns.class_(
@@ -38,7 +38,7 @@ CONFIG_SCHEMA = cv.Schema(
             {
                 cv.GenerateID(): cv.declare_id(ScanResultsWiFiInfo),
             }
-        ),
+        ).extend(cv.polling_component_schema("60s")),
         cv.Optional(CONF_SSID): text_sensor.TEXT_SENSOR_SCHEMA.extend(
             {
                 cv.GenerateID(): cv.declare_id(SSIDWiFiInfo),
