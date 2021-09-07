@@ -119,6 +119,7 @@ esphome/components/sht4x/* @sjtrny
 esphome/components/shutdown/* @esphome/core
 esphome/components/sim800l/* @glmnet
 esphome/components/sm2135/* @BoukeHaarsma23
+esphome/components/socket/* @esphome/core
 esphome/components/spi/* @esphome/core
 esphome/components/ssd1322_base/* @kbx81
 esphome/components/ssd1322_spi/* @kbx81
