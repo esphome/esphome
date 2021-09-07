@@ -86,12 +86,10 @@ class LightFlashTransformer : public LightTransformer {
       }
     }
 
-    if (millis() > this->start_time_ + this->length_ - this->transition_length_ &&
-        !this->secondary_transition_occurred_) {
+    if (millis() > this->start_time_ + this->length_ - this->transition_length_) {
       // second transition back to start value
       this->transformer_ = this->state_.get_output()->create_default_transition();
       this->transformer_->setup(this->state_.current_values, this->get_start_values(), this->transition_length_);
-      this->secondary_transition_occurred_ = true;
     }
 
     // once transition is complete, don't change states until next transition
@@ -108,7 +106,6 @@ class LightFlashTransformer : public LightTransformer {
  protected:
   LightState &state_;
   uint32_t transition_length_;
-  bool secondary_transition_occurred_{false};
   std::unique_ptr<LightTransformer> transformer_{nullptr};
 };
 

@@ -113,6 +113,16 @@ def as_hex_array(value):
         f"0x{part}" for part in [value[i : i + 2] for i in range(0, len(value), 2)]
     ]
     return cg.RawExpression(
+        "(uint8_t*)(const uint8_t[16]){{{}}}".format(",".join(cpp_array))
+    )
+
+
+def as_reversed_hex_array(value):
+    value = value.replace("-", "")
+    cpp_array = [
+        f"0x{part}" for part in [value[i : i + 2] for i in range(0, len(value), 2)]
+    ]
+    return cg.RawExpression(
         "(uint8_t*)(const uint8_t[16]){{{}}}".format(",".join(reversed(cpp_array)))
     )
 
@@ -193,7 +203,7 @@ async def to_code(config):
         elif len(conf[CONF_SERVICE_UUID]) == len(bt_uuid32_format):
             cg.add(trigger.set_service_uuid32(as_hex(conf[CONF_SERVICE_UUID])))
         elif len(conf[CONF_SERVICE_UUID]) == len(bt_uuid128_format):
-            uuid128 = as_hex_array(conf[CONF_SERVICE_UUID])
+            uuid128 = as_reversed_hex_array(conf[CONF_SERVICE_UUID])
             cg.add(trigger.set_service_uuid128(uuid128))
         if CONF_MAC_ADDRESS in conf:
             cg.add(trigger.set_address(conf[CONF_MAC_ADDRESS].as_hex))
@@ -205,7 +215,7 @@ async def to_code(config):
         elif len(conf[CONF_MANUFACTURER_ID]) == len(bt_uuid32_format):
             cg.add(trigger.set_manufacturer_uuid32(as_hex(conf[CONF_MANUFACTURER_ID])))
         elif len(conf[CONF_MANUFACTURER_ID]) == len(bt_uuid128_format):
-            uuid128 = as_hex_array(conf[CONF_MANUFACTURER_ID])
+            uuid128 = as_reversed_hex_array(conf[CONF_MANUFACTURER_ID])
             cg.add(trigger.set_manufacturer_uuid128(uuid128))
         if CONF_MAC_ADDRESS in conf:
             cg.add(trigger.set_address(conf[CONF_MAC_ADDRESS].as_hex))
