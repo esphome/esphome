@@ -58,7 +58,7 @@ class Sprinkler : public Component {
   void previous_valve();
   /// turns off all valves, effectively shutting down the system.
   void shutdown();
-  /// returns a pointer to a valve's name string object
+  /// returns a pointer to a valve's name string object; returns nullptr if valve_number is invalid
   const char *valve_name_(uint8_t valve_number);
   /// returns the number of the valve that is currently active or 'none_active_' if no valve is active
   int8_t active_valve();

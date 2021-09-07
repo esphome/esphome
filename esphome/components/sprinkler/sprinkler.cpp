@@ -80,7 +80,7 @@ const char *Sprinkler::valve_name_(const uint8_t valve_number) {
   if (this->is_a_valid_valve(valve_number)) {
     return valve_[valve_number].valve_name.c_str();
   }
-  return std::string{""}.c_str();
+  return nullptr;
 }
 
 int8_t Sprinkler::active_valve() { return this->active_valve_; }
