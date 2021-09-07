@@ -1,11 +1,11 @@
 #include "ota_component.h"
 
-#include "esphome/core/log.h"
 #include "esphome/core/application.h"
+#include "esphome/core/log.h"
 #include "esphome/core/util.h"
-
-#include <cstdio>
 #include <MD5Builder.h>
+#include <cerrno>
+#include <cstdio>
 #ifdef ARDUINO_ARCH_ESP32
 #include <Update.h>
 #endif
@@ -19,8 +19,44 @@ static const char *const TAG = "ota";
 static const uint8_t OTA_VERSION_1_0 = 1;
 
 void OTAComponent::setup() {
-  this->server_ = new WiFiServer(this->port_);
-  this->server_->begin();
+  server_ = socket::socket(AF_INET, SOCK_STREAM, 0);
+  if (server_ == nullptr) {
+    ESP_LOGW(TAG, "Could not create socket.");
+    this->mark_failed();
+    return;
+  }
+  int enable = 1;
+  int err = server_->setsockopt(SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int));
+  if (err != 0) {
+    ESP_LOGW(TAG, "Socket unable to set reuseaddr: errno %d", err);
+    // we can still continue
+  }
+  err = server_->setblocking(false);
+  if (err != 0) {
+    ESP_LOGW(TAG, "Socket unable to set nonblocking mode: errno %d", err);
+    this->mark_failed();
+    return;
+  }
+
+  struct sockaddr_in server;
+  memset(&server, 0, sizeof(server));
+  server.sin_family = AF_INET;
+  server.sin_addr.s_addr = INADDR_ANY;
+  server.sin_port = htons(this->port_);
+
+  err = server_->bind((struct sockaddr *) &server, sizeof(server));
+  if (err != 0) {
+    ESP_LOGW(TAG, "Socket unable to bind: errno %d", errno);
+    this->mark_failed();
+    return;
+  }
+
+  err = server_->listen(4);
+  if (err != 0) {
+    ESP_LOGW(TAG, "Socket unable to listen: errno %d", errno);
+    this->mark_failed();
+    return;
+  }
 
   this->dump_config();
 }
@@ -59,23 +95,28 @@ void OTAComponent::handle_() {
   uint8_t ota_features;
   (void) ota_features;
 
-  if (!this->client_.connected()) {
-    this->client_ = this->server_->available();
+  if (client_ == nullptr) {
+    struct sockaddr_storage source_addr;
+    socklen_t addr_len = sizeof(source_addr);
+    client_ = server_->accept((struct sockaddr *) &source_addr, &addr_len);
+  }
+  if (client_ == nullptr)
+    return;
 
-    if (!this->client_.connected())
-      return;
+  int enable = 1;
+  int err = client_->setsockopt(IPPROTO_TCP, TCP_NODELAY, &enable, sizeof(int));
+  if (err != 0) {
+    ESP_LOGW(TAG, "Socket could not enable tcp nodelay, errno: %d", errno);
+    return;
   }
 
-  // enable nodelay for outgoing data
-  this->client_.setNoDelay(true);
-
-  ESP_LOGD(TAG, "Starting OTA Update from %s...", this->client_.remoteIP().toString().c_str());
+  ESP_LOGD(TAG, "Starting OTA Update from %s...", this->client_->getpeername().c_str());
   this->status_set_warning();
 #ifdef USE_OTA_STATE_CALLBACK
   this->state_callback_.call(OTA_STARTED, 0.0f, 0);
 #endif
 
-  if (!this->wait_receive_(buf, 5)) {
+  if (!this->readall_(buf, 5)) {
     ESP_LOGW(TAG, "Reading magic bytes failed!");
     goto error;
   }
@@ -88,11 +129,12 @@ void OTAComponent::handle_() {
   }
 
   // Send OK and version - 2 bytes
-  this->client_.write(OTA_RESPONSE_OK);
-  this->client_.write(OTA_VERSION_1_0);
+  buf[0] = OTA_RESPONSE_OK;
+  buf[1] = OTA_VERSION_1_0;
+  this->writeall_(buf, 2);
 
   // Read features - 1 byte
-  if (!this->wait_receive_(buf, 1)) {
+  if (!this->readall_(buf, 1)) {
     ESP_LOGW(TAG, "Reading features failed!");
     goto error;
   }
@@ -100,10 +142,12 @@ void OTAComponent::handle_() {
   ESP_LOGV(TAG, "OTA features is 0x%02X", ota_features);
 
   // Acknowledge header - 1 byte
-  this->client_.write(OTA_RESPONSE_HEADER_OK);
+  buf[0] = OTA_RESPONSE_HEADER_OK;
+  this->writeall_(buf, 1);
 
   if (!this->password_.empty()) {
-    this->client_.write(OTA_RESPONSE_REQUEST_AUTH);
+    buf[0] = OTA_RESPONSE_REQUEST_AUTH;
+    this->writeall_(buf, 1);
     MD5Builder md5_builder{};
     md5_builder.begin();
     sprintf(sbuf, "%08X", random_uint32());
@@ -113,7 +157,7 @@ void OTAComponent::handle_() {
     ESP_LOGV(TAG, "Auth: Nonce is %s", sbuf);
 
     // Send nonce, 32 bytes hex MD5
-    if (this->client_.write(reinterpret_cast<uint8_t *>(sbuf), 32) != 32) {
+    if (!this->writeall_(reinterpret_cast<uint8_t *>(sbuf), 32)) {
       ESP_LOGW(TAG, "Auth: Writing nonce failed!");
       goto error;
     }
@@ -125,7 +169,7 @@ void OTAComponent::handle_() {
     md5_builder.add(sbuf);
 
     // Receive cnonce, 32 bytes hex MD5
-    if (!this->wait_receive_(buf, 32)) {
+    if (!this->readall_(buf, 32)) {
       ESP_LOGW(TAG, "Auth: Reading cnonce failed!");
       goto error;
     }
@@ -140,7 +184,7 @@ void OTAComponent::handle_() {
     ESP_LOGV(TAG, "Auth: Result is %s", sbuf);
 
     // Receive result, 32 bytes hex MD5
-    if (!this->wait_receive_(buf + 64, 32)) {
+    if (!this->writeall_(buf + 64, 32)) {
       ESP_LOGW(TAG, "Auth: Reading response failed!");
       goto error;
     }
@@ -159,10 +203,11 @@ void OTAComponent::handle_() {
   }
 
   // Acknowledge auth OK - 1 byte
-  this->client_.write(OTA_RESPONSE_AUTH_OK);
+  buf[0] = OTA_RESPONSE_AUTH_OK;
+  this->writeall_(buf, 1);
 
   // Read size, 4 bytes MSB first
-  if (!this->wait_receive_(buf, 4)) {
+  if (!this->readall_(buf, 4)) {
     ESP_LOGW(TAG, "Reading size failed!");
     goto error;
   }
@@ -212,10 +257,11 @@ void OTAComponent::handle_() {
   update_started = true;
 
   // Acknowledge prepare OK - 1 byte
-  this->client_.write(OTA_RESPONSE_UPDATE_PREPARE_OK);
+  buf[0] = OTA_RESPONSE_UPDATE_PREPARE_OK;
+  this->writeall_(buf, 1);
 
   // Read binary MD5, 32 bytes
-  if (!this->wait_receive_(buf, 32)) {
+  if (!this->readall_(buf, 32)) {
     ESP_LOGW(TAG, "Reading binary MD5 checksum failed!");
     goto error;
   }
@@ -224,17 +270,22 @@ void OTAComponent::handle_() {
   Update.setMD5(sbuf);
 
   // Acknowledge MD5 OK - 1 byte
-  this->client_.write(OTA_RESPONSE_BIN_MD5_OK);
+  buf[0] = OTA_RESPONSE_BIN_MD5_OK;
+  this->writeall_(buf, 1);
 
   while (!Update.isFinished()) {
-    size_t available = this->wait_receive_(buf, 0);
-    if (!available) {
+    // TODO: timeout check
+    ssize_t read = this->client_->read(buf, sizeof(buf));
+    if (read == -1) {
+      if (errno == EAGAIN || errno == EWOULDBLOCK)
+        continue;
+      ESP_LOGW(TAG, "Error receiving data for update, errno: %d", errno);
       goto error;
     }
 
-    uint32_t written = Update.write(buf, available);
-    if (written != available) {
-      ESP_LOGW(TAG, "Error writing binary data to flash: %u != %u!", written, available);  // NOLINT
+    uint32_t written = Update.write(buf, read);
+    if (written != read) {
+      ESP_LOGW(TAG, "Error writing binary data to flash: %u != %u!", written, read);  // NOLINT
       error_code = OTA_RESPONSE_ERROR_WRITING_FLASH;
       goto error;
     }
@@ -254,7 +305,8 @@ void OTAComponent::handle_() {
   }
 
   // Acknowledge receive OK - 1 byte
-  this->client_.write(OTA_RESPONSE_RECEIVE_OK);
+  buf[0] = OTA_RESPONSE_RECEIVE_OK;
+  this->writeall_(buf, 1);
 
   if (!Update.end()) {
     error_code = OTA_RESPONSE_ERROR_UPDATE_END;
@@ -262,16 +314,17 @@ void OTAComponent::handle_() {
   }
 
   // Acknowledge Update end OK - 1 byte
-  this->client_.write(OTA_RESPONSE_UPDATE_END_OK);
+  buf[0] = OTA_RESPONSE_UPDATE_END_OK;
+  this->writeall_(buf, 1);
 
   // Read ACK
-  if (!this->wait_receive_(buf, 1, false) || buf[0] != OTA_RESPONSE_OK) {
+  if (!this->readall_(buf, 1) || buf[0] != OTA_RESPONSE_OK) {
     ESP_LOGW(TAG, "Reading back acknowledgement failed!");
     // do not go to error, this is not fatal
   }
 
-  this->client_.flush();
-  this->client_.stop();
+  this->client_->close();
+  this->client_ = nullptr;
   delay(10);
   ESP_LOGI(TAG, "OTA update finished!");
   this->status_clear_warning();
@@ -287,11 +340,10 @@ error:
     Update.printError(ss);
     ESP_LOGW(TAG, "Update end failed! Error: %s", ss.c_str());
   }
-  if (this->client_.connected()) {
-    this->client_.write(static_cast<uint8_t>(error_code));
-    this->client_.flush();
-  }
-  this->client_.stop();
+  buf[0] = static_cast<uint8_t>(error_code);
+  this->writeall_(buf, 1);
+  this->client_->close();
+  this->client_ = nullptr;
 
 #ifdef ARDUINO_ARCH_ESP32
   if (update_started) {
@@ -315,52 +367,56 @@ error:
 #endif
 }
 
-size_t OTAComponent::wait_receive_(uint8_t *buf, size_t bytes, bool check_disconnected) {
-  size_t available = 0;
+bool OTAComponent::readall_(uint8_t *buf, size_t len) {
   uint32_t start = millis();
-  do {
-    App.feed_wdt();
-    if (check_disconnected && !this->client_.connected()) {
-      ESP_LOGW(TAG, "Error client disconnected while receiving data!");
-      return 0;
-    }
-    int availi = this->client_.available();
-    if (availi < 0) {
-      ESP_LOGW(TAG, "Error reading data!");
-      return 0;
-    }
+  uint32_t at = 0;
+  while (len - at > 0) {
     uint32_t now = millis();
-    if (availi == 0 && now - start > 10000) {
-      ESP_LOGW(TAG, "Timeout waiting for data!");
-      return 0;
+    if (now - start > 1000) {
+      ESP_LOGW(TAG, "Timed out reading %d bytes of data", len);
+      return false;
     }
-    available = size_t(availi);
-    yield();
-  } while (bytes == 0 ? available == 0 : available < bytes);
 
-  if (bytes == 0)
-    bytes = std::min(available, size_t(1024));
-
-  bool success = false;
-  for (uint32_t i = 0; !success && i < 100; i++) {
-    int res = this->client_.read(buf, bytes);
-
-    if (res != int(bytes)) {
-      // ESP32 implementation has an issue where calling read can fail with EAGAIN (race condition)
-      // so just re-try it until it works (with generous timeout of 1s)
-      // because we check with available() first this should not cause us any trouble in all other cases
-      delay(10);
+    ssize_t read = this->client_->read(buf + at, len - at);
+    if (read == -1) {
+      if (errno == EAGAIN || errno == EWOULDBLOCK) {
+        delay(1);
+        continue;
+      }
+      ESP_LOGW(TAG, "Failed to read %d bytes of data, errno: %d", len, errno);
+      return false;
     } else {
-      success = true;
+      at += read;
     }
+    delay(1);
   }
 
-  if (!success) {
-    ESP_LOGW(TAG, "Reading %u bytes of binary data failed!", bytes);  // NOLINT
-    return 0;
-  }
+  return true;
+}
+bool OTAComponent::writeall_(const uint8_t *buf, size_t len) {
+  uint32_t start = millis();
+  uint32_t at = 0;
+  while (len - at > 0) {
+    uint32_t now = millis();
+    if (now - start > 1000) {
+      ESP_LOGW(TAG, "Timed out writing %d bytes of data", len);
+      return false;
+    }
 
-  return bytes;
+    ssize_t written = this->client_->write(buf + at, len - at);
+    if (written == -1) {
+      if (errno == EAGAIN || errno == EWOULDBLOCK) {
+        delay(1);
+        continue;
+      }
+      ESP_LOGW(TAG, "Failed to write %d bytes of data, errno: %d", len, errno);
+      return false;
+    } else {
+      at += written;
+    }
+    delay(1);
+  }
+  return true;
 }
 
 void OTAComponent::set_auth_password(const std::string &password) { this->password_ = password; }
