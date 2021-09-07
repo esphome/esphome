@@ -102,4 +102,4 @@ std::unique_ptr<Socket> socket(int domain, int type, int protocol) {
 }  // namespace socket
 }  // namespace esphome
 
-#endif // USE_SOCKET_IMPL_BSD_SOCKETS
+#endif  // USE_SOCKET_IMPL_BSD_SOCKETS
