@@ -59,7 +59,7 @@ CONFIG_SCHEMA = cv.All(
 async def to_code(config):
     byte_offset = 0
     if CONF_OFFSET in config:
-        byte_offset = config[CONF_OFFSET] * 2
+        byte_offset = config[CONF_OFFSET]
     # A CONF_BYTE_OFFSET setting overrides CONF_OFFSET
     if CONF_BYTE_OFFSET in config:
         byte_offset = config[CONF_BYTE_OFFSET]
