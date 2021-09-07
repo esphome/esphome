@@ -3,13 +3,13 @@ import esphome.config_validation as cv
 from esphome.components import switch
 from esphome.const import (
     CONF_ID,
+    CONF_NAME,
     CONF_RUN_DURATION,
 )
 
 CODEOWNERS = ["@kbx81"]
 
 CONF_PUMP = "pump"
-CONF_NAME = "name"
 CONF_ENABLE_SWITCH = "enable_switch"
 CONF_VALVE_SWITCH = "valve_switch"
 CONF_VALVE_OPEN_DELAY = "valve_open_delay"

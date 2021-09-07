@@ -1,5 +1,7 @@
 #include "sprinkler.h"
+
 #include "esphome/core/log.h"
+#include <utility>
 
 namespace esphome {
 namespace sprinkler {
@@ -11,12 +13,12 @@ void Sprinkler::setup() { this->all_valves_off_(true); }
 Sprinkler::Sprinkler() {}
 
 void Sprinkler::add_valve(switch_::Switch *valve_switch, const uint32_t valve_run_duration, std::string valve_name) {
-  this->valve_.push_back(SprinklerValve{valve_name, valve_switch, nullptr, valve_run_duration, false});
+  this->valve_.push_back(SprinklerValve{std::move(valve_name), valve_switch, nullptr, valve_run_duration, false});
 }
 
 void Sprinkler::add_valve(switch_::Switch *valve_switch, switch_::Switch *enable_switch,
                           const uint32_t valve_run_duration, std::string valve_name) {
-  this->valve_.push_back(SprinklerValve{valve_name, valve_switch, enable_switch, valve_run_duration, false});
+  this->valve_.push_back(SprinklerValve{std::move(valve_name), valve_switch, enable_switch, valve_run_duration, false});
 }
 
 void Sprinkler::set_pump_switch(switch_::Switch *pump_switch) { this->pump_switch_ = pump_switch; }
@@ -44,8 +46,8 @@ void Sprinkler::start_full_cycle() {
   if (!(this->auto_advance_ && this->there_is_an_active_valve_())) {
     // if no valves are enabled, enable them all so that auto-advance can work
     if (!this->any_valve_is_enabled_()) {
-      for (size_t valve_number = 0; valve_number < this->valve_.size(); valve_number++) {
-        this->valve_[valve_number].enable_switch->turn_on();
+      for (auto &valve : this->valve_) {
+        valve.enable_switch->turn_on();
       }
     }
     this->auto_advance_ = true;
@@ -240,14 +242,14 @@ void Sprinkler::all_valves_off_(const bool include_pump) {
   if (include_pump) {
     this->set_pump_state_(false);
   }
-  for (size_t valve_number = 0; valve_number < this->valve_.size(); valve_number++) {
-    this->valve_[valve_number].valve_switch->turn_off();
+  for (auto &valve : this->valve_) {
+    valve.valve_switch->turn_off();
   }
 }
 
 void Sprinkler::reset_cycle_states_() {
-  for (size_t valve_number = 0; valve_number < this->valve_.size(); valve_number++) {
-    this->valve_[valve_number].valve_cycle_complete = false;
+  for (auto &valve : this->valve_) {
+    valve.valve_cycle_complete = false;
   }
 }
 
