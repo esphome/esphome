@@ -27,6 +27,8 @@ APIConnection::APIConnection(std::unique_ptr<socket::Socket> sock, APIServer *pa
   helper_ = std::unique_ptr<APIFrameHelper>{new APIPlaintextFrameHelper(std::move(sock))};
 #elif defined(USE_API_NOISE)
   helper_ = std::unique_ptr<APIFrameHelper>{new APINoiseFrameHelper(std::move(sock), parent->get_noise_ctx())};
+#else
+#error "No frame helper defined"
 #endif
 }
 void APIConnection::start() {
