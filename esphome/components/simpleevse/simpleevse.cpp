@@ -4,7 +4,7 @@
 namespace esphome {
 namespace simpleevse {
 
-const char *TAG = "SimpleEVSE";
+const char * const TAG = "SimpleEVSE";
 
 void SimpleEvseComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "SimpleEvse:");

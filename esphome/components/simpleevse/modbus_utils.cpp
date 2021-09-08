@@ -4,7 +4,7 @@
 namespace esphome {
 namespace simpleevse {
 
-extern const char *TAG;
+extern const char * const TAG;
 
 static uint16_t crc16(std::vector<uint8_t>::const_iterator start, std::vector<uint8_t>::const_iterator end) {
   const uint16_t initial{0xFFFF};
