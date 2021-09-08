@@ -1608,29 +1608,84 @@ climate:
     name: Toshiba Climate
   - platform: hitachi_ac344
     name: Hitachi Climate
-  - platform: midea_ac
+  - platform: midea
+    id: midea_unit
+    uart_id: uart0
+    name: Midea Climate
+    transmitter_id:
+    period: 1s
+    num_attempts: 5
+    timeout: 2s
+    beeper: false
+    autoconf: true
     visual:
-      min_temperature: 18 °C
-      max_temperature: 25 °C
-      temperature_step: 0.1 °C
-    name: 'Electrolux EACS'
-    beeper: true
+      min_temperature: 17 °C
+      max_temperature: 30 °C
+      temperature_step: 0.5 °C
+    supported_modes:
+      - FAN_ONLY
+      - HEAT_COOL
+      - COOL
+      - HEAT
+      - DRY
+    custom_fan_modes:
+      - SILENT
+      - TURBO
+    supported_presets:
+      - ECO
+      - BOOST
+      - SLEEP
+    custom_presets:
+      - FREEZE_PROTECTION
+    supported_swing_modes:
+      - VERTICAL
+      - HORIZONTAL
+      - BOTH
     outdoor_temperature:
-      name: 'Temp'
+      name: "Temp"
     power_usage:
-      name: 'Power'
+      name: "Power"
     humidity_setpoint:
-      name: 'Hum'
+      name: "Humidity"
   - platform: anova
     name: Anova cooker
     ble_client_id: ble_blah
     unit_of_measurement: c
 
-midea_dongle:
-  uart_id: uart0
-  strength_icon: true
+script:
+  - id: climate_custom
+    then:
+      - climate.control:
+          id: midea_unit
+          custom_preset: FREEZE_PROTECTION
+          custom_fan_mode: SILENT
+  - id: climate_preset
+    then:
+      - climate.control:
+          id: midea_unit
+          preset: SLEEP
 
 switch:
+  - platform: template
+    name: MIDEA_AC_TOGGLE_LIGHT
+    turn_on_action:
+      midea_ac.display_toggle:
+  - platform: template
+    name: MIDEA_AC_SWING_STEP
+    turn_on_action:
+      midea_ac.swing_step:
+  - platform: template
+    name: MIDEA_AC_BEEPER_CONTROL
+    optimistic: true
+    turn_on_action:
+      midea_ac.beeper_on:
+    turn_off_action:
+      midea_ac.beeper_off:
+  - platform: template
+    name: MIDEA_RAW
+    turn_on_action:
+      remote_transmitter.transmit_midea:
+        code: [0xA2, 0x08, 0xFF, 0xFF, 0xFF]
   - platform: gpio
     name: 'MCP23S08 Pin #0'
     pin:
