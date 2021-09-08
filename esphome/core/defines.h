@@ -48,5 +48,11 @@
 #define USE_IMPROV
 #endif
 
+#ifdef ARDUINO_ARCH_ESP8266
+#define USE_SOCKET_IMPL_LWIP_TCP
+#else
+#define USE_SOCKET_IMPL_BSD_SOCKETS
+#endif
+
 // Disabled feature flags
 //#define USE_BSEC  // Requires a library with proprietary license.
