@@ -9,10 +9,24 @@ static const uint8_t SM300D2_RESPONSE_LENGTH = 17;
 
 void SM300D2Sensor::update() {
   uint8_t response[SM300D2_RESPONSE_LENGTH];
+  uint8_t peeked[1];
+  uint8_t i = 0;
+  bool read_success;
 
-  flush();
-  bool read_success = read_array(response, SM300D2_RESPONSE_LENGTH);
-  flush();
+  // Read bytes off until we see what appears to be a preamble
+  while (1) {
+    read_success = peek_byte(peeked);
+    if (peeked[0] == 0x3C) {
+      read_success = read_array(response, SM300D2_RESPONSE_LENGTH);
+      break;
+    } else {
+      ESP_LOGVV(TAG, "Skipping %02X", peeked[0]);
+      read_byte(peeked);
+    }
+    if (!read_success) {
+      break;
+    }
+  }
 
   if (!read_success) {
     ESP_LOGW(TAG, "Reading data from SM300D2 failed!");
@@ -22,12 +36,21 @@ void SM300D2Sensor::update() {
 
   if (response[0] != 0x3C || response[1] != 0x02) {
     ESP_LOGW(TAG, "Invalid preamble for SM300D2 response!");
+    while (i < SM300D2_RESPONSE_LENGTH) {
+      ESP_LOGW(TAG, "%02X", response[i]);
+      i++;
+    }
     this->status_set_warning();
     return;
   }
 
-  uint16_t calculated_checksum = this->sm300d2_checksum_(response);
-  if (calculated_checksum != response[SM300D2_RESPONSE_LENGTH - 1]) {
+  uint8_t calculated_checksum = this->sm300d2_checksum_(response);
+  if (calculated_checksum == response[SM300D2_RESPONSE_LENGTH - 1]) {
+  } else if (calculated_checksum-0x80 == response[SM300D2_RESPONSE_LENGTH - 1]) {
+    // Reason for the frequent 0x80 offset is unknown, it's possible that it represents reading "freshness"
+    ESP_LOGW(TAG, "SM300D2 Checksum matches, with 0x80 offset: 0x%02X+0x80 = 0x%02X", response[SM300D2_RESPONSE_LENGTH - 1],
+             calculated_checksum);
+  } else {
     ESP_LOGW(TAG, "SM300D2 Checksum doesn't match: 0x%02X!=0x%02X", response[SM300D2_RESPONSE_LENGTH - 1],
              calculated_checksum);
     this->status_set_warning();
@@ -46,7 +69,7 @@ void SM300D2Sensor::update() {
   const float temperature = response[12] + (response[13] * 0.1);
   const float humidity = response[14] + (response[15] * 0.1);
 
-  ESP_LOGD(TAG, "Received CO₂: %u ppm", co2);
+  ESP_LOGD(TAG, "Received CO2: %u ppm", co2);
   if (this->co2_sensor_ != nullptr)
     this->co2_sensor_->publish_state(co2);
 
@@ -75,7 +98,7 @@ void SM300D2Sensor::update() {
     this->humidity_sensor_->publish_state(humidity);
 }
 
-uint16_t SM300D2Sensor::sm300d2_checksum_(uint8_t *ptr) {
+uint8_t SM300D2Sensor::sm300d2_checksum_(uint8_t *ptr) {
   uint8_t sum = 0;
   for (int i = 0; i < (SM300D2_RESPONSE_LENGTH - 1); i++) {
     sum += *ptr++;
