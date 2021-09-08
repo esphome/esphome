@@ -46,10 +46,10 @@ void SM300D2Sensor::update() {
 
   uint8_t calculated_checksum = this->sm300d2_checksum_(response);
   if (calculated_checksum == response[SM300D2_RESPONSE_LENGTH - 1]) {
-  } else if (calculated_checksum-0x80 == response[SM300D2_RESPONSE_LENGTH - 1]) {
+  } else if (calculated_checksum - 0x80 == response[SM300D2_RESPONSE_LENGTH - 1]) {
     // Reason for the frequent 0x80 offset is unknown, it's possible that it represents reading "freshness"
-    ESP_LOGW(TAG, "SM300D2 Checksum matches, with 0x80 offset: 0x%02X+0x80 = 0x%02X", response[SM300D2_RESPONSE_LENGTH - 1],
-             calculated_checksum);
+    ESP_LOGW(TAG, "SM300D2 Checksum matches, with 0x80 offset: 0x%02X+0x80 = 0x%02X",
+             response[SM300D2_RESPONSE_LENGTH - 1], calculated_checksum);
   } else {
     ESP_LOGW(TAG, "SM300D2 Checksum doesn't match: 0x%02X!=0x%02X", response[SM300D2_RESPONSE_LENGTH - 1],
              calculated_checksum);
