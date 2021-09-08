@@ -37,7 +37,7 @@ CONFIG_SCHEMA = light.ADDRESSABLE_LIGHT_SCHEMA.extend(
         cv.Required(CONF_SEGMENTS): cv.All(
             cv.ensure_list(
                 cv.Any(
-                    cv.All(
+                    cv.Schema(
                         {
                             cv.Required(CONF_ID): cv.use_id(
                                 light.AddressableLightState
@@ -48,7 +48,7 @@ CONFIG_SCHEMA = light.ADDRESSABLE_LIGHT_SCHEMA.extend(
                         },
                         validate_from_to,
                     ),
-                    cv.All(
+                    cv.Schema(
                         {
                             cv.Required(CONF_ID): cv.use_id(light.LightState),
                             cv.GenerateID(CONF_ADDRESSABLE_LIGHT_ID): cv.declare_id(
