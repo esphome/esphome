@@ -83,7 +83,7 @@ SetChargingEnabled = simpleevse_ns.class_("SetChargingEnabled", automation.Actio
 
 
 @automation.register_action(
-    "simplevse.set_charging_current",
+    "simpleevse.set_charging_current",
     SetChargingCurrentAction,
     cv.Schema(
         {
@@ -101,7 +101,7 @@ def set_charging_current_to_code(config, action_id, template_arg, args):
 
 
 @automation.register_action(
-    "simplevse.set_charging_enabled",
+    "simpleevse.set_charging_enabled",
     SetChargingEnabled,
     cv.Schema(
         {
