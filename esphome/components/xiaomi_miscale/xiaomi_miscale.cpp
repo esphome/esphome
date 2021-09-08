@@ -112,8 +112,13 @@ bool XiaomiMiscale::parse_message_V2(const std::vector<uint8_t> &message, ParseR
     return false;
   }
 
-  bool is_Stabilized = ((data[1] & (1 << 5)) != 0) ? true : false;
-  bool loadRemoved = ((data[1] & (1 << 7)) != 0) ? true : false;
+  bool has_impedance = ((data[1] & (1 << 1)) != 0) ? true : false;
+  bool is_stabilized = ((data[1] & (1 << 5)) != 0) ? true : false;
+  bool load_removed = ((data[1] & (1 << 7)) != 0) ? true : false;
+
+  if (!is_stabilized || load_removed) {
+    return false;
+  }
 
   // weight, 2 bytes, 16-bit  unsigned integer, 1 kg
   const int16_t weight = uint16_t(data[11]) | (uint16_t(data[12]) << 8);
@@ -122,12 +127,14 @@ bool XiaomiMiscale::parse_message_V2(const std::vector<uint8_t> &message, ParseR
   else if (data[0] == 0x03)
     result.weight = weight * 0.01f * 0.453592;  // unit 'lbs'
 
-  // impedance, 2 bytes, 16-bit
-  const int16_t impedance = uint16_t(data[9]) | (uint16_t(data[10]) << 8);
-  result.impedance = impedance;
+  if (has_impedance) {
+    // impedance, 2 bytes, 16-bit
+    const int16_t impedance = uint16_t(data[9]) | (uint16_t(data[10]) << 8);
+    result.impedance = impedance;
 
-  if (!is_Stabilized || loadRemoved || impedance == 0 || impedance >= 3000) {
-    return false;
+    if (impedance == 0 || impedance >= 3000) {
+      return false;
+    }
   }
 
   return true;
