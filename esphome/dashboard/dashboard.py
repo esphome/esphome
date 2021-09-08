@@ -431,7 +431,7 @@ class DashboardEntry:
     @property
     def name(self):
         if self.storage is None:
-            return self.filename.removesuffix(".yml").removesuffix(".yaml")
+            return self.filename.replace(".yml", "").replace(".yaml", "")
         return self.storage.name
 
     @property
