@@ -7,7 +7,7 @@
 namespace esphome {
 namespace simpleevse {
 
-extern const char * const TAG;
+extern const char *const TAG;
 
 const uint32_t STATUS_POLL_INTERVAL{5000};
 
