@@ -260,8 +260,8 @@ def filter_yaml_files(files):
         f
         for f in files
         if (
-            os.path.splitext(f)[1] == ".yaml"
-            and os.path.basename(f) != "secrets.yaml"
+            os.path.splitext(f)[1] in (".yaml", ".yml")
+            and os.path.basename(f) not in ("secrets.yaml", "secrets.yml")
             and not os.path.basename(f).startswith(".")
         )
     ]
