@@ -51,9 +51,6 @@ CONFIG_SCHEMA = light.ADDRESSABLE_LIGHT_SCHEMA.extend(
                     cv.All(
                         {
                             cv.Required(CONF_ID): cv.use_id(light.LightState),
-                            cv.Optional(CONF_FROM, default=0): 0,
-                            cv.Optional(CONF_TO, default=0): 0,
-                            cv.Optional(CONF_REVERSED, default=False): False,
                             cv.GenerateID(CONF_ADDRESSABLE_LIGHT_ID): cv.declare_id(
                                 AddressableLightWrapper
                             ),
@@ -80,16 +77,17 @@ async def to_code(config):
             light_state = cg.new_Pvariable(conf[CONF_LIGHT_ID], "", wrapper)
             await cg.register_component(light_state, conf)
             cg.add(cg.App.register_light(light_state))
-            var = light_state
+            segments.append(AddressableSegment(light_state, 0, 1, False))
 
-        segments.append(
-            AddressableSegment(
-                var,
-                conf[CONF_FROM],
-                conf[CONF_TO] - conf[CONF_FROM] + 1,
-                conf[CONF_REVERSED],
+        else:
+            segments.append(
+                AddressableSegment(
+                    var,
+                    conf[CONF_FROM],
+                    conf[CONF_TO] - conf[CONF_FROM] + 1,
+                    conf[CONF_REVERSED],
+                )
             )
-        )
 
     var = cg.new_Pvariable(config[CONF_OUTPUT_ID], segments)
     await cg.register_component(var, config)
