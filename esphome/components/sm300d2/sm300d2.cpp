@@ -14,7 +14,7 @@ void SM300D2Sensor::update() {
   bool read_success;
 
   // Read bytes off until we see what appears to be a preamble
-  while (1) {
+  while (true) {
     read_success = peek_byte(peeked);
     if (peeked[0] == 0x3C) {
       read_success = read_array(response, SM300D2_RESPONSE_LENGTH);
@@ -98,7 +98,7 @@ void SM300D2Sensor::update() {
     this->humidity_sensor_->publish_state(humidity);
 }
 
-uint8_t SM300D2Sensor::sm300d2_checksum_(uint8_t *ptr) {
+uint8_t SM300D2Sensor::sm300d2_checksum(uint8_t *ptr) {
   uint8_t sum = 0;
   for (int i = 0; i < (SM300D2_RESPONSE_LENGTH - 1); i++) {
     sum += *ptr++;
