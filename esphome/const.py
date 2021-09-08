@@ -1,6 +1,6 @@
 """Constants used by esphome."""
 
-__version__ = "2021.9.0-dev"
+__version__ = "2021.9.0b1"
 
 ESP_PLATFORM_ESP32 = "ESP32"
 ESP_PLATFORM_ESP8266 = "ESP8266"
