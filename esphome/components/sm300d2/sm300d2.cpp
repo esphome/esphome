@@ -44,7 +44,7 @@ void SM300D2Sensor::update() {
     return;
   }
 
-  uint8_t calculated_checksum = this->sm300d2_checksum_(response);
+  uint8_t calculated_checksum = this->sm300d2_checksum(response);
   if (calculated_checksum == response[SM300D2_RESPONSE_LENGTH - 1]) {
   } else if (calculated_checksum - 0x80 == response[SM300D2_RESPONSE_LENGTH - 1]) {
     // Reason for the frequent 0x80 offset is unknown, it's possible that it represents reading "freshness"
