@@ -16,7 +16,6 @@ from esphome.const import (
     DEVICE_CLASS_PM1,
     DEVICE_CLASS_PM10,
     DEVICE_CLASS_PM25,
-    DEVICE_CLASS_EMPTY,
     STATE_CLASS_MEASUREMENT,
 )
 
