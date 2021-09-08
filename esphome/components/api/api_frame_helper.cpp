@@ -251,15 +251,21 @@ APIError APINoiseFrameHelper::state_action_() {
         send_explicit_handshake_reject_("Bad indicator byte");
         return aerr;
       }
-      if (frame.msg.empty() || frame.msg[0] != 0x00) {
-        aerr = APIError::BAD_HANDSHAKE_PACKET_LEN;
-      }
       if (aerr == APIError::BAD_HANDSHAKE_PACKET_LEN) {
         send_explicit_handshake_reject_("Bad handshake packet len");
         return aerr;
       }
       if (aerr != APIError::OK)
         return aerr;
+
+      if (frame.msg.empty()) {
+        send_explicit_handshake_reject_("Empty handshake message");
+        return APIError::BAD_HANDSHAKE_PACKET_LEN;
+      } else if (frame.msg[0] != 0x00) {
+        HELPER_LOG("Bad handshake error byte: %u", frame.msg[0]);
+        send_explicit_handshake_reject_("Bad handshake error byte");
+        return APIError::BAD_HANDSHAKE_PACKET_LEN;
+      }
 
       NoiseBuffer mbuf;
       noise_buffer_init(mbuf);
