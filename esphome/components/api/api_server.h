@@ -11,6 +11,7 @@
 #include "list_entities.h"
 #include "subscribe_state.h"
 #include "user_services.h"
+#include "api_noise_context.h"
 
 namespace esphome {
 namespace api {
@@ -29,6 +30,11 @@ class APIServer : public Component, public Controller {
   void set_port(uint16_t port);
   void set_password(const std::string &password);
   void set_reboot_timeout(uint32_t reboot_timeout);
+
+#ifdef USE_API_NOISE
+  void set_noise_psk(psk_t psk) { noise_ctx_->set_psk(std::move(psk)); }
+  std::shared_ptr<APINoiseContext> get_noise_ctx() { return noise_ctx_; }
+#endif  // USE_API_NOISE
 
   void handle_disconnect(APIConnection *conn);
 #ifdef USE_BINARY_SENSOR
@@ -89,6 +95,10 @@ class APIServer : public Component, public Controller {
   std::string password_;
   std::vector<HomeAssistantStateSubscription> state_subs_;
   std::vector<UserServiceDescriptor *> user_services_;
+
+#ifdef USE_API_NOISE
+  std::shared_ptr<APINoiseContext> noise_ctx_ = std::make_shared<APINoiseContext>();
+#endif  // USE_API_NOISE
 };
 
 extern APIServer *global_api_server;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

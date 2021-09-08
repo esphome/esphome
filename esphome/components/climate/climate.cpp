@@ -494,5 +494,74 @@ void ClimateDeviceRestoreState::apply(Climate *climate) {
   climate->publish_state();
 }
 
+template<typename T1, typename T2> bool set_alternative(optional<T1> &dst, optional<T2> &alt, const T1 &src) {
+  bool is_changed = alt.has_value();
+  alt.reset();
+  if (is_changed || dst != src) {
+    dst = src;
+    is_changed = true;
+  }
+  return is_changed;
+}
+
+bool Climate::set_fan_mode_(ClimateFanMode mode) {
+  return set_alternative(this->fan_mode, this->custom_fan_mode, mode);
+}
+
+bool Climate::set_custom_fan_mode_(const std::string &mode) {
+  return set_alternative(this->custom_fan_mode, this->fan_mode, mode);
+}
+
+bool Climate::set_preset_(ClimatePreset preset) { return set_alternative(this->preset, this->custom_preset, preset); }
+
+bool Climate::set_custom_preset_(const std::string &preset) {
+  return set_alternative(this->custom_preset, this->preset, preset);
+}
+
+void Climate::dump_traits_(const char *tag) {
+  auto traits = this->get_traits();
+  ESP_LOGCONFIG(tag, "ClimateTraits:");
+  ESP_LOGCONFIG(tag, "  [x] Visual settings:");
+  ESP_LOGCONFIG(tag, "      - Min: %.1f", traits.get_visual_min_temperature());
+  ESP_LOGCONFIG(tag, "      - Max: %.1f", traits.get_visual_max_temperature());
+  ESP_LOGCONFIG(tag, "      - Step: %.1f", traits.get_visual_temperature_step());
+  if (traits.get_supports_current_temperature())
+    ESP_LOGCONFIG(tag, "  [x] Supports current temperature");
+  if (traits.get_supports_two_point_target_temperature())
+    ESP_LOGCONFIG(tag, "  [x] Supports two-point target temperature");
+  if (traits.get_supports_action())
+    ESP_LOGCONFIG(tag, "  [x] Supports action");
+  if (!traits.get_supported_modes().empty()) {
+    ESP_LOGCONFIG(tag, "  [x] Supported modes:");
+    for (ClimateMode m : traits.get_supported_modes())
+      ESP_LOGCONFIG(tag, "      - %s", climate_mode_to_string(m));
+  }
+  if (!traits.get_supported_fan_modes().empty()) {
+    ESP_LOGCONFIG(tag, "  [x] Supported fan modes:");
+    for (ClimateFanMode m : traits.get_supported_fan_modes())
+      ESP_LOGCONFIG(tag, "      - %s", climate_fan_mode_to_string(m));
+  }
+  if (!traits.get_supported_custom_fan_modes().empty()) {
+    ESP_LOGCONFIG(tag, "  [x] Supported custom fan modes:");
+    for (const std::string &s : traits.get_supported_custom_fan_modes())
+      ESP_LOGCONFIG(tag, "      - %s", s.c_str());
+  }
+  if (!traits.get_supported_presets().empty()) {
+    ESP_LOGCONFIG(tag, "  [x] Supported presets:");
+    for (ClimatePreset p : traits.get_supported_presets())
+      ESP_LOGCONFIG(tag, "      - %s", climate_preset_to_string(p));
+  }
+  if (!traits.get_supported_custom_presets().empty()) {
+    ESP_LOGCONFIG(tag, "  [x] Supported custom presets:");
+    for (const std::string &s : traits.get_supported_custom_presets())
+      ESP_LOGCONFIG(tag, "      - %s", s.c_str());
+  }
+  if (!traits.get_supported_swing_modes().empty()) {
+    ESP_LOGCONFIG(tag, "  [x] Supported swing modes:");
+    for (ClimateSwingMode m : traits.get_supported_swing_modes())
+      ESP_LOGCONFIG(tag, "      - %s", climate_swing_mode_to_string(m));
+  }
+}
+
 }  // namespace climate
 }  // namespace esphome

@@ -1,9 +1,11 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.components import i2c, sensor
+from esphome.components import i2c, sensor, text_sensor
 from esphome.const import (
+    CONF_ICON,
     CONF_ID,
     ICON_RADIATOR,
+    ICON_RESTART,
     DEVICE_CLASS_CARBON_DIOXIDE,
     DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS,
     STATE_CLASS_MEASUREMENT,
@@ -14,9 +16,12 @@ from esphome.const import (
     CONF_TEMPERATURE,
     CONF_TVOC,
     CONF_HUMIDITY,
+    CONF_VERSION,
     ICON_MOLECULE_CO2,
 )
 
+AUTO_LOAD = ["text_sensor"]
+CODEOWNERS = ["@habbie"]
 DEPENDENCIES = ["i2c"]
 
 ccs811_ns = cg.esphome_ns.namespace("ccs811")
@@ -42,6 +47,12 @@ CONFIG_SCHEMA = (
                 device_class=DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
+            cv.Optional(CONF_VERSION): text_sensor.TEXT_SENSOR_SCHEMA.extend(
+                {
+                    cv.GenerateID(): cv.declare_id(text_sensor.TextSensor),
+                    cv.Optional(CONF_ICON, default=ICON_RESTART): cv.icon,
+                }
+            ),
             cv.Optional(CONF_BASELINE): cv.hex_uint16_t,
             cv.Optional(CONF_TEMPERATURE): cv.use_id(sensor.Sensor),
             cv.Optional(CONF_HUMIDITY): cv.use_id(sensor.Sensor),
@@ -61,6 +72,11 @@ async def to_code(config):
     cg.add(var.set_co2(sens))
     sens = await sensor.new_sensor(config[CONF_TVOC])
     cg.add(var.set_tvoc(sens))
+
+    if CONF_VERSION in config:
+        sens = cg.new_Pvariable(config[CONF_VERSION][CONF_ID])
+        await text_sensor.register_text_sensor(sens, config[CONF_VERSION])
+        cg.add(var.set_version(sens))
 
     if CONF_BASELINE in config:
         cg.add(var.set_baseline(config[CONF_BASELINE]))
