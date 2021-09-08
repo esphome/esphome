@@ -154,7 +154,7 @@ class LWIPRawImpl : public Socket {
       errno = EINVAL;
       return -1;
     }
-    LWIP_LOG("tcp_shutdown(%p shut_rx=%d shut_tx=%d)", pcb_, shut_rx?1:0, shut_tx?1:0);
+    LWIP_LOG("tcp_shutdown(%p shut_rx=%d shut_tx=%d)", pcb_, shut_rx ? 1 : 0, shut_tx ? 1 : 0);
     err_t err = tcp_shutdown(pcb_, shut_rx, shut_tx);
     if (err != ERR_OK) {
       errno = err == ERR_MEM ? ENOMEM : EIO;
