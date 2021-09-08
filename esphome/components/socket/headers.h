@@ -90,7 +90,11 @@ typedef uint32_t socklen_t;
 #undef INADDR_NONE
 #endif
 
-#define INADDR_ANY ((uint32_t) 0x00000000UL)
+#define ESPHOME_INADDR_ANY ((uint32_t) 0x00000000UL)
+#define ESPHOME_INADDR_NONE ((uint32_t) 0xFFFFFFFFUL)
+#else  // !ARDUINO_ARCH_ESP8266
+#define ESPHOME_INADDR_ANY INADDR_ANY
+#define ESPHOME_INADDR_NONE INADDR_NONE
 #endif
 
 #endif  // USE_SOCKET_IMPL_LWIP_TCP
@@ -112,6 +116,12 @@ typedef uint32_t socklen_t;
 #endif
 // not defined for ESP32
 typedef uint32_t socklen_t;
-#endif  // ARDUINO_ARCH_ESP32
+
+#define ESPHOME_INADDR_ANY ((uint32_t) 0x00000000UL)
+#define ESPHOME_INADDR_NONE ((uint32_t) 0xFFFFFFFFUL)
+#else  // !ARDUINO_ARCH_ESP32
+#define ESPHOME_INADDR_ANY INADDR_ANY
+#define ESPHOME_INADDR_NONE INADDR_NONE
+#endif
 
 #endif  // USE_SOCKET_IMPL_BSD_SOCKETS
