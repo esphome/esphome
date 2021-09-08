@@ -44,7 +44,7 @@ void APIServer::setup() {
   struct sockaddr_in server;
   memset(&server, 0, sizeof(server));
   server.sin_family = AF_INET;
-  server.sin_addr.s_addr = INADDR_ANY;
+  server.sin_addr.s_addr = ESPHOME_INADDR_ANY;
   server.sin_port = htons(this->port_);
 
   err = socket_->bind((struct sockaddr *) &server, sizeof(server));
