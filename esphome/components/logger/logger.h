@@ -113,6 +113,8 @@ class Logger : public Component {
   };
   std::vector<LogLevelOverride> log_levels_;
   CallbackManager<void(int, const char *, const char *)> log_callback_{};
+  /// Prevents recursive log calls, if true a log message is already being processed.
+  bool recursion_guard_ = false;
 };
 
 extern Logger *global_logger;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

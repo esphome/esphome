@@ -178,28 +178,29 @@ void OTAComponent::handle_() {
 #endif
 
   if (!Update.begin(ota_size, U_FLASH)) {
+    uint8_t error = Update.getError();
     StreamString ss;
     Update.printError(ss);
 #ifdef ARDUINO_ARCH_ESP8266
-    if (ss.indexOf("Invalid bootstrapping") != -1) {
+    if (error == UPDATE_ERROR_BOOTSTRAP) {
       error_code = OTA_RESPONSE_ERROR_INVALID_BOOTSTRAPPING;
       goto error;
     }
-    if (ss.indexOf("new Flash config wrong") != -1 || ss.indexOf("new Flash config wsong") != -1) {
+    if (error == UPDATE_ERROR_NEW_FLASH_CONFIG) {
       error_code = OTA_RESPONSE_ERROR_WRONG_NEW_FLASH_CONFIG;
       goto error;
     }
-    if (ss.indexOf("Flash config wrong real") != -1 || ss.indexOf("Flash config wsong real") != -1) {
+    if (error == UPDATE_ERROR_FLASH_CONFIG) {
       error_code = OTA_RESPONSE_ERROR_WRONG_CURRENT_FLASH_CONFIG;
       goto error;
     }
-    if (ss.indexOf("Not Enough Space") != -1) {
+    if (error == UPDATE_ERROR_SPACE) {
       error_code = OTA_RESPONSE_ERROR_ESP8266_NOT_ENOUGH_SPACE;
       goto error;
     }
 #endif
 #ifdef ARDUINO_ARCH_ESP32
-    if (ss.indexOf("Bad Size Given") != -1) {
+    if (error == UPDATE_ERROR_SIZE) {
       error_code = OTA_RESPONSE_ERROR_ESP32_NOT_ENOUGH_SPACE;
       goto error;
     }

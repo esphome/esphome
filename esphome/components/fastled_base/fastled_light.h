@@ -213,7 +213,7 @@ class FastLEDLightOutput : public light::AddressableLight {
   }
   void setup() override;
   void dump_config() override;
-  void loop() override;
+  void write_state(light::LightState *state) override;
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
 
   void clear_effect_data() override {
