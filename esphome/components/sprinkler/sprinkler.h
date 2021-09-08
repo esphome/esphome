@@ -60,7 +60,7 @@ class Sprinkler : public Component {
   void shutdown();
   /// returns a pointer to a valve's name string object; returns nullptr if valve_number is invalid
   const char *valve_name_(uint8_t valve_number);
-  /// returns the number of the valve that is currently active or 'none_active_' if no valve is active
+  /// returns the number of the valve that is currently active or 'none_active' if no valve is active
   int8_t active_valve();
   /// returns true if valve number is valid
   bool is_a_valid_valve(int8_t valve_number);
@@ -68,7 +68,7 @@ class Sprinkler : public Component {
   uint32_t time_remaining();
 
   /// value indicating that no valve is currently active
-  const int8_t none_active_{-1};
+  const int8_t none_active{-1};
 
  protected:
   /// returns true if any valve is active/turned on
@@ -91,11 +91,11 @@ class Sprinkler : public Component {
   int8_t previous_valve_number_(int8_t first_valve);
 
   /// returns the number of the next valve that should be activated in a full cycle.
-  ///  if no valve is next (cycle is complete), returns this->none_active_
+  ///  if no valve is next (cycle is complete), returns this->none_active
   int8_t next_valve_number_in_cycle_(int8_t first_valve);
 
   /// returns the number of the next/previous valve that should be activated.
-  ///  if no valve is next (cycle is complete), returns none_active_
+  ///  if no valve is next (cycle is complete), returns none_active
   int8_t next_enabled_incomplete_valve_number_(int8_t first_valve);
   int8_t previous_enabled_incomplete_valve_number_(int8_t first_valve);
 
@@ -145,7 +145,7 @@ class Sprinkler : public Component {
   bool reverse_{false};
 
   /// The number of the valve that is currently active
-  int8_t active_valve_{this->none_active_};
+  int8_t active_valve_{this->none_active};
 
   /// Sprinkler valve run time multiplier
   float multiplier_{1.0};

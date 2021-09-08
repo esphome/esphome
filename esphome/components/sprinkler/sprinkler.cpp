@@ -73,7 +73,7 @@ void Sprinkler::shutdown() {
   this->cancel_timer_(sprinkler::TIMER_VALVE_RUN_DURATION);
   this->cancel_timer_(sprinkler::TIMER_VALVE_OPEN_DELAY);
   this->all_valves_off_(true);
-  this->active_valve_ = this->none_active_;
+  this->active_valve_ = this->none_active;
 }
 
 const char *Sprinkler::valve_name_(const uint8_t valve_number) {
@@ -162,7 +162,7 @@ int8_t Sprinkler::next_enabled_incomplete_valve_number_(const int8_t first_valve
       new_valve_number = this->next_valve_number_(new_valve_number);
     }
   }
-  return this->none_active_;
+  return this->none_active;
 }
 
 int8_t Sprinkler::previous_enabled_incomplete_valve_number_(const int8_t first_valve) {
@@ -175,7 +175,7 @@ int8_t Sprinkler::previous_enabled_incomplete_valve_number_(const int8_t first_v
       new_valve_number = this->previous_valve_number_(new_valve_number);
     }
   }
-  return this->none_active_;
+  return this->none_active;
 }
 
 bool Sprinkler::any_valve_is_enabled_() {
@@ -295,7 +295,7 @@ void Sprinkler::valve_cycle_complete_callback_() {
   } else {
     ESP_LOGD(TAG, "  Shutting down");
     this->all_valves_off_(true);
-    this->active_valve_ = this->none_active_;
+    this->active_valve_ = this->none_active;
   }
 }
 

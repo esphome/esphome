@@ -1,5 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
+from esphome import automation
+from esphome.automation import maybe_simple_id
 from esphome.components import switch
 from esphome.const import (
     CONF_ID,
@@ -18,6 +20,11 @@ CONF_VALVES = "valves"
 sprinkler_ns = cg.esphome_ns.namespace("sprinkler")
 Sprinkler = sprinkler_ns.class_("Sprinkler")
 
+StartFullCycleAction = sprinkler_ns.class_("StartFullCycleAction", automation.Action)
+ShutdownAction = sprinkler_ns.class_("ShutdownAction", automation.Action)
+NextValveAction = sprinkler_ns.class_("NextValveAction", automation.Action)
+PreviousValveAction = sprinkler_ns.class_("PreviousValveAction", automation.Action)
+
 
 def validate_sprinkler(config):
     for valve in config[CONF_VALVES]:
@@ -26,6 +33,13 @@ def validate_sprinkler(config):
                 f"{CONF_RUN_DURATION} must be greater than {CONF_VALVE_OPEN_DELAY}"
             )
     return config
+
+
+SPRINKLER_ACTION_SCHEMA = maybe_simple_id(
+    {
+        cv.Required(CONF_ID): cv.use_id(Sprinkler),
+    }
+)
 
 
 SPRINKLER_VALVE_SCHEMA = cv.Schema(
@@ -51,10 +65,40 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
+@automation.register_action(
+    "sprinkler.start_full_cycle", StartFullCycleAction, SPRINKLER_ACTION_SCHEMA
+)
+async def sprinkler_start_full_cycle_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(action_id, template_arg, paren)
+
+
+@automation.register_action(
+    "sprinkler.shutdown", ShutdownAction, SPRINKLER_ACTION_SCHEMA
+)
+async def sprinkler_shutdown_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(action_id, template_arg, paren)
+
+
+@automation.register_action(
+    "sprinkler.next_valve", NextValveAction, SPRINKLER_ACTION_SCHEMA
+)
+async def sprinkler_next_valve_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(action_id, template_arg, paren)
+
+
+@automation.register_action(
+    "sprinkler.previous_valve", PreviousValveAction, SPRINKLER_ACTION_SCHEMA
+)
+async def sprinkler_previous_valve_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(action_id, template_arg, paren)
+
+
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    # await cg.register_component(var, config)
-    # await climate.register_climate(var, config)
 
     cg.add(var.set_valve_open_delay(config[CONF_VALVE_OPEN_DELAY]))
 
