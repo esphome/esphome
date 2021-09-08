@@ -28,8 +28,8 @@ class AddressableLightWrapper : public light::AddressableLight {
 
     auto call = this->light_state_->make_call();
     call.set_state(true);
-    call.set_brightness_if_supported(brightness);
-    call.set_color_brightness_if_supported(1.0f);
+    call.set_brightness_if_supported(1.0f);
+    call.set_color_brightness_if_supported(brightness);
     call.set_red_if_supported(r);
     call.set_green_if_supported(g);
     call.set_blue_if_supported(b);
