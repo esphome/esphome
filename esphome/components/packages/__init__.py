@@ -6,6 +6,7 @@ from esphome import git, yaml_util
 from esphome.const import (
     CONF_FILE,
     CONF_FILES,
+    CONF_ID,
     CONF_PACKAGES,
     CONF_REF,
     CONF_REFRESH,
@@ -29,7 +30,22 @@ def _merge_package(full_old, full_new):
         elif isinstance(new, list):
             if not isinstance(old, list):
                 return new
-            return old + new
+
+            # Merge list entries if CONF_ID is present and identical in both
+            without_id = []
+            with_id = {}
+            for v in old:
+                if CONF_ID in v:
+                    with_id[v[CONF_ID]] = v
+                else:
+                    without_id.append(v)
+            for v in new:
+                if CONF_ID in v and v[CONF_ID] in with_id.keys():
+                    id = v[CONF_ID]
+                    with_id[id] = merge(with_id[id], v)
+                else:
+                    without_id.append(v)
+            return without_id + list(with_id.values())
 
         return new
 
