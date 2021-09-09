@@ -707,7 +707,7 @@ APIError APIPlaintextFrameHelper::try_read_frame_(ParsedFrame *frame) {
     }
 
     size_t i = 1;
-    size_t consumed = 0;
+    uint32_t consumed = 0;
     auto msg_size_varint = ProtoVarInt::parse(&rx_header_buf_[i], rx_header_buf_.size() - i, &consumed);
     if (!msg_size_varint.has_value()) {
       // not enough data there yet
