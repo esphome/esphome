@@ -11,7 +11,6 @@ from esphome.const import (
     UNIT_OHM,
     CONF_IMPEDANCE,
     ICON_OMEGA,
-    CONF_VERSION,
 )
 
 DEPENDENCIES = ["esp32_ble_tracker"]
@@ -21,23 +20,11 @@ XiaomiMiscale = xiaomi_miscale_ns.class_(
     "XiaomiMiscale", esp32_ble_tracker.ESPBTDeviceListener, cg.Component
 )
 
-
-def validate_sensor_match_version(config):
-    version = int(config.get(CONF_VERSION, 1))
-    has_impedance = CONF_IMPEDANCE in config
-    if version == 1 and has_impedance:
-        raise cv.Invalid(
-            "Impedance is only supported for Xiaomi Scale 2 (XMTZC02HM, XMTZC05HM)."
-        )
-    return config
-
-
-CONFIG_SCHEMA = cv.All(
+CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(XiaomiMiscale),
             cv.Required(CONF_MAC_ADDRESS): cv.mac_address,
-            cv.Optional(CONF_VERSION, default=1): cv.int_range(min=1, max=2),
             cv.Optional(CONF_WEIGHT): sensor.sensor_schema(
                 unit_of_measurement=UNIT_KILOGRAM,
                 icon=ICON_SCALE_BATHROOM,
@@ -53,9 +40,7 @@ CONFIG_SCHEMA = cv.All(
         }
     )
     .extend(esp32_ble_tracker.ESP_BLE_DEVICE_SCHEMA)
-    .extend(cv.COMPONENT_SCHEMA),
-
-    validate_sensor_match_version
+    .extend(cv.COMPONENT_SCHEMA)
 )
 
 
@@ -65,7 +50,6 @@ async def to_code(config):
     await esp32_ble_tracker.register_ble_device(var, config)
 
     cg.add(var.set_address(config[CONF_MAC_ADDRESS].as_hex))
-    cg.add(var.set_version(config[CONF_VERSION]))
 
     if CONF_WEIGHT in config:
         sens = await sensor.new_sensor(config[CONF_WEIGHT])
@@ -73,4 +57,3 @@ async def to_code(config):
     if CONF_IMPEDANCE in config:
         sens = await sensor.new_sensor(config[CONF_IMPEDANCE])
         cg.add(var.set_impedance(sens))
-

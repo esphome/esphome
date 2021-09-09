@@ -10,6 +10,7 @@ namespace esphome {
 namespace xiaomi_miscale {
 
 struct ParseResult {
+  int version;
   optional<float> weight;
   optional<float> impedance;
 };
@@ -17,9 +18,6 @@ struct ParseResult {
 class XiaomiMiscale : public Component, public esp32_ble_tracker::ESPBTDeviceListener {
  public:
   void set_address(uint64_t address) { address_ = address; };
-  void set_version(int version) {
-    version_ = version;
-  }
 
   bool parse_device(const esp32_ble_tracker::ESPBTDevice &device) override;
   void dump_config() override;
@@ -29,7 +27,6 @@ class XiaomiMiscale : public Component, public esp32_ble_tracker::ESPBTDeviceLis
 
  protected:
   uint64_t address_;
-  int version_{1};
   sensor::Sensor *weight_{nullptr};
   sensor::Sensor *impedance_{nullptr};
 

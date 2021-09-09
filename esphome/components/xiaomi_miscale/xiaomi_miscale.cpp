@@ -10,7 +10,6 @@ static const char *const TAG = "xiaomi_miscale";
 
 void XiaomiMiscale::dump_config() {
   ESP_LOGCONFIG(TAG, "Xiaomi Miscale");
-  ESP_LOGCONFIG(TAG, "  Version: %d", this->version_);
   LOG_SENSOR("  ", "Weight", this->weight_);
   LOG_SENSOR("  ", "Impedance", this->impedance_);
 }
@@ -28,6 +27,7 @@ bool XiaomiMiscale::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
     if (!res.has_value()) {
       continue;
     }
+
     if (!(parse_message(service_data.data, *res))) {
       continue;
     }
@@ -35,9 +35,13 @@ bool XiaomiMiscale::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
     if (!(report_results(res, device.address_str()))) {
       continue;
     }
+
     if (res->weight.has_value() && this->weight_ != nullptr)
       this->weight_->publish_state(*res->weight);
-    if (res->impedance.has_value() && this->impedance_ != nullptr)
+
+    if (res->version == 1 && this->impedance_ != nullptr) {
+      ESP_LOGW(TAG, "Impedance is only supported on version 2. Your scale was identified as verison 1.");
+    } else if (res->impedance.has_value() && this->impedance_ != nullptr)
       this->impedance_->publish_state(*res->impedance);
     success = true;
   }
@@ -47,9 +51,14 @@ bool XiaomiMiscale::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
 
 optional<ParseResult> XiaomiMiscale::parse_header(const esp32_ble_tracker::ServiceData &service_data) {
   ParseResult result;
-  auto service_uiid_byte = (this->version_ == 1) ? 0x1D : 0x1B;
-  if (!service_data.uuid.contains(service_uiid_byte, 0x18)) {
-    ESP_LOGVV(TAG, "parse_header(): no service data UUID magic bytes.");
+  if (service_data.uuid == esp32_ble_tracker::ESPBTUUID::from_uint16(0x181D) && service_data.data.size() == 10) {
+    result.version = 1;
+  } else if (service_data.uuid == esp32_ble_tracker::ESPBTUUID::from_uint16(0x181B) && service_data.data.size() == 13) {
+    result.version = 2;
+  } else {
+    ESP_LOGVV(TAG,
+              "parse_header(): Couldn't identify scale version or data size was not correct. UUID: %s, data_size: %d",
+              service_data.uuid.to_string().c_str(), service_data.data.size());
     return {};
   }
 
@@ -57,7 +66,7 @@ optional<ParseResult> XiaomiMiscale::parse_header(const esp32_ble_tracker::Servi
 }
 
 bool XiaomiMiscale::parse_message(const std::vector<uint8_t> &message, ParseResult &result) {
-  if (this->version_ == 1) {
+  if (result.version == 1) {
     return parse_message_V1(message, result);
   } else {
     return parse_message_V2(message, result);
@@ -65,7 +74,7 @@ bool XiaomiMiscale::parse_message(const std::vector<uint8_t> &message, ParseResu
 }
 
 bool XiaomiMiscale::parse_message_V1(const std::vector<uint8_t> &message, ParseResult &result) {
-  // example 1d18 a2 6036 e307 07 11 0f1f11
+  // message size is checked in parse_header
   // 1-2 Weight (MISCALE 181D)
   // 3-4 Years (MISCALE 181D)
   // 5 month (MISCALE 181D)
@@ -75,12 +84,6 @@ bool XiaomiMiscale::parse_message_V1(const std::vector<uint8_t> &message, ParseR
   // 9 second (MISCALE 181D)
 
   const uint8_t *data = message.data();
-  const int data_length = 10;
-
-  if (message.size() != data_length) {
-    ESP_LOGVV(TAG, "parse_message(): payload has wrong size (%d)!", message.size());
-    return false;
-  }
 
   // weight, 2 bytes, 16-bit  unsigned integer, 1 kg
   const int16_t weight = uint16_t(data[1]) | (uint16_t(data[2]) << 8);
@@ -95,6 +98,7 @@ bool XiaomiMiscale::parse_message_V1(const std::vector<uint8_t> &message, ParseR
 }
 
 bool XiaomiMiscale::parse_message_V2(const std::vector<uint8_t> &message, ParseResult &result) {
+  // message size is checked in parse_header
   // 2-3 Years (MISCALE 2 181B)
   // 4 month (MISCALE 2 181B)
   // 5 day (MISCALE 2 181B)
@@ -105,12 +109,6 @@ bool XiaomiMiscale::parse_message_V2(const std::vector<uint8_t> &message, ParseR
   // 11-12 weight (MISCALE 2 181B)
 
   const uint8_t *data = message.data();
-  const int data_length = 13;
-
-  if (message.size() != data_length) {
-    ESP_LOGVV(TAG, "parse_message(): payload has wrong size (%d)!", message.size());
-    return false;
-  }
 
   bool has_impedance = ((data[1] & (1 << 1)) != 0) ? true : false;
   bool is_stabilized = ((data[1] & (1 << 5)) != 0) ? true : false;
@@ -146,7 +144,7 @@ bool XiaomiMiscale::report_results(const optional<ParseResult> &result, const st
     return false;
   }
 
-  ESP_LOGD(TAG, "Got Xiaomi Miscale (%s):", address.c_str());
+  ESP_LOGD(TAG, "Got Xiaomi Miscale v%d (%s):", (*result).version, address.c_str());
 
   if (result->weight.has_value()) {
     ESP_LOGD(TAG, "  Weight: %.2fkg", *result->weight);
