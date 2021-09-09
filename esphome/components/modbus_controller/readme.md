@@ -126,7 +126,7 @@ external_components:
       type: git
       url: https://github.com/martgras/esphome
       ref: testing
-    components: [ modbus_controller ]
+    components: [ modbus_controller, modbus ]
 esphome:
   name: dc
   platform: ESP32
