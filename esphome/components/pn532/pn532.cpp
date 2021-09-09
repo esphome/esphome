@@ -49,7 +49,7 @@ void PN532::setup() {
   }
 
   // Set up SAM (secure access module)
-  uint8_t sam_timeout = std::min(255u, this->update_interval_ / 50);
+  uint8_t sam_timeout = std::min<uint8_t>(255u, this->update_interval_ / 50);
   if (!this->write_command_({
           PN532_COMMAND_SAMCONFIGURATION,
           0x01,         // normal mode
