@@ -33,7 +33,6 @@ from esphome.const import (
     CONF_UPDATE_INTERVAL,
     CONF_TYPE_ID,
     CONF_TYPE,
-    CONF_PACKAGES,
 )
 from esphome.core import (
     CORE,
@@ -1455,15 +1454,7 @@ class OnlyWith(Optional):
     @property
     def default(self):
         # pylint: disable=unsupported-membership-test
-        if self._component in CORE.raw_config or (
-            CONF_PACKAGES in CORE.raw_config
-            and self._component
-            in [
-                k
-                for package in CORE.raw_config[CONF_PACKAGES].values()
-                for k in package.keys()
-            ]
-        ):
+        if self._component in CORE.raw_config:
             return self._default
         return vol.UNDEFINED
 
@@ -1633,3 +1624,17 @@ def url(value):
     if not parsed.scheme or not parsed.netloc:
         raise Invalid("Expected a URL scheme and host")
     return parsed.geturl()
+
+
+def git_ref(value):
+    if re.match(r"[a-zA-Z0-9\-_.\./]+", value) is None:
+        raise Invalid("Not a valid git ref")
+    return value
+
+
+def source_refresh(value: str):
+    if value.lower() == "always":
+        return source_refresh("0s")
+    if value.lower() == "never":
+        return source_refresh("1000y")
+    return positive_time_period_seconds(value)

@@ -61,8 +61,8 @@ void MQTTSensorComponent::send_discovery(JsonObject &root, mqtt::SendDiscoveryCo
   if (this->sensor_->get_force_update())
     root["force_update"] = true;
 
-  if (this->sensor_->state_class == sensor::STATE_CLASS_MEASUREMENT)
-    root["state_class"] = "measurement";
+  if (this->sensor_->state_class != STATE_CLASS_NONE)
+    root["state_class"] = state_class_to_string(this->sensor_->state_class);
 
   config.command_topic = false;
 }

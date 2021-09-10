@@ -1817,7 +1817,7 @@ bool ListEntitiesSensorResponse::decode_varint(uint32_t field_id, ProtoVarInt va
       return true;
     }
     case 11: {
-      this->last_reset_type = value.as_enum<enums::SensorLastResetType>();
+      this->legacy_last_reset_type = value.as_enum<enums::SensorLastResetType>();
       return true;
     }
     case 12: {
@@ -1879,7 +1879,7 @@ void ListEntitiesSensorResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_bool(8, this->force_update);
   buffer.encode_string(9, this->device_class);
   buffer.encode_enum<enums::SensorStateClass>(10, this->state_class);
-  buffer.encode_enum<enums::SensorLastResetType>(11, this->last_reset_type);
+  buffer.encode_enum<enums::SensorLastResetType>(11, this->legacy_last_reset_type);
   buffer.encode_bool(12, this->disabled_by_default);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -1928,8 +1928,8 @@ void ListEntitiesSensorResponse::dump_to(std::string &out) const {
   out.append(proto_enum_to_string<enums::SensorStateClass>(this->state_class));
   out.append("\n");
 
-  out.append("  last_reset_type: ");
-  out.append(proto_enum_to_string<enums::SensorLastResetType>(this->last_reset_type));
+  out.append("  legacy_last_reset_type: ");
+  out.append(proto_enum_to_string<enums::SensorLastResetType>(this->legacy_last_reset_type));
   out.append("\n");
 
   out.append("  disabled_by_default: ");

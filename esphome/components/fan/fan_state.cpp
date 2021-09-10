@@ -39,7 +39,7 @@ void FanState::setup() {
   call.set_direction(recovered.direction);
   call.perform();
 }
-float FanState::get_setup_priority() const { return setup_priority::HARDWARE - 1.0f; }
+float FanState::get_setup_priority() const { return setup_priority::DATA - 1.0f; }
 uint32_t FanState::hash_base() { return 418001110UL; }
 
 void FanStateCall::perform() const {
