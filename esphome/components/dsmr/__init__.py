@@ -13,6 +13,7 @@ AUTO_LOAD = ["sensor", "text_sensor"]
 
 CONF_DSMR_ID = "dsmr_id"
 CONF_DECRYPTION_KEY = "decryption_key"
+CONF_DEBUG_TELEGRAMS = "debug_telegrams"
 
 # Hack to prevent compile error due to ambiguity with lib namespace
 dsmr_ns = cg.esphome_ns.namespace("esphome::dsmr")
@@ -41,6 +42,7 @@ CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(Dsmr),
         cv.Optional(CONF_DECRYPTION_KEY): _validate_key,
+        cv.Optional(CONF_DEBUG_TELEGRAMS, default=False): cv.boolean,
     }
 ).extend(uart.UART_DEVICE_SCHEMA)
 
@@ -50,6 +52,9 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID], uart_component)
     if CONF_DECRYPTION_KEY in config:
         cg.add(var.set_decryption_key(config[CONF_DECRYPTION_KEY]))
+    if config[CONF_DEBUG_TELEGRAMS]:
+        cg.add_define("USE_TELEGRAM_DEBUGGER")
+
     await cg.register_component(var, config)
 
     # DSMR Parser

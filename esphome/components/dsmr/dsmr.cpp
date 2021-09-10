@@ -21,6 +21,31 @@ void Dsmr::receive_telegram_() {
   while (available()) {
     const char c = read();
 
+#ifdef USE_TELEGRAM_DEBUGGER
+    if (c == '\r') {
+      debug_[debug_len_++] = '\\';
+      debug_[debug_len_++] = 'r';
+    }
+    else if (c == '\n') {
+      debug_[debug_len_++] = '\\';
+      debug_[debug_len_++] = 'n';
+      debug_[debug_len_] = 0;
+      ESP_LOGD(TAG, "Telegram line: %s", debug_);
+      debug_len_ = 0;
+    }
+    else if (c >= 32 && c <= 126) {
+      debug_[debug_len_++] = c;
+    } else {
+      sprintf(debug_+debug_len_, "0x%02x", c);
+      debug_len_ += 4;
+    }
+    if (debug_len_ >= (MAX_DEBUG_LENGTH - 5)) {
+      debug_[debug_len_] = 0;
+      ESP_LOGD(TAG, "Telegram chunk: %s", debug_);
+      debug_len_ = 0;
+    }
+#endif
+
     if (c == '/') {  // header: forward slash
       ESP_LOGV(TAG, "Header found");
       header_found_ = true;
@@ -128,7 +153,7 @@ void Dsmr::receive_encrypted_() {
 
 bool Dsmr::parse_telegram() {
   MyData data;
-  ESP_LOGV(TAG, "Trying to parse");
+  ESP_LOGV(TAG, "Trying to parse telegram, size = %d bytes", telegram_len_);
   ::dsmr::ParseResult<void> res =
       ::dsmr::P1Parser::parse(&data, telegram_, telegram_len_,
                               false);  // Parse telegram according to data definition. Ignore unknown values.
