@@ -7,7 +7,7 @@ namespace teleinfo {
 static const char *const TAG = "teleinfo";
 
 /* Helpers */
-static int get_field(char *dest, char *buf_start, char *buf_end, int sep) {
+static int get_field(char *dest, char *buf_start, char *buf_end, int sep, int max_len) {
   char *field_end;
   int len;
 
@@ -15,6 +15,8 @@ static int get_field(char *dest, char *buf_start, char *buf_end, int sep) {
   if (!field_end)
     return 0;
   len = field_end - buf_start;
+  if (len >= max_len)
+    return len;
   strncpy(dest, buf_start, len);
   dest[len] = '\0';
 
@@ -123,7 +125,7 @@ void TeleInfo::loop() {
           continue;
 
         /* Get tag */
-        field_len = get_field(tag_, buf_finger, grp_end, separator_);
+        field_len = get_field(tag_, buf_finger, grp_end, separator_, MAX_TAG_SIZE);
         if (!field_len || field_len >= MAX_TAG_SIZE) {
           ESP_LOGE(TAG, "Invalid tag.");
           break;
@@ -133,7 +135,7 @@ void TeleInfo::loop() {
         buf_finger += field_len + 1;
 
         /* Get value (after next separator) */
-        field_len = get_field(val_, buf_finger, grp_end, separator_);
+        field_len = get_field(val_, buf_finger, grp_end, separator_, MAX_VAL_SIZE);
         if (!field_len || field_len >= MAX_VAL_SIZE) {
           ESP_LOGE(TAG, "Invalid Value");
           break;
