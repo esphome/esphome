@@ -1219,3 +1219,4 @@ fingerprint_grow:
 dsmr:
   decryption_key: 00112233445566778899aabbccddeeff
   uart_id: uart6
+  debug_telegrams: true
