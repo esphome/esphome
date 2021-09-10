@@ -90,9 +90,9 @@ bool XiaomiMiscale::parse_message_V1(const std::vector<uint8_t> &message, ParseR
   if (data[0] == 0x22 || data[0] == 0xa2)
     result.weight = weight * 0.01f / 2.0f;  // unit 'kg'
   else if (data[0] == 0x12 || data[0] == 0xb2)
-    result.weight = weight * 0.01f * 0.6;  // unit 'jin'
+    result.weight = weight * 0.01f * 0.6f;  // unit 'jin'
   else if (data[0] == 0x03 || data[0] == 0xb3)
-    result.weight = weight * 0.01f * 0.453592;  // unit 'lbs'
+    result.weight = weight * 0.01f * 0.453592f;  // unit 'lbs'
 
   return true;
 }
