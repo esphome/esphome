@@ -9,7 +9,7 @@ static const char *const TAG = "modbus_controller";
 
 void ModbusController::setup() {
   // Modbus::setup();
-  this->create_register_ranges();
+  this->create_register_ranges_();
 }
 
 /*
@@ -48,7 +48,7 @@ void ModbusController::on_modbus_data(const std::vector<uint8_t> &data) {
 }
 
 // Dispatch the response to the registered handler
-void ModbusController::process_modbus_data(const ModbusCommandItem *response) {
+void ModbusController::process_modbus_data_(const ModbusCommandItem *response) {
   ESP_LOGV(TAG, "Process modbus response for address 0x%X size: %zu", response->register_address,
            response->payload.size());
   response->on_data_func(response->function_code, response->register_address, response->payload);
@@ -109,10 +109,9 @@ void ModbusController::queue_command(const ModbusCommandItem &command) {
       return;
     }
   }
-  command_queue_.push_back(make_unique<ModbusCommandItem>(command));
 }
 
-void ModbusController::update_range(RegisterRange &r) {
+void ModbusController::update_range_(RegisterRange &r) {
   ESP_LOGV(TAG, "Range : %X Size: %x (%d) skip: %d", r.start_address, r.register_count, (int) r.register_type,
            r.skip_updates_counter);
   if (r.skip_updates_counter == 0) {
@@ -137,12 +136,12 @@ void ModbusController::update() {
 
   for (auto &r : this->register_ranges_) {
     ESP_LOGVV(TAG, "Updating range 0x%X", r.start_address);
-    update_range(r);
+    update_range_(r);
   }
 }
 
 // walk through the sensors and determine the registerranges to read
-size_t ModbusController::create_register_ranges() {
+size_t ModbusController::create_register_ranges_() {
   register_ranges_.clear();
   uint8_t n = 0;
   if (sensormap_.empty()) {
@@ -257,7 +256,7 @@ void ModbusController::loop() {
   if (!incoming_queue_.empty()) {
     auto &message = incoming_queue_.front();
     if (message != nullptr)
-      process_modbus_data(message.get());
+      process_modbus_data_(message.get());
     incoming_queue_.pop();
 
   } else {
@@ -389,14 +388,20 @@ ModbusCommandItem ModbusCommandItem::create_write_single_command(ModbusControlle
   return cmd;
 }
 
-ModbusCommandItem ModbusCommandItem::create_custom_command(ModbusController *modbusdevice,
-                                                           const std::vector<uint8_t> &values) {
+ModbusCommandItem ModbusCommandItem::create_custom_command(
+    ModbusController *modbusdevice, const std::vector<uint8_t> &values,
+    std::function<void(ModbusFunctionCode function_code, uint16_t start_address, const std::vector<uint8_t> &data)>
+        &&handler) {
   ModbusCommandItem cmd;
   cmd.modbusdevice = modbusdevice;
   cmd.function_code = ModbusFunctionCode::CUSTOM;
-  cmd.on_data_func = [](ModbusFunctionCode, uint16_t, const std::vector<uint8_t> &data) {
-    ESP_LOGI(TAG, "Custom Command sent");
-  };
+  if (handler == nullptr) {
+    cmd.on_data_func = [](ModbusFunctionCode, uint16_t, const std::vector<uint8_t> &data) {
+      ESP_LOGI(TAG, "Custom Command sent");
+    };
+  } else {
+    cmd.on_data_func = handler;
+  }
   cmd.payload = values;
 
   return cmd;
