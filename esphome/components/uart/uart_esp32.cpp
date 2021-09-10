@@ -73,7 +73,11 @@ void UARTComponent::setup() {
   // Use Arduino HardwareSerial UARTs if all used pins match the ones
   // preconfigured by the platform. For example if RX disabled but TX pin
   // is 1 we still want to use Serial.
+#ifdef CONFIG_IDF_TARGET_ESP32C3
+  if (this->tx_pin_.value_or(21) == 21 && this->rx_pin_.value_or(20) == 20) {
+#else
   if (this->tx_pin_.value_or(1) == 1 && this->rx_pin_.value_or(3) == 3) {
+#endif
     this->hw_serial_ = &Serial;
   } else {
     this->hw_serial_ = new HardwareSerial(next_uart_num++);
