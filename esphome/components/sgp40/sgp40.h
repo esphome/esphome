@@ -68,6 +68,7 @@ class SGP40Component : public PollingComponent, public sensor::Sensor, public i2
   int32_t seconds_since_last_store_;
   SGP40Baselines baselines_storage_;
   VocAlgorithmParams voc_algorithm_params_;
+  bool self_test_complete_;
   bool store_baseline_;
   int32_t state0_;
   int32_t state1_;
