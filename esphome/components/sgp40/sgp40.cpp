@@ -78,27 +78,28 @@ void SGP40Component::setup() {
 }
 
 void SGP40Component::self_test_() {
-  ESP_LOGD(TAG, "selfTest started");
+  ESP_LOGD(TAG, "Self-test started");
   if (!this->write_command_(SGP40_CMD_SELF_TEST)) {
     this->error_code_ = COMMUNICATION_FAILED;
-    ESP_LOGD(TAG, "selfTest communicatin failed");
+    ESP_LOGD(TAG, "Self-test communication failed");
     this->mark_failed();
   }
 
   this->set_timeout(250, [this]() {
     uint16_t reply[1];
     if (!this->read_data_(reply, 1)) {
-      ESP_LOGD(TAG, "selfTest read_data_ failed");
+      ESP_LOGD(TAG, "Self-test read_data_ failed");
       this->mark_failed();
       return;
     }
 
     if (reply[0] == 0xD400) {
-      ESP_LOGD(TAG, "selfTest completed");
+      this->self_test_complete_ = true;
+      ESP_LOGD(TAG, "Self-test completed");
       return;
     }
 
-    ESP_LOGD(TAG, "selfTest failed");
+    ESP_LOGD(TAG, "Self-test failed");
     this->mark_failed();
   });
 }
@@ -154,6 +155,12 @@ int32_t SGP40Component::measure_voc_index_() {
  */
 uint16_t SGP40Component::measure_raw_() {
   float humidity = NAN;
+
+  if (!this->self_test_complete_) {
+    ESP_LOGD(TAG, "Self-test not yet complete");
+    return UINT16_MAX;
+  }
+
   if (this->humidity_sensor_ != nullptr) {
     humidity = this->humidity_sensor_->state;
   }
