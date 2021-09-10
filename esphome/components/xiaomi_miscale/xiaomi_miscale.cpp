@@ -123,7 +123,7 @@ bool XiaomiMiscale::parse_message_V2(const std::vector<uint8_t> &message, ParseR
   if (data[0] == 0x02)
     result.weight = weight * 0.01f / 2.0f;  // unit 'kg'
   else if (data[0] == 0x03)
-    result.weight = weight * 0.01f * 0.453592;  // unit 'lbs'
+    result.weight = weight * 0.01f * 0.453592f;  // unit 'lbs'
 
   if (has_impedance) {
     // impedance, 2 bytes, 16-bit
@@ -144,7 +144,7 @@ bool XiaomiMiscale::report_results(const optional<ParseResult> &result, const st
     return false;
   }
 
-  ESP_LOGD(TAG, "Got Xiaomi Miscale v%d (%s):", (*result).version, address.c_str());
+  ESP_LOGD(TAG, "Got Xiaomi Miscale v%d (%s):", result->version, address.c_str());
 
   if (result->weight.has_value()) {
     ESP_LOGD(TAG, "  Weight: %.2fkg", *result->weight);
