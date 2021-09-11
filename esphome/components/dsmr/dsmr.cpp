@@ -25,18 +25,16 @@ void Dsmr::receive_telegram_() {
     if (c == '\r') {
       debug_[debug_len_++] = '\\';
       debug_[debug_len_++] = 'r';
-    }
-    else if (c == '\n') {
+    } else if (c == '\n') {
       debug_[debug_len_++] = '\\';
       debug_[debug_len_++] = 'n';
       debug_[debug_len_] = 0;
       ESP_LOGD(TAG, "Telegram line: %s", debug_);
       debug_len_ = 0;
-    }
-    else if (c >= 32 && c <= 126) {
+    } else if (c >= 32 && c <= 126) {
       debug_[debug_len_++] = c;
     } else {
-      sprintf(debug_+debug_len_, "0x%02x", c);
+      sprintf(debug_ + debug_len_, "0x%02x", c);
       debug_len_ += 4;
     }
     if (debug_len_ >= (MAX_DEBUG_LENGTH - 5)) {
