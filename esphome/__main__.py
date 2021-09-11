@@ -643,7 +643,7 @@ def parse_args(argv):
     # usage it'll eat the command as the configuration argument and error out out
     # because it can't parse the configuration as a command.
     #
-    # Instead, of parsing using the current format fails, construct an ad-hoc parser
+    # Instead, if parsing using the current format fails, construct an ad-hoc parser
     # that doesn't actually process the arguments, but parses them enough to let us
     # figure out if the old format is used. In that case, swap the command and
     # configuration in the arguments and retry with the normal parser (and raise
@@ -697,7 +697,10 @@ def parse_args(argv):
             for arg in unparsed
         ]
         arguments = (
-                arguments[0:last_option] + [result.command] + result.configuration + unparsed
+            arguments[0:last_option]
+            + [result.command]
+            + result.configuration
+            + unparsed
         )
         deprecated_argv_suggestion = arguments
     except argparse.ArgumentError:
