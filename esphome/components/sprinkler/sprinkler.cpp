@@ -23,17 +23,17 @@ void Sprinkler::add_valve(switch_::Switch *valve_switch, switch_::Switch *enable
 
 void Sprinkler::set_pump_switch(switch_::Switch *pump_switch) { this->pump_switch_ = pump_switch; }
 
-void Sprinkler::set_multiplier(float multiplier) {
+void Sprinkler::set_multiplier(const float multiplier) {
   if (multiplier > 0) {
     this->multiplier_ = multiplier;
   }
 }
 
-void Sprinkler::set_valve_open_delay(uint32_t valve_open_delay) {
+void Sprinkler::set_valve_open_delay(const uint32_t valve_open_delay) {
   this->set_timer_duration_(sprinkler::TIMER_VALVE_OPEN_DELAY, valve_open_delay);
 }
 
-void Sprinkler::set_valve_run_duration(uint8_t valve_number, uint32_t valve_run_duration) {
+void Sprinkler::set_valve_run_duration(const uint8_t valve_number, const uint32_t valve_run_duration) {
   if (this->is_a_valid_valve(valve_number)) {
     this->valve_[valve_number].valve_run_duration = valve_run_duration;
   }
@@ -42,6 +42,24 @@ void Sprinkler::set_valve_run_duration(uint8_t valve_number, uint32_t valve_run_
 void Sprinkler::set_auto_advance(const bool auto_advance) { this->auto_advance_ = auto_advance; }
 
 void Sprinkler::set_reverse(const bool reverse) { this->reverse_ = reverse; }
+
+uint32_t Sprinkler::valve_run_duration(const uint8_t valve_number) {
+  if (this->is_a_valid_valve(valve_number)) {
+    return this->valve_[valve_number].valve_run_duration;
+  }
+  return 0;
+}
+
+uint32_t Sprinkler::valve_run_duration_adjusted(const uint8_t valve_number) {
+  uint32_t run_duration = 0;
+
+  if (this->is_a_valid_valve(valve_number)) {
+    run_duration = this->valve_[valve_number].valve_run_duration;
+  }
+  run_duration = static_cast<uint32_t>(roundf(run_duration * this->multiplier_));
+
+  return run_duration;
+}
 
 bool Sprinkler::auto_advance() { return this->auto_advance_; }
 
@@ -96,10 +114,13 @@ bool Sprinkler::is_a_valid_valve(const int8_t valve_number) {
 }
 
 uint32_t Sprinkler::time_remaining() {
-  if (this->is_a_valid_valve(this->active_valve_))
-    return (millis() - this->timer_[sprinkler::TIMER_VALVE_RUN_DURATION].start_time) / 1000;
-
-  return 0;
+  uint32_t secs_remaining = 0;
+  if (this->is_a_valid_valve(this->active_valve_)) {
+    secs_remaining = (this->timer_[sprinkler::TIMER_VALVE_RUN_DURATION].start_time +
+                      this->timer_[sprinkler::TIMER_VALVE_RUN_DURATION].time - millis()) /
+                     1000;
+  }
+  return secs_remaining;
 }
 
 bool Sprinkler::there_is_an_active_valve_() {
@@ -117,9 +138,9 @@ bool Sprinkler::valve_is_enabled_(const uint8_t valve_number) {
   return false;
 }
 
-void Sprinkler::mark_valve_cycle_complete_(uint8_t valve_number) {
+void Sprinkler::mark_valve_cycle_complete_(const uint8_t valve_number) {
   if (this->is_a_valid_valve(valve_number)) {
-    this->valve_[this->active_valve_].valve_cycle_complete = true;
+    this->valve_[valve_number].valve_cycle_complete = true;
   }
 }
 
@@ -153,9 +174,9 @@ int8_t Sprinkler::previous_valve_number_(const int8_t first_valve) {
 
 int8_t Sprinkler::next_valve_number_in_cycle_(const int8_t first_valve) {
   if (this->reverse_)
-    return previous_enabled_incomplete_valve_number_(first_valve);
+    return this->previous_enabled_incomplete_valve_number_(first_valve);
 
-  return next_enabled_incomplete_valve_number_(first_valve);
+  return this->next_enabled_incomplete_valve_number_(first_valve);
 }
 
 int8_t Sprinkler::next_enabled_incomplete_valve_number_(const int8_t first_valve) {
@@ -192,24 +213,6 @@ bool Sprinkler::any_valve_is_enabled_() {
   return false;
 }
 
-uint32_t Sprinkler::valve_run_duration_(const uint8_t valve_number) {
-  if (this->is_a_valid_valve(valve_number)) {
-    return this->valve_[valve_number].valve_run_duration;
-  }
-  return 0;
-}
-
-uint32_t Sprinkler::valve_run_duration_adjusted_(const uint8_t valve_number) {
-  uint32_t run_duration = 0;
-
-  if (this->is_a_valid_valve(valve_number)) {
-    run_duration = this->valve_[valve_number].valve_run_duration;
-  }
-  run_duration = static_cast<uint32_t>(roundf(run_duration * this->multiplier_));
-
-  return run_duration;
-}
-
 void Sprinkler::set_pump_state_(const bool pump_state) {
   if (this->pump_switch_ != nullptr) {
     if (pump_state) {
@@ -232,9 +235,9 @@ void Sprinkler::start_valve_(const uint8_t valve_number) {
     this->active_valve_ = valve_number;
     this->set_pump_state_(true);
     this->set_timer_duration_(sprinkler::TIMER_VALVE_RUN_DURATION,
-                              this->valve_run_duration_adjusted_(this->active_valve_));
+                              this->valve_run_duration_adjusted(this->active_valve_));
     ESP_LOGD(TAG, "Starting valve %i for %i seconds", this->active_valve_,
-             this->valve_run_duration_adjusted_(this->active_valve_));
+             this->valve_run_duration_adjusted(this->active_valve_));
     this->start_timer_(sprinkler::TIMER_VALVE_RUN_DURATION);
     if (this->timer_duration_(sprinkler::TIMER_VALVE_OPEN_DELAY) > 0) {
       this->start_timer_(sprinkler::TIMER_VALVE_OPEN_DELAY);
