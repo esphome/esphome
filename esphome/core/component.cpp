@@ -196,10 +196,8 @@ uint32_t Nameable::get_object_id_hash() { return this->object_id_hash_; }
 bool Nameable::is_disabled_by_default() const { return this->disabled_by_default_; }
 void Nameable::set_disabled_by_default(bool disabled_by_default) { this->disabled_by_default_ = disabled_by_default; }
 
-WarnIfComponentBlockingGuard::WarnIfComponentBlockingGuard(Component *component) {
-  component_ = component;
-  started_ = millis();
-}
+WarnIfComponentBlockingGuard::WarnIfComponentBlockingGuard(Component *component)
+    : started_(millis()), component_(component) {}
 WarnIfComponentBlockingGuard::~WarnIfComponentBlockingGuard() {
   uint32_t now = millis();
   if (now - started_ > 50) {

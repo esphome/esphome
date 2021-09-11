@@ -220,15 +220,14 @@ static const uint8_t PROGMEM
 // clang-format on
 static const char *const TAG = "st7735";
 
-ST7735::ST7735(ST7735Model model, int width, int height, int colstart, int rowstart, bool eightbitcolor, bool usebgr) {
-  model_ = model;
-  this->width_ = width;
-  this->height_ = height;
-  this->colstart_ = colstart;
-  this->rowstart_ = rowstart;
-  this->eightbitcolor_ = eightbitcolor;
-  this->usebgr_ = usebgr;
-}
+ST7735::ST7735(ST7735Model model, int width, int height, int colstart, int rowstart, bool eightbitcolor, bool usebgr)
+    : model_(model),
+      colstart_(colstart),
+      rowstart_(rowstart),
+      eightbitcolor_(eightbitcolor),
+      usebgr_(usebgr),
+      width_(width),
+      height_(height) {}
 
 void ST7735::setup() {
   ESP_LOGCONFIG(TAG, "Setting up ST7735...");

@@ -20,7 +20,7 @@ static const char *const TAG = "preferences";
 ESPPreferenceObject::ESPPreferenceObject() : offset_(0), length_words_(0), type_(0), data_(nullptr) {}
 ESPPreferenceObject::ESPPreferenceObject(size_t offset, size_t length, uint32_t type)
     : offset_(offset), length_words_(length), type_(type) {
-  this->data_ = new uint32_t[this->length_words_ + 1];
+  this->data_ = new uint32_t[this->length_words_ + 1];  // NOLINT(cppcoreguidelines-prefer-member-initializer)
   for (uint32_t i = 0; i < this->length_words_ + 1; i++)
     this->data_[i] = 0;
 }
@@ -69,7 +69,7 @@ static inline bool esp_rtc_user_mem_read(uint32_t index, uint32_t *dest) {
   if (index >= ESP_RTC_USER_MEM_SIZE_WORDS) {
     return false;
   }
-  *dest = ESP_RTC_USER_MEM[index];
+  *dest = ESP_RTC_USER_MEM[index];  // NOLINT(performance-no-int-to-ptr)
   return true;
 }
 
@@ -83,7 +83,7 @@ static inline bool esp_rtc_user_mem_write(uint32_t index, uint32_t value) {
     return false;
   }
 
-  auto *ptr = &ESP_RTC_USER_MEM[index];
+  auto *ptr = &ESP_RTC_USER_MEM[index];  // NOLINT(performance-no-int-to-ptr)
   *ptr = value;
   return true;
 }
