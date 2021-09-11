@@ -690,6 +690,7 @@ def parse_args(argv):
     )
 
     try:
+        compat_parser.error = _raise
         result, unparsed = compat_parser.parse_known_args(argv[1:])
         last_option = len(arguments) - len(unparsed) - 1 - len(result.configuration)
         unparsed = [
