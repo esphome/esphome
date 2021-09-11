@@ -707,7 +707,6 @@ def parse_args(argv):
     except argparse.ArgumentError:
         # old-style parsing failed, don't suggest any argument
         deprecated_argv_suggestion = None
-        pass
 
     # Finally, run the new-style parser again with the possibly swapped arguments,
     # and let it error out if the command is unparsable.
