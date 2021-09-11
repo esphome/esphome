@@ -17,6 +17,7 @@ class TuyaLight : public Component, public light::LightOutput {
   }
   void set_switch_id(uint8_t switch_id) { this->switch_id_ = switch_id; }
   void set_color_temperature_id(uint8_t color_temperature_id) { this->color_temperature_id_ = color_temperature_id; }
+  void set_color_temperature_invert(bool color_temperature_invert) { this->color_temperature_invert_ = color_temperature_invert; }
   void set_tuya_parent(Tuya *parent) { this->parent_ = parent; }
   void set_min_value(uint32_t min_value) { min_value_ = min_value; }
   void set_max_value(uint32_t max_value) { max_value_ = max_value; }
@@ -47,6 +48,7 @@ class TuyaLight : public Component, public light::LightOutput {
   uint32_t color_temperature_max_value_ = 255;
   float cold_white_temperature_;
   float warm_white_temperature_;
+  bool color_temperature_invert_{false};
   light::LightState *state_{nullptr};
 };
 
