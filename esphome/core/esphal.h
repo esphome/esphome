@@ -1,9 +1,7 @@
 #pragma once
 
 #include "Arduino.h"
-#ifdef ARDUINO_ARCH_ESP32
-#include <esp32-hal.h>
-#endif
+
 // Fix some arduino defs
 #ifdef round
 #undef round
