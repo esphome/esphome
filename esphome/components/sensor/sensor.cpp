@@ -32,7 +32,6 @@ void Sensor::publish_state(float state) {
 }
 std::string Sensor::unit_of_measurement() { return ""; }
 std::string Sensor::icon() { return ""; }
-uint32_t Sensor::update_interval() { return 0; }
 int8_t Sensor::accuracy_decimals() { return 0; }
 Sensor::Sensor(const std::string &name) : Nameable(name), state(NAN), raw_state(NAN) {}
 Sensor::Sensor() : Sensor("") {}
@@ -110,24 +109,7 @@ void Sensor::internal_send_state_to_frontend(float state) {
   this->callback_.call(state);
 }
 bool Sensor::has_state() const { return this->has_state_; }
-uint32_t Sensor::calculate_expected_filter_update_interval() {
-  uint32_t interval = this->update_interval();
-  if (interval == 4294967295UL)
-    // update_interval: never
-    return 0;
-
-  if (this->filter_list_ == nullptr) {
-    return interval;
-  }
-
-  return this->filter_list_->calculate_remaining_interval(interval);
-}
 uint32_t Sensor::hash_base() { return 2455723294UL; }
-
-PollingSensorComponent::PollingSensorComponent(const std::string &name, uint32_t update_interval)
-    : PollingComponent(update_interval), Sensor(name) {}
-
-uint32_t PollingSensorComponent::update_interval() { return this->get_update_interval(); }
 
 }  // namespace sensor
 }  // namespace esphome

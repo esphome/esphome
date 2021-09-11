@@ -162,12 +162,6 @@ class Sensor : public Nameable {
    */
   virtual std::string unique_id();
 
-  /// Return with which interval the sensor is polled. Return 0 for non-polling mode.
-  virtual uint32_t update_interval();
-
-  /// Calculate the expected update interval for values that pass through all filters.
-  uint32_t calculate_expected_filter_update_interval();
-
   void internal_send_state_to_frontend(float state);
 
   bool get_force_update() const { return force_update_; }
@@ -214,13 +208,6 @@ class Sensor : public Nameable {
   Filter *filter_list_{nullptr};  ///< Store all active filters.
   bool has_state_{false};
   bool force_update_{false};
-};
-
-class PollingSensorComponent : public PollingComponent, public Sensor {
- public:
-  explicit PollingSensorComponent(const std::string &name, uint32_t update_interval);
-
-  uint32_t update_interval() override;
 };
 
 }  // namespace sensor

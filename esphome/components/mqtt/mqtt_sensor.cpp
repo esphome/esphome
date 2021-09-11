@@ -31,16 +31,9 @@ void MQTTSensorComponent::dump_config() {
 std::string MQTTSensorComponent::component_type() const { return "sensor"; }
 
 uint32_t MQTTSensorComponent::get_expire_after() const {
-  if (this->expire_after_.has_value()) {
+  if (this->expire_after_.has_value())
     return *this->expire_after_;
-  } else {
-#ifdef USE_DEEP_SLEEP
-    if (deep_sleep::global_has_deep_sleep) {
-      return 0;
-    }
-#endif
-    return this->sensor_->calculate_expected_filter_update_interval() * 5;
-  }
+  return 0;
 }
 void MQTTSensorComponent::set_expire_after(uint32_t expire_after) { this->expire_after_ = expire_after; }
 void MQTTSensorComponent::disable_expire_after() { this->expire_after_ = 0; }
