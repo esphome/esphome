@@ -57,7 +57,13 @@ std::string Sensor::get_device_class() {
   return this->device_class();
 }
 std::string Sensor::device_class() { return ""; }
-void Sensor::set_state_class(StateClass state_class) { this->state_class = state_class; }
+void Sensor::set_state_class(StateClass state_class) { this->state_class_ = state_class; }
+StateClass Sensor::get_state_class() {
+  if (this->state_class_.has_value())
+    return *this->state_class_;
+  return this->state_class();
+}
+StateClass Sensor::state_class() { return StateClass::STATE_CLASS_NONE; }
 std::string Sensor::get_unit_of_measurement() {
   if (this->unit_of_measurement_.has_value())
     return *this->unit_of_measurement_;

@@ -390,7 +390,7 @@ bool APIConnection::send_sensor_info(sensor::Sensor *sensor) {
   msg.accuracy_decimals = sensor->get_accuracy_decimals();
   msg.force_update = sensor->get_force_update();
   msg.device_class = sensor->get_device_class();
-  msg.state_class = static_cast<enums::SensorStateClass>(sensor->state_class);
+  msg.state_class = static_cast<enums::SensorStateClass>(sensor->get_state_class());
   msg.disabled_by_default = sensor->is_disabled_by_default();
 
   return this->send_list_entities_sensor_response(msg);

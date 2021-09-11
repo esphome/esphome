@@ -13,7 +13,7 @@ namespace sensor {
     if (!(obj)->get_device_class().empty()) { \
       ESP_LOGCONFIG(TAG, "%s  Device Class: '%s'", prefix, (obj)->get_device_class().c_str()); \
     } \
-    ESP_LOGCONFIG(TAG, "%s  State Class: '%s'", prefix, state_class_to_string((obj)->state_class)); \
+    ESP_LOGCONFIG(TAG, "%s  State Class: '%s'", prefix, state_class_to_string((obj)->get_state_class())); \
     ESP_LOGCONFIG(TAG, "%s  Unit of Measurement: '%s'", prefix, (obj)->get_unit_of_measurement().c_str()); \
     ESP_LOGCONFIG(TAG, "%s  Accuracy Decimals: %d", prefix, (obj)->get_accuracy_decimals()); \
     if (!(obj)->get_icon().empty()) { \
@@ -141,8 +141,8 @@ class Sensor : public Nameable {
   /// Return whether this sensor has gotten a full state (that passed through all filters) yet.
   bool has_state() const;
 
-  // The state class of this sensor state
-  StateClass state_class{STATE_CLASS_NONE};
+  /// Get the Home Assistant stae class.
+  StateClass get_state_class();
 
   /// Manually set the Home Assistant state class (see sensor::state_class)
   void set_state_class(StateClass state_class);
@@ -191,12 +191,17 @@ class Sensor : public Nameable {
    */
   virtual std::string device_class();
 
+  virtual StateClass state_class();
+
   /// Return the accuracy in decimals for this sensor.
   virtual int8_t accuracy_decimals();  // NOLINT
 
   optional<std::string> device_class_{};  ///< Stores the override of the device class
 
   uint32_t hash_base() override;
+
+  // The state class of this sensor state
+  optional<StateClass> state_class_{STATE_CLASS_NONE};
 
   CallbackManager<void(float)> raw_callback_;  ///< Storage for raw state callbacks.
   CallbackManager<void(float)> callback_;      ///< Storage for filtered state callbacks.
