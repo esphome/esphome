@@ -67,6 +67,8 @@ void FanStateCall::perform() const {
   this->state_->state_callback_.call();
 }
 
+// This whole method is deprecated, don't warn about usage of deprecated methods inside of it.
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 FanStateCall &FanStateCall::set_speed(const char *legacy_speed) {
   const auto supported_speed_count = this->state_->get_traits().supported_speed_count();
   if (strcasecmp(legacy_speed, "low") == 0) {
