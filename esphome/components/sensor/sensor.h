@@ -146,7 +146,6 @@ class Sensor : public Nameable {
 
   /// Manually set the Home Assistant state class (see sensor::state_class)
   void set_state_class(StateClass state_class);
-  void set_state_class(const std::string &state_class);
 
   /** Override this to set the Home Assistant device class for this sensor.
    *

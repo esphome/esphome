@@ -59,15 +59,6 @@ std::string Sensor::get_device_class() {
 }
 std::string Sensor::device_class() { return ""; }
 void Sensor::set_state_class(StateClass state_class) { this->state_class = state_class; }
-void Sensor::set_state_class(const std::string &state_class) {
-  if (str_equals_case_insensitive(state_class, "measurement")) {
-    this->state_class = STATE_CLASS_MEASUREMENT;
-  } else if (str_equals_case_insensitive(state_class, "total_increasing")) {
-    this->state_class = STATE_CLASS_TOTAL_INCREASING;
-  } else {
-    ESP_LOGW(TAG, "'%s' - Unrecognized state class %s", this->get_name().c_str(), state_class.c_str());
-  }
-}
 std::string Sensor::get_unit_of_measurement() {
   if (this->unit_of_measurement_.has_value())
     return *this->unit_of_measurement_;
