@@ -147,14 +147,6 @@ class Sensor : public Nameable {
   /// Manually set the Home Assistant state class (see sensor::state_class)
   void set_state_class(StateClass state_class);
 
-  /** Override this to set the Home Assistant device class for this sensor.
-   *
-   * Return "" to disable this feature.
-   *
-   * @return The device class of this sensor, for example "temperature".
-   */
-  virtual std::string device_class();
-
   /** A unique ID for this sensor, empty for no unique id. See unique ID requirements:
    * https://developers.home-assistant.io/docs/en/entity_registry_index.html#unique-id-requirements
    *
@@ -189,6 +181,15 @@ class Sensor : public Nameable {
    * @return The icon of this sensor, for example "mdi:battery".
    */
   virtual std::string icon();  // NOLINT
+
+
+  /** Override this to set the Home Assistant device class for this sensor.
+   *
+   * Return "" to disable this feature.
+   *
+   * @return The device class of this sensor, for example "temperature".
+   */
+  virtual std::string device_class();
 
   /// Return the accuracy in decimals for this sensor.
   virtual int8_t accuracy_decimals();  // NOLINT
