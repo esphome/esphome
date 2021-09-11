@@ -33,6 +33,12 @@ void Sprinkler::set_valve_open_delay(uint32_t valve_open_delay) {
   this->set_timer_duration_(sprinkler::TIMER_VALVE_OPEN_DELAY, valve_open_delay);
 }
 
+void Sprinkler::set_valve_run_duration(uint8_t valve_number, uint32_t valve_run_duration) {
+  if (this->is_a_valid_valve(valve_number)) {
+    this->valve_[valve_number].valve_run_duration = valve_run_duration;
+  }
+}
+
 void Sprinkler::set_auto_advance(const bool auto_advance) { this->auto_advance_ = auto_advance; }
 
 void Sprinkler::set_reverse(const bool reverse) { this->reverse_ = reverse; }
@@ -78,7 +84,7 @@ void Sprinkler::shutdown() {
 
 const char *Sprinkler::valve_name_(const uint8_t valve_number) {
   if (this->is_a_valid_valve(valve_number)) {
-    return valve_[valve_number].valve_name.c_str();
+    return this->valve_[valve_number].valve_name.c_str();
   }
   return nullptr;
 }

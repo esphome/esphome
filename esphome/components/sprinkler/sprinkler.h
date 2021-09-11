@@ -39,6 +39,7 @@ class Sprinkler : public Component {
   void set_pump_switch(switch_::Switch *pump_switch);
   void set_multiplier(float multiplier);
   void set_valve_open_delay(uint32_t valve_open_delay);
+  void set_valve_run_duration(uint8_t valve_number, uint32_t valve_run_duration);
   /// if auto_advance is true, controller will iterate through all enabled valves
   void set_auto_advance(bool auto_advance);
   /// if reverse is true, controller will iterate through all enabled valves in reverse (descending) order
