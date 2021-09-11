@@ -397,6 +397,7 @@ std::string WebServer::fan_json(fan::FanState *obj) {
     const auto traits = obj->get_traits();
     if (traits.supports_speed()) {
       root["speed_level"] = obj->speed;
+      // NOLINTNEXTLINE(clang-diagnostic-deprecated-declarations)
       switch (fan::speed_level_to_enum(obj->speed, traits.supported_speed_count())) {
         case fan::FAN_SPEED_LOW:  // NOLINT(clang-diagnostic-deprecated-declarations)
           root["speed"] = "low";
