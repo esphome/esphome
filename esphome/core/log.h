@@ -11,10 +11,6 @@
 // avoid esp-idf redefining our macros
 #include "esphome/core/esphal.h"
 
-#ifdef ARDUINO_ARCH_ESP32
-#include "esp_err.h"
-#endif
-
 namespace esphome {
 
 #define ESPHOME_LOG_LEVEL_NONE 0
