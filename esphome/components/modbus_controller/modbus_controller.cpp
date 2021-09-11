@@ -109,6 +109,7 @@ void ModbusController::queue_command(const ModbusCommandItem &command) {
       return;
     }
   }
+  command_queue_.push_back(make_unique<ModbusCommandItem>(command));
 }
 
 void ModbusController::update_range_(RegisterRange &r) {
