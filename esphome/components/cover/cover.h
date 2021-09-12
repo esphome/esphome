@@ -59,9 +59,9 @@ class CoverCall {
 
   Cover *parent_;
   bool stop_{false};
-  optional<bool> toggle_{};
   optional<float> position_{};
   optional<float> tilt_{};
+  optional<bool> toggle_{};
 };
 
 /// Struct used to store the restored state of a cover
@@ -147,6 +147,7 @@ class Cover : public Nameable {
    *
    * This is a legacy method and may be removed later, please use `.make_call()` instead.
    */
+  ESPDEPRECATED("stop() is deprecated, use make_call().set_command_toggle() instead.", "2021.9")
   void toggle();
 
   void add_on_state_callback(std::function<void()> &&f);
