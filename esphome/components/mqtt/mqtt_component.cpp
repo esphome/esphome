@@ -95,7 +95,7 @@ bool MQTTComponent::send_discovery_() {
         } else {
           // default to almost-unique ID. It's a hack but the only way to get that
           // gorgeous device registry view.
-          root["unique_id"] = "ESP" + this->component_type() + this->get_default_object_id_();
+          root["unique_id"] = node_name + this->component_type() + this->get_default_object_id_();
         }
 
         JsonObject &device_info = root.createNestedObject("device");
