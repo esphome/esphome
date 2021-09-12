@@ -434,6 +434,14 @@ void ESPBTDevice::parse_scan_rst(const esp_ble_gap_cb_param_t::ble_scan_result_e
   }
   for (auto &data : this->manufacturer_datas_) {
     ESP_LOGVV(TAG, "  Manufacturer data: %s", hexencode(data.data).c_str());
+    if (this->get_ibeacon().has_value()) {
+      auto ibeacon = this->get_ibeacon().value();
+      ESP_LOGVV(TAG, "    iBeacon data:");
+      ESP_LOGVV(TAG, "      UUID: %s", ibeacon.get_uuid().to_string().c_str());
+      ESP_LOGVV(TAG, "      Major: %u", ibeacon.get_major());
+      ESP_LOGVV(TAG, "      Minor: %u", ibeacon.get_minor());
+      ESP_LOGVV(TAG, "      TXPower: %d", ibeacon.get_signal_power());
+    }
   }
   for (auto &data : this->service_datas_) {
     ESP_LOGVV(TAG, "  Service data:");

@@ -63,6 +63,7 @@ validate_climate_fan_mode = cv.enum(CLIMATE_FAN_MODES, upper=True)
 
 ClimatePreset = climate_ns.enum("ClimatePreset")
 CLIMATE_PRESETS = {
+    "NONE": ClimatePreset.CLIMATE_PRESET_NONE,
     "ECO": ClimatePreset.CLIMATE_PRESET_ECO,
     "AWAY": ClimatePreset.CLIMATE_PRESET_AWAY,
     "BOOST": ClimatePreset.CLIMATE_PRESET_BOOST,
