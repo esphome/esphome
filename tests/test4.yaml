@@ -358,6 +358,11 @@ light:
     warm_white_color_temperature: 500 mireds
     gamma_correct: 1
 
+cover:
+  - platform: tuya
+    id: tuya_cover
+    position_datapoint: 2
+
 display:
   - platform: addressable_light
     id: led_matrix_32x8_display
