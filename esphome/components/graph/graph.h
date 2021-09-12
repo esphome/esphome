@@ -9,9 +9,12 @@ namespace esphome {
 // forward declare DisplayBuffer
 namespace display {
 class DisplayBuffer;
+class Font;
 }  // namespace display
 
 namespace graph {
+
+class Graph;
 
 const Color COLOR_ON(255, 255, 255, 255);
 
@@ -22,6 +25,60 @@ enum LineType {
   LINE_TYPE_DASHED = 0b1110,
   // Following defines number of bits used to define line pattern
   PATTERN_LENGTH = 4
+};
+
+enum DirectionType {
+  DIRECTION_TYPE_AUTO,
+  DIRECTION_TYPE_HORIZONTAL,
+  DIRECTION_TYPE_VERTICAL,
+};
+
+enum ValuePositionType {
+  VALUE_POSITION_TYPE_NONE,
+  VALUE_POSITION_TYPE_AUTO,
+  VALUE_POSITION_TYPE_BESIDE,
+  VALUE_POSITION_TYPE_BELOW
+};
+
+class GraphLegend {
+ public:
+  void init(Graph *g);
+  void set_name_font(display::Font *font) { this->font_label = font; }
+  void set_value_font(display::Font *font) { this->font_value = font; }
+  void set_width(uint32_t width) { this->width_ = width; }
+  void set_height(uint32_t height) { this->height_ = height; }
+  void set_border(bool val) { this->border_ = val; }
+  void set_lines(bool val) { this->lines_ = val; }
+  void set_values(ValuePositionType val) { this->values_ = val; }
+  void set_units(bool val) { this->units_ = val; }
+  void set_direction(DirectionType val) { this->direction_ = val; }
+
+ protected:
+  uint32_t width_{0};
+  uint32_t height_{0};
+  bool border_{true};
+  bool lines_{true};
+  ValuePositionType values_{VALUE_POSITION_TYPE_AUTO};
+  bool units_{true};
+  DirectionType direction_{DIRECTION_TYPE_AUTO};
+  display::Font *font_label{nullptr};
+  display::Font *font_value{nullptr};
+  // Calculated values
+  Graph *parent_{nullptr};
+  //                      (x0)          (xs,ys)         (xs,ys)
+  // <x_offset,y_offset> ------> LABEL1 -------> LABEL2 -------> ...
+  //                                | \(xv,yv)        \ .
+  //                                |  \               \-> VALUE1+units
+  //                          (0,yl)|   \-> VALUE1+units
+  //                                v     (top_center)
+  //                            LINE_SAMPLE
+  int x0{0};  // X-offset to centre of label text
+  int xs{0};  // X spacing between labels
+  int ys{0};  // Y spacing between labels
+  int yl{0};  // Y spacing from label to line sample
+  int xv{0};  // X distance between label to value text
+  int yv{0};  // Y distance between label to value text
+  friend Graph;
 };
 
 class HistoryData {
@@ -46,11 +103,10 @@ class HistoryData {
   float *data_ = nullptr;
 };
 
-class Graph;
-
 class GraphTrace {
  public:
   void init(Graph *g);
+  void set_name(std::string name) { name_ = name; }
   void set_sensor(sensor::Sensor *sensor) { sensor_ = sensor; }
   uint8_t get_line_thickness() { return this->line_thickness_; }
   void set_line_thickness(uint8_t val) { this->line_thickness_ = val; }
@@ -58,20 +114,26 @@ class GraphTrace {
   void set_line_type(enum LineType val) { this->line_type_ = val; }
   Color get_line_color() { return this->line_color_; }
   void set_line_color(Color val) { this->line_color_ = val; }
-  const std::string get_name(void) { return sensor_->get_name(); }
+  const std::string get_name(void) { return name_; }
   const HistoryData *get_tracedata() { return &data_; }
 
  protected:
   sensor::Sensor *sensor_{nullptr};
+  std::string name_{""};
   uint8_t line_thickness_{3};
   enum LineType line_type_ { LINE_TYPE_SOLID };
   Color line_color_{COLOR_ON};
   HistoryData data_;
+
+  friend Graph;
+  friend GraphLegend;
 };
 
 class Graph : public Component {
  public:
   void draw(display::DisplayBuffer *buff, uint16_t x_offset, uint16_t y_offset, Color color);
+  void draw_legend(display::DisplayBuffer *buff, uint16_t x_offset, uint16_t y_offset, Color color);
+
   void setup() override;
   float get_setup_priority() const override { return setup_priority::PROCESSOR; }
   void dump_config() override;
@@ -89,9 +151,14 @@ class Graph : public Component {
   void add_trace(GraphTrace *trace) {
     trace->init(this);
     traces_.push_back(trace);
-  };
+  }
+  void add_legend(GraphLegend *legend) {
+    this->legend_ = legend;
+    legend->init(this);
+  }
   uint32_t get_duration() { return duration_; }
   uint32_t get_width() { return width_; }
+  uint32_t get_height() { return height_; }
 
  protected:
   uint32_t duration_;  /// in seconds
@@ -105,6 +172,9 @@ class Graph : public Component {
   float gridspacing_y_{NAN};
   bool border_{true};
   std::vector<GraphTrace *> traces_;
+  GraphLegend *legend_{nullptr};
+
+  friend GraphLegend;
 };
 
 }  // namespace graph

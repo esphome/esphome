@@ -287,6 +287,19 @@ class DisplayBuffer {
    * @param color_on The color to replace in binary images for the on bits.
    */
   void graph(int x, int y, graph::Graph *graph, Color color_on = COLOR_ON);
+
+  /** Draw the `legend` for graph with the top-left corner at [x,y] to the screen.
+   *
+   * @param x The x coordinate of the upper left corner.
+   * @param y The y coordinate of the upper left corner.
+   * @param graph The graph id for which the legend applies to
+   * @param graph The graph id for which the legend applies to
+   * @param graph The graph id for which the legend applies to
+   * @param name_font The font used for the trace name
+   * @param value_font The font used for the trace value and units
+   * @param color_on The color of the border
+   */
+  void legend(int x, int y, graph::Graph *graph, Color color_on = COLOR_ON);
 #endif  // USE_GRAPH
 
   /** Get the text bounds of the given string.

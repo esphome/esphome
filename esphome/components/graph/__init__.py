@@ -1,10 +1,19 @@
+from esphome.components.font import Font
 from esphome.components import sensor, color
 import esphome.config_validation as cv
 import esphome.codegen as cg
 from esphome.const import (
     CONF_COLOR,
+    CONF_DIRECTION,
     CONF_DURATION,
     CONF_ID,
+    CONF_LEGEND,
+    CONF_NAME,
+    CONF_NAME_FONT,
+    CONF_SHOW_LINES,
+    CONF_SHOW_UNITS,
+    CONF_SHOW_VALUES,
+    CONF_VALUE_FONT,
     CONF_WIDTH,
     CONF_SENSOR,
     CONF_HEIGHT,
@@ -28,6 +37,7 @@ MULTI_CONF = True
 graph_ns = cg.esphome_ns.namespace("graph")
 Graph_ = graph_ns.class_("Graph")
 GraphTrace = graph_ns.class_("GraphTrace")
+GraphLegend = graph_ns.class_("GraphLegend")
 
 LineType = graph_ns.enum("LineType")
 LINE_TYPE = {
@@ -36,15 +46,48 @@ LINE_TYPE = {
     "DASHED": LineType.LINE_TYPE_DASHED,
 }
 
+DirectionType = graph_ns.enum("DirectionType")
+DIRECTION_TYPE = {
+    "AUTO": DirectionType.DIRECTION_TYPE_AUTO,
+    "HORIZONTAL": DirectionType.DIRECTION_TYPE_HORIZONTAL,
+    "VERTICAL": DirectionType.DIRECTION_TYPE_VERTICAL,
+}
+
+ValuePositionType = graph_ns.enum("ValuePositionType")
+VALUE_POSITION_TYPE = {
+    "NONE": ValuePositionType.VALUE_POSITION_TYPE_NONE,
+    "AUTO": ValuePositionType.VALUE_POSITION_TYPE_AUTO,
+    "BESIDE": ValuePositionType.VALUE_POSITION_TYPE_BESIDE,
+    "BELOW": ValuePositionType.VALUE_POSITION_TYPE_BELOW,
+}
+
+
 GRAPH_TRACE_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(GraphTrace),
         cv.Required(CONF_SENSOR): cv.use_id(sensor.Sensor),
+        cv.Optional(CONF_NAME): cv.string,
         cv.Optional(CONF_LINE_THICKNESS): cv.positive_int,
         cv.Optional(CONF_LINE_TYPE): cv.enum(LINE_TYPE, upper=True),
-        cv.Optional(CONF_COLOR): cv.use_id(color.ColorStruct),  # FIX
+        cv.Optional(CONF_COLOR): cv.use_id(color.ColorStruct),
     }
 )
+
+GRAPH_LEGEND_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(CONF_ID): cv.declare_id(GraphLegend),
+        cv.Required(CONF_NAME_FONT): cv.use_id(Font),
+        cv.Optional(CONF_VALUE_FONT): cv.use_id(Font),
+        cv.Optional(CONF_WIDTH): cv.positive_not_null_int,
+        cv.Optional(CONF_HEIGHT): cv.positive_not_null_int,
+        cv.Optional(CONF_BORDER): cv.boolean,
+        cv.Optional(CONF_SHOW_LINES): cv.boolean,
+        cv.Optional(CONF_SHOW_VALUES): cv.enum(VALUE_POSITION_TYPE, upper=True),
+        cv.Optional(CONF_SHOW_UNITS): cv.boolean,
+        cv.Optional(CONF_DIRECTION): cv.enum(DIRECTION_TYPE, upper=True),
+    }
+)
+
 
 GRAPH_SCHEMA = cv.Schema(
     {
@@ -66,6 +109,7 @@ GRAPH_SCHEMA = cv.Schema(
         cv.Optional(CONF_MIN_RANGE): cv.float_range(min=0, min_included=False),
         cv.Optional(CONF_MAX_RANGE): cv.float_range(min=0, min_included=False),
         cv.Optional(CONF_TRACES): cv.ensure_list(GRAPH_TRACE_SCHEMA),
+        cv.Optional(CONF_LEGEND): cv.ensure_list(GRAPH_LEGEND_SCHEMA),
     }
 )
 
@@ -108,7 +152,6 @@ async def to_code(config):
     cg.add(var.set_duration(config[CONF_DURATION]))
     cg.add(var.set_width(config[CONF_WIDTH]))
     cg.add(var.set_height(config[CONF_HEIGHT]))
-    # await cg.register_component(var, config)           # Needed?
 
     # Graph options
     if CONF_X_GRID in config:
@@ -131,6 +174,10 @@ async def to_code(config):
         tr = cg.new_Pvariable(trace[CONF_ID], GraphTrace())
         sens = await cg.get_variable(trace[CONF_SENSOR])
         cg.add(tr.set_sensor(sens))
+        if CONF_NAME in trace:
+            cg.add(tr.set_name(trace[CONF_NAME]))
+        else:
+            cg.add(tr.set_name(trace[CONF_SENSOR].id))
         if CONF_LINE_THICKNESS in trace:
             cg.add(tr.set_line_thickness(trace[CONF_LINE_THICKNESS]))
         if CONF_LINE_TYPE in trace:
@@ -139,5 +186,30 @@ async def to_code(config):
             c = await cg.get_variable(trace[CONF_COLOR])
             cg.add(tr.set_line_color(c))
         cg.add(var.add_trace(tr))
+    # Add legend
+    if CONF_LEGEND in config:
+        lgd = config[CONF_LEGEND][0]
+        legend = cg.new_Pvariable(lgd[CONF_ID], GraphLegend())
+        if CONF_NAME_FONT in lgd:
+            font = await cg.get_variable(lgd[CONF_NAME_FONT])
+            cg.add(legend.set_name_font(font))
+        if CONF_VALUE_FONT in lgd:
+            font = await cg.get_variable(lgd[CONF_VALUE_FONT])
+            cg.add(legend.set_value_font(font))
+        if CONF_WIDTH in lgd:
+            cg.add(legend.set_width(lgd[CONF_WIDTH]))
+        if CONF_HEIGHT in lgd:
+            cg.add(legend.set_height(lgd[CONF_HEIGHT]))
+        if CONF_BORDER in lgd:
+            cg.add(legend.set_border(lgd[CONF_BORDER]))
+        if CONF_SHOW_LINES in lgd:
+            cg.add(legend.set_lines(lgd[CONF_SHOW_LINES]))
+        if CONF_SHOW_VALUES in lgd:
+            cg.add(legend.set_values(lgd[CONF_SHOW_VALUES]))
+        if CONF_SHOW_UNITS in lgd:
+            cg.add(legend.set_units(lgd[CONF_SHOW_UNITS]))
+        if CONF_DIRECTION in lgd:
+            cg.add(legend.set_direction(lgd[CONF_DIRECTION]))
+        cg.add(var.add_legend(legend))
 
     cg.add_define("USE_GRAPH")
