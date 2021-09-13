@@ -1,7 +1,6 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import number
-from esphome.components.modbus_controller.sensor import ModbusSensor
 from esphome.const import (
     CONF_ID,
     CONF_LAMBDA,
@@ -20,6 +19,8 @@ from .. import (
 from ..const import (
     CONF_MODBUS_CONTROLLER_ID,
 )
+
+from ..sensor import ModbusSensor
 
 DEPENDENCIES = ["modbus_controller"]
 CODEOWNERS = ["@martgras"]

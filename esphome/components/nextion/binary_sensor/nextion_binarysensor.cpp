@@ -33,7 +33,7 @@ void NextionBinarySensor::update() {
   if (this->variable_name_.empty())  // This is a touch component
     return;
 
-  this->nextion_->add_to_get_queue(this);
+  this->nextion_->add_to_get_queue(shared_from_this());
 }
 
 void NextionBinarySensor::set_state(bool state, bool publish, bool send_to_nextion) {
@@ -48,7 +48,7 @@ void NextionBinarySensor::set_state(bool state, bool publish, bool send_to_nexti
       this->needs_to_send_update_ = true;
     } else {
       this->needs_to_send_update_ = false;
-      this->nextion_->add_no_result_to_queue_with_set(this, (int) state);
+      this->nextion_->add_no_result_to_queue_with_set(shared_from_this(), (int) state);
     }
   }
 

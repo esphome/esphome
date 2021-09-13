@@ -19,45 +19,52 @@ void ModbusOutput::write_state(float value) {
   } raw_to_float;
 
   std::vector<uint16_t> data;
+  auto original_value = value;
 
-  float transformed_value = multiply_by_ * value;
+  value = multiply_by_ * value;
   if (this->transform_func_.has_value()) {
     // data is passed by reference
     // the lambda can fill the empty vector directly
     // in that case the return value is ignored
     auto val = (*this->transform_func_)(value, data);
     if (val.has_value())
-      transformed_value = val.value();
+      value = val.value();
+    else
+      value = multiply_by_ * value;
+  } else {
+    value = multiply_by_ * value;
   }
   // lambda didn't set payload
-  if (data.size() == 0) {
+  if (data.empty()) {
+    int32_t val;
+
     switch (this->sensor_value_type) {
       case SensorValueType::U_WORD:
       case SensorValueType::S_WORD:
         // cast truncates the float do some rounding here
-        data.push_back(int32_t(transformed_value + 0.5));
+        data.push_back(lroundf(value) & 0xFFFF);
         break;
       case SensorValueType::U_DWORD:
       case SensorValueType::S_DWORD:
-        transformed_value += 0.5;
-        data.push_back((int32_t(transformed_value) && 0xFFFF0000) >> 16);
-        data.push_back(int32_t(transformed_value) && 0xFFFF);
+        val = lroundf(value);
+        data.push_back((val & 0xFFFF0000) >> 16);
+        data.push_back(val & 0xFFFF);
         break;
       case SensorValueType::U_DWORD_R:
       case SensorValueType::S_DWORD_R:
-        transformed_value += 0.5;
-        data.push_back(int32_t(transformed_value) && 0xFFFF);
-        data.push_back((int32_t(transformed_value) && 0xFFFF0000) >> 16);
+        val = lroundf(value);
+        data.push_back(val & 0xFFFF);
+        data.push_back((val & 0xFFFF0000) >> 16);
         break;
       case SensorValueType::FP32:
-        raw_to_float.float_value = transformed_value;
-        data.push_back((raw_to_float.raw && 0xFFFF0000) >> 16);
-        data.push_back(raw_to_float.raw && 0xFFFF);
+        raw_to_float.float_value = value;
+        data.push_back((raw_to_float.raw & 0xFFFF0000) >> 16);
+        data.push_back(raw_to_float.raw & 0xFFFF);
         break;
       case SensorValueType::FP32_R:
-        raw_to_float.float_value = transformed_value;
-        data.push_back(raw_to_float.raw && 0xFFFF);
-        data.push_back((raw_to_float.raw && 0xFFFF0000) >> 16);
+        raw_to_float.float_value = value;
+        data.push_back(raw_to_float.raw & 0xFFFF);
+        data.push_back((raw_to_float.raw & 0xFFFF0000) >> 16);
         break;
       default:
         ESP_LOGE("TAG", "Invalid data type for modbus output");
@@ -67,7 +74,7 @@ void ModbusOutput::write_state(float value) {
   }
 
   ESP_LOGD(TAG, "Updating register: start address=0x%X register count=%d new value=%.02f (val=%.02f)",
-           this->start_address, this->register_count, value, transformed_value);
+           this->start_address, this->register_count, value, original_value);
 
   // Create and send the write command
   auto write_cmd =
