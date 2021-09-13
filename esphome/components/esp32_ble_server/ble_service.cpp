@@ -34,8 +34,8 @@ BLECharacteristic *BLEService::create_characteristic(const std::string &uuid, es
   return create_characteristic(ESPBTUUID::from_raw(uuid), properties);
 }
 BLECharacteristic *BLEService::create_characteristic(ESPBTUUID uuid, esp_gatt_char_prop_t properties) {
-  BLECharacteristic *characteristic =
-      new BLECharacteristic(uuid, properties);  // NOLINT(cppcoreguidelines-owning-memory)
+  // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
+  BLECharacteristic *characteristic = new BLECharacteristic(uuid, properties);
   this->characteristics_.push_back(characteristic);
   return characteristic;
 }
