@@ -4,7 +4,6 @@
 #include <deque>
 
 #include "esphome/core/defines.h"
-#include "esphome/core/log.h"
 
 #ifdef USE_API_NOISE
 #include "noise/protocol.h"
@@ -54,7 +53,7 @@ enum class APIError : int {
   HANDSHAKESTATE_SPLIT_FAILED = 1020,
 };
 
-const LogString *api_error_to_str(APIError err);
+const char *api_error_to_str(APIError err);
 
 class APIFrameHelper {
  public:
