@@ -100,6 +100,7 @@ bool MQTTFanComponent::publish_state() {
   auto traits = this->state_->get_traits();
   if (traits.supports_speed()) {
     const char *payload;
+    // NOLINTNEXTLINE(clang-diagnostic-deprecated-declarations)
     switch (fan::speed_level_to_enum(this->state_->speed, traits.supported_speed_count())) {
       case FAN_SPEED_LOW: {  // NOLINT(clang-diagnostic-deprecated-declarations)
         payload = "low";
