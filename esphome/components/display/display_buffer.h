@@ -317,7 +317,7 @@ class DisplayBuffer {
 
   void do_update_();
 
-  uint8_t *buffer_{nullptr};
+  ExternalBuffer<uint8_t> buffer_{nullptr};
   DisplayRotation rotation_{DISPLAY_ROTATION_0_DEGREES};
   optional<display_writer_t> writer_{};
   DisplayPage *page_{nullptr};

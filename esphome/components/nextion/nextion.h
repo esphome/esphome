@@ -830,7 +830,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
 
 #ifdef USE_TFT_UPLOAD
   std::string tft_url_;
-  uint8_t *transfer_buffer_{nullptr};
+  ExternalBuffer<uint8_t> transfer_buffer_;
   size_t transfer_buffer_size_;
   bool upload_first_chunk_sent_ = false;
 #endif

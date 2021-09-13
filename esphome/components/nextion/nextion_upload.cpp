@@ -264,29 +264,16 @@ void Nextion::upload_tft() {
 #endif
 
   if (this->transfer_buffer_ == nullptr) {
-#ifdef ARDUINO_ARCH_ESP32
-    if (psramFound()) {
-      ESP_LOGD(TAG, "Allocating PSRAM buffer size %d, Free PSRAM size is %u", chunk_size, ESP.getFreePsram());
-      this->transfer_buffer_ = (uint8_t *) ps_malloc(chunk_size);
-      if (this->transfer_buffer_ == nullptr) {
-        ESP_LOGE(TAG, "Could not allocate buffer size %d!", chunk_size);
-        this->upload_end_();
-      }
-    } else {
-#endif
-      ESP_LOGD(TAG, "Allocating buffer size %d, Heap size is %u", chunk_size, ESP.getFreeHeap());
-      this->transfer_buffer_ = new (std::nothrow) uint8_t[chunk_size];  // NOLINT(cppcoreguidelines-owning-memory)
-      if (this->transfer_buffer_ == nullptr) {                          // Try a smaller size
-        ESP_LOGD(TAG, "Could not allocate buffer size: %d trying 4096 instead", chunk_size);
-        chunk_size = 4096;
-        ESP_LOGD(TAG, "Allocating %d buffer", chunk_size);
-        this->transfer_buffer_ = new (std::nothrow) uint8_t[chunk_size];  // NOLINT(cppcoreguidelines-owning-memory)
-
-        if (!this->transfer_buffer_)
-          this->upload_end_();
-#ifdef ARDUINO_ARCH_ESP32
-      }
-#endif
+    ESP_LOGD(TAG, "Allocating transfer buffer of size %d", chunk_size);
+    this->transfer_buffer_ = ExternalBuffer<uint8_t>(chunk_size, true);
+    if (this->transfer_buffer_ == nullptr && chunk_size > 4096) {
+      ESP_LOGD(TAG, "Could not allocate buffer of size %d, trying 4096 instead", chunk_size);
+      chunk_size = 4096;
+      this->transfer_buffer_ = ExternalBuffer<uint8_t>(chunk_size, true);
+    }
+    if (this->transfer_buffer_ == nullptr) {
+      ESP_LOGE(TAG, "Could not allocate transfer buffer");
+      this->upload_end_();
     }
 
     this->transfer_buffer_size_ = chunk_size;

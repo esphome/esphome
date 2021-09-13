@@ -42,40 +42,30 @@ void Inkplate6::setup() {
 void Inkplate6::initialize_() {
   uint32_t buffer_size = this->get_buffer_length_();
 
-  if (this->partial_buffer_ != nullptr) {
-    free(this->partial_buffer_);  // NOLINT
-  }
-  if (this->partial_buffer_2_ != nullptr) {
-    free(this->partial_buffer_2_);  // NOLINT
-  }
-  if (this->buffer_ != nullptr) {
-    free(this->buffer_);  // NOLINT
-  }
-
-  this->buffer_ = (uint8_t *) ps_malloc(buffer_size);
+  this->buffer_ = ExternalBuffer<uint8_t>(buffer_size);
   if (this->buffer_ == nullptr) {
     ESP_LOGE(TAG, "Could not allocate buffer for display!");
     this->mark_failed();
     return;
   }
   if (!this->greyscale_) {
-    this->partial_buffer_ = (uint8_t *) ps_malloc(buffer_size);
+    this->partial_buffer_ = ExternalBuffer<uint8_t>(buffer_size);
     if (this->partial_buffer_ == nullptr) {
       ESP_LOGE(TAG, "Could not allocate partial buffer for display!");
       this->mark_failed();
       return;
     }
-    this->partial_buffer_2_ = (uint8_t *) ps_malloc(buffer_size * 2);
+    this->partial_buffer_2_ = ExternalBuffer<uint8_t>(buffer_size * 2);
     if (this->partial_buffer_2_ == nullptr) {
       ESP_LOGE(TAG, "Could not allocate partial buffer 2 for display!");
       this->mark_failed();
       return;
     }
-    memset(this->partial_buffer_, 0, buffer_size);
-    memset(this->partial_buffer_2_, 0, buffer_size * 2);
+    memset(this->partial_buffer_.get(), 0, buffer_size);
+    memset(this->partial_buffer_2_.get(), 0, buffer_size * 2);
   }
 
-  memset(this->buffer_, 0, buffer_size);
+  memset(this->buffer_.get(), 0, buffer_size);
 }
 float Inkplate6::get_setup_priority() const { return setup_priority::PROCESSOR; }
 size_t Inkplate6::get_buffer_length_() {

@@ -120,8 +120,8 @@ class Inkplate6 : public PollingComponent, public display::DisplayBuffer, public
   uint8_t panel_on_ = 0;
   uint8_t temperature_;
 
-  uint8_t *partial_buffer_{nullptr};
-  uint8_t *partial_buffer_2_{nullptr};
+  ExternalBuffer<uint8_t>  partial_buffer_;
+  ExternalBuffer<uint8_t> partial_buffer_2_;
 
   uint32_t full_update_every_;
   uint32_t partial_updates_{0};
