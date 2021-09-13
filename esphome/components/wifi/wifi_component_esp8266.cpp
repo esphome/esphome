@@ -16,6 +16,7 @@ extern "C" {
 #include "lwip/dns.h"
 #include "lwip/dhcp.h"
 #include "lwip/init.h"  // LWIP_VERSION_
+#include "lwip/apps/sntp.h"
 #if LWIP_IPV6
 #include "lwip/netif.h"  // struct netif
 #endif
@@ -112,6 +113,11 @@ bool WiFiComponent::wifi_sta_ip_config_(optional<ManualIP> manual_ip) {
 
   enum dhcp_status dhcp_status = wifi_station_dhcpc_status();
   if (!manual_ip.has_value()) {
+    // lwIP starts the SNTP client if it gets an SNTP server from DHCP. We don't need the time, and more importantly,
+    // the built-in SNTP client has a memory leak in certain situations. Disable this feature.
+    // https://github.com/esphome/issues/issues/2299
+    sntp_servermode_dhcp(false);
+
     // Use DHCP client
     if (dhcp_status != DHCP_STARTED) {
       bool ret = wifi_station_dhcpc_start();
