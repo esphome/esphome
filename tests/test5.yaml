@@ -28,6 +28,8 @@ uart:
     rx_pin: 16
     baud_rate: 19200
 
+i2c:
+
 
 modbus:
   uart_id: uart1
@@ -149,3 +151,20 @@ sensor:
     uart_id: uart2
     co2:
       name: CO2 Sensor
+
+display:
+  - platform: inkplate6
+    id: inkplate_display
+    greyscale: false
+    partial_updating: false
+    update_interval: 60s
+
+    ckv_pin: GPIO1
+    sph_pin: GPIO1
+    gmod_pin: GPIO1
+    gpio0_enable_pin: GPIO1
+    oe_pin: GPIO1
+    spv_pin: GPIO1
+    powerup_pin: GPIO1
+    wakeup_pin: GPIO1
+    vcom_pin: GPIO1
