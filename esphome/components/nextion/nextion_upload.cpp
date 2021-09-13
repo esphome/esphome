@@ -26,6 +26,8 @@ int Nextion::upload_by_chunks_(HTTPClient *http, int range_start) {
   if (range_end > this->tft_size_)
     range_end = this->tft_size_;
 
+  bool begin_status = false;
+
 #ifdef ARDUINO_ARCH_ESP8266
 #if ARDUINO_VERSION_CODE >= VERSION_CODE(2, 7, 0)
   http->setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
@@ -45,7 +47,6 @@ int Nextion::upload_by_chunks_(HTTPClient *http, int range_start) {
 
   int tries = 1;
   int code = 0;
-  bool begin_status = false;
   while (tries <= 5) {
 #ifdef ARDUINO_ARCH_ESP32
     begin_status = http->begin(this->tft_url_.c_str());
