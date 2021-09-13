@@ -95,7 +95,7 @@ void APIServer::loop() {
     ESP_LOGD(TAG, "Accepted %s", sock->getpeername().c_str());
 
     auto *conn = new APIConnection(std::move(sock), this);
-    clients_.push_back(conn);
+    clients_.emplace_back(conn);
     conn->start();
   }
 
