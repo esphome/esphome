@@ -84,7 +84,7 @@ void DeepSleepComponent::begin_sleep(bool manual) {
 #endif
 
 #ifdef ARDUINO_ARCH_ESP8266
-  ESP.deepSleep(*this->sleep_duration_);
+  ESP.deepSleep(*this->sleep_duration_);  // NOLINT(readability-static-accessed-through-instance)
 #endif
 }
 float DeepSleepComponent::get_setup_priority() const { return setup_priority::LATE; }

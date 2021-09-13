@@ -83,11 +83,11 @@ bool NdefMessage::add_text_record(const std::string &text) { return this->add_te
 
 bool NdefMessage::add_text_record(const std::string &text, const std::string &encoding) {
   std::string payload = to_string(text.length()) + encoding + text;
-  return this->add_record(make_unique<NdefRecord>(TNF_WELL_KNOWN, "T", payload));
+  return this->add_record(std::unique_ptr<NdefRecord>{new NdefRecord(TNF_WELL_KNOWN, "T", payload)});
 }
 
 bool NdefMessage::add_uri_record(const std::string &uri) {
-  return this->add_record(make_unique<NdefRecord>(TNF_WELL_KNOWN, "U", uri));
+  return this->add_record(std::unique_ptr<NdefRecord>{new NdefRecord(TNF_WELL_KNOWN, "U", uri)});
 }
 
 std::vector<uint8_t> NdefMessage::encode() {
