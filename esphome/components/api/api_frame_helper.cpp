@@ -61,11 +61,15 @@ const char *api_error_to_str(APIError err) {
     return "HANDSHAKESTATE_SETUP_FAILED";
   } else if (err == APIError::HANDSHAKESTATE_SPLIT_FAILED) {
     return "HANDSHAKESTATE_SPLIT_FAILED";
+  } else if (err == APIError::BAD_HANDSHAKE_ERROR_BYTE) {
+    return "BAD_HANDSHAKE_ERROR_BYTE";
   }
   return "UNKNOWN";
 }
 
 #define HELPER_LOG(msg, ...) ESP_LOGVV(TAG, "%s: " msg, info_.c_str(), ##__VA_ARGS__)
+// uncomment to log raw packets
+//#define HELPER_LOG_PACKETS
 
 #ifdef USE_API_NOISE
 static const char *const PROLOGUE_INIT = "NoiseAPIInit";
@@ -236,7 +240,9 @@ APIError APINoiseFrameHelper::try_read_frame_(ParsedFrame *frame) {
   }
 
   // uncomment for even more debugging
-  // ESP_LOGVV(TAG, "Received frame: %s", hexencode(rx_buf_).c_str());
+#ifdef HELPER_LOG_PACKETS
+  ESP_LOGVV(TAG, "Received frame: %s", hexencode(rx_buf_).c_str());
+#endif
   frame->msg = std::move(rx_buf_);
   // consume msg
   rx_buf_ = {};
@@ -265,6 +271,14 @@ APIError APINoiseFrameHelper::state_action_() {
     // waiting for client hello
     ParsedFrame frame;
     aerr = try_read_frame_(&frame);
+    if (aerr == APIError::BAD_INDICATOR) {
+      send_explicit_handshake_reject_("Bad indicator byte");
+      return aerr;
+    }
+    if (aerr == APIError::BAD_HANDSHAKE_PACKET_LEN) {
+      send_explicit_handshake_reject_("Bad handshake packet len");
+      return aerr;
+    }
     if (aerr != APIError::OK)
       return aerr;
     // ignore contents, may be used in future for flags
@@ -308,11 +322,11 @@ APIError APINoiseFrameHelper::state_action_() {
 
       if (frame.msg.empty()) {
         send_explicit_handshake_reject_("Empty handshake message");
-        return APIError::BAD_HANDSHAKE_PACKET_LEN;
+        return APIError::BAD_HANDSHAKE_ERROR_BYTE;
       } else if (frame.msg[0] != 0x00) {
         HELPER_LOG("Bad handshake error byte: %u", frame.msg[0]);
         send_explicit_handshake_reject_("Bad handshake error byte");
-        return APIError::BAD_HANDSHAKE_PACKET_LEN;
+        return APIError::BAD_HANDSHAKE_ERROR_BYTE;
       }
 
       NoiseBuffer mbuf;
@@ -320,7 +334,6 @@ APIError APINoiseFrameHelper::state_action_() {
       noise_buffer_set_input(mbuf, frame.msg.data() + 1, frame.msg.size() - 1);
       err = noise_handshakestate_read_message(handshake_, &mbuf, nullptr);
       if (err != 0) {
-        // TODO: explicit rejection
         state_ = State::FAILED;
         HELPER_LOG("noise_handshakestate_read_message failed: %s", noise_err_to_str(err).c_str());
         if (err == NOISE_ERROR_MAC_FAILURE) {
@@ -368,12 +381,16 @@ APIError APINoiseFrameHelper::state_action_() {
 }
 void APINoiseFrameHelper::send_explicit_handshake_reject_(const std::string &reason) {
   std::vector<uint8_t> data;
-  data.reserve(reason.size() + 1);
+  data.resize(reason.length() + 1);
   data[0] = 0x01;  // failure
-  for (size_t i = 0; i < reason.size(); i++) {
+  for (size_t i = 0; i < reason.length(); i++) {
     data[i + 1] = (uint8_t) reason[i];
   }
+  // temporarily remove failed state
+  auto orig_state = state_;
+  state_ = State::EXPLICIT_REJECT;
   write_frame_(data.data(), data.size());
+  state_ = orig_state;
 }
 
 APIError APINoiseFrameHelper::read_packet(ReadPacketBuffer *buffer) {
@@ -516,7 +533,9 @@ APIError APINoiseFrameHelper::write_raw_(const uint8_t *data, size_t len) {
   APIError aerr;
 
   // uncomment for even more debugging
-  // ESP_LOGVV(TAG, "Sending raw: %s", hexencode(data, len).c_str());
+#ifdef HELPER_LOG_PACKETS
+  ESP_LOGVV(TAG, "Sending raw: %s", hexencode(data, len).c_str());
+#endif
 
   if (!tx_buf_.empty()) {
     // try to empty tx_buf_ first
@@ -799,7 +818,9 @@ APIError APIPlaintextFrameHelper::try_read_frame_(ParsedFrame *frame) {
   }
 
   // uncomment for even more debugging
-  // ESP_LOGVV(TAG, "Received frame: %s", hexencode(rx_buf_).c_str());
+#ifdef HELPER_LOG_PACKETS
+  ESP_LOGVV(TAG, "Received frame: %s", hexencode(rx_buf_).c_str());
+#endif
   frame->msg = std::move(rx_buf_);
   // consume msg
   rx_buf_ = {};
@@ -882,7 +903,9 @@ APIError APIPlaintextFrameHelper::write_raw_(const uint8_t *data, size_t len) {
   APIError aerr;
 
   // uncomment for even more debugging
-  // ESP_LOGVV(TAG, "Sending raw: %s", hexencode(data, len).c_str());
+#ifdef HELPER_LOG_PACKETS
+  ESP_LOGVV(TAG, "Sending raw: %s", hexencode(data, len).c_str());
+#endif
 
   if (!tx_buf_.empty()) {
     // try to empty tx_buf_ first
