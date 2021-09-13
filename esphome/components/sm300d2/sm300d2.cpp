@@ -9,10 +9,12 @@ static const uint8_t SM300D2_RESPONSE_LENGTH = 17;
 
 void SM300D2Sensor::update() {
   uint8_t response[SM300D2_RESPONSE_LENGTH];
+  uint8_t peeked;
 
-  flush();
+  while (this->available() > 0 && this->peek_byte(&peeked) && peeked != 0x3C)
+    this->read();
+
   bool read_success = read_array(response, SM300D2_RESPONSE_LENGTH);
-  flush();
 
   if (!read_success) {
     ESP_LOGW(TAG, "Reading data from SM300D2 failed!");
@@ -63,7 +65,7 @@ void SM300D2Sensor::update() {
   if (this->pm_2_5_sensor_ != nullptr)
     this->pm_2_5_sensor_->publish_state(pm_2_5);
 
-  ESP_LOGD(TAG, "Received pm_10_0: %u µg/m³", pm_10_0);
+  ESP_LOGD(TAG, "Received PM10: %u µg/m³", pm_10_0);
   if (this->pm_10_0_sensor_ != nullptr)
     this->pm_10_0_sensor_->publish_state(pm_10_0);
 
