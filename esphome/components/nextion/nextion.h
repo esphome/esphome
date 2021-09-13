@@ -13,9 +13,7 @@
 #endif
 #ifdef ARDUINO_ARCH_ESP8266
 #include <ESP8266HTTPClient.h>
-#ifdef USE_HTTP_REQUEST_ESP8266_HTTPS
 #include <WiFiClientSecure.h>
-#endif
 #endif
 #endif
 
@@ -776,9 +774,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
 #if defined(USE_ETHERNET) || defined(USE_WIFI)
 #ifdef ARDUINO_ARCH_ESP8266
   WiFiClient *wifi_client_{nullptr};
-#ifdef USE_HTTP_REQUEST_ESP8266_HTTPS
   BearSSL::WiFiClientSecure *wifi_client_secure_{nullptr};
-#endif
   WiFiClient *get_wifi_client_();
 #endif
 
