@@ -26,60 +26,29 @@ void ModbusNumber::control(float value) {
   } raw_to_float;
 
   std::vector<uint16_t> data;
-
-  value = multiply_by_ * value;
+  auto original_value = value;
+  // Is there are lambda configured?
   if (this->transform_func_.has_value()) {
     // data is passed by reference
     // the lambda can fill the empty vector directly
     // in that case the return value is ignored
     auto val = (*this->transform_func_)(value, data);
-    if (val.has_value())
+    if (val.has_value()) {
       value = val.value();
-    else
-      value = multiply_by_ * value;
+    } else {
+      ESP_LOGD(TAG, "Communication handled by lambda - exiting control");
+      return;
+    }
   } else {
     value = multiply_by_ * value;
   }
-  // lambda didn't set payload
-  if (data.empty()) {
-    int32_t val;
-    if (connected_sensor_) {
-      switch (connected_sensor_->sensor_value_type) {
-        case SensorValueType::U_WORD:
-        case SensorValueType::S_WORD:
-          // cast truncates the float do some rounding here
-          data.push_back(lroundf(value) & 0xFFFF);
-          break;
-        case SensorValueType::U_DWORD:
-        case SensorValueType::S_DWORD:
-          val = lroundf(value);
-          data.push_back((val & 0xFFFF0000) >> 16);
-          data.push_back(val & 0xFFFF);
-          break;
-        case SensorValueType::U_DWORD_R:
-        case SensorValueType::S_DWORD_R:
-          val = lroundf(value);
-          data.push_back(val & 0xFFFF);
-          data.push_back((val & 0xFFFF0000) >> 16);
-          break;
-        case SensorValueType::FP32:
-          raw_to_float.float_value = value;
-          data.push_back((raw_to_float.raw & 0xFFFF0000) >> 16);
-          data.push_back(raw_to_float.raw & 0xFFFF);
-          break;
-        case SensorValueType::FP32_R:
-          raw_to_float.float_value = value;
-          data.push_back(raw_to_float.raw & 0xFFFF);
-          data.push_back((raw_to_float.raw & 0xFFFF0000) >> 16);
-          break;
-        default:
-          ESP_LOGE("TAG", "Invalid data type for modbus number %s", this->get_name().c_str());
-          return;
-          break;
-      }
-    }
-  }
+
   if (connected_sensor_) {
+    // lambda didn't set payload
+    if (data.empty()) {
+      data = float_to_payload(value, connected_sensor_->sensor_value_type);
+    }
+
     ESP_LOGD(TAG,
              "Updating register: connected Sensor=%s start address=0x%X register count=%d new value=%.02f (val=%.02f)",
              connected_sensor_->get_name().c_str(), connected_sensor_->start_address, connected_sensor_->register_count,

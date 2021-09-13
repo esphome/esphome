@@ -68,4 +68,3 @@ async def to_code(config):
             return_type=cg.optional.template(float),
         )
         cg.add(var.set_template(template_))
-        cg.add(var.set_template(template_))

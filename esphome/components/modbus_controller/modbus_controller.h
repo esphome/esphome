@@ -159,6 +159,45 @@ inline bool coil_from_vector(int coil, const std::vector<uint8_t> &data) {
   return (data[data_byte] & (1 << (coil % 8))) > 0;
 }
 
+/** Extract bits from value and shift right according to the bitmask
+ * if the bitmask is 0x00F0  we want the values frrom bit 5 - 8.
+ * the result is then shifted right by the postion if the first right set bit in the mask
+ * Usefull for modbus data where more than one value is packed in a 16 bit register
+ * Example: on Epever the "Length of night" register 0x9065 encodes values of the whole night length of time as
+ * D15 - D8 =  hour, D7 - D0 = minute
+ * To get the hours use mask 0xFF00 and  0x00FF for the minute
+ * @param data an integral value between 16 aand 32 bits,
+ * @param bitmask the bitmask to apply
+ */
+template<typename N> N mask_and_shift_by_rightbit(N data, uint32_t mask) {
+  auto result = (mask & data);
+  if (result == 0) {
+    return result;
+  }
+  for (int pos = 0; pos < sizeof(N) << 3; pos++) {
+    if ((mask & (1 << pos)) != 0)
+      return result >> pos;
+  }
+  return 0;
+}
+
+/** convert float value to vector<uint16_t> suitable for sending
+ * @param value float value to cconvert
+ * @param value_type defines if 16/32 or FP32 is used
+ * @return vector containing the modbus register words in correct order
+ */
+std::vector<uint16_t> float_to_payload(float value, SensorValueType value_type);
+
+/** convert vector<uint8_t> response payload to float
+ * @param value float value to cconvert
+ * @param sensor_value_type defines if 16/32/64 bits or FP32 is used
+ * @param offset offset to the data in data
+ * @param bitmask bitmask used for masking and shifting
+ * @return float version of the input
+ */
+float payload_to_float(const std::vector<uint8_t> &data, SensorValueType sensor_value_type, uint8_t offset,
+                       uint32_t bitmask);
+
 class ModbusController;
 
 struct SensorItem {
@@ -353,6 +392,15 @@ class ModbusController : public PollingComponent, public modbus::ModbusDevice {
   /// min time in ms between sending modbus commands
   uint16_t command_throttle_;
 };
+
+/** convert vector<uint8_t> response payload to float
+ * @param value float value to cconvert
+ * @param item SensorItem object
+ * @return float version of the input
+ */
+inline float payload_to_float(const std::vector<uint8_t> &data, const SensorItem &item) {
+  return payload_to_float(data, item.sensor_value_type, item.offset, item.bitmask);
+}
 
 }  // namespace modbus_controller
 }  // namespace esphome
