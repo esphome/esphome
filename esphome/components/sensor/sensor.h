@@ -47,25 +47,41 @@ class Sensor : public Nameable {
   explicit Sensor();
   explicit Sensor(const std::string &name);
 
-  /** Manually set the unit of measurement of this sensor. By default the sensor's default defined by
-   * unit_of_measurement() is used.
-   *
-   * @param unit_of_measurement The unit of measurement, "" to disable.
-   */
+  /// Get the unit of measurement, using the manual override if set.
+  std::string get_unit_of_measurement();
+  /// Manually set the unit of measurement.
   void set_unit_of_measurement(const std::string &unit_of_measurement);
 
-  /** Manually set the icon of this sensor. By default the sensor's default defined by icon() is used.
-   *
-   * @param icon The icon, for example "mdi:flash". "" to disable.
-   */
+  /// Get the icon. Uses the manual override if specified or the default value instead.
+  std::string get_icon();
+  /// Manually set the icon, for example "mdi:flash".
   void set_icon(const std::string &icon);
 
-  /** Manually set the accuracy in decimals for this sensor. By default, the sensor's default defined by
-   * accuracy_decimals() is used.
-   *
-   * @param accuracy_decimals The accuracy decimal that should be used.
-   */
+  /// Get the accuracy in decimals, using the manual override if set.
+  int8_t get_accuracy_decimals();
+  /// Manually set the accuracy in decimals.
   void set_accuracy_decimals(int8_t accuracy_decimals);
+
+  /// Get the device class, using the manual override if set.
+  std::string get_device_class();
+  /// Manually set the device class.
+  void set_device_class(const std::string &device_class);
+
+  /// Get the state class, using the manual override if set.
+  StateClass get_state_class();
+  /// Manually set the state class.
+  void set_state_class(StateClass state_class);
+
+  /**
+   * Get whether force update mode is enabled.
+   *
+   * If the sensor is in force_update mode, the frontend is required to save all
+   * state changes to the database when they are published, even if the state is the
+   * same as before.
+   */
+  bool get_force_update() const { return force_update_; }
+  /// Set force update mode.
+  void set_force_update(bool force_update) { force_update_ = force_update; }
 
   /// Add a filter to the filter chain. Will be appended to the back.
   void add_filter(Filter *filter);
@@ -93,15 +109,6 @@ class Sensor : public Nameable {
   /// Getter-syntax for .raw_state
   float get_raw_state() const;
 
-  /// Get the accuracy in decimals. Uses the manual override if specified or the default value instead.
-  int8_t get_accuracy_decimals();
-
-  /// Get the unit of measurement. Uses the manual override if specified or the default value instead.
-  std::string get_unit_of_measurement();
-
-  /// Get the Home Assistant Icon. Uses the manual override if specified or the default value instead.
-  std::string get_icon();
-
   /** Publish a new state to the front-end.
    *
    * First, the new state will be assigned to the raw_value. Then it's passed through all filters
@@ -127,34 +134,14 @@ class Sensor : public Nameable {
    */
   float state;
 
-  /// Manually set the Home Assistant device class (see sensor::device_class)
-  void set_device_class(const std::string &device_class);
-
-  /// Get the device class for this sensor, using the manual override if specified.
-  std::string get_device_class();
-
-  /** This member variable stores the current raw state of the sensor. Unlike .state,
-   * this will be updated immediately when publish_state is called.
+  /** This member variable stores the current raw state of the sensor, without any filters applied.
+   *
+   * Unlike .state,this will be updated immediately when publish_state is called.
    */
   float raw_state;
 
   /// Return whether this sensor has gotten a full state (that passed through all filters) yet.
   bool has_state() const;
-
-  // The state class of this sensor state
-  StateClass state_class{STATE_CLASS_NONE};
-
-  /// Manually set the Home Assistant state class (see sensor::state_class)
-  void set_state_class(StateClass state_class);
-  void set_state_class(const std::string &state_class);
-
-  /** Override this to set the Home Assistant device class for this sensor.
-   *
-   * Return "" to disable this feature.
-   *
-   * @return The device class of this sensor, for example "temperature".
-   */
-  virtual std::string device_class();
 
   /** A unique ID for this sensor, empty for no unique id. See unique ID requirements:
    * https://developers.home-assistant.io/docs/en/entity_registry_index.html#unique-id-requirements
@@ -163,65 +150,38 @@ class Sensor : public Nameable {
    */
   virtual std::string unique_id();
 
-  /// Return with which interval the sensor is polled. Return 0 for non-polling mode.
-  virtual uint32_t update_interval();
-
-  /// Calculate the expected update interval for values that pass through all filters.
-  uint32_t calculate_expected_filter_update_interval();
-
   void internal_send_state_to_frontend(float state);
 
-  bool get_force_update() const { return force_update_; }
-  /** Set this sensor's force_update mode.
-   *
-   * If the sensor is in force_update mode, the frontend is required to save all
-   * state changes to the database when they are published, even if the state is the
-   * same as before.
-   */
-  void set_force_update(bool force_update) { force_update_ = force_update; }
-
  protected:
-  /** Override this to set the Home Assistant unit of measurement for this sensor.
-   *
-   * Return "" to disable this feature.
-   *
-   * @return The icon of this sensor, for example "°C".
-   */
+  /// Override this to set the default unit of measurement.
   virtual std::string unit_of_measurement();  // NOLINT
 
-  /** Override this to set the Home Assistant icon for this sensor.
-   *
-   * Return "" to disable this feature.
-   *
-   * @return The icon of this sensor, for example "mdi:battery".
-   */
+  /// Override this to set the default icon.
   virtual std::string icon();  // NOLINT
 
-  /// Return the accuracy in decimals for this sensor.
+  /// Override this to set the default accuracy in decimals.
   virtual int8_t accuracy_decimals();  // NOLINT
 
-  optional<std::string> device_class_{};  ///< Stores the override of the device class
+  /// Override this to set the default device class.
+  virtual std::string device_class();  // NOLINT
+
+  /// Override this to set the default state class.
+  virtual StateClass state_class();  // NOLINT
 
   uint32_t hash_base() override;
 
   CallbackManager<void(float)> raw_callback_;  ///< Storage for raw state callbacks.
   CallbackManager<void(float)> callback_;      ///< Storage for filtered state callbacks.
-  /// Override the unit of measurement
-  optional<std::string> unit_of_measurement_;
-  /// Override the icon advertised to Home Assistant, otherwise sensor's icon will be used.
-  optional<std::string> icon_;
-  /// Override the accuracy in decimals, otherwise the sensor's values will be used.
-  optional<int8_t> accuracy_decimals_;
-  Filter *filter_list_{nullptr};  ///< Store all active filters.
+
   bool has_state_{false};
-  bool force_update_{false};
-};
+  Filter *filter_list_{nullptr};  ///< Store all active filters.
 
-class PollingSensorComponent : public PollingComponent, public Sensor {
- public:
-  explicit PollingSensorComponent(const std::string &name, uint32_t update_interval);
-
-  uint32_t update_interval() override;
+  optional<std::string> unit_of_measurement_;           ///< Unit of measurement override
+  optional<std::string> icon_;                          ///< Icon override
+  optional<int8_t> accuracy_decimals_;                  ///< Accuracy in decimals override
+  optional<std::string> device_class_;                  ///< Device class override
+  optional<StateClass> state_class_{STATE_CLASS_NONE};  ///< State class override
+  bool force_update_{false};                            ///< Force update mode
 };
 
 }  // namespace sensor
