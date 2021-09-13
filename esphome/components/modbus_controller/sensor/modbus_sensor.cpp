@@ -100,21 +100,12 @@ void ModbusSensor::parse_and_publish(const std::vector<uint8_t> &data) {
       raw_to_float.raw = get_data<uint32_t>(data, this->offset);
       ESP_LOGD(TAG, "FP32 = 0x%08X => %f", raw_to_float.raw, raw_to_float.float_value);
       result = raw_to_float.float_value;
-      // Testing only show FP32_R value as well
-      {
-        auto tmp = get_data<uint32_t>(data, this->offset);
-        raw_to_float.raw = static_cast<uint32_t>(tmp & 0xFFFF) << 16 | (tmp & 0xFFFF0000) >> 16;
-        ESP_LOGD(TAG, "FP32_R = 0x%08X => %f", raw_to_float.raw, raw_to_float.float_value);
-      }
       break;
     case SensorValueType::FP32_R: {
       auto tmp = get_data<uint32_t>(data, this->offset);
       raw_to_float.raw = static_cast<uint32_t>(tmp & 0xFFFF) << 16 | (tmp & 0xFFFF0000) >> 16;
       ESP_LOGD(TAG, "FP32_R = 0x%08X => %f", raw_to_float.raw, raw_to_float.float_value);
       result = raw_to_float.float_value;
-      // testing only
-      raw_to_float.raw = tmp;
-      ESP_LOGD(TAG, "FP32 = 0x%08X => %f", raw_to_float.raw, raw_to_float.float_value);
     } break;
     default:
       break;
