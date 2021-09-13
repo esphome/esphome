@@ -4,9 +4,6 @@ import time
 from typing import Dict, Optional
 
 from zeroconf import (
-    _CLASS_IN,
-    _FLAGS_QR_QUERY,
-    _TYPE_A,
     DNSAddress,
     DNSOutgoing,
     DNSRecord,
@@ -14,6 +11,10 @@ from zeroconf import (
     RecordUpdateListener,
     Zeroconf,
 )
+
+_CLASS_IN = 1
+_FLAGS_QR_QUERY = 0x0000  # query
+_TYPE_A = 1
 
 
 class HostResolver(RecordUpdateListener):
