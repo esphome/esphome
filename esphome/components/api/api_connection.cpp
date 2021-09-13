@@ -37,8 +37,7 @@ void APIConnection::start() {
   APIError err = helper_->init();
   if (err != APIError::OK) {
     on_fatal_error();
-    ESP_LOGW(TAG, "%s: Helper init failed: %s errno=%d", client_info_.c_str(), api_error_to_str(err),
-             errno);
+    ESP_LOGW(TAG, "%s: Helper init failed: %s errno=%d", client_info_.c_str(), api_error_to_str(err), errno);
     return;
   }
   client_info_ = helper_->getpeername();
@@ -66,8 +65,7 @@ void APIConnection::loop() {
   APIError err = helper_->loop();
   if (err != APIError::OK) {
     on_fatal_error();
-    ESP_LOGW(TAG, "%s: Socket operation failed: %s errno=%d", client_info_.c_str(), api_error_to_str(err),
-             errno);
+    ESP_LOGW(TAG, "%s: Socket operation failed: %s errno=%d", client_info_.c_str(), api_error_to_str(err), errno);
     return;
   }
   ReadPacketBuffer buffer;
@@ -796,8 +794,7 @@ bool APIConnection::send_buffer(ProtoWriteBuffer buffer, uint32_t message_type) 
     if (err == APIError::SOCKET_WRITE_FAILED && errno == ECONNRESET) {
       ESP_LOGW(TAG, "%s: Connection reset", client_info_.c_str());
     } else {
-      ESP_LOGW(TAG, "%s: Packet write failed %s errno=%d", client_info_.c_str(), api_error_to_str(err),
-               errno);
+      ESP_LOGW(TAG, "%s: Packet write failed %s errno=%d", client_info_.c_str(), api_error_to_str(err), errno);
     }
     return false;
   }
