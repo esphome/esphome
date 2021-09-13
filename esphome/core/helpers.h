@@ -6,8 +6,11 @@
 #include <memory>
 #include <type_traits>
 
+#ifdef ARDUINO_ARCH_ESP32
+#include "esp32-hal-psram.h"
+#endif
+
 #include "esphome/core/optional.h"
-#include "esphome/core/esphal.h"
 
 #ifdef CLANG_TIDY
 #undef ICACHE_RAM_ATTR
@@ -108,6 +111,8 @@ double random_double();
 
 /// Returns a random float between 0 and 1. Essentially just casts random_double() to a float.
 float random_float();
+
+void fill_random(uint8_t *data, size_t len);
 
 void fast_random_set_seed(uint32_t seed);
 uint32_t fast_random_32();

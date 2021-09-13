@@ -97,10 +97,10 @@ def is_ip_address(host):
 
 def _resolve_with_zeroconf(host):
     from esphome.core import EsphomeError
-    from esphome.zeroconf import Zeroconf
+    from esphome.zeroconf import EsphomeZeroconf
 
     try:
-        zc = Zeroconf()
+        zc = EsphomeZeroconf()
     except Exception as err:
         raise EsphomeError(
             "Cannot start mDNS sockets, is this a docker container without "
@@ -276,11 +276,11 @@ def file_compare(path1: os.PathLike, path2: os.PathLike) -> bool:
 # A dict of types that need to be converted to heaptypes before a class can be added
 # to the object
 _TYPE_OVERLOADS = {
-    int: type("EInt", (int,), dict()),
-    float: type("EFloat", (float,), dict()),
-    str: type("EStr", (str,), dict()),
-    dict: type("EDict", (str,), dict()),
-    list: type("EList", (list,), dict()),
+    int: type("EInt", (int,), {}),
+    float: type("EFloat", (float,), {}),
+    str: type("EStr", (str,), {}),
+    dict: type("EDict", (str,), {}),
+    list: type("EList", (list,), {}),
 }
 
 # cache created classes here

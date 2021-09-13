@@ -43,81 +43,56 @@ GPIOPin::GPIOPin(uint8_t pin, uint8_t mode, bool inverted)
 {
 }
 
-const char *GPIOPin::get_pin_mode_name() const {
+const LogString *GPIOPin::get_pin_mode_name() const {
   const char *mode_s;
   switch (this->mode_) {
     case INPUT:
-      mode_s = "INPUT";
-      break;
+      return LOG_STR("INPUT");
     case OUTPUT:
-      mode_s = "OUTPUT";
-      break;
+      return LOG_STR("OUTPUT");
     case INPUT_PULLUP:
-      mode_s = "INPUT_PULLUP";
-      break;
+      return LOG_STR("INPUT_PULLUP");
     case OUTPUT_OPEN_DRAIN:
-      mode_s = "OUTPUT_OPEN_DRAIN";
-      break;
+      return LOG_STR("OUTPUT_OPEN_DRAIN");
     case SPECIAL:
-      mode_s = "SPECIAL";
-      break;
+      return LOG_STR("SPECIAL");
     case FUNCTION_1:
-      mode_s = "FUNCTION_1";
-      break;
+      return LOG_STR("FUNCTION_1");
     case FUNCTION_2:
-      mode_s = "FUNCTION_2";
-      break;
+      return LOG_STR("FUNCTION_2");
     case FUNCTION_3:
-      mode_s = "FUNCTION_3";
-      break;
+      return LOG_STR("FUNCTION_3");
     case FUNCTION_4:
-      mode_s = "FUNCTION_4";
-      break;
-
+      return LOG_STR("FUNCTION_4");
 #ifdef ARDUINO_ARCH_ESP32
     case PULLUP:
-      mode_s = "PULLUP";
-      break;
+      return LOG_STR("PULLUP");
     case PULLDOWN:
-      mode_s = "PULLDOWN";
-      break;
+      return LOG_STR("PULLDOWN");
     case INPUT_PULLDOWN:
-      mode_s = "INPUT_PULLDOWN";
-      break;
+      return LOG_STR("INPUT_PULLDOWN");
     case OPEN_DRAIN:
-      mode_s = "OPEN_DRAIN";
-      break;
+      return LOG_STR("OPEN_DRAIN");
     case FUNCTION_5:
-      mode_s = "FUNCTION_5";
-      break;
+      return LOG_STR("FUNCTION_5");
     case FUNCTION_6:
-      mode_s = "FUNCTION_6";
-      break;
+      return LOG_STR("FUNCTION_6");
     case ANALOG:
-      mode_s = "ANALOG";
-      break;
+      return LOG_STR("ANALOG");
 #endif
 #ifdef ARDUINO_ARCH_ESP8266
     case FUNCTION_0:
-      mode_s = "FUNCTION_0";
-      break;
+      return LOG_STR("FUNCTION_0");
     case WAKEUP_PULLUP:
-      mode_s = "WAKEUP_PULLUP";
-      break;
+      return LOG_STR("WAKEUP_PULLUP");
     case WAKEUP_PULLDOWN:
-      mode_s = "WAKEUP_PULLDOWN";
-      break;
+      return LOG_STR("WAKEUP_PULLDOWN");
     case INPUT_PULLDOWN_16:
-      mode_s = "INPUT_PULLDOWN_16";
-      break;
+      return LOG_STR("INPUT_PULLDOWN_16");
 #endif
-
     default:
-      mode_s = "UNKNOWN";
-      break;
+      return LOG_STR("UNKNOWN");
   }
-
-  return mode_s;
 }
 
 unsigned char GPIOPin::get_pin() const { return this->pin_; }

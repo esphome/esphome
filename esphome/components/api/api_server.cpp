@@ -1,10 +1,11 @@
 #include "api_server.h"
 #include "api_connection.h"
-#include "esphome/core/log.h"
 #include "esphome/core/application.h"
-#include "esphome/core/util.h"
 #include "esphome/core/defines.h"
+#include "esphome/core/log.h"
+#include "esphome/core/util.h"
 #include "esphome/core/version.h"
+#include <cerrno>
 
 #ifdef USE_LOGGER
 #include "esphome/components/logger/logger.h"
@@ -21,20 +22,45 @@ static const char *const TAG = "api";
 void APIServer::setup() {
   ESP_LOGCONFIG(TAG, "Setting up Home Assistant API server...");
   this->setup_controller();
-  this->server_ = AsyncServer(this->port_);
-  this->server_.setNoDelay(false);
-  this->server_.begin();
-  this->server_.onClient(
-      [](void *s, AsyncClient *client) {
-        if (client == nullptr)
-          return;
+  socket_ = socket::socket(AF_INET, SOCK_STREAM, 0);
+  if (socket_ == nullptr) {
+    ESP_LOGW(TAG, "Could not create socket.");
+    this->mark_failed();
+    return;
+  }
+  int enable = 1;
+  int err = socket_->setsockopt(SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int));
+  if (err != 0) {
+    ESP_LOGW(TAG, "Socket unable to set reuseaddr: errno %d", err);
+    // we can still continue
+  }
+  err = socket_->setblocking(false);
+  if (err != 0) {
+    ESP_LOGW(TAG, "Socket unable to set nonblocking mode: errno %d", err);
+    this->mark_failed();
+    return;
+  }
 
-        // can't print here because in lwIP thread
-        // ESP_LOGD(TAG, "New client connected from %s", client->remoteIP().toString().c_str());
-        auto *a_this = (APIServer *) s;
-        a_this->clients_.push_back(make_unique<APIConnection>(client, a_this));
-      },
-      this);
+  struct sockaddr_in server;
+  memset(&server, 0, sizeof(server));
+  server.sin_family = AF_INET;
+  server.sin_addr.s_addr = ESPHOME_INADDR_ANY;
+  server.sin_port = htons(this->port_);
+
+  err = socket_->bind((struct sockaddr *) &server, sizeof(server));
+  if (err != 0) {
+    ESP_LOGW(TAG, "Socket unable to bind: errno %d", errno);
+    this->mark_failed();
+    return;
+  }
+
+  err = socket_->listen(4);
+  if (err != 0) {
+    ESP_LOGW(TAG, "Socket unable to listen: errno %d", errno);
+    this->mark_failed();
+    return;
+  }
+
 #ifdef USE_LOGGER
   if (logger::global_logger != nullptr) {
     logger::global_logger->add_on_log_callback([this](int level, const char *tag, const char *message) {
@@ -59,6 +85,20 @@ void APIServer::setup() {
 #endif
 }
 void APIServer::loop() {
+  // Accept new clients
+  while (true) {
+    struct sockaddr_storage source_addr;
+    socklen_t addr_len = sizeof(source_addr);
+    auto sock = socket_->accept((struct sockaddr *) &source_addr, &addr_len);
+    if (!sock)
+      break;
+    ESP_LOGD(TAG, "Accepted %s", sock->getpeername().c_str());
+
+    auto *conn = new APIConnection(std::move(sock), this);
+    clients_.push_back(conn);
+    conn->start();
+  }
+
   // Partition clients into remove and active
   auto new_end = std::partition(this->clients_.begin(), this->clients_.end(),
                                 [](const std::unique_ptr<APIConnection> &conn) { return !conn->remove_; });

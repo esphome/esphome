@@ -29,6 +29,8 @@ extern const float PROCESSOR;
 extern const float BLUETOOTH;
 extern const float AFTER_BLUETOOTH;
 extern const float WIFI;
+/// For components that should be initialized after WiFi and before API is connected.
+extern const float BEFORE_CONNECTION;
 /// For components that should be initialized after WiFi is connected.
 extern const float AFTER_WIFI;
 /// For components that should be initialized after a data connection (API/MQTT) is connected.
@@ -38,8 +40,12 @@ extern const float LATE;
 
 }  // namespace setup_priority
 
+static const uint32_t SCHEDULER_DONT_RUN = 4294967295UL;
+
 #define LOG_UPDATE_INTERVAL(this) \
-  if (this->get_update_interval() < 100) { \
+  if (this->get_update_interval() == SCHEDULER_DONT_RUN) { \
+    ESP_LOGCONFIG(TAG, "  Update Interval: never"); \
+  } else if (this->get_update_interval() < 100) { \
     ESP_LOGCONFIG(TAG, "  Update Interval: %.3fs", this->get_update_interval() / 1000.0f); \
   } else { \
     ESP_LOGCONFIG(TAG, "  Update Interval: %.1fs", this->get_update_interval() / 1000.0f); \

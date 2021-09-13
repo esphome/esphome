@@ -16,7 +16,7 @@ I2CComponent::I2CComponent() {
     this->wire_ = new TwoWire(next_i2c_bus_num_);
   next_i2c_bus_num_++;
 #else
-  this->wire_ = &Wire;
+  this->wire_ = &Wire;  // NOLINT(cppcoreguidelines-prefer-member-initializer)
 #endif
 }
 

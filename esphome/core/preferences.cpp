@@ -64,7 +64,7 @@ static inline bool esp_rtc_user_mem_read(uint32_t index, uint32_t *dest) {
   if (index >= ESP_RTC_USER_MEM_SIZE_WORDS) {
     return false;
   }
-  *dest = ESP_RTC_USER_MEM[index];
+  *dest = ESP_RTC_USER_MEM[index];  // NOLINT(performance-no-int-to-ptr)
   return true;
 }
 
@@ -78,7 +78,7 @@ static inline bool esp_rtc_user_mem_write(uint32_t index, uint32_t value) {
     return false;
   }
 
-  auto *ptr = &ESP_RTC_USER_MEM[index];
+  auto *ptr = &ESP_RTC_USER_MEM[index];  // NOLINT(performance-no-int-to-ptr)
   *ptr = value;
   return true;
 }

@@ -307,7 +307,7 @@ void WiFiComponent::start_connecting(const WiFiAP &ap, bool two) {
   this->action_started_ = millis();
 }
 
-void print_signal_bars(int8_t rssi, char *buf) {
+const LogString *get_signal_bars(int8_t rssi) {
   // LOWER ONE QUARTER BLOCK
   // Unicode: U+2582, UTF-8: E2 96 82
   // LOWER HALF BLOCK
@@ -317,36 +317,36 @@ void print_signal_bars(int8_t rssi, char *buf) {
   // FULL BLOCK
   // Unicode: U+2588, UTF-8: E2 96 88
   if (rssi >= -50) {
-    sprintf(buf, "\033[0;32m"  // green
-                 "\xe2\x96\x82"
-                 "\xe2\x96\x84"
-                 "\xe2\x96\x86"
-                 "\xe2\x96\x88"
-                 "\033[0m");
+    return LOG_STR("\033[0;32m"  // green
+                   "\xe2\x96\x82"
+                   "\xe2\x96\x84"
+                   "\xe2\x96\x86"
+                   "\xe2\x96\x88"
+                   "\033[0m");
   } else if (rssi >= -65) {
-    sprintf(buf, "\033[0;33m"  // yellow
-                 "\xe2\x96\x82"
-                 "\xe2\x96\x84"
-                 "\xe2\x96\x86"
-                 "\033[0;37m"
-                 "\xe2\x96\x88"
-                 "\033[0m");
+    return LOG_STR("\033[0;33m"  // yellow
+                   "\xe2\x96\x82"
+                   "\xe2\x96\x84"
+                   "\xe2\x96\x86"
+                   "\033[0;37m"
+                   "\xe2\x96\x88"
+                   "\033[0m");
   } else if (rssi >= -85) {
-    sprintf(buf, "\033[0;33m"  // yellow
-                 "\xe2\x96\x82"
-                 "\xe2\x96\x84"
-                 "\033[0;37m"
-                 "\xe2\x96\x86"
-                 "\xe2\x96\x88"
-                 "\033[0m");
+    return LOG_STR("\033[0;33m"  // yellow
+                   "\xe2\x96\x82"
+                   "\xe2\x96\x84"
+                   "\033[0;37m"
+                   "\xe2\x96\x86"
+                   "\xe2\x96\x88"
+                   "\033[0m");
   } else {
-    sprintf(buf, "\033[0;31m"  // red
-                 "\xe2\x96\x82"
-                 "\033[0;37m"
-                 "\xe2\x96\x84"
-                 "\xe2\x96\x86"
-                 "\xe2\x96\x88"
-                 "\033[0m");
+    return LOG_STR("\033[0;31m"  // red
+                   "\xe2\x96\x82"
+                   "\033[0;37m"
+                   "\xe2\x96\x84"
+                   "\xe2\x96\x86"
+                   "\xe2\x96\x88"
+                   "\033[0m");
   }
 }
 
@@ -361,10 +361,8 @@ void WiFiComponent::print_connect_params_() {
   ESP_LOGCONFIG(TAG, "  BSSID: " LOG_SECRET("%02X:%02X:%02X:%02X:%02X:%02X"), bssid[0], bssid[1], bssid[2], bssid[3],
                 bssid[4], bssid[5]);
   ESP_LOGCONFIG(TAG, "  Hostname: '%s'", App.get_name().c_str());
-  char signal_bars[50];
   int8_t rssi = WiFi.RSSI();
-  print_signal_bars(rssi, signal_bars);
-  ESP_LOGCONFIG(TAG, "  Signal strength: %d dB %s", rssi, signal_bars);
+  ESP_LOGCONFIG(TAG, "  Signal strength: %d dB %s", rssi, LOG_STR_ARG(get_signal_bars(rssi)));
   if (this->selected_ap_.get_bssid().has_value()) {
     ESP_LOGV(TAG, "  Priority: %.1f", this->get_sta_priority(*this->selected_ap_.get_bssid()));
   }
@@ -433,16 +431,15 @@ void WiFiComponent::check_scanning_finished() {
     char bssid_s[18];
     auto bssid = res.get_bssid();
     sprintf(bssid_s, "%02X:%02X:%02X:%02X:%02X:%02X", bssid[0], bssid[1], bssid[2], bssid[3], bssid[4], bssid[5]);
-    char signal_bars[50];
-    print_signal_bars(res.get_rssi(), signal_bars);
 
     if (res.get_matches()) {
       ESP_LOGI(TAG, "- '%s' %s" LOG_SECRET("(%s) ") "%s", res.get_ssid().c_str(),
-               res.get_is_hidden() ? "(HIDDEN) " : "", bssid_s, signal_bars);
+               res.get_is_hidden() ? "(HIDDEN) " : "", bssid_s, LOG_STR_ARG(get_signal_bars(res.get_rssi())));
       ESP_LOGD(TAG, "    Channel: %u", res.get_channel());
       ESP_LOGD(TAG, "    RSSI: %d dB", res.get_rssi());
     } else {
-      ESP_LOGD(TAG, "- " LOG_SECRET("'%s'") " " LOG_SECRET("(%s) ") "%s", res.get_ssid().c_str(), bssid_s, signal_bars);
+      ESP_LOGD(TAG, "- " LOG_SECRET("'%s'") " " LOG_SECRET("(%s) ") "%s", res.get_ssid().c_str(), bssid_s,
+               LOG_STR_ARG(get_signal_bars(res.get_rssi())));
     }
   }
 

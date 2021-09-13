@@ -3,8 +3,8 @@
 #include <string>
 #include <vector>
 #include <algorithm>
+#include <cstring>
 
-#include "esphome/core/esphal.h"
 #include "esphome/core/defines.h"
 
 namespace esphome {

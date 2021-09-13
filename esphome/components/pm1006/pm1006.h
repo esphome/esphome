@@ -7,7 +7,7 @@
 namespace esphome {
 namespace pm1006 {
 
-class PM1006Component : public Component, public uart::UARTDevice {
+class PM1006Component : public PollingComponent, public uart::UARTDevice {
  public:
   PM1006Component() = default;
 
@@ -15,6 +15,7 @@ class PM1006Component : public Component, public uart::UARTDevice {
   void setup() override;
   void dump_config() override;
   void loop() override;
+  void update() override;
 
   float get_setup_priority() const override;
 
