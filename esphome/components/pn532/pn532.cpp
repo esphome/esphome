@@ -281,9 +281,9 @@ std::unique_ptr<nfc::NfcTag> PN532::read_tag_(std::vector<uint8_t> &uid) {
     return this->read_mifare_ultralight_tag_(uid);
   } else if (type == nfc::TAG_TYPE_UNKNOWN) {
     ESP_LOGV(TAG, "Cannot determine tag type");
-    return {new nfc::NfcTag(uid)};
+    return std::unique_ptr<nfc::NfcTag>{new nfc::NfcTag(uid)};
   } else {
-    return {new nfc::NfcTag(uid)};
+    return std::unique_ptr<nfc::NfcTag>{new nfc::NfcTag(uid)};
   }
 }
 
