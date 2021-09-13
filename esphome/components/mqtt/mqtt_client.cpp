@@ -25,7 +25,7 @@ MQTTClientComponent::MQTTClientComponent() {
 // Connection
 void MQTTClientComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up MQTT...");
-  this->mqtt_client_.onMessage([this](char *topic, char *payload, AsyncMqttClientMessageProperties properties,
+  this->mqtt_client_.onMessage([this](char const *topic, char *payload, AsyncMqttClientMessageProperties properties,
                                       size_t len, size_t index, size_t total) {
     if (index == 0)
       this->payload_buffer_.reserve(total);
