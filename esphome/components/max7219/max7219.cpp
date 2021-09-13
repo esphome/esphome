@@ -117,7 +117,7 @@ float MAX7219Component::get_setup_priority() const { return setup_priority::PROC
 void MAX7219Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up MAX7219...");
   this->spi_setup();
-  this->buffer_ = new uint8_t[this->num_chips_ * 8];
+  this->buffer_ = new uint8_t[this->num_chips_ * 8];  // NOLINT
   for (uint8_t i = 0; i < this->num_chips_ * 8; i++)
     this->buffer_[i] = 0;
 

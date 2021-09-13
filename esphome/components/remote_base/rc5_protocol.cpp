@@ -41,7 +41,7 @@ optional<RC5Data> RC5Protocol::decode(RemoteReceiveData src) {
       .address = 0,
       .command = 0,
   };
-  int field_bit = 0;
+  uint8_t field_bit;
 
   if (src.expect_space(BIT_TIME_US) && src.expect_mark(BIT_TIME_US)) {
     field_bit = 1;
@@ -60,7 +60,7 @@ optional<RC5Data> RC5Protocol::decode(RemoteReceiveData src) {
     return {};
   }
 
-  uint64_t out_data = 0;
+  uint32_t out_data = 0;
   for (int bit = NBITS - 4; bit >= 1; bit--) {
     if ((src.expect_space(BIT_TIME_US) || src.expect_space(2 * BIT_TIME_US)) &&
         (src.expect_mark(BIT_TIME_US) || src.peek_mark(2 * BIT_TIME_US))) {
@@ -78,7 +78,7 @@ optional<RC5Data> RC5Protocol::decode(RemoteReceiveData src) {
     out_data |= 1;
   }
 
-  out.command = (out_data & 0x3F) + (1 - field_bit) * 64;
+  out.command = (uint8_t)(out_data & 0x3F) + (1 - field_bit) * 64u;
   out.address = (out_data >> 6) & 0x1F;
   return out;
 }

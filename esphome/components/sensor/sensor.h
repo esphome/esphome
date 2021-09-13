@@ -1,5 +1,6 @@
 #pragma once
 
+#include "esphome/core/log.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include "esphome/components/sensor/filter.h"
@@ -9,11 +10,11 @@ namespace sensor {
 
 #define LOG_SENSOR(prefix, type, obj) \
   if ((obj) != nullptr) { \
-    ESP_LOGCONFIG(TAG, "%s%s '%s'", prefix, type, (obj)->get_name().c_str()); \
+    ESP_LOGCONFIG(TAG, "%s%s '%s'", prefix, LOG_STR_LITERAL(type), (obj)->get_name().c_str()); \
     if (!(obj)->get_device_class().empty()) { \
       ESP_LOGCONFIG(TAG, "%s  Device Class: '%s'", prefix, (obj)->get_device_class().c_str()); \
     } \
-    ESP_LOGCONFIG(TAG, "%s  State Class: '%s'", prefix, state_class_to_string((obj)->state_class)); \
+    ESP_LOGCONFIG(TAG, "%s  State Class: '%s'", prefix, LOG_STR_ARG(state_class_to_string((obj)->state_class))); \
     ESP_LOGCONFIG(TAG, "%s  Unit of Measurement: '%s'", prefix, (obj)->get_unit_of_measurement().c_str()); \
     ESP_LOGCONFIG(TAG, "%s  Accuracy Decimals: %d", prefix, (obj)->get_accuracy_decimals()); \
     if (!(obj)->get_icon().empty()) { \
@@ -36,7 +37,7 @@ enum StateClass : uint8_t {
   STATE_CLASS_TOTAL_INCREASING = 2,
 };
 
-const char *state_class_to_string(StateClass state_class);
+const LogString *state_class_to_string(StateClass state_class);
 
 /** Base-class for all sensors.
  *

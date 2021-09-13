@@ -11,6 +11,7 @@
 #endif
 #include "lwip/err.h"
 #include "lwip/dns.h"
+#include "lwip/apps/sntp.h"
 
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -92,6 +93,11 @@ bool WiFiComponent::wifi_sta_ip_config_(optional<ManualIP> manual_ip) {
   tcpip_adapter_dhcp_status_t dhcp_status;
   tcpip_adapter_dhcpc_get_status(TCPIP_ADAPTER_IF_STA, &dhcp_status);
   if (!manual_ip.has_value()) {
+    // lwIP starts the SNTP client if it gets an SNTP server from DHCP. We don't need the time, and more importantly,
+    // the built-in SNTP client has a memory leak in certain situations. Disable this feature.
+    // https://github.com/esphome/issues/issues/2299
+    sntp_servermode_dhcp(false);
+
     // Use DHCP client
     if (dhcp_status != TCPIP_ADAPTER_DHCP_STARTED) {
       esp_err_t err = tcpip_adapter_dhcpc_start(TCPIP_ADAPTER_IF_STA);

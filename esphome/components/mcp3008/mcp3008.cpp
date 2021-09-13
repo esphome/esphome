@@ -38,9 +38,8 @@ float MCP3008::read_data(uint8_t pin) {
 }
 
 MCP3008Sensor::MCP3008Sensor(MCP3008 *parent, const std::string &name, uint8_t pin, float reference_voltage)
-    : PollingComponent(1000), parent_(parent), pin_(pin) {
+    : PollingComponent(1000), parent_(parent), pin_(pin), reference_voltage_(reference_voltage) {
   this->set_name(name);
-  this->reference_voltage_ = reference_voltage;
 }
 
 float MCP3008Sensor::get_setup_priority() const { return setup_priority::DATA; }
