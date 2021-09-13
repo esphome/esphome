@@ -139,13 +139,13 @@ void BLEClient::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t es
       }
       ESP_LOGV(TAG, "[%s] ESP_GATTC_DISCONNECT_EVT", this->address_str().c_str());
       for (auto &svc : this->services_)
-        delete svc;
+        delete svc;  // NOLINT(cppcoreguidelines-owning-memory)
       this->services_.clear();
       this->set_states(espbt::ClientState::Idle);
       break;
     }
     case ESP_GATTC_SEARCH_RES_EVT: {
-      BLEService *ble_service = new BLEService();
+      BLEService *ble_service = new BLEService();  // NOLINT(cppcoreguidelines-owning-memory)
       ble_service->uuid = espbt::ESPBTUUID::from_uuid(param->search_res.srvc_id.uuid);
       ble_service->start_handle = param->search_res.start_handle;
       ble_service->end_handle = param->search_res.end_handle;
@@ -194,7 +194,7 @@ void BLEClient::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t es
   // Delete characteristics after clients have used them to save RAM.
   if (!all_established && this->all_nodes_established()) {
     for (auto &svc : this->services_)
-      delete svc;
+      delete svc;  // NOLINT(cppcoreguidelines-owning-memory)
     this->services_.clear();
   }
 }
@@ -307,7 +307,7 @@ BLEDescriptor *BLEClient::get_descriptor(uint16_t service, uint16_t chr, uint16_
 
 BLEService::~BLEService() {
   for (auto &chr : this->characteristics)
-    delete chr;
+    delete chr;  // NOLINT(cppcoreguidelines-owning-memory)
 }
 
 void BLEService::parse_characteristics() {
@@ -329,7 +329,7 @@ void BLEService::parse_characteristics() {
       break;
     }
 
-    BLECharacteristic *characteristic = new BLECharacteristic();
+    BLECharacteristic *characteristic = new BLECharacteristic();  // NOLINT(cppcoreguidelines-owning-memory)
     characteristic->uuid = espbt::ESPBTUUID::from_uuid(result.uuid);
     characteristic->properties = result.properties;
     characteristic->handle = result.char_handle;
@@ -344,7 +344,7 @@ void BLEService::parse_characteristics() {
 
 BLECharacteristic::~BLECharacteristic() {
   for (auto &desc : this->descriptors)
-    delete desc;
+    delete desc;  // NOLINT(cppcoreguidelines-owning-memory)
 }
 
 void BLECharacteristic::parse_descriptors() {
@@ -366,7 +366,7 @@ void BLECharacteristic::parse_descriptors() {
       break;
     }
 
-    BLEDescriptor *desc = new BLEDescriptor();
+    BLEDescriptor *desc = new BLEDescriptor();  // NOLINT(cppcoreguidelines-owning-memory)
     desc->uuid = espbt::ESPBTUUID::from_uuid(result.uuid);
     desc->handle = result.handle;
     desc->characteristic = this;

@@ -109,7 +109,7 @@ BLEService *BLEServer::create_service(const std::string &uuid, bool advertise) {
 }
 BLEService *BLEServer::create_service(ESPBTUUID uuid, bool advertise, uint16_t num_handles, uint8_t inst_id) {
   ESP_LOGV(TAG, "Creating service - %s", uuid.to_string().c_str());
-  BLEService *service = new BLEService(uuid, num_handles, inst_id);
+  BLEService *service = new BLEService(uuid, num_handles, inst_id);  // NOLINT(cppcoreguidelines-owning-memory)
   this->services_.push_back(service);
   if (advertise) {
     esp32_ble::global_ble->get_advertising()->add_service_uuid(uuid);
