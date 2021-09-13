@@ -12,4 +12,4 @@ platformio==5.2.0
 esptool==3.1
 click==7.1.2
 esphome-dashboard==20210908.0
-aioesphomeapi==4.1.0
+aioesphomeapi==9.0.0
