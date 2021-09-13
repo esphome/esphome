@@ -214,6 +214,9 @@ void APIConnection::cover_command(const CoverCommandRequest &msg) {
 #endif
 
 #ifdef USE_FAN
+// Shut-up about usage of deprecated speed_level_to_enum/speed_enum_to_level functions for a bit.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 bool APIConnection::send_fan_state(fan::FanState *fan) {
   if (!this->state_subscription_)
     return false;
@@ -262,13 +265,13 @@ void APIConnection::fan_command(const FanCommandRequest &msg) {
     // Prefer level
     call.set_speed(msg.speed_level);
   } else if (msg.has_speed) {
-    // NOLINTNEXTLINE(clang-diagnostic-deprecated-declarations)
     call.set_speed(fan::speed_enum_to_level(static_cast<fan::FanSpeed>(msg.speed), traits.supported_speed_count()));
   }
   if (msg.has_direction)
     call.set_direction(static_cast<fan::FanDirection>(msg.direction));
   call.perform();
 }
+#pragma GCC diagnostic pop
 #endif
 
 #ifdef USE_LIGHT

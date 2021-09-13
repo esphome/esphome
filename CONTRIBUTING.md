@@ -1,10 +1,6 @@
 # Contributing to ESPHome
 
-This python project is responsible for reading in YAML configuration files,
-converting them to C++ code. This code is then converted to a platformio project and compiled
-with [esphome-core](https://github.com/esphome/esphome-core), the C++ framework behind the project.
-
-For a detailed guide, please see https://esphome.io/guides/contributing.html#contributing-to-esphomeyaml
+For a detailed guide, please see https://esphome.io/guides/contributing.html#contributing-to-esphome
 
 Things to note when contributing:
 
