@@ -36,17 +36,12 @@ void APIConnection::start() {
 
   APIError err = helper_->init();
   if (err != APIError::OK) {
-    ESP_LOGW(TAG, "Helper init failed: %d errno=%d", (int) err, errno);
-    remove_ = true;
+    on_fatal_error();
+    ESP_LOGW(TAG, "%s: Helper init failed: %s errno=%d", client_info_.c_str(), api_error_to_str(err), errno);
     return;
   }
   client_info_ = helper_->getpeername();
   helper_->set_log_info(client_info_);
-}
-
-void APIConnection::force_disconnect_client() {
-  this->helper_->close();
-  this->remove_ = true;
 }
 
 void APIConnection::loop() {
@@ -57,9 +52,11 @@ void APIConnection::loop() {
     // when network is disconnected force disconnect immediately
     // don't wait for timeout
     this->on_fatal_error();
+    ESP_LOGW(TAG, "%s: Network unavailable, disconnecting", client_info_.c_str());
     return;
   }
   if (this->next_close_) {
+    // requested a disconnect
     this->helper_->close();
     this->remove_ = true;
     return;
@@ -68,7 +65,7 @@ void APIConnection::loop() {
   APIError err = helper_->loop();
   if (err != APIError::OK) {
     on_fatal_error();
-    ESP_LOGW(TAG, "%s: Socket operation failed: %d", client_info_.c_str(), (int) err);
+    ESP_LOGW(TAG, "%s: Socket operation failed: %s errno=%d", client_info_.c_str(), api_error_to_str(err), errno);
     return;
   }
   ReadPacketBuffer buffer;
@@ -77,7 +74,11 @@ void APIConnection::loop() {
     // pass
   } else if (err != APIError::OK) {
     on_fatal_error();
-    ESP_LOGW(TAG, "%s: Reading failed: %d", client_info_.c_str(), (int) err);
+    if (err == APIError::SOCKET_READ_FAILED && errno == ECONNRESET) {
+      ESP_LOGW(TAG, "%s: Connection reset", client_info_.c_str());
+    } else {
+      ESP_LOGW(TAG, "%s: Reading failed: %s errno=%d", client_info_.c_str(), api_error_to_str(err), errno);
+    }
     return;
   } else {
     this->last_traffic_ = millis();
@@ -95,8 +96,8 @@ void APIConnection::loop() {
   if (this->sent_ping_) {
     // Disconnect if not responded within 2.5*keepalive
     if (now - this->last_traffic_ > (keepalive * 5) / 2) {
-      this->force_disconnect_client();
-      ESP_LOGW(TAG, "'%s' didn't respond to ping request in time. Disconnecting...", this->client_info_.c_str());
+      on_fatal_error();
+      ESP_LOGW(TAG, "%s didn't respond to ping request in time. Disconnecting...", this->client_info_.c_str());
     }
   } else if (now - this->last_traffic_ > keepalive) {
     this->sent_ping_ = true;
@@ -124,10 +125,38 @@ void APIConnection::loop() {
     }
   }
 #endif
+
+  if (state_subs_at_ != -1) {
+    const auto &subs = this->parent_->get_state_subs();
+    if (state_subs_at_ >= subs.size()) {
+      state_subs_at_ = -1;
+    } else {
+      auto &it = subs[state_subs_at_];
+      SubscribeHomeAssistantStateResponse resp;
+      resp.entity_id = it.entity_id;
+      resp.attribute = it.attribute.value();
+      if (this->send_subscribe_home_assistant_state_response(resp)) {
+        state_subs_at_++;
+      }
+    }
+  }
 }
 
 std::string get_default_unique_id(const std::string &component_type, Nameable *nameable) {
   return App.get_name() + component_type + nameable->get_object_id();
+}
+
+DisconnectResponse APIConnection::disconnect(const DisconnectRequest &msg) {
+  // remote initiated disconnect_client
+  // don't close yet, we still need to send the disconnect response
+  // close will happen on next loop
+  ESP_LOGD(TAG, "%s requested disconnected", client_info_.c_str());
+  this->next_close_ = true;
+  DisconnectResponse resp;
+  return resp;
+}
+void APIConnection::on_disconnect_response(const DisconnectResponse &value) {
+  // pass
 }
 
 #ifdef USE_BINARY_SENSOR
@@ -703,7 +732,7 @@ ConnectResponse APIConnection::connect(const ConnectRequest &msg) {
   // bool invalid_password = 1;
   resp.invalid_password = !correct;
   if (correct) {
-    ESP_LOGD(TAG, "Client '%s' connected successfully!", this->client_info_.c_str());
+    ESP_LOGD(TAG, "%s: Connected successfully", this->client_info_.c_str());
     this->connection_state_ = ConnectionState::AUTHENTICATED;
 
 #ifdef USE_HOMEASSISTANT_TIME
@@ -749,15 +778,7 @@ void APIConnection::execute_service(const ExecuteServiceRequest &msg) {
   }
 }
 void APIConnection::subscribe_home_assistant_states(const SubscribeHomeAssistantStatesRequest &msg) {
-  for (auto &it : this->parent_->get_state_subs()) {
-    SubscribeHomeAssistantStateResponse resp;
-    resp.entity_id = it.entity_id;
-    resp.attribute = it.attribute.value();
-    if (!this->send_subscribe_home_assistant_state_response(resp)) {
-      this->on_fatal_error();
-      return;
-    }
-  }
+  state_subs_at_ = 0;
 }
 bool APIConnection::send_buffer(ProtoWriteBuffer buffer, uint32_t message_type) {
   if (this->remove_)
@@ -770,7 +791,11 @@ bool APIConnection::send_buffer(ProtoWriteBuffer buffer, uint32_t message_type) 
     return false;
   if (err != APIError::OK) {
     on_fatal_error();
-    ESP_LOGW(TAG, "%s: Packet write failed %d errno=%d", client_info_.c_str(), (int) err, errno);
+    if (err == APIError::SOCKET_WRITE_FAILED && errno == ECONNRESET) {
+      ESP_LOGW(TAG, "%s: Connection reset", client_info_.c_str());
+    } else {
+      ESP_LOGW(TAG, "%s: Packet write failed %s errno=%d", client_info_.c_str(), api_error_to_str(err), errno);
+    }
     return false;
   }
   this->last_traffic_ = millis();
@@ -778,14 +803,13 @@ bool APIConnection::send_buffer(ProtoWriteBuffer buffer, uint32_t message_type) 
 }
 void APIConnection::on_unauthenticated_access() {
   this->on_fatal_error();
-  ESP_LOGD(TAG, "'%s' tried to access without authentication.", this->client_info_.c_str());
+  ESP_LOGD(TAG, "%s: tried to access without authentication.", this->client_info_.c_str());
 }
 void APIConnection::on_no_setup_connection() {
   this->on_fatal_error();
-  ESP_LOGD(TAG, "'%s' tried to access without full connection.", this->client_info_.c_str());
+  ESP_LOGD(TAG, "%s: tried to access without full connection.", this->client_info_.c_str());
 }
 void APIConnection::on_fatal_error() {
-  ESP_LOGV(TAG, "Error: Disconnecting %s", this->client_info_.c_str());
   this->helper_->close();
   this->remove_ = true;
 }
