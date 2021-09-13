@@ -633,7 +633,7 @@ void APIConnection::send_camera_state(std::shared_ptr<esp32_camera::CameraImage>
     return;
   if (this->image_reader_.available())
     return;
-  this->image_reader_.set_image(image);
+  this->image_reader_.set_image(std::move(image));
 }
 bool APIConnection::send_camera_info(esp32_camera::ESP32Camera *camera) {
   ListEntitiesCameraResponse msg;

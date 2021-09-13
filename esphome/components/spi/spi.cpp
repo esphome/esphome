@@ -61,7 +61,7 @@ void SPIComponent::setup() {
     if (spi_bus_num == 0) {
       this->hw_spi_ = &SPI;
     } else {
-      this->hw_spi_ = new SPIClass(VSPI);
+      this->hw_spi_ = new SPIClass(VSPI);  // NOLINT(cppcoreguidelines-owning-memory)
     }
     spi_bus_num++;
     this->hw_spi_->begin(clk_pin, miso_pin, mosi_pin);

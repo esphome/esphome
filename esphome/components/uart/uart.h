@@ -126,10 +126,6 @@ class UARTComponent : public Component, public Stream {
 #endif
 };
 
-#ifdef ARDUINO_ARCH_ESP32
-extern uint8_t next_uart_num;
-#endif
-
 class UARTDevice : public Stream {
  public:
   UARTDevice() = default;

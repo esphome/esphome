@@ -8,7 +8,6 @@
 namespace esphome {
 namespace uart {
 static const char *const TAG = "uart_esp32";
-uint8_t next_uart_num = 1;
 
 static const uint32_t UART_PARITY_EVEN = 0 << 0;
 static const uint32_t UART_PARITY_ODD = 1 << 0;
@@ -80,7 +79,8 @@ void UARTComponent::setup() {
 #endif
     this->hw_serial_ = &Serial;
   } else {
-    this->hw_serial_ = new HardwareSerial(next_uart_num++);
+    static uint8_t next_uart_num = 1;
+    this->hw_serial_ = new HardwareSerial(next_uart_num++);  // NOLINT(cppcoreguidelines-owning-memory)
   }
   int8_t tx = this->tx_pin_.has_value() ? *this->tx_pin_ : -1;
   int8_t rx = this->rx_pin_.has_value() ? *this->rx_pin_ : -1;
@@ -99,7 +99,7 @@ void UARTComponent::dump_config() {
   }
   ESP_LOGCONFIG(TAG, "  Baud Rate: %u baud", this->baud_rate_);
   ESP_LOGCONFIG(TAG, "  Data Bits: %u", this->data_bits_);
-  ESP_LOGCONFIG(TAG, "  Parity: %s", parity_to_str(this->parity_));
+  ESP_LOGCONFIG(TAG, "  Parity: %s", LOG_STR_ARG(parity_to_str(this->parity_)));
   ESP_LOGCONFIG(TAG, "  Stop bits: %u", this->stop_bits_);
   this->check_logger_conflict_();
 }

@@ -3,7 +3,7 @@
 
 #ifdef USE_SOCKET_IMPL_BSD_SOCKETS
 
-#include <string.h>
+#include <cstring>
 
 namespace esphome {
 namespace socket {
@@ -13,14 +13,14 @@ std::string format_sockaddr(const struct sockaddr_storage &storage) {
     const struct sockaddr_in *addr = reinterpret_cast<const struct sockaddr_in *>(&storage);
     char buf[INET_ADDRSTRLEN];
     const char *ret = inet_ntop(AF_INET, &addr->sin_addr, buf, sizeof(buf));
-    if (ret == NULL)
+    if (ret == nullptr)
       return {};
     return std::string{buf};
   } else if (storage.ss_family == AF_INET6) {
     const struct sockaddr_in6 *addr = reinterpret_cast<const struct sockaddr_in6 *>(&storage);
     char buf[INET6_ADDRSTRLEN];
     const char *ret = inet_ntop(AF_INET6, &addr->sin6_addr, buf, sizeof(buf));
-    if (ret == NULL)
+    if (ret == nullptr)
       return {};
     return std::string{buf};
   }
@@ -32,7 +32,7 @@ class BSDSocketImpl : public Socket {
   BSDSocketImpl(int fd) : Socket(), fd_(fd) {}
   ~BSDSocketImpl() override {
     if (!closed_) {
-      close();
+      close();  // NOLINT(clang-analyzer-optin.cplusplus.VirtualCall)
     }
   }
   std::unique_ptr<Socket> accept(struct sockaddr *addr, socklen_t *addrlen) override {
