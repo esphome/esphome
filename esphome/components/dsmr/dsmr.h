@@ -15,7 +15,7 @@ namespace esphome {
 namespace dsmr {
 
 static constexpr uint32_t MAX_TELEGRAM_LENGTH = 1500;
-#ifdef USE_TELEGRAM_DEBUGGER
+#ifdef USE_DSMR_TELEGRAM_DEBUGGER
 static constexpr uint32_t MAX_DEBUG_LENGTH = 500;
 #endif
 static constexpr uint32_t POLL_TIMEOUT = 1000;
@@ -90,7 +90,7 @@ class Dsmr : public Component, public uart::UARTDevice {
   char telegram_[MAX_TELEGRAM_LENGTH];
   int telegram_len_{0};
 
-#ifdef USE_TELEGRAM_DEBUGGER
+#ifdef USE_DSMR_TELEGRAM_DEBUGGER
   // Telegram debug buffer
   char debug_[MAX_DEBUG_LENGTH];
   int debug_len_{0};

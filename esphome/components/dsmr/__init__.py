@@ -53,7 +53,7 @@ async def to_code(config):
     if CONF_DECRYPTION_KEY in config:
         cg.add(var.set_decryption_key(config[CONF_DECRYPTION_KEY]))
     if config[CONF_DEBUG_TELEGRAMS]:
-        cg.add_define("USE_TELEGRAM_DEBUGGER")
+        cg.add_define("USE_DSMR_TELEGRAM_DEBUGGER")
 
     await cg.register_component(var, config)
 
