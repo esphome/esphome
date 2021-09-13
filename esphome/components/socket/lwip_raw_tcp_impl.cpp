@@ -423,9 +423,9 @@ class LWIPRawImpl : public Socket {
       // nothing to do here, we just don't push it to the queue
       return ERR_OK;
     }
-    auto *sock = new LWIPRawImpl(newpcb);
+    auto sock = std::unique_ptr<LWIPRawImpl>(new LWIPRawImpl(newpcb));
     sock->init();
-    accepted_sockets_.emplace(sock);
+    accepted_sockets_.push(std::move(sock));
     return ERR_OK;
   }
   void err_fn(err_t err) {
@@ -486,7 +486,7 @@ std::unique_ptr<Socket> socket(int domain, int type, int protocol) {
   auto *pcb = tcp_new();
   if (pcb == nullptr)
     return nullptr;
-  auto *sock = new LWIPRawImpl(pcb);
+  auto *sock = new LWIPRawImpl(pcb);  // NOLINT(cppcoreguidelines-owning-memory)
   sock->init();
   return std::unique_ptr<Socket>{sock};
 }

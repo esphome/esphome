@@ -4,7 +4,7 @@ paho-mqtt==1.5.1
 colorama==0.4.4
 tornado==6.1
 protobuf==3.17.3
-tzlocal==2.1
+tzlocal==3.0
 pytz==2021.1
 pyserial==3.5
 ifaddr==0.1.7
