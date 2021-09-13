@@ -15,8 +15,6 @@ class ModbusNumber : public number::Number, public PollingComponent {
  public:
   ModbusNumber() : PollingComponent(), number::Number(){};
 
-  // void set_template(value_to_data_t &&lambda) { this->value_to_data_func_ = lambda; }
-  void set_template(std::function<optional<float>(float, std::vector<uint16_t> &)> &&f) { this->transform_func_ = f; }
   void setup() override;
   void update() override;
   void dump_config() override;
@@ -26,9 +24,12 @@ class ModbusNumber : public number::Number, public PollingComponent {
   void set_sensor(ModbusSensor *sensor) { this->connected_sensor_ = sensor; }
   void set_multiply(float factor) { multiply_by_ = factor; }
 
+  using transform_func_t = std::function<optional<float>(float, std::vector<uint16_t> &)>;
+  void set_template(transform_func_t &&f) { this->transform_func_ = f; }
+
  protected:
   void control(float value) override;
-  optional<std::function<optional<float>(float, std::vector<uint16_t> &)>> transform_func_;
+  optional<transform_func_t> transform_func_;
   ModbusSensor *connected_sensor_{nullptr};
   ModbusController *parent_;
   float multiply_by_{1.0};

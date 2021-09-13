@@ -36,6 +36,11 @@ class ModbusTextSensor : public Component, public text_sensor::TextSensor, publi
   void dump_config() override;
 
   void parse_and_publish(const std::vector<uint8_t> &data) override;
+  using transform_func_t = std::function<optional<std::string>(std::string, const std::vector<uint8_t> &)>;
+  void set_template(transform_func_t &&f) { this->transform_func_ = f; }
+
+ protected:
+  optional<transform_func_t> transform_func_{nullopt};
 
  protected:
   RawEncoding encode_;

@@ -34,9 +34,10 @@ void ModbusNumber::control(float value) {
     // in that case the return value is ignored
     auto val = (*this->transform_func_)(value, data);
     if (val.has_value()) {
+      ESP_LOGV(TAG, "Value overwritten by lambda");
       value = val.value();
     } else {
-      ESP_LOGD(TAG, "Communication handled by lambda - exiting control");
+      ESP_LOGV(TAG, "Communication handled by lambda - exiting control");
       return;
     }
   } else {

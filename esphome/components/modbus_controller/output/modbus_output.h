@@ -24,21 +24,20 @@ class ModbusOutput : public output::FloatOutput, public Component, public Sensor
     this->start_address += offset;
     this->offset = 0;
   }
-
-  // void set_template(value_to_data_t &&lambda) { this->value_to_data_func_ = lambda; }
-  void set_template(std::function<optional<float>(float, std::vector<uint16_t> &)> &&f) { this->transform_func_ = f; }
   void setup() override;
   void dump_config() override;
 
   void set_parent(ModbusController *parent) { this->parent_ = parent; }
   void set_multiply(float factor) { multiply_by_ = factor; }
-
   // Do nothing
   void parse_and_publish(const std::vector<uint8_t> &data) override{};
 
+  using transform_func_t = std::function<optional<float>(float, std::vector<uint16_t> &)>;
+  void set_template(transform_func_t &&f) { this->transform_func_ = f; }
+
  protected:
   void write_state(float value) override;
-  optional<std::function<optional<float>(float, std::vector<uint16_t> &)>> transform_func_;
+  optional<transform_func_t> transform_func_{nullopt};
   ModbusController *parent_;
   float multiply_by_{1.0};
 };

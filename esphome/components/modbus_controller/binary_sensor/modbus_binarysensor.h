@@ -30,6 +30,14 @@ class ModbusBinarySensor : public Component, public binary_sensor::BinarySensor,
   void set_state(bool state) { this->state = state; }
 
   void dump_config() override;
+
+  using transform_func_t = optional<std::function<optional<bool>(bool, const std::vector<uint8_t> &)>>;
+  void set_template(std::function<optional<bool>(bool, const std::vector<uint8_t> &)> &&f) {
+    this->transform_func_ = f;
+  }
+
+ protected:
+  transform_func_t transform_func_{nullopt};
 };
 
 }  // namespace modbus_controller
