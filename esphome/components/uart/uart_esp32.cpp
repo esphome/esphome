@@ -80,7 +80,7 @@ void UARTComponent::setup() {
     this->hw_serial_ = &Serial;
   } else {
     static uint8_t next_uart_num = 1;
-    this->hw_serial_ = new HardwareSerial(next_uart_num++);
+    this->hw_serial_ = new HardwareSerial(next_uart_num++);  // NOLINT(cppcoreguidelines-owning-memory)
   }
   int8_t tx = this->tx_pin_.has_value() ? *this->tx_pin_ : -1;
   int8_t rx = this->rx_pin_.has_value() ? *this->rx_pin_ : -1;

@@ -14,7 +14,7 @@ I2CComponent::I2CComponent() {
   if (next_i2c_bus_num == 0)
     this->wire_ = &Wire;
   else
-    this->wire_ = new TwoWire(next_i2c_bus_num);
+    this->wire_ = new TwoWire(next_i2c_bus_num);  // NOLINT(cppcoreguidelines-owning-memory)
   next_i2c_bus_num++;
 #else
   this->wire_ = &Wire;  // NOLINT(cppcoreguidelines-prefer-member-initializer)
