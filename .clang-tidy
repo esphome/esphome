@@ -70,7 +70,7 @@ Checks: >-
   -modernize-use-default-member-init,
   -modernize-use-equals-default,
   -modernize-use-trailing-return-type,
-  -modernize-use-make-unique,
+  -modernize-make-unique,
   -modernize-use-nodiscard,
   -mpi-*,
   -objc-*,
