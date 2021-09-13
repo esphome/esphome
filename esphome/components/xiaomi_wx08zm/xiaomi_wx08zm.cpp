@@ -51,11 +51,7 @@ bool XiaomiWX08ZM::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
     success = true;
   }
 
-  if (!success) {
-    return false;
-  }
-
-  return true;
+  return success;
 }
 
 }  // namespace xiaomi_wx08zm

@@ -88,8 +88,8 @@ void MQTTClientComponent::start_dnslookup_() {
   this->dns_resolved_ = false;
   ip_addr_t addr;
 #ifdef ARDUINO_ARCH_ESP32
-  err_t err = dns_gethostbyname_addrtype(this->credentials_.address.c_str(), &addr, this->dns_found_callback, this,
-                                         LWIP_DNS_ADDRTYPE_IPV4);
+  err_t err = dns_gethostbyname_addrtype(this->credentials_.address.c_str(), &addr,
+                                         MQTTClientComponent::dns_found_callback, this, LWIP_DNS_ADDRTYPE_IPV4);
 #endif
 #ifdef ARDUINO_ARCH_ESP8266
   err_t err = dns_gethostbyname(this->credentials_.address.c_str(), &addr,

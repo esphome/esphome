@@ -14,7 +14,6 @@ struct ParseResult {
   optional<float> humidity;
   optional<float> battery_level;
   optional<float> battery_voltage;
-  bool is_duplicate;
   int raw_offset;
 };
 

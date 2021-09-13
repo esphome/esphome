@@ -141,7 +141,7 @@ void ICACHE_RAM_ATTR HOT AcDimmerDataStore::s_gpio_intr(AcDimmerDataStore *store
 #ifdef ARDUINO_ARCH_ESP32
 // ESP32 implementation, uses basically the same code but needs to wrap
 // timer_interrupt() function to auto-reschedule
-static hw_timer_t *dimmer_timer = nullptr;
+static hw_timer_t *dimmer_timer = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 void ICACHE_RAM_ATTR HOT AcDimmerDataStore::s_timer_intr() { timer_interrupt(); }
 #endif
 
