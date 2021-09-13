@@ -4,6 +4,7 @@
 #include <deque>
 
 #include "esphome/core/defines.h"
+#include "esphome/core/log.h"
 
 #ifdef USE_API_NOISE
 #include "noise/protocol.h"
@@ -52,6 +53,8 @@ enum class APIError : int {
   HANDSHAKESTATE_SETUP_FAILED = 1019,
   HANDSHAKESTATE_SPLIT_FAILED = 1020,
 };
+
+const LogString *api_error_to_str(APIError err);
 
 class APIFrameHelper {
  public:
@@ -150,7 +153,6 @@ class APIPlaintextFrameHelper : public APIFrameHelper {
 
   APIError try_read_frame_(ParsedFrame *frame);
   APIError try_send_tx_buf_();
-  APIError write_frame_(const uint8_t *data, size_t len);
   APIError write_raw_(const uint8_t *data, size_t len);
 
   std::unique_ptr<socket::Socket> socket_;
