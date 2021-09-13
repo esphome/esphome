@@ -29,7 +29,7 @@ jobs:
         python-version: '3.9'
     - name: Set TAG
       run: |
-        echo "TAG=1.1" >> $GITHUB_ENV
+        echo "TAG=1.2" >> $GITHUB_ENV
 
     - name: Run build
       run: |
@@ -74,7 +74,7 @@ jobs:
         python-version: '3.9'
     - name: Set TAG
       run: |
-        echo "TAG=1.1" >> $GITHUB_ENV
+        echo "TAG=1.2" >> $GITHUB_ENV
     - name: Enable experimental manifest support
       run: |
         mkdir -p ~/.docker

@@ -33,7 +33,7 @@ jobs:
 
     # cpp lint job runs with esphome-lint docker image so that clang-format-*
     # doesn't have to be installed
-    container: ghcr.io/esphome/esphome-lint:1.1
+    container: ghcr.io/esphome/esphome-lint:1.2
     steps:
       - uses: actions/checkout@v2
 
