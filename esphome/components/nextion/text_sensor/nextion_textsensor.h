@@ -8,7 +8,10 @@ namespace esphome {
 namespace nextion {
 class NextionTextSensor;
 
-class NextionTextSensor : public NextionComponent, public text_sensor::TextSensor, public PollingComponent, public std::enable_shared_from_this<NextionTextSensor> {
+class NextionTextSensor : public NextionComponent,
+                          public text_sensor::TextSensor,
+                          public PollingComponent,
+                          public std::enable_shared_from_this<NextionTextSensor> {
  public:
   NextionTextSensor(NextionBase *nextion) { this->nextion_ = nextion; }
   void update() override;

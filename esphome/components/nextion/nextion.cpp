@@ -1007,7 +1007,8 @@ void Nextion::add_no_result_to_queue_with_set_internal_(const std::string &varia
  * @param state_value String value to set
  * @param is_sleep_safe The command is safe to send when the Nextion is sleeping
  */
-void Nextion::add_no_result_to_queue_with_set(std::shared_ptr<NextionComponentBase> component, const std::string &state_value) {
+void Nextion::add_no_result_to_queue_with_set(std::shared_ptr<NextionComponentBase> component,
+                                              const std::string &state_value) {
   this->add_no_result_to_queue_with_set(component->get_variable_name(), component->get_variable_name_to_send(),
                                         state_value);
 }

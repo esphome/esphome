@@ -711,7 +711,8 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   void add_no_result_to_queue_with_set(const std::string &variable_name, const std::string &variable_name_to_send,
                                        int state_value) override;
 
-  void add_no_result_to_queue_with_set(std::shared_ptr<NextionComponentBase> component, const std::string &state_value) override;
+  void add_no_result_to_queue_with_set(std::shared_ptr<NextionComponentBase> component,
+                                       const std::string &state_value) override;
   void add_no_result_to_queue_with_set(const std::string &variable_name, const std::string &variable_name_to_send,
                                        const std::string &state_value) override;
 

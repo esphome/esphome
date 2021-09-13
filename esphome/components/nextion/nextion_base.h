@@ -28,7 +28,8 @@ class NextionBase {
   virtual void add_no_result_to_queue_with_set(const std::string &variable_name,
                                                const std::string &variable_name_to_send, int state_value) = 0;
 
-  virtual void add_no_result_to_queue_with_set(std::shared_ptr<NextionComponentBase> component, const std::string &state_value) = 0;
+  virtual void add_no_result_to_queue_with_set(std::shared_ptr<NextionComponentBase> component,
+                                               const std::string &state_value) = 0;
   virtual void add_no_result_to_queue_with_set(const std::string &variable_name,
                                                const std::string &variable_name_to_send,
                                                const std::string &state_value) = 0;
