@@ -85,13 +85,16 @@ class Sprinkler : public Component {
   void shutdown();
 
   /// returns a pointer to a valve's name string object; returns nullptr if valve_number is invalid
-  const char *valve_name_(uint8_t valve_number);
+  const char *valve_name(uint8_t valve_number);
 
   /// returns the number of the valve that is currently active or 'none_active' if no valve is active
   int8_t active_valve();
 
   /// returns true if valve number is valid
   bool is_a_valid_valve(int8_t valve_number);
+
+  /// returns the number of valves the controller is configured with
+  size_t number_of_valves();
 
   /// returns the amount of time remaining in seconds for the active valve
   uint32_t time_remaining();
