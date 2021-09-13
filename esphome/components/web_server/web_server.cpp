@@ -25,7 +25,8 @@ namespace web_server {
 
 static const char *const TAG = "web_server";
 
-void write_row(AsyncResponseStream *stream, Nameable *obj, const std::string &klass, const std::string &action) {
+void write_row(AsyncResponseStream *stream, Nameable *obj, const std::string &klass, const std::string &action,
+               const std::function<void(AsyncResponseStream &stream, Nameable *obj)> &action_func = nullptr) {
   if (obj->is_internal())
     return;
   stream->print("<tr class=\"");
@@ -38,6 +39,9 @@ void write_row(AsyncResponseStream *stream, Nameable *obj, const std::string &kl
   stream->print(obj->get_name().c_str());
   stream->print("</td><td></td><td>");
   stream->print(action.c_str());
+  if (action_func) {
+    action_func(*stream, obj);
+  }
   stream->print("</td>");
   stream->print("</tr>");
 }
@@ -219,7 +223,17 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
 
 #ifdef USE_SELECT
   for (auto *obj : App.get_selects())
-    write_row(stream, obj, "select", "");
+    write_row(stream, obj, "select", "", [](AsyncResponseStream &stream, Nameable *obj) {
+      select::Select *select = (select::Select *) obj;
+      stream.print("<select>");
+      stream.print("<option></option>");
+      for (auto const &option : select->traits.get_options()) {
+        stream.print("<option>");
+        stream.print(option.c_str());
+        stream.print("</option>");
+      }
+      stream.print("</select>");
+    });
 #endif
 
   stream->print(F("</tbody></table><p>See <a href=\"https://esphome.io/web-api/index.html\">ESPHome Web API</a> for "
@@ -648,8 +662,27 @@ void WebServer::handle_select_request(AsyncWebServerRequest *request, const UrlM
       continue;
     if (obj->get_object_id() != match.id)
       continue;
-    std::string data = this->select_json(obj, obj->state);
-    request->send(200, "text/json", data.c_str());
+
+    if (request->method() == HTTP_GET) {
+      std::string data = this->select_json(obj, obj->state);
+      request->send(200, "text/json", data.c_str());
+      return;
+    }
+
+    if (match.method != "set") {
+      request->send(404);
+      return;
+    }
+
+    auto call = obj->make_call();
+
+    if (request->hasParam("option")) {
+      String option = request->getParam("option")->value();
+      call.set_option(option.c_str());  // NOLINT(clang-diagnostic-deprecated-declarations)
+    }
+
+    this->defer([call]() mutable { call.perform(); });
+    request->send(200);
     return;
   }
   request->send(404);
@@ -721,7 +754,7 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) {
 #endif
 
 #ifdef USE_SELECT
-  if (request->method() == HTTP_GET && match.domain == "select")
+  if ((request->method() == HTTP_POST || request->method() == HTTP_GET) && match.domain == "select")
     return true;
 #endif
 
