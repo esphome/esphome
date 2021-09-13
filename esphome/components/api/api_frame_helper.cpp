@@ -17,6 +17,54 @@ bool is_would_block(ssize_t ret) {
   return ret == 0;
 }
 
+const char *api_error_to_str(APIError err) {
+  // not using switch to ensure compiler doesn't try to build a big table out of it
+  if (err == APIError::OK) {
+    return "OK";
+  } else if (err == APIError::WOULD_BLOCK) {
+    return "WOULD_BLOCK";
+  } else if (err == APIError::BAD_HANDSHAKE_PACKET_LEN) {
+    return "BAD_HANDSHAKE_PACKET_LEN";
+  } else if (err == APIError::BAD_INDICATOR) {
+    return "BAD_INDICATOR";
+  } else if (err == APIError::BAD_DATA_PACKET) {
+    return "BAD_DATA_PACKET";
+  } else if (err == APIError::TCP_NODELAY_FAILED) {
+    return "TCP_NODELAY_FAILED";
+  } else if (err == APIError::TCP_NONBLOCKING_FAILED) {
+    return "TCP_NONBLOCKING_FAILED";
+  } else if (err == APIError::CLOSE_FAILED) {
+    return "CLOSE_FAILED";
+  } else if (err == APIError::SHUTDOWN_FAILED) {
+    return "SHUTDOWN_FAILED";
+  } else if (err == APIError::BAD_STATE) {
+    return "BAD_STATE";
+  } else if (err == APIError::BAD_ARG) {
+    return "BAD_ARG";
+  } else if (err == APIError::SOCKET_READ_FAILED) {
+    return "SOCKET_READ_FAILED";
+  } else if (err == APIError::SOCKET_WRITE_FAILED) {
+    return "SOCKET_WRITE_FAILED";
+  } else if (err == APIError::HANDSHAKESTATE_READ_FAILED) {
+    return "HANDSHAKESTATE_READ_FAILED";
+  } else if (err == APIError::HANDSHAKESTATE_WRITE_FAILED) {
+    return "HANDSHAKESTATE_WRITE_FAILED";
+  } else if (err == APIError::HANDSHAKESTATE_BAD_STATE) {
+    return "HANDSHAKESTATE_BAD_STATE";
+  } else if (err == APIError::CIPHERSTATE_DECRYPT_FAILED) {
+    return "CIPHERSTATE_DECRYPT_FAILED";
+  } else if (err == APIError::CIPHERSTATE_ENCRYPT_FAILED) {
+    return "CIPHERSTATE_ENCRYPT_FAILED";
+  } else if (err == APIError::OUT_OF_MEMORY) {
+    return "OUT_OF_MEMORY";
+  } else if (err == APIError::HANDSHAKESTATE_SETUP_FAILED) {
+    return "HANDSHAKESTATE_SETUP_FAILED";
+  } else if (err == APIError::HANDSHAKESTATE_SPLIT_FAILED) {
+    return "HANDSHAKESTATE_SPLIT_FAILED";
+  }
+  return "UNKNOWN";
+}
+
 #define HELPER_LOG(msg, ...) ESP_LOGVV(TAG, "%s: " msg, info_.c_str(), ##__VA_ARGS__)
 
 #ifdef USE_API_NOISE
@@ -808,14 +856,12 @@ APIError APIPlaintextFrameHelper::try_send_tx_buf_() {
   // try send from tx_buf
   while (state_ != State::CLOSED && !tx_buf_.empty()) {
     ssize_t sent = socket_->write(tx_buf_.data(), tx_buf_.size());
-    if (sent == -1) {
-      if (errno == EWOULDBLOCK || errno == EAGAIN)
-        break;
+    if (is_would_block(sent)) {
+      break;
+    } else if (sent == -1) {
       state_ = State::FAILED;
       HELPER_LOG("Socket write failed with errno %d", errno);
       return APIError::SOCKET_WRITE_FAILED;
-    } else if (sent == 0) {
-      break;
     }
     // TODO: inefficient if multiple packets in txbuf
     // replace with deque of buffers
@@ -868,20 +914,6 @@ APIError APIPlaintextFrameHelper::write_raw_(const uint8_t *data, size_t len) {
   }
   // fully sent
   return APIError::OK;
-}
-APIError APIPlaintextFrameHelper::write_frame_(const uint8_t *data, size_t len) {
-  APIError aerr;
-
-  uint8_t header[3];
-  header[0] = 0x01;  // indicator
-  header[1] = (uint8_t)(len >> 8);
-  header[2] = (uint8_t) len;
-
-  aerr = write_raw_(header, 3);
-  if (aerr != APIError::OK)
-    return aerr;
-  aerr = write_raw_(data, len);
-  return aerr;
 }
 
 APIError APIPlaintextFrameHelper::close() {

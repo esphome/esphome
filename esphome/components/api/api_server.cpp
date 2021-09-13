@@ -104,7 +104,7 @@ void APIServer::loop() {
       std::partition(this->clients_.begin(), this->clients_.end(), [](APIConnection *conn) { return !conn->remove_; });
   // print disconnection messages
   for (auto it = new_end; it != this->clients_.end(); ++it) {
-    ESP_LOGD(TAG, "Disconnecting %s", (*it)->client_info_.c_str());
+    ESP_LOGV(TAG, "Removing connection to %s", (*it)->client_info_.c_str());
   }
   // only then delete the pointers, otherwise log routine
   // would access freed memory
