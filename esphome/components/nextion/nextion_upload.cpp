@@ -39,7 +39,7 @@ int Nextion::upload_by_chunks_(HTTPClient *http, int range_start) {
 
   int tries = 1;
   int code = 0;
-  bool begin_status;
+  bool begin_status = false;
   while (tries <= 5) {
 #ifdef ARDUINO_ARCH_ESP32
     begin_status = http->begin(this->tft_url_.c_str());
