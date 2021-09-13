@@ -6,8 +6,11 @@
 #include <memory>
 #include <type_traits>
 
+#ifdef ARDUINO_ARCH_ESP32
+#include "esp32-hal-psram.h"
+#endif
+
 #include "esphome/core/optional.h"
-#include "esphome/core/esphal.h"
 
 #define HOT __attribute__((hot))
 #define ESPDEPRECATED(msg, when) __attribute__((deprecated(msg)))
@@ -101,6 +104,8 @@ double random_double();
 
 /// Returns a random float between 0 and 1. Essentially just casts random_double() to a float.
 float random_float();
+
+void fill_random(uint8_t *data, size_t len);
 
 void fast_random_set_seed(uint32_t seed);
 uint32_t fast_random_32();
@@ -326,7 +331,7 @@ template<typename T> T *new_buffer(size_t length) {
     buffer = new T[length];
   }
 #else
-  buffer = new T[length];
+  buffer = new T[length];  // NOLINT
 #endif
 
   return buffer;

@@ -4,11 +4,17 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/application.h"
 #include "esphome/core/defines.h"
-#
+
+#ifdef USE_LOGGER
+#include "esphome/components/logger/logger.h"
+#endif
+
 namespace esphome {
 namespace uart {
 
 static const char *const TAG = "uart_esp8266";
+bool UARTComponent::serial0InUse = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
 uint32_t UARTComponent::get_config() {
   uint32_t config = 0;
 
@@ -49,21 +55,37 @@ void UARTComponent::setup() {
   // is 1 we still want to use Serial.
   SerialConfig config = static_cast<SerialConfig>(get_config());
 
-  if (this->tx_pin_.value_or(1) == 1 && this->rx_pin_.value_or(3) == 3) {
+  if (!UARTComponent::serial0InUse && this->tx_pin_.value_or(1) == 1 &&
+      this->rx_pin_.value_or(3) == 3
+#ifdef USE_LOGGER
+      // we will use UART0 if logger isn't using it in swapped mode
+      && (logger::global_logger->get_hw_serial() == nullptr ||
+          logger::global_logger->get_uart() != logger::UART_SELECTION_UART0_SWAP)
+#endif
+  ) {
     this->hw_serial_ = &Serial;
     this->hw_serial_->begin(this->baud_rate_, config);
     this->hw_serial_->setRxBufferSize(this->rx_buffer_size_);
-  } else if (this->tx_pin_.value_or(15) == 15 && this->rx_pin_.value_or(13) == 13) {
+    UARTComponent::serial0InUse = true;
+  } else if (!UARTComponent::serial0InUse && this->tx_pin_.value_or(15) == 15 &&
+             this->rx_pin_.value_or(13) == 13
+#ifdef USE_LOGGER
+             // we will use UART0 swapped if logger isn't using it in regular mode
+             && (logger::global_logger->get_hw_serial() == nullptr ||
+                 logger::global_logger->get_uart() != logger::UART_SELECTION_UART0)
+#endif
+  ) {
     this->hw_serial_ = &Serial;
     this->hw_serial_->begin(this->baud_rate_, config);
     this->hw_serial_->setRxBufferSize(this->rx_buffer_size_);
     this->hw_serial_->swap();
+    UARTComponent::serial0InUse = true;
   } else if (this->tx_pin_.value_or(2) == 2 && this->rx_pin_.value_or(8) == 8) {
     this->hw_serial_ = &Serial1;
     this->hw_serial_->begin(this->baud_rate_, config);
     this->hw_serial_->setRxBufferSize(this->rx_buffer_size_);
   } else {
-    this->sw_serial_ = new ESP8266SoftwareSerial();
+    this->sw_serial_ = new ESP8266SoftwareSerial();  // NOLINT
     int8_t tx = this->tx_pin_.has_value() ? *this->tx_pin_ : -1;
     int8_t rx = this->rx_pin_.has_value() ? *this->rx_pin_ : -1;
     this->sw_serial_->setup(tx, rx, this->baud_rate_, this->stop_bits_, this->data_bits_, this->parity_,
@@ -82,7 +104,7 @@ void UARTComponent::dump_config() {
   }
   ESP_LOGCONFIG(TAG, "  Baud Rate: %u baud", this->baud_rate_);
   ESP_LOGCONFIG(TAG, "  Data Bits: %u", this->data_bits_);
-  ESP_LOGCONFIG(TAG, "  Parity: %s", parity_to_str(this->parity_));
+  ESP_LOGCONFIG(TAG, "  Parity: %s", LOG_STR_ARG(parity_to_str(this->parity_)));
   ESP_LOGCONFIG(TAG, "  Stop bits: %u", this->stop_bits_);
   if (this->hw_serial_ != nullptr) {
     ESP_LOGCONFIG(TAG, "  Using hardware serial interface.");
@@ -205,7 +227,7 @@ void ESP8266SoftwareSerial::setup(int8_t tx_pin, int8_t rx_pin, uint32_t baud_ra
     pin.setup();
     this->gpio_rx_pin_ = &pin;
     this->rx_pin_ = pin.to_isr();
-    this->rx_buffer_ = new uint8_t[this->rx_buffer_size_];
+    this->rx_buffer_ = new uint8_t[this->rx_buffer_size_];  // NOLINT
     pin.attach_interrupt(ESP8266SoftwareSerial::gpio_intr, this, FALLING);
   }
 }

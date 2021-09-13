@@ -7,6 +7,7 @@ from esphome.const import (
     CONF_DEFAULT_TRANSITION_LENGTH,
     CONF_DISABLED_BY_DEFAULT,
     CONF_EFFECTS,
+    CONF_FLASH_TRANSITION_LENGTH,
     CONF_GAMMA_CORRECT,
     CONF_ID,
     CONF_INTERNAL,
@@ -85,6 +86,9 @@ BRIGHTNESS_ONLY_LIGHT_SCHEMA = LIGHT_SCHEMA.extend(
         cv.Optional(
             CONF_DEFAULT_TRANSITION_LENGTH, default="1s"
         ): cv.positive_time_period_milliseconds,
+        cv.Optional(
+            CONF_FLASH_TRANSITION_LENGTH, default="0s"
+        ): cv.positive_time_period_milliseconds,
         cv.Optional(CONF_EFFECTS): validate_effects(MONOCHROMATIC_EFFECTS),
     }
 )
@@ -131,6 +135,10 @@ async def setup_light_core_(light_var, output_var, config):
             light_var.set_default_transition_length(
                 config[CONF_DEFAULT_TRANSITION_LENGTH]
             )
+        )
+    if CONF_FLASH_TRANSITION_LENGTH in config:
+        cg.add(
+            light_var.set_flash_transition_length(config[CONF_FLASH_TRANSITION_LENGTH])
         )
     if CONF_GAMMA_CORRECT in config:
         cg.add(light_var.set_gamma_correct(config[CONF_GAMMA_CORRECT]))

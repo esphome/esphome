@@ -8,6 +8,7 @@ from esphome.const import (
     CONF_ID,
     CONF_TEMPERATURE,
     DEVICE_CLASS_TEMPERATURE,
+    DEVICE_CLASS_CARBON_DIOXIDE,
     ICON_MOLECULE_CO2,
     STATE_CLASS_MEASUREMENT,
     UNIT_PARTS_PER_MILLION,
@@ -34,6 +35,7 @@ CONFIG_SCHEMA = (
                 unit_of_measurement=UNIT_PARTS_PER_MILLION,
                 icon=ICON_MOLECULE_CO2,
                 accuracy_decimals=0,
+                device_class=DEVICE_CLASS_CARBON_DIOXIDE,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(

@@ -1,4 +1,6 @@
 #include "am43_base.h"
+#include <cstring>
+#include <cstdio>
 
 namespace esphome {
 namespace am43 {
