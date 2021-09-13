@@ -1,5 +1,6 @@
 #pragma once
 #include <utility>
+#include <memory>
 #include "esphome/core/defines.h"
 
 namespace esphome {
@@ -22,7 +23,7 @@ class NextionComponentBase;
 class NextionQueue {
  public:
   virtual ~NextionQueue() = default;
-  NextionComponentBase *component;
+  std::shared_ptr<NextionComponentBase> component;
   uint32_t queue_time = 0;
 };
 

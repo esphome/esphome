@@ -1,5 +1,7 @@
 #pragma once
 
+#include <memory>
+
 #include "esphome/core/component.h"
 #include "mqtt_client.h"
 
@@ -171,7 +173,7 @@ class MQTTComponent : public Component {
   std::string custom_command_topic_{};
   bool retain_{true};
   bool discovery_enabled_{true};
-  Availability *availability_{nullptr};
+  std::unique_ptr<Availability> availability_;
   bool resend_state_{false};
 };
 
