@@ -25,15 +25,10 @@ int Nextion::upload_by_chunks_(HTTPClient *http, int range_start) {
   if (range_end > this->tft_size_)
     range_end = this->tft_size_;
 
-  bool begin_status = false;
-#ifdef ARDUINO_ARCH_ESP32
-  begin_status = http->begin(this->tft_url_.c_str());
-#endif
 #ifdef ARDUINO_ARCH_ESP8266
 #ifndef CLANG_TIDY
   http->setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
   http->setRedirectLimit(3);
-  begin_status = http->begin(*this->get_wifi_client_(), this->tft_url_.c_str());
 #endif
 #endif
 
@@ -44,6 +39,7 @@ int Nextion::upload_by_chunks_(HTTPClient *http, int range_start) {
 
   int tries = 1;
   int code = 0;
+  bool begin_status;
   while (tries <= 5) {
 #ifdef ARDUINO_ARCH_ESP32
     begin_status = http->begin(this->tft_url_.c_str());
@@ -156,7 +152,7 @@ void Nextion::upload_tft() {
     ESP_LOGD(TAG, "connection failed");
 #ifdef ARDUINO_ARCH_ESP32
     if (psramFound())
-      free(this->transfer_buffer_);
+      free(this->transfer_buffer_);  // NOLINT
     else
 #endif
       delete this->transfer_buffer_;
