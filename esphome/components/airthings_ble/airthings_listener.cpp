@@ -6,7 +6,7 @@
 namespace esphome {
 namespace airthings_ble {
 
-static const char *TAG = "airthings_ble";
+static const char *const TAG = "airthings_ble";
 
 bool AirthingsListener::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
   for (auto &it : device.get_manufacturer_datas()) {
