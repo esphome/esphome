@@ -24,18 +24,18 @@ class NextionBase;
 
 class NextionBase {
  public:
-  virtual void add_no_result_to_queue_with_set(NextionComponentBase *component, int state_value) = 0;
+  virtual void add_no_result_to_queue_with_set(std::shared_ptr<NextionComponentBase> component, int state_value) = 0;
   virtual void add_no_result_to_queue_with_set(const std::string &variable_name,
                                                const std::string &variable_name_to_send, int state_value) = 0;
 
-  virtual void add_no_result_to_queue_with_set(NextionComponentBase *component, const std::string &state_value) = 0;
+  virtual void add_no_result_to_queue_with_set(std::shared_ptr<NextionComponentBase> component, const std::string &state_value) = 0;
   virtual void add_no_result_to_queue_with_set(const std::string &variable_name,
                                                const std::string &variable_name_to_send,
                                                const std::string &state_value) = 0;
 
-  virtual void add_addt_command_to_queue(NextionComponentBase *component) = 0;
+  virtual void add_addt_command_to_queue(std::shared_ptr<NextionComponentBase> component) = 0;
 
-  virtual void add_to_get_queue(NextionComponentBase *component) = 0;
+  virtual void add_to_get_queue(std::shared_ptr<NextionComponentBase> component) = 0;
 
   virtual void set_component_background_color(const char *component, Color color) = 0;
   virtual void set_component_pressed_background_color(const char *component, Color color) = 0;
