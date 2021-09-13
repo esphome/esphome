@@ -329,19 +329,60 @@ template<typename T> class Parented {
 
 uint32_t fnv1_hash(const std::string &str);
 
-template<typename T> T *new_buffer(size_t length) {
-  T *buffer;
-#ifdef ARDUINO_ARCH_ESP32
-  if (psramFound()) {
-    buffer = (T *) ps_malloc(length);
-  } else {
-    buffer = new T[length];
-  }
-#else
-  buffer = new T[length];  // NOLINT
-#endif
+template<typename T>
+class ExternalBuffer {
+ public:
+  ExternalBuffer() : data_{nullptr} {}
+  ExternalBuffer(nullptr_t) : data_{nullptr} {}
+  ExternalBuffer(size_t size, bool allow_failure) { this->allocate_(size, allow_failure); }
+  ExternalBuffer(ExternalBuffer<T> const&) noexcept = delete;
+  ExternalBuffer& operator=(ExternalBuffer<T> const&) noexcept = delete;
+  ExternalBuffer(ExternalBuffer<T>&& from) noexcept { swap(from, *this); }
+  ExternalBuffer& operator=(ExternalBuffer<T>&& from) noexcept { swap(from, *this); return *this; }
+  ~ExternalBuffer() noexcept { this->deallocate_(); }
 
-  return buffer;
-}
+  T& operator*() { return *this->data_; }
+  T& operator[](size_t idx) { return this->data_[idx]; }
+  T* operator->() { return this->data_; }
+
+  bool operator==(nullptr_t const &rhs) { return this->data_ == nullptr; }
+
+  T* get() { return this->data_; }
+
+  friend void swap(ExternalBuffer<T>& first, ExternalBuffer<T>& second) {
+    swap(first.data_, second.data_);
+  }
+
+ protected:
+  void allocate_(size_t size, bool allow_failure) {
+#ifdef ARDUINO_ARCH_ESP32
+    if (psramFound()) {
+      this->data_ = (T*) ps_malloc(sizeof(T) * size);
+      if (this->data_ == nullptr && !allow_failure)
+        abort();
+      return;
+    }
+#endif
+    if (allow_failure)
+      this->data_ = new (std::nothrow) T[size];
+    else
+      this->data_ = new T[size];
+  }
+
+  void deallocate_() {
+#ifdef ARDUINO_ARCH_ESP32
+    if (psramFound()) {
+      free (this->data_);
+      this->data_ = nullptr;
+      return;
+    }
+#endif
+    delete[] this->data_;
+    this->data_ = nullptr;
+  }
+
+ protected:
+  T* data_{nullptr};
+};
 
 }  // namespace esphome
