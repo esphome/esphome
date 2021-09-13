@@ -11,8 +11,66 @@ Custom command can be sent to the device using lambdas.
 
 Tested using an EPEVER Tracer2210AN MPPT controller,Heidelberg Wallbox and PZEM-017
 
+## Note: Sep.13
+
+Added support for modbus number and output data types
+
+Output receives a value between 0 and 1.0 from the frontend or other sensors.
+This value can be scaled to the desired range using multiply.
+For more complex conversions lambda can be used (multiply is ignored then).
+The new value is passed to the lambda  as `float x` and an empty vector is passed in as `std::vector<uint16_t>&payload`
+You can define the payload by adding data to payload then the return value is ignored and the content of payload is used.
+
+### Output
+````yaml
+output:
+    - platform: modbus_controller
+        modbus_controller_id: epever
+        id: battery_capacity_output
+        lambda: !lambda |-
+          ESP_LOGD("main","Modbus Output incoming value = %f",x);
+          uint16_t b_capacity = x ;
+          payload.push_back(b_capacity);
+          // return value ignored because the payload has been set
+          return x * 1.0 ;
+        # ignored
+        multiply: 1.0
+        address: 0x9001
+        value_type: U_WORD
+````
+
+### Number
+````yaml
+sensor:
+  - platform: modbus_controller
+    modbus_controller_id: epever
+    id: battery_capacity
+    address: 0x9001
+    name: "Battery Capacity"
+    modbus_functioncode: read_holding_registers
+    value_type: U_WORD
+
+number:
+  - platform: modbus_controller
+    modbus_controller_id: epever
+    modbus_sensor_id: epever
+    id: battery_capacity_number
+    name: "Battery Cap Number"
+    lambda: !lambda |-
+      ESP_LOGD("main lambda","Modbus Number incoming value = %f",x);
+      uint16_t b_capacity = x ;
+      // add the payload directly
+      payload.push_back(b_capacity);
+      // ignored because payload is set
+      return x * 1.0 ;
+    # ignored because lambda is defined
+    multiply: 100.0
+
+````
+
+
 ## Note - breaking change ##
-With the [commit from Sept.12](https://github.com/martgras/esphome/commit/b099b3e3bbf6261e2b6bae1e3f08c8693006d3bf) modbus_controller no longer supports defining sensors, binary_sensors etc.. directly below the modbus_controller component. Instead the esphome default way of defining items is used. 
+With the [commit from Sept.12](https://github.com/martgras/esphome/commit/b099b3e3bbf6261e2b6bae1e3f08c8693006d3bf) modbus_controller no longer supports defining sensors, binary_sensors etc.. directly below the modbus_controller component. Instead the esphome default way of defining items is used.
 
 ````yaml
 modbus_controller:
@@ -97,9 +155,9 @@ The pins used on the ESP32 side can be changed there is no special reason I chos
 
 ## Software setup
 
-There are several options to use this component. 
+There are several options to use this component.
 
-#### Clone my repository 
+#### Clone my repository
 
 ```
 # Clone repo
@@ -261,7 +319,7 @@ The following function codes are implemented
    - offset: offset from start address in bytes. If more than one register is read a modbus read registers command this value is used to find the start of this datapoint relative to start address.
    - response_size: response number of bytes of the response
    - raw_encode: (NONE, HEXBYTES, COMMA)     If the response is binary data it can't be published. Since a text sensor only publishes strings the binary data can encoded
-     - HEXBYTES :  2 byte hex string. 0x2011 will be sent as "2011". 
+     - HEXBYTES :  2 byte hex string. 0x2011 will be sent as "2011".
      - COMMA  : Byte values as integers, delimited by a coma. 0x2011 will be sent as "32,17"
      This allows you to process the data in a on_value lambda. See the example below how to convert the binary time data to a string and also how to set the time of the controller
    - register_count: The number of registers this data point spans. Default is 1
