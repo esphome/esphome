@@ -6,8 +6,11 @@
 #include <memory>
 #include <type_traits>
 
+#ifdef ARDUINO_ARCH_ESP32
+#include "esp32-hal-psram.h"
+#endif
+
 #include "esphome/core/optional.h"
-#include "esphome/core/esphal.h"
 
 #ifdef CLANG_TIDY
 #undef ICACHE_RAM_ATTR

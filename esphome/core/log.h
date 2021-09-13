@@ -3,17 +3,19 @@
 #include <cassert>
 #include <cstdarg>
 #include <string>
+
 #ifdef USE_STORE_LOG_STR_IN_FLASH
 #include "WString.h"
 #endif
 
-#include "esphome/core/macros.h"
-// avoid esp-idf redefining our macros
-#include "esphome/core/esphal.h"
-
+// Both the ESP-IDF and Arduino also define ESP_LOG* macros. Include them here, so that they won't
+// be reincluded later on and redefine our macros.
 #ifdef ARDUINO_ARCH_ESP32
-#include "esp_err.h"
+#include <esp_log.h>
+#include <esp32-hal-log.h>
 #endif
+
+#include "esphome/core/macros.h"
 
 namespace esphome {
 
