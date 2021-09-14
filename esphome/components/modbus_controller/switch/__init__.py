@@ -4,13 +4,22 @@ import esphome.codegen as cg
 
 
 from esphome.const import CONF_ID, CONF_ADDRESS, CONF_LAMBDA, CONF_OFFSET
-from .. import SensorItem, modbus_controller_ns, ModbusController, MODBUS_FUNCTION_CODE
+from .. import (
+    MODBUS_REGISTER_TYPE,
+    SensorItem,
+    modbus_controller_ns,
+    ModbusController,
+    MODBUS_FUNCTION_CODE,
+    set_register_type,
+    validate_register_type,
+)
 from ..const import (
     CONF_BITMASK,
     CONF_BYTE_OFFSET,
     CONF_FORCE_NEW_RANGE,
     CONF_MODBUS_CONTROLLER_ID,
     CONF_MODBUS_FUNCTIONCODE,
+    CONF_REGISTER_TYPE,
 )
 
 DEPENDENCIES = ["modbus_controller"]
@@ -27,7 +36,8 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(ModbusSwitch),
             cv.GenerateID(CONF_MODBUS_CONTROLLER_ID): cv.use_id(ModbusController),
-            cv.Required(CONF_MODBUS_FUNCTIONCODE): cv.enum(MODBUS_FUNCTION_CODE),
+            cv.Optional(CONF_MODBUS_FUNCTIONCODE): cv.enum(MODBUS_FUNCTION_CODE),
+            cv.Optional(CONF_REGISTER_TYPE): cv.enum(MODBUS_REGISTER_TYPE),
             cv.Required(CONF_ADDRESS): cv.positive_int,
             cv.Optional(CONF_OFFSET, default=0): cv.positive_int,
             cv.Optional(CONF_BYTE_OFFSET): cv.positive_int,
@@ -36,6 +46,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_LAMBDA): cv.returning_lambda,
         }
     ).extend(cv.COMPONENT_SCHEMA),
+    validate_register_type,
 )
 
 
@@ -46,9 +57,10 @@ async def to_code(config):
     # A CONF_BYTE_OFFSET setting overrides CONF_OFFSET
     if CONF_BYTE_OFFSET in config:
         byte_offset = config[CONF_BYTE_OFFSET]
+    reg_type = set_register_type(config)
     var = cg.new_Pvariable(
         config[CONF_ID],
-        config[CONF_MODBUS_FUNCTIONCODE],
+        reg_type,
         config[CONF_ADDRESS],
         byte_offset,
         config[CONF_BITMASK],

@@ -60,10 +60,10 @@ void ModbusNumber::control(float value) {
         parent_, connected_sensor_->start_address + connected_sensor_->offset, connected_sensor_->register_count, data);
 
     // publish new value
-    write_cmd.on_data_func = [this, write_cmd, value](ModbusFunctionCode function_code, uint16_t start_address,
+    write_cmd.on_data_func = [this, write_cmd, value](ModbusRegisterType register_type, uint16_t start_address,
                                                       const std::vector<uint8_t> &data) {
       // gets called when the write command is ack'd from the device
-      parent_->on_write_register_response(write_cmd.function_code, start_address, data);
+      parent_->on_write_register_response(write_cmd.register_type, start_address, data);
       if (connected_sensor_)
         connected_sensor_->publish_state(value);
       this->publish_state(value);

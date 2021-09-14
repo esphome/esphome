@@ -2,7 +2,12 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import modbus
 from esphome.const import CONF_ID, CONF_ADDRESS
-from .const import CONF_COMMAND_THROTTLE
+from esphome.cpp_helpers import logging
+from .const import (
+    CONF_COMMAND_THROTTLE,
+    CONF_MODBUS_FUNCTIONCODE,
+    CONF_REGISTER_TYPE,
+)
 
 CODEOWNERS = ["@martgras"]
 
@@ -31,6 +36,15 @@ MODBUS_FUNCTION_CODE = {
     "write_multiple_registers": ModbusFunctionCode.WRITE_MULTIPLE_REGISTERS,
 }
 
+ModbusRegisterType_ns = modbus_controller_ns.namespace("ModbusRegisterType")
+ModbusRegisterType = ModbusRegisterType_ns.enum("ModbusRegisterType")
+MODBUS_REGISTER_TYPE = {
+    "coil": ModbusRegisterType.COIL,
+    "discrete_input": ModbusRegisterType.DISCRETE,
+    "holding": ModbusRegisterType.HOLDING,
+    "read": ModbusRegisterType.READ,
+}
+
 SensorValueType_ns = modbus_controller_ns.namespace("SensorValueType")
 SensorValueType = SensorValueType_ns.enum("SensorValueType")
 SENSOR_VALUE_TYPE = {
@@ -51,6 +65,8 @@ SENSOR_VALUE_TYPE = {
 
 
 MULTI_CONF = True
+
+_LOGGER = logging.getLogger(__name__)
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
@@ -76,3 +92,59 @@ async def register_modbus_device(var, config):
     cg.add(var.set_address(config[CONF_ADDRESS]))
     await cg.register_component(var, config)
     return await modbus.register_modbus_device(var, config)
+
+
+def function_code_to_register(function_code):
+    FUNCTION_CODE_TYPE_MAP = {
+        "read_coils": ModbusRegisterType.COIL,
+        "read_discrete_inputs": ModbusRegisterType.DISCRETE,
+        "read_holding_registers": ModbusRegisterType.HOLDING,
+        "read_input_registers": ModbusRegisterType.READ,
+        "write_single_coil": ModbusRegisterType.COIL,
+        "write_single_register": ModbusRegisterType.HOLDING,
+        "write_multiple_coils": ModbusRegisterType.COIL,
+        "write_multiple_registers": ModbusRegisterType.HOLDING,
+    }
+    return FUNCTION_CODE_TYPE_MAP[function_code]
+
+
+def find_by_value(dict, find_value):
+    for (key, value) in MODBUS_REGISTER_TYPE.items():
+        print(find_value, value)
+        if find_value == value:
+            return key
+    return "not found"
+
+
+# Helper method to translate function_code to register_type
+# Warn the user if function_code is still in used
+# Can be removed after some time
+def set_register_type(cfg):
+    if CONF_REGISTER_TYPE in cfg:
+        reg_type = cfg[CONF_REGISTER_TYPE]
+    else:
+        reg_type = function_code_to_register(cfg[CONF_MODBUS_FUNCTIONCODE])
+        reg_type_name = str(reg_type)
+        reg_type_name = reg_type_name[reg_type_name.rfind("::") + 2 :].lower()
+        _LOGGER.warning(
+            "%s has been been deprected. Component id=%00s\n        Change '%s: %s' to '%s: %s' ",
+            CONF_MODBUS_FUNCTIONCODE,
+            cfg[CONF_ID],
+            CONF_MODBUS_FUNCTIONCODE,
+            cfg[CONF_MODBUS_FUNCTIONCODE],
+            CONF_REGISTER_TYPE,
+            reg_type_name,
+        )
+    return reg_type
+
+
+def validate_register_type(config):
+    if CONF_MODBUS_FUNCTIONCODE not in config and CONF_REGISTER_TYPE not in config:
+        raise cv.Invalid(
+            "Either "
+            + CONF_REGISTER_TYPE
+            + " or "
+            + CONF_MODBUS_FUNCTIONCODE
+            + " moust be set"
+        )
+    return config

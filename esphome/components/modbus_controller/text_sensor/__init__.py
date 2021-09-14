@@ -9,6 +9,9 @@ from .. import (
     modbus_controller_ns,
     ModbusController,
     MODBUS_FUNCTION_CODE,
+    MODBUS_REGISTER_TYPE,
+    set_register_type,
+    validate_register_type,
 )
 from ..const import (
     CONF_BYTE_OFFSET,
@@ -19,6 +22,7 @@ from ..const import (
     CONF_RESPONSE_SIZE,
     CONF_SKIP_UPDATES,
     CONF_RAW_ENCODE,
+    CONF_REGISTER_TYPE,
 )
 
 DEPENDENCIES = ["modbus_controller"]
@@ -42,7 +46,8 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(ModbusTextSensor),
             cv.GenerateID(CONF_MODBUS_CONTROLLER_ID): cv.use_id(ModbusController),
-            cv.Required(CONF_MODBUS_FUNCTIONCODE): cv.enum(MODBUS_FUNCTION_CODE),
+            cv.Optional(CONF_MODBUS_FUNCTIONCODE): cv.enum(MODBUS_FUNCTION_CODE),
+            cv.Optional(CONF_REGISTER_TYPE): cv.enum(MODBUS_REGISTER_TYPE),
             cv.Required(CONF_ADDRESS): cv.positive_int,
             cv.Optional(CONF_OFFSET, default=0): cv.positive_int,
             cv.Optional(CONF_BYTE_OFFSET): cv.positive_int,
@@ -54,6 +59,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_LAMBDA): cv.returning_lambda,
         }
     ).extend(cv.COMPONENT_SCHEMA),
+    validate_register_type,
 )
 
 
@@ -66,11 +72,12 @@ async def to_code(config):
         byte_offset = config[CONF_BYTE_OFFSET]
     response_size = config[CONF_RESPONSE_SIZE]
     reg_count = config[CONF_REGISTER_COUNT]
+    reg_type = set_register_type(config)
     if reg_count == 0:
         reg_count = response_size / 2
     var = cg.new_Pvariable(
         config[CONF_ID],
-        config[CONF_MODBUS_FUNCTIONCODE],
+        reg_type,
         config[CONF_ADDRESS],
         byte_offset,
         reg_count,

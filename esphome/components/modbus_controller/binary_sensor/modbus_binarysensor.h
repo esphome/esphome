@@ -9,7 +9,7 @@ namespace modbus_controller {
 
 class ModbusBinarySensor : public Component, public binary_sensor::BinarySensor, public SensorItem {
  public:
-  ModbusBinarySensor(ModbusFunctionCode register_type, uint16_t start_address, uint8_t offset, uint32_t bitmask,
+  ModbusBinarySensor(ModbusRegisterType register_type, uint16_t start_address, uint8_t offset, uint32_t bitmask,
                      uint8_t skip_updates, bool force_new_range)
       : Component(), binary_sensor::BinarySensor() {
     this->register_type = register_type;
@@ -20,7 +20,7 @@ class ModbusBinarySensor : public Component, public binary_sensor::BinarySensor,
     this->skip_updates = skip_updates;
     this->force_new_range = force_new_range;
 
-    if (register_type == ModbusFunctionCode::READ_COILS || register_type == ModbusFunctionCode::READ_DISCRETE_INPUTS)
+    if (register_type == ModbusRegisterType::COIL || register_type == ModbusRegisterType::DISCRETE_INPUT)
       this->register_count = offset + 1;
     else
       this->register_count = 1;

@@ -9,7 +9,7 @@ namespace modbus_controller {
 
 class ModbusSwitch : public Component, public switch_::Switch, public SensorItem {
  public:
-  ModbusSwitch(ModbusFunctionCode register_type, uint16_t start_address, uint8_t offset, uint32_t bitmask,
+  ModbusSwitch(ModbusRegisterType register_type, uint16_t start_address, uint8_t offset, uint32_t bitmask,
                bool force_new_range)
       : Component(), switch_::Switch() {
     this->register_type = register_type;
@@ -19,8 +19,7 @@ class ModbusSwitch : public Component, public switch_::Switch, public SensorItem
     this->sensor_value_type = SensorValueType::BIT;
     this->skip_updates = 0;
     this->register_count = 1;
-    if (register_type == ModbusFunctionCode::WRITE_SINGLE_REGISTER ||
-        register_type == ModbusFunctionCode::WRITE_SINGLE_COIL) {
+    if (register_type == ModbusRegisterType::HOLDING || register_type == ModbusRegisterType::COIL) {
       this->start_address += offset;
       this->offset = 0;
     }

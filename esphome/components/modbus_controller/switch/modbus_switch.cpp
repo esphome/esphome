@@ -11,9 +11,8 @@ void ModbusSwitch::dump_config() { LOG_SWITCH(TAG, "Modbus Controller Switch", t
 void ModbusSwitch::parse_and_publish(const std::vector<uint8_t> &data) {
   bool value = false;
   switch (this->register_type) {
-    case ModbusFunctionCode::READ_DISCRETE_INPUTS:
-    case ModbusFunctionCode::READ_COILS:
-    case ModbusFunctionCode::WRITE_SINGLE_COIL:
+    case ModbusRegisterType::DISCRETE_INPUT:
+    case ModbusRegisterType::COIL:
       // offset for coil is the actual number of the coil not the byte offset
       value = coil_from_vector(this->offset, data);
       break;
@@ -47,11 +46,11 @@ void ModbusSwitch::write_state(bool state) {
   ESP_LOGV(TAG, "write_state '%s': new value = %s type = %d address = %X offset = %x", this->get_name().c_str(),
            ONOFF(state), (int) this->register_type, this->start_address, this->offset);
   switch (this->register_type) {
-    case ModbusFunctionCode::READ_COILS:
+    case ModbusRegisterType::COIL:
       // offset for coil and discrete inputs is the coil/register number not bytes
       cmd = ModbusCommandItem::create_write_single_coil(parent_, this->start_address + this->offset, state);
       break;
-    case ModbusFunctionCode::READ_DISCRETE_INPUTS:
+    case ModbusRegisterType::DISCRETE_INPUT:
       cmd = ModbusCommandItem::create_write_single_command(parent_, this->start_address + this->offset, state);
       break;
 
