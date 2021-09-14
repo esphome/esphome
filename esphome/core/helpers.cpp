@@ -13,7 +13,7 @@
 
 namespace esphome {
 
-static const char *TAG = "helpers";
+static const char *const TAG = "helpers";
 
 std::string get_mac_address() {
   char tmp[20];
@@ -55,7 +55,16 @@ double random_double() { return random_uint32() / double(UINT32_MAX); }
 
 float random_float() { return float(random_double()); }
 
-static uint32_t fast_random_seed = 0;
+void fill_random(uint8_t *data, size_t len) {
+#ifdef ARDUINO_ARCH_ESP32
+  esp_fill_random(data, len);
+#else
+  int err = os_get_random(data, len);
+  assert(err == 0);
+#endif
+}
+
+static uint32_t fast_random_seed = 0;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 void fast_random_set_seed(uint32_t seed) { fast_random_seed = seed; }
 uint32_t fast_random_32() {
@@ -79,6 +88,15 @@ float gamma_correct(float value, float gamma) {
 
   return powf(value, gamma);
 }
+float gamma_uncorrect(float value, float gamma) {
+  if (value <= 0.0f)
+    return 0.0f;
+  if (gamma <= 0.0f)
+    return value;
+
+  return powf(value, 1 / gamma);
+}
+
 std::string to_lowercase_underscore(std::string s) {
   std::transform(s.begin(), s.end(), s.begin(), ::tolower);
   std::replace(s.begin(), s.end(), ' ', '_');
@@ -105,7 +123,7 @@ std::string truncate_string(const std::string &s, size_t length) {
 }
 
 std::string value_accuracy_to_string(float value, int8_t accuracy_decimals) {
-  auto multiplier = float(pow10(accuracy_decimals));
+  auto multiplier = float(powf(10.0f, accuracy_decimals));
   float value_rounded = roundf(value * multiplier) / multiplier;
   char tmp[32];  // should be enough, but we should maybe improve this at some point.
   dtostrf(value_rounded, 0, uint8_t(std::max(0, int(accuracy_decimals))), tmp);
@@ -123,21 +141,6 @@ std::string uint32_to_string(uint32_t num) {
   snprintf(buffer, sizeof(buffer), "%04X%04X", address16[1], address16[0]);
   return std::string(buffer);
 }
-static char *global_json_build_buffer = nullptr;
-static size_t global_json_build_buffer_size = 0;
-
-void reserve_global_json_build_buffer(size_t required_size) {
-  if (global_json_build_buffer_size == 0 || global_json_build_buffer_size < required_size) {
-    delete[] global_json_build_buffer;
-    global_json_build_buffer_size = std::max(required_size, global_json_build_buffer_size * 2);
-
-    size_t remainder = global_json_build_buffer_size % 16U;
-    if (remainder != 0)
-      global_json_build_buffer_size += 16 - remainder;
-
-    global_json_build_buffer = new char[global_json_build_buffer_size];
-  }
-}
 
 ParseOnOffState parse_on_off(const char *str, const char *on, const char *off) {
   if (on == nullptr && strcasecmp(str, "on") == 0)
@@ -154,7 +157,7 @@ ParseOnOffState parse_on_off(const char *str, const char *on, const char *off) {
   return PARSE_NONE;
 }
 
-const char *HOSTNAME_CHARACTER_ALLOWLIST = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_";
+const char *const HOSTNAME_CHARACTER_ALLOWLIST = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_";
 
 uint8_t crc8(uint8_t *data, uint8_t len) {
   uint8_t crc = 0;
@@ -201,27 +204,27 @@ std::string to_string(int val) {
   sprintf(buf, "%d", val);
   return buf;
 }
-std::string to_string(long val) {
+std::string to_string(long val) {  // NOLINT
   char buf[64];
   sprintf(buf, "%ld", val);
   return buf;
 }
-std::string to_string(long long val) {
+std::string to_string(long long val) {  // NOLINT
   char buf[64];
   sprintf(buf, "%lld", val);
   return buf;
 }
-std::string to_string(unsigned val) {
+std::string to_string(unsigned val) {  // NOLINT
   char buf[64];
   sprintf(buf, "%u", val);
   return buf;
 }
-std::string to_string(unsigned long val) {
+std::string to_string(unsigned long val) {  // NOLINT
   char buf[64];
   sprintf(buf, "%lu", val);
   return buf;
 }
-std::string to_string(unsigned long long val) {
+std::string to_string(unsigned long long val) {  // NOLINT
   char buf[64];
   sprintf(buf, "%llu", val);
   return buf;
@@ -271,7 +274,7 @@ template<uint32_t> uint32_t reverse_bits(uint32_t x) {
   return uint32_t(reverse_bits_16(x & 0xFFFF) << 16) | uint32_t(reverse_bits_16(x >> 16));
 }
 
-static int high_freq_num_requests = 0;
+static int high_freq_num_requests = 0;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 void HighFrequencyLoopRequester::start() {
   if (this->started_)
@@ -287,13 +290,16 @@ void HighFrequencyLoopRequester::stop() {
 }
 bool HighFrequencyLoopRequester::is_high_frequency() { return high_freq_num_requests > 0; }
 
-float clamp(float val, float min, float max) {
+template<typename T> T clamp(const T val, const T min, const T max) {
   if (val < min)
     return min;
   if (val > max)
     return max;
   return val;
 }
+template float clamp(float, float, float);
+template int clamp(int, int, int);
+
 float lerp(float completion, float start, float end) { return start + (end - start) * completion; }
 
 bool str_startswith(const std::string &full, const std::string &start) { return full.rfind(start, 0) == 0; }

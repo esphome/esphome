@@ -60,6 +60,7 @@ from esphome.cpp_types import (  # noqa
     uint8,
     uint16,
     uint32,
+    uint64,
     int32,
     const_char_ptr,
     NAN,

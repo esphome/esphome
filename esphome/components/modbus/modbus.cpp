@@ -4,7 +4,7 @@
 namespace esphome {
 namespace modbus {
 
-static const char *TAG = "modbus";
+static const char *const TAG = "modbus";
 
 void Modbus::setup() {
   if (this->flow_control_pin_ != nullptr) {

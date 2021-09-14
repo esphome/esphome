@@ -1,10 +1,11 @@
 #include "tm1651.h"
 #include "esphome/core/log.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome {
 namespace tm1651 {
 
-static const char *TAG = "tm1651.display";
+static const char *const TAG = "tm1651.display";
 
 static const uint8_t MAX_INPUT_LEVEL_PERCENT = 100;
 static const uint8_t TM1651_MAX_LEVEL = 7;
@@ -19,7 +20,7 @@ void TM1651Display::setup() {
   uint8_t clk = clk_pin_->get_pin();
   uint8_t dio = dio_pin_->get_pin();
 
-  battery_display_ = new TM1651(clk, dio);
+  battery_display_ = make_unique<TM1651>(clk, dio);
   battery_display_->init();
   battery_display_->clearDisplay();
 }

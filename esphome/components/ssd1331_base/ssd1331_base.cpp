@@ -5,10 +5,8 @@
 namespace esphome {
 namespace ssd1331_base {
 
-static const char *TAG = "ssd1331";
+static const char *const TAG = "ssd1331";
 
-static const uint16_t BLACK = 0;
-static const uint16_t WHITE = 0xffff;
 static const uint16_t SSD1331_COLORMASK = 0xffff;
 static const uint8_t SSD1331_MAX_CONTRASTA = 0x91;
 static const uint8_t SSD1331_MAX_CONTRASTB = 0x50;
@@ -19,7 +17,7 @@ static const uint8_t SSD1331_DRAWLINE = 0x21;        // Draw line
 static const uint8_t SSD1331_DRAWRECT = 0x22;        // Draw rectangle
 static const uint8_t SSD1331_FILL = 0x26;            // Fill enable/disable
 static const uint8_t SSD1331_SETCOLUMN = 0x15;       // Set column address
-static const uint8_t SSD1331_SETROW = 0x75;          // Set row adress
+static const uint8_t SSD1331_SETROW = 0x75;          // Set row address
 static const uint8_t SSD1331_CONTRASTA = 0x81;       // Set contrast for color A
 static const uint8_t SSD1331_CONTRASTB = 0x82;       // Set contrast for color B
 static const uint8_t SSD1331_CONTRASTC = 0x83;       // Set contrast for color C
@@ -78,9 +76,9 @@ void SSD1331::setup() {
   this->command(SSD1331_MASTERCURRENT);  // 0x87
   this->command(0x06);
   set_brightness(this->brightness_);
-  this->fill(BLACK);  // clear display - ensures we do not see garbage at power-on
-  this->display();    // ...write buffer, which actually clears the display's memory
-  this->turn_on();    // display ON
+  this->fill(Color::BLACK);  // clear display - ensures we do not see garbage at power-on
+  this->display();           // ...write buffer, which actually clears the display's memory
+  this->turn_on();           // display ON
 }
 void SSD1331::display() {
   this->command(SSD1331_SETCOLUMN);  // set column address
@@ -97,7 +95,7 @@ void SSD1331::update() {
 }
 void SSD1331::set_brightness(float brightness) {
   // validation
-  this->brightness_ = clamp(brightness, 0, 1);
+  this->brightness_ = clamp(brightness, 0.0F, 1.0F);
   // now write the new brightness level to the display
   this->command(SSD1331_CONTRASTA);  // 0x81
   this->command(int(SSD1331_MAX_CONTRASTA * (this->brightness_)));

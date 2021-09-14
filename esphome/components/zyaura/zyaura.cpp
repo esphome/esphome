@@ -4,9 +4,9 @@
 namespace esphome {
 namespace zyaura {
 
-static const char *TAG = "zyaura";
+static const char *const TAG = "zyaura";
 
-bool ICACHE_RAM_ATTR ZaDataProcessor::decode(unsigned long ms, bool data) {
+bool ICACHE_RAM_ATTR ZaDataProcessor::decode(uint32_t ms, bool data) {
   // check if a new message has started, based on time since previous bit
   if ((ms - this->prev_ms_) > ZA_MAX_MS) {
     this->num_bits_ = 0;

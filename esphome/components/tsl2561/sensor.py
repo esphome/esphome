@@ -6,7 +6,6 @@ from esphome.const import (
     CONF_ID,
     CONF_INTEGRATION_TIME,
     DEVICE_CLASS_ILLUMINANCE,
-    ICON_EMPTY,
     STATE_CLASS_MEASUREMENT,
     UNIT_LUX,
 )
@@ -41,7 +40,10 @@ TSL2561Sensor = tsl2561_ns.class_(
 
 CONFIG_SCHEMA = (
     sensor.sensor_schema(
-        UNIT_LUX, ICON_EMPTY, 1, DEVICE_CLASS_ILLUMINANCE, STATE_CLASS_MEASUREMENT
+        unit_of_measurement=UNIT_LUX,
+        accuracy_decimals=1,
+        device_class=DEVICE_CLASS_ILLUMINANCE,
+        state_class=STATE_CLASS_MEASUREMENT,
     )
     .extend(
         {

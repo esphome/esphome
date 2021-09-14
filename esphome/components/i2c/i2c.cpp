@@ -6,17 +6,18 @@
 namespace esphome {
 namespace i2c {
 
-static const char *TAG = "i2c";
+static const char *const TAG = "i2c";
 
 I2CComponent::I2CComponent() {
 #ifdef ARDUINO_ARCH_ESP32
-  if (next_i2c_bus_num_ == 0)
+  static uint8_t next_i2c_bus_num = 0;
+  if (next_i2c_bus_num == 0)
     this->wire_ = &Wire;
   else
-    this->wire_ = new TwoWire(next_i2c_bus_num_);
-  next_i2c_bus_num_++;
+    this->wire_ = new TwoWire(next_i2c_bus_num);  // NOLINT(cppcoreguidelines-owning-memory)
+  next_i2c_bus_num++;
 #else
-  this->wire_ = &Wire;
+  this->wire_ = &Wire;  // NOLINT(cppcoreguidelines-prefer-member-initializer)
 #endif
 }
 
@@ -272,10 +273,6 @@ bool I2CDevice::write_byte_16(uint8_t a_register, uint16_t data) {  // NOLINT
   return this->parent_->write_byte_16(this->address_, a_register, data);
 }
 void I2CDevice::set_i2c_parent(I2CComponent *parent) { this->parent_ = parent; }
-
-#ifdef ARDUINO_ARCH_ESP32
-uint8_t next_i2c_bus_num_ = 0;
-#endif
 
 I2CRegister &I2CRegister::operator=(uint8_t value) {
   this->parent_->write_byte(this->register_, value);

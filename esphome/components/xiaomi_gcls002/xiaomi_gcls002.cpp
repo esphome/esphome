@@ -6,7 +6,7 @@
 namespace esphome {
 namespace xiaomi_gcls002 {
 
-static const char *TAG = "xiaomi_gcls002";
+static const char *const TAG = "xiaomi_gcls002";
 
 void XiaomiGCLS002::dump_config() {
   ESP_LOGCONFIG(TAG, "Xiaomi GCLS002");
@@ -53,11 +53,7 @@ bool XiaomiGCLS002::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
     success = true;
   }
 
-  if (!success) {
-    return false;
-  }
-
-  return true;
+  return success;
 }
 
 }  // namespace xiaomi_gcls002

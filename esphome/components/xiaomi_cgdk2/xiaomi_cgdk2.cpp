@@ -6,7 +6,7 @@
 namespace esphome {
 namespace xiaomi_cgdk2 {
 
-static const char *TAG = "xiaomi_cgdk2";
+static const char *const TAG = "xiaomi_cgdk2";
 
 void XiaomiCGDK2::dump_config() {
   ESP_LOGCONFIG(TAG, "Xiaomi CGDK2");
@@ -52,11 +52,7 @@ bool XiaomiCGDK2::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
     success = true;
   }
 
-  if (!success) {
-    return false;
-  }
-
-  return true;
+  return success;
 }
 
 void XiaomiCGDK2::set_bindkey(const std::string &bindkey) {
@@ -67,7 +63,7 @@ void XiaomiCGDK2::set_bindkey(const std::string &bindkey) {
   char temp[3] = {0};
   for (int i = 0; i < 16; i++) {
     strncpy(temp, &(bindkey.c_str()[i * 2]), 2);
-    bindkey_[i] = std::strtoul(temp, NULL, 16);
+    bindkey_[i] = std::strtoul(temp, nullptr, 16);
   }
 }
 

@@ -7,7 +7,7 @@
 namespace esphome {
 namespace xpt2046 {
 
-static const char *TAG = "xpt2046";
+static const char *const TAG = "xpt2046";
 
 void XPT2046Component::setup() {
   if (this->irq_pin_ != nullptr) {
@@ -36,7 +36,7 @@ void XPT2046Component::loop() {
 void XPT2046Component::update() {
   int16_t data[6];
   bool touch = false;
-  unsigned long now = millis();
+  uint32_t now = millis();
 
   this->z_raw = 0;
 

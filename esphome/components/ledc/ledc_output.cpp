@@ -8,7 +8,7 @@
 namespace esphome {
 namespace ledc {
 
-static const char *TAG = "ledc.output";
+static const char *const TAG = "ledc.output";
 
 void LEDCOutput::write_state(float state) {
   if (this->pin_->is_inverted())
@@ -63,7 +63,7 @@ void LEDCOutput::update_frequency(float frequency) {
   this->write_state(this->duty_);
 }
 
-uint8_t next_ledc_channel = 0;
+uint8_t next_ledc_channel = 0;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 }  // namespace ledc
 }  // namespace esphome

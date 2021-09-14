@@ -6,7 +6,7 @@
 namespace esphome {
 namespace xiaomi_hhccpot002 {
 
-static const char *TAG = "xiaomi_hhccpot002";
+static const char *const TAG = "xiaomi_hhccpot002";
 
 void XiaomiHHCCPOT002 ::dump_config() {
   ESP_LOGCONFIG(TAG, "Xiaomi HHCCPOT002");
@@ -47,11 +47,7 @@ bool XiaomiHHCCPOT002::parse_device(const esp32_ble_tracker::ESPBTDevice &device
     success = true;
   }
 
-  if (!success) {
-    return false;
-  }
-
-  return true;
+  return success;
 }
 
 }  // namespace xiaomi_hhccpot002

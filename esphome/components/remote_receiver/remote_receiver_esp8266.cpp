@@ -1,4 +1,5 @@
 #include "remote_receiver.h"
+#include "esphome/core/esphal.h"
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
 
@@ -7,7 +8,7 @@
 namespace esphome {
 namespace remote_receiver {
 
-static const char *TAG = "remote_receiver.esp8266";
+static const char *const TAG = "remote_receiver.esp8266";
 
 void ICACHE_RAM_ATTR HOT RemoteReceiverComponentStore::gpio_intr(RemoteReceiverComponentStore *arg) {
   const uint32_t now = micros();
