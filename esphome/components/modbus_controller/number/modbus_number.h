@@ -13,7 +13,7 @@ using value_to_data_t = std::function<float>(float);
 
 class ModbusNumber : public number::Number, public PollingComponent {
  public:
-  ModbusNumber() : PollingComponent(), number::Number(){};
+  ModbusNumber() : number::Number(), PollingComponent(){};
 
   void setup() override;
   void update() override;
