@@ -48,7 +48,7 @@ class EthernetComponent : public Component {
   void set_mdio_pin(uint8_t mdio_pin);
   void set_type(EthernetType type);
   void set_clk_mode(eth_clock_mode_t clk_mode);
-  void set_manual_ip(ManualIP manual_ip);
+  void set_manual_ip(const ManualIP &manual_ip);
 
   IPAddress get_ip_address();
   std::string get_use_address() const;

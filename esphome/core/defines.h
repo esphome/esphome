@@ -11,7 +11,6 @@
 #define ESPHOME_PROJECT_VERSION "v2"
 
 // Feature flags
-#define USE_ADC_SENSOR_VCC
 #define USE_API
 #define USE_BINARY_SENSOR
 #ifdef USE_ARDUINO
@@ -48,7 +47,16 @@
 #define USE_ESP32_CAMERA
 #define USE_ETHERNET
 #define USE_IMPROV
+#define USE_SOCKET_IMPL_BSD_SOCKETS
 #endif
+
+#ifdef ARDUINO_ARCH_ESP8266
+#define USE_ADC_SENSOR_VCC
+#define USE_SOCKET_IMPL_LWIP_TCP
+#endif
+
+#define USE_API_PLAINTEXT
+#define USE_API_NOISE
 
 // Disabled feature flags
 //#define USE_BSEC  // Requires a library with proprietary license.

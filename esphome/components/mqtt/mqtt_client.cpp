@@ -25,7 +25,7 @@ MQTTClientComponent::MQTTClientComponent() {
 // Connection
 void MQTTClientComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up MQTT...");
-  this->mqtt_client_.onMessage([this](char *topic, char *payload, AsyncMqttClientMessageProperties properties,
+  this->mqtt_client_.onMessage([this](char const *topic, char *payload, AsyncMqttClientMessageProperties properties,
                                       size_t len, size_t index, size_t total) {
     if (index == 0)
       this->payload_buffer_.reserve(total);
@@ -88,8 +88,8 @@ void MQTTClientComponent::start_dnslookup_() {
   this->dns_resolved_ = false;
   ip_addr_t addr;
 #ifdef ARDUINO_ARCH_ESP32
-  err_t err = dns_gethostbyname_addrtype(this->credentials_.address.c_str(), &addr, this->dns_found_callback, this,
-                                         LWIP_DNS_ADDRTYPE_IPV4);
+  err_t err = dns_gethostbyname_addrtype(this->credentials_.address.c_str(), &addr,
+                                         MQTTClientComponent::dns_found_callback, this, LWIP_DNS_ADDRTYPE_IPV4);
 #endif
 #ifdef ARDUINO_ARCH_ESP8266
   err_t err = dns_gethostbyname(this->credentials_.address.c_str(), &addr,
@@ -221,40 +221,40 @@ void MQTTClientComponent::check_connected() {
 
 void MQTTClientComponent::loop() {
   if (this->disconnect_reason_.has_value()) {
-    const char *reason_s = nullptr;
+    const LogString *reason_s;
     switch (*this->disconnect_reason_) {
       case AsyncMqttClientDisconnectReason::TCP_DISCONNECTED:
-        reason_s = "TCP disconnected";
+        reason_s = LOG_STR("TCP disconnected");
         break;
       case AsyncMqttClientDisconnectReason::MQTT_UNACCEPTABLE_PROTOCOL_VERSION:
-        reason_s = "Unacceptable Protocol Version";
+        reason_s = LOG_STR("Unacceptable Protocol Version");
         break;
       case AsyncMqttClientDisconnectReason::MQTT_IDENTIFIER_REJECTED:
-        reason_s = "Identifier Rejected";
+        reason_s = LOG_STR("Identifier Rejected");
         break;
       case AsyncMqttClientDisconnectReason::MQTT_SERVER_UNAVAILABLE:
-        reason_s = "Server Unavailable";
+        reason_s = LOG_STR("Server Unavailable");
         break;
       case AsyncMqttClientDisconnectReason::MQTT_MALFORMED_CREDENTIALS:
-        reason_s = "Malformed Credentials";
+        reason_s = LOG_STR("Malformed Credentials");
         break;
       case AsyncMqttClientDisconnectReason::MQTT_NOT_AUTHORIZED:
-        reason_s = "Not Authorized";
+        reason_s = LOG_STR("Not Authorized");
         break;
       case AsyncMqttClientDisconnectReason::ESP8266_NOT_ENOUGH_SPACE:
-        reason_s = "Not Enough Space";
+        reason_s = LOG_STR("Not Enough Space");
         break;
       case AsyncMqttClientDisconnectReason::TLS_BAD_FINGERPRINT:
-        reason_s = "TLS Bad Fingerprint";
+        reason_s = LOG_STR("TLS Bad Fingerprint");
         break;
       default:
-        reason_s = "Unknown";
+        reason_s = LOG_STR("Unknown");
         break;
     }
     if (!network::is_connected()) {
-      reason_s = "WiFi disconnected";
+      reason_s = LOG_STR("WiFi disconnected");
     }
-    ESP_LOGW(TAG, "MQTT Disconnected: %s.", reason_s);
+    ESP_LOGW(TAG, "MQTT Disconnected: %s.", LOG_STR_ARG(reason_s));
     this->disconnect_reason_.reset();
   }
 

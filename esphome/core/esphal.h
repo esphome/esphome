@@ -8,6 +8,8 @@
 #define ICACHE_RAM_ATTR IRAM_ATTR
 #endif
 
+#include "esphome/core/log.h"
+
 namespace esphome {
 
 void yield();

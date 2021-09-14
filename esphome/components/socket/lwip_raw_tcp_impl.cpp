@@ -3,32 +3,41 @@
 
 #ifdef USE_SOCKET_IMPL_LWIP_TCP
 
-#include <queue>
-#include <string.h>
-#include "lwip/opt.h"
 #include "lwip/ip.h"
-#include "lwip/tcp.h"
 #include "lwip/netif.h"
-#include "errno.h"
+#include "lwip/opt.h"
+#include "lwip/tcp.h"
+#include <cerrno>
+#include <cstring>
+#include <queue>
 
 #include "esphome/core/log.h"
 
 namespace esphome {
 namespace socket {
 
-static const char *const TAG = "lwip";
+static const char *const TAG = "socket.lwip";
+
+// set to 1 to enable verbose lwip logging
+#if 0
+#define LWIP_LOG(msg, ...) ESP_LOGVV(TAG, "socket %p: " msg, this, ##__VA_ARGS__)
+#else
+#define LWIP_LOG(msg, ...)
+#endif
 
 class LWIPRawImpl : public Socket {
  public:
   LWIPRawImpl(struct tcp_pcb *pcb) : pcb_(pcb) {}
   ~LWIPRawImpl() override {
     if (pcb_ != nullptr) {
+      LWIP_LOG("tcp_abort(%p)", pcb_);
       tcp_abort(pcb_);
       pcb_ = nullptr;
     }
   }
 
   void init() {
+    LWIP_LOG("init(%p)", pcb_);
     tcp_arg(pcb_, this);
     tcp_accept(pcb_, LWIPRawImpl::s_accept_fn);
     tcp_recv(pcb_, LWIPRawImpl::s_recv_fn);
@@ -49,7 +58,7 @@ class LWIPRawImpl : public Socket {
     if (addr != nullptr) {
       sock->getpeername(addr, addrlen);
     }
-    sock->init();
+    LWIP_LOG("accept(%p)", sock.get());
     return std::unique_ptr<Socket>(std::move(sock));
   }
   int bind(const struct sockaddr *name, socklen_t addrlen) override {
@@ -97,28 +106,34 @@ class LWIPRawImpl : public Socket {
     port = ntohs(addr4->sin_port);
     ip.addr = addr4->sin_addr.s_addr;
 #endif
+    LWIP_LOG("tcp_bind(%p ip=%u port=%u)", pcb_, ip.addr, port);
     err_t err = tcp_bind(pcb_, &ip, port);
     if (err == ERR_USE) {
+      LWIP_LOG("  -> err ERR_USE");
       errno = EADDRINUSE;
       return -1;
     }
     if (err == ERR_VAL) {
+      LWIP_LOG("  -> err ERR_VAL");
       errno = EINVAL;
       return -1;
     }
     if (err != ERR_OK) {
+      LWIP_LOG("  -> err %d", err);
       errno = EIO;
       return -1;
     }
     return 0;
   }
-  int close() {
+  int close() override {
     if (pcb_ == nullptr) {
-      errno = EBADF;
+      errno = ECONNRESET;
       return -1;
     }
+    LWIP_LOG("tcp_close(%p)", pcb_);
     err_t err = tcp_close(pcb_);
     if (err != ERR_OK) {
+      LWIP_LOG("  -> err %d", err);
       tcp_abort(pcb_);
       pcb_ = nullptr;
       errno = err == ERR_MEM ? ENOMEM : EIO;
@@ -129,7 +144,7 @@ class LWIPRawImpl : public Socket {
   }
   int shutdown(int how) override {
     if (pcb_ == nullptr) {
-      errno = EBADF;
+      errno = ECONNRESET;
       return -1;
     }
     bool shut_rx = false, shut_tx = false;
@@ -143,8 +158,10 @@ class LWIPRawImpl : public Socket {
       errno = EINVAL;
       return -1;
     }
+    LWIP_LOG("tcp_shutdown(%p shut_rx=%d shut_tx=%d)", pcb_, shut_rx ? 1 : 0, shut_tx ? 1 : 0);
     err_t err = tcp_shutdown(pcb_, shut_rx, shut_tx);
     if (err != ERR_OK) {
+      LWIP_LOG("  -> err %d", err);
       errno = err == ERR_MEM ? ENOMEM : EIO;
       return -1;
     }
@@ -153,7 +170,7 @@ class LWIPRawImpl : public Socket {
 
   int getpeername(struct sockaddr *name, socklen_t *addrlen) override {
     if (pcb_ == nullptr) {
-      errno = EBADF;
+      errno = ECONNRESET;
       return -1;
     }
     if (name == nullptr || addrlen == nullptr) {
@@ -173,17 +190,18 @@ class LWIPRawImpl : public Socket {
   }
   std::string getpeername() override {
     if (pcb_ == nullptr) {
-      errno = EBADF;
+      errno = ECONNRESET;
       return "";
     }
     char buffer[24];
     uint32_t ip4 = pcb_->remote_ip.addr;
-    snprintf(buffer, sizeof(buffer), "%d.%d.%d.%d", (ip4 >> 24) & 0xFF, (ip4 >> 16) & 0xFF, (ip4 >> 8) & 0xFF, (ip4 >> 0) & 0xFF);
+    snprintf(buffer, sizeof(buffer), "%d.%d.%d.%d", (ip4 >> 0) & 0xFF, (ip4 >> 8) & 0xFF, (ip4 >> 16) & 0xFF,
+             (ip4 >> 24) & 0xFF);
     return std::string(buffer);
   }
   int getsockname(struct sockaddr *name, socklen_t *addrlen) override {
     if (pcb_ == nullptr) {
-      errno = EBADF;
+      errno = ECONNRESET;
       return -1;
     }
     if (name == nullptr || addrlen == nullptr) {
@@ -203,21 +221,26 @@ class LWIPRawImpl : public Socket {
   }
   std::string getsockname() override {
     if (pcb_ == nullptr) {
-      errno = EBADF;
+      errno = ECONNRESET;
       return "";
     }
     char buffer[24];
     uint32_t ip4 = pcb_->local_ip.addr;
-    snprintf(buffer, sizeof(buffer), "%d.%d.%d.%d", (ip4 >> 24) & 0xFF, (ip4 >> 16) & 0xFF, (ip4 >> 8) & 0xFF, (ip4 >> 0) & 0xFF);
+    snprintf(buffer, sizeof(buffer), "%d.%d.%d.%d", (ip4 >> 0) & 0xFF, (ip4 >> 8) & 0xFF, (ip4 >> 16) & 0xFF,
+             (ip4 >> 24) & 0xFF);
     return std::string(buffer);
   }
   int getsockopt(int level, int optname, void *optval, socklen_t *optlen) override {
     if (pcb_ == nullptr) {
-      errno = EBADF;
+      errno = ECONNRESET;
+      return -1;
+    }
+    if (optlen == nullptr || optval == nullptr) {
+      errno = EINVAL;
       return -1;
     }
     if (level == SOL_SOCKET && optname == SO_REUSEADDR) {
-      if (optlen < 4) {
+      if (*optlen < 4) {
         errno = EINVAL;
         return -1;
       }
@@ -229,7 +252,7 @@ class LWIPRawImpl : public Socket {
       return 0;
     }
     if (level == IPPROTO_TCP && optname == TCP_NODELAY) {
-      if (optlen < 4) {
+      if (*optlen < 4) {
         errno = EINVAL;
         return -1;
       }
@@ -243,7 +266,7 @@ class LWIPRawImpl : public Socket {
   }
   int setsockopt(int level, int optname, const void *optval, socklen_t optlen) override {
     if (pcb_ == nullptr) {
-      errno = EBADF;
+      errno = ECONNRESET;
       return -1;
     }
     if (level == SOL_SOCKET && optname == SO_REUSEADDR) {
@@ -278,6 +301,7 @@ class LWIPRawImpl : public Socket {
       errno = EBADF;
       return -1;
     }
+    LWIP_LOG("tcp_listen_with_backlog(%p backlog=%d)", pcb_, backlog);
     struct tcp_pcb *listen_pcb = tcp_listen_with_backlog(pcb_, backlog);
     if (listen_pcb == nullptr) {
       tcp_abort(pcb_);
@@ -288,13 +312,14 @@ class LWIPRawImpl : public Socket {
     // tcp_listen reallocates the pcb, replace ours
     pcb_ = listen_pcb;
     // set callbacks on new pcb
+    LWIP_LOG("tcp_arg(%p)", pcb_);
     tcp_arg(pcb_, this);
     tcp_accept(pcb_, LWIPRawImpl::s_accept_fn);
     return 0;
   }
   ssize_t read(void *buf, size_t len) override {
     if (pcb_ == nullptr) {
-      errno = EBADF;
+      errno = ECONNRESET;
       return -1;
     }
     if (rx_closed_ && rx_buf_ == nullptr) {
@@ -311,7 +336,7 @@ class LWIPRawImpl : public Socket {
 
     size_t read = 0;
     uint8_t *buf8 = reinterpret_cast<uint8_t *>(buf);
-    while (len) {
+    while (len && rx_buf_ != nullptr) {
       size_t pb_len = rx_buf_->len;
       size_t pb_left = pb_len - rx_buf_offset_;
       if (pb_left == 0)
@@ -336,6 +361,7 @@ class LWIPRawImpl : public Socket {
       } else {
         rx_buf_offset_ += copysize;
       }
+      LWIP_LOG("tcp_recved(%p %u)", pcb_, copysize);
       tcp_recved(pcb_, copysize);
 
       buf8 += copysize;
@@ -345,9 +371,9 @@ class LWIPRawImpl : public Socket {
 
     return read;
   }
-  ssize_t write(const void *buf, size_t len) {
+  ssize_t write(const void *buf, size_t len) override {
     if (pcb_ == nullptr) {
-      errno = EBADF;
+      errno = ECONNRESET;
       return -1;
     }
     if (len == 0)
@@ -362,25 +388,40 @@ class LWIPRawImpl : public Socket {
       return -1;
     }
     size_t to_send = std::min((size_t) space, len);
+    LWIP_LOG("tcp_write(%p buf=%p %u)", pcb_, buf, to_send);
     err_t err = tcp_write(pcb_, buf, to_send, TCP_WRITE_FLAG_COPY);
     if (err == ERR_MEM) {
+      LWIP_LOG("  -> err ERR_MEM");
       errno = EWOULDBLOCK;
       return -1;
     }
     if (err != ERR_OK) {
-      errno = EIO;
+      LWIP_LOG("  -> err %d", err);
+      errno = ECONNRESET;
       return -1;
     }
-    err = tcp_output(pcb_);
-    if (err != ERR_OK) {
-      errno = EIO;
-      return -1;
+    if (tcp_nagle_disabled(pcb_)) {
+      LWIP_LOG("tcp_output(%p)", pcb_);
+      err = tcp_output(pcb_);
+      if (err == ERR_ABRT) {
+        LWIP_LOG("  -> err ERR_ABRT");
+        // sometimes lwip returns ERR_ABRT for no apparent reason
+        // the connection works fine afterwards, and back with ESPAsyncTCP we
+        // indirectly also ignored this error
+        // FIXME: figure out where this is returned and what it means in this context
+        return to_send;
+      }
+      if (err != ERR_OK) {
+        LWIP_LOG("  -> err %d", err);
+        errno = ECONNRESET;
+        return -1;
+      }
     }
     return to_send;
   }
-  int setblocking(bool blocking) {
+  int setblocking(bool blocking) override {
     if (pcb_ == nullptr) {
-      errno = EBADF;
+      errno = ECONNRESET;
       return -1;
     }
     if (blocking) {
@@ -392,17 +433,21 @@ class LWIPRawImpl : public Socket {
   }
 
   err_t accept_fn(struct tcp_pcb *newpcb, err_t err) {
-    if (err != ERR_OK || newpcb == 0) {
+    LWIP_LOG("accept(newpcb=%p err=%d)", newpcb, err);
+    if (err != ERR_OK || newpcb == nullptr) {
       // "An error code if there has been an error accepting. Only return ERR_ABRT if you have
       // called tcp_abort from within the callback function!"
       // https://www.nongnu.org/lwip/2_1_x/tcp_8h.html#a00517abce6856d6c82f0efebdafb734d
       // nothing to do here, we just don't push it to the queue
       return ERR_OK;
     }
-    accepted_sockets_.emplace(new LWIPRawImpl(newpcb));
+    auto sock = std::unique_ptr<LWIPRawImpl>(new LWIPRawImpl(newpcb));
+    sock->init();
+    accepted_sockets_.push(std::move(sock));
     return ERR_OK;
   }
   void err_fn(err_t err) {
+    LWIP_LOG("err(err=%d)", err);
     // "If a connection is aborted because of an error, the application is alerted of this event by
     // the err callback."
     // pcb is already freed when this callback is called
@@ -411,6 +456,7 @@ class LWIPRawImpl : public Socket {
     pcb_ = nullptr;
   }
   err_t recv_fn(struct pbuf *pb, err_t err) {
+    LWIP_LOG("recv(pb=%p err=%d)", pb, err);
     if (err != 0) {
       // "An error code if there has been an error receiving Only return ERR_ABRT if you have
       // called tcp_abort from within the callback function!"
@@ -431,7 +477,6 @@ class LWIPRawImpl : public Socket {
     return ERR_OK;
   }
 
-
   static err_t s_accept_fn(void *arg, struct tcp_pcb *newpcb, err_t err) {
     LWIPRawImpl *arg_this = reinterpret_cast<LWIPRawImpl *>(arg);
     return arg_this->accept_fn(newpcb, err);
@@ -439,7 +484,7 @@ class LWIPRawImpl : public Socket {
 
   static void s_err_fn(void *arg, err_t err) {
     LWIPRawImpl *arg_this = reinterpret_cast<LWIPRawImpl *>(arg);
-    return arg_this->err_fn(err);
+    arg_this->err_fn(err);
   }
 
   static err_t s_recv_fn(void *arg, struct tcp_pcb *pcb, struct pbuf *pb, err_t err) {
@@ -459,7 +504,7 @@ std::unique_ptr<Socket> socket(int domain, int type, int protocol) {
   auto *pcb = tcp_new();
   if (pcb == nullptr)
     return nullptr;
-  auto *sock = new LWIPRawImpl(pcb);
+  auto *sock = new LWIPRawImpl(pcb);  // NOLINT(cppcoreguidelines-owning-memory)
   sock->init();
   return std::unique_ptr<Socket>{sock};
 }
@@ -467,4 +512,4 @@ std::unique_ptr<Socket> socket(int domain, int type, int protocol) {
 }  // namespace socket
 }  // namespace esphome
 
-#endif // USE_SOCKET_IMPL_LWIP_TCP
+#endif  // USE_SOCKET_IMPL_LWIP_TCP

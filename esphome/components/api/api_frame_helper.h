@@ -51,7 +51,10 @@ enum class APIError : int {
   OUT_OF_MEMORY = 1018,
   HANDSHAKESTATE_SETUP_FAILED = 1019,
   HANDSHAKESTATE_SPLIT_FAILED = 1020,
+  BAD_HANDSHAKE_ERROR_BYTE = 1021,
 };
+
+const char *api_error_to_str(APIError err);
 
 class APIFrameHelper {
  public:
@@ -70,22 +73,19 @@ class APIFrameHelper {
 #ifdef USE_API_NOISE
 class APINoiseFrameHelper : public APIFrameHelper {
  public:
-  APINoiseFrameHelper(std::unique_ptr<socket::Socket> socket, std::shared_ptr<APINoiseContext> ctx) : socket_(std::move(socket)), ctx_(ctx) {}
+  APINoiseFrameHelper(std::unique_ptr<socket::Socket> socket, std::shared_ptr<APINoiseContext> ctx)
+      : socket_(std::move(socket)), ctx_(ctx) {}
   ~APINoiseFrameHelper();
   APIError init() override;
   APIError loop() override;
   APIError read_packet(ReadPacketBuffer *buffer) override;
   bool can_write_without_blocking() override;
-  APIError write_packet(uint16_t type, const uint8_t *data, size_t len) override;
-  std::string getpeername()  override{
-    return socket_->getpeername();
-  }
+  APIError write_packet(uint16_t type, const uint8_t *payload, size_t len) override;
+  std::string getpeername() override { return socket_->getpeername(); }
   APIError close() override;
   APIError shutdown(int how) override;
   // Give this helper a name for logging
-  void set_log_info(std::string info) override {
-    info_ = std::move(info);
-  }
+  void set_log_info(std::string info) override { info_ = std::move(info); }
 
  protected:
   struct ParsedFrame {
@@ -126,6 +126,7 @@ class APINoiseFrameHelper : public APIFrameHelper {
     DATA = 5,
     CLOSED = 6,
     FAILED = 7,
+    EXPLICIT_REJECT = 8,
   } state_ = State::INITIALIZE;
 };
 #endif  // USE_API_NOISE
@@ -139,16 +140,12 @@ class APIPlaintextFrameHelper : public APIFrameHelper {
   APIError loop() override;
   APIError read_packet(ReadPacketBuffer *buffer) override;
   bool can_write_without_blocking() override;
-  APIError write_packet(uint16_t type, const uint8_t *data, size_t len) override;
-  std::string getpeername() override {
-    return socket_->getpeername();
-  }
+  APIError write_packet(uint16_t type, const uint8_t *payload, size_t len) override;
+  std::string getpeername() override { return socket_->getpeername(); }
   APIError close() override;
   APIError shutdown(int how) override;
   // Give this helper a name for logging
-  void set_log_info(std::string info) override {
-    info_ = std::move(info);
-  }
+  void set_log_info(std::string info) override { info_ = std::move(info); }
 
  protected:
   struct ParsedFrame {
@@ -157,7 +154,6 @@ class APIPlaintextFrameHelper : public APIFrameHelper {
 
   APIError try_read_frame_(ParsedFrame *frame);
   APIError try_send_tx_buf_();
-  APIError write_frame_(const uint8_t *data, size_t len);
   APIError write_raw_(const uint8_t *data, size_t len);
 
   std::unique_ptr<socket::Socket> socket_;

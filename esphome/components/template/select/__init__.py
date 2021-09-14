@@ -19,17 +19,6 @@ TemplateSelect = template_ns.class_(
 CONF_SET_ACTION = "set_action"
 
 
-def validate_initial_value_in_options(config):
-    if CONF_INITIAL_OPTION in config:
-        if config[CONF_INITIAL_OPTION] not in config[CONF_OPTIONS]:
-            raise cv.Invalid(
-                f"initial_option '{config[CONF_INITIAL_OPTION]}' is not a valid option [{', '.join(config[CONF_OPTIONS])}]"
-            )
-    else:
-        config[CONF_INITIAL_OPTION] = config[CONF_OPTIONS][0]
-    return config
-
-
 def validate(config):
     if CONF_LAMBDA in config:
         if config[CONF_OPTIMISTIC]:
@@ -38,6 +27,14 @@ def validate(config):
             raise cv.Invalid("initial_value cannot be used with lambda")
         if CONF_RESTORE_VALUE in config:
             raise cv.Invalid("restore_value cannot be used with lambda")
+    elif CONF_INITIAL_OPTION in config:
+        if config[CONF_INITIAL_OPTION] not in config[CONF_OPTIONS]:
+            raise cv.Invalid(
+                f"initial_option '{config[CONF_INITIAL_OPTION]}' is not a valid option [{', '.join(config[CONF_OPTIONS])}]"
+            )
+    else:
+        config[CONF_INITIAL_OPTION] = config[CONF_OPTIONS][0]
+
     if not config[CONF_OPTIMISTIC] and CONF_SET_ACTION not in config:
         raise cv.Invalid(
             "Either optimistic mode must be enabled, or set_action must be set, to handle the option being set."
@@ -59,7 +56,6 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_RESTORE_VALUE): cv.boolean,
         }
     ).extend(cv.polling_component_schema("60s")),
-    validate_initial_value_in_options,
     validate,
 )
 

@@ -4,6 +4,7 @@
 #include <HardwareSerial.h>
 #include "esphome/core/esphal.h"
 #include "esphome/core/component.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace uart {
@@ -14,7 +15,7 @@ enum UARTParityOptions {
   UART_CONFIG_PARITY_ODD,
 };
 
-const char *parity_to_str(UARTParityOptions parity);
+const LogString *parity_to_str(UARTParityOptions parity);
 
 #ifdef ARDUINO_ARCH_ESP8266
 class ESP8266SoftwareSerial {
@@ -124,10 +125,6 @@ class UARTComponent : public Component, public Stream {
   static bool serial0InUse;
 #endif
 };
-
-#ifdef ARDUINO_ARCH_ESP32
-extern uint8_t next_uart_num;
-#endif
 
 class UARTDevice : public Stream {
  public:

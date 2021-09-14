@@ -3,6 +3,7 @@
 #include <cassert>
 #include <cstdarg>
 #include <string>
+
 #ifdef USE_STORE_LOG_STR_IN_FLASH
 #include "WString.h"
 #endif
@@ -13,6 +14,8 @@
 #include <esp_err.h>
 #include <esp_log.h>
 #endif
+
+#include "esphome/core/macros.h"
 
 namespace esphome {
 
@@ -162,28 +165,37 @@ int esp_idf_log_vprintf_(const char *format, va_list args);  // NOLINT
 #define ONOFF(b) ((b) ? "ON" : "OFF")
 #define TRUEFALSE(b) ((b) ? "TRUE" : "FALSE")
 
-#ifdef USE_STORE_LOG_STR_IN_FLASH
-#define LOG_STR(s) PSTR(s)
+// Helper class that identifies strings that may be stored in flash storage (similar to Arduino's __FlashStringHelper)
+struct LogString;
 
-// From Arduino 2.5 onwards, we can pass a PSTR() to printf(). For previous versions, emulate support
-// by copying the message to a local buffer first. String length is limited to 63 characters.
+#ifdef USE_STORE_LOG_STR_IN_FLASH
+
+#include <pgmspace.h>
+
+#if ARDUINO_VERSION_CODE >= VERSION_CODE(2, 5, 0)
+#define LOG_STR_ARG(s) ((PGM_P)(s))
+#else
+// Pre-Arduino 2.5, we can't pass a PSTR() to printf(). Emulate support by copying the message to a
+// local buffer first. String length is limited to 63 characters.
 // https://github.com/esp8266/Arduino/commit/6280e98b0360f85fdac2b8f10707fffb4f6e6e31
-#include <core_version.h>
-#if defined(ARDUINO_ARCH_ESP8266) && ARDUINO_VERSION_CODE < VERSION_CODE(2, 5, 0)
 #define LOG_STR_ARG(s) \
   ({ \
     char __buf[64]; \
     __buf[63] = '\0'; \
-    strncpy_P(__buf, s, 63); \
+    strncpy_P(__buf, (PGM_P)(s), 63); \
     __buf; \
   })
-#else
-#define LOG_STR_ARG(s) (s)
 #endif
 
-#else
-#define LOG_STR(s) (s)
-#define LOG_STR_ARG(s) (s)
+#define LOG_STR(s) (reinterpret_cast<const LogString *>(PSTR(s)))
+#define LOG_STR_LITERAL(s) LOG_STR_ARG(LOG_STR(s))
+
+#else  // !USE_STORE_LOG_STR_IN_FLASH
+
+#define LOG_STR(s) (reinterpret_cast<const LogString *>(s))
+#define LOG_STR_ARG(s) (reinterpret_cast<const char *>(s))
+#define LOG_STR_LITERAL(s) (s)
+
 #endif
 
 }  // namespace esphome

@@ -1,9 +1,9 @@
 #include "display_buffer.h"
 
+#include <utility>
 #include "esphome/core/application.h"
 #include "esphome/core/color.h"
 #include "esphome/core/log.h"
-#include <utility>
 
 namespace esphome {
 namespace display {
@@ -14,7 +14,7 @@ const Color COLOR_OFF(0, 0, 0, 0);
 const Color COLOR_ON(255, 255, 255, 255);
 
 void DisplayBuffer::init_internal_(uint32_t buffer_length) {
-  this->buffer_ = new (std::nothrow) uint8_t[buffer_length];
+  this->buffer_ = new (std::nothrow) uint8_t[buffer_length];  // NOLINT
   if (this->buffer_ == nullptr) {
     ESP_LOGE(TAG, "Could not allocate buffer for display!");
     return;
@@ -514,9 +514,7 @@ Color Animation::get_grayscale_pixel(int x, int y) const {
   return Color(gray | gray << 8 | gray << 16 | gray << 24);
 }
 Animation::Animation(const uint8_t *data_start, int width, int height, uint32_t animation_frame_count, ImageType type)
-    : Image(data_start, width, height, type), animation_frame_count_(animation_frame_count) {
-  current_frame_ = 0;
-}
+    : Image(data_start, width, height, type), current_frame_(0), animation_frame_count_(animation_frame_count) {}
 int Animation::get_animation_frame_count() const { return this->animation_frame_count_; }
 int Animation::get_current_frame() const { return this->current_frame_; }
 void Animation::next_frame() {
