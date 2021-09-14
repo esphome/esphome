@@ -31,13 +31,13 @@ class NfcTag {
   NfcTag(std::vector<uint8_t> &uid, const std::string &tag_type, std::vector<uint8_t> &ndef_data) {
     this->uid_ = uid;
     this->tag_type_ = tag_type;
-    this->ndef_message_ = std::unique_ptr<NdefMessage>(new NdefMessage(ndef_data));
+    this->ndef_message_ = make_unique<NdefMessage>(ndef_data);
   };
   NfcTag(const NfcTag &rhs) {
     uid_ = rhs.uid_;
     tag_type_ = rhs.tag_type_;
     if (rhs.ndef_message_ != nullptr)
-      ndef_message_ = std::unique_ptr<NdefMessage>(new NdefMessage(*rhs.ndef_message_));
+      ndef_message_ = make_unique<NdefMessage>(*rhs.ndef_message_);
   }
 
   std::vector<uint8_t> &get_uid() { return this->uid_; };
