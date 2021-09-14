@@ -22,7 +22,7 @@ class NdefMessage {
     }
   }
 
-  const std::vector<std::unique_ptr<NdefRecord>> &get_records() { return this->records_; };
+  const std::vector<std::shared_ptr<NdefRecord>> &get_records() { return this->records_; };
 
   bool add_record(std::unique_ptr<NdefRecord> record);
   bool add_text_record(const std::string &text);
@@ -32,7 +32,7 @@ class NdefMessage {
   std::vector<uint8_t> encode();
 
  protected:
-  std::vector<std::unique_ptr<NdefRecord>> records_;
+  std::vector<std::shared_ptr<NdefRecord>> records_;
 };
 
 }  // namespace nfc
