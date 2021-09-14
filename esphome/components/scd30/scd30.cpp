@@ -60,12 +60,22 @@ void SCD30Component::setup() {
   // According ESP32 clock stretching is typically 30ms and up to 150ms "due to
   // internal calibration processes". The I2C peripheral only supports 13ms (at
   // least when running at 80MHz).
-  // In practise it seems that clock stretching occurs during this calibration
+  // In practice it seems that clock stretching occurs during this calibration
   // calls. It also seems that delays in between calls makes them
   // disappear/shorter. Hence work around with delays for ESP32.
   //
   // By experimentation a delay of 20ms as already sufficient. Let's go
   // safe and use 30ms delays.
+  delay(30);
+#endif
+
+  if (!this->write_command_(SCD30_CMD_MEASUREMENT_INTERVAL, update_interval_)) {
+    ESP_LOGE(TAG, "Sensor SCD30 error setting update interval.");
+    this->error_code_ = MEASUREMENT_INIT_FAILED;
+    this->mark_failed();
+    return;
+  }
+#ifdef USE_ESP32
   delay(30);
 #endif
 
@@ -99,6 +109,8 @@ void SCD30Component::setup() {
     this->mark_failed();
     return;
   }
+
+  this->schedule_next_check_();
 }
 
 void SCD30Component::dump_config() {
@@ -128,19 +140,13 @@ void SCD30Component::dump_config() {
   ESP_LOGCONFIG(TAG, "  Automatic self calibration: %s", ONOFF(this->enable_asc_));
   ESP_LOGCONFIG(TAG, "  Ambient pressure compensation: %dmBar", this->ambient_pressure_compensation_);
   ESP_LOGCONFIG(TAG, "  Temperature offset: %.2f °C", this->temperature_offset_);
-  LOG_UPDATE_INTERVAL(this);
+  ESP_LOGCONFIG(TAG, "  Update interval: %ds", this->update_interval_);
   LOG_SENSOR("  ", "CO2", this->co2_sensor_);
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
 }
 
 void SCD30Component::update() {
-  /// Check if measurement is ready before reading the value
-  if (!this->write_command_(SCD30_CMD_GET_DATA_READY_STATUS)) {
-    this->status_set_warning();
-    return;
-  }
-
   uint16_t raw_read_status[1];
   if (!this->read_data_(raw_read_status, 1) || raw_read_status[0] == 0x00) {
     this->status_set_warning();
@@ -184,6 +190,27 @@ void SCD30Component::update() {
 
     this->status_clear_warning();
   });
+}
+
+void SCD30Component::schedule_next_check_() {
+  // check each 500ms if data is ready before reading the value
+  this->set_timeout("status-check", 500, [this]() {
+    if (isDataReady()) {
+      this->update();
+    }
+    this->schedule_next_check_();
+  });
+}
+
+bool SCD30Component::isDataReady() {
+  if (!this->write_command_(SCD30_CMD_GET_DATA_READY_STATUS)) {
+    return false;
+  }
+  uint16_t is_data_ready[1];
+  if (!this->read_data_(is_data_ready, 1)) {
+    return false;
+  }
+  return is_data_ready[0] == 1;
 }
 
 bool SCD30Component::write_command_(uint16_t command) {
