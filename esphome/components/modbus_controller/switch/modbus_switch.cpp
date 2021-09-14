@@ -6,9 +6,7 @@ namespace modbus_controller {
 
 static const char *const TAG = "modbus_controller.switch";
 
-void ModbusSwitch::dump_config() {
-  LOG_SWITCH(TAG, "Modbus Controller Switch", this);
-}
+void ModbusSwitch::dump_config() { LOG_SWITCH(TAG, "Modbus Controller Switch", this); }
 
 void ModbusSwitch::parse_and_publish(const std::vector<uint8_t> &data) {
   bool value = false;
