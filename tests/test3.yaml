@@ -465,9 +465,9 @@ sensor:
       name: 'BL0940 Power'
     energy:
       name: 'BL0940 Energy'
-    temperature:
+    internal_temperature:
       name: 'BL0940 Internal temperature'
-    target_temperature:
+    external_temperature:
       name: 'BL0940 External temperature'
   - platform: pzem004t
     uart_id: uart3

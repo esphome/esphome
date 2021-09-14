@@ -6,8 +6,6 @@ from esphome.const import (
     CONF_ENERGY,
     CONF_ID,
     CONF_POWER,
-    CONF_TEMPERATURE,
-    CONF_TARGET_TEMPERATURE,
     CONF_VOLTAGE,
     DEVICE_CLASS_CURRENT,
     DEVICE_CLASS_ENERGY,
@@ -19,12 +17,15 @@ from esphome.const import (
     STATE_CLASS_NONE,
     UNIT_AMPERE,
     UNIT_CELSIUS,
+    UNIT_KILOWATT_HOURS,
     UNIT_VOLT,
     UNIT_WATT,
-    UNIT_WATT_HOURS,
 )
 
 DEPENDENCIES = ["uart"]
+
+CONF_INTERNAL_TEMPERATURE = "internal_temperature"
+CONF_EXTERNAL_TEMPERATURE = "external_temperature"
 
 bl0940_ns = cg.esphome_ns.namespace("bl0940")
 BL0940 = bl0940_ns.class_("BL0940", cg.PollingComponent, uart.UARTDevice)
@@ -47,21 +48,20 @@ CONFIG_SCHEMA = (
                 UNIT_WATT, ICON_EMPTY, 0, DEVICE_CLASS_POWER, STATE_CLASS_MEASUREMENT
             ),
             cv.Optional(CONF_ENERGY): sensor.sensor_schema(
-                UNIT_WATT_HOURS,
+                UNIT_KILOWATT_HOURS,
                 ICON_EMPTY,
                 0,
                 DEVICE_CLASS_ENERGY,
                 STATE_CLASS_NONE,
             ),
-            cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
+            cv.Optional(CONF_INTERNAL_TEMPERATURE): sensor.sensor_schema(
                 UNIT_CELSIUS,
                 ICON_EMPTY,
                 0,
                 DEVICE_CLASS_TEMPERATURE,
                 STATE_CLASS_NONE,
             ),
-            # TODO This isn't the right CONF. What to use instead?
-            cv.Optional(CONF_TARGET_TEMPERATURE): sensor.sensor_schema(
+            cv.Optional(CONF_EXTERNAL_TEMPERATURE): sensor.sensor_schema(
                 UNIT_CELSIUS,
                 ICON_EMPTY,
                 0,
@@ -96,11 +96,11 @@ async def to_code(config):
         conf = config[CONF_ENERGY]
         sens = await sensor.new_sensor(conf)
         cg.add(var.set_energy_sensor(sens))
-    if CONF_TEMPERATURE in config:
-        conf = config[CONF_TEMPERATURE]
+    if CONF_INTERNAL_TEMPERATURE in config:
+        conf = config[CONF_INTERNAL_TEMPERATURE]
         sens = await sensor.new_sensor(conf)
         cg.add(var.set_internal_temperature_sensor(sens))
-    if CONF_TARGET_TEMPERATURE in config:
-        conf = config[CONF_TARGET_TEMPERATURE]
+    if CONF_EXTERNAL_TEMPERATURE in config:
+        conf = config[CONF_EXTERNAL_TEMPERATURE]
         sens = await sensor.new_sensor(conf)
         cg.add(var.set_external_temperature_sensor(sens))

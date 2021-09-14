@@ -45,12 +45,11 @@ void BL0940::loop() {
   }
 }
 
-bool BL0940::validate_checksum(DataPacket *data) {
+bool BL0940::validate_checksum(const DataPacket *data) {
   uint8_t checksum = BL0940_READ_COMMAND;
-  auto raw_access = (uint8_t *) data;
   // Whole package but checksum
-  for (uint32_t i = 0; i < sizeof(*data) - 1; i++) {
-    checksum += raw_access[i];
+  for (uint32_t i = 0; i < sizeof(data->raw) - 1; i++) {
+    checksum += data->raw[i];
   }
   checksum ^= 0xFF;
   if (checksum != data->checksum) {
@@ -87,7 +86,7 @@ float BL0940::update_temp_(sensor::Sensor *sensor, ube16_t temperature) const {
   return converted_temp;
 }
 
-void BL0940::received_package_(DataPacket *data) const {
+void BL0940::received_package_(const DataPacket *data) const {
   // Bad header
   if (data->frame_header != BL0940_PACKET_HEADER) {
     ESP_LOGI("bl0940", "Invalid data. Header mismatch: %d", data->frame_header);
@@ -116,7 +115,7 @@ void BL0940::received_package_(DataPacket *data) const {
     energy_sensor_->publish_state(total_energy_consumption);
   }
 
-  ESP_LOGI("bl0940", "BL0940: U %fV, I %fA, P %fW, Cnt %d, ∫P %fkWh, T1 %f°C, T2 %f°C", v_rms, i_rms, watt, cf_cnt,
+  ESP_LOGV("bl0940", "BL0940: U %fV, I %fA, P %fW, Cnt %d, ∫P %fkWh, T1 %f°C, T2 %f°C", v_rms, i_rms, watt, cf_cnt,
            total_energy_consumption, tps1, tps2);
 }
 

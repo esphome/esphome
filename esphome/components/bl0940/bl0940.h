@@ -33,22 +33,26 @@ struct sbe24_t {  // NOLINT(readability-identifier-naming,altera-struct-pack-ali
 } __attribute__((packed));
 
 // Caveat: All these values are big endian (low - middle - high)
-struct DataPacket {      // NOLINT(altera-struct-pack-align)
-  uint8_t frame_header;  // value of 0x58 according to docs. 0x55 according to Tasmota real world tests. Reality wins.
-  ube24_t i_fast_rms;    // 0x00
-  ube24_t i_rms;         // 0x04
-  ube24_t RESERVED0;     // reserved
-  ube24_t v_rms;         // 0x06
-  ube24_t RESERVED1;     // reserved
-  sbe24_t watt;          // 0x08
-  ube24_t RESERVED2;     // reserved
-  ube24_t cf_cnt;        // 0x0A
-  ube24_t RESERVED3;     // reserved
-  ube16_t tps1;          // 0x0c
-  uint8_t RESERVED4;     // value of 0x00
-  ube16_t tps2;          // 0x0c
-  uint8_t RESERVED5;     // value of 0x00
-  uint8_t checksum;      // checksum
+
+union DataPacket {  // NOLINT(altera-struct-pack-align)
+  uint8_t raw[35];
+  struct {
+    uint8_t frame_header;  // value of 0x58 according to docs. 0x55 according to Tasmota real world tests. Reality wins.
+    ube24_t i_fast_rms;    // 0x00
+    ube24_t i_rms;         // 0x04
+    ube24_t RESERVED0;     // reserved
+    ube24_t v_rms;         // 0x06
+    ube24_t RESERVED1;     // reserved
+    sbe24_t watt;          // 0x08
+    ube24_t RESERVED2;     // reserved
+    ube24_t cf_cnt;        // 0x0A
+    ube24_t RESERVED3;     // reserved
+    ube16_t tps1;          // 0x0c
+    uint8_t RESERVED4;     // value of 0x00
+    ube16_t tps2;          // 0x0c
+    uint8_t RESERVED5;     // value of 0x00
+    uint8_t checksum;      // checksum
+  };
 } __attribute__((packed));
 
 class BL0940 : public PollingComponent, public uart::UARTDevice {
@@ -76,7 +80,6 @@ class BL0940 : public PollingComponent, public uart::UARTDevice {
   // NB This may be negative as the circuits is seemingly able to measure
   // power in both directions
   sensor::Sensor *power_sensor_;
-  // Caveat if you measure power in both directions as there is no
   sensor::Sensor *energy_sensor_;
   sensor::Sensor *internal_temperature_sensor_;
   sensor::Sensor *external_temperature_sensor_;
@@ -98,9 +101,9 @@ class BL0940 : public PollingComponent, public uart::UARTDevice {
 
   static int32_t to_int32_t(sbe24_t input);
 
-  static bool validate_checksum(DataPacket *data);
+  static bool validate_checksum(const DataPacket *data);
 
-  void received_package_(DataPacket *data) const;
+  void received_package_(const DataPacket *data) const;
 };
 }  // namespace bl0940
 }  // namespace esphome
