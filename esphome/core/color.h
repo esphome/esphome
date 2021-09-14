@@ -38,13 +38,13 @@ struct Color {
                                                                                         g(green),
                                                                                         b(blue),
                                                                                         w(white) {}
-  inline Color(uint32_t colorcode) ALWAYS_INLINE : r((colorcode >> 16) & 0xFF),
-                                                   g((colorcode >> 8) & 0xFF),
-                                                   b((colorcode >> 0) & 0xFF),
-                                                   w((colorcode >> 24) & 0xFF) {}
+  inline explicit Color(uint32_t colorcode) ALWAYS_INLINE : r((colorcode >> 16) & 0xFF),
+                                                            g((colorcode >> 8) & 0xFF),
+                                                            b((colorcode >> 0) & 0xFF),
+                                                            w((colorcode >> 24) & 0xFF) {}
 
   inline bool is_on() ALWAYS_INLINE { return this->raw_32 != 0; }
-  inline Color &operator=(const Color &rhs) ALWAYS_INLINE {
+  inline Color &operator=(const Color &rhs) ALWAYS_INLINE {  // NOLINT
     this->r = rhs.r;
     this->g = rhs.g;
     this->b = rhs.b;
@@ -143,8 +143,14 @@ struct Color {
   Color fade_to_black(uint8_t amnt) { return *this * amnt; }
   Color lighten(uint8_t delta) { return *this + delta; }
   Color darken(uint8_t delta) { return *this - delta; }
+
+  static const Color BLACK;
+  static const Color WHITE;
 };
 
-static const Color COLOR_BLACK(0, 0, 0);
-static const Color COLOR_WHITE(255, 255, 255, 255);
-};  // namespace esphome
+ESPDEPRECATED("Use Color::BLACK instead of COLOR_BLACK", "v1.21")
+extern const Color COLOR_BLACK;
+ESPDEPRECATED("Use Color::WHITE instead of COLOR_WHITE", "v1.21")
+extern const Color COLOR_WHITE;
+
+}  // namespace esphome

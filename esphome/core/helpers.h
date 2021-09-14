@@ -6,25 +6,25 @@
 #include <memory>
 #include <type_traits>
 
-#include "esphome/core/optional.h"
-#include "esphome/core/esphal.h"
-
-#ifdef CLANG_TIDY
-#undef ICACHE_RAM_ATTR
-#define ICACHE_RAM_ATTR
-#undef ICACHE_RODATA_ATTR
-#define ICACHE_RODATA_ATTR
+#ifdef ARDUINO_ARCH_ESP32
+#include "esp32-hal-psram.h"
 #endif
 
+#include "esphome/core/optional.h"
+
 #define HOT __attribute__((hot))
-#define ESPDEPRECATED(msg) __attribute__((deprecated(msg)))
+#define ESPDEPRECATED(msg, when) __attribute__((deprecated(msg)))
 #define ALWAYS_INLINE __attribute__((always_inline))
 #define PACKED __attribute__((packed))
+
+#define xSemaphoreWait(semaphore, wait_time) \
+  xSemaphoreTake(semaphore, wait_time); \
+  xSemaphoreGive(semaphore);
 
 namespace esphome {
 
 /// The characters that are allowed in a hostname.
-extern const char *HOSTNAME_CHARACTER_ALLOWLIST;
+extern const char *const HOSTNAME_CHARACTER_ALLOWLIST;
 
 /// Gets the MAC address as a string, this can be used as way to identify this ESP.
 std::string get_mac_address();
@@ -33,11 +33,11 @@ std::string get_mac_address_pretty();
 
 std::string to_string(const std::string &val);
 std::string to_string(int val);
-std::string to_string(long val);
-std::string to_string(long long val);
-std::string to_string(unsigned val);
-std::string to_string(unsigned long val);
-std::string to_string(unsigned long long val);
+std::string to_string(long val);                // NOLINT
+std::string to_string(long long val);           // NOLINT
+std::string to_string(unsigned val);            // NOLINT
+std::string to_string(unsigned long val);       // NOLINT
+std::string to_string(unsigned long long val);  // NOLINT
 std::string to_string(float val);
 std::string to_string(double val);
 std::string to_string(long double val);
@@ -76,7 +76,7 @@ class HighFrequencyLoopRequester {
  * @param max The maximum value.
  * @return val clamped in between min and max.
  */
-float clamp(float val, float min, float max);
+template<typename T> T clamp(T val, T min, T max);
 
 /** Linearly interpolate between end start and end by completion.
  *
@@ -88,10 +88,15 @@ float clamp(float val, float min, float max);
  */
 float lerp(float completion, float start, float end);
 
-/// std::make_unique
-template<typename T, typename... Args> std::unique_ptr<T> make_unique(Args &&... args) {
+// Not all platforms we support target C++14 yet, so we can't unconditionally use std::make_unique. Provide our own
+// implementation if needed, and otherwise pull std::make_unique into scope so that we have a uniform API.
+#if __cplusplus >= 201402L
+using std::make_unique;
+#else
+template<typename T, typename... Args> std::unique_ptr<T> make_unique(Args &&...args) {
   return std::unique_ptr<T>(new T(std::forward<Args>(args)...));
 }
+#endif
 
 /// Return a random 32 bit unsigned integer.
 uint32_t random_uint32();
@@ -105,6 +110,8 @@ double random_double();
 /// Returns a random float between 0 and 1. Essentially just casts random_double() to a float.
 float random_float();
 
+void fill_random(uint8_t *data, size_t len);
+
 void fast_random_set_seed(uint32_t seed);
 uint32_t fast_random_32();
 uint16_t fast_random_16();
@@ -112,6 +119,8 @@ uint8_t fast_random_8();
 
 /// Applies gamma correction with the provided gamma to value.
 float gamma_correct(float value, float gamma);
+/// Reverts gamma correction with the provided gamma to value.
+float gamma_uncorrect(float value, float gamma);
 
 /// Create a string from a value and an accuracy in decimals.
 std::string value_accuracy_to_string(float value, int8_t accuracy_decimals);
@@ -318,8 +327,6 @@ template<typename T> class Parented {
 
 uint32_t fnv1_hash(const std::string &str);
 
-}  // namespace esphome
-
 template<typename T> T *new_buffer(size_t length) {
   T *buffer;
 #ifdef ARDUINO_ARCH_ESP32
@@ -329,8 +336,10 @@ template<typename T> T *new_buffer(size_t length) {
     buffer = new T[length];
   }
 #else
-  buffer = new T[length];
+  buffer = new T[length];  // NOLINT
 #endif
 
   return buffer;
+}
+
 }  // namespace esphome

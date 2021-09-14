@@ -1,18 +1,20 @@
 #include "display_buffer.h"
+
+#include <utility>
+#include "esphome/core/application.h"
 #include "esphome/core/color.h"
 #include "esphome/core/log.h"
-#include "esphome/core/application.h"
 
 namespace esphome {
 namespace display {
 
-static const char *TAG = "display";
+static const char *const TAG = "display";
 
 const Color COLOR_OFF(0, 0, 0, 0);
 const Color COLOR_ON(255, 255, 255, 255);
 
 void DisplayBuffer::init_internal_(uint32_t buffer_length) {
-  this->buffer_ = new uint8_t[buffer_length];
+  this->buffer_ = new (std::nothrow) uint8_t[buffer_length];  // NOLINT
   if (this->buffer_ == nullptr) {
     ESP_LOGE(TAG, "Could not allocate buffer for display!");
     return;
@@ -459,7 +461,7 @@ bool Image::get_pixel(int x, int y) const {
 }
 Color Image::get_color_pixel(int x, int y) const {
   if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_)
-    return 0;
+    return Color::BLACK;
   const uint32_t pos = (x + y * this->width_) * 3;
   const uint32_t color32 = (pgm_read_byte(this->data_start_ + pos + 2) << 0) |
                            (pgm_read_byte(this->data_start_ + pos + 1) << 8) |
@@ -468,7 +470,7 @@ Color Image::get_color_pixel(int x, int y) const {
 }
 Color Image::get_grayscale_pixel(int x, int y) const {
   if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_)
-    return 0;
+    return Color::BLACK;
   const uint32_t pos = (x + y * this->width_);
   const uint8_t gray = pgm_read_byte(this->data_start_ + pos);
   return Color(gray | gray << 8 | gray << 16 | gray << 24);
@@ -491,10 +493,10 @@ bool Animation::get_pixel(int x, int y) const {
 }
 Color Animation::get_color_pixel(int x, int y) const {
   if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_)
-    return 0;
+    return Color::BLACK;
   const uint32_t frame_index = this->width_ * this->height_ * this->current_frame_;
   if (frame_index >= this->width_ * this->height_ * this->animation_frame_count_)
-    return 0;
+    return Color::BLACK;
   const uint32_t pos = (x + y * this->width_ + frame_index) * 3;
   const uint32_t color32 = (pgm_read_byte(this->data_start_ + pos + 2) << 0) |
                            (pgm_read_byte(this->data_start_ + pos + 1) << 8) |
@@ -503,18 +505,16 @@ Color Animation::get_color_pixel(int x, int y) const {
 }
 Color Animation::get_grayscale_pixel(int x, int y) const {
   if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_)
-    return 0;
+    return Color::BLACK;
   const uint32_t frame_index = this->width_ * this->height_ * this->current_frame_;
   if (frame_index >= this->width_ * this->height_ * this->animation_frame_count_)
-    return 0;
+    return Color::BLACK;
   const uint32_t pos = (x + y * this->width_ + frame_index);
   const uint8_t gray = pgm_read_byte(this->data_start_ + pos);
   return Color(gray | gray << 8 | gray << 16 | gray << 24);
 }
 Animation::Animation(const uint8_t *data_start, int width, int height, uint32_t animation_frame_count, ImageType type)
-    : Image(data_start, width, height, type), animation_frame_count_(animation_frame_count) {
-  current_frame_ = 0;
-}
+    : Image(data_start, width, height, type), current_frame_(0), animation_frame_count_(animation_frame_count) {}
 int Animation::get_animation_frame_count() const { return this->animation_frame_count_; }
 int Animation::get_current_frame() const { return this->current_frame_; }
 void Animation::next_frame() {
@@ -524,7 +524,7 @@ void Animation::next_frame() {
   }
 }
 
-DisplayPage::DisplayPage(const display_writer_t &writer) : writer_(writer) {}
+DisplayPage::DisplayPage(display_writer_t writer) : writer_(std::move(writer)) {}
 void DisplayPage::show() { this->parent_->show_page(this); }
 void DisplayPage::show_next() { this->next_->show(); }
 void DisplayPage::show_prev() { this->prev_->show(); }

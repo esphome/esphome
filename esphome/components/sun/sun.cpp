@@ -16,7 +16,7 @@ namespace sun {
 
 using namespace esphome::sun::internal;
 
-static const char *TAG = "sun";
+static const char *const TAG = "sun";
 
 #undef PI
 #undef degrees
@@ -79,10 +79,8 @@ struct SunAtTime {
   num_t jde;
   num_t t;
 
-  SunAtTime(num_t jde) : jde(jde) {
-    // eq 25.1, p. 163; julian centuries from the epoch J2000.0
-    t = (jde - 2451545) / 36525.0;
-  }
+  // eq 25.1, p. 163; julian centuries from the epoch J2000.0
+  SunAtTime(num_t jde) : jde(jde), t((jde - 2451545) / 36525.0) {}
 
   num_t mean_obliquity() const {
     // eq. 22.2, p. 147; mean obliquity of the ecliptic

@@ -13,7 +13,7 @@
 namespace esphome {
 namespace web_server_base {
 
-static const char *TAG = "web_server_base";
+static const char *const TAG = "web_server_base";
 
 void report_ota_error() {
   StreamString ss;
@@ -29,6 +29,7 @@ void OTARequestHandler::handleUpload(AsyncWebServerRequest *request, const Strin
     this->ota_read_length_ = 0;
 #ifdef ARDUINO_ARCH_ESP8266
     Update.runAsync(true);
+    // NOLINTNEXTLINE(readability-static-accessed-through-instance)
     success = Update.begin((ESP.getFreeSketchSpace() - 0x1000) & 0xFFFFF000);
 #endif
 #ifdef ARDUINO_ARCH_ESP32
@@ -86,7 +87,9 @@ void OTARequestHandler::handleRequest(AsyncWebServerRequest *request) {
   request->send(response);
 }
 
-void WebServerBase::add_ota_handler() { this->add_handler(new OTARequestHandler(this)); }
+void WebServerBase::add_ota_handler() {
+  this->add_handler(new OTARequestHandler(this));  // NOLINT
+}
 float WebServerBase::get_setup_priority() const {
   // Before WiFi (captive portal)
   return setup_priority::WIFI + 2.0f;

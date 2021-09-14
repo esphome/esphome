@@ -8,7 +8,7 @@
 namespace esphome {
 namespace e131 {
 
-static const char *TAG = "e131";
+static const char *const TAG = "e131";
 
 static const uint8_t ACN_ID[12] = {0x41, 0x53, 0x43, 0x2d, 0x45, 0x31, 0x2e, 0x31, 0x37, 0x00, 0x00, 0x00};
 static const uint32_t VECTOR_ROOT = 4;
@@ -51,7 +51,7 @@ union E131RawPacket {
 
 // We need to have at least one `1` value
 // Get the offset of `property_values[1]`
-const long E131_MIN_PACKET_SIZE = reinterpret_cast<long>(&((E131RawPacket *) nullptr)->property_values[1]);
+const size_t E131_MIN_PACKET_SIZE = reinterpret_cast<size_t>(&((E131RawPacket *) nullptr)->property_values[1]);
 
 bool E131Component::join_igmp_groups_() {
   if (listen_method_ != E131_MULTICAST)

@@ -1,10 +1,11 @@
 #include "api_server.h"
 #include "api_connection.h"
-#include "esphome/core/log.h"
 #include "esphome/core/application.h"
-#include "esphome/core/util.h"
 #include "esphome/core/defines.h"
+#include "esphome/core/log.h"
+#include "esphome/core/util.h"
 #include "esphome/core/version.h"
+#include <cerrno>
 
 #ifdef USE_LOGGER
 #include "esphome/components/logger/logger.h"
@@ -15,30 +16,55 @@
 namespace esphome {
 namespace api {
 
-static const char *TAG = "api";
+static const char *const TAG = "api";
 
 // APIServer
 void APIServer::setup() {
   ESP_LOGCONFIG(TAG, "Setting up Home Assistant API server...");
   this->setup_controller();
-  this->server_ = AsyncServer(this->port_);
-  this->server_.setNoDelay(false);
-  this->server_.begin();
-  this->server_.onClient(
-      [](void *s, AsyncClient *client) {
-        if (client == nullptr)
-          return;
+  socket_ = socket::socket(AF_INET, SOCK_STREAM, 0);
+  if (socket_ == nullptr) {
+    ESP_LOGW(TAG, "Could not create socket.");
+    this->mark_failed();
+    return;
+  }
+  int enable = 1;
+  int err = socket_->setsockopt(SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int));
+  if (err != 0) {
+    ESP_LOGW(TAG, "Socket unable to set reuseaddr: errno %d", err);
+    // we can still continue
+  }
+  err = socket_->setblocking(false);
+  if (err != 0) {
+    ESP_LOGW(TAG, "Socket unable to set nonblocking mode: errno %d", err);
+    this->mark_failed();
+    return;
+  }
 
-        // can't print here because in lwIP thread
-        // ESP_LOGD(TAG, "New client connected from %s", client->remoteIP().toString().c_str());
-        auto *a_this = (APIServer *) s;
-        a_this->clients_.push_back(new APIConnection(client, a_this));
-      },
-      this);
+  struct sockaddr_in server;
+  memset(&server, 0, sizeof(server));
+  server.sin_family = AF_INET;
+  server.sin_addr.s_addr = ESPHOME_INADDR_ANY;
+  server.sin_port = htons(this->port_);
+
+  err = socket_->bind((struct sockaddr *) &server, sizeof(server));
+  if (err != 0) {
+    ESP_LOGW(TAG, "Socket unable to bind: errno %d", errno);
+    this->mark_failed();
+    return;
+  }
+
+  err = socket_->listen(4);
+  if (err != 0) {
+    ESP_LOGW(TAG, "Socket unable to listen: errno %d", errno);
+    this->mark_failed();
+    return;
+  }
+
 #ifdef USE_LOGGER
   if (logger::global_logger != nullptr) {
     logger::global_logger->add_on_log_callback([this](int level, const char *tag, const char *message) {
-      for (auto *c : this->clients_) {
+      for (auto &c : this->clients_) {
         if (!c->remove_)
           c->send_log_message(level, tag, message);
       }
@@ -50,30 +76,41 @@ void APIServer::setup() {
 
 #ifdef USE_ESP32_CAMERA
   if (esp32_camera::global_esp32_camera != nullptr) {
-    esp32_camera::global_esp32_camera->add_image_callback([this](std::shared_ptr<esp32_camera::CameraImage> image) {
-      for (auto *c : this->clients_)
-        if (!c->remove_)
-          c->send_camera_state(image);
-    });
+    esp32_camera::global_esp32_camera->add_image_callback(
+        [this](const std::shared_ptr<esp32_camera::CameraImage> &image) {
+          for (auto &c : this->clients_)
+            if (!c->remove_)
+              c->send_camera_state(image);
+        });
   }
 #endif
 }
 void APIServer::loop() {
+  // Accept new clients
+  while (true) {
+    struct sockaddr_storage source_addr;
+    socklen_t addr_len = sizeof(source_addr);
+    auto sock = socket_->accept((struct sockaddr *) &source_addr, &addr_len);
+    if (!sock)
+      break;
+    ESP_LOGD(TAG, "Accepted %s", sock->getpeername().c_str());
+
+    auto *conn = new APIConnection(std::move(sock), this);
+    clients_.emplace_back(conn);
+    conn->start();
+  }
+
   // Partition clients into remove and active
-  auto new_end =
-      std::partition(this->clients_.begin(), this->clients_.end(), [](APIConnection *conn) { return !conn->remove_; });
+  auto new_end = std::partition(this->clients_.begin(), this->clients_.end(),
+                                [](const std::unique_ptr<APIConnection> &conn) { return !conn->remove_; });
   // print disconnection messages
   for (auto it = new_end; it != this->clients_.end(); ++it) {
-    ESP_LOGD(TAG, "Disconnecting %s", (*it)->client_info_.c_str());
+    ESP_LOGV(TAG, "Removing connection to %s", (*it)->client_info_.c_str());
   }
-  // only then delete the pointers, otherwise log routine
-  // would access freed memory
-  for (auto it = new_end; it != this->clients_.end(); ++it)
-    delete *it;
   // resize vector
   this->clients_.erase(new_end, this->clients_.end());
 
-  for (auto *client : this->clients_) {
+  for (auto &client : this->clients_) {
     client->loop();
   }
 
@@ -129,7 +166,7 @@ void APIServer::handle_disconnect(APIConnection *conn) {}
 void APIServer::on_binary_sensor_update(binary_sensor::BinarySensor *obj, bool state) {
   if (obj->is_internal())
     return;
-  for (auto *c : this->clients_)
+  for (auto &c : this->clients_)
     c->send_binary_sensor_state(obj, state);
 }
 #endif
@@ -138,7 +175,7 @@ void APIServer::on_binary_sensor_update(binary_sensor::BinarySensor *obj, bool s
 void APIServer::on_cover_update(cover::Cover *obj) {
   if (obj->is_internal())
     return;
-  for (auto *c : this->clients_)
+  for (auto &c : this->clients_)
     c->send_cover_state(obj);
 }
 #endif
@@ -147,7 +184,7 @@ void APIServer::on_cover_update(cover::Cover *obj) {
 void APIServer::on_fan_update(fan::FanState *obj) {
   if (obj->is_internal())
     return;
-  for (auto *c : this->clients_)
+  for (auto &c : this->clients_)
     c->send_fan_state(obj);
 }
 #endif
@@ -156,7 +193,7 @@ void APIServer::on_fan_update(fan::FanState *obj) {
 void APIServer::on_light_update(light::LightState *obj) {
   if (obj->is_internal())
     return;
-  for (auto *c : this->clients_)
+  for (auto &c : this->clients_)
     c->send_light_state(obj);
 }
 #endif
@@ -165,7 +202,7 @@ void APIServer::on_light_update(light::LightState *obj) {
 void APIServer::on_sensor_update(sensor::Sensor *obj, float state) {
   if (obj->is_internal())
     return;
-  for (auto *c : this->clients_)
+  for (auto &c : this->clients_)
     c->send_sensor_state(obj, state);
 }
 #endif
@@ -174,16 +211,16 @@ void APIServer::on_sensor_update(sensor::Sensor *obj, float state) {
 void APIServer::on_switch_update(switch_::Switch *obj, bool state) {
   if (obj->is_internal())
     return;
-  for (auto *c : this->clients_)
+  for (auto &c : this->clients_)
     c->send_switch_state(obj, state);
 }
 #endif
 
 #ifdef USE_TEXT_SENSOR
-void APIServer::on_text_sensor_update(text_sensor::TextSensor *obj, std::string state) {
+void APIServer::on_text_sensor_update(text_sensor::TextSensor *obj, const std::string &state) {
   if (obj->is_internal())
     return;
-  for (auto *c : this->clients_)
+  for (auto &c : this->clients_)
     c->send_text_sensor_state(obj, state);
 }
 #endif
@@ -192,18 +229,36 @@ void APIServer::on_text_sensor_update(text_sensor::TextSensor *obj, std::string 
 void APIServer::on_climate_update(climate::Climate *obj) {
   if (obj->is_internal())
     return;
-  for (auto *c : this->clients_)
+  for (auto &c : this->clients_)
     c->send_climate_state(obj);
+}
+#endif
+
+#ifdef USE_NUMBER
+void APIServer::on_number_update(number::Number *obj, float state) {
+  if (obj->is_internal())
+    return;
+  for (auto &c : this->clients_)
+    c->send_number_state(obj, state);
+}
+#endif
+
+#ifdef USE_SELECT
+void APIServer::on_select_update(select::Select *obj, const std::string &state) {
+  if (obj->is_internal())
+    return;
+  for (auto &c : this->clients_)
+    c->send_select_state(obj, state);
 }
 #endif
 
 float APIServer::get_setup_priority() const { return setup_priority::AFTER_WIFI; }
 void APIServer::set_port(uint16_t port) { this->port_ = port; }
-APIServer *global_api_server = nullptr;
+APIServer *global_api_server = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 void APIServer::set_password(const std::string &password) { this->password_ = password; }
 void APIServer::send_homeassistant_service_call(const HomeassistantServiceResponse &call) {
-  for (auto *client : this->clients_) {
+  for (auto &client : this->clients_) {
     client->send_homeassistant_service_call(call);
   }
 }
@@ -223,7 +278,7 @@ uint16_t APIServer::get_port() const { return this->port_; }
 void APIServer::set_reboot_timeout(uint32_t reboot_timeout) { this->reboot_timeout_ = reboot_timeout; }
 #ifdef USE_HOMEASSISTANT_TIME
 void APIServer::request_time() {
-  for (auto *client : this->clients_) {
+  for (auto &client : this->clients_) {
     if (!client->remove_ && client->connection_state_ == APIConnection::ConnectionState::CONNECTED)
       client->send_time_request();
   }
@@ -231,7 +286,7 @@ void APIServer::request_time() {
 #endif
 bool APIServer::is_connected() const { return !this->clients_.empty(); }
 void APIServer::on_shutdown() {
-  for (auto *c : this->clients_) {
+  for (auto &c : this->clients_) {
     c->send_disconnect_request(DisconnectRequest());
   }
   delay(10);

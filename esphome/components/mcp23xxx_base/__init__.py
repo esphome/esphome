@@ -91,7 +91,7 @@ async def mcp23xxx_pin_to_code(config):
 
 
 # BEGIN Removed pin schemas below to show error in configuration
-# TODO remove in 1.19.0
+# TODO remove in 2022.5.0
 
 for id in ["mcp23008", "mcp23s08", "mcp23017", "mcp23s17"]:
     PIN_SCHEMA = cv.Schema(
@@ -110,6 +110,7 @@ for id in ["mcp23008", "mcp23s08", "mcp23017", "mcp23s17"]:
         }
     )
 
+    # pylint: disable=cell-var-from-loop
     @pins.PIN_SCHEMA_REGISTRY.register(id, (PIN_SCHEMA, PIN_SCHEMA))
     def pin_to_code(config):
         pass

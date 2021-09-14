@@ -30,7 +30,7 @@ class FastLEDLightOutput : public light::AddressableLight {
   CLEDController &add_leds(CLEDController *controller, int num_leds) {
     this->controller_ = controller;
     this->num_leds_ = num_leds;
-    this->leds_ = new CRGB[num_leds];
+    this->leds_ = new CRGB[num_leds];  // NOLINT
 
     for (int i = 0; i < this->num_leds_; i++)
       this->leds_[i] = CRGB::Black;
@@ -208,13 +208,12 @@ class FastLEDLightOutput : public light::AddressableLight {
   // (In most use cases you won't need these)
   light::LightTraits get_traits() override {
     auto traits = light::LightTraits();
-    traits.set_supports_brightness(true);
-    traits.set_supports_rgb(true);
+    traits.set_supported_color_modes({light::ColorMode::RGB});
     return traits;
   }
   void setup() override;
   void dump_config() override;
-  void loop() override;
+  void write_state(light::LightState *state) override;
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
 
   void clear_effect_data() override {

@@ -11,7 +11,7 @@
 namespace esphome {
 namespace uart {
 
-static const char *TAG = "uart";
+static const char *const TAG = "uart";
 
 size_t UARTComponent::write(uint8_t data) {
   this->write_byte(data);
@@ -58,21 +58,21 @@ void UARTDevice::check_uart_settings(uint32_t baud_rate, uint8_t stop_bits, UART
              this->parent_->data_bits_);
   }
   if (this->parent_->parity_ != parity) {
-    ESP_LOGE(TAG, "  Invalid parity: Integration requested parity %s but you have %s!", parity_to_str(parity),
-             parity_to_str(this->parent_->parity_));
+    ESP_LOGE(TAG, "  Invalid parity: Integration requested parity %s but you have %s!",
+             LOG_STR_ARG(parity_to_str(parity)), LOG_STR_ARG(parity_to_str(this->parent_->parity_)));
   }
 }
 
-const char *parity_to_str(UARTParityOptions parity) {
+const LogString *parity_to_str(UARTParityOptions parity) {
   switch (parity) {
     case UART_CONFIG_PARITY_NONE:
-      return "NONE";
+      return LOG_STR("NONE");
     case UART_CONFIG_PARITY_EVEN:
-      return "EVEN";
+      return LOG_STR("EVEN");
     case UART_CONFIG_PARITY_ODD:
-      return "ODD";
+      return LOG_STR("ODD");
     default:
-      return "UNKNOWN";
+      return LOG_STR("UNKNOWN");
   }
 }
 

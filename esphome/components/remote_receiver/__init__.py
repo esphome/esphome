@@ -54,7 +54,10 @@ async def to_code(config):
     else:
         var = cg.new_Pvariable(config[CONF_ID], pin)
 
-    await remote_base.build_dumpers(config[CONF_DUMP])
+    dumpers = await remote_base.build_dumpers(config[CONF_DUMP])
+    for dumper in dumpers:
+        cg.add(var.register_dumper(dumper))
+
     await remote_base.build_triggers(config)
     await cg.register_component(var, config)
 

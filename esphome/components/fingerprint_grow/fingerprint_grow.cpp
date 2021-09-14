@@ -4,7 +4,7 @@
 namespace esphome {
 namespace fingerprint_grow {
 
-static const char* TAG = "fingerprint_grow";
+static const char *const TAG = "fingerprint_grow";
 
 // Based on Adafruit's library: https://github.com/adafruit/Adafruit-Fingerprint-Sensor-Library
 

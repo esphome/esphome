@@ -6,7 +6,7 @@ namespace teleinfo {
 class TeleInfoTextSensor : public TeleInfoListener, public text_sensor::TextSensor, public Component {
  public:
   TeleInfoTextSensor(const char *tag);
-  void publish_val(std::string val) override;
+  void publish_val(const std::string &val) override;
   void dump_config() override;
 };
 }  // namespace teleinfo

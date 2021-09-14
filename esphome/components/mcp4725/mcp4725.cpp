@@ -4,7 +4,7 @@
 namespace esphome {
 namespace mcp4725 {
 
-static const char *TAG = "mcp4725";
+static const char *const TAG = "mcp4725";
 
 void MCP4725::setup() {
   ESP_LOGCONFIG(TAG, "Setting up MCP4725 (0x%02X)...", this->address_);
