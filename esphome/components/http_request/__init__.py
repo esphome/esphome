@@ -102,7 +102,7 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add(var.set_timeout(config[CONF_TIMEOUT]))
     cg.add(var.set_useragent(config[CONF_USERAGENT]))
-    if not config.get(CONF_ESP8266_DISABLE_SSL_SUPPORT, False):
+    if CORE.is_esp8266 and not config[CONF_ESP8266_DISABLE_SSL_SUPPORT]:
         cg.add_define("USE_HTTP_REQUEST_ESP8266_HTTPS")
     await cg.register_component(var, config)
 
