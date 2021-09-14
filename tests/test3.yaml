@@ -1296,4 +1296,5 @@ dsmr:
 
 daly_bms:
   update_interval: 20s
+  uart_id: uart1
 
