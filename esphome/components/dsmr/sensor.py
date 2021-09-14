@@ -95,14 +95,14 @@ CONFIG_SCHEMA = cv.Schema(
             UNIT_KILOVOLT_AMPS_REACTIVE,
             ICON_EMPTY,
             3,
-            DEVICE_CLASS_ENERGY,
-            STATE_CLASS_NONE,
+            DEVICE_CLASS_POWER,
+            STATE_CLASS_MEASUREMENT,
         ),
         cv.Optional("reactive_power_returned"): sensor.sensor_schema(
             UNIT_KILOVOLT_AMPS_REACTIVE,
             ICON_EMPTY,
             3,
-            DEVICE_CLASS_ENERGY,
+            DEVICE_CLASS_POWER,
             STATE_CLASS_MEASUREMENT,
         ),
         cv.Optional("electricity_threshold"): sensor.sensor_schema(
@@ -121,13 +121,13 @@ CONFIG_SCHEMA = cv.Schema(
             UNIT_EMPTY, ICON_EMPTY, 0, DEVICE_CLASS_EMPTY, STATE_CLASS_NONE
         ),
         cv.Optional("electricity_sags_l2"): sensor.sensor_schema(
-            UNIT_EMPTY, ICON_EMPTY, 0, DEVICE_CLASS_EMPTY, STATE_CLASS_MEASUREMENT
+            UNIT_EMPTY, ICON_EMPTY, 0, DEVICE_CLASS_EMPTY, STATE_CLASS_NONE
         ),
         cv.Optional("electricity_sags_l3"): sensor.sensor_schema(
             UNIT_EMPTY, ICON_EMPTY, 0, DEVICE_CLASS_EMPTY, STATE_CLASS_NONE
         ),
         cv.Optional("electricity_swells_l1"): sensor.sensor_schema(
-            UNIT_EMPTY, ICON_EMPTY, 0, DEVICE_CLASS_EMPTY, STATE_CLASS_MEASUREMENT
+            UNIT_EMPTY, ICON_EMPTY, 0, DEVICE_CLASS_EMPTY, STATE_CLASS_NONE
         ),
         cv.Optional("electricity_swells_l2"): sensor.sensor_schema(
             UNIT_EMPTY, ICON_EMPTY, 0, DEVICE_CLASS_EMPTY, STATE_CLASS_NONE
@@ -163,22 +163,46 @@ CONFIG_SCHEMA = cv.Schema(
             UNIT_KILOWATT, ICON_EMPTY, 3, DEVICE_CLASS_POWER, STATE_CLASS_MEASUREMENT
         ),
         cv.Optional("reactive_power_delivered_l1"): sensor.sensor_schema(
-            UNIT_KILOWATT, ICON_EMPTY, 3, DEVICE_CLASS_POWER, STATE_CLASS_MEASUREMENT
+            UNIT_KILOVOLT_AMPS_REACTIVE,
+            ICON_EMPTY,
+            3,
+            DEVICE_CLASS_POWER,
+            STATE_CLASS_MEASUREMENT,
         ),
         cv.Optional("reactive_power_delivered_l2"): sensor.sensor_schema(
-            UNIT_KILOWATT, ICON_EMPTY, 3, DEVICE_CLASS_POWER, STATE_CLASS_MEASUREMENT
+            UNIT_KILOVOLT_AMPS_REACTIVE,
+            ICON_EMPTY,
+            3,
+            DEVICE_CLASS_POWER,
+            STATE_CLASS_MEASUREMENT,
         ),
         cv.Optional("reactive_power_delivered_l3"): sensor.sensor_schema(
-            UNIT_KILOWATT, ICON_EMPTY, 3, DEVICE_CLASS_POWER, STATE_CLASS_MEASUREMENT
+            UNIT_KILOVOLT_AMPS_REACTIVE,
+            ICON_EMPTY,
+            3,
+            DEVICE_CLASS_POWER,
+            STATE_CLASS_MEASUREMENT,
         ),
         cv.Optional("reactive_power_returned_l1"): sensor.sensor_schema(
-            UNIT_KILOWATT, ICON_EMPTY, 3, DEVICE_CLASS_POWER, STATE_CLASS_MEASUREMENT
+            UNIT_KILOVOLT_AMPS_REACTIVE,
+            ICON_EMPTY,
+            3,
+            DEVICE_CLASS_POWER,
+            STATE_CLASS_MEASUREMENT,
         ),
         cv.Optional("reactive_power_returned_l2"): sensor.sensor_schema(
-            UNIT_KILOWATT, ICON_EMPTY, 3, DEVICE_CLASS_POWER, STATE_CLASS_MEASUREMENT
+            UNIT_KILOVOLT_AMPS_REACTIVE,
+            ICON_EMPTY,
+            3,
+            DEVICE_CLASS_POWER,
+            STATE_CLASS_MEASUREMENT,
         ),
         cv.Optional("reactive_power_returned_l3"): sensor.sensor_schema(
-            UNIT_KILOWATT, ICON_EMPTY, 3, DEVICE_CLASS_POWER, STATE_CLASS_MEASUREMENT
+            UNIT_KILOVOLT_AMPS_REACTIVE,
+            ICON_EMPTY,
+            3,
+            DEVICE_CLASS_POWER,
+            STATE_CLASS_MEASUREMENT,
         ),
         cv.Optional("voltage_l1"): sensor.sensor_schema(
             UNIT_VOLT, ICON_EMPTY, 1, DEVICE_CLASS_VOLTAGE, STATE_CLASS_NONE
