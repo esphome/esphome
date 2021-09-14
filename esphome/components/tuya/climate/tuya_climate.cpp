@@ -34,8 +34,8 @@ void TuyaClimate::setup() {
   }
   if (this->target_temperature_id_.has_value()) {
     this->parent_->register_listener(*this->target_temperature_id_, [this](const TuyaDatapoint &datapoint) {
-      this->target_temperature_manual_ = datapoint.value_int * this->target_temperature_multiplier_;
-      ESP_LOGV(TAG, "MCU reported target temperature is: %.1f", this->target_temperature_manual_);
+      this->manual_temperature_ = datapoint.value_int * this->target_temperature_multiplier_;
+      ESP_LOGV(TAG, "MCU reported manual target temperature is: %.1f", this->manual_temperature_);
       this->compute_target_temperature_();
       this->compute_state_();
       this->publish_state();
@@ -49,10 +49,11 @@ void TuyaClimate::setup() {
       this->publish_state();
     });
   }
-  if (this->away_id_.has_value()) {
-    this->parent_->register_listener(*this->away_id_, [this](TuyaDatapoint datapoint) {
-      this->away = datapoint.value_bool;
-      ESP_LOGV(TAG, "MCU reported away is: %s", ONOFF(this->away));
+  if (this->eco_id_.has_value()) {
+    this->parent_->register_listener(*this->eco_id_, [this](TuyaDatapoint datapoint) {
+      this->eco_ = datapoint.value_bool;
+      ESP_LOGV(TAG, "MCU reported eco is: %s", ONOFF(this->eco_));
+      this->compute_preset_();
       this->compute_target_temperature_();
       this->publish_state();
     });
@@ -73,22 +74,28 @@ void TuyaClimate::control(const climate::ClimateCall &call) {
                                        (int) (target_temperature / this->target_temperature_multiplier_));
   }
 
-  if (call.get_away().has_value()) {
-    const bool away = *call.get_away();
-    ESP_LOGV(TAG, "Setting away: %s", ONOFF(away));
-    this->parent_->set_datapoint_value(*this->away_id_, away);
+  if (call.get_preset().has_value()) {
+    const ClimatePreset preset = *call.get_preset();
+    if (this->eco_id_.has_value()) {
+      const bool eco = preset == climate::CLIMATE_PRESET_ECO;
+      ESP_LOGV(TAG, "Setting eco: %s", ONOFF(eco));
+      this->parent_->set_datapoint_value(*this->eco_id_, eco);
+    }
   }
 }
 
 climate::ClimateTraits TuyaClimate::traits() {
   auto traits = climate::ClimateTraits();
+  traits.set_supports_action(true);
   traits.set_supports_current_temperature(this->current_temperature_id_.has_value());
   if (supports_heat_)
     traits.add_supported_mode(climate::CLIMATE_MODE_HEAT);
   if (supports_cool_)
     traits.add_supported_mode(climate::CLIMATE_MODE_COOL);
-  traits.set_supports_action(true);
-  traits.set_supports_away(this->away_id_.has_value());
+  if (this->eco_id_.has_value()) {
+    traits.add_supported_preset(ClimatePreset::CLIMATE_PRESET_NONE);
+    traits.add_supported_preset(ClimatePreset::CLIMATE_PRESET_ECO);
+  }
   return traits;
 }
 
@@ -102,15 +109,23 @@ void TuyaClimate::dump_config() {
     ESP_LOGCONFIG(TAG, "  Target Temperature has datapoint ID %u", *this->target_temperature_id_);
   if (this->current_temperature_id_.has_value())
     ESP_LOGCONFIG(TAG, "  Current Temperature has datapoint ID %u", *this->current_temperature_id_);
-  if (this->away_id_.has_value())
-    ESP_LOGCONFIG(TAG, "  Away has datapoint ID %u", *this->away_id_);
+  if (this->eco_id_.has_value())
+    ESP_LOGCONFIG(TAG, "  Eco has datapoint ID %u", *this->eco_id_);
+}
+
+void TuyaClimate::compute_preset_() {
+  if (this->eco_) {
+    this->set_preset(ClimatePreset::CLIMATE_PRESET_ECO);
+  } else {
+    this->set_preset(ClimatePreset::CLIMATE_PRESET_NONE);
+  }
 }
 
 void TuyaClimate::compute_target_temperature_() {
-  if (this->away && this->away_temperature_.has_value()) {
-    this->target_temperature = *this->away_temperature_;
+  if (this->eco_ && this->eco_temperature_.has_value()) {
+    this->target_temperature = *this->eco_temperature_;
   } else {
-    this->target_temperature = this->target_temperature_manual_;
+    this->target_temperature = this->manual_temperature_;
   }
 }
 
