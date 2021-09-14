@@ -50,7 +50,7 @@ void TuyaClimate::setup() {
     });
   }
   if (this->eco_id_.has_value()) {
-    this->parent_->register_listener(*this->eco_id_, [this](TuyaDatapoint datapoint) {
+    this->parent_->register_listener(*this->eco_id_, [this](const TuyaDatapoint &datapoint) {
       this->eco_ = datapoint.value_bool;
       ESP_LOGV(TAG, "MCU reported eco is: %s", ONOFF(this->eco_));
       this->compute_preset_();
