@@ -75,11 +75,11 @@ void TuyaClimate::control(const climate::ClimateCall &call) {
   }
 
   if (call.get_preset().has_value()) {
-    const ClimatePreset preset = *call.get_preset();
+    const climate::ClimatePreset preset = *call.get_preset();
     if (this->eco_id_.has_value()) {
       const bool eco = preset == climate::CLIMATE_PRESET_ECO;
       ESP_LOGV(TAG, "Setting eco: %s", ONOFF(eco));
-      this->parent_->set_datapoint_value(*this->eco_id_, eco);
+      this->parent_->set_boolean_datapoint_value(*this->eco_id_, eco);
     }
   }
 }
@@ -93,8 +93,8 @@ climate::ClimateTraits TuyaClimate::traits() {
   if (supports_cool_)
     traits.add_supported_mode(climate::CLIMATE_MODE_COOL);
   if (this->eco_id_.has_value()) {
-    traits.add_supported_preset(ClimatePreset::CLIMATE_PRESET_NONE);
-    traits.add_supported_preset(ClimatePreset::CLIMATE_PRESET_ECO);
+    traits.add_supported_preset(climate::CLIMATE_PRESET_NONE);
+    traits.add_supported_preset(climate::CLIMATE_PRESET_ECO);
   }
   return traits;
 }
@@ -115,9 +115,9 @@ void TuyaClimate::dump_config() {
 
 void TuyaClimate::compute_preset_() {
   if (this->eco_) {
-    this->set_preset(ClimatePreset::CLIMATE_PRESET_ECO);
+    this->preset = climate::CLIMATE_PRESET_ECO;
   } else {
-    this->set_preset(ClimatePreset::CLIMATE_PRESET_NONE);
+    this->preset = climate::CLIMATE_PRESET_NONE;
   }
 }
 
