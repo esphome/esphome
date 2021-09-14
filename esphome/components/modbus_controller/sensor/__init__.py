@@ -2,7 +2,7 @@ from esphome.components import sensor
 import esphome.config_validation as cv
 import esphome.codegen as cg
 
-from esphome.const import CONF_ID, CONF_ADDRESS, CONF_OFFSET
+from esphome.const import CONF_ID, CONF_ADDRESS, CONF_LAMBDA, CONF_OFFSET
 from .. import (
     SensorItem,
     modbus_controller_ns,
@@ -59,6 +59,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_REGISTER_COUNT, default=0): cv.positive_int,
             cv.Optional(CONF_SKIP_UPDATES, default=0): cv.positive_int,
             cv.Optional(CONF_FORCE_NEW_RANGE, default=False): cv.boolean,
+            cv.Optional(CONF_LAMBDA): cv.returning_lambda,
         }
     ).extend(cv.COMPONENT_SCHEMA),
 )
@@ -91,3 +92,16 @@ async def to_code(config):
 
     paren = await cg.get_variable(config[CONF_MODBUS_CONTROLLER_ID])
     cg.add(paren.add_sensor_item(var))
+    if CONF_LAMBDA in config:
+        template_ = await cg.process_lambda(
+            config[CONF_LAMBDA],
+            [
+                (cg.float_, "x"),
+                (
+                    cg.std_vector.template(cg.uint8).operator("const").operator("ref"),
+                    "data",
+                ),
+            ],
+            return_type=cg.optional.template(float),
+        )
+        cg.add(var.set_template(template_))

@@ -23,6 +23,19 @@ void ModbusBinarySensor::parse_and_publish(const std::vector<uint8_t> &data) {
       value = get_data<uint16_t>(data, this->offset) & this->bitmask;
       break;
   }
+  // Is there a lambda registered
+  // call it with the pre converted value and the raw data array
+  if (this->transform_func_.has_value()) {
+    // the lambda can parse the response itself
+    auto val = (*this->transform_func_)(value, data);
+    if (val.has_value()) {
+      ESP_LOGV(TAG, "Value overwritten by lambda");
+      value = val.value();
+    } else {
+      ESP_LOGV(TAG, "publishing handled by lambda - parse and publish");
+      return;
+    }
+  }
   this->publish_state(value);
 }
 

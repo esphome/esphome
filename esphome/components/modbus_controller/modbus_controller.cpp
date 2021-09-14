@@ -419,5 +419,135 @@ bool ModbusCommandItem::send() {
   return true;
 }
 
+std::vector<uint16_t> float_to_payload(float value, SensorValueType value_type) {
+  union {
+    float float_value;
+    uint32_t raw;
+  } raw_to_float;
+
+  std::vector<uint16_t> data;
+  int32_t val;
+
+  switch (value_type) {
+    case SensorValueType::U_WORD:
+    case SensorValueType::S_WORD:
+      // cast truncates the float do some rounding here
+      data.push_back(lroundf(value) & 0xFFFF);
+      break;
+    case SensorValueType::U_DWORD:
+    case SensorValueType::S_DWORD:
+      val = lroundf(value);
+      data.push_back((val & 0xFFFF0000) >> 16);
+      data.push_back(val & 0xFFFF);
+      break;
+    case SensorValueType::U_DWORD_R:
+    case SensorValueType::S_DWORD_R:
+      val = lroundf(value);
+      data.push_back(val & 0xFFFF);
+      data.push_back((val & 0xFFFF0000) >> 16);
+      break;
+    case SensorValueType::FP32:
+      raw_to_float.float_value = value;
+      data.push_back((raw_to_float.raw & 0xFFFF0000) >> 16);
+      data.push_back(raw_to_float.raw & 0xFFFF);
+      break;
+    case SensorValueType::FP32_R:
+      raw_to_float.float_value = value;
+      data.push_back(raw_to_float.raw & 0xFFFF);
+      data.push_back((raw_to_float.raw & 0xFFFF0000) >> 16);
+      break;
+    default:
+      ESP_LOGE(TAG, "Invalid data type for modbus float to payload conversation");
+      break;
+  }
+  return data;
+}
+
+float payload_to_float(const std::vector<uint8_t> &data, SensorValueType sensor_value_type, uint8_t offset,
+                       uint32_t bitmask) {
+  union {
+    float float_value;
+    uint32_t raw;
+  } raw_to_float;
+
+  int64_t value = 0;  // int64_t because it can hold signed and unsigned 32 bits
+  float result = NAN;
+
+  switch (sensor_value_type) {
+    case SensorValueType::U_WORD:
+      value = mask_and_shift_by_rightbit(get_data<uint16_t>(data, offset), bitmask);  // default is 0xFFFF ;
+      result = static_cast<float>(value);
+      break;
+    case SensorValueType::U_DWORD:
+      value = get_data<uint32_t>(data, offset);
+      value = mask_and_shift_by_rightbit((uint32_t) value, bitmask);
+      result = static_cast<float>(value);
+      break;
+    case SensorValueType::U_DWORD_R:
+      value = get_data<uint32_t>(data, offset);
+      value = static_cast<uint32_t>(value & 0xFFFF) << 16 | (value & 0xFFFF0000) >> 16;
+      value = mask_and_shift_by_rightbit((uint32_t) value, bitmask);
+      result = static_cast<float>(value);
+      break;
+    case SensorValueType::S_WORD:
+      value = mask_and_shift_by_rightbit(get_data<int16_t>(data, offset),
+                                         bitmask);  // default is 0xFFFF ;
+      result = static_cast<float>(value);
+      break;
+    case SensorValueType::S_DWORD:
+      value = mask_and_shift_by_rightbit(get_data<int32_t>(data, offset), bitmask);
+      result = static_cast<float>(value);
+      break;
+    case SensorValueType::S_DWORD_R: {
+      value = get_data<uint32_t>(data, offset);
+      // Currently the high word is at the low position
+      // the sign bit is therefore at low before the switch
+      uint32_t sign_bit = (value & 0x8000) << 16;
+      value = mask_and_shift_by_rightbit(
+          static_cast<int32_t>(((value & 0x7FFF) << 16 | (value & 0xFFFF0000) >> 16) | sign_bit), bitmask);
+      result = static_cast<float>(value);
+    } break;
+    case SensorValueType::U_QWORD:
+      // Ignore bitmask for U_QWORD
+      value = get_data<uint64_t>(data, offset);
+      result = static_cast<float>(value);
+      break;
+
+    case SensorValueType::S_QWORD:
+      // Ignore bitmask for S_QWORD
+      value = get_data<int64_t>(data, offset);
+      result = static_cast<float>(value);
+      break;
+    case SensorValueType::U_QWORD_R:
+      // Ignore bitmask for U_QWORD
+      value = get_data<uint64_t>(data, offset);
+      value = static_cast<uint64_t>(value & 0xFFFF) << 48 | (value & 0xFFFF000000000000) >> 48 |
+              static_cast<uint64_t>(value & 0xFFFF0000) << 32 | (value & 0x0000FFFF00000000) >> 32 |
+              static_cast<uint64_t>(value & 0xFFFF00000000) << 16 | (value & 0x00000000FFFF0000) >> 16;
+      result = static_cast<float>(value);
+      break;
+
+    case SensorValueType::S_QWORD_R:
+      // Ignore bitmask for S_QWORD
+      value = get_data<int64_t>(data, offset);
+      result = static_cast<float>(value);
+      break;
+    case SensorValueType::FP32:
+      raw_to_float.raw = get_data<uint32_t>(data, offset);
+      ESP_LOGD(TAG, "FP32 = 0x%08X => %f", raw_to_float.raw, raw_to_float.float_value);
+      result = raw_to_float.float_value;
+      break;
+    case SensorValueType::FP32_R: {
+      auto tmp = get_data<uint32_t>(data, offset);
+      raw_to_float.raw = static_cast<uint32_t>(tmp & 0xFFFF) << 16 | (tmp & 0xFFFF0000) >> 16;
+      ESP_LOGD(TAG, "FP32_R = 0x%08X => %f", raw_to_float.raw, raw_to_float.float_value);
+      result = raw_to_float.float_value;
+    } break;
+    default:
+      break;
+  }
+  return result;
+}
+
 }  // namespace modbus_controller
 }  // namespace esphome
