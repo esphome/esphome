@@ -32,20 +32,24 @@ def _merge_package(full_old, full_new):
                 return new
 
             # Merge list entries if CONF_ID is present and identical in both
-            without_id = []
-            with_id = {}
+            res = []
+            to_merge = {}
             for v in old:
-                if CONF_ID in v:
-                    with_id[v[CONF_ID]] = v
+                if isinstance(v, dict) and CONF_ID in v:
+                    to_merge[v[CONF_ID]] = v
                 else:
-                    without_id.append(v)
+                    res.append(v)
             for v in new:
-                if CONF_ID in v and v[CONF_ID] in with_id.keys():
+                if (
+                    isinstance(v, dict)
+                    and CONF_ID in v
+                    and v[CONF_ID] in to_merge.keys()
+                ):
                     id = v[CONF_ID]
-                    with_id[id] = merge(with_id[id], v)
+                    to_merge[id] = merge(to_merge[id], v)
                 else:
-                    without_id.append(v)
-            return without_id + list(with_id.values())
+                    res.append(v)
+            return res + list(to_merge.values())
 
         return new
 
