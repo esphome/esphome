@@ -37,6 +37,7 @@ void IRAM_ATTR HOT arch_feed_wdt() {
   delay(1);
 }
 
+#ifdef USE_ESP_IDF
 TaskHandle_t loop_task_handle = nullptr;
 
 void loop_task(void *pvParameters) {
@@ -57,5 +58,6 @@ extern "C" void app_main() {
     &loop_task_handle
   );
 }
+#endif  // USE_ESP_IDF
 
 }  // namespace esphome

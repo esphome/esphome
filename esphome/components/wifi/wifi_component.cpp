@@ -43,7 +43,6 @@ void WiFiComponent::setup() {
 
   SavedWifiSettings save{};
   if (this->pref_.load(&save)) {
-    ESP_LOGD(TAG, "Loaded");
     ESP_LOGD(TAG, "Loaded saved wifi settings: %s", save.ssid);
 
     WiFiAP sta{};
@@ -53,7 +52,6 @@ void WiFiComponent::setup() {
   }
 
   if (this->has_sta()) {
-    ESP_LOGD(TAG, "STA setup");
     this->wifi_sta_pre_setup_();
     if (this->output_power_.has_value() && !this->wifi_apply_output_power_(*this->output_power_)) {
       ESP_LOGV(TAG, "Setting Output Power Option failed!");
@@ -62,8 +60,6 @@ void WiFiComponent::setup() {
     if (!this->wifi_apply_power_save_()) {
       ESP_LOGV(TAG, "Setting Power Save Option failed!");
     }
-
-    ESP_LOGD(TAG, "Scanning");
 
     if (this->fast_connect_) {
       this->selected_ap_ = this->sta_[0];

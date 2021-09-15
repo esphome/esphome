@@ -24,6 +24,13 @@ namespace wifi {
 
 static const char *const TAG = "wifi_esp32";
 
+static bool s_sta_connected = false;
+static bool s_sta_got_ip = false;
+static bool s_sta_connect_not_found = false;
+static bool s_sta_connect_error = false;
+static bool s_sta_connecting = false;
+
+
 bool WiFiComponent::wifi_mode_(optional<bool> sta, optional<bool> ap) {
   uint8_t current_mode = WiFiClass::getMode();
   bool current_sta = current_mode & 0b01;
@@ -139,12 +146,12 @@ bool WiFiComponent::wifi_sta_ip_config_(optional<ManualIP> manual_ip) {
   return true;
 }
 
-IPAddress WiFiComponent::wifi_sta_ip_() {
+network::IPAddress WiFiComponent::wifi_sta_ip_() {
   if (!this->has_sta())
-    return IPAddress();
+    return {};
   tcpip_adapter_ip_info_t ip;
   tcpip_adapter_get_ip_info(TCPIP_ADAPTER_IF_STA, &ip);
-  return IPAddress(ip.ip.addr);
+  return {ip.ip.addr};
 }
 
 bool WiFiComponent::wifi_apply_hostname_() {
@@ -279,6 +286,12 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
     ESP_LOGW(TAG, "esp_wifi_connect failed! %d", err);
     return false;
   }
+
+  s_sta_connecting = true;
+  s_sta_connected = false;
+  s_sta_got_ip = false;
+  s_sta_connect_error = false;
+  s_sta_connect_not_found = false;
 
   return true;
 }
@@ -429,6 +442,7 @@ void WiFiComponent::wifi_event_callback_(system_event_id_t event, system_event_i
       buf[it.ssid_len] = '\0';
       ESP_LOGV(TAG, "Event: Connected ssid='%s' bssid=" LOG_SECRET("%s") " channel=%u, authmode=%s", buf,
                format_mac_addr(it.bssid).c_str(), it.channel, get_auth_mode_str(it.authmode));
+      s_sta_connected = true;
       break;
     }
     case SYSTEM_EVENT_STA_DISCONNECTED: {
@@ -442,10 +456,14 @@ void WiFiComponent::wifi_event_callback_(system_event_id_t event, system_event_i
       buf[it.ssid_len] = '\0';
       if (it.reason == WIFI_REASON_NO_AP_FOUND) {
         ESP_LOGW(TAG, "Event: Disconnected ssid='%s' reason='Probe Request Unsuccessful'", buf);
+        s_sta_connect_not_found = true;
       } else {
         ESP_LOGW(TAG, "Event: Disconnected ssid='%s' bssid=" LOG_SECRET("%s") " reason='%s'", buf,
                  format_mac_addr(it.bssid).c_str(), get_disconnect_reason_str(it.reason));
+        s_sta_connect_error = true;
       }
+      s_sta_connected = false;
+      s_sta_connecting = false;
       break;
     }
     case SYSTEM_EVENT_STA_AUTHMODE_CHANGE: {
@@ -474,10 +492,12 @@ void WiFiComponent::wifi_event_callback_(system_event_id_t event, system_event_i
       auto it = info.got_ip.ip_info;
       ESP_LOGV(TAG, "Event: Got IP static_ip=%s gateway=%s", format_ip4_addr(it.ip).c_str(),
                format_ip4_addr(it.gw).c_str());
+      s_sta_got_ip = true;
       break;
     }
     case SYSTEM_EVENT_STA_LOST_IP: {
       ESP_LOGV(TAG, "Event: Lost IP");
+      s_sta_got_ip = false;
       break;
     }
     case SYSTEM_EVENT_AP_START: {
@@ -559,7 +579,21 @@ void WiFiComponent::wifi_pre_setup_() {
   // Make sure WiFi is in clean state before anything starts
   this->wifi_mode_(false, false);
 }
-wl_status_t WiFiComponent::wifi_sta_status_() { return WiFiClass::status(); }
+WiFiSTAConnectStatus WiFiComponent::wifi_sta_connect_status_() {
+  if (s_sta_connected && s_sta_got_ip) {
+    return WiFiSTAConnectStatus::CONNECTED;
+  }
+  if (s_sta_connect_error) {
+    return WiFiSTAConnectStatus::ERROR_CONNECT_FAILED;
+  }
+  if (s_sta_connect_not_found) {
+    return WiFiSTAConnectStatus::ERROR_NETWORK_NOT_FOUND;
+  }
+  if (s_sta_connecting) {
+    return WiFiSTAConnectStatus::CONNECTING;
+  }
+  return WiFiSTAConnectStatus::IDLE;
+}
 bool WiFiComponent::wifi_scan_start_() {
   // enable STA
   if (!this->wifi_mode_(true, {}))
@@ -610,9 +644,9 @@ bool WiFiComponent::wifi_ap_ip_config_(optional<ManualIP> manual_ip) {
     info.gw.addr = static_cast<uint32_t>(manual_ip->gateway);
     info.netmask.addr = static_cast<uint32_t>(manual_ip->subnet);
   } else {
-    info.ip.addr = static_cast<uint32_t>(IPAddress(192, 168, 4, 1));
-    info.gw.addr = static_cast<uint32_t>(IPAddress(192, 168, 4, 1));
-    info.netmask.addr = static_cast<uint32_t>(IPAddress(255, 255, 255, 0));
+    info.ip.addr = static_cast<uint32_t>(network::IPAddress(192, 168, 4, 1));
+    info.gw.addr = static_cast<uint32_t>(network::IPAddress(192, 168, 4, 1));
+    info.netmask.addr = static_cast<uint32_t>(network::IPAddress(255, 255, 255, 0));
   }
   tcpip_adapter_dhcp_status_t dhcp_status;
   tcpip_adapter_dhcps_get_status(TCPIP_ADAPTER_IF_AP, &dhcp_status);
@@ -630,13 +664,13 @@ bool WiFiComponent::wifi_ap_ip_config_(optional<ManualIP> manual_ip) {
 
   dhcps_lease_t lease;
   lease.enable = true;
-  IPAddress start_address = info.ip.addr;
+  network::IPAddress start_address = info.ip.addr;
   start_address[3] += 99;
   lease.start_ip.addr = static_cast<uint32_t>(start_address);
-  ESP_LOGV(TAG, "DHCP server IP lease start: %s", start_address.toString().c_str());
+  ESP_LOGV(TAG, "DHCP server IP lease start: %s", start_address.str().c_str());
   start_address[3] += 100;
   lease.end_ip.addr = static_cast<uint32_t>(start_address);
-  ESP_LOGV(TAG, "DHCP server IP lease end: %s", start_address.toString().c_str());
+  ESP_LOGV(TAG, "DHCP server IP lease end: %s", start_address.str().c_str());
   err = tcpip_adapter_dhcps_option(TCPIP_ADAPTER_OP_SET, TCPIP_ADAPTER_REQUESTED_IP_ADDRESS, &lease, sizeof(lease));
 
   if (err != ESP_OK) {
@@ -694,12 +728,41 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
 
   return true;
 }
-IPAddress WiFiComponent::wifi_soft_ap_ip() {
+network::IPAddress WiFiComponent::wifi_soft_ap_ip() {
   tcpip_adapter_ip_info_t ip;
   tcpip_adapter_get_ip_info(TCPIP_ADAPTER_IF_AP, &ip);
-  return IPAddress(ip.ip.addr);
+  return {ip.ip.addr};
 }
 bool WiFiComponent::wifi_disconnect_() { return esp_wifi_disconnect(); }
+
+bssid_t WiFiComponent::wifi_bssid_() {
+  bssid_t bssid{};
+  uint8_t *raw_bssid = WiFi.BSSID();
+  if (raw_bssid != nullptr) {
+    for (size_t i = 0; i < bssid.size(); i++)
+      bssid[i] = raw_bssid[i];
+  }
+  return bssid;
+}
+std::string WiFiComponent::wifi_ssid_() {
+  return WiFi.SSID().c_str();
+}
+int8_t WiFiComponent::wifi_rssi_() {
+  return WiFi.RSSI();
+}
+int32_t WiFiComponent::wifi_channel_() {
+  return WiFi.channel();
+}
+network::IPAddress WiFiComponent::wifi_subnet_mask_() {
+  return {WiFi.subnetMask()};
+}
+network::IPAddress WiFiComponent::wifi_gateway_ip_() {
+  return {WiFi.gatewayIP()};
+}
+network::IPAddress WiFiComponent::wifi_dns_ip_(int num) {
+  return {WiFi.dnsIP(num)};
+}
+void WiFiComponent::wifi_loop_() {}
 
 }  // namespace wifi
 }  // namespace esphome
