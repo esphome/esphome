@@ -20,27 +20,28 @@ void ADE7953::dump_config() {
   LOG_SENSOR("  ", "Active Power B Sensor", this->active_power_b_sensor_);
 }
 
-#define ADE_PUBLISH_(name, factor) \
-  if ((name) && this->name##_sensor_) { \
-    float value = *(name) / (factor); \
+#define ADE_PUBLISH_(name, type, factor) \
+  if (err != i2c::ERROR_OK && this->name##_sensor_) { \
+    float value = *(((type)) (name)) / (factor); \
     this->name##_sensor_->publish_state(value); \
   }
-#define ADE_PUBLISH(name, factor) ADE_PUBLISH_(name, factor)
+#define ADE_PUBLISH(name, type, factor) ADE_PUBLISH_(name, type, factor)
 
 void ADE7953::update() {
   if (!this->is_setup_)
     return;
 
-  auto active_power_a = this->ade_read_<int32_t>(0x0312);
-  ADE_PUBLISH(active_power_a, 154.0f);
-  auto active_power_b = this->ade_read_<int32_t>(0x0313);
-  ADE_PUBLISH(active_power_b, 154.0f);
-  auto current_a = this->ade_read_<uint32_t>(0x031A);
-  ADE_PUBLISH(current_a, 100000.0f);
-  auto current_b = this->ade_read_<uint32_t>(0x031B);
-  ADE_PUBLISH(current_b, 100000.0f);
-  auto voltage = this->ade_read_<uint32_t>(0x031C);
-  ADE_PUBLISH(voltage, 26000.0f);
+  uint32_t val;
+  i2c::ErrorCode err = ade_read_32_(0x0312, &val);
+  ADE_PUBLISH(active_power_a, int32_t, 154.0f);
+  err = ade_read_32_(0x0313, &val);
+  ADE_PUBLISH(active_power_b, int32_t, 154.0f);
+  err = ade_read_32_(0x031A, &val);
+  ADE_PUBLISH(current_a, uint32_t, 100000.0f);
+  err = ade_read_32_(0x031B, &val);
+  ADE_PUBLISH(current_b, uint32_t, 100000.0f);
+  err = ade_read_32_(0x031C, &val);
+  ADE_PUBLISH(voltage, uint32_t, 26000.0f);
 
   //    auto apparent_power_a = this->ade_read_<int32_t>(0x0310);
   //    auto apparent_power_b = this->ade_read_<int32_t>(0x0311);
