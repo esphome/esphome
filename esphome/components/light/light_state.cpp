@@ -121,6 +121,9 @@ void LightState::loop() {
     }
 
     if (this->transformer_->is_finished()) {
+      // if the transition has written directly to the output, current_values is outdated, so update it
+      this->current_values = this->transformer_->get_target_values();
+
       this->transformer_->stop();
       this->transformer_ = nullptr;
       this->target_state_reached_callback_.call();
