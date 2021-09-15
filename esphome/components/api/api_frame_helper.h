@@ -51,6 +51,7 @@ enum class APIError : int {
   OUT_OF_MEMORY = 1018,
   HANDSHAKESTATE_SETUP_FAILED = 1019,
   HANDSHAKESTATE_SPLIT_FAILED = 1020,
+  BAD_HANDSHAKE_ERROR_BYTE = 1021,
 };
 
 const char *api_error_to_str(APIError err);
@@ -125,6 +126,7 @@ class APINoiseFrameHelper : public APIFrameHelper {
     DATA = 5,
     CLOSED = 6,
     FAILED = 7,
+    EXPLICIT_REJECT = 8,
   } state_ = State::INITIALIZE;
 };
 #endif  // USE_API_NOISE

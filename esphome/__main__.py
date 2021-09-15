@@ -256,7 +256,7 @@ def show_logs(config, args, port):
         run_miniterm(config, port)
         return 0
     if get_port_type(port) == "NETWORK" and "api" in config:
-        from esphome.api.client import run_logs
+        from esphome.components.api.client import run_logs
 
         return run_logs(config, port)
     if get_port_type(port) == "MQTT" and "mqtt" in config:

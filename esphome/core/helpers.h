@@ -88,10 +88,15 @@ template<typename T> T clamp(T val, T min, T max);
  */
 float lerp(float completion, float start, float end);
 
-/// std::make_unique
+// Not all platforms we support target C++14 yet, so we can't unconditionally use std::make_unique. Provide our own
+// implementation if needed, and otherwise pull std::make_unique into scope so that we have a uniform API.
+#if __cplusplus >= 201402L
+using std::make_unique;
+#else
 template<typename T, typename... Args> std::unique_ptr<T> make_unique(Args &&...args) {
   return std::unique_ptr<T>(new T(std::forward<Args>(args)...));
 }
+#endif
 
 /// Return a random 32 bit unsigned integer.
 uint32_t random_uint32();

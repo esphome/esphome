@@ -10,6 +10,7 @@ namespace tuya {
 class TuyaClimate : public climate::Climate, public Component {
  public:
   void setup() override;
+  void loop() override;
   void dump_config() override;
   void set_supports_heat(bool supports_heat) { this->supports_heat_ = supports_heat; }
   void set_supports_cool(bool supports_cool) { this->supports_cool_ = supports_cool; }
@@ -17,6 +18,8 @@ class TuyaClimate : public climate::Climate, public Component {
   void set_active_state_id(uint8_t state_id) { this->active_state_id_ = state_id; }
   void set_active_state_heating_value(uint8_t value) { this->active_state_heating_value_ = value; }
   void set_active_state_cooling_value(uint8_t value) { this->active_state_cooling_value_ = value; }
+  void set_heating_state_pin(GPIOPin *pin) { this->heating_state_pin_ = pin; }
+  void set_cooling_state_pin(GPIOPin *pin) { this->cooling_state_pin_ = pin; }
   void set_target_temperature_id(uint8_t target_temperature_id) {
     this->target_temperature_id_ = target_temperature_id;
   }
@@ -51,12 +54,16 @@ class TuyaClimate : public climate::Climate, public Component {
   optional<uint8_t> active_state_id_{};
   optional<uint8_t> active_state_heating_value_{};
   optional<uint8_t> active_state_cooling_value_{};
+  GPIOPin *heating_state_pin_{nullptr};
+  GPIOPin *cooling_state_pin_{nullptr};
   optional<uint8_t> target_temperature_id_{};
   optional<uint8_t> current_temperature_id_{};
   float current_temperature_multiplier_{1.0f};
   float target_temperature_multiplier_{1.0f};
   float hysteresis_{1.0f};
   uint8_t active_state_;
+  bool heating_state_{false};
+  bool cooling_state_{false};
 };
 
 }  // namespace tuya
