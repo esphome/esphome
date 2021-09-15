@@ -428,12 +428,12 @@ def generate_defines_h():
 
 
 def generate_version_h():
-    match = re.match(r'^(\d+)\.(\d+).(\d+)-?\w*$', __version__)
+    match = re.match(r"^(\d+)\.(\d+).(\d+)-?\w*$", __version__)
     if not match:
-        raise EsphomeError(
-            f"Could not parse version {__version__}."
-        )
-    return VERSION_H_FORMAT.format(__version__, match.group(1), match.group(2), match.group(3))
+        raise EsphomeError(f"Could not parse version {__version__}.")
+    return VERSION_H_FORMAT.format(
+        __version__, match.group(1), match.group(2), match.group(3)
+    )
 
 
 def write_cpp(code_s):
