@@ -25,7 +25,7 @@ void ModbusSwitch::parse_and_publish(const std::vector<uint8_t> &data) {
   // call it with the pre converted value and the raw data array
   if (this->publish_transform_func_) {
     // the lambda can parse the response itself
-    auto val = (*this->publish_transform_func_)(value, data);
+    auto val = (*this->publish_transform_func_)(this, value, data);
     if (val.has_value()) {
       ESP_LOGV(TAG, "Value overwritten by lambda");
       value = val.value();

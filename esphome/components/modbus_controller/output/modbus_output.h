@@ -32,7 +32,7 @@ class ModbusOutput : public output::FloatOutput, public Component, public Sensor
   // Do nothing
   void parse_and_publish(const std::vector<uint8_t> &data) override{};
 
-  using transform_func_t = std::function<optional<float>(float, std::vector<uint16_t> &)>;
+  using transform_func_t = std::function<optional<float>(const ModbusOutput *, float, std::vector<uint16_t> &)>;
   void set_template(transform_func_t &&f) { this->transform_func_ = f; }
 
  protected:

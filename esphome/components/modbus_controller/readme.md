@@ -8,8 +8,95 @@ Since alot of my code was already pretty generic I decided to create a general m
 Modbus_controller suppors sensors, binary_sensors, text_sensors and switches
 Custom command can be sent to the device using lambdas.
 
+Tested using an EPEVER Tracer2210AN MPPT controller, Heidelberg Wallbox and PZEM-017
 
-Tested using an EPEVER Tracer2210AN MPPT controller,Heidelberg Wallbox and PZEM-017
+## Note: Sep.15
+
+2 changes in this commit
+
+* Switch to register_type
+* Add lambda support
+
+### A new breaking change.
+
+Switching from using `modbus_function_code' to 'register_type'. The code is picking best function code on it's own.
+Configuration is also less confusing. The options are 'coil', 'read', 'discret-input' and 'holding'.
+Right now a warning is emmited when you compile the project but . This is just a warning and you can continue to use `modbus_function_code` .
+However once (if at all :)) the PR gets merged only `register_type` will be supported.
+
+The options are he options are 'coil', 'read', 'discret-input' and 'holding'.
+
+```yaml
+sensor:
+  - platform: modbus_controller
+    modbus_controller_id: epever
+    id: battery_capacity
+    address: 0x9001
+    name: "Battery Capacity"
+    modbus_functioncode: read_holding_registers
+    value_type: U_WO
+```
+
+change to
+
+```yaml
+sensor:
+  - platform: modbus_controller
+    modbus_controller_id: epever
+    id: battery_capacity
+    address: 0x9001
+    name: "Battery Capacity"
+    register_type: holding
+    value_type: U_WORD
+```
+
+Here is a sed script to update the configuration for you
+
+```
+#!/bin/bash
+yaml=$1
+echo updating $yaml
+sed -i 's/modbus_functioncode\:[[:space:]]*\"*read_coils\"*/register_type\: coil/' $yaml
+sed -i 's/modbus_functioncode\:[[:space:]]*\"*read_discrete_inputs\"*/register_type\: discret_input/' $yaml
+sed -i 's/modbus_functioncode\:[[:space:]]*\"*read_input_registers\"*/register_type\: read/' $yaml
+sed -i 's/modbus_functioncode\:[[:space:]]*\"*read_holding_registers\"*/register_type\: holding/' $yaml
+sed -i 's/modbus_functioncode\:[[:space:]]*\"*write_single_coil\"*/register_type\: coil/' $yaml
+sed -i 's/modbus_functioncode\:[[:space:]]*\"*write_single_register\"*/register_type\: holding/' $yaml
+sed -i 's/modbus_functioncode\:[[:space:]]*\"*write_multiple_coils\"*/register_type\: coil/' $yaml
+sed -i 's/modbus_functioncode\:[[:space:]]*\"*write_multiple_registers\"*/register_type\: holding/' $yaml
+```
+
+### Add lambda support
+
+The lambda is called just before calling `sensor:: Sensor::publish_state` .
+Filters will be applied after the lambda was called.
+
+Parameters passed to the lambda
+* `x` contains the parsed value as float
+* `data` contains the raw modbus response bytes `std::vector<uint8_t>`
+* `item` a pointer to the sensor item.
+The lambda can return a float value that will be used as the new state for this sensor.
+If the lambda doesn't return a value `sensor::Sensor::publish_state` will not be called. This gives you the option to handle the value in a different way
+
+This example logs the value as parsed and the raw modbus bytes received for this register range
+
+```yaml
+  - platform: modbus_controller
+    modbus_controller_id: epever
+    id: battery_capacity
+    address: 0x9001
+    name: "Battery Capacity"
+    register_type: holding
+    value_type: U_WORD
+    lambda: !lambda |-
+      ESP_LOGI("","Lambda incoming value=%f - data array size is %d",x,data.size());
+      ESP_LOGI("","Sensor properties: adress = 0x%X, offset = 0x%X value type=%d",item->start_address,item->offset,item->sensor_value_type);
+      int i=0 ;
+      for (auto val : data) {
+        ESP_LOGI("","data[%d]=0x%02X (%d)",i++ ,data[i],data[i]);
+      }
+      return x ;
+```
 
 ## Note: Sep.13
 
@@ -19,10 +106,12 @@ Output receives a value between 0 and 1.0 from the frontend or other sensors.
 This value can be scaled to the desired range using multiply.
 For more complex conversions lambda can be used (multiply is ignored then).
 The new value is passed to the lambda  as `float x` and an empty vector is passed in as `std::vector<uint16_t>&payload`
+
 You can define the payload by adding data to payload then the return value is ignored and the content of payload is used.
 
 ### Output
-````yaml
+
+```yaml
 output:
     - platform: modbus_controller
         modbus_controller_id: epever
@@ -37,17 +126,18 @@ output:
         multiply: 1.0
         address: 0x9001
         value_type: U_WORD
-````
+```
 
 ### Number
-````yaml
+
+```yaml
 sensor:
   - platform: modbus_controller
     modbus_controller_id: epever
     id: battery_capacity
     address: 0x9001
     name: "Battery Capacity"
-    modbus_functioncode: read_holding_registers
+    register_type: holding
     value_type: U_WORD
 
 number:
@@ -66,13 +156,13 @@ number:
     # ignored because lambda is defined
     multiply: 100.0
 
-````
-
+```
 
 ## Note - breaking change ##
+
 With the [commit from Sept.12](https://github.com/martgras/esphome/commit/b099b3e3bbf6261e2b6bae1e3f08c8693006d3bf) modbus_controller no longer supports defining sensors, binary_sensors etc.. directly below the modbus_controller component. Instead the esphome default way of defining items is used.
 
-````yaml
+```yaml
 modbus_controller:
   - id: epever
     ## the Modbus device addr
@@ -83,7 +173,7 @@ modbus_controller:
         address: 0x3000
         offset: 0
         unit_of_measurement: "V"
-        modbus_functioncode: "read_input_registers"
+        register_type: read
         value_type: U_WORD
         accuracy_decimals: 1
         skip_updates: 60
@@ -95,15 +185,16 @@ modbus_controller:
         address: 0x3000
         offset: 2
         unit_of_measurement: "V"
-        modbus_functioncode: "read_input_registers"
+        register_type: read
         value_type: U_WORD
         accuracy_decimals: 2
         filters:
           - multiply: 0.01
-````
+```
+
 changes to
 
-````yaml
+```yaml
 modbus_controller:
   - id: epever
     ## the Modbus device addr
@@ -120,7 +211,7 @@ sensor:
     name: "array_rated_voltage"
     address: 0x3000
     unit_of_measurement: "V"
-    modbus_functioncode: "read_input_registers"
+    register_type: read
     value_type: U_WORD
     accuracy_decimals: 1
     skip_updates: 0
@@ -134,12 +225,12 @@ sensor:
     address: 0x3001
     byte_offset: 0
     unit_of_measurement: "A"
-    modbus_functioncode: "read_input_registers"
+    register_type: read
     value_type: U_WORD
     accuracy_decimals: 2
     filters:
       - multiply: 0.01
-````
+```
 
 ## Hardware setup
 
@@ -177,7 +268,9 @@ esphome <path to your config.yaml> run
 Instead of cloning my repository you can use modbus_controller as an external component (Kudos to @derwolff for this hint)
  )
 
-````
+`
+
+```
 external_components:
   # use  GitHub
   - source:
@@ -192,7 +285,7 @@ esphome:
 ...
 modbus_controller:
 ...
-````
+```
 
 ### Configuration
 
@@ -201,7 +294,9 @@ Modbus sensors can be directly defined (inline) under the modbus_controller hub 
 Technically there is no difference between the "inline" and the standard definitions approach.
 Because the project started supporting only "inline" I'm keeping it in the code because it doesn't impact the code size and is a bit more convenient. The additional work to support both schemata is done in the python scripts generating the C++ code
 
-````
+`
+
+```
 uart:
   id: mod_bus
   tx_pin: 19
@@ -230,21 +325,22 @@ sensor:
     name: "array_rated_voltage"
     address: 0x3000
     unit_of_measurement: "V"
-    modbus_functioncode: "read_input_registers"
+    register_type: read
     value_type: U_WORD
     accuracy_decimals: 1
     skip_updates: 0
     filters:
       - multiply: 0.01
 
-````
+```
+
 (Needs rework - not up to date)
 [Example config for the EPEVER controller](https://github.com/martgras/esphome/blob/modbus_component/esphome/components/modbus_controller/examples/epever.yaml)
-
 
 ### Format
 
 Define an register in YAML
+
 ```yaml
     sensors:
       - id: length_of_night
@@ -252,18 +348,16 @@ Define an register in YAML
         offset: 0
         bitmask: default value is 0xFFFFF # some values are packed in a single response word. Bitmask can be used to extract the relevant parts
         name: 'Length of night'
-        modbus_functioncode: read_holding_registers
+        register_type: holding
         value_type: U_WORD
         scale_factor: 1.0
 ```
 
-
-
 modbus_sensor_schema extends the sensors schema and adds these parameters:
-  - modbus_functioncode: type of register
-  - address: start address of the first register in a range
-  - offset: offset from start address in bytes. If more than one register is read a modbus read registers command this value is used to find the start of this datapoint relative to start address. The component calculates the size of the range based on offset and size of the value type
-  - value_type:
+  + modbus_functioncode: type of register
+  + address: start address of the first register in a range
+  + offset: offset from start address in bytes. If more than one register is read a modbus read registers command this value is used to find the start of this datapoint relative to start address. The component calculates the size of the range based on offset and size of the value type
+  + value_type:
     - U_WORD (unsigned float from 1 register =16bit
     - S_WORD (signed float from one register)
     - U_DWORD (unsigned float from 2 registers = 32bit)
@@ -274,7 +368,6 @@ modbus_sensor_schema extends the sensors schema and adds these parameters:
     - S_QWORD (signed float from 4 registers = 64bit
     - U_QWORD_R (unsigend float from 4 registers low word first )
     - S_QWORD_R (sigend float from 4 registers low word first )
-
 
 modbus defines serveral register types and function codes to access them.
 The following function codes are implemented
@@ -290,63 +383,66 @@ The following function codes are implemented
 
 #### modbus component:
 
-
-  - platform: modbus_controller
-  - cmodbus_id: id of the modbus hub
-  - command_throttle:  milliseconds between 2 requests to the device. Some devices limit the rate of requests they can handle (e.g. only 1 request/s).
-  - id: component id
-  - address: modbus device address
-
+  + platform: modbus_controller
+  + cmodbus_id: id of the modbus hub
+  + command_throttle:  milliseconds between 2 requests to the device. Some devices limit the rate of requests they can handle (e.g. only 1 request/s).
+  + id: component id
+  + address: modbus device address
 
 #### sensor
-  - modbus_functioncode: type of register
-  - address: start address of the first register in a range
-  - offset: offset from start address in bytes. If more than one register is read a modbus read registers command this value is used to find the start of this datapoint relative to start address.
+
+  + modbus_functioncode: type of register
+  + address: start address of the first register in a range
+  + offset: offset from start address in bytes. If more than one register is read a modbus read registers command this value is used to find the start of this datapoint relative to start address.
     - for coil or discrete input registers offset is the position of the coil/register because these registers encode 8 coils in one byte.
-  - bitmask: some values are packed in a response. The bitmask can be used to extract a value from the response.  For example, the high byte value register 0x9013 contains the minute value of the current time. To only extract this value use bitmask: 0xFF00.  The result will be automatically right shifted by the number of 0 before the first 1 in the bitmask.  For 0xFF00 (0b1111111100000000) the result is shifted 8 positions.  More than one sensor can use the same address/offset if the bitmask is different.
+  + bitmask: some values are packed in a response. The bitmask can be used to extract a value from the response.  For example, the high byte value register 0x9013 contains the minute value of the current time. To only extract this value use bitmask: 0xFF00.  The result will be automatically right shifted by the number of 0 before the first 1 in the bitmask.  For 0xFF00 (0b1111111100000000) the result is shifted 8 positions.  More than one sensor can use the same address/offset if the bitmask is different.
 
 #### binarysensor
-  - modbus_functioncode: type of register
-  - address: start address of the first register in a range
-  - offset: offset from start address in bytes. If more than one register is read a modbus read registers command this value is used to find the start of this datapoint relative to start address.
-    - for coil or discrete input registers offset is the position of the coil/register because these registers encode 8 coils in one byte.
-  - bitmask: some values are packed in a response. The bitmask is used to determined if the result is true or false
 
+  + modbus_functioncode: type of register
+  + address: start address of the first register in a range
+  + offset: offset from start address in bytes. If more than one register is read a modbus read registers command this value is used to find the start of this datapoint relative to start address.
+    - for coil or discrete input registers offset is the position of the coil/register because these registers encode 8 coils in one byte.
+  + bitmask: some values are packed in a response. The bitmask is used to determined if the result is true or false
 
 #### text sensor:
+
    - modbus_functioncode: type of register
    - address: start address of the first register in a range
    - offset: offset from start address in bytes. If more than one register is read a modbus read registers command this value is used to find the start of this datapoint relative to start address.
    - response_size: response number of bytes of the response
    - raw_encode: (NONE, HEXBYTES, COMMA)     If the response is binary data it can't be published. Since a text sensor only publishes strings the binary data can encoded
+
      - HEXBYTES :  2 byte hex string. 0x2011 will be sent as "2011".
      - COMMA  : Byte values as integers, delimited by a coma. 0x2011 will be sent as "32,17"
      This allows you to process the data in a on_value lambda. See the example below how to convert the binary time data to a string and also how to set the time of the controller
+
    - register_count: The number of registers this data point spans. Default is 1
-   - bitmask: some values are packed in a single response word. bitmask is used to convert to a bool value. For example, bit 8 of the register 0x3200 indicates an battery error. Therefore, if the bitmask is 256. the operation is `result = (raw value & bitmask != 0)`. More than one sensor can use the same address/offset if the bitmask is different
+   - bitmask: some values are packed in a single response word. bitmask is used to convert to a bool value. For example, bit 8 of the register 0x3200 indicates an battery error. Therefore, if the bitmask is 256. the operation is `result = (raw value & bitmask != 0)` . More than one sensor can use the same address/offset if the bitmask is different
 
 #### switch
-  - modbus_functioncode: type of register
-  - address: start address of the first register in a range
-  - offset: offset from start address in bytes. If more than one register is read a modbus read registers command this value is used to find the start of this datapoint relative to start address.
+
+  + modbus_functioncode: type of register
+  + address: start address of the first register in a range
+  + offset: offset from start address in bytes. If more than one register is read a modbus read registers command this value is used to find the start of this datapoint relative to start address.
     - for coil or discrete input registers offset is the position of the coil/register because these registers encode 8 coils in one byte.
-  - bitmask: applied before sending the value to the controller
+  + bitmask: applied before sending the value to the controller
 
 modbus_switch works like modbus_binarysensor. modbus_functioncode should be the code to read the value from the device. The write command will be created based on the function code.
 To define a switch for a coil function code should be "read_coils". The command to change the setting will then be write_single_coil
 Example
 
-````yaml
+```yaml
 switch:
   - platform: modbus_controller
     modbus_controller_id: epever
     id: enable_load_test
-    modbus_functioncode: read_coils
+    register_type: coil
     address: 2
     offset: 3
     name: "enable load test mode"
     bitmask: 1
-````
+```
 
 Since offset is not zero the read command is part of a range and will be parseed when the range is updated.
 The write command to be constructed uses the function code to determine the write command. For a coil it is "write single coil".
@@ -355,9 +451,8 @@ The final command will be write_single_coil address 5 (start_address+offset) val
 
 For holding registers the write command will be "write_single_register". Because the offset for holding registers is given in bytes and the size of a register is 16 bytes the start_address is calculated as start_address + offset/2
 
-
-
 ## TIP
+
 Write support is only implemented for switches.
 However the C++ code already has the required methods to write to a modbus register
 
@@ -367,7 +462,7 @@ The time is set by writing 12 bytes to register 0x9013.
 The code reads the current time of the controller using a text sensor and compares it with the time of the esp.
 If they differ the time of the esp is sent to the EPEVER controller.
 
-````yaml
+```yaml
     ...
     text_sensor:
       - platform: modbus_controller
@@ -375,7 +470,7 @@ If they differ the time of the esp is sent to the EPEVER controller.
         name: "rtc_clock"
         id: rtc_clock
         internal: true
-        modbus_functioncode: read_holding_registers
+        register_type: holding
         address: 0x9013
         address: 0
         register_count: 3
@@ -421,13 +516,13 @@ If they differ the time of the esp is sent to the EPEVER controller.
                 // format time as YYYY:mm:dd hh:mm:ss
                 sprintf(buffer,"%04d:%02d:%02d %02d:%02d:%02d",y+2000,month_,d,h,m,s);
                 id(template_rtc).publish_state(buffer);
-````
-
+```
 
 ## Protocol decoding example ##
 
+`
 
-````
+```
 uart:
   id: mod_bus
   tx_pin: 19
@@ -454,7 +549,7 @@ sensor:
     name: "array_rated_voltage"
     address: 0x3000
     unit_of_measurement: "V"
-    modbus_functioncode: "read_input_registers"
+    register_type: read
     value_type: U_WORD
     accuracy_decimals: 1
     skip_updates: 0
@@ -468,7 +563,7 @@ sensor:
     address: 0x3001
     byte_offset: 0
     unit_of_measurement: "A"
-    modbus_functioncode: "read_input_registers"
+    register_type: read
     value_type: U_WORD
     accuracy_decimals: 2
     filters:
@@ -481,7 +576,7 @@ sensor:
     address: 0x3002
     register_count: 2
     unit_of_measurement: "W"
-    modbus_functioncode: "read_input_registers"
+    register_type: read
     value_type: U_DWORD_R
     accuracy_decimals: 1
     filters:
@@ -493,7 +588,7 @@ sensor:
     name: "battery_rated_voltage"
     address: 0x3004
     unit_of_measurement: "V"
-    modbus_functioncode: "read_input_registers"
+    register_type: read
     value_type: U_WORD
     accuracy_decimals: 1
     filters:
@@ -505,7 +600,7 @@ sensor:
     name: "battery_rated_current"
     address: 0x3005
     unit_of_measurement: "A"
-    modbus_functioncode: "read_input_registers"
+    register_type: read
     value_type: U_WORD
     accuracy_decimals: 1
     filters:
@@ -519,7 +614,7 @@ sensor:
     register_count: 2
     byte_offset: 0
     unit_of_measurement: "W"
-    modbus_functioncode: "read_input_registers"
+    register_type: read
     value_type: U_DWORD_R
     accuracy_decimals: 1
     filters:
@@ -531,17 +626,19 @@ sensor:
     name: "charging_mode"
     address: 0x3008
     unit_of_measurement: ""
-    modbus_functioncode: "read_input_registers"
+    register_type: read
     value_type: U_WORD
     accuracy_decimals: 0
 
-````
+```
 
 To minimize the required transactions all registers with the same base address are read in one request.
 The response is mapped to the sensor based on register_count and the given address
 
 Request
-````
+`
+
+```
 0x1  (01)  : device address
 0x4  (04)  : function code 4 (Read Input Registers)
 0x30 (48)  : start address high byte
@@ -550,10 +647,12 @@ Request
 0x9  (09)  : number of registers to read (low)
 0x3f (63)  : crc
 0xc  (12)  : crc
-````
+```
 
 Response:
-````
+`
+
+```
 H   0x1  (01)  : device address
 H   0x4  (04)  : function code
 H   0x12 (18)  : byte count
@@ -585,24 +684,17 @@ H   0x12 (18)  : byte count
 ---------------------------
 C   0x2f (47)  : crc
 C   0x31 (49)  : crc
-````
+```
 
 ### Example Configurations ###
+
 [EPEVER controller](https://github.com/martgras/esphome/blob/modbus_component/esphome/components/modbus_controller/examples/epever.yaml)
 
 [Heidelberg Wallbox](https://github.com/martgras/esphome/blob/modbus_component/esphome/components/modbus_controller/examples/heidelberg_wb_example.yaml)
 
 [pzem-017](https://github.com/martgras/esphome/blob/modbus_component/esphome/components/modbus_controller/examples/pzem-01.yaml)
 
-
-
-
-
-
-
-
 ### High Level Code Structure ###
-
 
 all modbus items (modbus_sensor, modbus_binary_sensor...) derive from ModbusItem and are stored in a map where the start-address + offfset .. is the key
 
@@ -620,9 +712,3 @@ In loop if the incoming que is not empty the raw data is processed.
   The items extract the data from the raw response for the range using offset and bitmask
 
 If there is no incoming data pending commands from the send queue are sent out.
-
-
-
-
-
-

@@ -43,7 +43,7 @@ void ModbusTextSensor::parse_and_publish(const std::vector<uint8_t> &data) {
   // call it with the pre converted value and the raw data array
   if (this->transform_func_.has_value()) {
     // the lambda can parse the response itself
-    auto val = (*this->transform_func_)(result, data);
+    auto val = (*this->transform_func_)(this, result, data);
     if (val.has_value()) {
       ESP_LOGV(TAG, "Value overwritten by lambda");
       result = val.value();

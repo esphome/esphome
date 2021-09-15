@@ -32,7 +32,7 @@ class ModbusSwitch : public Component, public switch_::Switch, public SensorItem
   void parse_and_publish(const std::vector<uint8_t> &data) override;
   void set_parent(ModbusController *parent) { this->parent_ = parent; }
 
-  using transform_func_t = std::function<optional<bool>(bool, const std::vector<uint8_t> &)>;
+  using transform_func_t = std::function<optional<bool>(const ModbusSwitch *, bool, const std::vector<uint8_t> &)>;
   void set_template(transform_func_t &&f) { this->publish_transform_func_ = f; }
 
  protected:
