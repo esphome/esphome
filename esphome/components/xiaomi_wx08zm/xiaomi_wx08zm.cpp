@@ -6,7 +6,7 @@
 namespace esphome {
 namespace xiaomi_wx08zm {
 
-static const char *TAG = "xiaomi_wx08zm";
+static const char *const TAG = "xiaomi_wx08zm";
 
 void XiaomiWX08ZM::dump_config() {
   ESP_LOGCONFIG(TAG, "Xiaomi WX08ZM");
@@ -51,11 +51,7 @@ bool XiaomiWX08ZM::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
     success = true;
   }
 
-  if (!success) {
-    return false;
-  }
-
-  return true;
+  return success;
 }
 
 }  // namespace xiaomi_wx08zm

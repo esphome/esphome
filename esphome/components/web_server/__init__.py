@@ -13,7 +13,7 @@ from esphome.const import (
     CONF_USERNAME,
     CONF_PASSWORD,
 )
-from esphome.core import coroutine_with_priority
+from esphome.core import CORE, coroutine_with_priority
 
 AUTO_LOAD = ["json", "web_server_base"]
 
@@ -46,11 +46,11 @@ CONFIG_SCHEMA = cv.Schema(
 
 
 @coroutine_with_priority(40.0)
-def to_code(config):
-    paren = yield cg.get_variable(config[CONF_WEB_SERVER_BASE_ID])
+async def to_code(config):
+    paren = await cg.get_variable(config[CONF_WEB_SERVER_BASE_ID])
 
     var = cg.new_Pvariable(config[CONF_ID], paren)
-    yield cg.register_component(var, config)
+    await cg.register_component(var, config)
 
     cg.add(paren.set_port(config[CONF_PORT]))
     cg.add_define("WEBSERVER_PORT", config[CONF_PORT])
@@ -61,9 +61,11 @@ def to_code(config):
         cg.add(var.set_password(config[CONF_AUTH][CONF_PASSWORD]))
     if CONF_CSS_INCLUDE in config:
         cg.add_define("WEBSERVER_CSS_INCLUDE")
-        with open(config[CONF_CSS_INCLUDE], "r") as myfile:
+        path = CORE.relative_config_path(config[CONF_CSS_INCLUDE])
+        with open(file=path, mode="r", encoding="utf-8") as myfile:
             cg.add(var.set_css_include(myfile.read()))
     if CONF_JS_INCLUDE in config:
         cg.add_define("WEBSERVER_JS_INCLUDE")
-        with open(config[CONF_JS_INCLUDE], "r") as myfile:
+        path = CORE.relative_config_path(config[CONF_JS_INCLUDE])
+        with open(file=path, mode="r", encoding="utf-8") as myfile:
             cg.add(var.set_js_include(myfile.read()))

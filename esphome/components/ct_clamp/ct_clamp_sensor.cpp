@@ -6,7 +6,7 @@
 namespace esphome {
 namespace ct_clamp {
 
-static const char *TAG = "ct_clamp";
+static const char *const TAG = "ct_clamp";
 
 void CTClampSensor::setup() {
   this->is_calibrating_offset_ = true;

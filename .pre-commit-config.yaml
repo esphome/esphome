@@ -23,5 +23,5 @@ repos:
       - id: no-commit-to-branch
         args:
           - --branch=dev
-          - --branch=master
+          - --branch=release
           - --branch=beta

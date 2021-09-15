@@ -4,7 +4,7 @@
 namespace esphome {
 namespace ezo {
 
-static const char *TAG = "ezo.sensor";
+static const char *const TAG = "ezo.sensor";
 
 static const uint16_t EZO_STATE_WAIT = 1;
 static const uint16_t EZO_STATE_SEND_TEMP = 2;

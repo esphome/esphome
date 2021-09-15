@@ -40,9 +40,9 @@ MCP23XXX_CONFIG_SCHEMA = cv.Schema(
 
 
 @coroutine
-def register_mcp23xxx(config):
+async def register_mcp23xxx(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
+    await cg.register_component(var, config)
     cg.add(var.set_open_drain_ints(config[CONF_OPEN_DRAIN_INTERRUPT]))
     return var
 
@@ -79,9 +79,9 @@ MCP23XXX_INPUT_PIN_SCHEMA = cv.Schema(
 @pins.PIN_SCHEMA_REGISTRY.register(
     CONF_MCP23XXX, (MCP23XXX_OUTPUT_PIN_SCHEMA, MCP23XXX_INPUT_PIN_SCHEMA)
 )
-def mcp23xxx_pin_to_code(config):
-    parent = yield cg.get_variable(config[CONF_MCP23XXX])
-    yield MCP23XXXGPIOPin.new(
+async def mcp23xxx_pin_to_code(config):
+    parent = await cg.get_variable(config[CONF_MCP23XXX])
+    return MCP23XXXGPIOPin.new(
         parent,
         config[CONF_NUMBER],
         config[CONF_MODE],
@@ -91,7 +91,7 @@ def mcp23xxx_pin_to_code(config):
 
 
 # BEGIN Removed pin schemas below to show error in configuration
-# TODO remove in 1.19.0
+# TODO remove in 2022.5.0
 
 for id in ["mcp23008", "mcp23s08", "mcp23017", "mcp23s17"]:
     PIN_SCHEMA = cv.Schema(
@@ -110,6 +110,7 @@ for id in ["mcp23008", "mcp23s08", "mcp23017", "mcp23s17"]:
         }
     )
 
+    # pylint: disable=cell-var-from-loop
     @pins.PIN_SCHEMA_REGISTRY.register(id, (PIN_SCHEMA, PIN_SCHEMA))
     def pin_to_code(config):
         pass

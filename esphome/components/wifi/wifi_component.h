@@ -1,5 +1,6 @@
 #pragma once
 
+#include "esphome/core/macros.h"
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/automation.h"
@@ -17,7 +18,7 @@
 #include <ESP8266WiFiType.h>
 #include <ESP8266WiFi.h>
 
-#ifdef ARDUINO_ESP8266_RELEASE_2_3_0
+#if defined(ARDUINO_ARCH_ESP8266) && ARDUINO_VERSION_CODE < VERSION_CODE(2, 4, 0)
 extern "C" {
 #include <user_interface.h>
 };
@@ -26,6 +27,11 @@ extern "C" {
 
 namespace esphome {
 namespace wifi {
+
+struct SavedWifiSettings {
+  char ssid[33];
+  char password[65];
+} PACKED;  // NOLINT
 
 enum WiFiComponentState {
   /** Nothing has been initialized yet. Internal AP, if configured, is disabled at this point. */
@@ -57,7 +63,7 @@ struct ManualIP {
   IPAddress dns2;  ///< The second DNS server. 0.0.0.0 for default.
 };
 
-#ifdef ESPHOME_WIFI_WPA2_EAP
+#ifdef USE_WIFI_WPA2_EAP
 struct EAPAuth {
   std::string identity;  // required for all auth types
   std::string username;
@@ -67,7 +73,7 @@ struct EAPAuth {
   const char *client_cert;
   const char *client_key;
 };
-#endif  // ESPHOME_WIFI_WPA2_EAP
+#endif  // USE_WIFI_WPA2_EAP
 
 using bssid_t = std::array<uint8_t, 6>;
 
@@ -77,9 +83,9 @@ class WiFiAP {
   void set_bssid(bssid_t bssid);
   void set_bssid(optional<bssid_t> bssid);
   void set_password(const std::string &password);
-#ifdef ESPHOME_WIFI_WPA2_EAP
+#ifdef USE_WIFI_WPA2_EAP
   void set_eap(optional<EAPAuth> eap_auth);
-#endif  // ESPHOME_WIFI_WPA2_EAP
+#endif  // USE_WIFI_WPA2_EAP
   void set_channel(optional<uint8_t> channel);
   void set_priority(float priority) { priority_ = priority; }
   void set_manual_ip(optional<ManualIP> manual_ip);
@@ -87,9 +93,9 @@ class WiFiAP {
   const std::string &get_ssid() const;
   const optional<bssid_t> &get_bssid() const;
   const std::string &get_password() const;
-#ifdef ESPHOME_WIFI_WPA2_EAP
+#ifdef USE_WIFI_WPA2_EAP
   const optional<EAPAuth> &get_eap() const;
-#endif  // ESPHOME_WIFI_WPA2_EAP
+#endif  // USE_WIFI_WPA2_EAP
   const optional<uint8_t> &get_channel() const;
   float get_priority() const { return priority_; }
   const optional<ManualIP> &get_manual_ip() const;
@@ -99,9 +105,9 @@ class WiFiAP {
   std::string ssid_;
   optional<bssid_t> bssid_;
   std::string password_;
-#ifdef ESPHOME_WIFI_WPA2_EAP
+#ifdef USE_WIFI_WPA2_EAP
   optional<EAPAuth> eap_;
-#endif  // ESPHOME_WIFI_WPA2_EAP
+#endif  // USE_WIFI_WPA2_EAP
   optional<uint8_t> channel_;
   float priority_{0};
   optional<ManualIP> manual_ip_;
@@ -110,8 +116,7 @@ class WiFiAP {
 
 class WiFiScanResult {
  public:
-  WiFiScanResult(const bssid_t &bssid, const std::string &ssid, uint8_t channel, int8_t rssi, bool with_auth,
-                 bool is_hidden);
+  WiFiScanResult(const bssid_t &bssid, std::string ssid, uint8_t channel, int8_t rssi, bool with_auth, bool is_hidden);
 
   bool matches(const WiFiAP &config);
 
@@ -156,6 +161,7 @@ class WiFiComponent : public Component {
 
   void set_sta(const WiFiAP &ap);
   void add_sta(const WiFiAP &ap);
+  void clear_sta();
 
   /** Setup an Access Point that should be created if no connection to a station can be made.
    *
@@ -185,6 +191,7 @@ class WiFiComponent : public Component {
   void set_power_save_mode(WiFiPowerSaveMode power_save);
   void set_output_power(float output_power) { output_power_ = output_power; }
 
+  void save_wifi_sta(const std::string &ssid, const std::string &password);
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
   /// Setup WiFi interface.
@@ -244,7 +251,7 @@ class WiFiComponent : public Component {
   bool wifi_sta_ip_config_(optional<ManualIP> manual_ip);
   IPAddress wifi_sta_ip_();
   bool wifi_apply_hostname_();
-  bool wifi_sta_connect_(WiFiAP ap);
+  bool wifi_sta_connect_(const WiFiAP &ap);
   void wifi_pre_setup_();
   wl_status_t wifi_sta_status_();
   bool wifi_scan_start_();
@@ -253,6 +260,7 @@ class WiFiComponent : public Component {
   bool wifi_disconnect_();
 
   bool is_captive_portal_active_();
+  bool is_esp32_improv_active_();
 
 #ifdef ARDUINO_ARCH_ESP8266
   static void wifi_event_callback(System_Event_t *event);
@@ -261,7 +269,11 @@ class WiFiComponent : public Component {
 #endif
 
 #ifdef ARDUINO_ARCH_ESP32
+#if ESP_IDF_VERSION_MAJOR >= 4
+  void wifi_event_callback_(arduino_event_id_t event, arduino_event_info_t info);
+#else
   void wifi_event_callback_(system_event_id_t event, system_event_info_t info);
+#endif
   void wifi_scan_done_callback_();
 #endif
 
@@ -271,6 +283,7 @@ class WiFiComponent : public Component {
   WiFiAP selected_ap_;
   bool fast_connect_{false};
 
+  bool has_ap_{false};
   WiFiAP ap_;
   WiFiComponentState state_{WIFI_COMPONENT_STATE_OFF};
   uint32_t action_started_;
@@ -284,9 +297,11 @@ class WiFiComponent : public Component {
   bool scan_done_{false};
   bool ap_setup_{false};
   optional<float> output_power_;
+  ESPPreferenceObject pref_;
+  bool has_saved_wifi_settings_{false};
 };
 
-extern WiFiComponent *global_wifi_component;
+extern WiFiComponent *global_wifi_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 template<typename... Ts> class WiFiConnectedCondition : public Condition<Ts...> {
  public:

@@ -13,8 +13,9 @@
 namespace esphome {
 namespace esp32_ble_beacon {
 
-static const char *TAG = "esp32_ble_beacon";
+static const char *const TAG = "esp32_ble_beacon";
 
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 static esp_ble_adv_params_t ble_adv_params = {
     .adv_int_min = 0x20,
     .adv_int_max = 0x40,
@@ -28,7 +29,7 @@ static esp_ble_adv_params_t ble_adv_params = {
 
 #define ENDIAN_CHANGE_U16(x) ((((x) &0xFF00) >> 8) + (((x) &0xFF) << 8))
 
-static esp_ble_ibeacon_head_t ibeacon_common_head = {
+static const esp_ble_ibeacon_head_t IBEACON_COMMON_HEAD = {
     .flags = {0x02, 0x01, 0x06}, .length = 0x1A, .type = 0xFF, .company_id = 0x004C, .beacon_type = 0x1502};
 
 void ESP32BLEBeacon::dump_config() {
@@ -90,7 +91,7 @@ void ESP32BLEBeacon::ble_setup() {
   }
 
   esp_ble_ibeacon_t ibeacon_adv_data;
-  memcpy(&ibeacon_adv_data.ibeacon_head, &ibeacon_common_head, sizeof(esp_ble_ibeacon_head_t));
+  memcpy(&ibeacon_adv_data.ibeacon_head, &IBEACON_COMMON_HEAD, sizeof(esp_ble_ibeacon_head_t));
   memcpy(&ibeacon_adv_data.ibeacon_vendor.proximity_uuid, global_esp32_ble_beacon->uuid_.data(),
          sizeof(ibeacon_adv_data.ibeacon_vendor.proximity_uuid));
   ibeacon_adv_data.ibeacon_vendor.minor = ENDIAN_CHANGE_U16(global_esp32_ble_beacon->minor_);
@@ -131,7 +132,7 @@ void ESP32BLEBeacon::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap
   }
 }
 
-ESP32BLEBeacon *global_esp32_ble_beacon = nullptr;
+ESP32BLEBeacon *global_esp32_ble_beacon = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 }  // namespace esp32_ble_beacon
 }  // namespace esphome

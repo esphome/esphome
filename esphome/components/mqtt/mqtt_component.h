@@ -1,5 +1,7 @@
 #pragma once
 
+#include <memory>
+
 #include "esphome/core/component.h"
 #include "mqtt_client.h"
 
@@ -127,7 +129,7 @@ class MQTTComponent : public Component {
    * received.
    * @param qos The MQTT quality of service. Defaults to 0.
    */
-  void subscribe_json(const std::string &topic, mqtt_json_callback_t callback, uint8_t qos = 0);
+  void subscribe_json(const std::string &topic, const mqtt_json_callback_t &callback, uint8_t qos = 0);
 
  protected:
   /// Helper method to get the discovery topic for this component.
@@ -171,7 +173,7 @@ class MQTTComponent : public Component {
   std::string custom_command_topic_{};
   bool retain_{true};
   bool discovery_enabled_{true};
-  Availability *availability_{nullptr};
+  std::unique_ptr<Availability> availability_;
   bool resend_state_{false};
 };
 

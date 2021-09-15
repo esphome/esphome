@@ -17,9 +17,10 @@ be tested on the same device.
 
 Current test_.yaml file contents.
 
-| Test name | Platform | Network |
-|-|-|-|
-| test1.yaml | ESP32 | wifi |
-| test2.yaml | ESP32 | ethernet |
-| test3.yaml | ESP8266 | wifi |
-| test4.yaml | ESP32 | ethernet |
+| Test name | Platform | Network | BLE |
+|-|-|-|-|
+| test1.yaml | ESP32 | wifi | None
+| test2.yaml | ESP32 | ethernet | esp32_ble_tracker
+| test3.yaml | ESP8266 | wifi | N/A
+| test4.yaml | ESP32 | ethernet | None
+| test5.yaml | ESP32 | wifi | ble_server

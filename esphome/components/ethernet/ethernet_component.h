@@ -26,6 +26,12 @@ struct ManualIP {
   IPAddress dns2;  ///< The second DNS server. 0.0.0.0 for default.
 };
 
+enum class EthernetComponentState {
+  STOPPED,
+  CONNECTING,
+  CONNECTED,
+};
+
 class EthernetComponent : public Component {
  public:
   EthernetComponent();
@@ -42,7 +48,7 @@ class EthernetComponent : public Component {
   void set_mdio_pin(uint8_t mdio_pin);
   void set_type(EthernetType type);
   void set_clk_mode(eth_clock_mode_t clk_mode);
-  void set_manual_ip(ManualIP manual_ip);
+  void set_manual_ip(const ManualIP &manual_ip);
 
   IPAddress get_ip_address();
   std::string get_use_address() const;
@@ -65,9 +71,9 @@ class EthernetComponent : public Component {
   eth_clock_mode_t clk_mode_{ETH_CLOCK_GPIO0_IN};
   optional<ManualIP> manual_ip_{};
 
-  bool initialized_{false};
+  bool started_{false};
   bool connected_{false};
-  bool last_connected_{false};
+  EthernetComponentState state_{EthernetComponentState::STOPPED};
   uint32_t connect_begin_;
   eth_config_t eth_config;
   eth_phy_power_enable_func orig_power_enable_fun_;

@@ -1,8 +1,10 @@
 #pragma once
 
+#include <vector>
 #include <HardwareSerial.h>
 #include "esphome/core/esphal.h"
 #include "esphome/core/component.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace uart {
@@ -13,7 +15,7 @@ enum UARTParityOptions {
   UART_CONFIG_PARITY_ODD,
 };
 
-const char *parity_to_str(UARTParityOptions parity);
+const LogString *parity_to_str(UARTParityOptions parity);
 
 #ifdef ARDUINO_ARCH_ESP8266
 class ESP8266SoftwareSerial {
@@ -56,6 +58,7 @@ class ESP8266SoftwareSerial {
 class UARTComponent : public Component, public Stream {
  public:
   void set_baud_rate(uint32_t baud_rate) { baud_rate_ = baud_rate; }
+  uint32_t get_baud_rate() const { return baud_rate_; }
 
   uint32_t get_config();
 
@@ -116,11 +119,12 @@ class UARTComponent : public Component, public Stream {
   uint8_t stop_bits_;
   uint8_t data_bits_;
   UARTParityOptions parity_;
-};
 
-#ifdef ARDUINO_ARCH_ESP32
-extern uint8_t next_uart_num;
+ private:
+#ifdef ARDUINO_ARCH_ESP8266
+  static bool serial0InUse;
 #endif
+};
 
 class UARTDevice : public Stream {
  public:

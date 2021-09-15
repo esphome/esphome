@@ -29,7 +29,7 @@ CONFIG_SCHEMA = cv.Schema(
 
 # Run with low priority so that namespaces are registered first
 @coroutine_with_priority(-100.0)
-def to_code(config):
+async def to_code(config):
     type_ = cg.RawExpression(config[CONF_TYPE])
     template_args = cg.TemplateArguments(type_)
     res_type = GlobalsComponent.template(template_args)
@@ -40,7 +40,7 @@ def to_code(config):
 
     rhs = GlobalsComponent.new(template_args, initial_value)
     glob = cg.Pvariable(config[CONF_ID], rhs, res_type)
-    yield cg.register_component(glob, config)
+    await cg.register_component(glob, config)
 
     if config[CONF_RESTORE_VALUE]:
         value = config[CONF_ID].id
@@ -60,12 +60,12 @@ def to_code(config):
         }
     ),
 )
-def globals_set_to_code(config, action_id, template_arg, args):
-    full_id, paren = yield cg.get_variable_with_full_id(config[CONF_ID])
+async def globals_set_to_code(config, action_id, template_arg, args):
+    full_id, paren = await cg.get_variable_with_full_id(config[CONF_ID])
     template_arg = cg.TemplateArguments(full_id.type, *template_arg)
     var = cg.new_Pvariable(action_id, template_arg, paren)
-    templ = yield cg.templatable(
+    templ = await cg.templatable(
         config[CONF_VALUE], args, None, to_exp=cg.RawExpression
     )
     cg.add(var.set_value(templ))
-    yield var
+    return var

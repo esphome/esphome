@@ -69,9 +69,5 @@ class PulseCounterSensor : public sensor::Sensor, public PollingComponent {
   sensor::Sensor *total_sensor_;
 };
 
-#ifdef ARDUINO_ARCH_ESP32
-extern pcnt_unit_t next_pcnt_unit;
-#endif
-
 }  // namespace pulse_counter
 }  // namespace esphome

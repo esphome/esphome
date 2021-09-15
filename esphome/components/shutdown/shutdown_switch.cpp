@@ -5,7 +5,7 @@
 namespace esphome {
 namespace shutdown {
 
-static const char *TAG = "shutdown.switch";
+static const char *const TAG = "shutdown.switch";
 
 void ShutdownSwitch::dump_config() { LOG_SWITCH("", "Shutdown Switch", this); }
 void ShutdownSwitch::write_state(bool state) {
@@ -18,7 +18,7 @@ void ShutdownSwitch::write_state(bool state) {
 
     App.run_safe_shutdown_hooks();
 #ifdef ARDUINO_ARCH_ESP8266
-    ESP.deepSleep(0);
+    ESP.deepSleep(0);  // NOLINT(readability-static-accessed-through-instance)
 #endif
 #ifdef ARDUINO_ARCH_ESP32
     esp_deep_sleep_start();

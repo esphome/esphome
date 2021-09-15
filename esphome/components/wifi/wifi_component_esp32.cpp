@@ -6,11 +6,12 @@
 
 #include <utility>
 #include <algorithm>
-#ifdef ESPHOME_WIFI_WPA2_EAP
+#ifdef USE_WIFI_WPA2_EAP
 #include <esp_wpa2.h>
 #endif
 #include "lwip/err.h"
 #include "lwip/dns.h"
+#include "lwip/apps/sntp.h"
 
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -21,34 +22,34 @@
 namespace esphome {
 namespace wifi {
 
-static const char *TAG = "wifi_esp32";
+static const char *const TAG = "wifi_esp32";
 
 bool WiFiComponent::wifi_mode_(optional<bool> sta, optional<bool> ap) {
-  uint8_t current_mode = WiFi.getMode();
+  uint8_t current_mode = WiFiClass::getMode();
   bool current_sta = current_mode & 0b01;
   bool current_ap = current_mode & 0b10;
-  bool sta_ = sta.value_or(current_sta);
-  bool ap_ = ap.value_or(current_ap);
-  if (current_sta == sta_ && current_ap == ap_)
+  bool enable_sta = sta.value_or(current_sta);
+  bool enable_ap = ap.value_or(current_ap);
+  if (current_sta == enable_sta && current_ap == enable_ap)
     return true;
 
-  if (sta_ && !current_sta) {
+  if (enable_sta && !current_sta) {
     ESP_LOGV(TAG, "Enabling STA.");
-  } else if (!sta_ && current_sta) {
+  } else if (!enable_sta && current_sta) {
     ESP_LOGV(TAG, "Disabling STA.");
   }
-  if (ap_ && !current_ap) {
+  if (enable_ap && !current_ap) {
     ESP_LOGV(TAG, "Enabling AP.");
-  } else if (!ap_ && current_ap) {
+  } else if (!enable_ap && current_ap) {
     ESP_LOGV(TAG, "Disabling AP.");
   }
 
   uint8_t mode = 0;
-  if (sta_)
+  if (enable_sta)
     mode |= 0b01;
-  if (ap_)
+  if (enable_ap)
     mode |= 0b10;
-  bool ret = WiFi.mode(static_cast<wifi_mode_t>(mode));
+  bool ret = WiFiClass::mode(static_cast<wifi_mode_t>(mode));
 
   if (!ret) {
     ESP_LOGW(TAG, "Setting WiFi mode failed!");
@@ -92,6 +93,11 @@ bool WiFiComponent::wifi_sta_ip_config_(optional<ManualIP> manual_ip) {
   tcpip_adapter_dhcp_status_t dhcp_status;
   tcpip_adapter_dhcpc_get_status(TCPIP_ADAPTER_IF_STA, &dhcp_status);
   if (!manual_ip.has_value()) {
+    // lwIP starts the SNTP client if it gets an SNTP server from DHCP. We don't need the time, and more importantly,
+    // the built-in SNTP client has a memory leak in certain situations. Disable this feature.
+    // https://github.com/esphome/issues/issues/2299
+    sntp_servermode_dhcp(false);
+
     // Use DHCP client
     if (dhcp_status != TCPIP_ADAPTER_DHCP_STARTED) {
       esp_err_t err = tcpip_adapter_dhcpc_start(TCPIP_ADAPTER_IF_STA);
@@ -142,32 +148,61 @@ IPAddress WiFiComponent::wifi_sta_ip_() {
 }
 
 bool WiFiComponent::wifi_apply_hostname_() {
-  esp_err_t err = tcpip_adapter_set_hostname(TCPIP_ADAPTER_IF_STA, App.get_name().c_str());
-  if (err != ESP_OK) {
-    ESP_LOGV(TAG, "Setting hostname failed: %d", err);
-    return false;
-  }
+  // setting is done in SYSTEM_EVENT_STA_START callback
   return true;
 }
-bool WiFiComponent::wifi_sta_connect_(WiFiAP ap) {
+bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
   // enable STA
   if (!this->wifi_mode_(true, {}))
     return false;
 
+  // https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/network/esp_wifi.html#_CPPv417wifi_sta_config_t
   wifi_config_t conf;
   memset(&conf, 0, sizeof(conf));
-  strcpy(reinterpret_cast<char *>(conf.sta.ssid), ap.get_ssid().c_str());
-  strcpy(reinterpret_cast<char *>(conf.sta.password), ap.get_password().c_str());
+  strlcpy(reinterpret_cast<char *>(conf.sta.ssid), ap.get_ssid().c_str(), sizeof(conf.sta.ssid));
+  strlcpy(reinterpret_cast<char *>(conf.sta.password), ap.get_password().c_str(), sizeof(conf.sta.password));
+
+  // The weakest authmode to accept in the fast scan mode
+  if (ap.get_password().empty()) {
+    conf.sta.threshold.authmode = WIFI_AUTH_OPEN;
+  } else {
+    conf.sta.threshold.authmode = WIFI_AUTH_WPA_WPA2_PSK;
+  }
+
+#ifdef USE_WIFI_WPA2_EAP
+  if (ap.get_eap().has_value()) {
+    conf.sta.threshold.authmode = WIFI_AUTH_WPA2_ENTERPRISE;
+  }
+#endif
 
   if (ap.get_bssid().has_value()) {
-    conf.sta.bssid_set = 1;
+    conf.sta.bssid_set = true;
     memcpy(conf.sta.bssid, ap.get_bssid()->data(), 6);
   } else {
-    conf.sta.bssid_set = 0;
+    conf.sta.bssid_set = false;
   }
   if (ap.get_channel().has_value()) {
     conf.sta.channel = *ap.get_channel();
+    conf.sta.scan_method = WIFI_FAST_SCAN;
+  } else {
+    conf.sta.scan_method = WIFI_ALL_CHANNEL_SCAN;
   }
+  // Listen interval for ESP32 station to receive beacon when WIFI_PS_MAX_MODEM is set.
+  // Units: AP beacon intervals. Defaults to 3 if set to 0.
+  conf.sta.listen_interval = 0;
+
+#if ESP_IDF_VERSION_MAJOR >= 4
+  // Protected Management Frame
+  // Device will prefer to connect in PMF mode if other device also advertizes PMF capability.
+  conf.sta.pmf_cfg.capable = true;
+  conf.sta.pmf_cfg.required = false;
+#endif
+
+  // note, we do our own filtering
+  // The minimum rssi to accept in the fast scan mode
+  conf.sta.threshold.rssi = -127;
+
+  conf.sta.threshold.authmode = WIFI_AUTH_OPEN;
 
   wifi_config_t current_conf;
   esp_err_t err;
@@ -191,7 +226,7 @@ bool WiFiComponent::wifi_sta_connect_(WiFiAP ap) {
   }
 
   // setup enterprise authentication if required
-#ifdef ESPHOME_WIFI_WPA2_EAP
+#ifdef USE_WIFI_WPA2_EAP
   if (ap.get_eap().has_value()) {
     // note: all certificates and keys have to be null terminated. Lengths are appended by +1 to include \0.
     EAPAuth eap = ap.get_eap().value();
@@ -235,7 +270,7 @@ bool WiFiComponent::wifi_sta_connect_(WiFiAP ap) {
       ESP_LOGV(TAG, "esp_wifi_sta_wpa2_ent_enable failed! %d", err);
     }
   }
-#endif  // ESPHOME_WIFI_WPA2_EAP
+#endif  // USE_WIFI_WPA2_EAP
 
   this->wifi_apply_hostname_();
 
@@ -265,7 +300,14 @@ const char *get_auth_mode_str(uint8_t mode) {
       return "UNKNOWN";
   }
 }
-std::string format_ip4_addr(const ip4_addr_t &ip) {
+
+#if ESP_IDF_VERSION_MAJOR >= 4
+using esphome_ip4_addr_t = esp_ip4_addr_t;
+#else
+using esphome_ip4_addr_t = ip4_addr_t;
+#endif
+
+std::string format_ip4_addr(const esphome_ip4_addr_t &ip) {
   char buf[20];
   sprintf(buf, "%u.%u.%u.%u", uint8_t(ip.addr >> 0), uint8_t(ip.addr >> 8), uint8_t(ip.addr >> 16),
           uint8_t(ip.addr >> 24));
@@ -341,24 +383,35 @@ const char *get_disconnect_reason_str(uint8_t reason) {
       return "Association Failed";
     case WIFI_REASON_HANDSHAKE_TIMEOUT:
       return "Handshake Failed";
+    case WIFI_REASON_CONNECTION_FAIL:
+      return "Connection Failed";
     case WIFI_REASON_UNSPECIFIED:
     default:
       return "Unspecified";
   }
 }
+#if ESP_IDF_VERSION_MAJOR >= 4
+void WiFiComponent::wifi_event_callback_(arduino_event_id_t event, arduino_event_info_t info) {
+#else
 void WiFiComponent::wifi_event_callback_(system_event_id_t event, system_event_info_t info) {
+#endif
   switch (event) {
     case SYSTEM_EVENT_WIFI_READY: {
       ESP_LOGV(TAG, "Event: WiFi ready");
       break;
     }
     case SYSTEM_EVENT_SCAN_DONE: {
+#if ESP_IDF_VERSION_MAJOR >= 4
+      auto it = info.wifi_scan_done;
+#else
       auto it = info.scan_done;
+#endif
       ESP_LOGV(TAG, "Event: WiFi Scan Done status=%u number=%u scan_id=%u", it.status, it.number, it.scan_id);
       break;
     }
     case SYSTEM_EVENT_STA_START: {
       ESP_LOGV(TAG, "Event: WiFi STA start");
+      tcpip_adapter_set_hostname(TCPIP_ADAPTER_IF_STA, App.get_name().c_str());
       break;
     }
     case SYSTEM_EVENT_STA_STOP: {
@@ -366,7 +419,11 @@ void WiFiComponent::wifi_event_callback_(system_event_id_t event, system_event_i
       break;
     }
     case SYSTEM_EVENT_STA_CONNECTED: {
+#if ESP_IDF_VERSION_MAJOR >= 4
+      auto it = info.wifi_sta_connected;
+#else
       auto it = info.connected;
+#endif
       char buf[33];
       memcpy(buf, it.ssid, it.ssid_len);
       buf[it.ssid_len] = '\0';
@@ -375,7 +432,11 @@ void WiFiComponent::wifi_event_callback_(system_event_id_t event, system_event_i
       break;
     }
     case SYSTEM_EVENT_STA_DISCONNECTED: {
+#if ESP_IDF_VERSION_MAJOR >= 4
+      auto it = info.wifi_sta_disconnected;
+#else
       auto it = info.disconnected;
+#endif
       char buf[33];
       memcpy(buf, it.ssid, it.ssid_len);
       buf[it.ssid_len] = '\0';
@@ -388,7 +449,11 @@ void WiFiComponent::wifi_event_callback_(system_event_id_t event, system_event_i
       break;
     }
     case SYSTEM_EVENT_STA_AUTHMODE_CHANGE: {
+#if ESP_IDF_VERSION_MAJOR >= 4
+      auto it = info.wifi_sta_authmode_change;
+#else
       auto it = info.auth_change;
+#endif
       ESP_LOGV(TAG, "Event: Authmode Change old=%s new=%s", get_auth_mode_str(it.old_mode),
                get_auth_mode_str(it.new_mode));
       // Mitigate CVE-2020-12638
@@ -424,13 +489,25 @@ void WiFiComponent::wifi_event_callback_(system_event_id_t event, system_event_i
       break;
     }
     case SYSTEM_EVENT_AP_STACONNECTED: {
+#if ESP_IDF_VERSION_MAJOR >= 4
+      auto it = info.wifi_sta_connected;
+      auto &mac = it.bssid;
+#else
       auto it = info.sta_connected;
-      ESP_LOGV(TAG, "Event: AP client connected MAC=%s aid=%u", format_mac_addr(it.mac).c_str(), it.aid);
+      auto &mac = it.mac;
+#endif
+      ESP_LOGV(TAG, "Event: AP client connected MAC=%s", format_mac_addr(mac).c_str());
       break;
     }
     case SYSTEM_EVENT_AP_STADISCONNECTED: {
+#if ESP_IDF_VERSION_MAJOR >= 4
+      auto it = info.wifi_sta_disconnected;
+      auto &mac = it.bssid;
+#else
       auto it = info.sta_disconnected;
-      ESP_LOGV(TAG, "Event: AP client disconnected MAC=%s aid=%u", format_mac_addr(it.mac).c_str(), it.aid);
+      auto &mac = it.mac;
+#endif
+      ESP_LOGV(TAG, "Event: AP client disconnected MAC=%s", format_mac_addr(mac).c_str());
       break;
     }
     case SYSTEM_EVENT_AP_STAIPASSIGNED: {
@@ -438,7 +515,11 @@ void WiFiComponent::wifi_event_callback_(system_event_id_t event, system_event_i
       break;
     }
     case SYSTEM_EVENT_AP_PROBEREQRECVED: {
+#if ESP_IDF_VERSION_MAJOR >= 4
+      auto it = info.wifi_ap_probereqrecved;
+#else
       auto it = info.ap_probereqrecved;
+#endif
       ESP_LOGVV(TAG, "Event: AP receive Probe Request MAC=%s RSSI=%d", format_mac_addr(it.mac).c_str(), it.rssi);
       break;
     }
@@ -446,8 +527,13 @@ void WiFiComponent::wifi_event_callback_(system_event_id_t event, system_event_i
       break;
   }
 
+#if ESP_IDF_VERSION_MAJOR >= 4
+  if (event == ARDUINO_EVENT_WIFI_STA_DISCONNECTED) {
+    uint8_t reason = info.wifi_sta_disconnected.reason;
+#else
   if (event == SYSTEM_EVENT_STA_DISCONNECTED) {
     uint8_t reason = info.disconnected.reason;
+#endif
     if (reason == WIFI_REASON_AUTH_EXPIRE || reason == WIFI_REASON_BEACON_TIMEOUT ||
         reason == WIFI_REASON_NO_AP_FOUND || reason == WIFI_REASON_ASSOC_FAIL ||
         reason == WIFI_REASON_HANDSHAKE_TIMEOUT) {
@@ -458,7 +544,11 @@ void WiFiComponent::wifi_event_callback_(system_event_id_t event, system_event_i
       this->error_from_callback_ = true;
     }
   }
+#if ESP_IDF_VERSION_MAJOR >= 4
+  if (event == ARDUINO_EVENT_WIFI_SCAN_DONE) {
+#else
   if (event == SYSTEM_EVENT_SCAN_DONE) {
+#endif
     this->wifi_scan_done_callback_();
   }
 }
@@ -469,7 +559,7 @@ void WiFiComponent::wifi_pre_setup_() {
   // Make sure WiFi is in clean state before anything starts
   this->wifi_mode_(false, false);
 }
-wl_status_t WiFiComponent::wifi_sta_status_() { return WiFi.status(); }
+wl_status_t WiFiComponent::wifi_sta_status_() { return WiFiClass::status(); }
 bool WiFiComponent::wifi_scan_start_() {
   // enable STA
   if (!this->wifi_mode_(true, {}))
@@ -570,7 +660,7 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
 
   wifi_config_t conf;
   memset(&conf, 0, sizeof(conf));
-  strcpy(reinterpret_cast<char *>(conf.ap.ssid), ap.get_ssid().c_str());
+  strlcpy(reinterpret_cast<char *>(conf.ap.ssid), ap.get_ssid().c_str(), sizeof(conf.ap.ssid));
   conf.ap.channel = ap.get_channel().value_or(1);
   conf.ap.ssid_hidden = ap.get_ssid().size();
   conf.ap.max_connection = 5;
@@ -581,8 +671,13 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
     *conf.ap.password = 0;
   } else {
     conf.ap.authmode = WIFI_AUTH_WPA2_PSK;
-    strcpy(reinterpret_cast<char *>(conf.ap.password), ap.get_password().c_str());
+    strlcpy(reinterpret_cast<char *>(conf.ap.password), ap.get_password().c_str(), sizeof(conf.ap.ssid));
   }
+
+#if ESP_IDF_VERSION_MAJOR >= 4
+  // pairwise cipher of SoftAP, group cipher will be derived using this.
+  conf.ap.pairwise_cipher = WIFI_CIPHER_TYPE_CCMP;
+#endif
 
   esp_err_t err = esp_wifi_set_config(WIFI_IF_AP, &conf);
   if (err != ESP_OK) {

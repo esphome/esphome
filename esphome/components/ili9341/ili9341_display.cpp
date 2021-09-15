@@ -6,7 +6,7 @@
 namespace esphome {
 namespace ili9341 {
 
-static const char *TAG = "ili9341";
+static const char *const TAG = "ili9341";
 
 void ILI9341Display::setup_pins_() {
   this->init_internal_(this->get_buffer_length_());
@@ -225,7 +225,7 @@ void ILI9341M5Stack::initialize() {
   this->width_ = 320;
   this->height_ = 240;
   this->invert_display_(true);
-  this->fill_internal_(COLOR_BLACK);
+  this->fill_internal_(Color::BLACK);
 }
 
 //   24_TFT display
@@ -233,7 +233,7 @@ void ILI9341TFT24::initialize() {
   this->init_lcd_(INITCMD_TFT);
   this->width_ = 240;
   this->height_ = 320;
-  this->fill_internal_(COLOR_BLACK);
+  this->fill_internal_(Color::BLACK);
 }
 
 }  // namespace ili9341

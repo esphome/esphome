@@ -4,7 +4,7 @@
 namespace esphome {
 namespace wifi_info {
 
-static const char *TAG = "wifi_info";
+static const char *const TAG = "wifi_info";
 
 void IPAddressWiFiInfo::dump_config() { LOG_TEXT_SENSOR("", "WifiInfo IPAddress", this); }
 void SSIDWiFiInfo::dump_config() { LOG_TEXT_SENSOR("", "WifiInfo SSID", this); }

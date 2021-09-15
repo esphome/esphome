@@ -4,7 +4,7 @@
 namespace esphome {
 namespace a4988 {
 
-static const char *TAG = "a4988.stepper";
+static const char *const TAG = "a4988.stepper";
 
 void A4988::setup() {
   ESP_LOGCONFIG(TAG, "Setting up A4988...");
