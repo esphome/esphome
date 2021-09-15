@@ -72,14 +72,11 @@ def validate_temperature_multipliers(value):
 
 def validate_active_state_values(value):
     if CONF_ACTIVE_STATE_DATAPOINT not in value:
-        if (
-            CONF_ACTIVE_STATE_HEATING_VALUE in value
-            or CONF_ACTIVE_STATE_COOLING_VALUE in value
-        ):
+        if CONF_ACTIVE_STATE_COOLING_VALUE in value:
             raise cv.Invalid(
                 (
                     f"{CONF_ACTIVE_STATE_DATAPOINT} required if using "
-                    f"{CONF_ACTIVE_STATE_HEATING_VALUE} or {CONF_ACTIVE_STATE_COOLING_VALUE}"
+                    f"{CONF_ACTIVE_STATE_COOLING_VALUE}"
                 )
             )
     else:
