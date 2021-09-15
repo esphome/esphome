@@ -15,7 +15,7 @@ class ModbusOutput : public output::FloatOutput, public Component, public Sensor
  public:
   ModbusOutput(uint16_t start_address, uint8_t offset, SensorValueType value_type)
       : output::FloatOutput(), Component() {
-    this->register_type = ModbusFunctionCode::READ_HOLDING_REGISTERS;
+    this->register_type = ModbusRegisterType::HOLDING;
     this->start_address = start_address;
     this->offset = offset;
     this->bitmask = bitmask;
@@ -32,7 +32,7 @@ class ModbusOutput : public output::FloatOutput, public Component, public Sensor
   // Do nothing
   void parse_and_publish(const std::vector<uint8_t> &data) override{};
 
-  using transform_func_t = std::function<optional<float>(float, std::vector<uint16_t> &)>;
+  using transform_func_t = std::function<optional<float>(const ModbusOutput *, float, std::vector<uint16_t> &)>;
   void set_template(transform_func_t &&f) { this->transform_func_ = f; }
 
  protected:

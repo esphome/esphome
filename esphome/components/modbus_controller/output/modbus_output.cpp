@@ -25,7 +25,7 @@ void ModbusOutput::write_state(float value) {
     // data is passed by reference
     // the lambda can fill the empty vector directly
     // in that case the return value is ignored
-    auto val = (*this->transform_func_)(value, data);
+    auto val = (*this->transform_func_)(this, value, data);
     if (val.has_value()) {
       ESP_LOGV(TAG, "Value overwritten by lambda");
       value = val.value();

@@ -21,7 +21,7 @@ void ModbusSensor::parse_and_publish(const std::vector<uint8_t> &data) {
   // call it with the pre converted value and the raw data array
   if (this->transform_func_.has_value()) {
     // the lambda can parse the response itself
-    auto val = (*this->transform_func_)(result, data);
+    auto val = (*this->transform_func_)(this, result, data);
     if (val.has_value()) {
       ESP_LOGV(TAG, "Value overwritten by lambda");
       result = val.value();
@@ -30,7 +30,6 @@ void ModbusSensor::parse_and_publish(const std::vector<uint8_t> &data) {
       return;
     }
   }
-
   // No need to publish if the value didn't change since the last publish
   // can reduce mqtt traffic considerably if many sensors are used
   ESP_LOGD(TAG, " SENSOR : new: %.02f", result);

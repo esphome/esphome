@@ -12,10 +12,10 @@ void ModbusBinarySensor::parse_and_publish(const std::vector<uint8_t> &data) {
   bool value;
 
   switch (this->register_type) {
-    case ModbusFunctionCode::READ_DISCRETE_INPUTS:
+    case ModbusRegisterType::DISCRETE_INPUT:
       value = coil_from_vector(this->offset, data);
       break;
-    case ModbusFunctionCode::READ_COILS:
+    case ModbusRegisterType::COIL:
       // offset for coil is the actual number of the coil not the byte offset
       value = coil_from_vector(this->offset, data);
       break;
@@ -27,7 +27,7 @@ void ModbusBinarySensor::parse_and_publish(const std::vector<uint8_t> &data) {
   // call it with the pre converted value and the raw data array
   if (this->transform_func_.has_value()) {
     // the lambda can parse the response itself
-    auto val = (*this->transform_func_)(value, data);
+    auto val = (*this->transform_func_)(this, value, data);
     if (val.has_value()) {
       ESP_LOGV(TAG, "Value overwritten by lambda");
       value = val.value();

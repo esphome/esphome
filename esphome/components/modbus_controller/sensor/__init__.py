@@ -8,7 +8,10 @@ from .. import (
     modbus_controller_ns,
     ModbusController,
     MODBUS_FUNCTION_CODE,
+    MODBUS_REGISTER_TYPE,
     SENSOR_VALUE_TYPE,
+    set_register_type,
+    validate_register_type,
 )
 from ..const import (
     CONF_BITMASK,
@@ -17,6 +20,7 @@ from ..const import (
     CONF_MODBUS_CONTROLLER_ID,
     CONF_MODBUS_FUNCTIONCODE,
     CONF_REGISTER_COUNT,
+    CONF_REGISTER_TYPE,
     CONF_SKIP_UPDATES,
     CONF_VALUE_TYPE,
 )
@@ -45,13 +49,15 @@ TYPE_REGISTER_MAP = {
     "FP32_R": 2,
 }
 
+
 CONFIG_SCHEMA = cv.All(
     sensor.SENSOR_SCHEMA.extend(
         {
             cv.GenerateID(): cv.declare_id(ModbusSensor),
             cv.GenerateID(CONF_MODBUS_CONTROLLER_ID): cv.use_id(ModbusController),
-            cv.Required(CONF_MODBUS_FUNCTIONCODE): cv.enum(MODBUS_FUNCTION_CODE),
             cv.Required(CONF_ADDRESS): cv.positive_int,
+            cv.Optional(CONF_MODBUS_FUNCTIONCODE): cv.enum(MODBUS_FUNCTION_CODE),
+            cv.Optional(CONF_REGISTER_TYPE): cv.enum(MODBUS_REGISTER_TYPE),
             cv.Optional(CONF_OFFSET, default=0): cv.positive_int,
             cv.Optional(CONF_BYTE_OFFSET): cv.positive_int,
             cv.Optional(CONF_BITMASK, default=0xFFFFFFFF): cv.hex_uint32_t,
@@ -62,6 +68,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_LAMBDA): cv.returning_lambda,
         }
     ).extend(cv.COMPONENT_SCHEMA),
+    validate_register_type,
 )
 
 
@@ -76,9 +83,11 @@ async def to_code(config):
     reg_count = config[CONF_REGISTER_COUNT]
     if reg_count == 0:
         reg_count = TYPE_REGISTER_MAP[value_type]
+    reg_type = set_register_type(config)
+
     var = cg.new_Pvariable(
         config[CONF_ID],
-        config[CONF_MODBUS_FUNCTIONCODE],
+        reg_type,
         config[CONF_ADDRESS],
         byte_offset,
         config[CONF_BITMASK],
@@ -96,6 +105,7 @@ async def to_code(config):
         template_ = await cg.process_lambda(
             config[CONF_LAMBDA],
             [
+                (ModbusSensor.operator("const").operator("ptr"), "item"),
                 (cg.float_, "x"),
                 (
                     cg.std_vector.template(cg.uint8).operator("const").operator("ref"),

@@ -37,6 +37,14 @@ enum class ModbusFunctionCode {
   READ_FIFO_QUEUE = 0x18,                // not implemented
 };
 
+enum class ModbusRegisterType : int {
+  CUSTOM = 0x0,
+  COIL = 0x01,
+  DISCRETE_INPUT = 0x02,
+  HOLDING = 0x03,
+  READ = 0x04,
+};
+
 enum class SensorValueType : uint8_t {
   RAW = 0x00,     // variable length
   U_WORD = 0x1,   // 1 Register unsigned
@@ -56,12 +64,51 @@ enum class SensorValueType : uint8_t {
 
 struct RegisterRange {
   uint16_t start_address;
-  ModbusFunctionCode register_type;
+  ModbusRegisterType register_type;
   uint8_t register_count;
   uint8_t skip_updates;  // the config value
   uint64_t first_sensorkey;
   uint8_t skip_updates_counter;  // the running value
 } __attribute__((packed));
+
+inline ModbusFunctionCode modbus_register_read_function(ModbusRegisterType reg_type) {
+  switch (reg_type) {
+    case ModbusRegisterType::COIL:
+      return ModbusFunctionCode::READ_COILS;
+      break;
+    case ModbusRegisterType::DISCRETE_INPUT:
+      return ModbusFunctionCode::READ_DISCRETE_INPUTS;
+      break;
+    case ModbusRegisterType::HOLDING:
+      return ModbusFunctionCode::READ_HOLDING_REGISTERS;
+      break;
+    case ModbusRegisterType::READ:
+      return ModbusFunctionCode::READ_INPUT_REGISTERS;
+      break;
+    default:
+      return ModbusFunctionCode::CUSTOM;
+      break;
+  }
+}
+inline ModbusFunctionCode modbus_register_write_function(ModbusRegisterType reg_type) {
+  switch (reg_type) {
+    case ModbusRegisterType::COIL:
+      return ModbusFunctionCode::WRITE_SINGLE_COIL;
+      break;
+    case ModbusRegisterType::DISCRETE_INPUT:
+      return ModbusFunctionCode::CUSTOM;
+      break;
+    case ModbusRegisterType::HOLDING:
+      return ModbusFunctionCode::READ_WRITE_MULTIPLE_REGISTERS;
+      break;
+    case ModbusRegisterType::READ:
+      return ModbusFunctionCode::CUSTOM;
+      break;
+      return ModbusFunctionCode::CUSTOM;
+    default:
+      break;
+  }
+}
 
 /** All sensors are stored in a map
  * to enable binary sensors for values encoded as bits in the same register the key of each sensor
@@ -69,9 +116,9 @@ struct RegisterRange {
  * sensormap_ is sorted by this key. The key ensures the correct order when creating consequtive ranges
  * Format:  function_code (8 bit) | start address (16 bit)| offset (8bit)| bitmask (32 bit)
  */
-inline uint64_t calc_key(ModbusFunctionCode function_code, uint16_t start_address, uint8_t offset = 0,
+inline uint64_t calc_key(ModbusRegisterType register_type, uint16_t start_address, uint8_t offset = 0,
                          uint32_t bitmask = 0) {
-  return uint64_t((uint16_t(function_code) << 24) + (uint32_t(start_address) << 8) + (offset & 0xFF)) << 32 | bitmask;
+  return uint64_t((uint16_t(register_type) << 24) + (uint32_t(start_address) << 8) + (offset & 0xFF)) << 32 | bitmask;
 }
 inline uint16_t register_from_key(uint64_t key) { return (key >> 40) & 0xFFFF; }
 
@@ -201,7 +248,7 @@ float payload_to_float(const std::vector<uint8_t> &data, SensorValueType sensor_
 class ModbusController;
 
 struct SensorItem {
-  ModbusFunctionCode register_type;
+  ModbusRegisterType register_type;
   SensorValueType sensor_value_type;
   uint16_t start_address;
   uint32_t bitmask;
@@ -251,7 +298,8 @@ struct ModbusCommandItem {
   uint16_t register_address;
   uint16_t register_count;
   ModbusFunctionCode function_code;
-  std::function<void(ModbusFunctionCode function_code, uint16_t start_address, const std::vector<uint8_t> &data)>
+  ModbusRegisterType register_type;
+  std::function<void(ModbusRegisterType register_type, uint16_t start_address, const std::vector<uint8_t> &data)>
       on_data_func;
   std::vector<uint8_t> payload = {};
   bool send();
@@ -267,8 +315,8 @@ struct ModbusCommandItem {
    * @return ModbusCommandItem with the prepared command
    */
   static ModbusCommandItem create_read_command(
-      ModbusController *modbusdevice, ModbusFunctionCode function_code, uint16_t start_address, uint16_t register_count,
-      std::function<void(ModbusFunctionCode function_code, uint16_t start_address, const std::vector<uint8_t> &data)>
+      ModbusController *modbusdevice, ModbusRegisterType register_type, uint16_t start_address, uint16_t register_count,
+      std::function<void(ModbusRegisterType register_type, uint16_t start_address, const std::vector<uint8_t> &data)>
           &&handler);
   /** Create modbus read command
    *  Function code 02-04
@@ -278,7 +326,7 @@ struct ModbusCommandItem {
    * @param register_count number of registers to read
    * @return ModbusCommandItem with the prepared command
    */
-  static ModbusCommandItem create_read_command(ModbusController *modbusdevice, ModbusFunctionCode function_code,
+  static ModbusCommandItem create_read_command(ModbusController *modbusdevice, ModbusRegisterType register_type,
                                                uint16_t start_address, uint16_t register_count);
   /** Create modbus read command
    *  Function code 02-04
@@ -328,7 +376,7 @@ struct ModbusCommandItem {
    */
   static ModbusCommandItem create_custom_command(
       ModbusController *modbusdevice, const std::vector<uint8_t> &values,
-      std::function<void(ModbusFunctionCode function_code, uint16_t start_address, const std::vector<uint8_t> &data)>
+      std::function<void(ModbusRegisterType register_type, uint16_t start_address, const std::vector<uint8_t> &data)>
           &&handler = nullptr);
 };
 
@@ -357,10 +405,10 @@ class ModbusController : public PollingComponent, public modbus::ModbusDevice {
   /// called when a modbus error response was received
   void on_modbus_error(uint8_t function_code, uint8_t exception_code) override;
   /// default delegate called by process_modbus_data when a response has retrieved from the incoming queue
-  void on_register_data(ModbusFunctionCode function_code, uint16_t start_address, const std::vector<uint8_t> &data);
+  void on_register_data(ModbusRegisterType register_type, uint16_t start_address, const std::vector<uint8_t> &data);
   /// default delegate called by process_modbus_data when a response for a write response has retrieved from the
   /// incoming queue
-  void on_write_register_response(ModbusFunctionCode function_code, uint16_t start_address,
+  void on_write_register_response(ModbusRegisterType register_type, uint16_t start_address,
                                   const std::vector<uint8_t> &data);
   /// called by esphome generated code to set the command_throttle period
   void set_command_throttle(uint16_t command_throttle) { this->command_throttle_ = command_throttle; }
