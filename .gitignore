@@ -127,3 +127,5 @@ tests/.esphome/
 /.temp-clang-tidy.cpp
 /.temp/
 .pio/
+
+sdkconfig.*
