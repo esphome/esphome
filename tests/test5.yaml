@@ -163,8 +163,7 @@ sensor:
     platform: modbus_controller
     modbus_controller_id: modbus_controller_test
     address: 0x331A
-    offset: 0
-    modbus_functioncode: "read_input_registers"
+    register_type: read
     value_type: U_WORD
 
   - platform: t6615
