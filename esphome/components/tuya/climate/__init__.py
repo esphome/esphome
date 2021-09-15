@@ -111,7 +111,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_CURRENT_TEMPERATURE_MULTIPLIER): cv.positive_float,
             cv.Optional(CONF_TARGET_TEMPERATURE_MULTIPLIER): cv.positive_float,
             cv.Optional(CONF_ECO_DATAPOINT): cv.uint8_t,
-            cv.Optional(CONF_ECO_TEMPERATURE, default=20): cv.temperature,
+            cv.Optional(CONF_ECO_TEMPERATURE): cv.temperature,
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.has_at_least_one_key(CONF_TARGET_TEMPERATURE_DATAPOINT, CONF_SWITCH_DATAPOINT),
@@ -185,4 +185,5 @@ async def to_code(config):
         )
     if CONF_ECO_DATAPOINT in config:
         cg.add(var.set_eco_id(config[CONF_ECO_DATAPOINT]))
-        cg.add(var.set_eco_temperature(config[CONF_ECO_TEMPERATURE]))
+        if CONF_ECO_TEMPERATURE in config:
+            cg.add(var.set_eco_temperature(config[CONF_ECO_TEMPERATURE]))
