@@ -62,6 +62,8 @@ class MQTTComponent : public Component {
 
   void call_loop() override;
 
+  void call_dump_config() override;
+
   /// Send discovery info the Home Assistant, override this.
   virtual void send_discovery(JsonObject &root, SendDiscoveryConfig &config) = 0;
 
