@@ -150,7 +150,6 @@ void Inkplate6::dump_config() {
 }
 void Inkplate6::eink_off_() {
   ESP_LOGV(TAG, "Eink off called");
-  unsigned long start_time = millis();
   if (panel_on_ == 0)
     return;
   panel_on_ = 0;
@@ -170,7 +169,6 @@ void Inkplate6::eink_off_() {
 }
 void Inkplate6::eink_on_() {
   ESP_LOGV(TAG, "Eink on called");
-  unsigned long start_time = millis();
   if (panel_on_ == 1)
     return;
   panel_on_ = 1;
@@ -200,7 +198,7 @@ void Inkplate6::eink_on_() {
 }
 void Inkplate6::fill(Color color) {
   ESP_LOGV(TAG, "Fill called");
-  unsigned long start_time = millis();
+  uint32_t start_time = millis();
 
   if (this->greyscale_) {
     uint8_t fill = ((color.red * 2126 / 10000) + (color.green * 7152 / 10000) + (color.blue * 722 / 10000)) >> 5;
@@ -214,7 +212,7 @@ void Inkplate6::fill(Color color) {
 }
 void Inkplate6::display() {
   ESP_LOGV(TAG, "Display called");
-  unsigned long start_time = millis();
+  uint32_t start_time = millis();
 
   if (this->greyscale_) {
     this->display3b_();
@@ -229,7 +227,7 @@ void Inkplate6::display() {
 }
 void Inkplate6::display1b_() {
   ESP_LOGV(TAG, "Display1b called");
-  unsigned long start_time = millis();
+  uint32_t start_time = millis();
 
   memcpy(this->buffer_, this->partial_buffer_, this->get_buffer_length_());
 
@@ -348,7 +346,7 @@ void Inkplate6::display1b_() {
 }
 void Inkplate6::display3b_() {
   ESP_LOGV(TAG, "Display3b called");
-  unsigned long start_time = millis();
+  uint32_t start_time = millis();
 
   eink_on_();
   clean_fast_(0, 1);
@@ -424,7 +422,7 @@ void Inkplate6::display3b_() {
 }
 bool Inkplate6::partial_update_() {
   ESP_LOGV(TAG, "Partial update called");
-  unsigned long start_time = millis();
+  uint32_t start_time = millis();
   if (this->greyscale_)
     return false;
   if (this->block_partial_)
@@ -531,7 +529,7 @@ void Inkplate6::vscan_end_() {
 }
 void Inkplate6::clean() {
   ESP_LOGV(TAG, "Clean called");
-  unsigned long start_time = millis();
+  uint32_t start_time = millis();
 
   eink_on_();
   clean_fast_(0, 1);   // White
@@ -544,7 +542,7 @@ void Inkplate6::clean() {
 }
 void Inkplate6::clean_fast_(uint8_t c, uint8_t rep) {
   ESP_LOGV(TAG, "Clean fast called with: (%d, %d)", c, rep);
-  unsigned long start_time = millis();
+  uint32_t start_time = millis();
 
   eink_on_();
   uint8_t data = 0;

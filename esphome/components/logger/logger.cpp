@@ -43,21 +43,24 @@ void Logger::write_header_(int level, const char *tag, int line) {
 }
 
 void HOT Logger::log_vprintf_(int level, const char *tag, int line, const char *format, va_list args) {  // NOLINT
-  if (level > this->level_for(tag))
+  if (level > this->level_for(tag) || recursion_guard_)
     return;
 
+  recursion_guard_ = true;
   this->reset_buffer_();
   this->write_header_(level, tag, line);
   this->vprintf_to_buffer_(format, args);
   this->write_footer_();
   this->log_message_(level, tag);
+  recursion_guard_ = false;
 }
 #ifdef USE_STORE_LOG_STR_IN_FLASH
 void Logger::log_vprintf_(int level, const char *tag, int line, const __FlashStringHelper *format,
                           va_list args) {  // NOLINT
-  if (level > this->level_for(tag))
+  if (level > this->level_for(tag) || recursion_guard_)
     return;
 
+  recursion_guard_ = true;
   this->reset_buffer_();
   // copy format string
   const char *format_pgm_p = (PGM_P) format;
@@ -78,6 +81,7 @@ void Logger::log_vprintf_(int level, const char *tag, int line, const __FlashStr
   this->vprintf_to_buffer_(this->tx_buffer_, args);
   this->write_footer_();
   this->log_message_(level, tag, offset);
+  recursion_guard_ = false;
 }
 #endif
 
@@ -119,7 +123,7 @@ void HOT Logger::log_message_(int level, const char *tag, int offset) {
 Logger::Logger(uint32_t baud_rate, size_t tx_buffer_size, UARTSelection uart)
     : baud_rate_(baud_rate), tx_buffer_size_(tx_buffer_size), uart_(uart) {
   // add 1 to buffer size for null terminator
-  this->tx_buffer_ = new char[this->tx_buffer_size_ + 1];
+  this->tx_buffer_ = new char[this->tx_buffer_size_ + 1];  // NOLINT
 }
 
 void Logger::pre_setup() {

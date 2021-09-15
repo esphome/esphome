@@ -16,17 +16,38 @@ from .. import template_ns
 
 TemplateSwitch = template_ns.class_("TemplateSwitch", switch.Switch, cg.Component)
 
-CONFIG_SCHEMA = switch.SWITCH_SCHEMA.extend(
-    {
-        cv.GenerateID(): cv.declare_id(TemplateSwitch),
-        cv.Optional(CONF_LAMBDA): cv.returning_lambda,
-        cv.Optional(CONF_OPTIMISTIC, default=False): cv.boolean,
-        cv.Optional(CONF_ASSUMED_STATE, default=False): cv.boolean,
-        cv.Optional(CONF_TURN_OFF_ACTION): automation.validate_automation(single=True),
-        cv.Optional(CONF_TURN_ON_ACTION): automation.validate_automation(single=True),
-        cv.Optional(CONF_RESTORE_STATE, default=False): cv.boolean,
-    }
-).extend(cv.COMPONENT_SCHEMA)
+
+def validate(config):
+    if (
+        not config[CONF_OPTIMISTIC]
+        and CONF_TURN_ON_ACTION not in config
+        and CONF_TURN_OFF_ACTION not in config
+    ):
+        raise cv.Invalid(
+            "Either optimistic mode must be enabled, or turn_on_action or turn_off_action must be set, "
+            "to handle the switch being set."
+        )
+    return config
+
+
+CONFIG_SCHEMA = cv.All(
+    switch.SWITCH_SCHEMA.extend(
+        {
+            cv.GenerateID(): cv.declare_id(TemplateSwitch),
+            cv.Optional(CONF_LAMBDA): cv.returning_lambda,
+            cv.Optional(CONF_OPTIMISTIC, default=False): cv.boolean,
+            cv.Optional(CONF_ASSUMED_STATE, default=False): cv.boolean,
+            cv.Optional(CONF_TURN_OFF_ACTION): automation.validate_automation(
+                single=True
+            ),
+            cv.Optional(CONF_TURN_ON_ACTION): automation.validate_automation(
+                single=True
+            ),
+            cv.Optional(CONF_RESTORE_STATE, default=False): cv.boolean,
+        }
+    ).extend(cv.COMPONENT_SCHEMA),
+    validate,
+)
 
 
 async def to_code(config):

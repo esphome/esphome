@@ -32,8 +32,8 @@ class Am43Component : public cover::Cover, public esphome::ble_client::BLEClient
   uint16_t char_handle_;
   uint16_t pin_;
   bool invert_position_;
-  Am43Encoder *encoder_;
-  Am43Decoder *decoder_;
+  std::unique_ptr<Am43Encoder> encoder_;
+  std::unique_ptr<Am43Decoder> decoder_;
   bool logged_in_;
 
   float position_;

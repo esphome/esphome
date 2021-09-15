@@ -6,7 +6,7 @@
 namespace esphome {
 namespace am43 {
 
-static const char *TAG = "am43_cover";
+static const char *const TAG = "am43_cover";
 
 using namespace esphome::cover;
 
@@ -18,8 +18,8 @@ void Am43Component::dump_config() {
 
 void Am43Component::setup() {
   this->position = COVER_OPEN;
-  this->encoder_ = new Am43Encoder();
-  this->decoder_ = new Am43Decoder();
+  this->encoder_ = make_unique<Am43Encoder>();
+  this->decoder_ = make_unique<Am43Decoder>();
   this->logged_in_ = false;
 }
 

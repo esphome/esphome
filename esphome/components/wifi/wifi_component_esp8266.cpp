@@ -16,6 +16,7 @@ extern "C" {
 #include "lwip/dns.h"
 #include "lwip/dhcp.h"
 #include "lwip/init.h"  // LWIP_VERSION_
+#include "lwip/apps/sntp.h"
 #if LWIP_IPV6
 #include "lwip/netif.h"  // struct netif
 #endif
@@ -112,6 +113,11 @@ bool WiFiComponent::wifi_sta_ip_config_(optional<ManualIP> manual_ip) {
 
   enum dhcp_status dhcp_status = wifi_station_dhcpc_status();
   if (!manual_ip.has_value()) {
+    // lwIP starts the SNTP client if it gets an SNTP server from DHCP. We don't need the time, and more importantly,
+    // the built-in SNTP client has a memory leak in certain situations. Disable this feature.
+    // https://github.com/esphome/issues/issues/2299
+    sntp_servermode_dhcp(false);
+
     // Use DHCP client
     if (dhcp_status != DHCP_STARTED) {
       bool ret = wifi_station_dhcpc_start();
@@ -321,20 +327,20 @@ class WiFiMockClass : public ESP8266WiFiGenericClass {
   static void _event_callback(void *event) { ESP8266WiFiGenericClass::_eventCallback(event); }  // NOLINT
 };
 
-const char *get_auth_mode_str(uint8_t mode) {
+const LogString *get_auth_mode_str(uint8_t mode) {
   switch (mode) {
     case AUTH_OPEN:
-      return "OPEN";
+      return LOG_STR("OPEN");
     case AUTH_WEP:
-      return "WEP";
+      return LOG_STR("WEP");
     case AUTH_WPA_PSK:
-      return "WPA PSK";
+      return LOG_STR("WPA PSK");
     case AUTH_WPA2_PSK:
-      return "WPA2 PSK";
+      return LOG_STR("WPA2 PSK");
     case AUTH_WPA_WPA2_PSK:
-      return "WPA/WPA2 PSK";
+      return LOG_STR("WPA/WPA2 PSK");
     default:
-      return "UNKNOWN";
+      return LOG_STR("UNKNOWN");
   }
 }
 #ifdef ipv4_addr
@@ -352,22 +358,22 @@ std::string format_ip_addr(struct ip_addr ip) {
   return buf;
 }
 #endif
-const char *get_op_mode_str(uint8_t mode) {
+const LogString *get_op_mode_str(uint8_t mode) {
   switch (mode) {
     case WIFI_OFF:
-      return "OFF";
+      return LOG_STR("OFF");
     case WIFI_STA:
-      return "STA";
+      return LOG_STR("STA");
     case WIFI_AP:
-      return "AP";
+      return LOG_STR("AP");
     case WIFI_AP_STA:
-      return "AP+STA";
+      return LOG_STR("AP+STA");
     default:
-      return "UNKNOWN";
+      return LOG_STR("UNKNOWN");
   }
 }
-// Note that this method returns PROGMEM strings, so use LOG_STR_ARG() to access them.
-const char *get_disconnect_reason_str(uint8_t reason) {
+
+const LogString *get_disconnect_reason_str(uint8_t reason) {
   /* If this were one big switch statement, GCC would generate a lookup table for it. However, the values of the
    * REASON_* constants aren't continuous, and GCC will fill in the gap with the default value -- wasting 4 bytes of RAM
    * per entry. As there's ~175 default entries, this wastes 700 bytes of RAM.
@@ -464,8 +470,8 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
     }
     case EVENT_STAMODE_AUTHMODE_CHANGE: {
       auto it = event->event_info.auth_change;
-      ESP_LOGV(TAG, "Event: Changed AuthMode old=%s new=%s", get_auth_mode_str(it.old_mode),
-               get_auth_mode_str(it.new_mode));
+      ESP_LOGV(TAG, "Event: Changed AuthMode old=%s new=%s", LOG_STR_ARG(get_auth_mode_str(it.old_mode)),
+               LOG_STR_ARG(get_auth_mode_str(it.new_mode)));
       // Mitigate CVE-2020-12638
       // https://lbsfilm.at/blog/wpa2-authenticationmode-downgrade-in-espressif-microprocessors
       if (it.old_mode != AUTH_OPEN && it.new_mode == AUTH_OPEN) {
@@ -505,8 +511,8 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
 #if ARDUINO_VERSION_CODE >= VERSION_CODE(2, 4, 0)
     case EVENT_OPMODE_CHANGED: {
       auto it = event->event_info.opmode_changed;
-      ESP_LOGV(TAG, "Event: Changed Mode old=%s new=%s", get_op_mode_str(it.old_opmode),
-               get_op_mode_str(it.new_opmode));
+      ESP_LOGV(TAG, "Event: Changed Mode old=%s new=%s", LOG_STR_ARG(get_op_mode_str(it.old_opmode)),
+               LOG_STR_ARG(get_op_mode_str(it.new_opmode)));
       break;
     }
     case EVENT_SOFTAPMODE_DISTRIBUTE_STA_IP: {
@@ -575,7 +581,7 @@ wl_status_t WiFiComponent::wifi_sta_status_() {
   }
 }
 bool WiFiComponent::wifi_scan_start_() {
-  static bool FIRST_SCAN = false;
+  static bool first_scan = false;
 
   // enable STA
   if (!this->wifi_mode_(true, {}))
@@ -589,7 +595,7 @@ bool WiFiComponent::wifi_scan_start_() {
   config.show_hidden = 1;
 #if ARDUINO_VERSION_CODE >= VERSION_CODE(2, 4, 0)
   config.scan_type = WIFI_SCAN_TYPE_ACTIVE;
-  if (FIRST_SCAN) {
+  if (first_scan) {
     config.scan_time.active.min = 100;
     config.scan_time.active.max = 200;
   } else {
@@ -597,7 +603,7 @@ bool WiFiComponent::wifi_scan_start_() {
     config.scan_time.active.max = 500;
   }
 #endif
-  FIRST_SCAN = false;
+  first_scan = false;
   bool ret = wifi_station_scan(&config, &WiFiComponent::s_wifi_scan_done_callback);
   if (!ret) {
     ESP_LOGV(TAG, "wifi_station_scan failed!");

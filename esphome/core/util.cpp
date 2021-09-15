@@ -75,12 +75,12 @@ static const uint8_t WEBSERVER_PORT = 80;
 
 #ifdef USE_MDNS
 #ifdef ARDUINO_ARCH_ESP8266
-void network_setup_mdns(IPAddress address, int interface) {
+void network_setup_mdns(const IPAddress &address, int interface) {
   // Latest arduino framework breaks mDNS for AP interface
   // see https://github.com/esp8266/Arduino/issues/6114
   if (interface == 1)
     return;
-  MDNS.begin(App.get_name().c_str(), std::move(address));
+  MDNS.begin(App.get_name().c_str(), address);
   mdns_setup = true;
 #endif
 #ifdef ARDUINO_ARCH_ESP32
