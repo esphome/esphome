@@ -24,6 +24,9 @@ StartFullCycleAction = sprinkler_ns.class_("StartFullCycleAction", automation.Ac
 ShutdownAction = sprinkler_ns.class_("ShutdownAction", automation.Action)
 NextValveAction = sprinkler_ns.class_("NextValveAction", automation.Action)
 PreviousValveAction = sprinkler_ns.class_("PreviousValveAction", automation.Action)
+PauseAction = sprinkler_ns.class_("PauseAction", automation.Action)
+ResumeAction = sprinkler_ns.class_("ResumeAction", automation.Action)
+ResumeOrStartAction = sprinkler_ns.class_("ResumeOrStartAction", automation.Action)
 
 
 def validate_sprinkler(config):
@@ -93,6 +96,28 @@ async def sprinkler_next_valve_to_code(config, action_id, template_arg, args):
     "sprinkler.previous_valve", PreviousValveAction, SPRINKLER_ACTION_SCHEMA
 )
 async def sprinkler_previous_valve_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(action_id, template_arg, paren)
+
+
+@automation.register_action("sprinkler.pause", PauseAction, SPRINKLER_ACTION_SCHEMA)
+async def sprinkler_pause_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(action_id, template_arg, paren)
+
+
+@automation.register_action("sprinkler.resume", ResumeAction, SPRINKLER_ACTION_SCHEMA)
+async def sprinkler_resume_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(action_id, template_arg, paren)
+
+
+@automation.register_action(
+    "sprinkler.resume_or_start_full_cycle", ResumeOrStartAction, SPRINKLER_ACTION_SCHEMA
+)
+async def sprinkler_resume_or_start_full_cycle_to_code(
+    config, action_id, template_arg, args
+):
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, paren)
 

@@ -47,5 +47,35 @@ template<typename... Ts> class PreviousValveAction : public Action<Ts...> {
   Sprinkler *sprinkler;
 };
 
+template<typename... Ts> class PauseAction : public Action<Ts...> {
+ public:
+  explicit PauseAction(Sprinkler *a_sprinkler) : sprinkler(a_sprinkler) {}
+
+  void play(Ts... x) override { this->sprinkler->pause(); }
+
+ protected:
+  Sprinkler *sprinkler;
+};
+
+template<typename... Ts> class ResumeAction : public Action<Ts...> {
+ public:
+  explicit ResumeAction(Sprinkler *a_sprinkler) : sprinkler(a_sprinkler) {}
+
+  void play(Ts... x) override { this->sprinkler->resume(); }
+
+ protected:
+  Sprinkler *sprinkler;
+};
+
+template<typename... Ts> class ResumeOrStartAction : public Action<Ts...> {
+ public:
+  explicit ResumeOrStartAction(Sprinkler *a_sprinkler) : sprinkler(a_sprinkler) {}
+
+  void play(Ts... x) override { this->sprinkler->resume_or_start_full_cycle(); }
+
+ protected:
+  Sprinkler *sprinkler;
+};
+
 }  // namespace sprinkler
 }  // namespace esphome

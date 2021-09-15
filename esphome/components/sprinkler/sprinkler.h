@@ -84,11 +84,23 @@ class Sprinkler : public Component {
   /// turns off all valves, effectively shutting down the system.
   void shutdown();
 
+  /// same as shutdown(), but also stores active_valve() and time_remaining() allowing resume() to continue the cycle
+  void pause();
+
+  /// resumes a cycle that was suspended using pause()
+  void resume();
+
+  /// if a cycle was suspended using pause(), resumes it. otherwise calls start_full_cycle()
+  void resume_or_start_full_cycle();
+
   /// returns a pointer to a valve's name string object; returns nullptr if valve_number is invalid
   const char *valve_name(uint8_t valve_number);
 
-  /// returns the number of the valve that is currently active or 'none_active' if no valve is active
+  /// returns the number of the valve that is currently active or 'sprinkler::none_active' if no valve is active
   int8_t active_valve();
+
+  /// returns the number of the valve that is paused or 'sprinkler::none_active' if no valve is paused
+  int8_t paused_valve();
 
   /// returns true if valve number is valid
   bool is_a_valid_valve(int8_t valve_number);
@@ -141,7 +153,8 @@ class Sprinkler : public Component {
   void activate_active_valve_();
 
   /// starts a valve with related timers, etc.
-  void start_valve_(uint8_t valve_number);
+  ///  run_duration = 0 means we'll look up how long the valve is configured to run
+  void start_valve_(uint8_t valve_number, uint32_t run_duration = 0);
 
   /// turns off/closes all valves, including pump if include_pump is true
   void all_valves_off_(bool include_pump = false);
@@ -172,6 +185,12 @@ class Sprinkler : public Component {
 
   /// The number of the valve that is currently active
   int8_t active_valve_{this->none_active};
+
+  /// The number of the valve to resume from (if paused)
+  int8_t paused_valve_{this->none_active};
+
+  /// Set from time_remaining() when paused
+  uint32_t resume_duration_;
 
   /// Sprinkler valve run time multiplier value
   float multiplier_{1.0};

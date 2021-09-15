@@ -100,6 +100,28 @@ void Sprinkler::shutdown() {
   this->active_valve_ = this->none_active;
 }
 
+void Sprinkler::pause() {
+  this->paused_valve_ = this->active_valve();
+  this->resume_duration_ = this->time_remaining();
+  this->shutdown();
+}
+
+void Sprinkler::resume() {
+  if (this->is_a_valid_valve(this->paused_valve_) && (this->resume_duration_ > 0)) {
+    this->start_valve_(this->paused_valve_, this->resume_duration_);
+    this->paused_valve_ = this->none_active;
+    this->resume_duration_ = 0;
+  }
+}
+
+void Sprinkler::resume_or_start_full_cycle() {
+  if (this->is_a_valid_valve(this->paused_valve_) && (this->resume_duration_ > 0)) {
+    this->resume();
+  } else {
+    this->start_full_cycle();
+  }
+}
+
 const char *Sprinkler::valve_name(const uint8_t valve_number) {
   if (this->is_a_valid_valve(valve_number)) {
     return this->valve_[valve_number].valve_name.c_str();
@@ -108,6 +130,8 @@ const char *Sprinkler::valve_name(const uint8_t valve_number) {
 }
 
 int8_t Sprinkler::active_valve() { return this->active_valve_; }
+
+int8_t Sprinkler::paused_valve() { return this->paused_valve_; }
 
 bool Sprinkler::is_a_valid_valve(const int8_t valve_number) {
   return ((valve_number >= 0) && (valve_number < this->number_of_valves()));
@@ -231,13 +255,15 @@ void Sprinkler::activate_active_valve_() {
   }
 }
 
-void Sprinkler::start_valve_(const uint8_t valve_number) {
+void Sprinkler::start_valve_(const uint8_t valve_number, uint32_t run_duration) {
   if (this->is_a_valid_valve(valve_number) && (valve_number != this->active_valve_)) {
+    if (run_duration == 0) {
+      run_duration = this->valve_run_duration_adjusted(valve_number);
+    }
     this->all_valves_off_();
     this->active_valve_ = valve_number;
     this->set_pump_state_(true);
-    this->set_timer_duration_(sprinkler::TIMER_VALVE_RUN_DURATION,
-                              this->valve_run_duration_adjusted(this->active_valve_));
+    this->set_timer_duration_(sprinkler::TIMER_VALVE_RUN_DURATION, run_duration);
     ESP_LOGD(TAG, "Starting valve %i for %i seconds", this->active_valve_,
              this->valve_run_duration_adjusted(this->active_valve_));
     this->start_timer_(sprinkler::TIMER_VALVE_RUN_DURATION);
