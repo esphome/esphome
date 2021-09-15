@@ -1,6 +1,6 @@
 #pragma once
 
-#include "esphome/core/esphal.h"
+#include "esphome/core/hal.h"
 
 namespace esphome {
 namespace pid {

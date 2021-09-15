@@ -1,7 +1,7 @@
 #pragma once
 
 #include "esphome/core/component.h"
-#include "esphome/core/esphal.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/defines.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/voltage_sampler/voltage_sampler.h"

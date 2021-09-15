@@ -1,7 +1,7 @@
 #pragma once
 
 #ifdef USE_ARDUINO
-#include "esphome/core/esphal.h"
+#include "esphome/core/hal.h"
 #include <esp32-hal-gpio.h>
 
 namespace esphome {

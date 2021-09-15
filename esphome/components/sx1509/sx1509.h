@@ -2,7 +2,7 @@
 
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/core/component.h"
-#include "esphome/core/esphal.h"
+#include "esphome/core/hal.h"
 #include "sx1509_gpio_pin.h"
 #include "sx1509_registers.h"
 

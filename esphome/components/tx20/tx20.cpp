@@ -140,7 +140,7 @@ void Tx20Component::decode_and_publish_() {
   }
 }
 
-void ICACHE_RAM_ATTR Tx20ComponentStore::gpio_intr(Tx20ComponentStore *arg) {
+void IRAM_ATTR Tx20ComponentStore::gpio_intr(Tx20ComponentStore *arg) {
   arg->pin_state = arg->pin->digital_read();
   const uint32_t now = micros();
   if (!arg->start_time) {
@@ -183,7 +183,7 @@ void ICACHE_RAM_ATTR Tx20ComponentStore::gpio_intr(Tx20ComponentStore *arg) {
   arg->start_time = now;
   arg->buffer_index++;
 }
-void ICACHE_RAM_ATTR Tx20ComponentStore::reset() {
+void IRAM_ATTR Tx20ComponentStore::reset() {
   tx20_available = false;
   buffer_index = 0;
   spent_time = 0;

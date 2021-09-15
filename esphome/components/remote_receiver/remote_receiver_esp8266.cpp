@@ -1,5 +1,5 @@
 #include "remote_receiver.h"
-#include "esphome/core/esphal.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
 
@@ -10,7 +10,7 @@ namespace remote_receiver {
 
 static const char *const TAG = "remote_receiver.esp8266";
 
-void ICACHE_RAM_ATTR HOT RemoteReceiverComponentStore::gpio_intr(RemoteReceiverComponentStore *arg) {
+void IRAM_ATTR HOT RemoteReceiverComponentStore::gpio_intr(RemoteReceiverComponentStore *arg) {
   const uint32_t now = micros();
   // If the lhs is 1 (rising edge) we should write to an uneven index and vice versa
   const uint32_t next = (arg->buffer_write_at + 1) % arg->buffer_size;

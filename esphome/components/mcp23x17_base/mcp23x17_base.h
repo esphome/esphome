@@ -2,7 +2,7 @@
 
 #include "esphome/core/component.h"
 #include "esphome/components/mcp23xxx_base/mcp23xxx_base.h"
-#include "esphome/core/esphal.h"
+#include "esphome/core/hal.h"
 
 namespace esphome {
 namespace mcp23x17_base {

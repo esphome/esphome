@@ -2,7 +2,7 @@
 #include "esphome/core/log.h"
 #include "esphome/components/network/util.h"
 #include "esphome/core/version.h"
-#include "esphome/core/esphal.h"
+#include "esphome/core/hal.h"
 #include <cerrno>
 
 #ifdef USE_DEEP_SLEEP

@@ -56,7 +56,7 @@ void PulseMeterSensor::dump_config() {
   ESP_LOGCONFIG(TAG, "  Assuming 0 pulses/min after not receiving a pulse for %us", this->timeout_us_ / 1000000);
 }
 
-void ICACHE_RAM_ATTR PulseMeterSensor::gpio_intr(PulseMeterSensor *sensor) {
+void IRAM_ATTR PulseMeterSensor::gpio_intr(PulseMeterSensor *sensor) {
   // This is an interrupt handler - we can't call any virtual method from this method
 
   // Get the current time before we do anything else so the measurements are consistent

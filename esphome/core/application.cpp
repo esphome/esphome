@@ -1,7 +1,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
 #include "esphome/core/version.h"
-#include "esphome/core/esphal.h"
+#include "esphome/core/hal.h"
 
 #ifdef USE_STATUS_LED
 #include "esphome/components/status_led/status_led.h"
@@ -107,7 +107,7 @@ void Application::loop() {
   }
 }
 
-void ICACHE_RAM_ATTR HOT Application::feed_wdt() {
+void IRAM_ATTR HOT Application::feed_wdt() {
   static uint32_t last_feed = 0;
   uint32_t now = millis();
   if (now - last_feed > 3) {

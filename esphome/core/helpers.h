@@ -151,7 +151,7 @@ uint32_t encode_uint32(uint8_t msb, uint8_t byte2, uint8_t byte3, uint8_t lsb);
  * This behaves like std::lock_guard. As long as the value is visible in the current stack, all interrupts
  * (including flash reads) will be disabled.
  *
- * Please note all functions called when the interrupt lock must be marked ICACHE_RAM_ATTR (loading code into
+ * Please note all functions called when the interrupt lock must be marked IRAM_ATTR (loading code into
  * instruction cache is done via interrupts; disabling interrupts prevents data not already in cache from being
  * pulled from flash).
  *

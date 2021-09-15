@@ -6,7 +6,7 @@ namespace zyaura {
 
 static const char *const TAG = "zyaura";
 
-bool ICACHE_RAM_ATTR ZaDataProcessor::decode(uint32_t ms, bool data) {
+bool IRAM_ATTR ZaDataProcessor::decode(uint32_t ms, bool data) {
   // check if a new message has started, based on time since previous bit
   if ((ms - this->prev_ms_) > ZA_MAX_MS) {
     this->num_bits_ = 0;
@@ -45,7 +45,7 @@ void ZaSensorStore::setup(GPIOPin *pin_clock, GPIOPin *pin_data) {
   pin_clock->attach_interrupt(ZaSensorStore::interrupt, this, FALLING);
 }
 
-void ICACHE_RAM_ATTR ZaSensorStore::interrupt(ZaSensorStore *arg) {
+void IRAM_ATTR ZaSensorStore::interrupt(ZaSensorStore *arg) {
   uint32_t now = millis();
   bool data_bit = arg->pin_data_->digital_read();
 
@@ -54,7 +54,7 @@ void ICACHE_RAM_ATTR ZaSensorStore::interrupt(ZaSensorStore *arg) {
   }
 }
 
-void ICACHE_RAM_ATTR ZaSensorStore::set_data_(ZaMessage *message) {
+void IRAM_ATTR ZaSensorStore::set_data_(ZaMessage *message) {
   switch (message->type) {
     case HUMIDITY:
       this->humidity = (message->value > 10000) ? NAN : (message->value / 100.0f);

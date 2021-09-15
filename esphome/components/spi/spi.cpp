@@ -12,7 +12,7 @@ namespace spi {
 
 static const char *const TAG = "spi";
 
-void ICACHE_RAM_ATTR HOT SPIComponent::disable() {
+void IRAM_ATTR HOT SPIComponent::disable() {
 #ifdef USE_SPI_ARDUINO_BACKEND
   if (this->hw_spi_ != nullptr) {
     this->hw_spi_->endTransaction();

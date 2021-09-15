@@ -22,7 +22,7 @@ static const uint32_t GATE_ENABLE_TIME = 10;
 /// Function called from timer interrupt
 /// Input is current time in microseconds (micros())
 /// Returns when next "event" is expected in µs, or 0 if no such event known.
-uint32_t ICACHE_RAM_ATTR HOT AcDimmerDataStore::timer_intr(uint32_t now) {
+uint32_t IRAM_ATTR HOT AcDimmerDataStore::timer_intr(uint32_t now) {
   // If no ZC signal received yet.
   if (this->crossed_zero_at == 0)
     return 0;
@@ -60,7 +60,7 @@ uint32_t ICACHE_RAM_ATTR HOT AcDimmerDataStore::timer_intr(uint32_t now) {
 }
 
 /// Run timer interrupt code and return in how many µs the next event is expected
-uint32_t ICACHE_RAM_ATTR HOT timer_interrupt() {
+uint32_t IRAM_ATTR HOT timer_interrupt() {
   // run at least with 1kHz
   uint32_t min_dt_us = 1000;
   uint32_t now = micros();
@@ -77,7 +77,7 @@ uint32_t ICACHE_RAM_ATTR HOT timer_interrupt() {
 }
 
 /// GPIO interrupt routine, called when ZC pin triggers
-void ICACHE_RAM_ATTR HOT AcDimmerDataStore::gpio_intr() {
+void IRAM_ATTR HOT AcDimmerDataStore::gpio_intr() {
   uint32_t prev_crossed = this->crossed_zero_at;
 
   // 50Hz mains frequency should give a half cycle of 10ms a 60Hz will give 8.33ms
@@ -124,7 +124,7 @@ void ICACHE_RAM_ATTR HOT AcDimmerDataStore::gpio_intr() {
   }
 }
 
-void ICACHE_RAM_ATTR HOT AcDimmerDataStore::s_gpio_intr(AcDimmerDataStore *store) {
+void IRAM_ATTR HOT AcDimmerDataStore::s_gpio_intr(AcDimmerDataStore *store) {
   // Attaching pin interrupts on the same pin will override the previous interrupt
   // However, the user expects that multiple dimmers sharing the same ZC pin will work.
   // We solve this in a bit of a hacky way: On each pin interrupt, we check all dimmers
@@ -142,7 +142,7 @@ void ICACHE_RAM_ATTR HOT AcDimmerDataStore::s_gpio_intr(AcDimmerDataStore *store
 // ESP32 implementation, uses basically the same code but needs to wrap
 // timer_interrupt() function to auto-reschedule
 static hw_timer_t *dimmer_timer = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-void ICACHE_RAM_ATTR HOT AcDimmerDataStore::s_timer_intr() { timer_interrupt(); }
+void IRAM_ATTR HOT AcDimmerDataStore::s_timer_intr() { timer_interrupt(); }
 #endif
 
 void AcDimmer::setup() {

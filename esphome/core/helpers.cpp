@@ -13,7 +13,7 @@
 #endif
 
 #include "esphome/core/log.h"
-#include "esphome/core/esphal.h"
+#include "esphome/core/hal.h"
 
 namespace esphome {
 
@@ -344,12 +344,12 @@ std::string hexencode(const uint8_t *data, uint32_t len) {
 }
 
 #ifdef ARDUINO_ARCH_ESP8266
-ICACHE_RAM_ATTR InterruptLock::InterruptLock() { xt_state_ = xt_rsil(15); }
-ICACHE_RAM_ATTR InterruptLock::~InterruptLock() { xt_wsr_ps(xt_state_); }
+IRAM_ATTR InterruptLock::InterruptLock() { xt_state_ = xt_rsil(15); }
+IRAM_ATTR InterruptLock::~InterruptLock() { xt_wsr_ps(xt_state_); }
 #endif
 #ifdef ARDUINO_ARCH_ESP32
-ICACHE_RAM_ATTR InterruptLock::InterruptLock() { portDISABLE_INTERRUPTS(); }
-ICACHE_RAM_ATTR InterruptLock::~InterruptLock() { portENABLE_INTERRUPTS(); }
+IRAM_ATTR InterruptLock::InterruptLock() { portDISABLE_INTERRUPTS(); }
+IRAM_ATTR InterruptLock::~InterruptLock() { portENABLE_INTERRUPTS(); }
 #endif
 
 }  // namespace esphome

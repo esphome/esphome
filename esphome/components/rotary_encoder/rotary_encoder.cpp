@@ -82,7 +82,7 @@ static const uint16_t DRAM_ATTR STATE_LOOKUP_TABLE[32] = {
     STATE_CW | STATE_S3                                // 0x1F: stay here
 };
 
-void ICACHE_RAM_ATTR HOT RotaryEncoderSensorStore::gpio_intr(RotaryEncoderSensorStore *arg) {
+void IRAM_ATTR HOT RotaryEncoderSensorStore::gpio_intr(RotaryEncoderSensorStore *arg) {
   // Forget upper bits and add pin states
   uint8_t input_state = arg->state & STATE_LUT_MASK;
   if (arg->pin_a->digital_read())

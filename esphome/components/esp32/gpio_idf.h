@@ -1,7 +1,7 @@
 #pragma once
 
 #ifdef USE_ESP_IDF
-#include "esphome/core/esphal.h"
+#include "esphome/core/hal.h"
 #include <driver/gpio.h>
 
 namespace esphome {

@@ -231,7 +231,7 @@ void ESP8266SoftwareSerial::setup(int8_t tx_pin, int8_t rx_pin, uint32_t baud_ra
     pin.attach_interrupt(ESP8266SoftwareSerial::gpio_intr, this, FALLING);
   }
 }
-void ICACHE_RAM_ATTR ESP8266SoftwareSerial::gpio_intr(ESP8266SoftwareSerial *arg) {
+void IRAM_ATTR ESP8266SoftwareSerial::gpio_intr(ESP8266SoftwareSerial *arg) {
   uint32_t wait = arg->bit_time_ + arg->bit_time_ / 3 - 500;
   const uint32_t start = ESP.getCycleCount();  // NOLINT(readability-static-accessed-through-instance)
   uint8_t rec = 0;
@@ -256,7 +256,7 @@ void ICACHE_RAM_ATTR ESP8266SoftwareSerial::gpio_intr(ESP8266SoftwareSerial *arg
   // Clear RX pin so that the interrupt doesn't re-trigger right away again.
   arg->rx_pin_->clear_interrupt();
 }
-void ICACHE_RAM_ATTR HOT ESP8266SoftwareSerial::write_byte(uint8_t data) {
+void IRAM_ATTR HOT ESP8266SoftwareSerial::write_byte(uint8_t data) {
   if (this->tx_pin_ == nullptr) {
     ESP_LOGE(TAG, "UART doesn't have TX pins set!");
     return;
@@ -290,16 +290,16 @@ void ICACHE_RAM_ATTR HOT ESP8266SoftwareSerial::write_byte(uint8_t data) {
       this->wait_(&wait, start);
   }
 }
-void ICACHE_RAM_ATTR ESP8266SoftwareSerial::wait_(uint32_t *wait, const uint32_t &start) {
+void IRAM_ATTR ESP8266SoftwareSerial::wait_(uint32_t *wait, const uint32_t &start) {
   while (ESP.getCycleCount() - start < *wait)  // NOLINT(readability-static-accessed-through-instance)
     ;
   *wait += this->bit_time_;
 }
-bool ICACHE_RAM_ATTR ESP8266SoftwareSerial::read_bit_(uint32_t *wait, const uint32_t &start) {
+bool IRAM_ATTR ESP8266SoftwareSerial::read_bit_(uint32_t *wait, const uint32_t &start) {
   this->wait_(wait, start);
   return this->rx_pin_->digital_read();
 }
-void ICACHE_RAM_ATTR ESP8266SoftwareSerial::write_bit_(bool bit, uint32_t *wait, const uint32_t &start) {
+void IRAM_ATTR ESP8266SoftwareSerial::write_bit_(bool bit, uint32_t *wait, const uint32_t &start) {
   this->tx_pin_->digital_write(bit);
   this->wait_(wait, start);
 }

@@ -3,12 +3,15 @@
 #include <cstdint>
 #include "gpio.h"
 
-#ifdef USE_ESP_IDF
-#include "esp_attr.h"
-#define ICACHE_RAM_ATTR IRAM_ATTR
+#if defined(USE_ESP32_FRAMEWORK_ESP_IDF)
+#include <esp_attr.h>
+#elif defined(USE_ESP32_FRAMEWORK_ARDUINO)
+#include <esp_attr.h>
+#elif defined(USE_ESP8266)
+#include <c_types.h>
+#else
+#define IRAM_ATTR
 #endif
-
-#include "esphome/core/log.h"
 
 namespace esphome {
 

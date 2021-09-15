@@ -1,6 +1,6 @@
 #include "esp32_hall.h"
 #include "esphome/core/log.h"
-#include "esphome/core/esphal.h"
+#include "esphome/core/hal.h"
 
 #ifdef ARDUINO_ARCH_ESP32
 
