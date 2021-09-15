@@ -1128,6 +1128,24 @@ climate:
       ki: 0.0
       kd: 0.0
 
+sprinkler:
+  id: sprinkler_ctrlr
+  pump: gpio_switch1
+  valve_open_delay: 5s
+  valves:
+    - name: "Test Valve 1"
+      run_duration: 10s
+      enable_switch: gpio_switch2
+      valve_switch: gpio_switch1
+    - name: "Test Valve 2"
+      run_duration: 10s
+      enable_switch: gpio_switch2
+      valve_switch: gpio_switch1
+    - name: "Test Valve 3"
+      run_duration: 10s
+      enable_switch: gpio_switch2
+      valve_switch: gpio_switch1
+
 cover:
   - platform: endstop
     name: Endstop Cover
