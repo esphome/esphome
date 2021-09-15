@@ -101,16 +101,16 @@ void Sprinkler::shutdown() {
 }
 
 void Sprinkler::pause() {
-  this->paused_valve_ = this->active_valve();
-  this->resume_duration_ = this->time_remaining();
-  this->shutdown();
+  if (!this->is_a_valid_valve(this->paused_valve_)) {
+    this->paused_valve_ = this->active_valve();
+    this->resume_duration_ = this->time_remaining();
+    this->shutdown();
+  }
 }
 
 void Sprinkler::resume() {
   if (this->is_a_valid_valve(this->paused_valve_) && (this->resume_duration_ > 0)) {
     this->start_valve_(this->paused_valve_, this->resume_duration_);
-    this->paused_valve_ = this->none_active;
-    this->resume_duration_ = 0;
   }
 }
 
@@ -263,9 +263,9 @@ void Sprinkler::start_valve_(const uint8_t valve_number, uint32_t run_duration) 
     this->all_valves_off_();
     this->active_valve_ = valve_number;
     this->set_pump_state_(true);
+    this->reset_resume_();
+    ESP_LOGD(TAG, "Starting valve %i for %i seconds", this->active_valve_, run_duration);
     this->set_timer_duration_(sprinkler::TIMER_VALVE_RUN_DURATION, run_duration);
-    ESP_LOGD(TAG, "Starting valve %i for %i seconds", this->active_valve_,
-             this->valve_run_duration_adjusted(this->active_valve_));
     this->start_timer_(sprinkler::TIMER_VALVE_RUN_DURATION);
     if (this->timer_duration_(sprinkler::TIMER_VALVE_OPEN_DELAY) > 0) {
       this->start_timer_(sprinkler::TIMER_VALVE_OPEN_DELAY);
@@ -288,6 +288,11 @@ void Sprinkler::reset_cycle_states_() {
   for (auto &valve : this->valve_) {
     valve.valve_cycle_complete = false;
   }
+}
+
+void Sprinkler::reset_resume_() {
+  this->paused_valve_ = this->none_active;
+  this->resume_duration_ = 0;
 }
 
 void Sprinkler::start_timer_(const SprinklerTimerIndex timer_index) {

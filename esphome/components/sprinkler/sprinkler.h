@@ -162,6 +162,9 @@ class Sprinkler : public Component {
   /// resets the cycle state for all valves
   void reset_cycle_states_();
 
+  /// resets resume state
+  void reset_resume_();
+
   /// Start/cancel/get status of valve timers
   void start_timer_(SprinklerTimerIndex timer_index);
   bool cancel_timer_(SprinklerTimerIndex timer_index);
