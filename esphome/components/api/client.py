@@ -15,7 +15,7 @@ _LOGGER = logging.getLogger(__name__)
 
 async def async_run_logs(config, address):
     conf = config["api"]
-    port: int = conf[CONF_PORT]
+    port: int = int(conf[CONF_PORT])
     password: str = conf[CONF_PASSWORD]
     noise_psk: Optional[str] = None
     if CONF_ENCRYPTION in conf:
