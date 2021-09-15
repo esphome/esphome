@@ -1,6 +1,6 @@
-#if defined(USE_ESP32) && defined(USE_ARDUINO)
+#ifdef USE_ESP32_FRAMEWORK_ARDUINO
 
-#include "mdns.h"
+#include "mdns_component.h"
 #include "esphome/core/log.h"
 #include <ESPmDNS.h>
 
@@ -24,4 +24,4 @@ void MDNSComponent::setup() {
 }  // namespace mdns
 }  // namespace esphome
 
-#endif
+#endif  // USE_ESP32_FRAMEWORK_ARDUINO

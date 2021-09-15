@@ -99,7 +99,7 @@ void SPIComponent::dump_config() {
 float SPIComponent::get_setup_priority() const { return setup_priority::BUS; }
 
 void SPIComponent::cycle_clock_(bool value) {
-#if defined(USE_ESP8266) || defined(USE_ESP32_ARDUINO)
+#if defined(USE_ESP8266) || defined(USE_ESP32_FRAMEWORK_ARDUINO)
   uint32_t start = ESP.getCycleCount();                    // NOLINT(readability-static-accessed-through-instance)
   while (start - ESP.getCycleCount() < this->wait_cycle_)  // NOLINT(readability-static-accessed-through-instance)
     ;

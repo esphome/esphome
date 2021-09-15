@@ -5,7 +5,7 @@
 #include <driver/uart.h>
 #endif
 
-#if defined(USE_ESP32_ARDUINO) || defined(USE_ESP_IDF)
+#if defined(USE_ESP32_FRAMEWORK_ARDUINO) || defined(USE_ESP_IDF)
 #include <esp_log.h>
 #endif
 #include "esphome/core/log.h"
@@ -115,20 +115,8 @@ void HOT Logger::log_message_(int level, const char *tag, int offset) {
     this->hw_serial_->println(msg);
 #endif  // USE_ARDUINO
 #ifdef USE_ESP_IDF
-  uart_port_t uart_num = UART_NUM_0;
-  switch (uart_) {
-    case UART_SELECTION_UART0:
-      uart_num = UART_NUM_0;
-      break;
-    case UART_SELECTION_UART1:
-      uart_num = UART_NUM_1;
-      break;
-    case UART_SELECTION_UART2:
-      uart_num = UART_NUM_2;
-      break;
-  }
-  uart_write_bytes(uart_num, msg, strlen(msg));
-  uart_write_bytes(uart_num, "\n", 1);
+  uart_write_bytes(uart_num_, msg, strlen(msg));
+  uart_write_bytes(uart_num_, "\n", 1);
 #endif
 
 #ifdef USE_ESP32
@@ -175,16 +163,16 @@ void Logger::pre_setup() {
     }
 #endif  // USE_ARDUINO
 #ifdef USE_ESP_IDF
-    uart_port_t uart_num = UART_NUM_0;
+    uart_num_ = UART_NUM_0;
     switch (uart_) {
       case UART_SELECTION_UART0:
-        uart_num = UART_NUM_0;
+        uart_num_ = UART_NUM_0;
         break;
       case UART_SELECTION_UART1:
-        uart_num = UART_NUM_1;
+        uart_num_ = UART_NUM_1;
         break;
       case UART_SELECTION_UART2:
-        uart_num = UART_NUM_2;
+        uart_num_ = UART_NUM_2;
         break;
     }
     uart_config_t uart_config = {
@@ -194,10 +182,10 @@ void Logger::pre_setup() {
         .stop_bits = UART_STOP_BITS_1,
         .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
     };
-    uart_param_config(uart_num, &uart_config);
+    uart_param_config(uart_num_, &uart_config);
     const int uart_buffer_size = tx_buffer_size_;
     // Install UART driver using an event queue here
-    uart_driver_install(uart_num, uart_buffer_size, uart_buffer_size, 10, nullptr, 0);
+    uart_driver_install(uart_num_, uart_buffer_size, uart_buffer_size, 10, nullptr, 0);
 #endif
 
 #ifdef USE_ARDUINO
@@ -217,7 +205,7 @@ void Logger::pre_setup() {
 #endif
 
   global_logger = this;
-#if defined(USE_ESP_IDF) || defined(USE_ESP32_ARDUINO)
+#if defined(USE_ESP_IDF) || defined(USE_ESP32_FRAMEWORK_ARDUINO)
   esp_log_set_vprintf(esp_idf_log_vprintf_);
   if (ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE) {
     esp_log_level_set("*", ESP_LOG_VERBOSE);

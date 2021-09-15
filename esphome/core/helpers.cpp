@@ -6,7 +6,7 @@
 
 #if defined(USE_ESP8266_ARDUINO)
 #include <ESP8266WiFi.h>
-#elif defined(USE_ESP32_ARDUINO)
+#elif defined(USE_ESP32_FRAMEWORK_ARDUINO)
 #include <Esp.h>
 #elif defined(USE_ESP_IDF)
 #include "esp_system.h"
@@ -60,7 +60,7 @@ double random_double() { return random_uint32() / double(UINT32_MAX); }
 float random_float() { return float(random_double()); }
 
 void fill_random(uint8_t *data, size_t len) {
-#if defined(USE_ESP_IDF) || defined(USE_ESP32_ARDUINO)
+#if defined(USE_ESP_IDF) || defined(USE_ESP32_FRAMEWORK_ARDUINO)
   esp_fill_random(data, len);
 #elif defined(USE_ESP8266)
   int err = os_get_random(data, len);

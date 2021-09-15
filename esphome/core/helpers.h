@@ -329,7 +329,7 @@ uint32_t fnv1_hash(const std::string &str);
 
 template<typename T> T *new_buffer(size_t length) {
   T *buffer;
-#ifdef USE_ESP32_ARDUINO
+#ifdef USE_ESP32_FRAMEWORK_ARDUINO
   if (psramFound()) {
     buffer = (T *) ps_malloc(length);
   } else {

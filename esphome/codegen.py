@@ -80,5 +80,5 @@ from esphome.cpp_types import (  # noqa
     Controller,
     GPIOPin,
     InternalGPIOPin,
-    GPIOFlags,
+    gpio_Flags,
 )

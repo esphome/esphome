@@ -1,63 +1,76 @@
 #pragma once
 #include <cstdint>
+#include <string>
 
 namespace esphome {
 
 #define LOG_PIN(prefix, pin) \
   if ((pin) != nullptr) { \
-    pin->dump_config(prefix); \
+    ESP_LOGCONFIG(TAG, prefix "%s", pin->dump_summary().c_str()); \
   }
 
-enum class GPIOFlags : uint32_t {
-  NONE = 0x00,
-  INPUT = 0x01,
-  OUTPUT = 0x02,
-  OPEN_DRAIN = 0x04,
-  PULLUP = 0x08,
-  PULLDOWN = 0x10,
+// put GPIO flags in a namepsace to not pollute esphome namespace
+namespace gpio {
+
+enum Flags : uint8_t {
+  // Can't name these just INPUT because of Arduino defines :(
+  FLAG_NONE = 0x00,
+  FLAG_INPUT = 0x01,
+  FLAG_OUTPUT = 0x02,
+  FLAG_OPEN_DRAIN = 0x04,
+  FLAG_PULLUP = 0x08,
+  FLAG_PULLDOWN = 0x10,
 };
 
-class GPIOFlagsHelper {
+class FlagsHelper {
  public:
-  constexpr GPIOFlagsHelper(GPIOFlags val) : val_(val) {}
-  constexpr operator GPIOFlags() const { return val_; }
-  constexpr operator bool() const { return static_cast<uint32_t>(val_) != 0; }
+  constexpr FlagsHelper(Flags val) : val_(val) {}
+  constexpr operator Flags() const { return val_; }
+  constexpr operator bool() const { return static_cast<uint8_t>(val_) != 0; }
  protected:
-  GPIOFlags val_;
+  Flags val_;
 };
-constexpr GPIOFlagsHelper operator&(GPIOFlags lhs, GPIOFlags rhs) {
-  return static_cast<GPIOFlags>(
-    static_cast<uint32_t>(lhs) &
-    static_cast<uint32_t>(rhs)
+constexpr FlagsHelper operator&(Flags lhs, Flags rhs) {
+  return static_cast<Flags>(
+    static_cast<uint8_t>(lhs) &
+    static_cast<uint8_t>(rhs)
   );
 }
-constexpr GPIOFlagsHelper operator|(GPIOFlags lhs, GPIOFlags rhs) {
-  return static_cast<GPIOFlags>(
-    static_cast<uint32_t>(lhs) |
-    static_cast<uint32_t>(rhs)
+constexpr FlagsHelper operator&(Flags lhs, uint8_t rhs) {
+  return static_cast<Flags>(
+    static_cast<uint8_t>(lhs) &
+    rhs
+  );
+}
+constexpr FlagsHelper operator|(Flags lhs, Flags rhs) {
+  return static_cast<Flags>(
+    static_cast<uint8_t>(lhs) |
+    static_cast<uint8_t>(rhs)
   );
 }
 
-enum class GPIOInterruptType : uint32_t {
-  RISING_EDGE = 1,
-  FALLING_EDGE = 2,
-  ANY_EDGE = 3,
-  LOW_LEVEL = 4,
-  HIGH_LEVEL = 5,
+enum InterruptType : uint8_t {
+  INTERRUPT_RISING_EDGE = 1,
+  INTERRUPT_FALLING_EDGE = 2,
+  INTERRUPT_ANY_EDGE = 3,
+  INTERRUPT_LOW_LEVEL = 4,
+  INTERRUPT_HIGH_LEVEL = 5,
 };
+
+}  // namespace gpio
 
 
 class GPIOPin {
  public:
   virtual void setup() = 0;
 
-  virtual void pin_mode(GPIOFlags flags) = 0;
+  virtual void pin_mode(gpio::Flags flags) = 0;
 
   virtual bool digital_read() = 0;
 
   virtual void digital_write(bool value) = 0;
 
-  virtual void dump_config(const char *prefix) = 0;
+  virtual std::string dump_summary() const = 0;
 
   virtual bool is_internal() { return false; }
 };
@@ -77,7 +90,7 @@ class ISRInternalGPIOPin {
 class InternalGPIOPin : public GPIOPin {
  public:
   template<typename T>
-  void attach_interrupt(void (*func)(T *), T *arg, GPIOInterruptType type) const {
+  void attach_interrupt(void (*func)(T *), T *arg, gpio::InterruptType type) const {
     this->attach_interrupt_(reinterpret_cast<void (*)(void *)>(func), arg, type);
   }
 
@@ -90,7 +103,7 @@ class InternalGPIOPin : public GPIOPin {
   bool is_internal() override { return true; }
 
  protected:
-  virtual void attach_interrupt_(void (*func)(void *), void *arg, GPIOInterruptType type) const = 0;
+  virtual void attach_interrupt_(void (*func)(void *), void *arg, gpio::InterruptType type) const = 0;
 };
 
 }  // namespace esphome

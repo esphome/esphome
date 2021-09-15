@@ -8,7 +8,7 @@
 #include "esphome/components/network/ip_address.h"
 #include <string>
 
-#ifdef USE_ESP32_ARDUINO
+#ifdef USE_ESP32_FRAMEWORK_ARDUINO
 #include <esp_wifi.h>
 #include <WiFiType.h>
 #include <WiFi.h>
@@ -288,7 +288,7 @@ class WiFiComponent : public Component {
   static void s_wifi_scan_done_callback(void *arg, STATUS status);
 #endif
 
-#ifdef USE_ESP32_ARDUINO
+#ifdef USE_ESP32_FRAMEWORK_ARDUINO
 #if ESP_IDF_VERSION_MAJOR >= 4
   void wifi_event_callback_(arduino_event_id_t event, arduino_event_info_t info);
 #else

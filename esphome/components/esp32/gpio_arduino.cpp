@@ -1,0 +1,84 @@
+#ifdef USE_ARDUINO
+
+#include "gpio_arduino.h"
+#include "esphome/core/log.h"
+
+namespace esphome {
+namespace esp32 {
+
+static const char *const TAG = "esp32";
+
+struct ISRPinArg {
+  uint8_t pin;
+  bool inverted;
+};
+
+ISRInternalGPIOPin ArduinoInternalGPIOPin::to_isr() const {
+  auto *arg = new ISRPinArg{};
+  arg->pin = pin_;
+  arg->inverted = inverted_;
+  return ISRInternalGPIOPin((void *) arg);
+}
+
+void ArduinoInternalGPIOPin::attach_interrupt_(void (*func)(void *), void *arg, gpio::InterruptType type) const {
+  uint8_t arduino_mode = DISABLED;
+  switch (type) {
+    case gpio::INTERRUPT_RISING_EDGE:
+      arduino_mode = inverted_ ? FALLING : RISING;
+      break;
+    case gpio::INTERRUPT_FALLING_EDGE:
+      arduino_mode = inverted_ ? RISING : FALLING;
+      break;
+    case gpio::INTERRUPT_ANY_EDGE:
+      arduino_mode = CHANGE;
+      break;
+    case gpio::INTERRUPT_LOW_LEVEL:
+      arduino_mode = inverted_ ? ONHIGH : ONLOW;
+      break;
+    case gpio::INTERRUPT_HIGH_LEVEL:
+      arduino_mode = inverted_ ? ONLOW : ONHIGH;
+      break;
+  }
+
+  attachInterruptArg(pin_, func, arg, arduino_mode);
+}
+void ArduinoInternalGPIOPin::pin_mode(gpio::Flags flags) {
+  uint8_t mode;
+  if (flags == gpio::FLAG_INPUT) {
+    mode = INPUT;
+  } else if (flags == gpio::FLAG_OUTPUT) {
+    mode = OUTPUT;
+  } else if (flags == (gpio::FLAG_INPUT | gpio::FLAG_PULLUP)) {
+    mode = INPUT_PULLUP;
+  } else if (flags == (gpio::FLAG_INPUT | gpio::FLAG_PULLDOWN)) {
+    mode = INPUT_PULLDOWN;
+  } else if (flags == (gpio::FLAG_OUTPUT | gpio::FLAG_OPEN_DRAIN)) {
+    mode = OUTPUT_OPEN_DRAIN;
+  } else {
+    return;
+  }
+  pinMode(pin_, mode);
+}
+
+std::string ArduinoInternalGPIOPin::dump_summary() const {
+  char buffer[32];
+  snprintf(buffer, sizeof(buffer), "GPIO%u", pin_);
+  return buffer;
+}
+
+}  // namespace esp32
+
+using namespace esp32;
+
+bool IRAM_ATTR ISRInternalGPIOPin::digital_read() {
+  auto *arg = reinterpret_cast<ISRPinArg *>(arg_);
+  return bool(digitalRead(arg->pin)) != arg->inverted;
+}
+void IRAM_ATTR ISRInternalGPIOPin::digital_write(bool value) {
+  auto *arg = reinterpret_cast<ISRPinArg *>(arg_);
+  digitalWrite(arg->pin, value != arg->inverted ? 1 : 0);
+}
+
+}  // namespace esphome
+
+#endif  // USE_ESP_IDF

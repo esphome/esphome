@@ -6,6 +6,10 @@
 #include "esphome/core/defines.h"
 #include <cstdarg>
 
+#ifdef USE_ARDUINO
+#include <HardwareSerial.h>
+#endif
+
 namespace esphome {
 
 namespace logger {
@@ -110,6 +114,9 @@ class Logger : public Component {
   UARTSelection uart_{UART_SELECTION_UART0};
 #ifdef USE_ARDUINO
   HardwareSerial *hw_serial_{nullptr};
+#endif
+#ifdef USE_ESP_IDF
+  uart_port_t uart_num_;
 #endif
   struct LogLevelOverride {
     std::string tag;

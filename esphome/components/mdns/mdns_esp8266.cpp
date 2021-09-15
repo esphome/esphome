@@ -1,6 +1,6 @@
 #if defined(USE_ESP8266) && defined(USE_ARDUINO)
 
-#include "mdns.h"
+#include "mdns_component.h"
 #include "esphome/core/log.h"
 #include "esphome/components/network/ip_address.h"
 #include "esphome/components/network/util.h"

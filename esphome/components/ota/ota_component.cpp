@@ -35,7 +35,7 @@ class OTABackend {
   virtual ~OTABackend() = default;
   virtual OTAResponseTypes begin(size_t image_size);
   virtual void set_update_md5(const char *md5);
-  virtual OTAResponseTypes write(const uint8_t *data, size_t len);
+  virtual OTAResponseTypes write(uint8_t *data, size_t len);
   virtual OTAResponseTypes end();
   virtual void abort();
 };
@@ -72,7 +72,7 @@ class ArduinoOTABackend : public OTABackend {
   void set_update_md5(const char *md5) override {
     Update.setMD5(md5);
   }
-  OTAResponseTypes write(const uint8_t *data, size_t len) override {
+  OTAResponseTypes write(uint8_t *data, size_t len) override {
     size_t written = Update.write(data, len);
     if (written != len) {
       return OTA_RESPONSE_ERROR_WRITING_FLASH;
@@ -127,7 +127,7 @@ class IDFOTABackend : public OTABackend {
   void set_update_md5(const char *md5) override {
     // pass
   }
-  OTAResponseTypes write(const uint8_t *data, size_t len) override {
+  OTAResponseTypes write(uint8_t *data, size_t len) override {
     esp_err_t err = esp_ota_write(update_handle, data, len);
     if (err != ESP_OK) {
       if (err == ESP_ERR_OTA_VALIDATE_FAILED) {
