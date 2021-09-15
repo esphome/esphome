@@ -49,7 +49,7 @@ class HostResolver(RecordUpdateListener):
                     next_ = now + delay
                     delay *= 2
 
-                zc.wait(min(next_, last) - now)
+                time.sleep(min(next_, last) - now)
                 now = time.time()
         finally:
             zc.remove_listener(self)
