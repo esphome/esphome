@@ -27,7 +27,7 @@ std::unique_ptr<LightTransformer> AddressableLight::create_default_transition() 
   return make_unique<AddressableLightTransformer>(*this);
 }
 
-Color esp_color_from_light_color_values(LightColorValues val) {
+Color color_from_light_color_values(LightColorValues val) {
   auto r = to_uint8_scale(val.get_color_brightness() * val.get_red());
   auto g = to_uint8_scale(val.get_color_brightness() * val.get_green());
   auto b = to_uint8_scale(val.get_color_brightness() * val.get_blue());
@@ -44,7 +44,7 @@ void AddressableLight::update_state(LightState *state) {
     return;
 
   // don't use LightState helper, gamma correction+brightness is handled by ESPColorView
-  this->all() = esp_color_from_light_color_values(val);
+  this->all() = color_from_light_color_values(val);
   this->schedule_show();
 }
 
@@ -54,7 +54,7 @@ void AddressableLightTransformer::start() {
     return;
 
   auto end_values = this->target_values_;
-  this->target_color_ = esp_color_from_light_color_values(end_values);
+  this->target_color_ = color_from_light_color_values(end_values);
 
   // our transition will handle brightness, disable brightness in correction.
   this->light_.correction_.set_local_brightness(255);
