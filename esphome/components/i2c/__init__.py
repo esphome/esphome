@@ -2,7 +2,6 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins
 from esphome.const import (
-    CONF_CHANNEL,
     CONF_FREQUENCY,
     CONF_ID,
     CONF_INPUT,
@@ -12,41 +11,51 @@ from esphome.const import (
     CONF_SDA,
     CONF_ADDRESS,
     CONF_I2C_ID,
-    CONF_MULTIPLEXER,
 )
-from esphome.core import coroutine_with_priority
+from esphome.core import coroutine_with_priority, CORE
 
 CODEOWNERS = ["@esphome/core"]
 i2c_ns = cg.esphome_ns.namespace("i2c")
-I2CComponent = i2c_ns.class_("I2CComponent", cg.Component)
+I2CComponent = i2c_ns.class_("I2CBus")
+ArduinoI2CBus = i2c_ns.class_("ArduinoI2CBus", I2CComponent, cg.Component)
+IDFI2CBus = i2c_ns.class_("IDFI2CBus", I2CComponent, cg.Component)
 I2CDevice = i2c_ns.class_("I2CDevice")
-I2CMultiplexer = i2c_ns.class_("I2CMultiplexer", I2CDevice)
 
+
+CONF_SDA_PULLUP_ENABLED = "sda_pullup_enabled"
+CONF_SCL_PULLUP_ENABLED = "scl_pullup_enabled"
 MULTI_CONF = True
+
+
+def _bus_declare_type(value):
+    if CORE.using_arduino:
+        return cv.declare_id(ArduinoI2CBus)(value)
+    if CORE.using_esp_idf:
+        return cv.declare_id(IDFI2CBus)(value)
+    raise NotImplementedError
+
+
 CONFIG_SCHEMA = cv.Schema(
     {
-        cv.GenerateID(): cv.declare_id(I2CComponent),
-        cv.Optional(CONF_SDA, default="SDA"): pins.internal_gpio_pin_number({
-            CONF_INPUT: True,
-            CONF_OUTPUT: True
-        }),
-        cv.Optional(CONF_SCL, default="SCL"): pins.internal_gpio_pin_number({
-            CONF_INPUT: True,
-            CONF_OUTPUT: True
-        }),
+        cv.GenerateID(): _bus_declare_type,
+        cv.Optional(CONF_SDA, default="SDA"): pins.internal_gpio_pin_number(
+            {CONF_INPUT: True, CONF_OUTPUT: True}
+        ),
+        cv.SplitDefault(CONF_SDA_PULLUP_ENABLED, esp32_idf=True): cv.All(
+            cv.only_with_esp_idf, cv.boolean
+        ),
+        cv.Optional(CONF_SCL, default="SCL"): pins.internal_gpio_pin_number(
+            {CONF_INPUT: True, CONF_OUTPUT: True}
+        ),
+        cv.SplitDefault(CONF_SCL_PULLUP_ENABLED, esp32_idf=True): cv.All(
+            cv.only_with_esp_idf, cv.boolean
+        ),
         cv.Optional(CONF_FREQUENCY, default="50kHz"): cv.All(
             cv.frequency, cv.Range(min=0, min_included=False)
         ),
         cv.Optional(CONF_SCAN, default=True): cv.boolean,
     }
 ).extend(cv.COMPONENT_SCHEMA)
-
-I2CMULTIPLEXER_SCHEMA = cv.Schema(
-    {
-        cv.Required(CONF_ID): cv.use_id(I2CMultiplexer),
-        cv.Required(CONF_CHANNEL): cv.uint8_t,
-    }
-)
 
 
 @coroutine_with_priority(1.0)
@@ -56,10 +65,16 @@ async def to_code(config):
     await cg.register_component(var, config)
 
     cg.add(var.set_sda_pin(config[CONF_SDA]))
+    if CONF_SDA_PULLUP_ENABLED in config:
+        cg.add(var.set_sda_pullup_enabled(config[CONF_SDA_PULLUP_ENABLED]))
     cg.add(var.set_scl_pin(config[CONF_SCL]))
+    if CONF_SCL_PULLUP_ENABLED in config:
+        cg.add(var.set_scl_pullup_enabled(config[CONF_SCL_PULLUP_ENABLED]))
+
     cg.add(var.set_frequency(int(config[CONF_FREQUENCY])))
     cg.add(var.set_scan(config[CONF_SCAN]))
-    cg.add_library("Wire", None)
+    if CORE.using_arduino:
+        cg.add_library("Wire", None)
 
 
 def i2c_device_schema(default_address):
@@ -71,7 +86,6 @@ def i2c_device_schema(default_address):
     """
     schema = {
         cv.GenerateID(CONF_I2C_ID): cv.use_id(I2CComponent),
-        cv.Optional(CONF_MULTIPLEXER): I2CMULTIPLEXER_SCHEMA,
     }
     if default_address is None:
         schema[cv.Required(CONF_ADDRESS)] = cv.i2c_address
@@ -90,8 +104,3 @@ async def register_i2c_device(var, config):
     parent = await cg.get_variable(config[CONF_I2C_ID])
     cg.add(var.set_i2c_parent(parent))
     cg.add(var.set_i2c_address(config[CONF_ADDRESS]))
-    if CONF_MULTIPLEXER in config:
-        multiplexer = await cg.get_variable(config[CONF_MULTIPLEXER][CONF_ID])
-        cg.add(
-            var.set_i2c_multiplexer(multiplexer, config[CONF_MULTIPLEXER][CONF_CHANNEL])
-        )

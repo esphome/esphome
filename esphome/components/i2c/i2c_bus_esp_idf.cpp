@@ -20,11 +20,47 @@ void IDFI2CBus::setup() {
   conf.sda_pullup_en = sda_pullup_enabled_;
   conf.scl_io_num = scl_pin_;
   conf.scl_pullup_en = scl_pullup_enabled_;
-  conf.master.clk_speed = clock_speed_;
-  i2c_param_config(port_, &conf);
-  i2c_driver_install(port_, I2C_MODE_MASTER, 0, 0, ESP_INTR_FLAG_IRAM);
+  conf.master.clk_speed = frequency_;
+  esp_err_t err = i2c_param_config(port_, &conf);
+  if (err != ESP_OK) {
+    ESP_LOGW(TAG, "i2c_param_config failed: %s", esp_err_to_name(err));
+    this->mark_failed();
+    return;
+  }
+  err = i2c_driver_install(port_, I2C_MODE_MASTER, 0, 0, ESP_INTR_FLAG_IRAM);
+  if (err != ESP_OK) {
+    ESP_LOGW(TAG, "i2c_driver_install failed: %s", esp_err_to_name(err));
+    this->mark_failed();
+    return;
+  }
+  initialized_ = true;
+}
+void IDFI2CBus::dump_config() {
+  ESP_LOGCONFIG(TAG, "I2C Bus:");
+  ESP_LOGCONFIG(TAG, "  SDA Pin: GPIO%u", this->sda_pin_);
+  ESP_LOGCONFIG(TAG, "  SCL Pin: GPIO%u", this->scl_pin_);
+  ESP_LOGCONFIG(TAG, "  Frequency: %u Hz", this->frequency_);
+  if (this->scan_) {
+    ESP_LOGI(TAG, "Scanning i2c bus for active devices...");
+    uint8_t found = 0;
+    for (uint8_t address = 1; address < 120; address++) {
+      auto err = readv(address, nullptr, 0);
+
+      if (err == ERROR_OK) {
+        ESP_LOGI(TAG, "Found i2c device at address 0x%02X", address);
+        found++;
+      } else if (err == ERROR_UNKNOWN) {
+        ESP_LOGI(TAG, "Unknown error at address 0x%02X", address);
+      }
+    }
+    if (found == 0) {
+      ESP_LOGI(TAG, "Found no i2c devices!");
+    }
+  }
 }
 ErrorCode IDFI2CBus::readv(uint8_t address, ReadBuffer *buffers, size_t cnt) {
+  if (!initialized_)
+    return ERROR_NOT_INITIALIZED;
   i2c_cmd_handle_t cmd = i2c_cmd_link_create();
   esp_err_t err = i2c_master_start(cmd);
   if (err != ESP_OK) {
@@ -63,7 +99,9 @@ ErrorCode IDFI2CBus::readv(uint8_t address, ReadBuffer *buffers, size_t cnt) {
   }
   return ERROR_OK;
 }
-ErrorCode IDFI2CBus::writev(uint8_t address, WriterBuffer *buffers, size_t cnt) {
+ErrorCode IDFI2CBus::writev(uint8_t address, WriteBuffer *buffers, size_t cnt) {
+  if (!initialized_)
+    return ERROR_NOT_INITIALIZED;
   i2c_cmd_handle_t cmd = i2c_cmd_link_create();
   esp_err_t err = i2c_master_start(cmd);
   if (err != ESP_OK) {
@@ -102,7 +140,6 @@ ErrorCode IDFI2CBus::writev(uint8_t address, WriterBuffer *buffers, size_t cnt) 
   }
   return ERROR_OK;
 }
-
 
 }  // namespace i2c
 }  // namespace esphome

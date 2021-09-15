@@ -8,7 +8,8 @@ static const char *const TAG = "ttp229_lsf";
 
 void TTP229LSFComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up ttp229...");
-  if (!this->parent_->raw_request_from(this->address_, 2)) {
+  uint8_t data[2];
+  if (this->parent_->read(this->address_, &data, 2) != i2c::ERROR_OK) {
     this->error_code_ = COMMUNICATION_FAILED;
     this->mark_failed();
     return;

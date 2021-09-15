@@ -2,6 +2,7 @@
 #include "esphome/core/log.h"
 #include "esphome/components/network/util.h"
 #include "esphome/core/version.h"
+#include "esphome/core/esphal.h"
 #include <cerrno>
 
 #ifdef USE_DEEP_SLEEP
@@ -60,16 +61,6 @@ void APIConnection::loop() {
     this->helper_->close();
     this->remove_ = true;
     return;
-  } else {
-    this->last_traffic_ = millis();
-    // read a packet
-    this->read_message(
-      buffer.data_len,
-      buffer.type,
-      &buffer.container[buffer.data_offset]
-    );
-    if (this->remove_)
-      return;
   }
 
   APIError err = helper_->loop();

@@ -502,7 +502,7 @@ def templatable(other_validators):
 
 
 def only_on(platforms):
-    """Validate that this option can only be specified on the given ESP platforms."""
+    """Validate that this option can only be specified on the given target platforms."""
     if not isinstance(platforms, list):
         platforms = [platforms]
 
@@ -514,8 +514,25 @@ def only_on(platforms):
     return validator_
 
 
+def only_with_framework(frameworks):
+    """Validate that this option can only be specified on the given frameworks."""
+    if not isinstance(frameworks, list):
+        frameworks = [frameworks]
+
+    def validator_(obj):
+        if CORE.target_framework not in frameworks:
+            raise Invalid(
+                f"This feature is only available with frameworks {frameworks}"
+            )
+        return obj
+
+    return validator_
+
+
 only_on_esp32 = only_on("esp32")
 only_on_esp8266 = only_on("esp8266")
+only_with_arduino = only_with_framework("arduino")
+only_with_esp_idf = only_with_framework("esp-idf")
 
 
 # Adapted from:
@@ -1428,17 +1445,31 @@ class GenerateID(Optional):
 class SplitDefault(Optional):
     """Mark this key to have a split default for ESP8266/ESP32."""
 
-    def __init__(self, key, esp8266=vol.UNDEFINED, esp32=vol.UNDEFINED):
+    def __init__(
+        self,
+        key,
+        esp8266=vol.UNDEFINED,
+        esp32=vol.UNDEFINED,
+        esp32_arduino=vol.UNDEFINED,
+        esp32_idf=vol.UNDEFINED,
+    ):
         super().__init__(key)
         self._esp8266_default = vol.default_factory(esp8266)
-        self._esp32_default = vol.default_factory(esp32)
+        self._esp32_arduino_default = vol.default_factory(
+            esp32_arduino if esp32 is vol.UNDEFINED else esp32
+        )
+        self._esp32_idf_default = vol.default_factory(
+            esp32_idf if esp32 is vol.UNDEFINED else esp32
+        )
 
     @property
     def default(self):
         if CORE.is_esp8266:
             return self._esp8266_default
-        if CORE.is_esp32:
-            return self._esp32_default
+        if CORE.is_esp32 and CORE.using_arduino:
+            return self._esp32_arduino_default
+        if CORE.is_esp32 and CORE.using_esp_idf:
+            return self._esp32_idf_default
         raise NotImplementedError
 
     @default.setter

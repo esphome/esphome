@@ -1,6 +1,9 @@
 #pragma once
 
 #include "i2c_bus.h"
+#include "esphome/core/optional.h"
+#include <array>
+#include <vector>
 
 namespace esphome {
 namespace i2c {
@@ -12,28 +15,15 @@ class I2CRegister {
  public:
   I2CRegister(I2CDevice *parent, uint8_t a_register) : parent_(parent), register_(a_register) {}
 
-  I2CRegister &operator=(uint8_t value) {
-    this->parent_->write_register_byte(this->register_, value);
-    return *this;
-  }
-  I2CRegister &operator&=(uint8_t value) {
-    this->parent_->write_register_byte(this->register_, get() & value);
-    return *this;
-  }
-  I2CRegister &operator|=(uint8_t value) {
-    this->parent_->write_register_byte(this->register_, get() | value);
-    return *this;
-  }
+  I2CRegister &operator=(uint8_t value);
+  I2CRegister &operator&=(uint8_t value);
+  I2CRegister &operator|=(uint8_t value);
 
   explicit operator uint8_t() const {
     return get();
   }
 
-  uint8_t get() const {
-    uint8_t value = 0x00;
-    this->parent_->read_register_byte(this->register_, &value);
-    return value;
-  }
+  uint8_t get() const;
 
  protected:
   I2CDevice *parent_;
@@ -81,13 +71,12 @@ class I2CDevice {
     return bus_->write(address_, data, len);
   }
   ErrorCode write_register(uint8_t a_register, const uint8_t *data, size_t len) {
-    std::vector<WriteBuffer> buffers;
     WriteBuffer buffers[2];
     buffers[0].data = &a_register;
     buffers[0].len = 1;
     buffers[1].data = data;
     buffers[1].len = len;
-    return bus_->writev(address_, &buffers, 2);
+    return bus_->writev(address_, buffers, 2);
   }
 
 
@@ -150,13 +139,7 @@ class I2CDevice {
     return write_bytes(a_register, data.data(), data.size());
   }
 
-  bool write_bytes_16(uint8_t a_register, const uint16_t *data, uint8_t len) {
-    // we have to copy in order to be able to change byte order
-    std::unique_ptr<uint16_t[]> temp{new uint16_t[len]};
-    for (size_t i = 0; i < len; i++)
-      temp[i] = internal::htoi2cs(data[i]);
-    return write_register(a_register, reinterpret_cast<uint8_t *>(temp.get()), len*2) == ERROR_OK;
-  }
+  bool write_bytes_16(uint8_t a_register, const uint16_t *data, uint8_t len);
 
   bool write_byte(uint8_t a_register, uint8_t data) {
     return write_bytes(a_register, &data, 1);

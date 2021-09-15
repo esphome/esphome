@@ -1,6 +1,7 @@
 #include "scheduler.h"
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/esphal.h"
 #include <algorithm>
 
 namespace esphome {
