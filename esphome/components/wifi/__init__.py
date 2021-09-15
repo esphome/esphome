@@ -246,7 +246,7 @@ CONFIG_SCHEMA = cv.All(
                 cv.decibel, cv.float_range(min=10.0, max=20.5)
             ),
             cv.Optional("enable_mdns"): cv.invalid(
-                "This option has been removed. Please use the [disable] option under the "
+                "This option has been removed. Please use the [disabled] option under the "
                 "new mdns component instead."
             ),
         }

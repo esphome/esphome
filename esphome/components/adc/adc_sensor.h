@@ -27,7 +27,7 @@ class ADCSensor : public sensor::Sensor, public PollingComponent, public voltage
   void dump_config() override;
   /// `HARDWARE_LATE` setup priority.
   float get_setup_priority() const override;
-  void set_pin(uint8_t pin) { this->pin_ = pin; }
+  void set_pin(InternalGPIOPin *pin) { this->pin_ = pin; }
   float sample() override;
 
 #ifdef ARDUINO_ARCH_ESP8266
@@ -35,7 +35,7 @@ class ADCSensor : public sensor::Sensor, public PollingComponent, public voltage
 #endif
 
  protected:
-  uint8_t pin_;
+  InternalGPIOPin *pin_;
 
 #ifdef ARDUINO_ARCH_ESP32
   adc_atten_t attenuation_{ADC_ATTEN_DB_0};

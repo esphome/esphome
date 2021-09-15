@@ -71,10 +71,11 @@ void BH1750Sensor::update() {
 float BH1750Sensor::get_setup_priority() const { return setup_priority::DATA; }
 void BH1750Sensor::read_data_() {
   uint16_t raw_value;
-  if (!this->parent_->raw_receive_16(this->address_, &raw_value, 1)) {
+  if (!this->read(reinterpret_cast<uint8_t*>(&raw_value), 2)) {
     this->status_set_warning();
     return;
   }
+  raw_value = i2c::i2ctohs(raw_value);
 
   float lx = float(raw_value) / 1.2f;
   lx *= 69.0f / this->measurement_duration_;

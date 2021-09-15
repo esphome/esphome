@@ -16,9 +16,9 @@ from esphome.core import coroutine_with_priority, CORE
 
 CODEOWNERS = ["@esphome/core"]
 i2c_ns = cg.esphome_ns.namespace("i2c")
-I2CComponent = i2c_ns.class_("I2CBus")
-ArduinoI2CBus = i2c_ns.class_("ArduinoI2CBus", I2CComponent, cg.Component)
-IDFI2CBus = i2c_ns.class_("IDFI2CBus", I2CComponent, cg.Component)
+I2CBus = i2c_ns.class_("I2CBus")
+ArduinoI2CBus = i2c_ns.class_("ArduinoI2CBus", I2CBus, cg.Component)
+IDFI2CBus = i2c_ns.class_("IDFI2CBus", I2CBus, cg.Component)
 I2CDevice = i2c_ns.class_("I2CDevice")
 
 
@@ -35,18 +35,20 @@ def _bus_declare_type(value):
     raise NotImplementedError
 
 
+pin_with_input_and_output_support = cv.All(
+    pins.internal_gpio_pin_number({CONF_INPUT: True}),
+    pins.internal_gpio_pin_number({CONF_OUTPUT: True}),
+)
+
+
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): _bus_declare_type,
-        cv.Optional(CONF_SDA, default="SDA"): pins.internal_gpio_pin_number(
-            {CONF_INPUT: True, CONF_OUTPUT: True}
-        ),
+        cv.Optional(CONF_SDA, default="SDA"): pin_with_input_and_output_support,
         cv.SplitDefault(CONF_SDA_PULLUP_ENABLED, esp32_idf=True): cv.All(
             cv.only_with_esp_idf, cv.boolean
         ),
-        cv.Optional(CONF_SCL, default="SCL"): pins.internal_gpio_pin_number(
-            {CONF_INPUT: True, CONF_OUTPUT: True}
-        ),
+        cv.Optional(CONF_SCL, default="SCL"): pin_with_input_and_output_support,
         cv.SplitDefault(CONF_SCL_PULLUP_ENABLED, esp32_idf=True): cv.All(
             cv.only_with_esp_idf, cv.boolean
         ),
@@ -85,7 +87,11 @@ def i2c_device_schema(default_address):
     :return: The i2c device schema, `extend` this in your config schema.
     """
     schema = {
-        cv.GenerateID(CONF_I2C_ID): cv.use_id(I2CComponent),
+        cv.GenerateID(CONF_I2C_ID): cv.use_id(I2CBus),
+        cv.Optional("multiplexer"): cv.invalid(
+            "This option has been removed, please see "
+            "the tca9584a docs for the updated way to use multiplexers"
+        ),
     }
     if default_address is None:
         schema[cv.Required(CONF_ADDRESS)] = cv.i2c_address

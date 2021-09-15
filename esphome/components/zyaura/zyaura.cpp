@@ -37,17 +37,17 @@ bool IRAM_ATTR ZaDataProcessor::decode(uint32_t ms, bool data) {
   return false;
 }
 
-void ZaSensorStore::setup(GPIOPin *pin_clock, GPIOPin *pin_data) {
+void ZaSensorStore::setup(InternalGPIOPin *pin_clock, InternalGPIOPin *pin_data) {
   pin_clock->setup();
   pin_data->setup();
   this->pin_clock_ = pin_clock->to_isr();
   this->pin_data_ = pin_data->to_isr();
-  pin_clock->attach_interrupt(ZaSensorStore::interrupt, this, FALLING);
+  pin_clock->attach_interrupt(ZaSensorStore::interrupt, this, gpio::INTERRUPT_FALLING_EDGE);
 }
 
 void IRAM_ATTR ZaSensorStore::interrupt(ZaSensorStore *arg) {
   uint32_t now = millis();
-  bool data_bit = arg->pin_data_->digital_read();
+  bool data_bit = arg->pin_data_.digital_read();
 
   if (arg->processor_.decode(now, data_bit)) {
     arg->set_data_(arg->processor_.message);

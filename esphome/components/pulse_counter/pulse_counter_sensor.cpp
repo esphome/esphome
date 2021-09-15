@@ -16,7 +16,7 @@ void IRAM_ATTR PulseCounterStorage::gpio_intr(PulseCounterStorage *arg) {
   if (discard)
     return;
 
-  PulseCounterCountMode mode = arg->isr_pin->digital_read() ? arg->rising_edge_mode : arg->falling_edge_mode;
+  PulseCounterCountMode mode = arg->isr_pin.digital_read() ? arg->rising_edge_mode : arg->falling_edge_mode;
   switch (mode) {
     case PULSE_COUNTER_DISABLE:
       break;

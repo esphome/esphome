@@ -30,8 +30,6 @@ class I2CRegister {
   uint8_t register_;
 };
 
-namespace internal {
-
 // like ntohs/htons but without including networking headers.
 // ("i2c" byte order is big-endian)
 inline uint16_t i2ctohs(uint16_t i2cshort) {
@@ -47,8 +45,6 @@ inline uint16_t i2ctohs(uint16_t i2cshort) {
 inline uint16_t htoi2cs(uint16_t hostshort) {
   return i2ctohs(hostshort);
 }
-
-}  // namespace internal
 
 class I2CDevice {
  public:
@@ -108,7 +104,7 @@ class I2CDevice {
     if (read_register(a_register, reinterpret_cast<uint8_t *>(data), len*2) != ERROR_OK)
       return false;
     for (size_t i = 0; i < len; i++)
-      data[i] = internal::i2ctohs(data[i]);
+      data[i] = i2ctohs(data[i]);
     return true;
   }
 

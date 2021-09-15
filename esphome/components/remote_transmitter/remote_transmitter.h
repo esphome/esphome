@@ -14,7 +14,7 @@ class RemoteTransmitterComponent : public remote_base::RemoteTransmitterBase,
 #endif
 {
  public:
-  explicit RemoteTransmitterComponent(GPIOPin *pin) : remote_base::RemoteTransmitterBase(pin) {}
+  explicit RemoteTransmitterComponent(InternalGPIOPin *pin) : remote_base::RemoteTransmitterBase(pin) {}
 
   void setup() override;
 

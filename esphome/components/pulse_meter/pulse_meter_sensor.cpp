@@ -9,7 +9,7 @@ static const char *const TAG = "pulse_meter";
 void PulseMeterSensor::setup() {
   this->pin_->setup();
   this->isr_pin_ = pin_->to_isr();
-  this->pin_->attach_interrupt(PulseMeterSensor::gpio_intr, this, CHANGE);
+  this->pin_->attach_interrupt(PulseMeterSensor::gpio_intr, this, gpio::INTERRUPT_ANY_EDGE);
 
   this->last_detected_edge_us_ = 0;
   this->last_valid_edge_us_ = 0;
@@ -63,7 +63,7 @@ void IRAM_ATTR PulseMeterSensor::gpio_intr(PulseMeterSensor *sensor) {
   const uint32_t now = micros();
 
   // We only look at rising edges
-  if (!sensor->isr_pin_->digital_read()) {
+  if (!sensor->isr_pin_.digital_read()) {
     return;
   }
 

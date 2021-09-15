@@ -208,27 +208,25 @@ void UARTComponent::flush() {
     this->sw_serial_->flush();
   }
 }
-void ESP8266SoftwareSerial::setup(int8_t tx_pin, int8_t rx_pin, uint32_t baud_rate, uint8_t stop_bits,
+void ESP8266SoftwareSerial::setup(InternalGPIOPin *tx_pin, InternalGPIOPin *rx_pin, uint32_t baud_rate, uint8_t stop_bits,
                                   uint32_t data_bits, UARTParityOptions parity, size_t rx_buffer_size) {
   this->bit_time_ = F_CPU / baud_rate;
   this->rx_buffer_size_ = rx_buffer_size;
   this->stop_bits_ = stop_bits;
   this->data_bits_ = data_bits;
   this->parity_ = parity;
-  if (tx_pin != -1) {
-    auto pin = GPIOPin(tx_pin, OUTPUT);
-    this->gpio_tx_pin_ = &pin;
-    pin.setup();
-    this->tx_pin_ = pin.to_isr();
-    this->tx_pin_->digital_write(true);
+  if (tx_pin != nullptr) {
+    this->gpio_tx_pin_ = tx_pin;
+    tx_pin->setup();
+    this->tx_pin_ = tx_pin->to_isr();
+    this->tx_pin_.digital_write(true);
   }
-  if (rx_pin != -1) {
-    auto pin = GPIOPin(rx_pin, INPUT);
-    pin.setup();
-    this->gpio_rx_pin_ = &pin;
-    this->rx_pin_ = pin.to_isr();
+  if (rx_pin != nullptr) {
+    this->gpio_rx_pin_ = rx_pin;
+    rx_pin->setup();
+    this->rx_pin_ = rx_pin->to_isr();
     this->rx_buffer_ = new uint8_t[this->rx_buffer_size_];  // NOLINT
-    pin.attach_interrupt(ESP8266SoftwareSerial::gpio_intr, this, FALLING);
+    rx_pin->attach_interrupt(ESP8266SoftwareSerial::gpio_intr, this, gpio::INTERRUPT_FALLING_EDGE);
   }
 }
 void IRAM_ATTR ESP8266SoftwareSerial::gpio_intr(ESP8266SoftwareSerial *arg) {
@@ -254,10 +252,10 @@ void IRAM_ATTR ESP8266SoftwareSerial::gpio_intr(ESP8266SoftwareSerial *arg) {
   arg->rx_buffer_[arg->rx_in_pos_] = rec;
   arg->rx_in_pos_ = (arg->rx_in_pos_ + 1) % arg->rx_buffer_size_;
   // Clear RX pin so that the interrupt doesn't re-trigger right away again.
-  arg->rx_pin_->clear_interrupt();
+  arg->rx_pin_.clear_interrupt();
 }
 void IRAM_ATTR HOT ESP8266SoftwareSerial::write_byte(uint8_t data) {
-  if (this->tx_pin_ == nullptr) {
+  if (this->gpio_tx_pin_ == nullptr) {
     ESP_LOGE(TAG, "UART doesn't have TX pins set!");
     return;
   }
@@ -297,10 +295,10 @@ void IRAM_ATTR ESP8266SoftwareSerial::wait_(uint32_t *wait, const uint32_t &star
 }
 bool IRAM_ATTR ESP8266SoftwareSerial::read_bit_(uint32_t *wait, const uint32_t &start) {
   this->wait_(wait, start);
-  return this->rx_pin_->digital_read();
+  return this->rx_pin_.digital_read();
 }
 void IRAM_ATTR ESP8266SoftwareSerial::write_bit_(bool bit, uint32_t *wait, const uint32_t &start) {
-  this->tx_pin_->digital_write(bit);
+  this->tx_pin_.digital_write(bit);
   this->wait_(wait, start);
 }
 uint8_t ESP8266SoftwareSerial::read_byte() {

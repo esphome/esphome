@@ -193,7 +193,7 @@ bool SCD30Component::write_command_(uint16_t command, uint16_t data) {
   raw[2] = data >> 8;
   raw[3] = data & 0xFF;
   raw[4] = sht_crc_(raw[2], raw[3]);
-  return this->write_bytes_raw(raw, 5);
+  return this->write(raw, 5);
 }
 
 uint8_t SCD30Component::sht_crc_(uint8_t data1, uint8_t data2) {

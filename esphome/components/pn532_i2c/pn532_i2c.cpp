@@ -11,7 +11,7 @@ namespace pn532_i2c {
 
 static const char *const TAG = "pn532_i2c";
 
-bool PN532I2C::write_data(const std::vector<uint8_t> &data) { return this->write_bytes_raw(data.data(), data.size()); }
+bool PN532I2C::write_data(const std::vector<uint8_t> &data) { return this->write(data.data(), data.size()); }
 
 bool PN532I2C::read_data(std::vector<uint8_t> &data, uint8_t len) {
   delay(1);

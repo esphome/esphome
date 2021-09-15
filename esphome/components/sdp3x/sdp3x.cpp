@@ -17,22 +17,22 @@ void SDP3XComponent::update() { this->read_pressure_(); }
 void SDP3XComponent::setup() {
   ESP_LOGD(TAG, "Setting up SDP3X...");
 
-  if (!this->write_bytes_raw(SDP3X_STOP_MEAS, 2)) {
+  if (!this->write(SDP3X_STOP_MEAS, 2)) {
     ESP_LOGW(TAG, "Stop SDP3X failed!");  // This sometimes fails for no good reason
   }
 
-  if (!this->write_bytes_raw(SDP3X_SOFT_RESET, 2)) {
+  if (!this->write(SDP3X_SOFT_RESET, 2)) {
     ESP_LOGW(TAG, "Soft Reset SDP3X failed!");  // This sometimes fails for no good reason
   }
 
   delay_microseconds_accurate(20000);
 
-  if (!this->write_bytes_raw(SDP3X_READ_ID1, 2)) {
+  if (!this->write(SDP3X_READ_ID1, 2)) {
     ESP_LOGE(TAG, "Read ID1 SDP3X failed!");
     this->mark_failed();
     return;
   }
-  if (!this->write_bytes_raw(SDP3X_READ_ID2, 2)) {
+  if (!this->write(SDP3X_READ_ID2, 2)) {
     ESP_LOGE(TAG, "Read ID2 SDP3X failed!");
     this->mark_failed();
     return;
@@ -59,7 +59,7 @@ void SDP3XComponent::setup() {
     pressure_scale_factor_ = 240.0f * 100.0f;
   }
 
-  if (!this->write_bytes_raw(SDP3X_START_DP_AVG, 2)) {
+  if (!this->write(SDP3X_START_DP_AVG, 2)) {
     ESP_LOGE(TAG, "Start Measurements SDP3X failed!");
     this->mark_failed();
     return;

@@ -146,10 +146,10 @@ template<typename T> class RemoteProtocol {
 
 class RemoteComponentBase {
  public:
-  explicit RemoteComponentBase(GPIOPin *pin) : pin_(pin){};
+  explicit RemoteComponentBase(InternalGPIOPin *pin) : pin_(pin){};
 
  protected:
-  GPIOPin *pin_;
+  InternalGPIOPin *pin_;
 };
 
 #ifdef ARDUINO_ARCH_ESP32
@@ -178,7 +178,7 @@ class RemoteRMTChannel {
 
 class RemoteTransmitterBase : public RemoteComponentBase {
  public:
-  RemoteTransmitterBase(GPIOPin *pin) : RemoteComponentBase(pin) {}
+  RemoteTransmitterBase(InternalGPIOPin *pin) : RemoteComponentBase(pin) {}
   class TransmitCall {
    public:
     explicit TransmitCall(RemoteTransmitterBase *parent) : parent_(parent) {}
@@ -221,7 +221,7 @@ class RemoteReceiverDumperBase {
 
 class RemoteReceiverBase : public RemoteComponentBase {
  public:
-  RemoteReceiverBase(GPIOPin *pin) : RemoteComponentBase(pin) {}
+  RemoteReceiverBase(InternalGPIOPin *pin) : RemoteComponentBase(pin) {}
   void register_listener(RemoteReceiverListener *listener) { this->listeners_.push_back(listener); }
   void register_dumper(RemoteReceiverDumperBase *dumper) {
     if (dumper->is_secondary()) {

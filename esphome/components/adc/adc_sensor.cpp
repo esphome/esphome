@@ -57,14 +57,14 @@ inline adc1_channel_t gpio_to_adc1(uint8_t pin) {
 void ADCSensor::setup() {
   ESP_LOGCONFIG(TAG, "Setting up ADC '%s'...", this->get_name().c_str());
 #ifndef USE_ADC_SENSOR_VCC
-  GPIOPin(this->pin_, INPUT).setup();
+  pin_->setup();
 #endif
 
 #ifdef ARDUINO_ARCH_ESP32
-  adc1_config_channel_atten(gpio_to_adc1(pin_), attenuation_);
+  adc1_config_channel_atten(gpio_to_adc1(pin_->get_pin()), attenuation_);
   adc1_config_width(ADC_WIDTH_BIT_12);
 #if !CONFIG_IDF_TARGET_ESP32C3 && !CONFIG_IDF_TARGET_ESP32H2
-  adc_gpio_init(ADC_UNIT_1, (adc_channel_t) gpio_to_adc1(pin_));
+  adc_gpio_init(ADC_UNIT_1, (adc_channel_t) gpio_to_adc1(pin_->get_pin()));
 #endif
 #endif
 }
@@ -74,11 +74,11 @@ void ADCSensor::dump_config() {
 #ifdef USE_ADC_SENSOR_VCC
   ESP_LOGCONFIG(TAG, "  Pin: VCC");
 #else
-  ESP_LOGCONFIG(TAG, "  Pin: %u", this->pin_);
+  LOG_PIN("  Pin: ", pin_);
 #endif
 #endif
 #ifdef ARDUINO_ARCH_ESP32
-  ESP_LOGCONFIG(TAG, "  Pin: %u", this->pin_);
+  LOG_PIN("  Pin: ", pin_);
   switch (this->attenuation_) {
     case ADC_ATTEN_DB_0:
       ESP_LOGCONFIG(TAG, " Attenuation: 0db (max 1.1V)");
@@ -106,7 +106,7 @@ void ADCSensor::update() {
 }
 float ADCSensor::sample() {
 #ifdef ARDUINO_ARCH_ESP32
-  int raw = adc1_get_raw(gpio_to_adc1(pin_));
+  int raw = adc1_get_raw(gpio_to_adc1(pin_->get_pin()));
   float value_v = raw / 4095.0f;
 #if CONFIG_IDF_TARGET_ESP32
   switch (this->attenuation_) {
@@ -150,7 +150,7 @@ float ADCSensor::sample() {
 #ifdef USE_ADC_SENSOR_VCC
   return ESP.getVcc() / 1024.0f;  // NOLINT(readability-static-accessed-through-instance)
 #else
-  return analogRead(this->pin_) / 1024.0f;  // NOLINT
+  return analogRead(this->pin_->get_pin()) / 1024.0f;  // NOLINT
 #endif
 #endif
 }

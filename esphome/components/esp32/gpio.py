@@ -1,4 +1,3 @@
-from functools import reduce
 import logging
 
 from esphome.const import (
@@ -192,23 +191,12 @@ ESP32_PIN_SCHEMA = cv.All(
 async def esp32_pin_to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     num = config[CONF_NUMBER]
-    cg.add(var.set_pin(getattr(gpio_num_t, f"GPIO_NUM_{num}")))
+    if CORE.using_esp_idf:
+        cg.add(var.set_pin(getattr(gpio_num_t, f"GPIO_NUM_{num}")))
+    else:
+        cg.add(var.set_pin(num))
     cg.add(var.set_inverted(config[CONF_INVERTED]))
     if CONF_DRIVE_STRENGTH in config:
         cg.add(var.set_drive_strength(config[CONF_DRIVE_STRENGTH]))
-    flags = {
-        CONF_INPUT: cg.gpio_Flags.FLAG_INPUT,
-        CONF_OUTPUT: cg.gpio_Flags.FLAG_OUTPUT,
-        CONF_OPEN_DRAIN: cg.gpio_Flags.FLAG_OPEN_DRAIN,
-        CONF_PULLUP: cg.gpio_Flags.FLAG_PULLUP,
-        CONF_PULLDOWN: cg.gpio_Flags.FLAG_PULLDOWN,
-    }
-    flags2 = [v for k, v in flags.items() if config[CONF_MODE][k]]
-    if flags2:
-        import operator
-
-        flags3 = reduce(operator.or_, flags2)
-    else:
-        flags3 = cg.gpio_Flags.FLAG_NONE
-    cg.add(var.set_flags(flags3))
+    cg.add(var.set_flags(pins.gpio_flags_expr(config[CONF_MODE])))
     return var

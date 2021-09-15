@@ -21,7 +21,7 @@ struct RemoteReceiverComponentStore {
   bool overflow{false};
   uint32_t buffer_size{1000};
   uint8_t filter_us{10};
-  ISRInternalGPIOPin *pin;
+  ISRInternalGPIOPin pin;
 };
 #endif
 
@@ -34,10 +34,10 @@ class RemoteReceiverComponent : public remote_base::RemoteReceiverBase,
 {
  public:
 #ifdef ARDUINO_ARCH_ESP32
-  RemoteReceiverComponent(GPIOPin *pin, uint8_t mem_block_num = 1)
+  RemoteReceiverComponent(InternalGPIOPin *pin, uint8_t mem_block_num = 1)
       : RemoteReceiverBase(pin), remote_base::RemoteRMTChannel(mem_block_num) {}
 #else
-  RemoteReceiverComponent(GPIOPin *pin) : RemoteReceiverBase(pin) {}
+  RemoteReceiverComponent(InternalGPIOPin *pin) : RemoteReceiverBase(pin) {}
 #endif
   void setup() override;
   void dump_config() override;

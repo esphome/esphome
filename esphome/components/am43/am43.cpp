@@ -1,5 +1,6 @@
 #include "am43.h"
 #include "esphome/core/log.h"
+#include "esphome/core/hal.h"
 
 #ifdef ARDUINO_ARCH_ESP32
 

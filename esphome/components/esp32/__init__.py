@@ -16,7 +16,7 @@ from esphome.core import CORE
 import esphome.config_validation as cv
 import esphome.codegen as cg
 
-from .const import KEY_BOARD, KEY_ESP32, VARIANTS
+from .const import KEY_BOARD, KEY_ESP32, KEY_VARIANT, VARIANT_ESP32C3, VARIANTS
 
 # force import gpio to register pin schema
 from .gpio import esp32_pin_to_code  # noqa
@@ -34,7 +34,16 @@ def set_core_data(config):
         config[CONF_FRAMEWORK][CONF_VERSION_HINT]
     )
     CORE.data[KEY_ESP32][KEY_BOARD] = config[CONF_BOARD]
+    CORE.data[KEY_ESP32][KEY_VARIANT] = config[CONF_VARIANT]
     return config
+
+
+def get_esp32_variant():
+    return CORE.data[KEY_ESP32][KEY_VARIANT]
+
+
+def is_esp32c3():
+    return get_esp32_variant() == VARIANT_ESP32C3
 
 
 def _arduino_check_versions(value):

@@ -15,7 +15,7 @@ from esphome.const import (
     CONF_ON_BLE_MANUFACTURER_DATA_ADVERTISE,
 )
 
-DEPENDENCIES = ["ESP32"]
+DEPENDENCIES = ["esp32"]
 AUTO_LOAD = ["xiaomi_ble", "ruuvi_ble"]
 
 CONF_ESP32_BLE_ID = "esp32_ble_id"

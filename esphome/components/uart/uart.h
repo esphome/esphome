@@ -20,7 +20,7 @@ const LogString *parity_to_str(UARTParityOptions parity);
 #ifdef ARDUINO_ARCH_ESP8266
 class ESP8266SoftwareSerial {
  public:
-  void setup(int8_t tx_pin, int8_t rx_pin, uint32_t baud_rate, uint8_t stop_bits, uint32_t data_bits,
+  void setup(InternalGPIOPin *tx_pin, InternalGPIOPin *rx_pin, uint32_t baud_rate, uint8_t stop_bits, uint32_t data_bits,
              UARTParityOptions parity, size_t rx_buffer_size);
 
   uint8_t read_byte();
@@ -32,8 +32,8 @@ class ESP8266SoftwareSerial {
 
   int available();
 
-  GPIOPin *gpio_tx_pin_{nullptr};
-  GPIOPin *gpio_rx_pin_{nullptr};
+  InternalGPIOPin *gpio_tx_pin_{nullptr};
+  InternalGPIOPin *gpio_rx_pin_{nullptr};
 
  protected:
   static void gpio_intr(ESP8266SoftwareSerial *arg);
@@ -50,8 +50,8 @@ class ESP8266SoftwareSerial {
   uint8_t stop_bits_;
   uint8_t data_bits_;
   UARTParityOptions parity_;
-  ISRInternalGPIOPin *tx_pin_{nullptr};
-  ISRInternalGPIOPin *rx_pin_{nullptr};
+  ISRInternalGPIOPin tx_pin_{nullptr};
+  ISRInternalGPIOPin rx_pin_{nullptr};
 };
 #endif
 
@@ -90,12 +90,9 @@ class UARTComponent : public Component, public Stream {
   int read() override;
   int peek() override;
 
-  void set_tx_pin(uint8_t tx_pin) { this->tx_pin_ = tx_pin; }
-  void set_rx_pin(uint8_t rx_pin) { this->rx_pin_ = rx_pin; }
+  void set_tx_pin(InternalGPIOPin *tx_pin) { this->tx_pin_ = tx_pin; }
+  void set_rx_pin(InternalGPIOPin *rx_pin) { this->rx_pin_ = rx_pin; }
   void set_rx_buffer_size(size_t rx_buffer_size) { this->rx_buffer_size_ = rx_buffer_size; }
-#ifdef ARDUINO_ARCH_ESP32
-  void set_invert(bool invert) { this->invert_ = invert; }
-#endif
   void set_stop_bits(uint8_t stop_bits) { this->stop_bits_ = stop_bits; }
   void set_data_bits(uint8_t data_bits) { this->data_bits_ = data_bits; }
   void set_parity(UARTParityOptions parity) { this->parity_ = parity; }
@@ -109,12 +106,9 @@ class UARTComponent : public Component, public Stream {
 #ifdef ARDUINO_ARCH_ESP8266
   ESP8266SoftwareSerial *sw_serial_{nullptr};
 #endif
-  optional<uint8_t> tx_pin_;
-  optional<uint8_t> rx_pin_;
+  InternalGPIOPin *tx_pin_;
+  InternalGPIOPin *rx_pin_;
   size_t rx_buffer_size_;
-#ifdef ARDUINO_ARCH_ESP32
-  bool invert_;
-#endif
   uint32_t baud_rate_;
   uint8_t stop_bits_;
   uint8_t data_bits_;

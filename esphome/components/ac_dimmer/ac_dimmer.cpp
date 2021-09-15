@@ -1,9 +1,13 @@
 #include "ac_dimmer.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include <cmath>
 
 #ifdef ARDUINO_ARCH_ESP8266
 #include <core_esp8266_waveform.h>
+#endif
+#ifdef USE_ESP32_FRAMEWORK_ARDUINO
+#include <esp32-hal-timer.h>
 #endif
 
 namespace esphome {
@@ -34,13 +38,13 @@ uint32_t IRAM_ATTR HOT AcDimmerDataStore::timer_intr(uint32_t now) {
 
   if (this->enable_time_us != 0 && time_since_zc >= this->enable_time_us) {
     this->enable_time_us = 0;
-    this->gate_pin->digital_write(true);
+    this->gate_pin.digital_write(true);
     // Prevent too short pulses
-    this->disable_time_us = max(this->disable_time_us, time_since_zc + GATE_ENABLE_TIME);
+    this->disable_time_us = std::max(this->disable_time_us, time_since_zc + GATE_ENABLE_TIME);
   }
   if (this->disable_time_us != 0 && time_since_zc >= this->disable_time_us) {
     this->disable_time_us = 0;
-    this->gate_pin->digital_write(false);
+    this->gate_pin.digital_write(false);
   }
 
   if (time_since_zc < this->enable_time_us)
@@ -94,7 +98,7 @@ void IRAM_ATTR HOT AcDimmerDataStore::gpio_intr() {
 
   if (this->value == 65535) {
     // fully on, enable output immediately
-    this->gate_pin->digital_write(true);
+    this->gate_pin.digital_write(true);
   } else if (this->init_cycle) {
     // send a full cycle
     this->init_cycle = false;
@@ -102,22 +106,22 @@ void IRAM_ATTR HOT AcDimmerDataStore::gpio_intr() {
     this->disable_time_us = cycle_time_us;
   } else if (this->value == 0) {
     // fully off, disable output immediately
-    this->gate_pin->digital_write(false);
+    this->gate_pin.digital_write(false);
   } else {
     if (this->method == DIM_METHOD_TRAILING) {
       this->enable_time_us = 1;  // cannot be 0
-      this->disable_time_us = max((uint32_t) 10, this->value * this->cycle_time_us / 65535);
+      this->disable_time_us = std::max((uint32_t) 10, this->value * this->cycle_time_us / 65535);
     } else {
       // calculate time until enable in µs: (1.0-value)*cycle_time, but with integer arithmetic
       // also take into account min_power
       auto min_us = this->cycle_time_us * this->min_power / 1000;
-      this->enable_time_us = max((uint32_t) 1, ((65535 - this->value) * (this->cycle_time_us - min_us)) / 65535);
+      this->enable_time_us = std::max((uint32_t) 1, ((65535 - this->value) * (this->cycle_time_us - min_us)) / 65535);
       if (this->method == DIM_METHOD_LEADING_PULSE) {
         // Minimum pulse time should be enough for the triac to trigger when it is close to the ZC zone
         // this is for brightness near 99%
-        this->disable_time_us = max(this->enable_time_us + GATE_ENABLE_TIME, (uint32_t) cycle_time_us / 10);
+        this->disable_time_us = std::max(this->enable_time_us + GATE_ENABLE_TIME, (uint32_t) cycle_time_us / 10);
       } else {
-        this->gate_pin->digital_write(false);
+        this->gate_pin.digital_write(false);
         this->disable_time_us = this->cycle_time_us;
       }
     }
@@ -171,7 +175,7 @@ void AcDimmer::setup() {
   if (setup_zero_cross_pin) {
     this->zero_cross_pin_->setup();
     this->store_.zero_cross_pin = this->zero_cross_pin_->to_isr();
-    this->zero_cross_pin_->attach_interrupt(&AcDimmerDataStore::s_gpio_intr, &this->store_, FALLING);
+    this->zero_cross_pin_->attach_interrupt(&AcDimmerDataStore::s_gpio_intr, &this->store_, gpio::INTERRUPT_FALLING_EDGE);
   }
 
 #ifdef ARDUINO_ARCH_ESP8266

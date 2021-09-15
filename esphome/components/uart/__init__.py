@@ -37,7 +37,7 @@ def validate_raw_data(value):
 
 
 def validate_rx_pin(value):
-    value = pins.input_pin(value)
+    value = pins.internal_gpio_input_pin_number(value)
     if CORE.is_esp8266 and value >= 16:
         raise cv.Invalid("Pins GPIO16 and GPIO17 cannot be used as RX pins on ESP8266.")
     return value
@@ -59,7 +59,7 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(UARTComponent),
             cv.Required(CONF_BAUD_RATE): cv.int_range(min=1),
-            cv.Optional(CONF_TX_PIN): pins.output_pin,
+            cv.Optional(CONF_TX_PIN): pins.internal_gpio_output_pin_number,
             cv.Optional(CONF_RX_PIN): validate_rx_pin,
             cv.Optional(CONF_RX_BUFFER_SIZE, default=256): cv.validate_bytes,
             cv.SplitDefault(CONF_INVERT, esp32=False): cv.All(

@@ -89,23 +89,19 @@ void SX1509Component::digital_write(uint8_t pin, bool bit_value) {
   }
 }
 
-void SX1509Component::pin_mode(uint8_t pin, uint8_t mode) {
+void SX1509Component::pin_mode(uint8_t pin, gpio::Flags flags) {
   this->read_byte_16(REG_DIR_B, &this->ddr_mask_);
-  if ((mode == SX1509_OUTPUT) || (mode == SX1509_ANALOG_OUTPUT))
+  if (flags == gpio::FLAG_OUTPUT)
     this->ddr_mask_ &= ~(1 << pin);
   else
     this->ddr_mask_ |= (1 << pin);
   this->write_byte_16(REG_DIR_B, this->ddr_mask_);
 
-  if (mode == INPUT_PULLUP)
-    digital_write(pin, HIGH);
-
-  if (mode == SX1509_ANALOG_OUTPUT) {
-    setup_led_driver_(pin);
-  }
+  if (flags & gpio::FLAG_PULLUP)
+    digital_write(pin, true);
 }
 
-void SX1509Component::setup_led_driver_(uint8_t pin) {
+void SX1509Component::setup_led_driver(uint8_t pin) {
   uint16_t temp_word;
   uint8_t temp_byte;
 
@@ -140,7 +136,7 @@ void SX1509Component::setup_led_driver_(uint8_t pin) {
   this->write_byte_16(REG_DATA_B, temp_word);
 }
 
-void SX1509Component::clock_(byte osc_source, byte osc_pin_function, byte osc_freq_out, byte osc_divider) {
+void SX1509Component::clock_(uint8_t osc_source, uint8_t osc_pin_function, uint8_t osc_freq_out, uint8_t osc_divider) {
   osc_source = (osc_source & 0b11) << 5;           // 2-bit value, bits 6:5
   osc_pin_function = (osc_pin_function & 1) << 4;  // 1-bit value bit 4
   osc_freq_out = (osc_freq_out & 0b1111);          // 4-bit value, bits 3:0

@@ -76,8 +76,8 @@ CONFIG_SCHEMA = cv.All(
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.require_framework_version(
-        esp8266_arduino=cv.Version(0, 0, 0),
-        esp32_arduino=cv.Version(2, 5, 1),
+        esp8266_arduino=cv.Version(2, 5, 1),
+        esp32_arduino=cv.Version(0, 0, 0),
     ),
 )
 
