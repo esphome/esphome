@@ -123,10 +123,8 @@ void TuyaClimate::dump_config() {
     ESP_LOGCONFIG(TAG, "  Target Temperature has datapoint ID %u", *this->target_temperature_id_);
   if (this->current_temperature_id_.has_value())
     ESP_LOGCONFIG(TAG, "  Current Temperature has datapoint ID %u", *this->current_temperature_id_);
-  if (this->heating_state_pin_ != nullptr)
-    LOG_PIN("  Heating State Pin: ", this->heating_state_pin_);
-  if (this->cooling_state_pin_ != nullptr)
-    LOG_PIN("  Cooling State Pin: ", this->cooling_state_pin_);
+  LOG_PIN("  Heating State Pin: ", this->heating_state_pin_);
+  LOG_PIN("  Cooling State Pin: ", this->cooling_state_pin_);
 }
 
 void TuyaClimate::compute_state_() {
