@@ -881,7 +881,7 @@ void Pipsolar::add_polling_command_(const char *command, ENUMPollingCommand poll
       size_t length = strlen(command) + 1;
       const char *beg = command;
       const char *end = command + length;
-      used_polling_command.command = new uint8_t[length];
+      used_polling_command.command = new uint8_t[length];  // NOLINT(cppcoreguidelines-owning-memory)
       size_t i = 0;
       for (; beg != end; ++beg, ++i) {
         used_polling_command.command[i] = (uint8_t)(*beg);

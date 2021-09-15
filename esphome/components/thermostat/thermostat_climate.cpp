@@ -57,29 +57,34 @@ void ThermostatClimate::refresh() {
 }
 
 bool ThermostatClimate::climate_action_change_delayed() {
+  bool state_mismatch = this->action != this->compute_action_(true);
+
   switch (this->compute_action_(true)) {
     case climate::CLIMATE_ACTION_OFF:
     case climate::CLIMATE_ACTION_IDLE:
-      return !this->idle_action_ready_();
+      return state_mismatch && (!this->idle_action_ready_());
     case climate::CLIMATE_ACTION_COOLING:
-      return !this->cooling_action_ready_();
+      return state_mismatch && (!this->cooling_action_ready_());
     case climate::CLIMATE_ACTION_HEATING:
-      return !this->heating_action_ready_();
+      return state_mismatch && (!this->heating_action_ready_());
     case climate::CLIMATE_ACTION_FAN:
-      return !this->fanning_action_ready_();
+      return state_mismatch && (!this->fanning_action_ready_());
     case climate::CLIMATE_ACTION_DRYING:
-      return !this->drying_action_ready_();
+      return state_mismatch && (!this->drying_action_ready_());
     default:
       break;
   }
   return false;
 }
 
-bool ThermostatClimate::fan_mode_change_delayed() { return !this->fan_mode_ready_(); }
+bool ThermostatClimate::fan_mode_change_delayed() {
+  bool state_mismatch = this->fan_mode.value_or(climate::CLIMATE_FAN_ON) != this->prev_fan_mode_;
+  return state_mismatch && (!this->fan_mode_ready_());
+}
 
 climate::ClimateAction ThermostatClimate::delayed_climate_action() { return this->compute_action_(true); }
 
-climate::ClimateFanMode ThermostatClimate::delayed_fan_mode() { return this->desired_fan_mode_; }
+climate::ClimateFanMode ThermostatClimate::locked_fan_mode() { return this->prev_fan_mode_; }
 
 bool ThermostatClimate::hysteresis_valid() {
   if ((this->supports_cool_ || (this->supports_fan_only_ && this->supports_fan_only_cooling_)) &&
@@ -510,7 +515,7 @@ void ThermostatClimate::switch_to_fan_mode_(climate::ClimateFanMode fan_mode) {
     // already in target mode
     return;
 
-  this->desired_fan_mode_ = fan_mode;  // needed for timer callback
+  this->fan_mode = fan_mode;
 
   if (this->fan_mode_ready_()) {
     Trigger<> *trig = this->fan_mode_auto_trigger_;
@@ -564,7 +569,6 @@ void ThermostatClimate::switch_to_fan_mode_(climate::ClimateFanMode fan_mode) {
     this->start_timer_(thermostat::TIMER_FAN_MODE);
     assert(trig != nullptr);
     trig->trigger();
-    this->fan_mode = fan_mode;
     this->prev_fan_mode_ = fan_mode;
     this->prev_fan_mode_trigger_ = trig;
   }
@@ -733,7 +737,7 @@ void ThermostatClimate::cooling_on_timer_callback_() {
 void ThermostatClimate::fan_mode_timer_callback_() {
   ESP_LOGVV(TAG, "fan_mode timer expired");
   this->timer_[thermostat::TIMER_FAN_MODE].active = false;
-  this->switch_to_fan_mode_(this->desired_fan_mode_);
+  this->switch_to_fan_mode_(this->fan_mode.value_or(climate::CLIMATE_FAN_ON));
   if (this->supports_fan_only_action_uses_fan_mode_timer_)
     this->switch_to_action_(this->compute_action_());
 }

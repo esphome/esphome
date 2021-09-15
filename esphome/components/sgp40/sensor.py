@@ -4,6 +4,7 @@ from esphome.components import i2c, sensor
 from esphome.const import (
     CONF_ID,
     ICON_RADIATOR,
+    DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS,
     STATE_CLASS_MEASUREMENT,
 )
 
@@ -26,6 +27,7 @@ CONFIG_SCHEMA = (
     sensor.sensor_schema(
         icon=ICON_RADIATOR,
         accuracy_decimals=0,
+        device_class=DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS,
         state_class=STATE_CLASS_MEASUREMENT,
     )
     .extend(

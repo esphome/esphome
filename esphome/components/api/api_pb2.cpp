@@ -94,6 +94,8 @@ template<> const char *proto_enum_to_string<enums::SensorStateClass>(enums::Sens
       return "STATE_CLASS_NONE";
     case enums::STATE_CLASS_MEASUREMENT:
       return "STATE_CLASS_MEASUREMENT";
+    case enums::STATE_CLASS_TOTAL_INCREASING:
+      return "STATE_CLASS_TOTAL_INCREASING";
     default:
       return "UNKNOWN";
   }
@@ -120,6 +122,8 @@ template<> const char *proto_enum_to_string<enums::LogLevel>(enums::LogLevel val
       return "LOG_LEVEL_WARN";
     case enums::LOG_LEVEL_INFO:
       return "LOG_LEVEL_INFO";
+    case enums::LOG_LEVEL_CONFIG:
+      return "LOG_LEVEL_CONFIG";
     case enums::LOG_LEVEL_DEBUG:
       return "LOG_LEVEL_DEBUG";
     case enums::LOG_LEVEL_VERBOSE:
@@ -1813,7 +1817,7 @@ bool ListEntitiesSensorResponse::decode_varint(uint32_t field_id, ProtoVarInt va
       return true;
     }
     case 11: {
-      this->last_reset_type = value.as_enum<enums::SensorLastResetType>();
+      this->legacy_last_reset_type = value.as_enum<enums::SensorLastResetType>();
       return true;
     }
     case 12: {
@@ -1875,7 +1879,7 @@ void ListEntitiesSensorResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_bool(8, this->force_update);
   buffer.encode_string(9, this->device_class);
   buffer.encode_enum<enums::SensorStateClass>(10, this->state_class);
-  buffer.encode_enum<enums::SensorLastResetType>(11, this->last_reset_type);
+  buffer.encode_enum<enums::SensorLastResetType>(11, this->legacy_last_reset_type);
   buffer.encode_bool(12, this->disabled_by_default);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -1924,8 +1928,8 @@ void ListEntitiesSensorResponse::dump_to(std::string &out) const {
   out.append(proto_enum_to_string<enums::SensorStateClass>(this->state_class));
   out.append("\n");
 
-  out.append("  last_reset_type: ");
-  out.append(proto_enum_to_string<enums::SensorLastResetType>(this->last_reset_type));
+  out.append("  legacy_last_reset_type: ");
+  out.append(proto_enum_to_string<enums::SensorLastResetType>(this->legacy_last_reset_type));
   out.append("\n");
 
   out.append("  disabled_by_default: ");
@@ -2334,10 +2338,6 @@ bool SubscribeLogsResponse::decode_varint(uint32_t field_id, ProtoVarInt value) 
 }
 bool SubscribeLogsResponse::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
-    case 2: {
-      this->tag = value.as_string();
-      return true;
-    }
     case 3: {
       this->message = value.as_string();
       return true;
@@ -2348,7 +2348,6 @@ bool SubscribeLogsResponse::decode_length(uint32_t field_id, ProtoLengthDelimite
 }
 void SubscribeLogsResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_enum<enums::LogLevel>(1, this->level);
-  buffer.encode_string(2, this->tag);
   buffer.encode_string(3, this->message);
   buffer.encode_bool(4, this->send_failed);
 }
@@ -2358,10 +2357,6 @@ void SubscribeLogsResponse::dump_to(std::string &out) const {
   out.append("SubscribeLogsResponse {\n");
   out.append("  level: ");
   out.append(proto_enum_to_string<enums::LogLevel>(this->level));
-  out.append("\n");
-
-  out.append("  tag: ");
-  out.append("'").append(this->tag).append("'");
   out.append("\n");
 
   out.append("  message: ");

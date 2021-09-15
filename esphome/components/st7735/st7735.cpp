@@ -220,15 +220,14 @@ static const uint8_t PROGMEM
 // clang-format on
 static const char *const TAG = "st7735";
 
-ST7735::ST7735(ST7735Model model, int width, int height, int colstart, int rowstart, bool eightbitcolor, bool usebgr) {
-  model_ = model;
-  this->width_ = width;
-  this->height_ = height;
-  this->colstart_ = colstart;
-  this->rowstart_ = rowstart;
-  this->eightbitcolor_ = eightbitcolor;
-  this->usebgr_ = usebgr;
-}
+ST7735::ST7735(ST7735Model model, int width, int height, int colstart, int rowstart, bool eightbitcolor, bool usebgr)
+    : model_(model),
+      colstart_(colstart),
+      rowstart_(rowstart),
+      eightbitcolor_(eightbitcolor),
+      usebgr_(usebgr),
+      width_(width),
+      height_(height) {}
 
 void ST7735::setup() {
   ESP_LOGCONFIG(TAG, "Setting up ST7735...");
@@ -459,26 +458,26 @@ void HOT ST7735::write_display_data_() {
 }
 
 void ST7735::spi_master_write_addr_(uint16_t addr1, uint16_t addr2) {
-  static uint8_t BYTE[4];
-  BYTE[0] = (addr1 >> 8) & 0xFF;
-  BYTE[1] = addr1 & 0xFF;
-  BYTE[2] = (addr2 >> 8) & 0xFF;
-  BYTE[3] = addr2 & 0xFF;
+  static uint8_t byte[4];
+  byte[0] = (addr1 >> 8) & 0xFF;
+  byte[1] = addr1 & 0xFF;
+  byte[2] = (addr2 >> 8) & 0xFF;
+  byte[3] = addr2 & 0xFF;
 
   this->dc_pin_->digital_write(true);
-  this->write_array(BYTE, 4);
+  this->write_array(byte, 4);
 }
 
 void ST7735::spi_master_write_color_(uint16_t color, uint16_t size) {
-  static uint8_t BYTE[1024];
+  static uint8_t byte[1024];
   int index = 0;
   for (int i = 0; i < size; i++) {
-    BYTE[index++] = (color >> 8) & 0xFF;
-    BYTE[index++] = color & 0xFF;
+    byte[index++] = (color >> 8) & 0xFF;
+    byte[index++] = color & 0xFF;
   }
 
   this->dc_pin_->digital_write(true);
-  return write_array(BYTE, size * 2);
+  return write_array(byte, size * 2);
 }
 
 }  // namespace st7735

@@ -261,7 +261,7 @@ def highlight(s):
 @lint_re_check(
     r"^#define\s+([a-zA-Z0-9_]+)\s+([0-9bx]+)" + CPP_RE_EOL,
     include=cpp_include,
-    exclude=["esphome/core/log.h"],
+    exclude=["esphome/core/log.h", "esphome/components/socket/headers.h"],
 )
 def lint_no_defines(fname, match):
     s = highlight(
@@ -493,7 +493,10 @@ def lint_relative_py_import(fname):
         "esphome/components/*.h",
         "esphome/components/*.cpp",
         "esphome/components/*.tcc",
-    ]
+    ],
+    exclude=[
+        "esphome/components/socket/headers.h",
+    ],
 )
 def lint_namespace(fname, content):
     expected_name = re.match(
