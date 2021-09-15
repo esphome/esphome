@@ -7,11 +7,20 @@
 
 #include <errno.h>
 #include <cstdio>
+
+#ifdef USE_ARDUINO
+#ifdef USE_OTA_PASSWORD
 #include <MD5Builder.h>
-#ifdef ARDUINO_ARCH_ESP32
+#endif  // USE_OTA_PASSWORD
+#ifdef USE_ESP32
 #include <Update.h>
-#endif
+#endif  // USE_ESP32
 #include <StreamString.h>
+#endif  // USE_ARDUINO
+
+#ifdef USE_ESP_IDF
+#include <esp_ota_ops.h>
+#endif
 
 namespace esphome {
 namespace ota {
@@ -19,6 +28,138 @@ namespace ota {
 static const char *const TAG = "ota";
 
 static const uint8_t OTA_VERSION_1_0 = 1;
+
+
+class OTABackend {
+ public:
+  virtual ~OTABackend() = default;
+  virtual OTAResponseTypes begin(size_t image_size);
+  virtual void set_update_md5(const char *md5);
+  virtual OTAResponseTypes write(const uint8_t *data, size_t len);
+  virtual OTAResponseTypes end();
+  virtual void abort();
+};
+
+#ifdef USE_ARDUINO
+class ArduinoOTABackend : public OTABackend {
+ public:
+  OTAResponseTypes begin(size_t image_size) override {
+    bool ret = Update.begin(image_size, U_FLASH);
+    if (ret) {
+#ifdef USE_ESP8266
+      global_preferences->prevent_write(true);
+#endif
+      return OTA_RESPONSE_OK;
+    }
+
+    uint8_t error = Update.getError();
+#ifdef USE_ESP8266
+    if (error == UPDATE_ERROR_BOOTSTRAP)
+      return OTA_RESPONSE_ERROR_INVALID_BOOTSTRAPPING;
+    if (error == UPDATE_ERROR_NEW_FLASH_CONFIG)
+      return OTA_RESPONSE_ERROR_WRONG_NEW_FLASH_CONFIG;
+    if (error == UPDATE_ERROR_FLASH_CONFIG)
+      return OTA_RESPONSE_ERROR_WRONG_CURRENT_FLASH_CONFIG;
+    if (error == UPDATE_ERROR_SPACE)
+      return OTA_RESPONSE_ERROR_ESP8266_NOT_ENOUGH_SPACE;
+#endif
+#ifdef USE_ESP32
+    if (error == UPDATE_ERROR_SIZE)
+      return OTA_RESPONSE_ERROR_ESP32_NOT_ENOUGH_SPACE;
+#endif
+    return OTA_RESPONSE_ERROR_UNKNOWN;
+  }
+  void set_update_md5(const char *md5) override {
+    Update.setMD5(md5);
+  }
+  OTAResponseTypes write(const uint8_t *data, size_t len) override {
+    size_t written = Update.write(data, len);
+    if (written != len) {
+      return OTA_RESPONSE_ERROR_WRITING_FLASH;
+    }
+    return OTA_RESPONSE_OK;
+  }
+  OTAResponseTypes end() override {
+    if (!Update.end())
+      return OTA_RESPONSE_ERROR_UPDATE_END;
+    return OTA_RESPONSE_OK;
+  }
+  void abort() override {
+#ifdef USE_ESP32
+    Update.abort();
+#endif
+
+#ifdef USE_ESP8266
+    Update.end();
+    global_preferences->prevent_write(false);
+#endif
+  }
+};
+std::unique_ptr<OTABackend> make_ota_backend() {
+  return make_unique<ArduinoOTABackend>();
+}
+#endif  // USE_ARDUINO
+
+
+#ifdef USE_ESP_IDF
+class IDFOTABackend : public OTABackend {
+ public:
+  esp_ota_handle_t update_handle = 0;
+
+  OTAResponseTypes begin(size_t image_size) override {
+    const esp_partition_t *update_partition = esp_ota_get_next_update_partition(nullptr);
+    if (update_partition == nullptr) {
+      return OTA_RESPONSE_ERROR_NO_UPDATE_PARTITION;
+    }
+    esp_err_t err = esp_ota_begin(update_partition, image_size, &update_handle);
+    if (err != ESP_OK) {
+      esp_ota_abort(update_handle);
+      update_handle = 0;
+      if (err == ESP_ERR_INVALID_SIZE) {
+        return OTA_RESPONSE_ERROR_ESP32_NOT_ENOUGH_SPACE;
+      } else if (err == ESP_ERR_FLASH_OP_TIMEOUT || err == ESP_ERR_FLASH_OP_FAIL) {
+        return OTA_RESPONSE_ERROR_WRITING_FLASH;
+      }
+      return OTA_RESPONSE_ERROR_UNKNOWN;
+    }
+    return OTA_RESPONSE_OK;
+  }
+  void set_update_md5(const char *md5) override {
+    // pass
+  }
+  OTAResponseTypes write(const uint8_t *data, size_t len) override {
+    esp_err_t err = esp_ota_write(update_handle, data, len);
+    if (err != ESP_OK) {
+      if (err == ESP_ERR_OTA_VALIDATE_FAILED) {
+        return OTA_RESPONSE_ERROR_MAGIC;
+      } else if (err == ESP_ERR_FLASH_OP_TIMEOUT || err == ESP_ERR_FLASH_OP_FAIL) {
+        return OTA_RESPONSE_ERROR_WRITING_FLASH;
+      }
+      return OTA_RESPONSE_ERROR_UNKNOWN;
+    }
+    return OTA_RESPONSE_OK;
+  }
+  OTAResponseTypes end() override {
+    esp_err_t err = esp_ota_end(update_handle);
+    update_handle = 0;
+    if (err != ESP_OK) {
+      if (err == ESP_ERR_OTA_VALIDATE_FAILED) {
+        return OTA_RESPONSE_ERROR_UPDATE_END;
+      }
+      return OTA_RESPONSE_ERROR_UNKNOWN;
+    }
+    return OTA_RESPONSE_OK;
+  }
+  void abort() override {
+    esp_ota_abort(update_handle);
+  }
+};
+std::unique_ptr<OTABackend> make_ota_backend() {
+  return make_unique<IDFOTABackend>();
+}
+#endif  // USE_ESP_IDF
+
+
 
 void OTAComponent::setup() {
   server_ = socket::socket(AF_INET, SOCK_STREAM, 0);
@@ -66,9 +207,11 @@ void OTAComponent::setup() {
 void OTAComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "Over-The-Air Updates:");
   ESP_LOGCONFIG(TAG, "  Address: %s:%u", network::get_use_address().c_str(), this->port_);
+#ifdef USE_OTA_PASSWORD
   if (!this->password_.empty()) {
     ESP_LOGCONFIG(TAG, "  Using Password.");
   }
+#endif
   if (this->has_safe_mode_ && this->safe_mode_rtc_value_ > 1) {
     ESP_LOGW(TAG, "Last Boot was an unhandled reset, will proceed to safe mode in %d restarts",
              this->safe_mode_num_attempts_ - this->safe_mode_rtc_value_);
@@ -95,6 +238,7 @@ void OTAComponent::handle_() {
   char *sbuf = reinterpret_cast<char *>(buf);
   uint32_t ota_size;
   uint8_t ota_features;
+  std::unique_ptr<OTABackend> backend;
   (void) ota_features;
 
   if (client_ == nullptr) {
@@ -147,6 +291,7 @@ void OTAComponent::handle_() {
   buf[0] = OTA_RESPONSE_HEADER_OK;
   this->writeall_(buf, 1);
 
+#ifdef USE_OTA_PASSWORD
   if (!this->password_.empty()) {
     buf[0] = OTA_RESPONSE_REQUEST_AUTH;
     this->writeall_(buf, 1);
@@ -203,6 +348,7 @@ void OTAComponent::handle_() {
       goto error;
     }
   }
+#endif  // USE_OTA_PASSWORD
 
   // Acknowledge auth OK - 1 byte
   buf[0] = OTA_RESPONSE_AUTH_OK;
@@ -220,42 +366,10 @@ void OTAComponent::handle_() {
   }
   ESP_LOGV(TAG, "OTA size is %u bytes", ota_size);
 
-#ifdef ARDUINO_ARCH_ESP8266
-  global_preferences.prevent_write(true);
-#endif
-
-  if (!Update.begin(ota_size, U_FLASH)) {
-    uint8_t error = Update.getError();
-    StreamString ss;
-    Update.printError(ss);
-#ifdef ARDUINO_ARCH_ESP8266
-    if (error == UPDATE_ERROR_BOOTSTRAP) {
-      error_code = OTA_RESPONSE_ERROR_INVALID_BOOTSTRAPPING;
-      goto error;
-    }
-    if (error == UPDATE_ERROR_NEW_FLASH_CONFIG) {
-      error_code = OTA_RESPONSE_ERROR_WRONG_NEW_FLASH_CONFIG;
-      goto error;
-    }
-    if (error == UPDATE_ERROR_FLASH_CONFIG) {
-      error_code = OTA_RESPONSE_ERROR_WRONG_CURRENT_FLASH_CONFIG;
-      goto error;
-    }
-    if (error == UPDATE_ERROR_SPACE) {
-      error_code = OTA_RESPONSE_ERROR_ESP8266_NOT_ENOUGH_SPACE;
-      goto error;
-    }
-#endif
-#ifdef ARDUINO_ARCH_ESP32
-    if (error == UPDATE_ERROR_SIZE) {
-      error_code = OTA_RESPONSE_ERROR_ESP32_NOT_ENOUGH_SPACE;
-      goto error;
-    }
-#endif
-    ESP_LOGW(TAG, "Preparing OTA partition failed! '%s'", ss.c_str());
-    error_code = OTA_RESPONSE_ERROR_UPDATE_PREPARE;
+  backend = make_ota_backend();
+  error_code = backend->begin(ota_size);
+  if (error_code != OTA_RESPONSE_OK)
     goto error;
-  }
   update_started = true;
 
   // Acknowledge prepare OK - 1 byte
@@ -269,15 +383,16 @@ void OTAComponent::handle_() {
   }
   sbuf[32] = '\0';
   ESP_LOGV(TAG, "Update: Binary MD5 is %s", sbuf);
-  Update.setMD5(sbuf);
+  backend->set_update_md5(sbuf);
 
   // Acknowledge MD5 OK - 1 byte
   buf[0] = OTA_RESPONSE_BIN_MD5_OK;
   this->writeall_(buf, 1);
 
-  while (!Update.isFinished()) {
+  while (total < ota_size) {
     // TODO: timeout check
-    ssize_t read = this->client_->read(buf, sizeof(buf));
+    size_t requested = std::min(sizeof(buf), ota_size - total);
+    ssize_t read = this->client_->read(buf, requested);
     if (read == -1) {
       if (errno == EAGAIN || errno == EWOULDBLOCK)
         continue;
@@ -285,13 +400,12 @@ void OTAComponent::handle_() {
       goto error;
     }
 
-    uint32_t written = Update.write(buf, read);
-    if (written != read) {
-      ESP_LOGW(TAG, "Error writing binary data to flash: %u != %u!", written, read);  // NOLINT
-      error_code = OTA_RESPONSE_ERROR_WRITING_FLASH;
+    error_code = backend->write(buf, read);
+    if (error_code != OTA_RESPONSE_OK) {
+      ESP_LOGW(TAG, "Error writing binary data to flash!");
       goto error;
     }
-    total += written;
+    total += read;
 
     uint32_t now = millis();
     if (now - last_progress > 1000) {
@@ -310,8 +424,9 @@ void OTAComponent::handle_() {
   buf[0] = OTA_RESPONSE_RECEIVE_OK;
   this->writeall_(buf, 1);
 
-  if (!Update.end()) {
-    error_code = OTA_RESPONSE_ERROR_UPDATE_END;
+  error_code = backend->end();
+  if (error_code != OTA_RESPONSE_OK) {
+    ESP_LOGW(TAG, "Error ending OTA!");
     goto error;
   }
 
@@ -337,35 +452,18 @@ void OTAComponent::handle_() {
   App.safe_reboot();
 
 error:
-  if (update_started) {
-    StreamString ss;
-    Update.printError(ss);
-    ESP_LOGW(TAG, "Update end failed! Error: %s", ss.c_str());
-  }
   buf[0] = static_cast<uint8_t>(error_code);
   this->writeall_(buf, 1);
   this->client_->close();
   this->client_ = nullptr;
 
-#ifdef ARDUINO_ARCH_ESP32
-  if (update_started) {
-    Update.abort();
+  if (backend != nullptr && update_started) {
+    backend->abort();
   }
-#endif
-
-#ifdef ARDUINO_ARCH_ESP8266
-  if (update_started) {
-    Update.end();
-  }
-#endif
 
   this->status_momentary_error("onerror", 5000);
 #ifdef USE_OTA_STATE_CALLBACK
   this->state_callback_.call(OTA_ERROR, 0.0f, static_cast<uint8_t>(error_code));
-#endif
-
-#ifdef ARDUINO_ARCH_ESP8266
-  global_preferences.prevent_write(false);
 #endif
 }
 
@@ -421,8 +519,6 @@ bool OTAComponent::writeall_(const uint8_t *buf, size_t len) {
   return true;
 }
 
-void OTAComponent::set_auth_password(const std::string &password) { this->password_ = password; }
-
 float OTAComponent::get_setup_priority() const { return setup_priority::AFTER_WIFI; }
 uint16_t OTAComponent::get_port() const { return this->port_; }
 void OTAComponent::set_port(uint16_t port) { this->port_ = port; }
@@ -431,7 +527,7 @@ bool OTAComponent::should_enter_safe_mode(uint8_t num_attempts, uint32_t enable_
   this->safe_mode_start_time_ = millis();
   this->safe_mode_enable_time_ = enable_time;
   this->safe_mode_num_attempts_ = num_attempts;
-  this->rtc_ = global_preferences.make_preference<uint32_t>(233825507UL, false);
+  this->rtc_ = global_preferences->make_preference<uint32_t>(233825507UL, false);
   this->safe_mode_rtc_value_ = this->read_rtc_();
 
   ESP_LOGCONFIG(TAG, "There have been %u suspected unsuccessful boot attempts.", this->safe_mode_rtc_value_);
