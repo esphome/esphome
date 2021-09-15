@@ -93,15 +93,9 @@ def validate_active_state_values(value):
 
 
 def validate_eco_values(value):
-    if (
-        CONF_ECO_TEMPERATURE in value
-        and CONF_ECO_DATAPOINT not in value
-    ):
+    if CONF_ECO_TEMPERATURE in value and CONF_ECO_DATAPOINT not in value:
         raise cv.Invalid(
-            (
-                f"{CONF_ECO_DATAPOINT} required if using "
-                f"{CONF_ECO_TEMPERATURE}"
-            )
+            f"{CONF_ECO_DATAPOINT} required if using {CONF_ECO_TEMPERATURE}"
         )
     return value
 
