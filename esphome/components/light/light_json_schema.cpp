@@ -7,6 +7,8 @@ namespace esphome {
 namespace light {
 
 // See https://www.home-assistant.io/integrations/light.mqtt/#json-schema for documentation on the schema
+// and https://github.com/home-assistant/core/blob/dev/homeassistant/components/mqtt/light/schema_json.py#L295 for the
+// actual implementation that diverts from the documentation.
 
 void LightJSONSchema::dump_json(LightState &state, JsonObject &root) {
   if (state.supports_effects())
@@ -63,8 +65,10 @@ void LightJSONSchema::dump_json(LightState &state, JsonObject &root) {
     color["w"] = uint8_t(values.get_white() * 255);
     root["white_value"] = uint8_t(values.get_white() * 255);  // legacy API
   }
-  if (values.get_color_mode() & ColorCapability::COLOR_TEMPERATURE) {
+  if ((values.get_color_mode() & ColorCapability::COLOR_TEMPERATURE) ||
+      (values.get_color_mode() & ColorCapability::COLD_WARM_WHITE)) {
     // this one isn't under the color subkey for some reason
+    // in CWWW mode current value might not be correct if light is manually set with CW/WW values
     root["color_temp"] = uint32_t(values.get_color_temperature());
   }
   if (values.get_color_mode() & ColorCapability::COLD_WARM_WHITE) {
