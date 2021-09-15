@@ -105,7 +105,7 @@ void Application::loop() {
 #endif
     }
 
-    this->components_[this->dump_config_at_]->dump_config();
+    this->components_[this->dump_config_at_]->call_dump_config();
     this->dump_config_at_++;
   }
 }

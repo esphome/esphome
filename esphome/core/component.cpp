@@ -64,8 +64,9 @@ bool Component::cancel_timeout(const std::string &name) {  // NOLINT
 }
 
 void Component::call_loop() { this->loop(); }
-
 void Component::call_setup() { this->setup(); }
+void Component::call_dump_config() { this->dump_config(); }
+
 uint32_t Component::get_component_state() const { return this->component_state_; }
 void Component::call() {
   uint32_t state = this->component_state_ & COMPONENT_STATE_MASK;
