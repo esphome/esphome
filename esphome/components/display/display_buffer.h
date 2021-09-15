@@ -4,7 +4,6 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/automation.h"
 #include "display_color_utils.h"
-#include "esphome/components/sensor/sensor.h"
 
 #ifdef USE_TIME
 #include "esphome/components/time/real_time_clock.h"

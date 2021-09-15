@@ -102,7 +102,7 @@ GRAPH_SCHEMA = cv.Schema(
         cv.Optional(CONF_SENSOR): cv.use_id(sensor.Sensor),
         cv.Optional(CONF_LINE_THICKNESS): cv.positive_int,
         cv.Optional(CONF_LINE_TYPE): cv.enum(LINE_TYPE, upper=True),
-        cv.Optional(CONF_COLOR): cv.use_id(color.ColorStruct),  # FIX
+        cv.Optional(CONF_COLOR): cv.use_id(color.ColorStruct),
         # Axis specific options (Future feature may be to add second Y-axis)
         cv.Optional(CONF_MIN_VALUE): cv.float_,
         cv.Optional(CONF_MAX_VALUE): cv.float_,
@@ -152,6 +152,7 @@ async def to_code(config):
     cg.add(var.set_duration(config[CONF_DURATION]))
     cg.add(var.set_width(config[CONF_WIDTH]))
     cg.add(var.set_height(config[CONF_HEIGHT]))
+    # await cg.register_component(var, config)   # FIX: confused - causes issues yet some say it's needed
 
     # Graph options
     if CONF_X_GRID in config:
