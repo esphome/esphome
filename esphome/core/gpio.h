@@ -26,7 +26,6 @@ class FlagsHelper {
  public:
   constexpr FlagsHelper(Flags val) : val_(val) {}
   constexpr operator Flags() const { return val_; }
-  constexpr operator bool() const { return static_cast<uint8_t>(val_) != 0; }
  protected:
   Flags val_;
 };
@@ -34,12 +33,6 @@ constexpr FlagsHelper operator&(Flags lhs, Flags rhs) {
   return static_cast<Flags>(
     static_cast<uint8_t>(lhs) &
     static_cast<uint8_t>(rhs)
-  );
-}
-constexpr FlagsHelper operator&(Flags lhs, uint8_t rhs) {
-  return static_cast<Flags>(
-    static_cast<uint8_t>(lhs) &
-    rhs
   );
 }
 constexpr FlagsHelper operator|(Flags lhs, Flags rhs) {

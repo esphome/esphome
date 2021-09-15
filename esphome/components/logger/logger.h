@@ -9,6 +9,9 @@
 #ifdef USE_ARDUINO
 #include <HardwareSerial.h>
 #endif
+#ifdef USE_ESP_IDF
+#include <driver/uart.h>
+#endif
 
 namespace esphome {
 
@@ -38,6 +41,9 @@ class Logger : public Component {
   uint32_t get_baud_rate() const { return baud_rate_; }
 #ifdef USE_ARDUINO
   HardwareSerial *get_hw_serial() const { return hw_serial_; }
+#endif
+#ifdef USE_ESP_IDF
+  uart_port_t get_uart_num() const { return uart_num_; }
 #endif
 
   /// Get the UART used by the logger.

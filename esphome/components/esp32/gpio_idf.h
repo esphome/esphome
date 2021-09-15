@@ -26,7 +26,6 @@ class IDFInternalGPIOPin : public InternalGPIOPin {
     conf.pull_down_en = flags & gpio::FLAG_PULLDOWN ? GPIO_PULLDOWN_ENABLE : GPIO_PULLDOWN_DISABLE;
     conf.intr_type = GPIO_INTR_DISABLE;
     gpio_config(&conf);
-    // TODO: check error
   }
   bool digital_read() override {
     return bool(gpio_get_level(pin_)) != inverted_;
@@ -43,7 +42,7 @@ class IDFInternalGPIOPin : public InternalGPIOPin {
 
  protected:
   static gpio_mode_t flags_to_mode_(gpio::Flags flags) {
-    flags = flags & ~(gpio::FLAG_PULLUP | gpio::FLAG_PULLDOWN);
+    flags = (gpio::Flags) (flags & ~(gpio::FLAG_PULLUP | gpio::FLAG_PULLDOWN));
     if (flags == gpio::FLAG_NONE) {
       return GPIO_MODE_DISABLE;
     } else if (flags == gpio::FLAG_INPUT) {
