@@ -14,7 +14,7 @@ extern uint8_t next_ledc_channel;
 
 class LEDCOutput : public output::FloatOutput, public Component {
  public:
-  explicit LEDCOutput(GPIOPin *pin) : pin_(pin) { this->channel_ = next_ledc_channel++; }
+  explicit LEDCOutput(InternalGPIOPin *pin) : pin_(pin) { this->channel_ = next_ledc_channel++; }
 
   void set_channel(uint8_t channel) { this->channel_ = channel; }
   void set_frequency(float frequency) { this->frequency_ = frequency; }
@@ -31,7 +31,7 @@ class LEDCOutput : public output::FloatOutput, public Component {
   void write_state(float state) override;
 
  protected:
-  GPIOPin *pin_;
+  InternalGPIOPin *pin_;
   uint8_t channel_{};
   uint8_t bit_depth_{};
   float frequency_{};

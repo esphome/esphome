@@ -177,7 +177,7 @@ bool WiFiComponent::wifi_sta_ip_config_(optional<ManualIP> manual_ip) {
   return ret;
 }
 
-IPAddress WiFiComponent::wifi_sta_ip_() {
+IPAddress WiFiComponent::wifi_sta_ip() {
   if (!this->has_sta())
     return {};
   struct ip_info ip {};

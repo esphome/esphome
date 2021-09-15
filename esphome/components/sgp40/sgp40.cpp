@@ -302,7 +302,7 @@ bool SGP40Component::read_data_(uint16_t *data, uint8_t len) {
   const uint8_t num_bytes = len * 3;
   std::vector<uint8_t> buf(num_bytes);
 
-  if (!this->parent_->raw_receive(this->address_, buf.data(), num_bytes)) {
+  if (this->read(buf.data(), num_bytes) != i2c::ERROR_OK) {
     return false;
   }
 

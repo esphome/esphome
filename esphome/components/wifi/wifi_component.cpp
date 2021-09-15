@@ -165,7 +165,7 @@ bool WiFiComponent::has_sta() const { return !this->sta_.empty(); }
 void WiFiComponent::set_fast_connect(bool fast_connect) { this->fast_connect_ = fast_connect; }
 network::IPAddress WiFiComponent::get_ip_address() {
   if (this->has_sta())
-    return this->wifi_sta_ip_();
+    return this->wifi_sta_ip();
   if (this->has_ap())
     return this->wifi_soft_ap_ip();
   return {};
@@ -344,10 +344,10 @@ const LogString *get_signal_bars(int8_t rssi) {
 }
 
 void WiFiComponent::print_connect_params_() {
-  bssid_t bssid = wifi_bssid_();
+  bssid_t bssid = wifi_bssid();
 
-  ESP_LOGCONFIG(TAG, "  SSID: " LOG_SECRET("'%s'"), wifi_ssid_().c_str());
-  ESP_LOGCONFIG(TAG, "  IP Address: %s", wifi_sta_ip_().str().c_str());
+  ESP_LOGCONFIG(TAG, "  SSID: " LOG_SECRET("'%s'"), wifi_ssid().c_str());
+  ESP_LOGCONFIG(TAG, "  IP Address: %s", wifi_sta_ip().str().c_str());
   ESP_LOGCONFIG(TAG, "  BSSID: " LOG_SECRET("%02X:%02X:%02X:%02X:%02X:%02X"), bssid[0], bssid[1], bssid[2], bssid[3],
                 bssid[4], bssid[5]);
   ESP_LOGCONFIG(TAG, "  Hostname: '%s'", App.get_name().c_str());
@@ -491,7 +491,7 @@ void WiFiComponent::check_connecting_finished() {
   auto status = this->wifi_sta_connect_status_();
 
   if (status == WiFiSTAConnectStatus::CONNECTED) {
-    if (wifi_ssid_() == "") {
+    if (wifi_ssid() == "") {
       ESP_LOGW(TAG, "Incomplete connection.");
       this->retry_connect();
       return;

@@ -13,8 +13,8 @@ namespace tm1651 {
 
 class TM1651Display : public Component {
  public:
-  void set_clk_pin(GPIOPin *pin) { clk_pin_ = pin; }
-  void set_dio_pin(GPIOPin *pin) { dio_pin_ = pin; }
+  void set_clk_pin(InternalGPIOPin *pin) { clk_pin_ = pin; }
+  void set_dio_pin(InternalGPIOPin *pin) { dio_pin_ = pin; }
 
   void setup() override;
   void dump_config() override;
@@ -28,8 +28,8 @@ class TM1651Display : public Component {
 
  protected:
   std::unique_ptr<TM1651> battery_display_;
-  GPIOPin *clk_pin_;
-  GPIOPin *dio_pin_;
+  InternalGPIOPin *clk_pin_;
+  InternalGPIOPin *dio_pin_;
   bool is_on_ = true;
 
   uint8_t brightness_;

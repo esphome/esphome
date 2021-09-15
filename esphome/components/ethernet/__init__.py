@@ -16,6 +16,7 @@ from esphome.const import (
     CONF_DNS2,
 )
 from esphome.core import CORE, coroutine_with_priority
+from esphome.components.network import IPAddress
 
 CONFLICTS_WITH = ["wifi"]
 DEPENDENCIES = ["esp32"]
@@ -54,7 +55,6 @@ MANUAL_IP_SCHEMA = cv.Schema(
 )
 
 EthernetComponent = ethernet_ns.class_("EthernetComponent", cg.Component)
-IPAddress = cg.global_ns.class_("IPAddress")
 ManualIP = ethernet_ns.struct("ManualIP")
 
 
@@ -74,10 +74,12 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(): cv.declare_id(EthernetComponent),
             cv.Required(CONF_TYPE): cv.enum(ETHERNET_TYPES, upper=True),
             cv.Required(CONF_MDC_PIN): pins.internal_gpio_output_pin_number,
-            cv.Required(CONF_MDIO_PIN): pins.internal_gpio_pin_number({
-                CONF_INPUT: True,
-                CONF_OUTPUT: True,
-            }),
+            cv.Required(CONF_MDIO_PIN): pins.internal_gpio_pin_number(
+                {
+                    CONF_INPUT: True,
+                    CONF_OUTPUT: True,
+                }
+            ),
             cv.Optional(CONF_CLK_MODE, default="GPIO0_IN"): cv.enum(
                 CLK_MODES, upper=True, space="_"
             ),

@@ -1,16 +1,20 @@
-#include "ble.h"
+#ifdef ARDUINO_ARCH_ESP32
 
+#include "ble.h"
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
-
-#ifdef ARDUINO_ARCH_ESP32
 
 #include <nvs_flash.h>
 #include <freertos/FreeRTOSConfig.h>
 #include <esp_bt_main.h>
 #include <esp_bt.h>
+#include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <esp_gap_ble_api.h>
+
+#ifdef USE_ARDUINO
+#include <esp32-hal-bt.h>
+#endif
 
 namespace esphome {
 namespace esp32_ble {

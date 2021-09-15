@@ -72,29 +72,36 @@ void UARTComponent::setup() {
   // Use Arduino HardwareSerial UARTs if all used pins match the ones
   // preconfigured by the platform. For example if RX disabled but TX pin
   // is 1 we still want to use Serial.
+  bool is_default_tx, is_default_rx;
 #ifdef CONFIG_IDF_TARGET_ESP32C3
-  if (this->tx_pin_.value_or(21) == 21 && this->rx_pin_.value_or(20) == 20) {
+  is_default_tx = tx_pin_ == nullptr || tx_pin_->get_pin() == 21;
+  is_default_rx = rx_pin_ == nullptr || rx_pin_->get_pin() == 20;
 #else
-  if (this->tx_pin_.value_or(1) == 1 && this->rx_pin_.value_or(3) == 3) {
+  is_default_tx = tx_pin_ == nullptr || tx_pin_->get_pin() == 1;
+  is_default_rx = rx_pin_ == nullptr || rx_pin_->get_pin() == 3;
 #endif
+  if (is_default_tx && is_default_rx) {
     this->hw_serial_ = &Serial;
   } else {
     static uint8_t next_uart_num = 1;
     this->hw_serial_ = new HardwareSerial(next_uart_num++);  // NOLINT(cppcoreguidelines-owning-memory)
   }
-  int8_t tx = this->tx_pin_.has_value() ? *this->tx_pin_ : -1;
-  int8_t rx = this->rx_pin_.has_value() ? *this->rx_pin_ : -1;
-  this->hw_serial_->begin(this->baud_rate_, get_config(), rx, tx, this->invert_);
+  int8_t tx = this->tx_pin_ != nullptr ? this->tx_pin_->get_pin() : -1;
+  int8_t rx = this->rx_pin_ != nullptr ? this->rx_pin_->get_pin() : -1;
+  bool invert = false;
+  if (tx_pin_ != nullptr && tx_pin_->is_inverted())
+    invert = true;
+  if (rx_pin_ != nullptr && rx_pin_->is_inverted())
+    invert = true;
+  this->hw_serial_->begin(this->baud_rate_, get_config(), rx, tx, invert);
   this->hw_serial_->setRxBufferSize(this->rx_buffer_size_);
 }
 
 void UARTComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "UART Bus:");
-  if (this->tx_pin_.has_value()) {
-    ESP_LOGCONFIG(TAG, "  TX Pin: GPIO%d", *this->tx_pin_);
-  }
-  if (this->rx_pin_.has_value()) {
-    ESP_LOGCONFIG(TAG, "  RX Pin: GPIO%d", *this->rx_pin_);
+  LOG_PIN("  TX Pin: ", tx_pin_);
+  LOG_PIN("  RX Pin: ", rx_pin_);
+  if (this->rx_pin_ != nullptr) {
     ESP_LOGCONFIG(TAG, "  RX Buffer Size: %u", this->rx_buffer_size_);
   }
   ESP_LOGCONFIG(TAG, "  Baud Rate: %u baud", this->baud_rate_);

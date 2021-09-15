@@ -4,8 +4,17 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/version.h"
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 #include <rom/rtc.h>
+#include <esp_idf_version.h>
+#endif
+
+#ifdef USE_ARDUINO
+#include <Esp.h>
+#endif
+
+#ifdef USE_ESP_IDF
+#include <esp_heap_caps.h>
 #endif
 
 namespace esphome {
@@ -21,9 +30,14 @@ void DebugComponent::dump_config() {
 #endif
 
   ESP_LOGD(TAG, "ESPHome version %s", ESPHOME_VERSION);
+#ifdef USE_ARDUINO
   this->free_heap_ = ESP.getFreeHeap();  // NOLINT(readability-static-accessed-through-instance)
+#elif defined(USE_ESP_IDF)
+  this->free_heap_ = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
+#endif
   ESP_LOGD(TAG, "Free Heap Size: %u bytes", this->free_heap_);
 
+#ifdef USE_ARDUINO
   const char *flash_mode;
   switch (ESP.getFlashChipMode()) {  // NOLINT(readability-static-accessed-through-instance)
     case FM_QIO:
@@ -52,8 +66,9 @@ void DebugComponent::dump_config() {
   // NOLINTNEXTLINE(readability-static-accessed-through-instance)
   ESP_LOGD(TAG, "Flash Chip: Size=%ukB Speed=%uMHz Mode=%s", ESP.getFlashChipSize() / 1024,
            ESP.getFlashChipSpeed() / 1000000, flash_mode);
+#endif  // USE_ARDUINO
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
   esp_chip_info_t info;
   esp_chip_info(&info);
   const char *model;
@@ -88,7 +103,9 @@ void DebugComponent::dump_config() {
 
   ESP_LOGD(TAG, "ESP-IDF Version: %s", esp_get_idf_version());
 
-  std::string mac = uint64_to_string(ESP.getEfuseMac());  // NOLINT(readability-static-accessed-through-instance)
+  uint64_t chip_mac = 0LL;
+  esp_efuse_mac_get_default((uint8_t*) (&chip_mac));
+  std::string mac = uint64_to_string(chip_mac);
   ESP_LOGD(TAG, "EFuse MAC: %s", mac.c_str());
 
   const char *reset_reason;
@@ -199,7 +216,11 @@ void DebugComponent::dump_config() {
 #endif
 }
 void DebugComponent::loop() {
+#ifdef USE_ARDUINO
   uint32_t new_free_heap = ESP.getFreeHeap();  // NOLINT(readability-static-accessed-through-instance)
+#elif defined(USE_ESP_IDF)
+  uint32_t new_free_heap = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
+#endif
   if (new_free_heap < this->free_heap_ / 2) {
     this->free_heap_ = new_free_heap;
     ESP_LOGD(TAG, "Free Heap Size: %u bytes", this->free_heap_);

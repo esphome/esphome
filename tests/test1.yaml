@@ -180,15 +180,18 @@ spi:
   miso_pin: GPIO23
 
 uart:
-  - tx_pin: GPIO22
-    rx_pin: GPIO23
+  - tx_pin:
+      number: GPIO22
+      inverted: yes
+    rx_pin:
+      number: GPIO23
+      inverted: yes
     baud_rate: 115200
     id: uart0
     parity: NONE
     data_bits: 8
     stop_bits: 1
     rx_buffer_size: 512
-    invert: false
 
   - id: adalight_uart
     tx_pin: GPIO25

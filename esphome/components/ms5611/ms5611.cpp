@@ -1,5 +1,6 @@
 #include "ms5611.h"
 #include "esphome/core/log.h"
+#include "esphome/core/hal.h"
 
 namespace esphome {
 namespace ms5611 {

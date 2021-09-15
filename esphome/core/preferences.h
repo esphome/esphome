@@ -44,7 +44,7 @@ class ESPPreferences {
      >::type = true
   >
   ESPPreferenceObject make_preference(uint32_t type, bool in_flash) {
-    return this->make_preference((sizeof(T) + 3) / 4, type, in_flash);
+    return this->make_preference(sizeof(T), type, in_flash);
   }
   template<
      typename T,
@@ -53,7 +53,7 @@ class ESPPreferences {
      >::type = true
   >
   ESPPreferenceObject make_preference(uint32_t type) {
-    return this->make_preference((sizeof(T) + 3) / 4, type);
+    return this->make_preference(sizeof(T), type);
   }
 };
 

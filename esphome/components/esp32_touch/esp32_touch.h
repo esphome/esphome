@@ -1,9 +1,16 @@
 #pragma once
 
+#ifdef ARDUINO_ARCH_ESP32
+
 #include "esphome/core/component.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
+#include <esp_idf_version.h>
 
-#ifdef ARDUINO_ARCH_ESP32
+#if ESP_IDF_VERSION_MAJOR >= 4
+#include <driver/touch_sensor.h>
+#else
+#include <driver/touch_pad.h>
+#endif
 
 namespace esphome {
 namespace esp32_touch {

@@ -1,6 +1,7 @@
 #include "st7735.h"
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/hal.h"
 
 namespace esphome {
 namespace st7735 {
@@ -348,17 +349,17 @@ void ST7735::display_init_(const uint8_t *addr) {
   uint8_t num_commands, cmd, num_args;
   uint16_t ms;
 
-  num_commands = pgm_read_byte(addr++);  // Number of commands to follow
+  num_commands = progmem_read_8(addr++);  // Number of commands to follow
   while (num_commands--) {               // For each command...
-    cmd = pgm_read_byte(addr++);         // Read command
-    num_args = pgm_read_byte(addr++);    // Number of args to follow
+    cmd = progmem_read_8(addr++);         // Read command
+    num_args = progmem_read_8(addr++);    // Number of args to follow
     ms = num_args & ST_CMD_DELAY;        // If hibit set, delay follows args
     num_args &= ~ST_CMD_DELAY;           // Mask out delay bit
     this->sendcommand_(cmd, addr, num_args);
     addr += num_args;
 
     if (ms) {
-      ms = pgm_read_byte(addr++);  // Read post-command delay time (ms)
+      ms = progmem_read_8(addr++);  // Read post-command delay time (ms)
       if (ms == 255)
         ms = 500;  // If 255, delay for 500 ms
       delay(ms);
@@ -405,7 +406,7 @@ void HOT ST7735::senddata_(const uint8_t *data_bytes, uint8_t num_data_bytes) {
   this->cs_->digital_write(false);
   this->enable();
   for (uint8_t i = 0; i < num_data_bytes; i++) {
-    this->write_byte(pgm_read_byte(data_bytes++));  // write byte - SPI library
+    this->write_byte(progmem_read_8(data_bytes++));  // write byte - SPI library
   }
   this->cs_->digital_write(true);
   this->disable();

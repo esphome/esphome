@@ -1,5 +1,6 @@
 #include "toshiba_ac_protocol.h"
 #include "esphome/core/log.h"
+#include <cinttypes>
 
 namespace esphome {
 namespace remote_base {

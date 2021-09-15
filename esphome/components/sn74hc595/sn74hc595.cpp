@@ -10,17 +10,17 @@ void SN74HC595Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up SN74HC595...");
 
   if (this->have_oe_pin_) {  // disable output
-    this->oe_pin_->pin_mode(OUTPUT);
+    this->oe_pin_->setup();
     this->oe_pin_->digital_write(true);
   }
 
   // initialize output pins
-  this->clock_pin_->pin_mode(OUTPUT);
-  this->data_pin_->pin_mode(OUTPUT);
-  this->latch_pin_->pin_mode(OUTPUT);
-  this->clock_pin_->digital_write(LOW);
-  this->data_pin_->digital_write(LOW);
-  this->latch_pin_->digital_write(LOW);
+  this->clock_pin_->setup();
+  this->data_pin_->setup();
+  this->latch_pin_->setup();
+  this->clock_pin_->digital_write(false);
+  this->data_pin_->digital_write(false);
+  this->latch_pin_->digital_write(false);
 
   // send state to shift register
   this->write_gpio_();

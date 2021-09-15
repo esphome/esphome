@@ -7,6 +7,7 @@ from esphome import pins, automation
 from esphome.const import (
     CONF_BAUD_RATE,
     CONF_ID,
+    CONF_NUMBER,
     CONF_RX_PIN,
     CONF_TX_PIN,
     CONF_UART_ID,
@@ -37,8 +38,8 @@ def validate_raw_data(value):
 
 
 def validate_rx_pin(value):
-    value = pins.internal_gpio_input_pin_number(value)
-    if CORE.is_esp8266 and value >= 16:
+    value = pins.internal_gpio_input_pin_schema(value)
+    if CORE.is_esp8266 and value[CONF_NUMBER] >= 16:
         raise cv.Invalid("Pins GPIO16 and GPIO17 cannot be used as RX pins on ESP8266.")
     return value
 
@@ -59,16 +60,16 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(UARTComponent),
             cv.Required(CONF_BAUD_RATE): cv.int_range(min=1),
-            cv.Optional(CONF_TX_PIN): pins.internal_gpio_output_pin_number,
+            cv.Optional(CONF_TX_PIN): pins.internal_gpio_output_pin_schema,
             cv.Optional(CONF_RX_PIN): validate_rx_pin,
             cv.Optional(CONF_RX_BUFFER_SIZE, default=256): cv.validate_bytes,
-            cv.SplitDefault(CONF_INVERT, esp32=False): cv.All(
-                cv.only_on_esp32, cv.boolean
-            ),
             cv.Optional(CONF_STOP_BITS, default=1): cv.one_of(1, 2, int=True),
             cv.Optional(CONF_DATA_BITS, default=8): cv.int_range(min=5, max=8),
             cv.Optional(CONF_PARITY, default="NONE"): cv.enum(
                 UART_PARITY_OPTIONS, upper=True
+            ),
+            cv.Optional(CONF_INVERT): cv.invalid(
+                "This option has been removed. Please instead use invert in the tx/rx pin schemas."
             ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
@@ -84,12 +85,12 @@ async def to_code(config):
     cg.add(var.set_baud_rate(config[CONF_BAUD_RATE]))
 
     if CONF_TX_PIN in config:
-        cg.add(var.set_tx_pin(config[CONF_TX_PIN]))
+        tx_pin = await cg.gpio_pin_expression(config[CONF_TX_PIN])
+        cg.add(var.set_tx_pin(tx_pin))
     if CONF_RX_PIN in config:
-        cg.add(var.set_rx_pin(config[CONF_RX_PIN]))
+        rx_pin = await cg.gpio_pin_expression(config[CONF_RX_PIN])
+        cg.add(var.set_rx_pin(rx_pin))
     cg.add(var.set_rx_buffer_size(config[CONF_RX_BUFFER_SIZE]))
-    if CONF_INVERT in config:
-        cg.add(var.set_invert(config[CONF_INVERT]))
     cg.add(var.set_stop_bits(config[CONF_STOP_BITS]))
     cg.add(var.set_data_bits(config[CONF_DATA_BITS]))
     cg.add(var.set_parity(config[CONF_PARITY]))

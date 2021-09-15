@@ -78,7 +78,7 @@ void CaptivePortal::start() {
 
   this->dns_server_ = make_unique<DNSServer>();
   this->dns_server_->setErrorReplyCode(DNSReplyCode::NoError);
-  IPAddress ip = wifi::global_wifi_component->wifi_soft_ap_ip();
+  network::IPAddress ip = wifi::global_wifi_component->wifi_soft_ap_ip();
   this->dns_server_->start(53, "*", ip);
 
   this->base_->get_server()->onNotFound([this](AsyncWebServerRequest *req) {

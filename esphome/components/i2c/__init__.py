@@ -108,5 +108,5 @@ async def register_i2c_device(var, config):
     This is a coroutine, you need to await it with a 'yield' expression!
     """
     parent = await cg.get_variable(config[CONF_I2C_ID])
-    cg.add(var.set_i2c_parent(parent))
+    cg.add(var.set_i2c_bus(parent))
     cg.add(var.set_i2c_address(config[CONF_ADDRESS]))

@@ -2,6 +2,10 @@
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 
+#ifdef USE_ESP32
+#include <esp_sleep.h>
+#endif
+
 namespace esphome {
 namespace shutdown {
 

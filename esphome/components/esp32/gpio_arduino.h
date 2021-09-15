@@ -29,6 +29,7 @@ class ArduinoInternalGPIOPin : public InternalGPIOPin {
   }
   ISRInternalGPIOPin to_isr() const override;
   uint8_t get_pin() const override { return pin_; }
+  bool is_inverted() const override { return inverted_; }
 
  protected:
   void attach_interrupt_(void (*func)(void *), void *arg, gpio::InterruptType type) const override;

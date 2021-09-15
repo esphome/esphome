@@ -3,10 +3,6 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/application.h"
 
-#ifdef USE_ESP_IDF
-#include <hal/cpu_hal.h>
-#endif
-
 namespace esphome {
 namespace spi {
 
@@ -30,19 +26,33 @@ void SPIComponent::setup() {
 
 #ifdef USE_SPI_ARDUINO_BACKEND
   bool use_hw_spi = true;
-  if (!this->clk_->is_internal() || this->clk_->is_inverted())
-    use_hw_spi = false;
   const bool has_miso = this->miso_ != nullptr;
   const bool has_mosi = this->mosi_ != nullptr;
-  if (has_miso && (this->miso_->is_inverted() || !this->miso_->is_internal()))
-    use_hw_spi = false;
-  if (has_mosi && (this->mosi_->is_inverted() || !this->mosi_->is_internal()))
-    use_hw_spi = false;
   int8_t clk_pin = -1, miso_pin = -1, mosi_pin = -1;
+
+  if (!this->clk_->is_internal())
+    use_hw_spi = false;
+  if (has_miso && !miso_->is_internal())
+    use_hw_spi = false;
+  if (has_mosi && !mosi_->is_internal())
+    use_hw_spi = false;
   if (use_hw_spi) {
-    clk_pin = ((InternalGPIOPin *) this->clk_)->get_pin();
-    miso_pin = has_miso ? ((InternalGPIOPin *) this->miso_)->get_pin() : -1;
-    mosi_pin = has_mosi ? ((InternalGPIOPin *) this->mosi_)->get_pin() : -1;
+    auto *clk_internal = (InternalGPIOPin *) clk_;
+    auto *miso_internal = (InternalGPIOPin *) miso_;
+    auto *mosi_internal = (InternalGPIOPin *) mosi_;
+
+    if (clk_internal->is_inverted())
+      use_hw_spi = false;
+    if (has_miso && miso_internal->is_inverted())
+      use_hw_spi = false;
+    if (has_mosi && mosi_internal->is_inverted())
+      use_hw_spi = false;
+
+    if (use_hw_spi) {
+      clk_pin = clk_internal->get_pin();
+      miso_pin = has_miso ? miso_internal->get_pin() : -1;
+      mosi_pin = has_mosi ? mosi_internal->get_pin() : -1;
+    }
   }
 #ifdef USE_ESP8266
   if (clk_pin == 6 && miso_pin == 7 && mosi_pin == 8) {
@@ -99,25 +109,13 @@ void SPIComponent::dump_config() {
 float SPIComponent::get_setup_priority() const { return setup_priority::BUS; }
 
 void SPIComponent::cycle_clock_(bool value) {
-#if defined(USE_ESP8266) || defined(USE_ESP32_FRAMEWORK_ARDUINO)
-  uint32_t start = ESP.getCycleCount();                    // NOLINT(readability-static-accessed-through-instance)
-  while (start - ESP.getCycleCount() < this->wait_cycle_)  // NOLINT(readability-static-accessed-through-instance)
+  uint32_t start = arch_get_cpu_cycle_count();
+  while (start - arch_get_cpu_cycle_count() < this->wait_cycle_)
     ;
   this->clk_->digital_write(value);
   start += this->wait_cycle_;
-  while (start - ESP.getCycleCount() < this->wait_cycle_)  // NOLINT(readability-static-accessed-through-instance)
+  while (start - arch_get_cpu_cycle_count() < this->wait_cycle_)
     ;
-#elif defined(USE_ESP_IDF)
-  uint32_t start = cpu_hal_get_cycle_count();
-  while (start - cpu_hal_get_cycle_count() < this->wait_cycle_)
-    ;
-  this->clk_->digital_write(value);
-  start += this->wait_cycle_;
-  while (start - cpu_hal_get_cycle_count() < this->wait_cycle_)
-    ;
-#else
-#error "No cycle source implemented"
-#endif
 }
 
 // NOLINTNEXTLINE

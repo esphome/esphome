@@ -1,5 +1,7 @@
 #include "qmc5883l.h"
 #include "esphome/core/log.h"
+#include "esphome/core/hal.h"
+#include <cmath>
 
 namespace esphome {
 namespace qmc5883l {

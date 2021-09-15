@@ -32,6 +32,7 @@ from esphome.const import (
     CONF_EAP,
 )
 from esphome.core import CORE, HexInt, coroutine_with_priority
+from esphome.components.network import IPAddress
 from . import wpa2_eap
 
 
@@ -39,7 +40,6 @@ AUTO_LOAD = ["network"]
 
 wifi_ns = cg.esphome_ns.namespace("wifi")
 EAPAuth = wifi_ns.struct("EAPAuth")
-IPAddress = cg.global_ns.class_("IPAddress")
 ManualIP = wifi_ns.struct("ManualIP")
 WiFiComponent = wifi_ns.class_("WiFiComponent", cg.Component)
 WiFiAP = wifi_ns.struct("WiFiAP")

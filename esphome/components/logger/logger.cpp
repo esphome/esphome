@@ -9,6 +9,7 @@
 #include <esp_log.h>
 #endif
 #include "esphome/core/log.h"
+#include "esphome/core/hal.h"
 
 namespace esphome {
 namespace logger {
@@ -72,7 +73,7 @@ void Logger::log_vprintf_(int level, const char *tag, int line, const __FlashStr
   size_t len = 0;
   char ch = '.';
   while (!this->is_buffer_full_() && ch != '\0') {
-    this->tx_buffer_[this->tx_buffer_at_++] = ch = pgm_read_byte(format_pgm_p++);
+    this->tx_buffer_[this->tx_buffer_at_++] = ch = progmem_read_8(format_pgm_p++);
   }
   // Buffer full form copying format
   if (this->is_buffer_full_())

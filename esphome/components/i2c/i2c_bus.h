@@ -11,7 +11,8 @@ enum ErrorCode {
   ERROR_NOT_ACKNOWLEDGED = 2,
   ERROR_TIMEOUT = 3,
   ERROR_NOT_INITIALIZED = 4,
-  ERROR_UNKNOWN = 5,
+  ERROR_TOO_LARGE = 5,
+  ERROR_UNKNOWN = 6,
 };
 
 struct ReadBuffer {

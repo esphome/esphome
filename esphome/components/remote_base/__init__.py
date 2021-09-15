@@ -1098,15 +1098,13 @@ MIDEA_SCHEMA = cv.Schema(
             [cv.Any(cv.hex_uint8_t, cv.uint8_t)],
             cv.Length(min=5, max=5),
         ),
-        cv.GenerateID(CONF_CODE_STORAGE_ID): cv.declare_id(cg.uint8),
     }
 )
 
 
 @register_binary_sensor("midea", MideaBinarySensor, MIDEA_SCHEMA)
 def midea_binary_sensor(var, config):
-    arr_ = cg.progmem_array(config[CONF_CODE_STORAGE_ID], config[CONF_CODE])
-    cg.add(var.set_code(arr_))
+    cg.add(var.set_code(config[CONF_CODE]))
 
 
 @register_trigger("midea", MideaTrigger, MideaData)
@@ -1125,5 +1123,4 @@ def midea_dumper(var, config):
     MIDEA_SCHEMA,
 )
 async def midea_action(var, config, args):
-    arr_ = cg.progmem_array(config[CONF_CODE_STORAGE_ID], config[CONF_CODE])
-    cg.add(var.set_code(arr_))
+    cg.add(var.set_code(config[CONF_CODE]))

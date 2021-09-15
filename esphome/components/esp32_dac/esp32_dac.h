@@ -12,7 +12,7 @@ namespace esp32_dac {
 
 class ESP32DAC : public output::FloatOutput, public Component {
  public:
-  void set_pin(GPIOPin *pin) { pin_ = pin; }
+  void set_pin(InternalGPIOPin *pin) { pin_ = pin; }
 
   /// Initialize pin
   void setup() override;
@@ -23,7 +23,7 @@ class ESP32DAC : public output::FloatOutput, public Component {
  protected:
   void write_state(float state) override;
 
-  GPIOPin *pin_;
+  InternalGPIOPin *pin_;
 };
 
 }  // namespace esp32_dac

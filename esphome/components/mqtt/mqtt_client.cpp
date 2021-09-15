@@ -60,7 +60,7 @@ void MQTTClientComponent::setup() {
 void MQTTClientComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "MQTT:");
   ESP_LOGCONFIG(TAG, "  Server Address: %s:%u (%s)", this->credentials_.address.c_str(), this->credentials_.port,
-                this->ip_.toString().c_str());
+                this->ip_.str().c_str());
   ESP_LOGCONFIG(TAG, "  Username: " LOG_SECRET("'%s'"), this->credentials_.username.c_str());
   ESP_LOGCONFIG(TAG, "  Client ID: " LOG_SECRET("'%s'"), this->credentials_.client_id.c_str());
   if (!this->discovery_info_.prefix.empty()) {
@@ -100,10 +100,10 @@ void MQTTClientComponent::start_dnslookup_() {
       // Got IP immediately
       this->dns_resolved_ = true;
 #ifdef ARDUINO_ARCH_ESP32
-      this->ip_ = IPAddress(addr.u_addr.ip4.addr);
+      this->ip_ = addr.u_addr.ip4.addr;
 #endif
 #ifdef ARDUINO_ARCH_ESP8266
-      this->ip_ = IPAddress(addr.addr);
+      this->ip_ = addr.addr;
 #endif
       this->start_connect_();
       return;
@@ -143,7 +143,7 @@ void MQTTClientComponent::check_dnslookup_() {
     return;
   }
 
-  ESP_LOGD(TAG, "Resolved broker IP address to %s", this->ip_.toString().c_str());
+  ESP_LOGD(TAG, "Resolved broker IP address to %s", this->ip_.str().c_str());
   this->start_connect_();
 }
 #if defined(ARDUINO_ARCH_ESP8266) && LWIP_VERSION_MAJOR == 1
@@ -156,10 +156,10 @@ void MQTTClientComponent::dns_found_callback(const char *name, const ip_addr_t *
     a_this->dns_resolve_error_ = true;
   } else {
 #ifdef ARDUINO_ARCH_ESP32
-    a_this->ip_ = IPAddress(ipaddr->u_addr.ip4.addr);
+    a_this->ip_ = ipaddr->u_addr.ip4.addr;
 #endif
 #ifdef ARDUINO_ARCH_ESP8266
-    a_this->ip_ = IPAddress(ipaddr->addr);
+    a_this->ip_ = ipaddr->addr;
 #endif
     a_this->dns_resolved_ = true;
   }
@@ -183,7 +183,7 @@ void MQTTClientComponent::start_connect_() {
 
   this->mqtt_client_.setCredentials(username, password);
 
-  this->mqtt_client_.setServer(this->ip_, this->credentials_.port);
+  this->mqtt_client_.setServer((uint32_t) this->ip_, this->credentials_.port);
   if (!this->last_will_.topic.empty()) {
     this->mqtt_client_.setWill(this->last_will_.topic.c_str(), this->last_will_.qos, this->last_will_.retain,
                                this->last_will_.payload.c_str(), this->last_will_.payload.length());

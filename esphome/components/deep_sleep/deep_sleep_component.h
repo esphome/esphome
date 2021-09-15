@@ -5,6 +5,10 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/hal.h"
 
+#ifdef USE_ESP32
+#include <esp_sleep.h>
+#endif
+
 namespace esphome {
 namespace deep_sleep {
 
@@ -48,7 +52,7 @@ class DeepSleepComponent : public Component {
   /** Set the pin to wake up to on the ESP32 once it's in deep sleep mode.
    * Use the inverted property to set the wakeup level.
    */
-  void set_wakeup_pin(GPIOPin *pin) { this->wakeup_pin_ = pin; }
+  void set_wakeup_pin(InternalGPIOPin *pin) { this->wakeup_pin_ = pin; }
 
   void set_wakeup_pin_mode(WakeupPinMode wakeup_pin_mode);
 
@@ -71,7 +75,7 @@ class DeepSleepComponent : public Component {
  protected:
   optional<uint64_t> sleep_duration_;
 #ifdef ARDUINO_ARCH_ESP32
-  optional<GPIOPin *> wakeup_pin_;
+  InternalGPIOPin *wakeup_pin_;
   WakeupPinMode wakeup_pin_mode_{WAKEUP_PIN_MODE_IGNORE};
   optional<Ext1Wakeup> ext1_wakeup_;
 #endif

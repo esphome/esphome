@@ -83,7 +83,7 @@ bool HOT IRAM_ATTR DHT::read_sensor_(float *temperature, float *humidity, bool r
     InterruptLock lock;
 
     this->pin_->digital_write(false);
-    this->pin_->pin_mode(OUTPUT);
+    this->pin_->pin_mode(gpio::FLAG_OUTPUT);
     this->pin_->digital_write(false);
 
     if (this->model_ == DHT_MODEL_DHT11) {
@@ -99,7 +99,7 @@ bool HOT IRAM_ATTR DHT::read_sensor_(float *temperature, float *humidity, bool r
     } else {
       delayMicroseconds(800);
     }
-    this->pin_->pin_mode(INPUT_PULLUP);
+    this->pin_->pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP);
 
     // Host pull up 20-40us then DHT response 80us
     // Start waiting for initial rising edge at the center when we

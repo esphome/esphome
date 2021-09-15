@@ -1,8 +1,14 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
 #include "preferences.h"
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+#include <esp_idf_version.h>
+#include <soc/rtc.h>
+
+#if ESP_IDF_VERSION_MAJOR >= 4
+#include <hal/cpu_hal.h>
+#endif
 
 void setup();
 void loop();
@@ -35,6 +41,28 @@ void arch_restart() {
 void IRAM_ATTR HOT arch_feed_wdt() {
   // TODO: copy comment from app_esp32.cpp
   delay(1);
+}
+
+uint8_t progmem_read_8(const uint8_t *addr) {
+  return *addr;
+}
+uint16_t progmem_read_16(const uint16_t *addr) {
+  return *addr;
+}
+uint32_t progmem_read_32(const uint32_t *addr) {
+  return *addr;
+}
+uint32_t arch_get_cpu_cycle_count() {
+#if ESP_IDF_VERSION_MAJOR >= 4
+  return cpu_hal_get_cycle_count();
+#else
+  uint32_t ccount;
+  __asm__ __volatile__("esync; rsr %0,ccount":"=a" (ccount));
+  return ccount;
+#endif
+}
+uint32_t arch_get_cpu_freq_hz() {
+  return rtc_clk_apb_freq_get();
 }
 
 #ifdef USE_ESP_IDF

@@ -146,7 +146,7 @@ bool WiFiComponent::wifi_sta_ip_config_(optional<ManualIP> manual_ip) {
   return true;
 }
 
-network::IPAddress WiFiComponent::wifi_sta_ip_() {
+network::IPAddress WiFiComponent::wifi_sta_ip() {
   if (!this->has_sta())
     return {};
   tcpip_adapter_ip_info_t ip;
@@ -735,7 +735,7 @@ network::IPAddress WiFiComponent::wifi_soft_ap_ip() {
 }
 bool WiFiComponent::wifi_disconnect_() { return esp_wifi_disconnect(); }
 
-bssid_t WiFiComponent::wifi_bssid_() {
+bssid_t WiFiComponent::wifi_bssid() {
   bssid_t bssid{};
   uint8_t *raw_bssid = WiFi.BSSID();
   if (raw_bssid != nullptr) {
@@ -744,7 +744,7 @@ bssid_t WiFiComponent::wifi_bssid_() {
   }
   return bssid;
 }
-std::string WiFiComponent::wifi_ssid_() {
+std::string WiFiComponent::wifi_ssid() {
   return WiFi.SSID().c_str();
 }
 int8_t WiFiComponent::wifi_rssi_() {

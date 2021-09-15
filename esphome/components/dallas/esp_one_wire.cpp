@@ -16,7 +16,7 @@ bool HOT IRAM_ATTR ESPOneWire::reset() {
   uint8_t retries = 125;
 
   // Wait for communication to clear
-  this->pin_->pin_mode(INPUT_PULLUP);
+  this->pin_->pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP);
   do {
     if (--retries == 0)
       return false;
@@ -24,12 +24,12 @@ bool HOT IRAM_ATTR ESPOneWire::reset() {
   } while (!this->pin_->digital_read());
 
   // Send 480µs LOW TX reset pulse
-  this->pin_->pin_mode(OUTPUT);
+  this->pin_->pin_mode(gpio::FLAG_OUTPUT);
   this->pin_->digital_write(false);
   delayMicroseconds(480);
 
   // Switch into RX mode, letting the pin float
-  this->pin_->pin_mode(INPUT_PULLUP);
+  this->pin_->pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP);
   // after 15µs-60µs wait time, responder pulls low for 60µs-240µs
   // let's have 70µs just in case
   delayMicroseconds(70);
@@ -41,7 +41,7 @@ bool HOT IRAM_ATTR ESPOneWire::reset() {
 
 void HOT IRAM_ATTR ESPOneWire::write_bit(bool bit) {
   // Initiate write/read by pulling low.
-  this->pin_->pin_mode(OUTPUT);
+  this->pin_->pin_mode(gpio::FLAG_OUTPUT);
   this->pin_->digital_write(false);
 
   // bus sampled within 15µs and 60µs after pulling LOW.
@@ -62,12 +62,12 @@ void HOT IRAM_ATTR ESPOneWire::write_bit(bool bit) {
 
 bool HOT IRAM_ATTR ESPOneWire::read_bit() {
   // Initiate read slot by pulling LOW for at least 1µs
-  this->pin_->pin_mode(OUTPUT);
+  this->pin_->pin_mode(gpio::FLAG_OUTPUT);
   this->pin_->digital_write(false);
   delayMicroseconds(3);
 
   // release bus, we have to sample within 15µs of pulling low
-  this->pin_->pin_mode(INPUT_PULLUP);
+  this->pin_->pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP);
   delayMicroseconds(10);
 
   bool r = this->pin_->digital_read();

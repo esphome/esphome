@@ -39,6 +39,7 @@ class IDFInternalGPIOPin : public InternalGPIOPin {
   }
   ISRInternalGPIOPin to_isr() const override;
   uint8_t get_pin() const override { return (uint8_t) pin_; }
+  bool is_inverted() const override { return inverted_; }
 
  protected:
   static gpio_mode_t flags_to_mode_(gpio::Flags flags) {

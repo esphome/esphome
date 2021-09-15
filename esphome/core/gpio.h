@@ -71,13 +71,14 @@ class GPIOPin {
 /// Copy of GPIOPin that is safe to use from ISRs (with no virtual functions)
 class ISRInternalGPIOPin {
  public:
+  ISRInternalGPIOPin() = default;
   ISRInternalGPIOPin(void *arg) : arg_(arg) {}
   bool digital_read();
   void digital_write(bool value);
   void clear_interrupt();
 
  protected:
-  void *arg_;
+  void *arg_ = nullptr;
 };
 
 class InternalGPIOPin : public GPIOPin {
@@ -94,6 +95,8 @@ class InternalGPIOPin : public GPIOPin {
   virtual uint8_t get_pin() const = 0;
 
   bool is_internal() override { return true; }
+
+  virtual bool is_inverted() const = 0;
 
  protected:
   virtual void attach_interrupt_(void (*func)(void *), void *arg, gpio::InterruptType type) const = 0;

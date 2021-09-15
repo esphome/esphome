@@ -5,6 +5,7 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/log.h"
 #include "esphome/components/json/json_util.h"
+#include "esphome/components/network/ip_address.h"
 #include <AsyncMqttClient.h>
 #include "lwip/ip_addr.h"
 
@@ -265,7 +266,7 @@ class MQTTClientComponent : public Component {
   std::vector<MQTTSubscription> subscriptions_;
   AsyncMqttClient mqtt_client_;
   MQTTClientState state_{MQTT_CLIENT_DISCONNECTED};
-  IPAddress ip_;
+  network::IPAddress ip_;
   bool dns_resolved_{false};
   bool dns_resolve_error_{false};
   std::vector<MQTTComponent *> children_;

@@ -1,17 +1,22 @@
+#ifdef ARDUINO_ARCH_ESP32
+
 #include "esp32_ble_tracker.h"
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 
-#ifdef ARDUINO_ARCH_ESP32
-
 #include <nvs_flash.h>
 #include <freertos/FreeRTOSConfig.h>
 #include <esp_bt_main.h>
 #include <esp_bt.h>
+#include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <esp_gap_ble_api.h>
 #include <esp_bt_defs.h>
+
+#ifdef USE_ARDUINO
+#include <esp32-hal-bt.h>
+#endif
 
 // bt_trace.h
 #undef TAG

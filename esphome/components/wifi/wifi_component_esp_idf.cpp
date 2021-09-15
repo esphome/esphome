@@ -448,7 +448,7 @@ bool WiFiComponent::wifi_sta_ip_config_(optional<ManualIP> manual_ip) {
   return true;
 }
 
-network::IPAddress WiFiComponent::wifi_sta_ip_() {
+network::IPAddress WiFiComponent::wifi_sta_ip() {
   if (!this->has_sta())
     return {};
   tcpip_adapter_ip_info_t ip;
@@ -838,7 +838,7 @@ network::IPAddress WiFiComponent::wifi_soft_ap_ip() {
 }
 bool WiFiComponent::wifi_disconnect_() { return esp_wifi_disconnect(); }
 
-bssid_t WiFiComponent::wifi_bssid_() {
+bssid_t WiFiComponent::wifi_bssid() {
   wifi_ap_record_t info;
   esp_err_t err = esp_wifi_sta_get_ap_info(&info);
   bssid_t res{};
@@ -849,7 +849,7 @@ bssid_t WiFiComponent::wifi_bssid_() {
   std::copy(info.bssid, info.bssid + 6, res.begin());
   return res;
 }
-std::string WiFiComponent::wifi_ssid_() {
+std::string WiFiComponent::wifi_ssid() {
   wifi_ap_record_t info{};
   esp_err_t err = esp_wifi_sta_get_ap_info(&info);
   if (err != ESP_OK) {

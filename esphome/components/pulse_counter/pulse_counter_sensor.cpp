@@ -44,7 +44,7 @@ pulse_counter_t PulseCounterStorage::read_raw_value() {
 #endif
 
 #ifdef ARDUINO_ARCH_ESP32
-bool PulseCounterStorage::pulse_counter_setup(GPIOPin *pin) {
+bool PulseCounterStorage::pulse_counter_setup(InternalGPIOPin *pin) {
   static pcnt_unit_t next_pcnt_unit = PCNT_UNIT_0;
   this->pin = pin;
   this->pin->setup();

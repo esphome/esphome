@@ -39,7 +39,7 @@ void ArduinoI2CBus::dump_config() {
       if (err == ERROR_OK) {
         ESP_LOGI(TAG, "Found i2c device at address 0x%02X", address);
         found++;
-      } else if (error == ERROR_UNKNOWN) {
+      } else if (err == ERROR_UNKNOWN) {
         ESP_LOGI(TAG, "Unknown error at address 0x%02X", address);
       }
     }
@@ -54,7 +54,10 @@ ErrorCode ArduinoI2CBus::readv(uint8_t address, ReadBuffer *buffers, size_t cnt)
   size_t to_request = 0;
   for (size_t i = 0; i < cnt; i++)
     to_request += buffers[i].len;
-  size_t ret = wire_->requestFrom(address, to_request, true);
+  if (to_request > 255) {
+    return ERROR_TOO_LARGE;
+  }
+  size_t ret = wire_->requestFrom(address, (uint8_t) to_request, true);
   if (ret != to_request) {
     return ERROR_TIMEOUT;
   }
@@ -84,11 +87,11 @@ ErrorCode ArduinoI2CBus::writev(uint8_t address, WriteBuffer *buffers, size_t cn
     return ERROR_OK;
   } else if (status == 1) {
     // transmit buffer not large enough
-    return ERRORK_UNKNOWN;
+    return ERROR_UNKNOWN;
   } else if (status == 2 || status == 3) {
     return ERROR_NOT_ACKNOWLEDGED;
   }
-  return ERRORK_UNKNOWN;
+  return ERROR_UNKNOWN;
 }
 
 }  // namespace i2c

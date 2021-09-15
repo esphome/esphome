@@ -4,6 +4,8 @@ from esphome.components.light.types import AddressableLightEffect
 from esphome.components.light.effects import register_addressable_effect
 from esphome.const import CONF_ID, CONF_NAME, CONF_METHOD, CONF_CHANNELS
 
+DEPENDENCIES = ["network"]
+
 e131_ns = cg.esphome_ns.namespace("e131")
 E131AddressableLightEffect = e131_ns.class_(
     "E131AddressableLightEffect", AddressableLightEffect

@@ -12,10 +12,6 @@
 #include <SPI.h>
 #endif
 
-#ifdef USE_ESP_IDF
-#include <soc/rtc.h>
-#endif
-
 namespace esphome {
 namespace spi {
 
@@ -205,14 +201,7 @@ class SPIComponent : public Component {
     } else {
 #endif  // USE_SPI_ARDUINO_BACKEND
       this->clk_->digital_write(CLOCK_POLARITY);
-      uint32_t cpu_freq_hz;
-#ifdef F_CPU
-      cpu_freq_hz = F_CPU;
-#elif defined(USE_ESP_IDF)
-      cpu_freq_hz = rtc_clk_apb_freq_get();
-#else
-#error "Could not determine CPU frequency"
-#endif
+      uint32_t cpu_freq_hz = arch_get_cpu_freq_hz();
       this->wait_cycle_ = uint32_t(cpu_freq_hz) / DATA_RATE / 2ULL;
 #ifdef USE_SPI_ARDUINO_BACKEND
     }

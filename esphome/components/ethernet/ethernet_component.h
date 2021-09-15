@@ -19,11 +19,11 @@ enum EthernetType {
 };
 
 struct ManualIP {
-  IPAddress static_ip;
-  IPAddress gateway;
-  IPAddress subnet;
-  IPAddress dns1;  ///< The first DNS server. 0.0.0.0 for default.
-  IPAddress dns2;  ///< The second DNS server. 0.0.0.0 for default.
+  network::IPAddress static_ip;
+  network::IPAddress gateway;
+  network::IPAddress subnet;
+  network::IPAddress dns1;  ///< The first DNS server. 0.0.0.0 for default.
+  network::IPAddress dns2;  ///< The second DNS server. 0.0.0.0 for default.
 };
 
 enum class EthernetComponentState {
@@ -50,7 +50,7 @@ class EthernetComponent : public Component {
   void set_clk_mode(eth_clock_mode_t clk_mode);
   void set_manual_ip(const ManualIP &manual_ip);
 
-  IPAddress get_ip_address();
+  network::IPAddress get_ip_address();
   std::string get_use_address() const;
   void set_use_address(const std::string &use_address);
 

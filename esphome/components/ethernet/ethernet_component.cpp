@@ -131,10 +131,10 @@ void EthernetComponent::dump_config() {
 }
 float EthernetComponent::get_setup_priority() const { return setup_priority::WIFI; }
 bool EthernetComponent::can_proceed() { return this->is_connected(); }
-IPAddress EthernetComponent::get_ip_address() {
+network::IPAddress EthernetComponent::get_ip_address() {
   tcpip_adapter_ip_info_t ip;
   tcpip_adapter_get_ip_info(TCPIP_ADAPTER_IF_ETH, &ip);
-  return IPAddress(ip.ip.addr);
+  return {ip.ip.addr};
 }
 
 void EthernetComponent::on_wifi_event_(system_event_id_t event, system_event_info_t info) {
@@ -229,10 +229,10 @@ bool EthernetComponent::is_connected() { return this->state_ == EthernetComponen
 void EthernetComponent::dump_connect_params_() {
   tcpip_adapter_ip_info_t ip;
   tcpip_adapter_get_ip_info(TCPIP_ADAPTER_IF_ETH, &ip);
-  ESP_LOGCONFIG(TAG, "  IP Address: %s", IPAddress(ip.ip.addr).toString().c_str());
+  ESP_LOGCONFIG(TAG, "  IP Address: %s", network::IPAddress(ip.ip.addr).str().c_str());
   ESP_LOGCONFIG(TAG, "  Hostname: '%s'", App.get_name().c_str());
-  ESP_LOGCONFIG(TAG, "  Subnet: %s", IPAddress(ip.netmask.addr).toString().c_str());
-  ESP_LOGCONFIG(TAG, "  Gateway: %s", IPAddress(ip.gw.addr).toString().c_str());
+  ESP_LOGCONFIG(TAG, "  Subnet: %s", network::IPAddress(ip.netmask.addr).str().c_str());
+  ESP_LOGCONFIG(TAG, "  Gateway: %s", network::IPAddress(ip.gw.addr).str().c_str());
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(3, 3, 4)
   const ip_addr_t *dns_ip1 = dns_getserver(0);
@@ -243,8 +243,8 @@ void EthernetComponent::dump_connect_params_() {
   ip_addr_t tmp_ip2 = dns_getserver(1);
   const ip_addr_t *dns_ip2 = &tmp_ip2;
 #endif
-  ESP_LOGCONFIG(TAG, "  DNS1: %s", IPAddress(dns_ip1->u_addr.ip4.addr).toString().c_str());
-  ESP_LOGCONFIG(TAG, "  DNS2: %s", IPAddress(dns_ip2->u_addr.ip4.addr).toString().c_str());
+  ESP_LOGCONFIG(TAG, "  DNS1: %s", network::IPAddress(dns_ip1->u_addr.ip4.addr).str().c_str());
+  ESP_LOGCONFIG(TAG, "  DNS2: %s", network::IPAddress(dns_ip2->u_addr.ip4.addr).str().c_str());
   uint8_t mac[6];
   esp_eth_get_mac(mac);
   ESP_LOGCONFIG(TAG, "  MAC Address: %02X:%02X:%02X:%02X:%02X:%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);

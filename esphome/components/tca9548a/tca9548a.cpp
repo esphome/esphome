@@ -38,7 +38,7 @@ i2c::ErrorCode TCA9548AComponent::switch_to_channel(uint8_t channel) {
   if (this->is_failed())
     return i2c::ERROR_NOT_INITIALIZED;
   if (current_channel_ == channel)
-    return;
+    return i2c::ERROR_OK;
 
   uint8_t channel_val = 1 << channel;
   auto err = this->write_register(0x70, &channel_val, 1);
