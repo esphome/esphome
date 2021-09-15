@@ -7,7 +7,7 @@ namespace total_daily_energy {
 static const char *const TAG = "total_daily_energy";
 
 void TotalDailyEnergy::setup() {
-  this->pref_ = global_preferences.make_preference<float>(this->get_object_id_hash());
+  this->pref_ = global_preferences->make_preference<float>(this->get_object_id_hash());
 
   float recovered;
   if (this->pref_.load(&recovered)) {

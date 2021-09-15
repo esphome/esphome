@@ -55,7 +55,7 @@ void SGP40Component::setup() {
     // Hash with compilation time
     // This ensures the baseline storage is cleared after OTA
     uint32_t hash = fnv1_hash(App.get_compilation_time());
-    this->pref_ = global_preferences.make_preference<SGP40Baselines>(hash, true);
+    this->pref_ = global_preferences->make_preference<SGP40Baselines>(hash, true);
 
     if (this->pref_.load(&this->baselines_storage_)) {
       this->state0_ = this->baselines_storage_.state0;

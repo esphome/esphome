@@ -119,7 +119,7 @@ class Switch : public Nameable {
   CallbackManager<void(bool)> state_callback_{};
   bool inverted_{false};
   Deduplicator<bool> publish_dedup_;
-  std::unique_ptr<Preference> pref_;
+  ESPPreferenceObject rtc_;
 };
 
 }  // namespace switch_

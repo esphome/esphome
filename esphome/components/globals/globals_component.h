@@ -20,7 +20,7 @@ template<typename T> class GlobalsComponent : public Component {
 
   void setup() override {
     if (this->restore_value_) {
-      this->rtc_ = global_preferences.make_preference<T>(1944399030U ^ this->name_hash_);
+      this->rtc_ = global_preferences->make_preference<T>(1944399030U ^ this->name_hash_);
       this->rtc_.load(&this->value_);
     }
     memcpy(&this->prev_value_, &this->value_, sizeof(T));

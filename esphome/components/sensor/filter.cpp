@@ -1,6 +1,7 @@
 #include "filter.h"
 #include "sensor.h"
 #include "esphome/core/log.h"
+#include "esphome/core/esphal.h"
 
 namespace esphome {
 namespace sensor {

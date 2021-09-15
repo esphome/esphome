@@ -4,6 +4,7 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/automation.h"
+#include "esphome/core/esphal.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
 
 namespace esphome {

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/core/helpers.h"
+#include "esphome/core/esphal.h"
 #include "light_color_values.h"
 
 namespace esphome {

@@ -84,7 +84,7 @@ void SGP30Component::setup() {
   // Hash with compilation time
   // This ensures the baseline storage is cleared after OTA
   uint32_t hash = fnv1_hash(App.get_compilation_time());
-  this->pref_ = global_preferences.make_preference<SGP30Baselines>(hash, true);
+  this->pref_ = global_preferences->make_preference<SGP30Baselines>(hash, true);
 
   if (this->pref_.load(&this->baselines_storage_)) {
     ESP_LOGI(TAG, "Loaded eCO2 baseline: 0x%04X, TVOC baseline: 0x%04X", this->baselines_storage_.eco2,

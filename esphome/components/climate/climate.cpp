@@ -319,7 +319,7 @@ static const uint32_t RESTORE_STATE_VERSION = 0x848EA6ADUL;
 
 optional<ClimateDeviceRestoreState> Climate::restore_state_() {
   this->rtc_ =
-      global_preferences.make_preference<ClimateDeviceRestoreState>(this->get_object_id_hash() ^ RESTORE_STATE_VERSION);
+      global_preferences->make_preference<ClimateDeviceRestoreState>(this->get_object_id_hash() ^ RESTORE_STATE_VERSION);
   ClimateDeviceRestoreState recovered{};
   if (!this->rtc_.load(&recovered))
     return {};
@@ -327,8 +327,6 @@ optional<ClimateDeviceRestoreState> Climate::restore_state_() {
 }
 void Climate::save_state_() {
   ClimateDeviceRestoreState state{};
-  // initialize as zero to prevent random data on stack triggering erase
-  memset(&state, 0, sizeof(ClimateDeviceRestoreState));
 
   state.mode = this->mode;
   auto traits = this->get_traits();

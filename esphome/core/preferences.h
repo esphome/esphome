@@ -1,39 +1,62 @@
 #pragma once
 
 #include <cstring>
-#include <memory>
-#include <string>
+#include <cstdint>
 #include <type_traits>
 
 namespace esphome {
 
-class Preference {
+class ESPPreferenceBackend {
  public:
-  template<typename T> bool save(const T *data) {
-    return this->save_(reinterpret_cast<const uint8_t *>(data), sizeof(T));
+  virtual bool save(const uint8_t *data, size_t len) = 0;
+  virtual bool load(uint8_t *data, size_t len) = 0;
+};
+
+class ESPPreferenceObject {
+ public:
+  ESPPreferenceObject() = default;
+  ESPPreferenceObject(ESPPreferenceBackend *backend) : backend_(backend) {}
+
+  template<typename T> bool save(const T *src) {
+    if (backend_ == nullptr)
+      return false;
+    return backend_->save(reinterpret_cast<const uint8_t *>(src), sizeof(T));
   }
-  template<typename T> bool load(T *data) {
-    return this->load_(reinterpret_cast<uint8_t *>(data), sizeof(T));
+
+  template<typename T> bool load(T *dest) {
+    if (backend_ == nullptr)
+      return false;
+    return backend_->load(reinterpret_cast<uint8_t *>(dest), sizeof(T));
   }
+
  protected:
-  virtual bool save_(const uint8_t *data, size_t len) = 0;
-  virtual bool load_(uint8_t *data, size_t len) = 0;
+  ESPPreferenceBackend *backend_;
 };
 
-class PreferenceStore {
+class ESPPreferences {
  public:
-  virtual std::unique_ptr<Preference> make_preference(std::string key, uint32_t length) = 0;
+  virtual ESPPreferenceObject make_preference(size_t length, uint32_t type, bool in_flash) = 0;
+  virtual ESPPreferenceObject make_preference(size_t length, uint32_t type) = 0;
   template<
-    typename T,
-    typename std::enable_if<
-      std::is_trivially_copyable<T>::value, bool
-    >::type = true
+     typename T,
+     typename std::enable_if<
+       std::is_trivially_copyable<T>::value, bool
+     >::type = true
   >
-  std::unique_ptr<Preference> make_preference(std::string key) {
-    return make_preference(key, sizeof(T));
+  ESPPreferenceObject make_preference(uint32_t type, bool in_flash) {
+    return this->make_preference((sizeof(T) + 3) / 4, type, in_flash);
+  }
+  template<
+     typename T,
+     typename std::enable_if<
+       std::is_trivially_copyable<T>::value, bool
+     >::type = true
+  >
+  ESPPreferenceObject make_preference(uint32_t type) {
+    return this->make_preference((sizeof(T) + 3) / 4, type);
   }
 };
 
-extern PreferenceStore *global_preferences;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+extern ESPPreferences *global_preferences;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 }  // namespace esphome

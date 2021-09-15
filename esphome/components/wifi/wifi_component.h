@@ -320,7 +320,7 @@ class WiFiComponent : public Component {
   bool scan_done_{false};
   bool ap_setup_{false};
   optional<float> output_power_;
-  std::unique_ptr<Preference> pref_;
+  ESPPreferenceObject pref_;
   bool has_saved_wifi_settings_{false};
 };
 

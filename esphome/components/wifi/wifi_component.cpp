@@ -39,11 +39,10 @@ void WiFiComponent::setup() {
   this->wifi_pre_setup_();
 
   uint32_t hash = fnv1_hash(App.get_compilation_time());
-  std::string key = "wifi$savedsettings$v1$" + std::to_string(hash);
-  this->pref_ = global_preferences->make_preference<wifi::SavedWifiSettings>(key);
+  this->pref_ = global_preferences->make_preference<wifi::SavedWifiSettings>(hash, true);
 
   SavedWifiSettings save{};
-  if (this->pref_->load(&save)) {
+  if (this->pref_.load(&save)) {
     ESP_LOGD(TAG, "Loaded");
     ESP_LOGD(TAG, "Loaded saved wifi settings: %s", save.ssid);
 
@@ -236,7 +235,7 @@ void WiFiComponent::save_wifi_sta(const std::string &ssid, const std::string &pa
   SavedWifiSettings save{};
   strncpy(save.ssid, ssid.c_str(), sizeof(save.ssid));
   strncpy(save.password, password.c_str(), sizeof(save.password));
-  this->pref_->save(&save);
+  this->pref_.save(&save);
 
   WiFiAP sta{};
   sta.set_ssid(ssid);
