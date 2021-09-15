@@ -92,6 +92,20 @@ def validate_active_state_values(value):
     return value
 
 
+def validate_eco_values(value):
+    if (
+        CONF_ECO_TEMPERATURE in value
+        and CONF_ECO_DATAPOINT not in value
+    ):
+        raise cv.Invalid(
+            (
+                f"{CONF_ECO_DATAPOINT} required if using "
+                f"{CONF_ECO_TEMPERATURE}"
+            )
+        )
+    return value
+
+
 CONFIG_SCHEMA = cv.All(
     climate.CLIMATE_SCHEMA.extend(
         {
@@ -119,6 +133,7 @@ CONFIG_SCHEMA = cv.All(
     validate_active_state_values,
     cv.has_at_most_one_key(CONF_ACTIVE_STATE_DATAPOINT, CONF_HEATING_STATE_PIN),
     cv.has_at_most_one_key(CONF_ACTIVE_STATE_DATAPOINT, CONF_COOLING_STATE_PIN),
+    validate_eco_values,
 )
 
 
