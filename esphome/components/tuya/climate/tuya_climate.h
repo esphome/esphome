@@ -34,6 +34,11 @@ class TuyaClimate : public climate::Climate, public Component {
   }
   void set_eco_id(uint8_t eco_id) { this->eco_id_ = eco_id; }
   void set_eco_temperature(float eco_temperature) { this->eco_temperature_ = eco_temperature; }
+  void set_manual_mode_id(uint8_t manual_mode_id) { this->manual_mode_id_ = manual_mode_id; }
+  void set_schedule_id(uint8_t schedule_id) { this->schedule_id_ = schedule_id; }
+  void set_schedule_time_inverted(bool schedule_time_inverted) {
+    this->schedule_time_inverted_ = schedule_time_inverted;
+  }
 
   void set_tuya_parent(Tuya *parent) { this->parent_ = parent; }
 
@@ -45,16 +50,19 @@ class TuyaClimate : public climate::Climate, public Component {
   climate::ClimateTraits traits() override;
 
   /// Re-compute the active preset of this climate controller.
-  void compute_preset_();
+  bool compute_preset_();
 
   /// Re-compute the target temperature of this climate controller.
-  void compute_target_temperature_();
+  bool compute_target_temperature_();
 
-  /// Re-compute the state of this climate controller.
-  void compute_state_();
+  /// Sets the current target temperature.
+  bool set_target_temperature_(float target_temperature);
 
-  /// Switch the climate device to the given climate mode.
-  void switch_to_action_(climate::ClimateAction action);
+  /// Re-compute the current action of this climate controller.
+  bool compute_action_();
+
+  /// Sets the current climate action.
+  bool set_action_(climate::ClimateAction action);
 
   Tuya *parent_;
   bool supports_heat_;
@@ -72,11 +80,16 @@ class TuyaClimate : public climate::Climate, public Component {
   float hysteresis_{1.0f};
   optional<uint8_t> eco_id_{};
   optional<float> eco_temperature_{};
+  optional<uint8_t> manual_mode_id_{};
+  optional<uint8_t> schedule_id_{};
+  bool schedule_time_inverted_{true};
   uint8_t active_state_;
   bool heating_state_{false};
   bool cooling_state_{false};
   float manual_temperature_;
   bool eco_;
+  bool manual_mode_{true};
+  int last_schedule_check_time_{-1};
 };
 
 }  // namespace tuya

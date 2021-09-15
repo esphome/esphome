@@ -20,7 +20,7 @@ void TuyaClimate::setup() {
           this->mode = climate::CLIMATE_MODE_COOL;
         }
       }
-      this->compute_state_();
+      this->compute_action_();
       this->publish_state();
     });
   }
@@ -28,8 +28,8 @@ void TuyaClimate::setup() {
     this->parent_->register_listener(*this->active_state_id_, [this](const TuyaDatapoint &datapoint) {
       ESP_LOGV(TAG, "MCU reported active state is: %u", datapoint.value_enum);
       this->active_state_ = datapoint.value_enum;
-      this->compute_state_();
-      this->publish_state();
+      if (this->compute_action_())
+        this->publish_state();
     });
   } else {
     if (this->heating_state_pin_ != nullptr) {
@@ -46,7 +46,7 @@ void TuyaClimate::setup() {
       this->manual_temperature_ = datapoint.value_int * this->target_temperature_multiplier_;
       ESP_LOGV(TAG, "MCU reported manual target temperature is: %.1f", this->manual_temperature_);
       this->compute_target_temperature_();
-      this->compute_state_();
+      this->compute_action_();
       this->publish_state();
     });
   }
@@ -54,7 +54,7 @@ void TuyaClimate::setup() {
     this->parent_->register_listener(*this->current_temperature_id_, [this](const TuyaDatapoint &datapoint) {
       this->current_temperature = datapoint.value_int * this->current_temperature_multiplier_;
       ESP_LOGV(TAG, "MCU reported current temperature is: %.1f", this->current_temperature);
-      this->compute_state_();
+      this->compute_action_();
       this->publish_state();
     });
   }
@@ -67,13 +67,27 @@ void TuyaClimate::setup() {
       this->publish_state();
     });
   }
+  if (this->manual_mode_id_.has_value()) {
+    this->parent_->register_listener(*this->manual_mode_id_, [this](const TuyaDatapoint &datapoint) {
+      this->manual_mode_ = datapoint.value_bool;
+      ESP_LOGV(TAG, "MCU reported manual mode is: %s", ONOFF(this->manual_mode_));
+      if (this->compute_target_temperature_())
+        this->publish_state();
+    });
+  }
+  if (this->schedule_id_.has_value()) {
+    this->parent_->register_listener(*this->schedule_id_, [this](const TuyaDatapoint &datapoint) {
+      ESP_LOGV(TAG, "MCU reported schedule");
+      if (this->compute_target_temperature_())
+        this->publish_state();
+    });
+  }
 }
 
 void TuyaClimate::loop() {
-  if (this->active_state_id_.has_value())
-    return;
-
   bool state_changed = false;
+
+  // Read heating and cooling state pins, if used
   if (this->heating_state_pin_ != nullptr) {
     bool heating_state = this->heating_state_pin_->digital_read();
     if (heating_state != this->heating_state_) {
@@ -91,8 +105,23 @@ void TuyaClimate::loop() {
     }
   }
 
+#ifdef USE_TIME
+  // Recalculate target temperature every minute
+  if (this->schedule_id_.has_value() && this->parent_->get_time_id().has_value()) {
+    auto time_id = *this->parent_->get_time_id();
+    time::ESPTime now = time_id->now();
+    if (now.is_valid()) {
+      int schedule_check_time = (now.hour * 60 + now.minute);
+      if (schedule_check_time != this->last_schedule_check_time_) {
+        this->last_schedule_check_time_ = schedule_check_time;
+        state_changed |= compute_target_temperature_();
+      }
+    }
+  }
+#endif
+
   if (state_changed) {
-    this->compute_state_();
+    this->compute_action_();
     this->publish_state();
   }
 }
@@ -152,69 +181,127 @@ void TuyaClimate::dump_config() {
     ESP_LOGCONFIG(TAG, "  Eco has datapoint ID %u", *this->eco_id_);
 }
 
-void TuyaClimate::compute_preset_() {
+bool TuyaClimate::compute_preset_() {
   if (this->eco_) {
-    this->preset = climate::CLIMATE_PRESET_ECO;
+    return set_preset_(climate::CLIMATE_PRESET_ECO);
   } else {
-    this->preset = climate::CLIMATE_PRESET_NONE;
+    return set_preset_(climate::CLIMATE_PRESET_NONE);
   }
 }
 
-void TuyaClimate::compute_target_temperature_() {
+bool TuyaClimate::compute_target_temperature_() {
   if (this->eco_ && this->eco_temperature_.has_value()) {
-    this->target_temperature = *this->eco_temperature_;
-  } else {
-    this->target_temperature = this->manual_temperature_;
+    return set_target_temperature_(*this->eco_temperature_);
   }
+
+#ifdef USE_TIME
+  if (!this->manual_mode_ && this->schedule_id_.has_value() && this->parent_->get_time_id().has_value()) {
+    auto schedule_datapoint = this->parent_->get_datapoint(*this->schedule_id_);
+    auto time_id = *this->parent_->get_time_id();
+    auto now = time_id->now();
+
+    if (schedule_datapoint.has_value() && (*schedule_datapoint).type == TuyaDatapointType::RAW && now.is_valid()) {
+      auto schedule = (*schedule_datapoint).value_raw;
+      auto schedule_size = schedule.size();
+
+      if (schedule_size == 54 || schedule_size == 36) {
+        // Default schedule for BHT-3000 (entry format: MM.HH.TT - schedule_size: 54)
+        // 00.06.28|00.08.1E|1E.0B.1E|1E.0D.1E|00.11.2C|00.16.1E -- Monday-Friday
+        // 00.06.28|00.08.28|1E.0B.28|1E.0D.28|00.11.28|00.16.1E -- Saturday
+        // 00.06.28|00.08.28|1E.0B.28|1E.0D.28|00.11.28|00.16.1E -- Sunday
+
+        uint8_t entry = (schedule_size == 54) ? (now.day_of_week == 1 ? 12 : (now.day_of_week == 7 ? 6 : 0))
+                                              : (now.day_of_week == 1 || now.day_of_week == 7 ? 6 : 0);
+
+        // Entry format may be MM.HH.TT (little-endian / inverted time) or HH.MM.TT (big-endian / non-inverted time)
+        uint8_t hour_offset = this->schedule_time_inverted_ ? 1 : 0;
+        uint8_t minute_offset = this->schedule_time_inverted_ ? 0 : 1;
+
+        uint8_t hour = schedule[entry * 3 + hour_offset];
+        uint8_t minute = schedule[entry * 3 + minute_offset];
+        if (now.hour < hour || (now.hour == hour && now.minute < minute)) {
+          // Current time is before the start time of the first entry; use last entry of previous day
+          entry = (schedule_size == 54) ? (now.day_of_week == 2 ? 17 : (now.day_of_week == 1 ? 11 : 5))
+                                        : (now.day_of_week == 2 || now.day_of_week == 1 ? 11 : 5);
+          // Search for active entry of current day
+          for (int i = 1; i <= 5; i++) {
+            hour = schedule[(entry + 1) * 3 + hour_offset];
+            minute = schedule[(entry + 1) * 3 + minute_offset];
+            if (now.hour > hour || (now.hour == hour && now.minute >= minute)) {
+              entry++;
+            } else {
+              break;
+            }
+          }
+        }
+
+        return set_target_temperature_(schedule[entry * 3 + 2] * this->target_temperature_multiplier_);
+      } else {
+        ESP_LOGV(TAG, "Unknown schedule size of %u bytes", schedule_size);
+      }
+    }
+  }
+#endif
+
+  return set_target_temperature_(this->manual_temperature_);
 }
 
-void TuyaClimate::compute_state_() {
+bool TuyaClimate::set_target_temperature_(float target_temperature) {
+  if (target_temperature == this->target_temperature)
+    return false;
+
+  this->target_temperature = target_temperature;
+  return true;
+}
+
+bool TuyaClimate::compute_action_() {
   if (isnan(this->current_temperature) || isnan(this->target_temperature)) {
     // if any control parameters are nan, go to OFF action (not IDLE!)
-    this->switch_to_action_(climate::CLIMATE_ACTION_OFF);
-    return;
+    return this->set_action_(climate::CLIMATE_ACTION_OFF);
   }
 
   if (this->mode == climate::CLIMATE_MODE_OFF) {
-    this->switch_to_action_(climate::CLIMATE_ACTION_OFF);
-    return;
+    return this->set_action_(climate::CLIMATE_ACTION_OFF);
   }
 
-  climate::ClimateAction target_action = climate::CLIMATE_ACTION_IDLE;
   if (this->active_state_id_.has_value()) {
     // Use state from MCU datapoint
     if (this->supports_heat_ && this->active_state_heating_value_.has_value() &&
         this->active_state_ == this->active_state_heating_value_) {
-      target_action = climate::CLIMATE_ACTION_HEATING;
+      return this->set_action_(climate::CLIMATE_ACTION_HEATING);
     } else if (this->supports_cool_ && this->active_state_cooling_value_.has_value() &&
                this->active_state_ == this->active_state_cooling_value_) {
-      target_action = climate::CLIMATE_ACTION_COOLING;
+      return this->set_action_(climate::CLIMATE_ACTION_COOLING);
     }
   } else if (this->heating_state_pin_ != nullptr || this->cooling_state_pin_ != nullptr) {
     // Use state from input pins
     if (this->heating_state_) {
-      target_action = climate::CLIMATE_ACTION_HEATING;
+      return this->set_action_(climate::CLIMATE_ACTION_HEATING);
     } else if (this->cooling_state_) {
-      target_action = climate::CLIMATE_ACTION_COOLING;
+      return this->set_action_(climate::CLIMATE_ACTION_COOLING);
     }
   } else {
     // Fallback to active state calc based on temp and hysteresis
     const float temp_diff = this->target_temperature - this->current_temperature;
     if (std::abs(temp_diff) > this->hysteresis_) {
       if (this->supports_heat_ && temp_diff > 0) {
-        target_action = climate::CLIMATE_ACTION_HEATING;
+        return this->set_action_(climate::CLIMATE_ACTION_HEATING);
       } else if (this->supports_cool_ && temp_diff < 0) {
-        target_action = climate::CLIMATE_ACTION_COOLING;
+        return this->set_action_(climate::CLIMATE_ACTION_COOLING);
       }
     }
   }
 
-  this->switch_to_action_(target_action);
+  return this->set_action_(climate::CLIMATE_ACTION_IDLE);
 }
 
-void TuyaClimate::switch_to_action_(climate::ClimateAction action) {
+bool TuyaClimate::set_action_(climate::ClimateAction action) {
   // For now this just sets the current action but could include triggers later
+  if (action == this->action)
+    return false;
+
   this->action = action;
+  return true;
 }
 
 }  // namespace tuya
