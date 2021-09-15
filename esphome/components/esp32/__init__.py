@@ -1,6 +1,7 @@
 from contextlib import suppress
 from functools import reduce
 import logging
+from pathlib import Path
 
 from esphome.cpp_types import GPIOFlags
 from esphome.const import (
@@ -170,6 +171,7 @@ async def to_code(config):
         cg.add_platformio_option("framework", "espidf")
         cg.add_build_flag("-DUSE_ESP_IDF")
         cg.add_build_flag("-DUSE_ESP32_FRAMEWORK_ESP_IDF")
+        cg.add_build_flag("-Wno-nonnull-compare")
         if conf[CONF_VERSION]:
             cg.add_platformio_option(
                 "platform_packages",
@@ -184,6 +186,11 @@ async def to_code(config):
                 "platform_packages",
                 [f"platformio/framework-arduinoespressif32 @ {conf[CONF_VERSION]}"],
             )
+
+        # Set build partitions, stored in this directory
+        esp32_dir = Path(__file__).parent
+        partition_csv_loc = esp32_dir / "partitions.csv"
+        cg.add_platformio_option("board_build.partitions", str(partition_csv_loc))
 
 
 def _lookup_pin(value):

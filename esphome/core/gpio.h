@@ -58,6 +58,8 @@ class GPIOPin {
   virtual void digital_write(bool value) = 0;
 
   virtual void dump_config(const char *prefix) = 0;
+
+  virtual bool is_internal() { return false; }
 };
 
 /// Copy of GPIOPin that is safe to use from ISRs (with no virtual functions)
@@ -82,6 +84,10 @@ class InternalGPIOPin : public GPIOPin {
   virtual void detach_interrupt() const = 0;
 
   virtual ISRInternalGPIOPin to_isr() const = 0;
+
+  virtual uint8_t get_pin() const = 0;
+
+  bool is_internal() override { return true; }
 
  protected:
   virtual void attach_interrupt_(void (*func)(void *), void *arg, GPIOInterruptType type) const = 0;

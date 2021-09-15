@@ -36,6 +36,7 @@ class ESP32InternalGPIOPin : public InternalGPIOPin {
     gpio_intr_disable(pin_);
   }
   ISRInternalGPIOPin to_isr() const override;
+  uint8_t get_pin() const override { return (uint8_t) pin_; }
 
  protected:
   static gpio_mode_t flags_to_mode_(GPIOFlags flags) {

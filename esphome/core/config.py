@@ -171,17 +171,18 @@ def preload_core_config(config, result):
                     f"Please move {key} to the [{newstyle_found[0]}] block.",
                     [CONF_ESPHOME, key],
                 )
+
     if has_oldstyle:
-        plat = conf[CONF_PLATFORM]
+        plat = conf.pop(CONF_PLATFORM)
         plat_conf = {}
         if CONF_ESP8266_RESTORE_FROM_FLASH in conf:
-            plat_conf["restore_from_flash"] = conf[CONF_ESP8266_RESTORE_FROM_FLASH]
+            plat_conf["restore_from_flash"] = conf.pop(CONF_ESP8266_RESTORE_FROM_FLASH)
         if CONF_BOARD_FLASH_MODE in conf:
-            plat_conf[CONF_BOARD_FLASH_MODE] = conf[CONF_BOARD_FLASH_MODE]
+            plat_conf[CONF_BOARD_FLASH_MODE] = conf.pop(CONF_BOARD_FLASH_MODE)
         if CONF_ARDUINO_VERSION in conf:
-            plat_conf[CONF_ARDUINO_VERSION] = conf[CONF_ARDUINO_VERSION]
+            plat_conf[CONF_ARDUINO_VERSION] = conf.pop(CONF_ARDUINO_VERSION)
         if CONF_BOARD in conf:
-            plat_conf[CONF_BOARD] = conf[CONF_BOARD]
+            plat_conf[CONF_BOARD] = conf.pop(CONF_BOARD)
         # Insert generated target platform config to main config
         config[plat] = plat_conf
     config[CONF_ESPHOME] = conf
