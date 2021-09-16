@@ -32,9 +32,9 @@ class NdefRecordText : public NdefRecord {
     this->id_ = rhs.id_;
   };
 
-  std::vector<uint8_t> getEncodedPayload();
+  std::vector<uint8_t> getEncodedPayload() override;
 
-  const std::string get_payload() { return this->text_; };
+  const std::string &get_payload() const override { return this->text_; };
 
  protected:
   std::string text_;

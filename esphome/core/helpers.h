@@ -6,15 +6,11 @@
 #include <memory>
 #include <type_traits>
 
-#include "esphome/core/optional.h"
-#include "esphome/core/esphal.h"
-
-#ifdef CLANG_TIDY
-#undef ICACHE_RAM_ATTR
-#define ICACHE_RAM_ATTR
-#undef ICACHE_RODATA_ATTR
-#define ICACHE_RODATA_ATTR
+#ifdef ARDUINO_ARCH_ESP32
+#include "esp32-hal-psram.h"
 #endif
+
+#include "esphome/core/optional.h"
 
 #define HOT __attribute__((hot))
 #define ESPDEPRECATED(msg, when) __attribute__((deprecated(msg)))
@@ -92,10 +88,15 @@ template<typename T> T clamp(T val, T min, T max);
  */
 float lerp(float completion, float start, float end);
 
-/// std::make_unique
+// Not all platforms we support target C++14 yet, so we can't unconditionally use std::make_unique. Provide our own
+// implementation if needed, and otherwise pull std::make_unique into scope so that we have a uniform API.
+#if __cplusplus >= 201402L
+using std::make_unique;
+#else
 template<typename T, typename... Args> std::unique_ptr<T> make_unique(Args &&...args) {
   return std::unique_ptr<T>(new T(std::forward<Args>(args)...));
 }
+#endif
 
 /// Return a random 32 bit unsigned integer.
 uint32_t random_uint32();
@@ -108,6 +109,8 @@ double random_double();
 
 /// Returns a random float between 0 and 1. Essentially just casts random_double() to a float.
 float random_float();
+
+void fill_random(uint8_t *data, size_t len);
 
 void fast_random_set_seed(uint32_t seed);
 uint32_t fast_random_32();
@@ -333,7 +336,7 @@ template<typename T> T *new_buffer(size_t length) {
     buffer = new T[length];
   }
 #else
-  buffer = new T[length];
+  buffer = new T[length];  // NOLINT
 #endif
 
   return buffer;

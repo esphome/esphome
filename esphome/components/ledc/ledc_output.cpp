@@ -63,7 +63,7 @@ void LEDCOutput::update_frequency(float frequency) {
   this->write_state(this->duty_);
 }
 
-uint8_t next_ledc_channel = 0;
+uint8_t next_ledc_channel = 0;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 }  // namespace ledc
 }  // namespace esphome

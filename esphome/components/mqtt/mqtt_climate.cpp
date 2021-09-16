@@ -60,6 +60,8 @@ void MQTTClimateComponent::send_discovery(JsonObject &root, mqtt::SendDiscoveryC
   root["max_temp"] = traits.get_visual_max_temperature();
   // temp_step
   root["temp_step"] = traits.get_visual_temperature_step();
+  // temperature units are always coerced to Celsius internally
+  root["temp_unit"] = "C";
 
   if (traits.supports_preset(CLIMATE_PRESET_AWAY)) {
     // away_mode_command_topic

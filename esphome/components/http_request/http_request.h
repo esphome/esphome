@@ -6,6 +6,7 @@
 #include <list>
 #include <map>
 #include <utility>
+#include <memory>
 
 #ifdef ARDUINO_ARCH_ESP32
 #include <HTTPClient.h>
@@ -51,9 +52,9 @@ class HttpRequestComponent : public Component {
   std::string body_;
   std::list<Header> headers_;
 #ifdef ARDUINO_ARCH_ESP8266
-  WiFiClient *wifi_client_{nullptr};
-  BearSSL::WiFiClientSecure *wifi_client_secure_{nullptr};
-  WiFiClient *get_wifi_client_();
+  std::shared_ptr<WiFiClient> wifi_client_;
+  std::shared_ptr<BearSSL::WiFiClientSecure> wifi_client_secure_;
+  std::shared_ptr<WiFiClient> get_wifi_client_();
 #endif
 };
 

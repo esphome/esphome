@@ -510,7 +510,7 @@ class ListEntitiesSensorResponse : public ProtoMessage {
   bool force_update{false};
   std::string device_class{};
   enums::SensorStateClass state_class{};
-  enums::SensorLastResetType last_reset_type{};
+  enums::SensorLastResetType legacy_last_reset_type{};
   bool disabled_by_default{false};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP

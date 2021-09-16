@@ -33,7 +33,6 @@ from esphome.const import (
     CONF_UPDATE_INTERVAL,
     CONF_TYPE_ID,
     CONF_TYPE,
-    CONF_PACKAGES,
 )
 from esphome.core import (
     CORE,
@@ -836,10 +835,11 @@ pressure = float_with_unit("pressure", "(bar|Bar)", optional_unit=True)
 
 
 def temperature(value):
+    err = None
     try:
         return _temperature_c(value)
-    except Invalid as orig_err:  # noqa
-        pass
+    except Invalid as orig_err:
+        err = orig_err
 
     try:
         kelvin = _temperature_k(value)
@@ -853,7 +853,7 @@ def temperature(value):
     except Invalid:
         pass
 
-    raise orig_err  # noqa
+    raise err
 
 
 _color_temperature_mireds = float_with_unit("Color Temperature", r"(mireds|Mireds)")
@@ -1454,11 +1454,7 @@ class OnlyWith(Optional):
     @property
     def default(self):
         # pylint: disable=unsupported-membership-test
-        if self._component in CORE.raw_config or (
-            CONF_PACKAGES in CORE.raw_config
-            and self._component
-            in {list(x.keys())[0] for x in CORE.raw_config[CONF_PACKAGES].values()}
-        ):
+        if self._component in CORE.raw_config:
             return self._default
         return vol.UNDEFINED
 
@@ -1628,3 +1624,17 @@ def url(value):
     if not parsed.scheme or not parsed.netloc:
         raise Invalid("Expected a URL scheme and host")
     return parsed.geturl()
+
+
+def git_ref(value):
+    if re.match(r"[a-zA-Z0-9\-_.\./]+", value) is None:
+        raise Invalid("Not a valid git ref")
+    return value
+
+
+def source_refresh(value: str):
+    if value.lower() == "always":
+        return source_refresh("0s")
+    if value.lower() == "never":
+        return source_refresh("1000y")
+    return positive_time_period_seconds(value)

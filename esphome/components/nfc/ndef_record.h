@@ -30,9 +30,9 @@ class NdefRecord {
 
   uint8_t create_flag_byte(bool first, bool last);
 
-  const std::string &get_type() { return this->type_; };
-  const std::string &get_id() { return this->id_; };
-  virtual const std::string get_payload() { return this->payload_; };
+  const std::string &get_type() const { return this->type_; };
+  const std::string &get_id() const { return this->id_; };
+  virtual const std::string &get_payload() const { return this->payload_; };
 
   virtual std::vector<uint8_t> getEncodedPayload() {
     std::vector<uint8_t> emptyPayload;

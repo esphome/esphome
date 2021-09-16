@@ -131,10 +131,6 @@ class I2CComponent : public Component {
   bool scan_;
 };
 
-#ifdef ARDUINO_ARCH_ESP32
-extern uint8_t next_i2c_bus_num_;
-#endif
-
 class I2CDevice;
 class I2CMultiplexer;
 class I2CRegister {

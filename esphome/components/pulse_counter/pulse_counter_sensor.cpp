@@ -45,10 +45,11 @@ pulse_counter_t PulseCounterStorage::read_raw_value() {
 
 #ifdef ARDUINO_ARCH_ESP32
 bool PulseCounterStorage::pulse_counter_setup(GPIOPin *pin) {
+  static pcnt_unit_t next_pcnt_unit = PCNT_UNIT_0;
   this->pin = pin;
   this->pin->setup();
   this->pcnt_unit = next_pcnt_unit;
-  next_pcnt_unit = pcnt_unit_t(int(next_pcnt_unit) + 1);  // NOLINT
+  next_pcnt_unit = pcnt_unit_t(int(next_pcnt_unit) + 1);
 
   ESP_LOGCONFIG(TAG, "    PCNT Unit Number: %u", this->pcnt_unit);
 
@@ -165,10 +166,6 @@ void PulseCounterSensor::update() {
     this->total_sensor_->publish_state(current_total_);
   }
 }
-
-#ifdef ARDUINO_ARCH_ESP32
-pcnt_unit_t next_pcnt_unit = PCNT_UNIT_0;
-#endif
 
 }  // namespace pulse_counter
 }  // namespace esphome

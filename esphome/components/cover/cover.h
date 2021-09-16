@@ -13,7 +13,7 @@ const extern float COVER_CLOSED;
 
 #define LOG_COVER(prefix, type, obj) \
   if ((obj) != nullptr) { \
-    ESP_LOGCONFIG(TAG, "%s%s '%s'", prefix, type, (obj)->get_name().c_str()); \
+    ESP_LOGCONFIG(TAG, "%s%s '%s'", prefix, LOG_STR_LITERAL(type), (obj)->get_name().c_str()); \
     auto traits_ = (obj)->get_traits(); \
     if (traits_.get_is_assumed_state()) { \
       ESP_LOGCONFIG(TAG, "%s  Assumed State: YES", prefix); \
@@ -125,16 +125,19 @@ class Cover : public Nameable {
    *
    * This is a legacy method and may be removed later, please use `.make_call()` instead.
    */
+  ESPDEPRECATED("open() is deprecated, use make_call().set_command_open() instead.", "2021.9")
   void open();
   /** Close the cover.
    *
    * This is a legacy method and may be removed later, please use `.make_call()` instead.
    */
+  ESPDEPRECATED("close() is deprecated, use make_call().set_command_close() instead.", "2021.9")
   void close();
   /** Stop the cover.
    *
    * This is a legacy method and may be removed later, please use `.make_call()` instead.
    */
+  ESPDEPRECATED("stop() is deprecated, use make_call().set_command_stop() instead.", "2021.9")
   void stop();
 
   void add_on_state_callback(std::function<void()> &&f);

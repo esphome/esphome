@@ -148,7 +148,7 @@ float ADCSensor::sample() {
 
 #ifdef ARDUINO_ARCH_ESP8266
 #ifdef USE_ADC_SENSOR_VCC
-  return ESP.getVcc() / 1024.0f;
+  return ESP.getVcc() / 1024.0f;  // NOLINT(readability-static-accessed-through-instance)
 #else
   return analogRead(this->pin_) / 1024.0f;  // NOLINT
 #endif

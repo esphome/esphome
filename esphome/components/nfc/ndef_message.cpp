@@ -46,17 +46,17 @@ NdefMessage::NdefMessage(std::vector<uint8_t> &data) {
 
     std::vector<uint8_t> payload_data(data.begin() + index, data.begin() + index + payload_length);
 
-    std::shared_ptr<NdefRecord> record;
+    auto record = make_unique<NdefRecord>();
 
     if (tnf == TNF_WELL_KNOWN && type_str == "U") {
-      record = std::make_shared<NdefRecordUri>(payload_data);
+      record = make_unique<NdefRecordUri>(payload_data);
     } else if (tnf == TNF_WELL_KNOWN && type_str == "T") {
-      record = std::make_shared<NdefRecordText>(payload_data);
+      record = make_unique<NdefRecordText>(payload_data);
     }
 
     if (record == nullptr)  // Could not recognize the record, so store as generic one.
     {
-      record = std::make_shared<NdefRecord>(payload_data);
+      record = make_unique<NdefRecord>(payload_data);
       record->set_tnf(tnf);
       record->set_type(type_str);
     }
@@ -65,32 +65,31 @@ NdefMessage::NdefMessage(std::vector<uint8_t> &data) {
 
     index += payload_length;
 
-    ESP_LOGD(TAG, "Adding record type %s = %s", record->get_type().c_str(), record->get_payload().c_str());
-    this->add_record(record);
+    ESP_LOGV(TAG, "Adding record type %s = %s", record->get_type().c_str(), record->get_payload().c_str());
+    this->add_record(std::move(record));
+
     if (me)
       break;
   }
 }
 
-bool NdefMessage::add_record(const std::shared_ptr<NdefRecord> &record) {
+bool NdefMessage::add_record(std::unique_ptr<NdefRecord> record) {
   if (this->records_.size() >= MAX_NDEF_RECORDS) {
     ESP_LOGE(TAG, "Too many records. Max: %d", MAX_NDEF_RECORDS);
     return false;
   }
-  this->records_.push_back(record);
+  this->records_.emplace_back(std::move(record));
   return true;
 }
 
 bool NdefMessage::add_text_record(const std::string &text) { return this->add_text_record(text, "en"); };
 
 bool NdefMessage::add_text_record(const std::string &text, const std::string &encoding) {
-  auto r = std::make_shared<NdefRecordText>(encoding, text);
-  return this->add_record(r);
+  return this->add_record(make_unique<NdefRecordText>(encoding, text));
 }
 
 bool NdefMessage::add_uri_record(const std::string &uri) {
-  auto r = std::make_shared<NdefRecordUri>(uri);
-  return this->add_record(r);
+  return this->add_record(make_unique<NdefRecordUri>(uri));
 }
 
 std::vector<uint8_t> NdefMessage::encode() {

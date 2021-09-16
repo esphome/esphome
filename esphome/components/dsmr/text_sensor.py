@@ -71,6 +71,11 @@ CONFIG_SCHEMA = cv.Schema(
                 cv.GenerateID(): cv.declare_id(text_sensor.TextSensor),
             }
         ),
+        cv.Optional("gas_delivered_text"): text_sensor.TEXT_SENSOR_SCHEMA.extend(
+            {
+                cv.GenerateID(): cv.declare_id(text_sensor.TextSensor),
+            }
+        ),
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -89,6 +94,8 @@ async def to_code(config):
             cg.add(getattr(hub, f"set_{key}")(var))
             text_sensors.append(f"F({key})")
 
-    cg.add_define(
-        "DSMR_TEXT_SENSOR_LIST(F, sep)", cg.RawExpression(" sep ".join(text_sensors))
-    )
+    if text_sensors:
+        cg.add_define(
+            "DSMR_TEXT_SENSOR_LIST(F, sep)",
+            cg.RawExpression(" sep ".join(text_sensors)),
+        )

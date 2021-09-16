@@ -1,11 +1,11 @@
-pylint==2.9.6
+pylint==2.10.2
 flake8==3.9.2
-black==21.7b0
+black==21.9b0
 pexpect==4.8.0
 pre-commit
 
 # Unit tests
-pytest==6.2.4
+pytest==6.2.5
 pytest-cov==2.12.1
 pytest-mock==3.6.1
 pytest-asyncio==0.15.1
