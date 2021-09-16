@@ -55,8 +55,9 @@ void UARTComponent::setup() {
   // is 1 we still want to use Serial.
   SerialConfig config = static_cast<SerialConfig>(get_config());
 
-  if (!UARTComponent::serial0InUse && this->tx_pin_.value_or(1) == 1 &&
-      this->rx_pin_.value_or(3) == 3
+  if (!UARTComponent::serial0InUse &&
+    (tx_pin_ == nullptr || tx_pin_->get_pin() == 1) &&
+    (rx_pin_ == nullptr || rx_pin_->get_pin() == 3)
 #ifdef USE_LOGGER
       // we will use UART0 if logger isn't using it in swapped mode
       && (logger::global_logger->get_hw_serial() == nullptr ||
@@ -67,8 +68,9 @@ void UARTComponent::setup() {
     this->hw_serial_->begin(this->baud_rate_, config);
     this->hw_serial_->setRxBufferSize(this->rx_buffer_size_);
     UARTComponent::serial0InUse = true;
-  } else if (!UARTComponent::serial0InUse && this->tx_pin_.value_or(15) == 15 &&
-             this->rx_pin_.value_or(13) == 13
+  } else if (!UARTComponent::serial0InUse &&
+    (tx_pin_ == nullptr || tx_pin_->get_pin() == 15) &&
+    (rx_pin_ == nullptr || rx_pin_->get_pin() == 13)
 #ifdef USE_LOGGER
              // we will use UART0 swapped if logger isn't using it in regular mode
              && (logger::global_logger->get_hw_serial() == nullptr ||
@@ -80,26 +82,23 @@ void UARTComponent::setup() {
     this->hw_serial_->setRxBufferSize(this->rx_buffer_size_);
     this->hw_serial_->swap();
     UARTComponent::serial0InUse = true;
-  } else if (this->tx_pin_.value_or(2) == 2 && this->rx_pin_.value_or(8) == 8) {
+  } else if ((tx_pin_ == nullptr || tx_pin_->get_pin() == 2) &&
+    (rx_pin_ == nullptr || rx_pin_->get_pin() == 8)) {
     this->hw_serial_ = &Serial1;
     this->hw_serial_->begin(this->baud_rate_, config);
     this->hw_serial_->setRxBufferSize(this->rx_buffer_size_);
   } else {
     this->sw_serial_ = new ESP8266SoftwareSerial();  // NOLINT
-    int8_t tx = this->tx_pin_.has_value() ? *this->tx_pin_ : -1;
-    int8_t rx = this->rx_pin_.has_value() ? *this->rx_pin_ : -1;
-    this->sw_serial_->setup(tx, rx, this->baud_rate_, this->stop_bits_, this->data_bits_, this->parity_,
+    this->sw_serial_->setup(tx_pin_, rx_pin_, this->baud_rate_, this->stop_bits_, this->data_bits_, this->parity_,
                             this->rx_buffer_size_);
   }
 }
 
 void UARTComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "UART Bus:");
-  if (this->tx_pin_.has_value()) {
-    ESP_LOGCONFIG(TAG, "  TX Pin: GPIO%d", *this->tx_pin_);
-  }
-  if (this->rx_pin_.has_value()) {
-    ESP_LOGCONFIG(TAG, "  RX Pin: GPIO%d", *this->rx_pin_);
+  LOG_PIN("  TX Pin: ", tx_pin_);
+  LOG_PIN("  RX Pin: ", rx_pin_);
+  if (this->rx_pin_ != nullptr) {
     ESP_LOGCONFIG(TAG, "  RX Buffer Size: %u", this->rx_buffer_size_);  // NOLINT
   }
   ESP_LOGCONFIG(TAG, "  Baud Rate: %u baud", this->baud_rate_);
@@ -217,17 +216,17 @@ void ESP8266SoftwareSerial::setup(InternalGPIOPin *tx_pin, InternalGPIOPin *rx_p
   this->data_bits_ = data_bits;
   this->parity_ = parity;
   if (tx_pin != nullptr) {
-    this->gpio_tx_pin_ = tx_pin;
-    tx_pin->setup();
-    this->tx_pin_ = tx_pin->to_isr();
-    this->tx_pin_.digital_write(true);
+    gpio_tx_pin_ = tx_pin;
+    gpio_tx_pin_->setup();
+    tx_pin_ = gpio_tx_pin_->to_isr();
+    tx_pin_.digital_write(true);
   }
   if (rx_pin != nullptr) {
-    this->gpio_rx_pin_ = rx_pin;
-    rx_pin->setup();
-    this->rx_pin_ = rx_pin->to_isr();
-    this->rx_buffer_ = new uint8_t[this->rx_buffer_size_];  // NOLINT
-    rx_pin->attach_interrupt(ESP8266SoftwareSerial::gpio_intr, this, gpio::INTERRUPT_FALLING_EDGE);
+    gpio_rx_pin_ = rx_pin;
+    gpio_rx_pin_->setup();
+    rx_pin_ = gpio_rx_pin_->to_isr();
+    rx_buffer_ = new uint8_t[this->rx_buffer_size_];  // NOLINT
+    gpio_rx_pin_->attach_interrupt(ESP8266SoftwareSerial::gpio_intr, this, gpio::INTERRUPT_FALLING_EDGE);
   }
 }
 void IRAM_ATTR ESP8266SoftwareSerial::gpio_intr(ESP8266SoftwareSerial *arg) {

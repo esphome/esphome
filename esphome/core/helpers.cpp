@@ -4,8 +4,9 @@
 #include <cmath>
 #include <cstring>
 
-#if defined(USE_ESP8266_ARDUINO)
+#if defined(USE_ESP8266)
 #include <ESP8266WiFi.h>
+#include <osapi.h>
 #elif defined(USE_ESP32_FRAMEWORK_ARDUINO)
 #include <Esp.h>
 #elif defined(USE_ESP_IDF)
@@ -25,7 +26,7 @@ std::string get_mac_address() {
 #ifdef USE_ESP32
   esp_efuse_mac_get_default(mac);
 #endif
-#ifdef USE_ESP8266_ARDUINO
+#ifdef USE_ESP8266
   WiFi.macAddress(mac);
 #endif
   sprintf(tmp, "%02x%02x%02x%02x%02x%02x", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
@@ -38,7 +39,7 @@ std::string get_mac_address_pretty() {
 #ifdef USE_ESP32
   esp_efuse_mac_get_default(mac);
 #endif
-#ifdef USE_ESP8266_ARDUINO
+#ifdef USE_ESP8266
   WiFi.macAddress(mac);
 #endif
   sprintf(tmp, "%02X:%02X:%02X:%02X:%02X:%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);

@@ -78,6 +78,10 @@ void IRAM_ATTR ISRInternalGPIOPin::digital_write(bool value) {
   auto *arg = reinterpret_cast<ISRPinArg *>(arg_);
   digitalWrite(arg->pin, value != arg->inverted ? 1 : 0);
 }
+void IRAM_ATTR ISRInternalGPIOPin::clear_interrupt() {
+  auto *arg = reinterpret_cast<ISRPinArg *>(arg_);
+  GPIO_REG_WRITE(GPIO_STATUS_W1TC_ADDRESS, 1UL << arg->pin);
+}
 
 }  // namespace esphome
 

@@ -32,9 +32,6 @@ class ESP8266SoftwareSerial {
 
   int available();
 
-  InternalGPIOPin *gpio_tx_pin_{nullptr};
-  InternalGPIOPin *gpio_rx_pin_{nullptr};
-
  protected:
   static void gpio_intr(ESP8266SoftwareSerial *arg);
 
@@ -50,8 +47,10 @@ class ESP8266SoftwareSerial {
   uint8_t stop_bits_;
   uint8_t data_bits_;
   UARTParityOptions parity_;
-  ISRInternalGPIOPin tx_pin_{nullptr};
-  ISRInternalGPIOPin rx_pin_{nullptr};
+  InternalGPIOPin *gpio_tx_pin_{nullptr};
+  ISRInternalGPIOPin tx_pin_;
+  InternalGPIOPin *gpio_rx_pin_{nullptr};
+  ISRInternalGPIOPin rx_pin_;
 };
 #endif
 

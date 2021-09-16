@@ -40,6 +40,9 @@ void IRAM_ATTR ISRInternalGPIOPin::digital_write(bool value) {
   auto *arg = reinterpret_cast<ISRPinArg *>(arg_);
   gpio_set_level(arg->pin, value != arg->inverted ? 1 : 0);
 }
+void IRAM_ATTR ISRInternalGPIOPin::clear_interrupt() {
+  // not supported
+}
 
 }  // namespace esphome
 

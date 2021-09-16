@@ -22,6 +22,9 @@ void setup_preferences() {
   // pass
   global_preferences = new ESP8266Preferences();
 }
+void preferences_prevent_write(bool prevent) {
+  // TODO
+}
 
 }  // namespace esp8266
 

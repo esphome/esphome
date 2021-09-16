@@ -78,6 +78,18 @@ void IRAM_ATTR ISRInternalGPIOPin::digital_write(bool value) {
   auto *arg = reinterpret_cast<ISRPinArg *>(arg_);
   digitalWrite(arg->pin, value != arg->inverted ? 1 : 0);
 }
+void IRAM_ATTR ISRInternalGPIOPin::clear_interrupt() {
+  auto *arg = reinterpret_cast<ISRPinArg *>(arg_);
+#ifdef CONFIG_IDF_TARGET_ESP32C3
+  GPIO.status_w1tc.val = 1UL << arg->pin;
+#else
+  if (this->pin_ < 32) {
+    GPIO.status_w1tc = 1UL << arg->pin;
+  } else {
+    GPIO.status1_w1tc.intr_st = 1UL << (arg->pin - 32);
+  }
+#endif
+}
 
 }  // namespace esphome
 
