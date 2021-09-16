@@ -1,3 +1,5 @@
+#ifdef USE_ESP32
+
 #include "esphome/core/preferences.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -94,3 +96,5 @@ void setup_preferences() {
 ESPPreferences *global_preferences;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 }  // namespace esphome
+
+#endif  // USE_ESP32

@@ -1,6 +1,7 @@
 #pragma once
 
 #ifdef USE_ESP8266
+
 #include "esphome/core/hal.h"
 #include <Arduino.h>
 

@@ -1,3 +1,5 @@
+#ifdef USE_ESP32
+
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "preferences.h"
@@ -79,3 +81,5 @@ extern "C" void app_main() {
 #endif  // USE_ESP_IDF
 
 }  // namespace esphome
+
+#endif  // USE_ESP32

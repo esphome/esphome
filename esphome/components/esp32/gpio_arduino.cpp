@@ -1,4 +1,4 @@
-#ifdef USE_ARDUINO
+#ifdef USE_ESP32_FRAMEWORK_ARDUINO
 
 #include "gpio_arduino.h"
 #include "esphome/core/log.h"
@@ -83,7 +83,7 @@ void IRAM_ATTR ISRInternalGPIOPin::clear_interrupt() {
 #ifdef CONFIG_IDF_TARGET_ESP32C3
   GPIO.status_w1tc.val = 1UL << arg->pin;
 #else
-  if (this->pin_ < 32) {
+  if (arg->pin < 32) {
     GPIO.status_w1tc = 1UL << arg->pin;
   } else {
     GPIO.status1_w1tc.intr_st = 1UL << (arg->pin - 32);
@@ -93,4 +93,4 @@ void IRAM_ATTR ISRInternalGPIOPin::clear_interrupt() {
 
 }  // namespace esphome
 
-#endif  // USE_ESP_IDF
+#endif  // USE_ESP32_FRAMEWORK_ARDUINO

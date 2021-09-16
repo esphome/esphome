@@ -1,3 +1,5 @@
+#ifdef USE_ESP8266
+
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "preferences.h"
@@ -32,3 +34,5 @@ uint32_t arch_get_cpu_cycle_count() {
 uint32_t arch_get_cpu_freq_hz() { return F_CPU; }
 
 }  // namespace esphome
+
+#endif  // USE_ESP8266

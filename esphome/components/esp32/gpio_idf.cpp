@@ -1,4 +1,4 @@
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32_FRAMEWORK_ESP_IDF
 
 #include "gpio_idf.h"
 #include "esphome/core/log.h"
@@ -46,4 +46,4 @@ void IRAM_ATTR ISRInternalGPIOPin::clear_interrupt() {
 
 }  // namespace esphome
 
-#endif  // USE_ESP_IDF
+#endif  // USE_ESP32_FRAMEWORK_ESP_IDF

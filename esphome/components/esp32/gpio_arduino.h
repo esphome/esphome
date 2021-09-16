@@ -1,6 +1,6 @@
 #pragma once
 
-#ifdef USE_ARDUINO
+#ifdef USE_ESP32_FRAMEWORK_ARDUINO
 #include "esphome/core/hal.h"
 #include <esp32-hal-gpio.h>
 
@@ -34,4 +34,4 @@ class ArduinoInternalGPIOPin : public InternalGPIOPin {
 }  // namespace esp32
 }  // namespace esphome
 
-#endif  // USE_ARDUINO
+#endif  // USE_ESP32_FRAMEWORK_ARDUINO

@@ -1,3 +1,5 @@
+#ifdef USE_ESP8266
+
 #include "preferences.h"
 #include "esphome/core/preferences.h"
 #include "esphome/core/helpers.h"
@@ -31,3 +33,5 @@ void preferences_prevent_write(bool prevent) {
 ESPPreferences *global_preferences;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 }  // namespace esphome
+
+#endif  // USE_ESP8266
