@@ -137,11 +137,11 @@ void TLC59208FOutput::loop() {
   this->update_ = false;
 }
 
-TLC59208FChannel *TLC59208FOutput::create_channel(uint8_t channel) {
-  this->min_channel_ = std::min(this->min_channel_, channel);
-  this->max_channel_ = std::max(this->max_channel_, channel);
-  auto *c = new TLC59208FChannel(this, channel);
-  return c;
+void TLC59208FOutput::register_channel(TLC59208FChannel *channel) {
+  auto c = channel->channel_;
+  this->min_channel_ = std::min(this->min_channel_, c);
+  this->max_channel_ = std::max(this->max_channel_, c);
+  channel->set_parent(this);
 }
 
 void TLC59208FChannel::write_state(float state) {

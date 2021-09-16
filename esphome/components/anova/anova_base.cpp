@@ -1,4 +1,6 @@
 #include "anova_base.h"
+#include <cstdio>
+#include <cstring>
 
 namespace esphome {
 namespace anova {

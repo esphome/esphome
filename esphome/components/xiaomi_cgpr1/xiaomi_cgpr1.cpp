@@ -6,7 +6,7 @@
 namespace esphome {
 namespace xiaomi_cgpr1 {
 
-static const char *TAG = "xiaomi_cgpr1";
+static const char *const TAG = "xiaomi_cgpr1";
 
 void XiaomiCGPR1::dump_config() {
   ESP_LOGCONFIG(TAG, "Xiaomi CGPR1");
@@ -54,11 +54,7 @@ bool XiaomiCGPR1::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
     success = true;
   }
 
-  if (!success) {
-    return false;
-  }
-
-  return true;
+  return success;
 }
 
 void XiaomiCGPR1::set_bindkey(const std::string &bindkey) {
@@ -69,7 +65,7 @@ void XiaomiCGPR1::set_bindkey(const std::string &bindkey) {
   char temp[3] = {0};
   for (int i = 0; i < 16; i++) {
     strncpy(temp, &(bindkey.c_str()[i * 2]), 2);
-    bindkey_[i] = std::strtoul(temp, NULL, 16);
+    bindkey_[i] = std::strtoul(temp, nullptr, 16);
   }
 }
 

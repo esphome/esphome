@@ -1,5 +1,7 @@
 #pragma once
 
+#include <memory>
+
 #include "esphome/core/component.h"
 #include "esphome/core/preferences.h"
 #include "esphome/core/helpers.h"
@@ -80,7 +82,7 @@ class OTAComponent : public Component {
 
   uint16_t port_;
 
-  WiFiServer *server_{nullptr};
+  std::unique_ptr<WiFiServer> server_{nullptr};
   WiFiClient client_{};
 
   bool has_safe_mode_{false};              ///< stores whether safe mode can be enabled.

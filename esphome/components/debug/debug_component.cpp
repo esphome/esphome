@@ -21,11 +21,11 @@ void DebugComponent::dump_config() {
 #endif
 
   ESP_LOGD(TAG, "ESPHome version %s", ESPHOME_VERSION);
-  this->free_heap_ = ESP.getFreeHeap();
+  this->free_heap_ = ESP.getFreeHeap();  // NOLINT(readability-static-accessed-through-instance)
   ESP_LOGD(TAG, "Free Heap Size: %u bytes", this->free_heap_);
 
   const char *flash_mode;
-  switch (ESP.getFlashChipMode()) {
+  switch (ESP.getFlashChipMode()) {  // NOLINT(readability-static-accessed-through-instance)
     case FM_QIO:
       flash_mode = "QIO";
       break;
@@ -49,6 +49,7 @@ void DebugComponent::dump_config() {
     default:
       flash_mode = "UNKNOWN";
   }
+  // NOLINTNEXTLINE(readability-static-accessed-through-instance)
   ESP_LOGD(TAG, "Flash Chip: Size=%ukB Speed=%uMHz Mode=%s", ESP.getFlashChipSize() / 1024,
            ESP.getFlashChipSpeed() / 1000000, flash_mode);
 
@@ -87,7 +88,7 @@ void DebugComponent::dump_config() {
 
   ESP_LOGD(TAG, "ESP-IDF Version: %s", esp_get_idf_version());
 
-  std::string mac = uint64_to_string(ESP.getEfuseMac());
+  std::string mac = uint64_to_string(ESP.getEfuseMac());  // NOLINT(readability-static-accessed-through-instance)
   ESP_LOGD(TAG, "EFuse MAC: %s", mac.c_str());
 
   const char *reset_reason;
@@ -186,7 +187,7 @@ void DebugComponent::dump_config() {
   ESP_LOGD(TAG, "Wakeup Reason: %s", wakeup_reason);
 #endif
 
-#ifdef ARDUINO_ARCH_ESP8266
+#if defined(ARDUINO_ARCH_ESP8266) && !defined(CLANG_TIDY)
   ESP_LOGD(TAG, "Chip ID: 0x%08X", ESP.getChipId());
   ESP_LOGD(TAG, "SDK Version: %s", ESP.getSdkVersion());
   ESP_LOGD(TAG, "Core Version: %s", ESP.getCoreVersion().c_str());
@@ -198,7 +199,7 @@ void DebugComponent::dump_config() {
 #endif
 }
 void DebugComponent::loop() {
-  uint32_t new_free_heap = ESP.getFreeHeap();
+  uint32_t new_free_heap = ESP.getFreeHeap();  // NOLINT(readability-static-accessed-through-instance)
   if (new_free_heap < this->free_heap_ / 2) {
     this->free_heap_ = new_free_heap;
     ESP_LOGD(TAG, "Free Heap Size: %u bytes", this->free_heap_);

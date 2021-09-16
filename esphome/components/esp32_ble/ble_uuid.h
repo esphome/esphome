@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/core/helpers.h"
+#include "esphome/core/esphal.h"
 
 #ifdef ARDUINO_ARCH_ESP32
 

@@ -21,7 +21,7 @@ bool remote_is_connected();
 
 /// Manually set up the network stack (outside of the App.setup() loop, for example in OTA safe mode)
 #ifdef ARDUINO_ARCH_ESP8266
-void network_setup_mdns(IPAddress address, int interface);
+void network_setup_mdns(const IPAddress &address, int interface);
 #endif
 #ifdef ARDUINO_ARCH_ESP32
 void network_setup_mdns();

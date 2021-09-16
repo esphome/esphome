@@ -14,6 +14,8 @@ esphome/core/* @esphome/core
 esphome/components/ac_dimmer/* @glmnet
 esphome/components/adc/* @esphome/core
 esphome/components/addressable_light/* @justfalter
+esphome/components/airthings_ble/* @jeromelaban
+esphome/components/airthings_wave_plus/* @jeromelaban
 esphome/components/am43/* @buxtronix
 esphome/components/am43/cover/* @buxtronix
 esphome/components/animation/* @syndlex
@@ -29,6 +31,7 @@ esphome/components/ble_client/* @buxtronix
 esphome/components/bme680_bsec/* @trvrnrth
 esphome/components/canbus/* @danielschramm @mvturnho
 esphome/components/captive_portal/* @OttoWinter
+esphome/components/ccs811/* @habbie
 esphome/components/climate/* @esphome/core
 esphome/components/climate_ir/* @glmnet
 esphome/components/color_temperature/* @jesserockz
@@ -53,6 +56,8 @@ esphome/components/gpio/* @esphome/core
 esphome/components/gps/* @coogle
 esphome/components/graph/* @synco
 esphome/components/havells_solar/* @sourabhjaiswal
+esphome/components/hbridge/fan/* @WeekendWarrior
+esphome/components/hbridge/light/* @DotNetDann
 esphome/components/hitachi_ac424/* @sourabhjaiswal
 esphome/components/homeassistant/* @OttoWinter
 esphome/components/hrxl_maxsonar_wr/* @netmikey
@@ -76,8 +81,7 @@ esphome/components/mcp23x17_base/* @jesserockz
 esphome/components/mcp23xxx_base/* @jesserockz
 esphome/components/mcp2515/* @danielschramm @mvturnho
 esphome/components/mcp9808/* @k7hpn
-esphome/components/midea_ac/* @dudanov
-esphome/components/midea_dongle/* @dudanov
+esphome/components/midea/* @dudanov
 esphome/components/mitsubishi/* @RubyBailey
 esphome/components/network/* @esphome/core
 esphome/components/nextion/* @senexcrenshaw
@@ -91,6 +95,7 @@ esphome/components/ota/* @esphome/core
 esphome/components/output/* @esphome/core
 esphome/components/pid/* @OttoWinter
 esphome/components/pipsolar/* @andreashergert1984
+esphome/components/pm1006/* @habbie
 esphome/components/pmsa003i/* @sjtrny
 esphome/components/pn532/* @OttoWinter @jesserockz
 esphome/components/pn532_i2c/* @OttoWinter @jesserockz
@@ -116,6 +121,7 @@ esphome/components/sht4x/* @sjtrny
 esphome/components/shutdown/* @esphome/core
 esphome/components/sim800l/* @glmnet
 esphome/components/sm2135/* @BoukeHaarsma23
+esphome/components/socket/* @esphome/core
 esphome/components/spi/* @esphome/core
 esphome/components/ssd1322_base/* @kbx81
 esphome/components/ssd1322_spi/* @kbx81
@@ -130,6 +136,7 @@ esphome/components/ssd1351_base/* @kbx81
 esphome/components/ssd1351_spi/* @kbx81
 esphome/components/st7735/* @SenexCrenshaw
 esphome/components/st7789v/* @kbx81
+esphome/components/st7920/* @marsjan155
 esphome/components/substitutions/* @esphome/core
 esphome/components/sun/* @OttoWinter
 esphome/components/switch/* @esphome/core

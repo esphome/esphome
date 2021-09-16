@@ -11,8 +11,8 @@ class DemoSensor : public sensor::Sensor, public PollingComponent {
  public:
   void update() override {
     float val = random_float();
-    bool is_auto = this->last_reset_type == sensor::LAST_RESET_TYPE_AUTO;
-    if (is_auto) {
+    bool increasing = this->get_state_class() == sensor::STATE_CLASS_TOTAL_INCREASING;
+    if (increasing) {
       float base = isnan(this->state) ? 0.0f : this->state;
       this->publish_state(base + val * 10);
     } else {

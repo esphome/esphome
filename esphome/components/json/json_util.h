@@ -1,5 +1,7 @@
 #pragma once
 
+#include <vector>
+
 #include "esphome/core/helpers.h"
 #include <ArduinoJson.h>
 

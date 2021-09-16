@@ -33,11 +33,6 @@ class Filter {
 
   void input(float value);
 
-  /// Return the amount of time that this filter is expected to take based on the input time interval.
-  virtual uint32_t expected_interval(uint32_t input);
-
-  uint32_t calculate_remaining_interval(uint32_t input);
-
   void output(float value);
 
  protected:
@@ -68,8 +63,6 @@ class MedianFilter : public Filter {
   void set_send_every(size_t send_every);
   void set_window_size(size_t window_size);
 
-  uint32_t expected_interval(uint32_t input) override;
-
  protected:
   std::deque<float> queue_;
   size_t send_every_;
@@ -98,8 +91,6 @@ class MinFilter : public Filter {
   void set_send_every(size_t send_every);
   void set_window_size(size_t window_size);
 
-  uint32_t expected_interval(uint32_t input) override;
-
  protected:
   std::deque<float> queue_;
   size_t send_every_;
@@ -127,8 +118,6 @@ class MaxFilter : public Filter {
 
   void set_send_every(size_t send_every);
   void set_window_size(size_t window_size);
-
-  uint32_t expected_interval(uint32_t input) override;
 
  protected:
   std::deque<float> queue_;
@@ -159,8 +148,6 @@ class SlidingWindowMovingAverageFilter : public Filter {
   void set_send_every(size_t send_every);
   void set_window_size(size_t window_size);
 
-  uint32_t expected_interval(uint32_t input) override;
-
  protected:
   float sum_{0.0};
   std::deque<float> queue_;
@@ -182,8 +169,6 @@ class ExponentialMovingAverageFilter : public Filter {
 
   void set_send_every(size_t send_every);
   void set_alpha(float alpha);
-
-  uint32_t expected_interval(uint32_t input) override;
 
  protected:
   bool first_value_{true};
@@ -279,8 +264,6 @@ class HeartbeatFilter : public Filter, public Component {
 
   optional<float> new_value(float value) override;
 
-  uint32_t expected_interval(uint32_t input) override;
-
   float get_setup_priority() const override;
 
  protected:
@@ -305,8 +288,6 @@ class OrFilter : public Filter {
   explicit OrFilter(std::vector<Filter *> filters);
 
   void initialize(Sensor *parent, Filter *next) override;
-
-  uint32_t expected_interval(uint32_t input) override;
 
   optional<float> new_value(float value) override;
 
