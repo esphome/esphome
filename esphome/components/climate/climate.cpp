@@ -327,6 +327,8 @@ optional<ClimateDeviceRestoreState> Climate::restore_state_() {
 }
 void Climate::save_state_() {
   ClimateDeviceRestoreState state{};
+  // initialize as zero to prevent random data on stack triggering erase
+  memset(&state, 0, sizeof(ClimateDeviceRestoreState));
 
   state.mode = this->mode;
   auto traits = this->get_traits();

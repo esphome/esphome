@@ -234,7 +234,7 @@ uint8_t TM1637Display::print(uint8_t start_pos, const char *str) {
   for (; *str != '\0'; str++) {
     uint8_t data = TM1637_UNKNOWN_CHAR;
     if (*str >= ' ' && *str <= '~')
-      data = progmem_read_8(&TM1637_ASCII_TO_RAW[*str - ' ']);
+      data = progmem_read_byte(&TM1637_ASCII_TO_RAW[*str - ' ']);
 
     if (data == TM1637_UNKNOWN_CHAR) {
       ESP_LOGW(TAG, "Encountered character '%c' with no TM1637 representation while translating string!", *str);

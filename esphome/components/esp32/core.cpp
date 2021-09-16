@@ -39,17 +39,25 @@ void arch_restart() {
   }
 }
 void IRAM_ATTR HOT arch_feed_wdt() {
-  // TODO: copy comment from app_esp32.cpp
+#ifdef USE_ARDUINO
+#if CONFIG_ARDUINO_RUNNING_CORE == 0
+#ifdef CONFIG_TASK_WDT_CHECK_IDLE_TASK_CPU0
+  // ESP32 uses "Task Watchdog" which is hooked to the FreeRTOS idle task.
+  // To cause the Watchdog to be triggered we need to put the current task
+  // to sleep to get the idle task scheduled.
   delay(1);
+#endif
+#endif
+#endif  // USE_ARDUINO
+
+#ifdef USE_ESP_IDF
+#ifdef CONFIG_TASK_WDT_CHECK_IDLE_TASK_CPU0
+  delay(1);
+#endif
+#endif  // USE_ESP_IDF
 }
 
-uint8_t progmem_read_8(const uint8_t *addr) {
-  return *addr;
-}
-uint16_t progmem_read_16(const uint16_t *addr) {
-  return *addr;
-}
-uint32_t progmem_read_32(const uint32_t *addr) {
+uint8_t progmem_read_byte(const uint8_t *addr) {
   return *addr;
 }
 uint32_t arch_get_cpu_cycle_count() {

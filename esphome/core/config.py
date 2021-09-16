@@ -216,6 +216,13 @@ async def add_includes(includes):
 
 
 @coroutine_with_priority(-1000.0)
+async def _add_platformio_options(pio_options):
+    # Add includes at the very end, so that they override everything
+    for key, val in pio_options.items():
+        cg.add_platformio_option(key, val)
+
+
+@coroutine_with_priority(-1000.0)
 async def _esp8266_add_lwip_type():
     # If any component has already set this, do not change it
     if any(
@@ -312,5 +319,5 @@ async def to_code(config):
         cg.add_define("ESPHOME_PROJECT_NAME", config[CONF_PROJECT][CONF_NAME])
         cg.add_define("ESPHOME_PROJECT_VERSION", config[CONF_PROJECT][CONF_VERSION])
 
-    for key, val in config[CONF_PLATFORMIO_OPTIONS].items():
-        cg.add_platformio_option(key, val)
+    if config[CONF_PLATFORMIO_OPTIONS]:
+        CORE.add_job(_add_platformio_options, config[CONF_PLATFORMIO_OPTIONS])

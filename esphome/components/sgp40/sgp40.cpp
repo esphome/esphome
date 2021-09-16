@@ -191,7 +191,7 @@ uint16_t SGP40Component::measure_raw_() {
   command[6] = tempticks & 0xFF;
   command[7] = generate_crc_(command + 5, 2);
 
-  if (!this->write(command, 8)) {
+  if (this->write(command, 8) != i2c::ERROR_OK) {
     this->status_set_warning();
     ESP_LOGD(TAG, "write error");
     return UINT16_MAX;

@@ -186,8 +186,8 @@ void ILI9341Display::end_data_() { this->disable(); }
 void ILI9341Display::init_lcd_(const uint8_t *init_cmd) {
   uint8_t cmd, x, num_args;
   const uint8_t *addr = init_cmd;
-  while ((cmd = progmem_read_8(addr++)) > 0) {
-    x = progmem_read_8(addr++);
+  while ((cmd = progmem_read_byte(addr++)) > 0) {
+    x = progmem_read_byte(addr++);
     num_args = x & 0x7F;
     send_command(cmd, addr, num_args);
     addr += num_args;

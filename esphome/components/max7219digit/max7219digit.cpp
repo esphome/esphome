@@ -213,7 +213,7 @@ void MAX7219Component::scroll_left() {
 void MAX7219Component::send_char(uint8_t chip, uint8_t data) {
   // get this character from PROGMEM
   for (uint8_t i = 0; i < 8; i++)
-    this->max_displaybuffer_[chip * 8 + i] = progmem_read_8(&MAX7219_DOT_MATRIX_FONT[data][i]);
+    this->max_displaybuffer_[chip * 8 + i] = progmem_read_byte(&MAX7219_DOT_MATRIX_FONT[data][i]);
 }  // end of send_char
 
 // send one character (data) to position (chip)

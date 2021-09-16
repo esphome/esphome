@@ -73,7 +73,7 @@ void Logger::log_vprintf_(int level, const char *tag, int line, const __FlashStr
   size_t len = 0;
   char ch = '.';
   while (!this->is_buffer_full_() && ch != '\0') {
-    this->tx_buffer_[this->tx_buffer_at_++] = ch = progmem_read_8(format_pgm_p++);
+    this->tx_buffer_[this->tx_buffer_at_++] = ch = progmem_read_byte(format_pgm_p++);
   }
   // Buffer full form copying format
   if (this->is_buffer_full_())
@@ -225,19 +225,17 @@ void Logger::add_on_log_callback(std::function<void(int, const char *, const cha
 }
 float Logger::get_setup_priority() const { return setup_priority::HARDWARE - 1.0f; }
 const char *const LOG_LEVELS[] = {"NONE", "ERROR", "WARN", "INFO", "CONFIG", "DEBUG", "VERBOSE", "VERY_VERBOSE"};
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 const char *const UART_SELECTIONS[] = {"UART0", "UART1", "UART2"};
 #endif
-#ifdef ARDUINO_ARCH_ESP8266
+#ifdef USE_ESP8266
 const char *const UART_SELECTIONS[] = {"UART0", "UART1", "UART0_SWAP"};
 #endif
 void Logger::dump_config() {
   ESP_LOGCONFIG(TAG, "Logger:");
   ESP_LOGCONFIG(TAG, "  Level: %s", LOG_LEVELS[ESPHOME_LOG_LEVEL]);
   ESP_LOGCONFIG(TAG, "  Log Baud Rate: %u", this->baud_rate_);
-#if 0
   ESP_LOGCONFIG(TAG, "  Hardware UART: %s", UART_SELECTIONS[this->uart_]);
-#endif
   for (auto &it : this->log_levels_) {
     ESP_LOGCONFIG(TAG, "  Level for '%s': %s", it.tag.c_str(), LOG_LEVELS[it.level]);
   }

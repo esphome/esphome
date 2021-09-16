@@ -17,29 +17,29 @@ void SDP3XComponent::update() { this->read_pressure_(); }
 void SDP3XComponent::setup() {
   ESP_LOGD(TAG, "Setting up SDP3X...");
 
-  if (!this->write(SDP3X_STOP_MEAS, 2)) {
+  if (this->write(SDP3X_STOP_MEAS, 2) != i2c::ERROR_OK) {
     ESP_LOGW(TAG, "Stop SDP3X failed!");  // This sometimes fails for no good reason
   }
 
-  if (!this->write(SDP3X_SOFT_RESET, 2)) {
+  if (this->write(SDP3X_SOFT_RESET, 2) != i2c::ERROR_OK) {
     ESP_LOGW(TAG, "Soft Reset SDP3X failed!");  // This sometimes fails for no good reason
   }
 
   delay_microseconds_accurate(20000);
 
-  if (!this->write(SDP3X_READ_ID1, 2)) {
+  if (this->write(SDP3X_READ_ID1, 2) != i2c::ERROR_OK) {
     ESP_LOGE(TAG, "Read ID1 SDP3X failed!");
     this->mark_failed();
     return;
   }
-  if (!this->write(SDP3X_READ_ID2, 2)) {
+  if (this->write(SDP3X_READ_ID2, 2) != i2c::ERROR_OK) {
     ESP_LOGE(TAG, "Read ID2 SDP3X failed!");
     this->mark_failed();
     return;
   }
 
   uint8_t data[18];
-  if (!this->read_bytes_raw(data, 18)) {
+  if (this->read(data, 18) != i2c::ERROR_OK) {
     ESP_LOGE(TAG, "Read ID SDP3X failed!");
     this->mark_failed();
     return;
@@ -59,7 +59,7 @@ void SDP3XComponent::setup() {
     pressure_scale_factor_ = 240.0f * 100.0f;
   }
 
-  if (!this->write(SDP3X_START_DP_AVG, 2)) {
+  if (this->write(SDP3X_START_DP_AVG, 2) != i2c::ERROR_OK) {
     ESP_LOGE(TAG, "Start Measurements SDP3X failed!");
     this->mark_failed();
     return;
@@ -77,7 +77,7 @@ void SDP3XComponent::dump_config() {
 
 void SDP3XComponent::read_pressure_() {
   uint8_t data[9];
-  if (!this->read_bytes_raw(data, 9)) {
+  if (this->read(data, 9) != i2c::ERROR_OK) {
     ESP_LOGW(TAG, "Couldn't read SDP3X data!");
     this->status_set_warning();
     return;

@@ -82,7 +82,7 @@ bool PCF8574Component::write_gpio_() {
   uint8_t data[2];
   data[0] = value;
   data[1] = value >> 8;
-  if (!this->write(data, this->pcf8575_ ? 2 : 1)) {
+  if (this->write(data, this->pcf8575_ ? 2 : 1) != i2c::ERROR_OK) {
     this->status_set_warning();
     return false;
   }
