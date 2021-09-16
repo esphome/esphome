@@ -5,7 +5,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/version.h"
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 
 #include <nvs_flash.h>
 #include <freertos/FreeRTOSConfig.h>

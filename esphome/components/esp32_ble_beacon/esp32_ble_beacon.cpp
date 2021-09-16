@@ -1,7 +1,7 @@
 #include "esp32_ble_beacon.h"
 #include "esphome/core/log.h"
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 
 #include <nvs_flash.h>
 #include <freertos/FreeRTOS.h>

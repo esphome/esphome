@@ -37,7 +37,7 @@ struct AcDimmerDataStore {
 
   void gpio_intr();
   static void s_gpio_intr(AcDimmerDataStore *store);
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
   static void s_timer_intr();
 #endif
 };

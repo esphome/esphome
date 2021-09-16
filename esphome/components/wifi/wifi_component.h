@@ -18,7 +18,7 @@
 #include <ESP8266WiFi.h>
 #include <ESP8266WiFiType.h>
 
-#if defined(ARDUINO_ARCH_ESP8266) && ARDUINO_VERSION_CODE < VERSION_CODE(2, 4, 0)
+#if defined(USE_ESP8266) && ARDUINO_VERSION_CODE < VERSION_CODE(2, 4, 0)
 extern "C" {
 #include <user_interface.h>
 };
@@ -283,7 +283,7 @@ class WiFiComponent : public Component {
   bool is_captive_portal_active_();
   bool is_esp32_improv_active_();
 
-#ifdef ARDUINO_ARCH_ESP8266
+#ifdef USE_ESP8266
   static void wifi_event_callback(System_Event_t *event);
   void wifi_scan_done_callback_(void *arg, STATUS status);
   static void s_wifi_scan_done_callback(void *arg, STATUS status);

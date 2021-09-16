@@ -3,10 +3,10 @@
 #include "esphome/core/application.h"
 #include <StreamString.h>
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 #include <Update.h>
 #endif
-#ifdef ARDUINO_ARCH_ESP8266
+#ifdef USE_ESP8266
 #include <Updater.h>
 #endif
 
@@ -27,12 +27,12 @@ void OTARequestHandler::handleUpload(AsyncWebServerRequest *request, const Strin
   if (index == 0) {
     ESP_LOGI(TAG, "OTA Update Start: %s", filename.c_str());
     this->ota_read_length_ = 0;
-#ifdef ARDUINO_ARCH_ESP8266
+#ifdef USE_ESP8266
     Update.runAsync(true);
     // NOLINTNEXTLINE(readability-static-accessed-through-instance)
     success = Update.begin((ESP.getFreeSketchSpace() - 0x1000) & 0xFFFFF000);
 #endif
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
     if (Update.isRunning())
       Update.abort();
     success = Update.begin(UPDATE_SIZE_UNKNOWN, U_FLASH);

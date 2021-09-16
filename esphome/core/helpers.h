@@ -6,7 +6,7 @@
 #include <memory>
 #include <type_traits>
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 #include "esp32-hal-psram.h"
 #endif
 
@@ -173,7 +173,7 @@ class InterruptLock {
   ~InterruptLock();
 
  protected:
-#ifdef ARDUINO_ARCH_ESP8266
+#ifdef USE_ESP8266
   uint32_t xt_state_;
 #endif
 };

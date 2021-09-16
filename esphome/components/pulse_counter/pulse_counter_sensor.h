@@ -4,7 +4,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/components/sensor/sensor.h"
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 #include <driver/pcnt.h>
 #endif
 
@@ -17,10 +17,10 @@ enum PulseCounterCountMode {
   PULSE_COUNTER_DECREMENT,
 };
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 using pulse_counter_t = int16_t;
 #endif
-#ifdef ARDUINO_ARCH_ESP8266
+#ifdef USE_ESP8266
 using pulse_counter_t = int32_t;
 #endif
 
@@ -30,16 +30,16 @@ struct PulseCounterStorage {
 
   static void gpio_intr(PulseCounterStorage *arg);
 
-#ifdef ARDUINO_ARCH_ESP8266
+#ifdef USE_ESP8266
   volatile pulse_counter_t counter{0};
   volatile uint32_t last_pulse{0};
 #endif
 
   InternalGPIOPin *pin;
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
   pcnt_unit_t pcnt_unit;
 #endif
-#ifdef ARDUINO_ARCH_ESP8266
+#ifdef USE_ESP8266
   ISRInternalGPIOPin isr_pin;
 #endif
   PulseCounterCountMode rising_edge_mode{PULSE_COUNTER_INCREMENT};

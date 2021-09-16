@@ -87,11 +87,11 @@ void MQTTClientComponent::start_dnslookup_() {
   this->dns_resolve_error_ = false;
   this->dns_resolved_ = false;
   ip_addr_t addr;
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
   err_t err = dns_gethostbyname_addrtype(this->credentials_.address.c_str(), &addr,
                                          MQTTClientComponent::dns_found_callback, this, LWIP_DNS_ADDRTYPE_IPV4);
 #endif
-#ifdef ARDUINO_ARCH_ESP8266
+#ifdef USE_ESP8266
   err_t err = dns_gethostbyname(this->credentials_.address.c_str(), &addr,
                                 esphome::mqtt::MQTTClientComponent::dns_found_callback, this);
 #endif
@@ -99,10 +99,10 @@ void MQTTClientComponent::start_dnslookup_() {
     case ERR_OK: {
       // Got IP immediately
       this->dns_resolved_ = true;
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
       this->ip_ = addr.u_addr.ip4.addr;
 #endif
-#ifdef ARDUINO_ARCH_ESP8266
+#ifdef USE_ESP8266
       this->ip_ = addr.addr;
 #endif
       this->start_connect_();
@@ -116,7 +116,7 @@ void MQTTClientComponent::start_dnslookup_() {
     default:
     case ERR_ARG: {
       // error
-#if defined(ARDUINO_ARCH_ESP8266)
+#if defined(USE_ESP8266)
       ESP_LOGW(TAG, "Error resolving MQTT broker IP address: %ld", err);
 #else
       ESP_LOGW(TAG, "Error resolving MQTT broker IP address: %d", err);
@@ -146,7 +146,7 @@ void MQTTClientComponent::check_dnslookup_() {
   ESP_LOGD(TAG, "Resolved broker IP address to %s", this->ip_.str().c_str());
   this->start_connect_();
 }
-#if defined(ARDUINO_ARCH_ESP8266) && LWIP_VERSION_MAJOR == 1
+#if defined(USE_ESP8266) && LWIP_VERSION_MAJOR == 1
 void MQTTClientComponent::dns_found_callback(const char *name, ip_addr_t *ipaddr, void *callback_arg) {
 #else
 void MQTTClientComponent::dns_found_callback(const char *name, const ip_addr_t *ipaddr, void *callback_arg) {
@@ -155,10 +155,10 @@ void MQTTClientComponent::dns_found_callback(const char *name, const ip_addr_t *
   if (ipaddr == nullptr) {
     a_this->dns_resolve_error_ = true;
   } else {
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
     a_this->ip_ = ipaddr->u_addr.ip4.addr;
 #endif
-#ifdef ARDUINO_ARCH_ESP8266
+#ifdef USE_ESP8266
     a_this->ip_ = ipaddr->addr;
 #endif
     a_this->dns_resolved_ = true;
@@ -477,7 +477,7 @@ static bool topic_match(const char *message, const char *subscription) {
 }
 
 void MQTTClientComponent::on_message(const std::string &topic, const std::string &payload) {
-#ifdef ARDUINO_ARCH_ESP8266
+#ifdef USE_ESP8266
   // on ESP8266, this is called in LWiP thread; some components do not like running
   // in an ISR.
   this->defer([this, topic, payload]() {
@@ -485,7 +485,7 @@ void MQTTClientComponent::on_message(const std::string &topic, const std::string
     for (auto &subscription : this->subscriptions_)
       if (topic_match(topic.c_str(), subscription.topic.c_str()))
         subscription.callback(topic, payload);
-#ifdef ARDUINO_ARCH_ESP8266
+#ifdef USE_ESP8266
   });
 #endif
 }

@@ -1,6 +1,6 @@
 #pragma once
 
-#ifdef ARDUINO_ARCH_ESP8266
+#ifdef USE_ESP8266
 
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"

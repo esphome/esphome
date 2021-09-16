@@ -8,10 +8,10 @@
 #include <utility>
 #include <memory>
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 #include <HTTPClient.h>
 #endif
-#ifdef ARDUINO_ARCH_ESP8266
+#ifdef USE_ESP8266
 #include <ESP8266HTTPClient.h>
 #include <WiFiClientSecure.h>
 #endif
@@ -51,7 +51,7 @@ class HttpRequestComponent : public Component {
   uint16_t timeout_{5000};
   std::string body_;
   std::list<Header> headers_;
-#ifdef ARDUINO_ARCH_ESP8266
+#ifdef USE_ESP8266
   std::shared_ptr<WiFiClient> wifi_client_;
   std::shared_ptr<BearSSL::WiFiClientSecure> wifi_client_secure_;
   std::shared_ptr<WiFiClient> get_wifi_client_();

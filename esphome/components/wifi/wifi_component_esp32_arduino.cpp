@@ -1,6 +1,6 @@
 #include "wifi_component.h"
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 
 #include <esp_wifi.h>
 

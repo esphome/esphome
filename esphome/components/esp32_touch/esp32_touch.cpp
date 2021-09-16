@@ -1,4 +1,4 @@
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 
 #include "esp32_touch.h"
 #include "esphome/core/log.h"

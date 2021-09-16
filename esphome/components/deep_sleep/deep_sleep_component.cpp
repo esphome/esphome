@@ -29,7 +29,7 @@ void DeepSleepComponent::dump_config() {
   if (this->run_duration_.has_value()) {
     ESP_LOGCONFIG(TAG, "  Run Duration: %u ms", *this->run_duration_);
   }
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
   if (wakeup_pin_ != nullptr) {
     LOG_PIN("  Wakeup Pin: ", this->wakeup_pin_);
   }
@@ -43,7 +43,7 @@ float DeepSleepComponent::get_loop_priority() const {
   return -100.0f;  // run after everything else is ready
 }
 void DeepSleepComponent::set_sleep_duration(uint32_t time_ms) { this->sleep_duration_ = uint64_t(time_ms) * 1000; }
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 void DeepSleepComponent::set_wakeup_pin_mode(WakeupPinMode wakeup_pin_mode) {
   this->wakeup_pin_mode_ = wakeup_pin_mode;
 }
@@ -55,7 +55,7 @@ void DeepSleepComponent::begin_sleep(bool manual) {
     this->next_enter_deep_sleep_ = true;
     return;
   }
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
   if (this->wakeup_pin_mode_ == WAKEUP_PIN_MODE_KEEP_AWAKE && this->wakeup_pin_ != nullptr &&
       !this->sleep_duration_.has_value() && this->wakeup_pin_->digital_read()) {
     // Defer deep sleep until inactive
@@ -72,7 +72,7 @@ void DeepSleepComponent::begin_sleep(bool manual) {
 
   App.run_safe_shutdown_hooks();
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
   if (this->sleep_duration_.has_value())
     esp_sleep_enable_timer_wakeup(*this->sleep_duration_);
   if (this->wakeup_pin_ != nullptr) {
@@ -87,7 +87,7 @@ void DeepSleepComponent::begin_sleep(bool manual) {
   esp_deep_sleep_start();
 #endif
 
-#ifdef ARDUINO_ARCH_ESP8266
+#ifdef USE_ESP8266
   ESP.deepSleep(*this->sleep_duration_);  // NOLINT(readability-static-accessed-through-instance)
 #endif
 }

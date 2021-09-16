@@ -3,7 +3,7 @@
 #include "esphome/core/util.h"
 #include "esphome/core/application.h"
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 
 #include <eth_phy/phy_lan8720.h>
 #include <eth_phy/phy_tlk110.h>

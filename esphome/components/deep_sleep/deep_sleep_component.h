@@ -12,7 +12,7 @@
 namespace esphome {
 namespace deep_sleep {
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 
 /** The values of this enum define what should be done if deep sleep is set up with a wakeup pin on the ESP32
  * and the scenario occurs that the wakeup pin is already in the wakeup state.
@@ -48,7 +48,7 @@ class DeepSleepComponent : public Component {
  public:
   /// Set the duration in ms the component should sleep once it's in deep sleep mode.
   void set_sleep_duration(uint32_t time_ms);
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
   /** Set the pin to wake up to on the ESP32 once it's in deep sleep mode.
    * Use the inverted property to set the wakeup level.
    */
@@ -74,7 +74,7 @@ class DeepSleepComponent : public Component {
 
  protected:
   optional<uint64_t> sleep_duration_;
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
   InternalGPIOPin *wakeup_pin_;
   WakeupPinMode wakeup_pin_mode_{WAKEUP_PIN_MODE_IGNORE};
   optional<Ext1Wakeup> ext1_wakeup_;

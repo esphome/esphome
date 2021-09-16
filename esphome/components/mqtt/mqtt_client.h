@@ -227,7 +227,7 @@ class MQTTClientComponent : public Component {
   void start_connect_();
   void start_dnslookup_();
   void check_dnslookup_();
-#if defined(ARDUINO_ARCH_ESP8266) && LWIP_VERSION_MAJOR == 1
+#if defined(USE_ESP8266) && LWIP_VERSION_MAJOR == 1
   static void dns_found_callback(const char *name, ip_addr_t *ipaddr, void *callback_arg);
 #else
   static void dns_found_callback(const char *name, const ip_addr_t *ipaddr, void *callback_arg);

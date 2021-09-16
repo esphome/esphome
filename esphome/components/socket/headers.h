@@ -81,7 +81,7 @@ struct sockaddr_storage {
 };
 typedef uint32_t socklen_t;
 
-#ifdef ARDUINO_ARCH_ESP8266
+#ifdef USE_ESP8266
 // arduino-esp8266 declares a global vars called INADDR_NONE/ANY which are invalid with the define
 #ifdef INADDR_ANY
 #undef INADDR_ANY
@@ -92,7 +92,7 @@ typedef uint32_t socklen_t;
 
 #define ESPHOME_INADDR_ANY ((uint32_t) 0x00000000UL)
 #define ESPHOME_INADDR_NONE ((uint32_t) 0xFFFFFFFFUL)
-#else  // !ARDUINO_ARCH_ESP8266
+#else  // !USE_ESP8266
 #define ESPHOME_INADDR_ANY INADDR_ANY
 #define ESPHOME_INADDR_NONE INADDR_NONE
 #endif
@@ -119,7 +119,7 @@ typedef uint32_t socklen_t;
 
 #define ESPHOME_INADDR_ANY ((uint32_t) 0x00000000UL)
 #define ESPHOME_INADDR_NONE ((uint32_t) 0xFFFFFFFFUL)
-#else  // !ARDUINO_ARCH_ESP32
+#else  // !USE_ESP32
 #define ESPHOME_INADDR_ANY INADDR_ANY
 #define ESPHOME_INADDR_NONE INADDR_NONE
 #endif

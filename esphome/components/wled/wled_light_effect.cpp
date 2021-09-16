@@ -2,11 +2,11 @@
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 #include <WiFi.h>
 #endif
 
-#ifdef ARDUINO_ARCH_ESP8266
+#ifdef USE_ESP8266
 #include <ESP8266WiFi.h>
 #include <WiFiUdp.h>
 #endif

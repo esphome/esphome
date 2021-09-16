@@ -7,7 +7,7 @@
 #include "esphome/components/light/light_output.h"
 #include "esphome/components/light/addressable_light.h"
 
-#if defined(ARDUINO_ARCH_ESP8266) && ARDUINO_VERSION_CODE < VERSION_CODE(2, 4, 0)
+#if defined(USE_ESP8266) && ARDUINO_VERSION_CODE < VERSION_CODE(2, 4, 0)
 #error The NeoPixelBus library requires at least arduino_version 2.4.x
 #endif
 

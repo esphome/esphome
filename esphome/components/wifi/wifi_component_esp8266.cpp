@@ -1,7 +1,7 @@
 #include "wifi_component.h"
 #include "esphome/core/macros.h"
 
-#ifdef ARDUINO_ARCH_ESP8266
+#ifdef USE_ESP8266
 
 #include <user_interface.h>
 

@@ -27,7 +27,7 @@ int Nextion::upload_by_chunks_(HTTPClient *http, int range_start) {
   if (range_end > this->tft_size_)
     range_end = this->tft_size_;
 
-#ifdef ARDUINO_ARCH_ESP8266
+#ifdef USE_ESP8266
 #if ARDUINO_VERSION_CODE >= VERSION_CODE(2, 7, 0)
   http->setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
 #elif ARDUINO_VERSION_CODE >= VERSION_CODE(2, 6, 0)
@@ -47,10 +47,10 @@ int Nextion::upload_by_chunks_(HTTPClient *http, int range_start) {
   int code = 0;
   bool begin_status = false;
   while (tries <= 5) {
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
     begin_status = http->begin(this->tft_url_.c_str());
 #endif
-#ifdef ARDUINO_ARCH_ESP8266
+#ifdef USE_ESP8266
     begin_status = http->begin(*this->get_wifi_client_(), this->tft_url_.c_str());
 #endif
 
@@ -140,10 +140,10 @@ void Nextion::upload_tft() {
   HTTPClient http;
   http.setTimeout(15000);  // Yes 15 seconds.... Helps 8266s along
   bool begin_status = false;
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
   begin_status = http.begin(this->tft_url_.c_str());
 #endif
-#ifdef ARDUINO_ARCH_ESP8266
+#ifdef USE_ESP8266
 #if ARDUINO_VERSION_CODE >= VERSION_CODE(2, 7, 0)
   http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
 #elif ARDUINO_VERSION_CODE >= VERSION_CODE(2, 6, 0)
@@ -158,7 +158,7 @@ void Nextion::upload_tft() {
   if (!begin_status) {
     this->is_updating_ = false;
     ESP_LOGD(TAG, "connection failed");
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
     if (psramFound())
       free(this->transfer_buffer_);  // NOLINT
     else
@@ -250,7 +250,7 @@ void Nextion::upload_tft() {
   }
 
   // Nextion wants 4096 bytes at a time. Make chunk_size a multiple of 4096
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
   uint32_t chunk_size = 8192;
   if (psramFound()) {
     chunk_size = this->content_length_;
@@ -269,7 +269,7 @@ void Nextion::upload_tft() {
 #endif
 
   if (this->transfer_buffer_ == nullptr) {
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
     if (psramFound()) {
       ESP_LOGD(TAG, "Allocating PSRAM buffer size %d, Free PSRAM size is %u", chunk_size, ESP.getFreePsram());
       this->transfer_buffer_ = (uint8_t *) ps_malloc(chunk_size);
@@ -290,7 +290,7 @@ void Nextion::upload_tft() {
 
         if (!this->transfer_buffer_)
           this->upload_end_();
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
       }
 #endif
     }
@@ -326,7 +326,7 @@ void Nextion::upload_end_() {
   ESP.restart();  // NOLINT(readability-static-accessed-through-instance)
 }
 
-#ifdef ARDUINO_ARCH_ESP8266
+#ifdef USE_ESP8266
 WiFiClient *Nextion::get_wifi_client_() {
   if (this->tft_url_.compare(0, 6, "https:") == 0) {
     if (this->wifi_client_secure_ == nullptr) {

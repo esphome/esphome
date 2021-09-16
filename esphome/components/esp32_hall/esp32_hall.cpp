@@ -1,4 +1,4 @@
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 #include "esp32_hall.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"

@@ -17,7 +17,7 @@ enum UARTParityOptions {
 
 const LogString *parity_to_str(UARTParityOptions parity);
 
-#ifdef ARDUINO_ARCH_ESP8266
+#ifdef USE_ESP8266
 class ESP8266SoftwareSerial {
  public:
   void setup(InternalGPIOPin *tx_pin, InternalGPIOPin *rx_pin, uint32_t baud_rate, uint8_t stop_bits,
@@ -102,7 +102,7 @@ class UARTComponent : public Component, public Stream {
   friend class UARTDevice;
 
   HardwareSerial *hw_serial_{nullptr};
-#ifdef ARDUINO_ARCH_ESP8266
+#ifdef USE_ESP8266
   ESP8266SoftwareSerial *sw_serial_{nullptr};
 #endif
   InternalGPIOPin *tx_pin_;
@@ -114,7 +114,7 @@ class UARTComponent : public Component, public Stream {
   UARTParityOptions parity_;
 
  private:
-#ifdef ARDUINO_ARCH_ESP8266
+#ifdef USE_ESP8266
   static bool serial0InUse;
 #endif
 };

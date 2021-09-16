@@ -1,6 +1,6 @@
 #include "ble_uuid.h"
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 
 #include <cstring>
 #include <cstdio>

@@ -1,4 +1,4 @@
-#ifdef ARDUINO_ARCH_ESP8266
+#ifdef USE_ESP8266
 #include "uart.h"
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
@@ -322,4 +322,4 @@ int ESP8266SoftwareSerial::available() {
 
 }  // namespace uart
 }  // namespace esphome
-#endif  // ARDUINO_ARCH_ESP8266
+#endif  // USE_ESP8266

@@ -5,7 +5,7 @@
 #include "esphome/core/automation.h"
 #include "esphome/components/output/float_output.h"
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 
 namespace esphome {
 namespace esp32_dac {

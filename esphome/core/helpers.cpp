@@ -344,11 +344,11 @@ std::string hexencode(const uint8_t *data, uint32_t len) {
   return res;
 }
 
-#ifdef ARDUINO_ARCH_ESP8266
+#ifdef USE_ESP8266
 IRAM_ATTR InterruptLock::InterruptLock() { xt_state_ = xt_rsil(15); }
 IRAM_ATTR InterruptLock::~InterruptLock() { xt_wsr_ps(xt_state_); }
 #endif
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 IRAM_ATTR InterruptLock::InterruptLock() { portDISABLE_INTERRUPTS(); }
 IRAM_ATTR InterruptLock::~InterruptLock() { portENABLE_INTERRUPTS(); }
 #endif

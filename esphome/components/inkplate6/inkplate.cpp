@@ -3,7 +3,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 
 #include <esp32-hal-gpio.h>
 

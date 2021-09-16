@@ -191,7 +191,7 @@ void Logger::pre_setup() {
 
 #ifdef USE_ARDUINO
     this->hw_serial_->begin(this->baud_rate_);
-#ifdef ARDUINO_ARCH_ESP8266
+#ifdef USE_ESP8266
     if (this->uart_ == UART_SELECTION_UART0_SWAP) {
       this->hw_serial_->swap();
     }
@@ -199,7 +199,7 @@ void Logger::pre_setup() {
 #endif
 #endif  // USE_ARDUINO
   }
-#ifdef ARDUINO_ARCH_ESP8266
+#ifdef USE_ESP8266
   else {
     uart_set_debug(UART_NO);
   }

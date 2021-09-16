@@ -8,7 +8,7 @@ static const char *const TAG = "pulse_counter";
 
 const char *const EDGE_MODE_TO_STRING[] = {"DISABLE", "INCREMENT", "DECREMENT"};
 
-#ifdef ARDUINO_ARCH_ESP8266
+#ifdef USE_ESP8266
 void IRAM_ATTR PulseCounterStorage::gpio_intr(PulseCounterStorage *arg) {
   const uint32_t now = micros();
   const bool discard = now - arg->last_pulse < arg->filter_us;
@@ -43,7 +43,7 @@ pulse_counter_t PulseCounterStorage::read_raw_value() {
 }
 #endif
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 bool PulseCounterStorage::pulse_counter_setup(InternalGPIOPin *pin) {
   static pcnt_unit_t next_pcnt_unit = PCNT_UNIT_0;
   this->pin = pin;

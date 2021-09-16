@@ -1,6 +1,6 @@
 #pragma once
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 
 #include <algorithm>
 #include <iterator>
@@ -72,4 +72,4 @@ class AirthingsWavePlus : public PollingComponent, public ble_client::BLEClientN
 }  // namespace airthings_wave_plus
 }  // namespace esphome
 
-#endif  // ARDUINO_ARCH_ESP32
+#endif  // USE_ESP32

@@ -7,7 +7,7 @@
 #include "esphome/core/automation.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 #include <driver/rmt.h>
 #endif
 
@@ -152,7 +152,7 @@ class RemoteComponentBase {
   InternalGPIOPin *pin_;
 };
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 class RemoteRMTChannel {
  public:
   explicit RemoteRMTChannel(uint8_t mem_block_num = 1);

@@ -27,7 +27,7 @@ enum UARTSelection {
 #ifdef USE_ESP32
   UART_SELECTION_UART2,
 #endif
-#ifdef ARDUINO_ARCH_ESP8266
+#ifdef USE_ESP8266
   UART_SELECTION_UART0_SWAP,
 #endif
 };

@@ -1,7 +1,7 @@
 #include "inkbird_ibsth1_mini.h"
 #include "esphome/core/log.h"
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 
 namespace esphome {
 namespace inkbird_ibsth1_mini {

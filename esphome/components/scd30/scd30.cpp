@@ -28,7 +28,7 @@ static const uint16_t SCD30_CMD_SOFT_RESET = 0xD304;
 void SCD30Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up scd30...");
 
-#ifdef ARDUINO_ARCH_ESP8266
+#ifdef USE_ESP8266
   Wire.setClockStretchLimit(150000);
 #endif
 
@@ -56,7 +56,7 @@ void SCD30Component::setup() {
       return;
     }
   }
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
   // According ESP32 clock stretching is typically 30ms and up to 150ms "due to
   // internal calibration processes". The I2C peripheral only supports 13ms (at
   // least when running at 80MHz).
@@ -78,7 +78,7 @@ void SCD30Component::setup() {
       return;
     }
   }
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
   delay(30);
 #endif
 
@@ -88,7 +88,7 @@ void SCD30Component::setup() {
     this->mark_failed();
     return;
   }
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
   delay(30);
 #endif
 

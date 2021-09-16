@@ -1,7 +1,7 @@
 #include "ledc_output.h"
 #include "esphome/core/log.h"
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 
 #include <esp32-hal-ledc.h>
 

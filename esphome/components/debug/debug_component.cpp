@@ -52,7 +52,7 @@ void DebugComponent::dump_config() {
     case FM_DOUT:
       flash_mode = "DOUT";
       break;
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
     case FM_FAST_READ:
       flash_mode = "FAST_READ";
       break;
@@ -204,7 +204,7 @@ void DebugComponent::dump_config() {
   ESP_LOGD(TAG, "Wakeup Reason: %s", wakeup_reason);
 #endif
 
-#if defined(ARDUINO_ARCH_ESP8266) && !defined(CLANG_TIDY)
+#if defined(USE_ESP8266) && !defined(CLANG_TIDY)
   ESP_LOGD(TAG, "Chip ID: 0x%08X", ESP.getChipId());
   ESP_LOGD(TAG, "SDK Version: %s", ESP.getSdkVersion());
   ESP_LOGD(TAG, "Core Version: %s", ESP.getCoreVersion().c_str());

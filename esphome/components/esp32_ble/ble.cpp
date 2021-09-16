@@ -1,4 +1,4 @@
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 
 #include "ble.h"
 #include "esphome/core/application.h"

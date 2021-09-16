@@ -3,7 +3,7 @@
 #include "esphome/core/log.h"
 #include <cmath>
 
-#ifdef ARDUINO_ARCH_ESP8266
+#ifdef USE_ESP8266
 #include <core_esp8266_waveform.h>
 #endif
 #ifdef USE_ESP32_FRAMEWORK_ARDUINO
@@ -142,7 +142,7 @@ void IRAM_ATTR HOT AcDimmerDataStore::s_gpio_intr(AcDimmerDataStore *store) {
   }
 }
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 // ESP32 implementation, uses basically the same code but needs to wrap
 // timer_interrupt() function to auto-reschedule
 static hw_timer_t *dimmer_timer = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
@@ -179,12 +179,12 @@ void AcDimmer::setup() {
                                             gpio::INTERRUPT_FALLING_EDGE);
   }
 
-#ifdef ARDUINO_ARCH_ESP8266
+#ifdef USE_ESP8266
   // Uses ESP8266 waveform (soft PWM) class
   // PWM and AcDimmer can even run at the same time this way
   setTimer1Callback(&timer_interrupt);
 #endif
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
   // 80 Divider -> 1 count=1µs
   dimmer_timer = timerBegin(0, 80, true);
   timerAttachInterrupt(dimmer_timer, &AcDimmerDataStore::s_timer_intr, true);

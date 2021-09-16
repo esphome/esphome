@@ -8,10 +8,10 @@
 #include "esphome/components/display/display_color_utils.h"
 
 #if defined(USE_ETHERNET) || defined(USE_WIFI)
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 #include <HTTPClient.h>
 #endif
-#ifdef ARDUINO_ARCH_ESP8266
+#ifdef USE_ESP8266
 #include <ESP8266HTTPClient.h>
 #include <WiFiClientSecure.h>
 #endif
@@ -772,7 +772,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
 
 #ifdef USE_TFT_UPLOAD
 #if defined(USE_ETHERNET) || defined(USE_WIFI)
-#ifdef ARDUINO_ARCH_ESP8266
+#ifdef USE_ESP8266
   WiFiClient *wifi_client_{nullptr};
   BearSSL::WiFiClientSecure *wifi_client_secure_{nullptr};
   WiFiClient *get_wifi_client_();

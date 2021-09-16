@@ -1,4 +1,4 @@
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 #include "uart.h"
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
@@ -170,4 +170,4 @@ void UARTComponent::flush() {
 
 }  // namespace uart
 }  // namespace esphome
-#endif  // ARDUINO_ARCH_ESP32
+#endif  // USE_ESP32

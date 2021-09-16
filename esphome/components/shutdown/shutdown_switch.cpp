@@ -24,10 +24,10 @@ void ShutdownSwitch::write_state(bool state) {
     delay(100);  // NOLINT
 
     App.run_safe_shutdown_hooks();
-#ifdef ARDUINO_ARCH_ESP8266
+#ifdef USE_ESP8266
     ESP.deepSleep(0);  // NOLINT(readability-static-accessed-through-instance)
 #endif
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
     esp_deep_sleep_start();
 #endif
   }
