@@ -6,9 +6,6 @@
 #include <Arduino.h>
 #include <Esp.h>
 
-void setup();
-void loop();
-
 namespace esphome {
 
 void IRAM_ATTR HOT yield() { ::yield(); }
