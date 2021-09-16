@@ -3,6 +3,9 @@
 #ifdef ARDUINO_ARCH_ESP32
 
 #include "ble_uuid.h"
+#include <cstring>
+#include <cstdio>
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace esp32_ble {

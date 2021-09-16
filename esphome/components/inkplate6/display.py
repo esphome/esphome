@@ -89,6 +89,7 @@ CONFIG_SCHEMA = cv.All(
     .extend(cv.polling_component_schema("5s"))
     .extend(i2c.i2c_device_schema(0x48)),
     cv.has_at_most_one_key(CONF_PAGES, CONF_LAMBDA),
+    cv.only_with_arduino,
 )
 
 

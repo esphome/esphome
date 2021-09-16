@@ -3,6 +3,8 @@
 
 #ifdef ARDUINO_ARCH_ESP32
 
+#include <cstring>
+
 namespace esphome {
 namespace esp32_ble_server {
 

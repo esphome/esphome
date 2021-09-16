@@ -1,8 +1,9 @@
 #include "ble_descriptor.h"
 #include "ble_characteristic.h"
 #include "ble_service.h"
-
 #include "esphome/core/log.h"
+
+#include <cstring>
 
 #ifdef ARDUINO_ARCH_ESP32
 
