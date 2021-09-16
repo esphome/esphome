@@ -133,23 +133,24 @@ bool ESP32BLETracker::ble_setup() {
 
   if (esp_bt_controller_get_status() != ESP_BT_CONTROLLER_STATUS_ENABLED) {
     // start bt controller
-    if (esp_bt_controller_get_status() == ESP_BT_CONTROLLER_STATUS_IDLE){
+    if (esp_bt_controller_get_status() == ESP_BT_CONTROLLER_STATUS_IDLE) {
       esp_bt_controller_config_t cfg = BT_CONTROLLER_INIT_CONFIG_DEFAULT();
       err = esp_bt_controller_init(&cfg);
       if (err != ESP_OK) {
         ESP_LOGE(TAG, "esp_bt_controller_init failed: %s", esp_err_to_name(err));
         return false;
       }
-      while (esp_bt_controller_get_status() == ESP_BT_CONTROLLER_STATUS_IDLE);
+      while (esp_bt_controller_get_status() == ESP_BT_CONTROLLER_STATUS_IDLE)
+        ;
     }
     if (esp_bt_controller_get_status() == ESP_BT_CONTROLLER_STATUS_INITED) {
-        err = esp_bt_controller_enable(ESP_BT_MODE_BLE);
-        if (err != ESP_OK) {
-          ESP_LOGE(TAG, "esp_bt_controller_enable failed: %s", esp_err_to_name(err));
-          return false;
-        }
+      err = esp_bt_controller_enable(ESP_BT_MODE_BLE);
+      if (err != ESP_OK) {
+        ESP_LOGE(TAG, "esp_bt_controller_enable failed: %s", esp_err_to_name(err));
+        return false;
+      }
     }
-    if (esp_bt_controller_get_status() != ESP_BT_CONTROLLER_STATUS_ENABLED){
+    if (esp_bt_controller_get_status() != ESP_BT_CONTROLLER_STATUS_ENABLED) {
       ESP_LOGE(TAG, "esp bt controller enable failed");
       return false;
     }

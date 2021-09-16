@@ -25,9 +25,7 @@ void IRAM_ATTR HOT arch_feed_wdt() {
 }
 
 uint8_t progmem_read_byte(const uint8_t *addr) { return pgm_read_byte(addr); }
-uint32_t arch_get_cpu_cycle_count() {
-  return ESP.getCycleCount();
-}
+uint32_t arch_get_cpu_cycle_count() { return ESP.getCycleCount(); }
 uint32_t arch_get_cpu_freq_hz() { return F_CPU; }
 
 }  // namespace esphome

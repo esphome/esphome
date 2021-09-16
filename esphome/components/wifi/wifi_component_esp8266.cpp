@@ -587,7 +587,8 @@ WiFiSTAConnectStatus WiFiComponent::wifi_sta_connect_status_() {
     case STATION_GOT_IP:
       return WiFiSTAConnectStatus::CONNECTED;
     case STATION_NO_AP_FOUND:
-      return WiFiSTAConnectStatus::ERROR_NETWORK_NOT_FOUND;;
+      return WiFiSTAConnectStatus::ERROR_NETWORK_NOT_FOUND;
+      ;
     case STATION_CONNECT_FAIL:
     case STATION_WRONG_PASSWORD:
       return WiFiSTAConnectStatus::ERROR_CONNECT_FAILED;

@@ -15,9 +15,7 @@ class ESP8266Preferences : public ESPPreferences {
   ESPPreferenceObject make_preference(size_t length, uint32_t type, bool in_flash) override {
     return make_preference(length, type);
   }
-  ESPPreferenceObject make_preference(size_t length, uint32_t type) override {
-    return ESPPreferenceObject(nullptr);
-  }
+  ESPPreferenceObject make_preference(size_t length, uint32_t type) override { return ESPPreferenceObject(nullptr); }
 };
 
 void setup_preferences() {

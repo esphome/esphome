@@ -55,9 +55,8 @@ void UARTComponent::setup() {
   // is 1 we still want to use Serial.
   SerialConfig config = static_cast<SerialConfig>(get_config());
 
-  if (!UARTComponent::serial0InUse &&
-    (tx_pin_ == nullptr || tx_pin_->get_pin() == 1) &&
-    (rx_pin_ == nullptr || rx_pin_->get_pin() == 3)
+  if (!UARTComponent::serial0InUse && (tx_pin_ == nullptr || tx_pin_->get_pin() == 1) &&
+      (rx_pin_ == nullptr || rx_pin_->get_pin() == 3)
 #ifdef USE_LOGGER
       // we will use UART0 if logger isn't using it in swapped mode
       && (logger::global_logger->get_hw_serial() == nullptr ||
@@ -68,9 +67,8 @@ void UARTComponent::setup() {
     this->hw_serial_->begin(this->baud_rate_, config);
     this->hw_serial_->setRxBufferSize(this->rx_buffer_size_);
     UARTComponent::serial0InUse = true;
-  } else if (!UARTComponent::serial0InUse &&
-    (tx_pin_ == nullptr || tx_pin_->get_pin() == 15) &&
-    (rx_pin_ == nullptr || rx_pin_->get_pin() == 13)
+  } else if (!UARTComponent::serial0InUse && (tx_pin_ == nullptr || tx_pin_->get_pin() == 15) &&
+             (rx_pin_ == nullptr || rx_pin_->get_pin() == 13)
 #ifdef USE_LOGGER
              // we will use UART0 swapped if logger isn't using it in regular mode
              && (logger::global_logger->get_hw_serial() == nullptr ||
@@ -82,8 +80,7 @@ void UARTComponent::setup() {
     this->hw_serial_->setRxBufferSize(this->rx_buffer_size_);
     this->hw_serial_->swap();
     UARTComponent::serial0InUse = true;
-  } else if ((tx_pin_ == nullptr || tx_pin_->get_pin() == 2) &&
-    (rx_pin_ == nullptr || rx_pin_->get_pin() == 8)) {
+  } else if ((tx_pin_ == nullptr || tx_pin_->get_pin() == 2) && (rx_pin_ == nullptr || rx_pin_->get_pin() == 8)) {
     this->hw_serial_ = &Serial1;
     this->hw_serial_->begin(this->baud_rate_, config);
     this->hw_serial_->setRxBufferSize(this->rx_buffer_size_);
