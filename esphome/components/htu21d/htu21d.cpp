@@ -41,7 +41,7 @@ void HTU21DComponent::update() {
     return;
   }
   delay(50);
-  if (this->read(reinterpret_cast<uint8_t*>(&raw_temperature), 2) != i2c::ERROR_OK) {
+  if (this->read(reinterpret_cast<uint8_t *>(&raw_temperature), 2) != i2c::ERROR_OK) {
     this->status_set_warning();
     return;
   }
@@ -55,7 +55,7 @@ void HTU21DComponent::update() {
     return;
   }
   delay(50);
-  if (this->read(reinterpret_cast<uint8_t*>(&raw_humidity), 2) != i2c::ERROR_OK) {
+  if (this->read(reinterpret_cast<uint8_t *>(&raw_humidity), 2) != i2c::ERROR_OK) {
     this->status_set_warning();
     return;
   }

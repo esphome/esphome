@@ -84,7 +84,7 @@ class SPIComponent : public Component {
     if (this->hw_spi_ != nullptr) {
       return this->hw_spi_->transfer(0x00);
     }
-#endif // USE_SPI_ARDUINO_BACKEND
+#endif  // USE_SPI_ARDUINO_BACKEND
     return this->transfer_<BIT_ORDER, CLOCK_POLARITY, CLOCK_PHASE, true, false>(0x00);
   }
 

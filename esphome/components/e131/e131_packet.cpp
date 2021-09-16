@@ -65,8 +65,8 @@ bool E131Component::join_igmp_groups_() {
     if (!universe.second)
       continue;
 
-    ip4_addr_t multicast_addr = {
-        static_cast<uint32_t>(network::IPAddress(239, 255, ((universe.first >> 8) & 0xff), ((universe.first >> 0) & 0xff)))};
+    ip4_addr_t multicast_addr = {static_cast<uint32_t>(
+        network::IPAddress(239, 255, ((universe.first >> 8) & 0xff), ((universe.first >> 0) & 0xff)))};
 
     auto err = igmp_joingroup(IP4_ADDR_ANY4, &multicast_addr);
 

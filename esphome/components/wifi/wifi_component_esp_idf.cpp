@@ -226,9 +226,7 @@ bool WiFiComponent::wifi_mode_(optional<bool> sta, optional<bool> ap) {
   return true;
 }
 
-bool WiFiComponent::wifi_sta_pre_setup_() {
-  return this->wifi_mode_(true, {});
-}
+bool WiFiComponent::wifi_sta_pre_setup_() { return this->wifi_mode_(true, {}); }
 
 bool WiFiComponent::wifi_apply_output_power_(float output_power) {
   int8_t val = static_cast<int8_t>(output_power * 4);
@@ -491,9 +489,8 @@ const char *get_auth_mode_str(uint8_t mode) {
 
 std::string format_ip4_addr(const esp_ip4_addr_t &ip) {
   char buf[20];
-  snprintf(buf, sizeof(buf),
-          "%u.%u.%u.%u", uint8_t(ip.addr >> 0), uint8_t(ip.addr >> 8), uint8_t(ip.addr >> 16),
-          uint8_t(ip.addr >> 24));
+  snprintf(buf, sizeof(buf), "%u.%u.%u.%u", uint8_t(ip.addr >> 0), uint8_t(ip.addr >> 8), uint8_t(ip.addr >> 16),
+           uint8_t(ip.addr >> 24));
   return buf;
 }
 const char *get_disconnect_reason_str(uint8_t reason) {
@@ -595,7 +592,7 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
   } else if (data->event_base == WIFI_EVENT && data->event_id == WIFI_EVENT_STA_AUTHMODE_CHANGE) {
     const auto &it = data->data.sta_authmode_change;
     ESP_LOGV(TAG, "Event: Authmode Change old=%s new=%s", get_auth_mode_str(it.old_mode),
-              get_auth_mode_str(it.new_mode));
+             get_auth_mode_str(it.new_mode));
 
   } else if (data->event_base == WIFI_EVENT && data->event_id == WIFI_EVENT_STA_CONNECTED) {
     const auto &it = data->data.sta_connected;
@@ -604,7 +601,7 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     memcpy(buf, it.ssid, it.ssid_len);
     buf[it.ssid_len] = '\0';
     ESP_LOGV(TAG, "Event: Connected ssid='%s' bssid=" LOG_SECRET("%s") " channel=%u, authmode=%s", buf,
-              format_mac_addr(it.bssid).c_str(), it.channel, get_auth_mode_str(it.authmode));
+             format_mac_addr(it.bssid).c_str(), it.channel, get_auth_mode_str(it.authmode));
     s_sta_connected = true;
 
   } else if (data->event_base == WIFI_EVENT && data->event_id == WIFI_EVENT_STA_DISCONNECTED) {
@@ -619,7 +616,7 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
 
     } else {
       ESP_LOGW(TAG, "Event: Disconnected ssid='%s' bssid=" LOG_SECRET("%s") " reason='%s'", buf,
-                format_mac_addr(it.bssid).c_str(), get_disconnect_reason_str(it.reason));
+               format_mac_addr(it.bssid).c_str(), get_disconnect_reason_str(it.reason));
       s_sta_connect_error = true;
     }
     s_sta_connected = false;
@@ -629,7 +626,7 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
   } else if (data->event_base == IP_EVENT && data->event_id == IP_EVENT_STA_GOT_IP) {
     const auto &it = data->data.ip_got_ip;
     ESP_LOGV(TAG, "Event: Got IP static_ip=%s gateway=%s", format_ip4_addr(it.ip_info.ip).c_str(),
-              format_ip4_addr(it.ip_info.gw).c_str());
+             format_ip4_addr(it.ip_info.gw).c_str());
     s_sta_got_ip = true;
 
   } else if (data->event_base == IP_EVENT && data->event_id == IP_EVENT_STA_LOST_IP) {
@@ -660,14 +657,9 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     for (int i = 0; i < number; i++) {
       auto &record = records[i];
       bssid_t bssid;
-      std::copy(record.bssid, record.bssid+6, bssid.begin());
+      std::copy(record.bssid, record.bssid + 6, bssid.begin());
       std::string ssid(reinterpret_cast<const char *>(record.ssid));
-      WiFiScanResult result(
-        bssid, ssid,
-        record.primary, record.rssi,
-        record.authmode != WIFI_AUTH_OPEN,
-        ssid.empty()
-      );
+      WiFiScanResult result(bssid, ssid, record.primary, record.rssi, record.authmode != WIFI_AUTH_OPEN, ssid.empty());
       scan_result_.push_back(result);
     }
 
@@ -856,7 +848,7 @@ std::string WiFiComponent::wifi_ssid() {
     ESP_LOGW(TAG, "esp_wifi_sta_get_ap_info failed: %s", esp_err_to_name(err));
     return "";
   }
-  auto *ssid_s = reinterpret_cast<const char*>(info.ssid);
+  auto *ssid_s = reinterpret_cast<const char *>(info.ssid);
   size_t len = strnlen(ssid_s, sizeof(info.ssid));
   return {ssid_s, len};
 }
@@ -898,7 +890,7 @@ network::IPAddress WiFiComponent::wifi_gateway_ip_() {
   return {ip.gw.addr};
 }
 network::IPAddress WiFiComponent::wifi_dns_ip_(int num) {
-  const ip_addr_t * dns_ip = dns_getserver(num);
+  const ip_addr_t *dns_ip = dns_getserver(num);
   return {dns_ip->u_addr.ip4.addr};
 }
 

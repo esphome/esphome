@@ -34,4 +34,4 @@ class ArduinoI2CBus : public I2CBus, public Component {
 }  // namespace i2c
 }  // namespace esphome
 
-#endif // USE_ARDUINO
+#endif  // USE_ARDUINO

@@ -26,20 +26,15 @@ class FlagsHelper {
  public:
   constexpr FlagsHelper(Flags val) : val_(val) {}
   constexpr operator Flags() const { return val_; }
+
  protected:
   Flags val_;
 };
 constexpr FlagsHelper operator&(Flags lhs, Flags rhs) {
-  return static_cast<Flags>(
-    static_cast<uint8_t>(lhs) &
-    static_cast<uint8_t>(rhs)
-  );
+  return static_cast<Flags>(static_cast<uint8_t>(lhs) & static_cast<uint8_t>(rhs));
 }
 constexpr FlagsHelper operator|(Flags lhs, Flags rhs) {
-  return static_cast<Flags>(
-    static_cast<uint8_t>(lhs) |
-    static_cast<uint8_t>(rhs)
-  );
+  return static_cast<Flags>(static_cast<uint8_t>(lhs) | static_cast<uint8_t>(rhs));
 }
 
 enum InterruptType : uint8_t {
@@ -51,7 +46,6 @@ enum InterruptType : uint8_t {
 };
 
 }  // namespace gpio
-
 
 class GPIOPin {
  public:
@@ -83,8 +77,7 @@ class ISRInternalGPIOPin {
 
 class InternalGPIOPin : public GPIOPin {
  public:
-  template<typename T>
-  void attach_interrupt(void (*func)(T *), T *arg, gpio::InterruptType type) const {
+  template<typename T> void attach_interrupt(void (*func)(T *), T *arg, gpio::InterruptType type) const {
     this->attach_interrupt_(reinterpret_cast<void (*)(void *)>(func), arg, type);
   }
 

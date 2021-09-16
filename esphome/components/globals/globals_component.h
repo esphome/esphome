@@ -8,7 +8,7 @@
 namespace esphome {
 namespace globals {
 
-template<typename T> class GlobalsComponent : public Component  {
+template<typename T> class GlobalsComponent : public Component {
  public:
   using value_type = T;
   explicit GlobalsComponent() = default;
@@ -29,7 +29,8 @@ template<typename T> class RestoringGlobalsComponent : public Component {
   using value_type = T;
   explicit RestoringGlobalsComponent() = default;
   explicit RestoringGlobalsComponent(T initial_value) : value_(initial_value) {}
-  explicit RestoringGlobalsComponent(std::array<typename std::remove_extent<T>::type, std::extent<T>::value> initial_value) {
+  explicit RestoringGlobalsComponent(
+      std::array<typename std::remove_extent<T>::type, std::extent<T>::value> initial_value) {
     memcpy(this->value_, initial_value.data(), sizeof(T));
   }
 
@@ -51,9 +52,7 @@ template<typename T> class RestoringGlobalsComponent : public Component {
     }
   }
 
-  void set_name_hash(uint32_t name_hash) {
-    this->name_hash_ = name_hash;
-  }
+  void set_name_hash(uint32_t name_hash) { this->name_hash_ = name_hash; }
 
  protected:
   T value_{};

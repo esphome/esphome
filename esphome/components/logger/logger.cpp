@@ -197,7 +197,7 @@ void Logger::pre_setup() {
     }
     this->hw_serial_->setDebugOutput(ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE);
 #endif
-#endif // USE_ARDUINO
+#endif  // USE_ARDUINO
   }
 #ifdef ARDUINO_ARCH_ESP8266
   else {

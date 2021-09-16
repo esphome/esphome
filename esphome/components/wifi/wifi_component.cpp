@@ -278,8 +278,7 @@ void WiFiComponent::start_connecting(const WiFiAP &ap, bool two) {
   if (ap.get_manual_ip().has_value()) {
     ManualIP m = *ap.get_manual_ip();
     ESP_LOGV(TAG, "  Manual IP: Static IP=%s Gateway=%s Subnet=%s DNS1=%s DNS2=%s", m.static_ip.str().c_str(),
-             m.gateway.str().c_str(), m.subnet.str().c_str(), m.dns1.str().c_str(),
-             m.dns2.str().c_str());
+             m.gateway.str().c_str(), m.subnet.str().c_str(), m.dns1.str().c_str(), m.dns2.str().c_str());
   } else {
     ESP_LOGV(TAG, "  Using DHCP IP");
   }
@@ -590,8 +589,8 @@ bool WiFiComponent::can_proceed() {
 }
 void WiFiComponent::set_reboot_timeout(uint32_t reboot_timeout) { this->reboot_timeout_ = reboot_timeout; }
 bool WiFiComponent::is_connected() {
-  return this->state_ == WIFI_COMPONENT_STATE_STA_CONNECTED && this->wifi_sta_connect_status_() == WiFiSTAConnectStatus::CONNECTED &&
-         !this->error_from_callback_;
+  return this->state_ == WIFI_COMPONENT_STATE_STA_CONNECTED &&
+         this->wifi_sta_connect_status_() == WiFiSTAConnectStatus::CONNECTED && !this->error_from_callback_;
 }
 void WiFiComponent::set_power_save_mode(WiFiPowerSaveMode power_save) { this->power_save_ = power_save; }
 

@@ -8,7 +8,7 @@
 namespace esphome {
 namespace mdns {
 
-static const char* const TAG = "mdns";
+static const char *const TAG = "mdns";
 
 void MDNSComponent::setup() {
   esp_err_t err = mdns_init();
@@ -31,14 +31,8 @@ void MDNSComponent::setup() {
       it.value = strdup(record.value.c_str());
       txt_records.push_back(it);
     }
-    err = mdns_service_add(
-      nullptr,
-      service.service_type.c_str(),
-      service.proto.c_str(),
-      service.port,
-      txt_records.data(),
-      txt_records.size()
-    );
+    err = mdns_service_add(nullptr, service.service_type.c_str(), service.proto.c_str(), service.port,
+                           txt_records.data(), txt_records.size());
 
     // free records
     for (const auto &it : txt_records) {
@@ -56,4 +50,3 @@ void MDNSComponent::setup() {
 }  // namespace esphome
 
 #endif
-

@@ -30,7 +30,6 @@ static bool s_sta_connect_not_found = false;
 static bool s_sta_connect_error = false;
 static bool s_sta_connecting = false;
 
-
 bool WiFiComponent::wifi_mode_(optional<bool> sta, optional<bool> ap) {
   uint8_t current_mode = WiFiClass::getMode();
   bool current_sta = current_mode & 0b01;
@@ -744,24 +743,12 @@ bssid_t WiFiComponent::wifi_bssid() {
   }
   return bssid;
 }
-std::string WiFiComponent::wifi_ssid() {
-  return WiFi.SSID().c_str();
-}
-int8_t WiFiComponent::wifi_rssi_() {
-  return WiFi.RSSI();
-}
-int32_t WiFiComponent::wifi_channel_() {
-  return WiFi.channel();
-}
-network::IPAddress WiFiComponent::wifi_subnet_mask_() {
-  return {WiFi.subnetMask()};
-}
-network::IPAddress WiFiComponent::wifi_gateway_ip_() {
-  return {WiFi.gatewayIP()};
-}
-network::IPAddress WiFiComponent::wifi_dns_ip_(int num) {
-  return {WiFi.dnsIP(num)};
-}
+std::string WiFiComponent::wifi_ssid() { return WiFi.SSID().c_str(); }
+int8_t WiFiComponent::wifi_rssi_() { return WiFi.RSSI(); }
+int32_t WiFiComponent::wifi_channel_() { return WiFi.channel(); }
+network::IPAddress WiFiComponent::wifi_subnet_mask_() { return {WiFi.subnetMask()}; }
+network::IPAddress WiFiComponent::wifi_gateway_ip_() { return {WiFi.gatewayIP()}; }
+network::IPAddress WiFiComponent::wifi_dns_ip_(int num) { return {WiFi.dnsIP(num)}; }
 void WiFiComponent::wifi_loop_() {}
 
 }  // namespace wifi

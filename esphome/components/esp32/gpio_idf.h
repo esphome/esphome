@@ -27,23 +27,17 @@ class IDFInternalGPIOPin : public InternalGPIOPin {
     conf.intr_type = GPIO_INTR_DISABLE;
     gpio_config(&conf);
   }
-  bool digital_read() override {
-    return bool(gpio_get_level(pin_)) != inverted_;
-  }
-  void digital_write(bool value)  override {
-    gpio_set_level(pin_, value != inverted_ ? 1 : 0);
-  }
+  bool digital_read() override { return bool(gpio_get_level(pin_)) != inverted_; }
+  void digital_write(bool value) override { gpio_set_level(pin_, value != inverted_ ? 1 : 0); }
   std::string dump_summary() const override;
-  void detach_interrupt() const override {
-    gpio_intr_disable(pin_);
-  }
+  void detach_interrupt() const override { gpio_intr_disable(pin_); }
   ISRInternalGPIOPin to_isr() const override;
   uint8_t get_pin() const override { return (uint8_t) pin_; }
   bool is_inverted() const override { return inverted_; }
 
  protected:
   static gpio_mode_t flags_to_mode_(gpio::Flags flags) {
-    flags = (gpio::Flags) (flags & ~(gpio::FLAG_PULLUP | gpio::FLAG_PULLDOWN));
+    flags = (gpio::Flags)(flags & ~(gpio::FLAG_PULLUP | gpio::FLAG_PULLDOWN));
     if (flags == gpio::FLAG_NONE) {
       return GPIO_MODE_DISABLE;
     } else if (flags == gpio::FLAG_INPUT) {

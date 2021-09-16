@@ -29,7 +29,6 @@ static const char *const TAG = "ota";
 
 static const uint8_t OTA_VERSION_1_0 = 1;
 
-
 class OTABackend {
  public:
   virtual ~OTABackend() = default;
@@ -69,9 +68,7 @@ class ArduinoOTABackend : public OTABackend {
 #endif
     return OTA_RESPONSE_ERROR_UNKNOWN;
   }
-  void set_update_md5(const char *md5) override {
-    Update.setMD5(md5);
-  }
+  void set_update_md5(const char *md5) override { Update.setMD5(md5); }
   OTAResponseTypes write(uint8_t *data, size_t len) override {
     size_t written = Update.write(data, len);
     if (written != len) {
@@ -95,11 +92,8 @@ class ArduinoOTABackend : public OTABackend {
 #endif
   }
 };
-std::unique_ptr<OTABackend> make_ota_backend() {
-  return make_unique<ArduinoOTABackend>();
-}
+std::unique_ptr<OTABackend> make_ota_backend() { return make_unique<ArduinoOTABackend>(); }
 #endif  // USE_ARDUINO
-
 
 #ifdef USE_ESP_IDF
 class IDFOTABackend : public OTABackend {
@@ -150,16 +144,10 @@ class IDFOTABackend : public OTABackend {
     }
     return OTA_RESPONSE_OK;
   }
-  void abort() override {
-    esp_ota_abort(update_handle);
-  }
+  void abort() override { esp_ota_abort(update_handle); }
 };
-std::unique_ptr<OTABackend> make_ota_backend() {
-  return make_unique<IDFOTABackend>();
-}
+std::unique_ptr<OTABackend> make_ota_backend() { return make_unique<IDFOTABackend>(); }
 #endif  // USE_ESP_IDF
-
-
 
 void OTAComponent::setup() {
   server_ = socket::socket(AF_INET, SOCK_STREAM, 0);

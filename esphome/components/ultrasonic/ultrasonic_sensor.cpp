@@ -21,10 +21,13 @@ void UltrasonicSensorComponent::update() {
   this->trigger_pin_->digital_write(false);
 
   const uint32_t start = micros();
-  while (micros() - start < timeout_us_ && echo_isr_.digital_read());
-  while (micros() - start < timeout_us_ && !echo_isr_.digital_read());
+  while (micros() - start < timeout_us_ && echo_isr_.digital_read())
+    ;
+  while (micros() - start < timeout_us_ && !echo_isr_.digital_read())
+    ;
   const uint32_t pulse_start = micros();
-  while (micros() - start < timeout_us_ && echo_isr_.digital_read());
+  while (micros() - start < timeout_us_ && echo_isr_.digital_read())
+    ;
   const uint32_t pulse_end = micros();
 
   ESP_LOGV(TAG, "Echo took %uµs", time);

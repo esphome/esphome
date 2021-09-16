@@ -385,8 +385,8 @@ void Inkplate6::display3b_() {
       send = ((pixel & 0b00000011) << 4) | (((pixel & 0b00001100) >> 2) << 18) | (((pixel & 0b00010000) >> 4) << 23) |
              (((pixel & 0b11100000) >> 5) << 25);
       hscan_start_(send);
-      send = ((pixel2 & 0b00000011) << 4) | (((pixel2 & 0b00001100) >> 2) << 18) | (((pixel2 & 0b00010000) >> 4) << 23) |
-             (((pixel2 & 0b11100000) >> 5) << 25) | clock;
+      send = ((pixel2 & 0b00000011) << 4) | (((pixel2 & 0b00001100) >> 2) << 18) |
+             (((pixel2 & 0b00010000) >> 4) << 23) | (((pixel2 & 0b11100000) >> 5) << 25) | clock;
       GPIO.out_w1ts = send;
       GPIO.out_w1tc = send;
 
@@ -405,8 +405,8 @@ void Inkplate6::display3b_() {
         GPIO.out_w1ts = send;
         GPIO.out_w1tc = send;
 
-        send = ((pixel2 & 0b00000011) << 4) | (((pixel2 & 0b00001100) >> 2) << 18) | (((pixel2 & 0b00010000) >> 4) << 23) |
-               (((pixel2 & 0b11100000) >> 5) << 25) | clock;
+        send = ((pixel2 & 0b00000011) << 4) | (((pixel2 & 0b00001100) >> 2) << 18) |
+               (((pixel2 & 0b00010000) >> 4) << 23) | (((pixel2 & 0b11100000) >> 5) << 25) | clock;
         GPIO.out_w1ts = send;
         GPIO.out_w1tc = send;
       }

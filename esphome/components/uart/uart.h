@@ -20,8 +20,8 @@ const LogString *parity_to_str(UARTParityOptions parity);
 #ifdef ARDUINO_ARCH_ESP8266
 class ESP8266SoftwareSerial {
  public:
-  void setup(InternalGPIOPin *tx_pin, InternalGPIOPin *rx_pin, uint32_t baud_rate, uint8_t stop_bits, uint32_t data_bits,
-             UARTParityOptions parity, size_t rx_buffer_size);
+  void setup(InternalGPIOPin *tx_pin, InternalGPIOPin *rx_pin, uint32_t baud_rate, uint8_t stop_bits,
+             uint32_t data_bits, UARTParityOptions parity, size_t rx_buffer_size);
 
   uint8_t read_byte();
   uint8_t peek_byte();

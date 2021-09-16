@@ -4,7 +4,6 @@
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
-
 namespace esphome {
 namespace esp32_touch {
 

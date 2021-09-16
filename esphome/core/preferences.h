@@ -37,21 +37,11 @@ class ESPPreferences {
  public:
   virtual ESPPreferenceObject make_preference(size_t length, uint32_t type, bool in_flash) = 0;
   virtual ESPPreferenceObject make_preference(size_t length, uint32_t type) = 0;
-  template<
-     typename T,
-     typename std::enable_if<
-       std::is_trivially_copyable<T>::value, bool
-     >::type = true
-  >
+  template<typename T, typename std::enable_if<std::is_trivially_copyable<T>::value, bool>::type = true>
   ESPPreferenceObject make_preference(uint32_t type, bool in_flash) {
     return this->make_preference(sizeof(T), type, in_flash);
   }
-  template<
-     typename T,
-     typename std::enable_if<
-       std::is_trivially_copyable<T>::value, bool
-     >::type = true
-  >
+  template<typename T, typename std::enable_if<std::is_trivially_copyable<T>::value, bool>::type = true>
   ESPPreferenceObject make_preference(uint32_t type) {
     return this->make_preference(sizeof(T), type);
   }

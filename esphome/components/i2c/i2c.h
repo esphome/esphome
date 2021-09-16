@@ -19,9 +19,7 @@ class I2CRegister {
   I2CRegister &operator&=(uint8_t value);
   I2CRegister &operator|=(uint8_t value);
 
-  explicit operator uint8_t() const {
-    return get();
-  }
+  explicit operator uint8_t() const { return get(); }
 
   uint8_t get() const;
 
@@ -38,13 +36,10 @@ inline uint16_t i2ctohs(uint16_t i2cshort) {
     uint8_t y[2];
   } conv;
   conv.x = i2cshort;
-  return ((uint16_t) conv.y[0] << 8)
-    | ((uint16_t) conv.y[1] << 0);
+  return ((uint16_t) conv.y[0] << 8) | ((uint16_t) conv.y[1] << 0);
 }
 
-inline uint16_t htoi2cs(uint16_t hostshort) {
-  return i2ctohs(hostshort);
-}
+inline uint16_t htoi2cs(uint16_t hostshort) { return i2ctohs(hostshort); }
 
 class I2CDevice {
  public:
@@ -63,9 +58,7 @@ class I2CDevice {
     return this->read(data, len);
   }
 
-  ErrorCode write(const uint8_t *data, uint8_t len) {
-    return bus_->write(address_, data, len);
-  }
+  ErrorCode write(const uint8_t *data, uint8_t len) { return bus_->write(address_, data, len); }
   ErrorCode write_register(uint8_t a_register, const uint8_t *data, size_t len) {
     WriteBuffer buffers[2];
     buffers[0].data = &a_register;
@@ -75,15 +68,12 @@ class I2CDevice {
     return bus_->writev(address_, buffers, 2);
   }
 
-
   // Compat APIs
 
   bool read_bytes(uint8_t a_register, uint8_t *data, uint8_t len) {
     return read_register(a_register, data, len) == ERROR_OK;
   }
-  bool read_bytes_raw(uint8_t *data, uint8_t len) {
-    return read(data, len) == ERROR_OK;
-  }
+  bool read_bytes_raw(uint8_t *data, uint8_t len) { return read(data, len) == ERROR_OK; }
 
   template<size_t N> optional<std::array<uint8_t, N>> read_bytes(uint8_t a_register) {
     std::array<uint8_t, N> res;
@@ -101,16 +91,14 @@ class I2CDevice {
   }
 
   bool read_bytes_16(uint8_t a_register, uint16_t *data, uint8_t len) {
-    if (read_register(a_register, reinterpret_cast<uint8_t *>(data), len*2) != ERROR_OK)
+    if (read_register(a_register, reinterpret_cast<uint8_t *>(data), len * 2) != ERROR_OK)
       return false;
     for (size_t i = 0; i < len; i++)
       data[i] = i2ctohs(data[i]);
     return true;
   }
 
-  bool read_byte(uint8_t a_register, uint8_t *data) {
-    return read_register(a_register, data, 1) == ERROR_OK;
-  }
+  bool read_byte(uint8_t a_register, uint8_t *data) { return read_register(a_register, data, 1) == ERROR_OK; }
 
   optional<uint8_t> read_byte(uint8_t a_register) {
     uint8_t data;
@@ -119,9 +107,7 @@ class I2CDevice {
     return data;
   }
 
-  bool read_byte_16(uint8_t a_register, uint16_t *data) {
-    return read_bytes_16(a_register, data, 1);
-  }
+  bool read_byte_16(uint8_t a_register, uint16_t *data) { return read_bytes_16(a_register, data, 1); }
 
   bool write_bytes(uint8_t a_register, const uint8_t *data, uint8_t len) {
     return write_register(a_register, data, len) == ERROR_OK;
@@ -137,13 +123,9 @@ class I2CDevice {
 
   bool write_bytes_16(uint8_t a_register, const uint16_t *data, uint8_t len);
 
-  bool write_byte(uint8_t a_register, uint8_t data) {
-    return write_bytes(a_register, &data, 1);
-  }
+  bool write_byte(uint8_t a_register, uint8_t data) { return write_bytes(a_register, &data, 1); }
 
-  bool write_byte_16(uint8_t a_register, uint16_t data) {
-    return write_bytes_16(a_register, &data, 1);
-  }
+  bool write_byte_16(uint8_t a_register, uint16_t data) { return write_bytes_16(a_register, &data, 1); }
 
  protected:
   uint8_t address_{0x00};

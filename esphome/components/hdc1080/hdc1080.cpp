@@ -42,7 +42,7 @@ void HDC1080Component::update() {
     return;
   }
   delay(20);
-  if (this->read(reinterpret_cast<uint8_t*>(&raw_temp), 2) != i2c::ERROR_OK) {
+  if (this->read(reinterpret_cast<uint8_t *>(&raw_temp), 2) != i2c::ERROR_OK) {
     this->status_set_warning();
     return;
   }
@@ -56,7 +56,7 @@ void HDC1080Component::update() {
     return;
   }
   delay(20);
-  if (this->read(reinterpret_cast<uint8_t*>(&raw_humidity), 2) != i2c::ERROR_OK) {
+  if (this->read(reinterpret_cast<uint8_t *>(&raw_humidity), 2) != i2c::ERROR_OK) {
     this->status_set_warning();
     return;
   }

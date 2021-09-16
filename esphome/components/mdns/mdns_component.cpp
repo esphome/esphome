@@ -68,10 +68,7 @@ std::vector<MDNSService> MDNSComponent::compile_services_() {
   }
   return res;
 }
-std::string MDNSComponent::compile_hostname_() {
-  return App.get_name();
-}
+std::string MDNSComponent::compile_hostname_() { return App.get_name(); }
 
 }  // namespace mdns
 }  // namespace esphome
-

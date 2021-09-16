@@ -208,8 +208,9 @@ void UARTComponent::flush() {
     this->sw_serial_->flush();
   }
 }
-void ESP8266SoftwareSerial::setup(InternalGPIOPin *tx_pin, InternalGPIOPin *rx_pin, uint32_t baud_rate, uint8_t stop_bits,
-                                  uint32_t data_bits, UARTParityOptions parity, size_t rx_buffer_size) {
+void ESP8266SoftwareSerial::setup(InternalGPIOPin *tx_pin, InternalGPIOPin *rx_pin, uint32_t baud_rate,
+                                  uint8_t stop_bits, uint32_t data_bits, UARTParityOptions parity,
+                                  size_t rx_buffer_size) {
   this->bit_time_ = F_CPU / baud_rate;
   this->rx_buffer_size_ = rx_buffer_size;
   this->stop_bits_ = stop_bits;

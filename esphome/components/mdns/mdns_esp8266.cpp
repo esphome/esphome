@@ -9,7 +9,7 @@
 namespace esphome {
 namespace mdns {
 
-static const char* const TAG = "mdns";
+static const char *const TAG = "mdns";
 
 void MDNSComponent::setup() {
   network::IPAddress addr = network::get_ip_address();
@@ -24,12 +24,9 @@ void MDNSComponent::setup() {
   }
 }
 
-void MDNSComponent::loop() {
-  MDNS.update();
-}
+void MDNSComponent::loop() { MDNS.update(); }
 
 }  // namespace mdns
 }  // namespace esphome
 
 #endif
-

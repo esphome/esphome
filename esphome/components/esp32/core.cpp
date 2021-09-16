@@ -15,21 +15,14 @@ void loop();
 
 namespace esphome {
 
-void IRAM_ATTR HOT yield() {
-  vPortYield();
-}
-uint32_t IRAM_ATTR HOT millis() {
-  return (uint32_t) (esp_timer_get_time() / 1000ULL);
-}
-void IRAM_ATTR HOT delay(uint32_t ms) {
-  vTaskDelay(ms / portTICK_PERIOD_MS);
-}
-uint32_t IRAM_ATTR HOT micros() {
-    return (uint32_t) esp_timer_get_time();
-}
+void IRAM_ATTR HOT yield() { vPortYield(); }
+uint32_t IRAM_ATTR HOT millis() { return (uint32_t)(esp_timer_get_time() / 1000ULL); }
+void IRAM_ATTR HOT delay(uint32_t ms) { vTaskDelay(ms / portTICK_PERIOD_MS); }
+uint32_t IRAM_ATTR HOT micros() { return (uint32_t) esp_timer_get_time(); }
 void IRAM_ATTR HOT delayMicroseconds(uint32_t us) {
   auto start = (uint64_t) esp_timer_get_time();
-  while (((uint64_t) esp_timer_get_time()) - start < us);
+  while (((uint64_t) esp_timer_get_time()) - start < us)
+    ;
 }
 void arch_restart() {
   esp_restart();
@@ -57,21 +50,17 @@ void IRAM_ATTR HOT arch_feed_wdt() {
 #endif  // USE_ESP_IDF
 }
 
-uint8_t progmem_read_byte(const uint8_t *addr) {
-  return *addr;
-}
+uint8_t progmem_read_byte(const uint8_t *addr) { return *addr; }
 uint32_t arch_get_cpu_cycle_count() {
 #if ESP_IDF_VERSION_MAJOR >= 4
   return cpu_hal_get_cycle_count();
 #else
   uint32_t ccount;
-  __asm__ __volatile__("esync; rsr %0,ccount":"=a" (ccount));
+  __asm__ __volatile__("esync; rsr %0,ccount" : "=a"(ccount));
   return ccount;
 #endif
 }
-uint32_t arch_get_cpu_freq_hz() {
-  return rtc_clk_apb_freq_get();
-}
+uint32_t arch_get_cpu_freq_hz() { return rtc_clk_apb_freq_get(); }
 
 #ifdef USE_ESP_IDF
 TaskHandle_t loop_task_handle = nullptr;
@@ -85,14 +74,7 @@ void loop_task(void *pvParameters) {
 
 extern "C" void app_main() {
   esp32::setup_preferences();
-  xTaskCreate(
-    loop_task,
-    "loopTask",
-    8192,
-    nullptr,
-    1,
-    &loop_task_handle
-  );
+  xTaskCreate(loop_task, "loopTask", 8192, nullptr, 1, &loop_task_handle);
 }
 #endif  // USE_ESP_IDF
 

@@ -22,7 +22,7 @@ void ADE7953::dump_config() {
 
 #define ADE_PUBLISH_(name, type, factor) \
   if (err != i2c::ERROR_OK && this->name##_sensor_) { \
-    float value = *(((type)) (name)) / (factor); \
+    float value = *(((type))(name)) / (factor); \
     this->name##_sensor_->publish_state(value); \
   }
 #define ADE_PUBLISH(name, type, factor) ADE_PUBLISH_(name, type, factor)

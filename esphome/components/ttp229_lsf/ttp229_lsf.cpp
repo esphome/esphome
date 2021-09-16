@@ -29,7 +29,7 @@ void TTP229LSFComponent::dump_config() {
 }
 void TTP229LSFComponent::loop() {
   uint16_t touched = 0;
-  if (this->read(reinterpret_cast<uint8_t*>(&touched), 2) != i2c::ERROR_OK) {
+  if (this->read(reinterpret_cast<uint8_t *>(&touched), 2) != i2c::ERROR_OK) {
     this->status_set_warning();
     return;
   }

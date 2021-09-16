@@ -7,7 +7,7 @@
 namespace esphome {
 namespace mdns {
 
-static const char* const TAG = "mdns";
+static const char *const TAG = "mdns";
 
 void MDNSComponent::setup() {
   MDNS.begin(compile_hostname_().c_str());

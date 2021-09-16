@@ -350,11 +350,11 @@ void ST7735::display_init_(const uint8_t *addr) {
   uint16_t ms;
 
   num_commands = progmem_read_byte(addr++);  // Number of commands to follow
-  while (num_commands--) {               // For each command...
+  while (num_commands--) {                   // For each command...
     cmd = progmem_read_byte(addr++);         // Read command
     num_args = progmem_read_byte(addr++);    // Number of args to follow
-    ms = num_args & ST_CMD_DELAY;        // If hibit set, delay follows args
-    num_args &= ~ST_CMD_DELAY;           // Mask out delay bit
+    ms = num_args & ST_CMD_DELAY;            // If hibit set, delay follows args
+    num_args &= ~ST_CMD_DELAY;               // Mask out delay bit
     this->sendcommand_(cmd, addr, num_args);
     addr += num_args;
 
