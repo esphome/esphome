@@ -42,7 +42,7 @@ def clang_options(idedata):
         # pretend we're an Xtensa compiler, which gates some features in the headers
         '-D__XTENSA__',
         # allow to condition code on the presence of clang-tidy
-        '-DCLANG_TIDY'
+        '-DCLANG_TIDY',
     ]
 
     # copy compiler flags, except those clang doesn't understand.
@@ -54,7 +54,8 @@ def clang_options(idedata):
 
     # add include directories, using -isystem for dependencies to suppress their errors
     for directory in idedata['includes']['toolchain']:
-        cmd.extend(['-isystem', directory])
+        if 'xtensa-esp32s2-elf' not in directory:
+            cmd.extend(['-isystem', directory])
     for directory in sorted(set(idedata['includes']['build'])):
         dependency = "framework-arduino" in directory or "/libdeps/" in directory
         cmd.extend(['-isystem' if dependency else '-I', directory])

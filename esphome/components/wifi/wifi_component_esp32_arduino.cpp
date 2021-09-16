@@ -24,11 +24,11 @@ namespace wifi {
 
 static const char *const TAG = "wifi_esp32";
 
-static bool s_sta_connected = false;
-static bool s_sta_got_ip = false;
-static bool s_sta_connect_not_found = false;
-static bool s_sta_connect_error = false;
-static bool s_sta_connecting = false;
+static bool s_sta_connected = false;          // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static bool s_sta_got_ip = false;             // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static bool s_sta_connect_not_found = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static bool s_sta_connect_error = false;      // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static bool s_sta_connecting = false;         // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 bool WiFiComponent::wifi_mode_(optional<bool> sta, optional<bool> ap) {
   uint8_t current_mode = WiFiClass::getMode();

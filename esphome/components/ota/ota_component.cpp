@@ -5,7 +5,7 @@
 #include "esphome/core/util.h"
 #include "esphome/components/network/util.h"
 
-#include <errno.h>
+#include <cerrno>
 #include <cstdio>
 
 #ifdef USE_ARDUINO

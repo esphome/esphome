@@ -14,7 +14,7 @@ struct ISRPinArg {
 };
 
 ISRInternalGPIOPin ArduinoInternalGPIOPin::to_isr() const {
-  auto *arg = new ISRPinArg{};
+  auto *arg = new ISRPinArg{};  // NOLINT(cppcoreguidelines-owning-memory)
   arg->pin = pin_;
   arg->inverted = inverted_;
   return ISRInternalGPIOPin((void *) arg);

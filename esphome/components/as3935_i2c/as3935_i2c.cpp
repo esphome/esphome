@@ -24,12 +24,16 @@ void I2CAS3935Component::write_register(uint8_t reg, uint8_t mask, uint8_t bits,
 }
 
 uint8_t I2CAS3935Component::read_register(uint8_t reg) {
-  uint8_t value[2];
-  if (I2CDevice::read_register(reg, value, 2) != i2c::ERROR_OK) {
-    ESP_LOGW(TAG, "Read failed!");
+  uint8_t value;
+  if (write(&reg, 1) != i2c::ERROR_OK) {
+    ESP_LOGW(TAG, "Writing register failed!");
     return 0;
   }
-  return value[0];
+  if (read(&value, 1) != i2c::ERROR_OK) {
+    ESP_LOGW(TAG, "Reading register failed!");
+    return 0;
+  }
+  return value;
 }
 void I2CAS3935Component::dump_config() {
   AS3935Component::dump_config();

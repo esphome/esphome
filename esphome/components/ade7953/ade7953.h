@@ -10,10 +10,7 @@ namespace ade7953 {
 
 class ADE7953 : public i2c::I2CDevice, public PollingComponent {
  public:
-  void set_irq_pin(uint8_t irq_pin) {
-    has_irq_ = true;
-    irq_pin_number_ = irq_pin;
-  }
+  void set_irq_pin(InternalGPIOPin *irq_pin) { irq_pin_ = irq_pin; }
   void set_voltage_sensor(sensor::Sensor *voltage_sensor) { voltage_sensor_ = voltage_sensor; }
   void set_current_a_sensor(sensor::Sensor *current_a_sensor) { current_a_sensor_ = current_a_sensor; }
   void set_current_b_sensor(sensor::Sensor *current_b_sensor) { current_b_sensor_ = current_b_sensor; }
@@ -25,9 +22,7 @@ class ADE7953 : public i2c::I2CDevice, public PollingComponent {
   }
 
   void setup() override {
-    if (this->has_irq_) {
-      auto pin = GPIOPin(this->irq_pin_number_, INPUT);
-      this->irq_pin_ = &pin;
+    if (this->irq_pin_ != nullptr) {
       this->irq_pin_->setup();
     }
     this->set_timeout(100, [this]() {
@@ -87,9 +82,7 @@ class ADE7953 : public i2c::I2CDevice, public PollingComponent {
     return i2c::ERROR_OK;
   }
 
-  bool has_irq_ = false;
-  uint8_t irq_pin_number_;
-  GPIOPin *irq_pin_{nullptr};
+  InternalGPIOPin *irq_pin_ = nullptr;
   bool is_setup_{false};
   sensor::Sensor *voltage_sensor_{nullptr};
   sensor::Sensor *current_a_sensor_{nullptr};

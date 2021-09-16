@@ -24,7 +24,7 @@ std::vector<MDNSService> MDNSComponent::compile_services_() {
     service.proto = "_tcp";
     service.port = api::global_api_server->get_port();
     service.txt_records.push_back({"version", ESPHOME_VERSION});
-    service.txt_records.push_back({"mac", get_mac_address().c_str()});
+    service.txt_records.push_back({"mac", get_mac_address()});
     const char *platform = nullptr;
 #ifdef USE_ESP8266
     platform = "ESP8266";

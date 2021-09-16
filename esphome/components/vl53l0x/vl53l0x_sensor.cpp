@@ -36,8 +36,6 @@ void VL53L0XSensor::setup() {
   if (!esphome::vl53l0x::VL53L0XSensor::enable_pin_setup_complete) {
     for (auto &vl53_sensor : vl53_sensors) {
       if (vl53_sensor->enable_pin_ != nullptr) {
-        // Disable the enable pin to force vl53 to HW Standby mode
-        ESP_LOGD(TAG, "i2c vl53l0x disable enable pins: GPIO%u", (vl53_sensor->enable_pin_)->get_pin());
         // Set enable pin as OUTPUT and disable the enable pin to force vl53 to HW Standby mode
         vl53_sensor->enable_pin_->setup();
         vl53_sensor->enable_pin_->digital_write(false);

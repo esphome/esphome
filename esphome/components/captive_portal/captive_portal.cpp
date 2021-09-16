@@ -79,13 +79,13 @@ void CaptivePortal::start() {
   this->dns_server_ = make_unique<DNSServer>();
   this->dns_server_->setErrorReplyCode(DNSReplyCode::NoError);
   network::IPAddress ip = wifi::global_wifi_component->wifi_soft_ap_ip();
-  this->dns_server_->start(53, "*", ip);
+  this->dns_server_->start(53, "*", (uint32_t) ip);
 
   this->base_->get_server()->onNotFound([this](AsyncWebServerRequest *req) {
     bool not_found = false;
     if (!this->active_) {
       not_found = true;
-    } else if (req->host() == wifi::global_wifi_component->wifi_soft_ap_ip().toString()) {
+    } else if (req->host().c_str() == wifi::global_wifi_component->wifi_soft_ap_ip().str()) {
       not_found = true;
     }
 
@@ -94,8 +94,8 @@ void CaptivePortal::start() {
       return;
     }
 
-    auto url = "http://" + wifi::global_wifi_component->wifi_soft_ap_ip().toString();
-    req->redirect(url);
+    auto url = "http://" + wifi::global_wifi_component->wifi_soft_ap_ip().str();
+    req->redirect(url.c_str());
   });
 
   this->initialized_ = true;

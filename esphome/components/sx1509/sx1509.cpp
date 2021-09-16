@@ -143,7 +143,7 @@ void SX1509Component::clock_(uint8_t osc_source, uint8_t osc_pin_function, uint8
   uint8_t reg_clock = osc_source | osc_pin_function | osc_freq_out;
   this->write_byte(REG_CLOCK, reg_clock);
 
-  osc_divider = constrain(osc_divider, 1, 7);
+  osc_divider = clamp<uint8_t>(osc_divider, 1, 7u);
   this->clk_x_ = 2000000;
   osc_divider = (osc_divider & 0b111) << 4;  // 3-bit value, bits 6:4
 
@@ -223,7 +223,7 @@ void SX1509Component::set_debounce_time_(uint8_t time) {
       break;
     }
   }
-  config_value = constrain(config_value, 0, 7);
+  config_value = clamp<uint8_t>(config_value, 0, 7);
 
   set_debounce_config_(config_value);
 }

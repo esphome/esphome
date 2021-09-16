@@ -117,9 +117,10 @@ void QMC5883LComponent::update() {
 }
 
 bool QMC5883LComponent::read_byte_16_(uint8_t a_register, uint16_t *data) {
-  bool success = this->read_byte_16(a_register, data);
+  if (!this->read_byte_16(a_register, data))
+    return false;
   *data = (*data & 0x00FF) << 8 | (*data & 0xFF00) >> 8;  // Flip Byte order, LSB first;
-  return success;
+  return true;
 }
 
 }  // namespace qmc5883l

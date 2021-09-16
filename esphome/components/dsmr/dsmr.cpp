@@ -122,8 +122,9 @@ void Dsmr::receive_encrypted_() {
       delay(4);  // Wait for data
     }
   }
-  if (buffer_length > 0)
+  if (buffer_length > 0) {
     ESP_LOGW(TAG, "Timeout while waiting for encrypted data or invalid data received.");
+  }
 }
 
 bool Dsmr::parse_telegram() {

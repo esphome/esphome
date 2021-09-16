@@ -10,9 +10,13 @@
 
 #include "esphome/core/macros.h"
 
+// Include ESP-IDF/Arduino based logging methods here so they don't undefine ours later
 #if defined(USE_ESP32_FRAMEWORK_ARDUINO) || defined(USE_ESP_IDF)
 #include <esp_err.h>
 #include <esp_log.h>
+#endif
+#ifdef USE_ESP32_FRAMEWORK_ARDUINO
+#include <esp32-hal-log.h>
 #endif
 
 #include "esphome/core/macros.h"

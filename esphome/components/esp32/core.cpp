@@ -27,7 +27,7 @@ void IRAM_ATTR HOT delayMicroseconds(uint32_t us) {
 void arch_restart() {
   esp_restart();
   // restart() doesn't always end execution
-  while (true) {
+  while (true) {  // NOLINT(clang-diagnostic-unreachable-code)
     yield();
   }
 }

@@ -108,7 +108,7 @@ typedef uint32_t socklen_t;
 #include <fcntl.h>
 #include <stdint.h>
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ARDUINO
 // arduino-esp32 declares a global var called INADDR_NONE which is replaced
 // by the define
 #ifdef INADDR_NONE

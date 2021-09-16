@@ -69,7 +69,7 @@ class ESP32Preferences : public ESPPreferences {
     return make_preference(length, type);
   }
   ESPPreferenceObject make_preference(size_t length, uint32_t type) override {
-    auto *pref = new ESP32PreferenceBackend();
+    auto *pref = new ESP32PreferenceBackend();  // NOLINT(cppcoreguidelines-owning-memory)
     pref->nvs_handle = nvs_handle;
     current_offset += length;
 
@@ -84,13 +84,13 @@ class ESP32Preferences : public ESPPreferences {
 };
 
 void setup_preferences() {
-  auto *prefs = new ESP32Preferences();
+  auto *prefs = new ESP32Preferences();  // NOLINT(cppcoreguidelines-owning-memory)
   prefs->open();
   global_preferences = prefs;
 }
 
 }  // namespace esp32
 
-ESPPreferences *global_preferences;
+ESPPreferences *global_preferences;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 }  // namespace esphome

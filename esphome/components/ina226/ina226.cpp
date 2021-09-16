@@ -109,6 +109,7 @@ void INA226Component::update() {
     uint16_t raw_shunt_voltage;
     if (!this->read_byte_16(INA226_REGISTER_SHUNT_VOLTAGE, &raw_shunt_voltage)) {
       this->status_set_warning();
+      return;
     }
     float shunt_voltage_v = int16_t(raw_shunt_voltage) * 0.0000025f;
     this->shunt_voltage_sensor_->publish_state(shunt_voltage_v);

@@ -4,11 +4,13 @@
 #ifdef ARDUINO_ARCH_ESP32
 
 #include <nvs_flash.h>
-#include <freertos/FreeRTOSConfig.h>
+#include <freertos/FreeRTOS.h>
 #include <esp_bt_main.h>
 #include <esp_bt.h>
 #include <freertos/task.h>
 #include <esp_gap_ble_api.h>
+#include <cstring>
+#include "esphome/core/hal.h"
 
 namespace esphome {
 namespace esp32_ble_beacon {
