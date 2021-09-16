@@ -61,6 +61,7 @@ void ESP32BLEBeacon::ble_core_task(void *params) {
     delay(1000);  // NOLINT
   }
 }
+
 void ESP32BLEBeacon::ble_setup() {
   // Initialize non-volatile storage for the bluetooth controller
   esp_err_t err = nvs_flash_init();
@@ -69,9 +70,28 @@ void ESP32BLEBeacon::ble_setup() {
     return;
   }
 
-  if (!btStart()) {
-    ESP_LOGE(TAG, "btStart failed: %d", esp_bt_controller_get_status());
-    return;
+  if (esp_bt_controller_get_status() != ESP_BT_CONTROLLER_STATUS_ENABLED) {
+    // start bt controller
+    if (esp_bt_controller_get_status() == ESP_BT_CONTROLLER_STATUS_IDLE){
+      esp_bt_controller_config_t cfg = BT_CONTROLLER_INIT_CONFIG_DEFAULT();
+      err = esp_bt_controller_init(&cfg);
+      if (err != ESP_OK) {
+        ESP_LOGE(TAG, "esp_bt_controller_init failed: %s", esp_err_to_name(err));
+        return;
+      }
+      while (esp_bt_controller_get_status() == ESP_BT_CONTROLLER_STATUS_IDLE);
+    }
+    if (esp_bt_controller_get_status() == ESP_BT_CONTROLLER_STATUS_INITED) {
+        err = esp_bt_controller_enable(ESP_BT_MODE_BLE);
+        if (err != ESP_OK) {
+          ESP_LOGE(TAG, "esp_bt_controller_enable failed: %s", esp_err_to_name(err));
+          return;
+        }
+    }
+    if (esp_bt_controller_get_status() != ESP_BT_CONTROLLER_STATUS_ENABLED){
+      ESP_LOGE(TAG, "esp bt controller enable failed");
+      return;
+    }
   }
 
   esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT);

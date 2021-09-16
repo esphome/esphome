@@ -131,13 +131,31 @@ bool ESP32BLETracker::ble_setup() {
     return false;
   }
 
-  esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT);
-
-  // Initialize the bluetooth controller with the default configuration
-  if (!btStart()) {
-    ESP_LOGE(TAG, "btStart failed: %d", esp_bt_controller_get_status());
-    return false;
+  if (esp_bt_controller_get_status() != ESP_BT_CONTROLLER_STATUS_ENABLED) {
+    // start bt controller
+    if (esp_bt_controller_get_status() == ESP_BT_CONTROLLER_STATUS_IDLE){
+      esp_bt_controller_config_t cfg = BT_CONTROLLER_INIT_CONFIG_DEFAULT();
+      err = esp_bt_controller_init(&cfg);
+      if (err != ESP_OK) {
+        ESP_LOGE(TAG, "esp_bt_controller_init failed: %s", esp_err_to_name(err));
+        return false;
+      }
+      while (esp_bt_controller_get_status() == ESP_BT_CONTROLLER_STATUS_IDLE);
+    }
+    if (esp_bt_controller_get_status() == ESP_BT_CONTROLLER_STATUS_INITED) {
+        err = esp_bt_controller_enable(ESP_BT_MODE_BLE);
+        if (err != ESP_OK) {
+          ESP_LOGE(TAG, "esp_bt_controller_enable failed: %s", esp_err_to_name(err));
+          return false;
+        }
+    }
+    if (esp_bt_controller_get_status() != ESP_BT_CONTROLLER_STATUS_ENABLED){
+      ESP_LOGE(TAG, "esp bt controller enable failed");
+      return false;
+    }
   }
+
+  esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT);
 
   err = esp_bluedroid_init();
   if (err != ESP_OK) {

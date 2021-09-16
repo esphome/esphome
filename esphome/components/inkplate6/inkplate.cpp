@@ -210,7 +210,7 @@ void Inkplate6::fill(Color color) {
     memset(this->partial_buffer_, fill, this->get_buffer_length_());
   }
 
-  ESP_LOGV(TAG, "Fill finished (%lums)", millis() - start_time);
+  ESP_LOGV(TAG, "Fill finished (%ums)", millis() - start_time);
 }
 void Inkplate6::display() {
   ESP_LOGV(TAG, "Display called");
@@ -220,12 +220,12 @@ void Inkplate6::display() {
     this->display3b_();
   } else {
     if (this->partial_updating_ && this->partial_update_()) {
-      ESP_LOGV(TAG, "Display finished (partial) (%lums)", millis() - start_time);
+      ESP_LOGV(TAG, "Display finished (partial) (%ums)", millis() - start_time);
       return;
     }
     this->display1b_();
   }
-  ESP_LOGV(TAG, "Display finished (full) (%lums)", millis() - start_time);
+  ESP_LOGV(TAG, "Display finished (full) (%ums)", millis() - start_time);
 }
 void Inkplate6::display1b_() {
   ESP_LOGV(TAG, "Display1b called");
@@ -248,7 +248,7 @@ void Inkplate6::display1b_() {
   clean_fast_(0, 11);
 
   uint32_t clock = (1 << this->cl_pin_->get_pin());
-  ESP_LOGV(TAG, "Display1b start loops (%lums)", millis() - start_time);
+  ESP_LOGV(TAG, "Display1b start loops (%ums)", millis() - start_time);
   for (int k = 0; k < 3; k++) {
     buffer_ptr = &this->buffer_[this->get_buffer_length_() - 1];
     vscan_start_();
@@ -283,7 +283,7 @@ void Inkplate6::display1b_() {
     }
     delayMicroseconds(230);
   }
-  ESP_LOGV(TAG, "Display1b first loop x %d (%lums)", 3, millis() - start_time);
+  ESP_LOGV(TAG, "Display1b first loop x %d (%ums)", 3, millis() - start_time);
 
   buffer_ptr = &this->buffer_[this->get_buffer_length_() - 1];
   vscan_start_();
@@ -316,7 +316,7 @@ void Inkplate6::display1b_() {
     vscan_end_();
   }
   delayMicroseconds(230);
-  ESP_LOGV(TAG, "Display1b second loop (%lums)", millis() - start_time);
+  ESP_LOGV(TAG, "Display1b second loop (%ums)", millis() - start_time);
 
   vscan_start_();
   for (int i = 0; i < this->get_height_internal(); i++) {
@@ -338,13 +338,13 @@ void Inkplate6::display1b_() {
     vscan_end_();
   }
   delayMicroseconds(230);
-  ESP_LOGV(TAG, "Display1b third loop (%lums)", millis() - start_time);
+  ESP_LOGV(TAG, "Display1b third loop (%ums)", millis() - start_time);
 
   vscan_start_();
   eink_off_();
   this->block_partial_ = false;
   this->partial_updates_ = 0;
-  ESP_LOGV(TAG, "Display1b finished (%lums)", millis() - start_time);
+  ESP_LOGV(TAG, "Display1b finished (%ums)", millis() - start_time);
 }
 void Inkplate6::display3b_() {
   ESP_LOGV(TAG, "Display3b called");
@@ -420,7 +420,7 @@ void Inkplate6::display3b_() {
   clean_fast_(3, 1);
   vscan_start_();
   eink_off_();
-  ESP_LOGV(TAG, "Display3b finished (%lums)", millis() - start_time);
+  ESP_LOGV(TAG, "Display3b finished (%ums)", millis() - start_time);
 }
 bool Inkplate6::partial_update_() {
   ESP_LOGV(TAG, "Partial update called");
@@ -447,7 +447,7 @@ bool Inkplate6::partial_update_() {
       this->partial_buffer_2_[n--] = LUTW[diffw & 0x0F] & LUTB[diffb & 0x0F];
     }
   }
-  ESP_LOGV(TAG, "Partial update buffer built after (%lums)", millis() - start_time);
+  ESP_LOGV(TAG, "Partial update buffer built after (%ums)", millis() - start_time);
 
   eink_on_();
   uint32_t clock = (1 << this->cl_pin_->get_pin());
@@ -471,7 +471,7 @@ bool Inkplate6::partial_update_() {
       vscan_end_();
     }
     delayMicroseconds(230);
-    ESP_LOGV(TAG, "Partial update loop k=%d (%lums)", k, millis() - start_time);
+    ESP_LOGV(TAG, "Partial update loop k=%d (%ums)", k, millis() - start_time);
   }
   clean_fast_(2, 2);
   clean_fast_(3, 1);
@@ -479,7 +479,7 @@ bool Inkplate6::partial_update_() {
   eink_off_();
 
   memcpy(this->buffer_, this->partial_buffer_, this->get_buffer_length_());
-  ESP_LOGV(TAG, "Partial update finished (%lums)", millis() - start_time);
+  ESP_LOGV(TAG, "Partial update finished (%ums)", millis() - start_time);
   return true;
 }
 void Inkplate6::vscan_start_() {
@@ -540,7 +540,7 @@ void Inkplate6::clean() {
   clean_fast_(0, 8);   // Black to Black
   clean_fast_(2, 1);   // Black to White
   clean_fast_(1, 10);  // White to White
-  ESP_LOGV(TAG, "Clean finished (%lums)", millis() - start_time);
+  ESP_LOGV(TAG, "Clean finished (%ums)", millis() - start_time);
 }
 void Inkplate6::clean_fast_(uint8_t c, uint8_t rep) {
   ESP_LOGV(TAG, "Clean fast called with: (%d, %d)", c, rep);
@@ -578,9 +578,9 @@ void Inkplate6::clean_fast_(uint8_t c, uint8_t rep) {
       vscan_end_();
     }
     delayMicroseconds(230);
-    ESP_LOGV(TAG, "Clean fast rep loop %d finished (%lums)", k, millis() - start_time);
+    ESP_LOGV(TAG, "Clean fast rep loop %d finished (%ums)", k, millis() - start_time);
   }
-  ESP_LOGV(TAG, "Clean fast finished (%lums)", millis() - start_time);
+  ESP_LOGV(TAG, "Clean fast finished (%ums)", millis() - start_time);
 }
 void Inkplate6::pins_z_state_() {
   this->ckv_pin_->pin_mode(gpio::FLAG_INPUT);
