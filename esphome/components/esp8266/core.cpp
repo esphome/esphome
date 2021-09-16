@@ -14,7 +14,7 @@ void IRAM_ATTR HOT delay(uint32_t ms) { ::delay(ms); }
 uint32_t IRAM_ATTR HOT micros() { return ::micros(); }
 void IRAM_ATTR HOT delayMicroseconds(uint32_t us) { ::delayMicroseconds(us); }
 void arch_restart() {
-  ESP.restart();
+  ESP.restart();  // NOLINT(readability-static-accessed-through-instance)
   // restart() doesn't always end execution
   while (true) {  // NOLINT(clang-diagnostic-unreachable-code)
     yield();
@@ -25,7 +25,9 @@ void IRAM_ATTR HOT arch_feed_wdt() {
 }
 
 uint8_t progmem_read_byte(const uint8_t *addr) { return pgm_read_byte(addr); }
-uint32_t arch_get_cpu_cycle_count() { return ESP.getCycleCount(); }
+uint32_t arch_get_cpu_cycle_count() {
+  return ESP.getCycleCount();  // NOLINT(readability-static-accessed-through-instance)
+}
 uint32_t arch_get_cpu_freq_hz() { return F_CPU; }
 
 }  // namespace esphome
