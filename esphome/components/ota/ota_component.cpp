@@ -12,11 +12,16 @@
 #ifdef USE_OTA_PASSWORD
 #include <MD5Builder.h>
 #endif  // USE_OTA_PASSWORD
+
 #ifdef USE_ESP32
 #include <Update.h>
 #endif  // USE_ESP32
-#include <StreamString.h>
 #endif  // USE_ARDUINO
+
+#ifdef USE_ESP8266
+#include <Updater.h>
+#include "esphome/components/esp8266/preferences.h"
+#endif  // USE_ESP8266
 
 #ifdef USE_ESP_IDF
 #include <esp_ota_ops.h>
@@ -46,7 +51,7 @@ class ArduinoOTABackend : public OTABackend {
     bool ret = Update.begin(image_size, U_FLASH);
     if (ret) {
 #ifdef USE_ESP8266
-      global_preferences->prevent_write(true);
+      esp8266::preferences_prevent_write(true);
 #endif
       return OTA_RESPONSE_OK;
     }
@@ -88,7 +93,7 @@ class ArduinoOTABackend : public OTABackend {
 
 #ifdef USE_ESP8266
     Update.end();
-    global_preferences->prevent_write(false);
+    esp8266::preferences_prevent_write(false);
 #endif
   }
 };
@@ -172,7 +177,7 @@ void OTAComponent::setup() {
   struct sockaddr_in server;
   memset(&server, 0, sizeof(server));
   server.sin_family = AF_INET;
-  server.sin_addr.s_addr = INADDR_ANY;
+  server.sin_addr.s_addr = ESPHOME_INADDR_ANY;
   server.sin_port = htons(this->port_);
 
   err = server_->bind((struct sockaddr *) &server, sizeof(server));

@@ -222,28 +222,6 @@ async def _add_platformio_options(pio_options):
         cg.add_platformio_option(key, val)
 
 
-@coroutine_with_priority(-1000.0)
-async def _esp8266_add_lwip_type():
-    # If any component has already set this, do not change it
-    if any(
-        flag.startswith("-DPIO_FRAMEWORK_ARDUINO_LWIP2_") for flag in CORE.build_flags
-    ):
-        return
-
-    # Default for platformio is LWIP2_LOW_MEMORY with:
-    #  - MSS=536
-    #  - LWIP_FEATURES enabled
-    #     - this only adds some optional features like IP incoming packet reassembly and NAPT
-    #       see also:
-    #  https://github.com/esp8266/Arduino/blob/master/tools/sdk/lwip2/include/lwipopts.h
-
-    # Instead we use LWIP2_HIGHER_BANDWIDTH_LOW_FLASH with:
-    #  - MSS=1460
-    #  - LWIP_FEATURES disabled (because we don't need them)
-    # Other projects like Tasmota & ESPEasy also use this
-    cg.add_build_flag("-DPIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH")
-
-
 @coroutine_with_priority(30.0)
 async def _add_automations(config):
     for conf in config.get(CONF_ON_BOOT, []):
@@ -274,10 +252,6 @@ async def to_code(config):
     )
 
     CORE.add_job(_add_automations, config)
-
-    # Set LWIP build constants for ESP8266
-    if CORE.is_esp8266:
-        CORE.add_job(_esp8266_add_lwip_type)
 
     cg.add_build_flag("-fno-exceptions")
 

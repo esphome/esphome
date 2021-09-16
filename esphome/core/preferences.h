@@ -37,11 +37,20 @@ class ESPPreferences {
  public:
   virtual ESPPreferenceObject make_preference(size_t length, uint32_t type, bool in_flash) = 0;
   virtual ESPPreferenceObject make_preference(size_t length, uint32_t type) = 0;
+#ifndef USE_ESP8266
   template<typename T, typename std::enable_if<std::is_trivially_copyable<T>::value, bool>::type = true>
+#else
+  // esp8266 toolchain doesn't have is_trivially_copyable
+  template<typename T>
+#endif
   ESPPreferenceObject make_preference(uint32_t type, bool in_flash) {
     return this->make_preference(sizeof(T), type, in_flash);
   }
+#ifndef USE_ESP8266
   template<typename T, typename std::enable_if<std::is_trivially_copyable<T>::value, bool>::type = true>
+#else
+  template<typename T>
+#endif
   ESPPreferenceObject make_preference(uint32_t type) {
     return this->make_preference(sizeof(T), type);
   }

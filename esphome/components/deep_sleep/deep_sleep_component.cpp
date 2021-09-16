@@ -2,6 +2,10 @@
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 
+#ifdef USE_ESP8266
+#include <Esp.h>
+#endif
+
 namespace esphome {
 namespace deep_sleep {
 

@@ -4,7 +4,9 @@
 #include "esphome/components/network/ip_address.h"
 #include <cstring>
 
+#include <lwip/init.h>
 #include <lwip/ip_addr.h>
+#include <lwip/ip4_addr.h>
 #include <lwip/igmp.h>
 
 namespace esphome {

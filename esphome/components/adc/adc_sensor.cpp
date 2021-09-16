@@ -2,6 +2,7 @@
 #include "esphome/core/log.h"
 
 #ifdef USE_ADC_SENSOR_VCC
+#include <Esp.h>
 ADC_MODE(ADC_VCC)
 #endif
 

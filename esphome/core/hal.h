@@ -5,16 +5,30 @@
 
 #if defined(USE_ESP32_FRAMEWORK_ESP_IDF)
 #include <esp_attr.h>
+#ifndef PROGMEM
 #define PROGMEM
+#endif
+
 #elif defined(USE_ESP32_FRAMEWORK_ARDUINO)
+
 #include <esp_attr.h>
+
+#ifndef PROGMEM
 #define PROGMEM
+#endif
+
 #elif defined(USE_ESP8266)
+
 #include <c_types.h>
+#ifndef PROGMEM
 #define PROGMEM ICACHE_RODATA_ATTR
+#endif
+
 #else
+
 #define IRAM_ATTR
 #define PROGMEM
+
 #endif
 
 namespace esphome {
