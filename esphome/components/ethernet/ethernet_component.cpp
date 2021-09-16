@@ -75,10 +75,6 @@ void EthernetComponent::setup() {
   ESPHL_ERROR_CHECK(err, "ETH init error");
   err = esp_eth_enable();
   ESPHL_ERROR_CHECK(err, "ETH enable error");
-
-#ifdef USE_MDNS
-  network_setup_mdns();
-#endif
 }
 void EthernetComponent::loop() {
   const uint32_t now = millis();
@@ -118,8 +114,6 @@ void EthernetComponent::loop() {
       }
       break;
   }
-
-  network_tick_mdns();
 }
 void EthernetComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "Ethernet:");

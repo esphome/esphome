@@ -54,10 +54,7 @@ ErrorCode ArduinoI2CBus::readv(uint8_t address, ReadBuffer *buffers, size_t cnt)
   size_t to_request = 0;
   for (size_t i = 0; i < cnt; i++)
     to_request += buffers[i].len;
-  if (to_request > 255) {
-    return ERROR_TOO_LARGE;
-  }
-  size_t ret = wire_->requestFrom(address, (uint8_t) to_request, 1);
+  size_t ret = wire_->requestFrom((int) address, (int) to_request, 1);
   if (ret != to_request) {
     return ERROR_TIMEOUT;
   }

@@ -1,9 +1,10 @@
 #pragma once
 
+#ifdef ARDUINO_ARCH_ESP32
+
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
-
-#ifdef ARDUINO_ARCH_ESP32
+#include "esphome/components/network/ip_address.h"
 
 #include "esp_eth.h"
 #include <esp_wifi.h>
