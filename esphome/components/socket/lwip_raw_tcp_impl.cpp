@@ -441,7 +441,7 @@ class LWIPRawImpl : public Socket {
       // nothing to do here, we just don't push it to the queue
       return ERR_OK;
     }
-    auto sock = std::unique_ptr<LWIPRawImpl>(new LWIPRawImpl(newpcb));
+    auto sock = make_unique<LWIPRawImpl>(newpcb);
     sock->init();
     accepted_sockets_.push(std::move(sock));
     return ERR_OK;

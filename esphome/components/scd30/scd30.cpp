@@ -2,6 +2,10 @@
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
+#ifdef USE_ESP8266
+#include <Wire.h>
+#endif
+
 namespace esphome {
 namespace scd30 {
 

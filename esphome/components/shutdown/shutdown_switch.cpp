@@ -5,6 +5,9 @@
 #ifdef USE_ESP32
 #include <esp_sleep.h>
 #endif
+#ifdef USE_ESP8266
+#include <Esp.h>
+#endif
 
 namespace esphome {
 namespace shutdown {

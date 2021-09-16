@@ -28,11 +28,11 @@ void IRAM_ATTR PulseCounterStorage::gpio_intr(PulseCounterStorage *arg) {
       break;
   }
 }
-bool PulseCounterStorage::pulse_counter_setup(GPIOPin *pin) {
+bool PulseCounterStorage::pulse_counter_setup(InternalGPIOPin *pin) {
   this->pin = pin;
   this->pin->setup();
   this->isr_pin = this->pin->to_isr();
-  this->pin->attach_interrupt(PulseCounterStorage::gpio_intr, this, CHANGE);
+  this->pin->attach_interrupt(PulseCounterStorage::gpio_intr, this, gpio::INTERRUPT_ANY_EDGE);
   return true;
 }
 pulse_counter_t PulseCounterStorage::read_raw_value() {
