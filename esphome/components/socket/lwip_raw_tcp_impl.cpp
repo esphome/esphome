@@ -11,6 +11,7 @@
 #include <cstring>
 #include <queue>
 
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
