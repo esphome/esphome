@@ -35,7 +35,7 @@ DEPENDENCIES = ["display", "sensor"]
 MULTI_CONF = True
 
 graph_ns = cg.esphome_ns.namespace("graph")
-Graph_ = graph_ns.class_("Graph")
+Graph_ = graph_ns.class_("Graph", cg.Component)
 GraphTrace = graph_ns.class_("GraphTrace")
 GraphLegend = graph_ns.class_("GraphLegend")
 
@@ -152,7 +152,7 @@ async def to_code(config):
     cg.add(var.set_duration(config[CONF_DURATION]))
     cg.add(var.set_width(config[CONF_WIDTH]))
     cg.add(var.set_height(config[CONF_HEIGHT]))
-    # await cg.register_component(var, config)   # FIX: confused - causes issues yet some say it's needed
+    await cg.register_component(var, config)
 
     # Graph options
     if CONF_X_GRID in config:
