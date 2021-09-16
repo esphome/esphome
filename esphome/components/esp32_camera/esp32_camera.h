@@ -5,6 +5,8 @@
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include <esp_camera.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/queue.h>
 
 namespace esphome {
 namespace esp32_camera {
