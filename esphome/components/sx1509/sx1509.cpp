@@ -18,13 +18,15 @@ void SX1509Component::setup() {
   this->write_byte(REG_RESET, 0x34);
 
   uint16_t data;
-  this->read_byte_16(REG_INTERRUPT_MASK_A, &data);
-  if (data == 0xFF00) {
-    clock_(INTERNAL_CLOCK_2MHZ);
-  } else {
+  if (!this->read_byte_16(REG_INTERRUPT_MASK_A, &data)) {
     this->mark_failed();
     return;
   }
+  if (data != 0xFF00) {
+    this->mark_failed();
+    return;
+  }
+  clock_(INTERNAL_CLOCK_2MHZ);
   delayMicroseconds(500);
   if (this->has_keypad_)
     this->setup_keypad_();
@@ -49,7 +51,8 @@ void SX1509Component::loop() {
 bool SX1509Component::digital_read(uint8_t pin) {
   if (this->ddr_mask_ & (1 << pin)) {
     uint16_t temp_reg_data;
-    this->read_byte_16(REG_DATA_B, &temp_reg_data);
+    if (!this->read_byte_16(REG_DATA_B, &temp_reg_data))
+      return false;
     if (temp_reg_data & (1 << pin))
       return true;
   }
@@ -68,9 +71,9 @@ void SX1509Component::digital_write(uint8_t pin, bool bit_value) {
     this->write_byte_16(REG_DATA_B, temp_reg_data);
   } else {
     // Otherwise the pin is an input, pull-up/down
-    uint16_t temp_pullup;
+    uint16_t temp_pullup = 0;
     this->read_byte_16(REG_PULL_UP_B, &temp_pullup);
-    uint16_t temp_pull_down;
+    uint16_t temp_pull_down = 0;
     this->read_byte_16(REG_PULL_DOWN_B, &temp_pull_down);
 
     if (bit_value) {
@@ -102,8 +105,8 @@ void SX1509Component::pin_mode(uint8_t pin, gpio::Flags flags) {
 }
 
 void SX1509Component::setup_led_driver(uint8_t pin) {
-  uint16_t temp_word;
-  uint8_t temp_byte;
+  uint16_t temp_word = 0;
+  uint8_t temp_byte = 0;
 
   this->read_byte_16(REG_INPUT_DISABLE_B, &temp_word);
   temp_word |= (1 << pin);
@@ -147,7 +150,7 @@ void SX1509Component::clock_(uint8_t osc_source, uint8_t osc_pin_function, uint8
   this->clk_x_ = 2000000;
   osc_divider = (osc_divider & 0b111) << 4;  // 3-bit value, bits 6:4
 
-  uint8_t reg_misc;
+  uint8_t reg_misc = 0;
   this->read_byte(REG_MISC, &reg_misc);
   reg_misc &= ~(0b111 << 4);
   reg_misc |= osc_divider;
@@ -155,7 +158,7 @@ void SX1509Component::clock_(uint8_t osc_source, uint8_t osc_pin_function, uint8
 }
 
 void SX1509Component::setup_keypad_() {
-  uint8_t temp_byte;
+  uint8_t temp_byte = 0;
 
   // setup row/col pins for INPUT OUTPUT
   this->read_byte_16(REG_DIR_B, &this->ddr_mask_);
@@ -195,14 +198,14 @@ void SX1509Component::setup_keypad_() {
 }
 
 uint16_t SX1509Component::read_key_data() {
-  uint16_t key_data;
+  uint16_t key_data = 0;
   this->read_byte_16(REG_KEY_DATA_1, &key_data);
   return (0xFFFF ^ key_data);
 }
 
 void SX1509Component::set_debounce_config_(uint8_t config_value) {
   // First make sure clock is configured
-  uint8_t temp_byte;
+  uint8_t temp_byte = 0;
   this->read_byte(REG_MISC, &temp_byte);
   temp_byte |= (1 << 4);  // Just default to no divider if not set
   this->write_byte(REG_MISC, temp_byte);
@@ -229,7 +232,7 @@ void SX1509Component::set_debounce_time_(uint8_t time) {
 }
 
 void SX1509Component::set_debounce_enable_(uint8_t pin) {
-  uint16_t debounce_enable;
+  uint16_t debounce_enable = 0;
   this->read_byte_16(REG_DEBOUNCE_ENABLE_B, &debounce_enable);
   debounce_enable |= (1 << pin);
   this->write_byte_16(REG_DEBOUNCE_ENABLE_B, debounce_enable);

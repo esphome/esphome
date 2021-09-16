@@ -109,7 +109,7 @@ void VL53L0XSensor::setup() {
   reg(0xFF) = 0x00;
   reg(0x80) = 0x00;
 
-  uint8_t ref_spad_map[6];
+  uint8_t ref_spad_map[6] = {};
   this->read_bytes(0xB0, ref_spad_map, 6);
 
   reg(0xFF) = 0x01;
@@ -292,7 +292,7 @@ void VL53L0XSensor::loop() {
   }
   if (this->waiting_for_interrupt_) {
     if (reg(0x13).get() & 0x07) {
-      uint16_t range_mm;
+      uint16_t range_mm = 0;
       this->read_byte_16(0x14 + 10, &range_mm);
       reg(0x0B) = 0x01;
       this->waiting_for_interrupt_ = false;

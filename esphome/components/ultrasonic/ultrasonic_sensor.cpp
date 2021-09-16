@@ -30,7 +30,7 @@ void UltrasonicSensorComponent::update() {
     ;
   const uint32_t pulse_end = micros();
 
-  ESP_LOGV(TAG, "Echo took %uµs", time);
+  ESP_LOGV(TAG, "Echo took %uµs", pulse_end - pulse_start);
 
   if (pulse_end - start >= timeout_us_) {
     ESP_LOGD(TAG, "'%s' - Distance measurement timed out!", this->name_.c_str());
