@@ -69,11 +69,11 @@ void Logger::log_vprintf_(int level, const char *tag, int line, const __FlashStr
   recursion_guard_ = true;
   this->reset_buffer_();
   // copy format string
-  const char *format_pgm_p = (PGM_P) format;
+  auto *format_pgm_p = reinterpret_cast<const uint8_t *>(format);
   size_t len = 0;
   char ch = '.';
   while (!this->is_buffer_full_() && ch != '\0') {
-    this->tx_buffer_[this->tx_buffer_at_++] = ch = progmem_read_byte(format_pgm_p++);
+    this->tx_buffer_[this->tx_buffer_at_++] = ch = (char) progmem_read_byte(format_pgm_p++);
   }
   // Buffer full form copying format
   if (this->is_buffer_full_())
