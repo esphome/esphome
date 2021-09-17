@@ -22,7 +22,7 @@ using climate::ClimateMode;
 using climate::ClimateSwingMode;
 using climate::ClimateFanMode;
 
-template<typename T> class ApplianceBase : public Component, public uart::UARTDevice, public climate::Climate {
+template<typename T> class ApplianceBase : public Component, public uart::UARTDevice, public climate::Climate, public Stream {
   static_assert(std::is_base_of<dudanov::midea::ApplianceBase, T>::value,
                 "T must derive from dudanov::midea::ApplianceBase class");
 
@@ -62,6 +62,12 @@ template<typename T> class ApplianceBase : public Component, public uart::UARTDe
     transmit.perform();
   }
 #endif
+
+  int available() override { return uart::UARTDevice::available(); }
+  int read() override { return uart::UARTDevice::read(); }
+  int peek() override { return uart::UARTDevice::peek(); }
+  void flush() override { uart::UARTDevice::flush(); }
+  size_t write(uint8_t data) override { return uart::UARTDevice::write(data); }
 
  protected:
   T base_;

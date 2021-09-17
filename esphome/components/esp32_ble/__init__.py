@@ -1,6 +1,8 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
+from esphome.core import CORE
+from esphome.components.esp32 import add_idf_sdkconfig_option
 
 DEPENDENCIES = ["esp32"]
 CODEOWNERS = ["@jesserockz"]
@@ -20,3 +22,6 @@ CONFIG_SCHEMA = cv.Schema(
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
+
+    if CORE.using_esp_idf:
+        add_idf_sdkconfig_option("CONFIG_BT_ENABLED", True)

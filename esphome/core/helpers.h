@@ -277,8 +277,8 @@ template<typename T, typename... X> class TemplatableValue {
     LAMBDA,
   } type_;
 
-  T value_;
-  std::function<T(X...)> f_;
+  T value_{};
+  std::function<T(X...)> f_{};
 };
 
 template<typename... X> class TemplatableStringValue : public TemplatableValue<std::string, X...> {

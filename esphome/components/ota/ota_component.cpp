@@ -38,11 +38,11 @@ static const uint8_t OTA_VERSION_1_0 = 1;
 class OTABackend {
  public:
   virtual ~OTABackend() = default;
-  virtual OTAResponseTypes begin(size_t image_size);
-  virtual void set_update_md5(const char *md5);
-  virtual OTAResponseTypes write(uint8_t *data, size_t len);
-  virtual OTAResponseTypes end();
-  virtual void abort();
+  virtual OTAResponseTypes begin(size_t image_size) = 0;
+  virtual void set_update_md5(const char *md5) = 0;
+  virtual OTAResponseTypes write(uint8_t *data, size_t len) = 0;
+  virtual OTAResponseTypes end() = 0;
+  virtual void abort() = 0;
 };
 
 #ifdef USE_ARDUINO

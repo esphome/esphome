@@ -2,6 +2,8 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_MODEL
 from esphome.components import esp32_ble
+from esphome.core import CORE
+from esphome.components.esp32 import add_idf_sdkconfig_option
 
 AUTO_LOAD = ["esp32_ble"]
 CODEOWNERS = ["@jesserockz"]
@@ -37,3 +39,6 @@ async def to_code(config):
     cg.add_define("USE_ESP32_BLE_SERVER")
 
     cg.add(parent.set_server(var))
+
+    if CORE.using_esp_idf:
+        add_idf_sdkconfig_option("CONFIG_BT_ENABLED", True)

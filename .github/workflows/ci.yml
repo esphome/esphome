@@ -33,6 +33,9 @@ jobs:
           - id: clang-tidy
             name: Run script/clang-tidy for ESP32 4/4
             options: --environment esp32-tidy --split-num 4 --split-at 4
+          - id: clang-tidy
+            name: Run script/clang-tidy for ESP32 esp-idf
+            options: --environment esp32-idf-tidy --grep USE_ESP_IDF
 
     # cpp lint job runs with esphome-lint docker image so that clang-format-*
     # doesn't have to be installed

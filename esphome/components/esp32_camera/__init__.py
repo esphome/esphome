@@ -16,6 +16,7 @@ from esphome.const import (
     CONF_CONTRAST,
 )
 from esphome.core import CORE
+from esphome.components.esp32 import add_idf_sdkconfig_option
 
 DEPENDENCIES = ["esp32", "api"]
 
@@ -150,3 +151,5 @@ async def to_code(config):
 
     if CORE.using_esp_idf:
         cg.add_library("espressif/esp32-camera", "1.0.0")
+        add_idf_sdkconfig_option("CONFIG_RTCIO_SUPPORT_RTC_GPIO_DESC", True)
+        add_idf_sdkconfig_option("CONFIG_ESP32_SPIRAM_SUPPORT", True)

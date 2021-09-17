@@ -51,7 +51,7 @@ class MAX31865Sensor : public sensor::Sensor,
   void write_register_(uint8_t reg, uint8_t value);
   uint8_t read_register_(uint8_t reg);
   uint16_t read_register_16_(uint8_t reg);
-  float calc_temperature_(float &rtd_ratio);
+  float calc_temperature_(float rtd_ratio);
 };
 
 }  // namespace max31865

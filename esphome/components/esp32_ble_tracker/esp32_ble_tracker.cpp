@@ -4,6 +4,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/hal.h"
 
 #include <nvs_flash.h>
 #include <freertos/FreeRTOSConfig.h>
