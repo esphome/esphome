@@ -140,6 +140,7 @@ def load_idedata(environment):
         ):
             changed = True
             sdkconfig.write_text(IDF_TIDY_SDKCONFIG)
+            sdk_internal.parent.mkdir(exist_ok=True)
             sdk_internal.write_text(IDF_TIDY_SDKCONFIG)
 
     if not changed:

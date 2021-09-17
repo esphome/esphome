@@ -1,4 +1,3 @@
-from esphome.cpp_types import Component
 from typing import Optional
 
 import esphome.codegen as cg
@@ -22,11 +21,13 @@ CODEOWNERS = ["@esphome/core"]
 uart_ns = cg.esphome_ns.namespace("uart")
 UARTComponent = uart_ns.class_("UARTComponent")
 
-IDFUARTComponent = uart_ns.class_("IDFUARTComponent", UARTComponent, Component)
+IDFUARTComponent = uart_ns.class_("IDFUARTComponent", UARTComponent, cg.Component)
 ESP32ArduinoUARTComponent = uart_ns.class_(
-    "ESP32ArduinoUARTComponent", UARTComponent, Component
+    "ESP32ArduinoUARTComponent", UARTComponent, cg.Component
 )
-ESP8266UartComponent = uart_ns.class_("ESP8266UartComponent", UARTComponent, Component)
+ESP8266UartComponent = uart_ns.class_(
+    "ESP8266UartComponent", UARTComponent, cg.Component
+)
 
 UARTDevice = uart_ns.class_("UARTDevice")
 UARTWriteAction = uart_ns.class_("UARTWriteAction", automation.Action)
@@ -55,7 +56,7 @@ def validate_rx_pin(value):
 def _uart_declare_type(value):
     if CORE.is_esp8266:
         return cv.declare_id(ESP8266UartComponent)(value)
-    elif CORE.is_esp32:
+    if CORE.is_esp32:
         if CORE.using_arduino:
             return cv.declare_id(ESP32ArduinoUARTComponent)(value)
         if CORE.using_esp_idf:

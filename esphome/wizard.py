@@ -170,6 +170,7 @@ def strip_accents(value):
 
 def wizard(path):
     from esphome.components.esp32 import boards as esp32_boards
+    from esphome.components.esp8266 import boards as esp8266_boards
 
     if not path.endswith(".yaml") and not path.endswith(".yml"):
         safe_print(
@@ -291,7 +292,7 @@ def wizard(path):
         boards = list(esp32_boards.ESP32_BOARD_PINS.keys())
     else:
         safe_print('For example "{}".'.format(color(Fore.BOLD_WHITE, "nodemcuv2")))
-        boards = list(ESP8266_BOARD_PINS.keys())
+        boards = list(esp8266_boards.ESP8266_BOARD_PINS.keys())
     safe_print("Options: {}".format(", ".join(sorted(boards))))
 
     while True:
