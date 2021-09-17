@@ -245,7 +245,7 @@ def upload_program(config, args, host):
 
     ota_conf = config[CONF_OTA]
     remote_port = ota_conf[CONF_PORT]
-    password = ota_conf[CONF_PASSWORD]
+    password = ota_conf.get(CONF_PASSWORD, "")
     return espota2.run_ota(host, remote_port, password, CORE.firmware_bin)
 
 

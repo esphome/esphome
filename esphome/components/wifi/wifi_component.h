@@ -255,6 +255,8 @@ class WiFiComponent : public Component {
   std::string wifi_ssid();
   bssid_t wifi_bssid();
 
+  int8_t wifi_rssi();
+
  protected:
   static std::string format_mac_addr(const uint8_t mac[6]);
   void setup_ap_config_();
@@ -274,7 +276,6 @@ class WiFiComponent : public Component {
   bool wifi_ap_ip_config_(optional<ManualIP> manual_ip);
   bool wifi_start_ap_(const WiFiAP &ap);
   bool wifi_disconnect_();
-  int8_t wifi_rssi_();
   int32_t wifi_channel_();
   network::IPAddress wifi_subnet_mask_();
   network::IPAddress wifi_gateway_ip_();
