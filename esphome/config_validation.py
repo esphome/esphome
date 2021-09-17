@@ -1735,3 +1735,11 @@ def require_framework_version(
         return value
 
     return validator
+
+
+@contextmanager
+def suppress_invalid():
+    try:
+        yield
+    except vol.Invalid:
+        pass

@@ -2,7 +2,6 @@ from contextlib import suppress
 from dataclasses import dataclass
 from typing import Union
 from pathlib import Path
-import re
 import logging
 
 from esphome.helpers import write_file_if_changed
@@ -253,34 +252,6 @@ app1,     app,  ota_1,   ,      0x1C0000,
 """
 
 
-def _parse_sdkconfig_value(value: str):
-    if value == "y":
-        return True
-    if value == "n":
-        return False
-    with suppress(ValueError):
-        return int(value)
-    with suppress(ValueError):
-        return HexInt(int(value, 16))
-    if value.startswith('"') and value.endswith('"'):
-        return value[1:-1]
-    raise ValueError(f"Can't parse {value} as an sdkconfig value")
-
-
-def _sdkconfig_extract_values(content: str):
-    lines = content.splitlines()
-    opts = {}
-    pattern = re.compile(r"^([a-zA-Z0-9_]+)=(.+)$")
-    for line in lines:
-        match = pattern.match(line)
-        if match is None:
-            continue
-        name = match.group(1)
-        value = _parse_sdkconfig_value(match.group(2))
-        opts[name] = value
-    return opts
-
-
 def _format_sdkconfig_val(value: SdkconfigValueType) -> str:
     if isinstance(value, bool):
         return "y" if value else "n"
@@ -294,55 +265,26 @@ def _format_sdkconfig_val(value: SdkconfigValueType) -> str:
 
 
 def _write_sdkconfig():
-    path = Path(CORE.relative_build_path(f"sdkconfig.{CORE.name}"))
-    current_opts = {}
-    if path.is_file():
-        try:
-            current_opts = _sdkconfig_extract_values(path.read_text())
-        except ValueError:
-            _LOGGER.warning("Error parsing sdkconfig, ignoring...", exc_info=True)
+    # sdkconfig.{name} stores the real sdkconfig (modified by esp-idf with default)
+    # sdkconfig.{name}.esphomeinternal stores what esphome last wrote
+    # we use the internal one to detect if there were any changes, and if so write them to the
+    # real sdkconfig
+    sdk_path = Path(CORE.relative_build_path(f"sdkconfig.{CORE.name}"))
+    internal_path = Path(
+        CORE.relative_build_path(f"sdkconfig.{CORE.name}.esphomeinternal")
+    )
 
     want_opts = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
-
-    for name, value in want_opts.items():
-        if name in current_opts:
-            current = current_opts[name]
-            if isinstance(value, RawSdkconfigValue):
-                current = _format_sdkconfig_val(value)
-                value = _format_sdkconfig_val(value)
-
-            if current != value:
-                _LOGGER.debug(
-                    "Updating sdkconfig because option %s does not match (%s != %s)",
-                    name,
-                    current,
-                    value,
-                )
-                break
-        elif isinstance(value, RawSdkconfigValue):
-            if value.value != "n":
-                # not setting of a opt is equivalent to n
-                _LOGGER.debug(
-                    "Updating sdkconfig because option %s not set (want %s)",
-                    name,
-                    value.value,
-                )
-                break
-        elif value is not False:
-            _LOGGER.debug(
-                "Updating sdkconfig because option %s not set (want %s)", name, value
-            )
-            break
-    else:
-        return
-
-    contents = "\n".join(
-        f"{name}={_format_sdkconfig_val(value)}"
-        for name, value in sorted(want_opts.items())
+    contents = (
+        "\n".join(
+            f"{name}={_format_sdkconfig_val(value)}"
+            for name, value in sorted(want_opts.items())
+        )
+        + "\n"
     )
-    _LOGGER.info("Updating esp-idf sdkconfig")
-    _LOGGER.debug("New sdkconfig: %s", contents)
-    write_file_if_changed(path, contents)
+    if write_file_if_changed(internal_path, contents):
+        # internal changed, update real one
+        write_file_if_changed(sdk_path, contents)
 
 
 # Called by writer.py
