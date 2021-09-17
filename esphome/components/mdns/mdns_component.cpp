@@ -11,7 +11,7 @@ namespace esphome {
 namespace mdns {
 
 #ifndef WEBSERVER_PORT
-#define WEBSERVER_PORT 80
+#define WEBSERVER_PORT 80  // NOLINT
 #endif
 
 std::vector<MDNSService> MDNSComponent::compile_services_() {

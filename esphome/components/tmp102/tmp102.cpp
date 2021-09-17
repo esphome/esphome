@@ -33,7 +33,7 @@ void TMP102Component::update() {
     this->status_set_warning();
     return;
   }
-  delay(50);
+  delay(50);  // NOLINT
   if (this->read(reinterpret_cast<uint8_t *>(&raw_temperature), 2) != i2c::ERROR_OK) {
     this->status_set_warning();
     return;

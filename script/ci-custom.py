@@ -406,7 +406,6 @@ ARDUINO_FORBIDDEN_RE = r"[^\w\d](" + r"|".join(ARDUINO_FORBIDDEN) + r")\(.*"
     exclude=[
         "esphome/components/mqtt/custom_mqtt_device.h",
         "esphome/components/sun/sun.cpp",
-        "esphome/core/esphal.*",
     ],
 )
 def lint_no_arduino_framework_functions(fname, match):
@@ -417,6 +416,27 @@ def lint_no_arduino_framework_functions(fname, match):
         f"C++ instead.\n"
         f"\n"
         f"(If the function is strictly necessary, please add `{nolint}` to the end of the line)"
+    )
+
+
+IDF_CONVERSION_FORBIDDEN = {
+    "ARDUINO_ARCH_ESP32": "USE_ESP32",
+    "ARDUINO_ARCH_ESP8266": "USE_ESP8266",
+    "pgm_read_byte": "progmem_read_byte",
+    "ICACHE_RAM_ATTR": "IRAM_ATTR",
+}
+IDF_CONVERSION_FORBIDDEN_RE = r"(" + r"|".join(IDF_CONVERSION_FORBIDDEN) + r").*"
+
+
+@lint_re_check(
+    IDF_CONVERSION_FORBIDDEN_RE,
+    include=cpp_include,
+)
+def lint_no_removed_in_idf_conversions(fname, match):
+    replacement = IDF_CONVERSION_FORBIDDEN[match.group(1)]
+    return (
+        f"The macro {highlight(match.group(1))} can no longer be used in ESPHome directly. "
+        f"Plese use {highlight(replacement)} instead."
     )
 
 
@@ -496,6 +516,8 @@ def lint_relative_py_import(fname):
     ],
     exclude=[
         "esphome/components/socket/headers.h",
+        "esphome/components/esp32/core.cpp",
+        "esphome/components/esp8266/core.cpp",
     ],
 )
 def lint_namespace(fname, content):
@@ -573,7 +595,7 @@ def lint_inclusive_language(fname, match):
         "esphome/components/text_sensor/text_sensor.h",
         "esphome/components/climate/climate.h",
         "esphome/core/component.h",
-        "esphome/core/hal.h",
+        "esphome/core/gpio.h",
         "esphome/core/log.h",
         "tests/custom.h",
     ],

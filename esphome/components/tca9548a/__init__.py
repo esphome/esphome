@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import i2c
-from esphome.const import CONF_CHANNEL, CONF_ID, CONF_SCAN
+from esphome.const import CONF_CHANNEL, CONF_CHANNELS, CONF_ID, CONF_SCAN
 
 CODEOWNERS = ["@andreashergert1984"]
 
@@ -13,7 +13,6 @@ TCA9548AChannel = tca9548a_ns.class_("TCA9548AChannel", i2c.I2CBus)
 
 MULTI_CONF = True
 
-CONF_CHANNELS = "channels"
 CONF_BUS_ID = "bus_id"
 CONFIG_SCHEMA = (
     cv.Schema(

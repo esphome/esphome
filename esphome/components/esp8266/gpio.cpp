@@ -57,7 +57,7 @@ void ESP8266GPIOPin::pin_mode(gpio::Flags flags) {
   } else {
     return;
   }
-  pinMode(pin_, mode);
+  pinMode(pin_, mode);  // NOLINT
 }
 
 std::string ESP8266GPIOPin::dump_summary() const {
@@ -66,17 +66,25 @@ std::string ESP8266GPIOPin::dump_summary() const {
   return buffer;
 }
 
+bool ESP8266GPIOPin::digital_read() {
+  return bool(digitalRead(pin_)) != inverted_;  // NOLINT
+}
+void ESP8266GPIOPin::digital_write(bool value) {
+  digitalWrite(pin_, value != inverted_ ? 1 : 0);  // NOLINT
+}
+void ESP8266GPIOPin::detach_interrupt() const { detachInterrupt(pin_); }
+
 }  // namespace esp8266
 
 using namespace esp8266;
 
 bool IRAM_ATTR ISRInternalGPIOPin::digital_read() {
   auto *arg = reinterpret_cast<ISRPinArg *>(arg_);
-  return bool(digitalRead(arg->pin)) != arg->inverted;
+  return bool(digitalRead(arg->pin)) != arg->inverted;  // NOLINT
 }
 void IRAM_ATTR ISRInternalGPIOPin::digital_write(bool value) {
   auto *arg = reinterpret_cast<ISRPinArg *>(arg_);
-  digitalWrite(arg->pin, value != arg->inverted ? 1 : 0);
+  digitalWrite(arg->pin, value != arg->inverted ? 1 : 0);  // NOLINT
 }
 void IRAM_ATTR ISRInternalGPIOPin::clear_interrupt() {
   auto *arg = reinterpret_cast<ISRPinArg *>(arg_);

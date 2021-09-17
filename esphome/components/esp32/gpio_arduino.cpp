@@ -2,6 +2,7 @@
 
 #include "gpio_arduino.h"
 #include "esphome/core/log.h"
+#include <esp32-hal-gpio.h>
 
 namespace esphome {
 namespace esp32 {
@@ -57,7 +58,7 @@ void ArduinoInternalGPIOPin::pin_mode(gpio::Flags flags) {
   } else {
     return;
   }
-  pinMode(pin_, mode);
+  pinMode(pin_, mode);  // NOLINT
 }
 
 std::string ArduinoInternalGPIOPin::dump_summary() const {
@@ -66,17 +67,27 @@ std::string ArduinoInternalGPIOPin::dump_summary() const {
   return buffer;
 }
 
+bool ArduinoInternalGPIOPin::digital_read() {
+  return bool(digitalRead(pin_)) != inverted_;  // NOLINT
+}
+void ArduinoInternalGPIOPin::digital_write(bool value) {
+  digitalWrite(pin_, value != inverted_ ? 1 : 0);  // NOLINT
+}
+void ArduinoInternalGPIOPin::detach_interrupt() const {
+  detachInterrupt(pin_);  // NOLINT
+}
+
 }  // namespace esp32
 
 using namespace esp32;
 
 bool IRAM_ATTR ISRInternalGPIOPin::digital_read() {
   auto *arg = reinterpret_cast<ISRPinArg *>(arg_);
-  return bool(digitalRead(arg->pin)) != arg->inverted;
+  return bool(digitalRead(arg->pin)) != arg->inverted;  // NOLINT
 }
 void IRAM_ATTR ISRInternalGPIOPin::digital_write(bool value) {
   auto *arg = reinterpret_cast<ISRPinArg *>(arg_);
-  digitalWrite(arg->pin, value != arg->inverted ? 1 : 0);
+  digitalWrite(arg->pin, value != arg->inverted ? 1 : 0);  // NOLINT
 }
 void IRAM_ATTR ISRInternalGPIOPin::clear_interrupt() {
   auto *arg = reinterpret_cast<ISRPinArg *>(arg_);

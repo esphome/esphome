@@ -16,10 +16,10 @@ class ESP8266GPIOPin : public InternalGPIOPin {
 
   void setup() override { pin_mode(flags_); }
   void pin_mode(gpio::Flags flags) override;
-  bool digital_read() override { return bool(digitalRead(pin_)) != inverted_; }
-  void digital_write(bool value) override { digitalWrite(pin_, value != inverted_ ? 1 : 0); }
+  bool digital_read() override;
+  void digital_write(bool value) override;
   std::string dump_summary() const override;
-  void detach_interrupt() const override { detachInterrupt(pin_); }
+  void detach_interrupt() const override;
   ISRInternalGPIOPin to_isr() const override;
   uint8_t get_pin() const override { return pin_; }
   bool is_inverted() const override { return inverted_; }
