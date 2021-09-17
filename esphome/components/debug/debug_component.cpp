@@ -16,7 +16,6 @@
 #ifdef USE_ESP_IDF
 #include <esp_heap_caps.h>
 #include <esp_system.h>
-#include <esp_mac.h>
 #endif
 
 namespace esphome {

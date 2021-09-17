@@ -119,9 +119,11 @@ void SPIComponent::cycle_clock_(bool value) {
 }
 
 // NOLINTNEXTLINE
+#ifndef CLANG_TIDY
 #pragma GCC optimize("unroll-loops")
 // NOLINTNEXTLINE
 #pragma GCC optimize("O2")
+#endif  // CLANG_TIDY
 
 template<SPIBitOrder BIT_ORDER, SPIClockPolarity CLOCK_POLARITY, SPIClockPhase CLOCK_PHASE, bool READ, bool WRITE>
 uint8_t HOT SPIComponent::transfer_(uint8_t data) {

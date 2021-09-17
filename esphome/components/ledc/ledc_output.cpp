@@ -15,6 +15,21 @@ namespace ledc {
 
 static const char *const TAG = "ledc.output";
 
+float ledc_max_frequency_for_bit_depth(uint8_t bit_depth) { return 80e6f / float(1 << bit_depth); }
+float ledc_min_frequency_for_bit_depth(uint8_t bit_depth) {
+  const float max_div_num = ((1 << 20) - 1) / 256.0f;
+  return 80e6f / (max_div_num * float(1 << bit_depth));
+}
+optional<uint8_t> ledc_bit_depth_for_frequency(float frequency) {
+  for (int i = 20; i >= 1; i--) {
+    const float min_frequency = ledc_min_frequency_for_bit_depth(i);
+    const float max_frequency = ledc_max_frequency_for_bit_depth(i);
+    if (min_frequency <= frequency && frequency <= max_frequency)
+      return i;
+  }
+  return {};
+}
+
 void LEDCOutput::write_state(float state) {
   if (this->pin_->is_inverted())
     state = 1.0f - state;
@@ -47,11 +62,11 @@ void LEDCOutput::setup() {
   auto timer_num = static_cast<ledc_timer_t>((channel_ % 8) / 2);
   auto chan_num = static_cast<ledc_channel_t>(channel_ % 8);
 
-  auto bit_depth = *ledc_bit_depth_for_frequency(frequency_);
+  bit_depth_ = *ledc_bit_depth_for_frequency(frequency_);
 
   ledc_timer_config_t timer_conf{};
   timer_conf.speed_mode = speed_mode;
-  timer_conf.duty_resolution = static_cast<ledc_timer_bit_t>(bit_depth);
+  timer_conf.duty_resolution = static_cast<ledc_timer_bit_t>(bit_depth_);
   timer_conf.timer_num = timer_num;
   timer_conf.freq_hz = (uint32_t) frequency_;
   timer_conf.clk_cfg = LEDC_AUTO_CLK;
@@ -63,9 +78,8 @@ void LEDCOutput::setup() {
   chan_conf.channel = chan_num;
   chan_conf.intr_type = LEDC_INTR_DISABLE;
   chan_conf.timer_sel = timer_num;
-  chan_conf.duty = inverted_ == pin_->is_inverted() ? 0 : (1U << bit_depth);
+  chan_conf.duty = inverted_ == pin_->is_inverted() ? 0 : (1U << bit_depth_);
   chan_conf.hpoint = 0;
-  chan_conf.output_invert = false;
   ledc_channel_config(&chan_conf);
 #endif
 }
@@ -75,21 +89,6 @@ void LEDCOutput::dump_config() {
   LOG_PIN("  Pin ", this->pin_);
   ESP_LOGCONFIG(TAG, "  LEDC Channel: %u", this->channel_);
   ESP_LOGCONFIG(TAG, "  Frequency: %.1f Hz", this->frequency_);
-}
-
-float ledc_max_frequency_for_bit_depth(uint8_t bit_depth) { return 80e6f / float(1 << bit_depth); }
-float ledc_min_frequency_for_bit_depth(uint8_t bit_depth) {
-  const float max_div_num = ((1 << 20) - 1) / 256.0f;
-  return 80e6f / (max_div_num * float(1 << bit_depth));
-}
-optional<uint8_t> ledc_bit_depth_for_frequency(float frequency) {
-  for (int i = 20; i >= 1; i--) {
-    const float min_frequency = ledc_min_frequency_for_bit_depth(i);
-    const float max_frequency = ledc_max_frequency_for_bit_depth(i);
-    if (min_frequency <= frequency && frequency <= max_frequency)
-      return i;
-  }
-  return {};
 }
 
 void LEDCOutput::update_frequency(float frequency) {
@@ -106,7 +105,14 @@ void LEDCOutput::update_frequency(float frequency) {
 #ifdef USE_ESP_IDF
   auto speed_mode = channel_ < 8 ? LEDC_HIGH_SPEED_MODE : LEDC_LOW_SPEED_MODE;
   auto timer_num = static_cast<ledc_timer_t>((channel_ % 8) / 2);
-  ledc_set_freq(speed_mode, timer_num, (uint32_t) frequency);
+
+  ledc_timer_config_t timer_conf{};
+  timer_conf.speed_mode = speed_mode;
+  timer_conf.duty_resolution = static_cast<ledc_timer_bit_t>(bit_depth_);
+  timer_conf.timer_num = timer_num;
+  timer_conf.freq_hz = (uint32_t) frequency_;
+  timer_conf.clk_cfg = LEDC_AUTO_CLK;
+  ledc_timer_config(&timer_conf);
 #endif
   // re-apply duty
   this->write_state(this->duty_);

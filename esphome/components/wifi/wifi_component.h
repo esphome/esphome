@@ -162,7 +162,7 @@ enum WiFiPowerSaveMode {
 };
 
 #ifdef USE_ESP_IDF
-class IDFWiFiEvent;
+struct IDFWiFiEvent;
 #endif
 
 /// This component is responsible for managing the ESP WiFi interface.

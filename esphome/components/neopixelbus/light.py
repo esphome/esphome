@@ -178,6 +178,7 @@ CONFIG_SCHEMA = cv.All(
     ).extend(cv.COMPONENT_SCHEMA),
     _validate,
     validate_method_pin,
+    cv.only_with_arduino,
 )
 
 

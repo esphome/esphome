@@ -1,6 +1,7 @@
 #include "mqtt_climate.h"
 #include "esphome/core/log.h"
 
+#ifdef USE_MQTT
 #ifdef USE_CLIMATE
 
 namespace esphome {
@@ -359,3 +360,4 @@ bool MQTTClimateComponent::publish_state_() {
 }  // namespace esphome
 
 #endif
+#endif  // USE_MQTT

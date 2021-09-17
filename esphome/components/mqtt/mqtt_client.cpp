@@ -1,5 +1,7 @@
 #include "mqtt_client.h"
 
+#ifdef USE_MQTT
+
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -587,3 +589,5 @@ float MQTTMessageTrigger::get_setup_priority() const { return setup_priority::AF
 
 }  // namespace mqtt
 }  // namespace esphome
+
+#endif  // USE_MQTT

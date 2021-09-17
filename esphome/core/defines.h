@@ -26,12 +26,13 @@
 #ifdef USE_ARDUINO
 #define USE_JSON
 #define USE_NEXTION_TFT_UPLOAD
+#define USE_MQTT
+#define USE_CAPTIVE_PORTAL
 #endif  // USE_ARDUINO
 
 #define USE_LIGHT
 #define USE_LOGGER
 #define USE_MDNS
-#define USE_MQTT
 #define USE_NUMBER
 #define USE_OTA_STATE_CALLBACK
 #define USE_POWER_SUPPLY
@@ -44,7 +45,9 @@
 
 #define USE_TIME
 #define USE_WIFI
+#ifdef USE_ARDUINO
 #define USE_WIFI_WPA2_EAP
+#endif
 
 #ifdef USE_ESP32
 #define USE_ESP32_BLE_SERVER
@@ -70,7 +73,6 @@
 //#define USE_BSEC  // Requires a library with proprietary license.
 #define USE_TIME
 #define USE_DEEP_SLEEP
-#define USE_CAPTIVE_PORTAL
 #define ESPHOME_BOARD "dummy_board"
 #define USE_MDNS
 #define USE_API_NOISE

@@ -1,4 +1,4 @@
-#ifdef USE_ESP32
+#ifdef USE_ESP32_FRAMEWORK_ARDUINO
 #include "esphome/core/application.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
@@ -158,4 +158,4 @@ void ESP32ArduinoUARTComponent::check_logger_conflict() {
 
 }  // namespace uart
 }  // namespace esphome
-#endif  // USE_ESP32
+#endif  // USE_ESP32_FRAMEWORK_ARDUINO

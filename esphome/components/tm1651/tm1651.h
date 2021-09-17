@@ -1,5 +1,7 @@
 #pragma once
 
+#ifdef USE_ARDUINO
+
 #include <memory>
 
 #include "esphome/core/component.h"
@@ -83,3 +85,5 @@ template<typename... Ts> class TurnOffAction : public Action<Ts...>, public Pare
 
 }  // namespace tm1651
 }  // namespace esphome
+
+#endif  // USE_ARDUINO

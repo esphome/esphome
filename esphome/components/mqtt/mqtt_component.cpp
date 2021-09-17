@@ -1,4 +1,7 @@
 #include "mqtt_component.h"
+
+#ifdef USE_MQTT
+
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
@@ -192,3 +195,5 @@ bool MQTTComponent::is_connected_() const { return global_mqtt_client->is_connec
 
 }  // namespace mqtt
 }  // namespace esphome
+
+#endif  // USE_MQTT

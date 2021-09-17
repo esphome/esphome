@@ -30,18 +30,18 @@ namespace wifi {
 
 static const char *const TAG = "wifi_esp32";
 
-static EventGroupHandle_t s_wifi_event_group;
-static xQueueHandle s_event_queue;
-static esp_netif_t *s_sta_netif = nullptr;
-static esp_netif_t *s_ap_netif = nullptr;
-static bool s_sta_started = false;
-static bool s_sta_connected = false;
-static bool s_sta_got_ip = false;
-static bool s_ap_started = false;
-static bool s_sta_connect_not_found = false;
-static bool s_sta_connect_error = false;
-static bool s_sta_connecting = false;
-static bool s_wifi_started = false;
+static EventGroupHandle_t s_wifi_event_group;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static xQueueHandle s_event_queue;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static esp_netif_t *s_sta_netif = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static esp_netif_t *s_ap_netif = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static bool s_sta_started = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static bool s_sta_connected = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static bool s_sta_got_ip = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static bool s_ap_started = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static bool s_sta_connect_not_found = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static bool s_sta_connect_error = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static bool s_sta_connecting = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static bool s_wifi_started = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 struct IDFWiFiEvent {
   esp_event_base_t event_base;
@@ -101,11 +101,11 @@ void event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, voi
   }
 
   // copy to heap to keep queue object small
-  auto *to_send = new IDFWiFiEvent;
+  auto *to_send = new IDFWiFiEvent;  // NOLINT(cppcoreguidelines-owning-memory)
   memcpy(to_send, &event, sizeof(IDFWiFiEvent));
   // don't block, we may miss events but the core can handle that
   if (xQueueSend(s_event_queue, &to_send, 0L) != pdPASS) {
-    delete to_send;
+    delete to_send;  // NOLINT(cppcoreguidelines-owning-memory)
   }
 }
 
@@ -120,6 +120,7 @@ void WiFiComponent::wifi_pre_setup_() {
     ESP_LOGE(TAG, "xEventGroupCreate failed");
     return;
   }
+  // NOLINTNEXTLINE(bugprone-sizeof-expression)
   s_event_queue = xQueueCreate(64, sizeof(IDFWiFiEvent *));
   if (s_event_queue == nullptr) {
     ESP_LOGE(TAG, "xQueueCreate failed");
@@ -275,10 +276,10 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
 #endif
 
   if (ap.get_bssid().has_value()) {
-    conf.sta.bssid_set = 1;
+    conf.sta.bssid_set = true;
     memcpy(conf.sta.bssid, ap.get_bssid()->data(), 6);
   } else {
-    conf.sta.bssid_set = 0;
+    conf.sta.bssid_set = false;
   }
   if (ap.get_channel().has_value()) {
     conf.sta.channel = *ap.get_channel();
@@ -568,7 +569,7 @@ void WiFiComponent::wifi_loop_() {
     // process event
     wifi_process_event_(data);
 
-    delete data;
+    delete data;  // NOLINT(cppcoreguidelines-owning-memory)
   }
 }
 void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
@@ -710,8 +711,8 @@ bool WiFiComponent::wifi_scan_start_() {
     return false;
 
   wifi_scan_config_t config{};
-  config.ssid = 0;
-  config.bssid = 0;
+  config.ssid = nullptr;
+  config.bssid = nullptr;
   config.channel = 0;
   config.show_hidden = true;
   config.scan_type = WIFI_SCAN_TYPE_ACTIVE;

@@ -1,7 +1,10 @@
 #pragma once
 
-#include "esphome/core/component.h"
 #include "esphome/core/defines.h"
+
+#ifdef USE_MQTT
+
+#include "esphome/core/component.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/log.h"
 #include "esphome/components/json/json_util.h"
@@ -353,3 +356,5 @@ template<typename... Ts> class MQTTConnectedCondition : public Condition<Ts...> 
 
 }  // namespace mqtt
 }  // namespace esphome
+
+#endif  // USE_MQTT

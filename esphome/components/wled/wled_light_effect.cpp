@@ -1,3 +1,5 @@
+#ifdef USE_ARDUINO
+
 #include "wled_light_effect.h"
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
@@ -246,3 +248,5 @@ bool WLEDLightEffect::parse_dnrgb_frame_(light::AddressableLight &it, const uint
 
 }  // namespace wled
 }  // namespace esphome
+
+#endif  // USE_ARDUINO

@@ -1,5 +1,7 @@
 #pragma once
 
+#ifdef USE_ARDUINO
+
 #include "esphome/core/macros.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
@@ -144,3 +146,5 @@ class NeoPixelRGBWLightOutput : public NeoPixelBusLightOutputBase<T_METHOD, T_CO
 
 }  // namespace neopixelbus
 }  // namespace esphome
+
+#endif  // USE_ARDUINO

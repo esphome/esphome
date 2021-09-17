@@ -27,12 +27,15 @@ TM1651_BRIGHTNESS_OPTIONS = {
     3: TM1651Display.TM1651_BRIGHTNESS_HIGH,
 }
 
-CONFIG_SCHEMA = cv.Schema(
-    {
-        cv.GenerateID(): cv.declare_id(TM1651Display),
-        cv.Required(CONF_CLK_PIN): pins.internal_gpio_output_pin_schema,
-        cv.Required(CONF_DIO_PIN): pins.internal_gpio_output_pin_schema,
-    }
+CONFIG_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(TM1651Display),
+            cv.Required(CONF_CLK_PIN): pins.internal_gpio_output_pin_schema,
+            cv.Required(CONF_DIO_PIN): pins.internal_gpio_output_pin_schema,
+        }
+    ),
+    cv.only_with_arduino,
 )
 
 validate_level_percent = cv.All(cv.int_range(min=0, max=100))

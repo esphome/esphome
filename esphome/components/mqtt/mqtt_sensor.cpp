@@ -1,6 +1,7 @@
 #include "mqtt_sensor.h"
 #include "esphome/core/log.h"
 
+#ifdef USE_MQTT
 #ifdef USE_SENSOR
 
 #ifdef USE_DEEP_SLEEP
@@ -77,3 +78,4 @@ std::string MQTTSensorComponent::unique_id() { return this->sensor_->unique_id()
 }  // namespace esphome
 
 #endif
+#endif  // USE_MQTT
