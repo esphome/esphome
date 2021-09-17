@@ -1,6 +1,6 @@
 #pragma once
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32_FRAMEWORK_ARDUINO
 
 #include <HardwareSerial.h>
 #include <vector>
@@ -37,4 +37,4 @@ class ESP32ArduinoUARTComponent : public UARTComponent, public Component {
 }  // namespace uart
 }  // namespace esphome
 
-#endif  // ARDUINO_ARCH_ESP32
+#endif  // USE_ESP32_FRAMEWORK_ARDUINO
