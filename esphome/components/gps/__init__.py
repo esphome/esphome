@@ -100,4 +100,4 @@ async def to_code(config):
         cg.add(var.set_satellites_sensor(sens))
 
     # https://platformio.org/lib/show/1655/TinyGPSPlus
-    cg.add_library("1655", "1.0.2")  # TinyGPSPlus, has name conflict
+    cg.add_library("mikalhart/TinyGPSPlus", "1.0.2")

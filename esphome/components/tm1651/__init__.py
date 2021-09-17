@@ -53,7 +53,7 @@ async def to_code(config):
     cg.add(var.set_dio_pin(dio_pin))
 
     # https://platformio.org/lib/show/6865/TM1651
-    cg.add_library("6865", "1.0.1")
+    cg.add_library("freekode/TM1651", "1.0.1")
 
 
 BINARY_OUTPUT_ACTION_SCHEMA = maybe_simple_id(

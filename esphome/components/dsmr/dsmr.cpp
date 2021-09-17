@@ -39,6 +39,12 @@ void Dsmr::receive_telegram_() {
       return;
     }
 
+    // Some v2.2 or v3 meters will send a new value which starts with '('
+    // in a new line while the value belongs to the previous ObisId. For
+    // proper parsing remove these new line characters
+    while (c == '(' && (telegram_[telegram_len_ - 1] == '\n' || telegram_[telegram_len_ - 1] == '\r'))
+      telegram_len_--;
+
     telegram_[telegram_len_] = c;
     telegram_len_++;
     if (c == '!') {  // footer: exclamation mark
@@ -133,8 +139,8 @@ bool Dsmr::parse_telegram() {
   MyData data;
   ESP_LOGV(TAG, "Trying to parse");
   ::dsmr::ParseResult<void> res =
-      ::dsmr::P1Parser::parse(&data, telegram_, telegram_len_,
-                              false);  // Parse telegram according to data definition. Ignore unknown values.
+      ::dsmr::P1Parser::parse(&data, telegram_, telegram_len_, false,
+                              this->crc_check_);  // Parse telegram according to data definition. Ignore unknown values.
   if (res.err) {
     // Parsing error, show it
     auto err_str = res.fullError(telegram_, telegram_ + telegram_len_);
