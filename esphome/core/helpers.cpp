@@ -11,6 +11,8 @@
 #include <Esp.h>
 #elif defined(USE_ESP_IDF)
 #include "esp_system.h"
+#include <freertos/FreeRTOS.h>
+#include <freertos/portmacro.h>
 #endif
 
 #include "esphome/core/log.h"
@@ -348,7 +350,7 @@ std::string hexencode(const uint8_t *data, uint32_t len) {
 IRAM_ATTR InterruptLock::InterruptLock() { xt_state_ = xt_rsil(15); }
 IRAM_ATTR InterruptLock::~InterruptLock() { xt_wsr_ps(xt_state_); }
 #endif
-#ifdef USE_ESP32
+#ifdef USE_ESP32_FRAMEWORK_ARDUINO
 IRAM_ATTR InterruptLock::InterruptLock() { portDISABLE_INTERRUPTS(); }
 IRAM_ATTR InterruptLock::~InterruptLock() { portENABLE_INTERRUPTS(); }
 #endif

@@ -3,6 +3,7 @@ import esphome.codegen as cg
 KEY_ESP32 = "esp32"
 KEY_BOARD = "board"
 KEY_VARIANT = "variant"
+KEY_SDKCONFIG_OPTIONS = "sdkconfig_options"
 
 VARIANT_ESP32 = "ESP32"
 VARIANT_ESP32S2 = "ESP32S2"

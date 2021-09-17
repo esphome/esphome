@@ -43,7 +43,7 @@
 #warning "Could not determine Arduino framework version, update esphome/core/macros.h!"
 #endif
 
-#elif defined(USE_ESP32)
+#elif defined(USE_ESP32_FRAMEWORK_ARDUINO)
 
 #if defined(IDF_VER)  // identifies v2, needed since v1 doesn't have the esp_arduino_version.h header
 #include <esp_arduino_version.h>

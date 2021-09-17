@@ -348,6 +348,11 @@ def copy_src_tree():
         VERSION_H_FORMAT.format(__version__),
     )
 
+    if CORE.is_esp32:
+        from esphome.components.esp32 import copy_files
+
+        copy_files()
+
 
 def generate_defines_h():
     define_content_l = [x.as_macro for x in CORE.defines]

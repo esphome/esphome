@@ -1,6 +1,6 @@
 #include "wifi_component.h"
 
-#ifdef USE_ESP32
+#ifdef USE_ESP32_FRAMEWORK_ARDUINO
 
 #include <esp_wifi.h>
 
@@ -754,4 +754,4 @@ void WiFiComponent::wifi_loop_() {}
 }  // namespace wifi
 }  // namespace esphome
 
-#endif
+#endif  // USE_ESP32_FRAMEWORK_ARDUINO

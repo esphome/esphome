@@ -1,6 +1,10 @@
 from contextlib import suppress
+from typing import Union
 from pathlib import Path
+import re
+import logging
 
+from esphome.helpers import write_file_if_changed
 from esphome.const import (
     CONF_BOARD,
     CONF_FRAMEWORK,
@@ -12,14 +16,24 @@ from esphome.const import (
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
 )
-from esphome.core import CORE
+from esphome.core import CORE, HexInt
 import esphome.config_validation as cv
 import esphome.codegen as cg
 
-from .const import KEY_BOARD, KEY_ESP32, KEY_VARIANT, VARIANT_ESP32C3, VARIANTS
+from .const import (
+    KEY_BOARD,
+    KEY_ESP32,
+    KEY_SDKCONFIG_OPTIONS,
+    KEY_VARIANT,
+    VARIANT_ESP32C3,
+    VARIANTS,
+)
 
 # force import gpio to register pin schema
 from .gpio import esp32_pin_to_code  # noqa
+
+
+_LOGGER = logging.getLogger(__name__)
 
 
 def set_core_data(config):
@@ -28,6 +42,7 @@ def set_core_data(config):
     conf = config[CONF_FRAMEWORK]
     if conf[CONF_TYPE] == FRAMEWORK_ESP_IDF:
         CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = "esp-idf"
+        CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS] = {}
     elif conf[CONF_TYPE] == FRAMEWORK_ARDUINO:
         CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = "arduino"
     CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] = cv.Version.parse(
@@ -44,6 +59,16 @@ def get_esp32_variant():
 
 def is_esp32c3():
     return get_esp32_variant() == VARIANT_ESP32C3
+
+
+SdkconfigValueType = Union[bool, int, HexInt, str]
+
+
+def add_idf_sdkconfig_option(name: str, value: SdkconfigValueType):
+    """Set an esp-idf sdkconfig value."""
+    if not CORE.using_esp_idf:
+        raise ValueError("Not an esp-idf project")
+    CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS][name] = value
 
 
 def _arduino_check_versions(value):
@@ -95,9 +120,13 @@ def _esp_idf_check_versions(value):
     if CONF_VERSION_HINT not in value and default_ver_hint is None:
         raise cv.Invalid("Needs a version hint to understand the framework version")
 
+    ver_hint_s = value.get(CONF_VERSION_HINT, default_ver_hint)
+    if cv.Version.parse(ver_hint_s) < cv.Version(4, 0, 0):
+        raise cv.Invalid("Only ESP-IDF 4.0+ is supported")
+
     return {
         CONF_VERSION: ver_value,
-        CONF_VERSION_HINT: value.get(CONF_VERSION_HINT, default_ver_hint),
+        CONF_VERSION_HINT: ver_hint_s,
     }
 
 
@@ -162,22 +191,135 @@ async def to_code(config):
         cg.add_build_flag("-DUSE_ESP_IDF")
         cg.add_build_flag("-DUSE_ESP32_FRAMEWORK_ESP_IDF")
         cg.add_build_flag("-Wno-nonnull-compare")
-        if conf[CONF_VERSION]:
-            cg.add_platformio_option(
-                "platform_packages",
-                [f"platformio/framework-espidf @ {conf[CONF_VERSION]}"],
-            )
+        cg.add_platformio_option(
+            "platform_packages",
+            [f"platformio/framework-espidf @ {conf[CONF_VERSION]}"],
+        )
+        add_idf_sdkconfig_option("CONFIG_PARTITION_TABLE_SINGLE_APP", False)
+        add_idf_sdkconfig_option("CONFIG_PARTITION_TABLE_CUSTOM", True)
+        add_idf_sdkconfig_option(
+            "CONFIG_PARTITION_TABLE_CUSTOM_FILENAME", "partitions.csv"
+        )
+        add_idf_sdkconfig_option("CONFIG_COMPILER_OPTIMIZATION_DEFAULT", False)
+        add_idf_sdkconfig_option("CONFIG_COMPILER_OPTIMIZATION_SIZE", True)
+
     elif conf[CONF_TYPE] == FRAMEWORK_ARDUINO:
         cg.add_platformio_option("framework", "arduino")
         cg.add_build_flag("-DUSE_ARDUINO")
         cg.add_build_flag("-DUSE_ESP32_FRAMEWORK_ARDUINO")
-        if conf[CONF_VERSION]:
-            cg.add_platformio_option(
-                "platform_packages",
-                [f"platformio/framework-arduinoespressif32 @ {conf[CONF_VERSION]}"],
-            )
+        cg.add_platformio_option(
+            "platform_packages",
+            [f"platformio/framework-arduinoespressif32 @ {conf[CONF_VERSION]}"],
+        )
 
-        # Set build partitions, stored in this directory
-        esp32_dir = Path(__file__).parent
-        partition_csv_loc = esp32_dir / "partitions.csv"
-        cg.add_platformio_option("board_build.partitions", str(partition_csv_loc))
+        cg.add_platformio_option("board_build.partitions", "partitions.csv")
+
+
+ARDUINO_PARTITIONS_CSV = """\
+nvs,      data, nvs,     0x009000, 0x005000,
+otadata,  data, ota,     0x00e000, 0x002000,
+app0,     app,  ota_0,   0x010000, 0x1C0000,
+app1,     app,  ota_1,   0x1D0000, 0x1C0000,
+eeprom,   data, 0x99,    0x390000, 0x001000,
+spiffs,   data, spiffs,  0x391000, 0x00F000
+"""
+
+
+IDF_PARTITIONS_CSV = """\
+# Name,   Type, SubType, Offset,   Size, Flags
+nvs,      data, nvs,     ,        0x4000,
+otadata,  data, ota,     ,        0x2000,
+phy_init, data, phy,     ,        0x1000,
+app0,     app,  ota_0,   , 0x1C0000,
+app1,     app,  ota_1,   , 0x100000,
+"""
+
+
+def _parse_sdkconfig_value(value: str):
+    if value == "y":
+        return True
+    if value == "n":
+        return False
+    with suppress(ValueError):
+        return int(value)
+    with suppress(ValueError):
+        return HexInt(int(value, 16))
+    if value.startswith('"') and value.endswith('"'):
+        return value[1:-1]
+    raise ValueError(f"Can't parse {value} as an sdkconfig value")
+
+
+def _sdkconfig_extract_values(content: str):
+    lines = content.splitlines()
+    opts = {}
+    pattern = re.compile(r"^([a-zA-Z0-9_]+)=(.+)$")
+    for line in lines:
+        match = pattern.match(line)
+        if match is None:
+            continue
+        name = match.group(1)
+        value = _parse_sdkconfig_value(match.group(2))
+        opts[name] = value
+    return opts
+
+
+def _format_sdkconfig_val(value: SdkconfigValueType) -> str:
+    if isinstance(value, bool):
+        return "y" if value else "n"
+    if isinstance(value, int):
+        return str(value)
+    if isinstance(value, str):
+        return f'"{value}"'
+    raise ValueError
+
+
+def _write_sdkconfig():
+    path = Path(CORE.relative_build_path(f"sdkconfig.{CORE.name}"))
+    current_opts = {}
+    if path.is_file():
+        try:
+            current_opts = _sdkconfig_extract_values(path.read_text())
+        except ValueError:
+            _LOGGER.warning("Error parsing sdkconfig, ignoring...", exc_info=True)
+
+    want_opts = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+
+    for name, value in want_opts.items():
+        if name in current_opts:
+            if current_opts[name] != value:
+                _LOGGER.debug(
+                    "Updating sdkconfig because option %s does not match (%s != %s)",
+                    name,
+                    current_opts[name],
+                    value,
+                )
+                break
+        elif value is True:
+            _LOGGER.debug(
+                "Updating sdkconfig because option %s not set (want %s)", name, value
+            )
+            break
+    else:
+        return
+
+    contents = "\n".join(
+        f"{name}={_format_sdkconfig_val(value)}"
+        for name, value in sorted(want_opts.items())
+    )
+    _LOGGER.debug("New sdkconfig: %s", contents)
+    write_file_if_changed(path, contents)
+
+
+# Called by writer.py
+def copy_files():
+    if CORE.using_arduino:
+        write_file_if_changed(
+            CORE.relative_build_path("partitions.csv"),
+            ARDUINO_PARTITIONS_CSV,
+        )
+    if CORE.using_esp_idf:
+        _write_sdkconfig()
+        write_file_if_changed(
+            CORE.relative_build_path("partitions.csv"),
+            IDF_PARTITIONS_CSV,
+        )

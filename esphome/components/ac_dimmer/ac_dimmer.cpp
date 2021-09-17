@@ -1,3 +1,5 @@
+#ifdef USE_ARDUINO
+
 #include "ac_dimmer.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -220,3 +222,5 @@ void AcDimmer::dump_config() {
 
 }  // namespace ac_dimmer
 }  // namespace esphome
+
+#endif  // USE_ARDUINO

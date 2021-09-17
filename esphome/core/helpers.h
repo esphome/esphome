@@ -6,7 +6,7 @@
 #include <memory>
 #include <type_traits>
 
-#ifdef USE_ESP32
+#ifdef USE_ESP32_FRAMEWORK_ARDUINO
 #include "esp32-hal-psram.h"
 #endif
 
