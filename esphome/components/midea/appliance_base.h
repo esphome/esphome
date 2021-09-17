@@ -22,7 +22,8 @@ using climate::ClimateMode;
 using climate::ClimateSwingMode;
 using climate::ClimateFanMode;
 
-template<typename T> class ApplianceBase : public Component, public uart::UARTDevice, public climate::Climate, public Stream {
+template<typename T>
+class ApplianceBase : public Component, public uart::UARTDevice, public climate::Climate, public Stream {
   static_assert(std::is_base_of<dudanov::midea::ApplianceBase, T>::value,
                 "T must derive from dudanov::midea::ApplianceBase class");
 

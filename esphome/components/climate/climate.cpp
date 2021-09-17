@@ -326,7 +326,7 @@ optional<ClimateDeviceRestoreState> Climate::restore_state_() {
   return recovered;
 }
 void Climate::save_state_() {
-#if defined(USE_ESP_IDF ) && !defined(CLANG_TIDY)
+#if defined(USE_ESP_IDF) && !defined(CLANG_TIDY)
 #pragma GCC diagnostic ignored "-Wclass-memaccess"
 #endif
   ClimateDeviceRestoreState state{};

@@ -31,17 +31,17 @@ namespace wifi {
 static const char *const TAG = "wifi_esp32";
 
 static EventGroupHandle_t s_wifi_event_group;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-static xQueueHandle s_event_queue;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-static esp_netif_t *s_sta_netif = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-static esp_netif_t *s_ap_netif = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-static bool s_sta_started = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-static bool s_sta_connected = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-static bool s_sta_got_ip = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-static bool s_ap_started = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-static bool s_sta_connect_not_found = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-static bool s_sta_connect_error = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-static bool s_sta_connecting = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-static bool s_wifi_started = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static xQueueHandle s_event_queue;             // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static esp_netif_t *s_sta_netif = nullptr;     // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static esp_netif_t *s_ap_netif = nullptr;      // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static bool s_sta_started = false;             // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static bool s_sta_connected = false;           // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static bool s_sta_got_ip = false;              // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static bool s_ap_started = false;              // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static bool s_sta_connect_not_found = false;   // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static bool s_sta_connect_error = false;       // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static bool s_sta_connecting = false;          // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static bool s_wifi_started = false;            // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 struct IDFWiFiEvent {
   esp_event_base_t event_base;

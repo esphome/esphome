@@ -76,4 +76,4 @@ extern CaptivePortal *global_captive_portal;  // NOLINT(cppcoreguidelines-avoid-
 }  // namespace captive_portal
 }  // namespace esphome
 
-#endif // USE_ARDUINO
+#endif  // USE_ARDUINO

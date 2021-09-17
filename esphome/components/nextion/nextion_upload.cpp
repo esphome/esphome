@@ -345,4 +345,4 @@ WiFiClient *Nextion::get_wifi_client_() {
 }  // namespace nextion
 }  // namespace esphome
 
-#endif   // USE_NEXTION_TFT_UPLOAD
+#endif  // USE_NEXTION_TFT_UPLOAD

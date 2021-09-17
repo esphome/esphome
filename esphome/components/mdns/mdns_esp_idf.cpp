@@ -36,7 +36,7 @@ void MDNSComponent::setup() {
 
     // free records
     for (const auto &it : txt_records) {
-      delete it.key;  // NOLINT(cppcoreguidelines-owning-memory)
+      delete it.key;    // NOLINT(cppcoreguidelines-owning-memory)
       delete it.value;  // NOLINT(cppcoreguidelines-owning-memory)
     }
 

@@ -101,7 +101,7 @@ void LEDCOutput::update_frequency(float frequency) {
   this->frequency_ = frequency;
 #ifdef USE_ARDUINO
   ledcSetup(this->channel_, frequency, this->bit_depth_);
-#endif // USE_ARDUINO
+#endif  // USE_ARDUINO
 #ifdef USE_ESP_IDF
   auto speed_mode = channel_ < 8 ? LEDC_HIGH_SPEED_MODE : LEDC_LOW_SPEED_MODE;
   auto timer_num = static_cast<ledc_timer_t>((channel_ % 8) / 2);
