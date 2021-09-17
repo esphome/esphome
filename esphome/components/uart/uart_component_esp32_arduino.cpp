@@ -1,13 +1,17 @@
 #ifdef ARDUINO_ARCH_ESP32
-#include "uart.h"
-#include "esphome/core/log.h"
-#include "esphome/core/helpers.h"
 #include "esphome/core/application.h"
 #include "esphome/core/defines.h"
+#include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
+#include "uart_component_esp32_arduino.h"
+
+#ifdef USE_LOGGER
+#include "esphome/components/logger/logger.h"
+#endif
 
 namespace esphome {
 namespace uart {
-static const char *const TAG = "uart_esp32";
+static const char *const TAG = "uart.arduino_esp32";
 
 static const uint32_t UART_PARITY_EVEN = 0 << 0;
 static const uint32_t UART_PARITY_ODD = 1 << 0;
@@ -20,7 +24,7 @@ static const uint32_t UART_NB_STOP_BIT_1 = 1 << 4;
 static const uint32_t UART_NB_STOP_BIT_2 = 3 << 4;
 static const uint32_t UART_TICK_APB_CLOCK = 1 << 27;
 
-uint32_t UARTComponent::get_config() {
+uint32_t ESP32ArduinoUARTComponent::get_config() {
   uint32_t config = 0;
 
   /*
@@ -67,7 +71,7 @@ uint32_t UARTComponent::get_config() {
   return config;
 }
 
-void UARTComponent::setup() {
+void ESP32ArduinoUARTComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up UART...");
   // Use Arduino HardwareSerial UARTs if all used pins match the ones
   // preconfigured by the platform. For example if RX disabled but TX pin
@@ -97,7 +101,7 @@ void UARTComponent::setup() {
   this->hw_serial_->setRxBufferSize(this->rx_buffer_size_);
 }
 
-void UARTComponent::dump_config() {
+void ESP32ArduinoUARTComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "UART Bus:");
   LOG_PIN("  TX Pin: ", tx_pin_);
   LOG_PIN("  RX Pin: ", rx_pin_);
@@ -108,37 +112,22 @@ void UARTComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "  Data Bits: %u", this->data_bits_);
   ESP_LOGCONFIG(TAG, "  Parity: %s", LOG_STR_ARG(parity_to_str(this->parity_)));
   ESP_LOGCONFIG(TAG, "  Stop bits: %u", this->stop_bits_);
-  this->check_logger_conflict_();
+  this->check_logger_conflict();
 }
 
-void UARTComponent::write_byte(uint8_t data) {
-  this->hw_serial_->write(data);
-  ESP_LOGVV(TAG, "    Wrote 0b" BYTE_TO_BINARY_PATTERN " (0x%02X)", BYTE_TO_BINARY(data), data);
-}
-void UARTComponent::write_array(const uint8_t *data, size_t len) {
+void ESP32ArduinoUARTComponent::write_array(const uint8_t *data, size_t len) {
   this->hw_serial_->write(data, len);
   for (size_t i = 0; i < len; i++) {
     ESP_LOGVV(TAG, "    Wrote 0b" BYTE_TO_BINARY_PATTERN " (0x%02X)", BYTE_TO_BINARY(data[i]), data[i]);
   }
 }
-void UARTComponent::write_str(const char *str) {
-  this->hw_serial_->write(str);
-  ESP_LOGVV(TAG, "    Wrote \"%s\"", str);
-}
-bool UARTComponent::read_byte(uint8_t *data) {
-  if (!this->check_read_timeout_())
-    return false;
-  *data = this->hw_serial_->read();
-  ESP_LOGVV(TAG, "    Read 0b" BYTE_TO_BINARY_PATTERN " (0x%02X)", BYTE_TO_BINARY(*data), *data);
-  return true;
-}
-bool UARTComponent::peek_byte(uint8_t *data) {
+bool ESP32ArduinoUARTComponent::peek_byte(uint8_t *data) {
   if (!this->check_read_timeout_())
     return false;
   *data = this->hw_serial_->peek();
   return true;
 }
-bool UARTComponent::read_array(uint8_t *data, size_t len) {
+bool ESP32ArduinoUARTComponent::read_array(uint8_t *data, size_t len) {
   if (!this->check_read_timeout_(len))
     return false;
   this->hw_serial_->readBytes(data, len);
@@ -148,24 +137,23 @@ bool UARTComponent::read_array(uint8_t *data, size_t len) {
 
   return true;
 }
-bool UARTComponent::check_read_timeout_(size_t len) {
-  if (this->available() >= len)
-    return true;
-
-  uint32_t start_time = millis();
-  while (this->available() < len) {
-    if (millis() - start_time > 1000) {
-      ESP_LOGE(TAG, "Reading from UART timed out at byte %u!", this->available());
-      return false;
-    }
-    yield();
-  }
-  return true;
-}
-int UARTComponent::available() { return this->hw_serial_->available(); }
-void UARTComponent::flush() {
+int ESP32ArduinoUARTComponent::available() { return this->hw_serial_->available(); }
+void ESP32ArduinoUARTComponent::flush() {
   ESP_LOGVV(TAG, "    Flushing...");
   this->hw_serial_->flush();
+}
+
+void ESP32ArduinoUARTComponent::check_logger_conflict() {
+#ifdef USE_LOGGER
+  if (this->hw_serial_ == nullptr || logger::global_logger->get_baud_rate() == 0) {
+    return;
+  }
+
+  if (this->hw_serial_ == logger::global_logger->get_hw_serial()) {
+    ESP_LOGW(TAG, "  You're using the same serial port for logging and the UART component. Please "
+                  "disable logging over the serial port by setting logger->baud_rate to 0.");
+  }
+#endif
 }
 
 }  // namespace uart

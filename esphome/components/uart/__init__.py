@@ -1,3 +1,4 @@
+from esphome.cpp_types import Component
 from typing import Optional
 
 import esphome.codegen as cg
@@ -19,7 +20,16 @@ from esphome.core import CORE
 
 CODEOWNERS = ["@esphome/core"]
 uart_ns = cg.esphome_ns.namespace("uart")
-UARTComponent = uart_ns.class_("UARTComponent", cg.Component)
+UARTComponent = uart_ns.class_("UARTComponent")
+
+IDFUARTComponent = uart_ns.class_("IDFUARTComponent", UARTComponent, Component)
+ESP32ArduinoUARTComponent = uart_ns.class_(
+    "ESP32ArduinoUARTComponent", UARTComponent, Component
+)
+ESP8266ArduinoUARTComponent = uart_ns.class_(
+    "ESP8266ArduinoUARTComponent", UARTComponent, Component
+)
+
 UARTDevice = uart_ns.class_("UARTDevice")
 UARTWriteAction = uart_ns.class_("UARTWriteAction", automation.Action)
 MULTI_CONF = True
@@ -44,6 +54,17 @@ def validate_rx_pin(value):
     return value
 
 
+def _uart_declare_type(value):
+    if CORE.is_esp8266:
+        return cv.declare_id(ESP8266ArduinoUARTComponent)(value)
+    elif CORE.is_esp32:
+        if CORE.using_arduino:
+            return cv.declare_id(ESP32ArduinoUARTComponent)(value)
+        if CORE.using_esp_idf:
+            return cv.declare_id(IDFUARTComponent)(value)
+    raise NotImplementedError
+
+
 UARTParityOptions = uart_ns.enum("UARTParityOptions")
 UART_PARITY_OPTIONS = {
     "NONE": UARTParityOptions.UART_CONFIG_PARITY_NONE,
@@ -58,7 +79,7 @@ CONF_PARITY = "parity"
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
-            cv.GenerateID(): cv.declare_id(UARTComponent),
+            cv.GenerateID(): _uart_declare_type,
             cv.Required(CONF_BAUD_RATE): cv.int_range(min=1),
             cv.Optional(CONF_TX_PIN): pins.internal_gpio_output_pin_schema,
             cv.Optional(CONF_RX_PIN): validate_rx_pin,

@@ -1,9 +1,9 @@
 #ifdef ARDUINO_ARCH_ESP8266
-#include "uart.h"
-#include "esphome/core/log.h"
-#include "esphome/core/helpers.h"
+#include "uart_component_arduino_esp8266.h"
 #include "esphome/core/application.h"
 #include "esphome/core/defines.h"
+#include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
 #ifdef USE_LOGGER
 #include "esphome/components/logger/logger.h"
@@ -12,7 +12,7 @@
 namespace esphome {
 namespace uart {
 
-static const char *const TAG = "uart_esp8266";
+static const char *const TAG = "uart.arduino_esp8266";
 bool UARTComponent::serial0InUse = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 uint32_t UARTComponent::get_config() {
@@ -110,14 +110,19 @@ void UARTComponent::dump_config() {
   this->check_logger_conflict_();
 }
 
-void UARTComponent::write_byte(uint8_t data) {
-  if (this->hw_serial_ != nullptr) {
-    this->hw_serial_->write(data);
-  } else {
-    this->sw_serial_->write_byte(data);
+void UARTComponent::check_logger_conflict() {
+#ifdef USE_LOGGER
+  if (this->hw_serial_ == nullptr || logger::global_logger->get_baud_rate() == 0) {
+    return;
   }
-  ESP_LOGVV(TAG, "    Wrote 0b" BYTE_TO_BINARY_PATTERN " (0x%02X)", BYTE_TO_BINARY(data), data);
+
+  if (this->hw_serial_ == logger::global_logger->get_hw_serial()) {
+    ESP_LOGW(TAG, "  You're using the same serial port for logging and the UART component. Please "
+                  "disable logging over the serial port by setting logger->baud_rate to 0.");
+  }
+#endif
 }
+
 void UARTComponent::write_array(const uint8_t *data, size_t len) {
   if (this->hw_serial_ != nullptr) {
     this->hw_serial_->write(data, len);
@@ -128,27 +133,6 @@ void UARTComponent::write_array(const uint8_t *data, size_t len) {
   for (size_t i = 0; i < len; i++) {
     ESP_LOGVV(TAG, "    Wrote 0b" BYTE_TO_BINARY_PATTERN " (0x%02X)", BYTE_TO_BINARY(data[i]), data[i]);
   }
-}
-void UARTComponent::write_str(const char *str) {
-  if (this->hw_serial_ != nullptr) {
-    this->hw_serial_->write(str);
-  } else {
-    const auto *data = reinterpret_cast<const uint8_t *>(str);
-    for (size_t i = 0; data[i] != 0; i++)
-      this->sw_serial_->write_byte(data[i]);
-  }
-  ESP_LOGVV(TAG, "    Wrote \"%s\"", str);
-}
-bool UARTComponent::read_byte(uint8_t *data) {
-  if (!this->check_read_timeout_())
-    return false;
-  if (this->hw_serial_ != nullptr) {
-    *data = this->hw_serial_->read();
-  } else {
-    *data = this->sw_serial_->read_byte();
-  }
-  ESP_LOGVV(TAG, "    Read 0b" BYTE_TO_BINARY_PATTERN " (0x%02X)", BYTE_TO_BINARY(*data), *data);
-  return true;
 }
 bool UARTComponent::peek_byte(uint8_t *data) {
   if (!this->check_read_timeout_())
@@ -173,20 +157,6 @@ bool UARTComponent::read_array(uint8_t *data, size_t len) {
     ESP_LOGVV(TAG, "    Read 0b" BYTE_TO_BINARY_PATTERN " (0x%02X)", BYTE_TO_BINARY(data[i]), data[i]);
   }
 
-  return true;
-}
-bool UARTComponent::check_read_timeout_(size_t len) {
-  if (this->available() >= int(len))
-    return true;
-
-  uint32_t start_time = millis();
-  while (this->available() < int(len)) {
-    if (millis() - start_time > 100) {
-      ESP_LOGE(TAG, "Reading from UART timed out at byte %u!", this->available());
-      return false;
-    }
-    yield();
-  }
   return true;
 }
 int UARTComponent::available() {
@@ -322,4 +292,5 @@ int ESP8266SoftwareSerial::available() {
 
 }  // namespace uart
 }  // namespace esphome
+
 #endif  // ARDUINO_ARCH_ESP8266
