@@ -33,12 +33,6 @@ class NfcTag {
     this->tag_type_ = tag_type;
     this->ndef_message_ = make_unique<NdefMessage>(ndef_data);
   };
-  NfcTag(const NfcTag &rhs) {
-    uid_ = rhs.uid_;
-    tag_type_ = rhs.tag_type_;
-    if (rhs.ndef_message_ != nullptr)
-      ndef_message_ = make_unique<NdefMessage>(*rhs.ndef_message_);
-  }
 
   std::vector<uint8_t> &get_uid() { return this->uid_; };
   const std::string &get_tag_type() { return this->tag_type_; };
