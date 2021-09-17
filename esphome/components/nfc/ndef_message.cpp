@@ -88,9 +88,7 @@ bool NdefMessage::add_text_record(const std::string &text, const std::string &en
   return this->add_record(make_unique<NdefRecordText>(encoding, text));
 }
 
-bool NdefMessage::add_uri_record(const std::string &uri) {
-  return this->add_record(make_unique<NdefRecordUri>(uri));
-}
+bool NdefMessage::add_uri_record(const std::string &uri) { return this->add_record(make_unique<NdefRecordUri>(uri)); }
 
 std::vector<uint8_t> NdefMessage::encode() {
   std::vector<uint8_t> data;
