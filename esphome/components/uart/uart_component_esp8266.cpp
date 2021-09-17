@@ -1,5 +1,5 @@
 #ifdef USE_ESP8266
-#include "uart_component_arduino_esp8266.h"
+#include "uart_component_esp8266.h"
 #include "esphome/core/application.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
@@ -13,9 +13,9 @@ namespace esphome {
 namespace uart {
 
 static const char *const TAG = "uart.arduino_esp8266";
-bool UARTComponent::serial0InUse = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+bool ESP8266UartComponent::serial0InUse = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-uint32_t UARTComponent::get_config() {
+uint32_t ESP8266UartComponent::get_config() {
   uint32_t config = 0;
 
   if (this->parity_ == UART_CONFIG_PARITY_NONE)
@@ -48,14 +48,14 @@ uint32_t UARTComponent::get_config() {
   return config;
 }
 
-void UARTComponent::setup() {
+void ESP8266UartComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up UART bus...");
   // Use Arduino HardwareSerial UARTs if all used pins match the ones
   // preconfigured by the platform. For example if RX disabled but TX pin
   // is 1 we still want to use Serial.
   SerialConfig config = static_cast<SerialConfig>(get_config());
 
-  if (!UARTComponent::serial0InUse && (tx_pin_ == nullptr || tx_pin_->get_pin() == 1) &&
+  if (!ESP8266UartComponent::serial0InUse && (tx_pin_ == nullptr || tx_pin_->get_pin() == 1) &&
       (rx_pin_ == nullptr || rx_pin_->get_pin() == 3)
 #ifdef USE_LOGGER
       // we will use UART0 if logger isn't using it in swapped mode
@@ -66,8 +66,8 @@ void UARTComponent::setup() {
     this->hw_serial_ = &Serial;
     this->hw_serial_->begin(this->baud_rate_, config);
     this->hw_serial_->setRxBufferSize(this->rx_buffer_size_);
-    UARTComponent::serial0InUse = true;
-  } else if (!UARTComponent::serial0InUse && (tx_pin_ == nullptr || tx_pin_->get_pin() == 15) &&
+    ESP8266UartComponent::serial0InUse = true;
+  } else if (!ESP8266UartComponent::serial0InUse && (tx_pin_ == nullptr || tx_pin_->get_pin() == 15) &&
              (rx_pin_ == nullptr || rx_pin_->get_pin() == 13)
 #ifdef USE_LOGGER
              // we will use UART0 swapped if logger isn't using it in regular mode
@@ -79,7 +79,7 @@ void UARTComponent::setup() {
     this->hw_serial_->begin(this->baud_rate_, config);
     this->hw_serial_->setRxBufferSize(this->rx_buffer_size_);
     this->hw_serial_->swap();
-    UARTComponent::serial0InUse = true;
+    ESP8266UartComponent::serial0InUse = true;
   } else if ((tx_pin_ == nullptr || tx_pin_->get_pin() == 2) && (rx_pin_ == nullptr || rx_pin_->get_pin() == 8)) {
     this->hw_serial_ = &Serial1;
     this->hw_serial_->begin(this->baud_rate_, config);
@@ -91,7 +91,7 @@ void UARTComponent::setup() {
   }
 }
 
-void UARTComponent::dump_config() {
+void ESP8266UartComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "UART Bus:");
   LOG_PIN("  TX Pin: ", tx_pin_);
   LOG_PIN("  RX Pin: ", rx_pin_);
@@ -107,10 +107,10 @@ void UARTComponent::dump_config() {
   } else {
     ESP_LOGCONFIG(TAG, "  Using software serial");
   }
-  this->check_logger_conflict_();
+  this->check_logger_conflict();
 }
 
-void UARTComponent::check_logger_conflict() {
+void ESP8266UartComponent::check_logger_conflict() {
 #ifdef USE_LOGGER
   if (this->hw_serial_ == nullptr || logger::global_logger->get_baud_rate() == 0) {
     return;
@@ -123,7 +123,7 @@ void UARTComponent::check_logger_conflict() {
 #endif
 }
 
-void UARTComponent::write_array(const uint8_t *data, size_t len) {
+void ESP8266UartComponent::write_array(const uint8_t *data, size_t len) {
   if (this->hw_serial_ != nullptr) {
     this->hw_serial_->write(data, len);
   } else {
@@ -134,7 +134,7 @@ void UARTComponent::write_array(const uint8_t *data, size_t len) {
     ESP_LOGVV(TAG, "    Wrote 0b" BYTE_TO_BINARY_PATTERN " (0x%02X)", BYTE_TO_BINARY(data[i]), data[i]);
   }
 }
-bool UARTComponent::peek_byte(uint8_t *data) {
+bool ESP8266UartComponent::peek_byte(uint8_t *data) {
   if (!this->check_read_timeout_())
     return false;
   if (this->hw_serial_ != nullptr) {
@@ -144,7 +144,7 @@ bool UARTComponent::peek_byte(uint8_t *data) {
   }
   return true;
 }
-bool UARTComponent::read_array(uint8_t *data, size_t len) {
+bool ESP8266UartComponent::read_array(uint8_t *data, size_t len) {
   if (!this->check_read_timeout_(len))
     return false;
   if (this->hw_serial_ != nullptr) {
@@ -159,14 +159,14 @@ bool UARTComponent::read_array(uint8_t *data, size_t len) {
 
   return true;
 }
-int UARTComponent::available() {
+int ESP8266UartComponent::available() {
   if (this->hw_serial_ != nullptr) {
     return this->hw_serial_->available();
   } else {
     return this->sw_serial_->available();
   }
 }
-void UARTComponent::flush() {
+void ESP8266UartComponent::flush() {
   ESP_LOGVV(TAG, "    Flushing...");
   if (this->hw_serial_ != nullptr) {
     this->hw_serial_->flush();

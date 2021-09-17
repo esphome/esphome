@@ -26,9 +26,7 @@ IDFUARTComponent = uart_ns.class_("IDFUARTComponent", UARTComponent, Component)
 ESP32ArduinoUARTComponent = uart_ns.class_(
     "ESP32ArduinoUARTComponent", UARTComponent, Component
 )
-ESP8266ArduinoUARTComponent = uart_ns.class_(
-    "ESP8266ArduinoUARTComponent", UARTComponent, Component
-)
+ESP8266UartComponent = uart_ns.class_("ESP8266UartComponent", UARTComponent, Component)
 
 UARTDevice = uart_ns.class_("UARTDevice")
 UARTWriteAction = uart_ns.class_("UARTWriteAction", automation.Action)
@@ -56,7 +54,7 @@ def validate_rx_pin(value):
 
 def _uart_declare_type(value):
     if CORE.is_esp8266:
-        return cv.declare_id(ESP8266ArduinoUARTComponent)(value)
+        return cv.declare_id(ESP8266UartComponent)(value)
     elif CORE.is_esp32:
         if CORE.using_arduino:
             return cv.declare_id(ESP32ArduinoUARTComponent)(value)

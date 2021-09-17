@@ -43,6 +43,24 @@ class UARTDevice {
 
   void flush() { return this->parent_->flush(); }
 
+  // Compat APIs
+  int read() {
+    uint8_t data;
+    if (!read_byte(&data))
+      return -1;
+    return data;
+  }
+  size_t write(uint8_t data) {
+    write_byte(data);
+    return 1;
+  }
+  int peek() {
+    uint8_t data;
+    if (!peek_byte(&data))
+      return -1;
+    return data;
+  }
+
   /// Check that the configuration of the UART bus matches the provided values and otherwise print a warning
   void check_uart_settings(uint32_t baud_rate, uint8_t stop_bits = 1,
                            UARTParityOptions parity = UART_CONFIG_PARITY_NONE, uint8_t data_bits = 8);
