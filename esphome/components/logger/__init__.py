@@ -7,6 +7,7 @@ from esphome.automation import LambdaAction
 from esphome.const import (
     CONF_ARGS,
     CONF_BAUD_RATE,
+    CONF_DEASSERT_RTS_DTR,
     CONF_FORMAT,
     CONF_HARDWARE_UART,
     CONF_ID,
@@ -104,6 +105,7 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(): cv.declare_id(Logger),
             cv.Optional(CONF_BAUD_RATE, default=115200): cv.positive_int,
             cv.Optional(CONF_TX_BUFFER_SIZE, default=512): cv.validate_bytes,
+            cv.Optional(CONF_DEASSERT_RTS_DTR, default=False): cv.boolean,
             cv.Optional(CONF_HARDWARE_UART, default="UART0"): uart_selection,
             cv.Optional(CONF_LEVEL, default="DEBUG"): is_log_level,
             cv.Optional(CONF_LOGS, default={}): cv.Schema(
@@ -127,7 +129,7 @@ CONFIG_SCHEMA = cv.All(
 
 
 @coroutine_with_priority(90.0)
-def to_code(config):
+async def to_code(config):
     baud_rate = config[CONF_BAUD_RATE]
     rhs = Logger.new(
         baud_rate,
@@ -177,13 +179,13 @@ def to_code(config):
         cg.add_build_flag("-DUSE_STORE_LOG_STR_IN_FLASH")
 
     # Register at end for safe mode
-    yield cg.register_component(log, config)
+    await cg.register_component(log, config)
 
     for conf in config.get(CONF_ON_MESSAGE, []):
         trigger = cg.new_Pvariable(
             conf[CONF_TRIGGER_ID], log, LOG_LEVEL_SEVERITY.index(conf[CONF_LEVEL])
         )
-        yield automation.build_automation(
+        await automation.build_automation(
             trigger,
             [
                 (cg.int_, "level"),
@@ -205,18 +207,15 @@ def maybe_simple_message(schema):
 
 def validate_printf(value):
     # https://stackoverflow.com/questions/30011379/how-can-i-parse-a-c-format-string-in-python
-    # pylint: disable=anomalous-backslash-in-string
-    cfmt = """\
+    cfmt = r"""
     (                                  # start of capture group 1
     %                                  # literal "%"
-    (?:                                # first option
     (?:[-+0 #]{0,5})                   # optional flags
     (?:\d+|\*)?                        # width
     (?:\.(?:\d+|\*))?                  # precision
     (?:h|l|ll|w|I|I32|I64)?            # size
     [cCdiouxXeEfgGaAnpsSZ]             # type
-    ) |                                # OR
-    %%)                                # literal "%%"
+    ) 
     """  # noqa
     matches = re.findall(cfmt, value[CONF_FORMAT], flags=re.X)
     if len(matches) != len(value[CONF_ARGS]):
@@ -244,11 +243,11 @@ LOGGER_LOG_ACTION_SCHEMA = cv.All(
 
 
 @automation.register_action(CONF_LOGGER_LOG, LambdaAction, LOGGER_LOG_ACTION_SCHEMA)
-def logger_log_action_to_code(config, action_id, template_arg, args):
+async def logger_log_action_to_code(config, action_id, template_arg, args):
     esp_log = LOG_LEVEL_TO_ESP_LOG[config[CONF_LEVEL]]
     args_ = [cg.RawExpression(str(x)) for x in config[CONF_ARGS]]
 
     text = str(cg.statement(esp_log(config[CONF_TAG], config[CONF_FORMAT], *args_)))
 
-    lambda_ = yield cg.process_lambda(Lambda(text), args, return_type=cg.void)
-    yield cg.new_Pvariable(action_id, template_arg, lambda_)
+    lambda_ = await cg.process_lambda(Lambda(text), args, return_type=cg.void)
+    return cg.new_Pvariable(action_id, template_arg, lambda_)

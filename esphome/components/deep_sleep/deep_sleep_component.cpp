@@ -5,9 +5,9 @@
 namespace esphome {
 namespace deep_sleep {
 
-static const char *TAG = "deep_sleep";
+static const char *const TAG = "deep_sleep";
 
-bool global_has_deep_sleep = false;
+bool global_has_deep_sleep = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 void DeepSleepComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up Deep Sleep...");
@@ -84,7 +84,7 @@ void DeepSleepComponent::begin_sleep(bool manual) {
 #endif
 
 #ifdef ARDUINO_ARCH_ESP8266
-  ESP.deepSleep(*this->sleep_duration_);
+  ESP.deepSleep(*this->sleep_duration_);  // NOLINT(readability-static-accessed-through-instance)
 #endif
 }
 float DeepSleepComponent::get_setup_priority() const { return setup_priority::LATE; }

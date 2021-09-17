@@ -17,8 +17,8 @@ CONFIG_SCHEMA = text_sensor.TEXT_SENSOR_SCHEMA.extend(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield text_sensor.register_text_sensor(var, config)
-    yield cg.register_component(var, config)
+    await text_sensor.register_text_sensor(var, config)
+    await cg.register_component(var, config)
     cg.add(var.set_hide_timestamp(config[CONF_HIDE_TIMESTAMP]))

@@ -1,6 +1,8 @@
 import logging
 import os
 import re
+from pathlib import Path
+from typing import Dict
 
 from esphome.config import iter_components
 from esphome.const import (
@@ -23,7 +25,8 @@ from esphome.helpers import (
     get_bool_env,
 )
 from esphome.storage_json import StorageJSON, storage_path
-from esphome.pins import ESP8266_FLASH_SIZES, ESP8266_LD_SCRIPTS
+from esphome.boards import ESP8266_FLASH_SIZES, ESP8266_LD_SCRIPTS
+from esphome import loader
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -69,9 +72,7 @@ upload_flags =
 """,
 )
 
-UPLOAD_SPEED_OVERRIDE = {
-    "esp210": 57600,
-}
+UPLOAD_SPEED_OVERRIDE = {"esp210": 57600}
 
 
 def get_flags(key):
@@ -207,11 +208,12 @@ def gather_lib_deps():
     return [x.as_lib_dep for x in CORE.libraries]
 
 
-def gather_build_flags():
-    build_flags = CORE.build_flags
+def gather_build_flags(overrides):
+    build_flags = list(CORE.build_flags)
+    build_flags += [overrides] if isinstance(overrides, str) else overrides
 
     # avoid changing build flags order
-    return list(sorted(list(build_flags)))
+    return list(sorted(build_flags))
 
 
 ESP32_LARGE_PARTITIONS_CSV = """\
@@ -225,8 +227,10 @@ spiffs,   data, spiffs,  0x391000, 0x00F000
 
 
 def get_ini_content():
+    overrides = CORE.config[CONF_ESPHOME].get(CONF_PLATFORMIO_OPTIONS, {})
+
     lib_deps = gather_lib_deps()
-    build_flags = gather_build_flags()
+    build_flags = gather_build_flags(overrides.pop("build_flags", []))
 
     data = {
         "platform": CORE.arduino_version,
@@ -272,7 +276,7 @@ def get_ini_content():
     # Ignore libraries that are not explicitly used, but may
     # be added by LDF
     # data['lib_ldf_mode'] = 'chain'
-    data.update(CORE.config[CONF_ESPHOME].get(CONF_PLATFORMIO_OPTIONS, {}))
+    data.update(overrides)
 
     content = f"[env:{CORE.name}]\n"
     content += format_ini(data)
@@ -355,7 +359,7 @@ or use the custom_components folder.
 
 
 def copy_src_tree():
-    source_files = {}
+    source_files: Dict[Path, loader.SourceFile] = {}
     for _, component, _ in iter_components(CORE.config):
         source_files.update(component.source_files)
 
@@ -365,37 +369,40 @@ def copy_src_tree():
 
     # Build #include list for esphome.h
     include_l = []
-    for target, path in source_files_l:
-        if os.path.splitext(path)[1] in HEADER_FILE_EXTENSIONS:
+    for target, _ in source_files_l:
+        if target.suffix in HEADER_FILE_EXTENSIONS:
             include_l.append(f'#include "{target}"')
     include_l.append("")
     include_s = "\n".join(include_l)
 
     source_files_copy = source_files.copy()
-    source_files_copy.pop(DEFINES_H_TARGET)
+    ignore_targets = [Path(x) for x in (DEFINES_H_TARGET, VERSION_H_TARGET)]
+    for t in ignore_targets:
+        source_files_copy.pop(t)
 
-    for path in walk_files(CORE.relative_src_path("esphome")):
-        if os.path.splitext(path)[1] not in SOURCE_FILE_EXTENSIONS:
+    for fname in walk_files(CORE.relative_src_path("esphome")):
+        p = Path(fname)
+        if p.suffix not in SOURCE_FILE_EXTENSIONS:
             # Not a source file, ignore
             continue
         # Transform path to target path name
-        target = os.path.relpath(path, CORE.relative_src_path()).replace(
-            os.path.sep, "/"
-        )
-        if target in (DEFINES_H_TARGET, VERSION_H_TARGET):
+        target = p.relative_to(CORE.relative_src_path())
+        if target in ignore_targets:
             # Ignore defines.h, will be dealt with later
             continue
         if target not in source_files_copy:
             # Source file removed, delete target
-            os.remove(path)
+            p.unlink()
         else:
-            src_path = source_files_copy.pop(target)
-            copy_file_if_changed(src_path, path)
+            src_file = source_files_copy.pop(target)
+            with src_file.path() as src_path:
+                copy_file_if_changed(src_path, p)
 
     # Now copy new files
-    for target, src_path in source_files_copy.items():
-        dst_path = CORE.relative_src_path(*target.split("/"))
-        copy_file_if_changed(src_path, dst_path)
+    for target, src_file in source_files_copy.items():
+        dst_path = CORE.relative_src_path(*target.parts)
+        with src_file.path() as src_path:
+            copy_file_if_changed(src_path, dst_path)
 
     # Finally copy defines
     write_file_if_changed(
@@ -474,5 +481,5 @@ GITIGNORE_CONTENT = """# Gitignore settings for ESPHome
 def write_gitignore():
     path = CORE.relative_config_path(".gitignore")
     if not os.path.isfile(path):
-        with open(path, "w") as f:
+        with open(file=path, mode="w", encoding="utf-8") as f:
             f.write(GITIGNORE_CONTENT)

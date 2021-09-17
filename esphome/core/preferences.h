@@ -1,15 +1,17 @@
 #pragma once
 
 #include <string>
+#include <vector>
+#include <algorithm>
+#include <cstring>
 
-#include "esphome/core/esphal.h"
 #include "esphome/core/defines.h"
 
 namespace esphome {
 
 class ESPPreferenceObject {
  public:
-  ESPPreferenceObject();
+  ESPPreferenceObject() = default;
   ESPPreferenceObject(size_t offset, size_t length, uint32_t type);
 
   template<typename T> bool save(T *src);
@@ -28,25 +30,25 @@ class ESPPreferenceObject {
 
   uint32_t calculate_crc_() const;
 
-  size_t offset_;
-  size_t length_words_;
-  uint32_t type_;
-  uint32_t *data_;
+  size_t offset_ = 0;
+  size_t length_words_ = 0;
+  uint32_t type_ = 0;
+  std::vector<uint32_t> data_;
 #ifdef ARDUINO_ARCH_ESP8266
-  bool in_flash_{false};
+  bool in_flash_ = false;
 #endif
 };
 
 #ifdef ARDUINO_ARCH_ESP8266
 #ifdef USE_ESP8266_PREFERENCES_FLASH
-static bool DEFAULT_IN_FLASH = true;
+static const bool DEFAULT_IN_FLASH = true;
 #else
-static bool DEFAULT_IN_FLASH = false;
+static const bool DEFAULT_IN_FLASH = false;
 #endif
 #endif
 
 #ifdef ARDUINO_ARCH_ESP32
-static bool DEFAULT_IN_FLASH = true;
+static const bool DEFAULT_IN_FLASH = true;
 #endif
 
 class ESPPreferences {
@@ -83,7 +85,7 @@ class ESPPreferences {
 #endif
 };
 
-extern ESPPreferences global_preferences;
+extern ESPPreferences global_preferences;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 template<typename T> ESPPreferenceObject ESPPreferences::make_preference(uint32_t type, bool in_flash) {
   return this->make_preference((sizeof(T) + 3) / 4, type, in_flash);
@@ -92,17 +94,18 @@ template<typename T> ESPPreferenceObject ESPPreferences::make_preference(uint32_
 template<typename T> bool ESPPreferenceObject::save(T *src) {
   if (!this->is_initialized())
     return false;
-  memset(this->data_, 0, this->length_words_ * 4);
-  memcpy(this->data_, src, sizeof(T));
+  // ensure all bytes are 0 (in case sizeof(T) is not multiple of 4)
+  std::fill_n(data_.begin(), length_words_, 0);
+  memcpy(data_.data(), src, sizeof(T));
   return this->save_();
 }
 
 template<typename T> bool ESPPreferenceObject::load(T *dest) {
-  memset(this->data_, 0, this->length_words_ * 4);
+  std::fill_n(data_.begin(), length_words_, 0);
   if (!this->load_())
     return false;
 
-  memcpy(dest, this->data_, sizeof(T));
+  memcpy(dest, data_.data(), sizeof(T));
   return true;
 }
 

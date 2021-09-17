@@ -57,24 +57,13 @@ def cpp_string_escape(string, encoding="utf-8"):
     return '"' + result + '"'
 
 
-def color(the_color, message=""):
-    from colorlog.escape_codes import escape_codes, parse_colors
-
-    if not message:
-        res = parse_colors(the_color)
-    else:
-        res = parse_colors(the_color) + message + escape_codes["reset"]
-
-    return res
-
-
 def run_system_command(*args):
     import subprocess
 
-    p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    stdout, stderr = p.communicate()
-    rc = p.returncode
-    return rc, stdout, stderr
+    with subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE) as p:
+        stdout, stderr = p.communicate()
+        rc = p.returncode
+        return rc, stdout, stderr
 
 
 def mkdir_p(path):
@@ -108,10 +97,10 @@ def is_ip_address(host):
 
 def _resolve_with_zeroconf(host):
     from esphome.core import EsphomeError
-    from esphome.zeroconf import Zeroconf
+    from esphome.zeroconf import EsphomeZeroconf
 
     try:
-        zc = Zeroconf()
+        zc = EsphomeZeroconf()
     except Exception as err:
         raise EsphomeError(
             "Cannot start mDNS sockets, is this a docker container without "
@@ -233,7 +222,7 @@ def write_file_if_changed(path: Union[Path, str], text: str):
         write_file(path, text)
 
 
-def copy_file_if_changed(src, dst):
+def copy_file_if_changed(src: os.PathLike, dst: os.PathLike) -> None:
     import shutil
 
     if file_compare(src, dst):
@@ -251,7 +240,7 @@ def list_starts_with(list_, sub):
     return len(sub) <= len(list_) and all(list_[i] == x for i, x in enumerate(sub))
 
 
-def file_compare(path1, path2):
+def file_compare(path1: os.PathLike, path2: os.PathLike) -> bool:
     """Return True if the files path1 and path2 have the same contents."""
     import stat
 
@@ -287,11 +276,11 @@ def file_compare(path1, path2):
 # A dict of types that need to be converted to heaptypes before a class can be added
 # to the object
 _TYPE_OVERLOADS = {
-    int: type("EInt", (int,), dict()),
-    float: type("EFloat", (float,), dict()),
-    str: type("EStr", (str,), dict()),
-    dict: type("EDict", (str,), dict()),
-    list: type("EList", (list,), dict()),
+    int: type("EInt", (int,), {}),
+    float: type("EFloat", (float,), {}),
+    str: type("EStr", (str,), {}),
+    dict: type("EDict", (str,), {}),
+    list: type("EList", (list,), {}),
 }
 
 # cache created classes here

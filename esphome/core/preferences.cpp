@@ -15,15 +15,10 @@ extern "C" {
 
 namespace esphome {
 
-static const char *TAG = "preferences";
+static const char *const TAG = "preferences";
 
-ESPPreferenceObject::ESPPreferenceObject() : offset_(0), length_words_(0), type_(0), data_(nullptr) {}
 ESPPreferenceObject::ESPPreferenceObject(size_t offset, size_t length, uint32_t type)
-    : offset_(offset), length_words_(length), type_(type) {
-  this->data_ = new uint32_t[this->length_words_ + 1];
-  for (uint32_t i = 0; i < this->length_words_ + 1; i++)
-    this->data_[i] = 0;
-}
+    : offset_(offset), length_words_(length), type_(type), data_(length + 1) {}
 bool ESPPreferenceObject::load_() {
   if (!this->is_initialized()) {
     ESP_LOGV(TAG, "Load Pref Not initialized!");
@@ -69,11 +64,11 @@ static inline bool esp_rtc_user_mem_read(uint32_t index, uint32_t *dest) {
   if (index >= ESP_RTC_USER_MEM_SIZE_WORDS) {
     return false;
   }
-  *dest = ESP_RTC_USER_MEM[index];
+  *dest = ESP_RTC_USER_MEM[index];  // NOLINT(performance-no-int-to-ptr)
   return true;
 }
 
-static bool esp8266_flash_dirty = false;
+static bool esp8266_flash_dirty = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 static inline bool esp_rtc_user_mem_write(uint32_t index, uint32_t value) {
   if (index >= ESP_RTC_USER_MEM_SIZE_WORDS) {
@@ -83,12 +78,12 @@ static inline bool esp_rtc_user_mem_write(uint32_t index, uint32_t value) {
     return false;
   }
 
-  auto *ptr = &ESP_RTC_USER_MEM[index];
+  auto *ptr = &ESP_RTC_USER_MEM[index];  // NOLINT(performance-no-int-to-ptr)
   *ptr = value;
   return true;
 }
 
-extern "C" uint32_t _SPIFFS_end;
+extern "C" uint32_t _SPIFFS_end;  // NOLINT
 
 static const uint32_t get_esp8266_flash_sector() {
   union {
@@ -173,7 +168,7 @@ ESPPreferences::ESPPreferences()
     : current_offset_(0) {}
 
 void ESPPreferences::begin() {
-  this->flash_storage_ = new uint32_t[ESP8266_FLASH_STORAGE_SIZE];
+  this->flash_storage_ = new uint32_t[ESP8266_FLASH_STORAGE_SIZE];  // NOLINT
   ESP_LOGVV(TAG, "Loading preferences from flash...");
 
   {
@@ -234,7 +229,7 @@ bool ESPPreferenceObject::save_internal_() {
   char key[32];
   sprintf(key, "%u", this->offset_);
   uint32_t len = (this->length_words_ + 1) * 4;
-  esp_err_t err = nvs_set_blob(global_preferences.nvs_handle_, key, this->data_, len);
+  esp_err_t err = nvs_set_blob(global_preferences.nvs_handle_, key, this->data_.data(), len);
   if (err) {
     ESP_LOGV(TAG, "nvs_set_blob('%s', len=%u) failed: %s", key, len, esp_err_to_name(err));
     return false;
@@ -252,9 +247,9 @@ bool ESPPreferenceObject::load_internal_() {
 
   char key[32];
   sprintf(key, "%u", this->offset_);
-  uint32_t len = (this->length_words_ + 1) * 4;
+  size_t len = (this->length_words_ + 1) * 4;
 
-  uint32_t actual_len;
+  size_t actual_len;
   esp_err_t err = nvs_get_blob(global_preferences.nvs_handle_, key, nullptr, &actual_len);
   if (err) {
     ESP_LOGV(TAG, "nvs_get_blob('%s'): %s - the key might not be set yet", key, esp_err_to_name(err));
@@ -264,7 +259,7 @@ bool ESPPreferenceObject::load_internal_() {
     ESP_LOGVV(TAG, "NVS length does not match. Assuming key changed (%u!=%u)", actual_len, len);
     return false;
   }
-  err = nvs_get_blob(global_preferences.nvs_handle_, key, this->data_, &len);
+  err = nvs_get_blob(global_preferences.nvs_handle_, key, this->data_.data(), &len);
   if (err) {
     ESP_LOGV(TAG, "nvs_get_blob('%s') failed: %s", key, esp_err_to_name(err));
     return false;
@@ -301,8 +296,8 @@ uint32_t ESPPreferenceObject::calculate_crc_() const {
   }
   return crc;
 }
-bool ESPPreferenceObject::is_initialized() const { return this->data_ != nullptr; }
+bool ESPPreferenceObject::is_initialized() const { return !this->data_.empty(); }
 
-ESPPreferences global_preferences;
+ESPPreferences global_preferences;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 }  // namespace esphome

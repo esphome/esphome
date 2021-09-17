@@ -12,7 +12,7 @@ from esphome.const import (
     CONF_I2C_ID,
     CONF_MULTIPLEXER,
 )
-from esphome.core import coroutine, coroutine_with_priority
+from esphome.core import coroutine_with_priority
 
 CODEOWNERS = ["@esphome/core"]
 i2c_ns = cg.esphome_ns.namespace("i2c")
@@ -42,10 +42,10 @@ I2CMULTIPLEXER_SCHEMA = cv.Schema(
 
 
 @coroutine_with_priority(1.0)
-def to_code(config):
+async def to_code(config):
     cg.add_global(i2c_ns.using)
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
+    await cg.register_component(var, config)
 
     cg.add(var.set_sda_pin(config[CONF_SDA]))
     cg.add(var.set_scl_pin(config[CONF_SCL]))
@@ -72,19 +72,18 @@ def i2c_device_schema(default_address):
     return cv.Schema(schema)
 
 
-@coroutine
-def register_i2c_device(var, config):
+async def register_i2c_device(var, config):
     """Register an i2c device with the given config.
 
     Sets the i2c bus to use and the i2c address.
 
     This is a coroutine, you need to await it with a 'yield' expression!
     """
-    parent = yield cg.get_variable(config[CONF_I2C_ID])
+    parent = await cg.get_variable(config[CONF_I2C_ID])
     cg.add(var.set_i2c_parent(parent))
     cg.add(var.set_i2c_address(config[CONF_ADDRESS]))
     if CONF_MULTIPLEXER in config:
-        multiplexer = yield cg.get_variable(config[CONF_MULTIPLEXER][CONF_ID])
+        multiplexer = await cg.get_variable(config[CONF_MULTIPLEXER][CONF_ID])
         cg.add(
             var.set_i2c_multiplexer(multiplexer, config[CONF_MULTIPLEXER][CONF_CHANNEL])
         )

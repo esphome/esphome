@@ -16,42 +16,42 @@ static const uint8_t TNF_UNCHANGED = 0x06;
 static const uint8_t TNF_RESERVED = 0x07;
 
 static const uint8_t PAYLOAD_IDENTIFIERS_COUNT = 0x23;
-static const char *PAYLOAD_IDENTIFIERS[] = {"",
-                                            "http://www.",
-                                            "https://www.",
-                                            "http://",
-                                            "https://",
-                                            "tel:",
-                                            "mailto:",
-                                            "ftp://anonymous:anonymous@",
-                                            "ftp://ftp.",
-                                            "ftps://",
-                                            "sftp://",
-                                            "smb://",
-                                            "nfs://",
-                                            "ftp://",
-                                            "dav://",
-                                            "news:",
-                                            "telnet://",
-                                            "imap:",
-                                            "rtsp://",
-                                            "urn:",
-                                            "pop:",
-                                            "sip:",
-                                            "sips:",
-                                            "tftp:",
-                                            "btspp://",
-                                            "btl2cap://",
-                                            "btgoep://",
-                                            "tcpobex://",
-                                            "irdaobex://",
-                                            "file://",
-                                            "urn:epc:id:",
-                                            "urn:epc:tag:",
-                                            "urn:epc:pat:",
-                                            "urn:epc:raw:",
-                                            "urn:epc:",
-                                            "urn:nfc:"};
+static const char *const PAYLOAD_IDENTIFIERS[] = {"",
+                                                  "http://www.",
+                                                  "https://www.",
+                                                  "http://",
+                                                  "https://",
+                                                  "tel:",
+                                                  "mailto:",
+                                                  "ftp://anonymous:anonymous@",
+                                                  "ftp://ftp.",
+                                                  "ftps://",
+                                                  "sftp://",
+                                                  "smb://",
+                                                  "nfs://",
+                                                  "ftp://",
+                                                  "dav://",
+                                                  "news:",
+                                                  "telnet://",
+                                                  "imap:",
+                                                  "rtsp://",
+                                                  "urn:",
+                                                  "pop:",
+                                                  "sip:",
+                                                  "sips:",
+                                                  "tftp:",
+                                                  "btspp://",
+                                                  "btl2cap://",
+                                                  "btgoep://",
+                                                  "tcpobex://",
+                                                  "irdaobex://",
+                                                  "file://",
+                                                  "urn:epc:id:",
+                                                  "urn:epc:tag:",
+                                                  "urn:epc:pat:",
+                                                  "urn:epc:raw:",
+                                                  "urn:epc:",
+                                                  "urn:nfc:"};
 
 class NdefRecord {
  public:
@@ -85,9 +85,9 @@ class NdefRecord {
   std::vector<uint8_t> encode(bool first, bool last);
   uint8_t get_tnf_byte(bool first, bool last);
 
-  const std::string &get_type() { return this->type_; };
-  const std::string &get_id() { return this->id_; };
-  const std::string &get_payload() { return this->payload_; };
+  const std::string &get_type() const { return this->type_; };
+  const std::string &get_id() const { return this->id_; };
+  const std::string &get_payload() const { return this->payload_; };
 
  protected:
   uint8_t tnf_;

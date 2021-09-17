@@ -1,11 +1,32 @@
 {
-    "version": "2.0.0",
-    "tasks": [
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "run",
+      "type": "shell",
+      "command": "python3 -m esphome dashboard config/",
+      "problemMatcher": []
+    },
+    {
+      "label": "clang-tidy",
+      "type": "shell",
+      "command": "./script/clang-tidy",
+      "problemMatcher": [
         {
-            "label": "run",
-            "type": "shell",
-            "command": "python3 -m esphome config dashboard",
-            "problemMatcher": []
+          "owner": "clang-tidy",
+          "fileLocation": "absolute",
+          "pattern": [
+            {
+              "regexp": "^(.*):(\\d+):(\\d+):\\s+(error):\\s+(.*) \\[([a-z0-9,\\-]+)\\]\\s*$",
+              "file": 1,
+              "line": 2,
+              "column": 3,
+              "severity": 4,
+              "message": 5
+            }
+          ]
         }
-    ]
+      ]
+    }
+  ]
 }

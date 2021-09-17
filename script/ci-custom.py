@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+from helpers import git_ls_files, filter_changed
 import codecs
 import collections
 import fnmatch
@@ -12,7 +13,6 @@ import functools
 import argparse
 
 sys.path.append(os.path.dirname(__file__))
-from helpers import git_ls_files, filter_changed
 
 
 def find_all(a_str, sub):
@@ -261,7 +261,7 @@ def highlight(s):
 @lint_re_check(
     r"^#define\s+([a-zA-Z0-9_]+)\s+([0-9bx]+)" + CPP_RE_EOL,
     include=cpp_include,
-    exclude=["esphome/core/log.h"],
+    exclude=["esphome/core/log.h", "esphome/components/socket/headers.h"],
 )
 def lint_no_defines(fname, match):
     s = highlight(
@@ -405,6 +405,7 @@ ARDUINO_FORBIDDEN_RE = r"[^\w\d](" + r"|".join(ARDUINO_FORBIDDEN) + r")\(.*"
     include=cpp_include,
     exclude=[
         "esphome/components/mqtt/custom_mqtt_device.h",
+        "esphome/components/sun/sun.cpp",
         "esphome/core/esphal.*",
     ],
 )
@@ -492,7 +493,10 @@ def lint_relative_py_import(fname):
         "esphome/components/*.h",
         "esphome/components/*.cpp",
         "esphome/components/*.tcc",
-    ]
+    ],
+    exclude=[
+        "esphome/components/socket/headers.h",
+    ],
 )
 def lint_namespace(fname, content):
     expected_name = re.match(
@@ -558,8 +562,11 @@ def lint_inclusive_language(fname, match):
         "esphome/components/display/display_buffer.h",
         "esphome/components/i2c/i2c.h",
         "esphome/components/mqtt/mqtt_component.h",
+        "esphome/components/number/number.h",
         "esphome/components/output/binary_output.h",
         "esphome/components/output/float_output.h",
+        "esphome/components/nextion/nextion_base.h",
+        "esphome/components/select/select.h",
         "esphome/components/sensor/sensor.h",
         "esphome/components/stepper/stepper.h",
         "esphome/components/switch/switch.h",

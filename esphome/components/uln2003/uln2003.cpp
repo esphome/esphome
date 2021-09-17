@@ -4,7 +4,7 @@
 namespace esphome {
 namespace uln2003 {
 
-static const char *TAG = "uln2003.stepper";
+static const char *const TAG = "uln2003.stepper";
 
 void ULN2003::setup() {
   this->pin_a_->setup();
@@ -14,8 +14,8 @@ void ULN2003::setup() {
   this->loop();
 }
 void ULN2003::loop() {
-  bool at_target = this->has_reached_target();
-  if (at_target) {
+  int dir = this->should_step_();
+  if (dir == 0 && this->has_reached_target()) {
     this->high_freq_.stop();
 
     if (this->sleep_when_done_) {
@@ -28,8 +28,6 @@ void ULN2003::loop() {
     }
   } else {
     this->high_freq_.start();
-
-    int dir = this->should_step_();
     this->current_uln_pos_ += dir;
   }
 
