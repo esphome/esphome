@@ -62,20 +62,18 @@ def splitlines_no_ends(string):
 
 
 def changed_files():
-
+    command = ["git", "symbolic-ref", "-q", "HEAD"]
+    local_ref = splitlines_no_ends(get_output(*command))[0]
     command = [
         "git",
         "for-each-ref",
-        "--format='refs/remotes/%(upstream:short)' $(git symbolic-ref -q HEAD)",
+        "--format=refs/remotes/%(upstream:short)",
+        local_ref,
     ]
-    ref = splitlines_no_ends(get_output(*command))
-    if ref:
-        command = ["git", "merge-base", f"refs/remotes/{ref}", "HEAD"]
-        try:
-            merge_base = splitlines_no_ends(get_output(*command))[0]
-        # pylint: disable=bare-except
-        except:
-            pass
+    remote_ref = splitlines_no_ends(get_output(*command))
+    if remote_ref:
+        command = ["git", "merge-base", remote_ref[0], "HEAD"]
+        merge_base = splitlines_no_ends(get_output(*command))[0]
     else:
         raise ValueError("Git not configured correctly. No upstream repository found")
 
