@@ -1,4 +1,5 @@
 from contextlib import suppress
+from dataclasses import dataclass
 from typing import Union
 from pathlib import Path
 import re
@@ -61,7 +62,14 @@ def is_esp32c3():
     return get_esp32_variant() == VARIANT_ESP32C3
 
 
-SdkconfigValueType = Union[bool, int, HexInt, str]
+@dataclass
+class RawSdkconfigValue:
+    """An sdkconfig value that won't be auto-formatted"""
+
+    value: str
+
+
+SdkconfigValueType = Union[bool, int, HexInt, str, RawSdkconfigValue]
 
 
 def add_idf_sdkconfig_option(name: str, value: SdkconfigValueType):
@@ -125,6 +133,7 @@ def _esp_idf_check_versions(value):
         raise cv.Invalid("Only ESP-IDF 4.0+ is supported")
 
     return {
+        **value,
         CONF_VERSION: ver_value,
         CONF_VERSION_HINT: ver_hint_s,
     }
@@ -140,11 +149,15 @@ ARDUINO_FRAMEWORK_SCHEMA = cv.All(
     ),
     _arduino_check_versions,
 )
+CONF_SDKCONFIG_OPTIONS = "sdkconfig_options"
 ESP_IDF_FRAMEWORK_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.Optional(CONF_VERSION, default="recommended"): cv.string_strict,
             cv.Optional(CONF_VERSION_HINT): cv.version_number,
+            cv.Optional(CONF_SDKCONFIG_OPTIONS, default={}): {
+                cv.string_strict: cv.string_strict
+            },
         }
     ),
     _esp_idf_check_versions,
@@ -203,6 +216,11 @@ async def to_code(config):
         add_idf_sdkconfig_option("CONFIG_COMPILER_OPTIMIZATION_DEFAULT", False)
         add_idf_sdkconfig_option("CONFIG_COMPILER_OPTIMIZATION_SIZE", True)
 
+        cg.add_platformio_option("board_build.partitions", "partitions.csv")
+
+        for name, value in conf[CONF_SDKCONFIG_OPTIONS].items():
+            add_idf_sdkconfig_option(name, RawSdkconfigValue(value))
+
     elif conf[CONF_TYPE] == FRAMEWORK_ARDUINO:
         cg.add_platformio_option("framework", "arduino")
         cg.add_build_flag("-DUSE_ARDUINO")
@@ -230,8 +248,8 @@ IDF_PARTITIONS_CSV = """\
 nvs,      data, nvs,     ,        0x4000,
 otadata,  data, ota,     ,        0x2000,
 phy_init, data, phy,     ,        0x1000,
-app0,     app,  ota_0,   , 0x1C0000,
-app1,     app,  ota_1,   , 0x100000,
+app0,     app,  ota_0,   ,      0x1C0000,
+app1,     app,  ota_1,   ,      0x1C0000,
 """
 
 
@@ -270,6 +288,8 @@ def _format_sdkconfig_val(value: SdkconfigValueType) -> str:
         return str(value)
     if isinstance(value, str):
         return f'"{value}"'
+    if isinstance(value, RawSdkconfigValue):
+        return value.value
     raise ValueError
 
 
@@ -286,15 +306,29 @@ def _write_sdkconfig():
 
     for name, value in want_opts.items():
         if name in current_opts:
-            if current_opts[name] != value:
+            current = current_opts[name]
+            if isinstance(value, RawSdkconfigValue):
+                current = _format_sdkconfig_val(value)
+                value = _format_sdkconfig_val(value)
+
+            if current != value:
                 _LOGGER.debug(
                     "Updating sdkconfig because option %s does not match (%s != %s)",
                     name,
-                    current_opts[name],
+                    current,
                     value,
                 )
                 break
-        elif value is True:
+        elif isinstance(value, RawSdkconfigValue):
+            if value.value != "n":
+                # not setting of a opt is equivalent to n
+                _LOGGER.debug(
+                    "Updating sdkconfig because option %s not set (want %s)",
+                    name,
+                    value.value,
+                )
+                break
+        elif value is not False:
             _LOGGER.debug(
                 "Updating sdkconfig because option %s not set (want %s)", name, value
             )
@@ -306,6 +340,7 @@ def _write_sdkconfig():
         f"{name}={_format_sdkconfig_val(value)}"
         for name, value in sorted(want_opts.items())
     )
+    _LOGGER.info("Updating esp-idf sdkconfig")
     _LOGGER.debug("New sdkconfig: %s", contents)
     write_file_if_changed(path, contents)
 

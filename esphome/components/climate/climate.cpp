@@ -326,9 +326,15 @@ optional<ClimateDeviceRestoreState> Climate::restore_state_() {
   return recovered;
 }
 void Climate::save_state_() {
+#ifdef USE_ESP_IDF
+#pragma GCC diagnostic ignored "-Wclass-memaccess"
+#endif
   ClimateDeviceRestoreState state{};
   // initialize as zero to prevent random data on stack triggering erase
   memset(&state, 0, sizeof(ClimateDeviceRestoreState));
+#ifdef USE_ESP_IDF
+#pragma GCC diagnostic pop
+#endif
 
   state.mode = this->mode;
   auto traits = this->get_traits();
