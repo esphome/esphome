@@ -350,7 +350,7 @@ void WiFiComponent::print_connect_params_() {
   ESP_LOGCONFIG(TAG, "  BSSID: " LOG_SECRET("%02X:%02X:%02X:%02X:%02X:%02X"), bssid[0], bssid[1], bssid[2], bssid[3],
                 bssid[4], bssid[5]);
   ESP_LOGCONFIG(TAG, "  Hostname: '%s'", App.get_name().c_str());
-  int8_t rssi = wifi_rssi_();
+  int8_t rssi = wifi_rssi();
   ESP_LOGCONFIG(TAG, "  Signal strength: %d dB %s", rssi, LOG_STR_ARG(get_signal_bars(rssi)));
   if (this->selected_ap_.get_bssid().has_value()) {
     ESP_LOGV(TAG, "  Priority: %.1f", this->get_sta_priority(*this->selected_ap_.get_bssid()));

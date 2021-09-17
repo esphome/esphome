@@ -852,7 +852,7 @@ std::string WiFiComponent::wifi_ssid() {
   size_t len = strnlen(ssid_s, sizeof(info.ssid));
   return {ssid_s, len};
 }
-int8_t WiFiComponent::wifi_rssi_() {
+int8_t WiFiComponent::wifi_rssi() {
   wifi_ap_record_t info;
   esp_err_t err = esp_wifi_sta_get_ap_info(&info);
   if (err != ESP_OK) {
