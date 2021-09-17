@@ -6,7 +6,6 @@
 #include "esphome/core/log.h"
 #include "uart_component.h"
 
-
 namespace esphome {
 namespace uart {
 

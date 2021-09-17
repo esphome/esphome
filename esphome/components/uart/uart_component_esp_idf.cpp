@@ -22,7 +22,7 @@ uart_config_t IDFUARTComponent::get_config() {
     parity = UART_PARITY_ODD;
 
   uart_word_length_t data_bits;
-  switch(this->data_bits_) {
+  switch (this->data_bits_) {
     case 5:
       data_bits = UART_DATA_5_BITS;
       break;
@@ -39,7 +39,6 @@ uart_config_t IDFUARTComponent::get_config() {
       data_bits = UART_DATA_BITS_MAX;
       break;
   }
-
 
   uart_config_t uart_config;
   uart_config.baud_rate = this->baud_rate_;

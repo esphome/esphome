@@ -4,7 +4,6 @@
 #include "esphome/core/application.h"
 #include "esphome/core/defines.h"
 
-
 namespace esphome {
 namespace uart {
 

@@ -28,7 +28,7 @@ class UARTComponent {
 
   virtual void write_array(const uint8_t *data, size_t len) = 0;
 
-  bool read_byte(uint8_t *data){ return this->read_array(data, 1); };
+  bool read_byte(uint8_t *data) { return this->read_array(data, 1); };
   virtual bool peek_byte(uint8_t *data) = 0;
   virtual bool read_array(uint8_t *data, size_t len) = 0;
 
