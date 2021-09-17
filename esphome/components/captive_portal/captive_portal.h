@@ -1,5 +1,7 @@
 #pragma once
 
+#ifdef USE_ARDUINO
+
 #include <memory>
 #include <DNSServer.h>
 #include "esphome/core/component.h"
@@ -73,3 +75,5 @@ extern CaptivePortal *global_captive_portal;  // NOLINT(cppcoreguidelines-avoid-
 
 }  // namespace captive_portal
 }  // namespace esphome
+
+#endif // USE_ARDUINO

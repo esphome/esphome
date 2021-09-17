@@ -1,3 +1,5 @@
+#ifdef USE_ARDUINO
+
 #include "web_server_base.h"
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
@@ -97,3 +99,5 @@ float WebServerBase::get_setup_priority() const {
 
 }  // namespace web_server_base
 }  // namespace esphome
+
+#endif  // USE_ARDUINO

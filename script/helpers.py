@@ -112,15 +112,35 @@ def git_ls_files(patterns=None):
     return {s[3].strip(): int(s[0]) for s in lines}
 
 
+IDF_TIDY_SDKCONFIG = """\
+CONFIG_BT_ENABLED=y
+"""
+
+
 def load_idedata(environment):
     platformio_ini = Path(root_path) / "platformio.ini"
     temp_idedata = Path(temp_folder) / f"idedata-{environment}.json"
+    changed = False
     if not platformio_ini.is_file() or not temp_idedata.is_file():
         changed = True
     elif platformio_ini.stat().st_mtime >= temp_idedata.stat().st_mtime:
         changed = True
-    else:
-        changed = False
+
+    if environment == "esp32-idf-tidy":
+        # sdkconfig needs to be written before idedata is run
+        # but the file is also modified by the build process, so
+        # store a temp file to keep track of the
+
+        sdk_internal = Path(temp_folder) / f"{environment}-internal-sdkconfig"
+        sdkconfig = Path(root_path) / f"sdkconfig.{environment}"
+        if (
+            changed
+            or not sdk_internal.is_file()
+            or sdk_internal.read_text() != IDF_TIDY_SDKCONFIG
+        ):
+            changed = True
+            sdkconfig.write_text(IDF_TIDY_SDKCONFIG)
+            sdk_internal.write_text(IDF_TIDY_SDKCONFIG)
 
     if not changed:
         return json.loads(temp_idedata.read_text())

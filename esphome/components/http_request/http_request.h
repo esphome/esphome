@@ -1,5 +1,7 @@
 #pragma once
 
+#ifdef USE_ARDUINO
+
 #include "esphome/components/json/json_util.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
@@ -132,3 +134,5 @@ class HttpRequestResponseTrigger : public Trigger<int> {
 
 }  // namespace http_request
 }  // namespace esphome
+
+#endif  // USE_ARDUINO

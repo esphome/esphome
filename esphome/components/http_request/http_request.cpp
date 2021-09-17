@@ -1,3 +1,5 @@
+#ifdef USE_ARDUINO
+
 #include "http_request.h"
 #include "esphome/core/macros.h"
 #include "esphome/core/log.h"
@@ -109,3 +111,5 @@ const char *HttpRequestComponent::get_string() {
 
 }  // namespace http_request
 }  // namespace esphome
+
+#endif  // USE_ARDUINO

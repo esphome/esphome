@@ -1,3 +1,5 @@
+#ifdef USE_ARDUINO
+
 #include "json_util.h"
 #include "esphome/core/log.h"
 
@@ -113,3 +115,5 @@ VectorJsonBuffer global_json_buffer;  // NOLINT(cppcoreguidelines-avoid-non-cons
 
 }  // namespace json
 }  // namespace esphome
+
+#endif  // USE_ARDUINO

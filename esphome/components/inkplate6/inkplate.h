@@ -5,7 +5,7 @@
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/components/display/display_buffer.h"
 
-#ifdef USE_ESP32
+#ifdef USE_ESP32_FRAMEWORK_ARDUINO
 
 namespace esphome {
 namespace inkplate6 {
@@ -158,4 +158,4 @@ class Inkplate6 : public PollingComponent, public display::DisplayBuffer, public
 }  // namespace inkplate6
 }  // namespace esphome
 
-#endif
+#endif  // USE_ESP32_FRAMEWORK_ARDUINO

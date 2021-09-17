@@ -37,12 +37,15 @@ def _validate_key(value):
     return "".join(f"{part:02X}" for part in parts_int)
 
 
-CONFIG_SCHEMA = cv.Schema(
-    {
-        cv.GenerateID(): cv.declare_id(Dsmr),
-        cv.Optional(CONF_DECRYPTION_KEY): _validate_key,
-    }
-).extend(uart.UART_DEVICE_SCHEMA)
+CONFIG_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(Dsmr),
+            cv.Optional(CONF_DECRYPTION_KEY): _validate_key,
+        }
+    ).extend(uart.UART_DEVICE_SCHEMA),
+    cv.only_with_arduino,
+)
 
 
 async def to_code(config):

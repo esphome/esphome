@@ -1,3 +1,5 @@
+#ifdef USE_ARDUINO
+
 #include "dsmr.h"
 #include "esphome/core/log.h"
 
@@ -181,3 +183,5 @@ void Dsmr::set_decryption_key(const std::string &decryption_key) {
 
 }  // namespace dsmr
 }  // namespace esphome
+
+#endif  // USE_ARDUINO

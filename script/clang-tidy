@@ -46,6 +46,10 @@ def clang_options(idedata):
         '-D__XTENSA__',
         # allow to condition code on the presence of clang-tidy
         '-DCLANG_TIDY',
+        # (esp-idf) Disable this header because they use asm with registers clang-tidy doesn't know
+        '-D__XTENSA_API_H__',
+        # (esp-idf) Fix __once_callable in some libstdc++ headers
+        '-D_GLIBCXX_HAVE_TLS',
     ]
 
     # copy compiler flags, except those clang doesn't understand.

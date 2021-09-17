@@ -8,7 +8,7 @@ namespace esp32 {
 
 static const char *const TAG = "esp32";
 
-bool IDFInternalGPIOPin::isr_service_installed_ = false;
+bool IDFInternalGPIOPin::isr_service_installed_ = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 struct ISRPinArg {
   gpio_num_t pin;
@@ -16,7 +16,7 @@ struct ISRPinArg {
 };
 
 ISRInternalGPIOPin IDFInternalGPIOPin::to_isr() const {
-  auto *arg = new ISRPinArg{};
+  auto *arg = new ISRPinArg{};  // NOLINT(cppcoreguidelines-owning-memory)
   arg->pin = pin_;
   arg->inverted = inverted_;
   return ISRInternalGPIOPin((void *) arg);

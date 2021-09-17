@@ -23,11 +23,16 @@ CHANNELS = {
 CONF_UNIVERSE = "universe"
 CONF_E131_ID = "e131_id"
 
-CONFIG_SCHEMA = cv.Schema(
-    {
-        cv.GenerateID(): cv.declare_id(E131Component),
-        cv.Optional(CONF_METHOD, default="MULTICAST"): cv.one_of(*METHODS, upper=True),
-    }
+CONFIG_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(E131Component),
+            cv.Optional(CONF_METHOD, default="MULTICAST"): cv.one_of(
+                *METHODS, upper=True
+            ),
+        }
+    ),
+    cv.only_with_arduino,
 )
 
 

@@ -1,6 +1,6 @@
 #pragma once
 
-#ifdef USE_ESP32
+#ifdef USE_ESP32_FRAMEWORK_ARDUINO
 
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
@@ -85,4 +85,4 @@ extern EthernetComponent *global_eth_component;
 }  // namespace ethernet
 }  // namespace esphome
 
-#endif
+#endif  // USE_ESP32_FRAMEWORK_ARDUINO

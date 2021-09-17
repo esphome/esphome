@@ -3,7 +3,12 @@
 
 #ifdef USE_ESP32
 
+#ifdef USE_ARDUINO
 #include <esp32-hal-ledc.h>
+#endif
+#ifdef USE_ESP_IDF
+#include <driver/ledc.h>
+#endif
 
 namespace esphome {
 namespace ledc {
@@ -18,14 +23,51 @@ void LEDCOutput::write_state(float state) {
   const uint32_t max_duty = (uint32_t(1) << this->bit_depth_) - 1;
   const float duty_rounded = roundf(state * max_duty);
   auto duty = static_cast<uint32_t>(duty_rounded);
+
+#ifdef USE_ARDUINO
   ledcWrite(this->channel_, duty);
+#endif
+#ifdef USE_ESP_IDF
+  auto speed_mode = channel_ < 8 ? LEDC_HIGH_SPEED_MODE : LEDC_LOW_SPEED_MODE;
+  auto chan_num = static_cast<ledc_channel_t>(channel_ % 8);
+  ledc_set_duty(speed_mode, chan_num, duty);
+  ledc_update_duty(speed_mode, chan_num);
+#endif
 }
 
 void LEDCOutput::setup() {
+#ifdef USE_ARDUINO
   this->update_frequency(this->frequency_);
   this->turn_off();
   // Attach pin after setting default value
   ledcAttachPin(this->pin_->get_pin(), this->channel_);
+#endif
+#ifdef USE_ESP_IDF
+  auto speed_mode = channel_ < 8 ? LEDC_HIGH_SPEED_MODE : LEDC_LOW_SPEED_MODE;
+  auto timer_num = static_cast<ledc_timer_t>((channel_ % 8) / 2);
+  auto chan_num = static_cast<ledc_channel_t>(channel_ % 8);
+
+  auto bit_depth = *ledc_bit_depth_for_frequency(frequency_);
+
+  ledc_timer_config_t timer_conf{};
+  timer_conf.speed_mode = speed_mode;
+  timer_conf.duty_resolution = static_cast<ledc_timer_bit_t>(bit_depth);
+  timer_conf.timer_num = timer_num;
+  timer_conf.freq_hz = (uint32_t) frequency_;
+  timer_conf.clk_cfg = LEDC_AUTO_CLK;
+  ledc_timer_config(&timer_conf);
+
+  ledc_channel_config_t chan_conf{};
+  chan_conf.gpio_num = pin_->get_pin();
+  chan_conf.speed_mode = speed_mode;
+  chan_conf.channel = chan_num;
+  chan_conf.intr_type = LEDC_INTR_DISABLE;
+  chan_conf.timer_sel = timer_num;
+  chan_conf.duty = inverted_ == pin_->is_inverted() ? 0 : (1U << bit_depth);
+  chan_conf.hpoint = 0;
+  chan_conf.output_invert = false;
+  ledc_channel_config(&chan_conf);
+#endif
 }
 
 void LEDCOutput::dump_config() {
@@ -58,7 +100,14 @@ void LEDCOutput::update_frequency(float frequency) {
   }
   this->bit_depth_ = bit_depth_opt.value_or(8);
   this->frequency_ = frequency;
+#ifdef USE_ARDUINO
   ledcSetup(this->channel_, frequency, this->bit_depth_);
+#endif // USE_ARDUINO
+#ifdef USE_ESP_IDF
+  auto speed_mode = channel_ < 8 ? LEDC_HIGH_SPEED_MODE : LEDC_LOW_SPEED_MODE;
+  auto timer_num = static_cast<ledc_timer_t>((channel_ % 8) / 2);
+  ledc_set_freq(speed_mode, timer_num, (uint32_t) frequency);
+#endif
   // re-apply duty
   this->write_state(this->duty_);
 }

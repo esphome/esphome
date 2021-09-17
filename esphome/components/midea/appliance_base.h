@@ -1,4 +1,7 @@
 #pragma once
+
+#ifdef USE_ARDUINO
+
 #include "esphome/core/component.h"
 #include "esphome/core/log.h"
 #include "esphome/components/uart/uart.h"
@@ -74,3 +77,5 @@ template<typename T> class ApplianceBase : public Component, public uart::UARTDe
 
 }  // namespace midea
 }  // namespace esphome
+
+#endif  // USE_ARDUINO

@@ -58,6 +58,7 @@ const char *api_error_to_str(APIError err);
 
 class APIFrameHelper {
  public:
+  virtual ~APIFrameHelper() = default;
   virtual APIError init() = 0;
   virtual APIError loop() = 0;
   virtual APIError read_packet(ReadPacketBuffer *buffer) = 0;

@@ -1,3 +1,5 @@
+#ifdef USE_ARDUINO
+
 #include "web_server.h"
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
@@ -854,3 +856,5 @@ bool WebServer::isRequestHandlerTrivial() { return false; }
 
 }  // namespace web_server
 }  // namespace esphome
+
+#endif  // USE_ARDUINO

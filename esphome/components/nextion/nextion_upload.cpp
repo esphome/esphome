@@ -1,3 +1,4 @@
+#ifdef USE_NEXTION_TFT_UPLOAD
 
 #include "nextion.h"
 #include "esphome/core/application.h"
@@ -9,8 +10,6 @@
 namespace esphome {
 namespace nextion {
 static const char *const TAG = "nextion_upload";
-
-#if defined(USE_TFT_UPLOAD) && (defined(USE_ETHERNET) || defined(USE_WIFI))
 
 // Followed guide
 // https://unofficialnextion.com/t/nextion-upload-protocol-v1-2-the-fast-one/1044/2
@@ -343,9 +342,7 @@ WiFiClient *Nextion::get_wifi_client_() {
   return this->wifi_client_;
 }
 #endif
-
-#else
-void Nextion::upload_tft() { ESP_LOGW(TAG, "tft_url, WIFI or Ethernet components are needed. Cannot upload."); }
-#endif
 }  // namespace nextion
 }  // namespace esphome
+
+#endif   // USE_NEXTION_TFT_UPLOAD

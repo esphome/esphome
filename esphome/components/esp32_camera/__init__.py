@@ -15,6 +15,7 @@ from esphome.const import (
     CONF_BRIGHTNESS,
     CONF_CONTRAST,
 )
+from esphome.core import CORE
 
 DEPENDENCIES = ["esp32", "api"]
 
@@ -146,3 +147,6 @@ async def to_code(config):
 
     cg.add_define("USE_ESP32_CAMERA")
     cg.add_build_flag("-DBOARD_HAS_PSRAM")
+
+    if CORE.using_esp_idf:
+        cg.add_library("espressif/esp32-camera", "1.0.0")

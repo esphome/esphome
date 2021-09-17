@@ -7,7 +7,7 @@
 #include "nextion_component.h"
 #include "esphome/components/display/display_color_utils.h"
 
-#if defined(USE_ETHERNET) || defined(USE_WIFI)
+#ifdef USE_NEXTION_TFT_UPLOAD
 #ifdef USE_ESP32
 #include <HTTPClient.h>
 #endif
@@ -652,7 +652,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    */
   bool send_command_printf(const char *format, ...) __attribute__((format(printf, 2, 3)));
 
-#ifdef USE_TFT_UPLOAD
+#ifdef USE_NEXTION_TFT_UPLOAD
   /**
    * Set the tft file URL. https seems problamtic with arduino..
    */
@@ -770,8 +770,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
                                                  const std::string &variable_name_to_send,
                                                  const std::string &state_value, bool is_sleep_safe = false);
 
-#ifdef USE_TFT_UPLOAD
-#if defined(USE_ETHERNET) || defined(USE_WIFI)
+#ifdef USE_NEXTION_TFT_UPLOAD
 #ifdef USE_ESP8266
   WiFiClient *wifi_client_{nullptr};
   BearSSL::WiFiClientSecure *wifi_client_secure_{nullptr};
@@ -801,9 +800,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   bool upload_from_buffer_(const uint8_t *file_buf, size_t buf_size);
   void upload_end_();
 
-#endif
-
-#endif
+#endif  // USE_NEXTION_TFT_UPLOAD
 
   bool get_is_connected_() { return this->is_connected_; }
 
@@ -828,7 +825,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
 
   void remove_front_no_sensors_();
 
-#ifdef USE_TFT_UPLOAD
+#ifdef USE_NEXTION_TFT_UPLOAD
   std::string tft_url_;
   uint8_t *transfer_buffer_{nullptr};
   size_t transfer_buffer_size_;

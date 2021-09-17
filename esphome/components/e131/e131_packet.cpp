@@ -1,3 +1,5 @@
+#ifdef USE_ARDUINO
+
 #include "e131.h"
 #include "esphome/core/log.h"
 #include "esphome/core/util.h"
@@ -138,3 +140,5 @@ bool E131Component::packet_(const std::vector<uint8_t> &data, int &universe, E13
 
 }  // namespace e131
 }  // namespace esphome
+
+#endif  // USE_ARDUINO

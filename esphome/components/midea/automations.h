@@ -1,4 +1,7 @@
 #pragma once
+
+#ifdef USE_ARDUINO
+
 #include "esphome/core/automation.h"
 #include "air_conditioner.h"
 
@@ -54,3 +57,5 @@ template<typename... Ts> class PowerOffAction : public MideaActionBase<Ts...> {
 
 }  // namespace midea
 }  // namespace esphome
+
+#endif  // USE_ARDUINO

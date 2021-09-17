@@ -1,3 +1,5 @@
+#ifdef USE_ARDUINO
+
 #include "captive_portal.h"
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
@@ -151,3 +153,5 @@ CaptivePortal *global_captive_portal = nullptr;  // NOLINT(cppcoreguidelines-avo
 
 }  // namespace captive_portal
 }  // namespace esphome
+
+#endif  // USE_ARDUINO

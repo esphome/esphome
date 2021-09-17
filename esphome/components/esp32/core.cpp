@@ -65,9 +65,9 @@ uint32_t arch_get_cpu_cycle_count() {
 uint32_t arch_get_cpu_freq_hz() { return rtc_clk_apb_freq_get(); }
 
 #ifdef USE_ESP_IDF
-TaskHandle_t loop_task_handle = nullptr;
+TaskHandle_t loop_task_handle = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-void loop_task(void *pvParameters) {
+void loop_task(void *pv_params) {
   setup();
   while (true) {
     loop();

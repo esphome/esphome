@@ -22,7 +22,12 @@
 #define USE_ESP8266_PREFERENCES_FLASH
 #define USE_FAN
 #define USE_HOMEASSISTANT_TIME
+
+#ifdef USE_ARDUINO
 #define USE_JSON
+#define USE_NEXTION_TFT_UPLOAD
+#endif  // USE_ARDUINO
+
 #define USE_LIGHT
 #define USE_LOGGER
 #define USE_MDNS
@@ -36,7 +41,7 @@
 #define USE_STATUS_LED
 #define USE_SWITCH
 #define USE_TEXT_SENSOR
-#define USE_TFT_UPLOAD
+
 #define USE_TIME
 #define USE_WIFI
 #define USE_WIFI_WPA2_EAP
@@ -44,10 +49,14 @@
 #ifdef USE_ESP32
 #define USE_ESP32_BLE_SERVER
 #define USE_ESP32_CAMERA
+
+#ifdef USE_ARDUINO
 #define USE_ETHERNET
+#endif  // USE_ARDUINO
+
 #define USE_IMPROV
 #define USE_SOCKET_IMPL_BSD_SOCKETS
-#endif
+#endif  // USE_ESP32
 
 #ifdef USE_ESP8266
 #define USE_ADC_SENSOR_VCC

@@ -1,3 +1,5 @@
+#ifdef USE_ARDUINO
+
 #include "prometheus_handler.h"
 #include "esphome/core/application.h"
 
@@ -310,3 +312,5 @@ void PrometheusHandler::switch_row_(AsyncResponseStream *stream, switch_::Switch
 
 }  // namespace prometheus
 }  // namespace esphome
+
+#endif  // USE_ARDUINO

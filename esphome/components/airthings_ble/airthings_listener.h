@@ -4,7 +4,6 @@
 
 #include "esphome/core/component.h"
 #include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
-#include <BLEDevice.h>
 
 namespace esphome {
 namespace airthings_ble {
