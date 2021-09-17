@@ -80,6 +80,12 @@ extern "C" void app_main() {
 }
 #endif  // USE_ESP_IDF
 
+#ifdef USE_ARDUINO
+extern "C" void init() {
+  esp32::setup_preferences();
+}
+#endif  // USE_ARDUINO
+
 }  // namespace esphome
 
 #endif  // USE_ESP32

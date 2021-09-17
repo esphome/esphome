@@ -80,7 +80,6 @@ class ESP32Preferences : public ESPPreferences {
     snprintf(keybuf, sizeof(keybuf), "%d", keyval);
     pref->key = keybuf;  // copied to std::string
 
-    // ignore length
     return ESPPreferenceObject(pref);
   }
 };

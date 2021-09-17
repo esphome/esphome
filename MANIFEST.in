@@ -5,4 +5,3 @@ include esphome/dashboard/templates/*.html
 recursive-include esphome/dashboard/static *.ico *.js *.css *.woff* LICENSE
 recursive-include esphome *.cpp *.h *.tcc
 recursive-include esphome LICENSE.txt
-include esphome/components/esp32/partitions.csv
