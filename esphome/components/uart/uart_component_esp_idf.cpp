@@ -199,4 +199,4 @@ void IDFUARTComponent::check_logger_conflict() {}
 }  // namespace uart
 }  // namespace esphome
 
-#endif  // ARDUINO_ARCH_ESP32
+#endif  // USE_ESP32

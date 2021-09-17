@@ -1,6 +1,6 @@
 #pragma once
 
-#ifdef ARDUINO_ARCH_ESP8266
+#ifdef USE_ESP8266
 
 #include <HardwareSerial.h>
 #include <vector>
@@ -76,4 +76,4 @@ class ESP8266UartComponent : public UARTComponent, public Component {
 }  // namespace uart
 }  // namespace esphome
 
-#endif  // ARDUINO_ARCH_ESP8266
+#endif  // USE_ESP8266
