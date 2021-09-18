@@ -19,6 +19,7 @@
 #define USE_DEEP_SLEEP
 #define USE_ESP8266_PREFERENCES_FLASH
 #define USE_FAN
+#define USE_GRAPH
 #define USE_HOMEASSISTANT_TIME
 #define USE_I2C_MULTIPLEXER
 #define USE_JSON
@@ -47,13 +48,6 @@
 #define USE_IMPROV
 #define USE_SOCKET_IMPL_BSD_SOCKETS
 #endif
-
-#define USE_TIME
-#define USE_DEEP_SLEEP
-#define USE_CAPTIVE_PORTAL
-#define ESPHOME_BOARD "dummy_board"
-#define USE_MDNS
-#define USE_GRAPH
 
 #ifdef ARDUINO_ARCH_ESP8266
 #define USE_ADC_SENSOR_VCC
