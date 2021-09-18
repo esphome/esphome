@@ -9,10 +9,6 @@
 namespace esphome {
 namespace gc9a01 {
 
-enum GC9A01Model {
-  M5STACK = 0,
-};
-
 class GC9A01Display : public PollingComponent,
                        public display::DisplayBuffer,
                        public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
@@ -22,13 +18,12 @@ class GC9A01Display : public PollingComponent,
   float get_setup_priority() const override;
   void set_reset_pin(GPIOPin *reset) { this->reset_pin_ = reset; }
   void set_led_pin(GPIOPin *led) { this->led_pin_ = led; }
-  void set_model(GC9A01Model model) { this->model_ = model; }
 
   void command(uint8_t value);
   void data(uint8_t value);
   void send_command(uint8_t command_byte, const uint8_t *data_bytes, uint8_t num_data_bytes);
   uint8_t read_command(uint8_t command_byte, uint8_t index);
-  virtual void initialize() = 0;
+  void initialize();
 
   void update() override;
 
@@ -53,7 +48,6 @@ class GC9A01Display : public PollingComponent,
   uint16_t convert_to_16bit_color_(uint8_t color_8bit);
   uint8_t convert_to_8bit_color_(uint16_t color_16bit);
 
-  GC9A01Model model_;
   int16_t width_{240};   ///< Display width as modified by current rotation
   int16_t height_{240};  ///< Display height as modified by current rotation
   uint16_t x_low_{0};
@@ -74,12 +68,6 @@ class GC9A01Display : public PollingComponent,
   GPIOPin *led_pin_{nullptr};
   GPIOPin *dc_pin_;
   GPIOPin *busy_pin_{nullptr};
-};
-
-//-----------   Round display --------------
-class GC9A01M5Stack : public GC9A01Display {
- public:
-  void initialize() override;
 };
 
 }  // namespace gc9a01

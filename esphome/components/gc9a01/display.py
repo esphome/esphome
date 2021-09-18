@@ -6,7 +6,6 @@ from esphome.const import (
     CONF_DC_PIN,
     CONF_ID,
     CONF_LAMBDA,
-    CONF_MODEL,
     CONF_PAGES,
     CONF_RESET_PIN,
 )
@@ -19,23 +18,11 @@ gc9a01_ns = cg.esphome_ns.namespace("gc9a01")
 gc9a01 = gc9a01_ns.class_(
     "GC9A01Display", cg.PollingComponent, spi.SPIDevice, display.DisplayBuffer
 )
-GC9A01M5Stack = gc9a01_ns.class_("GC9A01M5Stack", gc9a01)
-GC9A01TFT24 = gc9a01_ns.class_("GC9A01TFT24", gc9a01)
-
-GC9A01Model = gc9a01_ns.enum("GC9A01Model")
-
-MODELS = {
-    "M5STACK": GC9A01Model.M5STACK,
-    "TFT_2.4": GC9A01Model.TFT_24,
-}
-
-GC9A01_MODEL = cv.enum(MODELS, upper=True, space="_")
 
 CONFIG_SCHEMA = cv.All(
     display.FULL_DISPLAY_SCHEMA.extend(
         {
             cv.GenerateID(): cv.declare_id(gc9a01),
-            cv.Required(CONF_MODEL): GC9A01_MODEL,
             cv.Required(CONF_DC_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_RESET_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_LED_PIN): pins.gpio_output_pin_schema,
@@ -48,17 +35,12 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config):
-    if config[CONF_MODEL] == "M5STACK":
-        lcd_type = GC9A01M5Stack
-    if config[CONF_MODEL] == "TFT_2.4":
-        lcd_type = GC9A01TFT24
-    rhs = lcd_type.new()
+    rhs = gc9a01.new()
     var = cg.Pvariable(config[CONF_ID], rhs)
 
     await cg.register_component(var, config)
     await display.register_display(var, config)
     await spi.register_spi_device(var, config)
-    cg.add(var.set_model(config[CONF_MODEL]))
     dc = await cg.gpio_pin_expression(config[CONF_DC_PIN])
     cg.add(var.set_dc_pin(dc))
 

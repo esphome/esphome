@@ -8,7 +8,7 @@ namespace gc9a01 {
 // taken from Arduino_GFX->Arduino_GC9A01.cpp->gc9a01_init_operations[]
 
 // clang-format off
-static const uint8_t PROGMEM INITCMD_M5STACK[] = {
+static const uint8_t PROGMEM INITCMD[] = {
       0xEF, 0,
       0xEB, 1, 0x14,
       0xFE, 0,

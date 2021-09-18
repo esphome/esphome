@@ -229,9 +229,8 @@ void GC9A01Display::invert_display_(bool invert) { this->command(invert ? GC9A01
 int GC9A01Display::get_width_internal() { return this->width_; }
 int GC9A01Display::get_height_internal() { return this->height_; }
 
-//   M5Stack display
-void GC9A01M5Stack::initialize() {
-  this->init_lcd_(INITCMD_M5STACK);
+void GC9A01Display::initialize() {
+  this->init_lcd_(INITCMD);
   this->width_ = 240;
   this->height_ = 240;
   this->invert_display_(true);
