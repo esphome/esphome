@@ -17,20 +17,11 @@ static const char *const TAGL = "graphlegend";
 
 void HistoryData::init(int length) {
   this->length_ = length;
-  this->data_ = new (std::nothrow) float[length];
-  if (this->data_ == nullptr) {
-    ESP_LOGE(TAG, "Could not allocate HistoryData buffer!");
-    return;
-  }
-  std::fill(data_, data_ + length_, NAN);
+  this->samples_.resize(length, NAN);
   this->last_sample_ = millis();
 }
-HistoryData::~HistoryData() { delete[](this->data_); }
 
 void HistoryData::take_sample(float data) {
-  if (data_ == nullptr)
-    // init allocation failed
-    return;
   uint32_t tm = millis();
   uint32_t dt = tm - last_sample_;
   last_sample_ = tm;
@@ -38,7 +29,7 @@ void HistoryData::take_sample(float data) {
   // Step data based on time
   this->period_ += dt;
   while (this->period_ >= this->update_time_) {
-    this->data_[this->count_] = data;
+    this->samples_[this->count_] = data;
     this->period_ -= this->update_time_;
     this->count_ = (this->count_ + 1) % this->length_;
     ESP_LOGV(TAG, "Updating trace with value: %f", data);
@@ -48,11 +39,11 @@ void HistoryData::take_sample(float data) {
     this->recent_min_ = data;
     this->recent_max_ = data;
     for (int i = 0; i < this->length_; i++) {
-      if (!isnan(this->data_[i])) {
-        if (this->recent_max_ < this->data_[i])
-          this->recent_max_ = this->data_[i];
-        if (this->recent_min_ > this->data_[i])
-          this->recent_min_ = this->data_[i];
+      if (!isnan(this->samples_[i])) {
+        if (this->recent_max_ < this->samples_[i])
+          this->recent_max_ = this->samples_[i];
+        if (this->recent_min_ > this->samples_[i])
+          this->recent_min_ = this->samples_[i];
       }
     }
   }

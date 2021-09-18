@@ -88,7 +88,7 @@ class HistoryData {
   void set_update_time_ms(uint32_t update_time_ms) { update_time_ = update_time_ms; }
   void take_sample(float data);
   int get_length() const { return length_; }
-  float get_value(int idx) const { return data_[(count_ + length_ - 1 - idx) % length_]; }
+  float get_value(int idx) const { return samples_[(count_ + length_ - 1 - idx) % length_]; }
   float get_recent_max() const { return recent_max_; }
   float get_recent_min() const { return recent_min_; }
 
@@ -100,7 +100,7 @@ class HistoryData {
   int count_{0};
   float recent_min_{NAN};
   float recent_max_{NAN};
-  float *data_ = nullptr;
+  std::vector<float> samples_;
 };
 
 class GraphTrace {
