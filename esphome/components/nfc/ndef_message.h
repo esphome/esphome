@@ -20,7 +20,7 @@ class NdefMessage {
   NdefMessage(const NdefMessage &msg) {
     records_.reserve(msg.records_.size());
     for (const auto &r : msg.records_) {
-      records_.emplace_back(make_unique<NdefRecord>(*r));
+      records_.emplace_back(r->clone());
     }
   }
 

@@ -24,13 +24,11 @@ class NdefRecordText : public NdefRecord {
     this->text_ = text;
     this->id_ = id;
   };
-  NdefRecordText(const NdefRecordText &rhs) {
-    this->tnf_ = rhs.tnf_;
-    this->type_ = rhs.type_;
+  NdefRecordText(const NdefRecordText &rhs) : NdefRecord(rhs) {
     this->text_ = rhs.text_;
     this->langCode_ = rhs.langCode_;
-    this->id_ = rhs.id_;
   };
+  std::unique_ptr<NdefRecord> clone() const override { return make_unique<NdefRecordText>(*this); };
 
   std::vector<uint8_t> getEncodedPayload() override;
 

@@ -60,12 +60,9 @@ class NdefRecordUri : public NdefRecord {
     this->URI_ = URI;
     this->id_ = id;
   };
-  NdefRecordUri(const NdefRecordUri &rhs) {
-    this->tnf_ = rhs.tnf_;
-    this->type_ = rhs.type_;
-    this->URI_ = rhs.URI_;
-    this->id_ = rhs.id_;
-  };
+  NdefRecordUri(const NdefRecordUri &rhs) : NdefRecord(rhs) { this->URI_ = rhs.URI_; };
+  std::unique_ptr<NdefRecord> clone() const override { return make_unique<NdefRecordUri>(*this); };
+
   void set_URI(const std::string &URI) { this->URI_ = URI; };
 
   std::vector<uint8_t> getEncodedPayload() override;
