@@ -77,8 +77,7 @@ def validate_gpio_pin(value):
             raise cv.Invalid(f"ESP32-C3: Invalid pin number: {value}")
         if value in _ESP32C3_SDIO_PINS:
             raise cv.Invalid(
-                "This pin cannot be used on ESP32-C3s and is already used by "
-                "the flash interface (function: {})".format(_ESP_SDIO_PINS[value])
+                f"This pin cannot be used on ESP32-C3s and is already used by the flash interface (function: {_ESP_SDIO_PINS[value]})"
             )
         return value
     if CORE.is_esp32:
@@ -86,8 +85,7 @@ def validate_gpio_pin(value):
             raise cv.Invalid(f"ESP32: Invalid pin number: {value}")
         if value in _ESP_SDIO_PINS:
             raise cv.Invalid(
-                "This pin cannot be used on ESP32s and is already used by "
-                "the flash interface (function: {})".format(_ESP_SDIO_PINS[value])
+                f"This pin cannot be used on ESP32s and is already used by the flash interface (function: {_ESP_SDIO_PINS[value]})"
             )
         if 9 <= value <= 10:
             _LOGGER.warning(
@@ -105,8 +103,7 @@ def validate_gpio_pin(value):
             raise cv.Invalid(f"ESP8266: Invalid pin number: {value}")
         if value in _ESP_SDIO_PINS:
             raise cv.Invalid(
-                "This pin cannot be used on ESP8266s and is already used by "
-                "the flash interface (function: {})".format(_ESP_SDIO_PINS[value])
+                f"This pin cannot be used on ESP8266s and is already used by the flash interface (function: {_ESP_SDIO_PINS[value]})"
             )
         if 9 <= value <= 10:
             _LOGGER.warning(
@@ -144,8 +141,7 @@ def output_pin(value):
     if CORE.is_esp32:
         if 34 <= value <= 39:
             raise cv.Invalid(
-                "ESP32: GPIO{} (34-39) can only be used as an "
-                "input pin.".format(value)
+                f"ESP32: GPIO{value} (34-39) can only be used as an input pin."
             )
         return value
     if CORE.is_esp8266:
@@ -278,8 +274,7 @@ def validate_has_interrupt(value):
     if CORE.is_esp8266:
         if value[CONF_NUMBER] >= 16:
             raise cv.Invalid(
-                "Pins GPIO16 and GPIO17 do not support interrupts and cannot be used "
-                "here, got {}".format(value[CONF_NUMBER])
+                f"Pins GPIO16 and GPIO17 do not support interrupts and cannot be used here, got {value[CONF_NUMBER]}"
             )
     return value
 

@@ -182,7 +182,7 @@ class ArrayInitializer(Expression):
                 cpp += f"  {arg},\n"
             cpp += "}"
         else:
-            cpp = "{" + ", ".join(str(arg) for arg in self.args) + "}"
+            cpp = f"{{{', '.join(str(arg) for arg in self.args)}}}"
         return cpp
 
 
@@ -348,13 +348,11 @@ def safe_exp(obj: SafeExpType) -> Expression:
         return float_
     if isinstance(obj, ID):
         raise ValueError(
-            "Object {} is an ID. Did you forget to register the variable?"
-            "".format(obj)
+            f"Object {obj} is an ID. Did you forget to register the variable?"
         )
     if inspect.isgenerator(obj):
         raise ValueError(
-            "Object {} is a coroutine. Did you forget to await the expression with "
-            "'await'?".format(obj)
+            f"Object {obj} is a coroutine. Did you forget to await the expression with 'await'?"
         )
     raise ValueError("Object is not an expression", obj)
 
@@ -703,7 +701,7 @@ class MockObj(Expression):
         return str(self.base)
 
     def __repr__(self):
-        return "MockObj<{}>".format(str(self.base))
+        return f"MockObj<{str(self.base)}>"
 
     @property
     def _(self) -> "MockObj":
@@ -761,7 +759,7 @@ class MockObjEnum(MockObj):
         self._is_class = kwargs.pop("is_class")
         base = kwargs.pop("base")
         if self._is_class:
-            base = base + "::" + self._enum
+            base = f"{base}::{self._enum}"
             kwargs["op"] = "::"
         kwargs["base"] = base
         MockObj.__init__(self, *args, **kwargs)

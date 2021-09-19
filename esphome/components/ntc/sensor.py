@@ -105,9 +105,7 @@ def process_calibration(value):
         a, b, c = calc_steinhart_hart(value)
     else:
         raise cv.Invalid(
-            "Calibration parameter accepts either a list for steinhart-hart "
-            "calibration, or mapping for b-constant calibration, "
-            "not {}".format(type(value))
+            f"Calibration parameter accepts either a list for steinhart-hart calibration, or mapping for b-constant calibration, not {type(value)}"
         )
 
     return {

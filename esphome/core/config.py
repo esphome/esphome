@@ -61,9 +61,7 @@ def validate_board(value: str):
 
     if value not in boardlist:
         raise cv.Invalid(
-            "Could not find board '{}'. Valid boards are {}".format(
-                value, ", ".join(sorted(boardlist))
-            )
+            f"Could not find board '{value}'. Valid boards are {', '.join(sorted(boardlist))}"
         )
     return value
 
@@ -102,9 +100,7 @@ def validate_arduino_version(value):
             and value_ not in PLATFORMIO_ESP8266_LUT
         ):
             raise cv.Invalid(
-                "Unfortunately the arduino framework version '{}' is unsupported "
-                "at this time. You can override this by manually using "
-                "espressif8266@<platformio version>".format(value)
+                f"Unfortunately the arduino framework version '{value}' is unsupported at this time. You can override this by manually using espressif8266@<platformio version>"
             )
         if value_ in PLATFORMIO_ESP8266_LUT:
             return PLATFORMIO_ESP8266_LUT[value_]
@@ -115,9 +111,7 @@ def validate_arduino_version(value):
             and value_ not in PLATFORMIO_ESP32_LUT
         ):
             raise cv.Invalid(
-                "Unfortunately the arduino framework version '{}' is unsupported "
-                "at this time. You can override this by manually using "
-                "espressif32@<platformio version>".format(value)
+                f"Unfortunately the arduino framework version '{value}' is unsupported at this time. You can override this by manually using espressif32@<platformio version>"
             )
         if value_ in PLATFORMIO_ESP32_LUT:
             return PLATFORMIO_ESP32_LUT[value_]
@@ -141,8 +135,7 @@ def valid_include(value):
     _, ext = os.path.splitext(value)
     if ext not in VALID_INCLUDE_EXTS:
         raise cv.Invalid(
-            "Include has invalid file extension {} - valid extensions are {}"
-            "".format(ext, ", ".join(VALID_INCLUDE_EXTS))
+            f"Include has invalid file extension {ext} - valid extensions are {', '.join(VALID_INCLUDE_EXTS)}"
         )
     return value
 

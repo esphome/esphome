@@ -51,8 +51,7 @@ def validate_scan_parameters(config):
 
     if window > interval:
         raise cv.Invalid(
-            "Scan window ({}) needs to be smaller than scan interval ({})"
-            "".format(window, interval)
+            f"Scan window ({window}) needs to be smaller than scan interval ({interval})"
         )
 
     if interval.total_milliseconds * 3 > duration.total_milliseconds:
@@ -97,9 +96,7 @@ def bt_uuid(value):
             )
         return value
     raise cv.Invalid(
-        "Service UUID must be in 16 bit '{}', 32 bit '{}', or 128 bit '{}' format".format(
-            bt_uuid16_format, bt_uuid32_format, bt_uuid128_format
-        )
+        f"Service UUID must be in 16 bit '{bt_uuid16_format}', 32 bit '{bt_uuid32_format}', or 128 bit '{bt_uuid128_format}' format"
     )
 
 
@@ -112,9 +109,7 @@ def as_hex_array(value):
     cpp_array = [
         f"0x{part}" for part in [value[i : i + 2] for i in range(0, len(value), 2)]
     ]
-    return cg.RawExpression(
-        "(uint8_t*)(const uint8_t[16]){{{}}}".format(",".join(cpp_array))
-    )
+    return cg.RawExpression(f"(uint8_t*)(const uint8_t[16]){{{','.join(cpp_array)}}}")
 
 
 def as_reversed_hex_array(value):
@@ -123,7 +118,7 @@ def as_reversed_hex_array(value):
         f"0x{part}" for part in [value[i : i + 2] for i in range(0, len(value), 2)]
     ]
     return cg.RawExpression(
-        "(uint8_t*)(const uint8_t[16]){{{}}}".format(",".join(reversed(cpp_array)))
+        f"(uint8_t*)(const uint8_t[16]){{{','.join(reversed(cpp_array))}}}"
     )
 
 

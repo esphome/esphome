@@ -42,7 +42,7 @@ def iter_components(config):
             yield domain, component, conf
         if component.is_platform_component:
             for p_config in conf:
-                p_name = "{}.{}".format(domain, p_config[CONF_PLATFORM])
+                p_name = f"{domain}.{p_config[CONF_PLATFORM]}"
                 platform = get_platform(domain, p_config[CONF_PLATFORM])
                 yield p_name, platform, p_config
 
@@ -238,10 +238,7 @@ def do_id_pass(result):  # type: (Config) -> None
                 # No declared ID with this name
                 import difflib
 
-                error = (
-                    "Couldn't find ID '{}'. Please check you have defined "
-                    "an ID with that name in your configuration.".format(id.id)
-                )
+                error = f"Couldn't find ID '{id.id}'. Please check you have defined an ID with that name in your configuration."
                 # Find candidates
                 matches = difflib.get_close_matches(
                     id.id, [v[0].id for v in result.declare_ids if v[0].is_manual]
@@ -257,9 +254,7 @@ def do_id_pass(result):  # type: (Config) -> None
                 continue
             if not match.type.inherits_from(id.type):
                 result.add_str_error(
-                    "ID '{}' of type {} doesn't inherit from {}. Please "
-                    "double check your ID is pointing to the correct value"
-                    "".format(id.id, match.type, id.type),
+                    f"ID '{id.id}' of type {match.type} doesn't inherit from {id.type}. Please double check your ID is pointing to the correct value",
                     path,
                 )
 
@@ -497,7 +492,7 @@ def validate_config(config, command_line_substitutions):
         for dependency in comp.dependencies:
             if dependency not in config:
                 result.add_str_error(
-                    "Component {} requires component {}" "".format(domain, dependency),
+                    f"Component {domain} requires component {dependency}",
                     path,
                 )
                 success = False
@@ -508,8 +503,7 @@ def validate_config(config, command_line_substitutions):
         for conflict in comp.conflicts_with:
             if conflict in config:
                 result.add_str_error(
-                    "Component {} cannot be used together with component {}"
-                    "".format(domain, conflict),
+                    f"Component {domain} cannot be used together with component {conflict}",
                     path,
                 )
                 success = False
@@ -518,7 +512,7 @@ def validate_config(config, command_line_substitutions):
 
         if CORE.esp_platform not in comp.esp_platforms:
             result.add_str_error(
-                "Component {} doesn't support {}.".format(domain, CORE.esp_platform),
+                f"Component {domain} doesn't support {CORE.esp_platform}.",
                 path,
             )
             continue
@@ -529,8 +523,7 @@ def validate_config(config, command_line_substitutions):
             and not isinstance(conf, core.AutoLoad)
         ):
             result.add_str_error(
-                "Component {} cannot be loaded via YAML "
-                "(no CONFIG_SCHEMA).".format(domain),
+                f"Component {domain} cannot be loaded via YAML (no CONFIG_SCHEMA).",
                 path,
             )
             continue
@@ -540,8 +533,7 @@ def validate_config(config, command_line_substitutions):
                 result[domain] = conf = [conf]
             if not isinstance(comp.multi_conf, bool) and len(conf) > comp.multi_conf:
                 result.add_str_error(
-                    "Component {} supports a maximum of {} "
-                    "entries ({} found).".format(domain, comp.multi_conf, len(conf)),
+                    f"Component {domain} supports a maximum of {comp.multi_conf} entries ({len(conf)} found).",
                     path,
                 )
                 continue
@@ -636,18 +628,14 @@ def _format_vol_invalid(ex, config):
 
     if isinstance(ex, ExtraKeysInvalid):
         if ex.candidates:
-            message += "[{}] is an invalid option for [{}]. Did you mean {}?".format(
-                ex.path[-1], paren, ", ".join(f"[{x}]" for x in ex.candidates)
-            )
+            message += f"[{ex.path[-1]}] is an invalid option for [{paren}]. Did you mean {', '.join(f'[{x}]' for x in ex.candidates)}?"
         else:
-            message += "[{}] is an invalid option for [{}]. Please check the indentation.".format(
-                ex.path[-1], paren
-            )
+            message += f"[{ex.path[-1]}] is an invalid option for [{paren}]. Please check the indentation."
     elif "extra keys not allowed" in str(ex):
-        message += "[{}] is an invalid option for [{}].".format(ex.path[-1], paren)
+        message += f"[{ex.path[-1]}] is an invalid option for [{paren}]."
     elif isinstance(ex, vol.RequiredFieldInvalid):
         if ex.msg == "required key not provided":
-            message += "'{}' is a required option for [{}].".format(ex.path[-1], paren)
+            message += f"'{ex.path[-1]}' is a required option for [{paren}]."
         else:
             # Required has set a custom error message
             message += ex.msg
@@ -700,7 +688,7 @@ def line_info(config, path, highlight=True):
     obj = config.get_deepest_document_range_for_path(path)
     if obj:
         mark = obj.start_mark
-        source = "[source {}:{}]".format(mark.document, mark.line + 1)
+        source = f"[source {mark.document}:{mark.line + 1}]"
         return color(Fore.CYAN, source)
     return "None"
 
@@ -724,9 +712,7 @@ def dump_dict(config, path, at_root=True):
     if at_root:
         error = config.get_error_for_path(path)
         if error is not None:
-            ret += (
-                "\n" + color(Fore.BOLD_RED, _format_vol_invalid(error, config)) + "\n"
-            )
+            ret += f"\n{color(Fore.BOLD_RED, _format_vol_invalid(error, config))}\n"
 
     if isinstance(conf, (list, tuple)):
         multiline = True
@@ -738,11 +724,7 @@ def dump_dict(config, path, at_root=True):
             path_ = path + [i]
             error = config.get_error_for_path(path_)
             if error is not None:
-                ret += (
-                    "\n"
-                    + color(Fore.BOLD_RED, _format_vol_invalid(error, config))
-                    + "\n"
-                )
+                ret += f"\n{color(Fore.BOLD_RED, _format_vol_invalid(error, config))}\n"
 
             sep = "- "
             if config.is_in_error_path(path_):
@@ -751,10 +733,10 @@ def dump_dict(config, path, at_root=True):
             msg = indent(msg)
             inf = line_info(config, path_, highlight=config.is_in_error_path(path_))
             if inf is not None:
-                msg = inf + "\n" + msg
+                msg = f"{inf}\n{msg}"
             elif msg:
                 msg = msg[2:]
-            ret += sep + msg + "\n"
+            ret += f"{sep + msg}\n"
     elif isinstance(conf, dict):
         multiline = True
         if not conf:
@@ -765,11 +747,7 @@ def dump_dict(config, path, at_root=True):
             path_ = path + [k]
             error = config.get_error_for_path(path_)
             if error is not None:
-                ret += (
-                    "\n"
-                    + color(Fore.BOLD_RED, _format_vol_invalid(error, config))
-                    + "\n"
-                )
+                ret += f"\n{color(Fore.BOLD_RED, _format_vol_invalid(error, config))}\n"
 
             st = f"{k}: "
             if config.is_in_error_path(path_):
@@ -778,30 +756,30 @@ def dump_dict(config, path, at_root=True):
 
             inf = line_info(config, path_, highlight=config.is_in_error_path(path_))
             if m:
-                msg = "\n" + indent(msg)
+                msg = f"\n{indent(msg)}"
 
             if inf is not None:
                 if m:
-                    msg = " " + inf + msg
+                    msg = f" {inf}{msg}"
                 else:
-                    msg = msg + " " + inf
-            ret += st + msg + "\n"
+                    msg = f"{msg} {inf}"
+            ret += f"{st + msg}\n"
     elif isinstance(conf, str):
         if is_secret(conf):
-            conf = "!secret {}".format(is_secret(conf))
+            conf = f"!secret {is_secret(conf)}"
         if not conf:
             conf += "''"
 
         if len(conf) > 80:
-            conf = "|-\n" + indent(conf)
+            conf = f"|-\n{indent(conf)}"
         error = config.get_error_for_path(path)
         col = Fore.BOLD_RED if error else Fore.KEEP
         ret += color(col, str(conf))
     elif isinstance(conf, core.Lambda):
         if is_secret(conf):
-            conf = "!secret {}".format(is_secret(conf))
+            conf = f"!secret {is_secret(conf)}"
 
-        conf = "!lambda |-\n" + indent(str(conf.value))
+        conf = f"!lambda |-\n{indent(str(conf.value))}"
         error = config.get_error_for_path(path)
         col = Fore.BOLD_RED if error else Fore.KEEP
         ret += color(col, conf)
@@ -860,7 +838,7 @@ def read_config(command_line_substitutions):
             errstr = color(Fore.BOLD_RED, f"{domain}:")
             errline = line_info(res, path)
             if errline:
-                errstr += " " + errline
+                errstr += f" {errline}"
             safe_print(errstr)
             safe_print(indent(dump_dict(res, path)[0]))
         return None
