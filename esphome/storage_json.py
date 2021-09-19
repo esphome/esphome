@@ -94,7 +94,7 @@ class StorageJSON:
         }
 
     def to_json(self):
-        return json.dumps(self.as_dict(), indent=2) + "\n"
+        return f"{json.dumps(self.as_dict(), indent=2)}\n"
 
     def save(self, path):
         write_file_if_changed(path, self.to_json())
@@ -214,7 +214,7 @@ class EsphomeStorageJSON:
         self.last_update_check_str = new.strftime("%Y-%m-%dT%H:%M:%S")
 
     def to_json(self):  # type: () -> dict
-        return json.dumps(self.as_dict(), indent=2) + "\n"
+        return f"{json.dumps(self.as_dict(), indent=2)}\n"
 
     def save(self, path):  # type: (str) -> None
         write_file_if_changed(path, self.to_json())

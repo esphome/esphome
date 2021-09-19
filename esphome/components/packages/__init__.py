@@ -151,8 +151,7 @@ def do_packages_pass(config: dict):
         packages = CONFIG_SCHEMA(packages)
         if not isinstance(packages, dict):
             raise cv.Invalid(
-                "Packages must be a key to value mapping, got {} instead"
-                "".format(type(packages))
+                f"Packages must be a key to value mapping, got {type(packages)} instead"
             )
 
         for package_name, package_config in packages.items():

@@ -491,8 +491,7 @@ def validate_raw_alternating(value):
         if i != 0:
             if this_negative == last_negative:
                 raise cv.Invalid(
-                    "Values must alternate between being positive and negative, "
-                    "please see index {} and {}".format(i, i + 1),
+                    f"Values must alternate between being positive and negative, please see index {i} and {i + 1}",
                     [i],
                 )
         last_negative = this_negative
@@ -619,13 +618,11 @@ def validate_rc_switch_code(value):
     for c in value:
         if c not in ("0", "1"):
             raise cv.Invalid(
-                "Invalid RCSwitch code character '{}'. Only '0' and '1' are allowed"
-                "".format(c)
+                f"Invalid RCSwitch code character '{c}'. Only '0' and '1' are allowed"
             )
     if len(value) > 64:
         raise cv.Invalid(
-            "Maximum length for RCSwitch codes is 64, code '{}' has length {}"
-            "".format(value, len(value))
+            f"Maximum length for RCSwitch codes is 64, code '{value}' has length {len(value)}"
         )
     if not value:
         raise cv.Invalid("RCSwitch code must not be empty")
@@ -638,14 +635,11 @@ def validate_rc_switch_raw_code(value):
     for c in value:
         if c not in ("0", "1", "x"):
             raise cv.Invalid(
-                "Invalid RCSwitch raw code character '{}'.Only '0', '1' and 'x' are allowed".format(
-                    c
-                )
+                f"Invalid RCSwitch raw code character '{c}'.Only '0', '1' and 'x' are allowed"
             )
     if len(value) > 64:
         raise cv.Invalid(
-            "Maximum length for RCSwitch raw codes is 64, code '{}' has length {}"
-            "".format(value, len(value))
+            f"Maximum length for RCSwitch raw codes is 64, code '{value}' has length {len(value)}"
         )
     if not value:
         raise cv.Invalid("RCSwitch raw code must not be empty")

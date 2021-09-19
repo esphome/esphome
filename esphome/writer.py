@@ -96,7 +96,7 @@ def get_include_text():
             includes = "\n".join(includes)
         if not includes:
             continue
-        include_text += includes + "\n"
+        include_text += f"{includes}\n"
     return include_text
 
 
@@ -134,7 +134,7 @@ def migrate_src_version_0_to_1():
         content, count = replace_file_content(
             content,
             r'#include "esphomelib/application.h"',
-            CPP_INCLUDE_BEGIN + "\n" + CPP_INCLUDE_END,
+            f"{CPP_INCLUDE_BEGIN}\n{CPP_INCLUDE_END}",
         )
         if count == 0:
             _LOGGER.error(
@@ -322,7 +322,7 @@ def write_platformio_ini(content):
         )
     else:
         content_format = INI_BASE_FORMAT
-    full_file = content_format[0] + INI_AUTO_GENERATE_BEGIN + "\n" + content
+    full_file = f"{content_format[0] + INI_AUTO_GENERATE_BEGIN}\n{content}"
     full_file += INI_AUTO_GENERATE_END + content_format[1]
     write_file_if_changed(path, full_file)
 
@@ -444,9 +444,9 @@ def write_cpp(code_s):
     global_s = '#include "esphome.h"\n'
     global_s += CORE.cpp_global_section
 
-    full_file = code_format[0] + CPP_INCLUDE_BEGIN + "\n" + global_s + CPP_INCLUDE_END
+    full_file = f"{code_format[0] + CPP_INCLUDE_BEGIN}\n{global_s}{CPP_INCLUDE_END}"
     full_file += (
-        code_format[1] + CPP_AUTO_GENERATE_BEGIN + "\n" + code_s + CPP_AUTO_GENERATE_END
+        f"{code_format[1] + CPP_AUTO_GENERATE_BEGIN}\n{code_s}{CPP_AUTO_GENERATE_END}"
     )
     full_file += code_format[2]
     write_file_if_changed(path, full_file)

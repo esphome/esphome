@@ -368,7 +368,7 @@ class WizardRequestHandler(BaseHandler):
             if k in ("name", "platform", "board", "ssid", "psk", "password")
         }
         kwargs["ota_password"] = secrets.token_hex(16)
-        destination = settings.rel_path(kwargs["name"] + ".yaml")
+        destination = settings.rel_path(f"{kwargs['name']}.yaml")
         wizard.wizard_write(path=destination, **kwargs)
         self.set_status(200)
         self.finish()
@@ -512,7 +512,7 @@ class MDNSStatusThread(threading.Thread):
         while not STOP_EVENT.is_set():
             entries = _list_dashboard_entries()
             stat.request_query(
-                {entry.filename: entry.name + ".local." for entry in entries}
+                {entry.filename: f"{entry.name}.local." for entry in entries}
             )
 
             PING_REQUEST.wait()
@@ -795,27 +795,27 @@ def make_app(debug=get_bool_env(ENV_DEV)):
     rel = settings.relative_url
     app = tornado.web.Application(
         [
-            (rel + "", MainRequestHandler),
-            (rel + "login", LoginHandler),
-            (rel + "logout", LogoutHandler),
-            (rel + "logs", EsphomeLogsHandler),
-            (rel + "upload", EsphomeUploadHandler),
-            (rel + "compile", EsphomeCompileHandler),
-            (rel + "validate", EsphomeValidateHandler),
-            (rel + "clean-mqtt", EsphomeCleanMqttHandler),
-            (rel + "clean", EsphomeCleanHandler),
-            (rel + "vscode", EsphomeVscodeHandler),
-            (rel + "ace", EsphomeAceEditorHandler),
-            (rel + "update-all", EsphomeUpdateAllHandler),
-            (rel + "info", InfoRequestHandler),
-            (rel + "edit", EditRequestHandler),
-            (rel + "download.bin", DownloadBinaryRequestHandler),
-            (rel + "serial-ports", SerialPortRequestHandler),
-            (rel + "ping", PingRequestHandler),
-            (rel + "delete", DeleteRequestHandler),
-            (rel + "undo-delete", UndoDeleteRequestHandler),
-            (rel + "wizard.html", WizardRequestHandler),
-            (rel + r"static/(.*)", StaticFileHandler, {"path": get_static_path()}),
+            (f"{rel}", MainRequestHandler),
+            (f"{rel}login", LoginHandler),
+            (f"{rel}logout", LogoutHandler),
+            (f"{rel}logs", EsphomeLogsHandler),
+            (f"{rel}upload", EsphomeUploadHandler),
+            (f"{rel}compile", EsphomeCompileHandler),
+            (f"{rel}validate", EsphomeValidateHandler),
+            (f"{rel}clean-mqtt", EsphomeCleanMqttHandler),
+            (f"{rel}clean", EsphomeCleanHandler),
+            (f"{rel}vscode", EsphomeVscodeHandler),
+            (f"{rel}ace", EsphomeAceEditorHandler),
+            (f"{rel}update-all", EsphomeUpdateAllHandler),
+            (f"{rel}info", InfoRequestHandler),
+            (f"{rel}edit", EditRequestHandler),
+            (f"{rel}download.bin", DownloadBinaryRequestHandler),
+            (f"{rel}serial-ports", SerialPortRequestHandler),
+            (f"{rel}ping", PingRequestHandler),
+            (f"{rel}delete", DeleteRequestHandler),
+            (f"{rel}undo-delete", UndoDeleteRequestHandler),
+            (f"{rel}wizard.html", WizardRequestHandler),
+            (f"{rel}static/(.*)", StaticFileHandler, {"path": get_static_path()}),
         ],
         **app_settings,
     )

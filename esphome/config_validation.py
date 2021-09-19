@@ -277,8 +277,7 @@ def string_strict(value):
     if isinstance(value, str):
         return value
     raise Invalid(
-        "Must be string, got {}. did you forget putting quotes "
-        "around the value?".format(type(value))
+        f"Must be string, got {type(value)}. did you forget putting quotes around the value?"
     )
 
 
@@ -311,8 +310,7 @@ def boolean(value):
         if value in ("false", "no", "off", "disable"):
             return False
     raise Invalid(
-        "Expected boolean value, but cannot convert {} to a boolean. "
-        "Please use 'true' or 'false'".format(value)
+        f"Expected boolean value, but cannot convert {value} to a boolean. Please use 'true' or 'false'"
     )
 
 
@@ -358,8 +356,7 @@ def int_(value):
         if int(value) == value:
             return int(value)
         raise Invalid(
-            "This option only accepts integers with no fractional part. Please remove "
-            "the fractional part from {}".format(value)
+            f"This option only accepts integers with no fractional part. Please remove the fractional part from {value}"
         )
     value = string_strict(value).lower()
     base = 10
@@ -424,20 +421,17 @@ def validate_id_name(value):
         raise Invalid(
             "Dashes are not supported in IDs, please use underscores instead."
         )
-    valid_chars = ascii_letters + digits + "_"
+    valid_chars = f"{ascii_letters + digits}_"
     for char in value:
         if char not in valid_chars:
             raise Invalid(
-                "IDs must only consist of upper/lowercase characters, the underscore"
-                "character and numbers. The character '{}' cannot be used"
-                "".format(char)
+                f"IDs must only consist of upper/lowercase characters, the underscorecharacter and numbers. The character '{char}' cannot be used"
             )
     if value in RESERVED_IDS:
         raise Invalid(f"ID '{value}' is reserved internally and cannot be used")
     if value in CORE.loaded_integrations:
         raise Invalid(
-            "ID '{}' conflicts with the name of an esphome integration, please use "
-            "another ID name.".format(value)
+            f"ID '{value}' conflicts with the name of an esphome integration, please use another ID name."
         )
     return value
 
@@ -525,7 +519,7 @@ def has_at_least_one_key(*keys):
             raise Invalid("expected dictionary")
 
         if not any(k in keys for k in obj):
-            raise Invalid("Must contain at least one of {}.".format(", ".join(keys)))
+            raise Invalid(f"Must contain at least one of {', '.join(keys)}.")
         return obj
 
     return validate
@@ -540,9 +534,9 @@ def has_exactly_one_key(*keys):
 
         number = sum(k in keys for k in obj)
         if number > 1:
-            raise Invalid("Cannot specify more than one of {}.".format(", ".join(keys)))
+            raise Invalid(f"Cannot specify more than one of {', '.join(keys)}.")
         if number < 1:
-            raise Invalid("Must contain exactly one of {}.".format(", ".join(keys)))
+            raise Invalid(f"Must contain exactly one of {', '.join(keys)}.")
         return obj
 
     return validate
@@ -557,7 +551,7 @@ def has_at_most_one_key(*keys):
 
         number = sum(k in keys for k in obj)
         if number > 1:
-            raise Invalid("Cannot specify more than one of {}.".format(", ".join(keys)))
+            raise Invalid(f"Cannot specify more than one of {', '.join(keys)}.")
         return obj
 
     return validate
@@ -572,9 +566,7 @@ def has_none_or_all_keys(*keys):
 
         number = sum(k in keys for k in obj)
         if number != 0 and number != len(keys):
-            raise Invalid(
-                "Must specify either none or all of {}.".format(", ".join(keys))
-            )
+            raise Invalid(f"Must specify either none or all of {', '.join(keys)}.")
         return obj
 
     return validate
@@ -632,8 +624,7 @@ def time_period_str_unit(value):
 
     if isinstance(value, int):
         raise Invalid(
-            "Don't know what '{0}' means as it has no time *unit*! Did you mean "
-            "'{0}s'?".format(value)
+            f"Don't know what '{value}' means as it has no time *unit*! Did you mean '{value}s'?"
         )
     if isinstance(value, TimePeriod):
         value = str(value)
@@ -659,7 +650,7 @@ def time_period_str_unit(value):
     match = re.match(r"^([-+]?[0-9]*\.?[0-9]*)\s*(\w*)$", value)
 
     if match is None:
-        raise Invalid("Expected time period with unit, " "got {}".format(value))
+        raise Invalid(f"Expected time period with unit, got {value}")
     kwarg = unit_to_kwarg[one_of(*unit_to_kwarg)(match.group(2))]
 
     return TimePeriod(**{kwarg: float(match.group(1))})
@@ -796,7 +787,7 @@ METRIC_SUFFIXES = {
 
 def float_with_unit(quantity, regex_suffix, optional_unit=False):
     pattern = re.compile(
-        r"^([-+]?[0-9]*\.?[0-9]*)\s*(\w*?)" + regex_suffix + r"$", re.UNICODE
+        f"^([-+]?[0-9]*\\.?[0-9]*)\\s*(\\w*?){regex_suffix}$", re.UNICODE
     )
 
     def validator(value):
@@ -812,7 +803,7 @@ def float_with_unit(quantity, regex_suffix, optional_unit=False):
 
         mantissa = float(match.group(1))
         if match.group(2) not in METRIC_SUFFIXES:
-            raise Invalid("Invalid {} suffix {}".format(quantity, match.group(2)))
+            raise Invalid(f"Invalid {quantity} suffix {match.group(2)}")
 
         multiplier = METRIC_SUFFIXES[match.group(2)]
         return mantissa * multiplier
@@ -879,12 +870,11 @@ def validate_bytes(value):
 
     mantissa = int(match.group(1))
     if match.group(2) not in METRIC_SUFFIXES:
-        raise Invalid("Invalid metric suffix {}".format(match.group(2)))
+        raise Invalid(f"Invalid metric suffix {match.group(2)}")
     multiplier = METRIC_SUFFIXES[match.group(2)]
     if multiplier < 1:
         raise Invalid(
-            "Only suffixes with positive exponents are supported. "
-            "Got {}".format(match.group(2))
+            f"Only suffixes with positive exponents are supported. Got {match.group(2)}"
         )
     return int(mantissa * multiplier)
 
@@ -1184,10 +1174,8 @@ def one_of(*values, **kwargs):
             option = str(value)
             matches = difflib.get_close_matches(option, options_)
             if matches:
-                raise Invalid(
-                    "Unknown value '{}', did you mean {}?"
-                    "".format(value, ", ".join(f"'{x}'" for x in matches))
-                )
+                matches_str = ", ".join(f"'{x}'" for x in matches)
+                raise Invalid(f"Unknown value '{value}', did you mean {matches_str}?")
             raise Invalid(f"Unknown value '{value}', valid options are {options}.")
         return value
 
@@ -1229,13 +1217,10 @@ def lambda_(value):
     entity_id_parts = re.split(LAMBDA_ENTITY_ID_PROG, value.value)
     if len(entity_id_parts) != 1:
         entity_ids = " ".join(
-            "'{}'".format(entity_id_parts[i]) for i in range(1, len(entity_id_parts), 2)
+            f"'{entity_id_parts[i]}'" for i in range(1, len(entity_id_parts), 2)
         )
         raise Invalid(
-            "Lambda contains reference to entity-id-style ID {}. "
-            "The id() wrapper only works for ESPHome-internal types. For importing "
-            "states from Home Assistant use the 'homeassistant' sensor platforms."
-            "".format(entity_ids)
+            f"Lambda contains reference to entity-id-style ID {entity_ids}. The id() wrapper only works for ESPHome-internal types. For importing states from Home Assistant use the 'homeassistant' sensor platforms."
         )
     return value
 
@@ -1259,9 +1244,7 @@ def returning_lambda(value):
 def dimensions(value):
     if isinstance(value, list):
         if len(value) != 2:
-            raise Invalid(
-                "Dimensions must have a length of two, not {}".format(len(value))
-            )
+            raise Invalid(f"Dimensions must have a length of two, not {len(value)}")
         try:
             width, height = int(value[0]), int(value[1])
         except ValueError:
@@ -1301,19 +1284,16 @@ def directory(value):
         if data["content"]:
             return value
         raise Invalid(
-            "Could not find directory '{}'. Please make sure it exists (full path: {})."
-            "".format(path, os.path.abspath(path))
+            f"Could not find directory '{path}'. Please make sure it exists (full path: {os.path.abspath(path)})."
         )
 
     if not os.path.exists(path):
         raise Invalid(
-            "Could not find directory '{}'. Please make sure it exists (full path: {})."
-            "".format(path, os.path.abspath(path))
+            f"Could not find directory '{path}'. Please make sure it exists (full path: {os.path.abspath(path)})."
         )
     if not os.path.isdir(path):
         raise Invalid(
-            "Path '{}' is not a directory (full path: {})."
-            "".format(path, os.path.abspath(path))
+            f"Path '{path}' is not a directory (full path: {os.path.abspath(path)})."
         )
     return value
 
@@ -1340,19 +1320,16 @@ def file_(value):
         if data["content"]:
             return value
         raise Invalid(
-            "Could not find file '{}'. Please make sure it exists (full path: {})."
-            "".format(path, os.path.abspath(path))
+            f"Could not find file '{path}'. Please make sure it exists (full path: {os.path.abspath(path)})."
         )
 
     if not os.path.exists(path):
         raise Invalid(
-            "Could not find file '{}'. Please make sure it exists (full path: {})."
-            "".format(path, os.path.abspath(path))
+            f"Could not find file '{path}'. Please make sure it exists (full path: {os.path.abspath(path)})."
         )
     if not os.path.isfile(path):
         raise Invalid(
-            "Path '{}' is not a file (full path: {})."
-            "".format(path, os.path.abspath(path))
+            f"Path '{path}' is not a file (full path: {os.path.abspath(path)})."
         )
     return value
 
@@ -1405,7 +1382,7 @@ def typed_schema(schemas, **kwargs):
         value = value.copy()
         schema_option = value.pop(key, default_schema_option)
         if schema_option is None:
-            raise Invalid(key + " not specified!")
+            raise Invalid(f"{key} not specified!")
         key_v = key_validator(schema_option)
         value = schemas[key_v](value)
         value[key] = key_v
@@ -1498,8 +1475,7 @@ def validate_registry_entry(name, registry):
             value = {value: {}}
         if not isinstance(value, dict):
             raise Invalid(
-                "{} must consist of key-value mapping! Got {}"
-                "".format(name.title(), value)
+                f"{name.title()} must consist of key-value mapping! Got {value}"
             )
         key = next((x for x in value if x not in ignore_keys), None)
         if key is None:
@@ -1509,9 +1485,8 @@ def validate_registry_entry(name, registry):
         key2 = next((x for x in value if x != key and x not in ignore_keys), None)
         if key2 is not None:
             raise Invalid(
-                "Cannot have two {0}s in one item. Key '{1}' overrides '{2}'! "
-                "Did you forget to indent the block inside the {0}?"
-                "".format(name, key, key2)
+                f"Cannot have two {name}s in one item. Key '{key}' overrides '{key2}'! "
+                f"Did you forget to indent the block inside the {key}?"
             )
 
         if value[key] is None:

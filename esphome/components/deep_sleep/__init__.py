@@ -16,8 +16,7 @@ def validate_pin_number(value):
     valid_pins = [0, 2, 4, 12, 13, 14, 15, 25, 26, 27, 32, 33, 34, 35, 36, 37, 38, 39]
     if value[CONF_NUMBER] not in valid_pins:
         raise cv.Invalid(
-            "Only pins {} support wakeup"
-            "".format(", ".join(str(x) for x in valid_pins))
+            f"Only pins {', '.join(str(x) for x in valid_pins)} support wakeup"
         )
     return value
 
