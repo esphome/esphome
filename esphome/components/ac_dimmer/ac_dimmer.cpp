@@ -17,7 +17,10 @@ static AcDimmerDataStore *all_dimmers[32];  // NOLINT(cppcoreguidelines-avoid-no
 /// Time in microseconds the gate should be held high
 /// 10µs should be long enough for most triacs
 /// For reference: BT136 datasheet says 2µs nominal (page 7)
-static const uint32_t GATE_ENABLE_TIME = 10;
+/// However other factors like gate driver propagation time
+/// are also considered and a really low value is not important
+/// See also: https://github.com/esphome/issues/issues/1632
+static const uint32_t GATE_ENABLE_TIME = 50;
 
 /// Function called from timer interrupt
 /// Input is current time in microseconds (micros())

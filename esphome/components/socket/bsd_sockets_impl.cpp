@@ -1,5 +1,6 @@
 #include "socket.h"
 #include "esphome/core/defines.h"
+#include "esphome/core/helpers.h"
 
 #ifdef USE_SOCKET_IMPL_BSD_SOCKETS
 
@@ -39,7 +40,7 @@ class BSDSocketImpl : public Socket {
     int fd = ::accept(fd_, addr, addrlen);
     if (fd == -1)
       return {};
-    return std::unique_ptr<BSDSocketImpl>{new BSDSocketImpl(fd)};
+    return make_unique<BSDSocketImpl>(fd);
   }
   int bind(const struct sockaddr *addr, socklen_t addrlen) override { return ::bind(fd_, addr, addrlen); }
   int close() override {
