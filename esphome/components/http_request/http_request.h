@@ -3,6 +3,7 @@
 #include "esphome/components/json/json_util.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
+#include "esphome/core/defines.h"
 #include <list>
 #include <map>
 #include <utility>
@@ -13,7 +14,9 @@
 #endif
 #ifdef ARDUINO_ARCH_ESP8266
 #include <ESP8266HTTPClient.h>
+#ifdef USE_HTTP_REQUEST_ESP8266_HTTPS
 #include <WiFiClientSecure.h>
+#endif
 #endif
 
 namespace esphome {
@@ -53,7 +56,9 @@ class HttpRequestComponent : public Component {
   std::list<Header> headers_;
 #ifdef ARDUINO_ARCH_ESP8266
   std::shared_ptr<WiFiClient> wifi_client_;
+#ifdef USE_HTTP_REQUEST_ESP8266_HTTPS
   std::shared_ptr<BearSSL::WiFiClientSecure> wifi_client_secure_;
+#endif
   std::shared_ptr<WiFiClient> get_wifi_client_();
 #endif
 };
