@@ -19,6 +19,9 @@ namespace light {
 
 using ESPColor ESPDEPRECATED("esphome::light::ESPColor is deprecated, use esphome::Color instead.", "v1.21") = Color;
 
+/// Convert the color information from a `LightColorValues` object to a `Color` object (does not apply brightness).
+Color color_from_light_color_values(LightColorValues val);
+
 class AddressableLight : public LightOutput, public Component {
  public:
   virtual int32_t size() const = 0;

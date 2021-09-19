@@ -9,8 +9,9 @@ from esphome.const import (
     CONF_METHOD,
     CONF_TRIGGER_ID,
     CONF_URL,
+    CONF_ESP8266_DISABLE_SSL_SUPPORT,
 )
-from esphome.core import Lambda
+from esphome.core import Lambda, CORE
 
 DEPENDENCIES = ["network"]
 AUTO_LOAD = ["json"]
@@ -73,6 +74,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(
                 CONF_TIMEOUT, default="5s"
             ): cv.positive_time_period_milliseconds,
+            cv.SplitDefault(CONF_ESP8266_DISABLE_SSL_SUPPORT, esp8266=False): cv.All(
+                cv.only_on_esp8266, cv.boolean
+            ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.require_framework_version(
@@ -86,6 +90,8 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add(var.set_timeout(config[CONF_TIMEOUT]))
     cg.add(var.set_useragent(config[CONF_USERAGENT]))
+    if CORE.is_esp8266 and not config[CONF_ESP8266_DISABLE_SSL_SUPPORT]:
+        cg.add_define("USE_HTTP_REQUEST_ESP8266_HTTPS")
     await cg.register_component(var, config)
 
 
