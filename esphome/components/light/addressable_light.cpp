@@ -62,10 +62,13 @@ void AddressableLightTransformer::start() {
 }
 
 optional<LightColorValues> AddressableLightTransformer::apply() {
-  // Don't try to transition over running effects, instead immediately use the target values. write_state() and the
-  // effects pick up the change from current_values.
+  float smoothed_progress = LightTransitionTransformer::smoothed_progress(this->get_progress_());
+
+  // When running an output-buffer modifying effect, don't try to transition individual LEDs, but instead just fade the
+  // LightColorValues. write_state() then picks up the change in brightness, and the color change is picked up by the
+  // effects which respect it.
   if (this->light_.is_effect_active())
-    return this->target_values_;
+    return LightColorValues::lerp(this->get_start_values(), this->get_target_values(), smoothed_progress);
 
   // Use a specialized transition for addressable lights: instead of using a unified transition for
   // all LEDs, we use the current state of each LED as the start.
@@ -74,8 +77,6 @@ optional<LightColorValues> AddressableLightTransformer::apply() {
   // state of each LED at the start of the transition.
   // Instead, we "fake" the look of the LERP by using an exponential average over time and using
   // dynamically-calculated alpha values to match the look.
-
-  float smoothed_progress = LightTransitionTransformer::smoothed_progress(this->get_progress_());
 
   float denom = (1.0f - smoothed_progress);
   float alpha = denom == 0.0f ? 0.0f : (smoothed_progress - this->last_transition_progress_) / denom;
