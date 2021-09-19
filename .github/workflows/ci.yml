@@ -124,6 +124,9 @@ jobs:
 
       - run: esphome compile ${{ matrix.file }}
         if: matrix.id == 'test'
+        env:
+          # Also cache libdeps, store them in a ~/.platformio subfolder
+          PLATFORMIO_LIBDEPS_DIR: ~/.platformio/libdeps
 
       - name: Run pytest
         run: |
@@ -142,6 +145,9 @@ jobs:
         run: |
           script/clang-tidy --all-headers --fix ${{ matrix.options }}
         if: matrix.id == 'clang-tidy'
+        env:
+          # Also cache libdeps, store them in a ~/.platformio subfolder
+          PLATFORMIO_LIBDEPS_DIR: ~/.platformio/libdeps
 
       - name: Suggested changes
         run: script/ci-suggest-changes
