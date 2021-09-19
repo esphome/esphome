@@ -23,6 +23,8 @@ CONF_CURRENT_TEMPERATURE_DATAPOINT = "current_temperature_datapoint"
 CONF_TEMPERATURE_MULTIPLIER = "temperature_multiplier"
 CONF_CURRENT_TEMPERATURE_MULTIPLIER = "current_temperature_multiplier"
 CONF_TARGET_TEMPERATURE_MULTIPLIER = "target_temperature_multiplier"
+CONF_ECO_DATAPOINT = "eco_datapoint"
+CONF_ECO_TEMPERATURE = "eco_temperature"
 
 TuyaClimate = tuya_ns.class_("TuyaClimate", climate.Climate, cg.Component)
 
@@ -90,6 +92,14 @@ def validate_active_state_values(value):
     return value
 
 
+def validate_eco_values(value):
+    if CONF_ECO_TEMPERATURE in value and CONF_ECO_DATAPOINT not in value:
+        raise cv.Invalid(
+            f"{CONF_ECO_DATAPOINT} required if using {CONF_ECO_TEMPERATURE}"
+        )
+    return value
+
+
 CONFIG_SCHEMA = cv.All(
     climate.CLIMATE_SCHEMA.extend(
         {
@@ -108,6 +118,8 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_TEMPERATURE_MULTIPLIER): cv.positive_float,
             cv.Optional(CONF_CURRENT_TEMPERATURE_MULTIPLIER): cv.positive_float,
             cv.Optional(CONF_TARGET_TEMPERATURE_MULTIPLIER): cv.positive_float,
+            cv.Optional(CONF_ECO_DATAPOINT): cv.uint8_t,
+            cv.Optional(CONF_ECO_TEMPERATURE): cv.temperature,
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.has_at_least_one_key(CONF_TARGET_TEMPERATURE_DATAPOINT, CONF_SWITCH_DATAPOINT),
@@ -115,6 +127,7 @@ CONFIG_SCHEMA = cv.All(
     validate_active_state_values,
     cv.has_at_most_one_key(CONF_ACTIVE_STATE_DATAPOINT, CONF_HEATING_STATE_PIN),
     cv.has_at_most_one_key(CONF_ACTIVE_STATE_DATAPOINT, CONF_COOLING_STATE_PIN),
+    validate_eco_values,
 )
 
 
@@ -179,3 +192,7 @@ async def to_code(config):
                 config[CONF_TARGET_TEMPERATURE_MULTIPLIER]
             )
         )
+    if CONF_ECO_DATAPOINT in config:
+        cg.add(var.set_eco_id(config[CONF_ECO_DATAPOINT]))
+        if CONF_ECO_TEMPERATURE in config:
+            cg.add(var.set_eco_temperature(config[CONF_ECO_TEMPERATURE]))
