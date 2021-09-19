@@ -41,6 +41,7 @@ class DockerParams:
     manifest_to: str
     baseimgtype: str
     platform: str
+    target: str
 
     @classmethod
     def for_type_arch(cls, build_type, arch):
@@ -60,11 +61,17 @@ class DockerParams:
             ARCH_ARMV7: "linux/arm/v7",
             ARCH_AARCH64: "linux/arm64",
         }[arch]
+        target = {
+            TYPE_DOCKER: "docker",
+            TYPE_HA_ADDON: "hassio",
+            TYPE_LINT: "lint",
+        }[build_type]
         return cls(
             build_to=build_to,
             manifest_to=prefix,
             baseimgtype=baseimgtype,
             platform=platform,
+            target=target,
         )
 
 
@@ -119,6 +126,7 @@ def main():
             "--cache-from", cache_img,
             "--file", "docker/Dockerfile",
             "--platform", params.platform,
+            "--target", params.target,
         ]
         for img in imgs:
             cmd += ["--tag", img]
