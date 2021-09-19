@@ -28,6 +28,7 @@ class NdefRecord {
     this->type_ = rhs.type_;
     this->payload_ = rhs.payload_;
   };
+  virtual ~NdefRecord() {}
   virtual std::unique_ptr<NdefRecord> clone() const {  // To allow copying polymorphic classes
     return make_unique<NdefRecord>(*this);
   };
