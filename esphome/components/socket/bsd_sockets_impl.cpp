@@ -75,7 +75,9 @@ class BSDSocketImpl : public Socket {
   }
   int listen(int backlog) override { return ::listen(fd_, backlog); }
   ssize_t read(void *buf, size_t len) override { return ::read(fd_, buf, len); }
+  ssize_t readv(const struct iovec *iov, int iovcnt) override { return ::readv(fd_, iov, iovcnt); }
   ssize_t write(const void *buf, size_t len) override { return ::write(fd_, buf, len); }
+  ssize_t writev(const struct iovec *iov, int iovcnt) override { return ::writev(fd_, iov, iovcnt); }
   int setblocking(bool blocking) override {
     int fl = ::fcntl(fd_, F_GETFL, 0);
     if (blocking) {
