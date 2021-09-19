@@ -81,6 +81,11 @@ struct sockaddr_storage {
 };
 typedef uint32_t socklen_t;
 
+struct iovec {
+  void *iov_base;
+  size_t iov_len;
+};
+
 #ifdef ARDUINO_ARCH_ESP8266
 // arduino-esp8266 declares a global vars called INADDR_NONE/ANY which are invalid with the define
 #ifdef INADDR_ANY
@@ -104,6 +109,7 @@ typedef uint32_t socklen_t;
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/ioctl.h>
+#include <sys/uio.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <stdint.h>
