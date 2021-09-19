@@ -419,8 +419,6 @@ class LWIPRawImpl : public Socket {
     return to_send;
   }
   int internal_output() {
-    if (!tcp_nagle_disabled(pcb_))
-      return 0;
     LWIP_LOG("tcp_output(%p)", pcb_);
     err_t err = tcp_output(pcb_);
     if (err == ERR_ABRT) {
