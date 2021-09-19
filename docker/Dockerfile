@@ -28,7 +28,6 @@ RUN \
         iputils-ping=3:20210202-1 \
         git=1:2.30.2-1 \
         curl=7.74.0-1.3+b1 \
-        nginx=1.18.0-6.1 \
     && rm -rf \
         /tmp/* \
         /var/{cache,log}/* \
@@ -89,6 +88,16 @@ CMD ["dashboard", "/config"]
 
 # ======================= hassio-type image =======================
 FROM base AS hassio
+
+RUN \
+    apt-get update \
+    # Use pinned versions so that we get updates with build caching
+    && apt-get install -y --no-install-recommends \
+        nginx=1.18.0-6.1 \
+    && rm -rf \
+        /tmp/* \
+        /var/{cache,log}/* \
+        /var/lib/apt/lists/*
 
 ARG BUILD_VERSION=dev
 
