@@ -113,7 +113,7 @@ captive_portal:
 
 
 def wizard_write(path, **kwargs):
-    from esphome.components.esp32 import boards as esp32_boards
+    from esphome.components.esp8266 import boards as esp8266_boards
 
     name = kwargs["name"]
     board = kwargs["board"]
@@ -124,7 +124,7 @@ def wizard_write(path, **kwargs):
 
     if "platform" not in kwargs:
         kwargs["platform"] = (
-            "ESP32" if board in esp32_boards.ESP32_BOARD_PINS else "ESP8266"
+            "ESP8266" if board in esp8266_boards.ESP8266_BOARD_PINS else "ESP32"
         )
     platform = kwargs["platform"]
 
