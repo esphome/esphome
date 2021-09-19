@@ -148,10 +148,7 @@ class Graph : public Component {
   void set_grid_x(float val) { this->gridspacing_x_ = val; }
   void set_grid_y(float val) { this->gridspacing_y_ = val; }
   void set_border(bool val) { this->border_ = val; }
-  void add_trace(GraphTrace *trace) {
-    trace->init(this);
-    traces_.push_back(trace);
-  }
+  void add_trace(GraphTrace *trace) { traces_.push_back(trace); }
   void add_legend(GraphLegend *legend) {
     this->legend_ = legend;
     legend->init(this);
