@@ -371,7 +371,23 @@ class LWIPRawImpl : public Socket {
 
     return read;
   }
-  ssize_t write(const void *buf, size_t len) override {
+  ssize_t readv(const struct iovec *iov, int iovcnt) override {
+    ssize_t ret = 0;
+    for (int i = 0; i < iovcnt; i++) {
+      ssize_t err = read(reinterpret_cast<uint8_t *>(iov[i].iov_base), iov[i].iov_len);
+      if (err == -1) {
+        if (ret != 0)
+          // if we already read some don't return an error
+          break;
+        return err;
+      }
+      ret += err;
+      if (err != iov[i].iov_len)
+        break;
+    }
+    return ret;
+  }
+  ssize_t internal_write(const void *buf, size_t len) {
     if (pcb_ == nullptr) {
       errno = ECONNRESET;
       return -1;
@@ -400,24 +416,59 @@ class LWIPRawImpl : public Socket {
       errno = ECONNRESET;
       return -1;
     }
-    if (tcp_nagle_disabled(pcb_)) {
-      LWIP_LOG("tcp_output(%p)", pcb_);
-      err = tcp_output(pcb_);
-      if (err == ERR_ABRT) {
-        LWIP_LOG("  -> err ERR_ABRT");
-        // sometimes lwip returns ERR_ABRT for no apparent reason
-        // the connection works fine afterwards, and back with ESPAsyncTCP we
-        // indirectly also ignored this error
-        // FIXME: figure out where this is returned and what it means in this context
-        return to_send;
-      }
-      if (err != ERR_OK) {
-        LWIP_LOG("  -> err %d", err);
-        errno = ECONNRESET;
-        return -1;
-      }
-    }
     return to_send;
+  }
+  int internal_output() {
+    LWIP_LOG("tcp_output(%p)", pcb_);
+    err_t err = tcp_output(pcb_);
+    if (err == ERR_ABRT) {
+      LWIP_LOG("  -> err ERR_ABRT");
+      // sometimes lwip returns ERR_ABRT for no apparent reason
+      // the connection works fine afterwards, and back with ESPAsyncTCP we
+      // indirectly also ignored this error
+      // FIXME: figure out where this is returned and what it means in this context
+      return 0;
+    }
+    if (err != ERR_OK) {
+      LWIP_LOG("  -> err %d", err);
+      errno = ECONNRESET;
+      return -1;
+    }
+    return 0;
+  }
+  ssize_t write(const void *buf, size_t len) override {
+    ssize_t written = internal_write(buf, len);
+    if (written == -1)
+      return -1;
+    if (written == 0)
+      // no need to output if nothing written
+      return 0;
+    int err = internal_output();
+    if (err == -1)
+      return -1;
+    return written;
+  }
+  ssize_t writev(const struct iovec *iov, int iovcnt) override {
+    ssize_t written = 0;
+    for (int i = 0; i < iovcnt; i++) {
+      ssize_t err = internal_write(reinterpret_cast<uint8_t *>(iov[i].iov_base), iov[i].iov_len);
+      if (err == -1) {
+        if (written != 0)
+          // if we already read some don't return an error
+          break;
+        return err;
+      }
+      written += err;
+      if (err != iov[i].iov_len)
+        break;
+    }
+    if (written == 0)
+      // no need to output if nothing written
+      return 0;
+    int err = internal_output();
+    if (err == -1)
+      return -1;
+    return written;
   }
   int setblocking(bool blocking) override {
     if (pcb_ == nullptr) {

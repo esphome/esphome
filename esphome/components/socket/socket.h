@@ -31,7 +31,9 @@ class Socket {
   virtual int setsockopt(int level, int optname, const void *optval, socklen_t optlen) = 0;
   virtual int listen(int backlog) = 0;
   virtual ssize_t read(void *buf, size_t len) = 0;
+  virtual ssize_t readv(const struct iovec *iov, int iovcnt) = 0;
   virtual ssize_t write(const void *buf, size_t len) = 0;
+  virtual ssize_t writev(const struct iovec *iov, int iovcnt) = 0;
   virtual int setblocking(bool blocking) = 0;
   virtual int loop() { return 0; };
 };
