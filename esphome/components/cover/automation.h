@@ -11,7 +11,7 @@ template<typename... Ts> class OpenAction : public Action<Ts...> {
  public:
   explicit OpenAction(Cover *cover) : cover_(cover) {}
 
-  void play(Ts... x) override { this->cover_->open(); }
+  void play(Ts... x) override { this->cover_->make_call().set_command_open().perform(); }
 
  protected:
   Cover *cover_;
@@ -21,7 +21,7 @@ template<typename... Ts> class CloseAction : public Action<Ts...> {
  public:
   explicit CloseAction(Cover *cover) : cover_(cover) {}
 
-  void play(Ts... x) override { this->cover_->close(); }
+  void play(Ts... x) override { this->cover_->make_call().set_command_close().perform(); }
 
  protected:
   Cover *cover_;
@@ -31,7 +31,7 @@ template<typename... Ts> class StopAction : public Action<Ts...> {
  public:
   explicit StopAction(Cover *cover) : cover_(cover) {}
 
-  void play(Ts... x) override { this->cover_->stop(); }
+  void play(Ts... x) override { this->cover_->make_call().set_command_stop().perform(); }
 
  protected:
   Cover *cover_;
