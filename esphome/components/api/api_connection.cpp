@@ -784,6 +784,10 @@ bool APIConnection::send_buffer(ProtoWriteBuffer buffer, uint32_t message_type) 
       return false;
     }
     if (!this->helper_->can_write_without_blocking()) {
+      // SubscribeLogsResponse
+      if (message_type != 29) {
+        ESP_LOGV(TAG, "Cannot send message because of TCP buffer space");
+      }
       delay(0);
       return false;
     }
