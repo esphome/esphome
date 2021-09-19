@@ -77,7 +77,7 @@ jobs:
         uses: actions/cache@v2
         with:
           path: ~/.cache/pip
-          key: pip-${{ steps.python.outputs.python-version }}-${{ hashFiles('**/requirements*.txt') }}
+          key: pip-${{ steps.python.outputs.python-version }}-${{ hashFiles('requirements*.txt') }}
           restore-keys: |
             pip-${{ steps.python.outputs.python-version }}-
 
@@ -91,7 +91,7 @@ jobs:
         uses: actions/cache@v2
         with:
           path: ~/.platformio
-          key: platformio-${{ matrix.pio_cache_key }}-${{ hashFiles('**/platformio.ini') }}
+          key: platformio-${{ matrix.pio_cache_key }}-${{ hashFiles('platformio.ini') }}
           restore-keys: |
             platformio-${{ matrix.pio_cache_key }}-
         if: matrix.id == 'test' || matrix.id == 'clang-tidy'
