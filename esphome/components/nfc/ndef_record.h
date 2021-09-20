@@ -37,7 +37,7 @@ class NdefRecord {
 
   std::vector<uint8_t> encode(bool first, bool last);
 
-  uint8_t create_flag_byte(bool first, bool last);
+  uint8_t create_flag_byte(bool first, bool last, size_t payload_size);
 
   const std::string &get_type() const { return this->type_; };
   const std::string &get_id() const { return this->id_; };

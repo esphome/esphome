@@ -13,12 +13,14 @@ NdefRecord::NdefRecord(std::vector<uint8_t> payload_data) {
 std::vector<uint8_t> NdefRecord::encode(bool first, bool last) {
   std::vector<uint8_t> data;
 
-  data.push_back(this->create_flag_byte(first, last));
+  // Get encoded payload, this is overriden by more specific record classes
+  std::vector<uint8_t> payload_data = getEncodedPayload();
+
+  size_t payload_length = payload_data.size();
+  
+  data.push_back(this->create_flag_byte(first, last, payload_length));
 
   data.push_back(this->type_.length());
-
-  std::vector<uint8_t> payload_data = getEncodedPayload();
-  uint32_t payload_length = payload_data.size();
 
   if (payload_length <= 255) {
     data.push_back(payload_length);
@@ -43,7 +45,7 @@ std::vector<uint8_t> NdefRecord::encode(bool first, bool last) {
   return data;
 }
 
-uint8_t NdefRecord::create_flag_byte(bool first, bool last) {
+uint8_t NdefRecord::create_flag_byte(bool first, bool last, size_t payload_size) {
   uint8_t value = this->tnf_ & 0b00000111;
   if (first) {
     value = value | 0x80;
@@ -51,7 +53,7 @@ uint8_t NdefRecord::create_flag_byte(bool first, bool last) {
   if (last) {
     value = value | 0x40;
   }
-  if (this->payload_.size() <= 255) {
+  if (payload_size <= 255) {
     value = value | 0x10;
   }
   if (this->id_.length()) {
