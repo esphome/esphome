@@ -5,6 +5,9 @@
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
+#ifdef USE_UART_DEBUGGER
+#include "debugger.h"
+#endif
 
 namespace esphome {
 namespace uart {
@@ -50,6 +53,12 @@ class UARTComponent {
   void set_baud_rate(uint32_t baud_rate) { baud_rate_ = baud_rate; }
   uint32_t get_baud_rate() const { return baud_rate_; }
 
+#ifdef USE_UART_DEBUGGER
+  void add_data_callback(std::function<void(UARTDirection, uint8_t)> &&callback) {
+    this->data_callback_.add(std::move(callback));
+  }
+#endif
+
  protected:
   virtual void check_logger_conflict() = 0;
   bool check_read_timeout_(size_t len = 1);
@@ -61,6 +70,9 @@ class UARTComponent {
   uint8_t stop_bits_;
   uint8_t data_bits_;
   UARTParityOptions parity_;
+#ifdef USE_UART_DEBUGGER
+  CallbackManager<void(UARTDirection, uint8_t)> data_callback_{};
+#endif
 };
 
 }  // namespace uart
