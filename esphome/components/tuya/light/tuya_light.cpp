@@ -125,7 +125,7 @@ void TuyaLight::write_state(light::LightState *state) {
     state->current_values_as_brightness(&brightness);
   }
 
-  if (brightness == 0.0f && red == 0.0f && green == 0.0f && blue == 0.0f) {
+  if (!state->current_values.is_on()) {
     // turning off, first try via switch (if exists), then dimmer
     if (switch_id_.has_value()) {
       parent_->set_boolean_datapoint_value(*this->switch_id_, false);

@@ -55,7 +55,7 @@ class TuyaLight : public Component, public light::LightOutput {
   float cold_white_temperature_;
   float warm_white_temperature_;
   bool color_temperature_invert_{false};
-  bool color_interlock_{true};
+  bool color_interlock_{false};
   light::LightState *state_{nullptr};
 };
 
