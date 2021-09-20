@@ -52,10 +52,8 @@ NdefMessage::NdefMessage(std::vector<uint8_t> &data) {
       record = make_unique<NdefRecordUri>(payload_data);
     } else if (tnf == TNF_WELL_KNOWN && type_str == "T") {
       record = make_unique<NdefRecordText>(payload_data);
-    }
-
-    if (record == nullptr)  // Could not recognize the record, so store as generic one.
-    {
+    } else {
+      // Could not recognize the record, so store as generic one.
       record = make_unique<NdefRecord>(payload_data);
       record->set_tnf(tnf);
       record->set_type(type_str);
