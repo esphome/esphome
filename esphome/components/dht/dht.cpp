@@ -122,6 +122,8 @@ bool HOT IRAM_ATTR DHT::read_sensor_(float *temperature, float *humidity, bool r
           break;
         }
       }
+      if (error_code != 0)
+        break;
 
       start_time = micros();
       uint32_t end_time = start_time;
@@ -136,6 +138,8 @@ bool HOT IRAM_ATTR DHT::read_sensor_(float *temperature, float *humidity, bool r
           break;
         }
       }
+      if (error_code != 0)
+        break;
 
       if (i < 0)
         continue;

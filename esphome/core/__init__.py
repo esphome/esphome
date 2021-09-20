@@ -604,8 +604,7 @@ class EsphomeCore:
             expression = statement(expression)
         if not isinstance(expression, Statement):
             raise ValueError(
-                "Add '{}' must be expression or statement, not {}"
-                "".format(expression, type(expression))
+                f"Add '{expression}' must be expression or statement, not {type(expression)}"
             )
 
         self.main_statements.append(expression)
@@ -619,8 +618,7 @@ class EsphomeCore:
             expression = statement(expression)
         if not isinstance(expression, Statement):
             raise ValueError(
-                "Add '{}' must be expression or statement, not {}"
-                "".format(expression, type(expression))
+                f"Add '{expression}' must be expression or statement, not {type(expression)}"
             )
         self.global_statements.append(expression)
         _LOGGER.debug("Adding global: %s", expression)
@@ -629,8 +627,7 @@ class EsphomeCore:
     def add_library(self, library):
         if not isinstance(library, Library):
             raise ValueError(
-                "Library {} must be instance of Library, not {}"
-                "".format(library, type(library))
+                f"Library {library} must be instance of Library, not {type(library)}"
             )
         for other in self.libraries[:]:
             if other.name != library.name or other.name is None or library.name is None:
@@ -640,9 +637,8 @@ class EsphomeCore:
                     # Other is using a/the same repository, takes precendence
                     break
                 raise ValueError(
-                    "Adding named Library with repository failed! Libraries {} and {} "
+                    f"Adding named Library with repository failed! Libraries {library} and {other} "
                     "requested with conflicting repositories!"
-                    "".format(library, other)
                 )
 
             if library.repository is not None:
@@ -661,9 +657,8 @@ class EsphomeCore:
                 break
 
             raise ValueError(
-                "Version pinning failed! Libraries {} and {} "
+                f"Version pinning failed! Libraries {library} and {other} "
                 "requested with conflicting versions!"
-                "".format(library, other)
             )
         else:
             _LOGGER.debug("Adding library: %s", library)
@@ -682,8 +677,7 @@ class EsphomeCore:
             pass
         else:
             raise ValueError(
-                "Define {} must be string or Define, not {}"
-                "".format(define, type(define))
+                f"Define {define} must be string or Define, not {type(define)}"
             )
         self.defines.add(define)
         _LOGGER.debug("Adding define: %s", define)

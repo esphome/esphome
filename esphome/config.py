@@ -45,7 +45,7 @@ def iter_components(config):
             yield domain, component, conf
         if component.is_platform_component:
             for p_config in conf:
-                p_name = "{}.{}".format(domain, p_config[CONF_PLATFORM])
+                p_name = f"{domain}.{p_config[CONF_PLATFORM]}"
                 platform = get_platform(domain, p_config[CONF_PLATFORM])
                 yield p_name, platform, p_config
 
@@ -779,18 +779,14 @@ def _format_vol_invalid(ex, config):
 
     if isinstance(ex, ExtraKeysInvalid):
         if ex.candidates:
-            message += "[{}] is an invalid option for [{}]. Did you mean {}?".format(
-                ex.path[-1], paren, ", ".join(f"[{x}]" for x in ex.candidates)
-            )
+            message += f"[{ex.path[-1]}] is an invalid option for [{paren}]. Did you mean {', '.join(f'[{x}]' for x in ex.candidates)}?"
         else:
-            message += "[{}] is an invalid option for [{}]. Please check the indentation.".format(
-                ex.path[-1], paren
-            )
+            message += f"[{ex.path[-1]}] is an invalid option for [{paren}]. Please check the indentation."
     elif "extra keys not allowed" in str(ex):
-        message += "[{}] is an invalid option for [{}].".format(ex.path[-1], paren)
+        message += f"[{ex.path[-1]}] is an invalid option for [{paren}]."
     elif isinstance(ex, vol.RequiredFieldInvalid):
         if ex.msg == "required key not provided":
-            message += "'{}' is a required option for [{}].".format(ex.path[-1], paren)
+            message += f"'{ex.path[-1]}' is a required option for [{paren}]."
         else:
             # Required has set a custom error message
             message += ex.msg
@@ -842,7 +838,7 @@ def line_info(config, path, highlight=True):
     obj = config.get_deepest_document_range_for_path(path)
     if obj:
         mark = obj.start_mark
-        source = "[source {}:{}]".format(mark.document, mark.line + 1)
+        source = f"[source {mark.document}:{mark.line + 1}]"
         return color(Fore.CYAN, source)
     return "None"
 
@@ -866,9 +862,7 @@ def dump_dict(config, path, at_root=True):
     if at_root:
         error = config.get_error_for_path(path)
         if error is not None:
-            ret += (
-                "\n" + color(Fore.BOLD_RED, _format_vol_invalid(error, config)) + "\n"
-            )
+            ret += f"\n{color(Fore.BOLD_RED, _format_vol_invalid(error, config))}\n"
 
     if isinstance(conf, (list, tuple)):
         multiline = True
@@ -880,11 +874,7 @@ def dump_dict(config, path, at_root=True):
             path_ = path + [i]
             error = config.get_error_for_path(path_)
             if error is not None:
-                ret += (
-                    "\n"
-                    + color(Fore.BOLD_RED, _format_vol_invalid(error, config))
-                    + "\n"
-                )
+                ret += f"\n{color(Fore.BOLD_RED, _format_vol_invalid(error, config))}\n"
 
             sep = "- "
             if config.is_in_error_path(path_):
@@ -893,10 +883,10 @@ def dump_dict(config, path, at_root=True):
             msg = indent(msg)
             inf = line_info(config, path_, highlight=config.is_in_error_path(path_))
             if inf is not None:
-                msg = inf + "\n" + msg
+                msg = f"{inf}\n{msg}"
             elif msg:
                 msg = msg[2:]
-            ret += sep + msg + "\n"
+            ret += f"{sep + msg}\n"
     elif isinstance(conf, dict):
         multiline = True
         if not conf:
@@ -907,11 +897,7 @@ def dump_dict(config, path, at_root=True):
             path_ = path + [k]
             error = config.get_error_for_path(path_)
             if error is not None:
-                ret += (
-                    "\n"
-                    + color(Fore.BOLD_RED, _format_vol_invalid(error, config))
-                    + "\n"
-                )
+                ret += f"\n{color(Fore.BOLD_RED, _format_vol_invalid(error, config))}\n"
 
             st = f"{k}: "
             if config.is_in_error_path(path_):
@@ -920,30 +906,30 @@ def dump_dict(config, path, at_root=True):
 
             inf = line_info(config, path_, highlight=config.is_in_error_path(path_))
             if m:
-                msg = "\n" + indent(msg)
+                msg = f"\n{indent(msg)}"
 
             if inf is not None:
                 if m:
-                    msg = " " + inf + msg
+                    msg = f" {inf}{msg}"
                 else:
-                    msg = msg + " " + inf
-            ret += st + msg + "\n"
+                    msg = f"{msg} {inf}"
+            ret += f"{st + msg}\n"
     elif isinstance(conf, str):
         if is_secret(conf):
-            conf = "!secret {}".format(is_secret(conf))
+            conf = f"!secret {is_secret(conf)}"
         if not conf:
             conf += "''"
 
         if len(conf) > 80:
-            conf = "|-\n" + indent(conf)
+            conf = f"|-\n{indent(conf)}"
         error = config.get_error_for_path(path)
         col = Fore.BOLD_RED if error else Fore.KEEP
         ret += color(col, str(conf))
     elif isinstance(conf, core.Lambda):
         if is_secret(conf):
-            conf = "!secret {}".format(is_secret(conf))
+            conf = f"!secret {is_secret(conf)}"
 
-        conf = "!lambda |-\n" + indent(str(conf.value))
+        conf = f"!lambda |-\n{indent(str(conf.value))}"
         error = config.get_error_for_path(path)
         col = Fore.BOLD_RED if error else Fore.KEEP
         ret += color(col, conf)
@@ -1002,7 +988,7 @@ def read_config(command_line_substitutions):
             errstr = color(Fore.BOLD_RED, f"{domain}:")
             errline = line_info(res, path)
             if errline:
-                errstr += " " + errline
+                errstr += f" {errline}"
             safe_print(errstr)
             safe_print(indent(dump_dict(res, path)[0]))
         return None

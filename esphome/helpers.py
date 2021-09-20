@@ -54,7 +54,7 @@ def cpp_string_escape(string, encoding="utf-8"):
             result += f"\\{character:03o}"
         else:
             result += chr(character)
-    return '"' + result + '"'
+    return f'"{result}"'
 
 
 def run_system_command(*args):
@@ -107,7 +107,7 @@ def _resolve_with_zeroconf(host):
             "host network mode?"
         ) from err
     try:
-        info = zc.resolve_host(host + ".")
+        info = zc.resolve_host(f"{host}.")
     except Exception as err:
         raise EsphomeError(f"Error resolving mDNS hostname: {err}") from err
     finally:
@@ -136,9 +136,7 @@ def resolve_ip_address(host):
         return socket.gethostbyname(host)
     except OSError as err:
         errs.append(str(err))
-        raise EsphomeError(
-            "Error resolving IP address: {}" "".format(", ".join(errs))
-        ) from err
+        raise EsphomeError(f"Error resolving IP address: {', '.join(errs)}") from err
 
 
 def get_bool_env(var, default=False):

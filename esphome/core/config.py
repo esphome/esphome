@@ -60,8 +60,7 @@ def valid_include(value):
     _, ext = os.path.splitext(value)
     if ext not in VALID_INCLUDE_EXTS:
         raise cv.Invalid(
-            "Include has invalid file extension {} - valid extensions are {}"
-            "".format(ext, ", ".join(VALID_INCLUDE_EXTS))
+            f"Include has invalid file extension {ext} - valid extensions are {', '.join(VALID_INCLUDE_EXTS)}"
         )
     return value
 

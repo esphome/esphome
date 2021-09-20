@@ -97,7 +97,7 @@ class APINoiseFrameHelper : public APIFrameHelper {
   APIError try_read_frame_(ParsedFrame *frame);
   APIError try_send_tx_buf_();
   APIError write_frame_(const uint8_t *data, size_t len);
-  APIError write_raw_(const uint8_t *data, size_t len);
+  APIError write_raw_(const struct iovec *iov, int iovcnt);
   APIError init_handshake_();
   APIError check_handshake_finished_();
   void send_explicit_handshake_reject_(const std::string &reason);
@@ -155,7 +155,7 @@ class APIPlaintextFrameHelper : public APIFrameHelper {
 
   APIError try_read_frame_(ParsedFrame *frame);
   APIError try_send_tx_buf_();
-  APIError write_raw_(const uint8_t *data, size_t len);
+  APIError write_raw_(const struct iovec *iov, int iovcnt);
 
   std::unique_ptr<socket::Socket> socket_;
 

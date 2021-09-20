@@ -217,7 +217,9 @@ def lint_ext_check(fname):
     )
 
 
-@lint_file_check(exclude=["docker/rootfs/*", "docker/*.py", "script/*", "setup.py"])
+@lint_file_check(
+    exclude=["**.sh", "docker/hassio-rootfs/**", "docker/*.py", "script/*", "setup.py"]
+)
 def lint_executable_bit(fname):
     ex = EXECUTABLE_BIT[fname]
     if ex != 100644:
