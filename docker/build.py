@@ -109,9 +109,9 @@ def main():
         # 1. pull cache image
         params = DockerParams.for_type_arch(args.build_type, args.arch)
         cache_tag = {
-            CHANNEL_DEV: "dev",
-            CHANNEL_BETA: "beta",
-            CHANNEL_RELEASE: "latest",
+            CHANNEL_DEV: "cache-dev",
+            CHANNEL_BETA: "cache-beta",
+            CHANNEL_RELEASE: "cache-latest",
         }[channel]
         cache_img = f"ghcr.io/{params.build_to}:{cache_tag}"
 
@@ -123,7 +123,7 @@ def main():
             "docker", "buildx", "build",
             "--build-arg", f"BASEIMGTYPE={params.baseimgtype}",
             "--build-arg", f"BUILD_VERSION={args.tag}",
-            "--cache-from", cache_img,
+            "--cache-from", f"type=registry,ref={cache_img}",
             "--file", "docker/Dockerfile",
             "--platform", params.platform,
             "--target", params.target,
@@ -131,7 +131,7 @@ def main():
         for img in imgs:
             cmd += ["--tag", img]
         if args.push:
-            cmd.append("--push")
+            cmd += ["--push", "--cache-to", f"type=registry,ref={cache_img},mode=max"]
 
         run_command(*cmd, ".")
     elif args.command == "manifest":
