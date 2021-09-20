@@ -1,27 +1,11 @@
 #include "esphome/core/log.h"
 #include "tuya_light.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome {
 namespace tuya {
 
 static const char *const TAG = "tuya.light";
-
-uint8_t hexchar_to_int(const std::string &dp_data_string, const uint8_t index_in_string) {
-  uint8_t out = dp_data_string[index_in_string];
-  if (out >= '0' && out <= '9')
-    return (out - '0');
-  if (out >= 'A' && out <= 'F')
-    return (10 + (out - 'A'));
-  if (out >= 'a' && out <= 'f')
-    return (10 + (out - 'a'));
-  return out;
-}
-
-uint8_t hexpair_to_int(const std::string &dp_data_string, const uint8_t index_in_string) {
-  uint8_t a = hexchar_to_int(dp_data_string, index_in_string);
-  uint8_t b = hexchar_to_int(dp_data_string, index_in_string + 1);
-  return (a << 4) | b;
-}
 
 void TuyaLight::setup() {
   if (this->color_temperature_id_.has_value()) {
@@ -53,12 +37,14 @@ void TuyaLight::setup() {
   }
   if (rgb_id_.has_value()) {
     this->parent_->register_listener(*this->rgb_id_, [this](const TuyaDatapoint &datapoint) {
-      uint8_t red = hexpair_to_int(datapoint.value_string, 0);
-      uint8_t green = hexpair_to_int(datapoint.value_string, 2);
-      uint8_t blue = hexpair_to_int(datapoint.value_string, 4);
-      auto call = this->state_->make_call();
-      call.set_rgb(float(red) / 255, float(green) / 255, float(blue) / 255);
-      call.perform();
+      auto red = parse_hex(datapoint.value_string, 0, 2);
+      auto green = parse_hex(datapoint.value_string, 2, 2);
+      auto blue = parse_hex(datapoint.value_string, 4, 2);
+      if(red.has_value() && green.has_value() && blue.has_value()) {
+        auto call = this->state_->make_call();
+        call.set_rgb(float(*red) / 255, float(*green) / 255, float(*blue) / 255);
+        call.perform();
+      }
     });
   }
   if (min_value_datapoint_id_.has_value()) {
@@ -111,26 +97,30 @@ void TuyaLight::write_state(light::LightState *state) {
   float red, green, blue, color_temperature, brightness;
   state->current_values_as_rgbct(&red, &green, &blue, &color_temperature, &brightness);
 
-  if (this->color_temperature_id_.has_value()) {
-    uint32_t color_temp_int = static_cast<uint32_t>(color_temperature * this->color_temperature_max_value_);
-    if (this->color_temperature_invert_) {
-      color_temp_int = this->color_temperature_max_value_ - color_temp_int;
+  if (brightness > 0.0f || !color_interlock_) {
+    if (this->color_temperature_id_.has_value()) {
+      uint32_t color_temp_int = static_cast<uint32_t>(color_temperature * this->color_temperature_max_value_);
+      if (this->color_temperature_invert_) {
+        color_temp_int = this->color_temperature_max_value_ - color_temp_int;
+      }
+      parent_->set_integer_datapoint_value(*this->color_temperature_id_, color_temp_int);
     }
-    parent_->set_integer_datapoint_value(*this->color_temperature_id_, color_temp_int);
+
+    if (this->dimmer_id_.has_value()) {
+      auto brightness_int = static_cast<uint32_t>(brightness * this->max_value_);
+      brightness_int = std::max(brightness_int, this->min_value_);
+
+      parent_->set_integer_datapoint_value(*this->dimmer_id_, brightness_int);
+    }
   }
 
-  if (this->dimmer_id_.has_value()) {
-    auto brightness_int = static_cast<uint32_t>(brightness * this->max_value_);
-    brightness_int = std::max(brightness_int, this->min_value_);
-
-    parent_->set_integer_datapoint_value(*this->dimmer_id_, brightness_int);
-  }
-
-  if (this->rgb_id_.has_value()) {
-    char buffer[7];
-    sprintf(buffer, "%02X%02X%02X", int(red * 255), int(green * 255), int(blue * 255));
-    std::string value = buffer;
-    this->parent_->set_string_datapoint_value(*this->rgb_id_, value);
+  if (brightness == 0.0f || !color_interlock_) {
+    if (this->rgb_id_.has_value()) {
+      char buffer[7];
+      sprintf(buffer, "%02X%02X%02X", int(red * 255), int(green * 255), int(blue * 255));
+      std::string value = buffer;
+      this->parent_->set_string_datapoint_value(*this->rgb_id_, value);
+    }
   }
 
   if (this->switch_id_.has_value()) {
