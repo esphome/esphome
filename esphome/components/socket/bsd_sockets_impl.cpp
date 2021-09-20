@@ -8,6 +8,7 @@
 
 #ifdef USE_ESP32
 #include <esp_idf_version.h>
+#include <lwip/sockets.h>
 #endif
 
 namespace esphome {
@@ -97,6 +98,9 @@ class BSDSocketImpl : public Socket {
         break;
     }
     return ret;
+#elif defined(USE_ESP32)
+    // ESP-IDF v4 only has symbol lwip_readv
+    return ::lwip_readv(fd_, iov, iovcnt);
 #else
     return ::readv(fd_, iov, iovcnt);
 #endif
@@ -121,6 +125,9 @@ class BSDSocketImpl : public Socket {
         break;
     }
     return ret;
+#elif defined(USE_ESP32)
+    // ESP-IDF v4 only has symbol lwip_writev
+    return ::lwip_writev(fd_, iov, iovcnt);
 #else
     return ::writev(fd_, iov, iovcnt);
 #endif
