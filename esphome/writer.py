@@ -342,7 +342,9 @@ DEFINES_H_FORMAT = ESPHOME_H_FORMAT = """\
 """
 VERSION_H_FORMAT = """\
 #pragma once
+#include "esphome/core/macros.h"
 #define ESPHOME_VERSION "{}"
+#define ESPHOME_VERSION_CODE VERSION_CODE({}, {}, {})
 """
 DEFINES_H_TARGET = "esphome/core/defines.h"
 VERSION_H_TARGET = "esphome/core/version.h"
@@ -415,8 +417,7 @@ def copy_src_tree():
         CORE.relative_src_path("esphome.h"), ESPHOME_H_FORMAT.format(include_s)
     )
     write_file_if_changed(
-        CORE.relative_src_path("esphome", "core", "version.h"),
-        VERSION_H_FORMAT.format(__version__),
+        CORE.relative_src_path("esphome", "core", "version.h"), generate_version_h()
     )
 
 
@@ -424,6 +425,15 @@ def generate_defines_h():
     define_content_l = [x.as_macro for x in CORE.defines]
     define_content_l.sort()
     return DEFINES_H_FORMAT.format("\n".join(define_content_l))
+
+
+def generate_version_h():
+    match = re.match(r"^(\d+)\.(\d+).(\d+)-?\w*$", __version__)
+    if not match:
+        raise EsphomeError(f"Could not parse version {__version__}.")
+    return VERSION_H_FORMAT.format(
+        __version__, match.group(1), match.group(2), match.group(3)
+    )
 
 
 def write_cpp(code_s):
