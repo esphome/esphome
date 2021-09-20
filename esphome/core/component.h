@@ -2,7 +2,7 @@
 
 #include <string>
 #include <functional>
-#include "Arduino.h"
+#include <cmath>
 
 #include "esphome/core/optional.h"
 
@@ -148,8 +148,12 @@ class Component {
   const char *get_component_source() const;
 
  protected:
+  friend class Application;
+
   virtual void call_loop();
   virtual void call_setup();
+  virtual void call_dump_config();
+
   /** Set an interval function with a unique name. Empty name means no cancelling possible.
    *
    * This will call f every interval ms. Can be cancelled via CancelInterval().

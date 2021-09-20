@@ -7,10 +7,9 @@ from esphome.const import (
     CONF_FREQUENCY,
     CONF_ID,
     CONF_PIN,
-    ESP_PLATFORM_ESP32,
 )
 
-ESP_PLATFORMS = [ESP_PLATFORM_ESP32]
+DEPENDENCIES = ["esp32"]
 
 
 def calc_max_frequency(bit_depth):

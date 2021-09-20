@@ -51,16 +51,16 @@ RUN \
     && platformio settings set check_platforms_interval 1000000 \
     && mkdir -p /piolibs
 
+
+
+# ======================= docker-type image =======================
+FROM base AS docker
+
 # First install requirements to leverage caching when requirements don't change
 COPY requirements.txt requirements_optional.txt docker/platformio_install_deps.py platformio.ini /
 RUN \
     pip3 install --no-cache-dir -r /requirements.txt -r /requirements_optional.txt \
     && /platformio_install_deps.py /platformio.ini
-
-
-
-# ======================= docker-type image =======================
-FROM base AS docker
 
 # Copy esphome and install
 COPY . /esphome
@@ -104,6 +104,12 @@ ARG BUILD_VERSION=dev
 # Copy root filesystem
 COPY docker/hassio-rootfs/ /
 
+# First install requirements to leverage caching when requirements don't change
+COPY requirements.txt requirements_optional.txt docker/platformio_install_deps.py platformio.ini /
+RUN \
+    pip3 install --no-cache-dir -r /requirements.txt -r /requirements_optional.txt \
+    && /platformio_install_deps.py /platformio.ini
+
 # Copy esphome and install
 COPY . /esphome
 RUN pip3 install --no-cache-dir -e /esphome
@@ -140,6 +146,11 @@ RUN \
         /tmp/* \
         /var/{cache,log}/* \
         /var/lib/apt/lists/*
+
+COPY requirements.txt requirements_optional.txt docker/platformio_install_deps.py platformio.ini /
+RUN \
+    pip3 install --no-cache-dir -r /requirements.txt -r /requirements_optional.txt \
+    && /platformio_install_deps.py /platformio.ini
 
 VOLUME ["/esphome"]
 WORKDIR /esphome

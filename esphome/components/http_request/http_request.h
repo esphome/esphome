@@ -1,5 +1,7 @@
 #pragma once
 
+#ifdef USE_ARDUINO
+
 #include "esphome/components/json/json_util.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
@@ -9,10 +11,10 @@
 #include <utility>
 #include <memory>
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 #include <HTTPClient.h>
 #endif
-#ifdef ARDUINO_ARCH_ESP8266
+#ifdef USE_ESP8266
 #include <ESP8266HTTPClient.h>
 #ifdef USE_HTTP_REQUEST_ESP8266_HTTPS
 #include <WiFiClientSecure.h>
@@ -54,7 +56,7 @@ class HttpRequestComponent : public Component {
   uint16_t timeout_{5000};
   std::string body_;
   std::list<Header> headers_;
-#ifdef ARDUINO_ARCH_ESP8266
+#ifdef USE_ESP8266
   std::shared_ptr<WiFiClient> wifi_client_;
 #ifdef USE_HTTP_REQUEST_ESP8266_HTTPS
   std::shared_ptr<BearSSL::WiFiClientSecure> wifi_client_secure_;
@@ -137,3 +139,5 @@ class HttpRequestResponseTrigger : public Trigger<int> {
 
 }  // namespace http_request
 }  // namespace esphome
+
+#endif  // USE_ARDUINO

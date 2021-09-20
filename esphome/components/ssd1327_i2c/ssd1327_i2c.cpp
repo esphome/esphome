@@ -10,8 +10,8 @@ void I2CSSD1327::setup() {
   ESP_LOGCONFIG(TAG, "Setting up I2C SSD1327...");
   this->init_reset_();
 
-  this->raw_begin_transmission();
-  if (!this->raw_end_transmission()) {
+  auto err = this->write(nullptr, 0);
+  if (err != i2c::ERROR_OK) {
     this->error_code_ = COMMUNICATION_FAILED;
     this->mark_failed();
     return;

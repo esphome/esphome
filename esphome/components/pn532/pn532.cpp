@@ -2,6 +2,7 @@
 
 #include <memory>
 #include "esphome/core/log.h"
+#include "esphome/core/hal.h"
 
 // Based on:
 // - https://cdn-shop.adafruit.com/datasheets/PN532C106_Application+Note_v1.2.pdf

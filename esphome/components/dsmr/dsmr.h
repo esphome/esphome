@@ -1,5 +1,7 @@
 #pragma once
 
+#ifdef USE_ARDUINO
+
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/text_sensor/text_sensor.h"
@@ -103,3 +105,5 @@ class Dsmr : public Component, public uart::UARTDevice {
 };
 }  // namespace dsmr
 }  // namespace esphome
+
+#endif  // USE_ARDUINO

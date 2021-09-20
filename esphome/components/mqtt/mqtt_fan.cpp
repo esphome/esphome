@@ -1,6 +1,7 @@
 #include "mqtt_fan.h"
 #include "esphome/core/log.h"
 
+#ifdef USE_MQTT
 #ifdef USE_FAN
 #include "esphome/components/fan/fan_helpers.h"
 
@@ -127,3 +128,4 @@ bool MQTTFanComponent::publish_state() {
 }  // namespace esphome
 
 #endif
+#endif  // USE_MQTT

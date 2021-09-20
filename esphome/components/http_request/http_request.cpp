@@ -1,3 +1,5 @@
+#ifdef USE_ARDUINO
+
 #include "http_request.h"
 #include "esphome/core/macros.h"
 #include "esphome/core/log.h"
@@ -28,10 +30,10 @@ void HttpRequestComponent::set_url(std::string url) {
 void HttpRequestComponent::send(const std::vector<HttpRequestResponseTrigger *> &response_triggers) {
   bool begin_status = false;
   const String url = this->url_.c_str();
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
   begin_status = this->client_.begin(url);
 #endif
-#ifdef ARDUINO_ARCH_ESP8266
+#ifdef USE_ESP8266
 #if ARDUINO_VERSION_CODE >= VERSION_CODE(2, 7, 0)
   this->client_.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
 #elif ARDUINO_VERSION_CODE >= VERSION_CODE(2, 6, 0)
@@ -79,7 +81,7 @@ void HttpRequestComponent::send(const std::vector<HttpRequestResponseTrigger *> 
   ESP_LOGD(TAG, "HTTP Request completed; URL: %s; Code: %d", this->url_.c_str(), http_code);
 }
 
-#ifdef ARDUINO_ARCH_ESP8266
+#ifdef USE_ESP8266
 std::shared_ptr<WiFiClient> HttpRequestComponent::get_wifi_client_() {
 #ifdef USE_HTTP_REQUEST_ESP8266_HTTPS
   if (this->secure_) {
@@ -111,3 +113,5 @@ const char *HttpRequestComponent::get_string() {
 
 }  // namespace http_request
 }  // namespace esphome
+
+#endif  // USE_ARDUINO

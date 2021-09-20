@@ -6,4 +6,7 @@
 //
 // This file is only used by static analyzers and IDEs.
 
+#include "esphome/core/macros.h"
+
 #define ESPHOME_VERSION "dev"
+#define ESPHOME_VERSION_CODE VERSION_CODE(2099, 12, 0)

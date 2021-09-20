@@ -2,25 +2,11 @@
 
 __version__ = "2021.10.0-dev"
 
-ESP_PLATFORM_ESP32 = "ESP32"
-ESP_PLATFORM_ESP8266 = "ESP8266"
-ESP_PLATFORMS = [ESP_PLATFORM_ESP32, ESP_PLATFORM_ESP8266]
-
 ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-_"
 
-# Lookup table from ESP32 arduino framework version to latest platformio
-# package with that version
-# See also https://github.com/platformio/platform-espressif32/releases
-ARDUINO_VERSION_ESP32 = {
-    "dev": "https://github.com/platformio/platform-espressif32.git",
-    "1.0.6": "platformio/espressif32@3.2.0",
-    "1.0.5": "platformio/espressif32@3.1.1",
-    "1.0.4": "platformio/espressif32@3.0.0",
-    "1.0.3": "platformio/espressif32@1.10.0",
-    "1.0.2": "platformio/espressif32@1.9.0",
-    "1.0.1": "platformio/espressif32@1.7.0",
-    "1.0.0": "platformio/espressif32@1.5.0",
-}
+TARGET_PLATFORMS = ["esp32", "esp8266"]
+TARGET_FRAMEWORKS = ["arduino", "esp-idf"]
+
 # See also https://github.com/platformio/platform-espressif8266/releases
 ARDUINO_VERSION_ESP8266 = {
     "dev": "https://github.com/platformio/platform-espressif8266.git",
@@ -204,13 +190,11 @@ CONF_ECO2 = "eco2"
 CONF_EFFECT = "effect"
 CONF_EFFECTS = "effects"
 CONF_ELSE = "else"
-CONF_ENABLE_MDNS = "enable_mdns"
 CONF_ENABLE_PIN = "enable_pin"
 CONF_ENABLE_TIME = "enable_time"
 CONF_ENERGY = "energy"
 CONF_ENTITY_ID = "entity_id"
 CONF_ESP8266_DISABLE_SSL_SUPPORT = "esp8266_disable_ssl_support"
-CONF_ESP8266_RESTORE_FROM_FLASH = "esp8266_restore_from_flash"
 CONF_ESPHOME = "esphome"
 CONF_ETHERNET = "ethernet"
 CONF_EVENT = "event"
@@ -253,6 +237,7 @@ CONF_FORCE_UPDATE = "force_update"
 CONF_FORMALDEHYDE = "formaldehyde"
 CONF_FORMAT = "format"
 CONF_FORWARD_ACTIVE_ENERGY = "forward_active_energy"
+CONF_FRAMEWORK = "framework"
 CONF_FREQUENCY = "frequency"
 CONF_FROM = "from"
 CONF_FULL_SPECTRUM = "full_spectrum"
@@ -307,6 +292,7 @@ CONF_INFRARED = "infrared"
 CONF_INITIAL_MODE = "initial_mode"
 CONF_INITIAL_OPTION = "initial_option"
 CONF_INITIAL_VALUE = "initial_value"
+CONF_INPUT = "input"
 CONF_INTEGRATION_TIME = "integration_time"
 CONF_INTENSITY = "intensity"
 CONF_INTERLOCK = "interlock"
@@ -447,6 +433,7 @@ CONF_ON_VALUE = "on_value"
 CONF_ON_VALUE_RANGE = "on_value_range"
 CONF_ONE = "one"
 CONF_OPEN_ACTION = "open_action"
+CONF_OPEN_DRAIN = "open_drain"
 CONF_OPEN_DRAIN_INTERRUPT = "open_drain_interrupt"
 CONF_OPEN_DURATION = "open_duration"
 CONF_OPEN_ENDSTOP = "open_endstop"
@@ -520,6 +507,8 @@ CONF_PRIORITY = "priority"
 CONF_PROJECT = "project"
 CONF_PROTOCOL = "protocol"
 CONF_PULL_MODE = "pull_mode"
+CONF_PULLDOWN = "pulldown"
+CONF_PULLUP = "pullup"
 CONF_PULSE_LENGTH = "pulse_length"
 CONF_QOS = "qos"
 CONF_RADON = "radon"
@@ -890,3 +879,8 @@ STATE_CLASS_MEASUREMENT = "measurement"
 
 # The state represents a total that only increases, a decrease is considered a reset.
 STATE_CLASS_TOTAL_INCREASING = "total_increasing"
+
+KEY_CORE = "core"
+KEY_TARGET_PLATFORM = "target_platform"
+KEY_TARGET_FRAMEWORK = "target_framework"
+KEY_FRAMEWORK_VERSION = "framework_version"

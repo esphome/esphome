@@ -2,17 +2,13 @@ import logging
 import os
 import re
 from pathlib import Path
-from typing import Dict
+from typing import Dict, List, Union
 
 from esphome.config import iter_components
 from esphome.const import (
-    CONF_BOARD_FLASH_MODE,
-    CONF_ESPHOME,
-    CONF_PLATFORMIO_OPTIONS,
     HEADER_FILE_EXTENSIONS,
     SOURCE_FILE_EXTENSIONS,
     __version__,
-    ARDUINO_VERSION_ESP8266,
     ENV_NOGITIGNORE,
 )
 from esphome.core import CORE, EsphomeError
@@ -25,7 +21,6 @@ from esphome.helpers import (
     get_bool_env,
 )
 from esphome.storage_json import StorageJSON, storage_path
-from esphome.boards import ESP8266_FLASH_SIZES, ESP8266_LD_SCRIPTS
 from esphome import loader
 
 _LOGGER = logging.getLogger(__name__)
@@ -72,7 +67,9 @@ upload_flags =
 """,
 )
 
-UPLOAD_SPEED_OVERRIDE = {"esp210": 57600}
+UPLOAD_SPEED_OVERRIDE = {
+    "esp210": 57600,
+}
 
 
 def get_flags(key):
@@ -166,10 +163,6 @@ def storage_should_clean(old, new):  # type: (StorageJSON, StorageJSON) -> bool
 
     if old.src_version != new.src_version:
         return True
-    if old.arduino_version != new.arduino_version:
-        return True
-    if old.board != new.board:
-        return True
     if old.build_path != new.build_path:
         return True
     return False
@@ -192,10 +185,10 @@ def update_storage_json():
     new.save(path)
 
 
-def format_ini(data):
+def format_ini(data: Dict[str, Union[str, List[str]]]) -> str:
     content = ""
     for key, value in sorted(data.items()):
-        if isinstance(value, (list, set, tuple)):
+        if isinstance(value, list):
             content += f"{key} =\n"
             for x in value:
                 content += f"    {x}\n"
@@ -204,82 +197,15 @@ def format_ini(data):
     return content
 
 
-def gather_lib_deps():
-    return [x.as_lib_dep for x in CORE.libraries]
-
-
-def gather_build_flags(overrides):
-    build_flags = list(CORE.build_flags)
-    build_flags += [overrides] if isinstance(overrides, str) else overrides
-
-    # avoid changing build flags order
-    return list(sorted(build_flags))
-
-
-ESP32_LARGE_PARTITIONS_CSV = """\
-nvs,      data, nvs,     0x009000, 0x005000,
-otadata,  data, ota,     0x00e000, 0x002000,
-app0,     app,  ota_0,   0x010000, 0x1C0000,
-app1,     app,  ota_1,   0x1D0000, 0x1C0000,
-eeprom,   data, 0x99,    0x390000, 0x001000,
-spiffs,   data, spiffs,  0x391000, 0x00F000
-"""
-
-
 def get_ini_content():
-    overrides = CORE.config[CONF_ESPHOME].get(CONF_PLATFORMIO_OPTIONS, {})
-
-    lib_deps = gather_lib_deps()
-    build_flags = gather_build_flags(overrides.pop("build_flags", []))
-
-    data = {
-        "platform": CORE.arduino_version,
-        "board": CORE.board,
-        "framework": "arduino",
-        "lib_deps": lib_deps + ["${common.lib_deps}"],
-        "build_flags": build_flags + ["${common.build_flags}"],
-        "upload_speed": UPLOAD_SPEED_OVERRIDE.get(CORE.board, 115200),
-    }
-
-    if CORE.is_esp32:
-        data["board_build.partitions"] = "partitions.csv"
-        partitions_csv = CORE.relative_build_path("partitions.csv")
-        write_file_if_changed(partitions_csv, ESP32_LARGE_PARTITIONS_CSV)
-
-    # pylint: disable=unsubscriptable-object
-    if CONF_BOARD_FLASH_MODE in CORE.config[CONF_ESPHOME]:
-        flash_mode = CORE.config[CONF_ESPHOME][CONF_BOARD_FLASH_MODE]
-        data["board_build.flash_mode"] = flash_mode
-
-    # Build flags
-    if CORE.is_esp8266 and CORE.board in ESP8266_FLASH_SIZES:
-        flash_size = ESP8266_FLASH_SIZES[CORE.board]
-        ld_scripts = ESP8266_LD_SCRIPTS[flash_size]
-
-        versions_with_old_ldscripts = [
-            ARDUINO_VERSION_ESP8266["2.4.0"],
-            ARDUINO_VERSION_ESP8266["2.4.1"],
-            ARDUINO_VERSION_ESP8266["2.4.2"],
-        ]
-        if CORE.arduino_version == ARDUINO_VERSION_ESP8266["2.3.0"]:
-            # No ld script support
-            ld_script = None
-        if CORE.arduino_version in versions_with_old_ldscripts:
-            # Old ld script path
-            ld_script = ld_scripts[0]
-        else:
-            ld_script = ld_scripts[1]
-
-        if ld_script is not None:
-            data["board_build.ldscript"] = ld_script
-
-    # Ignore libraries that are not explicitly used, but may
-    # be added by LDF
-    # data['lib_ldf_mode'] = 'chain'
-    data.update(overrides)
+    CORE.add_platformio_option(
+        "lib_deps", [x.as_lib_dep for x in CORE.libraries] + ["${common.lib_deps}"]
+    )
+    # Sort to avoid changing build flags order
+    CORE.add_platformio_option("build_flags", sorted(CORE.build_flags))
 
     content = f"[env:{CORE.name}]\n"
-    content += format_ini(data)
+    content += format_ini(CORE.platformio_options)
 
     return content
 
@@ -342,7 +268,9 @@ DEFINES_H_FORMAT = ESPHOME_H_FORMAT = """\
 """
 VERSION_H_FORMAT = """\
 #pragma once
+#include "esphome/core/macros.h"
 #define ESPHOME_VERSION "{}"
+#define ESPHOME_VERSION_CODE VERSION_CODE({}, {}, {})
 """
 DEFINES_H_TARGET = "esphome/core/defines.h"
 VERSION_H_TARGET = "esphome/core/version.h"
@@ -359,12 +287,15 @@ or use the custom_components folder.
 
 
 def copy_src_tree():
-    source_files: Dict[Path, loader.SourceFile] = {}
+    source_files: List[loader.FileResource] = []
     for _, component, _ in iter_components(CORE.config):
-        source_files.update(component.source_files)
+        source_files += component.resources
+    source_files_map = {
+        Path(x.package.replace(".", "/") + "/" + x.resource): x for x in source_files
+    }
 
     # Convert to list and sort
-    source_files_l = list(source_files.items())
+    source_files_l = list(source_files_map.items())
     source_files_l.sort()
 
     # Build #include list for esphome.h
@@ -375,7 +306,7 @@ def copy_src_tree():
     include_l.append("")
     include_s = "\n".join(include_l)
 
-    source_files_copy = source_files.copy()
+    source_files_copy = source_files_map.copy()
     ignore_targets = [Path(x) for x in (DEFINES_H_TARGET, VERSION_H_TARGET)]
     for t in ignore_targets:
         source_files_copy.pop(t)
@@ -415,15 +346,28 @@ def copy_src_tree():
         CORE.relative_src_path("esphome.h"), ESPHOME_H_FORMAT.format(include_s)
     )
     write_file_if_changed(
-        CORE.relative_src_path("esphome", "core", "version.h"),
-        VERSION_H_FORMAT.format(__version__),
+        CORE.relative_src_path("esphome", "core", "version.h"), generate_version_h()
     )
+
+    if CORE.is_esp32:
+        from esphome.components.esp32 import copy_files
+
+        copy_files()
 
 
 def generate_defines_h():
     define_content_l = [x.as_macro for x in CORE.defines]
     define_content_l.sort()
     return DEFINES_H_FORMAT.format("\n".join(define_content_l))
+
+
+def generate_version_h():
+    match = re.match(r"^(\d+)\.(\d+).(\d+)-?\w*$", __version__)
+    if not match:
+        raise EsphomeError(f"Could not parse version {__version__}.")
+    return VERSION_H_FORMAT.format(
+        __version__, match.group(1), match.group(2), match.group(3)
+    )
 
 
 def write_cpp(code_s):

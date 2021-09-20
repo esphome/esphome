@@ -209,15 +209,21 @@ def write_file(path: Union[Path, str], text: str):
         raise EsphomeError(f"Could not write file at {path}") from err
 
 
-def write_file_if_changed(path: Union[Path, str], text: str):
+def write_file_if_changed(path: Union[Path, str], text: str) -> bool:
+    """Write text to the given path, but not if the contents match already.
+
+    Returns true if the file was changed.
+    """
     if not isinstance(path, Path):
         path = Path(path)
 
     src_content = None
     if path.is_file():
         src_content = read_file(path)
-    if src_content != text:
-        write_file(path, text)
+    if src_content == text:
+        return False
+    write_file(path, text)
+    return True
 
 
 def copy_file_if_changed(src: os.PathLike, dst: os.PathLike) -> None:

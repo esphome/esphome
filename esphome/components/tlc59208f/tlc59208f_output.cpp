@@ -75,7 +75,7 @@ void TLC59208FOutput::setup() {
   ESP_LOGV(TAG, "  Resetting all devices on the bus...");
 
   // Reset all devices on the bus
-  if (!this->parent_->write_byte(TLC59208F_SWRST_ADDR >> 1, TLC59208F_SWRST_SEQ[0], TLC59208F_SWRST_SEQ[1])) {
+  if (this->bus_->write(TLC59208F_SWRST_ADDR >> 1, TLC59208F_SWRST_SEQ, 2) != i2c::ERROR_OK) {
     ESP_LOGE(TAG, "RESET failed");
     this->mark_failed();
     return;

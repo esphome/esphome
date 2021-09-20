@@ -8,10 +8,14 @@
 #include "WString.h"
 #endif
 
-// Both the ESP-IDF and Arduino also define ESP_LOG* macros. Include them here, so that they won't
-// be reincluded later on and redefine our macros.
-#ifdef ARDUINO_ARCH_ESP32
+#include "esphome/core/macros.h"
+
+// Include ESP-IDF/Arduino based logging methods here so they don't undefine ours later
+#if defined(USE_ESP32_FRAMEWORK_ARDUINO) || defined(USE_ESP_IDF)
+#include <esp_err.h>
 #include <esp_log.h>
+#endif
+#ifdef USE_ESP32_FRAMEWORK_ARDUINO
 #include <esp32-hal-log.h>
 #endif
 
@@ -58,7 +62,7 @@ void esp_log_vprintf_(int level, const char *tag, int line, const char *format, 
 #ifdef USE_STORE_LOG_STR_IN_FLASH
 void esp_log_vprintf_(int level, const char *tag, int line, const __FlashStringHelper *format, va_list args);
 #endif
-#ifdef ARDUINO_ARCH_ESP32
+#if defined(USE_ESP32_FRAMEWORK_ARDUINO) || defined(USE_ESP_IDF)
 int esp_idf_log_vprintf_(const char *format, va_list args);  // NOLINT
 #endif
 

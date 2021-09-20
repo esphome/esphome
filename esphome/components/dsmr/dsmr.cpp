@@ -1,3 +1,5 @@
+#ifdef USE_ARDUINO
+
 #include "dsmr.h"
 #include "esphome/core/log.h"
 
@@ -128,8 +130,9 @@ void Dsmr::receive_encrypted_() {
       delay(4);  // Wait for data
     }
   }
-  if (buffer_length > 0)
+  if (buffer_length > 0) {
     ESP_LOGW(TAG, "Timeout while waiting for encrypted data or invalid data received.");
+  }
 }
 
 bool Dsmr::parse_telegram() {
@@ -186,3 +189,5 @@ void Dsmr::set_decryption_key(const std::string &decryption_key) {
 
 }  // namespace dsmr
 }  // namespace esphome
+
+#endif  // USE_ARDUINO

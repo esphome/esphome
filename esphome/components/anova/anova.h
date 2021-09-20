@@ -6,7 +6,7 @@
 #include "esphome/components/climate/climate.h"
 #include "anova_base.h"
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 
 #include <esp_gattc_api.h>
 

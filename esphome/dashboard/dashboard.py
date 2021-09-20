@@ -441,16 +441,10 @@ class DashboardEntry:
         return self.storage.comment
 
     @property
-    def esp_platform(self):
+    def target_platform(self):
         if self.storage is None:
             return None
-        return self.storage.esp_platform
-
-    @property
-    def board(self):
-        if self.storage is None:
-            return None
-        return self.storage.board
+        return self.storage.target_platform
 
     @property
     def update_available(self):

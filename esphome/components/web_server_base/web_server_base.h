@@ -1,5 +1,7 @@
 #pragma once
 
+#ifdef USE_ARDUINO
+
 #include <memory>
 #include "esphome/core/component.h"
 
@@ -74,3 +76,5 @@ class OTARequestHandler : public AsyncWebHandler {
 
 }  // namespace web_server_base
 }  // namespace esphome
+
+#endif  // USE_ARDUINO

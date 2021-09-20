@@ -4,7 +4,6 @@ import esphome.config_validation as cv
 from esphome import automation
 from esphome.const import (
     CONF_ID,
-    ESP_PLATFORM_ESP32,
     CONF_INTERVAL,
     CONF_DURATION,
     CONF_TRIGGER_ID,
@@ -15,8 +14,10 @@ from esphome.const import (
     CONF_ON_BLE_SERVICE_DATA_ADVERTISE,
     CONF_ON_BLE_MANUFACTURER_DATA_ADVERTISE,
 )
+from esphome.core import CORE
+from esphome.components.esp32 import add_idf_sdkconfig_option
 
-ESP_PLATFORMS = [ESP_PLATFORM_ESP32]
+DEPENDENCIES = ["esp32"]
 AUTO_LOAD = ["xiaomi_ble", "ruuvi_ble"]
 
 CONF_ESP32_BLE_ID = "esp32_ble_id"
@@ -215,6 +216,9 @@ async def to_code(config):
         if CONF_MAC_ADDRESS in conf:
             cg.add(trigger.set_address(conf[CONF_MAC_ADDRESS].as_hex))
         await automation.build_automation(trigger, [(adv_data_t_const_ref, "x")], conf)
+
+    if CORE.using_esp_idf:
+        add_idf_sdkconfig_option("CONFIG_BT_ENABLED", True)
 
 
 async def register_ble_device(var, config):

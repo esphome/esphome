@@ -27,12 +27,6 @@ void setup() {
   auto *ota = new ota::OTAComponent();  // NOLINT
   ota->set_port(8266);
 
-  auto *gpio = new gpio::GPIOSwitch();  // NOLINT
-  gpio->set_name("GPIO Switch");
-  gpio->set_pin(new GPIOPin(8, OUTPUT, false));  // NOLINT
-  App.register_component(gpio);
-  App.register_switch(gpio);
-
   App.setup();
 }
 

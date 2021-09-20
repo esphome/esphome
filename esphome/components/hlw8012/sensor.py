@@ -50,12 +50,8 @@ CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(HLW8012Component),
         cv.Required(CONF_SEL_PIN): pins.gpio_output_pin_schema,
-        cv.Required(CONF_CF_PIN): cv.All(
-            pins.internal_gpio_input_pullup_pin_schema, pins.validate_has_interrupt
-        ),
-        cv.Required(CONF_CF1_PIN): cv.All(
-            pins.internal_gpio_input_pullup_pin_schema, pins.validate_has_interrupt
-        ),
+        cv.Required(CONF_CF_PIN): cv.All(pins.internal_gpio_input_pullup_pin_schema),
+        cv.Required(CONF_CF1_PIN): cv.All(pins.internal_gpio_input_pullup_pin_schema),
         cv.Optional(CONF_VOLTAGE): sensor.sensor_schema(
             unit_of_measurement=UNIT_VOLT,
             accuracy_decimals=1,

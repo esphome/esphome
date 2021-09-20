@@ -1,6 +1,7 @@
 #include "mqtt_cover.h"
 #include "esphome/core/log.h"
 
+#ifdef USE_MQTT
 #ifdef USE_COVER
 
 namespace esphome {
@@ -115,3 +116,4 @@ bool MQTTCoverComponent::publish_state() {
 }  // namespace esphome
 
 #endif
+#endif  // USE_MQTT
