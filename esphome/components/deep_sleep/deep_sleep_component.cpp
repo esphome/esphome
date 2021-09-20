@@ -44,6 +44,7 @@ void DeepSleepComponent::set_wakeup_pin_mode(WakeupPinMode wakeup_pin_mode) {
   this->wakeup_pin_mode_ = wakeup_pin_mode;
 }
 void DeepSleepComponent::set_ext1_wakeup(Ext1Wakeup ext1_wakeup) { this->ext1_wakeup_ = ext1_wakeup; }
+void DeepSleepComponent::set_touch_wakeup(bool touch_wakeup) { this->touch_wakeup_ = touch_wakeup; }
 #endif
 void DeepSleepComponent::set_run_duration(uint32_t time_ms) { this->run_duration_ = time_ms; }
 void DeepSleepComponent::begin_sleep(bool manual) {
@@ -80,6 +81,12 @@ void DeepSleepComponent::begin_sleep(bool manual) {
   if (this->ext1_wakeup_.has_value()) {
     esp_sleep_enable_ext1_wakeup(this->ext1_wakeup_->mask, this->ext1_wakeup_->wakeup_mode);
   }
+
+  if (this->touch_wakeup_.has_value() && *(this->touch_wakeup_)) {
+    esp_sleep_enable_touchpad_wakeup();
+    esp_sleep_pd_config(ESP_PD_DOMAIN_RTC_PERIPH, ESP_PD_OPTION_ON);
+  }
+
   esp_deep_sleep_start();
 #endif
 
