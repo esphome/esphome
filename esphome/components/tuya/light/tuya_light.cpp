@@ -108,56 +108,25 @@ light::LightTraits TuyaLight::get_traits() {
 void TuyaLight::setup_state(light::LightState *state) { state_ = state; }
 
 void TuyaLight::write_state(light::LightState *state) {
-  float red = 0.0f, green = 0.0f, blue = 0.0f;
-  float color_temperature = 0.0f, brightness = 0.0f;
+  float red, green, blue, color_temperature, brightness;
+  state->current_values_as_rgbct(&red, &green, &blue, &color_temperature, &brightness);
+
+  if (this->color_temperature_id_.has_value()) {
+    uint32_t color_temp_int = static_cast<uint32_t>(color_temperature * this->color_temperature_max_value_);
+    if (this->color_temperature_invert_) {
+      color_temp_int = this->color_temperature_max_value_ - color_temp_int;
+    }
+    parent_->set_integer_datapoint_value(*this->color_temperature_id_, color_temp_int);
+  }
+
+  if (this->dimmer_id_.has_value()) {
+    auto brightness_int = static_cast<uint32_t>(brightness * this->max_value_);
+    brightness_int = std::max(brightness_int, this->min_value_);
+
+    parent_->set_integer_datapoint_value(*this->dimmer_id_, brightness_int);
+  }
 
   if (this->rgb_id_.has_value()) {
-    if (this->color_temperature_id_.has_value()) {
-      state->current_values_as_rgbct(&red, &green, &blue, &color_temperature, &brightness);
-    } else if (this->dimmer_id_.has_value()) {
-      state->current_values_as_rgbw(&red, &green, &blue, &brightness, this->color_interlock_);
-    } else {
-      state->current_values_as_rgb(&red, &green, &blue);
-    }
-  } else if (this->color_temperature_id_.has_value()) {
-    state->current_values_as_ct(&color_temperature, &brightness);
-  } else {
-    state->current_values_as_brightness(&brightness);
-  }
-
-  if (!state->current_values.is_on()) {
-    // turning off, first try via switch (if exists), then dimmer
-    if (switch_id_.has_value()) {
-      parent_->set_boolean_datapoint_value(*this->switch_id_, false);
-      return;
-    }
-    if (dimmer_id_.has_value()) {
-      parent_->set_integer_datapoint_value(*this->dimmer_id_, 0);
-    }
-    if (rgb_id_.has_value()) {
-      parent_->set_string_datapoint_value(*this->rgb_id_, "000000");
-    }
-    return;
-  }
-
-  if (brightness > 0.0f) {
-    if (this->color_temperature_id_.has_value()) {
-      uint32_t color_temp_int = static_cast<uint32_t>(color_temperature * this->color_temperature_max_value_);
-      if (this->color_temperature_invert_) {
-        color_temp_int = this->color_temperature_max_value_ - color_temp_int;
-      }
-      parent_->set_integer_datapoint_value(*this->color_temperature_id_, color_temp_int);
-    }
-
-    if (this->dimmer_id_.has_value()) {
-      auto brightness_int = static_cast<uint32_t>(brightness * this->max_value_);
-      brightness_int = std::max(brightness_int, this->min_value_);
-
-      parent_->set_integer_datapoint_value(*this->dimmer_id_, brightness_int);
-    }
-  }
-
-  if (this->rgb_id_.has_value() && (brightness == 0.0f || !this->color_interlock_)) {
     char buffer[7];
     sprintf(buffer, "%02X%02X%02X", int(red * 255), int(green * 255), int(blue * 255));
     std::string value = buffer;
@@ -165,7 +134,7 @@ void TuyaLight::write_state(light::LightState *state) {
   }
 
   if (this->switch_id_.has_value()) {
-    parent_->set_boolean_datapoint_value(*this->switch_id_, true);
+    parent_->set_boolean_datapoint_value(*this->switch_id_, state->current_values.is_on());
   }
 }
 
