@@ -10,6 +10,7 @@ extern "C" {
 #include "esphome/core/preferences.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/defines.h"
 
 namespace esphome {
 namespace esp8266 {

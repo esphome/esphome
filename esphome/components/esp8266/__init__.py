@@ -1,7 +1,8 @@
-from contextlib import suppress
+import logging
 
 from esphome.const import (
     CONF_BOARD,
+    CONF_BOARD_FLASH_MODE,
     CONF_FRAMEWORK,
     CONF_VERSION,
     KEY_CORE,
@@ -13,13 +14,15 @@ from esphome.core import CORE
 import esphome.config_validation as cv
 import esphome.codegen as cg
 
-from .const import KEY_BOARD, KEY_ESP8266
+from .const import CONF_RESTORE_FROM_FLASH, KEY_BOARD, KEY_ESP8266
+from .boards import ESP8266_FLASH_SIZES, ESP8266_LD_SCRIPTS
 
 # force import gpio to register pin schema
 from .gpio import esp8266_pin_to_code  # noqa
 
 
 CODEOWNERS = ["@esphome/core"]
+_LOGGER = logging.getLogger(__name__)
 
 
 def set_core_data(config):
@@ -64,6 +67,7 @@ ARDUINO_3_PLATFORM_VERSION = cv.Version(3, 0, 2)
 
 
 def _arduino_check_versions(value):
+    value = value.copy()
     lookups = {
         "dev": ("https://github.com/esp8266/Arduino.git", cv.Version(3, 0, 2)),
         "latest": ("", cv.Version(3, 0, 2)),
@@ -78,7 +82,7 @@ def _arduino_check_versions(value):
         default_ver_hint = str(lookups[ver_value.lower()][1])
         ver_value = lookups[ver_value.lower()][0]
     else:
-        with suppress(cv.Invalid):
+        with cv.suppress_invalid():
             ver = cv.Version.parse(cv.version_number(value))
             if ver <= cv.Version(2, 4, 1):
                 ver_value = f"~1.{ver.major}{ver.minor:02d}{ver.patch:02d}.0"
@@ -88,10 +92,13 @@ def _arduino_check_versions(value):
                 ver_value = f"~3.{ver.major}{ver.minor:02d}{ver.patch:02d}.0"
             default_ver_hint = str(ver)
 
+    value[CONF_VERSION] = ver_value
+
     if CONF_VERSION_HINT not in value and default_ver_hint is None:
         raise cv.Invalid("Needs a version hint to understand the framework version")
 
     ver_hint_s = value.get(CONF_VERSION_HINT, default_ver_hint)
+    value[CONF_VERSION_HINT] = ver_hint_s
     plat_ver = value.get(CONF_PLATFORM_VERSION)
 
     if plat_ver is None:
@@ -102,12 +109,17 @@ def _arduino_check_versions(value):
             plat_ver = ARDUINO_2_PLATFORM_VERSION
         else:
             plat_ver = cv.Version(1, 8, 0)
+    value[CONF_PLATFORM_VERSION] = str(plat_ver)
 
-    return {
-        CONF_VERSION: ver_value,
-        CONF_VERSION_HINT: ver_hint_s,
-        CONF_PLATFORM_VERSION: str(plat_ver),
-    }
+    if cv.Version.parse(ver_hint_s) != RECOMMENDED_ARDUINO_FRAMEWORK_VERSION:
+        _LOGGER.warning(
+            "The selected arduino framework version is not the recommended one"
+        )
+        _LOGGER.warning(
+            "If there are connectivity or build issues please remove the manual version"
+        )
+
+    return value
 
 
 CONF_VERSION_HINT = "version_hint"
@@ -124,11 +136,16 @@ ARDUINO_FRAMEWORK_SCHEMA = cv.All(
 )
 
 
+BUILD_FLASH_MODES = ["qio", "qout", "dio", "dout"]
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.Required(CONF_BOARD): cv.string_strict,
             cv.Optional(CONF_FRAMEWORK, default={}): ARDUINO_FRAMEWORK_SCHEMA,
+            cv.Optional(CONF_RESTORE_FROM_FLASH, default=False): cv.boolean,
+            cv.Optional(CONF_BOARD_FLASH_MODE, default="dout"): cv.one_of(
+                *BUILD_FLASH_MODES, lower=True
+            ),
         }
     ),
     set_core_data,
@@ -164,3 +181,33 @@ async def to_code(config):
     #  - LWIP_FEATURES disabled (because we don't need them)
     # Other projects like Tasmota & ESPEasy also use this
     cg.add_build_flag("-DPIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH")
+
+    if config[CONF_RESTORE_FROM_FLASH]:
+        cg.add_define("USE_ESP8266_PREFERENCES_FLASH")
+
+    # Arduino 2 has a non-standards conformant new that returns a nullptr instead of failing when
+    # out of memory and exceptions are disabled. Since Arduino 2.6.0, this flag can be used to make
+    # new abort instead. Use it so that OOM fails early (on allocation) instead of on dereference of
+    # a NULL pointer (so the stacktrace makes more sense), and for consistency with Arduino 3,
+    # which always aborts if exceptions are disabled.
+    # For cases where nullptrs can be handled, use nothrow: `new (std::nothrow) T;`
+    cg.add_build_flag("-DNEW_OOM_ABORT")
+
+    cg.add_platformio_option("board_build.flash_mode", config[CONF_BOARD_FLASH_MODE])
+
+    if config[CONF_BOARD] in ESP8266_FLASH_SIZES:
+        flash_size = ESP8266_FLASH_SIZES[config[CONF_BOARD]]
+        ld_scripts = ESP8266_LD_SCRIPTS[flash_size]
+        ver = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
+
+        if ver <= cv.Version(2, 3, 0):
+            # No ld script support
+            ld_script = None
+        if ver <= cv.Version(2, 4, 2):
+            # Old ld script path
+            ld_script = ld_scripts[0]
+        else:
+            ld_script = ld_scripts[1]
+
+        if ld_script is not None:
+            cg.add_platformio_option("board_build.ldscript", ld_script)

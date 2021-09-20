@@ -1,4 +1,3 @@
-from contextlib import suppress
 from dataclasses import dataclass
 from typing import Union
 from pathlib import Path
@@ -115,6 +114,7 @@ ESP_IDF_PLATFORM_VERSION = cv.Version(3, 3, 2)
 
 
 def _arduino_check_versions(value):
+    value = value.copy()
     lookups = {
         "dev": ("https://github.com/espressif/arduino-esp32.git", cv.Version(2, 0, 0)),
         "latest": ("", cv.Version(1, 0, 3)),
@@ -129,25 +129,32 @@ def _arduino_check_versions(value):
         default_ver_hint = str(lookups[ver_value.lower()][1])
         ver_value = lookups[ver_value.lower()][0]
     else:
-        with suppress(cv.Invalid):
+        with cv.suppress_invalid():
             ver = cv.Version.parse(cv.version_number(value))
             if ver <= cv.Version(1, 0, 3):
                 ver_value = f"~2.{ver.major}{ver.minor:02d}{ver.patch:02d}.0"
             else:
                 ver_value = f"~3.{ver.major}{ver.minor:02d}{ver.patch:02d}.0"
             default_ver_hint = str(ver)
+    value[CONF_VERSION] = ver_value
 
     if CONF_VERSION_HINT not in value and default_ver_hint is None:
         raise cv.Invalid("Needs a version hint to understand the framework version")
 
     ver_hint_s = value.get(CONF_VERSION_HINT, default_ver_hint)
+    value[CONF_VERSION_HINT] = ver_hint_s
     plat_ver = value.get(CONF_PLATFORM_VERSION, ARDUINO_PLATFORM_VERSION)
+    value[CONF_PLATFORM_VERSION] = str(plat_ver)
 
-    return {
-        CONF_VERSION: ver_value,
-        CONF_VERSION_HINT: ver_hint_s,
-        CONF_PLATFORM_VERSION: str(plat_ver),
-    }
+    if cv.Version.parse(ver_hint_s) != RECOMMENDED_ARDUINO_FRAMEWORK_VERSION:
+        _LOGGER.warning(
+            "The selected arduino framework version is not the recommended one"
+        )
+        _LOGGER.warning(
+            "If there are connectivity or build issues please remove the manual version"
+        )
+
+    return value
 
 
 def _format_framework_espidf_version(ver: cv.Version) -> str:
@@ -158,6 +165,7 @@ def _format_framework_espidf_version(ver: cv.Version) -> str:
 
 
 def _esp_idf_check_versions(value):
+    value = value.copy()
     lookups = {
         "dev": ("https://github.com/espressif/esp-idf.git", cv.Version(4, 3, 1)),
         "latest": ("", cv.Version(4, 3, 0)),
@@ -172,26 +180,31 @@ def _esp_idf_check_versions(value):
         default_ver_hint = str(lookups[ver_value.lower()][1])
         ver_value = lookups[ver_value.lower()][0]
     else:
-        with suppress(cv.Invalid):
+        with cv.suppress_invalid():
             ver = cv.Version.parse(cv.version_number(value))
             ver_value = f"~3.{ver.major}{ver.minor:02d}{ver.patch:02d}.0"
             default_ver_hint = str(ver)
+    value[CONF_VERSION] = ver_value
 
     if CONF_VERSION_HINT not in value and default_ver_hint is None:
         raise cv.Invalid("Needs a version hint to understand the framework version")
 
     ver_hint_s = value.get(CONF_VERSION_HINT, default_ver_hint)
+    value[CONF_VERSION_HINT] = ver_hint_s
     if cv.Version.parse(ver_hint_s) < cv.Version(4, 0, 0):
         raise cv.Invalid("Only ESP-IDF 4.0+ is supported")
+    if cv.Version.parse(ver_hint_s) != RECOMMENDED_ESP_IDF_FRAMEWORK_VERSION:
+        _LOGGER.warning(
+            "The selected esp-idf framework version is not the recommended one"
+        )
+        _LOGGER.warning(
+            "If there are connectivity or build issues please remove the manual version"
+        )
 
     plat_ver = value.get(CONF_PLATFORM_VERSION, ESP_IDF_PLATFORM_VERSION)
+    value[CONF_PLATFORM_VERSION] = str(plat_ver)
 
-    return {
-        **value,
-        CONF_VERSION: ver_value,
-        CONF_VERSION_HINT: ver_hint_s,
-        CONF_PLATFORM_VERSION: str(plat_ver),
-    }
+    return value
 
 
 CONF_VERSION_HINT = "version_hint"

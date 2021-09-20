@@ -12,6 +12,7 @@ from esphome.const import (
     CONF_BUILD_PATH,
     CONF_COMMENT,
     CONF_ESPHOME,
+    CONF_FRAMEWORK,
     CONF_INCLUDES,
     CONF_LIBRARIES,
     CONF_NAME,
@@ -23,6 +24,7 @@ from esphome.const import (
     CONF_PRIORITY,
     CONF_PROJECT,
     CONF_TRIGGER_ID,
+    CONF_TYPE,
     CONF_VERSION,
     KEY_CORE,
     TARGET_PLATFORMS,
@@ -179,7 +181,10 @@ def preload_core_config(config, result):
         if CONF_BOARD_FLASH_MODE in conf:
             plat_conf[CONF_BOARD_FLASH_MODE] = conf.pop(CONF_BOARD_FLASH_MODE)
         if CONF_ARDUINO_VERSION in conf:
-            plat_conf[CONF_ARDUINO_VERSION] = conf.pop(CONF_ARDUINO_VERSION)
+            plat_conf[CONF_FRAMEWORK] = {
+                CONF_TYPE: "arduino",
+                CONF_VERSION: conf.pop(CONF_ARDUINO_VERSION),
+            }
         if CONF_BOARD in conf:
             plat_conf[CONF_BOARD] = conf.pop(CONF_BOARD)
         # Insert generated target platform config to main config
@@ -270,20 +275,9 @@ async def to_code(config):
         else:
             cg.add_library(lib, None)
 
-    if CORE.is_esp8266:
-        # Arduino 2 has a non-standards conformant new that returns a nullptr instead of failing when
-        # out of memory and exceptions are disabled. Since Arduino 2.6.0, this flag can be used to make
-        # new abort instead. Use it so that OOM fails early (on allocation) instead of on dereference of
-        # a NULL pointer (so the stacktrace makes more sense), and for consistency with Arduino 3,
-        # which always aborts if exceptions are disabled.
-        # For cases where nullptrs can be handled, use nothrow: `new (std::nothrow) T;`
-        cg.add_build_flag("-DNEW_OOM_ABORT")
-
     cg.add_build_flag("-Wno-unused-variable")
     cg.add_build_flag("-Wno-unused-but-set-variable")
     cg.add_build_flag("-Wno-sign-compare")
-    if config.get(CONF_ESP8266_RESTORE_FROM_FLASH, False):
-        cg.add_define("USE_ESP8266_PREFERENCES_FLASH")
 
     if config[CONF_INCLUDES]:
         CORE.add_job(add_includes, config[CONF_INCLUDES])
