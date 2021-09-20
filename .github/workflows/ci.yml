@@ -92,8 +92,6 @@ jobs:
         with:
           path: ~/.platformio
           key: platformio-${{ matrix.pio_cache_key }}-${{ hashFiles('platformio.ini') }}
-          restore-keys: |
-            platformio-${{ matrix.pio_cache_key }}-
         if: matrix.id == 'test' || matrix.id == 'clang-tidy'
 
       - name: Install clang tools
