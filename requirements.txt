@@ -14,4 +14,4 @@ aioesphomeapi==9.1.1
 
 # esp-idf requires this, but doesn't bundle it by default
 # https://github.com/espressif/esp-idf/blob/220590d599e134d7a5e7f1e683cc4550349ffbf8/requirements.txt#L24
-kconfiglib==13.7.1
+kconfiglib==14.1.0
