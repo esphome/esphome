@@ -91,16 +91,17 @@ def validate_supports(value):
     is_open_drain = mode[CONF_OPEN_DRAIN]
     is_pullup = mode[CONF_PULLUP]
     is_pulldown = mode[CONF_PULLDOWN]
+    is_analog = mode[CONF_ANALOG]
 
-    if is_input and num == 17:
+    if (not is_analog) and num == 17:
         raise cv.Invalid(
             "GPIO17 (TOUT) is an analog-only pin on the ESP8266.",
-            [CONF_MODE, CONF_INPUT],
+            [CONF_MODE],
         )
-    if is_output and num == 17:
+    if is_analog and num != 17:
         raise cv.Invalid(
-            "GPIO17 (TOUT) is an analog-only pin on the ESP8266.",
-            [CONF_MODE, CONF_OUTPUT],
+            "Only GPIO17 is analog-capable on ESP8266.",
+            [CONF_MODE, CONF_ANALOG],
         )
     if is_open_drain and not is_output:
         raise cv.Invalid(
@@ -138,12 +139,14 @@ def validate_supports(value):
     return value
 
 
+CONF_ANALOG = "analog"
 ESP8266_PIN_SCHEMA = cv.All(
     {
         cv.GenerateID(): cv.declare_id(ESP8266GPIOPin),
         cv.Required(CONF_NUMBER): validate_gpio_pin,
         cv.Optional(CONF_MODE, default={}): cv.Schema(
             {
+                cv.Optional(CONF_ANALOG, default=False): cv.boolean,
                 cv.Optional(CONF_INPUT, default=False): cv.boolean,
                 cv.Optional(CONF_OUTPUT, default=False): cv.boolean,
                 cv.Optional(CONF_OPEN_DRAIN, default=False): cv.boolean,

@@ -6,7 +6,7 @@
 
 #include <cstring>
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 #include <esp_idf_version.h>
 #endif
 
@@ -81,7 +81,7 @@ class BSDSocketImpl : public Socket {
   int listen(int backlog) override { return ::listen(fd_, backlog); }
   ssize_t read(void *buf, size_t len) override { return ::read(fd_, buf, len); }
   ssize_t readv(const struct iovec *iov, int iovcnt) override {
-#if defined(ARDUINO_ARCH_ESP32) && ESP_IDF_VERSION_MAJOR < 4
+#if defined(USE_ESP32) && ESP_IDF_VERSION_MAJOR < 4
     // esp-idf v3 doesn't have readv, emulate it
     ssize_t ret = 0;
     for (int i = 0; i < iovcnt; i++) {
@@ -104,7 +104,7 @@ class BSDSocketImpl : public Socket {
   ssize_t write(const void *buf, size_t len) override { return ::write(fd_, buf, len); }
   ssize_t send(void *buf, size_t len, int flags) { return ::send(fd_, buf, len, flags); }
   ssize_t writev(const struct iovec *iov, int iovcnt) override {
-#if defined(ARDUINO_ARCH_ESP32) && ESP_IDF_VERSION_MAJOR < 4
+#if defined(USE_ESP32) && ESP_IDF_VERSION_MAJOR < 4
     // esp-idf v3 doesn't have writev, emulate it
     ssize_t ret = 0;
     for (int i = 0; i < iovcnt; i++) {
