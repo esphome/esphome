@@ -53,7 +53,7 @@ void LightState::setup() {
     case LIGHT_RESTORE_DEFAULT_ON:
     case LIGHT_RESTORE_INVERTED_DEFAULT_OFF:
     case LIGHT_RESTORE_INVERTED_DEFAULT_ON:
-      this->rtc_ = global_preferences.make_preference<LightStateRTCState>(this->get_object_id_hash());
+      this->rtc_ = global_preferences->make_preference<LightStateRTCState>(this->get_object_id_hash());
       // Attempt to load from preferences, else fall back to default values
       if (!this->rtc_.load(&recovered)) {
         recovered.state = false;
@@ -121,6 +121,9 @@ void LightState::loop() {
     }
 
     if (this->transformer_->is_finished()) {
+      // if the transition has written directly to the output, current_values is outdated, so update it
+      this->current_values = this->transformer_->get_target_values();
+
       this->transformer_->stop();
       this->transformer_ = nullptr;
       this->target_state_reached_callback_.call();
@@ -228,13 +231,16 @@ void LightState::stop_effect_() {
   this->active_effect_index_ = 0;
 }
 
-void LightState::start_transition_(const LightColorValues &target, uint32_t length) {
+void LightState::start_transition_(const LightColorValues &target, uint32_t length, bool set_remote_values) {
   this->transformer_ = this->output_->create_default_transition();
   this->transformer_->setup(this->current_values, target, length);
-  this->remote_values = target;
+
+  if (set_remote_values) {
+    this->remote_values = target;
+  }
 }
 
-void LightState::start_flash_(const LightColorValues &target, uint32_t length) {
+void LightState::start_flash_(const LightColorValues &target, uint32_t length, bool set_remote_values) {
   LightColorValues end_colors = this->remote_values;
   // If starting a flash if one is already happening, set end values to end values of current flash
   // Hacky but works
@@ -243,7 +249,10 @@ void LightState::start_flash_(const LightColorValues &target, uint32_t length) {
 
   this->transformer_ = make_unique<LightFlashTransformer>(*this);
   this->transformer_->setup(end_colors, target, length);
-  this->remote_values = target;
+
+  if (set_remote_values) {
+    this->remote_values = target;
+  };
 }
 
 void LightState::set_immediately_(const LightColorValues &target, bool set_remote_values) {

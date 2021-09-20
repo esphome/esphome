@@ -2,6 +2,7 @@
 
 #include "esphome/core/defines.h"
 
+#ifdef USE_MQTT
 #ifdef USE_CLIMATE
 
 #include "esphome/components/climate/climate.h"
@@ -48,3 +49,4 @@ class MQTTClimateComponent : public mqtt::MQTTComponent {
 }  // namespace esphome
 
 #endif
+#endif  // USE_MQTT

@@ -1,5 +1,7 @@
 #pragma once
 
+#ifdef USE_ARDUINO
+
 #include "esphome/core/component.h"
 #include "esphome/components/light/addressable_light_effect.h"
 
@@ -39,3 +41,5 @@ class WLEDLightEffect : public light::AddressableLightEffect {
 
 }  // namespace wled
 }  // namespace esphome
+
+#endif  // USE_ARDUINO

@@ -1,25 +1,21 @@
 #pragma once
 
+#ifdef USE_ESP32_FRAMEWORK_ARDUINO
+
+#include <algorithm>
+#include <iterator>
+#include <esp_gattc_api.h>
+#include <BLEDevice.h>
 #include "esphome/core/component.h"
+#include "esphome/core/log.h"
 #include "esphome/components/ble_client/ble_client.h"
 #include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
 #include "esphome/components/sensor/sensor.h"
-#include "esphome/core/log.h"
-#include <algorithm>
-#include <iterator>
-
-#ifdef ARDUINO_ARCH_ESP32
-#include <esp_gattc_api.h>
-#include <BLEDevice.h>
-
-using namespace esphome::ble_client;
 
 namespace esphome {
 namespace airthings_wave_plus {
 
-static const char *TAG = "airthings_wave_plus";
-
-class AirthingsWavePlus : public PollingComponent, public BLEClientNode {
+class AirthingsWavePlus : public PollingComponent, public ble_client::BLEClientNode {
  public:
   AirthingsWavePlus();
 
@@ -40,9 +36,9 @@ class AirthingsWavePlus : public PollingComponent, public BLEClientNode {
   void set_tvoc(sensor::Sensor *tvoc) { tvoc_sensor_ = tvoc; }
 
  protected:
-  bool is_valid_radon_value_(short radon);
-  bool is_valid_voc_value_(short voc);
-  bool is_valid_co2_value_(short co2);
+  bool is_valid_radon_value_(uint16_t radon);
+  bool is_valid_voc_value_(uint16_t voc);
+  bool is_valid_co2_value_(uint16_t co2);
 
   void read_sensors_(uint8_t *value, uint16_t value_len);
   void request_read_values_();
@@ -55,9 +51,9 @@ class AirthingsWavePlus : public PollingComponent, public BLEClientNode {
   sensor::Sensor *co2_sensor_{nullptr};
   sensor::Sensor *tvoc_sensor_{nullptr};
 
-  uint16_t handle;
-  espbt::ESPBTUUID service_uuid;
-  espbt::ESPBTUUID sensors_data_characteristic_uuid;
+  uint16_t handle_;
+  esp32_ble_tracker::ESPBTUUID service_uuid_;
+  esp32_ble_tracker::ESPBTUUID sensors_data_characteristic_uuid_;
 
   struct WavePlusReadings {
     uint8_t version;
@@ -76,4 +72,4 @@ class AirthingsWavePlus : public PollingComponent, public BLEClientNode {
 }  // namespace airthings_wave_plus
 }  // namespace esphome
 
-#endif  // ARDUINO_ARCH_ESP32
+#endif  // USE_ESP32_FRAMEWORK_ARDUINO

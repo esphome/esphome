@@ -20,8 +20,7 @@ GPIOLCDDisplay = lcd_gpio_ns.class_("GPIOLCDDisplay", lcd_base.LCDDisplay)
 def validate_pin_length(value):
     if len(value) != 4 and len(value) != 8:
         raise cv.Invalid(
-            "LCD Displays can either operate in 4-pin or 8-pin mode,"
-            "not {}-pin mode".format(len(value))
+            f"LCD Displays can either operate in 4-pin or 8-pin mode,not {len(value)}-pin mode"
         )
     return value
 

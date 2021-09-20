@@ -1,5 +1,9 @@
 #pragma once
 
+#include "esphome/core/defines.h"
+
+#ifdef USE_MQTT
+
 #include <memory>
 
 #include "esphome/core/component.h"
@@ -61,6 +65,8 @@ class MQTTComponent : public Component {
   void call_setup() override;
 
   void call_loop() override;
+
+  void call_dump_config() override;
 
   /// Send discovery info the Home Assistant, override this.
   virtual void send_discovery(JsonObject &root, SendDiscoveryConfig &config) = 0;
@@ -179,3 +185,5 @@ class MQTTComponent : public Component {
 
 }  // namespace mqtt
 }  // namespace esphome
+
+#endif  // USE_MQTt

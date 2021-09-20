@@ -63,11 +63,14 @@ Checks: >-
   -misc-no-recursion,
   -misc-unused-parameters,
   -modernize-avoid-c-arrays,
+  -modernize-avoid-bind,
+  -modernize-concat-nested-namespaces,
   -modernize-return-braced-init-list,
   -modernize-use-auto,
   -modernize-use-default-member-init,
   -modernize-use-equals-default,
   -modernize-use-trailing-return-type,
+  -modernize-use-nodiscard,
   -mpi-*,
   -objc-*,
   -readability-braces-around-statements,
@@ -86,7 +89,6 @@ Checks: >-
   -readability-redundant-string-init,
   -readability-uppercase-literal-suffix,
   -readability-use-anyofallof,
-  -warnings-as-errors
 WarningsAsErrors: '*'
 AnalyzeTemporaryDtors: false
 FormatStyle:     google
@@ -111,6 +113,10 @@ CheckOptions:
     value:           llvm
   - key:             modernize-use-nullptr.NullMacros
     value:           'NULL'
+  - key:             modernize-make-unique.MakeSmartPtrFunction
+    value:           'make_unique'
+  - key:             modernize-make-unique.MakeSmartPtrFunctionHeader
+    value:           'esphome/core/helpers.h'
   - key:             readability-identifier-naming.LocalVariableCase
     value:           'lower_case'
   - key:             readability-identifier-naming.ClassCase
@@ -124,7 +130,7 @@ CheckOptions:
   - key:             readability-identifier-naming.StaticConstantCase
     value:           'UPPER_CASE'
   - key:             readability-identifier-naming.StaticVariableCase
-    value:           'UPPER_CASE'
+    value:           'lower_case'
   - key:             readability-identifier-naming.GlobalConstantCase
     value:           'UPPER_CASE'
   - key:             readability-identifier-naming.ParameterCase

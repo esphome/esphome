@@ -11,6 +11,7 @@
 #include <cstring>
 #include <queue>
 
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
@@ -109,14 +110,17 @@ class LWIPRawImpl : public Socket {
     LWIP_LOG("tcp_bind(%p ip=%u port=%u)", pcb_, ip.addr, port);
     err_t err = tcp_bind(pcb_, &ip, port);
     if (err == ERR_USE) {
+      LWIP_LOG("  -> err ERR_USE");
       errno = EADDRINUSE;
       return -1;
     }
     if (err == ERR_VAL) {
+      LWIP_LOG("  -> err ERR_VAL");
       errno = EINVAL;
       return -1;
     }
     if (err != ERR_OK) {
+      LWIP_LOG("  -> err %d", err);
       errno = EIO;
       return -1;
     }
@@ -124,12 +128,13 @@ class LWIPRawImpl : public Socket {
   }
   int close() override {
     if (pcb_ == nullptr) {
-      errno = EBADF;
+      errno = ECONNRESET;
       return -1;
     }
     LWIP_LOG("tcp_close(%p)", pcb_);
     err_t err = tcp_close(pcb_);
     if (err != ERR_OK) {
+      LWIP_LOG("  -> err %d", err);
       tcp_abort(pcb_);
       pcb_ = nullptr;
       errno = err == ERR_MEM ? ENOMEM : EIO;
@@ -140,7 +145,7 @@ class LWIPRawImpl : public Socket {
   }
   int shutdown(int how) override {
     if (pcb_ == nullptr) {
-      errno = EBADF;
+      errno = ECONNRESET;
       return -1;
     }
     bool shut_rx = false, shut_tx = false;
@@ -157,6 +162,7 @@ class LWIPRawImpl : public Socket {
     LWIP_LOG("tcp_shutdown(%p shut_rx=%d shut_tx=%d)", pcb_, shut_rx ? 1 : 0, shut_tx ? 1 : 0);
     err_t err = tcp_shutdown(pcb_, shut_rx, shut_tx);
     if (err != ERR_OK) {
+      LWIP_LOG("  -> err %d", err);
       errno = err == ERR_MEM ? ENOMEM : EIO;
       return -1;
     }
@@ -165,7 +171,7 @@ class LWIPRawImpl : public Socket {
 
   int getpeername(struct sockaddr *name, socklen_t *addrlen) override {
     if (pcb_ == nullptr) {
-      errno = EBADF;
+      errno = ECONNRESET;
       return -1;
     }
     if (name == nullptr || addrlen == nullptr) {
@@ -185,7 +191,7 @@ class LWIPRawImpl : public Socket {
   }
   std::string getpeername() override {
     if (pcb_ == nullptr) {
-      errno = EBADF;
+      errno = ECONNRESET;
       return "";
     }
     char buffer[24];
@@ -196,7 +202,7 @@ class LWIPRawImpl : public Socket {
   }
   int getsockname(struct sockaddr *name, socklen_t *addrlen) override {
     if (pcb_ == nullptr) {
-      errno = EBADF;
+      errno = ECONNRESET;
       return -1;
     }
     if (name == nullptr || addrlen == nullptr) {
@@ -216,7 +222,7 @@ class LWIPRawImpl : public Socket {
   }
   std::string getsockname() override {
     if (pcb_ == nullptr) {
-      errno = EBADF;
+      errno = ECONNRESET;
       return "";
     }
     char buffer[24];
@@ -227,7 +233,7 @@ class LWIPRawImpl : public Socket {
   }
   int getsockopt(int level, int optname, void *optval, socklen_t *optlen) override {
     if (pcb_ == nullptr) {
-      errno = EBADF;
+      errno = ECONNRESET;
       return -1;
     }
     if (optlen == nullptr || optval == nullptr) {
@@ -261,7 +267,7 @@ class LWIPRawImpl : public Socket {
   }
   int setsockopt(int level, int optname, const void *optval, socklen_t optlen) override {
     if (pcb_ == nullptr) {
-      errno = EBADF;
+      errno = ECONNRESET;
       return -1;
     }
     if (level == SOL_SOCKET && optname == SO_REUSEADDR) {
@@ -314,7 +320,7 @@ class LWIPRawImpl : public Socket {
   }
   ssize_t read(void *buf, size_t len) override {
     if (pcb_ == nullptr) {
-      errno = EBADF;
+      errno = ECONNRESET;
       return -1;
     }
     if (rx_closed_ && rx_buf_ == nullptr) {
@@ -366,9 +372,25 @@ class LWIPRawImpl : public Socket {
 
     return read;
   }
-  ssize_t write(const void *buf, size_t len) override {
+  ssize_t readv(const struct iovec *iov, int iovcnt) override {
+    ssize_t ret = 0;
+    for (int i = 0; i < iovcnt; i++) {
+      ssize_t err = read(reinterpret_cast<uint8_t *>(iov[i].iov_base), iov[i].iov_len);
+      if (err == -1) {
+        if (ret != 0)
+          // if we already read some don't return an error
+          break;
+        return err;
+      }
+      ret += err;
+      if (err != iov[i].iov_len)
+        break;
+    }
+    return ret;
+  }
+  ssize_t internal_write(const void *buf, size_t len) {
     if (pcb_ == nullptr) {
-      errno = EBADF;
+      errno = ECONNRESET;
       return -1;
     }
     if (len == 0)
@@ -386,24 +408,72 @@ class LWIPRawImpl : public Socket {
     LWIP_LOG("tcp_write(%p buf=%p %u)", pcb_, buf, to_send);
     err_t err = tcp_write(pcb_, buf, to_send, TCP_WRITE_FLAG_COPY);
     if (err == ERR_MEM) {
+      LWIP_LOG("  -> err ERR_MEM");
       errno = EWOULDBLOCK;
       return -1;
     }
     if (err != ERR_OK) {
-      errno = EIO;
-      return -1;
-    }
-    LWIP_LOG("tcp_output(%p)", pcb_);
-    err = tcp_output(pcb_);
-    if (err != ERR_OK) {
-      errno = EIO;
+      LWIP_LOG("  -> err %d", err);
+      errno = ECONNRESET;
       return -1;
     }
     return to_send;
   }
+  int internal_output() {
+    LWIP_LOG("tcp_output(%p)", pcb_);
+    err_t err = tcp_output(pcb_);
+    if (err == ERR_ABRT) {
+      LWIP_LOG("  -> err ERR_ABRT");
+      // sometimes lwip returns ERR_ABRT for no apparent reason
+      // the connection works fine afterwards, and back with ESPAsyncTCP we
+      // indirectly also ignored this error
+      // FIXME: figure out where this is returned and what it means in this context
+      return 0;
+    }
+    if (err != ERR_OK) {
+      LWIP_LOG("  -> err %d", err);
+      errno = ECONNRESET;
+      return -1;
+    }
+    return 0;
+  }
+  ssize_t write(const void *buf, size_t len) override {
+    ssize_t written = internal_write(buf, len);
+    if (written == -1)
+      return -1;
+    if (written == 0)
+      // no need to output if nothing written
+      return 0;
+    int err = internal_output();
+    if (err == -1)
+      return -1;
+    return written;
+  }
+  ssize_t writev(const struct iovec *iov, int iovcnt) override {
+    ssize_t written = 0;
+    for (int i = 0; i < iovcnt; i++) {
+      ssize_t err = internal_write(reinterpret_cast<uint8_t *>(iov[i].iov_base), iov[i].iov_len);
+      if (err == -1) {
+        if (written != 0)
+          // if we already read some don't return an error
+          break;
+        return err;
+      }
+      written += err;
+      if (err != iov[i].iov_len)
+        break;
+    }
+    if (written == 0)
+      // no need to output if nothing written
+      return 0;
+    int err = internal_output();
+    if (err == -1)
+      return -1;
+    return written;
+  }
   int setblocking(bool blocking) override {
     if (pcb_ == nullptr) {
-      errno = EBADF;
+      errno = ECONNRESET;
       return -1;
     }
     if (blocking) {
@@ -423,7 +493,7 @@ class LWIPRawImpl : public Socket {
       // nothing to do here, we just don't push it to the queue
       return ERR_OK;
     }
-    auto sock = std::unique_ptr<LWIPRawImpl>(new LWIPRawImpl(newpcb));
+    auto sock = make_unique<LWIPRawImpl>(newpcb);
     sock->init();
     accepted_sockets_.push(std::move(sock));
     return ERR_OK;
@@ -466,7 +536,7 @@ class LWIPRawImpl : public Socket {
 
   static void s_err_fn(void *arg, err_t err) {
     LWIPRawImpl *arg_this = reinterpret_cast<LWIPRawImpl *>(arg);
-    return arg_this->err_fn(err);
+    arg_this->err_fn(err);
   }
 
   static err_t s_recv_fn(void *arg, struct tcp_pcb *pcb, struct pbuf *pb, err_t err) {

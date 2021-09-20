@@ -1,5 +1,7 @@
 #pragma once
 
+#ifdef USE_ARDUINO
+
 #include <vector>
 
 #include "esphome/core/helpers.h"
@@ -62,3 +64,5 @@ extern VectorJsonBuffer global_json_buffer;  // NOLINT(cppcoreguidelines-avoid-n
 
 }  // namespace json
 }  // namespace esphome
+
+#endif  // USE_ARDUINO

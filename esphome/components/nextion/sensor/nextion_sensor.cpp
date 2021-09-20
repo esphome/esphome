@@ -48,7 +48,7 @@ void NextionSensor::set_state(float state, bool publish, bool send_to_nextion) {
   if (!this->nextion_->is_setup())
     return;
 
-  if (isnan(state))
+  if (std::isnan(state))
     return;
 
   if (this->wave_chan_id_ == UINT8_MAX) {

@@ -1,7 +1,7 @@
 #include "esphome/core/component.h"
 
 #include "esphome/core/application.h"
-#include "esphome/core/esphal.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include <utility>
@@ -64,8 +64,9 @@ bool Component::cancel_timeout(const std::string &name) {  // NOLINT
 }
 
 void Component::call_loop() { this->loop(); }
-
 void Component::call_setup() { this->setup(); }
+void Component::call_dump_config() { this->dump_config(); }
+
 uint32_t Component::get_component_state() const { return this->component_state_; }
 void Component::call() {
   uint32_t state = this->component_state_ & COMPONENT_STATE_MASK;
@@ -143,7 +144,7 @@ void Component::status_momentary_error(const std::string &name, uint32_t length)
 }
 void Component::dump_config() {}
 float Component::get_actual_setup_priority() const {
-  if (isnan(this->setup_priority_override_))
+  if (std::isnan(this->setup_priority_override_))
     return this->get_setup_priority();
   return this->setup_priority_override_;
 }

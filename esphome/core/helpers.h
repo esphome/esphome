@@ -6,18 +6,11 @@
 #include <memory>
 #include <type_traits>
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32_FRAMEWORK_ARDUINO
 #include "esp32-hal-psram.h"
 #endif
 
 #include "esphome/core/optional.h"
-
-#ifdef CLANG_TIDY
-#undef ICACHE_RAM_ATTR
-#define ICACHE_RAM_ATTR
-#undef ICACHE_RODATA_ATTR
-#define ICACHE_RODATA_ATTR
-#endif
 
 #define HOT __attribute__((hot))
 #define ESPDEPRECATED(msg, when) __attribute__((deprecated(msg)))
@@ -95,10 +88,15 @@ template<typename T> T clamp(T val, T min, T max);
  */
 float lerp(float completion, float start, float end);
 
-/// std::make_unique
+// Not all platforms we support target C++14 yet, so we can't unconditionally use std::make_unique. Provide our own
+// implementation if needed, and otherwise pull std::make_unique into scope so that we have a uniform API.
+#if __cplusplus >= 201402L
+using std::make_unique;
+#else
 template<typename T, typename... Args> std::unique_ptr<T> make_unique(Args &&...args) {
   return std::unique_ptr<T>(new T(std::forward<Args>(args)...));
 }
+#endif
 
 /// Return a random 32 bit unsigned integer.
 uint32_t random_uint32();
@@ -153,7 +151,7 @@ uint32_t encode_uint32(uint8_t msb, uint8_t byte2, uint8_t byte3, uint8_t lsb);
  * This behaves like std::lock_guard. As long as the value is visible in the current stack, all interrupts
  * (including flash reads) will be disabled.
  *
- * Please note all functions called when the interrupt lock must be marked ICACHE_RAM_ATTR (loading code into
+ * Please note all functions called when the interrupt lock must be marked IRAM_ATTR (loading code into
  * instruction cache is done via interrupts; disabling interrupts prevents data not already in cache from being
  * pulled from flash).
  *
@@ -175,7 +173,7 @@ class InterruptLock {
   ~InterruptLock();
 
  protected:
-#ifdef ARDUINO_ARCH_ESP8266
+#ifdef USE_ESP8266
   uint32_t xt_state_;
 #endif
 };
@@ -279,8 +277,8 @@ template<typename T, typename... X> class TemplatableValue {
     LAMBDA,
   } type_;
 
-  T value_;
-  std::function<T(X...)> f_;
+  T value_{};
+  std::function<T(X...)> f_{};
 };
 
 template<typename... X> class TemplatableStringValue : public TemplatableValue<std::string, X...> {
@@ -331,7 +329,7 @@ uint32_t fnv1_hash(const std::string &str);
 
 template<typename T> T *new_buffer(size_t length) {
   T *buffer;
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32_FRAMEWORK_ARDUINO
   if (psramFound()) {
     buffer = (T *) ps_malloc(length);
   } else {

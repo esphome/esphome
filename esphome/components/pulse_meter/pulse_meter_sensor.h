@@ -1,7 +1,7 @@
 #pragma once
 
 #include "esphome/core/component.h"
-#include "esphome/core/esphal.h"
+#include "esphome/core/hal.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/core/helpers.h"
 
@@ -10,7 +10,7 @@ namespace pulse_meter {
 
 class PulseMeterSensor : public sensor::Sensor, public Component {
  public:
-  void set_pin(GPIOPin *pin) { this->pin_ = pin; }
+  void set_pin(InternalGPIOPin *pin) { this->pin_ = pin; }
   void set_filter_us(uint32_t filter) { this->filter_us_ = filter; }
   void set_timeout_us(uint32_t timeout) { this->timeout_us_ = timeout; }
   void set_total_sensor(sensor::Sensor *sensor) { this->total_sensor_ = sensor; }
@@ -25,8 +25,8 @@ class PulseMeterSensor : public sensor::Sensor, public Component {
  protected:
   static void gpio_intr(PulseMeterSensor *sensor);
 
-  GPIOPin *pin_ = nullptr;
-  ISRInternalGPIOPin *isr_pin_;
+  InternalGPIOPin *pin_ = nullptr;
+  ISRInternalGPIOPin isr_pin_;
   uint32_t filter_us_ = 0;
   uint32_t timeout_us_ = 1000000UL * 60UL * 5UL;
   sensor::Sensor *total_sensor_ = nullptr;

@@ -2,6 +2,7 @@
 // See scripts/api_protobuf/api_protobuf.py
 #include "api_pb2.h"
 #include "esphome/core/log.h"
+#include <cstdio>
 
 namespace esphome {
 namespace api {

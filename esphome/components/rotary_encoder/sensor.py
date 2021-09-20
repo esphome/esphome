@@ -49,8 +49,7 @@ def validate_min_max_value(config):
         max_val = config[CONF_MAX_VALUE]
         if min_val >= max_val:
             raise cv.Invalid(
-                "Max value {} must be smaller than min value {}"
-                "".format(max_val, min_val)
+                f"Max value {max_val} must be smaller than min value {min_val}"
             )
     return config
 
@@ -65,12 +64,8 @@ CONFIG_SCHEMA = cv.All(
     .extend(
         {
             cv.GenerateID(): cv.declare_id(RotaryEncoderSensor),
-            cv.Required(CONF_PIN_A): cv.All(
-                pins.internal_gpio_input_pin_schema, pins.validate_has_interrupt
-            ),
-            cv.Required(CONF_PIN_B): cv.All(
-                pins.internal_gpio_input_pin_schema, pins.validate_has_interrupt
-            ),
+            cv.Required(CONF_PIN_A): cv.All(pins.internal_gpio_input_pin_schema),
+            cv.Required(CONF_PIN_B): cv.All(pins.internal_gpio_input_pin_schema),
             cv.Optional(CONF_PIN_RESET): pins.internal_gpio_output_pin_schema,
             cv.Optional(CONF_RESOLUTION, default=1): cv.enum(RESOLUTIONS, int=True),
             cv.Optional(CONF_MIN_VALUE): cv.int_,

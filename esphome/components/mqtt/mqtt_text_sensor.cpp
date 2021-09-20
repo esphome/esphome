@@ -1,6 +1,7 @@
 #include "mqtt_text_sensor.h"
 #include "esphome/core/log.h"
 
+#ifdef USE_MQTT
 #ifdef USE_TEXT_SENSOR
 
 namespace esphome {
@@ -43,3 +44,4 @@ std::string MQTTTextSensor::unique_id() { return this->sensor_->unique_id(); }
 }  // namespace esphome
 
 #endif
+#endif  // USE_MQTT

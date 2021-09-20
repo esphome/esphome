@@ -1,3 +1,5 @@
+#ifdef USE_ARDUINO
+
 #include "esphome/core/log.h"
 #include "adapter.h"
 
@@ -171,3 +173,5 @@ void Converters::to_climate_traits(ClimateTraits &traits, const dudanov::midea::
 
 }  // namespace midea
 }  // namespace esphome
+
+#endif  // USE_ARDUINO

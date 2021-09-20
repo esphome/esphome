@@ -1,7 +1,7 @@
 #include "ble_2901.h"
 #include "esphome/components/esp32_ble/ble_uuid.h"
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 
 namespace esphome {
 namespace esp32_ble_server {

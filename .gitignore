@@ -102,10 +102,7 @@ CMakeLists.txt
 .idea/**/dynamic.xml
 
 # CMake
-cmake-build-debug/
-cmake-build-livingroom8266/
-cmake-build-livingroom32/
-cmake-build-release/
+cmake-build-*/
 
 CMakeCache.txt
 CMakeFiles
@@ -127,3 +124,5 @@ tests/.esphome/
 /.temp-clang-tidy.cpp
 /.temp/
 .pio/
+
+sdkconfig.*

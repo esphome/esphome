@@ -51,10 +51,14 @@ enum class APIError : int {
   OUT_OF_MEMORY = 1018,
   HANDSHAKESTATE_SETUP_FAILED = 1019,
   HANDSHAKESTATE_SPLIT_FAILED = 1020,
+  BAD_HANDSHAKE_ERROR_BYTE = 1021,
 };
+
+const char *api_error_to_str(APIError err);
 
 class APIFrameHelper {
  public:
+  virtual ~APIFrameHelper() = default;
   virtual APIError init() = 0;
   virtual APIError loop() = 0;
   virtual APIError read_packet(ReadPacketBuffer *buffer) = 0;
@@ -93,7 +97,7 @@ class APINoiseFrameHelper : public APIFrameHelper {
   APIError try_read_frame_(ParsedFrame *frame);
   APIError try_send_tx_buf_();
   APIError write_frame_(const uint8_t *data, size_t len);
-  APIError write_raw_(const uint8_t *data, size_t len);
+  APIError write_raw_(const struct iovec *iov, int iovcnt);
   APIError init_handshake_();
   APIError check_handshake_finished_();
   void send_explicit_handshake_reject_(const std::string &reason);
@@ -123,6 +127,7 @@ class APINoiseFrameHelper : public APIFrameHelper {
     DATA = 5,
     CLOSED = 6,
     FAILED = 7,
+    EXPLICIT_REJECT = 8,
   } state_ = State::INITIALIZE;
 };
 #endif  // USE_API_NOISE
@@ -150,8 +155,7 @@ class APIPlaintextFrameHelper : public APIFrameHelper {
 
   APIError try_read_frame_(ParsedFrame *frame);
   APIError try_send_tx_buf_();
-  APIError write_frame_(const uint8_t *data, size_t len);
-  APIError write_raw_(const uint8_t *data, size_t len);
+  APIError write_raw_(const struct iovec *iov, int iovcnt);
 
   std::unique_ptr<socket::Socket> socket_;
 

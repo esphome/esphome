@@ -1,3 +1,5 @@
+#ifdef USE_ARDUINO
+
 #include "tm1651.h"
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
@@ -88,3 +90,5 @@ uint8_t TM1651Display::calculate_brightness_(uint8_t new_brightness) {
 
 }  // namespace tm1651
 }  // namespace esphome
+
+#endif  // USE_ARDUINO

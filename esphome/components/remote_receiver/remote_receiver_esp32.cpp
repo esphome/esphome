@@ -1,7 +1,7 @@
 #include "remote_receiver.h"
 #include "esphome/core/log.h"
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 #include <driver/rmt.h>
 
 namespace esphome {

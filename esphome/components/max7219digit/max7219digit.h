@@ -54,8 +54,8 @@ class MAX7219Component : public PollingComponent,
   void set_scroll_mode(uint8_t mode) { this->scroll_mode_ = mode; };
   void set_reverse(bool on_off) { this->reverse_ = on_off; };
 
-  void send_char(byte chip, byte data);
-  void send64pixels(byte chip, const byte pixels[8]);
+  void send_char(uint8_t chip, uint8_t data);
+  void send64pixels(uint8_t chip, const uint8_t pixels[8]);
 
   void scroll_left();
   void scroll(bool on_off, uint8_t mode, uint16_t speed, uint16_t delay, uint16_t dwell);

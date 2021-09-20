@@ -20,8 +20,7 @@ PartitionLightOutput = partitions_ns.class_(
 def validate_from_to(value):
     if value[CONF_FROM] > value[CONF_TO]:
         raise cv.Invalid(
-            "From ({}) must not be larger than to ({})"
-            "".format(value[CONF_FROM], value[CONF_TO])
+            f"From ({value[CONF_FROM]}) must not be larger than to ({value[CONF_TO]})"
         )
     return value
 

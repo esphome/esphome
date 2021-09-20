@@ -5,6 +5,8 @@
 #include "esphome/core/log.h"
 #include "esphome/core/util.h"
 #include "esphome/core/version.h"
+#include "esphome/core/hal.h"
+#include "esphome/components/network/util.h"
 #include <cerrno>
 
 #ifdef USE_LOGGER
@@ -76,11 +78,12 @@ void APIServer::setup() {
 
 #ifdef USE_ESP32_CAMERA
   if (esp32_camera::global_esp32_camera != nullptr) {
-    esp32_camera::global_esp32_camera->add_image_callback([this](std::shared_ptr<esp32_camera::CameraImage> image) {
-      for (auto &c : this->clients_)
-        if (!c->remove_)
-          c->send_camera_state(image);
-    });
+    esp32_camera::global_esp32_camera->add_image_callback(
+        [this](const std::shared_ptr<esp32_camera::CameraImage> &image) {
+          for (auto &c : this->clients_)
+            if (!c->remove_)
+              c->send_camera_state(image);
+        });
   }
 #endif
 }
@@ -104,7 +107,7 @@ void APIServer::loop() {
                                 [](const std::unique_ptr<APIConnection> &conn) { return !conn->remove_; });
   // print disconnection messages
   for (auto it = new_end; it != this->clients_.end(); ++it) {
-    ESP_LOGD(TAG, "Disconnecting %s", (*it)->client_info_.c_str());
+    ESP_LOGV(TAG, "Removing connection to %s", (*it)->client_info_.c_str());
   }
   // resize vector
   this->clients_.erase(new_end, this->clients_.end());
@@ -129,7 +132,7 @@ void APIServer::loop() {
 }
 void APIServer::dump_config() {
   ESP_LOGCONFIG(TAG, "API Server:");
-  ESP_LOGCONFIG(TAG, "  Address: %s:%u", network_get_address().c_str(), this->port_);
+  ESP_LOGCONFIG(TAG, "  Address: %s:%u", network::get_use_address().c_str(), this->port_);
 }
 bool APIServer::uses_password() const { return !this->password_.empty(); }
 bool APIServer::check_password(const std::string &password) const {

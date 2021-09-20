@@ -77,7 +77,7 @@ void LightCall::perform() {
       ESP_LOGD(TAG, "  Flash length: %.1fs", *this->flash_length_ / 1e3f);
     }
 
-    this->parent_->start_flash_(v, *this->flash_length_);
+    this->parent_->start_flash_(v, *this->flash_length_, this->publish_);
   } else if (this->has_transition_()) {
     // TRANSITION
     if (this->publish_) {
@@ -92,7 +92,7 @@ void LightCall::perform() {
       this->parent_->stop_effect_();
     }
 
-    this->parent_->start_transition_(v, *this->transition_length_);
+    this->parent_->start_transition_(v, *this->transition_length_, this->publish_);
 
   } else if (this->has_effect_()) {
     // EFFECT

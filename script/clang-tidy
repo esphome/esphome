@@ -16,7 +16,7 @@ import click
 import pexpect
 
 sys.path.append(os.path.dirname(__file__))
-from helpers import shlex_quote, get_output, \
+from helpers import shlex_quote, get_output, filter_grep, \
     build_all_include, temp_header_file, git_ls_files, filter_changed, load_idedata
 
 
@@ -27,20 +27,42 @@ def clang_options(idedata):
         # disable built-in include directories from the host
         '-nostdinc',
         '-nostdinc++',
+        # replace pgmspace.h, as it uses GNU extensions clang doesn't support
+        # https://github.com/earlephilhower/newlib-xtensa/pull/18
+        '-D_PGMSPACE_H_',
+        '-Dpgm_read_byte(s)=(*(const uint8_t *)(s))',
+        '-Dpgm_read_byte_near(s)=(*(const uint8_t *)(s))',
+        '-Dpgm_read_dword(s)=(*(const uint32_t *)(s))',
+        '-DPROGMEM=',
+        '-DPGM_P=const char *',
+        '-DPSTR(s)=(s)',
+        # this next one is also needed with upstream pgmspace.h
+        # suppress warning about identifier naming in expansion of this macro
+        '-DPSTRN(s, n)=(s)',
+        # suppress warning about attribute cannot be applied to type
+        # https://github.com/esp8266/Arduino/pull/8258
+        '-Ddeprecated(x)=',
+        # pretend we're an Xtensa compiler, which gates some features in the headers
+        '-D__XTENSA__',
         # allow to condition code on the presence of clang-tidy
-        '-DCLANG_TIDY'
+        '-DCLANG_TIDY',
+        # (esp-idf) Disable this header because they use asm with registers clang-tidy doesn't know
+        '-D__XTENSA_API_H__',
+        # (esp-idf) Fix __once_callable in some libstdc++ headers
+        '-D_GLIBCXX_HAVE_TLS',
     ]
 
     # copy compiler flags, except those clang doesn't understand.
     cmd.extend(flag for flag in idedata['cxx_flags'].split(' ')
-               if flag not in ('-free', '-fipa-pta', '-mlongcalls', '-mtext-section-literals'))
+               if flag not in ('-free', '-fipa-pta', '-fstrict-volatile-bitfields', '-mlongcalls', '-mtext-section-literals'))
 
     # defines
     cmd.extend(f'-D{define}' for define in idedata['defines'])
 
     # add include directories, using -isystem for dependencies to suppress their errors
     for directory in idedata['includes']['toolchain']:
-        cmd.extend(['-isystem', directory])
+        if 'xtensa-esp32s2-elf' not in directory:
+            cmd.extend(['-isystem', directory])
     for directory in sorted(set(idedata['includes']['build'])):
         dependency = "framework-arduino" in directory or "/libdeps/" in directory
         cmd.extend(['-isystem' if dependency else '-I', directory])
@@ -97,6 +119,8 @@ def main():
     parser.add_argument('-j', '--jobs', type=int,
                         default=multiprocessing.cpu_count(),
                         help='number of tidy instances to be run in parallel.')
+    parser.add_argument('-e', '--environment', default='esp8266-tidy',
+                        help='the PlatformIO environment to run against (esp8266-tidy or esp32-tidy)')
     parser.add_argument('files', nargs='*', default=[],
                         help='files to be processed (regex on path)')
     parser.add_argument('--fix', action='store_true', help='apply fix-its')
@@ -104,6 +128,7 @@ def main():
                         help='run clang-tidy in quiet mode')
     parser.add_argument('-c', '--changed', action='store_true',
                         help='only run on changed files')
+    parser.add_argument('-g', '--grep', help='only run on files containing value')
     parser.add_argument('--split-num', type=int, help='split the files into X jobs.',
                         default=None)
     parser.add_argument('--split-at', type=int, help='which split is this? starts at 1',
@@ -126,7 +151,7 @@ def main():
         """)
         return 1
 
-    idedata = load_idedata("esp8266-tidy")
+    idedata = load_idedata(args.environment)
     options = clang_options(idedata)
 
     files = []
@@ -140,6 +165,9 @@ def main():
 
     if args.changed:
         files = filter_changed(files)
+
+    if args.grep:
+        files = filter_grep(files, args.grep)
 
     files.sort()
 

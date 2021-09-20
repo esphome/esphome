@@ -1,5 +1,10 @@
 #include "scd30.h"
 #include "esphome/core/log.h"
+#include "esphome/core/hal.h"
+
+#ifdef USE_ESP8266
+#include <Wire.h>
+#endif
 
 namespace esphome {
 namespace scd30 {
@@ -23,7 +28,7 @@ static const uint16_t SCD30_CMD_SOFT_RESET = 0xD304;
 void SCD30Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up scd30...");
 
-#ifdef ARDUINO_ARCH_ESP8266
+#ifdef USE_ESP8266
   Wire.setClockStretchLimit(150000);
 #endif
 
@@ -51,7 +56,7 @@ void SCD30Component::setup() {
       return;
     }
   }
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
   // According ESP32 clock stretching is typically 30ms and up to 150ms "due to
   // internal calibration processes". The I2C peripheral only supports 13ms (at
   // least when running at 80MHz).
@@ -73,7 +78,7 @@ void SCD30Component::setup() {
       return;
     }
   }
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
   delay(30);
 #endif
 
@@ -83,7 +88,7 @@ void SCD30Component::setup() {
     this->mark_failed();
     return;
   }
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
   delay(30);
 #endif
 
@@ -193,7 +198,7 @@ bool SCD30Component::write_command_(uint16_t command, uint16_t data) {
   raw[2] = data >> 8;
   raw[3] = data & 0xFF;
   raw[4] = sht_crc_(raw[2], raw[3]);
-  return this->write_bytes_raw(raw, 5);
+  return this->write(raw, 5);
 }
 
 uint8_t SCD30Component::sht_crc_(uint8_t data1, uint8_t data2) {
@@ -223,7 +228,7 @@ bool SCD30Component::read_data_(uint16_t *data, uint8_t len) {
   const uint8_t num_bytes = len * 3;
   std::vector<uint8_t> buf(num_bytes);
 
-  if (!this->parent_->raw_receive(this->address_, buf.data(), num_bytes)) {
+  if (this->read(buf.data(), num_bytes) != i2c::ERROR_OK) {
     return false;
   }
 
