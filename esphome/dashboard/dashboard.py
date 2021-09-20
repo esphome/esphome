@@ -41,7 +41,7 @@ from .util import password_hash
 # pylint: disable=unused-import, wrong-import-order
 from typing import Optional  # noqa
 
-from esphome.zeroconf import DashboardStatus, Zeroconf
+from esphome.zeroconf import DashboardStatus, EsphomeZeroconf
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -98,7 +98,7 @@ class DashboardSettings:
         return os.path.join(self.config_dir, *args)
 
     def list_yaml_files(self):
-        return util.list_yaml_files(self.config_dir)
+        return util.list_yaml_files([self.config_dir])
 
 
 settings = DashboardSettings()
@@ -329,7 +329,7 @@ class EsphomeVscodeHandler(EsphomeCommandWebSocket):
 
 class EsphomeAceEditorHandler(EsphomeCommandWebSocket):
     def build_command(self, json_message):
-        return ["esphome", "--dashboard", "-q", "vscode", settings.config_dir, "--ace"]
+        return ["esphome", "--dashboard", "-q", "vscode", "--ace", settings.config_dir]
 
 
 class EsphomeUpdateAllHandler(EsphomeCommandWebSocket):
@@ -431,7 +431,7 @@ class DashboardEntry:
     @property
     def name(self):
         if self.storage is None:
-            return self.filename[: -len(".yaml")]
+            return self.filename.replace(".yml", "").replace(".yaml", "")
         return self.storage.name
 
     @property
@@ -501,7 +501,7 @@ def _ping_func(filename, address):
 
 class MDNSStatusThread(threading.Thread):
     def run(self):
-        zc = Zeroconf()
+        zc = EsphomeZeroconf()
 
         def on_update(dat):
             for key, b in dat.items():
@@ -600,7 +600,7 @@ class EditRequestHandler(BaseHandler):
         content = ""
         if os.path.isfile(filename):
             # pylint: disable=no-value-for-parameter
-            with open(filename, "r") as f:
+            with open(file=filename, mode="r", encoding="utf-8") as f:
                 content = f.read()
         self.write(content)
 
@@ -608,7 +608,7 @@ class EditRequestHandler(BaseHandler):
     @bind_config
     def post(self, configuration=None):
         # pylint: disable=no-value-for-parameter
-        with open(settings.rel_path(configuration), "wb") as f:
+        with open(file=settings.rel_path(configuration), mode="wb") as f:
             f.write(self.request.body)
         self.set_status(200)
 
@@ -716,9 +716,6 @@ class LogoutHandler(BaseHandler):
         self.redirect("./login")
 
 
-_STATIC_FILE_HASHES = {}
-
-
 def get_base_frontend_path():
     if ENV_DEV not in os.environ:
         import esphome_dashboard
@@ -741,19 +738,23 @@ def get_static_path(*args):
     return os.path.join(get_base_frontend_path(), "static", *args)
 
 
+@functools.lru_cache(maxsize=None)
 def get_static_file_url(name):
+    base = f"./static/{name}"
+
+    if ENV_DEV in os.environ:
+        return base
+
     # Module imports can't deduplicate if stuff added to url
     if name == "js/esphome/index.js":
-        return f"./static/{name}"
+        import esphome_dashboard
 
-    if name in _STATIC_FILE_HASHES:
-        hash_ = _STATIC_FILE_HASHES[name]
-    else:
-        path = get_static_path(name)
-        with open(path, "rb") as f_handle:
-            hash_ = hashlib.md5(f_handle.read()).hexdigest()[:8]
-        _STATIC_FILE_HASHES[name] = hash_
-    return f"./static/{name}?hash={hash_}"
+        return base.replace("index.js", esphome_dashboard.entrypoint())
+
+    path = get_static_path(name)
+    with open(path, "rb") as f_handle:
+        hash_ = hashlib.md5(f_handle.read()).hexdigest()[:8]
+    return f"{base}?hash={hash_}"
 
 
 def make_app(debug=get_bool_env(ENV_DEV)):
@@ -781,10 +782,9 @@ def make_app(debug=get_bool_env(ENV_DEV)):
 
     class StaticFileHandler(tornado.web.StaticFileHandler):
         def set_extra_headers(self, path):
-            if debug:
-                self.set_header(
-                    "Cache-Control", "no-store, no-cache, must-revalidate, max-age=0"
-                )
+            self.set_header(
+                "Cache-Control", "no-store, no-cache, must-revalidate, max-age=0"
+            )
 
     app_settings = {
         "debug": debug,
@@ -819,9 +819,6 @@ def make_app(debug=get_bool_env(ENV_DEV)):
         ],
         **app_settings,
     )
-
-    if debug:
-        _STATIC_FILE_HASHES.clear()
 
     return app
 

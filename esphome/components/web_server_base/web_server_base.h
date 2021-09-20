@@ -1,5 +1,6 @@
 #pragma once
 
+#include <memory>
 #include "esphome/core/component.h"
 
 #include <ESPAsyncWebServer.h>
@@ -14,7 +15,7 @@ class WebServerBase : public Component {
       this->initialized_++;
       return;
     }
-    this->server_ = new AsyncWebServer(this->port_);
+    this->server_ = std::make_shared<AsyncWebServer>(this->port_);
     this->server_->begin();
 
     for (auto *handler : this->handlers_)
@@ -25,11 +26,10 @@ class WebServerBase : public Component {
   void deinit() {
     this->initialized_--;
     if (this->initialized_ == 0) {
-      delete this->server_;
       this->server_ = nullptr;
     }
   }
-  AsyncWebServer *get_server() const { return server_; }
+  std::shared_ptr<AsyncWebServer> get_server() const { return server_; }
   float get_setup_priority() const override;
 
   void add_handler(AsyncWebHandler *handler) {
@@ -50,7 +50,7 @@ class WebServerBase : public Component {
 
   int initialized_{0};
   uint16_t port_{80};
-  AsyncWebServer *server_{nullptr};
+  std::shared_ptr<AsyncWebServer> server_{nullptr};
   std::vector<AsyncWebHandler *> handlers_;
 };
 

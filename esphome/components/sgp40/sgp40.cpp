@@ -1,5 +1,6 @@
 #include "esphome/core/log.h"
 #include "sgp40.h"
+#include <cinttypes>
 
 namespace esphome {
 namespace sgp40 {
@@ -23,7 +24,7 @@ void SGP40Component::setup() {
   }
   this->serial_number_ = (uint64_t(raw_serial_number[0]) << 24) | (uint64_t(raw_serial_number[1]) << 16) |
                          (uint64_t(raw_serial_number[2]));
-  ESP_LOGD(TAG, "Serial Number: %llu", this->serial_number_);
+  ESP_LOGD(TAG, "Serial Number: %" PRIu64, this->serial_number_);
 
   // Featureset identification for future use
   if (!this->write_command_(SGP40_CMD_GET_FEATURESET)) {
@@ -78,27 +79,28 @@ void SGP40Component::setup() {
 }
 
 void SGP40Component::self_test_() {
-  ESP_LOGD(TAG, "selfTest started");
+  ESP_LOGD(TAG, "Self-test started");
   if (!this->write_command_(SGP40_CMD_SELF_TEST)) {
     this->error_code_ = COMMUNICATION_FAILED;
-    ESP_LOGD(TAG, "selfTest communicatin failed");
+    ESP_LOGD(TAG, "Self-test communication failed");
     this->mark_failed();
   }
 
   this->set_timeout(250, [this]() {
     uint16_t reply[1];
     if (!this->read_data_(reply, 1)) {
-      ESP_LOGD(TAG, "selfTest read_data_ failed");
+      ESP_LOGD(TAG, "Self-test read_data_ failed");
       this->mark_failed();
       return;
     }
 
     if (reply[0] == 0xD400) {
-      ESP_LOGD(TAG, "selfTest completed");
+      this->self_test_complete_ = true;
+      ESP_LOGD(TAG, "Self-test completed");
       return;
     }
 
-    ESP_LOGD(TAG, "selfTest failed");
+    ESP_LOGD(TAG, "Self-test failed");
     this->mark_failed();
   });
 }
@@ -154,6 +156,12 @@ int32_t SGP40Component::measure_voc_index_() {
  */
 uint16_t SGP40Component::measure_raw_() {
   float humidity = NAN;
+
+  if (!this->self_test_complete_) {
+    ESP_LOGD(TAG, "Self-test not yet complete");
+    return UINT16_MAX;
+  }
+
   if (this->humidity_sensor_ != nullptr) {
     humidity = this->humidity_sensor_->state;
   }
@@ -248,7 +256,7 @@ void SGP40Component::dump_config() {
         break;
     }
   } else {
-    ESP_LOGCONFIG(TAG, "  Serial number: %llu", this->serial_number_);
+    ESP_LOGCONFIG(TAG, "  Serial number: %" PRIu64, this->serial_number_);
     ESP_LOGCONFIG(TAG, "  Minimum Samples: %f", VOC_ALGORITHM_INITIAL_BLACKOUT);
   }
   LOG_UPDATE_INTERVAL(this);

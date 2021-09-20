@@ -6,7 +6,6 @@ from esphome.const import (
     CONF_MODE,
     CONF_NUMBER,
     CONF_PINS,
-    CONF_RUN_CYCLES,
     CONF_RUN_DURATION,
     CONF_SLEEP_DURATION,
     CONF_WAKEUP_PIN,
@@ -68,11 +67,6 @@ CONFIG_SCHEMA = cv.Schema(
                     cv.Required(CONF_MODE): cv.enum(EXT1_WAKEUP_MODES, upper=True),
                 }
             ),
-        ),
-        cv.Optional(CONF_RUN_CYCLES): cv.invalid(
-            "The run_cycles option has been removed in 1.11.0 as "
-            "it was essentially the same as a run_duration of 0s."
-            "Please use run_duration now."
         ),
     }
 ).extend(cv.COMPONENT_SCHEMA)

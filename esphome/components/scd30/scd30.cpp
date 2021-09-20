@@ -55,7 +55,7 @@ void SCD30Component::setup() {
   // According ESP32 clock stretching is typically 30ms and up to 150ms "due to
   // internal calibration processes". The I2C peripheral only supports 13ms (at
   // least when running at 80MHz).
-  // In practise it seems that clock stretching occures during this calibration
+  // In practise it seems that clock stretching occurs during this calibration
   // calls. It also seems that delays in between calls makes them
   // disappear/shorter. Hence work around with delays for ESP32.
   //
@@ -221,10 +221,9 @@ uint8_t SCD30Component::sht_crc_(uint8_t data1, uint8_t data2) {
 
 bool SCD30Component::read_data_(uint16_t *data, uint8_t len) {
   const uint8_t num_bytes = len * 3;
-  auto *buf = new uint8_t[num_bytes];
+  std::vector<uint8_t> buf(num_bytes);
 
-  if (!this->parent_->raw_receive(this->address_, buf, num_bytes)) {
-    delete[](buf);
+  if (!this->parent_->raw_receive(this->address_, buf.data(), num_bytes)) {
     return false;
   }
 
@@ -233,13 +232,11 @@ bool SCD30Component::read_data_(uint16_t *data, uint8_t len) {
     uint8_t crc = sht_crc_(buf[j], buf[j + 1]);
     if (crc != buf[j + 2]) {
       ESP_LOGE(TAG, "CRC8 Checksum invalid! 0x%02X != 0x%02X", buf[j + 2], crc);
-      delete[](buf);
       return false;
     }
     data[i] = (buf[j] << 8) | buf[j + 1];
   }
 
-  delete[](buf);
   return true;
 }
 

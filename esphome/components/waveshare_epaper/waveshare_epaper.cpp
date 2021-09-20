@@ -163,6 +163,17 @@ void WaveshareEPaper::on_safe_shutdown() { this->deep_sleep(); }
 // ========================================================
 
 void WaveshareEPaperTypeA::initialize() {
+  if (this->model_ == TTGO_EPAPER_2_13_IN_B74) {
+    this->reset_pin_->digital_write(false);
+    delay(10);
+    this->reset_pin_->digital_write(true);
+    delay(10);
+    this->wait_until_idle_();
+
+    this->command(0x12);  // SWRESET
+    this->wait_until_idle_();
+  }
+
   // COMMAND DRIVER OUTPUT CONTROL
   this->command(0x01);
   this->data(this->get_height_internal() - 1);
@@ -193,6 +204,7 @@ void WaveshareEPaperTypeA::initialize() {
     case TTGO_EPAPER_2_13_IN_B1:
       this->data(0x01);  // x increase, y decrease : as in demo code
       break;
+    case TTGO_EPAPER_2_13_IN_B74:
     case WAVESHARE_EPAPER_2_9_IN_V2:
       this->data(0x03);  // from top left to bottom right
       // RAM content option for Display Update
@@ -221,6 +233,9 @@ void WaveshareEPaperTypeA::dump_config() {
       break;
     case TTGO_EPAPER_2_13_IN_B73:
       ESP_LOGCONFIG(TAG, "  Model: 2.13in (TTGO B73)");
+      break;
+    case TTGO_EPAPER_2_13_IN_B74:
+      ESP_LOGCONFIG(TAG, "  Model: 2.13in (TTGO B74)");
       break;
     case TTGO_EPAPER_2_13_IN_B1:
       ESP_LOGCONFIG(TAG, "  Model: 2.13in (TTGO B1)");
@@ -256,6 +271,9 @@ void HOT WaveshareEPaperTypeA::display() {
         case TTGO_EPAPER_2_13_IN_B73:
           this->write_lut_(full_update ? FULL_UPDATE_LUT_TTGO_B73 : PARTIAL_UPDATE_LUT_TTGO_B73, LUT_SIZE_TTGO_B73);
           break;
+        case TTGO_EPAPER_2_13_IN_B74:
+          // there is no LUT
+          break;
         case TTGO_EPAPER_2_13_IN_B1:
           this->write_lut_(full_update ? FULL_UPDATE_LUT_TTGO_B1 : PARTIAL_UPDATE_LUT_TTGO_B1, LUT_SIZE_TTGO_B1);
           break;
@@ -289,7 +307,12 @@ void HOT WaveshareEPaperTypeA::display() {
       this->data((this->get_height_internal() - 1) >> 8);
 
       break;
+    case TTGO_EPAPER_2_13_IN_B74:
+      // BorderWaveform
+      this->command(0x3C);
+      this->data(full_update ? 0x05 : 0x80);
 
+      // fall through
     default:
       // COMMAND SET RAM X ADDRESS START END POSITION
       this->command(0x44);
@@ -341,6 +364,9 @@ void HOT WaveshareEPaperTypeA::display() {
     this->data(full_update ? 0xF7 : 0xFF);
   } else if (this->model_ == TTGO_EPAPER_2_13_IN_B73) {
     this->data(0xC7);
+  } else if (this->model_ == TTGO_EPAPER_2_13_IN_B74) {
+    // this->data(0xC7);
+    this->data(full_update ? 0xF7 : 0xFF);
   } else {
     this->data(0xC4);
   }
@@ -363,6 +389,7 @@ int WaveshareEPaperTypeA::get_width_internal() {
     case TTGO_EPAPER_2_13_IN:
       return 128;
     case TTGO_EPAPER_2_13_IN_B73:
+    case TTGO_EPAPER_2_13_IN_B74:
       return 128;
     case TTGO_EPAPER_2_13_IN_B1:
       return 128;
@@ -384,6 +411,7 @@ int WaveshareEPaperTypeA::get_height_internal() {
     case TTGO_EPAPER_2_13_IN:
       return 250;
     case TTGO_EPAPER_2_13_IN_B73:
+    case TTGO_EPAPER_2_13_IN_B74:
       return 250;
     case TTGO_EPAPER_2_13_IN_B1:
       return 250;
@@ -598,7 +626,7 @@ void WaveshareEPaper2P9InB::initialize() {
   this->data(0x9F);
 
   // COMMAND RESOLUTION SETTING
-  // set to 128x296 by COMMAND PANNEL SETTING
+  // set to 128x296 by COMMAND PANEL SETTING
 
   // COMMAND VCOM AND DATA INTERVAL SETTING
   // use defaults for white border and ESPHome image polarity
@@ -759,6 +787,62 @@ int WaveshareEPaper4P2In::get_height_internal() { return 300; }
 void WaveshareEPaper4P2In::dump_config() {
   LOG_DISPLAY("", "Waveshare E-Paper", this);
   ESP_LOGCONFIG(TAG, "  Model: 4.2in");
+  LOG_PIN("  Reset Pin: ", this->reset_pin_);
+  LOG_PIN("  DC Pin: ", this->dc_pin_);
+  LOG_PIN("  Busy Pin: ", this->busy_pin_);
+  LOG_UPDATE_INTERVAL(this);
+}
+
+// ========================================================
+//               4.20in Type B (LUT from OTP)
+// Datasheet:
+//  - https://www.waveshare.com/w/upload/2/20/4.2inch-e-paper-module-user-manual-en.pdf
+//  - https://github.com/waveshare/e-Paper/blob/master/RaspberryPi_JetsonNano/c/lib/e-Paper/EPD_4in2b_V2.c
+// ========================================================
+void WaveshareEPaper4P2InBV2::initialize() {
+  // these exact timings are required for a proper reset/init
+  this->reset_pin_->digital_write(false);
+  delay(2);
+  this->reset_pin_->digital_write(true);
+  delay(200);  // NOLINT
+
+  // COMMAND POWER ON
+  this->command(0x04);
+  this->wait_until_idle_();
+
+  // COMMAND PANEL SETTING
+  this->command(0x00);
+  this->data(0x0f);  // LUT from OTP
+}
+
+void HOT WaveshareEPaper4P2InBV2::display() {
+  // COMMAND DATA START TRANSMISSION 1 (B/W data)
+  this->command(0x10);
+  this->start_data_();
+  this->write_array(this->buffer_, this->get_buffer_length_());
+  this->end_data_();
+
+  // COMMAND DATA START TRANSMISSION 2 (RED data)
+  this->command(0x13);
+  this->start_data_();
+  for (int i = 0; i < this->get_buffer_length_(); i++)
+    this->write_byte(0xFF);
+  this->end_data_();
+  delay(2);
+
+  // COMMAND DISPLAY REFRESH
+  this->command(0x12);
+  this->wait_until_idle_();
+
+  // COMMAND POWER OFF
+  // NOTE: power off < deep sleep
+  this->command(0x02);
+}
+int WaveshareEPaper4P2InBV2::get_width_internal() { return 400; }
+int WaveshareEPaper4P2InBV2::get_height_internal() { return 300; }
+void WaveshareEPaper4P2InBV2::dump_config() {
+  LOG_DISPLAY("", "Waveshare E-Paper", this);
+  ESP_LOGCONFIG(TAG, "  Model: 4.2in (B V2)");
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
   LOG_PIN("  DC Pin: ", this->dc_pin_);
   LOG_PIN("  Busy Pin: ", this->busy_pin_);
@@ -996,5 +1080,136 @@ void WaveshareEPaper7P5InV2::dump_config() {
   LOG_PIN("  Busy Pin: ", this->busy_pin_);
   LOG_UPDATE_INTERVAL(this);
 }
+
+static const uint8_t LUT_SIZE_TTGO_DKE_PART = 153;
+
+static const uint8_t PART_UPDATE_LUT_TTGO_DKE[LUT_SIZE_TTGO_DKE_PART] = {
+    0x0, 0x40, 0x0, 0x0, 0x0,  0x0,  0x0,  0x0,  0x0,  0x0,  0x0, 0x0, 0x80, 0x80, 0x0, 0x0, 0x0, 0x0,  0x0, 0x0,
+    0x0, 0x0,  0x0, 0x0, 0x40, 0x40, 0x0,  0x0,  0x0,  0x0,  0x0, 0x0, 0x0,  0x0,  0x0, 0x0, 0x0, 0x80, 0x0, 0x0,
+    0x0, 0x0,  0x0, 0x0, 0x0,  0x0,  0x0,  0x0,  0x0,  0x0,  0x0, 0x0, 0x0,  0x0,  0x0, 0x0, 0x0, 0x0,  0x0, 0x0,
+    0xF, 0x0,  0x0, 0x0, 0x0,  0x0,  0x0,  0x1,  0x0,  0x0,  0x0, 0x0, 0x0,  0x0,  0x0, 0x0, 0x0, 0x0,  0x0, 0x0,
+    0x0, 0x0,  0x0, 0x0, 0x0,  0x0,  0x0,  0x0,  0x0,  0x0,  0x0, 0x0, 0x0,  0x0,  0x0, 0x0, 0x0, 0x0,  0x0, 0x0,
+    0x0, 0x0,  0x0, 0x0, 0x0,  0x0,  0x0,  0x0,  0x0,  0x0,  0x0, 0x0, 0x0,  0x0,  0x0, 0x0, 0x0, 0x0,  0x0, 0x0,
+    0x0, 0x0,  0x1, 0x0, 0x0,  0x0,  0x0,  0x0,  0x0,  0x1,  0x0, 0x0, 0x0,  0x0,  0x0, 0x0, 0x0, 0x0,  0x0, 0x0,
+    0x0, 0x0,  0x0, 0x0, 0x22, 0x22, 0x22, 0x22, 0x22, 0x22, 0x0, 0x0, 0x0,
+    // 0x22,   0x17,   0x41,   0x0,    0x32,   0x32
+};
+
+void WaveshareEPaper2P13InDKE::initialize() {}
+void HOT WaveshareEPaper2P13InDKE::display() {
+  bool partial = this->at_update_ != 0;
+  this->at_update_ = (this->at_update_ + 1) % this->full_update_every_;
+
+  if (partial)
+    ESP_LOGI(TAG, "Performing partial e-paper update.");
+  else
+    ESP_LOGI(TAG, "Performing full e-paper update.");
+
+  // start and set up data format
+  this->command(0x12);
+  this->wait_until_idle_();
+
+  this->command(0x11);
+  this->data(0x03);
+  this->command(0x44);
+  this->data(1);
+  this->data(this->get_width_internal() / 8);
+  this->command(0x45);
+  this->data(0);
+  this->data(0);
+  this->data(this->get_height_internal());
+  this->data(0);
+  this->command(0x4e);
+  this->data(1);
+  this->command(0x4f);
+  this->data(0);
+  this->data(0);
+
+  if (!partial) {
+    // send data
+    this->command(0x24);
+    this->start_data_();
+    this->write_array(this->buffer_, this->get_buffer_length_());
+    this->end_data_();
+
+    // commit
+    this->command(0x20);
+    this->wait_until_idle_();
+  } else {
+    // set up partial update
+    this->command(0x32);
+    for (uint8_t v : PART_UPDATE_LUT_TTGO_DKE)
+      this->data(v);
+    this->command(0x3F);
+    this->data(0x22);
+
+    this->command(0x03);
+    this->data(0x17);
+    this->command(0x04);
+    this->data(0x41);
+    this->data(0x00);
+    this->data(0x32);
+    this->command(0x2C);
+    this->data(0x32);
+
+    this->command(0x37);
+    this->data(0x00);
+    this->data(0x00);
+    this->data(0x00);
+    this->data(0x00);
+    this->data(0x00);
+    this->data(0x40);
+    this->data(0x00);
+    this->data(0x00);
+    this->data(0x00);
+    this->data(0x00);
+
+    this->command(0x3C);
+    this->data(0x80);
+    this->command(0x22);
+    this->data(0xC0);
+    this->command(0x20);
+    this->wait_until_idle_();
+
+    // send data
+    this->command(0x24);
+    this->start_data_();
+    this->write_array(this->buffer_, this->get_buffer_length_());
+    this->end_data_();
+
+    // commit as partial
+    this->command(0x22);
+    this->data(0xCF);
+    this->command(0x20);
+    this->wait_until_idle_();
+
+    // data must be sent again on partial update
+    delay(300);  // NOLINT
+    this->command(0x24);
+    this->start_data_();
+    this->write_array(this->buffer_, this->get_buffer_length_());
+    this->end_data_();
+    delay(300);  // NOLINT
+  }
+
+  ESP_LOGI(TAG, "Completed e-paper update.");
+}
+
+int WaveshareEPaper2P13InDKE::get_width_internal() { return 128; }
+int WaveshareEPaper2P13InDKE::get_height_internal() { return 250; }
+int WaveshareEPaper2P13InDKE::idle_timeout_() { return 5000; }
+void WaveshareEPaper2P13InDKE::dump_config() {
+  LOG_DISPLAY("", "Waveshare E-Paper", this);
+  ESP_LOGCONFIG(TAG, "  Model: 2.13inDKE");
+  LOG_PIN("  Reset Pin: ", this->reset_pin_);
+  LOG_PIN("  DC Pin: ", this->dc_pin_);
+  LOG_PIN("  Busy Pin: ", this->busy_pin_);
+  LOG_UPDATE_INTERVAL(this);
+}
+
+void WaveshareEPaper2P13InDKE::set_full_update_every(uint32_t full_update_every) {
+  this->full_update_every_ = full_update_every;
+}
+
 }  // namespace waveshare_epaper
 }  // namespace esphome

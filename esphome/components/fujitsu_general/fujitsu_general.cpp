@@ -110,7 +110,7 @@ void FujitsuGeneralClimate::transmit_state() {
 
   // Set temperature
   uint8_t temperature_clamped =
-      (uint8_t) roundf(clamp(this->target_temperature, FUJITSU_GENERAL_TEMP_MIN, FUJITSU_GENERAL_TEMP_MAX));
+      (uint8_t) roundf(clamp<float>(this->target_temperature, FUJITSU_GENERAL_TEMP_MIN, FUJITSU_GENERAL_TEMP_MAX));
   uint8_t temperature_offset = temperature_clamped - FUJITSU_GENERAL_TEMP_MIN;
   SET_NIBBLE(remote_state, FUJITSU_GENERAL_TEMPERATURE_NIBBLE, temperature_offset);
 
@@ -133,7 +133,7 @@ void FujitsuGeneralClimate::transmit_state() {
     case climate::CLIMATE_MODE_FAN_ONLY:
       SET_NIBBLE(remote_state, FUJITSU_GENERAL_MODE_NIBBLE, FUJITSU_GENERAL_MODE_FAN);
       break;
-    case climate::CLIMATE_MODE_AUTO:
+    case climate::CLIMATE_MODE_HEAT_COOL:
     default:
       SET_NIBBLE(remote_state, FUJITSU_GENERAL_MODE_NIBBLE, FUJITSU_GENERAL_MODE_AUTO);
       break;
@@ -297,12 +297,6 @@ bool FujitsuGeneralClimate::on_receive(remote_base::RemoteReceiveData data) {
     }
   }
 
-  // Validate footer
-  if (!data.expect_mark(FUJITSU_GENERAL_BIT_MARK)) {
-    ESP_LOGV(TAG, "Footer fail");
-    return false;
-  }
-
   for (uint8_t byte = 0; byte < recv_message_length; ++byte) {
     ESP_LOGVV(TAG, "%02X", recv_message[byte]);
   }
@@ -344,7 +338,7 @@ bool FujitsuGeneralClimate::on_receive(remote_base::RemoteReceiveData data) {
       case FUJITSU_GENERAL_MODE_AUTO:
       default:
         // TODO: CLIMATE_MODE_10C is missing from esphome
-        this->mode = climate::CLIMATE_MODE_AUTO;
+        this->mode = climate::CLIMATE_MODE_HEAT_COOL;
         break;
     }
 

@@ -61,7 +61,7 @@ void SPIComponent::setup() {
     if (spi_bus_num == 0) {
       this->hw_spi_ = &SPI;
     } else {
-      this->hw_spi_ = new SPIClass(VSPI);
+      this->hw_spi_ = new SPIClass(VSPI);  // NOLINT(cppcoreguidelines-owning-memory)
     }
     spi_bus_num++;
     this->hw_spi_->begin(clk_pin, miso_pin, mosi_pin);
@@ -95,12 +95,12 @@ void SPIComponent::debug_rx(uint8_t value) {
 void SPIComponent::debug_enable(uint8_t pin) { ESP_LOGVV(TAG, "Enabling SPI Chip on pin %u...", pin); }
 
 void SPIComponent::cycle_clock_(bool value) {
-  uint32_t start = ESP.getCycleCount();
-  while (start - ESP.getCycleCount() < this->wait_cycle_)
+  uint32_t start = ESP.getCycleCount();                    // NOLINT(readability-static-accessed-through-instance)
+  while (start - ESP.getCycleCount() < this->wait_cycle_)  // NOLINT(readability-static-accessed-through-instance)
     ;
   this->clk_->digital_write(value);
   start += this->wait_cycle_;
-  while (start - ESP.getCycleCount() < this->wait_cycle_)
+  while (start - ESP.getCycleCount() < this->wait_cycle_)  // NOLINT(readability-static-accessed-through-instance)
     ;
 }
 

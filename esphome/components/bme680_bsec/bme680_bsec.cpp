@@ -10,7 +10,7 @@ static const char *const TAG = "bme680_bsec.sensor";
 
 static const std::string IAQ_ACCURACY_STATES[4] = {"Stabilizing", "Uncertain", "Calibrating", "Calibrated"};
 
-BME680BSECComponent *BME680BSECComponent::instance;
+BME680BSECComponent *BME680BSECComponent::instance;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 void BME680BSECComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up BME680 via BSEC...");
@@ -359,7 +359,7 @@ void BME680BSECComponent::publish_sensor_state_(sensor::Sensor *sensor, float va
   sensor->publish_state(value);
 }
 
-void BME680BSECComponent::publish_sensor_state_(text_sensor::TextSensor *sensor, std::string value) {
+void BME680BSECComponent::publish_sensor_state_(text_sensor::TextSensor *sensor, const std::string &value) {
   if (!sensor || (sensor->has_state() && sensor->state == value)) {
     return;
   }

@@ -11,6 +11,7 @@ from esphome.config import iter_components, read_config, strip_default_ids
 from esphome.const import (
     CONF_BAUD_RATE,
     CONF_BROKER,
+    CONF_DEASSERT_RTS_DTR,
     CONF_LOGGER,
     CONF_OTA,
     CONF_PASSWORD,
@@ -99,10 +100,21 @@ def run_miniterm(config, port):
     baud_rate = config["logger"][CONF_BAUD_RATE]
     if baud_rate == 0:
         _LOGGER.info("UART logging is disabled (baud_rate=0). Not starting UART logs.")
+        return
     _LOGGER.info("Starting log output from %s with baud rate %s", port, baud_rate)
 
     backtrace_state = False
-    with serial.Serial(port, baudrate=baud_rate) as ser:
+    ser = serial.Serial()
+    ser.baudrate = baud_rate
+    ser.port = port
+
+    # We can't set to False by default since it leads to toggling and hence
+    # ESP32 resets on some platforms.
+    if config["logger"][CONF_DEASSERT_RTS_DTR]:
+        ser.dtr = False
+        ser.rts = False
+
+    with ser:
         while True:
             try:
                 raw = ser.readline()
@@ -244,7 +256,7 @@ def show_logs(config, args, port):
         run_miniterm(config, port)
         return 0
     if get_port_type(port) == "NETWORK" and "api" in config:
-        from esphome.api.client import run_logs
+        from esphome.components.api.client import run_logs
 
         return run_logs(config, port)
     if get_port_type(port) == "MQTT" and "mqtt" in config:
@@ -284,7 +296,6 @@ def command_vscode(args):
 
     logging.disable(logging.INFO)
     logging.disable(logging.WARNING)
-    CORE.config_path = args.configuration
     vscode.read_config(args)
 
 
@@ -472,61 +483,9 @@ def parse_args(argv):
         metavar=("key", "value"),
     )
 
-    # Keep backward compatibility with the old command line format of
-    # esphome <config> <command>.
-    #
-    # Unfortunately this can't be done by adding another configuration argument to the
-    # main config parser, as argparse is greedy when parsing arguments, so in regular
-    # usage it'll eat the command as the configuration argument and error out out
-    # because it can't parse the configuration as a command.
-    #
-    # Instead, construct an ad-hoc parser for the old format that doesn't actually
-    # process the arguments, but parses them enough to let us figure out if the old
-    # format is used. In that case, swap the command and configuration in the arguments
-    # and continue on with the normal parser (after raising a deprecation warning).
-    #
-    # Disable argparse's built-in help option and add it manually to prevent this
-    # parser from printing the help messagefor the old format when invoked with -h.
-    compat_parser = argparse.ArgumentParser(parents=[options_parser], add_help=False)
-    compat_parser.add_argument("-h", "--help")
-    compat_parser.add_argument("configuration", nargs="*")
-    compat_parser.add_argument(
-        "command",
-        choices=[
-            "config",
-            "compile",
-            "upload",
-            "logs",
-            "run",
-            "clean-mqtt",
-            "wizard",
-            "mqtt-fingerprint",
-            "version",
-            "clean",
-            "dashboard",
-        ],
-    )
-
-    # on Python 3.9+ we can simply set exit_on_error=False in the constructor
-    def _raise(x):
-        raise argparse.ArgumentError(None, x)
-
-    compat_parser.error = _raise
-
-    try:
-        result, unparsed = compat_parser.parse_known_args(argv[1:])
-        last_option = len(argv) - len(unparsed) - 1 - len(result.configuration)
-        argv = argv[0:last_option] + [result.command] + result.configuration + unparsed
-        deprecated_argv_suggestion = argv
-    except argparse.ArgumentError:
-        # This is not an old-style command line, so we don't have to do anything.
-        deprecated_argv_suggestion = None
-
-    # And continue on with regular parsing
     parser = argparse.ArgumentParser(
         description=f"ESPHome v{const.__version__}", parents=[options_parser]
     )
-    parser.set_defaults(deprecated_argv_suggestion=deprecated_argv_suggestion)
 
     mqtt_options = argparse.ArgumentParser(add_help=False)
     mqtt_options.add_argument("--topic", help="Manually set the MQTT topic.")
@@ -668,17 +627,91 @@ def parse_args(argv):
     )
 
     parser_vscode = subparsers.add_parser("vscode")
-    parser_vscode.add_argument(
-        "configuration", help="Your YAML configuration file.", nargs=1
-    )
+    parser_vscode.add_argument("configuration", help="Your YAML configuration file.")
     parser_vscode.add_argument("--ace", action="store_true")
 
     parser_update = subparsers.add_parser("update-all")
     parser_update.add_argument(
-        "configuration", help="Your YAML configuration file directory.", nargs=1
+        "configuration", help="Your YAML configuration file directories.", nargs="+"
     )
 
-    return parser.parse_args(argv[1:])
+    # Keep backward compatibility with the old command line format of
+    # esphome <config> <command>.
+    #
+    # Unfortunately this can't be done by adding another configuration argument to the
+    # main config parser, as argparse is greedy when parsing arguments, so in regular
+    # usage it'll eat the command as the configuration argument and error out out
+    # because it can't parse the configuration as a command.
+    #
+    # Instead, if parsing using the current format fails, construct an ad-hoc parser
+    # that doesn't actually process the arguments, but parses them enough to let us
+    # figure out if the old format is used. In that case, swap the command and
+    # configuration in the arguments and retry with the normal parser (and raise
+    # a deprecation warning).
+    arguments = argv[1:]
+
+    # On Python 3.9+ we can simply set exit_on_error=False in the constructor
+    def _raise(x):
+        raise argparse.ArgumentError(None, x)
+
+    # First, try new-style parsing, but don't exit in case of failure
+    try:
+        # duplicate parser so that we can use the original one to raise errors later on
+        current_parser = argparse.ArgumentParser(add_help=False, parents=[parser])
+        current_parser.set_defaults(deprecated_argv_suggestion=None)
+        current_parser.error = _raise
+        return current_parser.parse_args(arguments)
+    except argparse.ArgumentError:
+        pass
+
+    # Second, try compat parsing and rearrange the command-line if it succeeds
+    # Disable argparse's built-in help option and add it manually to prevent this
+    # parser from printing the help messagefor the old format when invoked with -h.
+    compat_parser = argparse.ArgumentParser(parents=[options_parser], add_help=False)
+    compat_parser.add_argument("-h", "--help", action="store_true")
+    compat_parser.add_argument("configuration", nargs="*")
+    compat_parser.add_argument(
+        "command",
+        choices=[
+            "config",
+            "compile",
+            "upload",
+            "logs",
+            "run",
+            "clean-mqtt",
+            "wizard",
+            "mqtt-fingerprint",
+            "version",
+            "clean",
+            "dashboard",
+            "vscode",
+            "update-all",
+        ],
+    )
+
+    try:
+        compat_parser.error = _raise
+        result, unparsed = compat_parser.parse_known_args(argv[1:])
+        last_option = len(arguments) - len(unparsed) - 1 - len(result.configuration)
+        unparsed = [
+            "--device" if arg in ("--upload-port", "--serial-port") else arg
+            for arg in unparsed
+        ]
+        arguments = (
+            arguments[0:last_option]
+            + [result.command]
+            + result.configuration
+            + unparsed
+        )
+        deprecated_argv_suggestion = arguments
+    except argparse.ArgumentError:
+        # old-style parsing failed, don't suggest any argument
+        deprecated_argv_suggestion = None
+
+    # Finally, run the new-style parser again with the possibly swapped arguments,
+    # and let it error out if the command is unparsable.
+    parser.set_defaults(deprecated_argv_suggestion=deprecated_argv_suggestion)
+    return parser.parse_args(arguments)
 
 
 def run_esphome(argv):
@@ -686,13 +719,13 @@ def run_esphome(argv):
     CORE.dashboard = args.dashboard
 
     setup_log(args.verbose, args.quiet)
-    if args.deprecated_argv_suggestion is not None:
+    if args.deprecated_argv_suggestion is not None and args.command != "vscode":
         _LOGGER.warning(
             "Calling ESPHome with the configuration before the command is deprecated "
             "and will be removed in the future. "
         )
         _LOGGER.warning("Please instead use:")
-        _LOGGER.warning("   esphome %s", " ".join(args.deprecated_argv_suggestion[1:]))
+        _LOGGER.warning("   esphome %s", " ".join(args.deprecated_argv_suggestion))
 
     if sys.version_info < (3, 7, 0):
         _LOGGER.error(

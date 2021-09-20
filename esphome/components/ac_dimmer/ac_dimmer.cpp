@@ -17,7 +17,10 @@ static AcDimmerDataStore *all_dimmers[32];  // NOLINT(cppcoreguidelines-avoid-no
 /// Time in microseconds the gate should be held high
 /// 10µs should be long enough for most triacs
 /// For reference: BT136 datasheet says 2µs nominal (page 7)
-static const uint32_t GATE_ENABLE_TIME = 10;
+/// However other factors like gate driver propagation time
+/// are also considered and a really low value is not important
+/// See also: https://github.com/esphome/issues/issues/1632
+static const uint32_t GATE_ENABLE_TIME = 50;
 
 /// Function called from timer interrupt
 /// Input is current time in microseconds (micros())
@@ -125,7 +128,7 @@ void ICACHE_RAM_ATTR HOT AcDimmerDataStore::gpio_intr() {
 }
 
 void ICACHE_RAM_ATTR HOT AcDimmerDataStore::s_gpio_intr(AcDimmerDataStore *store) {
-  // Attaching pin interrupts on the same pin will override the previous interupt
+  // Attaching pin interrupts on the same pin will override the previous interrupt
   // However, the user expects that multiple dimmers sharing the same ZC pin will work.
   // We solve this in a bit of a hacky way: On each pin interrupt, we check all dimmers
   // if any of them are using the same ZC pin, and also trigger the interrupt for *them*.
@@ -141,7 +144,7 @@ void ICACHE_RAM_ATTR HOT AcDimmerDataStore::s_gpio_intr(AcDimmerDataStore *store
 #ifdef ARDUINO_ARCH_ESP32
 // ESP32 implementation, uses basically the same code but needs to wrap
 // timer_interrupt() function to auto-reschedule
-static hw_timer_t *dimmer_timer = nullptr;
+static hw_timer_t *dimmer_timer = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 void ICACHE_RAM_ATTR HOT AcDimmerDataStore::s_timer_intr() { timer_interrupt(); }
 #endif
 

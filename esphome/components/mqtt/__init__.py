@@ -91,6 +91,8 @@ MQTTJSONLightComponent = mqtt_ns.class_("MQTTJSONLightComponent", MQTTComponent)
 MQTTSensorComponent = mqtt_ns.class_("MQTTSensorComponent", MQTTComponent)
 MQTTSwitchComponent = mqtt_ns.class_("MQTTSwitchComponent", MQTTComponent)
 MQTTTextSensor = mqtt_ns.class_("MQTTTextSensor", MQTTComponent)
+MQTTNumberComponent = mqtt_ns.class_("MQTTNumberComponent", MQTTComponent)
+MQTTSelectComponent = mqtt_ns.class_("MQTTSelectComponent", MQTTComponent)
 
 
 def validate_config(value):
@@ -212,7 +214,7 @@ async def to_code(config):
     await cg.register_component(var, config)
 
     # https://github.com/OttoWinter/async-mqtt-client/blob/master/library.json
-    cg.add_library("AsyncMqttClient-esphome", "0.8.4")
+    cg.add_library("ottowinter/AsyncMqttClient-esphome", "0.8.4")
     cg.add_define("USE_MQTT")
     cg.add_global(mqtt_ns.using)
 

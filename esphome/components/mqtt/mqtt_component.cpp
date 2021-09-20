@@ -102,9 +102,7 @@ bool MQTTComponent::send_discovery_() {
         device_info["identifiers"] = get_mac_address();
         device_info["name"] = node_name;
         device_info["sw_version"] = "esphome v" ESPHOME_VERSION " " + App.get_compilation_time();
-#ifdef ARDUINO_BOARD
-        device_info["model"] = ARDUINO_BOARD;
-#endif
+        device_info["model"] = ESPHOME_BOARD;
         device_info["manufacturer"] = "espressif";
       },
       0, discovery_info.retain);
@@ -141,8 +139,7 @@ void MQTTComponent::set_custom_command_topic(const std::string &custom_command_t
 
 void MQTTComponent::set_availability(std::string topic, std::string payload_available,
                                      std::string payload_not_available) {
-  delete this->availability_;
-  this->availability_ = new Availability();
+  this->availability_ = make_unique<Availability>();
   this->availability_->topic = std::move(topic);
   this->availability_->payload_available = std::move(payload_available);
   this->availability_->payload_not_available = std::move(payload_not_available);

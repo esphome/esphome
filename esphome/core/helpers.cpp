@@ -55,6 +55,15 @@ double random_double() { return random_uint32() / double(UINT32_MAX); }
 
 float random_float() { return float(random_double()); }
 
+void fill_random(uint8_t *data, size_t len) {
+#ifdef ARDUINO_ARCH_ESP32
+  esp_fill_random(data, len);
+#else
+  int err = os_get_random(data, len);
+  assert(err == 0);
+#endif
+}
+
 static uint32_t fast_random_seed = 0;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 void fast_random_set_seed(uint32_t seed) { fast_random_seed = seed; }
@@ -79,6 +88,15 @@ float gamma_correct(float value, float gamma) {
 
   return powf(value, gamma);
 }
+float gamma_uncorrect(float value, float gamma) {
+  if (value <= 0.0f)
+    return 0.0f;
+  if (gamma <= 0.0f)
+    return value;
+
+  return powf(value, 1 / gamma);
+}
+
 std::string to_lowercase_underscore(std::string s) {
   std::transform(s.begin(), s.end(), s.begin(), ::tolower);
   std::replace(s.begin(), s.end(), ' ', '_');
@@ -105,7 +123,7 @@ std::string truncate_string(const std::string &s, size_t length) {
 }
 
 std::string value_accuracy_to_string(float value, int8_t accuracy_decimals) {
-  auto multiplier = float(pow10(accuracy_decimals));
+  auto multiplier = float(powf(10.0f, accuracy_decimals));
   float value_rounded = roundf(value * multiplier) / multiplier;
   char tmp[32];  // should be enough, but we should maybe improve this at some point.
   dtostrf(value_rounded, 0, uint8_t(std::max(0, int(accuracy_decimals))), tmp);
@@ -122,21 +140,6 @@ std::string uint32_to_string(uint32_t num) {
   auto *address16 = reinterpret_cast<uint16_t *>(&num);
   snprintf(buffer, sizeof(buffer), "%04X%04X", address16[1], address16[0]);
   return std::string(buffer);
-}
-static char *global_json_build_buffer = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-static size_t global_json_build_buffer_size = 0;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-
-void reserve_global_json_build_buffer(size_t required_size) {
-  if (global_json_build_buffer_size == 0 || global_json_build_buffer_size < required_size) {
-    delete[] global_json_build_buffer;
-    global_json_build_buffer_size = std::max(required_size, global_json_build_buffer_size * 2);
-
-    size_t remainder = global_json_build_buffer_size % 16U;
-    if (remainder != 0)
-      global_json_build_buffer_size += 16 - remainder;
-
-    global_json_build_buffer = new char[global_json_build_buffer_size];
-  }
 }
 
 ParseOnOffState parse_on_off(const char *str, const char *on, const char *off) {
@@ -287,13 +290,16 @@ void HighFrequencyLoopRequester::stop() {
 }
 bool HighFrequencyLoopRequester::is_high_frequency() { return high_freq_num_requests > 0; }
 
-float clamp(float val, float min, float max) {
+template<typename T> T clamp(const T val, const T min, const T max) {
   if (val < min)
     return min;
   if (val > max)
     return max;
   return val;
 }
+template float clamp(float, float, float);
+template int clamp(int, int, int);
+
 float lerp(float completion, float start, float end) { return start + (end - start) * completion; }
 
 bool str_startswith(const std::string &full, const std::string &start) { return full.rfind(start, 0) == 0; }

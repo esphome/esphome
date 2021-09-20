@@ -7,6 +7,8 @@
 namespace esphome {
 namespace esp32_ble {
 
+static const char *const TAG = "esp32_ble";
+
 BLEAdvertising::BLEAdvertising() {
   this->advertising_data_.set_scan_rsp = false;
   this->advertising_data_.include_name = true;
@@ -43,6 +45,7 @@ void BLEAdvertising::start() {
     this->advertising_data_.service_uuid_len = 0;
   } else {
     this->advertising_data_.service_uuid_len = 16 * num_services;
+    // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
     this->advertising_data_.p_service_uuid = new uint8_t[this->advertising_data_.service_uuid_len];
     uint8_t *p = this->advertising_data_.p_service_uuid;
     for (int i = 0; i < num_services; i++) {

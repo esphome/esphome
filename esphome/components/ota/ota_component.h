@@ -1,7 +1,10 @@
 #pragma once
 
+#include <memory>
+
 #include "esphome/core/component.h"
 #include "esphome/core/preferences.h"
+#include "esphome/core/helpers.h"
 #include <WiFiServer.h>
 #include <WiFiClient.h>
 
@@ -32,6 +35,8 @@ enum OTAResponseTypes {
   OTA_RESPONSE_ERROR_UNKNOWN = 255,
 };
 
+enum OTAState { OTA_COMPLETED = 0, OTA_STARTED, OTA_IN_PROGRESS, OTA_ERROR };
+
 /// OTAComponent provides a simple way to integrate Over-the-Air updates into your app using ArduinoOTA.
 class OTAComponent : public Component {
  public:
@@ -48,6 +53,10 @@ class OTAComponent : public Component {
   void set_port(uint16_t port);
 
   bool should_enter_safe_mode(uint8_t num_attempts, uint32_t enable_time);
+
+#ifdef USE_OTA_STATE_CALLBACK
+  void add_on_state_callback(std::function<void(OTAState, float, uint8_t)> &&callback);
+#endif
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
@@ -73,7 +82,7 @@ class OTAComponent : public Component {
 
   uint16_t port_;
 
-  WiFiServer *server_{nullptr};
+  std::unique_ptr<WiFiServer> server_{nullptr};
   WiFiClient client_{};
 
   bool has_safe_mode_{false};              ///< stores whether safe mode can be enabled.
@@ -82,6 +91,10 @@ class OTAComponent : public Component {
   uint32_t safe_mode_rtc_value_;
   uint8_t safe_mode_num_attempts_;
   ESPPreferenceObject rtc_;
+
+#ifdef USE_OTA_STATE_CALLBACK
+  CallbackManager<void(OTAState, float, uint8_t)> state_callback_{};
+#endif
 };
 
 }  // namespace ota

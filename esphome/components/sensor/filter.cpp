@@ -8,7 +8,6 @@ namespace sensor {
 static const char *const TAG = "sensor.filter";
 
 // Filter
-uint32_t Filter::expected_interval(uint32_t input) { return input; }
 void Filter::input(float value) {
   ESP_LOGVV(TAG, "Filter(%p)::input(%f)", this, value);
   optional<float> out = this->new_value(value);
@@ -28,15 +27,6 @@ void Filter::initialize(Sensor *parent, Filter *next) {
   ESP_LOGVV(TAG, "Filter(%p)::initialize(parent=%p next=%p)", this, parent, next);
   this->parent_ = parent;
   this->next_ = next;
-}
-uint32_t Filter::calculate_remaining_interval(uint32_t input) {
-  uint32_t this_interval = this->expected_interval(input);
-  ESP_LOGVV(TAG, "Filter(%p)::calculate_remaining_interval(%u) -> %u", this, input, this_interval);
-  if (this->next_ == nullptr) {
-    return this_interval;
-  } else {
-    return this->next_->calculate_remaining_interval(this_interval);
-  }
 }
 
 // MedianFilter
@@ -75,8 +65,6 @@ optional<float> MedianFilter::new_value(float value) {
   return {};
 }
 
-uint32_t MedianFilter::expected_interval(uint32_t input) { return input * this->send_every_; }
-
 // MinFilter
 MinFilter::MinFilter(size_t window_size, size_t send_every, size_t send_first_at)
     : send_every_(send_every), send_at_(send_every - send_first_at), window_size_(window_size) {}
@@ -106,8 +94,6 @@ optional<float> MinFilter::new_value(float value) {
   return {};
 }
 
-uint32_t MinFilter::expected_interval(uint32_t input) { return input * this->send_every_; }
-
 // MaxFilter
 MaxFilter::MaxFilter(size_t window_size, size_t send_every, size_t send_first_at)
     : send_every_(send_every), send_at_(send_every - send_first_at), window_size_(window_size) {}
@@ -136,8 +122,6 @@ optional<float> MaxFilter::new_value(float value) {
   }
   return {};
 }
-
-uint32_t MaxFilter::expected_interval(uint32_t input) { return input * this->send_every_; }
 
 // SlidingWindowMovingAverageFilter
 SlidingWindowMovingAverageFilter::SlidingWindowMovingAverageFilter(size_t window_size, size_t send_every,
@@ -177,8 +161,6 @@ optional<float> SlidingWindowMovingAverageFilter::new_value(float value) {
   return {};
 }
 
-uint32_t SlidingWindowMovingAverageFilter::expected_interval(uint32_t input) { return input * this->send_every_; }
-
 // ExponentialMovingAverageFilter
 ExponentialMovingAverageFilter::ExponentialMovingAverageFilter(float alpha, size_t send_every)
     : send_every_(send_every), send_at_(send_every - 1), alpha_(alpha) {}
@@ -203,7 +185,6 @@ optional<float> ExponentialMovingAverageFilter::new_value(float value) {
 }
 void ExponentialMovingAverageFilter::set_send_every(size_t send_every) { this->send_every_ = send_every; }
 void ExponentialMovingAverageFilter::set_alpha(float alpha) { this->alpha_ = alpha; }
-uint32_t ExponentialMovingAverageFilter::expected_interval(uint32_t input) { return input * this->send_every_; }
 
 // LambdaFilter
 LambdaFilter::LambdaFilter(lambda_filter_t lambda_filter) : lambda_filter_(std::move(lambda_filter)) {}
@@ -237,7 +218,7 @@ optional<float> FilterOutValueFilter::new_value(float value) {
       return value;
   } else {
     int8_t accuracy = this->parent_->get_accuracy_decimals();
-    float accuracy_mult = pow10f(accuracy);
+    float accuracy_mult = powf(10.0f, accuracy);
     float rounded_filter_out = roundf(accuracy_mult * this->value_to_filter_out_);
     float rounded_value = roundf(accuracy_mult * value);
     if (rounded_filter_out == rounded_value)
@@ -296,14 +277,6 @@ void OrFilter::initialize(Sensor *parent, Filter *next) {
   this->phi_.initialize(parent, nullptr);
 }
 
-uint32_t OrFilter::expected_interval(uint32_t input) {
-  uint32_t min_interval = UINT32_MAX;
-  for (Filter *filter : this->filters_) {
-    min_interval = std::min(min_interval, filter->calculate_remaining_interval(input));
-  }
-
-  return min_interval;
-}
 // DebounceFilter
 optional<float> DebounceFilter::new_value(float value) {
   this->set_timeout("debounce", this->time_period_, [this, value]() { this->output(value); });
@@ -324,7 +297,6 @@ optional<float> HeartbeatFilter::new_value(float value) {
 
   return {};
 }
-uint32_t HeartbeatFilter::expected_interval(uint32_t input) { return this->time_period_; }
 void HeartbeatFilter::setup() {
   this->set_interval("heartbeat", this->time_period_, [this]() {
     ESP_LOGVV(TAG, "HeartbeatFilter(%p)::interval(has_value=%s, last_input=%f)", this, YESNO(this->has_value_),
