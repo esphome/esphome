@@ -24,7 +24,7 @@ NdefRecordUri::NdefRecordUri(const std::vector<uint8_t> &payload) {
   this->set_URI(uri);
 }
 
-std::vector<uint8_t> NdefRecordUri::getEncodedPayload() {
+std::vector<uint8_t> NdefRecordUri::get_encoded_payload() {
   std::vector<uint8_t> data;
 
   uint8_t payload_prefix = 0x00;

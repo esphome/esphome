@@ -14,7 +14,7 @@ std::vector<uint8_t> NdefRecord::encode(bool first, bool last) {
   std::vector<uint8_t> data;
 
   // Get encoded payload, this is overriden by more specific record classes
-  std::vector<uint8_t> payload_data = getEncodedPayload();
+  std::vector<uint8_t> payload_data = get_encoded_payload();
 
   size_t payload_length = payload_data.size();
 

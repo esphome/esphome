@@ -11,32 +11,32 @@ class NdefRecordText : public NdefRecord {
  public:
   NdefRecordText(){};
   NdefRecordText(const std::vector<uint8_t> &payload);
-  NdefRecordText(const std::string &langCode, const std::string &text) {
+  NdefRecordText(const std::string &language_code, const std::string &text) {
     this->tnf_ = TNF_WELL_KNOWN;
     this->type_ = "T";
-    this->langCode_ = langCode;
+    this->language_code_ = language_code;
     this->text_ = text;
   };
-  NdefRecordText(const std::string &langCode, const std::string &text, const std::string &id) {
+  NdefRecordText(const std::string &language_code, const std::string &text, const std::string &id) {
     this->tnf_ = TNF_WELL_KNOWN;
     this->type_ = "T";
-    this->langCode_ = langCode;
+    this->language_code_ = language_code;
     this->text_ = text;
     this->id_ = id;
   };
   NdefRecordText(const NdefRecordText &rhs) : NdefRecord(rhs) {
     this->text_ = rhs.text_;
-    this->langCode_ = rhs.langCode_;
+    this->language_code_ = rhs.language_code_;
   };
   std::unique_ptr<NdefRecord> clone() const override { return make_unique<NdefRecordText>(*this); };
 
-  std::vector<uint8_t> getEncodedPayload() override;
+  std::vector<uint8_t> get_encoded_payload() override;
 
   const std::string &get_payload() const override { return this->text_; };
 
  protected:
   std::string text_;
-  std::string langCode_;
+  std::string language_code_;
 };
 
 }  // namespace nfc

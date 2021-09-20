@@ -43,9 +43,9 @@ class NdefRecord {
   const std::string &get_id() const { return this->id_; };
   virtual const std::string &get_payload() const { return this->payload_; };
 
-  virtual std::vector<uint8_t> getEncodedPayload() {
-    std::vector<uint8_t> emptyPayload;
-    return emptyPayload;
+  virtual std::vector<uint8_t> get_encoded_payload() {
+    std::vector<uint8_t> empty_payload;
+    return empty_payload;
   };
 
  protected:

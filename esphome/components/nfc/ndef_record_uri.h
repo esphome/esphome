@@ -65,7 +65,7 @@ class NdefRecordUri : public NdefRecord {
 
   void set_URI(const std::string &URI) { this->URI_ = URI; };
 
-  std::vector<uint8_t> getEncodedPayload() override;
+  std::vector<uint8_t> get_encoded_payload() override;
   const std::string &get_payload() const override { return this->URI_; };
 
  protected:
