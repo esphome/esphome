@@ -31,7 +31,7 @@ parser.add_argument("--build-type", choices=TYPES, required=True, help="The type
 parser.add_argument("--dry-run", action="store_true", help="Don't run any commands, just print them")
 subparsers = parser.add_subparsers(help="Action to perform", dest="command", required=True)
 build_parser = subparsers.add_parser("build", help="Build the image")
-build_parser.add_argument("--push", help="Also push the images")
+build_parser.add_argument("--push", help="Also push the images", action="store_true")
 manifest_parser = subparsers.add_parser("manifest", help="Create a manifest from already pushed images")
 
 
