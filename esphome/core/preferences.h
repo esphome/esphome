@@ -37,6 +37,14 @@ class ESPPreferences {
  public:
   virtual ESPPreferenceObject make_preference(size_t length, uint32_t type, bool in_flash) = 0;
   virtual ESPPreferenceObject make_preference(size_t length, uint32_t type) = 0;
+
+  /**
+   * Commit pending writes to flash.
+   *
+   * @return true if write is successful.
+   */
+  virtual bool sync() = 0;
+
 #ifndef USE_ESP8266
   template<typename T, typename std::enable_if<std::is_trivially_copyable<T>::value, bool>::type = true>
 #else

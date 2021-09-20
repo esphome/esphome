@@ -23,6 +23,7 @@ from .gpio import esp8266_pin_to_code  # noqa
 
 CODEOWNERS = ["@esphome/core"]
 _LOGGER = logging.getLogger(__name__)
+AUTO_LOAD = ["preferences"]
 
 
 def set_core_data(config):

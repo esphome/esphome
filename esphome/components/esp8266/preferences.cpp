@@ -73,9 +73,11 @@ template<class It> uint32_t calculate_crc(It first, It last, uint32_t type) {
   return crc;
 }
 
-static bool safe_flash() {
+static bool sync_flash() {
   if (!s_flash_dirty)
     return true;
+  if (s_prevent_write)
+    return false;
 
   ESP_LOGVV(TAG, "Saving preferences to flash...");
   SpiFlashOpResult erase_res, write_res = SPI_FLASH_RESULT_OK;
@@ -110,7 +112,7 @@ static bool safe_to_flash(size_t offset, const uint32_t *data, size_t len) {
       s_flash_dirty = true;
     *ptr = v;
   }
-  return safe_flash();
+  return true;
 }
 
 static bool load_from_flash(size_t offset, uint32_t *data, size_t len) {
@@ -245,6 +247,8 @@ class ESP8266Preferences : public ESPPreferences {
     return make_preference(length, type, false);
 #endif
   }
+
+  bool sync() override { return sync_flash(); }
 };
 
 void setup_preferences() {
