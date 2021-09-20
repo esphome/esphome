@@ -7,11 +7,15 @@ on:
     paths:
       - 'docker/**'
       - '.github/workflows/**'
+      - 'requirements*.txt'
+      - 'platformio.ini'
 
   pull_request:
     paths:
       - 'docker/**'
       - '.github/workflows/**'
+      - 'requirements*.txt'
+      - 'platformio.ini'
 
 jobs:
   check-docker:
