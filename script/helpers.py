@@ -112,11 +112,6 @@ def git_ls_files(patterns=None):
     return {s[3].strip(): int(s[0]) for s in lines}
 
 
-IDF_TIDY_SDKCONFIG = """\
-CONFIG_BT_ENABLED=y
-"""
-
-
 def load_idedata(environment):
     platformio_ini = Path(root_path) / "platformio.ini"
     temp_idedata = Path(temp_folder) / f"idedata-{environment}.json"
@@ -126,30 +121,26 @@ def load_idedata(environment):
     elif platformio_ini.stat().st_mtime >= temp_idedata.stat().st_mtime:
         changed = True
 
-    if environment == "esp32-idf-tidy":
-        # sdkconfig needs to be written before idedata is run
-        # but the file is also modified by the build process, so
-        # store a temp file to keep track of the
+    if "idf" in environment:
+        # remove full sdkconfig when the defaults have changed so that it is regenerated
+        default_sdkconfig = Path(root_path) / "sdkconfig.defaults"
+        temp_sdkconfig = Path(temp_folder) / f"sdkconfig-{environment}"
 
-        sdk_internal = Path(temp_folder) / f"{environment}-internal-sdkconfig"
-        sdkconfig = Path(root_path) / f"sdkconfig.{environment}"
-        if (
-            changed
-            or not sdk_internal.is_file()
-            or sdk_internal.read_text() != IDF_TIDY_SDKCONFIG
-        ):
+        if not temp_sdkconfig.is_file():
             changed = True
-            sdkconfig.write_text(IDF_TIDY_SDKCONFIG)
-            sdk_internal.parent.mkdir(exist_ok=True)
-            sdk_internal.write_text(IDF_TIDY_SDKCONFIG)
+        elif default_sdkconfig.stat().st_mtime >= temp_sdkconfig.stat().st_mtime:
+            temp_sdkconfig.unlink()
+            changed = True
 
     if not changed:
         return json.loads(temp_idedata.read_text())
+
+    # ensure temp directory exists before running pio, as it writes sdkconfig to it
+    Path(temp_folder).mkdir(exist_ok=True)
 
     stdout = subprocess.check_output(["pio", "run", "-t", "idedata", "-e", environment])
     match = re.search(r'{\s*".*}', stdout.decode("utf-8"))
     data = json.loads(match.group())
 
-    temp_idedata.parent.mkdir(exist_ok=True)
     temp_idedata.write_text(json.dumps(data, indent=2) + "\n")
     return data
