@@ -67,8 +67,8 @@ FILTER_PLATFORMIO_LINES = [
 def run_platformio_cli(*args, **kwargs) -> Union[str, int]:
     os.environ["PLATFORMIO_FORCE_COLOR"] = "true"
     os.environ["PLATFORMIO_BUILD_DIR"] = os.path.abspath(CORE.relative_pioenvs_path())
-    os.environ["PLATFORMIO_LIBDEPS_DIR"] = os.path.abspath(
-        CORE.relative_piolibdeps_path()
+    os.environ.setdefault(
+        "PLATFORMIO_LIBDEPS_DIR", os.path.abspath(CORE.relative_piolibdeps_path())
     )
     cmd = ["platformio"] + list(args)
 

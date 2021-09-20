@@ -2,7 +2,7 @@
 from dataclasses import dataclass
 import subprocess
 import argparse
-import platform
+from platform import machine
 import shlex
 import re
 import sys
@@ -24,9 +24,6 @@ TYPE_LINT = 'lint'
 TYPES = [TYPE_DOCKER, TYPE_HA_ADDON, TYPE_LINT]
 
 
-BASE_VERSION = "4.2.0"
-
-
 parser = argparse.ArgumentParser()
 parser.add_argument("--tag", type=str, required=True, help="The main docker tag to push to. If a version number also adds latest and/or beta tag")
 parser.add_argument("--arch", choices=ARCHS, required=False, help="The architecture to build for")
@@ -34,27 +31,17 @@ parser.add_argument("--build-type", choices=TYPES, required=True, help="The type
 parser.add_argument("--dry-run", action="store_true", help="Don't run any commands, just print them")
 subparsers = parser.add_subparsers(help="Action to perform", dest="command", required=True)
 build_parser = subparsers.add_parser("build", help="Build the image")
-push_parser = subparsers.add_parser("push", help="Tag the already built image and push it to docker hub")
+build_parser.add_argument("--push", help="Also push the images")
 manifest_parser = subparsers.add_parser("manifest", help="Create a manifest from already pushed images")
-
-
-
-# only lists some possibilities, doesn't have to be perfect
-# https://stackoverflow.com/a/45125525
-UNAME_TO_ARCH = {
-    "x86_64": ARCH_AMD64,
-    "aarch64": ARCH_AARCH64,
-    "aarch64_be": ARCH_AARCH64,
-    "arm": ARCH_ARMV7,
-}
 
 
 @dataclass(frozen=True)
 class DockerParams:
-    build_from: str
     build_to: str
     manifest_to: str
-    dockerfile: str
+    baseimgtype: str
+    platform: str
+    target: str
 
     @classmethod
     def for_type_arch(cls, build_type, arch):
@@ -63,18 +50,28 @@ class DockerParams:
             TYPE_HA_ADDON: "esphome/esphome-hassio",
             TYPE_LINT: "esphome/esphome-lint"
         }[build_type]
-        build_from = f"ghcr.io/{prefix}-base-{arch}:{BASE_VERSION}"
         build_to = f"{prefix}-{arch}"
-        dockerfile = {
-            TYPE_DOCKER: "docker/Dockerfile",
-            TYPE_HA_ADDON: "docker/Dockerfile.hassio",
-            TYPE_LINT: "docker/Dockerfile.lint",
+        baseimgtype = {
+            TYPE_DOCKER: "docker",
+            TYPE_HA_ADDON: "hassio",
+            TYPE_LINT: "docker",
+        }[build_type]
+        platform = {
+            ARCH_AMD64: "linux/amd64",
+            ARCH_ARMV7: "linux/arm/v7",
+            ARCH_AARCH64: "linux/arm64",
+        }[arch]
+        target = {
+            TYPE_DOCKER: "docker",
+            TYPE_HA_ADDON: "hassio",
+            TYPE_LINT: "lint",
         }[build_type]
         return cls(
-            build_from=build_from,
             build_to=build_to,
             manifest_to=prefix,
-            dockerfile=dockerfile
+            baseimgtype=baseimgtype,
+            platform=platform,
+            target=target,
         )
 
 
@@ -117,41 +114,26 @@ def main():
             CHANNEL_RELEASE: "latest",
         }[channel]
         cache_img = f"ghcr.io/{params.build_to}:{cache_tag}"
-        run_command("docker", "pull", cache_img, ignore_error=True)
 
-        # 2. register QEMU binfmt (if not host arch)
-        is_native = UNAME_TO_ARCH.get(platform.machine()) == args.arch
-        if not is_native:
-            run_command(
-                "docker", "run", "--rm", "--privileged", "multiarch/qemu-user-static:5.2.0-2",
-                "--reset", "-p", "yes"
-            )
-
-        # 3. build
-        run_command(
-            "docker", "build",
-            "--build-arg", f"BUILD_FROM={params.build_from}",
-            "--build-arg", f"BUILD_VERSION={args.tag}",
-            "--tag", f"{params.build_to}:{args.tag}",
-            "--cache-from", cache_img,
-            "--file", params.dockerfile,
-            "."
-        )
-    elif args.command == "push":
-        params = DockerParams.for_type_arch(args.build_type, args.arch)
         imgs = [f"{params.build_to}:{tag}" for tag in tags_to_push]
         imgs += [f"ghcr.io/{params.build_to}:{tag}" for tag in tags_to_push]
-        src = imgs[0]
-        # 1. tag images
-        for img in imgs[1:]:
-            run_command(
-                "docker", "tag", src, img
-            )
-        # 2. push images
+
+        # 3. build
+        cmd = [
+            "docker", "buildx", "build",
+            "--build-arg", f"BASEIMGTYPE={params.baseimgtype}",
+            "--build-arg", f"BUILD_VERSION={args.tag}",
+            "--cache-from", cache_img,
+            "--file", "docker/Dockerfile",
+            "--platform", params.platform,
+            "--target", params.target,
+        ]
         for img in imgs:
-            run_command(
-                "docker", "push", img
-            )
+            cmd += ["--tag", img]
+        if args.push:
+            cmd.append("--push")
+
+        run_command(*cmd, ".")
     elif args.command == "manifest":
         manifest = DockerParams.for_type_arch(args.build_type, ARCH_AMD64).manifest_to
 
