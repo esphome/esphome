@@ -104,8 +104,8 @@ inline ModbusFunctionCode modbus_register_write_function(ModbusRegisterType reg_
     case ModbusRegisterType::READ:
       return ModbusFunctionCode::CUSTOM;
       break;
-      return ModbusFunctionCode::CUSTOM;
     default:
+      return ModbusFunctionCode::CUSTOM;
       break;
   }
 }
